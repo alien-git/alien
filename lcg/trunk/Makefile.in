@@ -1,0 +1,30 @@
+DIRS:=src
+
+.PHONY: all install bindist test clean distclean build
+
+all: 
+	make build
+
+install: 
+	make build TARGET=install PREFIX=@prefix@ 
+
+distbin:
+	(cd src; @prefix@/bin/perl Makefile.PL PREFIX=@glite_prefix@ DESTDIR=@destdir@ INSTALLSCRIPT=@glite_prefix@/scripts && make install PREFIX=@glite_prefix@ DESTDIR=@destdir@ INSTALLSCRIPT=@glite_prefix@/scripts)
+
+test:
+	make build TARGET=test
+
+clean:
+	make build TARGET=clean
+
+distclean:
+	make build TARGET=distclean
+	rm -rf Makefile opt configure config.* *~ aclocal.m4 autom4te.cache reports opt install-sh  ltmain.sh  missing  mkinstalldirs *.list
+	(cd src; rm -rf Makefile opt configure config.* *~ aclocal.m4 autom4te.cache reports opt install-sh  ltmain.sh  missing  mkinstalldirs *.list)
+
+build:
+	for dir in $(DIRS); do \
+	echo Making $$dir; \
+		(cd $$dir && $(MAKE) $(TARGET)); \
+	done
+

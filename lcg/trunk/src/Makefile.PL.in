@@ -1,0 +1,41 @@
+use ExtUtils::MakeMaker;
+# See lib/ExtUtils/MakeMaker.pm for details of how to influence
+# the contents of the Makefile that is written.
+use Config;
+
+$VERSION=1.10;
+
+sub MY::postamble {
+"
+.PHONY:
+
+install :: man INSTALL
+
+INSTALL:
+	lynx -dump http://alien.cern.ch/Doc/Install.html > INSTALL
+
+rpms: modules alien
+	(cd spec; make rpms)
+
+man:
+	env PREFIX=@prefix@ scripts/makewhatis -u
+
+distbin:
+	make install PREFIX=@glite_prefix@ DESTDIR=@destdir@
+";
+}
+
+WriteMakefile(
+    'NAME'		=> 'AliEn::LCG',
+    'PREREQ_PM'         => {
+    },
+    'PMLIBDIRS'         => ['AliEn'],
+    'INSTALLSCRIPT'     => "$Config{prefix}/scripts",
+#   'INSTALLSCRIPT'     => "$Config{prefix}/scripts",
+#   'INST_SCRIPT'       => "$Config{prefix}/scripts",
+    'EXE_FILES'         => [],
+);
+
+
+
+
