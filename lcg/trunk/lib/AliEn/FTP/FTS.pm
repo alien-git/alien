@@ -1,7 +1,7 @@
 package AliEn::FTP::FTS;
 
 use strict;
-
+use Expect;
 use GLite::Data::FileTransfer;
 
 use AliEn::Logger::LogObject;
@@ -29,8 +29,13 @@ my $createPasswd = sub {
     }
     return $token;
 };
+
 #All the instances should have the same myproxy password
 my $myProxyPassword=$createPasswd->();
+sub myP {
+  return  $myProxyPassword;
+}
+
 $ENV{MYPROXY_SERVER}="myproxy.cern.ch";
 #$ENV{LCG_CATALOG_TYPE}="lfc";
 #$ENV{LFC_HOST}="lfc-alice-test.cern.ch";
@@ -46,10 +51,10 @@ sub new {
     bless( $self, $class );
 
     $self->{DESTHOST} = $options->{HOST};
-
+    $self->{CONFIG}=AliEn::Config->new() or return;
     bless $self, $class;
     $self->SUPER::new() or return;
-    $self->createMyProxy() or return;
+#    $self->createMyProxy() or return;
     return $self;
 }
 
@@ -161,5 +166,55 @@ sub transfer {
   
   return 0;
 }
+
+use strict;
+use Net::LDAP;
+
+
+sub GetEndPoint {
+  my $self=shift;
+  my $SE=shift;
+
+  print "Looking for $SE\n";
+
+  my $BDII = $self->{CONFIG}->{LCG_GFAL_INFOSYS};#"ldap://lcg-bdii.cern.ch:2170"
+  $BDII = "ldap://$ENV{LCG_GFAL_INFOSYS}" if defined $ENV{LCG_GFAL_INFOSYS};
+  print "Querying $BDII...\n";
+  
+  my $URI = '';
+  
+  my $ldap =  Net::LDAP->new($BDII) or die $@;
+  $ldap->bind() or die $@;
+  my $result = $ldap->search( base   => "mds-vo-name=local,o=grid",
+			      filter => "GlueServiceURI=*$SE*");
+  $result->code && die $result->error;
+  print "Got ",$result->count()," entries.\n";
+  foreach my $entry ($result->all_entries) {
+    my $values = $entry->get_value("GlueServiceURI");
+    my $types = $entry->get_value("GlueServiceType");
+    if ($types =~ m/srm/ ) {
+      print "Got it, it\'s $types\n";
+      $URI = $values;
+      last;
+    }
+    print "$values is not an SRM service ($types)\n";
+  }
+  print "URI is $URI\n" if $URI;
+
+  my $result = $ldap->search( base   => "mds-vo-name=local,o=grid",
+			      filter => "(&(GlueSARoot=$self->{CONFIG}->{ORG_NAME}*)(gluechunkkey=*$SE*))");
+  $result->code && die $result->error;
+  print "HELLO\n";
+  foreach my $entry ($result->all_entries) {
+    my @values = $entry->get_value("GlueSARoot");
+    print "FOUND something @values\n";
+    
+
+  }
+
+  $ldap->unbind();
+  return $URI;
+}
+
 return 1;
 
