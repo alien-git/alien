@@ -16,14 +16,14 @@ sub ConfigureVirtualSite {
    foreach my $se (@$ref) {
      $self->info($se);
    }
+   if ($ENV{uc("VO_$self->{ORG_NAME}_DEFAULT_SE")}){
+     $self->GetEndPoint($ENV{uc("VO_$self->{ORG_NAME}_DEFAULT_SE")});
+   }else {
+     $self->info("WARNING!!! The variable ".uc("VO_$self->{ORG_NAME}_DEFAULT_SE")." is not defined!");
+   }
    return 1;
 }
 
-sub hello{
-  my $self=shift;
-  print "I'm in LCG!!! :D\n";
-  $self->SUPER::hello();
-}
 sub getSEList {
   my $self=shift;
 
@@ -51,36 +51,37 @@ sub GetEndPoint {
   my $self=shift;
   my $SE=shift;
 
-  print "Looking for $SE\n";
+  $self->debug(1,"Looking for $SE");
 
   my $BDII = $self->{CONFIG}->{LCG_GFAL_INFOSYS};#"ldap://lcg-bdii.cern.ch:2170"
   $BDII = "ldap://$ENV{LCG_GFAL_INFOSYS}" if defined $ENV{LCG_GFAL_INFOSYS};
-  print "Querying $BDII...\n";
-  
+  $self->debug(1,  "Querying $BDII...");
+
   my $URI = '';
   
-  my $ldap =  Net::LDAP->new($BDII) or die $@;
-  $ldap->bind() or die $@;
+  my $ldap =  Net::LDAP->new($BDII) or $self->info("Error conecting to ldap $@") and return;
+  $ldap->bind() or $self->info("Error binding to ldap: $@") and return;
   my $result = $ldap->search( base   => "mds-vo-name=local,o=grid",
 			      filter => "GlueServiceURI=*$SE*");
-  $result->code && die $result->error;
-  print "Got ",$result->count()," entries.\n";
+  $result->code && $self->info("Error querying the ldap" . $result->error) and return;
+  $self->debug(1, "Got ".$result->count()." entries.");
+
   foreach my $entry ($result->all_entries) {
-    my $values = $entry->get_value("GlueServiceURI");
     my $types = $entry->get_value("GlueServiceType");
     if ($types =~ m/srm/ ) {
-      print "Got it, it\'s $types\n";
-      $URI = $values;
+      $URI = $entry->get_value("GlueServiceURI");
+      $self->info("Using the se in $URI (type $types)");
       last;
     }
-    print "$values is not an SRM service ($types)\n";
+    $self->debug(2,"$values is not an SRM service ($types)");
   }
-  print "URI is $URI\n" if $URI;
+  $URI or $self->info("Error getting the URI!") and return;
 
-  my $result = $ldap->search( base   => "mds-vo-name=local,o=grid",
-			      filter => "(&(GlueSARoot=$self->{CONFIG}->{ORG_NAME}*)(gluechunkkey=*$SE*))");
+  $result = $ldap->search( base   => "mds-vo-name=local,o=grid",
+			   filter => "(&(GlueSARoot=$self->{CONFIG}->{ORG_NAME}*)(gluechunkkey=*$SE*))");
   $result->code && die $result->error;
-  print "HELLO\n";
+
+  $self->debug(1, "Getting the mountpoint");
   foreach my $entry ($result->all_entries) {
     my @values = $entry->get_value("GlueSARoot");
     print "FOUND something @values\n";
