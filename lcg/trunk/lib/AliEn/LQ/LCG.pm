@@ -14,14 +14,11 @@ sub initialize {
    $self->SUPER::initialize() or return;
    $self->{DB}=AliEn::Database::CE->new();
    $ENV{X509_CERT_DIR} and $self->{LOGGER}->debug("LCG","X509: $ENV{X509_CERT_DIR}");
-   $self->info("LQ::LCG checking for valid LCG proxy.");
    my $error = !defined $ENV{GLOBUS_LOCATION};
-   $error or $error = system("$ENV{GLOBUS_LOCATION}/bin/grid-proxy-info >& /dev/null");
-   $error or $error = !system("$ENV{GLOBUS_LOCATION}/bin/grid-proxy-info |grep \'0:00:00\'>& /dev/null");
-   $error and return;
    $self->{CONFIG}->{VOBOX} = $ENV{HOST}.':8084';
    $ENV{ALIEN_CM_AS_LDAP_PROXY} and $self->{CONFIG}->{VOBOX} = $ENV{ALIEN_CM_AS_LDAP_PROXY};
    $self->info("VO Box is $self->{CONFIG}->{VOBOX}");
+   $self->{CONFIG}->{VOBOXDIR} = "/opt/vobox/\L$self->{CONFIG}->{ORG_NAME}";
    return 1;
 
 }
@@ -34,12 +31,12 @@ sub submit {
 
      my @args=();
      $self->{CONFIG}->{CE_SUBMITARG} and
-      	@args=split (/\s/, $self->{CONFIG}->{CE_SUBMITARG});
-#//
+      	@args=split (/\s+/, $self->{CONFIG}->{CE_SUBMITARG});
 #
      my $jdlfile = $self->generateJDL();
      $jdlfile or return;
 
+     $self->renewProxy(90000);
      $self->info("Submitting to LCG with \'@args\'.");
      my @command = ( "edg-job-submit", "--noint", "--nomsg", "--config-vo", "/home/alicesgm/edg_wl_ui.conf", @args, "$jdlfile" );
      $self->debug(1,"Doing @command\n");
@@ -60,7 +57,7 @@ sub submit {
 
      if ($error) {
        $contact or $contact="";
-       $self->{LOGGER}->warning("LQ::LCG","Error submitting the job. Log file '$contact'\n");
+       $self->{LOGGER}->warning("LCG","Error submitting the job. Log file '$contact'\n");
        $contact and system ('cat', $contact, '>/dev/null 1>&2');
        return $error;
      } else {
@@ -82,7 +79,7 @@ sub kill {
      $queueid or return;
      my ($contact )= $self->getContactByQueueID($queueid);
      if (!$contact) {
-       $self->{LOGGER}->error("LQ::LCG", "The job $queueid is not here");
+       $self->{LOGGER}->error("LCG", "The job $queueid is not here");
        return 1;
      }	
 
@@ -151,7 +148,7 @@ sub getJobStatus {
    my $user = getpwuid($<);
    my @args=();
    $self->{CONFIG}->{CE_STATUSARG} and
-     @args=split (/\s/, $self->{CONFIG}->{CE_STATUSARG});
+     @args=split (/\s+/, $self->{CONFIG}->{CE_STATUSARG});
    open( OUT, "/opt/edg/bin/edg-job-status -noint @args \"$contact\"| grep \"$pattern\"|" );
    my @output = <OUT>;
    close(OUT);
@@ -168,6 +165,62 @@ sub getContactByQueueID {
    $queueid or return;
    my $contact = '';
    return $contact;
+}
+
+sub prepareProxy {
+  my $self = shift;
+  return 1;
+}
+
+sub renewProxy {
+   my $self = shift;
+   my $gracePeriod = shift;
+   $gracePeriod or $gracePeriod = 0;
+   my $duration = shift;
+   $duration or $duration = 100000; #in seconds
+   my $ProxyRepository = "$self->{CONFIG}->{VOBOXDIR}/proxy_repository";
+   my $command = "vobox-proxy --vo \l$self->{CONFIG}->{ORG_NAME} query-dn";
+   $self->debug(1,"Doing $command");
+   my $dn = `$command`;
+   $self->debug(1,"DN is $dn");
+   $command = "vobox-proxy --vo \l$self->{CONFIG}->{ORG_NAME} --dn \'$dn\' query-proxy-filename";
+   $self->debug(1,"Doing $command");
+   my $proxyfile = `$command`;
+   $? and $self->{LOGGER}->error("LCG","No valid proxy found.") and return;   
+   chomp $proxyfile;
+   $self->debug(1,"Proxy file is $proxyfile");
+   # I apparently cannot pass this via an argument
+   $ENV{X509_USER_PROXY} = "$self->{CONFIG}->{VOBOXDIR}/renewal-proxy.pem";
+   ## All proxies, just to be safe
+   my $error = 0;
+   foreach my $cert (`ls $ProxyRepository`) {
+     chomp $cert;
+     my $command = "$ENV{GLOBUS_LOCATION}/bin/grid-proxy-info -f $ProxyRepository/$cert -subject";
+     $self->debug(1,"Doing $command");
+     my $proxyDN = `$command`;
+     chomp $proxyDN;
+     $command = "vobox-proxy --vo \l$self->{CONFIG}->{ORG_NAME} --dn \'$proxyDN\' query-proxy-timeleft";
+     $self->debug(1,"Doing $command");
+     my $timeLeft = `$command`;
+     $self->debug(1,"Proxy timeleft is $timeLeft");
+     next if ($gracePeriod && $timeLeft>$gracePeriod);
+     $self->debug(1,"Renewing proxy for $proxyDN for $duration seconds");
+     my @command = ( $ENV{GLOBUS_LOCATION}.'/bin/myproxy-get-delegation', 
+                     "-a", "$ProxyRepository/$cert",
+                     "-d", 
+		     "-t",int($duration/3600), #in hours
+	             "-o", "/tmp/tmpfile.$$");
+     $self->debug(1,"Doing @command");
+     $error = system(@command);
+     $error and $self->{LOGGER}->error("LCG","unable to renew proxy") and last;
+     @command = ("mv", "-f", "/tmp/tmpfile.$$", "$ProxyRepository/$cert");
+     $self->debug(1,"Doing @command");
+     $error = system(@command);
+     $error and $self->{LOGGER}->error("LCG","unable to renew proxy") and last;
+   }  
+   $ENV{X509_USER_PROXY} = $proxyfile;
+   $error and return;  
+   return 1;
 }
 
 sub generateJDL {
@@ -198,7 +251,7 @@ FuzzyRank = True;
 VirtualOrganisation = \"\L$self->{CONFIG}->{ORG_NAME}\E\";
 InputSandbox = {\"$tmpdir/$file.sh\"};
 OutputSandbox = { \"std.err\" , \"std.out\" };
-Environment = {\"ALIEN_CM_AS_LDAP_PROXY=$ENV{ALIEN_CM_AS_LDAP_PROXY}\"};
+Environment = {\"ALIEN_CM_AS_LDAP_PROXY=$ENV{ALIEN_CM_AS_LDAP_PROXY}\",\"ALIEN_JOBAGENT_ID=$ENV{ALIEN_JOBAGENT_ID}\"};
 \#Requirements = Member(\"VO-alice-AliEn\",other.GlueHostApplicationSoftwareRunTimeEnvironment);
 Requirements = other.GlueCEUniqueID==\"lxgate15.cern.ch:2119/jobmanager-lcglsf-grid_alice\";
 ";
@@ -216,6 +269,7 @@ export PATH=\$PATH:\$VO_ALICE_SW_DIR/alien/bin
 cd \${TMPDIR:-.}
 export OLDHOME=\$HOME
 export HOME=`pwd`
+export ALIEN_LOG=$ENV{ALIEN_LOG}
 echo --- hostname, uname, whoami, pwd --------------
 hostname -f
 uname -a
