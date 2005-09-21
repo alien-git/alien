@@ -11,16 +11,16 @@ push @ISA, 'AliEn::Config';
 sub ConfigureVirtualSite {
    my $self=shift;
    $self->info("Configuring an LCG site");
-   my $ref=$self->getSEList() or return;
-   $self->info("We found several se:");
-   foreach my $se (@$ref) {
-     $self->info($se);
-   }
-   if ($ENV{uc("VO_$self->{ORG_NAME}_DEFAULT_SE")}){
-     $self->GetEndPoint($ENV{uc("VO_$self->{ORG_NAME}_DEFAULT_SE")});
-   }else {
-     $self->info("WARNING!!! The variable ".uc("VO_$self->{ORG_NAME}_DEFAULT_SE")." is not defined!");
-   }
+#   my $ref=$self->getSEList() or return;
+#   $self->info("We found several se:");
+#   foreach my $se (@$ref) {
+#     $self->info($se);
+#   }
+#   if ($ENV{uc("VO_$self->{ORG_NAME}_DEFAULT_SE")}){
+#     $self->GetEndPoint($ENV{uc("VO_$self->{ORG_NAME}_DEFAULT_SE")});
+#   }else {
+#     $self->info("WARNING!!! The variable ".uc("VO_$self->{ORG_NAME}_DEFAULT_SE")." is not defined!");
+#   }
    return 1;
 }
 
@@ -73,7 +73,7 @@ sub GetEndPoint {
       $self->info("Using the se in $URI (type $types)");
       last;
     }
-    $self->debug(2,"$values is not an SRM service ($types)");
+#    $self->debug(2,"$values is not an SRM service ($types)");
   }
   $URI or $self->info("Error getting the URI!") and return;
 
