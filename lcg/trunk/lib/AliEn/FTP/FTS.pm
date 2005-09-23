@@ -201,8 +201,8 @@ sub GetEndPoint {
   }
   print "URI is $URI\n" if $URI;
 
-  my $result = $ldap->search( base   => "mds-vo-name=local,o=grid",
-			      filter => "(&(GlueSARoot=$self->{CONFIG}->{ORG_NAME}*)(gluechunkkey=*$SE*))");
+  $result = $ldap->search( base   => "mds-vo-name=local,o=grid",
+			   filter => "(&(GlueSARoot=$self->{CONFIG}->{ORG_NAME}*)(gluechunkkey=*$SE*))");
   $result->code && die $result->error;
   print "HELLO\n";
   foreach my $entry ($result->all_entries) {
