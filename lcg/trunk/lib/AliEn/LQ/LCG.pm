@@ -33,8 +33,11 @@ sub submit {
      my @args=();
      $self->{CONFIG}->{CE_SUBMITARG} and
       	@args=split (/\s+/, $self->{CONFIG}->{CE_SUBMITARG});
-
-  #   updateClassad() if (time()-$self->{UPDATECLASSAD}>600);
+     print "**************************************\n";
+     print Dumper($jdl);
+     print "**************************************\n";
+     print Dumper($command);
+     print "**************************************\n";
      my $jdlfile = $self->generateJDL();
      $jdlfile or return;
 
@@ -169,11 +172,6 @@ sub getContactByQueueID {
    return $contact;
 }
 
-sub prepareProxy {
-  my $self = shift;
-  return 1;
-}
-
 sub renewProxy {
    my $self = shift;
    my $gracePeriod = shift;
@@ -302,6 +300,7 @@ Environment = {\"ALIEN_CM_AS_LDAP_PROXY=$ENV{ALIEN_CM_AS_LDAP_PROXY}\",\"ALIEN_J
      foreach my $CE (@$list) {
        print BATCH " || " unless $first; $first = 0;
        print BATCH "other.GlueCEUniqueID==\"$CE\"";
+       $self->debug(1,"Adding $CE to the list");
      }
      print BATCH ")";
      print BATCH ";";
