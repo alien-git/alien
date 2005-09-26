@@ -6,11 +6,11 @@ use AliEn::LQ;
 
 use strict;
 use AliEn::Database::CE;
+use AliEn::Classad::Host;
 use Data::Dumper;
 
 sub initialize {
    my $self=shift;
-   
    $self->SUPER::initialize() or return;
    $self->{DB}=AliEn::Database::CE->new();
    $ENV{X509_CERT_DIR} and $self->{LOGGER}->debug("LCG","X509: $ENV{X509_CERT_DIR}");
@@ -19,12 +19,13 @@ sub initialize {
    $ENV{ALIEN_CM_AS_LDAP_PROXY} and $self->{CONFIG}->{VOBOX} = $ENV{ALIEN_CM_AS_LDAP_PROXY};
    $self->info("VO Box is $self->{CONFIG}->{VOBOX}");
    $self->{CONFIG}->{VOBOXDIR} = "/opt/vobox/\L$self->{CONFIG}->{ORG_NAME}";
+   $self->{UPDATECLASSAD} = 0;
    return 1;
-
 }
 
 sub submit {
-     my $self       = shift;
+     my $self = shift;
+     my $jdl = shift;
      my $command = shift;
      my $arguments  = join " ", @_;
      my $startTime = time;
@@ -32,7 +33,8 @@ sub submit {
      my @args=();
      $self->{CONFIG}->{CE_SUBMITARG} and
       	@args=split (/\s+/, $self->{CONFIG}->{CE_SUBMITARG});
-#
+
+  #   updateClassad() if (time()-$self->{UPDATECLASSAD}>600);
      my $jdlfile = $self->generateJDL();
      $jdlfile or return;
 
@@ -223,6 +225,46 @@ sub renewProxy {
    return 1;
 }
 
+sub updateClassad {
+  my $self = shift;
+  $self->debug(1,"Updating host classad from BDII...");
+  my $classad = shift;
+  $classad or return;
+  my $BDII = $self->{CONFIG}->{LCG_GFAL_INFOSYS};
+  $BDII = "ldap://$ENV{LCG_GFAL_INFOSYS}" if defined $ENV{LCG_GFAL_INFOSYS};
+  my $ldap =  Net::LDAP->new($BDII) or die $@;
+  $ldap->bind() or die $@;
+  my $maxRAMSize = 0; my $maxSwapSize = 0;
+  foreach my $CE ($self->{CONFIG}->{CE_LCGCE_LIST}) {
+    my $result = $ldap->search( base   => "mds-vo-name=local,o=grid",
+                                filter => "GlueCEUniqueID=$CE");
+    $result->code && die $result->error;
+    my @entry = $result->all_entries();
+    my $cluster = $entry[0]->get_value("GlueForeignKey");
+    $cluster =~ s/^GlueClusterUniqueID=//;
+    $result = $ldap->search( base   => "mds-vo-name=local,o=grid",
+                             filter => "GlueSubClusterUniqueID=$cluster");
+    $result->code && die $result->error;
+    @entry = $result->all_entries();
+    my $RAMSize = $entry[0]->get_value("GlueHostMainMemoryRAMSize");
+    my $SwapSize = $entry[0]->get_value("GlueHostMainMemoryVirtualSize");
+    $self->debug(1,"$cluster: $RAMSize,$SwapSize"); 
+    $maxRAMSize = $RAMSize if ($RAMSize>$maxRAMSize );
+    $maxSwapSize = $SwapSize if ($SwapSize>$maxSwapSize );
+  }
+  $self->debug(1,"Memory, Swap: $maxRAMSize,$maxSwapSize"); 
+  $classad->set_expression("Memory",$maxRAMSize);
+  $classad->set_expression("Swap",$maxSwapSize);
+  $self->{UPDATECLASSAD} = time();
+  return $classad;
+}
+
+sub translateRequirements {
+  my $self = shift;
+  my @requirements = @_;
+  return @requirements; 
+}
+
 sub generateJDL {
    my $self = shift;
    my $file = "dg-submit.$$";
@@ -252,10 +294,19 @@ VirtualOrganisation = \"\L$self->{CONFIG}->{ORG_NAME}\E\";
 InputSandbox = {\"$tmpdir/$file.sh\"};
 OutputSandbox = { \"std.err\" , \"std.out\" };
 Environment = {\"ALIEN_CM_AS_LDAP_PROXY=$ENV{ALIEN_CM_AS_LDAP_PROXY}\",\"ALIEN_JOBAGENT_ID=$ENV{ALIEN_JOBAGENT_ID}\"};
-\#Requirements = Member(\"VO-alice-AliEn\",other.GlueHostApplicationSoftwareRunTimeEnvironment);
-Requirements = other.GlueCEUniqueID==\"lxgate15.cern.ch:2119/jobmanager-lcglsf-grid_alice\";
 ";
-
+   my $list = $self->{CONFIG}->{CE_LCGCE_LIST};
+   if ($list) {
+     my $first = 1;
+     print BATCH "Requirements = (";
+     foreach my $CE (@$list) {
+       print BATCH " || " unless $first; $first = 0;
+       print BATCH "other.GlueCEUniqueID==\"$CE\"";
+     }
+     print BATCH ")";
+     print BATCH ";";
+   }
+   print BATCH "\n";  
    close BATCH;
    open( BATCH, ">$tmpdir/$file.sh" )
        or print STDERR "Can't open file '$tmpdir/$file.sh': $!"
