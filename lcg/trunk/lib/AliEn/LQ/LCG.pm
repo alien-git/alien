@@ -321,7 +321,7 @@ export OLDHOME=\$HOME
 export HOME=`pwd`
 export ALIEN_LOG=$ENV{ALIEN_LOG}
 echo --- hostname, uname, whoami, pwd --------------
-hostname -f
+hostname
 uname -a
 whoami
 pwd
