@@ -33,12 +33,7 @@ sub submit {
      my @args=();
      $self->{CONFIG}->{CE_SUBMITARG} and
       	@args=split (/\s+/, $self->{CONFIG}->{CE_SUBMITARG});
-     print "**************************************\n";
-     print Dumper($jdl);
-     print "**************************************\n";
-     print Dumper($command);
-     print "**************************************\n";
-     my $jdlfile = $self->generateJDL();
+     my $jdlfile = $self->generateJDL($jdl);
      $jdlfile or return;
 
      $self->renewProxy(90000);
@@ -129,9 +124,15 @@ sub getStatus {
      return 'QUEUED';
 }
 
+sub getAllBatchIds {
+  my $self = shift;
+  my $time = time()-3600;
+  my $jobIds = $self->{DB}->queryColumn("SELECT batchId FROM JOBAGENT WHERE timestamp<$time");
+  return @$jobIds;
+}
+
 sub getQueueStatus {
   my $self = shift;
-  print "Hello! I\' m here!\n";
   my $value = $self->{DB}->queryValue("SELECT COUNT (*) FROM JOBAGENT");
   $value or $value = '';
   return $value;
@@ -223,21 +224,24 @@ sub renewProxy {
    return 1;
 }
 
-sub updateClassad {
+sub updateClassAd {
   my $self = shift;
   $self->debug(1,"Updating host classad from BDII...");
   my $classad = shift;
   $classad or return;
-  my $BDII = $self->{CONFIG}->{LCG_GFAL_INFOSYS};
+  my $BDII = $self->{CONFIG}->{CE_LCG_GFAL_INFOSYS};
   $BDII = "ldap://$ENV{LCG_GFAL_INFOSYS}" if defined $ENV{LCG_GFAL_INFOSYS};
+  $self->debug(1,"BDII is $BDII");
   my $ldap =  Net::LDAP->new($BDII) or die $@;
   $ldap->bind() or die $@;
-  my $maxRAMSize = 0; my $maxSwapSize = 0;
-  foreach my $CE ($self->{CONFIG}->{CE_LCGCE_LIST}) {
+  my ($maxRAMSize, $maxSwapSize) = (0,0);
+  foreach my $CE (@{$self->{CONFIG}->{CE_LCGCE_LIST}}) {
+    $self->debug(1,"Getting info for $CE");
     my $result = $ldap->search( base   => "mds-vo-name=local,o=grid",
                                 filter => "GlueCEUniqueID=$CE");
     $result->code && die $result->error;
     my @entry = $result->all_entries();
+    ($entry[0]) or next;
     my $cluster = $entry[0]->get_value("GlueForeignKey");
     $cluster =~ s/^GlueClusterUniqueID=//;
     $result = $ldap->search( base   => "mds-vo-name=local,o=grid",
@@ -249,22 +253,44 @@ sub updateClassad {
     $self->debug(1,"$cluster: $RAMSize,$SwapSize"); 
     $maxRAMSize = $RAMSize if ($RAMSize>$maxRAMSize );
     $maxSwapSize = $SwapSize if ($SwapSize>$maxSwapSize );
+    
   }
   $self->debug(1,"Memory, Swap: $maxRAMSize,$maxSwapSize"); 
-  $classad->set_expression("Memory",$maxRAMSize);
-  $classad->set_expression("Swap",$maxSwapSize);
+  $classad->set_expression("Memory",$maxRAMSize*1024);
+  $classad->set_expression("Swap",$maxSwapSize*1024);
+  $classad->set_expression("FreeMemory",$maxRAMSize*1024);
+  $classad->set_expression("FreeSwap",$maxSwapSize*1024);
   $self->{UPDATECLASSAD} = time();
   return $classad;
 }
 
 sub translateRequirements {
   my $self = shift;
-  my @requirements = @_;
-  return @requirements; 
+  my $ca = shift;
+  $ca or return ();  
+  $ca->print();
+  my $requirements = '';
+  my ($ok, $memory) =  $ca->evaluateAttributeString("Memory");
+  if ($memory) {
+    $self->info("Translating \'Memory\' requirement ($ok,$memory)");
+    $requirements .= "&& other.GlueHostMainMemoryRAMSize>=$memory";
+  }  
+  ($ok, my $swap) =  $ca->evaluateAttributeString("Swap");
+  if ($swap) {
+    $self->info("Translating \'Swap\' requirement ($ok,$swap)");
+    $requirements .= "&& other.GlueHostMainMemoryVirtualSize>=$swap";
+  }
+#  ($ok, my $freeMemory) =  $ca->evaluateAttributeString("FreeMemory");
+#  $self->info("Translating \'FreeMemory\' requirement ($ok,$freeMemory)") if $freeMemory;
+#  ($ok, my $freeSwap) =  $ca->evaluateAttributeString("FreeSwap");
+#  $self->info("Translating \'FreeSwap\' requirement ($ok,$freeSwap)") if $freeSwap;
+  return $requirements; 
 }
 
 sub generateJDL {
    my $self = shift;
+   my $ca = shift;
+   my $requirements = $self->translateRequirements($ca);
    my $file = "dg-submit.$$";
    my $tmpdir = "$self->{CONFIG}->{TMP_DIR}";
    if ( !( -d $self->{CONFIG}->{TMP_DIR} ) ) {
@@ -303,6 +329,7 @@ Environment = {\"ALIEN_CM_AS_LDAP_PROXY=$ENV{ALIEN_CM_AS_LDAP_PROXY}\",\"ALIEN_J
        $self->debug(1,"Adding $CE to the list");
      }
      print BATCH ")";
+     print BATCH $requirements;
      print BATCH ";";
    }
    print BATCH "\n";  
@@ -321,7 +348,7 @@ export OLDHOME=\$HOME
 export HOME=`pwd`
 export ALIEN_LOG=$ENV{ALIEN_LOG}
 echo --- hostname, uname, whoami, pwd --------------
-hostname
+hostname   
 uname -a
 whoami
 pwd
@@ -334,9 +361,10 @@ echo --- ls -la ------------------------------------
 ls -lart
 echo --- df ----------------------------------------
 df -h
-echo --- alien ProxyInfo ---------------------------
-alien ProxyInfo
-echo --- Software ----------------------------------
+echo --- free --------------------------------------
+free
+echo --- alien proxy-info ---------------------------
+alien proxy-info
 echo --- Run ---------------------------------------
 alien RunAgent
 
