@@ -8,6 +8,7 @@ use strict;
 use AliEn::Database::CE;
 use AliEn::Classad::Host;
 use Data::Dumper;
+use Net::LDAP;
 
 sub initialize {
    my $self=shift;
@@ -138,6 +139,34 @@ sub getQueueStatus {
   return $value;
 }
 
+sub getFreeSlots {
+  my $self = shift;
+  my $value = 0;
+  my $list = $self->{CONFIG}->{CE_LCGCE_LIST};
+  foreach my $CE (@$list) {
+    (my $host,undef) = split (/:/,$CE);
+    my $GRIS = "ldap://$host:2135";
+    my $ldap =  Net::LDAP->new($GRIS) or die $@;
+    $ldap->bind() or return;
+    my $result = $ldap->search( base   => "mds-vo-name=local,o=grid",
+                                filter => "(&(objectClass=GlueCEState)(GlueCEUniqueID=$CE))"); 
+    $result->code && return;
+    foreach my $entry ($result->all_entries) {
+      my $RunningJobs = $entry->get_value("GlueCEStateRunningJobs");
+      my $WaitingJobs = $entry->get_value("GlueCEStateWaitingJobs");
+      my $FreeCPUs   = $entry->get_value("GlueCEStateFreeCPUs");
+      $self->debug(1,"Jobs for $CE: $RunningJobs,$WaitingJobs,$FreeCPUs");
+      $self->info("Jobs for $CE: $RunningJobs,$WaitingJobs,$FreeCPUs");#####
+      $value += $FreeCPUs-$WaitingJobs;
+      last;
+    }  
+    $ldap->unbind();
+  }
+  return $value;
+  
+  return $value;
+}
+
 #
 #---------------------------------------------------------------------
 #
@@ -206,7 +235,7 @@ sub renewProxy {
      $self->debug(1,"Proxy timeleft is $timeLeft");
      next if ($gracePeriod && $timeLeft>$gracePeriod);
      $self->debug(1,"Renewing proxy for $proxyDN for $duration seconds");
-     my @command = ( $ENV{GLOBUS_LOCATION}.'/bin/myproxy-get-delegation', 
+     my @command = ( 'myproxy-get-delegation', 
                      "-a", "$ProxyRepository/$cert",
                      "-d", 
 		     "-t",int($duration/3600), #in hours
