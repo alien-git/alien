@@ -127,9 +127,18 @@ sub getStatus {
 
 sub getAllBatchIds {
   my $self = shift;
-  my $time = time()-3600;
-  my $jobIds = $self->{DB}->queryColumn("SELECT batchId FROM JOBAGENT WHERE timestamp<$time");
-  return @$jobIds;
+  my $jobIds = $self->{DB}->queryColumn("SELECT batchId FROM JOBAGENT");
+  my @queuedJobs = ();
+  foreach (@$jobIds) {
+     $_ or next;
+     open LB,"edg-job-status $_|" or next;
+     my @output = <LB>;     
+     close LB;
+     grep m/^Current Status:\s*(Running)|(Ready)|(Scheduled)|(Waiting)/,@output 
+        or next;
+     push @queuedJobs,$_;
+  }
+  return @queuedJobs;
 }
 
 sub getQueueStatus {
@@ -157,14 +166,18 @@ sub getFreeSlots {
       my $FreeCPUs   = $entry->get_value("GlueCEStateFreeCPUs");
       $self->debug(1,"Jobs for $CE: $RunningJobs,$WaitingJobs,$FreeCPUs");
       $self->info("Jobs for $CE: $RunningJobs,$WaitingJobs,$FreeCPUs");#####
-      $value += $FreeCPUs-$WaitingJobs;
+      $value += $FreeCPUs;
       last;
     }  
     $ldap->unbind();
   }
-  return $value;
   
-  return $value;
+  return $value + $self->getQueueStatus();
+}
+
+sub getNumberRunning() {
+  my $self = shift;
+  return $self->getQueueStatus();
 }
 
 #
