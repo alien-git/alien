@@ -25,52 +25,55 @@ sub initialize {
 }
 
 sub submit {
-     my $self = shift;
-     my $jdl = shift;
-     my $command = shift;
-     my $arguments  = join " ", @_;
-     my $startTime = time;
+  my $self = shift;
+  my $jdl = shift;
+  my $command = shift;
+  my $arguments  = join " ", @_;
+  my $startTime = time;
+  
+  my @args=();
+  $self->{CONFIG}->{CE_SUBMITARG_LIST} and
+    @args = @{$self->{CONFIG}->{CE_SUBMITARG_LIST}};
+  $self->{CONFIG}->{CE_EDG_WL_UI_CONF} and
+    push @args,"--config-vo",$self->{CONFIG}->{CE_EDG_WL_UI_CONF};
 
-     my @args=();
-     $self->{CONFIG}->{CE_SUBMITARG} and
-      	@args=split (/\s+/, $self->{CONFIG}->{CE_SUBMITARG});
-     my $jdlfile = $self->generateJDL($jdl);
-     $jdlfile or return;
+  my $jdlfile = $self->generateJDL($jdl);
+  $jdlfile or return;
 
-     $self->renewProxy(90000);
-     $self->info("Submitting to LCG with \'@args\'.");
-     my @command = ( "edg-job-submit", "--noint", "--nomsg", "--config-vo", "/home/alicesgm/edg_wl_ui.conf", @args, "$jdlfile" );
-     $self->debug(1,"Doing @command\n");
-
-     open SAVEOUT,  ">&STDOUT";
-     if ( !open STDOUT, ">$self->{CONFIG}->{TMP_DIR}/stdout" ) {
-         return 1;
-     }
-     my $error=system( @command );
-     close STDOUT;
-     open STDOUT, ">&SAVEOUT";
-
-     open (FILE, "<$self->{CONFIG}->{TMP_DIR}/stdout") or return 1;
-     my $contact=<FILE>;
-     close FILE;
-     $contact and
-       chomp $contact;
-
-     if ($error) {
-       $contact or $contact="";
-       $self->{LOGGER}->warning("LCG","Error submitting the job. Log file '$contact'\n");
-       $contact and system ('cat', $contact, '>/dev/null 1>&2');
-       return $error;
-     } else {
-       $self->info("LCG JobID is $contact");
-       $self->{LAST_JOB_ID} = $contact;
-       open JOBIDS, ">>$self->{CONFIG}->{LOG_DIR}/CE.db/JOBIDS";
-       print JOBIDS "$contact\n";
-       close JOBIDS;
-     }
-     my $submissionTime = time - $startTime;
-     $self->info("Submission took $submissionTime sec.");
-     return $error;
+  $self->renewProxy(90000);
+  $self->info("Submitting to LCG with \'@args\'.");
+  my @command = ( "edg-job-submit", "--noint", "--nomsg", @args, "$jdlfile" );
+  $self->debug(1,"Doing @command\n");
+  
+  open SAVEOUT,  ">&STDOUT";
+  if ( !open STDOUT, ">$self->{CONFIG}->{TMP_DIR}/stdout" ) {
+    return 1;
+  }
+  my $error=system( @command );
+  close STDOUT;
+  open STDOUT, ">&SAVEOUT";
+  
+  open (FILE, "<$self->{CONFIG}->{TMP_DIR}/stdout") or return 1;
+  my $contact=<FILE>;
+  close FILE;
+  $contact and
+    chomp $contact;
+  
+  if ($error) {
+    $contact or $contact="";
+    $self->{LOGGER}->warning("LCG","Error submitting the job. Log file '$contact'\n");
+    $contact and system ('cat', $contact, '>/dev/null 1>&2');
+    return $error;
+  } else {
+    $self->info("LCG JobID is $contact");
+    $self->{LAST_JOB_ID} = $contact;
+    open JOBIDS, ">>$self->{CONFIG}->{LOG_DIR}/CE.db/JOBIDS";
+    print JOBIDS "$contact\n";
+    close JOBIDS;
+  }
+  my $submissionTime = time - $startTime;
+  $self->info("Submission took $submissionTime sec.");
+  return $error;
 }
 
 
