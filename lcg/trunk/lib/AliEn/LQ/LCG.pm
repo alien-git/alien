@@ -147,7 +147,7 @@ sub getAllBatchIds {
 sub getQueueStatus {
   my $self = shift;
   my $value = $self->{DB}->queryValue("SELECT COUNT (*) FROM JOBAGENT");
-  $value or $value = '';
+  $value or $value = 0;
   return $value;
 }
 
@@ -157,8 +157,9 @@ sub getFreeSlots {
   my $list = $self->{CONFIG}->{CE_LCGCE_LIST};
   foreach my $CE (@$list) {
     (my $host,undef) = split (/:/,$CE);
+    my $GRIS = "ldap://$host:2135";
     eval {
-      my $GRIS = "ldap://$host:2135";
+
       my $ldap =  Net::LDAP->new($GRIS) or die $@;
       $ldap->bind() or return;
       my $result = $ldap->search( base   => "mds-vo-name=local,o=grid",
