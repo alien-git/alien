@@ -381,7 +381,7 @@ sub insertFile {
     $self->_LFC_command({}, "setfsizeg",$guid,$size,'MD',$hashref->{md5}) 
       or die("Error setting the size");
     $self->_LFC_command({}, "addreplica",$guid, undef,"$self->{CONFIG}->{SE_FULLNAME}",$hashref->{pfn},
-			undef,"D",undef,undef) or die ("Error adding the replica")
+			"-","D",undef,undef) or die ("Error adding the replica")
 
 #    $self->_LFC_command({}, "creatg",$lfn,$guid,$mode) or die("Error creating the entry");
 
