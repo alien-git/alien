@@ -68,7 +68,8 @@ sub submit {
     $self->info("LCG JobID is $contact");
     $self->{LAST_JOB_ID} = $contact;
     open JOBIDS, ">>$self->{CONFIG}->{LOG_DIR}/CE.db/JOBIDS";
-    print JOBIDS "$contact\n";
+    my $now = time();
+    print JOBIDS "$now,$contact\n";
     close JOBIDS;
   }
   my $submissionTime = time - $startTime;
@@ -153,7 +154,7 @@ sub getQueueStatus {
 
 sub getFreeSlots {
   my $self = shift;
-  my $value = 0;
+  my ($totRunning, $totWaiting, $totFree, $totCPUs) = (0,0,0,0);
   my $list = $self->{CONFIG}->{CE_LCGCE_LIST};
   foreach my $CE (@$list) {
     (my $host,undef) = split (/:/,$CE);
@@ -166,22 +167,37 @@ sub getFreeSlots {
 				  filter => "(&(objectClass=GlueCEState)(GlueCEUniqueID=$CE))"); 
       $result->code && return;
       foreach my $entry ($result->all_entries) {
-	my $RunningJobs = $entry->get_value("GlueCEStateRunningJobs");
-	my $WaitingJobs = $entry->get_value("GlueCEStateWaitingJobs");
-	my $FreeCPUs   = $entry->get_value("GlueCEStateFreeCPUs");
-	$self->debug(1,"Jobs for $CE: $RunningJobs,$WaitingJobs,$FreeCPUs");
-	$self->info("Jobs for $CE: $RunningJobs,$WaitingJobs,$FreeCPUs");#####
-	$value += $FreeCPUs;
-	last;
-      }  
+        my $RunningJobs = $entry->get_value("GlueCEStateRunningJobs");
+        my $WaitingJobs = $entry->get_value("GlueCEStateWaitingJobs");
+        my $FreeCPUs    = $entry->get_value("GlueCEStateFreeCPUs");
+        my $totalCPUs   = $entry->get_value("GlueCEInfoTotalCPUs");
+        my @VOList      = $entry->get_value("GlueCEAccessControlBaseRule");
+        $self->{LOGGER}->warning("LCG","This seems to be a non-dedicated queue (@VOList)") if (@VOList gt 1) ;
+        $self->debug(1,"Jobs for $CE: $RunningJobs,$WaitingJobs,$FreeCPUs,$totalCPUs");
+        $self->info("Jobs for $CE: $RunningJobs,$WaitingJobs,$FreeCPUs,$totalCPUs");#####
+        $totFree    += $FreeCPUs;
+        $totRunning += $RunningJobs;
+        $totWaiting += $WaitingJobs;
+        $totCPUs    += $totalCPUs;
+        last;
+      }
       $ldap->unbind();
     };
     if ($@) {
       $self->info("We couldn't connect to the GRIS in $GRIS");
     }
   }
-  
-  return $value + $self->getQueueStatus();
+  my $jobAgents = $self->getQueueStatus();
+  $self->debug(1,"Total for this VO Box: $totRunning,$totWaiting,$totFree,$totCPUs,$jobAgents");
+  $self->info("Total for this VO Box: $totRunning,$totWaiting,$totFree,$totCPUs,$jobAgents");#####
+  my $value = $totFree + $jobAgents;
+  if ($totWaiting ge $totCPUs) {
+    $value = $jobAgents;
+    $self->debug(1,"Too many waiting jobs ($totWaiting for $totCPUs CPUs)");
+    $self->info("Too many waiting jobs ($totWaiting for $totCPUs CPUs)"); ###
+  }
+  return $value;
+
 }
 
 sub getNumberRunning() {
