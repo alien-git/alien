@@ -2,6 +2,7 @@ package AliEn::Database::SE::LFC;
 
 use AliEn::Database::SE;
 use AliEn::GUID;
+use AliEn::Database::TXT::SE;
 use LFC;
 use vars qw(@ISA);
 use strict;
@@ -19,6 +20,9 @@ sub initialize {
   $self->{GUID}=AliEn::GUID->new() or return;
 
   $self->createDirectory("$ENV{LFC_HOME}/VOLUMES") or return;
+  
+  #this is to keep the files that have been downloaded
+  $self->{TXT}=AliEn::Database::TXT::SE->new() or return;
 
   return 1;
 }
@@ -420,5 +424,31 @@ sub getNumberOfFiles{
   $self->info("There are $files registered in the LFC");
   return $files;
 }
+sub deleteLocalCopies {
+  my $self=shift;
+  my $pfn=shift;
+  return $self->{TXT}->delete("LOCALFILES","pfn='$pfn'");
+}
+sub insertLocalCopy {
+  my $self=shift;
+  my $insert=shift;
+  return $self->{TXT}->insert("LOCALFILES",$insert);  my $pfn=shift;
+}
+sub checkLocalCopies {
+  my $self=shift;
+  my $pfn=shift;
+  my $query="SELECT localCopy,size FROM LOCALFILES where pfn='$pfn' and localCopy is not NULL";
+  $self->info( $query);
+  return   $self->{TXT}->queryRow($query);
+  
+}
 
+sub updateLocalCopy {
+  my $self=shift;
+  my $pfn=shift;
+  my $size=shift;
+  my $transferId=shift;
+
+  return $self->{TXT}->do("UPDATE LOCALFILES set localCopy='$pfn', size=$size  where transferid=$transferId");
+}
 return 1;
