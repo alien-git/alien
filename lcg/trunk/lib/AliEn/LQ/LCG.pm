@@ -156,14 +156,26 @@ sub getFreeSlots {
   my $self = shift;
   my ($totRunning, $totWaiting, $totFree, $totCPUs) = (0,0,0,0);
   my $list = $self->{CONFIG}->{CE_LCGCE_LIST};
+
+  my $GRIS = '';
+  my $BaseDN = '';
+  if (defined $self->{CONFIG}->{CE_SITE_BDII}) {
+    $GRIS=$self->{CONFIG}->{CE_SITE_BDII};
+    $GRIS=~ s{^(ldap://[^/]*)/(.*)}{$1} and $BaseDN=$2;
+  }else {
+  # If we did not define a BDII, use the GRIS running on the CE
+    $GRIS = "ldap://$host:2135";
+    $BaseDN = "mds-vo-name=local,o=grid";
+  }
+
   foreach my $CE (@$list) {
     (my $host,undef) = split (/:/,$CE);
-    my $GRIS = "ldap://$host:2135";
+
     eval {
 
       my $ldap =  Net::LDAP->new($GRIS) or die $@;
       $ldap->bind() or return;
-      my $result = $ldap->search( base   => "mds-vo-name=local,o=grid",
+      my $result = $ldap->search( base   =>  $BaseDN,
 				  filter => "(&(objectClass=GlueCEState)(GlueCEUniqueID=$CE))"); 
       $result->code && return;
       foreach my $entry ($result->all_entries) {
@@ -173,8 +185,7 @@ sub getFreeSlots {
         my $totalCPUs   = $entry->get_value("GlueCEInfoTotalCPUs");
         my @VOList      = $entry->get_value("GlueCEAccessControlBaseRule");
         $self->{LOGGER}->warning("LCG","This seems to be a non-dedicated queue (@VOList)") if (@VOList gt 1) ;
-        $self->debug(1,"Jobs for $CE: $RunningJobs,$WaitingJobs,$FreeCPUs,$totalCPUs");
-        $self->info("Jobs for $CE: $RunningJobs,$WaitingJobs,$FreeCPUs,$totalCPUs");#####
+	$self->info("CPUs for $CE: $FreeCPUs/$totalCPUs, (R:$RunningJobs, W:$WaitingJobs)");#####
         $totFree    += $FreeCPUs;
         $totRunning += $RunningJobs;
         $totWaiting += $WaitingJobs;
@@ -188,12 +199,10 @@ sub getFreeSlots {
     }
   }
   my $jobAgents = $self->getQueueStatus();
-  $self->debug(1,"Total for this VO Box: $totRunning,$totWaiting,$totFree,$totCPUs,$jobAgents");
-  $self->info("Total for this VO Box: $totRunning,$totWaiting,$totFree,$totCPUs,$jobAgents");#####
+  $self->info("Total for this VO Box: $totFree/$totCPUs (R:$totRunning, W:$totWaiting, JA:$jobAgents)");#####
   my $value = $totFree + $jobAgents;
-  if ($totWaiting ge $totCPUs) {
+  if ($totWaiting >= $totCPUs/2) {
     $value = $jobAgents;
-    $self->debug(1,"Too many waiting jobs ($totWaiting for $totCPUs CPUs)");
     $self->info("Too many waiting jobs ($totWaiting for $totCPUs CPUs)"); ###
   }
   return $value;
@@ -335,8 +344,9 @@ sub translateRequirements {
   my $self = shift;
   my $ca = shift;
   $ca or return ();  
-  $ca->print();
+
   my $requirements = '';
+
   my ($ok, $memory) =  $ca->evaluateAttributeString("Memory");
   if ($memory) {
     $self->info("Translating \'Memory\' requirement ($ok,$memory)");
@@ -347,6 +357,12 @@ sub translateRequirements {
     $self->info("Translating \'Swap\' requirement ($ok,$swap)");
     $requirements .= "&& other.GlueHostMainMemoryVirtualSize>=$swap";
   }
+  ($ok,my  $ttl)= $ca->evaluateAttributeString("Requirements");
+  if ($ttl and $ttl =~ /TTL\s*[=>]*\s*(\d+)/ ) {
+     $self->info("Translating \'TTL\' requirement ($1)");
+     $requirements .= "&& other.GlueCEPolicyMaxWallClockTime>=".$1/60; #minutes
+   }
+
 #  ($ok, my $freeMemory) =  $ca->evaluateAttributeString("FreeMemory");
 #  $self->info("Translating \'FreeMemory\' requirement ($ok,$freeMemory)") if $freeMemory;
 #  ($ok, my $freeSwap) =  $ca->evaluateAttributeString("FreeSwap");
