@@ -1,14 +1,38 @@
 package AliEn::FTP::FTS;
 
 use strict;
-use Expect;
-use GLite::Data::FileTransfer;
 
-use AliEn::Logger::LogObject;
-use vars qw($VERSION @ISA);
+use strict;
+use vars qw(@ISA $DEBUG);
+use AliEn::FTP;
+@ISA = ( "AliEn::FTP" );
+
+use Net::LDAP;
 
 
-push @ISA, 'AliEn::Logger::LogObject';
+sub initialize {
+  my $self=shift;
+  $self->info("Contacting the BDII");
+  my $BDII=$ENV{LCG_GFAL_INFOSYS} || 'sc3-bdii.cern.ch:2170';
+
+  $self->{BDII_BASE}="mds-vo-name=local,o=grid";
+  $self->{BDII}=    Net::LDAP->new( $BDII) or
+    print STDERR "Error contacting ldap at $BDII: $@" and return;
+  
+  $self->{BDII}->bind or print STDERR "Error binding to LDAP" and return;
+
+  my $command = `which glite-transfer-submit 2> /dev/null`;
+  ($command && !$?) or printf STDERR "Error: No glite-transfer-submit command found in your path.\n" and exit 5;
+  chomp $command;
+  $command or $self->info("Error: could not find glite-transfer-submit") and return;
+  $self->{COMMAND}=$command;
+
+  $self->{FTS_ENDPOINT}={};
+  $ENV{ALIEN_MYPROXY_PASSWORD} or 
+    $self->info("Error: the myproxy password has not been set. Please, define it in the environment variable  ALIEN_MYPROXY_PASSWORD") and return;
+
+  return $self;
+}
 
 
 # ***************************************************************
@@ -36,27 +60,7 @@ sub myP {
   return  $myProxyPassword;
 }
 
-$ENV{MYPROXY_SERVER}="myproxy.cern.ch";
-#$ENV{LCG_CATALOG_TYPE}="lfc";
-#$ENV{LFC_HOST}="lfc-alice-test.cern.ch";
-#$ENV{LFC_HOME}="/grid/alice/test";
-#$ENV{LCG_GFAL_INFOSYS}="sc3-bdii.cern.ch:2170";
-my $FTSEndpoint='https://fts-alice-test.cern.ch:8443/alice-pilot/glite-data-transfer-fts/services/FileTransfer';
 
-sub new {
-    my $proto   = shift;
-    my $options = shift;
-    my $class   = ref($proto) || $proto;
-    my $self    = {};
-    bless( $self, $class );
-
-    $self->{DESTHOST} = $options->{HOST};
-    $self->{CONFIG}=AliEn::Config->new() or return;
-    bless $self, $class;
-    $self->SUPER::new() or return;
-#    $self->createMyProxy() or return;
-    return $self;
-}
 
 sub createMyProxy{
   my $self=shift;
@@ -83,137 +87,171 @@ sub dirandfile {
 }
 
 sub put {
-    my $self       = shift;
-    my $localfile  = shift;
-    my $remotefile = shift;
-    return $self->transfer($localfile, $remotefile, @_);
+  my $self       = shift;
+  my $localfile  = shift;
+  my $remotefile = shift;
+  return $self->transfer($localfile, $remotefile, @_);
 }
 
 sub get {
-    my $self       = shift;
-    my $localfile  = shift;
-    my $remotefile = shift;
+  my $self       = shift;
+  my $localfile  = shift;
+  my $remotefile = shift;
 
-    return $self->transfer($remotefile, $localfile,  @_);
+  return $self->transfer($remotefile, $localfile,  @_);
 }
 
 sub transfer {
-    my $self    = shift;
-    my $from    = shift;
-    my $to      = shift;
-    my $options =shift;
-    my $sourceCertificate =shift || "";
+  my $self    = shift;
+  my $from    = shift;
+  my $to      = shift;
+  my $options =shift;
+  my $sourceCertificate =shift || "";
+  my $fromHost=shift;
+  my $toHost=shift;
 
-    print "\n  Configuring the transfer...\n";
+  print "\n  Configuring the transfer...\nTransfering from ($fromHost) $from to ($toHost) $to and $options\n";
 
-    print "Endpoint:\t $FTSEndpoint\n";
-    my $transfer = GLite::Data::FileTransfer->new($FTSEndpoint);
-    print "Server version:\t", $transfer->getVersion(), "\n";
-    print "Schema version:\t", $transfer->getSchemaVersion(), "\n";
-    print "interface version:\t", $transfer->getInterfaceVersion(), "\n";
-
-    my $params = { 'keys'	=> [ "" ],
-		   'values' => [ "" ] };
-    my @transferJobElements = ();
-    my $timestamp=time();
-    
-#    my $from = $surls{$file};
-#    my $to = "$toSRM/$file";
-    print "From SURL:\t$from\n";
-    print "To SURL:\t$to\n";
-    push @transferJobElements, { transferParams => $params,
-				 
-				 source	      => $from,
-				 dest	      => $to };
-    
-    
-    ## Submit the transfer
-    print "\n  Submitting the transfer...\n";
-    print "\n  Dump the job elements...\n";
-    print Dumper(@transferJobElements);
-    my $job = { jobParams	=> $params,
-		credential     => $myProxyPassword, 
-		transferJobElements => \@transferJobElements };
-    print "\n  Dump the job...\n";
-    print Dumper($job);
-    my $requestId = '';			
-    my $start = time();
-    print "\n Submit the transfer...\n";
-    $requestId = $transfer->submit($job);
-    $requestId or die ("Error in submitting the transfer");
-    print "Request ID:\t$requestId\n" if $requestId;
-    
-    
-    ## Now wait for the transfer to finish.
-    print "\n  Waiting for the transfer to finish...\n";
-    my $status = $transfer->getTransferJobStatus($requestId);
-    print Dumper($status);
-    my $filestatus = $transfer->getFileStatus($requestId,0,1000); 
-    print Dumper($filestatus);
-    while ($status->{'jobStatus'} !~ /Done|Failed|Hold/i) {
-      my $now = time()-$start;
-      print "Got status ".$status->{'jobStatus'}." after ".$now." seconds.\n";
-      sleep 10;
-      $status = $transfer->getTransferJobStatus($requestId);
-      $filestatus = $transfer->getFileStatus($requestId,0,10);
-      print Dumper($status);
-      print Dumper($filestatus);
-    }
-    print Dumper($status);
-    print Dumper($filestatus);
-    print "Transfer done.\n";
-
+  my $fromSite=$self->getSite($fromHost) or return -1;
+  my $toSite=$self->getSite($toHost) or return -1;
   
+  my $fromftsEndpoint=$self->getFTSEndpoint($fromSite);
+  my $toftsEndpoint=$self->getFTSEndpoint($toSite);
+
+  my $ftsEndpoint;
+  if ($fromftsEndpoint && $toftsEndpoint) {
+    $self->info("The FTS is defined in both sites. Which one to take??");
+    if ($fromSite =~ /cern/) {
+      $self->info("Taking CERN: $fromftsEndpoint");
+      $ftsEndpoint=$fromftsEndpoint;
+    } else {
+      $self->info("Taking the destination $toSite: $toftsEndpoint");
+      $ftsEndpoint=$toftsEndpoint;
+    }
+  }elsif( $fromftsEndpoint) {
+    $self->info("Using endpoint of $fromSite: $fromftsEndpoint");
+    $ftsEndpoint=$fromftsEndpoint;
+  }elsif($toftsEndpoint) {
+    $self->info("Using endpoint of $toSite: $toftsEndpoint");
+    $ftsEndpoint=$toftsEndpoint;
+  }else {
+    $self->info("Couldn't get the fts endpoint of $fromSite or from $toSite");
+  }
+
+  my $transfer="$self->{COMMAND} --verbose -s $ftsEndpoint -p \"$ENV{ALIEN_MYPROXY_PASSWORD}\" srm://$fromHost$from srm://$toHost/$to";
+  $self->info("Ready to do the transfer: $transfer");
+
+  open (FILE, "$transfer|") or $self->info("Error doing the command!!") and return -1;
+  my $id=join("", <FILE>);
+  close FILE or $self->info("Error executing $self->{COMMAND}") and return -1;
+  chomp $id;
+  $id or $self->info("Error getting the transferId") and return -1;
+
+  while(1) {
+    sleep (10);
+    $self->info("Checking if the transfer has finished");
+    my $status=$self->checkStatusTransfer($ftsEndpoint, $id)
+      or last;
+    $status<0 and $self->info("Something went wrong") and return -1;
+  }
+
+  $self->info("So far, so good");
   return 0;
 }
 
-use strict;
-use Net::LDAP;
-
-
-sub GetEndPoint {
+sub checkStatusTransfer {
   my $self=shift;
-  my $SE=shift;
+  my $fts=shift;
+  my $id=shift;
 
-  print "Looking for $SE\n";
-
-  my $BDII = $self->{CONFIG}->{LCG_GFAL_INFOSYS};#"ldap://lcg-bdii.cern.ch:2170"
-  $BDII = "ldap://$ENV{LCG_GFAL_INFOSYS}" if defined $ENV{LCG_GFAL_INFOSYS};
-  print "Querying $BDII...\n";
-  
-  my $URI = '';
-  
-  my $ldap =  Net::LDAP->new($BDII) or die $@;
-  $ldap->bind() or die $@;
-  my $result = $ldap->search( base   => "mds-vo-name=local,o=grid",
-			      filter => "GlueServiceURI=*$SE*");
-  $result->code && die $result->error;
-  print "Got ",$result->count()," entries.\n";
-  foreach my $entry ($result->all_entries) {
-    my $values = $entry->get_value("GlueServiceURI");
-    my $types = $entry->get_value("GlueServiceType");
-    if ($types =~ m/srm/ ) {
-      print "Got it, it\'s $types\n";
-      $URI = $values;
-      last;
-    }
-    print "$values is not an SRM service ($types)\n";
+  open (FILE, "glite-transfer-status --verbose -s $fts $id|") or 
+    $self->info("Error checking the status") and return -1;
+  my $fileStatus=join ("", <FILE>);
+  close FILE or $self->info("Error checking the status") and return -1;
+  $DEBUG and print "$fileStatus\n";
+  $fileStatus=~ /^Status:\s*(\S*)/m  or $self->info("Error getting the status of the transfer  $fts $id") and return -1;
+  my $status=$1;
+  if ($status =~ /fail/i){
+    $self->info("The transfer failed");
+    return -1;
+  }elsif($status =~ /(active)|(submitted)|(pending)/i){
+    $self->info("Transfer still waiting");
+    return 1
+  }elsif($status =~ /done/i){
+    $self->info("Transfer done!!!");
+    return 0;
   }
-  print "URI is $URI\n" if $URI;
+  print "Don't know what the status $status means...\n";
 
-  $result = $ldap->search( base   => "mds-vo-name=local,o=grid",
-			   filter => "(&(GlueSARoot=$self->{CONFIG}->{ORG_NAME}*)(gluechunkkey=*$SE*))");
-  $result->code && die $result->error;
-  print "HELLO\n";
-  foreach my $entry ($result->all_entries) {
-    my @values = $entry->get_value("GlueSARoot");
-    print "FOUND something @values\n";
-    
+  return -1;
+}
 
+sub getFTSEndpoint {
+  my $self=shift;
+  my $site=shift;
+  my $date=time;
+  if (! $self->{FTS_ENDPOINT}->{$site} || 
+      $self->{FTS_ENDPOINT}->{$site}->{time}<$date) {
+    $self->info("Getting the FTSendpoint from the BDII");
+
+    my $mesg=$self->{BDII}->search( base=>$self->{BDII_BASE},
+				    filter=>"(&(GlueServiceType=org.glite.FileTransfer)(GlueForeignKey=GlueSiteUniqueId*$site))"
+				  );
+    $mesg->count or print "Error finding the FTS endpoint for $site\n" and return;
+    $mesg->count>1 and print "Warning!! there are more than one fts endpoints for $site\n";
+
+    my $value=$mesg->entry(0)->get_value("GlueServiceEndPoint");
+    $self->{FTS_ENDPOINT}->{$site}={time=>$date+600,
+				    value=>$value};
   }
+  return $self->{FTS_ENDPOINT}->{$site}->{value};
+}
 
-  $ldap->unbind();
-  return $URI;
+
+sub getSite {
+  my $self=shift;
+  my $host=shift;
+  $host =~ s/:\d+$//;
+
+  $self->info("Searching for the site of $host");
+
+  my $mesg = $self->{BDII}->search( base   => $self->{BDII_BASE},
+				    filter => "(&(objectClass=GlueSite)(GlueForeignKey=GlueSEUniqueID*$host))"
+				  );
+  
+  my   $total = $mesg->count;
+  $total or $self->info("Error: Don't know the site of $host") and return;
+  $total >1 and $self->info("Warning!! the se $host is in more than one site");
+  my $entry=$mesg->entry(0);
+  my $site=$entry->get_value("GlueSiteUniqueID") ||    
+    $entry->get_value("GlueSiteName");
+  $self->info("The se $host is in $site");
+  return $site;
+}
+
+sub startListening {
+  my $self=shift;
+  $self->info("Starting the FTS server");
+}
+
+sub getURL{
+  my $self=shift;
+  my $file=shift;
+  $self->info("Checking the fts url of $file");
+  $file=~ s/^srm:/fts:/ or $self->info("The file $file is not in srm. It can't be transfered through fts...") and return;
+  return $file;
+}
+
+sub testTransfer {
+  my $self=shift;
+  my $source=shift;
+  my $target=shift;
+
+  $source =~ s{^srm://([^/]*)(/.*$)}{$1} or $self->info("Format of $source is not correct") and return;
+  my $sourceHost=$1;
+  $target =~ s{^srm://([^/]*)(/.*$)}{$1} or $self->info("Format of $target is not correct") and return;
+  my $targetHost=$1;
+  return $self->transfer($source, $target, "", "", $sourceHost, $targetHost);
 }
 
 return 1;

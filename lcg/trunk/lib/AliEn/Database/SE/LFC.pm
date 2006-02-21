@@ -184,16 +184,16 @@ sub insertVolume {
     $self->info("Setting some comment");
 #    $self->_LFC_command({}, "setcomment", $dir, "TTL:100000") or die("error setting TTL");
 #    $self->_LFC_command({}, "setcomment", $dir, "SIZE:200000") or die("error setting SIZE");
-    $self->_LFC_command({}, "creatg","$dir/SIZE",undef,$mode) or die("Error creating the entry");
+    $self->_LFC_command({}, "creatg","$dir/SIZE",$self->{GUID}->CreateGuid(),$mode) or die("Error creating the entry");
     $self->_LFC_command({}, "setfsize","$dir/SIZE",undef, $volumeHash->{size}) 
       or die("Error setting the size");
-    $self->_LFC_command({}, "creatg","$dir/USEDSPACE",undef,$mode) or die("Error creating the entry");
+    $self->_LFC_command({}, "creatg","$dir/USEDSPACE",$self->{GUID}->CreateGuid(),$mode) or die("Error creating the entry");
     $self->_LFC_command({}, "setfsize","$dir/USEDSPACE",undef, $volumeHash->{usedspace}) 
       or die("Error setting the size");
-    $self->_LFC_command({}, "creatg","$dir/FREESPACE",undef,$mode) or die("Error creating the entry");
+    $self->_LFC_command({}, "creatg","$dir/FREESPACE",$self->{GUID}->CreateGuid(),$mode) or die("Error creating the entry");
     $self->_LFC_command({}, "setfsize","$dir/FREESPACE",undef, $volumeHash->{freespace}) 
       or die("Error setting the size");
-    $self->_LFC_command({}, "creatg","$dir/NUMBERFILES",undef,$mode) or die("Error creating the entry");
+    $self->_LFC_command({}, "creatg","$dir/NUMBERFILES",$self->{GUID}->CreateGuid(),$mode) or die("Error creating the entry");
     $self->_LFC_command({}, "setfsize","$dir/NUMBERFILES",undef, 0) 
       or die("Error setting the size");
     my $method=$volumeHash->{method};
@@ -300,17 +300,6 @@ Checksum:       $checksum\n";
 
   use Data::Dumper;
   print Dumper($stat2);
-#  my $stat=LFC::new_lfc_filestatg();
-#  my $error = LFC::lfc_statg(undef,$guid,$stat);
-#  if ($error) {
-#    print "Error: $LFC::serrno (".POSIX::strerror($LFC::serrno).")\n";
-#    return {};
-#  }
-#  $self->info("Returning $stat");
-#  use Data::Dumper;
-#  print Dumper($stat);
-#  my $stat2=$stat;
-#  LFC::delete_lfc_filestatg($stat);
 
   return $stat2;
 }
@@ -405,10 +394,6 @@ sub getPFNFromGUID{
   my $guid=shift;
   $self->info("In LFC, trying to retrieve the info of $guid");
   my $info=$self->retrieveFileDetails({guid=>$guid}) or return;
-  $self->info("Got the information");
-  
-  use Data::Dumper;
-  print Dumper($info);
   return $info->{pfns};
 
 }
