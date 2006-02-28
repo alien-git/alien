@@ -135,11 +135,14 @@ sub transfer {
     $self->info("Using endpoint of $toSite: $toftsEndpoint");
     $ftsEndpoint=$toftsEndpoint;
   }else {
-    $self->info("Couldn't get the fts endpoint of $fromSite or from $toSite");
+    $self->info("Couldn't get the fts endpoint of $fromSite or from $toSite", 1);
+    return -1;
   }
+
 
   my $transfer="$self->{COMMAND} --verbose -s $ftsEndpoint -p \"$ENV{ALIEN_MYPROXY_PASSWORD}\" srm://$fromHost$from srm://$toHost/$to";
   $self->info("Ready to do the transfer: $transfer");
+  my $done=0;
 
   open (FILE, "$transfer|") or $self->info("Error doing the command!!") and return -1;
   my $id=join("", <FILE>);
@@ -149,7 +152,7 @@ sub transfer {
 
   while(1) {
     sleep (10);
-    $self->info("Checking if the transfer has finished");
+    $self->info("Checking if the transfer $id has finished");
     my $status=$self->checkStatusTransfer($ftsEndpoint, $id)
       or last;
     $status<0 and $self->info("Something went wrong") and return -1;
@@ -163,11 +166,13 @@ sub checkStatusTransfer {
   my $self=shift;
   my $fts=shift;
   my $id=shift;
-
-  open (FILE, "glite-transfer-status --verbose -s $fts $id|") or 
-    $self->info("Error checking the status") and return -1;
-  my $fileStatus=join ("", <FILE>);
-  close FILE or $self->info("Error checking the status") and return -1;
+  my $done=0;
+  my $fileStatus;
+  if (open (FILE, "glite-transfer-status --verbose -s $fts $id|")){
+    $fileStatus=join ("", <FILE>);
+    (close FILE) and $done=1;
+  }
+  $done or $self->info("Error checking the status of the transfer") and return -1;
   $DEBUG and print "$fileStatus\n";
   $fileStatus=~ /^Status:\s*(\S*)/m  or $self->info("Error getting the status of the transfer  $fts $id") and return -1;
   my $status=$1;
@@ -192,7 +197,7 @@ sub getFTSEndpoint {
   my $date=time;
   if (! $self->{FTS_ENDPOINT}->{$site} || 
       $self->{FTS_ENDPOINT}->{$site}->{time}<$date) {
-    $self->info("Getting the FTSendpoint from the BDII");
+    $self->info("Getting the FTSendpoint of $site from the BDII");
 
     my $mesg=$self->{BDII}->search( base=>$self->{BDII_BASE},
 				    filter=>"(&(GlueServiceType=org.glite.FileTransfer)(GlueForeignKey=GlueSiteUniqueId*$site))"
@@ -222,7 +227,7 @@ sub getSite {
   my   $total = $mesg->count;
   $total or $self->info("Error: Don't know the site of $host") and return;
   $total >1 and $self->info("Warning!! the se $host is in more than one site");
-  my $entry=$mesg->entry(0);
+  my $entry=$mesg->entry($total-1);
   my $site=$entry->get_value("GlueSiteUniqueID") ||    
     $entry->get_value("GlueSiteName");
   $self->info("The se $host is in $site");
@@ -238,8 +243,50 @@ sub getURL{
   my $self=shift;
   my $file=shift;
   $self->info("Checking the fts url of $file");
-  $file=~ s/^srm:/fts:/ or $self->info("The file $file is not in srm. It can't be transfered through fts...") and return;
-  return $file;
+  $file=~ s/^srm:/fts:/ and return $file;
+  if ($file =~ s{^castor://([^/]*)}{}){
+    my $host2;
+    my $site=$1;
+    $site=~ s{^[^\.]*.}{};
+    
+    $self->info("The file is in castor... we have to find the srm endpoint of $site");
+    my $sleep=1;
+    while (1) {
+      eval {
+	print "Connecting to the BDII\n";
+	my $BDII=$ENV{LCG_GFAL_INFOSYS} || 'sc3-bdii.cern.ch:2170';
+	$self->{BDII}=    Net::LDAP->new( $BDII) or 
+	  die("Error contacting ldap at $BDII: $@");
+	$self->{BDII}->bind or die("Error binding to LDAP");
+	print "Searching in the BDII\n";
+
+	my $mesg=$self->{BDII}->search( base=>$self->{BDII_BASE},
+					filter=>"(&(GlueSEUniqueID=*$site)(GlueSEType=srm)(GlueSchemaVersionMinor=2))"
+				      );
+	print "Checking the result\n";
+	
+	$mesg->count or print "Error finding the SRM endpoint for $site\n" and return;
+	$mesg->count>1 and print "Warning!! there are more than one srm endpoints for $site\n";
+	
+#	$host2=$mesg->entry(0)->get_value("GlueServiceAccessPointURL");
+#	$host2=~ s{^[^:]*://}{};
+	$host2=$mesg->entry(0)->get_value("GlueSEUniqueID");
+	my $port=$mesg->entry(0)->get_value("GlueSEPort");
+	$port and $host2.=":$port";
+      };
+      ($@) and	$self->info("Got the error: $@");
+
+      $host2 and last;
+      $self->info("Error getting the info from the BDII... let's try to sleep and reconnect");
+      sleep($sleep);
+      $sleep=($sleep+int(rand(10)))*2;
+    }
+    $self->info("Returning fts://$host2$file");
+    return "fts://$host2$file";
+
+  }
+  $self->info("The file $file is not in srm. It can't be transfered through fts...");
+  return;
 }
 
 sub testTransfer {
@@ -247,9 +294,9 @@ sub testTransfer {
   my $source=shift;
   my $target=shift;
 
-  $source =~ s{^srm://([^/]*)(/.*$)}{$1} or $self->info("Format of $source is not correct") and return;
+  $source =~ s{^srm://([^/]*)(/.*$)}{$2} or $self->info("Format of $source is not correct") and return;
   my $sourceHost=$1;
-  $target =~ s{^srm://([^/]*)(/.*$)}{$1} or $self->info("Format of $target is not correct") and return;
+  $target =~ s{^srm://([^/]*)(/.*$)}{$2} or $self->info("Format of $target is not correct") and return;
   my $targetHost=$1;
   return $self->transfer($source, $target, "", "", $sourceHost, $targetHost);
 }
