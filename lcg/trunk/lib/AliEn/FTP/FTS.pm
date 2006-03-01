@@ -172,7 +172,7 @@ sub checkStatusTransfer {
     $fileStatus=join ("", <FILE>);
     (close FILE) and $done=1;
   }
-  $done or $self->info("Error checking the status of the transfer") and return -1;
+  $done or $self->info("Error checking the status of the transfer $id : $!, $fileStatus",2) and return -1;
   $DEBUG and print "$fileStatus\n";
   $fileStatus=~ /^Status:\s*(\S*)/m  or $self->info("Error getting the status of the transfer  $fts $id") and return -1;
   my $status=$1;
