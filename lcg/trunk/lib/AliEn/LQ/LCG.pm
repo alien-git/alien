@@ -164,7 +164,7 @@ sub getFreeSlots {
     $GRIS=~ s{^(ldap://[^/]*)/(.*)}{$1} and $BaseDN=$2;
   }else {
   # If we did not define a BDII, use the GRIS running on the CE
-    $GRIS = "ldap://$host:2135";
+    $GRIS = "ldap://$self->{CONFIG}->{HOST}:2135";
     $BaseDN = "mds-vo-name=local,o=grid";
   }
 
