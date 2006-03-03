@@ -1,0 +1,193 @@
+package AliEn::Classad::Host;
+
+use AliEn::Config;
+use Classad;
+use strict;
+use vars qw(@ISA);
+use Filesys::DiskFree;
+
+push @ISA,'AliEn::Logger::LogObject';
+
+sub new {
+  my $proto = shift;
+  my $class = ref($proto) || $proto;
+  my $self  = ( shift or {} );
+  bless( $self, $class );
+  $self->SUPER::new() or return;
+  $self->{CONFIG} or $self->{CONFIG} = AliEn::Config->new();
+  $self->{CONFIG} or return;
+
+
+  $self->debug(1, "Creating the ClassAd" );
+
+  my $ca =
+    Classad::Classad->new(
+			  "[ Type=\"machine\"; Requirements=(other.Type==\"Job\"); WNHost = \"$self->{CONFIG}->{HOST}\";]" );
+
+  $self->setCloseSE($ca) or return;
+  $self->setPackages($ca) or return;
+  $self->setCE($ca) or return;
+  $self->setGridPartitions($ca) or return;
+  $self->setLocalInfo($ca) or return;
+  $self->setTTL($ca) or return;
+  $self->setSystemInfo($ca) or return;
+  $self->setVersion($ca) or return;
+  if ( !$ca->isOK() ) {
+    print STDERR "CE::new : classad not correct ???!!!\n";
+    return;
+  }
+
+  $self->debug(1, "Returning ". $ca->asJDL());
+  return $ca;
+}
+
+#
+# Private functions
+#
+sub setVersion {
+  my $self=shift;
+  my $ca=shift;
+  
+  return $ca->set_expression("Version", "\"$self->{CONFIG}->{VERSION}\"");
+
+}
+
+
+sub setSystemInfo {
+  my $self=shift;
+  my $ca=shift;
+
+  open (FILE,"</proc/meminfo") or 
+    print "Error checking /proc/meminfo\n" and return 1;
+  my ($free, $swapfree, $total, $swap);
+
+  foreach (<FILE>) {
+    if (/^Swap:\s*(\d+)\s+\d+\s+(\d+).*$/) {
+      $swap=int($1/1024);
+      $swapfree=int($2/1024);
+      next;
+    }
+    if (/^Mem:\s*(\d+)\s+\d+\s+(\d+).*$/) {
+      $total=int($1/1024);
+      $free=int($2/1024);
+      next;
+    }
+  }
+  close FILE;
+
+  $swap and (  $ca->set_expression("Swap", $swap) or return);
+  $total and (  $ca->set_expression("Memory", $total) or return);
+  $free and ($ca->set_expression("FreeMemory", $free) or return);
+  $swapfree and ($ca->set_expression("FreeSwap", $swapfree) or return);
+  return 1;
+}
+sub setLocalInfo{
+  my $self=shift;
+  my $ca=shift;
+  my $dir=  $ENV{ALIEN_HOME};
+  $ENV{ALIEN_WORKDIR} and (-d $ENV{ALIEN_WORKDIR}) and 
+    $dir=$ENV{ALIEN_WORKDIR};
+  $self->debug(1,"Looking for the free space in $dir");
+  my $handle=Filesys::DiskFree->new();
+  $handle->df();
+  my $space=$handle->avail($dir);
+#  if (open (FILE, "df -P $dir | tail -1 | awk \'{print \$4}\' |")) {
+#    my $space=join("", <FILE>);
+#    close FILE;
+#    chomp $space;
+#    $space =~ s/^(\d+)\s.*$/$1/;
+  if ($space){
+    $ca->set_expression( "LocalDiskSpace", $space/1024 );
+  }else {
+    $self->info("Error getting the diskspace") and return 1;
+  }
+  if (open (FILE, "uname -r |")) {
+    my $uname=join("", <FILE>);
+    close FILE;
+    chomp $uname;
+    $ca->set_expression( "Uname", "\"$uname\"" );
+  }else {
+    $self->info("Error getting uname") and return 1;
+  }
+  return 1;
+}
+sub setCloseSE{
+  my $self=shift;
+  my $ca=shift;
+  my @closeSE = ();
+  $self->{CONFIG}->{SEs_FULLNAME}
+    and @closeSE = @{ $self->{CONFIG}->{SEs_FULLNAME} };
+
+  return $self->setItem($ca, "CloseSE", @closeSE);
+}
+sub setPackages {
+  my $self=shift;
+  my $ca=shift;
+
+  my $soap=new AliEn::SOAP or return;
+  #Let's ask the PackMan for the Packages that we have installed
+
+  my ($done)=$soap->CallSOAP("PackMan","getListPackages","ALIEN_SOAP_SILENT");
+  if ($done) {
+    my @list=$done->paramsout;
+    $self->setItem($ca, "Packages", $done->paramsout) or return;
+  }
+  ($done)=$soap->CallSOAP("PackMan","getListInstalledPackages","ALIEN_SOAP_SILENT") or return 1;
+  my @list=$done->paramsout;
+  return  $self->setItem($ca, "InstalledPackages", $done->paramsout);
+}
+
+
+sub setCE {
+  my $self=shift;
+  my $ca=shift;
+  if ($self->{CONFIG}->{CE_FULLNAME}) {
+    $ca->set_expression( "CE", "\"$self->{CONFIG}->{CE_FULLNAME}\"" )
+      or $self->{LOGGER}->warning("CE", 
+				  "Error setting the CE ($self->{CONFIG}->{CE_FULLNAME})" )
+	and return;
+  }
+  if ($self->{CONFIG}->{CE_HOST}){
+    $ca->set_expression( "Host", "\"$self->{CONFIG}->{CE_HOST}\"" )
+      or $self->{LOGGER}->warning("CE", 
+				  "Error setting the CE ($self->{CONFIG}->{CE_HOST})" )
+     and return;
+  }
+  return 1;
+}
+
+sub setGridPartitions {
+  my $self=shift;
+  my $ca=shift;
+  ( $self->{CONFIG}->{GRID_PARTITION} ) or return 1;
+  my  @partitions=@{ $self->{CONFIG}->{GRID_PARTITION_LIST} };
+  return $self->setItem($ca, "GridPartitions", @partitions);
+}
+sub setTTL {
+  my $self=shift;
+  my $ca=shift;
+  my $ttl=($self->{CONFIG}->{CE_TTL} or  "");
+  ( $ttl) or 
+    $self->info( "Using default TTL value: 12 hours") 
+      and $ttl=12*3600;
+  return $ca->set_expression('TTL', $ttl);
+
+}
+
+sub setItem{
+  my $self=shift;
+  my $ca=shift;
+  my $item=shift;
+  my @elements=@_;
+
+  ($#elements>-1) or return 1;
+
+  map { s/^(.*)$/\"$1\"/ } @elements;
+  my $string = "{" . join ( ", ", @elements ) . "}";
+  $self->debug(1, "Setting $item $string" );
+  $ca->set_expression( $item, $string )
+    or $self->{LOGGER}->warning( "CE", "Error setting the $item (@elements" )
+      and return;
+  return 1;
+}
+1;
