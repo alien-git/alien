@@ -38,6 +38,10 @@ sub createDirectory {
   $self->debug(1,"Checking if the parent exist");
   my $parent=$lfn;
   $parent=~ s{/[^/]*/?$}{};
+  if ($parent eq $lfn) {
+    $self->info("We can't create the directory $parent");
+    return;
+  }
   $self->createDirectory($parent) or return;
   $self->info("Making the directory");
   my $mode = 0770;
