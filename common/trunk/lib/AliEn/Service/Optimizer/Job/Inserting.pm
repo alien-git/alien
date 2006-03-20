@@ -51,16 +51,10 @@ sub updateInserting {
   ( $host =~ /^(.*)\@/ ) and ( $user = $1 );
   my $set={};
   eval {
-    $self->copyInput($queueid, $job_ca, $user) or 
+    my $done=$self->copyInput($queueid, $job_ca, $user) or 
       die("error copying the input\n");
-    my $procDir = AliEn::Util::getProcDir($user, undef, $queueid);
 
-    my ($size)=$self->{CATALOGUE}->execute("du", "-silent", $procDir);
-    $size or $size=0;
-    $size=int (($size+7000)/1024)+1;
-    $self->info("We need $size kbytes in the worker node to execute the job
-\t\tUpdating the ADMIN table for $queueid" );
-
+    $self->info("Updating the ADMIN table for $queueid" );
     $self->insertToken($queueid, $user);
 
     my ($ok, $req)=$job_ca->evaluateExpression("Requirements");
@@ -68,7 +62,8 @@ sub updateInserting {
       die("error getting the requirements of the jdl");
     $self->info( "Let's create the entry for the jobagent");
     $req =~ s{ \&\& \( other.LocalDiskSpace > \d+ \)}{}g;
-    $req = "$req && ( other.LocalDiskSpace > $size )";
+
+    $done->{requirements} and $req.=" && $done->{requirements}";
 
     $ok=$job_ca->set_expression("Requirements", $req) or 
       die("ERROR SETTING THE REQUIREMENTS TO $req");
@@ -83,6 +78,7 @@ sub updateInserting {
       ($ok and $info) or next;
       $req.=" $entry =$info;\n";
     }
+
     $self->{DB}->insertJobAgent($req)
       or die("error creating the jobagent entry\n");
   };

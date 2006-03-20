@@ -556,7 +556,7 @@ sub checkTable {
   my %columns=%$columnsDef;
 
   $desc="$desc $columns{$desc}";
-  $self->_do("CREATE TABLE IF NOT EXISTS $table ($desc)")
+  $self->_do("CREATE TABLE IF NOT EXISTS $table ($desc) DEFAULT CHARACTER SET latin1 COLLATE latin1_general_cs")
     or $self->{LOGGER}->error("TaskQueue","in checkQueueTable creating table $table failed");
 
   my $alter=$self->getNewColumns($table, $columnsDef);
@@ -689,7 +689,7 @@ sub createTable {
   $checkExists
     and $checkExists = "IF NOT EXISTS";
  
-  $self->_do("CREATE TABLE $checkExists $table $definition")
+  $self->_do("CREATE TABLE $checkExists $table $definition DEFAULT CHARACTER SET latin1 COLLATE latin1_general_cs")
     or $self->{LOGGER}->error("Database","In createTable unable to create table $table with definition $definition")
       and return;
 

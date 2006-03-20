@@ -108,7 +108,6 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
     'host'    => ['$self->{CATALOG}->f_host', 0],
     'addUser' => ['$self->{CATALOG}->f_addUser', 0],
     'mount'   => ['$self->{CATALOG}->f_mount', 0],
-    'mkNewIndex' => ['$self->{CATALOG}->f_createNewIndexTable', 0],
     'verifyToken' => ['$self->{CATALOG}->f_verifyToken', 0],
     'verifySubjectRole' => ['$self->{CATALOG}->f_verifySubjectRole', 0],
     'moveDirectory'=>['$self->{CATALOG}->moveDirectoryToIndex',0],
@@ -148,8 +147,10 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
     'man'         => ['$self->help', 0],
     'debug'        => ['$self->setDebug', 0],
     'silent'       => ['$self->setSilent', 0],
-    'guid2lfn' => ['$self->{CATALOG}->f_guid2lfn', 3+16+32],
-    'lfn2guid' => ['$self->{CATALOG}->f_lfn2guid', 3+16+32],
+	     'pattern'       => ['$self->pattern', 0],
+
+	     'guid2lfn' => ['$self->{CATALOG}->f_guid2lfn', 3+16+32],
+	     'lfn2guid' => ['$self->{CATALOG}->f_lfn2guid', 3+16+32],
 	     'touch'              => ['$self->{CATALOG}->f_touch', 3],
 	     'version' => ['$self->version', 0],
 	     'time' => ['$self->time', 0],
@@ -224,6 +225,7 @@ my %help_list = (
 		 'history'=>"\tPrints the last commands",
 		 'moveDirectory'=>"\tPuts the directory in another table",
 		 'time'       => "\tmeasures the time needed to execute a command",
+		 'pattern'  => "\tGives all the lfn that match a pattern",
 
 
 );
@@ -656,31 +658,25 @@ sub execute {
       $lastarg = (pop @newargs or "") if ($com[1] & 8);
 
       # wildcards!!!
-      my $foundwildcards;
+      my $ok=1;
       if ($self->{CATALOG} && $self->{CATALOG}->{GLOB} == 1) {
 	if ($com[1] & 16) {
-	  my @temp = @newargs;
-	  @newargs=();
-	  for (@temp) {
-	    if (s/([^\\])\*/$1%/g or s/([^\\])\?/$1_/g 
-		or s/^\*/%/  or s/^\?/_/) {
-	      $foundwildcards = 1;
-	      push @newargs, $self->{CATALOG}->ExpandWildcards($_, $com[1] & 32);
-	    } else {
-	      push @newargs, $_;
-	    }
+	  my $files=$self->expandWildcards($com[1] & 32,@newargs);
+	  if ($files){
+	    @newargs=@$files;
+	  }else{
+	    $ok=0;
 	  }
 	} else {
 	  map  {s/([^\\])\*/$1%/g} @newargs;
 	  map  {s/([^\\])\?/$1_/g} @newargs;
 	}
+
 	map  {s/\\\?/\?/g} @newargs;
 	map  {s/\\\*/\*/g} @newargs;
 
       }
-      if ($foundwildcards and $#newargs == -1) {
-	print STDERR "File or directory not found\n";
-      } else {
+      if ($ok) {
 	push @newargs, undef if ($#newargs == -1);
 	
 	my $lcommand = "$com[0](";
@@ -764,6 +760,42 @@ sub execute {
   }
   return @error;
 }
+
+
+
+sub expandWildcards {
+  my $self=shift;
+  my $options=shift;
+  my @newargs=();
+  my $foundwildcards;
+  for (@_) {
+    if (s/([^\\])\*/$1%/g or s/([^\\])\?/$1_/g 
+	or s/^\*/%/  or s/^\?/_/) {
+      $foundwildcards = 1;
+      push @newargs, $self->{CATALOG}->ExpandWildcards($_, $options);
+    } else {
+      push @newargs, $_;
+    }
+  }
+  if ($foundwildcards and $#newargs == -1) {
+    print STDERR "File or directory not found\n"; 
+    return;
+  }
+  return \@newargs
+}
+
+
+sub pattern {
+  my $self=shift;
+  $self->info("Ready to expand @_");
+  my $list=$self->expandWildcards(0, @_);
+  $list or return;
+  my $message=join("\n\t", @$list);
+  $self->info("\t$message",0,0);
+  return @$list;
+}
+
+
 
 =item C<close()>
 

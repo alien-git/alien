@@ -9,6 +9,7 @@ use AliEn::Database::IS;
 use AliEn::Service::Optimizer;
 use AliEn::Catalogue;
 use AliEn::UI::Catalogue::LCM::Computer;
+use AliEn::Dataset;
 
 use AliEn::Util;
 
@@ -50,7 +51,8 @@ sub initialize {
   $self->SUPER::initialize(@_) or return;
 
   $self->{DB}->setArchive();
-
+  $self->{DATASET}=AliEn::Dataset->new() or 
+    $self->info("Error creating the dataset") and return;; 
 #  $self->{JOBLOG} = new AliEn::JOBLOG();
 
   $self->StartChildren() or return;
@@ -139,7 +141,6 @@ sub StartChildren{
 
   return $self;
 }
-
 sub copyInput {
   my $self=shift;
   my $procid=shift;
@@ -149,64 +150,68 @@ sub copyInput {
   my ($ok, $split)=$job_ca->evaluateAttributeString("Split");
   $split and
     $self->info("The job is going to be split... don't need to copy the input")
-      and return 1;
+      and return {};
 
   ($ok, my @inputFile) = $job_ca->evaluateAttributeVectorString("InputBox");
   ($ok, my $createLinks)=$job_ca->evaluateAttributeString("CreateLinks");
-
+  ($ok, my @inputData)= $job_ca->evaluateAttributeVectorString("InputData");
+  if (grep (! /,nodownload/, @inputData)){
+    push @inputFile, grep (! /,nodownload/, @inputData);
+  }
   my $procDir = AliEn::Util::getProcDir($user, undef, $procid);
 
   my @filesToDownload=();
   my $file;
-  my $done={};
-  foreach $file (@inputFile) {
-    my ( $pfn, $pfnSize, $pfnName, $pfnSE ) = split "###", $file;
-    $pfnName and $file=$pfnName;
-    $self->info("In copyInput adding file $file (from the InputBox $pfn)");
-#    my $procname=$self->findProcName($procid, $file, $done, $user);
-    my $procname=$self->findProcName($procDir, $file, $done,$createLinks);
-    if ( defined $pfnSize ) {
-      $self->info("Adding $procname with $pfn and $pfnSize");
 
-      if (! $self->{CATALOGUE}->execute( "register", $procname, $pfn, $pfnSize, $pfnSE ) ) {
-	print "The registration failed ($AliEn::Logger::ERROR_MSG) let's try again...\n";
-	$self->{CATALOGUE}->execute( "register", $procname, $pfn, $pfnSize ) or 
-	  print STDERR "ERROR Adding the entry $pfn to the catalog as $procname!!\n"
-	  and return;
+  $self->copyInputCollection($job_ca, $procid, \@inputFile)
+    or  $self->info("Error checking the input collection") and return;
+
+  my $size=0;
+
+  my $done={};
+  my ($olduser)=$self->{CATALOGUE}->execute("whoami");
+  my @allreq;
+  my @allreqPattern;
+  eval {
+    foreach $file (@inputFile) {
+      my ( $pfn, $pfnSize, $pfnName, $pfnSE ) = split "###", $file;
+      $pfnName and $file=$pfnName;
+      $self->info("In copyInput adding file $file (from the InputBox $pfn)");
+      #    my $procname=$self->findProcName($procid, $file, $done, $user);
+      my $procname=$self->findProcName($procDir, $file, $done,$createLinks);
+      if ( defined $pfnSize ) {
+	$self->info("Adding $procname with $pfn and $pfnSize");
+	$size+=$pfnSize;
+	if (! $self->{CATALOGUE}->execute( "register", $procname, $pfn, $pfnSize, $pfnSE ) ) {
+	  print "The registration failed ($AliEn::Logger::ERROR_MSG) let's try again...\n";
+	  $self->{CATALOGUE}->execute( "register", $procname, $pfn, $pfnSize ) or 
+	    print STDERR "ERROR Adding the entry $pfn to the catalog as $procname!!\n"
+	      and return;
+	}
+	push @filesToDownload, "\"${procname}->$procname\"";
       }
-      push @filesToDownload, "\"${procname}->$procname\"";
-    }
-    else {
-      if ( $file=~ /,nodownload/) {
+      else {
+	$file=~ s/^LF://;
+	$self->info("Adding file $file (from the InputBox)" );
+	my ($fileInfo, @sites)=$self->{CATALOGUE}->execute("whereis", "-li", $file);
+	if (!$fileInfo) {
+	  $self->putJobLog($procid,"error", "Error checking the file $file");
+	  die("The file $file doesn't exist");
+	}
+	$size+=$fileInfo->{size};
+	my $sePattern=join("_", @sites);
+	if (! grep (/^$sePattern$/, @allreqPattern)) {
+	  map {$_=" member(other.CloseSE,\"$_\") "} @sites;
+	  my $sereq="(".join(" || ",@sites). ")";
+	  $self->info("Putting the requirement $sereq ($sePattern is not in @allreqPattern)");
+	  push @allreq, $sereq;
+	  push @allreqPattern, $sePattern;
+	}
+	if ( $file=~ /,nodownload/) {
 	  $self->info("Skipping file $file (from the InputBox) - nodownload option" );
 	  next;
-      }
-      $self->info("Adding file $file (from the InputBox)" );
-      if ($file=~ /\*/) {
-	$self->info("Adding all the files with that pattern" );
-	my ($name, $dir);
-	if ($file=~ /^([^\*]*)\*(.*)$/) { $dir=$1; $name=$2};
-	$name or $name="*";
-	my @list=$self->{CATALOGUE}->execute( "find", "-silent", "$dir", "$name" );
-	if (!@list) {
-	  $self->info("Error: there are no files that match $file");
-	  $self->putJobLog($procid,"error", "There are no files with the pattern '$file'");
-	   return;
 	}
-	my $counter="";
-	foreach my $pattern (@list) {
-#	  my $procname2= $self->findProcName($procid, $pattern, $done, $user);
-	  my $procname2= $self->findProcName($procDir, $pattern, $done, $createLinks);
-	  $self->info("Copying $pattern as $procname2");
-	  if ($createLinks) {
-	    ( $self->{CATALOGUE}->execute( "cp",  $pattern, $procname2, "-silent") )
-	      or print STDERR "JobOptimizer: in copyInput error copying the entry $pattern to $procname!!\n"
-		and return;
-	  } else {
-	    push  @filesToDownload, "\"${procname}->$file\"";
-	  }
-	}
-      } else {
+
 	if ($createLinks) {
 	  if (!$self->{CATALOGUE}->execute( "cp", $file, $procname, "-silent" )){
 	    print "Copying failed!!! Let's try again\n";
@@ -219,17 +224,23 @@ sub copyInput {
 	}
       }
     }
+    if ( ! $createLinks and @filesToDownload) {
+      $self->info("Putting in the jdl the list of files that have to be downloaded");
+      $job_ca->set_expression("InputDownload", "{". join(",", @filesToDownload)."}");
+      }
+    
+    # change to the correct owner
+    #      $self->{CATALOGUE}->execute("chown","$user","$procDir/", "-f");
+    $self->{CATALOGUE}->execute("chmod","700","$procDir/");
+  };
+  my $error=$@;
+  $self->{CATALOGUE}->execute("user","-", $olduser);
+  if ($error) {
+    $self->info("Something went wrong while copying the input: $@"); 
+    return;
   }
-  if ( ! $createLinks and @filesToDownload) {
-    $self->info("Putting in the jdl the list of files that have to be downloaded");
-    $job_ca->set_expression("InputDownload", "{". join(",", @filesToDownload)."}");
-  }
-  
-  # change to the correct owner
-
-  $self->{CATALOGUE}->execute("chown","$user","$procDir/", "-f");
-  $self->{CATALOGUE}->execute("chmod","700","$procDir/");
-  1;
+  my $req= join (" && ", "( other.LocalDiskSpace > $size )", @allreq);
+  return {requirements=>"$req"};
 }
 # This subroutine finds the name in the proc directory where the file should
 # be inserted
@@ -352,36 +363,36 @@ sub checkJobs {
   return 1;
 }
 
-sub createInputBox {
-    my $self=shift;
-    my $job_ca=shift;
-    my $inputdata=shift;
-    $self->debug(1, "Creating the input box");
-    my $inputbox={};
-    #First, get the inputData
+#sub createInputBox {
+#    my $self=shift;
+#    my $job_ca=shift;
+#    my $inputdata=shift;
+#    $self->debug(1, "Creating the input box");
+#    my $inputbox={};
+#    #First, get the inputData
 
-    my ($ok, @files)=$job_ca->evaluateAttributeVectorString("InputFile");
+#    my ($ok, @files)=$job_ca->evaluateAttributeVectorString("InputFile");
 
-    push (@files, @{$inputdata});
+#    push (@files, @{$inputdata});
 
-    foreach my $file (@files) {
-	$file=~ s/\"//g;
-	$file=~ s/^LF://;
-	$self->debug(1, "Adding $file");
-	my $name = $file;
-	$name =~ s/^.*\///;
-	my $tempName=$name;
-	my $i=1;
-	while ($inputbox->{$name}){
-	    $name="$tempName.$i";
-	    $i++;
-	}
-	$inputbox->{$name} = $file;
-    }
+#    foreach my $file (@files) {
+#	$file=~ s/\"//g;
+#	$file=~ s/^LF://;
+#	$self->debug(1, "Adding $file");
+#	my $name = $file;
+#	$name =~ s/^.*\///;
+#	my $tempName=$name;
+#	my $i=1;
+#	while ($inputbox->{$name}){
+#	    $name="$tempName.$i";
+#	    $i++;
+#	}
+#	$inputbox->{$name} = $file;
+#    }
 
-    $self->debug(1, "In createInputBox InputBox\n". Dumper $inputbox);
-    return $inputbox;
-}
+#    $self->debug(1, "In createInputBox InputBox\n". Dumper $inputbox);
+#    return $inputbox;
+#}
 
 
 sub checkMirrorData {
@@ -474,6 +485,46 @@ sub DESTROY {
   
 }
 
+sub copyInputCollection {
+  my $self=shift;
+  my $job_ca=shift;
+  my $jobId=shift;
+  my $inputBox=shift;
+  $self->info("Checking if the job defines the InputDataCollection");
+
+  my ( $ok, @inputData ) =
+    $job_ca->evaluateAttributeVectorString("InputDataCollection");
+  @inputData or
+    $self->info("There is no inputDataCollection")
+      and return 1;
+
+  foreach my $file (@inputData){
+    $self->putJobLog($jobId,"trace", "Using the inputcollection $file");
+    my ($file2, $options)=split(',', $file,2);
+    $options and $options=",$options";
+    $options or $options="";
+    $file2 =~ s/^LF://;
+    my ($localFile)=$self->{CATALOGUE}->execute("get", $file2 );
+    if (! $localFile){
+      $self->putJobLog($jobId,"error", "Error getting the inputcollection $file2");
+      return;
+    }
+    $self->info("Let's read the dataset");
+    my $dataset=$self->{DATASET}->readxml($localFile);
+    if (!$dataset ){
+      $self->putJobLog($jobId,"error","Error creating the dataset from the collection $file2");
+      return;
+    }
+    $self->info("Getting the LFNS from the dataset");
+    my $lfnRef=$self->{DATASET}->getAllLFN()
+      or $self->info("Error getting the LFNS from the dataset") and return;
+    map {$_="LF:$_$options"} @{$lfnRef->{lfns}};
+    $self->info("Adding the files ".@{$lfnRef->{lfns}});
+    push @$inputBox, @{$lfnRef->{lfns}}
+
+  }
+  return 1;
+}
 sub copyInputFiles {
   my $self=shift;
   my $job_ca=shift;
@@ -481,11 +532,14 @@ sub copyInputFiles {
 
   my $name;
   my $inputBox={};
+  $self->copyInputCollection($job_ca, $jobId, $inputBox)
+    or $self->info("Error copying the inputCollection") and return;
+
   my ( $ok, @inputData ) =
     $job_ca->evaluateAttributeVectorString("InputData");
   @inputData or
     $self->info("There is no inputData")
-      and return 1;
+      and return {requirements=>""};
 
   foreach my $lfn ( @inputData ) {
     $lfn =~ s/^LF://;
@@ -508,7 +562,7 @@ sub copyInputFiles {
       or print STDERR "JobOptimizer: in copyInputFiles error copying the entry to the catalog\n"
 	and return;
   }
-  return 1;
+  return  {requirements=>""};
 }
 sub setAlive {
   my $self=shift;
@@ -528,6 +582,8 @@ sub setAlive {
 
 sub putJobLog {
   my $self=shift;
+
+  $self->info(join(" ", "Putting in the log: ", @_));
   return $self->{DB}->insertJobMessage(@_);
 }
 return 1;

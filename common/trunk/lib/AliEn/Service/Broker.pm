@@ -14,10 +14,9 @@ use Classad;
 use vars qw (@ISA);
 @ISA=("AliEn::Service");
 
-my $self = {};
 
 sub initialize {
-  $self     = shift;
+  my $self     = shift;
   my $options =(shift or {});
   
   $self->{SERVICE} or
@@ -78,7 +77,7 @@ sub initialize {
 }
 
 ##############################################################################
-# Public functions
+# Private functions
 ##############################################################################
 
 sub extractCommand {
@@ -101,7 +100,7 @@ sub extractCommand {
 }
 
 sub match {
-  my $this    = shift;
+  my $self   = shift;
   my $type    = shift;
   my $site_ca     = shift;
   my $pendingElements = shift;

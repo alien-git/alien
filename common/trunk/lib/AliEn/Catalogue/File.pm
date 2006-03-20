@@ -144,7 +144,7 @@ sub f_bulkRegisterFile {
 }
 # Returns the list of SE that have this file
 # Possible options:   -l Give only the list of SE (not pfn)
-#                     -g return also the guid
+#                     -g return also the file info
 #
 #
 sub f_whereisFile {
@@ -160,7 +160,7 @@ sub f_whereisFile {
     return;
   }
   if ($options =~ /g/){
-    return $self->{DATABASE}->getSEListFromFile($lfn, $permFile->{seStringlist}), $permFile->{guid};
+    return $self->{DATABASE}->getSEListFromFile($lfn, $permFile->{seStringlist}), $permFile;
   }else {
     return $self->{DATABASE}->getSEListFromFile($lfn, $permFile->{seStringlist});
   }
@@ -433,7 +433,7 @@ sub f_cp {
 
   $target = $self->GetAbsolutePath($target, 1);
 
-  my $targetPerm=$self->checkPermissions( "w", $target ) or return;
+  my $targetPerm=$self->checkPermissions( "w", $target, undef, {ROLE=>$opt->{user}} ) or return;
   my $targetIsDir=$self->isDirectory($target, $targetPerm);
   
   if (@moreFiles && not $targetIsDir) {

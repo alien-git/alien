@@ -169,6 +169,6 @@ sub f_chown {
   #Since we are admin, we can do it directly:
   my $db=$self->{DATABASE}->{DB};
   my $table=$self->{DATABASE}->getIndexTable();
-  return $self->{DATABASE}->do("GRANT ALL on $db.$table to $user");
+  return $self->{DATABASE}->do("GRANT ALL on $db.$table->{name} to $user");
 }
 return 1;

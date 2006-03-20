@@ -14,8 +14,6 @@ push @ISA, "AliEn::Logger::LogObject";
 my $self;
 $DEBUG=0;
 
-our $VERSION = '2.9';
-
 my $organisations = {};
 
 my @SERVICES=("SE", "CE", "FTD", "PackMan", "MonaLisa","ApiService");
@@ -1030,36 +1028,6 @@ sub GetgContainer {
 }
 
 return 1;
-
-
-
-=head1 NAME
-
-AliEn - Perl extension for blah blah blah
-
-=head1 SYNOPSIS
-
-  use AliEn::UI::Catalogue;
-  blah blah blah
-
-=head1 DESCRIPTION
-
-Blah blah blah.
-
-=head2 EXPORT
-
-None by default.
-
-
-=head1 AUTHOR
-
-Pablo Saiz <lt> pablo.saiz@cern.ch<gt>
-
-=head1 SEE ALSO
-
-L<perl>.
-
-=cut
 
 
 

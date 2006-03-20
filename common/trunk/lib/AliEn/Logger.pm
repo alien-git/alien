@@ -426,6 +426,12 @@ sub set_error_no{
   $ERROR_NO=(shift or 0);
 }
 
+sub reset_error_msg{
+  my $self=shift;
+  $ERROR_MSG="";
+  $ERROR_NO=0;
+  return 1;
+}
 
 1;
 

@@ -451,12 +451,12 @@ sub f_ls
   my @result;
   $DEBUG and $self->debug(1, "The ls found $#$rlist +1 entries");
   if ($options =~ /z/) {
-      if ( (!defined $retrievedpath) || ($retrievedpath eq "") ) {
-	  my $errorresult;
-	  $errorresult->{"__result__"} = 0;
-	  push @result, $errorresult;
-	  return @result;
-      }
+    if ( (!defined $retrievedpath) || ($retrievedpath eq "") ) {
+      my $errorresult;
+      $errorresult->{"__result__"} = 0;
+      push @result, $errorresult;
+      return @result;
+    }
   }
 
   for (@$rlist) {
@@ -654,35 +654,7 @@ sub f_rmdir {
     or print STDERR "You dont have permission to read directory $path\n"
       and return;
 
-  #Let's get all the hosts that can have files under this directory
-  my $entries=$self->{DATABASE}->getHostsForEntry($path) or $self->info( "Error getting the hosts for '$path'") and return;
-  $DEBUG and $self->debug(1, "Getting dir from $path");
-  my @index=();
-  foreach my $db (@$entries) {
-    $DEBUG and $self->debug(1, "Deleting all the entries from $db->{hostIndex}");
-    my $db2=$self->{DATABASE}->reconnectToIndex($db->{hostIndex}, $path);
-    $db2 or     $self->info( "Error reconecting") and next;
-    $self->{DATABASE}=$db2;
-
-    $self->{DATABASE}->delete("D$db->{tableName}L", "lfn like '$path/%'");
-    $db->{lfn} =~ /^$path/ and push @index, "$db->{lfn}\%";
-  }
-
-  if ($#index>-1) {
-    $DEBUG and $self->debug(1, "And now, let's clean the index table (@index)");
-    $self->{DATABASE}->deleteFromIndex(@index);
-    if (grep( m{^$path/?\%$}, @index)){
-      $DEBUG and $self->debug(1, "The directory we were trying to remove was an index");
-      my $entries=$self->{DATABASE}->getHostsForEntry($parentdir) or 
-	$self->info( "Error getting the hosts for '$path'") and return;
-      my $db=${$entries}[0];
-      my $newdb=$self->{DATABASE}->reconnectToIndex($db->{hostIndex}, $parentdir);
-      $newdb or $self->info( "Error reconecting") and return;
-      $self->{DATABASE}=$newdb;
-      $self->{DATABASE}->delete("D$db->{tableName}L", "lfn='$path/'");
-    }
-  }
-  return 1;
+  return $self->{DATABASE}->removeDirectory($path, $parentdir);
 }
 
 
@@ -708,11 +680,10 @@ sub f_mkremdir {
   my $host   = shift;
   my $driver = shift;
   my $DB     = shift;
-  my $newtable  = shift;
   my $lfn   = shift;
 
   if ( !$lfn ) {
-    $self->info( "ERROR: wrong arguments in mkremdir.\n Usage: mkremdir <host> <driver> <database> <table> <lfn>");
+    $self->info( "ERROR: wrong arguments in mkremdir.\n Usage: mkremdir <host> <driver> <database> <lfn>");
     return;
   }
 
@@ -730,7 +701,7 @@ sub f_mkremdir {
       "Error: $DB in $host (driver $driver) is not in the current list of remote hosts. Add it first with 'addHost'\n";
     return;
   }
-  return $self->{DATABASE}->createRemoteDirectory($hostIndex,$host, $DB, $driver, $newtable, $lfn);
+  return $self->{DATABASE}->createRemoteDirectory($hostIndex,$host, $DB, $driver, $lfn);
 }
 
 sub f_rmlink {
@@ -1029,7 +1000,7 @@ sub f_user {
   } else {
     $user = shift;
     print "Executing super user code [change $self->{DATABASE}->{ROLE}/$self->{ROLE} to $user]\n";
-    if ($self->{DATABASE}->{ROLE} ne "admin" ) {
+    if (!($self->{DATABASE}->{ROLE} =~ /^admin(ssl)?$/)) {
       print STDERR "You have to be admin to use the super user functionality";
       return;
     }
@@ -1202,7 +1173,8 @@ my $find_usage="Usage: find [-<flags>] <path> <fileName> [[<tagname>:<condition>
    x => write xml - 2nd arg is collection name
    r => resolve all file information (should be used together with -x -z)
    g => file group query (has to be used together with -x -z)
-   s => no sorting 
+   s => no sorting
+   d => return also the directories
 ";
 
 # Internal subroutine. Called from find, to get all the constraint
@@ -1604,13 +1576,13 @@ sub f_locatesites {
 sub f_find {
   my $self = shift;
   my $cmdline = "find " . join (' ',@_);
-
+  
   #### standard to retrieve options with and without parameters
   my %options=();
   @ARGV=@_;
-  getopts("vzrp:o:l:x:g:sO:q",\%options);
+  getopts("vzrp:o:l:x:g:sO:q:d",\%options);
   @_=@ARGV;
-
+  
   # option v => verbose
   # option z => return array of hash
   # option p => set the printout format 
@@ -1621,16 +1593,17 @@ sub f_find {
   # option s => no sorting
   # option O => add opaque information to the results
   # option q => quiet mode
+  # option d => return directories
 
-  my $quiet = $options{q};
+  my $quiet = $options{'q'};
   my $verbose = $options{v};
 
   #### -p option
   my @printfields = ("lfn");
 
   if (defined $options{p}) {
-      @printfields = ();
-      map { push @printfields, $_; } (split (",",$options{p}));
+    @printfields = ();
+    map { push @printfields, $_; } (split (",",$options{p}));
   }
 
   $DEBUG and $self->debug(1,"printfields are: @printfields");
@@ -1638,359 +1611,241 @@ sub f_find {
   #### -l option
   my $limit = "";
   if (defined $options{l}) {
-      $limit = "limit $options{l}";
-      $DEBUG and $self->debug(1, "Setting limit to $options{l}");
+    $limit = "limit $options{l}";
+    $DEBUG and $self->debug(1, "Setting limit to $options{l}");
   }
 
-  #### -x option
-  my $dumpxml = "";
-
-  if (defined $options{x}) {
-      $dumpxml = $options{x};
-      $DEBUG and $self->debug(1, "Setting xml dump collection name to $options{x}");
-  }
 
   #### -r option
   my $resolveall = "";
   if (defined $options{r}) {
-      $resolveall = $options{r};
-      $DEBUG and $self->debug(1, "Setting resolve all tag to $options{r}");
+    $resolveall = $options{r};
+    $DEBUG and $self->debug(1, "Setting resolve all tag to $options{r}");
   }
 
   #### -g option
   my @filegroup = ();
   if (defined $options{g}) {
-      map { push @filegroup, $_; } (split (",",$options{g}));
-      $DEBUG and $self->debug(1, "Setting file group queries for files @filegroup");
+    map { push @filegroup, $_; } (split (",",$options{g}));
+    $DEBUG and $self->debug(1, "Setting file group queries for files @filegroup");
   }
 
   my $path = ($self->f_complete_path(shift) or "");
   my $file = (shift or "");
-
+  
   $path =~ s/\*/%/g;
   $file =~ s/\*/%/g;
-
+  
   ($file) or print STDERR"Error: not enough arguments in find\n$find_usage"
     and return;
 
   #### -g option
   if (defined $options{g}) {
-      if ($file =~ /%/) {
-	  print STDERR "To query filegroups, you need to specify an exact reference file to find a file group - no wildcards are allowd!\n" and return;
-      }
+    if ($file =~ /%/) {
+      print STDERR "To query filegroups, you need to specify an exact reference file to find a file group - no wildcards are allowd!\n" and return;
+    }
   }
 
   ( $self->checkPermissions( "r", $path ) ) or return;
 
 
   if (! defined $options{x}) {
-      $quiet or $verbose and $self->{LOGGER}->info("Catalogue", "Doing a find in directory $path for files with name '$file'");
+    $quiet or $verbose and $self->info("Doing a find in directory $path for files with name '$file'");
   }
-
+  
   $file=~ s{'}{\\'};
-
+  
   if ($resolveall) {
-#      $sitelocationhash = $self->f_locatesites("-s");
-      if (! defined $self->{sitelocationarray} or ( (time - $self->{sitelocationtime}) > 600 ) )   {
-	  my @allsites = $self->f_locatesites("-z");
-	  $self->{sitelocationarray} = \@allsites;
-	  $self->{sitelocationtime} = time;
-      }
+    #      $sitelocationhash = $self->f_locatesites("-s");
+    if (! defined $self->{sitelocationarray} or ( (time - $self->{sitelocationtime}) > 600 ) )   {
+      my @allsites = $self->f_locatesites("-z");
+      $self->{sitelocationarray} = \@allsites;
+      $self->{sitelocationtime} = time;
+    }
   }
   
   my ($status, $refQueries, $refNames, $refUnions)=
     $self->getFindConstraints(@_);
   $status  or return;
-
+  
   $DEBUG and $self->debug(1, "Searching for files like $path*$file* ...");
-  #first, let's take a look at the host that we want
-
-  my $rhosts=$self->{DATABASE}->getHostsForEntry($path) or $self->info( "Error getting the hosts for '$path'") and return;
-
-  my @result=();
-  my @done=();
-  foreach my $rhost (@$rhosts) {
-    my $id="$rhost->{hostIndex}:$rhost->{tableName}";
-    grep (/^$id$/, @done) and next;
-    push @done, $id;
-    my $localpath=$rhost->{lfn};
-
-    $DEBUG and $self->debug(1, "Looking in database $id (path $path)");
-
-    $self->selectDatabase($localpath) or 
-      $self->info( "Error connecting to $id ($path)") and next;
-    $DEBUG and $self->debug(1, "Doing the query");
-
-    push @result, $self->internalQuery("D$rhost->{tableName}L",$path, $file, $refNames, $refQueries, $refUnions, \%options);
-  }
-
+  my $entriesRef=$self->{DATABASE}->findLFN($path, $file, $refNames, $refQueries,$refUnions, %options) or return;
+  my @result=@$entriesRef;
   my $total = @result;
 
   if ($resolveall) {
-      # add the additional information like longitude, latitude, MSD
-      foreach (@result) {
-	  $_->{msd} = ",";
-	  $_->{longitude} = ",";
-	  $_->{latitude} = ",";
-	  $_->{location} = ",";
-	  $_->{domain} = ",";
-	  my @indices = split ',', $_->{seStringlist};
-	  foreach my $index (@indices) {
-	      if ($index eq "") {
-		  next;
-	      }
-	      # lookup this index in the site location hash
-	      foreach my $site (@{$self->{sitelocationarray}}) {
-		  if ( $site->{seIndex} =~ /,$index,/ ) {
-		      $_->{msd} .= $site->{site} .",";
-		      $_->{location} .= $site->{location} .",";
+    # add the additional information like longitude, latitude, MSD
+    foreach (@result) {
+      $_->{msd} = ",";
+      $_->{longitude} = ",";
+      $_->{latitude} = ",";
+      $_->{location} = ",";
+      $_->{domain} = ",";
+      my @indices = split ',', $_->{seStringlist};
+      foreach my $index (@indices) {
+	if ($index eq "") {
+	  next;
+	}
+	# lookup this index in the site location hash
+	foreach my $site (@{$self->{sitelocationarray}}) {
+	  if ( $site->{seIndex} =~ /,$index,/ ) {
+	    $_->{msd} .= $site->{site} .",";
+	    $_->{location} .= $site->{location} .",";
 		      $_->{longitude} .= $site->{longitude} . ",";
-		      $_->{latitude} .= $site->{latitude} . ",";
-		      $_->{domain} = $site->{domain};
+	    $_->{latitude} .= $site->{latitude} . ",";
+	    $_->{domain} = $site->{domain};
 		      last;
-		  }
-	      }
-	      if ($_->{msd} eq ",") {
-		  $_->{msd} = ",none,";
-		  $_->{longitude}=",0,";
-		  $_->{latitude}=",0,";
-		  $_->{domain}=",no-domain,";
-		  $_->{location}=",unknown,";
-	      }
 	  }
-      }
-  }
-			   
-		  
-
-  if ($dumpxml eq "" ) { 
-      if ( !$self->{SILENT} ) {
-	  $quiet or (@result) or $verbose and print "No files found!!\n";
-	  
-      }
-      
-      
-      if ($options{O}) {
-	  map { $_->{turl} = "alien://" . $_->{lfn} ."?$options{O}" ;} @result;
-      } else {
-	  map { $_->{turl} = "alien://" . $_->{lfn};} @result;
-      }
-      
-      if ( !$self->{SILENT}) {
-	  $quiet or map { foreach my $field (@printfields) {print STDOUT "$_->{$field}   ";}; print STDOUT "\n"; } @result;
-	  $quiet or ($total) and $verbose and print "$total files found\n";
-      }
-      if (!$options{z}) {
-	  my @plainresult;
-	  map { push @plainresult, $_->{lfn};} @result;
-	  return @plainresult;
-      }
-
-  } else {
-      if ($options{O}) {
-	  map { $_->{turl} = "alien://" . $_->{lfn} ."?$options{O}" ;} @result;
-      } else {
-	  map { $_->{turl} = "alien://" . $_->{lfn};} @result;
-      }
-
-      map { foreach my $lkey ( keys %{$_} ) { if (!defined $_->{$lkey}) {$_->{$lkey}="";}}} @result;
-      my @newresult;
-      map {
-	  my $bname = $self->f_basename($_->{lfn});
-	  my $dname = $self->f_dirname($_->{lfn});
-	  my $newhash={}; 
-	  $newhash->{$bname} = $_;
-	  if ($options{g}) {
-	      if ($bname eq $file) {
-		  push @newresult,$newhash;
-	      }
-	  } else {
-	      push @newresult,$newhash;
-	  }
-      } @result;
-      
-      foreach (@newresult)  {
-	  my $filename;
-	  for my $lkeys (keys %{$_}) {
-	      $filename =$lkeys;
-	  }
-	  my $bname = $self->f_basename($_->{$filename}->{lfn});
-	  my $dname = $self->f_dirname($_->{$filename}->{lfn});
-	  
-	  if ($options{g}) {
-	      for my $lfile (@filegroup) { 
-		  if (!defined $_->{$lfile}){
-		      
-		      $_->{$lfile}->{lfn}  = $dname."/".$lfile;
-		      $_->{$lfile}->{turl} = "alien://" . $dname ."/".$lfile;
-		  }
-	      }
-	  } 
-      }
-      
-      $dumpxml =~ s/\"//g;
-      my $dataset = new AliEn::Dataset;
-      $dataset->setarray(\@newresult,"$dumpxml","[$self->{CURPATH}]: $cmdline","","","$self->{CONFIG}->{ROLE}");
-      $self->{DEBUG} and $dataset->print();
-      print "Calling Write XML\n";
-      my $xml =  $dataset->writexml();
-      print "Called Write XML\n";
-      $self->{SILENT} or print $xml;
-      $result[0]->{xml} = $xml;
-  }
-  return @result;
-}
-# This subroutine looks for files that satisfy certain criteria in the 
-# current database.
-# Input:
-#    $path: directory where the 'find' started'
-#    $name: name of files that we are looking for
-#    $refNames: reference to a list of paths with the tags
-#    $refQueries: reference to a list of queries of metadata"
-#    $refunion: reference to a list of unions between the queries
-# Output:
-#    list of file that satisfy all the criteria
-sub internalQuery {
-  my $self=shift;
-  my $indexTable=shift;
-  my $path=shift;
-  my $file=shift;
-
-  my $refNames=shift;
-  my $refQueries=shift;
-  my $refUnions=shift;
-  my $options=shift;
-
-  my @tagNames=@{$refNames};
-  my @tagQueries=@{$refQueries};
-  my @unions=("and", @{$refUnions});
-
-  my @paths=();
-  my @queries=();
-
-  my @dirresults;
-
-  my @joinQueries;
-  
-  if ($file ne "\\" ) {
-      @joinQueries = ("WHERE binary lfn LIKE '$path%$file%' and lfn not like '%/'");
-  } else {
-      # query an exact file name
-      @joinQueries = ("WHERE binary lfn='$path'");
-  }
-
-  #First, let's construct the sql statements that will select all the files 
-  # that we want. 
-
-  foreach my $tagName (@tagNames) {
-    $DEBUG and $self->debug(1, "Selecting directories with tag $tagName");
-    #Checking which directories have that tag defined
-    my $tables = $self->{DATABASE}->getFieldsByTagName($tagName, "tableName", 1);
-    $tables and $#{$tables} != -1
-      or $self->info( "Error: there are no directories with tag $tagName in $self->{DATABASE}->{DB}") 
-        and return;
-
-    my $union=shift @unions;
-    my $query=shift @tagQueries;
-    my @newQueries=();
-    foreach  (@$tables) {
-      my $table=$_->{tableName};
-      foreach my $oldQuery (@joinQueries) {
-	if ($oldQuery =~ / JOIN $table /){
-	  #If the table is already in the join, let's put only the constraints
-	  push @newQueries, "$oldQuery $union $query";
-	}else{
-
-	#This is the query that will get all the results. We do a join between 
-	#the D0 table, and the one with the metadata. There will be two queries
-	#like these per table with that metadata. 
-	#The first query gets files under directories with that metadata. 
-	# It is slow, since it has to do string comperation
-	#The second query gets files with that metadata. 
-	# (this part is pretty fast)
-	  push @newQueries, " JOIN $table $oldQuery $union $table.$query and $table.file like '%/' and $indexTable.lfn like concat( $table.file,'%') ";
-	  push @newQueries, " JOIN $table $oldQuery $union $table.$query and $indexTable.lfn= $table.file ";
+	}
+	if ($_->{msd} eq ",") {
+	  $_->{msd} = ",none,";
+	  $_->{longitude}=",0,";
+	  $_->{latitude}=",0,";
+	  $_->{domain}=",no-domain,";
+	  $_->{location}=",unknown,";
 	}
       }
     }
-    @joinQueries=@newQueries;
   }
-  my $order=" ORDER BY lfn";
-  my $limit="";
-  $options->{s} and $order="";
-  $options->{l} and $limit = "limit $options->{l}";
-  map {s/^(.*)$/SELECT * from $indexTable $1 $order $limit/} @joinQueries;
+			   
+
+  if (! defined $options{x}) {
+    if ( !$self->{SILENT} ) {
+      $quiet or (@result) or $verbose and print "No files found!!\n";
+    }
+
+    if ($options{O}) {
+      map { $_->{turl} = "alien://" . $_->{lfn} ."?$options{O}" ;} @result;
+    } else {
+      map { $_->{turl} = "alien://" . $_->{lfn};} @result;
+    }
+
+    if ( !$self->{SILENT} and ! $quiet) {
+      map { foreach my $field (@printfields) {print STDOUT "$_->{$field}   ";}; print STDOUT "\n"; } @result;
+      ($total) and $verbose and print "$total files found\n";
+    }
+    if (!$options{z}) {
+      my @plainresult;
+      map { push @plainresult, $_->{lfn};} @result;
+      return @plainresult;
+    }
+    ($total) and print "$total files found\n";
 
 
-  #Finally, let's do all the queries:
-  my @result;
-  foreach (@joinQueries) {
-    $DEBUG and $self->debug(1, "Doing the query $_");
-    my $query=$self->{DATABASE}->query($_);
-    push @result, @$query;
+  } else {
+    $DEBUG and $self->debug(1, "Setting xml dump collection name to $options{x}");
+    my $dumpxml = $options{x};
+
+    if ($options{O}) {
+      map { $_->{turl} = "alien://" . $_->{lfn} ."?$options{O}" ;} @result;
+    } else {
+      map { $_->{turl} = "alien://" . $_->{lfn};} @result;
+    }
+    
+    map { foreach my $lkey ( keys %{$_} ) { if (!defined $_->{$lkey}) {$_->{$lkey}="";}}} @result;
+    my @newresult;
+    map {
+      my $bname = $self->f_basename($_->{lfn});
+      my $dname = $self->f_dirname($_->{lfn});
+      my $newhash={}; 
+      $newhash->{$bname} = $_;
+      if ($options{g}) {
+	if ($bname eq $file) {
+	  push @newresult,$newhash;
+	}
+      } else {
+	push @newresult,$newhash;
+      }
+    } @result;
+      
+    foreach (@newresult)  {
+      my $filename;
+      for my $lkeys (keys %{$_}) {
+	$filename =$lkeys;
+      }
+      my $bname = $self->f_basename($_->{$filename}->{lfn});
+      my $dname = $self->f_dirname($_->{$filename}->{lfn});
+
+      if ($options{g}) {
+	for my $lfile (@filegroup) { 
+	  if (!defined $_->{$lfile}){
+	    
+	    $_->{$lfile}->{lfn}  = $dname."/".$lfile;
+	    $_->{$lfile}->{turl} = "alien://" . $dname ."/".$lfile;
+	  }
+	}
+      } 
+    }
+    $dumpxml =~ s/\"//g;
+    my $dataset = new AliEn::Dataset;
+    $dataset->setarray(\@newresult,"$dumpxml","[$self->{CURPATH}]: $cmdline","","","$self->{CONFIG}->{ROLE}");
+    $self->{DEBUG} and $dataset->print();
+    my $xml =  $dataset->writexml();
+    $self->{SILENT} or print $xml;
+    $result[0]->{xml} = $xml;
   }
+
   return @result;
-
 }
 
 sub f_revalidateToken {
-    my $self  = shift;
-    my $hours = shift;
-
-    if ($hours) {
-        if ( $self->{ROLE} ne "admin" ) {
-            print STDERR
-              "Only the administrator can specify length for token update.\n";
-            $hours = 24;
-        }
+  my $self  = shift;
+  my $hours = shift;
+  
+  if ($hours) {
+    if ( $self->{ROLE} ne "admin" ) {
+      print STDERR
+	"Only the administrator can specify length for token update.\n";
+      $hours = 24;
     }
-    else {
-        $hours = 24;
-    }
-    my $done =
-      SOAP::Lite->uri('AliEn/Service/Authen')
-      ->proxy(
-        "http://$self->{CONFIG}->{PROXY_HOST}:$self->{CONFIG}->{PROXY_PORT}")
-      ->addTimeToToken( $self->{ROLE}, $hours )->result;
-    if ($done) {
-        print STDERR "Your token has been revalidated for $hours hours\n";
-        return 1;
-    }
-    else {
-        print STDERR "Error while trying to request token update\n";
-        return;
-    }
+  }
+  else {
+    $hours = 24;
+  }
+  my $done =
+    SOAP::Lite->uri('AliEn/Service/Authen')
+	->proxy(
+		"http://$self->{CONFIG}->{PROXY_HOST}:$self->{CONFIG}->{PROXY_PORT}")
+	  ->addTimeToToken( $self->{ROLE}, $hours )->result;
+  if ($done) {
+    print STDERR "Your token has been revalidated for $hours hours\n";
     return 1;
+  }
+  else {
+    print STDERR "Error while trying to request token update\n";
+    return;
+  }
+  return 1;
 }
 
 sub createRemoteTable {
-    my $self = shift;
-    ( $self->{DEBUG} > 3 )
-      and print "DEBUG LEVEL 3\tIn UserInterface createRemoteTable @_\n";
-
-    my $host   = shift;
-    my $db     = shift;
-    my $driver = shift;
-    my $user   = shift;
-    my $table  = shift;
-    my $SQL    = shift;
-
-    ($table)
-      or print STDERR "Error: in CreateRemoteTable. table not specified\n"
+  my $self = shift;
+  ( $self->{DEBUG} > 3 )
+    and print "DEBUG LEVEL 3\tIn UserInterface createRemoteTable @_\n";
+  
+  my $host   = shift;
+  my $db     = shift;
+  my $driver = shift;
+  my $user   = shift;
+  my $table  = shift;
+  my $SQL    = shift;
+  
+  ($table)
+    or print STDERR "Error: in CreateRemoteTable. table not specified\n"
       and return;
-
-    my $done =
+  
+  my $done =
       SOAP::Lite->uri('AliEn/Service/Authen')
-      ->proxy("http://$self->{CONFIG}->{AUTH_HOST}:$self->{CONFIG}->{AUTH_PORT}")
-      ->createTable( $host, $db, $driver, $user, $table, $SQL );
-
-    $self->{SOAP}->checkSOAPreturn($done) or return;
-
-    $done=$done->result;
-    $DEBUG and $self->debug(1,
-			   "Making the remote table worked, got $done");
-
-    return $done;
+	  ->proxy("http://$self->{CONFIG}->{AUTH_HOST}:$self->{CONFIG}->{AUTH_PORT}")
+	    ->createTable( $host, $db, $driver, $user, $table, $SQL );
+  
+  $self->{SOAP}->checkSOAPreturn($done) or return;
+  
+  $done=$done->result;
+  $DEBUG and $self->debug(1,
+			  "Making the remote table worked, got $done");#
+  
+  return $done;
 }
 
 sub printTreeLevel {
@@ -2028,28 +1883,33 @@ sub f_tree {
 
   $DEBUG and $self->debug(1, "In UserInterface::f_tree $dir");
   $dir =~ s{/?$}{/};
-
-  #Let's get all the hosts that can have files under this directory
-  my $entries=$self->{DATABASE}->getHostsForEntry($dir) or $self->info( "Error getting the hosts for '$dir'");
-  $DEBUG and $self->debug(1, "Getting dir from $dir");
-  my @entries=();
-  my @done=();
-  foreach my $db (@$entries) {
-    my $id="$db->{hostIndex}:$db->{tableName}";
-    grep (/^$id$/, @done) and next;
-    push @done, $id;
-    $self->info( "Searching all the entries from $db->{hostIndex} ($db->{tableName})");
-    my $db2=$self->{DATABASE}->reconnectToIndex($db->{hostIndex}, $dir);
-    $db2 or  $self->info( "Error reconecting") and next;
-    $self->{DATABASE}=$db2;
-    my $ref=$self->{DATABASE}->getAllInfoFromDTable({method=>"queryColumn",
-						     like=>"like",
-						     retrieve=>"lfn",
-						     where=>"and replicated=0",
-						     table=>"D$db->{tableName}L"},
-						    "$dir%");
-    push @entries, @$ref;
-  }
+  my $ref=$self->{DATABASE}->findLFN($dir, "", [], [], [])
+    or return;
+  use Data::Dumper;
+  print Dumper($ref);
+  my @entries=@$ref;
+  print "GOT @entries\n";
+#  #Let's get all the hosts that can have files under this directory
+#  my $entries=$self->{DATABASE}->getHostsForEntry($dir) or $self->info( "Error getting the hosts for '$dir'");
+#  $DEBUG and $self->debug(1, "Getting dir from $dir");
+#  my @entries=();
+#  my @done=();
+#  foreach my $db (@$entries) {
+#    my $id="$db->{hostIndex}:$db->{tableName}";
+#    grep (/^$id$/, @done) and next;
+#    push @done, $id;
+#    $self->info( "Searching all the entries from $db->{hostIndex} ($db->{tableName})");
+#    my $db2=$self->{DATABASE}->reconnectToIndex($db->{hostIndex}, $dir);
+#    $db2 or  $self->info( "Error reconecting") and next;
+#    $self->{DATABASE}=$db2;
+#    my $ref=$self->{DATABASE}->getAllInfoFromDTable({method=>"queryColumn",
+#						     like=>"like",
+#						     retrieve=>"lfn",
+#						     where=>"and replicated=0",
+#						     table=>$db},
+#						    "$dir%");
+#    push @entries, @$ref;
+#  }
 
   $DEBUG and $self->debug(1, "There are ".($#entries + 1)." entries");
 

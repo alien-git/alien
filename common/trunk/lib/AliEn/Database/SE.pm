@@ -252,7 +252,6 @@ sub checkLocalCopies {
   my $self=shift;
   my $pfn=shift;
   my $query="SELECT localCopy,size FROM LOCALFILES where pfn='$pfn' and localCopy is not NULL";
-  $self->info( $query);
   return   $self->queryRow($query);
   
 }

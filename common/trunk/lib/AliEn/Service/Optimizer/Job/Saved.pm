@@ -52,6 +52,9 @@ sub checkSavedJob{
   my %filesToRegister;
 
   if ($ok ){
+    my ($olduser)=$self->{CATALOGUE}->execute("whoami");
+    $self->{CATALOGUE}->execute("user","-",  $user);
+
     $self->{CATALOGUE}->execute("mkdir", "-p", "$procDir/job-output");
     my $files={};
     foreach my $line (@info){
@@ -96,8 +99,12 @@ sub checkSavedJob{
     if ($ok) {
       $self->info("The files have to be copied to $outputDir");
       $self->{CATALOGUE}->execute("mkdir", "-p", $outputDir);
-      $self->{CATALOGUE}->execute("cp", "-k","$procDir/job-output/", $outputDir, "-user", $user);
+      if (!$self->{CATALOGUE}->execute("cp", "-k","$procDir/job-output/", $outputDir)) {
+	$self->putJobLog($queueid,"error", "Error putting the output in $outputDir");
+
+      }
     }
+    $self->{CATALOGUE}->execute("user", "-", $olduser);
   }
 
   $self->info("Checking the log files");

@@ -47,14 +47,14 @@ sub _getLFN {
   my $guid=shift;
   my $lfn;
 
-  if ($self->{PARSED}->{DB}) {
-    $self->info("looking only in db $self->{PARSED}->{DB}");
-    my @options=( "-db$self->{PARSED}->{DB}", "-silent", $guid);
-    $self->{PARSED}->{TABLE} and 
-      push @options, "-table$self->{PARSED}->{TABLE}";
-    $lfn=$self->{CATALOGUE}->execute("guid2lfn", @options) or
-      $self->info("The guid is not in that database!!\n");
-  }
+#  if ($self->{PARSED}->{DB}) {
+#    $self->info("looking only in db $self->{PARSED}->{DB}");
+#    my @options=( "-db$self->{PARSED}->{DB}", "-silent", $guid);
+#    $self->{PARSED}->{TABLE} and 
+#      push @options, "-table$self->{PARSED}->{TABLE}";
+#    $lfn=$self->{CATALOGUE}->execute("guid2lfn", @options) or
+#      $self->info("The guid is not in that database!!\n");
+#  }
   if (!$lfn) {
     my @lfn=$self->{CATALOGUE}->execute("guid2lfn", "-silent", $guid) or
       $self->info("Error getting the lfns of $guid") and return;

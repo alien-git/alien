@@ -183,7 +183,7 @@ sub InsertHost {
       or $self->{LOGGER}->error( "JobManager", "In InsertHost domain $domain not known in the LDAP server" )
 	and return;
 
-    $self->info("Domain: $domainSt->{DOMAIN}; domain name: $domainSt->{NAME}");
+    $self->info("Domain: $domainSt->{DOMAIN}; domain name: $domainSt->{OU}");
 
     $DEBUG and $self->debug(1, "In InsertHost inserting new site");
     $self->{DB}->insertSite(
@@ -192,7 +192,7 @@ sub InsertHost {
 			     masterHostId=>'',
 			     adminName=>$domainSt->{ADMINISTRATOR} || "",
 			     location=>$domainSt->{LOCATION} || "",
-			     domain=>$domainSt->{DOMAIN},
+			     domain=>$domain,
 			     longitude=>$domainSt->{LONGITUDE} || "",
 			     latitude=>$domainSt->{LATITUDE} || "",
 			     record=>$domainSt->{RECORD} || "",
@@ -282,8 +282,15 @@ sub enterCommand {
   }
 
   my $procDir = AliEn::Util::getProcDir(undef, $host, $procid);
-  $self->{CATALOGUE}->execute( "mkdir", $procDir, "-ps" )
-    or $self->{LOGGER}->alert( "JobManager",
+  my $user;
+  $procDir=~ m{/proc/([^/]*)/} and $user=$1;
+
+  my ($olduser)= $self->{CATALOGUE}->execute("whoami");
+  $self->{CATALOGUE}->execute("user", "-", $user);
+
+  my $done=$self->{CATALOGUE}->execute( "mkdir", $procDir, "-ps" );
+  $self->{CATALOGUE}->execute("user", "-", $olduser);
+  $done or $self->{LOGGER}->alert( "JobManager",
 			       "In enterCommand error creating the directory $procDir in the catalogue" )
       and return(-1,"creating the directory $procDir in the catalogue");
 

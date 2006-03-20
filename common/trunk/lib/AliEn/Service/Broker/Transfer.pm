@@ -1,6 +1,5 @@
 package AliEn::Service::Broker::Transfer;
 
-
 select(STDERR);
 $| = 1;
 select(STDOUT);
@@ -153,9 +152,7 @@ sub getTransferArguments {
 }
 
 
-sub mio {
-  print STDERR "SIPE\n";
-}
+
 return 1;
 
 

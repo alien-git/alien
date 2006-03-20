@@ -1106,22 +1106,34 @@ sub putFiles {
     my $submitted={};
     my $localdir= $self->{WORKDIR};
     foreach my $fileName (@files){
-      $self->info("Submitting file $fileName");
-      if (! -f "$self->{WORKDIR}/$fileName")  {
-	$self->info("The job was supposed to create $fileName, but it doesn't exist!!",1);
-	$self->putJobLog($id, "error", "The job didn't create $fileName");
+      my ($file2, $options)=split (/\@/, $fileName,2);
+      my @se=();
+      if ($options) {
+	$self->info("The file has the options: $options");
+	my @options=split (/,/, $options);
+	foreach (@options){
+	  $self->info("Checking $_");
+	  $_ =~ /^noarchive$/i and  next;
+	  $self->info("Putting the output in the SE $_");
+	  push @se,uc($_);
+	}
+      }
+      $self->info("Submitting file $file2");
+      if (! -f "$self->{WORKDIR}/$file2")  {
+	$self->info("The job was supposed to create $file2, but it doesn't exist!!",1);
+	$self->putJobLog($id, "error", "The job didn't create $file2");
 	next;
       }
-      my ($info)=$ui->execute("upload", "$self->{WORKDIR}/$fileName");
+      my ($info)=$ui->execute("upload", "$self->{WORKDIR}/$file2", $se[0]);
       if (!$info) {
 	$self->info("Error registering the file $self->{WORKDIR}/$fileName");
 	$self->putJobLog($id,"error","Error registering the file $self->{WORKDIR}/$fileName");
 	next;
       }
-      if ($submitted->{$fileName}){
-	$submitted->{$fileName}->{selist}.=",$info->{selist}";
+      if ($submitted->{$file2}){
+	$submitted->{$file2}->{selist}.=",$info->{selist}";
       }else{
-	$submitted->{$fileName}=$info;
+	$submitted->{$file2}=$info;
       }
 				 
     }
