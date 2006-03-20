@@ -1,0 +1,329 @@
+#!/bin/sh
+#############################################################################
+# alien - a front-end script to access Alice Environment
+#############################################################################
+#
+# modification history
+# $Log$
+# Revision 1.4.2.15  2005/07/14 11:54:50  pbuncic
+# Use certificates from $ALIEN_ROOT/globus/share/certificates/
+#
+# Revision 1.4.2.14  2005/07/05 21:02:41  cirstoiu
+# Added quotes around ${!var} to handle correcly values
+# with spaces (like certificate DNs)
+#
+# Revision 1.4.2.13  2005/06/30 13:18:30  psaiz
+# Typo
+#
+# Revision 1.4.2.12  2005/06/30 12:55:06  psaiz
+# Reusing system modules
+# Look for globus in our distribution before /opt/globus
+#
+# Revision 1.4.2.11  2005/04/15 15:10:04  psaiz
+# Looking for X509_CERT_DIR in $ALIEN_ROOT/globus/share/certificates/
+#
+# Revision 1.4.2.10  2005/03/10 11:50:52  pbuncic
+# Export DYLD_LIBRARY_PATH.
+#
+# Revision 1.4.2.9  2005/03/04 16:29:46  psaiz
+# Using Net::Domain to get the hostname
+#
+# Revision 1.4.2.8  2005/03/02 09:53:08  pbuncic
+# Environment variables take precedence over values set in .Environment file
+#
+# Revision 1.4.2.7  2005/02/23 17:53:02  pbuncic
+# USe $HOSTNAME instead hostname -f
+#
+# Revision 1.4.2.6  2005/02/12 16:17:11  pbuncic
+# Revised check for existing packages.
+#
+# Revision 1.4.2.5  2005/02/03 22:26:43  pbuncic
+# Print warning if GLOBUS_LOCATION is not defined.
+#
+# Revision 1.4.2.4  2005/02/01 17:43:19  pbuncic
+# Remove default setting of GLOBUS_LOCATION
+#
+# Revision 1.4.2.3  2005/01/14 23:11:34  pbuncic
+# Corrected myproxy $PATH.
+#
+# Revision 1.4.2.2  2005/01/14 00:53:19  pbuncic
+# Added config option to configure and discover location of other components.
+#
+# Revision 1.4.2.1  2004/12/16 14:51:42  psaiz
+# Merging with the head
+#
+# Revision 1.4  2004/12/09 15:49:10  psaiz
+# Using ssl from the PATH instead of from ALIEN_ROOT
+#
+# JobAgent can execute more than one job before dying
+#
+# Job::Optimizer::Inserting checks the queue more often
+#
+# 'alien' uses GLOBUS_LOCATION and X509_CERT_DIR from the environment
+#
+# Revision 1.5  2004/10/19 17:41:37  psaiz
+# Defining X509_CERT_DIR
+#
+# Revision 1.4  2004/10/18 10:33:04  pbuncic
+# Use CA certificates from standard location if it is defined and exist.
+#
+# Revision 1.3  2004/08/06 14:41:19  psaiz
+# Putting -w in the call to alien-perl, instead of in alien-perl itself
+#
+# Revision 1.2  2004/05/05 15:05:04  psaiz
+# Synchronization of EGEE and ALICE cvs servers
+#
+# Revision 1.30  2003/12/16 12:44:04  buncic
+# Removed explicit usage of hostname -f and hostname -d from all modules. Use
+# $ALIEN_HOSTNAME and ALIEN_DOMAIN instead. If defined, ALIEN_PUBLIC_HOSTNAME
+# and ALIEN_PUBLIC_DOMAIN will override ALIEN_HOSTNAME and ALIEN_DOMAIN so that
+# they can be defined in user environment on a gateway node.
+#
+# Revision 1.29  2003/08/11 18:06:32  buncic
+# Added new environment variables for Globus 2.4.2
+#
+# Revision 1.28  2003/02/24 17:03:50  buncic
+# ixed problem with RSA key generation with Crypt-OpenSSL-RSA > 0.12
+#
+# Revision 1.27  2002/10/03 20:35:19  buncic
+# Use ALIEN_USER variable as default value in scripts.
+#
+# Revision 1.26  2002/09/13 17:26:59  buncic
+# Allow user, domain and  organisation to be specified on a command line.
+#
+# Revision 1.25  2002/07/31 12:33:43  buncic
+# Added alien grant/revoke access options.
+#
+# Revision 1.24  2002/07/05 10:48:38  buncic
+# Fixed broken link problem.
+#
+# Revision 1.23  2002/06/19 08:24:50  psaiz
+# Preventing use of uninitialized variables
+# Putting ALIEN_DOMAIN in the environment
+#
+# Revision 1.22  2002/05/27 13:19:47  psaiz
+# Removed the special command for AliRoot_PPR
+# The normal AliRoot can get another two arguments: output files and grun
+#
+# Removed 'readlink' from alien, Done with perl -e
+#
+# Revision 1.21  2002/05/20 21:43:43  buncic
+# Once again changed algorithm to locate AliEn installation.
+#
+# Revision 1.20  2002/05/01 11:44:27  buncic
+# Fixed symlink resolution at startup.
+#
+# Revision 1.19  2002/04/30 12:59:44  buncic
+# Autodetect installation directory if $HOME/.alien does not exist.
+#
+# Revision 1.18  2002/04/26 15:55:40  psaiz
+# alien script does not require .alien/AliEn
+#
+# Revision 1.17  2002/04/26 15:50:32  psaiz
+# Small changes
+#
+# Revision 1.16  2002/04/24 14:18:32  buncic
+# Use $PWD instead of `pwd` to find out path to alien.
+#
+# Revision 1.15  2002/04/24 13:36:03  psaiz
+# The ProcessMonitor sends an email to the user when the job finishes
+#
+# Revision 1.14  2002/04/22 11:59:43  buncic
+# Added bootstrap procedure to alien-perl.
+#
+# Revision 1.13  2002/04/17 12:35:09  psaiz
+#
+# Small changes in authentication
+#
+# Revision 1.12  2002/04/16 11:14:50  psaiz
+# Installing packages only in CLusterMonitor
+# Creating the directories if they don't exist
+# Removing print statements
+#
+# Revision 1.11  2002/04/15 15:26:00  psaiz
+# Inserting the name of the organisation
+#
+# Revision 1.10  2002/04/15 11:01:32  psaiz
+# Change ALIEN_HOME to ALIEN_ROOT
+#
+# Revision 1.6  2002/03/28 19:16:45  psaiz
+# Using classad!!
+#
+# Revision 1.5  2002/03/26 21:10:25  revsbech
+# Scripts added
+#
+# Revision 1.1  2002/03/21 10:15:50  psaiz
+# New directory structure
+#
+# Revision 1.3  2002/02/20 10:08:24  psaiz
+# New version of AliEn.
+#
+# Quite a lot of changes: SE, FTD, MSS, new URL...
+#
+# Revision 1.2  2001/11/13 08:53:20  psaiz
+# Change of ~/.alien/Alien to ~/.alien/AliEn
+#
+# Revision 1.1  2001/11/07 10:03:40  buncic
+# Added all the files
+#
+# Revision 1.6  2001/08/23 20:04:26  buncic
+# Simplified Config().
+#
+# Revision 1.5  2001/08/21 17:24:44  buncic
+# Using local perl version.
+#
+# Revision 1.4  2001/08/20 13:41:31  psaiz
+# Config::IniFiles
+#
+# Revision 1.3  2001/08/17 14:40:13  psaiz
+# Validate
+#
+# Revision 1.2  2001/08/15 16:01:21  buncic
+# Fixed PER5LIB.
+#
+# Revision 1.1  2001/08/13 09:44:28  psaiz
+# Added html part and Batch
+#
+#
+# SYNOPSIS
+# alien [flags] <command [options]>
+#
+# DESCRIPTION
+#
+# AUTHOR:
+# Predrag Buncic, e-mail: Predrag.Buncic@cern.ch 
+#
+# CREATION DATE:
+# 13-Aug-2001
+#C<
+###########################################################################
+ExpandLink()
+###########################################################################
+{
+  local file
+
+  file=`which $0` || exit 1
+
+  cd `dirname $file` || exit 1
+
+  while [ -L $file ]
+  do
+    b=`basename $file`
+    file=`perl -e "print readlink(\"$b\")"`
+    if [ "$file" != "" ] 
+    then 
+      cd `dirname $file` || exit 1
+    else
+      exit 1
+    fi
+  done
+
+  echo $PWD/alien
+}
+###########################################################################
+Configure()
+###########################################################################
+{
+  ALIEN_HOME=$HOME/.alien
+  export ALIEN_HOME
+
+  [ ! -d $ALIEN_HOME ] && mkdir $ALIEN_HOME
+
+  file=`ExpandLink $0`
+  bindir=`dirname $file`
+  prefix=`dirname $bindir`
+  
+
+  vars="ALIEN_HOSTNAME ALIEN_DOMAIN ALIEN_ORGANISATION ALIEN_USER ALIEN_PROMPT ALIEN_LDAP_DN ALIEN_MYPROXY_SERVER ALIEN_MYPROXY_DOMAIN GLOBUS_LOCATION SWIG_LOCATION GSOAP_LOCATION CGSI_GSOAP_LOCATION CLASSAD_LOCATION MYPROXY_LOCATION X509_CERT_DIR"
+
+  for var in $vars
+  do
+    if [ "${!var}" != "" ]
+    then
+      eval x$var=\"${!var}\"
+    fi
+  done
+
+  for environment in $prefix/.Environment \
+                     $ALIEN_HOME/Environment \
+                     $ALIEN_HOME/Network \
+                     $ALIEN_HOME/$ALIEN_ORGANISATION/Environment
+  do
+    [ -f $environment ] && . $environment
+  done
+
+
+  if [ ! -z "$ALIEN_PRESERVE_SYSTEM_ENVIRONMENT" ] ;
+    then 
+    for var in $vars
+      do
+	    xvar=x$var
+	    if [ "${!xvar}" != "" ]
+	    then
+	    eval $var=\"${!xvar}\"
+	    fi
+    done
+  fi
+
+  ALIEN_ORGANISATION=${ALIEN_ORGANISATION:=Alice}
+  export ALIEN_ORGANISATION
+  ALIEN_ROOT=${ALIEN_ROOT:=$prefix}
+  ALIEN_ROOT=${ALIEN_ROOT:=/opt/alien}
+  export ALIEN_ROOT
+  ALIEN_PERL="$ALIEN_ROOT/bin/alien-perl"
+  export ALIEN_PERL
+
+  export ALIEN_LD_LIBRARY_PATH
+  export ALIEN_PATH
+
+  export PATH=$ALIEN_ROOT/bin:$ALIEN_PATH:$PATH
+  export LD_LIBRARY_PATH=$ALIEN_LD_LIBRARY_PATH:$LD_LIBRARY_PATH
+  export DYLD_LIBRARY_PATH=$ALIEN_LD_LIBRARY_PATH:$DYLD_LIBRARY_PATH
+
+  export ALIEN_MYPROXY_SERVER
+  export ALIEN_MYPROXY_DOMAIN
+  
+  export GLOBUS_LOCATION
+  export SWIG_LOCATION
+  export GSOAP_LOCATION
+  export CGSI_GSOAP_LOCATION
+  export CLASSAD_LOCATION
+  export MYPROXY_LOCATION
+
+  export ALIEN_PROMPT
+  export ALIEN_ORGANISATION
+
+  for dir in $X509_CERT_DIR \
+	     $ALIEN_ROOT/globus/share/certificates/ \
+             /etc/grid-security/certificates
+  do
+    if [ -d $dir ] 
+    then
+       X509_CERT_DIR=$dir; export X509_CERT_DIR
+       break
+    fi 
+  done
+  if [ -f $ALIEN_ROOT/scripts/Alien.sh ]
+  then
+    . $ALIEN_ROOT/scripts/Alien.sh
+  else
+    printf "File not found:%s\n" $ALIEN_ROOT/scripts/Alien.sh
+    exit
+  fi
+
+  if [ -f $ALIEN_ROOT/scripts/AlienServices.sh ]
+  then
+    . $ALIEN_ROOT/scripts/AlienServices.sh
+  else
+    printf "File not found:%s\n" $ALIEN_ROOT/scripts/AlienServices.sh
+    exit
+  fi
+}
+###########################################################################
+Configure
+###########################################################################
+ALIEN_GetArg  $*
+###########################################################################
+###########################################################################
+ALIEN_Browser $*
+###########################################################################
