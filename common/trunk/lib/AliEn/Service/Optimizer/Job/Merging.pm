@@ -45,6 +45,9 @@ sub checkMerging {
 
   my $newStatus="DONE";
   $self->info("Checking if the merging jobs of $queueid have finished");
+
+  my ($olduser)=$self->{CATALOGUE}->execute("whoami");
+
   eval {
     my $info=$self->{DB}->getFieldsFromQueue($queueid, "merging,submitHost")
       or die("Error getting the merging jobs of $queueid");
@@ -52,7 +55,8 @@ sub checkMerging {
     my @subjobs=split(",", $info->{merging});
     my $user;
     ( $info->{submitHost} =~ /^(.*)\@/ ) and ( $user = $1 );
-
+    $self->{CATALOGUE}->execute("user", "-", "$user")
+      or die("Error changing to user $user");
     my @finished;
     my @running;
     foreach my $subjob (@subjobs){
@@ -108,6 +112,8 @@ sub checkMerging {
     $self->info("Something failed: $@");
     $newStatus="ERROR_M";
   }
+  $self->{CATALOGUE}->execute("user","-", $olduser);
+
   $newStatus or return;
   my $message="Job state transition from $status to $newStatus";
   $self->{DB}->updateStatus($queueid,$status,$newStatus) or 
@@ -126,6 +132,8 @@ sub updateMerging {
 
   my $newStatus="DONE";
   my $set={};
+  my ($olduser)=$self->{CATALOGUE}->execute("whoami");
+
   eval {
     #my @part_jobs=$self->{DB}->query("SELECT count(*),status from QUEUE where split=$queueid group by status");
     my $rparts = $self->{DB}->getFieldsFromQueueEx("count(*) as count, status", "WHERE split=$queueid GROUP BY status")
@@ -134,6 +142,8 @@ sub updateMerging {
       or die ("Could not get splitted jobs for $queueid");
 
     my $user = AliEn::Util::getJobUserByDB($self->{DB}, $queueid);
+    $self->{CATALOGUE}->execute("user", "-", "$user")
+      or die("Error changing to user $user");
     my $procDir = AliEn::Util::getProcDir($user, undef, $queueid);
     $self->{CATALOGUE}->execute("mkdir","-p", "$procDir/job-log");
 
@@ -195,6 +205,8 @@ sub updateMerging {
     $newStatus="ERROR_M";
     $self->info("Error updating the job $queueid: $@");
   }
+  $self->{CATALOGUE}->execute("user","-", $olduser);
+
   if ($newStatus) {
     my $message="Job state transition from $status to $newStatus";
     $self->{DB}->updateStatus($queueid,$status,$newStatus, $set) or 
@@ -230,6 +242,12 @@ sub copyOutputDirectories{
 #  ( $ok, my $jdlrun ) = $job_ca->evaluateExpression("Run");
 #  ( $ok, my $jdlevent ) = $job_ca->evaluateExpression("Event");
 
+  my ($olduser)=$self->{CATALOGUE}->execute("whoami");
+  if (!$self->{CATALOGUE}->execute("user", "-", "$user")){
+    $self->info("Error changing to user $user");
+    $self->{CATALOGUE}->execute("user", "-", "$olduser");
+    return ;
+  }
 
   for (@$subJobs) {
     $_->{status} eq "DONE" or print "Skipping $_->{queueId}\n" and next;
@@ -268,6 +286,8 @@ sub copyOutputDirectories{
       $self->putJobLog($masterId,"error", "error moving subjob output of $subId to $destdir");
     }
   }				
+
+  $self->{CATALOGUE}->execute("user","-", $olduser);
 
   return 1;
 }
