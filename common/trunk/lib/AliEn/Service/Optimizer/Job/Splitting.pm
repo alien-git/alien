@@ -167,7 +167,7 @@ sub SplitJob{
   if ($multisplit) {
     $jobs=$self->_multiSplit($multisplit, $eventstart, $run)
   } else {
-    $jobs=$self->_singleSplit($job_ca, $sort, $inputfilenumber,$inputfilesize,$findset);
+    $jobs=$self->_singleSplit($job_ca, $sort, $inputfilenumber,$inputfilesize,$findset, $queueid);
   }
 
   $jobs or return;
@@ -182,8 +182,11 @@ sub _getInputFiles{
   my $self=shift;
   my $job_ca=shift;
   my $findset=shift;
+  my $queueId=shift;
 
   my ($ok, @patterns)=$job_ca->evaluateAttributeVectorString("InputData");
+  print "Checking if there is an inputcollection\n";
+  $self->copyInputCollection($job_ca, $queueId, \@patterns);
   @patterns or $self->info( "There is no input data")
     and return;
   
@@ -228,12 +231,13 @@ sub _singleSplit {
   my $inputfilenumber=shift;
   my $inputfilesize=shift;
   my $findset=shift;
+  my $queueId=shift;
 
-  my ($ok, @patterns)=$job_ca->evaluateAttributeVectorString("InputData");
-  @patterns or $self->info( "There is no input data")
-	    and return;
+#  my ($ok, @patterns)=$job_ca->evaluateAttributeVectorString("InputData");
+#  @patterns or $self->info( "There is no input data")
+#	    and return;
 
-  my @files=$self->_getInputFiles($job_ca, $findset) or return;
+  my @files=$self->_getInputFiles($job_ca, $findset, $queueId) or return;
 
   my $jobs={};
   $self->debug(1, "In SplitJob got @files");
@@ -334,7 +338,7 @@ sub SubmitSplitJob {
   #we can't do it with the option 'g', because it doesn't work 
   #if there are two consecutive entries  that have to be deleted
   while(  $text =~ s/([;\[])\s*split[^;]*;/$1/is) {};
-
+  $text=~ s/([;\[])\s*inputdatacollection[^;]*;/$1/i;
   $text =~ s/;\s*email[^;]*;/;/is;
 
   $self->info("Let's start with $text");
@@ -444,9 +448,9 @@ sub _submitJDL {
 
   $self->debug(1, "JDL $jdlText");
 
-  my $inputBox=$self->createInputBox($job_ca, $files);
+#  my $inputBox=$self->createInputBox($job_ca, $files);
   my $done =$self->{SOAP}->CallSOAP("Manager/Job", "enterCommand",
-				    $user, $jdlText, $inputBox );
+				    $user, $jdlText,  );
   if ($done) {
     $self->info("Command submitted!! (jobid ". $done->result.")" );
     my $newqueueid = $done->result;
@@ -572,9 +576,6 @@ sub _setInputData {
 
   $self->info("Input is $input");
 
-    #      $job_ca->set_expression("Run", "\"$run\"");
-    #      $job_ca->set_expression("Event", "\"$eventstart\"");
-    #      $job_ca->set_expression("Eventrange", "\"$eventstart:$eventstop\"");
   return $input;
 }
 

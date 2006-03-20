@@ -94,17 +94,24 @@ sub getListPackages{
   shift;
   $self->info( "$$ Giving back all the packages defined");
 
-  my $force=grep (/^-?-force$/, @_);
-  if ($force) {
-    AliEn::Util::deleteCache($self);
+  grep (/^-?-force$/, @_)
+    and  AliEn::Util::deleteCache($self);
+
+  my $platform=$self->getPlatform();
+  my $platformPattern="(($platform)|(source))";
+  if(  grep (/^-?-all$/, @_)) {
+    $self->info("Returning the info of all platforms");
+    $platform="all";
+    $platformPattern=".*";
   }
-  my $cache=AliEn::Util::returnCacheValue($self, "listPackages");
+
+  my $cache=AliEn::Util::returnCacheValue($self, "listPackages-$platform");
   if ($cache) {
     $self->info( "$$ $$ Returning the value from the cache (@$cache)");
     return (1, @$cache);
   }
 
-  my $platform=$self->getPlatform();
+
   my $silent="";
   $DEBUG or $silent="-silent";
 
@@ -113,18 +120,20 @@ sub getListPackages{
   my @packages;
   foreach my $pack (@userPackages, @voPackages) {
     $self->debug(2,  "FOUND $pack");
-    if ($pack =~ m{^$self->{CONFIG}->{USER_DIR}/?./([^/]*)/packages/([^/]*)/([^/]*)/(($platform)|(source))$}) {
-      push @packages, "$1\@${2}::$3";
+    if ($pack =~ m{^$self->{CONFIG}->{USER_DIR}/?./([^/]*)/packages/([^/]*)/([^/]*)/$platformPattern$}) {
+      grep (/^$1\@${2}::$3$/, @packages) or
+	push @packages, "$1\@${2}::$3";
       next;
     }
-    if ($pack =~ m{^\L/$self->{CONFIG}->{ORG_NAME}\E/packages/([^/]*)/([^/]*)/(($platform)|(source))$}) {
-      push @packages, "VO\@${1}::$2";
+    if ($pack =~ m{^\L/$self->{CONFIG}->{ORG_NAME}\E/packages/([^/]*)/([^/]*)/$platformPattern$}) {
+      grep (/^VO\@${1}::$2$/, @packages) or
+	push @packages, "VO\@${1}::$2";
       next;
     }
     $self->debug(2, "Ignoring $pack");
   }
   $self->info( "$$ $$ RETURNING @packages");
-  AliEn::Util::setCacheValue($self, "listPackages", \@packages);
+  AliEn::Util::setCacheValue($self, "listPackages-$platform", \@packages);
 
   return (1,@packages);
 }

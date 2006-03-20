@@ -318,14 +318,14 @@ sub f_addUser {
   $self->{DATABASE}->moveEntries($homedir) or 
     $self->info( "Error moving the directory $homedir",1100) and
       return;
-  my $table=$self->{DATABASE}->getIndexHost($homedir) or 
-    $self->info( "Error getting the table of $homedir") and return;
+#  my $table=$self->{DATABASE}->getIndexHost($homedir) or 
+#    $self->info( "Error getting the table of $homedir") and return;
 
   $self->f_mkdir( "p", $procdir ) or 
     $self->info( "Error creating $procdir") and return ;
 
-  $self->{DATABASE}->moveEntries($procdir, $table->{tableName}) or 
-    $self->info( "Error moving the directory $procdir to %table->{tableName}") and return;
+  $self->{DATABASE}->moveEntries($procdir) or 
+    $self->info( "Error moving the directory $procdir ") and return;
   $self->info("Changing privileges for  $user");
   $self->f_chown("", $user, $homedir ) or return;
   $self->f_chown("", $user, $procdir ) or return;
@@ -370,7 +370,7 @@ sub f_chgroup {
 "Error: not enough arguments in chgroup\nUsage chgroup <user> <initial_group> [<group> [...]]\n";
         return;
     }
-    if ( $self->{ROLE} !~ /^admin(ssl)$/ ) {
+    if ( $self->{ROLE} !~ /^admin(ssl)?$/ ) {
         print STDERR "Error: only the administrator can change users groups\n";
         return;
     }
@@ -397,17 +397,17 @@ sub f_chgroup {
     }
     return 1;
 }
-sub f_createNewIndexTable {
-  my $self=shift;
-  if ( $self->{ROLE} !~ /^admin(ssl)$/ ) {
-    $self->info("Error: only the administrator can add new table");
-    return;
-  }
-  my $entry=$self->{DATABASE}->getNewDirIndex();
-  $self->{DATABASE}->checkDLTable($entry) or return;
-  $self->info( "Directory table D$entry created");
-  return "D${entry}L";
-}
+#sub f_createNewIndexTable {
+#  my $self=shift;
+#  if ( $self->{ROLE} !~ /^admin(ssl)?$/ ) {
+#    $self->info("Error: only the administrator can add new table");
+#    return;
+#  }
+#  my $entry=$self->{DATABASE}->getNewDirIndex();
+#  $self->{DATABASE}->checkDLTable($entry) or return;
+#  $self->info( "Directory table D$entry created");
+#  return "D${entry}L";
+#}
 #sub makeNewIndex{
 #  my $self=shift;
 #  my $lfn=shift;
@@ -424,18 +424,23 @@ sub f_createNewIndexTable {
 sub moveDirectoryToIndex {
   my $self=shift;
   my $lfn=shift;
-  my $index=shift;
-  defined $index or $index="";
-  $lfn or $self->info( "Error: not enough arguments in moveDirectoryToIndex\nUsage: moveDirectory <lfn> [<index>]") and return;
+
+
+  if ( $self->{ROLE} !~ /^admin(ssl)?$/ ) {
+    $self->info("Error: only the administrator can add new table (you are '$self->{ROLE}')");
+    return;
+  }
+
+  $lfn or $self->info( "Error: not enough arguments in moveDirectoryToIndex\nUsage: moveDirectory <lfn> ") and return;
 
   $lfn = $self->GetAbsolutePath($lfn, 1);
 
   $self->isDirectory($lfn) or $self->info( "The entry $lfn does not exist or it is not a directory") and return;
-  $self->info( "Moving the directory $lfn to $index");
+  $self->info( "Moving the directory $lfn");
   $lfn =~ s{/?$}{/};
   $self->checkPermissions("w", $lfn) or return;
 
-  return $self->{DATABASE}->moveEntries($lfn, $index);
+  return $self->{DATABASE}->moveEntries($lfn);
 
 }
 sub expungeTables {

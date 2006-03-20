@@ -954,6 +954,9 @@ Possible options:
 =item -r resolve links
 
 
+=item -i return as well the information of the file
+
+
 =back
 
 
@@ -981,8 +984,8 @@ Options:
  
  
   $lfn=$self->{CATALOG}->f_complete_path($lfn);
-  my ($seList, $guid)=$self->{CATALOG}->f_whereisFile("g$options", $lfn);
-
+  my ($seList, $fileInfo)=$self->{CATALOG}->f_whereisFile("g$options", $lfn);
+  my $guid=$fileInfo->{guid};
   defined $seList or
     $self->info( "Error getting the data of $lfn", 1) and
       return;
@@ -1040,8 +1043,14 @@ Options:
     }
     @result=@temp;
   }
+  if ($options=~ /i/ ){
+    #We have to return also the information of the file
+    return ($fileInfo, @result);
+  }
   if ( (scalar @result) <= 0) {
-    if ($options=~/z/) {return @failurereturn;} else {return}; 
+    if ($options=~/z/) 
+      {return @failurereturn;} 
+    else {return}; 
   } else {
     return @result;
   }

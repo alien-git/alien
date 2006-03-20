@@ -429,5 +429,23 @@ sub deeptoflathash {
 
     childkeys($flathash, $root,$deephash);
 }
+sub getAllLFN {
+  my $self=shift;
+  my @list=();
+  $self->{XMLhash} and $self->{XMLhash}->{collection} and 
+    $self->{XMLhash}->{collection}->{event} or return;
+  my $events=$self->{XMLhash}->{collection}->{event};
+  #Loop over the events
+  foreach my $entry (keys %{$events}){
+    #Loop over the files 
+    $events->{$entry}->{file} or next;
+    foreach my $file (keys %{$events->{$entry}->{file}} ) {
+      $events->{$entry}->{file}->{$file}->{lfn} or next;
+      print "Tenemos el fichero $events->{$entry}->{file}->{$file}->{lfn}\n";
+      push @list, $events->{$entry}->{file}->{$file}->{lfn};
+    }
+  }
 
+  return {lfns=>\@list};
+}
 return 1;

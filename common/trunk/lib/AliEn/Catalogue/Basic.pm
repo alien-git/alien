@@ -51,7 +51,13 @@ sub checkPermissions {
   my $dbOptions={retrieve=>"lfn,perm,owner,gowner"};
 
   $options->{RETURN_HASH} and $dbOptions={};
-
+#  my @entries;
+#  foreach my $entry ($temp, "$temp/", $parentdir) {
+#    my $file=$self->{DATABASE}->getAllInfoFromDTable($dbOptions, $entry);
+#      or $self->info("Error looking for $entry") and
+#	return;
+#    $file and ${$file}[0] and push @entries, ${$file}[0];
+#  }
   my $entries=$self->{DATABASE}->getAllInfoFromDTable($dbOptions, $temp,
 						      "$temp/", $parentdir)
       or $self->{LOGGER}->info("Basic", "Error looking for $realfile") and
@@ -70,17 +76,20 @@ sub checkPermissions {
   ($perm) or print STDERR "Error selecting permissions of $lfn" and return;
   my $returnValue=$entry;
   $options->{RETURN_HASH} or  $returnValue=$entry->{lfn};
-  if ( $self->{ROLE} =~  /^admin(ssl)?$/ ) {
+
+  my $role= $options->{ROLE} || $self->{ROLE};
+
+  if ( $role =~  /^admin(ssl)?$/ ) {
     #admin has superuseracces.
     return $returnValue;
   }
 
   $DEBUG and $self->debug(1, "Checking the file $lfn");
   my $subperm;
-  if ( $self->{ROLE} eq $owner ) {
+  if ( $role eq $owner ) {
     $DEBUG and $self->debug(1, "Checking ownership" );
     $subperm=substr( $perm, 0, 1 );
-  } elsif ($self->{DATABASE}->checkUserGroup($self->{ROLE}, $gowner)){
+  } elsif ($self->{DATABASE}->checkUserGroup($role, $gowner)){
     $DEBUG and $self->debug(1, "Checking same group" );
     $subperm=substr( $perm, 1, 1 );
   }

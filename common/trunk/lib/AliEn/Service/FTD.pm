@@ -644,6 +644,7 @@ sub makeLocalCopy {
   my $info= {"FromPFN", \@pfns,
 	     ORIGPFN=>$pfn,
 	     "FromFTD", $self->{SERVICENAME},
+	     "FromSE", $transfer->{ORIGSE},
 	     "Action", "transfer",
 	     "FromFTDOptions", $options,
 	     "FromCertificate",  $self->{CONFIG}->{FTD_CERTSUBJECT}};

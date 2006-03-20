@@ -470,9 +470,11 @@ sub copyFile {
     if ($opt=~ /t/){
       $self->info("Skipping trying to get the file (a transfer will be issued)");
     } else {
+      $self->info("Let's try to do the url");
       my $file =AliEn::SE::Methods->new({ "DEBUG", $self->{DEBUG}, "PFN", $pfn,
 					  "DATABASE", $self->{DATABASE},
 					});
+      $self->info("URL created");
       if ($file){
 	$self->_checkCacheSpace();
 	$self->info( "trying to get the file");

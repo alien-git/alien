@@ -135,11 +135,12 @@ sub checkRequirements {
   foreach my $method ("Input", "Packages", "Memory") {
     $DEBUG and $self->debug(1, "Checking the requirements from $method" );
     my $methodName="requirementsFrom$method";
-      my $sereq = $self->$methodName($job_ca);
+    my $sereq = $self->$methodName($job_ca);
     ( defined $sereq ) or return;
     $default .= $sereq;
   }
 
+  $self->checkInputDataCollections($job_ca) or return;
 
   $DEBUG and $self->debug(1, "Checking requirements of the job" );
   my ( $ok, $origreq ) = $job_ca->evaluateExpression("Requirements");
@@ -203,7 +204,39 @@ sub checkType {
     return 1;
 }
 
+sub checkInputDataCollections{
+  my $self=shift;
+  my $ca=shift;
+
+  my ( $ok, @inputdata ) =  $ca->evaluateAttributeVectorString("InputDataCollection");
+  $ok or return 1;
+  my @newlist;
+  my $modified=0;
+  my $pwd=$self->{CATALOG}->{CATALOG}->{CURPATH};
+  foreach my $file (@inputdata){
+    $self->info("Checking the input collection $file");
+    $file=~ s/^LF:// or $self->info("Wrong format with $file. It doesn't start with 'LF:'",1) and return;
+    
+    if ($file=~ m{^/}){
+      push @newlist, "\"LF:$file\"";
+    }else {
+      $self->info("That was relative path. Prepending the current directory");
+      $modified=1;
+      push @newlist, "\"LF:$pwd$file\"";
+    }
+  }
+  if ($modified){
+    $self->info("Updating the inputdatacollection");
+    $ca->set_expression("InputDataCollection", "{". join (",", @newlist)."}")
+      or $self->info("Error updating the InputDataCollection",1) and return;
+  }
+  return 1;
+}
+
+
 #_____________________________________________________________________________
+# This in fact just expands the pattern matching. It doesn't check requirements
+#
 sub requirementsFromInput {
   my $self = shift;
   my $ca   = shift;
@@ -211,16 +244,14 @@ sub requirementsFromInput {
 
   my $ok;
 
+
   #If there is no input data, everything is fine
   ( $ca->lookupAttribute("InputData") )  or return "";
 
   ( $ok, my @inputdata ) =  $ca->evaluateAttributeVectorString("InputData");
 
-  $ok or print STDERR "Attribute InputData is not a vector of string\n" and 
+  $ok or $self->info("Attribute InputData is not a vector of string",1) and 
     return;
-
-#  ( $ok, my @inputdataaccess ) =
-#    $ca->evaluateAttributeVectorString("InputDataAccess");
 
   my @inputdataset;
   my $findset="";
@@ -239,16 +270,17 @@ sub requirementsFromInput {
 
   my $num=$#inputdata+1;
   $self->info("There are $num input files");
-  ($num> 100) and  $self->info("This may take a while...");
+  my @flatfiles;
 
   my $i=0;
   my $pwd=$self->{CATALOG}->{CATALOG}->{CURPATH};
-  foreach (@inputdata) {
-    my ($file, @options)=split(',', $_);
+  my $modified=0;
+  foreach my $origlfn (@inputdata) {
+    my ($file, @options)=split(',', $origlfn);
     $file =~ s/\\//g;
     foreach my $option (@options) {
       $option =~ /^nodownload$/i and next;
-      $self->info("Error: options $option not understood in the lfn $_");
+      $self->info("Error: options $option not understood in the lfn $origlfn", 1);
       return;
     }
     $i++;
@@ -261,74 +293,45 @@ sub requirementsFromInput {
     ($file =~ s/^LF://i) or  
       print STDERR "Malformed InputData -> $file - File Ignored.\n"
 	and   next;
-    s/^LF://i;
-    my $name="";
-    $file =~ m{^/} or  $file="$pwd$file";
 
-    if ($file =~ /\*/) {
-      $DEBUG and $self->debug(1, "'$file' is a pattern" );
-      my $dir;
-      my @list;
-      if ($file=~ /^([^\*]*)\*(.*)$/) { $dir=$1; $name=$2};
-      if ($name=~ /(.*)\[(\d*)\-(\d*)\]/) {
-	$name = $1;
-	my $start = $2;
-	my $stop  = $3;
-	$self->info("Doing: find -silent -l $stop $findset $dir $name");
-	@list=$self->{CATALOG}->execute( "find", "-silent", "-l $stop", "$findset", "$dir", "$name");
-      } else {
-	$name eq "" and $name="*";
-	@list=$self->{CATALOG}->execute( "find", "-silent", $findset, $dir, $name);
-      }
-      @list or $self->info( "Error: there are no files that match $file") and return;
-      my $nfiles = $#list+1;
-      $self->info( "OK: I found $nfiles files for you!");
-      $name =~ s/^.*\/([^\/\*]*)$/$1/;
-    }else {
-#      ((@inputdataaccess) && ($inputdataaccess[0] eq "global" )) and next;
-      $self->info( "Looking for SE of $file" );
-      my @se =$self->{CATALOG}->execute( "whereis", "-l", "$file", "-silent" )
-	or $self->{LOGGER}->error( "CE", "File  $_ not found" ) 
-	  and return;
-#      my $pfn  = $pfnAndSE[1];
-      $name = "$file";
-      $name =~ s/^.*\///;
-
-#      my @se =   grep ( !/:\/\//, @pfnAndSE );
-      my $newReq= join " ", @se;
-
-      if (! grep (/^$newReq$/, @allreq)){
-	push @allreq, $newReq;
-	map {$_ =~ s/^(.*)$/member\(other.CloseSE,\"$1\"\)/ } @se;
-	my $temp= join "||", @se;
-	$temp="( $temp )";
-	push @allRequirements, $temp;
-	$DEBUG and $self->debug(1, "New requirement $temp");
-      }
+    if ( $file !~ m{^/} ) {
+      $modified=1;
+      $file="$pwd$file";
     }
-    if (grep (/^nodownload$/, @options)) {
-      $self->info("This file doesn't have to be downloaded...");
+
+    if ($file !~ /\*/) {
+      push @flatfiles, join(",", "LF:$file", @options);
       next;
     }
-    if ($name ne "") {
-      my $tempName=$name;
-      my $i=1;
-      while ($self->{INPUTBOX}->{$name}){
-	$name="$tempName.$i";
-	$i++;
-      }
-      $self->{INPUTBOX}->{$name} = $_;
+    $modified=1;
+    $DEBUG and $self->debug(1, "'$file' is a pattern" );
+    my $name="";
+    my $dir;
+    my @list;
+    if ($file=~ /^([^\*]*)\*(.*)$/) { $dir=$1; $name=$2};
+    if ($name=~ /(.*)\[(\d*)\-(\d*)\]/) {
+      $name = $1;
+      my $start = $2;
+      my $stop  = $3;
+      $self->info("Doing: find -silent -l $stop $findset $dir $name");
+      @list=$self->{CATALOG}->execute( "find", "-silent", "-l $stop", "$findset", "$dir", "$name");
+    } else {
+      $name eq "" and $name="*";
+      @list=$self->{CATALOG}->execute( "find", "-silent", $findset, $dir, $name);
     }
+    @list or $self->info( "Error: there are no files that match $file") and return;
+    my $nfiles = $#list+1;
+    $self->info( "OK: I found $nfiles files for you!");
+    map {$_=join(",", "\"LF:$_\"", @options) } @list;
+    push @flatfiles, @list;
+    $name =~ s/^.*\/([^\/\*]*)$/$1/;
   }
-  my $req="";
-  if ($#allRequirements>=0) {
-    $req= join "&&", @allRequirements;
-    $req=" && ($req)";
-    $self->info( "Returning $req");
-  } else {
-    $self->info( "Returning no requirements");
+  if ($modified) {
+    $self->info("Putting the inputdata to @flatfiles");
+    $ca->set_expression("InputData", "{". join (",", @flatfiles)."}")
+      or $self->info("Error updating the InputData",1) and return;
   }
-  return $req;
+  return "";
 }
 
 sub checkInputFiles {
@@ -440,12 +443,11 @@ sub modifyJobCA {
 
   my $fullPath;
   
-  ($command)
-    or $self->{LOGGER}->notice( "CE",
-				"Error: not enough arguments in submit\nUsage: submitCommand <command> [arguments] [--name <commandName>][--validate]"
-      )
-      and return;
-  
+  if (!$command){
+    $self->info("Error: the executable is missing in the jdl",1);
+    $self->info("Usage:  submitCommand <command> [arguments] [--name <commandName>][--validate]"); 
+    return;
+  }  
   if ($command =~ /\//)
     {
       $DEBUG and $self->debug(1, "Checking if '$command' exists" );
@@ -471,9 +473,7 @@ sub modifyJobCA {
     }
 
   ($fullPath)
-    or $self->{LOGGER}->notice( "CE",
-				"Error: command $command is neither in /bin nor in /$self->{CONFIG}->{ORG_NAME}/bin"
-			      )
+    or $self->info("Error: command $command is neither in /bin nor in /$self->{CONFIG}->{ORG_NAME}/bin",1    )
       and return;
 
   # Clear errors probably occured while searching for files
@@ -666,8 +666,8 @@ sub submitCommand {
   my $jdl=$job_ca->asJDL;
   $DEBUG and $self->debug(1, "Modifying the job description" );
   if ( !$self->modifyJobCA($job_ca) ) {
-    print STDERR $dumper->Dump();
-    print STDERR "Input job suspicious\n$jdl\n";
+#    print STDERR $dumper->Dump();
+#    print STDERR "Input job suspicious\n$jdl\n";
     return;
   }
   $DEBUG and $self->debug(1, "Job description" . $job_ca->asJDL() );
@@ -2217,7 +2217,7 @@ sub f_queue {
 
   $DEBUG and $self->debug(1, "Calling f_queue_$command");
   my @return;
-  if ( ( $self->{CATALOG}->{CATALOG}->{ROLE} ne "admin") && ($command ne "list") && ($command ne "info") && ($command ne "priority") ) {
+  if ( ( $self->{CATALOG}->{CATALOG}->{ROLE} !~ /^admin(ssl)?$/) && ($command ne "list") && ($command ne "info") && ($command ne "priority") ) {
       $self->info( "Error executing queue $command: you are not allowed to execute that!");
       return;
   }
@@ -2793,7 +2793,7 @@ sub requirementsFromPackages {
 
 
   $self->info("Checking if the packages @packages are defined in the system");
-  my $ref=$self->f_packman("list", "-silent") or
+  my $ref=$self->f_packman("list", "-silent", "-all") or
     $self->info("Error getting the list of packages") and return;
   my $requirements="";
   my @definedPack=@$ref;

@@ -217,7 +217,9 @@ sub checkSETable {
   my %columns = (seName=>"char(60) NOT NULL", 
 		 seNumber=>"int(11) NOT NULL auto_increment primary key",);
 
-  return $self->checkTable("SE", "seNumber", \%columns, 'seNumber', ['UNIQUE INDEX (seName)']);
+  $self->checkTable("SE", "seNumber", \%columns, 'seNumber', ['UNIQUE INDEX (seName)']) or return;
+  #This table we want it case insensitive
+  return $self->do("alter table SE  convert to CHARacter SET latin1");
 }
 
 ##############################################################################
@@ -225,11 +227,12 @@ sub checkSETable {
 sub setIndexTable {
   my $self=shift;
   my $table=shift;
+  my $lfn=shift;
   defined $table or return;
   $table =~ /^\d*$/ and $table="D${table}L";
 
-  $DEBUG and $self->debug(2, "Setting the indextable to $table");
-  $self->{INDEX_TABLENAME}=$table;
+  $DEBUG and $self->debug(2, "Setting the indextable to $table ($lfn)");
+  $self->{INDEX_TABLENAME}={name=>$table, lfn=>$lfn};
   return 1;
 }
 sub getIndexTable {
@@ -241,17 +244,24 @@ sub getAllInfoFromDTable{
   my $self=shift;
   my $options=shift;
 
-  my $tableName=$options->{table};
-  defined $tableName or $tableName=$self->{INDEX_TABLENAME};
+  my $tableName=$self->{INDEX_TABLENAME}->{name};
+  $options->{table} and $options->{table}->{tableName} and 
+    $tableName=$options->{table}->{tableName};
+  my $tablePath=$self->{INDEX_TABLENAME}->{lfn};
+  $options->{table} and $options->{table}->{lfn} and 
+    $tablePath=$options->{table}->{lfn};
   defined $tableName or $self->info( "Error: missing the tableName in getAllInfoFromDTable") and return;
 #  @_ or $self->info( "Warning! missing arguments in internal function getAllInfoFromDTable") and return;
   $tableName=~ /^\d+$/ and $tableName="D${tableName}L";
-  my @entries=@_;
+  my @entries=grep (s{^$tablePath}{}, @_);
+  my @list=@entries;
+
   $DEBUG and $self->debug(2, "Checking for @entries in $tableName");
   my $op='=';
   ($options->{like}) and  $op="$options->{like}";
 
-  map {$_="binary lfn $op ?"} @entries;
+  map {$_="lfn $op ?"} @entries;
+
   my $where="WHERE ". join(" or ", @entries);
   my $opt=($options->{options} or "");
   ( $opt =~ /h/ ) and  $where .= " and lfn not like '%/.%'";
@@ -262,7 +272,9 @@ sub getAllInfoFromDTable{
   $options->{where} and $where.=" $options->{where}";
   $order and $where .= " order by $order";
 
-  my $retrieve=($options->{retrieve} or "*, DATE_FORMAT(ctime, '%b %d %H:%i') as ctime");
+   $options->{retrieve} and
+     $options->{retrieve} =~ s{lfn}{concat('$tablePath',lfn) as lfn};
+  my $retrieve=($options->{retrieve} or "*,concat('$tablePath',lfn) as lfn, DATE_FORMAT(ctime, '%b %d %H:%i') as ctime");
 
   my $method=($options->{method} or "query");
 
@@ -270,7 +282,7 @@ sub getAllInfoFromDTable{
     $method="queryValue";
     $retrieve="count(*)";
   }
-  my @list=@_;
+
   $options->{bind_values} and push @list, @{$options->{bind_values}};
 
   my $DBoptions={bind_values=>\@list};
@@ -290,10 +302,10 @@ sub existsEntry {
 
   $entry=~ s{/?$}{};
   my $options={bind_values=>["$entry/"]};
-  my $table=$self->queryValue("SELECT tableName from INDEXTABLE where ? like concat(lfn,'%') order by length(lfn) desc limit 1",undef, $options);
-  defined $table or return;
+  my $tableRef=$self->queryRow("SELECT tableName,lfn from INDEXTABLE where ? like concat(lfn,'%') order by length(lfn) desc limit 1",undef, $options);
+  defined $tableRef or return;
   return $self->getAllInfoFromDTable({method=>"queryValue",
-				      retrieve=>"lfn", table=>$table}
+				      retrieve=>"lfn", table=>$tableRef}
 				     , $entry, "$entry/");
 
 }
@@ -332,10 +344,8 @@ sub getSEListFromFile{
   my $file=shift;
   my $seStringlist=shift;
   if (not $seStringlist) {
-    my $table=$self->{INDEX_TABLENAME};
     $seStringlist = $self->getAllInfoFromDTable({retrieve=>"seStringlist",
-						 method=>"queryValue",
-						 table =>$table},
+						 method=>"queryValue",},
 						$file,) or return;
   }
 
@@ -357,13 +367,14 @@ sub deleteMirrorFromFile{
   my $seNumber=$self->getSENumber($seName);
   defined $seNumber or return;
 
-  my $table=$self->{INDEX_TABLENAME};
+  my $table=$self->{INDEX_TABLENAME}->{name};
 
   my $done=$self->queryValue("SELECT seStringList from $table where lfn='$file'");
 
   $done or return;
   $DEBUG and $self->debug(2, "The entry exists in the database");
   $done=~ s/,$seNumber,/,/ or return;
+  $file=~ s{^$self->{INDEX_TABLENAME}->{lfn}}{};
   return $self->do("UPDATE $table set seStringlist='$done' where lfn='$file'");
 }
 
@@ -379,8 +390,9 @@ sub insertMirrorFromFile{
   my $seName=shift;
   my $seNumber=$self->getSENumber($seName);
   defined $seNumber or return;
-  my $table=$self->{INDEX_TABLENAME};
-
+  my $table=$self->{INDEX_TABLENAME}->{name};
+  
+  $file=~  s{^$self->{INDEX_TABLENAME}->{lfn}}{};
   return $self->do("UPDATE $table set seStringlist=concat(seStringList, '$seNumber,') where lfn='$file'");
 }
 
@@ -395,7 +407,8 @@ Adds a new file to the database. It receives a hash with the following informati
 sub createFile {
   my $self=shift;
   my $options=shift || "";
-  my $tableName= $self->{INDEX_TABLENAME};
+  my $tableName= $self->{INDEX_TABLENAME}->{name};
+  my $tableLFN= $self->{INDEX_TABLENAME}->{lfn};
   my $entryDir;
   my $seNumbers={};
   my @inserts=@_;
@@ -419,6 +432,7 @@ sub createFile {
     }
     $entryDir or $entryDir=$self->getParentDir($insert->{lfn});
     $insert->{dir}=$entryDir;
+    $insert->{lfn}=~ s{^$tableLFN}{};
     if ( $insert->{guid}) {
       push @guids, "guid='$insert->{guid}'";
       push @insertGuid, {guid=>$insert->{guid},
@@ -448,8 +462,8 @@ sub getParentDir {
   my $lfn=shift;
   $lfn=~ s{/[^/]*/?$}{/};
 
-  my $tableName= $self->{INDEX_TABLENAME} or return;
-
+  my $tableName= $self->{INDEX_TABLENAME}->{name} or return;
+  $lfn=~ s{$self->{INDEX_TABLENAME}->{lfn}}{};
   return $self->queryValue("select entryId from $tableName where lfn=?", undef, 
 			   {bind_values=>[$lfn]});
 }
@@ -474,8 +488,9 @@ sub updateFile {
     delete $update->{se};
     $self->debug(1, "Settint the senumber to $update->{seStringlist}");
   }
-  my $tableName=$self->{INDEX_TABLENAME};
-
+  my $tableName=$self->{INDEX_TABLENAME}->{name};
+  my $lfn=$self->{INDEX_TABLENAME}->{lfn};
+  $file=~ s{^$lfn}{};
   return $self->update($tableName, $update, "lfn='$file'");
 }
 
@@ -483,13 +498,14 @@ sub deleteFile {
   my $self=shift;
   my $file=shift;
 
-  my $tableName=$self->{INDEX_TABLENAME};
+  my $tableName=$self->{INDEX_TABLENAME}->{name};
   my $index=",$self->{CURHOSTID}_$tableName,";
   my $guid=$self->queryValue("select guid from $tableName where lfn='$file'");
   if ($guid) {
-    $self->info("Removing the value $index from the GUID $guid");
+    $self->debug(1, "Removing the value $index from the GUID $guid");
     my $done= $self->{FIRST_DB}->do("update GUID set lfn=if(locate('$index', lfn), concat(left(lfn,locate('$index',lfn)), substring(lfn, length('$index')+locate('$index',lfn))), lfn) where guid='$guid'");
   }
+  $file=~ s{^$self->{INDEX_TABLENAME}->{lfn}}{};
   return $self->delete($tableName, "lfn='$file'");
 }
 sub getLFNlike {
@@ -511,11 +527,13 @@ sub getLFNlike {
 
 
   #First, look in the index for possible tables;
-  my $indexRef=$self->query("SELECT HOSTS.hostIndex, tableName,lfn FROM INDEXTABLE, HOSTS where '$starting' like concat(lfn, '%') and INDEXTABLE.hostIndex=HOSTS.hostIndex order by length(lfn) desc limit 1");
-
-  my $indexRef2=$self->query("SELECT HOSTS.hostIndex, tableName,lfn FROM INDEXTABLE, HOSTS where lfn like '$starting\%' and INDEXTABLE.hostIndex=HOSTS.hostIndex ");
+  my $indexRef=$self->query("SELECT HOSTS.hostIndex, tableName,lfn,length(lfn) as length FROM INDEXTABLE, HOSTS where '$starting' like concat(lfn, '%') and INDEXTABLE.hostIndex=HOSTS.hostIndex order by length(lfn) desc limit 1");
 
   $indexRef or $self->info( "Error trying to find the indexes for $starting") and return;
+
+  my $indexRef2=$self->query("SELECT HOSTS.hostIndex, tableName,lfn FROM INDEXTABLE, HOSTS where lfn like '$starting\%' and INDEXTABLE.hostIndex=HOSTS.hostIndex and length(lfn)>${$indexRef}[0]->{length}");
+
+
 
   my @dirs=split(/\//, $lfn);
   my $pattern="";
@@ -531,17 +549,15 @@ sub getLFNlike {
   #now, for each index, find the matching lfn
   foreach my $ref (@$indexRef, @$indexRef2){
     my $db=$self->reconnectToIndex( $ref->{hostIndex}) or next;
-    my $length=length($ref->{lfn});
-    $length> $pos and $length=$pos;
+    my $orig="concat('$ref->{lfn}', lfn)";
     my $ppattern=$pattern;
-    if ($length) {
-      $ppattern=substr( $pattern, $length-1);
-    } else {
-      $length=1;
+    #If the entries that we are looking for already have the 
+    #start lfn of this table, we don't have to put it in the
+    #search
+    if ($ppattern =~ s{^$ref->{lfn}}{}) {
+      $orig="lfn";
     }
-    
-    my $query="SELECT lfn from D$ref->{tableName}L where substring(lfn, $length) rlike '^$ppattern'";
-    
+    my $query="SELECT concat('$ref->{lfn}',lfn) from D$ref->{tableName}L where $orig rlike '^$ppattern'";
     $self->debug(1, "Doing $query");
     my $temp=$db->queryColumn($query);
     push @result, @$temp;
@@ -588,7 +604,7 @@ sub listDirectory {
   my $options=shift || "";
   
   my $entry;
-  my $table=$self->{INDEX_TABLENAME};
+
   if ( UNIVERSAL::isa( $info, "HASH" )) {
     $entry=$info;
   } else {
@@ -597,7 +613,7 @@ sub listDirectory {
   }
   my $sort="order by lfn";
   $options =~ /f/ and $sort="";
-  my $content=$self->getAllInfoFromDTable({table=>$table, 
+  my $content=$self->getAllInfoFromDTable({table=>$self->{INDEX_TABLENAME}, 
 					   where=>"dir=? $sort",
 					   bind_values=>[$entry->{entryId}]});
   my @all;
@@ -625,35 +641,38 @@ sub createDirectory {
 	      perm=>(shift or "755"),
 	      replicated=>(shift or 0),
 	      type=>'d'};
-  my $tableName=shift;
-  defined $tableName or $tableName=$self->{INDEX_TABLENAME};
-  delete $insert->{table};
+  my $tableRef=shift || {};
+  my $tableName=$tableRef->{name} || $self->{INDEX_TABLENAME}->{name};
+  my $tableLFN=$tableRef->{lfn} || $self->{INDEX_TABLENAME}->{lfn};
+#  delete $insert->{table};
 
   $tableName =~ /^\d*$/ and $tableName="D${tableName}L";
+
   $insert->{dir}=$self->getParentDir($insert->{lfn});
+  $insert->{lfn} =~ s{^$tableLFN}{};
 
   return $self->insert($tableName, $insert);
 }
 sub createRemoteDirectory {
   my $self=shift;
-  my ($hostIndex,$host, $DB, $driver, $newtable, $lfn)=@_;
+  my ($hostIndex,$host, $DB, $driver,  $lfn)=@_;
   my $oldtable=$self->{INDEX_TABLENAME};
-  $newtable =~ /^\d*$/ and $newtable="D${newtable}L";
 
   my ( $oldHost, $oldDB, $oldDriver ) = 
     ( $self->{HOST},$self->{DB}, $self->{DRIVER});
 
   #Now, in the new database
   my $db=$self->reconnectToIndex($hostIndex) or return;
-  $db->checkDLTable($newtable) or return;
+  my $newTable=$db->getNewDirIndex() or return;
+  $newTable="D${newTable}L";
   #ok, let's insert the entry in $table
-  my $done=$db->createDirectory("$lfn/",$self->{ROLE},$self->{MAINGROUP},$self->{UMASK},0,$newtable );
+  my $done=$db->createDirectory("$lfn/",$self->{ROLE},$self->{MAINGROUP},$self->{UMASK},0,{name=>$newTable, lfn=>"$lfn/"} );
 
   $done or return;
 
   $self->info( "Now, let's try to do insert the entry in the INDEXTABLE");
-  if (! $self->insertInIndex($hostIndex, $newtable, "$lfn/")){
-    $db->delete($newtable, "lfn='$lfn/'");
+  if (! $self->insertInIndex($hostIndex, $newTable, "$lfn/")){
+    $db->delete($newTable, "lfn='$lfn/'");
     return;
   }
   $self->info( "Almost everything worked!!");
@@ -663,6 +682,47 @@ sub createRemoteDirectory {
   return $done;
 
 }
+
+sub removeDirectory {
+  my $self=shift;
+  my $path=shift;
+  my $parentdir=shift;
+  
+  #Let's get all the hosts that can have files under this directory
+  my $entries=$self->getHostsForEntry($path) or 
+    $self->info( "Error getting the hosts for '$path'") and return;
+  $DEBUG and $self->debug(1, "Getting dir from $path");
+  my @index=();
+
+  foreach my $db (@$entries) {
+    $DEBUG and $self->debug(1, "Deleting all the entries from $db->{hostIndex} (table $db->{tableName} and lfn=$db->{lfn})");
+    my $db2=$self->reconnectToIndex($db->{hostIndex}, $path);
+    $db2 or  $self->info( "Error reconecting") and next;
+
+    my $tmpPath="$path/";
+    $tmpPath=~ s{^$db->{lfn}}{};
+    $db2->delete("D$db->{tableName}L", "lfn like '$tmpPath%'");
+    $db->{lfn} =~ /^$path/ and push @index, "$db->{lfn}\%";
+  }
+
+  if ($#index>-1) {
+    $DEBUG and $self->debug(1, "And now, let's clean the index table (@index)");
+    $self->deleteFromIndex(@index);
+    if (grep( m{^$path/?\%$}, @index)){
+      $DEBUG and $self->debug(1, "The directory we were trying to remove was an index");
+      my $entries=$self->getHostsForEntry($parentdir) or 
+	$self->info( "Error getting the hosts for '$path'") and return;
+      my $db=${$entries}[0];
+      my $newdb=$self->reconnectToIndex($db->{hostIndex}, $parentdir);
+      $newdb or $self->info( "Error reconecting") and return;
+      my $tmpPath="$path/";
+      $tmpPath=~ s{^$db->{lfn}}{};
+      $newdb->delete("D$db->{tableName}L", "lfn='$tmpPath'");
+    }
+  }
+  return 1;
+}
+
 sub getSENumber{
   my $self=shift;
   my $se=shift;
@@ -695,14 +755,16 @@ sub getSENumber{
 sub tabCompletion {
   my $self=shift;
   my $entryName=shift;
-  my $tableName=$self->{INDEX_TABLENAME};
-
+  my $tableName=$self->{INDEX_TABLENAME}->{name};
+  my $lfn=$self->{INDEX_TABLENAME}->{lfn};
   my $dirName=$entryName;
   $dirName=~ s{[^/]*$}{};
+  $dirName =~ s{^$lfn}{};
+  $entryName =~ s{^$lfn}{};
   my $dir=$self->queryValue("SELECT entryId from $tableName where lfn=?",undef,
 			    {bind_values=>[$dirName]});
   $dir or return;
-  my $rfiles = $self->queryColumn("SELECT lfn from $tableName where dir=$dir and lfn rlike '^$entryName\[^/]*\/?\$'");
+  my $rfiles = $self->queryColumn("SELECT concat('$lfn',lfn) from $tableName where dir=$dir and lfn rlike '^$entryName\[^/]*\/?\$'");
   return @$rfiles;
 
 }
@@ -722,7 +784,7 @@ sub actionInIndex {
   foreach $tempHost (@$hosts) {
     #my ( $ind, $ho, $d, $driv ) = split "###", $tempHost;
     $self->info( "Updating the INDEX table of  $tempHost->{db}");
-    my $db=$self->reconnectToIndex( $tempHost->{hostIndex} );
+    my $db=$self->reconnectToIndex( $tempHost->{hostIndex}, "", $tempHost );
 
     $db->do($action) or print STDERR "Warning: Error doing $action";
   }
@@ -781,60 +843,64 @@ sub copyDirectory{
   my $targetHost=$self->getIndexHost($target);
   my $targetIndex=$targetHost->{hostIndex};
   my $targetTable="D$targetHost->{tableName}L";
+  my $targetLFN=$targetHost->{lfn};
 
   my $user=$self->{ROLE};
   $options->{user} and $user=$options->{user};
 
   #Before doing this, we have to make sure that we are in the right database
-  my $db=$self->reconnectToIndex( $targetIndex) or return;
-  $self=$db;
-  
-  my $targetName=$self->existsEntry($target);
-  if ($targetName and $targetName!~ m{/$} ) {
-    $self->info("cp: cannot overwrite non-directory `$target' with directory `$source'", "222");
-    my $db=$self->reconnectToIndex($sourceInfo->{hostIndex});
-    $self=$db;
-    return;
+  my $targetDB=$self->reconnectToIndex( $targetIndex) or return;
 
-  }
+  my $sourceLength=length($source)+1;
 
-  my $length=length($source)+1;
-
-  my $query;
-  if ($targetName){
+  my $targetName=$targetDB->existsEntry($target);
+  if ($targetName)  {
+    if ($targetName!~ m{/$} ) {
+      $self->info("cp: cannot overwrite non-directory `$target' with directory `$source'", "222");
+      return;
+    }
     my $sourceParent=$source;
     $sourceParent=~ s {/([^/]+/?)$}{/};
     $self->info( "Copying into an existing directory (parent is $sourceParent)");
-    $length=length($sourceParent)+1;
-    $options->{k}  and $length=length($source)+1;
+    $sourceLength=length($sourceParent)+1;
+    $options->{k}  and $sourceLength=length($source)+1;
   }
-
-  my $select="insert into $targetTable(lfn,owner,size,seStringlist,gowner,type,guid,perm,dir,md5) select concat('$target',substring(lfn,$length)) as lfn, '$user',size,seStringlist,'$user',type,guid,perm,-1,md5 ";
-
+  my $beginning=$target;
+  $beginning=~ s/^$targetLFN//;
+  
+  my $select="insert into $targetTable(lfn,owner,size,seStringlist,gowner,type,guid,perm,dir,md5) select concat('$beginning',substring(concat('";
+  my $select2="', lfn), $sourceLength)) as lfn, '$user',size,seStringlist,'$user',type,guid,perm,-1,md5 ";
   my @values=();
   my @guids=();
   foreach my $entry (@$sourceHosts){
     $DEBUG and $self->debug(1, "Copying from $entry to $targetIndex and $targetTable");
     my $db=$self->reconnectToIndex( $entry->{hostIndex});
-    $self=$db;
-    my $like="replicated=0 and lfn like '$source%'";
-    $options->{k} and $like.=" and lfn!='$source'";
+
+    my $tsource=$source;
+    $tsource=~ s{^$entry->{lfn}}{};
+    my $like="replicated=0 and lfn like '$tsource%'";
+    $options->{k} and $like.=" and lfn!='$tsource'";
     if ($targetIndex eq $entry->{hostIndex}){
       my $table="D$entry->{tableName}L";
       $DEBUG and $self->debug(1, "This is easy: from the same database");
-      $self->do("$select from $table where $like");
-      $self->{FIRST_DB}->do("update GUID, $table set GUID.lfn=concat(GUID.lfn, '${targetIndex}_$targetTable,') where GUID.guid=$table.guid and $table.lfn  like '$source%' and $table.replicated=0");
+      # we want to copy the lf, which in fact would be something like
+      # substring(concat('$entry->{lfn}', lfn), length('$sourceIndex'))
+      $self->do("$select$entry->{lfn}$select2 from $table where $like");
+      $self->{FIRST_DB}->do("update GUID, $table set GUID.lfn=concat(GUID.lfn, '${targetIndex}_$targetTable,') where GUID.guid=$table.guid and $table.lfn  like '$tsource%' and $table.replicated=0");
 
     }else {
       $DEBUG and $self->debug(1, "This is complicated: from another database");
-      my $entries = $self->query("SELECT concat('$target',substring(lfn,$length)) as lfn, size,seStringlist,type,guid,perm,md5 FROM D$entry->{tableName}L where $like");
+      my $entries = $db->query("SELECT concat('$beginning', substring(concat('$entry->{lfn}',lfn), $sourceLength )) as lfn, size,seStringlist,type,guid,perm,md5 FROM D$entry->{tableName}L where $like");
       foreach  my $files (@$entries) {
 	my ($guid, $selist, $md5)=("NULL", "NULL", "NULL");
 	if (defined $files->{guid}){
 	  $guid="'$files->{guid}'";
-	  push @guids, "guid='$guid'";
+	  push @guids, "guid=$guid";
 	}
 	defined $files->{md5} and $md5="'$files->{md5}'";
+
+	$files->{lfn}=~ s{^}{};
+	$files->{lfn}=~ s{^$targetLFN}{};
 	defined $files->{seStringlist} and $selist="'$files->{seStringlist}'";
 	push @values, " ( '$files->{lfn}',  '$user', '$files->{size}', $selist, '$user', '$files->{type}', $guid, '$files->{perm}', -1, $md5)";
 
@@ -842,27 +908,28 @@ sub copyDirectory{
     }
 
   }
-  my $db2=$self->reconnectToIndex( $targetIndex);
-  $self=$db2;
   if ($#values>-1) {
     my $insert="INSERT into $targetTable(lfn,owner,size,seStringlist,gowner,type,guid,perm,dir,md5) values ";
 
     $insert .= join (",", @values);
-    $self->do($insert);
+    $targetDB->do($insert);
   }
   if ($#guids >-1) {
     $self->{FIRST_DB}->do("update GUID set lfn=concat(lfn, '${targetIndex}_$targetTable,') where ". join (' or ', @guids));
   }
+
+  $target=~ s{^$targetLFN}{};
   my $targetParent=$target;
-  $targetParent=~ s{/[^/]+/?$}{/}; 
+  $targetParent=~ s{/[^/]+/?$}{/} or $targetParent="";;  
   $DEBUG and $self->debug(1, "We have inserted the entries. Now we have to update the column dir");
 
   #and now, we should update the entryId of all the new entries
-  my $entries=$self->query("SELECT lfn, entryId from $targetTable where (dir=-1 and lfn like '$target\%/') or lfn='$target' or lfn='$targetParent'");
+
+  my $entries=$targetDB->query("SELECT lfn, entryId from $targetTable where (dir=-1 and lfn like '$target\%/') or lfn='$target' or lfn='$targetParent'");
   foreach my $entry (@$entries) {
     $DEBUG and $self->debug(1, "Updating tbe entry $entry->{lfn}");
     my $update="update $targetTable set dir=$entry->{entryId} where dir=-1 and lfn rlike '^$entry->{lfn}\[^/]+/?\$'";
-    $self->do($update);
+    $targetDB->do($update);
     
   }
 #  $db2=$self->reconnectToIndex($sourceInfo->{hostIndex});
@@ -888,7 +955,7 @@ sub copyDirectory{
 =item C<moveEntries($lfn, $toTable)>
 
 This function moves all the entries under a directory to a new table
-If the '$toTable' is not specifed, a new table is created.
+A new table is always created.
 
 Before calling this function, you have to be already in the right database!!!
 You can make sure that you are in the right database with a call to checkPermission
@@ -898,23 +965,22 @@ You can make sure that you are in the right database with a call to checkPermiss
 sub moveEntries {
   my $self=shift;
   my $lfn=shift;
-  my $toTable=shift;
 
-  $DEBUG and $self->debug(1,"Starting  moveEntries, with $lfn and ". (defined $toTable ?$toTable : "undefined"));
-  if ((! defined $toTable) || ($toTable eq "") ) {
-    $toTable=$self->getNewDirIndex();
-    defined $toTable or $self->info( "Error getting the name of the new table") and return;
-  }
 
-  $self->checkDLTable($toTable) or $self->info( "Error checking the tables $toTable") and return;
+
+  $DEBUG and $self->debug(1,"Starting  moveEntries, with $lfn ");
+  my   $toTable=$self->getNewDirIndex();
+  defined $toTable or $self->info( "Error getting the name of the new table") and return;
+
 
   my $isIndex=$self->queryValue("SELECT 1 from INDEXTABLE where lfn=?", undef,
 			       {bind_values=>[$lfn]});
 
-  my $backToTable=0;
+
   my $entry=$self->getIndexHost($lfn) or $self->info( "Error getting the info of $lfn") and return;
   my $sourceHostIndex=$entry->{hostIndex};
   my $fromTable=$entry->{tableName};
+  my $fromLFN=$entry->{lfn};
 
   $toTable =~ /^(\d+)*$/ and $toTable= "D${toTable}L";
   $fromTable =~ /^(\d+)*$/ and $fromTable= "D${fromTable}L";
@@ -927,36 +993,27 @@ sub moveEntries {
     $parent =~ s{/[^/]*/$}{/};
     my $entryP=$self->getIndexHost($parent) or $self->info( "Error getting the info of $parent") and return;
     my $parentTable=$entryP->{tableName};
-    if ($parentTable eq $toTable) {
-      $self->info( "Trying to copy back to its original table");
-      $self->delete($fromTable,"lfn='$lfn'");
-
-      $backToTable=1;
-    }
   }
 
   #ok, this is the easy case, we just copy into the new table
-  my $columns="entryId,owner,replicated,seStringlist,aclId,lfn,expiretime,size,dir,gowner,type,guid,md5,perm";
-
+  my $columns="entryId,owner,replicated,seStringlist,aclId,expiretime,size,dir,gowner,type,guid,md5,perm";
+  my $tempLfn=$lfn;
+  $tempLfn=~ s{$fromLFN}{};
   #First, let's insert the entries in the new table
-  $self->do("INSERT into $toTable($columns) select $columns from $fromTable where lfn like '${lfn}%'") or return;
+  $self->do("INSERT into $toTable($columns,lfn) select $columns,substring(concat('$fromLFN', lfn), length('$lfn')+1) from $fromTable where lfn like '${tempLfn}%'") or return;
 
   ($isIndex) and  $self->deleteFromIndex($lfn);
 
-  if (! $backToTable) {
-    #Now, let's update the index
-    if (!$self->insertInIndex($sourceHostIndex, $toTable, $lfn)){
-      $self->delete($toTable,"lfn like '${lfn}%'");
-      return;
-    }
+  if (!$self->insertInIndex($sourceHostIndex, $toTable, $lfn)){
+    $self->delete($toTable,"lfn like '${tempLfn}%'");
+    return;
   }
-
   if (!$isIndex ){
     #Finally, let's delete the old table;
-    $self->delete($fromTable,"lfn like '${lfn}_%'");
-    $self->update($fromTable,{replicated=>1}, "lfn='$lfn'");
+    $self->delete($fromTable,"lfn like '${tempLfn}_%'");
+    $self->update($fromTable,{replicated=>1}, "lfn='$tempLfn'");
   } else {
-    $self->delete($fromTable,"lfn like '${lfn}%'");
+    $self->delete($fromTable,"lfn like '${tempLfn}%'");
   }
 
   return 1;
@@ -1022,6 +1079,10 @@ sub getNewDirIndex {
   $self->unlock();
 
   $self->info( "New table number: $dir");
+
+  $self->checkDLTable($dir) or 
+    $self->info( "Error checking the tables $dir") and return;
+
   return $dir;
 }
 
@@ -1107,7 +1168,7 @@ sub getIndexHost {
   my $lfn=shift;
   $lfn=~ s{/?$}{/};
   my $options={bind_values=>[$lfn]};
-  return $self->queryRow("SELECT hostIndex, tableName FROM INDEXTABLE where ? like concat(lfn, '%') order by length(lfn) desc limit 1", undef, $options);
+  return $self->queryRow("SELECT hostIndex, tableName,lfn FROM INDEXTABLE where ? like concat(lfn, '%') order by length(lfn) desc limit 1", undef, $options);
 }
 sub getAllHosts {
   my $self = shift;
@@ -1443,7 +1504,7 @@ sub getDiskUsage {
     $self=$db;
     
   } else {
-    my $table="D$self->{INDEX_TABLENAME}L";
+    my $table="D$self->{INDEX_TABLENAME}->{name}L";
     $DEBUG and $self->debug(1, "Checking the diskusage of file $lfn");
     $size=$self->queryValue("SELECT size from $table where lfn='$lfn'");
   }
@@ -1561,17 +1622,19 @@ sub selectDatabase {
 
   my $db=$self->reconnectToIndex($index, $path) or return;
 
-  $db->setIndexTable($tableName);
+  $db->setIndexTable($tableName, $entry->{lfn});
   return $db;
 }
 sub reconnectToIndex {
   my $self=shift;
   my $index=shift;
   my $path=shift;
-
+  # we can send the info from the call, so that we skip one database query
+  my $data=shift;
   ($index eq $self->{CURHOSTID}) and return $self;
 
-  my ($data) = $self->getFieldsFromHosts($index,"organisation,address,db,driver");
+  $data or 
+    ($data) = $self->getFieldsFromHosts($index,"organisation,address,db,driver");
   ## add db error message
   defined $data
     or return;
@@ -1648,13 +1711,148 @@ sub getLFNfromGUID {
     my ($host, $tableName)=split(/_/, $table);
     my $db=$self->reconnectToIndex( $host)
       or $self->info("Error reconnecting to $host") and next;
-    my $paths = $db->queryColumn("SELECT lfn FROM ${tableName} WHERE guid=?", undef, {bind_values=>[$guid]});
+    my $prefix=$db->getPathPrefix($tableName) or 
+      $self->info("Error getting the prefix of $tableName") and next;
+    my $paths = $db->queryColumn("SELECT concat('$prefix',lfn) FROM ${tableName} WHERE guid=?", undef, {bind_values=>[$guid]});
     $paths and push @lfns, @$paths;
   }
 
 
   return @lfns;
 }
+
+sub getPathPrefix{
+  my $self=shift;
+  my $table=shift;
+  $table=~ s{^D(\d+)L}{$1};
+  return $self->queryValue("SELECT lfn from INDEXTABLE where tableName='$table'");
+}
+
+sub findLFN() {
+  my $self=shift;
+  my ($path, $file, $refNames, $refQueries,$refUnions, %options)=@_;
+
+  #first, let's take a look at the host that we want
+
+  my $rhosts=$self->getHostsForEntry($path) or 
+    $self->info( "Error getting the hosts for '$path'") and return;
+
+  my @result=();
+  my @done=();
+  foreach my $rhost (@$rhosts) {
+    my $id="$rhost->{hostIndex}:$rhost->{tableName}";
+    grep (/^$id$/, @done) and next;
+    push @done, $id;
+    my $localpath=$rhost->{lfn};
+
+    $DEBUG and $self->debug(1, "Looking in database $id (path $path)");
+
+    my $db=$self->reconnectToIndex( $rhost->{hostIndex}, "", );
+    $db or $self->info( "Error connecting to $id ($path)") and next;
+    $DEBUG and $self->debug(1, "Doing the query");
+
+    push @result, $db->internalQuery($rhost,$path, $file, $refNames, $refQueries, $refUnions, \%options);
+  }
+  return \@result;
+}
+
+# This subroutine looks for files that satisfy certain criteria in the 
+# current database.
+# Input:
+#    $path: directory where the 'find' started'
+#    $name: name of files that we are looking for
+#    $refNames: reference to a list of paths with the tags
+#    $refQueries: reference to a list of queries of metadata"
+#    $refunion: reference to a list of unions between the queries
+#    $options: d->return also the directories
+# Output:
+#    list of file that satisfy all the criteria
+sub internalQuery {
+  my $self=shift;
+  my $refTable=shift;
+  my $path=shift;
+  my $file=shift;
+
+  my $refNames=shift;
+  my $refQueries=shift;
+  my $refUnions=shift;
+  my $options=shift;
+
+  my $indexTable="D$refTable->{tableName}L";
+  my $indexLFN=$refTable->{lfn};
+  my @tagNames=@{$refNames};
+  my @tagQueries=@{$refQueries};
+  my @unions=("and", @{$refUnions});
+
+  my @paths=();
+  my @queries=();
+
+  my @dirresults;
+
+  my @joinQueries;
+
+  if ($file ne "\\" ) {
+      @joinQueries = ("WHERE concat('$refTable->{lfn}', lfn) LIKE '$path%$file%' and replicated=0");
+      $options->{d} or $joinQueries[0].=" and lfn not like '%/' and lfn!= \"\"";
+  } else {
+      # query an exact file name
+      @joinQueries = ("WHERE concat('$refTable->{lfn}', lfn)='$path'");
+  }
+
+  #First, let's construct the sql statements that will select all the files 
+  # that we want. 
+
+  foreach my $tagName (@tagNames) {
+    $DEBUG and $self->debug(1, "Selecting directories with tag $tagName");
+    #Checking which directories have that tag defined
+    my $tables = $self->getFieldsByTagName($tagName, "tableName", 1);
+    $tables and $#{$tables} != -1
+      or $self->info( "Error: there are no directories with tag $tagName in $self->{DATABASE}->{DB}") 
+        and return;
+
+    my $union=shift @unions;
+    my $query=shift @tagQueries;
+    my @newQueries=();
+    foreach  (@$tables) {
+      my $table=$_->{tableName};
+      foreach my $oldQuery (@joinQueries) {
+	if ($oldQuery =~ / JOIN $table /){
+	  #If the table is already in the join, let's put only the constraints
+	  push @newQueries, "$oldQuery $union $query";
+	}else{
+
+	#This is the query that will get all the results. We do a join between 
+	#the D0 table, and the one with the metadata. There will be two queries
+	#like these per table with that metadata. 
+	#The first query gets files under directories with that metadata. 
+	# It is slow, since it has to do string comperation
+	#The second query gets files with that metadata. 
+	# (this part is pretty fast)
+	  push @newQueries, " JOIN $table $oldQuery $union $table.$query and $table.file like '%/' and concat('$refTable->{lfn}', $indexTable.lfn) like concat( $table.file,'%') ";
+	  push @newQueries, " JOIN $table $oldQuery $union $table.$query and concat('$refTable->{lfn}',$indexTable.lfn)= $table.file ";
+	}
+      }
+    }
+    @joinQueries=@newQueries;
+  }
+  my $order=" ORDER BY lfn";
+  my $limit="";
+  $options->{'s'} and $order="";
+  $options->{l} and $limit = "limit $options->{l}";
+  map {s/^(.*)$/SELECT *,concat('$refTable->{lfn}', lfn) as lfn from $indexTable $1 $order $limit/} @joinQueries;
+
+
+  #Finally, let's do all the queries:
+  my @result;
+  foreach (@joinQueries) {
+    $DEBUG and $self->debug(1, "Doing the query $_");
+    my $query=$self->query($_);
+    push @result, @$query;
+  }
+  return @result;
+
+}
+
 
 =head1 SEE ALSO
 

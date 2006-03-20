@@ -99,7 +99,7 @@ sub insertTransferLocked {
 
   $self->unlock();
 
-  $self->sendTransferStatus($lastID, "INSERTING", {destination=>$destination, user=>$user});
+  $self->sendTransferStatus($lastID, "INSERTING", {destination=>$destination, user=>$user, received=>$date});
 
 
   $self->updateActions({todo=>1}, "action='INSERTING'");
@@ -124,10 +124,10 @@ sub updateExpiredTransfers{
 }
 
 sub updateLocalCopyTransfers{
-	my $self = shift;
-
-	$self->debug(1,"In updateLocalCopyTransfers updating SE of LOCAL_COPY transfers");
-	$self->do("UPDATE TRANSFERS SET SE = destination WHERE status = 'LOCAL_COPY' AND SE IS NULL");
+  my $self = shift;
+  
+  $self->debug(1,"In updateLocalCopyTransfers updating SE of LOCAL_COPY transfers");
+  $self->do("UPDATE TRANSFERS SET SE = destination WHERE status = 'LOCAL_COPY' AND SE IS NULL");
 }
 sub updateActions{
   shift->SUPER::update("ACTIONS", @_);
@@ -339,7 +339,7 @@ sub sendTransferStatus {
     my $statusID = AliEn::Util::transferStatusForML($newStatus);
 
     my @params = ("statusID", $statusID);
-    foreach ('started', 'finished', 'size', 'destination'){
+    foreach ('started', 'finished', 'size', 'destination', 'received', 'SE'){
       push(@params, $_, $info->{$_}) if $info->{$_};
     }
 
