@@ -15,6 +15,7 @@ WriteMakefile(
 	      'EXE_FILES'         => [
 				      'scripts/API.pl',
 				      'scripts/Alien.sh',
+				      'scripts/ApiConfig.pl',
 				      'scripts/AlienServices.sh',
 				      'scripts/Authen.pl',
 				      'scripts/CreateMan.sh',
