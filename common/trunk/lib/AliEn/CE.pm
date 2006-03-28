@@ -447,33 +447,29 @@ sub modifyJobCA {
     $self->info("Error: the executable is missing in the jdl",1);
     $self->info("Usage:  submitCommand <command> [arguments] [--name <commandName>][--validate]"); 
     return;
-  }  
-  if ($command =~ /\//)
-    {
-      $DEBUG and $self->debug(1, "Checking if '$command' exists" );
-      $self->{CATALOG}->execute( "ls", "-silent", "$command" ) 
-	and $fullPath = "$command";
-      
-      my $user = $self->{CATALOG}->{CATALOG}->{ROLE};
-      my $letter="";
-      $user=~ /^(.)/ and $letter=$1;
-      my $org=$self->{CONFIG}->{ORG_NAME};
-      $command =~ m{^(/$org(/user/$letter/$user)?)?/bin/[^\/]*$} 
-	or $fullPath="";
+  }
+  my $homedir=$self->{CATALOG}->{CATALOG}->GetHomeDirectory();
+
+  if ($command =~ /\//){
+    $DEBUG and $self->debug(1, "Checking if '$command' exists" );
+    $self->{CATALOG}->execute( "ls", "-silent", "$command" ) 
+      and $fullPath = "$command";
+    
+    my $org="\L$self->{CONFIG}->{ORG_NAME}\E";
+    ($command =~ m{^((/$org)|($homedir))?/bin/[^\/]*$} ) or
+      $fullPath="";
+  }
+  else   {
+    my @dirs=($homedir, "/\L$self->{CONFIG}->{ORG_NAME}\E","");
+    foreach (@dirs) {
+      $DEBUG and $self->debug(1, "Checking if '$command' is in $_" );
+      $self->{CATALOG}->execute( "ls", "-silent", "$_/bin/$command" )
+	and $fullPath = "$_/bin/$command" and last;
     }
-  else
-    {
-      my $homedir=$self->{CATALOG}->{CATALOG}->GetHomeDirectory()."/bin";
-      my @dirs=($homedir, "/\L$self->{CONFIG}->{ORG_NAME}\E/bin","/bin");
-      foreach (@dirs) {
-	$DEBUG and $self->debug(1, "Checking if '$command' is in $_" );
-	$self->{CATALOG}->execute( "ls", "-silent", "$_/$command" )
-	  and $fullPath = "$_/$command" and last;
-      }
-    }
+  }
 
   ($fullPath)
-    or $self->info("Error: command $command is neither in /bin nor in /$self->{CONFIG}->{ORG_NAME}/bin",1    )
+    or $self->info("Error: command $command is not in an executable directory (/bin, /$self->{CONFIG}->{ORG_NAME}/bin, or $homedir/bin)",1    )
       and return;
 
   # Clear errors probably occured while searching for files
