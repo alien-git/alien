@@ -240,7 +240,7 @@ sub installPackage{
 
   my $cache=AliEn::Util::returnCacheValue($self, $cacheName);
   if ($cache) {
-    $self->info( "$$ $$ Returning the value from the cache (@$cache)");
+    $self->info( "$$ Returning the value from the cache (@$cache)");
     return (@$cache);
   }
   my ($lfn, $info)=$self->findPackageLFN($user, $package, $version);
@@ -250,7 +250,7 @@ sub installPackage{
   my $source="";
 
   if ($lfn =~ m{^/$self->{CONFIG}->{ORG_NAME}/packages/}i ) {
-    $self->info( "$$ $$ This package is defined by the VO. Let's put the user to VO");
+    $self->info( "$$ This package is defined by the VO. Let's put the user to VO");
     $user=uc("VO_$self->{CONFIG}->{ORG_NAME}");
   }
 
@@ -449,10 +449,11 @@ sub findPackageLFN{
 	    "$self->{CONFIG}->{USER_DIR}/". substr( $user, 0, 1 ). "/$user/packages");
   my $lfn;
   my $platform=$self->getPlatform();
+  $self->info("$$ Looking for the lfn of $package ($version)");
 
   foreach (@dirs){
     my @files=$self->{CATALOGUE}->execute("find", "-silent","$_/$package", $platform) or next;
-    print "Got @files\n";
+    $self->info("$$ Got @files");
     if ($version) {
       @files=grep (/$package\/$version\// , @files);
       print "After the version, we have @files\n";
@@ -461,7 +462,9 @@ sub findPackageLFN{
     $lfn=shift @files;
     last;
   }
+
   if (!$lfn){  
+    $self->info("$$ So far, we didn't get the lfn. Looking for source packages");
     #Ok, let's look for the package source
     foreach (@dirs){
       my @files=$self->{CATALOGUE}->execute("find", "-silent","$_/$package", "source") or next;
