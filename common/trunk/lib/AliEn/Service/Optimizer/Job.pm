@@ -153,11 +153,12 @@ sub copyInput {
       and return {};
 
   ($ok, my @inputFile) = $job_ca->evaluateAttributeVectorString("InputBox");
+  my @origFile=@inputFile;
   ($ok, my $createLinks)=$job_ca->evaluateAttributeString("CreateLinks");
   ($ok, my @inputData)= $job_ca->evaluateAttributeVectorString("InputData");
-  if (grep (! /,nodownload/, @inputData)){
-    push @inputFile, grep (! /,nodownload/, @inputData);
-  }
+#  if (grep (! /,nodownload/, @inputData)){
+  push @inputFile, grep (! /,nodownload/, @inputData);
+#  }
   my $procDir = AliEn::Util::getProcDir($user, undef, $procid);
 
   my @filesToDownload=();
@@ -200,12 +201,15 @@ sub copyInput {
 	}
 	$size+=$fileInfo->{size};
 	my $sePattern=join("_", @sites);
-	if (! grep (/^$sePattern$/, @allreqPattern)) {
-	  map {$_=" member(other.CloseSE,\"$_\") "} @sites;
-	  my $sereq="(".join(" || ",@sites). ")";
-	  $self->info("Putting the requirement $sereq ($sePattern is not in @allreqPattern)");
-	  push @allreq, $sereq;
-	  push @allreqPattern, $sePattern;
+	#This has to be done only for the input data"
+	if (! grep (! m{^LF://$file$}, @origFile )){
+	  if (! grep (/^$sePattern$/, @allreqPattern)) {
+	    map {$_=" member(other.CloseSE,\"$_\") "} @sites;
+	    my $sereq="(".join(" || ",@sites). ")";
+	    $self->info("Putting the requirement $sereq ($sePattern is not in @allreqPattern)");
+	    push @allreq, $sereq;
+	    push @allreqPattern, $sePattern;
+	  }
 	}
 	if ( $file=~ /,nodownload/) {
 	  $self->info("Skipping file $file (from the InputBox) - nodownload option" );
