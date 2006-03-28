@@ -155,7 +155,7 @@ sub setCacheValue{
   my $value=shift;
   my $date=time;
 
-  $self->{CACHE} or $self->{CACHE}={};
+  $self->{CACHE} or $self->{CACHE}={BUILT=>$date};
   $self->{CACHE}->{$name}={expired=>$date+6000, timeChecked=>$date,
 			   value=>$value};
   $self->debug(1,"Setting the cache of $name = $value at $date");
@@ -175,9 +175,11 @@ sub returnCacheValue {
   $self->debug (1,"The date is correct");
   if ($self->{INST_DIR} and -f "$self->{INST_DIR}/REBUILDCACHE") {
     my @stat=stat("$self->{INST_DIR}/REBUILDCACHE");
-    $stat[9] < $self->{CACHE}->{$name}->{timeChecked}  or 
-      $self->info("The cache has been deleted")
-	and return;
+    if ($stat[9] > $self->{CACHE}->{BUILT}) {
+      $self->info("The cache has been deleted");
+      $self->{CACHE}={BUILT=>$now};
+      return;
+    }
   }
   $self->info("Returning the value from the cache ($self->{CACHE}->{$name}->{value})");
   return $self->{CACHE}->{$name}->{value};
