@@ -452,6 +452,7 @@ sub findPackageLFN{
   $self->info("$$ Looking for the lfn of $package ($version)");
 
   foreach (@dirs){
+    $self->info("Looking in the directory $_");
     my @files=$self->{CATALOGUE}->execute("find", "-silent","$_/$package", $platform) or next;
     $self->info("$$ Got @files");
     if ($version) {
