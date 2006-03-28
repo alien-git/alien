@@ -817,31 +817,38 @@ Minor page faults                   [#  ] : $tags[9]\n";
 sub installPackage {
   my $self=shift;
   my $package=shift;
-  my $user=$self->{INSTALL_USER};
+#  my $user=$self->{INSTALL_USER};
   print "Installing Package $_\n";
+
+  my ($version, $user);
+
+  $package =~ s/::(.*)$// and $version=$1;
+  $package =~ s/^(.*)\@// and $user=$1;
 
   #The first time, we get the user from the catalogue
   if (! $user) {
-    my $catalog;
-    eval{ 
-      $catalog = AliEn::UI::Catalogue::LCM->new({"silent"=> "0" });
-      ($user)=$catalog->execute("whoami", "-silent");
-      $catalog->close();
-    };
-    if ($@) {print "ERROR GETTING THE CATALOGUE $@\n";}
-    $user and $self->{INSTALL_USER}=$user;
+    if ($self->{INSTALL_USER}){
+      $user=$self->{INSTALL_USER};
+    }else{
+      my $catalog;
+      eval{ 
+	$catalog = AliEn::UI::Catalogue::LCM->new({"silent"=> "0" });
+	($user)=$catalog->execute("whoami", "-silent");
+	$catalog->close();
+      };
+      if ($@) {print "ERROR GETTING THE CATALOGUE $@\n";}
+      $user and $self->{INSTALL_USER}=$user;
+    }
     $self->{SOAP} or $self->{SOAP}=new AliEn::SOAP;
   }
-
+  $self->info("Getting the package $package (version $version) as $user");
   my $version;
-  $package =~ s/::(.*)$// and $version=$1;
-  $package =~ s/^(.*)\@// and $user=$1;
   $ENV{ALIEN_PROC_ID} and
     $self->putJobLog($ENV{ALIEN_PROC_ID},"trace","Installing package $_");
   my $result;
   my $retry=5;
   while (1) {
-    $self->info("Asking the package manager to install $_");
+    $self->info("Asking the package manager to install $package as $user");
 
     $result=$self->{SOAP}->CallSOAP("PackMan", "installPackage", $user, $package, $version) and last;
     my $message=$AliEn::Logger::ERROR_MSG;
