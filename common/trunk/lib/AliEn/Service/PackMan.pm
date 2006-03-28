@@ -449,11 +449,13 @@ sub findPackageLFN{
 	    "$self->{CONFIG}->{USER_DIR}/". substr( $user, 0, 1 ). "/$user/packages");
   my $lfn;
   my $platform=$self->getPlatform();
-  $self->info("$$ Looking for the lfn of $package ($version)");
+  $self->info("$$ Looking for the lfn of $package ($version) for the user $user");
 
   foreach (@dirs){
     $self->info("Looking in the directory $_");
-    my @files=$self->{CATALOGUE}->execute("find", "-silent","$_/$package", $platform) or next;
+    my @files=$self->{CATALOGUE}->execute("find", 
+#					  "-silent",
+					  "$_/$package", $platform) or next;
     $self->info("$$ Got @files");
     if ($version) {
       @files=grep (/$package\/$version\// , @files);
