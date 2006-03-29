@@ -842,7 +842,7 @@ sub installPackage {
     $self->{SOAP} or $self->{SOAP}=new AliEn::SOAP;
   }
   $self->info("Getting the package $package (version $version) as $user");
-  my $version;
+
   $ENV{ALIEN_PROC_ID} and
     $self->putJobLog($ENV{ALIEN_PROC_ID},"trace","Installing package $_");
   my $result;
