@@ -22,7 +22,7 @@ ALIEN_StartAllServices()
 ALIEN_RestartAllServices()
 ###########################################################################
 {
-  ( ALIEN_StopAllServices )  
+  ( ALIEN_StopAllServices )
   ( ALIEN_StartAllServices )
 }
 
@@ -315,7 +315,15 @@ statusService()
   [ -f  $FILE ] && OLDPID=`cat $FILE`
   if [ "$OLDPID" ]
   then
-    kill -0 $OLDPID 2>/dev/null && return 0;
+    kill -0 $OLDPID 2>/dev/null
+    if [ "$?" -eq "0" ]
+    then
+      ${ALIEN_ROOT}/scripts/alien -x $ALIEN_ROOT/scripts/pingService.pl $2 > /dev/null
+      if [ "$?" -eq "0" ]
+      then
+        return 0;
+      fi
+    fi
   fi
   echo "DEAD"
   return 1
