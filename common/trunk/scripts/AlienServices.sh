@@ -318,11 +318,13 @@ statusService()
     kill -0 $OLDPID 2>/dev/null
     if [ "$?" -eq "0" ]
     then
-      ${ALIEN_ROOT}/scripts/alien -x $ALIEN_ROOT/scripts/pingService.pl $2 #> /dev/null
+      PINGOUTPUT=`${ALIEN_ROOT}/scripts/alien -x $ALIEN_ROOT/scripts/pingService.pl $2`
       if [ "$?" -eq "0" ]
       then
         return 0;
       fi
+      echo "PID OK BUT:"
+      echo $PINGOUTPUT
     fi
   fi
   echo "DEAD"

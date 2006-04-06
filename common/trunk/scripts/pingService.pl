@@ -59,18 +59,41 @@ $uri =~ s{::}{/};
 
 print "The service is running at $host:$port, uri $uri\n";
 
-my $done = eval("SOAP::Lite->uri(\"AliEn/Service/$uri\")->proxy(\"http://$host:$port\", timeout => 3)->ping()");
-$done
-  or &error(-4, "Could not contact service. (Error $@)");
+my $errorNr;
+my $errorMsg;
+my $count = 0; 
 
-$done->fault
-  and &error(-5, "Error in call." . Dumper($done));
+while ($count++ < 3)
+{
+  print "Attempt $count\n";
 
-$done->result
-  or &error(-6, "Nothing returned. ($done->{error})");
+  my $done = eval("SOAP::Lite->uri(\"AliEn/Service/$uri\")->proxy(\"http://$host:$port\", timeout => 3)->ping()");
+  if (!$done)
+  {
+    $errorNr = -4;
+    $errorMsg = "Could not contact service. (Error $@)";
+    next;
+  }
 
-print "The service $serviceName is alive and running version " . $done->result->{VERSION} . "\n";
-exit 0;
+  if ($done->fault)
+  {
+    $errorNr = -5;
+    $errorMsg = "Error in call. " . Dumper($done);
+    next;
+  }
+
+  if (!$done->result)
+  {
+    $errorNr = -6;
+    $errorMsg = "Nothing returned. ($done->{error})";
+    next;
+  }
+
+  print "The service $serviceName is alive and running version " . $done->result->{VERSION} . "\n";
+  exit 0;
+}
+
+&error($errorNr, $errorMsg);
 
 sub syntax()
 {
