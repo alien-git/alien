@@ -318,7 +318,7 @@ statusService()
     kill -0 $OLDPID 2>/dev/null
     if [ "$?" -eq "0" ]
     then
-      ${ALIEN_ROOT}/scripts/alien -x $ALIEN_ROOT/scripts/pingService.pl $2 > /dev/null
+      ${ALIEN_ROOT}/scripts/alien -x $ALIEN_ROOT/scripts/pingService.pl $2 #> /dev/null
       if [ "$?" -eq "0" ]
       then
         return 0;
