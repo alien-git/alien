@@ -233,6 +233,9 @@ print "ok\nStarting the services...\n";
 system ("$ENV{ALIEN_ROOT}/etc/rc.d/init.d/aliend", "start", "$orgName")
   and print "failed!\n Error starting the alien services\n$@ $? and $!\n" and exit(-2);
 
+#Give a while for the services to start
+sleep 15
+
 print "ok\nChecking that the services are up...";
 open (FILE, "$ENV{ALIEN_ROOT}/etc/rc.d/init.d/aliend status|") 
   or print "Error checking the status\n$? $!\n" and exit(-2);
