@@ -43,6 +43,7 @@ WriteMakefile(
 				      'scripts/rotatelog.pl',
 				      'scripts/Validate.pl',
 				      'scripts/gContainer.pl',
-                                      'scripts/pingService.pl']
+                                      'scripts/pingService.pl',
+                                      'scripts/ServiceStatus.sh']
 	     );
 
