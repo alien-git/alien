@@ -65,9 +65,11 @@ my $count = 0;
 
 while ($count++ < 3)
 {
-  print "Attempt $count\n";
+  sleep 5 if ($count != 1);
 
-  my $done = eval("SOAP::Lite->uri(\"AliEn/Service/$uri\")->proxy(\"http://$host:$port\", timeout => 3)->ping()");
+  print "Attempt $count (" . scalar(localtime()) . ")\n";
+
+  my $done = eval("SOAP::Lite->uri(\"AliEn/Service/$uri\")->proxy(\"http://$host:$port\", timeout => 10)->ping()");
   if (!$done)
   {
     $errorNr = -4;
