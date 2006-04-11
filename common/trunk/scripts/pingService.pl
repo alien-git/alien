@@ -13,6 +13,7 @@ my %serviceConfigMap = (
 "Optimizer::Catalogue" => ["CATALOGUE_OPTIMIZER_ADDRESS", ""],
 "Manager::Job" => ["JOB_MANAGER_ADDRESS", ""],
 "Broker::Job" => ["JOB_BROKER_ADDRESS", ""],
+"ClusterMonitor" => [undef, "CLUSTERMONITOR_PORT"],
 );
 
 my $serviceName = shift;
@@ -36,7 +37,9 @@ $config
 my $configHost = exists($serviceConfigMap{$serviceName}) ? $serviceConfigMap{$serviceName}->[0] : uc($serviceName) . "_HOST";
 my $configPort = exists($serviceConfigMap{$serviceName}) ? $serviceConfigMap{$serviceName}->[1] : uc($serviceName) . "_PORT";
 
-my $host = $config->{$configHost};
+my $host = `hostname -f`;
+chomp($host);
+$host = $config->{$configHost} if (defined $configHost);
 $host
   or &error(-3, "Could not get host. Is it supposed to run here?");
 
