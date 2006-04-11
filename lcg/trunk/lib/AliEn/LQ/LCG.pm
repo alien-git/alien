@@ -16,7 +16,8 @@ sub initialize {
    $self->{DB}=AliEn::Database::CE->new();
    $ENV{X509_CERT_DIR} and $self->{LOGGER}->debug("LCG","X509: $ENV{X509_CERT_DIR}");
    my $error = !defined $ENV{GLOBUS_LOCATION};
-   $self->{CONFIG}->{VOBOX} = $ENV{HOST}.':8084';
+   my $host= $ENV{HOST} || $self->{CONFIG}->{HOST};
+   $self->{CONFIG}->{VOBOX} = $host.':8084';
    $ENV{ALIEN_CM_AS_LDAP_PROXY} and $self->{CONFIG}->{VOBOX} = $ENV{ALIEN_CM_AS_LDAP_PROXY};
    $self->info("VO Box is $self->{CONFIG}->{VOBOX}");
    $self->{CONFIG}->{VOBOXDIR} = "/opt/vobox/\L$self->{CONFIG}->{ORG_NAME}";
