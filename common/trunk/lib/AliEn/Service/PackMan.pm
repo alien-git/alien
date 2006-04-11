@@ -148,6 +148,10 @@ Each entry is in the format "<user>::<package>::<version>"
 
 sub getListInstalledPackages {
   shift;
+
+  grep (/^-?-force$/, @_)
+    and  AliEn::Util::deleteCache($self);
+
   $self->info( "$$ Giving back the list of packages that have been installed");
   my $cache=AliEn::Util::returnCacheValue($self, "installedPackages");
   if ($cache) {
