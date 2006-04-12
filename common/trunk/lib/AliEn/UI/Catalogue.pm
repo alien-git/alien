@@ -36,6 +36,7 @@ use AliEn::UI;
 use AliEn::SOAP;
 use Data::Dumper;
 use vars qw(@ISA $DEBUG);
+use AliEn::GUID;
 
 
 push @ISA, 'AliEn::Logger::LogObject';
@@ -447,6 +448,7 @@ sub new {
     $self->setSilent(1);
     return;
   }
+  $self->{GUID}=AliEn::GUID->new();
 
   return $self;
 }
@@ -973,17 +975,20 @@ sub registerFileInSE {
     $sename=($destSE || $self->{CONFIG}->{SE_FULLNAME});
     $newguid=$guid;
     if (!$newguid) {
-      require AliEn::GUID;
-      $self->{GUID} or $self->{GUID}=AliEn::GUID->new();
       $newguid=$self->{GUID}->CreateGuid();
     }
     if ($newguid){
       $DEBUG and $self->debug(1, "Ok, we are ready to insert $newguid and $sename");
       my $oldmode=$self->{LOGGER}->getMode();
       $DEBUG or $self->{LOGGER}->setMinimum("critical");
+      my (@guid)=$self->{GUID}->getIntegers($guid);
       if ($self->{CATALOG}->{DATABASE}->insert("$dbName.FILES", {size=>$size,
 								 pfn=>$pfn, 
-								 guid=>$newguid,
+								 guid1=>$guid[0],
+								 guid2=>$guid[1],
+								 guid3=>$guid[2],
+								 guid4=>$guid[3],
+
 								 md5=>$options->{md5}})){
 
 	$DEBUG and $self->debug(1, "File registered in the SE database");
@@ -1057,6 +1062,8 @@ sub f_addMirror {
   ($self->{CATALOG}->isFile( $file, $entry->{lfn})) or
     $self->info( "Entry $file doesn't exist (or is not a file)",11) 
       and return;
+  $entry->{guid}=$self->{GUID}->getGUIDfromIntegers($entry->{guid1},$entry->{guid2},$entry->{guid3},$entry->{guid4});
+  
   if ($pfn) {
     (my $newguid, $destSE)=
       $self->registerFileInSE($destSE, $entry->{guid}, $pfn, $entry->{size}, {md5=>$md5}) or return;

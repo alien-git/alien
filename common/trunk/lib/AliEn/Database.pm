@@ -493,6 +493,7 @@ sub multiinsert {
   my $self = shift;
   my $table = shift;
   my $rarray = shift;
+  my $options=shift;
   my $rloop;
   
   ###     statement checking is a temporary solution ... remove later!!!
@@ -501,14 +502,16 @@ sub multiinsert {
   my $rfields = @$rarray[0];
   
   my $query = "INSERT INTO $table (" . join(", ", keys %$rfields) . ") VALUES ";
-  
+  my $quote="'";
+  $options->{noquotes} and $quote="";
   #my @arr = values %$rfields;
   
   foreach $rloop (@$rarray) {
     $query .= "(";
     foreach (keys %$rfields) {
-      (defined $rloop->{$_}) and $query .= "'" . $rloop->{$_} . "'," or
+      (defined $rloop->{$_}) and $query .= "$quote$rloop->{$_}$quote," or
 	$query .= "NULL,";
+      
     }
     
     chop($query);
@@ -575,10 +578,10 @@ sub checkTable {
     $done  or return;
   }
   #Ok, now let's take a look at the primary key
-  $primaryKey or return 1;
+  #$primaryKey or return 1;
 
   $self->setPrimaryKey($table, $desc, $primaryKey, $index);
-  $desc =~ /not null/i or $self->{LOGGER}->error("Database", "Error: the table $table is supposed to have a primary key, but the index can be null!") and return;
+#  $desc =~ /not null/i or $self->{LOGGER}->error("Database", "Error: the table $table is supposed to have a primary key, but the index can be null!") and return;
 }
 
 sub getNewColumns {
@@ -623,7 +626,7 @@ sub setPrimaryKey{
     $DEBUG and $self->debug(1, "There are some keys for $table");
     foreach my $ind (@$indexes) {
       if ($ind->{Key_name} eq "PRIMARY") {
-	($ind->{Column_name} eq $key) and $primary=1;
+	$key and ($ind->{Column_name} eq $key) and $primary=1;
 	next;
       }
       my @list=grep (/\W$ind->{Column_name}\W/, @indexes);
@@ -639,7 +642,7 @@ sub setPrimaryKey{
       }
     }
   }
-  if (! $primary ){
+  if ((! $primary ) && $key){
     $self->alterTable($table,"drop primary key");
     $self->alterTable($table,"ADD PRIMARY KEY ($key)");
     $self->info( "Altering the primary key of $table");

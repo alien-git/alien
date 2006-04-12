@@ -11,24 +11,29 @@
 
 
 package AliEn::GUID;
+use AliEn::Logger;
+
+use vars qw (@ISA $DEBUG);
+push @ISA, 'AliEn::Logger::LogObject';
 
 use strict;
 use OSSP::uuid;
 
 sub new {
-    my $proto = shift;
-    my $GUID   = (shift or "");
-    my $self  = {};
-    bless( $self, ( ref($proto) || $proto ) );
-
-    $self->{NAMESPACE}= $ENV{'ALIEN_HOSTNAME'};
-    $self->{GENERATOR}=new OSSP::uuid;
-
-    if ($GUID ne "") {
-	$self->{TXT}=$GUID;
-    }
-
-    return $self;
+  my $proto = shift;
+  my $GUID   = (shift or "");
+  my $self  = {};
+  bless( $self, ( ref($proto) || $proto ) );
+  $self->SUPER::new() or return;
+  
+  $self->{NAMESPACE}= $ENV{'ALIEN_HOSTNAME'};
+  $self->{GENERATOR}=new OSSP::uuid;
+  
+  if ($GUID ne "") {
+    $self->{TXT}=$GUID;
+  }
+  
+  return $self;
 }
 
 sub CreateGuid {
@@ -139,4 +144,25 @@ sub GetHash{
 #    close INPUT;
 #    return 1;
 #}
+
+sub getIntegers {
+  my $self=shift;
+  my $guid=shift;
+
+  $guid=~ /^([^-]*)-([^-]*)-([^-]*)-([^-]*)-(.{4})([^-]*)$/
+    or $self->info("Wrong guid format  '$guid'",2) and return;
+  return (hex("0x$1"), hex("0x$2$3"), hex("0x$4$5"), hex("0x$6"));
+}
+
+sub getGUIDfromIntegers{
+  my $self=shift;
+  my ($guid1,$guid2,$guid3,$guid4)=(shift, shift, shift, shift);
+  map {/^0x/ and $_=hex($_)} ($guid1,$guid2,$guid3,$guid4);
+  $self->debug(1,"We have the numbers $guid1, $guid2, $guid3, $guid4");
+  my $guid=sprintf ("%08x-%04x-%04x-%04x-%04x%08x", $guid1,$guid2>>16, $guid2&0xFFFF,$guid3>>16, $guid3&0xFFFF,$guid4);
+
+  return $guid;
+}
+
+
 return 1;

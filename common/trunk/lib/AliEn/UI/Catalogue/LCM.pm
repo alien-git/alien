@@ -249,7 +249,7 @@ sub get {
   
   my ($md5, $guid)=$self->{CATALOG}->f_getMD5("sg", $file);
 
-  $guid or return;
+  $guid or $self->info("Error getting the guid and md5 of $file",-1) and return;
 
   ######################################################################################
   #get the authorization envelope and put it in the IO_AUTHZ environment variable

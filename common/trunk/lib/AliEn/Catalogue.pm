@@ -87,6 +87,8 @@ use AliEn::Catalogue::Basic;
 use AliEn::Dataset;
 use AliEn::Logger::LogObject;
 use AliEn::Util;
+use AliEn::GUID;
+use Data::Dumper;
 use strict;
 
 use vars qw($DEBUG @ISA);
@@ -221,7 +223,7 @@ Site name:$self->{CONFIG}->{SITE}");
       return;
     }
   }
-
+  $self->{GUID}=new AliEn::GUID or return;
   $self->loadEnvironment();
   my $oldSilent = $self->{SILENT};
   $self->{SILENT} = 1;
@@ -460,7 +462,6 @@ sub f_ls
   }
 
   for (@$rlist) {
-#    use Data::Dumper;
 #    $DEBUG and $self->debug(1, "Printing ".Dumper($_));
     push @result, $self->f_print($retrievedpath, $options, $_);
   }
@@ -1885,8 +1886,6 @@ sub f_tree {
   $dir =~ s{/?$}{/};
   my $ref=$self->{DATABASE}->findLFN($dir, "", [], [], [])
     or return;
-  use Data::Dumper;
-  print Dumper($ref);
   my @entries=@$ref;
   print "GOT @entries\n";
 #  #Let's get all the hosts that can have files under this directory
@@ -1979,7 +1978,6 @@ sub f_echo {
       map { s/^(.*)$/'$1'/ }  @{$value} ;
       $print = join ( ", ", @{$value} );
     }elsif (UNIVERSAL::isa($value, "HASH")){
-      use Data::Dumper;
       $print=Dumper($value);
       $print =~ s/^\$VAR1 =//;
     }

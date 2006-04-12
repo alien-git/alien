@@ -1321,12 +1321,16 @@ sub getFileName{
   $name or return;
 
   $self->info("Checking the LVM");
-  
+  my @guid=$self->{GUID}->getIntegers($guid)
+    or $self->info("Error parsing the guid '$guid'") and return;;
   my $newFile = {
 		 'file'          => $name,
 		 'ttl'           => $self->{MSS}->{'LVMTTL'},
 		 'size'          => int($size/1024),
-		 'guid'          => $guid,
+		 'guid1'          => $guid[0],
+		 'guid2'          => $guid[1],
+		 'guid3'          => $guid[2],
+		 'guid4'          => $guid[3],
 		 'md5'           => $md5,
 		 'sizeBytes'     => $size,
 		};
@@ -1510,22 +1514,25 @@ sub registerFile {
 
   my $pfn=shift;
   my $size=shift;
-  my $guid=shift;
+  my $guid=shift || "";
   my $options=(shift || {});
 
   my $lvm=$seInfo->{lvm};
   my $seFullName=$seInfo->{fullname};
-  $self->info("\n\nTrying to register a file in the SE");
+  $self->info("\n\nTrying to register a file in the SE (guid $guid)");
   if (! $guid){
     $self->debug(1, "Getting a new GUID for this file");
     $guid=$self->{GUID}->CreateGuid();
     $guid and $self->debug(1,"Got $guid");
   }
   $guid or $self->info( "ERROR CREATING THE GUID")
-    and $self->die("Error creating the guid");
-  my $newFile={guid=>$guid,
+    and die("Error creating the guid");
+  my @int=$self->{GUID}->getIntegers($guid)
+    or die("Error parsing the guid '$guid'");
+  my $newFile={guid1=>$int[0],guid2=>$int[1],
+	       guid3=>$int[2],guid4=>$int[3],
 	       size=>$size,
-	       pfn=>$pfn,
+	       pfn=>"$pfn",
 	      };
   $options->{md5} and $newFile->{md5}=$options->{md5};
   $newFile->{md5} or $newFile->{md5}=AliEn::MD5->new($pfn);
@@ -1559,8 +1566,10 @@ sub getPFNFromGUID{
   $self->info("Getting the pfn of $guid");
 
   my $db=$seInfo->{lvm}->{DB};
-
-  my $pfn=$db->getPFNFromGUID($guid)
+  my @guid=$self->{GUID}->getIntegers($guid)
+    
+    or $self->info("The guid $guid doesn't have the right format") and return (-1, "The guid '$guid' doesn't have the right format");
+  my $pfn=$db->getPFNFromGUID($guid, @guid)
     or return (-1, "Error doing the query");
   my @pfns=@$pfn;
   @pfns or return (-1, "guid $guid is not registered in this SE ($seName)");

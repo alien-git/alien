@@ -17,6 +17,7 @@ package AliEn::Database::Catalogue;
 use AliEn::Database;
 use strict;
 use AliEn::SOAP;
+use AliEn::GUID;
 
 =head1 NAME
 
@@ -79,14 +80,20 @@ sub initialize {
 
   $Connections{$self->{UNIQUE_NM}}->{$dbindex}=$self;
 
+  $self->{GUID}=AliEn::GUID->new() or 
+    $self->info("Error creating the GUID interface") and  return;
+
   return $self->SUPER::initialize(@_);
 }
+
+
 =item C<createCatalogueTables>
 
 This methods creates the database schema in an empty database. The tables that this implemetation have are:
 HOSTS, 
 
 =cut
+
 
 #
 # Checking the consistency of the database structure
@@ -126,7 +133,7 @@ sub checkConstantsTable {
 }
 sub checkHostsTable {
   my $self = shift;
-  my %columns = (hostIndex=>"int(11) NOT NULL auto_increment primary key",
+  my %columns = (hostIndex=>"serial primary key",
 	 	 address=>"char(50)", 
 		 db=>"char(40)",
 		 driver=>"char(10)", 
@@ -147,10 +154,14 @@ sub checkIndexTable {
 
 sub checkGUIDTable {
   my $self = shift;
-  my %columns = (guid=>"char(36) NOT NULL primary key",
+  my %columns = (#guid=>"char(36) NOT NULL primary key",
 		 lfn=>"varchar(50)",
+		 guid1=>"int unsigned", 
+		 guid2=>"int unsigned", 
+		 guid3=>"int unsigned", 
+		 guid4=>"int unsigned", 
 	       );
-  return $self->checkTable("GUID",  "guid", \%columns);
+  return $self->checkTable("GUID",  "guid1", \%columns, '',['UNIQUE INDEX(guid1,guid2,guid3,guid4)']);
 }
 
 sub checkDLTable {
@@ -171,13 +182,17 @@ sub checkDLTable {
 		 seStringlist=>"varchar(255)",
 		 aclId=>"int(11)",
 		 perm=>"char(3)",
-		 guid=>"char(36)",
+#		 guid=>"char(36)",
+		 guid1=>"int unsigned",
+		 guid2=>"int unsigned",
+		 guid3=>"int unsigned",
+		 guid4=>"int unsigned",
 		 replicated=>"int(1) not null default 0",
 		 dir=>"int(11)",
 		 md5=>"varchar(32)", 
 		);
 
-  return $self->checkTable(${table}, "entryId", \%columns, 'entryId', ['UNIQUE INDEX (lfn)','INDEX (guid)', "INDEX(dir)"]);
+  return $self->checkTable(${table}, "entryId", \%columns, 'entryId', ['UNIQUE INDEX (lfn)','INDEX (guid1,guid2,guid3,guid4)', "INDEX(dir)"]);
 
 }
 sub checkACLTable{
@@ -433,28 +448,38 @@ sub createFile {
     $entryDir or $entryDir=$self->getParentDir($insert->{lfn});
     $insert->{dir}=$entryDir;
     $insert->{lfn}=~ s{^$tableLFN}{};
+    foreach my $key (keys %$insert){
+      $key=~ /^guid$/ and next;
+      $insert->{$key}="'$insert->{$key}'";
+    }
     if ( $insert->{guid}) {
-      push @guids, "guid='$insert->{guid}'";
-      push @insertGuid, {guid=>$insert->{guid},
-			 lfn=>",$self->{CURHOSTID}_$tableName,"};
+      ($insert->{guid1}, $insert->{guid2}, $insert->{guid3}, $insert->{guid4})=
+	 $self->{GUID}->getIntegers($insert->{guid}) or return;
+      push @guids, "guid1=$insert->{guid1} and guid2=$insert->{guid2} and guid3=$insert->{guid3} and guid4=$insert->{guid4}";
+      push @insertGuid, {guid1=>$insert->{guid1},
+			 guid3=>$insert->{guid3},
+			 guid2=>$insert->{guid2},
+			 guid4=>$insert->{guid4},
+			 lfn=>"',$self->{CURHOSTID}_$tableName,'"};
+      delete $insert->{guid};
     }
 
   }
 
   if ($options=~ /k/) {
     $self->debug(4,"This is another pointer");
-    my $done= $self->{FIRST_DB}->do("update GUID set lfn=concat(lfn,'$self->{CURHOSTID}_$tableName,') where ". join ("or ", @guids));
+    my $done= $self->{FIRST_DB}->do("update GUID set lfn=concat(lfn,'$self->{CURHOSTID}_$tableName,') where ". join (" or ", @guids));
     $done or 
       $self->info("Error updating the GUID table") and return;
     $done =~ /^0E0$/ and $self->info("The guid @guids was not registered") and return;
     $self->debug(1, "Trying to update the guid got $done");
 
   } else {
-    $self->{FIRST_DB}->multiinsert("GUID",\@insertGuid, {silent=>1})
+    $self->{FIRST_DB}->multiinsert("GUID",\@insertGuid, {silent=>1, noquotes=>1})
       or $self->info("The guid '@guids' already exists in the catalogue") and return;
   }
 
-  return $self->multiinsert($tableName, \@inserts);
+  return $self->multiinsert($tableName, \@inserts, {noquotes=>1});
 }
 
 sub getParentDir {
@@ -500,12 +525,14 @@ sub deleteFile {
 
   my $tableName=$self->{INDEX_TABLENAME}->{name};
   my $index=",$self->{CURHOSTID}_$tableName,";
-  my $guid=$self->queryValue("select guid from $tableName where lfn='$file'");
-  if ($guid) {
-    $self->debug(1, "Removing the value $index from the GUID $guid");
-    my $done= $self->{FIRST_DB}->do("update GUID set lfn=if(locate('$index', lfn), concat(left(lfn,locate('$index',lfn)), substring(lfn, length('$index')+locate('$index',lfn))), lfn) where guid='$guid'");
-  }
   $file=~ s{^$self->{INDEX_TABLENAME}->{lfn}}{};
+
+  my $guid=$self->queryRow("select guid1,guid2,guid3,guid4 from $tableName where lfn='$file'");
+  if ($guid and $guid->{guid1}) {
+    $self->debug(1, "Removing the value $index from the GUID $guid");
+    my $done= $self->{FIRST_DB}->do("update GUID set lfn=if(locate('$index', lfn), concat(left(lfn,locate('$index',lfn)), substring(lfn, length('$index')+locate('$index',lfn))), lfn) where guid1='$guid->{guid1}' and guid2='$guid->{guid2}' and guid3='$guid->{guid3}' and guid4='$guid->{guid4}'");
+  }
+
   return $self->delete($tableName, "lfn='$file'");
 }
 sub getLFNlike {
@@ -868,8 +895,8 @@ sub copyDirectory{
   my $beginning=$target;
   $beginning=~ s/^$targetLFN//;
   
-  my $select="insert into $targetTable(lfn,owner,size,seStringlist,gowner,type,guid,perm,dir,md5) select concat('$beginning',substring(concat('";
-  my $select2="', lfn), $sourceLength)) as lfn, '$user',size,seStringlist,'$user',type,guid,perm,-1,md5 ";
+  my $select="insert into $targetTable(lfn,owner,size,seStringlist,gowner,type,guid1,guid2,guid3,guid4,perm,dir,md5) select concat('$beginning',substring(concat('";
+  my $select2="', lfn), $sourceLength)) as lfn, '$user',size,seStringlist,'$user',type,guid1,guid2,guid3,guid4,perm,-1,md5 ";
   my @values=();
   my @guids=();
   foreach my $entry (@$sourceHosts){
@@ -886,16 +913,16 @@ sub copyDirectory{
       # we want to copy the lf, which in fact would be something like
       # substring(concat('$entry->{lfn}', lfn), length('$sourceIndex'))
       $self->do("$select$entry->{lfn}$select2 from $table where $like");
-      $self->{FIRST_DB}->do("update GUID, $table set GUID.lfn=concat(GUID.lfn, '${targetIndex}_$targetTable,') where GUID.guid=$table.guid and $table.lfn  like '$tsource%' and $table.replicated=0");
+      $self->{FIRST_DB}->do("update GUID, $table set GUID.lfn=concat(GUID.lfn, '${targetIndex}_$targetTable,') where GUID.guid1=$table.guid1 and GUID.guid2=$table.guid2 and GUID.guid3=$table.guid3 and GUID.guid4=$table.guid4 and $table.lfn  like '$tsource%' and $table.replicated=0");
 
     }else {
       $DEBUG and $self->debug(1, "This is complicated: from another database");
-      my $entries = $db->query("SELECT concat('$beginning', substring(concat('$entry->{lfn}',lfn), $sourceLength )) as lfn, size,seStringlist,type,guid,perm,md5 FROM D$entry->{tableName}L where $like");
+      my $entries = $db->query("SELECT concat('$beginning', substring(concat('$entry->{lfn}',lfn), $sourceLength )) as lfn, size,seStringlist,type,guid1,guid2,guid3,guid4,perm,md5 FROM D$entry->{tableName}L where $like");
       foreach  my $files (@$entries) {
-	my ($guid, $selist, $md5)=("NULL", "NULL", "NULL");
-	if (defined $files->{guid}){
-	  $guid="'$files->{guid}'";
-	  push @guids, "guid=$guid";
+	my ($guid, $selist, $md5)=("NULL,NULL,NULL,NULL", "NULL", "NULL");
+	if (defined $files->{guid1}){
+	  $guid="$files->{guid1},$files->{guid2},$files->{guid3},$files->{guid4}";
+	  push @guids, "( guid1=$files->{guid1} and guid2=$files->{guid2} and guid3=$files->{guid3} and guid4=$files->{guid4}) ";
 	}
 	defined $files->{md5} and $md5="'$files->{md5}'";
 
@@ -909,7 +936,7 @@ sub copyDirectory{
 
   }
   if ($#values>-1) {
-    my $insert="INSERT into $targetTable(lfn,owner,size,seStringlist,gowner,type,guid,perm,dir,md5) values ";
+    my $insert="INSERT into $targetTable(lfn,owner,size,seStringlist,gowner,type,guid1,guid2,guid3,guid4,perm,dir,md5) values ";
 
     $insert .= join (",", @values);
     $targetDB->do($insert);
@@ -996,7 +1023,7 @@ sub moveEntries {
   }
 
   #ok, this is the easy case, we just copy into the new table
-  my $columns="entryId,owner,replicated,seStringlist,aclId,expiretime,size,dir,gowner,type,guid,md5,perm";
+  my $columns="entryId,owner,replicated,seStringlist,aclId,expiretime,size,dir,gowner,type,guid1,guid2,guid3,guid4,md5,perm";
   my $tempLfn=$lfn;
   $tempLfn=~ s{$fromLFN}{};
   #First, let's insert the entries in the new table
@@ -1695,9 +1722,13 @@ sub reconnectToIndex {
 sub getLFNfromGUID {
   my $self=shift;
   my $guid=shift;
+  my ($guid1, $guid2, $guid3, $guid4)=(shift, shift, shift,shift);
   my @lfns;
 
-  my $location=$self->{FIRST_DB}->queryValue("SELECT lfn from GUID where guid='$guid'");
+  my $where="guid='$guid'";
+  $guid1 and $where="guid1=$guid1 and guid2=$guid2 and guid3=$guid3 and guid4=$guid4";
+
+  my $location=$self->{FIRST_DB}->queryValue("SELECT lfn from GUID where $where");
   $location or $self->info("The guid '$guid' is not registered in this catalog") and return;
   
   my @possible=split(/,/, $location);
@@ -1713,7 +1744,7 @@ sub getLFNfromGUID {
       or $self->info("Error reconnecting to $host") and next;
     my $prefix=$db->getPathPrefix($tableName) or 
       $self->info("Error getting the prefix of $tableName") and next;
-    my $paths = $db->queryColumn("SELECT concat('$prefix',lfn) FROM ${tableName} WHERE guid=?", undef, {bind_values=>[$guid]});
+    my $paths = $db->queryColumn("SELECT concat('$prefix',lfn) FROM ${tableName} WHERE guid1=? and guid2=? and guid3=? and guid4=?", undef, {bind_values=>[$guid1,$guid2, $guid3, $guid4]});
     $paths and push @lfns, @$paths;
   }
 
