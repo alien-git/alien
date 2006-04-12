@@ -310,18 +310,22 @@ sub addFile{
 #### Check to see if it exists 
 #  At some point we should check if the md5 matches if we try to add a replica
    $self->info("Adding the file to the LVM");
-   if ( defined $hashref->{'guid'} and $hashref->{'guid'}) {
-     my $details = $self->{DB}->retrieveFileDetails({'guid' => $hashref->{'guid'}}, {silent=>1});
-     if ($details and $details->{'guid'} eq $hashref->{'guid'}) {
+   if ( defined $hashref->{'guid1'} and $hashref->{'guid1'}) {
+     my $details = $self->{DB}->retrieveFileDetails({guid1 => $hashref->{guid1},
+						     guid2 => $hashref->{guid2},
+						     guid3 => $hashref->{guid3},
+						     guid4 => $hashref->{guid4},
+						    }, {silent=>1});
+     if ($details  and $details->{guid1} eq $hashref->{guid1}) {
        $self->info("Trying to add a guid that already exists... let's check if the md5sum matches");
-#       my $newMD5=AliEn::MD5->new($hashref->{pfn});
+       #       my $newMD5=AliEn::MD5->new($hashref->{pfn});
        my $oldMD5=$details->{md5sum};
        if (! $oldMD5) {
 	 $self->info("Generating the md5 of the previous entry");
 	 $oldMD5=AliEn::MD5->new($details->{pfn})
 	   or $self->info("Error generating the md5sum of $details->{pfn}")
 	     and return 0;
-	 $self->{DB}->update("FILES",{md5=>'$oldMD5'}, "guid='$details->{guid}'");
+	 $self->{DB}->update("FILES",{md5=>'$oldMD5'}, "guid1='$details->{guid1}' and guid2='$details->{guid2}' and guid3='$details->{guid3}' and guid4='$details->{guid4}' ");
        }
        if ($hashref->{md5} ne $oldMD5) {
 	 $self->info("Trying to add a mirror of $details->{guid}, but the signature is different!!!",111);
@@ -335,7 +339,7 @@ sub addFile{
 
    if (!$voldetails ||  ! $voldetails->{volumeId}) {
      $self->info("Choosing a volume");
-     $voldetails= $self->{DB}->chooseVolume($hashref->{'size'}, $hashref->{guid});
+     $voldetails= $self->{DB}->chooseVolume($hashref->{'size'});
      $voldetails or 
        $self->info("There are no extra volumes that can hold that file") 
 	 and return 0;

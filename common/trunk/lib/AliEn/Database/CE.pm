@@ -53,10 +53,7 @@ sub updateJobAgent{
   my $data=shift;
   $data->{timestamp}=time;
   $data->{status}="ACTIVE";
-print "Updating the jobagent\n";
-use Data::Dumper;
-	print Dumper($data);
-print Dumper(@_);
+  print "Updating the jobagent\n";
   my $done=$self->update("JOBAGENT", $data, @_);
   if ( $done =~ /^0E0$/){
     #Ok, the increment did not work. Let's insert the entry
