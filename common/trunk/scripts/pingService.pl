@@ -37,7 +37,7 @@ $config
 my $configHost = exists($serviceConfigMap{$serviceName}) ? $serviceConfigMap{$serviceName}->[0] : uc($serviceName) . "_HOST";
 my $configPort = exists($serviceConfigMap{$serviceName}) ? $serviceConfigMap{$serviceName}->[1] : uc($serviceName) . "_PORT";
 
-my $host = `hostname -f`;
+my $host = `hostname`;
 chomp($host);
 $host = $config->{$configHost} if (defined $configHost);
 $host
