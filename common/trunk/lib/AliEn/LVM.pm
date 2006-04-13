@@ -310,13 +310,10 @@ sub addFile{
 #### Check to see if it exists 
 #  At some point we should check if the md5 matches if we try to add a replica
    $self->info("Adding the file to the LVM");
-   if ( defined $hashref->{'guid1'} and $hashref->{'guid1'}) {
-     my $details = $self->{DB}->retrieveFileDetails({guid1 => $hashref->{guid1},
-						     guid2 => $hashref->{guid2},
-						     guid3 => $hashref->{guid3},
-						     guid4 => $hashref->{guid4},
+   if ( defined $hashref->{'guid'} and $hashref->{'guid'}) {
+     my $details = $self->{DB}->retrieveFileDetails({guid => $hashref->{guid},
 						    }, {silent=>1});
-     if ($details  and $details->{guid1} eq $hashref->{guid1}) {
+     if ($details  and $details->{guid} eq $hashref->{guid}) {
        $self->info("Trying to add a guid that already exists... let's check if the md5sum matches");
        #       my $newMD5=AliEn::MD5->new($hashref->{pfn});
        my $oldMD5=$details->{md5sum};
@@ -325,7 +322,7 @@ sub addFile{
 	 $oldMD5=AliEn::MD5->new($details->{pfn})
 	   or $self->info("Error generating the md5sum of $details->{pfn}")
 	     and return 0;
-	 $self->{DB}->update("FILES",{md5=>'$oldMD5'}, "guid1='$details->{guid1}' and guid2='$details->{guid2}' and guid3='$details->{guid3}' and guid4='$details->{guid4}' ");
+	 $self->{DB}->update("FILES",{md5=>'$oldMD5'}, "guid=string2binary('$details->{guid}')");
        }
        if ($hashref->{md5} ne $oldMD5) {
 	 $self->info("Trying to add a mirror of $details->{guid}, but the signature is different!!!",111);
@@ -359,15 +356,16 @@ sub addFile{
    } else {
      $hashref->{'expires'}       = -1;
    }
-
+   
    my $subfilename = $hashref->{'file'};
     $hashref->{pfn} or 
       $hashref->{pfn}="$voldetails->{method}$voldetails->{mountpoint}/$subfilename";
    $hashref->{'volumeId'}=$voldetails->{'volumeId'};
+   $hashref->{pfn}="'$hashref->{pfn}'";
    my $fullpath = "$voldetails->{mountpoint}/$hashref->{'file'}";
-
+   
 #  (defined $hashref->{'file'}) or return;
-
+   $hashref->{md5} and $hashref->{md5}!~ /^'/ and $hashref->{md5}="'$hashref->{md5}'";
    delete $hashref->{file};
 #   if ($hashref->{lfn}) {
 #     $self->{DB}->delete("FILES", "lfn='$hashref->{lfn}' and guid != '$hashref->{guid}'");
