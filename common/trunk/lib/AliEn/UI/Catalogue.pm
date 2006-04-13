@@ -981,14 +981,10 @@ sub registerFileInSE {
       $DEBUG and $self->debug(1, "Ok, we are ready to insert $newguid and $sename");
       my $oldmode=$self->{LOGGER}->getMode();
       $DEBUG or $self->{LOGGER}->setMinimum("critical");
-      my (@guid)=$self->{GUID}->getIntegers($guid);
+      
       if ($self->{CATALOG}->{DATABASE}->insert("$dbName.FILES", {size=>$size,
 								 pfn=>$pfn, 
-								 guid1=>$guid[0],
-								 guid2=>$guid[1],
-								 guid3=>$guid[2],
-								 guid4=>$guid[3],
-
+								 guid=>"binary2string($guid)",
 								 md5=>$options->{md5}})){
 
 	$DEBUG and $self->debug(1, "File registered in the SE database");
@@ -1022,9 +1018,10 @@ sub registerFileInSE {
 
 Registers a file in the SE and in the catalogue
 Possible options:
-    -f: register even if the pfn doesn't exist
+    -f: register even if the pfn doesn\'t exist
 
 =cut
+
 sub f_addMirrorHelp {
   return "'addMirror' adds a new pfn to an existent entry in the catalogue. It does not copy the pfn to the SE (it assumes that the pfn is already there)\nUsage addMirror <lfn> <SE> [<pfn> [-md5 <md5>]] 
 The SE will first check that it is able to access the copy indicated by pfn. 
@@ -1061,8 +1058,7 @@ sub f_addMirror {
     or return;
   ($self->{CATALOG}->isFile( $file, $entry->{lfn})) or
     $self->info( "Entry $file doesn't exist (or is not a file)",11) 
-      and return;
-  $entry->{guid}=$self->{GUID}->getGUIDfromIntegers($entry->{guid1},$entry->{guid2},$entry->{guid3},$entry->{guid4});
+      and return; 
   
   if ($pfn) {
     (my $newguid, $destSE)=

@@ -60,10 +60,7 @@ sub preConnect {
 sub initialize{
   my $self=shift;
   my %columns=(entryId=>"int(11) NOT NULL auto_increment PRIMARY KEY",
-	       guid1=>"int unsigned", 
-	       guid2=>"int unsigned", 
-	       guid3=>"int unsigned",
-	       guid4=>"int unsigned",
+	       guid=>"binary(16)",
 	       pfn=> "varchar(255) NOT NULL",
 	       size=>"int(20)", 
 	       ttl=>"int(11)",
@@ -71,26 +68,19 @@ sub initialize{
 	       volumeId=>"int(11)",
 	       md5=>"char(32)"
 	      );
-  $self->checkTable("FILES",  "entryId", \%columns, 'entryId', ['INDEX(guid1,guid2,guid3)']) or return;
+  $self->checkTable("FILES",  "entryId", \%columns, 'entryId', ['INDEX(guid)']) or return;
 
-  $self->checkTable("TODELETE",  "guid1", {guid1=>"int unsigned", 
-					   guid2=>"int unsigned", 
-					   guid3=>"int unsigned",
-					   guid4=>"int unsigned",
-					 pfn=>"varchar(255)"}
+  $self->checkTable("TODELETE",  "guid", {guid=>"binary(16)",
+					   pfn=>"varchar(255)"}
 		   ) or return;
 
-  $self->checkTable("BROKENLINKS",  "guid1", {guid1=>"int unsigned", 
-					      guid2=>"int unsigned", 
-					      guid3=>"int unsigned",
-					      guid4=>"int unsigned"})
+  $self->checkTable("BROKENLINKS",  "guid", {guid=>"binary(16)",
+					     })
     or return;
   
   #This table is used to check the files that are no longer in the SE
-  $self->checkTable("FILES2",  "guid1", {guid1=>"int unsigned", 
-					      guid2=>"int unsigned", 
-					      guid3=>"int unsigned",
-					      guid4=>"int unsigned"})
+  $self->checkTable("FILES2",  "guid", {guid=>"binary(16)",
+				       })
     or return;
 
 
@@ -203,11 +193,11 @@ sub updateVolumeDetails{
 sub chooseVolume {
   my $self = shift;
   my $size = shift;
-  my ($guid1, $guid2, $guid3, $guid4)=(shift,shift, shift, shift);
+  my $guid=shift;
   
   my $query="SELECT * from VOLUMES where freespace>$size";
-  if ($guid1){
-    my $volumes=$self->queryColumn("SELECT concat('volumeId !=', volumeId) from FILES where guid1=$guid1 and guid2=$guid2 and guid3=$guid3 and guid4=$guid4");
+  if ($guid){
+    my $volumes=$self->queryColumn("SELECT concat('volumeId !=', volumeId) from FILES where guid=string2binary($guid)");
     $volumes and $query = join (" and ", $query, @$volumes);
    }
   my $listref = $self->query($query);
@@ -233,18 +223,12 @@ sub insertFile {
   my $self=shift;
   my $hash=shift;
   delete $hash->{sizeBytes};
-  return $self->insert("FILES", $hash, @_);
+  return $self->multiinsert("FILES", [$hash], {noquotes=>1});
 }
 sub getPFNFromGUID{
   my $self=shift;
   my $guid=shift;
-  my ($guid1, $guid2, $guid3,$guid4)=(shift, shift, shift, shift);
-  #If we get the integers from the guid, we use them. Otherwise
-  #we use the string version
-  my $where="guid='$guid'";
-  $guid1 and $where="guid1=$guid1 and guid2=$guid2 and guid3=$guid3 and guid4=$guid4";
-  return $self->queryColumn("SELECT pfn from FILES where $where")
-
+  return $self->queryColumn("SELECT pfn from FILES where guid=string2binary('$guid')")
 }
 
 sub getNumberOfFiles{

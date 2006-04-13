@@ -156,7 +156,6 @@ sub f_whereisFile {
     return;
   }
   if ($options =~ /g/){
-    $permFile->{guid}=$self->{GUID}->getGUIDfromIntegers($permFile->{guid1},$permFile->{guid2},$permFile->{guid3},$permFile->{guid4});
     return $self->{DATABASE}->getSEListFromFile($lfn, $permFile->{seStringlist}), $permFile;
   }else {
     return $self->{DATABASE}->getSEListFromFile($lfn, $permFile->{seStringlist});
@@ -190,10 +189,7 @@ sub f_updateFile {
       and return;
 
   if ($update->{guid}){
-    ($update->{guid1}, $update->{guid2}, $update->{guid3}, $update->{guid4})=
-      $self->{GUID}->getIntegers($update->{guid}) or 
-	$self->info("Error parsing the guid '$update->{guid}'", 1) and return;
-    delete $update->{guid};
+      $update->{guid}="string2binary('$update->{guid}')";
   }
 
 
@@ -234,14 +230,9 @@ sub f_getGuid {
   $file = $self->f_complete_path($file);
   ( $self->checkPermissions( 'r', $file ) ) or return;
 
-  my $guid = $self->{DATABASE}->getAllInfoFromDTable({retrieve=>"guid1,guid2,guid3,guid4",
-						      method=>"queryRow"},
-						      $file,);
-  $guid and $guid->{guid1} or return;
-  
-  my $string=$self->{GUID}->getGUIDfromIntegers($guid->{guid1},$guid->{guid2},$guid->{guid3},$guid->{guid4});
-  
-  return $string;
+  return $self->{DATABASE}->getAllInfoFromDTable({retrieve=>"guid",
+						  method=>"queryValue"},
+						 $file,);
 }
 
 #
@@ -273,7 +264,6 @@ sub f_getMD5 {
 
   if ($options=~ /g/ ){
     $data->{md5} or $data->{md5}="";
-    $data->{guid}=$self->{GUID}->getGUIDfromIntegers($data->{guid1},$data->{guid2},$data->{guid3},$data->{guid4});
     $options =~ /s/ or 
       $self->info("$data->{md5}\t$file (guid $data->{guid})", undef,0);
     return ($data->{md5},$data->{guid});
@@ -292,9 +282,7 @@ sub f_getByGuid {
   ($guid)
     or print STDERR "Error: not enough arguments in f_getByGuid!\n"
       and return;
-  my @int=$self->{GUID}->getIntegers($guid)
-    or $self->info("Error parsing the guid $guid") and return;
-  return $self->{DATABASE}->getLFNfromGUID($guid, @int);
+  return $self->{DATABASE}->getLFNfromGUID($guid);
 }
 
 
@@ -484,7 +472,7 @@ sub f_cp {
     } else {
       $target=~ s{/[^/]*$}{};
     }
-    $sourceHash->{guid}=$self->{GUID}->getGUIDfromIntegers($sourceHash->{guid1},$sourceHash->{guid2},$sourceHash->{guid3},$sourceHash->{guid4});
+#    $sourceHash->{guid}=$self->{GUID}->getGUIDfromIntegers($sourceHash->{guid1},$sourceHash->{guid2},$sourceHash->{guid3},$sourceHash->{guid4});
     $DEBUG and $self->debug(2, "Let's copy $source into $targetName");
     $sourceHash->{lfn}=$targetName;
     $self->{SILENT} or print "Copying $source to $targetName...\n";

@@ -1321,21 +1321,19 @@ sub getFileName{
   $name or return;
 
   $self->info("Checking the LVM");
-  my @guid=$self->{GUID}->getIntegers($guid)
-    or $self->info("Error parsing the guid '$guid'") and return;;
+
   my $newFile = {
-		 'file'          => $name,
+		 'file'          => "$name",
 		 'ttl'           => $self->{MSS}->{'LVMTTL'},
 		 'size'          => int($size/1024),
-		 'guid1'          => $guid[0],
-		 'guid2'          => $guid[1],
-		 'guid3'          => $guid[2],
-		 'guid4'          => $guid[3],
+		 'guid'          => "string2binary('$guid')",
 		 'md5'           => $md5,
 		 'sizeBytes'     => $size,
 		};
 
   $self->debug(1, "Adding the file");
+  use Data::Dumper;
+  print Dumper($newFile);
   $name = $lvm->addFile($newFile) or 
     $self->info("$$ Error adding the file to the LVM") 
     and die("Error adding the file to the LVM");
@@ -1382,11 +1380,11 @@ sub getVolumePath{
   $guid and $self->debug(1,"Got $guid");
 
   if ($volume) {
-      my $url=$mss->url($volume->{mountpoint});
-      my $iourl=$self->checkIOmethod($url, $ioMethods);
-      $self->info( "Returning vol=$volume->{mountpoint} guid=$guid 
+    my $url=$mss->url($volume->{mountpoint});
+    my $iourl=$self->checkIOmethod($url, $ioMethods);
+    $self->info( "Returning vol=$volume->{mountpoint} guid=$guid 
 iourl=$iourl url=$url");
-      return ($volume->{mountpoint},$guid,$iourl,$url);
+    return ($volume->{mountpoint},$guid,$iourl,$url);
   }
 
   return;
@@ -1404,17 +1402,17 @@ sub verifyFileName {
   }
 
   my $newFile = {
-		     'file'          => $name,
-		 };
+		 'file'          => $name,
+		};
 
   my $sesize   = $self->{MSS}->sizeof($name);
   if ($sesize != $size) {
-      $self->{MSS}->rm($name);
-      $self->info( "In veryFileName -> $name has size $sesize instead of $size -> removed from LVM + SE!");
-      my $result = $self->{LVM}->removeFile($newFile);
-      return 0;
+    $self->{MSS}->rm($name);
+    $self->info( "In veryFileName -> $name has size $sesize instead of $size -> removed from LVM + SE!");
+    my $result = $self->{LVM}->removeFile($newFile);
+    return 0;
   } else {
-      $self->info( "In veryFileName -> $name has been stored with the correct size $size!");
+    $self->info( "In veryFileName -> $name has been stored with the correct size $size!");
   }
   return 1;
 }
@@ -1527,12 +1525,9 @@ sub registerFile {
   }
   $guid or $self->info( "ERROR CREATING THE GUID")
     and die("Error creating the guid");
-  my @int=$self->{GUID}->getIntegers($guid)
-    or die("Error parsing the guid '$guid'");
-  my $newFile={guid1=>$int[0],guid2=>$int[1],
-	       guid3=>$int[2],guid4=>$int[3],
+  my $newFile={guid=>"string2binary('$guid')",
 	       size=>$size,
-	       pfn=>"$pfn",
+	       pfn=>$pfn,
 	      };
   $options->{md5} and $newFile->{md5}=$options->{md5};
   $newFile->{md5} or $newFile->{md5}=AliEn::MD5->new($pfn);
@@ -1566,15 +1561,11 @@ sub getPFNFromGUID{
   $self->info("Getting the pfn of $guid");
 
   my $db=$seInfo->{lvm}->{DB};
-  my @guid=$self->{GUID}->getIntegers($guid)
-    
-    or $self->info("The guid $guid doesn't have the right format") and return (-1, "The guid '$guid' doesn't have the right format");
-  my $pfn=$db->getPFNFromGUID($guid, @guid)
+  my $pfn=$db->getPFNFromGUID($guid)
     or return (-1, "Error doing the query");
   my @pfns=@$pfn;
   @pfns or return (-1, "guid $guid is not registered in this SE ($seName)");
   if ($options->{stage}) {
-
     foreach my $p (@pfns) {
       $self->info("Staging the file $p");
       eval{

@@ -112,6 +112,9 @@ sub createCatalogueTables {
 
   $self->checkDLTable("0") or return;
 
+  $self->info("Let's create the functions");
+  $self->do("create function string2binary (my_uuid varchar(36)) returns binary(16) sql security invoker return unhex(replace(my_uuid, '-', ''))") or return;
+  $self->do("create function binary2string (my_uuid binary(16)) returns varchar(36) sql security invoker return insert(insert(insert(insert(hex(my_uuid),9,0,'-'),14,0,'-'),19,0,'-'),24,0,'-')");
   $DEBUG and $self->debug(2,"In createCatalogueTables creation of tables finished.");
 
 
@@ -156,12 +159,9 @@ sub checkGUIDTable {
   my $self = shift;
   my %columns = (#guid=>"char(36) NOT NULL primary key",
 		 lfn=>"varchar(50)",
-		 guid1=>"int unsigned", 
-		 guid2=>"int unsigned", 
-		 guid3=>"int unsigned", 
-		 guid4=>"int unsigned", 
+		 guid=>"binary(16)",
 	       );
-  return $self->checkTable("GUID",  "guid1", \%columns, '',['UNIQUE INDEX(guid1,guid2,guid3,guid4)']);
+  return $self->checkTable("GUID",  "guid", \%columns, '',['UNIQUE INDEX guid']);
 }
 
 sub checkDLTable {
@@ -182,17 +182,13 @@ sub checkDLTable {
 		 seStringlist=>"varchar(255)",
 		 aclId=>"int(11)",
 		 perm=>"char(3)",
-#		 guid=>"char(36)",
-		 guid1=>"int unsigned",
-		 guid2=>"int unsigned",
-		 guid3=>"int unsigned",
-		 guid4=>"int unsigned",
+		 guid=>"binary(16)",
 		 replicated=>"int(1) not null default 0",
 		 dir=>"int(11)",
 		 md5=>"varchar(32)", 
 		);
 
-  return $self->checkTable(${table}, "entryId", \%columns, 'entryId', ['UNIQUE INDEX (lfn)','INDEX (guid1,guid2,guid3,guid4)', "INDEX(dir)"]);
+  return $self->checkTable(${table}, "entryId", \%columns, 'entryId', ['UNIQUE INDEX (lfn)','INDEX (guid)', "INDEX(dir)"]);
 
 }
 sub checkACLTable{
@@ -287,9 +283,11 @@ sub getAllInfoFromDTable{
   $options->{where} and $where.=" $options->{where}";
   $order and $where .= " order by $order";
 
-   $options->{retrieve} and
+  if( $options->{retrieve}){
      $options->{retrieve} =~ s{lfn}{concat('$tablePath',lfn) as lfn};
-  my $retrieve=($options->{retrieve} or "*,concat('$tablePath',lfn) as lfn, DATE_FORMAT(ctime, '%b %d %H:%i') as ctime");
+     $options->{retrieve} =~ s{guid}{binary2string(guid) as guid};
+   }
+  my $retrieve=($options->{retrieve} or "*,concat('$tablePath',lfn) as lfn, binary2string(guid) as guid,DATE_FORMAT(ctime, '%b %d %H:%i') as ctime");
 
   my $method=($options->{method} or "query");
 
@@ -341,7 +339,8 @@ sub getHostsForEntry{
   $entry or return;
   #Now, let's get all the possibles expansions (but the expansions at least as
   #long as the first index
-  my $expansions=$self->query("SELECT distinct tableName, hostIndex,lfn from INDEXTABLE where lfn like '$lfn/%' and lfn like '${$entry}[0]->{lfn}%'");
+  my $length=length (${$entry}[0]->{lfn});
+  my $expansions=$self->query("SELECT distinct tableName, hostIndex,lfn from INDEXTABLE where lfn like '$lfn/%' and length(lfn)>$length");
   my @all=(@$entry, @$expansions);
   return \@all;
 }
@@ -453,15 +452,10 @@ sub createFile {
       $insert->{$key}="'$insert->{$key}'";
     }
     if ( $insert->{guid}) {
-      ($insert->{guid1}, $insert->{guid2}, $insert->{guid3}, $insert->{guid4})=
-	 $self->{GUID}->getIntegers($insert->{guid}) or return;
-      push @guids, "guid1=$insert->{guid1} and guid2=$insert->{guid2} and guid3=$insert->{guid3} and guid4=$insert->{guid4}";
-      push @insertGuid, {guid1=>$insert->{guid1},
-			 guid3=>$insert->{guid3},
-			 guid2=>$insert->{guid2},
-			 guid4=>$insert->{guid4},
+      $insert->{guid}="string2binary('$insert->{guid}')";
+      push @guids, "guid=$insert->{guid}";
+      push @insertGuid, {guid=>"$insert->{guid}",
 			 lfn=>"',$self->{CURHOSTID}_$tableName,'"};
-      delete $insert->{guid};
     }
 
   }
@@ -527,10 +521,10 @@ sub deleteFile {
   my $index=",$self->{CURHOSTID}_$tableName,";
   $file=~ s{^$self->{INDEX_TABLENAME}->{lfn}}{};
 
-  my $guid=$self->queryRow("select guid1,guid2,guid3,guid4 from $tableName where lfn='$file'");
-  if ($guid and $guid->{guid1}) {
+  my $guid=$self->queryValue("select guid from $tableName where lfn='$file'");
+  if ($guid) {
     $self->debug(1, "Removing the value $index from the GUID $guid");
-    my $done= $self->{FIRST_DB}->do("update GUID set lfn=if(locate('$index', lfn), concat(left(lfn,locate('$index',lfn)), substring(lfn, length('$index')+locate('$index',lfn))), lfn) where guid1='$guid->{guid1}' and guid2='$guid->{guid2}' and guid3='$guid->{guid3}' and guid4='$guid->{guid4}'");
+    my $done= $self->{FIRST_DB}->do("update GUID set lfn=if(locate('$index', lfn), concat(left(lfn,locate('$index',lfn)), substring(lfn, length('$index')+locate('$index',lfn))), lfn) where guid='$guid'");
   }
 
   return $self->delete($tableName, "lfn='$file'");
@@ -895,8 +889,8 @@ sub copyDirectory{
   my $beginning=$target;
   $beginning=~ s/^$targetLFN//;
   
-  my $select="insert into $targetTable(lfn,owner,size,seStringlist,gowner,type,guid1,guid2,guid3,guid4,perm,dir,md5) select concat('$beginning',substring(concat('";
-  my $select2="', lfn), $sourceLength)) as lfn, '$user',size,seStringlist,'$user',type,guid1,guid2,guid3,guid4,perm,-1,md5 ";
+  my $select="insert into $targetTable(lfn,owner,size,seStringlist,gowner,type,guid,perm,dir,md5) select concat('$beginning',substring(concat('";
+  my $select2="', lfn), $sourceLength)) as lfn, '$user',size,seStringlist,'$user',type,guid,perm,-1,md5 ";
   my @values=();
   my @guids=();
   foreach my $entry (@$sourceHosts){
@@ -913,30 +907,30 @@ sub copyDirectory{
       # we want to copy the lf, which in fact would be something like
       # substring(concat('$entry->{lfn}', lfn), length('$sourceIndex'))
       $self->do("$select$entry->{lfn}$select2 from $table where $like");
-      $self->{FIRST_DB}->do("update GUID, $table set GUID.lfn=concat(GUID.lfn, '${targetIndex}_$targetTable,') where GUID.guid1=$table.guid1 and GUID.guid2=$table.guid2 and GUID.guid3=$table.guid3 and GUID.guid4=$table.guid4 and $table.lfn  like '$tsource%' and $table.replicated=0");
+      $self->{FIRST_DB}->do("update GUID, $table set GUID.lfn=concat(GUID.lfn, '${targetIndex}_$targetTable,') where GUID.guid=$table.guid and $table.lfn  like '$tsource%' and $table.replicated=0");
 
     }else {
       $DEBUG and $self->debug(1, "This is complicated: from another database");
-      my $entries = $db->query("SELECT concat('$beginning', substring(concat('$entry->{lfn}',lfn), $sourceLength )) as lfn, size,seStringlist,type,guid1,guid2,guid3,guid4,perm,md5 FROM D$entry->{tableName}L where $like");
+      my $entries = $db->query("SELECT concat('$beginning', substring(concat('$entry->{lfn}',lfn), $sourceLength )) as lfn, size,seStringlist,type,binary2string(guid),perm,md5 FROM D$entry->{tableName}L where $like");
       foreach  my $files (@$entries) {
-	my ($guid, $selist, $md5)=("NULL,NULL,NULL,NULL", "NULL", "NULL");
-	if (defined $files->{guid1}){
-	  $guid="$files->{guid1},$files->{guid2},$files->{guid3},$files->{guid4}";
-	  push @guids, "( guid1=$files->{guid1} and guid2=$files->{guid2} and guid3=$files->{guid3} and guid4=$files->{guid4}) ";
+	my ($guid, $selist, $md5)=("NULL", "NULL", "NULL");
+	if (defined $files->{guid}){
+	  $guid="$files->{guid}";
+	  push @guids, "guid=$files->{guid}";
 	}
 	defined $files->{md5} and $md5="'$files->{md5}'";
 
 	$files->{lfn}=~ s{^}{};
 	$files->{lfn}=~ s{^$targetLFN}{};
 	defined $files->{seStringlist} and $selist="'$files->{seStringlist}'";
-	push @values, " ( '$files->{lfn}',  '$user', '$files->{size}', $selist, '$user', '$files->{type}', $guid, '$files->{perm}', -1, $md5)";
+	push @values, " ( '$files->{lfn}',  '$user', '$files->{size}', $selist, '$user', '$files->{type}', string2binary('$guid'), '$files->{perm}', -1, $md5)";
 
       }
     }
 
   }
   if ($#values>-1) {
-    my $insert="INSERT into $targetTable(lfn,owner,size,seStringlist,gowner,type,guid1,guid2,guid3,guid4,perm,dir,md5) values ";
+    my $insert="INSERT into $targetTable(lfn,owner,size,seStringlist,gowner,type,guid,perm,dir,md5) values ";
 
     $insert .= join (",", @values);
     $targetDB->do($insert);
@@ -1023,7 +1017,7 @@ sub moveEntries {
   }
 
   #ok, this is the easy case, we just copy into the new table
-  my $columns="entryId,owner,replicated,seStringlist,aclId,expiretime,size,dir,gowner,type,guid1,guid2,guid3,guid4,md5,perm";
+  my $columns="entryId,owner,replicated,seStringlist,aclId,expiretime,size,dir,gowner,type,guid,md5,perm";
   my $tempLfn=$lfn;
   $tempLfn=~ s{$fromLFN}{};
   #First, let's insert the entries in the new table
@@ -1058,7 +1052,7 @@ sub grantBasicPrivilegesToUser {
       and return;
   my $passwd = shift;
 
-  $self->grantPrivilegesToUser(["USAGE ON *"], $user, $passwd)
+  $self->grantPrivilegesToUser(["EXECUTE ON *"], $user, $passwd)
     or return;
 
   my $rprivileges = ["SELECT ON $db.*",
@@ -1087,6 +1081,7 @@ sub grantExtendedPrivilegesToUser {
 #		     "INSERT, DELETE ON $db.FILES",
 		     "INSERT, DELETE ON $db.ENVIRONMENT", 
 #		     "INSERT ON $db.SE"
+		     "EXECUTE ON *",
 ];
 
   $DEBUG and $self->debug(2,"In grantExtendedPrivilegesToUser granting privileges to user $user"); 
@@ -1722,13 +1717,11 @@ sub reconnectToIndex {
 sub getLFNfromGUID {
   my $self=shift;
   my $guid=shift;
-  my ($guid1, $guid2, $guid3, $guid4)=(shift, shift, shift,shift);
   my @lfns;
 
   my $where="guid='$guid'";
-  $guid1 and $where="guid1=$guid1 and guid2=$guid2 and guid3=$guid3 and guid4=$guid4";
 
-  my $location=$self->{FIRST_DB}->queryValue("SELECT lfn from GUID where $where");
+  my $location=$self->{FIRST_DB}->queryValue("SELECT lfn from GUID where guid=guid2binary('$guid')");
   $location or $self->info("The guid '$guid' is not registered in this catalog") and return;
   
   my @possible=split(/,/, $location);
@@ -1744,7 +1737,7 @@ sub getLFNfromGUID {
       or $self->info("Error reconnecting to $host") and next;
     my $prefix=$db->getPathPrefix($tableName) or 
       $self->info("Error getting the prefix of $tableName") and next;
-    my $paths = $db->queryColumn("SELECT concat('$prefix',lfn) FROM ${tableName} WHERE guid1=? and guid2=? and guid3=? and guid4=?", undef, {bind_values=>[$guid1,$guid2, $guid3, $guid4]});
+    my $paths = $db->queryColumn("SELECT concat('$prefix',lfn) FROM ${tableName} WHERE guid=string2binary(?) ", undef, {bind_values=>[$guid]});
     $paths and push @lfns, @$paths;
   }
 
