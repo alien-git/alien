@@ -175,9 +175,9 @@ sub f_updateFile {
   my $update = {};
 
   $args =~ s/-?-s(ize)?[\s=]+(\S+)// and $update->{size}=$2;
-  $args =~ s/-?-s(e)?[\s=]+(\S+)// and $update->{se}=$2;
-  $args =~ s/-?-g(uid)?[\s=]+(\S+)// and $update->{guid}=$2;
-  $args =~ s/-?-m(d5)?[\s=]+(\S+)// and $update->{md5}=$2;
+  $args =~ s/-?-s(e)?[\s=]+(\S+)// and $update->{se}="$2";
+  $args =~ s/-?-g(uid)?[\s=]+(\S+)// and $update->{guid}="string2binary(\"$2\")";
+  $args =~ s/-?-m(d5)?[\s=]+(\S+)// and $update->{md5}="\"$2\"";
 
   my $message="";
 
@@ -187,11 +187,6 @@ sub f_updateFile {
   $message
     and print STDERR "Error: $message\nUsage:\n\t update <lfn> [-size <size>] [-guid <guid>] [-md5 <md5>]\n"
       and return;
-
-  if ($update->{guid}){
-      $update->{guid}="string2binary('$update->{guid}')";
-  }
-
 
   $file = $self->f_complete_path($file);
 
@@ -204,7 +199,7 @@ sub f_updateFile {
 
   $DEBUG and $self->debug(2, "Ready to do the update");
 
-  $self->{DATABASE}->updateFile($file, $update)
+  $self->{DATABASE}->updateFile($file, $update, {noquotes=>1})
     or $self->info( "Error doing the update of $file",11)
       and return;
 

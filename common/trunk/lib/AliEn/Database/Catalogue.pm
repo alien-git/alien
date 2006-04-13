@@ -507,10 +507,11 @@ sub updateFile {
     delete $update->{se};
     $self->debug(1, "Settint the senumber to $update->{seStringlist}");
   }
+  $update->{seStringlist} and $update->{seStringlist}="\"$update->{seStringlist}\"";
   my $tableName=$self->{INDEX_TABLENAME}->{name};
   my $lfn=$self->{INDEX_TABLENAME}->{lfn};
   $file=~ s{^$lfn}{};
-  return $self->update($tableName, $update, "lfn='$file'");
+  return $self->update($tableName, $update, "lfn='$file'", @_);
 }
 
 sub deleteFile {
@@ -1721,7 +1722,7 @@ sub getLFNfromGUID {
 
   my $where="guid='$guid'";
 
-  my $location=$self->{FIRST_DB}->queryValue("SELECT lfn from GUID where guid=guid2binary('$guid')");
+  my $location=$self->{FIRST_DB}->queryValue("SELECT lfn from GUID where guid=string2binary('$guid')");
   $location or $self->info("The guid '$guid' is not registered in this catalog") and return;
   
   my @possible=split(/,/, $location);

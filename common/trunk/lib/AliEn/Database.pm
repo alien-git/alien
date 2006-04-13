@@ -424,16 +424,19 @@ sub update {
   my $table = shift;
   my $rfields = shift;
   my $where = shift || "";
+  my $options= shift || {};
+
 
   $self->{USE_CACHE} and $self->_clearCache($table);
 
   my $query = "UPDATE $table SET ";
-
+  my $quote="'";
+  $options->{noquotes} and $quote="";
   foreach (keys %$rfields) {
     if (defined $rfields->{$_}){
       $rfields->{$_}=~ s/^\'/\\\'/;
       $rfields->{$_}=~ s/([^\\])\'/$1\\\'/g;
-      $query .= "$_ = '$rfields->{$_}',";
+      $query .= "$_ = $quote$rfields->{$_}$quote,";
     } else {
       $query .= "$_ = NULL,";
     }
