@@ -140,12 +140,12 @@ sub checkSEdatabase {
     my $tables=$self->{DB}->queryColumn("SELECT tableName from INDEXTABLE where hostIndex=$db->{hostIndex}") or return;
     foreach my $table (@$tables){
       my $name="$db->{db}.D${table}L";
-      $se->do("INSERT IGNORE INTO FILES2 SELECT guid1,guid2,guid3,guid4 FROM $name where seStringlist like '%,$seNumber,%'") or return;
+      $se->do("INSERT IGNORE INTO FILES2 SELECT guid FROM $name where seStringlist like '%,$seNumber,%'") or return;
     }
   }
   $se->do("TRUNCATE TODELETE");
-  $se->do("INSERT IGNORE INTO TODELETE(guid1,guid2,guid3,guid4,pfn) select f.guid1, f.guid2, f.guid3, f.guid4, f.pfn from FILES f left join  FILES2 f2 on (f.guid1=f2.guid1 and f.guid2=f2.guid2 and f.guid3=f2.guid3 and f.guid4=f2.guid4) where f2.guid1 is null");
-  $se->do("INSERT IGNORE INTO BROKENLINKSE(guid1,guid2,guid3,guid4) select f2.guid1, f2.guid2, f2.guid3, f2.guid4 from FILES f right join  FILES2 f2 on (f.guid1=f2.guid1 and f.guid2=f2.guid2 and f.guid3=f2.guid3 and f.guid4=f2.guid4) where f.guid1 is null");
+  $se->do("INSERT IGNORE INTO TODELETE(guid,pfn) select f.guid, f.pfn from FILES f left join  FILES2 f2 on f.guid=f2.guid where f2.guid is null");
+  $se->do("INSERT IGNORE INTO BROKENLINKS(guid) select f2.guid from FILES f right join  FILES2 f2 on f.guid=f2.guid where f.guid is null");
 
   $self->info("DATABASE FINISHED!!");
   return 1;
@@ -203,7 +203,7 @@ sub checkGUID {
 
     foreach my $table (@$tablesRef){
       my $tableName="D${table}L";
-      my $entries=$self->{DB}->queryColumn("SELECT entryId FROM $tableName WHERE ( (guid1 is NULL) or (guid1 = '') ) and lfn not like '%/' and lfn not like '' limit 10000");
+      my $entries=$self->{DB}->queryColumn("SELECT entryId FROM $tableName WHERE ( (guid is NULL) or (guid = '') ) and lfn not like '%/' and lfn not like '' limit 10000");
 
       defined $entries
 	or $self->debug(1,"Error fetching entries from D0")
@@ -214,10 +214,9 @@ sub checkGUID {
       foreach my $entry (@$entries) {
 	my $guid=$self->{GUID}->CreateGuid() or next;
 	$self->info("Setting $entry and $guid");
-	my @int=$self->{GUID}->getIntegers($guid);
-	$self->{DB}->update($tableName, {guid1=>$int[0], guid2=>$int[1],
-					 guid3=>$int[2], guid4=>$int[3]},
-			    "entryId=$entry");
+
+	$self->{DB}->update($tableName, {guid=>"string2binary(\"$guid\")"},
+			    "entryId=$entry", {noquotes=>1});
 	$i++;
 	($i %100) or   $self->info("Already checked $i files");
       }
