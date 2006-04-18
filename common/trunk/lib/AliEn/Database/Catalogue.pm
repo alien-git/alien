@@ -113,8 +113,8 @@ sub createCatalogueTables {
   $self->checkDLTable("0") or return;
 
   $self->info("Let's create the functions");
-  $self->do("create function string2binary (my_uuid varchar(36)) returns binary(16) sql security invoker return unhex(replace(my_uuid, '-', ''))") or return;
-  $self->do("create function binary2string (my_uuid binary(16)) returns varchar(36) sql security invoker return insert(insert(insert(insert(hex(my_uuid),9,0,'-'),14,0,'-'),19,0,'-'),24,0,'-')");
+  $self->do("create function string2binary (my_uuid varchar(36)) returns binary(16) deterministic sql security invoker return unhex(replace(my_uuid, '-', ''))") or return;
+  $self->do("create function binary2string (my_uuid binary(16)) returns varchar(36) deterministic sql security invoker return insert(insert(insert(insert(hex(my_uuid),9,0,'-'),14,0,'-'),19,0,'-'),24,0,'-')");
   $DEBUG and $self->debug(2,"In createCatalogueTables creation of tables finished.");
 
 
