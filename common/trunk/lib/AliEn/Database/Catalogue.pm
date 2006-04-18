@@ -159,9 +159,9 @@ sub checkGUIDTable {
   my $self = shift;
   my %columns = (#guid=>"char(36) NOT NULL primary key",
 		 lfn=>"varchar(50)",
-		 guid=>"binary(16)",
+		 guid=>"binary(16) NOT NULL primary key",
 	       );
-  return $self->checkTable("GUID",  "guid", \%columns, '',['UNIQUE INDEX guid']);
+  return $self->checkTable("GUID",  "guid", \%columns, 'guid');
 }
 
 sub checkDLTable {
