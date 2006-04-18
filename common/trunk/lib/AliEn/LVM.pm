@@ -312,8 +312,8 @@ sub addFile{
    $self->info("Adding the file to the LVM");
    if ( defined $hashref->{'guid'} and $hashref->{'guid'}) {
      my $details = $self->{DB}->retrieveFileDetails({guid => $hashref->{guid},
-						    }, {silent=>1});
-     if ($details  and $details->{guid} eq $hashref->{guid}) {
+						    }, {silent=>1,noquotes=>1 });
+     if ($details  and $details->{guid} ) {
        $self->info("Trying to add a guid that already exists... let's check if the md5sum matches");
        #       my $newMD5=AliEn::MD5->new($hashref->{pfn});
        my $oldMD5=$details->{md5sum};
@@ -325,7 +325,7 @@ sub addFile{
 	 $self->{DB}->update("FILES",{md5=>'$oldMD5'}, "guid=string2binary('$details->{guid}')");
        }
        if ($hashref->{md5} ne $oldMD5) {
-	 $self->info("Trying to add a mirror of $details->{guid}, but the signature is different!!!",111);
+	 $self->info("Trying to add a mirror of $hashref->{guid}, but the signature is different!!!",111);
 	 return 0;
        }
      }

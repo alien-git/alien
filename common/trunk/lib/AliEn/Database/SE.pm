@@ -157,13 +157,16 @@ sub retrieveVolumeDetailsList{
 
 
 sub retrieveFileDetails{
-
   my $self = shift;
   my $hashref = shift;
-   my $string="SELECT * FROM FILES";
-   if (defined $hashref){
-     $string .= " WHERE ".( join (" AND ", map {"$_ =  \'$hashref->{$_}\'"} keys(%{$hashref})));
-   }  
+  my $string="SELECT * FROM FILES";
+  my $options=shift || {};
+  my $quotes="'";
+  $options->{noquotes} and $quotes="";
+  if (defined $hashref){
+    $string .= " WHERE ".( join (" AND ", map {"$_ =  $quotes$hashref->{$_}$quotes"} keys(%{$hashref})));
+  }  
+  print "HACEMOS $string\n";
   return $self->queryRow($string);
 }
 
