@@ -931,7 +931,7 @@ sub f_bulkRegisterFile {
 	($entry->{guid}, my $secopied)=
 	  $self->registerFileInSE($se, 
 				  $entry->{guid}, $entry->{pfn}, 
-				  $entry->{size}, $options) or return;
+				  $entry->{size}, {md5=>$entry->{md5}}) or return;
 	$secopied and $copied.="$secopied,";
 
       }
@@ -978,15 +978,12 @@ sub registerFileInSE {
       $newguid=$self->{GUID}->CreateGuid();
     }
     if ($newguid){
-      $DEBUG and $self->debug(1, "Ok, we are ready to insert $newguid and $sename");
+      $DEBUG and $self->debug(1, "Ok, we are ready to insert $newguid and $sename and $options->{md5}");
       my $oldmode=$self->{LOGGER}->getMode();
       $DEBUG or $self->{LOGGER}->setMinimum("critical");
-      
-      if ($self->{CATALOG}->{DATABASE}->insert("$dbName.FILES", {size=>$size,
-								 pfn=>$pfn, 
-								 guid=>"binary2string($guid)",
-								 md5=>$options->{md5}})){
+      my $insert="INSERT into $dbName.FILES (size, pfn, guid, md5) values(?,?,string2binary(?), ?)";
 
+      if ($self->{CATALOG}->{DATABASE}->do($insert, {bind_values=>[$size,$pfn,$newguid, $options->{md5}]})){
 	$DEBUG and $self->debug(1, "File registered in the SE database");
 	$done=1;
       }
