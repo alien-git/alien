@@ -158,6 +158,11 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
 	     'expungeTables' => ['$self->{CATALOG}->expungeTables',0],
 	     'filecomplete' =>['file_complete',0],
 
+	    #Triggers
+	     'addTrigger' => ['$self->{CATALOG}->f_addTrigger', 0],
+	     'showTrigger' => ['$self->{CATALOG}->f_showTrigger', 0],
+	     'removeTrigger' => ['$self->{CATALOG}->f_removeTrigger', 0],
+
 );
 
 sub AddCommands {

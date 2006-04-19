@@ -8,7 +8,6 @@ $| = 1;
 use AliEn::Service;
 
 use strict;
-use AliEn::UI::Catalogue;
 
 use Classad;
 

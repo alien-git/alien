@@ -82,6 +82,7 @@ use AliEn::Catalogue::File;
 use AliEn::Catalogue::Admin;
 use AliEn::Catalogue::Group;
 use AliEn::Catalogue::Tag;
+use AliEn::Catalogue::Trigger;
 use AliEn::Catalogue::Env;
 use AliEn::Catalogue::Basic;
 use AliEn::Dataset;
@@ -99,6 +100,7 @@ $DEBUG=0;
 	'AliEn::Catalogue::File',  'AliEn::Catalogue::Admin',
 	'AliEn::Catalogue::Group', 'AliEn::Catalogue::Tag',
 	'AliEn::Catalogue::Env', 'AliEn::Catalogue::Basic', 
+	'AliEn::Catalogue::Trigger',
 	'AliEn::Logger::LogObject',@ISA
 );
 
