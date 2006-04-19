@@ -103,11 +103,45 @@ sub createCatalogueTables {
 
   $DEBUG and $self->debug(2,"In createCatalogueTables creating all tables...");
 
-  foreach ("Hosts","Index", "ACL", "Constants", "Tag0", "Groups", "SE", "GUID") {
+  foreach ("Constants", "SE") {
     my $method="check".$_."Table";
     $self->$method() or 
       $self->{LOGGER}->error("Catalogue", "Error checking the $_ table") and
 	return;
+  }
+
+  my %tables=(HOSTS=>["hostIndex", {hostIndex=>"serial primary key",
+				    address=>"char(50)", 
+				    db=>"char(40)",
+				    driver=>"char(10)", 
+				    organisation=>"char(11)",},"hostIndex"],
+	      TRIGGERS=>["lfn", {lfn=>"varchar(255)", 
+				 triggerName=>"varchar(255)"}],
+	      ACL=>["entryId", 
+		    {entryId=>"int(11) NOT NULL auto_increment primary key", 
+		     owner=>"char(10) NOT NULL",
+		     perm=>"char(4) NOT NULL",
+		     aclId=>"int(11) NOT NULL",}, 'entryId'],
+	      TAG0=>["entryId", 
+		     {entryId=>"int(11) NOT NULL auto_increment primary key", 
+		      path=>"varchar (255)",
+		      tagName=>"varchar (50)",
+		      tableName=>"varchar(50)"}, 'entryId'],
+	      GROUPS=>["Username", {Username=>"char(15) NOT NULL", 
+				    Groupname=>"char (85)",
+				    PrimaryGroup=>"int(1)",}, 'Username'],
+	      INDEXTABLE=>["indexId", {indexId=>"int(11) NOT NULL auto_increment primary key",
+				       lfn=>"varchar(50)", 
+				       hostIndex=>"int(11)",
+				       tableName=>"int(11)",}, 
+			   'indexId', ['UNIQUE INDEX (lfn)']],
+	      GUID=>["guid",{lfn=>"varchar(50)",
+			     guid=>"binary(16) NOT NULL primary key"},
+		     'guid'],
+	     );
+  foreach my $table (keys %tables){
+    $self->info("Checking table $table");
+    $self->checkTable($table, @{$tables{$table}});
   }
 
   $self->checkDLTable("0") or return;
@@ -133,35 +167,6 @@ sub checkConstantsTable {
   my $exists=$self->queryValue("SELECT count(*) from CONSTANTS where name='MaxDir'");
   $exists and return 1;
   return $self->do("INSERT INTO CONSTANTS values ('MaxDir', 0)");
-}
-sub checkHostsTable {
-  my $self = shift;
-  my %columns = (hostIndex=>"serial primary key",
-	 	 address=>"char(50)", 
-		 db=>"char(40)",
-		 driver=>"char(10)", 
-		 organisation=>"char(11)",
-	       );
-  return $self->checkTable("HOSTS",  "hostIndex", \%columns, 'hostIndex');
-}
-
-sub checkIndexTable {
-  my $self = shift;
-  my %columns = (indexId=>"int(11) NOT NULL auto_increment primary key",
-		 lfn=>"varchar(50)", 
-		 hostIndex=>"int(11)",
-		 tableName=>"int(11)",
-	       );
-  return $self->checkTable("INDEXTABLE",  "indexId", \%columns, 'indexId', ['UNIQUE INDEX (lfn)']);
-}
-
-sub checkGUIDTable {
-  my $self = shift;
-  my %columns = (#guid=>"char(36) NOT NULL primary key",
-		 lfn=>"varchar(50)",
-		 guid=>"binary(16) NOT NULL primary key",
-	       );
-  return $self->checkTable("GUID",  "guid", \%columns, 'guid');
 }
 
 sub checkDLTable {
@@ -190,36 +195,6 @@ sub checkDLTable {
 
   return $self->checkTable(${table}, "entryId", \%columns, 'entryId', ['UNIQUE INDEX (lfn)','INDEX (guid)', "INDEX(dir)"]);
 
-}
-sub checkACLTable{
-  my $self=shift;
-  my %columns = (entryId=>"int(11) NOT NULL auto_increment primary key", 
-		 owner=>"char(10) NOT NULL",
-		 perm=>"char(4) NOT NULL",
-		 aclId=>"int(11) NOT NULL",
-		);
-
-  return $self->checkTable("ACL", "entryId", \%columns, 'entryId');
-}
-
-sub checkTag0Table {
-  my $self = shift;
-
-  my %columns = (entryId=>"int(11) NOT NULL auto_increment primary key", 
-		 path=>"varchar (255)",
-		 tagName=>"varchar (50)",
-		 tableName=>"varchar(50)",);
-  return $self->checkTable("TAG0", "entryId", \%columns, 'entryId');
-}
-
-sub checkGroupsTable {
-  my $self = shift;
-  
-  my %columns = (Username=>"char(15) NOT NULL", 
-		 Groupname=>"char (85)",
-		 PrimaryGroup=>"int(1)",);
-
-  return $self->checkTable("GROUPS", "Username", \%columns, 'Username');
 }
 
 sub checkSETable {

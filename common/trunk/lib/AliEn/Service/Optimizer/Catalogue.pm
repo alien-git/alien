@@ -10,7 +10,7 @@ use AliEn::Database::Catalogue;
 use AliEn::Database::SE;
 use AliEn::GUID;
 
-#use AliEn::UI::Catalogue::LCM;
+use AliEn::UI::Catalogue::LCM;
 @ISA=qw(AliEn::Service::Optimizer);
 
 use Data::Dumper;
@@ -29,33 +29,30 @@ sub initialize {
   $self->SUPER::initialize(@_) or return;
 
   $self->{GUID}=new AliEn::GUID or return;
+  $options->{ROLE}=$options->{role}="admin";
 
+  $self->{CATALOGUE} = AliEn::UI::Catalogue::LCM->new($options);
+
+  ( $self->{CATALOGUE} )
+    or $self->{LOGGER}->error( "JobOptimizer", "In initialize error creating AliEn::UI::Catalogue::LCM instance" )
+      and return;
 
   return $self;
 }
 
 sub checkDTables {
   my $self=shift;
-  
-  $self->info("Let's check all the D tables");
-  my $hosts=$self->{DB}->getAllHosts("address,db,driver");
+  my $silent=shift;
+  my $db=shift;
 
-  defined $hosts
-    or $self->{LOGGER}->error("CatOpt","Error fetching all hosts from database")
-      and return;
-  foreach my $host (@$hosts){
-    #my ($address, $db, $driver)=split ("###", $host);
-    $self->info("Checking the d tables in $host->{address}, $host->{driver}, $host->{db}");
-    $self->{DB}->reconnect($host->{address}, $host->{db}, $host->{driver}) or
-      $self->info("Error connecting to $host->{address}, $host->{driver}, $host->{db}")
-	and next;
-    $self->info("Updating D tables");
-    my $tables=$self->{DB}->queryColumn("show tables like 'D\%L'");
-    foreach my $table (@$tables){
-      $table =~ /^D[0-9]+L$/ or $self->info("Ignoring $table") and next;
-      $self->info("Checking  $table ");
-      $self->{DB}->checkDLTable($table) or $self->info("PROBLEMS!!!!");
-    }
+  $self->info("Let's check all the D tables");
+
+  $self->info("Updating D tables");
+  my $tables=$db->queryColumn("show tables like 'D\%L'");
+  foreach my $table (@$tables){
+    $table =~ /^D[0-9]+L$/ or $self->info("Ignoring $table") and next;
+    $self->info("Checking  $table ");
+    $db->checkDLTable($table) or $self->info("PROBLEMS!!!!");
   }
 
   return 1;
@@ -68,25 +65,65 @@ sub checkWakesUp {
   $silent and $method="debug";
 
 
-  if (!$self->{DONE}) {
-    $self->info("Let's check all the catalogue tables");
-    $self->checkDTables();
-    $self->{DONE}=1;
-  }
   $self->{LOGGER}->$method("CatOpt", "Checking if there is anything to do");
 
-  $self->checkHostsTable($silent);
-
-  my $done2=$self->checkGUID($silent);
-
-	#    my $done=$self->checkWaitingJobs($silent);
   $self->checkDeletedEntries();
+
+  my ($hosts) = $self->{DB}->getAllHosts();
+  defined $hosts
+    or return;
+  foreach my $tempHost (@$hosts) {
+    my $db=$self->{DB}->reconnectToIndex( $tempHost->{hostIndex},"",$tempHost) or $self->info("Error doing $tempHost->{db}") and next;;
+    $self->info("Doing $tempHost->{db}");
+
+    $self->checkHostsTable($silent, $db);
+
+    $self->checkTriggers($silent, $db);
+
+    $self->checkGUID($silent, $db);
+
+    if (!$self->{DONE}) {
+      $self->info("Let's check all the catalogue tables");
+      $self->checkDTables($silent, $db);
+      $self->{DONE}=1;
+    }
+
+  }
 
   $self->{LOGGER}->$method("CatOpt", "Going back to sleep");
 
   (-f "$self->{CONFIG}->{TMP_DIR}/AliEn_TEST_SYSTEM") or
     $self->info("Sleeping for a looooooonnnngggg time") and sleep(2*3600);
   return;
+}
+
+sub checkTriggers{
+  my $self=shift;
+  my $silent=shift;
+  my $db=shift;
+
+  my $data=$db->query("SELECT * from TRIGGERS")
+    or $self->info("Error getting the triggers of $db->{DB}")
+      and return;
+  my $entryId=0;
+  foreach my $entry (@$data){
+    $entry->{entryId}>$entryId and $entryId=$entry->{entryId};
+    my ($file)=$self->{CATALOGUE}->execute("get", $entry->{triggerName});
+    if ($file){
+      chmod 0755, $file;
+      $self->info("Calling $file $entry->{lfn}");
+      system($file, $entry->{lfn});
+    }else{
+      $self->info("Error getting the file $entry->{triggerName}");
+    }
+  }
+  if ($entryId){
+    $entryId++;
+    $self->info("Deleting the entries smaller than $entryId");
+    $db->delete("TRIGGERS", "entryId<$entryId");
+  }
+
+  return 1;
 }
 #
 # This subroutine looks for all the entries in the SE database that are not
@@ -107,11 +144,7 @@ sub checkDeletedEntries {
 
     $self->checkSEdatabase($_) or exit(-2);
   }
-#  $self->info("Sleeping for two hours");
-#  sleep (2*3600);
   return 1;
-
-
 }
 
 sub checkSEdatabase {
@@ -129,17 +162,17 @@ sub checkSEdatabase {
   my $seNumber=$self->{DB}->getSENumber($seName)
     or $self->info("Error getting the number of the SE $seName") and return;
 
-  my $dbs=$self->{DB}->getFieldsFromHostsEx() or return;
+  my $hosts=$self->{DB}->getAllHosts() or return;
 
   $se->do("TRUNCATE FILES2");
-  foreach   my $db (@$dbs) {
-    $self->info("Reconnecting to $db->{address}, $db->{db}, $db->{driver}");
-    $self->{DB}->reconnect($db->{address}, $db->{db}, $db->{driver}) or 
-      $self->info("Error reconnecting") and return;
+  foreach   my $host (@$hosts) {
+    $self->info("Reconnecting to $host->{address}, $host->{db}, $host->{driver}");
+    my $db=$self->{DB}->reconnectToIndex( $host->{hostIndex},"",$host) or 
+      $self->info("Error doing $host->{db}") and return;
     
-    my $tables=$self->{DB}->queryColumn("SELECT tableName from INDEXTABLE where hostIndex=$db->{hostIndex}") or return;
+    my $tables=$db->queryColumn("SELECT tableName from INDEXTABLE where hostIndex=$host->{hostIndex}") or return;
     foreach my $table (@$tables){
-      my $name="$db->{db}.D${table}L";
+      my $name="$host->{db}.D${table}L";
       $se->do("INSERT IGNORE INTO FILES2 SELECT guid FROM $name where seStringlist like '%,$seNumber,%'") or return;
     }
   }
@@ -155,76 +188,47 @@ sub checkSEdatabase {
 sub checkHostsTable {
   my $self=shift;
   my $silent=shift;
+  my $db=shift;
   my $method="info";
   $silent and $method="debug";
 
-  my $hosts=$self->{DB}->getAllHosts("address,db,driver");
-
-  defined $hosts
-    or $self->{LOGGER}->error("CatOpt","Error fetching all hosts from database")
-      and return;
-
-  foreach my $host (@$hosts){
-    #my ($address, $db, $driver)=split ("###", $host);
-    $self->info("Checking the host  $host->{address}, $host->{driver}, $host->{db}");
-    $self->{DB}->reconnect($host->{address}, $host->{db}, $host->{driver}) or
-      $self->info("Error connecting to $host->{address}, $host->{driver}, $host->{db}")
-	and next;
-    $self->info("Updating HOSTS table");
-    $self->{DB}->checkHostsTable;
-  }
+  $self->info("Updating HOSTS table");
+#    $db->checkHostsTable;
+  
 }
 
 sub checkGUID {
   my $self=shift;
   my $silent=shift;
-  my $doit = 1;
   my $method="info";
   $silent and $method="debug";
+  my $db=shift;
 
-  $self->{LOGGER}->$method("CatOpt", "Checking if all the entries have guid");
+  $self->info("Getting all the tables of this host");
 
-  my $hosts=$self->{DB}->getFieldsFromHostsEx("address,db,driver,hostIndex","WHERE organisation is NULL");
+  my $tablesRef=$db->queryColumn("SELECT tableName from INDEXTABLE where hostIndex=$db->{CURHOSTID}");
+  
+  foreach my $table (@$tablesRef){
+    my $tableName="D${table}L";
+    my $entries=$db->queryColumn("SELECT entryId FROM $tableName WHERE ( (guid is NULL) or (guid = '') ) and lfn not like '%/' and lfn not like '' limit 10000");
+    
+    defined $entries
+      or $self->debug(1,"Error fetching entries from D0")
+	and return;
+    $#{$entries}>-1 or next;
+    $self->info("Updating ". $#{$entries}." entries");
+    my $i=1;
+    foreach my $entry (@$entries) {
+      my $guid=$self->{GUID}->CreateGuid() or next;
+      $self->info("Setting $entry and $guid");
 
-  defined $hosts
-    or $self->debug(1,"Error fetching hosts from database")
-      and return;
-
-  foreach my $host (@$hosts){
-    $doit = 1;
-    #my ($address, $db, $driver)=split ("###", $host);
-    $self->{LOGGER}->$method("CatOpt", "Checking the host $host->{address}, $host->{driver}, $host->{db}");
-    $self->{DB}->reconnect($host->{address}, $host->{db}, $host->{driver}) or
-      $self->info( "Error connecting to $host->{address}, $host->{driver}, $host->{db}")
-	and next;
-    $self->info("Getting all the tables of this host");
-
-    my $tablesRef=$self->{DB}->queryColumn("SELECT tableName from INDEXTABLE where hostIndex=$host->{hostIndex}");
-
-    foreach my $table (@$tablesRef){
-      my $tableName="D${table}L";
-      my $entries=$self->{DB}->queryColumn("SELECT entryId FROM $tableName WHERE ( (guid is NULL) or (guid = '') ) and lfn not like '%/' and lfn not like '' limit 10000");
-
-      defined $entries
-	or $self->debug(1,"Error fetching entries from D0")
-	  and return;
-      $#{$entries}>-1 or next;
-      $self->info("Updating ". $#{$entries}." entries");
-      my $i=1;
-      foreach my $entry (@$entries) {
-	my $guid=$self->{GUID}->CreateGuid() or next;
-	$self->info("Setting $entry and $guid");
-
-	$self->{DB}->update($tableName, {guid=>"string2binary(\"$guid\")"},
-			    "entryId=$entry", {noquotes=>1});
-	$i++;
-	($i %100) or   $self->info("Already checked $i files");
-      }
+      $db->update($tableName, {guid=>"string2binary(\"$guid\")"},
+		  "entryId=$entry", {noquotes=>1});
+      $i++;
+      ($i %100) or   $self->info("Already checked $i files");
     }
-
-    $self->info("Finished!!");
   }
-
+  $self->info("Finished!!");
   return ;
 }
 return 1;
