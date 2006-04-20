@@ -33,20 +33,10 @@ else
  }
 fi
 echo -n "$message"
-dn=`vobox-proxy --vo alice query-dn`
-error=$?
-if [ $error -ne 0 ] ;
-then
-    echo_failure
-    echo
-    exit 2
-fi
-
-if [ "$dn" != "" ] ;
- then
-  proxy=`vobox-proxy --vo alice --dn "$dn" query-proxy-filename`
+# Always take the first one (may not be the right option...)
+proxy=`vobox-proxy --vo alice --dn all query | grep File: | cut -d' ' -f2 | head -1`
   error=$?
-  if [ $error -ne 0 ] ;
+  if [ $error -ne 0 ] || [ "$proxy" == '' ] ;
   then
      echo_failure
      echo
@@ -56,4 +46,3 @@ if [ "$dn" != "" ] ;
   echo_success
   echo
   $AliEnCommand $*
-fi
