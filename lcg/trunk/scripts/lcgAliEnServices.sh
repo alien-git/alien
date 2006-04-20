@@ -17,7 +17,7 @@ fi
 #AliEnServices="Monitor SE FTD PackMan MonaLisa CE"
 AliEnServices="Monitor SE PackMan MonaLisa CE"
 AliEnCommand="$VO_ALICE_SW_DIR/alien/bin/alien"
-ScriptsLocation="/opt/vobox/alice/agents"
+ScriptsLocation="$VO_ALICE_SW_DIR/alien/scripts/lcg"
 AliEnOptions="-silent"
 Sleep=0
 
@@ -55,7 +55,7 @@ fi
 for SERVICE in $AliEnServices
 do
   echo -n "alien $function$SERVICE "
-  $ScriptsLocation/lcgAliEn $function$SERVICE $AliEnOptions >/dev/null
+  $ScriptsLocation/lcgAliEn.sh $function$SERVICE $AliEnOptions >/dev/null
   error=$?
   sleep $Sleep
   if [ $error -ne 0 ] ;
