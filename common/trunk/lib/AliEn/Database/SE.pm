@@ -166,7 +166,7 @@ sub retrieveFileDetails{
   if (defined $hashref){
     $string .= " WHERE ".( join (" AND ", map {"$_ =  $quotes$hashref->{$_}$quotes"} keys(%{$hashref})));
   }  
-  print "HACEMOS $string\n";
+
   return $self->queryRow($string);
 }
 
