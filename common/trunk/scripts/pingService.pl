@@ -22,7 +22,7 @@ $serviceName
   or &syntax();
 
 # This script cannot check the ProxyServer and MonaLisa because they do not inherit from AliEn::Service
-if ($serviceName eq "ProxyServer" || $serviceName eq "MonaLisa")
+if ($serviceName =~ /^(ProxyServer)|(MonaLisa)|(CE)$/)
 {
   print "We cannot check $serviceName...\n";
   exit 0;
