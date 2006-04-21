@@ -1840,7 +1840,7 @@ sub internalQuery {
   my $limit="";
   $options->{'s'} and $order="";
   $options->{l} and $limit = "limit $options->{l}";
-  map {s/^(.*)$/SELECT *,concat('$refTable->{lfn}', lfn) as lfn from $indexTable $1 $order $limit/} @joinQueries;
+  map {s/^(.*)$/SELECT *,concat('$refTable->{lfn}', lfn) as lfn,binary2string(guid) as guid from $indexTable $1 $order $limit/} @joinQueries;
 
 
   #Finally, let's do all the queries:
