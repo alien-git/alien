@@ -184,10 +184,10 @@ sub updateVolumeDetails{
    my $self = shift;
    my $hashref = shift;
    my $where="WHERE volume='$hashref->{volume}'";
-   undef $hashref->{volume};
+#   undef $hashref->{volume};
    my $set =  join (" , ", map {"$_ =  \'$hashref->{$_}\'"} keys(%{$hashref})   );
-   my $string ="UPDATE VOLUMES SET ". $set ."  WHERE volume=  \'$hashref->{volume}\'";
-#   print "$string\n";
+   my $string ="UPDATE VOLUMES SET ". $set ."  WHERE volumeId=  \'$hashref->{volumeId}\'";
+
    return  $self->_do($string);
 
 }

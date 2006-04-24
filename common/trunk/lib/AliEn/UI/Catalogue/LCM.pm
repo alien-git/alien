@@ -338,9 +338,9 @@ sub df {
   my $function="getLVMDF";
   if ($opt=~ /c/ ){
     $service="CLC";$function="getCacheDF";
-    $self->info("Cachename               1k-blocks         Used    Available Use\%    Range \  #Files",0,0);
+    $self->info("Cachename               1k-blocks         Used(KB)  Available Use\%    Range \  #Files",0,0);
   } else {
-    $self->info("Storagename             1k-blocks         Used    Available Use\%    \#Files Type",0,0);
+    $self->info("Storagename             1k-blocks         Used(KB)  Available Use\%    \#Files Type",0,0);
   }
 
   if ($se) {
