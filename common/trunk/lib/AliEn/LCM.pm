@@ -483,7 +483,7 @@ sub RegisterInRemoteSE {
   my $oldSE= (shift or "");
   my $target= (shift or "");
   my $lfn=(shift or "");
-  my $options=(shift or "");
+  my $options=(shift or {});
   my $reqGuid=(shift or "");
   $self->{SOAP} or $self->{SOAP}=new AliEn::SOAP;
 
@@ -492,7 +492,7 @@ sub RegisterInRemoteSE {
   my $use_cert=1;
   my $repeat=1;
   my $localfile=$self->checkPFNisLocal($pfn);
-  if (($options =~ /r/) || (! $localfile && $options !~ /u/) ){
+  if ( $options->{reverse} ){
     while (1) {
       my $newpfn=$self->startTransferDaemon($pfn, $seCert, $use_cert)
 	or return;
@@ -527,12 +527,12 @@ sub RegisterInRemoteSE {
     return;
   }
 
-
-  my $size=$url->getSize();
+  my $size=$options->{size} || $url->getSize();
   defined $size or $self->info("Error getting the size of $pfn") 
     and return;
 
-  my $md5=AliEn::MD5->new($pfn);
+
+  my $md5=$options->{md5} ||AliEn::MD5->new($pfn);
 
   my $result=$self->{SOAP}->CallSOAP($seName, "getFileName",$seName, $size,{md5=>$md5, guid=>$reqGuid})
     or $self->info("Error asking for a filename") and return;
