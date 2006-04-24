@@ -731,7 +731,13 @@ Possible options:
 sub addFile {
   my $self  = shift;
   $self->debug(1, "UI/LCM Register @_");
-  (my $options, @_)=$self->GetOpts(@_);
+  my $options={};
+  @ARGV=@_;
+  Getopt::Long::GetOptions($options, "silent", "reverse", "versioning",
+			   "size=i", "md5=s")
+      or $self->info("Error checking the options of add") and return;
+  @_=@ARGV;
+
   my $lfn   = shift;
   my $pfn   = shift;
   my $newSE =(shift or "");
@@ -744,7 +750,7 @@ sub addFile {
 	and return;
 
   $lfn = $self->{CATALOG}->f_complete_path($lfn);
-  if (!($options=~/v/)) {
+  if (! $options->{versioning}) {
     ( $self->{CATALOG}->checkPermissions( 'w', $lfn ) ) or  return;
     if ($self->{CATALOG}->{DATABASE}->existsEntry( $lfn)) {
       $self->{LOGGER}->error("File", "file $lfn already exists!!",1);
@@ -755,7 +761,7 @@ sub addFile {
   ######################################################################################
   #get the authorization envelope and put it in the IO_AUTHZ environment variable
   my @envelope;
-  if ($options=~/v/) {
+  if ($options->{versioning}) {
     @envelope = $self->access("-s","write","$lfn",$newSE);
   } else {
     @envelope = $self->access("-s","write-once","$lfn",$newSE);
@@ -770,9 +776,9 @@ sub addFile {
   $self->debug(1, "\nRegistering  $pfn as $lfn, in SE $newSE and $oldSE (target $target)");
   my $size;
   $pfn=$self->checkLocalPFN($pfn);
-  if ($options=~ /u/) {
-
-  }
+#  if ($options=~ /u/) {#
+#
+#  }
 
   my $data = $self->{STORAGE}->registerInLCM( $pfn, $newSE, $oldSE, $target,$lfn, $options) or return;
 
