@@ -212,7 +212,6 @@ sub getFTSEndpoint {
   return $self->{FTS_ENDPOINT}->{$site}->{value};
 }
 
-
 sub getSite {
   my $self=shift;
   my $host=shift;
@@ -221,15 +220,22 @@ sub getSite {
   $self->info("Searching for the site of $host");
 
   my $mesg = $self->{BDII}->search( base   => $self->{BDII_BASE},
-				    filter => "(&(objectClass=GlueSite)(GlueForeignKey=GlueSEUniqueID*$host))"
+				    filter => "(&(objectClass=GlueSE)(GlueSEUniqueID=$host))"
+#				    filter => "(GlueSEUniqueID=$host)"
 				  );
   
   my   $total = $mesg->count;
   $total or $self->info("Error: Don't know the site of $host") and return;
   $total >1 and $self->info("Warning!! the se $host is in more than one site");
-  my $entry=$mesg->entry($total-1);
-  my $site=$entry->get_value("GlueSiteUniqueID") ||    
-    $entry->get_value("GlueSiteName");
+  my $entry=$mesg->entry(0);
+  my @site=$entry->get_value("GlueForeignKey");
+  my $site;
+  foreach my $entry (@site) {
+    $entry=~ s/^GlueSite(Unique)?ID=// or next;
+    $site=$entry;
+    $self->info("Site $entry");
+  }
+  $site or $self->info("Error: the entry ".$entry->dn()." does not define GlueForeignKey=GlueSiteID=<sitename>") and return;
   $self->info("The se $host is in $site");
   return $site;
 }

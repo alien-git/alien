@@ -397,7 +397,7 @@ sub getPFNFromGUID{
   my $self=shift;
   my $guid=shift;
   $self->info("In LFC, trying to retrieve the info of $guid");
-  my $info=$self->retrieveFileDetails({guid=>$guid}) or return;
+  my $info=$self->retrieveFileDetails({guid=>"\L$guid\E"}) or return;
   return $info->{pfns};
 
 }
