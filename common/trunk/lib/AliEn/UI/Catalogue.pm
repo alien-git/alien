@@ -752,7 +752,7 @@ sub execute {
     if ($path=~/^file\:\/\/(.*)/) {
       system("mv $tmpstdout $1") or print "Output piped into local file $1 !\n";
     } else {
-      $self->addFile("$path","file://$tmpstdout",$se) and print "Output piped into lfn $path !\n";
+      $self->addFile("$path","$tmpstdout",$se) and print "Output piped into lfn $path !\n";
       #	  $self->aioput("$tmpstdout","$path","$se") and print "Output piped into lfn $path!\n";
 
       unlink "$tmpstdout";
@@ -1110,6 +1110,7 @@ sub time{
 sub checkLocalPFN {
   my $self=shift;
   my $pfn=shift;
+  $pfn =~ s{^file:///}{file://$self->{CONFIG}->{HOST}/};
   ($pfn !~ m{^\w*://}) or return $pfn;
   my $orig=$pfn;
   $pfn=~ m{^/} or $pfn=`pwd`."/$pfn";
