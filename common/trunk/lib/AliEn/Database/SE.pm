@@ -164,6 +164,7 @@ sub retrieveFileDetails{
   my $quotes="'";
   $options->{noquotes} and $quotes="";
   if (defined $hashref){
+    $hashref->{guid} and $hashref->{guid}= "string2binary('$hashref->{guid}')";
     $string .= " WHERE ".( join (" AND ", map {"$_ =  $quotes$hashref->{$_}$quotes"} keys(%{$hashref})));
   }  
 
@@ -226,6 +227,10 @@ sub insertFile {
   my $self=shift;
   my $hash=shift;
   delete $hash->{sizeBytes};
+  foreach my $key ('md5', 'pfn') {
+    $hash->{$key} and $hash->{$key}!~ /^'/ and $hash->{$key}="'$hash->{$key}'";
+  }
+  $hash->{guid}= "string2binary('$hash->{guid}')";
   return $self->multiinsert("FILES", [$hash], {noquotes=>1});
 }
 sub getPFNFromGUID{

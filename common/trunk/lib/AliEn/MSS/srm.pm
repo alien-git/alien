@@ -17,7 +17,10 @@ sub new {
   my $options2 = shift;
   my $options = (shift or {});
 
-
+  use Data::Dumper;
+  print "Creating the new MSS interface with\n";
+  print Dumper($options);
+ 
   $self = $self->SUPER::new($options2, $options);
   $self->{X509}=AliEn::X509->new() or return;
 
@@ -37,6 +40,8 @@ sub new {
 
   if ( $self->{NO_CREATE_DIR}) {
     $self->debug(1, "Skipping connecting to the BDII");
+    $options->{HOST} and $self->{URI}="httpg://$options->{HOST}:$options->{PORT}/srm/managerv1";
+    $self->{MOUNTPOINT}="";
     return $self;
   }
 
@@ -74,26 +79,18 @@ sub new {
    $ldap->bind() or die $@;
    print "Looking for $SE\n" if $DEBUG;
    my $result = $ldap->search( base   => "mds-vo-name=local,o=grid",
-                               filter => "(&(GlueServiceURI=*$SE*)(GlueServiceType=srm))");
+                               filter => "(&(GlueServiceURI=*$SE*)(GlueServiceType=srm*))");
    $result->code && die $result->error;
    print "Got ",$result->count()," entries.\n" if $DEBUG;
    $result->count() or printf STDERR "Error: SE $SE not found in the BDII.\n" and exit 10;
   my $URI;
    foreach my $entry ($result->all_entries) {
      my @values = $entry->get_value("GlueServiceURI");
-     my @types = $entry->get_value("GlueServiceType");
-     print "Warning: more than one entry!\n" if (($#values>0 || $#types>0) &&
-$DEBUG );
-     if ($types[0] =~ m/srm/ ) {
-       print "SRM endpoint found ($types[0])\n" if $DEBUG;
-       $URI = $values[0];
-       $URI or printf STDERR "Error: Error getting URI for $SE.\n" and exit 11;
-       print "SRM endpoint is $URI\n" if $DEBUG;
-       last;
-     } else {
-       print "$values[0] is not an SRM service ($types[0])\n";
-       return ;
-     }
+     print "Warning: more than one entry!\n" if ($#values>0  && $DEBUG );
+     $URI = $values[0];
+     $URI or printf STDERR "Error: Error getting URI for $SE.\n" and exit 11;
+     print "SRM endpoint is $URI\n" if $DEBUG;
+     last;
    }
    my $mountpoint = '';
    $result = $ldap->search( base   => "mds-vo-name=local,o=grid",
