@@ -228,7 +228,7 @@ sub insertFile {
   my $hash=shift;
   delete $hash->{sizeBytes};
   foreach my $key ('md5', 'pfn') {
-    $hash->{$key} and $hash->{$key}!~ /^'/ and $hash->{$key}="'$hash->{$key}'";
+    defined $hash->{$key} and $hash->{$key}!~ /^'/ and $hash->{$key}="'$hash->{$key}'";
   }
   $hash->{guid}= "string2binary('$hash->{guid}')";
   return $self->multiinsert("FILES", [$hash], {noquotes=>1});

@@ -471,7 +471,7 @@ sub checkPFNisLocal {
   my $shortName=$self->{CONFIG}->{HOST};
   $shortName =~ s/\..*$//;
 
-  $pfn=~ /^(localhost)|($self->{CONFIG}->{HOST})|($shortName)/ or return;
+  $pfn=~ /^(localhost)|($self->{CONFIG}->{HOST})|($shortName)|(\/)/ or return;
   $DEBUG and $self->debug(1,"It is a local file");
   return 1;
 }
@@ -492,7 +492,8 @@ sub RegisterInRemoteSE {
   my $use_cert=1;
   my $repeat=1;
   my $localfile=$self->checkPFNisLocal($pfn);
-  if ( $options->{reverse}  && $localfile){
+
+  if ( $options->{reverse}  ||   not  $localfile){
     while (1) {
       my $newpfn=$self->startTransferDaemon($pfn, $seCert, $use_cert)
 	or return;
@@ -522,7 +523,7 @@ sub RegisterInRemoteSE {
     or $self->info( "Error creating the url of $pfn")
       and return;
 
-  if ($url->host() !~ /^($self->{CONFIG}->{HOST})|(localhost)$/){
+  if ($url->method()=~ /^file/ and $url->host() !~ /^($self->{CONFIG}->{HOST})|(localhost)$/){
     $self->info("Error: we are in $self->{CONFIG}->{HOST}, and we can't upload a file from ". $url->host());
     return;
   }
