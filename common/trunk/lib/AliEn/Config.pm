@@ -437,7 +437,7 @@ sub GetServices {
     $service eq "SE" and $class="AliEnMSS";
     my $mesg = $ldap->search(                                 # perform a search
         base   => "$base",
-        filter => "(objectClass=$class)"
+       filter => "(&(objectClass=$class)(name=*))"
     );
 
     my $total = $mesg->count;
