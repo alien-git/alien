@@ -304,10 +304,10 @@ sub addFile{
    my $hashref = shift;
    my $voldetails=shift;
 
-# First cleanup old files
-#   $self->cleanUpExpired();
+   # First cleanup old files
+   #   $self->cleanUpExpired();
 
-#### Check to see if it exists 
+   #### Check to see if it exists 
 #  At some point we should check if the md5 matches if we try to add a replica
    $self->info("Adding the file to the LVM");
    if ( defined $hashref->{'guid'} and $hashref->{'guid'}) {
@@ -361,17 +361,16 @@ sub addFile{
     $hashref->{pfn} or 
       $hashref->{pfn}="$voldetails->{method}$voldetails->{mountpoint}/$subfilename";
    $hashref->{'volumeId'}=$voldetails->{'volumeId'};
-   $hashref->{pfn}="'$hashref->{pfn}'";
+
    my $fullpath = "$voldetails->{mountpoint}/$hashref->{'file'}";
    
-#  (defined $hashref->{'file'}) or return;
-   $hashref->{md5} and $hashref->{md5}!~ /^'/ and $hashref->{md5}="'$hashref->{md5}'";
    delete $hashref->{file};
-#   if ($hashref->{lfn}) {
-#     $self->{DB}->delete("FILES", "lfn='$hashref->{lfn}' and guid != '$hashref->{guid}'");
-#   }
+   
+   print "To the database we pass\n";
+   use Data::Dumper;
+   print "Starting with", Dumper($hashref);
    $self->{DB}->insertFile($hashref) or return 0;
-   #      `touch $fullpath`;
+
    $self->info("File '$fullpath' inserted in the database");
    return $fullpath;
 }

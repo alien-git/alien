@@ -492,7 +492,7 @@ sub RegisterInRemoteSE {
   my $use_cert=1;
   my $repeat=1;
   my $localfile=$self->checkPFNisLocal($pfn);
-  if ( $options->{reverse} ){
+  if ( $options->{reverse}  && $localfile){
     while (1) {
       my $newpfn=$self->startTransferDaemon($pfn, $seCert, $use_cert)
 	or return;

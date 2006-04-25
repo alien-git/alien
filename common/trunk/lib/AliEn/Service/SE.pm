@@ -1323,17 +1323,18 @@ sub getFileName{
   $self->info("Checking the LVM");
 
   my $newFile = {
-		 'file'          => "$name",
+		 'file'          => $name,
 		 'ttl'           => $self->{MSS}->{'LVMTTL'},
 		 'size'          => int($size/1024),
-		 'guid'          => "string2binary('$guid')",
+		 'guid'          => $guid,
 		 'md5'           => $md5,
 		 'sizeBytes'     => $size,
 		};
 
   $self->debug(1, "Adding the file");
+
   use Data::Dumper;
-  print Dumper($newFile);
+  print "Starting with", Dumper($newFile);
   $name = $lvm->addFile($newFile) or 
     $self->info("$$ Error adding the file to the LVM") 
     and die("Error adding the file to the LVM");
@@ -1525,7 +1526,7 @@ sub registerFile {
   }
   $guid or $self->info( "ERROR CREATING THE GUID")
     and die("Error creating the guid");
-  my $newFile={guid=>"string2binary('$guid')",
+  my $newFile={guid=>$guid,
 	       size=>$size,
 	       pfn=>$pfn,
 	      };
