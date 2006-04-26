@@ -441,7 +441,6 @@ sub getAllLFN {
     $events->{$entry}->{file} or next;
     foreach my $file (keys %{$events->{$entry}->{file}} ) {
       $events->{$entry}->{file}->{$file}->{lfn} or next;
-      print "Tenemos el fichero $events->{$entry}->{file}->{$file}->{lfn}\n";
       push @list, $events->{$entry}->{file}->{$file}->{lfn};
     }
   }
