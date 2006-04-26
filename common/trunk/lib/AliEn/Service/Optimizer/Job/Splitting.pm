@@ -335,12 +335,17 @@ sub SubmitSplitJob {
   my $text=$job_ca->asJDL();
   $self->debug(1, "Original jdl $text\n");
 
-  #we can't do it with the option 'g', because it doesn't work 
-  #if there are two consecutive entries  that have to be deleted
-  while(  $text =~ s/([;\[])\s*split[^;]*;/$1/is) {};
-  $text=~ s/([;\[])\s*inputdatacollection[^;]*;/$1/i;
-  $text =~ s/;\s*email[^;]*;/;/is;
+  #to make the matching easier, let's put a ; after the last entry
+  #and before the first entry;
+  $text=~ s/(\]\s*)$/;$1/s;
+  $text=~ s/^(\s*\[)/$1;/s;
 
+  #this matching can't be done with global in case there are two 
+  #consecutive entries that have to be removed
+  while(  $text =~ s/;\s*split[^;\]]*;/;/is) {};
+  $text=~ s/;\s*inputdatacollection[^;\]]*;/;/i;
+  $text =~ s/;\s*email[^;]*;/;/is;
+  $text =~ s/\[;/\[/;
   $self->info("Let's start with $text");
   my ($ok, @splitarguments)=$job_ca->evaluateAttributeVectorString("SplitArguments");
   if (@splitarguments){ 
