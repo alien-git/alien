@@ -363,7 +363,7 @@ sub getNumberJobs {
 
   my $max_running = $done->{maxjobs};
   my $max_queued  =$done->{maxqueuedjobs};
-  $self->{LOGGER}->info("We can run $max_queued and $max_running");
+  $self->info("We can run $max_queued and $max_running");
 
   return ($max_queued, $max_running);
 }
