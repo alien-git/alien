@@ -118,6 +118,7 @@ sub getListPackages{
   my @userPackages=$self->{CATALOGUE}->execute("find", $silent, $self->{CONFIG}->{USER_DIR}, "/packages/*");
   my @voPackages=$self->{CATALOGUE}->execute("find", $silent, "\L/$self->{CONFIG}->{ORG_NAME}/packages", "*");
   my @packages;
+  my $org="\L$self->{CONFIG}->{ORG_NAME}\E";
   foreach my $pack (@userPackages, @voPackages) {
     $self->debug(2,  "FOUND $pack");
     if ($pack =~ m{^$self->{CONFIG}->{USER_DIR}/?./([^/]*)/packages/([^/]*)/([^/]*)/$platformPattern$}) {
@@ -125,9 +126,9 @@ sub getListPackages{
 	push @packages, "$1\@${2}::$3";
       next;
     }
-    if ($pack =~ m{^\L/$self->{CONFIG}->{ORG_NAME}\E/packages/([^/]*)/([^/]*)/$platformPattern$}) {
-      grep (/^VO\@${1}::$2$/, @packages) or
-	push @packages, "VO\@${1}::$2";
+    if ($pack =~ m{^/$org/packages/([^/]*)/([^/]*)/$platformPattern$}) {
+      grep (/^VO_\U$org\E\@${1}::$2$/, @packages) or
+	push @packages, "VO_\U$org\E\@${1}::$2";
       next;
     }
     $self->debug(2, "Ignoring $pack");
