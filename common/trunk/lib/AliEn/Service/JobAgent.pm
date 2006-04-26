@@ -293,10 +293,12 @@ sub GetJDL {
 	  $self->info("We have to install some packages");
 	  foreach (@packages) {
 	    my ($ok, $source)=$self->installPackage($_);
+	    $ok or $self->info("Error insalling the package $_") and return;
 	  }
-	  next;
+	  $i++; #this iteration doesn't count
+	}else {
+	  last;
 	}
-	last;
        }
     }
     --$i or  last;

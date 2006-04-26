@@ -69,15 +69,15 @@ sub f_chmod {
 
   $file = $self->GetAbsolutePath($file, 1);
 
+  my $info=$self->checkPermissions("w",$file, undef , {RETURN_HASH=>1})
+    or return;
+  
   my $lfn=$self->{DATABASE}->existsEntry( $file) or
     $self->{LOGGER}->error("File", "file $file does not exist!!",1) and
       return;
 
-  $self->checkPermissions("w",$lfn) or return;
-  my $info=$self->{DATABASE}->getAllInfoFromDTable({method=>"queryRow"}, $lfn) ;
-  $info or $self->{LOGGER}->info("Group", "Error getting the info of $file");
   (  $info->{owner} eq $self->{ROLE}) or ($self->{ROLE}=~ /^admin(ssl)?$/) or
-    $self->{LOGGER}->info("Group", "You are not the owner of $file",1) and
+    $self->info("You are not the owner of $file",1) and
       return;
 
   if (!($perm =~ s/^0?([0-7]{3})$/$1/)) {
@@ -158,11 +158,11 @@ sub f_chown {
     or print STDERR "Error in selectDatabase" and return;
 
   my $lfn  =$self->{DATABASE}->existsEntry( $file) or 
-    $self->{LOGGER}->info("Catalogue", "chown $file: No such file or directory")
+    $self->info("chown $file: No such file or directory")
     and return;
 
   $self->{DATABASE}->updateFile( $lfn, {owner=>$user,gowner=>$group})
-    or $self->{LOGGER}->info("Catalogue", "Error updating the file") and return;
+    or $self->info("Error updating the file") and return;
 
   $options =~ /f/ and return 1;
   #Finally, we have to grant privileges to the user
