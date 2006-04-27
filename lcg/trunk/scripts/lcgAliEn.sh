@@ -2,14 +2,47 @@
 
 AliEnCommand=$VO_ALICE_SW_DIR/alien/bin/alien
 
-uid=`$AliEnCommand --printenv | grep ALIEN_USER | cut --d='='  -f2`
-host=`$AliEnCommand -user aliprod --exec echo LDAPHOST | cut -d\' -f2`
-dn=`ldapsearch -x -LLL -H ldap://$host -b uid=$uid,ou=people,o=alice,dc=cern,dc=ch | grep subject | sed 's/subject: //'`
-proxy=`vobox-proxy --vo alice -dn "$dn" query-proxy-filename`
-error=$?
-if [ $error -ne 0 ] || [ "$proxy" == '' ] ;
+if [ "$1" = '-s' ] ;
 then
-   echo "Error setting proxy" 1>&2
-   exit 3
+ message='Setting the service proxy '
+ shift
+ if [ -f /etc/rc.d/init.d/functions ]
+ then
+    OLDPATH=$PATH
+    . /etc/rc.d/init.d/functions
+    PATH=$OLDPATH
+ else
+    echo_success()
+    {
+        echo -n "                                       ok"
+    }
+    echo_failure()
+    {
+        echo -n "                                       failed"
+    }
+ fi
+else
+ message=''
+ echo_success()
+ {
+     echo -n
+ }
+ echo_failure()
+ {
+     echo -n "Error setting proxy."
+ }
 fi
-env X509_USER_PROXY=$proxy $AliEnCommand $*
+echo -n "$message"
+# Always take the first one (may not be the right option...)
+proxy=`vobox-proxy --vo alice --dn all query | grep File: | cut -d' ' -f2 | head -1`
+  error=$?
+  if [ $error -ne 0 ] || [ "$proxy" == '' ] ;
+  then
+     echo_failure
+     echo
+     exit 3
+  fi
+  export X509_USER_PROXY=$proxy 
+  echo_success
+  echo
+  $AliEnCommand $*
