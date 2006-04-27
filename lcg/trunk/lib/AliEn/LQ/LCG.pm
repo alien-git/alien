@@ -159,19 +159,18 @@ sub getFreeSlots {
   my ($totRunning, $totWaiting, $totFree, $totCPUs) = (0,0,0,0);
   my $list = $self->{CONFIG}->{CE_LCGCE_LIST};
 
-  my $GRIS = '';
-  my $BaseDN = '';
-  if (defined $self->{CONFIG}->{CE_SITE_BDII}) {
-    $GRIS=$self->{CONFIG}->{CE_SITE_BDII};
-    $GRIS=~ s{^(ldap://[^/]*)/(.*)}{$1} and $BaseDN=$2;
-  }else {
-  # If we did not define a BDII, use the GRIS running on the CE
-    $GRIS = "ldap://$self->{CONFIG}->{HOST}:2135";
-    $BaseDN = "mds-vo-name=local,o=grid";
-  }
-
   foreach my $CE (@$list) {
     (my $host,undef) = split (/:/,$CE);
+    my $GRIS = '';
+    my $BaseDN = '';
+    if (defined $self->{CONFIG}->{CE_SITE_BDII}) {
+      $GRIS=$self->{CONFIG}->{CE_SITE_BDII};
+      $GRIS=~ s{^(ldap://[^/]*)/(.*)}{$1} and $BaseDN=$2;
+    }else {
+    # If we did not define a BDII, use the GRIS running on the CE
+      $GRIS = "ldap://$host:2135";
+      $BaseDN = "mds-vo-name=local,o=grid";
+    }
 
     eval {
 
