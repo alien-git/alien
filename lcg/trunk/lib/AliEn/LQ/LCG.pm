@@ -15,7 +15,6 @@ sub initialize {
    $self->SUPER::initialize() or return;
    $self->{DB}=AliEn::Database::CE->new();
    $ENV{X509_CERT_DIR} and $self->{LOGGER}->debug("LCG","X509: $ENV{X509_CERT_DIR}");
-   my $error = !defined $ENV{GLOBUS_LOCATION};
    my $host= `/bin/hostname` || $self->{CONFIG}->{HOST};
    chomp $host;
    $self->{CONFIG}->{VOBOX} = $host.':8084';
@@ -171,7 +170,7 @@ sub getFreeSlots {
       $GRIS = "ldap://$host:2135";
       $BaseDN = "mds-vo-name=local,o=grid";
     }
-
+    $self->debug(1,"Asking $GRIS/$BaseDN");
     eval {
 
       my $ldap =  Net::LDAP->new($GRIS) or die $@;
@@ -185,8 +184,12 @@ sub getFreeSlots {
         my $FreeCPUs    = $entry->get_value("GlueCEStateFreeCPUs");
         my $totalCPUs   = $entry->get_value("GlueCEInfoTotalCPUs");
         my @VOList      = $entry->get_value("GlueCEAccessControlBaseRule");
-        $self->{LOGGER}->warning("LCG","This seems to be a non-dedicated queue (@VOList)") if (@VOList gt 1) ;
-	$self->info("CPUs for $CE: $FreeCPUs/$totalCPUs, (R:$RunningJobs, W:$WaitingJobs)");#####
+	if (@VOList gt 1) {
+	  my $nVOs = @VOList;
+          $self->{LOGGER}->warning("LCG","This seems to be a non-dedicated queue ($nVOs VOs)");
+          $self->debug(1,"VOs: @VOList");
+	}
+	$self->info("CPUs for $CE: $FreeCPUs/$totalCPUs, (R:$RunningJobs, W:$WaitingJobs)");
         $totFree    += $FreeCPUs;
         $totRunning += $RunningJobs;
         $totWaiting += $WaitingJobs;
@@ -200,7 +203,7 @@ sub getFreeSlots {
     }
   }
   my $jobAgents = $self->getQueueStatus();
-  $self->info("Total for this VO Box: $totFree/$totCPUs (R:$totRunning, W:$totWaiting, JA:$jobAgents)");#####
+  $self->info("Total for this VO Box: $totFree/$totCPUs (R:$totRunning, W:$totWaiting, JA:$jobAgents)");
   my $value = $totFree + $jobAgents;
   if ($totWaiting >= $totCPUs/2) {
     $value = $jobAgents;
