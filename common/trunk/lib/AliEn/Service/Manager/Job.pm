@@ -1389,13 +1389,22 @@ sub getMasterJob {
    ($argv=~ /^((kill)|(resubmit)|(expunge)|(merge))$/) 
      and $data->{command}=$1 and next;
    ($argv=~ /^-?-printsite?/i) and $data->{printsite}=1 and next;
-   ($argv=~ /^-?-s(tatus)?$/i ) and $type="status";
+   if ($argv=~ /^-?-s(tatus)?$/i ) {
+     $type="status";
+     if ($_[0] =~ /^ERROR_ALL$/i){
+       shift;
+       $data->{status} or $data->{status}=[];
+       push @{$data->{status}}, "status='EXPIRED'","status='ERROR_IB'","status='ERROR_V'","status='ERROR_E'","status='FAILED'","status='ERROR_SV'"; 
+       next;
+     }
+   }
    ($argv=~ /^-?-i(d)?$/i ) and $type="queueId";
    ($argv=~ /^-?-site$/i) and $type="site";
    $type or  $error="argument '$argv' not understood" and last;
 
    my $value=shift or $error="--$type requires a value" and last;
    $data->{$type} or $data->{$type}=[];
+
    push @{$data->{$type}}, "$type='$value'"; 
 
  }
