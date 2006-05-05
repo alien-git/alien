@@ -125,7 +125,7 @@ sub setupApMon {
     }
     $apmon->setMonitorClusterNode($self->{CONFIG}->{SITE}.'_Nodes', $self->{HOST});
     my $service="";
-    $service = "CE_" if $self->{SERVICE} eq "ClusterMonitor";
+    $service = "ClusterMonitor_" if $self->{SERVICE} eq "ClusterMonitor";
     $service = "SE_" if $self->{SERVICE} eq "SE";
     $apmon->addJobToMonitor($$, '', "$self->{CONFIG}->{SITE}_$service".$self->{SERVICENAME}, "$self->{HOST}:$self->{PORT}");
     $apmon->sendParameters("$self->{CONFIG}->{SITE}_$service".$self->{SERVICENAME}, "$self->{HOST}:$self->{PORT}"); 
