@@ -205,9 +205,9 @@ sub getFreeSlots {
   my $jobAgents = $self->getQueueStatus();
   $self->info("Total for this VO Box: $totFree/$totCPUs (R:$totRunning, W:$totWaiting, JA:$jobAgents)");
   my $value = $totFree + $jobAgents;
-  if ($totWaiting >= $totCPUs/2) {
+  if ($jobAgents >= 2*$totCPUs) {
     $value = $jobAgents;
-    $self->info("Too many waiting jobs ($totWaiting for $totCPUs CPUs)"); ###
+    $self->info("Too many waiting job agents ($jobAgents for $totCPUs CPUs)"); ###
   }
   return $value;
 
