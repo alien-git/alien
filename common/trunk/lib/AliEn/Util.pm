@@ -118,6 +118,24 @@ sub transferStatusForML {
   
 }
 
+my $ja_status ={'REQUESTING_JOB' => 1,
+		'INSTALLING_PKGS' => 2,
+		'JOB_STARTED' => 3,
+		'RUNNING_JOB' => 4,
+		'DONE' => 5,
+		'ERROR_HC' => -1,      # error in getting host classad
+		'ERROR_IP' => -2,      # error installing packages
+		'ERROR_GET_JDL' => -3, # error getting jdl
+		'ERROR_JDL' => -4,     # incorrect jdl
+		'ERROR_DIRS' => -5,    # error creating directories, not enough free space in workdir
+		'ERROR_START' => -6,   # error forking to start job
+		};
+
+# convert a JobAgent status to a number to be used in ML
+sub jaStatusForML {
+  my $stat = shift;
+  return $ja_status->{$stat} or 0;
+}
 
 sub Confirm($) {
     my $text = shift;

@@ -168,11 +168,11 @@ sub requestJob {
   $self->info("Let's redirect the output to $redirect");
   $self->{LOGGER}->redirect($redirect);
  
-  $self->checkJobJDL() or return;
+  $self->checkJobJDL() or $self->sendJAStatus('ERROR_JDL') and return;
 
   print "Contacting VO: $self->{VOs}\n";
 
-  $self->CreateDirs or return;
+  $self->CreateDirs or $self->sendJAStatus('ERROR_DIRS') and return;
 
   #let's put the workdir in the file
   open (FILE, ">$self->{WORKDIRFILE}") or print "Error opening the file $self->{WORKDIRFILE}\n" and return;
@@ -180,7 +180,7 @@ sub requestJob {
   close FILE;
 
   #This subroutine has a fork. The father will do the rest, while the child returns and starts the JobAgent
-  ( $self->startMonitor() ) or return;
+  ( $self->startMonitor() ) or $self->sendJAStatus('ERROR_START') and return;
 
   # resource tracking
   $self->{MAXVSIZE} = 0;
@@ -199,6 +199,7 @@ sub requestJob {
   if ($self->{MONITOR}) {
     $self->{MONITOR}->addJobToMonitor($self->{PROCESSID}, $self->{WORKDIR}, $self->{CONFIG}->{CE_FULLNAME}.'_Jobs', $ENV{ALIEN_PROC_ID});
   }
+  $self->sendJAStatus('JOB_STARTED');
   return 1;
 }
 
@@ -281,7 +282,7 @@ sub GetJDL {
   my $result;
   while(1) {
     print "Getting the jdl from the clusterMonitor, agentId is $ENV{ALIEN_JOBAGENT_ID}...\n";
-    my $hostca=$self->getHostClassad() or return;
+    my $hostca=$self->getHostClassad() or $self->sendJAStatus('ERROR_HC') and return;
 
     my $done = $self->{SOAP}->CallSOAP("CLUSTERMONITOR","getJobAgent", $ENV{ALIEN_JOBAGENT_ID}, "$self->{HOST}:$self->{PORT}", $self->{CONFIG}->{ROLE}, $hostca);
     if ($done) {
@@ -289,11 +290,12 @@ sub GetJDL {
       $result=$done->result;
       if ($result) {
 	if ($result eq "-3") {
+	  $self->sendJAStatus('INSTALLING_PKGS');
 	  my @packages=$done->paramsout();
 	  $self->info("We have to install some packages");
 	  foreach (@packages) {
 	    my ($ok, $source)=$self->installPackage($_);
-	    $ok or $self->info("Error insalling the package $_") and return;
+	    $ok or $self->info("Error insalling the package $_") and $self->sendJAStatus('ERROR_IP') and return;
 	  }
 	  $i++; #this iteration doesn't count
 	}else {
@@ -304,11 +306,16 @@ sub GetJDL {
     --$i or  last;
     print "We didn't get the jdl... let's sleep and try again\n";
     sleep (30);
+    if($self->{MONITOR}){
+    	$self->{MONITOR}->sendBgMonitoring();
+    }
+    $self->sendJAStatus('REQUESTING_JOB');
   }
   $result or $self->info("Error getting a jdl to execute");
   $jdl=$result->{jdl};
   if (!$jdl) {
     $self->info("Could not download any  jdl!");
+    $self->sendJAStatus('ERROR_GET_JDL');
     return;
   }
 
@@ -332,6 +339,7 @@ sub GetJDL {
   $self->{CA} = Classad::Classad->new("$jdl");
   ( $self->{CA}->isOK() ) and return 1;
 
+  $self->sendJAStatus('ERROR_JDL');
   return;
 }
 
@@ -618,7 +626,7 @@ sub startMonitor {
 
   #The parent returns
   $self->{PROCESSID} = $error;
-  $self->{PROCESSID} and return
+  $self->{PROCESSID} and return 1;
 
   $self->debug(1, "The father locks the port");
 
@@ -1991,6 +1999,7 @@ CPU Speed                           [MHz] : $ProcCpuspeed
   system("rm", "-rf", $self->{WORKDIR});
   $self->{JOBLOADED}=0;
   if (!$success){
+    $self->sendJAStatus('DONE');
     $self->info("The job did not finish properly... we don't ask for more jobs");
     $self->stopService(getppid());
     kill (9, getppid());
@@ -2008,12 +2017,18 @@ sub checkWakesUp {
   $silent and $method="debug" and push @loggingData, 1;;
 
   $self->$method(@loggingData, "Calculating the resource Usage");
+  
+  if($self->{MONITOR}){ 
+    $self->{MONITOR}->sendBgMonitoring();
+  }
   my $procinfo;
   my $i;
   my $counter=0;
   if (! $self->{JOBLOADED}) {
+    $self->sendJAStatus('REQUESTING_JOB');
     $self->info("Asking for a new job");
     if (! $self->requestJob()) {
+      $self->sendJAStatus('DONE');
       $self->info("There are no jobs to execute");
       # killeverything connected
       $self->info("We have to  kill $self->{SERVICEPID} or ".getppid());
@@ -2033,7 +2048,7 @@ sub checkWakesUp {
 
   # if ApMon available, send my status
   if($self->{MONITOR}){
-    $self->{MONITOR}->sendBgMonitoring();
+    $self->sendJAStatus('RUNNING_JOB');
     #$self->info("Trying to read message from pipe from child...");
     my $status = $self->readPipeMessage($self->{JOB_STATUS_RDR});
     if($status){
@@ -2207,6 +2222,24 @@ sub writePipeMessage {
   }
 }
 
+# Send the given status of the JobAgent to MonaLisa
+sub sendJAStatus {
+	my $self = shift;
+	my $status = shift;
+	
+	return if ! $self->{MONITOR};
+	
+	# add the given parameters
+	my $params = {};
+	$params->{ja_status} = AliEn::Util::jaStatusForML($status);
+	if($ENV{ALIEN_JOBAGENT_ID} && $ENV{ALIEN_JOBAGENT_ID} =~ /(\d+)\.(\d+)/){
+		$params->{ja_id_maj} = $1;
+		$params->{ja_id_min} = $2;
+	}
+	$params->{job_id} = $ENV{ALIEN_PROC_ID} || 0;
+	$self->{MONITOR}->sendParameters("$self->{CONFIG}->{SITE}_".$self->{SERVICENAME}, "$self->{HOST}:$self->{PORT}", $params);
+	return 1;
+}
 
 return 1;
 
