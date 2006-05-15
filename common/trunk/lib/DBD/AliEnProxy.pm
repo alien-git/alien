@@ -1,26 +1,12 @@
-#/**************************************************************************
-# * Copyright(c) 2001-2002, ALICE Experiment at CERN, All rights reserved. *
-# *                                                                        *
-# * Author: The ALICE Off-line Project / AliEn Team                        *
-# * Contributors are mentioned in the code where appropriate.              *
-# *                                                                        *
-# * Permission to use, copy, modify and distribute this software and its   *
-# * documentation strictly for non-commercial purposes is hereby granted   *
-# * without fee, provided that the above copyright notice appears in all   *
-# * copies and that both the copyright notice and this permission notice   *
-# * appear in the supporting documentation. The authors make no claims     *
-# * about the suitability of this software for any purpose. It is          *
-# * provided "as is" without express or implied warranty.                  *
-# **************************************************************************/
 #   -*- perl -*-
 #
 #
-#   DBD::Proxy - DBI Proxy driver
+#   DBD::AliEnProxy - DBI Proxy driver
 #
 #
 #   Copyright (c) 1997,1998  Jochen Wiedmann
 #
-#   The DBD::Proxy module is free software; you can redistribute it and/or
+#   The DBD::AliEnProxy module is free software; you can redistribute it and/or
 #   modify it under the same terms as Perl itself. In particular permission
 #   is granted to Tim Bunce for distributing this as a part of the DBI.
 #
@@ -33,38 +19,40 @@
 #           Email: joe@ispsoft.de
 #           Phone: +49 7123 14881
 #
-package DBD::AliEnProxy;
 
 use strict;
+use Carp;
 use IO::Socket;
 use AliEn::Authen::ClientVerifier;
-use DBI;
+
+require DBI;
 DBI->require_version(1.0201);
 
-use RPC::PlClient 0.2000;
-use AliEn::Authen::IIIkey;
+use RPC::PlClient 0.2000; # XXX change to 0.2017 once it's released
 
-use vars qw($VERSION $err $errstr $drh %ATTR);
-
-sub encrypt {
-    my $self = shift;
-    my $in = shift;
-    print "Encrypt\n";
-    return $in;
+{	package DBD::AliEnProxy::RPC::PlClient;
+    	@DBD::AliEnProxy::RPC::PlClient::ISA = qw(RPC::PlClient);
+	sub Call {
+	    my $self = shift;
+	    if ($self->{debug}) {
+		my ($rpcmeth, $obj, $method, @args) = @_;
+		local $^W; # silence undefs
+		Carp::carp("Server $rpcmeth $method(@args)");
+	    }
+	    return $self->SUPER::Call(@_);
+	}
 }
 
-sub decrypt {
-    my $self = shift;
-    my $in = shift;
-    print "decrypt\n";
-    return $in;
-}
+
+package DBD::AliEnProxy;
+
+use vars qw($VERSION $drh %ATTR);
 
 $VERSION = "0.2004";
 
 $drh = undef;		# holds driver handle once initialised
 
-%ATTR = (	# common to db & st, see also %ATTR in DBD::Proxy::db & ::st
+%ATTR = (	# common to db & st, see also %ATTR in DBD::AliEnProxy::db & ::st
     'Warn'	=> 'local',
     'Active'	=> 'local',
     'Kids'	=> 'local',
@@ -72,20 +60,22 @@ $drh = undef;		# holds driver handle once initialised
     'PrintError' => 'local',
     'RaiseError' => 'local',
     'HandleError' => 'local',
+    'TraceLevel' => 'cached',
+    'CompatMode' => 'local',
 );
 
 sub driver ($$) {
-
     if (!$drh) {
 	my($class, $attr) = @_;
 
 	$class .= "::dr";
 
 	$drh = DBI::_new_drh($class, {
-	    'Name' => 'AliEnProxy',
+	    'Name' => 'Proxy',
 	    'Version' => $VERSION,
-	    'Attribution' => 'DBD::AliEnProxy by Jan-Erik Revsbech',
-	    });
+	    'Attribution' => 'DBD::AliEnProxy by Jochen Wiedmann',
+	});
+	$drh->STORE(CompatMode => 1); # disable DBI dispatcher attribute cache (for FETCH)
     }
     $drh;
 }
@@ -130,11 +120,10 @@ sub connect ($$;$$) {
 	}
     }
 
-
     my $err = '';
-    if (! $attr{'hostname'}) { $err .= " Missing hostname."; }
-    if (! $attr{'port'})     { $err .= " Missing port."; }
-    if (! $attr{'dsn'})      { $err .= " Missing remote dsn."; }
+    if (!defined($attr{'hostname'})) { $err .= " Missing hostname."; }
+    if (!defined($attr{'port'}))     { $err .= " Missing port."; }
+    if (!defined($attr{'dsn'}))      { $err .= " Missing remote dsn."; }
 
     my $localuser = $attr{'local_user'} || "";
 
@@ -211,22 +200,20 @@ sub connect ($$;$$) {
       return DBD::AliEnProxy::proxy_set_err($drh, $error);
     }
 
-    # Create an RPC::PlClient object. 
     my %client_opts = (
-	'peeraddr'	=> $attr{'hostname'},
-	'peerport'	=> $attr{'port'},
-	'socket_proto'	=> 'tcp',
-	'application'	=> $attr{dsn},
-	'user'		=> $user || '',
-	'password'	=> $auth || '',
-        'version'	=> $DBD::AliEnProxy::VERSION,
-	'cipher'	=> $cipherRef,
-        'socket'        => $socket,
-	'debug'		=> $attr{debug}   || 0,
-	'timeout'	=> $attr{timeout} || undef,
-	'logfile'	=> $attr{logfile} || undef
-    );  
-
+		       'peeraddr'	=> $attr{'hostname'},
+		       'peerport'	=> $attr{'port'},
+		       'socket_proto'	=> 'tcp',
+		       'application'	=> $attr{dsn},
+		       'user'		=> $user || '',
+		       'password'	=> $auth || '',
+		       'version'	=> $DBD::AliEnProxy::VERSION,
+		       'cipher'	        => $cipherRef,
+                       'socket'         => $socket,
+		       'debug'		=> $attr{debug}   || 0,
+		       'timeout'	=> $attr{timeout} || undef,
+		       'logfile'	=> $attr{logfile} || undef
+		      );
     # Options starting with 'proxy_rpc_' are forwarded to the RPC layer after
     # stripping the prefix.
     while (my($var,$val) = each %attr) {
@@ -234,13 +221,11 @@ sub connect ($$;$$) {
 	    $client_opts{$var} = $val;
 	}
     }
-
     # Create an RPC::PlClient object.
-    my($client, $msg) = eval { RPC::PlClient->new(%client_opts) };
+    my($client, $msg) = eval { DBD::AliEnProxy::RPC::PlClient->new(%client_opts) };
 
-    return DBD::AliEnProxy::proxy_set_err($drh, "Cannot log in to DBI::ProxyServer: $@")
+    return DBD::AliEnProxy::proxy_set_err($drh, "Cannot log in to AliEn::Services::ProxyServer: $@")
 	if $@; # Returns undef
-
     return DBD::AliEnProxy::proxy_set_err($drh, "Constructor didn't return a handle: $msg")
 	unless ($msg =~ /^((?:\w+|\:\:)+)=(\w+)/); # Returns undef
 
@@ -253,19 +238,20 @@ sub connect ($$;$$) {
       $max_proto_ver = 1;
     } else {
       # Parse proxy server version.
-      my ($server_ver_num) = $server_ver_str =~ /^DBI::AliEn::ProxyServer\s+([\d\.]+)/;
+      my ($server_ver_num) = $server_ver_str =~ /^AliEn::Services::ProxyServer\s+([\d\.]+)/;
+      $server_ver_num = defined($server_ver_num) ? $server_ver_num : 0;
       $max_proto_ver = $server_ver_num >= 0.3 ? 2 : 1;
     }
     my $req_proto_ver;
     if ( exists $attr{proxy_lazy_prepare} ) {
       $req_proto_ver = ($attr{proxy_lazy_prepare} == 0) ? 2 : 1;
       return DBD::AliEnProxy::proxy_set_err($drh, 
-                 "DBI::AliEnProxyServer does not support synchronous statement preparation.")
+                 "AliEn::Services::ProxyServer does not support synchronous statement preparation.")
 	if $max_proto_ver < $req_proto_ver;
     }
 
     # Switch to user specific encryption mode, if desired
-#    if ($userCipherRef2) {
+#    if ($userCipherRef) {
 #	$client->{'cipher'} = $userCipherRef;
 #    }
 
@@ -275,20 +261,20 @@ sub connect ($$;$$) {
 	    'proxy_dbh' => $msg,
 	    'proxy_client' => $client,
 	    'RowCacheSize' => $attr{'RowCacheSize'} || 20,
+	    'proxy_proto_ver' => $req_proto_ver || 1,
 	    'Password'     => $passwd
    });
-    
+
     foreach $var (keys %attr) {
 	if ($var =~ /proxy_/) {
 	    $this->{$var} = $attr{$var};
 	}
     }
+    $this->SUPER::STORE('Active' => 1);
+
     $this;
 }
 
-
-sub disconnect_all { 
-}
 
 sub DESTROY { undef }
 
@@ -297,18 +283,31 @@ package DBD::AliEnProxy::db; # ====== DATABASE ======
 
 $DBD::AliEnProxy::db::imp_data_size = 0;
 
+# XXX probably many more methods need to be added here.
+# See notes in ToDo about method metadata
 sub commit;
+sub connected;
 sub rollback;
+sub ping;
 
 use vars qw(%ATTR $AUTOLOAD);
 
-%ATTR = (	
+# inherited: STORE / FETCH against this class.
+# local:     STORE / FETCH against parent class.
+# cached:    STORE to remote and local objects, FETCH from local.
+# remote:    STORE / FETCH against remote object only (default).
+#
+# Note: Attribute names starting with 'proxy_' always treated as 'inherited'.
+#
+%ATTR = (	# see also %ATTR in DBD::AliEnProxy::st
     %DBD::AliEnProxy::ATTR,
     RowCacheSize => 'inherited',
-    AutoCommit => 'cached',
+    #AutoCommit => 'cached',
+    'FetchHashKeyName' => 'cached',
     Statement => 'local',
     Driver => 'local',
     dbi_connect_closure => 'local',
+    Username => 'local',
 );
 
 sub AUTOLOAD {
@@ -323,12 +322,13 @@ sub AUTOLOAD {
 	  'type' => $type,
 	  'h' => "DBI::_::$type"
 	);
-    local $SIG{__DIE__} = 'DEFAULT';
     my $method_code = UNIVERSAL::can($expand{'h'}, $method) ?
 	q/package ~class~;
           sub ~method~ {
             my $h = shift;
-	    my @result = eval { $h->{'proxy_~type~h'}->~method~(@_) };
+	    my @result = wantarray
+		? eval {        $h->{'proxy_~type~h'}->~method~(@_) }
+		: eval { scalar $h->{'proxy_~type~h'}->~method~(@_) };
             return DBD::AliEnProxy::proxy_set_err($h, $@) if $@;
             wantarray ? @result : $result[0];
           }
@@ -336,14 +336,17 @@ sub AUTOLOAD {
         q/package ~class~;
 	  sub ~method~ {
 	    my $h = shift;
-	    my @result = eval { $h->{'proxy_~type~h'}->func(@_, '~method~') };
+	    my @result = wantarray
+		? eval {        $h->{'proxy_~type~h'}->func(@_, '~method~') }
+		: eval { scalar $h->{'proxy_~type~h'}->func(@_, '~method~') };
 	    return DBD::AliEnProxy::proxy_set_err($h, $@) if $@;
 	    wantarray ? @result : $result[0];
           }
          /;
     $method_code =~ s/\~(\w+)\~/$expand{$1}/eg;
-    eval $method_code;
-    die $@ if $@;
+    local $SIG{__DIE__} = 'DEFAULT';
+    my $err = do { local $@; eval $method_code.2; $@ };
+    die $err if $err;
     goto &$AUTOLOAD;
 }
 
@@ -367,12 +370,10 @@ sub disconnect ($) {
     local $SIG{__DIE__} = 'DEFAULT';
     eval { $rdbh->disconnect() };
     DBD::AliEnProxy::proxy_set_err($dbh, $@) if $@;
-
+    
     # Close TCP connect to remote
     # XXX possibly best left till DESTROY? Add a config attribute to choose?
-#    $dbh->{proxy_client}->Disconnect(); # Disconnect method requires newer PlRPC module
-    $dbh->{proxy_client}->{socket} and 
-      $dbh->{proxy_client}->{socket}->close();
+    #$dbh->{proxy_client}->Disconnect(); # Disconnect method requires newer PlRPC module
     $dbh->{proxy_client}->{socket} = undef; # hack
 
     $dbh->SUPER::STORE('Active' => 0);
@@ -384,16 +385,25 @@ sub STORE ($$$) {
     my($dbh, $attr, $val) = @_;
     my $type = $ATTR{$attr} || 'remote';
 
+    if ($attr eq 'TraceLevel') {
+	warn("TraceLevel $val");
+	my $pc = $dbh->{proxy_client} || die;
+	$pc->{logfile} ||= 1; # XXX hack
+	$pc->{debug} = ($val && $val >= 4);
+	$pc->Debug("$pc debug enabled") if $pc->{debug};
+    }
+
     if ($attr =~ /^proxy_/  ||  $type eq 'inherited') {
 	$dbh->{$attr} = $val;
 	return 1;
     }
 
-    if ($type eq 'remote'  ||  $type eq 'cached') {
+    if ($type eq 'remote' ||  $type eq 'cached') {
         local $SIG{__DIE__} = 'DEFAULT';
+	local $@;
 	my $result = eval { $dbh->{'proxy_dbh'}->STORE($attr => $val) };
 	return DBD::AliEnProxy::proxy_set_err($dbh, $@) if $@; # returns undef
-	$dbh->{$attr} = $val if $type eq 'cached';
+	$dbh->SUPER::STORE($attr => $val) if $type eq 'cached';
 	return $result;
     }
     return $dbh->SUPER::STORE($attr => $val);
@@ -401,16 +411,18 @@ sub STORE ($$$) {
 
 sub FETCH ($$) {
     my($dbh, $attr) = @_;
+    # we only get here for cached attribute values if the handle is in CompatMode
+    # otherwise the DBI dispatcher handles the FETCH itself from the attribute cache.
     my $type = $ATTR{$attr} || 'remote';
 
-    if ($attr =~ /^proxy_/  ||  $type eq 'inherited'  ||
-	$type eq 'cached') {
+    if ($attr =~ /^proxy_/  ||  $type eq 'inherited'  || $type eq 'cached') {
 	return $dbh->{$attr};
     }
 
     return $dbh->SUPER::FETCH($attr) unless $type eq 'remote';
 
     local $SIG{__DIE__} = 'DEFAULT';
+    local $@;
     my $result = eval { $dbh->{'proxy_dbh'}->FETCH($attr) };
     return DBD::AliEnProxy::proxy_set_err($dbh, $@) if $@;
     return $result;
@@ -425,11 +437,12 @@ sub prepare ($$;$) {
 				   'proxy_params' => [],
 				  }
 			   );
-    my $proto_ver = $dbh->{'proxy_proto_ver'} || 1;
+    my $proto_ver = $dbh->{'proxy_proto_ver'};
     if ( $proto_ver > 1 ) {
       $sth->{'proxy_attr_cache'} = {cache_filled => 0};
       my $rdbh = $dbh->{'proxy_dbh'};
       local $SIG{__DIE__} = 'DEFAULT';
+      local $@;
       my $rsth = eval { $rdbh->prepare($sth->{'Statement'}, $sth->{'proxy_attr'}, undef, $proto_ver) };
       return DBD::AliEnProxy::proxy_set_err($sth, $@) if $@;
       return DBD::AliEnProxy::proxy_set_err($sth, "Constructor didn't return a handle: $rsth")
@@ -457,7 +470,7 @@ sub quote {
     # For the common case of only a single argument
     # (no $data_type) we could learn and cache the behaviour.
     # Or we could probe the driver with a few test cases.
-    # Or we could add a way to ask the DBI::ProxyServer
+    # Or we could add a way to ask the AliEn::Services::ProxyServer
     # if $dbh->can('quote') == \&DBI::_::db::quote.
     # Tim
     #
@@ -468,6 +481,7 @@ sub quote {
     # for example.
     # Jochen
     local $SIG{__DIE__} = 'DEFAULT';
+    local $@;
     my $result = eval { $dbh->{'proxy_dbh'}->quote(@_) };
     return DBD::AliEnProxy::proxy_set_err($dbh, $@) if $@;
     return $result;
@@ -478,6 +492,7 @@ sub table_info {
     my $rdbh = $dbh->{'proxy_dbh'};
     #warn "table_info(@_)";
     local $SIG{__DIE__} = 'DEFAULT';
+    local $@;
     my($numFields, $names, $types, @rows) = eval { $rdbh->table_info(@_) };
     return DBD::AliEnProxy::proxy_set_err($dbh, $@) if $@;
     my ($sth, $inner) = DBI::_new_sth($dbh, {
@@ -507,13 +522,16 @@ sub tables {
     return $dbh->SUPER::tables(@_);
 }
 
+
 sub type_info_all {
     my $dbh = shift;
     local $SIG{__DIE__} = 'DEFAULT';
+    local $@;
     my $result = eval { $dbh->{'proxy_dbh'}->type_info_all(@_) };
     return DBD::AliEnProxy::proxy_set_err($dbh, $@) if $@;
     return $result;
 }
+
 
 package DBD::AliEnProxy::st; # ====== STATEMENT ======
 
@@ -544,7 +562,6 @@ use vars qw(%ATTR);
     'NUM_OF_PARAMS' => 'cache_only'
 );
 
-
 *AUTOLOAD = \&DBD::AliEnProxy::db::AUTOLOAD;
 
 sub execute ($@) {
@@ -556,11 +573,12 @@ sub execute ($@) {
 
     my $rsth = $sth->{proxy_sth};
     my $dbh = $sth->FETCH('Database');
-    my $proto_ver = $dbh->{proxy_proto_ver} || 1;
+    my $proto_ver = $dbh->{proxy_proto_ver};
 
     my ($numRows, @outData);
 
     local $SIG{__DIE__} = 'DEFAULT';
+    local $@;
     if ( $proto_ver > 1 ) {
       ($numRows, @outData) = eval { $rsth->execute($params, $proto_ver) };
       return DBD::AliEnProxy::proxy_set_err($sth, $@) if $@;
@@ -593,7 +611,6 @@ sub execute ($@) {
 	  eval { $rdbh->prepare($sth->{'Statement'},
 				$sth->{'proxy_attr'}, $params, $proto_ver) };
 	return DBD::AliEnProxy::proxy_set_err($sth, $@) if $@;
-	return DBD::AliEnProxy::proxy_set_err($sth, "Constructor didn't return a handle ") unless ($rsth );
 	return DBD::AliEnProxy::proxy_set_err($sth, "Constructor didn't return a handle: $rsth")
 	  unless ($rsth =~ /^((?:\w+|\:\:)+)=(\w+)/);
 	
@@ -607,8 +624,7 @@ sub execute ($@) {
 	    'NUM_OF_PARAMS' => $numParams,
 	    'NAME'          => $names
         };
-	(defined $numFields) and 
-	  $sth->SUPER::STORE('NUM_OF_FIELDS' => $numFields);
+	$sth->SUPER::STORE('NUM_OF_FIELDS' => $numFields);
 	$sth->SUPER::STORE('NUM_OF_PARAMS' => $numParams);
 	$numRows = shift @outData;
       }
@@ -629,7 +645,6 @@ sub execute ($@) {
     $sth->{'proxy_rows'} || '0E0';
 }
 
-
 sub fetch ($) {
     my $sth = shift;
 
@@ -644,6 +659,7 @@ sub fetch ($) {
 	}
 	my $num_rows = $sth->FETCH('RowCacheSize') || 20;
 	local $SIG{__DIE__} = 'DEFAULT';
+	local $@;
 	my @rows = eval { $rsth->fetch($num_rows) };
 	return DBD::AliEnProxy::proxy_set_err($sth, $@) if $@;
 	unless (@rows == $num_rows) {
@@ -661,7 +677,6 @@ sub fetch ($) {
 }
 *fetchrow_arrayref = \&fetch;
 
-
 sub rows ($) {
     my($sth) = @_;
     $sth->{'proxy_rows'};
@@ -678,6 +693,7 @@ sub finish ($) {
 	: $sth->FETCH('Database')->{'proxy_no_finish'};
     unless ($no_finish) {
         local $SIG{__DIE__} = 'DEFAULT';
+	local $@;
 	my $result = eval { $rsth->finish() };
 	return DBD::AliEnProxy::proxy_set_err($sth, $@) if $@;
 	return $result;
@@ -698,12 +714,13 @@ sub STORE ($$$) {
 	return 0;
     }
 
-    if ($type eq 'remote') {
+    if ($type eq 'remote' || $type eq 'cached') {
 	my $rsth = $sth->{'proxy_sth'}  or  return undef;
         local $SIG{__DIE__} = 'DEFAULT';
+	local $@;
 	my $result = eval { $rsth->STORE($attr => $val) };
 	return DBD::AliEnProxy::proxy_set_err($sth, $@) if ($@);
-	return $result;
+	return $result if $type eq 'remote'; # else fall through to cache locally
     }
     return $sth->SUPER::STORE($attr => $val);
 }
@@ -731,6 +748,7 @@ sub FETCH ($$) {
     if ($type ne 'local') {
 	my $rsth = $sth->{'proxy_sth'}  or  return undef;
         local $SIG{__DIE__} = 'DEFAULT';
+	local $@;
 	my $result = eval { $rsth->FETCH($attr) };
 	return DBD::AliEnProxy::proxy_set_err($sth, $@) if $@;
 	return $result;
@@ -751,7 +769,8 @@ sub bind_param ($$$@) {
 *bind_param_inout = \&bind_param;
 
 sub DESTROY {
-    # Just to avoid autoloading DESTROY ...
+    my $sth = shift;
+    $sth->finish if $sth->SUPER::FETCH('Active');
 }
 
 
@@ -768,7 +787,7 @@ DBD::AliEnProxy - A proxy driver for the DBI
 
   use DBI;
 
-  $dbh = DBI->connect("dbi:AliEnProxy:hostname=$host;port=$port;dsn=$db",
+  $dbh = DBI->connect("dbi:Proxy:hostname=$host;port=$port;dsn=$db",
                       $user, $passwd);
 
   # See the DBI module documentation for full details
@@ -798,12 +817,12 @@ I<Note that the connect_cached method is new and still experimental.>
 
 =head1 CONNECTING TO THE DATABASE
 
-Before connecting to a remote database, you must ensure, that a AliEnProxy
+Before connecting to a remote database, you must ensure, that a Proxy
 server is running on the remote machine. There's no default port, so
 you have to ask your system administrator for the port number. See
-L<DBI::AliEnProxyServer(3)> for details.
+L<AliEn::Services::ProxyServer> for details.
 
-Say, your AliEnProxy server is running on machine "alpha", port 3334, and
+Say, your Proxy server is running on machine "alpha", port 3334, and
 you'd like to connect to an ODBC database called "mydb" as user "joe"
 with password "hello". When using DBD::ODBC directly, you'd do a
 
@@ -811,19 +830,19 @@ with password "hello". When using DBD::ODBC directly, you'd do a
 
 With DBD::AliEnProxy this becomes
 
-  $dsn = "DBI:AliEnProxy:hostname=alpha;port=3334;dsn=DBI:ODBC:mydb";
+  $dsn = "DBI:Proxy:hostname=alpha;port=3334;dsn=DBI:ODBC:mydb";
   $dbh = DBI->connect($dsn, "joe", "hello");
 
 You see, this is mainly the same. The DBD::AliEnProxy module will create a
-connection to the AliEnProxy server on "alpha" which in turn will connect
+connection to the Proxy server on "alpha" which in turn will connect
 to the ODBC database.
 
-Refer to the L<DBI(3)> documentation on the C<connect> method for a way
+Refer to the L<DBI> documentation on the C<connect> method for a way
 to automatically use DBD::AliEnProxy without having to change your code.
 
 DBD::AliEnProxy's DSN string has the format
 
-  $dsn = "DBI:AliEnProxy:key1=val1; ... ;keyN=valN;dsn=valDSN";
+  $dsn = "DBI:Proxy:key1=val1; ... ;keyN=valN;dsn=valDSN";
 
 In other words, it is a collection of key/value pairs. The following
 keys are recognized:
@@ -834,14 +853,14 @@ keys are recognized:
 
 =item port
 
-Hostname and port of the AliEnProxy server; these keys must be present,
+Hostname and port of the Proxy server; these keys must be present,
 no defaults. Example:
 
     hostname=alpha;port=3334
 
 =item dsn
 
-The value of this attribute will be used as a dsn name by the AliEnProxy
+The value of this attribute will be used as a dsn name by the Proxy
 server. Thus it must have the format C<DBI:driver:...>, in particular
 it will contain colons. The I<dsn> value may contain semicolons, hence
 this key *must* be the last and it's value will be the complete
@@ -868,7 +887,7 @@ by executing
     $cipherRef = $class->new(pack("H*", $key));
 
 and pass this object to the RPC::PlClient module when creating a
-client. See L<RPC::PlClient(3)>. Example:
+client. See L<RPC::PlClient>. Example:
 
     cipher=IDEA;key=97cd2375efa329aceef2098babdc9721
 
@@ -880,7 +899,7 @@ less secure than the usercipher/userkey secret and readable by anyone.
 The usercipher/userkey secret is B<your> private secret.
 
 Of course encryption requires an appropriately configured server. See
-<DBD::AliEnProxyServer(3)/CONFIGURATION FILE>.
+<DBD::AliEnProxyServer/CONFIGURATION FILE>.
 
 =item debug
 
@@ -927,7 +946,7 @@ and fast CGI applications.
 This attribute can be used to reduce network traffic: By default calls
 to $dbh->quote() are passed to the remote driver.  Of course this slows
 down things quite a lot, but is the safest default behaviour.
-  
+
 However, if you set the I<proxy_quote> attribute to the value 'C<local>'
 either in the database handle or in the statement handle, and the call
 to quote has only one parameter, then the local default DBI quote
@@ -957,13 +976,13 @@ executing the above example in two steps:
 
 =over
 
-=item 1.)
- 
+=item 1
+
 The first step is fetching the value of the key "csv_tables" in the
 handle $dbh. The value returned is complex, a hash ref.
- 
-=item 2.)
- 
+
+=item 2
+
 The second step is storing some value (the right hand side of the
 assignment) as the key "passwd" in the hash ref from step 1.
 
@@ -1007,6 +1026,6 @@ is granted to Tim Bunce for distributing this as a part of the DBI.
 
 =head1 SEE ALSO
 
-L<DBI(3)>, L<RPC::PlClient(3)>, L<Storable(3)>
+L<DBI>, L<RPC::PlClient>, L<Storable>
 
 =cut

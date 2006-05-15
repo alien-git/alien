@@ -1,15 +1,33 @@
+#	$Header$
 # -*- perl -*-
 #
-#   proxy::ProxyServer - a proxy server for DBI drivers for use in AliEn
+#   DBI::ProxyServer - a proxy server for DBI drivers
 #
-#   It's a rewrite of Jochen Wiedmanns ProxyServer
+#   Copyright (c) 1997  Jochen Wiedmann
 #
-package AliEn::Services::ProxyServer;
+#   The DBD::Proxy module is free software; you can redistribute it and/or
+#   modify it under the same terms as Perl itself. In particular permission
+#   is granted to Tim Bunce for distributing this as a part of the DBI.
+#
+#
+#   Author: Jochen Wiedmann
+#           Am Eisteich 9
+#           72555 Metzingen
+#           Germany
+#
+#           Email: joe@ispsoft.de
+#           Phone: +49 7123 14881
+#
+#
+##############################################################################
+
 
 require 5.004;
 use strict;
+
 use RPC::PlServer 0.2001;
-require DBI;
+# require DBI; # deferred till AcceptVersion() to aid threading
+require Config;
 
 use AliEn::Logger;
 require AliEn::Config;
@@ -23,9 +41,6 @@ Getopt::Long::GetOptions( $options,"help","logfile=s" ) or exit;
 my $haveFileSpec = eval { require File::Spec };
 my $tmpDir = $haveFileSpec ? File::Spec->tmpdir() :
 	($ENV{'TMP'} || $ENV{'TEMP'} || '/tmp');
-my $defaultPidFile = $haveFileSpec ?
-    File::Spec->catdir($tmpDir, "dbiproxy.pid") : "/tmp/dbiproxy.pid";
-
 my $config = AliEn::Config->new({logfile=>$options->{logfile}});
 my $dir    = $config->{TMP_DIR};
 
@@ -39,6 +54,10 @@ if ( !( -d $dir ) ) {
     }
 }
 
+package AliEn::Services::ProxyServer;
+
+
+
 ############################################################################
 #
 #   Constants
@@ -48,76 +67,74 @@ if ( !( -d $dir ) ) {
 use vars qw($VERSION @ISA);
 
 $VERSION = "0.3005";
-@ISA     = qw(RPC::PlServer DBI);
+@ISA = qw(RPC::PlServer DBI);
+
 
 # Most of the options below are set to default values, we note them here
 # just for the sake of documentation.
-
 my %DEFAULT_SERVER_OPTIONS;
 {
     my $o = \%DEFAULT_SERVER_OPTIONS;
-    $o->{'chroot'}    = undef,    # To be used in the initfile,
-                                  # after loading the required
-                                  # DBI drivers.
-      $o->{'clients'} = [
-        {
-            'mask'   => '.*',
-            'accept' => 1,
-            'cipher' => undef
-        }
-      ];
+    $o->{'chroot'}     = undef,		# To be used in the initfile,
+    					# after loading the required
+    					# DBI drivers.
+    $o->{'clients'} =
+	[ { 'mask' => '.*',
+	    'accept' => 1,
+	    'cipher' => undef
+	    }
+	  ];
     $o->{'configfile'} = '/etc/dbiproxy.conf' if -f '/etc/dbiproxy.conf';
     $o->{'debug'}      = 0;
     $o->{'facility'}   = 'daemon';
     $o->{'group'}      = undef;
-    $o->{'localaddr'} = undef;    # Bind to any local IP number
-    $o->{'localport'} = undef;    # Must set port number on the
-                                  # command line.
-    $o->{'logfile'}   = undef;    # Use syslog or EventLog.
-    $o->{'methods'}   = {
-        'AliEn::Services::ProxyServer' => {
-	    'Version'       => 1,
-            'NewHandle'     => 1,
-            'CallMethod'    => 1,
-            'DestroyHandle' => 1
-        },
-        'AliEn::Services::ProxyServer::db' => {
-            'prepare'       => 1,
-            'commit'        => 1,
-            'rollback'      => 1,
-            'STORE'         => 1,
-            'FETCH'         => 1,
-            'func'          => 1,
-            'quote'         => 1,
-            'type_info_all' => 1,
-            'table_info'    => 1,
-	    'disconnect'    => 1,
-        },
-        'AliEn::Services::ProxyServer::st' => {
-            'execute' => 1,
-            'STORE'   => 1,
-            'FETCH'   => 1,
-            'func'    => 1,
-            'fetch'   => 1,
-            'finish'  => 1
-        }
+    $o->{'localaddr'}  = undef;		# Bind to any local IP number
+    $o->{'localport'}  = undef;         # Must set port number on the
+					# command line.
+    $o->{'logfile'}    = undef;         # Use syslog or EventLog.
+    $o->{'methods'}    = {
+	'AliEn::Services::ProxyServer' => {
+	    'Version' => 1,
+	    'NewHandle' => 1,
+	    'CallMethod' => 1,
+	    'DestroyHandle' => 1
+	    },
+	'AliEn::Services::ProxyServer::db' => {
+	    'prepare' => 1,
+	    'commit' => 1,
+	    'rollback' => 1,
+	    'STORE' => 1,
+	    'FETCH' => 1,
+	    'func' => 1,
+	    'quote' => 1,
+	    'type_info_all' => 1,
+	    'table_info' => 1,
+	    'disconnect' => 1,
+	    },
+	'AliEn::Services::ProxyServer::st' => {
+	    'execute' => 1,
+	    'STORE' => 1,
+	    'FETCH' => 1,
+	    'func' => 1,
+	    'fetch' => 1,
+	    'finish' => 1
+	    }
     };
-
-    if ( $Config::Config{'usethreads'} and 
-	 ( $Config::Config{'usethreads'} eq 'define' )) {
-        $o->{'mode'} = 'threads';
+    if ($Config::Config{'usethreads'} eq 'define') {
+	$o->{'mode'} = 'threads';
+    } elsif ($Config::Config{'d_fork'} eq 'define') {
+	$o->{'mode'} = 'fork';
+    } else {
+	$o->{'mode'} = 'single';
     }
-    elsif ( $Config::Config{'d_fork'} eq 'define' ) {
-        $o->{'mode'} = 'fork';
-    }
-    else {
-        $o->{'mode'} = 'single';
-    }
-    $o->{'pidfile'} = $defaultPidFile;
-    $o->{'user'}    = undef;
+    # No pidfile by default, configuration must provide one if needed
+    $o->{'pidfile'}    = 'none';
+    $o->{'user'}       = undef;
 };
 
+
 ############################################################################
+#
 #   Name:    Version
 #
 #   Purpose: Return version string
@@ -130,8 +147,9 @@ my %DEFAULT_SERVER_OPTIONS;
 
 sub Version {
     my $version = $AliEn::Services::ProxyServer::VERSION;
-    "DBI::AliEn::ProxyServer $version, Copyright (C) 1998, Jochen Wiedmann";
+    "AliEn::Services::ProxyServer $version, Copyright (C) 1998, Jochen Wiedmann";
 }
+
 
 ############################################################################
 #
@@ -147,10 +165,10 @@ sub Version {
 ############################################################################
 
 sub AcceptApplication {
-    my $self = shift;
-    my $dsn  = shift;
+    my $self = shift; my $dsn = shift;
     $dsn =~ /^dbi:\w+:/i;
 }
+
 
 ############################################################################
 #
@@ -168,9 +186,10 @@ sub AcceptApplication {
 sub AcceptVersion {
     my $self = shift; my $version = shift;
     require DBI;
-    DBI::ProxyServer->init_rootclass();
+    AliEn::Services::ProxyServer->init_rootclass();
     $DBI::VERSION >= $version;
 }
+
 
 ############################################################################
 #
@@ -186,89 +205,51 @@ sub AcceptVersion {
 ############################################################################
 
 sub AcceptUser {
-    my $self     = shift;
-    my $user     = shift;
-    my $password = shift;
-    return 0 if ( !$self->SUPER::AcceptUser( $user, $password ) );
+    my $self = shift; my $user = shift; my $password = shift;
+    return 0 if (!$self->SUPER::AcceptUser($user, $password));
     my $dsn = $self->{'application'};
     $self->Debug("Connecting to $dsn as $user");
-    local $ENV{DBI_AUTOPROXY} = '';    # :-)
+    local $ENV{DBI_AUTOPROXY} = ''; # :-)
     $self->{'dbh'} = eval {
-        AliEn::Services::AliEnProxyServer->connect(
-            $dsn, $user,
-            $password,
-            { 'PrintError' => 0, 
-	      'Warn' => 0,
-	      'RaiseError' => 1,
-	      'HandleError' => sub {
-		my $err = $_[1]->err;
-		my $state = $_[1]->state || '';
-		$_[0] .= " [err=$err,state=$state]";
-		return 0;
-	      } 
-            }
-        );
+        AliEn::Services::ProxyServer->connect($dsn, $user, $password,
+				  { 'PrintError' => 0, 
+				    'Warn' => 0,
+				    'RaiseError' => 1,
+				    'HandleError' => sub {
+				        my $err = $_[1]->err;
+					my $state = $_[1]->state || '';
+					$_[0] .= " [err=$err,state=$state]";
+					return 0;
+				    } })
     };
-
     if ($@) {
-        $self->Error("Error while connecting to $dsn as $user: $@");
-        return 0;
+	$self->Error("Error while connecting to $dsn as $user: $@");
+	return 0;
     }
-    [ 1, $self->StoreHandle( $self->{'dbh'} ) ];
+    [1, $self->StoreHandle($self->{'dbh'}) ];
 }
+
 
 sub CallMethod {
     my $server = shift;
-    my $dbh    = $server->{'dbh'};
-
+    my $dbh = $server->{'dbh'};
     # We could store the private_server attribute permanently in
     # $dbh. However, we'd have a reference loop in that case and
     # I would be concerned about garbage collection. :-(
     $dbh->{'private_server'} = $server;
-    my $message="CallMethod: => ";
-    foreach (@_) {
-      $_ and $message.=$_;
-      $message.=", ";
-    }
-    $server->Debug($message);
+    $server->Debug("CallMethod: => " . join(",", @_));
     my @result = eval { $server->SUPER::CallMethod(@_) };
     my $msg = $@;
     undef $dbh->{'private_server'};
     if ($msg) {
-      $server->Error($msg);
-      die $msg;
-    }
-    else {
-      my $message="CallMethod: => ";
-      foreach (@_) {
-	$_ and $message.=$_;
-	$message.=", ";
-      }
-      $server->Debug($message);
+	$server->Debug("CallMethod died with: $@");
+	die $msg;
+    } else {
+	$server->Debug("CallMethod: <= " . join(",", @result));
     }
     @result;
 }
-############################################################################
-#
-#   Random 128bit key generator.
-#
-#  Generates new GLOBAL Key and store it in database.
-#
-############################################################################
-sub updateKey {
-    my $key = "";
 
-    #my @Array = ('X', 'Q', '#' , 't' , '2', '!', '^', '9' ,'5','$','3','4','5','o','r','t','{',')','}','[',']','h','9','|','m','n','b','v','c','x','z','a','s','d','f','g','h','j','k','l',':','p','o','i','u','y','Q','W','E','R','T','Y','U','I','O','P','A','S','D','F','G','H','J','Z','X','C','V','B','N','M','~','^','&','*','!','@');
-    #    my $i;
-    #    for ($i=0; $i<128; $i++) {
-    #      $key.=$Array[rand(@Array)];
-    #    }
-    #    if (! ($dbh->do("UPDATE DBKEYS SET DBKey='$key',lastchanges=Now() WHERE Name='GlobalKey'"))) {
-    #      print STDERR "Error in powering up Proxyserver\n";
-    #      die;
-    #    }
-    #    return $key;
-}
 ############################################################################
 #
 #   Constructors and destructors.
@@ -364,11 +345,6 @@ sub main {
 
     # Due to AliEn we want to crate our own IO::Socket instance. (No support for Unix socket, (yet?))
 
-#    if ($self->{ADMINDBH}->{Kids} > 1000 ) {
-#        print "\nIn main, too many processes ($self->{ADMINDBH}->{Kids})\n";
-#        return;
-#   } 
-
     $server->{LOGGER}->debug( "ProxyServer",
         "Creating new socket ". ($server->{'localaddr'} ||""). " : ". ($server->{'localport'} ||"")  );
 
@@ -384,7 +360,7 @@ sub main {
       $server->{LOGGER}->critical( "ProxyServer", "Cannot create socket: $!" );
       $server->{LOGGER}->info( "ProxyServer",
       "Starting the ProxyServer in $server->{'localport'}" );
-    $server->Bind();
+     $server->Bind();
 }
 
 # Overrides Accept in RPC::PlServer in order to negotiate AliEn authentication and possibly implement SSL
@@ -543,6 +519,8 @@ sub Accept {
   }
   return 1;
 }
+
+
 ############################################################################
 #
 #   The DBI part of the proxyserver is implemented as a DBI subclass.
@@ -551,11 +529,10 @@ sub Accept {
 #
 ############################################################################
 
-AliEn::Services::ProxyServer->init_rootclass();
-
 package AliEn::Services::ProxyServer::dr;
 
 @AliEn::Services::ProxyServer::dr::ISA = qw(DBI::dr);
+
 
 package AliEn::Services::ProxyServer::db;
 
@@ -564,20 +541,18 @@ package AliEn::Services::ProxyServer::db;
 sub prepare {
     my($dbh, $statement, $attr, $params, $proto_ver) = @_;
     my $server = $dbh->{'private_server'};
-    if ( my $client = $server->{'client'} ) {
-        if ( $client->{'sql'} ) {
-            if ( $statement =~ /^\s*(\S+)/ ) {
-                my $st = $1;
-                if ( !( $statement = $client->{'sql'}->{$st} ) ) {
-                    die "Unknown SQL query: $st";
-                }
-            }
-            else {
-                die "Cannot parse restricted SQL statement: $statement";
-            }
-        }
+    if (my $client = $server->{'client'}) {
+	if ($client->{'sql'}) {
+	    if ($statement =~ /^\s*(\S+)/) {
+		my $st = $1;
+		if (!($statement = $client->{'sql'}->{$st})) {
+		    die "Unknown SQL query: $st";
+		}
+	    } else {
+		die "Cannot parse restricted SQL statement: $statement";
+	    }
+	}
     }
-
     my $sth = $dbh->SUPER::prepare($statement, $attr);
     my $handle = $server->StoreHandle($sth);
 
@@ -599,59 +574,57 @@ sub prepare {
       }
       ($handle, $NUM_OF_FIELDS, $sth->{'NUM_OF_PARAMS'},
        $NAME, $TYPE, @result);
-  }
+    }
 }
 
 sub table_info {
-    my $dbh       = shift;
-    my $sth       = $dbh->SUPER::table_info();
+    my $dbh = shift;
+    my $sth = $dbh->SUPER::table_info();
     my $numFields = $sth->{'NUM_OF_FIELDS'};
-    my $names     = $sth->{'NAME'};
-    my $types     = $sth->{'TYPE'};
+    my $names = $sth->{'NAME'};
+    my $types = $sth->{'TYPE'};
 
     # We wouldn't need to send all the rows at this point, instead we could
     # make use of $rsth->fetch() on the client as usual.
     # The problem is that some drivers (namely DBD::ExampleP, DBD::mysql and
     # DBD::mSQL) are returning foreign sth's here, thus an instance of
-    # DBI::st and not DBI::AliEnProxyServer::st. We could fix this by permitting
+    # DBI::st and not AliEn::Services::ProxyServer::st. We could fix this by permitting
     # the client to execute method DBI::st, but I don't like this.
     my @rows;
-    while ( my $row = $sth->fetchrow_arrayref() ) {
-        push ( @rows, [@$row] );
+    while (my ($row) = $sth->fetch()) {
+        last unless defined $row;
+	push(@rows, [@$row]);
     }
-    ( $numFields, $names, $types, @rows );
+    ($numFields, $names, $types, @rows);
 }
+
 
 package AliEn::Services::ProxyServer::st;
 
 @AliEn::Services::ProxyServer::st::ISA = qw(DBI::st);
 
 sub execute {
-    my $sth    = shift;
-    my $params = shift;
-    my $proto_ver = shift;
+    my $sth = shift; my $params = shift; my $proto_ver = shift;
     my @outParams;
-
     if ($params) {
-        for ( my $i = 0 ; $i < @$params ; ) {
-            my $param = $params->[ $i++ ];
-            if ( !ref($param) ) {
-                $sth->bind_param( $i, $param );
-            }
-            else {
-                if ( !ref( @$param[0] ) ) {
-                    $sth->bind_param( $i, @$param );
-                }
-                else {
-                    $sth->bind_param_inout( $i, @$param );
-                    my $ref = shift @$param;
-                    push ( @outParams, $ref );
-                }
-            }
-        }
+	for (my $i = 0;  $i < @$params;) {
+	    my $param = $params->[$i++];
+	    if (!ref($param)) {
+		$sth->bind_param($i, $param);
+	    }
+	    else {	
+		if (!ref(@$param[0])) {#It's not a reference
+		    $sth->bind_param($i, @$param);
+		}
+		else {
+		    $sth->bind_param_inout($i, @$param);
+		    my $ref = shift @$param;
+		    push(@outParams, $ref);
+		}
+	    }
+	}
     }
-
-     my $rows = $sth->SUPER::execute();
+    my $rows = $sth->SUPER::execute();
     if ( $proto_ver and $proto_ver > 1 and not $sth->{private_proxyserver_described} ) {
       my ($NAME, $TYPE);
       my $NUM_OF_FIELDS = $sth->{NUM_OF_FIELDS};
@@ -667,29 +640,28 @@ sub execute {
 }
 
 sub fetch {
-    my $sth = shift;
-    my $numRows = shift || 1;
-    my ( $ref, @rows );
-    while ( $numRows-- && ( $ref = $sth->SUPER::fetch() ) ) {
-        push ( @rows, [@$ref] );
+    my $sth = shift; my $numRows = shift || 1;
+    my($ref, @rows);
+    while ($numRows--  &&  ($ref = $sth->SUPER::fetch())) {
+	push(@rows, [@$ref]);
     }
     @rows;
 }
 
+
 1;
+
 
 __END__
 
 =head1 NAME
 
-DBI::AliEnProxyServer - a server for the DBD::Proxy driver
-
+AliEn::Services::ProxyServer - a server for the DBD::Proxy driver
 
 =head1 SYNOPSIS
 
-    use DBI::AliEnProxyServer;
-    DBI::AliEnProxyServer::main(@ARGV);
-
+    use AliEn::Services::ProxyServer;
+    AliEn::Services::ProxyServer::main(@ARGV);
 
 =head1 DESCRIPTION
 
@@ -699,28 +671,29 @@ DBMS does not offer networked operations. But the proxy server might be
 usefull for you, even if you have a DBMS with integrated network
 functionality: It can be used as a DBI proxy in a firewalled environment.
 
-DBI::AliEnProxyServer runs as a daemon on the machine with the DBMS or on the
+AliEn::Services::ProxyServer runs as a daemon on the machine with the DBMS or on the
 firewall. The client connects to the agent using the DBI driver DBD::Proxy,
 thus in the exactly same way than using DBD::mysql, DBD::mSQL or any other
 DBI driver.
 
 The agent is implemented as a RPC::PlServer application. Thus you have
 access to all the possibilities of this module, in particular encryption
-and a similar configuration file. DBI::AliEnProxyServer adds the possibility of
+and a similar configuration file. AliEn::Services::ProxyServer adds the possibility of
 query restrictions: You can define a set of queries that a client may
 execute and restrict access to those. (Requires a DBI driver that supports
 parameter binding.) See L</CONFIGURATION FILE>.
 
+The provided driver script, L<dbiproxy>, may either be used as it is or
+used as the basis for a local version modified to meet your needs.
 
 =head1 OPTIONS
 
-When calling the DBI::AliEnProxyServer::main() function, you supply an
-array of options. (@ARGV, the array of command line options is used,
-if you don't.) These options are parsed by the Getopt::Long module.
-The AliEnProxyServer inherits all of RPC::PlServer's and hence Net::Daemon's
+When calling the AliEn::Services::ProxyServer::main() function, you supply an
+array of options. These options are parsed by the Getopt::Long module.
+The ProxyServer inherits all of RPC::PlServer's and hence Net::Daemon's
 options and option handling, in particular the ability to read
 options from either the command line or a config file. See
-L<RPC::PlServer(3)>. See L<Net::Daemon(3)>. Available options include
+L<RPC::PlServer>. See L<Net::Daemon>. Available options include
 
 =over 4
 
@@ -756,8 +729,7 @@ certain directory tree only after logging in. See also the --group and
 
 An array ref with a list of clients. Clients are hash refs, the attributes
 I<accept> (0 for denying access and 1 for permitting) and I<mask>, a Perl
-regular expression for the clients IP number or its host name. See
-L<"Access control"> below.
+regular expression for the clients IP number or its host name.
 
 =item I<configfile> (B<--configfile=file>)
 
@@ -773,7 +745,7 @@ level "debug" are created.
 
 =item I<facility> (B<--facility=mode>)
 
-(UNIX only) Facility to use for L<Sys::Syslog (3)>. The default is
+(UNIX only) Facility to use for L<Sys::Syslog>. The default is
 B<daemon>.
 
 =item I<group> (B<--group=gid>)
@@ -801,7 +773,7 @@ must be given somehow, as there's no default.
 Be default logging messages will be written to the syslog (Unix) or
 to the event log (Windows NT). On other operating systems you need to
 specify a log file. The special value "STDERR" forces logging to
-stderr. See L<Net::Daemon::Log(3)> for details.
+stderr. See L<Net::Daemon::Log> for details.
 
 =item I<mode> (B<--mode=modename>)
 
@@ -827,7 +799,7 @@ mode with "--mode=single".
 =item I<pidfile> (B<--pidfile=file>)
 
 (UNIX only) If this option is present, a PID file will be created at the
-given location.
+given location. Default is to not create a pidfile.
 
 =item I<user> (B<--user=uid>)
 
@@ -903,6 +875,275 @@ or
 which in fact are "SELECT * FROM foo" or "INSERT INTO foo VALUES (?, ?, ?)".
 
 
+=head1 Proxyserver Configuration file (bigger example)
+
+This section tells you how to restrict a DBI-Proxy: Not every user from
+every workstation shall be able to execute every query.
+
+There is a perl program "dbiproxy" which runs on a machine which is able
+to connect to all the databases we wish to reach. All Perl-DBD-drivers must
+be installed on this machine. You can also reach databases for which drivers 
+are not available on the machine where you run the programm querying the 
+database, e.g. ask MS-Access-database from Linux.
+
+Create a configuration file "proxy_oracle.cfg" at the dbproxy-server:
+
+    {
+	# This shall run in a shell or a DOS-window 
+	# facility => 'daemon',
+	pidfile => 'your_dbiproxy.pid',
+	logfile => 1,
+	debug => 0,
+	mode => 'single',
+	localport => '12400',
+
+	# Access control, the first match in this list wins!
+	# So the order is important
+	clients => [
+		# hint to organize:
+		# the most specialized rules for single machines/users are 1st
+		# then the denying rules
+		# the the rules about whole networks
+
+		# rule: internal_webserver
+		# desc: to get statistical information
+		{
+			# this IP-address only is meant
+			mask => '^10\.95\.81\.243$',
+			# accept (not defer) connections like this
+			accept => 1,
+			# only users from this list 
+			# are allowed to log on
+			users => [ 'informationdesk' ],
+			# only this statistical query is allowed
+			# to get results for a web-query
+			sql => {
+				alive => 'select count(*) from dual',
+				statistic_area => 'select count(*) from e01admin.e01e203 where geb_bezei like ?',
+			}
+		},
+
+		# rule: internal_bad_guy_1
+		{
+			mask => '^10\.95\.81\.1$',
+			accept => 0,
+		},
+
+		# rule: employee_workplace
+		# desc: get detailled informations
+		{
+			# any IP-address is meant here
+			mask => '^10\.95\.81\.(\d+)$',
+			# accept (not defer) connections like this
+			accept => 1,
+			# only users from this list 
+			# are allowed to log on
+			users => [ 'informationdesk', 'lippmann' ],
+			# all these queries are allowed:
+			sql => {
+				search_city => 'select ort_nr, plz, ort from e01admin.e01e200 where plz like ?',
+				search_area => 'select gebiettyp, geb_bezei from e01admin.e01e203 where geb_bezei like ? or geb_bezei like ?',
+			}
+		},
+
+		# rule: internal_bad_guy_2 
+		# This does NOT work, because rule "employee_workplace" hits
+		# with its ip-address-mask of the whole network
+		{
+			# don't accept connection from this ip-address
+			mask => '^10\.95\.81\.5$',
+			accept => 0,
+		}
+	]
+    }
+
+Start the proxyserver like this:
+
+	rem well-set Oracle_home needed for Oracle
+	set ORACLE_HOME=d:\oracle\ora81
+	dbiproxy --configfile proxy_oracle.cfg
+
+
+=head2 Testing the connection from a remote machine
+
+Call a programm "dbish" from your commandline. I take the machine from rule "internal_webserver"
+
+	dbish "dbi:Proxy:hostname=oracle.zdf;port=12400;dsn=dbi:Oracle:e01" informationdesk xxx
+
+There will be a shell-prompt:
+
+	informationdesk@dbi...> alive
+
+	Current statement buffer (enter '/'...):
+	alive
+
+	informationdesk@dbi...> /
+	COUNT(*)
+	'1'
+	[1 rows of 1 fields returned]
+
+
+=head2 Testing the connection with a perl-script
+
+Create a perl-script like this:
+
+	# file: oratest.pl
+	# call me like this: perl oratest.pl user password
+
+	use strict;
+	use DBI;
+
+	my $user = shift || die "Usage: $0 user password";
+	my $pass = shift || die "Usage: $0 user password";
+	my $config = {
+		dsn_at_proxy => "dbi:Oracle:e01",
+		proxy => "hostname=oechsle.zdf;port=12400",
+	};
+	my $dsn = sprintf "dbi:Proxy:%s;dsn=%s",
+		$config->{proxy},
+		$config->{dsn_at_proxy};
+
+	my $dbh = DBI->connect( $dsn, $user, $pass )
+		|| die "connect did not work: $DBI::errstr";
+
+	my $sql = "search_city";
+	printf "%s\n%s\n%s\n", "="x40, $sql, "="x40;
+	my $cur = $dbh->prepare($sql);
+	$cur->bind_param(1,'905%');
+	&show_result ($cur);
+
+	my $sql = "search_area";
+	printf "%s\n%s\n%s\n", "="x40, $sql, "="x40;
+	my $cur = $dbh->prepare($sql);
+	$cur->bind_param(1,'Pfarr%');
+	$cur->bind_param(2,'Bronnamberg%');
+	&show_result ($cur);
+
+	my $sql = "statistic_area";
+	printf "%s\n%s\n%s\n", "="x40, $sql, "="x40;
+	my $cur = $dbh->prepare($sql);
+	$cur->bind_param(1,'Pfarr%');
+	&show_result ($cur);
+
+	$dbh->disconnect;
+	exit;
+
+
+	sub show_result {
+		my $cur = shift;
+		unless ($cur->execute()) {
+			print "Could not execute\n"; 
+			return; 
+		}
+
+		my $rownum = 0;
+		while (my @row = $cur->fetchrow_array()) {
+			printf "Row is: %s\n", join(", ",@row);
+			if ($rownum++ > 5) {
+				print "... and so on\n";
+				last;
+			}	
+		}
+		$cur->finish;
+	}
+
+The result
+
+	C:\>perl oratest.pl informationdesk xxx
+	========================================
+	search_city
+	========================================
+	Row is: 3322, 9050, Chemnitz
+	Row is: 3678, 9051, Chemnitz
+	Row is: 10447, 9051, Chemnitz
+	Row is: 12128, 9051, Chemnitz
+	Row is: 10954, 90513, Zirndorf
+	Row is: 5808, 90513, Zirndorf
+	Row is: 5715, 90513, Zirndorf
+	... and so on
+	========================================
+	search_area
+	========================================
+	Row is: 101, Bronnamberg
+	Row is: 400, Pfarramt Zirndorf
+	Row is: 400, Pfarramt Rosstal
+	Row is: 400, Pfarramt Oberasbach
+	Row is: 401, Pfarramt Zirndorf
+	Row is: 401, Pfarramt Rosstal
+	========================================
+	statistic_area
+	========================================
+	DBD::Proxy::st execute failed: Server returned error: Failed to execute method CallMethod: Unknown SQL query: statistic_area at E:/Perl/site/lib/DBI/ProxyServer.pm line 258.
+	Could not execute
+
+
+=head2 How the configuration works
+
+The most important section to control access to your dbi-proxy is "client=>"
+in the file "proxy_oracle.cfg":
+
+Controlling which person at which machine is allowed to access
+
+=over 4
+
+=item * "mask" is a perl regular expression against the plain ip-address of the machine which wishes to connect _or_ the reverse-lookup from a nameserver.
+
+=item * "accept" tells the dbiproxy-server wether ip-adresse like in "mask" are allowed to connect or not (0/1)
+
+=item * "users" is a reference to a list of usernames which must be matched, this is NOT a regular expression.
+
+=back
+
+Controlling which SQL-statements are allowed
+
+You can put every SQL-statement you like in simply ommiting "sql => ...", but the more important thing is to restrict the connection so that only allowed queries are possible.
+
+If you include an sql-section in your config-file like this:
+
+	sql => {
+		alive => 'select count(*) from dual',
+		statistic_area => 'select count(*) from e01admin.e01e203 where geb_bezei like ?',
+	}
+
+The user is allowed to put two queries against the dbi-proxy. The queries are _not_ "select count(*)...", the queries are "alive" and "statistic_area"! These keywords are replaced by the real query. So you can run a query for "alive":
+
+	my $sql = "alive";
+	my $cur = $dbh->prepare($sql);
+	...
+
+The flexibility is that you can put parameters in the where-part of the query so the query are not static. Simply replace a value in the where-part of the query through a question mark and bind it as a parameter to the query. 
+
+	my $sql = "statistic_area";
+	my $cur = $dbh->prepare($sql);
+	$cur->bind_param(1,'905%');
+	# A second parameter would be called like this:
+	# $cur->bind_param(2,'98%');
+
+The result is this query:
+
+	select count(*) from e01admin.e01e203 
+	where geb_bezei like '905%'
+
+Don't try to put parameters into the sql-query like this:
+
+	# Does not work like you think.
+	# Only the first word of the query is parsed,
+	# so it's changed to "statistic_area", the rest is omitted.
+	# You _have_ to work with $cur->bind_param.
+	my $sql = "statistic_area 905%";
+	my $cur = $dbh->prepare($sql);
+	...
+
+
+=head2 Problems
+
+=over 4
+
+=item * I don't know how to restrict users to special databases.
+
+=item * I don't know how to pass query-parameters via dbish
+
+=back
 
 
 =head1 AUTHOR
@@ -915,7 +1156,7 @@ which in fact are "SELECT * FROM foo" or "INSERT INTO foo VALUES (?, ?, ?)".
                           Email: joe@ispsoft.de
                           Phone: +49 7123 14881
 
-The DBI::AliEnProxyServer module is free software; you can redistribute it
+The AliEn::Services::ProxyServer module is free software; you can redistribute it
 and/or modify it under the same terms as Perl itself. In particular
 permission is granted to Tim Bunce for distributing this as a part of
 the DBI.
@@ -923,6 +1164,6 @@ the DBI.
 
 =head1 SEE ALSO
 
-L<dbiproxy(1)>, L<DBD::Proxy(3)>, L<DBI(3)>, L<RPC::PlServer(3)>,
-L<RPC::PlClient(3)>, L<Net::Daemon(3)>, L<Net::Daemon::Log(3)>,
-L<Sys::Syslog(3)>, L<Win32::EventLog(3)>, L<syslog(2)>
+L<dbiproxy>, L<DBD::Proxy>, L<DBI>, L<RPC::PlServer>,
+L<RPC::PlClient>, L<Net::Daemon>, L<Net::Daemon::Log>,
+L<Sys::Syslog>, L<Win32::EventLog>, L<syslog>
