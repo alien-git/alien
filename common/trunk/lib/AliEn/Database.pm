@@ -1320,41 +1320,6 @@ sub _destroyCache{
 	system ("rm","-r","$self->{CACHE_ROOT}/$key");
 }
 
-
-
-
-# ApMon job status monitoring
-
-# setup the $self->{MONITOR} if ApMon monitoring is enabled
-sub setupApMon {
-  my $self = shift;
-
-  if($self->{CONFIG}->{MONALISA_HOST} || $self->{CONFIG}->{MONALISA_APMONCONFIG}){
-    eval "require ApMon";
-    if($@){
-      $self->info("ApMon module is not installed; skipping monitoring");
-      return;
-    }
-    my $apmon = ApMon->new(0);
-    if($self->{CONFIG}->{MONALISA_APMONCONFIG}){
-        my $cfg = eval($self->{CONFIG}->{MONALISA_APMONCONFIG});
-        $apmon->setDestinations($cfg);
-        if(ref($cfg) eq "HASH"){
-                my @k = keys(%$cfg);
-                $cfg = $k[0];
-        }elsif(ref($cfg) eq "ARRAY"){
-                $cfg = $$cfg[0];
-        }
-        $ENV{APMON_CONFIG} = $cfg;
-    }else{
-        my $cfg = $self->{CONFIG}->{MONALISA_HOST};
-        $apmon->setDestinations([$cfg]);
-        $ENV{APMON_CONFIG} = $cfg;
-    }
-    $self->{MONITOR} = $apmon;
-  }
-}
-
 =item C<createTable>
 
   $res = $dbh->createTable($table,$spec,$checkExists);
