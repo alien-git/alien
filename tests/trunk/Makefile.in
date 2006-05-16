@@ -1,0 +1,29 @@
+PREFIX=@prefix@
+
+.PHONY: test 
+
+default:
+
+install:
+	@mkdir -p $(PREFIX)
+	@for dir in test;\
+	do\
+          tar cf - `find $$dir -type f -print -o -type l -print | grep -v CVS ` | ( cd $(PREFIX); tar xf - ) ;\
+	done
+
+
+distbin:
+	mkdir -p @destdir@/@glite_prefix@
+	env PREFIX=@destdir@/@glite_prefix@ make install
+
+distclean: 
+	rm -rf Makefile opt configure config.* *~ aclocal.m4 autom4te.cache reports opt install-sh  ltmain.sh  missing  mkinstalldirs
+
+test:
+	echo "Making tests"
+	./test/Install.sh -create_cert 
+	./test/Install.sh -new_vo 
+	./test/Install.sh -user_tests -no_break -expected 97,08,20,68
+	./test/Install.sh -performance_tests -apmon
+	./test/Install.sh -gapi_tests
+
