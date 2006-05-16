@@ -13,9 +13,12 @@ use vars qw($VERSION @ISA);
 
 use AliEn::SOAP;
 use AliEn::Config;
+use AliEn::Util;
 use strict;
 use POSIX ":sys_wait_h";
 use Socket;
+
+use LockFile::Simple;
 
 push @ISA, 'AliEn::Logger::LogObject';
 
@@ -685,25 +688,32 @@ sub getPort {
       mkdir $dir, 0777;
     }
   }
+
+  my $lockmgr = LockFile::Simple->make(-format => '%f',
+       -max => 10, -delay => 2, -nfs => 1);
+  
   while ( $testport = shift (@PORTS) ) {
     my $proto = getprotobyname('tcp');
     #  #    Locking port
-    system("lockfile -l 10 -s 2 $portDir/lockFile.$testport") and next;
-    # try to bind the port 
-    if ( (socket(Server, PF_INET, SOCK_STREAM, $proto) && (setsockopt(Server, SOL_SOCKET, SO_REUSEADDR, pack("l",1)) ) && (bind(Server, sockaddr_in($testport, INADDR_ANY))))) {
+    $lockmgr->trylock("$portDir/lockFile.$testport") or next;
+    # try to bind the port
+    if ( (socket(Server, PF_INET, SOCK_STREAM, $proto) && (setsockopt(Server, S\
+								      OL_SOCKET, SO_REUSEADDR, pack("l",1)) ) && (bind(Server, sockaddr_in($testport,\
+																	   INADDR_ANY))))) {
       $port = $testport;
       last;
     }
     $self->debug(1, "Port $testport is busy");
-    unlink "$portDir/lockFile.$testport";
+    $lockmgr->unlock("$portDir/lockFile.$testport");
   }
   if ( !($port) ) {
     print STDERR "Sorry no free port are available\n";
     return;
   }
-
+  
   $self->debug(1, "Port $port chosen");
   return $port;
+
 }
 #
 #
