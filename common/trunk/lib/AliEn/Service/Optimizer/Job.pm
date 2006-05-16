@@ -125,7 +125,7 @@ sub StartChildren{
     my $tmpServName = $self->{SERVICENAME};
     my $shortName = $_;
     $self->{SERVICENAME} = "Job_".$shortName."Optimizer";
-    $self->setupApMon();
+    AliEn::Util::setupApMon($self);
     if(($shortName eq "MonALISA") && (! $self->{MONITOR})){
       $self->{LOGGER}->error("MonALISA", "Error: Can not initialize ApMon");
       exit(-2);
@@ -242,6 +242,18 @@ sub copyInput {
   if ($error) {
     $self->info("Something went wrong while copying the input: $@"); 
     return;
+  }
+  my ( $okwork, @workspace ) =
+    $job_ca->evaluateAttributeVectorString("Workdirectorysize");
+  if ($okwork && defined $workspace[0] && $workspace[0]>0){
+    my $unit=1;
+    $workspace[0] =~ s/MB//i and $unit=1024*1024;
+    $workspace[0] =~ s/GB//i and $unit=1024*1024*1024;
+    my $space=$workspace[0]*$unit;
+    if ($space>$size){
+      $self->info("The job requires some extra workspace: $workspace[0]");
+      $size=$space;
+    }
   }
   my $req= join (" && ", "( other.LocalDiskSpace > $size )", @allreq);
   return {requirements=>"$req"};

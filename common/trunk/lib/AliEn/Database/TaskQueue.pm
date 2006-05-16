@@ -49,7 +49,7 @@ sub initialize {
 
   $self->setArchive();
 
-  $self->setupApMon();
+  AliEn::Util::setupApMon($self);
 
   my $queueColumns={queueId=>"int(11) not null auto_increment primary key",
 		    execHost=>"varchar(64)",

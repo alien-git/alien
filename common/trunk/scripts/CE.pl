@@ -50,6 +50,7 @@ my $cmport = $config->{CLUSTERMONITOR_PORT};
 
 $options->{CM_HOST}=$cmhost;
 $options->{CM_PORT}=$cmport;
+$options->{MONITOR}=1;
 #$options->{FORCED_AUTH_METHOD}="SSH";
 
 my $base = AliEn::CE->new($options);
