@@ -697,9 +697,7 @@ sub getPort {
     #  #    Locking port
     $lockmgr->trylock("$portDir/lockFile.$testport") or next;
     # try to bind the port
-    if ( (socket(Server, PF_INET, SOCK_STREAM, $proto) && (setsockopt(Server, S\
-								      OL_SOCKET, SO_REUSEADDR, pack("l",1)) ) && (bind(Server, sockaddr_in($testport,\
-																	   INADDR_ANY))))) {
+    if ( (socket(Server, PF_INET, SOCK_STREAM, $proto) && (setsockopt(Server, SOL_SOCKET, SO_REUSEADDR, pack("l",1)) ) && (bind(Server, sockaddr_in($testport,  INADDR_ANY))))) {
       $port = $testport;
       last;
     }
