@@ -374,6 +374,7 @@ sub disconnect ($) {
     # Close TCP connect to remote
     # XXX possibly best left till DESTROY? Add a config attribute to choose?
     #$dbh->{proxy_client}->Disconnect(); # Disconnect method requires newer PlRPC module
+    $dbh->{proxy_client}->{socket}->shutdown(2);
     $dbh->{proxy_client}->{socket} = undef; # hack
 
     $dbh->SUPER::STORE('Active' => 0);
@@ -624,6 +625,7 @@ sub execute ($@) {
 	    'NUM_OF_PARAMS' => $numParams,
 	    'NAME'          => $names
         };
+	$numFields = 0 if ! $numFields;
 	$sth->SUPER::STORE('NUM_OF_FIELDS' => $numFields);
 	$sth->SUPER::STORE('NUM_OF_PARAMS' => $numParams);
 	$numRows = shift @outData;
