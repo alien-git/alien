@@ -215,4 +215,63 @@ sub deleteCache {
   return 1;
 }
 
+
+
+# Setup ApMon if MonaLisa configuration is defined in LDAP
+sub setupApMon {
+  my $self = shift;
+
+  if($self->{CONFIG}->{MONALISA_HOST} || $self->{CONFIG}->{MONALISA_APMONCONFIG}) {
+    eval "require ApMon";
+    if($@){
+      $self->info("ApMon module is not installed; skipping monitoring");
+      return;
+    }
+    my $apmon = ApMon->new(0);
+    if($self->{CONFIG}->{MONALISA_APMONCONFIG}){
+    	my $cfg = eval($self->{CONFIG}->{MONALISA_APMONCONFIG});
+        $apmon->setDestinations($cfg);
+	if(ref($cfg) eq "HASH"){
+		my @k = keys(%$cfg);
+		$cfg = $k[0];
+	}elsif(ref($cfg) eq "ARRAY"){
+		$cfg = $$cfg[0];
+	}
+	$ENV{APMON_CONFIG} = $cfg;
+    }else{
+    	my $cfg = $self->{CONFIG}->{MONALISA_HOST};
+        $apmon->setDestinations([$cfg]);
+	$ENV{APMON_CONFIG} = $cfg;
+    }
+
+    $self->{MONITOR} = $apmon;
+  }
+}
+
+
+
+sub setupApMonService {
+  my $self=shift;
+  my $name=shift || "";
+
+  $self->{MONITOR} or return;
+
+  $self->{MONITOR}->setMonitorClusterNode($self->{CONFIG}->{SITE}.'_Nodes', $self->{HOST});
+  my $service="";
+  my $address=$self->{CONFIG}->{HOST};
+  my $fullName="$self->{CONFIG}->{SITE}_$name";
+  if ($self->{SERVICE}){
+    $service = "ClusterMonitor_" if $self->{SERVICE} eq "ClusterMonitor";
+    $service = "SE_" if $self->{SERVICE} eq "SE";
+    $address="$self->{HOST}:$self->{PORT}";
+    $fullName="$self->{CONFIG}->{SITE}_$service$self->{SERVICENAME}";
+    
+  }
+  $self->{MONITOR}->addJobToMonitor($$, '', $fullName, $address);
+  $self->{MONITOR}->sendParameters($fullName, $address); 
+
+    # afterwards I'll use just sendParams regardless of service name
+  return 1;
+}
+
 return 1;

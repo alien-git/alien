@@ -67,7 +67,7 @@ sub initialize {
     $self->checkTable($table, $tables->{$table}->{id}, $tables->{$table}->{columns}, $tables->{$table}->{index})
       or $self->{LOGGER}->error("TaskQueue", "Error checking the table $table") and return;
   }
-  $self->setupApMon();
+  AliEn::Util::setupApMon($self);
 
   return $self->do("INSERT IGNORE INTO ACTIONS(action) values  ('INSERTING')");
 }

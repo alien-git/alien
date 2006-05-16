@@ -111,6 +111,12 @@ sub new {
       and return;
     $self->{TASK_DB}->setSiteQueueTable();
   }
+  #
+  if ($options->{MONITOR}) {
+    print "SETTING UP APMON*********************************\n";
+    AliEn::Util::setupApMon($self);
+    AliEn::Util::setupApMonService($self, "CE_$self->{CONFIG}->{CE_FULLNAME}");
+  }
 
 
   return $self;
@@ -735,9 +741,19 @@ sub getNumberFreeSlots{
      $running=$max_running;
   }
   $running eq "" and $running=0;
+  ##
+
   my $free=($max_queued-$queued);
+
+
   (  ($max_running - $running)< $free) and $free=($max_running - $running);
   $self->info( "Returning $free slots");
+
+  if ($self->{MONITOR}){
+    print "Sending info to monalisa\n";
+    $self->{MONITOR}->sendParams({'jobAgents_queued' => $queued, 'jobAgents_running' => $running, 'jobAgents_slots', $free} );
+    $self->{MONITOR}->sendBgMonitoring();
+  };
   return $free;
 }
 sub offerAgent {
@@ -2386,7 +2402,7 @@ sub f_queue_remove {
 sub f_queue_list {
   my $self=shift;
   my $site = (shift or '%') ;
-  my $array = $self->{TASK_DB}->getFieldsFromSiteQueueEx("site,blocked,status,maxqueued,maxrunning,queueload,runload,QUEUED, QUEUED  as ALLQUEUED, (RUNNING + STARTED + INTERACTIV + SAVING) as ALLRUNNING","where site like '$site' ORDER by blocked");
+  my $array = $self->{TASK_DB}->getFieldsFromSiteQueueEx("site,blocked,status,maxqueued,maxrunning,queueload,runload,QUEUED, QUEUED  as ALLQUEUED, (RUNNING + STARTED + INTERACTIV + SAVING) as ALLRUNNING","where site like '$site' ORDER by blocked,status,site");
   my $s1 = 0;
   my $s2 = 0;
   my $s3 = 0;

@@ -1097,13 +1097,21 @@ sub checkProcInfo{
 
   $self->$method(@data, "Checking the jobs that are running");
 
+
   my $messages=$self->{LOCALJOBDB}->retrieveMessages();
+  $messages or return 1;
+  my @list=@$messages;
+  #We shouldn't send more than 200 messages in one go
 
-  if ($messages and $#$messages>-1){
-    $self->info("Sending $#$messages to the job manager");
-    $self->{SOAP}->CallSOAP("Manager/Job", "SetProcInfoBunch", $self->{HOST}, $messages) or 
+  while(@list){
+    my @temp=();
+    for (my $i=0;$i<200;$i++){
+      my $item=shift @list or last;
+      push @temp, $item;
+    }
+    $self->info("Sending $#temp to the job manager");
+    $self->{SOAP}->CallSOAP("Manager/Job", "SetProcInfoBunch", $self->{HOST}, \@temp) or 
       $self->info("ERROR!!! we couldn't send the messages to the job manager");
-
   }
 
 }
