@@ -293,11 +293,15 @@ sub renewProxy {
 	             "-o", "/tmp/tmpfile.$$");
      $self->debug(1,"Doing @command");
      $error = system(@command);
-     $error and $self->{LOGGER}->error("LCG","unable to renew proxy") and last;
+     $error and $self->{LOGGER}->error("LCG","unable to renew proxy") and next;
      @command = ("mv", "-f", "/tmp/tmpfile.$$", "$ProxyRepository/$cert");
      $self->debug(1,"Doing @command");
      $error = system(@command);
-     $error and $self->{LOGGER}->error("LCG","unable to renew proxy") and last;
+     $error and $self->{LOGGER}->error("LCG","unable to renew proxy") and next;
+     $command = "vobox-proxy --vo \l$self->{CONFIG}->{ORG_NAME} --dn \'$proxyDN\' query-proxy-timeleft";
+     $self->debug(1,"Doing $command");
+     my $realDuration = `$command`;
+     $self->{LOGGER}->error("LCG","asked for $duration sec, got only $realDuration") if ( $realDuration < $duration);
    }  
    $ENV{X509_USER_PROXY} = $proxyfile;
    $error and return;  
