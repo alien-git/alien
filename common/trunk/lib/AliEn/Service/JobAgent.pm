@@ -264,10 +264,12 @@ sub getHostClassad{
     $timeleft-=300;
     $requirements .= " && (other.TTL<$timeleft) ";
     $ca->set_expression("TTL", $timeleft);
+    $self->{TTL}=$timeleft;
     $ca->set_expression( "Requirements", $requirements ) or return;
 
   }
   $self->info("We are using". $ca->asJDL);
+
   return $ca->asJDL();
 }
 
@@ -283,6 +285,7 @@ sub GetJDL {
   while(1) {
     print "Getting the jdl from the clusterMonitor, agentId is $ENV{ALIEN_JOBAGENT_ID}...\n";
     my $hostca=$self->getHostClassad() or $self->sendJAStatus('ERROR_HC') and return;
+    $self->sendJAStatus(undef, {TTL=>$self->{TTL}});
 
     my $done = $self->{SOAP}->CallSOAP("CLUSTERMONITOR","getJobAgent", $ENV{ALIEN_JOBAGENT_ID}, "$self->{HOST}:$self->{PORT}", $self->{CONFIG}->{ROLE}, $hostca);
     if ($done) {
@@ -2224,21 +2227,21 @@ sub writePipeMessage {
 
 # Send the given status of the JobAgent to MonaLisa
 sub sendJAStatus {
-	my $self = shift;
-	my $status = shift;
-	
-	return if ! $self->{MONITOR};
-	
-	# add the given parameters
-	my $params = {};
-	$params->{ja_status} = AliEn::Util::jaStatusForML($status);
-	if($ENV{ALIEN_JOBAGENT_ID} && $ENV{ALIEN_JOBAGENT_ID} =~ /(\d+)\.(\d+)/){
-		$params->{ja_id_maj} = $1;
-		$params->{ja_id_min} = $2;
-	}
-	$params->{job_id} = $ENV{ALIEN_PROC_ID} || 0;
-	$self->{MONITOR}->sendParameters("$self->{CONFIG}->{SITE}_".$self->{SERVICENAME}, "$self->{HOST}:$self->{PORT}", $params);
-	return 1;
+  my $self = shift;
+  my $status = shift;
+  my $params = shift or {};
+  return if ! $self->{MONITOR};
+
+  # add the given parameters
+
+  defined  $status and $params->{ja_status} = AliEn::Util::jaStatusForML($status);
+  if($ENV{ALIEN_JOBAGENT_ID} && $ENV{ALIEN_JOBAGENT_ID} =~ /(\d+)\.(\d+)/){
+    $params->{ja_id_maj} = $1;
+    $params->{ja_id_min} = $2;
+  }
+  $params->{job_id} = $ENV{ALIEN_PROC_ID} || 0;
+  $self->{MONITOR}->sendParameters("$self->{CONFIG}->{SITE}_".$self->{SERVICENAME}, "$self->{HOST}:$self->{PORT}", $params);
+  return 1;
 }
 
 return 1;
