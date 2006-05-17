@@ -813,6 +813,7 @@ sub offerAgent {
       my $error = $self->{BATCH}->submit($classad,$script);
       if ($error) {
 	$self->info( "Error starting the job agent");
+	last;
       } else {
 	my $id=$self->{BATCH}->getBatchId();
 	if ($id) {
