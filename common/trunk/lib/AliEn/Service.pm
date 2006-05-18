@@ -690,7 +690,7 @@ sub getPort {
   }
 
   my $lockmgr = LockFile::Simple->make(-format => '%f',
-       -max => 10, -delay => 2, -nfs => 1);
+       -max => 10, -delay => 2, -nfs => 1, -autoclean=>1);
   
   while ( $testport = shift (@PORTS) ) {
     my $proto = getprotobyname('tcp');
@@ -708,7 +708,6 @@ sub getPort {
     print STDERR "Sorry no free port are available\n";
     return;
   }
-  
   $self->debug(1, "Port $port chosen");
   return $port;
 
