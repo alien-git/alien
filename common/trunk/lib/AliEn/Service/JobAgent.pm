@@ -2229,7 +2229,7 @@ sub writePipeMessage {
 sub sendJAStatus {
   my $self = shift;
   my $status = shift;
-  my $params = shift or {};
+  my $params = shift || {};
   return if ! $self->{MONITOR};
 
   # add the given parameters
