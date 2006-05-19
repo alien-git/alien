@@ -5,6 +5,9 @@
 #
 # modification history
 # $Log$
+# Revision 1.1  2006/03/20 10:14:48  psaiz
+# Adding the scripts
+#
 # Revision 1.4.2.15  2005/07/14 11:54:50  pbuncic
 # Use certificates from $ALIEN_ROOT/globus/share/certificates/
 #
@@ -276,8 +279,19 @@ Configure()
   export ALIEN_LD_LIBRARY_PATH
   export ALIEN_PATH
 
-  export PATH=$ALIEN_ROOT/bin:$ALIEN_PATH:$PATH
-  export LD_LIBRARY_PATH=$ALIEN_LD_LIBRARY_PATH:$LD_LIBRARY_PATH
+  ALIEN_GCC=${ALIEN_GCC:=`ls -1 $ALIEN_ROOT/*/*/bin/gcc 2>/dev/null | tail -1`} 
+  if [ -z "$ALIEN_GCC" ]
+  then 
+    echo "Could not find gcc in your distribution. Please set $ALIEN_GCC variable."
+    exit 1      
+  fi
+
+  libgcca=`$ALIEN_GCC -print-libgcc-file-name`
+  gcc_lib_dir=`dirname $libgcca`
+  gcc_bin_dir=`dirname $ALIEN_GCC`
+
+  export PATH=$ALIEN_ROOT/bin:$gcc_bin_dir:$ALIEN_PATH:$PATH
+  export LD_LIBRARY_PATH=$ALIEN_LD_LIBRARY_PATH:$gcc_lib_dir:$LD_LIBRARY_PATH
   export DYLD_LIBRARY_PATH=$ALIEN_LD_LIBRARY_PATH:$DYLD_LIBRARY_PATH
 
   export ALIEN_MYPROXY_SERVER
