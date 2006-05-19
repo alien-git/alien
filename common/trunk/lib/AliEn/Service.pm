@@ -690,7 +690,7 @@ sub getPort {
   }
 
   my $lockmgr = LockFile::Simple->make(-format => '%f',
-       -max => 10, -delay => 2, -nfs => 1, -autoclean=>1);
+       -max => 10, -delay => 2, -nfs => 1, -autoclean=>1, -hold=>10);
   
   while ( $testport = shift (@PORTS) ) {
     my $proto = getprotobyname('tcp');
