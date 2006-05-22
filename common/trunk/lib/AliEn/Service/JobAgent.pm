@@ -967,15 +967,13 @@ sub getFiles {
 						 });
       };
   if ($@) {print "ERROR GETTING THE CATALOGUE $@\n";}
-  $self->info("Got the catalogue");
   if (!$catalog) {
     $self->putJobLog($ENV{ALIEN_PROC_ID},"error","The job couldn't authenticate to the catalogue");
 
     print STDERR "Error getting the catalog!\n";
     return;
-
   }
-
+  $self->info("Got the catalogue");
 
   my @files=$self->getListInputFiles($catalog);
 
@@ -1215,6 +1213,7 @@ sub putFiles {
       $self->{CA}->set_expression("RegisteredOutput", "{".join(",",@list)."}");
       $self->{JDL_CHANGED}=1;
     }
+    $ui->close();
   }
   $self->{CONFIG}=$self->{CONFIG}->Reload({"organisation", $oldOrg});
 

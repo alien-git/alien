@@ -222,10 +222,15 @@ Site name:$self->{CONFIG}->{SITE}");
     };
     if ($@ or ! $self->{RLS}){
       $self->{LOGGER}->error("RLS", "Error getting an instance of the RLS:$@");
+      $self->f_disconnect();
       return;
     }
   }
-  $self->{GUID}=new AliEn::GUID or return;
+  $self->{GUID}=new AliEn::GUID();
+  if(! $self->{GUID}){
+    $self->f_disconnect();
+    return;
+  }
   $self->loadEnvironment();
   my $oldSilent = $self->{SILENT};
   $self->{SILENT} = 1;
