@@ -851,14 +851,17 @@ sub createAgentStartup {
     my $debugTag = $self->{DEBUG} ? "--debug $self->{DEBUG}" : "";
     $content= "echo 'Using the proxy'
 mkdir -p $self->{CONFIG}->{TMP_DIR}
-cat >$jobProxy <<EOF\n". join("", @proxy)."
-EOF
 file=$jobProxy
+cat >\$file <<EOF\n". join("", @proxy)."
+EOF
 chmod 0400 \$file
 export X509_USER_PROXY=\$file;
 echo USING \$X509_USER_PROXY
 $ENV{ALIEN_ROOT}/bin/alien proxy-info
 $ENV{ALIEN_ROOT}/bin/alien RunAgent $debugTag
+
+
+
 rm -rf \$file\n";
 
   }
@@ -1059,7 +1062,7 @@ sub f_top {
 sub f_queueinfo {
     my $self = shift;
     my $site = (shift or "%");
-    my $done =$self->{SOAP}->CallSOAP($self->{CONNECTION},"queueinfo",$site);
+    my $done =$self->{SOAP}->CallSOAP($self->{CONNECTION},"queueinfo",$site,@_);
     $done or return;
     $done=$done->result;
     $self->f_queueprint($done,$site);
@@ -2857,9 +2860,11 @@ sub f_packman_HELP {return  "packman: talks to the Package Manager. By default, 
 \tpackman test <package>: tries to configure a package. Returns the metainformation associated with the package, a view of the directory where the package is installed, and an environment that the package would set
 \tpackman install <package>: install a package (and all its dependencies) in the local cache of the PackMan
 \tpackman installLog <package>: get the installation log of the package
+\tpackman dependencies <name>: gives the list of dependencies of a package
 \tpackman remove  <package>: removes a package from the local cache
 \tpackman define <name> <version> <tar file> [<package options>]
 \tpackman undefine <name> <version>
+
 
 The format of the string <package> is:
    [<user>\@]<PackageName>[::PackageVersion}
@@ -2920,6 +2925,9 @@ sub f_packman {
     return $self->definePackage(@arg);
   } elsif ($operation =~ /^u(ndefine)?$/){
     return $self->undefinePackage(@arg);
+  } elsif ($operation =~ /^dependencies$/){
+    $soapCall="getDependencies";
+    $requiresPackage=1;
   } elsif ($operation =~ /^installLog?$/){
     $soapCall="getInstallLog";
     $requiresPackage=1;
@@ -2976,6 +2984,14 @@ sub f_packman {
     $env and $self->info("The package will configure the environment to something similar to:\n$env");
   } elsif ($operation =~ /^r(emove|m)$/){
     $self->info("Package removed!!\n");
+  } elsif ($operation =~ /^dependencies$/){
+    my $info=shift @result;
+    $info or $self->info("The package doesn't have any dependencies\n") and return;
+    $self->info("The information of the package is:");
+    foreach ( keys %$info){
+      /entryId/ and next;
+      $info->{$_} and $self->info("\t$_:\t\t$info->{$_}",0,0);
+    }
   } elsif ($operation =~ /^installLog$/){
     $self->info("The installation log is\n
 =========================================================

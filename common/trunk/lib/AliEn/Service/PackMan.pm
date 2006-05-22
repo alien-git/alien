@@ -646,6 +646,28 @@ sub isPackageInstalled {
       return ;
   return (1, $lfn, $info, $version)
 }
+sub getDependencies {
+  my $this=shift;
+  my $user=shift;
+  my $package=shift;
+  my $version=shift;
+
+
+  my $cacheName="dep_package_${package}_${version}";
+
+  my $cache=AliEn::Util::returnCacheValue($self, $cacheName);
+  if ($cache) {
+    $self->info( "$$ Returning the value from the cache (@$cache)");
+    return (@$cache);
+  }
+
+  my ($lfn, $info)=$self->findPackageLFN($user, $package, $version);
+  
+  AliEn::Util::setCacheValue($self, $cacheName, [1,$info]);
+  $self->info("Giving back the dependencies of $package");
+  return (1, $info);
+}
+
 return 1;
 
 
