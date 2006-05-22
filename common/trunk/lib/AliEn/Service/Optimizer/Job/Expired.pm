@@ -61,7 +61,7 @@ sub checkWakesUp {
 	      and return;
   }
 
-  $self->{LOGGER}->info("Expired", "Getting 10000 jobs older than 1 year to expire");
+  $self->{LOGGER}->$method("Expired", "Getting 10000 jobs older than 1 year to expire");
 
   undef $data;
 
