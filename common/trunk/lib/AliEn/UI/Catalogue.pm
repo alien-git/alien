@@ -441,7 +441,10 @@ sub new {
     $self->{CONFIG}=AliEn::Config->new();
   }
 
-  $self->initialize($options) or return;
+  if(! $self->initialize($options)){
+  	$self->close();
+	return;
+  }
 
   $self->{SOAP}=new AliEn::SOAP;
   if ($sentence) {
@@ -451,6 +454,7 @@ sub new {
     my ( $command, @arg ) = split ( /\s+/, $sentence );
     $self->execute( $command, @arg );
     $self->setSilent(1);
+    $self->close();
     return;
   }
   $self->{GUID}=AliEn::GUID->new();
