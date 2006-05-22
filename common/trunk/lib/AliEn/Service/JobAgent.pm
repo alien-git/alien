@@ -1662,7 +1662,7 @@ sub getProcInfo {
     chomp $npid;
     #    print "ps --no-headers --pid $npid -o \"cmd start %cpu %mem cputime rsz vsize\"\n";
     #the --no-headers and --pid do not exist in mac
-    open (FILE, "ps -p $npid -o \"command start \%cpu \%mem cputime rsz vsize\"") or print "getProcInfo: error checking ps\n" and next;
+    open (FILE, "ps -p $npid -o \"command start \%cpu \%mem cputime rsz vsize\"|") or print "getProcInfo: error checking ps\n" and next;
     my @psInfo=<FILE>;
     close FILE;
     shift @psInfo; #get rid of the headers
