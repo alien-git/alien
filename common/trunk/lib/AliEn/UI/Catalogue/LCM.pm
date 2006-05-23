@@ -997,7 +997,7 @@ Options:
       return;
   $self->info( "The file $lfn is in");
   my @return=();
-
+  defined $guid or $self->info("Error getting the guid of the file") and return;
 #  my $guid=$self->{CATALOG}->f_lfn2guid("s",$lfn)
 #    or $self->info( "Error getting the guid of $lfn",11) and return;
   $self->info( "The guid is $guid");
