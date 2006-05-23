@@ -241,7 +241,7 @@ sub installPackage{
   my $dependencies=(shift or {});
   $self->info( "$$ Checking package $package for $user and $version");
 
-  my $cacheName="package_${package}_${version}";
+  my $cacheName="package_${package}_${version}_${user}";
 
   my $cache=AliEn::Util::returnCacheValue($self, $cacheName);
   if ($cache) {
@@ -260,7 +260,7 @@ sub installPackage{
   }
 
   #First, let's try to install all the dependencies
-  print "Ready to install $package and $version\n";
+  print "Ready to install $package and $version and $user (from $lfn)\n";
   $dependencies->{"${package}::$version"}=1;
 
   if ($info) {
@@ -403,11 +403,12 @@ sub existsPackage{
   $self->info( "$$ Checking if $package is already installed");
 
   my $dir="$self->{INST_DIR}/$user/$package/$version";
-  if (!-d $dir) {
-    $self->debug("Checking among the VO packages");
-    $dir="$self->{INST_DIR}/VO_\U$self->{CONFIG}->{ORG_NAME}\E/$package/$version";
-    (-d $dir) or return;
-  } 
+  (-d $dir) or return;
+#  if (!-d $dir) {
+#    $self->debug("Checking among the VO packages");
+#    $dir="$self->{INST_DIR}/VO_\U$self->{CONFIG}->{ORG_NAME}\E/$package/$version";
+#
+#  } 
 
   $self->info( "$$ Checking the size of $dir");
   my $size;
@@ -450,8 +451,8 @@ sub findPackageLFN{
   my $package=shift;
   my $version=shift;
   
-  my @dirs=("/\L$self->{CONFIG}->{ORG_NAME}/packages",
-	    "$self->{CONFIG}->{USER_DIR}/". substr( $user, 0, 1 ). "/$user/packages");
+  my @dirs=("$self->{CONFIG}->{USER_DIR}/". substr( $user, 0, 1 ). "/$user/packages",
+	    "/\L$self->{CONFIG}->{ORG_NAME}/packages",);
   my $lfn;
   my $platform=$self->getPlatform();
   $self->info("$$ Looking for the lfn of $package ($version) for the user $user");
@@ -641,6 +642,9 @@ sub isPackageInstalled {
   $version or $lfn =~ /\/([^\/]*)\/[^\/]*$/
     and ($version)=($1);
 
+  my $vo=$self->{CONFIG}->{ORG_NAME};
+  $lfn =~ m{^/$vo/packages/}i and $user=uc("VO_$vo");
+
   $self->existsPackage($user, $package, $version,$info)  or
     $self->info( "$$ The package is not installed :D") and 
       return ;
@@ -653,7 +657,7 @@ sub getDependencies {
   my $version=shift;
 
 
-  my $cacheName="dep_package_${package}_${version}";
+  my $cacheName="dep_package_${package}_${version}_${user}";
 
   my $cache=AliEn::Util::returnCacheValue($self, $cacheName);
   if ($cache) {
