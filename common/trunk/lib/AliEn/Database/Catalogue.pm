@@ -888,12 +888,12 @@ sub copyDirectory{
 
     }else {
       $DEBUG and $self->debug(1, "This is complicated: from another database");
-      my $entries = $db->query("SELECT concat('$beginning', substring(concat('$entry->{lfn}',lfn), $sourceLength )) as lfn, size,seStringlist,type,binary2string(guid),perm,md5 FROM D$entry->{tableName}L where $like");
+      my $entries = $db->query("SELECT concat('$beginning', substring(concat('$entry->{lfn}',lfn), $sourceLength )) as lfn, size,seStringlist,type,binary2string(guid) as guid ,perm,md5 FROM D$entry->{tableName}L where $like");
       foreach  my $files (@$entries) {
 	my ($guid, $selist, $md5)=("NULL", "NULL", "NULL");
 	if (defined $files->{guid}){
 	  $guid="$files->{guid}";
-	  push @guids, "guid=$files->{guid}";
+	  push @guids, "guid=string2binary('$files->{guid}')";
 	}
 	defined $files->{md5} and $md5="'$files->{md5}'";
 
