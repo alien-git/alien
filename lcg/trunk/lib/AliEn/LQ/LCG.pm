@@ -43,7 +43,7 @@ sub submit {
 
   $self->renewProxy(90000);
   $self->info("Submitting to LCG with \'@args\'.");
-  my @command = ( "edg-job-submit", "--noint", "--nomsg", @args, "$jdlfile" );
+  my @command = ( $self->{CONFIG}->{CE_SUBMITCMD}, "--noint", "--nomsg", @args, "$jdlfile" );
   $self->debug(1,"Doing @command\n");
   
   open SAVEOUT,  ">&STDOUT";
@@ -91,7 +91,7 @@ sub kill {
 
      $self->info("Killing job $queueid, JobID is $contact");
 
-     my $error = system( "edg-job-cancel",  "--noint","$contact" );
+     my $error = system( $self->{CONFIG}->{CE_KILLCMD},  "--noint","$contact" );
      return $error;
 }
 
@@ -124,7 +124,7 @@ sub getStatus {
         $contact or return;
         $self->info("Will retrieve OutputSandbox for job $queueid, JobID is $contact");
         system("mkdir -p $outdir");
-        system("edg-job-get-output --noint --dir $outdir $contact");
+        system("edg-job-get-output --noint --dir $outdir $contact"); ####
         return 'DEQUEUED';
      }
      return 'QUEUED';
@@ -136,7 +136,7 @@ sub getAllBatchIds {
   my @queuedJobs = ();
   foreach (@$jobIds) {
      $_ or next;
-     open LB,"edg-job-status $_|" or next;
+     open LB,"$self->{CONFIG}->{CE_STATUSCMD} $_|" or next;
      my @output = <LB>;     
      close LB;
      grep m/^Current Status:\s*(Running)|(Ready)|(Scheduled)|(Waiting)/,@output 
@@ -235,7 +235,7 @@ sub getJobStatus {
    my @args=();
    $self->{CONFIG}->{CE_STATUSARG} and
      @args=split (/\s+/, $self->{CONFIG}->{CE_STATUSARG});
-   open( OUT, "/opt/edg/bin/edg-job-status -noint @args \"$contact\"| grep \"$pattern\"|" );
+   open( OUT, "$self->{CONFIG}->{CE_STATUSCMD} -noint @args \"$contact\"| grep \"$pattern\"|" );
    my @output = <OUT>;
    close(OUT);
    my $status = $output[0];
