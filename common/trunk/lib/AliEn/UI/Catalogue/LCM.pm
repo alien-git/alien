@@ -247,7 +247,10 @@ sub get {
   #Get the pfn from the catalog
   my $oldSilent = $self->{CATALOG}->{SILENT};
   
-  my ($md5, $guid)=$self->{CATALOG}->f_getMD5("sg", $file);
+  my ($md5, $guid);
+  my $ret = $self->{CATALOG}->f_getMD5("sg", $file);
+  $md5  = $ret->{md5};
+  $guid = $ret->{guid};
 
   $guid or $self->info("Error getting the guid and md5 of $file",-1) and return;
 
@@ -752,7 +755,7 @@ sub addFile {
   $lfn = $self->{CATALOG}->f_complete_path($lfn);
   if (! $options->{versioning}) {
     ( $self->{CATALOG}->checkPermissions( 'w', $lfn ) ) or  return;
-    if ($self->{CATALOG}->{DATABASE}->existsEntry( $lfn)) {
+    if ($self->{CATALOG}->f_Database_existsEntry( $lfn)) {
       $self->{LOGGER}->error("File", "file $lfn already exists!!",1);
       return;
     }
@@ -990,7 +993,12 @@ Options:
  
  
   $lfn=$self->{CATALOG}->f_complete_path($lfn);
-  my ($seList, $fileInfo)=$self->{CATALOG}->f_whereisFile("g$options", $lfn);
+  my ($seList, $fileInfo);
+
+  my $ret=$self->{CATALOG}->f_whereisFile("g$options", $lfn);
+  $seList   = $ret->{selist};
+  $fileInfo = $ret->{fileinfo};
+
   my $guid=$fileInfo->{guid};
   defined $seList or
     $self->info( "Error getting the data of $lfn", 1) and
