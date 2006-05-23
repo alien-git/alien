@@ -427,16 +427,40 @@ sub new {
   ($sentence) and ( $silent = 1 );
 
   if (! $options->{no_catalog}) {
-    $self->{CATALOG} = AliEn::Catalogue->new($options)	# refers to Catalogue.pm in ..
-      or return;
+      if ($options->{gapi_catalog}) {
+	  eval {
+	      require gapi::catalogue;
+	  };
+	  if (! defined $options->{user}) {
+	      $self->{CONFIG}=AliEn::Config->new();
+	      $options->{user}=$self->{CONFIG}->{LOCAL_USER};
+	  }
+	  if (! defined $options->{noprompt}) {
+	      $options->{noprompt}=1;
+	  }
+	  if (! defined $options->{nogsi}) {
+	      $options->{nogsi}=1;
+	  }
+
+	  $self->{CATALOG} = gapi::catalogue->new($options)
+	      or return;
+	  $self->{CATALOG}->{GLOB} = 1;
+      } else {
+	  $self->{CATALOG} = AliEn::Catalogue->new($options)   
+	      or return;
+      }
   }
+
   bless( $self, $class );
   $self->SUPER::new();
   
   if ($self->{CATALOG}) {
     $AliEn::UI::catalog=$self->{CATALOG};
     $options->{DATABASE} = $self->{CATALOG}->{DATABASE};
-    $self->{CONFIG}=$self->{CATALOG}->{CONFIG};
+    if ($options->{gapi_catalog}) {
+    } else {
+	$self->{CONFIG}=$self->{CATALOG}->{CONFIG};
+    }
   }else {
     $self->{CONFIG}=AliEn::Config->new();
   }
@@ -477,7 +501,7 @@ sub startPrompt {
     $self->info("AliEn was started with '-no_catalog' option. You cannot have the prompt");
     return;
   }
-  my $host = $self->{CATALOG}->{DATABASE}->{HOST};
+  my $host = $self->{CATALOG}->f_Database_getVar("HOST");
   $catalog=$self->{CATALOG};
   $AliEn::UI::catalog=undef;
   $term    = new Term::ReadLine 'ALIEN';
@@ -888,7 +912,7 @@ Possible pfns:\tsrm://<host>/<path>, castor://<host>/<path>,
   }
   $file=$self->{CATALOG}->f_complete_path($file);
 
-  ($self->{CATALOG}->{DATABASE}->existsEntry( $file)) and
+  ($self->{CATALOG}->f_Database_existsEntry($file)) and
     $self->info( "File or directory $file already exists",11) 
       and return;
 
@@ -978,8 +1002,8 @@ sub registerFileInSE {
   my ($host, $driver, $dbName)=split ( m{/}, $db);
   my $done;
 
-  if ($self->{CATALOG} && ($host eq $self->{CATALOG}->{DATABASE}->{HOST}) 
-      && ($driver eq $self->{CATALOG}->{DATABASE}->{DRIVER})) {
+  if ($self->{CATALOG} && ($host eq $self->{CATALOG}->f_Database_getVar("HOST") 
+      && ($driver eq $self->{CATALOG}->f_Database_getVar("DRIVER")))) {
     $DEBUG and $self->debug(1, "We are in the right host. We only have to insert");
     $sename=($destSE || $self->{CONFIG}->{SE_FULLNAME});
     $newguid=$guid;
@@ -992,7 +1016,7 @@ sub registerFileInSE {
       $DEBUG or $self->{LOGGER}->setMinimum("critical");
       my $insert="INSERT into $dbName.FILES (size, pfn, guid, md5) values(?,?,string2binary(?), ?)";
 
-      if ($self->{CATALOG}->{DATABASE}->do($insert, {bind_values=>[$size,$pfn,$newguid, $options->{md5}]})){
+      if ($self->{CATALOG}->f_Database_do($insert, {bind_values=>[$size,$pfn,$newguid, $options->{md5}]})){
 	$DEBUG and $self->debug(1, "File registered in the SE database");
 	$done=1;
       }
