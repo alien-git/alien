@@ -1027,6 +1027,19 @@ sub GetgContainer {
   return 1;
 }
 
+sub ConfigureApiClient {
+    my $apiserver = $self->{"API_SERVER_LIST"};
+    my $gclientlist="";
+    if (scalar @$apiserver >0) {
+
+	foreach (@$apiserver) {
+	    $gclientlist .= "$_|";
+	}
+    }
+    
+    $ENV{GCLIENT_SERVER_LIST}="$gclientlist";
+}
+
 return 1;
 
 
