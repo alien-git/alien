@@ -754,6 +754,23 @@ sub f_rmlink {
 	#$self->{DATABASE}->deleteDirFromParent($parent, $newpath);
     $self->{DATABASE}->deleteLink($parent, $basename, $newpath);
 }
+
+sub f_Database_existsEntry {
+    my $self=shift;
+    return $self->{DATABASE}->existsEntry(@_);
+}
+
+sub f_Database_do {
+    my $self=shift;
+    return $self->{DATABASE}->do(@_);
+}
+
+sub f_Database_getVar {
+    my $self=shift;
+    my $var = (shift or return);
+    return $self->{DATABASE}->{$var};
+}
+
 sub isDirectory {
   my $self=shift;
   my $file=shift;
