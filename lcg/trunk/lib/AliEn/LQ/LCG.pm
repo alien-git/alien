@@ -173,7 +173,7 @@ sub getFreeSlots {
     $self->debug(1,"Asking $GRIS/$BaseDN");
     eval {
 
-      my $ldap =  Net::LDAP->new($GRIS) or die $@;
+      my $ldap =  Net::LDAP->new($GRIS) or return;
       $ldap->bind() or return;
       my $result = $ldap->search( base   =>  $BaseDN,
 				  filter => "(&(objectClass=GlueCEState)(GlueCEUniqueID=$CE))"); 
@@ -316,21 +316,21 @@ sub updateClassAd {
   my $BDII = $self->{CONFIG}->{CE_LCG_GFAL_INFOSYS};
   $BDII = "ldap://$ENV{LCG_GFAL_INFOSYS}" if defined $ENV{LCG_GFAL_INFOSYS};
   $self->debug(1,"BDII is $BDII");
-  my $ldap =  Net::LDAP->new($BDII) or die $@;
-  $ldap->bind() or die $@;
+  my $ldap =  Net::LDAP->new($BDII) or return;
+  $ldap->bind() or return;
   my ($maxRAMSize, $maxSwapSize) = (0,0);
   foreach my $CE (@{$self->{CONFIG}->{CE_LCGCE_LIST}}) {
     $self->debug(1,"Getting info for $CE");
     my $result = $ldap->search( base   => "mds-vo-name=local,o=grid",
                                 filter => "GlueCEUniqueID=$CE");
-    $result->code && die $result->error;
+    $result->code && return;
     my @entry = $result->all_entries();
     ($entry[0]) or next;
     my $cluster = $entry[0]->get_value("GlueForeignKey");
     $cluster =~ s/^GlueClusterUniqueID=//;
     $result = $ldap->search( base   => "mds-vo-name=local,o=grid",
                              filter => "GlueSubClusterUniqueID=$cluster");
-    $result->code && die $result->error;
+    $result->code && return;
     @entry = $result->all_entries();
     my $RAMSize = $entry[0]->get_value("GlueHostMainMemoryRAMSize");
     my $SwapSize = $entry[0]->get_value("GlueHostMainMemoryVirtualSize");
