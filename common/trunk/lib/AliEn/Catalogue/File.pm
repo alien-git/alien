@@ -156,7 +156,10 @@ sub f_whereisFile {
     return;
   }
   if ($options =~ /g/){
-    return $self->{DATABASE}->getSEListFromFile($lfn, $permFile->{seStringlist}), $permFile;
+      my $ret={};
+      $ret->{selist}   = $self->{DATABASE}->getSEListFromFile($lfn, $permFile->{seStringlist});
+      $ret->{fileinfo} = $permFile;
+      return $ret;
   }else {
     return $self->{DATABASE}->getSEListFromFile($lfn, $permFile->{seStringlist});
   }
@@ -261,7 +264,7 @@ sub f_getMD5 {
     $data->{md5} or $data->{md5}="";
     $options =~ /s/ or 
       $self->info("$data->{md5}\t$file (guid $data->{guid})", undef,0);
-    return ($data->{md5},$data->{guid});
+    return $data;
   }
   $options =~ /s/ or $self->info("$data\t$file", undef,0);
   return $data;
