@@ -1712,7 +1712,7 @@ sub getLFNfromGUID {
     my ($host, $tableName)=split(/_/, $table);
     my $db=$self->reconnectToIndex( $host)
       or $self->info("Error reconnecting to $host") and next;
-    my $prefix=$db->getPathPrefix($tableName) or 
+    my $prefix=$db->getPathPrefix($tableName, $host) or 
       $self->info("Error getting the prefix of $tableName") and next;
     my $paths = $db->queryColumn("SELECT concat('$prefix',lfn) FROM ${tableName} WHERE guid=string2binary(?) ", undef, {bind_values=>[$guid]});
     $paths and push @lfns, @$paths;
@@ -1725,8 +1725,9 @@ sub getLFNfromGUID {
 sub getPathPrefix{
   my $self=shift;
   my $table=shift;
+  my $host=shift;
   $table=~ s{^D(\d+)L}{$1};
-  return $self->queryValue("SELECT lfn from INDEXTABLE where tableName='$table'");
+  return $self->queryValue("SELECT lfn from INDEXTABLE where tableName='$table' and hostIndex='$host'");
 }
 
 sub findLFN() {
