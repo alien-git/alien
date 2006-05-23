@@ -150,6 +150,14 @@ sub initialize {
   $self->{SERVICENAME}="JobAgent";
   $self->debug(1, "The initialization finished successfully!!");
 
+  if ($self->{CONFIG}->{AGENT_API_PROXY}) {
+      # configure the api service endpoint list
+      $self->{CONFIG}->ConfigureApiClient();
+      $self->info("Using Api Service as proxy - URL-Endpoints: $ENV{'GCLIENT_SERVER_LIST'}");
+  } else {
+      $self->info("Using Proxy Service as proxy");
+  }
+
   $self->{JOBLOADED}=0;
   $self->{X509}= new AliEn::X509 or return;
 
@@ -845,7 +853,7 @@ sub installPackage {
     }else{
       my $catalog;
       eval{ 
-	$catalog = AliEn::UI::Catalogue::LCM->new({"silent"=> "0" });
+	$catalog = AliEn::UI::Catalogue::LCM->new({"silent"=> "0" , "gapi_catalog"=>"$self->{CONFIG}->{AGENT_API_PROXY}"});
 	($user)=$catalog->execute("whoami", "-silent");
 	$catalog->close();
       };
@@ -962,7 +970,8 @@ sub getFiles {
 
   my $catalog;
 
-  eval{ $catalog = AliEn::UI::Catalogue::LCM::->new({"silent"=> "0"
+  eval{ $catalog = AliEn::UI::Catalogue::LCM::->new({"silent"=> "0",
+						     "gapi_catalog"=>"$self->{CONFIG}->{AGENT_API_PROXY}",
 #						  "ForcedMethod" => "TOKEN"
 						 });
       };
@@ -1507,8 +1516,8 @@ sub submitFileToClusterMonitor{
 	and return;
   } else {
     print "Let's put the log file in the JDL\n";
-    ($return)=$catalog->execute("upload", "-u", "soap://$ENV{ALIEN_CM_AS_LDAP_PROXY}$done?URI=ClusterMonitor")
-    
+    my $ui=AliEn::UI::Catalogue::LCM->new({no_catalog=>1});
+    ($return)=$ui->execute("upload", "-u", "soap://$ENV{ALIEN_CM_AS_LDAP_PROXY}$done?URI=ClusterMonitor")
 #    $return=
   }
   print "done!!\n";
@@ -2190,6 +2199,8 @@ sub doInAllVO{
     $self->{CONFIG}=$self->{CONFIG}->Reload({"organisation", $org});
     my $start={debug=>0,silent=>0};
     $options->{no_catalog} and $start->{no_catalog}=1;
+    $start->{gapi_catalog} = $self->{CONFIG}->{AGENT_API_PROXY};
+
     my $catalog= AliEn::UI::Catalogue::LCM->new($start);
     ($catalog) or print STDERR "Error getting the catalog!\n" and next;
 #    $catalog->execute("whoami");
