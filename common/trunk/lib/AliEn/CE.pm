@@ -812,6 +812,7 @@ sub offerAgent {
       $self->SetEnvironmentForExecution($jdl);
       my $error = $self->{BATCH}->submit($classad,$script);
       if ($error) {
+	$self->{SOAP}->CallSOAP("Manager/Job", "setSiteQueueStatus",$self->{CONFIG}->{CE_FULLNAME},"error-submitting-agents");
 	$self->info( "Error starting the job agent");
 	last;
       } else {
