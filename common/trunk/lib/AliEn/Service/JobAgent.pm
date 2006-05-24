@@ -128,7 +128,7 @@ sub initialize {
   $self->{HOST} = $self->{CONFIG}->{HOST};
 
   $ENV{'ALIEN_SITE'} = $self->{CONFIG}->{SITE};
-  $ENV{'ALIEN_SITE_HOST'} = $self->{CONFIG}->{SITE_HOST};
+  $self->{CONFIG}->{SITE_HOST} and $ENV{'ALIEN_SITE_HOST'} = $self->{CONFIG}->{SITE_HOST};
   print "Executing in $self->{HOST}\n";
   $self->{PID}=$$;
   print "PID = $self->{PID}\n";
@@ -335,8 +335,9 @@ sub GetJDL {
   $self->{JOB_USER} = $result->{user};
 
 
-
-  $self->putJobLog($ENV{ALIEN_PROC_ID},"trace","The job has been taken by the jobagent $ENV{ALIEN_JOBAGENT_ID} $ENV{EDG_WL_JOBID}");
+  my $message="The job has been taken by the jobagent $ENV{ALIEN_JOBAGENT_ID}";
+  $ENV{EDG_WL_JOBID} and $message.="(  $ENV{EDG_WL_JOBID} )";
+  $self->putJobLog($ENV{ALIEN_PROC_ID},"trace",$message);
 
 
   print "ok\nTrying with $jdl\n";
@@ -1222,10 +1223,11 @@ sub putFiles {
       $self->{CA}->set_expression("RegisteredOutput", "{".join(",",@list)."}");
       $self->{JDL_CHANGED}=1;
     }
+    $self->info("Closing the catalogue");
     $ui->close();
   }
   $self->{CONFIG}=$self->{CONFIG}->Reload({"organisation", $oldOrg});
-
+  $self->info("Files uploaded");
   return $filesUploaded;
 }
 #This subroutine receives a list of local files 
