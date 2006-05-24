@@ -316,6 +316,8 @@ sub GetJDL {
     }
     --$i or  last;
     print "We didn't get the jdl... let's sleep and try again\n";
+    $self->{SOAP}->CallSOAP("Manager/Job", "setSiteQueueStatus",$self->{CONFIG}->{CE_FULLNAME},"jobagent-no-match");
+
     sleep (30);
     if($self->{MONITOR}){
     	$self->{MONITOR}->sendBgMonitoring();
