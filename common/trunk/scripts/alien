@@ -5,6 +5,9 @@
 #
 # modification history
 # $Log$
+# Revision 1.2  2006/05/19 10:35:37  buncic
+# Fix for gcc
+#
 # Revision 1.1  2006/03/20 10:14:48  psaiz
 # Adding the scripts
 #
@@ -282,7 +285,7 @@ Configure()
   ALIEN_GCC=${ALIEN_GCC:=`ls -1 $ALIEN_ROOT/*/*/bin/gcc 2>/dev/null | tail -1`} 
   if [ -z "$ALIEN_GCC" ]
   then 
-    echo "Could not find gcc in your distribution. Please set $ALIEN_GCC variable."
+    echo "Could not find gcc in your distribution. Please set the ALIEN_GCC env. variable."
     exit 1      
   fi
 
