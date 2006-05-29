@@ -457,17 +457,16 @@ sub new {
   if ($self->{CATALOG}) {
     $AliEn::UI::catalog=$self->{CATALOG};
     $options->{DATABASE} = $self->{CATALOG}->{DATABASE};
-    if ($options->{gapi_catalog}) {
-    } else {
-	$self->{CONFIG}=$self->{CATALOG}->{CONFIG};
+    if (! $options->{gapi_catalog}) {
+      $self->{CONFIG}=$self->{CATALOG}->{CONFIG};
     }
   }else {
     $self->{CONFIG}=AliEn::Config->new();
   }
 
   if(! $self->initialize($options)){
-  	$self->close();
-	return;
+    $self->close();
+    return;
   }
 
   $self->{SOAP}=new AliEn::SOAP;
@@ -839,8 +838,11 @@ Close the connection to the catalogue.
 =cut
 
 sub close {
-    my $self = shift;
-    ( $self->{CATALOG} ) and $self->{CATALOG}->f_disconnect;
+  my $self = shift;
+  if ( $self->{CATALOG} ){
+    $self->{CATALOG}->f_disconnect;
+    undef $self->{CATALOG};
+  }
 }
 
 =item C<version()>
