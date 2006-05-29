@@ -302,6 +302,7 @@ sub GetJDL {
       if ($result) {
 	if ($result eq "-3") {
 	  $self->sendJAStatus('INSTALLING_PKGS');
+	  $self->{SOAP}->CallSOAP("Manager/Job", "setSiteQueueStatus",$self->{CONFIG}->{CE_FULLNAME},"jobagent-install-pack");
 	  my @packages=$done->paramsout();
 	  $self->info("We have to install some packages");
 	  foreach (@packages) {
@@ -310,13 +311,14 @@ sub GetJDL {
 	  }
 	  $i++; #this iteration doesn't count
 	}else {
+	  $self->{SOAP}->CallSOAP("Manager/Job", "setSiteQueueStatus",$self->{CONFIG}->{CE_FULLNAME},"jobagent-matched");
 	  last;
 	}
        }
     }
     --$i or  last;
     print "We didn't get the jdl... let's sleep and try again\n";
-    $self->{SOAP}->CallSOAP("Manager/Job", "setSiteQueueStatus",$self->{CONFIG}->{CE_FULLNAME},"jobagent-no-match");
+    $self->{SOAP}->CallSOAP("Manager/Job", "setSiteQueueStatus",$self->{CONFIG}->{CE_FULLNAME},"jobagent-no-match", $hostca);
 
     sleep (30);
     if($self->{MONITOR}){
