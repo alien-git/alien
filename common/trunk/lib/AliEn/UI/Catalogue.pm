@@ -546,12 +546,12 @@ sub setSilent {
   ($silent) and $self->{LOGGER}->silentOn();
   ($silent) or $self->{LOGGER}->silentOff();
 
-  $self->{CATALOG}->{SILENT} = $silent;
+  $self->{CATALOG} and $self->{CATALOG}->{SILENT} = $silent;
 }
 
 sub partSilent{ 
   my $self=shift;
-  $self->{CATALOG_SILENT}= $self->{CATALOG}->{SILENT};
+  $self->{CATALOG} and $self->{CATALOG_SILENT}= $self->{CATALOG}->{SILENT};
   $self->{LOG_OLDMODE} = $self->{LOGGER}->getMode();
   $DEBUG and $self->debug(1, "Previous Mode: $self->{LOG_OLDMODE}. Setting to silent");
   $self->setSilent(1);
@@ -561,7 +561,7 @@ sub partSilent{
 
 sub restoreSilent{
   my $self=shift;
-  $self->{CATALOG}->{SILENT}= $self->{CATALOG_SILENT};
+  $self->{CATALOG} and  $self->{CATALOG}->{SILENT}= $self->{CATALOG_SILENT};
   $self->{LOGGER}->setMinimum(split(" ",$self->{LOG_OLDMODE}));
 
   $DEBUG and $self->debug(1, "Setting back to : '$self->{LOG_OLDMODE}'");
