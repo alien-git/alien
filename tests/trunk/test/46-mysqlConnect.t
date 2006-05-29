@@ -2,20 +2,32 @@ use strict;
 
 use AliEn::UI::Catalogue;
 use AliEn::Util;
+use Net::Domain;
 
+use IPC::Open2;
+my $hostName=Net::Domain::hostfqdn();
+print "Hola $hostName\n";
 my $userName = $ENV{LOGNAME};
-my $allThreadsFlag = ((AliEn::Util::isMac()) ? "-M" : "-m"); # excellent design of MAC, eh?
-print "Running as user $userName, allThreadsFlag is $allThreadsFlag\n";
+#my $allThreadsFlag = ((AliEn::Util::isMac()) ? "-M" : "-m"); # excellent design of MAC, eh?
+print "Running as user $userName\n";#, allThreadsFlag is $allThreadsFlag\n";
 
 sub countInstances {
-	my $when = shift;
-	
-	my $mysql=`ps -U $userName $allThreadsFlag -o pid,ppid,command |grep mysql |wc -l`;
-	my $proxy=`ps -U $userName -o pid,ppid,command  |grep -i Proxy| grep -v grep |wc -l`;
-	chomp ($mysql);
-	chomp ($proxy);
-	print "$when,  we have $mysql mysql and $proxy ProxyServer instances\n";
-	return (int($mysql), int($proxy));
+  my $when = shift;
+  
+  my $pid=open2(\*READ, \*WRITE, "mysql -u admin -ppass -h$hostName -P 3307") or print "Error connecting to mysql: $@ \n" and exit(-2);
+  
+  print WRITE "show processlist;\n";
+  
+  close WRITE;
+  my @list=<READ>;
+  close READ;
+
+  my $mysql=$#list;#`ps -U $userName $allThreadsFlag -o pid,ppid,command |grep mysql |wc -l`;
+  my $proxy=`ps -U $userName -o pid,ppid,command  |grep -i Proxy| grep -v grep |wc -l`;
+  chomp ($mysql);
+  chomp ($proxy);
+  print "$when,  we have $mysql mysql and $proxy ProxyServer instances\n";
+  return (int($mysql), int($proxy));
 }
 
 my ($before, $proxyBefore) = countInstances("Before connecting");
@@ -54,7 +66,7 @@ if ( int($before) < int($after) ) {
 
 if ( int($proxyBefore) < int($proxyAfter) ) {
   print "Error: we used to have proxy $proxyBefore and now we have $proxyAfter, trying again in 10 sec.\n";
-  sleep (1000);
+  sleep (10);
   ($after, $proxyAfter) = countInstances("After 10 sec");
   
   ($proxyBefore eq $proxyAfter) or
