@@ -5,6 +5,9 @@
 #
 # modification history
 # $Log$
+# Revision 1.3  2006/05/25 12:29:01  catalin
+# print ALIEN_GCC's variable name, not its value (when gcc's not found)
+#
 # Revision 1.2  2006/05/19 10:35:37  buncic
 # Fix for gcc
 #
@@ -282,12 +285,16 @@ Configure()
   export ALIEN_LD_LIBRARY_PATH
   export ALIEN_PATH
 
-  ALIEN_GCC=${ALIEN_GCC:=`ls -1 $ALIEN_ROOT/*/*/bin/gcc 2>/dev/null | tail -1`} 
-  if [ -z "$ALIEN_GCC" ]
-  then 
-    echo "Could not find gcc in your distribution. Please set the ALIEN_GCC env. variable."
-    exit 1      
+   for gcc in $ALIEN_GCC $(ls -1 $ALIEN_ROOT/*/*/bin/gcc 2>/dev/null | tail -1) $(which gcc 2>/dev/null) /usr/bin/gcc
+   do break; done
+
+   if [ -z "$gcc" ]
+   then 
+     echo "Could not find gcc in your distribution. Please set the ALIEN_GCC env. variable."
+     exit 1      
   fi
+
+  ALIEN_GCC=$gcc
 
   libgcca=`$ALIEN_GCC -print-libgcc-file-name`
   gcc_lib_dir=`dirname $libgcca`
