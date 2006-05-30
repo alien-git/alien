@@ -1353,11 +1353,22 @@ sub f_ps_trace {
     my @elements = split " ", $_;
     my $hashcnt=0;
     my $newhash={};
+    my $newtrace="";
     foreach my $elem (@elements) {
-      $newhash->{$hashcnt} = $elem;
-      $hashcnt++;
+	# fix time format
+	if ($hashcnt == 0) {
+	    my $newelem=localtime($_);
+	    chomp $newelem;
+	    $newtrace .= $newelem;
+	} else {
+	    $newtrace .= $elem;
+	} 
+	$newtrace .= " ";
+	$newhash->{$hashcnt} = $elem;
+	$hashcnt++;
     }
-    $newhash->{trace} = $_;
+
+    $newhash->{trace} = $newtrace;
     push @trace,$newhash;
   }
   return \@trace;
