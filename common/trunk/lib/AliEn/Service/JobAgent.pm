@@ -975,11 +975,12 @@ sub getFiles {
 
   my $catalog;
 
-  eval{ $catalog = AliEn::UI::Catalogue::LCM::->new({"silent"=> "0",
-						     "gapi_catalog"=>"$self->{CONFIG}->{AGENT_API_PROXY}",
-#						  "ForcedMethod" => "TOKEN"
-						 });
-      };
+  eval{ 
+    my $options={silent=>0};
+    $self->{CONFIG}->{AGENT_API_PROXY} and 
+      $options->{gapi_catalog}=$self->{CONFIG}->{AGENT_API_PROXY};
+    $catalog = AliEn::UI::Catalogue::LCM::->new($options);
+  };
   if ($@) {print "ERROR GETTING THE CATALOGUE $@\n";}
   if (!$catalog) {
     $self->putJobLog($ENV{ALIEN_PROC_ID},"error","The job couldn't authenticate to the catalogue");
