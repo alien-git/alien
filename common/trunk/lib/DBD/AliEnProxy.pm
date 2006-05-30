@@ -98,7 +98,6 @@ $DBD::AliEnProxy::dr::imp_data_size = 0;
 sub connect ($$;$$) {
     my($drh, $dsn, $user, $auth, $attr)= @_;
     my($dsnOrig) = $dsn;
-
     my %attr = %$attr;
     my ($var, $val);
     while (length($dsn)) {
@@ -258,7 +257,8 @@ sub connect ($$;$$) {
 	    'proxy_client' => $client,
 	    'RowCacheSize' => $attr{'RowCacheSize'} || 20,
 	    'proxy_proto_ver' => $req_proto_ver || 1,
-	    'Password'     => $passwd
+	    'Password'     => $passwd,
+				    'proxy_client_pid'=>$$
    });
 
     foreach $var (keys %attr) {
@@ -369,11 +369,14 @@ sub disconnect ($) {
     # Close TCP connect to remote
     # XXX possibly best left till DESTROY? Add a config attribute to choose?
     #$dbh->{proxy_client} and $dbh->{proxy_client}->Disconnect(); # Disconnect method requires newer PlRPC module
-    $dbh->{proxy_client}->{socket} and 
-      $dbh->{proxy_client}->{socket}->shutdown(2);
+    if ($dbh->{proxy_client}->{socket}){
+      # we only close the socket if this socket was created by us
+      if ($$ eq   $dbh->{proxy_client_pid}){
+	$dbh->{proxy_client}->{socket}->shutdown(2);
+	$dbh->{proxy_client}->{socket} = undef; # hack
+      }
 
-    $dbh->{proxy_client}->{socket} = undef; # hack
-
+    }
     $dbh->SUPER::STORE('Active' => 0);
     1;
 }
