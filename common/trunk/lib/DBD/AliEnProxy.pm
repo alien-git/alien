@@ -65,19 +65,19 @@ $drh = undef;		# holds driver handle once initialised
 );
 
 sub driver ($$) {
-    if (!$drh) {
-	my($class, $attr) = @_;
+  if (!$drh) {
+    my($class, $attr) = @_;
 
-	$class .= "::dr";
-
-	$drh = DBI::_new_drh($class, {
-	    'Name' => 'Proxy',
-	    'Version' => $VERSION,
-	    'Attribution' => 'DBD::AliEnProxy by Jochen Wiedmann',
-	});
-	$drh->STORE(CompatMode => 1); # disable DBI dispatcher attribute cache (for FETCH)
-    }
-    $drh;
+    $class .= "::dr";
+    
+    $drh = DBI::_new_drh($class, {
+				  'Name' => 'Proxy',
+				  'Version' => $VERSION,
+				  'Attribution' => 'DBD::AliEnProxy by Jochen Wiedmann',
+				 });
+    $drh->STORE(CompatMode => 1); # disable DBI dispatcher attribute cache (for FETCH)
+  }
+  $drh;
 }
 
 sub CLONE {
@@ -146,32 +146,28 @@ sub connect ($$;$$) {
 	$attr{'hostname'} = "127.0.0.1";
     }
 
-    my $socket =  IO::Socket::INET->new
-	    ('PeerAddr'  => $attr{'hostname'},
-	     'PeerPort'  => $attr{'port'},
-	     'Proto'     => 'tcp',
-             'Timeout'   => 300,
-             'ReuseAddr' => 1);
+    my $socket;
 
-    ($socket) or print STDERR "Error connecting to proxy $attr{'hostname'}\n";
+    while (!($socket))    {
+      my $max_time = 60000;
+      my $cut_time = $max_time/100;
+      my $now = time();
+      my $power = 1;
+      do {
+	$socket =  IO::Socket::INET->new
+	  ('PeerAddr' => $attr{'hostname'},
+	   'PeerPort' => $attr{'port'},
+	   'Proto'    => 'tcp',
+	   'Timeout'   => 300,
+	   'ReuseAddr' => 1);
+	$socket and last;
+	
+	my $t = (time() - $now) < $cut_time ? 2**$power++ : int(rand($cut_time));
+	print STDERR "Error connecting to proxy $attr{'hostname'}\nRETRY after $t seconds...\n";
 
-    while (!($socket))
-    {
-       my $max_time = 60000;
-       my $cut_time = $max_time/100;
-       my $now = time();
-       my $power = 1;
-       do {
-         my $t = (time() - $now) < $cut_time ? 2**$power++ : int(rand($cut_time)); 
- 	 print STDERR "RETRY after $t seconds...\n";
-         sleep($t); 
-	 $socket =  IO::Socket::INET->new
-	    ('PeerAddr' => $attr{'hostname'},
-	     'PeerPort' => $attr{'port'},
-	     'Proto'    => 'tcp',
-             'Timeout'   => 300,
-             'ReuseAddr' => 1);
-        } while (!$socket && (time() - $now < $max_time) );
+	sleep($t); 
+
+      } while (!$socket && (time() - $now < $max_time) );
     }
 
     die("Error connecting...\n") unless $socket;
@@ -201,9 +197,9 @@ sub connect ($$;$$) {
     }
 
     my %client_opts = (
-		       'peeraddr'	=> $attr{'hostname'},
-		       'peerport'	=> $attr{'port'},
-		       'socket_proto'	=> 'tcp',
+#		       'peeraddr'	=> $attr{'hostname'},
+#		       'peerport'	=> $attr{'port'},
+#		       'socket_proto'	=> 'tcp',
 		       'application'	=> $attr{dsn},
 		       'user'		=> $user || '',
 		       'password'	=> $auth || '',
@@ -271,12 +267,11 @@ sub connect ($$;$$) {
 	}
     }
     $this->SUPER::STORE('Active' => 1);
-
     $this;
 }
 
-
-sub DESTROY { undef }
+sub DESTROY { 
+  undef }
 
 
 package DBD::AliEnProxy::db; # ====== DATABASE ======
@@ -368,12 +363,12 @@ sub disconnect ($) {
     # Drop database connection at remote end
     my $rdbh = $dbh->{'proxy_dbh'};
     local $SIG{__DIE__} = 'DEFAULT';
-    eval { $rdbh->disconnect() };
+#    eval { $rdbh->disconnect() };
     DBD::AliEnProxy::proxy_set_err($dbh, $@) if $@;
     
     # Close TCP connect to remote
     # XXX possibly best left till DESTROY? Add a config attribute to choose?
-    #$dbh->{proxy_client}->Disconnect(); # Disconnect method requires newer PlRPC module
+    #$dbh->{proxy_client} and $dbh->{proxy_client}->Disconnect(); # Disconnect method requires newer PlRPC module
     $dbh->{proxy_client}->{socket} and 
       $dbh->{proxy_client}->{socket}->shutdown(2);
 
@@ -677,9 +672,6 @@ sub fetch ($) {
     my $row = shift @$data;
 
     $sth->SUPER::STORE(Active => 0) if ( $sth->{proxy_cache_only} and !@$data );
-#    use Data::Dumper;
-#    print "Dumper\n";
-#    print Dumper ($row);
     return $sth->_set_fbav($row);
 }
 *fetchrow_arrayref = \&fetch;
