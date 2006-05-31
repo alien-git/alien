@@ -20,7 +20,7 @@ BEGIN { plan tests => 1 }
   $ENV{ALIEN_TESTDIR} or $ENV{ALIEN_TESTDIR}="/home/alienmaster/AliEn/t";
   eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
   includeTest("16-add") or exit(-2);
-  includeTest("14-se") or exit(-2);
+#  includeTest("14-se") or exit(-2);
 
   my $host=Net::Domain::hostname();
   my $config=new AliEn::Config;
@@ -186,7 +186,9 @@ sub startService {
   open (FILE, "<$logFile") or print "Error opening the log file $logFile" and return;
   my @file=<FILE>;
   close FILE;
-  grep (/connection\s+successful/i, @file) or print "The service is not listening:\n@file\n" and return;
+  print "Before doing the grep\n$file[0]\n";
+  
+  grep (/connection\s+successful/i, @file) or print "The gapi service is not listening:\n@file\n" and return;
 
 
   return 1;
