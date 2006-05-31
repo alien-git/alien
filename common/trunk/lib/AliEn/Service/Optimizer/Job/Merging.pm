@@ -80,7 +80,7 @@ sub checkMerging {
       $self->{CATALOGUE}->execute("mkdir", "-p", "$procDir/merged", "$procDir/merge-logs") 
 	or die("error creating the directories");
       $self->{CATALOGUE}->execute("cp", "$subProcDir/job-log/execution.out",
-				  "$procDir/merge-logs/execution.$job.out" );
+				  "$procDir/merge-logs/execution.$job.out", "-user", $user );
       my @files=$self->{CATALOGUE}->execute("find", "$subProcDir/job-output", "*");
       foreach my $file (@files){
 	$file=~ /\/((stdout)|(stderr)|(resources)|(alien_archive.*))$/ and next;

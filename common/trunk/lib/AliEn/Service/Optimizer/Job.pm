@@ -247,8 +247,8 @@ sub copyInput {
     $job_ca->evaluateAttributeVectorString("Workdirectorysize");
   if ($okwork && defined $workspace[0] && $workspace[0]>0){
     my $unit=1;
-    $workspace[0] =~ s/MB//i and $unit=1024*1024;
-    $workspace[0] =~ s/GB//i and $unit=1024*1024*1024;
+    $workspace[0] =~ s/MB//i and $unit=1024;
+    $workspace[0] =~ s/GB//i and $unit=1024*1024;
     my $space=$workspace[0]*$unit;
     if ($space>$size){
       $self->info("The job requires some extra workspace: $workspace[0]");
@@ -256,6 +256,7 @@ sub copyInput {
     }
   }
   my $req= join (" && ", "( other.LocalDiskSpace > $size )", @allreq);
+  $self->info("The requirements from input are $req");
   return {requirements=>"$req"};
 }
 # This subroutine finds the name in the proc directory where the file should

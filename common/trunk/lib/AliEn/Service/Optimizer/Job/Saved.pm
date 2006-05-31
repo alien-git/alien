@@ -99,7 +99,7 @@ sub checkSavedJob{
     if ($ok) {
       $self->info("The files have to be copied to $outputDir");
       $self->{CATALOGUE}->execute("mkdir", "-p", $outputDir);
-      if (!$self->{CATALOGUE}->execute("cp", "-k","$procDir/job-output/", $outputDir)) {
+      if (!$self->{CATALOGUE}->execute("cp", "-k","$procDir/job-output/", $outputDir, "-u", $user)) {
 	$self->putJobLog($queueid,"error", "Error putting the output in $outputDir");
 
       }
