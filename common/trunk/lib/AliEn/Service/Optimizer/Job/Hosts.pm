@@ -29,11 +29,22 @@ sub checkWakesUp {
 
   $self->$method(@data, "The hosts optimizer starts");
   my $done5=$self->checkHosts($silent);
-
+  $self->unblockQueue($silent);
   $self->$method(@data, "The hosts optimizer finished");
   return;
 }
 
+sub unblockQueue {
+  my $self=shift;
+  my $silent=shift;
+  $self->{DB}->do("UPDATE SITEQUEUES set timeblocked=now() where timeblocked is null and blocked='locked-err'") or $self->info("Error setting the time when the queue was blocked") and return;
+
+  $self->info("Opening the queues that have been closed for more than 15 minutes");
+  $self->{DB}->do("UPDATE SITEQUEUES set blocked='open', timeblocked=null where blocked='locked-err' and adddate(timeblocked,interval 15 minute)<now()");
+  
+  
+  return 1;
+}
 
 sub  checkHosts {
   my $self=shift;

@@ -253,7 +253,10 @@ sub verify {
     #	my ($oldHost, $oldDB, $oldDriver)=
     #	    ($dbh->{DATABASE}->{HOST},$dbh->{DATABASE}->{DB},$dbh->{DATABASE}->{DRIVER});
     my $OLDTOKEN;
-    $self->{addbh}->existsToken($VFusername) or return $self->addUser($VFusername);
+
+    #   DISABLING automatic User creation, since it also happens in case of database problems
+    #   $self->{addbh}->existsToken($VFusername) or return $self->addUser($VFusername);
+    $self->{addbh}->existsToken($VFusername) or return;
 
     $self->info("User exists in database. Changing password." );
     
@@ -691,7 +694,9 @@ sub insertKey {
       $self->{LOGGER}->warning( "Authen", "Error in updating SSHKEY for $user" );
     }
 
-    ( $self->{addbh}->existsToken($user) )  or $self->addUser($user);
+    # Disabling automatic user creation
+    #    ( $self->{addbh}->existsToken($user) )  or $self->addUser($user);
+    ( $self->{addbh}->existsToken($user) )  or return;
 
     $self->info(
             "$user requests insertion of public keys in database" );
@@ -820,7 +825,9 @@ sub insertCert {
 	       "An LDAP error occured on serverside. Contact AliEn administrators" );
     }
 
-    ($self->{addbh}->existsToken($user) )  or $self->addUser($user);
+    # DISABLING automatic user creation
+    #($self->{addbh}->existsToken($user) )  or $self->addUser($user);
+    ($self->{addbh}->existsToken($user) )  or return;
     
     return 1;
 }

@@ -973,14 +973,18 @@ sub getSpyUrl {
 }
 
 sub queueinfo {
-    my $this = shift;
-    my $site = shift;
+  my $this = shift;
+  my $jdl="";
+  grep (/^-jdl$/, @_) and $jdl="jdl,";
+  @_=grep (!/^-jdl$/, @_);
+  my $site = shift;
+  my $sql="site,blocked, status, statustime,$jdl ". join(", ", @{AliEn::Util::JobStatus()});
+  $self->info("Quering  $sql");
+  my $array = $self->{DB}->getFieldsFromSiteQueueEx($sql,"where site like '$site' ORDER by site");
+  (@$array) or return;
 
-    my $array = $self->{DB}->getFieldsFromSiteQueueEx("site,blocked, status, statustime, ". join(", ", @{AliEn::Util::JobStatus()}),"where site like '$site' ORDER by site");
-    (@$array) or return;
 
-
-    return $array;
+  return $array;
 }
 
 sub jobinfo {
