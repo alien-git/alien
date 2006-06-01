@@ -205,6 +205,19 @@ sub requestJob {
   $self->{JOBLOADED}=1;
 
   if ($self->{MONITOR}) {
+    my $cpu_type = $self->{MONITOR}->getCpuType();
+    if($cpu_type){
+      $cpu_type->{host} = $self->{HOST};
+      my $done = $self->{SOAP}->CallSOAP("CLUSTERMONITOR","getCpuSI2k", $cpu_type);
+      if($done && $done->result){
+        $self->info("SpecINT2k for this machine is ".$done->result);
+	$self->{MONITOR}->setCpuSI2k($done->result);
+      }else{
+        $self->info("Got invalid SI2k estimation for this machine. Not reporting consumed ksi2k for this job.");
+      }
+    }else{
+      $self->info("ApMon cannot determine cpu_type for this machine. Not reporting consumed ksi2k for this job.");
+    }		      
     $self->{MONITOR}->addJobToMonitor($self->{PROCESSID}, $self->{WORKDIR}, $self->{CONFIG}->{CE_FULLNAME}.'_Jobs', $ENV{ALIEN_PROC_ID});
   }
   $self->sendJAStatus('JOB_STARTED');

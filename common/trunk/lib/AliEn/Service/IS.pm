@@ -641,6 +641,19 @@ sub InsertHost {
     return 1;
 }
 
+# Forward it to AliEn::Database::IS;
+sub getCpuSI2k {
+  my $this = shift;
+  my $cpu_type = shift;
+  my $cm_host = shift;
+
+  my $result = $self->{DB}->getCpuSI2k($cpu_type, $cm_host);
+  if(! $result){
+    return (-1, "CPU not found in the cpu_si2k table for host='$cpu_type->{host}'");
+  }else{
+    return $result;
+  }
+}
 
 return 1;
 __END__
