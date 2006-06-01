@@ -22,6 +22,14 @@ sub initialize {
    $self->info("VO Box is $self->{CONFIG}->{VOBOX}");
    $self->{CONFIG}->{VOBOXDIR} = "/opt/vobox/\L$self->{CONFIG}->{ORG_NAME}";
    $self->{UPDATECLASSAD} = 0;
+
+   $self->{SUBMIT_CMD} = ( $self->{CONFIG}->{CE_SUBMITCMD} or "edg-job-submit" );
+
+   $self->{STATUS_CMD} = ( $self->{CONFIG}->{CE_STATUSCMD} or "edg-job-status" );
+
+   $self->{KILL_CMD}   = ( $self->{CONFIG}->{CE_KILLCMD} or "edg-job-cancel" );
+
+
    return 1;
 }
 
@@ -43,7 +51,7 @@ sub submit {
 
   $self->renewProxy(90000);
   $self->info("Submitting to LCG with \'@args\'.");
-  my @command = ( $self->{CONFIG}->{CE_SUBMITCMD}, "--noint", "--nomsg", @args, "$jdlfile" );
+  my @command = ( $self->{SUBMIT_CMD}, "--noint", "--nomsg", @args, "$jdlfile" );
   $self->debug(1,"Doing @command\n");
   
   open SAVEOUT,  ">&STDOUT";
@@ -91,7 +99,7 @@ sub kill {
 
      $self->info("Killing job $queueid, JobID is $contact");
 
-     my $error = system( $self->{CONFIG}->{CE_KILLCMD},  "--noint","$contact" );
+     my $error = system( $self->{KILL_CMD},  "--noint","$contact" );
      return $error;
 }
 
@@ -136,7 +144,7 @@ sub getAllBatchIds {
   my @queuedJobs = ();
   foreach (@$jobIds) {
      $_ or next;
-     open LB,"$self->{CONFIG}->{CE_STATUSCMD} $_|" or next;
+     open LB,"$self->{STATUS_CMD} $_|" or next;
      my @output = <LB>;     
      close LB;
      grep m/^Current Status:\s*(Running)|(Ready)|(Scheduled)|(Waiting)/,@output 
@@ -235,7 +243,7 @@ sub getJobStatus {
    my @args=();
    $self->{CONFIG}->{CE_STATUSARG} and
      @args=split (/\s+/, $self->{CONFIG}->{CE_STATUSARG});
-   open( OUT, "$self->{CONFIG}->{CE_STATUSCMD} -noint @args \"$contact\"| grep \"$pattern\"|" );
+   open( OUT, "$self->{STATUS_CMD} -noint @args \"$contact\"| grep \"$pattern\"|" );
    my @output = <OUT>;
    close(OUT);
    my $status = $output[0];
