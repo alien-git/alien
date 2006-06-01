@@ -216,13 +216,23 @@ sub createXROOTConfFile{
 
   map {$_="xrootd.export $_"} @dirs;
 
+  my $fsLibdir = "$ENV{'ALIEN_ROOT'}/api/lib";
+
+  if (! -e "$fsLibdir") {
+      $fsLibdir = "$ENV{'ALIEN_ROOT'}/lib";
+      if (! -e "$fsLibdir" ) {
+	  $self->info("Error - $fsLib is not existing under $ENV{'ALIEN_ROOT'}/api/lib or $ENV{'ALIEN_ROOT'}/lib ",12);
+	  return;
+      }
+  }
+
   my $async="xrootd.async off\n";  
   open (FILE, ">$optionsFile") or 
     $self->info("Error opening $optionsFile", 12) and return;
   print FILE "# Start the server on port $port
 xrd.port $port
 # Use the authorization library
-xrootd.fslib $ENV{'ALIEN_ROOT'}/lib/$fsLib
+xrootd.fslib $fsLibdir/$fsLib
 # Export files
 @dirs
 xrd.sched mint 16 maxt 16 avlt 4
