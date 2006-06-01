@@ -1153,8 +1153,16 @@ sub checkZombies {
 
   return 1;
 }
-  
 
+# Forward the call from JobAgent to AliEn::Service::IS in central services
+sub getCpuSI2k {
+  my $this = shift;
+  my $cpu_type = shift;
+ 
+  my $done = $self->{SOAP}->CallSOAP("IS", "getCpuSI2k",  $cpu_type, $self->{HOST}) or return (-1, $self->{LOGGER}->error_msg());
+
+  return $done->result;
+}
 
 sub checkJobAgents {
   my $self=shift;

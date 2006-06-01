@@ -54,6 +54,12 @@ sub initialize {
   foreach (@services, "Services" ) {
     $self->checkTable($_, "host", \%columns, "name");
   }
+  $self->checkTable("cpu_si2k", "cpu_model_name", {
+  		cpu_model_name => "varchar(100)",
+		cpu_cache => "int(5)",
+		cpu_MHz => "int(6)",
+		si2k => "int(7)"
+  	});
   return $self;
 }
 sub setService{
@@ -209,6 +215,39 @@ sub getCertificate{
   $self->queryValue("SELECT certificate FROM CLCCERT WHERE user='$user' AND name = '$name'");
 }
 
+# Look into the cpu_si2k table for an entry about a cpu type and return back the corresponding SI2k
+# In case there is no entry for that cpu, but there are at least two for similar cpus (same model_name & cache)
+# it tries to estimate the value.
+sub getCpuSI2k {
+  my $self = shift;
+  my $cpu_type = shift;  # from JobAgent
+  my $cm_host = shift;  # host of the cluster monitor
+
+  return (-1, 'Invalid cpu_type hash.') if(! ($cpu_type && $cpu_type->{cpu_model_name} && $cpu_type->{cpu_cache} && $cpu_type->{cpu_MHz}));
+  
+  # try querying the database for exactly this configuration
+  my $result = $self->queryValue("SELECT si2k FROM cpu_si2k WHERE '$cpu_type->{cpu_model_name}' LIKE cpu_model_name AND '$cpu_type->{cpu_cache}' LIKE cpu_cache AND '$cpu_type->{cpu_MHz}' LIKE cpu_MHz");
+  
+  if(! defined($result)){
+    my $list = $self->query("SELECT DISTINCT si2k, cpu_MHz FROM cpu_si2k WHERE '$cpu_type->{cpu_model_name}' LIKE cpu_model_name AND '$cpu_type->{cpu_cache}' LIKE cpu_cache");
+    if(defined($list) && (@$list >= 2)){
+      my $cpu1 = $list->[0];
+      my $cpu2 = $list->[1];
+      if($cpu2->{cpu_MHz} != $cpu1->{cpu_MHz}){
+        my $factor = ($cpu2->{si2k} - $cpu1->{si2k}) / ($cpu2->{cpu_MHz} - $cpu1->{cpu_MHz});
+        $result = $cpu1->{si2k} + $factor * ($cpu_type->{cpu_MHz} - $cpu1->{cpu_MHz});
+      }else{
+        $self->info("cpu_si2k table contains two entries with the same CPU: cpu_model_name='$cpu1->{cpu_model_name}' cpu_cache='$cpu1->{cpu_cache}' cpu_MHz='$cpu1->{cpu_MHz}'");
+      }
+    }
+  }
+  if(! defined($result)){
+    $self->info("SI2k unknown: cm_host='$cm_host' host='$cpu_type->{host}' cpu_model_name='$cpu_type->{cpu_model_name}' cpu_cache='$cpu_type->{cpu_cache}' cpu_MHz='$cpu_type->{cpu_MHz}'");
+  }else{
+    $self->info("SI2k resolved: cm_host='$cm_host' host='$cpu_type->{host}' cpu_model_name='$cpu_type->{cpu_model_name}' cpu_cache='$cpu_type->{cpu_cache}' cpu_MHz='$cpu_type->{cpu_MHz}' ===> $result");
+  }
+  return $result;
+}
 
 =head1 NAME
 
