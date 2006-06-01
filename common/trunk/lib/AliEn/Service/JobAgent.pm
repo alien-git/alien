@@ -497,14 +497,12 @@ sub CreateDirs {
   if ($okwork) {
     if ((defined $workspace[0]) && ($workspace[0] > 0)) {
       my $unit=1;
-      if ($workspace[0] =~ /MB/) {
+      if ($workspace[0] =~ s/MB//g) {
 	$unit = 1;
       }
-      if ($workspace[0] =~ /GB/) {
+      if ($workspace[0] =~ s/GB//g) {
 	$unit = 1024;
       }
-      $workspace[0] =~ s/MB//g;
-      $workspace[0] =~ s/GB//g;
       if (($workspace[0]*$unit) > $freemegabytes) {
 	# not enough space
 	$self->putJobLog($ENV{ALIEN_PROC_ID},"error","Request $workspace[0] * $unit MB, but only $freemegabytes MB free!");
