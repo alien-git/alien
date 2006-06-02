@@ -25,7 +25,9 @@ $< and $user="Y\n" and $secondUser="";
 my $host=Net::Domain::hostname();
 print FILE "$user$org
 $host:8389/o=$org,dc=cern,dc=ch
-NAliEn2-TEST-$org
+Y
+
+AliEn2-TEST-$org
 
 $secondUser
 pass
