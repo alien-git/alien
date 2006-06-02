@@ -55,25 +55,26 @@ sub submit {
   my @command = ( $self->{SUBMIT_CMD}, "--noint", "--nomsg", @args, "$jdlfile" );
   $self->debug(1,"Doing @command\n");
 
-  open (FILE, join(" ", @command, "|")) or return 1;
+  my $error=open (FILE, join(" ", @command, "|"));
+  if ($error ) {
+#    $contact or $contact="";
+    $self->{LOGGER}->warning("LCG","Error submitting the job. Log file '$!'\n");
+#    $contact and system ('cat', $contact, '>/dev/null 1>&2');
+    return $error;
+  }
+  
   my $contact=<FILE>;
   close FILE;
   $contact and
     chomp $contact;
+
+  $self->info("LCG JobID is $contact");
+  $self->{LAST_JOB_ID} = $contact;
+  open JOBIDS, ">>$self->{CONFIG}->{LOG_DIR}/CE.db/JOBIDS";
+  my $now = time();
+  print JOBIDS "$now,$contact\n";
+  close JOBIDS;
   
-  if ($error) {
-    $contact or $contact="";
-    $self->{LOGGER}->warning("LCG","Error submitting the job. Log file '$contact'\n");
-    $contact and system ('cat', $contact, '>/dev/null 1>&2');
-    return $error;
-  } else {
-    $self->info("LCG JobID is $contact");
-    $self->{LAST_JOB_ID} = $contact;
-    open JOBIDS, ">>$self->{CONFIG}->{LOG_DIR}/CE.db/JOBIDS";
-    my $now = time();
-    print JOBIDS "$now,$contact\n";
-    close JOBIDS;
-  }
   my $submissionTime = time - $startTime;
   $self->info("Submission took $submissionTime sec.");
   return $error;
