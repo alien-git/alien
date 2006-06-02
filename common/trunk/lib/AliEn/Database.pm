@@ -1094,11 +1094,9 @@ sub _queryDB{
     alarm(0);
 
     if ($sqlError) {
-      my @errors=('Unexpected EOF', 'Lost connection',"Constructor didn't return a handle", 'No such object', 'Connection reset by peer');
       my $found=0;
-      foreach (@errors) {
-	$sqlError =~ /$_/ and $found=1 and last;
-      }
+      $sqlError =~ /(Unexpected EOF)|(Lost connection)|(Constructor didn't return a handle)|(No such object)|(Connection reset by peer)|(MySQL server has gone away at)/ and $found=1;
+
       if ($sqlError =~ /Died at .*AliEn\/UI\/Catalogue\.pm line \d+/) {
 	die("We got a ctrl+c... :( ");
       }
@@ -1167,11 +1165,12 @@ sub _do{
     defined($result) and last;
 
     if ($sqlError) {
-      my @errors=('Unexpected EOF', 'Lost connection');
+#      my @errors=('Unexpected EOF', 'Lost connection', 'MySQL server has gone away at');
       my $found=0;
-      foreach (@errors) {
-	$sqlError =~ /$_/ and $found=1 and last;
-      }
+#      foreach (@errors) {
+#	$sqlError =~ /$_/ and $found=1 and last;
+#      }
+      $sqlError=~ /(Unexpected EOF)|(Lost connection)|(MySQL server has gone away at)/ and $found=1;
       if (!$found) {
 	$oldAlarmValue
 	  and $SIG{ALRM} = $oldAlarmValue
