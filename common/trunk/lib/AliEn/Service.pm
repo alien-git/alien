@@ -288,7 +288,7 @@ sub SetSecureEnvironment {
   #
   $ENV{X509_USER_CERT}     = "$CertDir/cert.pem";
   $ENV{X509_USER_KEY}      = "$CertDir/key.pem";
-  my $CAdir="$ENV{ALIEN_ROOT}/etc/alien-certs/certificates";
+  my $CAdir="$ENV{ALIEN_ROOT}/globus/share/certificates";
   $self->{LOGGER}->info("Service", "Starting a secure server :\n\tcert in $CertDir\n\t CA in $CAdir");
   $options->{SSL_key_file}= "$CertDir/key.pem";
   $options->{SSL_cert_file}="$CertDir/cert.pem";
