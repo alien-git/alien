@@ -555,7 +555,7 @@ sub getTop {
     my $argv=shift;
 
     ($argv=~ /^-?-all_status=?/) and $all_status=1 and  next;
-    ($argv=~ /^-?-a(ll)?=?/) and $columns.=", received, started, finished" 
+    ($argv=~ /^-?-a(ll)?=?/) and $columns.=", received, started, finished,split" 
       and next;
     my $found;
     foreach my $column (@columns){

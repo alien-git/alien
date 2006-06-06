@@ -747,7 +747,7 @@ sub handler {
   $service .=".log";
   print STDERR "$$ Redirecting to $service\n";
   $self->{LOGGER} or $self->{LOGGER}=AliEn::Logger->new();
-  $self->{LOGGER}->redirect("/opt/alien/apache/logs/$service");
+  $self->{LOGGER}->redirect("$ENV{ALIEN_ROOT}/httpd/logs/$service");
   Apache::SOAP::handler($r, @_);
 }
 
