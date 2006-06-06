@@ -1357,7 +1357,7 @@ sub f_ps_trace {
     foreach my $elem (@elements) {
 	# fix time format
 	if ($hashcnt == 0) {
-	    my $newelem=localtime($_);
+	    my $newelem=localtime($elem);
 	    chomp $newelem;
 	    $newtrace .= $newelem;
 	} else {
