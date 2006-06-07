@@ -56,14 +56,16 @@ sub submit {
   $self->debug(1,"Doing @command\n");
 
   my $error=open (FILE, join(" ", @command, "|"));
-  if ($error ) {
+  my $contact=<FILE>;
+  $contact or $contact="";
+  if ($contact !~ /^https:\// ) {
 #    $contact or $contact="";
-    $self->{LOGGER}->warning("LCG","Error submitting the job. Log file '$!'\n");
-#    $contact and system ('cat', $contact, '>/dev/null 1>&2');
+    $self->{LOGGER}->warning("LCG","Error submitting the job. Log file '$!' $contact\n");
+    $contact and system ('cat', $contact, '>/dev/null 1>&2');
     return $error;
   }
   
-  my $contact=<FILE>;
+#  my $contact=<FILE>;
   close FILE;
   $contact and
     chomp $contact;
@@ -77,7 +79,7 @@ sub submit {
   
   my $submissionTime = time - $startTime;
   $self->info("Submission took $submissionTime sec.");
-  return $error;
+  return 0;#$error;
 }
 
 
