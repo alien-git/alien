@@ -1856,6 +1856,23 @@ sub internalQuery {
 }
 
 
+
+sub destroy {
+  my $self=shift;
+
+  my ($number, $rest)=keys %Connections;
+  my @databases=keys %{$Connections{$number}};
+
+  foreach my $database (@databases){
+    $database=~ /^FIRST_DB$/ and next;
+
+    $Connections{$number}->{$database} and $Connections{$number}->{$database}->SUPER::destroy();
+    undef $Connections{$number}->{$database};
+  }
+
+#  $self->SUPER::destroy();
+}
+
 =head1 SEE ALSO
 
 AliEn::Database

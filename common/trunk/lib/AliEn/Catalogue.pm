@@ -677,7 +677,8 @@ sub f_quit {
 }
 
 sub f_disconnect {
-  shift->_executeInAllDatabases("destroy",@_);
+  shift->{DATABASE}->destroy();
+#  shift->_executeInAllDatabases("destroy",@_);
 }
 
 sub f_mkremdir {
