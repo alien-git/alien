@@ -262,13 +262,14 @@ sub renewProxy {
    my $gracePeriod = shift;
    $gracePeriod or $gracePeriod = 0;
    my $duration = shift;
+   $duration or $duration=$self->{CONFIG}->{CE_TTL};
    $duration or $duration = 100000; #in seconds
    my $ProxyRepository = "$self->{CONFIG}->{VOBOXDIR}/proxy_repository";
-   my $command = "vobox-proxy --vo \l$self->{CONFIG}->{ORG_NAME} query-dn";
+   my $command = "vobox-proxy --vo \L$self->{CONFIG}->{ORG_NAME}\E query-dn";
    $self->debug(1,"Doing $command");
    my $dn = `$command`;
    $self->debug(1,"DN is $dn");
-   $command = "vobox-proxy --vo \l$self->{CONFIG}->{ORG_NAME} --dn \'$dn\' query-proxy-filename";
+   $command = "vobox-proxy --vo \L$self->{CONFIG}->{ORG_NAME}\E --dn \'$dn\' query-proxy-filename";
    $self->debug(1,"Doing $command");
    my $proxyfile = `$command`;
    $? and $self->{LOGGER}->error("LCG","No valid proxy found.") and return;   
@@ -284,7 +285,7 @@ sub renewProxy {
      $self->debug(1,"Doing $command");
      my $proxyDN = `$command`;
      chomp $proxyDN;
-     $command = "vobox-proxy --vo \l$self->{CONFIG}->{ORG_NAME} --dn \'$proxyDN\' query-proxy-timeleft";
+     $command = "vobox-proxy --vo \L$self->{CONFIG}->{ORG_NAME}\E --dn \'$proxyDN\' query-proxy-timeleft";
      $self->debug(1,"Doing $command");
      my $timeLeft = `$command`;
      $self->debug(1,"Proxy timeleft is $timeLeft");
@@ -302,7 +303,7 @@ sub renewProxy {
      $self->debug(1,"Doing @command");
      $error = system(@command);
      $error and $self->{LOGGER}->error("LCG","unable to renew proxy") and next;
-     $command = "vobox-proxy --vo \l$self->{CONFIG}->{ORG_NAME} --dn \'$proxyDN\' query-proxy-timeleft";
+     $command = "vobox-proxy --vo \L$self->{CONFIG}->{ORG_NAME}\E --dn \'$proxyDN\' query-proxy-timeleft";
      $self->debug(1,"Doing $command");
      my $realDuration = `$command`;
      $self->{LOGGER}->error("LCG","asked for $duration sec, got only $realDuration") if ( $realDuration < $duration);
