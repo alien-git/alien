@@ -1150,7 +1150,7 @@ sub access {
   } else {
     $access = ( $maybeoption or 0);
   }
-  my $lfn     = (shift or 0);
+  my $lfns    = (shift or 0);
   my $se      = (shift or 0);
   my $size    = (shift or "0");
 
@@ -1174,331 +1174,353 @@ sub access {
     return $newhash;
   }
   
-  my $perm = "";
-  
-  my $result;
-  my $ticket = "";
+
+  my @lfnlist = split(",",$lfns);
   my @lnewresult;
   my $newresult = \@lnewresult;
-  
-  my $guid="";
-  my $pfn ="";
-  my $seurl =""; 
 
-  if ($access eq "read") {
-    $perm = "r";
-  } elsif ($access =~ /^(((write)((-once)|(-version))?)|(delete))$/ ) {
-    $perm = "w";
-  } else {
-    $self->{LOGGER}->error("LCM","access: illegal access type <$access> requested");
-    return;
-  }
-    
-  $lfn = $self->{CATALOG}->f_complete_path($lfn);
-  
-  if ( $lfn =~ /(\w\w\w\w\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\w\w\w\w\w\w\w\w).*/ ) {
-      $guid = $1;
-      $self->debug(1, "We have to translate the guid $1");
-      $lfn = "";
-      my @alllfns = $self->{CATALOG}->f_guid2lfn("s",$guid);
-      foreach (@alllfns) {
-	  my $perms = $self->{CATALOG}->checkPermissions($perm,$_,undef, 
-							 {RETURN_HASH=>1});
-	  if ($perms) {
-	      $lfn = $_;
-	      last;
-	  }
-      }
-      
-      if ($lfn eq "") {
-	  $self->{LOGGER}->error("LCM","access: access denied to guid $guid");
-	  return;
-      }
-  }
+  my $globalticket="";
 
-  
-
-
-  #    print "$access $lfn $se\n";
-
-  
-  my $filehash = {};
-
-  while(1) {
-    $filehash = $self->{CATALOG}->checkPermissions($perm,$lfn,undef, 
-						   {RETURN_HASH=>1});
-    if (!$filehash) {
-      $self->{LOGGER}->error("LCM","access: access denied to $lfn");
-      return;
-    }
-    if ( ($access eq "read")) {
-      if (!$self->{CATALOG}->isFile($lfn, $filehash->{lfn})) {
-	$self->{LOGGER}->error("LCM","access: access find entry for $lfn");
-	return;
-      }
-    } else {
-      
-      if ($access eq "write-once") {
-	my $parentdir = $self->{CATALOG}->f_dirname($lfn);
-	$result = $self->{CATALOG}->checkPermissions($perm,$parentdir);
-	if (!$result) {
-	  $self->{LOGGER}->error("LCM","access: parent dir missing for lfn $lfn");
-	  return;
-	}
-	if ($self->{CATALOG}->existsEntry($lfn, $filehash->{lfn})) {
-	  $self->{LOGGER}->error("LCM","access: write-once but lfn $lfn exists already");
-	  return;
-	}
-      }
-      
-      if ($access eq "write-version") {  
-	my $parentdir = $self->{CATALOG}->f_dirname($lfn);
-	$result = $self->{CATALOG}->checkPermissions($perm,$parentdir);
-	if (!$result) {
-	  $self->{LOGGER}->error("LCM","access: parent dir missing for lfn $lfn");
-	  return;
-	}
-	if ($self->{CATALOG}->existsEntry($lfn, $filehash->{lfn})) {
-	  $self->info( "access: lfn <$lfn> exists - creating backup version ....\n");
-	  my $filename = $self->{CATALOG}->f_basename($lfn);
-	  
-	  $self->{CATALOG}->f_mkdir("ps","$parentdir"."/."."$filename/") or
-	    $self->{LOGGER}->error("LCM","access: cannot create subversion directory - sorry") and return;
-	  
-	  my @entries = $self->{CATALOG}->f_ls("s","$parentdir"."/."."$filename/");
-	  my $last;
-	  foreach (@entries) {
-	    $last = $_;
-	  }
-	  
-	  my $version=0;
-	  if ($last ne "") {
-	    $last =~ /^v(\d)\.(\d)$/;
-	    $version = (($1*10) + $2) - 10 +1;
-	  }
-	  if ($version <0) {
-	    $self->{LOGGER}->error("LCM","access: cannot parse the last version number of $lfn");
-	    return;
-	  }
-	  my $pversion = sprintf "%.1f", (10.0+($version))/10.0;
-	  my $backupfile = "$parentdir"."/."."$filename/v$pversion";
-	  $self->info( "access: backup file is $backupfile \n");
-	  if (!$self->{CATALOG}->f_mv("",$lfn, $backupfile)) {
-	    $self->{LOGGER}->error("LCM","access: cannot move $lfn to the backup file $backupfile");
-	    return;
-	  }
-	  # in the end we access a new file
-	  $access="write-once";
-	} else {
-	  $access="write-once";
-	}
-      }
+  foreach my $lfn (@lfnlist) {
+      my $perm = "";  
+      my $result;
+      my $ticket = "";
       
       
-      if ($access eq "delete") {
-	if (! $self->{CATALOG}->existsEntry($lfn, $filehash->{lfn})) {
-	  $self->{LOGGER}->error("LCM","access: delete of non existant file requested: $lfn");
-	  return;
-	}
-      }
-    }
-    
-    if ($access =~ /^write/) {
-      if (!$se) {
-	$se = $self->{CONFIG}->{SE_FULLNAME};
-      }
-      my ($seName, $seCert)=$self->{SOAP}->resolveSEName($se) or return;
-      my $newname=$self->{SOAP}->CallSOAP($seName, "getVolumePath",$seName, $size)
-	or $self->{LOGGER}->error("LCM","access: Error asking $se for a filename") and return;
-      my @fileName=$self->{SOAP}->GetOutput($newname);
-      $guid=$fileName[1];
-      $pfn =$fileName[2];
-      $seurl = $fileName[3];
+      my $guid="";
+      my $pfn ="";
+      my $seurl =""; 
       
-      $pfn=~ s/\/$//;
-      $seurl=~ s/\/$//;
-      
-      $pfn .= $lfn;
-      $pfn .= "/$guid";
-      
-      $seurl .= $lfn;
-      $seurl .= "/$guid";
-      
-      $filehash->{storageurl} = $seurl;
-      
-      if ($nosize) {
-	$filehash->{size} = 0;
+      if ($access eq "read") {
+	  $perm = "r";
+      } elsif ($access =~ /^(((write)((-once)|(-version))?)|(delete))$/ ) {
+	  $perm = "w";
       } else {
-	$filehash->{size} = $size;
-      }
-    }
-
-    my $anchor="";
-    if (($access =~ /^read/) || ($access =~/^delete/) ) {
-      my $cnt=0;
-
-      $guid=$self->{CATALOG}->f_lfn2guid("s",$lfn)
-	  or $self->info( "access: Error getting the guid of $lfn",11) and return;
-      
-    resolve_again:
-      my $whereis = $self->{CATALOG}->f_whereisFile("s", $lfn);
-      #Get the file from the LCM
-      $whereis or $self->info( "access: " . $self->{LOGGER}->error_msg())
-	  and return;
-      
-      my (@closeList) = $self->selectClosestSE(@$whereis);
-      #check if the wished se is at all existing ....
-      my $sefound=0;
-      foreach (@closeList) {
-	  if ( (lc $_) eq (lc $se) ) {
-	      $sefound=1;
-	      last;
-	  }
-      }
-      if (!$sefound) {
-	  $se = $closeList[0];
-      }
-
-      if (! $se) {
-	  $self->{LOGGER}->error("LCM","access: File $lfn does not exist in $se");
+	  $self->{LOGGER}->error("LCM","access: illegal access type <$access> requested");
 	  return;
       }
       
-
-      $self->debug(1, "We can ask the following SE: $se");
-
-      (!($options =~/s/)) and $self->info( "The guid is $guid");
+      $lfn = $self->{CATALOG}->f_complete_path($lfn);
       
-      my @pfns=$self->getPFNfromGUID($se, $guid) or return;
-      $pfn=$pfns[0];
-      if (($pfn =~ /^guid\:\/\/\//) || ( $pfn =~ /.*\/\/\w\w\w\w\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\w\w\w\w\w\w\w\w\?/)) {
-	# we got a reference guid back
-	# 34ea59b5-cb8c-4ae7-8d55-06ed376afe00
-	  my $newguid="";
-	if ( $pfn =~ /^guid:/ ) {
-	    $pfn =~ /guid\:\/\/\/(\w\w\w\w\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\w\w\w\w\w\w\w\w).*/;
-	    $newguid = $1;
-	} else {
-	    $pfn =~ /.*\/\/(\w\w\w\w\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\w\w\w\w\w\w\w\w)\?.*/;
-	    $newguid = $1;
-	}
-	print "New Guid = $newguid\n";
-	$guid = $newguid;
-	$pfn =~ /ZIP=([^\&]*)\&DB=([^\&]*)\&tableName=([^\&]*)/;
-	my $options="s ";
-	if (defined $1) {
-	    $anchor = $1;
-	}
-	if (defined $2) {
-	    $options .= " -db$2";
-	}
-	if (defined $3) {
-	    $options .=" -table$3";
-	}
-	if ( $anchor eq "") {
-	    $pfn =~ /ZIP=([^\&]*)/;
-	    if (defined $1) {
-		$anchor = $1;
-	    }
-	}
-
-	print "anchor = $anchor options = $options\n";
-	my @lfns= $self->{CATALOG}->f_guid2lfn("s",$newguid);
-	if ( (defined $lfns[0]) && ($lfns[0] ne "") ) {
-
-	  $lfn = $lfns[0];
-	  goto resolve_again;
-	} else {
-	  $self->info( "access: Error resolving the guid reference $pfn",11) and return;
-          }
+      if ( $lfn =~ /(\w\w\w\w\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\w\w\w\w\w\w\w\w).*/ ) {
+	  $guid = $1;
+	  $self->debug(1, "We have to translate the guid $1");
+	  $lfn = "";
+	  my @alllfns = $self->{CATALOG}->f_guid2lfn("s",$guid);
+	  foreach (@alllfns) {
+	      my $perms = $self->{CATALOG}->checkPermissions($perm,$_,undef, 
+							 {RETURN_HASH=>1});
+	      if ($perms) {
+		  $lfn = $_;
+		  last;
+	      }
+	  }
+	  
+	  if ($lfn eq "") {
+	      $self->{LOGGER}->error("LCM","access: access denied to guid $guid");
+	      return;
+	  }
       }
-      $DEBUG and $self->debug(1, "access: We can take it from the following SE: $se with PFN: $pfn");
-    }
-
-    # we skip that!
-    # add the anchor to the lfn for archive files
-    #if ($anchor ne "") {
-    #$lfn .= "#" . $anchor;
-    #}
-
-    $ticket .= "<authz>\n";
-    $ticket .= "  <file>\n";
-    
-    $filehash->{lfn}  = $lfn;
-    $filehash->{turl} = $pfn;
-    $filehash->{se}   = $se;
-    if ($access =~ /^write/) {
-      $filehash->{guid} = $guid;
-    }
-    
-    if ((!defined $filehash->{md5}) || ($filehash->{md5} eq "")) {
-	$filehash->{md5} = "00000000000000000000000000000000";
-    }
-
-    # the lfn has to be the first member in the <file> list
-    $ticket .= "    <lfn>$filehash->{'lfn'}</lfn>\n";
-    $ticket .= "    <access>$access</access>\n";
       
-    foreach ( keys %{$filehash}) {
-      if ($_ eq "lfn") {
-	next;
-      }
-      if (defined $filehash->{$_}) {
-	$ticket .= "    <${_}>$filehash->{$_}</${_}>\n";
-      }
-    }
-    
-    $ticket .= "  </file>\n";
-    $ticket .= "</authz>\n";
-
-    $self->{envelopeengine}->Reset();
-    #    $self->{envelopeengine}->Verbose();
-    my $coded = $self->{envelopeengine}->encodeEnvelopePerl("$ticket","0","none");
       
-    my $newhash;
-    $newhash->{guid} = $filehash->{guid};
-    $newhash->{md5}="$filehash->{md5}";
-    
-    # the -p (public) option creates public access url's without envelopes
-    
-    if ( ($options =~ /p/) && ($access =~ /^read/) ) {
-	$newhash->{envelope} = "alien";
-	$newhash->{url}="$pfn";
-	$newhash->{se}="$se";
-	$newhash->{lfn}="$lfn";
-    } else {
-	$newhash->{envelope} = $self->{envelopeengine}->GetEncodedEnvelope();
-	$pfn =~ /^root\:\/\/([0-9a-zA-Z.-_:]*)\/\/(.*)/;
-	if ($anchor ne "") {
-	    $newhash->{url}="root://$1/$lfn#$anchor";
-	    $newhash->{lfn}="$lfn#$anchor";
-	} else {
-	    $newhash->{url}="root://$1/$lfn";
-	    $newhash->{lfn}="$lfn";
-	}
-	$newhash->{se}="$se";
-
-    }
       
-    push @lnewresult,$newhash; 
-    
-    if (!$coded) {
-      $self->{LOGGER}->error("LCM","access: error during envelope encryption");
-      return;
-    } else {
-      (!($options=~ /s/)) and $self->info("access: prepared your access envelope");
-    }
-    last;
-  }
+      
+      #    print "$access $lfn $se\n";
+      
+      
+      my $filehash = {};
+      
+      while(1) {
+	  $filehash = $self->{CATALOG}->checkPermissions($perm,$lfn,undef, 
+							 {RETURN_HASH=>1});
+	  if (!$filehash) {
+	      $self->{LOGGER}->error("LCM","access: access denied to $lfn");
+	      return;
+	  }
+	  if ( ($access eq "read")) {
+	      if (!$self->{CATALOG}->isFile($lfn, $filehash->{lfn})) {
+		  $self->{LOGGER}->error("LCM","access: access find entry for $lfn");
+		  return;
+	      }
+	  } else {
+	      
+	      if ($access eq "write-once") {
+		  my $parentdir = $self->{CATALOG}->f_dirname($lfn);
+		  $result = $self->{CATALOG}->checkPermissions($perm,$parentdir);
+		  if (!$result) {
+		      $self->{LOGGER}->error("LCM","access: parent dir missing for lfn $lfn");
+		      return;
+		  }
+		  if ($self->{CATALOG}->existsEntry($lfn, $filehash->{lfn})) {
+		      $self->{LOGGER}->error("LCM","access: write-once but lfn $lfn exists already");
+		      return;
+		  }
+	      }
+	      
+	      if ($access eq "write-version") {  
+		  my $parentdir = $self->{CATALOG}->f_dirname($lfn);
+		  $result = $self->{CATALOG}->checkPermissions($perm,$parentdir);
+		  if (!$result) {
+		      $self->{LOGGER}->error("LCM","access: parent dir missing for lfn $lfn");
+		      return;
+		  }
+		  if ($self->{CATALOG}->existsEntry($lfn, $filehash->{lfn})) {
+		      $self->info( "access: lfn <$lfn> exists - creating backup version ....\n");
+		      my $filename = $self->{CATALOG}->f_basename($lfn);
+		      
+		      $self->{CATALOG}->f_mkdir("ps","$parentdir"."/."."$filename/") or
+			  $self->{LOGGER}->error("LCM","access: cannot create subversion directory - sorry") and return;
+		      
+		      my @entries = $self->{CATALOG}->f_ls("s","$parentdir"."/."."$filename/");
+		      my $last;
+		      foreach (@entries) {
+			  $last = $_;
+		      }
+		      
+		      my $version=0;
+		      if ($last ne "") {
+			  $last =~ /^v(\d)\.(\d)$/;
+			  $version = (($1*10) + $2) - 10 +1;
+		      }
+		      if ($version <0) {
+			  $self->{LOGGER}->error("LCM","access: cannot parse the last version number of $lfn");
+			  return;
+		      }
+		      my $pversion = sprintf "%.1f", (10.0+($version))/10.0;
+		      my $backupfile = "$parentdir"."/."."$filename/v$pversion";
+		      $self->info( "access: backup file is $backupfile \n");
+		      if (!$self->{CATALOG}->f_mv("",$lfn, $backupfile)) {
+			  $self->{LOGGER}->error("LCM","access: cannot move $lfn to the backup file $backupfile");
+			  return;
+		      }
+		      # in the end we access a new file
+		      $access="write-once";
+		  } else {
+		      $access="write-once";
+		  }
+	      }
+	      
+	      
+	      if ($access eq "delete") {
+		  if (! $self->{CATALOG}->existsEntry($lfn, $filehash->{lfn})) {
+		      $self->{LOGGER}->error("LCM","access: delete of non existant file requested: $lfn");
+		      return;
+		  }
+	      }
+	  }
+	  
+	  if ($access =~ /^write/) {
+	      if (!$se) {
+		  $se = $self->{CONFIG}->{SE_FULLNAME};
+	      }
+	      my ($seName, $seCert)=$self->{SOAP}->resolveSEName($se) or return;
+	      my $newname=$self->{SOAP}->CallSOAP($seName, "getVolumePath",$seName, $size)
+		  or $self->{LOGGER}->error("LCM","access: Error asking $se for a filename") and return;
+	      my @fileName=$self->{SOAP}->GetOutput($newname);
+	      $guid=$fileName[1];
+	      $pfn =$fileName[2];
+	      $seurl = $fileName[3];
+	      
+	      $pfn=~ s/\/$//;
+	      $seurl=~ s/\/$//;
+	      
+	      $pfn .= $lfn;
+	      $pfn .= "/$guid";
+	      
+	      $seurl .= $lfn;
+	      $seurl .= "/$guid";
+	      
+	      $filehash->{storageurl} = $seurl;
+	      
+	      if ($nosize) {
+		  $filehash->{size} = 0;
+	      } else {
+		  $filehash->{size} = $size;
+	      }
+	  }
+	  
+	  my $anchor="";
+	  if (($access =~ /^read/) || ($access =~/^delete/) ) {
+	      my $cnt=0;
+	      
+	      $guid=$self->{CATALOG}->f_lfn2guid("s",$lfn)
+		  or $self->info( "access: Error getting the guid of $lfn",11) and return;
+	      
+	    resolve_again:
+	      my $whereis = $self->{CATALOG}->f_whereisFile("s", $lfn);
+	      #Get the file from the LCM
+	      $whereis or $self->info( "access: " . $self->{LOGGER}->error_msg())
+		  and return;
+	      
+	      my (@closeList) = $self->selectClosestSE(@$whereis);
+	      #check if the wished se is at all existing ....
+	      my $sefound=0;
+	      foreach (@closeList) {
+		  if ( (lc $_) eq (lc $se) ) {
+		      $sefound=1;
+		      last;
+		  }
+	      }
+	      if (!$sefound) {
+		  $se = $closeList[0];
+	      }
+	      
+	      if (! $se) {
+		  $self->{LOGGER}->error("LCM","access: File $lfn does not exist in $se");
+		  return;
+	      }
+	      
+	      
+	      $self->debug(1, "We can ask the following SE: $se");
+	      
+	      (!($options =~/s/)) and $self->info( "The guid is $guid");
+	      
+	      my @pfns=$self->getPFNfromGUID($se, $guid) or return;
+	      $pfn=$pfns[0];
+	      if (($pfn =~ /^guid\:\/\/\//) || ( $pfn =~ /.*\/\/\w\w\w\w\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\w\w\w\w\w\w\w\w\?/)) {
+		  # we got a reference guid back
+		  # 34ea59b5-cb8c-4ae7-8d55-06ed376afe00
+		  my $newguid="";
+		  if ( $pfn =~ /^guid:/ ) {
+		      $pfn =~ /guid\:\/\/\/(\w\w\w\w\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\w\w\w\w\w\w\w\w).*/;
+		      $newguid = $1;
+		  } else {
+		      $pfn =~ /.*\/\/(\w\w\w\w\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\w\w\w\w\w\w\w\w)\?.*/;
+		      $newguid = $1;
+		  }
+		  print "New Guid = $newguid\n";
+		  $guid = $newguid;
+		  $pfn =~ /ZIP=([^\&]*)\&DB=([^\&]*)\&tableName=([^\&]*)/;
+		  my $options="s ";
+		  if (defined $1) {
+		      $anchor = $1;
+		  }
+		  if (defined $2) {
+		      $options .= " -db$2";
+		  }
+		  if (defined $3) {
+		      $options .=" -table$3";
+		  }
+		  if ( $anchor eq "") {
+		      $pfn =~ /ZIP=([^\&]*)/;
+		      if (defined $1) {
+			  $anchor = $1;
+		      }
+		  }
+		  
+		  print "anchor = $anchor options = $options\n";
+		  my @lfns= $self->{CATALOG}->f_guid2lfn("s",$newguid);
+		  if ( (defined $lfns[0]) && ($lfns[0] ne "") ) {
+		      
+		      $lfn = $lfns[0];
+		      goto resolve_again;
+		  } else {
+		      $self->info( "access: Error resolving the guid reference $pfn",11) and return;
+		  }
+	      }
+	      $DEBUG and $self->debug(1, "access: We can take it from the following SE: $se with PFN: $pfn");
+	  }
+	  
+	  # we skip that!
+	  # add the anchor to the lfn for archive files
+	  #if ($anchor ne "") {
+	  #$lfn .= "#" . $anchor;
+	  #}
+	  
+	  $ticket .= "<authz>\n";
+	  $ticket .= "  <file>\n";
+	  if ($globalticket eq "") {
+	      $globalticket .= $ticket;
+	  }
 
-  ($options=~ /s/) or
-    print "========================================================================
+
+	  $filehash->{lfn}  = $lfn;
+	  $filehash->{turl} = $pfn;
+	  $filehash->{se}   = $se;
+	  if ($access =~ /^write/) {
+	      $filehash->{guid} = $guid;
+	  }
+	  
+	  if ((!defined $filehash->{md5}) || ($filehash->{md5} eq "")) {
+	      $filehash->{md5} = "00000000000000000000000000000000";
+	  }
+	  
+	  # the lfn has to be the first member in the <file> list
+	  $ticket .= "    <lfn>$filehash->{'lfn'}</lfn>\n";
+	  $globalticket .= "    <lfn>$filehash->{'lfn'}</lfn>\n";
+	  $ticket .= "    <access>$access</access>\n";
+	  $globalticket .= "    <access>$access</access>\n";
+
+	  foreach ( keys %{$filehash}) {
+	      if ($_ eq "lfn") {
+		  next;
+	      }
+	      if (defined $filehash->{$_}) {
+		  $ticket .= "    <${_}>$filehash->{$_}</${_}>\n";
+		  $globalticket .= "    <${_}>$filehash->{$_}</${_}>\n";
+	      }
+	  }
+	  
+	  $ticket .= "  </file>\n";
+	  $ticket .= "</authz>\n";
+	  
+	  $self->{envelopeengine}->Reset();
+	  #    $self->{envelopeengine}->Verbose();
+	  my $coded = $self->{envelopeengine}->encodeEnvelopePerl("$ticket","0","none");
+	  
+	  my $newhash;
+	  $newhash->{guid} = $filehash->{guid};
+	  $newhash->{md5}="$filehash->{md5}";
+	  
+	  # the -p (public) option creates public access url's without envelopes
+	  
+	  if ( ($options =~ /p/) && ($access =~ /^read/) ) {
+	      $newhash->{envelope} = "alien";
+	      $newhash->{url}="$pfn";
+	      $newhash->{se}="$se";
+	      $newhash->{lfn}="$lfn";
+	  } else {
+	      $newhash->{envelope} = $self->{envelopeengine}->GetEncodedEnvelope();
+	      $pfn =~ /^root\:\/\/([0-9a-zA-Z.-_:]*)\/\/(.*)/;
+	      if ($anchor ne "") {
+		  $newhash->{url}="root://$1/$lfn#$anchor";
+		  $newhash->{lfn}="$lfn#$anchor";
+	      } else {
+		  $newhash->{url}="root://$1/$lfn";
+		  $newhash->{lfn}="$lfn";
+	      }
+	      $newhash->{se}="$se";
+	  }
+	  
+	  push @lnewresult,$newhash; 
+	  
+	  if (!$coded) {
+	      $self->{LOGGER}->error("LCM","access: error during envelope encryption");
+	      return;
+	  } else {
+	      (!($options=~ /s/)) and $self->info("access: prepared your access envelope");
+	  }
+	  last;
+	  
+	  ($options=~ /s/) or
+	      print "========================================================================
 $ticket
 ========================================================================
 ",$$newresult[0]->{envelope},"
 ========================================================================\n";
-  
-    return @$newresult; 
+      }
+  }
+
+  if ($options =~ /g/) {
+      $globalticket .= "  </file>\n";
+      $globalticket .= "</authz>\n";
+      
+      $self->{envelopeengine}->Reset();
+      my $coded = $self->{envelopeengine}->encodeEnvelopePerl("$globalticket","0","none");
+      $lnewresult[0]->{genvelope} = $self->{envelopeengine}->GetEncodedEnvelope();
+  }
+
+  return @$newresult; 
 }
 
 sub commit {
