@@ -821,7 +821,7 @@ sub reconnect {
 
   $DEBUG and $self->debug(1,"Database: In reconnect connecting to database $db on host $host using driver $driver.");
 
-  $self->destroy;
+#  AliEn::Database::destroy($self);
 
   unless($host eq $self->{HOST} and
 	 $db eq $self->{DB} and
@@ -849,7 +849,7 @@ sub changeUser {
 
 	$DEBUG and $self->debug(1,"Database: In changeRole changing user to $newUser.");
 
-	$self->destroy;
+    #	$self->destroy;
 
 	$self->{USER} = $newUser;
 	$self->{ROLE} = $newUser;
@@ -1266,7 +1266,7 @@ sub _validateUser {
     return 1;
   }
 
-  $self->destroy;
+  AliEn::Database::destroy($self);
 
   if (!$self->_connect) {
     $self->info( "Database: In _validateUser validation of user $self->{USER} (as $self->{ROLE}) failed.",125,0);

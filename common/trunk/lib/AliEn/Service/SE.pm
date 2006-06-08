@@ -524,7 +524,7 @@ sub copyFile {
     $name or return $self->SetTransfer($pfn, $target, $oldSE, $options, $size);
     
     $self->{DATABASE}->insertLocalCopy({pfn=>$pfn,
-					localCopy=>'file://$self->{HOST}$name', 
+					localCopy=>"file://$self->{HOST}$name", 
 					size=>$size});
   }
   $self->info("Ok, we got the file. What to do with it?");

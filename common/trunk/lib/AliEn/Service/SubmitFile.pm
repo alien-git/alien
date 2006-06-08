@@ -132,7 +132,7 @@ sub startBBFTPServer{
   my $port=(shift or $self->{PORT});
 
 
-  $ENV{X509_CERT_DIR}="$ENV{ALIEN_ROOT}/globus/lib/certificates";
+  $ENV{X509_CERT_DIR}="$ENV{ALIEN_ROOT}/globus/share/certificates";
   my $oldMap=($ENV{GRIDMAP} or "");
   $ENV{GRIDMAP}=$self->{GRIDMAP};
   my ($oldCert, $oldKey)=($ENV{X509_USER_CERT}, $ENV{X509_USER_KEY});
