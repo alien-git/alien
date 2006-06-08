@@ -453,7 +453,7 @@ sub new {
 
   bless( $self, $class );
   $self->SUPER::new();
-  
+
   if ($self->{CATALOG}) {
     $AliEn::UI::catalog=$self->{CATALOG};
     $options->{DATABASE} = $self->{CATALOG}->{DATABASE};
@@ -843,6 +843,7 @@ sub close {
     $self->{CATALOG}->f_disconnect;
     undef $self->{CATALOG};
   }
+  undef $AliEn::UI::catalog;
 }
 
 =item C<version()>
