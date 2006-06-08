@@ -5,6 +5,9 @@
 #
 # modification history
 # $Log$
+# Revision 1.4  2006/05/30 10:05:09  buncic
+# Try to guess gcc location if gcc is not supplied in AliEn distribution
+#
 # Revision 1.3  2006/05/25 12:29:01  catalin
 # print ALIEN_GCC's variable name, not its value (when gcc's not found)
 #
@@ -282,6 +285,9 @@ Configure()
   ALIEN_PERL="$ALIEN_ROOT/bin/alien-perl"
   export ALIEN_PERL
 
+  GLOBUS_LOCATION=${GLOBUS_LOCATION:=$ALIEN_ROOT/globus}
+  ALIEN_LD_LIBRARY_PATH=${ALIEN_LD_LIBRARY_PATH:="$ALIEN_ROOT/lib:$ALIEN_ROOT/api/lib:$GLOBUS_LOCATION/lib"}
+  ALIEN_PATH=${ALIEN_PATH:="$ALIEN_ROOT/bin:$ALIEN_ROOT/api/bin:$GLOBUS_LOCATION/bin"}
   export ALIEN_LD_LIBRARY_PATH
   export ALIEN_PATH
 

@@ -615,8 +615,8 @@ FindLocation()
 ALIEN_Config()
 ###########################################################################
 {
-  ALIEN_PATH=""
-  ALIEN_LD_LIBRARY_PATH=$ALIEN_ROOT/lib:$ALIEN_ROOT/lib/mysql
+  ALIEN_PATH="$ALIEN_ROOT/api/bin"
+  ALIEN_LD_LIBRARY_PATH=$ALIEN_ROOT/lib:$ALIEN_ROOT/lib/mysql:$ALIEN_ROOT/api/lib
 
   ALIEN_MYPROXY_SERVER=""
   ALIEN_MYPROXY_DOMAIN=""
@@ -963,7 +963,8 @@ ALIEN_GetArg()
             shift 1 
             if [ "$1" = "" ]
             then
-              printf "%s\n" $VERSION
+	      alien -exec version
+#              printf "%s\n" $VERSION
               exit
             fi
             ;;
