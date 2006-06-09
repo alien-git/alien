@@ -29,6 +29,25 @@ sub countInstances {
   print "$when,  we have $mysql mysql and $proxy ProxyServer instances\n";
   return (int($mysql), int($proxy));
 }
+sub compareNumber {
+  my $mysql=shift;
+  my $proxy=shift;
+  my $message=shift;
+
+  my ($during, $proxyDuring) = countInstances($message);
+
+  ($during eq $mysql) or
+    print "There are too many connections at the moment ($during, and at the beginning there were only $mysql\n" and return;
+  ($proxyDuring eq $proxy) or
+    print "There are too many proxy connections at the moment ($proxyDuring, and at the beginning there were only $proxy)\n" and return;
+
+  return 1;
+}
+
+print "HELLO\n";
+
+my $c2=AliEn::UI::Catalogue->new();
+$c2->close();
 
 my ($before, $proxyBefore) = countInstances("Before connecting");
 
@@ -36,43 +55,32 @@ my ($before, $proxyBefore) = countInstances("Before connecting");
 
 my $c=AliEn::UI::Catalogue->new() or exit(-2);
 
-#
-# This test is not reliable - some other services can create new connection
-# while we are trying to connect - disabling it temorary
-#
-
-my ($during, $proxyDuring) = countInstances("During the connection");
-
-$during -= 1;
-$proxyDuring -= 1;
-
-#($during eq $before) or 
-#  print "There are too many connections at the moment ($during, and at the beginning there were only $before\n" and exit(-2);
-
-($proxyDuring eq $proxyBefore) or
-  print "There are too many proxy connections at the moment ($proxyDuring, and at the beginning there were only $proxyBefore)\n" and exit(-2);
-
-#system("ps -U $userName -o pid,ppid,command |grep -i Proxy|grep -v grep");
+compareNumber($before+1, $proxyBefore+1, "During the connection") or exit(-2);
 
 $c->close();
 print "closed!!!\n";
 sleep (3);
-
-my ($after, $proxyAfter) = countInstances("After login out");
-
-if ( int($before) < int($after) ) { 
-  print "Error: we used to have $before and now we have $after\n" and exit(-2);
-}
-
-if ( int($proxyBefore) < int($proxyAfter) ) {
-  print "Error: we used to have proxy $proxyBefore and now we have $proxyAfter, trying again in 10 sec.\n";
+if (! compareNumber($before, $proxyBefore, "After login out")) {
+  print "Let's try sleeping again...\n";
   sleep (10);
-  ($after, $proxyAfter) = countInstances("After 10 sec");
-  
-  ($proxyBefore eq $proxyAfter) or
-    print "Error: we used to have $proxyBefore and now we still have $proxyAfter\n" and exit(-2);
-
+  compareNumber($before, $proxyBefore, "After 10 sec")  or exit(-2);
   print "But now it is fine...\n";
 }
+
 print "Ok!\n";
+
+print "Let's try again with another catalogue\n";
+
+$c=AliEn::UI::Catalogue->new() or exit(-2);
+$c->execute("ls", "/remote/") or exit(-2);
+compareNumber($before+2, $proxyBefore+2, "During the second connection") or exit(-2);
+$c->close();
+print "closed!!!\n";
+sleep (3);
+if (! compareNumber($before, $proxyBefore, "After login out")) {
+  print "Let's try sleeping again...\n";
+  sleep (10);
+  compareNumber($before, $proxyBefore, "After 10 sec")  or exit(-2);
+  print "But now it is fine...\n";
+}
 exit(0);
