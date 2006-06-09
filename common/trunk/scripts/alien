@@ -5,6 +5,9 @@
 #
 # modification history
 # $Log$
+# Revision 1.5  2006/06/08 10:11:27  psaiz
+# Fixing the LD_LIBRARY_PATH
+#
 # Revision 1.4  2006/05/30 10:05:09  buncic
 # Try to guess gcc location if gcc is not supplied in AliEn distribution
 #
@@ -302,9 +305,9 @@ Configure()
 
   ALIEN_GCC=$gcc
 
-  libgcca=`$ALIEN_GCC -print-libgcc-file-name`
-  gcc_lib_dir=`dirname $libgcca`
   gcc_bin_dir=`dirname $ALIEN_GCC`
+  gcc_dir=`dirname $gcc_bin_dir`
+  gcc_lib_dir=$gcc_dir/lib
 
   export PATH=$ALIEN_ROOT/bin:$gcc_bin_dir:$ALIEN_PATH:$PATH
   export LD_LIBRARY_PATH=$ALIEN_LD_LIBRARY_PATH:$gcc_lib_dir:$LD_LIBRARY_PATH
