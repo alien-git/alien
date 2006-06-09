@@ -821,7 +821,7 @@ sub reconnect {
 
   $DEBUG and $self->debug(1,"Database: In reconnect connecting to database $db on host $host using driver $driver.");
 
-#  AliEn::Database::destroy($self);
+  AliEn::Database::destroy($self);
 
   unless($host eq $self->{HOST} and
 	 $db eq $self->{DB} and
@@ -849,7 +849,7 @@ sub changeUser {
 
 	$DEBUG and $self->debug(1,"Database: In changeRole changing user to $newUser.");
 
-    #	$self->destroy;
+    AliEn::Database::destroy($self);#	$self->destroy;
 
 	$self->{USER} = $newUser;
 	$self->{ROLE} = $newUser;
@@ -869,7 +869,7 @@ sub changeRole {
 
 	$DEBUG and $self->debug(1,"Database: In changeRole changing role to $newRole.");
 
-	$self->destroy;
+    AliEn::Database::Destroy($self);
 
 	$self->{ROLE} = $newRole;
 	$self->{PASSWD} = $passwd;

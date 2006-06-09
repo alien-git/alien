@@ -1861,14 +1861,15 @@ sub destroy {
   my $self=shift;
 
   my ($number, $rest)=keys %Connections;
+  $number or return;
   my @databases=keys %{$Connections{$number}};
 
   foreach my $database (@databases){
     $database=~ /^FIRST_DB$/ and next;
-
     $Connections{$number}->{$database} and $Connections{$number}->{$database}->SUPER::destroy();
-    undef $Connections{$number}->{$database};
+    delete $Connections{$number}->{$database};
   }
+  undef %Connections;
 
 #  $self->SUPER::destroy();
 }
