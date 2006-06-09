@@ -869,7 +869,7 @@ sub changeRole {
 
 	$DEBUG and $self->debug(1,"Database: In changeRole changing role to $newRole.");
 
-    AliEn::Database::Destroy($self);
+    AliEn::Database::destroy($self);
 
 	$self->{ROLE} = $newRole;
 	$self->{PASSWD} = $passwd;
