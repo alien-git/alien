@@ -42,7 +42,7 @@ sub f_addTag {
     my $done = $self->createRemoteTable(
 					$self->{DATABASE}->{HOST},   $self->{DATABASE}->{DB},
 					$self->{DATABASE}->{DRIVER}, $self->{DATABASE}->{USER},
-					$tableName,"(file char($fileLength), offset int, entryId int AUTO_INCREMENT, $tagSQL , KEY (entryId))"
+					$tableName,"(file char($fileLength), offset int, entryId int AUTO_INCREMENT, $tagSQL , KEY (entryId), INDEX (file))"
 				       );
 
     $done or return;
