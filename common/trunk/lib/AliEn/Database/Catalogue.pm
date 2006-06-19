@@ -536,7 +536,7 @@ sub getLFNlike {
   my @dirs=split(/\//, $lfn);
   my $pattern="";
   foreach my $dir (@dirs) {
-    $dir=~ s{^%$}{\[^/\]+};
+    $dir=~ s{^%}{\[^/\]+};
     $dir=~ s{([^\\])%}{$1\[^/\]*}g;
     $pattern.="$dir/";
   }

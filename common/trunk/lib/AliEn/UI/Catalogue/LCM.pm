@@ -49,6 +49,12 @@ use AliEn::LCM;
 
 use AliEn::UI::Catalogue;
 use AliEn::SOAP;
+use Getopt::Long;
+use Compress::Zlib;
+use AliEn::TMPFile;
+use Archive::Zip qw( :ERROR_CODES :CONSTANTS );
+use Data::Dumper;
+
 use vars qw(@ISA $DEBUG);
 @ISA = qw( AliEn::UI::Catalogue );
 $DEBUG=0;
@@ -79,6 +85,9 @@ my %LCM_commands;
 		 'listTransfer'=> ['$self->{STORAGE}->listTransfer', 0],
 		 'killTransfer'=> ['$self->{STORAGE}->killTransfer', 0],
 		 'stage'=> ['$self->stage', 0],
+		 'find'=> ['$self->find',0],
+		 'zip'=> ['$self->zip',16+64],
+		 'unzip'=> ['$self->unzip',0],
 
 );
 
@@ -267,6 +276,7 @@ sub get {
   #First, let's check the local copy of the file
   my $result=$self->{STORAGE}->getLocalCopy($guid, $localFile);
   if (! $result) {
+    $self->{STORAGE}->checkDiskSpace($ret->{size}, $localFile) or return;
     my $seRef = $self->{CATALOG}->f_whereisFile("s$opt", $file);
 
     #Get the file from the LCM
@@ -731,6 +741,19 @@ Possible options:
 \t-r:(reverse) Start an io server on the client side and let the SE fetch the file from there.
 \t-v:(versioning) a new version of the file is created, if it already existed\n";
 }
+#
+# Check if the user can create the file
+sub _canCreateFile{
+  my $self=shift;
+  my $lfn=shift;
+  $self->{CATALOG}->checkPermissions( 'w', $lfn )  or  return;
+  if ($self->{CATALOG}->f_Database_existsEntry( $lfn)) {
+    $self->{LOGGER}->error("File", "file $lfn already exists!!",1);
+    return;
+  }
+  return 1;
+}
+
 sub addFile {
   my $self  = shift;
   $self->debug(1, "UI/LCM Register @_");
@@ -754,11 +777,7 @@ sub addFile {
 
   $lfn = $self->{CATALOG}->f_complete_path($lfn);
   if (! $options->{versioning}) {
-    ( $self->{CATALOG}->checkPermissions( 'w', $lfn ) ) or  return;
-    if ($self->{CATALOG}->f_Database_existsEntry( $lfn)) {
-      $self->{LOGGER}->error("File", "file $lfn already exists!!",1);
-      return;
-    }
+    $self->_canCreateFile($lfn) or return;
   }
 
   ######################################################################################
@@ -1752,5 +1771,115 @@ sub stage {
 
 #############################################################################################################
 
+sub find_HELP{
+  my $self=shift;
+  return $self->{CATALOG}->f_find_HELP()."  -a => Put all the files in an archive - 2nd arg is archive name\n";
+}
+
+sub find {
+  my $self=shift;
+  $self->debug(1, "I'm in the find of LMC");
+  my $options={archive=>""};
+  Getopt::Long::Configure("pass_through");
+  @ARGV=@_;
+  Getopt::Long::GetOptions($options,"archive=s" )  or 
+      $self->info("Error getting the options") and return;
+  @_=@ARGV;
+  Getopt::Long::Configure("default");
+  my $i=0;
+  while (defined $_[$i]){
+    $_[$i] =~ /^-[xl]/  and $i+=2 and next;
+    $_[$i] =~ /^-/ or last;
+    $i++;
+  }
+  my $dir=$_[$i];
+
+
+  my @result=$self->{CATALOG}->f_find(@_);
+  if ($options->{archive}){
+    $self->info("Putting the archive in $options->{archive}");
+    $self->zip("-d", $dir, $options->{archive}, @result) or return;
+  }
+  return @result;
+}
+use Getopt::Std;
+
+sub zip_HELP{
+  return "zip: create a zip archive. 
+Usage:
+           zip [options] <archiveName> <file1> [<file2> ...]
+
+Possible options:
+        -d <directory> :remove <directory> from the beginning of the path
+";
+}
+sub zip {
+  my $self=shift;
+  my %options=();
+  @ARGV=@_;
+  getopts("d:",\%options);
+  @_=@ARGV;
+  my $lfn=shift;
+
+  my @files=@_;
+  $lfn= $self->{CATALOG}->f_complete_path($lfn);
+
+  $self->_canCreateFile($lfn) or return;
+  
+  @files or $self->info("Error not enough arguments in zip") and return;
+  $self->info("We should put the files in the zip archive");
+  my $zip=Archive::Zip->new();
+  $options{d}  and $self->info("Taking '$options{d}' out of the path name");
+  foreach my $file (@files) {
+    my $lfnFile=$file;
+    $options{d} and $lfnFile=~ s{$options{d}}{};
+    $self->info("Getting the file $file (saving as $lfnFile)");
+    my ($localfile)=$self->execute("get", "-silent", $file) 
+      or $self->info("Error getting the file $file") and return;
+    $zip->addFile($localfile, $lfnFile) or 
+      $self->info("Error adding the file $localfile to the archive") and return;
+  }
+  my $myName=AliEn::TMPFile->new();
+  $zip->writeToFileNamed($myName) == AZ_OK 
+    or $self->info("Error creating the zip archive $myName") and return;
+  $self->debug(1, "Ok, time to add the archive to the catalogue"); 
+  $self->execute("add", "-silent", $lfn, $myName) or 
+    $self->info("Error adding the file to the catalogue") and return;
+
+  $self->info("Archive zip file $lfn created!! ");
+
+  return 1;
+}
+
+sub unzip {
+  my $self=shift;
+  my $lfn=shift;
+  my $pwd=shift;
+  $self->info("Getting the file $lfn from the catalogue and unziping ");
+  my ($localfile)=$self->execute("get", "-silent", $lfn)
+    or $self->info("Error getting the entry $lfn from the catalogue") and return;
+  my $zip=Archive::Zip->new($localfile) 
+    or $self->info("Error reading the file $localfile (are you sure it is a zip archive? )") and return;
+
+  if  ($pwd) {
+    $self->info("Extracting in $pwd");
+    if (! -d $pwd){
+      $self->info("Creating the directory $pwd");
+      my $dir;
+      foreach ( split ( "/", $pwd ) ) {
+	$dir .= "/$_";
+	mkdir $dir, 0755;
+      }
+    }
+    chdir $pwd or $self->info("Error going to $pwd: $!") and return;
+  }
+
+  $zip->extractTree() == AZ_OK
+    or $self->info("Error extrracting the files from the archive") and return;
+
+
+  $self->info("File extracted!");
+  return 1;
+}
 return 1;
 
