@@ -70,7 +70,7 @@ sub getJobUserByDB {
 }
 
 sub JobStatus {
-  return ['ASSIGNED','DONE','ERROR_A','ERROR_I','ERROR_E','ERROR_IB','ERROR_M','ERROR_R','ERROR_S','ERROR_SPLT', 'ERROR_SV','ERROR_V','ERROR_VN','EXPIRED','FAILED','FORCEMERGE','IDLE','INSERTING','INTERACTIV','KILLED','MERGING','QUEUED','RUNNING','SAVING','SAVED', 'SPLIT','SPLITTING','STARTED','WAITING','ZOMBIE'];
+  return ['ASSIGNED','DONE','ERROR_A','ERROR_I','ERROR_E','ERROR_IB','ERROR_M','ERROR_R','ERROR_S','ERROR_SPLT', 'ERROR_SV','ERROR_V','ERROR_VN','EXPIRED','FAILED','FORCEMERGE','IDLE','INSERTING','INTERACTIV','KILLED','MERGING','QUEUED','RUNNING','SAVING','SAVED', 'SPLIT','SPLITTING','STARTED','WAITING','ZOMBIE', 'ERROR_VT'];
 }
 
 # mapping between job status as text and number
@@ -91,7 +91,7 @@ my $ml_status ={'INSERTING' => 1,
 		'ERROR_A' => -1, 'ERROR_I' => -2, 'ERROR_E' => -3, 'ERROR_IB' => -4, 
 		'ERROR_M' => -5, 'ERROR_R' => -6, 'ERROR_S' => -7, 'ERROR_SPLT' => -8, 
 		'ERROR_SV' => -9, 'ERROR_V' => -10, 'ERROR_VN' => -11, 'EXPIRED' => -12,
-		'FAILED' => -13, 'KILLED' => -14, 'ZOMBIE' => -15};
+		'FAILED' => -13, 'KILLED' => -14, 'ZOMBIE' => -15, 'ERROR_VT' => -16};
 
 # convert a job status to a number to be used in MonaLisa
 sub statusForML {
