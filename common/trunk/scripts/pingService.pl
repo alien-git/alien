@@ -2,6 +2,7 @@ use strict;
 use AliEn::Config;
 use SOAP::Lite;
 use Data::Dumper;
+use Net::Domain;
 
 my %serviceConfigMap = (
 "Authen" => ["AUTH_HOST", "AUTH_PORT"],
@@ -37,8 +38,7 @@ $config
 my $configHost = exists($serviceConfigMap{$serviceName}) ? $serviceConfigMap{$serviceName}->[0] : uc($serviceName) . "_HOST";
 my $configPort = exists($serviceConfigMap{$serviceName}) ? $serviceConfigMap{$serviceName}->[1] : uc($serviceName) . "_PORT";
 
-my $host = `hostname`;
-chomp($host);
+my $host = Net::Domain::hostfqdn();
 $host = $config->{$configHost} if (defined $configHost);
 $host
   or &error(-3, "Could not get host. Is it supposed to run here?");
