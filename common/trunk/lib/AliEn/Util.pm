@@ -97,7 +97,7 @@ my $ml_status ={'INSERTING' => 1,
 sub statusForML {
   my $stat = shift;
   #print "statusForML ($stat) => $status->{$stat}\n";
-  return $ml_status->{$stat} or 0;
+  return $ml_status->{$stat} || 0;
 }
 
 
@@ -114,7 +114,7 @@ my $ml_transferStatus={'INSERTING' => 1,
 
 sub transferStatusForML {
   my $stat=shift;
-  return $ml_transferStatus->{$stat} or 0;
+  return $ml_transferStatus->{$stat} || 0;
   
 }
 
