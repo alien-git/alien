@@ -1191,7 +1191,8 @@ sub f_verifySubjectRole {
     }
     return @results;
 }
-my $find_usage="Usage: find [-<flags>] <path> <fileName> [[<tagname>:<condition>] [ [and|or] [<tagname>:<condition>]]*]\nPossible flags are:
+sub f_find_HELP{
+  return "Usage: find [-<flags>] <path> <fileName> [[<tagname>:<condition>] [ [and|or] [<tagname>:<condition>]]*]\nPossible flags are:
    z => return array of hash
    v => switch on verbose mode (write files found etc.)
    p => set the printout format
@@ -1202,6 +1203,7 @@ my $find_usage="Usage: find [-<flags>] <path> <fileName> [[<tagname>:<condition>
    s => no sorting
    d => return also the directories
 ";
+}
 
 # Internal subroutine. Called from find, to get all the constraint
 # Input: Constraints as received from the command line (<tagName>:<tagCond> [and|or [<tagName>:<tagCond]]+
@@ -1244,7 +1246,7 @@ sub getFindConstraints {
     $name  or $error="Missing the name of the Tag";
     $query or $error="Missing the condition";
       $error and print STDERR
-	"Error: not enough arguments in find\n(\t\t$error ) \n$find_usage"
+	"Error: not enough arguments in find\n(\t\t$error ) \n".$self->f_find_HELP()
 	    and return;
       $self->info( "Filtering according to '$union' $name $query");
 
@@ -1662,7 +1664,7 @@ sub f_find {
   $path =~ s/\*/%/g;
   $file =~ s/\*/%/g;
   
-  ($file) or print STDERR"Error: not enough arguments in find\n$find_usage"
+  ($file) or print STDERR"Error: not enough arguments in find\n".$self->f_find_HELP()
     and return;
 
   #### -g option
@@ -1909,36 +1911,18 @@ sub f_tree {
 
   $DEBUG and $self->debug(1, "In UserInterface::f_tree $dir");
   $dir =~ s{/?$}{/};
-  my $ref=$self->{DATABASE}->findLFN($dir, "", [], [], [])
+  my $ref=$self->{DATABASE}->findLFN($dir, "", [], [], [], 'd',1)
     or return;
   my @entries=@$ref;
-  print "GOT @entries\n";
-#  #Let's get all the hosts that can have files under this directory
-#  my $entries=$self->{DATABASE}->getHostsForEntry($dir) or $self->info( "Error getting the hosts for '$dir'");
-#  $DEBUG and $self->debug(1, "Getting dir from $dir");
-#  my @entries=();
-#  my @done=();
-#  foreach my $db (@$entries) {
-#    my $id="$db->{hostIndex}:$db->{tableName}";
-#    grep (/^$id$/, @done) and next;
-#    push @done, $id;
-#    $self->info( "Searching all the entries from $db->{hostIndex} ($db->{tableName})");
-#    my $db2=$self->{DATABASE}->reconnectToIndex($db->{hostIndex}, $dir);
-#    $db2 or  $self->info( "Error reconecting") and next;
-#    $self->{DATABASE}=$db2;
-#    my $ref=$self->{DATABASE}->getAllInfoFromDTable({method=>"queryColumn",
-#						     like=>"like",
-#						     retrieve=>"lfn",
-#						     where=>"and replicated=0",
-#						     table=>$db},
-#						    "$dir%");
-#    push @entries, @$ref;
-#  }
+  my @entriesLFN=();
+  foreach my $entry (@entries) {
+    push @entriesLFN, $entry->{lfn};
+  }
 
   $DEBUG and $self->debug(1, "There are ".($#entries + 1)." entries");
 
-  map { $_ =~ s/$dir/.\//i } @entries;
-  $self->printTreeLevel( "|", @entries );
+  map { $_ =~ s/$dir/.\//i } @entriesLFN;
+  $self->printTreeLevel( "|", @entriesLFN );
   print STDOUT "\n";
   return 1;
   

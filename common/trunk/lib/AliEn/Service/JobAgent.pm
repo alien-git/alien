@@ -976,6 +976,22 @@ turl=\"alien://$file\" />\n";
   return 1;
 }
 
+sub getInputZip {
+  my $self=shift;
+  my $catalog=shift;
+  my ($ok, @files)=$self->{CA}->evaluateAttributeVectorString("InputZip");
+  $ok or return 1;
+  $self->info("There are some input archives....");
+  foreach my $file (@files){
+    $self->putJobLog($ENV{ALIEN_PROC_ID},"trace","Getting InputZip $file");
+    if (!$catalog->execute("unzip", $file)){
+    $self->putJobLog($ENV{ALIEN_PROC_ID},"error","Error getting the inputzip $file");
+      return
+    }
+  }
+  return 1;
+}
+
 sub getFiles {
   my $self    = shift;
   #print "In getFiles\n";
@@ -983,6 +999,7 @@ sub getFiles {
   my $oldmode=$self->{LOGGER}->getMode();
   $self->info("Got mode $oldmode");
   $self->dumpInputDataList();
+
 
   my $catalog;
 
@@ -1001,6 +1018,10 @@ sub getFiles {
   }
   $self->info("Got the catalogue");
 
+  if (!$self->getInputZip($catalog)){
+    $catalog->close();
+    return;
+  }
   my @files=$self->getListInputFiles($catalog);
 
   foreach my $file (@files) {
