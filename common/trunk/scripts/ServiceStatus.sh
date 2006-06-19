@@ -32,7 +32,7 @@ for ALIEN_ORGANISATION in $ALL_ORG ; do
 		ERRMSG="$ERRMSG Cannot read $ETCDIR/$ALIEN_ORGANISATION/startup.conf, assuming default services."
 	fi
 	for service in $AliEnServices ; do
-		$AliEnCommand --org $ALIEN_ORGANISATION Status$service -silent > /dev/null 2>&1
+		$ALIEN_ROOT/bin/alien --org $ALIEN_ORGANISATION Status$service -silent > /dev/null 2>&1
 		error=$?
 		if [ "$error" != "0" ] ; then
 			if [ ! -x $AliEnCommand ] ; then
