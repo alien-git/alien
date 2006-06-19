@@ -134,7 +134,7 @@ my $ja_status ={'REQUESTING_JOB' => 1,
 # convert a JobAgent status to a number to be used in ML
 sub jaStatusForML {
   my $stat = shift;
-  return $ja_status->{$stat} or 0;
+  return $ja_status->{$stat} || 0;
 }
 
 sub Confirm($) {
