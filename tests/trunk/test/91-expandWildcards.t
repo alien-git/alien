@@ -17,10 +17,11 @@ my ($home)=$c->execute("pwd");
 print "Ok, let's start with the wildcards\n";
 
 my $allRef=[
-{value=>"wildcards/", result=>["wildcards/"]},
-	 {value=>"wildcards/%", result=>["wildcards/d0","wildcards/d1","wildcards/d2","wildcards/d3","wildcards/d4","wildcards/d5","wildcards/d6","wildcards/d7","wildcards/d8","wildcards/d9"]},
-	 {value=>"wildcards/%/", result=>["wildcards/d0/","wildcards/d1/","wildcards/d2/","wildcards/d3/","wildcards/d4/","wildcards/d5/","wildcards/d6/","wildcards/d7/","wildcards/d8/","wildcards/d9/"]},
-	 {value=>"w%/d2/%", result=>["wildcards/d2/f20","wildcards/d2/f21","wildcards/d2/f22","wildcards/d2/f23","wildcards/d2/f24","wildcards/d2/f25","wildcards/d2/f26","wildcards/d2/f27","wildcards/d2/f28","wildcards/d2/f29"]},	
+	    {value=>"wildcards/%/%0", result=>["wildcards/d0/f00","wildcards/d1/f10","wildcards/d2/f20","wildcards/d3/f30","wildcards/d4/f40","wildcards/d5/f50","wildcards/d6/f60","wildcards/d7/f70","wildcards/d8/f80","wildcards/d9/f90",]},
+	    {value=>"wildcards/", result=>["wildcards/"]},
+	    {value=>"wildcards/%", result=>["wildcards/d0","wildcards/d1","wildcards/d2","wildcards/d3","wildcards/d4","wildcards/d5","wildcards/d6","wildcards/d7","wildcards/d8","wildcards/d9"]},
+	    {value=>"wildcards/%/", result=>["wildcards/d0/","wildcards/d1/","wildcards/d2/","wildcards/d3/","wildcards/d4/","wildcards/d5/","wildcards/d6/","wildcards/d7/","wildcards/d8/","wildcards/d9/"]},
+	    {value=>"w%/d2/%", result=>["wildcards/d2/f20","wildcards/d2/f21","wildcards/d2/f22","wildcards/d2/f23","wildcards/d2/f24","wildcards/d2/f25","wildcards/d2/f26","wildcards/d2/f27","wildcards/d2/f28","wildcards/d2/f29"]},	
 	    {value=>"../../*/*/wildcards", result=>["wildcards"]},
 	   ];
 
