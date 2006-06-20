@@ -24,6 +24,11 @@ sub initialize {
    $self->{CONFIG}->{VOBOXDIR} = "/opt/vobox/\L$self->{CONFIG}->{ORG_NAME}";
    $self->{UPDATECLASSAD} = 0;
 
+   $self->{PRESUBMIT}=undef;
+   if (!system("which edg-job-list-match >/dev/null 2>&1")){
+     $self->info("We will do edg-job-list-match");
+     $self->{PRESUBMIT}="edg-job-list-match";
+   }
    $self->{SUBMIT_CMD} = ( $self->{CONFIG}->{CE_SUBMITCMD} or "edg-job-submit" );
 
    $self->{STATUS_CMD} = ( $self->{CONFIG}->{CE_STATUSCMD} or "edg-job-status" );
@@ -51,6 +56,16 @@ sub submit {
   $jdlfile or return;
 
   $self->renewProxy(90000);
+  if ($self->{PRESUBMIT}){
+    $self->info("Checking if there are resources that match");
+    open (FILE, "$self->{PRESUBMIT} $jdlfile|") or $self->info("Error doing $self->{PRESUBMIT}\n: $!\n") and return -1;
+    my @info=<FILE>;
+    close FILE;
+    if (!grep (/The following CE\(s\) matching your job requirements have been found / , @info)){
+      $self->info("No CEs matched the requirements!!\n@info\n\n*****We don't submit the jobagent");
+      return -1;
+    }
+  }
   $self->info("Submitting to LCG with \'@args\'.");
   my @command = ( $self->{SUBMIT_CMD}, "--noint", "--nomsg", @args, "$jdlfile" );
   $self->debug(1,"Doing @command\n");
@@ -222,6 +237,12 @@ sub getNumberRunning() {
   return $self->getQueueStatus();
 }
 
+sub getNumberQueued() {
+  my $self=shift;
+  my $value = $self->{DB}->queryValue("SELECT COUNT (*) FROM JOBAGENT where status='QUEUED'");
+  $value or $value = 0;
+  return $value;
+}
 #
 #---------------------------------------------------------------------
 #
