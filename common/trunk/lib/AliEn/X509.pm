@@ -21,7 +21,7 @@ sub new {
 #  $ENV{X509_USER_CERT} or $ENV{X509_USER_CERT}="$ENV{ALIEN_HOME}/globus/usercert.pem";
 #  $ENV{X509_USER_KEY} or $ENV{X509_USER_KEY}="$ENV{ALIEN_HOME}/globus/userkey.pem";
   system ("which openssl > /dev/null 2>&1") and
-    $self->{LOGGER}->info("X509", "Error: couldn't find openssl in the path") and return;
+    $self->info("Error: couldn't find openssl in the path") and return;
 
   return $self;
 }
@@ -124,7 +124,7 @@ sub createGridmap {
 
   
   open (FILE, ">$gridmap") or 
-    $self->{LOGGER}->info("X509", "Error opening $gridmap") and return;
+    $self->info("Error opening $gridmap") and return;
   print FILE "\"$subject\" ".getpwuid($<)."\n";
   close FILE;
   return $gridmap;
@@ -132,15 +132,19 @@ sub createGridmap {
 sub createProxy {
   my $self=shift;
   my $hours=(shift ||"");
-
+  my $options=shift || {};
   if ($hours) {
     my $minutes= ($hours*60 )%60;
     $hours="-valid ".int($hours).":$minutes";
   }
   my $silent="&> /dev/null";
   $DEBUG and $silent="";
+
   my $error=system("$ENV{GLOBUS_LOCATION}/bin/grid-proxy-init  -pwstdin $hours </dev/null $silent");
-  $error and $self->{LOGGER}->info("X509", "Error doing $ENV{GLOBUS_LOCATION}/bin/grid-proxy-init $!") and return;
+  my $method="info";
+  my @extra;
+  $options->{silent} and $method="debug" and push @extra, 2;
+  $error and $self->$method(@extra, "Error doing $ENV{GLOBUS_LOCATION}/bin/grid-proxy-init $!") and return;
   return 1;
 }
 
