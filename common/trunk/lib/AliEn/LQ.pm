@@ -4,6 +4,7 @@ package AliEn::LQ;
 use strict;
 use AliEn::Config;
 use AliEn::Logger::LogObject;
+use AliEn::TMPFile;
 use vars qw (@ISA);
 push @ISA, 'AliEn::Logger::LogObject';
 
@@ -54,13 +55,15 @@ sub submit {
     @cmd=(@cmd, "-debug", $debugMode);
   }
   my $date=time;
-  my $out="$self->{CONFIG}->{LOG_DIR}/$ENV{ALIEN_LOG}.out";
-  $self->{LOGGER}->info("LQ", "Submitting @cmd (output $out)");
+  my $out=AliEn::TMPFile->new({base_dir=>$self->{CONFIG}->{LOG_DIR},
+			       filename=>"$ENV{ALIEN_LOG}.out"})
+    or $self->info("Error gettting the file name") and return -1;
+  $self->info("Submitting @cmd (output $out)");
   $self->{COUNTER}++;
   $self->{LOGGER}->redirect($out);
   my $done=system(@cmd) ;
   $self->{LOGGER}->redirect();
-  $self->{LOGGER}->info("LQ", "Got $done");
+  $self->info( "Got $done");
   return 0;
 }
 
@@ -133,8 +136,8 @@ sub getNumberQueued {
 sub getNumberRunning {
   my $self=shift;
   my @ids=$self->getQueuedJobs();
-  @ids or $self->{LOGGER}->info("LQ", "Error getting the number of jobs") and return;
-  $self->{LOGGER}->info("LQ", "There are $#ids jobs right now");
+  @ids or $self->info( "Error getting the number of jobs") and return;
+  $self->info( "There are $#ids jobs right now");
   return $#ids;
 
 }
