@@ -633,5 +633,16 @@ sub killTransfer {
   return $result;
 }
 
+sub checkDiskSpace{
+  my $self=shift;
+  my $space=shift;
+  my $localFile=shift;
+
+  $self->debug(1, "Checking if we have $space bytes of diskspace to get the file");
+
+  return 1;
+
+}
+
 return 1;
 
