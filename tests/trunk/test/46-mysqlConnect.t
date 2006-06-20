@@ -72,7 +72,7 @@ print "Ok!\n";
 print "Let's try again with another catalogue\n";
 
 $c=AliEn::UI::Catalogue->new() or exit(-2);
-$c->execute("ls", "/remote/") or exit(-2);
+$c->execute("ls", "/remote/", "-la") or exit(-2);
 compareNumber($before+2, $proxyBefore+2, "During the second connection") or exit(-2);
 $c->close();
 print "closed!!!\n";
