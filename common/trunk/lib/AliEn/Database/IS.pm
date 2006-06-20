@@ -228,10 +228,10 @@ sub getCpuSI2k {
   my $min_cpu_mhz = $cpu_type->{cpu_MHz} - $cpu_type->{cpu_MHz} * 0.02; # allow 2% deviation
   my $max_cpu_mhz = $cpu_type->{cpu_MHz} + $cpu_type->{cpu_MHz} * 0.02;
   # try querying the database for exactly this configuration
-  my $result = $self->queryValue("SELECT si2k FROM cpu_si2k WHERE '$cpu_type->{cpu_model_name}' ILIKE cpu_model_name AND '$cpu_type->{cpu_cache}' ILIKE cpu_cache AND cpu_MHz >= $min_cpu_mhz AND cpu_MHz <= $max_cpu_mhz");
+  my $result = $self->queryValue("SELECT si2k FROM cpu_si2k WHERE '$cpu_type->{cpu_model_name}' LIKE cpu_model_name AND '$cpu_type->{cpu_cache}' LIKE cpu_cache AND cpu_MHz >= $min_cpu_mhz AND cpu_MHz <= $max_cpu_mhz");
   
   if(! defined($result)){
-    my $list = $self->query("SELECT DISTINCT si2k, cpu_MHz FROM cpu_si2k WHERE '$cpu_type->{cpu_model_name}' ILIKE cpu_model_name AND '$cpu_type->{cpu_cache}' ILIKE cpu_cache order by abs(cpu_MHz - $cpu_type->{cpu_MHz}) asc");
+    my $list = $self->query("SELECT DISTINCT si2k, cpu_MHz FROM cpu_si2k WHERE '$cpu_type->{cpu_model_name}' LIKE cpu_model_name AND '$cpu_type->{cpu_cache}' LIKE cpu_cache order by abs(cpu_MHz - $cpu_type->{cpu_MHz}) asc");
     if(defined($list) && (@$list >= 2)){
       my $cpu1 = $list->[0];
       my $cpu2 = $list->[1];
