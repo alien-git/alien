@@ -1,7 +1,7 @@
 package AliEn::LQ::LCG;
 
 use AliEn::LQ;
-
+use vars qw (@ISA);
 @ISA = qw( AliEn::LQ);
 
 use strict;
