@@ -27,12 +27,12 @@ for ALIEN_ORGANISATION in $ALL_ORG ; do
 		. $ETCDIR/$ALIEN_ORGANISATION/startup.conf
 	else
 		AliEnServices="Monitor CE SE PackMan MonaLisa"
-		AliEnCommand="$ALIEN_ROOT/bin/alien"
 		ERRCODE=2
 		ERRMSG="$ERRMSG Cannot read $ETCDIR/$ALIEN_ORGANISATION/startup.conf, assuming default services."
 	fi
+	AliEnCommand="$ALIEN_ROOT/bin/alien"
 	for service in $AliEnServices ; do
-		$ALIEN_ROOT/bin/alien --org $ALIEN_ORGANISATION Status$service -silent > /dev/null 2>&1
+		$AliEnCommand --org $ALIEN_ORGANISATION Status$service -silent > /dev/null 2>&1
 		error=$?
 		if [ "$error" != "0" ] ; then
 			if [ ! -x $AliEnCommand ] ; then
