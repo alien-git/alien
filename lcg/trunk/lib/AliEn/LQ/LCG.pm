@@ -61,7 +61,7 @@ sub submit {
     open (FILE, "$self->{PRESUBMIT} $jdlfile|") or $self->info("Error doing $self->{PRESUBMIT}\n: $!\n") and return -1;
     my @info=<FILE>;
     close FILE;
-    if (!grep (/The following CE\(s\) matching your job requirements have been found / , @info)){
+    if (!grep (/The following CE\(s\) matching your job requirements have been found/ , @info)){
       $self->info("No CEs matched the requirements!!\n@info\n\n*****We don't submit the jobagent");
       return -1;
     }
@@ -72,18 +72,19 @@ sub submit {
 
   my $error=open (FILE, join(" ", @command, "|"));
   my $contact=<FILE>;
+  $contact and chomp $contact;
+
   $contact or $contact="";
   if ($contact !~ /^https:\// ) {
-#    $contact or $contact="";
     $self->{LOGGER}->warning("LCG","Error submitting the job. Log file '$!' $contact\n");
-    $contact and system ('cat', $contact, '>/dev/null 1>&2');
+    if ($contact){
+      open (LOG, "<$contact");
+      print <LOG>;
+      close LOG;
+    }
     return $error;
   }
-  
-#  my $contact=<FILE>;
   close FILE;
-  $contact and
-    chomp $contact;
 
   $self->info("LCG JobID is $contact");
   $self->{LAST_JOB_ID} = $contact;
