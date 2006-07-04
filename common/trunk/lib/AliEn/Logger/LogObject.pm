@@ -31,7 +31,8 @@ sub debug{
 
 sub info{
   my $self=shift;
-  $self->{LOGGER}->{LEVEL}>1 and return 1;
+
+  ($self->{LOGGER}->{LEVEL}>1 and $#_<1) and return 1;
   return $self->{LOGGER}->display("info", $self->{LOG_REF},@_);
 }
 
