@@ -340,7 +340,7 @@ sub GetJDL {
     $self->sendJAStatus('REQUESTING_JOB');
   }
   $result or $self->info("Error getting a jdl to execute");
-  $jdl=$result->{jdl};
+  ( UNIVERSAL::isa( $result, "HASH" )) and $jdl=$result->{jdl};
   if (!$jdl) {
     $self->info("Could not download any  jdl!");
     $self->sendJAStatus('ERROR_GET_JDL');
