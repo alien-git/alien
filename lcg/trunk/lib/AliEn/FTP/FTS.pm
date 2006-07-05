@@ -121,7 +121,7 @@ sub transfer {
   my $ftsEndpoint;
   if ($fromftsEndpoint && $toftsEndpoint) {
     $self->info("The FTS is defined in both sites. Which one to take??");
-    if ($fromSite =~ /cern/) {
+    if ($fromSite =~ /cern/i) {
       $self->info("Taking CERN: $fromftsEndpoint");
       $ftsEndpoint=$fromftsEndpoint;
     } else {

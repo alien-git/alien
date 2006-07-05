@@ -350,22 +350,32 @@ sub updateClassAd {
     $self->debug(1,"Getting info for $CE");
     my $result = $ldap->search( base   => "mds-vo-name=local,o=grid",
                                 filter => "GlueCEUniqueID=$CE");
-    $result->code && return;
+    if (! $result or $result->code){
+      $self->info("Couldn't get the CE info from ldap");
+      $ldap->unbind();
+       return;
+    }
     my @entry = $result->all_entries();
     ($entry[0]) or next;
     my $cluster = $entry[0]->get_value("GlueForeignKey");
     $cluster =~ s/^GlueClusterUniqueID=//;
     $result = $ldap->search( base   => "mds-vo-name=local,o=grid",
                              filter => "GlueSubClusterUniqueID=$cluster");
-    $result->code && return;
+    if (! $result or $result->code){
+      $self->info("Couldn't get the Subcluster info from ldap");
+      $ldap->unbind();
+       return;
+    }
     @entry = $result->all_entries();
-    my $RAMSize = $entry[0]->get_value("GlueHostMainMemoryRAMSize");
-    my $SwapSize = $entry[0]->get_value("GlueHostMainMemoryVirtualSize");
-    $self->debug(1,"$cluster: $RAMSize,$SwapSize"); 
-    $maxRAMSize = $RAMSize if ($RAMSize>$maxRAMSize );
-    $maxSwapSize = $SwapSize if ($SwapSize>$maxSwapSize );
-    
+    if ($entry[0]){
+      my $RAMSize = $entry[0]->get_value("GlueHostMainMemoryRAMSize");
+      my $SwapSize = $entry[0]->get_value("GlueHostMainMemoryVirtualSize");
+      $self->debug(1,"$cluster: $RAMSize,$SwapSize"); 
+      $maxRAMSize = $RAMSize if ($RAMSize>$maxRAMSize );
+      $maxSwapSize = $SwapSize if ($SwapSize>$maxSwapSize );
+    }
   }
+  $ldap->unbind();
   $self->debug(1,"Memory, Swap: $maxRAMSize,$maxSwapSize"); 
   $classad->set_expression("Memory",$maxRAMSize*1024);
   $classad->set_expression("Swap",$maxSwapSize*1024);
