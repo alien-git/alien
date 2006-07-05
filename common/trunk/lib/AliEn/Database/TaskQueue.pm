@@ -845,6 +845,7 @@ sub checkSiteQueueTable{
 		 queueload=>"float",
 		 runload=>"float",
 		 jdl => "text",
+		 timeblocked=>"datetime", 
 		);
 
   foreach (@{AliEn::Util::JobStatus()}) {
