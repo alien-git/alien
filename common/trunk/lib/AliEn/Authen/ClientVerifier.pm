@@ -381,7 +381,7 @@ my $sasl = Authen::SASL->new (
     ( $status, $response, $resplen ) =
             AliEn::Authen::Comm::read_buffer( $self->{socket} );
     if ( !defined $response ) {
-	    print "Error: Didn't get anything from server $status \n";
+	    print "Error: Didn't get anything from server \n";
 	    return ( 0, "" );
     }
     if ($status eq "AliEnAuth NOK") # Error on server side  
