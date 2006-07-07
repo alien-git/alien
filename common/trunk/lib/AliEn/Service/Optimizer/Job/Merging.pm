@@ -26,10 +26,10 @@ sub checkWakesUp {
   }
   $self->{DB}->update("ACTIONS", {todo=>0}, "action='MERGING'");
 
-  my $done3=$self->checkJobs($silent, "SPLIT","updateMerging");
-  $done3=$self->checkJobs($silent, "TERMSPLIT","updateMerging"); 
-  $done3=$self->checkJobs($silent, "FORCEMERGE","updateMerging"); 
-  $done3=$self->checkJobs($silent, "MERGING","checkMerging"); 
+  my $done3=$self->checkJobs($silent, "SPLIT","updateMerging",100);
+  $done3=$self->checkJobs($silent, "TERMSPLIT","updateMerging",100); 
+  $done3=$self->checkJobs($silent, "FORCEMERGE","updateMerging",100); 
+  $done3=$self->checkJobs($silent, "MERGING","checkMerging",100); 
 
   $self->{LOGGER}->$method("Merging", "The merging optimizer finished");
 

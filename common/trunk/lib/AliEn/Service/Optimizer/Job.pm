@@ -309,7 +309,8 @@ sub checkJobs {
   my $silent=shift;
   my $status=shift;
   my $function=shift;
-  
+  my $limit=(shift or 15);
+
   my $method="info";
   $silent and $method="debug";
   
@@ -317,7 +318,7 @@ sub checkJobs {
   my $continue=1;
   #We never want to get more tahn 15 jobs at the same time, just in case the jdls are too long
   while ($continue) {
-    my $jobs=$self->{DB}->getJobsByStatus($status,"queueid limit 15");
+    my $jobs=$self->{DB}->getJobsByStatus($status,"queueid limit $limit");
 
     defined $jobs
       or $self->{LOGGER}->warning( "JobOptimizer", "In checkJobs error during execution of database query" )

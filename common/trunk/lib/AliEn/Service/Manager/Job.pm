@@ -370,9 +370,17 @@ sub changeStatusCommand {
   my $oldStatus=shift;
   my $status  = shift;
   my $site    = ( shift or "" );
+
+  if ($site=~ /requirements/i){
+    $self->info("Warning!! got a message directly from a JobAgent");
+    unshift  @_, $site;
+    $site="";
+  }
+
   my $error   = ( shift or "" );
   my $node    = ( shift or "" );
   my $spyurl  = ( shift or "" );
+
 
   ($queueId)
     or $self->{LOGGER}->error( "JobManager", "In changeStatusCommand queueId not specified" )
