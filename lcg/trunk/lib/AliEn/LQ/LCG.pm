@@ -20,7 +20,11 @@ sub initialize {
    chomp $host;
    $self->{CONFIG}->{VOBOX} = $host.':8084';
    $ENV{ALIEN_CM_AS_LDAP_PROXY} and $self->{CONFIG}->{VOBOX} = $ENV{ALIEN_CM_AS_LDAP_PROXY};
-   $self->info("VO Box is $self->{CONFIG}->{VOBOX}");
+   $self->info("This VO-Box is $self->{CONFIG}->{VOBOX}, site is \'$ENV{SITE_NAME}\'");
+  # print Dumper($self->{CONFIG});
+  # my $p = $self->{CONFIG}->{ORG_NAME};
+  # my $VOBoxURL = `lcg-infosites --vo $p vobox -f GlueSiteUniqueID=$ENV{SITE_NAME} 2>&1`;
+  # $self->info("VO-Box URL from BDII is $VOBoxURL");
    $self->{CONFIG}->{VOBOXDIR} = "/opt/vobox/\L$self->{CONFIG}->{ORG_NAME}";
    $self->{UPDATECLASSAD} = 0;
 
@@ -55,7 +59,7 @@ sub submit {
   my $jdlfile = $self->generateJDL($jdl);
   $jdlfile or return;
 
-  $self->renewProxy(90000);
+  $self->renewProxy(90000); ####
   if ($self->{PRESUBMIT}){
     $self->info("Checking if there are resources that match");
     open (FILE, "$self->{PRESUBMIT} $jdlfile|") or $self->info("Error doing $self->{PRESUBMIT}\n: $!\n") and return -1;
@@ -67,10 +71,14 @@ sub submit {
     }
   }
   $self->info("Submitting to LCG with \'@args\'.");
-  my @command = ( $self->{SUBMIT_CMD}, "--noint", "--nomsg", @args, "$jdlfile" );
-  $self->debug(1,"Doing @command\n");
+  my $now = time;
+  my $logFile = AliEn::TMPFile->new({filename=>"job-submit.$now.log"}) ## Or better a configurable TTL?
+     or return;
+   
+  my @command = ( $self->{SUBMIT_CMD}, "--noint", "--nomsg", "--logfile", $logFile, @args, "$jdlfile", "|tail", "-1" );
+  $self->debug(1,"Doing @command");
 
-  my $error=open (FILE, join(" ", @command, "|"));
+  my $error=open (FILE, join(" ", @command, "|")); 
   my $contact=<FILE>;
   $contact and chomp $contact;
 
@@ -89,7 +97,6 @@ sub submit {
   $self->info("LCG JobID is $contact");
   $self->{LAST_JOB_ID} = $contact;
   open JOBIDS, ">>$self->{CONFIG}->{LOG_DIR}/CE.db/JOBIDS";
-  my $now = time();
   print JOBIDS "$now,$contact\n";
   close JOBIDS;
   
