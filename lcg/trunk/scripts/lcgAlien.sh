@@ -4,7 +4,7 @@ AliEnCommand=$VO_ALICE_SW_DIR/alien/bin/alien
 
 uid=`$AliEnCommand --printenv | grep ALIEN_USER | cut --d='='  -f2`
 host=`$AliEnCommand -user aliprod --exec echo LDAPHOST | cut -d\' -f2`
-dn=`ldapsearch -x -LLL -H ldap://$host -b uid=$uid,ou=people,o=alice,dc=cern,dc=ch | grep subject | sed 's/subject: //'`
+dn=`ldapsearch -x -LLL -H ldap://$host -b uid=$uid,ou=people,o=alice,dc=cern,dc=ch subject| perl -p -00 -e 's/\n //' | grep -v 'dn:'| sed 's/subject: //'`
 proxy=`vobox-proxy --vo alice -dn "$dn" query-proxy-filename`
 error=$?
 if [ $error -ne 0 ] || [ "$proxy" == '' ] ;
