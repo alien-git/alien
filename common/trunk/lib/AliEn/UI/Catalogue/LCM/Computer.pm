@@ -32,6 +32,7 @@ my (%command_list);
     'masterJob'=> ['$self->{QUEUE}->masterJob',0],
     'checkAgents'=> ['$self->{QUEUE}->checkJobAgents',0],
     'cleanCache' => ['$self->cleanCache',0],
+    'registerOutput' => ['$self->registerOutput',0],
 );
 
 my %help_list = (
@@ -76,6 +77,69 @@ sub cleanCache {
   return 1;
 }
 
+sub registerOutput{
+  my $self=shift;
+  my $jobid=shift;
+
+  my ($jdl)=$self->execute("ps", "jdl", $jobid, "-silent") or 
+    $self->info("Error getting the jdl of the job",2) and return;
+
+  $jdl or $self->info("Error the jdl is empty") and return;
+
+  my $ca;
+  eval {$ca=
+    Classad::Classad->new($jdl) or $self->info("Error parsing the jdl") and return;
+  };
+  
+  if ($@){
+    $self->info("Error creating the classad $@");
+    return;
+  }
+  my ($ok, @info)=$ca->evaluateAttributeVectorString("RegisteredOutput");
+  $ok or $self->info("This job didn't register any output") and return;
+  my $files={};
+  my %filesToRegister;
+  foreach my $line (@info){
+    $self->debug(1,"We should do something about $line");
+    my ($file, @links)=split (/;;/, $line);
+    my ($lfn, $guid, $size, $md5, $selist, @rest)=split (/###/, $file);
+    $files->{$lfn}=1;
+    my ($seMaster, @seReplicas)=split (/,/, $selist);
+    if (!$self->execute("register","$lfn","/dev/null", $size, $seMaster, $guid, "-force", "-silent")){
+      $self->info("Error registering the entry in the catalog");
+      next;
+    }
+    foreach my $replica (@seReplicas){
+      $self->execute("addMirror", "$lfn", $replica);
+    }
+    $self->info("$lfn registered!!");
+    my $newPfn="guid:///$guid";
+    foreach my $link (@links) {
+      $self->info("Ready to register the link $link" );
+      my ($file, $size, $md5)=split (/###/, $link);
+      my $pfn="$newPfn?ZIP=$file";
+      if ($filesToRegister{$file}) {
+	$self->debug(1,"This is a replica");
+	$filesToRegister{$file}->{selist}.=",$selist";
+      }else {
+	$filesToRegister{$file}={lfn=>"$file",
+				 pfn=>$pfn,
+				 size=>$size,
+				 md5=>$md5,
+				 selist=>$selist,
+				};
+      }
+    }
+  }
+  my @filesToRegister=values %filesToRegister;
+  if (@filesToRegister){
+    $self->debug(1, "Doing the multiinsert now");
+    my ($pwd)=$self->execute("pwd");
+    $pwd=~ s{/$}{};
+    $self->f_bulkRegisterFile($pwd, \@filesToRegister);
+  }
+  return 1;
+}
 
 return 1;
 

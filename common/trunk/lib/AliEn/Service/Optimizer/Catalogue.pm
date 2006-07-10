@@ -36,6 +36,9 @@ sub initialize {
   ( $self->{CATALOGUE} )
     or $self->{LOGGER}->error( "JobOptimizer", "In initialize error creating AliEn::UI::Catalogue::LCM instance" )
       and return;
+  
+  my @optimizers=("Trigger");
+  $self->StartChildren(@optimizers) or return;
 
   return $self;
 }
@@ -78,8 +81,6 @@ sub checkWakesUp {
 
     $self->checkHostsTable($silent, $db);
 
-    $self->checkTriggers($silent, $db);
-
     $self->checkGUID($silent, $db);
 
     if (!$self->{DONE}) {
@@ -97,34 +98,6 @@ sub checkWakesUp {
   return;
 }
 
-sub checkTriggers{
-  my $self=shift;
-  my $silent=shift;
-  my $db=shift;
-
-  my $data=$db->query("SELECT * from TRIGGERS")
-    or $self->info("Error getting the triggers of $db->{DB}")
-      and return;
-  my $entryId=0;
-  foreach my $entry (@$data){
-    $entry->{entryId}>$entryId and $entryId=$entry->{entryId};
-    my ($file)=$self->{CATALOGUE}->execute("get", $entry->{triggerName});
-    if ($file){
-      chmod 0755, $file;
-      $self->info("Calling $file $entry->{lfn}");
-      system($file, $entry->{lfn});
-    }else{
-      $self->info("Error getting the file $entry->{triggerName}");
-    }
-  }
-  if ($entryId){
-    $entryId++;
-    $self->info("Deleting the entries smaller than $entryId");
-    $db->delete("TRIGGERS", "entryId<$entryId");
-  }
-
-  return 1;
-}
 #
 # This subroutine looks for all the entries in the SE database that are not
 # pointed at anymore from the catalogue

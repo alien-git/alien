@@ -55,7 +55,13 @@ sub initialize {
     $self->info("Error creating the dataset") and return;; 
 #  $self->{JOBLOG} = new AliEn::JOBLOG();
 
-  $self->StartChildren() or return;
+
+  my @optimizers=("Merging", "Inserting", "Splitting", "Zombies", "Hosts", "Expired", "HeartBeat", "Priority", "Resubmit", "Killed", "Saved");
+  
+  my $mlEnabled = ($self->{CONFIG}->{MONALISA_HOST} || $self->{CONFIG}->{MONALISA_APMONCONFIG});
+  $mlEnabled and push @optimizers, "MonALISA";
+  
+  $self->StartChildren(@optimizers) or return;
 
 
   $self->{FORKCHECKPROCESS}=1;
@@ -80,66 +86,6 @@ sub checkWakesUp {
 
   }
   return; 
-}
-sub StartChildren{
-
-  my $self=shift;
-
-  $self->info( "Let's start all the optimizers");
-  my $i=0;
-
-  my @optimizers=("Merging", "Inserting", "Splitting", "Zombies", "Hosts", "Expired", "HeartBeat", "Priority", "Resubmit", "Killed", "Saved");
-
-  my $mlEnabled = ($self->{CONFIG}->{MONALISA_HOST} || $self->{CONFIG}->{MONALISA_APMONCONFIG});
-  $mlEnabled and push @optimizers, "MonALISA";
-
-  my $dir="$ENV{ALIEN_HOME}/var/log/AliEn/$self->{CONFIG}->{ORG_NAME}/JobOptimizer";
-
-  mkdir $dir,  0755;
-  foreach (@optimizers){
-    my $name="AliEn::Service::Optimizer::Job::$_";
-
-    $self->info( "Starting the $name");
-    eval "require $name";
-    if ($@) {
-      $self->info( "Error requiring the optimizer $name $! $@");
-      return;
-    }
-    my $d="CHILDPID$i";
-    $self->{$d}=fork();
-    $i++;
-    defined $self->{$d} 
-      or $self->info( "Error forking a process") and return;
-    #the father goes on...
-    $self->{$d} and next;
-
-    $self->info( "Putting the output in $dir/$_.log");
-    $self->{LOGGER}->redirect("$dir/$_.log");
-    #The children should just initialize and start checking;
-    #	@ISA=($name,@ISA);
-    $self->info( "The optimizer $name starts");
-    bless($self, $name);
-    #let's give time to the father to prepair everything
-    sleep(10);
-    
-    my $tmpServName = $self->{SERVICENAME};
-    my $shortName = $_;
-    $self->{SERVICENAME} = "Job_".$shortName."Optimizer";
-    AliEn::Util::setupApMon($self);
-    if(($shortName eq "MonALISA") && (! $self->{MONITOR})){
-      $self->{LOGGER}->error("MonALISA", "Error: Can not initialize ApMon");
-      exit(-2);
-    }
-    $self->{SERVICENAME} = $tmpServName;
-    
-    $self->startChecking();
-    $self->{LOGGER}->error("Job", "Error: the job optimizer $shortName died!!\n");
-    exit(-2);
-
-  }
-
-
-  return $self;
 }
 sub copyInput {
   my $self=shift;
