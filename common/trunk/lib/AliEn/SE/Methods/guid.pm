@@ -76,5 +76,13 @@ sub getSize {
   $DEBUG and $self->debug(1,"The size of $guid is $size");
   return $size;
 }
+sub getFTPCopy{
+  my $self=shift;
+  $DEBUG and $self->debug(1,"This is an ftp copy of a link...."); 
+
+  my $file=$self->get() or print "Error copying the file\n" and return;
+  $DEBUG and $self->debug(1, "YUHUUU!!!!! $file");
+  return $file;
+}
 return 1;
 

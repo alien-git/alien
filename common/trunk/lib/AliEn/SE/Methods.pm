@@ -278,7 +278,18 @@ sub getFTPCopy {
   if ($self->{MSS})   {
     $self->info( "Getting FTPCopy");
     return $self->{MSS}->getFTPCopy($self->path,  $self->{PARSED}->{ORIG_PFN});
+  
   }
+  my @return;
+  eval {
+    @return=$self->SUPER::getFTPCopy(@_);
+  };
+
+  if (! $@){
+    $self->info("The FTPCopy of the method worked!!");
+    return @return;
+  }
+
   $self->info( "Returning file and $self->{PARSED}->{ORIG_PFN}");
   return $self->path;
 }
