@@ -10,6 +10,7 @@ use AliEn::Classad::Host;
 use Data::Dumper;
 use Net::LDAP;
 use AliEn::TMPFile;
+use POSIX ":sys_wait_h";
 
 sub initialize {
    my $self=shift;
@@ -62,9 +63,8 @@ sub submit {
   $self->renewProxy(90000); ####
   if ($self->{PRESUBMIT}){
     $self->info("Checking if there are resources that match");
-    open (FILE, "$self->{PRESUBMIT} $jdlfile|") or $self->info("Error doing $self->{PRESUBMIT}\n: $!\n") and return -1;
-    my @info=<FILE>;
-    close FILE;
+    my @info=_system($self->{PRESUBMIT}, $jdlfile);
+
     if (!grep (/The following CE\(s\) matching your job requirements have been found/ , @info)){
       $self->info("No CEs matched the requirements!!\n@info\n\n*****We don't submit the jobagent");
       return -1;
@@ -78,10 +78,10 @@ sub submit {
   my @command = ( $self->{SUBMIT_CMD}, "--noint", "--nomsg", "--logfile", $logFile, @args, "$jdlfile", "|tail", "-1" );
   $self->debug(1,"Doing @command");
 
-  my $error=open (FILE, join(" ", @command, "|")); 
-  my $contact=<FILE>;
-  $contact and chomp $contact;
+  my @output=$self->_system(@command) or return -1;
+  my $contact=join (@output);
 
+  $contact and chomp $contact;
   $contact or $contact="";
   if ($contact !~ /^https:\// ) {
     $self->{LOGGER}->warning("LCG","Error submitting the job. Log file '$!' $contact\n");
@@ -90,9 +90,8 @@ sub submit {
       print <LOG>;
       close LOG;
     }
-    return $error;
+    return -2;
   }
-  close FILE;
 
   $self->info("LCG JobID is $contact");
   $self->{LAST_JOB_ID} = $contact;
@@ -163,9 +162,7 @@ sub getAllBatchIds {
   my @queuedJobs = ();
   foreach (@$jobIds) {
      $_ or next;
-     open LB,"$self->{STATUS_CMD} $_|" or next;
-     my @output = <LB>;     
-     close LB;
+     my @output=$self->_system($self->{STATUS_CMD}, $_) or next;
      grep m/^Current Status:\s*(Running)|(Ready)|(Scheduled)|(Waiting)/,@output 
         or next;
      push @queuedJobs,$_;
@@ -268,9 +265,8 @@ sub getJobStatus {
    my @args=();
    $self->{CONFIG}->{CE_STATUSARG} and
      @args=split (/\s+/, $self->{CONFIG}->{CE_STATUSARG});
-   open( OUT, "$self->{STATUS_CMD} -noint @args \"$contact\"| grep \"$pattern\"|" );
-   my @output = <OUT>;
-   close(OUT);
+    my @output=$self->_system($self->{STATUS_CMD}, "-noint", @args,
+			     "\"$contact\" | grep \"$pattern\"" );
    my $status = $output[0];
    chomp $status;
    $status =~ s/$pattern//;
@@ -504,6 +500,26 @@ ls -lart
 
    close BATCH or return;
    return $jdlFile;
+}
+
+sub _system {
+  my $self=shift;
+  
+  my $command=join (" ", @_);
+  $self->info("Doing '$command'");
+  my $pid=open(FILE, "$command |") or 
+    $self->info("Error doing '$command'!!\n$!") and return;
+  my @output=<FILE>;
+  
+  if (! close FILE){
+    #We have to check that the proces do^?^?
+    print "The system call failed  PID $pid";
+    my $kid;
+    do {
+      $kid = waitpid($pid, WNOHANG);
+    } until $kid > 0;
+  }
+  return @output;
 }
 
 
