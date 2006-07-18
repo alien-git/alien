@@ -1025,7 +1025,7 @@ sub _connect{
     }
 
     if ($DBI::errstr) {
-      $self->info( "Could not connect to database: $DBI::errstr ($DBI::err)");
+      $self->info( "Could not connect to database: $DBI::errstr ($DBI::err)",-1);
       if ($DBI::errstr =~ /Died at .*AliEn\/UI\/Catalogue\.pm line \d+/) {
 	die("We got a ctrl+c... :( ");
       }
@@ -1218,7 +1218,7 @@ sub _validate {
 
     $status = $self->{TOKEN_MANAGER}->validateJobToken( $ENV{ALIEN_PROC_ID}, $ENV{ALIEN_JOB_TOKEN} );
     if (!$status) {
-      $self->info( "Database: In _validate TokenManager reported error. Unable to validate user $self->{USER} (as $self->{ROLE}).",125, 0);
+      $self->info( "Database: In _validate TokenManager reported error. Unable to validate user $self->{USER} (as $self->{ROLE}).");
       return;
     }
     $self->{USER} = $status->{user};

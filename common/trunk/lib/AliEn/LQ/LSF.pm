@@ -3,6 +3,7 @@ package AliEn::LQ::LSF;
 @ISA = qw( AliEn::LQ );
 
 use AliEn::LQ;
+use AliEn::TMPFile;
 
 use IPC::Open2;
 
@@ -36,7 +37,17 @@ sub updateClassAd {
   
   return $classad;
 }
+sub getNumberQueued {
+  my $self=shift;
 
+  open (OUT, "$self->{GET_QUEUE_STATUS} |") or print "Error doing $self->{GET_QUEUE_STATUS}\n" and return "Error doing $self->{GET_QUEUE_STATUS}\n";
+
+  my @output = <OUT>;
+  close(OUT) or print "Error doing $self->{GET_QUEUE_STATUS}\n" and return "Error doing $self->{GET_QUEUE_STATUS}\n";
+
+  @output=grep(/WAITING/, @output);
+  return $#output+1;
+}
 sub submit {
   my $self    = shift;
   my $classad = shift;
@@ -61,12 +72,18 @@ sub submit {
   my $execute=$command;
   $execute =~ s{^.*/([^/]*)$}{$ENV{HOME}/$1};
 
+#  my $out=AliEn::TMPFile->new({base_dir=>$self->{CONFIG}->{LOG_DIR},
+#			       filename=>"$ENV{ALIEN_LOG}.out"})
+#    or $self->info("Error getting a filename to put the output") and return -1;
+
+#  my $message = "#BSUB -o $out
   my $message = "#BSUB -o $self->{PATH}/$ENV{ALIEN_LOG}.out
 #BSUB -J $ENV{ALIEN_LOG}
 #BSUB -f \"$command > $execute\"
 $LSFarguments
 $self->{SUBMIT_ARG}
 " . $self->excludeHosts() . "
+ls -al $execute
 $execute\n";
 
   #".$self->excludeHosts()."

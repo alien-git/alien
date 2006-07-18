@@ -93,7 +93,8 @@ sub initialize {
 		    masterjob=>"int(1) default 0",};
   my $tables={ QUEUE=>{columns=>$queueColumns,
 		       id=>"queueId",
-		       index=>"queueId"},
+		       index=>"queueId",
+		       extra_index=>["split", "status"]},
 	       QUEUEEXPIRED=>{columns=>$queueColumns,
 		       id=>"queueId",
 		       index=>"queueId"},	
@@ -159,7 +160,7 @@ sub initialize {
 	     };
 
   foreach my $table  (keys %$tables) {
-    $self->checkTable($table, $tables->{$table}->{id}, $tables->{$table}->{columns}, $tables->{$table}->{index})
+    $self->checkTable($table, $tables->{$table}->{id}, $tables->{$table}->{columns}, $tables->{$table}->{index}, $tables->{$table}->{extra_index})
       or $self->{LOGGER}->error("TaskQueue", "Error checking the table $table") and return;
   }
 
