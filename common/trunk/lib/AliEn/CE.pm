@@ -113,7 +113,6 @@ sub new {
   }
   #
   if ($options->{MONITOR}) {
-    print "SETTING UP APMON*********************************\n";
     AliEn::Util::setupApMon($self);
     AliEn::Util::setupApMonService($self, "CE_$self->{CONFIG}->{CE_FULLNAME}");
   }
@@ -838,7 +837,7 @@ sub createAgentStartup {
 
 #  my $proxy=$self->{X509}->checkProxy();
   my $hours=($self->{CONFIG}->{CE_TTL} ||  12*3600)/3600;
-  my $proxy=$self->{X509}->createProxy($hours);
+  my $proxy=$self->{X509}->createProxy($hours, {silent=>1});
 
   my $proxyName=($ENV{X509_USER_PROXY} || "/tmp/x509up_u$<");
 
@@ -1032,8 +1031,8 @@ sub f_top {
   my $format="%6s\t%-8s\t%-40s\t%-20s";
   if (grep (/-?-a(ll)?$/, @_) ) {
     $DEBUG and $self->debug(1, "Printing more information");
-    $columns.="\t\t\tReceived\t\t\tStarted\t\t\t\tFinished";
-    $format.="\t\%s\t\%s\t\%s";
+    $columns.="\t\t\tReceived\t\t\tStarted\t\t\t\tFinished\tMasterJob";
+    $format.="\t\%s\t\%s\t\%s\t%6s";
   }
   $self->info( $columns,undef,0);
 
@@ -1045,7 +1044,8 @@ sub f_top {
 		   $job->{execHost} || "",
 		   $job->{received} || "",
 		   $job->{started} || "",
-		   $job->{finished} || "");
+		   $job->{finished} || "", 
+		   $job->{split} || "");
 
     $data[3] or $data[3]="";
 #    #Change the time from int to string
@@ -2757,23 +2757,27 @@ sub masterJob {
   if ($action eq "info") {
     my $total=0;
     my $jobInfo=shift @$info;
-    $summary.="The job $queueId is in status: $jobInfo->{status}\nIt has the following subjobs:\n";
-    foreach my $subjob (@$info){
-      $subjob or next;
-      my $ids="";
-      my $site=$subjob->{exechost} ||"";
-      $site and $site=" ($site)";
-      ($subjob->{ids})
-	and $ids="(ids: ".join (", ", @{$subjob->{ids}}) .")";
-      $summary.="\t\tSubjobs in $subjob->{status}$site: $subjob->{count} $ids\n";
-      $total+=$subjob->{count};
-    }
-
-    $summary.="\nIn total, there are $total subjobs";
-    if ($jobInfo->{merging}) {
-      $summary.="\nThere are some jobs merging the output:";
-      foreach my $merge (@{$jobInfo->{merging}}) {
-	$summary.="\n\tJob $merge->{queueId} : $merge->{status}";
+    if (!$jobInfo){
+      $summary="The job doesn't exist\n"; 
+    }else{
+      $summary.="The job $queueId is in status: $jobInfo->{status}\nIt has the following subjobs:\n";
+      foreach my $subjob (@$info){
+	$subjob or next;
+	my $ids="";
+	my $site=$subjob->{exechost} ||"";
+	$site and $site=" ($site)";
+	($subjob->{ids})
+	  and $ids="(ids: ".join (", ", @{$subjob->{ids}}) .")";
+	$summary.="\t\tSubjobs in $subjob->{status}$site: $subjob->{count} $ids\n";
+	$total+=$subjob->{count};
+      }
+      
+      $summary.="\nIn total, there are $total subjobs";
+      if ($jobInfo->{merging}) {
+	$summary.="\nThere are some jobs merging the output:";
+	foreach my $merge (@{$jobInfo->{merging}}) {
+	  $summary.="\n\tJob $merge->{queueId} : $merge->{status}";
+	}
       }
     }
     

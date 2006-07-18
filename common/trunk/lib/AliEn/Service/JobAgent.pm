@@ -247,7 +247,8 @@ sub changeStatus {
     $done and $done=$done ->result;
     if (!$done){
       print STDERR "Error contacting the ClusterMonitor\nGoing to the Manager/Job";
-      $done =    $self->{SOAP}->CallSOAP("Manager_Job_$org", "changeStatusCommand",  $id, @_ );
+      my @arguments=@_;
+      $done =    $self->{SOAP}->CallSOAP("Manager_Job_$org", "changeStatusCommand",  $id, shift @arguments, shift @arguments, $self->{CONFIG}->{CE_FULLNAME}, @arguments );
     }
     $done and $self->{STATUS}=$_[1];
 

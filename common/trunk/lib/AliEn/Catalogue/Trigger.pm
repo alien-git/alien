@@ -66,8 +66,8 @@ sub getTriggerLFN {
   my $homedir=$self->GetHomeDirectory();
   my $return="";
   my $message="";
-  my $oldmode=$self->{LOGGER}->getMode();
-  $self->{LOGGER}->silentOn();
+#  my $oldmode=$self->{LOGGER}->getMode();
+#  $self->{LOGGER}->silentOn();
 
   if ($name =~ /\//){
     $self->debug(1, "The action is '$name'" );
@@ -79,12 +79,12 @@ sub getTriggerLFN {
 	$return=$name and $message="";
     }
   } else {
-    foreach my $dir ($homedir, "/$self->{CONFIG}->{ORG_NAME}", ""){
+    foreach my $dir ($homedir, "\L/$self->{CONFIG}->{ORG_NAME}\E", ""){
       $self->f_ls(  "s", "$dir/triggers/$name") and 
 	$return="$dir/triggers/$name";
     }
   }
-  $self->{LOGGER}->setMinimum(split(" ",$oldmode));
+#  $self->{LOGGER}->setMinimum(split(" ",$oldmode));
   $return or $message="The trigger '$name' is not defined";
   $message and $self->info($message) and return;
 
@@ -123,13 +123,9 @@ sub f_showTrigger {
     or print STDERR "Error: directory $directory does not exist!\n"
       and return;
   my $index=$self->{DATABASE}->getIndexTable();
-  use Data::Dumper;
-  print Dumper($index);
   my $table=$index->{name};
 
   my $trigger=$self->{DATABASE}->query("show triggers like '$table'");
-  use Data::Dumper;
-  print Dumper($trigger);
   return 1;
 }
 
