@@ -1027,12 +1027,12 @@ sub f_top {
 
   my @jobs = @$result;
   my $job;
-  my $columns="JobId\tStatus\t\tCommand name\t\t\t\t\tExechost";
+  my $columns="JobId\tStatus\t\tCommand name\t\t\t\t\tSubmithost";
   my $format="%6s\t%-8s\t%-40s\t%-20s";
   if (grep (/-?-a(ll)?$/, @_) ) {
     $DEBUG and $self->debug(1, "Printing more information");
-    $columns.="\t\t\tReceived\t\t\tStarted\t\t\t\tFinished\tMasterJob";
-    $format.="\t\%s\t\%s\t\%s\t%6s";
+    $columns.="\t\t\tExechost\t\t\tReceived\t\t\tStarted\t\t\t\tFinished\tMasterJob";
+    $format.="\t%-20s\t\%s\t\%s\t\%s\t%6s";
   }
   $self->info( $columns,undef,0);
 
@@ -1041,6 +1041,7 @@ sub f_top {
     my (@data ) = ($job->{queueId},
 		   $job->{status},
 		   $job->{name},
+		   $job->{submitHost} || "",
 		   $job->{execHost} || "",
 		   $job->{received} || "",
 		   $job->{started} || "",
@@ -1049,9 +1050,9 @@ sub f_top {
 
     $data[3] or $data[3]="";
 #    #Change the time from int to string
-    $data[4] and $data[4]=localtime $data[4];
     $data[5] and   $data[5]=localtime $data[5];
     $data[6] and  $data[6]=localtime $data[6];
+    $data[7] and $data[7]=localtime $data[7];
 
     my $string=sprintf "$format", @data;
     $self->info( $string, undef,0);
