@@ -63,7 +63,7 @@ sub submit {
   $self->renewProxy(90000); ####
   if ($self->{PRESUBMIT}){
     $self->info("Checking if there are resources that match");
-    my @info=_system($self->{PRESUBMIT}, $jdlfile);
+    my @info=$self->_system($self->{PRESUBMIT}, $jdlfile);
 
     if (!grep (/The following CE\(s\) matching your job requirements have been found/ , @info)){
       $self->info("No CEs matched the requirements!!\n@info\n\n*****We don't submit the jobagent");
@@ -448,13 +448,17 @@ Environment = {\"ALIEN_CM_AS_LDAP_PROXY=$ENV{ALIEN_CM_AS_LDAP_PROXY}\",\"ALIEN_J
    my $list = $self->{CONFIG}->{CE_LCGCE_LIST};
    if ($list) {
      my $first = 1;
-     print BATCH "Requirements = (";
-     foreach my $CE (@$list) {
-       print BATCH " || " unless $first; $first = 0;
-       print BATCH "other.GlueCEUniqueID==\"$CE\"";
-       $self->debug(1,"Adding $CE to the list");
-     }
-     print BATCH ")";
+
+
+     map {$_="other.GlueCEUniqueID==\"$_\""} @$list;
+     my $ces=join (" || ", @$list);
+     print BATCH "Requirements = ( $ces )";     
+#     foreach my $CE (@$list) {
+#       print BATCH " || " unless $first; $first = 0;
+#       print BATCH "other.GlueCEUniqueID==\"$CE\"";
+#       $self->debug(1,"Adding $CE to the list");
+#     }
+#     print BATCH ")";
      print BATCH $requirements;
      print BATCH ";";
    }
@@ -507,17 +511,32 @@ sub _system {
   
   my $command=join (" ", @_);
   $self->info("Doing '$command'");
-  my $pid=open(FILE, "$command |") or 
-    $self->info("Error doing '$command'!!\n$!") and return;
-  my @output=<FILE>;
-  
-  if (! close FILE){
-    #We have to check that the proces do^?^?
-    print "The system call failed  PID $pid";
-    my $kid;
-    do {
-      $kid = waitpid($pid, WNOHANG);
-    } until $kid > 0;
+
+  local $SIG{ALRM} =sub {
+    print "$$ timeout while doing '$command'\n";
+    die("timeout!! ");
+  };
+  my @output;
+  eval {
+    alarm(300);
+    my $pid=open(FILE, "$command |") or 
+      die("Error doing '$command'!!\n$!");
+    @output=<FILE>;
+    
+    if (! close FILE){
+      #We have to check that the proces do^?^?
+      print "The system call failed  PID $pid";
+      my $kid;
+      do {
+	$kid = waitpid($pid, WNOHANG);
+      } until $kid > 0;
+    }
+    alarm(0);
+  };
+  if ($@) {
+    $self->info("Error: $@");
+    alarm(0);
+    return;
   }
   return @output;
 }
