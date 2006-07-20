@@ -1215,8 +1215,16 @@ sub putFiles {
       foreach my $se (@ses) {
 	$self->info("Putting the file $arch->{name} in $se (guid $guid)");
 	$self->putJobLog($id,"trace","Registering $arch->{name} in $se");
-	my ($info2)=$ui->execute("upload", "$self->{WORKDIR}/$arch->{name}",
-				 $se, $guid, "-silent");
+	my ($info2, $silent)=(undef, "-silent");
+	for (my $j=0;$j<5;$j++){
+	  ($info2)=$ui->execute("upload", "$self->{WORKDIR}/$arch->{name}",
+				$se, $guid, $silent);
+	  $info2 and break; 
+	  $self->info("Error uploading the file... sleep and retry");
+	  $self->putJobLog($id, "trace", "warning: file upload failed... sleeping  and retrying");
+	  sleep(10);
+	  $silent="";
+	}
 	if (!$info2) {
 	  $self->info("Couldn't upload the file $arch->{name} to $se\n");
 	  $self->putJobLog($id,"error","Error registering $arch->{name}");
