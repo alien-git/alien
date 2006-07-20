@@ -47,13 +47,29 @@ sub put {
   my $self=shift;
   $self->debug(1,"Trying to put the file $self->{PARSED}->{ORIG_PFN} (from $self->{LOCALFILE})");
 
-  my $command="xrdcp $self->{LOCALFILE} root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH} -DIFirstConnectMaxCnt 1";
+  my $command="xrdcp -np -v $self->{LOCALFILE} root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH} -DIFirstConnectMaxCnt 1";
 
-  my $error = $self->_execute($command);
+#  my $error = $self->_execute($command);
+  open (OUTPUT, "$command 2> /dev/null |") or $self->info("Error: xrdcp is not in the path") and return;
+  my @output=<OUTPUT>;
+  close OUTPUT;
+  $self->debug(2, "Got the output: @output");
+  my ($line)=grep (/Data Copied \[bytes\]\s*:\s*(\d+)/, @output);
+  if ($line){
+    $line=~ /Data Copied \[bytes\]\s*:\s*(\d+)/;
+    $self->info("Transfered  $1  bytes");
+    my $size=-s $self->{LOCALFILE};
+    if ($size eq $1){
+      $self->info("YUHUUU!!");
+      return "root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH} -DIFirstConnectMaxCnt";
+    } 
+    $self->info("The file has not been completely transfered");
+    return;
+  }
 
-  $error and return;
-  $self->debug(1,"YUUHUUUUU!!\n");
-  return "root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH} -DIFirstConnectMaxCnt";
+#  $error and return;
+  $self->info("Something went wrong!!\n");
+  return;
 }
 
 sub remove {
