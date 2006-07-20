@@ -66,16 +66,16 @@ sub submit {
     my @info=$self->_system($self->{PRESUBMIT}, $jdlfile);
 
     if (!grep (/The following CE\(s\) matching your job requirements have been found/ , @info)){
-      $self->info("No CEs matched the requirements!!\n@info\n\n*****We don't submit the jobagent");
+      $self->info("No CEs matched the requirements!!\n@info\n\n***** We don't submit the jobagent");
       return -1;
     }
   }
   $self->info("Submitting to LCG with \'@args\'.");
   my $now = time;
-#  my $logFile = AliEn::TMPFile->new({filename=>"job-submit.$now.log"}) ## Or better a configurable TTL?
-#     or return;
-
-  my @command = ( $self->{SUBMIT_CMD}, "--noint", "--nomsg",  @args, "$jdlfile" );
+  my $logFile = AliEn::TMPFile->new({filename=>"job-submit.$now.log"}) ## Or better a configurable TTL?
+     or return;
+   
+  my @command = ( $self->{SUBMIT_CMD}, "--noint", "--nomsg", "--logfile", $logFile, @args, "$jdlfile");
   $self->debug(1,"Doing @command");
 
   my @output=$self->_system(@command) or return -1;
@@ -83,12 +83,12 @@ sub submit {
   @output and $contact=$output[$#output];
   $contact and chomp $contact;
   if ($contact !~ /^https:\// ) {
-    $self->{LOGGER}->warning("LCG","Error submitting the job: (@output and '$contact'). \n");
-#    if ($logFile){
-#      open (LOG, "<$logFile");
-#      print <LOG>;
-#      close LOG;
-#    }
+    $self->{LOGGER}->warning("LCG","Error submitting the job. Log file $contact");
+    if ($contact){
+      open (LOG, "<$contact");
+      print <LOG>;
+      close LOG;
+    }
     return -2;
   }
 
@@ -445,24 +445,15 @@ OutputSandbox = { \"std.err\" , \"std.out\" };
 Environment = {\"ALIEN_CM_AS_LDAP_PROXY=$ENV{ALIEN_CM_AS_LDAP_PROXY}\",\"ALIEN_JOBAGENT_ID=$ENV{ALIEN_JOBAGENT_ID}\"};
 ";
    my $list = $self->{CONFIG}->{CE_LCGCE_LIST};
-   if ($list) {
-     my $first = 1;
-     if (@$list){
-       map {/^other.GlueCE/ or $_="other.GlueCEUniqueID==\"$_\""} @$list;
-       my $ces=join (" || ", @$list);
-       print BATCH "Requirements = ( $ces )";
-     }
-#     print BATCH "Requirements = (";
-#     foreach my $CE (@$list) {
-#       print BATCH " || " unless $first; $first = 0;
-#       print BATCH "other.GlueCEUniqueID==\"$CE\"";
-##       $self->debug(1,"Adding $CE to the list");
-#     }
-#     print BATCH ")";
-     print BATCH $requirements;
-     print BATCH ";";
+   if (scalar @$list) {
+     my @celist = map {"other.GlueCEUniqueID==\"$_\""} @$list;
+     my $ces=join (" || ", @celist);
+     print BATCH "Requirements = ( $ces )";     
+     print BATCH " && ".$requirements if $requirements;
+     print BATCH ";\n";
+   } else {
+     print BATCH "Requirements = $requirements;\n" if $requirements;
    }
-   print BATCH "\n";
    close BATCH;
    open( BATCH, ">$exeFile" )
        or print STDERR "Can't open file '$exeFile': $!"
@@ -525,11 +516,13 @@ sub _system {
 
     if (! close FILE){
       #We have to check that the proces do^?^?
-      print "The system call failed  PID $pid";
-      my $kid;
-      do {
-        $kid = waitpid($pid, WNOHANG);
-      } until $kid > 0;
+      print "The system call failed  PID $pid\n";
+      if (CORE::kill 0,$pid) {
+        my $kid;
+        do {
+  	  $kid = waitpid($pid, WNOHANG);
+        }   until $kid > 0;
+      }
     }
     alarm(0);
   };
