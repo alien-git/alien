@@ -50,7 +50,7 @@ sub submit {
   my $command = shift;
   my $arguments  = join " ", @_;
   my $startTime = time;
-  
+
   my @args=();
   $self->{CONFIG}->{CE_SUBMITARG_LIST} and
     @args = @{$self->{CONFIG}->{CE_SUBMITARG_LIST}};
@@ -72,24 +72,23 @@ sub submit {
   }
   $self->info("Submitting to LCG with \'@args\'.");
   my $now = time;
-  my $logFile = AliEn::TMPFile->new({filename=>"job-submit.$now.log"}) ## Or better a configurable TTL?
-     or return;
-   
-  my @command = ( $self->{SUBMIT_CMD}, "--noint", "--nomsg", "--logfile", $logFile, @args, "$jdlfile", "|tail", "-1" );
+#  my $logFile = AliEn::TMPFile->new({filename=>"job-submit.$now.log"}) ## Or better a configurable TTL?
+#     or return;
+
+  my @command = ( $self->{SUBMIT_CMD}, "--noint", "--nomsg",  @args, "$jdlfile" );
   $self->debug(1,"Doing @command");
 
   my @output=$self->_system(@command) or return -1;
-  my $contact=join (@output);
-
+  my $contact="";
+  @output and $contact=$output[$#output];
   $contact and chomp $contact;
-  $contact or $contact="";
   if ($contact !~ /^https:\// ) {
-    $self->{LOGGER}->warning("LCG","Error submitting the job. Log file '$!' $contact\n");
-    if ($contact){
-      open (LOG, "<$contact");
-      print <LOG>;
-      close LOG;
-    }
+    $self->{LOGGER}->warning("LCG","Error submitting the job: (@output and '$contact'). \n");
+#    if ($logFile){
+#      open (LOG, "<$logFile");
+#      print <LOG>;
+#      close LOG;
+#    }
     return -2;
   }
 
@@ -98,7 +97,7 @@ sub submit {
   open JOBIDS, ">>$self->{CONFIG}->{LOG_DIR}/CE.db/JOBIDS";
   print JOBIDS "$now,$contact\n";
   close JOBIDS;
-  
+
   my $submissionTime = time - $startTime;
   $self->info("Submission took $submissionTime sec.");
   return 0;#$error;
@@ -113,7 +112,7 @@ sub kill {
      if (!$contact) {
        $self->{LOGGER}->error("LCG", "The job $queueid is not here");
        return 1;
-     }	
+     }
 
      $self->info("Killing job $queueid, JobID is $contact");
 
@@ -138,10 +137,10 @@ sub getStatus {
 
      $self->debug(1,"LCG Job $queueid is $LCGStatus");
      if ( $LCGStatus eq "Aborted" ||
-	 $LCGStatus eq "Cleared" ||
-	 $LCGStatus eq "Done(Failed)" ||
-	 $LCGStatus eq "Done(Cancelled)" ||
-	 $LCGStatus eq "Cancelled")  {
+         $LCGStatus eq "Cleared" ||
+         $LCGStatus eq "Done(Failed)" ||
+         $LCGStatus eq "Done(Cancelled)" ||
+         $LCGStatus eq "Cancelled")  {
           return 'DEQUEUED';
      }
      if ( $LCGStatus eq "Done(Success)" )  {
@@ -163,7 +162,7 @@ sub getAllBatchIds {
   foreach (@$jobIds) {
      $_ or next;
      my @output=$self->_system($self->{STATUS_CMD}, $_) or next;
-     grep m/^Current Status:\s*(Running)|(Ready)|(Scheduled)|(Waiting)/,@output 
+     grep m/^Current Status:\s*(Running)|(Ready)|(Scheduled)|(Waiting)/,@output
         or next;
      push @queuedJobs,$_;
   }
@@ -200,7 +199,7 @@ sub getFreeSlots {
       my $ldap =  Net::LDAP->new($GRIS) or return;
       $ldap->bind() or return;
       my $result = $ldap->search( base   =>  $BaseDN,
-				  filter => "(&(objectClass=GlueCEState)(GlueCEUniqueID=$CE))"); 
+                                  filter => "(&(objectClass=GlueCEState)(GlueCEUniqueID=$CE))");
       $result->code && return;
       foreach my $entry ($result->all_entries) {
         my $RunningJobs = $entry->get_value("GlueCEStateRunningJobs");
@@ -208,12 +207,12 @@ sub getFreeSlots {
         my $FreeCPUs    = $entry->get_value("GlueCEStateFreeCPUs");
         my $totalCPUs   = $entry->get_value("GlueCEInfoTotalCPUs");
         my @VOList      = $entry->get_value("GlueCEAccessControlBaseRule");
-	if (@VOList gt 1) {
-	  my $nVOs = @VOList;
+        if (@VOList gt 1) {
+          my $nVOs = @VOList;
           $self->{LOGGER}->warning("LCG","This seems to be a non-dedicated queue ($nVOs VOs)");
           $self->debug(1,"VOs: @VOList");
-	}
-	$self->info("CPUs for $CE: $FreeCPUs/$totalCPUs, (R:$RunningJobs, W:$WaitingJobs)");
+        }
+        $self->info("CPUs for $CE: $FreeCPUs/$totalCPUs, (R:$RunningJobs, W:$WaitingJobs)");
         $totFree    += $FreeCPUs;
         $totRunning += $RunningJobs;
         $totWaiting += $WaitingJobs;
@@ -266,7 +265,7 @@ sub getJobStatus {
    $self->{CONFIG}->{CE_STATUSARG} and
      @args=split (/\s+/, $self->{CONFIG}->{CE_STATUSARG});
     my @output=$self->_system($self->{STATUS_CMD}, "-noint", @args,
-			     "\"$contact\" | grep \"$pattern\"" );
+                             "\"$contact\" | grep \"$pattern\"" );
    my $status = $output[0];
    chomp $status;
    $status =~ s/$pattern//;
@@ -297,7 +296,7 @@ sub renewProxy {
    $command = "vobox-proxy --vo \L$self->{CONFIG}->{ORG_NAME}\E --dn \'$dn\' query-proxy-filename";
    $self->debug(1,"Doing $command");
    my $proxyfile = `$command`;
-   $? and $self->{LOGGER}->error("LCG","No valid proxy found.") and return;   
+   $? and $self->{LOGGER}->error("LCG","No valid proxy found.") and return;
    chomp $proxyfile;
    $self->debug(1,"Proxy file is $proxyfile");
    # I apparently cannot pass this via an argument
@@ -316,11 +315,11 @@ sub renewProxy {
      $self->debug(1,"Proxy timeleft is $timeLeft");
      next if ($gracePeriod && $timeLeft>$gracePeriod);
      $self->debug(1,"Renewing proxy for $proxyDN for $duration seconds");
-     my @command = ( 'myproxy-get-delegation', 
+     my @command = ( 'myproxy-get-delegation',
                      "-a", "$ProxyRepository/$cert",
-                     "-d", 
-		     "-t",int($duration/3600), #in hours
-	             "-o", "/tmp/tmpfile.$$");
+                     "-d",
+                     "-t",int($duration/3600), #in hours
+                     "-o", "/tmp/tmpfile.$$");
      $self->debug(1,"Doing @command");
      $error = system(@command);
      $error and $self->{LOGGER}->error("LCG","unable to renew proxy") and next;
@@ -332,9 +331,9 @@ sub renewProxy {
      $self->debug(1,"Doing $command");
      my $realDuration = `$command`;
      $self->{LOGGER}->error("LCG","asked for $duration sec, got only $realDuration") if ( $realDuration < $duration);
-   }  
+   }
    $ENV{X509_USER_PROXY} = $proxyfile;
-   $error and return;  
+   $error and return;
    return 1;
 }
 
@@ -373,13 +372,13 @@ sub updateClassAd {
     if ($entry[0]){
       my $RAMSize = $entry[0]->get_value("GlueHostMainMemoryRAMSize");
       my $SwapSize = $entry[0]->get_value("GlueHostMainMemoryVirtualSize");
-      $self->debug(1,"$cluster: $RAMSize,$SwapSize"); 
+      $self->debug(1,"$cluster: $RAMSize,$SwapSize");
       $maxRAMSize = $RAMSize if ($RAMSize>$maxRAMSize );
       $maxSwapSize = $SwapSize if ($SwapSize>$maxSwapSize );
     }
   }
   $ldap->unbind();
-  $self->debug(1,"Memory, Swap: $maxRAMSize,$maxSwapSize"); 
+  $self->debug(1,"Memory, Swap: $maxRAMSize,$maxSwapSize");
   $classad->set_expression("Memory",$maxRAMSize*1024);
   $classad->set_expression("Swap",$maxSwapSize*1024);
   $classad->set_expression("FreeMemory",$maxRAMSize*1024);
@@ -391,7 +390,7 @@ sub updateClassAd {
 sub translateRequirements {
   my $self = shift;
   my $ca = shift;
-  $ca or return ();  
+  $ca or return ();
 
   my $requirements = '';
 
@@ -399,7 +398,7 @@ sub translateRequirements {
   if ($memory) {
     $self->info("Translating \'Memory\' requirement ($ok,$memory)");
     $requirements .= "&& other.GlueHostMainMemoryRAMSize>=$memory";
-  }  
+  }
   ($ok, my $swap) =  $ca->evaluateAttributeString("Swap");
   if ($swap) {
     $self->info("Translating \'Swap\' requirement ($ok,$swap)");
@@ -415,7 +414,7 @@ sub translateRequirements {
 #  $self->info("Translating \'FreeMemory\' requirement ($ok,$freeMemory)") if $freeMemory;
 #  ($ok, my $freeSwap) =  $ca->evaluateAttributeString("FreeSwap");
 #  $self->info("Translating \'FreeSwap\' requirement ($ok,$freeSwap)") if $freeSwap;
-  return $requirements; 
+  return $requirements;
 }
 
 sub generateJDL {
@@ -448,21 +447,22 @@ Environment = {\"ALIEN_CM_AS_LDAP_PROXY=$ENV{ALIEN_CM_AS_LDAP_PROXY}\",\"ALIEN_J
    my $list = $self->{CONFIG}->{CE_LCGCE_LIST};
    if ($list) {
      my $first = 1;
-
-
-     map {$_="other.GlueCEUniqueID==\"$_\""} @$list;
-     my $ces=join (" || ", @$list);
-     print BATCH "Requirements = ( $ces )";     
+     if (@$list){
+       map {/^other.GlueCE/ or $_="other.GlueCEUniqueID==\"$_\""} @$list;
+       my $ces=join (" || ", @$list);
+       print BATCH "Requirements = ( $ces )";
+     }
+#     print BATCH "Requirements = (";
 #     foreach my $CE (@$list) {
 #       print BATCH " || " unless $first; $first = 0;
 #       print BATCH "other.GlueCEUniqueID==\"$CE\"";
-#       $self->debug(1,"Adding $CE to the list");
+##       $self->debug(1,"Adding $CE to the list");
 #     }
 #     print BATCH ")";
      print BATCH $requirements;
      print BATCH ";";
    }
-   print BATCH "\n";  
+   print BATCH "\n";
    close BATCH;
    open( BATCH, ">$exeFile" )
        or print STDERR "Can't open file '$exeFile': $!"
@@ -478,7 +478,7 @@ export OLDHOME=\$HOME
 export HOME=`pwd`
 export ALIEN_LOG=$ENV{ALIEN_LOG}
 echo --- hostname, uname, whoami, pwd --------------
-hostname   
+hostname
 uname -a
 whoami
 pwd
@@ -508,7 +508,7 @@ ls -lart
 
 sub _system {
   my $self=shift;
-  
+
   my $command=join (" ", @_);
   $self->info("Doing '$command'");
 
@@ -519,16 +519,16 @@ sub _system {
   my @output;
   eval {
     alarm(300);
-    my $pid=open(FILE, "$command |") or 
+    my $pid=open(FILE, "$command |") or
       die("Error doing '$command'!!\n$!");
     @output=<FILE>;
-    
+
     if (! close FILE){
       #We have to check that the proces do^?^?
       print "The system call failed  PID $pid";
       my $kid;
       do {
-	$kid = waitpid($pid, WNOHANG);
+        $kid = waitpid($pid, WNOHANG);
       } until $kid > 0;
     }
     alarm(0);
@@ -543,4 +543,5 @@ sub _system {
 
 
 return 1;
+
 
