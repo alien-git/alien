@@ -142,11 +142,14 @@ sub transfer {
 
   my $transfer="$self->{COMMAND} --verbose -s $ftsEndpoint -p \"$ENV{ALIEN_MYPROXY_PASSWORD}\" srm://$fromHost$from srm://$toHost/$to";
   $self->info("Ready to do the transfer: $transfer");
+  $self->prepareEnvironment();
+
   my $done=0;
 
-  open (FILE, "$transfer|") or $self->info("Error doing the command!!") and return -1;
+  open (FILE, "$transfer|") or $self->info("Error doing the command!!") and $self->restoreEnvironemnt() and return -1;
   my $id=join("", <FILE>);
-  close FILE or $self->info("Error executing $self->{COMMAND}") and return -1;
+  close FILE or $self->info("Error executing $self->{COMMAND}") and $self->restoreEnvironment() and return -1;
+  $self->restoreEnvironment();
   chomp $id;
   $id or $self->info("Error getting the transferId") and return -1;
   my $retry=10;
@@ -168,17 +171,39 @@ sub transfer {
   $self->info("So far, so good");
   return 0;
 }
+sub prepareEnvironment{
+  my $self=shift;
+  $self->{OLD_ENV}={};
+  $self->debug(2, "Removing the environment variables for the FTS call");
+  foreach ("X509_USER_KEY", "X509_USER_CERT"){
+    $ENV{$_} or next;
+    $self->{OLD_ENV}->{$_}=$ENV{$_};
+    delete $ENV{$_};
+  }
+  return 1;
+}
 
+sub restoreEnvironment{
+  my $self=shift;
+  $self->{OLD_ENV} or return 1;
+  $self->debug(2, "Restoring the environment for alien");
+  foreach (keys %{$self->{OLD_ENV}}) {
+    $ENV{$_}=$self->{OLD_ENV}->{$_};
+  }
+  return 1;
+}
 sub checkStatusTransfer {
   my $self=shift;
   my $fts=shift;
   my $id=shift;
   my $done=0;
   my $fileStatus;
+  $self->prepareEnvironment();
   if (open (FILE, "glite-transfer-status --verbose -s $fts $id -l|")){
     $fileStatus=join ("", <FILE>);
     (close FILE) and $done=1;
   }
+  $self->restoreEnvironment();
   $done or $self->info("Error checking the status of the transfer $id : $!, $fileStatus",2) and return -1;
   $DEBUG and print "$fileStatus\n";
   $fileStatus=~ /^Status:\s*(\S*)/m  or $self->info("Error getting the status of the transfer  $fts $id", 2) and return -1;
@@ -236,15 +261,15 @@ sub getSite {
   my   $total = $mesg->count;
   $total or $self->info("Error: Don't know the site of $host") and return;
   $total >1 and $self->info("Warning!! the se $host is in more than one site");
-  my $entry=$mesg->entry(0);
-  my @site=$entry->get_value("GlueForeignKey");
+  my $entry1=$mesg->entry(0);
+  my @site=$entry1->get_value("GlueForeignKey");
   my $site;
   foreach my $entry (@site) {
     $entry=~ s/^GlueSite(Unique)?ID=// or next;
     $site=$entry;
     $self->info("Site $entry");
   }
-  $site or $self->info("Error: the entry ".$entry->dn()." does not define GlueForeignKey=GlueSiteID=<sitename>") and return;
+  $site or $self->info("Error: the entry ".$entry1->dn()." does not define GlueForeignKey=GlueSiteID=<sitename>") and return;
   $self->info("The se $host is in $site");
   return $site;
 }
