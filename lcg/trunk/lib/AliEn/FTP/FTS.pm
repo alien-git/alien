@@ -149,13 +149,20 @@ sub transfer {
   close FILE or $self->info("Error executing $self->{COMMAND}") and return -1;
   chomp $id;
   $id or $self->info("Error getting the transferId") and return -1;
-
+  my $retry=10;
   while(1) {
-    sleep (10);
+    sleep (20);
     $self->info("Checking if the transfer $id has finished");
     my $status=$self->checkStatusTransfer($ftsEndpoint, $id)
       or last;
-    $status<0 and $self->info("Something went wrong") and return -1;
+    if ($status<0){
+      $self->info("Something went wrong");
+      $retry+=$status;
+      if ($retry <0){
+	$self->info("Giving up");
+	return -1;
+      }	
+    }
   }
 
   $self->info("So far, so good");
@@ -168,16 +175,18 @@ sub checkStatusTransfer {
   my $id=shift;
   my $done=0;
   my $fileStatus;
-  if (open (FILE, "glite-transfer-status --verbose -s $fts $id|")){
+  if (open (FILE, "glite-transfer-status --verbose -s $fts $id -l|")){
     $fileStatus=join ("", <FILE>);
     (close FILE) and $done=1;
   }
   $done or $self->info("Error checking the status of the transfer $id : $!, $fileStatus",2) and return -1;
   $DEBUG and print "$fileStatus\n";
-  $fileStatus=~ /^Status:\s*(\S*)/m  or $self->info("Error getting the status of the transfer  $fts $id") and return -1;
+  $fileStatus=~ /^Status:\s*(\S*)/m  or $self->info("Error getting the status of the transfer  $fts $id", 2) and return -1;
   my $status=$1;
   if ($status =~ /fail/i){
-    $self->info("The transfer failed");
+    my $reason="";
+    $fileStatus=~ /^\s+Reason: (.*)/m and $reason=$1;
+    $self->info("The FTS transfer $id failed ($reason)",2);
     return -1;
   }elsif($status =~ /(active)|(submitted)|(pending)/i){
     $self->info("Transfer still waiting");
@@ -186,7 +195,7 @@ sub checkStatusTransfer {
     $self->info("Transfer done!!!");
     return 0;
   }
-  print "Don't know what the status $status means...\n";
+  $self->info("Don't know what the status $status means (transfer $id)",2);
 
   return -1;
 }
