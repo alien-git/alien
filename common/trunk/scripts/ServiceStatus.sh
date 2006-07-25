@@ -32,13 +32,14 @@ for ALIEN_ORGANISATION in $ALL_ORG ; do
 	fi
 	AliEnCommand="$ALIEN_ROOT/bin/alien"
 	for service in $AliEnServices ; do
-		$AliEnCommand --org $ALIEN_ORGANISATION Status$service -silent > /dev/null 2>&1
+		err_msg=`$AliEnCommand --org $ALIEN_ORGANISATION Status$service -silent 2>&1`
 		error=$?
+		err_msg=`echo $err_msg | while read line ; do echo -n \$line | sed -e "s/\t/  /g"; done`
 		if [ "$error" != "0" ] ; then
 			if [ ! -x $AliEnCommand ] ; then
 				echo -e "$service\tStatus\t$error\tMessage\tCannot execute $AliEnCommand"
 			else
-				echo -e "$service\tStatus\t$error\tMessage\tExit code $error"
+				echo -e "$service\tStatus\t$error\tMessage\t$err_msg. Exit code $error"
 			fi
 		else
 			echo -e "$service\tStatus\t$error"
