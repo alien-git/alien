@@ -12,6 +12,8 @@ use Net::LDAP;
 
 sub initialize {
   my $self=shift;
+  my $options = shift;
+  
   $self->info("Contacting the BDII");
   my $BDII=$ENV{LCG_GFAL_INFOSYS} || 'sc3-bdii.cern.ch:2170';
 
@@ -31,6 +33,10 @@ sub initialize {
   $ENV{ALIEN_MYPROXY_PASSWORD} or 
     $self->info("Error: the myproxy password has not been set. Please, define it in the environment variable  ALIEN_MYPROXY_PASSWORD") and return;
 
+  # Setup the properties for monitoring. These whould come from FTD
+  for my $opt ("MONITOR", "FTD_TRANSFER_ID", "SITE_NAME", "SITE_NAME"){
+    $self->{$opt} = $options->{$opt};
+  }
   return $self;
 }
 
@@ -208,6 +214,9 @@ sub checkStatusTransfer {
   $DEBUG and print "$fileStatus\n";
   $fileStatus=~ /^Status:\s*(\S*)/m  or $self->info("Error getting the status of the transfer  $fts $id", 2) and return -1;
   my $status=$1;
+  $fileStatus =~ /^Channel:\s*(\S*)/m;
+  my $channel = $1;
+  $self->sendTransferStatus($id, $status, $channel);
   if ($status =~ /fail/i){
     my $reason="";
     $fileStatus=~ /^\s+Reason: (.*)/m and $reason=$1;
@@ -339,6 +348,22 @@ sub testTransfer {
   $target =~ s{^srm://([^/]*)(/.*$)}{$2} or $self->info("Format of $target is not correct") and return;
   my $targetHost=$1;
   return $self->transfer($source, $target, "", "", $sourceHost, $targetHost);
+}
+
+# Send to ML the information about this FTS transfer
+sub sendTransferStatus {
+  my $self      = shift;
+  my $ftsID     = shift;
+  my $ftsStatus = shift;
+  my $ftsChannel= shift;
+  
+  if($self->{MONITOR}){
+    my $params = { ftsID => $ftsID, 
+                   ftsStatus => $ftsStatus,
+                   ftsChannel => $ftsChannel
+                 };
+    $self->{MONITOR}->sendParameters($self->{SITE_NAME}."_FTS_".$self->{FTD_FULLNAME}, $self->{FTD_TRANSFER_ID}, $params);
+  }
 }
 
 return 1;
