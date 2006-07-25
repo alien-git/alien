@@ -349,7 +349,7 @@ sub startTransfer {
 
 
   my $error =  $self->doTransfer( $toURL->path, $destPath,  $fromURL->host, 
-		       $fromURL->method, "get", $options, $sourceCertificate,
+		       $fromURL->method, "get", $id, $options, $sourceCertificate,
 		       $fromHost, $toHost);
 
 
@@ -719,12 +719,13 @@ sub dirandfile {
 }
 
 sub doTransfer {
-    my $s          = shift;
+    my $self       = shift;
     my $file       = shift;
     my $remotefile = shift;
     my $host       = shift;
     my $method     = shift;
     my $direction  = shift;
+    my $id         = shift;
 
     $method="\U$method\E";
     # Now require the client, and create an instance
@@ -733,7 +734,12 @@ sub doTransfer {
     if ( eval "require $class; " ) {
       eval {
 	$self->debug(1, "Class $class exists" );
-        my $transfer = $class->new( { HOST => $host } );
+        my $transfer = $class->new( { HOST => $host,
+                                      MONITOR => $self->{MONITOR},
+				      FTD_TRANSFER_ID => $id,
+				      SITE_NAME => $self->{CONFIG}->{SITE},
+				      FTD_FULLNAME => $self->{CONFIG}->{FTD_FULLNAME}
+				  } );
         $done=$transfer->$direction( $file, $remotefile, @_ );
       }
     }
