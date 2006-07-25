@@ -34,7 +34,7 @@ sub initialize {
     $self->info("Error: the myproxy password has not been set. Please, define it in the environment variable  ALIEN_MYPROXY_PASSWORD") and return;
 
   # Setup the properties for monitoring. These whould come from FTD
-  for my $opt ("MONITOR", "FTD_TRANSFER_ID", "SITE_NAME", "SITE_NAME"){
+  for my $opt ("MONITOR", "FTD_TRANSFER_ID", "SITE_NAME", "FTD_FULLNAME"){
     $self->{$opt} = $options->{$opt};
   }
   return $self;
