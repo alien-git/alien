@@ -1219,7 +1219,7 @@ sub putFiles {
 	for (my $j=0;$j<5;$j++){
 	  ($info2)=$ui->execute("upload", "$self->{WORKDIR}/$arch->{name}",
 				$se, $guid, $silent);
-	  $info2 and break; 
+	  $info2 and last; 
 	  $self->info("Error uploading the file... sleep and retry");
 	  $self->putJobLog($id, "trace", "warning: file upload failed... sleeping  and retrying");
 	  sleep(10);
