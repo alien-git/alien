@@ -265,6 +265,7 @@ sub startTransfer {
   my $retries=$transfer->{RETRIES};
   my $id=$transfer->{ID};
   my $targetSE=$transfer->{TOSE};
+  my $guid=$transfer->{GUID};
   my $message="";
   my $sourceCertificate=$transfer->{FROMCERTIFICATE};
 
@@ -280,7 +281,8 @@ sub startTransfer {
     my ($seName, $seCert)=$self->{SOAP}->resolveSEName($targetSE) or return;
   
     $self->info("ID $id asking the SE $targetSE for a new filename");
-    my $result=$self->{SOAP}->CallSOAP($seName,'getFileName', $seName, $size) 
+    my $result=$self->{SOAP}->CallSOAP($seName,'getFileName', $seName, $size,
+				      {guid=>$guid}) 
       or return;
     $toPFN=$result->result;
     my @args=$result->paramsout;
