@@ -16,11 +16,11 @@ sub initialize {
   $ENV{LFC_HOST} = $self->{HOST};
   $self->{DB}=~ s/_/\//g;
   $ENV{LFC_HOME} = $self->{DB};
-  $self->info("Using LFC for the local file catalogue in $ENV{LFC_HOST}");  
+  $self->info("Using LFC for the local file catalogue in $ENV{LFC_HOST}");
   $self->{GUID}=AliEn::GUID->new() or return;
 
   $self->createDirectory("$ENV{LFC_HOME}/VOLUMES") or return;
-  
+
   #this is to keep the files that have been downloaded
   $self->{TXT}=AliEn::Database::TXT::SE->new() or return;
 
@@ -73,11 +73,11 @@ sub _LFC_command{
   my @list=@_;
 
   map { if (defined $_ ){$_ =~ /^\d+$/ or $_="'$_'"}
-	else {
-	  $_="undef";
-	}
+        else {
+          $_="undef";
+        }
       }  @list;
-  print "Let's do  $command (".join(',', @list).")\n";
+  $self->debug(2, "Let's do  $command (".join(',', @list).")");
   eval "\$error=$command (".join(',', @list).");";
   if ($@){
     $self->info("it didn't work: $command (".join(',', @list)."\n $@");
@@ -122,7 +122,7 @@ sub existsVolume{
   my $volume=$hashref->{volume};
   $volume=~ s/\//_/g;
   $volume="$ENV{LFC_HOME}/VOLUMES/$volume";
-  $self->info("Checking if the volume $volume exists");
+  $self->debug(1, "Checking if the volume $volume exists");
   $self->_LFC_command({silent=>1}, "chdir", $volume) or return;
   return $volume
 }
@@ -132,41 +132,51 @@ sub retrieveVolumeDetails{
    my $hashref = shift;
    $hashref->{volume} or $self->info("Don't know how to retrieve the volumedetails!!")
      and return;
-   my $volume=$self->existsVolume($hashref)  
+   my $volume=$self->existsVolume($hashref)
      or return;
 
    $self->info("The volume  $volume exists!!");
-   my $comment = '';
-   my $error = LFC::lfc_getcomment($volume,\$comment);
+   my $comment = pack("x".(1000));
+   my $error = LFC::lfc_getcomment($volume,$comment);
    my $stat=LFC::new_lfc_filestatg();
-   $error=LFC::lfc_statg( "$volume/SIZE", undef,$stat);
-   $error and $self->info("Error: $LFC::serrno (".POSIX::strerror($LFC::serrno)."Error getting the size") and return;
-   my $size=LFC::lfc_filestatg_filesize_get($stat);
-   $error=LFC::lfc_statg( "$volume/USEDSPACE", undef,$stat);
-   $error and $self->info("Error: $LFC::serrno (".POSIX::strerror($LFC::serrno)."Error getting the size") and return;
-   my $usedspace=LFC::lfc_filestatg_filesize_get($stat);
-   $error=LFC::lfc_statg( "$volume/FREESPACE", undef,$stat);
-   $error and $self->info("Error: $LFC::serrno (".POSIX::strerror($LFC::serrno)."Error getting the size") and return;
-   my $freespace=LFC::lfc_filestatg_filesize_get($stat);
-   $error=LFC::lfc_statg( "$volume/NUMBERFILES", undef,$stat);
-   $error and $self->info("Error: $LFC::serrno (".POSIX::strerror($LFC::serrno)."Error getting the size") and return;
-   my $numfiles=LFC::lfc_filestatg_filesize_get($stat);
-
+   my ($size, $methodName, $numfiles,$freespace, $usedspace );
+   my $real;
+   #We have to do this to get rid of the pointers created by pack
+   $comment and $comment=~ /(\S*),/ and $comment=$1;
+   if ($comment) {
+     $self->info("The comment is defined!! '$comment'");
+     my %hash=split (/[=,]/, $comment);
+     $size=$hash{SIZE};
+     $methodName=$hash{METHOD};
+     ($numfiles,$freespace, $usedspace)=($hash{NUMFILES}, $hash{FREESPACE}, $hash{USEDSPACE});
+   }else {
+     my $stat=LFC::new_lfc_filestatg();
+     $error=LFC::lfc_statg( "$volume/SIZE", undef,$stat);
+     $error and $self->info("Error: $LFC::serrno (".POSIX::strerror($LFC::serrno)."  Error getting the size") and return;
+     $size=LFC::lfc_filestatg_filesize_get($stat);
+     my $method=$self->_listDirectory("$volume/method") or return;
+     $methodName=shift @$method;
+     $methodName=~ s{^$volume/method/}{};
+     $methodName=~ s{_}{/}g;
+     $error=LFC::lfc_statg( "$volume/USEDSPACE", undef,$stat);
+     $error and $self->info("Error: $LFC::serrno (".POSIX::strerror($LFC::serrno)."Error getting the size") and return;
+     $usedspace=LFC::lfc_filestatg_filesize_get($stat);
+     $error=LFC::lfc_statg( "$volume/FREESPACE", undef,$stat);
+     $error and $self->info("Error: $LFC::serrno (".POSIX::strerror($LFC::serrno)."Error getting the size") and return;
+     $freespace=LFC::lfc_filestatg_filesize_get($stat);
+     $error=LFC::lfc_statg( "$volume/NUMBERFILES", undef,$stat);
+     $error and $self->info("Error: $LFC::serrno (".POSIX::strerror($LFC::serrno)."Error getting the size") and return;
+     $numfiles=LFC::lfc_filestatg_filesize_get($stat);
+   }
    LFC::delete_lfc_filestatg($stat);
 
-
-   my $method=$self->_listDirectory("$volume/method") or return;
-   my $methodName=shift @$method;
-   $methodName=~ s{^$volume/method/}{};
-   $methodName=~ s{_}{/}g;
-
-
    $size eq "18446744073709551615" and $size=-1;
-   
+
    $self->info("Returning the info of the volume $hashref->{volume}");
-   return {volume=>$hashref->{volume}, volumeId=> $hashref->{volume}, size=>$size, 
-	   usedspace=>$usedspace, freespace=>$freespace, method=>$methodName, 
-	   numfiles=>$numfiles, mountpoint=>$hashref->{volume}};
+   $self->debug(2, "{volume=>$hashref->{volume}, volumeId=> $hashref->{volume}, size=>$size, usedspace=>$usedspace, freespace=>$freespace, method=>$methodName, numfiles=>$numfiles, mountpoint=>$hashref->{volume}}");
+   return {volume=>$hashref->{volume}, volumeId=> $hashref->{volume}, size=>$size,
+           usedspace=>$usedspace, freespace=>$freespace, method=>$methodName,
+           numfiles=>$numfiles, mountpoint=>$hashref->{volume}};
 }
 
 
@@ -186,27 +196,31 @@ sub insertVolume {
     my $mode=0777;
     $self->_LFC_command({}, "mkdir", $dir, $mode) or die("error creating the directory");
     $self->info("Setting some comment");
-#    $self->_LFC_command({}, "setcomment", $dir, "TTL:100000") or die("error setting TTL");
-#    $self->_LFC_command({}, "setcomment", $dir, "SIZE:200000") or die("error setting SIZE");
-    $self->_LFC_command({}, "creatg","$dir/SIZE",$self->{GUID}->CreateGuid(),$mode) or die("Error creating the entry");
-    $self->_LFC_command({}, "setfsize","$dir/SIZE",undef, $volumeHash->{size}) 
-      or die("Error setting the size");
-    $self->_LFC_command({}, "creatg","$dir/USEDSPACE",$self->{GUID}->CreateGuid(),$mode) or die("Error creating the entry");
-    $self->_LFC_command({}, "setfsize","$dir/USEDSPACE",undef, $volumeHash->{usedspace}) 
-      or die("Error setting the size");
-    $self->_LFC_command({}, "creatg","$dir/FREESPACE",$self->{GUID}->CreateGuid(),$mode) or die("Error creating the entry");
-    $self->_LFC_command({}, "setfsize","$dir/FREESPACE",undef, $volumeHash->{freespace}) 
-      or die("Error setting the size");
-    $self->_LFC_command({}, "creatg","$dir/NUMBERFILES",$self->{GUID}->CreateGuid(),$mode) or die("Error creating the entry");
-    $self->_LFC_command({}, "setfsize","$dir/NUMBERFILES",undef, 0) 
-      or die("Error setting the size");
-    my $method=$volumeHash->{method};
-    if ($method){
-      $method=~ s{/}{_}g;
-      $method= "$dir/method/$method";
-      $self->info("Let's create the directory $method");
-      $self->createDirectory($method) or die ("error creating $method");
+    my $comment="SIZE=$volumeHash->{size},USEDSPACE=$volumeHash->{usedspace},FREESPACE=$volumeHash->{freespace},NUMFILES=0,";
+    if ($volumeHash->{method}) {
+       $comment.="METHOD=$volumeHash->{method},";
     }
+    $self->_LFC_command({}, "setcomment", $dir, $comment) or die("error setting the comments");
+#    $self->_LFC_command({}, "creatg","$dir/USED",$self->{GUID}->CreateGuid(),$mode) or die("Error creating the entry USED");
+#     $self->_LFC_command({}, "setcomment","$dir/USED", "USEDSPACE:$volumeHash->{usedspace},FREESPACE:$volumeHash->{freespace},NUMBERFILES:0") or die("error settting the comments of USED");
+#    $self->_LFC_command({}, "setfsize","$dir/SIZE",undef, $volumeHash->{size})
+#      or die("Error setting the size");
+#    $self->_LFC_command({}, "creatg","$dir/USEDSPACE",$self->{GUID}->CreateGuid(),$mode) or die("Error creating the entry");
+#    $self->_LFC_command({}, "setfsize","$dir/USEDSPACE",undef, $volumeHash->{usedspace})
+#      or die("Error setting the size");
+#    $self->_LFC_command({}, "creatg","$dir/FREESPACE",$self->{GUID}->CreateGuid(),$mode) or die("Error creating the entry");
+#    $self->_LFC_command({}, "setfsize","$dir/FREESPACE",undef, $volumeHash->{freespace})
+#      or die("Error setting the size");
+#    $self->_LFC_command({}, "creatg","$dir/NUMBERFILES",$self->{GUID}->CreateGuid(),$mode) or die("Error creating the entry");
+#    $self->_LFC_command({}, "setfsize","$dir/NUMBERFILES",undef, 0)
+#      or die("Error setting the size");
+#    my $method=$volumeHash->{method};
+#    if ($method){
+#      $method=~ s{/}{_}g;
+#      $method= "$dir/method/$method";
+#      $self->info("Let's create the directory $method");
+#      $self->createDirectory($method) or die ("error creating $method");
+#    }
   };
   if ($@){
     $self->info("Error creating the volume: $@");
@@ -219,7 +233,7 @@ sub retrieveVolumeDetailsList{
   my $self=shift;
   $self->info("Giving back all the volumes defined in LFC");
 
-  my $volumes=$self->_listDirectory("$ENV{LFC_HOME}/VOLUMES") or 
+  my $volumes=$self->_listDirectory("$ENV{LFC_HOME}/VOLUMES") or
     $self->info("Error reading the directory VOLUMES!!") and return;
   my @volumesInfo;
 
@@ -241,7 +255,7 @@ sub chooseVolume {
   my $self = shift;
   my $size = shift;
   my $guid=shift;
-  
+
   my $listref = $self->retrieveVolumeDetailsList();
   $listref or return;
   foreach my $volume (@$listref){
@@ -263,15 +277,20 @@ sub retrieveFileDetails{
 
 
   my $stat=LFC::new_lfc_filestatg();
-  my $guid=$file->{guid};
+  my $guid="\U$file->{guid}\E";
   my $error = LFC::lfc_statg(undef,$guid,$stat);
   if ($error){
-    LFC::delete_lfc_filestatg($stat);
-    if (!$options->{silent}){
-      print "Error: $LFC::serrno (".POSIX::strerror($LFC::serrno).")\n";
-      $self->info("Error doing the stat");
+    $self->info("To be on the safe side, let's look in lower case");
+    $guid=lc($guid);
+    $error= LFC::lfc_statg(undef,$guid,$stat);
+    if ($error){
+      LFC::delete_lfc_filestatg($stat);
+      if (!$options->{silent}){
+	print "Error: $LFC::serrno (".POSIX::strerror($LFC::serrno).")\n";
+	$self->info("Error doing the stat");
+      }
+      return;
     }
-    return;
   }
 
   my $size=LFC::lfc_filestatg_filesize_get($stat);
@@ -324,23 +343,36 @@ sub updateVolumeDetails{
   my $hashref = shift;
   $self->info("Updating the info of the volume");
   my $volume=$self->existsVolume($hashref) or return;
-  if ($hashref->{size}){
-    $self->_LFC_command({}, "setfsize","$volume/SIZE",undef, $hashref->{size}) 
-      or $self->info("Error setting the size") and return;
+
+  my $buffer=pack("x".(1000));
+  my $error=LFC::lfc_getcomment($volume, $buffer);
+  $buffer or $buffer="";
+  foreach my $var ("size", "usedspace", "freespace", "numfiles"){
+    if ($hashref->{$var}){
+      my $upper="\U$var\E";
+      $buffer =~ s/$upper=[^,]*,/$upper=$hashref->{$var},/
+          or $buffer.="$upper=$hashref->{$var},";
+    }
   }
-  if ($hashref->{usedspace}){
-    $self->_LFC_command({}, "setfsize","$volume/USEDSPACE",undef, $hashref->{usedspace}) 
-      or $self->info("Error setting the size") and return;
-  }
-  if ($hashref->{freespace}){
-    $self->_LFC_command({}, "setfsize","$volume/FREESPACE",undef, $hashref->{freespace}) 
-      or $self->info("Error setting the size") and return;
-  }
-  if ($hashref->{numfiles}){
-    $self->_LFC_command({}, "setfsize","$volume/NUMBERFILES",undef, $hashref->{numfiles}) 
-      or $self->info("Error setting the size") and return;
-  }
-  $self->info("Volume updated");
+  $error=LFC::lfc_setcomment( $volume, $buffer) and $self->info("error updating the values of $volume to '$buffer'") and return;
+  $self->info("Volume $volume updated");
+#if ($hashref->{size}){
+#    $self->_LFC_command({}, "setfsize","$volume/SIZE",undef, $hashref->{size})
+#      or $self->info("Error setting the size") and return;
+#  }
+#  if ($hashref->{usedspace}){
+#    $self->_LFC_command({}, "setfsize","$volume/USEDSPACE",undef, $hashref->{usedspace})
+#      or $self->info("Error setting the size") and return;
+#  }
+#  if ($hashref->{freespace}){
+#    $self->_LFC_command({}, "setfsize","$volume/FREESPACE",undef, $hashref->{freespace})
+#      or $self->info("Error setting the size") and return;
+#  }
+#  if ($hashref->{numfiles}){
+#    $self->_LFC_command({}, "setfsize","$volume/NUMBERFILES",undef, $hashref->{numfiles})
+#      or $self->info("Error setting the size") and return;
+#  }
+#  $self->info("Volume updated");
   return 1;
 }
 sub retrieveAllVolumesUsage {
@@ -357,7 +389,7 @@ sub retrieveAllVolumesUsage {
   }
   $self->info("Returning $size, $freespace and $usedspace");
   return {size=>$size, freespace=>$freespace, usedspace=>$usedspace};
- 
+
 }
 
 sub insertFile {
@@ -366,19 +398,19 @@ sub insertFile {
   $self->info("Adding a file to the LFC");
   $hashref->{volume}=$hashref->{volumeId};
   my $volume=$self->existsVolume($hashref) or return;
-  
+
   my $guid=$hashref->{guid};
   my $lfnDirectory="$volume/FILES/".$self->{GUID}->GetCHash($guid)."/".$self->{GUID}->GetHash($guid);
   my $lfn="$lfnDirectory/$guid";
   my $mode=0777;
   eval {
     $self->createDirectory($lfnDirectory) or die("Error creating the directory");
-    $self->_LFC_command({}, "creatg",$lfn,$guid,$mode) or die("Error creating the entry");
+    $self->_LFC_command({}, "creatg",$lfn,"\U$guid\E",$mode) or die("Error creating the entry");
     my $size=$hashref->{sizeBytes} || 1024*$hashref->{size};
-    $self->_LFC_command({}, "setfsizeg",$guid,$size,'MD',$hashref->{md5}) 
+    $self->_LFC_command({}, "setfsizeg",$guid,$size,'MD',$hashref->{md5})
       or die("Error setting the size");
     $self->_LFC_command({}, "addreplica",$guid, undef,"$self->{CONFIG}->{SE_FULLNAME}",$hashref->{pfn},
-			"-","D",undef,undef) or die ("Error adding the replica")
+                        "-","D",undef,undef) or die ("Error adding the replica")
 
 #    $self->_LFC_command({}, "creatg",$lfn,$guid,$mode) or die("Error creating the entry");
 
@@ -429,7 +461,7 @@ sub checkLocalCopies {
   my $query="SELECT localCopy,size FROM LOCALFILES where pfn='$pfn' and localCopy is not NULL";
   $self->info( $query);
   return   $self->{TXT}->queryRow($query);
-  
+
 }
 
 sub updateLocalCopy {
