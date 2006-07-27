@@ -528,36 +528,59 @@ sub checkWakesUp {
 
   my $method="info";
   my @methodData=();
-  $silent and $method="debug" and push @methodData, 1;
+#  $silent and $method="debug" and push @methodData, 1;
 
-  if ( $self->CURRENT_TRANSFERS >= $self->{MAX_TRANSFERS} ) {
-    $self->$method(@methodData, "Already doing maximum number of transfers. Wait" );
-    return;
+  if (! $self->{FTD_CHILDREN}){
+    if ( $self->CURRENT_TRANSFERS >= $self->{MAX_TRANSFERS} ) {
+      $self->$method(@methodData, "Already doing maximum number of transfers. Wait" );
+      return;
+    }
   }
 
-  $self->$method(@methodData,"Asking the broker if we can do anything");
-  #    my ($result)=$self->{BROKER}->requestTransfer($self->{JDL});
-  my ($result)=$self->{SOAP}->CallSOAP("Broker/Transfer", "requestTransfer",
-				       $self->{JDL}) or return;
+  $self->$method(@methodData,"$$ Asking the broker if we can do anything");
 
+  my ($result)=$self->{SOAP}->CallSOAP("Broker/Transfer", "requestTransfer",
+				       $self->{JDL});
+
+  $self->info("$$ Got an answer from the broker");
+  if (!$result) {
+    if ($self->{FTD_CHILDREN}){
+      $self->info("The process $$ exists");
+      $self->CURRENT_TRANSFERS_DECREMENT("", $self->{FTD_CHILDREN});
+      exit;
+    }
+    return;
+  }
   my $transfer=$result->result;
   if ($transfer eq "-2"){
     $self->$method(@methodData, "No transfers for me");
+    if ($self->{FTD_CHILDREN}){
+      $self->CURRENT_TRANSFERS_DECREMENT("", $self->{FTD_CHILDREN});
+      exit;
+    }
     return;
   }
+  $self->info("$$ Is checking the action");
   my $action=($transfer->{ACTION} or"");
 
   my $message="";
   $action or $message=" no action specified";
   my $id=$transfer->{ID};
   $id or $message=" transfer has no id";
-  $message and $self->{LOGGER}->error("FTD", "Error: $message") and return;
+
+  if ($message){
+    $self->{LOGGER}->error("FTD", "Error: $message");
+    if ($self->{FTD_CHILDREN}){
+      $self->CURRENT_TRANSFERS_DECREMENT("", $self->{FTD_CHILDREN});
+      exit;
+    }
+    return;
+  }
   my $return;
 
   my $pid="";
-  if ( $self->CURRENT_TRANSFERS +1  >= $self->{MAX_TRANSFERS} ) {
-    $self->info("This is the last transfer. FTD doesn't fork" );
-  } else {
+  if (! $self->{FTD_CHILDREN}) {
+    $self->info("$$ Creating a new instance of the FTD (there are". $self->CURRENT_TRANSFERS());
     $pid=fork();
     (defined $pid) or 
       $self->info("Error doing the fork");
@@ -566,8 +589,15 @@ sub checkWakesUp {
       sleep(2);
       return 1;
     }
+  } else {
+    #The previous transfer finished
+    $self->CURRENT_TRANSFERS_DECREMENT("", $self->{FTD_CHILDREN});
   }
+
   $self->CURRENT_TRANSFERS_INCREMENT("", $id);
+  $self->{FTD_CHILDREN}=$id;
+
+  $self->info("$$ is going to do $action");
   if ($action  eq "local copy"){
     $return=$self->makeLocalCopy($transfer);
   } elsif ($action eq "transfer") {
@@ -577,19 +607,13 @@ sub checkWakesUp {
   } else {
     $self->info("We don't know action $action :(");
   }
-  $self->CURRENT_TRANSFERS_DECREMENT("", $id);
+
   if (! $return ) {
     $self->info("The transfer failed due to: ".$self->{LOGGER}->error_msg() );
     $self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, "FAILED", "ALIEN_SOAP_RETRY",{"Reason",$self->{LOGGER}->error_msg()});
-    
   }
-  
-  
-  if ($pid eq "0") {
-    $self->debug(1, "This is the child. Exiting");
-    exit;
-  }
-  return $return;
+  $self->info("$$ returns!!");
+  return 1;
 }
 sub makeLocalCopy {
   my $s =shift;
