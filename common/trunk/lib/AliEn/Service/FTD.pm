@@ -587,6 +587,16 @@ sub checkWakesUp {
     if ($pid) {
       $self->debug(1, "The father sleeps 2 seconds  before asking for a new tansfer");
       sleep(2);
+      my @list;
+      $self->{FTD_PIDS} and push @list, @{$self->{FTD_PIDS}};
+      my @newList
+      foreach (@list){
+	if (CORE::kill 0, $pid and waitpid($pid, WNOHANG)<=0){
+	  push @newList, $pid
+	}
+      }
+      push @newList, $pid;
+      $self->{FTD_PIDS}=\@newList;
       return 1;
     }
   } else {

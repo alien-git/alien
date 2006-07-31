@@ -32,7 +32,7 @@ use POSIX ":sys_wait_h";
 use Compress::Zlib;
 use AliEn::MSS;
 use Archive::Zip;
-
+use Filesys::DiskUsage qw /du/;
 use AliEn::Service;
 use Classad;
 use LWP::UserAgent;
@@ -494,16 +494,14 @@ sub CreateDirs {
 
   my ( $okwork, @workspace ) =
       $self->{CA}->evaluateAttributeVectorString("Workdirectorysize");
-
+  $self->{WORKSPACE}=0;
   if ($okwork) {
-    if ((defined $workspace[0]) && ($workspace[0] > 0)) {
+    if (defined $workspace[0]) {
       my $unit=1;
-      if ($workspace[0] =~ s/MB//g) {
-	$unit = 1;
-      }
-      if ($workspace[0] =~ s/GB//g) {
-	$unit = 1024;
-      }
+      ($workspace[0] =~ s/KB//g) and $unit = 1./1024.;
+      ($workspace[0] =~ s/MB//g) and $unit = 1;
+      ($workspace[0] =~ s/GB//g) and $unit = 1024;
+
       if (($workspace[0]*$unit) > $freemegabytes) {
 	# not enough space
 	$self->putJobLog($ENV{ALIEN_PROC_ID},"error","Request $workspace[0] * $unit MB, but only $freemegabytes MB free!");
@@ -513,6 +511,7 @@ sub CreateDirs {
       } else {
 	# enough space
 	$self->putJobLog($ENV{ALIEN_PROC_ID},"trace","Request $workspace[0] * $unit MB, found $freemegabytes MB free!");
+	$self->{WORKSPACE}=$workspace[0]*$unit;
       }
     }
   }
@@ -1913,14 +1912,26 @@ sub checkProcess{
     and return;
 
   $self->debug(1, "Checking if the proccess still has time");
-  (time() < $self->{JOBEXPECTEDEND}) and return 1;
+  my $killMessage;
 
-  $self->info("The job used more than it's expected time (it was supposed to finish by  $self->{JOBEXPECTEDEND}");
-  kill(9, $self->{PROCESSID});
-  $self->putJobLog($ENV{ALIEN_PROC_ID},"error","Killing the job (it was running for longer than its TTL");
-  $self->changeStatus("%", "ERROR_E");
+  (time() > $self->{JOBEXPECTEDEND}) and 
+    $killMessage="it was running for longer than its TTL";
 
-  return;
+  if ($self->{WORKSPACE} ){
+    $self->info( "Checking the disk space usage of $self->{WORKDIR}  ");
+    my $space=du($self->{WORKDIR} );
+    $space <$self->{WORKSPACE} or $killMessage="using more than $self->{WORKSPACE} MB of diskspace";
+  }
+
+  if ($killMessage){
+    kill(9, $self->{PROCESSID});
+    $self->info("Killing the job ($killMessage)");
+    $self->putJobLog($ENV{ALIEN_PROC_ID},"error","Killing the job ($killMessage)");
+    $self->changeStatus("%", "ERROR_E");
+    return;
+  }
+
+  return 1 ;
 }
 sub lastExecution {
   my $self=shift;
