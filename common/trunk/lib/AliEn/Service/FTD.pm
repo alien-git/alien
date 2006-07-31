@@ -589,7 +589,7 @@ sub checkWakesUp {
       sleep(2);
       my @list;
       $self->{FTD_PIDS} and push @list, @{$self->{FTD_PIDS}};
-      my @newList
+      my @newList;
       foreach (@list){
 	if (CORE::kill 0, $pid and waitpid($pid, WNOHANG)<=0){
 	  push @newList, $pid
