@@ -366,9 +366,7 @@ sub addFile{
    
    delete $hashref->{file};
    
-   print "To the database we pass\n";
-   use Data::Dumper;
-   print "Starting with", Dumper($hashref);
+   
    $self->{DB}->insertFile($hashref) or return 0;
 
    $self->info("File '$fullpath' inserted in the database");
