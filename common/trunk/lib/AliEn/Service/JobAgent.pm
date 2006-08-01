@@ -429,7 +429,7 @@ sub checkJobJDL {
 
 
   ($ok, my @env_variables)=
-    $self->{CA}->evaluateAttributeVectorString("JDL_VARIABLES");
+    $self->{CA}->evaluateAttributeVectorString("JDVARIABLES");
   $self->info("We have to define @env_variables");
   foreach my $var (@env_variables) {
     ($ok, my @values)=
@@ -439,7 +439,7 @@ sub checkJobJDL {
       next;
     }
     $var=uc("ALIEN_JDL_$var");
-    my $value=join(":", @values);
+    my $value=join("##", @values);
     $self->putJobLog($ENV{ALIEN_PROC_ID},"trace", "Defining the environment variable $var=$value");
     $ENV{$var}=$value;
     
