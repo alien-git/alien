@@ -1938,8 +1938,9 @@ sub checkProcess{
 
   if ($self->{WORKSPACE} ){
     $self->info( "Checking the disk space usage of $self->{WORKDIR}  ");
-    my $space=du($self->{WORKDIR} );
-    $space <$self->{WORKSPACE} or $killMessage="using more than $self->{WORKSPACE} MB of diskspace";
+    my $space=du($self->{WORKDIR} ) /1024 /1024;
+    $space <$self->{WORKSPACE} or 
+      $killMessage="using more than $self->{WORKSPACE} MB of diskspace (right now we were using $space MB)";
   }
 
   if ($killMessage){
