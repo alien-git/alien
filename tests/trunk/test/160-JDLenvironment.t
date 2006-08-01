@@ -18,7 +18,7 @@ echo \"ALIEN_JDL_MY_VARIABLE=\$ALIEN_JDL_MY_VARIABLE\"
 
 
 addFile($cat, "jdl/jdlEnvironment.jdl", "Executable=\"jdlEnvironment.sh\";
-JDL_VARIABLES={\"MY_VARIABLE\"};
+JDLVARIABLES={\"MY_VARIABLE\"};
 MY_VARIABLE=\"Hello world\"
 ") or exit(-2);
 
