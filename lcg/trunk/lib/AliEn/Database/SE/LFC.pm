@@ -43,9 +43,10 @@ sub createDirectory {
     return;
   }
   $self->createDirectory($parent) or return;
-  $self->info("Making the directory");
+  $self->info("Making the directory $lfn");
   my $mode = 0770;
   $self->_LFC_command({}, "mkdir", $lfn, $mode) or return;
+  $self->info("Directory $lfn was created!");
   return 1;
 }
 
@@ -404,11 +405,12 @@ sub insertFile {
   my $lfn="$lfnDirectory/$guid";
   my $mode=0777;
   eval {
+    $guid=uc($guid);
     $self->createDirectory($lfnDirectory) or die("Error creating the directory");
-    $self->_LFC_command({}, "creatg",$lfn,"\U$guid\E",$mode) or die("Error creating the entry");
+    $self->_LFC_command({}, "creatg",$lfn,$guid,$mode) or die("Error creating the entry");
     my $size=$hashref->{sizeBytes} || 1024*$hashref->{size};
     $self->_LFC_command({}, "setfsizeg",$guid,$size,'MD',$hashref->{md5})
-      or die("Error setting the size");
+      or die("Error setting the size $size for guid $guid with md5 $hashref->{md5}");
     $self->_LFC_command({}, "addreplica",$guid, undef,"$self->{CONFIG}->{SE_FULLNAME}",$hashref->{pfn},
                         "-","D",undef,undef) or die ("Error adding the replica")
 
