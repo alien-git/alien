@@ -175,6 +175,14 @@ sub startService {
   print "ok\nChecking if $service is still up ...";
   my $config=new AliEn::Config;
   my $logFile="$config->{LOG_DIR}/$service.log";
+	
+  # if we run with cronolog, we have to find the latest logfile
+  my $latestlogFile=`find $config->{LOG_DIR} -name \"ApiService.log\" 2>/dev/null | tail -1`;
+  if ($latestlogFile ne "$logFile" ) {
+	#create a symbolic link to the latest logfile in the standard logfile location
+	system("ln -s $latestlogFile $logFile");
+  }	
+
   $service eq "Monitor" and $logFile=~ s{/Monitor\.}{/ClusterMonitor.};
   if (system("$ENV{ALIEN_ROOT}/bin/alien Status$service") ) {
     print "The $service is dead...\n";
