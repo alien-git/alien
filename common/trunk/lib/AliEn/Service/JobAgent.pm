@@ -261,6 +261,7 @@ sub changeStatus {
 sub putJobLog {
   my $self =shift;
 
+  $self->info("Putting in the joblog: @_");
   my $joblog = $self->{SOAP}->CallSOAP("CLUSTERMONITOR","putJobLog", @_) or return;
   return 1;
 }
@@ -425,6 +426,24 @@ sub checkJobJDL {
   $ENV{ALIEN_PACKAGES}=join (" ", @packages);
 
   print "PACKAGES REQUIRED: $ENV{ALIEN_PACKAGES}\n";
+
+
+  ($ok, my @env_variables)=
+    $self->{CA}->evaluateAttributeVectorString("JDL_VARIABLES");
+  $self->info("We have to define @env_variables");
+  foreach my $var (@env_variables) {
+    ($ok, my @values)=
+      $self->{CA}->evaluateAttributeVectorString($var);
+    if (!$ok) {
+      $self->putJobLog($ENV{ALIEN_PROC_ID}, "warning", "The JobAgent was supposed to set '$var', but that's not defined in the jdl");
+      next;
+    }
+    $var=uc("ALIEN_JDL_$var");
+    my $value=join(":", @values);
+    $self->putJobLog($ENV{ALIEN_PROC_ID},"trace", "Defining the environment variable $var=$value");
+    $ENV{$var}=$value;
+    
+  }
   return 1;
 
 }
