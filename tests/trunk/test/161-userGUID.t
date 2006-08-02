@@ -18,7 +18,7 @@ my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",})
 addFile($cat, "bin/userGUIDS.sh","#!/bin/sh
 echo \"Creating a file with a specific guid\"
 echo \"myguidfile $guid\" >myguidfile
-") or exit(-2);
+","r") or exit(-2);
 
 
 addFile($cat, "jdl/userGUIDS.jdl", "Executable=\"userGUIDS.sh\";
@@ -35,5 +35,18 @@ my ($newguid)=$cat->execute('lfn2guid', "$procDir/job-output/myguidfile") or pri
 $newguid=~ /^$guid$/i or print "The guid is different!!\n" and exit(-2);
 
 print "ok!!\n";
+
+print "\n\n\nIf we execute it again...\n";
+
+$procDir=executeJDLFile($cat, "jdl/userGUIDS.jdl", ) or 
+  print "The job did not run\n" and exit(-2);
+
+print "The output should not be registered\n";
+
+$cat->execute("ls",  "$procDir/job-output/myguidfile") and print "Error: the output of the job was registered!!!") and exit(-2);
+
+print "ok!!\n";
+
+
 
 
