@@ -429,7 +429,7 @@ sub checkJobJDL {
 
 
   ($ok, my @env_variables)=
-    $self->{CA}->evaluateAttributeVectorString("JDVARIABLES");
+    $self->{CA}->evaluateAttributeVectorString("JDLVARIABLES");
   $self->info("We have to define @env_variables");
   foreach my $var (@env_variables) {
     ($ok, my @values)=
