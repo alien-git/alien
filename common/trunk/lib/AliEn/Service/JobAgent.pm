@@ -1146,6 +1146,26 @@ sub getListInputFiles {
   return @files
 }
 
+sub getUserDefinedGUIDS{
+  my $self=shift;
+
+  my ($ok, $guidFile)=$self->{CA}->evaluateAttributeString("GUIDFile");
+  my %guids;
+  if ($guidFile){
+    $self->putJobLog($ENV{ALIEN_PROC_ID},"trace","Using the guids from $guidFile");
+    if (!open (FILE, "<$guidFile")){
+      $self->putJobLog($ENV{ALIEN_PROC_ID},"error","The job was supposed to create '$guidFile' with the guids, but it didn't... I will generate the guids");
+    }else{
+      %guids=split (/\s+/, <FILE>);
+      use Data::Dumper;
+      $self->info("Using the guids". Dumper(%guids));
+      close FILE;
+    }
+
+  }
+  return %guids;
+}
+
 
 sub putFiles {
   my $self      = shift;
@@ -1158,13 +1178,14 @@ sub putFiles {
 
   ( $ok, my @archives ) =
     $self->{CA}->evaluateAttributeVectorString("OutputArchive");
-
-  my ($zipArchives, $files)=$self->prepareZipArchives(\@archives, @files) or 
+  
+  my ($zipArchives, $files)=$self->prepareZipArchives(\@archives,  @files) or 
     print "Error creating the zipArchives\n" and return;
   @files=@$files;
   my @zipArchive=@$zipArchives;
   my $jdl;
 
+  my %guids=$self->getUserDefinedGUIDS();
 
   foreach my $data (split (/\s+/, $self->{VOs})){
     my ($org, $cm,$id, $token)=split ("#", $data);
@@ -1208,7 +1229,9 @@ sub putFiles {
 	$self->putJobLog($id, "error", "The job didn't create $file2");
 	next;
       }
-      my ($info)=$ui->execute("upload", "$self->{WORKDIR}/$file2", $se[0]);
+      my @options=("$self->{WORKDIR}/$file2", $se[0]);
+      $guids{$file2} and $self->putJobLog($id,"trace", "The file $file2 has the guid $guids{$file2} ") and push @options, $guids{$file2};
+      my ($info)=$ui->execute("upload", @options);
       if (!$info) {
 	$self->info("Error registering the file $self->{WORKDIR}/$fileName");
 	$self->putJobLog($id,"error","Error registering the file $self->{WORKDIR}/$fileName");
@@ -1266,8 +1289,10 @@ sub putFiles {
       }
       my @list;
       foreach my $file( keys %{$arch->{entries}}) {
+	my $guid=$guids{$file} || "";
+	$self->info("Checking if $file has a guid ($guid)");
 	push @list, join("###", $file, $arch->{entries}->{$file}->{size},
-			 $arch->{entries}->{$file}->{md5} );
+			 $arch->{entries}->{$file}->{md5},$guid );
       }
       $submitted->{$arch->{name}}->{links}=\@list;
     }
@@ -1317,12 +1342,10 @@ sub prepareZipArchives{
   my $self=shift;
   my $outArchivesRef=shift;
   my @outputArchives=@$outArchivesRef;
-
 #  my $currentzip;
 
   #first, let's get rid of the patterns
   my @noPattern=$self->_findFilesLike(@_);
-
 
   my $archiveList;
   my @files=();

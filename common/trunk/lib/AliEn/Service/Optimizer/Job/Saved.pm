@@ -75,7 +75,7 @@ sub checkSavedJob{
       my $newPfn="guid:///$guid";
       foreach my $link (@links) {
 	$self->info("Ready to register the link $link" );
-	my ($file, $size, $md5)=split (/###/, $link);
+	my ($file, $size, $md5, $guid)=split (/###/, $link);
 	my $pfn="$newPfn?ZIP=$file";
 	if ($filesToRegister{$file}) {
 	  $self->debug(1,"This is a replica");
@@ -86,6 +86,7 @@ sub checkSavedJob{
 				   size=>$size,
 				   md5=>$md5,
 				   selist=>$selist,
+				   guid=>$guid,
 				  };
 	}
       }
