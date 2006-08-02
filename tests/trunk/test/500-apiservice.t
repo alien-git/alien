@@ -178,6 +178,7 @@ sub startService {
 	
   # if we run with cronolog, we have to find the latest logfile
   my $latestlogFile=`find $config->{LOG_DIR} -name \"ApiService.log\" 2>/dev/null | tail -1`;
+  chomp $latestlogFile;
   if ($latestlogFile ne "$logFile" ) {
 	#create a symbolic link to the latest logfile in the standard logfile location
 	system("echo Creating symbolic link $latestlogFile $logFile");
