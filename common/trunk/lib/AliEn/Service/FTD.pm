@@ -589,13 +589,16 @@ sub checkWakesUp {
       sleep(2);
       my @list;
       $self->{FTD_PIDS} and push @list, @{$self->{FTD_PIDS}};
+      $self->info("******** $$ CHECKING THE KIDS @list");
       my @newList;
       foreach (@list){
-	if (CORE::kill 0, $pid and waitpid($pid, WNOHANG)<=0){
-	  push @newList, $pid
+	if (CORE::kill 0, $_ and waitpid($_, WNOHANG)<=0){
+	  push @newList, $_
 	}
       }
       push @newList, $pid;
+      $self->info("******* $$  THE ONLY ONES THAT ARE ALIVE NOW ARE @newList");
+
       $self->{FTD_PIDS}=\@newList;
       return 1;
     }
