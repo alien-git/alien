@@ -143,10 +143,10 @@ sub retrieveVolumeDetails{
    my ($size, $methodName, $numfiles,$freespace, $usedspace );
    my $real;
    #We have to do this to get rid of the pointers created by pack
-   $comment and $comment=~ /(\S*),/ and $comment=$1;
-   if ($comment) {
-     $self->info("The comment is defined!! '$comment'");
-     my %hash=split (/[=,]/, $comment);
+   $comment and $comment=~ /(\S*),/ and $real=$1;
+   if ($real) {
+     $self->info("The comment is defined!! '$real'");
+     my %hash=split (/[=,]/, $real);
      $size=$hash{SIZE};
      $methodName=$hash{METHOD};
      ($numfiles,$freespace, $usedspace)=($hash{NUMFILES}, $hash{FREESPACE}, $hash{USEDSPACE});
