@@ -94,7 +94,8 @@ sub checkSavedJob{
     $self->info("Doing the multiinsert now");
     
     my @filesToRegister=values %filesToRegister;
-    $self->{CATALOGUE}->f_bulkRegisterFile("$procDir/job-output", \@filesToRegister);
+    $self->{CATALOGUE}->f_bulkRegisterFile("$procDir/job-output", \@filesToRegister) 
+     or $self->putJobLog($queueid,"error", "Error registering the files in the catalogue!!");
 
     ($ok, my $outputDir)=$job_ca->evaluateAttributeString("OutputDir");
     if ($ok) {

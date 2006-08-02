@@ -1960,8 +1960,8 @@ sub checkProcess{
     $killMessage="it was running for longer than its TTL";
 
   if ($self->{WORKSPACE} ){
-    $self->info( "Checking the disk space usage of $self->{WORKDIR}  ");
     my $space=du($self->{WORKDIR} ) /1024 /1024;
+    $self->info( "Checking the disk space usage of $self->{WORKDIR} (now $space, out of $self->{WORKSPACE} MB ");
     $space <$self->{WORKSPACE} or 
       $killMessage="using more than $self->{WORKSPACE} MB of diskspace (right now we were using $space MB)";
   }
