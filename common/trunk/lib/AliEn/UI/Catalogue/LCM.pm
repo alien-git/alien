@@ -771,9 +771,8 @@ sub addFile {
   my $target = (shift or "");
 
 
-  ( $pfn) or
-    print STDERR "Error: not enough parameters\n".$self->addFile_HELP()
-	and return;
+  $pfn or $self->info("Error: not enough parameters in add\n".
+		      $self->addFile_HELP(),2)	and return;
 
   $lfn = $self->{CATALOG}->f_complete_path($lfn);
   if (! $options->{versioning}) {
