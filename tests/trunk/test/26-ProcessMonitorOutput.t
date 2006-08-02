@@ -84,7 +84,7 @@ sub waitForStatus{
     $status = $status->{status};
     $status eq $Wstatus and return 1;
     print "Status -> $status\n";
-    $status=~ /(ERROR_)|(FAILED)|(DONE)/ and 
+    $status=~ /((ERROR_)|(FAILED)|(DONE))/ and 
       print "THE job finished with $1!!\n" and return;
     ($counter>$times) and print "We have been waiting for more than $counter *$sleep seconds.... let's quit" and return;
   }
