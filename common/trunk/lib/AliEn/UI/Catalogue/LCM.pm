@@ -875,6 +875,16 @@ Options:\t-f\t keep the same relative path
     $transfer->{target}=~ s/^$service->{SAVEDIR}//;
   }
 
+  if ($options =~ /t/){
+
+    my $result=$self->{SOAP}->CallSOAP("Manager/Transfer","enterTransfer",$transfer);
+    $result  or return;
+    #Make the remote SE get the file
+    my $id=$result->result;
+    $self->info("The transfer has been scheduled!! ($id)");
+    return (-2, $id);
+  }
+
   my ($done, $id)=$self->{STORAGE}->bringFileToSE($se, $transfer, $options);
 
   $done or return;
