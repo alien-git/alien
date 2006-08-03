@@ -43,7 +43,7 @@ $procDir=executeJDLFile($cat, "jdl/userGUIDS.jdl", ) or
 
 print "The output should not be registered\n";
 
-$cat->execute("ls",  "$procDir/job-output/myguidfile") and print "Error: the output of the job was registered!!!") and exit(-2);
+$cat->execute("ls",  "$procDir/job-output/myguidfile") and print "Error: the output of the job was registered!!!" and exit(-2);
 
 print "ok!!\n";
 
