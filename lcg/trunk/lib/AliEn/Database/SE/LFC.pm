@@ -315,8 +315,9 @@ Checksum:       $checksum\n";
   }
   LFC::lfc_listreplica(undef,$guid,$LFC::CNS_LIST_END,$list);
   print "Got ",$#sfns+1," replica(s).\n";
-
-  my $stat2={guid=>$file->{guid}, pfns=>\@sfns, size=>$size, cheksum=>$checksum};
+  my $pfn=shift @sfns;
+  
+  my $stat2={guid=>$file->{guid}, pfn=>$pfn, size=>$size, md5sum=>$checksum};
   LFC::delete_lfc_filestatg($stat);
 
   LFC::delete_lfc_filereplica($replica);
@@ -432,7 +433,7 @@ sub getPFNFromGUID{
   my $guid=shift;
   $self->info("In LFC, trying to retrieve the info of $guid");
   my $info=$self->retrieveFileDetails({guid=>"\L$guid\E"}) or return;
-  return $info->{pfns};
+  return $info->{pfn};
 
 }
 
