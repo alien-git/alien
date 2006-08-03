@@ -995,11 +995,11 @@ sub askToPut {
         return $error_codes->{COMMENSE_TRANSFER};
 
     }
-    if ( $self->CURRENT_TRANSFERS > $self->{MAX_TRANSFERS} ) {
-      $self->info("Transfer of $size bytes denied. Already doing max ("
-		  . $self->CURRENT_TRANSFERS . ") transfers" );
-      return $error_codes->{TRANSFER_DENIED};
-    }
+#    if ( $self->CURRENT_TRANSFERS > $self->{MAX_TRANSFERS} ) {
+#      $self->info("Transfer of $size bytes denied. Already doing max ("
+#		  . $self->CURRENT_TRANSFERS . ") transfers" );
+#      return $error_codes->{TRANSFER_DENIED};
+#    }
     
 #    $self->CURRENT_TRANSFERS_INCREMENT($size);
     $self->info("ID $id Transfer of $size bytes granted. Doing "
