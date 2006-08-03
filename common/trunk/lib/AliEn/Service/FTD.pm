@@ -922,13 +922,13 @@ sub askToGet {
           ( $error_codes->{COMMENSE_TRANSFER}, $size, $localoptions );
         return @returnv;
     }
-    if ( $self->CURRENT_TRANSFERS > $self->{MAX_TRANSFERS} ) {
-        $self->info("Transfer of $size bytes denied. Already doing max ("
-              . $self->CURRENT_TRANSFERS
-              . ") transfers" );
-        return ( $error_codes->{TRANSFER_DENIED},
-            "Already executing maximum number of transfers" );
-    }
+#    if ( $self->CURRENT_TRANSFERS > $self->{MAX_TRANSFERS} ) {
+#        $self->info("Transfer of $size bytes denied. Already doing max ("
+#              . $self->CURRENT_TRANSFERS
+#              . ") transfers" );
+#        return ( $error_codes->{TRANSFER_DENIED},
+#            "Already executing maximum number of transfers" );
+#    }
 
 #    $self->CURRENT_TRANSFERS_INCREMENT($size);
     $self->info("Transfer of $size bytes granted. Doing "
