@@ -44,8 +44,26 @@ sub compareNumber {
   return 1;
 }
 
-print "HELLO\n";
+sub stopServices{
+  print "Stopping all the services but the proxy";
+  system("$ENV{ALIEN_ROOT}/etc/rc.d/init.d/aliend", "stop");
+  sleep(10);
+  open (FILE, "| $ENV{ALIEN_ROOT}/bin/alien StartProxy");
+  print FILE "pass\n";
+  close FILE;
 
+  return 1;
+}
+
+sub startServices{
+  print "Restarting the services\n";
+  system("$ENV{ALIEN_ROOT}/etc/rc.d/init.d/aliend", "start");
+  sleep(10);
+  return 1;
+}
+
+print "HELLO\n";
+stopServices();
 my $c2=AliEn::UI::Catalogue->new();
 $c2->close();
 
@@ -53,9 +71,9 @@ my ($before, $proxyBefore) = countInstances("Before connecting");
 
 #system("ps -U $userName -o pid,ppid,command |grep -i Proxy|grep -v grep");
 
-my $c=AliEn::UI::Catalogue->new() or exit(-2);
+my $c=AliEn::UI::Catalogue->new() or startServices() and exit(-2);
 
-compareNumber($before+1, $proxyBefore+1, "During the connection") or exit(-2);
+compareNumber($before+1, $proxyBefore+1, "During the connection") or startServices() and exit(-2);
 
 $c->close();
 print "closed!!!\n";
@@ -63,7 +81,7 @@ sleep (3);
 if (! compareNumber($before, $proxyBefore, "After login out")) {
   print "Let's try sleeping again...\n";
   sleep (10);
-  compareNumber($before, $proxyBefore, "After 10 sec")  or exit(-2);
+  compareNumber($before, $proxyBefore, "After 10 sec")  or startServices() and exit(-2);
   print "But now it is fine...\n";
 }
 
@@ -71,16 +89,18 @@ print "Ok!\n";
 
 print "Let's try again with another catalogue\n";
 
-$c=AliEn::UI::Catalogue->new() or exit(-2);
-$c->execute("ls", "/remote/", "-la") or exit(-2);
-compareNumber($before+2, $proxyBefore+2, "During the second connection") or exit(-2);
+$c=AliEn::UI::Catalogue->new() or startServices() and exit(-2);
+$c->execute("ls", "/remote/", "-la") or startServices() and exit(-2);
+compareNumber($before+2, $proxyBefore+2, "During the second connection") or startServices() and exit(-2);
 $c->close();
 print "closed!!!\n";
 sleep (3);
 if (! compareNumber($before, $proxyBefore, "After login out")) {
   print "Let's try sleeping again...\n";
   sleep (10);
-  compareNumber($before, $proxyBefore, "After 10 sec")  or exit(-2);
+  compareNumber($before, $proxyBefore, "After 10 sec")  or startServices() and exit(-2);
   print "But now it is fine...\n";
 }
+startServices();
+print "OK!!!\n";
 exit(0);
