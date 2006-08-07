@@ -722,10 +722,11 @@ sub f_queueStatus {
 sub getNumberFreeSlots{
   my $self=shift;
 
+  #This is the number of free+queued+running
   my $free_slots=$self->{BATCH}->getFreeSlots();
   my $done=$self->{SOAP}->CallSOAP("ClusterMonitor", "getNumberJobs",  $self->{CONFIG}->{CE_FULLNAME}, $free_slots) 
     or return;
-
+  #THis is what we can run according to the JOB MANAGER
   my ($max_queued, $max_running)=$self->{SOAP}->GetOutput($done);
 
   $self->info( "According to the manager, we can run $max_queued and $max_running");
@@ -777,6 +778,9 @@ sub offerAgent {
   my $classad="";#AliEn::Util::returnCacheValue($self,"classad");
   if (!$classad){
     my $ca=AliEn::Classad::Host->new() or return;
+    #Settingt the  local space
+
+    $ca->set_expression("LocalDiskSpace", 100000000);
     $ca=$self->{BATCH}->updateClassAd($ca)
       or $self->info("Error asking the CE to update the classad")
 	and return;
