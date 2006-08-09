@@ -357,7 +357,7 @@ sub updateVolumeDetails{
     }
   }
   $error=LFC::lfc_setcomment( $volume, $buffer) and $self->info("error updating the values of $volume to '$buffer'") and return;
-  $self->info("Volume $volume updated");
+  $self->info("Volume $volume updated ($buffer)");
 #if ($hashref->{size}){
 #    $self->_LFC_command({}, "setfsize","$volume/SIZE",undef, $hashref->{size})
 #      or $self->info("Error setting the size") and return;
@@ -408,10 +408,11 @@ sub insertFile {
   eval {
     $guid=uc($guid);
     $self->createDirectory($lfnDirectory) or die("Error creating the directory");
-    $self->_LFC_command({}, "creatg",$lfn,$guid,$mode) or die("Error creating the entry");
-    my $size=$hashref->{sizeBytes} || 1024*$hashref->{size};
-    $self->_LFC_command({}, "setfsizeg",$guid,$size,'MD',$hashref->{md5})
+    if ($self->_LFC_command({}, "creatg",$lfn,$guid,$mode) ){
+      my $size=$hashref->{sizeBytes} || 1024*$hashref->{size};
+      $self->_LFC_command({}, "setfsizeg",$guid,$size,'MD',$hashref->{md5})
       or die("Error setting the size $size for guid $guid with md5 $hashref->{md5}");
+    }
     $self->_LFC_command({}, "addreplica",$guid, undef,"$self->{CONFIG}->{SE_FULLNAME}",$hashref->{pfn},
                         "-","D",undef,undef) or die ("Error adding the replica")
 
@@ -433,7 +434,7 @@ sub getPFNFromGUID{
   my $guid=shift;
   $self->info("In LFC, trying to retrieve the info of $guid");
   my $info=$self->retrieveFileDetails({guid=>"\L$guid\E"}) or return;
-  return $info->{pfn};
+  return [$info->{pfn}];
 
 }
 
