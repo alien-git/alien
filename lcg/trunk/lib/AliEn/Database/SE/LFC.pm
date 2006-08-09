@@ -300,10 +300,10 @@ sub retrieveFileDetails{
 Checksum type:  ",LFC::lfc_filestatg_csumtype_get($stat),"
 Checksum:       $checksum\n";
 
-  my $comment = '';
-  $error = LFC::lfc_getcomment("$ENV{LFC_HOME}/$file",\$comment); ##??? Does not work like this...
+#  my $comment = '';
+#  $error = LFC::lfc_getcomment("$ENV{LFC_HOME}/$file",\$comment); ##??? Does not work like this...
   print "Error: $LFC::serrno (".POSIX::strerror($LFC::serrno).")\n" if $error;
-  print "Comment:        $comment\n" unless $error;
+ # print "Comment:        $comment\n" unless $error;
   my @sfns = ();
   my $replica = LFC::new_lfc_filereplica();
   my $list = LFC::new_lfc_list();
