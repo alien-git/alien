@@ -110,6 +110,7 @@ my $ml_transferStatus={'INSERTING' => 1,
 		       'DONE' => 7, 
 		       'FAILED' => -1,
 		       'KILLED' => -2,
+		       'EXPIRED' => -3,
 		      };
 
 sub transferStatusForML {
