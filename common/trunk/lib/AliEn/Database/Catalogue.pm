@@ -354,8 +354,9 @@ sub deleteMirrorFromFile{
   my $self=shift;
   my $file=shift;
   my $seName=shift;
-  my $seNumber=$self->getSENumber($seName);
-  defined $seNumber or return;
+  my $seNumber=$self->getSENumber($seName, {existing=>1});
+  defined $seNumber or 
+    $self->info("The se '$seName' does not exist") and return;
 
   my $table=$self->{INDEX_TABLENAME}->{name};
   
@@ -726,6 +727,7 @@ sub removeDirectory {
 sub getSENumber{
   my $self=shift;
   my $se=shift;
+  my $options=shift || {};
   $DEBUG and $self->debug(2, "Checking the senumber");
   defined $se or return 0;
   $DEBUG and $self->debug(2, "Getting the numbe from the list");
@@ -733,7 +735,7 @@ sub getSENumber{
 				 {bind_values=>[$se]});
   defined $senumber and return $senumber;
   $DEBUG and $self->debug(2, "The entry did not exist");
-
+  $options->{existing} and return;
   $self->{SOAP} or $self->{SOAP}=new AliEn::SOAP 
     or return ;
 
