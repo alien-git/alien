@@ -358,13 +358,15 @@ sub deleteMirrorFromFile{
   defined $seNumber or return;
 
   my $table=$self->{INDEX_TABLENAME}->{name};
-
+  
+  $self->debug(2, "Ready to remove the mirror '$seName from  '$file' (and $self->{INDEX_TABLENAME}->{lfn}");
+  $file=~ s{^$self->{INDEX_TABLENAME}->{lfn}}{};
   my $done=$self->queryValue("SELECT seStringList from $table where lfn='$file'");
 
   $done or return;
   $DEBUG and $self->debug(2, "The entry exists in the database");
   $done=~ s/,$seNumber,/,/ or return;
-  $file=~ s{^$self->{INDEX_TABLENAME}->{lfn}}{};
+
   return $self->do("UPDATE $table set seStringlist='$done' where lfn='$file'");
 }
 
