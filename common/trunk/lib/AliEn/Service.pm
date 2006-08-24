@@ -252,7 +252,7 @@ sub startListening {
     my $daemon;
     my $name="AliEn::Server::SOAP::Transport::HTTP";
     my $options={
-		 LocalAddr => $self->{HOST},
+#		 LocalAddr => $self->{HOST},
 		 LocalPort => $self->{PORT},
 		 Listen => $self->{LISTEN},
 		 Prefork => $self->{PREFORK}};
