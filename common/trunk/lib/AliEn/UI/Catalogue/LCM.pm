@@ -46,6 +46,7 @@ This object provides the access to the Local Cache Manager (LCM) to the prompt. 
 
 use strict;
 use AliEn::LCM;
+use List::Util 'shuffle';
 
 use AliEn::UI::Catalogue;
 use AliEn::SOAP;
@@ -653,9 +654,9 @@ sub selectClosestSE {
   }
   my @return;
   $se and push @return, $se;
-  @close and push @return, @close;
-  @site and push @return, @site;
-  @rest and push @return, @rest;
+  @close and push @return, shuffle(@close);
+  @site and push @return, shuffle(@site);
+  @rest and push @return, shuffle(@rest);
   $self->debug(1, "After sorting we have @return");
   return @return;
 }
