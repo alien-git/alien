@@ -12,8 +12,10 @@ sub getLink {
 }
 
 sub getFTPCopy {
-    my $self = shift;
-    return ( $self->getLink(@_) );
+  my $self = shift;
+  $self->{LOCALCOPY} or return $self->path(); 
+  $self->info("This method requires a cache copy of the file");
+  return ( $self->getLink(@_) );
 }
 return 1;
 
