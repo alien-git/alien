@@ -217,11 +217,11 @@ sub checkStatusTransfer {
   $fileStatus =~ /^Channel:\s*(\S*)/m;
   my $channel = $1;
   $self->sendTransferStatus($id, $status, $channel);
-  if ($status =~ /fail/i){
+  if ($status =~ /(fail)|(Canceled)/i){
     my $reason="";
     $fileStatus=~ /^\s+Reason: (.*)/m and $reason=$1;
     $self->info("The FTS transfer $id failed ($reason)",2);
-    return -1;
+    return -11;
   }elsif($status =~ /(active)|(submitted)|(pending)/i){
     $self->info("Transfer still waiting");
     return 1

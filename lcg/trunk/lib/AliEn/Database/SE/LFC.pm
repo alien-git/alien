@@ -49,6 +49,20 @@ sub createDirectory {
   $self->info("Directory $lfn was created!");
   return 1;
 }
+sub removeFile {
+  my $self=shift;
+  my $hash=shift;
+  $self->info("In the LFC, ready to delete $hash->{guid} ($hash->{pfn})");
+  use Data::Dumper;
+        print Dumper($hash);
+#  $self->_LFC_command({},"delreplica", $hash->{guid}, undef, $hash->{pfn});
+#  $self->_LFC_command({},"unlink", $hash->{lfc_path});
+   my $vo=lc("$self->{CONFIG}->{ORG_NAME}");
+   $self->info("Ready to delete:  lcg-del --vo $vo -a $hash->{guid}");
+   system("lcg-del --vo $vo -a guid:$hash->{guid}") and return;
+  $self->info("Entry deleted from the LFC");
+  return 1;
+}
 
 sub removeDirectory {
   my $self=shift;
@@ -316,8 +330,15 @@ Checksum:       $checksum\n";
   LFC::lfc_listreplica(undef,$guid,$LFC::CNS_LIST_END,$list);
   print "Got ",$#sfns+1," replica(s).\n";
   my $pfn=shift @sfns;
-  
-  my $stat2={guid=>$file->{guid}, pfn=>$pfn, size=>$size, md5sum=>$checksum};
+
+  my $volume=$pfn;
+  #Let's remove the method from the volume
+  $volume=~ s{^[^/]*//[^/]*/}{/};
+  #Let's remove also the guid;
+  $volume=~   s{/([^/]*)/[^/]*/[^/]*/$file->{guid}\..*$}{}i;
+  $volume=~ s{/}{_}g;
+  my $stat2={guid=>$file->{guid}, pfn=>$pfn, size=>$size, md5sum=>$checksum, volume=>$volume, pfns=>[$pfn,@sfns]};
+
   LFC::delete_lfc_filestatg($stat);
 
   LFC::delete_lfc_filereplica($replica);
@@ -356,6 +377,7 @@ sub updateVolumeDetails{
           or $buffer.="$upper=$hashref->{$var},";
     }
   }
+  $buffer or $self->info("Error getting the information to update the LFC") and return;
   $error=LFC::lfc_setcomment( $volume, $buffer) and $self->info("error updating the values of $volume to '$buffer'") and return;
   $self->info("Volume $volume updated ($buffer)");
 #if ($hashref->{size}){
