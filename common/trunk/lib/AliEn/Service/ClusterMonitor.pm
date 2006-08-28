@@ -156,7 +156,31 @@ sub initialize {
   #############################################################################
   $self->{LOCALJOBDB}=new AliEn::Database::CE or return;
 
+  $self->forkCheckProcInfo() or return;
   return $self;
+}
+
+sub forkCheckProcInfo{
+  my $self=shift;
+  my $dir="$self->{CONFIG}->{LOG_DIR}/ClusterMonitor";
+  mkdir $dir;
+  my $id=fork();
+  #
+  defined $id or $self->info("Error forking a process") and return;
+  if( $id){
+    $self->info("The father has started the messages thread ($id)");
+    return 1;
+  }
+  $self->info( "Putting the output in $dir/ProcInfo.log");
+  $self->{LOGGER}->redirect("$dir/ProcInfo.log");
+  my $silent=0;
+  while (1){
+    $self->checkProcInfo($silent);
+    $silent++;
+    $silent>5 and $silent=0;
+    sleep(60);
+  }
+  return 1;
 }
 
 sub checkConnection {
@@ -1080,7 +1104,6 @@ sub checkWakesUp {
 #  $self->checkExpired($silent);
   $self->checkJobAgents($silent);
 #  $self->checkZombies($silent);
-  $self->checkProcInfo($silent);
   return; 
 }
 
