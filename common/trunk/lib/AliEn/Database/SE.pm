@@ -274,4 +274,17 @@ sub updateLocalCopy {
 
   return $self->do("UPDATE LOCALFILES set localCopy='$pfn', size=$size  where transferid=$transferId");
 }
+
+
+sub removeFile{
+  my $self = shift;
+  my $hashref = shift;
+  my $string ="DELETE FROM FILES WHERE ".( join (" AND ", map {"$_ =  \'$hashref->{$_}\'"} keys(%{$hashref})));
+#   print "$string\n";
+  my $sth = $self->_do($string);
+
+  return 1;
+}
+
 1;
+

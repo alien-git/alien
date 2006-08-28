@@ -778,222 +778,6 @@ sub CallTransferManager {
 
 }
 
-#sub inquireTransfer{
-#  my $this=shift;
-#  my $transfer=shift;
-#  my $options= shift;
-##
-#  $transfer=~ /^\d+$/ and return $self->inquireTransferByID($transfer);
-#  return $self->inquireTransferByPFN($transfer, $options);#
-#
-#}
-
-#sub StartTransfer {
-#  my $this=shift;
-#  my $struct=shift;#
-#
-#  my $fileName = $struct->{FILENAME};
-#  my $size     = $struct->{SIZE};
-#  my $target   = ( $struct->{TARGET} or "" );#
-
-  #   my $file=$target;
- #   $file or ($file="file://$self->{CONFIG}->{FTD_HOST}:$self->{CONFIG}->{FTD_PORT}$self->{CONFIG}->{FTD_ALLOWEDDIRS}/");
-
-#  #my $message="Bringing the file $fileName(size $size)";
-#  $target and $message.=" to $target";
-#  $self->info( $message);
-  
-#  my $response = $self->{FTD}->requestTransfer( $target, $fileName, "get" );
-#  
-#  my $errorMessage="";
-#  ($response) or $errorMessage="Error contacting the local FTD";
-#  ($response->result) or $errorMessage="Local FTD did not return a value";
-#  ($response->result>0) or $errorMessage="Local FTD returned an error";
-#  
-#  if ($errorMessage){
-#    $self->{LOGGER}->warning( "SE", $errorMessage );
-#    return (-1, "$errorMessage");
-#  }
-#  
-#  my $transferID = $response->result;
-#  $self->info( "TransferID = $transferID ");
-#  return  $transferID;
-#}
-
-
-#sub inquireTransferByPFN{
-#  my $this=shift;
-#  
-#  my $data=(shift or "");
-#  my $options =(shift or "");
-
-#  my ($se, $pfn, $target)= split ("###", $data);
-#
-#  $self->debug(1, "inquireTransferByPfn and $data");#
-#
-#  my $errorMessage="";
-#  $data or $errorMessage="No data in inquireTransfer";
-#  $pfn or $errorMessage= "No se###pfn###target (only $data)";
-#
-#  $errorMessage and
-#    $self->{LOGGER}->error("SE", $errorMessage) and return (-1, $errorMessage);
-#
-#  $self->info( "Checking if the local copy ($pfn) in $se is ready");#
-#
-#  my $response =
-#      SOAP::Lite->uri("AliEn/Services/SE")->proxy("http://$se")
-#      ->checkLocalCopy($pfn);#
-#
-#  $self->debug(1, "RemoteSE returned $response");#
-#
-#  ($response) or $errorMessage="Error contacting the SE at $se";
-#
-#  $errorMessage and
-#    $self->{LOGGER}->error("SE", $errorMessage) and return (-1, $errorMessage);
-#
-#  my $done=$response->result;
-##  ($done ) or $self->info( "Still doing the local copy") and 
-#      return (-2, "$data"); 
-#  if (! $done )
-#    {
-#      $self->info( "Still doing the local copy");
-#      $options =~ /f/ 
-#	and $self->info("Forcing it again to get the local copy") 
-#	  and SOAP::Lite->uri("AliEn/Services/SE")->proxy("http://$se")
-#	    ->makeLocalCopy($pfn);##
-
-#      return (-2, "$data"); #
-#
-#    }
-#  $done->{TARGET}=($target or "");
-#  my @transferID=$self->StartTransfer($done);#
-#
-#  ($transferID[0] eq "-1") and 
-#    $self->{LOGGER}->error("SE", $transferID[1]) and return  @transferID;
-#
-#  return (-2, $transferID[0]);
-#}
-
-#sub inquireTransferByID{
-#  my $this=shift;
-#  my $transferID=shift;#
-#
-#  $transferID or  $self->{LOGGER}->error("SE", "Error: no transferID") and return;#
-#
-#  $self->info( "Checking transfer $transferID");
-#  my  $response = $self->{FTD}->inquireTransferByID($transferID);
-#
-#  ($response)
-#    or $self->{LOGGER}->warning( "SE", "Error contacting the FTD" )
-#      and return (-1, "Error contacting the FTD");
-#
-#  my $status = $response->result;#
-#
-#  if ( $status eq "DONE" ) {
-#    my $pfn= $response->paramsout;
-#    $self->debug(1, "Transfer finished and $pfn" );
-#    my $lURL = new AliEn::SE::Methods( $pfn );
-#    my $size=$lURL->getSize;
-#    $self->info( "Done Returning $pfn and $size" );
-#    return ($pfn, $size);
-#  }
-#  if ( $status eq "FAIL" ) {
-#    my @response = $response->paramsout;
-#    $self->{LOGGER}->warning( "SE", "FAILED $response[1]" );
-#    return (-1, $response[1]);
-#  }
-#  if (($status eq "WAITING") or ($status eq "TRANSFERING")){
-#    $self->debug(1, "Transfer $status" );
-#    return (-2, $transferID);
-#  }  
-#  $self->info( "Another status $status");
-#  return (-1, $response->paramsout);
-#    $self->info( "Result of bringing $pfn : $response" );
-#    return $response;
-#}
-
-
-#sub checkLocalCopy{
-#  my $this=shift;
-#  my $pfn=shift;#
-#
-#    $self->info( "Checking if there is a local copy of $pfn");#
-##
-#
-#    my ($file)=$self->{DATABASE}->query("SELECT localCopy FROM LOCALFILES where pfn='$pfn'");
-#
-#  ($file) or return;
-#    
-#  #since it was a temporary copy, make sure that the file is still there
-#  my $url=AliEn::SE::Methods->new({ "PFN", $pfn, "DATABASE", $self->{DATABASE} } );
-#  my $size= $url->getSize();
-#       
-#
-#  ($size) and
-#    $self->info( "Returning $file and $size")
-#      and return { "FILENAME", $file, "SIZE", $size };
-#     
-#  $self->info("The local copy is no longer there..");
-#     
-#  $self->{DATABASE}->insert("DELETE FROM LOCALFILES where pfn='$pfn'");
-#  return;#
-#
-#}
-
-#sub makeLocalCopy {
-#    my $this = shift;
-#    my $pfn = shift;
-#    my @done=$self->checkLocalCopy($pfn);
-#    @done and return @done;#
-
-#    $self->info( "Making a local copy of $pfn" );
-#    my $transferpid = fork();#
-#
-#    (defined $transferpid)
-#	or  $self->{LOGGER}->error( "SE", "Error forking the process!!\n $! $@" ) 
-#	    and return;#
-#
-#    if ( $transferpid  ) {
-
-      # THIS IS THE CHILD PROCESS Wait 2 seconds, so parent can update current number of transfer
-      # IF THE ONE THAT EXISTS IS THE FATHER, WE WOULD HAVE A DEFUNCT PROCESS
-      #Write our PID in the PID file
-#      my $file="$self->{CONFIG}->{LOG_DIR}/SE.pid";
-#      open (FILE, ">>$file") or 
-#	print STDERR "ERROR UPDATING THE PID NUMBER ON $file\n" and return;
-#      print FILE " $$";
-#      close FILE;
-#     sleep(2);#
-#
-#      return -2;
-#    }
-###
-#
-#    $self->info( "Creating a local copy" );#
-#
-#    my $file =AliEn::SE::Methods->new(
-#				      { "DEBUG", $self->{DEBUG}, 
-#					"PFN", $pfn, "DATABASE", 
-#					$self->{DATABASE} } );
-#    ($file)
-#      or $self->{LOGGER}->warning( "SE", "Error parsing $pfn" )
-#      and exit;#
-#
-#    $self->info( "Getting the FTPCopy of  $pfn" );#
-#
-#    my ( $method, $name ) = $file->getFTPCopy();
-#    ($name)
-#      or $self->{LOGGER}->warning( "SE", "Error getting the FTPCopy" )
-#      and exit;
-#    $name =
-#     "$method://$self->{CONFIG}->{FTD_HOST}:$self->{CONFIG}->{FTD_PORT}$name";
-#
-#    $self->{DATABASE}->insert ("INSERT INTO LOCALFILES values ('$pfn', '$name')");
-#
-#    $self->info( "Copy of $pfn done ($name)" );
-#    exit;
-#return { "FILENAME", $name, "SIZE", $size };
-#}
 
 sub getFileSOAP {
 
@@ -1044,15 +828,6 @@ sub getFileSOAP {
     #	return;
     #    }
 }
-
-#sub mkdir {
-#  my $this=shift;
-#  my $dir=shift;
-#  $self->info( "Making the directory $dir");
-#  
-#  return $self->{MSS}->createdir($dir);
-#
-#}
 
 sub getURL {
     my $this = shift;
@@ -1330,8 +1105,6 @@ sub getFileName{
   $self->info("In getFileName -> new Name is $name -> guid is $guid"); 
   $name or return;
 
-  $self->info("Checking the LVM");
-
   my $newFile = {
 		 'file'          => $name,
 		 'ttl'           => $self->{MSS}->{'LVMTTL'},
@@ -1343,8 +1116,6 @@ sub getFileName{
 
   $self->debug(1, "Adding the file");
 
-  use Data::Dumper;
-  print "Starting with", Dumper($newFile);
   $name = $lvm->addFile($newFile) or 
     $self->info("$$ Error adding the file to the LVM") 
     and die("Error adding the file to the LVM");
@@ -1514,6 +1285,20 @@ sub _checkCacheSpace {
 #
 #
 #
+sub unregisterFile {
+  shift;
+  my $seName=shift;
+  ($seName, my $seInfo) = $self->checkVirtualSEName($seName);
+  my $guid=shift;
+  $self->info("***Ready to delete the entries of '$guid'");
+  if (!$seInfo->{lvm}->removeFile({file=>$guid,guid=>$guid})){
+    $self->info("Error removing the entry '$guid'");
+    die ("Error removing the entry '$guid' from the LVM\n");
+  }
+  
+  $self->info("***File deleted!!!");
+  return 1;
+}
 sub registerFile {
   shift;
 
