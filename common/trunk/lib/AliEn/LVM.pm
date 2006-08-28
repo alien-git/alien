@@ -501,45 +501,29 @@ sub removeVolume{
 
 sub removeFile{
 
-   my $self = shift;  
-   my $hashref = shift;
-   return 0 unless(defined $hashref->{'file'});
-   my $fullfiledetails= $self->{DB}->retrieveFileDetails({'file' => $hashref->{'file'}});
-   my $voldetails = $self->{DB}->retrieveVolumeDetails({volume =>  $fullfiledetails->{'volume'}}) ;
-   my $fullpath = $fullfiledetails->{'file'};
-#   `rm $fullpath` if (-e $fullpath);
-   $self->deleteTableRow("FILES",$hashref);
-   $voldetails->{'freespace'} = $voldetails->{'freespace'} + $hashref->{'size'};
-   $voldetails->{'usedspace'} -= $hashref->{'size'};
-   if ($voldetails->{'size'} == -1 ) {
-     $voldetails->{'freespace'} = 2000000000;
-   }
-   $self->{DB}->updateVolumeDetails($voldetails);
-   # and just before we go 
-   # lets clean up 
-   $self->cleanUpExpired();
-   return 1;
+  my $self = shift;
+  my $hashref = shift;
+  return 0 unless(defined $hashref->{'file'});
+  my $fullfiledetails= $self->{DB}->retrieveFileDetails($hashref);
+  my $voldetails = $self->{DB}->retrieveVolumeDetails({volume =>  $fullfiledetails->{'volume'}}) ;
+  my $fullpath = $fullfiledetails->{'file'};
+
+
+  $self->info("And now lets call the removeFile from the DB");
+  $self->{DB}->removeFile($hashref);
+  $voldetails->{'freespace'} = $voldetails->{'freespace'} + $hashref->{'size'};
+  $voldetails->{'usedspace'} -= $hashref->{'size'};
+  if ($voldetails->{'size'} == -1 ) {
+    $voldetails->{'freespace'} = 2000000000;
+  }
+  $self->{DB}->updateVolumeDetails($voldetails);
+  # and just before we go 
+  # lets clean up 
+  $self->cleanUpExpired();
+  return 1;
 }
 
 
-sub internalremoveFile{
-
-   my $self = shift;
-   my $hashref = shift;
-   return 0 unless(defined $hashref->{'file'});
-   my $fullfiledetails= $self->{DB}->retrieveFileDetails({'file' => $hashref->{'file'}});
-   my $voldetails = $self->{DB}->retrieveVolumeDetails({volume =>  $fullfiledetails->{'volume'}}) ;
-   my $fullpath = $fullfiledetails->{'file'};
-#   `rm $fullpath` if (-e $fullpath);
-   $self->deleteTableRow("FILES",$hashref);
-   $voldetails->{'freespace'} = $voldetails->{'freespace'} + $hashref->{'size'};
-   $voldetails->{'usedspace'} -= $hashref->{'size'};
-   if ($voldetails->{'size'} == -1) {
-     $voldetails->{'freespace'} = 2000000000;
-   }
-   $self->{DB}->updateVolumeDetails($voldetails);
-   return 1;
-}
 
 sub removeFileFromTable{
 
