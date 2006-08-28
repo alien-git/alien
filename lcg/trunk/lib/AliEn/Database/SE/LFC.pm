@@ -57,9 +57,18 @@ sub removeFile {
         print Dumper($hash);
 #  $self->_LFC_command({},"delreplica", $hash->{guid}, undef, $hash->{pfn});
 #  $self->_LFC_command({},"unlink", $hash->{lfc_path});
-   my $vo=lc("$self->{CONFIG}->{ORG_NAME}");
-   $self->info("Ready to delete:  lcg-del --vo $vo -a $hash->{guid}");
-   system("lcg-del --vo $vo -a guid:$hash->{guid}") and return;
+  my $vo=lc("$self->{CONFIG}->{ORG_NAME}");
+  $self->info("Ready to delete:  lcg-del --vo $vo -a $hash->{guid}");
+  open (FILE, "lcg-lr --vo $vo guid:$hash->{guid}|") or
+    $self->info("Error doing lcg-lr") and return;
+  my (@pfns)=<FILE>;
+  close FILE;
+
+  foreach my $pfn (@pfns){
+    chomp $pfn;
+    $self->info("Doing lcg-uf --vo $vo guid:$hash->{guid} $pfn\n");
+    system("lcg-uf --vo $vo guid:$hash->{guid} $pfn");
+  }  
   $self->info("Entry deleted from the LFC");
   return 1;
 }
