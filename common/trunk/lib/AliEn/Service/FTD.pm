@@ -615,6 +615,17 @@ sub checkWakesUp {
     $return=$self->makeLocalCopy($transfer);
   } elsif ($action eq "transfer") {
     $return=$self->startTransfer($transfer);
+    if (!$return){
+      #We want to keep the error code of FTS, and not the new one from thr SE
+      my $error=$self->{LOGGER}->error_msg();
+      $self->info("Let's clean the GUID from the SE");
+      my ($seName, $seCert)=$self->{SOAP}->resolveSEName($transfer->{TOSE});
+      if ($seName && $transfer->{GUID}){
+	$self->info("Asking to delete $transfer->{GUID}");
+	$self->{SOAP}->CallSOAP($seName,'unregisterFile', $seName,$transfer->{GUID});
+      }
+      $self->{LOGGER}->set_error_msg($error);
+    }
   } elsif ($action eq "cleaning") {
     $return=$self->cleanLocalCopy($transfer);
   } else {
