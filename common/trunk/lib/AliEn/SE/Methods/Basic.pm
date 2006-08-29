@@ -13,7 +13,7 @@ sub getLink {
 
 sub getFTPCopy {
   my $self = shift;
-  $self->{LOCALCOPY} or return $self->path(); 
+  $self->{LOCALCOPY} or return $self->{PARSED}->{ORIG_PFN};
   $self->info("This method requires a cache copy of the file");
   return ( $self->getLink(@_) );
 }
