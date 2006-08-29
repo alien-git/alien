@@ -291,7 +291,7 @@ sub getFTPCopy {
   }
 
   $self->info( "Returning file and $self->{PARSED}->{ORIG_PFN}");
-  return $self->path;
+  return $self->{PARSED}->{ORIG_PFN};
 }
 
 sub stage {
