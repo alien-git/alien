@@ -203,17 +203,16 @@ sub checkStatusTransfer {
   my $fts=shift;
   my $id=shift;
   my $done=0;
-  my $fileStatus;
+  my $status;
   $self->prepareEnvironment();
   if (open (FILE, "glite-transfer-status -s $fts $id |")){
-    $fileStatus=join ("", <FILE>);
+    $status=join ("", <FILE>);
     (close FILE) and $done=1;
   }
   $self->restoreEnvironment();
-  $done or $self->info("Error checking the status of the transfer $id : $!, $fileStatus",2) and return -1;
-  $DEBUG and print "$fileStatus\n";
-  chomp $fileStatus;
-  my $status=$1;
+  $done or $self->info("Error checking the status of the transfer $id : $!, $status",2) and return -1;
+  $DEBUG and print "$status\n";
+  chomp $status;
   $self->sendTransferStatus($id, $status);
   if ($status =~ /(fail)|(Canceled)/i){
     if (open (FILE, "glite-transfer-status -l --verbose -s $fts $id |")){
