@@ -213,8 +213,10 @@ sub checkStatusTransfer {
   $done or $self->info("Error checking the status of the transfer $id : $!, $status",2) and return -1;
   $DEBUG and print "$status\n";
   chomp $status;
+
   $self->sendTransferStatus($id, $status);
   if ($status =~ /(fail)|(Canceled)/i){
+    my $fileStatus;
     if (open (FILE, "glite-transfer-status -l --verbose -s $fts $id |")){
       $fileStatus=join ("", <FILE>);
       (close FILE) and $done=1;
