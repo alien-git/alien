@@ -1754,6 +1754,10 @@ sub getProcInfo {
   $self->debug(1, "Got children @allprocs");
   @allprocs or return "";
   $self->debug(1, "Getting info");
+  if($self->{MONITOR} && $ENV{ALIEN_PROC_ID}){
+    my $res = $self->{MONITOR}->getJobMonInfo($ENV{ALIEN_PROC_ID}, "cpu_ksi2k");
+    $self->{CPU_KSI2K} = $res->{cpu_ksi2k} if $res->{cpu_ksi2k};
+  }
   for (@allprocs) {
     my $npid = $_;
     chomp $npid;
@@ -1917,7 +1921,7 @@ sub firstExecution {
   my @ap	= split " ",$procinfo;
   if ( ($procinfo) && ($procinfo ne "") ) { 
     $procinfo = "$ap[0] $ap[1] $ap[2] $ap[3] $ap[4] $ap[5] $ap[6] $ap[7] $ap[8] $ap[9] $ap[10] $self->{AVRSIZE} $self->{AVVSIZE}";
-
+    $procinfo .= " $self->{CPU_KSI2K}" if(defined $self->{CPU_KSI2K});
     $self->info("Process started:  $procinfo");
 
     $self->{PROCINFO} = $procinfo;
@@ -1992,8 +1996,9 @@ sub lastExecution {
   
   $self->{MAXRSIZE} = int ($self->{MAXRSIZE});
   $self->{MAXVSIZE} = int ($self->{MAXVSIZE});
-	
+
   my $procinfo = "$ap[0] $ap[1] $self->{AVCPU} $ap[3] $ap[4] $self->{MAXRSIZE} $self->{MAXVSIZE} $ap[7] $ap[8] $ap[9] $self->{MAXRESOURCECOST} $self->{AVRSIZE} $self->{AVVSIZE}";
+  $procinfo .= " $self->{CPU_KSI2K}" if(defined $self->{CPU_KSI2K});
   $self->info("Last ProcInfo: $procinfo");
   
   #submit the last Proc Info
@@ -2001,7 +2006,7 @@ sub lastExecution {
 #	$self->{SOAP}->checkSOAPreturn($done);
 
   # add some output to the process resource file
-  my ($ProcRuntime,$ProcStart,$ProcCpu,$ProcMem, $ProcCputime,$ProcRsz,$ProcVsize,$ProcNcpu, $ProcCpufamily,$ProcCpuspeed,$ProcResourceCost);
+  my ($ProcRuntime,$ProcStart,$ProcCpu,$ProcMem, $ProcCputime,$ProcRsz,$ProcVsize,$ProcNcpu, $ProcCpufamily,$ProcCpuspeed,$ProcResourceCost,$cpuKsi2k);
   ($ProcRuntime,$ProcStart,$ProcCpu,$ProcMem, $ProcCputime,$ProcRsz,$ProcVsize,$ProcNcpu, $ProcCpufamily,$ProcCpuspeed,$ProcResourceCost)= split ' ',$self->{PROCINFO};
   my $date =localtime;
   $date =~ s/^\S+\s(.*):[^:]*$/$1/	;
@@ -2012,7 +2017,7 @@ sub lastExecution {
   if ($self->{OUTPUTFILES}) {
     $DuOutSize =`du -Lsc $self->{OUTPUTFILES}| tail -1|awk '{print \$1}'`;
   }
-	
+  $cpuKsi2k = $self->{CPU_KSI2K} || "?";
 	
   chomp $DuSize;
   chomp $DuOutSize;
@@ -2031,6 +2036,7 @@ Elapsed real time                   [sec] : $ProcRuntime
 CPU perc. of this job               [\%  ] : $ProcCpu
 MEM perc. of this job               [\%  ] : $ProcMem
 CPU time                            [sec] : $ProcCputime
+CPU KSI2K			    [#  ] : $cpuKsi2k
 Max. res. MEM size                  [kb ] : $ProcRsz
 Max. vir. MEM size                  [kb ] : $ProcVsize
 CPUs                                [#  ] : $ProcNcpu
@@ -2214,6 +2220,7 @@ sub checkWakesUp {
       $self->{AVVSIZE} = int ($self->{SUMVSIZE}/$self->{SUMCOUNT});
       $self->{AVCPU}   = sprintf "%.02f",($self->{SUMCPU}/$self->{SUMCOUNT});	
       $self->{PROCINFO} = "$all[0] $all[1] $self->{AVCPU} $all[3] $all[4] $all[5] $all[6] $all[7] $all[8] $all[9] $self->{MAXRESOURCECOST} $self->{AVRSIZE} $self->{AVVSIZE}";
+      $self->{PROCINFO} .= " $self->{CPU_KSI2K}" if defined($self->{CPU_KSI2K});
     }
 
     #	$self->info("ProcInfo: $procinfo");
