@@ -214,9 +214,7 @@ sub checkStatusTransfer {
   $DEBUG and print "$fileStatus\n";
   $fileStatus=~ /^Status:\s*(\S*)/m  or $self->info("Error getting the status of the transfer  $fts $id", 2) and return -1;
   my $status=$1;
-  $fileStatus =~ /^Channel:\s*(\S*)/m;
-  my $channel = $1;
-  $self->sendTransferStatus($id, $status, $channel);
+  $self->sendTransferStatus($id, $status);
   if ($status =~ /(fail)|(Canceled)/i){
     if (open (FILE, "glite-transfer-status -l --verbose -s $fts $id |")){
       $fileStatus=join ("", <FILE>);
@@ -359,12 +357,10 @@ sub sendTransferStatus {
   my $self      = shift;
   my $ftsID     = shift;
   my $ftsStatus = shift;
-  my $ftsChannel= shift;
   
   if($self->{MONITOR}){
     my $params = { ftsID => $ftsID, 
                    ftsStatus => $ftsStatus,
-                   ftsChannel => $ftsChannel
                  };
     $self->{MONITOR}->sendParameters($self->{SITE_NAME}."_FTS_".$self->{FTD_FULLNAME}, $self->{FTD_TRANSFER_ID}, $params);
   }
