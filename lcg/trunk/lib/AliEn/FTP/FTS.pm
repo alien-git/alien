@@ -205,7 +205,7 @@ sub checkStatusTransfer {
   my $done=0;
   my $fileStatus;
   $self->prepareEnvironment();
-  if (open (FILE, "glite-transfer-status --verbose -s $fts $id -l|")){
+  if (open (FILE, "glite-transfer-status -s $fts $id |")){
     $fileStatus=join ("", <FILE>);
     (close FILE) and $done=1;
   }
@@ -218,6 +218,10 @@ sub checkStatusTransfer {
   my $channel = $1;
   $self->sendTransferStatus($id, $status, $channel);
   if ($status =~ /(fail)|(Canceled)/i){
+    if (open (FILE, "glite-transfer-status -l --verbose -s $fts $id |")){
+      $fileStatus=join ("", <FILE>);
+      (close FILE) and $done=1;
+    }
     my $reason="";
     $fileStatus=~ /^\s+Reason: (.*)/m and $reason=$1;
     $self->info("The FTS transfer $id failed ($reason)",2);
