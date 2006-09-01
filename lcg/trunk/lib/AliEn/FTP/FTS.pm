@@ -212,7 +212,7 @@ sub checkStatusTransfer {
   $self->restoreEnvironment();
   $done or $self->info("Error checking the status of the transfer $id : $!, $fileStatus",2) and return -1;
   $DEBUG and print "$fileStatus\n";
-  $fileStatus=~ /^Status:\s*(\S*)/m  or $self->info("Error getting the status of the transfer  $fts $id", 2) and return -1;
+  chomp $fileStatus;
   my $status=$1;
   $self->sendTransferStatus($id, $status);
   if ($status =~ /(fail)|(Canceled)/i){
