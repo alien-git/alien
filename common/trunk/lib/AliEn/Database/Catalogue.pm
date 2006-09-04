@@ -1433,11 +1433,15 @@ sub getFieldsByTagName {
   my $tagName = shift;
   my $fields = shift || "*";
   my $distinct = shift;
+  my $directory = shift;
   
   my $sql = "SELECT ";
   $distinct and $sql .= "DISTINCT ";
   
-  $self->query("$sql $fields FROM TAG0 WHERE tagName='$tagName'");
+  $sql.="  $fields FROM TAG0 WHERE tagName='$tagName'"
+  $directory and  $sql.="";
+
+  $self->query($sql);
 }
 
 
@@ -1807,39 +1811,43 @@ sub internalQuery {
 
   #First, let's construct the sql statements that will select all the files 
   # that we want. 
-
+  my $tagsDone={};
   foreach my $tagName (@tagNames) {
-    $DEBUG and $self->debug(1, "Selecting directories with tag $tagName");
-    #Checking which directories have that tag defined
-    my $tables = $self->getFieldsByTagName($tagName, "tableName", 1);
-    $tables and $#{$tables} != -1
-      or $self->info( "Error: there are no directories with tag $tagName in $self->{DATABASE}->{DB}") 
-        and return;
-
     my $union=shift @unions;
     my $query=shift @tagQueries;
     my @newQueries=();
-    foreach  (@$tables) {
-      my $table=$_->{tableName};
-      foreach my $oldQuery (@joinQueries) {
-	if ($oldQuery =~ / JOIN $table /){
-	  #If the table is already in the join, let's put only the constraints
-	  push @newQueries, "$oldQuery $union $query";
-	}else{
 
-	#This is the query that will get all the results. We do a join between 
-	#the D0 table, and the one with the metadata. There will be two queries
-	#like these per table with that metadata. 
-	#The first query gets files under directories with that metadata. 
-	# It is slow, since it has to do string comperation
-	#The second query gets files with that metadata. 
-	# (this part is pretty fast)
+    if ($tagsDone->{$tagName}){
+      $self->info("The tag $tagName has already been selected. Just add the constraint");
+      foreach my $oldQuery (@joinQueries){
+	push @newQueries, "$oldQuery $union $query";
+      }
+    }
+    else {
+      $DEBUG and $self->debug(1, "Selecting directories with tag $tagName");
+      #Checking which directories have that tag defined
+      my $tables = $self->getFieldsByTagName($tagName, "tableName", 1);
+      $tables and $#{$tables} != -1
+	or $self->info( "Error: there are no directories with tag $tagName in $self->{DATABASE}->{DB}") 
+	  and return;
+      foreach  (@$tables) {
+	my $table=$_->{tableName};
+	$self->debug(1, "Doing the new table $table");
+	foreach my $oldQuery (@joinQueries) {
+	  #This is the query that will get all the results. We do a join between 
+	  #the D0 table, and the one with the metadata. There will be two queries
+	  #like these per table with that metadata. 
+	  #The first query gets files under directories with that metadata. 
+	  # It is slow, since it has to do string comperation
+	  #The second query gets files with that metadata. 
+	  # (this part is pretty fast)
 	  push @newQueries, " JOIN $table $oldQuery $union $table.$query and $table.file like '%/' and concat('$refTable->{lfn}', $indexTable.lfn) like concat( $table.file,'%') ";
 	  push @newQueries, " JOIN $table $oldQuery $union $table.$query and concat('$refTable->{lfn}',$indexTable.lfn)= $table.file ";
 	}
       }
     }
     @joinQueries=@newQueries;
+    $tagsDone->{$tagName}=1;
   }
   my $order=" ORDER BY lfn";
   my $limit="";
@@ -1847,6 +1855,7 @@ sub internalQuery {
   $options->{l} and $limit = "limit $options->{l}";
   map {s/^(.*)$/SELECT *,concat('$refTable->{lfn}', lfn) as lfn,binary2string(guid) as guid from $indexTable $1 $order $limit/} @joinQueries;
 
+  $self->debug(1,"We have to do $#joinQueries +1 to find out all the entries");
 
   #Finally, let's do all the queries:
   my @result;
