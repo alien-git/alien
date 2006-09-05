@@ -1438,7 +1438,7 @@ sub getFieldsByTagName {
   my $sql = "SELECT ";
   $distinct and $sql .= "DISTINCT ";
   
-  $sql.="  $fields FROM TAG0 WHERE tagName='$tagName'"
+  $sql.="  $fields FROM TAG0 WHERE tagName='$tagName'";
   $directory and  $sql.="";
 
   $self->query($sql);
