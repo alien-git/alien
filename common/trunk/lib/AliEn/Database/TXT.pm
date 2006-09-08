@@ -20,7 +20,7 @@ use DBI;
 use AliEn::Config;
 use AliEn::Logger;
 use AliEn::Database;
-
+use LockFile::Simple;
 use vars qw(@ISA);
 
 @ISA=('AliEn::Database');
@@ -36,7 +36,9 @@ sub new {
   $self->{CONFIG}=new AliEn::Config();
   $self->{DIRECTORY}=$self->{CONFIG}->{TMP_DIR};
 
-  return AliEn::Database::new($proto, $self, @_);
+  $self=AliEn::Database::new($proto, $self, @_);
+  $self->{DBH}->{'RaiseError'} = 1;
+  return $self;
 }
 
 sub initialize {
@@ -95,6 +97,23 @@ sub createTable{
   }
   return 1;
 
+}
+
+sub lock {
+  my $self=shift;
+  my $table=shift;
+  print "Ready to lock $table\n";
+  LockFile::Simple::lock("$self->{DIRECTORY}/$table.lck");
+
+  return 1;
+}
+
+sub unlock {
+  my $self=shift;
+  my $table=shift;
+  LockFile::Simple::unlock("$self->{DIRECTORY}/$table.lck");
+
+  return 1;
 }
 
 1;
