@@ -1139,6 +1139,7 @@ sub _do{
   my @bind_values;
   $options->{bind_values} and push @bind_values, @{$options->{bind_values}} and $options->{prepare}=1;
   my $result;
+
   while (1) {
     my $sqlError="";
 
@@ -1151,25 +1152,22 @@ sub _do{
 	$tmp = $sth->execute(@bind_values);
       }else {
 	$DEBUG and $self->debug(1,"In _do doing $stmt @bind_values");
-  
 	$tmp=$self->{DBH}->do($stmt);
       }
       $DBI::errstr and $sqlError.="In do: $DBI::errstr\n";
       $tmp;
     };
-    if ($@) {
-      $sqlError.="There is an error: $@\n";
-      exit;
-    }
+    my $error=$@;
     alarm(0);
+    if ($error) {
+      $sqlError.="There is an error: $@\n";
+      $self->info("There was an SQL error  ($stmt): $sqlError",1001);
+      return;
+    }
     defined($result) and last;
 
     if ($sqlError) {
-#      my @errors=('Unexpected EOF', 'Lost connection', 'MySQL server has gone away at');
       my $found=0;
-#      foreach (@errors) {
-#	$sqlError =~ /$_/ and $found=1 and last;
-#      }
       $sqlError=~ /(Unexpected EOF)|(Lost connection)|(MySQL server has gone away at)/ and $found=1;
       if (!$found) {
 	$oldAlarmValue

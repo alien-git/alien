@@ -70,8 +70,11 @@ sub insertMessage {
   my $tag=shift; 
   my $message=shift;
   my $time=time;
-  $self->insert("MESSAGES", {jobId=>$jobId, procinfo=>$message,
-			     tag=>$tag,  timestamp=>$time}) or return;
+  $self->lock("MESSAGES");
+  my $done= $self->insert("MESSAGES", {jobId=>$jobId, procinfo=>$message,
+			     tag=>$tag,  timestamp=>$time});
+  $self->unlock("MESSAGES");
+  $done or return;
 
   $self->updateJobAgent({jobId=>$jobId},"jobId='$jobId'");
 }
