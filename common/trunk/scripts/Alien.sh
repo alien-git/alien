@@ -623,10 +623,6 @@ ALIEN_Config()
   ALIEN_LDAP_DN=""
   GLOBUS_LOCATION=""
   GAPI_LOCATION=""
-  SWIG_LOCATION=""
-  GSOAP_LOCATION=""
-  CGSI_GSOAP_LOCATION=""
-  CLASSAD_LOCATION=""
   MYPROXY_LOCATION=""
   ALIEN_VO=""
   ALIEN_PROMPT=""
@@ -652,25 +648,9 @@ ALIEN_Config()
             shift 1
             GLOBUS_LOCATION=$1; shift 1
            ;;
-        --swig-location|-swig-location)
-            shift 1
-            SWIG_LOCATION=$1; shift 1
-            ;;
-        --gsoap-location|-gsoap-location)
-            shift 1
-            GSOAP_LOCATION=$1; shift 1
-            ;;
-        --cgsi-gsoap-location|-cgsi-gsoap-location)
-            shift 1
-            CGSI_GSOAP_LOCATION=$1; shift 1
-            ;;
         --myproxy-location|-myproxy-location)
             shift 1
             MYPROXY_LOCATION=$1; shift 1
-            ;;
-        --classad-location|-classad-location)
-            shift 1
-            CLASSAD_LOCATION=$1; shift 1
             ;;
         --myproxy-server|-myproxy-server)
             shift 1
@@ -700,10 +680,6 @@ ALIEN_Config()
         --help|-help)
             printf "Usage: %5s configure [user|common]\n" $ALIEN_PROMPT
             printf "             --globus-location     [path]  \n"
-            printf "             --swig-location       [path]  \n"
-            printf "             --gsoap-location      [path]  \n"
-            printf "             --cgsi-gsoap-location [path]  \n"
-            printf "             --classad-location    [path]  \n"
             printf "             --myproxy-location    [path]  \n"
             printf "             --myproxy-server      [host]  \n"
             printf "             --myproxy-domain      [dn]    \n"
@@ -748,62 +724,6 @@ ALIEN_Config()
     ALIEN_LD_LIBRARY_PATH=$GAPI_LOCATION/lib:$ALIEN_LD_LIBRARY_PATH
   else
      printf "Error: GAPI_LOCATION not set correctly: %s\n" $GAPI_LOCATION
-     exit 1
-  fi
-
-  #########
-  # SWIG
-  #########
-
-  SWIG_LOCATION=`FindLocation "*/bin/swig" $SWIG_LOCATION`
-
-  if [ -f $SWIG_LOCATION/bin/swig ]
-  then
-    ALIEN_LD_LIBRARY_PATH=$SWIG_LOCATION/lib:$ALIEN_LD_LIBRARY_PATH
-  else
-     printf "Error: SWIG_LOCATION not set correctly: %s\n" $SWIG_LOCATION
-     exit 1
-  fi
-
-  #########
-  # gsoap
-  #########
-
-  GSOAP_LOCATION=`FindLocation "*/bin/soapcpp2" $GSOAP_LOCATION`
-
-  if [ -f $GSOAP_LOCATION/bin/soapcpp2 ]
-  then
-    ALIEN_LD_LIBRARY_PATH=$GSOAP_LOCATION/lib:$ALIEN_LD_LIBRARY_PATH
-  else
-     printf "Error: GSOAP_LOCATION not set correctly: %s\n" $GSOAP_LOCATION
-     exit 1
-  fi
-
-  #########
-  # cgsi-gsoap
-  #########
-
-  CGSI_GSOAP_LOCATION=`FindLocation "*/lib/libcgsi_plugin_gsoap_2.6.${DY_EXT}" $CGSI_GSOAP_LOCATION`
-
-  if [ -f "$CGSI_GSOAP_LOCATION/lib/libcgsi_plugin_gsoap_2.6.${DY_EXT}" ]
-  then
-    ALIEN_LD_LIBRARY_PATH=$CGSI_GSOAP_LOCATION/lib:$ALIEN_LD_LIBRARY_PATH
-  else
-     printf "Error: CGSI_GSOAP_LOCATION not set correctly: %s\n" $CGSI_GSOAP_LOCATION
-     exit 1
-  fi
-
-  #########
-  # classad
-  #########
-
-  CLASSAD_LOCATION=`FindLocation "*/lib/libaclassad.${DY_EXT}" $CLASSAD_LOCATION`
-
-  if [ -f $CLASSAD_LOCATION/lib/libaclassad.${DY_EXT} ]
-  then
-    ALIEN_LD_LIBRARY_PATH=$CLASSAD_LOCATION/lib:$ALIEN_LD_LIBRARY_PATH
-  else
-     printf "Error: CLASSAD_LOCATION not set correctly: %s\n" $CLASSAD_LOCATION
      exit 1
   fi
 
@@ -862,18 +782,6 @@ ALIEN_Config()
   fi
   if [ ! -z "$GAPI_LOCATION" ]; then 
       echo "GAPI_LOCATION=$GAPI_LOCATION" >> $outfile
-  fi
-  if [ ! -z "$SWIG_LOCATION" ]; then 
-      echo "SWIG_LOCATION=$SWIG_LOCATION" >> $outfile
-  fi
-  if [ ! -z "$GSOAP_LOCATION" ]; then 
-      echo "GSOAP_LOCATION=$GSOAP_LOCATION" >> $outfile
-  fi
-  if [ ! -z "$CGSI_GSOAP_LOCATION" ]; then 
-      echo "CGSI_GSOAP_LOCATION=$CGSI_GSOAP_LOCATION" >> $outfile
-  fi
-  if [ ! -z "$CLASSAD_LOCATION" ]; then 
-      echo "CLASSAD_LOCATION=$CLASSAD_LOCATION" >> $outfile
   fi
   if [ ! -z "$MYPROXY_LOCATION" ]; then 
       echo "MYPROXY_LOCATION=$MYPROXY_LOCATION" >> $outfile
