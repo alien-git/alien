@@ -547,10 +547,12 @@ sub checkWakesUp {
   if (!$result) {
     return;
   }
+  my $repeat=1;
   my @transfers=$self->{SOAP}->GetOutput($result);
   foreach my $transfer (@transfers){
     if ($transfer eq "-2"){
       $self->$method(@methodData, "No transfers for me");
+      undef $repeat;
       next;
     }
 
@@ -566,8 +568,10 @@ sub checkWakesUp {
     $self->_forkTransfer($transfer);
     exit;
   }
+
   if ($self->{FTD_PIDS}){
     $self->info("Collecting zombies");
+    sleep(5);
     my @list=@{$self->{FTD_PIDS}};
     my @newList;
     foreach (@list){
@@ -578,7 +582,7 @@ sub checkWakesUp {
     $self->{FTD_PIDS}=\@newList;
   }
 
-  return;
+  return $repeat; 
 
 }
 
