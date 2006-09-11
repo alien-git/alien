@@ -51,10 +51,10 @@ sub findTransfer {
   return $self->match("transfer", $site_ca, $list );
 }
 
-
 sub requestTransfer {
   my $this = shift;
   my $jdl=shift;
+  my $slots=shift || 1;
   print "\n";
 
   $jdl
@@ -67,21 +67,21 @@ sub requestTransfer {
   $self->debug(1, "Classad created");
   my ($ok, $host)=$ca->evaluateAttributeString("Name");
   $self->info("New transfer requested from $host!!");
+  my @toReturn;
 
-  #    my $date = time;
+  while ($slots){
+    $slots--;
+    #    my $date = time;
+    #    print "We have received : ".$ca->asJDL()."\n";
+    #Do the matching
+    my ( $transferId, $transfer_ca ) = $self->findTransfer( $ca );
+    ($transferId) or last;
+    push @toReturn, $self->getTransferArguments($transferId,  $transfer_ca, $ca );
 
-  #    print "We have received : ".$ca->asJDL()."\n";
- 
-  #Do the matching
-
-  my ( $transferId, $transfer_ca ) = $self->findTransfer( $ca );
-
-  ($transferId)
-    or $self->info( "Nothing to do" )
-      and return (-2);
-
-
-  return $self->getTransferArguments($transferId,  $transfer_ca, $ca );
+  }
+  @toReturn or $self->info("Nothing to do") and return (-2);
+  
+  return @toReturn;
 }
 
 
@@ -146,8 +146,6 @@ sub getTransferArguments {
     ($ok, my $host)=$ftd_ca->evaluateAttributeString("Name");
 
     $self->info("Sending transfer $id to $host");
-    use Data::Dumper;
-    print Dumper($transfer);
     return $transfer;
 }
 

@@ -528,84 +528,79 @@ sub checkWakesUp {
 
   my $method="info";
   my @methodData=();
-#  $silent and $method="debug" and push @methodData, 1;
+  $silent and $method="debug" and push @methodData, 1;
 
-  if (! $self->{FTD_CHILDREN}){
-    if ( $self->CURRENT_TRANSFERS >= $self->{MAX_TRANSFERS} ) {
-      $self->$method(@methodData, "Already doing maximum number of transfers. Wait" );
-      return;
-    }
+  my $slots= $self->{MAX_TRANSFERS} - $self->CURRENT_TRANSFERS;
+  if ( $slots<=0 ) {
+    $self->$method(@methodData, "Already doing maximum number of transfers. Wait" );
+    return;
   }
 
-  $self->$method(@methodData,"$$ Asking the broker if we can do anything");
+  $self->$method(@methodData,"$$ Asking the broker if we can do anything ($slots slots)");
+
+
 
   my ($result)=$self->{SOAP}->CallSOAP("Broker/Transfer", "requestTransfer",
-				       $self->{JDL});
+				       $self->{JDL}, $slots);
 
   $self->info("$$ Got an answer from the broker");
   if (!$result) {
-    if ($self->{FTD_CHILDREN}){
-      $self->info("The process $$ exists");
-      $self->CURRENT_TRANSFERS_DECREMENT("", $self->{FTD_CHILDREN});
-      exit;
-    }
     return;
   }
-  my $transfer=$result->result;
-  if ($transfer eq "-2"){
-    $self->$method(@methodData, "No transfers for me");
-    if ($self->{FTD_CHILDREN}){
-      $self->CURRENT_TRANSFERS_DECREMENT("", $self->{FTD_CHILDREN});
-      exit;
+  my @transfers=$self->{SOAP}->GetOutput($result);
+  foreach my $transfer (@transfers){
+    if ($transfer eq "-2"){
+      $self->$method(@methodData, "No transfers for me");
+      next;
     }
-    return;
+
+    my $pid=fork();
+    defined $pid or self->info("Error doing the fork");
+    if ($pid){
+      my @list=();
+      $self->{FTD_PIDS} and @list=@{$self->{FTD_PIDS}};
+      push @list, $pid;
+      $self->{FTD_PIDS}=\@list;
+      next;
+    }
+    $self->_forkTransfer($transfer);
+    exit;
   }
+  if ($self->{FTD_PIDS}){
+    $self->info("Collecting zombies");
+    my @list=@{$self->{FTD_PIDS}};
+    my @newList;
+    foreach (@list){
+      if (CORE::kill 0, $_ and waitpid($_, WNOHANG)<=0){
+	push @newList, $_
+      }
+    }
+    $self->{FTD_PIDS}=\@newList;
+  }
+
+  return;
+
+}
+
+sub _forkTransfer{
+  my $self=shift;
+  my $transfer=shift;
+
   $self->info("$$ Is checking the action");
   my $action=($transfer->{ACTION} or"");
-
+  
   my $message="";
   $action or $message=" no action specified";
   my $id=$transfer->{ID};
   $id or $message=" transfer has no id";
-
+  
   if ($message){
     $self->{LOGGER}->error("FTD", "Error: $message");
-    if ($self->{FTD_CHILDREN}){
-      $self->CURRENT_TRANSFERS_DECREMENT("", $self->{FTD_CHILDREN});
-      exit;
-    }
     return;
   }
   my $return;
-
+  
   my $pid="";
-  if (! $self->{FTD_CHILDREN}) {
-    $self->info("$$ Creating a new instance of the FTD (there are". $self->CURRENT_TRANSFERS());
-    $pid=fork();
-    (defined $pid) or 
-      $self->info("Error doing the fork");
-    if ($pid) {
-      $self->debug(1, "The father sleeps 2 seconds  before asking for a new tansfer");
-      sleep(2);
-      my @list;
-      $self->{FTD_PIDS} and push @list, @{$self->{FTD_PIDS}};
-      $self->info("******** $$ CHECKING THE KIDS @list");
-      my @newList;
-      foreach (@list){
-	if (CORE::kill 0, $_ and waitpid($_, WNOHANG)<=0){
-	  push @newList, $_
-	}
-      }
-      push @newList, $pid;
-      $self->info("******* $$  THE ONLY ONES THAT ARE ALIVE NOW ARE @newList");
-
-      $self->{FTD_PIDS}=\@newList;
-      return 1;
-    }
-  } else {
-    #The previous transfer finished
-    $self->CURRENT_TRANSFERS_DECREMENT("", $self->{FTD_CHILDREN});
-  }
 
   $self->CURRENT_TRANSFERS_INCREMENT("", $id);
   $self->{FTD_CHILDREN}=$id;
@@ -631,6 +626,7 @@ sub checkWakesUp {
   } else {
     $self->info("We don't know action $action :(");
   }
+  $self->CURRENT_TRANSFERS_DECREMENT("", $id);
 
   if (! $return ) {
     $self->info("The transfer failed due to: ".$self->{LOGGER}->error_msg() );
