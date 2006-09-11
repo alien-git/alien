@@ -131,10 +131,17 @@ sub setAlive{
   if (! defined $self->{PROTOCOLS}) {
       $self->{PROTOCOLS} = '';
   }
+
+  ($date<$self->{LASTALIVE})
+     and return;
+  $self->{LASTALIVE}=$date+400;
+
   #$self->{LOGGER}->info("Service", "setAlive was called.");
   if($self->{MONITOR}){
     # send the alive status also to ML
-    $self->{MONITOR}->sendBgMonitoring();
+    if (not  $self->{SKIP_BGMONITOR}){
+      $self->{MONITOR}->sendBgMonitoring();
+    }
     #$self->{LOGGER}->info("Service", "setAlive -> sent Bg Monitoring to ML.");
   }
 
@@ -153,9 +160,6 @@ sub setAlive{
     }
   }
 
-  ($date<$self->{LASTALIVE})
-     and return;
-  $self->{LASTALIVE}=$date+200;
   $self->debug(1, "Registering the service in the IS");
 
 
