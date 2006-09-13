@@ -214,5 +214,24 @@ sub stage {
   return 1;
 }
 
+sub getFTPCopy{
+  my $self=shift;
+  my $path=shift;
+  my $orig_pfn=shift;
+
+  $self->info("Checking if the file is really in castor");
+  my $counter=0;
+  while (! defined $self->sizeof($path){
+    $self->info("The file $path is still not in castor!!\n");
+    sleep(60);
+    $counter++;
+    if ($counter>240){
+      $self->info("After 4 hours, the file is not yet in castor");
+      return;
+    }
+  }
+  return $orig_pfn;
+}
+
 return 1;
 
