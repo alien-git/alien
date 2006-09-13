@@ -221,7 +221,7 @@ sub getFTPCopy{
 
   $self->info("Checking if the file is really in castor");
   my $counter=0;
-  while (! defined $self->sizeof($path){
+  while (! defined $self->sizeof($path)){
     $self->info("The file $path is still not in castor!!\n");
     sleep(60);
     $counter++;
