@@ -13,6 +13,7 @@ BEGIN { plan tests => 1;}
 	exit (-2);
     }
 
+    $ENV{alien_API_NOSERVICE_CONFIG}="1";	
     $ENV{alien_API_HOST}=Net::Domain::hostfqdn();
     $ENV{alien_API_PORT}="10000";		   
 
