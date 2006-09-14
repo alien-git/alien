@@ -11,6 +11,7 @@ my $opt = new Getopt::Long::Parser;
 $opt->configure("pass_through");
 $opt->getoptions ( 'rb=s' => \@rbs) or exit 2;
 @rbs = split(/,/, join(',', @rbs)); # Allow comma-separated list
+@rbs or die "Error: no RB specified";
 my @opts = @ARGV; # Passthrough
 # Die if no RBs given?
 my $defaults = "/opt/edg/etc/edg_wl_ui_cmd_var.conf";
@@ -36,9 +37,11 @@ while (my $name = readdir SOMEDIR){
   }  
 }
 my $output = '';
+my $error = 0;
 redoit:foreach ( @rbs ) { 
   my $submission = "edg-job-submit  --config-vo $rb_directory/$_.vo.conf @opts";
   $output = `$submission`;
+  $error = $?;
   if (!($output =~ /^https:/)){
     next redoit;  
   } else {
@@ -46,3 +49,4 @@ redoit:foreach ( @rbs ) {
   }
 }
 print "$output";
+exit $error;
