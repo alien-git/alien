@@ -203,7 +203,7 @@ sub checkStatusTransfer {
   my $fts=shift;
   my $id=shift;
   my $done=0;
-  my $status;
+
   $self->prepareEnvironment();
   my @status=AliEn::Util::_system("glite-transfer-status -s $fts $id");
   $self->restoreEnvironment();
