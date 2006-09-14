@@ -8,7 +8,7 @@ use AliEn::FTP;
 @ISA = ( "AliEn::FTP" );
 
 use Net::LDAP;
-
+use AliEn::Util;
 
 sub initialize {
   my $self=shift;
@@ -160,7 +160,7 @@ sub transfer {
   $id or $self->info("Error getting the transferId") and return -1;
   my $retry=10;
   while(1) {
-    sleep (20);
+    sleep (40);
     $self->info("Checking if the transfer $id has finished");
     my $status=$self->checkStatusTransfer($ftsEndpoint, $id)
       or last;
@@ -205,23 +205,19 @@ sub checkStatusTransfer {
   my $done=0;
   my $status;
   $self->prepareEnvironment();
-  if (open (FILE, "glite-transfer-status -s $fts $id |")){
-    $status=join ("", <FILE>);
-    (close FILE) and $done=1;
-  }
+  my @status=AliEn::Util::_system("glite-transfer-status -s $fts $id");
   $self->restoreEnvironment();
-  $done or $self->info("Error checking the status of the transfer $id : $!, $status",2) and return -1;
+  @status or $self->info("Error checking the status of the transfer $id : $!, $status",2) and return -1;
+  my $status=join("", @status);
   $DEBUG and print "$status\n";
   chomp $status;
 
   $self->sendTransferStatus($id, $status);
   if ($status =~ /(fail)|(Canceled)/i){
-    my $fileStatus;
+
     $self->prepareEnvironment();
-    if (open (FILE, "glite-transfer-status -l --verbose -s $fts $id |")){
-      $fileStatus=join ("", <FILE>);
-      (close FILE) and $done=1;
-    }
+    my @output=AliEn::Util::_system("glite-transfer-status -l --verbose -s $fts $id");
+    my $fileStatus=join("", @output);
     $self->restoreEnvironment();
     my $reason="";
     $fileStatus=~ /^\s+Reason: (.*)/m and $reason=$1;
