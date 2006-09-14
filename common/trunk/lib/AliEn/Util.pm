@@ -275,4 +275,38 @@ sub setupApMonService {
   return 1;
 }
 
+sub _system {
+  my $command=join (" ", @_);
+  local $SIG{ALRM} =sub {
+    print "$$ timeout while doing '$command'\n";
+    die("timeout!! ");
+  };
+  my @output;
+  eval {
+    alarm(300);
+    my $pid=open(FILE, "$command |") or
+      die("Error doing '$command'!!\n$!");
+    @output=<FILE>;
+
+    if (! close FILE){
+      #We have to check that the proces do^?^?
+      print "The system call failed  PID $pid\n";
+      if (CORE::kill 0,$pid) {
+        my $kid;
+        do {
+  	  $kid = waitpid($pid, WNOHANG);
+        }   until $kid > 0;
+      }
+    }
+    alarm(0);
+  };
+  if ($@) {
+    $self->info("Error: $@");
+    alarm(0);
+    return;
+  }
+  return @output;
+}
+
+
 return 1;
