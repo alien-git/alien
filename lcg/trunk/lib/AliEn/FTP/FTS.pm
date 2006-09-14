@@ -207,7 +207,7 @@ sub checkStatusTransfer {
   $self->prepareEnvironment();
   my @status=AliEn::Util::_system("glite-transfer-status -s $fts $id");
   $self->restoreEnvironment();
-  @status or $self->info("Error checking the status of the transfer $id : $!, $status",2) and return -1;
+  @status or $self->info("Error checking the status of the transfer $id : $!",2) and return -1;
   my $status=join("", @status);
   $DEBUG and print "$status\n";
   chomp $status;
