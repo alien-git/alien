@@ -301,7 +301,7 @@ sub _system {
     alarm(0);
   };
   if ($@) {
-    $self->info("Error: $@");
+    print "Error: $@";
     alarm(0);
     return;
   }
