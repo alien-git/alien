@@ -5,6 +5,7 @@
 package AliEn::Util;
 
 use strict;
+use POSIX ":sys_wait_h";
 
 sub textneutral    { return "\033[0m";}
 sub textblack      { return "\033[49;30m";}
