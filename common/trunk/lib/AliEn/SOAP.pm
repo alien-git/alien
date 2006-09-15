@@ -355,7 +355,7 @@ sub checkService{
 
   my $service=shift;
   my $configName=(shift or uc($service));
-
+  my $options=shift;
   
   
   my $serviceName="AliEn/Service/$service";
@@ -414,8 +414,10 @@ sub checkService{
   $host =~ /^https/ and $self->exportSecureEnvironment();
   my $sleep=1;
   while (1) {
-    $self->debug(1,"(Re)making connection to $service: $host");
-    $self->{$service} = SOAP::Lite->uri($serviceName)->proxy($host)->
+    my @list=($host);
+    $options and push @list, @$options;
+    $self->debug(1,"(Re)making connection to $service: @list");
+    $self->{$service} = SOAP::Lite->uri($serviceName)->proxy(@list)->
       on_fault($my_faultSub);
 
     if ( $self->{$service} ){
