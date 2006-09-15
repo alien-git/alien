@@ -102,7 +102,7 @@ sub initialize {
   
 #  $self->createGridMapFromLdap();
 
-  $self->{SOAP}->checkService("Broker/Transfer", "TRANSFER_BROKER", "-retry") or return;
+  $self->{SOAP}->checkService("Broker/Transfer", "TRANSFER_BROKER", "-retry", [timeout=>50000]) or return;
   $self->{SOAP}->checkService("Manager/Transfer", "TRANSFER_MANAGER", "-retry") or return;
 
   $self->{SOAP}->checkService("SE", "-retry") or return;
