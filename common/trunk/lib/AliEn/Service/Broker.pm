@@ -107,13 +107,13 @@ sub match {
   my $arg1  = shift;
   my $arg2  = shift;
   my $function=shift;
-
+  my $counter=shift || 1;
   $self->info( "Checking $type");
 
   my $text = $site_ca->asJDL();
 
   $self->debug(1, "in match site_ca=$text" );
-
+  my @toReturn=();
   foreach my $element (@$pendingElements) {
 
     my $id = $element->{"${type}Id"};
@@ -150,17 +150,23 @@ sub match {
       }
 
       $self->debug(1, "Checking if the $type is still free");
-
-      $self->{DB}->assignWaiting($id,$arg1,$arg2,$text)
-	and $self->debug(1, "$id successfully assigned")
-	  and return ($id, $ret1, $ret2);
-
-      $self->debug(1, "$type has already been given");
+      
+      if ( $self->{DB}->assignWaiting($id,$arg1,$arg2,$text)){
+	$self->debug(1, "$id successfully assigned");
+	push @toReturn, ($id, $ret1, $ret2);
+	$counter--;
+	$counter>0 or return @toReturn;
+	$self->info("We found one match, but we are still looking for other $counter");
+	
+      } else {
+	$self->debug(1, "$type has already been given");
+      }
     }
   }
 
-  $self->info("There is no match." );
-  return ();
+  $self->info("Returning  $#toReturn +1 entries that match" );
+  
+  return @toReturn;
 }
 
 return 1;

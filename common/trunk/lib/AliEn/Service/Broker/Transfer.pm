@@ -31,9 +31,10 @@ sub initialize {
 }
 
 
-sub findTransfer {
+sub findTransfers {
   my $this    = shift;
   my $site_ca = shift;
+  my $slots   = shift;
   
   my ($ok, @se)=$site_ca->evaluateAttributeVectorString("CloseSE");
   map {$_="SE='$_'"} @se;
@@ -48,7 +49,7 @@ sub findTransfer {
   
   @$list  or return ();
   
-  return $self->match("transfer", $site_ca, $list );
+  return $self->match("transfer", $site_ca, $list, undef, undef, undef, $slots );
 }
 
 sub requestTransfer {
@@ -67,15 +68,12 @@ sub requestTransfer {
   $self->debug(1, "Classad created");
   my ($ok, $host)=$ca->evaluateAttributeString("Name");
   $self->info("New transfer requested from $host!!");
-  my @toReturn;
 
-  while ($slots){
-    $slots--;
-    #    my $date = time;
-    #    print "We have received : ".$ca->asJDL()."\n";
-    #Do the matching
-    my ( $transferId, $transfer_ca ) = $self->findTransfer( $ca );
-    ($transferId) or last;
+
+  my @ids=$self->findTransfers($ca, $slots);
+  my @toReturn;
+  while (@ids){
+    my ( $transferId, $transfer_ca ) = (shift @ids, shift @ids);
     push @toReturn, $self->getTransferArguments($transferId,  $transfer_ca, $ca );
 
   }
