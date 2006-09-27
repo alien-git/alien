@@ -64,6 +64,7 @@ sub startServices{
 
 print "HELLO\n";
 stopServices();
+if (10){
 my $c2=AliEn::UI::Catalogue->new();
 $c2->close();
 
@@ -100,6 +101,7 @@ if (! compareNumber($before, $proxyBefore, "After login out")) {
   sleep (10);
   compareNumber($before, $proxyBefore, "After 10 sec")  or startServices() and exit(-2);
   print "But now it is fine...\n";
+}
 }
 startServices();
 print "OK!!!\n";
