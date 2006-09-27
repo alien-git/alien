@@ -763,6 +763,36 @@ sub _CallManager {
   return $done->result;
 
 }
+###################################################
+#
+#  Bank functions for users 
+# 
+###################################################
+
+sub getBalance{
+    my $this=shift;
+    return $self->_CallBank("getBalance", @_);
+}
+
+sub getTransactions{
+    my $this=shift;
+    return $self->_CallBank("getTransactions", @_);
+}
+sub _CallBank {
+	my $self = shift;
+        my $function = shift;
+  
+  $self->info("Getting $function from the LBSG ");
+  
+  my $done = $self->{SOAP}->CallSOAP("LBSG",$function,@_);
+
+  ($done) or return (-1, $self->{LOGGER}->error_msg);
+
+  $self->info ("Done $function");
+  
+  return $done->result;
+
+}
 
 sub getOutput {
   my $self    = shift;

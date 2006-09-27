@@ -105,15 +105,19 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
 	     'md5sum'=>['$self->{CATALOG}->f_getMD5', 3+16+32],
 
     #Admin Interface
-    'addHost' => ['$self->{CATALOG}->f_addHost', 0],
-    'host'    => ['$self->{CATALOG}->f_host', 0],
-    'addUser' => ['$self->{CATALOG}->f_addUser', 0],
-    'mount'   => ['$self->{CATALOG}->f_mount', 0],
-    'verifyToken' => ['$self->{CATALOG}->f_verifyToken', 0],
+    'addHost' 		=> ['$self->{CATALOG}->f_addHost', 0],
+    'host'    		=> ['$self->{CATALOG}->f_host', 0],
+    'addUser' 		=> ['$self->{CATALOG}->f_addUser', 0],
+    'mount'   		=> ['$self->{CATALOG}->f_mount', 0],
+    'verifyToken' 	=> ['$self->{CATALOG}->f_verifyToken', 0],
     'verifySubjectRole' => ['$self->{CATALOG}->f_verifySubjectRole', 0],
-    'moveDirectory'=>['$self->{CATALOG}->moveDirectoryToIndex',0],
-	     'addSE'=>['$self->{CATALOG}->addSE',0],
-
+    'moveDirectory'	=> ['$self->{CATALOG}->moveDirectoryToIndex',0],
+    'addSE'		=> ['$self->{CATALOG}->addSE',0],
+    
+    ###Bank functions
+    'addFunds'		=> ['$self->{CATALOG}->addFunds',0],
+    'createBankAccount' => ['$self->{CATALOG}->createBankAccount',0],
+    'transactFunds'     => ['$self->{CATALOG}->transactFunds',0],
 
     #	       'addMethod' =>'f_addMethod', 0],
     #	       'showMethods' =>'f_showMethods', 0],
@@ -216,24 +220,27 @@ my %help_list = (
     'showTags'     => "Displays all the tags of a directory",
     'showTagValue' => "Shows all the values of a file for a tag",
     'showAllTagValue' => "Shows all the values of all the tags for a directory and its subdirectories",
-    'removeTagValue' => "Removes the value of a tag",
-    'removeTag'    => "Removes a tag from a directory",
-    'echo'         => "\tDisplays a variable from the configuration",
-    'debug'        => "Sets the debug level (from 0 to 7)",
-    'update'       => "Updates the pfn or the size of an lfn",
-    'showMirror'   => "Shows the possible mirrors of an lfn",
-    'deleteMirror' => "Deletes a mirror copy of an lfn",
-    'silent'       => "Sets the silent flag on and off",
-#    '.'            => "\tExecute your default shell",
-		 'touch'=>"Creates an empty file",
-		 '$?'=>"Print last error code",
-		 'version'=>"\tDisplay the version of the system",
-		 'history'=>"\tPrints the last commands",
-		 'moveDirectory'=>"\tPuts the directory in another table",
-		 'time'       => "\tmeasures the time needed to execute a command",
-		 'pattern'  => "\tGives all the lfn that match a pattern",
-
-
+    'removeTagValue'  => "Removes the value of a tag",
+    'removeTag'       => "Removes a tag from a directory",
+    'echo'            => "\tDisplays a variable from the configuration",
+    'debug'           => "Sets the debug level (from 0 to 7)",
+    'update'          => "Updates the pfn or the size of an lfn",
+    'showMirror'      => "Shows the possible mirrors of an lfn",
+    'deleteMirror'    => "Deletes a mirror copy of an lfn",
+    'silent'          => "Sets the silent flag on and off",
+#    '.'              => "\tExecute your default shell",
+    'touch'	      =>"Creates an empty file",
+    '$?'	      =>"Print last error code",
+    'version'	      =>"\tDisplay the version of the system",
+    'history'         =>"\tPrints the last commands",
+    'moveDirectory'   =>"\tPuts the directory in another table",
+    'time'            => "\tmeasures the time needed to execute a command",
+    'pattern'         => "\tGives all the lfn that match a pattern",
+    
+    # Bank functions for admins
+    'addFunds'	      => "\tAdds funds to the given account",	
+    'createBankAccount'   => "\tCreates new bank account",
+    'transactFunds'   => "\tMakes fund transaction",
 );
 
 sub AddHelp {

@@ -90,7 +90,11 @@ sub initialize {
 		    split=>"int",
 		    splitting=>"int",
 		    merging=>"varchar(64)",
-		    masterjob=>"int(1) default 0",};
+		    masterjob=>"int(1) default 0",
+		    si2k=>"float",
+	            price=>"float",
+	            effectivePriority=>"float",
+	            finalPrice=>"float",};
   my $tables={ QUEUE=>{columns=>$queueColumns,
 		       id=>"queueId",
 		       index=>"queueId",
@@ -156,7 +160,22 @@ sub initialize {
 					timestamp=>"int", },
 			     id=>"entryId", 
 			    },
-
+	       BALANCE=>{ columns=> { ID        =>" INT(11) not null auto_increment primary key",
+		                      groupName =>" VARCHAR(255) unique",
+				      balance   =>" DOUBLE",},
+		          id=>"ID",
+			  index=>"ID",
+			},	    
+	       TRANSACTION=>{ columns=> { ID	    => " INT(11) not null auto_increment primary key",
+			       		  fromGroup => " VARCHAR(255)",
+					  toGroup   => " VARCHAR(255)",
+					  amount    => " DOUBLE",
+					  initiator => " VARCHAR(255)",
+					  moment    => " TIMESTAMP",},
+			      id=>"ID",
+			      index=>"ID",
+	           	    },
+			
 	     };
 
   foreach my $table  (keys %$tables) {
@@ -245,8 +264,13 @@ sub insertJobLocked {
   $set->{priority} = shift;
   $set->{split} = (shift or 0);
   my $oldjob = (shift or 0);
-  ($set->{name}) = $set->{jdl} =~ /.*executable\s*=\s*\"([^\"]*)\"/i;
+  ($set->{name}) = $set->{jdl}  =~ /.*executable\s*=\s*\"([^\"]*)\"/i;
 
+  ($set->{price}) = $set->{jdl} =~ /.*price\s*=\s*(\d+[\.\d+]*.*)\s*/i;
+                                   
+   $set->{effectivePriority} = $set->{priority} * $set->{price};
+   #currently $set->{priority} is hardcoded to be '0'
+    
   $DEBUG and $self->debug(1, "In insertJobLocked locking the table $self->{QUEUETABLE}");
   $self->lock("$self->{QUEUETABLE}");
 

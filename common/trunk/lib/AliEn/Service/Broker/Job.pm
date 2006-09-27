@@ -55,8 +55,9 @@ sub getJobAgent {
       and return;
 
   $self->info( "Getting the list of jobs");
-  my ($list) = $self->{DB}->getWaitingJobs("priority desc, queueId","-1");
-  defined $list
+  #my ($list) = $self->{DB}->getWaitingJobs("priority desc, queueId","-1");
+   my ($list) = $self->{DB}->getWaitingJobs("effectivePriority desc, queueId","-1");
+  defined $list                              
     or $self->{LOGGER}->warning( "JobBroker", "In findjob error during execution of database query" )
       and return;
 
