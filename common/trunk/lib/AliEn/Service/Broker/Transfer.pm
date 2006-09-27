@@ -73,7 +73,7 @@ sub requestTransfer {
   my @ids=$self->findTransfers($ca, $slots);
   my @toReturn;
   while (@ids){
-    my ( $transferId, $transfer_ca ) = (shift @ids, shift @ids);
+    my ( $transferId, $transfer_ca, $id2 ) = (shift @ids, shift @ids, shift @ids);
     push @toReturn, $self->getTransferArguments($transferId,  $transfer_ca, $ca );
 
   }
