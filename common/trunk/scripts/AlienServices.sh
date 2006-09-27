@@ -315,17 +315,24 @@ statusService()
   [ -f  $FILE ] && OLDPID=`cat $FILE`
   if [ "$OLDPID" ]
   then
-    kill -0 $OLDPID 2>/dev/null
-    if [ "$?" -eq "0" ]
-    then
-      PINGOUTPUT=`${ALIEN_ROOT}/scripts/alien -x $ALIEN_ROOT/scripts/pingService.pl $2 2>&1`
-      if [ "$?" -eq "0" ]
-      then
-        return 0;
-      fi
-      echo "PID OK BUT:"
-      echo $PINGOUTPUT
+    for pid in $OLDPID ; do
+    	kill -0 $pid 2>/dev/null
+	if [ "$?" -ne "0" ] ; then
+		if [[ -n "$SUB_PROCESS" ]] ; then
+			echo "SUB-PROCESS DEAD"
+		else
+			echo "DEAD"
+		fi
+		return 1
+	fi
+	SUB_PROCESS=1
+    done
+    PINGOUTPUT=`${ALIEN_ROOT}/scripts/alien -x $ALIEN_ROOT/scripts/pingService.pl $2 2>&1`
+    if [ "$?" -eq "0" ] ; then
+	return 0;
     fi
+    echo "PID OK BUT:"
+    echo $PINGOUTPUT
   fi
   echo "DEAD"
   return 1
