@@ -20,9 +20,12 @@ sub new {
 
   $self->debug(1, "Creating the ClassAd" );
 
+  #my $price = $self->getPrice();
   my $ca =
     Classad::Classad->new(
-			  "[ Type=\"machine\"; Requirements=(other.Type==\"Job\"); WNHost = \"$self->{CONFIG}->{HOST}\";]" );
+#  "[ Type=\"machine\"; Requirements=(other.Type==\"Job\" && other.Price==\"2.4\"); WNHost = \"$self->{CONFIG}->{HOST}\";]" );
+ "[ Type=\"machine\"; Requirements=(other.Type==\"Job\"); WNHost = \"$self->{CONFIG}->{HOST}\";]" );
+
 
   $self->setCloseSE($ca) or return;
   $self->setPackages($ca) or return;
@@ -32,6 +35,8 @@ sub new {
   $self->setTTL($ca) or return;
   $self->setSystemInfo($ca) or return;
   $self->setVersion($ca) or return;
+  $self->setPrice($ca) or return;
+  
   if ( !$ca->isOK() ) {
     print STDERR "CE::new : classad not correct ???!!!\n";
     return;
@@ -44,6 +49,22 @@ sub new {
 #
 # Private functions
 #
+
+sub setPrice {
+  my $self=shift;
+  my $ca=shift;
+	
+  # Get Price from LDAP
+  my $price = "";
+     $price = $self->{CONFIG}->{CE_SI2KPRICE};
+  my $name  = $self->{CONFIG}->{CE_FULLNAME};
+     $price or ( $self->info("Warning! No price set in LDAP for CE. Setting price to '1'")
+	         and ($price=1) );
+  my $p = sprintf ("%.2f",$price);
+  return $ca->set_expression("Price", $p);
+}
+
+
 sub setVersion {
   my $self=shift;
   my $ca=shift;

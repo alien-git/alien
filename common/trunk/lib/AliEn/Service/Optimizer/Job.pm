@@ -60,6 +60,9 @@ sub initialize {
   
   my $mlEnabled = ($self->{CONFIG}->{MONALISA_HOST} || $self->{CONFIG}->{MONALISA_APMONCONFIG});
   $mlEnabled and push @optimizers, "MonALISA";
+
+  my $chargeEnabled = $self->{CONFIG}->{LBSG_ADDRESS};
+  $chargeEnabled and push @optimizers, "Charge";
   
   $self->StartChildren(@optimizers) or return;
 

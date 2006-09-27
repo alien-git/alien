@@ -158,7 +158,29 @@ sub setPriority {
 	$self->{DB}->updateJobs($set,@user_queueIds) or
 	  $self->info("Error updating the jobs");
 	$self->{DB}->unlock($self->{DB}->{QUEUETABLE});
-    }		    
+    }		   
+    
+    
+    # Set effective priority which is 'priority'*'price'
+        my $set   = {};
+        my $where;
+        my $options = {};
+
+	   $set->{effectivePriority} = "priority * price";                                          
+	   $where = "status='WAITING'";
+           $options->{noquotes} = "1";           
+
+	$self->{DB}->lock($self->{DB}->{QUEUETABLE});
+
+        	if ($self->{DB}->updateQueue($set, $where, $options )){
+	 	$self->info("effectivePriority has been set for all waiting jobs");	
+		}
+		else {
+		$self->info("Error setting effectivePriority"); 	 
+		}
+
+        $self->{DB}->unlock($self->{DB}->{QUEUETABLE});
+    
 }
 
 

@@ -180,6 +180,15 @@ sub checkRequirements {
     $default.=" && (other.TTL>$ttl)";
   }
 
+  ($ok, my $price)=$job_ca->evaluateExpression("Price");
+  if ($price)
+  {
+    $default.=" && (other.Price<=$price) ";
+  }
+  else{
+    $default.=" && (other.Price<=0) "
+  }
+  
   $DEBUG and $self->debug(1, "All the requirements '$default'" );
   
   $job_ca->set_expression( "Requirements", $default ) and return 1;
@@ -491,9 +500,14 @@ sub modifyJobCA {
 
   $self->checkTimeToLive($job_ca) or return;
 
+  $self->checkPrice($job_ca) or return;
+  
   $self->checkRequirements($job_ca) or return;
 
   $job_ca->insertAttributeString ("User", $self->{CATALOG}->{CATALOG}->{ROLE});
+
+
+  
   # Just a safety belt to insure we've not destroyed everything
   if ( !$job_ca->isOK() ) {
     return;
@@ -501,6 +515,33 @@ sub modifyJobCA {
   $DEBUG and $self->debug(1, "Job is OK!!" );
 
   return 1;
+}
+
+sub checkPrice {
+    my $self   = shift;
+    my $job_ca = shift;
+
+    $DEBUG and $self->debug(1, "Checking the price of this job");
+
+    my ($ok, $price) = $job_ca->evaluateAttributeString("Price");
+
+    if (! $price) {
+       $self->info("There is no price defined for this job in the jdl. Putting the default '1.0' ");
+       $job_ca->set_expression("Price", 1.0);
+    }
+    else {
+    	#check if the price value is floating point number with optional fractional parts
+	$price =~ m/^\s*\d+[\.\d+]*\s*$/ or 
+	  ( $self->info("The defined price $price is not valid. Price value  must be numeric. \n\tExample: Price=\"1\" or  Price=\"3.14\"")
+	    and return);	 
+    
+    # will round price to 2 digits precision
+    my $p = sprintf ("%.2f", $price);
+    $job_ca->set_expression("Price", $p);
+	
+    }
+    return 1;
+
 }
 
 sub checkTimeToLive {
@@ -722,11 +763,10 @@ sub f_queueStatus {
 sub getNumberFreeSlots{
   my $self=shift;
 
-  #This is the number of free+queued+running
   my $free_slots=$self->{BATCH}->getFreeSlots();
   my $done=$self->{SOAP}->CallSOAP("ClusterMonitor", "getNumberJobs",  $self->{CONFIG}->{CE_FULLNAME}, $free_slots) 
     or return;
-  #THis is what we can run according to the JOB MANAGER
+
   my ($max_queued, $max_running)=$self->{SOAP}->GetOutput($done);
 
   $self->info( "According to the manager, we can run $max_queued and $max_running");
@@ -778,9 +818,6 @@ sub offerAgent {
   my $classad="";#AliEn::Util::returnCacheValue($self,"classad");
   if (!$classad){
     my $ca=AliEn::Classad::Host->new() or return;
-    #Settingt the  local space
-
-    $ca->set_expression("LocalDiskSpace", 100000000);
     $ca=$self->{BATCH}->updateClassAd($ca)
       or $self->info("Error asking the CE to update the classad")
 	and return;
@@ -2548,6 +2585,216 @@ sub checkConnection {
   return $self->{SOAP}->checkService("Manager/Job", "JOB_MANAGER", "-retry");
 }
 
+############################################################
+# Bank functions start 
+############################################################
+
+sub checkBankConnection {
+  my $self = shift;
+
+  #Checking the CM
+  $DEBUG and $self->debug(1, "Checking the connection to the CM");
+
+  if ($self->{SOAP}->checkService("ClusterMonitor")){
+    $self->{BANK_CONNECTION}="ClusterMonitor" ;
+    return 1;
+  }
+  $self->{BANK_CONNECTION}="LBSG" ;
+  return $self->{SOAP}->checkService("LBSG", "LBSG", "-retry");
+}
+
+sub f_getBalance_HELP{
+return "getBalance returns the fund remainder on a given account
+\t Usage:
+\t\t getBalance <-u|-s> <Name>
+\t\t\t  If no options given returns the funds remainder for the current user 
+\t\t\t  -u - returns the fund remainder for AliEn user <Name>
+\t\t\t  -s - returns the fund remainder for AliEn site <Name>
+\t\t\t  If only <Name> is given returns the reminder of bank account <Name>";
+}
+
+sub f_getBalance {
+  my $self=shift;
+
+  my $user;
+  my $param = shift;
+     $param or $param=""; 
+  	if ($param eq "-u") {
+	    my $userName = shift;	
+	    $user = $self->getUserBankAccount ($userName);
+	    $user or (print "Error: No bank account defined for $userName in LDAP\n" and return);
+	   }
+        elsif ($param eq "-s"){
+	    my $siteName = shift;
+	    $user = $self->getSiteBankAccount ($siteName);
+	    $user or (print "Error: No bank account defined for $siteName in LDAP\n" and return);
+	   }
+        elsif ($param){
+	    $user = $param;
+	   }
+        if (!$user){ #no params given
+            my $userName =  $self->{CATALOG}->{CATALOG}->{ROLE};
+	    $user = $self->getUserBankAccount ($userName);
+	    $user or (print "Error: No bank account defined for $userName in LDAP\n" and return);
+	   }
+ 
+   print "Getting funds remainder for bank account $user\n"; 
+  ( $self->checkBankConnection() ) or return;
+    my $done = $self->{SOAP}->CallSOAP($self->{BANK_CONNECTION}, "getBalance",$user) or return;
+       $done or ((print "Error: SOAP call to $self->{CONNECTION} getBalance failed\n") and return);
+    
+    my $result = $done->result;
+       $result or ((print "Error: SOAP call to $self->{CONNECTION} getBalance returned nothing\n") and return);  
+    print " The remainder on $user account is $result AliDrams \n";
+  
+  return 1;
+}
+
+sub f_getTransactions_HELP{
+return " getTransactions returns the list of transactions
+\t Usage:
+\t\t getTransactions <-u|-s> <Name>
+\t\t\t  If no options given returns all transactions 
+\t\t\t  -u - returns the fund transactions for AliEn user <Name>
+\t\t\t  -s - returns the fund transactions for AliEn site <Name>
+\t\t\t  If only <Name> is given returns the transactions of bank account <Name>";
+}
+
+sub f_getTransactions{
+  my $self=shift;
+
+  my $user;
+  my $param = shift;
+     $param or $param="";  
+  	if ($param eq "-u") {
+	    my $userName = shift;	
+	    $user = $self->getUserBankAccount ($userName);
+	    $user or (print "Error: No bank account defined for $userName in LDAP\n" and return);
+	   }
+        elsif ($param eq "-s"){
+	    my $siteName = shift;
+	    $user = $self->getSiteBankAccount ($siteName);
+	    $user or (print "Error: No bank account defined for $siteName in LDAP\n" and return);
+	   }
+        elsif ($param){
+	    $user = $param;
+	   }
+#        elsif (!$user){ #no params given
+#            my $userName =  $self->{CATALOG}->{CATALOG}->{ROLE};
+#	    $user = $self->getUserBankAccount ($userName);
+#	    $user or (print "Error: No bank account defined for $userName in LDAP" and return);
+#	   }
+     
+	    
+ 
+   $user and print "Getting funds transactions for bank account $user\n"; 
+   $user or print  "Getting all transactions\n";
+
+   ( $self->checkBankConnection() ) or return;
+    my $done = $self->{SOAP}->CallSOAP($self->{BANK_CONNECTION}, "getTransactions",$user) or return;
+       $done or ((print "Error: SOAP call to $self->{BANK_CONNECTION}  getTransactions failed\n") and return);
+    
+    my $result = $done->result;
+       $result or ((print "Error: SOAP call to $self->{BANK_CONNECTION} getTransactions returned nothing\n") and return);  
+
+      $result or return (-1, $done->paramsout || "Error reading result of  getTransactions SOAP call to LBSG service\n");
+         my @transactions = split "\n", $result;
+         my $transaction;
+    
+    
+         my $output .= sprintf "%-16s %-16s %-16s %-25s \n", "To group",
+                                                              "From group",
+                                                              "AliDrams",
+                                                              "Moment";
+    
+    
+         foreach $transaction (@transactions) {
+         my ($toGroup, $fromGroup, $amount, $moment, $initiator) = ("","","","");
+    
+         ($toGroup, $fromGroup, $amount, $moment,    $initiator) = split "###", $transaction;
+    
+         $output .= sprintf "%-16s %-16s %-16s %-25s \nInitiator:%-60s \n\n", $toGroup,
+                                                                    $fromGroup,
+                                                                    $amount,
+                                                                    $moment,
+							            $initiator;
+        }
+    
+   print $output;
+return 1;
+}
+
+sub getUserBankAccount {
+   my $self=shift;
+   my $username=shift;   
+
+   #connect to LDAP and search through users and roles 
+     my $config = AliEn::Config->new();
+
+     my $ldap = Net::LDAP->new( $config->{LDAPHOST}) or return;
+        $ldap->bind();
+
+     my $base = $config->{LDAPDN};
+     my $entry;
+
+
+     # perform search through all users' entries
+     my $mesg = $ldap->search(
+                 base   => "ou=People,$base",
+                 filter => "(&(objectclass=pkiUser)(uid=$username))"
+                             );
+
+          if ( !$mesg->count ) {
+	      # perform search through all roles' entries
+		    $mesg = $ldap->search(
+	                 base   => "ou=Roles,$base",
+	                 filter => "(&(objectClass=AliEnRole)(uid=$username))"
+        	                     );
+	           
+		 if (!$mesg->count){
+			# User not found in LDAP !!!
+	                return;
+                                   }
+
+		# found in roles 	
+		  $entry = $mesg->entry(0);
+		  return $entry->get_value('accountName');        
+
+       				}
+
+   #found in people
+   $entry = $mesg->entry(0);
+   return $entry->get_value('accountName');
+}
+
+sub getSiteBankAccount {
+   my $self=shift;
+   my $site=shift;   
+
+   #connect to LDAP and search through users and roles 
+     my $config = AliEn::Config->new();
+
+     my $ldap = Net::LDAP->new( $config->{LDAPHOST}) or return;
+        $ldap->bind();
+
+     my $base = $config->{LDAPDN};
+     my $entry;
+
+    my $mesg = $ldap->search(
+                        base   => "ou=Sites,$base",
+                        filter => "(&(objectclass=AliEnSite)(ou=$site))"
+                            );
+   if ( !$mesg->count ) {
+        #  Site not found in LDAP !!!
+           return;
+   }
+
+   $entry = $mesg->entry(0);
+   return $entry->get_value('accountName');
+}
+############################################################
+# Bank functions end 
+############################################################
 
 sub submitCommands {
     my $self = shift;

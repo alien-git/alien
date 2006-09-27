@@ -336,10 +336,11 @@ sub SetProcInfo {
   my $now = time;
   if ($procinfo) {
     my @values = split " ",$procinfo;
+    $values[13] or $values[13]='-1'; # si2k consumed by the job
 
     my ($status) = $self->{DB}->getFieldsFromQueue($queueId,"status");
 
-    my $updateRef= {runtime=>$values[0],runtimes=>$values[1],cpu=>$values[2],mem=>$values[3],cputime=>$values[4],rsize=>$values[5],vsize=>$values[6],ncpu=>$values[7],cpufamily=>$values[8],cpuspeed=>$values[9],cost=>$values[10],maxrsize=>$values[11],maxvsize=>$values[12],procinfotime=>"$now"};
+    my $updateRef= {runtime=>$values[0],runtimes=>$values[1],cpu=>$values[2],mem=>$values[3],cputime=>$values[4],rsize=>$values[5],vsize=>$values[6],ncpu=>$values[7],cpufamily=>$values[8],cpuspeed=>$values[9],cost=>$values[10],maxrsize=>$values[11],maxvsize=>$values[12],procinfotime=>"$now",si2k=>$values[13]};
 
     if ($status->{status} eq "ZOMBIE") {
       # in case a zombie comes back ....
@@ -356,7 +357,7 @@ sub SetProcInfo {
       or $self->{LOGGER}->error( "JobManager", "In SetProcInfo error updating job $queueId" )
 	and return;
   } else {
-    my ($ok) = $self->{DB}->updateJob($queueId, {runtime=>'00',runtimes=>'00',cpu=>'0',mem=>'0',cputime=>'0',rsize=>'0',vsize=>'0',ncpu=>'0',cpufamily=>'0',cpuspeed=>'0',cost=>'0',maxrsize=>'0',maxvsize=>'0'});
+    my ($ok) = $self->{DB}->updateJob($queueId, {runtime=>'00',runtimes=>'00',cpu=>'0',mem=>'0',cputime=>'0',rsize=>'0',vsize=>'0',ncpu=>'0',cpufamily=>'0',cpuspeed=>'0',cost=>'0',maxrsize=>'0',maxvsize=>'0',si2k=>'-1'});
     ($ok)
       or $self->{LOGGER}->error( "JobManager", "In SetProcInfo error updating job $queueId" )
 	and return;
@@ -549,6 +550,8 @@ sub getTop {
 		start=>'submithost like \'',end=>"\@\%'"},
 	       {name=>"host", pattern=>"h(ost)?",
 		start=>'exechost like \'%\@',end=>"'"},
+	       {name=>"submithost", pattern=>"submit(host)?",
+		start=>'submithost like \'%\@',end=>"'"},
 	       {name=>"id", pattern=>"i(d)?",
 		start=>"queueid='",end=>"'"},
 	       {name=>"split", pattern=>"s(plit)?",
