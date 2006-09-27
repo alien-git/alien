@@ -1038,7 +1038,7 @@ sub checkMessages {
   my $time = time;
 
   my $res  =
-    $self->{DB}->query("SELECT ID,TargetHost,Message,MessageArgs from MESSAGES WHERE (TargetService = 'ClusterMonitor' AND  '$self->{HOST}' like TargetHost AND (Expires > $time or Expires = 0)) ORDER BY ID DESC");
+    $self->{DB}->query("SELECT ID,TargetHost,Message,MessageArgs from MESSAGES WHERE (TargetService = 'ClusterMonitor' AND  '$self->{HOST}' like TargetHost AND (Expires > $time or Expires = 0) AND Ack not like '\%,$self->{HOST}:\%') ORDER BY ID DESC");
   
   defined $res
     or $self->{LOGGER}->error("ClusterMonitor","Error fetching messages from database")
@@ -1072,6 +1072,8 @@ sub checkMessages {
       #Do not know command
       $status = "UNKNOWN";
     }
+    $self->{DB}->update("MESSAGES", {Ack=>"concat(Ack, ',$self->{HOST}:$status')"}, 
+			"ID='$data->{ID}'", {noquotes=>1});
   }
 
   return 1;
