@@ -297,8 +297,13 @@ sub startXROOTD {
     $source="source $ENV{'HOME'}/.alien/Environment.xrootd;";
 
   if (! $pid) {
-    exec("$source xrootd -d -c  $optionFile > $log 2>\&1");
+    exec("$source xrootd -c  $optionFile > $log 2>\&1");
   }
+  my $pidf=$log;
+  $pidf =~ s/\.log/\.pid/;
+  open (FILE, ">$pidf" ) or $self->info("error opening $pidf") and return;
+  print FILE "$pid\n";
+  close FILE;
   my $pid2="";
   if ($options{olbd}) {
     $pid2=fork();
