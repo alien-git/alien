@@ -531,7 +531,7 @@ sub getTop {
   my $args =join (" ", @_);
   my $date = time;
 
-  my $usage="\n\tUsage: top [-status <status>] [-user <user>] [-host <exechost>] [-command <commandName>] [-id <queueId>] [-split <origJobId>] [-all] [-all_status]";
+  my $usage="\n\tUsage: top [-status <status>] [-user <user>] [-host <exechost>] [-command <commandName>] [-id <queueId>] [-split <origJobId>] [-all] [-all_status] [-site <siteName>]";
 
   $self->info( "Asking for top..." );
 
@@ -560,6 +560,8 @@ sub getTop {
 		start=>"status='",end=>"'"},
 	       {name=>"command", pattern=>"c(ommand)?",
 		start=>"name='",end=>"'"},
+	       {name=>"site", pattern=>"site",
+		start=>"site='", end=>'\''}
 	      );
 
   while (@_) {
