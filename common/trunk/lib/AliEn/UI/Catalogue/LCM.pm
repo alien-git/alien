@@ -342,8 +342,7 @@ sub df {
   my $se   = (shift or $self->{CONFIG}->{SE_FULLNAME});
   my $oldsilent = $self->{CATALOG}->{SILENT};
   my @hostportsName;
-  my @results;
-
+  my @results = ();
   if ($opt =~/a/) {
       $se = "";
   }
@@ -397,6 +396,10 @@ sub df {
     $response = $response->result;
     ( defined $response) or next;
     $self->debug(1, "Got $response");
+    my $details = {};
+    ($details->{name}, $details->{size}, $details->{used}, $details->{available}, $details->{usage}, $details->{files}, $details->{type}) 
+       =split(/\s+/, $response);
+    push(@results, $details);
     ( $response eq "-1") and next;
     
     $self->info("$response",0,0);
