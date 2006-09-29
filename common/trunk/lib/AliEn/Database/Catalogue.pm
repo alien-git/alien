@@ -202,7 +202,8 @@ sub checkSETable {
   my $self = shift;
   
   my %columns = (seName=>"char(60) NOT NULL", 
-		 seNumber=>"int(11) NOT NULL auto_increment primary key",);
+		 seNumber=>"int(11) NOT NULL auto_increment primary key",
+		 seQoS=>"varchar(50)" );
 
   $self->checkTable("SE", "seNumber", \%columns, 'seNumber', ['UNIQUE INDEX (seName)']) or return;
   #This table we want it case insensitive
@@ -1868,6 +1869,17 @@ sub internalQuery {
 
 }
 
+sub setExpire{
+  my $self=shift;
+  my $lfn=shift;
+  my $seconds=shift;
+  defined $seconds or $seconds="";
+  my $table=$self->{INDEX_TABLENAME}->{name};
+  $lfn=~ s{^$self->{INDEX_TABLENAME}->{lfn}}{};
+  $seconds=~ /^\d+$/    or 
+    $self->info("The number of seconds ('$seconds') is not a number") and return;
+  return $self->update($table, {expiretime=>"now()+$seconds"}, "lfn='$lfn'", {noquotes=>1});
+}
 
 
 sub destroy {
