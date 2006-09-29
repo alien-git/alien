@@ -1758,12 +1758,26 @@ sub getProcInfo {
     my $res = $self->{MONITOR}->getJobMonInfo($ENV{ALIEN_PROC_ID}, "cpu_ksi2k");
     $self->{CPU_KSI2K} = $res->{cpu_ksi2k} if $res->{cpu_ksi2k};
   }
+  
+  # check if we have a new ps
+  # new ps has a bigger default for the 'command' column size and alien expects 16 
+  # characters only but old 'ps' doesn't understand the new format with :size so we have 
+  # to check first what kind of ps we have.
+  my $ps_format = "command start";
+  if(open(FILE, "ps -p 1 -o \"command:16 start:8 \%cpu\" |")){
+    my $line = <FILE>; # ignore header
+    my $line = <FILE>;
+    $ps_format = "command:16 start:8" if $line !~ /^command:16 start:8/;
+    close FILE;
+  }else{
+    print "getProcInfo: cannot determine the ps behaviour\n";
+  }
   for (@allprocs) {
     my $npid = $_;
     chomp $npid;
     #    print "ps --no-headers --pid $npid -o \"cmd start %cpu %mem cputime rsz vsize\"\n";
     #the --no-headers and --pid do not exist in mac
-    open (FILE, "ps -p $npid -o \"command:16 start:8 \%cpu \%mem cputime rsz vsize\"|") or print "getProcInfo: error checking ps\n" and next;
+    open (FILE, "ps -p $npid -o \"$ps_format \%cpu \%mem cputime rsz vsize\"|") or print "getProcInfo: error checking ps\n" and next;
     my @psInfo=<FILE>;
     close FILE;
     shift @psInfo; #get rid of the headers
