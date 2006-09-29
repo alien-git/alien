@@ -1,0 +1,157 @@
+#!/bin/sh
+#
+# aliend Startup script for the AliEn
+#
+# chkconfig: - 35 103 15
+# description: AliEn is the Alice Environment
+# processname: aliend
+# pidfile: /var/run/aliend.pid
+# config: /etc/aliend/startup.conf
+
+if [ -f /etc/rc.d/init.d/functions ]
+then
+  OLDPATH=$PATH
+  . /etc/rc.d/init.d/functions
+  PATH=$OLDPATH
+else
+echo_success()
+{
+    echo -n "                                       ok"
+}
+echo_failure()
+{
+    echo -n "                                       failed"
+}
+fi
+
+
+# See how we were called.
+
+Sleep=0
+Shadow=1
+case "$1" in
+    start)
+	echo "Starting AliEn services: "
+	function=Start
+	;;
+    stop)
+	echo "Shutting down AliEn services: "
+	function=Stop
+	;;
+    status)
+	echo "Status of AliEn services: "
+	function=Status
+	;;
+    restart)
+	$0 stop
+	$0 start
+	exit 0
+	;;
+    *)
+	echo "Usage: $0 {start|stop|restart|status}"
+	exit 1
+esac
+shift
+
+CHANGEUSER=1
+ETCDIR="/etc/aliend"
+
+[ "${USER:=root}" = "root" ] || CHANGEUSER=0;
+[ "$USER" = "root" ] || ETCDIR=$HOME/.alien$ETCDIR
+
+. $ETCDIR/startup.conf
+
+ALL_ORG=$ALIEN_ORGANISATIONS
+
+if [ -n "$1" ] ;
+then
+   ALL_ORG="$*"
+fi
+
+
+for ALIEN_ORGANISATION in $ALL_ORG
+do
+    echo "Doing $function for $ALIEN_ORGANISATION"
+    if [ -f $ETCDIR/$ALIEN_ORGANISATION/startup.conf ];
+    then
+	. $ETCDIR/$ALIEN_ORGANISATION/startup.conf
+	for service in $AliEnServices
+	do
+	   COMMAND="$AliEnCommand --org $ALIEN_ORGANISATION $function$service -silent"
+	   Sleep=0
+	   case "$function$service" in
+        	StartProxy)
+		    if [ "$AliEnUserP" != "" ] ;
+		    then 
+		      COMMAND="$COMMAND -passwd $AliEnUserP"
+		    fi
+		    Sleep=1
+		;;
+	        StartAuthen)
+		    if [ "$AliEnLDAPP" != "" ] ;
+		    then 
+			COMMAND="$COMMAND -passwd $AliEnLDAPP"
+		    fi
+		    Sleep=1
+	        ;;
+	        StartIS|StartServer)
+		    Sleep=2
+	        ;;
+		Stophttpd|Starthttpd|Statushttpd)
+		    COMMAND="true"
+		    case "$function" in 
+			Start)
+			    DIR=${AliEnCommand%bin/alien}
+
+			    if [ $CHANGEUSER == 0 ]  ;
+			    then
+				$DIR/httpd/bin/httpd >/dev/null 2>&1
+			    else
+				su - $AliEnUser -c "$DIR/httpd/bin/httpd >/dev/null 2>&1"
+			    fi
+			;;
+			Stop)
+			    pkill httpd >/dev/null 2>&1
+			;;
+			Status)
+			    ps -ef |grep httpd |grep -v grep> /dev/null 2>&1
+			;;
+		    esac
+		    [ $? -ne 0 ] &&  COMMAND="false"
+		;;
+		*)
+		    Sleep=0
+		;;
+	    esac
+
+	    echo  -n "       Service $service"
+	    
+
+	    if [ $CHANGEUSER == 0 ]  ||  [ "$service" == "Authen" ] && [ $Shadow == 1 ] ;
+		then
+#             echo "Doing $service as root"
+		$COMMAND 
+	    else
+		su - $AliEnUser -c "$COMMAND"
+	    fi
+	    error=$?
+
+            sleep $Sleep
+	    if [ $error -ne 0 ]
+	    then
+		echo  -n "ERROR $error"
+		echo_failure
+	    else
+		echo_success
+	    fi
+	    echo
+	done
+    else
+	echo "File  /etc/aliend/$ALIEN_ORGANISATION/startup.conf does not exist!!"
+	exit 1
+    fi
+done
+
+exit 0
+
+

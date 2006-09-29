@@ -1,0 +1,332 @@
+#!/bin/bash
+#
+# Startup script for the Apache Web Server
+#
+# chkconfig: - 85 15
+# description: Apache is a World Wide Web server.  It is used to serve \
+#              HTML files and CGI.
+# processname: httpd
+# pidfile: /var/run/httpd.pid
+# config: /etc/httpd/conf/access.conf
+# config: /etc/httpd/conf/httpd.conf
+# config: /etc/httpd/conf/srm.conf
+
+# Source function library.
+. /etc/rc.d/init.d/functions
+
+# This will prevent initlog from swallowing up a pass-phrase prompt.
+INITLOG_ARGS=""
+
+# Source additional OPTIONS if we have them.
+if [ -f /etc/sysconfig/apache ] ; then
+        . /etc/sysconfig/apache
+fi
+if [ -f /etc/aliend/httpd.startup ] ; then
+    . /etc/aliend/httpd.startup
+fi
+
+#
+# Apache control script designed to allow an easy command line interface
+# to controlling Apache.  Written by Marc Slemko, 1997/08/23
+# 
+# The exit codes returned are:
+#	0 - operation completed successfully
+#	1 - 
+#	2 - usage error
+#	3 - httpd could not be started
+#	4 - httpd could not be stopped
+#	5 - httpd could not be started during a restart
+#	6 - httpd could not be restarted during a restart
+#	7 - httpd could not be restarted during a graceful restart
+#	8 - configuration syntax error
+#
+# When multiple arguments are given, only the error from the _last_
+# one is reported.  Run "apachectl help" for usage info
+#
+#
+# |||||||||||||||||||| START CONFIGURATION SECTION  ||||||||||||||||||||
+# --------------------                              --------------------
+# 
+# the path to your PID file
+#
+#ALIEN_ROOT="/opt/alien.29.09.05"
+export ALIEN_ROOT=${ALIEN_ROOT:=/opt/alien/}
+PIDFILE="${ALIEN_ROOT}/apache/logs/httpd.pid"
+
+
+export ALIEN_PERL=$ALIEN_ROOT/bin/alien-perl
+
+export ALIEN_HOME=${ALIEN_HOME:=$HOME/.alien}
+domain=`hostname -d`
+
+export ALIEN_DOMAIN=${ALIEN_DOMAIN:=$domain}
+
+SECURE=0;
+# the path to your httpd binary, including options if necessary
+HTTPD="${ALIEN_ROOT}/apache/bin/httpd -DSSL -f ${ALIEN_ROOT}/apache/conf/httpd.conf"
+#
+# a command that outputs a formatted text version of the HTML at the
+# url given on the command line.  Designed for lynx, however other
+# programs may work.  
+LYNX="lynx -dump"
+#
+# the URL to your server's mod_status status page.  If you do not
+# have one, then status and fullstatus will not work.
+STATUSURL="http://aliens1.cern.ch/"
+#
+# --------------------                              --------------------
+# ||||||||||||||||||||||||||   AliEn  SECTION  |||||||||||||||||||||||||
+export LD_LIBRARY_PATH=${ALIEN_ROOT}/lib
+export PERL5LIB=${ALIEN_ROOT}/lib
+# ||||||||||||||||||||   END CONFIGURATION SECTION  ||||||||||||||||||||
+
+ERROR=0
+ARGV="$@"
+if [ "x$ARGV" = "x" ] ; then 
+    ARGS="help"
+fi
+
+for ARG in $@ $ARGS
+do
+    # check for pidfile
+    if [ -f $PIDFILE ] ; then
+	PID=`cat $PIDFILE`
+	if [ "x$PID" != "x" ] && kill -0 $PID 2>/dev/null ; then
+	    STATUS="httpd (pid $PID) running"
+	    RUNNING=1
+	else
+	    STATUS="httpd (pid $PID?) not running"
+	    RUNNING=0
+	fi
+    else
+	STATUS="httpd (no pid file) not running"
+	RUNNING=0
+    fi
+
+    case $ARG in
+    start|startssl|sslstart|start-SSL)
+	if [ $RUNNING -eq 1 ]; then
+	    echo "$0 $ARG: httpd (pid $PID) already running"
+	    continue
+	fi
+if [ "$SECURE" != "0" ]  ; then
+########################START THE CONTAINER#############
+# We have to start this first before starting the httpd 
+# because we have to set some env variables.
+
+	#rm -Rf /tmp/wsrf/*
+	# Create, if necessary,directories for container
+	[ -d /tmp/wsrf/data ]  || mkdir -p /tmp/wsrf/data
+	# Create directories for myProxyServer
+	[ -d $ALIEN_ROOT/Gridport/repository/proxies/domain_proxies ]  || mkdir -p $ALIEN_ROOT/Gridport/repository/proxies/domain_proxies
+	[ -d $ALIEN_ROOT/Gridport/repository/proxies/site_proxies/wwwd ]  || mkdir -p $ALIEN_ROOT/Gridport/repository/proxies/site_proxies/wwwd
+	[ -d $ALIEN_ROOT/Gridport/repository/sessions ]  || mkdir -p $ALIEN_ROOT/Gridport/repository/sessions
+	    
+	#since container is running under user wwwd we have to give permissions to him
+	    
+	#directory where container writes the WSR
+	chown -R wwwd:nobody /tmp/wsrf
+	#directory where map are created
+	chown -R wwwd:nobody /home/httpd/html/images
+	#file to config the Portal
+	chown -R wwwd:nobody  $ALIEN_ROOT/apache/conf/configServer.cfg
+	#directory where is stored myproxy information
+	chown -R wwwd:nobody $ALIEN_ROOT/apache/Gridport
+
+	export ALIEN_PROCESSNAME=PORTAL
+
+        su wwwd -c "$ALIEN_ROOT/bin/alien-perl $ALIEN_ROOT/scripts/Portal/Container.pl" > /tmp/wsrf/Portal.log 2>&1 &
+	echo  $! > /tmp/wsrf/Container.pid
+	echo "$0 $ARG: Container started"
+	sleep 2 #wait a seconds...this process take time 
+	su wwwd -c "$ALIEN_ROOT/bin/alien-perl $ALIEN_ROOT/scripts/Portal/SContainer.pl" > /tmp/wsrf/Portal.log 2>&1 &
+	echo  $! > /tmp/wsrf/SContainer.pid
+	echo "$0 $ARG: Secure Container started"
+	sleep 10 #wait a seconds...this process take time 
+
+	for ORG in $ALIEN_ORGANISATIONS
+	do
+	   echo "Starting the portal for $ORG"
+	   NOBODY_ID=`su wwwd -c "$ALIEN_ROOT//bin/alien -x $ALIEN_ROOT/scripts/Portal/wsrf_createPortal_Nobody.pl http://localhost:50000/Session/Portal/Portal http://egee.cern.ch/Portal  $ORG disable"`
+
+	   export ALIEN_${ORG}_NOBODY_WSRF_ID=$NOBODY_ID
+	   echo "$0 $ARG: $ORG WSRF Started with the ID:$NOBODY_ID"
+	done
+########################################################
+fi
+	if $HTTPD; then
+	    echo "$0 $ARG: httpd started"
+	else
+	    echo "$0 $ARG: httpd could not be started"
+	    ERROR=3
+	fi
+	;;
+    stop)
+	if [ $RUNNING -eq 1 ]; then
+  	  if kill $PID ; then
+	    echo "$0 $ARG: httpd stopped"
+	  else
+	    echo "$0 $ARG: httpd could not be stopped"
+	    ERROR=4
+	  fi
+        fi
+if [ "$SECURE" != "0" ]  ; then
+     	OLDPIDS=`cat /tmp/wsrf/Container.pid /tmp/wsrf/SContainer.pid`
+	echo "KILLING PIDS $OLDPIDS"
+	for param in $OLDPIDS
+	do
+	    if [ "$param" ]
+	    then
+		PIDS=`ps -eo "pid ppid" |grep "$param"|awk '{print $1}'`
+		if [ "$PIDS" ]
+		then
+		    kill -9 $param $PIDS >& /dev/null
+		fi
+	    fi
+	done
+fi
+	;;
+    restart)
+	if [ $RUNNING -eq 0 ]; then
+	    echo "$0 $ARG: httpd not running, trying to start"
+	    if $HTTPD ; then
+		echo "$0 $ARG: httpd started"
+	    else
+		echo "$0 $ARG: httpd could not be started"
+		ERROR=5
+	    fi
+	else
+	    if $HTTPD -t >/dev/null 2>&1; then
+		if kill -HUP $PID ; then
+		    echo "$0 $ARG: httpd restarted"
+		else
+		    echo "$0 $ARG: httpd could not be restarted"
+		    ERROR=6
+		fi
+	    else
+		echo "$0 $ARG: configuration broken, ignoring restart"
+		echo "$0 $ARG: (run 'apachectl configtest' for details)"
+		ERROR=6
+	    fi
+	fi
+	;;
+    graceful)
+	if [ $RUNNING -eq 0 ]; then
+	    echo "$0 $ARG: httpd not running, trying to start"
+	    if $HTTPD ; then
+		echo "$0 $ARG: httpd started"
+	    else
+		echo "$0 $ARG: httpd could not be started"
+		ERROR=5
+	    fi
+	else
+	    if $HTTPD -t >/dev/null 2>&1; then
+		if kill -USR1 $PID ; then
+		    echo "$0 $ARG: httpd gracefully restarted"
+		else
+		    echo "$0 $ARG: httpd could not be restarted"
+		    ERROR=7
+		fi
+	    else
+		echo "$0 $ARG: configuration broken, ignoring restart"
+		echo "$0 $ARG: (run 'apachectl configtest' for details)"
+		ERROR=7
+	    fi
+	fi
+	;;
+    status)
+	$LYNX $STATUSURL | awk ' /process$/ { print; exit } { print } '
+	;;
+    fullstatus)
+	$LYNX $STATUSURL
+	;;
+    configtest)
+	if $HTTPD -t; then
+	    :
+	else
+	    ERROR=8
+	fi
+	;;
+    *)
+	echo "usage: $0 (start|stop|restart|fullstatus|status|graceful|configtest|help)"
+	cat <<EOF
+
+start      - start httpd
+startssl   - start httpd with SSL enabled
+stop       - stop httpd
+restart    - restart httpd if running by sending a SIGHUP or start if 
+             not running
+fullstatus - dump a full status screen; requires lynx and mod_status enabled
+status     - dump a short status screen; requires lynx and mod_status enabled
+graceful   - do a graceful restart by sending a SIGUSR1 or start if not running
+configtest - do a configuration syntax test
+help       - this screen
+
+EOF
+	ERROR=2
+    ;;
+
+    esac
+
+done
+
+exit $ERROR
+
+## ====================================================================
+## The Apache Software License, Version 1.1
+##
+## Copyright (c) 2000-2002 The Apache Software Foundation.  All rights
+## reserved.
+##
+## Redistribution and use in source and binary forms, with or without
+## modification, are permitted provided that the following conditions
+## are met:
+##
+## 1. Redistributions of source code must retain the above copyright
+##    notice, this list of conditions and the following disclaimer.
+##
+## 2. Redistributions in binary form must reproduce the above copyright
+##    notice, this list of conditions and the following disclaimer in
+##    the documentation and/or other materials provided with the
+##    distribution.
+##
+## 3. The end-user documentation included with the redistribution,
+##    if any, must include the following acknowledgment:
+##       "This product includes software developed by the
+##        Apache Software Foundation (http://www.apache.org/)."
+##    Alternately, this acknowledgment may appear in the software itself,
+##    if and wherever such third-party acknowledgments normally appear.
+##
+## 4. The names "Apache" and "Apache Software Foundation" must
+##    not be used to endorse or promote products derived from this
+##    software without prior written permission. For written
+##    permission, please contact apache@apache.org.
+##
+## 5. Products derived from this software may not be called "Apache",
+##    nor may "Apache" appear in their name, without prior written
+##    permission of the Apache Software Foundation.
+##
+## THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESSED OR IMPLIED
+## WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+## OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+## DISCLAIMED.  IN NO EVENT SHALL THE APACHE SOFTWARE FOUNDATION OR
+## ITS CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+## SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+## LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF
+## USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+## ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+## OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
+## OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+## SUCH DAMAGE.
+## ====================================================================
+##
+## This software consists of voluntary contributions made by many
+## individuals on behalf of the Apache Software Foundation.  For more
+## information on the Apache Software Foundation, please see
+## <http://www.apache.org/>.
+##
+## Portions of this software are based upon public domain software
+## originally written at the National Center for Supercomputing Applications,
+## University of Illinois, Urbana-Champaign.
+##
+# 
