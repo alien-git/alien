@@ -369,6 +369,41 @@ sub f_deleteMirror {
   return 1;
 }
 
+sub f_setExpired_HELP{
+  return "setExpired: Sets the expire date for an entry in the catalogue. When that date arrives, all the entries in 'replica' SE will be deleted. If there are no entries in long term SE, the lfn will be renamed to 'lfn.expired'. 
+Usage:
+\t\tsetExpired <seconds> <lfn> [<lfn>+]
+
+To see the expire date of a file, do 'ls -e'
+";
+}
+sub f_setExpired{
+  my $self=shift;
+  my $seconds=shift;
+
+  
+  @_ or $self->info("Error: not enough arguments". $self->f_setExpired_HELP()) and return;
+
+  while (@_){
+    my $file=shift;
+
+    $file = $self->GetAbsolutePath($file);
+
+    my $permLFN=$self->checkPermissions( "w", $file)
+      or return;
+
+    if (! $self->isFile($file, $permLFN) ) {
+      $self->{LOGGER}->error("File", "file $file doesn't exist!!",1);
+      return;
+    }
+    $self->debug(2, "Let's put the expiration time of $file");
+    $self->{DATABASE}->setExpire($file, $seconds) or return;
+
+    $self->info("The file $file will expired in $seconds seconds");
+  }
+    return 1;
+
+}
 sub f_removeFile {
   my $self = shift;
   my $options = shift;

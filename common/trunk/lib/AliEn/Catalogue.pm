@@ -445,6 +445,18 @@ sub prependMountPoint {
   return $list;
 }
 
+sub f_ls_HELP{
+  return "Usage: ls [-laFn|b|h] [<directory>]
+\t-l : long format
+\t-a : show hidden .* files
+\t-F : add trailing / to directory names
+\t-n: switch off the colour output
+\t-b : print in guid format
+\t-h : print the help text
+\t-e : display also the expire date";
+
+}
+
 sub f_ls
 {
   my $self = shift;
@@ -452,9 +464,10 @@ sub f_ls
   my $path = (shift or "");
 
   if ($options =~/h/) {
-      $self->{LOGGER}->error("Catalogue", "Usage: ls [-laFn|b|h] [<directory>]\n -l : long format\n -a : show hidden .* files\n -F : add trailing / to directory names\n -n: switch off the colour output\n -b : print in guid format\n -h : print the help text\n" ) and return;        
+    $self->info($self->f_ls_HELP());
+    return;
   }
-      
+
   my ($retrievedpath, $rlist) = $self->f_lsInternal($options, $path);
 
   my @result;
@@ -469,7 +482,7 @@ sub f_ls
   }
 
   for (@$rlist) {
-#    $DEBUG and $self->debug(1, "Printing ".Dumper($_));
+    $DEBUG and $self->debug(1, "Printing ".Dumper($_));
     push @result, $self->f_print($retrievedpath, $options, $_);
   }
 
@@ -866,8 +879,12 @@ sub GetParentDir {
 sub f_print {
   my ( $self, $path, $opt, $rentry ) = @_;
   my $t = "";
-  my ( $type, $perm, $name, $user, $date, $group, $size, $md5) =
-    ($rentry->{type}, $rentry->{perm}, $rentry->{lfn}, $rentry->{owner}, $rentry->{ctime}, $rentry->{gowner}, $rentry->{size}, $rentry->{md5});
+  my ( $type, $perm, $name, $user, $date, $group, $size, $md5, $expire) =
+    ($rentry->{type}, $rentry->{perm}, $rentry->{lfn}, $rentry->{owner} || "unknown", 
+     $rentry->{ctime}, $rentry->{gowner} || "unknown", 
+     $rentry->{size} || 0, $rentry->{md5}, $rentry->{expiretime} ||"");
+
+  $opt =~ /e/ or $expire="";
 
   $name =~ s{^$path}{};
   $name or $name =".";
@@ -877,12 +894,8 @@ sub f_print {
 
   my $colorterm = 0;
 
-  if ($ENV{ALIEN_COLORTERMINAL}) {
+  if ($ENV{ALIEN_COLORTERMINAL} and $opt !~ /n/) {
       $colorterm = 1;
-  }
-
-  if ($opt=~/n/) {
-      $colorterm = 0;
   }
 
   my $textcolour  = "";
@@ -926,14 +939,10 @@ sub f_print {
 	/7/ && do { $permstring .= "rwx"; last; };
       }
     }
-    ($user)  or ( $user  = "unknown" );
-    ($group) or ( $group = "unknown" );
- 
-    ($size)    or ( $size    = 0 );
 
     $self->{SILENT} or ($opt =~ /s/) or
-      printf "%s   %-8s %-8s %8i %s%12s%s      %-10s\n", $permstring,
-	$user, $group, $size, $date, $textcolour,$name, $textneutral;
+      printf "%s   %-8s %-8s %8i %s%12s%s      %-10s %-20s\n", $permstring,
+	$user, $group, $size, $date, $textcolour,$name, $textneutral, $expire;
 
     if ( $opt =~/z/) {
       my $rethash={};

@@ -743,7 +743,8 @@ sub addFile_HELP {
 If the method and host are not specified, the system will try with 'file://<localhost>'
 Possible options:
 \t-r:(reverse) Start an io server on the client side and let the SE fetch the file from there.
-\t-v:(versioning) a new version of the file is created, if it already existed\n";
+\t-v:(versioning) a new version of the file is created, if it already existed
+\t-c (custodial) add the file to the closest custodial se\n";
 }
 #
 # Check if the user can create the file
@@ -764,7 +765,7 @@ sub addFile {
   my $options={};
   @ARGV=@_;
   Getopt::Long::GetOptions($options, "silent", "reverse", "versioning",
-			   "size=i", "md5=s")
+			   "size=i", "md5=s", "custodial")
       or $self->info("Error checking the options of add") and return;
   @_=@ARGV;
 
@@ -783,6 +784,10 @@ sub addFile {
     $self->_canCreateFile($lfn) or return;
   }
 
+  if ($options->{custodial}){
+    $self->info("Saving the file in a custodial SE");
+    $newSE=$self->findCloseSE("custodial") or return;
+  }
   ######################################################################################
   #get the authorization envelope and put it in the IO_AUTHZ environment variable
   my @envelope;
@@ -904,6 +909,39 @@ Options:\t-f\t keep the same relative path
 
   $self->info( "Adding the mirror $pfn");
   return $self->execute($command, $realLfn, $se);
+}
+
+sub findCloseSE {
+  my $self=shift;
+  my $type=shift;
+  my $excludeListRef=shift || undef;
+  my @excludeList=();
+  $excludeListRef and push @excludeList, @$excludeListRef;
+  $type =~ /^(custodial)|(replica)$/ or $self->info("Error: type of SE '$type' not understood") and return;
+  $self->info("Looking for the closest $type SE");
+  
+  if ($self->{CONFIG}->{SE_RETENTION_POLICY} and 
+      $self->{CONFIG}->{SE_RETENTION_POLICY} =~ /$type/){
+    $self->info("We are lucky. The closest is $type");
+    return $self->{SE_FULLNAME};
+  }
+  
+  if ($self->{CONFIG}->{CLOSESE_LIST}){
+    foreach my $se (@{$self->{CONFIG}->{CLOSESE_LIST}}){
+      my ($name, $qos)=split (/,/, $se);
+      $qos or $qos="replica";
+      if(grep (/^$name$/, @excludeList)){
+	$self->info("We don't want to put it in $name");
+	next;
+      }
+      if ($type =~ /^$qos$/){
+	$self->info("We have found the se $name");
+	return $name;
+      }
+    }
+  }
+  $self->info("There are no close SE with policy '$type'");
+  return;
 }
 
 sub addTag {

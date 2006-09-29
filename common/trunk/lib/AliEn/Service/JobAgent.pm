@@ -1219,8 +1219,19 @@ sub putFiles {
 	foreach (@options){
 	  $self->info("Checking $_");
 	  $_ =~ /^noarchive$/i and  next;
-	  $self->info("Putting the output in the SE $_");
-	  push @se,uc($_);
+	  if ($_ =~ /^(replica)|(custodial)$/i){
+	    $self->info("Finding a SE with QoS '$_'");
+	    my $se=$ui->findCloseSE($_);
+	    if (!$se){
+	      $self->info("We didn't manage to find any SE that can hold this data");
+	      $self->putJobLog($ENV{ALIEN_PROC_ID},"error","Could not find an SE of type '$_'");
+	      return;
+	    }
+	    push @se, uc($se);
+	  }else {
+	    $self->info("Putting the output in the SE $_");
+	    push @se,uc($_);
+	  }
 	}
       }
       $self->info("Submitting file $file2");

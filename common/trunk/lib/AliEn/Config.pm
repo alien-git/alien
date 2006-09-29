@@ -339,16 +339,17 @@ sub GetSite {
 
     my $entry = $mesg->entry(0);
 
-    $self->{LOG_DIR} = $entry->get_value('logdir');
-    $self->{TMP_DIR} = $entry->get_value('tmpdir');
+    my $entries={LOG_DIR=>'logdir', TMP_DIR=>'tmpdir',
+		 SITE_LATITUDE=>'latitude', SITE_LOCATION=>'location', 
+		 SITE_ADMINISTRATOR=>'administrator',
+		 SITE_COUNTRY=>'country', PACKMAN_ADDRESS=>'packmanAddress',
+		 LOCAL_CONFIG=>'localconfig', WORK_DIR=>'workdir',
+		 DOMAIN=>'domain', 'SITE'=>'ou', };
 
-    $self->{SITE_LATITUDE} = $entry->get_value('latitude');
-    $self->{SITE_LONGITUDE} = $entry->get_value('longitude');
-    $self->{SITE_LOCATION}  = $entry->get_value('location');
-    $self->{SITE_ADMINISTRATOR} = $entry->get_value("administrator");
-    $self->{SITE_COUNTRY}   = $entry->get_value("country");
-    $self->{PACKMAN_ADDRESS}= $entry->get_value('packmanAddress');
-    $self->{LOCAL_CONFIG} = $entry->get_value('localconfig') || "";
+    foreach my $key (keys %$entries){
+      $self->{$key} =$entry->get_value($entries->{$key}) || "";
+    }
+
     # Setting the Cache directory. First, home directory of the user
     $self->ChangeCacheDir( $entry->get_value('cachedir') );
     $self->ChangeCacheDir( $ENV{ALIEN_CACHE} );
@@ -357,14 +358,8 @@ sub GetSite {
       or $self->ChangeCacheDir("$ENV{ALIEN_HOME}/cache")
       or return;
 
-    $self->{WORK_DIR} = ($entry->get_value('workdir') or "");
-    $self->{DOMAIN}   = $entry->get_value('domain');
-    $self->{SITE}     = $entry->get_value('ou');
 
     $self->{FULLLDAPDN} = "ou=$self->{SITE},ou=Sites,$self->{LDAPDN}";
-
-#    $self->{SE_HOST} = "";
-#    $self->{SE_PORT} = "";
 
     my $saveSE = ( $entry->get_value('SaveSE') or "none" );
 
@@ -382,18 +377,36 @@ sub GetSite {
     }
     $DEBUG and $self->debug(1,"$self->{SITE} configured!");
 
-    $self->debug(1, "Checking if this is a virtual site");
-    my $virtual=$entry->get_value("virtualSite");
-    if ($virtual){
-      $self->info("This is a virtual site of $virtual!!");
-      my $name="AliEn::Config::$virtual";
-      eval "require $name" or
-	$self->info("Error requiring the module $name: $@") and return;
-      $self=bless($self,$name);
-      return $self->ConfigureVirtualSite();
+    my @closeSE=$entry->get_value('closese');
+    my @newList;
+    foreach my $se (@closeSE){
+      $self->info("Hello $se");
+      #putting the name of the site
+      $se =~ /::/ or $se ="$self->{SITE}::$se";
+      #putting the vo 
+      $se =~  /::[^:]*::/ or $se="$self->{ORG_NAME}::$se";
+      push @newList, $se;
     }
+    $self->{CLOSESE_LIST}=\@newList;
+    
 
-    return 1;
+    return $self->checkVirtualSite($entry);
+}
+
+sub checkVirtualSite{
+  my $self=shift;
+  my $entry=shift;
+
+  $self->debug(1, "Checking if this is a virtual site");
+  my $virtual=$entry->get_value("virtualSite");
+  $virtual or return 1;
+
+  $self->info("This is a virtual site of $virtual!!");
+  my $name="AliEn::Config::$virtual";
+  eval "require $name" or
+    $self->info("Error requiring the module $name: $@") and return;
+  $self=bless($self,$name);
+  return $self->ConfigureVirtualSite();
 }
 
 sub ChangeCacheDir {
