@@ -1777,7 +1777,7 @@ sub getProcInfo {
   my $ps_format = "command start";
   if(open(FILE, "ps -p 1 -o \"command:16 start:8 \%cpu\" |")){
     my $line = <FILE>; # ignore header
-    my $line = <FILE>;
+    $line = <FILE>;
     $ps_format = "command:16 start:8" if $line !~ /^command:16 start:8/;
     close FILE;
   }else{
