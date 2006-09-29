@@ -1,0 +1,527 @@
+# This file contains LDAPv3 schema derived from AliEn
+
+# AliEnVO
+objectidentifier ALIEN_BASE 1.3.6.1.4.1.96.1.1
+
+objectidentifier AliEnVO ALIEN_BASE:1
+
+
+attributetype (  AliEnVO:1 NAME 'ldapHost' SUP name )
+
+attributetype ( AliEnVO:2 NAME 'ldapDN' SUP name )
+
+
+objectclass ( AliEnVO  NAME 'AliEnVO'
+	SUP top
+	MUST ( ldapHost $ ldapDN $ Name )
+	MAY ( ou )
+	)
+
+#objectclass ( AliEnVO  NAME 'AliEnVO'
+#	SUP top
+#	MUST ( ldapHost $ ldapDN $ Name )
+#	)
+
+# AliEnVOConfig
+
+objectidentifier AliEnVOConfig ALIEN_BASE:2
+
+attributetype ( AliEnVOConfig:1 NAME 'proxyPort' SUP name )
+attributetype ( AliEnVOConfig:2 NAME 'proxyHost' SUP name )
+attributetype ( AliEnVOConfig:3 NAME 'authPort' SUP name )
+attributetype ( AliEnVOConfig:4 NAME 'authenDatabase' SUP name )
+attributetype ( AliEnVOConfig:5 NAME 'authenHost' SUP name )
+attributetype ( AliEnVOConfig:6 NAME 'authenDriver' SUP name )
+attributetype ( AliEnVOConfig:7 NAME 'authHost' SUP name )
+attributetype ( AliEnVOConfig:8 NAME 'catalogHost' SUP name )
+attributetype ( AliEnVOConfig:9 NAME 'catalogPort' SUP name )
+attributetype ( AliEnVOConfig:10 NAME 'catalogDatabase' SUP name )
+attributetype ( AliEnVOConfig:11 NAME 'catalogDriver' SUP name )
+attributetype ( AliEnVOConfig:12 NAME 'queuePort' SUP name )
+attributetype ( AliEnVOConfig:13 NAME 'queueHost' SUP name )
+attributetype ( AliEnVOConfig:14 NAME 'queueDatabase' SUP name )
+attributetype ( AliEnVOConfig:15 NAME 'queueDriver' SUP name )
+attributetype ( AliEnVOConfig:16 NAME 'queueDbHost' SUP name )
+attributetype ( AliEnVOConfig:17 NAME 'logPort' SUP name )
+attributetype ( AliEnVOConfig:18 NAME 'logHost' SUP name )
+attributetype ( AliEnVOConfig:19 NAME 'userDir' SUP name )
+attributetype ( AliEnVOConfig:20 NAME 'clusterMonitorUser' SUP name )
+attributetype ( AliEnVOConfig:21 NAME 'isPort' SUP name )
+attributetype ( AliEnVOConfig:22 NAME 'isDatabase' SUP name )
+attributetype ( AliEnVOConfig:23 NAME 'isDriver' SUP name )
+attributetype ( AliEnVOConfig:24 NAME 'isHost' SUP name )
+attributetype ( AliEnVOConfig:25 NAME 'isDbHost' SUP name )
+attributetype ( AliEnVOConfig:26 NAME 'clustermonitorPort' SUP name )
+attributetype ( AliEnVOConfig:27 NAME 'processPort' SUP name )
+attributetype ( AliEnVOConfig:28 NAME 'brokerPort' SUP name )
+attributetype ( AliEnVOConfig:29 NAME 'brokerHost' SUP name )
+attributetype ( AliEnVOConfig:30 NAME 'transferManagerAddress' SUP name )
+attributetype ( AliEnVOConfig:31 NAME 'transferBrokerAddress' SUP name )
+attributetype ( AliEnVOConfig:32 NAME 'transferOptimizerAddress' SUP name )
+attributetype ( AliEnVOConfig:33 NAME 'transferDatabase' SUP name )
+attributetype ( AliEnVOConfig:34 NAME 'jobOptimizerAddress' SUP name )
+attributetype ( AliEnVOConfig:35 NAME 'jobDatabase' SUP name )
+attributetype ( AliEnVOConfig:36 NAME 'ldapmanager' SUP name )
+attributetype ( AliEnVOConfig:37 NAME 'catalogueDatabase' SUP name )
+attributetype ( AliEnVOConfig:38 NAME 'catalogueOptimizerAddress' SUP name )
+attributetype ( AliEnVOConfig:39 NAME 'authenSubject' SUP name )
+attributetype ( AliEnVOConfig:40 NAME 'nwsPort' SUP name )
+attributetype ( AliEnVOConfig:41 NAME 'nwsDatabase' SUP name )
+attributetype ( AliEnVOConfig:42 NAME 'nwsDriver' SUP name )
+attributetype ( AliEnVOConfig:43 NAME 'nwsHost' SUP name )
+attributetype ( AliEnVOConfig:44 NAME 'nwsDbHost' SUP name )
+attributetype ( AliEnVOConfig:45 NAME 'monalisaLUS' SUP name)
+attributetype ( AliEnVOConfig:46 NAME 'monalisaGroup' SUP name)
+attributetype ( AliEnVOConfig:47 NAME 'proofPort' SUP name )
+attributetype ( AliEnVOConfig:48 NAME 'proofHost' SUP name )
+attributetype ( AliEnVOConfig:49 NAME 'proofDatabase' SUP name )
+attributetype ( AliEnVOConfig:50 NAME 'proofDriver' SUP name )
+attributetype ( AliEnVOConfig:51 NAME 'proofDbHost' SUP name )
+attributetype ( AliEnVOConfig:52 NAME 'proofMuxPortRange' SUP name )
+attributetype ( AliEnVOConfig:53 NAME 'proofCryptPassword' SUP name )
+attributetype ( AliEnVOConfig:54 NAME 'proofLogin' SUP name )
+attributetype ( AliEnVOConfig:55 NAME 'proofTimeout' SUP name )
+attributetype ( AliEnVOConfig:56 NAME 'proofMasterPort' SUP name )
+attributetype ( AliEnVOConfig:57 NAME 'proofPackage' SUP name )
+attributetype ( AliEnVOConfig:58 NAME 'jobManagerAddress' SUP name)
+attributetype ( AliEnVOConfig:59 NAME 'jobBrokerAddress' SUP name)
+attributetype ( AliEnVOConfig:60 NAME 'webserverURL' SUP name )
+attributetype ( AliEnVOConfig:61 NAME 'myproxyServer' SUP name )
+attributetype ( AliEnVOConfig:62 NAME 'gContainerAddress' SUP name )
+attributetype ( AliEnVOConfig:63 NAME 'rlsAddress' SUP name )
+attributetype ( AliEnVOConfig:64 NAME 'portalUrl' SUP name )
+attributetype ( AliEnVOConfig:65 NAME 'vomsServer' SUP name )
+attributetype ( AliEnVOConfig:66 NAME 'apiServer' SUP name )
+attributetype ( AliEnVOConfig:67 NAME 'jabberServer' SUP name )
+attributetype ( AliEnVOConfig:68 NAME 'agentApiProxy' SUP name )
+attributetype ( AliEnVOConfig:69 NAME 'lbsgAddress' SUP name )
+attributetype ( AliEnVOConfig:70 NAME 'lbsgDatabase' SUP name )
+attributetype ( AliEnVOConfig:71 NAME 'si2kNominalPrice' SUP name )
+attributetype ( AliEnVOConfig:72 NAME 'bankAdmin' SUP name )
+
+objectclass ( AliEnVOConfig  NAME 'AliEnVOConfig'
+	SUP ( top $ organizationalUnit ) STRUCTURAL
+	MUST ( proxyPort $ proxyHost $ authPort $ authenDatabase $
+	       authenHost $ authenDriver $ authHost $ catalogHost $
+	       catalogPort $ catalogDatabase $ catalogDriver $
+	       queuePort $ queueHost $ queueDatabase $queueDriver $
+	       queueDbHost $ logPort $ logHost $ userDir $ 
+	       isPort $ isDatabase $ isDriver $ isDbHost $ isHost $
+	       nwsPort $ nwsDatabase $ nwsDriver $ nwsDbHost $ nwsHost $
+	       clusterMonitorUser $ clustermonitorPort $ 
+      	       brokerHost $ brokerPort $ transferManagerAddress $ 
+		transferBrokerAddress $ transferDatabase $
+		transferOptimizerAddress $ jobOptimizerAddress $ 
+		jobDatabase $ ldapmanager $ jobManagerAddress $ 
+		jobBrokerAddress )
+	MAY ( processPort $catalogueDatabase $ catalogueOptimizerAddress $
+	      monalisaLUS $ monalisaGroup $ authenSubject $ proofPort $ proofDatabase $
+	      proofDriver $ proofDbHost $ proofHost $ proofMuxPortRange $
+	      proofCryptPassword $ proofLogin $ proofTimeout $ proofMasterPort $ proofPackage $ 
+	      webserverURL $ myproxyServer $ gContainerAddress $ rlsAddress $
+	      portalUrl $ vomsServer $ apiServer $ jabberServer $ agentApiProxy$ 
+ lbsgAddress $ lbsgDatabase $ si2kNominalPrice $ bankAdmin )
+	      
+#AliEnUser
+
+
+objectidentifier AliEnUser     ALIEN_BASE:3
+
+attributetype ( AliEnUser:1 NAME 'sshkey' SYNTAX 1.3.6.1.4.1.1466.115.121.1.5 )
+attributetype ( AliEnUser:2 NAME 'roles' SUP name )
+attributetype ( AliEnUser:3 NAME 'subject' SUP name )
+attributetype ( AliEnUser:4 NAME 'accountName' SUP name )
+
+objectclass ( AliEnUser  NAME 'AliEnUser'
+ 	     SUP ( top ) 
+	     MAY ( sshkey $ roles $ subject $ accountName )
+	      )
+#AliEnUser
+
+
+#AliEn Package
+
+
+
+objectidentifier AliEnPackage  ALIEN_BASE:4
+
+
+attributetype ( AliEnPackage:1 NAME 'path' SUP name )
+attributetype ( AliEnPackage:2 NAME 'version' SUP name )
+attributetype ( AliEnPackage:3 NAME 'options' SUP name )
+attributetype ( AliEnPackage:4 NAME 'packVersion' SUP name )
+attributetype ( AliEnPackage:5 NAME 'package' SUP name )
+attributetype ( AliEnPackage:6 NAME 'require' SUP name )
+
+
+objectclass ( AliEnPackage  NAME 'AliEnPackage'
+	SUP ( top ) 
+	MUST ( path $ package $ version $ packVersion )
+	MAY  ( options $ require )
+	      )
+#AliEn SimpleSE
+
+objectidentifier AliEnMSS  ALIEN_BASE:5
+
+
+attributetype ( AliEnMSS:1 NAME 'mss' SUP name )
+attributetype ( AliEnMSS:2 NAME 'savedir' SUP name )
+attributetype ( AliEnMSS:3 NAME 'tmpdir' SUP name )
+attributetype ( AliEnMSS:6 NAME 'lvmdatabase' SUP name )
+attributetype ( AliEnMSS:7 NAME 'uploadEndpoint' SUP name )
+attributetype ( AliEnMSS:8 NAME 'ioDaemons' SUP name )
+attributetype ( AliEnMSS:9 NAME 'environment' SUP name )
+attributetype ( AliEnMSS:10 NAME 'category' SUP name )
+attributetype ( AliEnMSS:11 NAME 'ioDaemonsConfig' SYNTAX 1.3.6.1.4.1.1466.115.121.1.5 )
+
+objectclass ( AliEnMSS  NAME 'AliEnMSS'
+	SUP ( top ) 
+	MUST ( name $ mss $ savedir )
+	MAY  ( options $ tmpdir $ lvmdatabase $ uploadEndpoint $ ioDaemons
+               $ environment $ category $ ioDaemonsConfig )
+	      )
+
+#AliEn SE
+
+
+objectidentifier AliEnSOAPServer  ALIEN_BASE:6
+
+
+attributetype ( AliEnSOAPServer:4 NAME 'port' SUP name )
+attributetype ( AliEnSOAPServer:5 NAME 'certsubject' SUP name )
+
+
+objectclass ( AliEnSOAPServer  NAME 'AliEnSOAPServer'
+	SUP ( top ) 
+	MUST ( host $ port )
+	MAY  ( certsubject )
+	      )
+
+#AliEn SE
+
+objectidentifier AliEnSE  ALIEN_BASE:7
+
+objectclass ( AliEnSE  NAME 'AliEnSE'
+	SUP ( AliEnSOAPServer $ AliEnMSS )
+	      )
+
+
+
+
+#AliEn CE
+
+
+objectidentifier AliEnCE  ALIEN_BASE:8
+
+
+attributetype ( AliEnCE:1 NAME 'maxjobs' SUP name )
+attributetype ( AliEnCE:2 NAME 'jobs' SUP name )
+attributetype ( AliEnCE:3 NAME 'type' SUP name )
+attributetype ( AliEnCE:4 NAME 'submitcmd' SUP name )
+attributetype ( AliEnCE:5 NAME 'submitarg' SUP name )
+attributetype ( AliEnCE:6 NAME 'killcmd' SUP name )
+attributetype ( AliEnCE:7 NAME 'killarg' SUP name )
+attributetype ( AliEnCE:8 NAME 'statuscmd' SUP name )
+attributetype ( AliEnCE:9 NAME 'statusarg' SUP name )
+attributetype ( AliEnCE:10 NAME 'packages' SUP name )
+attributetype ( AliEnCE:11 NAME 'maxqueuedjobs' SUP name )
+attributetype ( AliEnCE:12 NAME 'TTL' SUP name )
+attributetype ( AliEnCE:13 NAME 'si2kPrice' SUP name )
+
+
+objectclass ( AliEnCE  NAME 'AliEnCE'
+	SUP ( top ) 
+	MUST ( name $ type $ host $maxqueuedjobs  )
+	MAY  ( maxjobs $ submitcmd $ submitarg $ killcmd $ 
+               killarg $ statuscmd $ statusarg $ packages $ TTL $ si2kPrice 
+	       $ environment )
+	      )
+#AliEn FTD
+
+
+objectidentifier AliEnFTD  ALIEN_BASE:9
+
+
+attributetype ( AliEnFTD:2 NAME 'allowedDirs' SUP name )
+attributetype ( AliEnFTD:3 NAME 'maxTransfers' SUP name )
+attributetype ( AliEnFTD:4 NAME 'localOptions' SUP name )
+attributetype ( AliEnFTD:5 NAME 'remoteOptions' SUP name )
+attributetype ( AliEnFTD:6 NAME 'protocol' SUP name )
+
+
+objectclass ( AliEnFTD  NAME 'AliEnFTD'
+	SUP ( top ) 
+	MUST ( name $ port $ host $ certsubject $ allowedDirs $ maxTransfers )
+        MAY ( protocol $ localOptions $ remoteOptions )
+	      )
+#AliEnSite
+
+
+objectidentifier AliEnSite ALIEN_BASE:10
+
+
+attributetype ( AliEnSite:1 NAME 'domain' SUP name )
+attributetype ( AliEnSite:2 NAME 'logdir' SUP name )
+attributetype ( AliEnSite:3 NAME 'cachedir' SUP name )
+attributetype ( AliEnSite:4 NAME 'workdir' SUP name )
+attributetype ( AliEnSite:5 NAME 'administrator' SUP name )
+attributetype ( AliEnSite:6 NAME 'location' SUP name )
+attributetype ( AliEnSite:7 NAME 'country' SUP name )
+attributetype ( AliEnSite:8 NAME 'longitude' SUP name )
+attributetype ( AliEnSite:9 NAME 'latitude' SUP name )
+attributetype ( AliEnSite:10 NAME 'record' SUP name )
+attributetype ( AliEnSite:11 NAME 'savese' SUP name )
+attributetype ( AliEnSite:12 NAME 'packmanAddress' SUP name )
+attributetype ( AliEnSite:13 NAME 'localconfig' SUP name )
+
+
+objectclass ( AliEnSite  NAME 'AliEnSite'
+	SUP ( top ) 
+	MUST ( domain $ logdir $ tmpdir $ cachedir )
+	MAY ( savese $ packages $ workdir $ processPort $
+              administrator $ location $ country $ longitude $ latitude $ 
+	      record $ packmanAddress $ localconfig $ environment $
+              accountName )
+	      )
+
+#AliEnHostConfig
+
+
+objectidentifier AliEnHostConfig ALIEN_BASE:11
+
+
+attributetype ( AliEnHostConfig:1 NAME 'ce' SUP name )
+attributetype ( AliEnHostConfig:2 NAME 'se' SUP name )
+attributetype ( AliEnHostConfig:3 NAME 'ftd' SUP name )
+attributetype ( AliEnHostConfig:4 NAME 'closese' SUP name )
+attributetype ( AliEnHostConfig:5 NAME 'clc' SUP name )
+attributetype ( AliEnHostConfig:6 NAME 'tcprouter' SUP name )
+attributetype ( AliEnHostConfig:7 NAME 'packman' SUP name )
+attributetype ( AliEnHostConfig:8 NAME 'monalisa' SUP name )
+
+objectclass ( AliEnHostConfig  NAME 'AliEnHostConfig'
+	SUP ( top ) 
+	MAY ( ce $ se $ ftd $ clc $ tcprouter $ packages $savese $ logdir $ cachedir $ tmpdir $ packman $ 
+	      closese $ monalisa $ workdir $ localconfig )
+	MUST ( host )
+	      )
+
+#AliEnRoles
+
+objectidentifier AliEnRole ALIEN_BASE:12
+
+
+attributetype ( AliEnRole:1 NAME 'users' SUP name )
+attributetype ( AliEnRole:2 NAME 'public' SUP name )
+
+objectclass ( AliEnRole  NAME 'AliEnRole'
+	SUP ( top ) 
+	     MAY ( users $ public $ accountName ) 
+	     MUST ( uid )
+	      )
+
+objectidentifier AliEnPartition ALIEN_BASE:13
+
+
+attributetype ( AliEnPartition:1 NAME 'CEname' SUP name )
+
+objectclass ( AliEnPartition  NAME 'AliEnPartition'
+	SUP ( top ) 
+	     MAY ( CEname  ) 
+	     MUST ( name )
+	      )
+
+#AliEn CLC
+
+
+objectidentifier AliEnCLC  ALIEN_BASE:14
+
+
+attributetype ( AliEnCLC:1 NAME 'lvmse' SUP name )
+attributetype ( AliEnCLC:2 NAME 'maxserver' SUP name )
+attributetype ( AliEnCLC:3 NAME 'preloadcachesize' SUP name )
+attributetype ( AliEnCLC:4 NAME 'transferlimit' SUP name )
+attributetype ( AliEnCLC:5 NAME 'ioport' SUP name )
+attributetype ( AliEnCLC:6 NAME 'monitorport' SUP name )
+attributetype ( AliEnCLC:7 NAME 'slaveserver' SUP name )
+attributetype ( AliEnCLC:8 NAME 'cachedirs' SUP name )
+attributetype ( AliEnCLC:9 NAME 'cachesize' SUP name )
+attributetype ( AliEnCLC:10 NAME 'cachelevel' SUP name )
+attributetype ( AliEnCLC:11 NAME 'cachelowbound' SUP name )
+attributetype ( AliEnCLC:12 NAME 'cacheupperbound' SUP name )
+attributetype ( AliEnCLC:13 NAME 'resyncflag' SUP name )
+
+objectclass ( AliEnCLC  NAME 'AliEnCLC'
+	SUP ( top ) 
+	MUST ( lvmse $ name $ host $ port $ resyncflag )
+	MAY  ( maxserver $ preloadcachesize $ transferlimit $ ioport $ 
+               monitorport $ slaveserver $ cachedirs $ cachesize $
+	       cachelevel $ cachelowbound $ cacheupperbound )
+	      )
+
+#AliEn TCPROUTER
+
+
+objectidentifier AliEnTCPROUTER  ALIEN_BASE:15
+
+
+attributetype ( AliEnTCPROUTER:1 NAME 'muxport' SUP name )
+attributetype ( AliEnTCPROUTER:2 NAME 'muxlisten' SUP name )
+attributetype ( AliEnTCPROUTER:3 NAME 'muxreuse' SUP name )
+attributetype ( AliEnTCPROUTER:4 NAME 'muxexecutable' SUP name)
+attributetype ( AliEnTCPROUTER:5 NAME 'muxexecutableport' SUP name )
+
+objectclass ( AliEnTCPROUTER  NAME 'AliEnTCPROUTER'
+	SUP ( top ) 
+	MUST ( name $ host $ port $ muxport $ muxlisten $ muxreuse $ muxexecutable $ muxexecutableport )
+	)
+
+
+#AliEn GASMODULE
+
+objectidentifier AliEnGASMODULE  ALIEN_BASE:16
+
+attributetype ( AliEnGASMODULE:1 NAME 'mandatory' SUP name )
+attributetype ( AliEnGASMODULE:2 NAME 'interface' SUP name)
+attributetype ( AliEnGASMODULE:3 NAME 'alias' SUP name)
+
+objectclass ( AliEnGASMODULE  NAME 'AliEnGASMODULE'
+	SUP ( top )
+	MUST ( alias $ type $ mandatory $ interface $ options )
+	)
+
+
+#AliEn gContainer
+
+objectidentifier AliEngContainer  ALIEN_BASE:17
+
+attributetype ( AliEngContainer:1 NAME 'gContainerParent' SUP name )
+attributetype ( AliEngContainer:2 NAME 'geoIPDatabase' SUP name )
+attributetype ( AliEngContainer:3 NAME 'reportTime' SUP name )
+attributetype ( AliEngContainer:4 NAME 'wakeupTime' SUP name )
+
+objectclass ( AliEngContainer  NAME 'AliEngContainer'
+	SUP ( top )
+  MUST ( ou $ geoIPDatabase )
+	MAY ( gContainerParent $ reportTime $ wakeupTime)
+	)
+
+
+#AliEn gContainerJudge
+
+objectidentifier AliEngContainerJudge  ALIEN_BASE:18
+
+attributetype ( AliEngContainerJudge:1 NAME 'weight' SUP name )
+attributetype ( AliEngContainerJudge:2 NAME 'active' SUP name )
+
+objectclass ( AliEngContainerJudge  NAME 'AliEngContainerJudge'
+	SUP ( top )
+  MUST ( name $ weight $ active)
+	)
+
+#AliEn gContainerService
+
+objectidentifier AliEngContainerService  ALIEN_BASE:19
+
+attributetype ( AliEngContainerService:1 NAME 'authentication' SUP name )
+attributetype ( AliEngContainerService:2 NAME 'global' SUP name )
+attributetype ( AliEngContainerService:3 NAME 'creatorClass' SUP name )
+
+objectclass ( AliEngContainerService  NAME 'AliEngContainerService'
+	SUP ( top )
+  MUST ( name $ creatorClass $ global )
+  MAY ( authentication )
+	)
+
+#AliEn gContainerServiceGAS
+
+objectidentifier AliEngContainerServiceGAS  ALIEN_BASE:20
+
+attributetype ( AliEngContainerServiceGAS:1 NAME 'gasModules' SUP name )
+
+objectclass ( AliEngContainerServiceGAS  NAME 'AliEngContainerServiceGAS'
+	SUP ( top )
+  MUST ( gasModules )
+	)
+
+#AliEn gContainerServiceExWrapper
+
+objectidentifier AliEngContainerServiceExWrapper  ALIEN_BASE:21
+
+attributetype ( AliEngContainerServiceExWrapper:1 NAME 'exec' SUP name )
+
+objectclass ( AliEngContainerServiceExWrapper  NAME 'AliEngContainerServiceExWrapper'
+	SUP ( top )
+  MUST ( exec )
+	)
+
+#AliEn AliEnPackMan
+
+objectidentifier AliEnPackMan  ALIEN_BASE:22
+
+attributetype ( AliEnPackMan:1 NAME 'installDir' SUP name )
+
+objectclass ( AliEnPackMan  NAME 'AliEnPackMan'
+	SUP ( top )
+  	MUST ( name $ host $ port $ installDir )
+	)
+
+
+#AliEn Monitoring
+
+objectidentifier AliEnMonaLisa  ALIEN_BASE:23
+
+attributetype ( AliEnMonaLisa:1 NAME 'group' SUP name)
+attributetype ( AliEnMonaLisa:2 NAME 'lus' SUP name)
+attributetype ( AliEnMonaLisa:3 NAME 'shouldUpdate' SUP name)
+attributetype ( AliEnMonaLisa:4 NAME 'javaOpts' SUP name)
+attributetype ( AliEnMonaLisa:5 NAME 'storeType' SUP name)
+attributetype ( AliEnMonaLisa:6 NAME 'addModules' SUP name)
+attributetype ( AliEnMonaLisa:7 NAME 'removeModules' SUP name)
+attributetype ( AliEnMonaLisa:8 NAME 'addProperties' SUP name)
+attributetype ( AliEnMonaLisa:9 NAME 'removeProperties' SUP name)
+attributetype ( AliEnMonaLisa:10 NAME 'apmonConfig' SUP name)
+
+objectclass ( AliEnMonaLisa  NAME 'AliEnMonaLisa'
+	SUP ( top )
+	MUST ( name )
+	MAY ( host $ group $ lus $ shouldUpdate $ javaOpts $ storeType $ addModules $ removeModules $ 
+		addProperties $ removeProperties $ apmonConfig $ 
+		administrator $ location $ country $ longitude $ latitude $ domain )
+	)
+
+objectidentifier AliEnApiService  ALIEN_BASE:24
+
+attributetype ( AliEnApiService:1 NAME 'prefork' SUP name)
+attributetype ( AliEnApiService:2 NAME 'perlmodule' SUP name)
+attributetype ( AliEnApiService:3 NAME 'sessionlifetime' SUP name)
+attributetype ( AliEnApiService:4 NAME 'sslport' SUP name)
+attributetype ( AliEnApiService:5 NAME 'sslkeydir' SUP name)
+attributetype ( AliEnApiService:6 NAME 'sslkeyfile' SUP name)
+attributetype ( AliEnApiService:7 NAME 'ssldhfile' SUP name)
+attributetype ( AliEnApiService:8 NAME 'sslcertdir' SUP name)
+attributetype ( AliEnApiService:9 NAME 'authorizationfile' SUP name)
+attributetype ( AliEnApiService:10 NAME 'user' SUP name)
+attributetype ( AliEnApiService:11 NAME 'role' SUP name)
+attributetype ( AliEnApiService:12 NAME 'useproxy' SUP name)
+attributetype ( AliEnApiService:14 NAME 'organisation' SUP name)
+attributetype ( AliEnApiService:16 NAME 'debug' SUP name)
+attributetype ( AliEnApiService:17 NAME 'commandlogging' SUP name)
+attributetype ( AliEnApiService:18 NAME 'performancelogging' SUP name)
+attributetype ( AliEnApiService:19 NAME 'filteredcommands' SUP name)
+attributetype ( AliEnApiService:20 NAME 'localprivkeyfile' SUP name)
+attributetype ( AliEnApiService:21 NAME 'localpubkeyfile' SUP name)
+attributetype ( AliEnApiService:22 NAME 'remoteprivkeyfile' SUP name)
+attributetype ( AliEnApiService:23 NAME 'remotepubkeyfile' SUP name)
+attributetype ( AliEnApiService:25 NAME 'uselocalconfig' SUP name)
+
+objectclass ( AliEnApiService  NAME 'AliEnApiService'
+        SUP ( top )
+        MUST ( name $ host $ port $ localprivkeyfile $ 
+              localpubkeyfile $ remoteprivkeyfile $ remotepubkeyfile )
+        MAY ( prefork $ perlmodule $ sessionlifetime $ sslport $ sslkeydir $ sslkeyfile $ ssldhfile $
+              sslcertdir $ authorizationfile $ user $ role $ useproxy $ domain $ organisation $ ldapdn $
+              debug $ commandlogging $ performancelogging $ filteredcommands $ environment 
+		$ uselocalconfig )
+ )
+
