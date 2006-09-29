@@ -1876,9 +1876,16 @@ sub setExpire{
   defined $seconds or $seconds="";
   my $table=$self->{INDEX_TABLENAME}->{name};
   $lfn=~ s{^$self->{INDEX_TABLENAME}->{lfn}}{};
-  $seconds=~ /^\d+$/    or 
-    $self->info("The number of seconds ('$seconds') is not a number") and return;
-  return $self->update($table, {expiretime=>"now()+$seconds"}, "lfn='$lfn'", {noquotes=>1});
+
+  my $expire="now()+$seconds";
+  if ($seconds =~ /^-1$/){
+    $expire="null";
+  }else {
+    $seconds=~ /^\d+$/ or 
+      $self->info("The number of seconds ('$seconds') is not a number") 
+	and return;
+  }
+  return $self->update($table, {expiretime=>$expire}, "lfn='$lfn'", {noquotes=>1});
 }
 
 
