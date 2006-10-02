@@ -97,28 +97,7 @@ do
 	        StartIS|StartServer)
 		    Sleep=2
 	        ;;
-		Stophttpd|Starthttpd|Statushttpd)
-		    COMMAND="true"
-		    case "$function" in 
-			Start)
-			    DIR=${AliEnCommand%bin/alien}
-
-			    if [ $CHANGEUSER == 0 ]  ;
-			    then
-				$DIR/httpd/bin/httpd >/dev/null 2>&1
-			    else
-				su - $AliEnUser -c "$DIR/httpd/bin/httpd >/dev/null 2>&1"
-			    fi
-			;;
-			Stop)
-			    pkill httpd >/dev/null 2>&1
-			;;
-			Status)
-			    ps -ef |grep httpd |grep -v grep> /dev/null 2>&1
-			;;
-		    esac
-		    [ $? -ne 0 ] &&  COMMAND="false"
-		;;
+# Start/Stop/Status for httpd moved to alien-common/scripts
 		*)
 		    Sleep=0
 		;;
