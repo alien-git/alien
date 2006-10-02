@@ -119,9 +119,9 @@ objectclass ( AliEnVOConfig  NAME 'AliEnVOConfig'
 	      proofDriver $ proofDbHost $ proofHost $ proofMuxPortRange $
 	      proofCryptPassword $ proofLogin $ proofTimeout $ proofMasterPort $ proofPackage $ 
 	      webserverURL $ myproxyServer $ gContainerAddress $ rlsAddress $
-	      portalUrl $ vomsServer $ apiServer $ jabberServer $ agentApiProxy$ 
- lbsgAddress $ lbsgDatabase $ si2kNominalPrice $ bankAdmin )
-	      
+	      portalUrl $ vomsServer $ apiServer $ jabberServer $ agentApiProxy $ 
+               lbsgAddress $ lbsgDatabase $ si2kNominalPrice $ bankAdmin )
+	)
 #AliEnUser
 
 
