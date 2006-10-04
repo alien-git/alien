@@ -273,6 +273,7 @@ attributetype ( AliEnSite:10 NAME 'record' SUP name )
 attributetype ( AliEnSite:11 NAME 'savese' SUP name )
 attributetype ( AliEnSite:12 NAME 'packmanAddress' SUP name )
 attributetype ( AliEnSite:13 NAME 'localconfig' SUP name )
+attributetype ( AliEnSite:14 NAME 'closese' SUP name )
 
 
 objectclass ( AliEnSite  NAME 'AliEnSite'
@@ -281,7 +282,7 @@ objectclass ( AliEnSite  NAME 'AliEnSite'
 	MAY ( savese $ packages $ workdir $ processPort $
               administrator $ location $ country $ longitude $ latitude $ 
 	      record $ packmanAddress $ localconfig $ environment $
-              accountName )
+              accountName $ closese )
 	      )
 
 #AliEnHostConfig
