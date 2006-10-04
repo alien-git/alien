@@ -294,7 +294,6 @@ objectidentifier AliEnHostConfig ALIEN_BASE:11
 attributetype ( AliEnHostConfig:1 NAME 'ce' SUP name )
 attributetype ( AliEnHostConfig:2 NAME 'se' SUP name )
 attributetype ( AliEnHostConfig:3 NAME 'ftd' SUP name )
-attributetype ( AliEnHostConfig:4 NAME 'closese' SUP name )
 attributetype ( AliEnHostConfig:5 NAME 'clc' SUP name )
 attributetype ( AliEnHostConfig:6 NAME 'tcprouter' SUP name )
 attributetype ( AliEnHostConfig:7 NAME 'packman' SUP name )
