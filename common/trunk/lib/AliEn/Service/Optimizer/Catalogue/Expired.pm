@@ -49,9 +49,12 @@ sub checkExpired{
     $self->info("We have to do something with the entry $entry");
     use Data::Dumper;
     print Dumper($entry);
-
+    my $newSEList=$db->queryValue("select group_concat(seNumber) from SE 
+   where '$entry->{seStringList}' like concat('\%,',seNumber,',\%') and seQoS not like 'replica'");
+    $newSEList and $newSEList=",$newSEList,";
     my $lfn="$dir/$entry->{lfn}";
-    if (!$entry->{seStringList}) {
+    $db->update($table, {seStringList=>$newSEList}, "lfn='$entry->{lfn}'");
+    if (!$newSEList) {
       $self->info("The $lfn file is not in any custodial SE. Renaming it");
       $self->{CATALOGUE}->execute("mv", $lfn, "$lfn.expired");
       my ($owner, $gowner)=($entry->{owner}, $entry->{gowner});
