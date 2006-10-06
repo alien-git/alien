@@ -340,7 +340,7 @@ sub GetSite {
     my $entry = $mesg->entry(0);
 
     my $entries={LOG_DIR=>'logdir', TMP_DIR=>'tmpdir',
-		 SITE_LATITUDE=>'latitude', SITE_LOCATION=>'location', 
+		 SITE_LATITUDE=>'latitude', SITE_LONGITUDE=>'longitude', SITE_LOCATION=>'location', 
 		 SITE_ADMINISTRATOR=>'administrator',
 		 SITE_COUNTRY=>'country', PACKMAN_ADDRESS=>'packmanAddress',
 		 LOCAL_CONFIG=>'localconfig', WORK_DIR=>'workdir',
