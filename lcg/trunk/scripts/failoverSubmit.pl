@@ -1,4 +1,3 @@
-#!/usr/bin/perl -w
 # failoverSubmit.pl -rb <rb1,rb2,...> [arguments]
 # Does edg-job-submit to a failover list of RBs
 # Patricia Mendez-Lorenzo, Stefano Bagnasco
