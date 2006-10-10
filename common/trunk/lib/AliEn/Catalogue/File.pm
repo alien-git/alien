@@ -399,7 +399,7 @@ sub f_setExpired{
     $self->debug(2, "Let's put the expiration time of $file");
     $self->{DATABASE}->setExpire($file, $seconds) or return;
 
-    $self->info("The file $file will expired in $seconds seconds");
+    $self->info("The file $file will expire in $seconds seconds");
   }
     return 1;
 

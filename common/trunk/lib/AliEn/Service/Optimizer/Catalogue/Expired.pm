@@ -49,8 +49,10 @@ sub checkExpired{
     $self->info("We have to do something with the entry $entry");
     use Data::Dumper;
     print Dumper($entry);
-    my $newSEList=$db->queryValue("select group_concat(seNumber) from SE 
-   where '$entry->{seStringList}' like concat('\%,',seNumber,',\%') and seQoS not like 'replica'");
+    my $query="select group_concat(seNumber) from SE 
+   where '$entry->{seStringlist}' like concat('\%,',seNumber,',\%') and (seQoS not like 'replica' or seQoS is NULL)";
+    $self->info("Doing $query");
+    my $newSEList=$db->queryValue($query);
     $newSEList and $newSEList=",$newSEList,";
     my $lfn="$dir/$entry->{lfn}";
     $db->update($table, {seStringList=>$newSEList}, "lfn='$entry->{lfn}'");
