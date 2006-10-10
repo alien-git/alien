@@ -123,7 +123,7 @@ print "\n\n $alienLdapDn\n";
           system(" $ALIEN_ROOT/etc/rc.d/init.d/alien-mysqld status ");
 
           #restart LBSG (httpd)
-          system("pkill httpd");
+          system("$ALIEN_ROOT/httpd/bin/httpd -k stop");
           sleep(5);
           system("$ALIEN_ROOT/httpd/bin/httpd");
           sleep(2);

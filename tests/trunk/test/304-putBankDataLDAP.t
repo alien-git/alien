@@ -134,7 +134,7 @@ my $base = $config->{LDAPDN};
 
 
           #restart LBSG (httpd) 
-          system("pkill httpd");
+          system("$ALIEN_ROOT/httpd/bin/httpd -k stop");
           sleep(5);
 	  system("$ALIEN_ROOT/httpd/bin/httpd");
           system("ps -ef|grep httpd"); 

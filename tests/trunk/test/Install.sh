@@ -433,7 +433,7 @@ EXECUTE_SHELL()
     endTime=`date +"%s"`
     SEND_TO_ML "${group}_nTests" $nCmds "${group}_nSuccess" $nCmds "${group}_pSuccess" 100 "${group}_time" `expr $endTime - $startTime`
 }
-#BANK_TESTS_LIST="304-putBankDataLDAP 301-bankAccount 302-transactFunds 303-addFunds "
+BANK_TESTS_LIST="304-putBankDataLDAP 301-bankAccount 302-transactFunds 303-addFunds "
 
 JOB_TESTS_LIST="$BANK_TESTS_LIST 70-x509 89-jdl 19-ClusterMonitor 21-submit 73-updateCE 22-execute 305-execOrder 62-inputfile 23-resubmit 26-ProcessMonitorOutput 305-execOrder 105-killRunningJob 85-inputdata 94-inputpfn 98-jobexit 64-jobemail 77-rekill 86-split 87-splitFile 88-splitArguments 115-queueList 118-validateJob 119-outputDir 120-production 124-OutputArchive 126-OutputInSeveralSE 133-queueInfo 134-dumplist 135-inputdata2 137-userArchive 140-jobWithMemory 141-executingTwoJobs 152-inputdatacollection 153-splitInputDataCollection 157-zip 159-bigoutput 160-JDLenvironment 161-userGUID"
 PACKAGE_TESTS_LIST="75-PackMan 76-jobWithPackage 82-packageDependencies 84-sharedPackage 100-tcshPackage 83-gccPackage 130-localConfig 131-definedPackage"
