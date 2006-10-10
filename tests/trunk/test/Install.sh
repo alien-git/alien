@@ -447,7 +447,7 @@ GAPI_TESTS_LIST="500-apiservice 501-apiservice-connect 502-apiservice-motd 600-a
 CVS_INSTALL_LIST="10-cvs-co "
 
 
-NEW_VO_LIST="01-use 02-classads 04-createorgldap 03-createorgdb 61-rotate 05-createorgservices 49-uninitialized"
+NEW_VO_LIST="01-use 02-classads 04-createorgldap 03-createorgdb 61-rotate 05-createorgservices 300-prepareBankService 49-uninitialized"
 PERFORMANCE_TESTS_LIST="106-performanceInsert 108-performanceQuery 107-performanceDelete"
 
 
