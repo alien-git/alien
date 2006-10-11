@@ -59,6 +59,7 @@ sub initialize {
   eval "require $name"
     or $self->{LOGGER}->warning( "SE", "Error: $name does not exist $! and $@" )
       and return;
+  $self->{FORKCHECKPROCESS}=1;
 
   $self->{MSS} = $name->new($self);
   $self->{MSS}
@@ -1038,6 +1039,48 @@ sub startIOdaemon {
     return $var;
 }
 
+sub  checkWakesUp {
+  my $self = shift;
+  my $silent =shift;
+  
+  if (!$self->{FIRST_EXEC} ){
+    $self->{FIRST_EXEC}=1;
+    $self->{LOGGER}->redirect("$self->{CONFIG}->{LOG_DIR}/SE_remove.log");
+  }
+  my $method="info";
+  my @methodData=();
+  $silent and $method="debug" and push @methodData, 1;
+  $self->$method(@methodData, "READY TO DELETE THE ENTRIES");
+
+ foreach my $subSE (grep (s/^SE_(VIRTUAL_)/$1/ , keys %{$self->{CONFIG}}), "") {
+    my ($seName, $seInfo)=$self->checkVirtualSEName($subSE);
+    
+    my $entries=$seInfo->{lvm}->{DB}->query("SELECT binary2string(guid) as guid, pfn from TODELETE limit 1000");
+    foreach my $entry (@$entries){
+      $self->info("Ready to do something with");
+      use Data::Dumper;
+      print Dumper ($entry);
+      my $pfn=AliEn::SE::Methods->new($entry->{pfn}) or next;
+      my $path=$pfn->path();
+      if (-f $path){
+	$self->info("The path $path exists. Let's move it to the olddirectory");
+	my @info=stat($path);
+	my $now=time;
+	if ($info[9]+36000<$now){
+	  $self->info("The file is more than ten hours old. Let's delete it");
+
+	  $seInfo->{lvm}->removeFile({file=>$entry->{pfn},
+				      guid=>$entry->{guid}}) 
+	    or 	$self->info("Error deleting the entry from the LVM") and next;
+	  $self->info("And removing the file");
+	  system("mv", $path, "$ENV{HOME}/OLDFILES");
+	}
+      }
+    }
+
+}
+  return;
+}
 sub setMSSEnvironment{
   my $self=shift;
   my $mss=shift;
