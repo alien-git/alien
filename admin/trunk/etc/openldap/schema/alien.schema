@@ -98,6 +98,7 @@ attributetype ( AliEnVOConfig:69 NAME 'lbsgAddress' SUP name )
 attributetype ( AliEnVOConfig:70 NAME 'lbsgDatabase' SUP name )
 attributetype ( AliEnVOConfig:71 NAME 'si2kNominalPrice' SUP name )
 attributetype ( AliEnVOConfig:72 NAME 'bankAdmin' SUP name )
+attributetype ( AliEnVOConfig:73 NAME 'bankCurrency' SUP name )
 
 objectclass ( AliEnVOConfig  NAME 'AliEnVOConfig'
 	SUP ( top $ organizationalUnit ) STRUCTURAL
@@ -120,7 +121,7 @@ objectclass ( AliEnVOConfig  NAME 'AliEnVOConfig'
 	      proofCryptPassword $ proofLogin $ proofTimeout $ proofMasterPort $ proofPackage $ 
 	      webserverURL $ myproxyServer $ gContainerAddress $ rlsAddress $
 	      portalUrl $ vomsServer $ apiServer $ jabberServer $ agentApiProxy $ 
-               lbsgAddress $ lbsgDatabase $ si2kNominalPrice $ bankAdmin )
+               lbsgAddress $ lbsgDatabase $ si2kNominalPrice $ bankAdmin $ bankCurrency )
 	)
 #AliEnUser
 
@@ -173,12 +174,13 @@ attributetype ( AliEnMSS:8 NAME 'ioDaemons' SUP name )
 attributetype ( AliEnMSS:9 NAME 'environment' SUP name )
 attributetype ( AliEnMSS:10 NAME 'category' SUP name )
 attributetype ( AliEnMSS:11 NAME 'ioDaemonsConfig' SYNTAX 1.3.6.1.4.1.1466.115.121.1.5 )
+attributetype ( AliEnMSS:12 NAME 'QoS' SUP name )
 
 objectclass ( AliEnMSS  NAME 'AliEnMSS'
 	SUP ( top ) 
 	MUST ( name $ mss $ savedir )
 	MAY  ( options $ tmpdir $ lvmdatabase $ uploadEndpoint $ ioDaemons
-               $ environment $ category $ ioDaemonsConfig )
+               $ environment $ category $ ioDaemonsConfig $ QoS )
 	      )
 
 #AliEn SE
