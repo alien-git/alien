@@ -34,6 +34,7 @@ BEGIN { plan tests => 1 }
 		      "savedir", "$config->{LOG_DIR}/SE_DATA",
 		      "port", "8092",
 		      "certsubject",$subject,
+		      "QoS", 'custodial',
 		     ]) or exit(-2);
   $key="host=$config->{HOST},ou=Config,ou=CERN,ou=Sites,$config->{LDAPDN}";
   addLdapEntry($key, ["objectClass", ["AliEnHostConfig"],
