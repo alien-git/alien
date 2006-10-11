@@ -185,8 +185,7 @@ sub setAlive{
 #	->proxy("http://$self->{CONFIG}->{IS_HOST}:$self->{CONFIG}->{IS_PORT}",
 #	       timeout => 5)
 
-  if ($self->{SERVICE} ne "Logger")
-    {
+  if ($self->{SERVICE} ne "Logger")    {
       ($response) or
 	$self->{LOGGER}->warning( "Service", "IS is not up" ) and return;
     }

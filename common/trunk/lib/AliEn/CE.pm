@@ -2643,9 +2643,10 @@ sub f_getBalance {
     my $done = $self->{SOAP}->CallSOAP($self->{BANK_CONNECTION}, "getBalance",$user) or return;
        $done or ((print "Error: SOAP call to $self->{CONNECTION} getBalance failed\n") and return);
     
+  my $currency=$self->{CONFIG}->{BANK_CURRENCY} || "unit";
     my $result = $done->result;
        $result or ((print "Error: SOAP call to $self->{CONNECTION} getBalance returned nothing\n") and return);  
-    print " The remainder on $user account is $result AliDrams \n";
+    print " The remainder on $user account is $result $currency(s) \n";
   
   return 1;
 }
@@ -2694,17 +2695,19 @@ sub f_getTransactions{
     my $done = $self->{SOAP}->CallSOAP($self->{BANK_CONNECTION}, "getTransactions",$user) or return;
        $done or ((print "Error: SOAP call to $self->{BANK_CONNECTION}  getTransactions failed\n") and return);
     
-    my $result = $done->result;
-       $result or ((print "Error: SOAP call to $self->{BANK_CONNECTION} getTransactions returned nothing\n") and return);  
-
-      $result or return (-1, $done->paramsout || "Error reading result of  getTransactions SOAP call to LBSG service\n");
-         my @transactions = split "\n", $result;
-         my $transaction;
+  my $result = $done->result;
+  $result or ((print "Error: SOAP call to $self->{BANK_CONNECTION} getTransactions returned nothing\n") and return);  
+  
+  $result or return (-1, $done->paramsout || "Error reading result of  getTransactions SOAP call to LBSG service\n");
+  my @transactions = split "\n", $result;
+  my $transaction;
+  
     
     
-         my $output .= sprintf "%-16s %-16s %-16s %-25s \n", "To group",
+  my $currency=$self->{CONFIG}->{BANK_CURRENCY} || "unit";
+  my $output .= sprintf "%-16s %-16s %-16s %-25s \n", "To group",
                                                               "From group",
-                                                              "AliDrams",
+                                                              $currency."(s)",
                                                               "Moment";
     
     

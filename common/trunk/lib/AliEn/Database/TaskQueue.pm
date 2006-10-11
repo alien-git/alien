@@ -98,7 +98,7 @@ sub initialize {
   my $tables={ QUEUE=>{columns=>$queueColumns,
 		       id=>"queueId",
 		       index=>"queueId",
-		       extra_index=>["split", "status"]},
+		       extra_index=>["INDEX (split)", "INDEX (status)"]},
 	       QUEUEEXPIRED=>{columns=>$queueColumns,
 		       id=>"queueId",
 		       index=>"queueId"},	

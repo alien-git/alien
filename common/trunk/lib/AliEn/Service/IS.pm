@@ -46,7 +46,7 @@ sub initialize {
   }
 
   $self->{DB} = new AliEn::Database::IS($connect) or
-    print $self->{LOGGER}->info( "IS", "In initialize creation of IS database instance failed" )
+    print $self->info("In initialize creation of IS database instance failed" )
       and return;
 
   $self->{PORT}=$self->{CONFIG}->{'IS_PORT'};
@@ -93,7 +93,7 @@ sub setAlive {
   if($self->{MONITOR}){
     # send the alive status also to ML
     $self->{MONITOR}->sendBgMonitoring();
-    #$self->{LOGGER}->info("IS", "setAlive -> sent Bg Mon info to ML.");
+    #$self->info("setAlive -> sent Bg Mon info to ML.");
   }
   $self->{LASTALIVE}=$date+100;
   return $self->markAlive("IS", "IS", $self->{HOST}, $self->{PORT},
@@ -127,7 +127,7 @@ sub markAlive {
     or $self->{LOGGER}->error( "IS", "In markAlive error setting data for service $name in table $service")
       and return (-1, "Error inserting the entry in the database");
 
-  $self->{LOGGER}->info( "IS", "$service $name at $host $port is alive" );
+  $self->info("$service $name at $host $port is alive" );
   ($service eq "IS") or $self->setAlive();
   return $done;
 }
@@ -141,7 +141,7 @@ sub getRoute {
     my $size      = shift;
     my $finaldestPort = (shift or "8091");
 
-    $self->{LOGGER}->info( "IS", "Giving route from $source to $finaldest at  $finaldestPort" );
+    $self->info("Giving route from $source to $finaldest at  $finaldestPort" );
     my $result;
 
     my $host = $source;
@@ -179,7 +179,7 @@ sub getRoute {
 
 				my @tmpArr = ($route->{nextdest},$route->{method},$route->{soaphost},$route->{soapport});
 
-				$self->{LOGGER}->info( "IS", "Giving back route @tmpArr" );
+				$self->info("Giving back route @tmpArr" );
 
 				return @tmpArr;
             }
@@ -206,7 +206,7 @@ sub getRoute {
             $next = "*";
         }
     }
-    $self->{LOGGER}->info( "IS", "Giving back BBFTP $finaldest $finaldestPort" );
+    $self->info("Giving back BBFTP $finaldest $finaldestPort" );
     return ( $finaldest, "BBFTP", $finaldest, $finaldestPort );
 
 }
@@ -222,7 +222,7 @@ sub GetPhysicalFile {
     my $file       = shift;
     my $targetHost = shift;
     print STDERR "\n";
-    $self->{LOGGER}->info( "IS", "Sending file $file to $targetHost" );
+    $self->info("Sending file $file to $targetHost" );
     my $targetDomain = "";
     ( $targetHost =~ /\.([^\.]*\.[^\.]*)$/ ) and $targetDomain = $1;
     ($targetDomain)
@@ -239,13 +239,13 @@ sub GetPhysicalFile {
 
     $self->debug(1, "In getRoute sending file from $srcDomain to $targetDomain" );
     ( $srcDomain eq $targetDomain )
-      and $self->{LOGGER}->info( "IS", "Same source and target" )
+      and $self->info("Same source and target" )
       and return 1;
 
     my ( $srcFTD, $srcPort ) = $my_getActiveFTD->( $self->{DB}, $srcDomain );
 
     ($srcFTD)
-      or $self->{LOGGER}->info( "IS", "There are no active FTD at $srcDomain" )
+      or $self->info("There are no active FTD at $srcDomain" )
       and return;
 
     my ( $targetFTD, $targetPort ) =
@@ -253,7 +253,7 @@ sub GetPhysicalFile {
 
     ($targetFTD)
       or
-      $self->{LOGGER}->info( "IS", "There are no active FTD at $targetDomain" )
+      $self->info("There are no active FTD at $targetDomain" )
       and return;
 
     $self->debug(1, "In getRoute sending file from $srcFTD to $targetFTD" );
@@ -266,7 +266,7 @@ sub GetPhysicalFile {
       or $self->{LOGGER}->warning( "IS", "In getRoute impossible to contact FTD at $srcFTD:$srcPort" )
       and return;
 
-    $self->{LOGGER}->info( "IS", "Done with " . $FTDresponse->result );
+    $self->info("Done with " . $FTDresponse->result );
     return $FTDresponse->result;
 }
 
@@ -276,10 +276,10 @@ sub getService {
   my $service=shift;
   
   $service 
-    or $self->{LOGGER}->info("IS", "Service name is missing")
+    or $self->info("Service name is missing")
       and return (-1, "service name is missing");
   
-  $self->{LOGGER}->info( "IS", "Getting the $service of $name" );
+  $self->info("Getting the $service of $name" );
   
   # Fetching of host, port, protocols field of a row, containing the value of $name in the name field and statous is active, from the table $service of INFORMATIONSERVICE database. 
   my $ftd = $self->{DB}->getActiveServices($service,"host,port,protocols,certificate",$name);
@@ -289,10 +289,10 @@ sub getService {
       and return (-1, "error during execution of database query" );
   
   @$ftd or
-    $self->{LOGGER}->info( "IS", "No ACTIVE ${service}s for $name" ) and
+    $self->info("No ACTIVE ${service}s for $name" ) and
       return (-1, "no ACTIVE ${service}s for $name" );
   
-  $self->{LOGGER}->info( "IS", "Returning service $ftd->[0]->{host}:$ftd->[0]->{port}" );
+  $self->info("Returning service $ftd->[0]->{host}:$ftd->[0]->{port}" );
   my $entry=shift @{$ftd};
   $entry->{PORT}=$entry->{port};
   $entry->{HOST}=$entry->{host};
@@ -304,17 +304,17 @@ sub getService {
 
 sub getReverse {
   my ($this, $hostport) = @_;
-  $self->{LOGGER}->info( "IS", "Called getReverse for $hostport");
+  $self->info("Called getReverse for $hostport");
 
   my ($host, $port) = split ":", $hostport;
   for (@services) {
 		my $result = $self->{DB}->getField($_,$host,$port,"name");
 		$result and
-			$self->{LOGGER}->info( "IS", "Returning LHN $result SERVICE $_") and
+			$self->info("Returning LHN $result SERVICE $_") and
 			return {"LHN", $result, "SERVICE", $_};
   }
   
-  $self->{LOGGER}->info( "IS", "$hostport not found");
+  $self->info("$hostport not found");
   return {-1, "Host $hostport not found"};
 }
 
@@ -323,7 +323,7 @@ sub getAllServices {
   my $this=shift;
   my $service=shift;
 
-  $self->{LOGGER}->info( "IS", "Getting all $service services" );
+  $self->info("Getting all $service services" );
   my ($aservices) =
     $self->{DB}->getActiveServices($service,"host, port, name");
   
@@ -332,7 +332,7 @@ sub getAllServices {
       and return;
   
   @$aservices or
-    $self->{LOGGER}->info( "IS", "No active ${service}s" ) and
+    $self->info("No active ${service}s" ) and
       return (-1, "No ACTIVE ${service}s");
   
   my $hosts = "";
@@ -355,7 +355,7 @@ sub getTimestamp {
   my $this = shift;
   my $oldtime = (shift or "");
   my $newtime = time;
-  $self->{LOGGER}->info( "IS", "Get Timestamp $oldtime");
+  $self->info("Get Timestamp $oldtime");
   if ($oldtime) {
     $oldtime .= "\n";
     return $oldtime;
@@ -380,12 +380,12 @@ sub getFTDbyHost {
     my $this = shift;
     my $ftdhost = shift;
     
-    $self->{LOGGER}->info( "FTD", "Called getFTDbyHost  with $ftdhost");
+    $self->info("Called getFTDbyHost  with $ftdhost");
     # Fetching of name field of a particular host($ftdhost) from FTD table in INFORMATIONSERVICE database 
     my $ftdname = $self->{DB}->getServiceNameByHost("FTD",$ftdhost);
     (@$ftdname) or return;
     $ftdname=$ftdname->[0]->{name}; 
-    $self->{LOGGER}->info( "FTD", " getFTDbyHost returned  with $ftdname");
+    $self->info(" getFTDbyHost returned  with $ftdname");
     # Fetching of row, contained $ftdname value in name field, from the FTD table of INFORMATIONSERVICE database. 
     return $self->getService($ftdname,"FTD");
 }
@@ -396,13 +396,13 @@ sub getArgs {
   my @args = @_;
   my $retargs = join '',@args;
   $retargs .= "\n";
-  $self->{LOGGER}->info( "IS", "Called getArgs  with @args and $retargs");
+  $self->info("Called getArgs  with @args and $retargs");
   return $retargs;
 }
 
 sub getPrint {
     my $this = shift;
-    $self->{LOGGER}->info( "IS", "Called getPrint" );    
+    $self->info("Called getPrint" );    
     return 1000;
 }
  
@@ -418,7 +418,7 @@ sub getSE {
 sub getXROOTD {
     my $this = shift;
     my $SE   = shift;
-    $self->{LOGGER}->info( "IS", "Called getXROOTD for $SE");
+    $self->info("Called getXROOTD for $SE");
     return $self->getService($SE, "XROOTD");
 }
 
@@ -500,7 +500,7 @@ sub createCertificate {
   my @args = $self->{CATALOGUE}->execute("ls","-la","/keys/$user/$name%");
 
     if (@args) {
-      $self->{LOGGER}->info( "IS", "$user has to delete the existing /keys/$user/$name file!");
+      $self->info("$user has to delete the existing /keys/$user/$name file!");
       return;
     }
 
@@ -546,7 +546,7 @@ sub putCertificate {
     my @args = $self->{CATALOGUE}->execute("ls","-la","/keys/$user/$tag%");
 
     if (@args) {
-      $self->{LOGGER}->info( "IS", "User $user has to delete the existing /keys/$user/$name file!");
+      $self->info("User $user has to delete the existing /keys/$user/$name file!");
       return;
     }
 
@@ -562,13 +562,13 @@ sub putCertificate {
     @args    = $self->{CATALOGUE}->execute("chown","$user","/keys/$user/");
     @args = $self->{CATALOGUE}->execute("ls","-la","/keys/$user/");
     if (! @args) {
-      $self->{LOGGER}->info( "IS", "Cannot create certificate entry /keys/$user for $user");
+      $self->info("Cannot create certificate entry /keys/$user for $user");
       return;
     }
     @args = $self->{CATALOGUE}->execute("register","/keys/$user/$name","soapfunc://$self->{HOST}:$self->{PORT}/?URI=IS?CALL=getCertificate?ARGS=$user,$name");
     @args = $self->{CATALOGUE}->execute("ls","-la","/keys/$user/$name");
     if (! @args) {
-      $self->{LOGGER}->info( "IS", "Cannot create certificate entry /keys/$user/$name for $user");
+      $self->info("Cannot create certificate entry /keys/$user/$name for $user");
       return;
     }
     @args    = $self->{CATALOGUE}->execute("chown","$user","/keys/$user/$name");
@@ -581,15 +581,15 @@ sub getCertificate {
     my $user  = shift;
     my $name = shift;
 
-    $self->{LOGGER}->info( "IS", "Get Certificate for $user" );
-    $self->{LOGGER}->info( "IS", "List /keys/$user/$name" );
+    $self->info("Get Certificate for $user" );
+    $self->info("List /keys/$user/$name" );
     my @args = $self->{CATALOGUE}->execute("ls","-la","/keys/$user/$name");
 
     if (! @args) {
-      $self->{LOGGER}->info( "IS", "No certificate for $user in the catalogue");
+      $self->info("No certificate for $user in the catalogue");
     }
 
-    $self->{LOGGER}->info( "IS", "@args");
+    $self->info("@args");
     my @listing = split "###", $args[0];
 
 
@@ -598,13 +598,13 @@ sub getCertificate {
 		my $cert = $self->{DB}->getCertificate($user,$name);
 
 		$cert
-			and $self->{LOGGER}->info( "IS", "Certificate successfully retrieved")
+			and $self->info("Certificate successfully retrieved")
 			and return $cert;
 	}else {
-		$self->{LOGGER}->info( "IS", "Suspicious listing @listing");
+		$self->info("Suspicious listing @listing");
     }
 
-    $self->{LOGGER}->info( "IS", "No certificate for $user in the catalogue");
+    $self->info("No certificate for $user in the catalogue");
     return;
 
 }
@@ -614,7 +614,7 @@ sub InsertHost {
     my $host =shift;
     my $port =shift;
 
-    $self->{LOGGER}->info( "IS", "Inserting new host $host" );
+    $self->info("Inserting new host $host" );
     
     my $domain;
     ( $host =~ /^[^\.]*\.(.*)$/ ) and $domain = $1;
@@ -622,7 +622,7 @@ sub InsertHost {
 	or $self->{LOGGER}->error( "IS", "In InsertHost domain not known" )
 	    and return;
 
-    $self->{LOGGER}->info( "IS", "Domain '$domain'" );
+    $self->info("Domain '$domain'" );
     my ($domainId) =$self->{CPUQUEUE}->getSitesByDomain($domain,"siteId");
 
 	defined $domainId
@@ -637,7 +637,7 @@ sub InsertHost {
 		or $self->{LOGGER}->error( "IS", "In InsertHost error inserting host $host in domain $domainId" )
 		and return;
 
-    $self->{LOGGER}->info("IS", "Host inserted");
+    $self->info("Host inserted");
     return 1;
 }
 
@@ -654,6 +654,56 @@ sub getCpuSI2k {
     return $result;
   }
 }
+
+sub getCloseSE{
+  my $this=shift;
+  my $site=shift || "";
+  my $type=shift || "";
+  my $excludeListRef=shift;
+  my $closeListRef=shift;
+  
+  my @excludeList=();
+  $excludeListRef and push @excludeList, @$excludeListRef;
+  my @closeList=();
+  $closeListRef and push @closeList, @$closeListRef;
+
+  $self->info("Getting the close SE for the site $site");
+
+  my $query="SELECT name from SE where status='ACTIVE'";
+  $type and $query .=" and protocols='$type'";
+  my $entries=$self->{DB}->queryColumn($query);
+  use Data::Dumper;
+  print Dumper $entries;
+  my @se;
+  #first, let's remove the ones from the excludeList
+  foreach my $se (@$entries){
+    grep (/^$se$/i, @excludeList) and 
+      $self->info("The client doesn't want '$se'") 
+	and next;
+    push @se, $se;
+  }
+  if (@se){
+    #Now, let's see if there is any in the 'closeList'
+    foreach my $se (@closeList){
+      grep (/^$se$/, @se) or next;
+      $self->info("The se $se is in the close list");
+      return $se;
+    }
+    #ok, let's see if there is anything in the site
+    my @site=grep (/\:\:$site\:\:/i, @se);
+    if (@site){
+      $self->info("The se @site are in the same site. Returning $site[0]");
+      return $site[0];
+    }
+    $self->info("Returning $se[0] (out of @se)");
+    return $se[0];
+
+  }
+
+  $self->info("There are no close SE with policy '$type'");
+  return (-1, "There are no close SE to $site with policy '$type'");
+}
+
 
 return 1;
 __END__
