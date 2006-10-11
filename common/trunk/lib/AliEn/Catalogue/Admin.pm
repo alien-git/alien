@@ -560,18 +560,20 @@ sub addFunds{
   
   ($account and $amount) or return;
   
-    $silent or $self->info("Adding $amount AliDrams to $account");
-    my $done = $self->{SOAP}->CallSOAP("LBSG", "addFunds", $account, $amount);
- 
-    $done or $self->info("Error: Can not add funds, SOAP call to LBSG
+  my $currency=$self->{CONFIG}->{BANK_CURRENCY} || "unit";
+
+  $silent or $self->info("Adding $amount $currency(s) to $account");
+  my $done = $self->{SOAP}->CallSOAP("LBSG", "addFunds", $account, $amount);
+  
+  $done or $self->info("Error: Can not add funds, SOAP call to LBSG
 	                  service failed") and return; 
   
-    my $result = $done->result;
-     ($result eq 1) and return 1; 	 
-    $self->info ("Error: $result "); 
+  my $result = $done->result;
+  ($result eq 1) and return 1; 	 
+  $self->info ("Error: $result "); 
 
     
-return 1;      
+  return 1;      
 }
 
 sub createBankAccount_HELP{
@@ -599,8 +601,9 @@ sub createBankAccount {
   ($account ) or return;
    $amount or $amount=0;
   
-	  
-    $silent or $self->info("Creating new bank account: $account with the initial amount of $amount AliDrams");
+  my $currency=$self->{CONFIG}->{BANK_CURRENCY} || "unit";
+ 
+  $silent or $self->info("Creating new bank account: $account with the initial amount of $amount $currency(s)");
 	 
     my $done = $self->{SOAP}->CallSOAP("LBSG", "createBankAccount", $account, $amount);
     $done or $self->info("Error: Can not create account, SOAP call to LBSG
@@ -639,8 +642,9 @@ sub transactFunds {
   
   ($fromAccount and $toAccount and $amount) or return;
    
-   		  
-    $silent or $self->info("Making transaction of $amount AliDrams from $fromAccount to $toAccount");
+  my $currency=$self->{CONFIG}->{BANK_CURRENCY} || "unit";
+	  
+  $silent or $self->info("Making transaction of $amount $currency(s) from $fromAccount to $toAccount");
 	 
     my $done = $self->{SOAP}->CallSOAP("LBSG", "transactFunds",   $fromAccount,$toAccount, $amount);
     $done or $self->info("Error: Can not transact funds, SOAP call to LBSG

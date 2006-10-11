@@ -926,22 +926,11 @@ sub findCloseSE {
     return $self->{SE_FULLNAME};
   }
   
-  if ($self->{CONFIG}->{CLOSESE_LIST}){
-    foreach my $se (@{$self->{CONFIG}->{CLOSESE_LIST}}){
-      my ($name, $qos)=split (/,/, $se);
-      $qos or $qos="replica";
-      if(grep (/^$name$/, @excludeList)){
-	$self->info("We don't want to put it in $name");
-	next;
-      }
-      if ($type =~ /^$qos$/){
-	$self->info("We have found the se $name");
-	return $name;
-      }
-    }
-  }
-  $self->info("There are no close SE with policy '$type'");
-  return;
+  my $se=$self->{SOAP}->CallSOAP("IS", "getCloseSE", $self->{SITE}, $type, $excludeListRef);
+  $self->{SOAP}->checkSOAPreturn($se) or return ;
+  my $seName=$se->result;
+  $self->info("We are going to put the file in $seName");
+  return $seName;
 }
 
 sub addTag {

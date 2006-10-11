@@ -112,6 +112,14 @@ sub initialize {
   $self->startIOServers() or return;
   $ENV{'IO_AUTHZ'}="alien";
   $self->{GUID}=AliEn::GUID->new();
+  my $QoS=$self->{CONFIG}->{SE_QOS};
+  if (!$QoS){
+    $self->info("Warning!! The retention policy for this SE is not defined. Assuming it is 'replica'");
+    $QoS='replica';
+  } 
+  $self->{PROTOCOLS}=$QoS;
+
+  
   return $self;
 }
 
