@@ -279,7 +279,12 @@ sub updateLocalCopy {
 sub removeFile{
   my $self = shift;
   my $hashref = shift;
-  my $string ="DELETE FROM FILES WHERE ".( join (" AND ", map {"$_ =  \'$hashref->{$_}\'"} keys(%{$hashref})));
+
+
+  my $pfn=$hashref->{file};
+  $hashref->{pfn} and $pfn=$hashref->{pfn};
+  my $string ="DELETE FROM FILES WHERE guid=string2binary('$hasref->{guid}') and pfn='$pfn'";
+
 #   print "$string\n";
   my $sth = $self->_do($string);
 
