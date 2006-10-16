@@ -44,6 +44,8 @@ use AliEn::Util;
 use AliEn::X509;
 use AliEn::MD5;
 use Filesys::DiskFree;
+use AliEn::PackMan;
+
 
 @ISA=qw(AliEn::Service);
 
@@ -160,7 +162,7 @@ sub initialize {
 
   $self->{JOBLOADED}=0;
   $self->{X509}= new AliEn::X509 or return;
-
+  $self->{PACKMAN}=AliEn::PackMan->new({PACKMAN_METHOD=>"Local"});
   return 1;
 }
 
@@ -268,7 +270,7 @@ sub putJobLog {
 
 sub getHostClassad{
   my $self=shift;
-  my $ca=new AliEn::Classad::Host or return;
+  my $ca=AliEn::Classad::Host->new({PACKMAN=>$self->{PACKMAN}}) or return;
   if ($self->{TTL}){
     $self->info("We have some time to live...");
     my ($ok, $requirements)=$ca->evaluateExpression("Requirements");
@@ -307,7 +309,8 @@ sub GetJDL {
   my $result;
   while(1) {
     print "Getting the jdl from the clusterMonitor, agentId is $ENV{ALIEN_JOBAGENT_ID}...\n";
-    my $hostca=$self->getHostClassad() or $self->sendJAStatus('ERROR_HC') and return;
+    my $hostca=$self->getHostClassad() or 
+      $self->sendJAStatus('ERROR_HC') and return;
     $self->sendJAStatus(undef, {TTL=>$self->{TTL}});
 
     my $done = $self->{SOAP}->CallSOAP("CLUSTERMONITOR","getJobAgent", $ENV{ALIEN_JOBAGENT_ID}, "$self->{HOST}:$self->{PORT}", $self->{CONFIG}->{ROLE}, $hostca);
@@ -888,7 +891,8 @@ sub installPackage {
     }else{
       my $catalog;
       eval{ 
-	$catalog = AliEn::UI::Catalogue::LCM->new({"silent"=> "0" , "gapi_catalog"=>"$self->{CONFIG}->{AGENT_API_PROXY}"});
+	my $api=$self->{CONFIG}->{AGENT_API_PROXY} || "";
+	$catalog = AliEn::UI::Catalogue::LCM->new({"silent"=> "0" , "gapi_catalog"=>""});
 	($user)=$catalog->execute("whoami", "-silent");
 	$catalog->close();
       };
@@ -901,28 +905,13 @@ sub installPackage {
 
   $ENV{ALIEN_PROC_ID} and
     $self->putJobLog($ENV{ALIEN_PROC_ID},"trace","Installing package $_");
-  my $result;
-  my $retry=5;
-  while (1) {
-    $self->info("Asking the package manager to install $package as $user");
-
-    $result=$self->{SOAP}->CallSOAP("PackMan", "installPackage", $user, $package, $version) and last;
-    my $message=$AliEn::Logger::ERROR_MSG;
-    $self->info("The reason it wasn't installed was $message");
-    $message =~ /Package is being installed/ or $retry--;
-    $retry or last;
-    $self->info("Let's sleep for some time and try again");
-    sleep (30);
-  }
-  if (! $result){
-    $self->info("The package has not been instaled!!");
+  my ($ok, $source)=$self->{PACKMAN}->installPackage($user, $package, $version);
+  if (!$ok) {
     $ENV{ALIEN_PROC_ID} and
       $self->putJobLog($ENV{ALIEN_PROC_ID},"error","Package $_ not installed ");
+
     return;
   }
-
-  my ($ok, $source)=$self->{SOAP}->GetOutput($result);
-
   ($source) and   $self->info("For the package we have to do $source");
   return ($ok, $source);
 }

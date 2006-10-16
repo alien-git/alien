@@ -237,7 +237,7 @@ sub CallMethod {
     # $dbh. However, we'd have a reference loop in that case and
     # I would be concerned about garbage collection. :-(
     $dbh->{'private_server'} = $server;
-    $server->Debug("CallMethod: => " . join(",", @_));
+    $server->Debug("CallMethod: => " .  join(",",(map ({$_ or ""} @_))) );
     my @result = eval { $server->SUPER::CallMethod(@_) };
     my $msg = $@;
     undef $dbh->{'private_server'};
