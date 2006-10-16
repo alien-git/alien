@@ -690,7 +690,8 @@ sub f_quit {
 }
 
 sub f_disconnect {
-  shift->{DATABASE}->destroy();
+  my $d=shift;
+  $d and $d->{DATABASE} and $d->{DATABASE}->destroy();
 #  shift->_executeInAllDatabases("destroy",@_);
 }
 

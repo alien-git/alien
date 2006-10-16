@@ -5,6 +5,8 @@ use Classad;
 use strict;
 use vars qw(@ISA);
 use Filesys::DiskFree;
+use AliEn::PackMan;
+
 
 push @ISA,'AliEn::Logger::LogObject';
 
@@ -25,7 +27,6 @@ sub new {
     Classad::Classad->new(
 #  "[ Type=\"machine\"; Requirements=(other.Type==\"Job\" && other.Price==\"2.4\"); WNHost = \"$self->{CONFIG}->{HOST}\";]" );
  "[ Type=\"machine\"; Requirements=(other.Type==\"Job\"); WNHost = \"$self->{CONFIG}->{HOST}\";]" );
-
 
   $self->setCloseSE($ca) or return;
   $self->setPackages($ca) or return;
@@ -145,6 +146,9 @@ sub setPackages {
   my $self=shift;
   my $ca=shift;
 
+  $self->{PACKMAN} or $self->{PACKMAN}=AliEn::PackMan->new();
+  $self->{PACKMAN} or return;
+
   my $soap=new AliEn::SOAP or return;
   #Let's ask the PackMan for the Packages that we have installed
 
@@ -153,9 +157,13 @@ sub setPackages {
     my @list=$done->paramsout;
     $self->setItem($ca, "Packages", $done->paramsout) or return;
   }
-  ($done)=$soap->CallSOAP("PackMan","getListInstalledPackages","ALIEN_SOAP_SILENT") or return 1;
-  my @list=$done->paramsout;
-  return  $self->setItem($ca, "InstalledPackages", $done->paramsout);
+  $self->info("Asking for the installed packages");
+  my @packages=$self->{PACKMAN}->getListInstalled();
+  if (@packages){
+    $self->debug(1, "Setting the installed packages");
+    $self->setItem($ca, "InstalledPackages", @packages);
+  }
+  return 1;
 }
 
 
