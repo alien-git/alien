@@ -44,6 +44,15 @@ sub getListInstalled {
 
 }
 
+sub getListPackages {
+  my $self=shift;
+  $self->info("Asking the PackMan for the packages that it has installed");
+  my ($done)=$self->{SOAP}->CallSOAP("PackMan","getListPackages") or return;
+
+  my @list=$done->paramsout;
+  $self->info("Returning @list");
+  return @list;
+}
 
 sub installPackage{
   my $self=shift;

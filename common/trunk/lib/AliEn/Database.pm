@@ -774,7 +774,8 @@ sub grantPrivilegesToUser {
   my $rprivs = shift;
   my $user = shift;
   my $pass = shift;
-	$DEBUG and $self->debug(1, "In grantPrivilegesToUser");
+  my $origpass=$pass;
+  $DEBUG and $self->debug(1, "In grantPrivilegesToUser");
   $pass
   	and $pass = "$user IDENTIFIED BY '$pass'"
 	or $pass = $user;
@@ -785,6 +786,12 @@ sub grantPrivilegesToUser {
     $self->_do("GRANT $_ TO $pass")
       or $DEBUG and $self->debug (0, "Error adding privileges $_ to $user")
       and $success = 0;
+  }
+#TEMPORARY FOR MY LAPTOP
+  if ($origpass){
+    $self->info("I only want to do this in my laptop");
+    $self->_do("GRANT USAGE ON *.* to '$user'\@'localhost' IDENTIFIED by '$origpass'") or return;
+    print "DONE GRANT USAGE ON *.* to '$user'\@'localhost' IDENTIFIED by '$origpass'\n";
   }
   return $success;
 }
