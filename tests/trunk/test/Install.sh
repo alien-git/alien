@@ -433,14 +433,14 @@ EXECUTE_SHELL()
     endTime=`date +"%s"`
     SEND_TO_ML "${group}_nTests" $nCmds "${group}_nSuccess" $nCmds "${group}_pSuccess" 100 "${group}_time" `expr $endTime - $startTime`
 }
-BANK_TESTS_LIST="304-putBankDataLDAP 301-bankAccount 302-transactFunds 303-addFunds "
+BANK_TESTS_LIST="304-putBankDataLDAP 301-bankAccount 302-transactFunds 303-addFunds 305-execOrder "
 
-JOB_TESTS_LIST="$BANK_TESTS_LIST 70-x509 89-jdl 19-ClusterMonitor 21-submit 73-updateCE 22-execute 305-execOrder 62-inputfile 23-resubmit 26-ProcessMonitorOutput 305-execOrder 105-killRunningJob 85-inputdata 94-inputpfn 98-jobexit 64-jobemail 77-rekill 86-split 87-splitFile 88-splitArguments 115-queueList 118-validateJob 119-outputDir 120-production 124-OutputArchive 126-OutputInSeveralSE 133-queueInfo 134-dumplist 135-inputdata2 137-userArchive 140-jobWithMemory 141-executingTwoJobs 152-inputdatacollection 153-splitInputDataCollection 157-zip 159-bigoutput 160-JDLenvironment 161-userGUID"
+JOB_TESTS_LIST="70-x509 89-jdl 19-ClusterMonitor 21-submit 73-updateCE 22-execute 62-inputfile 23-resubmit 26-ProcessMonitorOutput 105-killRunningJob 85-inputdata 94-inputpfn 98-jobexit 64-jobemail 77-rekill 86-split 87-splitFile 88-splitArguments 115-queueList 118-validateJob 119-outputDir 120-production 124-OutputArchive 126-OutputInSeveralSE 133-queueInfo 134-dumplist 135-inputdata2 137-userArchive 140-jobWithMemory 141-executingTwoJobs 152-inputdatacollection 153-splitInputDataCollection 157-zip 159-bigoutput 160-JDLenvironment 161-userGUID"
 PACKAGE_TESTS_LIST="75-PackMan 76-jobWithPackage 82-packageDependencies 84-sharedPackage 100-tcshPackage 83-gccPackage 130-localConfig 131-definedPackage"
 GAS_TESTS_LIST="69-gContainer 71-GAS 72-UI "
 CATALOGUE_TESTS_LIST="63-addEmptyFile 91-expandWildcards 16-add 17-retrieve 74-http 18-metadata 18-metadata 37-find 65-metadata2 15-tree 78-symlink 79-specialChar 95-listDir 93-cpdir 121-cp 101-registerFile 102-secondSE 103-mirror 117-findCaseSensitive 123-VirtualSE 125-mirror 128-modifyMd5 132-listDirectory 136-deleteFile 138-copyFile 139-vi 144-upperCase 146-mv 148-findXML 149-guid2lfn 162-expiration" 
 TRANSFER_TESTS_LIST="150-ftd 151-submitTransfer"
-USER_TESTS_LIST="01-use 116-uninitialized 06-connecting 34-mkdir 07-creating 45-checkOnePerm 52-wrongQuery 51-soapretry 09-ldap 97-pam 08-createKeys 40-forkDatabase 12-certificates 55-httpsConnect 32-rmdir 13-addhost 13-addhost 31-checkdir 46-mysqlConnect 14-se 109-loggerRedirect $CATALOGUE_TESTS_LIST $TRANSFER_TESTS_LIST $JOB_TESTS_LIST 20-xfiles 30-logger 114-silentMode $PACKAGE_TESTS_LIST 68-dbthreads 81-guid 142-mysqlOpenssl 47-killMysql 48-killAliEnProxy "
+USER_TESTS_LIST="01-use 116-uninitialized 06-connecting 34-mkdir 07-creating 45-checkOnePerm 52-wrongQuery 51-soapretry 09-ldap 97-pam 08-createKeys 40-forkDatabase 12-certificates 55-httpsConnect 32-rmdir 13-addhost 13-addhost 31-checkdir 46-mysqlConnect 14-se 109-loggerRedirect $CATALOGUE_TESTS_LIST $TRANSFER_TESTS_LIST $JOB_TESTS_LIST 20-xfiles 30-logger 114-silentMode $PACKAGE_TESTS_LIST  $BANK_TEST_LIST 68-dbthreads 81-guid 142-mysqlOpenssl 47-killMysql 48-killAliEnProxy "
 GAPI_TESTS_LIST="500-apiservice 501-apiservice-connect 502-apiservice-motd 600-aliensh-tokeninit 601-aliensh-tokeninfo 602-aliensh-tokendestroy 600-aliensh-tokeninit 603-aliensh-basics 610-xrootd-se 500-apiservice 610-xrootd-se 620-aliensh-cp-l2se 621-aliensh-cp-se2l 622-aliensh-cp-se2se 623-aliensh-cp-l2l 624-aliensh-rm 630-aliensh-submit 631-aliensh-getzipoutput 632-aliensh-jdl 633-aliensh-trace"
 
 

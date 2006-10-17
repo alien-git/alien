@@ -53,8 +53,17 @@ PerlConfigRequire $ALIEN_ROOT/httpd/conf/startup.pl ";
 	print OUTFD $addHTTPD;
 	close OUTFD;
 
-`mv /tmp/httpd.conf_$$ $ALIEN_ROOT/httpd/conf/httpd.conf`;
-`mkdir -p /opt/alien/httpd/logs`;
+#
+# Substitute "/opt/alien" with $ALIEN_ROOT in httpd.conf
+#
+
+my $ALIEN_ROOT_TMP = $ALIEN_ROOT;
+   $ALIEN_ROOT_TMP =~ s/\//\\\//g;
+print ("sed -i -e 's/\\\/opt\\\/alien/$ALIEN_ROOT_TMP/'  /tmp/httpd.conf_$$ \n");
+system ("sed -i -e 's/\\\/opt\\\/alien/$ALIEN_ROOT_TMP/' /tmp/httpd.conf_$$");
+
+system ("mv /tmp/httpd.conf_$$ $ALIEN_ROOT/httpd/conf/httpd.conf");
+system ("mkdir -p $ALIEN_ROOT/httpd/logs");
 
 #
 # put SSL stuff to my.cfg 
@@ -76,7 +85,7 @@ PerlConfigRequire $ALIEN_ROOT/httpd/conf/startup.pl ";
         close INFD;
         close OUTFD;
 
-`mv /tmp/my.cnf_$$ $ALIEN_ROOT/etc/my.cnf`;
+system("mv /tmp/my.cnf_$$ $ALIEN_ROOT/etc/my.cnf");
 
 #
 # recreate startup.pl
@@ -113,7 +122,7 @@ print "\n\n $alienLdapDn\n";
        close INFD;
        close OUTFD;	
 
-`mv /tmp/startup.pl_$$ $ALIEN_ROOT/httpd/conf/startup.pl`;
+system("mv /tmp/startup.pl_$$ $ALIEN_ROOT/httpd/conf/startup.pl");
 
           # restart mysql
           system(" $ALIEN_ROOT/etc/rc.d/init.d/alien-mysqld stop ");
