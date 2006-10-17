@@ -33,7 +33,6 @@ $DEBUG=0;
 
 use strict;
 
-use AliEn::UI::Catalogue::LCM;
 
 # Use this a global reference.
 
@@ -111,29 +110,8 @@ sub getListPackages{
     $self->info( "$$ $$ Returning the value from the cache (@$cache)");
     return (1, @$cache);
   }
+  my ($status, @packages)=$self->{PACKMAN}->getListPackages(@_);
 
-
-  my $silent="";
-  $DEBUG or $silent="-silent";
-
-  my @userPackages=$self->{CATALOGUE}->execute("find", $silent, $self->{CONFIG}->{USER_DIR}, "/packages/*");
-  my @voPackages=$self->{CATALOGUE}->execute("find", $silent, "\L/$self->{CONFIG}->{ORG_NAME}/packages", "*");
-  my @packages;
-  my $org="\L$self->{CONFIG}->{ORG_NAME}\E";
-  foreach my $pack (@userPackages, @voPackages) {
-    $self->debug(2,  "FOUND $pack");
-    if ($pack =~ m{^$self->{CONFIG}->{USER_DIR}/?./([^/]*)/packages/([^/]*)/([^/]*)/$platformPattern$}) {
-      grep (/^$1\@${2}::$3$/, @packages) or
-	push @packages, "$1\@${2}::$3";
-      next;
-    }
-    if ($pack =~ m{^/$org/packages/([^/]*)/([^/]*)/$platformPattern$}) {
-      grep (/^VO_\U$org\E\@${1}::$2$/, @packages) or
-	push @packages, "VO_\U$org\E\@${1}::$2";
-      next;
-    }
-    $self->debug(2, "Ignoring $pack");
-  }
   $self->info( "$$ $$ RETURNING @packages");
   AliEn::Util::setCacheValue($self, "listPackages-$platform", \@packages);
 
@@ -179,33 +157,10 @@ It returns: $version=> $version of the package installed
 sub testPackage{
   shift;
   $self->info( "$$ Checking if the package is installed: @_");
-  my $user=shift;
-  my $package=shift;
-  my $versionUser=shift;
+  my @all=$self->{PACKMAN}->testPackage(@_);
+  $self->info("The PackMan returns @all");
+  return @all;
 
-  my ($done, $lfn, $info, $version)=$self->isPackageInstalled($user,$package,$versionUser);
-
-  $done or  return (-1, "Package is not installed");
-  $self->info( "$$ Ok, the package is installed");
-  ($done, my $source, my $installDir)= 
-    $self->installPackage($user, $package, $version);
-  $self->info( "$$ We should do $done and $source");
-  my $env="";
-  if ($source) {
-     $self->info( "$$ Lets's call $source env");
-    $env=`$source env`;
-    my $env2=`$source echo "The AliEn Package $package is installed properly"`;
-    if ($env2 !~ /The AliEn Package $package is installed properly/s ){
-      $self->info( "$$ Warning!!! The package has to source $source, but this script doesn't seem to execute commands");
-      $env.="================================================
-Warning!!!!
-The package is supposed to do: $source
-This script will receive as the first argument the directory where the package is installed, and then the command to execute. Please, make sure that the script finishes with a line that calls the rest of the arguments (something like \$*).";
-    }
-  }
-
-  my $directory=`ls -la $installDir`;
-  return ($version, $info, $directory, $env);
 }
 
 =item C<installPackage($user,$package,$version,[$dependencies])>
@@ -228,11 +183,15 @@ sub installPackage{
     return (@$cache);
   }
 
-  my ($done, $psource, $dir)=$self->{PACKMAN}->installPackage($user, $package, $version);
+  my ($done, $psource, $dir)=$self->{PACKMAN}->installPackage($user, $package, $version, undef, {fork=>1});
+  if (! $done or $done eq "-1"){
+    $self->info("Error trying to install the package $psource");
+    return (-1, $psource);
+  }
   my @list= ($done, $psource, $dir);
   AliEn::Util::setCacheValue($self, $cacheName, \@list);
+  $self->info("The PackMan service returns @list");
   return ($done, $psource, $dir);
-  
 }
 
 
@@ -284,13 +243,12 @@ sub initialize {
   $self->{SERVICENAME}="PackMan\@$self->{HOST}";
   $self->{LISTEN}=1;
   $self->{PREFORK}=5;
-  $self->{CATALOGUE}=AliEn::UI::Catalogue::LCM->new()
-    or return;
 
   $self->{CACHE}={};
   #Remove all the possible locks;
   $self->info( "$$ Removing old lock files");
-  $self->{PACKMAN}=AliEn::PackMan->new({PACKMAN_METHOD=>"Local"}) or return;
+  $self->{PACKMAN}=AliEn::PackMan->new({PACKMAN_METHOD=>"Local", 
+				       CREATE_CATALOGUE=>1}) or return;
 
   $self->{PACKMAN}->removeLocks();
 
@@ -359,25 +317,6 @@ sub findPackageLFN{
 }
 
 
-sub isPackageInstalled {
-  my $self=shift;
-  my $user=shift;
-  my $package=shift;
-  my $version=shift;
-
-  my ($lfn, $info)=$self->findPackageLFN($user, $package, $version);
-
-  $version or $lfn =~ /\/([^\/]*)\/[^\/]*$/
-    and ($version)=($1);
-
-  my $vo=$self->{CONFIG}->{ORG_NAME};
-  $lfn =~ m{^/$vo/packages/}i and $user=uc("VO_$vo");
-
-  $self->existsPackage($user, $package, $version,$info)  or
-    $self->info( "$$ The package is not installed :D") and 
-      return ;
-  return (1, $lfn, $info, $version)
-}
 sub getDependencies {
   my $this=shift;
   my $user=shift;

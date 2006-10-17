@@ -3,7 +3,7 @@ package AliEn::PackMan::Local;
 use AliEn::Config;
 use strict;
 use vars qw(@ISA);
-
+use AliEn::UI::Catalogue::LCM;
 
 push @ISA, 'AliEn::Logger::LogObject', 'AliEn::PackMan';
 
@@ -17,10 +17,22 @@ sub initialize{
     require  AliEn::MSS::file;;
     AliEn::MSS::file::mkdir($self, $self->{INST_DIR}) and return;
   }
-
+  if ($self->{CREATE_CATALOGUE}){
+    $self->info("CREATING THE CATALOGUE");
+    $self->{CATALOGUE}=AliEn::UI::Catalogue::LCM->new()  or return;
+  }else {
+    $self->info("We don't create the catalogue");
+  }
   return 1;
 }
-
+sub setCatalogue{
+  my $self=shift;
+  my $cat=shift ;
+  $cat or return;
+  $self->info("Setting the catalogue for the PackMan");
+  $self->{CATALOGUE}=$cat;
+  return 1;
+}
 sub removeLocks{
   my $self=shift;
   system ("rm -f $self->{INST_DIR}/*.InstallLock");
@@ -70,7 +82,9 @@ sub installPackage{
   my $package=shift;
   my $version=shift;
   my $dependencies=shift ||{};
-  $self->info("Installing the package");
+  my $options=shift ||{};
+
+  $self->debug (2,"checking if we have to install the package");
   my $connected=$self->{CATALOGUE};
   $self->{CATALOGUE} or $self->{CATALOGUE}=AliEn::UI::Catalogue::LCM->new();
   $self->{CATALOGUE} or $self->info("Error getting an instance of the catalogue") 
@@ -106,7 +120,7 @@ sub installPackage{
       }
     }
     
-    $self->info( "$$ Installing the package $package for $user");
+    $self->debug(2,  "Ready to do the installPackage $package for $user");
     
     $self->InstallPackage($lfn, $user, $package, $version,$info, $source);
     my ($done, $psource, $dir)= $self->ConfigurePackage($user, $package, $version, $info);
@@ -120,7 +134,7 @@ sub installPackage{
   }
   if ($error){
     $self->info("Error installing the package!! $error");
-    return ;
+    return (-1, $error);
   }
   $self->info("Everything is ready. We just have to do $source");
   return (1, $source);
@@ -132,20 +146,17 @@ sub findPackageLFN{
   my $package=shift;
   my $version=shift;
 
-
-
   my @dirs=("$self->{CONFIG}->{USER_DIR}/". substr( $user, 0, 1 ). "/$user/packages",
 	    "/\L$self->{CONFIG}->{ORG_NAME}/packages",);
   my $lfn;
   my $platform=$self->getPlatform();
-  $self->info("$$ Looking for the lfn of $package ($version) for the user $user");
+  $self->debug(1, "Looking for the lfn of $package ($version) for the user $user");
 
   foreach (@dirs){
-    $self->info("Looking in the directory $_");
-    my @files=$self->{CATALOGUE}->execute("find", 
-			    #					  "-silent",
+    $self->debug (2, "Looking in the directory $_");
+    my @files=$self->{CATALOGUE}->execute("find",  "-silent",
 			    "$_/$package", $platform) or next;
-    $self->info("$$ Got @files");
+    $self->debug(2, "$$ Got @files");
     if ($version) {
       @files=grep (/$package\/$version\// , @files);
       print "After the version, we have @files\n";
@@ -176,7 +187,7 @@ sub findPackageLFN{
       die $message;
     }
   }
-  $self->info( "$$ Using $lfn");
+  $self->info( "Using $lfn");
   my (@dependencies)=$self->{CATALOGUE}->execute("showTagValue", "-silent",$lfn, "PackageDef");
   my $item={};
   @dependencies and $dependencies[1]  and $item=shift @{$dependencies[1]};
@@ -187,19 +198,6 @@ sub findPackageLFN{
   return ($lfn, $item);
 }
 
-
-sub getPlatform()
-{
-  my $sys1 = `uname -s`;
-  chomp $sys1;
-  $sys1 =~ s/\s//g; #remove spaces
-  my $sys2 = `uname -m`;
-  chomp $sys2;
-  $sys2 =~ s/\s//g; #remove spaces
-  my $platform="$sys1-$sys2";
-
-  return $platform;
-}
 
 
 sub InstallPackage {
@@ -320,7 +318,7 @@ sub existsPackage{
   my $version=shift;
   my $info=shift;
 
-  $self->info( "$$ Checking if $package is already installed");
+  $self->debug(2, "Checking if $package is already installed");
 
   my $dir="$self->{INST_DIR}/$user/$package/$version";
   (-d $dir) or return;
@@ -330,7 +328,7 @@ sub existsPackage{
 #
 #  } 
 
-  $self->info( "$$ Checking the size of $dir");
+  $self->debug(2,  "$$ Checking the size of $dir");
   my $size="";
 
   if (-l $dir) {
@@ -350,7 +348,7 @@ sub existsPackage{
   }
   $info and chomp $info->{size};
   $info->{size} or $info->{size}="";
-  $self->info( "$$ Size $size (has to be $info->{size})");
+  $self->debug(2,  "$$ Size $size (has to be $info->{size})");
   if (  $info->{size} and ($size ne $info->{size}) ){
     $self->info( "$$ The size of the package does not correspond (has to be $info->{size} and is $size)");
     system("rm -rf $dir");
@@ -363,7 +361,7 @@ sub existsPackage{
       $self->info( "$$ Error checking the md5sumlist")
 	and return;
   }
-  $self->info( "$$ The package is already installed (in $dir)");
+  $self->info( "The package is already installed (in $dir)!!");
   return $dir;
 }
 
@@ -412,6 +410,109 @@ sub _doAction {
   return 1;
 }
 
+sub testPackage{
+  my $self=shift;
+  my $user=shift;
+  my $package=shift;
+  my $versionUser=shift;
+
+  my ($done, $lfn, $info, $version)=$self->isPackageInstalled($user,$package,$versionUser);
+
+  $done or  return (-1, "Package is not installed");
+  $self->info( "$$ Ok, the package is installed");
+  ($done, my $source, my $installDir)= 
+    $self->installPackage($user, $package, $version);
+  $self->info( "$$ We should do $done and $source");
+  my $env="";
+  if ($source) {
+     $self->info( "$$ Lets's call $source env");
+    $env=`$source env`;
+    my $env2=`$source echo "The AliEn Package $package is installed properly"`;
+    if ($env2 !~ /The AliEn Package $package is installed properly/s ){
+      $self->info( "$$ Warning!!! The package has to source $source, but this script doesn't seem to execute commands");
+      $env.="================================================
+Warning!!!!
+The package is supposed to do: $source
+This script will receive as the first argument the directory where the package is installed, and then the command to execute. Please, make sure that the script finishes with a line that calls the rest of the arguments (something like \$*).";
+    }
+  }
+
+  my $directory=`ls -la $installDir`;
+  return ($version, $info, $directory, $env);
+}
+
+sub isPackageInstalled {
+  my $self=shift;
+  my $user=shift;
+  my $package=shift;
+  my $version=shift;
+
+  my ($lfn, $info)=$self->findPackageLFN($user, $package, $version);
+
+  $version or $lfn =~ /\/([^\/]*)\/[^\/]*$/
+    and ($version)=($1);
+
+  my $vo=$self->{CONFIG}->{ORG_NAME};
+  $lfn =~ m{^/$vo/packages/}i and $user=uc("VO_$vo");
+
+  $self->existsPackage($user, $package, $version,$info)  or
+    $self->info( "$$ The package is not installed :D") and 
+      return ;
+  return (1, $lfn, $info, $version)
+}
+
+
+
+sub getListPackages{
+  my $self=shift;
+
+  $self->info("Getting the list of packages (from the catalogue)");
+  my $silent="";
+  $self->{DEBUG} or $silent="-silent";
+
+  my $platform=$self->getPlatform();
+  my $platformPattern="(($platform)|(source))";
+  if(  grep (/^-?-all$/, @_)) {
+    $self->info("Returning the info of all platforms");
+    $platform="all";
+    $platformPattern=".*";
+  }
+
+
+  my @userPackages=$self->{CATALOGUE}->execute("find", $silent, $self->{CONFIG}->{USER_DIR}, "/packages/*");
+  my @voPackages=$self->{CATALOGUE}->execute("find", $silent, "\L/$self->{CONFIG}->{ORG_NAME}/packages", "*");
+  my @packages;
+  my $org="\L$self->{CONFIG}->{ORG_NAME}\E";
+  foreach my $pack (@userPackages, @voPackages) {
+    $self->debug(2,  "FOUND $pack");
+    if ($pack =~ m{^$self->{CONFIG}->{USER_DIR}/?./([^/]*)/packages/([^/]*)/([^/]*)/$platformPattern$}) {
+      grep (/^$1\@${2}::$3$/, @packages) or
+	push @packages, "$1\@${2}::$3";
+      next;
+    }
+    if ($pack =~ m{^/$org/packages/([^/]*)/([^/]*)/$platformPattern$}) {
+      grep (/^VO_\U$org\E\@${1}::$2$/, @packages) or
+	push @packages, "VO_\U$org\E\@${1}::$2";
+      next;
+    }
+    $self->debug(2, "Ignoring $pack");
+  }
+  return (1, @packages);
+}
+
+sub getPlatform(){
+  my $self=shift;
+  $self->{PLATFORM_NAME} and return $self->{PLATFORM_NAME};
+  my $sys1 = `uname -s`;
+  chomp $sys1;
+  $sys1 =~ s/\s//g; #remove spaces
+  my $sys2 = `uname -m`;
+  chomp $sys2;
+  $sys2 =~ s/\s//g; #remove spaces
+  my $platform="$sys1-$sys2";
+  $self->{PLATFORM_NAME}=$platform;
+  return $platform;
+}
 
 return 1;
 

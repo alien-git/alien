@@ -323,10 +323,17 @@ sub GetJDL {
 	  $self->{SOAP}->CallSOAP("Manager/Job", "setSiteQueueStatus",$self->{CONFIG}->{CE_FULLNAME},"jobagent-install-pack");
 	  my @packages=$done->paramsout();
 	  $self->info("We have to install some packages");
+	  my $catalog=$self->getCatalogue();
 	  foreach (@packages) {
-	    my ($ok, $source)=$self->installPackage($_);
-	    $ok or $self->info("Error insalling the package $_") and $self->sendJAStatus('ERROR_IP') and return;
+	    my ($ok, $source)=$self->installPackage($catalog, $_);
+	    if (! $ok){
+	      $self->info("Error insalling the package $_");
+	      $self->sendJAStatus('ERROR_IP');
+	      $catalog->close();
+	      return;
+	    }
 	  }
+	  $catalog->close();
 	  $i++; #this iteration doesn't count
 	}else {
 	  $self->{SOAP}->CallSOAP("Manager/Job", "setSiteQueueStatus",$self->{CONFIG}->{CE_FULLNAME},"jobagent-matched");
@@ -344,6 +351,7 @@ sub GetJDL {
     }
     $self->sendJAStatus('REQUESTING_JOB');
   }
+
   $result or $self->info("Error getting a jdl to execute");
   ( UNIVERSAL::isa( $result, "HASH" )) and $jdl=$result->{jdl};
   if (!$jdl) {
@@ -714,6 +722,26 @@ sub setAlive {
   return 1;
 }
 
+sub getCatalogue {
+  my $self=shift;
+  my $catalog;
+
+  eval{ 
+    my $options={silent=>0};
+    $self->{CONFIG}->{AGENT_API_PROXY} and 
+      $options->{gapi_catalog}=$self->{CONFIG}->{AGENT_API_PROXY};
+    $catalog = AliEn::UI::Catalogue::LCM::->new($options);
+  };
+  if ($@) {print "ERROR GETTING THE CATALOGUE $@\n";}
+  if (!$catalog) {
+    $self->putJobLog($ENV{ALIEN_PROC_ID},"error","The job couldn't authenticate to the catalogue");
+
+    print STDERR "Error getting the catalog!\n";
+    return;
+  }
+  $self->info("Got the catalogue");
+  return $catalog;
+}
 sub executeCommand {
   my $this = shift;
   
@@ -721,10 +749,12 @@ sub executeCommand {
   $self->changeStatus("%",  "STARTED", 0,$self->{HOST}, $self->{PROCESSPORT} );
   
   $ENV{ALIEN_PROC_ID} = $self->{QUEUEID};
+  my $catalog=$self->getCatalogue() or return;
 
   $self->debug(1, "Getting input files and command");
-  if ( !( $self->getFiles() ) ) {
+  if ( !( $self->getFiles($catalog) ) ) {
     print STDERR "Error getting the files\n";
+    $catalog->close();
     $self->registerLogs(0);
 
     $self->changeStatus("%",  "ERROR_IB");
@@ -772,10 +802,11 @@ sub executeCommand {
   if ($ok) {
     my @packInst;
     foreach (@packages) {
-      my ($ok, $source)=$self->installPackage($_);
+      my ($ok, $source)=$self->installPackage($catalog, $_);
        if (!$ok){
 	 $self->registerLogs(0);
 	 $self->changeStatus("%",  "ERROR_E");
+	 $catalog->close();
 	 return;
        }
       if ($source){
@@ -785,7 +816,7 @@ sub executeCommand {
     @list=(@packInst, @list);
   }
   my $s=join (" ", @list);
-
+  $catalog->close();
   $self->{STATUS}="RUNNING";
   ($self->{INTERACTIVE}) and  $self->{STATUS}="IDLE";
 
@@ -875,12 +906,13 @@ Minor page faults                   [#  ] : $tags[9]\n";
 }
 sub installPackage {
   my $self=shift;
+  my $catalogue=shift;
   my $package=shift;
 #  my $user=$self->{INSTALL_USER};
   print "Installing Package $_\n";
 
   my ($version, $user);
-
+  $self->{PACKMAN}->setCatalogue($catalogue);
   $package =~ s/::(.*)$// and $version=$1;
   $package =~ s/^(.*)\@// and $user=$1;
 
@@ -889,17 +921,10 @@ sub installPackage {
     if ($self->{INSTALL_USER}){
       $user=$self->{INSTALL_USER};
     }else{
-      my $catalog;
-      eval{ 
-	my $api=$self->{CONFIG}->{AGENT_API_PROXY} || "";
-	$catalog = AliEn::UI::Catalogue::LCM->new({"silent"=> "0" , "gapi_catalog"=>""});
-	($user)=$catalog->execute("whoami", "-silent");
-	$catalog->close();
-      };
-      if ($@) {print "ERROR GETTING THE CATALOGUE $@\n";}
+      ($user)=$catalogue->execute("whoami", "-silent");
+      if (!$user) {print "ERROR GETTING THE CATALOGUE $@\n";}
       $user and $self->{INSTALL_USER}=$user;
     }
-    $self->{SOAP} or $self->{SOAP}=new AliEn::SOAP;
   }
   $self->info("Getting the package $package (version $version) as $user");
 
@@ -1002,34 +1027,15 @@ sub getInputZip {
 
 sub getFiles {
   my $self    = shift;
+  my $catalog = shift;
   #print "In getFiles\n";
   $self->info("Getting the files");
   my $oldmode=$self->{LOGGER}->getMode();
   $self->info("Got mode $oldmode");
   $self->dumpInputDataList();
 
+  $self->getInputZip($catalog) or return;
 
-  my $catalog;
-
-  eval{ 
-    my $options={silent=>0};
-    $self->{CONFIG}->{AGENT_API_PROXY} and 
-      $options->{gapi_catalog}=$self->{CONFIG}->{AGENT_API_PROXY};
-    $catalog = AliEn::UI::Catalogue::LCM::->new($options);
-  };
-  if ($@) {print "ERROR GETTING THE CATALOGUE $@\n";}
-  if (!$catalog) {
-    $self->putJobLog($ENV{ALIEN_PROC_ID},"error","The job couldn't authenticate to the catalogue");
-
-    print STDERR "Error getting the catalog!\n";
-    return;
-  }
-  $self->info("Got the catalogue");
-
-  if (!$self->getInputZip($catalog)){
-    $catalog->close();
-    return;
-  }
   my @files=$self->getListInputFiles($catalog);
 
   foreach my $file (@files) {
@@ -1047,7 +1053,6 @@ sub getFiles {
       $self->putJobLog($ENV{ALIEN_PROC_ID},"error","Could not download the input file: $file->{cat}");
       print STDERR
 	"ERROR: Getting the $file->{cat} for the job $self->{QUEUEID} from the catalog!!\n";
-      $catalog->close();
       return;
     }
   }
@@ -1057,7 +1062,6 @@ sub getFiles {
   if (!( $catalog->execute("mkdir","$procDir/job-output","-ps"))) {
     print STDERR "ERROR Creating the job-output directory!\n";
     $self->putJobLog($ENV{ALIEN_PROC_ID},"error","Could not create the output directory in the catalogue: $procDir/job-output");
-    $catalog->close();
     return;
   }
 
@@ -1075,8 +1079,6 @@ sub getFiles {
       $catalog->execute("stage", @lfns);
     }
   }
-
-  $catalog->close();
 
   chmod 0755, "$self->{WORKDIR}/command";
   $self->{LOGGER}->setMinimum(split(" ",$oldmode));
@@ -1117,7 +1119,7 @@ sub getListInputFiles {
       }
     }
   } else {
-    my ( $ok, @inputFiles)=$self->{CA}->evaluateAttributeVectorString("InputDownload");
+    ( $ok, my @inputFiles)=$self->{CA}->evaluateAttributeVectorString("InputDownload");
     foreach (@inputFiles){
       my ($proc, $lfn)=split /->/;
       $self->debug(1, "Adding '$lfn' (dir '$dir')");
