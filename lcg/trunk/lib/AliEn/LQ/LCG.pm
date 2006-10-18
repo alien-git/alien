@@ -330,7 +330,7 @@ sub renewProxy {
      $command = "vobox-proxy --vo \L$self->{CONFIG}->{ORG_NAME}\E --dn \'$proxyDN\' query-proxy-timeleft";
      $self->debug(1,"Doing $command");
      my $realDuration = `$command`;
-     $self->{LOGGER}->error("LCG","asked for $duration sec, got only $realDuration") if ( $realDuration < $duration);
+     $self->{LOGGER}->error("LCG","asked for $duration sec, got only $realDuration") if ( $realDuration < 0.9*$duration);
    }
    $ENV{X509_USER_PROXY} = $proxyfile;
    $error and return;
