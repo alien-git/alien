@@ -152,13 +152,14 @@ sub setPackages {
   my $soap=new AliEn::SOAP or return;
   #Let's ask the PackMan for the Packages that we have installed
 
-  my ($done)=$soap->CallSOAP("PackMan","getListPackages","ALIEN_SOAP_SILENT");
-  if ($done) {
-    my @list=$done->paramsout;
-    $self->setItem($ca, "Packages", $done->paramsout) or return;
+  my (@packages)=$self->{PACKMAN}->getListPackages();
+  
+  if (@packages) {
+    $self->debug(2, "Setting the list of packages to @packages");
+    $self->setItem($ca, "Packages", @packages) or return;
   }
   $self->info("Asking for the installed packages");
-  my @packages=$self->{PACKMAN}->getListInstalled();
+  @packages=$self->{PACKMAN}->getListInstalled();
   if (@packages){
     $self->debug(1, "Setting the installed packages");
     $self->setItem($ca, "InstalledPackages", @packages);
