@@ -60,7 +60,7 @@ sub submit {
   my $jdlfile = $self->generateJDL($jdl);
   $jdlfile or return;
 
-  $self->renewProxy(90000); ####
+  $self->renewProxy(10000); ####
   if ($self->{PRESUBMIT}){
     $self->info("Checking if there are resources that match");
     my @info=$self->_system($self->{PRESUBMIT}, $jdlfile);
@@ -288,10 +288,12 @@ sub renewProxy {
    my $duration = shift;
    $duration or $duration=$self->{CONFIG}->{CE_TTL};
    $duration or $duration = 100000; #in seconds
+   $self->debug(1,"\$X509_USER_PROXY is $ENV{X509_USER_PROXY}");
    my $ProxyRepository = "$self->{CONFIG}->{VOBOXDIR}/proxy_repository";
    my $command = "vobox-proxy --vo \L$self->{CONFIG}->{ORG_NAME}\E query-dn";
    $self->debug(1,"Doing $command");
    my $dn = `$command`;
+   chomp $dn;
    $self->debug(1,"DN is $dn");
    $command = "vobox-proxy --vo \L$self->{CONFIG}->{ORG_NAME}\E --dn \'$dn\' query-proxy-filename";
    $self->debug(1,"Doing $command");
@@ -299,41 +301,42 @@ sub renewProxy {
    $? and $self->{LOGGER}->error("LCG","No valid proxy found.") and return;
    chomp $proxyfile;
    $self->debug(1,"Proxy file is $proxyfile");
+   $command = "vobox-proxy --vo \L$self->{CONFIG}->{ORG_NAME}\E --dn \'$dn\' query-proxy-timeleft";
+   $self->debug(1,"Doing $command");
+   my $timeLeft = `$command`;
+   chomp $timeLeft;
+   my $thres = $duration-$gracePeriod;
+   $self->info("Proxy timeleft is $timeLeft ($thres)");
+   return 1 if ( $gracePeriod && $timeLeft>$thres );
    # I apparently cannot pass this via an argument
+   my $currentProxy = $ENV{X509_USER_PROXY};
+   $self->{LOGGER}->warning("LCG","\$X509_USER_PROXY different from the proxy we are renewing") if ($currentProxy ne $proxyfile);
+   $self->{LOGGER}->warning("LCG","$currentProxy and $proxyfile ") if ($currentProxy ne $proxyfile);
    $ENV{X509_USER_PROXY} = "$self->{CONFIG}->{VOBOXDIR}/renewal-proxy.pem";
-   ## All proxies, just to be safe
-   my $error = 0;
-   foreach my $cert (`ls $ProxyRepository`) {
-     chomp $cert;
-     my $command = "$ENV{GLOBUS_LOCATION}/bin/grid-proxy-info -f $ProxyRepository/$cert -subject";
-     $self->debug(1,"Doing $command");
-     my $proxyDN = `$command`;
-     chomp $proxyDN;
-     $command = "vobox-proxy --vo \L$self->{CONFIG}->{ORG_NAME}\E --dn \'$proxyDN\' query-proxy-timeleft";
-     $self->debug(1,"Doing $command");
-     my $timeLeft = `$command`;
-     $self->debug(1,"Proxy timeleft is $timeLeft");
-     next if ($gracePeriod && $timeLeft>$gracePeriod);
-     $self->debug(1,"Renewing proxy for $proxyDN for $duration seconds");
-     my @command = ( 'myproxy-get-delegation',
-                     "-a", "$ProxyRepository/$cert",
-                     "-d",
-                     "-t",int($duration/3600), #in hours
-                     "-o", "/tmp/tmpfile.$$");
-     $self->debug(1,"Doing @command");
-     $error = system(@command);
-     $error and $self->{LOGGER}->error("LCG","unable to renew proxy") and next;
-     @command = ("mv", "-f", "/tmp/tmpfile.$$", "$ProxyRepository/$cert");
-     $self->debug(1,"Doing @command");
-     $error = system(@command);
-     $error and $self->{LOGGER}->error("LCG","unable to renew proxy") and next;
-     $command = "vobox-proxy --vo \L$self->{CONFIG}->{ORG_NAME}\E --dn \'$proxyDN\' query-proxy-timeleft";
-     $self->debug(1,"Doing $command");
-     my $realDuration = `$command`;
-     $self->{LOGGER}->error("LCG","asked for $duration sec, got only $realDuration") if ( $realDuration < 0.9*$duration);
-   }
-   $ENV{X509_USER_PROXY} = $proxyfile;
-   $error and return;
+   $self->debug(1,"Renewing proxy for $dn for $duration seconds");
+   my @command = ( 'myproxy-get-delegation',
+                   "-a", "$proxyfile",
+                   "-d",
+                   "-t",int($duration/3600), #in hours
+                   "-o", "/tmp/tmpfile.$$");
+   $self->debug(1,"Doing @command");
+    if ( system(@command) ) {
+      $self->{LOGGER}->error("LCG","unable to renew proxy");
+      $ENV{X509_USER_PROXY} = $currentProxy;
+      return;
+   }   
+   @command = ("mv", "-f", "/tmp/tmpfile.$$", "$proxyfile");
+   $self->debug(1,"Doing @command");
+   if ( system(@command) ) {
+     $self->{LOGGER}->error("LCG","unable to move new proxy");
+     $ENV{X509_USER_PROXY} = $currentProxy;
+     return;
+   }  
+   $command = "vobox-proxy --vo \L$self->{CONFIG}->{ORG_NAME}\E --dn \'$dn\' query-proxy-timeleft";
+   $self->debug(1,"Doing $command");
+   my $realDuration = `$command`;
+   $self->{LOGGER}->error("LCG","asked for $duration sec, got only $realDuration") if ( $realDuration < 0.9*$duration);
+   $ENV{X509_USER_PROXY} = $currentProxy;
    return 1;
 }
 
