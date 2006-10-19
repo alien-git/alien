@@ -309,8 +309,15 @@ sub GetJDL {
   my $result;
   while(1) {
     print "Getting the jdl from the clusterMonitor, agentId is $ENV{ALIEN_JOBAGENT_ID}...\n";
-    my $hostca=$self->getHostClassad() or 
-      $self->sendJAStatus('ERROR_HC') and return;
+    my $catalog=$self->getCatalogue() or return;
+    $self->{PACKMAN}->setCatalogue($catalog);
+
+    my $hostca=$self->getHostClassad();
+    if (!$hostca){
+      $self->sendJAStatus('ERROR_HC');
+      $catalog->close();
+      return;
+    }
     $self->sendJAStatus(undef, {TTL=>$self->{TTL}});
 
     my $done = $self->{SOAP}->CallSOAP("CLUSTERMONITOR","getJobAgent", $ENV{ALIEN_JOBAGENT_ID}, "$self->{HOST}:$self->{PORT}", $self->{CONFIG}->{ROLE}, $hostca);
@@ -323,7 +330,7 @@ sub GetJDL {
 	  $self->{SOAP}->CallSOAP("Manager/Job", "setSiteQueueStatus",$self->{CONFIG}->{CE_FULLNAME},"jobagent-install-pack");
 	  my @packages=$done->paramsout();
 	  $self->info("We have to install some packages");
-	  my $catalog=$self->getCatalogue();
+
 	  foreach (@packages) {
 	    my ($ok, $source)=$self->installPackage($catalog, $_);
 	    if (! $ok){
@@ -333,14 +340,15 @@ sub GetJDL {
 	      return;
 	    }
 	  }
-	  $catalog->close();
 	  $i++; #this iteration doesn't count
 	}else {
 	  $self->{SOAP}->CallSOAP("Manager/Job", "setSiteQueueStatus",$self->{CONFIG}->{CE_FULLNAME},"jobagent-matched");
+	  $catalog->close();
 	  last;
 	}
        }
     }
+    $catalog->close();
     --$i or  last;
     print "We didn't get the jdl... let's sleep and try again\n";
     $self->{SOAP}->CallSOAP("Manager/Job", "setSiteQueueStatus",$self->{CONFIG}->{CE_FULLNAME},"jobagent-no-match", $hostca);
