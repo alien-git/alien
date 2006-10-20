@@ -115,14 +115,14 @@ sub installPackage{
 	  $self->info( "$$ Package $pack $ver already configured");
 	  next;
 	}
-	my ($ok, $depsource, $dir)=$self->installPackage($user, $pack, $ver, $dependencies);
+	my ($ok, $depsource, $dir)=$self->installPackage($user, $pack, $ver, $dependencies, $options);
 	$depsource and $source="$source $depsource";
       }
     }
     
     $self->debug(2,  "Ready to do the installPackage $package for $user");
     
-    $self->InstallPackage($lfn, $user, $package, $version,$info, $source);
+    $self->InstallPackage($lfn, $user, $package, $version,$info, $source, $options);
     my ($done, $psource, $dir)= $self->ConfigurePackage($user, $package, $version, $info);
     $psource and $source="$source $psource";
     $self->info( "$$ Returning $done and ($source)\n");
@@ -204,7 +204,7 @@ sub InstallPackage {
   my $self=shift;
   my $lfn=shift;
   my ($user, $package, $version, $info,$depConf)=(shift, shift, shift,shift);
-
+  my $options=shift || {};
 
   my $dir="$self->{INST_DIR}/$user/$package/$version";
   my $lock="$self->{INST_DIR}/$user.$package.$version.InstallLock";
@@ -245,11 +245,13 @@ sub InstallPackage {
     $self->info( "$$ Error $@") and die ("Error $@\n");
   }
   $self->info( "$$ Installing package $package (V $version)");
-  my $pid=fork();
-  if (!$pid){
-    $self->info( "$$ Let's tell the client to retry in sometime...");
-    $self->{LOGGER}->redirect();
-    die ("Package is being installed\n");
+  if (! $options->{NO_FORK}){
+    my $pid=fork();
+    if (!$pid){
+      $self->info( "$$ Let's tell the client to retry in sometime...");
+      $self->{LOGGER}->redirect();
+      die ("Package is being installed\n");
+    }
   }
 
   eval {

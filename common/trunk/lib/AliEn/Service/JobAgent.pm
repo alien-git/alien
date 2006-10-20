@@ -938,12 +938,32 @@ sub installPackage {
 
   $ENV{ALIEN_PROC_ID} and
     $self->putJobLog($ENV{ALIEN_PROC_ID},"trace","Installing package $_");
-  my ($ok, $source)=$self->{PACKMAN}->installPackage($user, $package, $version);
-  if (!$ok) {
-    $ENV{ALIEN_PROC_ID} and
-      $self->putJobLog($ENV{ALIEN_PROC_ID},"error","Package $_ not installed ");
 
-    return;
+  my ($ok, $source);
+  while (1){
+    eval {
+      ($ok, $source)=$self->{PACKMAN}->installPackage($user, $package, $version, {NO_FORK=>1});
+      
+    };
+    my $error=$@;
+    $ok and last;
+    if ($error) {
+      if ($error =~ /Package is being installed/i){
+	$self->info("The package is being installed");
+	sleep 30;
+	next;
+      }
+      $ENV{ALIEN_PROC_ID} and
+	$self->putJobLog($ENV{ALIEN_PROC_ID},"error","Package $_ not installed ");
+      $self->info("Error installing the package: $@");
+      return;
+    }
+    if (!$ok) {
+      $ENV{ALIEN_PROC_ID} and
+	$self->putJobLog($ENV{ALIEN_PROC_ID},"error","Package $_ not installed ");
+      return;
+    }
+
   }
   ($source) and   $self->info("For the package we have to do $source");
   return ($ok, $source);
