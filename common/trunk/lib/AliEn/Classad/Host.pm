@@ -152,7 +152,7 @@ sub setPackages {
   my $soap=new AliEn::SOAP or return;
   #Let's ask the PackMan for the Packages that we have installed
 
-  my (@packages)=$self->{PACKMAN}->getListPackages();
+  my ($status, @packages)=$self->{PACKMAN}->getListPackages();
   
   if (@packages) {
     $self->debug(2, "Setting the list of packages to @packages");
