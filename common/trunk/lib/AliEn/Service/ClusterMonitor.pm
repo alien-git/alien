@@ -1323,3 +1323,20 @@ sub StartService{
 
 
 
+sub agentExits{
+  my $this=shift;
+  my $agentId=shift;
+
+  $self->info("The jobAgent $agentId has finished");
+  $self->{LOCALJOBDB}->delete("JOBAGENT","agentId='$agentId'");
+  return;
+}
+
+sub jobExits{
+  my $this=shift;
+  my $jobId=shift;
+
+  $self->info("The job $jobId has finished");
+  $self->{LOCALJOBDB}->delete("JOBAGENT","queueId='$jobId'");
+  return;
+}

@@ -27,6 +27,7 @@ my $options = {
 	       'organisation'=>"",
 	       'gasModules' => $ENV{ALIEN_GAS_MODULES},
 	       'no_catalog' => "",
+	       'packman_method'=> "",
 	      };
 
 
@@ -34,7 +35,7 @@ Getopt::Long::GetOptions(
 			 $options,  "help",           "silent",     "user=s",
 			 "exec=s",  "token=s",        "password=s", "role=s",
 			 "debug=s", "ForcedMethod=s", "domain=s", "organisation=s",
-       "gasModules=s", "no_catalog",
+       "gasModules=s", "no_catalog", "packman_method=s",
 			)
 
 or exit(-3);
