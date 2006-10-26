@@ -91,8 +91,9 @@ sub new {
 
   $self->{LOGGER}->notice( "CE", "Starting remotequeue..." );
 
-
-  my $ca=AliEn::Classad::Host->new() or return;
+  my $pOptions={};
+  $options->{PACKMAN} and $self->{PACKMAN}=$pOptions->{PACKMAN}=$options->{PACKMAN};
+  my $ca=AliEn::Classad::Host->new($pOptions) or return;
   AliEn::Util::setCacheValue($self, "classad", $ca->asJDL);
 
   $self->info( $ca->asJDL);
@@ -3080,10 +3081,12 @@ sub requirementsFromPackages {
 
 
   $self->info("Checking if the packages @packages are defined in the system");
-  my $ref=$self->f_packman("list", "-silent", "-all") or
+  my ($status, @definedPack)=
+    $self->{PACKMAN}->f_packman("list", "-silent", "-all");
+  $status or
     $self->info("Error getting the list of packages") and return;
   my $requirements="";
-  my @definedPack=@$ref;
+
   foreach my $package (@packages) {
     $package =~ /@/ or $package=".*\@$package";
     $package =~ /::/ or $package="${package}::.*";
@@ -3124,253 +3127,5 @@ sub requirementsFromMemory{
   return $requirements;
 }
 
-
-sub f_packman_HELP {return  "packman: talks to the Package Manager. By default, it talks to the closest PackMan. You can also specify '-name <PackManName>' to talk to a specific instance. Depending on the first argument, it does different tasks:\nUsage: 
-\tpackman list:\treturns all the packages defined in the system
-\tpackman listInstalled:\treturns all the packages that the service has installed
-\tpackman test <package>: tries to configure a package. Returns the metainformation associated with the package, a view of the directory where the package is installed, and an environment that the package would set
-\tpackman install <package>: install a package (and all its dependencies) in the local cache of the PackMan
-\tpackman installLog <package>: get the installation log of the package
-\tpackman dependencies <name>: gives the list of dependencies of a package
-\tpackman remove  <package>: removes a package from the local cache
-\tpackman define <name> <version> <tar file> [<package options>]
-\tpackman undefine <name> <version>
-
-
-The format of the string <package> is:
-   [<user>\@]<PackageName>[::PackageVersion}
-For instance, 'ROOT', 'ROOT::4.1.3', 'psaiz\@ROOT', 'psaiz\@ROOT::4.1.2' comply with the format of <package>
-";
-}
-
-sub f_packman {
-  my $self=shift;
-  $self->debug(1, "Talking to the PackMan: @_");
-  my $silent     = grep ( /-s/, @_ ); 
-  my $returnhash = grep ( /-z/, @_ ); 
-  my @arg        = grep ( !/-z/, @_ );
-  @arg        = grep ( !/-s/, @arg );
-
-  my $string=join(" ", @arg);
-  my $serviceName="PackMan";
-  $string =~ s{-?-silent\s+}{} and $silent=1;
-  if ( $string =~ s{-?-n(ame)?\s+(\S+)}{} ){
-    my $name=$2;
-    $self->info( "Talking to the packman $name");
-
-    my $done=$self->{CONFIG}->CheckServiceCache("PACKMAN", $name)
-      or $self->info( "Error looking for the packman $name") 
-	and return;
-    $self->{SOAP}->Connect({address=>"http://$done->{HOST}:$done->{PORT}",
-			    uri=>"AliEn/Service/PackMan",
-			    name=>"PackMan_$name",
-			    options=>[timeout=>5000]}) or return;
-    $serviceName="PackMan_$name";
-    @arg=split (" ", $string);
-  }
-
-  my $operation=shift @arg;
-  $operation or 
-    $self->info( $self->f_packman_HELP(),0,0) and return;
-  my $soapCall;
-  my $requiresPackage=0;
-  if ($operation =~ /^l(ist)?$/){
-    $soapCall="getListPackages";
-    $operation="list";
-  } elsif  ($operation =~ /^listI(nstalled)?$/){
-    $soapCall="getListInstalledPackages";
-    $operation="listInstalled";
-  } elsif  ($operation =~ /^t(est)?$/){
-    $requiresPackage=1;
-    $soapCall="testPackage";
-    $operation="test";
-  } elsif ($operation =~ /^i(nstall)?$/){
-    $requiresPackage=1;
-    $soapCall="installPackage";
-    $operation="install";
-  } elsif ($operation =~ /^r(emove|m)?$/){
-    $requiresPackage=1;
-    $soapCall="removePackage";
-    $operation="remove";
-  } elsif ($operation =~ /^d(efine)?$/){
-    return $self->definePackage(@arg);
-  } elsif ($operation =~ /^u(ndefine)?$/){
-    return $self->undefinePackage(@arg);
-  } elsif ($operation =~ /^dependencies$/){
-    $soapCall="getDependencies";
-    $requiresPackage=1;
-  } elsif ($operation =~ /^installLog?$/){
-    $soapCall="getInstallLog";
-    $requiresPackage=1;
-  } else {
-    $self->info( "I'm sorry, but I don't understand $operation");
-    $self->info( $self->f_packman_HELP(),0,0);
-    return
-  }
-  if ($requiresPackage) {
-    my $package=shift @arg;
-    $package or 
-      $self->info( "Error not enough arguments in 'packman $operation") 
-	and $self->info( $self->f_packman_HELP(),0,0) 
-	  and return;
-    my $version="";
-    my $user=$self->{CATALOG}->{CATALOG}->{ROLE};
-    $package =~ s/::([^:]*)$// and $version=$1;
-    $package =~ s/^([^\@]*)\@// and $user=$1;
-    if  ($operation =~ /^r(emove|m)?$/){
-      if ($user ne $self->{CATALOG}->{CATALOG}->{ROLE}) {
-	$self->{CATALOG}->{CATALOG}->{ROLE} eq "admin" or 
-	  $self->info( "You can't uninstall the package of someone else") and return;
-      }
-    }
-    @arg=($user, $package, $version, @arg);
-  }
-
-  $silent or $self->info( "Let's do $operation (@arg)");
-  my $result=$self->{SOAP}->CallSOAP($serviceName, $soapCall,@arg)
-    or $self->info( "Error talking to the PackMan") and 
-      return;
-
-  my ($done, @result)=$self->{SOAP}->GetOutput($result);
-  $done or $self->info( "Error asking for the packages")
-    and return;
-  my $return=1;
-  if ($operation =~ /^list(installed)?/i){
-    my $message="The PackMan has the following packages";
-    $1 and $message.=" $1";
-    $silent or $self->info( join("\n\t", "$message:",@result));
-
-    if ($returnhash) {
-	my @hashresult;
-	map { my $newhash = {}; my ($user, $package) = split '@', $_; $newhash->{user} = $user; $newhash->{package} = $package ; push @hashresult, $newhash;} @result;
-	return @hashresult;
-    }
-
-    $return=\@result;
-  } elsif  ($operation =~ /^t(est)?$/){
-    $silent or $self->info( "The package (version $done) has been installed properly\nThe package has the following metainformation\n". Dumper(shift @result));
-    my $list=shift @result;
-    $silent or $self->info("This is how the directory of the package looks like:\n $list");
-    my $env=shift @result;
-    $env and $self->info("The package will configure the environment to something similar to:\n$env");
-  } elsif ($operation =~ /^r(emove|m)$/){
-    $self->info("Package removed!!\n");
-  } elsif ($operation =~ /^dependencies$/){
-    my $info=shift @result;
-    $info or $self->info("The package doesn't have any dependencies\n") and return;
-    $self->info("The information of the package is:");
-    foreach ( keys %$info){
-      /entryId/ and next;
-      $info->{$_} and $self->info("\t$_:\t\t$info->{$_}",0,0);
-    }
-  } elsif ($operation =~ /^installLog$/){
-    $self->info("The installation log is\n
-=========================================================
-$done
-=========================================================
-\n");
-  }
-
-  return $return;
-}
-
-sub definePackage{
-  my $self=shift;
-  my $packageName=shift;
-  my $version=shift;
-  my $tar=shift;
-  my $message="";
-  $self->info( "Adding a new package");
-  $packageName or $message.="missing Package Name";
-  $version or $message.="missing version";
-  $tar or $message.="missing tarfile";
-  (-f $tar) or $message.="the file $tar doesn't exist";
-
-  $message and $self->info( "Error: $message", 100) and return;
-
-  my @args=();
-  my $se="";
-  my $lfnDir=lc($self->{CATALOG}->{CATALOG}->GetHomeDirectory()."/packages");
-  my $sys1 = `uname -s`;
-  chomp $sys1;
-  my $sys2 = `uname -m`;
-  chomp $sys2;
-  my $platform="$sys1-$sys2";
-
-  while (my $arg=shift){
-    if ($arg=~ /^-?-se$/ ) {
-      $se=shift;
-      next;
-    } 
-    if ($arg=~ /^-vo$/) {
-      $lfnDir="/$self->{CONFIG}->{ORG_NAME}/packages";
-      next;
-    }
-    if ($arg=~ /^-?-platform$/) {
-      $platform=shift;
-      next;
-    }else {
-      push @args, $arg;
-    }
-  }
-  $lfnDir.="/$packageName/$version";
-
-  my $lfn="$lfnDir/$platform";
-
-  $self->{CATALOG}->{CATALOG}->isFile($lfn) and
-    $self->info( "The package $lfn already exists") and return;
-  $self->{CATALOG}->execute("mkdir", "-p", $lfnDir)
-    or $self->info( "Error creating the directory $lfnDir")
-      and return;
-  $self->{CATALOG}->execute("addTag", $self->{CATALOG}->{CATALOG}->GetHomeDirectory()."/packages/$packageName", "PackageDef")
-    or $self->info( "Error creating the tag definition")
-      and return;
-  $self->{CATALOG}->execute("add", $lfn, $tar, $se) 
-    or $self->info( "Error adding the file $lfn from $tar $se")
-      and return;
-  if (@args) {
-    if (!$self->{CATALOG}->execute("addTagValue",$lfnDir, "PackageDef", @args)){
-      $self->info( "Error defining the metainformation of the package");
-      $self->{CATALOG}->execute("rm", "-rf", $lfn);
-      return;
-    }
-  }
-  $self->info( "Package $lfn added!!");
-  return 1;
-}
-sub undefinePackage{
-  my $self=shift;
-  my $packageName=shift;
-  my $version=shift;
-  my $message="";
-  $self->info( "Undefining a package");
-  $packageName or $message.="missing Package Name";
-  $version or $message.="missing version";
-
-  $message and $self->info( "Error: $message", 100) and return;
-
-  my $arguments=join (" ", @_);
-  my $sys1 = `uname -s`;
-  chomp $sys1;
-  my $sys2 = `uname -m`;
-  chomp $sys2;
-  my $platform="$sys1-$sys2";
-  if (($arguments=~ s{-?-platform\s+(\S+)}{})){
-    $platform=$1;
-    @_=split (" ",$arguments);
-  }
-
-  my $lfnDir=$self->{CATALOG}->{CATALOG}->GetHomeDirectory()."/packages/$packageName/$version";
-  my $lfn="$lfnDir/$platform";
-
-  $self->{CATALOG}->{CATALOG}->isFile($lfn) or
-    $self->info( "The package $lfn doesn't exist") and return;
-  $self->{CATALOG}->execute("rm", $lfn)
-    or $self->info( "Error removing $lfn")
-      and return;
-
-  $self->info( "Package $lfn undefined!!");
-  return 1;
-}
 
 return 1;

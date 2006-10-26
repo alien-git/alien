@@ -51,7 +51,7 @@ sub removePackage {
   my $package=shift;
   my $versionUser=shift;
 
-  my ($done, $lfn, $info, $version)=$self->isPackageInstalled($user,$package,$versionUser);
+  my ($done, $lfn, $info, $version)=$self->{PACKMAN}->isPackageInstalled($user,$package,$versionUser);
   
   $done or return (-1, "Package is not installed");
 
@@ -115,7 +115,7 @@ sub getListPackages{
   $self->info( "$$ $$ RETURNING @packages");
   AliEn::Util::setCacheValue($self, "listPackages-$platform", \@packages);
 
-  return (1,@packages);
+  return ($status,@packages);
 }
 
 
@@ -138,10 +138,10 @@ sub getListInstalledPackages {
     $self->info( "$$ $$ Returning the value from the cache (@$cache)");
     return (1, @$cache);
   }
-  my @allPackages=$self->{PACKMAN}->getListInstalled();
+  my ($status, @allPackages)=$self->{PACKMAN}->getListInstalledPackages();
   $self->info( "$$ Returning @allPackages");
   AliEn::Util::setCacheValue($self, "installedPackages", \@allPackages);
-  return (1, @allPackages);
+  return ($status, @allPackages);
 }
 
 =item C<testPackage($user,$package,$version)>

@@ -307,9 +307,11 @@ sub GetJDL {
   my $i=$ENV{ALIEN_JOBAGENT_RETRY} || 5;
 
   my $result;
+
+  my $catalog=$self->getCatalogue() or return;
   while(1) {
     print "Getting the jdl from the clusterMonitor, agentId is $ENV{ALIEN_JOBAGENT_ID}...\n";
-    my $catalog=$self->getCatalogue() or return;
+
     $self->{PACKMAN}->setCatalogue($catalog);
 
     my $hostca=$self->getHostClassad();
@@ -343,12 +345,10 @@ sub GetJDL {
 	  $i++; #this iteration doesn't count
 	}else {
 	  $self->{SOAP}->CallSOAP("Manager/Job", "setSiteQueueStatus",$self->{CONFIG}->{CE_FULLNAME},"jobagent-matched");
-	  $catalog->close();
 	  last;
 	}
        }
     }
-    $catalog->close();
     --$i or  last;
     print "We didn't get the jdl... let's sleep and try again\n";
     $self->{SOAP}->CallSOAP("Manager/Job", "setSiteQueueStatus",$self->{CONFIG}->{CE_FULLNAME},"jobagent-no-match", $hostca);
@@ -359,6 +359,7 @@ sub GetJDL {
     }
     $self->sendJAStatus('REQUESTING_JOB');
   }
+  $catalog->close();
 
   $result or $self->info("Error getting a jdl to execute");
   ( UNIVERSAL::isa( $result, "HASH" )) and $jdl=$result->{jdl};
@@ -735,7 +736,7 @@ sub getCatalogue {
   my $catalog;
 
   eval{ 
-    my $options={silent=>0};
+    my $options={silent=>0, packman_method=>'Local'};
     $self->{CONFIG}->{AGENT_API_PROXY} and 
       $options->{gapi_catalog}=$self->{CONFIG}->{AGENT_API_PROXY};
     $catalog = AliEn::UI::Catalogue::LCM::->new($options);
@@ -941,11 +942,13 @@ sub installPackage {
 
   my ($ok, $source);
   while (1){
+    $self->info("$$ Asking the packman to install the package");
     eval {
-      ($ok, $source)=$self->{PACKMAN}->installPackage($user, $package, $version, {NO_FORK=>1});
+      ($ok, $source)=$self->{PACKMAN}->installPackage($user, $package, $version, undef, {NO_FORK=>1});
       
     };
     my $error=$@;
+    $self->info("$$ The packman called returned $ok and $source");
     $ok and last;
     if ($error) {
       if ($error =~ /Package is being installed/i){
@@ -965,6 +968,7 @@ sub installPackage {
     }
 
   }
+  $self->info("Package $package installed successfully ($ok)!!");
   ($source) and   $self->info("For the package we have to do $source");
   return ($ok, $source);
 }
@@ -2161,6 +2165,7 @@ CPU Speed                           [MHz] : $ProcCpuspeed
   chdir;
   system("rm", "-rf", $self->{WORKDIR});
   $self->{JOBLOADED}=0;
+  $self->{SOAP}->CallSOAP("CLUSTERMONITOR", "jobExits", $ENV{ALIEN_PROC_ID});
   if (!$success){
     $self->sendJAStatus('DONE');
     $self->info("The job did not finish properly... we don't ask for more jobs");
@@ -2186,13 +2191,15 @@ sub checkWakesUp {
   }
   my $procinfo;
   my $i;
-  my $counter=0;
   if (! $self->{JOBLOADED}) {
     $self->sendJAStatus('REQUESTING_JOB');
     $self->info("Asking for a new job");
     if (! $self->requestJob()) {
       $self->sendJAStatus('DONE');
       $self->info("There are no jobs to execute");
+      #Tell the CM that we are done"
+
+      $self->{SOAP}->CallSOAP("CLUSTERMONITOR", "agentExits", $ENV{ALIEN_JOBAGENT_ID});
       # killeverything connected
       $self->info("We have to  kill $self->{SERVICEPID} or ".getppid());
 #      system("ps -ef |grep JOB");

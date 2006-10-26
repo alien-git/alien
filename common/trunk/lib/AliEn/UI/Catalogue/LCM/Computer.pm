@@ -1,6 +1,7 @@
 package AliEn::UI::Catalogue::LCM::Computer;
 
 use AliEn::CE;
+use AliEn::PackMan;
 
 use AliEn::UI::Catalogue::LCM;
 
@@ -28,7 +29,7 @@ my (%command_list);
     'pgroup'   => ['$self->{QUEUE}->f_pgroup', 0],
     'spy'      => ['$self->{QUEUE}->f_spy', 0],
     'queue'    => ['$self->{QUEUE}->f_queue',0],
-    'packman'  => ['$self->{QUEUE}->f_packman',0],
+    'packman'  => ['$self->{PACKMAN}->f_packman',0],
     'masterJob'=> ['$self->{QUEUE}->masterJob',0],
     'checkAgents'=> ['$self->{QUEUE}->checkJobAgents',0],
     'cleanCache' => ['$self->cleanCache',0],
@@ -71,8 +72,13 @@ sub initialize {
 
     $options->{CATALOG} = $self;
 
-    $self->{QUEUE} = AliEn::CE->new($options);
-    ( $self->{QUEUE} ) or return;
+    my $packOptions={PACKMAN_METHOD=> $options->{packman_method}|| "",
+		     CATALOGUE=>$self};
+    $self->{PACKMAN}= AliEn::PackMan->new($packOptions) or return;
+
+    $options->{PACKMAN}=$self->{PACKMAN};
+
+    $self->{QUEUE} = AliEn::CE->new($options) or return;;
 
     $self->AddCommands(%command_list);
     $self->AddHelp(%help_list);

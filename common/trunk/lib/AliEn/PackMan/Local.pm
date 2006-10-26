@@ -37,7 +37,7 @@ sub removeLocks{
   my $self=shift;
   system ("rm -f $self->{INST_DIR}/*.InstallLock");
 }
-sub getListInstalled {
+sub getListInstalled_Internal {
   my $self=shift;
 
   $self->info("Checking the packages that we have installed locally");
@@ -62,7 +62,7 @@ sub getListInstalled {
     die ($@);
   }
 
-  return  @allPackages;
+  return  1, @allPackages;
 
 }
 
@@ -104,7 +104,7 @@ sub installPackage{
     print "Ready to install $package and $version and $user (from $lfn)\n";
     $dependencies->{"${package}::$version"}=1;
     
-    if ($info) {
+    if ($info && $info->{dependencies}) {
       $self->info( "$$ Installing the dependencies of $package");
       foreach (split(/,/,$info->{dependencies})){
 	my ($pack, $ver)=split(/::/, $_, 2);
@@ -203,7 +203,7 @@ sub findPackageLFN{
 sub InstallPackage {
   my $self=shift;
   my $lfn=shift;
-  my ($user, $package, $version, $info,$depConf)=(shift, shift, shift,shift);
+  my ($user, $package, $version, $info,$depConf)=(shift, shift, shift,shift,shift);
   my $options=shift || {};
 
   my $dir="$self->{INST_DIR}/$user/$package/$version";
@@ -348,7 +348,7 @@ sub existsPackage{
 #    return;
 #    }
   }
-  $info and chomp $info->{size};
+  $info and $info->{size} and chomp $info->{size};
   $info->{size} or $info->{size}="";
   $self->debug(2,  "$$ Size $size (has to be $info->{size})");
   if (  $info->{size} and ($size ne $info->{size}) ){
@@ -465,7 +465,7 @@ sub isPackageInstalled {
 
 
 
-sub getListPackages{
+sub getListPackages_Internal{
   my $self=shift;
 
   $self->info("Getting the list of packages (from the catalogue)");
@@ -515,6 +515,8 @@ sub getPlatform(){
   $self->{PLATFORM_NAME}=$platform;
   return $platform;
 }
+
+
 
 return 1;
 
