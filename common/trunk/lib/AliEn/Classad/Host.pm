@@ -153,7 +153,6 @@ sub setPackages {
   #Let's ask the PackMan for the Packages that we have installed
 
   my ($status, @packages)=$self->{PACKMAN}->getListPackages();
-  $self->info("The call returned $status and @packages");
   if (@packages) {
     $self->debug(1, "Setting the list of packages to @packages");
     $self->setItem($ca, "Packages", @packages) or return;
