@@ -14,8 +14,39 @@ my $ALIEN_HOME=$ENV{HOME}."/.alien";
 
 $ALIEN_ROOT or die "ALIEN_ROOT not set !";
 
+
 #
-# prepare SSL specific stuff for httpd.conf
+# Substitute "/opt/alien" with $ALIEN_ROOT in httpd.conf
+#
+my $ALIEN_ROOT_TMP = $ALIEN_ROOT;
+   $ALIEN_ROOT_TMP =~ s/\//\\\//g;
+
+print  ("sed -i -e 's/\\\/opt\\\/alien/$ALIEN_ROOT_TMP/' httpd.conf \n");
+system ("sed -i -e 's/\\\/opt\\\/alien/$ALIEN_ROOT_TMP/' httpd.conf ");
+
+# 
+# Substitute "/opt/alien" with $ALIEN_ROOT in ssl.conf
+#
+
+print  ("sed -i -e 's/\\\/opt\\\/alien/$ALIEN_ROOT_TMP/' $ALIEN_ROOT/httpd/conf/ssl.conf \n");
+system ("sed -i -e 's/\\\/opt\\\/alien/$ALIEN_ROOT_TMP/' $ALIEN_ROOT/httpd/conf/ssl.conf ");
+
+#
+# Substitute "/opt/alien" with $ALIEN_ROOT in highperformance.conf
+#                                             
+
+print  ("sed -i -e 's/\\\/opt\\\/alien/$ALIEN_ROOT_TMP/' $ALIEN_ROOT/httpd/conf/highperformance.conf \n");
+system ("sed -i -e 's/\\\/opt\\\/alien/$ALIEN_ROOT_TMP/' $ALIEN_ROOT/httpd/conf/highperformance.conf ");
+
+#
+# Substitute "Listen 80" with Listen "11983" in highperformance.conf
+#                                             
+
+print  ("sed -i -e 's/Listen 80/Listen 11983/' $ALIEN_ROOT/httpd/conf/highperformance.conf \n");
+system ("sed -i -e 's/Listen 80/Listen 11983/' $ALIEN_ROOT/httpd/conf/highperformance.conf ");
+
+#
+# prepare SSL specific stuff in httpd.conf
 #
 
 my $addHTTPD="
@@ -53,14 +84,6 @@ PerlConfigRequire $ALIEN_ROOT/httpd/conf/startup.pl ";
 	print OUTFD $addHTTPD;
 	close OUTFD;
 
-#
-# Substitute "/opt/alien" with $ALIEN_ROOT in httpd.conf
-#
-
-my $ALIEN_ROOT_TMP = $ALIEN_ROOT;
-   $ALIEN_ROOT_TMP =~ s/\//\\\//g;
-print ("sed -i -e 's/\\\/opt\\\/alien/$ALIEN_ROOT_TMP/'  /tmp/httpd.conf_$$ \n");
-system ("sed -i -e 's/\\\/opt\\\/alien/$ALIEN_ROOT_TMP/' /tmp/httpd.conf_$$");
 
 system ("mv /tmp/httpd.conf_$$ $ALIEN_ROOT/httpd/conf/httpd.conf");
 system ("mkdir -p $ALIEN_ROOT/httpd/logs");
