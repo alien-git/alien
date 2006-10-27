@@ -818,7 +818,7 @@ sub offerAgent {
     $self->{LOGGER}->$mode("CE", "At the moment we are busy (we can't request new jobs)") and return;
   my $classad="";#AliEn::Util::returnCacheValue($self,"classad");
   if (!$classad){
-    my $ca=AliEn::Classad::Host->new() or return;
+    my $ca=AliEn::Classad::Host->new({PACKMAN=>$self->{PACKMAN}}) or return;
     $ca=$self->{BATCH}->updateClassAd($ca)
       or $self->info("Error asking the CE to update the classad")
 	and return;
