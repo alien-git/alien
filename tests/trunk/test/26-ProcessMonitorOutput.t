@@ -129,7 +129,7 @@ sub executeJDLFile{
     exit(-2);
   }
   print "Let's try to execute the job...\n";
-  system("alien", "proxy-destroy");
+  system("alien proxy-destroy 2> /dev/null");
   # only the user with role admin can open and add queues
   my $admincat=AliEn::UI::Catalogue::LCM::Computer->new({"user","$ENV{'USER'}","role","admin"});
   $admincat or exit (-1);
@@ -137,7 +137,7 @@ sub executeJDLFile{
   $admincat->execute("queue", "open $cat->{CONFIG}->{ORG_NAME}::CERN::testCE") 
     or return;
   $cat->execute("request") or return;
-  system ("alien", "proxy-destroy");
+  system ("alien proxy-destroy 2> /dev/null");
   print "The job finished!! Let's wait until the output has been registered\n";
 
   waitForStatus($cat, $id, $status, 5, 10) or return;
