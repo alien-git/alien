@@ -162,7 +162,6 @@ sub retrieveVolumeDetails{
    $self->info("The volume  $volume exists!!");
    my $comment = pack("x".(1000));
    my $error = LFC::lfc_getcomment($volume,$comment);
-   my $stat=LFC::new_lfc_filestatg();
    my ($size, $methodName, $numfiles,$freespace, $usedspace );
    my $real;
    #We have to do this to get rid of the pointers created by pack
@@ -191,8 +190,18 @@ sub retrieveVolumeDetails{
      $error=LFC::lfc_statg( "$volume/NUMBERFILES", undef,$stat);
      $error and $self->info("Error: $LFC::serrno (".POSIX::strerror($LFC::serrno)."Error getting the size") and return;
      $numfiles=LFC::lfc_filestatg_filesize_get($stat);
+     LFC::delete_lfc_filestatg($stat);
    }
-   LFC::delete_lfc_filestatg($stat);
+   $self->info("Trying to read the static info");
+   if (! LFC::lfc_getcomment("$volume/static", $comment)){
+     $self->info("The file $volume/static is defined!");
+     my %hash=split (/[=,]/, $real);
+     $hash{SIZE} and $size=$hash{SIZE};
+     $hash{METHOD} and $methodName=$hash{METHOD};
+     $hash{FREESPACE} and $freespace=$hash{FREESPACE};
+   }
+
+
 
    $size eq "18446744073709551615" and $size=-1;
 
