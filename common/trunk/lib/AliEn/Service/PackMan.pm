@@ -92,7 +92,7 @@ sub getPlatform()
 
 sub getListPackages{
   shift;
-  $self->info( "$$ Giving back all the packages defined");
+  $self->info( "$$ Giving back all the packages defined (options @_)");
 
   grep (/^-?-force$/, @_)
     and  AliEn::Util::deleteCache($self);
@@ -251,6 +251,7 @@ sub initialize {
 				       CREATE_CATALOGUE=>1}) or return;
 
   $self->{PACKMAN}->removeLocks();
+  $self->{INST_DIR}=$self->{PACKMAN}->{INST_DIR};
 
   return $self;
 
