@@ -152,12 +152,12 @@ sub transfer {
 
   my $done=0;
 
-  open (FILE, "$transfer|") or $self->info("Error doing the command!!") and $self->restoreEnvironemnt() and return -1;
+  open (FILE, "$transfer|") or $self->info("Error doing the command!!", 1) and $self->restoreEnvironemnt() and return -1;
   my $id=join("", <FILE>);
-  close FILE or $self->info("Error executing $self->{COMMAND}") and $self->restoreEnvironment() and return -1;
+  close FILE or $self->info("Error executing $self->{COMMAND}", 1) and $self->restoreEnvironment() and return -1;
   $self->restoreEnvironment();
   chomp $id;
-  $id or $self->info("Error getting the transferId") and return -1;
+  $id or $self->info("Error getting the transferId",1) and return -1;
   my $retry=10;
   while(1) {
     sleep (40);
@@ -269,7 +269,7 @@ sub getSite {
 				  );
   
   my   $total = $mesg->count;
-  $total or $self->info("Error: Don't know the site of $host") and return;
+  $total or $self->info("Error: Don't know the site of $host", 1) and return;
   $total >1 and $self->info("Warning!! the se $host is in more than one site");
   my $entry1=$mesg->entry(0);
   my @site=$entry1->get_value("GlueForeignKey");
