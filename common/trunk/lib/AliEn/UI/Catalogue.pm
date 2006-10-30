@@ -480,6 +480,8 @@ sub new {
   }
 
   $self->{SOAP}=new AliEn::SOAP;
+  $self->{GUID}=AliEn::GUID->new();
+
   if ($sentence) {
     $DEBUG and $self->debug(1, "Executing '$sentence'...");
 
@@ -490,7 +492,6 @@ sub new {
     $self->close();
     return;
   }
-  $self->{GUID}=AliEn::GUID->new();
 
   return $self;
 }
