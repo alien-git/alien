@@ -229,6 +229,7 @@ attributetype ( AliEnCE:10 NAME 'packages' SUP name )
 attributetype ( AliEnCE:11 NAME 'maxqueuedjobs' SUP name )
 attributetype ( AliEnCE:12 NAME 'TTL' SUP name )
 attributetype ( AliEnCE:13 NAME 'si2kPrice' SUP name )
+attributetype ( AliEnCE:14 NAME 'installMethod' SUP name )
 
 
 objectclass ( AliEnCE  NAME 'AliEnCE'
@@ -236,7 +237,7 @@ objectclass ( AliEnCE  NAME 'AliEnCE'
 	MUST ( name $ type $ host $maxqueuedjobs  )
 	MAY  ( maxjobs $ submitcmd $ submitarg $ killcmd $ 
                killarg $ statuscmd $ statusarg $ packages $ TTL $ si2kPrice 
-	       $ environment )
+	       $ environment $ installMethod )
 	      )
 #AliEn FTD
 
