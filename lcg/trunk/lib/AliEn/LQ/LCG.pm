@@ -529,6 +529,18 @@ chmod +x bootsh
 export PATH=/opt/alien/bin:\$PATH\n";
 }
 
+sub installWithLocal {
+  my $self=shift;
+  my $version=$self->{CONFIG}->{VERSION};
+  $version=~ s{_.*$}{};
+  return "alien", "rm -rf alien-installer
+wget -O alien-installer http://alien.cern.ch/alien-installer
+chmod +x alien-installer
+./alien-installer --release $version  --prefix \$HOME/alien_install --type wn  update
+export ALIEN_ROOT=\$HOME/alien_install
+export PATH=\$ALIEN_ROOT/bin:\$PATH
+";
+}
 
 sub _system {
   my $self=shift;
