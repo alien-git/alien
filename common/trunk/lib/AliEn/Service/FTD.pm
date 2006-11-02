@@ -249,6 +249,19 @@ sub alloc {
 #    my @route = ( $response->result, $response->paramsout );
 #    return @route;
 #}
+sub _selectPFN {
+  my $self=shift;
+  $self->info("Getting the best PFN from @_");
+  my @methods=keys %{$self->{FTP_SERVERS}};
+  $self->info("Looking for any of @methods");
+  foreach my $method (@methods){
+    my @pfn=grep (/^$method:/i, @_) or next;
+    $self->info("The pfn @pfn is valid (taking the first one)!!");
+    return shift @pfn;
+  }
+  $self->info("There are no favourite methods... hope that the first one will do");
+  return shift @_;
+}
 
 sub startTransfer {
   my $s = shift;
@@ -258,7 +271,7 @@ sub startTransfer {
   $self->info("Starting a transfer");
   my @listPFN;
   $transfer->{FROMPFN} and @listPFN=@{$transfer->{FROMPFN}};
-  my $sourceURL=shift @listPFN;
+  my $sourceURL=$self->_selectPFN( @listPFN);
   $sourceURL=~ s/^([^:]*:)/\L$1\E/;
 
   my $size=$transfer->{SIZE};
@@ -680,7 +693,7 @@ sub makeLocalCopy {
   $self->info("ID $id The local copy is $localPfn" );
 
   foreach my $daemons (keys %{$self->{FTP_SERVERS}}){
-    push @pfns, $self->{FTP_SERVERS}->{$daemons}->getURL($localPfn);
+    push @pfns, $self->{FTP_SERVERS}->{$daemons}->getURL($localPfn, $transfer->{ORIGSE});
   }
   $self->UpdateDiskSpace() or return;
 

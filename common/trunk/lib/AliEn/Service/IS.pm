@@ -282,7 +282,7 @@ sub getService {
   $self->info("Getting the $service of $name" );
   
   # Fetching of host, port, protocols field of a row, containing the value of $name in the name field and statous is active, from the table $service of INFORMATIONSERVICE database. 
-  my $ftd = $self->{DB}->getActiveServices($service,"host,port,protocols,certificate",$name);
+  my $ftd = $self->{DB}->getActiveServices($service,"host,port,protocols,certificate,uri",$name);
   
   defined $ftd
     or $self->{LOGGER}->error( "IS", "In getService error during execution of database query" )
