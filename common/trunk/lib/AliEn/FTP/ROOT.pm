@@ -91,12 +91,12 @@ sub getURL{
   my $self=shift;
   my $pfn=shift;
   $self->{CONFIG} or $self->{CONFIG}=AliEn::Config->new();
-  my $io=$self->{CONFIG}->{SE_IODAEMONS};
+  my $io=$self->{CONFIG}->{SE_IODAEMONS} || "";
   $self->info("Starting with io $io");
   $io =~ s/^xrootd:// or $self->info("Error the iodaemon is not defined") and return;
   my %options=split (/[=:]/, $io);
   $options{port} or $self->info("Error getting the port where the xrootd is running") and return;
-  $pfn=~ s{^file://[^/]*}{root://$self->{DESTHOST}:$options{port}};
+  $pfn=~ s{^((file)|(castor))://[^/]*}{root://$self->{DESTHOST}:$options{port}} or $self->info("The file $pfn can't be accessed through xrootd") and return;
   $self->info("In the XROOTD method, returning $pfn");
   return $pfn;
 }
