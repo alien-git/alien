@@ -158,13 +158,39 @@ sub getStatus {
 sub getAllBatchIds {
   my $self = shift;
   my $jobIds = $self->{DB}->queryColumn("SELECT batchId FROM JOBAGENT");
+  my $n = scalar @$jobIds;
   my @queuedJobs = ();
-  foreach (@$jobIds) {
-     $_ or next;
-     my @output=$self->_system($self->{STATUS_CMD}, $_) or next;
-     grep m/^Current Status:\s*(Running)|(Ready)|(Scheduled)|(Waiting)/,@output
-        or next;
-     push @queuedJobs,$_;
+  while ( @$jobIds ) { 
+    my @someJobs = splice(@$jobIds,0,25);
+    my @output=$self->_system($self->{STATUS_CMD}, "--noint", @someJobs) or next;
+    my $status = '';
+    my $JobId = '';
+    my @result = ();
+    my $newRecord = 1;
+    foreach ( @output ) {
+      chomp;
+      if (m/\*\*\*\*\*\*\*\*/) {
+	if ($newRecord) { # First line of record, reset
+          $status   = '';
+          $JobId    = '';
+          $newRecord = 0;
+	} else { # Last line of record, dump
+          push @queuedJobs,$JobId if ($status =~ m/\s*(Running)|(Ready)|(Scheduled)|(Waiting)/);
+          $self->debug(1,"Job $JobId is $status");
+          $newRecord = 1;
+	}
+	next;
+      }
+      if (m/Status info for the Job/) {
+	(undef,$JobId) = split /:/,$_,2;  
+	$JobId =~ s/\s//g; 
+	next;
+      } elsif ( m/Current Status/) {
+	(undef,$status) = split /:/;
+	$status =~ s/\s//g;     
+	next;
+      }
+    }  
   }
   return @queuedJobs;
 }
