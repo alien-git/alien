@@ -1022,7 +1022,7 @@ sub dumpInputDataList {
       <event name=\"%d\">\n", $event;
 	}
       }
-      print FILE "      <file name=\"$basefilename\" lfn=\"/$file\" 
+      print FILE "      <file name=\"$basefilename\" lfn=\"$file\" 
 turl=\"alien://$file\" />\n";
       (defined $filehash->{$basefilename}) or  $filehash->{$basefilename}=0;
       $filehash->{$basefilename}++;
