@@ -33,7 +33,7 @@ use vars qw(@ISA $DEBUG);
 
 #This array is going to contain all the connections of a given catalogue
 my %Connections;
-@ISA=("AliEn::Database");
+push @ISA, qw(AliEn::Database);
 $DEBUG=0;
 
 =head1 SYNOPSIS
@@ -502,10 +502,10 @@ sub deleteFile {
   my $index=",$self->{CURHOSTID}_$tableName,";
   $file=~ s{^$self->{INDEX_TABLENAME}->{lfn}}{};
 
-  my $guid=$self->queryValue("select guid from $tableName where lfn='$file'");
+  my $guid=$self->queryValue("select binary2string(guid) from $tableName where lfn='$file'");
   if ($guid) {
     $self->debug(1, "Removing the value $index from the GUID $guid");
-    my $done= $self->{FIRST_DB}->do("update GUID set lfn=if(locate('$index', lfn), concat(left(lfn,locate('$index',lfn)), substring(lfn, length('$index')+locate('$index',lfn))), lfn) where guid='$guid'");
+    my $done= $self->{FIRST_DB}->do("update GUID set lfn=if(locate('$index', lfn), concat(left(lfn,locate('$index',lfn)), substring(lfn, length('$index')+locate('$index',lfn))), lfn) where guid=string2binary('$guid')");
   }
 
   return $self->delete($tableName, "lfn='$file'");
