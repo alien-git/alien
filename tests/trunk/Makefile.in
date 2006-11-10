@@ -23,7 +23,7 @@ test:
 	echo "Making tests"
 	./test/Install.sh -create_cert 
 	./test/Install.sh -new_vo 
-	./test/Install.sh -user_tests -no_break -expected 97,08,20,68
+	./test/Install.sh -user_tests -no_break -expected 97,08,20,68,301,302,303
 	./test/Install.sh -performance_tests -apmon
 	./test/Install.sh -gapi_tests
 
