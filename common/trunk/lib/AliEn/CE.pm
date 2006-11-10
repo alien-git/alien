@@ -1765,11 +1765,12 @@ sub f_ps_HELP {
 sub f_ps_jdl{
   my $self=shift;
   my $id=shift;
+  my $options=shift ||{};
   $id or $self->info( "Usage: ps jdl <jobid> ") and  return;
   ( $self->checkConnection() ) or return;
   my $done= $self->{SOAP}->CallSOAP($self->{CONNECTION}, "GetJobJDL", $id);
   $done or return;
-  $self->info("The jdl of $id is ".$done->result() );
+  $options->{silent} or $self->info("The jdl of $id is ".$done->result() );
   return $done->result;
 }
 
@@ -3127,5 +3128,43 @@ sub requirementsFromMemory{
   return $requirements;
 }
 
+
+sub f_jobListMatch_HELP{
+  return "jobListMatch: Checks if the jdl of the job matches any of the current CE. 
+
+Usage:
+\t\tjobListMatch <jobid> [<ce_name>]
+
+If the site is specified, it will only compare the jdl with that CE";
+
+}
+sub f_jobListMatch {
+  my $self=shift;
+  my $jobid=shift or
+    $self->info("Error: no jobid in jobListMatch\n". $self->f_jobListMatch_HELP())  and return;
+  my $ceName=shift || "%";
+
+  my $jdl=$self->f_ps_jdl($jobid, {silent=>1})
+    or return;
+  my $job_ca = Classad::Classad->new($jdl);
+  $job_ca or $self->info("Error creating the classad of the job") and return;
+  $job_ca->isOK() or $self->info("The syntax of the job jdl is not correct") and return;
+  my $done =$self->{SOAP}->CallSOAP($self->{CONNECTION},"queueinfo",$ceName,"-jdl");
+  $done or return;
+  $done=$done->result or return;
+  my $anyMatch=0;
+  foreach my $site (@$done){
+    $site->{jdl} or $self->info("\t Ignoring $site->{site} (the jdl is not right)",undef,0) and next;
+    $self->debug(2,"Comparing with $site->{site} (and $site->{jdl})");
+    my $ce_ca= Classad::Classad->new($site->{jdl});
+    $ce_ca->isOK() or $self->info("The syntax of the CE jdl is not correct") and next;
+    my ( $match, $rank ) = Classad::Match( $job_ca, $ce_ca );
+    my $status="no match :(";
+    $match  and $status="MATCHED!!! :)" and $anyMatch++;
+    $self->info("\tComparing the jdl of the job with $site->{site}... $status",undef,0);
+  }
+  $self->info("In total, there are $anyMatch sites that match");
+  return $anyMatch;
+}
 
 return 1;

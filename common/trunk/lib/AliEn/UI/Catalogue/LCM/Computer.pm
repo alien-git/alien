@@ -37,6 +37,7 @@ my (%command_list);
 #bank functions
     'getBalance'      => ['$self->{QUEUE}->f_getBalance',0],
     'getTransactions' => ['$self->{QUEUE}->f_getTransactions',0], 
+		 'jobListMatch'=>['$self->{QUEUE}->f_jobListMatch',0],
 
 );
 
@@ -61,6 +62,7 @@ my %help_list = (
 #bank functions
     'getBalance'=>"\tGets the acount balance",
     'getTransactions' => "\tGets bank transactions",
+		 'jobListMatch' => '\tMatches the jdl of the job with the CE',
 		 
 );
 
