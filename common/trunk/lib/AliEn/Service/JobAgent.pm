@@ -1385,7 +1385,10 @@ sub prepareZipArchives{
   my @files=();
 
   if (! @outputArchives){
-    ($archiveList, @files)=$self->createDefaultZipArchive(@noPattern, "stdout", "stderr", "resources");
+    grep (/^stdout(@.*)?$/, @noPattern) or push @noPattern, "stdout";
+    grep (/^stderr(@.*)?$/, @noPattern) or push @noPattern, "stderr";
+    grep (/^resources(@.*)?$/, @noPattern) or push @noPattern, "resources";
+    ($archiveList, @files)=$self->createDefaultZipArchive(@noPattern);
   } else {
     ($archiveList, @files)=$self->createUserZipArchives(\@outputArchives, @noPattern);
   }
