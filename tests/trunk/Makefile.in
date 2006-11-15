@@ -8,9 +8,9 @@ install:
 	@mkdir -p $(PREFIX)
 	@for dir in test;\
 	do\
-          tar cf - `find $$dir -type f -print -o -type l -print | grep -v CVS ` | ( cd $(PREFIX); tar xf - ) ;\
+          tar cf - `find $$dir -type f -print -o -type l -print | grep -v CVS ; ` | ( cd $(PREFIX); tar xf - ) ;\
 	done
-
+	cp Makefile $(PREFIX)/test
 
 distbin:
 	mkdir -p @destdir@/@glite_prefix@
@@ -19,11 +19,26 @@ distbin:
 distclean: 
 	rm -rf Makefile opt configure config.* *~ aclocal.m4 autom4te.cache reports opt install-sh  ltmain.sh  missing  mkinstalldirs
 
-test:
-	echo "Making tests"
-	./test/Install.sh -create_cert 
-	./test/Install.sh -new_vo 
-	./test/Install.sh -user_tests -no_break -expected 97,08,20,68,301,302,303
-	./test/Install.sh -performance_tests -apmon
-	./test/Install.sh -gapi_tests
+test: test-cert test-new_vo test-user_tests test-performance test-gapi
+	echo "Tests finished"
+
+test-cert:
+	@echo "Testing create certificates"
+	[ -d test ] && cd test ; ./Install.sh -create_cert
+
+test-new_vo:
+	@echo "Testing new_vo"
+	[ -d test ] && cd test ; ./Install.sh -new_vo
+
+test-user_tests:
+	@echo "Running user tests"
+	[ -d test ] && cd test ; ./Install.sh -user_tests -no_break -expected 97,08,20,68,301,302,303
+
+test-performance:
+	@echo "Running the performance tests"
+	[ -d test ] && cd test ; ./Install.sh -performance_tests -apmon
+
+test-gapi:
+	@echo "Testing gapi"
+	[ -d test ] && cd test ; ./Install.sh -gapi_tests
 
