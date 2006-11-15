@@ -130,13 +130,15 @@ sub initialize {
       $self->info("local public  key          : $ENV{'SEALED_ENVELOPE_LOCAL_PUBLIC_KEY'}");
       $self->info("remote private key         : $ENV{'SEALED_ENVELOPE_REMOTE_PRIVATE_KEY'}");
       $self->info("remote public key          : $ENV{'SEALED_ENVELOPE_REMOTE_PUBLIC_KEY'}");
-
       require SealedEnvelope;
       
       $self->{envelopeengine} = SealedEnvelope::TSealedEnvelope->new("$ENV{'SEALED_ENVELOPE_LOCAL_PRIVATE_KEY'}","$ENV{'SEALED_ENVELOPE_LOCAL_PUBLIC_KEY'}","$ENV{'SEALED_ENVELOPE_REMOTE_PRIVATE_KEY'}","$ENV{'SEALED_ENVELOPE_REMOTE_PUBLIC_KEY'}","Blowfish","CatService\@ALIEN",0);
+      # we want ordered results of se lists, no random
+      $self->{noshuffle} = 1
 
   } else {
       $self->{enveleopengine} =0;
+      $self->{noshuffle} = 0;
   }
 
   $self->{envelopebackdoor} = 0;
@@ -643,12 +645,16 @@ sub selectClosestSE {
   my ($se, @close, @site, @rest);
   while (@_) {
     my $newse  = shift;
-    $self->debug(1, "Checking $newse" );
-    if ( $newse eq "$self->{CONFIG}->{SE_FULLNAME}" ){
+    my $ucnewse = uc $newse;
+    my @ucpiece = split "::", $newse;
+    my $ucsite  = uc "$ucpiece[0]::$ucpiece[1]";
+
+    $self->debug(1,"Checking $newse vs $self->{CONFIG}->{SE_FULLNAME}" );
+    if ( $ucnewse eq uc "$self->{CONFIG}->{SE_FULLNAME}" ){
       $se=$newse;
-    }elsif( grep ( /^$newse$/, @{ $self->{CONFIG}->{SEs_FULLNAME} } )){
+    }elsif( grep ( /^$ucnewse$/, uc @{ $self->{CONFIG}->{SEs_FULLNAME} } )){
       push @close, $newse;
-    }elsif( grep ( /^$newse/,"$self->{CONFIG}->{ORG_NAME}::$self->{CONFIG}->{SITE}::") ){
+    }elsif( grep ( /^$ucsite/, uc "$self->{CONFIG}->{ORG_NAME}::$self->{CONFIG}->{SITE}::") ){
       push @site, $newse;
     }else{
       push @rest, $newse;
@@ -657,9 +663,15 @@ sub selectClosestSE {
   }
   my @return;
   $se and push @return, $se;
-  @close and push @return, shuffle(@close);
-  @site and push @return, shuffle(@site);
-  @rest and push @return, shuffle(@rest);
+  if ($self->{noshuffle}) {
+      @close and push @return, (@close);
+      @site and push @return, (@site);
+      @rest and push @return, (@rest);
+  } else {
+      @close and push @return, shuffle(@close);
+      @site and push @return, shuffle(@site);
+      @rest and push @return, shuffle(@rest);
+  }
   $self->debug(1, "After sorting we have @return");
   return @return;
 }
@@ -1140,7 +1152,7 @@ sub getPFNfromGUID {
 
   my ($seName, $seCert)=$self->{SOAP}->resolveSEName($se) or return;
 
-  $self->info( "Asking the SE at $seName");
+#  $self->info( "Asking the SE at $seName");
   my $result=$self->{SOAP}->CallSOAP($seName, "getPFNFromGUID",$seName, $guid, $self->{CONFIG}->{IOMETHODS_LIST}, $options) 
     or $self->info( "Error asking the SE: $!", 1) and return;
   my @pfns=$self->{SOAP}->GetOutput($result);
@@ -1195,6 +1207,15 @@ sub relocate {
 
 
 #############################################################################################################
+sub access_eof {
+    my $newhash;
+    my @newresult;
+    $newhash->{eof} = "1";
+    push @newresult, $newhash;
+    return @newresult;
+}
+
+
 sub access {
     # access <access> <lfn> 
     # -p create public url in case of read access 
@@ -1212,6 +1233,7 @@ sub access {
   my $lfns    = (shift or 0);
   my $se      = (shift or 0);
   my $size    = (shift or "0");
+  my $sesel   = (shift or 0);
 
   my $nosize  = 0;
 
@@ -1249,14 +1271,14 @@ sub access {
       my $guid="";
       my $pfn ="";
       my $seurl =""; 
-      
+      my $nses = 0;
       if ($access eq "read") {
 	  $perm = "r";
       } elsif ($access =~ /^(((write)((-once)|(-version))?)|(delete))$/ ) {
 	  $perm = "w";
       } else {
 	  $self->{LOGGER}->error("LCM","access: illegal access type <$access> requested");
-	  return;
+	  return access_eof;
       }
       
       $lfn = $self->{CATALOG}->f_complete_path($lfn);
@@ -1277,7 +1299,7 @@ sub access {
 	  
 	  if ($lfn eq "") {
 	      $self->{LOGGER}->error("LCM","access: access denied to guid $guid");
-	      return;
+	      return access_eof;
 	  }
       }
       
@@ -1294,12 +1316,12 @@ sub access {
 							 {RETURN_HASH=>1});
 	  if (!$filehash) {
 	      $self->{LOGGER}->error("LCM","access: access denied to $lfn");
-	      return;
+	      return access_eof;
 	  }
 	  if ( ($access eq "read")) {
 	      if (!$self->{CATALOG}->isFile($lfn, $filehash->{lfn})) {
 		  $self->{LOGGER}->error("LCM","access: access find entry for $lfn");
-		  return;
+		  return access_eof;
 	      }
 	  } else {
 	      
@@ -1308,11 +1330,11 @@ sub access {
 		  $result = $self->{CATALOG}->checkPermissions($perm,$parentdir);
 		  if (!$result) {
 		      $self->{LOGGER}->error("LCM","access: parent dir missing for lfn $lfn");
-		      return;
+		      return access_eof;
 		  }
 		  if ($self->{CATALOG}->existsEntry($lfn, $filehash->{lfn})) {
 		      $self->{LOGGER}->error("LCM","access: write-once but lfn $lfn exists already");
-		      return;
+		      return access_eof;
 		  }
 	      }
 	      
@@ -1321,7 +1343,7 @@ sub access {
 		  $result = $self->{CATALOG}->checkPermissions($perm,$parentdir);
 		  if (!$result) {
 		      $self->{LOGGER}->error("LCM","access: parent dir missing for lfn $lfn");
-		      return;
+		      return access_eof;
 		  }
 		  if ($self->{CATALOG}->existsEntry($lfn, $filehash->{lfn})) {
 		      $self->info( "access: lfn <$lfn> exists - creating backup version ....\n");
@@ -1343,14 +1365,14 @@ sub access {
 		      }
 		      if ($version <0) {
 			  $self->{LOGGER}->error("LCM","access: cannot parse the last version number of $lfn");
-			  return;
+			  return access_eof;
 		      }
 		      my $pversion = sprintf "%.1f", (10.0+($version))/10.0;
 		      my $backupfile = "$parentdir"."/."."$filename/v$pversion";
 		      $self->info( "access: backup file is $backupfile \n");
 		      if (!$self->{CATALOG}->f_mv("",$lfn, $backupfile)) {
 			  $self->{LOGGER}->error("LCM","access: cannot move $lfn to the backup file $backupfile");
-			  return;
+			  return access_eof;
 		      }
 		      # in the end we access a new file
 		      $access="write-once";
@@ -1363,7 +1385,7 @@ sub access {
 	      if ($access eq "delete") {
 		  if (! $self->{CATALOG}->existsEntry($lfn, $filehash->{lfn})) {
 		      $self->{LOGGER}->error("LCM","access: delete of non existant file requested: $lfn");
-		      return;
+		      return access_eof;
 		  }
 	      }
 	  }
@@ -1372,9 +1394,14 @@ sub access {
 	      if (!$se) {
 		  $se = $self->{CONFIG}->{SE_FULLNAME};
 	      }
-	      my ($seName, $seCert)=$self->{SOAP}->resolveSEName($se) or return;
-	      my $newname=$self->{SOAP}->CallSOAP($seName, "getVolumePath",$seName, $size)
-		  or $self->{LOGGER}->error("LCM","access: Error asking $se for a filename") and return;
+	      my ($seName, $seCert)=$self->{SOAP}->resolveSEName($se) or return access_eof;
+	      my $ksize=($size/1024);
+	      if ($ksize<=0) {
+		  $ksize=1;
+	      }
+	      # the volume manager deals with kbyte!
+	      my $newname=$self->{SOAP}->CallSOAP($seName, "getVolumePath",$seName, $ksize)
+		  or $self->{LOGGER}->error("LCM","access: Error asking $se for a filename") and return access_eof;
 	      my @fileName=$self->{SOAP}->GetOutput($newname);
 	      $guid=$fileName[1];
 	      $pfn =$fileName[2];
@@ -1409,24 +1436,59 @@ sub access {
 	      my $whereis = $self->{CATALOG}->f_whereisFile("s", $lfn);
 	      #Get the file from the LCM
 	      $whereis or $self->info( "access: " . $self->{LOGGER}->error_msg())
-		  and return;
-	      
-	      my (@closeList) = $self->selectClosestSE(@$whereis);
+		  and return access_eof;
+
+	      my @closeList={};
+
+	      if ($se ne 0) {
+		  my $tmpse = "$self->{CONFIG}->{SE_FULLNAME}";
+		  my $tmpvo = "$self->{CONFIG}->{ORG_NAME}";
+		  my $tmpsite = "$self->{CONFIG}->{SITE}";
+		  my @tmpses = @{$self->{CONFIG}->{SEs_FULLNAME}};
+		  @{$self->{CONFIG}->{SEs_FULLNAME}}={};
+		  my ($lvo, $lsite, $lname) = split "::", $se;
+		  
+		  # change temporary the meaning of the 'local' se
+		  $self->{CONFIG}->{SE_FULLNAME} = $se;
+		  $self->{CONFIG}->{ORG_NAME} = $lvo;
+		  $self->{CONFIG}->{SITE} = $lsite;
+		  (@closeList) = $self->selectClosestSE(@$whereis);
+		  $self->{CONFIG}->{SE_FULLNAME} = $tmpse;
+		  $self->{CONFIG}->{ORG_NAME} = $tmpvo;
+		  $self->{CONFIG}->{SITE} = $tmpsite;
+		  @{$self->{CONFIG}->{SEs_FULLNAME}}=@tmpses;
+	      } else {
+		  (@closeList) = $self->selectClosestSE(@$whereis);
+	      }
 	      #check if the wished se is at all existing ....
 	      my $sefound=0;
-	      foreach (@closeList) {
-		  if ( (lc $_) eq (lc $se) ) {
-		      $sefound=1;
-		      last;
+	      $nses=scalar @closeList;
+	      if ($sesel > 0) {
+		  # the client wants a replica identified by its number
+		  my $cnt=0;
+		  if (defined $closeList[$sesel-1]) {
+		      $se = $closeList[$sesel-1];
+		  } else {
+		      return access_eof;
 		  }
-	      }
-	      if (!$sefound) {
-		  $se = $closeList[0];
+	      } else {
+		  # the client wants the closest match (entry 0)
+		  foreach (@closeList) {
+		      if ( (lc $_) eq (lc $se) ) {
+			  $sefound=1;
+			  last;
+		      }
+		  }
+		  if (!$sefound) {
+		      # set the closest one
+		      $se = $closeList[0];
+		  }
+
 	      }
 	      
 	      if (! $se) {
 		  $self->{LOGGER}->error("LCM","access: File $lfn does not exist in $se");
-		  return;
+		  return access_eof;
 	      }
 	      
 	      
@@ -1496,6 +1558,7 @@ sub access {
 	  $filehash->{lfn}  = $lfn;
 	  $filehash->{turl} = $pfn;
 	  $filehash->{se}   = $se;
+	  $filehash->{nses} = $nses;
 	  if ($access =~ /^write/) {
 	      $filehash->{guid} = $guid;
 	  }
@@ -1529,8 +1592,9 @@ sub access {
 	  
 	  my $newhash;
 	  $newhash->{guid} = $filehash->{guid};
-	  $newhash->{md5}="$filehash->{md5}";
-	  
+	  $newhash->{md5}  ="$filehash->{md5}";
+	  $newhash->{nSEs} = $nses;
+
 	  # the -p (public) option creates public access url's without envelopes
 	  
 	  if ( ($options =~ /p/) && ($access =~ /^read/) ) {
@@ -1540,7 +1604,7 @@ sub access {
 	      $newhash->{lfn}="$lfn";
 	  } else {
 	      $newhash->{envelope} = $self->{envelopeengine}->GetEncodedEnvelope();
-	      $pfn =~ /^root\:\/\/([0-9a-zA-Z.-_:]*)\/\/(.*)/;
+	      $pfn =~ /^root\:\/\/([0-9a-zA-Z.\-_:]*)\/\/(.*)/;
 	      if ($anchor ne "") {
 		  $newhash->{url}="root://$1/$lfn#$anchor";
 		  $newhash->{lfn}="$lfn#$anchor";
@@ -1555,7 +1619,7 @@ sub access {
 	  
 	  if (!$coded) {
 	      $self->{LOGGER}->error("LCM","access: error during envelope encryption");
-	      return;
+	      return access_eof;
 	  } else {
 	      (!($options=~ /s/)) and $self->info("access: prepared your access envelope");
 	  }
@@ -1643,7 +1707,7 @@ sub commit {
 		  }
 		  # ask at the SE, if this file is really there 
 		  my ($seName, $seCert)=$self->{SOAP}->resolveSEName($se) or return;
-		  $self->{LOGGER}->debug("LCM", "commit: Asking the SE at $seName");
+#		  $self->{LOGGER}->debug("LCM", "commit: Asking the SE at $seName");
 		  my $sepfn=$self->{SOAP}->CallSOAP($seName, "getPFNFromGUID",$se, $guid); 
 		  if (!$sepfn) {
 		      $self->{LOGGER}->info("LCM", "commit: Error asking the SE: $!", 1);
