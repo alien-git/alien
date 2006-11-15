@@ -223,6 +223,13 @@ sub doCallback {
   $self->debug(1, "Callback successful");
   return 1;
 }
+sub dumpEnvironment {
+  my $self=shift;
+  my $file="$self->{CONFIG}->{LOG_DIR}/$self->{SERVICE}.env";
+  $self->info("Putting the environment in $file");
+  system("env >$file") and $self->info("Error opening the file $file");
+  return 1;
+}
 
 sub startListening {
   my $s = shift;
@@ -239,6 +246,7 @@ sub startListening {
 
   $self->setAlive();
     # callback if requested
+  $self->dumpEnvironment();
   $self->doCallback(1);
 
   my $address="$self->{HOST}:$self->{PORT}";
