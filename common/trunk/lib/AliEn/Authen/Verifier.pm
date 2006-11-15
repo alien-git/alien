@@ -12,13 +12,8 @@ require AliEn::Authen::Comm;
 
 use AliEn::Logger::LogObject;
 use AliEn::Config;
-
+use Authen::AliEnSASL;
 use AliEn::SOAP;
-
-#use Authen::AliEnSASL;
-$ENV{'SASL_PATH'} = $ENV{'ALIEN_ROOT'}."/lib/sasl2";
-use Authen::SASL;
-
 
 use vars qw($VERSION @ISA);
 
@@ -28,14 +23,13 @@ $VERSION = "1.00";
 
 my $AUTH_ERROR;
 my $ADMINDBH;
-my $CALLBACK_DATA;
 
 # ***** For debugging only *************
-#use Authen::AliEnSASL::Perl;
-#use Authen::AliEnSASL;
-#use Authen::AliEnSASL::Perl::Server::PLAIN;
-#use Authen::AliEnSASL::Perl::Server::GSSAPI;
-#use GSS;
+use Authen::AliEnSASL::Perl;
+use Authen::AliEnSASL;
+use Authen::AliEnSASL::Perl::Server::PLAIN;
+use Authen::AliEnSASL::Perl::Server::GSSAPI;
+use GSS;
 
 # **************************************
 	 
@@ -50,13 +44,9 @@ my $CALLBACK_DATA;
 #
 ####################################################################
 sub get_sshkey {
-    #my $self = shift;
-    my $in = shift;
+    my $self = shift;
 
-    #my $mech = $self->mechanism;
-    
-     my ( $mech, $username) = split "\0", $$in;
-
+    my $mech = $self->mechanism;
 
     if ( $mech eq "SSH" ) {
         my $config = AliEn::Config->new();
@@ -66,7 +56,7 @@ sub get_sshkey {
 
         #	my $organisation = $self->{CONFIG}->{ORG_NAME};
 
-        #my $username = $self->{username};
+        my $username = $self->{username};
 
         $ldap->bind();
         my $mesg = $ldap->search(    # perform a search
@@ -105,25 +95,21 @@ sub get_sshkey {
 # Return 0 if either fails.
 #
 sub exists_user {
-    
-	#my $self = shift;
-	my $in = shift;
+    my $self = shift;
 
-    my ( $mech, $username, $role, $secret) = split "\0", $$in;
-    
-    #my $mech = $self->mechanism;
+    my $mech = $self->mechanism;
 
-    #my $username = $self->{username};
-    #my $role     = $self->{role};
+    my $username = $self->{username};
+    my $role     = $self->{role};
 
     print "Authmethod: $mech\n";
-    print "Username  :   " . $username . "\n";
-    print "Role      :   " . $role . "\n";
+    print "Username  :   " . $self->{username} . "\n";
+    print "Role      :   " . $self->{role} . "\n";
 
     if ( $mech eq "PLAIN" ) {
 
         #This one checks the password against masterpassword
-        if ( $secret ne "ThePassword" ) {
+        if ( $self->{secret} ne "ThePassword" ) {
             return 0;
         }
     }
@@ -143,8 +129,8 @@ sub exists_user {
 			or print "Token and password for user $role don't exist\n"
 			and return 0;
 
-        if ( ( $DATA->{Token} ne $secret ) || ( $DATA->{validPeriod} < 0 ) ) {
-            print "Expires in $DATA->{validPeriod} TOKEN $DATA->{Token} and $secret\n";
+        if ( ( $DATA->{Token} ne $self->{secret} ) || ( $DATA->{validPeriod} < 0 ) ) {
+            print "Expires in $DATA->{validPeriod} TOKEN $DATA->{Token} and $self->{secret}\n";
             print "Either token was not correct, or it expired\n";
             return 0;
         }
@@ -192,10 +178,9 @@ sub exists_user {
             return 0;
         }
         my $entry = $mesg->entry(0);
-        my $tmprole = $role; 
-	$role = $entry->get_value('uid');
-        print "\"$tmprole\" => $role\n";
-        #$self->{role} = $role;
+        $role = $entry->get_value('uid');
+        print "\"$self->{role}\" => $role\n";
+        $self->{role} = $role;
 
         # Role is now translated into a uid!!
     }
@@ -244,14 +229,10 @@ sub exists_user {
 
       if ($mesgRole->count > 0) {
         $ldap->unbind;
-
         return 1;
       }
 
       print "User $uid not allowed to be $role\n";
-      print FH "m: $mech u: $username r: $role s: $secret 1: $uid HERE \n";
-     close FH;
-
     }
 
     $ldap->unbind;
@@ -289,33 +270,23 @@ sub new {
     }
     ###########################################################################
 
-    #my $callbacks = {
-    #    credential => \&get_sshkey,
-    #    exists     => \&exists_user,
-    #};
+    my $callbacks = {
+        credential => \&get_sshkey,
+        exists     => \&exists_user,
+    };
 
     #Create SASL object
-    #my $sasl =
-    #  new Authen::AliEnSASL( $callbacks, "Alien Authentication server" );
-      
-    my $sasl = Authen::SASL->new (
-      callback => {
-	    pass => [\&get_sshkey,  \$CALLBACK_DATA], #The only way to pass data 
-	    auth => [\&exists_user, \$CALLBACK_DATA]  #to callback functions
-      	  }
- );
+    my $sasl =
+      new Authen::AliEnSASL( $callbacks, "Alien Authentication server" );
 
     #  Fetch server object
     #
     # IMPORTANT: the last option specifies minimum sec. level. 
     #
-    #$self->{SASLserver} =
-    #  $sasl->server_new( "ProxyServer", "hostname", "noanonymous", 0 );
-
     $self->{SASLserver} =
-      $sasl->server_new( "ProxyServer", "localhost");
-    
-    $self->info("I have these mechs installed: " . $self->{SASLserver}->listmech("", " ", "") );
+      $sasl->server_new( "ProxyServer", "hostname", "noanonymous", 0 );
+
+    $self->info("I have these mechs installed: " . $self->{SASLserver}->listmech() );
 
     return $self;
 }
@@ -340,7 +311,6 @@ sub verify {
       
       AliEn::Authen::Comm::write_buffer( $self->{socket}, "AUTH OK", "",
 				       );
-
       if ( $self->authenticate($inTok) ) {
 	$self->info( "Context established\n" );
 	$done = 1;
@@ -354,16 +324,7 @@ sub verify {
     }
     elsif ( $status eq "REQUEST MECHS" ) {
       $self->debug(1, " Client wishes to retrive list of mecs" );
-      my $tmpmechs = $self->{SASLserver}->listmech("", " ", "");
-	
-	# Very BAD workaround !!!
-	my $mechs="";
-	$tmpmechs =~ /GSSAPI ?/ and $mechs = "GSSAPI ";
-	$tmpmechs =~ /SSH ?/ and $mechs .= "SSH ";
-	$tmpmechs =~ /TOKEN ?/ and $mechs .= "TOKEN ";
-	$tmpmechs =~ /PLAIN ?/ and $mechs .= "PLAIN";
-	
-	
+      my $mechs = $self->{SASLserver}->listmech();
       $self->debug(1, " Mechlist: $mechs" );
       AliEn::Authen::Comm::write_buffer( $self->{socket},"AliEnAUTH MECHS",
 					 $mechs, length($mechs) );
@@ -374,11 +335,8 @@ sub verify {
     }
   } while ( !$done );
   
-#  my $username = $self->{SASLserver}->getUsername;
-#  my $role     = $self->{SASLserver}->getRole;
-
-my (undef, $username, $role) = split "\0", $CALLBACK_DATA;
-
+  my $username = $self->{SASLserver}->getUsername;
+  my $role     = $self->{SASLserver}->getRole;
   $self->info("Get password for $username (in $role)" );
   my $passwd = $self->{ADMINDBH}->getPassword($role);
   if (! $passwd ){ 
@@ -424,39 +382,50 @@ sub authenticate {
   my $self   = shift;
   my $method = shift;
 
-  
+  local $SIG{ALRM} =sub {
+    print "$$ timeout in the authentication\n";
+    die("timeout in disconnect");
+  };
+  alarm 60;
+
   my ( $status, $inTok, $inToklen ) =
     AliEn::Authen::Comm::read_buffer( $self->{socket} );
 
-   $CALLBACK_DATA = join "\0", $method ,$inTok;
-   
+  $self->info("Method used is $method" );
   
-  my $outTok = 
-  $self->{SASLserver}->server_start( $inTok,$method);
-  my $outToklen = length ($outTok);
- 
-  while ( $self->{SASLserver}->need_step() ) {
- 
+  my ( $stat, $outTok, $outToklen ) =
+      $self->{SASLserver}->start( $method, $inTok, $inToklen );
+
+    $self->info("Method $method started" );
+
+  my $outbuffer;
+  
+  while ( $stat == $self->{SASLserver}->SASL_CONTINUE ) {
     $self->debug(1,"Sending $outToklen bytes...\n");
     AliEn::Authen::Comm::write_buffer( $self->{socket},
 				       "AliEnAuth CONTINUE",
 				       $outTok, $outToklen );
     ( $status, $inTok, $inToklen ) =
       AliEn::Authen::Comm::read_buffer( $self->{socket} );
-  
-  $outTok = $self->{SASLserver}->server_step( $inTok);
+    ( $stat, $outTok, $outToklen ) =
+      $self->{SASLserver}->step( $inTok, $inToklen );
     $self->debug(1, "Stepping with $inToklen bytes\n");
   }
-  
-  
-  if ( $self->{SASLserver}->code() == 0 ) {#SASL OK
-   $self->debug(1,"Server context is ok\n");
+  alarm 0;
+  if ( $stat == $self->{SASLserver}->SASL_OK ) {
+    $self->debug(1,"Server context is ok\n");
+    $outbuffer = "AliEnAuth OK";
+    AliEn::Authen::Comm::write_buffer( $self->{socket}, $outbuffer, $outTok,
+				       $outToklen );
     return 1;
   }
-	
-  $AUTH_ERROR =  $self->{SASLserver}->error()." Error code is ". $self->{SASLserver}->code()." Outis: $inToklen ";
+
+  $outbuffer = "AliEnAuth NOK";
+  $AUTH_ERROR or $AUTH_ERROR="user not authenticated";
+
   $self->debug(1,"Returning error: $AUTH_ERROR\n");
-  AliEn::Authen::Comm::write_buffer( $self->{socket}, "AliEnAuth NOK", 
+
+  AliEn::Authen::Comm::write_buffer( $self->{socket}, $outbuffer, 
 				     $AUTH_ERROR, length($AUTH_ERROR) );
   return 0;
 }
