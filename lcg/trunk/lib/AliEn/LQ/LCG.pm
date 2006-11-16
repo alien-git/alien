@@ -29,17 +29,20 @@ sub initialize {
    $self->{CONFIG}->{VOBOXDIR} = "/opt/vobox/\L$self->{CONFIG}->{ORG_NAME}";
    $self->{UPDATECLASSAD} = 0;
 
-   $self->{PRESUBMIT}=undef;
-   if (!system("which edg-job-list-match >/dev/null 2>&1")){
-     $self->info("We will do edg-job-list-match");
-     $self->{PRESUBMIT}="edg-job-list-match";
-   }
-   $self->{SUBMIT_CMD} = ( $self->{CONFIG}->{CE_SUBMITCMD} or "edg-job-submit" );
+#   $self->{PRESUBMIT}=undef;
+#   if (!system("which edg-job-list-match >/dev/null 2>&1")){
+#     $self->info("We will do edg-job-list-match");
+#     $self->{PRESUBMIT}="edg-job-list-match";
+#   }
+ 
+  $self->{SUBMIT_CMD} = ( $self->{CONFIG}->{CE_SUBMITCMD} or "edg-job-submit" );
 
    $self->{STATUS_CMD} = ( $self->{CONFIG}->{CE_STATUSCMD} or "edg-job-status" );
 
    $self->{KILL_CMD}   = ( $self->{CONFIG}->{CE_KILLCMD} or "edg-job-cancel" );
 
+   $self->{MATCH_CMD}  = ( $self->{CONFIG}->{CE_MATCHCMD} or "edg-job-list-match" );
+   $self->{PRESUBMIT}  =  $self->{MATCH_CMD};
 
    return 1;
 }
@@ -158,7 +161,6 @@ sub getStatus {
 sub getAllBatchIds {
   my $self = shift;
   my $jobIds = $self->{DB}->queryColumn("SELECT batchId FROM JOBAGENT");
-  my $n = scalar @$jobIds;
   my @queuedJobs = ();
   while ( @$jobIds ) { 
     my @someJobs = splice(@$jobIds,0,25);
@@ -273,6 +275,7 @@ sub getNumberQueued() {
   $value or $value = 0;
   return $value;
 }
+
 #
 #---------------------------------------------------------------------
 #
@@ -361,6 +364,7 @@ sub renewProxy {
    $command = "vobox-proxy --vo \L$self->{CONFIG}->{ORG_NAME}\E --dn \'$dn\' query-proxy-timeleft";
    $self->debug(1,"Doing $command");
    my $realDuration = `$command`;
+   chomp $realDuration;
    $self->{LOGGER}->error("LCG","asked for $duration sec, got only $realDuration") if ( $realDuration < 0.9*$duration);
    $ENV{X509_USER_PROXY} = $currentProxy;
    return 1;
