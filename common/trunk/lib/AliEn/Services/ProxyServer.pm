@@ -245,7 +245,7 @@ sub CallMethod {
 	$server->Debug("CallMethod died with: $@");
 	die $msg;
     } else {
-	$server->Debug("CallMethod: <= " . join(",", @result));
+      $server->Debug("CallMethod: <= " . join(",", (map {$_ or ""} @result)));
     }
     @result;
 }
