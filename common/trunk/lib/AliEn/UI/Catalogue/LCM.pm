@@ -653,7 +653,7 @@ sub selectClosestSE {
       $se=$newse;
     }elsif( grep ( /^$newse$/i, @{ $self->{CONFIG}->{SEs_FULLNAME} } )){
       push @close, $newse;
-    }elsif( grep ( /^$site/i, "$self->{CONFIG}->{ORG_NAME}::$self->{CONFIG}->{SITE}::") ){
+    }elsif( grep ( /^$newse/i, "$self->{CONFIG}->{ORG_NAME}::$self->{CONFIG}->{SITE}::") ){
       push @site, $newse;
     }else{
       push @rest, $newse;
