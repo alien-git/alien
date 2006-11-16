@@ -645,16 +645,15 @@ sub selectClosestSE {
   my ($se, @close, @site, @rest);
   while (@_) {
     my $newse  = shift;
-    my $ucnewse = uc $newse;
-    my @ucpiece = split "::", $newse;
-    my $ucsite  = uc "$ucpiece[0]::$ucpiece[1]";
+    my $seName=$newse;
+    UNIVERSAL::isa($newse, "HASH") and $seName=$newse->{se};
 
     $self->debug(1,"Checking $newse vs $self->{CONFIG}->{SE_FULLNAME}" );
-    if ( $ucnewse eq uc "$self->{CONFIG}->{SE_FULLNAME}" ){
+    if ( $newse =~ /^$self->{CONFIG}->{SE_FULLNAME}$/i ){
       $se=$newse;
-    }elsif( grep ( /^$ucnewse$/, uc @{ $self->{CONFIG}->{SEs_FULLNAME} } )){
+    }elsif( grep ( /^$newse$/i, @{ $self->{CONFIG}->{SEs_FULLNAME} } )){
       push @close, $newse;
-    }elsif( grep ( /^$ucsite/, uc "$self->{CONFIG}->{ORG_NAME}::$self->{CONFIG}->{SITE}::") ){
+    }elsif( grep ( /^$site/i, "$self->{CONFIG}->{ORG_NAME}::$self->{CONFIG}->{SITE}::") ){
       push @site, $newse;
     }else{
       push @rest, $newse;
