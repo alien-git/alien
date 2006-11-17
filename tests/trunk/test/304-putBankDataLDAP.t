@@ -10,7 +10,7 @@ my $ALIEN_HOME=$ENV{HOME}."/.alien";
 BEGIN { plan tests => 2}
 {
 # get rootdn
-my $rootdn = `grep -m 1 rootdn $ALIEN_ROOT/etc/openldap/slapd.conf`;
+my $rootdn = `grep -m 1 \"^rootdn\" $ALIEN_ROOT/etc/openldap/slapd.conf`;
    chop $rootdn; 
    $rootdn =~ s/^\s*rootdn\s*//;
    $rootdn =~ s/\"//g;
@@ -41,7 +41,7 @@ my $base = $config->{LDAPDN};
  
 
  my $result=$ldap->bind($rootdn, "password" => "$pass");
- $result->code && print "failed\nCould not bind to LDAP-Server: ",$result->error and exit(-1);
+ $result->code && print "failed\nCould not bind to LDAP-Server (\n DN: $rootdn )\n: ",$result->error and exit(-1);
 
  my @user_acc;  
  my @role_acc;
@@ -117,7 +117,7 @@ my $base = $config->{LDAPDN};
 	  my $file="$ALIEN_HOME"."/globus/usercert.pem";
 
           # put alienmaster as bank admin 
-          $ldap->modify("ou=Config,"."$base", replace => {'bankAdmin' => 'alienmaster'});
+          $ldap->modify("ou=Config,"."$base", replace => {'bankAdmin' => $ENV{USER} });
 
           # get the subject of alienmaster certificate  
 		  if (-f $file) {
@@ -134,9 +134,19 @@ my $base = $config->{LDAPDN};
 
 
           #restart LBSG (httpd) 
-          system("$ALIEN_ROOT/httpd/bin/httpd -k stop");
-          sleep(5);
-	  system("$ALIEN_ROOT/httpd/bin/httpd");
-          system("ps -ef|grep httpd"); 
+	my @commands=(
+              # if HTTPD was not running then return value is non zero, so there is no need to check
+              {command=>"export LD_LIBRARY_PATH=$ALIEN_ROOT/httpd/lib:$ENV{LD_LIBRARY_PATH} && $ALIEN_ROOT/httpd/bin/httpd -f $ALIEN_ROOT/httpd/conf/httpd.conf -k restart", ignore=>1, sleep=>15},
+#              {command=>"export LD_LIBRARY_PATH=$ALIEN_ROOT/httpd/lib:$ENV{LD_LIBRARY_PATH} && $ALIEN_ROOT/httpd/bin/httpd -f $ALIEN_ROOT/httpd/conf/httpd.conf",sleep=>2},
+              {command=>"ps -ef|grep httpd"});
+
+foreach (@commands){
+  print "\nDoing $_->{command}\n";
+  if (system($_->{command}) and not $_->{ignore}){
+    print "Error doing $_->{command}\n";
+    exit(-1);
+  }
+  $_->{sleep} and sleep($_->{sleep}) and print "Going to sleep for ", $_->{sleep}, " seconds...\n";
+}          
 ok(1);
 }

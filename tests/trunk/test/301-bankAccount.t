@@ -14,7 +14,7 @@ BEGIN { plan tests => 2}
   # create first account
   my $pid =$$;
   my $done = $soap->CallSOAP("LBSG", "createBankAccount", "account_hamar_mek_$pid","1000");
-     $done or system ("$ALIEN_ROOT/httpd/bin/httpd");
+#     $done or system("export LD_LIBRARY_PATH=$ALIEN_ROOT/httpd/lib:$ENV{LD_LIBRARY_PATH} && $ALIEN_ROOT/httpd/bin/httpd -f $ALIEN_ROOT/httpd/conf/httpd.conf -k restart");
      $done or sleep(5);
 
   $done or $done = $soap->CallSOAP("LBSG", "createBankAccount", "account_hamar_mek_$pid","1000");
@@ -23,7 +23,7 @@ BEGIN { plan tests => 2}
 
      my $result = $done->result;
      
-     ($result eq 1) or ok(0);
+     ($result eq 1) or (print "Result: $result " and ok(0));
      ($result eq 1) and ok(1);
 
   # delete account
@@ -35,7 +35,7 @@ BEGIN { plan tests => 2}
 
      $result = $done->result;
      
-     ($result eq 1) or ok(0);
+     ($result eq 1) or (print "result: $result " and ok(0));
      ($result eq 1) and ok(1);
     
 
