@@ -46,28 +46,9 @@ If the package was installed, this method removes it from the disk
 
 sub removePackage {
   shift;
-  $self->info( "$$ Removing the package @_");
-  my $user=shift;
-  my $package=shift;
-  my $versionUser=shift;
-
-  my ($done, $lfn, $info, $version)=$self->{PACKMAN}->isPackageInstalled($user,$package,$versionUser);
-  
-  $done or return (-1, "Package is not installed");
-
-
-  my $dir="$self->{INST_DIR}/$user/$package/$version";
-  if (($dir=~ /\.\./) or ($dir=~ /\s/)) {
-    $self->info( "$$ Error: someone is trying to delete another directory '$dir'");
-    die("Error trying to delete $dir: this is not the directory where the package is installed\n");
-  }
-
-  system ("rm","-rf","$dir") and 
-    $self->info( "$$ Error deleting the package")
-      and die("Error deleting the directory $dir\n");
-  $self->info( "$$ Package $package ($version) removed");
-  AliEn::Util::deleteCache($self);
-  return 1;
+  my ($done, $error)=$self->{PACKMAN}->removePackage();
+  $self->info("The packman returned $done ,and $error");
+  return ($done, $error);
 }
 
 =item C<getListPackages()>
