@@ -64,6 +64,7 @@ EOF
   system("$ENV{'ALIEN_ROOT'}/bin/alien StartSE");
   sleep(30);
   system("$ENV{'ALIEN_ROOT'}/bin/alien login -exec request");
+  sleep(20);
   ok(1);
 }
 
