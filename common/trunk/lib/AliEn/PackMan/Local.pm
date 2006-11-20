@@ -4,7 +4,7 @@ use AliEn::Config;
 use strict;
 use vars qw(@ISA);
 use AliEn::UI::Catalogue::LCM;
-
+use Filesys::DiskFree;
 push @ISA, 'AliEn::Logger::LogObject', 'AliEn::PackMan';
 
 
@@ -192,13 +192,49 @@ sub findPackageLFN{
   my $item={};
   @dependencies and $dependencies[1]  and $item=shift @{$dependencies[1]};
 
+  if (! $item->{installedSize}){
+   $self->info("Let's get the size of the package from the catalogue");
+   my ($info)=$self->{CATALOGUE}->execute("ls", '-lz', $lfn);
+   if ($info and $info->{size}){
+     $item->{installedSize}=2.5* $info->{size};
+   }else {
+     $self->info("Error getting the size of the file $lfn");
+     $item->{installedSize}=500;
+   }
+  }
   $self->info( "$$ Metadata of this item");
   use Data::Dumper;
   print Dumper($item);
   return ($lfn, $item);
 }
 
+sub checkDiskSpace {
+  my $self=shift;
+  my $dir=shift;
+  my $requestedSpace=shift;
+  my $options=shift || {};
 
+  my $handle=Filesys::DiskFree->new();
+  $handle->df();
+  my $size=$handle->avail($dir);
+  #if there is enough space, just install
+  if ($requestedSpace <$size){
+    $self->debug(3, "There is enough space to install the file");
+    return 1;
+  }
+  $options->{no_clean} and return;
+  $self->info("Let's try with some clean up");
+  my @packages=$self->findOldPackages();
+  foreach my $package (@packages){
+    $self->info("Lets's delete $package");
+    $package=~ /^(.*)\@([^:]*)::(.*)$/ 
+      or  $self->info("Error getting the info from $package") and next;
+    my ($user, $package, $version)=($1,$2,$3);
+    $self->removePackage($user, $package, $version);
+  }
+  $options->{no_clean}=1;
+  return $self->checkDiskSpace($dir, $requestedSpace, $options);
+}
 
 sub InstallPackage {
   my $self=shift;
@@ -216,7 +252,7 @@ sub InstallPackage {
 
   $self->existsPackage($user, $package, $version,$info) and return 1;
   $self->info( "$$ Ready to install the package (output in $logFile) ");
-  
+
   open FILE, ">$lock" 
     and close FILE
     or $self->info( "$$ Error creating $lock")
@@ -236,6 +272,9 @@ sub InstallPackage {
 	  $self->info( "$$ Error creating the directory $shared") and die ("Error creating the directory $shared $!");
       system ("ln -s $shared $dir") and $self->info( "$$ Error creating the link") and die ("Error creating the link\n");
     }
+    if (!$self->checkDiskSpace($dir, $info->{installedSize} )){
+      die("Error checking for diskspace to install");
+    }
   };
   if ($@) {
     system ("rm -rf $dir $lock");
@@ -244,6 +283,8 @@ sub InstallPackage {
     $self->{LOGGER}->redirect();
     $self->info( "$$ Error $@") and die ("Error $@\n");
   }
+
+
   $self->info( "$$ Installing package $package (V $version)");
   if (! $options->{NO_FORK}){
     my $pid=fork();
@@ -303,6 +344,7 @@ sub ConfigurePackage{
   $info->{path} and $dir.="/$info->{path}";
 
   my $source="";
+  system("touch $dir/.alien_last_used");
   if (-f "$dir/$sourceFile"){
     $self->{LOGGER}->info( "$$ PacKMan","Testing if $dir/$sourceFile is executable");
     if (! -x "$dir/$sourceFile") {
@@ -517,6 +559,56 @@ sub getPlatform(){
 }
 
 
+sub findOldPackages {
+  my $self=shift;
+  open (FILES, "find  -name .alien_last_used|") or 
+    $self->info("Error doing the find") and return;
+  my @files=<FILES>;
+  close FILES;
+  my @list;
+  my $now=time;
+  foreach my $file (@files){
+    chomp $file;
+    $self->info("Checking if the package '$file' is old");
+    my (@info)=stat $file;
+    
+    print "GOT @info (comparing $now and $info[9]\n";
+    if  ($info[9]+3600*24*7 <$now) {
+      print "The file $file hasn't been accessed in one week\n";
+      $file =~ m{/([^/]*)/([^/]*)/([^/]*)/\.alien_last_used$} or 
+	print "Error getting the information out of the link\n" and next;
+      my ($user, $package, $version)=($1,$2,$3);
 
+      push @list, "$user\@${package}::$version";
+    }
+  }
+  $self->info("Returning @list");
+  return @list;
+}
+
+sub removePackage{
+  my $self=shift;
+  $self->info( "$$ Removing the package @_");
+  my $user=shift;
+  my $package=shift;
+  my $versionUser=shift;
+
+  my ($done, $lfn, $info, $version)=$self->isPackageInstalled($user,$package,$versionUser);
+  
+  $done or return (-1, "Package is not installed");
+
+  my $dir="$self->{INST_DIR}/$user/$package/$version";
+  if (($dir=~ /\.\./) or ($dir=~ /\s/)) {
+    $self->info( "$$ Error: someone is trying to delete another directory '$dir'");
+    die("Error trying to delete $dir: this is not the directory where the package is installed\n");
+  }
+
+  system ("rm","-rf","$dir") and 
+    $self->info( "$$ Error deleting the package")
+      and die("Error deleting the directory $dir\n");
+  $self->info( "$$ Package $package ($version) removed");
+  AliEn::Util::deleteCache($self);
+  return 1;
+}
 return 1;
 
