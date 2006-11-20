@@ -546,10 +546,10 @@ sub copyFile {
   my $md5=AliEn::MD5->new($name);
   if ($opt=~ /c/) {
     $self->info( "We only need a cache copy. Do not register it in the MSS");
-    if ($options->{retrieve_subject}) {
-      $self->info( "Let's start a service to pick up the file");
-      return $self->_startFTPServer($name, $size, $options->{retrieve_subject}, $options->{OPTIONS});
-    }
+#    if ($options->{retrieve_subject}) {
+#      $self->info( "Let's start a service to pick up the file");
+#      return $self->_startFTPServer($name, $size, $options->{retrieve_subject}, $options->{OPTIONS});
+#    }
     return  ( {pfn=> "file://$self->{HOST}$name", size => $size, md5=>$md5 } );
   }
   return $self->registerInMSS($size, $guid, $name, $lfn, $options, $se, $md5);
@@ -603,37 +603,37 @@ sub registerInMSS {
 #This subroutine will try to start an ftp server so that the user can fetch 
 #a file
 #
-sub _startFTPServer{
-  my $self=shift;
-  my $file=shift;
-  my $size=shift;
-  my $subject=shift;
-  my $options=shift;
-  $options=~ /m/ and $self->info("No need to start a daemon")
-    and return ({"pfn" => "file://$self->{HOST}$file", "size" => $size});
-  $self->info( "Let's start for user '$subject' to fetch $file");
-  my $port=$self->getPort();
-  $self->{GRIDMAP}=$self->{X509}->createGridmap($subject);
-  my $childpid= AliEn::Service::SubmitFile::startBBFTPServer($self, $port);
-
-  if (! $childpid) {
-    $self->info( "Error starting gridftp server");
-    return ({"pfn" => "file://$self->{HOST}$file", "size" => $size});
-  }
-  $self->info( "The bbftp started successfully!!");
-
-  $self->{DATABASE}->insert("FTPSERVERS", {pid=>$childpid,
-					port=>$port,
-					pfn=>$file,
-					time=>,time,
-					user=>$subject});
-  my $cert=$self->{CONFIG}->{SE_CERTSUBJECT};
-
-  $cert =~ s/=/\/\//g;
-
-  return ({"pfn" => "bbftp://$self->{HOST}:$port$file?SUBJECT=$cert", 
-	   "size" => $size});
-}
+#sub _startFTPServer{
+#  my $self=shift;
+#  my $file=shift;
+#  my $size=shift;
+#  my $subject=shift;
+#  my $options=shift;
+#  $options=~ /m/ and $self->info("No need to start a daemon")
+#    and return ({"pfn" => "file://$self->{HOST}$file", "size" => $size});
+#  $self->info( "Let's start for user '$subject' to fetch $file");
+#  my $port=$self->getPort();
+#  $self->{GRIDMAP}=$self->{X509}->createGridmap($subject);
+#  my $childpid= AliEn::Service::SubmitFile::startBBFTPServer($self, $port);
+#
+#  if (! $childpid) {
+#    $self->info( "Error starting gridftp server");
+#    return ({"pfn" => "file://$self->{HOST}$file", "size" => $size});
+#  }
+#  $self->info( "The bbftp started successfully!!");
+#
+#  $self->{DATABASE}->insert("FTPSERVERS", {pid=>$childpid,
+#					port=>$port,
+#					pfn=>$file,
+#					time=>,time,
+#					user=>$subject});
+#  my $cert=$self->{CONFIG}->{SE_CERTSUBJECT};
+#
+#  $cert =~ s/=/\/\//g;
+#
+#  return ({"pfn" => "bbftp://$self->{HOST}:$port$file?SUBJECT=$cert", 
+#	   "size" => $size});
+#}
 
 sub stopFTPServer{
   my $this=shift;
@@ -1173,8 +1173,8 @@ sub getFileName{
   $self->debug(1, "Adding the file");
 
   $name = $lvm->addFile($newFile) or 
-    $self->info("$$ Error adding the file to the LVM") 
-    and die("Error adding the file to the LVM");
+    $self->info("$$ Error adding the file to the LVM". $self->{LOGGER}->error_msg()) 
+      and die("Error adding the file to the LVM". $self->{LOGGER}->error_msg()."\n");
   $self->info("$$ Successfully added the file " . $newFile->{guid});
   my $newdir;
   if ($name =~/(.*)\/(.*)$/) {
