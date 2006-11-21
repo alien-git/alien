@@ -183,13 +183,14 @@ sub createXROOTConfFile{
   my %options;
   my $extra="";
   my $olb_port=51002;
+  my $host=$self->{HOST};
   my $fsLib = AliEn::Util::isMac() ? "libXrdTokenAuthzOfs.dylib" : "libXrdTokenAuthzOfs.so";
   foreach my $option (@_){
     my ($key, $value)=split("=", $option);
     if ($key=~ /^port$/){
       $port=$value;
       $self->{SUBPORT} = $port;
-      $self->{SUBURI} = "root://$self->{HOST}:$port/";
+      $self->{SUBURI} = "root://$host:$port/";
       $options{port}=$port;
       next;
     }
@@ -206,6 +207,12 @@ sub createXROOTConfFile{
     }
     if ($key =~ /^olb_port$/i) {
       $olb_port=$value;
+      next;
+    }
+    if ($key =~ /^host$/i){
+      $host=$options{host}=$value;
+      $self->{SUBURI}="root://$host";
+      $self->{SUBPORT} and $self->{SUBURI}.=":$self->{SUBPORT}";
       next;
     }
     $self->info("Don't know what to do with the option $option!");
@@ -296,6 +303,10 @@ sub startXROOTD {
 
   my ($optionFile, %options)=$self->createXROOTConfFile($name,@_) or return;
 
+  if ($options{host}) {
+    $self->info("We don't have to start the xrootd (it runs on $options{host})");
+    return 1;
+  }
   $self->info("Starting the xrootd daemon");
   my $pid=fork();
   defined $pid or $self->info("Error doing the fork") and return;
@@ -1481,9 +1492,10 @@ sub checkIOmethod {
   $pfn=~ /^(file)|(castor)/ or $self->info("The pfn doesn't look like a local file... lets' return it the way it is") and return $pfn;
   my $method=$methods[0]->{protocol};
   my $port=$methods[0]->{port};
+  my $host=$methods[0]->{host} || $self->{CONFIG}->{HOST};
   defined $port and $port=":$port";
   $pfn !~ /^srm/ and 
-    $pfn=~ s{^[^:]*://[^/]*}{$method://$self->{CONFIG}->{HOST}$port/};
+    $pfn=~ s{^[^:]*://[^/]*}{$method://$host$port/};
   $self->debug(1,"Let's return $pfn");
   return $pfn;
 }
