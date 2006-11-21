@@ -466,7 +466,7 @@ sub insert {
   my $self = shift;
   my $table = shift;
   my $rfields = shift;
-
+  my $options =shift || {};
   ###	statement checking is a temporary solution ... remove later!!!
   if ($table =~ /\s/){return $self->do($table);}
 
@@ -476,10 +476,15 @@ sub insert {
 
   #my @arr = values %$rfields;
   my @bind_values;
-  foreach (values %$rfields) {
-    if (defined $_) {
-      $query .= "?,";
-      push @bind_values, $_;
+  foreach (keys %$rfields) {
+    my $value=$rfields->{$_};
+    if (defined $value) {
+      if ($options->{functions} and $options->{functions}->{$_}){
+	$query.="$options->{functions}->{$_}(?),";
+      }else{
+	$query .= "?,";
+      }
+      push @bind_values, $value;
      } else {
       $query .= "NULL,";
     }
@@ -558,12 +563,15 @@ sub checkTable {
   my $columnsDef=shift;
   my $primaryKey=shift;
   my $index=shift;
+  my $options=shift;
+  
 
   my %columns=%$columnsDef;
-
+  my $engine="";
+  $options->{engine} and $engine=" engine=$options->{engine} ";
   $desc="$desc $columns{$desc}";
-  $self->_do("CREATE TABLE IF NOT EXISTS $table ($desc) DEFAULT CHARACTER SET latin1 COLLATE latin1_general_cs")
-    or $self->{LOGGER}->error("TaskQueue","in checkQueueTable creating table $table failed");
+  $self->_do("CREATE TABLE IF NOT EXISTS $table ($desc)$engine DEFAULT CHARACTER SET latin1 COLLATE latin1_general_cs")
+    or $self->info("In checkQueueTable creating table $table failed",3) and return;
 
   my $alter=$self->getNewColumns($table, $columnsDef);
 
@@ -786,12 +794,6 @@ sub grantPrivilegesToUser {
     $self->_do("GRANT $_ TO $pass")
       or $DEBUG and $self->debug (0, "Error adding privileges $_ to $user")
       and $success = 0;
-  }
-#TEMPORARY FOR MY LAPTOP
-  if ($origpass){
-    $self->info("I only want to do this in my laptop");
-    $self->_do("GRANT USAGE ON *.* to '$user'\@'localhost' IDENTIFIED by '$origpass'") or return;
-    print "DONE GRANT USAGE ON *.* to '$user'\@'localhost' IDENTIFIED by '$origpass'\n";
   }
   return $success;
 }
@@ -1021,27 +1023,29 @@ sub _connect{
     $self->{DBH} = DBI->connect($dsn,$self->{ROLE},$pass,$self->{DBI_OPTIONS});
     $self->{DBH} and last;
     my $errStr=$DBI::errstr;
-
-    if ($errStr =~ /please connect later/){
-      $self->info( "The database is down...");
-      $sleep = $sleep*2 + int(rand(2));
-      $sleep>$max_sleep and $sleep=int(rand(4));
-    $self->info( "The connection to the database is not active... let's sleep for $sleep seconds");
-      sleep ($sleep);
-      next;
-    }
-
-    if ($DBI::errstr) {
+    if ($errStr) {
+      if ($errStr =~ /please connect later/){
+        $self->info( "The database is down...");
+        $sleep = $sleep*2 + int(rand(2));
+        $sleep>$max_sleep and $sleep=int(rand(4));
+        $self->info( "The connection to the database is not active... let's sleep for $sleep seconds");
+        sleep ($sleep);
+        next;
+      } 
       $self->info( "Could not connect to database: $DBI::errstr ($DBI::err)",-1);
       if ($DBI::errstr =~ /Died at .*AliEn\/UI\/Catalogue\.pm line \d+/) {
 	die("We got a ctrl+c... :( ");
       }
-
       return;
     }
 
-    ($DBI::err and $DBI::err == 1) and 
+    ($DBI::err and $DBI::err == 1) and
       $self->info( "Database does not authenticate the user $self->{USER} as $self->{ROLE}") and return;
+
+    $sleep = $sleep*2 + int(rand(2));
+    $sleep>$max_sleep and $sleep=int(rand(4));
+    $self->info("There was an unknown error: ". $DBI::err. " (sleeping $sleep)");
+    sleep ($sleep);
 
   }
   $DEBUG and $self->debug(1,"User $self->{ROLE} connected to database $dsn");
