@@ -767,11 +767,12 @@ sub CheckService{
   my $se={};
   
 
-  my $filter = "(&(objectClass=AliEn$service)(name=$name))";
   my $base   = "ou=$service,ou=services,$self->{FULLLDAPDN}";
   my $site = $self->{SITE};
   my $class="AliEn$service";
   $service=~ /SE/ and $class="AliEnMSS";
+  my $filter = "(&(objectClass=$class)(name=$name))";
+
   if ( $name =~ /\:\:/ ) {
     $DEBUG and $self->debug(1, "WE ARE USING ANOTHER $service from another site");
     my $org;
