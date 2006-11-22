@@ -51,17 +51,14 @@ sub new {
   my $BDII = $ENV{LCG_GFAL_INFOSYS};
   $self->{CONFIG}->{CE_LCG_GFAL_INFOSYS} and $BDII=$self->{CONFIG}->{CE_LCG_GFAL_INFOSYS};
 
-
-  my $sename=uc ("VO_${VO}_DEFAULT_SE");
-
-  my $SE = $ENV{$sename};
-
   $BDII=~ s{ldap://}{};
 
-
   my @se_options;
-  if ($self->{CONFIG}->{SE_OPTIONS_LIST}) {
-    foreach (@{$self->{CONFIG}->{SE_OPTIONS_LIST}}) {
+
+  my $item=$self->{CONFIG}->{SE_OPTIONS_LIST};
+  $options2->{VIRTUAL} and $item=$self->{CONFIG}->{"SE_$options2->{VIRTUAL}"}->{OPTIONS_LIST};
+  if ($item) {
+    foreach (@$item) {
       push @se_options, split ('=', $_);
     }
   }
@@ -70,43 +67,43 @@ sub new {
     $self->{LOGGER}->error("SRM", "Error: the host is not specified. Please, put in the ldap configuration of $self->{CONFIG}->{SE_FULLNAME}, in the options something like: host=<hostname>");
     return;
   }
-  $SE=$se_hash{host};
-
+  my $SE=$se_hash{host};
+  
   $BDII or $self->info("Can't find the address of the BDII") and return;
   $self->info("Contacting the BDII at $BDII");
-
-   my $ldap =  Net::LDAP->new($BDII) or die $@;
-   $ldap->bind() or die $@;
-   print "Looking for $SE\n" if $DEBUG;
-   my $result = $ldap->search( base   => "mds-vo-name=local,o=grid",
-                               filter => "(&(GlueServiceURI=*$SE*)(GlueServiceType=srm*))");
-   $result->code && die $result->error;
-   print "Got ",$result->count()," entries.\n" if $DEBUG;
-   $result->count() or printf STDERR "Error: SE $SE not found in the BDII.\n" and exit 10;
+  
+  my $ldap =  Net::LDAP->new($BDII) or die $@;
+  $ldap->bind() or die $@;
+  print "Looking for $SE\n" if $DEBUG;
+  my $result = $ldap->search( base   => "mds-vo-name=local,o=grid",
+			      filter => "(&(GlueServiceURI=*$SE*)(GlueServiceType=srm*))");
+  $result->code && die $result->error;
+  print "Got ",$result->count()," entries.\n" if $DEBUG;
+  $result->count() or printf STDERR "Error: SE $SE not found in the BDII.\n" and exit 10;
   my $URI;
-   foreach my $entry ($result->all_entries) {
-     my @values = $entry->get_value("GlueServiceURI");
-     print "Warning: more than one entry!\n" if ($#values>0  && $DEBUG );
-     $URI = $values[0];
-     $URI or printf STDERR "Error: Error getting URI for $SE.\n" and exit 11;
-     print "SRM endpoint is $URI\n" if $DEBUG;
-     last;
-   }
-   my $mountpoint = '';
-   $result = $ldap->search( base   => "mds-vo-name=local,o=grid",
-                            filter => "(&(GlueSARoot=$VO*)(gluechunkkey=*$SE*))");
-   $result->code && die $result->error;
-   print "Got ",$result->count()," entries.\n" if $DEBUG;
-   $result->count() or print "Mountpoint for $SE not found.\n" and exit 20;
-   foreach my $entry ($result->all_entries) {
-     my @values = $entry->get_value("GlueSARoot");
-     print "Warning: more than one entry!\n" if ($#values>0 && $DEBUG);
-     (undef, $mountpoint) = split (/:/,$values[0],2);
-     last;
-   }
-   $mountpoint or printf STDERR "Error: Error getting mountpoint for $VO.\n" and exit 21;
-   print "SRM mountpoint path is $mountpoint\n" if $DEBUG;
-   $ldap->unbind();
+  foreach my $entry ($result->all_entries) {
+    my @values = $entry->get_value("GlueServiceURI");
+    print "Warning: more than one entry!\n" if ($#values>0  && $DEBUG );
+    $URI = $values[0];
+    $URI or printf STDERR "Error: Error getting URI for $SE.\n" and exit 11;
+    print "SRM endpoint is $URI\n" if $DEBUG;
+    last;
+  }
+  my $mountpoint = '';
+  $result = $ldap->search( base   => "mds-vo-name=local,o=grid",
+			   filter => "(&(GlueSARoot=$VO*)(gluechunkkey=*$SE*))");
+  $result->code && die $result->error;
+  print "Got ",$result->count()," entries.\n" if $DEBUG;
+  $result->count() or print "Mountpoint for $SE not found.\n" and exit 20;
+  foreach my $entry ($result->all_entries) {
+    my @values = $entry->get_value("GlueSARoot");
+    print "Warning: more than one entry!\n" if ($#values>0 && $DEBUG);
+    (undef, $mountpoint) = split (/:/,$values[0],2);
+    last;
+  }
+  $mountpoint or printf STDERR "Error: Error getting mountpoint for $VO.\n" and exit 21;
+  print "SRM mountpoint path is $mountpoint\n" if $DEBUG;
+  $ldap->unbind();
   $self->{URI}=$URI;
   $self->{MOUNTPOINT}=$mountpoint;
 
