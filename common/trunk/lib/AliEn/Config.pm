@@ -770,7 +770,7 @@ sub CheckService{
   my $base   = "ou=$service,ou=services,$self->{FULLLDAPDN}";
   my $site = $self->{SITE};
   my $class="AliEn$service";
-  $service=~ /SE/ and $class="AliEnMSS";
+  $service=~ /^SE$/ and $class="AliEnMSS";
   my $filter = "(&(objectClass=$class)(name=$name))";
 
   if ( $name =~ /\:\:/ ) {
