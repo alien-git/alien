@@ -171,7 +171,7 @@ $config{jobDatabase}="$mysqlHost/mysql/processes";
 $config{catalogueOptimizerAddress}="$hostName:".($portNumber+19);
 $config{catalogueDatabase}="$mysqlHost/mysql/alien_system";
 
-$config{lbsgAddress}  = "https://"."$hostName".":8050";
+$config{lbsgAddress}  = "https://"."$hostName".":8051";
 $config{lbsgDatabase} = $config{jobDatabase};
 
 #$config{si2kNominalPrice} = "1";
@@ -268,7 +268,7 @@ while (@list){
   my  $mesg=$ldap->add ($key,attr => $value);
   $mesg->code && print "failed\nCould not add  $key: ",$result->error 
     and exit (-1);
-
+    ;
 }
 
 $ldap->unbind;
