@@ -168,5 +168,14 @@ sub updateClassAd {
 sub getFreeSlots {
   return 0;
 }
+
+sub cleanUp {
+  return 1;
+}
+
+sub needsCleaningUp {
+  return 0;
+}
+
 return 1;
 
