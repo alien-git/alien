@@ -8,6 +8,7 @@ use strict;
 use AliEn::Database::CE;
 use AliEn::Classad::Host;
 use Data::Dumper;
+use File::Basename;
 use Net::LDAP;
 use AliEn::TMPFile;
 use POSIX ":sys_wait_h";
@@ -35,14 +36,14 @@ sub initialize {
 #     $self->{PRESUBMIT}="edg-job-list-match";
 #   }
  
-  $self->{SUBMIT_CMD} = ( $self->{CONFIG}->{CE_SUBMITCMD} or "edg-job-submit" );
+  $self->{SUBMIT_CMD}  = ( $self->{CONFIG}->{CE_SUBMITCMD} or "edg-job-submit" );
 
    $self->{STATUS_CMD} = ( $self->{CONFIG}->{CE_STATUSCMD} or "edg-job-status" );
 
    $self->{KILL_CMD}   = ( $self->{CONFIG}->{CE_KILLCMD} or "edg-job-cancel" );
 
    $self->{MATCH_CMD}  = ( $self->{CONFIG}->{CE_MATCHCMD} or "edg-job-list-match" );
-   $self->{PRESUBMIT}  =  $self->{MATCH_CMD};
+   $self->{PRESUBMIT}  = $self->{MATCH_CMD};
 
    return 1;
 }
@@ -133,7 +134,7 @@ sub getStatus {
      my $queueid = shift;
      $queueid or return;
      $self->info("GetStatus: getting status from LCG for $queueid");
-     my $LCGStatus =  $self->getJobStatus($queueid);
+     my $LCGStatus =  $self->getJobStatus($self->getContactByQueueID($queueid));
      $LCGStatus or return 'DEQUEUED';
      chomp $LCGStatus;
 
@@ -276,19 +277,59 @@ sub getNumberQueued() {
   return $value;
 }
 
+sub cleanUp {
+  my $self = shift;
+  my $logfile = AliEn::TMPFile->new({ ttl      => '24 hours',
+                                      filename => "edg-job-get-output.log"});
+  my $outdir = dirname($logfile); 
+  my $jobIds = $self->{DB}->query("SELECT batchId,timestamp FROM TOCLEANUP");
+  foreach ( splice (@$jobIds,0,50) ) { #Up to 50 at a time
+    my $age = (time - $_->{'timestamp'});
+    if ( $age lt 60*60*24*3 ) {
+      if ( $_->{'batchId'} ) {
+	my $status = $self->getJobStatus($_->{'batchId'});
+	if ( $status eq 'Aborted') {
+	  $self->info("Job $_->{'batchId'} was aborted, no logs to retrieve");
+	} else {
+	  $self->info("Will retrieve OutputSandbox for $status job $_->{'batchId'}");
+
+	  my @output = $self->_system("edg-job-get-output","--noint",
+                                                	   "--logfile", $logfile,
+					        	   "--dir", $outdir,
+					        	   $_->{'batchId'} );
+	  if ( $? ) {						     
+	    my $errmesg = (split(/\s+/,(grep(/\*\*\*\* Error: /,@output))[0]))[2];						     
+	    $self->info("Could not retrieve output for $_->{'batchId'}: $errmesg");
+	    next unless ($errmesg =~ m/NS_JOB_OUTPUT_RETRIEVED/);
+	  }
+	}
+      } else {
+	$self->{LOGGER}->error("LCG","There is no LCG JobID in this entry!");
+      }
+    } else {
+      	$self->info("Job $_->{'batchId'} is more than three days old ($age/3600) and is beginning to smell");
+    } 
+    $self->info("OK, will remove DB entry for $_->{'batchId'}");
+    $self->{DB}->delete("TOCLEANUP","batchId='$_->{'batchId'}'");
+  }
+  return 1;
+}
+
+sub needsCleaningUp {
+  return 1;
+}
+
 #
 #---------------------------------------------------------------------
 #
 
 sub getJobStatus {
    my $self = shift;
-   my $queueid = shift;
+   my $contact = shift;
    my $pattern = shift;
-   $self->info("GetJobStatus: getting status from LCG for $queueid");
-   $queueid or return;
-   $pattern or $pattern = 'Current Status:';
-   my ($contact)= $self->getContactByQueueID($queueid);
    $contact or return;
+   $self->info("Getting status from LCG for $contact");
+   $pattern or $pattern = 'Current Status:';
    my $user = getpwuid($<);
    my @args=();
    $self->{CONFIG}->{CE_STATUSARG} and
