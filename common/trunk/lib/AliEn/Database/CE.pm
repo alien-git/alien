@@ -36,6 +36,11 @@ sub initialize{
                                procinfo varchar(200),
                                tag varchar(40),
                                timestamp int";
+
+  $self->{TABLES}->{TOCLEANUP}="agentId varchar(40),
+                                batchId varchar(60),
+                                timestamp int";
+
   return $self->SUPER::initialize();
 }
 
@@ -53,7 +58,7 @@ sub updateJobAgent{
   my $data=shift;
   $data->{timestamp}=time;
   $data->{status}="ACTIVE";
-  print "Updating the jobagent\n";
+  $self->info("Updating the jobagent");
   my $done=$self->update("JOBAGENT", $data, @_);
   if ( $done =~ /^0E0$/){
     #Ok, the increment did not work. Let's insert the entry
@@ -62,6 +67,15 @@ sub updateJobAgent{
   }
 
   return $done;
+}
+
+sub removeJobAgent {
+   my $self = shift;
+   my $data = shift;
+   $self->insert("TOCLEANUP",{ batchId  => $data->{batchId}, 
+			       timestamp=> time() }) if $data->{needsCleanUp};
+   $self->delete("JOBAGENT", "batchId='$data->{batchId}'");
+   return 1;
 }
 
 sub insertMessage {
