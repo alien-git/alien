@@ -1135,6 +1135,7 @@ sub checkWakesUp {
   $self->checkMessages($silent);
 #  $self->checkExpired($silent);
   $self->checkJobAgents($silent);
+  $self->{BATCH}->cleanUp();
 #  $self->checkZombies($silent);
   return; 
 }
@@ -1237,7 +1238,7 @@ sub checkJobAgents {
     $self->$method(@data, "Checking if the agent $job->{batchId} is still there...");
     if (!grep (/^$job->{batchId}$/, @inBatch)) {
       $self->info("Agent $job->{batchId} is dead!!\n");
-      $self->{LOCALJOBDB}->delete("JOBAGENT", "batchId='$job->{batchId}'");
+      $self->{LOCALJOBDB}->removeJobAgent($job->{batchId}, $self->{BATCH}->needsCleaningUp());
     }
     @inBatch=grep (! /^$job$/, @inBatch);    
   }
@@ -1328,7 +1329,7 @@ sub agentExits{
   my $agentId=shift;
 
   $self->info("The jobAgent $agentId has finished");
-  $self->{LOCALJOBDB}->delete("JOBAGENT","agentId='$agentId'");
+  $self->{LOCALJOBDB}->removeJobAgent($agentId, $self->{BATCH}->needsCleaningUp());
   return;
 }
 
@@ -1337,6 +1338,6 @@ sub jobExits{
   my $jobId=shift;
 
   $self->info("The job $jobId has finished");
-  $self->{LOCALJOBDB}->delete("JOBAGENT","queueId='$jobId'");
+  $self->{LOCALJOBDB}->removeJobAgent($agentId, $self->{BATCH}->needsCleaningUp());
   return;
 }
