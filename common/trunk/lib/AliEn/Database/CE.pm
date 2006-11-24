@@ -71,10 +71,11 @@ sub updateJobAgent{
 
 sub removeJobAgent {
    my $self = shift;
-   my $data = shift;
-   $self->insert("TOCLEANUP",{ batchId  => $data->{batchId}, 
-			       timestamp=> time() }) if $data->{needsCleanUp};
-   $self->delete("JOBAGENT", "batchId='$data->{batchId}'");
+   my $batchId = shift;
+   my $needsCleanUp = shift;
+   $self->insert("TOCLEANUP",{ batchId  => $batchId, 
+			       timestamp=> time() }) if $needsCleanUp;
+   $self->delete("JOBAGENT", "batchId='$batchId'");
    return 1;
 }
 
