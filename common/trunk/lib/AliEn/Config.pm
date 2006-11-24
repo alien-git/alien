@@ -668,6 +668,7 @@ sub setService {
     $se or return;
     $service=uc($service);
     @all = keys %{$se};
+    map { $self->{$_}=undef } grep(/^${service}_/, keys(%$self));
     map { $self->{"${service}_$_"}=$se->{$_} } @all;
     $self->{$service}=$se->{NAME};
 
