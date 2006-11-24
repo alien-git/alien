@@ -3,8 +3,8 @@ use strict;
 use AliEn::UI::Catalogue;
 
 my $c=AliEn::UI::Catalogue->new({USER=>"admin", role=>"admin", 
-#				 USE_PROXY=>0, passwd=>"pass",
-				}) or exit;
+				 USE_PROXY=>0, passwd=>"pass",
+				}) or exit (-2);
 
 my $dir="/test/";
 $c->execute("silent") or exit(-2); 

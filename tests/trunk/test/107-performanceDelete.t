@@ -4,7 +4,7 @@ use AliEn::UI::Catalogue;
 
 my $c=AliEn::UI::Catalogue->new({USER=>"admin", role=>"admin", 
 				 USE_PROXY=>0, passwd=>"pass",
-				}) or exit;
+				}) or exit (-2);
 
 my $dir="/test/";
 

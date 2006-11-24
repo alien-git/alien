@@ -2,10 +2,10 @@ use strict;
 use Time::HiRes qw (time);
 use AliEn::UI::Catalogue;
 
-my $c=AliEn::UI::Catalogue->new({#USER=>"admin", role=>"admin",
-				 USE_PROXY=>0, #passwd=>"pass",
+my $c=AliEn::UI::Catalogue->new({USER=>"admin", role=>"admin",
+				 USE_PROXY=>0, passwd=>"pass",
 #				 debug=>4
-				}) or exit;
+				}) or exit(-2);
 use Data::Dumper;
 
 my $dir="/test/performance.$$";
@@ -15,8 +15,8 @@ $c->execute("mkdir", "-p", $dir) or exit(-2);
 
 
 $c->execute("silent") or exit(-2); 
-my $total=50000;
-my $step=5000;
+my $total=5000;
+my $step=500;
 my ($totalTime, $mean)=insertEntries($c, $dir, $total, $step);
 
 print "Inserting $total entries -> $totalTime seconds ( $mean ms/insert)\n";
@@ -35,6 +35,7 @@ sub insertEntries {
   my $before=time;
   while ($start) {
     $c->execute("touch", "$dir/file$start") or exit(-2);
+#    $c->execute("register", "$dir/file$start", "/etc/passwd", 1700);
     $start--;
     if ( $start%$step eq "0") {
       my $intermediate=time();
