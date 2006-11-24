@@ -305,7 +305,7 @@ sub startXROOTD {
 
   if ($options{host}) {
     $self->info("We don't have to start the xrootd (it runs on $options{host})");
-    return 1;
+    return %options;
   }
   $self->info("Starting the xrootd daemon");
   my $pid=fork();
