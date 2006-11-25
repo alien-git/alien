@@ -1329,7 +1329,7 @@ sub agentExits{
   my $agentId=shift;
 
   $self->info("The jobAgent $agentId has finished");
-  $self->{LOCALJOBDB}->removeJobAgent($agentId, $self->{BATCH}->needsCleaningUp());
+  $self->{LOCALJOBDB}->removeJobAgent($self->{BATCH}->needsCleaningUp(), { agentId => $agentId });
   return 1;
 }
 
@@ -1338,6 +1338,6 @@ sub jobExits{
   my $jobId=shift;
 
   $self->info("The job $jobId has finished");
-#  $self->{LOCALJOBDB}->removeJobAgent($agentId, $self->{BATCH}->needsCleaningUp());
+  $self->{LOCALJOBDB}->removeJobAgent($self->{BATCH}->needsCleaningUp(), { jobId => $jobId });
   return;
 }
