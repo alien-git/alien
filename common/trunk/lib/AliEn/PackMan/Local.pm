@@ -514,34 +514,47 @@ sub getListPackages_Internal{
   my $silent="";
   $self->{DEBUG} or $silent="-silent";
 
-  my $platform=$self->getPlatform();
-  my $platformPattern="(($platform)|(source))";
-  if(  grep (/^-?-all$/, @_)) {
+  my $query="SELECT distinct fullPackageName from PACKAGES";
+
+  if(!  grep (/^-?-all$/, @_)) {
     $self->info("Returning the info of all platforms");
-    $platform="all";
-    $platformPattern=".*";
+    my $platform=$self->getPlatform();
+    $query.=" where  (platform='$platform' or platform='source')";
   }
+  print "Let's do $query\n";
+  my $packages=$self->{CATALOGUE}->{CATALOG}->{DATABASE_FIRST}->queryColumn($query) or $self->info("Error doing the query") and return;
+
+  use Data::Dumper;
+  print Dumper($packages);
+  return (1, @$packages);
+  
+#  my $platformPattern="(($platform)|(source))";
+#  if(  grep (/^-?-all$/, @_)) {
+#    $self->info("Returning the info of all platforms");
+#    $platform="all";
+#    $platformPattern=".*";
+#  }
 
 
-  my @userPackages=$self->{CATALOGUE}->execute("find", $silent, $self->{CONFIG}->{USER_DIR}, "/packages/*");
-  my @voPackages=$self->{CATALOGUE}->execute("find", $silent, "\L/$self->{CONFIG}->{ORG_NAME}/packages", "*");
-  my @packages;
-  my $org="\L$self->{CONFIG}->{ORG_NAME}\E";
-  foreach my $pack (@userPackages, @voPackages) {
-    $self->debug(2,  "FOUND $pack");
-    if ($pack =~ m{^$self->{CONFIG}->{USER_DIR}/?./([^/]*)/packages/([^/]*)/([^/]*)/$platformPattern$}) {
-      grep (/^$1\@${2}::$3$/, @packages) or
-	push @packages, "$1\@${2}::$3";
-      next;
-    }
-    if ($pack =~ m{^/$org/packages/([^/]*)/([^/]*)/$platformPattern$}) {
-      grep (/^VO_\U$org\E\@${1}::$2$/, @packages) or
-	push @packages, "VO_\U$org\E\@${1}::$2";
-      next;
-    }
-    $self->debug(2, "Ignoring $pack");
-  }
-  return (1, @packages);
+#  my @userPackages=$self->{CATALOGUE}->execute("find", $silent, $self->{CONFIG}->{USER_DIR}, "/packages/*");
+#  my @voPackages=$self->{CATALOGUE}->execute("find", $silent, "\L/$self->{CONFIG}->{ORG_NAME}/packages", "*");
+#  my @packages;
+#  my $org="\L$self->{CONFIG}->{ORG_NAME}\E";
+#  foreach my $pack (@userPackages, @voPackages) {
+#    $self->debug(2,  "FOUND $pack");
+#    if ($pack =~ m{^$self->{CONFIG}->{USER_DIR}/?./([^/]*)/packages/([^/]*)/([^/]*)/$platformPattern$}) {
+#      grep (/^$1\@${2}::$3$/, @packages) or
+#	push @packages, "$1\@${2}::$3";
+#      next;
+#    }
+#    if ($pack =~ m{^/$org/packages/([^/]*)/([^/]*)/$platformPattern$}) {
+#      grep (/^VO_\U$org\E\@${1}::$2$/, @packages) or
+#	push @packages, "VO_\U$org\E\@${1}::$2";
+#      next;
+#    }
+#    $self->debug(2, "Ignoring $pack");
+#  }
+#  return (1, @packages);
 }
 
 sub getPlatform(){

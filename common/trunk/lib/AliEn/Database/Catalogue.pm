@@ -139,6 +139,12 @@ sub createCatalogueTables {
 	      GUID=>["guid",{lfn=>"varchar(50)",
 			     guid=>"binary(16) NOT NULL primary key"},
 		     'guid'],
+	      PACKAGES=>['fullPackageName',{'fullPackageName'=> 'varchar(255)',
+					    packageName=>'varchar(255)',
+					    username=>'varchar(10)', 
+					    packageVersion=>'varchar(255)',
+					    platform=>'varchar(255)'}, 
+			],
 	     );
   foreach my $table (keys %tables){
     $self->info("Checking table $table");
@@ -146,7 +152,7 @@ sub createCatalogueTables {
   }
 
   $self->checkDLTable("0") or return;
-
+  $self->checkActionTable() or return;
   $self->info("Let's create the functions");
   $self->do("create function string2binary (my_uuid varchar(36)) returns binary(16) deterministic sql security invoker return unhex(replace(my_uuid, '-', ''))") or return;
   $self->do("create function binary2string (my_uuid binary(16)) returns varchar(36) deterministic sql security invoker return insert(insert(insert(insert(hex(my_uuid),9,0,'-'),14,0,'-'),19,0,'-'),24,0,'-')");
@@ -154,6 +160,15 @@ sub createCatalogueTables {
 
 
   1;
+}
+
+sub checkActionTable {
+  my $self=shift;
+
+  my %columns= (action=>"char(40) not null primary key",
+		todo=>"int(1) not null default 0");
+  $self->checkTable("ACTIONS", "action", \%columns, "action") or return;
+  return $self->do("INSERT IGNORE INTO ACTIONS(action) values  ('PACKAGES')");
 }
 
 #
