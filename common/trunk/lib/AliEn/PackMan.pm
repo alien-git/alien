@@ -322,6 +322,7 @@ sub definePackage{
       return;
     }
   }
+  $self->{CATALOGUE}->{CATALOG}->{DATABASE_FIRST}->do("update TASKS set todo=1 where action='PACKAGES'");
   $self->info( "Package $lfn added!!");
   return 1;
 }
@@ -356,6 +357,7 @@ sub undefinePackage{
     or $self->info( "Error removing $lfn")
       and return;
 
+  $self->{CATALOGUE}->{CATALOG}->{DATABASE_FIRST}->do("update TASKS set todo=1 where action='PACKAGES'");
   $self->info( "Package $lfn undefined!!");
   return 1;
 }
