@@ -854,6 +854,7 @@ sub executeCommand {
   print "Test: ClusterMonitor is at $self->{HOSTNAME}:$self->{HOSTPORT}\n";
   print "Execution machine:  $self->{HOST}\n";
 
+  chdir $self->{WORKDIR};
   my $error = system($s);
   $ENV{LD_LIBRARY_PATH} =~ s{^/lib:/usr/lib:}{};
 
