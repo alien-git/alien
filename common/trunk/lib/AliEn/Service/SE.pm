@@ -1230,7 +1230,7 @@ sub getVolumePath{
 
   if ($volume) {
     my $url=$mss->url($volume->{mountpoint});
-    my $iourl=$self->checkIOmethod($url, $ioMethods);
+    my $iourl=$self->checkIOmethod($url, $ioMethods, $seName);
     $self->info( "Returning vol=$volume->{mountpoint} guid=$guid 
 iourl=$iourl url=$url");
     return ($volume->{mountpoint},$guid,$iourl,$url);
