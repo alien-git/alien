@@ -134,20 +134,26 @@ sub getAllBatchIds {
   my @queuedJobs = ();
 #  foreach (@$jobIds) {
 #     $_ or next;
-     open LB,"$self->{CONFIG}->{CE_ARC_LOCATION}/bin/ngstat |" or next;
+     open LB,"$self->{CONFIG}->{CE_ARC_LOCATION}/bin/ngstat -a |" or next;
      my @output = <LB>;
      close LB;
 	 print "\n START DEBUGGING \n";
+     my ($id, $status);
      foreach my $entry (@output){
-
-     	
-       if (!grep(/CANCELING|FINISHED|FINISHING|DELETED/,$entry)){
-	 push @queuedJobs,$_;
-	 }
-       print @queuedJobs;
-	 print "\n END DEBUGGING \n";
+        $entry =~ /^Job (gsiftp.*)$/ and $id=$1 and next;
+        if ($entry=~ /^  Status:\s*(\S+)/){
+          $status=$1;
+          $id or print "Error found a status, but there is no id\n" and next;
+          print "Id $id has status $status\n";
+          if ($status !~ /^(CANCELING)|(FINISHED)|(FINISHING)|(DELETED)|(FAILED)$/){
+            print "The job is queued ($status)\n";
+	    push @queuedJobs, $id;
+          }	
+	  undef $id;
+        }       
      }
 #  }
+  print "The queuedJobs are @queuedJobs\n";
   return @queuedJobs;
 }
 
