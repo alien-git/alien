@@ -17,6 +17,9 @@ package AliEn::Database::Transfer;
 use AliEn::Database;
 use strict;
 
+use AliEn::Util;
+
+
 use vars qw(@ISA);
 
 @ISA=("AliEn::Database");
