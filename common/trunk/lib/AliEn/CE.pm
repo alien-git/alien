@@ -774,7 +774,7 @@ sub getNumberFreeSlots{
 
   my $queued=$self->{BATCH}->getNumberQueued();
   if ($queued) {
-    $self->info( "There are $queued jobs");
+    $self->info( "There are queued $queued job agents");
   }
   my $running=$self->{BATCH}->getNumberRunning();
   if (! defined $running){
@@ -788,7 +788,7 @@ sub getNumberFreeSlots{
 
 
   (  ($max_running - $running)< $free) and $free=($max_running - $running);
-  $self->info( "Returning $free slots");
+  $self->info( "Returning $free free slots");
 
   if ($self->{MONITOR}){
     print "Sending info to monalisa\n";
