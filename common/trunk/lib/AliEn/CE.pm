@@ -770,7 +770,7 @@ sub getNumberFreeSlots{
 
   my ($max_queued, $max_running)=$self->{SOAP}->GetOutput($done);
 
-  $self->info( "According to the manager, we can run $max_queued and $max_running");
+  $self->info( "According to the manager, we can queue max $max_queued and run max $max_running");
 
   my $queued=$self->{BATCH}->getNumberQueued();
   if ($queued) {
@@ -782,17 +782,15 @@ sub getNumberFreeSlots{
      $running=$max_running;
   }
   $running eq "" and $running=0;
-  ##
 
   my $free=($max_queued-$queued);
 
 
   (  ($max_running - $running)< $free) and $free=($max_running - $running);
-  $self->info( "Returning $free free slots");
+  $self->info( "Returning $free free slots, with ".($running - $queued)." running jobs");
 
   if ($self->{MONITOR}){
-    print "Sending info to monalisa\n";
-    $self->{MONITOR}->sendParams({'jobAgents_queued' => $queued, 'jobAgents_running' => $running, 'jobAgents_slots', $free} );
+    $self->{MONITOR}->sendParams({'jobAgents_queued' => $queued, 'jobAgents_running' => ($running - $queued), 'jobAgents_slots', ($free < 0 ? 0 : $free) } );
     $self->{MONITOR}->sendBgMonitoring();
   };
   return $free;
