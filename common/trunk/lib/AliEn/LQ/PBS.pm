@@ -104,9 +104,9 @@ sub initialize() {
     return 1;
 }
 
-sub getNumberJobsInState {
+sub getNumberQueued {
   my $self = shift;
-  my $status = shift;
+  my $status = "' Q '";
 
   if(open(OUT, "$self->{STATUS_CMD} -u ".getpwuid($<)." | grep $status |")){
 	my @output = <OUT>;
@@ -117,17 +117,6 @@ sub getNumberJobsInState {
 	$self->info("Failed to get number of $status jobs");
   }
   return 0;
-}
-
-
-sub getNumberQueued {
-  my $self = shift;
-  return $self->getNumberJobsInState("' Q '");
-}
-
-sub getNumberRunning {
-  my $self = shift;
-  return $self->getNumberJobsInState("-v ' Q '  | grep ".getpwuid($<));
 }
 
 return 1;

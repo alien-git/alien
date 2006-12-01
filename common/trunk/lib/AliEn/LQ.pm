@@ -91,6 +91,7 @@ sub getQueueStatus {
 
 }
 
+# This returns all the jobs (in any state)
 sub getQueuedJobs {
   my $self=shift;
   my @queuestatus = $self->getQueueStatus();
@@ -133,12 +134,14 @@ sub getNumberQueued {
   my $self=shift;
   return 0;
 }
+
+# THIS COUNTS JOBS IN ANY STATE (NOT ONLY RUNNING)
 sub getNumberRunning {
   my $self=shift;
   my @ids=$self->getQueuedJobs();
   @ids or $self->info( "Error getting the number of jobs") and return;
-  $self->info( "There are $#ids jobs right now");
-  return $#ids;
+  $self->info( "There are ".($#ids + 1)." jobs right now");
+  return $#ids + 1;
 
 }
 sub getDefaultStatus {
