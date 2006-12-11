@@ -213,7 +213,7 @@ sub checkStatusTransfer {
   chomp $status;
 
   $self->sendTransferStatus($id, $status);
-  if ($status =~ /(fail)|(Canceled)/i){
+  if ($status =~ /(fail)|(Canceled)|(FinsihedDirty))/i){
 
     $self->prepareEnvironment();
     my @output=AliEn::Util::_system("glite-transfer-status -l --verbose -s $fts $id");
@@ -226,7 +226,7 @@ sub checkStatusTransfer {
   }elsif($status =~ /(active)|(submitted)|(pending)/i){
     $self->info("Transfer still waiting");
     return 1
-  }elsif($status =~ /done/i){
+  }elsif($status =~ /(done)|(Finished)/i){
     $self->info("Transfer done!!!");
     return 0;
   }
