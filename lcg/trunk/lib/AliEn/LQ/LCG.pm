@@ -42,7 +42,8 @@ sub initialize {
 
    $self->{KILL_CMD}   = ( $self->{CONFIG}->{CE_KILLCMD} or "edg-job-cancel" );
 
-   $self->{MATCH_CMD}  = ( $self->{CONFIG}->{CE_MATCHCMD} or "edg-job-list-match" );
+   $self->{MATCH_CMD}  = ( $self->{CONFIG}->{CE_MATCHCMD} or '' );
+   $self->{CONFIG}->{CE_MATCHARG} and  $self->{MATCH_CMD} .= " $self->{CONFIG}->{CE_MATCHARG}";
    $self->{PRESUBMIT}  = $self->{MATCH_CMD};
 
    return 1;
