@@ -339,9 +339,7 @@ sub sendTransferStatus {
   my ($jobID, $newStatus, $info) = @_;
 
   if($self->{MONITOR}){
-    my $statusID = AliEn::Util::transferStatusForML($newStatus);
-
-    my @params = ("statusID", $statusID);
+    my @params = $newStatus ? ("statusID", AliEn::Util::transferStatusForML($newStatus)) : ();
     foreach ('started', 'finished', 'size', 'destination', 'received', 'SE'){
       push(@params, $_, $info->{$_}) if $info->{$_};
     }
