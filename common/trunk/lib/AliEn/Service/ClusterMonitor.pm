@@ -1238,7 +1238,7 @@ sub checkJobAgents {
     $self->$method(@data, "Checking if the agent $job->{batchId} is still there...");
     if (!grep (/^$job->{batchId}$/, @inBatch)) {
       $self->info("Agent $job->{batchId} is dead!!\n");
-      $self->{LOCALJOBDB}->removeJobAgent($job->{batchId}, $self->{BATCH}->needsCleaningUp());
+      $self->{LOCALJOBDB}->removeJobAgent($self->{BATCH}->needsCleaningUp(), { batchId => $job->{batchId} });
     }
     @inBatch=grep (! /^$job$/, @inBatch);    
   }
