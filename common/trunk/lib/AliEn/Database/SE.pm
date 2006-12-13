@@ -97,9 +97,9 @@ sub initialize{
   return $self->checkTable("VOLUMES", "volume", {volumeId=>"int(11) NOT NULL auto_increment PRIMARY KEY",
 						 volume=>"char(255) NOT NULL",
 						 mountpoint=>"char(255)",
-						 usedspace=>"int(11)",
-						 freespace=>"int(11)",
-						 size=>"int(11)",
+						 usedspace=>"bigint",
+						 freespace=>"bigint",
+						 size=>"bigint",
 						 method=>"char(255)",}, 
 			   "volumeId", ['UNIQUE INDEX (volume)']);
 }
@@ -283,7 +283,9 @@ sub removeFile{
 
   my $pfn=$hashref->{file};
   $hashref->{pfn} and $pfn=$hashref->{pfn};
-  my $string ="DELETE FROM FILES WHERE guid=string2binary('$hashref->{guid}') and pfn='$pfn'";
+  my $guid=$hashref->{guid};
+  $guid=~ /string2binary/ or $guid="string2binary('$hashref->{guid}')";
+  my $string ="DELETE FROM FILES WHERE guid=$guid and pfn='$pfn'";
 
 #   print "$string\n";
   my $sth = $self->_do($string);
