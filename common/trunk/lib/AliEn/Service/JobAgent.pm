@@ -2023,7 +2023,8 @@ sub checkProcess{
   }
 
   if ($killMessage){
-    kill(9, $self->{PROCESSID});
+    my @pids =$self->findChildProcesses($self->{PROCESSID});
+    kill(9, $self->{PROCESSID}, @pids);
     $self->info("Killing the job ($killMessage)");
     $self->putJobLog($ENV{ALIEN_PROC_ID},"error","Killing the job ($killMessage)");
     $self->changeStatus("%", "ERROR_E");
