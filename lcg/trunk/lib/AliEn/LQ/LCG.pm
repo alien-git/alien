@@ -286,7 +286,7 @@ sub cleanUp {
   my $jobIds = $self->{DB}->query("SELECT batchId,timestamp FROM TOCLEANUP");
   foreach ( splice (@$jobIds,0,50) ) { #Up to 50 at a time
     my $age = (time - $_->{'timestamp'});
-    if ( $age lt 60*60*24*3 ) {
+    if ( $age > 60*60*24*3 ) {
       if ( $_->{'batchId'} ) {
 	my $status = $self->getJobStatus($_->{'batchId'});
 	if ( $status eq 'Aborted') {
