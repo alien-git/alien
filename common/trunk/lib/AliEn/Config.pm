@@ -696,18 +696,28 @@ sub GetConfigFromCM {
 
   $DEBUG and $self->debug(2, "Using the CM at $cluster:$port");
 
+  my $config;
+  my $retry=10;
+  my $sleep=10;
+  while (1) {
+    $config=SOAP::Lite
+      -> uri( "AliEn/Service/ClusterMonitor" )
+	-> proxy("http://$cluster:$port" )
+	  ->GetConfiguration();
+    $config  and $config->result and last;
+    $retry--;
+    $self->info("Error contacting the clustermonitor at $cluster:$port");
+    if (!$retry){
+      $self->info("We have retried enough times");
+      return;
+    }
 
-  my $config=SOAP::Lite
-    -> uri( "AliEn/Service/ClusterMonitor" )
-      -> proxy("http://$cluster:$port" )
-	->GetConfiguration();
-
-  $config or print STDERR "Error contacting the ClusterMonitor at $cluster:$port\n" and return;
-
+    $sleep = $sleep*2 + int(rand(2));
+    $self->info("Sleeping $sleep seconds before trying again");
+    sleep($sleep);
+  }
+  $self->debug("Got the config from the ClusterMonitor");
   $config=$config->result;
-
-  $config or print STDERR "Error the ClusterMonitor at $cluster:$port did not return anything\n" and return;
-
   (UNIVERSAL::isa($config, "HASH"))
     or print STDERR "Error the ClusterMonitor did not return a hash ($config)\n" and return;
 
