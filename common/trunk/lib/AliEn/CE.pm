@@ -817,6 +817,7 @@ sub offerAgent {
   my $classad="";#AliEn::Util::returnCacheValue($self,"classad");
   if (!$classad){
     my $ca=AliEn::Classad::Host->new({PACKMAN=>$self->{PACKMAN}}) or return;
+    $ca->set_expression("LocalDiskSpace", 100000000);
     $ca=$self->{BATCH}->updateClassAd($ca)
       or $self->info("Error asking the CE to update the classad")
 	and return;
