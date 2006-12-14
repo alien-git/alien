@@ -35,17 +35,20 @@ while (my $name = readdir SOMEDIR){
     }
   }  
 }
-my $output = '';
+my @output = ();
 my $error = 0;
+my $jobId = '';
 redoit:foreach ( @rbs ) { 
-  my $submission = "edg-job-submit  --config-vo $rb_directory/$_.vo.conf @opts";
-  $output = `$submission`;
+  my $submission = "edg-job-submit --config-vo $rb_directory/$_.vo.conf @opts";
+  @output = `$submission`;
   $error = $?;
-  if (!($output =~ /^https:/)){
+  ($jobId) = grep { /^https:/ } @output;
+  if ( $? || !$jobId){
     next redoit;  
   } else {
+    chomp $jobId;
+    print "$jobId";
     last;
   }
 }
-print "$output";
 exit $error;
