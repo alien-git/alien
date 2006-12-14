@@ -6,7 +6,7 @@ package AliEn::Util;
 
 use strict;
 use POSIX ":sys_wait_h";
-
+use AliEn::Database::Util;
 sub textneutral    { return "\033[0m";}
 sub textblack      { return "\033[49;30m";}
 sub textred        { return "\033[49;31m";}
@@ -206,6 +206,19 @@ sub returnCacheValue {
   return $self->{CACHE}->{$name}->{value};
 
 }
+
+sub returnFileCacheValue{
+  my $self=shift;
+  $self->{CACHE_DB} or $self->{CACHE_DB}=AliEn::Database::Util->new() or return;
+  return $self->{CACHE_DB}->returnCache(@_);
+}
+sub setFileCacheValue{
+  my $self=shift;
+  $self->{CACHE_DB} or $self->{CACHE_DB}=AliEn::Database::Util->new() or return;
+  return $self->{CACHE_DB}->setCache(@_);
+
+}
+  
 sub deleteCache {
   my $self=shift;
   my $date=time;
