@@ -284,7 +284,7 @@ sub cleanUp {
                                       filename => "edg-job-get-output.log"});
   my $outdir = dirname($logfile); 
   my $jobIds = $self->{DB}->query("SELECT batchId,timestamp FROM TOCLEANUP");
-  foreach ( splice (@$jobIds,0,50) ) { #Up to 50 at a time
+  foreach ( splice (@$jobIds,0,20) ) { #Up to 20 at a time
     my $age = (time - $_->{'timestamp'});
     if ( $age > 60*60*24*3 ) {
       if ( $_->{'batchId'} ) {
@@ -306,6 +306,7 @@ sub cleanUp {
 	}
       } else {
 	$self->{LOGGER}->error("LCG","There is no LCG JobID in this entry!");
+	next;
       }
     } else {
       	$self->info("Job $_->{'batchId'} is more than three days old ($age/3600) and is beginning to smell");
