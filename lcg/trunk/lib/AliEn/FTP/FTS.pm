@@ -213,7 +213,7 @@ sub checkStatusTransfer {
   chomp $status;
 
   $self->sendTransferStatus($id, $status);
-  if ($status =~ /(fail)|(Canceled)|(FinsihedDirty))/i){
+  if ($status =~ /(fail)|(Canceled)|(FinsihedDirty)/i){
 
     $self->prepareEnvironment();
     my @output=AliEn::Util::_system("glite-transfer-status -l --verbose -s $fts $id");
@@ -238,22 +238,36 @@ sub checkStatusTransfer {
 sub getFTSEndpoint {
   my $self=shift;
   my $site=shift;
-  my $date=time;
-  if (! $self->{FTS_ENDPOINT}->{$site} || 
-      $self->{FTS_ENDPOINT}->{$site}->{time}<$date) {
-    $self->info("Getting the FTSendpoint of $site from the BDII");
 
+  my $cache=AliEn::Util::returnCacheValue($self, "fts-$site");
+  if ($cache) {
+    $self->info(" $$ Returning the value from the cache ($cache)");
+    return $cache;
+  }
+
+  my $retry=5;
+  my $sleep=1;
+  while ($retry){
+    $retry--;
+    $self->info("Getting the FTSendpoint of $site from the BDII");
     my $mesg=$self->{BDII}->search( base=>$self->{BDII_BASE},
 				    filter=>"(&(GlueServiceType=org.glite.FileTransfer)(GlueForeignKey=GlueSiteUniqueId*$site))"
 				  );
-    $mesg->count or print "Error finding the FTS endpoint for $site\n" and return;
+    if (!$mesg->count){
+      $sleep = $sleep*2 + int(rand(2));
+      print "Error finding the FTS endpoint for $site. Let's sleep ($sleep seconds) and try again\n";
+      sleep ($sleep);
+      next;
+    }
     $mesg->count>1 and print "Warning!! there are more than one fts endpoints for $site\n";
 
     my $value=$mesg->entry(0)->get_value("GlueServiceEndPoint");
-    $self->{FTS_ENDPOINT}->{$site}={time=>$date+600,
-				    value=>$value};
+    AliEn::Util::setCacheValue($self, "fts-$site", $value);
+    return $value;
   }
-  return $self->{FTS_ENDPOINT}->{$site}->{value};
+  $self->info("Couldn't get the fts endpoint from $site");
+  return;
+
 }
 
 sub getSite {
