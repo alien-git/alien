@@ -286,7 +286,7 @@ sub cleanUp {
   my $jobIds = $self->{DB}->query("SELECT batchId,timestamp FROM TOCLEANUP");
   foreach ( splice (@$jobIds,0,20) ) { #Up to 20 at a time
     my $age = (time - $_->{'timestamp'});
-    if ( $age > 60*60*24*3 ) {
+    if ( $age < 60*60*24*3 ) {
       if ( $_->{'batchId'} ) {
 	my $status = $self->getJobStatus($_->{'batchId'});
 	if ( $status eq 'Aborted') {
@@ -309,10 +309,10 @@ sub cleanUp {
 	next;
       }
     } else {
-      	$self->info("Job $_->{'batchId'} is more than three days old ($age/3600) and is beginning to smell");
+      	$self->info("Job $_->{'batchId'} is more than three days old ($age) and is beginning to smell");
     } 
-    $self->info("OK, will remove DB entry for $_->{'batchId'}");
-    $self->{DB}->delete("TOCLEANUP","batchId='$_->{'batchId'}'");
+    $self->info("OK, will remove DB entry for $_->{batchId}");
+    $self->{DB}->delete("TOCLEANUP","batchId=\'$_->{batchId}\'") if $_->{batchId};
   }
   return 1;
 }
