@@ -37,8 +37,7 @@ sub initialize{
                                tag varchar(40),
                                timestamp int";
 
-  $self->{TABLES}->{TOCLEANUP}="agentId varchar(40),
-                                batchId varchar(60),
+  $self->{TABLES}->{TOCLEANUP}="batchId varchar(60),
                                 timestamp int";
 
   return $self->SUPER::initialize();
@@ -73,9 +72,31 @@ sub removeJobAgent {
    my $self = shift;
    my $needsCleanUp = shift;
    my $data = shift;
-   $self->insert("TOCLEANUP",{ batchId  => $data->{batchId}, 
-			       timestamp=> time() }) if ($needsCleanUp && $data->{batchId});
-   $self->delete("JOBAGENT", $data);
+   my $key = (keys(%$data))[0]; #Use the first key! 
+   $key or return;
+   $data->{$key} or return;
+   my $batchId = '';
+   if ($needsCleanUp) {
+     $self->debug(1,"This system needs JA cleanup");
+     if ( $data->{batchId} ) {
+       $self->debug(1,"Will cleanup JA with batchId=$data->{batchId}");
+       $batchId = $data->{batchId};
+     } else {
+       $self->debug(1,"Will try to cleanup JA with $key=$data->{$key}");
+       my $result = $self->query("SELECT batchId FROM JOBAGENT WHERE $key=$data->{$key}");
+       $result = (@$result)[0]; # take the first and hopefully only one
+       $result->{batchId} and $batchId = $result->{batchId};
+       $self->debug(1,"batchId is $batchId");
+     } 
+     if ($batchId) {  
+       $self->insert("TOCLEANUP",{ batchId   => $batchId, 
+	 		           timestamp => time() }) if $batchId;
+     } else {
+       $self->info("No idea how to cleanup JobAgent with $key=$data->{$key}");
+     }
+   }
+   $self->debug(1,"Will delete JA with $key=$data->{$key}");   
+   $self->delete("JOBAGENT", "$key=\'$data->{$key}\'");
    return 1;
 }
 
