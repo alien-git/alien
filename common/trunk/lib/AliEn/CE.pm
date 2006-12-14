@@ -630,7 +630,10 @@ sub getJdl {
     #Checking for patterns:
     my $template = $content;
     my $i        = 1;
-    
+    my $homedir=$self->{CATALOG}->{CATALOG}->GetHomeDirectory();
+
+    $content =~ s/\$HOME/$homedir/g;
+
     while ( $content =~ /\$$i\D/ ) {
       my $data = shift;
       ( defined $data )
