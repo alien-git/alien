@@ -192,6 +192,11 @@ sub new{
 
   $ENV{ALIEN_USE_CACHE} and $self->{USE_CACHE}=$ENV{ALIEN_USE_CACHE};
   $ENV{ALIEN_DATABASE_SSL} and $self->{SSL}=1 and $self->{ROLE}=$ENV{ALIEN_DATABASE_SSL};
+  if ($ENV{ALIEN_DATABASE_PASSWORD}){
+    $self->debug(1, "CONNECTING TO THE DATABASE DIRECTLY!");
+    $self->{USE_PROXY}=0;
+    $self->{PASSWD}=$ENV{ALIEN_DATABASE_PASSWORD};
+  }
   if ($self->{USE_CACHE}){
     $self->{CACHE_ROOT} = undef;
   }
