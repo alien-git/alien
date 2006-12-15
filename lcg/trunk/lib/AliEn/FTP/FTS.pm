@@ -239,15 +239,14 @@ sub getFTSEndpoint {
   my $self=shift;
   my $site=shift;
 
-  my $cache=AliEn::Util::returnCacheValue($self, "fts-$site");
-  if ($cache) {
-    $self->info(" $$ Returning the value from the cache ($cache)");
-    return $cache;
-  }
-
   my $retry=5;
   my $sleep=1;
   while ($retry){
+    my $cache=AliEn::Util::returnFileCacheValue($self, "fts-$site");
+    if ($cache) {
+      $self->info(" $$ Returning the value from the cache ($cache)");
+      return $cache;
+    }
     $retry--;
     $self->info("Getting the FTSendpoint of $site from the BDII");
     my $mesg=$self->{BDII}->search( base=>$self->{BDII_BASE},
@@ -257,12 +256,16 @@ sub getFTSEndpoint {
       $sleep = $sleep*2 + int(rand(2));
       print "Error finding the FTS endpoint for $site. Let's sleep ($sleep seconds) and try again\n";
       sleep ($sleep);
+      my $BDII=$ENV{LCG_GFAL_INFOSYS} || 'sc3-bdii.cern.ch:2170';
+      $self->{BDII}=    Net::LDAP->new( $BDII) or 
+	$self->info("Error contacting ldap at $BDII: $@") and return;
+      $self->{BDII}->bind or $self->info("Error binding to LDAP") and return;
       next;
     }
     $mesg->count>1 and print "Warning!! there are more than one fts endpoints for $site\n";
 
     my $value=$mesg->entry(0)->get_value("GlueServiceEndPoint");
-    AliEn::Util::setCacheValue($self, "fts-$site", $value);
+    AliEn::Util::setFileCacheValue($self, "fts-$site", $value);
     return $value;
   }
   $self->info("Couldn't get the fts endpoint from $site");
