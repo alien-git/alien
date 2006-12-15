@@ -196,6 +196,7 @@ sub new{
     $self->debug(1, "CONNECTING TO THE DATABASE DIRECTLY!");
     $self->{USE_PROXY}=0;
     $self->{PASSWD}=$ENV{ALIEN_DATABASE_PASSWORD};
+    $ENV{ALIEN_DATABASE_ROLE} and $self->{ROLE}=$ENV{ALIEN_DATABASE_ROLE};
   }
   if ($self->{USE_CACHE}){
     $self->{CACHE_ROOT} = undef;
