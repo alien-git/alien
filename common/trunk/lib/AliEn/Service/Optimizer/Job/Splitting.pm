@@ -421,20 +421,11 @@ sub _checkOutputDir {
   #even if we overwrite the value, we keep an old copy
   ( $ok, my $oldJobDir)=$job_ca->evaluateAttributeString("OutputDirOld");
   $oldJobDir and $jobDir=$oldJobDir;
-  $jobDir =~ m{#alien_counter([^#]*)#} or return;
-  $job_ca->insertAttributeString("OutputDirOld", $jobDir);
-  $self->debug(1,"We have to replace counter $1 with $jobDesc->{counter}");
-  my $string=$jobDesc->{counter};
-  if ($1) {
-    my $format=$1;
-    $format=~ s{^_}{};
-    $self->debug(1,"Using the format $format");
-    $string=sprintf("%$format", $jobDesc->{counter});
-  }
-  $jobDir =~ s{\#alien_counter([^\#]*)\#}{$string};
-  $self->info("Putting the outputdir to $jobDir");
 
-  return $job_ca->insertAttributeString("OutputDir", $jobDir)
+  $jobDir=$self->_checkArgumentsPatterns($jobDir, $jobDesc);
+  if ($jobDir){
+    return $job_ca->insertAttributeString("OutputDir", $jobDir)
+  }
 }
 
 sub _submitJDL {
@@ -513,8 +504,14 @@ sub _checkArgumentsPatterns{
 	$file=~ s /^.*\///;
 	$newpattern=$file;	
       }
-    }elsif ($pattern =~ /^_counter$/i){
+    }elsif ($pattern =~ /^_counter(.*)$/i){
       $newpattern=$jobDesc->{counter};
+      if ($1){
+	my $format=$1;
+	$format=~ s{^_}{};
+	$self->debug(1,"Using the format $format");
+	$newpattern=sprintf("%$format", $jobDesc->{counter});
+      }
     } else {
       $self->info("Don't know what to do with $pattern");
     }
