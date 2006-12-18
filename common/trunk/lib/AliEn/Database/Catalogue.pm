@@ -1079,6 +1079,7 @@ sub grantExtendedPrivilegesToUser {
 		     "INSERT, DELETE ON $db.ENVIRONMENT", 
 #		     "INSERT ON $db.SE"
 		     "EXECUTE ON *",
+		     "UPDATE ON $db.ACTIONS",
 ];
 
   $DEBUG and $self->debug(2,"In grantExtendedPrivilegesToUser granting privileges to user $user"); 
