@@ -435,7 +435,7 @@ EXECUTE_SHELL()
 }
 BANK_TESTS_LIST="304-putBankDataLDAP 301-bankAccount 302-transactFunds 303-addFunds 305-execOrder "
 
-JOB_TESTS_LIST="70-x509 89-jdl 19-ClusterMonitor 21-submit 73-updateCE 22-execute 62-inputfile 23-resubmit 26-ProcessMonitorOutput 105-killRunningJob 85-inputdata 94-inputpfn 98-jobexit 64-jobemail 77-rekill 86-split 87-splitFile 88-splitArguments 115-queueList 118-validateJob 119-outputDir 120-production 124-OutputArchive 126-OutputInSeveralSE 133-queueInfo 134-dumplist 135-inputdata2 137-userArchive 140-jobWithMemory 141-executingTwoJobs 152-inputdatacollection 153-splitInputDataCollection 157-zip 159-bigoutput 160-JDLenvironment 161-userGUID 164-jdlMatch 163-specificOutput"
+JOB_TESTS_LIST="70-x509 89-jdl 19-ClusterMonitor 168-no_shared_cipher 21-submit 73-updateCE 22-execute 62-inputfile 23-resubmit 26-ProcessMonitorOutput 105-killRunningJob 85-inputdata 94-inputpfn 98-jobexit 64-jobemail 77-rekill 86-split 87-splitFile 88-splitArguments 115-queueList 118-validateJob 119-outputDir 120-production 124-OutputArchive 126-OutputInSeveralSE 133-queueInfo 134-dumplist 135-inputdata2 137-userArchive 140-jobWithMemory 141-executingTwoJobs 152-inputdatacollection 153-splitInputDataCollection 157-zip 159-bigoutput 160-JDLenvironment 161-userGUID 164-jdlMatch 163-specificOutput"
 PACKAGE_TESTS_LIST="75-PackMan 76-jobWithPackage 82-packageDependencies 84-sharedPackage 100-tcshPackage 83-gccPackage 130-localConfig 131-definedPackage"
 GAS_TESTS_LIST="69-gContainer 71-GAS 72-UI "
 CATALOGUE_TESTS_LIST="63-addEmptyFile 91-expandWildcards 16-add 17-retrieve 74-http 18-metadata 18-metadata 37-find 65-metadata2 15-tree 78-symlink 79-specialChar 95-listDir 93-cpdir 121-cp 101-registerFile 102-secondSE 103-mirror 117-findCaseSensitive 123-VirtualSE 125-mirror 128-modifyMd5 132-listDirectory 136-deleteFile 138-copyFile 139-vi 144-upperCase 146-mv 148-findXML 149-guid2lfn 162-expiration" 
@@ -660,6 +660,8 @@ do
     then 
 	case `type -t ALIEN_$FUNCTION` in
 	    function)
+		echo "Starting the tests"
+		date
 		ALIEN_$FUNCTION
 		;;
 	    *) 
