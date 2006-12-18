@@ -113,7 +113,7 @@ echo \"Executing \$*\"
   chmod 0755, "$dir/.alienEnvironment";
   system ("tar zcvf MyTar.tar .alienEnvironment $package") and print "Error doing the tar file " and return;
   my $host=Net::Domain::hostfqdn();
-  my $done=$cat->execute("add", $lfn, "file://$host$dir/MyTar.tar");
+  my $done=$cat->execute("packman", "define", $package, "1.0", "$dir/MyTar.tar");
   system("rm", "-rf", $dir);
   chdir ($preserveDir) or die("Error returning to preserved dir");
   $done or return;
@@ -121,6 +121,8 @@ echo \"Executing \$*\"
   #we delete the cache, so that the CE knows the new packages that have 
   #been defined
   $cat->execute("cleanCache");
+
+  sleep(20);
   $cat->execute("packman", "list", "-force");
   return 1;
 
