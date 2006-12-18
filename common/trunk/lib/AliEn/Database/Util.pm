@@ -46,7 +46,7 @@ sub returnCache{
   my $data=shift;
 
   my $timestamp=time;
-  $timestamp-=600;
+  $timestamp-=3600;
   return $self->queryValue("select value from CACHE where name='$data' and timestamp>$timestamp");
 
 }
