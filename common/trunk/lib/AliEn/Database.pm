@@ -937,7 +937,9 @@ sub destroy{
     $DEBUG and $self->debug(1, "Disconneting");
   if ($self and $self->{PID} and $self->{DBH}) {
     if ($self->{PID} eq $$){
-      $self->{DBH}->disconnect or warn $self->{DBH}->errstr;
+      if (!$self->{DBH}->disconnect){
+	 $self->{DBH}->errstr and warn $self->{DBH}->errstr;
+      }
     }
     undef $self->{DBH};
   }

@@ -309,7 +309,7 @@ sub definePackage{
   $self->{CATALOGUE}->execute("mkdir", "-p", $lfnDir)
     or $self->info( "Error creating the directory $lfnDir")
       and return;
-  $self->{CATALOGUE}->execute("addTag", $self->{CATALOG}->{CATALOG}->GetHomeDirectory()."/packages/$packageName", "PackageDef")
+  $self->{CATALOGUE}->execute("addTag", $self->{CATALOGUE}->{CATALOG}->GetHomeDirectory()."/packages/$packageName", "PackageDef")
     or $self->info( "Error creating the tag definition")
       and return;
   $self->{CATALOGUE}->execute("add", $lfn, $tar, $se) 
@@ -322,7 +322,7 @@ sub definePackage{
       return;
     }
   }
-  $self->{CATALOGUE}->{CATALOG}->{DATABASE_FIRST}->do("update TASKS set todo=1 where action='PACKAGES'");
+  $self->{CATALOGUE}->{CATALOG}->{DATABASE_FIRST}->do("update ACTIONS set todo=1 where action='PACKAGES'");
   $self->info( "Package $lfn added!!");
   return 1;
 }
