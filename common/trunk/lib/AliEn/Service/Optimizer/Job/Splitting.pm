@@ -379,6 +379,9 @@ sub SubmitSplitJob {
   $origarg=~ s/\"//g;
   $self->info("OrigReq $origreq");
   my $i=0;
+
+  ($ok, my $origOutputDir)=$job_ca->evaluateAttributeString("OutputDir");
+
   foreach my $pos (sort keys %{$jobs}) {
     $i++;
     $self->info("Submitting job $i $pos");
@@ -398,7 +401,7 @@ sub SubmitSplitJob {
       my $newargs=$self->_checkArgumentsPatterns($splitargs, $jobs->{$pos});
       $job_ca->set_expression("Arguments", "\"$origarg $newargs\"");
       #check also the outputDir
-      $self->_checkOutputDir($job_ca, $jobs->{$pos});
+      $self->_checkOutputDir($origOutputDir, $job_ca,$jobs->{$pos});
       $self->info("Setting Arguments $origarg $newargs");
       if ( !$job_ca->isOK() ) {
 	print STDERR "Splitting: in SubmitSplitJob new jdl is not valid\n";
@@ -411,21 +414,19 @@ sub SubmitSplitJob {
 }
 sub _checkOutputDir {
   my $self=shift;
+  my $jobDir=shift;
   my $job_ca=shift;
   my $jobDesc=shift;
-  $self->debug(2, "Checking if we have to redefine the outputDir");
-  my ($ok, $jobDir)=$job_ca->evaluateAttributeString("OutputDir");
-  $ok or return -1;
+  $jobDir or return;
   $self->debug(1,"The job is supposed to write in $jobDir");
   #this is for the second time we get the output dir
   #even if we overwrite the value, we keep an old copy
-  ( $ok, my $oldJobDir)=$job_ca->evaluateAttributeString("OutputDirOld");
-  $oldJobDir and $jobDir=$oldJobDir;
-
-  $jobDir=$self->_checkArgumentsPatterns($jobDir, $jobDesc);
-  if ($jobDir){
-    return $job_ca->insertAttributeString("OutputDir", $jobDir)
+  
+  my $newJobDir=$self->_checkArgumentsPatterns($jobDir, $jobDesc);
+  if ($newJobDir and ($newJobDir ne "$jobDir")){
+     $job_ca->insertAttributeString("OutputDir", $newJobDir);
   }
+  return 1;
 }
 
 sub _submitJDL {
@@ -515,7 +516,7 @@ sub _checkArgumentsPatterns{
     } else {
       $self->info("Don't know what to do with $pattern");
     }
-    $self->info("Let's replace #alien$origPattern# with '$newpattern'");
+    $self->info("Let's replace #alien$origPattern# with '$newpattern' in '$args'");
     $args =~ s/\#alien$origPattern\#/$newpattern/g;
   }
   return $args;
