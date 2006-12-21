@@ -30,13 +30,7 @@ sub initialize {
    $self->{CONFIG}->{VOBOXDIR} = "/opt/vobox/\L$self->{CONFIG}->{ORG_NAME}";
    $self->{UPDATECLASSAD} = 0;
 
-#   $self->{PRESUBMIT}=undef;
-#   if (!system("which edg-job-list-match >/dev/null 2>&1")){
-#     $self->info("We will do edg-job-list-match");
-#     $self->{PRESUBMIT}="edg-job-list-match";
-#   }
- 
-  $self->{SUBMIT_CMD}  = ( $self->{CONFIG}->{CE_SUBMITCMD} or "edg-job-submit" );
+   $self->{SUBMIT_CMD}  = ( $self->{CONFIG}->{CE_SUBMITCMD} or "edg-job-submit" );
 
    $self->{STATUS_CMD} = ( $self->{CONFIG}->{CE_STATUSCMD} or "edg-job-status" );
 
@@ -59,8 +53,13 @@ sub submit {
   my @args=();
   $self->{CONFIG}->{CE_SUBMITARG_LIST} and
     @args = @{$self->{CONFIG}->{CE_SUBMITARG_LIST}};
+   
+  my @conf = ();
   $self->{CONFIG}->{CE_EDG_WL_UI_CONF} and
-    push @args,"--config-vo",$self->{CONFIG}->{CE_EDG_WL_UI_CONF};
+    @conf = ("--config-vo",$self->{CONFIG}->{CE_EDG_WL_UI_CONF}); 
+  $ENV{CE_EDG_WL_UI_CONF} and
+    @conf = ("--config-vo",$ENV{CE_EDG_WL_UI_CONF}); 
+  push @args,@conf;
 
   my $jdlfile = $self->generateJDL($jdl);
   $jdlfile or return;
@@ -163,10 +162,12 @@ sub getStatus {
 sub getAllBatchIds {
   my $self = shift;
   my $jobIds = $self->{DB}->queryColumn("SELECT batchId FROM JOBAGENT");
-  my @queuedJobs = ();
+  my %queuedJobs = ();
+  $queuedJobs{$_}=1 foreach @$jobIds;
+  my $before = scalar keys %queuedJobs;
   while ( @$jobIds ) { 
     my @someJobs = splice(@$jobIds,0,25);
-    my @output=$self->_system($self->{STATUS_CMD}, "--noint", @someJobs) or next;
+    my @output=$self->_system($self->{STATUS_CMD}, "--noint", @someJobs);
     my $status = '';
     my $JobId = '';
     my @result = ();
@@ -179,9 +180,9 @@ sub getAllBatchIds {
           $JobId    = '';
           $newRecord = 0;
 	} else { # Last line of record, dump
-          push @queuedJobs,$JobId if ($status =~ m/\s*(Running)|(Ready)|(Scheduled)|(Waiting)/);
-          $self->debug(1,"Job $JobId is $status");
-          $newRecord = 1;
+          delete($queuedJobs{$JobId}) if ($status =~ m/\s*(Done\(Success\))|(Done\(Failed\))|(Aborted)|(Cleared)|(Cancelled)/);
+           $self->debug(1,"Job $JobId is $status");
+         $newRecord = 1;
 	}
 	next;
       }
@@ -196,7 +197,8 @@ sub getAllBatchIds {
       }
     }  
   }
-  return @queuedJobs;
+  my $after = scalar keys %queuedJobs;
+  return keys %queuedJobs;
 }
 
 sub getQueueStatus {
@@ -209,16 +211,23 @@ sub getQueueStatus {
 sub getFreeSlots {
   my $self = shift;
   my ($totRunning, $totWaiting, $totFree, $totCPUs) = (0,0,0,0);
+  my @list = ();
   my $list = $self->{CONFIG}->{CE_LCGCE_LIST};
+  $list and @list=@$list;
+  ($ENV{CE_LCGCE}) and @list=split(/,/,$ENV{CE_LCGCE});
+  $self->debug(1,"CE list is \'@list\'");
+  my $bdii= $self->{CONFIG}->{CE_SITE_BDII};
+  ($ENV{CE_SITE_BDII}) and $bdii=$ENV{CE_SITE_BDII};
+  $self->debug(1,"BDII is \'$bdii\'");
 
   foreach my $CE (@$list) {
     (my $host,undef) = split (/:/,$CE);
     my $GRIS = '';
     my $BaseDN = '';
-    if (defined $self->{CONFIG}->{CE_SITE_BDII}) {
-      $GRIS=$self->{CONFIG}->{CE_SITE_BDII};
+    if ($bdii) {
+      $GRIS=$bdii;
       $GRIS=~ s{^(ldap://[^/]*)/(.*)}{$1} and $BaseDN=$2;
-    }else {
+    } else {
     # If we did not define a BDII, use the GRIS running on the CE
       $GRIS = "ldap://$host:2135";
       $BaseDN = "mds-vo-name=local,o=grid";
