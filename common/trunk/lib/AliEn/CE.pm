@@ -979,7 +979,7 @@ sub SetEnvironmentForExecution{
 # This variable is set so that the LQ and the JobAgent know where the output
 # is
   $ENV{ALIEN_LOG}="AliEn.JobAgent.$$.$self->{COUNTER}";
-  $ENV{ALIEN_JOBAGENT_ID}="$$.$self->{COUNTER}";
+  $ENV{ALIEN_JOBAGENT_ID}="${$}_$self->{COUNTER}";
   $self->{COUNTER}++;
 
   $ENV{"ALIEN_${org}_CM_AS_LDAP_PROXY"}=$ENV{ALIEN_CM_AS_LDAP_PROXY}=
