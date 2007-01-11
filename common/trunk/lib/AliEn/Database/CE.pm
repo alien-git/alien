@@ -15,6 +15,7 @@
 package AliEn::Database::CE;
 
 use AliEn::Database::TXT;
+use Data::Dumper;
 use strict;
 
 use vars qw(@ISA);
@@ -49,6 +50,7 @@ sub insertJobAgent{
   my $data=shift;
   $data->{timestamp}=time;
   $data->{status}="QUEUED";
+  $self->debug(1,"insertJobAgent with ".Dumper($data)." and @_");
   return $self->insert("JOBAGENT", $data,@_);
 }
 
@@ -58,11 +60,13 @@ sub updateJobAgent{
   $data->{timestamp}=time;
   $data->{status}="ACTIVE";
   $self->info("Updating the jobagent");
+  $self->debug(1,"updateJobAgent with ".Dumper($data)." and @_");
   my $done=$self->update("JOBAGENT", $data, @_);
   if ( $done =~ /^0E0$/){
     #Ok, the increment did not work. Let's insert the entry
     $self->info("Inserting a new jobagent");
     $done=$self->insert("JOBAGENT", $data);
+    $data->{jobId} and $self->info("Inserting info for job $data->{jobId}");
   }
 
   return $done;
@@ -87,15 +91,19 @@ sub removeJobAgent {
        $result = (@$result)[0]; # take the first and hopefully only one
        $result->{batchId} and $batchId = $result->{batchId};
        $self->debug(1,"batchId is $batchId");
+       if ( $key eq 'jobId' and $batchId ) {
+          $self->info("Will not remove $batchId with $key=$data->{$key}");
+	  return 1;
+       }     
      } 
      if ($batchId) {  
        $self->insert("TOCLEANUP",{ batchId   => $batchId, 
 	 		           timestamp => time() }) if $batchId;
      } else {
-       $self->info("No idea how to cleanup JobAgent with $key=$data->{$key}");
+       $self->info("No idea how to remove JobAgent with $key=$data->{$key}");
      }
    }
-   $self->debug(1,"Will delete JA with $key=$data->{$key}");   
+   $self->debug(1,"Will remove JA with $key=$data->{$key}");   
    $self->delete("JOBAGENT", "$key=\'$data->{$key}\'");
    return 1;
 }
@@ -107,6 +115,7 @@ sub insertMessage {
   my $message=shift;
   my $time=time;
   $self->lock("MESSAGES");
+  $self->debug(1,"The message is \'$jobId\', \'$message\', \'$tag\', \'$time\'");
   my $done= $self->insert("MESSAGES", {jobId=>$jobId, procinfo=>$message,
 			     tag=>$tag,  timestamp=>$time});
   $self->unlock("MESSAGES");
