@@ -29,7 +29,7 @@ sub f_addTag {
     print STDERR "$directory is not a direcotry!!\n" and return;
 
   $self->existsTag($directory, $tagName, "silent")
-    and  $self->{LOGGER}->info("Tag", "Tag already exists") and return 1;
+    and  $self->info("Tag already exists") and return 1;
 
   my $create = 1;
   my $fileLength = 255;
@@ -37,7 +37,7 @@ sub f_addTag {
   $self->debug(1, "Creating only one table for all the metadata");
   my $tableName = "T$self->{DATABASE}->{USER}V$tagName";
   if (! $self->{DATABASE}->existsTable($tableName)) {
-    $self->{LOGGER}->info("Tag", "Creating the table $tableName...");
+    $self->info("Creating the table $tableName...");
     $self->selectDatabase($directory);
     my $done = $self->createRemoteTable(
 					$self->{DATABASE}->{HOST},   $self->{DATABASE}->{DB},
@@ -47,7 +47,7 @@ sub f_addTag {
 
     $done or return;
   } else {
-    $self->{LOGGER}->info("Tag", "The table exists");
+    $self->info("The table exists");
   }
 
   my $done = $self->{DATABASE}->insertIntoTag0($directory, $tagName, $tableName);
@@ -70,7 +70,7 @@ sub f_removeTag {
 
   $self->existsTag($directory, $tag) or return;
 
-  $self->{LOGGER}->info("Tag", "Deleting Tag $tag of $directory");
+  $self->info("Deleting Tag $tag of $directory");
   return $self->{DATABASE}->deleteTagTable( $tag, $directory);
 }
 
@@ -108,11 +108,11 @@ sub f_showTags {
   }
 
   if ( !$result or $#{$result} == -1) {
-    $self->{LOGGER}->info("Tag", "There are no tags defined for $directory");
+    $self->info("There are no tags defined for $directory");
     return ();
   }
 
-  $self->{LOGGER}->info("Tags", "Tags defined for $directory \n@tags");
+  $self->info("Tags defined for $directory \n@tags");
   return $return;
 }
 
@@ -240,7 +240,7 @@ sub f_showTagValue {
 
   ( $self->checkPermissions( 'r', $path ) ) or return;
   my $path2=$self->{DATABASE}->existsEntry( $path) or 
-    $self->{LOGGER}->info("Tag", "The directory $path does not exist") and return;
+    $self->info("The directory $path does not exist") and return;
 
   my $directory=$path2;
   $directory =~ m{/$} or $directory = $self->f_dirname($path);
@@ -338,7 +338,7 @@ sub f_showAllTagValues {
   my $path = $self->GetAbsolutePath(shift);
 
   ($path)
-    or $self->{LOGGER}->info("Tag", "Error: not enough arguments in showAllTagValues\nUsage: showTagValue <file> ")
+    or $self->info("Error: not enough arguments in showAllTagValues\nUsage: showTagValue <file> ")
 	and return;
 
   my $tags=$self->f_showTags("all", $path);
@@ -348,7 +348,7 @@ sub f_showAllTagValues {
   foreach my $entry (@{$tags}) {
     my $tag=$entry->{tagName};
     my $directory=$entry->{path};
-    $self->{LOGGER}->info("Tag", "Getting all the '$tag' of $path");
+    $self->info("Getting all the '$tag' of $path");
     my $tagTableName = $self->{DATABASE}->getTagTableName($entry->{path}, $tag);
 
     my $where="";
@@ -365,7 +365,7 @@ sub f_showAllTagValues {
 
   }
 
-  $self->{LOGGER}->info("Tag", "Done!!");
+  $self->info("Done!!");
   return \@result;
 }
 
