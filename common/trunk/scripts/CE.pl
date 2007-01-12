@@ -69,7 +69,10 @@ my $base = AliEn::CE->new($options);
 
 if ( !$options->{'acronjob'} ) {
   my $count = 0;
-  my $checkcount = 0;
+  my $checkcount = 0;  
+  my $file="$config->{LOG_DIR}/CE.env";
+  $base->info("Putting the environment in $file");
+  system("env >$file") and $base->info("Error opening the file $file");
   while (1) {
     ( $count == 120 ) and print "Asking for a job\n";
 
