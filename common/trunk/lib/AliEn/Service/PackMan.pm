@@ -253,7 +253,7 @@ sub findPackageLFN{
 
   foreach (@dirs){
     $self->info("Looking in the directory $_");
-    my @files=$self->{CATALOGUE}->execute("find", 
+    my @files=$self->{PACKMAN}->{CATALOGUE}->execute("find", 
 #					  "-silent",
 					  "$_/$package", $platform) or next;
     $self->info("$$ Got @files");
@@ -270,7 +270,7 @@ sub findPackageLFN{
     $self->info("$$ So far, we didn't get the lfn. Looking for source packages");
     #Ok, let's look for the package source
     foreach (@dirs){
-      my @files=$self->{CATALOGUE}->execute("find", "-silent","$_/$package", "source") or next;
+      my @files=$self->{PACKMAN}->{CATALOGUE}->execute("find", "-silent","$_/$package", "source") or next;
       print "Got @files\n";
       if ($version) {
 	@files=grep (/$package\/$version\// , @files);
@@ -288,7 +288,7 @@ sub findPackageLFN{
     }
   }
   $self->info( "$$ Using $lfn");
-  my (@dependencies)=$self->{CATALOGUE}->execute("showTagValue", "-silent",$lfn, "PackageDef");
+  my (@dependencies)=$self->{PACKMAN}->{CATALOGUE}->execute("showTagValue", "-silent",$lfn, "PackageDef");
   my $item={};
   @dependencies and $dependencies[1]  and $item=shift @{$dependencies[1]};
 
