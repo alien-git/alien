@@ -323,5 +323,47 @@ sub _system {
   return @output;
 }
 
+# Kill all the processes started from the given one or in the same group with it
+# NOTE: to use it properly, make sure that the process you kill is in a sepparate
+# process group. You can set that by calling "POSIX::setpgid($$, 0);" in it and then
+# you give its pid to this function to kill it and all its children.
+sub kill_really_all {
+	my $pid = shift;
+	
+	print "Killing all processes beyond $pid...\n";
+	my $procmap = {};
+	my @tokill = ($pid);
+	my @killed = ();
+	if(open(PS, "ps -A -eo pid,ppid,pgrp |")){
+		<PS>;	# skip header
+		while(<PS>){
+			s/^\s+//;
+			my ($pid,$ppid,$pgrp) = split(/\s+/, $_);
+			my @list = ($pid, $pgrp);
+			if($procmap->{$ppid}){
+				push(@list, @{$procmap->{$ppid}});
+			}
+			$procmap->{$ppid} = \@list;
+			
+			my @list2 = ($pid, $pgrp);
+			if($procmap->{$pgrp}){
+				push(@list2, @{$procmap->{$pgrp}});
+			}
+			$procmap->{$pgrp} = \@list2;
+		}
+		close(PS);	
+	}else{
+		print "Cannot run PS!!!\n";
+	}
+	while(@tokill){
+		my $ptk = shift @tokill;
+		next if($ptk == $$);
+		next if(grep(/^$ptk$/, @killed));
+		kill(9, $ptk);
+		push(@tokill, @{$procmap->{$ptk}}) if($procmap->{$ptk});
+		push(@killed, $ptk);
+	}
+	print "Killed procs: @killed\n";
+}
 
 return 1;

@@ -28,7 +28,7 @@ use strict;
 use AliEn::UI::Catalogue::LCM;
 use AliEn::Config;
 use IO::Handle;
-use POSIX ":sys_wait_h";
+use POSIX;
 use Compress::Zlib;
 use AliEn::MSS;
 use Archive::Zip;
@@ -696,12 +696,13 @@ sub startMonitor {
 
   $self->debug(1, "The father locks the port");
 
-
+  POSIX::setpgid($$, 0);
   if (! $self->executeCommand() ) {
     $self->registerLogs(0);
     $self->changeStatus("%", "ERROR_E");
   }
-
+  Util::kill_really_all($$);
+  
   $self->info("Command executed, with status $self->{STATUS}");
   my $status=$self->{STATUS};
   ($status eq "SAVING") and $status="DONE";
@@ -2023,8 +2024,9 @@ sub checkProcess{
   }
 
   if ($killMessage){
-    my @pids =$self->findChildProcesses($self->{PROCESSID});
-    kill(9, $self->{PROCESSID}, @pids);
+    Util::kill_really_all($self->{PROCESSID});
+#    my @pids =$self->findChildProcesses($self->{PROCESSID});
+#    kill(9, $self->{PROCESSID}, @pids);
     $self->info("Killing the job ($killMessage)");
     $self->putJobLog($ENV{ALIEN_PROC_ID},"error","Killing the job ($killMessage)");
     $self->changeStatus("%", "ERROR_E");
