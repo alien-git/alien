@@ -39,7 +39,8 @@ sub initialize {
    $self->{MATCH_CMD}  = ( $self->{CONFIG}->{CE_MATCHCMD} or '' );
    $self->{CONFIG}->{CE_MATCHARG} and  $self->{MATCH_CMD} .= " $self->{CONFIG}->{CE_MATCHARG}";
    $self->{PRESUBMIT}  = $self->{MATCH_CMD};
-
+   $self->renewProxy();
+   
    return 1;
 }
 
@@ -298,8 +299,8 @@ sub cleanUp {
     if ( $age < 60*60*24*3 ) {
       if ( $_->{'batchId'} ) {
 	my $status = $self->getJobStatus($_->{'batchId'});
-	if ( $status eq 'Aborted') {
-	  $self->info("Job $_->{'batchId'} was aborted, no logs to retrieve");
+	if ( $status eq 'Aborted' || $status eq 'Cancelled') {
+	  $self->info("Job $_->{'batchId'} was aborted or cancelled, no logs to retrieve");
 	} else {
 	  $self->info("Will retrieve OutputSandbox for $status job $_->{'batchId'}");
 
@@ -369,6 +370,7 @@ sub renewProxy {
    my $duration = shift;
    $duration or $duration=$self->{CONFIG}->{CE_TTL};
    $duration or $duration = 100000; #in seconds
+   $self->info("Renewing proxy for $duration seconds");
    $self->debug(1,"\$X509_USER_PROXY is $ENV{X509_USER_PROXY}");
    my $ProxyRepository = "$self->{CONFIG}->{VOBOXDIR}/proxy_repository";
    my $command = "vobox-proxy --vo \L$self->{CONFIG}->{ORG_NAME}\E query-dn";
@@ -530,8 +532,12 @@ OutputSandbox = { \"std.err\" , \"std.out\" };
 Environment = {\"ALIEN_CM_AS_LDAP_PROXY=$ENV{ALIEN_CM_AS_LDAP_PROXY}\",\"ALIEN_JOBAGENT_ID=$ENV{ALIEN_JOBAGENT_ID}\"};
 ";
   my $list = $self->{CONFIG}->{CE_LCGCE_LIST};
-  if (scalar @$list) {
-    my @celist = map {"other.GlueCEUniqueID==\"$_\""} @$list;
+  my @list = ();
+  $list and @list=@$list;
+  ($ENV{CE_LCGCE}) and @list=split(/,/,$ENV{CE_LCGCE});
+
+  if (scalar @list) {
+    my @celist = map {"other.GlueCEUniqueID==\"$_\""} @list;
     my $ces=join (" || ", @celist);
     print BATCH "Requirements = ( $ces )";     
     print BATCH " && ".$requirements if $requirements;
