@@ -701,7 +701,7 @@ sub startMonitor {
     $self->registerLogs(0);
     $self->changeStatus("%", "ERROR_E");
   }
-  Util::kill_really_all($$);
+  AliEn::Util::kill_really_all($$);
   
   $self->info("Command executed, with status $self->{STATUS}");
   my $status=$self->{STATUS};
@@ -2024,7 +2024,7 @@ sub checkProcess{
   }
 
   if ($killMessage){
-    Util::kill_really_all($self->{PROCESSID});
+    AliEn::Util::kill_really_all($self->{PROCESSID});
 #    my @pids =$self->findChildProcesses($self->{PROCESSID});
 #    kill(9, $self->{PROCESSID}, @pids);
     $self->info("Killing the job ($killMessage)");
