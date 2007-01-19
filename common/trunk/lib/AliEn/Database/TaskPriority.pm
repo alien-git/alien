@@ -92,8 +92,8 @@ sub checkPriorityValue() {
 
 
 sub insertPriority{
-    my $self = shift;
-    $self->insert("$self->{PRIORITYTABLE}",@_);
+  my $self = shift;
+  $self->insert("$self->{PRIORITYTABLE}",@_);
 }
 
 sub updatePriority{
@@ -107,14 +107,14 @@ sub deletePriority{
 }
 
 sub insertPrioritySet{
-	my $self = shift;
-	my $user = shift
-		or $self->{LOGGER}->error("TaskPriority","In insertPrioritySet user is missing")
-		and return;
-	my $set =shift;
-	
-	$self->debug(1,"In insertPrioritySet user is missing");
-	$self->insertPriority($set,"user='$user'");
+  my $self = shift;
+  my $user = shift
+    or $self->{LOGGER}->error("TaskPriority","In insertPrioritySet user is missing")
+      and return;
+  my $set =shift;
+  
+  $self->debug(1,"In insertPrioritySet user is missing");
+  $self->insert($self->{PRIORITYTABLE}, $set);
 }
 
 sub updatePrioritySet{
