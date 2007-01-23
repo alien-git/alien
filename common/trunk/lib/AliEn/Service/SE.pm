@@ -709,6 +709,11 @@ sub checkLocalCopy {
     my $URL=AliEn::SE::Methods->new({"PFN", $data->{localCopy},
 				     "LOCALFILE", $localFile,
 				     "DEBUG", 0});
+    if ($data->{localCopy}=~ s{^file://[^/]*/}{/} ) {
+      $self->info("Returning the file $data->{localCopy} without getting it again!!");
+      return ($data->{localCopy}, $size);
+    } 
+    $self->info("We are doing a get of $data->{localCopy}");
     my $exists="";
     $URL and ($exists)=$URL->get("-s");
     if ( $exists ) {
@@ -1208,6 +1213,7 @@ sub getFileName{
   my $url=$mss->url($name);
   $self->debug(1, "getFileName returns $name, $self->{CONFIG}->{FTD_REMOTEOPTIONS}, $url");
   my $iourl=$self->checkIOmethod($url, $ioMethods, $seName);
+  print "***************  $iourl $url $ioMethods $seName\n";
   return ($name, "$self->{CONFIG}->{FTD_REMOTEOPTIONS}", $url, $iourl, $guid);
 
 }
