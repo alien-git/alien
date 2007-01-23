@@ -710,14 +710,18 @@ sub checkLocalCopy {
 				     "LOCALFILE", $localFile,
 				     "DEBUG", 0});
     if ($data->{localCopy}=~ s{^file://[^/]*/}{/} ) {
-      $self->info("Returning the file $data->{localCopy} without getting it again!!");
-      return ($data->{localCopy}, $size);
-    } 
-    $self->info("We are doing a get of $data->{localCopy}");
-    my $exists="";
-    $URL and ($exists)=$URL->get("-s");
-    if ( $exists ) {
-      return ($exists, $size);
+      if (-s  $data->{localCopy} eq $size) {
+	$self->info("Returning the file $data->{localCopy} without getting it again!!");
+	return ($data->{localCopy}, $size);
+      }
+      $self->info("The file $data->{localCopy} doesn't have size $size");
+    } else{
+      $self->info("We are doing a get of $data->{localCopy}");
+      my $exists="";
+      $URL and ($exists)=$URL->get("-s");
+      if ( $exists ) {
+	return ($exists, $size);
+      }
 #      $self->info( "Giving back to $client_cert the local copy $data->{localCopy} ($exists)" );
 #      return $self->_startFTPServer($exists, $size, $client_cert, $opt);
     }
