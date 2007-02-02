@@ -353,7 +353,7 @@ sub kill_really_all {
 		}
 		close(PS);	
 	}else{
-		print "Cannot run PS!!!\n";
+		print "kill_really_all: Cannot run PS!!!\n";
 	}
 	while(@tokill){
 		my $ptk = shift @tokill;
@@ -364,6 +364,43 @@ sub kill_really_all {
 		push(@killed, $ptk);
 	}
 	print "Killed procs: @killed\n";
+}
+
+# Compute the total jiffies for the given pid and all its children.
+# This value can be used in regular checks to see if a process (and its 
+# children) got stuck or they continue to run, since jiffies are the
+# finest accountable unit for a proces.
+sub get_pid_jiffies {
+	my $pid = shift;
+
+	my $sum = 0;
+	my $procmap = {};
+	my @tocheck = ($pid);
+	if(open(PS, "ps -A -eo pid,ppid |")){
+		<PS>;	# skip header
+		while(<PS>){
+			s/^\s+//;
+			my ($pid, $ppid) = split(/\s+/, $_);
+			if($procmap->{$ppid}){
+				push(@{$procmap->{$ppid}}, $pid);
+			}else{
+				$procmap->{$ppid} = [$pid];
+			}
+		}
+		close(PS);
+	}else{
+		print "get_pid_jiffies: Cannot run PS!!\n";
+	}
+	while(@tocheck){
+		my $ptc = shift @tocheck;
+		push(@tocheck, @{$procmap->{$ptc}}) if($procmap->{$ptc});
+		if(open(PROC, "/proc/$ptc/stat")){
+			my @fields = split(/\s+/, <PROC>);
+			$sum += $fields[13] + $fields[14];
+			close(PROC);
+		} # else the process is already gone
+	}
+	return $sum;
 }
 
 return 1;
