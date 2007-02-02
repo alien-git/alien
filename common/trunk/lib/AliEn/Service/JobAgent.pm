@@ -171,7 +171,8 @@ sub requestJob {
 
   $self->{REGISTER_LOGS_DONE}=0;
   $self->{FORKCHECKPROCESS} = 0;
-
+  $self->{CPU_CONSUMED}={VALUE=>0, TIME=>time};
+  
   $self->GetJDL() or return;
 
   my $redirect="$self->{CONFIG}->{TMP_DIR}/proc/$ENV{ALIEN_PROC_ID}.out";
@@ -2013,9 +2014,18 @@ sub checkProcess{
   $self->debug(1, "Checking if the proccess still has time");
   my $killMessage;
 
-  (time() > $self->{JOBEXPECTEDEND}) and 
+  my $time=time;
+  ($time > $self->{JOBEXPECTEDEND}) and 
     $killMessage="it was running for longer than its TTL";
 
+  if ($time-1200 >$self->{CPU_CONSUMED}->{TIME}){
+    my $consumed=AliEn::Util::get_pid_jiffies($id);
+    if ($consumed and ($consumed eq $self->{CPU_CONSUMED}->{VALUE})) {
+      $killMessage="the job hasn't used any jiffies in the last 20 min";
+    }
+    $self->{CPU_CONSUMED}={TIME=>$time, VALUE=>$consumed};
+    
+  }
   if ($self->{WORKSPACE} ){
     my $space=du($self->{WORKDIR} ) /1024 /1024;
     $self->info( "Checking the disk space usage of $self->{WORKDIR} (now $space, out of $self->{WORKSPACE} MB ");
@@ -2025,8 +2035,6 @@ sub checkProcess{
 
   if ($killMessage){
     AliEn::Util::kill_really_all($self->{PROCESSID});
-#    my @pids =$self->findChildProcesses($self->{PROCESSID});
-#    kill(9, $self->{PROCESSID}, @pids);
     $self->info("Killing the job ($killMessage)");
     $self->putJobLog($ENV{ALIEN_PROC_ID},"error","Killing the job ($killMessage)");
     $self->changeStatus("%", "ERROR_E");
