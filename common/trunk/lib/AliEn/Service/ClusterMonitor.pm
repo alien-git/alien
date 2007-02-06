@@ -896,6 +896,7 @@ sub getFileSOAP {
     my $this = shift;
     my $file = shift;
     my $dir  = ( shift or undef );
+    my $options= shift || {};
     my $buffer;
     my $maxlength = 1024 * 10000;
 
@@ -913,16 +914,23 @@ sub getFileSOAP {
         ( $file =~ /\.\./ ) and $self->{LOGGER}->warning( "ClusterMonitor",
             "User requests a file from a non authorized directory. File $file" )
           and return;
-        if ( open( FILE, "$file" ) ) {
-            my $aread = read( FILE, $buffer, $maxlength, 0 );
-            close(FILE);
-            ( $aread < $maxlength ) or return;
-            $self->info( "$file" );
+
+	my $open="$file";
+	$options->{grep} and $open="grep '$options->{grep}' $file|" and
+	  print "Returning only the entries that match $options->{grep}\n";
+	$options->{head} and $open="head -$options->{head} $file|" and
+	  print "Returning the first $options->{head} lines of $file\n";
+	$options->{tail} and $open="tail -$options->{tail} $file|" and
+	print "Returning the last $options->{tail} lines of $file\n";
+        if ( open( FILE, $open ) ) {
+	  my $aread = read( FILE, $buffer, $maxlength, 0 );
+	  close(FILE);
+	  ( $aread < $maxlength ) or return;
+	  $self->info( "$file" );
         }
         else {
-            $self->{LOGGER}
-              ->warning( "ClusterMonitor", "$file does not exist" );
-            return;
+	  $self->info("$file does not exist" );
+	  return;
         }
 
         $buffer or return "";

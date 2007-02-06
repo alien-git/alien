@@ -89,6 +89,7 @@ my %LCM_commands;
 		 'find'=> ['$self->find',0],
 		 'zip'=> ['$self->zip',16+64],
 		 'unzip'=> ['$self->unzip',0],
+		 'getLog' =>['$self->getLog', 0],
 
 );
 
@@ -107,6 +108,7 @@ my %LCM_help = (
     'vi'       => "\tGets and opens the file with vi. In case of changes the file is uploaded into the catalogue.",
     'whereis'      => "Displays the SE and pfns of a given lfn",
     'upload'   => "\tUpload a file to the SE, but does not register it in the catalog",
+		'getLog' =>"\tGets the log file of a service",
 
 );
 
@@ -1920,15 +1922,28 @@ sub zip {
   my $self=shift;
   my %options=();
   @ARGV=@_;
-  getopts("d:",\%options);
+  getopts("rd:",\%options);
   @_=@ARGV;
   my $lfn=shift;
 
-  my @files=@_;
+  my @files;
+  if ($options{r}){
+    $self->debug(2, "Checking if any of the entries is a directory");
+    foreach my $entry (@_){
+      if ($self->{CATALOG}->isdirectory($entry)){
+	push @files, $self->{CATALOG}->f_find( $entry, "*");
+      }else {
+	push @files, $entry;
+      }
+    }
+  } else{
+    @files=@_;
+  }
   $lfn= $self->{CATALOG}->f_complete_path($lfn);
 
   $self->_canCreateFile($lfn) or return;
-  
+
+
   @files or $self->info("Error not enough arguments in zip") and return;
   $self->info("We should put the files in the zip archive");
   my $zip=Archive::Zip->new();
@@ -1983,6 +1998,51 @@ sub unzip {
 
   $self->info("File extracted!");
   return 1;
+}
+sub getLog_HELP{
+  return "getLog: returns the log file of the service
+
+Syntax:
+    getLog [<options>] <site> <service>
+
+"
+}
+sub getLog{
+  my $self=shift;
+  my $options={};
+  @ARGV=@_;
+  Getopt::Long::GetOptions($options, "help","tail=i", "grep=s", "head=i" )
+      or $self->info("Error checking the options of add") and return;
+  @_=@ARGV;
+
+  $options->{help} and $self->info($self->getLog_HELP()) and return 1;
+  my $site=shift;
+  my $service=shift;
+
+  ($service and $site) or 
+    $self->info("Error not enough arguments in getLog\n".$self->getLog_HELP()) and return ;
+  $service =~ /\./ or $service.=".log";
+  if (! $self->{SOAP}->{"cm_$site"}){
+    $self->info("Getting the log of $site");
+    my $address=$self->{SOAP}->CallSOAP("IS", "getService", $site, "ClusterMonitor")
+      or $self->info("Error getting the address of $site");
+    my $output=$address->result;
+    my $host=$output->{HOST};
+    $output->{PORT} and $host.=":$output->{PORT}";
+    $host=~ m{://} or $host="http://$host";
+    $output->{uri}=~ s{::}{/}g;
+    $self->{SOAP}->Connect({address=>$host,
+			    uri=>$output->{uri},
+			    name=>"cm_$site"}) 
+      or $self->info("Error connecting to $host")and return;
+  }
+  my $log=$self->{SOAP}->CallSOAP("cm_$site", "getFileSOAP", $service, "LOG_DIR")
+    or $self->info("Error getting the log $service") and return;
+  my $output=$log->result;
+  $self->info("$output\n");
+  return 1;
+
+
 }
 return 1;
 
