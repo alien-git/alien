@@ -377,7 +377,7 @@ sub verify {
     $self->{SASLclient}->step( $token, $tokenlen );
   if ( $saslstat == $self->{SASLclient}->SASL_OK ) {
     $Logger->debug(1,"**************************************************************
-                   auhtentication succesfull 
+                   auhtentication succesfull  
 **************************************************************\n");
     }
   else {
@@ -388,6 +388,9 @@ sub verify {
   my $pass = "";
   if ( $self->{mech} eq "TOKEN" ) {
     $pass = $self->{SASLclient}->_call('pass') || "";
+  }elsif( $self->{mech} eq "JOBTOKEN"){
+    #The token is the username that submitted this job
+    $pass=$token;
   }
 
   return ( 1, $pass );

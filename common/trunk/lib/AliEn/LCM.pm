@@ -389,6 +389,7 @@ sub getFileFromSE {
   $seInfo or $self->info("Error getting the info of $se")
     and return;
   my $sePort=$seInfo->{PORT};
+  $sePort and $sePort=":$sePort";
   $DEBUG and $self->debug(1, "We have to contact in port $sePort");
 
 
@@ -396,11 +397,11 @@ sub getFileFromSE {
   if ($possibles[0]=~ /^file/){
     push @possibles, ($pfn,$pfn);
     $possibles[1] =~ s/^file/rfio/;
-    $possibles[2] =~ s/^file(:\/\/[^:\/]*)(:\d+)?(\/.*)$/soap$1:$sePort$3?URI=SE/;
+    $possibles[2] =~ s/^file(:\/\/[^:\/]*)(:\d+)?(\/.*)$/soap$1$sePort$3?URI=SE/;
   }
   if ($possibles[0]=~ /^bbftp/){
     push @possibles, ($pfn);
-    $possibles[1] =~ s/^bbftp(:\/\/[^:\/]*)(:\d+)?([^\?]*)\?.*$/soap$1:$sePort$3?URI=SE/;
+    $possibles[1] =~ s/^bbftp(:\/\/[^:\/]*)(:\d+)?([^\?]*)\?.*$/soap$1$sePort$3?URI=SE/;
   }
 
   my $result="";

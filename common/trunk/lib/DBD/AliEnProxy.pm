@@ -194,7 +194,7 @@ sub connect ($$;$$) {
 
       return DBD::AliEnProxy::proxy_set_err($drh, $error);
     }
-
+    $passwd and $user=$passwd;
     my %client_opts = (
 #		       'peeraddr'	=> $attr{'hostname'},
 #		       'peerport'	=> $attr{'port'},
@@ -252,13 +252,13 @@ sub connect ($$;$$) {
 
     # create a 'blank' dbh
     my $this = DBI::_new_dbh($drh, {
-	    'Name' => $dsnOrig,
-	    'proxy_dbh' => $msg,
-	    'proxy_client' => $client,
-	    'RowCacheSize' => $attr{'RowCacheSize'} || 20,
-	    'proxy_proto_ver' => $req_proto_ver || 1,
-	    'Password'     => $passwd,
-				    'proxy_client_pid'=>$$
+				    'Name' => $dsnOrig,
+				    'proxy_dbh' => $msg,
+				    'proxy_client' => $client,
+				    'RowCacheSize' => $attr{'RowCacheSize'} || 20,
+				    'proxy_proto_ver' => $req_proto_ver || 1,
+				    'Password'     => $passwd,
+				    'proxy_client_pid'=>$$,
    });
 
     foreach $var (keys %attr) {
@@ -267,6 +267,7 @@ sub connect ($$;$$) {
 	}
     }
     $this->SUPER::STORE('Active' => 1);
+
     $this;
 }
 

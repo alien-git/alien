@@ -1071,7 +1071,12 @@ sub  checkWakesUp {
   my @methodData=();
   $silent and $method="debug" and push @methodData, 1;
   $self->$method(@methodData, "READY TO DELETE THE ENTRIES");
-
+  my $time=time();
+  $self->{PROXY_CHECKED} or $self->{PROXY_CHECKED}=1;
+  if ($time-$self->{PROXY_CREATED}>3600){
+    $self->{X509}->checkProxy();
+    $self->{PROXY_CHECKED}=$time;
+  }
  foreach my $subSE (grep (s/^SE_(VIRTUAL_)/$1/ , keys %{$self->{CONFIG}}), "") {
     my ($seName, $seInfo)=$self->checkVirtualSEName($subSE);
     

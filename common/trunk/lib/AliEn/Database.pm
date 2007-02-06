@@ -1060,7 +1060,7 @@ sub _connect{
 
   $self->{PID} = $$;
 
-  1;
+  return $self->{ROLE};
 }
 
 sub _timeout {
@@ -1233,15 +1233,22 @@ sub _validate {
 
     $DEBUG and $self->debug(1,"In _validate validating job $ENV{ALIEN_PROC_ID} token: $ENV{ALIEN_JOB_TOKEN}.");
 
-    $status = $self->{TOKEN_MANAGER}->validateJobToken( $ENV{ALIEN_PROC_ID}, $ENV{ALIEN_JOB_TOKEN} );
-    if (!$status) {
-      $self->info( "Database: In _validate TokenManager reported error. Unable to validate user $self->{USER} (as $self->{ROLE}).");
+#    $status = $self->{TOKEN_MANAGER}->validateJobToken( $ENV{ALIEN_PROC_ID}, $ENV{ALIEN_JOB_TOKEN} );
+#    if (!$status) {
+#      $self->info( "Database: In _validate TokenManager reported error. Unable to validate user $self->{USER} (as $self->{ROLE}).");
+#      return;
+#    }
+#    $self->{USER} =  $ENV{ALIEN_PROC_ID};
+    $self->{ROLE} =  $ENV{ALIEN_PROC_ID};
+    $self->{PASSWD}=$self->{TOKEN} =  $ENV{ALIEN_JOB_TOKEN};
+    $self->{FORCED_AUTH_METHOD}='JOBTOKEN';
+    $self->debug(1,"READY TO AUTHENTICATE WITH THE JOB TOKEN");
+    my $username=$self->_connect();
+    if (!$username){
+      $self->info("Authentication with the jobid $ENV{ALIEN_PROC_ID} (from the environment ALIEN_PROC_ID) failed");
       return;
     }
-    $self->{USER} = $status->{user};
-    $self->{ROLE} = $status->{user};
-    $self->{TOKEN} = $status->{token};
-    $self->{FORCED_AUTH_METHOD}='TOKEN';
+    $self->{ROLE}=$ENV{ALIEN_JOBTOKEN_USER};
 
   } elsif ( $self->{TOKEN} ) {
     $self->{FORCED_AUTH_METHOD}='TOKEN';
