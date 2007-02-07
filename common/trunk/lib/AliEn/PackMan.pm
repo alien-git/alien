@@ -309,7 +309,7 @@ sub definePackage{
   $self->{CATALOGUE}->execute("mkdir", "-p", $lfnDir)
     or $self->info( "Error creating the directory $lfnDir")
       and return;
-  $self->{CATALOGUE}->execute("addTag", $self->{CATALOGUE}->{CATALOGUE}->GetHomeDirectory()."/packages/$packageName", "PackageDef")
+  $self->{CATALOGUE}->execute("addTag", $self->{CATALOGUE}->{CATALOG}->GetHomeDirectory()."/packages/$packageName", "PackageDef")
     or $self->info( "Error creating the tag definition")
       and return;
   $self->{CATALOGUE}->execute("add", $lfn, $tar, $se) 
