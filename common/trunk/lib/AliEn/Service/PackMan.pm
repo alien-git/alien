@@ -187,12 +187,19 @@ sub getInstallLog{
   my $user=shift;
   my $package=shift;
   my $version=shift;
+  my $options=shift;
   $self->info( "$$ Getting the installation log of $package, $user and $version");
   my ($lfn, $info)=$self->findPackageLFN($user, $package, $version);
 
   $version or $lfn =~ /\/([^\/]*)\/[^\/]*$/
     and ($version)=($1);
   my $logFile="$self->{INST_DIR}/$user.$package.$version.InstallLog";
+
+  if ($options){
+    $logFile= "$self->{CONFIG}->{LOG_DIR}/packman/$package.$version.$options.$self->{CONFIG}->{HOST}";
+    $self->info("$$ Getting the log with option $options and $logFile");
+
+  }
 
   open (FILE, "<$logFile" ) or die ("Error opening $logFile\n");
   my @content=<FILE>;
