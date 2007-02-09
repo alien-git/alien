@@ -164,7 +164,9 @@ sub retrieveFileDetails{
   my $quotes="'";
   $options->{noquotes} and $quotes="";
   if (defined $hashref){
-    $hashref->{guid} and $hashref->{guid}= "string2binary('$hashref->{guid}')";
+    if ($hashref->{guid}) {
+      $hashref->{guid} =~ /^string2binary/ or $hashref->{guid}= "string2binary('$hashref->{guid}')";
+    }
     $string .= " WHERE ".( join (" AND ", map {"$_ =  $quotes$hashref->{$_}$quotes"} keys(%{$hashref})));
   }  
 

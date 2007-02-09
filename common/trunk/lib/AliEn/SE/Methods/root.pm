@@ -68,7 +68,7 @@ sub put {
   }
 
 #  $error and return;
-  $self->info("Something went wrong!!\n");
+  $self->info("Something went wrong with xrdcp!!\n @output\n");
   return;
 }
 

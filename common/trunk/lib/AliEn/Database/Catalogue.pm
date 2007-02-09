@@ -117,7 +117,7 @@ sub createCatalogueTables {
 				    organisation=>"char(11)",},"hostIndex"],
 	      TRIGGERS=>["lfn", {lfn=>"varchar(255)", 
 				 triggerName=>"varchar(255)",
-				triggerId=>"int auto_increment primary key"}],
+				entryId=>"int auto_increment primary key"}],
 	      ACL=>["entryId", 
 		    {entryId=>"int(11) NOT NULL auto_increment primary key", 
 		     owner=>"char(10) NOT NULL",

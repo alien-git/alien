@@ -51,6 +51,8 @@ sub getListInstalled_Internal {
 	$self->debug(1, "Checking $dir/$user/$package");
 	foreach my $version ($self->getSubDir("$dir/$user/$package")){
 	  $self->debug(1, "Checking $dir/$user/$package/$version");
+	  (-f "$dir/$user.$package.$version.InstallLock" and
+	   $self->debug(1, "The package is being installed") and next;
 	  push @allPackages, "${user}\@${package}::$version";
 	}
       }
