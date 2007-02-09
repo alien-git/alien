@@ -224,7 +224,8 @@ sub getFreeSlots {
   ($ENV{CE_SITE_BDII}) and $bdii=$ENV{CE_SITE_BDII};
   $self->debug(1,"BDII is \'$bdii\'");
 
-  foreach my $CE (@$list) {
+  foreach my $CE (@list) {
+    $self->debug(1,"Querying for $CE");
     (my $host,undef) = split (/:/,$CE);
     my $GRIS = '';
     my $BaseDN = '';
