@@ -706,14 +706,14 @@ sub getPort {
   while ( $testport = shift (@PORTS) ) {
     my $proto = getprotobyname('tcp');
     #  #    Locking port
-    $lockmgr->trylock("$portDir/lockFile.$testport") or next;
+    $lockmgr->trylock("$portDir/lockFile.$testport.$self->{HOST}") or next;
     # try to bind the port
     if ( (socket(Server, PF_INET, SOCK_STREAM, $proto) && (setsockopt(Server, SOL_SOCKET, SO_REUSEADDR, pack("l",1)) ) && (bind(Server, sockaddr_in($testport,  INADDR_ANY))))) {
       $port = $testport;
       last;
     }
     $self->debug(1, "Port $testport is busy");
-    $lockmgr->unlock("$portDir/lockFile.$testport");
+    $lockmgr->unlock("$portDir/lockFile.$testport.$self->{HOST}");
   }
   if ( !($port) ) {
     print STDERR "Sorry no free port are available\n";
