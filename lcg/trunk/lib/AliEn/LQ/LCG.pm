@@ -168,7 +168,10 @@ sub getAllBatchIds {
   my $before = scalar keys %queuedJobs;
   while ( @$jobIds ) { 
     my @someJobs = splice(@$jobIds,0,25);
-    my @output=$self->_system($self->{STATUS_CMD}, "--noint", @someJobs);
+    my $logfile = AliEn::TMPFile->new({ ttl => '12 hours'});
+    my @output=$self->_system($self->{STATUS_CMD}, "--noint", 
+                                                   "--logfile", $logfile,
+						   @someJobs);
     my $status = '';
     my $JobId = '';
     my @result = ();
@@ -181,9 +184,9 @@ sub getAllBatchIds {
           $JobId    = '';
           $newRecord = 0;
 	} else { # Last line of record, dump
-          delete($queuedJobs{$JobId}) if ($status =~ m/\s*(Done\(Success\))|(Done\(Failed\))|(Aborted)|(Cleared)|(Cancelled)/);
-           $self->debug(1,"Job $JobId is $status");
-         $newRecord = 1;
+	  delete($queuedJobs{$JobId}) if ($status =~ m/\s*(Done\(Success\))|(Done\(Failed\))|(Aborted)|(Cleared)|(Cancelled)/);
+          $self->debug(1,"Job $JobId is $status");
+          $newRecord = 1;
 	}
 	next;
       }
@@ -346,7 +349,9 @@ sub getJobStatus {
    my @args=();
    $self->{CONFIG}->{CE_STATUSARG} and
      @args=split (/\s+/, $self->{CONFIG}->{CE_STATUSARG});
-    my @output=$self->_system($self->{STATUS_CMD}, "-noint", @args,
+   my $logfile = AliEn::TMPFile->new({ ttl => '12 hours'});
+
+   my @output=$self->_system($self->{STATUS_CMD}, "-noint", "--logfile", $logfile, @args,
                              "\"$contact\" | grep \"$pattern\"" );
    my $status = $output[0];
    chomp $status;
