@@ -360,7 +360,7 @@ sub main {
       $server->{LOGGER}->critical( "ProxyServer", "Cannot create socket: $!" );
       $server->{LOGGER}->info( "ProxyServer",
       "Starting the ProxyServer in $server->{'localport'}" );
-    system("env >$ENV{HOME}/.alien/var/log/AliEn/pcegee02/ProxyServer.env");
+    system("env >$ENV{HOME}/.alien/var/log/AliEn/$self->{LOGGER}->{CONFIG}->{ORG_NAME}/ProxyServer.env");
      $server->Bind();
 }
 
