@@ -976,8 +976,50 @@ sub installPackage {
   return ($ok, $source);
 }
 
+sub mergeXMLfile{
+  my $self=shift;
+  my $catalog=shift;
+  my $output=shift;
+  my $input=shift;
+  $self->putJobLog($ENV{ALIEN_PROC_ID},"trace","We have to merge $input with $output");
+
+  $self->_getInputFile($catalog, $input, "$output.orig") or return;
+  $catalog->close();
+
+  my $d=AliEn::Dataset->new();
+
+  my $info=$d->readxml("$output.orig") or 
+    $self->putJobLog($ENV{ALIEN_PROC_ID},"error","Error reading the xml file $output.orig")  and return;
+
+  my ($ok, @lfn)=$self->{CA}->evaluateAttributeVectorString("InputData");
+
+  foreach my $event (keys %{$info->{collection}->{event}}){
+    my $delete=1;
+    foreach my $entry (keys %{$info->{collection}->{event}->{$event}->{file}}){
+      print "HOLA $entry\n";
+      if (!grep (/^$info->{collection}->{event}->{$event}->{file}->{$entry}->{turl}$/, @lfn)){
+	print "Let's remove $entry\n";
+	delete $info->{collection}->{event}->{$event}->{file}->{$entry};
+	next;
+      }
+      $delete=0;
+    }
+    $delete and delete $info->{collection}->{event}->{$event};
+  }
+
+  print "AND WE HAVE\n";
+  
+  open (FILE, ">$output");
+  print FILE $d->writexml($info);
+  close FILE;
+  $self->putJobLog($ENV{ALIEN_PROC_ID}, "trace", "XML file $output created merging $input (and @lfn)");
+
+  return 1;
+}
+
 sub dumpInputDataList {
   my $self=shift;
+  my $catalog=shift;
   my $xml=0;
   my ($ok, $dumplist)=$self->{CA}->evaluateAttributeString("InputDataList");
   ($dumplist)  or return 1;
@@ -986,6 +1028,9 @@ sub dumpInputDataList {
     if ($format =~ /^xml-single/i){
       $xml="single";
     } elsif ($format =~ /^xml-group/i) {
+      $xml="group";
+    } elsif ($format =~ /^merge:(.*)/i) {
+      return $self->mergeXMLfile($catalog, $dumplist, $1);
       $xml="group";
     } else {
       $self->putJobLog($ENV{ALIEN_PROC_ID},"error","The inputdatalistType was $format, but I don't understand it :(. Ignoring it");
@@ -1059,6 +1104,27 @@ sub getInputZip {
   }
   return 1;
 }
+sub _getInputFile {
+  my $self=shift;
+  my $catalog=shift;
+  my $lfnName=shift;
+  my $pfn=shift;
+
+  $self->putJobLog($ENV{ALIEN_PROC_ID},"trace","Downloading input file: $lfnName");
+  print "Getting $lfnName\n";
+
+  my $options="-silent";
+  for (my $i=0;$i<2;$i++) {
+    $catalog->execute("get", "-l", $lfnName,$pfn, $options ) and return 1;
+
+    $options="";
+    $self->putJobLog($ENV{ALIEN_PROC_ID},"trace","Error downloading input file: $lfnName (trying again)");
+
+  }
+  $self->putJobLog($ENV{ALIEN_PROC_ID},"error","Could not download the input file: $lfnName (into $pfn)");
+
+  return;
+}
 
 sub getFiles {
   my $self    = shift;
@@ -1067,29 +1133,14 @@ sub getFiles {
   $self->info("Getting the files");
   my $oldmode=$self->{LOGGER}->getMode();
   $self->info("Got mode $oldmode");
-  $self->dumpInputDataList();
+  $self->dumpInputDataList($catalog);
 
   $self->getInputZip($catalog) or return;
 
   my @files=$self->getListInputFiles($catalog);
 
   foreach my $file (@files) {
-    $self->putJobLog($ENV{ALIEN_PROC_ID},"trace","Downloading input file: $file->{cat}");
-    print "Getting $file->{cat}\n";
-    my $done;
-    my $options="-silent";
-    for (my $i=0;$i<2;$i++) {
-      $catalog->execute("get", "-l",$file->{cat},$file->{real}, $options ) 
-	and $done=1 and last;
-      $options="";
-      $self->{LOGGER}->error("JobAgent","Getting the $file->{cat} for the job $self->{QUEUEID} from the catalog!! (trying again)" );
-    }
-    if (!$done) {
-      $self->putJobLog($ENV{ALIEN_PROC_ID},"error","Could not download the input file: $file->{cat}");
-      print STDERR
-	"ERROR: Getting the $file->{cat} for the job $self->{QUEUEID} from the catalog!!\n";
-      return;
-    }
+    $self->_getInputFile($catalog, $file->{cat},$file->{real}) or return;
   }
 
   my $procDir = AliEn::Util::getProcDir($self->{JOB_USER}, undef, $self->{QUEUEID});
@@ -1135,7 +1186,7 @@ sub getListInputFiles {
     push @files, {cat=>$self->{VALIDATIONSCRIPT}, 
 		  real=>$validation};
   }else {
-    $self->info("THERE IS NO VALIDATION");
+    $self->info("There is no validation script");
   }
   my ($ok,  $createLinks)=$self->{CA}->evaluateAttributeString("CreateLinks");
   if ($createLinks) {
