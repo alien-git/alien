@@ -984,7 +984,6 @@ sub mergeXMLfile{
   $self->putJobLog($ENV{ALIEN_PROC_ID},"trace","We have to merge $input with $output");
 
   $self->_getInputFile($catalog, $input, "$output.orig") or return;
-  $catalog->close();
 
   my $d=AliEn::Dataset->new();
 
@@ -993,11 +992,12 @@ sub mergeXMLfile{
 
   my ($ok, @lfn)=$self->{CA}->evaluateAttributeVectorString("InputData");
 
+  map {s{^lf:}{alien://}i} @lfn;
   foreach my $event (keys %{$info->{collection}->{event}}){
     my $delete=1;
     foreach my $entry (keys %{$info->{collection}->{event}->{$event}->{file}}){
       print "HOLA $entry\n";
-      if (!grep (/^$info->{collection}->{event}->{$event}->{file}->{$entry}->{turl}$/, @lfn)){
+      if (!grep (/^$info->{collection}->{event}->{$event}->{file}->{$entry}->{turl}$/i, @lfn)){
 	print "Let's remove $entry\n";
 	delete $info->{collection}->{event}->{$event}->{file}->{$entry};
 	next;
