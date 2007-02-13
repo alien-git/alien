@@ -716,7 +716,7 @@ sub GetConfigFromCM {
     $self->info("Sleeping $sleep seconds before trying again");
     sleep($sleep);
   }
-  $self->debug("Got the config from the ClusterMonitor");
+  $self->debug(1, "Got the config from the ClusterMonitor");
   $config=$config->result;
   (UNIVERSAL::isa($config, "HASH"))
     or print STDERR "Error the ClusterMonitor did not return a hash ($config)\n" and return;

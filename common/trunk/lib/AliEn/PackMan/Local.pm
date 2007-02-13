@@ -51,8 +51,8 @@ sub getListInstalled_Internal {
 	$self->debug(1, "Checking $dir/$user/$package");
 	foreach my $version ($self->getSubDir("$dir/$user/$package")){
 	  $self->debug(1, "Checking $dir/$user/$package/$version");
-	  (-f "$dir/$user.$package.$version.InstallLock" and
-	   $self->debug(1, "The package is being installed") and next;
+	  (-f "$dir/$user.$package.$version.InstallLock") and
+	    $self->debug(1, "The package is being installed") and next;
 	  push @allPackages, "${user}\@${package}::$version";
 	}
       }
@@ -125,7 +125,7 @@ sub installPackage{
     $self->debug(2,  "Ready to do the installPackage $package for $user");
     
     $self->InstallPackage($lfn, $user, $package, $version,$info, $source, $options);
-    my ($done, $psource, $dir)= $self->ConfigurePackage($user, $package, $version, $info);
+    my ($done, $psource, $dir2)= $self->ConfigurePackage($user, $package, $version, $info);
     $psource and $source="$source $psource";
     $self->info( "$$ Returning $done and ($source)\n");
   };
@@ -172,14 +172,14 @@ sub findPackageLFN{
     $self->info("$$ So far, we didn't get the lfn. Looking for source packages");
     #Ok, let's look for the package source
     foreach (@dirs){
-      my @files=$self->{CATALOGUE}->execute("find", "-silent","$_/$package", "source") or next;
-      print "Got @files\n";
+      my @files2=$self->{CATALOGUE}->execute("find", "-silent","$_/$package", "source") or next;
+      print "Got @files2\n";
       if ($version) {
-	@files=grep (/$package\/$version\// , @files);
-	print "After the version, we have @files\n";
-	@files or next;
+	@files2=grep (/$package\/$version\// , @files2);
+	print "After the version, we have @files2\n";
+	@files2 or next;
       }
-      $lfn=shift @files;
+      $lfn=shift @files2;
       last;
     }
     if (!$lfn) {
