@@ -170,25 +170,33 @@ sub generateXRSL {
    my $self = shift;
    my $ca = shift;
   #my $requirements = $self->translateRequirements($ca);
-   my $file = "dg-submit.$$";
-   my $tmpdir = "$self->{CONFIG}->{TMP_DIR}";
-   if ( !( -d $self->{CONFIG}->{TMP_DIR} ) ) {
-     my $dir = "";
-     foreach ( split ( "/", $self->{CONFIG}->{TMP_DIR} ) ) {
-       $dir .= "/$_";
-       mkdir $dir, 0777;
-     }
-   }
-
-   open( BATCH, ">$tmpdir/$file.xrsl" )
-       or print STDERR "Can't open file '$tmpdir/$file.xrsl': $!"
+#   my $file = "dg-submit.$$";
+#   my $tmpdir = "$self->{CONFIG}->{TMP_DIR}";
+#   if ( !( -d $self->{CONFIG}->{TMP_DIR} ) ) {
+#     my $dir = "";
+#     foreach ( split ( "/", $self->{CONFIG}->{TMP_DIR} ) ) {
+#       $dir .= "/$_";
+#       mkdir $dir, 0777;
+#     }
+#   }
+   my ($ok, $ttl)=$ca->evaluateAttributeString("TTL");
+  if ($ttl){
+    $self->info("We are supposed to send a job with $ttl seconds");
+    $ttl="(cpuTime=\"$ttl\")";
+  }
+   my $fullName=AliEn::TMPFile->new({filename=>"arc-submit.$$"})
+    or return;
+   my $file=$fullName;
+   $file=~ s/^.*([^\/]*)$/$1/;
+   open( BATCH, ">$fullName.xrsl" )
+       or print STDERR "Can't open file '$fullName.xrsl': $!"
        and return;
    print BATCH "&
 (jobName = \"AliEn-$file\")  
 (executable = \"$file.sh\")
 (stdout = \"std.out\")
+$ttl
 (stderr = \"std.err\")
-(cpuTime=\"1 day\")
 (inputFiles = (\"$file.sh\" \"/tmp/$file.sh\"))
 (outputFiles = ( \"std.err\" \"\") (  \"std.out\"  \"\") (  \"gm.log\"  \"\")(\"$file.sh\" \"\"))
 (environment = (ALIEN_JOBAGENT_ID $ENV{ALIEN_JOBAGENT_ID})(ALIEN_CM_AS_LDAP_PROXY $ENV{ALIEN_CM_AS_LDAP_PROXY})(ALIEN_SE_MSS $ENV{ALIEN_SE_MSS})(ALIEN_SE_FULLNAME $ENV{ALIEN_SE_FULLNAME})(ALIEN_SE_SAVEDIR $ENV{ALIEN_SE_SAVEDIR}))
@@ -196,8 +204,8 @@ sub generateXRSL {
 #$requirements
 ;
    close BATCH;
-   open( BATCH, ">/tmp/$file.sh" )
-       or print STDERR "Can't open file '/tmp/$file.sh': $!"
+   open( BATCH, ">$fullName.sh" )
+       or print STDERR "Can't open file '$fullName.sh': $!"
        and return;
    print BATCH "
 \#!/bin/sh
@@ -206,11 +214,12 @@ sub generateXRSL {
 pwd
 ls -alrt
 less $file.sh
+#$self->{CONFIG}->{CE_ALIEN_LOCATION}/bin/alien proxy-init -valid 720:00
 $self->{CONFIG}->{CE_ALIEN_LOCATION}/bin/alien RunAgent
 ";
 
    close BATCH or return;
-   return $tmpdir."/".$file.".xrsl";
+   return "$fullName.xrsl";
 }
 
 return 1;
