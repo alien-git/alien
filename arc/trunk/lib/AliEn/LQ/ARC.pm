@@ -26,18 +26,17 @@ sub submit {
 	 #$self->debug(1,"Requirements:$requirements \n");
 	 
 	 
-	 my $xrslfile = $self->generateXRSL($classad);
-     $xrslfile or return;
 	 
      my @args=();
      $self->{CONFIG}->{CE_SUBMITARG} and
-        @args=split (/\s+/, $self->{CONFIG}->{CE_SUBMITARG});
-     
-   
-     if (-e $xrslfile) {
-	 $self->debug(1,"File $xrslfile exists!\n");
-	 
-	 }
+        @args=@{$self->{CONFIG}->{CE_SUBMITARG_LIST}};
+
+     my @xrsl=grep (/^xrsl:/, @args);
+     map {s/^xrsl://} @xrsl;
+     @args=grep (! /^xrsl:/, @args); 
+
+     my $xrslfile = $self->generateXRSL($classad, @xrsl);
+     $xrslfile or return;
 	  
      $self->info("Submitting to ARC  with \'@args\'.");
      
@@ -45,6 +44,7 @@ sub submit {
      
      $self->info("Submitting to ARC with: @command\n");
      
+     open SAVEOUT,  ">&STDOUT";
      open SAVEOUT,  ">&STDOUT";
      if ( !open STDOUT, ">$self->{CONFIG}->{TMP_DIR}/stdout" ) {
          return 1;
@@ -64,7 +64,7 @@ sub submit {
      if ($error) {
        $contact or $contact="";
        $self->{LOGGER}->warning("ARC","Error submitting the job. Log file '$contact'\n");
-       $contact and system ('cat', $contact, '>/dev/null 1>&2');
+       $contact and $contact !~/^:*$/ and system ('cat', $contact, '>/dev/null 1>&2');
        return $error;
      } else {
        $self->info("ARC JobID is $contact");
@@ -116,13 +116,12 @@ sub getStatus {
          $ARCStatus eq "DELETED")  {
           return 'DEQUEUED';
      }
-     if ( $ARCStatus eq "FINISHED" )  {
-        my $outdir = "$self->{CONFIG}->{TMP_DIR}/JobOutput.$queueid";
+     if ( $ARCStatus =~ /^((FINISHED)|(FAILED))$/ )  {
         my ($contact )= $self->getContactByQueueID($queueid);
         $contact or return;
-        $self->info("Will retrieve OutputSandbox for job $queueid, JobID is $contact");
-        system("mkdir -p $outdir");
-        system("$self->{CONFIG}->{CE_ARC_LOCATION}/bin/ngget -dir $outdir $contact");
+	if ($self->{LOGGER}->{LEVEL}){ 
+          system("$self->{CONFIG}->{CE_ARC_LOCATION}/bin/ngclean $contact");
+        }
         return 'DEQUEUED';
      }
      return 'QUEUED';
@@ -145,6 +144,10 @@ sub getAllBatchIds {
           $status=$1;
           $id or print "Error found a status, but there is no id\n" and next;
           print "Id $id has status $status\n";
+	  if ($status =~ /^((FINISHED)|(FAILED))$/){
+            print "Clean up $id\n";
+	    $self->{LOGGER}->{LEVEL} and system("$self->{CONFIG}->{CE_ARC_LOCATION}/bin/ngclean $id");
+	  }
           if ($status !~ /^(CANCELING)|(FINISHED)|(FINISHING)|(DELETED)|(FAILED)$/){
             print "The job is queued ($status)\n";
 	    push @queuedJobs, $id;
@@ -169,6 +172,7 @@ sub getNumberRunning() {
 sub generateXRSL {
    my $self = shift;
    my $ca = shift;
+   my @args =@_;
   #my $requirements = $self->translateRequirements($ca);
 #   my $file = "dg-submit.$$";
 #   my $tmpdir = "$self->{CONFIG}->{TMP_DIR}";
@@ -179,11 +183,14 @@ sub generateXRSL {
 #       mkdir $dir, 0777;
 #     }
 #   }
+
+   map { /^\s*\(.*\)\s*$/ or s/^(.*)$/\($1\)/ } @args;
+   
    my ($ok, $ttl)=$ca->evaluateAttributeString("TTL");
-  if ($ttl){
-    $self->info("We are supposed to send a job with $ttl seconds");
-    $ttl="(cpuTime=\"$ttl\")";
-  }
+   if ($ttl){
+     $self->info("We are supposed to send a job with $ttl seconds");
+     $ttl="(cpuTime=\"$ttl\")";
+   }
    my $fullName=AliEn::TMPFile->new({filename=>"arc-submit.$$"})
     or return;
    my $file=$fullName;
@@ -195,6 +202,7 @@ sub generateXRSL {
 (jobName = \"AliEn-$file\")  
 (executable = \"$file.sh\")
 (stdout = \"std.out\")
+@args
 $ttl
 (stderr = \"std.err\")
 (inputFiles = (\"$file.sh\" \"/tmp/$file.sh\"))
