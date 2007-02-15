@@ -58,8 +58,12 @@ sub submit {
      close FILE;
      $contact and
        chomp $contact;
+     if ($contact=~ /gsiftp:\/\//){
 	 my @cstring = split(":",$contact);
 	 $contact = "$cstring[1]:$cstring[2]:$cstring[3]";
+     } else {
+       $error=1;
+     }
 
      if ($error) {
        $contact or $contact="";
@@ -185,16 +189,26 @@ sub generateXRSL {
 #   }
 
    map { /^\s*\(.*\)\s*$/ or s/^(.*)$/\($1\)/ } @args;
-   
-   my ($ok, $ttl)=$ca->evaluateAttributeString("TTL");
-   if ($ttl){
-     $self->info("We are supposed to send a job with $ttl seconds");
-     $ttl="(cpuTime=\"$ttl\")";
+   @args or @args=("");
+   my $args=join("\n", @args);
+   $args or $args="";
+
+  $self->info("Hello  world with $args");
+  my ($ok, $ttl)= $ca->evaluateExpression("Requirements");
+  $self->info("Requirements $ttl");
+  if ($ttl and $ttl =~ /TTL\s*[=>]*\s*(\d+)/ ) {
+     $self->info("Translating \'TTL\' requirement ($1)");
+     my $minutes=int($1/60);
+     $ttl = "(cpuTime=\"$minutes minutes\")\n";
+   } else {
+     $ttl="";
    }
    my $fullName=AliEn::TMPFile->new({filename=>"arc-submit.$$"})
     or return;
    my $file=$fullName;
-   $file=~ s/^.*([^\/]*)$/$1/;
+   $file=~ s/^.*\/([^\/]*)$/$1/;
+   $self->info("File name $file and fullName $fullName and");
+
    open( BATCH, ">$fullName.xrsl" )
        or print STDERR "Can't open file '$fullName.xrsl': $!"
        and return;
@@ -202,10 +216,10 @@ sub generateXRSL {
 (jobName = \"AliEn-$file\")  
 (executable = \"$file.sh\")
 (stdout = \"std.out\")
-@args
+$args
 $ttl
 (stderr = \"std.err\")
-(inputFiles = (\"$file.sh\" \"/tmp/$file.sh\"))
+(inputFiles = (\"$file.sh\" \"$fullName.sh\"))
 (outputFiles = ( \"std.err\" \"\") (  \"std.out\"  \"\") (  \"gm.log\"  \"\")(\"$file.sh\" \"\"))
 (environment = (ALIEN_JOBAGENT_ID $ENV{ALIEN_JOBAGENT_ID})(ALIEN_CM_AS_LDAP_PROXY $ENV{ALIEN_CM_AS_LDAP_PROXY})(ALIEN_SE_MSS $ENV{ALIEN_SE_MSS})(ALIEN_SE_FULLNAME $ENV{ALIEN_SE_FULLNAME})(ALIEN_SE_SAVEDIR $ENV{ALIEN_SE_SAVEDIR}))
 "
