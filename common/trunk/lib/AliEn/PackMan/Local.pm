@@ -625,5 +625,13 @@ sub removePackage{
   AliEn::Util::deleteCache($self);
   return 1;
 }
+
+sub recomputeListPackages{
+  my $self=shift;
+  $self->info("Asking the package manager to recompute the list of packages");
+  $self->{CATALOGUE}->{CATALOG}->{DATABASE_FIRST}->do("update ACTIONS set todo=1 where action='PACKAGES'") or return;
+  $self->info("The information will be updated in 10 seconds");
+  return 1;
+}
 return 1;
 

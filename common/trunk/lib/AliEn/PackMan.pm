@@ -183,6 +183,8 @@ sub f_packman {
   } elsif ($operation =~ /^installLog?$/){
     $soapCall="getInstallLog";
     $requiresPackage=1;
+  } elsif ($operation =~ /^recompute?$/){
+    $soapCall="recomputeListPackages";
   } else {
     $self->info( "I'm sorry, but I don't understand $operation");
     $self->info( $self->f_packman_HELP(),0,0);
