@@ -51,6 +51,13 @@ sub removePackage {
   return ($done, $error);
 }
 
+
+sub recomputeListPackages {
+  shift;
+  my $done=$self->{PACKMAN}->recomputeListPackages();
+  return $done;
+}
+
 =item C<getListPackages()>
 
 Returns a list of all the packages defined in the system
