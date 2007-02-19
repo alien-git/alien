@@ -1348,13 +1348,13 @@ sub putFiles {
 	for (my $j=0;$j<5;$j++){
 	  ($info2)=$ui->execute("upload", "$self->{WORKDIR}/$arch->{name}",
 				$se, $guid, $silent);
-	  $info2 and last; 
+	  $info2 and  UNIVERSAL::isa( $info2, "HASH")  and last; 
 	  $self->info("Error uploading the file... sleep and retry");
 	  $self->putJobLog($id, "trace", "warning: file upload failed... sleeping  and retrying");
 	  sleep(10);
 	  $silent="";
 	}
-	if (!$info2) {
+	if (!$info2 or !  UNIVERSAL::isa( $info2, "HASH")) {
 	  $self->info("Couldn't upload the file $arch->{name} to $se\n");
 	  $self->putJobLog($id,"error","Error registering $arch->{name}");
 	  next;
