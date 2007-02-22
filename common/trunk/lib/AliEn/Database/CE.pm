@@ -87,7 +87,7 @@ sub removeJobAgent {
        $batchId = $data->{batchId};
      } else {
        $self->debug(1,"Will try to cleanup JA with $key=$data->{$key}");
-       my $result = $self->query("SELECT batchId FROM JOBAGENT WHERE $key=$data->{$key}");
+       my $result = $self->query("SELECT batchId FROM JOBAGENT WHERE $key=\'$data->{$key}\'");
        $result = (@$result)[0]; # take the first and hopefully only one
        $result->{batchId} and $batchId = $result->{batchId};
        $self->debug(1,"batchId is $batchId");
