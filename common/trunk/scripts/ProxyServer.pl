@@ -7,6 +7,10 @@ use strict;
 use DBD::mysql;
 require AliEn::Services::ProxyServer;
 
+use Net::SSLeay;
+$Net::SSLeay::trace =2;
+
+
 # XXX these should probably be moved into DBI::ProxyServer
 delete $ENV{IFS};
 delete $ENV{CDPATH};
