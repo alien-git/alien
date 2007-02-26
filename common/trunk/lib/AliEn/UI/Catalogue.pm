@@ -103,6 +103,7 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
      'history'=>['$self->history',0],
      'du'=>['$self->{CATALOG}->f_du',3],
 	     'md5sum'=>['$self->{CATALOG}->f_getMD5', 3+16+32],
+	     'phone'=>['$self->phone', 0],
 
     #Admin Interface
     'addHost' 		=> ['$self->{CATALOG}->f_addHost', 0],
@@ -244,6 +245,7 @@ my %help_list =
     'createBankAccount'   => "\tCreates new bank account",
     'transactFunds'   => "\tMakes fund transaction",
    'setExpired' => "\tSets the expiration date for a file",
+   'phone'=> "\tdisplays the username behinds a userid",
 );
 
 sub AddHelp {
@@ -1160,6 +1162,28 @@ sub checkLocalPFN {
   $pfn =~ s/\n//gs;
   $self->info( "The pfn '$orig' does not look like a pfn... let's hope that it refers to '$pfn'");
   return $pfn;
+}
+
+
+sub phone_HELP{
+  return "phone: prints the real name behind an username
+Usage:
+   phone <username>"
+}
+
+sub phone {
+  my $self=shift;
+  my $userid=shift;
+  $userid or $self->info("Error: not enough arguments in phone". $self->phone_HELP()) and return;
+  my $user=$self->{CONFIG}->CheckUser($userid) or return;
+
+  $self->debug(2,"Got the user");
+  my $message="The user '$userid' is:";
+  foreach my $field ('CN','SUBJECT'){
+    $user->{$field} and $message .="\n   $field: ". join ("\n\t", @{$user->{"${field}_LIST"}});
+  }
+  $self->info($message);
+  return $user;
 }
 
 return 1;

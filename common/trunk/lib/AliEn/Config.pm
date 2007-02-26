@@ -753,6 +753,39 @@ sub CheckServiceCache {
   return $self->{CACHE}->{$service}->{$name}->{value};
 }
 
+sub CheckUser {
+  my $this=shift;
+  my $username=shift;
+  my $ldap=shift || "";
+  my $disconnect=0;
+  if (! $ldap){
+
+    $ldap = Net::LDAP->new( $self->{LDAPHOST}) or
+      print STDERR "Error contacting ldap: $@" and return;
+    
+    $ldap->bind or print STDERR "Error binding to LDAP" and return;
+    $disconnect=1;
+  }
+
+  my $base = "ou=People,$self->{LDAPDN}";
+  my $filter = "(&(objectClass=AliEnUser)(uid=$username))";
+
+  
+
+  my $mesg = $ldap->search( base   => "$base",  filter => "$filter");
+
+  my $total = $mesg->count;
+
+  if ( !$total ) {
+    $self->info("Couldn't find the user '$username'");
+    return;
+  }
+  my $entry = $mesg->entry(0);
+  $disconnect and $ldap->unbind;
+
+  return $entry;
+}
+
 
 
 sub CheckService{
