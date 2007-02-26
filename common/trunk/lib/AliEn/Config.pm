@@ -782,8 +782,17 @@ sub CheckUser {
   }
   my $entry = $mesg->entry(0);
   $disconnect and $ldap->unbind;
+  my $hash={};
+  foreach my $attr ( $entry->attributes ) {
+    my $value = $entry->get_value($attr);
+    my @list  = $entry->get_value($attr);
+    $attr =  uc($attr);
+    $DEBUG and $self->debug(7,"Putting $attr as $value\n\tAnd ${attr}_LIST=@list");
+    $hash->{"$attr"}        = $value;
+    $hash->{"${attr}_LIST"} = \@list;
+  }
 
-  return $entry;
+  return $hash;
 }
 
 
