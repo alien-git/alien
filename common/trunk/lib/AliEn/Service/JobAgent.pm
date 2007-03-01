@@ -2072,7 +2072,7 @@ sub checkProcess{
   if ($time-1200 >$self->{CPU_CONSUMED}->{TIME}){
     my $consumed=AliEn::Util::get_pid_jiffies($id);
     if ($consumed and ($consumed eq $self->{CPU_CONSUMED}->{VALUE})) {
-      $killMessage="the job hasn't used any jiffies in the last 20 min";
+      $killMessage="due to zero CPU consumption in the last 20 minutes!";
     }
     $self->{CPU_CONSUMED}={TIME=>$time, VALUE=>$consumed};
     
