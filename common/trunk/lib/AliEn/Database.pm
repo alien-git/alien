@@ -981,8 +981,8 @@ sub getDatabaseDSN {
     $self->{PROXY_HOST} = $self->{CONFIG}->{PROXY_HOST};
     $self->{PROXY_PORT} = $self->{CONFIG}->{PROXY_PORT};
     if ($self->{CONFIG}->{PROXY_ADDRESS_LIST}){
-      my $number=int(rand($#{$self->{CONFIG}->{PROXY_HOST_LIST}}+1));
-      $self->{PROXY_HOST}=${$self->{CONFIG}->{PROXY_HOST_LIST}}[$number];
+      my $number=int(rand($#{$self->{CONFIG}->{PROXY_ADDRESS_LIST}}+1));
+      $self->{PROXY_HOST}=${$self->{CONFIG}->{PROXY_ADDRESS_LIST}}[$number];
       $self->{PROXY_HOST}=~ s/:(\d+)// and $self->{PROXY_PORT}=$1;
       $self->debug(1, "There are several proxies (using $self->{PROXY_HOST} $number)");
 
