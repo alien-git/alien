@@ -1468,6 +1468,7 @@ sub f_ps2_jdltrace {
     }
 }
 
+
 sub f_ps2 {
 
     my $self      = shift;
@@ -1761,7 +1762,55 @@ sub f_ps_rc {
 
 }
 sub f_ps_HELP {
-  return "ps: Retrieves process information \n  Usage: ps [-adflrsxAIX] [-id <jobid>]\n\n  Job Selection:\n    -d  : all <done> jobs\n    -f  : all <failed> jobs\n    -a  : jobs of <all> users [default only my jobs]\n    -r  : all not finished jobs\n    -A  : all kind of job status\n    -I  : all interactive daemon jobs\n    -s  : add splitted jobs to the output\n    -id=<id> : only job <id>\n\n  Output Format:\n    def : <user> <jobId> <status> <runtime> <jobname>\n    -x  : <user> <jobId> <status> <cpu> <mem> <cost> <runtime> <jobname>\n    -l  : <user> <jobId> <status> <maxrsize> <maxvsize> <cpu> <mem> <cost> <runtime> <jobname>\n    -X  : <user> <jobId> <status> <maxrsize> <maxvsize> <cpu> <mem> <cost> <runtime> <ncpu> <cpufamily> <cpuspeed> <jobname>\n   -T  : <user> <jobId> <status> <received> <started> <finished> <jobname>\n\n  Job Status:\n    R  : running\n    W  : waiting for execution\n    A  : assigned to computing element - waiting for queueing\n    Q  : queued at computing element\n     ST : started - processmonitor started\n    I  : inserting - waiting for optimization\n    RS : running split job\n    WS : job is splitted at the moment\n    IS : inserting - waitinf for splitting\n\n  Error Status:\n    EX : job expired (execution too long)\n    K  : job killed by user\n    EA : error during assignment\n    ES : error during submission\n    EE : error during execution\n    EV : -\n\n  Interactiv Job Status:\n    Id : interactive job is idle\n    Ia : interactive job is assigned (in use)\n\n    -h : help text\n\n  Examples:\n    ps -XA             : show all jobs of me in extended format\n    ps -XAs            : show all my jobs and the splitted subjobs in extended format\n    ps -X              : show all active jobs of me in extended format\n    ps -XAs -id 111038 : show the job 111038 and all it's splitted subjobs in extended format\n    ps -rs            : show my running jobs and splitted subjobs";
+  return "ps: Retrieves process information 
+  Usage: ps [-adflrsxAIX] [-id <jobid>]
+
+  Job Selection:
+    -d  : all <done> jobs
+    -f  : all <failed> jobs
+    -a  : jobs of <all> users [default only my jobs]
+    -r  : all not finished jobs
+    -A  : all kind of job status
+    -I  : all interactive daemon jobs
+    -s  : add splitted jobs to the output
+    -id=<id> : only job <id>
+
+  Output Format:
+    def : <user> <jobId> <status> <runtime> <jobname>
+    -x  : <user> <jobId> <status> <cpu> <mem> <cost> <runtime> <jobname>
+    -l  : <user> <jobId> <status> <maxrsize> <maxvsize> <cpu> <mem> <cost> <runtime> <jobname>
+    -X  : <user> <jobId> <status> <maxrsize> <maxvsize> <cpu> <mem> <cost> <runtime> <ncpu> <cpufamily> <cpuspeed> <jobname>
+    -T  : <user> <jobId> <status> <received> <started> <finished> <jobname>
+
+  Job Status:
+    R  : running
+    W  : waiting for execution
+    A  : assigned to computing element - waiting for queueing
+    Q  : queued at computing element
+    ST : started - processmonitor started
+    I  : inserting - waiting for optimization
+    RS : running split job
+    WS : job is splitted at the moment
+    IS : inserting - waitinf for splitting\n\n  Error Status:
+    EX : job expired (execution too long)
+    K  : job killed by user
+    EA : error during assignment
+    ES : error during submission
+    EE : error during execution
+    EV : -
+
+  Interactiv Job Status:
+    Id : interactive job is idle
+    Ia : interactive job is assigned (in use)
+
+    -h : help text
+
+  Examples:
+    ps -XA             : show all jobs of me in extended format
+    ps -XAs            : show all my jobs and the splitted subjobs in extended format
+    ps -X              : show all active jobs of me in extended format
+    ps -XAs -id 111038 : show the job 111038 and all it's splitted subjobs in extended format
+    ps -rs             : show my running jobs and splitted subjobs";
 }
 
 sub f_ps_jdl{
@@ -2953,7 +3002,7 @@ sub resubmitCommand {
       $self->info( "Error resubmitting $queueId") and 
 	return @result;
     push @result, $done->result;
-    $self->info( "Process $queueId resubmitted!!");
+    $self->info( "Process $queueId resubmitted!! (new jobid is ".$done->result .")");
   }
 
   return @result;
