@@ -980,7 +980,13 @@ sub getDatabaseDSN {
 	and return;
     $self->{PROXY_HOST} = $self->{CONFIG}->{PROXY_HOST};
     $self->{PROXY_PORT} = $self->{CONFIG}->{PROXY_PORT};
+    if ($self->{CONFIG}->{PROXY_ADDRESS_LIST}){
+      my $number=int(rand($#{$self->{CONFIG}->{PROXY_HOST_LIST}}+1));
+      $self->{PROXY_HOST}=${$self->{CONFIG}->{PROXY_HOST_LIST}}[$number];
+      $self->{PROXY_HOST}=~ s/:(\d+)// and $self->{PROXY_PORT}=$1;
+      $self->debug(1, "There are several proxies (using $self->{PROXY_HOST} $number)");
 
+    }
     $dsn =
       "DBI:AliEnProxy:hostname=$self->{PROXY_HOST};port=$self->{PROXY_PORT};local_user=$self->{USER};forced_method=$self->{FORCED_AUTH_METHOD};";
 
@@ -1011,7 +1017,6 @@ sub getDatabaseDSN {
 sub _connect{
   my $self = shift;
   my $pass;
-  my $dsn = $self->getDatabaseDSN();
 
   local $SIG{PIPE} =sub {
     print STDERR "Warning!! The connection to the AliEnProxy got lost (in connect)\n";
@@ -1028,6 +1033,7 @@ sub _connect{
   my $sleep=1;
   my $max_sleep=60000;
   while (1) {
+    my $dsn = $self->getDatabaseDSN();
     $self->{DBH} = DBI->connect($dsn,$self->{ROLE},$pass,$self->{DBI_OPTIONS});
     $self->{DBH} and last;
     my $errStr=$DBI::errstr;
@@ -1056,7 +1062,7 @@ sub _connect{
     sleep ($sleep);
 
   }
-  $DEBUG and $self->debug(1,"User $self->{ROLE} connected to database $dsn");
+  $DEBUG and $self->debug(1,"User $self->{ROLE} connected to database!");
 
   $self->{PID} = $$;
 

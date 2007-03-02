@@ -152,21 +152,16 @@ sub connect ($$;$$) {
       my $cut_time = $max_time/100;
       my $now = time();
       my $power = 1;
-      do {
-	$socket =  IO::Socket::INET->new
-	  ('PeerAddr' => $attr{'hostname'},
-	   'PeerPort' => $attr{'port'},
-	   'Proto'    => 'tcp',
-	   'Timeout'   => 300,
-	   'ReuseAddr' => 1);
-	$socket and last;
-	
-	my $t = (time() - $now) < $cut_time ? 2**$power++ : int(rand($cut_time));
-	print STDERR "Error connecting to proxy $attr{'hostname'}\nRETRY after $t seconds...\n";
 
-	sleep($t); 
-
-      } while (!$socket && (time() - $now < $max_time) );
+      $socket =  IO::Socket::INET->new
+	('PeerAddr' => $attr{'hostname'},
+	 'PeerPort' => $attr{'port'},
+	 'Proto'    => 'tcp',
+	 'Timeout'   => 300,
+	 'ReuseAddr' => 1);
+      if (! $socket){
+	return DBD::AliEnProxy::proxy_set_err($drh, "Error connecting to proxy $attr{'hostname'}. please connect later");
+      }
     }
 
     die("Error connecting...\n") unless $socket;
