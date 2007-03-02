@@ -99,6 +99,7 @@ attributetype ( AliEnVOConfig:70 NAME 'lbsgDatabase' SUP name )
 attributetype ( AliEnVOConfig:71 NAME 'si2kNominalPrice' SUP name )
 attributetype ( AliEnVOConfig:72 NAME 'bankAdmin' SUP name )
 attributetype ( AliEnVOConfig:73 NAME 'bankCurrency' SUP name )
+attributetype ( AliEnVOConfig:74 NAME 'proxyAddress' SUP name )
 
 objectclass ( AliEnVOConfig  NAME 'AliEnVOConfig'
 	SUP ( top $ organizationalUnit ) STRUCTURAL
@@ -114,7 +115,7 @@ objectclass ( AliEnVOConfig  NAME 'AliEnVOConfig'
 		transferBrokerAddress $ transferDatabase $
 		transferOptimizerAddress $ jobOptimizerAddress $ 
 		jobDatabase $ ldapmanager $ jobManagerAddress $ 
-		jobBrokerAddress )
+		jobBrokerAddress $ proxyAddress )
 	MAY ( processPort $catalogueDatabase $ catalogueOptimizerAddress $
 	      monalisaLUS $ monalisaGroup $ authenSubject $ proofPort $ proofDatabase $
 	      proofDriver $ proofDbHost $ proofHost $ proofMuxPortRange $
@@ -278,6 +279,8 @@ attributetype ( AliEnSite:11 NAME 'savese' SUP name )
 attributetype ( AliEnSite:12 NAME 'packmanAddress' SUP name )
 attributetype ( AliEnSite:13 NAME 'localconfig' SUP name )
 attributetype ( AliEnSite:14 NAME 'closese' SUP name )
+attributetype ( AliEnSite:15 NAME 'virtualSite' SUP name )
+
 
 
 objectclass ( AliEnSite  NAME 'AliEnSite'
@@ -286,7 +289,7 @@ objectclass ( AliEnSite  NAME 'AliEnSite'
 	MAY ( savese $ packages $ workdir $ processPort $
               administrator $ location $ country $ longitude $ latitude $ 
 	      record $ packmanAddress $ localconfig $ environment $
-              accountName $ closese )
+              accountName $ closese $ virtualSite )
 	      )
 
 #AliEnHostConfig
@@ -305,8 +308,8 @@ attributetype ( AliEnHostConfig:8 NAME 'monalisa' SUP name )
 
 objectclass ( AliEnHostConfig  NAME 'AliEnHostConfig'
 	SUP ( top ) 
-	MAY ( ce $ se $ ftd $ clc $ tcprouter $ packages $savese $ logdir $ cachedir $ tmpdir $ packman $ 
-	      closese $ monalisa $ workdir $ localconfig )
+	MAY ( ce $ se $ ftd $ clc $ tcprouter $ packages $ savese $ logdir $ cachedir $ tmpdir $ packman $ 
+	      closese $ monalisa $ workdir $ localconfig $ environment )
 	MUST ( host )
 	      )
 
