@@ -295,5 +295,38 @@ sub removeFile{
   return 1;
 }
 
+sub checkVolumes {
+  my $self=shift;
+  my $site=shift ||$self->{CONFIG}->{SITE};
+  my $se=shift   || $self->{CONFIG}->{SE};
+  $self->info("Checking the definition of the volumes in ldap");
+  my $name="$self->{CONFIG}->{ORG_NAME}::${site}::${se}";
+  my $ldap=$self->{CONFIG}->CheckService("SE", $name);
+  $ldap or $self->info("Error getting the information from the ldap") and return;
+  $self->do("UPDATE VOLUMES set size=usedspace");
+  if ($ldap->{SAVEDIR_LIST}){
+    foreach my $line (@{$ldap->{SAVEDIR_LIST}}){
+      $self->info("Checking  volume $line");
+      my $vsize=-1;
+      $line =~ s/,(\d+)$// and 
+	$self->info("This volume is supposed to be of size $1") and $vsize=$1;
+      my $done=$self->do("update VOLUMES set size=? where volume=?", {bind_values=>[$vsize, $line]});
+      if ($done =~ /^0E0$/) {
+	$self->info("Adding the volume");
+	my $method="\L$ldap->{MSS}://$ldap->{HOST}\E";
+	my $done=$self->insertVolume({size=>$vsize,
+				      volume=>$line,
+				      usedspace=>0,
+				      method=>$method, 
+				     });
+      }
+
+    }
+  }
+  $self->do("UPDATE VOLUMES set freespace=size-usedspace");
+  $self->do("UPDATE VOLUMES set freespace=2000000000 where size=-1");
+  return 1;
+}
+
 1;
 

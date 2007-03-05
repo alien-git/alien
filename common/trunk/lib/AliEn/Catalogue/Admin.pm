@@ -655,4 +655,41 @@ sub transactFunds {
     $self->info ("Error: $result "); 
     return 0;
 }
+
+sub checkSEVolumes_HELP {
+  my $self=shift;
+  return "checkSEVolumes: checks the volumes defined in ldap for an se
+Syntax:
+     checkSEVolumes <site> <se>
+";
+}
+
+sub checkSEVolumes {
+  my $self=shift;
+  my $site=shift;
+  my $se=shift;
+
+  ( $self->{ROLE}  =~ /^admin(ssl)?$/ ) or
+    $self->info("Error: only the administrator can check the databse") and return;
+
+  ($site and $se) or $self->info("Error: not enough arguments in checkSEVolumes. ". $self->checkSEVolumes_HELP()) and return;
+  my $oldInfo=$self->{CONFIG}->{SE_LVMDATABASE};
+  require AliEn::Database::SE;
+  $self->{CONFIG}->{SE_LVMDATABASE}=$self->{CONFIG}->{CATALOGUE_DATABASE};
+
+  $self->{CONFIG}->{SE_LVMDATABASE}=~ s{/[^/]*$}{/\Lse_$self->{CONFIG}->{ORG_NAME}_${site}_${se}\E};
+  my $db=AliEn::Database::SE->new();
+  if (!$db){
+    $self->info("Error getting the database");
+    $self->{CONFIG}->{SE_LVMDATABASE}=$oldInfo;
+    return;
+  }
+  $self->info("Got the database");
+  $db->checkVolumes($site, $se);
+  $db->close();
+
+  $self->{CONFIG}->{SE_LVMDATABASE}=$oldInfo;
+  return 1;
+}
+
 return 1;
