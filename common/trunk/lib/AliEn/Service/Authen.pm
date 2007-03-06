@@ -49,7 +49,7 @@ sub initialize {
 		print "Please enter the password:\n";
 		chomp( $options->{password} = <STDIN> );
 	}
-	my $LDAPpassword = $options->{password};
+	$self->{LDAPpassword} = $options->{password};
 
 	#    $ADMINPASSWD = $password;
 
@@ -59,7 +59,7 @@ sub initialize {
 	$self->{SERVICE}="Authen";
 	$self->{SERVICENAME}="Authen";
 	$self->{LISTEN}=10;
-	$self->{PREFORK}=1;
+	$self->{PREFORK}=5;
 
 	#Delete the password from options. Not needed anymore. (MUST NOT BE SET)
 	$options->{password} = '';
@@ -78,16 +78,10 @@ sub initialize {
 	$self->{addbh} = new AliEn::Database::Admin();    
 	($self->{addbh})
 		or $self->{LOGGER}->warning( "CatalogDaemon", "Error getting the Admin" )
-		and return;
+		  and return;
+	$self->_ConnectToLDAP() or return;
 
-	$LDAP = Net::LDAP->new( $self->{CONFIG}->{LDAPHOST}, "onerror" => "warn" ) or print "$@" and return;
-	print "Connecting to LDAP server .........";
-	my $manager=($self->{CONFIG}->{LDAPMANAGER} or "cn=Manager,dc=cern,dc=ch");
-	my $result=  $LDAP->bind( $manager, password => $LDAPpassword );
-	$result->code && print "failed\nCould not bind to LDAP-Server: ",$result->error and exit;
-		print "OK\n";
-
-		return $self;
+	return $self;
 }
 
 # ***************************************************************
@@ -339,30 +333,60 @@ sub checkUserLDAP {
 my $SubjectToUid = sub {
     my $ldap    = shift;
     my $subject = shift;
+    local $SIG{ALRM} =sub {
+      print "$$ timeout while connecting to ldap\n";
+      die("timeout!! ");
+    };
+    my $UID;
+    while (1){
+      eval {
+	alarm(60);
+	print "Tranlating subject into uid.\n";
+	
+	# The role is a subject, translate into UID
+	my $filter = "(&(objectclass=pkiUser)(subject=$subject))";
+	my $base   = $self->{CONFIG}->{LDAPDN};
+	my $mesg   = $ldap->search(
+				   base   => "ou=People,$base",
+				   filter => $filter
+				  );
+	my $total = $mesg->count;
+	if ( $total == 0 ) {
+	  print "Failure in translating $subject into uid\n";
+	  
+	  #No user registered with this subject:(
+	  #	$ldap->unbind;
+	  return 0;
+	}
+	my $entry = $mesg->entry(0);
+	$UID   = $entry->get_value('uid');
 
-    print "Tranlating subject into uid.\n";
-
-    # The role is a subject, translate into UID
-    my $filter = "(&(objectclass=pkiUser)(subject=$subject))";
-    my $base   = $self->{CONFIG}->{LDAPDN};
-    my $mesg   = $ldap->search(
-        base   => "ou=People,$base",
-        filter => $filter
-    );
-    my $total = $mesg->count;
-    if ( $total == 0 ) {
-        print "Failure in translating $subject into uid\n";
-
-        #No user registered with this subject:(
-        #	$ldap->unbind;
-        return 0;
+      };
+      my $error=$@;
+      alarm(0);
+      if($error){
+	$self->info("Error connecting to ldap. Let's try reconnecting");
+	$self->_ConnectToLDAP();
+	next;
+      }
+      return $UID;
     }
-    my $entry = $mesg->entry(0);
-    my $UID   = $entry->get_value('uid');
-    return $UID;
 
     # Role is now translated into a uid!!
 };
+
+sub _ConnectToLDAP{
+  my $self=shift;
+  $LDAP and $LDAP->close();
+  $LDAP=Net::LDAP->new( $self->{CONFIG}->{LDAPHOST}, "onerror" => "warn" ) or print "$@" and return;
+  print "Connecting to LDAP server .........";
+  my $manager=($self->{CONFIG}->{LDAPMANAGER} or "cn=Manager,dc=cern,dc=ch");
+  my $result=  $LDAP->bind( $manager, password => $self->{LDAPpassword} );
+  $result->code && print "failed\nCould not bind to LDAP-Server: ",$result->error and return;
+  print "OK\n";
+  return 1;
+
+}
 
 ########################################################################
 #  This routine is a somewhat hack. It recieves a Certificate subject  #
