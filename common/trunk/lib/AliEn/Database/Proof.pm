@@ -57,7 +57,7 @@ sub getFieldsFromSessionsEx{
 
 	$self->debug(1,"In getFieldsFromSessionsEx fetching attributes $attr with condition $where");
 
-	$self->query("SELECT $attr FROM sessions $where");
+	$self->query("SELECT $attr FROM sessions $where", @_);
 }
 
 sub getFieldFromSessionsEx{
@@ -67,7 +67,7 @@ sub getFieldFromSessionsEx{
 
 	$self->debug(1,"In getFieldFromSessionsEx fetching attributes $attr with condition $where");
 
-	$self->queryColumn("SELECT $attr FROM sessions $where");
+	$self->queryColumn("SELECT $attr FROM sessions $where", @_);
 }
 
 

@@ -338,7 +338,7 @@ sub f_removeTagValue2 {
 
   my $error;
   if ($attribute) {
-    $error = $self->{DATABASE}->update($tagTableName, {$attribute => undef}, "file = '$file'");
+    $error = $self->{DATABASE}->update($tagTableName, {$attribute => undef}, "file =  ?", {bind_values=>[$file]});
   } else {
     ($self->isDirectory($file)) and $file.="/";
 

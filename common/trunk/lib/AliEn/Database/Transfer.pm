@@ -123,7 +123,7 @@ sub updateExpiredTransfers{
     $yesterday -= 86400; #24*60*60
 
 	$self->debug(1,"In updateExpiredTransfers updating status of expired transfers");
-	$self->update({status=>'EXPIRED'},"status = 'ASSIGNED' and sent<$yesterday");
+	$self->update({status=>'EXPIRED'},"status = 'ASSIGNED' and sent<?", {bind_values=>[$yesterday]});
 }
 
 sub updateLocalCopyTransfers{
@@ -160,7 +160,7 @@ sub updateStatus{
   $self->lock("TRANSFERS");
   $self->debug(1, "In updateStatus table TRANSFERS locked");
   
-  my $query="SELECT count(*) from TRANSFERS where transferid=$id";
+  my $query="SELECT count(*) from TRANSFERS where transferid=?";
   
   ($oldstatus eq "%") or $query.=" and status='$oldstatus'";
 
@@ -169,9 +169,9 @@ sub updateStatus{
   my $done=1;
 
   $self->debug(1, "In updateStatus checking if transfer $id with status $oldstatus exists");
-  if ($self->queryValue($query)) {
+  if ($self->queryValue($query, undef, {bind_values=>[$id]})) {
     $self->debug(1, "In updateStatus setting transfer's $id status to ". ($status or ""));
-    if (!$self->update($set,"transferId = $id")){
+    if (!$self->update($set,"transferId = ?", {bind_values=>[$id]})){
       $message="In update status failed";
     } else {
       $self->sendTransferStatus($id, $status, $set);
@@ -204,7 +204,7 @@ sub updateTransfer{
   $self->debug(1,"In updateTransfer updating transfer $id");
   $self->sendTransferStatus($id, $set->{status}, $set);
 
-  $self->update($set,"transferid = $id");
+  $self->update($set,"transferid = ?", {bind_values=>[$id]});
 }
 
 sub deleteTransfer{
@@ -214,7 +214,7 @@ sub deleteTransfer{
       and return;
   
   $self->debug(1,"In deleteTransfer deleting transfer $id");	
-  $self->delete("queueId=$id");
+  $self->delete("queueId=?", {bind_values=>[$id]});
 }
 
 sub setSize {
@@ -260,7 +260,7 @@ sub isScheduled{
       and return;
 
   $self->debug(1,"In isScheduled checking if transfer of file $lfn to destination $destination is scheduled");
-  $self->queryValue("SELECT transferId FROM TRANSFERS WHERE lfn='$lfn' AND destination='$destination' AND (status<>'FAILED' AND status<>'DONE' AND status <>'KILLED') ");
+  $self->queryValue("SELECT transferId FROM TRANSFERS WHERE lfn=? AND destination=? AND (status<>'FAILED' AND status<>'DONE' AND status <>'KILLED') ", undef, {bind_values=>[$lfn, $destination]});
 }
 
 sub isWaiting{
@@ -270,7 +270,7 @@ sub isWaiting{
 		and return;
 
 	$self->debug(1,"In isWaiting checking if transfer $id is waiting");
-	$self->queryValue("SELECT COUNT(*) FROM TRANSFERS WHERE (status='WAITING' OR status='LOCAL COPY' OR status='CLEANING') AND transferid=$id");
+	$self->queryValue("SELECT COUNT(*) FROM TRANSFERS WHERE (status='WAITING' OR status='LOCAL COPY' OR status='CLEANING') AND transferid=?", undef, {bind_values=>[$id]});
 }
 
 sub getFields{
@@ -281,7 +281,7 @@ sub getFields{
 	my $attr = shift || "*";
 
 	$self->debug(1,"In getFields fetching attributes $attr of transfer $id");
-	$self->queryRow("SELECT $attr FROM TRANSFERS WHERE transferid=$id");
+	$self->queryRow("SELECT $attr FROM TRANSFERS WHERE transferid=?", undef, {bind_values=>[$id]});
 }
 
 sub getField{
@@ -292,7 +292,7 @@ sub getField{
 	my $attr = shift || "*";
 
 	$self->debug(1,"In getField fetching attribute $attr of transfer $id");
-	$self->queryValue("SELECT $attr FROM TRANSFERS WHERE transferid=$id");
+	$self->queryValue("SELECT $attr FROM TRANSFERS WHERE transferid=?", undef, {bind_values=>[$id]});
 }
 
 sub getFieldsEx{
@@ -301,7 +301,7 @@ sub getFieldsEx{
 	my $where = shift || "";
 
 	$self->debug(1,"In getFieldsEx fetching attributes $attr with condition $where");
-	$self->query("SELECT $attr FROM TRANSFERS $where");
+	$self->query("SELECT $attr FROM TRANSFERS $where", undef, @_);
 }
 
 sub getFieldEx{
@@ -310,7 +310,7 @@ sub getFieldEx{
 	my $where = shift || "";
 
 	$self->debug(1,"In getFieldEx fetching attributes $attr with condition $where");
-	$self->queryColumn("SELECT $attr FROM TRANSFERS $where");
+	$self->queryColumn("SELECT $attr FROM TRANSFERS $where", undef, @_);
 }
 
 sub getWaitingTransfersBySE{
@@ -322,7 +322,7 @@ sub getWaitingTransfersBySE{
 
 	$order and $query .= " ORDER BY $order";
 
-	$self->query($query);
+	$self->query($query, undef, @_);
 }
 
 sub getNewTransfers{

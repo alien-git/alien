@@ -310,7 +310,7 @@ sub isWaiting{
       and return;
 
   $DEBUG and $self->debug(1, "in isWaiting testing is job $id waiting");
-  $self->queryValue("SELECT count(*) from $self->{QUEUETABLE} where status='WAITING' and queueId='$id'");
+  $self->queryValue("SELECT count(*) from $self->{QUEUETABLE} where status='WAITING' and queueId=?", undef, {bind_values=>[$id]});
 }
 
 sub assignWaiting{
@@ -368,7 +368,7 @@ sub getWaitingJobs{
   $order and $order = " ORDER BY $order" or $order = "";
 
   $DEBUG and $self->debug(1, "In getWaitingJobs fetching attributes queueId,jdl for waiting jobs");
-  $self->query("SELECT queueId, jdl FROM $self->{QUEUETABLE} WHERE status='WAITING' AND jdl IS NOT NULL AND priority > $minpriority $order");
+  $self->query("SELECT queueId, jdl FROM $self->{QUEUETABLE} WHERE status='WAITING' AND jdl IS NOT NULL AND priority > ? $order", undef, {bind_values=>[$minpriority]});
 }
 
 sub updateJob{
@@ -379,7 +379,7 @@ sub updateJob{
   my $set =shift;
 
   $DEBUG and $self->debug(1,"In updateJob updating job $id");	
-  $self->updateQueue($set,"queueId=$id");
+  $self->updateQueue($set,"queueId=?", {bind_values=>[$id]});
 }
 
 sub updateJobs{
@@ -389,10 +389,15 @@ sub updateJobs{
   @ids or 
     $self->{LOGGER}->error("TaskQueue","In updateJobs job id is missing")
       and return;
-  map {$_=" queueId=$_ "} @ids;
-  my $where=join(" or ", @ids);
+  my $where="";
+  foreach my $id (@ids){
+    $where.=" queueId=? or";
+  }
+  $where =~ s/or$//;
+#  map {$_=" queueId=$_ "} @ids;
+#  my $where=join(" or ", @ids);
   $DEBUG and $self->debug(1,"In updateJob updating job $where");	
-  $self->updateQueue($set,$where);
+  $self->updateQueue($set,$where, {bind_values=>[@ids]});
 }
 
 sub deleteJob{
@@ -402,7 +407,7 @@ sub deleteJob{
       and return;
 	
   $DEBUG and $self->debug(1,"In deleteJob updating job $id");	
-  $self->deleteFromQueue("queueId=$id");
+  $self->deleteFromQueue("queueId=?", {bind_values=>[$id]});
 }
 #updateStatus
 # This subroutine receives the ID and old status of a job, the new status and
@@ -432,7 +437,7 @@ sub updateStatus{
   $DEBUG and $self->debug(1, "In updateStatus checking if job $id with status $oldstatus exists");
 
 
-  my $jobinfo = $self->getFieldsFromQueueEx("queueId,site,execHost,status,jdl,masterjob","where queueid=$id");
+  my $jobinfo = $self->getFieldsFromQueueEx("queueId,site,execHost,status,jdl,masterjob","where queueid=?", {bind_values=>[$id]});
 	
   if ($jobinfo and @$jobinfo) {
     $DEBUG and $self->debug(1, "In updateStatus setting job's $id status to ". ($status or ""));
@@ -483,11 +488,11 @@ sub updateStatus{
 	  if ( $status ne $oldstatus ) {
 	    if ( $status eq "ASSIGNED" ) {
 	      $self->info("In updateStatus increasing $status for $dbsite");
-	      $self->_do("UPDATE $self->{SITEQUEUETABLE} SET $status=$status+1 where site='$dbsite'") or
+	      $self->_do("UPDATE $self->{SITEQUEUETABLE} SET $status=$status+1 where site=?", {bind_values=>[$dbsite]}) or
 		$message="TaskQueue: in update Site Queue failed";
 	    } else {
 	      $self->info("In updateStatus decreasing $dboldstatus and increasing $status for $dbsite");
-		$self->_do("UPDATE $self->{SITEQUEUETABLE} SET $dboldstatus = $dboldstatus-1, $status=$status+1 where site='$dbsite'") or
+		$self->_do("UPDATE $self->{SITEQUEUETABLE} SET $dboldstatus = $dboldstatus-1, $status=$status+1 where site=?", {bind_values=>[$dbsite]}) or
 		  $message="TaskQueue: in update Site Queue failed";
 	    }
 	    ($status eq "KILLED") and 
@@ -543,7 +548,7 @@ sub getFieldFromQueue {
   my $attr = shift || "*";
   
   $DEBUG and $self->debug(1,"In getFieldFromQueue fetching attribute $attr of job $id");
-  $self->queryValue("SELECT $attr FROM $self->{QUEUETABLE} WHERE queueId=$id");
+  $self->queryValue("SELECT $attr FROM $self->{QUEUETABLE} WHERE queueId=?", undef, {bind_values=>[$id]});
 }
 
 sub getFieldsFromQueue {
@@ -554,7 +559,7 @@ sub getFieldsFromQueue {
   my $attr = shift || "*";
 
   $DEBUG and $self->debug(1,"In getFieldsFromQueue fetching attributes $attr of job $id");
-  $self->queryRow("SELECT $attr FROM $self->{QUEUETABLE} WHERE queueId=$id");
+  $self->queryRow("SELECT $attr FROM $self->{QUEUETABLE} WHERE queueId=?", undef, {bind_values=>[$id]});
 }
 
 sub getFieldsFromQueueEx {
@@ -563,7 +568,7 @@ sub getFieldsFromQueueEx {
   my $addsql = shift || "";
   
   $DEBUG and $self->debug(1,"In getFieldsFromQueueEx fetching attributes $attr with condition $addsql from table $self->{QUEUETABLE}");
-  $self->query("SELECT $attr FROM $self->{QUEUETABLE} $addsql");
+  $self->query("SELECT $attr FROM $self->{QUEUETABLE} $addsql", undef, @_);
 }
 
 sub getFieldFromQueueEx {
@@ -572,7 +577,7 @@ sub getFieldFromQueueEx {
   my $addsql = shift || "";
   
   $DEBUG and $self->debug(1,"In getFieldFromQueueEx fetching attributes $attr with condition $addsql from table $self->{QUEUETABLE}");
-  $self->queryColumn("SELECT $attr FROM $self->{QUEUETABLE} $addsql");
+  $self->queryColumn("SELECT $attr FROM $self->{QUEUETABLE} $addsql", undef, @_);
 }
 
 sub getProofSites{
@@ -580,7 +585,7 @@ sub getProofSites{
     
 	#make debug message a bit more understandable later
 	$DEBUG and $self->debug(1,"In getProofSites fetching sites with jobs with proofd command");     
-	$self->queryColumn("select distinct site from $self->{QUEUETABLE} where jdl like '%Command::PROOFD%/bin/proofd%'");
+	$self->queryColumn("select distinct site from $self->{QUEUETABLE} where jdl like ?", undef, {bind_values=>['%Command::PROOFD%/bin/proofd%']});
 }
 
 sub getNumberAvailableProofs{
@@ -591,7 +596,7 @@ sub getNumberAvailableProofs{
 	
 	#make debug message a bit more understandable later
 	$DEBUG and $self->debug(1,"In getNumberAvailableProofs fetching count of jobs on site $site with proofd command and status IDLE");     
-	$self->queryValue("select count(*) from $self->{QUEUETABLE} where jdl like '%Command::PROOFD%/bin/proofd%' and status='IDLE' and site='$site'");
+	$self->queryValue("select count(*) from $self->{QUEUETABLE} where jdl like ? and status=? and site=?", undef, {bind_values=>['%Command::PROOFD%/bin/proofd%', 'IDLE', $site]});
 }
 
 sub getNumberBusyProofs{
@@ -602,7 +607,7 @@ sub getNumberBusyProofs{
 	
 	#make debug message a bit more understandable later
 	$DEBUG and $self->debug(1,"In getNumberBusyProofs fetching count of jobs on site $site with proofd command and status INTERACTIV");     
-	$self->queryValue("select count(*) from $self->{QUEUETABLE} where jdl like '%Command::PROOFD%/bin/proofd%' and status='INTERACTIV' and site='$site'");
+	$self->queryValue("select count(*) from $self->{QUEUETABLE} where jdl like ? and status=? and site=?", undef, {bind_values=>['%Command::PROOFD%/bin/proofd%', 'INTERACTIV', $site]});
 }
 
 sub getJobsByStatus {
@@ -661,7 +666,7 @@ sub updateHost{
   my $set =shift;
 
   $DEBUG and $self->debug(1,"In updateHost updating host $hostname");	
-  $self->updateHosts($set,"hostname='$hostname'");
+  $self->updateHosts($set,"hostname=?", {bind_values=>[$hostname]});
 }
 
 sub insertHostSiteId {
@@ -688,7 +693,7 @@ sub getFieldFromHosts {
 	my $attr = shift || "*";
 	
 	$DEBUG and $self->debug(1,"In getFieldFromHosts fetching attribute $attr of host $hostName");
-	$self->queryValue("SELECT $attr FROM HOSTS WHERE hostName='$hostName'");
+	$self->queryValue("SELECT $attr FROM HOSTS WHERE hostName=?", undef, {bind_values=>[$hostName]});
 }
 
 sub getFieldsFromHosts{
@@ -699,7 +704,7 @@ sub getFieldsFromHosts{
 	my $attr = shift || "*";
 
 	$DEBUG and $self->debug(1,"In getFieldsFromHosts fetching attributes $attr of host $hostName");
-	$self->queryRow("SELECT $attr FROM HOSTS WHERE hostName='$hostName'");
+	$self->queryRow("SELECT $attr FROM HOSTS WHERE hostName=?", undef, {bind_values=>[$hostName]});
 }
 
 sub getFieldsFromHostsEx {
@@ -708,7 +713,7 @@ sub getFieldsFromHostsEx {
 	my $addsql = shift || "";
 	
 	$DEBUG and $self->debug(1,"In getFieldsFromHostsEx fetching attributes $attr with condition $addsql from table HOSTS");
-	$self->query("SELECT $attr FROM HOSTS $addsql");
+	$self->query("SELECT $attr FROM HOSTS $addsql", undef, @_);
 }
 
 sub getFieldFromHostsEx {
@@ -717,7 +722,7 @@ sub getFieldFromHostsEx {
 	my $addsql = shift || "";
 	
 	$DEBUG and $self->debug(1,"In getFieldFromHostsEx fetching attributes $attr with condition $addsql from table HOSTS");
-	$self->queryColumn("SELECT $attr FROM HOSTS $addsql");
+	$self->queryColumn("SELECT $attr FROM HOSTS $addsql", undef, @_);
 }
 
 ###		SITES
@@ -730,7 +735,7 @@ sub getSitesByDomain{
 	my $attr = shift || "*";
 
 	$DEBUG and $self->debug(1,"In getSitesByDomain fetching attributes $attr for domain $domain");	
-	$self->query("SELECT $attr FROM SITES where domain='$domain'");
+	$self->query("SELECT $attr FROM SITES where domain=?", undef, {bind_values=>[$domain]});
 }
 
 sub insertSite{
@@ -772,7 +777,7 @@ sub updateRunsCol{
 	my $column =shift || "failed";
 
 	$DEBUG and $self->debug(1,"In updateRunsCol decreasing value of column $column by 1 where run=$run and round=$round");
-	return $self->do("UPDATE runs set $column=$column-1 WHERE run=$run and round='$round'");
+	return $self->do("UPDATE runs set $column=$column-1 WHERE run=? and round=?", {bind_values=>[$run, $round]});
 }
 
 ###             SITEQUEUE
@@ -840,9 +845,9 @@ sub resyncSiteQueueTable{
     $_->{'site'}  or $_->{'site'} = "UNASSIGNED::SITE";
 
     $self->info("check for $_->{'site'}");
-    my $exists = $self->getFieldsFromSiteQueueEx("site","WHERE site='$_->{site}'");
+    my $exists = $self->getFieldsFromSiteQueueEx("site","WHERE site=?", {bind_values=>[$_->{site}]});
     if ( @$exists ) {
-      $self->updateSiteQueue($set, "site='$_->{site}'");
+      $self->updateSiteQueue($set, "site=?", {bind_values=>[$_->{site}]});
     } else {
       $set->{'site'} = "$_->{site}";
       $set->{'blocked'} = "open";
@@ -891,7 +896,7 @@ sub setSiteQueueStatus {
   $set->{statustime} = time;
   $jdl and $set->{jdl}=$jdl;
 
-  my $done=$self->updateSiteQueue($set,"site='$site'");
+  my $done=$self->updateSiteQueue($set,"site=?", {bind_values=>[$site]});
   if ( $done =~ /^0E0$/){
     $self->insertSiteQueue($set);
   }
@@ -919,7 +924,7 @@ sub getFieldFromSiteQueue {
 	my $attr = shift || "*";
 	
 	$DEBUG and $self->debug(1,"In getFieldFromSiteQueue fetching attribute $attr of site $site");
-	$self->queryValue("SELECT $attr FROM $self->{SITEQUEUETABLE} WHERE site='$site'");
+	$self->queryValue("SELECT $attr FROM $self->{SITEQUEUETABLE} WHERE site=?", undef, {bind_values=>[$site]});
 }
 
 sub getFieldsFromSiteQueue {
@@ -930,7 +935,7 @@ sub getFieldsFromSiteQueue {
 	my $attr = shift || "*";
 	
 	$DEBUG and $self->debug(1,"In getFieldsFromSiteQueue fetching attributes $attr of site name");
-	$self->queryRow("SELECT $attr FROM $self->{SITEQUEUETABLE} WHERE site='$site'");
+	$self->queryRow("SELECT $attr FROM $self->{SITEQUEUETABLE} WHERE site=?", undef, {bind_values=>[$site]});
 }
 
 sub getFieldsFromSiteQueueEx {
@@ -939,7 +944,7 @@ sub getFieldsFromSiteQueueEx {
 	my $addsql = shift || "";
 	
 	$DEBUG and $self->debug(1,"In getFieldsFromSiteQueueEx fetching attributes $attr with condition $addsql from table $self->{SITEQUEUETABLE}");
-	$self->query("SELECT $attr FROM $self->{SITEQUEUETABLE} $addsql");
+	$self->query("SELECT $attr FROM $self->{SITEQUEUETABLE} $addsql", undef, @_);
 }
 
 sub getFieldFromSiteQueueEx {
@@ -948,7 +953,7 @@ sub getFieldFromSiteQueueEx {
 	my $addsql = shift || "";
 	
 	$DEBUG and $self->debug(1,"In getFieldFromSiteQueueEx fetching attributes $attr with condition $addsql from table $self->{SITEQUEUETABLE}");
-	$self->queryColumn("SELECT $attr FROM $self->{SITEQUEUETABLE} $addsql");
+	$self->queryColumn("SELECT $attr FROM $self->{SITEQUEUETABLE} $addsql", undef, @_);
 }
 
 ###     Priority table
@@ -1117,7 +1122,7 @@ sub insertJobAgent {
 
   $self->info( "Inserting a jobagent with '$text'");
   $self->lock("JOBAGENT");
-  my $done=$self->do("UPDATE JOBAGENT set counter=counter+1 where requirements='$text'");
+  my $done=$self->do("UPDATE JOBAGENT set counter=counter+1 where requirements=?", {bind_values=>[$text]});
   if ( $done =~ /^0E0$/){
     #Ok, the increment did not work. Let's insert the entry
     $done=$self->insert("JOBAGENT", {counter=>1, requirements=>$text});
@@ -1135,7 +1140,7 @@ sub deleteJobAgent {
   $jdl =~ /requirements\s+=\s+([^;]*);/is and $text=$1;
   $jdl =~ /user\s*=\s+([^;]*);/is and $user=$1;
   $self->info( "Deleting a jobagent for '$text\%$user'");
-  my $done=$self->do("update JOBAGENT set counter=counter-1 where requirements like 'Requirements= $text;\%user =$user;\n\%'");
+  my $done=$self->do("update JOBAGENT set counter=counter-1 where requirements like ?", {bind_values=>["Requirements= $text;\%user =$user;\n\%"]});
   $self->delete("JOBAGENT", "counter<1");
   return $done;
 }
@@ -1159,8 +1164,8 @@ sub sendJobStatus {
 sub retrieveJobMessages {
   my $self=shift;
   my $time=time;
-  my $info=$self->query("SELECT * from JOBMESSAGES where timestamp<$time");
-  $self->delete("JOBMESSAGES", "timestamp<$time");
+  my $info=$self->query("SELECT * from JOBMESSAGES where timestamp < ?", undef, {bind_values=>[$time]});
+  $self->delete("JOBMESSAGES", "timestamp < ?", {bind_values=>[$time]});
   return $info;
 }
 

@@ -17,10 +17,10 @@ sub checkWakesUp {
 
   $self->{LOGGER}->$method("Expired", "In checkWakesUp .... optimizing the QUEUE table ...");
   my  $now = time; 
-  my $allkilled = $self->{DB}->getFieldsFromQueueEx("count(*) as count","where ( ($now-sent) > (7*86540) ) and ( status='KILLED' )");
+  my $allkilled = $self->{DB}->getFieldsFromQueueEx("count(*) as count","where ( sent < (? - 7*86540) ) and ( status='KILLED' )", {bind_values=>[$now]});
   my $allinqueue = $self->{DB}->getFieldsFromQueueEx("count(*) as count","");
 
-  my $olderthanoneyear = $self->{DB}->getFieldsFromQueueEx("count(*) as count","where ( ($now-sent) > (365*86540) ) ORDER by queueId");
+  my $olderthanoneyear = $self->{DB}->getFieldsFromQueueEx("count(*) as count","where ( sent < (? - 365*86540) ) ORDER by queueId", {bind_values=>[$now]});
 
   if ( (! defined $allkilled)  || (! defined $allinqueue ) ) {
     $self->{LOGGER}->info("Expired", "I cannot retrieve the number of entries in the queue .... Aborting check!");
@@ -45,7 +45,7 @@ sub checkWakesUp {
 
   $self->{LOGGER}->$method("Expired", "Getting 10000 old killed jobs to expire");
 
-  my $data = $self->{DB}->getFieldsFromQueueEx("*","where ( ($now-sent) > (7*86540) ) and ( status='KILLED' ) ORDER by queueId limit 10000 ");
+  my $data = $self->{DB}->getFieldsFromQueueEx("*","where ( sent < (? - 7*86540) ) and ( status='KILLED' ) ORDER by queueId limit 10000 ", {bind_values=>[$now]});
 
   my $cnt = 0 ;
   foreach (@$data) {
@@ -65,7 +65,7 @@ sub checkWakesUp {
 
   undef $data;
 
-  $data = $self->{DB}->getFieldsFromQueueEx("*","where ( ($now-sent) > (365*86540) ) ORDER by queueId");
+  $data = $self->{DB}->getFieldsFromQueueEx("*","where ( sent < (? - 365*86540) ) ORDER by queueId", {bind_values=>[$now]});
   $cnt=0;
   foreach (@$data) {
       $cnt++;
@@ -84,12 +84,12 @@ sub checkWakesUp {
 
   undef $data;
 
-  $data = $self->{DB}->getFieldsFromQueueEx("*","where ( (status='DONE' ) && ( jdl like '%split%') && ( ($now-received) > (7*86540) ) ) ORDER by queueId");
+  $data = $self->{DB}->getFieldsFromQueueEx("*","where ( (status='DONE' ) && ( jdl like '%split%') && ( received < (? - 7*86540) ) ) ORDER by queueId", {bind_values=>[$now]});
   $cnt=0;
   foreach (@$data) {
       $cnt++;
       $self->{LOGGER}->info("Expired","[$cnt] Found split job $_->{queueId} > 7 days finished  in status $_->{status}");
-      my $childjobs = $self->{DB}->getFieldsFromQueueEx("*","where (split='$_->{queueId}') ORDER by queueId");
+      my $childjobs = $self->{DB}->getFieldsFromQueueEx("*","where (split=?) ORDER by queueId", {bind_values=>[$_->{queueId}]});
       my $child;
       $self->{LOGGER}->info("Expired","[$cnt] Moving master job $_->{queueId} to archive $self->{DB}->{QUEUEARCHIVE} ..");
 
@@ -137,7 +137,7 @@ sub checkWakesUp {
 
   undef $data;
 
-  $data = $self->{DB}->getFieldsFromQueueEx("*","where ( ( (status='DONE') || (status='FAILED') || (status='EXPIRED') || (status like 'ERROR%') || (status='KILLED') ) && ( ($now-received) > (28*86540) ) ) ORDER by queueId");
+  $data = $self->{DB}->getFieldsFromQueueEx("*","where ( ( (status='DONE') || (status='FAILED') || (status='EXPIRED') || (status like 'ERROR%') || (status='KILLED') ) && ( received < (? - 28*86540) ) ) ORDER by queueId", {bind_values=>[$now]});
   $cnt=0;
   foreach (@$data) {
       $cnt++;
@@ -168,5 +168,5 @@ sub checkWakesUp {
   return;
 }
 
+1;
 
-1

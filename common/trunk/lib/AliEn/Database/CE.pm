@@ -87,7 +87,7 @@ sub removeJobAgent {
        $batchId = $data->{batchId};
      } else {
        $self->debug(1,"Will try to cleanup JA with $key=$data->{$key}");
-       my $result = $self->query("SELECT batchId FROM JOBAGENT WHERE $key=\'$data->{$key}\'");
+       my $result = $self->query("SELECT batchId FROM JOBAGENT WHERE $key = ?", undef, {bind_values=>[$data->{$key}]});
        $result = (@$result)[0]; # take the first and hopefully only one
        $result->{batchId} and $batchId = $result->{batchId};
        $self->debug(1,"batchId is $batchId");
@@ -104,7 +104,7 @@ sub removeJobAgent {
      }
    }
    $self->debug(1,"Will remove JA with $key=$data->{$key}");   
-   $self->delete("JOBAGENT", "$key=\'$data->{$key}\'");
+   $self->delete("JOBAGENT", "$key = ?", {bind_values=>[$data->{$key}]});
    return 1;
 }
 
@@ -121,14 +121,14 @@ sub insertMessage {
   $self->unlock("MESSAGES");
   $done or return;
 
-  $self->updateJobAgent({jobId=>$jobId},"jobId='$jobId'");
+  $self->updateJobAgent({jobId=>$jobId},"jobId= ?", {bind_values=>[$jobId]});
 }
 
 sub retrieveMessages{
   my $self=shift;
   my $time=time;
-  my $info=$self->query("SELECT * from MESSAGES where timestamp<$time");
-  $self->delete("MESSAGES", "timestamp<$time");
+  my $info=$self->query("SELECT * from MESSAGES where timestamp < ?", undef, {bind_values=>[$time]});
+  $self->delete("MESSAGES", "timestamp < ?", {bind_values=>[$time]});
   return $info;
   
 }

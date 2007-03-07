@@ -101,10 +101,10 @@ sub updatePriority{
     $self->update("$self->{PRIORITYTABLE}",@_);
 }
 
-sub deletePriority{
-    my $self = shift;
-    $self->delete("$self->{PRIORITYTABLE}",@_);
-}
+#sub deletePriority{
+#    my $self = shift;
+#    $self->delete("$self->{PRIORITYTABLE}",@_);
+#}
 
 sub insertPrioritySet{
   my $self = shift;
@@ -124,19 +124,19 @@ sub updatePrioritySet{
 		and return;
 	my $set =shift;
 	
-	$self->debug(1,"In updatePrioritySet user is missing");
-	$self->updatePriority($set,"user='$user'");
+	$self->debug(1,"In updatePrioritySet user is NOT missing");
+	$self->update("$self->{PRIORITYTABLE}", $set, "user=?", {bind_values=>[$user]});
 }
 
-sub deletePrioritySet{
-	my $self = shift;
-	my $user = shift
-		or $self->{LOGGER}->error("TaskPriority","In deletePrioritySet user is missing")
-		and return;
-	
-	$self->debug(1,"In deletePrioritySet deleting user $user");	
-	$self->deleteFromPriority("user='$user'");
-}
+#sub deletePrioritySet{
+#	my $self = shift;
+#	my $user = shift
+#		or $self->{LOGGER}->error("TaskPriority","In deletePrioritySet user is missing")
+#		and return;
+#	
+#	$self->debug(1,"In deletePrioritySet deleting user $user");	
+#	$self->deleteFromPriority("user='$user'");
+#}
 
 sub getFieldFromPriority {
   my $self = shift;
@@ -146,7 +146,7 @@ sub getFieldFromPriority {
   my $attr = shift || "*";
   
   $self->debug(1,"In getFieldFromPriority fetching attribute $attr of user $user");
-  $self->queryValue("SELECT $attr FROM $self->{PRIORITYTABLE} WHERE user='$user'");
+  $self->queryValue("SELECT $attr FROM $self->{PRIORITYTABLE} WHERE user=?", undef, {bind_values=>[$user]});
 }
 
 sub getFieldsFromPriority {
@@ -157,7 +157,7 @@ sub getFieldsFromPriority {
 	my $attr = shift || "*";
 	
 	$self->debug(1,"In getFieldsFromPriority fetching attributes $attr of user $user");
-	$self->queryRow("SELECT $attr FROM $self->{PRIORITYTABLE} WHERE user='$user'");
+	$self->queryRow("SELECT $attr FROM $self->{PRIORITYTABLE} WHERE user=?", undef, {bind_values=>[$user]});
 }
 
 sub getFieldsFromPriorityEx {
@@ -166,14 +166,17 @@ sub getFieldsFromPriorityEx {
 	my $addsql = shift || "";
 	
 	$self->debug(1,"In getFieldsFromPriorityEx fetching attributes $attr with condition $addsql from table $self->{PRIORITYTABLE}");
-	$self->query("SELECT $attr FROM $self->{PRIORITYTABLE} $addsql");
+	$self->query("SELECT $attr FROM $self->{PRIORITYTABLE} $addsql", undef, @_);
 }
 
-sub getFieldFromPriorityEx {
-	my $self = shift;
-	my $attr = shift || "*";
-	my $addsql = shift || "";
-	
-	$self->debug(1,"In getFieldFromPriorityEx fetching attributes $attr with condition $addsql from table $self->{PRIORITYTABLE}");
-	$self->queryColumn("SELECT $attr FROM $self->{PRIORITYTABLE} $addsql");
-}
+#sub getFieldFromPriorityEx {
+#	my $self = shift;
+#	my $attr = shift || "*";
+#	my $addsql = shift || "";
+#	
+#	$self->debug(1,"In getFieldFromPriorityEx fetching attributes $attr with condition $addsql from table $self->{PRIORITYTABLE}");
+#	$self->queryColumn("SELECT $attr FROM $self->{PRIORITYTABLE} $addsql", @_);
+#}
+
+1;
+

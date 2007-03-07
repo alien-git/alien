@@ -146,7 +146,7 @@ sub updateToken {
   my $set = shift;
 
   $self->debug(1,"In updateToken updating token for user $user");
-  return $self->update("TOKENS", $set, "Username = '$user'");
+  return $self->update("TOKENS", $set, "Username = ?", {bind_values=>[$user]});
 }
 
 sub deleteToken {
@@ -156,7 +156,7 @@ sub deleteToken {
       and return;
   
   $self->debug(1,"In deleteToken deleting token for user $user");
-  return $self->delete("TOKENS","Username = '$user'");
+  return $self->delete("TOKENS","Username = ?", {bind_values=>[$user]});
 }
 
 sub existsToken {
@@ -166,7 +166,7 @@ sub existsToken {
       and return;
 		
   $self->debug(1,"In existsToken checking if user $user have token");
-  return $self->queryValue("SELECT COUNT(*) FROM TOKENS WHERE Username='$user'");
+  return $self->queryValue("SELECT COUNT(*) FROM TOKENS WHERE Username= ?", undef, {bind_values=>[$user]});
 }
 
 sub addTime {
@@ -179,7 +179,7 @@ sub addTime {
       and return;
   
   $self->debug(1,"In addTime increasing expiration period for user's $user token");
-  return $self->do("UPDATE TOKENS SET Expires=(DATE_ADD(now() ,INTERVAL $hours HOUR)) WHERE Username='$user'");
+  return $self->do("UPDATE TOKENS SET Expires=(DATE_ADD(now() ,INTERVAL ? HOUR)) WHERE Username= ?", {bind_values=>[$hours, $user]});
 }
 
 sub getFieldsFromTokens {
@@ -190,7 +190,7 @@ sub getFieldsFromTokens {
   my $attr = shift || "*";
   
   $self->debug(1,"In getFieldsFromTokens fetching attributes $attr for user name $username from table TOKENS");
-  $self->queryRow("SELECT $attr from TOKENS where Username='$username'");
+  $self->queryRow("SELECT $attr from TOKENS where Username= ?", undef, {bind_values=>[$username]});
 }
 
 sub getFieldFromTokens {
@@ -201,7 +201,7 @@ sub getFieldFromTokens {
   my $attr = shift || "*";
 
   $self->debug(1,"In getFieldFromTokens fetching attribute $attr for user name $username from table TOKENS");
-  $self->queryValue("SELECT $attr from TOKENS where Username='$username'");
+  $self->queryValue("SELECT $attr from TOKENS where Username= ?", undef, {bind_values=>[$username]});
 }
 
 ###		jobToken
@@ -224,7 +224,7 @@ sub getFieldFromJobToken {
   my $attr = shift || "*";
   
   $self->debug(1,"In getFieldFromJobToken fetching attribute $attr for job id $id from table jobToken");
-  return $self->queryValue("SELECT $attr FROM jobToken WHERE jobId='$id'");
+  return $self->queryValue("SELECT $attr FROM jobToken WHERE jobId= ?", undef, {bind_values=>[$id]});
 }
 
 sub getFieldsFromJobToken {
@@ -235,7 +235,7 @@ sub getFieldsFromJobToken {
   my $attr = shift || "*";
   
   $self->debug(1,"In getFieldsFromJobToken fetching attributes $attr for job id $id from table jobToken");
-  return $self->queryRow("SELECT $attr FROM jobToken WHERE jobId='$id'");
+  return $self->queryRow("SELECT $attr FROM jobToken WHERE jobId= ?", undef, {bind_values=>[$id]});
 }
 
 sub setJobToken {
@@ -246,7 +246,7 @@ sub setJobToken {
   my $token = shift;
   
   $self->debug(1,"In setJobToken updating token for job $id");
-  return $self->update("jobToken",{jobToken=>$token},"jobId='$id'");
+  return $self->update("jobToken",{jobToken=>$token},"jobId= ?", {bind_values=>[$id]});
 }
 
 sub deleteJobToken {
@@ -256,7 +256,7 @@ sub deleteJobToken {
       and return;
 
   $self->debug(1,"In deleteJobToken deleting token for job $id");
-  return $self->delete("jobToken","jobId='$id'");
+  return $self->delete("jobToken","jobId= ?", {bind_values=>[$id]});
 }
 
 sub getUsername {
@@ -269,7 +269,7 @@ sub getUsername {
       and return;
 
   $self->debug(1,"In getUsername fetching user name for job $id and token $token");	
-  return $self->queryValue("SELECT userName FROM jobToken where jobId='$id' and jobToken='$token'");
+  return $self->queryValue("SELECT userName FROM jobToken where jobId=? and jobToken= ?", undef, {bind_values=>[$id, $token]});
 }
 
 =head1 NAME

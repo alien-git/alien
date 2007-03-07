@@ -131,7 +131,7 @@ sub setPriority {
 	$pset->{running} = $lset->{running};
 	$pset->{userload} = $userload;
 	$pset->{computedpriority} = int($computedpriority);
-	$self->{PRIORITY_DB}->updatePriority($pset,"user like '$_->{user}'")
+	$self->{PRIORITY_DB}->updatePriority($pset,"user like ?", {bind_values=>[$_->{user}]})
 	    or print STDERR "Error updating the computed priority value for $_->{user}\n";
 
 	$self->$method(@data, "------------------------------------------------------");

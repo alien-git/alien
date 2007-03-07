@@ -24,7 +24,7 @@ sub checkWakesUp {
   foreach my $tempHost (@$hosts) {
     my $db=$self->{DB}->reconnectToIndex( $tempHost->{hostIndex},"",$tempHost) or $self->info("Error doing $tempHost->{db}") and next;;
     $self->$method(@info, "Doing $tempHost->{db}");
-    my $tables=$db->query("select tableName, lfn from INDEXTABLE where hostIndex='$tempHost->{hostIndex}'");
+    my $tables=$db->query("select tableName, lfn from INDEXTABLE where hostIndex=?", undef, {bind_values=>[$tempHost->{hostIndex}]});
     foreach my $table (@$tables){
       $self->$method(@info,"Doing the table $table->{tableName} and $table->{lfn}");
       
@@ -57,10 +57,10 @@ sub updateQoS{
       my $seRef=$self->{DB}->queryColumn("select seName from SE");
       foreach my $se (@$seRef){
 	$self->info("Looking for $se");
-	my $QoS=$IS->queryValue("SELECT protocols from SE where name='$se'");
+	my $QoS=$IS->queryValue("SELECT protocols from SE where name=?", undef, {bind_values=>[$se]});
 	$QoS or next;
 	$self->info("Setting the QoS of $se to $QoS");
-	$self->{DB}->update("SE", {seQoS=>$QoS}, "seName='$se'");
+	$self->{DB}->update("SE", {seQoS=>$QoS}, "seName=?", {bind_values=>[$se]});
       }
     }
   }
@@ -83,13 +83,12 @@ sub checkExpired{
     $self->info("We have to do something with the entry $entry");
     use Data::Dumper;
     print Dumper($entry);
-    my $query="select group_concat(seNumber) from SE 
-   where '$entry->{seStringlist}' like concat('\%,',seNumber,',\%') and (seQoS not like 'replica' or seQoS is NULL)";
+    my $query="select group_concat(seNumber) from SE where ? like concat('\%,',seNumber,',\%') and (seQoS not like 'replica' or seQoS is NULL)";
     $self->info("Doing $query");
-    my $newSEList=$db->queryValue($query);
+    my $newSEList=$db->queryValue($query, undef, {bind_values=>[$entry->{seStringlist}]});
     $newSEList and $newSEList=",$newSEList,";
     my $lfn="$dir/$entry->{lfn}";
-    $db->update($table, {seStringList=>$newSEList}, "lfn='$entry->{lfn}'");
+    $db->update($table, {seStringList=>$newSEList}, "lfn=?", {bind_values=>[$entry->{lfn}]});
     if (!$newSEList) {
       $self->info("The $lfn file is not in any custodial SE. Renaming it");
       $self->{CATALOGUE}->execute("mv", $lfn, "$lfn.expired");

@@ -27,7 +27,8 @@ use AliEn::GUID;
 use AliEn::Util;
 
 my $DAEMONS={xrootd=>{startup=>"startXROOTD"},
-	     srm=>{startup=>"startSRM"}
+	     srm=>{startup=>"startSRM"},
+	     fdt=>{startup=>"startFDT"}
 	    };
 	    
 # Use this a global reference.
@@ -344,6 +345,32 @@ close FILE;
 
   return %options;
 }
+
+sub startFDT {
+  my $self = shift;
+  my $name = shift;
+  my $options = shift || '';
+  
+  $self->info("Starting the FDT daemon...");
+  my $port = ($options =~ /-p\s+(\d+)/ ? $1 : 54321);
+  my $pid=fork();
+  defined $pid or $self->info("Error doing the fork") and return;
+  my $log="$self->{CONFIG}->{LOG_DIR}/fdt.$name.log";
+  if (! $pid) {
+    exec("$ENV{ALIEN_ROOT}/java/MonaLisa/java/bin/java -jar $ENV{ALIEN_ROOT}/java/MonaLisa/Service/lib/fdt.jar $options > $log 2>\&1");
+  }
+  sleep(2);
+  if(! kill(0, $pid)) {
+    $self->info("The FDT process $pid died.");
+    return;
+  }
+  $self->info("Putting the pid $pid into the SE pid file. FDT log is in $log");
+  open (FILE, ">>$self->{CONFIG}->{LOG_DIR}/SE.pid") or $self->info("Error opening the file") and return;
+  print FILE " $pid ";
+  close FILE;
+  return (protocol => 'fdt', port => $port);
+}
+
 ###############################################################################
 ##############################################################################
 

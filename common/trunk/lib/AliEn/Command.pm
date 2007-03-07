@@ -686,7 +686,7 @@ sub ValidateUpdateDatabase{
 
     #($database->validate()) or $self->ValidateError();
 
-    $database->update("runs", {$update=>"$update+1"}, "run=$self->{RUN} and version='$self->{ROUND}'");
+    $database->update("runs", {$update=>"$update+1"}, "run = ? and version = ?", {bind_values=>[$self->{RUN}, $self->{ROUND}]});
 
     $database->destroy;
 
