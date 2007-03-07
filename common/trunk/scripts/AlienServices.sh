@@ -307,59 +307,12 @@ statusService()
 
   getLogDir $DIR
 
-  if [ "$NAME" = "ClusterMonitor" ] 
-  then 
-    NAME="CLUSTERMONITOR";
+
+  PINGOUTPUT=`${ALIEN_ROOT}/scripts/alien -x $ALIEN_ROOT/scripts/pingService.pl $2 $LOGDIR 2>&1`
+  if [ "$?" -eq "0" ] ; then
+    return 0
   fi
-
-  if [ "$NAME" = "TcpRouter" ]
-  then
-    NAME="TCPROUTER";
-  fi
-  
-#  PORT=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl ${NAME}_PORT`
-
-# need to fix this in a clean way, to check if the services
-# run on this machine
-
-#  if [ "$NAME" != "MonaLisa" ]
-#  then
-#    if [ "$NAME" != "CE" ]
-#    then 
-#      if [ ! -n "$PORT" ]
-#      then
-#        echo "UNKNOWN"  
-#        return -1
-#
-#      fi
-#    fi
-#  fi
-
-  FILE="$LOGDIR/$2.pid"
-
-  [ -f  $FILE ] && OLDPID=`cat $FILE`
-  if [ "$OLDPID" ]
-  then
-    for pid in $OLDPID ; do
-    	kill -0 $pid 2>/dev/null
-	if [ "$?" -ne "0" ] ; then
-		if [[ -n "$SUB_PROCESS" ]] ; then
-			echo "SUB-PROCESS DEAD"
-		else
-			echo "DEAD"
-		fi
-		return 1
-	fi
-	SUB_PROCESS=1
-    done
-    PINGOUTPUT=`${ALIEN_ROOT}/scripts/alien -x $ALIEN_ROOT/scripts/pingService.pl $2 2>&1`
-    if [ "$?" -eq "0" ] ; then
-	return 0;
-    fi
-    echo "PID OK BUT:"
-    echo $PINGOUTPUT
-  fi
-  echo "DEAD"
+  echo $PINGOUTPUT
   return 1
 }
 ###########################################################################
