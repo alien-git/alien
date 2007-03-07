@@ -179,7 +179,7 @@ sub checkGUID {
 
   $self->info("Getting all the tables of this host");
 
-  my $tablesRef=$db->queryColumn("SELECT tableName from INDEXTABLE where hostIndex=$db->{CURHOSTID}");
+  my $tablesRef=$db->queryColumn("SELECT tableName from INDEXTABLE where hostIndex=?", undef, {bind_values=>[$db->{CURHOSTID}]});
   
   foreach my $table (@$tablesRef){
     my $tableName="D${table}L";
@@ -196,7 +196,7 @@ sub checkGUID {
       $self->info("Setting $entry and $guid");
 
       $db->update($tableName, {guid=>"string2binary(\"$guid\")"},
-		  "entryId=$entry", {noquotes=>1});
+		  "entryId=?", {noquotes=>1, bind_values=>[$entry]});
       $i++;
       ($i %100) or   $self->info("Already checked $i files");
     }

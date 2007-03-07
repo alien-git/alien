@@ -102,10 +102,10 @@ sub getFieldFromFileEx {
 
 #VOLUMES database
 
-sub updateVolume{
-    my $self = shift;
-    $self->update("$self->{VOLUMETABLE}",@_);
-}
+#sub updateVolume{
+#    my $self = shift;
+#    $self->update("$self->{VOLUMETABLE}",@_);
+#}
 
 sub deleteFromVolume{
     my $self = shift;

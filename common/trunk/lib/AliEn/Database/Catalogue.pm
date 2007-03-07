@@ -486,6 +486,7 @@ sub updateFile {
 
   my $file=shift;
   my $update=shift;
+  my $options=shift || {};
 
   if ($update->{se}){
     $self->debug(1, "Trying to update the SE to $update->{se}");
@@ -506,7 +507,11 @@ sub updateFile {
   my $tableName=$self->{INDEX_TABLENAME}->{name};
   my $lfn=$self->{INDEX_TABLENAME}->{lfn};
   $file=~ s{^$lfn}{};
-  return $self->update($tableName, $update, "lfn='$file'", @_);
+  my @bind_opts = ();
+  push(@bind_opts, @{$options->{bind_values}}) if ($options->{bind_values});
+  push(@bind_opts, $file);
+  $options->{bind_values} = \@bind_opts;
+  return $self->update($tableName, $update, "lfn=?", $options, @_);
 }
 
 sub deleteFile {

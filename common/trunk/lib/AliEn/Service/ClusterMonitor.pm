@@ -494,7 +494,7 @@ sub getJobAgent {
 
   $self->{LOCALJOBDB}->updateJobAgent({ jobId=>$done->{queueid}, 
 				       workernode=>$wn, agentId=>$agentId,
-				      }, "agentId='$agentId'");
+				      }, "agentId=?", {bind_values=>[$agentId]});
   $self->info("Sending the job id $done->{queueid}");
   return $done;
 }
@@ -517,7 +517,7 @@ sub GetProcInfo {
     my ( $this, $queueId ) = @_;
 
   $self->info( "Get Procinfo for $queueId: !!" );
-    my @get = $self->{TXTDB}->query("SELECT runtime,runtimes,cpu,mem,cputime,rsize,vsize,ncpu,cpufamily,cpuspeed,cost from PROCESSES where queueId=$queueId");
+    my @get = $self->{TXTDB}->query("SELECT runtime,runtimes,cpu,mem,cputime,rsize,vsize,ncpu,cpufamily,cpuspeed,cost from PROCESSES where queueId = ?", undef, {bind_values=>[$queueId]});
     $self->info( "Get Procinfo for $queueId: @get" );
     return $get[0];
 }
@@ -868,7 +868,7 @@ sub KillProcessBatch {
 
   $self->info("Removing process $queueId from the queue" );
 
-  my $data=$self->{LOCALJOBDB}->queryRow("SELECT workernode FROM JOBAGENT where jobId=$queueId");
+  my $data=$self->{LOCALJOBDB}->queryRow("SELECT workernode FROM JOBAGENT where jobId = ?", undef, {bind_values=>[$queueId]});
   
   ($data and $data->{workernode}) or 
     $self->info( "Error getting the address of job $queueId (maybe the job already finished??)") and return 1;
@@ -1046,7 +1046,7 @@ sub checkMessages {
   my $time = time;
 
   my $res  =
-    $self->{DB}->query("SELECT ID,TargetHost,Message,MessageArgs from MESSAGES WHERE (TargetService = 'ClusterMonitor' AND  '$self->{HOST}' like TargetHost AND (Expires > $time or Expires = 0) AND Ack not like '\%,$self->{HOST}:\%') ORDER BY ID DESC");
+    $self->{DB}->query("SELECT ID,TargetHost,Message,MessageArgs from MESSAGES WHERE (TargetService = 'ClusterMonitor' AND  '$self->{HOST}' like TargetHost AND (Expires > ? or Expires = 0) AND Ack not like '\%,$self->{HOST}:\%') ORDER BY ID DESC", undef, {bind_values=>[$time]});
   
   defined $res
     or $self->{LOGGER}->error("ClusterMonitor","Error fetching messages from database")
@@ -1070,7 +1070,7 @@ sub checkMessages {
 	$status = 'FAILED';
       } else {
 	$self->info( "Removing message from the queue $data->{ID}" );
-	my $res2 = $self->{DB}->_do("DELETE from MESSAGES where ID='$data->{ID}'");
+	my $res2 = $self->{DB}->_do("DELETE from MESSAGES where ID=?", {bind_values=>[$data->{ID}]});
 	$self->info( "Removed message from the queue" );
       }
     }
@@ -1081,7 +1081,7 @@ sub checkMessages {
       $status = "UNKNOWN";
     }
     $self->{DB}->update("MESSAGES", {Ack=>"concat(Ack, ',$self->{HOST}:$status')"}, 
-			"ID='$data->{ID}'", {noquotes=>1});
+			"ID=?", {noquotes=>1, bind_values=>[$data->{ID}]});
   }
 
   return 1;
@@ -1194,7 +1194,7 @@ sub checkZombies {
 
   foreach my $job (@$done){
     $self->info("Checking if the job $job->{queueId} is still running");
-    my $data=$self->{LOCALJOBDB}->queryValue("select count(*) from JOBAGENT where jobId=$job->{queueId}");
+    my $data=$self->{LOCALJOBDB}->queryValue("select count(*) from JOBAGENT where jobId = ?", undef, {bind_values=>[$job->{queueId}]});
     $data and next;
     $self->info("According to the local database, the job is no longer there..");
     $data=$self->getTrace("trace", $job->{queueId}, "all");
@@ -1240,7 +1240,7 @@ sub checkJobAgents {
   my @inBatch=$self->{BATCH}->getAllBatchIds();
   my $before=time();
   $before=$before-900;
-  my $info=$self->{LOCALJOBDB}->query("SELECT * from JOBAGENT where timestamp<$before");
+  my $info=$self->{LOCALJOBDB}->query("SELECT * from JOBAGENT where timestamp < ?", undef, {bind_values=>[$before]});
 
   foreach my $job (@$info){
     $self->$method(@data, "Checking if the agent $job->{batchId} is still there...");
@@ -1349,3 +1349,6 @@ sub jobExits{
   $self->{LOCALJOBDB}->removeJobAgent($self->{BATCH}->needsCleaningUp(), { jobId => $jobId });  
   return;
 }
+
+1;
+

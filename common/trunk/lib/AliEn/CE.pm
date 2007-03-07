@@ -2399,7 +2399,7 @@ sub f_queue_priority {
   }
   if ($subcommand eq "list" ) {
     my $user = (shift or "%");
-    my $array = $self->{PRIORITY_DB}->getFieldsFromPriorityEx("*","where user like '$user' ORDER BY user");
+    my $array = $self->{PRIORITY_DB}->getFieldsFromPriorityEx("*","where user like ? ORDER BY user", {bind_values=>[$user]});
     if (@$array) {
       $self->f_priorityprint($array);
     }
@@ -2418,7 +2418,7 @@ sub f_queue_priority {
     my $field = shift or print STDERR "You have to specify a field value to modify!\n" and return;
     my $value = shift or print STDERR "You have to specify a value to set for field $field!\n" and return;
     
-    my $array = $self->{PRIORITY_DB}->getFieldsFromPriorityEx("*","where user like '$user' ORDER BY user");
+    my $array = $self->{PRIORITY_DB}->getFieldsFromPriorityEx("*","where user like ? ORDER BY user", {bind_values=>[$user]});
 	  if (! $array) {
 	    print STDERR "User $user does not have an entry yet - use 'queue priority add <user>' first!\n";
 	    return;

@@ -322,7 +322,7 @@ sub addFile{
 	 $oldMD5=AliEn::MD5->new($details->{pfn})
 	   or $self->info("Error generating the md5sum of $details->{pfn}")
 	     and return 0;
-	 $self->{DB}->update("FILES",{md5=>'$oldMD5'}, "guid=string2binary('$details->{guid}')");
+	 $self->{DB}->update("FILES",{md5=>'$oldMD5'}, "guid=string2binary(?)", {bind_values=>[$details->{guid}]});
        }
        if ($hashref->{md5} ne $oldMD5) {
 	 $self->info("Trying to add a mirror of $hashref->{guid}, but the signature is different!!!",111);
@@ -403,13 +403,13 @@ sub addFile{
 sub getVolumeSpace{
    my $self = shift;
    my $volumename = shift;
-   return $self->{DB}->queryValue("SELECT freespace from VOLUME where volume ='$volumename'");
+   return $self->{DB}->queryValue("SELECT freespace from VOLUME where volume = ?", undef, {bind_values=>[$volumename]});
 }
 
 sub getUsedSpace{
   my $self = shift;
   my $volumename = shift;
-  return $self->{DB}->queryValue("SELECT usedspace from VOLUME where volume ='$volumename'");
+  return $self->{DB}->queryValue("SELECT usedspace from VOLUME where volume = ?", undef, {bind_values=>[$volumename]});
 }
 
 
@@ -540,11 +540,12 @@ sub retrieveTableRow{
     my $hashref   = shift;
 
     my $string = "SELECT * FROM $tablename";
+    my @bind = ();
     if (defined $hashref){
-      $string .= " WHERE ".( join (" AND ", map {"$_ =  \'$hashref->{$_}\'"} keys(%{$hashref})));
+      $string .= " WHERE ".( join (" AND ", map {push(@bind, $hashref->{$_}); "$_ =  ?"} keys(%{$hashref})));
     }
     $self->{LOGGER}->debug("LVM", "Doing the query $string");
-    my $info = $self->{DB}->query($string);
+    my $info = $self->{DB}->query($string, undef, {bind_values=>[@bind]});
     $info or die "Cannot execute: " . $string;
     return $info;
 }
@@ -553,23 +554,24 @@ sub deleteTableRow{
    my $self = shift;
    my $tablename = shift;
    my $hashref   = shift;
-   my $string ="DELETE FROM $tablename WHERE ".( join (" AND ", map {"$_ =  \'$hashref->{$_}\'"} keys(%{$hashref})));
+   my @bind = ();
+   my $string ="DELETE FROM $tablename WHERE ".( join (" AND ", map {push(@bind, $hashref->{$_}); "$_ =  ?"} keys(%{$hashref})));
 #   print "$string\n";
-   my $sth = $self->{DB}->_do($string);
+   my $sth = $self->{DB}->_do($string, {bind_values=>[@bind]});
    return $sth;
 }
 
-sub updateFileDetails{
-
-   my $self = shift;
-   my $hashref = shift;
-   if (defined $hashref->{'ttl'})
-   {
-      $hashref->{'expires'} = time + $hashref->{'ttl'}; 
-   }
-   $self->updateTableRow("FILES","file",$hashref);
-
-}
+#sub updateFileDetails{
+#
+#   my $self = shift;
+#   my $hashref = shift;
+#   if (defined $hashref->{'ttl'})
+#   {
+#      $hashref->{'expires'} = time + $hashref->{'ttl'}; 
+#   }
+#   $self->updateTableRow("FILES","file",$hashref);
+#
+#}
 
 
 sub updateTableRow{
@@ -578,25 +580,26 @@ sub updateTableRow{
    my $tablename = shift;
    my $entry = shift;
    my $hashref   = shift;
-   my $set =  join (" , ", map {"$_ =  \'$hashref->{$_}\'"} removeElement($entry,keys(%{$hashref}))   );
-   my $string ="UPDATE $tablename SET ". $set ."  WHERE $entry =  \'$hashref->{$entry}\'";
+#   my $set =  join (" , ", map {"$_ =  \'$hashref->{$_}\'"} removeElement($entry,keys(%{$hashref}))   );
+#   my $string ="UPDATE $tablename SET ". $set ."  WHERE $entry =  \'$hashref->{$entry}\'";
 #   print "$string\n";
-   my $info = $self->{DB}->_do($string);
+   my $info = $self->{DB}->update($tablename, $hashref, "WHERE $entry = ?", {bind_values=>[$hashref->{$entry}]});
+#   my $info = $self->{DB}->_do($string);
    return $info;
 }
 
-sub removeElement{
-
-  my $element = shift;
-  my @array = @_;
-  my @temparray;
-  my $arb;
-  foreach $arb (@array)
-  {
-    push @temparray, $arb unless ( $element eq $arb  );
-  }
-  return @temparray;
-}
+#sub removeElement{
+#
+#  my $element = shift;
+#  my @array = @_;
+#  my @temparray;
+#  my $arb;
+#  foreach $arb (@array)
+#  {
+#    push @temparray, $arb unless ( $element eq $arb  );
+#  }
+#  return @temparray;
+#}
 
 # return's the local filesize in 1024 bytes fragments
 sub sizeofLocalFile {

@@ -367,41 +367,39 @@ sub main {
 # Overrides Accept in RPC::PlServer in order to negotiate AliEn authentication and possibly implement SSL
 sub Loop {
   my $self=shift;
-  open (FILE, "ps -eo pid,ppid,cputime,etime,command|")
+  open (FILE, "ps -eo pid,ppid,etime,command|")
     or print "Error checking the kids\n" and return;
   my @children=<FILE>;
   close FILE;
   my $date=time;
+  open(FILE, "netstat -tanp 2>/dev/null |");
+  my @netstat = <FILE>;
+  close(FILE);
+#  print gmtime()." Starting check...\n";
   foreach (@children) {
-    /^(\d+)\s+(\d+)\s+(\S+)\s+(\S+)\s+AliEn::[^:]*::ProxyServer/ or next;
+    /^\s*(\d+)\s+(\d+)\s+(\S+)\s+AliEn::[^:]*::ProxyServer/ or next;
     $1 eq "$$" and next;
-    my $pid=$1;
-    $2 eq "1" 
-#      and print "Ignoring $1 (it is the father\n" 
-	and next;
-#    print "$_\n";
-    my @cputime=split(":", $3);
-    my $etime=$4;
-    $etime =~ /^((d+)-)?((\d+):)?(\d+):(\d+)$/ or print "Error parsing the time of $etime\n" and next;
+    my ($pid, $ppid, $etime) = ($1, $2, $3);
+    $ppid eq "1" and next;
+    $etime =~ /^((\d+)-)?((\d+):)?(\d+):(\d+)$/ or print "Error parsing the time of $etime\n" and next;
     my ($days, $hours, $minutes, $seconds)=($2,$4,$5,$6);
     $hours or $hours=0;
     $days and $hours=$hours +24*$days;
     $hours and $minutes=60*$hours+ $minutes;
-      
+
     $etime=$minutes*60+$seconds;
 #    print "$pid has been running for $etime seconds\n";
     $etime > 3600 or next;
-#    $etime > 60 or next;
-    my $cpuDays=0;
-    $cputime[0] =~ s/^(d+)-// and $cpuDays=$1;
-    my $cputime=(($cpuDays*24+$cputime[0])*60+$cputime[1])*60+$cputime[2];
-#    print "The cpu is $cputime\n";
-    $cputime > 10 and next;  
-    print "Ready to kill $pid (it has been running for $etime seconds, using $cputime)!!\n";
-    kill 9,$pid;
-      
+    my @conns = grep(/ESTABLISHED\s+$pid\//, @netstat);
+    if(@conns < 2){
+      print gmtime()." Ready to kill $pid (it has been running for $etime seconds)!!\n@conns";
+      kill(1, $pid);
+      sleep(1);
+      kill(9, $pid);
+    }else{
+#      print gmtime()." NOT killing $pid (running for $etime sec)\n@conns";
+    }
   }
-
 }
 
 sub Accept {

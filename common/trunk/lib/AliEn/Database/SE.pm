@@ -163,14 +163,16 @@ sub retrieveFileDetails{
   my $options=shift || {};
   my $quotes="'";
   $options->{noquotes} and $quotes="";
+  my @bind = ();
   if (defined $hashref){
     if ($hashref->{guid}) {
-      $hashref->{guid} =~ /^string2binary/ or $hashref->{guid}= "string2binary('$hashref->{guid}')";
+      $hashref->{guid} =~ s/^string2binary\('?(.*)'?\)/$1/; 
     }
-    $string .= " WHERE ".( join (" AND ", map {"$_ =  $quotes$hashref->{$_}$quotes"} keys(%{$hashref})));
-  }  
+    $string .= " WHERE ".( join (" AND ", map { push(@bind, $hashref->{$_}); "$_ = " . ($_ eq "guid" ? "string2binary( ? )" : " ? ") } keys(%{$hashref})));
+    $hashref->{guid} = "string2binary('$hashref->{guid}')" if $hashref->{guid};
+  }
 
-  return $self->queryRow($string);
+  return $self->queryRow($string, undef, {bind_values => \@bind});
 }
 
 
@@ -201,12 +203,12 @@ sub chooseVolume {
   my $size = shift;
   my $guid=shift;
   
-  my $query="SELECT * from VOLUMES where freespace>$size";
+  my $query="SELECT * from VOLUMES where freespace > ?";
   if ($guid){
-    my $volumes=$self->queryColumn("SELECT concat('volumeId !=', volumeId) from FILES where guid=string2binary($guid)");
+    my $volumes=$self->queryColumn("SELECT concat('volumeId !=', volumeId) from FILES where guid=string2binary( ? )", undef, {bind_values=>[$guid]});
     $volumes and $query = join (" and ", $query, @$volumes);
    }
-  my $listref = $self->query($query);
+  my $listref = $self->query($query, undef, {bind_values=>[$size]});
   $listref or return;
   return shift @$listref;
 
@@ -238,7 +240,7 @@ sub insertFile {
 sub getPFNFromGUID{
   my $self=shift;
   my $guid=shift;
-  return $self->queryColumn("SELECT pfn from FILES where guid=string2binary('$guid')")
+  return $self->queryColumn("SELECT pfn from FILES where guid=string2binary( ? )", undef, {bind_values=>[$guid]});
 }
 
 sub getNumberOfFiles{
@@ -253,7 +255,7 @@ sub getNumberOfFiles{
 sub deleteLocalCopies {
   my $self=shift;
   my $pfn=shift;
-  return $self->delete("LOCALFILES","pfn='$pfn'");
+  return $self->delete("LOCALFILES","pfn = ?", {bind_values=>[$pfn]});
 }
 sub insertLocalCopy {
   my $self=shift;
@@ -263,8 +265,8 @@ sub insertLocalCopy {
 sub checkLocalCopies {
   my $self=shift;
   my $pfn=shift;
-  my $query="SELECT localCopy,size FROM LOCALFILES where pfn='$pfn' and localCopy is not NULL";
-  return   $self->queryRow($query);
+  my $query="SELECT localCopy,size FROM LOCALFILES where pfn = ?  and localCopy is not NULL";
+  return   $self->queryRow($query, undef, {bind_values=>[$pfn]});
   
 }
 
@@ -274,7 +276,7 @@ sub updateLocalCopy {
   my $size=shift;
   my $transferId=shift;
 
-  return $self->do("UPDATE LOCALFILES set localCopy='$pfn', size=$size  where transferid=$transferId");
+  return $self->do("UPDATE LOCALFILES set localCopy = ? , size = ? where transferid = ?", {bind_values=>[$pfn, $size, $transferId]});
 }
 
 
@@ -286,12 +288,11 @@ sub removeFile{
   my $pfn=$hashref->{file};
   $hashref->{pfn} and $pfn=$hashref->{pfn};
   my $guid=$hashref->{guid};
-  $guid=~ /string2binary/ or $guid="string2binary('$hashref->{guid}')";
-  my $string ="DELETE FROM FILES WHERE guid=$guid and pfn='$pfn'";
+  $guid =~ s/^string2binary\('?(.*)'?\)/$1/;
+  my $string ="DELETE FROM FILES WHERE guid = string2binary( ? ) and pfn = ?";
 
 #   print "$string\n";
-  my $sth = $self->_do($string);
-
+  my $sth = $self->_do($string, {bind_values=>[$guid, $pfn]});
   return 1;
 }
 

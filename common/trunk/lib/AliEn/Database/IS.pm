@@ -85,7 +85,7 @@ sub setService{
 
   if($self->queryValue("SELECT count(*) FROM $table where name='$set->{name}'")){
     $self->debug(1,"In setService updating service $table $set->{name}");
-    $self->update($table,$set,"name='$set->{name}'");
+    $self->update($table,$set,"name= ?", {bind_values=>[$set->{name}]});
   } else {
     $self->debug(1,"In setService inserting service $table $set->{name}");
     $self->insert($table,$set);
@@ -104,7 +104,7 @@ sub getServiceNameByHost {
 	and return;
     
     $self->debug(1,"In getServiceNameByHost for service $service and host $host");
-    $self->query("SELECT name FROM $service where host='$host' order by lastchecked desc");
+    $self->query("SELECT name FROM $service where host=? order by lastchecked desc", undef, {bind_values=>[$host]});
 }
     
 sub getActiveServices{
@@ -151,7 +151,7 @@ sub getFields{
   my $attr = shift || "*";
 
   $self->debug(1,"In getFields fetching attributes $attr from $service");
-  $self->queryRow("SELECT $attr FROM $service WHERE host='$host' AND port='$port'");
+  $self->queryRow("SELECT $attr FROM $service WHERE host= ? AND port= ?", undef, {bind_values=>[$host, $port]});
 }
 
 sub getField{
@@ -169,7 +169,7 @@ sub getField{
   my $attr = shift || "*";
 
   $self->debug(1,"In getField fetching attribute $attr from $service");
-  $self->queryValue("SELECT $attr FROM $service WHERE host='$host' AND port='$port'");
+  $self->queryValue("SELECT $attr FROM $service WHERE host=? AND port=?", undef, {bind_values=>[$host, $port]});
 }
 
 sub createCLCCERTTable{
@@ -199,7 +199,7 @@ sub deleteCertificate{
       and return;
   
   $self->debug(1,"In deleteCertificate deleting certificate for user $user and name $name");
-  $self->delete("CLCCERT","user='$user' AND name = '$name'");
+  $self->delete("CLCCERT","user=? AND name = ?", {bind_values=>[$user, $name]});
 }
 
 sub getCertificate{
@@ -212,7 +212,7 @@ sub getCertificate{
       and return;
   
   $self->debug(1,"In getCertificate fetching certificate for user $user and name $name");
-  $self->queryValue("SELECT certificate FROM CLCCERT WHERE user='$user' AND name = '$name'");
+  $self->queryValue("SELECT certificate FROM CLCCERT WHERE user=? AND name = ?", undef, {bind_values=>[$user, $name]});
 }
 
 # Look into the cpu_si2k table for an entry about a cpu type and return back the corresponding SI2k
@@ -228,10 +228,10 @@ sub getCpuSI2k {
   my $min_cpu_mhz = $cpu_type->{cpu_MHz} - $cpu_type->{cpu_MHz} * 0.02; # allow 2% deviation
   my $max_cpu_mhz = $cpu_type->{cpu_MHz} + $cpu_type->{cpu_MHz} * 0.02;
   # try querying the database for exactly this configuration
-  my $result = $self->queryValue("SELECT si2k FROM cpu_si2k WHERE '$cpu_type->{cpu_model_name}' LIKE cpu_model_name AND '$cpu_type->{cpu_cache}' LIKE cpu_cache AND cpu_MHz >= $min_cpu_mhz AND cpu_MHz <= $max_cpu_mhz");
+  my $result = $self->queryValue("SELECT si2k FROM cpu_si2k WHERE ? LIKE cpu_model_name AND ? LIKE cpu_cache AND cpu_MHz >= ? AND cpu_MHz <= ?", undef, {bind_values=>[$cpu_type->{cpu_model_name}, $cpu_type->{cpu_cache}, $min_cpu_mhz, $max_cpu_mhz]});
   
   if(! defined($result)){
-    my $list = $self->query("SELECT DISTINCT si2k, cpu_MHz FROM cpu_si2k WHERE '$cpu_type->{cpu_model_name}' LIKE cpu_model_name AND '$cpu_type->{cpu_cache}' LIKE cpu_cache order by abs(cpu_MHz - $cpu_type->{cpu_MHz}) asc");
+    my $list = $self->query("SELECT DISTINCT si2k, cpu_MHz FROM cpu_si2k WHERE ? LIKE cpu_model_name AND ? LIKE cpu_cache order by abs(cpu_MHz - ?) asc", undef, {bind_values=>[$cpu_type->{cpu_model_name}, $cpu_type->{cpu_cache}, $cpu_type->{cpu_MHz}]});
     if(defined($list) && (@$list >= 2)){
       my $cpu1 = $list->[0];
       my $cpu2 = $list->[1];

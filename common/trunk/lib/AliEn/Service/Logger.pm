@@ -90,13 +90,11 @@ sub log {
              $lastmsg{time} = $time;
         }
         else {
-			$done = $self->{DB}->update("Log",
-								{
-										time=>$time,
-
-message=>"Last message repeated $lastmsg{count} times"},
-								"source='$self->{hostname}' AND time = $lastmsg{time} AND message like 'Last message repeated % times'"
-								);
+		$done = $self->{DB}->update("Log", {time=>$time,
+						message=>"Last message repeated $lastmsg{count} times"},
+						"source=? AND time = ? AND message like 'Last message repeated % times'",
+						{bind_values=>[$self->{hostname}, $lastmsg{time}]}
+					);
 #             $SQL =
 # "UPDATE Log set time='$time', message='Last message repeated $lastmsg{count} times' where source='$self->{hostname}' AND time = $lastmsg{time} AND message like 'Last message repeated % times'";
         }

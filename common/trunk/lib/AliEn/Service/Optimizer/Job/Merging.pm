@@ -101,7 +101,7 @@ sub checkMerging {
     my $newMerging=join(",",@running);
     $self->info("Now we have to wait for '$newMerging'");
     $newStatus="DONE";
-    $self->{DB}->update("QUEUE", { merging=>$newMerging}, "queueid=$queueid");
+    $self->{DB}->update("QUEUE", { merging=>$newMerging}, "queueid=?", {bind_values=>[$queueid]});
     if (@running) {
       $self->info("The jobs @running are still running");
       $newStatus=undef;
@@ -136,9 +136,9 @@ sub updateMerging {
 
   eval {
     #my @part_jobs=$self->{DB}->query("SELECT count(*),status from QUEUE where split=$queueid group by status");
-    my $rparts = $self->{DB}->getFieldsFromQueueEx("count(*) as count, status", "WHERE split=$queueid GROUP BY status")
+    my $rparts = $self->{DB}->getFieldsFromQueueEx("count(*) as count, status", "WHERE split=? GROUP BY status", {bind_values=>[$queueid]})
       or die("Could not get splitted jobs for $queueid");
-    my $allparts = $self->{DB}->getFieldsFromQueueEx("queueId,status,submitHost", "WHERE split=$queueid")
+    my $allparts = $self->{DB}->getFieldsFromQueueEx("queueId,status,submitHost", "WHERE split=?", {bind_values=>[$queueid]})
       or die ("Could not get splitted jobs for $queueid");
 
     my $user = AliEn::Util::getJobUserByDB($self->{DB}, $queueid);
@@ -348,4 +348,5 @@ sub copyOutputDirectories{
 #}
 
 
-1
+1;
+

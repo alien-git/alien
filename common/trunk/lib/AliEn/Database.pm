@@ -438,21 +438,31 @@ sub update {
   my $query = "UPDATE $table SET ";
   my $quote="'";
   $options->{noquotes} and $quote="";
+  my @bind = ();
   foreach (keys %$rfields) {
+    $query .= " $_ =";
     if (defined $rfields->{$_}){
-      $rfields->{$_}=~ s/^\'/\\\'/;
-      $rfields->{$_}=~ s/([^\\])\'/$1\\\'/g;
-      $query .= "$_ = $quote$rfields->{$_}$quote,";
-    } else {
-      $query .= "$_ = NULL,";
+      if ($quote) {
+        $query.="?,";
+      } else {
+        $rfields->{$_} =~ s/^([^'"]*)['"](.*)['"]([^'"]*)$/$2/;
+        my $function="";
+        my $functionend="";
+        if($1 && $3){
+          $function=$1 and $functionend=$3;
+        }
+        $query .= " $function ? $functionend,";
+      }
+      push @bind, $rfields->{$_};
+    }else{
+      $query .= " NULL,";
     }
-    # $query .= "$_ = $rfields->{$_},";
   }
   chop($query);
 
   $where and $query .= " WHERE $where";
-
-  $self->_do($query);
+  push(@bind, @{$options->{bind_values}}) if($options->{bind_values});
+  $self->_do($query, {bind_values=>\@bind});
 }
 
 =item C<insert>
@@ -519,13 +529,28 @@ sub multiinsert {
   my $quote="'";
   $options->{noquotes} and $quote="";
   #my @arr = values %$rfields;
+  my @bind = ();
   
   foreach $rloop (@$rarray) {
     $query .= "(";
     foreach (keys %$rfields) {
-      (defined $rloop->{$_}) and $query .= "$quote$rloop->{$_}$quote," or
-	$query .= "NULL,";
+      if(defined $rloop->{$_}){
       
+      	if ($quote) {
+	   $query.="?,"; 
+	} else {
+	  $rloop->{$_} =~ s/^([^'"]*)['"](.*)['"]([^'"]*)$/$2/;
+	  my $function="";
+	  my $functionend="";
+	  if($1 && $3){
+	    $function=$1 and $functionend=$3;
+	  }
+          $query .= " $function ? $functionend,";
+	}
+	push @bind, $rloop->{$_};
+      }else{
+	$query .= "NULL,";
+      }
     }
     
     chop($query);
@@ -534,7 +559,7 @@ sub multiinsert {
   }
   
   chop($query);
-  $self->_do($query);
+  $self->_do($query, {bind_values=>\@bind});
 }
 
 =item C<delete>
@@ -559,7 +584,7 @@ sub delete {
   
   my $query = "DELETE FROM $table WHERE $where";
   
-  $self->_do($query);
+  $self->_do($query, @_);
 }
 
 sub checkTable {
