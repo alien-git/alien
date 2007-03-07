@@ -19,6 +19,7 @@ use AliEn::Config;
 use AliEn::Database::TaskQueue;
 use AliEn::Database::TXT::ClusterMonitor;
 use AliEn::Database::CE;
+use AliEn::TMPFile;
 
 use AliEn::CE;
 use AliEn::X509;
@@ -958,23 +959,24 @@ sub putFILE {
     my $file      = shift;
     my $maxlength = 1024 * 10000;
     $self->info( "Getting a request to put a file");
-    my $directory = "$self->{CONFIG}->{LOG_DIR}/proc/$QUEUEID";
 
+    my $fileName=AliEn::TMPFile->new({filename=>"$file", 
+				      base_dir=>"$self->{CONFIG}->{LOG_DIR}/proc/"});
     ( -d "$self->{CONFIG}->{LOG_DIR}/proc" )
       or mkdir "$self->{CONFIG}->{LOG_DIR}/proc", 0777;
-    ( -d $directory ) or mkdir $directory, 0777;
-    if (! open( FILE, ">$directory/$file" ) ) {
-      $self->{LOGGER}->error("ClusterMonitor", "Error opening the file $directory/$file");
-      return (-1, "Can't open  $directory/$file");
+
+    if (! open( FILE, ">$fileName" ) ) {
+      $self->{LOGGER}->error("ClusterMonitor", "Error opening the file $fileName");
+      return (-1, "Can't open  $fileName");
 
     }
 
     syswrite( FILE, $buffer, $maxlength, 0 );
     close(FILE);
-    $self->info("File $file saved in $directory
+    $self->info("File $file saved in $fileName
 File copied successfully!");
 
-    return "$directory/$file";
+    return "$fileName";
 }
 
 sub getMessages() {
