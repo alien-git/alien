@@ -871,7 +871,8 @@ ALIEN_GetArg()
             shift 1 
             if [ "$1" = "" ]
             then
-	      alien -exec version
+#	      alien -exec version
+	      alien -no_catalog virtual -exec version
 #              printf "%s\n" $VERSION
               exit
             fi
@@ -946,7 +947,7 @@ ALIEN_GetArg()
 	    ;;
 	virtual)
 	    shift 1
-	    ALIEN_UI=""
+	    ALIEN_UI="virtual"
 	    ;;
         xfiles|xjobs)
 	    ALIEN_GUI $*

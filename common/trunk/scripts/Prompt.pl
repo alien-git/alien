@@ -11,6 +11,8 @@ use SOAP::Lite on_fault => sub { return; } ;
 my $name=(shift or "");
 if (( not $name)||  ( $name=~/^::/)){ 
   $name="AliEn::UI::Catalogue$name";
+} elsif($name eq 'virtual') {
+  $name="AliEn::UI::Catalogue";
 }
 
 
