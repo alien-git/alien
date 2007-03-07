@@ -38,14 +38,20 @@ sub checkTriggers{
       and return;
   my $entryId=0;
   foreach my $entry (@$data){
+    my $done=1;
     $entry->{entryId}>$entryId and $entryId=$entry->{entryId};
     my ($file)=$self->{CATALOGUE}->execute("get", $entry->{triggerName});
     if ($file){
       chmod 0755, $file;
       $self->info("Calling $file $entry->{lfn}");
-      system($file, $entry->{lfn});
+      system($file, $entry->{lfn}) or $done=1;
     }else{
       $self->info("Error getting the file $entry->{triggerName}");
+
+    }
+    if (! $done){
+      $self->info("The action didn't execute. Inserting it in the Triggers_failed");
+      $db->do("INSERT INTO TRIGGERS_FAILED select * from TRIGGERS where entryId=$entry->{entryId");
     }
   }
   if ($entryId){
