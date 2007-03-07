@@ -45,6 +45,7 @@ use AliEn::X509;
 use AliEn::MD5;
 use Filesys::DiskFree;
 use AliEn::PackMan;
+use AliEn::TMPFile;
 
 
 @ISA=qw(AliEn::Service);
@@ -172,12 +173,13 @@ sub requestJob {
   $self->{REGISTER_LOGS_DONE}=0;
   $self->{FORKCHECKPROCESS} = 0;
   $self->{CPU_CONSUMED}={VALUE=>0, TIME=>time};
-  
+
   $self->GetJDL() or return;
 
-  my $redirect="$self->{CONFIG}->{TMP_DIR}/proc/$ENV{ALIEN_PROC_ID}.out";
-  $self->info("Let's redirect the output to $redirect");
-  $self->{LOGGER}->redirect($redirect);
+  $self->{LOGFILE}=AliEn::TMPFile->new({filename=>"proc.$ENV{ALIEN_PROC_ID}.out"});
+
+  $self->info("Let's redirect the output to $self->{LOGFILE}");
+  $self->{LOGGER}->redirect($self->{LOGFILE});
  
   $self->checkJobJDL() or $self->sendJAStatus('ERROR_JDL') and return;
 
@@ -2395,9 +2397,11 @@ sub registerLogs {
 #    $catalog->execute("mkdir", $dir);
 #    $self->info("Putting the log files in $dir");
     print "I'm looking into $self->{CONFIG}->{TMP_DIR}/proc/\n";
-    my $data=$self->submitFileToClusterMonitor("$self->{CONFIG}->{TMP_DIR}/proc/", 
-				      "$ENV{ALIEN_PROC_ID}.out", 
-				      "execution.out", $catalog, {no_register=>$skip_register});
+    my $dir=$self->{LOGFILE};
+    $dir=~ s{/([^/]*)$}{/};
+    my $basename=$1;
+    my $data=$self->submitFileToClusterMonitor($dir,$basename, "execution.out",
+					       $catalog, {no_register=>$skip_register});
     if ($skip_register) {
       $self->info("And now, let's update the jdl");
       $self->{CA}->set_expression("RegisteredLog", "\"execution.out###$data->{guid}###$data->{size}###$data->{md5}###$data->{selist}###\"");
