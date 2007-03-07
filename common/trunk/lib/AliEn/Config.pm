@@ -499,6 +499,18 @@ sub GetOrganisation {
 
   if (defined $ENV{ALIEN_VERSION}) {
     $VERSION=$ENV{ALIEN_VERSION};
+  } elsif (-f "$ENV{ALIEN_ROOT}/share/alien/ALIEN_VERSION"){
+    $DEBUG and $self->debug(5, "Getting the debug from the ALIEN_VERSION");
+    open (FILE, "$ENV{ALIEN_ROOT}/share/alien/ALIEN_VERSION")
+      or $self->info("Error getting the version of alien!!") and return;
+    my @common=<FILE>;
+    close(FILE);
+    if (join("",@common) =~ /AliEn\s+(\S+),\s+build:\s*(\S+),/){
+      $VERSION="${1}.$2";
+    } else {
+      $self->info("Error getting the version from $ENV{ALIEN_ROOT}/share/alien/ALIEN_VERSION (wrong format?)");
+      return;
+    }
   } elsif (-d "$ENV{ALIEN_ROOT}/share/alien/packages/"){
     $DEBUG and $self->debug(5, "Getting the debug from the directory");
     opendir(DIR, "$ENV{ALIEN_ROOT}/share/alien/packages/")
