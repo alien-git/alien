@@ -51,7 +51,7 @@ sub checkTriggers{
     }
     if (! $done){
       $self->info("The action didn't execute. Inserting it in the Triggers_failed");
-      $db->do("INSERT INTO TRIGGERS_FAILED select * from TRIGGERS where entryId=$entry->{entryId");
+      $db->do("INSERT INTO TRIGGERS_FAILED select * from TRIGGERS where entryId=?", {bind_values=>[$entry->{entryId}]});
     }
   }
   if ($entryId){
