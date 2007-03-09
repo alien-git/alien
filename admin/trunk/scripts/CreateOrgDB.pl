@@ -214,14 +214,16 @@ my @q=(
        "GRANT ALL PRIVILEGES ON alien_system.* to admin with grant option",
        "INSERT INTO alien_system.HOSTS (hostIndex,address,db,driver) values('1', '$hostName:$portNumber', 'alien_system', 'mysql')",
        "INSERT INTO ADMIN.TOKENS values(12, 'admin', DATE_ADD(now() ,INTERVAL 1 YEAR), '$token', '$passwd', 'NOKEY')",
-       "INSERT INTO D0L(lfn,owner, gowner,perm,type) values ('', 'admin', 'admin','755','d')",
+       "INSERT INTO L0L(lfn,owner, gowner,perm,type) values ('', 'admin', 'admin','755','d')",
        "INSERT INTO INDEXTABLE(hostIndex, lfn,tableName) values  ('1','/', 0)",
+       "INSERT INTO GUIDINDEX(hostIndex, guidTime,tableName) values  ('1','', 0)",
        "Create DATABASE geoip",
        "GRANT SELECT ON geoip.* to alienmaster",
        "drop table D0",
        "drop table T1000",
        "drop table DELETED",
        "drop table TAGDELETED",
+       "INSERT INTO SE(seName) VALUES ('no_se')",
        "CREATE DATABASE GUID",
 
 );
