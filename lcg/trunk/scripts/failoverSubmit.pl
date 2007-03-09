@@ -16,7 +16,8 @@ my @opts = @ARGV; # Passthrough
 my $defaults = "/opt/edg/etc/edg_wl_ui_cmd_var.conf";
 if ( open DEFAULTS, "<$defaults" ) {
   while (<DEFAULTS>) {
-    m/^\s*LoggingDestination/ and print "Warning: \'$_\' defined in $defaults\n";
+    chomp;
+    m/^\s*LoggingDestination/ and print STDERR "Warning: \'$_\' defined in $defaults\n";
   }
   close DEFAULTS;
 }
@@ -35,20 +36,49 @@ while (my $name = readdir SOMEDIR){
     }
   }  
 }
-my @output = ();
-my $error = 0;
-my $jobId = '';
-redoit:foreach ( @rbs ) { 
-  my $submission = "edg-job-submit --config-vo $rb_directory/$_.vo.conf @opts";
-  @output = `$submission`;
-  $error = $?;
-  ($jobId) = grep { /^https:/ } @output;
-  if ( $? || !$jobId){
-    next redoit;  
-  } else {
-    chomp $jobId;
-    print "$jobId";
+
+my $lastGoodRB = $rbs[0];
+if (open LASTGOOD, "<$rb_directory/.lastGoodRB") {
+  my $last = <LASTGOOD>;
+  chomp $last;
+  foreach (@rbs) {
+    if ($_ eq $last) {
+      $lastGoodRB = $last;
+      last;
+    } #Don't use it if it's not in the current list
+  }
+  close LASTGOOD;
+} 
+
+my $error = submit("$rb_directory/$lastGoodRB.vo.conf", @opts);
+
+if ( $error ) {
+  redoit:foreach ( @rbs ) { 
+    next redoit if ( $_ eq $lastGoodRB ); ##This one just failed
+    $error = submit("$rb_directory/$_.vo.conf", @opts);
+    next redoit if $error; 
+    if ( open LASTGOOD, ">$rb_directory/.lastGoodRB" ) {
+      print LASTGOOD "$_\n";
+      close LASTGOOD;
+    } else {
+      print STDERR "Could not save $rb_directory/.lastGoodRB\n";
+    }
     last;
   }
 }
 exit $error;
+
+sub submit {
+  my $file = shift;
+  my $submission = "edg-job-submit --config-vo $file @_";
+  my @output = `$submission`;
+  $error = $?;
+  (my $jobId) = grep { /https:/ } @output;
+  $jobId =~ m/(https:\/\/[A-Za-z0-9.-]*:9000\/[A-Za-z0-9_-]{22})/;
+  $jobId = $1;
+  unless ( $error || !$jobId){
+    chomp $jobId;
+    print "$jobId";
+  }
+  return $error;
+}
