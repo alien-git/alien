@@ -965,6 +965,12 @@ sub putFILE {
     ( -d "$self->{CONFIG}->{LOG_DIR}/proc" )
       or mkdir "$self->{CONFIG}->{LOG_DIR}/proc", 0777;
 
+    if (-f "$fileName"){
+      $self->info("Trying to overwrite the file $fileName");
+      return (-1, "The file $fileName already exists");
+    }
+
+
     if (! open( FILE, ">$fileName" ) ) {
       $self->{LOGGER}->error("ClusterMonitor", "Error opening the file $fileName");
       return (-1, "Can't open  $fileName");

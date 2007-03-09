@@ -310,29 +310,30 @@ sub addFile{
    #### Check to see if it exists 
 #  At some point we should check if the md5 matches if we try to add a replica
    $self->info("Adding the file to the LVM");
-   if ( defined $hashref->{'guid'} and $hashref->{'guid'}) {
-     my $details = $self->{DB}->retrieveFileDetails({guid => $hashref->{guid},
-						    }, {silent=>1,noquotes=>1 });
-     if ($details  and $details->{guid} ) {
-       $self->info("Trying to add a guid that already exists... let's check if the md5sum matches");
-       #       my $newMD5=AliEn::MD5->new($hashref->{pfn});
-       my $oldMD5=$details->{md5sum};
-       if (! $oldMD5) {
-	 $self->info("Generating the md5 of the previous entry");
-	 $oldMD5=AliEn::MD5->new($details->{pfn})
-	   or $self->info("Error generating the md5sum of $details->{pfn}")
-	     and return 0;
-	 $self->{DB}->update("FILES",{md5=>'$oldMD5'}, "guid=string2binary(?)", {bind_values=>[$details->{guid}]});
-       }
-       if ($hashref->{md5} ne $oldMD5) {
-	 $self->info("Trying to add a mirror of $hashref->{guid}, but the signature is different!!!",111);
-	 return 0;
-       }
-     }
+
+#   if ( defined $hashref->{'guid'} and $hashref->{'guid'}) {
+#     my $details = $self->{DB}->retrieveFileDetails({guid => $hashref->{guid},
+#						    }, {silent=>1,noquotes=>1 });
+#     if ($details  and $details->{guid} ) {
+#       $self->info("Trying to add a guid that already exists... let's check if the md5sum matches");
+#       #       my $newMD5=AliEn::MD5->new($hashref->{pfn});
+#       my $oldMD5=$details->{md5sum};
+#       if (! $oldMD5) {
+#	 $self->info("Generating the md5 of the previous entry");
+#	 $oldMD5=AliEn::MD5->new($details->{pfn})
+#	   or $self->info("Error generating the md5sum of $details->{pfn}")
+#	     and return 0;
+#	 $self->{DB}->update("FILES",{md5=>'$oldMD5'}, "guid=string2binary('$details->{guid}')");
+#       }
+#       if ($hashref->{md5} ne $oldMD5) {
+#	 $self->info("Trying to add a mirror of $hashref->{guid}, but the signature is different!!!",111);
+#	 return 0;
+#       }
+#     }
 #   } else {
 #     $details = $self->{DB}->retrieveFileDetails({'lfn' => $hashref->{'file'}});
 #     return 0 if (($details->{'file'} eq $hashref->{'file'})&&($details->{'mountpoint'} eq $hashref->{'mountpoint'}));
-   }
+#   }
 
    if (!$voldetails ||  ! $voldetails->{volumeId}) {
      $self->info("Choosing a volume");
@@ -356,18 +357,18 @@ sub addFile{
    } else {
      $hashref->{'expires'}       = -1;
    }
-   
+
    my $subfilename = $hashref->{'file'};
     $hashref->{pfn} or 
       $hashref->{pfn}="$voldetails->{method}$voldetails->{mountpoint}/$subfilename";
    $hashref->{'volumeId'}=$voldetails->{'volumeId'};
 
    my $fullpath = "$voldetails->{mountpoint}/$hashref->{'file'}";
-   
+
    delete $hashref->{file};
-   
-   
-   $self->{DB}->insertFile($hashref) or return 0;
+
+
+#   $self->{DB}->insertFile($hashref) or return 0;
 
    $self->info("File '$fullpath' inserted in the database");
    return $fullpath;

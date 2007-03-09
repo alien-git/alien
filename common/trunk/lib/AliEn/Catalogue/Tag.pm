@@ -38,10 +38,15 @@ sub f_addTag {
   my $tableName = "T$self->{DATABASE}->{USER}V$tagName";
   if (! $self->{DATABASE}->existsTable($tableName)) {
     $self->info("Creating the table $tableName...");
+    if ($options){
+      $self->info("In fact, we want a table like the one for directory '$options'");
+      $tagSQL=$self->f_showTagDescription($tagName, $options)
+	or $self->info("Error getting the description of the table") and return;
+    }
     $self->selectDatabase($directory);
     my $done = $self->createRemoteTable(
-					$self->{DATABASE}->{HOST},   $self->{DATABASE}->{DB},
-					$self->{DATABASE}->{DRIVER}, $self->{DATABASE}->{USER},
+					$self->{DATABASE}->{LFN_DB}->{HOST},   $self->{DATABASE}->{LFN_DB}->{DB},
+					$self->{DATABASE}->{LFN_DB}->{DRIVER}, $self->{DATABASE}->{LFN_DB}->{USER},
 					$tableName,"(file char($fileLength), offset int, entryId int AUTO_INCREMENT, $tagSQL , KEY (entryId), INDEX (file))"
 				       );
 
@@ -55,6 +60,33 @@ sub f_addTag {
     print "Tag created\n";
 
   return 1;
+}
+sub f_showTagDescription_HELP{
+  return "showTagDescription: describes the metadata of a given tag
+Usage:
+\t\tshowTagDescription <directory> <tagName>
+";
+}
+sub f_showTagDescription{
+  my $self=shift;
+  my $options=shift;
+  my $directory=shift;
+  my $tag=shift;
+  $directory and $tag or $self->info("Error: not enough arguments\n". $self->f_showTagDescription_HELP()) and return;
+  $self->info("Getting the description of $tag and $directory");
+  $self->checkPermissions("r", $directory) or $self->info("Error: you can't read the directory $directory") and return;
+  my $table=$self->{DATABASE}->{LFN_DB}->getTagTableName($directory, $tag)
+    or $self->info("Error getting the name of the table") and return;
+  $self->info("Getting the description");
+  my $rows=$self->{DATABASE}->{LFN_DB}->query("describe $table") or $self->info("Error describing the table") and return;
+  my $sql="";
+  foreach my $row (@$rows){
+    $row->{Field} =~ /^(file)|(offset)|(entryId)$/  and next;
+    $sql.="$row->{Field} $row->{Type} ,";
+  }
+  chop $sql;
+  $self->info("The statement is $sql");
+  return $sql;
 }
 
 sub f_removeTag {
@@ -261,15 +293,13 @@ sub f_showTagValue {
   my $tagTableName = $self->{DATABASE}->getTagTableName($directory, $tag);
 
   $where = "file like '$directory%'";
-  $fileName and $where = "file='$fileName'";
-
-#  my $options="new";
-#  $fileName and $options="one";
+  my $options={filename=>$fileName};
 
   $self->debug(1, "Checking the tags of $directory and $where");
-  my $rTags = $self->{DATABASE}->getTags($directory, $tag, undef, $where);
+  my $rTags = $self->{DATABASE}->getTags($directory, $tag, undef, $where, $options);
 
-  my $rcolumns = $self->{DATABASE}->describeTable($tagTableName);
+  my $rcolumns = $self->{DATABASE}->describeTable($tagTableName) 
+    or $self->info("Error getting the description of the metadata") and return;
 
   my @fields;
   foreach my $rcolumn (@$rcolumns) {

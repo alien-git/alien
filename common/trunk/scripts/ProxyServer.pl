@@ -6,6 +6,11 @@ eval 'exec /usr/bin/perl  -S $0 ${1+"$@"}'
 use strict;
 use DBD::mysql;
 require AliEn::Services::ProxyServer;
+use Net::SSLeay;
+
+$Net::SSLeay::trace = 2;
+
+
 
 use Net::SSLeay;
 $Net::SSLeay::trace =2;

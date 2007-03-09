@@ -559,7 +559,9 @@ sub multiinsert {
   }
   
   chop($query);
-  $self->_do($query, {bind_values=>\@bind});
+  my $doOptions={bind_values=>\@bind};
+  $options->{silent} and $doOptions->{silent}=1;
+  $self->_do($query, $doOptions);
 }
 
 =item C<delete>
@@ -1211,7 +1213,7 @@ sub _do{
     alarm(0);
     if ($error) {
       $sqlError.="There is an error: $@\n";
-      $self->info("There was an SQL error  ($stmt): $sqlError",1001);
+      $options->{silent} or $self->info("There was an SQL error  ($stmt): $sqlError",1001);
       return;
     }
     defined($result) and last;
@@ -1224,7 +1226,8 @@ sub _do{
 	  and $SIG{ALRM} = $oldAlarmValue
 	    or delete $SIG{ALRM};
 	chomp $sqlError;
-	$self->info("There was an SQL error  ($stmt): $sqlError",1001);
+	$options->{silent} or 
+	  $self->info("There was an SQL error  ($stmt): $sqlError",1001);
 	return;
       }
     }

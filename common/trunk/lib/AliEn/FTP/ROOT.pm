@@ -29,7 +29,7 @@ sub put {
     my $remotefile = shift;
     my $options    = ( shift or "" );
     print "Let's copy the file from $localfile to $remotefile\n";
-    return ;AliEn::SE::Methods::root::put($self,$localfile, $remotefile);
+    return AliEn::SE::Methods::root::put($self,$localfile, $remotefile);
 #    my $command = "$options; put $localfile $remotefile";
 #    return $self->transfer($command, @_);
 }

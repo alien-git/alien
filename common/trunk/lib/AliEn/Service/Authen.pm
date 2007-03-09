@@ -455,81 +455,31 @@ sub createTable {
   $date =~ s/^\S+\s(.*):[^:]*$/$1/	;
 
 
-  $self->info(
-			 "\n\tCreating new table $table for $user in $db $host" );
-  $self->reconnect( $host, $db, $driver )
-    or return (-1,"Error reconnecting to $db $host");
+  $self->info( "\n\tCreating new table $table for $user in $db $host" );
+  my $table2=$self->{cat}->{DATABASE}->createTable($host,$db, $driver, $user, $table, $definition);
 
-  $self->info("Checking the name of the table" );
-  if ($table=~ /^T$/) {
-    #We have to get a new table name;
-    my $dir=$self->{cat}->{DATABASE}->getNewDirIndex();
-    $dir or return (-1, "Error getting a new table name");
-    $table="T$dir";
+  if (!$table2){
+    my $error="Error creating the table $table";
+    $self->{LOGGER}->error_msg() and $error.=": ".$self->{LOGGER}->error_msg();
+    return (-1,$error);
   }
-
-  #    $dbh->{DATABASE}->reconnect($host, $db, $driver);
-  $self->info("Creating the table $table" );
-  my $errorMessage="Error creating the new table \n";
-
-  $self->{cat}->{DATABASE}->createTable($table, $definition)
-    or print STDERR "$errorMessage ($! $@)\n"
-	and return (-1, "$errorMessage$@");
-
-  $self->{cat}->{DATABASE}->grantAllPrivilegesToUser($user, $db, $table)
-    or $self->{LOGGER}->warning( "Authen",
-				 "Error granting privileges on table $table for $user\n($! $@ $DBI::errstr\n"
-			       )
-      and return (-1, "Error creating the new table");
-  
-  $self->info("Privileges changed for $user.. Returning $table" );
-
-  return $table;
+  $self->info("Privileges changed for $user.. Returning $table2" );
+  return $table2;
 }
 
 sub reconnect {
-	my $self2   = shift;
-	my $host   = shift;
-	my $db     = shift;
-	my $driver = shift;
-	
-#	(	$self->{OLD_DB}, $self->{OLD_DRIVER}, $self->{OLD_HOST})=
-#($self->{cat}->{DATABASE}->{DB}, $self->{cat}->{DATABASE}->{DRIVER}, $self->{cat}->{DATABASE}->{HOST});
-	my $index =	$self->{cat}->{DATABASE}->getHostIndex($host, $db, $driver);
-#"SELECT hostIndex FROM HOSTS where address='$host' and db='$db' and  driver='$driver'"
-	$self->info("Index is |$index|" );
-	$index
-		or print "ERROR database $db $host ($driver ) does not exist\n"
-		
-      and return;
-	$self->info("Index $index" );
-	if ( !$self->{cat}->{"DATABASE_$index"} ) {
-		$self->info(
-													 "Connecting for the first time to $index" );
+  my $self2   = shift;
+  my $host   = shift;
+  my $db     = shift;
+  my $driver = shift;
 
-		$self->{cat}->{"DATABASE_$index"} = AliEn::Database::Catalogue->new(
-            {
-                "DB"     => $db,
-                "HOST"   => $host,
-                "DRIVER" => $driver,
-                "DEBUG"  => $self->{cat}->{DATABASE}->{DEBUG},
-                "USER"   => $self->{cat}->{DATABASE}->{LOCAL_USER},
-                "ROLE"   => $self->{cat}->{DATABASE}->{ROLE},
-                "SILENT" => 0
-            }
-        );
-
-		$self->{cat}->{"DATABASE_$index"}
-			or print STDERR "ERROR GETTING THE NEW DATABASE\n"
-				and return;
-
-		$self->{cat}->{DATABASE} = $self->{cat}->{"DATABASE_$index"};
-		$self->info("Connection done" );
-		#$self->{cat}->validateDatabase() or print "NO VALIDATION\n" and return;
-		
-	}
-	$self->{cat}->{DATABASE} = $self->{cat}->{"DATABASE_$index"};
-	return 1;
+#  my $index =	$self->{cat}->{DATABASE}->getHostIndex($host, $db, $driver);
+  #"SELECT hostIndex FROM HOSTS where address='$host' and db='$db' and  driver='$driver'"
+  my ($db2)=$self->{cat}->{DATABASE}->reconnect($host, $db, $driver);
+  $db2 or print "Error reconnecting\n" and return;
+  print "THE reconnection worked $db2!!\n";
+#  $self->{cat}->{DATABASE}->{LFN_DB}=$db2;
+  return 1;
 }
 
 sub changePrivileges {

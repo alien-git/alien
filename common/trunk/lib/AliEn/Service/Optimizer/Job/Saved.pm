@@ -3,6 +3,7 @@ package AliEn::Service::Optimizer::Job::Saved;
 use strict;
 
 use AliEn::Service::Optimizer::Job;
+use AliEn::GUID;
 
 use vars qw(@ISA);
 push (@ISA, "AliEn::Service::Optimizer::Job");
@@ -56,45 +57,13 @@ sub checkSavedJob{
     $self->{CATALOGUE}->execute("user","-",  $user);
 
     $self->{CATALOGUE}->execute("mkdir", "-p", "$procDir/job-output");
-    my $files={};
     foreach my $line (@info){
-      $self->debug(1,"We should do something about $line");
-      my ($file, @links)=split (/;;/, $line);
-      my ($lfn, $guid, $size, $md5, $selist, @rest)=split (/###/, $file);
-      $files->{$lfn}=1;
-      my ($seMaster, @seReplicas)=split (/,/, $selist);
-      if (!$self->{CATALOGUE}->execute("register","$procDir/job-output/$lfn","/dev/null", $size, $seMaster, $guid, "-force", "-silent")){
-	$self->info("Error registering the entry in the catalog");
-	$self->putJobLog($queueid,"error", "Error registering the file $lfn in the catalogue");
-	next;
-      }
-      foreach my $replica (@seReplicas){
-	$self->{CATALOGUE}->execute("addMirror", "$procDir/job-output/$lfn", $replica);
-      }
-      $self->info("$lfn registered!!");
-      my $newPfn="guid:///$guid";
-      foreach my $link (@links) {
-	$self->info("Ready to register the link $link" );
-	my ($file, $size, $md5, $guid)=split (/###/, $link);
-	my $pfn="$newPfn?ZIP=$file";
-	if ($filesToRegister{$file}) {
-	  $self->debug(1,"This is a replica");
-	  $filesToRegister{$file}->{selist}.=",$selist";
-	}else {
-	  $filesToRegister{$file}={lfn=>"$file",
-				   pfn=>$pfn,
-				   size=>$size,
-				   md5=>$md5,
-				   selist=>$selist,
-				   guid=>$guid,
-				  };
-	}
-      }
+      $self->registerLine("$procDir/job-output", $line, \%filesToRegister, $queueid);
     }
     $self->info("Doing the multiinsert now");
     
     my @filesToRegister=values %filesToRegister;
-    $self->{CATALOGUE}->f_bulkRegisterFile("$procDir/job-output", \@filesToRegister) 
+    $self->{CATALOGUE}->{CATALOG}->f_bulkRegisterFile("","$procDir/job-output", \@filesToRegister) 
      or $self->putJobLog($queueid,"error", "Error registering the files in the catalogue!!");
 
     ($ok, my $outputDir)=$job_ca->evaluateAttributeString("OutputDir");
@@ -115,16 +84,7 @@ sub checkSavedJob{
   if ($ok) {
     $self->{CATALOGUE}->execute("mkdir", "-p", "$procDir/job-log");
     foreach my $line (@info){
-      $self->info("We should do something about $line");
-      my ($lfn, $guid, $size, $md5, $selist, @rest)=split (/###/, $line);
-      $selist or $selist="";
-      $size or $size="";
-      $md5 or $md5="";
-      if (!$self->{CATALOGUE}->execute("register","$procDir/job-log/$lfn","/dev/null", $size, $selist, $guid, "-force", "-silent")){
-	$self->info("Error registering the entry in the catalog");
-	$self->putJobLog($queueid,"error", "Error registering the file $lfn in the catalogue");
-	next;
-      }
+      $self->registerLine("$procDir/job-log",$line, \%filesToRegister, $queueid);
     }	
   }
 
@@ -137,4 +97,54 @@ sub checkSavedJob{
   return 1;
 }
 
+
+sub registerLine {
+  my $self=shift;
+  my $dir=shift;
+  my $line=shift;
+  my $ref=shift;
+  my $queueid=shift;
+  $self->debug(1,"We should do something about $line");
+  my ($file, @links)=split (/;;/, $line);
+  my ($lfn, $guid, $size, $md5, @PFN)=split (/###/, $file);
+  $guid or $guid=AliEn::GUID->new()->CreateGuid();
+
+  my $info={lfn=>$lfn, md5=>$md5,
+	    size=>$size,    guid=>$guid};
+  my $selist=",";
+  my @list=();
+  foreach my $replica (@PFN){
+    my ($se, $pfn)=split(/\//, $replica,2);
+    $pfn =~ s/\\\?/\?/g;
+    push @list, {seName=>$se, pfn=>$pfn};
+  }
+  @list and $info->{pfns}=\@list;
+  print "ESTOY AQUI???\n";
+  use Data::Dumper;
+  print Dumper($info);
+  $self->{CATALOGUE}->execute("debug", 5);
+  if (!$self->{CATALOGUE}->{CATALOG}->f_bulkRegisterFile("", $dir, [$info])){
+    $self->info("Error registering the entry in the catalog");
+    $self->putJobLog($queueid,"error", "Error registering the file $lfn in the catalogue");
+    return;
+  }
+
+  $self->info("$lfn registered!!");
+  my $newPfn="guid:///$guid";
+  foreach my $link (@links) {
+    $self->info("Ready to register the link $link" );
+    my ($file, $size, $md5, $guid)=split (/###/, $link);
+    my $pfn="$newPfn?ZIP=$file";
+    if ($ref->{$file}) {
+      $self->debug(1,"This is a replica");
+      my @list=@{$ref->{$file}->{pfns}};
+      push @list, {pfn=>$pfn};
+      $ref->{$file}->{pfns}=\@list;
+    }else {
+      $ref->{$file}={lfn=>"$file", pfns=>[{pfn=>$pfn}],    size=>$size,
+		     md5=>$md5,  guid=>$guid,    };
+    }
+  }
+  return 1;
+}
 1

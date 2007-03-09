@@ -20,9 +20,9 @@ sub checkWakesUp {
   $self->$method(@info, "The packages optimizer starts");
 
   $self->{SLEEP_PERIOD}=10;
-  my $todo=$self->{DB}->queryValue("SELECT todo from ACTIONS where action='PACKAGES'");
+  my $todo=$self->{DB}->{LFN_DB}->queryValue("SELECT todo from ACTIONS where action='PACKAGES'");
   $todo or return;
-  $self->{DB}->update("ACTIONS", {todo=>0}, "action='PACKAGES'");
+  $self->{DB}->{LFN_DB}->update("ACTIONS", {todo=>0}, "action='PACKAGES'");
 
   my $Fsilent="";
   my @userPackages=$self->{CATALOGUE}->execute("find", $Fsilent, $self->{CONFIG}->{USER_DIR}, "/packages/*");
@@ -49,10 +49,10 @@ sub checkWakesUp {
 
   }
   $self->info("READY TO INSERT @packages\n");
-  $self->{CATALOGUE}->{CATALOG}->{DATABASE_FIRST}->lock('PACKAGES');
-  $self->{CATALOGUE}->{CATALOG}->{DATABASE_FIRST}->delete('PACKAGES', "1");
-  $self->{CATALOGUE}->{CATALOG}->{DATABASE_FIRST}->multiinsert('PACKAGES', \@packages,);
-  $self->{CATALOGUE}->{CATALOG}->{DATABASE_FIRST}->unlock();
+  $self->{DB}->{LFN_DB}->lock('PACKAGES');
+  $self->{DB}->{LFN_DB}->delete('PACKAGES', "1");
+  $self->{DB}->{LFN_DB}->multiinsert('PACKAGES', \@packages,);
+  $self->{DB}->{LFN_DB}->unlock();
 
   return 1;
 }

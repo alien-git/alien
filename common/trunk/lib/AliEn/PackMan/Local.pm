@@ -368,6 +368,8 @@ sub existsPackage{
 
   my $dir="$self->{INST_DIR}/$user/$package/$version";
   (-d $dir) or return;
+  my $lock="$self->{INST_DIR}/$user.$package.$version.InstallLock";
+  (-f $lock) and $self->info("The lock exists. Someone is installing the package") and return 
 #  if (!-d $dir) {
 #    $self->debug("Checking among the VO packages");
 #    $dir="$self->{INST_DIR}/VO_\U$self->{CONFIG}->{ORG_NAME}\E/$package/$version";
@@ -524,7 +526,7 @@ sub getListPackages_Internal{
     $query.=" where  (platform='$platform' or platform='source')";
   }
   print "Let's do $query\n";
-  my $packages=$self->{CATALOGUE}->{CATALOG}->{DATABASE_FIRST}->queryColumn($query) or $self->info("Error doing the query") and return;
+  my $packages=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn($query) or $self->info("Error doing the query") and return;
 
   use Data::Dumper;
   print Dumper($packages);

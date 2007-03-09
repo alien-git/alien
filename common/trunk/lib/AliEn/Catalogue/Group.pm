@@ -129,46 +129,29 @@ sub f_chown {
   }
 
   my ( $user, $group ) = split ( /\./, $data );
-
-  my $oldsilent = $self->{SILENT};
-  $self->{SILENT} = 1;
-  my $primarygroup = $self->f_groups($user,1);
-  $self->{SILENT} = $oldsilent;
-  if ( (defined $group) and ($group ne "" )) {
-    $self->{SILENT} = 1;
-    my $allgroups = $self->f_groups($user);
-    $self->{SILENT} = $oldsilent;
-    my $hasgroup = 0;
-    foreach (@$allgroups) {
-      if ( "$_" eq $group ) {
-	$hasgroup = 1;
-      }
-    }
-    if (!$hasgroup) {
-      print STDERR "Error: $user is not member of group $group\n";
-      return;
-    }
-  } else {
-    $group = $primarygroup;
+  my $userid=$self->{DATABASE}->getUserid($user, $group);
+  if (!$userid){
+    my $error="Does the user '$user' exist?";
+    $group and $error="Does '$user' belong to '$group'?";
+    $self->info("Error getting the userid of '$data'. $error");
+    return;
   }
 
   $file = $self->GetAbsolutePath($file, 1);
 
-  $self->selectDatabase($file)
+  my $db=$self->selectDatabase($file)
     or print STDERR "Error in selectDatabase" and return;
-
-  my $lfn  =$self->{DATABASE}->existsEntry( $file) or 
+  my $table=$db->getIndexTable();
+  my $dbName=$db->{DB};
+  my $lfn  =$db->existsLFN( $file) or 
     $self->info("chown $file: No such file or directory")
-    and return;
-
-  $self->{DATABASE}->updateFile( $lfn, {owner=>$user,gowner=>$group})
+      and return;
+  print "The entry exists and it is called $lfn (in $table->{name})\n";
+  $db->updateLFN( $lfn, {owner=>$user, gowner=>$group})
     or $self->info("Error updating the file") and return;
-
   $options =~ /f/ and return 1;
   #Finally, we have to grant privileges to the user
   #Since we are admin, we can do it directly:
-  my $db=$self->{DATABASE}->{DB};
-  my $table=$self->{DATABASE}->getIndexTable();
-  return $self->{DATABASE}->do("GRANT ALL on $db.$table->{name} to $user");
+  return $db->do("GRANT ALL on $dbName.$table->{name} to $user");
 }
 return 1;

@@ -51,15 +51,9 @@ sub checkPermissions {
   my $dbOptions={retrieve=>"lfn,perm,owner,gowner"};
 
   $options->{RETURN_HASH} and $dbOptions={};
-#  my @entries;
-#  foreach my $entry ($temp, "$temp/", $parentdir) {
-#    my $file=$self->{DATABASE}->getAllInfoFromDTable($dbOptions, $entry);
-#      or $self->info("Error looking for $entry") and
-#	return;
-#    $file and ${$file}[0] and push @entries, ${$file}[0];
-#  }
-  my $entries=$self->{DATABASE}->getAllInfoFromDTable($dbOptions, $temp,
-						      "$temp/", $parentdir)
+
+  my $entries=$self->{DATABASE}->getAllInfoFromLFN($dbOptions, $temp,
+						   "$temp/", $parentdir)
       or $self->{LOGGER}->info("Basic", "Error looking for $realfile") and
 	return;
   my @entries=@{$entries};
@@ -146,11 +140,7 @@ sub selectDatabase {
   }
 
   my $real_path=$self->getVOPath($path);
-  my $data= $self->{DATABASE}->selectDatabase($real_path)
-    or return;
-
-  $self->{DATABASE}=$data;
-  return 1;
+  return $self->{DATABASE}->selectDatabase($real_path);
 }
 
 #

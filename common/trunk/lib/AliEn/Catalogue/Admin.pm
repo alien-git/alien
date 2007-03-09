@@ -134,18 +134,18 @@ sub f_addHost {
       "Error: not enough arguments in addHost\nUsage addHost <host> <driver> <database> [<organisation>]\n";
     return;
   }
-
+  
   if ( $self->{ROLE} !~ /^admin(ssl)?/ ) {
     print STDERR "Error: only the administrator can add new hosts\n";
     return;
   }
-
+  
   my $hostIndex = $self->{DATABASE}->getHostIndex ($host, $db, $driver);
-
+  
   if ($hostIndex) {
-		print STDERR "Error: $db in $host already exists!!\n";
-		return;
-	      }
+    print STDERR "Error: $db in $host already exists!!\n";
+    return;
+  }
 
   $hostIndex = $self->{DATABASE}->getMaxHostIndex + 1;
 
@@ -156,20 +156,9 @@ sub f_addHost {
 					 $self->{DATABASE}->{DRIVER}
 					);
   
-  my $rhosts = $self->{DATABASE}->getAllHosts();
-  defined $rhosts
-    or $self->{LOGGER}->error("Admin", "Error: not possible to get all hosts")
-      and return;
-  my $rusers = $self->{DATABASE}->getAllFromGroups("Username,Groupname,PrimaryGroup");
-  defined $rusers
-    or $self->{LOGGER}->error("Admin", "Error: not possible to get all users")
-      and return;
+  my $replicatedInfo=$self->{DATABASE}->getAllReplicatedData()
+    or $self->info("Error getting the info from the database") and return;
 
-  my $rindexes =$self->{DATABASE}->getAllIndexes()  
-    or $self->{LOGGER}->error("Admin", "Error: not possible to get mount points")
-      and return;
-
-  my $rses=$self->{DATABASE}->query("SELECT * from SE");
 
   $self->debug(1, "Connecting to new database ($host $db $driver)");
   my $oldConfig=$self->{CONFIG};
@@ -177,6 +166,7 @@ sub f_addHost {
   if ($org) {
     $newConfig=$self->{CONFIG}->Reload({"organisation", $org});
     $newConfig or $self->info( "Error gettting the new configuration") and return;
+
     $self->{CONFIG}=$newConfig;
   }
 
@@ -187,7 +177,7 @@ sub f_addHost {
     return;
   }
   if (!$org) {
-    $self->{DATABASE}->createCatalogueTables();
+    $self->{DATABASE}->createCatalogueTables({reconnected=>1});
     my  $addbh = new AliEn::Database::Admin();
     ($addbh)
       or $self->{LOGGER}->warning( "Admin", "Error getting the Admin" )
@@ -201,33 +191,14 @@ sub f_addHost {
       $self->{DATABASE}->grantBasicPrivilegesToUser($self->{DATABASE}->{DB}, $rtempUser->{Username}, $rtempUser->{password});
     }
     #Now, we have to fill in the tables
-    #First, all the hosts in HOSTS
-    foreach my $rtempHost (@$rhosts) {
-      $self->{DATABASE}->insertHost($rtempHost->{hostIndex}, $rtempHost->{address}, $rtempHost->{db}, $rtempHost->{driver});
-    }
+    $self->{DATABASE}->setAllReplicatedData($replicatedInfo) or return;
+
     $self->{DATABASE}->insertHost($hostIndex, $host, $db, $driver);
     
-    #Now, we should enter the data of D0
-    foreach my $rdir (@$rindexes) {
-      $self->debug(1, "Inserting an entry in INDEXES");
-      $self->{DATABASE}->do("INSERT INTO INDEXTABLE (hostIndex, tableName, lfn) values('$rdir->{hostIndex}', '$rdir->{tableName}', '$rdir->{lfn}')");
-    }
-    
-    #Also, GROUPS table;
-    foreach my $ruser (@$rusers) {
-      $self->debug(1, "Adding a new user");
-      $self->{DATABASE}->insertIntoGroups($ruser->{Username}, $ruser->{Groupname}, $ruser->{PrimaryGroup});
-    }
-
-    #and finally, the SE
-    foreach my $se (@$rses) {
-      $self->debug(1, "Adding a new user");
-      $self->{DATABASE}->insert("SE", $se);
-    }
   }
   
   #in the old nodes, add the new link
-  foreach my $rtempHost (@$rhosts) {
+  foreach my $rtempHost (@{$replicatedInfo->{hosts}}) {
     $self->debug(1, "Connecting to database ($rtempHost->{address} $rtempHost->{db} $rtempHost->{driver})");
     $self->{DATABASE}->reconnect( $rtempHost->{address}, $rtempHost->{db}, $rtempHost->{driver} );
     $self->{DATABASE}->insertHost($hostIndex, $host, $db, $driver, $org);
@@ -267,27 +238,10 @@ sub f_addUser {
   #	if ( !$noHomedir ) {
   #	}
 
-
-  my ($oldDB, $oldDriver, $oldHost)=($self->{DATABASE}->{DB}, $self->{DATABASE}->{DRIVER}, $self->{DATABASE}->{HOST});
-
-  my $rhosts = $self->{DATABASE}->getAllHosts();
-
   my $group = $self->getUserGroup($user);
 
-  foreach my $rtempHost (@$rhosts) {
-    print "Granting privileges for $user in $rtempHost->{db}\n";
-    $self->{DATABASE}->reconnect($rtempHost->{address}, $rtempHost->{db}, $rtempHost->{driver});
-
-    $self->{DATABASE}->grantExtendedPrivilegesToUser($self->{DATABASE}->{DB}, $user, $passwd);
-
-    $self->{DATABASE}->insertIntoGroups($user, $group, 1);
-  }
-	
-  #	my $centralServer   = $self->{CONFIG}->getValue('AUTHEN_HOST');
-  #	my $centralDB = $self->{CONFIG}->getValue('AUTHEN_DATABASE');
-  #	my $centralDriver   = $self->{CONFIG}->getValue('AUTHEN_DRIVER');
-
-  $self->{DATABASE}->reconnect( $oldHost, $oldDB, $oldDriver );
+  $self->{DATABASE}->addUser($user, $group, $passwd)
+    or return;
 
   my $token= $createToken->();
   $self->debug(1, "Deleting user from token");
@@ -307,7 +261,8 @@ sub f_addUser {
   my @privileges = ("SELECT ON $self->{CONFIG}->{QUEUE_DATABASE}.*",
 		    "SELECT ON $transfers[2].*",
 		    "SELECT ON $self->{CONFIG}->{IS_DATABASE}.*", 
-		   "INSERT,SELECT,UPDATE,DELETE ON $self->{CONFIG}->{CATALOG_DATABASE}.GUID");
+
+);
 
   $self->{DATABASE}->grantPrivilegesToUser(\@privileges,$user);
   my $procdir="/proc/$user/";
@@ -443,6 +398,35 @@ sub moveDirectoryToIndex {
   return $self->{DATABASE}->moveEntries($lfn);
 
 }
+
+sub moveGUIDToIndex_HELP{
+  return "moveGUID: moves all the GUID to a different table in the catalogue
+This command can only be executed by admin
+
+Usage:
+    moveGUID [<guid>]
+
+If the guid is not specified, a new one will be created
+";
+}
+
+sub moveGUIDToIndex {
+  my $self=shift;
+  my $guid=shift;
+
+
+  if ( $self->{ROLE} !~ /^admin(ssl)?$/ ) {
+    $self->info("Error: only the administrator can add new table (you are '$self->{ROLE}')");
+    return;
+  }
+  $self->{GUID} or $self->{GUID}=AliEn::GUID->new();
+  $guid or $guid=$self->{GUID}->CreateGuid();
+
+  $self->info( "All the guids newer than '$guid' will be in a different table");
+
+  return $self->{DATABASE}->moveGUIDs($guid);
+
+}
 sub expungeTables {
   my $self=shift;
   ( $self->{ROLE} =~ /^admin(ssl)?$/ ) or
@@ -478,58 +462,24 @@ sub addSE {
 
   ($site and $name) or $self->info($self->addSE_HELP()) and return;
 
-  my $addToTables=1;
-  my $SEName="$self->{CONFIG}->{ORG_NAME}::${site}::$name";
-  my $SEnumber=$self->{DATABASE}->queryValue("SELECT seNumber from SE where seName='$SEName'");
+  my ($dbName, $SEnumber)=$self->{DATABASE}->addSE($options, $site, $name) or return;
 
-  #Check that the SE doesn't exist;
-  if ($SEnumber){
-    if ($options =~ /p/) {
-      $addToTables=0;
-    } else {
-      $self->info("The se $SEName already exists!!", 1);
-      return;
-    }
-  }
-  my $dbName="se_".lc($SEName);
-  $dbName =~ s{::}{_}g;
-
-  if ($addToTables) {
-    #First, let's create the database
-    $SEnumber=1;
-    my $max=$self->{DATABASE}->queryValue("SELECT max(seNumber)+1 FROM SE");
-    ($max) and $SEnumber=$max;
-    
-    $self->info("Adding the new SE $SEName with $SEnumber");
-    
-    if (!$self->{DATABASE}->executeInAllDB("insert", "SE", {seName=>$SEName, seNumber=>$SEnumber})) {
-      $self->info("Error adding the entry");
-      $self->{DATABASE}->executeInAllDB("delete", "SE", "seName='$SEName' and seNumber=$SEnumber");
-      return;
-    }
-  }
   my $done=$self->{DATABASE_FIRST}->do("CREATE DATABASE IF NOT EXISTS $dbName")
     or return;
   print "The done returned $done\n";
   if ($done ne "0E0"){
+    require AliEn::Database::SE;
+    my ($host, $driver, $db)=split ( m{/}, $self->{CONFIG}->{CATALOGUE_DATABASE});
+    $self->{DATABASE_FIRST}->do("grant all on $dbName.* to $self->{CONFIG}->{CLUSTER_MONITOR_USER}");
+
+    my $s=AliEn::Database::SE->new({DB=>$dbName, DRIVER=>$driver, HOST=>$host, ROLE=>'admin'})
+    or $self->info("Error connecting to the database $dbName",3) and return;
+
     $self->{DATABASE_FIRST}->do("create function $dbName.string2binary (my_uuid varchar(36)) returns binary(16) deterministic sql security invoker return unhex(replace(my_uuid, '-', ''))") or return;
     $self->{DATABASE_FIRST}->do("create function $dbName.binary2string (my_uuid binary(16)) returns varchar(36) deterministic sql security invoker return insert(insert(insert(insert(hex(my_uuid),9,0,'-'),14,0,'-'),19,0,'-'),24,0,'-')");
     
-    $self->{DATABASE_FIRST}->do("grant all on $dbName.* to $self->{CONFIG}->{CLUSTER_MONITOR_USER}");
   }
 
-  $self->debug(2, "Let's create the tables");
-  require AliEn::Database::SE;
-  my ($host, $driver, $db)=split ( m{/}, $self->{CONFIG}->{CATALOGUE_DATABASE});
-
-  my $s=AliEn::Database::SE->new({DB=>$dbName, DRIVER=>$driver, HOST=>$host})
-    or $self->info("Error connecting to the database $dbName",3) and return;
-
-  if ($options=~ /d/){
-    $self->info("Copying the data");
-    $self->{DATABASE}->executeInAllDB("do", "insert into $dbName.FILES (pfn, size, guid)  select pfn, size, guid from FILES2 where se='$SEName'")
-  }
-  $self->info("Entry Added!!!");
 
   return $SEnumber;
 }

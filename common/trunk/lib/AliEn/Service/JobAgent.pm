@@ -1288,7 +1288,7 @@ sub putFiles {
     $self->putJobLog($id,"trace","Saving the files in the SE");
 
     #this hash will contain all the files that have already been submitted,
-    #so that we can now if we are registering a new file or a replica
+    #so that we can know if we are registering a new file or a replica
     my $submitted={};
     my $localdir= $self->{WORKDIR};
     foreach my $fileName (@files){
@@ -1330,9 +1330,12 @@ sub putFiles {
 	next;
       }
       if ($submitted->{$file2}){
-	$submitted->{$file2}->{selist}.=",$info->{selist}";
+	my @list=@{$submitted->{$file2}->{PFNS}};
+	push @list, "$info->{selist}/$info->{pfn}";
+	$submitted->{$file2}->{PFNS}.=\@list;
       }else{
 	$submitted->{$file2}=$info;
+	$submitted->{$file2}->{PFNS}=["$info->{selist}/$info->{pfn}"];
       }
 				 
     }
@@ -1346,6 +1349,8 @@ sub putFiles {
       my $info;
       my $guid="";
       foreach my $se (@ses) {
+	my $optional=0;
+	$se=~ s/_optional$//i and $optional=1;
 	$self->info("Putting the file $arch->{name} in $se (guid $guid)");
 	$self->putJobLog($id,"trace","Registering $arch->{name} in $se");
 	my ($info2, $silent)=(undef, "-silent");
@@ -1375,9 +1380,13 @@ sub putFiles {
 	next;
       }
       if ($submitted->{$arch->{name}}){
-	$submitted->{$arch->{name}}->{selist}.=",$info->{selist}";
+	my @list=@{$submitted->{$arch->{name}}->{PFNS}};
+	push @list, "$info->{selist}/$info->{pfn}";
+	$submitted->{$arch->{name}}->{PFNS}.=\@list;
       }else{
 	$submitted->{$arch->{name}}=$info;
+	$submitted->{$arch->{name}}->{PFNS}=["$info->{selist}/$info->{pfn}"];
+
       }
       my @list;
       foreach my $file( keys %{$arch->{entries}}) {
@@ -1397,7 +1406,7 @@ sub putFiles {
 	$links.=";;".join(";;",@{$entry->{links}});
       }
       push @list, "\"".join ("###", $key, $entry->{guid}, $entry->{size}, 
-			     $entry->{md5}, $entry->{selist}, $links) ."\"";
+			     $entry->{md5},  @{$entry->{PFNS}}, $links) ."\"";
     }
     if (@list) {
       
@@ -1672,6 +1681,7 @@ sub submitFileToClusterMonitor{
     print STDERR "File $fullName could not be opened\n";
     return;
   }
+  my $md5=AliEn::MD5->new($fullName);
   my $id=$ENV{ALIEN_PROC_ID};
   my $var = SOAP::Data->type( base64 => $buffer );
   my $org=$self->{CONFIG}->{ORG_NAME};
@@ -1684,28 +1694,26 @@ sub submitFileToClusterMonitor{
       "Error contacting ClusterMonitor 	$ENV{ALIEN_CM_AS_LDAP_PROXY}\n"
 	and return;
 	
-	print "Inserting $done in catalog...";
+  print "Inserting $done in catalog...";
 
     #    print STDERR "$localdirectory/$filename has size $size\n";
   # To make sure we are in the right database.
   
   my $return=$lfn;
+
   if (! $options->{no_register}){
     my $dir= AliEn::Util::getProcDir($self->{JOB_USER}, undef, $ENV{ALIEN_PROC_ID}) . "/job-log";
     my $host="$ENV{ALIEN_CM_AS_LDAP_PROXY}";
     $catalog->execute("mkdir", $dir);
-    ( $catalog->execute( "register",  "$dir/$lfn",
-			 "soap://$ENV{ALIEN_CM_AS_LDAP_PROXY}$done?URI=ClusterMonitor",$size) )
+
+    $catalog->execute( "register",  "$dir/$lfn",
+		       "soap://$ENV{ALIEN_CM_AS_LDAP_PROXY}$done?URI=ClusterMonitor",$size, "no_se", "-md5", $md5) 
       or print STDERR "ERROR Adding the entry $done to the catalog!!\n"
 	and return;
-  } else {
-    print "Let's put the log file in the JDL\n";
-    my $ui=AliEn::UI::Catalogue::LCM->new({no_catalog=>1});
-    ($return)=$ui->execute("upload", "-u", "soap://$ENV{ALIEN_CM_AS_LDAP_PROXY}$done?URI=ClusterMonitor")
-#    $return=
   }
-  print "done!!\n";
-  return $return;
+
+  return {size=>$size, md5=>$md5, se=>'no_se', 
+	  pfn=>"soap://$ENV{ALIEN_CM_AS_LDAP_PROXY}$done?URI=ClusterMonitor"};
 }
 
 sub catch_zap {
@@ -2404,9 +2412,13 @@ sub registerLogs {
     my $basename=$1;
     my $data=$self->submitFileToClusterMonitor($dir,$basename, "execution.out",
 					       $catalog, {no_register=>$skip_register});
-    if ($skip_register) {
+    $data or $self->info("Error submitting the log file") and return;
+    use Data::Dumper;
+    print "After submitting the file". Dumper ($data);
+
+    if (defined $skip_register) {
       $self->info("And now, let's update the jdl");
-      $self->{CA}->set_expression("RegisteredLog", "\"execution.out###$data->{guid}###$data->{size}###$data->{md5}###$data->{selist}###\"");
+      $self->{CA}->set_expression("RegisteredLog", "\"execution.out######$data->{size}###$data->{md5}###$data->{se}/$data->{pfn}###\"");
       $self->{JDL_CHANGED}=1;
     }
   };

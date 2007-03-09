@@ -40,6 +40,7 @@ sub f_registerFile {
   my $perm = (shift or $self->{UMASK});
   my $selist= shift || 0;
   my $md5  = shift;
+  my $pfn =shift ||"";
 
 
 
@@ -76,9 +77,11 @@ sub f_registerFile {
 	      gowner=>$self->{MAINGROUP}, size =>$size,guid=>$guid,  };
   $se and $insert->{se}=$se;
   $md5 and $insert->{md5}=$md5;
+  $pfn and $insert->{pfn}=$pfn;
   $selist and $insert->{seStringList}=$selist;
+
   $self->{DATABASE}->createFile($opt, $insert)
-    or print STDERR "Error inserting entry into directory\n"
+    or $self->infi("Error inserting entry into directory")
       and return;
 
   $self->info("File $file inserted in the catalog");
@@ -97,14 +100,15 @@ sub f_bulkRegisterFile {
   my $options=shift;
   my $directory=shift;
   my $files = shift;
-
+  
+  $directory=$self->f_complete_path($directory);
 
   # First, we check that we have permission in that directory
 #  my $tempname = $self->f_dirname($file);
 
   my $permLFN=$self->checkPermissions( 'w', $directory ) or  return;
   $self->isDirectory($directory, $permLFN) or
-    $self->{LOGGER}->error("File", "$directory is not a directory!!",1) 
+    $self->info("$directory is not a directory!!",1) 
       and return;
 
   my $ok=1;
@@ -117,17 +121,19 @@ sub f_bulkRegisterFile {
       $entry->{guid} and $DEBUG and $self->debug(2,"Got $entry->{guid}");
     }
     $entry->{lfn}=~ m{/} and
-      $self->info("The entry $entry->{lfn} cannot be inserted") and return;
+      $self->info("The entry $entry->{lfn} cannot be inserted in bulk (there can't be any directories") and return;
     $entry->{lfn}="$directory/$entry->{lfn}";
     # Now, insert it into D0, and in the table
-    my $insert={lfn=>$entry->{lfn},  perm=>$self->{UMASK}, owner=>$self->{ROLE},
-		gowner=>$self->{MAINGROUP}, size =>$entry->{size},
-		guid=>$entry->{guid},  };
+    my $insert={lfn=>$entry->{lfn},  perm=>$self->{UMASK}, 
+		owner=>$self->{ROLE}, gowner=>$self->{MAINGROUP},
+		size =>$entry->{size},	guid=>$entry->{guid},  };
     $entry->{se} and $insert->{se}=$entry->{se};
     $entry->{md5} and $insert->{md5}=$entry->{md5};
     $entry->{selist} and $insert->{se}=$entry->{selist};
     $entry->{seStringlist} and $insert->{seStringList}=$entry->{seStringlist};
     $entry->{user} and $insert->{owner}=$insert->{gowner}=$entry->{user};
+    $entry->{pfn} and $insert->{pfn}=$entry->{pfn};
+    $entry->{pfns} and $insert->{pfns}=$entry->{pfns};
     $list.="$entry->{lfn} ";
     push @insert, $insert;
   }
@@ -156,10 +162,10 @@ sub f_whereisFile {
     return;
   }
   if ($options =~ /g/){
-      my $ret={};
-      $ret->{selist}   = $self->{DATABASE}->getSEListFromFile($lfn, $permFile->{seStringlist});
-      $ret->{fileinfo} = $permFile;
-      return $ret;
+    my $ret={};
+    $ret->{selist}   = $self->{DATABASE}->getSEListFromFile($lfn, $permFile->{seStringlist});
+    $ret->{fileinfo} = $permFile;
+    return $ret;
   }else {
     return $self->{DATABASE}->getSEListFromFile($lfn, $permFile->{seStringlist});
   }
@@ -167,6 +173,14 @@ sub f_whereisFile {
 #
 #
 #
+
+sub f_updateFile_HELP {
+  return "Updates the information concerning a file in the catalogue
+Usage:
+  update <lfn> [-se <se>] [-guid <guid>] [-size <size>] [-md5 <md5>]
+\n";
+
+}
 sub f_updateFile {
   my $self = shift;
   $self->debug(2, "In File Interface, f_updateFile @_");
@@ -178,9 +192,10 @@ sub f_updateFile {
   my $update = {};
 
   $args =~ s/-?-s(ize)?[\s=]+(\S+)// and $update->{size}=$2;
-  $args =~ s/-?-s(e)?[\s=]+(\S+)// and $update->{se}="$2";
-  $args =~ s/-?-g(uid)?[\s=]+(\S+)// and $update->{guid}="string2binary(\"$2\")";
-  $args =~ s/-?-m(d5)?[\s=]+(\S+)// and $update->{md5}="\"$2\"";
+  $args =~ s/-?-s(e)?[\s=]+(\S+)// and $update->{se}=$2;
+  $args =~ s/-?-g(uid)?[\s=]+(\S+)// and $update->{guid}=$2;
+  $args =~ s/-?-m(d5)?[\s=]+(\S+)// and $update->{md5}=$2;
+  $args =~ s/-?-p(fn)?[\s=]+(\S+)// and $update->{pfn}=$2;
 
   my $message="";
 
@@ -188,7 +203,7 @@ sub f_updateFile {
   $args =~ /^\s*$/ or $message="Argument $args not known";
 
   $message
-    and print STDERR "Error: $message\nUsage:\n\t update <lfn> [-size <size>] [-guid <guid>] [-md5 <md5>]\n"
+    and print STDERR "Error:$message\n".$self->f_updateFile_HELP()
       and return;
 
   $file = $self->f_complete_path($file);
@@ -202,7 +217,7 @@ sub f_updateFile {
 
   $DEBUG and $self->debug(2, "Ready to do the update");
 
-  $self->{DATABASE}->updateFile($file, $update, {noquotes=>1})
+  $self->{DATABASE}->updateFile($file, $update, )
     or $self->info( "Error doing the update of $file",11)
       and return;
 
@@ -226,11 +241,10 @@ sub f_getGuid {
       and return;
 
   $file = $self->f_complete_path($file);
-  ( $self->checkPermissions( 'r', $file ) ) or return;
-
-  return $self->{DATABASE}->getAllInfoFromDTable({retrieve=>"guid",
-						  method=>"queryValue"},
-						 $file,);
+  my $info=$self->checkPermissions( 'r', $file,undef, {RETURN_HASH=>1} )
+    or return;
+  $info->{guid} or $self->info("The file '$file' doesn't exist") and return;
+  return $info->{guid};
 }
 
 #
@@ -247,27 +261,27 @@ sub f_getMD5 {
       and return;
 
   $file = $self->f_complete_path($file);
-  my $permLFN=$self->checkPermissions( 'r', $file ) or return;
-  if (! $self->isFile($file, $permLFN) ) {
+  my $permLFN=$self->checkPermissions( 'r', $file, undef, {RETURN_HASH=>1} )
+    or return;
+  if (! $self->isFile($file, $permLFN->{lfn}) ) {
     $self->{LOGGER}->error("File", "file $file doesn't exist!!",1);
     return;
   }
 
-  my $hash={retrieve=>"md5", 
-	    method=>"queryValue"};
-  #options g -> let's return as well the guid
-  $options=~ /g/ and $hash={method=>"queryRow"};
-  my $data = $self->{DATABASE}->getAllInfoFromDTable($hash, $file,)
-    or return;
+  my $guid=$permLFN->{guid};
+  my $md5 = $self->{DATABASE}->getAllInfoFromGUID({retrieve=>"md5",
+						   method=>"queryValue"},
+						  $guid)
+    or $self->info("The file $file doesn't have an md5sum") and return;
 
   if ($options=~ /g/ ){
-    $data->{md5} or $data->{md5}="";
+#    $data->{md5} or $data->{md5}="";
     $options =~ /s/ or 
-      $self->info("$data->{md5}\t$file (guid $data->{guid})", undef,0);
-    return $data;
+      $self->info("$md5\t$file (guid $guid)", undef,0);
+    return {md5=>$md5, guid=>$guid};
   }
-  $options =~ /s/ or $self->info("$data\t$file", undef,0);
-  return $data;
+  $options =~ /s/ or $self->info("$md5\t$file", undef,0);
+  return $md5;
 }
 
 
@@ -325,8 +339,9 @@ sub f_addMirror {
   ( $self->{SILENT} ) or print "Adding a mirror @_\n";
 
   my $file = shift;
-  my $se   = (shift or $self->{CONFIG}->{SE_FULLNAME});
-
+  my $se   = shift || $self->{CONFIG}->{SE_FULLNAME};
+  my $pfn  =shift || "";
+  my $md5 =shift;
   $file or $self->info( "Error not enough arguments in addMirror\nUsage:\n\t addMirror <lfn> <se>\n",1) and return;
   $file = $self->f_complete_path($file);
 
@@ -335,8 +350,11 @@ sub f_addMirror {
     $self->{LOGGER}->error("File", "file $file doesn't exist!!",1);
     return;
   }
-
-  $self->{DATABASE}->insertMirrorFromFile($file, $se) or return;
+  if (!$md5){
+    $md5=AliEn::MD5->new($pfn);
+    $md5 or $self->info("Error getting the md5sum of '$pfn'") and return;
+  }
+  $self->{DATABASE}->insertMirrorFromFile($file, $se, $pfn, $md5) or return;
   $self->{SILENT}
     or print "File '$file' has a mirror in '${se}'\n";
   return 1;
@@ -442,18 +460,19 @@ Syntax:
 Possible options:
    -k: do not copy the source directory, but the content of the directory
    -u <user>: copy with a different user name (only for admin)
+   -m: copy also the metadata
 ";
 }
 sub f_cp {
   my $self   = shift;
   my $opt= {};
   @ARGV=@_;
-  Getopt::Long::GetOptions($opt,  "k", "user=s") or 
+  Getopt::Long::GetOptions($opt,  "k", "user=s", "m") or 
       $self->info("Error parsing the ") and return;;
   @_=@ARGV;
   my $source = shift;
   my $target = pop;
-  
+
   $opt->{user} and $self->{DATABASE}->{ROLE} !~ /^admin(ssl)?$/
     and $self->info("Only the admin can copy on behave of other users") and 
       return;
@@ -468,7 +487,9 @@ sub f_cp {
 
   my $targetPerm=$self->checkPermissions( "w", $target, undef, {ROLE=>$opt->{user}} ) or return;
   my $targetIsDir=$self->isDirectory($target, $targetPerm);
-  
+  my $targetDir=$target;
+  ( $targetIsDir) or $targetDir=~ s{/[^/]*$}{/}; 
+
   if (@moreFiles && not $targetIsDir) {
     $self->info("cp: copying multiple files, but last argument '$target' is not a directory", 0,0);
     return;
@@ -479,6 +500,7 @@ sub f_cp {
   }
   my @done;
   my @todo;
+  my $todoMetadata={};
   foreach my $file ($source,@moreFiles) {
     $source = $self->GetAbsolutePath($file, 1);
 
@@ -510,14 +532,72 @@ sub f_cp {
     $sourceHash->{lfn}=$targetName;
     $self->{SILENT} or print "Copying $source to $targetName...\n";
     $opt->{user} and $sourceHash->{user}= $opt->{user};
-    push @todo, $sourceHash;
+    delete $sourceHash->{Groupname};
+    delete $sourceHash->{Username};
+    delete $sourceHash->{gowner};
+    delete $sourceHash->{owner};
+    delete $sourceHash->{PrimaryGroup};
 
+    push @todo, $sourceHash;
+    if ($opt->{'m'}){
+      my $info=$self->getCPMetadata($source, $targetDir, $targetName)
+	or return;
+      foreach my $key (keys %$info){
+	my @list=();
+	$todoMetadata->{$key} and push @list, @{$todoMetadata->{$key}};
+	push @list, @{$info->{$key}};
+	$todoMetadata->{$key}=\@list;
+      }
+    }
   }
   if (@todo) {
     push @done, $self->f_bulkRegisterFile("k", $target, \@todo);
   }
+  foreach my $key (keys %$todoMetadata){
+    $self->info("Inserting also the metadata information");
+    $self->{DATABASE}->{LFN_DB}->multiinsert($key, $todoMetadata->{$key}) 
+      or return;
+  }
+    
 
   return @done;
+}
+
+sub getCPMetadata{
+  my $self=shift;
+  my $source=shift;
+  my $targetDir=shift;
+  my $targetName=shift;
+
+  $targetDir=~ s{/?$}{/};
+  $self->info("We are supposed to copy also the metadata");
+  my $sourceDir=$source;
+  $sourceDir=~ s{/[^/]*$}{};
+  my $tags=$self->f_showTags("all", $sourceDir);
+  my $entries={};
+  foreach my $tag (@$tags){
+    #making sure that the destination has all the tags#
+    print "We should add the tag $tag\n";
+    use Data::Dumper;
+    print Dumper($tag);
+    $self->f_addTag($targetDir, $tag->{tagName}, $tag->{tagName}, $tag->{path}) or $self->info("Error defining the metadata $tag->{tagName}") and return;
+    my $tableName= $self->{DATABASE}->getTagTableName($targetDir, $tag->{tagName}) or $self->info("Error getting the name of the table") and return;
+    #let's put the entries 
+    my @list=();
+    $entries->{$tag->{tagName}} and push @list, @{$entries->{$tag->{tagName}}};
+    print "Getting the metadata\n";
+    my ($columns, $info)= $self->f_showTagValue($sourceDir, $tag->{tagName}) or return;
+    foreach my $entry (@$info){
+      my $toInsert={file=>"$targetDir$targetName"};
+      foreach my $key (keys %$entry){
+	$key =~ /^(entryId)|(file)$/ and next;
+	$toInsert->{$key}=$entry->{$key};
+      }
+      push @list, $toInsert;
+    }
+    $entries->{$tableName}=\@list;
+  }
+  return $entries;
 }
 
 sub f_mv {
@@ -569,7 +649,7 @@ sub Getopts {
 sub f_touch {
   my $self=shift;
   my $options=shift;
-  my $lfn=shift;
+  my $lfn=shift or $self->info("Error missing the name of the file to touch",undef,2) and return;
   
   $self->info( "Touching $lfn");
   
@@ -587,4 +667,109 @@ sub f_du {
 
   return $space;
 }
+
+=item C<whereis($options, $lfn)>
+
+This subroutine returns the list of SE that have a copy of an lfn
+Possible options:
+
+=over
+
+
+=item -l do not get the pfns (return only the list of SE)
+
+
+=item -s tell the SE to stage the files
+
+
+=item -r resolve links
+
+
+=item -i return as well the information of the file
+
+
+=back
+
+
+=cut
+
+sub f_whereis{
+  my $self=shift;
+  my $options=shift;
+  my $lfn=shift;
+  my @failurereturn;
+  my $failure;
+
+  my $returnval;
+  $failure->{"__result__"} = 0;
+
+  push @failurereturn,$failure;
+
+
+  if (!$lfn) {
+    $self->info( "Error not enough arguments in whereis. Usage:\n\t whereis [-l] lfn
+Options:
+\t-l: Get only the list of SE (not the pfn)");
+    if ($options=~/z/) {return @failurereturn;} else {return};
+  }
+  my $guidInfo;
+  my $info;
+  if ($options =~ /g/){
+    $self->info("Let's get the info from the guid");
+    $guidInfo=$self->{DATABASE}->getAllInfoFromGUID({pfn=>1},$lfn)
+      or $self->info("Error getting the info of the guid '$lfn'") and return;
+    $info=$guidInfo;
+  }else {
+    $lfn = $self->GetAbsolutePath($lfn);
+    my $permFile=$self->checkPermissions( 'r', $lfn,  )  or  return;
+    $info=$self->{DATABASE}->getAllExtendedInfoFromLFN($lfn)
+      or $self->info("Error getting the info from '$lfn'") and return;
+    $info->{guidInfo} or 
+      $self->info("That lfn is not associated with a guid") and return;
+    $guidInfo=$info->{guidInfo};
+  }
+
+  ($guidInfo and $guidInfo->{pfn}) 
+    or $self->info("Error getting the data from $lfn") and return; 
+  my @SElist=@{$guidInfo->{pfn}};
+
+  $self->info( "The file $lfn is in");
+  my @return=();
+  if ($options =~ /r/){
+    $self->info("We are supposed to resolve links");
+    my @newlist=();
+    foreach my $entry (@SElist){
+      if ($entry->{pfn} =~ m{^guid://[^/]*/(.*)(\?.*)$} ){
+	$self->info("We should check the link $1!!");
+	my @done=$self->f_whereis("g$options", $1)
+	  or $self->info("Error doing the where is of guid '$1'") and return;
+	push @return, @done;
+      }else {
+	push @newlist, $entry;
+      }
+    }
+    @SElist=@newlist;
+  }
+  
+  foreach my $entry (@SElist){
+    my ($se, $pfn)=($entry->{seName}, $entry->{pfn} || "auto");
+    $self->info("\t\t SE => $se  pfn =>$pfn ",undef, 0);
+    if ($options !~ /l/){
+      if ($options=~ /z/){
+	push @return, {se=>$se, guid=>$guidInfo->{guid}, pfn=>$pfn};
+      } else{
+	push @return, $se, $pfn;
+      }
+    } else {
+      if ($options=~ /z/){
+	push @return, {se=>$se};
+      } else{
+	push @return, $se;
+      }
+    }
+  }
+  $options =~ /i/ and return $info;
+  return @return;
+}
+
 return 1;
