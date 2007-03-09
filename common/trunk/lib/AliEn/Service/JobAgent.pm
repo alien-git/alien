@@ -995,6 +995,8 @@ sub mergeXMLfile{
   my ($ok, @lfn)=$self->{CA}->evaluateAttributeVectorString("InputData");
 
   map {s{^lf:}{alien://}i} @lfn;
+  map {s{,.*$}{}i} @lfn;
+
   foreach my $event (keys %{$info->{collection}->{event}}){
     my $delete=1;
     foreach my $entry (keys %{$info->{collection}->{event}->{$event}->{file}}){
