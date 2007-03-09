@@ -270,9 +270,10 @@ sub getFreeSlots {
     }
   }
   my $jobAgents = $self->getQueueStatus();
-  $self->info("Total for this VO Box: $totFree/$totCPUs (R:$totRunning, W:$totWaiting, JA:$jobAgents)");
+  my $runningJA = $jobAgents - $self->getNumberQueued();
+  $self->info("Total for this VO Box: $totFree/$totCPUs (R:$totRunning, W:$totWaiting, JA:$runningJA/$jobAgents)");
   my $value = $totFree + $jobAgents;
-  if ($jobAgents >= 2*$totCPUs) {
+  if ($jobAgents >= 3*$totCPUs && $totCPUs > 0) {
     $value = $jobAgents;
     $self->info("Too many waiting job agents ($jobAgents for $totCPUs CPUs)"); ###
   }
@@ -376,7 +377,7 @@ sub renewProxy {
    my $duration = shift;
    $duration or $duration=$self->{CONFIG}->{CE_TTL};
    $duration or $duration = 100000; #in seconds
-   $self->info("Renewing proxy for $duration seconds");
+   $self->info("Checking whether to renew proxy for $duration seconds");
    $self->debug(1,"\$X509_USER_PROXY is $ENV{X509_USER_PROXY}");
    my $ProxyRepository = "$self->{CONFIG}->{VOBOXDIR}/proxy_repository";
    my $command = "vobox-proxy --vo \L$self->{CONFIG}->{ORG_NAME}\E query-dn";
@@ -395,7 +396,7 @@ sub renewProxy {
    my $timeLeft = `$command`;
    chomp $timeLeft;
    my $thres = $duration-$gracePeriod;
-   $self->info("Proxy timeleft is $timeLeft ($thres)");
+   $self->info("Proxy timeleft is $timeLeft (threshold is $thres)");
    return 1 if ( $gracePeriod && $timeLeft>$thres );
    # I apparently cannot pass this via an argument
    my $currentProxy = $ENV{X509_USER_PROXY};
