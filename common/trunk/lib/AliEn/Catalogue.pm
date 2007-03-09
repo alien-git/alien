@@ -82,6 +82,7 @@ use AliEn::Catalogue::File;
 use AliEn::Catalogue::Admin;
 use AliEn::Catalogue::Group;
 use AliEn::Catalogue::Tag;
+use AliEn::Catalogue::GUID;
 use AliEn::Catalogue::Trigger;
 use AliEn::Catalogue::Env;
 use AliEn::Catalogue::Basic;
@@ -100,7 +101,7 @@ $DEBUG=0;
 	'AliEn::Catalogue::File',  'AliEn::Catalogue::Admin',
 	'AliEn::Catalogue::Group', 'AliEn::Catalogue::Tag',
 	'AliEn::Catalogue::Env', 'AliEn::Catalogue::Basic', 
-	'AliEn::Catalogue::Trigger',
+	'AliEn::Catalogue::Trigger', 'AliEn::Catalogue::GUID',
 	'AliEn::Logger::LogObject',@ISA
 );
 
@@ -203,7 +204,7 @@ Site name:$self->{CONFIG}->{SITE}");
   $self->{DATABASE} = AliEn::Database::Catalogue->new($DBoptions)
     or return;
 
-  $self->{ROLE}=$self->{DATABASE}->{ROLE};
+  $self->{ROLE}=$self->{DATABASE}->{LFN_DB}->{ROLE};
 
   $self->_setUserGroups($self->{ROLE});
 
@@ -364,6 +365,7 @@ sub f_lsInternal {
   my $options = shift;
   my $path = (shift or "");
 
+
   $path = $self->GetAbsolutePath($path);
 
   $DEBUG and $self->debug(1, "Listing $path with options $options" );
@@ -386,7 +388,7 @@ sub f_lsInternal {
     $path=~ s{/[^/]*/$}{/};
     $DEBUG and $self->debug(1, "Listing an entry");
     push @all, $entryInfo;
-#    push @all, $self->{DATABASE}->getAllInfoFromDTable({method=>"queryRow"}, $entry);
+#    push @all, $self->{DATABASE}->getAllInfoFromLFN ({method=>"queryRow"}, $entry);
   }
   my $dir=$lfn;
   $dir=~ s{[^/]*$}{};
@@ -399,8 +401,8 @@ sub f_lsInternal {
 
     ($self->checkPermissions( 'r', $parentpath )) or return;
 
-    my $entry=$self->{DATABASE}->getAllInfoFromDTable({method=>"queryRow"},
-							 $parentpath);
+    my $entry=$self->{DATABASE}->getAllInfoFromLFN({method=>"queryRow"},
+						   $parentpath);
     if ($entry) {
       $entry->{lfn}="..";
       @all=(shift @all, $entry, @all);
@@ -639,7 +641,7 @@ sub f_mkdir {
     $self->info( "You don't have privileges to create the directory");
     return;
   }
-  my $done=$self->{DATABASE}->createDirectory("$path/",$self->{ROLE},$self->{MAINGROUP},$self->{UMASK});
+  my $done=$self->{DATABASE}->createDirectory("$path/",$self->{UMASK});
 
   $DEBUG and $self->debug(1, "Directory $path created");
   return $done;
@@ -724,51 +726,52 @@ sub f_mkremdir {
       "Error: $DB in $host (driver $driver) is not in the current list of remote hosts. Add it first with 'addHost'\n";
     return;
   }
+  print "\n\nVAMOS ALLA\n";
   return $self->{DATABASE}->createRemoteDirectory($hostIndex,$host, $DB, $driver, $lfn);
 }
 
-sub f_rmlink {
-    my $self = shift;
-    my $link = shift;
+#sub f_rmlink {
+#    my $self = shift;
+#    my $link = shift;
+#
+#    if ( !$link ) {
+#        print STDERR (
+#            "ERROR: wrong arguments in rmlink.\n Usage: rmlink <link>\n");
+#        return;
+#    }
+#
+#    $link =~ s/\/$//;
+#    my $newpath = $self->f_complete_path( $link . "/" );
 
-    if ( !$link ) {
-        print STDERR (
-            "ERROR: wrong arguments in rmlink.\n Usage: rmlink <link>\n");
-        return;
-    }
+#    if ( !$self->f_dir($newpath) ) {
+#        print STDERR "Error: directory $newpath does not exist!\n";
+#        return;
+#    }
 
-    $link =~ s/\/$//;
-    my $newpath = $self->f_complete_path( $link . "/" );
+#    my $parent   = $self->f_parent_dir($link);
+#    my $basename = $self->f_basename($link);
 
-    if ( !$self->f_dir($newpath) ) {
-        print STDERR "Error: directory $newpath does not exist!\n";
-        return;
-    }
+#    my ($out) = $self->{DATABASE}->getFieldsFromDir($parent, $basename,"type,owner");
 
-    my $parent   = $self->f_parent_dir($link);
-    my $basename = $self->f_basename($link);
+#    defined $out
+#    	or return;
 
-    my ($out) = $self->{DATABASE}->getFieldsFromDir($parent, $basename,"type,owner");
+#	my $type = $out->{"type"}; my $owner = $out->{"owner"};
 
-    defined $out
-    	or return;
+#    if ( $type ne "l" ) {
+#        print STDERR "Error: $link is not a link!!\n";
+#        return;
+#    }
 
-	my $type = $out->{"type"}; my $owner = $out->{"owner"};
+#    if ( $owner ne $self->{ROLE} ) {
+#        print STDERR "Error: You do not have permission to delete the link!!\n";
+#        return;
+#    }
 
-    if ( $type ne "l" ) {
-        print STDERR "Error: $link is not a link!!\n";
-        return;
-    }
-
-    if ( $owner ne $self->{ROLE} ) {
-        print STDERR "Error: You do not have permission to delete the link!!\n";
-        return;
-    }
-
-    #now, delete the entry from the father and D0
-	#$self->{DATABASE}->deleteDirFromParent($parent, $newpath);
-    $self->{DATABASE}->deleteLink($parent, $basename, $newpath);
-}
+#    #now, delete the entry from the father and D0
+#	#$self->{DATABASE}->deleteDirFromParent($parent, $newpath);
+#    $self->{DATABASE}->deleteLink($parent, $basename, $newpath);
+#}
 
 sub f_Database_existsEntry {
     my $self=shift;
@@ -823,7 +826,7 @@ sub existsEntry {
   if ( !$permFile) {
     $self->selectDatabase($lfn) or return;
 
-    return $self->{DATABASE}->existsEntry( $lfn);
+    return $self->{DATABASE}->existsLFN( $lfn);
   }
   $lfn =~ s/\*/\\\*/g;
   $lfn =~ s/\?/\\\?/g;
@@ -1378,7 +1381,7 @@ sub f_stat {
   $lfn =~ s{/$}{};
   $DEBUG and $self->debug(1, "Getting the stat of $lfn");
   
-  my $info=$self->{DATABASE}->getAllInfoFromDTable({method=>"queryRow"}, 
+  my $info=$self->{DATABASE}->getAllInfoFromLFN({method=>"queryRow"}, 
 						   $lfn, "$lfn/") or return;
   $self->info("File $info->{lfn} Type: $info->{type}  Perm: $info->{perm} Size: $info->{size}",undef,0);
   return $info;
@@ -2018,24 +2021,24 @@ sub DESTROY {
 }
 
 sub _setUserGroups{
-    my $self = shift;
-    my $user = shift;
+  my $self = shift;
+  my $user = shift;
 
-	my $result = $self->{DATABASE}->getUserGroups($user);
+  my $result = $self->{DATABASE}->getUserGroups($user);
 
-    $result
-    	or $self->{LOGGER}->error("Catalogue","Error during database query execution")
-        and return;
+  $result or 
+    $self->{LOGGER}->error("Catalogue","Error during database query execution")
+      and return;
 
-    ( $self->{MAINGROUP} ) = $result->[0];
+  ( $self->{MAINGROUP} ) = $result->[0];
 
-    $result = $self->{DATABASE}->getUserGroups($user, 0);
+  $result = $self->{DATABASE}->getUserGroups($user, 0);
+  $self->{DATABASE}->setUserGroup($user, $self->{MAINGROUP});
+  $result
+    or $self->{LOGGER}->error("Catalogue","Error during database query execution")
+      and return;
 
-    $result
-    	or $self->{LOGGER}->error("Catalogue","Error during database query execution")
-        and return;
-
-    ( $self->{GROUPS} ) = join " ", @$result;
+  ( $self->{GROUPS} ) = join " ", @$result;
 }
 
 

@@ -79,7 +79,7 @@ my %LCM_commands;
 		 'services' => ['$self->services', 0],
 		 'preFetch'   => '$self->preFetch',
 		 'vi'       => ['$self->vi', 0],
-		 'whereis'  => ['$self->whereis', 19],
+		 'whereis'  => ['$self->{CATALOG}->f_whereis', 19],
 		 'purge'    => ['$self->purge', 0 ],
 		 'erase'    => ['$self->erase', 0 ],
 		 'upload'   => ['$self->upload', 0],
@@ -258,52 +258,56 @@ sub get {
 "Error: not enough arguments in get\nUsage: get [-n] [-o]<file> [<localfile>]\n"
   and return;
 
-  $file=$self->{CATALOG}->f_complete_path($file);
-  #Get the pfn from the catalog
-  my $oldSilent = $self->{CATALOG}->{SILENT};
+  my ($guidInfo);
   
-  my ($md5, $guid);
-  my $ret = $self->{CATALOG}->f_getMD5("sg", $file);
-  $md5  = $ret->{md5};
-  $guid = $ret->{guid};
+  if ($opt =~ /g/){
+    $self->debug(1, "Getting it directly from the guid '$file'");
+    $guidInfo=$self->{CATALOG}->getInfoFromGUID($file)
+      or return;
+  }else {
+    #Get the pfn from the catalog
 
-  $guid or $self->info("Error getting the guid and md5 of $file",-1) and return;
+    my $info=$self->{CATALOG}->f_whereis("i",$file)
+      or $self->info("Error getting the info from '$file'") and return;
 
-  ######################################################################################
-  #get the authorization envelope and put it in the IO_AUTHZ environment variable
-  my @envelope = $self->access("-s","read","$file");
-  if (!defined $envelope[0]->{envelope}) {
-    $self->info( "Cannot get access to $file") and return;
+    $file=$info->{lfn};
+    $guidInfo=$info->{guidInfo};
+    ######################################################################################
+    #get the authorization envelope and put it in the IO_AUTHZ environment variable
+    my @envelope = $self->access("-s","read","$file");
+    if (!defined $envelope[0]->{envelope}) {
+      $self->info( "Cannot get access to $file") and return;
+    }
+    
+    $ENV{'IO_AUTHZ'} = $envelope[0]->{envelope};
+    ######################################################################################
   }
-
-  $ENV{'IO_AUTHZ'} = $envelope[0]->{envelope};
-  ######################################################################################
-
+  $guidInfo->{guid} or 
+    $self->info("Error getting the guid and md5 of $file",-1) and return;
+  
   #First, let's check the local copy of the file
-  my $result=$self->{STORAGE}->getLocalCopy($guid, $localFile);
+  my $result=$self->{STORAGE}->getLocalCopy($guidInfo->{guid}, $localFile);
   if (! $result) {
-    $self->{STORAGE}->checkDiskSpace($ret->{size}, $localFile) or return;
-    my $seRef = $self->{CATALOG}->f_whereisFile("s$opt", $file);
+    $self->{STORAGE}->checkDiskSpace($guidInfo->{size}, $localFile) or return;
+    my $seRef = $guidInfo->{pfn};
 
     #Get the file from the LCM
-    $seRef or $self->info( $self->{LOGGER}->error_msg())
+    $seRef or $self->info("Error getting the list of pfns")
       and return;
 
     my (@seList ) = $self->selectClosestSE(@$seRef);
     $self->debug(1, "We can ask the following SE: @seList");
 
-    while (my $se=shift @seList) {
-      my @pfns=$self->getPFNfromGUID($se, $guid);
-      @pfns or next;
-      foreach my $pfn (@pfns) {
-	$result = $self->{STORAGE}->getFile( $pfn, $se, $localFile, $opt, $file, $guid,$md5 );
-	if ($result) {
-	  $self->info("And the file is $result",0,0);
-	  return $result;
-	}
+    while (my $entry=shift @seList) {
+      my ($se, $pfn)=($entry->{seName}, $entry->{pfn});
+      $result = $self->{STORAGE}->getFile( $pfn, $se, $localFile, $opt, $file, $guidInfo->{guid},$guidInfo->{md5} );
+      if ($result) {
+	$self->info("And the file is $result",0,0);
+	return $result;
       }
     }
-    $result or return;
+    $result or
+      $self->info("Error: not possible to get the file $file", 1) and return;
   }
   $self->info("And the file is $result",0,0);
   return $result;
@@ -730,7 +734,7 @@ Old size: $oldStat[7], new size: $newStat[7]");
   ($self->{CATALOG}->isFile("${reallfn}~") )
     and $self->execute("rm", "-silent", "${reallfn}~");
   $self->execute("cp", $lfn, "${reallfn}~");
-  return $self->execute("update", $lfn, "-size", $result->{size}, "-guid", $result->{guid}, "-se", $self->{CONFIG}->{SE_FULLNAME}, "-md5", $md5);
+  return $self->execute("update", $lfn, "-size", $result->{size}, "-guid", $result->{guid}, "-se", $self->{CONFIG}->{SE_FULLNAME}, "-md5", $md5,"-pfn", $result->{pfn});
 }
 
 sub Getopts {
@@ -827,7 +831,7 @@ sub addFile {
   my $data = $self->{STORAGE}->registerInLCM( $pfn, $newSE, $oldSE, $target,$lfn, $options) or return;
 
   $newSE or $newSE=$self->{CONFIG}->{SE_FULLNAME};
-  return $self->{CATALOG}->f_registerFile( "-f", $lfn, $data->{size}, $newSE, $data->{guid}, undef,undef, $data->{md5});
+  return $self->{CATALOG}->f_registerFile( "-f", $lfn, $data->{size}, $newSE, $data->{guid}, undef,undef, $data->{md5}, $data->{pfn});
 }
 
 #  This subroutine mirrors an lfn in another SE. It received the name of the lfn, and the 
@@ -859,24 +863,27 @@ Options:\t-f\t keep the same relative path
 
   my $realLfn=$self->{CATALOG}->checkPermissions( 'w', $lfn )  or
     $self->info("You don't have permission to do that") and return;
+
   $self->{CATALOG}->isFile($lfn, $realLfn) or 
     $self->info("The entry $lfn is not a file!") and return;
 
-  my $guid=$self->{CATALOG}->f_lfn2guid("s",$realLfn)
+  my $info=$self->{CATALOG}->f_whereis("i", $realLfn)
+    or $self->info("Error getting the info from $realLfn") and return;
+
+  my $guid=$info->{guid}
     or $self->info( "Error getting the guid of $lfn",11) and return;
 
-  my @sePfnList=$self->whereis("",$realLfn);
-  @sePfnList or return;
+ my $seRef=$info->{guidInfo}->{pfn} or 
+    $self->info("Error getting the list of pfns of $lfn") and return;
 
-  my $pfn=$sePfnList[1];
-  my $oldSE=$sePfnList[0];
+  my ($pfn,$oldSE);
+  if ($seRef and ${$seRef}[0]){
+    ($pfn, $oldSE)=(${$seRef}[0]->{pfn}, ${$seRef}[0]->{seName});
+  } else {
+    $self->info("The file $lfn doesn't have any pfn");
+    return;
+  }
 
-#  my $mirror= $self->{CATALOG}->existsMirror( $lfn, $se );
-#  $mirror and ($mirror eq "-1") and return;
-#  $mirror and
-#    $self->{LOGGER}->error("LCM", "That file is already mirrored at $se")
-#     and return;
-  
   $self->info( "Mirroring file $realLfn (from $oldSE)");
   
   
@@ -922,7 +929,7 @@ Options:\t-f\t keep the same relative path
   ($options=~ /m/ ) and $command="masterCopy";
 
   $self->info( "Adding the mirror $pfn");
-  return $self->execute($command, $realLfn, $se);
+  return $self->execute($command, $realLfn, $se, $pfn);
 }
 
 sub findCloseSE {
@@ -1017,130 +1024,6 @@ sub preFetch {
   return (@local, @remote);
 
 #  exit;
-}
-
-=item C<whereis($options, $lfn)>
-
-This subroutine returns the list of SE that have a copy of an lfn
-Possible options:
-
-=over
-
-
-=item -l do not get the pfns (return only the list of SE)
-
-
-=item -s tell the SE to stage the files
-
-
-=item -r resolve links
-
-
-=item -i return as well the information of the file
-
-
-=back
-
-
-=cut
-
-sub whereis {
-  my $self=shift;
-  my $options=shift;
-  my $lfn=shift;
-  my @failurereturn;
-  my $failure;
-
-  my $returnval;
-  $failure->{"__result__"} = 0;
-
-  push @failurereturn,$failure;
-
-
-  if (!$lfn) {
-      $self->info( "Error not enough arguments in whereis. Usage:\n\t whereis [-l] lfn
-Options:
-\t-l: Get only the list of SE (not the pfn)");
-      if ($options=~/z/) {return @failurereturn;} else {return};
-  }
- 
- 
-  $lfn=$self->{CATALOG}->f_complete_path($lfn);
-  my ($seList, $fileInfo);
-
-  my $ret=$self->{CATALOG}->f_whereisFile("g$options", $lfn);
-  $seList   = $ret->{selist};
-  $fileInfo = $ret->{fileinfo};
-
-  my $guid=$fileInfo->{guid};
-  defined $seList or
-    $self->info( "Error getting the data of $lfn", 1) and
-      return;
-  $self->info( "The file $lfn is in");
-  my @return=();
-  defined $guid or $self->info("Error getting the guid of the file") and return;
-#  my $guid=$self->{CATALOG}->f_lfn2guid("s",$lfn)
-#    or $self->info( "Error getting the guid of $lfn",11) and return;
-  $self->info( "The guid is $guid");
-
-  my @result;
-  foreach my $se (@$seList) {
-    my $format="\t$se";
-    if ($options !~ /l/) {
-      my $seoptions={};
-      $options =~ /s/ and $seoptions={stage=>1};
-      my @pfns=$self->getPFNfromGUID($se, $guid, $seoptions);
-      my $found=0;
-      foreach my $pfn (@pfns) {
-	$found=1;
-	$pfn and $format.="\t$pfn";
-	if ($options =~ /z/) {
-	  push @result, {se=>$se, guid=>$guid, pfn=>$pfn};
-	} else {
-	  push @result, $se;
-	  push @result, ($pfn or "");
-	}
-      }
-      if (!$found) {
-	push @result, {"__result__"=>0};
-      }
-    } else {
-      if ($options =~ /z/) {
-	push @result, {se=>$se};
-      } else {
-	push @result, $se;
-      }
-    }
-    $self->info( "$format\n", 0,0);
-  }
-
-  if ($options =~ /r/) {
-    $self->debug(1, "The whereis should resolve links");
-    my @temp;
-    while (@result) {
-      my ($se, $pfn)=(shift @result, shift @result);
-      if ($options =~ /z/ ) {
-	my $newhash;
-	$newhash->{se} = $se;
-	$newhash->{pfn} = $pfn;
-	push @temp, $newhash;
-      } else {
-	push @temp, ($se, $pfn);
-      }
-    }
-    @result=@temp;
-  }
-  if ($options=~ /i/ ){
-    #We have to return also the information of the file
-    return ($fileInfo, @result);
-  }
-  if ( (scalar @result) <= 0) {
-    if ($options=~/z/) 
-      {return @failurereturn;} 
-    else {return}; 
-  } else {
-    return @result;
-  }
 }
 
 # Given an SE and a guid, it returns all the pfns that the SE 
@@ -1828,6 +1711,12 @@ sub erase {
     return 1;
 }
 
+sub upload_HELP {
+  return "upload: copies a file to the SE
+Usage:
+\t\tupload <pfn> <se> [<guid>]
+";
+}
 sub upload {
   my $self=shift;
   $self->debug(1, "Starting the upload with @_");
@@ -1837,6 +1726,10 @@ sub upload {
   my $se=shift;
   my $guid=shift || "";
 
+ (  $pfn and $se) or
+   $self->info("Error not enough arguments in upload\n". $self->upload_HELP())
+     and return;
+  
   $pfn=$self->checkLocalPFN($pfn);
   my $data;
   if ($options !~ /u/ ){
@@ -1864,7 +1757,8 @@ sub upload {
   return {guid=>$data->{guid},
 	  selist=>$se,
 	  size=>$data->{size},
-	  md5=>$data->{md5}
+	  md5=>$data->{md5},
+	  pfn=>$data->{pfn},
 	  };
 }
 
@@ -1872,7 +1766,7 @@ sub upload {
 sub stage {
   my $self=shift;
   $self->info("Ready to stage the files @_");
-  return $self->whereis("s", @_);
+  return $self->{CATALOG}->f_whereis("s", @_);
 }
 
 #############################################################################################################
@@ -2000,6 +1894,7 @@ sub unzip {
   $self->info("File extracted!");
   return 1;
 }
+
 sub getLog_HELP{
   return "getLog: returns the log file of the service
 

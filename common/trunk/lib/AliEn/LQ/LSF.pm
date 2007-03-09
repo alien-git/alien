@@ -98,7 +98,7 @@ $execute\n";
   my $got = <Reader>;
   close Reader;
   waitpid $pid, 0;
-
+  $got or $self->info("The submit didn't return anything") and return -1;
   $self->info("$got");
   $got =~ /Job <([0-9]*)> is submitted/ and $self->{LAST_JOB_ID}=$1;
   $error or return -1;

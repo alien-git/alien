@@ -247,7 +247,6 @@ sub CallSOAP {
           $self->checkService($service) or
             $self->debug(1, "Service $service is not up");
         }
-
         ($self->{$service}) and
           $result = $self->_CallSOAPInternal($service, $function, @arguments);
       }
@@ -404,10 +403,10 @@ sub checkService{
 #    } 
   
   if (!$host) {
-    $self->info("Asking the IS for the address of a $configName");
+    #    $self->info("Asking the IS for the address of a $configName");
 
-   $host or $self->{LOGGER}->error("SOAP", "Error: not possible to get the address of $service") and return;
-
+#   $host or $self->{LOGGER}->error("SOAP", "Error: not possible to get the address of $service") and return;
+    return;
   }
   $host =~ /^http/ or $host="http://$host";
 

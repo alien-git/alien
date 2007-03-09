@@ -78,7 +78,7 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
     'lsinternal' => ['$self->{CATALOG}->f_lsinternal', 3+16+32],
     'mkremdir' => ['$self->{CATALOG}->f_mkremdir', 0],
     'mkdir'    => ['$self->{CATALOG}->f_mkdir', 3],
-    'rmdir'    => ['$self->{CATALOG}->f_rmdir', 3],
+    'rmdir'    => ['$self->{CATALOG}->f_rmdir', 3+16],
     'quit'     => ['$self->{CATALOG}->f_quit', 0],
     'exit'     => ['$self->{CATALOG}->f_quit', 0],
     'whoami'   => ['$self->{CATALOG}->f_whoami', 0],
@@ -113,6 +113,7 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
     'verifyToken' 	=> ['$self->{CATALOG}->f_verifyToken', 0],
     'verifySubjectRole' => ['$self->{CATALOG}->f_verifySubjectRole', 0],
     'moveDirectory'	=> ['$self->{CATALOG}->moveDirectoryToIndex',0],
+	     'moveGUID'	=> ['$self->{CATALOG}->moveGUIDToIndex',0],
     'addSE'		=> ['$self->{CATALOG}->addSE',0],
     
     ###Bank functions
@@ -137,15 +138,16 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
     'showAllTagValue'=> ['$self->{CATALOG}->f_showAllTagValues', 0],
     'removeTag'      => ['$self->{CATALOG}->f_removeTag', 0],
     'removeTagValue' => ['$self->{CATALOG}->f_removeTagValue', 0],
+	    'showTagDescription'=> ['$self->{CATALOG}->f_showTagDescription', 67],
 
     #File Interface
     'register'     => ['$self->f_registerFile', 0],
-    'bulkRegister' => ['$self->f_bulkRegisterFile', 0],
+    'bulkRegister' => ['$self->{CATALOG}->f_bulkRegisterFile', 0],
     'update'       => ['$self->{CATALOG}->f_updateFile', 0],
     'rm'      	   => ['$self->{CATALOG}->f_removeFile', 3+16],
     'remove'   	   => ['$self->{CATALOG}->f_removeFile', 3+16],
      'stat'         => ['$self->{CATALOG}->f_stat', 0],
-    'addMirror'    => ['$self->f_addMirror', 0],
+    'addMirror'    => ['$self->{CATALOG}->f_addMirror', 0],
     'masterCopy'   => ['$self->{CATALOG}->f_masterCopy', 0],
     'deleteMirror' => ['$self->{CATALOG}->f_deleteMirror', 0],
     'showMirror'   => ['$self->{CATALOG}->f_showMirror', 3],
@@ -888,17 +890,19 @@ sub f_registerFile {
 
   $self->info("Registering a new file " . join(",",(map ({$_ or ""} @_))) . "\n");
   @ARGV=@_;
-  Getopt::Long::GetOptions($options, "silent", "md5=s", "force")
+  Getopt::Long::GetOptions($options, "silent", "md5=s", "force", "nose")
       or $self->info("Error checking the options of add") and return;
   @_=@ARGV;
 
   my $file = shift;
   my $pfn  = shift;
   my $size = shift;
-  my $destSE = shift;
+  my $destSE = shift || $self->{CONFIG}->{SE_FULLNAME};
   my $guid = ( shift or "");
   my $type = (shift or $self->{UMASK});
-
+  $options->{nose} and $destSE="";
+  (not $destSE and $pfn ) and
+    $self->info("Warning! The SE is not defined, but we are trying to store a $pfn... it won't work"); 
   if ($options->{force}){
     $size or $size=0;
     $pfn or $pfn="";
@@ -926,74 +930,12 @@ Possible pfns:\tsrm://<host>/<path>, castor://<host>/<path>,
       }
     }
   }
-  $file=$self->{CATALOG}->f_complete_path($file);
 
-  ($self->{CATALOG}->f_Database_existsEntry($file)) and
-    $self->info( "File or directory $file already exists",11) 
-      and return;
+  $DEBUG and $self->debug(1, "We added the file to the SE ($guid and $destSE)");
 
-
-  my ($newguid, $sename);
-
-  if ($pfn !~ m{^/dev/null$}) {
-    ($newguid, $sename)=
-      $self->registerFileInSE($destSE, $guid, $pfn, $size, $options) or return;
-  } else {
-    $newguid=$guid;
-    $sename=$destSE;
-  }
-
-  $DEBUG and $self->debug(1, "We added the file to the SE ($newguid and $sename)");
-
-  return $self->{CATALOG}->f_registerFile( $opt, $file, $size, $sename, $newguid, $type, undef,$options->{md5});
+  return $self->{CATALOG}->f_registerFile( $opt, $file, $size, $destSE, $guid, $type, undef,$options->{md5}, $pfn);
 }
 
-#Registering several files in the same directory
-
-sub f_bulkRegisterFile {
-  my $self = shift;
-  my $opt;
-  
-  my $dir=shift;
-  my $files=shift;
-  my $options={};
-  $self->info("Bulk registration of files in $dir");
-
-  $dir=$self->{CATALOG}->f_complete_path($dir);
-
-  my $directoryPerm=$self->{CATALOG}->checkPermissions("w", $dir)
-    or $self->info("You do not have permission to register in $dir") 
-      and return;
-  $self->{CATALOG}->isDirectory($dir, $directoryPerm)
-    or $self->info("The entry $dir is not a directory") and return;
-
-
-  my ($newguid, $sename);
-
-  #First, let's register them in the SE
-  foreach my $entry (@$files) {
-    if ($entry->{pfn} !~ m{^/dev/null$}) {
-      my $copied="";
-      foreach my $se (split (/,/ , $entry->{selist})) {
-	$self->info("Registering the entry $entry->{lfn} in the SE $se");
-	
-	($entry->{guid}, my $secopied)=
-	  $self->registerFileInSE($se, 
-				  $entry->{guid}, $entry->{pfn}, 
-				  $entry->{size}, {md5=>$entry->{md5}}) or return;
-	$secopied and $copied.="$secopied,";
-
-      }
-      chomp $copied;
-      $entry->{selist}=$copied;
-    }
-  }
-
-  $DEBUG and $self->debug(1, "We added the file to the SE ($newguid and $sename)");
-
-  #Finally, register them in the catalog;
-  return $self->{CATALOG}->f_bulkRegisterFile("", $dir, $files);
-}
 
 sub registerFileInSE {
   my $self=shift;
@@ -1068,53 +1010,53 @@ Possible options:
 
 =cut
 
-sub f_addMirrorHelp {
-  return "'addMirror' adds a new pfn to an existent entry in the catalogue. It does not copy the pfn to the SE (it assumes that the pfn is already there)\nUsage addMirror <lfn> <SE> [<pfn> [-md5 <md5>]] 
-The SE will first check that it is able to access the copy indicated by pfn. 
-If the pfn is not specified, the system will not contact the SE at all, and it will assume that the entry has already been replicated somehow";
-}
-
-sub f_addMirror {
-  my $self = shift;
-
-  $self->info("Adding a mirror for the file " . join(",",(map ({$_ or ""} @_))) . "\n");
-
-  my @args;
-  my $md5;
-  while( my $opt=shift) {
-    if ($opt=~ /^-md5$/){
-      $md5=shift;
-      $md5 or $self->info("Error option md5 needs an argument". $self->f_addMirrorHelp()) and return;
-      next;
-    }
-    push @args, $opt;
-  }
-  @_=@args;
-
-
-  my $file = $self->{CATALOG}->GetAbsolutePath(shift,1);
-  my $destSE = shift;
-  my $pfn  = shift;
-
-  if ( !$destSE  ) {
-    $self->info("Error in addMirror: not enough arguments\n". f_addMirrorHelp());
-    return;
-  }
-  my $entry=$self->{CATALOG}->checkPermissions("w", $file, undef, {RETURN_HASH=>1}) 
-    or return;
-  ($self->{CATALOG}->isFile( $file, $entry->{lfn})) or
-    $self->info( "Entry $file doesn't exist (or is not a file)",11) 
-      and return; 
+#sub f_addMirrorHelp {
+#  return "'addMirror' adds a new pfn to an existent entry in the catalogue. It does not copy the pfn to the SE (it assumes that the pfn is already there)\nUsage addMirror <lfn> <SE> [<pfn> [-md5 <md5>]] 
+#The SE will first check that it is able to access the copy indicated by pfn. 
+#If the pfn is not specified, the system will not contact the SE at all, and it will assume that the entry has already been replicated somehow";
+#}
+#
+#sub f_addMirror {
+#  my $self = shift;#
+#
+#  $self->info("Adding a mirror for the file " . join(",",(map ({$_ or ""} @_))) . "\n");#
+#
+#  my @args;
+#  my $md5;
+#  while( my $opt=shift) {
+#    if ($opt=~ /^-md5$/){
+#      $md5=shift;
+#      $md5 or $self->info("Error option md5 needs an argument". $self->f_addMirrorHelp()) and return;
+#     next;
+#    }
+#    push @args, $opt;
+#  }
+#  @_=@args;
+###
+#
+#  my $file = $self->{CATALOG}->GetAbsolutePath(shift,1);
+#  my $destSE = shift;
+#  my $pfn  = shift;#
+#
+#  if ( !$destSE  ) {
+#    $self->info("Error in addMirror: not enough arguments\n". f_addMirrorHelp());
+#    return;
+#  }
+#  my $entry=$self->{CATALOG}->checkPermissions("w", $file, undef, {RETURN_HASH=>1}) 
+#    or return;
+#  ($self->{CATALOG}->isFile( $file, $entry->{lfn})) or
+#    $self->info( "Entry $file doesn't exist (or is not a file)",11) 
+#      and return; 
   
-  if ($pfn) {
-    (my $newguid, $destSE)=
-      $self->registerFileInSE($destSE, $entry->{guid}, $pfn, $entry->{size}, {md5=>$md5}) or return;
-    $DEBUG and $self->debug(1, "The file has been replicated in $destSE ($newguid)");
-  }
-  $DEBUG and $self->debug(1, "Adding the entry to the catalogue");
-
-  return $self->{CATALOG}->f_addMirror( $file, $destSE);
-}
+#  if ($pfn) {
+#    (my $newguid, $destSE)=
+#      $self->registerFileInSE($destSE, $entry->{guid}, $pfn, $entry->{size}, {md5=>$md5}) or return;
+#    $DEBUG and $self->debug(1, "The file has been replicated in $destSE ($newguid)");
+#  }
+#  $DEBUG and $self->debug(1, "Adding the entry to the catalogue");
+#
+#  return $self->{CATALOG}->f_addMirror( $file, $destSE, $pfn);
+#}
 
 =item C<history()>
 
@@ -1163,8 +1105,6 @@ sub checkLocalPFN {
   $self->info( "The pfn '$orig' does not look like a pfn... let's hope that it refers to '$pfn'");
   return $pfn;
 }
-
-
 sub phone_HELP{
   return "phone: prints the real name behind an username
 Usage:

@@ -143,12 +143,21 @@ sub copyInput {
       else {
 	$file=~ s/^LF://;
 	$self->info("Adding file $file (from the InputBox)" );
-	my ($fileInfo, @sites)=$self->{CATALOGUE}->execute("whereis", "-li", $file);
+	my ($fileInfo)=$self->{CATALOGUE}->execute("whereis", "-i", $file);
 	if (!$fileInfo) {
 	  $self->putJobLog($procid,"error", "Error checking the file $file");
 	  die("The file $file doesn't exist");
 	}
 	$size+=$fileInfo->{size};
+	my @sites=();
+	foreach my $entry (@{$fileInfo->{guidInfo}->{pfn}}){
+	  push @sites, $entry->{seName};
+	}
+	if (!@sites ){
+	  $self->putJobLog($procid,"error", "Error checking the file $file");
+	  die("The file $file isn't in any SE");
+	}
+
 	my $sePattern=join("_", @sites);
 	#This has to be done only for the input data"
 	if (! grep (! m{^LF://$file$}, @origFile )){

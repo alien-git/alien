@@ -113,6 +113,7 @@ sub f_packman_HELP {return  "packman: talks to the Package Manager. By default, 
 \tpackman remove  <package>: removes a package from the local cache
 \tpackman define <name> <version> <tar file> [<package options>]
 \tpackman undefine <name> <version>
+\tpackman recompute: (only for admin) recompute the list of packages.
 
 
 The format of the string <package> is:
