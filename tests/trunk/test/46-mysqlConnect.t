@@ -74,7 +74,7 @@ my ($before, $proxyBefore) = countInstances("Before connecting");
 
 my $c=AliEn::UI::Catalogue->new() or startServices() and exit(-2);
 
-compareNumber($before+1, $proxyBefore+1, "During the connection") or startServices() and exit(-2);
+compareNumber($before+2, $proxyBefore+2, "During the connection") or startServices() and exit(-2);
 
 $c->close();
 print "closed!!!\n";

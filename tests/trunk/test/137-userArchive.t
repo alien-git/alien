@@ -29,8 +29,9 @@ OutputArchive={\"my_archive:stdout,stderr,file.out\@${sename}2\"}") or exit(-2);
 
   print "JOB EXECUTED!!\nChecking if the archive is in the right place\n";
 
-  my (@out)=$cat->execute("whereis", "$procDir/job-output/stdout");
-
+  my (@out)=$cat->execute("whereis", "-r", "$procDir/job-output/stdout");
+  
   print "IT IS IN @out\n";
+  $out[0] or print "It isn't in any se!!!\n" and exit(-2);
   $out[0]=~ /^${sename}2$/i or print "It's in the wrong one!!\n" and exit(-2);
 }

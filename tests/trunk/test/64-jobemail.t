@@ -43,6 +43,7 @@ sub jobWithEmail {
 
   my ($file)=$cat->execute("get", "-f", "$procDir/job-log/execution.out");
 
+  $file or return;
   print "The job finished!! Let's see the output of the ProcessMonitor\n";
 
   open (FILE, "<$file") or print  "THERE WAS NO OUTPUT\n" and return;

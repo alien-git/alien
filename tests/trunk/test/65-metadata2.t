@@ -88,8 +88,9 @@ sub checkMetadata{
   my $cat=shift;
   my $lfn=shift;
   my $metadata=shift;
-
+  print "In checkMetadata\n";
   my ($def, $data)=$cat->execute("showTagValue", $lfn, "person") or return;
+  print "AFTER showTagValue\n";
   my $entry=shift @$data;
   foreach (keys %$metadata){
     print "Checking $_ -> $metadata->{$_}\n";

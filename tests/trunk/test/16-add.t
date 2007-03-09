@@ -66,7 +66,7 @@ sub addFile {
   print "Registering the file $file...";
   $options=~ /r/ and  $cat->execute("rm", "-silent", $file);
 
-  $cat->execute("whereis", "-l", "-silent", $file) and print "ok\nThe file  $file already exists\n" 
+  $cat->execute("whereis", "-i", "-silent", $file) and print "ok\nThe file  $file already exists\n" 
 		and return 1;
 
   my $name="/tmp/test16.$$";

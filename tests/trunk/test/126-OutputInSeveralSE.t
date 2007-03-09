@@ -34,7 +34,10 @@ OutputFile={\"file.out\@$sename,${sename}2\"}") or exit(-2);
     or exit(-2);
 
   $out[2] or print "Error: the file is only in one SE\n" and exit(-2);
+  use Data::Dumper;
+  print Dumper(@out);
 
+  exit;
   print "ok, let's try with userarchives...\n";
   addFile($cat, "jdl/MultipleArchiveOutput.jdl",
 	  "Executable=\"CheckInputOuptut.sh\";

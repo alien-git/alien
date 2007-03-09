@@ -22,7 +22,7 @@ OutputFile ={\"stderr\@$otherSE\",\"stdout\@$otherSE\"};","r") or exit(-2);
 my $procDir=executeJDLFile($cat, "jdl/specificSE.jdl") or exit(-2);
 #my $procDir="/proc/newuser/73";
 print "And the output is in $procDir\n";
-my @where=$cat->execute("whereis", "-l", "$procDir/job-output/stdout") or exit(-2);
+my @where=$cat->execute("whereis", "-lr", "$procDir/job-output/stdout") or exit(-2);
 
 print "The file is in @where\n";
 grep( /^$otherSE$/, @where) or print "The file is not in $otherSE!!\n" and exit(-2);

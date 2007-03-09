@@ -34,7 +34,7 @@ date
 Packages=\"MyPS::1.0\"\n") or exit(-2);
 
   addPackage($cat, "MyPS", "/bin/ps") or exit(-2);
-
+  
   print "The package has been addedd!!!\n\n\n";
 
   installPackage("MyPS") or exit(-2);

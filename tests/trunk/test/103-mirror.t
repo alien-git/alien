@@ -19,7 +19,7 @@ my @list=$cat->execute("whereis", $lfn) or exit(-2);
 print "\n\nChecking if there are mirrors\n";
 my @mirrors=$cat->execute("showMirror", $lfn) or exit(-2);
 my $seName="$cat->{CONFIG}->{SE_FULLNAME}2";
-print "\n\nLet's do an 'addMirror'\n";
+print "\n\nLet's do a 'mirror'\n";
 $cat->execute("mirror", $lfn, $seName) or exit(-2);
 my @newMirror=$cat->execute("whereis", $lfn) or exit(-2);
 
