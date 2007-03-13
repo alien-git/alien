@@ -181,7 +181,7 @@ objectclass ( AliEnMSS  NAME 'AliEnMSS'
 	SUP ( top ) 
 	MUST ( name $ mss $ savedir )
 	MAY  ( options $ tmpdir $ lvmdatabase $ uploadEndpoint $ ioDaemons
-               $ environment $ category $ ioDaemonsConfig $ QoS )
+               $ category $ ioDaemonsConfig $ QoS )
 	      )
 
 #AliEn SE
@@ -197,7 +197,7 @@ attributetype ( AliEnSOAPServer:5 NAME 'certsubject' SUP name )
 objectclass ( AliEnSOAPServer  NAME 'AliEnSOAPServer'
 	SUP ( top ) 
 	MUST ( host $ port )
-	MAY  ( certsubject )
+	MAY  ( certsubject $ environment )
 	      )
 
 #AliEn SE
@@ -235,7 +235,7 @@ attributetype ( AliEnCE:15 NAME 'matchcmd' SUP name )
 attributetype ( AliEnCE:16 NAME 'matcharg' SUP name )
 
 objectclass ( AliEnCE  NAME 'AliEnCE'
-	SUP ( top ) 
+	SUP ( AliEnSOAPServer ) 
 	MUST ( name $ type $ host $maxqueuedjobs  )
 	MAY  ( maxjobs $ submitcmd $ submitarg $ killcmd $ 
                killarg $ statuscmd $ statusarg $ packages $ TTL $ si2kPrice 
@@ -255,7 +255,7 @@ attributetype ( AliEnFTD:6 NAME 'protocol' SUP name )
 
 
 objectclass ( AliEnFTD  NAME 'AliEnFTD'
-	SUP ( top ) 
+	SUP ( AliEnSOAPServer ) 
 	MUST ( name $ port $ host $ certsubject $ allowedDirs $ maxTransfers )
         MAY ( protocol $ localOptions $ remoteOptions )
 	      )
@@ -469,7 +469,7 @@ objectidentifier AliEnPackMan  ALIEN_BASE:22
 attributetype ( AliEnPackMan:1 NAME 'installDir' SUP name )
 
 objectclass ( AliEnPackMan  NAME 'AliEnPackMan'
-	SUP ( top )
+	SUP ( AliEnSOAPServer )
   	MUST ( name $ host $ port $ installDir )
 	)
 
