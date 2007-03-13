@@ -637,14 +637,8 @@ sub GetHostConfig {
     $self->{SEs_FULLNAME}=\@fullNames;
 
   }
+  $self->_setEnvironment($entry);
 
-  #finaly, let's check the environment
-  my @env=$entry->get_value("Environment");
-  foreach my $env (@env){
-    my ($key, $value)=split(/=/, $env, 2);
-    $DEBUG and $self->debug(1, "Setting the env '$key' to '$value'");
-    $ENV{$key}=$value;
-  }
   $self->debug(1, "$self->{SITE_HOST} configured!!");
   return 1;
 }
@@ -686,7 +680,26 @@ sub setService {
 
     $DEBUG and $self->debug(1, "Using $service $self->{$service}");
 
+    $self->_setEnvironment($se);
+
     return 1;
+}
+#
+# If the ldap entry has a field called 'Environment', this will set it up
+sub _setEnvironment {
+  my $self=shift;
+  my $entry=shift;
+  my @env;
+  eval {@env=$entry->get_value("Environment")};
+  ($@) and 
+    $entry->{ENVIRONMENT_LIST} and push @env, @{$entry->{ENVIRONMENT_LIST}};
+  
+  foreach my $env (@env){
+    my ($key, $value)=split(/=/, $env, 2);
+    $DEBUG and $self->debug(1, "Setting the env '$key' to '$value'");
+    $ENV{$key}=$value;
+  }
+  return 1;
 }
 
 sub getValue {
