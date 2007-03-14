@@ -25,7 +25,7 @@ sub submit {
 #PBS -e $self->{PATH}/$ENV{ALIEN_LOG}.err
 #PBS -V
 #PBS -N $name
-##PBS -W stagein=$execute\@$self->{CONFIG}->{HOST}:$command
+#PBS -W stagein=$execute\@$self->{CONFIG}->{HOST}:$command
 $self->{SUBMIT_ARG}
 " . $self->excludeHosts() . "
 $execute\n";
