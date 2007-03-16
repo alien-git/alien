@@ -475,20 +475,24 @@ ALIEN_MyProxy()
 ###########################################################################
 {
   SetupCertEnvVars
-  if [ -z "$MYPROXY_LOCATION" -o -z "$ALIEN_MYPROXY_SERVER" -o -z "$GLOBUS_LOCATION" ]
+  if [ -z "$MYPROXY_LOCATION" -o -z "$GLOBUS_LOCATION" ]
   then
-    printf "Error: MYPROXY_LOCATION and/or ALIEN_MYPROXY_SERVER and/or GLOBUS_LOCATION not set.\n"  
+    printf "Error: MYPROXY_LOCATION and/or GLOBUS_LOCATION not set.\n"  
     printf "Please (re)run 'alien config' command.\n\n"
     exit 1
   fi
   command=$1
   shift 1
+  export MYPROXY_SERVER_PORT=8512
+  export MYPROXY_SERVER=alien.cern.ch
+  export MYPROXY_SERVER_DN=/DC=ch/DC=cern/OU=computers/CN=alien.cern.ch
+
   case $command in
       myproxy-info|myproxy-destroy)
-       exec $MYPROXY_LOCATION/bin/$command -s $ALIEN_MYPROXY_SERVER -l $ALIEN_USER $*
+       exec $MYPROXY_LOCATION/bin/$command -l $ALIEN_USER $*
         ;;
       myproxy-init)
-        exec $MYPROXY_LOCATION/bin/$command -s $ALIEN_MYPROXY_SERVER -l $ALIEN_USER -x -r "$ALIEN_MYPROXY_DOMAIN" $* 
+        exec $MYPROXY_LOCATION/bin/$command -l $ALIEN_USER $* 
         ;;
       *)
         printf "%s: No such file or directory.\n" $command
