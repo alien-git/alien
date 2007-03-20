@@ -773,7 +773,7 @@ sub getNumberFreeSlots{
 
   my ($max_queued, $max_running)=$self->{SOAP}->GetOutput($done);
 
-  $self->info( "According to the manager, we can queue max $max_queued and run max $max_running");
+  $self->info( "According to the manager, we can queue max $max_queued and manage max $max_running");
 
   my $queued=$self->{BATCH}->getNumberQueued();
   if ($queued) {
