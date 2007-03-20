@@ -641,14 +641,21 @@ sub _system {
   my $command=join (" ", @_);
   $self->info("Doing '$command'");
 
+  my $pid;
   local $SIG{ALRM} =sub {
     print "$$ timeout while doing '$command'\n";
+    $pid and print "Killing the process $pid\n" and CORE::kill(9, $pid);
+
+    print "Let's try to close the file handler\n";
+    close FILE;
+    print " $$ File closed";
+
     die("timeout!! ");
   };
   my @output;
   eval {
     alarm(300);
-    my $pid=open(FILE, "$command |") or
+    $pid=open(FILE, "$command |") or
       die("Error doing '$command'!!\n$!");
     @output=<FILE>;
 
@@ -667,6 +674,7 @@ sub _system {
   if ($@) {
     $self->info("Error: $@");
     close FILE;
+    $pid and print "Killing the process $pid\n" and CORE::kill(9, $pid);
     alarm(0);
     return;
   }
