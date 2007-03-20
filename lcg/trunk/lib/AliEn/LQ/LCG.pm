@@ -39,6 +39,13 @@ sub initialize {
    $self->{MATCH_CMD}  = ( $self->{CONFIG}->{CE_MATCHCMD} or '' );
    $self->{CONFIG}->{CE_MATCHARG} and  $self->{MATCH_CMD} .= " $self->{CONFIG}->{CE_MATCHARG}";
    $self->{PRESUBMIT}  = $self->{MATCH_CMD};
+   
+   if ($ENV{CE_LCGCE}) {
+     $self->info("Taking the list of CEs from \$ENV: $ENV{CE_LCGCE}");
+     my @list=split(/,/,$ENV{CE_LCGCE});
+     $self->{CONFIG}->{CE_LCGCE_LIST} = \@list;
+   }
+
    $self->renewProxy();
    
    return 1;
@@ -61,7 +68,6 @@ sub submit {
   $ENV{CE_EDG_WL_UI_CONF} and
     @conf = ("--config-vo",$ENV{CE_EDG_WL_UI_CONF}); 
   push @args,@conf;
-
   my $jdlfile = $self->generateJDL($jdl);
   $jdlfile or return;
 
@@ -215,16 +221,12 @@ sub getQueueStatus {
 sub getFreeSlots {
   my $self = shift;
   my ($totRunning, $totWaiting, $totFree, $totCPUs) = (0,0,0,0);
-  my @list = ();
-  my $list = $self->{CONFIG}->{CE_LCGCE_LIST};
-  $list and @list=@$list;
-  ($ENV{CE_LCGCE}) and @list=split(/,/,$ENV{CE_LCGCE});
-  $self->debug(1,"CE list is \'@list\'");
+  $self->debug(1,"CE list is \'@{$self->{CONFIG}->{CE_LCGCE_LIST}}\'");
   my $bdii= $self->{CONFIG}->{CE_SITE_BDII};
   ($ENV{CE_SITE_BDII}) and $bdii=$ENV{CE_SITE_BDII};
   $self->debug(1,"BDII is \'$bdii\'");
 
-  foreach my $CE (@list) {
+  foreach my $CE ( @{$self->{CONFIG}->{CE_LCGCE_LIST}} ) {
     $self->debug(1,"Querying for $CE");
     (my $host,undef) = split (/:/,$CE);
     my $GRIS = '';
@@ -273,7 +275,7 @@ sub getFreeSlots {
   my $runningJA = $jobAgents - $self->getNumberQueued();
   $self->info("Total for this VO Box: $totFree/$totCPUs (R:$totRunning, W:$totWaiting, JA:$runningJA/$jobAgents)");
   my $value = $totFree + $jobAgents;
-  if ($jobAgents >= 3*$totCPUs && $totCPUs > 0) {
+  if ($jobAgents >= 4*$totCPUs && $totCPUs > 0) {
     $value = $jobAgents;
     $self->info("Too many waiting job agents ($jobAgents for $totCPUs CPUs)"); ###
   }
@@ -537,13 +539,8 @@ InputSandbox = {\"$exeFile\"};
 OutputSandbox = { \"std.err\" , \"std.out\" };
 Environment = {\"ALIEN_CM_AS_LDAP_PROXY=$ENV{ALIEN_CM_AS_LDAP_PROXY}\",\"ALIEN_JOBAGENT_ID=$ENV{ALIEN_JOBAGENT_ID}\"};
 ";
-  my $list = $self->{CONFIG}->{CE_LCGCE_LIST};
-  my @list = ();
-  $list and @list=@$list;
-  ($ENV{CE_LCGCE}) and @list=split(/,/,$ENV{CE_LCGCE});
-
-  if (scalar @list) {
-    my @celist = map {"other.GlueCEUniqueID==\"$_\""} @list;
+  if (scalar @{$self->{CONFIG}->{CE_LCGCE_LIST}}) {
+    my @celist = map {"other.GlueCEUniqueID==\"$_\""} @{$self->{CONFIG}->{CE_LCGCE_LIST}};
     my $ces=join (" || ", @celist);
     print BATCH "Requirements = ( $ces )";     
     print BATCH " && ".$requirements if $requirements;
