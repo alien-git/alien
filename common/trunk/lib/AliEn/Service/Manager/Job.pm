@@ -349,7 +349,7 @@ sub SetProcInfo {
       $updateRef->{status}="RUNNING";
     }
 
-    my ($ok) = $self->{DB}->updateJob($queueId, $updateRef);
+    my ($ok) = $self->{DB}->updateJobStats($queueId, $updateRef);
 
     $self->{JOBLOG}->putlog($queueId,"proc", $procinfo);
 
@@ -357,7 +357,7 @@ sub SetProcInfo {
       or $self->{LOGGER}->error( "JobManager", "In SetProcInfo error updating job $queueId" )
 	and return;
   } else {
-    my ($ok) = $self->{DB}->updateJob($queueId, {runtime=>'00',runtimes=>'00',cpu=>'0',mem=>'0',cputime=>'0',rsize=>'0',vsize=>'0',ncpu=>'0',cpufamily=>'0',cpuspeed=>'0',cost=>'0',maxrsize=>'0',maxvsize=>'0',si2k=>'-1'});
+    my ($ok) = $self->{DB}->updateJobStats($queueId, {runtime=>'00',runtimes=>'00',cpu=>'0',mem=>'0',cputime=>'0',rsize=>'0',vsize=>'0',ncpu=>'0',cpufamily=>'0',cpuspeed=>'0',cost=>'0',maxrsize=>'0',maxvsize=>'0',si2k=>'-1'});
     ($ok)
       or $self->{LOGGER}->error( "JobManager", "In SetProcInfo error updating job $queueId" )
 	and return;
