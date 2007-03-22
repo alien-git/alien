@@ -876,10 +876,8 @@ sub reconnect {
     $self->{DBI_OPTIONS} = $attrDBI;
 
     $self->{USE_CACHE} and $self->_createCacheRoot;
-    $self->_validate or return;
   }
-
-  $self->_connect;
+  $self->_validate;
 }
 
 sub changeUser {
