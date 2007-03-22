@@ -69,29 +69,13 @@ sub initialize {
 		    validate =>"int(1)",
 		    sent =>"int(20)",
 		    jdl =>"text",
-		    runtime =>"varchar(20)",
-		    runtimes =>"int",
-		    cpu =>"float",
-		    mem =>"float",
-		    cputime =>"int",
-		    rsize =>"int",
-		    rsize =>"int",
-		    vsize =>"int",
-		    ncpu =>"int",
-		    cpufamily =>"int",
-		    cpuspeed =>"int",
-		    cost =>"float",
-		    maxrsize =>"float",
-		    maxvsize =>"float",
 		    site=> "varchar(40)",
 		    node=>"varchar(64)",
-		    procinfotime =>"int(20)",
 		    spyurl=>"varchar(64)",
 		    split=>"int",
 		    splitting=>"int",
 		    merging=>"varchar(64)",
 		    masterjob=>"int(1) default 0",
-		    si2k=>"float",
 	            price=>"float",
 	            effectivePriority=>"float",
 	            finalPrice=>"float",};
@@ -99,6 +83,26 @@ sub initialize {
 		       id=>"queueId",
 		       index=>"queueId",
 		       extra_index=>["INDEX (split)", "INDEX (status)"]},
+	       QUEUEPROC=>{
+			   columns=>{queueId=>"int(11) not null auto_increment primary key",
+				     runtime =>"varchar(20)",
+				     runtimes =>"int",
+				     cpu =>"float",
+				     mem =>"float",
+				     cputime =>"int",
+				     rsize =>"int",
+				     vsize =>"int",
+				     ncpu =>"int",
+				     cpufamily =>"int",
+				     cpuspeed =>"int",
+				     cost =>"float",
+				     maxrsize =>"float",
+				     maxvsize =>"float",
+				     procinfotime =>"int(20)",
+				     si2k=>"float",
+				    },
+			   id=>"queueId",
+			  },
 	       QUEUEEXPIRED=>{columns=>$queueColumns,
 		       id=>"queueId",
 		       index=>"queueId"},	
@@ -379,7 +383,18 @@ sub updateJob{
   my $set =shift;
 
   $DEBUG and $self->debug(1,"In updateJob updating job $id");	
-  $self->updateQueue($set,"queueId=?", {bind_values=>[$id]});
+  $self->update($self->{QUEUETABLE}, $set,"queueId=?", {bind_values=>[$id]});
+}
+
+sub updateJobStats{
+  my $self = shift;
+  my $id = shift
+    or $self->{LOGGER}->error("TaskQueue","In updateJob job id is missing")
+      and return;
+  my $set =shift;
+
+  $DEBUG and $self->debug(1,"In updateJob updating job $id");	
+  $self->update("QUEUEPROC",$set,"queueId=?", {bind_values=>[$id]});
 }
 
 sub updateJobs{
