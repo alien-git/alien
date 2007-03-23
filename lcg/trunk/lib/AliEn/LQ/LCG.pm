@@ -23,10 +23,6 @@ sub initialize {
    $self->{CONFIG}->{VOBOX} = $host.':8084';
    $ENV{ALIEN_CM_AS_LDAP_PROXY} and $self->{CONFIG}->{VOBOX} = $ENV{ALIEN_CM_AS_LDAP_PROXY};
    $self->info("This VO-Box is $self->{CONFIG}->{VOBOX}, site is \'$ENV{SITE_NAME}\'");
-  # print Dumper($self->{CONFIG});
-  # my $p = $self->{CONFIG}->{ORG_NAME};
-  # my $VOBoxURL = `lcg-infosites --vo $p vobox -f GlueSiteUniqueID=$ENV{SITE_NAME} 2>&1`;
-  # $self->info("VO-Box URL from BDII is $VOBoxURL");
    $self->{CONFIG}->{VOBOXDIR} = "/opt/vobox/\L$self->{CONFIG}->{ORG_NAME}";
    $self->{UPDATECLASSAD} = 0;
 
@@ -46,6 +42,10 @@ sub initialize {
      $self->{CONFIG}->{CE_LCGCE_LIST} = \@list;
    }
 
+   $self->{CONFIG}->{CE_MINWAIT} = 180; #Seconds
+   $self->{CONFIG}->{CE_MAXWAIT} = 3600; #Seconds
+   $self->{LASTCHECKED} = time-$self->{CONFIG}->{CE_MINWAIT};
+   
    $self->renewProxy();
    
    return 1;
@@ -211,7 +211,7 @@ sub getAllBatchIds {
   return keys %queuedJobs;
 }
 
-sub getQueueStatus {
+sub getQueueStatus { ##Still return values from the local DB
   my $self = shift;
   my $value = $self->{DB}->queryValue("SELECT COUNT (*) FROM JOBAGENT");
   $value or $value = 0;
@@ -285,14 +285,48 @@ sub getFreeSlots {
 
 sub getNumberRunning() {
   my $self = shift;
-  return $self->getQueueStatus();
+  ## Number of CPUs will be wrong for multiple-CE sites; 
+  ## we only check it against zero to check if GRIS is working
+  my $now = time;
+  if ( $now < $self->{LASTCHECKED}+$self->{CONFIG}->{CE_MINWAIT} ) {
+    my $still = $self->{LASTCHECKED}+$self->{CONFIG}->{CE_MINWAIT}-$now;
+    $self->info("Checking too early, still $still sec to wait");
+    return;
+  }
+  my ($run,$wait,$cpu) = $self->getInfoFromGRIS(qw(GlueCEStateRunningJobs GlueCEStateWaitingJobs GlueCEInfoTotalCPUs));
+  my $value = $self->getQueueStatus();
+  $value or $value = 0;
+#  $self->debug(1,"Jobs: $run+$wait from GRIS, $value from local DB");
+  $self->info("Jobs: $run+$wait from GRIS, $value from local DB");
+  if ( $cpu == 0 ) {
+    $self->{LOGGER}->error("LCG","GRIS not responding, returning value from local DB");
+    return $value;
+  }
+  if ( $run == 4444 || $wait == 4444 ) {
+    $self->{LOGGER}->error("LCG","GRIS failure 4444, returning value from local DB");
+    return $value;
+  }
+  return $run+$wait;
 }
 
 sub getNumberQueued() {
   my $self=shift;
+  ## Number of CPUs will be wrong for multiple-CE sites; 
+  ## we only check it against zero to check if GRIS is working
+  my ($wait,$cpu) = $self->getInfoFromGRIS(qw(GlueCEStateWaitingJobs GlueCEInfoTotalCPUs));
   my $value = $self->{DB}->queryValue("SELECT COUNT (*) FROM JOBAGENT where status='QUEUED'");
   $value or $value = 0;
-  return $value;
+#  $self->debug(1,"Queued: $wait from GRIS, $value from local DB");
+  $self->info("Queued: $wait from GRIS, $value from local DB");
+  if ( $cpu == 0 ) {
+    $self->{LOGGER}->error("LCG","GRIS not responding, returning value from local DB.");
+    return $value;
+  }
+  if ( $wait == 4444 ) {
+    $self->{LOGGER}->error("LCG","GRIS failure 4444, returning value from local DB");
+    return $value;
+  }
+  return $wait;
 }
 
 sub cleanUp {
@@ -341,6 +375,37 @@ sub needsCleaningUp {
 #
 #---------------------------------------------------------------------
 #
+
+sub getInfoFromGRIS {
+  my $self = shift;
+  my @items = @_;
+  my %results = ();
+  foreach my $CE ( @{$self->{CONFIG}->{CE_LCGCE_LIST}} ) {
+    $self->debug(1,"Querying for $CE");
+    (my $host,undef) = split (/:/,$CE);
+    my $GRIS = "ldap://$host:2135";
+    my $BaseDN = "mds-vo-name=local,o=grid";
+    $self->debug(1,"Asking $GRIS/$BaseDN");
+    my $ldap =  Net::LDAP->new($GRIS) or return;
+    $ldap->bind() or return;
+    my $result = $ldap->search( base   =>  $BaseDN,
+                                filter => "(&(objectClass=GlueCEState)(GlueCEUniqueID=$CE))");
+    $result->code && return;
+    if ( ($result->all_entries)[0] ) {
+      foreach (@items) {
+        my $value = (($result->all_entries)[0])->get_value("$_");
+        $self->debug(1, "$_ for $CE is $value");
+        $results{$_}+=$value;
+      }
+    } else {
+    	$self->{LOGGER}->error("LCG","The GRIS query for $CE did not return any value");
+    }
+    $ldap->unbind();
+  }
+  my @values = ();
+  push (@values,$results{$_}) foreach (@items);
+  return @values;
+}
 
 sub getJobStatus {
    my $self = shift;
