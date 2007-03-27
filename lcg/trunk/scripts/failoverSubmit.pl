@@ -13,7 +13,7 @@ $opt->getoptions ( 'rb=s' => \@rbs) or exit 2;
 @rbs or die "Error: no RB specified";
 my @opts = @ARGV; # Passthrough
 # Die if no RBs given?
-my $defaults = "/opt/edg/etc/edg_wl_ui_cmd_var.conf";
+my $defaults = "$ENV{EDG_LOCATION}/etc/edg_wl_ui_cmd_var.conf";
 if ( open DEFAULTS, "<$defaults" ) {
   while (<DEFAULTS>) {
     chomp;
@@ -21,7 +21,7 @@ if ( open DEFAULTS, "<$defaults" ) {
   }
   close DEFAULTS;
 }
-my $rb_directory = "/home/alicesgm/.alien";
+my $rb_directory = glob("~alicesgm/.alien");
 opendir SOMEDIR, $rb_directory or die "Cannot open directory $rb_directory\n";
 while (my $name = readdir SOMEDIR){
   foreach my $thisRB ( @rbs ) {
