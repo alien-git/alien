@@ -46,7 +46,7 @@ If the package was installed, this method removes it from the disk
 
 sub removePackage {
   shift;
-  my ($done, $error)=$self->{PACKMAN}->removePackage();
+  my ($done, $error)=$self->{PACKMAN}->removePackage(@_);
   $self->info("The packman returned $done ,and $error");
   return ($done, $error);
 }
@@ -54,7 +54,7 @@ sub removePackage {
 
 sub recomputeListPackages {
   shift;
-  my $done=$self->{PACKMAN}->recomputeListPackages();
+  my $done=$self->{PACKMAN}->recomputeListPackages(@_);
   return $done;
 }
 
