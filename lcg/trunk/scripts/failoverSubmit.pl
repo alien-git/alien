@@ -6,13 +6,16 @@ use strict;
 use Getopt::Long; 
 
 my @rbs = ();
+my $cfgdir = '~alicesgm/.alien';
 my $opt = new Getopt::Long::Parser;
 $opt->configure("pass_through");
-$opt->getoptions ( 'rb=s' => \@rbs) or exit 2;
+$opt->getoptions ( 'rb=s'     => \@rbs,
+                   'cfgdir=s' => \$cfgdir') or exit 2;
 @rbs = split(/,/, join(',', @rbs)); # Allow comma-separated list
 @rbs or die "Error: no RB specified";
+my $rb_directory = glob($cfgdir);
 my @opts = @ARGV; # Passthrough
-# Die if no RBs given?
+
 my $defaults = "$ENV{EDG_LOCATION}/etc/edg_wl_ui_cmd_var.conf";
 if ( open DEFAULTS, "<$defaults" ) {
   while (<DEFAULTS>) {
@@ -21,7 +24,6 @@ if ( open DEFAULTS, "<$defaults" ) {
   }
   close DEFAULTS;
 }
-my $rb_directory = glob("~alicesgm/.alien");
 opendir SOMEDIR, $rb_directory or die "Cannot open directory $rb_directory\n";
 while (my $name = readdir SOMEDIR){
   foreach my $thisRB ( @rbs ) {
@@ -38,7 +40,7 @@ while (my $name = readdir SOMEDIR){
 }
 
 my $lastGoodRB = $rbs[0];
-if (open LASTGOOD, "<$rb_directory/.lastGoodRB") {
+if (open LASTGOOD, "<$rb_directory/lastGoodRB") {
   my $last = <LASTGOOD>;
   chomp $last;
   foreach (@rbs) {
