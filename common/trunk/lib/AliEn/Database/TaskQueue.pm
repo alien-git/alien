@@ -382,8 +382,19 @@ sub updateJob{
       and return;
   my $set =shift;
 
-  $DEBUG and $self->debug(1,"In updateJob updating job $id");	
-  $self->update($self->{QUEUETABLE}, $set,"queueId=?", {bind_values=>[$id]});
+  $DEBUG and $self->debug(1,"In updateJob updating job $id");
+  my $procSet = {};
+  foreach my $key (keys  %$set){
+    if($key =~ /(si2k)|(cpuspeed)|(maxrsize)|(cputime)|(ncpu)|(cost)|(cpufamily)|(cpu)|(vsize)|(rsize)|(runtimes)|(procinfotime)|(maxvsize)|(runtime)|(mem)/){
+      $procSet->{$key} = $set->{$key};
+      delete $set->{$key};
+    }
+  }
+  $self->update($self->{QUEUETABLE}, $set,"queueId=?", {bind_values=>[$id]}) or return;
+  if(keys %$procSet){
+    $self->update("QUEUEPROC", $procSet, "queueId=?", {bind_values=>[$id]}) or return;
+  }
+  return 1;
 }
 
 sub updateJobStats{
