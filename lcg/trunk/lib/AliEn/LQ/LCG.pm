@@ -36,14 +36,15 @@ sub initialize {
    $self->{CONFIG}->{CE_MATCHARG} and  $self->{MATCH_CMD} .= " $self->{CONFIG}->{CE_MATCHARG}";
    $self->{PRESUBMIT}  = $self->{MATCH_CMD};
    
-   if ($ENV{CE_LCGCE}) {
+   if ( $ENV{CE_LCGCE} ) {
      $self->info("Taking the list of CEs from \$ENV: $ENV{CE_LCGCE}");
      my @list=split(/,/,$ENV{CE_LCGCE});
      $self->{CONFIG}->{CE_LCGCE_LIST} = \@list;
    }
 
    $self->{CONFIG}->{CE_MINWAIT} = 180; #Seconds
-   $self->{CONFIG}->{CE_MAXWAIT} = 3600; #Seconds
+   $ENV{CE_MINWAIT} and $self->{CONFIG}->{CE_MINWAIT} = $ENV{CE_MINWAIT};
+   $self->info("Will wait at least $self->{CONFIG}->{CE_MINWAIT}s between submission loops.");
    $self->{LASTCHECKED} = time-$self->{CONFIG}->{CE_MINWAIT};
    
    $self->renewProxy();
