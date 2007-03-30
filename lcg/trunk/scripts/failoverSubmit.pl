@@ -10,7 +10,7 @@ my $cfgdir = '~alicesgm/.alien';
 my $opt = new Getopt::Long::Parser;
 $opt->configure("pass_through");
 $opt->getoptions ( 'rb=s'     => \@rbs,
-                   'cfgdir=s' => \$cfgdir') or exit 2;
+                   'cfgdir=s' => \$cfgdir ) or exit 2;
 @rbs = split(/,/, join(',', @rbs)); # Allow comma-separated list
 @rbs or die "Error: no RB specified";
 my $rb_directory = glob($cfgdir);
