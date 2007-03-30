@@ -1126,6 +1126,8 @@ sub  checkWakesUp {
 	    or 	$self->info("Error deleting the entry from the LVM") and next;
 	  $self->info("And removing the file");
 	  system("mv", $path, "$ENV{HOME}/OLDFILES");
+
+	  $seInfo->{lvm}->{DB}->do("DELETE FROM TODELETE where pfn='$entry->{pfn}'");
 	}
       }
     }
@@ -1536,7 +1538,7 @@ sub checkIOmethod {
   my $port=$methods[0]->{port};
   my $host=$methods[0]->{host} || $self->{CONFIG}->{HOST};
   defined $port and $port=":$port";
-  $pfn !~ /^srm/ and 
+  ($pfn !~ /^srm/ || $method eq "root") and 
     $pfn=~ s{^[^:]*://[^/]*}{$method://$host$port/};
   $self->debug(1,"Let's return $pfn");
   return $pfn;
