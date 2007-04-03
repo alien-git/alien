@@ -1397,7 +1397,11 @@ sub getDiskUsage {
       $DEBUG and $self->debug(1, "Checking in the table $entry->{hostIndex}");
       my $db=$self->reconnectToIndex( $entry->{hostIndex});
       $self=$db;
-      my $partialSize=$self->queryValue ("SELECT sum(size) from D$entry->{tableName}L where lfn like '$lfn%'");
+      my $pattern=$lfn;
+      $pattern =~ s{^$entry->{lfn}}{};
+      my $where="where lfn like '$pattern%'";
+      $entry->{lfn}=~ m{^$lfn} and $where="";
+      my $partialSize=$self->queryValue ("SELECT sum(size) from L$entry->{tableName}L $where");
       $DEBUG and $self->debug(1, "Got size $partialSize");
       $size+=$partialSize;
     }
