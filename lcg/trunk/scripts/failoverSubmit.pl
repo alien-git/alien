@@ -59,11 +59,11 @@ if ( $error ) {
     next redoit if ( $_ eq $lastGoodRB ); ##This one just failed
     $error = submit("$rb_directory/$_.vo.conf", @opts);
     next redoit if $error; 
-    if ( open LASTGOOD, ">$rb_directory/.lastGoodRB" ) {
+    if ( open LASTGOOD, ">$rb_directory/lastGoodRB" ) {
       print LASTGOOD "$_\n";
       close LASTGOOD;
     } else {
-      print STDERR "Could not save $rb_directory/.lastGoodRB\n";
+      print STDERR "Could not save $rb_directory/lastGoodRB\n";
     }
     last;
   }
@@ -76,11 +76,13 @@ sub submit {
   my @output = `$submission`;
   $error = $?;
   (my $jobId) = grep { /https:/ } @output;
-  $jobId =~ m/(https:\/\/[A-Za-z0-9.-]*:9000\/[A-Za-z0-9_-]{22})/;
-  $jobId = $1;
   unless ( $error || !$jobId){
+    $jobId =~ m/(https:\/\/[A-Za-z0-9.-]*:9000\/[A-Za-z0-9_-]{22})/;
+    $jobId = $1;
     chomp $jobId;
     print "$jobId";
+  } else {
+    print STDERR "Error submitting to $file, trying next...\n";
   }
   return $error;
 }
