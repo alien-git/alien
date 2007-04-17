@@ -41,7 +41,7 @@ sub deleteNonReferencedGUID {
     foreach my $tableD (@$tables){
       my $table="G${tableD}L";
       $self->info("Checking the table $table");
-      $db->lock("$table, ${table}_PFN");
+      $db->lock("$table WRITE, ${table}_PFN");
       $db->do("INSERT INTO TODELETE(guid, seNumber, pfn) select $table.guid, seNumber, pfn from $table, ${table}_PFN where ref=0 and $table.guidId=${table}_PFN.guidId");
       #We should also insert the entries that have the seAutoString
       $db->do("INSERT INTO TODELETE(guid,seNumber) select $table.guid, seNumber from $table, SE where ref=0 and seAutoStringList like concat('%,',seNumber,',%')");

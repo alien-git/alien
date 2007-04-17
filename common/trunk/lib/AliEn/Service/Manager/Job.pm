@@ -949,8 +949,8 @@ sub getPs {
 
 
 	#my (@ok) = $self->{DB}->query($query);
-  my $rresult = $self->{DB}->getFieldsFromQueueEx("queueId, status, jdl, execHost, submitHost, runtime, cpu, mem, cputime, rsize, vsize, ncpu, cpufamily, cpuspeed, cost, maxrsize, maxvsize, site, node, split, procinfotime,received,started,finished",
-						  $where)
+  my $rresult = $self->{DB}->getFieldsFromQueueEx("q.queueId, status, jdl, execHost, submitHost, runtime, cpu, mem, cputime, rsize, vsize, ncpu, cpufamily, cpuspeed, cost, maxrsize, maxvsize, site, node, split, procinfotime,received,started,finished",
+						  "q, QUEUEPROC p $where and p.queueid=q.queueid")
     or $self->{LOGGER}->error( "JobManager", "In getPs error getting data from database" )
       and return (-1, "error getting data from database");
 
