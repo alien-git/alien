@@ -119,10 +119,7 @@ sub registerLine {
     push @list, {seName=>$se, pfn=>$pfn};
   }
   @list and $info->{pfns}=\@list;
-  print "ESTOY AQUI???\n";
-  use Data::Dumper;
-  print Dumper($info);
-  $self->{CATALOGUE}->execute("debug", 5);
+
   if (!$self->{CATALOGUE}->{CATALOG}->f_bulkRegisterFile("", $dir, [$info])){
     $self->info("Error registering the entry in the catalog");
     $self->putJobLog($queueid,"error", "Error registering the file $lfn in the catalogue");

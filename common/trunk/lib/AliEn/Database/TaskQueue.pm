@@ -287,8 +287,10 @@ sub insertJobLocked {
   ($out)
       and $procid = $self->getLastId();
   
-  $procid
-    and $DEBUG and $self->debug(1, "In insertJobLocked got job id $procid.");
+  if ($procid){
+    $DEBUG and $self->debug(1, "In insertJobLocked got job id $procid.");
+    $self->insert("QUEUEPROC", {queueId=>$procid});
+   }
   
   if ($oldjob!= 0) { 
     # remove the split master Id, since this job has been resubmitted ...
@@ -296,7 +298,7 @@ sub insertJobLocked {
     ($ok) or
       $self->{LOGGER}->error( "TaskQueue", "Update of resubmitted split job part failed!");
   }
-
+  
   $DEBUG and $self->debug(1, "In insertJobLocked unlocking the table $self->{QUEUETABLE}.");	
   $self->unlock();
   $self->update("ACTIONS", {todo=>1}, "action='INSERTING'");
@@ -342,7 +344,7 @@ sub assignWaiting{
   eval {
     $self->isWaiting($queueID) or die("the job is no longer waiting\n");
     $self->updateStatus($queueID,"%","ASSIGNED",
-		      {sent=>time, execHost=>"$user\@$host", site=>"$ce", procinfotime=>time} ) 
+		      {sent=>time, execHost=>"$user\@$host", site=>"$ce"} ) 
       or die("error setting the job to 'ASSIGNED'\n");
   };
   my $error=$@;
