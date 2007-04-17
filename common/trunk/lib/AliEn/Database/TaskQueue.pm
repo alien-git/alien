@@ -335,7 +335,7 @@ sub assignWaiting{
   my $ce = $1;
   $self->debug(1,"CE is $ce! jdl $jdl");
 
-  $self->lock("$self->{QUEUETABLE}");
+  $self->lock("$self->{QUEUETABLE} WRITE, QUEUEPROC");
   $DEBUG and $self->debug(1, "in assignWaiting table $self->{QUEUETABLE} locked");
 
   #Checking that the job is still waiting
@@ -454,7 +454,7 @@ sub updateStatus{
   $set->{status} = $status;
 
   $DEBUG and $self->debug(1, "in updateStatus locking the table $self->{QUEUETABLE}");
-  $self->lock("$self->{QUEUETABLE} WRITE, JOBAGENT");
+  $self->lock("$self->{QUEUETABLE} WRITE, JOBAGENT WRITE, QUEUEPROC");
   $DEBUG and $self->debug(1, "in updateStatus table $self->{QUEUETABLE} locked");
 	
   my $message="";
@@ -490,17 +490,6 @@ sub updateStatus{
 	  && (! $masterjob)){
 	$message="The job $id [$dbsite] was in status $dboldstatus [$self->{JOBLEVEL}->{$dboldstatus}] and cannot be changed to $status [$self->{JOBLEVEL}->{$status}]";
       } else {
-	#####################################################################################
-	# ($oldstatus eq "QUEUED") && ($status eq "RUNNING") =>
-	# on fast queue systems, where the CM host is busy, the transition QUEUED=>STARTED
-	# can be faster then WAITING=>QUEUED, since they are executed on different machines!
-	# so we allow also QUEUED=>RUNNING which is needed in this case!
-	######################################################################################
-	
-	############################
-	# old implementation
-	#			if ( ($oldstatus eq "%" ) || ($oldstatus eq $dboldstatus) || ( ($oldstatus eq "QUEUED") && ($status eq "RUNNING") ) )# {
-	  ############################
 	#update the value, it is correct
 	if ($self->updateJob($id,$set) ) {
 	  $self->info( "THE UPDATE WORKED!! Let's see if we have to delete an agent $dboldstatus");
