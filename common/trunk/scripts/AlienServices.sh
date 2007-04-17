@@ -170,7 +170,7 @@ ALIEN_Starthttpd()
 ALIEN_Statushttpd()
 ###########################################################################
 {
-  ps -ef |grep httpd |grep -v grep > /dev/null 2>&1
+  ps -ef |grep httpd |grep -v grep |grep -v Statushttpd> /dev/null 2>&1
   exit $?
 }
 

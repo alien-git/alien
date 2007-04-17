@@ -277,7 +277,7 @@ sub insertJobLocked {
    #currently $set->{priority} is hardcoded to be '0'
     
   $DEBUG and $self->debug(1, "In insertJobLocked locking the table $self->{QUEUETABLE}");
-  $self->lock("$self->{QUEUETABLE}");
+  $self->lock("$self->{QUEUETABLE} WRITE,QUEUEPROC");
 
   $DEBUG and $self->debug(1, "In insertJobLocked table $self->{QUEUETABLE} locked. Inserting new data.");
   $set->{jdl}=~ s/'/\\'/g;
