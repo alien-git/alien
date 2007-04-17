@@ -756,9 +756,13 @@ sub handler {
   $service =~ s/^\"AliEn\/Service\///;
   $service =~ s{/}{.}g;
   $service .=".log";
-  print STDERR "$$ Redirecting to $service\n";
-  $self->{LOGGER} or $self->{LOGGER}=AliEn::Logger->new();
-  $self->{LOGGER}->redirect("$ENV{ALIEN_ROOT}/httpd/logs/$service");
+  $self->{CURRENTLOG} or $self->{CURRENTLOG}="";
+  if ($self->{CURRENTLOG} ne "$service"){
+    print STDERR "$$ Redirecting to $service\n";
+    $self->{LOGGER} or $self->{LOGGER}=AliEn::Logger->new();
+    $self->{LOGGER}->redirect("$ENV{ALIEN_ROOT}/httpd/logs/$service");
+    $self->{CURRENTLOG}=$service;
+  }
   Apache::SOAP::handler($r, @_);
 }
 
