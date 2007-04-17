@@ -19,14 +19,14 @@ BEGIN { plan tests => 1 }
   $cat or exit (-1);
   $cat->execute("mkdir", "-p", "jdl");
   addFile($cat, "jdl/email.jdl", "Executable=\"date\";\nEmail=\"root\@localhost\";\n") or exit(-2);
-#  my $status=jobWithEmail($cat,"jdl/email.jdl") or exit(-2);
-#  $status eq "DONE" or exit(-2);
+  my $status=jobWithEmail($cat,"jdl/email.jdl") or exit(-2);
+  $status eq "DONE" or exit(-2);
   $cat->execute("whereis", "-silent", "bin/dateWrong") or 
     $cat->execute("register", "bin/dateWrong", "file://wrongmachine/path/to/not/existant/file",22) 
       or exit(-2);
   addFile($cat, "jdl/emailWrong.jdl", "Executable=\"dateWrong\";\nEmail=\"root\@localhost\";\n") or exit(-2);
 
-my  $status=jobWithEmail($cat, "jdl/emailWrong.jdl", "ERROR_IB") or exit(-2);
+  $status=jobWithEmail($cat, "jdl/emailWrong.jdl", "ERROR_IB") or exit(-2);
   $status =~ /ERROR_/ or exit(-2);
 
   ok(1);
@@ -38,9 +38,9 @@ sub jobWithEmail {
   my $jdl=shift;
   my $status=shift;
 
-#  my ($procDir)=executeJDLFile($cat,$jdl, $status) or 
-#    print "The job did not execute correctly!!\n" and return;
-  my $procDir="/proc/newuser/55/";
+  my ($procDir)=executeJDLFile($cat,$jdl, $status) or 
+    print "The job did not execute correctly!!\n" and return;
+
 
   my ($file)=$cat->execute("get", "-f", "$procDir/job-log/execution.out");
 
