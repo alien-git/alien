@@ -43,8 +43,8 @@ sub checkWakesUp {
  		      
   	  # 'mark' job entries for current session and   
 	  # update finalPrice in $queueTable
-  	my $update = " UPDATE $queueTable SET finalPrice = si2k * $nominalPrice * price,effectivePriority='-314159' ";
-	my $where  = " WHERE (status='DONE' AND si2k>0 AND effectivePriority!='-271828' AND effectivePriority!='-626606') ";
+  	my $update = " UPDATE $queueTable q, QUEUEPROC p SET finalPrice = si2k * $nominalPrice * price,effectivePriority='-314159' ";
+	my $where  = " WHERE (status='DONE' AND si2k>0 AND effectivePriority!='-271828' AND effectivePriority!='-626606') and p.queueid=q.queueid";
   
   my $updateStmt = $update.$where;	
   
@@ -64,15 +64,15 @@ sub checkWakesUp {
  		"Error: Can't connect to LDAP server $self->{CONFIG}->{LDAPHOST}";
   $self->{LDAP_CON}->bind;
 
-		  # declare a HASH where keys are usernames and values are corresponding bank
-		  # accounts 
-		  my %userBankAccount;   
-		  # declare a HASH where keys are names of the sites and values are corresponding bank
-		  # accounts 
-		  my %siteBankAccount;   
+  # declare a HASH where keys are usernames and values are corresponding bank
+  # accounts 
+  my %userBankAccount;   
+  # declare a HASH where keys are names of the sites and values are corresponding bank
+  # accounts 
+  my %siteBankAccount;   
   
-		  my $_user;
-		  my $_site;
+  my $_user;
+  my $_site;
  
   # prepare list of transactions 
   
@@ -120,7 +120,7 @@ sub checkWakesUp {
      ######################
      # $amount ready !    #
      ######################
-
+     
      
      $jobsListToCharge .= $queueId.":".$fromAccount.":".$toAccount.":".$amount."\n";  	
      
@@ -134,13 +134,13 @@ sub checkWakesUp {
   my $done = $self->{SOAP}->CallSOAP("LBSG", "transactFundsList", $jobsListToCharge); 
   
   if (! $done ){
-	$self->info("Error: Can not charge for jobs. SOAP call to LBSG failed");
-	$self->info("Setting jobs to '-626606' (charging failed) ");
-
-        $update = " UPDATE $queueTable SET effectivePriority='-626606' WHERE effectivePriority='-314159' ";
+    $self->info("Error: Can not charge for jobs. SOAP call to LBSG failed");
+    $self->info("Setting jobs to '-626606' (charging failed) ");
+    
+    $update = " UPDATE $queueTable SET effectivePriority='-626606' WHERE effectivePriority='-314159' ";
   
-	$self->{DB}->do($update);
-	return;
+    $self->{DB}->do($update);
+    return;
   }
  
   # change the status (value of effectivePriority) accordingly 
@@ -161,19 +161,19 @@ sub checkWakesUp {
   my ($failedId, $reason);
   
   foreach (@failed){
-	($failedId, $reason) =  split (":",$_);
-        $self->info("Error: Can not charge for job no $failedId: $reason");
-	$self->info("Setting job no $failedId to '-626606' (charging failed) ");
+    ($failedId, $reason) =  split (":",$_);
+    $self->info("Error: Can not charge for job no $failedId: $reason");
+    $self->info("Setting job no $failedId to '-626606' (charging failed) ");
 
-        $update = " UPDATE $queueTable SET effectivePriority='-626606' WHERE queueId='$failedId' ";
-  	$self->{DB}->do($update);
+    $update = " UPDATE $queueTable SET effectivePriority='-626606' WHERE queueId='$failedId' ";
+    $self->{DB}->do($update);
   }
 
   # Failed transactions are now set,  which means that transactions which are
   # still in progress (-314159) went without errors
   
-      $update = " UPDATE $queueTable SET effectivePriority='-271828' WHERE effectivePriority='-314159' ";
-      $self->{DB}->do($update);
+  $update = " UPDATE $queueTable SET effectivePriority='-271828' WHERE effectivePriority='-314159' ";
+  $self->{DB}->do($update);
 
   return;
 }
