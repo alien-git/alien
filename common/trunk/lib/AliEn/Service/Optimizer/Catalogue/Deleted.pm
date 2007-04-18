@@ -70,7 +70,7 @@ sub updateReferences{
   foreach my $host (@$hosts){
     my $maxEntryId=0;
     $self->info("Selecting the entries that have changed in $host");
-    my $db=$self->{DB}->{LFN_DB}->reconnectToIndex($host->{hostIndex}) or next;
+    my ($db, $path2)=$self->{DB}->{LFN_DB}->reconnectToIndex($host->{hostIndex}) or next;
     $db->do("delete from LFN_UPDATES where guid is null");
     my $entries=$db->query("SELECT action,entryId,binary2string(guid) as guid from LFN_UPDATES");
     foreach my $entry (@$entries){

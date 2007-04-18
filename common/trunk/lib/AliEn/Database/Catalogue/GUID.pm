@@ -32,7 +32,6 @@ This module interacts with a database of the AliEn Catalogue. The AliEn Catalogu
 use vars qw(@ISA $DEBUG);
 
 #This array is going to contain all the connections of a given catalogue
-my %Connections;
 push @ISA, qw(AliEn::Database::Catalogue::Shared);
 $DEBUG=0;
 
@@ -48,44 +47,6 @@ $DEBUG=0;
 =over
 
 =cut
-
-
-sub preConnect {
-  my $self=shift;
-  if (!$self->{UNIQUE_NM}){
-    $self->{UNIQUE_NM}=time;
-    #make sure that the number is unique
-    while ($Connections{$self->{UNIQUE_NM}}){
-      $self->{UNIQUE_NM}.="-1";
-    }
-    $Connections{$self->{UNIQUE_NM}}={FIRST_DB=>$self};
-  }
-  $self->{FIRST_DB}=$Connections{$self->{UNIQUE_NM}}->{FIRST_DB};
-  $self->{DB} and $self->{HOST} and $self->{DRIVER} and return 1;
-  $self->{CONFIG}->{CATALOGUE_DATABASE} or return;
-  $self->info( "Using the default $self->{CONFIG}->{CATALOGUE_DATABASE}");
-  ($self->{HOST}, $self->{DRIVER}, $self->{DB})
-    =split ( m{/}, $self->{CONFIG}->{CATALOGUE_DATABASE});
-
-  return 1;
-}
-
-sub initialize {
-  my $self=shift;
-
-  $self->{CURHOSTID}=$self->queryValue("SELECT hostIndex from HOSTS where address='$self->{HOST}' and driver='$self->{DRIVER}' and db='$self->{DB}'"); 
-  $self->{CURHOSTID} or $self->info("Warning this host is not in the HOSTS table!!!") and return $self->SUPER::initialize(@_);
-
-  my $dbindex="$self->{CONFIG}->{ORG_NAME}_$self->{CURHOSTID}";
-
-  $Connections{$self->{UNIQUE_NM}}->{$dbindex}=$self;
-
-  $self->{GUID}=AliEn::GUID->new() or 
-    $self->info("Error creating the GUID interface") and  return;
-
-
-  return $self->SUPER::initialize(@_);
-}
 
 
 =item C<createCatalogueTables>
@@ -615,23 +576,6 @@ sub updateOrInsertGUID{
   return $info->{db}->update($info->{table}, $newUp, "guidId=$info->{guidId}");
 }
 
-
-sub destroy {
-  my $self=shift;
-
-  my ($number, $rest)=keys %Connections;
-  $number or return;
-  my @databases=keys %{$Connections{$number}};
-
-  foreach my $database (@databases){
-    $database=~ /^FIRST_DB$/ and next;
-    $Connections{$number}->{$database} and $Connections{$number}->{$database}->SUPER::destroy();
-    delete $Connections{$number}->{$database};
-  }
-  undef %Connections;
-
-#  $self->SUPER::destroy();
-}
 
 
 

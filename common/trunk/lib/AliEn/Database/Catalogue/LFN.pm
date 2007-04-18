@@ -30,7 +30,6 @@ This module interacts with a database of the AliEn Catalogue. The AliEn Catalogu
 use vars qw(@ISA $DEBUG);
 
 #This array is going to contain all the connections of a given catalogue
-my %Connections;
 push @ISA, qw(AliEn::Database::Catalogue::Shared);
 $DEBUG=0;
 
@@ -46,43 +45,6 @@ $DEBUG=0;
 =over
 
 =cut
-
-
-sub preConnect {
-  my $self=shift;
-  if (!$self->{UNIQUE_NM}){
-    $self->{UNIQUE_NM}=time;
-    #make sure that the number is unique
-    while ($Connections{$self->{UNIQUE_NM}}){
-      $self->{UNIQUE_NM}.="-1";
-    }
-    $Connections{$self->{UNIQUE_NM}}={FIRST_DB=>$self};
-  }
-  $self->{FIRST_DB}=$Connections{$self->{UNIQUE_NM}}->{FIRST_DB};
-  $self->{DB} and $self->{HOST} and $self->{DRIVER} and return 1;
-  $self->{CONFIG}->{CATALOGUE_DATABASE} or return;
-  $self->info( "Using the default $self->{CONFIG}->{CATALOGUE_DATABASE}");
-  ($self->{HOST}, $self->{DRIVER}, $self->{DB})
-    =split ( m{/}, $self->{CONFIG}->{CATALOGUE_DATABASE});
-
-  return 1;
-}
-
-sub initialize {
-  my $self=shift;
-
-  $self->{CURHOSTID}=$self->queryValue("SELECT hostIndex from HOSTS where address='$self->{HOST}' and driver='$self->{DRIVER}' and db='$self->{DB}'"); 
-  $self->{CURHOSTID} or $self->info("Warning this host is not in the HOSTS table!!!") and return $self->SUPER::initialize(@_);
-
-  my $dbindex="$self->{CONFIG}->{ORG_NAME}_$self->{CURHOSTID}";
-
-  $Connections{$self->{UNIQUE_NM}}->{$dbindex}=$self;
-
-  $self->{GUID}=AliEn::GUID->new() or 
-    $self->info("Error creating the GUID interface") and  return;
-
-  return $self->SUPER::initialize(@_);
-}
 
 
 =item C<createCatalogueTables>
@@ -504,7 +466,7 @@ sub getLFNlike {
 
   #now, for each index, find the matching lfn
   foreach my $ref (@$indexRef, @$indexRef2){
-    my $db=$self->reconnectToIndex( $ref->{hostIndex}) or next;
+    my ($db, $path2)=$self->reconnectToIndex( $ref->{hostIndex}) or next;
     my $orig="concat('$ref->{lfn}', lfn)";
     my $ppattern=$pattern;
     #If the entries that we are looking for already have the 
@@ -620,7 +582,7 @@ sub createRemoteDirectory {
 
   #Now, in the new database
   $self->info("Before reconnecttoindex\n");
-  my $db=$self->reconnectToIndex($hostIndex) or $self->info("Error: the reconnect to index $hostIndex failed") and return;
+  my ($db, $path2)=$self->reconnectToIndex($hostIndex) or $self->info("Error: the reconnect to index $hostIndex failed") and return;
   my $newTable=$db->getNewDirIndex() or $self->info("Error getting the new dirindex") and return;
   $newTable="L${newTable}L";
   #ok, let's insert the entry in $table
@@ -655,7 +617,7 @@ sub removeDirectory {
 
   foreach my $db (@$entries) {
     $DEBUG and $self->debug(1, "Deleting all the entries from $db->{hostIndex} (table $db->{tableName} and lfn=$db->{lfn})");
-    my $db2=$self->reconnectToIndex($db->{hostIndex}, $path);
+    my ($db2, $path2)=$self->reconnectToIndex($db->{hostIndex}, $path);
     $db2 or  $self->info( "Error reconecting") and next;
 
     my $tmpPath="$path/";
@@ -672,7 +634,7 @@ sub removeDirectory {
       my $entries=$self->getHostsForEntry($parentdir) or 
 	$self->info( "Error getting the hosts for '$path'") and return;
       my $db=${$entries}[0];
-      my $newdb=$self->reconnectToIndex($db->{hostIndex}, $parentdir);
+      my ($newdb, $path2)=$self->reconnectToIndex($db->{hostIndex}, $parentdir);
       $newdb or $self->info( "Error reconecting") and return;
       my $tmpPath="$path/";
       $tmpPath=~ s{^$db->{lfn}}{};
@@ -744,7 +706,7 @@ sub actionInIndex {
   foreach $tempHost (@$hosts) {
     #my ( $ind, $ho, $d, $driv ) = split "###", $tempHost;
     $self->info( "Updating the INDEX table of  $tempHost->{db}");
-    my $db=$self->reconnectToIndex( $tempHost->{hostIndex}, "", $tempHost );
+    my ($db, $Path2)=$self->reconnectToIndex( $tempHost->{hostIndex}, "", $tempHost );
     $db or next;
     $db->do($action) or print STDERR "Warning: Error doing $action";
   }
@@ -809,7 +771,7 @@ sub copyDirectory{
   my $user=$options->{user} || $self->{ROLE};
 
   #Before doing this, we have to make sure that we are in the right database
-  my $targetDB=$self->reconnectToIndex( $targetIndex) or return;
+  my ($targetDB, $Path2)=$self->reconnectToIndex( $targetIndex) or return;
 
   my $sourceLength=length($source)+1;
 
@@ -834,7 +796,7 @@ sub copyDirectory{
 
   foreach my $entry (@$sourceHosts){
     $DEBUG and $self->debug(1, "Copying from $entry to $targetIndex and $targetTable");
-    my $db=$self->reconnectToIndex( $entry->{hostIndex});
+    my ($db, $Path2)=$self->reconnectToIndex( $entry->{hostIndex});
 
     my $tsource=$source;
     $tsource=~ s{^$entry->{lfn}}{};
@@ -1395,7 +1357,7 @@ sub getDiskUsage {
 
     foreach my $entry (@$hosts){
       $DEBUG and $self->debug(1, "Checking in the table $entry->{hostIndex}");
-      my $db=$self->reconnectToIndex( $entry->{hostIndex});
+      my ($db, $path2)=$self->reconnectToIndex( $entry->{hostIndex});
       $self=$db;
       my $pattern=$lfn;
       $pattern =~ s{^$entry->{lfn}}{};
@@ -1405,7 +1367,7 @@ sub getDiskUsage {
       $DEBUG and $self->debug(1, "Got size $partialSize");
       $size+=$partialSize;
     }
-    my $db=$self->reconnectToIndex($sourceInfo->{hostIndex});
+    my ($db, $Path2)=$self->reconnectToIndex($sourceInfo->{hostIndex});
     $self=$db;
     
   } else {
@@ -1435,7 +1397,7 @@ sub DropEmptyDLTables{
   my $tempHost;
   foreach $tempHost (@$hosts) {
     #my ( $ind, $ho, $d, $driv ) = split "###", $tempHost;
-    my $db=$self->reconnectToIndex( $tempHost->{hostIndex} );
+    my ($db, $path2)=$self->reconnectToIndex( $tempHost->{hostIndex} );
     $self=$db;
 
     my $tables=$self->queryColumn("show tables like 'D\%L'") or print STDERR "Warning: error connecting to $tempHost->{hostIndex}" and next;
@@ -1488,7 +1450,7 @@ sub executeInAllDB{
   my @return;
   foreach my $entry (@$hosts){
     $DEBUG and $self->debug(1, "Checking in the table $entry->{hostIndex}");
-    my $db=$self->reconnectToIndex( $entry->{hostIndex});
+    my ($db, $path2)=$self->reconnectToIndex( $entry->{hostIndex});
     if (!$db){
       $error=1;
       last;
@@ -1525,77 +1487,10 @@ sub selectDatabase {
   }
   $DEBUG and $self->debug(1, "We want to contact $index  and we are  $self->{CURHOSTID}");
   
-  my $db=$self->reconnectToIndex($index, $path) or return;
+  my ($db, $path2)=$self->reconnectToIndex($index, $path) or return;
 
   $db->setIndexTable($tableName, $entry->{lfn});
   return $db;
-}
-sub reconnectToIndex {
-  my $self=shift;
-  my $index=shift;
-  my $path=shift;
-  # we can send the info from the call, so that we skip one database query
-  my $data=shift;
-  ($index eq $self->{CURHOSTID}) and return $self;
-
-  $data or 
-    ($data) = $self->getFieldsFromHosts($index,"organisation,address,db,driver");
-  ## add db error message
-  defined $data
-    or return;
-  
-  %$data or $self->info("Host with index $index doesn't exists")
-      and return;
-
-  $data->{organisation} or $data->{organisation}=$self->{CONFIG}->{ORG_NAME};
-  my $dbindex="$self->{CONFIG}->{ORG_NAME}_$index";
-  my $changeOrg=0;
-  $DEBUG and $self->debug(1, "We are in org $self->{CONFIG}->{ORG_NAME} and want to contact $data->{organisation}");
-  if ($path and ($data->{organisation} ne $self->{CONFIG}->{ORG_NAME})) {
-    $self->info("We are connecting to a different organisation");
-    $self->{CONFIG}=$self->{CONFIG}->Reload({organisation=>$data->{organisation}});
-    $self->{CONFIG} or $self->info("Error getting the new configuration") and return;
-    $path =~ s/\/$//;
-    $self->{"MOUNT_$data->{organisation}"}=$path;
-    
-    $self->{MOUNT}.=$self->{"MOUNT_$data->{organisation}"};
-    $self->info("Mount point:$self->{MOUNT}");
-    $changeOrg=1;
-  }
-
-  if ( !$Connections{$self->{UNIQUE_NM}}->{$dbindex} ) {
-    #    if ( !$self->{"DATABASE_$index"} ) {
-    $DEBUG and $self->debug(1,"Connecting for the first time to $data->{address} $data->{db}" );
-    # CHECK LOGGER!!
-    my $DBOptions={
-		   "DB"     => $data->{db},
-		   "HOST"   => $data->{address},
-		   "DRIVER" => $data->{driver},
-		   "DEBUG"  => $self->{DEBUG},
-		   "USER"   => $self->{USER},
-		   "SILENT" => 1,
-		   "TOKEN"  => $self->{TOKEN},
-		   "LOGGER" => $self->{LOGGER},
-		   "ROLE"   => $self->{ROLE},
-		   "FORCED_AUTH_METHOD" => $self->{FORCED_AUTH_METHOD},
-		   "UNIQUE_NM"=>$self->{UNIQUE_NM},
-		  };
-    $self->{PASSWD} and $DBOptions->{PASSWD}=$self->{PASSWD};
-    defined $self->{USE_PROXY} and $DBOptions->{USE_PROXY}=$self->{USE_PROXY};
-
-    AliEn::Database::Catalogue::LFN->new($DBOptions )
-	or print STDERR "ERROR GETTING THE NEW DATABASE\n" and return;
-
-    if ($changeOrg) {
-      #In the new organisation, the index is different
-      my ($newIndex)= $Connections{$self->{UNIQUE_NM}}->{$dbindex}->getHostIndex($data->{address}, $data->{db});
-      $DEBUG and $self->debug(1, "Setting the new index to $newIndex");
-      $self->{"DATABASE_$data->{organisation}_$newIndex"}=$self->{DATABASE};
-      $DEBUG and $self->debug(1, "We should do selectDatabase again");
-    }
-  }
-  $self->info("THE CONNECTION HAS BEEN CREATED PROPERLY!!!\n\n");
-  return  $Connections{$self->{UNIQUE_NM}}->{$dbindex};
 }
 
 sub getLFNfromGUID {
@@ -1606,13 +1501,13 @@ sub getLFNfromGUID {
   my $entries=$self->query("select lfn,tableName,hostIndex from INDEXTABLE");
   foreach my $entry (@$entries){
     $DEBUG and $self->debug(1, "Checking in the table $entry->{hostIndex}");
-    my $db=$self->reconnectToIndex( $entry->{hostIndex}) or next;
+    my ($db, $path2)=$self->reconnectToIndex( $entry->{hostIndex}) or next;
     my $paths = $db->queryColumn("SELECT concat('$entry->{lfn}',lfn) FROM L$entry->{tableName}L WHERE guid=string2binary(?) ", undef, {bind_values=>[$guid]});
     $paths and push @lfns, @$paths;
   }
 
   return @lfns;
-}
+} 
 
 sub getPathPrefix{
   my $self=shift;
@@ -1641,7 +1536,7 @@ sub findLFN() {
 
     $DEBUG and $self->debug(1, "Looking in database $id (path $path)");
 
-    my $db=$self->reconnectToIndex( $rhost->{hostIndex}, "", );
+    my ($db, $path2)=$self->reconnectToIndex( $rhost->{hostIndex}, "", );
     $db or $self->info( "Error connecting to $id ($path)") and next;
     $DEBUG and $self->debug(1, "Doing the query");
 
@@ -1772,24 +1667,6 @@ sub setExpire{
 }
 
 
-sub destroy {
-  my $self=shift;
-
-  my ($number, $rest)=keys %Connections;
-  $number or return;
-  my @databases=keys %{$Connections{$number}};
-
-  foreach my $database (@databases){
-    $database=~ /^FIRST_DB$/ and next;
-    $Connections{$number}->{$database} and $Connections{$number}->{$database}->SUPER::destroy();
-    delete $Connections{$number}->{$database};
-  }
-  undef %Connections;
-
-#  $self->SUPER::destroy();
-}
-
-
 sub getAllReplicatedData{
   my $self=shift;
 
@@ -1842,12 +1719,6 @@ sub setAllReplicatedData {
     $self->insert("SE", $se);
   }
   return 1;
-}
-
-sub printConnections{
-  my $self=shift;
-  print "DE MOMENTO TENEMOS ". join (" ",  keys( %Connections)). "\n\n";
-  print "Y BASES ". join (" ", keys (%{$Connections{$self->{UNIQUE_NM}}})). "\n\n";
 }
 
 
