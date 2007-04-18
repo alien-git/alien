@@ -75,7 +75,7 @@ sub checkWakesUp {
   defined $hosts
     or return;
   foreach my $tempHost (@$hosts) {
-    my $db=$self->{DB}->{LFN_DB}->reconnectToIndex( $tempHost->{hostIndex},"",$tempHost) or $self->info("Error doing $tempHost->{db}") and next;;
+    my ($db, $Path2)=$self->{DB}->{LFN_DB}->reconnectToIndex( $tempHost->{hostIndex},"",$tempHost) or $self->info("Error doing $tempHost->{db}") and next;;
     $self->info("Doing $tempHost->{db}");
 
     $self->checkGUID($silent, $db);

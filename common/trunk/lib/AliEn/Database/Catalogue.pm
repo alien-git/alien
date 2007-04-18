@@ -84,6 +84,7 @@ sub initialize {
 
   $self->{LFN_DB}=AliEn::Database::Catalogue::LFN->new($opt1, @_) or return;
   $self->{GUID_DB}=AliEn::Database::Catalogue::GUID->new($opt2,@_) or return;
+
   return 1;
 }
 
@@ -409,7 +410,7 @@ sub addUser {
   my $error=0;
   foreach my $rtempHost (@$rhosts) {
     print "Granting privileges for $user in $rtempHost->{db} (so far $error)\n";
-    my $db=$self->{LFN_DB}->reconnectToIndex( $rtempHost->{hostIndex}, "", $rtempHost );
+    my ($db, $extra)=$self->{LFN_DB}->reconnectToIndex( $rtempHost->{hostIndex}, "", $rtempHost );
     $db or $self->info("Error reconnecting to $rtempHost->{hostIndex}") and $error=1 and next; 
     $db->grantExtendedPrivilegesToUser($db->{DB}, $user, $passwd);
 
@@ -776,6 +777,7 @@ sub close{
 
 sub destroy {
   my $self=shift or return;
+
   $self->{LFN_DB} and $self->{LFN_DB}->destroy();
   $self->{GUID_DB} and $self->{GUID_DB}->destroy();
 #  $self->SUPER::destroy();
@@ -871,7 +873,7 @@ sub createTable {
   my $index=$self->getHostIndex($host, $db, $driver);
   $index or $self->info("Error getting the index of '$host', '$db', and '$driver'", 1) and return;
 
-  my $db2=$self->{LFN_DB}->reconnectToIndex($index)
+  my ($db2, $extra)=$self->{LFN_DB}->reconnectToIndex($index)
     or $self->info("Error reconnecting to the index $index", 1) and return;
 
   $db2->createTable($table, $definition)
