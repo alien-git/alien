@@ -916,7 +916,7 @@ sub getPs {
   $args =~ s/-?-u(ser)?=?\s+(\S+)// and $where.=" and submithost like '$2\@\%'";
 #    $args =~ s/-?-e(xec)?=?\s+(\S+)// and $where.=" and exechost like '\%$2'";
 #    $args =~ s/-?-c(ommand)?=?\s+(\S+)// and $where.=" and jdl like '\%Executable\%$2\%'";
-    $args =~ s/-?-i(d)?=?\s*(\S+)// and $where .=" and ( queueid='$2' or split='$2')";
+    $args =~ s/-?-i(d)?=?\s*(\S+)// and $where .=" and ( p.queueid='$2' or split='$2')";
 
   if ($flags =~ s/s//) {
     $where .=" and (jdl like '\%Split\%' or split>0 ) ";
@@ -943,14 +943,14 @@ sub getPs {
 
 #    my $query="SELECT queueId, status, jdl, execHost FROM QUEUE WHERE ( status=$status ) $user $exechost order by queueId";
 
-  $where .=" ORDER BY queueId";
+  $where .=" and p.queueid=q.queueid ORDER BY q.queueId";
 
   $self->info( "In getPs getting data from database \n $where" );
 
 
 	#my (@ok) = $self->{DB}->query($query);
   my $rresult = $self->{DB}->getFieldsFromQueueEx("q.queueId, status, jdl, execHost, submitHost, runtime, cpu, mem, cputime, rsize, vsize, ncpu, cpufamily, cpuspeed, cost, maxrsize, maxvsize, site, node, split, procinfotime,received,started,finished",
-						  "q, QUEUEPROC p $where and p.queueid=q.queueid")
+						  "q, QUEUEPROC p $where")
     or $self->{LOGGER}->error( "JobManager", "In getPs error getting data from database" )
       and return (-1, "error getting data from database");
 
@@ -1007,7 +1007,7 @@ sub jobinfo {
   my $delay = shift or return;
   my $now = time;
     
-  my $array = $self->{DB}->getFieldsFromQueueEx("queueId","where site like '$site' and status='$status' and ( ($now - procinfotime) > $delay)");
+  my $array = $self->{DB}->getFieldsFromQueueEx("q.queueId","q, QUEUEPROC p where site like '$site' and status='$status' and ( ($now - procinfotime) > $delay) and q.queueid=p.queueid");
 
   if (@$array) {
     return $array;
