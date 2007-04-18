@@ -848,7 +848,7 @@ sub resyncSiteQueueTable{
     (defined $_->{site}) and  $where.="site='$_->{site}'" or 
       $where.="site is NULL";
 
-    my $sitestat = $self->getFieldsFromQueueEx("status, sum(cost) as cost, count(*) as count","$where Group by status");
+    my $sitestat = $self->getFieldsFromQueueEx("status, sum(cost) as cost, count(*) as count","q, QUEUEPROC p $where and p.queueid=q.queueid Group by status");
     # delete all entries 
     #	$self->deleteSiteQueue("site='$_->{'site'}'");
     # loop over all status;
