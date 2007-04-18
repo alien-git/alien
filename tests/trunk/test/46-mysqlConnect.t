@@ -64,45 +64,46 @@ sub startServices{
 
 print "HELLO\n";
 stopServices();
-if (10){
-my $c2=AliEn::UI::Catalogue->new();
-$c2->close();
+my $ok=0;
+for (my $i=0; $i<1; $i++){
+  my ($before, $proxyBefore) = countInstances("Before connecting");
 
-my ($before, $proxyBefore) = countInstances("Before connecting");
+  #system("ps -U $userName -o pid,ppid,command |grep -i Proxy|grep -v grep");
 
-#system("ps -U $userName -o pid,ppid,command |grep -i Proxy|grep -v grep");
+  my $c=AliEn::UI::Catalogue->new() or last;
 
-my $c=AliEn::UI::Catalogue->new() or startServices() and exit(-2);
+  compareNumber($before+2, $proxyBefore+2, "During the connection") or last;
 
-compareNumber($before+2, $proxyBefore+2, "During the connection") or startServices() and exit(-2);
+  $c->close();
+  print "closed!!!\n";
+  sleep (3);
+  if (! compareNumber($before, $proxyBefore, "After login out")) {
+    print "Let's try sleeping again...\n";
+    sleep (10);
+    compareNumber($before, $proxyBefore, "After 10 sec")  or last;
+    print "But now it is fine...\n";
+  }
 
-$c->close();
-print "closed!!!\n";
-sleep (3);
-if (! compareNumber($before, $proxyBefore, "After login out")) {
-  print "Let's try sleeping again...\n";
-  sleep (10);
-  compareNumber($before, $proxyBefore, "After 10 sec")  or startServices() and exit(-2);
-  print "But now it is fine...\n";
-}
+  print "Ok!\n";
 
-print "Ok!\n";
+  print "Let's try again with another catalogue\n";
 
-print "Let's try again with another catalogue\n";
-
-$c=AliEn::UI::Catalogue->new() or startServices() and exit(-2);
-$c->execute("ls", "/remote/", "-la") or startServices() and exit(-2);
-compareNumber($before+2, $proxyBefore+2, "During the second connection") or startServices() and exit(-2);
-$c->close();
-print "closed!!!\n";
-sleep (3);
-if (! compareNumber($before, $proxyBefore, "After login out")) {
-  print "Let's try sleeping again...\n";
-  sleep (10);
-  compareNumber($before, $proxyBefore, "After 10 sec")  or startServices() and exit(-2);
-  print "But now it is fine...\n";
-}
+  $c=AliEn::UI::Catalogue->new() or last;
+  $c->execute("ls", "/remote/", "-la") or last;
+  compareNumber($before+3, $proxyBefore+3, "During the second connection") or last;
+  $c->close();
+  print "closed!!!\n";
+  sleep (3);
+  if (! compareNumber($before, $proxyBefore, "After login out")) {
+    print "Let's try sleeping again...\n";
+    sleep (10);
+    compareNumber($before, $proxyBefore, "After 10 sec")  or last;
+    print "But now it is fine...\n";
+  }
+  $ok=1;
+  last;
 }
 startServices();
+$ok or exit(-2);
 print "OK!!!\n";
 exit(0);
