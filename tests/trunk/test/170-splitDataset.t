@@ -38,15 +38,23 @@ evlist=\"3,4\" />
 </alien>") or exit(-2);
 
 
-  addFile($cat, "jdl/SplitDataset.jdl","Executable=\"CheckInputOuptut.sh\";
+  addFile($cat, "jdl/SplitDataset.jdl","Executable=\"SplitDataset.sh\";
 Split=\"file\";
 InputDataCollection=\"LF:${dir}/splitDataset/list.xml\";
 InputDataList=\"mylocallist.xml\";
 InputDataListFormat=\"merge:${dir}/splitDataset/list.xml\"") or exit(-2);
 
+  addFile($cat, "bin/SplitDataset.sh","#!/bin/bash
+date
+echo \"I've been called with '\$*'\"
+echo \"Checking the file mylocallist.xml\"
+cat  mylocallist.xml
+") or exit(-2);
+
   my @files=$cat->execute("find", "${dir}/split", "*");
   print "Starting with @files\n";
   my ($ok, $procDir, $subjobs)=executeSplitJob($cat, "jdl/SplitDataset.jdl") or exit(-2);
+
   $subjobs eq "2" or print "The job is not split in 2 subjobs\n" and exit(-2);
 
   my ($user)=$cat->execute("whoami") or exit(-2);
@@ -62,22 +70,8 @@ InputDataListFormat=\"merge:${dir}/splitDataset/list.xml\"") or exit(-2);
     open (FILE, "<$file") or print "Error opening $file\n" and exit(-2);
     my @content=<FILE>;
     close FILE;
-    my ($line)=grep (s/^.*ve been called with \'//, @content);
-    $line or print "There is no output in job $entry\n" and exit(-2);
-    chomp $line;
-    print "GOT $line\n";
-    $line=~ /second round/  and ++$second and next;
-    $line=~ /allfiles: (\S+) /
-      or print "Error there are no files\n" and exit(-2);
-    foreach my $entry (split (",", $1)){
-      grep (/^$entry$/, @files) 
-	or print "The file $entry was not there originally (@files)\n" and exit(-2);
-      @files=grep ( ! /^$entry$/, @files);
-    }
+    grep (/evlist/, @content) or print "There are no evlist in the file!!\n" and exit(-2)
   }
 
-  $second == 2 or print "There are  $second entries with second round, and there should 2\n" and exit(-2);
-  print "The files @files were in the input but were not processed\n";
-  (@files) and exit(-2);
   print "ok\n";
 }
