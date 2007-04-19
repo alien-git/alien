@@ -1285,7 +1285,7 @@ sub access {
 		  $ksize=1;
 	      }
 	      # the volume manager deals with kbyte!
-	      my $newname=$self->{SOAP}->CallSOAP($seName, "getVolumePath",$seName, $ksize)
+	      my $newname=$self->{SOAP}->CallSOAP($seName, "getFileName",$seName, $ksize)
 		  or $self->{LOGGER}->error("LCM","access: Error asking $se for a filename") and return access_eof;
 	      my @fileName=$self->{SOAP}->GetOutput($newname);
 	      $guid=$fileName[1];
@@ -1295,11 +1295,11 @@ sub access {
 	      $pfn=~ s/\/$//;
 	      $seurl=~ s/\/$//;
 	      
-	      $pfn .= $lfn;
-	      $pfn .= "/$guid";
+	      #$pfn .= $lfn;
+	      #$pfn .= "/$guid";
 	      
-	      $seurl .= $lfn;
-	      $seurl .= "/$guid";
+	      #$seurl .= $lfn;
+	      #$seurl .= "/$guid";
 	      
 	      $filehash->{storageurl} = $seurl;
 	      
