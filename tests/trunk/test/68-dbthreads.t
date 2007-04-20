@@ -97,13 +97,13 @@ sub doQuery{
   my $j=shift;
   my $time=time;
   
-  my $total=$db->query("SELECT * from D0L, D0L as D1, D0L as D2 limit 10000") or return;
+  my $total=$db->query("SELECT * from L0L, L0L as D1, L0L as D2 limit 10000") or return;
   my $after=time;
   print localtime() . " $$ Query $i of $j done in ". ($after-$time). " seconds (got $total and $#{$total})\n";
   if (  $#{$total} < 0) {
     print "**************************************the query did not work :( \n";
     my $time=time;
-    my $total=$db->query("SELECT * from D0L, D0L as D1, D0L as D2 limit 10000") or return;
+    my $total=$db->query("SELECT * from L0L, L0L as D1, L0L as D2 limit 10000") or return;
     my $after=time;
     print localtime() . " $$ Query $i of $j done in ". ($after-$time). " seconds (got $total and $#{$total})\n";
     return;
