@@ -1533,7 +1533,7 @@ sub checkIOmethod {
   
   @methods  or $self->info("There are no shared io methods between the client and the server!! (this server understands: @{$self->{CONFIG}->{SE_IODAEMONS_LIST}}) Let's hope it knows how to get $pfn") and return $pfn;
   $self->debug(1,"Trying to convert $pfn to $methods[0]->{name}");
-  $pfn=~ /^(file)|(castor)/ or $self->info("The pfn doesn't look like a local file... lets' return it the way it is") and return $pfn;
+  $pfn=~ /^(file)|(castor)|(srm)/ or $self->info("The pfn doesn't look like a local file... lets' return it the way it is") and return $pfn;
   my $method=$methods[0]->{protocol};
   my $port=$methods[0]->{port};
   my $host=$methods[0]->{host} || $self->{CONFIG}->{HOST};
