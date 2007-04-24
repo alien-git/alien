@@ -267,15 +267,10 @@ sub f_getMD5 {
     $self->{LOGGER}->error("File", "file $file doesn't exist!!",1);
     return;
   }
-
   my $guid=$permLFN->{guid};
-  my $md5 = $self->{DATABASE}->getAllInfoFromGUID({retrieve=>"md5",
-						   method=>"queryValue"},
-						  $guid)
-    or $self->info("The file $file doesn't have an md5sum") and return;
+  my $md5=$permLFN->{md5};
 
   if ($options=~ /g/ ){
-#    $data->{md5} or $data->{md5}="";
     $options =~ /s/ or 
       $self->info("$md5\t$file (guid $guid)", undef,0);
     return {md5=>$md5, guid=>$guid};
