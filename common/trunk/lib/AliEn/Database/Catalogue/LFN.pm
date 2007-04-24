@@ -166,6 +166,7 @@ sub checkLFNTable {
 		 dir=>"mediumint(11)",
 		 owner=>"varchar(20) not null",
 		 gowner=>"varchar(20) not null",
+		 md5=>"varchar(32)",
 		);
 
   $self->checkTable(${table}, "entryId", \%columns, 'entryId', ['UNIQUE INDEX (lfn)',"INDEX(dir)", "INDEX(guid)"]) or return;
@@ -333,7 +334,7 @@ sub createFile {
     $insert->{lfn}=~ s{^$tableLFN}{};
     foreach my $key (keys %$insert){
       $key=~ /^guid$/ and next;
-      if ($key=~ /^(se)|(md5)|(pfn)|(pfns)$/){
+      if ($key=~ /^(se)|(pfn)|(pfns)$/){
 	delete $insert->{$key};
 	next;
       }

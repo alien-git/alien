@@ -24,7 +24,7 @@ sub preConnect{
   $self->{FIRST_DB}=$Connections{$self->{UNIQUE_NM}}->{FIRST_DB};
   $self->{DB} and $self->{HOST} and $self->{DRIVER} and return 1;
   $self->{CONFIG}->{CATALOGUE_DATABASE} or return;
-  $self->info( "Using the default $self->{CONFIG}->{CATALOGUE_DATABASE}");
+  $self->debug(2, "Using the default $self->{CONFIG}->{CATALOGUE_DATABASE}");
   ($self->{HOST}, $self->{DRIVER}, $self->{DB})
     =split ( m{/}, $self->{CONFIG}->{CATALOGUE_DATABASE});
 
@@ -236,7 +236,7 @@ sub reconnectToIndex {
   my $tableName=shift;
   my $data=shift;
   ($index eq $self->{CURHOSTID}) and return ($self, $tableName);
-  $self->info("We have to reconnect to $index, and we are $self->{CURHOSTID}");
+  $self->debug(2,"We have to reconnect to $index, and we are $self->{CURHOSTID}");
 
   $data or 
     $data= $self->getFieldsFromHosts($index,"organisation,address,db,driver");
@@ -282,10 +282,10 @@ sub reconnectToIndex {
     defined $self->{USE_PROXY} and $DBOptions->{USE_PROXY}=$self->{USE_PROXY};
 
     my $class=ref $self;
-    print "Creating a new $class\n";
+
     my $db=$class->new($DBOptions )
 	or print STDERR "ERROR GETTING THE NEW DATABASE\n" and return;
-    print "YUHUUU\n";
+
     $Connections{$self->{UNIQUE_NM}}->{$dbindex}=$db;
     if ($changeOrg) {
       #In the new organisation, the index is different
