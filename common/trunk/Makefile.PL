@@ -28,6 +28,7 @@ WriteMakefile(
 				      'scripts/Service.pl',
 				      'scripts/Update.pl',
 				      'scripts/alien',
+				      'scripts/amon',
 				      'scripts/checkHosts.pl',
 				      'scripts/createKeys.pl',
 				      'scripts/date.pl',
