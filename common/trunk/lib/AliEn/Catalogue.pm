@@ -1032,12 +1032,14 @@ sub f_user {
     chomp( $user = <> );
   }
 
+  my $changeUser=1;
   if ($user ne "-" ) {
     if ( !$self->_executeInAllDatabases("changeRole", $user) ) {
       print STDERR "Password incorrect or user does not exist\n";
       return;
     }
   } else {
+    $changeUser=0;
     $user = shift;
     print "Executing super user code [change $self->{DATABASE}->{ROLE}/$self->{ROLE} to $user]\n";
     if (!($self->{DATABASE}->{ROLE} =~ /^admin(ssl)?$/)) {
@@ -1053,7 +1055,7 @@ sub f_user {
 
   $self->{ROLE}=$user;
 
-  $self->_setUserGroups($user);
+  $self->_setUserGroups($user, $changeUser);
 }
 
 sub _executeInAllDatabases{
@@ -2024,6 +2026,7 @@ sub DESTROY {
 sub _setUserGroups{
   my $self = shift;
   my $user = shift;
+  my $changeUser=shift;
 
   my $result = $self->{DATABASE}->getUserGroups($user);
 
@@ -2034,7 +2037,7 @@ sub _setUserGroups{
   ( $self->{MAINGROUP} ) = $result->[0];
 
   $result = $self->{DATABASE}->getUserGroups($user, 0);
-  $self->{DATABASE}->setUserGroup($user, $self->{MAINGROUP});
+  $self->{DATABASE}->setUserGroup($user, $self->{MAINGROUP}, $changeUser);
   $result
     or $self->{LOGGER}->error("Catalogue","Error during database query execution")
       and return;

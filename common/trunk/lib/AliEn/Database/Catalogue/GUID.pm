@@ -501,13 +501,13 @@ sub checkPermission{
     return;
   }
 
-  $self->debug(2, "Checking if the user $self->{ROLE} has $op rights to the guid");
-  $self->{ROLE} =~ /^admin(ssl)?$/ and return $info;
+  $self->debug(2, "Checking if the user $self->{VIRTUAL_ROLE} has $op rights to the guid");
+  $self->{VIRTUAL_ROLE} =~ /^admin(ssl)?$/ and return $info;
   my $permInt=2;
-  if  ($self->{ROLE} eq $info->{owner}){
+  if  ($self->{VIRTUAL_ROLE} eq $info->{owner}){
     $permInt=0;
   } else {
-    ($self->checkUserGroup($self->{ROLE}, $info->{gowner})) and $permInt=1;
+    ($self->checkUserGroup($self->{VIRTUAL_ROLE}, $info->{gowner})) and $permInt=1;
   }
 
   my $subperm=substr( $info->{perm}, $permInt, 1 );
@@ -524,7 +524,7 @@ sub checkPermission{
     $action="execute";
   }
 
-  $self->info("You ($self->{ROLE}) don't have permission to $action that guid");
+  $self->info("You ($self->{VIRTUAL_ROLE}) don't have permission to $action that guid");
   return;
 }
 
