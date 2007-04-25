@@ -40,6 +40,7 @@ sub initialize {
   my $dbindex="$self->{CONFIG}->{ORG_NAME}_$self->{CURHOSTID}";
 
   $Connections{$self->{UNIQUE_NM}}->{$dbindex}=$self;
+  $self->{VIRTUAL_ROLE}=$self->{ROLE};
   return $self->SUPER::initialize(@_);
 }
 
@@ -275,6 +276,7 @@ sub reconnectToIndex {
 		   "TOKEN"  => $self->{TOKEN},
 		   "LOGGER" => $self->{LOGGER},
 		   "ROLE"   => $self->{ROLE},
+		   "VIRTUAL_ROLE" =>$self->{VIRTUAL_ROLE},
 		   "FORCED_AUTH_METHOD" => $self->{FORCED_AUTH_METHOD},
 		   "UNIQUE_NM"=>$self->{UNIQUE_NM},
 		  };
@@ -350,11 +352,16 @@ sub setUserGroup{
   my $self=shift;
   my $user=shift;
   my $group=shift;
+  my $changeUser=shift;
+
+  my $field="ROLE";
+  $changeUser or $field="VIRTUAL_ROLE";
+
   $self->debug(1,"Setting the userid to $user ($group)");
-  $self->{ROLE}=$user;
+  $self->{$field}=$user;
   $self->{MAINGROP}=$group;
   foreach my $index (keys %{$Connections{$self->{UNIQUE_NM}}}){
-    $Connections{$self->{UNIQUE_NM}}->{$index}->{ROLE}=$user;
+    $Connections{$self->{UNIQUE_NM}}->{$index}->{$field}=$user;
     $Connections{$self->{UNIQUE_NM}}->{$index}->{MAINGROUP}=$group;
   }
   return 1;

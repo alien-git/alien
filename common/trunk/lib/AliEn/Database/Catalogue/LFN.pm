@@ -557,8 +557,8 @@ sub createDirectory {
   my $insert={lfn=>shift,
 	      perm=>(shift or "755"),
 	      replicated=>(shift or 0),
-	      owner=>$self->{ROLE},
-	      gowner=>$self->{ROLE},
+	      owner=>$self->{VIRTUAL_ROLE},
+	      gowner=>$self->{VIRTUAL_ROLE},
 	      type=>'d'};
   my $tableRef=shift || {};
 
@@ -769,7 +769,7 @@ sub copyDirectory{
   my $targetLFN=$targetHost->{lfn};
 
 
-  my $user=$options->{user} || $self->{ROLE};
+  my $user=$options->{user} || $self->{VIRTUAL_ROLE};
 
   #Before doing this, we have to make sure that we are in the right database
   my ($targetDB, $Path2)=$self->reconnectToIndex( $targetIndex) or return;
@@ -909,7 +909,7 @@ sub moveLFNs {
   }
 
   #ok, this is the easy case, we just copy into the new table
-  my $columns="entryId,owner,gowner,replicated,aclId,expiretime,size,dir,type,guid,perm";
+  my $columns="entryId,md5,owner,gowner,replicated,aclId,expiretime,size,dir,type,guid,perm";
   my $tempLfn=$lfn;
   $tempLfn=~ s{$fromLFN}{};
   #First, let's insert the entries in the new table
