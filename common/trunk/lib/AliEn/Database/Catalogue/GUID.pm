@@ -630,6 +630,34 @@ sub moveGUIDs {
 }
 
 
+sub deleteMirrorFromGUID{
+  my $self=shift;
+  my $guid=shift;
+  my $se=shift;
+  my $pfn=shift ||"";
+  $self->debug(1,"Ready to delete the mirror from $se");
+  my $info=$self->checkPermission('w', $guid ) or return;
+  my $seNumber=$self->getSENumber($se) or $self->info("Error getting the se number of '$se'") and return;
+  my $column="seAutoStringList";
+  if ($pfn){
+    $self->info("First, let's delete the pfn");
+    my $deleted=$info->{db}->delete("$info->{table}_PFN",
+				    "guidId=? and pfn=?", {bind_values=>[$info->{guidId},$pfn]})
+      or $self->info("Error deleting the entry") and return;
+
+    if ($deleted=~ /^0E0$/){
+      $self->info("The pfn '$pfn' did not exist for that guid");
+      return;
+    }
+    $column="seStringList";
+
+  }
+  $self->debug(2,"Finally, let's update the column $column");
+
+  return $info->{db}->do("update $info->{table} set $column=replace($column, '$seNumber,','') where guid=string2binary(?)", {bind_values=>[$guid]});
+
+}
+
 =head1 SEE ALSO
 
 AliEn::Database

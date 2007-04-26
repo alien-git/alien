@@ -81,7 +81,7 @@ sub f_registerFile {
   $selist and $insert->{seStringList}=$selist;
 
   $self->{DATABASE}->createFile($opt, $insert)
-    or $self->infi("Error inserting entry into directory")
+    or $self->info("Error inserting entry into directory")
       and return;
 
   $self->info("File $file inserted in the catalog");
@@ -375,7 +375,7 @@ sub f_deleteMirror {
     return;
   }
 
-  $self->{DATABASE}->deleteMirrorFromFile( $file, $se) or 
+  $self->{DATABASE}->deleteMirrorFromLFN( $file, $se,@_) or 
     $self->info( "Error removing the mirror of $file in $se") and return;
   $self->{SILENT}
     or print "Mirror from ${se} removed\n";
