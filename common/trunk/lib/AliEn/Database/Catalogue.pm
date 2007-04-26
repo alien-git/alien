@@ -894,7 +894,7 @@ sub describeTable {
 
 sub setUserGroup{
   my $self=shift;
-  $self->debug(1,"Let's put the userid to @_");
+  $self->debug(1,"Let's change the userid ");
   $self->{LFN_DB}->setUserGroup(@_);
   $self->{GUID_DB}->setUserGroup(@_);
   return 1;
