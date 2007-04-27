@@ -236,7 +236,7 @@ sub _prepareEntries {
 	    $self->info( "Error getting the number of se '$item->{seName}'")
 	      and return;
 	}
-	$self->info("Doing something with $item ( in $seNumber)");
+	$self->debug(1, "Checking the guid consistency ( in $seNumber)");
 	my $column="seAutoStringList";
 	$item->{pfn} and $column="seStringList";
 	if ($entry->{$column}) {
@@ -272,6 +272,8 @@ sub insertGUID {
   my @done;
   my $seNumbers={};
   $self->debug(1, "Ready to do the inserts");
+  my $multiInsertOpt={noquotes=>1};
+  $options=~ /i/ and $multiInsertOpt->{ignore}=1;
   foreach my $db (keys %$entries){
     my $obj=$entries->{$db}->{db};
     foreach my $table (keys %{$entries->{$db}->{tables}}){
@@ -279,7 +281,8 @@ sub insertGUID {
       my ($pfnRef, $guidRef)=$self->_prepareEntries(@entries)
 	or return;
       $self->info("Ready to insert the info");
-      if (! $obj->multiinsert($table, $guidRef,{noquotes=>1})){
+
+      if (! $obj->multiinsert($table, $guidRef,$multiInsertOpt)){
 	$error=1;
 	$self->info("There was a problem with @entries");
 	last;

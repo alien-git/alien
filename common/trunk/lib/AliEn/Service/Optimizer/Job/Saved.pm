@@ -120,9 +120,9 @@ sub registerLine {
   }
   @list and $info->{pfns}=\@list;
 
-  if (!$self->{CATALOGUE}->{CATALOG}->f_bulkRegisterFile("", $dir, [$info])){
+  if (!$self->{CATALOGUE}->{CATALOG}->f_bulkRegisterFile("i", $dir, [$info])){
     $self->info("Error registering the entry in the catalog");
-    $self->putJobLog($queueid,"error", "Error registering the file $lfn in the catalogue");
+    $queueid and $self->putJobLog($queueid,"error", "Error registering the file $lfn in the catalogue");
     return;
   }
 

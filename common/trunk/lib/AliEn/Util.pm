@@ -185,7 +185,7 @@ sub setCacheValue{
 sub returnCacheValue {
   my $self=shift;
   my $name=shift;
-  $self->info("Checking if we can return a value from the cache ($name)");
+  $self->debug(1,"Checking if we can return a value from the cache ($name)");
   $self->{CACHE}->{$name} or return;
   $self->debug(2,"The entry exists!!");
   my $now=time;
@@ -202,7 +202,7 @@ sub returnCacheValue {
       return;
     }
   }
-  $self->info("Returning the value from the cache ($self->{CACHE}->{$name}->{value})");
+  $self->debug(1,"Returning the value from the cache ($self->{CACHE}->{$name}->{value})");
   return $self->{CACHE}->{$name}->{value};
 
 }
