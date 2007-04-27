@@ -103,13 +103,12 @@ sub getQueuedJobs {
   @queuestatus=$self->removeKilledProcesses(@queuestatus);
 
   my @queueids;
-  push @queueids,"0";
   foreach (@queuestatus) {
     if ($_ =~ /(alien)|(agent.startup)/i) {
       push @queueids,$1;
     }
   }
-  
+  $self->debug(5, "We have $#queueids jobs: @queueids");
   return @queueids;
 }
 #This subroutine parses the output of getQueueStatus, and 
