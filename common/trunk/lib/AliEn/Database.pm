@@ -525,7 +525,9 @@ sub multiinsert {
   
   my $rfields = @$rarray[0];
   
-  my $query = "INSERT INTO $table (" . join(", ", keys %$rfields) . ") VALUES ";
+  my $query = "INSERT";
+  $options->{ignore} and $query.=" IGNORE";
+  $query.=" INTO $table (" . join(", ", keys %$rfields) . ") VALUES ";
   my $quote="'";
   $options->{noquotes} and $quote="";
   #my @arr = values %$rfields;
