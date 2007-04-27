@@ -41,10 +41,32 @@ $execute\n";
   close Reader;
   waitpid $pid, 0;
 
+  chomp($got);
+  $got =~ /\d+.*/ and $self->{LAST_JOB_ID}=$got;
   $error or return -1;
   return 0;
 
 }
+sub getBatchId {
+  my $self=shift;
+  return $self->{LAST_JOB_ID};
+}
+
+sub getQueueStatus {
+  my $self = shift;
+  open (OUT, "$self->{GET_QUEUE_STATUS} |") or print "Error doing $self->{GET_QUEUE_STATUS}\n" and return "Error doing $self->{GET_QUEUE_STATUS}\n";
+  #    while (<OUT>) {
+#	push @output, $_;
+#    }
+
+  my @output = <OUT>;
+  close(OUT) or print "Error doing $self->{GET_QUEUE_STATUS}\n" and return "Error doing $self->{GET_QUEUE_STATUS}\n";
+  @output= grep ( /^\d+\S*\s+\S+.*/, @output);
+  push @output,"DUMMY";
+  return @output;
+
+}
+
 
 sub getStatus {
     my $self = shift;
@@ -59,8 +81,18 @@ sub getStatus {
     }
     
 
-    my @line = grep ( /AliEn-$queueId/, @output );
+    my @line = grep ( /AliEn.*/, @output );
+    @line = grep ( /^$queueId/, @line );
     if ($line[0] ) {
+# JobID Username Queue Jobname SessID NDS TSK Memory Time Status Time Nodes
+	my @opts = split $line[0];
+        if ( $opts[9] =~ /Q/ ) {
+          return 'QUEUED';
+        }
+        if ( $opts[9] =~ /R/ ) {
+          return 'RUNNING';
+        }
+    
 	return 'QUEUED';
     }
     return 'QUEUED';
@@ -76,7 +108,8 @@ sub kill {
     open( OUT, "$self->{STATUS_CMD}  |" );
     my @output = <OUT>;
     close(OUT);
-    my @line = grep ( /AliEn-$queueId/, @output );
+    my @line = grep ( /AliEn.*/, @output );
+    @line = grep ( /^$queueId/, @line );
     if ( $line[0] ) {
 	$line[0] =~ /(\w*)\..*/;
         return ( system("qdel $1") );
@@ -91,7 +124,7 @@ sub initialize() {
     $self->{SUBMIT_CMD} = ( $self->{CONFIG}->{CE_SUBMITCMD} or "qsub" );
     $self->{SUBMIT_ARG} = ( $self->{CONFIG}->{CE_SUBMITARG} or "" );
     $self->{STATUS_ARG} = ( $self->{CONFIG}->{CE_STATUSARG} or "" );
-    $self->{STATUS_CMD} = ( $self->{CONFIG}->{CE_STATUSCMD} or "qstat" );
+    $self->{STATUS_CMD} = ( $self->{CONFIG}->{CE_STATUSCMD} or "qstat -n -1" );
 
     if ( $self->{CONFIG}->{CE_SUBMITARG} ) {
         my @list = @{ $self->{CONFIG}->{CE_SUBMITARG_LIST} };
@@ -117,6 +150,18 @@ sub getNumberQueued {
 	$self->info("Failed to get number of $status jobs");
   }
   return 0;
+}
+sub getAllBatchIds {
+  my $self=shift;
+  my @output=$self->getQueueStatus() or return;
+
+  $self->debug(1,"Checking the jobs from  @output");
+  @output= grep (s/\s+.*//s, @output);
+
+  $self->debug(1, "Returning @output");
+
+  return @output;
+
 }
 
 return 1;
