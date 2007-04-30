@@ -342,7 +342,7 @@ sub assignWaiting{
 
   #Checking that the job is still waiting
   eval {
-    $self->isWaiting($queueID) or die("the job is no longer waiting\n");
+    $self->isWaiting($queueID) or die("the job '$queueID' is no longer waiting\n");
     $self->updateStatus($queueID,"%","ASSIGNED",
 		      {sent=>time, execHost=>"$user\@$host", site=>"$ce"} ) 
       or die("error setting the job to 'ASSIGNED'\n");
@@ -351,8 +351,8 @@ sub assignWaiting{
   $self->unlock();
 
   if ($error) {
-    $self->{LOGGER}->error("TaskQueue", "Error assigning the job: $error");
-    return;
+    $self->info( "Error assigning the job: $error");
+    return ;
   }
   return 1;
 }

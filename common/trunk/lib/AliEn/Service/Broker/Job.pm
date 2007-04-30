@@ -14,6 +14,8 @@ use AliEn::Service::Broker;
 use strict;
 use AliEn::Database::Admin;
 
+use AliEn::Database::CE;
+
 use vars qw (@ISA);
 
 @ISA=("AliEn::Service::Broker");
@@ -33,6 +35,10 @@ sub initialize {
 #  $self->{TOKENMAN} = AliEn::TokenManager->new($self->{CONFIG});
   $self->{JOBLOG} = new AliEn::JOBLOG();
   $self->{addbh} = new AliEn::Database::Admin();    
+
+  $self->{LOCALJOBDB}=new AliEn::Database::CE or return;
+
+  $self->forkCheckProcInfo() or return;
 
   $self->SUPER::initialize($options) or return;
 
@@ -83,11 +89,11 @@ sub getJobAgent {
   if ($queueId eq "-3"){
     my @packages=@$job_ca;
     $self->info("Before we can assign the job, the WN has to install some packages (@packages)");
-    $self->{JOBLOG}->putlog($queueId, "debug", "Site needs to install @packages before retrieving the job");
+    $self->putlog($queueId, "debug", "Site needs to install @packages before retrieving the job");
     $self->info("Telling the site to install @packages");
     return (-3, @packages);
   }
-  $self->{JOBLOG}->putlog($queueId,"state","Job state transition from WAITING to ASSIGNED");
+  $self->putlog($queueId,"state","Job state transition from WAITING to ASSIGNED ($host)");
 
   $self->info("Getting the token");
   my $result=$self->getJobToken($queueId);
@@ -95,7 +101,7 @@ sub getJobAgent {
   $self->info("I got as token $result"); 
   if ((! $result) || ($result eq "-1")) {
     $self->{DB}->updateStatus($queueId, "%", "ERROR_A");
-    $self->{JOBLOG}->putlog($queueId,"state","Job state transition from ASSIGNED to ERRROR_A");
+    $self->putlog($queueId,"state","Job state transition from ASSIGNED to ERRROR_A");
     $self->{LOGGER}->error( "Broker", "In requestCommand error getting the token" );
     return ( -1, "getting the token of the job $queueId" );
   }
@@ -293,7 +299,17 @@ sub offerAgent {
     my ($num, $jdl)=@$job;
     $self->info( "Starting: $num for $jdl in $host");
   }
+  $self->info("The broker returns @jobAgents");
   return @jobAgents;
 }
+
+sub putlog {
+  my $self=shift;
+  my $queueId=shift;
+  my $status=shift;
+  my $message=shift;
+  return $self->{LOCALJOBDB}->insertMessage($queueId, $status,$message);
+}
+
 
 1;
