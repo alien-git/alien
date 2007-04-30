@@ -34,7 +34,7 @@ sub checkTransition{
   my $now = time;
 
 
-  my $pct = $self->{DB}->getFieldsFromQueueEx("procinfotime,status,queueId,site","where $status ");
+  my $pct = $self->{DB}->getFieldsFromQueueEx("q.procinfotime,status,queueId,site","q, QUEUEPROC q where $status and p.queueId=q.queueId");
 
   defined $pct
     or $self->{LOGGER}->warning( "Zombies", "In checkJobs error during execution of database query" ) and return;

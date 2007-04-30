@@ -183,6 +183,11 @@ sub updateCatalogue {
     $self->debug(1, "In updateCatalogue doing @command");
     my $done=$self->{CATALOGUE}->execute(@command);
     $self->info( "Catalogue updated with $done");
+    if (!$done and $command[0]=~ /addMirror/){
+      $self->info("Let's retry...");
+      $done=$self->{CATALOGUE}->execute("addMirror", $data->{lfn}, $data->{destination}); 
+      $self->info("This time we got $done\n\n");
+    }
   }
   
   return 1;
