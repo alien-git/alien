@@ -248,6 +248,11 @@ sub _singleSplit {
     my @list=();
     my $subpos=0;
     my $newpos = "$pos;$subpos";
+
+    if ($pos eq "") {
+	$pos = "0";
+    }
+
     $jobs->{$newpos} or $jobs->{$newpos}={nfiles=>0, filesize=>0, counter=>"$pos"};
     
     if ($inputfilenumber) {
@@ -255,7 +260,7 @@ sub _singleSplit {
       while ( (defined $jobs->{$newpos}->{nfiles}) && ($jobs->{$newpos}->{nfiles} >= $inputfilenumber) ) {
 	$subpos++;
 	$newpos = "$pos;$subpos";
-	$jobs->{$newpos} or $jobs->{$newpos}={nfiles=>0, filesize=>0};
+	$jobs->{$newpos} or $jobs->{$newpos}={nfiles=>0, filesize=>0, counter=>"${pos}_${subpos}"};
       }
     }
     
@@ -264,7 +269,7 @@ sub _singleSplit {
       while ( (defined $jobs->{$newpos}->{filesize}) && ($jobs->{$newpos}->{filesize} >= $inputfilesize) ) {
 	$subpos++;
 	$newpos = "$pos;$subpos";
-	$jobs->{$newpos} or $jobs->{$newpos}={nfiles=>0, filesize=>0};
+	$jobs->{$newpos} or $jobs->{$newpos}={nfiles=>0, filesize=>0, counter=>"${pos}_${subpos}"};
       }
     }
     $jobs->{$newpos}->{args}=$arg;
@@ -481,6 +486,7 @@ sub _checkArgumentsPatterns{
       $self->info("warning: it is not defined if we have to take the first or the last entry. Taking the first");
       $files[0] and $file=$files[0];
     }
+    $file =~ s/,nodownload//g;
     $self->debug(1, "Let's use the file '$file'");
     my $newpattern="";
     if ($pattern =~ /^fulldir$/i) {
@@ -491,13 +497,16 @@ sub _checkArgumentsPatterns{
 	$file=~ s/\/[^\/]*$//;
       }
       $file =~ s /^.*\///;
+      $file =~ s/,nodownload//g;
       $self->debug(1, "Using $file");
       $newpattern=$file;
     }elsif ($pattern=~ /^filename$/i) {
       if ($origPattern=~ /^all/) {
 	my @basenames;
 	foreach my $f (@files){
+	    
 	  $f=~ s/^.*\///;
+	  $f=~ s/,nodownload//g;
 	  push @basenames, $f;
 	}
 	$newpattern=join(",", @basenames);

@@ -48,6 +48,7 @@ sub updateKilled {
   my $site=$info->{site} || "";
 
   $self->{DB}->delete("QUEUE", "queueId=$queueid");
+  $self->{DB}->delete("QUEUEPROC", "queueId=$queueid");
   $self->info("Reducing the number of jobs in $site");
   $self->{DB}->do("UPDATE SITEQUEUES set KILLED=KILLED-1 where site='$site'");
   my $procDir=AliEn::Util::getProcDir(undef,$submitHost,  $queueid);
