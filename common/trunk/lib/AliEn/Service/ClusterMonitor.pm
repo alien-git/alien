@@ -161,28 +161,6 @@ sub initialize {
   return $self;
 }
 
-sub forkCheckProcInfo{
-  my $self=shift;
-  my $dir="$self->{CONFIG}->{LOG_DIR}/ClusterMonitor";
-  mkdir $dir;
-  my $id=fork();
-  #
-  defined $id or $self->info("Error forking a process") and return;
-  if( $id){
-    $self->info("The father has started the messages thread ($id)");
-    return 1;
-  }
-  $self->info( "Putting the output in $dir/ProcInfo.log");
-  $self->{LOGGER}->redirect("$dir/ProcInfo.log");
-  my $silent=0;
-  while (1){
-    $self->checkProcInfo($silent);
-    $silent++;
-    $silent>5 and $silent=0;
-    sleep(60);
-  }
-  return 1;
-}
 
 sub checkConnection {
     my $self = shift;
@@ -1160,33 +1138,6 @@ sub checkWakesUp {
 # central service
 #
 #
-sub checkProcInfo{
-  my $self=shift;
-  my $silent=(shift || 0);
-  my $method="info";
-  my @data; 
-  $silent  and $method="debug" and push @data, 1;
-
-  $self->$method(@data, "Checking the jobs that are running");
-
-
-  my $messages=$self->{LOCALJOBDB}->retrieveMessages();
-  $messages or return 1;
-  my @list=@$messages;
-  #We shouldn't send more than 200 messages in one go
-
-  while(@list){
-    my @temp=();
-    for (my $i=0;$i<200;$i++){
-      my $item=shift @list or last;
-      push @temp, $item;
-    }
-    $self->info("Sending $#temp to the job manager");
-    $self->{SOAP}->CallSOAP("Manager/Job", "SetProcInfoBunch", $self->{HOST}, \@temp) or 
-      $self->info("ERROR!!! we couldn't send the messages to the job manager");
-  }
-
-}
 sub checkZombies {
   my $self=shift;
   my $silent =(shift || 0);
