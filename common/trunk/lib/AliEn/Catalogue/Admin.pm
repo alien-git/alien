@@ -139,75 +139,7 @@ sub f_addHost {
     print STDERR "Error: only the administrator can add new hosts\n";
     return;
   }
-  
-  my $hostIndex = $self->{DATABASE}->getHostIndex ($host, $db, $driver);
-  
-  if ($hostIndex) {
-    print STDERR "Error: $db in $host already exists!!\n";
-    return;
-  }
-
-  $hostIndex = $self->{DATABASE}->getMaxHostIndex + 1;
-
-  $self->info( "Trying to connect to $db in $host...");
-  my ( $oldHost, $oldDB, $oldDriver ) = (
-					 $self->{DATABASE}->{HOST},
-					 $self->{DATABASE}->{DB},
-					 $self->{DATABASE}->{DRIVER}
-					);
-  
-  my $replicatedInfo=$self->{DATABASE}->getAllReplicatedData()
-    or $self->info("Error getting the info from the database") and return;
-
-
-  $self->debug(1, "Connecting to new database ($host $db $driver)");
-  my $oldConfig=$self->{CONFIG};
-  my $newConfig;
-  if ($org) {
-    $newConfig=$self->{CONFIG}->Reload({"organisation", $org});
-    $newConfig or $self->info( "Error gettting the new configuration") and return;
-
-    $self->{CONFIG}=$newConfig;
-  }
-
-  if ( !$self->{DATABASE}->reconnect( $host, $db, $driver ) ) {
-    $self->{LOGGER}->error("Admin", "Error: not possible to connect to $driver $db in $host");
-    $self->{DATABASE}->reconnect( $oldHost, $oldDB, $oldDriver );
-    $newConfig and $self->{CONFIG}=$oldConfig;
-    return;
-  }
-  if (!$org) {
-    $self->{DATABASE}->createCatalogueTables({reconnected=>1});
-    my  $addbh = new AliEn::Database::Admin();
-    ($addbh)
-      or $self->{LOGGER}->warning( "Admin", "Error getting the Admin" )
-    	and return;
-
-    my $rusertokens = $addbh->getAllFromTokens("Username, password");
-    $addbh->destroy();
-
-    #also, grant the privileges for all the users
-    foreach my $rtempUser (@$rusertokens) {
-      $self->{DATABASE}->grantBasicPrivilegesToUser($self->{DATABASE}->{DB}, $rtempUser->{Username}, $rtempUser->{password});
-    }
-    #Now, we have to fill in the tables
-    $self->{DATABASE}->setAllReplicatedData($replicatedInfo) or return;
-
-    $self->{DATABASE}->insertHost($hostIndex, $host, $db, $driver);
-    
-  }
-  
-  #in the old nodes, add the new link
-  foreach my $rtempHost (@{$replicatedInfo->{hosts}}) {
-    $self->debug(1, "Connecting to database ($rtempHost->{address} $rtempHost->{db} $rtempHost->{driver})");
-    $self->{DATABASE}->reconnect( $rtempHost->{address}, $rtempHost->{db}, $rtempHost->{driver} );
-    $self->{DATABASE}->insertHost($hostIndex, $host, $db, $driver, $org);
-  }
-
-  $self->debug(1, "Connecting to old database ($oldHost $oldDB $oldDriver)");
-  $self->{DATABASE}->reconnect( $oldHost, $oldDB, $oldDriver );
-  $self->info( "Host added!!");
-  return 1;
+  return $self->{DATABASE}->addHost($host,$driver, $db, $org);
 }
 
 sub f_addUser {

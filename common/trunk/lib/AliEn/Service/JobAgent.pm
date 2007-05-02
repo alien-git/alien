@@ -175,7 +175,7 @@ sub requestJob {
   $self->{CPU_CONSUMED}={VALUE=>0, TIME=>time};
 
   $self->GetJDL() or return;
-
+  $self->info("Got the jdl");
   $self->{LOGFILE}=AliEn::TMPFile->new({filename=>"proc.$ENV{ALIEN_PROC_ID}.out"});
 
   $self->info("Let's redirect the output to $self->{LOGFILE}");
