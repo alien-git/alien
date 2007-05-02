@@ -430,7 +430,7 @@ sub checkCurrentJobs {
     
     
     $done =$self->{SOAP}->CallSOAP("Manager/Job", "setSiteQueueStatus",$queueName,"closed-maxrunning");
-    die (  "executing maximum number of jobs" );
+    die (  "executing maximum number of jobs\n" );
   }
   
   #########################################################################
@@ -443,7 +443,7 @@ sub checkCurrentJobs {
     
     $done =$self->{SOAP}->CallSOAP("Manager/Job", "setSiteQueueStatus",$queueName,"closed-maxqueued");
     
-    die( -2, "maximum number of queued jobs ($self->{MAXQUEUEDJOBS})" );
+    die( "maximum number of queued jobs ($self->{MAXQUEUEDJOBS})\n" );
   }
   return 1;
 }

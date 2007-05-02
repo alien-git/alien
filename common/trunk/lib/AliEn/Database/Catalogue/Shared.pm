@@ -204,7 +204,7 @@ sub destroy {
   use Data::Dumper; 
   my $number=$self->{UNIQUE_NM};
   $number or return;
-
+  $Connections{$number} or return;
   my @databases=keys %{$Connections{$number}};
 
   foreach my $database (@databases){
@@ -213,7 +213,7 @@ sub destroy {
     $Connections{$number}->{$database} and $Connections{$number}->{$database}->SUPER::destroy();
     delete $Connections{$number}->{$database};
   }
-  delete $Connections{$number};
+#  delete $Connections{$number};
   keys %Connections or undef %Connections;
 
 #  $self->SUPER::destroy();

@@ -107,6 +107,7 @@ sub createCatalogueTables {
   my @args;
   $options->{reconnected} and push @args, $self->{LFN_DB};
   $self->{GUID_DB}->createCatalogueTables(@args) or return;
+  
   return 1;
 }
 
@@ -582,15 +583,6 @@ sub getAllHosts {
   return $self->{LFN_DB}->getAllHosts(@_);
 }
 
-sub getMaxHostIndex {
-  my $self = shift;
-  return $self->{LFN_DB}->getMaxHostIndex(@_);
-}
-
-sub insertHost {
-  my $self = shift;
-  return $self->{LFN_DB}->insertHost(@_);
-}
 
 sub updateHost {
   my $self = shift;
@@ -901,6 +893,81 @@ sub setUserGroup{
   return 1;
 }
 
+
+sub addHost {
+  my $self=shift;
+  my $host   = shift;
+  my $driver = shift;
+  my $db     = shift;
+  my $org    =(shift or "");
+  my $hostIndex = $self->getHostIndex ($host, $db, $driver);
+  
+  if ($hostIndex) {
+    print STDERR "Error: $db in $host already exists!!\n";
+    return;
+  }
+
+  $hostIndex = $self->{LFN_DB}->getMaxHostIndex + 1;
+
+  $self->info( "Trying to connect to $db in $host...");
+  my ( $oldHost, $oldDB, $oldDriver ) = (
+					 $self->{HOST},
+					 $self->{DB},
+					 $self->{DRIVER}
+					);
+  
+  my $replicatedInfo=$self->getAllReplicatedData()
+    or $self->info("Error getting the info from the database") and return;
+
+
+  $self->debug(1, "Connecting to new database ($host $db $driver)");
+  my $oldConfig=$self->{CONFIG};
+  my $newConfig;
+  if ($org) {
+    $newConfig=$self->{CONFIG}->Reload({"organisation", $org});
+    $newConfig or $self->info( "Error gettting the new configuration") and return;
+
+    $self->{CONFIG}=$newConfig;
+  }
+
+  if ( !$self->reconnect( $host, $db, $driver ) ) {
+    $self->info("Error: not possible to connect to $driver $db in $host");
+    $self->reconnect( $oldHost, $oldDB, $oldDriver );
+    $newConfig and $self->{CONFIG}=$oldConfig;
+    return;
+  }
+  if (!$org) {
+    $self->createCatalogueTables({reconnected=>1});
+    my  $addbh = new AliEn::Database::Admin();
+    ($addbh)
+      or $self->info("Error getting the Admin" ) and return;
+
+    my $rusertokens = $addbh->getAllFromTokens("Username, password");
+    $addbh->destroy();
+
+    #also, grant the privileges for all the users
+    foreach my $rtempUser (@$rusertokens) {
+      $self->grantBasicPrivilegesToUser($db, $rtempUser->{Username}, $rtempUser->{password});
+    }
+    #Now, we have to fill in the tables
+    $self->setAllReplicatedData($replicatedInfo) or return;
+
+    $self->{LFN_DB}->insertHost($hostIndex, $host, $db, $driver);
+    
+  }
+  
+  #in the old nodes, add the new link
+  foreach my $rtempHost (@{$replicatedInfo->{hosts}}) {
+    $self->debug(1, "Connecting to database ($rtempHost->{address} $rtempHost->{db} $rtempHost->{driver})");
+    $self->reconnect( $rtempHost->{address}, $rtempHost->{db}, $rtempHost->{driver} );
+    $self->{LFN_DB}->insertHost($hostIndex, $host, $db, $driver, $org);
+  }
+
+  $self->debug(1, "Connecting to old database ($oldHost $oldDB $oldDriver)");
+  $self->reconnect( $oldHost, $oldDB, $oldDriver );
+  $self->info( "Host added!!");
+  return 1;
+}
 =head1 SEE ALSO
 
 AliEn::Database
