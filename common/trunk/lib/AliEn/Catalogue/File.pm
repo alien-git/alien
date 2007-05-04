@@ -573,8 +573,6 @@ sub getCPMetadata{
   foreach my $tag (@$tags){
     #making sure that the destination has all the tags#
     print "We should add the tag $tag\n";
-    use Data::Dumper;
-    print Dumper($tag);
     $self->f_addTag($targetDir, $tag->{tagName}, $tag->{tagName}, $tag->{path}) or $self->info("Error defining the metadata $tag->{tagName}") and return;
     my $tableName= $self->{DATABASE}->getTagTableName($targetDir, $tag->{tagName}) or $self->info("Error getting the name of the table") and return;
     #let's put the entries 
@@ -688,6 +686,19 @@ Possible options:
 
 =cut
 
+
+sub f_whereis_HELP {
+  return "whereis: gives the PFN of a LFN or GUID.
+Usage:
+\twhereis [-lg] lfn
+
+Options:
+\t-l: Get only the list of SE (not the pfn)
+\t-g: Use the lfn as guid
+\t-r: Resolve links (do not give back pointers to zip archives)
+"
+}
+
 sub f_whereis{
   my $self=shift;
   my $options=shift;
@@ -745,7 +756,14 @@ Options:
     }
     @SElist=@newlist;
   }
-  
+  if ($options =~ /t/){
+    $self->info("Let's take a look at the transfer methods");
+    my @newlist;
+    foreach my $entry (@SElist){
+      push @newlist, $self->checkIOmethods($entry, @_);
+    }
+    @SElist=@newlist;
+  }
   foreach my $entry (@SElist){
     my ($se, $pfn)=($entry->{seName}, $entry->{pfn} || "auto");
     $self->info("\t\t SE => $se  pfn =>$pfn ",undef, 0);
@@ -765,6 +783,52 @@ Options:
   }
   $options =~ /i/ and return $info;
   return @return;
+}
+
+sub getIOProtocols{
+  my $self=shift;
+  my $seName=shift;
+
+  my $cache=AliEn::Util::returnCacheValue($self, "io-$seName");
+  if ($cache) {
+    $self->info( "$$ Returning the value from the cache (@$cache)");
+    return $cache;
+  }
+  my $protocols=$self->{DATABASE}->{LFN_DB}->queryValue("select seiodaemons from SE where seName=?", undef, {bind_values=>[$seName]});
+  my @protocols=split(/,/, $protocols);
+  AliEn::Util::setCacheValue($self, "io-$seName", [@protocols]);
+  $self->info("Giving back the protocols supported by $seName (@protocols)");
+  return \@protocols
+}
+
+sub checkIOmethods {
+  my $self=shift;
+  my $entry=shift;
+  my @methods=@_;
+
+  my $protocols=$self->getIOProtocols($entry->{seName})
+    or $self->info("Error getting the IO protocols of $entry->{seName}") and return;
+
+  if (@methods){
+    $self->info("The client supports @methods. Let's remove from @$protocols the ones that are not supported");
+    my @newProtocols;
+    foreach my $method (@methods){
+      push @newProtocols, grep (/^$method:/i, @$protocols);
+    }
+    $self->info("Now we have @newProtocols");
+    $protocols=\@newProtocols;
+  }
+  my @list;
+  foreach my $method (@$protocols){
+    $self->info("Putting $method");
+    my $item={};
+    foreach (keys %$entry){
+      $item->{$_}=$entry->{$_};
+    }
+    $item->{pfn}=~ s{^[^:]*://[^/]*}{$method}i;
+    push @list, $item;
+  }
+  return @list;
 }
 
 return 1;

@@ -79,7 +79,7 @@ my %LCM_commands;
 		 'services' => ['$self->services', 0],
 		 'preFetch'   => '$self->preFetch',
 		 'vi'       => ['$self->vi', 0],
-		 'whereis'  => ['$self->{CATALOG}->f_whereis', 19],
+		 'whereis'  => ['$self->{CATALOG}->f_whereis', 66],
 		 'purge'    => ['$self->purge', 0 ],
 		 'erase'    => ['$self->erase', 0 ],
 		 'upload'   => ['$self->upload', 0],
