@@ -43,7 +43,6 @@ sub initialize {
   $self->{JOBLOG} = new AliEn::JOBLOG();
   $self->{ADMINDB}= new AliEn::Database::Admin()
     or $self->info("Error getting the Admin" ) and return;
-
   return $self;
 }
 
@@ -245,7 +244,7 @@ sub enterCommand {
       and return(-1,"jdl is missing");
 
 
-  $self->info("Entering a new command" );
+  $self->info("Entering a new command " );
   $jobca_text =~ s/\\/\\\\/gs;
   $jobca_text =~ s/&amp;/&/g;
   $jobca_text =~ s/&amp;/&/g;
@@ -284,10 +283,12 @@ sub enterCommand {
   my $procDir = AliEn::Util::getProcDir(undef, $host, $procid);
   my $user;
   $procDir=~ m{/proc/([^/]*)/} and $user=$1;
-
+  
   my ($olduser)= $self->{CATALOGUE}->execute("whoami");
-  $self->{CATALOGUE}->execute("user", "-", $user);
+  $self->{CATALOGUE}->execute("user", "-", $user) or 
+    $self->info("Error becoming user '$user'") and return (-1, "Error becoming user '$user'");
 
+  $self->{CATALOGUE}->execute('whoami');
   my $done=$self->{CATALOGUE}->execute( "mkdir", $procDir, "-ps" );
   $self->{CATALOGUE}->execute("user", "-", $olduser);
   $done or $self->{LOGGER}->alert( "JobManager",
@@ -630,7 +631,7 @@ sub getJobInfo {
   }
 
   $self->info( "Asking for Jobinfo by $username and jobid's @jobids ..." );
-  my $allparts = $self->{DB}->getFieldsFromQueueEx("count(*) as count, sum(cost) as cost, min(started) as started, max(finished) as finished, sum(cpu) as cpu, sum(cpuspeed) as cpuspeed, status", "WHERE $jobtag GROUP BY status");
+  my $allparts = $self->{DB}->getFieldsFromQueueEx("count(*) as count, min(started) as started, max(finished) as finished, status", " WHERE $jobtag GROUP BY status");
 
   for (@$allparts) {
     $result->{$_->{status}} = $_->{count};
@@ -1039,6 +1040,7 @@ sub spy {
     $self->info("In spy got http://$result->{'HOST'}:$result->{'PORT'}  ...");
 
     my $url=$self->getSpyUrl($queueId);
+    $url or return (-1,"The job $queueId is no longer in the queue");
 
     my $result2 = SOAP::Lite->uri('AliEn/Service/ClusterMonitor')
       ->proxy("http://$result->{'HOST'}:$result->{'PORT'}")
@@ -1269,6 +1271,9 @@ sub resubmitCommand {
     or $self->{LOGGER}->error( "JobManager", "In resubmitCommand process $queueId does not belong to '$user'" )
       and return ( -1, "process $queueId does not belong to $user" );
 
+  $self->info("Removing the 'registeredoutput' field");
+  $data->{jdl}=~ s/registeredlog\s*=\s*"[^"]*"\s*;\s*//im;
+  $data->{jdl}=~ s/registeredoutput\s*=\s*{[^}]*}\s*;\s*//im;
   $data->{priority}++;
   my $jobId =$self->enterCommand( $data->{submitHost}, $data->{jdl}, "", 
 				  $data->{priority} ,$masterId, $replacedId);

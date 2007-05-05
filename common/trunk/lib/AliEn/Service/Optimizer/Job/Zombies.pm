@@ -33,8 +33,9 @@ sub checkTransition{
 
   my $now = time;
 
+  my $zombiewaittime = 12000;
 
-  my $pct = $self->{DB}->getFieldsFromQueueEx("q.procinfotime,status,queueId,site","q, QUEUEPROC q where $status and p.queueId=q.queueId");
+  my $pct = $self->{DB}->getFieldsFromQueueEx("p.procinfotime,status,p.queueId,site, $now-procinfotime as lastupdate","q, QUEUEPROC p where $status and p.queueId=q.queueId and $now-$zombiewaittime>procinfotime");
 
   defined $pct
     or $self->{LOGGER}->warning( "Zombies", "In checkJobs error during execution of database query" ) and return;
@@ -45,14 +46,8 @@ sub checkTransition{
   }
 
   foreach (@$pct) {
-    my $zombiewaittime = 12000;
-    my $updatediff =99999 ;
-    if ($_->{procinfotime}) { 
-      $updatediff = ($now - $_->{procinfotime});
-    }
-    ( $updatediff > $zombiewaittime )  or next;
     # no new status since more than the zombiewaittime, make the Zombie to a Failed Job
-    $self->info("Process $_->{queueId} at $_->{site} with status $_->{status} didn't update since $updatediff seconds");
+    $self->info("Process $_->{queueId} at $_->{site} with status $_->{status} didn't update since in $_->{lastupdate} seconds");
     $self->{DB}->updateStatus($_->{queueId},"%",$newStatus, {procinfotime=>$now});
     my $message = sprintf "Job state transition from to $newStatus  (by the optimizer) |=| ";
     $self->putJobLog($_->{queueId},"state", $message);
