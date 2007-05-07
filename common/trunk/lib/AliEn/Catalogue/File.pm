@@ -825,7 +825,10 @@ sub checkIOmethods {
     foreach (keys %$entry){
       $item->{$_}=$entry->{$_};
     }
-    $item->{pfn}=~ s{^[^:]*://[^/]*}{$method}i;
+    if (! ($item->{pfn} =~ /guid:\/\//)) {
+	$item->{pfn}=~ s{^[^:]*://[^/]*}{$method}i;
+    }
+
     push @list, $item;
   }
   return @list;
