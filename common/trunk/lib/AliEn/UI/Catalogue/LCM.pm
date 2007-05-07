@@ -55,6 +55,7 @@ use Compress::Zlib;
 use AliEn::TMPFile;
 use Archive::Zip qw( :ERROR_CODES :CONSTANTS );
 use Data::Dumper;
+use AliEn::Util;
 
 use vars qw(@ISA $DEBUG);
 @ISA = qw( AliEn::UI::Catalogue );
@@ -128,6 +129,8 @@ sub initialize {
   $self->AddCommands(%LCM_commands);
   $self->AddHelp(%LCM_help);
 
+  $self->{MONITOR} = 0;
+
   if (defined $ENV{'SEALED_ENVELOPE_LOCAL_PRIVATE_KEY'} && defined $ENV{'SEALED_ENVELOPE_LOCAL_PUBLIC_KEY'} && defined $ENV{'SEALED_ENVELOPE_REMOTE_PRIVATE_KEY'} and defined $ENV{'SEALED_ENVELOPE_REMOTE_PUBLIC_KEY'}) {
       $self->info("local private key          : $ENV{'SEALED_ENVELOPE_LOCAL_PRIVATE_KEY'}");
       $self->info("local public  key          : $ENV{'SEALED_ENVELOPE_LOCAL_PUBLIC_KEY'}");
@@ -137,8 +140,12 @@ sub initialize {
       
       $self->{envelopeengine} = SealedEnvelope::TSealedEnvelope->new("$ENV{'SEALED_ENVELOPE_LOCAL_PRIVATE_KEY'}","$ENV{'SEALED_ENVELOPE_LOCAL_PUBLIC_KEY'}","$ENV{'SEALED_ENVELOPE_REMOTE_PRIVATE_KEY'}","$ENV{'SEALED_ENVELOPE_REMOTE_PUBLIC_KEY'}","Blowfish","CatService\@ALIEN",0);
       # we want ordered results of se lists, no random
-      $self->{noshuffle} = 1
-
+      $self->{noshuffle} = 1;
+      AliEn::Util::setupApMon($self);
+      if ($self->{MONITOR}) {
+	  $self->{MONITOR}->sendParameters("$self->{CONFIG}_ApiService", "Quota");
+      }
+      $self->{apmon} = 1;
   } else {
       $self->{enveleopengine} =0;
       $self->{noshuffle} = 0;
@@ -1188,9 +1195,7 @@ sub access {
 	  }
       }
       
-      
-      
-      
+          
       #    print "$access $lfn $se\n";
       
       
@@ -1285,13 +1290,19 @@ sub access {
 		  $ksize=1;
 	      }
 	      # the volume manager deals with kbyte!
+	      my $options;
+	      my @methods;
+	      my $hmethod;
+	      push @methods , "xrootd";
+	      $options->{iomethods} = \@methods;
 	      my $newname=$self->{SOAP}->CallSOAP($seName, "getFileName",$seName, $ksize)
 		  or $self->{LOGGER}->error("LCM","access: Error asking $se for a filename") and return access_eof;
 	      my @fileName=$self->{SOAP}->GetOutput($newname);
-	      $guid=$fileName[1];
-	      $pfn =$fileName[2];
-	      $seurl = $fileName[3];
-	      
+
+	      $seurl =$fileName[2];
+	      $pfn = $fileName[3];
+	      $guid=$fileName[4];	      
+
 	      $pfn=~ s/\/$//;
 	      $seurl=~ s/\/$//;
 	      
@@ -1316,11 +1327,19 @@ sub access {
 	      
 	      $guid=$self->{CATALOG}->f_lfn2guid("s",$lfn)
 		  or $self->info( "access: Error getting the guid of $lfn",11) and return;
-	      
+
+	      my $nresolved=0;
 	    resolve_again:
-	      my $whereis = $self->{CATALOG}->f_whereisFile("s", $lfn);
+	      $nresolved++;
+	      my @where=$self->{CATALOG}->f_whereis("sgzt","$guid");
+
+	      my @whereis;
+	      foreach (@where) {
+		  push @whereis, $_->{se};
+	      }
+
 	      #Get the file from the LCM
-	      $whereis or $self->info( "access: " . $self->{LOGGER}->error_msg())
+	      @whereis or $self->info( "access: " . $self->{LOGGER}->error_msg())
 		  and return access_eof;
 
 	      my @closeList={};
@@ -1337,13 +1356,13 @@ sub access {
 		  $self->{CONFIG}->{SE_FULLNAME} = $se;
 		  $self->{CONFIG}->{ORG_NAME} = $lvo;
 		  $self->{CONFIG}->{SITE} = $lsite;
-		  (@closeList) = $self->selectClosestSE(@$whereis);
+		  (@closeList) = $self->selectClosestSE(@whereis);
 		  $self->{CONFIG}->{SE_FULLNAME} = $tmpse;
 		  $self->{CONFIG}->{ORG_NAME} = $tmpvo;
 		  $self->{CONFIG}->{SITE} = $tmpsite;
 		  @{$self->{CONFIG}->{SEs_FULLNAME}}=@tmpses;
 	      } else {
-		  (@closeList) = $self->selectClosestSE(@$whereis);
+		  (@closeList) = $self->selectClosestSE(@whereis);
 	      }
 	      #check if the wished se is at all existing ....
 	      my $sefound=0;
@@ -1381,48 +1400,100 @@ sub access {
 	      
 	      (!($options =~/s/)) and $self->info( "The guid is $guid");
 	      
-	      my @pfns=$self->getPFNfromGUID($se, $guid) or return;
-	      $pfn=$pfns[0];
-	      if (($pfn =~ /^guid\:\/\/\//) || ( $pfn =~ /.*\/\/\w\w\w\w\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\w\w\w\w\w\w\w\w\?/)) {
-		  # we got a reference guid back
-		  # 34ea59b5-cb8c-4ae7-8d55-06ed376afe00
-		  my $newguid="";
-		  if ( $pfn =~ /^guid:/ ) {
-		      $pfn =~ /guid\:\/\/\/(\w\w\w\w\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\w\w\w\w\w\w\w\w).*/;
-		      $newguid = $1;
-		  } else {
-		      $pfn =~ /.*\/\/(\w\w\w\w\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\w\w\w\w\w\w\w\w)\?.*/;
-		      $newguid = $1;
+
+	      $pfn=0;
+	      # we should use this code and get the io url in another way ....
+#	      foreach (@{$guidInfo->{pfn}}) {
+#		  if ($_->{seName} eq "$se") {
+#		      print "setting pfn = $_->{pfn}\n";
+#		      $pfn = $_->{pfn};
+#		      last;
+#		  }
+#	      }
+
+	      $pfn=0;
+	      foreach (@where) {
+		   (!($options =~/s/)) and $self->info("comparing $_->{se} to $se");
+		  if (( "$_->{se}" eq "$se") && ( ( $_->{pfn} =~ /^root/ ) || ( $_->{pfn} =~ /^guid/)) ) {
+		      $pfn = $_->{pfn};
 		  }
-		  print "New Guid = $newguid\n";
+	      }
+	      
+	      if (!$pfn) {
+		  $self->{LOGGER}->error("LCM","access: could not get a root pfn");
+		  return ;
+	      }
+
+
+	      my ($urlprefix,$urlhostport,$urlfile,$urloptions);
+	      $urlprefix="root://";
+	      $urloptions="";
+	      $urlfile="";
+	      $urlhostport="";
+	      if ($pfn =~ /([a-zA-Z]*):\/\/([0-9a-zA-Z.\-_:]*)\/(.*)/) {
+		  if (defined $1) {
+		      $urlprefix = "$1://";
+		  }
+		  if (defined $2) {
+		      $urlhostport = $2;
+		  } 
+		  
+		  if (defined $3) {
+		      $urlfile = $3;
+		  }
+	      } else {
+		  $self->{LOGGER}->error("LCM","access: parsing error for $pfn [host+port]");
+		  return access_eof;
+	      }
+	      
+	      #$self->info("|$urlprefix| |$urlhostport| |$urlfile| |$urloptions|");
+
+	      if ($urlfile =~ /([^\?]*)\?([^\?]*)/) {
+		  if (defined $1 ) {
+		      $urlfile = $1;
+#		      $self->info("|$urlfile|");
+		  }
+		  if (defined $2 ) {
+		      $urloptions = $2;
+		  }
+	      }
+
+	      # fix // in the urlfile part
+	      $urlfile =~ s/\/\//\//g;
+#	      $self->info("|pfn0 = $pfn| |urlfile=$urlfile|");
+	      if ($urlfile =~ /^\//) {
+		  $pfn = "$urlprefix$urlhostport/$urlfile";
+	      } else {
+		  $pfn = "$urlprefix$urlhostport//$urlfile";
+	      }
+
+	      if ($urloptions ne "") {
+		  $pfn .= "?$urloptions";
+	      }
+
+#	      $self->info("|$urlprefix| |$urlhostport| |$urlfile| |$urloptions|");
+#	      $self->info("|pfn1 = $pfn|");
+	      if (($urlprefix =~ /^guid/) && ($urloptions =~ /ZIP/) && ( $pfn =~ /.*\/(\w\w\w\w\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\w\w\w\w\w\w\w\w)/ )) {
+		  # we got a reference guid back
+		  my $newguid = $1;
+#		  $self->info("|new guid| |$newguid|");
+#		  print "New Guid = $newguid\n";
 		  $guid = $newguid;
-		  $pfn =~ /ZIP=([^\&]*)\&DB=([^\&]*)\&tableName=([^\&]*)/;
+		  
+		  $urloptions =~ /ZIP=([^\&]*)/;
+		  
 		  my $options="s ";
 		  if (defined $1) {
 		      $anchor = $1;
 		  }
-		  if (defined $2) {
-		      $options .= " -db$2";
-		  }
-		  if (defined $3) {
-		      $options .=" -table$3";
-		  }
-		  if ( $anchor eq "") {
-		      $pfn =~ /ZIP=([^\&]*)/;
-		      if (defined $1) {
-			  $anchor = $1;
-		      }
-		  }
 		  
-		  print "anchor = $anchor options = $options\n";
-		  my @lfns= $self->{CATALOG}->f_guid2lfn("s",$newguid);
-		  if ( (defined $lfns[0]) && ($lfns[0] ne "") ) {
-		      
-		      $lfn = $lfns[0];
-		      goto resolve_again;
-		  } else {
-		      $self->info( "access: Error resolving the guid reference $pfn",11) and return;
-		  }
+#		  print "anchor = $anchor options = $options\n";
+		  $lfn .= "_$guid";
+		  goto resolve_again;
+
+#		  } else {
+#		      $self->info( "access: Error resolving the guid reference $pfn",11) and return;
+#		  }
 	      }
 	      $DEBUG and $self->debug(1, "access: We can take it from the following SE: $se with PFN: $pfn");
 	  }
@@ -1484,22 +1555,53 @@ sub access {
 	  
 	  if ( ($options =~ /p/) && ($access =~ /^read/) ) {
 	      $newhash->{envelope} = "alien";
-	      $newhash->{url}="$pfn";
 	      $newhash->{se}="$se";
-	      $newhash->{lfn}="$lfn";
+	      # we actually need this code, but then 'isonline' does not work anymore ...
+#	      if ($anchor ne "") {
+#		  $newhash->{url}="$pfn#$anchor";
+#		  $newhash->{lfn}="$lfn#$anchor";
+#	      } else {
+		  $newhash->{url}="$pfn";
+		  $newhash->{lfn}="$lfn";
+#	      }
 	  } else {
 	      $newhash->{envelope} = $self->{envelopeengine}->GetEncodedEnvelope();
 	      $pfn =~ /^root\:\/\/([0-9a-zA-Z.\-_:]*)\/\/(.*)/;
 	      if ($anchor ne "") {
 		  $newhash->{url}="root://$1/$lfn#$anchor";
-		  $newhash->{lfn}="$lfn#$anchor";
+#		  $newhash->{lfn}="$lfn#$anchor";
+		  $newhash->{lfn}="$lfn";
 	      } else {
 		  $newhash->{url}="root://$1/$lfn";
 		  $newhash->{lfn}="$lfn";
 	      }
 	      $newhash->{se}="$se";
 	  }
-	  
+
+	  if ($self->{MONITOR}) {
+	      my @params;
+	      if ($access =~ /^read/) {
+		  # send read info
+
+		  push @params,"$self->{CATALOG}->{ROLE}:readrequest";
+		  push @params,"$se:$filehash->{size}";
+	      }
+
+	      if ($access =~ /^write/) {
+		  # send write info
+
+                  push @params,"$self->{CATALOG}->{ROLE}:readrequest";
+                  push @params,"$se:$filehash->{size}";
+	      }
+
+	      if ($access =~ /^delete/) {
+		  # send write info
+                  push @params,"$self->{CATALOG}->{ROLE}:deleterequest";
+                  push @params,"$se:$filehash->{size}";
+	      }
+	      $self->{MONITOR}->sendParams(@params);
+	  }
+
 	  push @lnewresult,$newhash; 
 	  
 	  if (!$coded) {
@@ -1590,16 +1692,26 @@ sub commit {
 		  if (!$result) {
 		      $self->{LOGGER}->error("LCM","commit: Cannot register file lfn=$lfn storageurl=$storageurl size=$size se=$se guid=$guid md5=$md5");
 		  }
+
 		  # ask at the SE, if this file is really there 
-		  my ($seName, $seCert)=$self->{SOAP}->resolveSEName($se) or return;
+#		  my ($seName, $seCert)=$self->{SOAP}->resolveSEName($se) or return;
 #		  $self->{LOGGER}->debug("LCM", "commit: Asking the SE at $seName");
-		  my $sepfn=$self->{SOAP}->CallSOAP($seName, "getPFNFromGUID",$se, $guid); 
-		  if (!$sepfn) {
-		      $self->{LOGGER}->info("LCM", "commit: Error asking the SE: $!", 1);
-		      $self->{LOGGER}->error("LCM","commit: removing entry for $lfn -> not existing in the SE");
-		      $self->{CATALOG}->f_removeFile("-s",$lfn);
-		  } else {
-		      $$newresult[0]->{$lfn} = 1;
+#		  my $sepfn=$self->{SOAP}->CallSOAP($seName, "getPFNFromGUID",$se, $guid); 
+
+#		  if (!$sepfn) {
+#		      $self->{LOGGER}->info("LCM", "commit: Error asking the SE: $!", 1);
+#		      $self->{LOGGER}->error("LCM","commit: removing entry for $lfn -> not existing in the SE");
+#		      $self->{CATALOG}->f_removeFile("-s",$lfn);
+#		  } else {
+#		      $$newresult[0]->{$lfn} = 1;
+		      
+		  # send write-commit info
+		  if ($self->{MONITOR}) {
+		      my @params;
+		      push @params,"$self->{CATALOG}->{ROLE}:writecommit";
+		      push @params,"$se:$size";
+		      $self->{MONITOR}->sendParams(@params);
+#		  }
 		  }
 	      }
 	  }
