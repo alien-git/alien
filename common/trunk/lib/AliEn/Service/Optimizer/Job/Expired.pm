@@ -23,7 +23,7 @@ sub checkWakesUp {
   my $olderthanoneyear = $self->{DB}->getFieldsFromQueueEx("count(*) as count","where ( sent < (? - 365*86540) ) ORDER by queueId", {bind_values=>[$now]});
 
   if ( (! defined $allkilled)  || (! defined $allinqueue ) ) {
-    $self->{LOGGER}->info("Expired", "I cannot retrieve the number of entries in the queue .... Aborting check!");
+    $self->info( "I cannot retrieve the number of entries in the queue .... Aborting check!");
     return ;
   }
 
@@ -69,7 +69,7 @@ sub checkWakesUp {
   $cnt=0;
   foreach (@$data) {
       $cnt++;
-      $self->{LOGGER}->info("Expired","[$cnt] Found Job $_->{queueId} > 1 year old in status $_->{status}");
+      $self->info("[$cnt] Found Job $_->{queueId} > 1 year old in status $_->{status}");
       my $value;
       # disabled for the moment	
       $self->{DB}->insertEntry("QUEUEEXPIRED",$_) or 
@@ -88,13 +88,13 @@ sub checkWakesUp {
   $cnt=0;
   foreach (@$data) {
       $cnt++;
-      $self->{LOGGER}->info("Expired","[$cnt] Found split job $_->{queueId} > 7 days finished  in status $_->{status}");
+      $self->info("[$cnt] Found split job $_->{queueId} > 7 days finished  in status $_->{status}");
       my $childjobs = $self->{DB}->getFieldsFromQueueEx("*","where (split=?) ORDER by queueId", {bind_values=>[$_->{queueId}]});
       my $child;
-      $self->{LOGGER}->info("Expired","[$cnt] Moving master job $_->{queueId} to archive $self->{DB}->{QUEUEARCHIVE} ..");
+      $self->info("[$cnt] Moving master job $_->{queueId} to archive $self->{DB}->{QUEUEARCHIVE} ..");
 
       foreach $child (@$childjobs) {
-	  $self->{LOGGER}->info("Expired","[$cnt] Moving childjob $child->{queueId} of master job $_->{queueId} to archive ..");
+	  $self->info("[$cnt] Moving childjob $child->{queueId} of master job $_->{queueId} to archive ..");
 	  # insert child jobs into the archive
 	  $self->{DB}->insertEntry("$self->{DB}->{QUEUEARCHIVE}",$child) or
 	      print STDERR "Expired: cannot copy entry $child->{queueId} to $self->{DB}->{QUEUEARCHIVE}\n"
@@ -108,8 +108,8 @@ sub checkWakesUp {
 	  # remove /proc entry
 	  if ( (defined $child->{queueId}) && ( $child->{queueId} ne "") && ( $child->{queueId} > 0 ) ) {
 	    my $procDir = AliEn::Util::getProcDir(undef, $child->{submitHost}, $child->{queueId});
-	    $self->{LOGGER}->info("Expired","[$cnt] Removing $procDir directory");
-	    $self->{CATALOGUE}->execute("rmdir",$procDir,"-r") or $self->{LOGGER}->info("Expired", "Error deleting the directory $procDir");
+	    $self->info("[$cnt] Removing $procDir directory");
+	    $self->{CATALOGUE}->execute("rmdir",$procDir,"-r") or $self->info("Error deleting the directory $procDir");
 	  }
       }
 
@@ -126,8 +126,8 @@ sub checkWakesUp {
       # remove /proc entry
       if ( (defined $_->{queueId}) && ( $_->{queueId} ne "") && ( $_->{queueId} > 0 ) ) {
         my $procDir = AliEn::Util::getProcDir(undef, $_->{submitHost}, $_->{queueId});
-	$self->{LOGGER}->info("Expired","[$cnt] Removing $procDir directory");
-	$self->{CATALOGUE}->execute("rmdir",$procDir,"-r") or $self->{LOGGER}->info("Expired", "Error deleting the directory $procDir");
+	$self->info("[$cnt] Removing $procDir directory");
+	$self->{CATALOGUE}->execute("rmdir",$procDir,"-r") or $self->info("Error deleting the directory $procDir");
       }
   }
 
@@ -141,7 +141,7 @@ sub checkWakesUp {
   $cnt=0;
   foreach (@$data) {
       $cnt++;
-      $self->{LOGGER}->info("Expired","[$cnt] Found standard job $_->{queueId} > 4 weeks finished  in status $_->{status}");
+      $self->info("[$cnt] Found standard job $_->{queueId} > 4 weeks finished  in status $_->{status}");
 
       # insert master job into the archive
       $self->{DB}->insertEntry("$self->{DB}->{QUEUEARCHIVE}",$_) or
@@ -156,8 +156,8 @@ sub checkWakesUp {
       # remove /proc entry
       if ( (defined $_->{queueId}) && ( $_->{queueId} ne "") && ( $_->{queueId} > 0 ) ) {
         my $procDir = AliEn::Util::getProcDir(undef, $_->{submitHost}, $_->{queueId});
-	$self->{LOGGER}->info("Expired","[$cnt] Removing $procDir directory");
-	$self->{CATALOGUE}->execute("rmdir",$procDir,"-r") or $self->{LOGGER}->info("Expired", "Error deleting the directory $procDir");
+	$self->info("[$cnt] Removing $procDir directory");
+	$self->{CATALOGUE}->execute("rmdir",$procDir,"-r") or $self->info("Error deleting the directory $procDir");
       }
   }
 
