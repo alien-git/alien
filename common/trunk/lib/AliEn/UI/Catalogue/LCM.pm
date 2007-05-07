@@ -1299,7 +1299,7 @@ sub access {
 		  or $self->{LOGGER}->error("LCM","access: Error asking $se for a filename") and return access_eof;
 	      my @fileName=$self->{SOAP}->GetOutput($newname);
 
-	      $seurl =$fileName[2];
+	      $seurl =$fileName[3]; # must be the root URL ...
 	      $pfn = $fileName[3];
 	      $guid=$fileName[4];	      
 
