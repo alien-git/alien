@@ -721,7 +721,7 @@ Options:
   my $guidInfo;
   my $info;
   if ($options =~ /g/){
-    $self->info("Let's get the info from the guid");
+      $DEBUG and $self->debug(2, "Let's get the info from the guid");
     $guidInfo=$self->{DATABASE}->getAllInfoFromGUID({pfn=>1},$lfn)
       or $self->info("Error getting the info of the guid '$lfn'") and return;
     $info=$guidInfo;
@@ -739,14 +739,14 @@ Options:
     or $self->info("Error getting the data from $lfn") and return; 
   my @SElist=@{$guidInfo->{pfn}};
 
-  $self->info( "The file $lfn is in");
+  $DEBUG and $self->debug(2, "The file $lfn is in");
   my @return=();
   if ($options =~ /r/){
-    $self->info("We are supposed to resolve links");
+      $DEBUG and $self->debug(2, "We are supposed to resolve links");
     my @newlist=();
     foreach my $entry (@SElist){
       if ($entry->{pfn} =~ m{^guid://[^/]*/(.*)(\?.*)$} ){
-	$self->info("We should check the link $1!!");
+	$DEBUG and $self->debug(2,"We should check the link $1!!");
 	my @done=$self->f_whereis("g$options", $1)
 	  or $self->info("Error doing the where is of guid '$1'") and return;
 	push @return, @done;
@@ -757,7 +757,7 @@ Options:
     @SElist=@newlist;
   }
   if ($options =~ /t/){
-    $self->info("Let's take a look at the transfer methods");
+    $DEBUG and $self->debug(2,"Let's take a look at the transfer methods");
     my @newlist;
     foreach my $entry (@SElist){
 	my $found=0;
@@ -772,7 +772,7 @@ Options:
   }
   foreach my $entry (@SElist){
     my ($se, $pfn)=($entry->{seName}, $entry->{pfn} || "auto");
-    $self->info("\t\t SE => $se  pfn =>$pfn ",undef, 0);
+    $DEBUG and $self->debug(2,"\t\t SE => $se  pfn =>$pfn ",undef, 0);
     if ($options !~ /l/){
       if ($options=~ /z/){
 	push @return, {se=>$se, guid=>$guidInfo->{guid}, pfn=>$pfn};
@@ -797,13 +797,13 @@ sub getIOProtocols{
 
   my $cache=AliEn::Util::returnCacheValue($self, "io-$seName");
   if ($cache) {
-    $self->info( "$$ Returning the value from the cache (@$cache)");
+    $DEBUG and $self->debug(2, "$$ Returning the value from the cache (@$cache)");
     return $cache;
   }
   my $protocols=$self->{DATABASE}->{LFN_DB}->queryValue("select seiodaemons from SE where seName=?", undef, {bind_values=>[$seName]});
   my @protocols=split(/,/, $protocols);
   AliEn::Util::setCacheValue($self, "io-$seName", [@protocols]);
-  $self->info("Giving back the protocols supported by $seName (@protocols)");
+  $DEBUG and $self->debug(2, "Giving back the protocols supported by $seName (@protocols)");
   return \@protocols
 }
 
@@ -813,15 +813,15 @@ sub getStoragePath{
 
   my $cache=AliEn::Util::returnCacheValue($self, "prefix-$seName");
   if ($cache) {
-    $self->info( "$$ Returning the value from the cache (@$cache)");
+    $DEBUG and $self->debug(2, "$$ Returning the value from the cache ($cache)");
     return $cache;
   }
   my $storagepath=$self->{DATABASE}->{LFN_DB}->queryValue("select seStoragePath from SE where seName=?", undef, {bind_values=>[$seName]});
   if ( (! defined $storagepath ) || ($storagepath eq "") ) {
       $storagepath="/";
   }
-  AliEn::Util::setCacheValue($self, "prefix-$seName", [$storagepath]);
-  $self->info("Returning the storagepath supported by $seName ($storagepath)");
+  AliEn::Util::setCacheValue($self, "prefix-$seName", $storagepath);
+  $DEBUG and $self->debug(2, "Returning the storagepath supported by $seName ($storagepath)");
   return $storagepath
 }
 
@@ -871,17 +871,17 @@ sub checkIOmethods {
     or $self->info("Error getting the IO protocols of $entry->{seName}") and return;
 
   if (@methods){
-    $self->info("The client supports @methods. Let's remove from @$protocols the ones that are not supported");
+      $DEBUG and $self->debug(2, "The client supports @methods. Let's remove from @$protocols the ones that are not supported");
     my @newProtocols;
     foreach my $method (@methods){
       push @newProtocols, grep (/^$method:/i, @$protocols);
     }
-    $self->info("Now we have @newProtocols");
+      $DEBUG and $self->debug(2,"Now we have @newProtocols");
     $protocols=\@newProtocols;
   }
   my @list;
   foreach my $method (@$protocols){
-    $self->info("Putting $method");
+    $DEBUG and $self->debug(2,"Putting $method");
     my $item={};
     foreach (keys %$entry){
       $item->{$_}=$entry->{$_};

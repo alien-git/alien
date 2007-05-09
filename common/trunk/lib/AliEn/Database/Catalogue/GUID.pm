@@ -178,7 +178,7 @@ sub getSEList{
 						method=>"queryValue",},$guid
 					     ) or return;
   }
-  $self->info("Getting the name of the se $seStringlist");
+  $DEBUG and $self->debug(1,"Getting the name of the se $seStringlist");
   return $self->queryColumn("SELECT seName from SE where '$seStringlist' like concat('%,',seNumber,',%') ");
 
 }
@@ -338,7 +338,7 @@ sub getAllInfoFromGUID{
 
 
   $options->{pfn} or return $info;
-  $self->info("Let's get also the pfn");
+  $DEBUG and $self->debug(1,"Let's get also the pfn");
   my $where=", $table g where p.guidId=g.guidId and guid=string2binary('$guid')";
   $info->{guidId} and $where=" where guidId=$info->{guidId}";
   my $pfn=$db->query("select seName, pfn from ${table}_PFN p, SE  $where and p.seNumber=SE.seNumber")
