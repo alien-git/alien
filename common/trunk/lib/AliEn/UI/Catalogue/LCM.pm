@@ -143,7 +143,7 @@ sub initialize {
       $self->{noshuffle} = 1;
       AliEn::Util::setupApMon($self);
       if ($self->{MONITOR}) {
-	  $self->{MONITOR}->sendParameters("$self->{CONFIG}_ApiService", "Quota");
+	  $self->{MONITOR}->sendParameters("$self->{CONFIG}->{SITE}_QUOTA","admin_readreq");
       }
       $self->{apmon} = 1;
   } else {
@@ -1140,10 +1140,6 @@ sub access {
     my $newhash;
     $self->info("access: warning - we are using the backdoor ....");
     $newhash->{envelope}="alien";
-#    $newhash->{guid} = $filehash->{guid};
-#    $pfn =~ /^root\:\/\/([0-9a-zA-Z.-_:]*)\/\/(.*)/;
-#    $newhash->{url}=$pfn;
-#    push @lnewresult,$newhash; 
     return $newhash;
   }
   
@@ -1284,33 +1280,12 @@ sub access {
 	      if (!$se) {
 		  $se = $self->{CONFIG}->{SE_FULLNAME};
 	      }
-	      my ($seName, $seCert)=$self->{SOAP}->resolveSEName($se) or return access_eof;
-	      my $ksize=($size/1024);
-	      if ($ksize<=0) {
-		  $ksize=1;
-	      }
-	      # the volume manager deals with kbyte!
-	      my $options;
-	      my @methods;
-	      my $hmethod;
-	      push @methods , "xrootd";
-	      $options->{iomethods} = \@methods;
-	      my $newname=$self->{SOAP}->CallSOAP($seName, "getFileName",$seName, $ksize)
-		  or $self->{LOGGER}->error("LCM","access: Error asking $se for a filename") and return access_eof;
-	      my @fileName=$self->{SOAP}->GetOutput($newname);
-
-	      $seurl =$fileName[3]; # must be the root URL ...
-	      $pfn = $fileName[3];
-	      $guid=$fileName[4];	      
-
+	      
+	      ($seurl,$guid,$se) = $self->{CATALOG}->createFileUrl($se, "root", $guid);
+	      
+	      $pfn = $seurl;
 	      $pfn=~ s/\/$//;
 	      $seurl=~ s/\/$//;
-	      
-	      #$pfn .= $lfn;
-	      #$pfn .= "/$guid";
-	      
-	      #$seurl .= $lfn;
-	      #$seurl .= "/$guid";
 	      
 	      $filehash->{storageurl} = $seurl;
 	      
@@ -1402,16 +1377,7 @@ sub access {
 	      
 
 	      $pfn=0;
-	      # we should use this code and get the io url in another way ....
-#	      foreach (@{$guidInfo->{pfn}}) {
-#		  if ($_->{seName} eq "$se") {
-#		      print "setting pfn = $_->{pfn}\n";
-#		      $pfn = $_->{pfn};
-#		      last;
-#		  }
-#	      }
 
-	      $pfn=0;
 	      foreach (@where) {
 		   (!($options =~/s/)) and $self->info("comparing $_->{se} to $se");
 		  if (( "$_->{se}" eq "$se") && ( ( $_->{pfn} =~ /^root/ ) || ( $_->{pfn} =~ /^guid/)) ) {
@@ -1446,12 +1412,9 @@ sub access {
 		  return access_eof;
 	      }
 	      
-	      #$self->info("|$urlprefix| |$urlhostport| |$urlfile| |$urloptions|");
-
 	      if ($urlfile =~ /([^\?]*)\?([^\?]*)/) {
 		  if (defined $1 ) {
 		      $urlfile = $1;
-#		      $self->info("|$urlfile|");
 		  }
 		  if (defined $2 ) {
 		      $urloptions = $2;
@@ -1460,7 +1423,6 @@ sub access {
 
 	      # fix // in the urlfile part
 	      $urlfile =~ s/\/\//\//g;
-#	      $self->info("|pfn0 = $pfn| |urlfile=$urlfile|");
 	      if ($urlfile =~ /^\//) {
 		  $pfn = "$urlprefix$urlhostport/$urlfile";
 	      } else {
@@ -1471,13 +1433,9 @@ sub access {
 		  $pfn .= "?$urloptions";
 	      }
 
-#	      $self->info("|$urlprefix| |$urlhostport| |$urlfile| |$urloptions|");
-#	      $self->info("|pfn1 = $pfn|");
 	      if (($urlprefix =~ /^guid/) && ($urloptions =~ /ZIP/) && ( $pfn =~ /.*\/(\w\w\w\w\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\w\w\w\w\w\w\w\w)/ )) {
 		  # we got a reference guid back
 		  my $newguid = $1;
-#		  $self->info("|new guid| |$newguid|");
-#		  print "New Guid = $newguid\n";
 		  $guid = $newguid;
 		  
 		  $urloptions =~ /ZIP=([^\&]*)/;
@@ -1487,22 +1445,12 @@ sub access {
 		      $anchor = $1;
 		  }
 		  
-#		  print "anchor = $anchor options = $options\n";
 		  $lfn .= "_$guid";
 		  goto resolve_again;
 
-#		  } else {
-#		      $self->info( "access: Error resolving the guid reference $pfn",11) and return;
-#		  }
 	      }
 	      $DEBUG and $self->debug(1, "access: We can take it from the following SE: $se with PFN: $pfn");
 	  }
-	  
-	  # we skip that!
-	  # add the anchor to the lfn for archive files
-	  #if ($anchor ne "") {
-	  #$lfn .= "#" . $anchor;
-	  #}
 	  
 	  $ticket .= "<authz>\n";
 	  $ticket .= "  <file>\n";
@@ -1582,24 +1530,25 @@ sub access {
 	      my @params;
 	      if ($access =~ /^read/) {
 		  # send read info
-
-		  push @params,"$self->{CATALOG}->{ROLE}:readrequest";
-		  push @params,"$se:$filehash->{size}";
+		  push @params, "$se";
+		  push @params, "$filehash->{size}";
+		  $self->{MONITOR}->sendParameters("$self->{CONFIG}->{SITE}_QUOTA","$self->{CATALOG}->{ROLE}_readreq", @params); 		      
 	      }
 
 	      if ($access =~ /^write/) {
 		  # send write info
-
-                  push @params,"$self->{CATALOG}->{ROLE}:readrequest";
-                  push @params,"$se:$filehash->{size}";
+		  push @params, "$se";
+		  push @params, "$filehash->{size}";
+		  $self->{MONITOR}->sendParameters("$self->{CONFIG}->{SITE}_QUOTA","$self->{CATALOG}->{ROLE}_writereq", @params); 
 	      }
 
 	      if ($access =~ /^delete/) {
+		  push @params, "$se";
+		  push @params, "$filehash->{size}";
+		  $self->{MONITOR}->sendParameters("$self->{CONFIG}->{SITE}_QUOTA","$self->{CATALOG}->{ROLE}_delete", @params); 
 		  # send write info
-                  push @params,"$self->{CATALOG}->{ROLE}:deleterequest";
-                  push @params,"$se:$filehash->{size}";
 	      }
-	      $self->{MONITOR}->sendParams(@params);
+
 	  }
 
 	  push @lnewresult,$newhash; 
@@ -1693,25 +1642,12 @@ sub commit {
 		      $self->{LOGGER}->error("LCM","commit: Cannot register file lfn=$lfn storageurl=$storageurl size=$size se=$se guid=$guid md5=$md5");
 		  }
 
-		  # ask at the SE, if this file is really there 
-#		  my ($seName, $seCert)=$self->{SOAP}->resolveSEName($se) or return;
-#		  $self->{LOGGER}->debug("LCM", "commit: Asking the SE at $seName");
-#		  my $sepfn=$self->{SOAP}->CallSOAP($seName, "getPFNFromGUID",$se, $guid); 
-
-#		  if (!$sepfn) {
-#		      $self->{LOGGER}->info("LCM", "commit: Error asking the SE: $!", 1);
-#		      $self->{LOGGER}->error("LCM","commit: removing entry for $lfn -> not existing in the SE");
-#		      $self->{CATALOG}->f_removeFile("-s",$lfn);
-#		  } else {
-#		      $$newresult[0]->{$lfn} = 1;
-		      
 		  # send write-commit info
 		  if ($self->{MONITOR}) {
 		      my @params;
-		      push @params,"$self->{CATALOG}->{ROLE}:writecommit";
-		      push @params,"$se:$size";
-		      $self->{MONITOR}->sendParams(@params);
-#		  }
+		      push @params,"$se";
+		      push @params,"$size";
+		      $self->{MONITOR}->sendParameters("$self->{CONFIG}->{SITE}_QUOTA","$self->{CATALOG}->{ROLE}_written", @params);
 		  }
 	      }
 	  }
