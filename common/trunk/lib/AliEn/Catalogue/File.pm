@@ -760,7 +760,13 @@ Options:
     $self->info("Let's take a look at the transfer methods");
     my @newlist;
     foreach my $entry (@SElist){
-      push @newlist, $self->checkIOmethods($entry, @_);
+	my $found=0;
+	foreach my $checkentry (@newlist) {
+	    if ($checkentry->{seName} eq $entry->{seName}) {
+		$found=1;
+	    }
+	}
+	! $found && push @newlist, $self->checkIOmethods($entry, @_);
     }
     @SElist=@newlist;
   }
@@ -801,6 +807,61 @@ sub getIOProtocols{
   return \@protocols
 }
 
+sub getStoragePath{
+  my $self=shift;
+  my $seName=shift;
+
+  my $cache=AliEn::Util::returnCacheValue($self, "prefix-$seName");
+  if ($cache) {
+    $self->info( "$$ Returning the value from the cache (@$cache)");
+    return $cache;
+  }
+  my $storagepath=$self->{DATABASE}->{LFN_DB}->queryValue("select seStoragePath from SE where seName=?", undef, {bind_values=>[$seName]});
+  if ( (! defined $storagepath ) || ($storagepath eq "") ) {
+      $storagepath="/";
+  }
+  AliEn::Util::setCacheValue($self, "prefix-$seName", [$storagepath]);
+  $self->info("Returning the storagepath supported by $seName ($storagepath)");
+  return $storagepath
+}
+
+sub createFileName {
+  my $self=shift;
+  my $seName=shift or return;
+  my $guid=(shift or 0);
+  my $prefix=$self->getStoragePath($seName);
+  my $filename;
+  if (!$guid) {
+      $guid = $self->{GUID}->CreateGuid();
+      if (!$guid) {
+	  $self->{LOGGER}->error("File","cannot create new guid");
+	  return;
+      }
+  }
+  $filename = sprintf "%s/%02.2d/%05.5d/%s",$prefix,$self->{GUID}->GetCHash($guid),$self->{GUID}->GetHash($guid),$guid;
+  while ($filename =~ /\/\//) {$filename =~ s/\/\//\//g;}
+  return ($filename,$guid);
+}
+
+sub createFileUrl {
+  my $self = shift;
+  my $se   = shift;
+  my $clientprot = shift;
+  my $guid = (shift or 0);
+
+  my $protocols = $self->getIOProtocols($se)
+      or $self->info("Error getting the IO protocols of $se") and return;
+  my $selectedprotocol=0;
+
+  foreach (@$protocols) {if ( $_ =~ /^$clientprot/) { $selectedprotocol =$_; last;} }
+
+  $selectedprotocol or $self->info("The client protocol $clientprot could not be found in the list of supported protocols of se $se") and return;
+  
+  my ($newpath,$newguid) = $self->createFileName($se,$guid)
+      or return;
+  return ("$selectedprotocol/$newpath",$newguid,$se);
+}
+
 sub checkIOmethods {
   my $self=shift;
   my $entry=shift;
@@ -826,7 +887,11 @@ sub checkIOmethods {
       $item->{$_}=$entry->{$_};
     }
     if (! ($item->{pfn} =~ /guid:\/\//)) {
-	$item->{pfn}=~ s{^[^:]*://[^/]*}{$method}i;
+	if ( $method !~ /\/$/) {
+	    $item->{pfn}=~ s{^[^:]*://[^/]*}{$method/}i;
+	} else {
+	    $item->{pfn}=~ s{^[^:]*://[^/]*}{$method}i;
+	}
     }
 
     push @list, $item;
