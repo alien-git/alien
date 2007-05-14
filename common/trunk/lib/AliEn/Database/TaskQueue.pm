@@ -454,7 +454,7 @@ sub updateStatus{
   my $set = shift || {};
 
   $set->{status} = $status;
-
+  $set->{procinfotime}=time;
   $DEBUG and $self->debug(1, "in updateStatus locking the table $self->{QUEUETABLE}");
   $self->lock("$self->{QUEUETABLE} WRITE, JOBAGENT WRITE, QUEUEPROC");
   $DEBUG and $self->debug(1, "in updateStatus table $self->{QUEUETABLE} locked");
