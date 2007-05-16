@@ -779,7 +779,7 @@ sub getOutput {
   my $output  = shift || "stdout";
   my $url     =shift;
   my @options =shift;
-  ($queueId) or print STDERR "Error: no queueId specified!!\n";
+  ($queueId) or $self->info("Error: no queueId specified!!") and return;
 
   $self->info( "Getting the $output of $queueId" );
 
@@ -807,7 +807,7 @@ sub getOutput {
   my $data=($done->result or "");
 
   $self->debug(1, "Got $data" );
-  $data or print "No output" and return "No output\n";
+  $data or $self->info("No output") and return "No output\n";
 
   return(SOAP::Data->type( base64 => $data ));
 }
@@ -896,11 +896,11 @@ sub getFileSOAP {
 
 	my $open="$file";
 	$options->{grep} and $open="grep '$options->{grep}' $file|" and
-	  print "Returning only the entries that match $options->{grep}\n";
+	  $self->info("Returning only the entries that match $options->{grep}");
 	$options->{head} and $open="head -$options->{head} $file|" and
-	  print "Returning the first $options->{head} lines of $file\n";
+	  $self->info("Returning the first $options->{head} lines of $file");
 	$options->{tail} and $open="tail -$options->{tail} $file|" and
-	print "Returning the last $options->{tail} lines of $file\n";
+	  $self->info("Returning the last $options->{tail} lines of $file");
         if ( open( FILE, $open ) ) {
 	  my $aread = read( FILE, $buffer, $maxlength, 0 );
 	  close(FILE);
@@ -1160,7 +1160,7 @@ sub checkZombies {
     if ($data) {
       my @lines=split (/\n/, $data);
       my $lastLine=pop @lines;
-      print "The last line is $lastLine\n";
+      $self->info("The last line is $lastLine");
       $lastLine =~ s/^\s*(\d+)\s+.*$/$1/;
       my $time=time - $lastLine;
       $self->info("The last message was $time seconds ago");
