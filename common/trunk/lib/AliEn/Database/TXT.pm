@@ -102,7 +102,7 @@ sub createTable{
 sub lock {
   my $self=shift;
   my $table=shift;
-  print "Ready to lock $table\n";
+  $self->info("Ready to lock $table");
   LockFile::Simple::lock("$self->{DIRECTORY}/$table.lck");
 
   return 1;
