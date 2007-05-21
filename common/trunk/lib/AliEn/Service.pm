@@ -56,7 +56,7 @@ sub new {
   $self->{CONFIG} = new AliEn::Config();
   $self->{CONFIG} or return;
 
-  $self->{LOGGER}->info( "Service", $inittxt );
+  $self->info($inittxt );
   $self->{ALIVE_COUNTS}=0;
 
   $self->{VERIFY_MODE}=0;
@@ -74,13 +74,13 @@ sub new {
 
   my $certdir="$ENV{ALIEN_HOME}/.alien/globus/";
   if ((-f "$certdir/usercert.pem") && (! $ENV{X509_USER_CERT})) {
-    $self->{LOGGER}->info("Service", "Using the certificate in $certdir");
+    $self->info("Using the certificate in $certdir");
     $ENV{X509_USER_CERT}="$certdir/usercert.pem";
     $ENV{X509_USER_KEY}="$certdir/userkey.pem";
   }
 
   (-f "$self->{CONFIG}->{TMP_DIR}/AliEn_TEST_SYSTEM") and
-    $self->{LOGGER}->info("Servioce", "We are testing the whole system, let's create only one instance of each service") and $self->{PREFORK}=1;
+    $self->info("We are testing the whole system, let's create only one instance of each service") and $self->{PREFORK}=1;
   my $message="";
   $self->{PORT} or $message="No port defined.";
   $self->{HOST} or $message.=" No host defined.";
@@ -136,13 +136,13 @@ sub setAlive{
      and return;
   $self->{LASTALIVE}=$date+400;
 
-  #$self->{LOGGER}->info("Service", "setAlive was called.");
+  #$self->info("setAlive was called.");
   if($self->{MONITOR}){
     # send the alive status also to ML
     if (not  $self->{SKIP_BGMONITOR}){
       $self->{MONITOR}->sendBgMonitoring();
     }
-    #$self->{LOGGER}->info("Service", "setAlive -> sent Bg Monitoring to ML.");
+    #$self->info("setAlive -> sent Bg Monitoring to ML.");
   }
 
   # we can advertise the port of a subsytem in the IS
@@ -251,10 +251,10 @@ sub startListening {
 
   my $address="$self->{HOST}:$self->{PORT}";
   
-  $self->{LOGGER}->info( "Service", "Starting $self->{SERVICE} on $address" );
+  $self->info("Starting $self->{SERVICE} on $address" );
   
   if ($self->{FORKCHECKPROCESS}){
-    $self->{LOGGER}->info("Service","Forking a process");
+    $self->info("Forking a process");
     $self->forkCheckProcess() or return;
   }
 
@@ -273,16 +273,16 @@ sub startListening {
     }
     $daemon = $name-> new($options);
     $self->{DISPATCH_WITH} and
-      $self->{LOGGER}->info("Service", "WE ARE PUTTING A NEW DISPATCH") and
+      $self->info("WE ARE PUTTING A NEW DISPATCH") and
 	$daemon->dispatch_with( $self->{DISPATCH_WITH});
     $daemon->dispatch_and_handle( $self->{URI} )
-		or print "Couldn't establish listening socket for SOAP server"
+      or print "Couldn't establish listening socket for SOAP server"
 	    and return;
   };
   if ($@) {
-    $self->{LOGGER}->info("Service", "The service did not start\n\t$@");
+    $self->info("The service did not start\n\t$@");
   }
-  $self->{LOGGER}->info( "Service", "Daemon $self->{SERVICE} stopped" );
+  $self->info("Daemon $self->{SERVICE} stopped" );
   if ($self->{CHILDPID}) {
     $self->stopService($self->{CHILDPID});
   }
@@ -300,7 +300,7 @@ sub SetSecureEnvironment {
   $ENV{X509_USER_CERT}     = "$CertDir/cert.pem";
   $ENV{X509_USER_KEY}      = "$CertDir/key.pem";
   my $CAdir="$ENV{ALIEN_ROOT}/globus/share/certificates";
-  $self->{LOGGER}->info("Service", "Starting a secure server :\n\tcert in $CertDir\n\t CA in $CAdir");
+  $self->info("Starting a secure server :\n\tcert in $CertDir\n\t CA in $CAdir");
   $options->{SSL_key_file}= "$CertDir/key.pem";
   $options->{SSL_cert_file}="$CertDir/cert.pem";
   $options->{SSL_ca_path}="$CAdir";
@@ -320,7 +320,7 @@ sub SetSecureEnvironment {
   
   foreach my $file ("SSL_key_file", "SSL_cert_file") {
     ( -f $options->{$file} ) or 
-      $self->{LOGGER}->info("Service", "Error: $self->{SERVICE} is supposed to be secure, but the file $options->{$file} does not exist!!") and return;
+      $self->info("Error: $self->{SERVICE} is supposed to be secure, but the file $options->{$file} does not exist!!") and return;
   }
 
   return "AliEn::Server::SOAP::Transport::HTTPS";
@@ -369,7 +369,7 @@ sub stopWholeService {
 
   $ppid or return;
   $self->stopService($ppid);
-  $self->{LOGGER}->info("Service", "Let's kill also the rotate-log ( $ENV{ALIEN_PROCESSNAME}-RotateLog-$ppid)");
+  $self->info("Let's kill also the rotate-log ( $ENV{ALIEN_PROCESSNAME}-RotateLog-$ppid)");
   open (FILE, "ps -ef |grep '$ENV{ALIEN_PROCESSNAME}-RotateLog-$ppid'|grep -v grep|");
   my @pid=<FILE>;
   close FILE;
@@ -393,8 +393,8 @@ sub stopService {
   my $s=shift;
 
   my $pid=shift;
-  $pid or $self->{LOGGER}->info("Service", "Trying to stop the service without passing the pid...") and return;
-  $self->{LOGGER}->info("Service", "Stopping the service (pid $pid) (and I'm $$)");
+  $pid or $self->info("Trying to stop the service without passing the pid...") and return;
+  $self->info("Stopping the service (pid $pid) (and I'm $$)");
 
   my @pids = ($pid, $self->findChildProcesses($pid));
 
@@ -455,7 +455,7 @@ sub startChecking {
     if ( $count == 24 * 60 ) {
 
       #Every day
-      $self->{LOGGER}->info( "Service", "I'm still alive and checking" );
+      $self->info("I'm still alive and checking" );
       $count = 0;
     }
     $self->checkWakesUp($silent) or
@@ -480,7 +480,7 @@ sub ping {
   $self->debug(1, "Service $self->{SERVICE} contacted");
   
   if ( ( $self->{ALIVE_COUNTS} == 12 ) ) {
-    $self->{LOGGER}->info( "Service", "Service $self->{SERVICE} contacted" );
+    $self->info("Service $self->{SERVICE} contacted" );
     $self->{ALIVE_COUNTS} = 0;
   }
 #  print "PING DONE $self->{ALIVE_COUNTS}\n";
@@ -671,14 +671,14 @@ sub checkFileSize {
     my $this = shift;
     my $file = shift;
 
-    $self->{LOGGER}->info( "Service", "Getting the size of $file" );
+    $self->info("Getting the size of $file" );
 
     ( -f $file )
       or $self->{LOGGER}->warning( "Service", "$file does not exist" )
       and return (-1, "File doesn't exist");
 
     my $size= -s $file;
-    $self->{LOGGER}->info( "Service", "Size of $file is $size" );
+    $self->info("Size of $file is $size" );
     return $size;
 }
 #
@@ -729,7 +729,7 @@ sub getPort {
 sub getVersion {
   shift;
   my $version=$self->{CONFIG}->{VERSION};
-  $self->{LOGGER}->info("Service", "Returning the version of this service: $version");
+  $self->info("Returning the version of this service: $version");
   return $version;
 }
 #
@@ -738,7 +738,7 @@ sub die {
   my $self=shift;
   my $name=shift ||"";
   my $message=shift || "";
-  $self->{LOGGER}->info("Service", "Dying with $name and $message\n");
+  $self->info("Dying with $name and $message\n");
   die SOAP::Fault->faultcode($name) # will be qualified
                  ->faultstring($message)
                  ->faultdetail(bless {code => 1} => 'BadError')

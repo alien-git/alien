@@ -23,7 +23,7 @@ sub initialize {
   my $options =(shift or {});
   
   $self->{SERVICE} or
-    print STDERR "Manager: In initialize service name missing\n"
+    $self->info("Manager: In initialize service name missing\n")
       and return;
   
   $self->{SERVICENAME} = "$self->{SERVICE}Manager";
@@ -55,7 +55,7 @@ sub initialize {
   $self->debug(1, "In initialize AliEn::UI::Catalogue instance created" );
   
   $self->{DB_MODULE} or
-    print STDERR "Manager: in initialize database module not defined\n"
+    $self->info("Manager: in initialize database module not defined")
       and return;
 
   $self->debug(1, "In initialize creating $self->{DB_MODULE} instance" );
