@@ -138,8 +138,8 @@ sub getNumberQueued {
 sub getNumberRunning {
   my $self=shift;
   my @ids=$self->getQueuedJobs();
-  my $number=$#ids+1
-#  @ids or $self->info( "Error getting the number of jobs") and return;
+  my $number=$#ids+1;
+  #  @ids or $self->info( "Error getting the number of jobs") and return;
   $self->info( "There are $number jobs right now");
   return $number;
 

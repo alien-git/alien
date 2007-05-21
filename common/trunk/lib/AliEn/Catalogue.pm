@@ -313,13 +313,13 @@ sub f_pwd {
 
   if ( (! $self->{SILENT} ) and (!$silent) ) {
     if ($short) {
-      print("$self->{DISPPATH}\n");
+      $self->info("$self->{DISPPATH}",undef, 0);
     } else {
-      print("Current path is: $self->{DISPPATH}\n");
+      $self->info("Current path is: $self->{DISPPATH}",undef,0);
     }
   }
 
-  ( $self->{DEBUG} > 4 ) and print "DEBUG LEVEL 4\tDone UserInterface pwd:\n";
+  $DEBUG and $self->debug(4,"Done UserInterface pwd:");
   if ($returnarrayhash) {
     my @retarray=();
     my $newhash = {};
@@ -527,22 +527,22 @@ sub f_lfn2guid
 }
 
 sub f_glob {
-	my $self = shift;
-	my $options = shift;
-	my $state = shift;
-
-	if (!defined($state)) {
-		print ("Glob state is: " . $self->{GLOB} . "\n");
-		return;
-	}
-
-	if ($state != 0 and $state != 1) {
-		print STDERR "Wrong arguments to glob\n0 = on, 1 = off\n";
-		return;
-	}
-
-	$self->{GLOB} = $state;
-	return;
+  my $self = shift;
+  my $options = shift;
+  my $state = shift;
+  
+  if (!defined($state)) {
+    print ("Glob state is: " . $self->{GLOB} . "\n");
+    return;
+  }
+  
+  if ($state != 0 and $state != 1) {
+    print STDERR "Wrong arguments to glob\n0 = on, 1 = off\n";
+    return;
+  }
+  
+  $self->{GLOB} = $state;
+  return;
 }
 # Gets all the files that match a certain pattern
 # The pattern can contain:  * match any name until 
@@ -727,7 +727,7 @@ sub f_mkremdir {
       "Error: $DB in $host (driver $driver) is not in the current list of remote hosts. Add it first with 'addHost'\n";
     return;
   }
-  print "\n\nVAMOS ALLA\n";
+
   return $self->{DATABASE}->createRemoteDirectory($hostIndex,$host, $DB, $driver, $lfn);
 }
 
@@ -1018,9 +1018,9 @@ sub f_print {
 }
 
 sub f_whoami {
-    my $self = shift;
-    $self->{SILENT} or print "$self->{ROLE}\n";
-    return $self->{ROLE};
+  my $self = shift;
+  $self->{SILENT} or $self->info($self->{ROLE},undef,0);
+  return $self->{ROLE};
 }
 
 sub f_user {
@@ -1041,7 +1041,7 @@ sub f_user {
   } else {
     $changeUser=0;
     $user = shift;
-    print "Executing super user code [change $self->{DATABASE}->{ROLE}/$self->{ROLE} to $user]\n";
+    $self->info("Executing super user code [change $self->{DATABASE}->{ROLE}/$self->{ROLE} to $user]",undef,0);
     if (!($self->{DATABASE}->{ROLE} =~ /^admin(ssl)?$/)) {
       print STDERR "You have to be admin to use the super user functionality";
       return;
