@@ -631,7 +631,8 @@ sub removePackage{
 sub recomputeListPackages{
   my $self=shift;
   $self->info("Asking the package manager to recompute the list of packages");
-  $self->{CATALOGUE}->{CATALOG}->{DATABASE_FIRST}->do("update ACTIONS set todo=1 where action='PACKAGES'") or return;
+  $self->info("The DB is $self->{CATALOGUE}->{CATALOG}->{DATABASE_FIRST}->{LFN_DB}->{FIRST_DB}  $self->{CATALOGUE}->{CATALOG}->{DATABASE_FIRST}->{LFN_DB}->{FIRST_DB}->{DB}");
+  $self->{CATALOGUE}->{CATALOG}->{DATABASE_FIRST}->{LFN_DB}->{FIRST_DB}->do("update ACTIONS set todo=1 where action='PACKAGES'") or return;
   $self->info("The information will be updated in 10 seconds");
   return 1;
 }
