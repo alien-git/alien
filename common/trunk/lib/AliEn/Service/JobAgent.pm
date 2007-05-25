@@ -177,10 +177,12 @@ sub requestJob {
   $self->GetJDL() or return;
   $self->info("Got the jdl");
   $self->{LOGFILE}=AliEn::TMPFile->new({filename=>"proc.$ENV{ALIEN_PROC_ID}.out"});
-
-  $self->info("Let's redirect the output to $self->{LOGFILE}");
-  $self->{LOGGER}->redirect($self->{LOGFILE});
- 
+  if ($self->{LOGFILE}){
+    $self->info("Let's redirect the output to $self->{LOGFILE}");
+    $self->{LOGGER}->redirect($self->{LOGFILE});
+  } else{
+    $self->info("We couldn't redirect the output...");
+  }
   $self->checkJobJDL() or $self->sendJAStatus('ERROR_JDL') and return;
 
   print "Contacting VO: $self->{VOs}\n";
@@ -382,14 +384,14 @@ sub GetJDL {
   $self->putJobLog($ENV{ALIEN_PROC_ID},"trace",$message);
 
 
-  print "ok\nTrying with $jdl\n";
+  $self->info("ok\nTrying with $jdl");
 
   $self->{CA} = Classad::Classad->new("$jdl");
   ( $self->{CA}->isOK() ) and return 1;
 
   $jdl =~ s/&amp;/&/g;
   $jdl =~ s/&amp;/&/g;
-  print "Trying again... ($jdl)\n";
+  $self->info("Trying again... ($jdl)");
   $self->{CA} = Classad::Classad->new("$jdl");
   ( $self->{CA}->isOK() ) and return 1;
 
