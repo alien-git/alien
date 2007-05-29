@@ -176,7 +176,8 @@ sub requestJob {
 
   $self->GetJDL() or return;
   $self->info("Got the jdl");
-  $self->{LOGFILE}=AliEn::TMPFile->new({filename=>"proc.$ENV{ALIEN_PROC_ID}.out"});
+#  $self->{LOGFILE}=AliEn::TMPFile->new({filename=>"proc.$ENV{ALIEN_PROC_ID}.out"});
+  $self->{LOGFILE}="$self->{CONFIG}->{TMP_DIR}/proc.$ENV{ALIEN_PROC_ID}.out";
   if ($self->{LOGFILE}){
     $self->info("Let's redirect the output to $self->{LOGFILE}");
     $self->{LOGGER}->redirect($self->{LOGFILE});
@@ -185,7 +186,7 @@ sub requestJob {
   }
   $self->checkJobJDL() or $self->sendJAStatus('ERROR_JDL') and return;
 
-  print "Contacting VO: $self->{VOs}\n";
+  $self->info("Contacting VO: $self->{VOs}");
 
   $self->CreateDirs or $self->sendJAStatus('ERROR_DIRS') and return;
 
@@ -450,7 +451,7 @@ sub checkJobJDL {
     $self->{CA}->evaluateAttributeVectorString("Packages");
   $ENV{ALIEN_PACKAGES}=join (" ", @packages);
 
-  print "PACKAGES REQUIRED: $ENV{ALIEN_PACKAGES}\n";
+  $self->info("PACKAGES REQUIRED: $ENV{ALIEN_PACKAGES}");
 
 
   ($ok, my @env_variables)=
@@ -570,7 +571,7 @@ sub CreateDirs {
 }
 
 sub getStatus {
-  print "Asking the status of process $self->{QUEUEID}\n";
+  $self->info("Asking the status of process $self->{QUEUEID}");
 
   return $self->{QUEUEID};
 
@@ -582,11 +583,11 @@ my $my_getFile = sub {
     if ($options->{grep} || $options->{tail} || $options->{head}) {
       my $open="$file";
       $options->{grep} and 
-	print "Returning only the entries that match $options->{grep}\n";
+	$self->info("Returning only the entries that match $options->{grep}");
       $options->{head} and $open="head -$options->{head} $file|" and
-	print "Returning the first $options->{head} lines of $file\n";
+	$self->info("Returning the first $options->{head} lines of $file");
       $options->{tail} and $open="tail -$options->{tail} $file|" and
-	print "Returning the last $options->{tail} lines of $file\n";
+	$self->info("Returning the last $options->{tail} lines of $file");
       open (FILE, $open) or return;
       my $buffer=join("", grep (/$options->{grep}/, <FILE>));
       close FILE;
@@ -690,7 +691,7 @@ sub startMonitor {
   $self->{JOB_STATUS_WTR}->autoflush(1);
   $self->info("Forking child to execute the job...");
   my $error = fork();
-  print "Fork done $error\n";
+  $self->info("Fork done $error");
   ( defined $error ) or print STDERR "Error forking the process\n" and return;
 
   waitpid( $error, &WNOHANG );
@@ -925,7 +926,7 @@ sub installPackage {
   my $catalogue=shift;
   my $package=shift;
 #  my $user=$self->{INSTALL_USER};
-  print "Installing Package $_\n";
+  $self->info("Installing Package $_");
 
   my ($version, $user);
   $self->{PACKMAN}->setCatalogue($catalogue);
@@ -1002,9 +1003,9 @@ sub mergeXMLfile{
   foreach my $event (keys %{$info->{collection}->{event}}){
     my $delete=1;
     foreach my $entry (keys %{$info->{collection}->{event}->{$event}->{file}}){
-      print "HOLA $entry\n";
+
       if (!grep (/^$info->{collection}->{event}->{$event}->{file}->{$entry}->{turl}$/i, @lfn)){
-	print "Let's remove $entry\n";
+	$self->info("Let's remove $entry");
 	delete $info->{collection}->{event}->{$event}->{file}->{$entry};
 	next;
       }
@@ -1013,8 +1014,6 @@ sub mergeXMLfile{
     $delete and delete $info->{collection}->{event}->{$event};
   }
 
-  print "AND WE HAVE\n";
-  
   open (FILE, ">$output");
   print FILE $d->writexml($info);
   close FILE;
@@ -1117,7 +1116,7 @@ sub _getInputFile {
   my $pfn=shift;
 
   $self->putJobLog($ENV{ALIEN_PROC_ID},"trace","Downloading input file: $lfnName");
-  print "Getting $lfnName\n";
+  $self->info( "Getting $lfnName");
 
   my $options="-silent";
   for (my $i=0;$i<2;$i++) {
@@ -1253,7 +1252,7 @@ sub getUserDefinedGUIDS{
 sub putFiles {
   my $self      = shift;
   my $filesUploaded=1;
-  print "Putting the stdout and stderr in the catalogue\n";
+  $self->info("Putting the stdout and stderr in the catalogue");
   system ("ls -al $self->{WORKDIR}");
   my $oldOrg=$self->{CONFIG}->{ORG_NAME};
   my ( $ok, @files ) =
@@ -1467,7 +1466,7 @@ sub prepareZipArchives{
   foreach my $name (keys %$archiveList) {
 
     if (grep(/.root$/ , $archiveList->{$name}->{zip}->memberNames())) {
-      print "There is a root file. Do not compress the files\n";
+      $self->info("There is a root file. Do not compress the files");
       foreach my $member ($archiveList->{$name}->{zip}->members()){
 	$member->desiredCompressionLevel(0);
       }
@@ -1696,7 +1695,7 @@ sub submitFileToClusterMonitor{
       "Error contacting ClusterMonitor 	$ENV{ALIEN_CM_AS_LDAP_PROXY}\n"
 	and return;
 	
-  print "Inserting $done in catalog...";
+  $self->info("Inserting $done in catalog...");
 
     #    print STDERR "$localdirectory/$filename has size $size\n";
   # To make sure we are in the right database.
@@ -1740,7 +1739,7 @@ sub sendEmail {
 
     ($user) or print "Not sending any email\n" and return;
 
-    print "Sending an email to $user (job $status)...\n";
+    $self->info("Sending an email to $user (job $status)...");
 
     ( $ok, my @files ) =
       $self->{CA}->evaluateAttributeVectorString("OutputFile");
@@ -1786,7 +1785,7 @@ If you have any problem, please contact us
 
     my $res = $ua->request($req);
 
-    print "ok\n";
+    $self->info("ok");
 
 }
 sub getChildProcs {
@@ -2191,20 +2190,20 @@ CPU Speed                           [MHz] : $ProcCpuspeed
       my $validatepid = fork();
       if (! $validatepid ) {
 	# execute the validation script
-	print "Executing the validation script: $validation\n";
+	$self->info("Executing the validation script: $validation");
 	unlink "$self->{WORKDIR}/.validated";
 	if (! system($validation) ){
-	  print "The validation finished successfully!!\n";
+	  $self->info("The validation finished successfully!!");
 	  system("touch $self->{WORKDIR}/.validated" ) ;
 	}
-	print "Validation finished!!\n";
+	$self->info("Validation finished!!");
 	exit 0;
       }
       my $waitstart = time;
       my $waitstop  = time;
       while ( ($waitstop-300) < ($waitstart) ) {
 	sleep 5;
-	print "Checking $validatepid\n";
+	$self->info("Checking $validatepid");
 	kill (0,$validatepid) or last;
 
 	my @defunct = `ps -p $validatepid -o state`;
