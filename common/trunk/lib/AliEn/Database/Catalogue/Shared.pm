@@ -226,6 +226,7 @@ sub checkSETable {
 		 seNumber=>"int(11) NOT NULL auto_increment primary key",
 		 seQoS=>"varchar(50)",
 		 seioDaemons=>"varchar(255)",
+		 seStoragePath=>"varchar(255)",
 		);
 
   $self->checkTable("SE", "seNumber", \%columns, 'seNumber', ['UNIQUE INDEX (seName)'], {engine=>"innodb"} ) or return;
