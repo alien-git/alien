@@ -115,6 +115,8 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
     'moveDirectory'	=> ['$self->{CATALOG}->moveDirectoryToIndex',0],
 	     'moveGUID'	=> ['$self->{CATALOG}->moveGUIDToIndex',0],
     'addSE'		=> ['$self->{CATALOG}->addSE',0],
+    'setSEio'		=> ['$self->{CATALOG}->setSEio',0],
+    'getSEio'		=> ['$self->{CATALOG}->getSEio',0],
     
     ###Bank functions
     'addFunds'		=> ['$self->{CATALOG}->addFunds',0],

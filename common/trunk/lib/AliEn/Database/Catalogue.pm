@@ -802,6 +802,39 @@ sub reconnect{
 }
 
 
+sub setSEio {
+    my $self=shift;
+    my $options=shift;
+    my $site=shift;
+    my $name=shift;
+    my $seioDaemons=shift;
+    my $seStoragePath=shift;
+    my $SEName="$self->{CONFIG}->{ORG_NAME}::${site}::$name";
+    my $SEnumber=$self->{LFN_DB}->queryValue("SELECT seNumber from SE where seName='$SEName'");
+
+    #Check that the SE exists;
+    if (!$SEnumber){
+	$self->info("The se $SEName does not exist!", 1);
+	return;
+    }
+
+    if (!$self->{LFN_DB}->executeInAllDB("update", "SE", {seName=>$SEName, seStoragePath=>$seStoragePath,seioDaemons=>$seioDaemons},"seName='$SEName'")) {
+	$self->info("Error updating $SEName with seStoragePath $seStoragePath & seioDaemons $seioDaemons");	
+	return;
+    }
+    return 1;
+}
+
+sub getSEio {
+    my $self=shift;
+    my $options=shift;
+    my $site=shift;
+    my $name=shift;
+    my $SEName="$self->{CONFIG}->{ORG_NAME}::${site}::$name";
+    my $SEio=$self->{LFN_DB}->queryRow("SELECT * from SE where seName='$SEName'");
+    return $SEio;
+}
+
 sub addSE{
   my $self=shift;
   my $options=shift;

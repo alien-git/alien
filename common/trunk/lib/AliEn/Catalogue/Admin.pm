@@ -370,6 +370,61 @@ sub expungeTables {
 
 }
 
+sub setSEio_HELP {
+    return "setSEio: allows you to set the se io methods and storage path in all databases
+\t Usage:
+\t\tsetSEio <site_name> <se_name> <se_iodaemons> <se_storagepath>
+\t\t (se_iodaemons like root://cl4.ujf.cas.cz:1094 )
+\t\t (se_storagepath like /raidRA/aliprod/SE )
+";
+}
+
+sub setSEio {
+    my $self =shift;
+    ( $self->{ROLE}  =~ /^admin(ssl)?$/ ) or
+    $self->info("Error: only the administrator can add new sites") and return;
+
+    (my $options, @_)=$self->Getopts(@_);
+    my $site=shift;
+    my $name=shift;
+    my $seio=shift;
+    my $sesp=shift;
+
+    ($site and $name and $seio and $sesp) or $self->info($self->setSEio_HELP()) and return;
+    return $self->{DATABASE}->setSEio($options,$site,$name,$seio,$sesp);
+}
+
+sub getSEio_HELP {
+    return "getSEio: allows you to get the se io methods and storage path of an SE
+\t Usage:
+\t\tgetSEio <site_name> <se_name> 
+";
+}
+sub getSEio {
+    my $self =shift;
+    ( $self->{ROLE}  =~ /^admin(ssl)?$/ ) or
+	$self->info("Error: only the administrator can add new sites") and return;
+    
+    (my $options, @_)=$self->Getopts(@_);
+    my $site=shift;
+    my $name=shift;
+    
+    ($site and $name) or $self->info($self->getSEio_HELP()) and return;
+    my $seio = $self->{DATABASE}->getSEio($options,$site,$name);
+    foreach (keys %$seio) {
+	printf "%32s\t",$_;
+	if (defined $seio->{$_}) {
+	    print "$seio->{$_}\n";
+	} else {
+	    print "NULL\n";
+	}
+    }
+    print "\n";
+    return $seio;
+}
+
+
+
 sub addSE_HELP {
   return "addSE: creates a new database for an SE, and inserts it in the table of all the catalogues
 \tUsage:
