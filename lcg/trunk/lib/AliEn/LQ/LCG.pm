@@ -298,7 +298,7 @@ sub getNumberRunning() {
   my $value = $self->getQueueStatus();
   $value or $value = 0;
 #  $self->debug(1,"Jobs: $run+$wait from GRIS, $value from local DB");
-  $self->info("Jobs: $run+$wait from GRIS, $value from local DB");
+  $self->info("Jobs: $run running, $wait waiting from GRIS, $value from local DB");
   if ( $cpu == 0 ) {
     $self->{LOGGER}->error("LCG","GRIS not responding, returning value from local DB");
     return $value;
