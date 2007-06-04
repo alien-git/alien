@@ -739,7 +739,7 @@ Options:
     or $self->info("Error getting the data from $lfn") and return; 
   my @SElist=@{$guidInfo->{pfn}};
 
-  $DEBUG and $self->debug(2, "The file $lfn is in");
+  $self->{SILENT} or $self->info("The file $lfn is in");
   my @return=();
   if ($options =~ /r/){
       $DEBUG and $self->debug(2, "We are supposed to resolve links");
@@ -772,7 +772,7 @@ Options:
   }
   foreach my $entry (@SElist){
     my ($se, $pfn)=($entry->{seName}, $entry->{pfn} || "auto");
-    $DEBUG and $self->debug(2,"\t\t SE => $se  pfn =>$pfn ",undef, 0);
+    $self->{SILENT} or $self->info("\t\t SE => $se  pfn =>$pfn ");
     if ($options !~ /l/){
       if ($options=~ /z/){
 	push @return, {se=>$se, guid=>$guidInfo->{guid}, pfn=>$pfn};
