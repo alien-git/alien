@@ -181,7 +181,7 @@ sub get {
     $self->info("This is in fact a zip file. Extracting $zip");
     my $zipFileName=$tempFile;
     if ($zipFileName =~ /^$self->{LOCALFILE}$/) {
-      $self->debug("Moving $zipFileName to $self->{LOCALFILE}.zip");
+      $self->debug(1,"Moving $zipFileName to $self->{LOCALFILE}.zip");
       $zipFileName="$self->{LOCALFILE}.zip";
       rename $self->{LOCALFILE}, $zipFileName;
     }
