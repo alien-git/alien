@@ -268,9 +268,9 @@ sub changeStatus {
 
 sub putJobLog {
   my $self =shift;
-
-  $self->info("Putting in the joblog: @_");
-  my $joblog = $self->{SOAP}->CallSOAP("CLUSTERMONITOR","putJobLog", @_) or return;
+  my $id=$ENV{ALIEN_PROC_ID};
+  $self->info("Putting in the joblog: $id, @_");
+  my $joblog = $self->{SOAP}->CallSOAP("CLUSTERMONITOR","putJobLog", $id,@_) or return;
   return 1;
 }
 
@@ -313,7 +313,10 @@ sub GetJDL {
   my $i=$ENV{ALIEN_JOBAGENT_RETRY} || 5;
 
   my $result;
-
+  if ($ENV{ALIEN_PROC_ID}){
+    $self->info("ASKING FOR ANOTHER JOB");
+    $self->putJobLog("trace","Asking for a new job");
+  }
   my $catalog=$self->getCatalogue() or return;
   while(1) {
     print "Getting the jdl from the clusterMonitor, agentId is $ENV{ALIEN_JOBAGENT_ID}...\n";
@@ -382,7 +385,7 @@ sub GetJDL {
 
   my $message="The job has been taken by the jobagent $ENV{ALIEN_JOBAGENT_ID}";
   $ENV{EDG_WL_JOBID} and $message.="(  $ENV{EDG_WL_JOBID} )";
-  $self->putJobLog($ENV{ALIEN_PROC_ID},"trace",$message);
+  $self->putJobLog("trace",$message);
 
 
   $self->info("ok\nTrying with $jdl");
@@ -421,7 +424,7 @@ sub checkJobJDL {
     $ENV{ALIEN_MASTERJOBID}=$masterid;
   }
   $self->{JOBEXPECTEDEND}=time()+$jobttl+600;
-  $self->putJobLog($ENV{ALIEN_PROC_ID},"trace","The job needs $jobttl seconds");
+  $self->putJobLog("trace","The job needs $jobttl seconds");
 
 
   $self->{VOs}="$self->{CONFIG}->{ORG_NAME}#$ENV{ALIEN_CM_AS_LDAP_PROXY}#$self->{QUEUEID}#$ENV{ALIEN_JOB_TOKEN}  $self->{VOs}";
@@ -461,12 +464,12 @@ sub checkJobJDL {
     ($ok, my @values)=
       $self->{CA}->evaluateAttributeVectorString($var);
     if (!$ok) {
-      $self->putJobLog($ENV{ALIEN_PROC_ID}, "warning", "The JobAgent was supposed to set '$var', but that's not defined in the jdl");
+      $self->putJobLog( "warning", "The JobAgent was supposed to set '$var', but that's not defined in the jdl");
       next;
     }
     $var=uc("ALIEN_JDL_$var");
     my $value=join("##", @values);
-    $self->putJobLog($ENV{ALIEN_PROC_ID},"trace", "Defining the environment variable $var=$value");
+    $self->putJobLog("trace", "Defining the environment variable $var=$value");
     $ENV{$var}=$value;
     
   }
@@ -505,10 +508,10 @@ sub CreateDirs {
     }
   }
 
-  $self->putJobLog($ENV{ALIEN_PROC_ID},"trace","Creating the working directory $self->{WORKDIR}");
+  $self->putJobLog("trace","Creating the working directory $self->{WORKDIR}");
 
   if ( !( -d $self->{WORKDIR} ) ) {
-    $self->putJobLog($ENV{ALIEN_PROC_ID},"error","Could not create the working directory $self->{WORKDIR} on $self->{HOST}");
+    $self->putJobLog("error","Could not create the working directory $self->{WORKDIR} on $self->{HOST}");
   }
 
   # remove old workdirs from former jobs while are not touched longer since 1 week!
@@ -549,13 +552,13 @@ sub CreateDirs {
 
       if (($workspace[0]*$unit) > $freemegabytes) {
 	# not enough space
-	$self->putJobLog($ENV{ALIEN_PROC_ID},"error","Request $workspace[0] * $unit MB, but only $freemegabytes MB free!");
+	$self->putJobLog("error","Request $workspace[0] * $unit MB, but only $freemegabytes MB free!");
 	$self->registerLogs(0);
 	$self->changeStatus("%", "ERROR_IB");
 	$done=0;
       } else {
 	# enough space
-	$self->putJobLog($ENV{ALIEN_PROC_ID},"trace","Request $workspace[0] * $unit MB, found $freemegabytes MB free!");
+	$self->putJobLog("trace","Request $workspace[0] * $unit MB, found $freemegabytes MB free!");
 	$self->{WORKSPACE}=$workspace[0]*$unit;
       }
     }
@@ -750,7 +753,7 @@ sub getCatalogue {
   };
   if ($@) {print "ERROR GETTING THE CATALOGUE $@\n";}
   if (!$catalog) {
-    $self->putJobLog($ENV{ALIEN_PROC_ID},"error","The job couldn't authenticate to the catalogue");
+    $self->putJobLog("error","The job couldn't authenticate to the catalogue");
 
     print STDERR "Error getting the catalog!\n";
     return;
@@ -946,7 +949,7 @@ sub installPackage {
   $self->info("Getting the package $package (version $version) as $user");
 
   $ENV{ALIEN_PROC_ID} and
-    $self->putJobLog($ENV{ALIEN_PROC_ID},"trace","Installing package $_");
+    $self->putJobLog("trace","Installing package $_");
 
   my ($ok, $source);
   while (1){
@@ -965,13 +968,13 @@ sub installPackage {
 	next;
       }
       $ENV{ALIEN_PROC_ID} and
-	$self->putJobLog($ENV{ALIEN_PROC_ID},"error","Package $_ not installed ");
+	$self->putJobLog("error","Package $_ not installed ");
       $self->info("Error installing the package: $@");
       return;
     }
     if (!$ok) {
       $ENV{ALIEN_PROC_ID} and
-	$self->putJobLog($ENV{ALIEN_PROC_ID},"error","Package $_ not installed ");
+	$self->putJobLog("error","Package $_ not installed ");
       return;
     }
 
@@ -986,14 +989,14 @@ sub mergeXMLfile{
   my $catalog=shift;
   my $output=shift;
   my $input=shift;
-  $self->putJobLog($ENV{ALIEN_PROC_ID},"trace","We have to merge $input with $output");
+  $self->putJobLog("trace","We have to merge $input with $output");
 
   $self->_getInputFile($catalog, $input, "$output.orig") or return;
 
   my $d=AliEn::Dataset->new();
 
   my $info=$d->readxml("$output.orig") or 
-    $self->putJobLog($ENV{ALIEN_PROC_ID},"error","Error reading the xml file $output.orig")  and return;
+    $self->putJobLog("error","Error reading the xml file $output.orig")  and return;
 
   my ($ok, @lfn)=$self->{CA}->evaluateAttributeVectorString("InputData");
 
@@ -1017,7 +1020,7 @@ sub mergeXMLfile{
   open (FILE, ">$output");
   print FILE $d->writexml($info);
   close FILE;
-  $self->putJobLog($ENV{ALIEN_PROC_ID}, "trace", "XML file $output created merging $input (and @lfn)");
+  $self->putJobLog( "trace", "XML file $output created merging $input (and @lfn)");
 
   return 1;
 }
@@ -1038,14 +1041,14 @@ sub dumpInputDataList {
       return $self->mergeXMLfile($catalog, $dumplist, $1);
       $xml="group";
     } else {
-      $self->putJobLog($ENV{ALIEN_PROC_ID},"error","The inputdatalistType was $format, but I don't understand it :(. Ignoring it");
+      $self->putJobLog("error","The inputdatalistType was $format, but I don't understand it :(. Ignoring it");
     }
   }
-  $self->putJobLog($ENV{ALIEN_PROC_ID},"trace","Putting the list of files in the file '$dumplist'");
+  $self->putJobLog("trace","Putting the list of files in the file '$dumplist'");
   $self->info("Putting the inputfiles in the file '$dumplist'");
   if (!open (FILE, ">$dumplist") ){
     $self->info("Error putting the list of files in $dumplist");
-    $self->putJobLog($ENV{ALIEN_PROC_ID},"error","Error putting the list of files in the file $dumplist");
+    $self->putJobLog("error","Error putting the list of files in the file $dumplist");
     return;
   }
 
@@ -1101,9 +1104,9 @@ sub getInputZip {
   $ok or return 1;
   $self->info("There are some input archives....");
   foreach my $file (@files){
-    $self->putJobLog($ENV{ALIEN_PROC_ID},"trace","Getting InputZip $file");
+    $self->putJobLog("trace","Getting InputZip $file");
     if (!$catalog->execute("unzip", $file)){
-    $self->putJobLog($ENV{ALIEN_PROC_ID},"error","Error getting the inputzip $file");
+    $self->putJobLog("error","Error getting the inputzip $file");
       return
     }
   }
@@ -1115,7 +1118,7 @@ sub _getInputFile {
   my $lfnName=shift;
   my $pfn=shift;
 
-  $self->putJobLog($ENV{ALIEN_PROC_ID},"trace","Downloading input file: $lfnName");
+  $self->putJobLog("trace","Downloading input file: $lfnName");
   $self->info( "Getting $lfnName");
 
   my $options="-silent";
@@ -1123,10 +1126,10 @@ sub _getInputFile {
     $catalog->execute("get", "-l", $lfnName,$pfn, $options ) and return 1;
 
     $options="";
-    $self->putJobLog($ENV{ALIEN_PROC_ID},"trace","Error downloading input file: $lfnName (trying again)");
+    $self->putJobLog("trace","Error downloading input file: $lfnName (trying again)");
 
   }
-  $self->putJobLog($ENV{ALIEN_PROC_ID},"error","Could not download the input file: $lfnName (into $pfn)");
+  $self->putJobLog("error","Could not download the input file: $lfnName (into $pfn)");
 
   return;
 }
@@ -1152,7 +1155,7 @@ sub getFiles {
 
   if (!( $catalog->execute("mkdir","$procDir/job-output","-ps"))) {
     print STDERR "ERROR Creating the job-output directory!\n";
-    $self->putJobLog($ENV{ALIEN_PROC_ID},"error","Could not create the output directory in the catalogue: $procDir/job-output");
+    $self->putJobLog("error","Could not create the output directory in the catalogue: $procDir/job-output");
     return;
   }
 
@@ -1234,9 +1237,9 @@ sub getUserDefinedGUIDS{
   my ($ok, $guidFile)=$self->{CA}->evaluateAttributeString("GUIDFile");
   my %guids;
   if ($guidFile){
-    $self->putJobLog($ENV{ALIEN_PROC_ID},"trace","Using the guids from $guidFile");
+    $self->putJobLog("trace","Using the guids from $guidFile");
     if (!open (FILE, "<$guidFile")){
-      $self->putJobLog($ENV{ALIEN_PROC_ID},"error","The job was supposed to create '$guidFile' with the guids, but it didn't... I will generate the guids");
+      $self->putJobLog("error","The job was supposed to create '$guidFile' with the guids, but it didn't... I will generate the guids");
     }else{
       %guids=split (/\s+/, <FILE>);
       use Data::Dumper;
@@ -1282,11 +1285,11 @@ sub putFiles {
     my $ui=AliEn::UI::Catalogue::LCM->new({no_catalog=>1});
     if (!$ui) {
       $self->info("Error getting an instance of the catalog");
-      $self->putJobLog($ENV{ALIEN_PROC_ID},"error","Could not get an instance of the LCM");
+      $self->putJobLog("error","Could not get an instance of the LCM");
       return;
     }
 
-    $self->putJobLog($id,"trace","Saving the files in the SE");
+    $self->putJobLog("trace","Saving the files in the SE");
 
     #this hash will contain all the files that have already been submitted,
     #so that we can know if we are registering a new file or a replica
@@ -1306,7 +1309,7 @@ sub putFiles {
 	    my $se=$ui->findCloseSE($_);
 	    if (!$se){
 	      $self->info("We didn't manage to find any SE that can hold this data");
-	      $self->putJobLog($ENV{ALIEN_PROC_ID},"error","Could not find an SE of type '$_'");
+	      $self->putJobLog("error","Could not find an SE of type '$_'");
 	      return;
 	    }
 	    push @se, uc($se);
@@ -1319,15 +1322,15 @@ sub putFiles {
       $self->info("Submitting file $file2");
       if (! -f "$self->{WORKDIR}/$file2")  {
 	$self->info("The job was supposed to create $file2, but it doesn't exist!!",1);
-	$self->putJobLog($id, "error", "The job didn't create $file2");
+	$self->putJobLog("error", "The job didn't create $file2");
 	next;
       }
       my @options=("$self->{WORKDIR}/$file2", $se[0]);
-      $guids{$file2} and $self->putJobLog($id,"trace", "The file $file2 has the guid $guids{$file2} ") and push @options, $guids{$file2};
+      $guids{$file2} and $self->putJobLog("trace", "The file $file2 has the guid $guids{$file2} ") and push @options, $guids{$file2};
       my ($info)=$ui->execute("upload", @options);
       if (!$info) {
 	$self->info("Error registering the file $self->{WORKDIR}/$fileName");
-	$self->putJobLog($id,"error","Error registering the file $self->{WORKDIR}/$fileName");
+	$self->putJobLog("error","Error registering the file $self->{WORKDIR}/$fileName");
 	next;
       }
       if ($submitted->{$file2}){
@@ -1353,20 +1356,20 @@ sub putFiles {
 	my $optional=0;
 	$se=~ s/_optional$//i and $optional=1;
 	$self->info("Putting the file $arch->{name} in $se (guid $guid)");
-	$self->putJobLog($id,"trace","Registering $arch->{name} in $se");
+	$self->putJobLog("trace","Registering $arch->{name} in $se");
 	my ($info2, $silent)=(undef, "-silent");
 	for (my $j=0;$j<5;$j++){
 	  ($info2)=$ui->execute("upload", "$self->{WORKDIR}/$arch->{name}",
 				$se, $guid, $silent);
 	  $info2 and  UNIVERSAL::isa( $info2, "HASH")  and last; 
 	  $self->info("Error uploading the file... sleep and retry");
-	  $self->putJobLog($id, "trace", "warning: file upload failed... sleeping  and retrying");
+	  $self->putJobLog( "trace", "warning: file upload failed... sleeping  and retrying");
 	  sleep(10);
 	  $silent="";
 	}
 	if (!$info2 or !  UNIVERSAL::isa( $info2, "HASH")) {
 	  $self->info("Couldn't upload the file $arch->{name} to $se\n");
-	  $self->putJobLog($id,"error","Error registering $arch->{name}");
+	  $self->putJobLog("error","Error registering $arch->{name}");
 	  next;
 	}
 	if ($info) {
@@ -1496,7 +1499,7 @@ sub createUserZipArchives{
     my @noPattern=$self->_findFilesLike(@files);
     if (! @noPattern) {
       $self->info("There are no files for the archive $name!!");
-      $self->putJobLog($ENV{ALIEN_PROC_ID},"error","The files @files weren't produced!! (ignoring the tar file $name)");
+      $self->putJobLog("error","The files @files weren't produced!! (ignoring the tar file $name)");
       next;
     }
 
@@ -1514,7 +1517,7 @@ sub createUserZipArchives{
       $self->info("Checking $file");
       my $size=-s $file;
       if (!defined $size) {
-	$self->putJobLog($ENV{ALIEN_PROC_ID},"error","The file $file doesn't exist");
+	$self->putJobLog("error","The file $file doesn't exist");
 	next;
       }
       $archiveList->{$name}->{zip}->addFile($file);
@@ -1552,7 +1555,7 @@ sub createDefaultZipArchive{
     @se or push @se,  uc($self->{CONFIG}->{SE_FULLNAME});
     my $size=-s $file2;
     if (!defined $size) {
-      $self->putJobLog($ENV{ALIEN_PROC_ID},"error","The file $file2 doesn't exist");
+      $self->putJobLog("error","The file $file2 doesn't exist");
       next;
     }
     if (($size>$MAXSIZE) || $opt->{noarchive}) {
@@ -1650,7 +1653,7 @@ sub submitLocalFile {
   if ($self->{OUTPUTDIR} and ($self->{STATUS} eq "DONE") ) {
     #copying the output to the right place
     $catalog->execute("cp", $lfn, $self->{OUTPUTDIR}) or
-      $self->putJobLog($id,"error","Error copying $lfn to $self->{OUTPUTDIR}");
+      $self->putJobLog("error","Error copying $lfn to $self->{OUTPUTDIR}");
   }
   return $lfn;
 }
@@ -2100,7 +2103,7 @@ sub checkProcess{
   if ($killMessage){
     AliEn::Util::kill_really_all($self->{PROCESSID});
     $self->info("Killing the job ($killMessage)");
-    $self->putJobLog($ENV{ALIEN_PROC_ID},"error","Killing the job ($killMessage)");
+    $self->putJobLog("error","Killing the job ($killMessage)");
     $self->changeStatus("%", "ERROR_E");
     return;
   }
@@ -2176,12 +2179,12 @@ CPU Speed                           [MHz] : $ProcCpuspeed
   close POUT;
 	
   # put all output files into AliEn
-  #	    delete $ENV{ALIEN_JOB_TOKEN};
+  #	    
 
   $self->{STATUS}="SAVED";
 
   if ( $self->{VALIDATIONSCRIPT} ) {
-    $self->putJobLog($ENV{ALIEN_PROC_ID},"trace","Validating the output");
+    $self->putJobLog("trace","Validating the output");
     my $validation=$self->{VALIDATIONSCRIPT};
     $validation=~ s{^.*/([^/]*)$}{$self->{WORKDIR}/$1};
 
@@ -2217,16 +2220,16 @@ CPU Speed                           [MHz] : $ProcCpuspeed
 	$waitstop = time;
       }
       if ( ($waitstop-300) > ($waitstart) ) {
-	$self->putJobLog($ENV{ALIEN_PROC_ID},"trace","The validation script din't finish");
+	$self->putJobLog("trace","The validation script din't finish");
 	$self->{STATUS} = "ERROR_VT";
       } else {
 	( -e "$self->{WORKDIR}/.validated" ) or  $self->{STATUS} = "ERROR_V";
       }
     } else {
-      $self->putJobLog($ENV{ALIEN_PROC_ID},"error","The validation script '$validation' didn't exist");
+      $self->putJobLog("error","The validation script '$validation' didn't exist");
       $self->{STATUS} = "ERROR_VN";
     }
-    $self->putJobLog($ENV{ALIEN_PROC_ID},"trace","After the validation $self->{STATUS}");
+    $self->putJobLog("trace","After the validation $self->{STATUS}");
   }
 
   # store the files
@@ -2243,8 +2246,11 @@ CPU Speed                           [MHz] : $ProcCpuspeed
   }
   chdir;
   system("rm", "-rf", $self->{WORKDIR});
+  $self->putJobLog("state", "The job finished on the worker node with status $self->{STATUS}");
   $self->{JOBLOADED}=0;
   $self->{SOAP}->CallSOAP("CLUSTERMONITOR", "jobExits", $ENV{ALIEN_PROC_ID});
+  delete $ENV{ALIEN_JOB_TOKEN};
+  delete $ENV{ALIEN_PROC_ID};
   if (!$success){
     $self->sendJAStatus('DONE');
     $self->info("The job did not finish properly... we don't ask for more jobs");
@@ -2443,14 +2449,17 @@ sub doInAllVO{
     $ENV{ALIEN_CM_AS_LDAP_PROXY}=$cm;
     $self->{CONFIG}=$self->{CONFIG}->Reload({"organisation", $org});
     my $start={debug=>0,silent=>0};
-    $options->{no_catalog} and $start->{no_catalog}=1;
     $start->{gapi_catalog} = $self->{CONFIG}->{AGENT_API_PROXY};
-
-    my $catalog= AliEn::UI::Catalogue::LCM->new($start);
-    ($catalog) or print STDERR "Error getting the catalog!\n" and next;
+    my $catalog=undef;
+    if ( $options->{no_catalog}){
+      $start->{no_catalog}=1;
+    }else{
+      $catalog= AliEn::UI::Catalogue::LCM->new($start);
+      ($catalog) or print STDERR "Error getting the catalog!\n" and next;
+    }
 #    $catalog->execute("whoami");
     $func->($catalog);
-    $catalog->close;
+    $catalog and $catalog->close;
   }
 }
 

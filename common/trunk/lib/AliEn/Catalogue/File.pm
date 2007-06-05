@@ -772,7 +772,7 @@ Options:
   }
   foreach my $entry (@SElist){
     my ($se, $pfn)=($entry->{seName}, $entry->{pfn} || "auto");
-    $self->{SILENT} or printf "\t\t SE => $se  pfn =>$pfn\n";
+    $self->{SILENT} or $self->info("\t\t SE => $se  pfn =>$pfn\n", undef,0);
     if ($options !~ /l/){
       if ($options=~ /z/){
 	push @return, {se=>$se, guid=>$guidInfo->{guid}, pfn=>$pfn};
