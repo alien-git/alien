@@ -14,7 +14,6 @@ sub submit {
     $command =~ s/"/\\"/gs;
 
     my $message = "#BSUB -V
-#BSUB -j y
 #BSUB -N $ENV{ALIEN_LOG}
 #BSUB -o $self->{PATH}/$ENV{ALIEN_LOG}.out
 $self->{SUBMIT_ARG}
