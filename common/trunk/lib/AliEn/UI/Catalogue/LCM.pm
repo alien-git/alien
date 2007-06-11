@@ -441,57 +441,42 @@ sub services {
  my $replystatus = 0;
  my $dontcall = 0;
  my $returnhash =0;
+ my $domain="";
+ my $opt={};
  my @returnarray;
  $#returnarray=-1;
+ @ARGV=@_;
+ Getopt::Long::GetOptions($opt,  "verbose","z", "n", "core", "se", "ce", "domain=s", "clc", "ftd", "packman") or 
+   $self->info("Error parsing the options") and return;;
+ @_=@ARGV;
+ $opt->{z} and $returnhash=1;
+ $opt->{n} and $dontcall=1;
+ $opt->{verbose} and $replystatus=1;
+ $domain=$opt->{domain};
  foreach my $item (@_) {
-   if ($item =~ /^-?z/i) {
-     $returnhash=1;
-     next;
-   }
- 
-   if ($item =~ /^-?n/i) {
-     $dontcall=1;
-     next;
-   }
-   if ($item =~ /^-?co(re)?/i ) {
-     push @checkservices,"Services";
-     next;
-   }
+   ($item =~ /^-?co(re)?/i ) and $opt->{core}=1 and next;
+   ($item =~ /^-?s(e)?/i) and  $opt->{se}=1 and next;
+   ($item =~ /^-?ce/i)  and $opt->{ce}=1 and next;
+   ($item =~ /^-?cl(c)?/i) and $opt->{clc}=1 and next;
+   ($item =~ /^-?f(td)?/i) and $opt->{ftd}=1 and next;
+   ($item =~ /^-?p(ackman)?/i)  and $opt->{packman}=1 and next;
 
-   if ($item =~ /^-?s(e)?/i) {
-     push @checkservices,"SE";
-     next;
-   }
-   if ($item =~ /^-?ce/i) {
-     push @checkservices,"ClusterMonitor";
-     next;
-     }
-   if ($item =~ /^-?cl(c)?/i) {
-       push @checkservices,"CLC";
-       push @checkservices,"CLCAIO";
-       next;
-     }
-   if ($item =~ /^-?f(td)?/i) {
-     push @checkservices,"FTD";
-     next;
-   }
-   if ($item =~ /^-?p(ackman)?/i) {
-     push @checkservices,"PackMan";
-     next;
-   }
-
-   if ($item =~ /\+/) {
-     $replystatus = 1;
-     next;
-   }
    if ($item !~ s/-?-h(elp)?//i) {
      print STDERR "Error: Don't know service flag \"$item\"\n";
    }
-   print STDERR "Usage: services [+] [-][core] [-][clc] [-][ftd] [-][se] [-][ce]\n";
-   print STDERR "  or   services + -co -cl -f -s -ce \n";
+   print STDERR "Usage: services [-verbose] [-][core] [-][clc] [-][ftd] [-][se] [-][ce] [-domain <domain>]\n";
+   print STDERR "  or   services -verbose -co -cl -f -s -ce \n";
    return;
    
  }
+
+ $opt->{core} and push @checkservices, "Services";
+ $opt->{se} and push @checkservices, "SE";
+ $opt->{ce} and push @checkservices,"ClusterMonitor";
+ $opt->{clc} and  push @checkservices,"CLC", "CLCAIO";
+ $opt->{ftd} and push @checkservices, "FTD";
+ $opt->{packman} and push @checkservices, "PackMan";
+ 
  @checkservices or   
    push @checkservices, "SE","CLC","CLCAIO","ClusterMonitor","FTD","TcpRouter","Services";
 
@@ -537,6 +522,11 @@ sub services {
    @names = split "###",$response->{NAMES};
    
    for (@hosts) {
+     if ($domain and $hosts[$cnt] !~ /$domain$/){
+       $self->info("Skipping host $hosts[$cnt]");
+       $cnt++;
+       next;
+     } 
      push @hostports, "$hosts[$cnt]:$ports[$cnt]";
      $cnt++;
    }

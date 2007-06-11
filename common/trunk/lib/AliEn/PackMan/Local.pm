@@ -427,15 +427,14 @@ sub _doAction {
   my ($file)=$self->{CATALOGUE}->execute("get", $script)
     or die("Error getting the file $script for the $action\n");
   chmod(0755, $file);
-  $self->info( "$$ Calling $file $dir");
 
 #  open SAVEOUT,  ">&STDOUT";
 #  open SAVEOUT2, ">&STDERR";
 
 #  open SAVEOUT,  ">&STDOUT";
 #  open SAVEOUT2, ">&STDERR";
-  my $log="$self->{CONFIG}->{LOG_DIR}/packman/$package.$version.$action.$self->{CONFIG}->{HOST}";
-  $self->{LOGGER}->redirect($log);
+#  my $log="$self->{CONFIG}->{LOG_DIR}/packman/$package.$version.$action.$self->{CONFIG}->{HOST}";
+#  $self->{LOGGER}->redirect($log);
   
 
 #  require AliEn::MSS::File;
@@ -446,15 +445,20 @@ sub _doAction {
 #  }
 #  open( STDERR, ">&STDOUT" ) or die ("Error opening STDERR");
   my @todo=($file, $dir);
+  $depConf =~ s{^\s*}{};
+  $depConf =~ s{\s*$}{};
+
   $depConf and @todo=(split(/ /, $depConf), $file, $dir);
+  $self->info( "$$ Calling '@todo'");
+
   my $error=system(@todo);
 #  close STDOUT;
 
 #  open STDOUT, ">&SAVEOUT";
 #  open STDERR, ">&SAVEOUT2";
 
-  $self->{LOGGER}->redirect();
-  $self->info( "$$ $action done with $error (log $log)!!");
+#  $self->{LOGGER}->redirect();
+  $self->info( "$$ $action done with $error!!");
   return 1;
 }
 
