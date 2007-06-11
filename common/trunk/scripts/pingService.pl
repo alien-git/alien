@@ -42,17 +42,19 @@ if ($host && $host =~ /^(.*):(\d+)$/){
 }else{
   $port = (defined($configPort) ? $config->{$configPort} : "");
 }
-if($host && $port && ($host ne $crtHost)){
-  print "Skipping PID check. Service runs on a different machine ($host and we test from $crtHost)\n";
-}else{
-  print "Checking PID for $serviceName...\n";
-  check_pid($logDir, $serviceName);
-}
+# commented out this part since the services can run in httpd, so checking the pid is wrong
+#if($host && $port && ($host ne $crtHost)){
+#  print "Skipping PID check. Service runs on a different machine ($host and we test from $crtHost)\n";
+#}else{
+#  print "Checking PID for $serviceName...\n";
+#  check_pid($logDir, $serviceName);
+#}
 
 # This script cannot check the ProxyServer and MonaLisa because they do not inherit from AliEn::Service
 if ($serviceName =~ /^(ProxyServer)|(MonaLisa)|(CE)$/)
 {
-  print "We cannot SOAP-Ping $serviceName...\n";
+  print "Doing PID-only check for $serviceName...\n";
+  check_pid($logDir, $serviceName);
   exit 0;
 }
 
