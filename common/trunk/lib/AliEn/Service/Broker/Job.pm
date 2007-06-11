@@ -214,13 +214,13 @@ sub checkPackagesToInstall{
   my $job_ca=shift;
   my $host_ca=$self->{SITE_CA};
   my @packages;
-  $self->info("Checking if the host has all the packages installed");
+  $self->debug(1, "Checking if the host has all the packages installed");
   my ($ok, @host_packages)=$host_ca->evaluateAttributeVectorString("InstalledPackages");
   ($ok, my @host_defined)=$host_ca->evaluateAttributeVectorString("Packages");
   ($ok, my @job_packages)=$job_ca->evaluateAttributeVectorString("Packages");
-  $self->info("Checking if the site has @job_packages");
+  $self->debug(1, "Checking if the site has @job_packages");
   foreach my $package (@job_packages){
-    $self->info("Checking $package");
+    $self->debug(1,"Checking $package");
     $package =~ /@/ or $package=".*\@$package";
     $package =~ /::/ or $package="${package}::.*";
     grep (/^$package$/, @host_packages) and next;
@@ -231,7 +231,7 @@ sub checkPackagesToInstall{
   }
   (@packages) and  return -3, \@packages;
   
-  $self->info("All the packages are installed");
+  $self->debug(1, "All the packages are installed");
   return 1;
 }
 
