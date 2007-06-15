@@ -1631,7 +1631,7 @@ sub commit {
 		  if (!$result) {
 		      $self->{LOGGER}->error("LCM","commit: Cannot register file lfn=$lfn storageurl=$storageurl size=$size se=$se guid=$guid md5=$md5");
 		  }
-
+		  $$newresult[0]->{$lfn} = 1;
 		  # send write-commit info
 		  if ($self->{MONITOR}) {
 		      my @params;
