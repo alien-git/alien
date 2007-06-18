@@ -145,20 +145,40 @@ sub setAlive{
     #$self->info("setAlive -> sent Bg Monitoring to ML.");
   }
 
-  # we can advertise the port of a subsytem in the IS
-  if ($self->{SUBPORT}) {
-    my $response=$self->{SOAP}->
-      CallSOAP("IS","markAlive",$self->{SERVICE},
-	       "$self->{SERVICENAME}::SUBSYS", $self->{HOST}, $self->{SUBPORT},
-	       {VERSION=>$self->{CONFIG}->{VERSION}, 
-		URI=>$self->{SUBURI}, 
-		PROTOCOLS=>$self->{PROTOCOLS},
-		CERTIFICATE=>$self->{CERTIFICATE}});
-    if ($self->{SERVICE} ne "Logger") {
-      ($response) or
-	$self->{LOGGER}->warning( "Service", "IS is not up" ) and return;
+#  # we can advertise the port of a subsytem in the IS
+#  if ($self->{SUBPORT}) {
+#    my $response=$self->{SOAP}->
+#      CallSOAP("IS","markAlive",$self->{SERVICE},
+#	       "$self->{SERVICENAME}::SUBSYS", $self->{HOST}, $self->{SUBPORT},
+#	       {VERSION=>$self->{CONFIG}->{VERSION}, 
+#		URI=>$self->{SUBURI}, 
+#		PROTOCOLS=>$self->{PROTOCOLS},
+#		CERTIFICATE=>$self->{CERTIFICATE}});
+#    if ($self->{SERVICE} ne "Logger") {
+#      ($response) or
+#	$self->{LOGGER}->warning( "Service", "IS is not up" ) and return;
+#    }
+#  }
+ if ($self->{REGISTER_IN_IS}){
+    foreach my $key (keys %{$self->{REGISTER_IN_IS}}){
+      my $elem=$self->{REGISTER_IN_IS}->{$key};
+      my $name="$self->{CONFIG}->{ORG_NAME}::$self->{CONFIG}->{SITE}::$key";
+      my $host=$elem->{host} || $self->{HOST};
+      $self->info("Registering the $name in the IS");
+      my $response=$self->{SOAP}->
+	CallSOAP("IS","markAlive",$self->{SERVICE}, $name, $host, 
+		 $elem->{PORT}, {VERSION=>$self->{CONFIG}->{VERSION}, 
+				 URI=>$elem->{URI}, 
+				 PROTOCOLS=>$self->{PROTOCOLS},
+				 CERTIFICATE=>$self->{CERTIFICATE}});
+    
+      if ($self->{SERVICE} ne "Logger") {
+	($response) or
+	  $self->{LOGGER}->warning( "Service", "IS is not up" ) and return;     
+      }
     }
   }
+
 
   $self->debug(1, "Registering the service in the IS");
 

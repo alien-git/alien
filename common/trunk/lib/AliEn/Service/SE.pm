@@ -145,7 +145,8 @@ sub startIOServers{
 
 		     mss=>$self->{$virt}->{MSS}};
   }
-  $self->{IODDAEMONS}={};
+  $self->{IODAEMONS}={};
+  $self->{REGISTER_IN_IS}={};
   foreach my $def (keys %$ioDef){
     my @servers=@{$ioDef->{$def}->{name}};
     my @daemons;
@@ -161,6 +162,9 @@ sub startIOServers{
 	$self->{LOGGER}->error("SE", "Error starting a $daemon") and return;
 
       push @daemons, {name=>$daemon, %options};
+      my $n=$def;
+      $def =~ s{^VIRTUAL_}{}i or $def =~ s{^default}{$self->{CONFIG}->{SE_NAME}};
+      $self->{REGISTER_IN_IS}->{"${def}::$daemon"}={port=>$options{port}, URI=>$options{URI}};
 
     }
     $self->{IODAEMONS}->{$def}=\@daemons;
@@ -190,8 +194,7 @@ sub createXROOTConfFile{
     my ($key, $value)=split("=", $option);
     if ($key=~ /^port$/){
       $port=$value;
-      $self->{SUBPORT} = $port;
-      $self->{SUBURI} = "root://$host:$port/";
+      $options{URI} = "root://$host:$port/";
       $options{port}=$port;
       next;
     }
@@ -212,8 +215,8 @@ sub createXROOTConfFile{
     }
     if ($key =~ /^host$/i){
       $host=$options{host}=$value;
-      $self->{SUBURI}="root://$host";
-      $self->{SUBPORT} and $self->{SUBURI}.=":$self->{SUBPORT}";
+      $options{URI}="root://$host";
+      $port and $options{URI}.=":$port";
       next;
     }
     $self->info("Don't know what to do with the option $option!");
