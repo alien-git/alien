@@ -434,6 +434,17 @@ sub forkCheckProcess {
   my $pid = fork();
   ( defined $pid ) or print STDERR "Error forking the process\n" and return;
   if (!  $pid) {
+    if ($self->{SERVICE} !~ /^JobAgent$/){
+      my $logFile=$self->{LOGGER}->{logfile} ;
+      if ($logFile){
+	$logFile =~ s/.log$/.wakesup.log/;
+      } else {
+	$logFile= "$self->{CONFIG}->{LOG_DIR}/$self->{SERVICE}.wakesup.log";
+      }
+      $self->info("************Redirecting the log of the checkWakesUp to $logFile");
+      $self->{LOGGER}->redirect($logFile);
+    }
+
     $self->startChecking();
     	# We should never come here
     print STDERR "Checking has died!!!\n";
