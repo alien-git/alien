@@ -463,7 +463,7 @@ sub getJobAgent {
 
   ($done, my @packages) = $self->{SOAP}->GetOutput($done);
   if ($done eq "-3") {
-    $self->info("We have to install some packages before we can execute the job");
+    $self->info("We have to install some packages (@packages) before we can execute the job");
     return ($done, @packages);
 
   }
