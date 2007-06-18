@@ -101,7 +101,7 @@ sub getURL{
 #  my %options=split (/[=:]/, $io);
 #  $options{port} or $self->info("Error getting the port where the xrootd is running") and return;
   $self->info("Let's get the host and port for $se from the IS");
-  my $result=$self->{SOAP}->CallSOAP("IS", "getSE", "${se}::SUBSYS")
+  my $result=$self->{SOAP}->CallSOAP("IS", "getSE", "${se}::xrootd")
     or $self->info("Error getting a service for $se", 1) and return;
   my $entry=$result->result;
   use Data::Dumper;
