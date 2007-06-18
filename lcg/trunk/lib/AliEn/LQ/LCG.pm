@@ -209,7 +209,7 @@ sub getAllBatchIds {
             $self->info("Marking job $JobId as dead");
 	    delete($queuedJobs{$JobId});    
             $self->{DB}->update("JOBAGENT", {status=>"DEAD"}, "batchId=?", {bind_values=>[$JobId]});
-          } elsif ($status =~ m/\s*Cancelled/ && $elapsed>120) {
+          } elsif ($status =~ m/\s*Waiting/ && $elapsed>120) {
 	    $self->error("LCG","Job $JobId has been \'Waiting\' for $elapsed minutes");
             $self->info("Marking job $JobId as dead");
 	    delete($queuedJobs{$JobId});    
