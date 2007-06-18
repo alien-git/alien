@@ -12,6 +12,7 @@ use File::Basename;
 use Net::LDAP;
 use AliEn::TMPFile;
 use POSIX ":sys_wait_h";
+use Time::Local;
 
 sub initialize {
    my $self=shift;
@@ -41,9 +42,15 @@ sub initialize {
      my @list=split(/,/,$ENV{CE_LCGCE});
      $self->{CONFIG}->{CE_LCGCE_LIST} = \@list;
    }
+   
+   if ( $ENV{CE_RBLIST} ) { 
+     $self->info("Taking the list of RBs from \$ENV: $ENV{CE_RBLIST}");
+     my @list=split(/,/,$ENV{CE_LCGCE});
+     $self->{CONFIG}->{CE_RB_LIST} = \@list;
+   } 
 
    $self->{CONFIG}->{CE_MINWAIT} = 180; #Seconds
-   $ENV{CE_MINWAIT} and $self->{CONFIG}->{CE_MINWAIT} = $ENV{CE_MINWAIT};
+   defined $ENV{CE_MINWAIT} and $self->{CONFIG}->{CE_MINWAIT} = $ENV{CE_MINWAIT};
    $self->info("Will wait at least $self->{CONFIG}->{CE_MINWAIT}s between submission loops.");
    $self->{LASTCHECKED} = time-$self->{CONFIG}->{CE_MINWAIT};
    
@@ -115,7 +122,6 @@ sub submit {
   return 0;#$error;
 }
 
-
 sub kill {
      my $self    = shift;
      my $queueid = shift;
@@ -137,7 +143,7 @@ sub getBatchId {
    return $self->{LAST_JOB_ID};
 }
 
-sub getStatus {
+sub getStatus { ### This is apparently unused
      my $self = shift;
      my $queueid = shift;
      $queueid or return;
@@ -169,7 +175,8 @@ sub getStatus {
 
 sub getAllBatchIds {
   my $self = shift;
-  my $jobIds = $self->{DB}->queryColumn("SELECT batchId FROM JOBAGENT");
+  $self->{DB}->delete("JOBAGENT", "batchId is null");
+  my $jobIds = $self->{DB}->queryColumn("SELECT batchId FROM JOBAGENT where status<>'DEAD'");
   my %queuedJobs = ();
   $queuedJobs{$_}=1 foreach @$jobIds;
   my $before = scalar keys %queuedJobs;
@@ -181,19 +188,34 @@ sub getAllBatchIds {
 						   @someJobs);
     my $status = '';
     my $JobId = '';
+    my $time = '';
     my @result = ();
     my $newRecord = 1;
     foreach ( @output ) {
       chomp;
       if (m/\*\*\*\*\*\*\*\*/) {
 	if ($newRecord) { # First line of record, reset
+	  $time     = '';
           $status   = '';
           $JobId    = '';
           $newRecord = 0;
 	} else { # Last line of record, dump
-	  delete($queuedJobs{$JobId}) if ($status =~ m/\s*(Done\(Success\))|(Done\(Failed\))|(Aborted)|(Cleared)|(Cancelled)/);
-          $self->debug(1,"Job $JobId is $status");
-          $newRecord = 1;
+	  my $elapsed = (time-$time)/60;
+          $self->info("Job $JobId is $status since $elapsed minutes");
+	  my $RB = $JobId;
+	  $RB =~ s/^https:\/\///;
+	  $RB =~ s/:.*$//;
+	  if ($status =~ m/\s*(Done\(Success\))|(Done\(Failed\))|(Aborted)|(Cleared)|(Cancelled)/) {
+            $self->info("Marking job $JobId as dead");
+	    delete($queuedJobs{$JobId});    
+            $self->{DB}->update("JOBAGENT", {status=>"DEAD"}, "batchId=?", {bind_values=>[$JobId]});
+          } elsif ($status =~ m/\s*Cancelled/ && $elapsed>120) {
+	    $self->error("LCG","Job $JobId has been \'Waiting\' for $elapsed minutes");
+            $self->info("Marking job $JobId as dead");
+	    delete($queuedJobs{$JobId});    
+            $self->{DB}->update("JOBAGENT", {status=>"DEAD"}, "batchId=?", {bind_values=>[$JobId]});
+	  }
+	  $newRecord = 1;
 	}
 	next;
       }
@@ -205,16 +227,25 @@ sub getAllBatchIds {
 	(undef,$status) = split /:/;
 	$status =~ s/\s//g;     
 	next;
+      } elsif ( m/reached on/) {
+        (undef,$time) = split /:/,$_,2;
+        $time =~ s/^\s+//;     
+	my ( undef, $m, $d, $hrs, $min, $sec, $y ) = 
+	   ($time =~ /([A-Za-z]+)\s+([A-Za-z]+)\s+(\d+)\s+(\d+):(\d+):(\d+)\s+(\d+)/);
+	$m = { Jan => 0, Feb => 1, Mar => 2, Apr => 3,
+	       May => 4, Jun => 5, Jul => 6, Aug => 7,
+	       Sep => 8, Oct => 9, Nov => 10, Dec => 11 }->{"$m"};
+	$time = timelocal($sec,$min,$hrs,$d,$m,$y-1900);
+        next;
       }
     }  
   }
-  my $after = scalar keys %queuedJobs;
   return keys %queuedJobs;
 }
 
 sub getQueueStatus { ##Still return values from the local DB
   my $self = shift;
-  my $value = $self->{DB}->queryValue("SELECT COUNT (*) FROM JOBAGENT");
+  my $value = $self->{DB}->queryValue("SELECT COUNT (*) FROM JOBAGENT WHERE status<>'DEAD'");
   $value or $value = 0;
   return $value;
 }
@@ -242,7 +273,7 @@ sub getNumberRunning() {
     $self->{LOGGER}->error("LCG","GRIS failure 4444, returning value from local DB");
     return $value;
   }
-  return $run+$wait;
+  return $run+$wait;    
 }
 
 sub getNumberQueued() {
@@ -265,43 +296,18 @@ sub getNumberQueued() {
   return $wait;
 }
 
-sub _getJobStatus{
-  my $self=shift;
-  my $id=shift;
-  $self->info("Checking the status of job '$id'");
-  open (FILE, "$self->{STATUS_CMD} $id|") or $self->info("Error getting the status of the job '$id'") and return;
-  my @info=<FILE>;
-  close FILE;
-  my $line= join ("", grep (/Current Status:\s*(\S+)/, @info))
-    or $self->info("Error: the line with the status is not there") and return;
-  
-  $line =~ /Current Status:\s*(\S+)/ or 
-    $self->info("Error parsing the status") and return;
-  my $status=$1;
-  $status=~ /^(WAITING)|(READY)|(SCHEDULED)$/i and return "QUEUED";
-  $status=~ /^(RUNNING)$/i and return "RUNNING";
-  $status=~ /^(DONE)|(ABORTED)|(KILLED)$/i and return "DIED";
-  $self->info("*****Don't know the lcg status '$status");
-  return "DIED";
-}
-
 sub cleanUp {
   my $self = shift;
-  $self->info("Looking for lcg jobs that have already finished");
-
-  my $lcg=$self->{DB}->queryColumn("SELECT batchId from JOBAGENT where status='QUEUED'");
-  foreach  my $jobId  (@$lcg){
-    $self->info("Checking the job $jobId");
-    my $status=$self->_getJobStatus($jobId);
-    $status eq "QUEUED" and next;
-    $self->info("The job is no longer queued!!");
-    $self->{DB}->update("JOBAGENT", {status=>"DIED"}, "batchId=?", {bind_values=>[$jobId]});
-  }
-  $self->{DB}->delete("JOBAGENT", "batchId is null");
   my $logfile = AliEn::TMPFile->new({ ttl      => '24 hours',
                                       filename => "edg-job-get-output.log"});
   my $outdir = dirname($logfile); 
+  my $todelete = $self->{DB}->queryValue("SELECT COUNT (*) FROM JOBAGENT where status='DEAD'");
+  if ($todelete) {
+    $self->info("Will remove $todelete dead job agents from DB");
+    $self->{DB}->delete("JOBAGENT", "status='DEAD'");
+  }
   my $jobIds = $self->{DB}->query("SELECT batchId,timestamp FROM TOCLEANUP");
+  
   foreach ( splice (@$jobIds,0,20) ) { #Up to 20 at a time
     my $age = (time - $_->{'timestamp'});
     if ( $age < 60*60*24*3 ) {
@@ -309,6 +315,9 @@ sub cleanUp {
 	my $status = $self->getJobStatus($_->{'batchId'});
 	if ( $status eq 'Aborted' || $status eq 'Cancelled') {
 	  $self->info("Job $_->{'batchId'} was aborted or cancelled, no logs to retrieve");
+	} elsif ( $status eq 'Running' ) {
+          $self->info("Job $_->{'batchId'} has not yet reported being finished");
+          next;
 	} else {
 	  $self->info("Will retrieve OutputSandbox for $status job $_->{'batchId'}");
 
@@ -390,6 +399,7 @@ sub getJobStatus {
    my @output=$self->_system($self->{STATUS_CMD}, "-noint", "--logfile", $logfile, @args,
                              "\"$contact\" | grep \"$pattern\"" );
    my $status = $output[0];
+   $status or return;
    chomp $status;
    $status =~ s/$pattern//;
    $status =~ s/ //g;
