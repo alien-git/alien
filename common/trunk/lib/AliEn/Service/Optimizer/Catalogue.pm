@@ -43,17 +43,17 @@ sub initialize {
   return $self;
 }
 
-sub checkDTables {
+sub checkLTables {
   my $self=shift;
   my $silent=shift;
   my $db=shift;
 
-  $self->info("Let's check all the D tables");
+  $self->info("Let's check all the L tables");
 
   $self->info("Updating D tables");
-  my $tables=$db->queryColumn("show tables like 'D\%L'");
+  my $tables=$db->queryColumn("show tables like 'L\%L'");
   foreach my $table (@$tables){
-    $table =~ /^D[0-9]+L$/ or $self->info("Ignoring $table") and next;
+    $table =~ /^L[0-9]+L$/ or $self->info("Ignoring $table") and next;
     $self->info("Checking  $table ");
     $db->checkDLTable($table) or $self->info("PROBLEMS!!!!");
   }
@@ -82,7 +82,7 @@ sub checkWakesUp {
 
     if (!$self->{DONE}) {
       $self->info("Let's check all the catalogue tables");
-      $self->checkDTables($silent, $db);
+      $self->checkLTables($silent, $db);
       $self->{DONE}=1;
     }
 

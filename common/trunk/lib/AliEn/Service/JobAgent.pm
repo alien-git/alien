@@ -318,10 +318,10 @@ sub GetJDL {
     $self->putJobLog("trace","Asking for a new job");
   }
   my $catalog=$self->getCatalogue() or return;
+  $self->{PACKMAN}->setCatalogue($catalog);
+
   while(1) {
     print "Getting the jdl from the clusterMonitor, agentId is $ENV{ALIEN_JOBAGENT_ID}...\n";
-
-    $self->{PACKMAN}->setCatalogue($catalog);
 
     my $hostca=$self->getHostClassad();
     if (!$hostca){
@@ -345,7 +345,7 @@ sub GetJDL {
 	  foreach (@packages) {
 	    my ($ok, $source)=$self->installPackage($catalog, $_);
 	    if (! $ok){
-	      $self->info("Error insalling the package $_");
+	      $self->info("Error installing the package $_");
 	      $self->sendJAStatus('ERROR_IP');
 	      $catalog->close();
 	      return;
@@ -951,33 +951,25 @@ sub installPackage {
   $ENV{ALIEN_PROC_ID} and
     $self->putJobLog("trace","Installing package $_");
 
-  my ($ok, $source);
-  while (1){
-    $self->info("$$ Asking the packman to install the package");
-    eval {
-      ($ok, $source)=$self->{PACKMAN}->installPackage($user, $package, $version, undef, {NO_FORK=>1});
-      
-    };
-    my $error=$@;
-    $self->info("$$ The packman called returned $ok and $source");
-    $ok and last;
-    if ($error) {
-      if ($error =~ /Package is being installed/i){
-	$self->info("The package is being installed");
-	sleep 30;
-	next;
-      }
-      $ENV{ALIEN_PROC_ID} and
-	$self->putJobLog("error","Package $_ not installed ");
-      $self->info("Error installing the package: $@");
-      return;
-    }
-    if (!$ok) {
-      $ENV{ALIEN_PROC_ID} and
-	$self->putJobLog("error","Package $_ not installed ");
-      return;
-    }
 
+  my ($ok, $source);
+
+  $self->info("First, let's try to do it ourselves");
+  eval {
+    ($ok, $source)=$self->{PACKMAN}->installPackage($user, $package, $version, undef, {NO_FORK=>1});
+    
+  };
+  my $error=$@;
+  if ($ok eq  '-1') {
+    $self->info("It didn't work :( Asking the packman to install the package");
+    ($ok, $source)=AliEn::PackMan::installPackage($self->{PACKMAN},$user, $package, $version);
+    $self->info("$$ The packman called returned $ok and $source");
+    if ($ok eq '-1'){
+      $self->info("There were some problems installing the package");
+      $ENV{ALIEN_PROC_ID} and
+	$self->putJobLog("error","Package $_ not installed ");
+      return;
+    }
   }
   $self->info("Package $package installed successfully ($ok)!!");
   ($source) and   $self->info("For the package we have to do $source");
