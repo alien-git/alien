@@ -19,7 +19,7 @@ use strict;
 use AliEn::SE::Methods;
 use AliEn::URL;
 use AliEn::SOAP;
-
+use AliEn::MD5;
 use vars qw ($DEBUG);
 
 $DEBUG=0;
