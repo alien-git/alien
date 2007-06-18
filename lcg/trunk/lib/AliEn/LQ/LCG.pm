@@ -210,7 +210,7 @@ sub getAllBatchIds {
 	    delete($queuedJobs{$JobId});    
             $self->{DB}->update("JOBAGENT", {status=>"DEAD"}, "batchId=?", {bind_values=>[$JobId]});
           } elsif ($status =~ m/\s*Waiting/ && $elapsed>120) {
-	    $self->error("LCG","Job $JobId has been \'Waiting\' for $elapsed minutes");
+	    $self->{LOGGER}->error("LCG","Job $JobId has been \'Waiting\' for $elapsed minutes");
             $self->info("Marking job $JobId as dead");
 	    delete($queuedJobs{$JobId});    
             $self->{DB}->update("JOBAGENT", {status=>"DEAD"}, "batchId=?", {bind_values=>[$JobId]});
@@ -301,6 +301,7 @@ sub cleanUp {
   my $logfile = AliEn::TMPFile->new({ ttl      => '24 hours',
                                       filename => "edg-job-get-output.log"});
   my $outdir = dirname($logfile); 
+  ### The following in principle should not be needed
   my $todelete = $self->{DB}->queryValue("SELECT COUNT (*) FROM JOBAGENT where status='DEAD'");
   if ($todelete) {
     $self->info("Will remove $todelete dead job agents from DB");
