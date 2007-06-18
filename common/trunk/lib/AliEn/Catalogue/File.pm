@@ -328,6 +328,18 @@ sub f_showMirror {
   return $ref;
 }
 
+sub f_addMirror_HELP{
+  return "addMirror: adds a new PFN to an entry in the catalogue
+Usage:
+\taddMirror [-gc] <lfn> <se> [<pfn>] [-md5=<md5>]
+
+Options:
+\t-g: Use the lfn as guid
+\t-c: Check the md5 of the replica
+-md5: Specify the md5 of the file. 
+"; 
+
+}
 sub f_addMirror {
   my $self = shift;
 
@@ -336,8 +348,15 @@ sub f_addMirror {
   my $file = shift;
   my $se   = shift || $self->{CONFIG}->{SE_FULLNAME};
   my $pfn  =shift || "";
+
+  my $opt={};
+  @ARGV=@_;
+  Getopt::Long::GetOptions($opt,  "g", "md5=s", "c") or 
+      $self->info("Error parsing the arguments to addMirror") and return;;
+  @_=@ARGV;
+
   my $md5 =shift;
-  $file or $self->info( "Error not enough arguments in addMirror\nUsage:\n\t addMirror <lfn> <se>\n",1) and return;
+  $file or $self->info( "Error not enough arguments in addMirror".$self->f_addMirror_HELP(),1) and return;
   $file = $self->f_complete_path($file);
 
   my $permLFN=$self->checkPermissions( 'w', $file )  or return;
@@ -345,11 +364,11 @@ sub f_addMirror {
     $self->{LOGGER}->error("File", "file $file doesn't exist!!",1);
     return;
   }
-  if (!$md5){
-    $md5=AliEn::MD5->new($pfn);
-    $md5 or $self->info("Error getting the md5sum of '$pfn'") and return;
+  if ($opt->{c} and !$opt->{md5}){
+    $opt->{md5}=AliEn::MD5->new($pfn);
+    $opt->{md5} or $self->info("Error getting the md5sum of '$pfn'") and return;
   }
-  $self->{DATABASE}->insertMirrorFromFile($file, $se, $pfn, $md5) or return;
+  $self->{DATABASE}->insertMirrorFromFile($file, $se, $pfn, $opt->{md5}) or return;
   $self->{SILENT}
     or print "File '$file' has a mirror in '${se}'\n";
   return 1;
@@ -365,7 +384,7 @@ sub f_deleteMirror {
   my $file = shift;
   my $se   = shift;
 
-  $file or $self->info( "Error not enough arguments in addMirror\nUsage:\n\t addMirror <lfn> <se>\n",1) and return;
+  $file or $self->info( "Error not enough arguments in deleteMirror\nUsage:\n\tdeleteMirror <lfn> <se>\n",1) and return;
 
   $file = $self->f_complete_path($file);
 

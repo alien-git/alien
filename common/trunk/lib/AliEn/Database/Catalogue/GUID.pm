@@ -408,9 +408,11 @@ sub insertMirrorToGUID {
   my $info=$self->checkPermission("w", $guid,{retrieve=>'md5'}) or return;
 
   my $db=$info->{db};
-  if ($info->{md5} ne $md5) {
-    $self->info("The md5 of the file in the database ('$info->{md5}') does not match the one of the file ('$md5')");
-    return;
+  if ($md5){
+    if ($info->{md5} ne $md5) {
+      $self->info("The md5 of the file in the database ('$info->{md5}') does not match the one of the file ('$md5')");
+      return;
+    }
   }
   my $seNumber=$db->addSEtoGUID($guid, $se,{table=>$info->{table},pfn=>$pfn}) 
     or return;
