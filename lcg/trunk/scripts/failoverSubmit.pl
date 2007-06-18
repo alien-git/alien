@@ -14,7 +14,7 @@ $opt->configure("pass_through");
 $opt->getoptions ( 'rb=s'       => \@rbs,
                    'cfgdir=s'   => \$cfgdir, 
 		   'fallback=i' => \$fallback,
-		   'debug|d'    => \$debug ) or exit 2;
+		   'debugmode'  => \$debug ) or exit 2;
 @rbs = split(/,/, join(',', @rbs)); # Allow comma-separated list
 @rbs or die "Error: no RB specified";
 my $rb_directory = glob($cfgdir);
