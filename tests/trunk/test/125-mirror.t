@@ -45,7 +45,7 @@ It is not a nice day
   print "This mirror is not supposed to work, since the file has a different md5\n";
 
   sleep(5);
-  $cat->execute("addMirror", "mirror2.txt", $cat->{CONFIG}->{SE_FULLNAME}, "file://$cat->{CONFIG}->{HOST}$fileName") and exit(-2);
+  $cat->execute("addMirror", "mirror2.txt", $cat->{CONFIG}->{SE_FULLNAME}, "file://$cat->{CONFIG}->{HOST}$fileName", "-c") and exit(-2);
 
   print "YUHUU!!\n";
 
