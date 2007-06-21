@@ -497,9 +497,7 @@ sub GetOrganisation {
   
   $DEBUG and $self->debug(7,"Setting the organisation from $self->{LDAPDN}");
 
-  if (defined $ENV{ALIEN_VERSION}) {
-    $VERSION=$ENV{ALIEN_VERSION};
-  } elsif (-f "$ENV{ALIEN_ROOT}/share/alien/ALIEN_VERSION"){
+  if (-f "$ENV{ALIEN_ROOT}/share/alien/ALIEN_VERSION"){
     $DEBUG and $self->debug(5, "Getting the debug from the ALIEN_VERSION");
     open (FILE, "$ENV{ALIEN_ROOT}/share/alien/ALIEN_VERSION")
       or $self->info("Error getting the version of alien!!") and return;
@@ -527,7 +525,10 @@ sub GetOrganisation {
     foreach my $line (@lines) {
       eval "\$$line";
     }
+  } elsif(defined $ENV{ALIEN_VERSION}){
+    $VERSION=$ENV{ALIEN_VERSION};
   }
+
   $self->{VERSION} = $VERSION;
   $DEBUG and $self->debug(5, "Version $VERSION");
   my $mesg = $ldap->search(    # perform a search
