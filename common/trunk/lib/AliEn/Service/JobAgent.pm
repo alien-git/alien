@@ -279,8 +279,8 @@ sub getHostClassad{
   my $ca=AliEn::Classad::Host->new({PACKMAN=>$self->{PACKMAN}}) or return;
   if ($self->{TTL}){
     $self->info("We have some time to live...");
-    my ($ok, $requirements)=$ca->evaluateExpression("Requirements");
-    $ok or $self->info("Error getting the requirements of this classad ". $ca->asJDL()) and return;
+#    my ($ok, $requirements)=$ca->evaluateExpression("Requirements");
+#    $ok or $self->info("Error getting the requirements of this classad ". $ca->asJDL()) and return;
     my $timeleft=$self->{TTL} - ( time()-$self->{JOBAGENTSTARTS});
     $self->info("We still have $timeleft seconds to live");
     my $proxy=$self->{X509}->getRemainingProxyTime();
@@ -293,10 +293,10 @@ sub getHostClassad{
     }
     #let's get 5 minutes to register the output
     $timeleft-=300;
-    $requirements .= " && (other.TTL<$timeleft) ";
+#    $requirements .= " && (other.TTL<$timeleft) ";
     $ca->set_expression("TTL", $timeleft);
     $self->{TTL}=$timeleft;
-    $ca->set_expression( "Requirements", $requirements ) or return;
+#    $ca->set_expression( "Requirements", $requirements ) or return;
 
   }
   $self->info("We are using". $ca->asJDL);
