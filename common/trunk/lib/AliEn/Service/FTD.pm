@@ -21,6 +21,7 @@ use vars qw(@ISA);
 use Classad;
 
 use AliEn::MSS::file;
+use AliEn::UI::Catalogue::LCM;
 use AliEn::Service;
 @ISA=qw(AliEn::Service);
 # Uncomment when module is installed in alice/local...
@@ -105,7 +106,9 @@ sub initialize {
   $self->{SOAP}->checkService("Broker/Transfer", "TRANSFER_BROKER", "-retry", [timeout=>50000]) or return;
   $self->{SOAP}->checkService("Manager/Transfer", "TRANSFER_MANAGER", "-retry") or return;
 
-  $self->{SOAP}->checkService("SE", "-retry") or return;
+#  $self->{SOAP}->checkService("SE", "-retry") or return;
+  $self->{CATALOGUE}=AliEn::UI::Catalogue::LCM->new({role=>$self->{CONFIG}->{CLUSTER_MONITOR_USER}}) 
+    or $self->info("Error creating the catalogue in the FTD") and return;
 
   return $self;
 }
@@ -1228,15 +1231,20 @@ sub getPFNfromGUID {
   my $self=shift;
   my $se=shift;
   my $guid=shift;
-  $self->info("Getting the pfn from $se");
-
-  my ($seName, $seCert)=$self->{SOAP}->resolveSEName($se) or return;
-
-  $self->info( "Asking the SE at $seName");
-  my $result=$self->{SOAP}->CallSOAP($seName, "getPFNFromGUID",$seName, $guid, undef,{noiomethod=>1}) 
-    or $self->info( "Error asking the SE: $!", 1) and return;
-  my @pfns=$self->{SOAP}->GetOutput($result);
-  $self->debug(1, "Returning the list @pfns");
+  $self->info("Asking the catalogue for the PFN of $guid");
+  my @info=$self->{CATALOGUE}->execute("whereis", "-gr", $guid);
+  my @pfns=();
+  my $seInfo=shift @info;;
+  #We don't want the se name...
+  while ($seInfo){
+    my $pfn= shift @info;
+    if ($seInfo =~ /^$se$/){
+      $self->info("This is the se that we were looking for");
+      push @pfns, $pfn;
+    }
+    $seInfo= shift @info;
+  }
+  $self->info("Got @pfns");
   return @pfns;
 }
 #aub createGridMapFromLdap {
