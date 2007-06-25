@@ -198,6 +198,16 @@ sub Connect {
   }
   return 1;
 }
+sub deleteCache{
+  my $self=shift;
+  $self->debug(1,"Deleting the cache of all the connections");
+  foreach (keys %$self){
+    /^(XML)|(CONFIG)|(LOG_REF)|(LOGGER)/ and next;
+    delete $self->{$_};
+  }
+  $self->{CONFIG}=$self->{CONFIG}->Reload({force=>1});
+  return 1;
+}
 sub IsConnected {
   my $self=shift;
   my $service=shift;

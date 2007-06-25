@@ -33,107 +33,108 @@ sub DESTROY {
 sub Reload {
   my $t       = shift;
   my $options = shift;
-  $DEBUG and $self->debug(1, "Reloading the configuration");
+  $DEBUG and $self and $self->debug(1, "Reloading the configuration");
   $t->Initialize($options);
 }
 
 sub Initialize {
-    my $proto = shift;
-    my $class = ref($proto) || $proto;
-    my $temp  = shift || {};
-
-    umask 0;
-    my $organisation = "Alice";
-    $ENV{ALIEN_ORGANISATION} and $organisation=$ENV{ALIEN_ORGANISATION};
-    $temp->{organisation} and  $organisation=$temp->{organisation};
-    
-    my $organisationLowerCase = "\L$organisation\E";
-
-    $temp->{DEBUG} or $temp->{DEBUG}=0;
-    $temp->{SILENT} or $temp->{SILENT}=0;
-
-    $temp->{silent} and $temp->{SILENT}=$temp->{silent};
-    $temp->{debug} and $temp->{DEBUG}=$temp->{debug};
-
-    (! $temp->{SILENT}) and ($temp->{DEBUG}>0) and
-      print "DEBUG LEVEL 1. Checking config for $organisationLowerCase\n";
-    
-    if ($organisations->{$organisationLowerCase})
-      {
-#      	$self->debug(1, " Configuration already exists!!");
-      	$self=$organisations->{$organisationLowerCase};
-       	$temp->{force}  or return $self;
-      	$self->debug(1, "Forcing to reload the configuration");
-      }
-    (! $temp->{SILENT}) and ($temp->{DEBUG}>0) and
-      print "DEBUG LEVEL 1. Getting config for $organisationLowerCase\n";
-
-
-
-    bless( $temp, $class );
-    $temp->SUPER::new({logfile=>$temp->{logfile}}) or return;
-
-    ( defined  $ENV{ALIEN_DOMAIN} ) or
-      $ENV{ALIEN_DOMAIN}=Net::Domain::hostdomain();
-
-    $temp->{DOMAIN}= $ENV{ALIEN_DOMAIN};
-    ( defined $ENV{ALIEN_HOSTNAME}) or
-      $ENV{ALIEN_HOSTNAME}=Net::Domain::hostfqdn();
-
-    $temp->{HOST}=$ENV{ALIEN_HOSTNAME};
-    $organisations->{$organisationLowerCase} = $self = $temp;
-
-#    print "IN CONFIG, we have $self->{HOST}\n";
-
-    $self->{DEBUG} and $self->{LOGGER}->debugOn($self->{DEBUG});
-    $self->{SILENT} and $self->{LOGGER}->silentOn();
-
-    $ENV{ALIEN_CM_AS_LDAP_PROXY} and return $self->GetConfigFromCM; 
-
-    $self->debug(1, "Getting the configuration from the LDAP server");
-
-    $self->{LOCAL_USER} = getpwuid($<);
-    $ENV{ALIEN_USER} and $self->{LOCAL_USER}=$ENV{ALIEN_USER};
-
-    $self->{ROLE} = $self->{LOCAL_USER};
-    $self->{role} and $self->{ROLE} = $self->{role};
-
-    $self->debug(1, "Config for user $self->{LOCAL_USER} ($self->{ROLE})");
+  my $proto = shift;
+  my $class = ref($proto) || $proto;
+  my $temp  = shift || {};
   
-    #    my $ldapConfig=$struct->{proxyport}[0];
+  umask 0;
+  my $organisation = "Alice";
+  $ENV{ALIEN_ORGANISATION} and $organisation=$ENV{ALIEN_ORGANISATION};
+  $temp->{organisation} and  $organisation=$temp->{organisation};
+  
+  my $organisationLowerCase = "\L$organisation\E";
+  
+  $temp->{DEBUG} or $temp->{DEBUG}=0;
+  $temp->{SILENT} or $temp->{SILENT}=0;
+  
+  $temp->{silent} and $temp->{SILENT}=$temp->{silent};
+  $temp->{debug} and $temp->{DEBUG}=$temp->{debug};
+  
+  (! $temp->{SILENT}) and ($temp->{DEBUG}>0) and
+    print "DEBUG LEVEL 1. Checking config for $organisationLowerCase\n";
+  
+  if ($organisations->{$organisationLowerCase})    {
+    #      	$self->debug(1, " Configuration already exists!!");
+    $self=$organisations->{$organisationLowerCase};
+    $temp->{force}  or return $self;
+    $self->debug(1, "Forcing to reload the configuration");
+  }
+  (! $temp->{SILENT}) and ($temp->{DEBUG}>0) and
+    print "DEBUG LEVEL 1. Getting config for $organisationLowerCase\n";
+  
 
-    $self->{ORG_NAME} = "$organisation";
 
-    
-    my $ldap=$self->GetLDAPDN();
-    $ldap or return;
+  bless( $temp, $class );
+  $temp->SUPER::new({logfile=>$temp->{logfile}}) or return;
 
-    $self->GetOrganisation($ldap) or return;
+  ( defined  $ENV{ALIEN_DOMAIN} ) or
+    $ENV{ALIEN_DOMAIN}=Net::Domain::hostdomain();
 
+  $temp->{DOMAIN}= $ENV{ALIEN_DOMAIN};
+  ( defined $ENV{ALIEN_HOSTNAME}) or
+    $ENV{ALIEN_HOSTNAME}=Net::Domain::hostfqdn();
 
-    $self->GetSite($ldap) or return;
-    foreach my $service (@SERVICES) {
-      $self->GetServices( $ldap, $service) or return;
-    }
-
-    $self->GetHostConfig($ldap) or return;
-
-    if ( $self->{queue} ) {
-        $self->setService( $ldap, $self->{queue}, "CE" ) or return;
-    }
-
-    $self->GetTopLevelServices($ldap) or return;
-
-    if ($self->{LOCAL_CONFIG} && $self->{LOCAL_CONFIG} =~/^(add)|(overwrite)$/i ) {
-      $self->checkConfigFile(
-			     "$ENV{ALIEN_ROOT}/etc/alien/$self->{ORG_NAME}.conf",
-			     "/etc/alien/$self->{ORG_NAME}.conf",
-			     "$ENV{ALIEN_HOME}/\L$self->{ORG_NAME}\E.conf");
-    }
-    $self->GetGridPartition($ldap) or return;
-    $ldap->unbind;    # take down session
-
-    return $self;
+  $temp->{HOST}=$ENV{ALIEN_HOSTNAME};
+  $organisations->{$organisationLowerCase} = $temp;
+  #I'm not sure why we need this undef...
+  #however, if it is not there, sometimes the assignment doesn't work
+  undef $self;
+  $self = $temp;
+#    print "IN CONFIG, we have $self->{HOST}\n";
+  
+  $self->{DEBUG} and $self->{LOGGER}->debugOn($self->{DEBUG});
+  $self->{SILENT} and $self->{LOGGER}->silentOn();
+  
+  $ENV{ALIEN_CM_AS_LDAP_PROXY} and return $self->GetConfigFromCM; 
+  $self->debug(1, "Getting the configuration from the LDAP server");
+  
+  $self->{LOCAL_USER} = getpwuid($<);
+  $ENV{ALIEN_USER} and $self->{LOCAL_USER}=$ENV{ALIEN_USER};
+  
+  $self->{ROLE} = $self->{LOCAL_USER};
+  $self->{role} and $self->{ROLE} = $self->{role};
+  
+  $self->debug(1, "Config for user $self->{LOCAL_USER} ($self->{ROLE})");
+  
+  #    my $ldapConfig=$struct->{proxyport}[0];
+  
+  $self->{ORG_NAME} = "$organisation";
+  
+  
+  my $ldap=$self->GetLDAPDN();
+  $ldap or return;
+  
+  $self->GetOrganisation($ldap) or return;
+  
+  
+  $self->GetSite($ldap) or return;
+  foreach my $service (@SERVICES) {
+    $self->GetServices( $ldap, $service) or return;
+  }
+  
+  $self->GetHostConfig($ldap) or return;
+  
+  if ( $self->{queue} ) {
+    $self->setService( $ldap, $self->{queue}, "CE" ) or return;
+  }
+  
+  $self->GetTopLevelServices($ldap) or return;
+  
+  if ($self->{LOCAL_CONFIG} && $self->{LOCAL_CONFIG} =~/^(add)|(overwrite)$/i ) {
+    $self->checkConfigFile(
+			   "$ENV{ALIEN_ROOT}/etc/alien/$self->{ORG_NAME}.conf",
+			   "/etc/alien/$self->{ORG_NAME}.conf",
+			   "$ENV{ALIEN_HOME}/\L$self->{ORG_NAME}\E.conf");
+  }
+  $self->GetGridPartition($ldap) or return;
+  $ldap->unbind;    # take down session
+  
+  return $self;
 }
 sub checkConfigFile {
   my $self=shift;

@@ -104,7 +104,7 @@ sub getQueuedJobs {
 
   my @queueids;
   foreach (@queuestatus) {
-    if ($_ =~ /(alien)|(agent.startup)/i) {
+    if ($_ =~ /((alien)|(agent.startup))/i) {
       push @queueids,$1;
     }
   }
