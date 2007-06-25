@@ -426,19 +426,16 @@ sub renewProxy {
    $self->debug(1,"\$X509_USER_PROXY is $ENV{X509_USER_PROXY}");
    my $ProxyRepository = "$self->{CONFIG}->{VOBOXDIR}/proxy_repository";
    my $command = "vobox-proxy --vo \L$self->{CONFIG}->{ORG_NAME}\E query-dn";
-   $self->debug(1,"Doing $command");
-   my $dn = `$command`;
+   (my $dn) = $self->_system($command);
    chomp $dn;
    $self->debug(1,"DN is $dn");
    $command = "vobox-proxy --vo \L$self->{CONFIG}->{ORG_NAME}\E --dn \'$dn\' query-proxy-filename";
-   $self->debug(1,"Doing $command");
-   my $proxyfile = `$command`;
+   (my $proxyfile) = $self->_system($command);
    $? and $self->{LOGGER}->error("LCG","No valid proxy found.") and return;
    chomp $proxyfile;
    $self->debug(1,"Proxy file is $proxyfile");
    $command = "vobox-proxy --vo \L$self->{CONFIG}->{ORG_NAME}\E --dn \'$dn\' query-proxy-timeleft";
-   $self->debug(1,"Doing $command");
-   my $timeLeft = `$command`;
+   (my $timeLeft) = $self->_system($command);
    chomp $timeLeft;
    my $thres = $duration-$gracePeriod;
    $self->info("Proxy timeleft is $timeLeft (threshold is $thres)");
@@ -454,22 +451,20 @@ sub renewProxy {
                    "-d",
                    "-t",int($duration/3600), #in hours
                    "-o", "/tmp/tmpfile.$$");
-   $self->debug(1,"Doing @command");
-    if ( system(@command) ) {
+    		   
+    unless ( $self->_system(@command) ) {
       $self->{LOGGER}->error("LCG","unable to renew proxy");
       $ENV{X509_USER_PROXY} = $currentProxy;
       return;
    }   
    @command = ("mv", "-f", "/tmp/tmpfile.$$", "$proxyfile");
-   $self->debug(1,"Doing @command");
-   if ( system(@command) ) {
+   if ( $self->_system(@command) ) {
      $self->{LOGGER}->error("LCG","unable to move new proxy");
      $ENV{X509_USER_PROXY} = $currentProxy;
      return;
    }  
    $command = "vobox-proxy --vo \L$self->{CONFIG}->{ORG_NAME}\E --dn \'$dn\' query-proxy-timeleft";
-   $self->debug(1,"Doing $command");
-   my $realDuration = `$command`;
+   ( my $realDuration ) = $self->_system($command);
    chomp $realDuration;
    $self->{LOGGER}->error("LCG","asked for $duration sec, got only $realDuration") if ( $realDuration < 0.9*$duration);
    $ENV{X509_USER_PROXY} = $currentProxy;
