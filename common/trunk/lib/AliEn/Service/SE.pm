@@ -163,8 +163,8 @@ sub startIOServers{
 
       push @daemons, {name=>$daemon, %options};
       my $n=$def;
-      $def =~ s{^VIRTUAL_}{}i or $def =~ s{^default}{$self->{CONFIG}->{SE_NAME}};
-      $self->{REGISTER_IN_IS}->{"${def}::$daemon"}={port=>$options{port}, URI=>$options{URI}};
+      $n =~ s{^VIRTUAL_}{}i or $n =~ s{^default}{$self->{CONFIG}->{SE_NAME}};
+      $self->{REGISTER_IN_IS}->{"${n}::$daemon"}={port=>$options{port}, URI=>$options{URI}};
 
     }
     $self->{IODAEMONS}->{$def}=\@daemons;
@@ -196,6 +196,7 @@ sub createXROOTConfFile{
       $port=$value;
       $options{URI} = "root://$host:$port/";
       $options{port}=$port;
+      
       next;
     }
     if ($key =~ /^(stage_)|(sealed_envelope)|(RFIO_USE_CASTOR_V2)/i) {
