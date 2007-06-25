@@ -95,8 +95,6 @@ sub submit {
      or return;
    
   my @command = ( $self->{SUBMIT_CMD}, "--noint", "--nomsg", "--logfile", $logFile, @args, "$jdlfile");
-  $self->debug(1,"Doing @command");
-
   my @output=$self->_system(@command) or return -1;
   my $contact="";
   @output and $contact=$output[$#output];
@@ -425,18 +423,20 @@ sub renewProxy {
    $self->info("Checking whether to renew proxy for $duration seconds");
    $self->debug(1,"\$X509_USER_PROXY is $ENV{X509_USER_PROXY}");
    my $ProxyRepository = "$self->{CONFIG}->{VOBOXDIR}/proxy_repository";
-   my $command = "vobox-proxy --vo \L$self->{CONFIG}->{ORG_NAME}\E query-dn";
-   (my $dn) = $self->_system($command);
-   chomp $dn;
+   my $command = "vobox-proxy --vo \L$self->{CONFIG}->{ORG_NAME}\E query";
+   my @lines = $self->_system($command);
+   my $dn = '';
+   my $proxyfile = '';
+   my $timeLeft = '';
+   foreach (@lines) {
+     chomp;
+     m/^DN:/ and ($dn) = m/^DN:\s*(.+)\s+$/;
+     m/^File:/ and ($proxyfile) = m/^File:\s*(.+)\s+$/;
+     m/^Proxy Time Left/ and ($timeLeft) = m/^Proxy Time Left \(seconds\):\s*(.+)\s+$/;
+   }
+   $dn or $self->{LOGGER}->error("LCG","No valid proxy found.") and return;
    $self->debug(1,"DN is $dn");
-   $command = "vobox-proxy --vo \L$self->{CONFIG}->{ORG_NAME}\E --dn \'$dn\' query-proxy-filename";
-   (my $proxyfile) = $self->_system($command);
-   $? and $self->{LOGGER}->error("LCG","No valid proxy found.") and return;
-   chomp $proxyfile;
    $self->debug(1,"Proxy file is $proxyfile");
-   $command = "vobox-proxy --vo \L$self->{CONFIG}->{ORG_NAME}\E --dn \'$dn\' query-proxy-timeleft";
-   (my $timeLeft) = $self->_system($command);
-   chomp $timeLeft;
    my $thres = $duration-$gracePeriod;
    $self->info("Proxy timeleft is $timeLeft (threshold is $thres)");
    return 1 if ( $gracePeriod && $timeLeft>$thres );
