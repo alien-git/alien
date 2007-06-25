@@ -85,37 +85,23 @@ requirements=other.CE==\"pcegee02::CERN::pcegee02\"";
   $self->debug(1, "Everything worked!!");
   return 0 ;
 }
-sub CreateJDL {
-  my $self =shift;
-  my $oldOrg=shift;
-  my $oldCM=shift;
-  my $oldid=shift;
-  my $oldToken=shift;
 
-  my $file="$self->{CONFIG}->{TMP_DIR}/alien.submit.$$";
-
-  $self->debug(1,"In submit creating the JDL");
-  AliEn::MSS::file::mkdir("", $self->{CONFIG}->{TMP_DIR} ) ;
-  my $jdl=$self->{JDL};
-  $jdl =~ s/^\s*\[//s;
-  $jdl =~ s/^\s*requirements[^;]*;//mi;
-  $jdl =~ s/\]\s*$//s;
-
-  $jdl =~ s/(AliEn_Master_VO=\")(.*\")/$1$oldOrg $2/ or 
-    $jdl.=";AliEn_Master_VO=\"$oldOrg#$oldCM#$oldid#$oldToken\"";
-  $jdl =~ s/;\s*origrequirements[^;]*;/;/mi;
-
-  if (!open (FILE, ">$file")){
-    $self->{LOGGER}->error("LQ/Alien", "Error opening the file $file");
-    $self->{CONFIG}=$self->{CONFIG}->Reload({"organisation", $oldOrg});
-    
-    return -1;
+sub getQueueStatus{
+  my $self=shift;
+  $self->info("Trying to get the number of jobs waiting (from $self->{CONFIG}->{HOST}");
+  $self->setEnv();
+  my @done=$self->{CE}->f_top(@_, "-submithost", $self->{CONFIG}->{HOST});
+  $self->unsetEnv(); 
+  my @ids;
+  foreach my $job (@done){
+    push @ids, "$job->{queueId} agent startup";
   }
-  print FILE $jdl;
-  close FILE;
-  $self->debug(1,"JDL file written with $jdl");
-  return $file;
+  return @ids;
 }
 
+sub getNumberQueued{
+  my $self=shift;
+  return $self->getQueueStatus("-status", "WAITING");
+}
 
 return 1;
