@@ -517,7 +517,10 @@ sub isPackageInstalled {
 
 sub getListPackages_Internal{
   my $self=shift;
-
+  if (! $self->{CATALOGUE}){
+    $self->info("Even if we are running the local PackMan, the catalogue is not defined. Asking the 'Packman service");
+    return $self->SUPER::getListPackages_Internal();
+  }
   $self->info("Getting the list of packages (from the catalogue)");
   my $silent="";
   $self->{DEBUG} or $silent="-silent";
@@ -535,34 +538,7 @@ sub getListPackages_Internal{
   use Data::Dumper;
   print Dumper($packages);
   return (1, @$packages);
-  
-#  my $platformPattern="(($platform)|(source))";
-#  if(  grep (/^-?-all$/, @_)) {
-#    $self->info("Returning the info of all platforms");
-#    $platform="all";
-#    $platformPattern=".*";
-#  }
 
-
-#  my @userPackages=$self->{CATALOGUE}->execute("find", $silent, $self->{CONFIG}->{USER_DIR}, "/packages/*");
-#  my @voPackages=$self->{CATALOGUE}->execute("find", $silent, "\L/$self->{CONFIG}->{ORG_NAME}/packages", "*");
-#  my @packages;
-#  my $org="\L$self->{CONFIG}->{ORG_NAME}\E";
-#  foreach my $pack (@userPackages, @voPackages) {
-#    $self->debug(2,  "FOUND $pack");
-#    if ($pack =~ m{^$self->{CONFIG}->{USER_DIR}/?./([^/]*)/packages/([^/]*)/([^/]*)/$platformPattern$}) {
-#      grep (/^$1\@${2}::$3$/, @packages) or
-#	push @packages, "$1\@${2}::$3";
-#      next;
-#    }
-#    if ($pack =~ m{^/$org/packages/([^/]*)/([^/]*)/$platformPattern$}) {
-#      grep (/^VO_\U$org\E\@${1}::$2$/, @packages) or
-#	push @packages, "VO_\U$org\E\@${1}::$2";
-#      next;
-#    }
-#    $self->debug(2, "Ignoring $pack");
-#  }
-#  return (1, @packages);
 }
 
 sub getPlatform(){
