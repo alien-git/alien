@@ -7,61 +7,79 @@ use AliEn::LQ;
 use AliEn::CE;
 use strict;
 
-#sub initialize {
-#  my $self=shift;
-#  $self->{UI}=
-#  return 1;
-#}
+sub initialize {
+  my $self=shift;  
+
+
+  $self->{CONFIG}->{CE_SUBMITARG} or $self->info("Error: we are missing the name of the VO to send the info to. Please, put it in the SUBMITARG") and return;
+  my @list=@{$self->{CONFIG}->{CE_SUBMITARG_LIST}};
+  $self->{ENV_TO_CHANGE}={};
+  foreach (@list){
+    my ($key, $value)=split(/=/,$_,2);
+    $value or $self->info("Skiping the argument '$_' (not in <key>=<value> format") and next;
+    $self->{ENV_TO_CHANGE}->{$key}={old=>$ENV{$key}, new=>$value};
+    my $message='undef';
+    $ENV{$key} and $message=$ENV{$key};
+    $self->info("We will set $key to $value (instead of $message)");
+  }
+  $self->{ENV_TO_CHANGE}->{ALIEN_ORGANISATION} or $self->info("Error: missing the name of the organisation in the arguments") and return;
+
+  $self->setEnv();
+  $self->{CE}=AliEn::CE->new();
+  $self->unsetEnv();
+  $self->{CE} or $self->info("Error creating the CE") and return;
+  $self->info("All the initialization worked!!!");
+  $self->info("This CE submits to a different VO ($self->{ENV_TO_CHANGE}->{ALIEN_ORGANISATION})");
+  return $self;
+}
+
+sub setEnv{
+  my $self=shift;
+  foreach my $key (keys %{$self->{ENV_TO_CHANGE}}){
+    $ENV{$key}=$self->{ENV_TO_CHANGE}->{$key}->{new};
+  }
+  $self->{CE} and $self->{CE}->{SOAP}->deleteCache();
+
+  $self->{CONFIG}=$self->{CONFIG}->Reload({force=>1});
+}
+
+sub unsetEnv{
+  my $self=shift;
+  foreach my $key (keys %{$self->{ENV_TO_CHANGE}}){
+    delete $ENV{$key};
+    $self->{ENV_TO_CHANGE}->{$key}->{old} or next;
+    $ENV{$key}=$self->{ENV_TO_CHANGE}->{$key}->{old};
+  }
+  $self->{CE}->{SOAP}->deleteCache();
+  $self->{CONFIG}=$self->{CONFIG}->Reload({force=>1});
+
+}
+
 sub submit {
   my $self = shift;
   my $classad=shift;
   my ( $command, @args ) = @_;
-  $self->{LOGGER}->info("LQ/Alien", "Submitting the job to another V.O ($self->{ORG})");
-
-
-
-  my $oldOrg=$self->{CONFIG}->{ORG_NAME};
-  $self->debug(1, "Organisation -> $self->{ORG}");
-
-
-  my $oldCM=$ENV{ALIEN_CM_AS_LDAP_PROXY};
-  my $oldid=$ENV{ALIEN_PROC_ID};
-
-
-  delete $ENV{ALIEN_CM_AS_LDAP_PROXY};
-
-  my $tmp=$self->{CONFIG}->Reload({"organisation", $self->{ORG}, "force", 1, 
-				  "debug", 0});
-  $ENV{ALIEN_CM_AS_LDAP_PROXY}=$oldCM;
-
-  if (!$tmp) {
-    $self->{LOGGER}->info("LQ/Alien", "Error getting the config of $self->{ORG}");
-    return -1;
+  $self->info("Submitting the job to another V.O ($self->{ENV_TO_CHANGE}->{ALIEN_ORGANISATION}->{new})");
+  my $env="ALIEN_CM_AS_LDAP_PROXY=$ENV{ALIEN_CM_AS_LDAP_PROXY}";
+  foreach my $key (keys %{$self->{ENV_TO_CHANGE}}){
+    $self->{ENV_TO_CHANGE}->{$key}->{old} or next;
+    $env.=" $key=$self->{ENV_TO_CHANGE}->{$key}->{old}";
   }
-  $self->{CONFIG}=$tmp;
-  $self->debug(1, "Creating the new CE");
-  delete $ENV{ALIEN_PROC_ID};
+  my $jdl="executable=\"runOtherVOJobAgent\";
+arguments=\"$env\";
+requirements=other.CE==\"pcegee02::CERN::pcegee02\"";
+  my $old= $ENV{ALIEN_CM_AS_LDAP_PROXY};
+  delete  $ENV{ALIEN_CM_AS_LDAP_PROXY};
 
-  my $ce=AliEn::CE->new();
-  if (!$ce){
-    $self->{CONFIG}=$self->{CONFIG}->Reload({"organisation", $oldOrg});
-    $self->{LOGGER}->info("LQ/Alien", "Error getting the authentication for $self->{ORG}");
-    return -1;
-  }
-
-  my $jdlFile=$self->CreateJDL($oldOrg, $oldCM, $oldid,$ENV{ALIEN_JOB_TOKEN});
-  $jdlFile or return -1;
-
-  $self->debug(1, "In submit, sending $jdlFile ");
-  my @done=$ce->submitCommand("<$jdlFile");
-
+  $self->debug(1, "In submit, sending $jdl ");
+  $self->setEnv();
+  my @done=$self->{CE}->submitCommand("=<","$jdl");
+  $self->unsetEnv();
   $self->debug(1, "In submit got @done");
-  $ENV{ALIEN_PROC_ID}=$oldid;
 
-  $self->{CONFIG}=$self->{CONFIG}->Reload({"organisation", $oldOrg});
-
+  $ENV{ALIEN_CM_AS_LDAP_PROXY}=$old;
   if (! @done) {
-    $self->{LOGGER}->info("LQ/Alien", "Error getting the file");
+    $self->info("Error getting the file");
     return -1;
   }
   $self->debug(1, "Everything worked!!");
@@ -100,26 +118,4 @@ sub CreateJDL {
 }
 
 
-sub initialize() {
-  my $self = shift;
-  
-  my $org="";
-  
-  
-  if ( $self->{CONFIG}->{CE_SUBMITARG} ) {
-    $self->debug(1, "Arguments @{$self->{CONFIG}->{CE_SUBMITARG_LIST}}");
-    my @list = grep (s/^org(anisation)?=//i, 
-		     @{ $self->{CONFIG}->{CE_SUBMITARG_LIST} });
-    
-    @list and $org=$list[0];
-    $self->debug(1, "Name of the organisation-> $org");
-    
-  }
-  if (!$org) {
-    $self->{LOGGER}->error("LQ/Alien", "Error: your ldap configuration says that this is an AliEn queue, but there is no organisation in SUBMITARG");
-    return;
-  }
-  $self->{ORG}=$org;
-  return 1;
-}
 return 1;

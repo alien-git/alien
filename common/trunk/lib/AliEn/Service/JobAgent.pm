@@ -269,6 +269,7 @@ sub changeStatus {
 sub putJobLog {
   my $self =shift;
   my $id=$ENV{ALIEN_PROC_ID};
+  $id or $self->info("Job id not defined... ignoring the putJobLog") and  return 1;
   $self->info("Putting in the joblog: $id, @_");
   my $joblog = $self->{SOAP}->CallSOAP("CLUSTERMONITOR","putJobLog", $id,@_) or return;
   return 1;
@@ -317,8 +318,12 @@ sub GetJDL {
     $self->info("ASKING FOR ANOTHER JOB");
     $self->putJobLog("trace","Asking for a new job");
   }
-  my $catalog=$self->getCatalogue() or return;
-  $self->{PACKMAN}->setCatalogue($catalog);
+  my $catalog=$self->getCatalogue();
+  if ($catalog) {
+    $self->{PACKMAN}->setCatalogue($catalog);
+  }else {
+    $self->info("We couldn't get a catalogue... we won't be able to install packages manually");
+  }
 
   while(1) {
     print "Getting the jdl from the clusterMonitor, agentId is $ENV{ALIEN_JOBAGENT_ID}...\n";
@@ -326,7 +331,7 @@ sub GetJDL {
     my $hostca=$self->getHostClassad();
     if (!$hostca){
       $self->sendJAStatus('ERROR_HC');
-      $catalog->close();
+       $catalog and  $catalog->close();
       return;
     }
     $self->sendJAStatus(undef, {TTL=>$self->{TTL}});
@@ -347,7 +352,7 @@ sub GetJDL {
 	    if (! $ok){
 	      $self->info("Error installing the package $_");
 	      $self->sendJAStatus('ERROR_IP');
-	      $catalog->close();
+	      $catalog and $catalog->close();
 	      return;
 	    }
 	  }
@@ -368,7 +373,7 @@ sub GetJDL {
     }
     $self->sendJAStatus('REQUESTING_JOB');
   }
-  $catalog->close();
+  $catalog and  $catalog->close();
 
   $result or $self->info("Error getting a jdl to execute");
   ( UNIVERSAL::isa( $result, "HASH" )) and $jdl=$result->{jdl};
