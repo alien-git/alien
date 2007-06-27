@@ -39,7 +39,10 @@ sub removeLocks{
 }
 sub getListInstalled_Internal {
   my $self=shift;
-
+  if (! $self->{CATALOGUE}){
+    $self->info("Even if we are running the local PackMan, the catalogue is not defined. Asking the 'Packman service' for the installed");
+    return $self->SUPER::getListInstalled_Internal();
+  }
   $self->info("Checking the packages that we have installed locally");
   my @allPackages=();
   eval {
@@ -90,7 +93,7 @@ sub installPackage{
   my $connected=$self->{CATALOGUE};
   $self->{CATALOGUE} or $self->{CATALOGUE}=AliEn::UI::Catalogue::LCM->new();
   $self->{CATALOGUE} or $self->info("Error getting an instance of the catalogue") 
-    and return;
+    and return (-1, "error getting an instance of the catalogue");
   my $source="";
   eval {
     my ($lfn, $info)=$self->findPackageLFN($user, $package, $version);

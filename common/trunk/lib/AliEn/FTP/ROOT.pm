@@ -44,7 +44,7 @@ my $fromhost  = ( shift or "" );
 my $tohost  = ( shift or "" );
 
 print "we arrived here!!\n";
-my $command = "xrdcp root://$fromhost/$remotefile $localfile -OD\\&authz=alien -OS\\&authz=alien -DIFirstConnectMaxCnt 1";
+my $command = "xrdcp root://$fromhost/$remotefile?cmd=trashbin $localfile -OD\\&authz=alien -OS\\&authz=alien -DIFirstConnectMaxCnt 1";
 print $command."\n";
 return system($command);
 #    my $command = "$options; get $remotefile $localfile";
