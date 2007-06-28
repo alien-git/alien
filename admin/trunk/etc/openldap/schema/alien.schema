@@ -469,10 +469,12 @@ objectclass ( AliEngContainerServiceExWrapper  NAME 'AliEngContainerServiceExWra
 objectidentifier AliEnPackMan  ALIEN_BASE:22
 
 attributetype ( AliEnPackMan:1 NAME 'installDir' SUP name )
+attributetype ( AliEnPackMan:2 NAME 'platform' SUP name )
 
 objectclass ( AliEnPackMan  NAME 'AliEnPackMan'
 	SUP ( AliEnSOAPServer )
-  	MUST ( name $ host $ port $ installDir )
+  	MUST ( name  )
+        MAY ( platform $ installDir )
 	)
 
 
