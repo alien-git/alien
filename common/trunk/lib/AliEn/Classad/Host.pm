@@ -6,6 +6,7 @@ use strict;
 use vars qw(@ISA);
 use Filesys::DiskFree;
 use AliEn::PackMan;
+use AliEn::Util;
 
 
 push @ISA,'AliEn::Logger::LogObject';
@@ -78,7 +79,10 @@ sub setVersion {
 sub setSystemInfo {
   my $self=shift;
   my $ca=shift;
-
+  
+  my $platform=AliEn::Util::getPlatform($self);
+  
+  $platform and ($ca->set_expression("Platform", "\"$platform\"") or return);
   open (FILE,"</proc/meminfo") or 
     print "Error checking /proc/meminfo\n" and return 1;
   my ($free, $swapfree, $total, $swap);

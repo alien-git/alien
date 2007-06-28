@@ -5,6 +5,7 @@ use strict;
 use vars qw(@ISA);
 use AliEn::UI::Catalogue::LCM;
 use Filesys::DiskFree;
+use AliEn::Util;
 push @ISA, 'AliEn::Logger::LogObject', 'AliEn::PackMan';
 
 
@@ -154,7 +155,7 @@ sub findPackageLFN{
   my @dirs=("$self->{CONFIG}->{USER_DIR}/". substr( $user, 0, 1 ). "/$user/packages",
 	    "/\L$self->{CONFIG}->{ORG_NAME}/packages",);
   my $lfn;
-  my $platform=$self->getPlatform();
+  my $platform=AliEn::Util::getPlatform($self);
   $self->debug(1, "Looking for the lfn of $package ($version) for the user $user");
 
   foreach (@dirs){
@@ -532,7 +533,7 @@ sub getListPackages_Internal{
 
   if(!  grep (/^-?-all$/, @_)) {
     $self->info("Returning the info of all platforms");
-    my $platform=$self->getPlatform();
+    my $platform=AliEn::Util::getPlatform($self);
     $query.=" where  (platform='$platform' or platform='source')";
   }
   print "Let's do $query\n";
@@ -544,19 +545,6 @@ sub getListPackages_Internal{
 
 }
 
-sub getPlatform(){
-  my $self=shift;
-  $self->{PLATFORM_NAME} and return $self->{PLATFORM_NAME};
-  my $sys1 = `uname -s`;
-  chomp $sys1;
-  $sys1 =~ s/\s//g; #remove spaces
-  my $sys2 = `uname -m`;
-  chomp $sys2;
-  $sys2 =~ s/\s//g; #remove spaces
-  my $platform="$sys1-$sys2";
-  $self->{PLATFORM_NAME}=$platform;
-  return $platform;
-}
 
 
 sub findOldPackages {

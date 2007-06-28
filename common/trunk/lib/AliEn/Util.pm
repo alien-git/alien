@@ -408,4 +408,31 @@ sub get_pid_jiffies {
 	return $sum;
 }
 
+
+sub getPlatform
+{
+  my $self=shift;
+  $self and  $self->{PLATFORM_NAME} and return $self->{PLATFORM_NAME};
+
+  my $config;
+  $self and $self->{CONFIG} and $config=$self->{CONFIG};
+  $config or $config=AliEn::Config->new();
+  $config or print STDERR "Error getting the configuration to check the platform\n" and return;
+  if ($config->{PACKMAN_PLATFORM}){
+    $self->{PLATFORM_NAME}=$config->{PACKMAN_PLATFORM};
+    return $config->{PACKMAN_PLATFORM};
+  }
+    
+  my $sys1 = `uname -s`;
+  chomp $sys1;
+  $sys1 =~ s/\s//g; #remove spaces
+  my $sys2 = `uname -m`;
+  chomp $sys2;
+  $sys2 =~ s/\s//g; #remove spaces
+  my $platform="$sys1-$sys2";
+  
+  $self and $self->{PLATFORM_NAME}=$platform;
+  return $platform;
+}
+
 return 1;
