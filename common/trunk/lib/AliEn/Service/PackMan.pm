@@ -64,19 +64,6 @@ Returns a list of all the packages defined in the system
 
 =cut
 
-sub getPlatform()
-{
-    my $sys1 = `uname -s`;
-    chomp $sys1;
-    $sys1 =~ s/\s//g; #remove spaces
-    my $sys2 = `uname -m`;
-    chomp $sys2;
-    $sys2 =~ s/\s//g; #remove spaces
-    my $platform="$sys1-$sys2";
-
-    return $platform;
-}
-
 
 sub getListPackages{
   shift;
@@ -85,7 +72,7 @@ sub getListPackages{
   grep (/^-?-force$/, @_)
     and  AliEn::Util::deleteCache($self);
 
-  my $platform=$self->getPlatform();
+  my $platform=AliEn::Util::getPlatform($self);
   my $platformPattern="(($platform)|(source))";
   if(  grep (/^-?-all$/, @_)) {
     $self->info("Returning the info of all platforms");
@@ -262,7 +249,7 @@ sub findPackageLFN{
   my @dirs=("$self->{CONFIG}->{USER_DIR}/". substr( $user, 0, 1 ). "/$user/packages",
 	    "/\L$self->{CONFIG}->{ORG_NAME}/packages",);
   my $lfn;
-  my $platform=$self->getPlatform();
+  my $platform=AliEn::Util::getPlatform($self);
   $self->info("$$ Looking for the lfn of $package ($version) for the user $user");
 
   foreach (@dirs){
