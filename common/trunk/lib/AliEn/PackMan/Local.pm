@@ -110,8 +110,12 @@ sub installPackage{
     print "Ready to install $package and $version and $user (from $lfn)\n";
     $dependencies->{"${package}::$version"}=1;
     
+    my $old=$options->{NO_FORK} || 0;
+
     if ($info && $info->{dependencies}) {
-      $self->info( "$$ Installing the dependencies of $package");
+
+      $self->info( "$$ Installing the dependencies of $package (without forking");
+      $options->{NO_FORK}=1;
       foreach (split(/,/,$info->{dependencies})){
 	my ($pack, $ver)=split(/::/, $_, 2);
 	my $pack_user=$user;
@@ -121,14 +125,26 @@ sub installPackage{
 	  $self->info( "$$ Package $pack $ver already configured");
 	  next;
 	}
+	
 	my ($ok, $depsource, $dir)=$self->installPackage($user, $pack, $ver, $dependencies, $options);
 	$depsource and $source="$source $depsource";
       }
     }
-    
+    $options->{NO_FORK}=$old;
     $self->debug(2,  "Ready to do the installPackage $package for $user");
-    
-    $self->InstallPackage($lfn, $user, $package, $version,$info, $source, $options);
+    while (1){
+      eval {
+	$self->InstallPackage($lfn, $user, $package, $version,$info, $source, $options);
+      };
+      if ($@ and $@ =~ /Package is being installed/){
+	if ($self->{NO_FORK}){
+	  $self->info("Let's sleep for a while...");
+	  sleep(60);
+	  next;
+	}
+      }
+      last;
+    }
     my ($done, $psource, $dir2)= $self->ConfigurePackage($user, $package, $version, $info);
     $psource and $source="$source $psource";
     $self->info( "$$ Returning $done and ($source)\n");
@@ -139,7 +155,7 @@ sub installPackage{
     undef $self->{CATALOGUE};
   }
   if ($error){
-    $self->info("Error installing the package!! $error");
+    $self->info("Error installing the package '$package'!! $error");
     return (-1, $error);
   }
   $self->info("Everything is ready. We just have to do $source");
