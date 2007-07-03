@@ -125,10 +125,10 @@ For instance, 'ROOT', 'ROOT::4.1.3', 'psaiz\@ROOT', 'psaiz\@ROOT::4.1.2' comply 
 sub f_packman {
   my $self=shift;
   $self->debug(1, "Talking to the PackMan: @_");
-  my $silent     = grep ( /-s/, @_ ); 
-  my $returnhash = grep ( /-z/, @_ ); 
-  my @arg        = grep ( !/-z/, @_ );
-  @arg        = grep ( !/-s/, @arg );
+  my $silent     = grep ( /^-s$/, @_ ); 
+  my $returnhash = grep ( /^-z$/, @_ ); 
+  my @arg        = grep ( !/^-z$/, @_ );
+  @arg        = grep ( !/^-s$/, @arg );
 
   my $string=join(" ", @arg);
   my $serviceName="PackMan";
@@ -270,7 +270,10 @@ sub definePackage{
   my $version=shift;
   my $tar=shift;
   my $message="";
+
+
   $self->info( "Adding a new package");
+
   $packageName or $message.="missing Package Name";
   $version or $message.="missing version";
   $tar or $message.="missing tarfile";
@@ -286,33 +289,33 @@ sub definePackage{
   my $sys2 = `uname -m`;
   chomp $sys2;
   my $platform="$sys1-$sys2";
-
   while (my $arg=shift){
     if ($arg=~ /^-?-se$/ ) {
       $se=shift;
       next;
     } 
     if ($arg=~ /^-vo$/) {
-      $lfnDir="/$self->{CONFIG}->{ORG_NAME}/packages";
+      $lfnDir=lc("/$self->{CONFIG}->{ORG_NAME}/packages");
       next;
     }
     if ($arg=~ /^-?-platform$/) {
+     
       $platform=shift;
       next;
     }else {
       push @args, $arg;
     }
   }
+  my $topDir=$lfnDir;
   $lfnDir.="/$packageName/$version";
 
   my $lfn="$lfnDir/$platform";
-
   $self->{CATALOGUE}->{CATALOG}->isFile($lfn) and
     $self->info( "The package $lfn already exists") and return;
   $self->{CATALOGUE}->execute("mkdir", "-p", $lfnDir)
     or $self->info( "Error creating the directory $lfnDir")
       and return;
-  $self->{CATALOGUE}->execute("addTag", $self->{CATALOGUE}->{CATALOG}->GetHomeDirectory()."/packages/$packageName", "PackageDef")
+  $self->{CATALOGUE}->execute("addTag", "$topDir/$packageName", "PackageDef")
     or $self->info( "Error creating the tag definition")
       and return;
   $self->{CATALOGUE}->execute("add", $lfn, $tar, $se) 
@@ -352,6 +355,7 @@ sub undefinePackage{
   }
 
   my $lfnDir=$self->{CATALOGUE}->{CATALOG}->GetHomeDirectory()."/packages/$packageName/$version";
+  $arguments =~ s{-vo\s}{} and $lfnDir="/".lc($self->{CONFIG}->{ORG_NAME})."/packages/$packageName/$version";
   my $lfn="$lfnDir/$platform";
 
   $self->{CATALOGUE}->{CATALOG}->isFile($lfn) or
@@ -360,7 +364,7 @@ sub undefinePackage{
     or $self->info( "Error removing $lfn")
       and return;
 
-  $self->{CATALOGUE}->{CATALOG}->{DATABASE_FIRST}->do("update TASKS set todo=1 where action='PACKAGES'");
+  $self->{CATALOGUE}->{CATALOG}->{DATABASE_FIRST}->do("update ACTIONS set todo=1 where action='PACKAGES'");
   $self->info( "Package $lfn undefined!!");
   return 1;
 }
