@@ -207,10 +207,13 @@ sub getAllBatchIds {
             $self->info("Marking job $JobId as dead");
 	    delete($queuedJobs{$JobId});    
             $self->{DB}->update("JOBAGENT", {status=>"DEAD"}, "batchId=?", {bind_values=>[$JobId]});
-          } elsif ($status =~ m/\s*Waiting/ && $elapsed>120) {
+          } elsif ($status =~ m/\s*Waiting/ && $elapsed>120) { ###
 	    $self->{LOGGER}->error("LCG","Job $JobId has been \'Waiting\' for $elapsed minutes");
             $self->info("Marking job $JobId as dead");
 	    delete($queuedJobs{$JobId});    
+            my $logfile = AliEn::TMPFile->new({ ttl      => '12 hours',
+	                                        filename => "edg-job-cancel.log"});            
+	    my @output = $self->_system( $self->{KILL_CMD}, "--noint", "--logfile", $logfile, "$JobId" ); 
             $self->{DB}->update("JOBAGENT", {status=>"DEAD"}, "batchId=?", {bind_values=>[$JobId]});
 	  }
 	  $newRecord = 1;
@@ -317,7 +320,7 @@ sub cleanUp {
 	} else {
 	  $self->info("Will retrieve OutputSandbox for $status job $_->{'batchId'}");
           my $logfile = AliEn::TMPFile->new({ ttl      => '24 hours',
-                                              filename => "edg-job-get-output.$_->{'batchId'}.log"});
+                                              filename => "edg-job-get-output.log"});
           my $outdir = dirname($logfile); 
 	  my @output = $self->_system("edg-job-get-output","--noint",
                                                 	   "--logfile", $logfile,
