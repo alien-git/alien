@@ -296,9 +296,6 @@ sub getNumberQueued() {
 
 sub cleanUp {
   my $self = shift;
-  my $logfile = AliEn::TMPFile->new({ ttl      => '24 hours',
-                                      filename => "edg-job-get-output.log"});
-  my $outdir = dirname($logfile); 
   ### The following in principle should not be needed
   my $todelete = $self->{DB}->queryValue("SELECT COUNT (*) FROM JOBAGENT where status='DEAD'");
   if ($todelete) {
@@ -319,7 +316,9 @@ sub cleanUp {
           next;
 	} else {
 	  $self->info("Will retrieve OutputSandbox for $status job $_->{'batchId'}");
-
+          my $logfile = AliEn::TMPFile->new({ ttl      => '24 hours',
+                                              filename => "edg-job-get-output.$_->{'batchId'}.log"});
+          my $outdir = dirname($logfile); 
 	  my @output = $self->_system("edg-job-get-output","--noint",
                                                 	   "--logfile", $logfile,
 					        	   "--dir", $outdir,
