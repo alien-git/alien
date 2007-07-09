@@ -715,6 +715,7 @@ Options:
 \t-l: Get only the list of SE (not the pfn)
 \t-g: Use the lfn as guid
 \t-r: Resolve links (do not give back pointers to zip archives)
+\t-s: Silent
 "
 }
 
@@ -729,14 +730,15 @@ sub f_whereis{
   $failure->{"__result__"} = 0;
 
   push @failurereturn,$failure;
-
+  my $silent=$self->{SILENT};
+  $options=~ /s/ and $silent =1;
 
   if (!$lfn) {
-    $self->info( "Error not enough arguments in whereis. Usage:\n\t whereis [-l] lfn
-Options:
-\t-l: Get only the list of SE (not the pfn)");
-    if ($options=~/z/) {return @failurereturn;} else {return};
+    $self->info( "Error not enough arguments in whereis. ".$self->f_whereis_HELP());
+    if ($options=~/z/) {return @failurereturn;} 
+    else {return};
   }
+
   my $guidInfo;
   my $info;
   if ($options =~ /g/){
@@ -757,8 +759,7 @@ Options:
   ($guidInfo and $guidInfo->{pfn}) 
     or $self->info("Error getting the data from $lfn") and return; 
   my @SElist=@{$guidInfo->{pfn}};
-
-  $self->{SILENT} or $self->info("The file $lfn is in");
+  $silent or $self->info("The file $lfn is in");
   my @return=();
   if ($options =~ /r/){
       $DEBUG and $self->debug(2, "We are supposed to resolve links");
@@ -789,9 +790,10 @@ Options:
     }
     @SElist=@newlist;
   }
+
   foreach my $entry (@SElist){
     my ($se, $pfn)=($entry->{seName}, $entry->{pfn} || "auto");
-    $self->{SILENT} or $self->info("\t\t SE => $se  pfn =>$pfn\n", undef,0);
+    $silent or $self->info("\t\t SE => $se  pfn =>$pfn\n", undef,0);
     if ($options !~ /l/){
       if ($options=~ /z/){
 	push @return, {se=>$se, guid=>$guidInfo->{guid}, pfn=>$pfn};
