@@ -54,8 +54,8 @@ FIND_EXECUTABLE()
     echo "File $FILE not found"
     return 1
 }
-DIRECTORY=/opt/glite
-export LD_LIBRARY_PATH=$DIRECTORY/lib:$ALIEN_ROOT/lib:$LD_LIBRARY_PATH
+
+export LD_LIBRARY_PATH=$ALIEN_ROOT/lib:$ALIEN_ROOT/lib64:$LD_LIBRARY_PATH
 
 CONFIG=$ALIEN_ROOT/etc/openldap/slapd.conf
 [ -f /etc/aliend/ldap/slapd.conf ] && CONFIG=/etc/aliend/ldap/slapd.conf
