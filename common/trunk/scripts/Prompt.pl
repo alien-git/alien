@@ -37,7 +37,7 @@ Getopt::Long::GetOptions(
 			 $options,  "help",           "silent",     "user=s",
 			 "exec=s",  "token=s",        "password=s", "role=s",
 			 "debug=s", "ForcedMethod=s", "domain=s", "organisation=s",
-       "gasModules=s", "no_catalog", "packman_method=s",
+       "gasModules=s", "no_catalog", "packman_method=s","queue=s",
 			)
 
 or exit(-3);

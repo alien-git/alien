@@ -384,7 +384,12 @@ ALIEN_DoService ()
     export ALIEN_PROCESSNAME=$service
     case $service in 
 	CE)
-	   args='LOGDIR CE "CE"  NO_PASSWORD'
+	    file="CE"
+	    if [ "$2" = '-queue' ] 
+	    then 
+		file="CE_$3"
+	    fi
+	    args="LOGDIR $file \"CE\"  NO_PASSWORD"
 	    ALIEN_START="$ALIEN_ROOT/scripts/CE.pl"
 	    ;;
 	SE)

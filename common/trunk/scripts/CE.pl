@@ -28,6 +28,8 @@ Getopt::Long::GetOptions( $options,  "help", "acronjob", "user=s","password=s",
 													"queue=s", "debug=n", "role=s","logfile=s",)
   or exit;
 
+$config=$config->Reload({queue=>$options->{queue}, force=>1});
+
 
 my $dir = $config->{LOG_DIR};
 
