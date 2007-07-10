@@ -243,6 +243,28 @@ sub existsTable{
   return $self->{LFN_DB}->existsTable(@_);
 }
 
+sub createCollection{
+  my $self=shift;
+  $self->{GUID_DB}->insertGUID("", @_) or return;
+  return $self->{LFN_DB}->createCollection(@_);
+}
+
+sub addFileToCollection{
+  my $self=shift;
+  return $self->{LFN_DB}->addFileToCollection(@_);
+}
+
+sub getInfoFromCollection{
+  my $self=shift;
+  return $self->{LFN_DB}->getInfoFromCollection(@_);
+}
+
+sub removeFileFromCollection{
+  my $self=shift;
+  return $self->{LFN_DB}->removeFileFromCollection(@_);
+}
+
+
 =item C<createFile($hash)>
 
 Adds a new file to the database. It receives a hash with the following information:
@@ -833,6 +855,11 @@ sub getSEio {
     my $SEName="$self->{CONFIG}->{ORG_NAME}::${site}::$name";
     my $SEio=$self->{LFN_DB}->queryRow("SELECT * from SE where seName='$SEName'");
     return $SEio;
+}
+sub getSENameFromNumber{
+  my $self=shift;
+  my $number=shift;
+  return $self->{LFN_DB}->queryValue("SELECT seName from SE where seNumber=?", undef , {bind_values=>[$number]});
 }
 
 sub addSE{

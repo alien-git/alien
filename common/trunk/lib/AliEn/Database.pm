@@ -510,7 +510,7 @@ sub insert {
 
   $query .= ")";
 
-  $self->_do($query, {bind_values=>\@bind_values});
+  $self->_do($query, {bind_values=>\@bind_values, silent=>$options->{silent}});
 }
 
 sub multiinsert {

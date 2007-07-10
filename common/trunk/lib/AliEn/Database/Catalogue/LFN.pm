@@ -115,6 +115,15 @@ sub createCatalogueTables {
 					    packageVersion=>'varchar(255)',
 					    platform=>'varchar(255)'}, 
 			],
+	      COLLECTIONS=>['collectionId', {'collectionId'=>"int not null auto_increment primary key",
+					     'collGUID'=>'binary(16)'}],
+	      COLLECTIONS_ELEM=>['collectionId', {'collectionId'=>'int not null',
+						  origLFN=>'varchar(255)',
+						  guid=>'binary(16)',
+						  data=>"varchar(255)",},
+				 
+				 "",['INDEX (collectionId)']],
+	      
 	     );
   foreach my $table (keys %tables){
     $self->info("Checking table $table");
@@ -560,19 +569,9 @@ sub createDirectory {
 	      owner=>$self->{VIRTUAL_ROLE},
 	      gowner=>$self->{VIRTUAL_ROLE},
 	      type=>'d'};
-  my $tableRef=shift || {};
-
-  my $tableName=$tableRef->{name} || $self->{INDEX_TABLENAME}->{name};
-  my $tableLFN=$tableRef->{lfn} || $self->{INDEX_TABLENAME}->{lfn};
-#  delete $insert->{table};
-
-  $tableName =~ /^\d*$/ and $tableName="L${tableName}L";
-
-  $insert->{dir}=$self->getParentDir($insert->{lfn});
-  $insert->{lfn} =~ s{^$tableLFN}{};
-
-  return $self->insert($tableName, $insert);
+  return $self->_createEntry($insert,@_);
 }
+
 sub createRemoteDirectory {
   my $self=shift;
   my ($hostIndex,$host, $DB, $driver,  $lfn)=@_;
@@ -1722,6 +1721,98 @@ sub setAllReplicatedData {
   return 1;
 }
 
+
+sub createCollection {
+  my $self=shift;
+  my $insert=shift;
+  $insert->{type}='c';
+  
+  $self->_createEntry($insert,@_) or return;
+
+  if (! $self->insert("COLLECTIONS", {collGUID=>$insert->{guid}}, {functions=>{collGUID=>'string2binary'}} )){
+    $self->debug(2,"Here we have to remove the entry");
+    my $tableRef=shift || {};
+    my $tableName=$tableRef->{name} || $self->{INDEX_TABLENAME}->{name};
+    my $tableLFN=$tableRef->{lfn} || $self->{INDEX_TABLENAME}->{lfn};
+    $insert->{lfn} =~ s{^$tableLFN}{};
+    $self->delete($tableName, "lfn='$insert->{lfn}'");
+    return;
+  }
+  return 1;
+}
+
+
+
+
+sub _createEntry{
+  my $self=shift;
+  my $insert=shift;
+  my $tableRef=shift || {};
+
+  my $tableName=$tableRef->{name} || $self->{INDEX_TABLENAME}->{name};
+  my $tableLFN=$tableRef->{lfn} || $self->{INDEX_TABLENAME}->{lfn};
+  #  delete $insert->{table};
+  
+  $tableName =~ /^\d*$/ and $tableName="L${tableName}L";
+  
+  $insert->{dir}=$self->getParentDir($insert->{lfn});
+  $insert->{lfn} =~ s{^$tableLFN}{};
+
+  return $self->insert($tableName, $insert, {functions=>{guid=>"string2binary"}});
+}
+
+
+sub addFileToCollection {
+  my $self=shift;
+  my $filePerm=shift;
+  my $collPerm=shift;
+  my $collId=$self->queryValue("SELECT collectionId from COLLECTIONS where collGUID=string2binary(?)", undef, {bind_values=>[$collPerm->{guid}]}) or
+    $self->info("Error getting the collection id of $collPerm->{lfn}") and 
+      return;
+
+  
+  
+  my $done=$self->insert("COLLECTIONS_ELEM", {collectionId=>$collId,
+						origLFN=>$filePerm->{lfn},
+						guid=>$filePerm->{guid}}, 
+		       {functions=>{guid=>"string2binary"},silent=>1});
+
+  if (!$done){
+    if ( $DBI::errstr=~ /Duplicate entry '(\S+)'/ ){
+      $self->info("The file '$filePerm->{guid}' is already in the collection $collPerm->{lfn}");
+    }else {
+      $self->info("Error doing the insert: $DBI::errstr");
+    }
+
+    return;
+  }
+  return 1;
+}
+
+
+sub  getInfoFromCollection {
+  my $self=shift;
+  my $collGUID=shift;
+  $self->info("Getting all the info of '$collGUID'");
+  return $self->query("SELECT origLFN, binary2string(guid) as guid from COLLECTIONS c, COLLECTIONS_ELEM e where c.collectionId=e.collectionId and collGUID=string2binary(?)", undef, {bind_values=>[$collGUID]});
+}
+
+sub removeFileFromCollection{
+  my $self=shift;
+  my $permFile=shift;
+  my $permColl=shift;
+  $self->info("Ready to delete the entry from $permColl->{lfn}");
+  my $collId=$self->queryValue("SELECT collectionId from COLLECTIONS where collGUID=string2binary(?)", undef, {bind_values=>[$permColl->{guid}]}) or
+    $self->info("Error getting the collection id of $permColl->{lfn}") and 
+      return;
+
+  my $deleted=$self->delete("COLLECTIONS_ELEM","collectionId=? and guid=string2binary(?)", {bind_values=>[$collId, $permFile->{guid}]});
+  if ($deleted =~ /^0E0$/){
+    $self->info("The file '$permFile->{guid}' is not in that collection");
+    return;
+  }
+  return $deleted;
+}
 
 =head1 SEE ALSO
 

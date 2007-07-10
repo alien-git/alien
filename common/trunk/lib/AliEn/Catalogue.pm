@@ -86,6 +86,7 @@ use AliEn::Catalogue::GUID;
 use AliEn::Catalogue::Trigger;
 use AliEn::Catalogue::Env;
 use AliEn::Catalogue::Basic;
+use AliEn::Catalogue::Collection;
 use AliEn::Dataset;
 use AliEn::Logger::LogObject;
 use AliEn::Util;
@@ -102,7 +103,7 @@ $DEBUG=0;
 	'AliEn::Catalogue::Group', 'AliEn::Catalogue::Tag',
 	'AliEn::Catalogue::Env', 'AliEn::Catalogue::Basic', 
 	'AliEn::Catalogue::Trigger', 'AliEn::Catalogue::GUID',
-	'AliEn::Logger::LogObject',@ISA
+	'AliEn::Catalogue::Collection',	'AliEn::Logger::LogObject',@ISA
 );
 
 
@@ -925,12 +926,8 @@ sub f_print {
 
 
   if ( $opt =~ /l/ ) {
-    if ( $permstring eq "d" ) {
-      $t          = "/";
-    }
-    else {
-      $permstring = "-";
-    }
+    $permstring=~ /f/ and  $permstring = "-";
+    $permstring eq "d"  and  $t  = "/";
     for ( my $i = 0 ; $i < 3 ; $i++ ) {
       my $oneperm = substr( $perm, $i, 1 );
     SWITCH: for ($oneperm) {

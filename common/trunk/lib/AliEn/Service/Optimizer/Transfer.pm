@@ -31,8 +31,10 @@ sub initialize {
       and return;
 
   $self->{DB_MODULE}="AliEn::Database::Transfer";
+  $self->SUPER::initialize(@_) or return;
 
-  return $self->SUPER::initialize($options);
+  $self->StartChildren('Inserting', 'Merging') or return;
+  return 1;
 
 }
 
@@ -46,8 +48,6 @@ sub checkWakesUp {
   $self->{LOGGER}->$method("TransferOptimizer","In checkWakesUp checking if there is anything to do");
 
   $self->checkExpiredTransfers($silent);
-
-  $self->checkNewTransfers($silent);
 
   $self->checkTransferRequirements($silent);
 
@@ -147,66 +147,6 @@ sub createTransferJDL {
 
 
   return $self->createJDL($exp);
-}
-
-sub checkNewTransfers {
-  my $this=shift;
-  my $silent=(shift or 0);
-  my $method="info";
-  my @silentData=();
-  $silent and $method="debug" and push @silentData, 1;
-  $self->$method(@silentData, "Checking if there is anything to do");
-  my $todo=$self->{DB}->queryValue("SELECT todo from ACTIONS where action='INSERTING'");
-  $todo or return;
-  $self->{DB}->updateActions({todo=>0}, "action='INSERTING'");
-
-
-  my $transfers=$self->{DB}->getNewTransfers;
-
-  defined $transfers
-    or $self->{LOGGER}->warning( "TransferOptimizer", "In checkNewTransfers error during execution of database query" )
-      and return;
-
-  @$transfers or
-    $self->$method(@silentData,"In checkNewTransfers no new transfers")
-      and return;
-
-  foreach my $transfer (@$transfers) {
-    $self->info( "New transfer of $transfer->{lfn}");
-
-    my ($size)=$self->{CATALOGUE}->execute("ls","-silent", "-l", "$transfer->{lfn}");
-
-    if (!$size) {
-      $self->{LOGGER}->error("TransferOptimizer", "In checkNewTransfers file $transfer->{lfn} does not exist in the catalogue");
-      $self->{DB}->updateTransfer($transfer->{transferid},{status=>"FAILED"})
-	or $self->{LOGGER}->error("TransferOptimizer", "In checkNewTransfers error updating status for transfer $transfer->{transferid}");
-
-      next;
-    }
-    $size =~ s/^(.*\#\#\#){3}(\d+)(\#\#\#.*){2}$/$2/;
-    $self->debug(1, "In checkNewTransfers file has size $size");
-    my $jdl=$self->createTransferJDL($transfer->{transferid}, $transfer->{lfn}, $transfer->{destination}, $size, $transfer->{pfn});
-    $self->debug(1, "Got the jdl");
-    if (!$jdl){
-      $self->{DB}->updateTransfer($transfer->{transferid},{status=>"FAILED"})
-	or $self->{LOGGER}->error("TransferOptimizer", "In checkNewTransfers error updating status for transfer $transfer->{transferid}");
-      next;
-    }
-
-    $self->debug(1,"In checkNewTransfers updating transfer $transfer->{transferid}. New jdl = $jdl,size = $size and status = WAITING");
-    $self->{DB}->updateTransfer($transfer->{transferid},{jdl=>$jdl,
-							 size=>$size,
-							 status=>'WAITING',
-							 SE=>undef,
-							 sent=>undef,
-							 started=>undef,
-							 finished=>undef})
-      or $self->info( "Error updating status, jdl and size for transfer $transfer->{transferid}")
-	and next;
-
-    $self->info( "Transfer scheduled");
-  }
-  return 1;
 }
 
 return 1;

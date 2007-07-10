@@ -172,6 +172,13 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
 	     'showTrigger' => ['$self->{CATALOG}->f_showTrigger', 0],
 	     'removeTrigger' => ['$self->{CATALOG}->f_removeTrigger', 0],
 	     'setExpired' =>['$self->{CATALOG}->f_setExpired',16+64],
+	     #Collections
+	     'createCollection' => ['$self->{CATALOG}->f_createCollection', 0],
+#	     'removeCollection' => ['$self->{CATALOG}->f_addCollection', 0],
+	     'addFileToCollection' => ['$self->{CATALOG}->f_addFileToCollection', 0],
+	     'listFilesFromCollection' => ['$self->{CATALOG}->f_listFilesFromCollection', 0],
+	     'removeFileFromCollection' => ['$self->{CATALOG}->f_removeFileFromCollection', 0],
+	     'updateCollection' => ['$self->{CATALOG}->updateCollection', 2],
 
 );
 
