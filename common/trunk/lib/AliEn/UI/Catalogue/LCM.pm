@@ -839,23 +839,38 @@ sub addFile {
 #      b : (batch) do not wait for the transfer to finish
 #      t : (transfer) do not attempt to get the file, but issue a transfer (this implies
 #           also batch. 
+#      g :
 
+sub mirror_HELP{
+  my $self=shift;
+
+  return "mirror Copies a file into another SE
+Usage:
+\tmirror [-ftbu] [-g <number>] <lfn>
+Options:\t-f\t keep the same relative path
+\t\t-b\t Do not wait for the file transfer
+\t\t-t\t Issue a transfer instead of copying the file directly (this implies also -b)
+\t\t-g <id>\t Put the transfer under the masterTransferof <id>
+\t\t-u\t Don't issue the transfer if the file is already in that SE
+";
+}
 sub mirror {
   my $self = shift;
 
-  (my $options, @_)= AliEn::Catalogue->Getopts(@_);
+
+  my $opt={};
+  @ARGV=@_;
+  Getopt::Long::GetOptions($opt,  "f", "g=i", "b","t", "u") or 
+      $self->info("Error parsing the arguments to mirror". $self->mirror_HELP()) and return;;
+  @_=@ARGV;
+  my $options=join("", keys(%$opt));
+
   $self->debug(1, "UI/LCM Mirror with @_");
-  $options=~ /t/ and $options.="b";
+  $opt->{t} and $opt->{b}=1;
   my $lfn  = shift;
   my $se   = ( shift or "$self->{CONFIG}->{SE_FULLNAME}" );
   
-  ($lfn) or print STDERR
-    "Error not enough arguments mirroring a file!\nUsage: mirror [-fms] <lfn> [<se>]
-Options:\t-f\t keep the same relative path
-\t\t-m\t Make the new replica the master copy
-\t\t-b\t Do not wait for the file transfer
-\t\t-t\t Issue a transfer instead of copying the file directly (this implies also -b)\n"
-      and return;
+  ($lfn) or $self->info("Error: not enough arguments:\n ". $self->mirror_HELP())     and return;
   $lfn = $self->{CATALOG}->f_complete_path($lfn);
 
   my $realLfn=$self->{CATALOG}->checkPermissions( 'w', $lfn )  or
@@ -867,6 +882,7 @@ Options:\t-f\t keep the same relative path
   my $info=$self->{CATALOG}->f_whereis("i", $realLfn)
     or $self->info("Error getting the info from $realLfn") and return;
 
+  
   my $guid=$info->{guid}
     or $self->info( "Error getting the guid of $lfn",11) and return;
 
@@ -881,6 +897,13 @@ Options:\t-f\t keep the same relative path
     return;
   }
 
+  if ($opt->{u}){
+    $self->info("Making sure that the file is not in that SE");
+    foreach my $entry (@$seRef){
+      $entry->{seName} =~ /^$se$/i and $self->info("The file is already in $se!") and return;
+    }
+  }
+
   $self->info( "Mirroring file $realLfn (from $oldSE)");
   
   
@@ -889,10 +912,10 @@ Options:\t-f\t keep the same relative path
 		"USER" => $self->{CONFIG}->{ROLE}, "LFN" =>$realLfn,
 		"DESTINATION" =>$se,	             "OPTIONS" => "fm$options",
 		guid=>$guid};
+  $opt->{g} and $transfer->{transferGroup}=$opt->{g};
+  $opt->{'m'} and $transfer->{TYPE}="master";
   
-  ($options=~ /m/ ) and $transfer->{TYPE}="master";
-  
-  if ($options =~ /f/)    {
+  if ($opt->{f})    {
     $self->info( "Keeping the same relative path");
     
     my $service=$self->{CONFIG}->CheckService("SE", $se);
@@ -902,8 +925,7 @@ Options:\t-f\t keep the same relative path
     $transfer->{target}=~ s/^$service->{SAVEDIR}//;
   }
 
-  if ($options =~ /t/){
-
+  if ($opt->{t}){
     my $result=$self->{SOAP}->CallSOAP("Manager/Transfer","enterTransfer",$transfer);
     $result  or return;
     #Make the remote SE get the file
@@ -923,7 +945,7 @@ Options:\t-f\t keep the same relative path
   my $newPfn=$done->{pfn};
   my $command="addMirror";
 
-  ($options=~ /m/ ) and $command="masterCopy";
+  $opt->{'m'} and $command="masterCopy";
 
   $self->info( "Adding the mirror $pfn");
   return $self->execute($command, $realLfn, $se, $pfn);

@@ -339,11 +339,16 @@ sub getAllInfoFromGUID{
 
   $options->{pfn} or return $info;
   $DEBUG and $self->debug(1,"Let's get also the pfn");
-  my $where=", $table g where p.guidId=g.guidId and guid=string2binary('$guid')";
-  $info->{guidId} and $where=" where guidId=$info->{guidId}";
-  my $pfn=$db->query("select seName, pfn from ${table}_PFN p, SE  $where and p.seNumber=SE.seNumber")
+  my $where=", $table g where p.guidId=g.guidId and guid=string2binary(?)";
+  my @bind=($guid, $guid);
+  if ($info->{guidId}){
+    $where=" where guidId=?";
+    @bind=($info->{guidId}, $info->{guidId});
+  }
+  my $pfn=$db->query("select seName, pfn from ${table}_PFN p, SE  $where and p.seNumber=SE.seNumber union select seName, '' as pfn from $table g, SE $where and seAutoStringlist like concat('%,',senumber , ',%')", undef ,{bind_values=>\@bind})
     or $self->info("Error doing the query $where") and return;
   $info->{pfn}=$pfn;
+
   return $info
 }
   
@@ -537,6 +542,7 @@ sub updateOrInsertGUID{
   my $self=shift;
   my $guid=shift;
   my $update=shift;
+  my $options=shift;
   
   my $newUp={};
   foreach (keys %$update){
@@ -560,19 +566,21 @@ sub updateOrInsertGUID{
     }
   }
   if ($newUp->{se}){
+    my $column="seStringlist";
+    $options->{autose} and $column="seAutoStringlist";
     $self->debug(1, "Trying to update the SE to $update->{se}");
 
-    $newUp->{seStringlist}=",";
+    $newUp->{$column}=",";
     if ($newUp->{se} ne "none"){
       my @ses=split (/,/, $update->{se});
       foreach (@ses) {
 	my $newSE=$self->getSENumber($_)
 	  or $self->info("Error getting the SeNumber of $_") and return;
-	$newUp->{seStringlist}="$newUp->{seStringlist}$newSE,";
+	$newUp->{$column}="$newUp->{$column}$newSE,";
       }
     }
     delete $newUp->{se};
-    $self->debug(1, "Settintg the senumber to $newUp->{seStringlist}");
+    $self->debug(1, "Settintg the senumber in $column to $newUp->{$column}");
   }
 
   delete $newUp->{guid};

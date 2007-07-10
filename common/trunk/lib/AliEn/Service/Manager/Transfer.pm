@@ -73,7 +73,10 @@ sub enterTransfer {
     $self->info( "Entering a new transfer" );
     
     #emir:
-    my $procid = $self->{DB}->insertTransferLocked($date, $user, $lfn, $pfn, $destination, $type) or
+    my $info={received=>$date, user=>$user, lfn=>$lfn, pfn=>$pfn,
+	      destination=>$destination, type=>$type};
+    $arguments->{transferGroup} and $info->{transferGroup}=$arguments->{transferGroup};
+    my $procid = $self->{DB}->insertTransferLocked($info) or
       $self->{LOGGER}->error( "TransferManager", "In enterTransfer insertion of a new transfer failed" )
 		and return (-1, "in enterTransfer inserting a new transfer");
 
@@ -101,8 +104,12 @@ sub changeStatusTransfer {
 
   my ($done, $newJDL)=$self->getNewRequirements($status, $id, $options);
 	
-  $done or return (-1, "In changeStatusTransfer getting the new requirements");
-
+  if (!$done){
+    $status=~  /^KILLED/ or 
+      return (-1, "In changeStatusTransfer getting the new requirements");
+    $self->info("Ok, we just want to kill it...");
+    $newJDL="";
+  }
 	# temporary solution!!!
 	#my @tmpArr = split($newJDL,"=");
 
@@ -126,7 +133,14 @@ sub changeStatusTransfer {
   $self->info( "Change done");
   
   ($status eq "DONE") and $self->updateCatalogue($id);
-
+  if ($status =~ /^(DONE)|(FAILED)|(KILLED)$/){
+    my $father=$self->{DB}->queryValue("SELECT transferGroup from TRANSFERS where transferId=?", undef, {bind_values=>[$id]});
+    if ($father){
+      $self->info("This is a final status. Updating the father");
+      $father.=",";
+      $self->{DB}->do("update ACTIONS set todo=1, extra=concat(replace(extra,?, ''), ?)where action='MERGING'", {bind_values=>[$father, $father]});
+    }
+  }
   return 1;
 }
 
@@ -296,24 +310,31 @@ sub resubmitTransfer {
 
     return 1;
 }
+sub listTransfer_HELP{
+  my $self=shift;
+
+  return "listTransfer: returns all the transfers that are waiting in the system
+\tUsage:
+\t\tlistTransfer [-status <status>] [-user <user>] [-id <queueId>] [-verbose] [-master] [-summary]
+";
+}
 
 sub listTransfer {
   my $this=shift;
   $self->info("Checking the list of transfers @_"); 
   my $args =join (" ", @_);
   my $date = time;
-
-  my $usage="\n\tUsage: listTransfer [-status <status>] [-user <user>] [-id <queueId>] [-all_status]";
-
+  
   $self->info( "Asking for the transfers..." );
-
+  
   if ($args =~ /-?-h(elp)/) {
     $self->info("Returning the help message of top");
-    return ("listTransfer: Gets the list of transfers$usage");
+    return $self->listTransfer_HELP();
   }
   my $where=" WHERE 1";
   my $columns="transferId, status, destination, user, size,started, received, finished ";
   my $all_status=0;
+  my $master=0;
   my $error="";
   my $data;
 
@@ -330,8 +351,9 @@ sub listTransfer {
 
   while (@_) {
     my $argv=shift;
-
-    ($argv=~ /^-?-all_status=?/) and $all_status=1 and  next;
+    ($argv=~ /^-?-summary$/) and next;
+    ($argv=~ /^-?-verbose=?/) and $all_status=1 and  next;
+    ($argv=~ /^-?-master=?/) and $master=1 and  next;
     my $found;
     foreach my $column (@columns){
       if ($argv=~ /^-?-$column->{pattern}$/ ){
@@ -348,13 +370,24 @@ sub listTransfer {
     push @{$data->{$type}}, "$found->{start}$value$found->{end}";
   }
   if ($error) {
-    my $message="Error in top: $error\n$usage";
+    my $message="Error in top: $error\n".$self->listTransfer_HELP();
     $self->{LOGGER}->error("JobManager", $message);
     return (-1, $message);
   }
 
   foreach my $column (@columns){
     $data->{$column->{name}} or next;
+    if ($master and $column->{name} eq "id"){
+      $self->info("We want to return all the transfers of parent id ");
+      my @new=();
+      foreach my $entry ( @{$data->{$column->{name}}} ){
+	push @new, $entry;
+	$entry=~ s/transferid/transferGroup/;
+	push @new, $entry;
+      }
+      $data->{id}=\@new;
+      $self->info("NOW WE HAVE");
+    }
     $where .= " and (".join (" or ", @{$data->{$column->{name}}} ).")";
   }
   $all_status or $data->{status} or $data->{id} or $where.=" and ( status!='FAILED' and status !='DONE' and status !='KILLED')";
@@ -390,6 +423,11 @@ sub killTransfer {
 	or die("User $user not allowed to kill the transfer of $rresult->{user}\n");
       $rresult->{status}=~ /KILLED/ and 
 	die("The transfer is already killed\n");
+      my $children=$self->{DB}->getActiveSubTransfers($transferId);
+      if ($children and @$children){
+	$self->info("Let's kill the subtransfers of this transfer");
+	$self->killTransfer($user, @$children);
+      }
       $self->changeStatusTransfer($transferId, 'KILLED') or 
 	die ("Error updating the database");
     };

@@ -590,18 +590,20 @@ sub eraseFile {
 
 sub listTransfer {
   my $self=shift;
+  my $doSummary=grep (/^-?-summary$/, @_);
   $self->info("Checking the transfer @_");
   my $done=$self->{SOAP}->CallSOAP("Manager/Transfer", "listTransfer", @_)
     or return;
 
   my $result=$done->result;
   $result=~ /^listTransfer: Gets the list of transfers/ and
-    return $self->info( $result);
+    return;
 
   my $message="TransferId\tStatus\t\tUser\t\tDestination\t\t\tSize\t\tSource\n";
   my $format="%6s\t\t%-8s\t%-10s\t%-15s\t\t%-12i\t\%12s";
   my @transfers = @$result;
- 
+  my $summary="";
+  my $info={};
   foreach my $transfer (@transfers) {
     $DEBUG and $self->debug(3, Dumper($transfer));
     my (@data ) = ($transfer->{transferId},
@@ -616,6 +618,18 @@ sub listTransfer {
 
     my $string=sprintf "$format", @data;
     $message.="$string\n";
+    if ($doSummary){
+      my $number=1;
+      $info->{$transfer->{status}} and $number+=$info->{$transfer->{status}};
+      $info->{$transfer->{status}}=$number;
+    }
+  }
+  if ($doSummary){
+    $message.="\n\nSummary of all the transfers:\n";
+    $self->debug(4,"Ready to do the summary");
+    foreach my $status (keys %$info){
+      $message.="\t\t$status -> $info->{$status}\n";
+    }
   }
   $self->info( $message,undef,0);
 

@@ -62,7 +62,8 @@ sub initialize {
 			   id=>"transferId",
 			   index=>"transferId"},
 	       ACTIONS=>{columns=>{action=>"char(40) not null primary key",
-				   todo=>"int(1) not null default 0"},
+				   todo=>"int(1) not null default 0",
+				   extra=>"varchar(255) default ''",},
 			 id=>"action",
 			 }
 	     };
@@ -72,37 +73,28 @@ sub initialize {
   }
   AliEn::Util::setupApMon($self);
 
-  return $self->do("INSERT IGNORE INTO ACTIONS(action) values  ('INSERTING')");
+  return $self->do("INSERT IGNORE INTO ACTIONS(action) values  ('INSERTING'),('MERGING')");
 }
 sub insertTransferLocked {
   my $self = shift;
-  my ($date, $user, $lfn, $pfn,$destination,$type) = @_;
-
-  $self->debug(1,"In insertTransferLocked locking table TRANSFERS");
+  my $info = shift;
+  $info->{status}="INSERTING";
 
   $self->lock("TRANSFERS");
-
-  $self->debug(1,"In insertTransferLocked inserting data: ".($date or "").", ".($user or "").", ".($lfn or "").", ".($pfn or "").", ".($destination or "").", ".($type or "") );
-  unless($self->insert("TRANSFERS",{received=>$date, user=>$user, status=> "INSERTING", lfn=>$lfn, pfn=>$pfn, destination=>$destination, type=>$type})){
+  my $lastID=0;
+  if ($self->insert("TRANSFERS",$info)){
+    $self->debug(1,"In insertTransferLocked fetching transferId");
+    $lastID = $self->getLastId();
+    ($lastID) or  $self->{LOGGER}->error("Transfer","In insertTransferLocked unable to fetch transferId. Unlocking table TRANSFER");
+  } else{
     $self->{LOGGER}->error("Transfer","In insertTransferLocked error inserting data. Unlocking table TRANSFER.");
-    $self->unlock();
-    return;
   }
-  
-  $self->debug(1,"In insertTransferLocked fetching transferId");
-  my $lastID = $self->getLastId();
-  
-  unless($lastID){
-    $self->{LOGGER}->error("Transfer","In insertTransferLocked unable to fetch transferId. Unlocking table TRANSFER");
-    $self->unlock();
-    return;
-  }
-
+  $self->unlock();
+  $lastID or return;
   $self->debug(1,"In insertTransferLocked transfer $lastID successfully inserted");
 
-  $self->unlock();
 
-  $self->sendTransferStatus($lastID, "INSERTING", {destination=>$destination, user=>$user, received=>$date});
+  $self->sendTransferStatus($lastID, "INSERTING", {destination=>$info->{destination}, user=>$info->{user}, received=>$info->{received}});
 
 
   $self->updateActions({todo=>1}, "action='INSERTING'");
@@ -260,7 +252,7 @@ sub isScheduled{
       and return;
 
   $self->debug(1,"In isScheduled checking if transfer of file $lfn to destination $destination is scheduled");
-  $self->queryValue("SELECT transferId FROM TRANSFERS WHERE lfn=? AND destination=? AND (status<>'FAILED' AND status<>'DONE' AND status <>'KILLED') ", undef, {bind_values=>[$lfn, $destination]});
+  $self->queryValue("SELECT transferId FROM TRANSFERS WHERE lfn=? AND destination=? AND ".$self->_transferActiveReq(), undef, {bind_values=>[$lfn, $destination]});
 }
 
 sub isWaiting{
@@ -348,7 +340,29 @@ sub sendTransferStatus {
   }
 }
 
+sub getTransfersToMerge{
+  my $self=shift;
+  $self->lock("ACTIONS");
+  my $value=$self->queryValue("SELECT extra from ACTIONS where action='MERGING'");
+  $self->SUPER::update("ACTIONS", {extra=>'', todo=>0}, "action='MERGING'");
+  $self->unlock();
+  $value or return;
+  $self->info("We have to investigate transfers $value");
+  my @list=split(/,/, $value);
+  return \@list;
+}
 
+sub getActiveSubTransfers{
+  my $self=shift;
+  my $id=shift;
+  my $info=$self->queryColumn("SELECT transferId from TRANSFERS where transfergroup=? and ". $self->_transferActiveReq(), undef, {bind_values=>[$id]});
+
+  
+}
+
+sub _transferActiveReq{
+  return "status<>'FAILED' AND status<>'DONE' AND status <>'KILLED'";
+}
 =head1 NAME
 
 AliEn::Database::Transfer
