@@ -323,6 +323,10 @@ sub GetJDL {
     $self->{PACKMAN}->setCatalogue($catalog);
   }else {
     $self->info("We couldn't get a catalogue... we won't be able to install packages manually");
+    $self->{PACKMAN}=undef;
+    delete $self->{PACKMAN};
+    
+    
   }
 
   while(1) {

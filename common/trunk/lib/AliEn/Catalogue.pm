@@ -1215,6 +1215,7 @@ sub f_find_HELP{
    g => file group query (has to be used together with -x -z)
    s => no sorting
    d => return also the directories
+   c => put the output in a collection - 2nd arg is the collection name
 ";
 }
 
@@ -1621,7 +1622,7 @@ sub f_find {
   #### standard to retrieve options with and without parameters
   my %options=();
   @ARGV=@_;
-  getopts("vzrp:o:l:x:g:sO:q:d",\%options);
+  getopts("vzrp:o:l:x:g:sO:q:dc:",\%options);
   @_=@ARGV;
   
   # option v => verbose
@@ -1749,8 +1750,15 @@ sub f_find {
     }
   }
 			   
+  if (defined $options{c}){
+    $self->createFindCollection($options{c}, \@result);
+  }
 
-  if (! defined $options{x}) {
+
+  if ( defined $options{x}) {
+    @result=$self->createFindXML($file,$cmdline,  \%options, \@result, \@filegroup);
+  }else{
+
     if ( !$self->{SILENT} ) {
       $quiet or (@result) or $verbose and print "No files found!!\n";
     }
@@ -1771,62 +1779,85 @@ sub f_find {
       return @plainresult;
     }
     ($total) and print "$total files found\n";
-
-
-  } else {
-    $DEBUG and $self->debug(1, "Setting xml dump collection name to $options{x}");
-    my $dumpxml = $options{x};
-
-    if ($options{O}) {
-      map { $_->{turl} = "alien://" . $_->{lfn} ."?$options{O}" ;} @result;
-    } else {
-      map { $_->{turl} = "alien://" . $_->{lfn};} @result;
-    }
-    
-    map { foreach my $lkey ( keys %{$_} ) { if (!defined $_->{$lkey}) {$_->{$lkey}="";}}} @result;
-    my @newresult;
-    map {
-      my $bname = $self->f_basename($_->{lfn});
-      my $dname = $self->f_dirname($_->{lfn});
-      my $newhash={}; 
-      $newhash->{$bname} = $_;
-      if ($options{g}) {
-	if ($bname eq $file) {
-	  push @newresult,$newhash;
-	}
-      } else {
-	push @newresult,$newhash;
-      }
-    } @result;
-      
-    foreach (@newresult)  {
-      my $filename;
-      for my $lkeys (keys %{$_}) {
-	$filename =$lkeys;
-      }
-      my $bname = $self->f_basename($_->{$filename}->{lfn});
-      my $dname = $self->f_dirname($_->{$filename}->{lfn});
-
-      if ($options{g}) {
-	for my $lfile (@filegroup) { 
-	  if (!defined $_->{$lfile}){
-	    
-	    $_->{$lfile}->{lfn}  = $dname."/".$lfile;
-	    $_->{$lfile}->{turl} = "alien://" . $dname ."/".$lfile;
-	  }
-	}
-      } 
-    }
-    $dumpxml =~ s/\"//g;
-    my $dataset = new AliEn::Dataset;
-    $dataset->setarray(\@newresult,"$dumpxml","[$self->{CURPATH}]: $cmdline","","","$self->{CONFIG}->{ROLE}");
-    $self->{DEBUG} and $dataset->print();
-    my $xml =  $dataset->writexml();
-    $self->{SILENT} or print $xml;
-    $result[0]->{xml} = $xml;
   }
 
   return @result;
+}
+
+sub createFindXML{
+  my $self=shift;
+  my $file=shift;
+  my $cmdline=shift;
+  my $ref=shift;
+  my $ref2=shift;
+  my $ref3=shift;
+  my %options=%$ref;
+  my @result=@$ref2;
+  my @filegroup=@$ref3;
+  $DEBUG and $self->debug(1, "Setting xml dump collection name to $options{x}");
+  my $dumpxml = $options{x};
+  
+  if ($options{O}) {
+    map { $_->{turl} = "alien://" . $_->{lfn} ."?$options{O}" ;} @result;
+  } else {
+    map { $_->{turl} = "alien://" . $_->{lfn};} @result;
+  }
+  
+  map { foreach my $lkey ( keys %{$_} ) { if (!defined $_->{$lkey}) {$_->{$lkey}="";}}} @result;
+  my @newresult;
+  map {
+    my $bname = $self->f_basename($_->{lfn});
+    my $dname = $self->f_dirname($_->{lfn});
+    my $newhash={}; 
+    $newhash->{$bname} = $_;
+    if ($options{g}) {
+      if ($bname eq $file) {
+	push @newresult,$newhash;
+      }
+    } else {
+      push @newresult,$newhash;
+    }
+  } @result;
+  
+  foreach (@newresult)  {
+    my $filename;
+    for my $lkeys (keys %{$_}) {
+      $filename =$lkeys;
+    }
+    my $bname = $self->f_basename($_->{$filename}->{lfn});
+    my $dname = $self->f_dirname($_->{$filename}->{lfn});
+
+    if ($options{g}) {
+      for my $lfile (@filegroup) { 
+	if (!defined $_->{$lfile}){
+	  
+	  $_->{$lfile}->{lfn}  = $dname."/".$lfile;
+	  $_->{$lfile}->{turl} = "alien://" . $dname ."/".$lfile;
+	}
+      }
+    } 
+  }
+  $dumpxml =~ s/\"//g;
+  my $dataset = new AliEn::Dataset;
+  $dataset->setarray(\@newresult,"$dumpxml","[$self->{CURPATH}]: $cmdline","","","$self->{CONFIG}->{ROLE}");
+  $self->{DEBUG} and $dataset->print();
+  my $xml =  $dataset->writexml();
+  $self->{SILENT} or print $xml;
+  $result[0]->{xml} = $xml;
+
+  return 1;
+}
+sub createFindCollection{
+  my $self=shift;
+  my $collec=shift;
+  my $filesRef=shift;
+  $self->f_createCollection($collec) or return;
+  foreach my $file (@$filesRef){
+    $file->{type}=~ /f/ or $self->info("Skipping $file->{lfn} (not a file)") and next;
+    $self->info("And now we have to add $file to the collection");
+    $self->f_addFileToCollection($file->{lfn}, $collec);
+  }
+  return 1;
 }
 
 sub f_revalidateToken {

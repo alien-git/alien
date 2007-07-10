@@ -128,7 +128,7 @@ sub updateCollection {
       foreach my $oldName (@se){
 	print "Checking $oldName in @tempSe\n";
 	grep (/^$oldName$/, @tempSe) 
-	  and $self->info("Putting $_") and push @andse, $oldName;
+	  and $self->info("Putting $oldName") and push @andse, $oldName;
       }
       @se=@andse;
     }
