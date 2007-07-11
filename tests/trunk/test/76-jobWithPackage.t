@@ -7,6 +7,7 @@ use AliEn::UI::Catalogue::LCM::Computer;
 use Net::Domain qw(hostname hostfqdn hostdomain);
 use AliEn::Service::PackMan;
 use Cwd;
+use AliEn::Util;
 
 BEGIN { plan tests => 1 }
 
@@ -84,7 +85,7 @@ sub addPackage{
   $cat->execute("addTag", "packages/$package/", "PackageDef") or return;
 
 
-  my $lfn="packages/$package/1.0/" . AliEn::Service::PackMan::getPlatform();
+  my $lfn="packages/$package/1.0/" . AliEn::Util::getPlatform();
   my $exists=$cat->execute("whereis", "-silent", $lfn);
   $exists and return 1;
 
