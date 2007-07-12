@@ -32,7 +32,7 @@ sub get {
 
   $self->debug(1,"Trying to get the file $self->{PARSED}->{ORIG_PFN} (to $self->{LOCALFILE})");
   $self->{PARSED}->{PATH}=~ s{^//}{/};
-  my $command="xrdcp root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH} $self->{LOCALFILE} -OD\\&authz=alien -OS\\&authz=alien -DIFirstConnectMaxCnt 1";
+  my $command="xrdcp root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH} $self->{LOCALFILE} -DIFirstConnectMaxCnt 1";
 
   # At the moment, xrdcp doesn't return properly. Let's check if the file exists
   $self->_execute($command);
