@@ -384,7 +384,7 @@ sub getParentDir {
 }
 sub updateLFN {
   my $self=shift;
-  $self->info("*********************Inn updateFile with @_");
+  $self->debug(2,"In updateFile with @_");
   my $file=shift;
   my $update=shift;
 
@@ -1766,16 +1766,17 @@ sub addFileToCollection {
   my $self=shift;
   my $filePerm=shift;
   my $collPerm=shift;
+  my $info=shift || {};
   my $collId=$self->queryValue("SELECT collectionId from COLLECTIONS where collGUID=string2binary(?)", undef, {bind_values=>[$collPerm->{guid}]}) or
     $self->info("Error getting the collection id of $collPerm->{lfn}") and 
       return;
 
-  
-  
-  my $done=$self->insert("COLLECTIONS_ELEM", {collectionId=>$collId,
-						origLFN=>$filePerm->{lfn},
-						guid=>$filePerm->{guid}}, 
-		       {functions=>{guid=>"string2binary"},silent=>1});
+  $info->{collectionId}=$collId;
+  $info->{origLFN}=$filePerm->{lfn};
+  $info->{guid}=$filePerm->{guid};
+
+  my $done=$self->insert("COLLECTIONS_ELEM", $info,
+			 {functions=>{guid=>"string2binary"},silent=>1});
 
   if (!$done){
     if ( $DBI::errstr=~ /Duplicate entry '(\S+)'/ ){
@@ -1794,7 +1795,7 @@ sub  getInfoFromCollection {
   my $self=shift;
   my $collGUID=shift;
   $self->info("Getting all the info of '$collGUID'");
-  return $self->query("SELECT origLFN, binary2string(guid) as guid from COLLECTIONS c, COLLECTIONS_ELEM e where c.collectionId=e.collectionId and collGUID=string2binary(?)", undef, {bind_values=>[$collGUID]});
+  return $self->query("SELECT origLFN, binary2string(guid) as guid,data, localName from COLLECTIONS c, COLLECTIONS_ELEM e where c.collectionId=e.collectionId and collGUID=string2binary(?)", undef, {bind_values=>[$collGUID]});
 }
 
 sub removeFileFromCollection{

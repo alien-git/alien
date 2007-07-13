@@ -91,10 +91,11 @@ sub getLocalCopy {
 	if ( $md5sum eq $data->{md5sum}){
 	  $DEBUG and $self->debug(1, "Giving back the local copy $file" );
 	  $localFile or return $file;
-	  $DEBUG and $self->debug(1, "Copying $file to $localFile" );
-	  if ($data ne $localFile) {
+	  $DEBUG and $self->debug(1, "Copying '$file' to '$localFile'" );
+	  if ($file ne $localFile) {
+	    $self->info("They are not the same ??\n");
 	    (AliEn::MSS::file::cp({},$file, $localFile )) 
-	      and print STDERR "ERROR copying $data to $localFile $!\n" 
+	      and print STDERR "ERROR copying $file to $localFile $!\n" 
 		and return;
 	  }
 	  return $localFile;

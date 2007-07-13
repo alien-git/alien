@@ -72,6 +72,7 @@ my %LCM_commands;
 		 'mirror'   => ['$self->mirror', 0],
 		 'cat'      => ['$self->cat', 0],
 		 'less'      => ['$self->less', 0],
+		 'head'      => ['$self->head', 0],
 		 'addTag'   => ['$self->addTag', 0],
 		 'access'   => ['$self->access', 0],
 		 'resolve'  => ['$self->resolve', 0],
@@ -279,6 +280,10 @@ sub get {
 
     $file=$info->{lfn};
     $guidInfo=$info->{guidInfo};
+    if ($info->{type} eq "c"){
+      $self->info("This is in fact a collection!! Let's get all the files");
+      return $self->getCollection($info);
+    }
     ######################################################################################
     #get the authorization envelope and put it in the IO_AUTHZ environment variable
     my @envelope = $self->access("-s","read","$file");
@@ -319,6 +324,25 @@ sub get {
   $self->info("And the file is $result",0,0);
   return $result;
 }
+
+sub getCollection{
+  my $self=shift;
+  my $info=shift;
+  $self->info("We have to get all the files from $info");
+  my ($files)=$self->execute("listFilesFromCollection", $info->{lfn})
+    or $self->info("Error getting the list of files from the collection") and return;
+  my @return;
+  foreach my $file (@$files){
+    $self->info("Getting the file $file->{guid} from the collection");
+    my $localName=$file->{localName} || "";
+    my ($fileName)=$self->execute("get", "-g", $file->{guid}, $localName);
+    $self->info("Got the file $file->{guid}");
+    push @return, $fileName;
+  }
+  $self->info("Got ". join (",",(map {$_ ? $_  : "<error>"} @return ))." and $#return");
+  return \@return;
+}
+  
 
 sub cachefilename {
     my $self = shift;
@@ -686,6 +710,10 @@ sub cat {
 sub less {
   my $self=shift;
   return $self->f_system_call("less", @_);
+}
+sub head {
+  my $self=shift;
+  return $self->f_system_call("head", @_);
 }
 
 sub f_system_call{

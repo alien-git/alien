@@ -565,7 +565,7 @@ sub updateOrInsertGUID{
       return;
     }
   }
-  if ($newUp->{se}){
+  if (defined $newUp->{se}){
     my $column="seStringlist";
     $options->{autose} and $column="seAutoStringlist";
     $self->debug(1, "Trying to update the SE to $update->{se}");
