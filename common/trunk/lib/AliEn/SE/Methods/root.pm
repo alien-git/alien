@@ -47,6 +47,7 @@ sub put {
   my $self=shift;
   $self->debug(1,"Trying to put the file $self->{PARSED}->{ORIG_PFN} (from $self->{LOCALFILE})");
 
+  $self->{PARSED}->{PATH}=~ s{^//}{/};
   my $command="xrdcp -np -v $self->{LOCALFILE} root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH} -DIFirstConnectMaxCnt 1";
 
 #  my $error = $self->_execute($command);

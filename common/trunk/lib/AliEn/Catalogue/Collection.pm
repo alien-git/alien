@@ -68,16 +68,29 @@ sub f_createCollection {
 sub f_addFileToCollection_HELP{
   return "addFileToCollection: inserts a file into a collection of files
 Usage:
-\taddFileToCollection <lfn> <collection>
+\taddFileToCollection [-g] [-name <name>]  <file> <collection> [<extra>]
+Options:
+\t\t-g: use the file as guid instead of lfn
+
 ";
 }
 sub f_addFileToCollection {
   my $self=shift;
+  my $opt={};
 
-  my ($permFile, $permColl)=$self->_checkFileAndCollection(shift,shift) or return;
+  @ARGV=@_;
+  Getopt::Long::GetOptions($opt,  "g", "name=s", ) or 
+      $self->info("Error parsing the arguments to addFileToCollection") and return;;
+  @_=@ARGV;
+  my $options=join("", keys %$opt);
+  
+  my ($permFile, $permColl)=$self->_checkFileAndCollection(shift,shift, $options) or return;
+  my $extra=join(" ", @_);
 
-  $self->{DATABASE}->addFileToCollection($permFile, $permColl) or return;
-  $self->info( "File '$permFile->{lfn}' added to the collection!");
+  $self->{DATABASE}->addFileToCollection($permFile, $permColl, {localName=>$opt->{name}, data=>$extra}) or return;
+  my $name=$permFile->{lfn};
+  $opt->{g} and $name=$permFile->{guid};
+  $self->info( "File '$name' added to the collection!");
   return $self->updateCollection("",$permColl);
 }
 sub updateCollection_HELP{
@@ -88,7 +101,7 @@ Usage:
 
 Possible options:
 
-By default, it checks the SE that contains all the files of the collection
+By default, it checks the SE that contains all the files of the collection and the size of the collection
 ";
 }
 sub updateCollection {
@@ -110,32 +123,40 @@ sub updateCollection {
     $self->info("$coll is not a collection of files");
     return
   }
-  $self->info("At some point we should update the SE's of a collection");
+  $self->debug(1,"Ready to update the collection");
 
   my $info=$self->{DATABASE}->getInfoFromCollection($permColl->{guid})
     or $self->info("Error getting the info for $coll") and return;
 
   my @se;
   my $first=1;
+  my $size=0;
   foreach my $file (@$info){
-    my @tempSe=$self->f_whereis("slrg", $file->{guid});
+    use Data::Dumper;
+    my $info=$self->f_whereis("slrgi", $file->{guid});
+    my @tempSe;
+    map {push @tempSe, $_->{seName}} @{$info->{pfn}};
+
+    $size+=$info->{size};
     if ($first){
       @se=@tempSe;
       $first=0;
     }else {
       my @andse;
-      $self->info("at the beginning, old (@se) new (@tempSe)");
+      $self->debug(1,"at the beginning, old (@se) new (@tempSe)");
       foreach my $oldName (@se){
-	print "Checking $oldName in @tempSe\n";
+	$self->debug(2,"Checking $oldName in @tempSe");
 	grep (/^$oldName$/, @tempSe) 
-	  and $self->info("Putting $oldName") and push @andse, $oldName;
+	  and $self->debug(1,"Putting $oldName") and push @andse, $oldName;
       }
       @se=@andse;
     }
     @se or $self->info("So far, there are no SE that contain all the files") and last;
   }
   $self->info("All the files of this collection are in the SE: @se");
-  $self->{DATABASE}->updateFile($coll, {se=>join(",", @se)}, {autose=>1});
+  $self->{DATABASE}->updateFile($coll, {size=>$size, 
+					se=>join(",", @se)}, 
+				{autose=>1});
 
   return 1;
 }
@@ -167,7 +188,11 @@ sub f_listFilesFromCollection{
 
   my $message="";
   foreach my $file (@{$info}){
-    $message.="\t$file->{guid} (from the file $file->{origLFN})\n";
+    $message.="\t$file->{guid}";
+    $file->{origLFN} and $message.="  (from the file $file->{origLFN})";
+    $file->{localName} and $message.=" (will save as '$file->{localName}')";
+    $file->{data} and $message.=" (extra info '$file->{data}')";
+    $message.="\n";
   }
   $self->info($message,undef, 0);
   return $info;
@@ -178,15 +203,23 @@ sub _checkFileAndCollection{
   my $self=shift;
   my $lfn=shift;
   my $collection=shift;
- 
-  $lfn = $self->f_complete_path($lfn);
+  my $opt=shift;
+  my $permFile;
+  if ($opt=~ /g/){
+    $self->info("The file '$lfn' is in fact the guid");
+    $permFile=$self->getInfoFromGUID($lfn)
+      or return;
+  }else{
+    $lfn = $self->f_complete_path($lfn);
+    $permFile=$self->checkPermissions( 'r', $lfn, undef, {RETURN_HASH=>1} )  or  return;
+    if (! $self->isFile($lfn, $permFile->{lfn}) ) {
+      $self->info("file $lfn doesn't exist!!",1);
+      return;
+    }
+  }
+  $self->info("And now, let's check the collection $collection");
   $collection = $self->f_complete_path($collection);
 
-  my $permFile=$self->checkPermissions( 'r', $lfn, undef, {RETURN_HASH=>1} )  or  return;
-  if (! $self->isFile($lfn, $permFile->{lfn}) ) {
-    $self->info("file $lfn doesn't exist!!",1);
-    return;
-  }
 
   my $permColl=$self->checkPermissions( 'w', $collection, undef, {RETURN_HASH=>1} )  or  return;
   if (! $self->isCollection($collection, $permColl)){
@@ -195,11 +228,21 @@ sub _checkFileAndCollection{
   }
   return ($permFile, $permColl);
 }
+sub f_removeFileFromCollection_HELP{
+  return "removeFileFromCollection: removes a file from a collection
+Usage:
+\tremoveFileFromCollection [-g] <file> <collection>
+
+Options:
+\t\t-g:\t use the file as guid instead of lfn
+";
+}
 
 sub f_removeFileFromCollection{
   my $self=shift;
-
-  my ($permFile, $permColl)=$self->_checkFileAndCollection(shift,shift) or return;
-  return $self->{DATABASE}->removeFileFromCollection($permFile, $permColl);
+  my $opt=shift;
+  my ($permFile, $permColl)=$self->_checkFileAndCollection(shift,shift, $opt) or return;
+  my $done=$self->{DATABASE}->removeFileFromCollection($permFile, $permColl) or return;
+  return $self->updateCollection("",$permColl);
 }
 1;
