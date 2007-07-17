@@ -435,4 +435,19 @@ sub getPlatform
   return $platform;
 }
 
+sub mkdir{
+  my $dir=shift;
+  my $mode=shift || 0755;
+  if (! -d $dir){
+    my $dir2="";
+    foreach ( split ( "/", $dir ) ) {
+      $dir2 .= "/$_";
+      (-d $dir2) and next;
+      mkdir $dir2, $mode;
+    }
+  }
+  (-d $dir) and return 1;
+  return;
+}
+
 return 1;
