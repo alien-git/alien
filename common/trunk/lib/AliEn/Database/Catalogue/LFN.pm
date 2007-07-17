@@ -947,7 +947,10 @@ sub grantBasicPrivilegesToUser {
     or return;
 
   my $rprivileges = ["SELECT ON $db.*",
-		     "INSERT, DELETE ON $db.TAG0"];
+		     "INSERT, DELETE ON $db.TAG0", 
+		     "INSERT, DELETE, UPDATE on $db.COLLECTIONS",
+		     "INSERT, DELETE, UPDATE on $db.COLLECTIONS_ELEM",
+		    ];
 
 
   $DEBUG and $self->debug(2,"In grantBasicPrivilegesToUser granting privileges to user $user"); 

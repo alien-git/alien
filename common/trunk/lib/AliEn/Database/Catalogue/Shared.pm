@@ -40,7 +40,7 @@ sub initialize {
   my $dbindex="$self->{CONFIG}->{ORG_NAME}_$self->{CURHOSTID}";
 
   $Connections{$self->{UNIQUE_NM}}->{$dbindex}=$self;
-  $self->{VIRTUAL_ROLE}=$self->{ROLE};
+  $self->{VIRTUAL_ROLE} or $self->{VIRTUAL_ROLE}=$self->{ROLE};
   return $self->SUPER::initialize(@_);
 }
 
