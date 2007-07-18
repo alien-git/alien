@@ -79,7 +79,7 @@ sub updateInserting {
       $req.=" $entry =$info;\n";
     }
 
-    $self->{DB}->insertJobAgent($req)
+    $set->{agentId}=$self->{DB}->insertJobAgent($req)
       or die("error creating the jobagent entry\n");
   };
   my $return=1;

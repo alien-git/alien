@@ -43,6 +43,26 @@ sub initialize {
   $self->SUPER::initialize($options) or return;
 
 }
+
+sub getJobIdFromAgentId {
+  my $self=shift;
+  my $agentId=shift;
+  my $cache=shift;
+
+  if (!$cache){
+    $self->info("Getting the jobids for jobagent '$agentId'");
+    my $data=AliEn::Util::returnCacheValue($self, "WaitingJobsFor$agentId");
+    if (! $data){
+      $data=$self->{DB}->query("select queueid as id, jdl from QUEUE where agentid=? and STATUS='WAITING'", undef, {bind_values=>[$agentId]});
+    }
+    $self->info("There are $#$data entries for that jobagent");
+    return @$data;
+  }
+  $self->info("For the next time that this thing is called, putting the info in the cache");
+  ( $#$cache>100) or $cache=undef;
+  AliEn::Util::setCacheValue($self, "WaitingJobsFor$agentId", $cache);
+  return 1;
+}
 #
 # This function is called when a jobAgent starts, and tries to get a task
 #
@@ -53,7 +73,7 @@ sub getJobAgent {
   my $site_jdl = shift;
 
   my $date = time;
-  print "\n";
+  #DO NOT PUT ANY print STATEMENTS!!! Otherwise, it doesn't work with an httpd container
   $self->info( "In findjob finding a job for $host");
 
   $self->{DB}->updateHost($host,{status=>'ACTIVE', date=>$date})
@@ -62,7 +82,14 @@ sub getJobAgent {
 
   $self->info( "Getting the list of jobs");
   #my ($list) = $self->{DB}->getWaitingJobs("priority desc, queueId","-1");
-   my ($list) = $self->{DB}->getWaitingJobs("effectivePriority desc, queueId","-1");
+#   my ($list) = $self->{DB}->getWaitingJobs("effectivePriority desc, queueId","-1");
+  my $list=AliEn::Util::returnCacheValue($self, "listWaitingJA");
+  if ($list) {
+    $self->info( "Using the list of entries from the cache");
+  } else {
+    $self->info("Getting again the list of waiting jobs from the database");
+    ($list) = $self->{DB}->getWaitingJobAgents("effectivePriority desc, queueId","-1");};
+
   defined $list                              
     or $self->{LOGGER}->warning( "JobBroker", "In findjob error during execution of database query" )
       and return;
@@ -82,7 +109,7 @@ sub getJobAgent {
   my ($ok, $msg)=$self->checkQueueOpen($site_ca);
   $ok or return (-1, $msg);
 
-  my ($queueId, $job_ca, $jdl)=$self->match( "queue", $site_ca, $list, $user, $host , "checkPackagesToInstall");
+  my ($queueId, $job_ca, $jdl)=$self->match( "agent", $site_ca, $list, $user, $host , "checkPackagesToInstall", 0,"getJobIdFromAgentId");
   $queueId or 
     $self->info( "No job matches '$site_jdl'") and 
       return (-1, "No jobs waiting in the queue");
@@ -110,6 +137,12 @@ sub getJobAgent {
   my $jobUser = $result->{user};
   
   $self->debug(1, "In requestCommand $jobUser token is $token" );
+  if ($#$list >100){
+    $self->debug(1, "Keeping the list of jobs in the cache");
+    AliEn::Util::setCacheValue($self, "listWaitingJA", $list);
+  }else {
+    AliEn::Util::setCacheValue($self, "listWaitingJA", undef);
+  }
 
   $self->info(  "Command $queueId sent to $host" );
 
@@ -260,7 +293,7 @@ sub offerAgent {
   $ok or return (-1, $msg);
 
 
-  my ($dbAgents)=$self->{DB}->query("SELECT * from JOBAGENT");
+  my ($dbAgents)=$self->{DB}->getWaitingJobAgents();
 
   if (!$dbAgents  ){
     $self->info( "Error getting the entries from the queue");
@@ -268,9 +301,8 @@ sub offerAgent {
   }
   $self->info( "Got the list of needed agents");
   foreach my $element (@$dbAgents) {
-    my $jdl="[ $element->{requirements} Type=\"Job\" ]";
-    $self->debug(1, "Checking the jdl of $element $jdl");
-    my $job_ca = Classad::Classad->new($jdl);
+    $self->debug(1, "Checking the jdl of $element->{jdl}");
+    my $job_ca = Classad::Classad->new($element->{jdl});
     if ( !$job_ca->isOK() ) {
       $self->info( "Error creating the jdl ");
       next;
@@ -281,10 +313,10 @@ sub offerAgent {
     #If after starting all these job agents, we still have some free slots,
     #we have to keep doing the matching
     if ($element->{counter}<$free_slots) {
-      push @jobAgents, [$element->{counter}, $jdl];
+      push @jobAgents, [$element->{counter}, $element->{jdl}];
       $free_slots-=$element->{counter};
     }else {
-      push @jobAgents, [$free_slots, $jdl];
+      push @jobAgents, [$free_slots, $element->{jdl}];
       last;
     }
   }
@@ -308,7 +340,7 @@ sub putlog {
   my $queueId=shift;
   my $status=shift;
   my $message=shift;
-  return $self->{LOCALJOBDB}->insertMessage($queueId, $status,$message);
+  return $self->{LOCALJOBDB}->insertMessage($queueId, $status,$message,0);
 }
 
 

@@ -8,6 +8,7 @@ $| = 1;
 use AliEn::Service;
 use strict;
 use AliEn::UI::Catalogue;
+use AliEn::Util;
 
 use Classad;
 
@@ -108,58 +109,75 @@ sub match {
   my $arg2  = shift;
   my $function=shift;
   my $counter=shift || 1;
+  my $findIdFunction=shift;
   $self->info( "Checking $type");
 
   my $text = $site_ca->asJDL();
 
   $self->debug(1, "in match site_ca=$text" );
   my @toReturn=();
-  foreach my $element (@$pendingElements) {
-
+  for (my $currentJob=0; $currentJob<=$#$pendingElements; $currentJob++) {
+    my $element=$$pendingElements[$currentJob];
     my $id = $element->{"${type}Id"};
 
     $self->debug(1, "in match pending$type = $id" );
 
     my $job_ca = Classad::Classad->new($element->{jdl});
-
+    $self->info("CHecking $element->{jdl}");
     if ( !$job_ca->isOK() ) {
       $self->{LOGGER}->error( "Broker", "Got an incorrect $type ca ($id)");
       $self->{DB}->updateStatus($id,"%", "INCORRECT");
+      splice(@$pendingElements, $currentJob,1);
       next;
     }
 
     my ( $match, $rank ) = Classad::Match( $job_ca, $site_ca );
 
     if ($match) {
-      my $ret1=$job_ca;
-      my $ret2="";
-      $self->debug(1, "Got returning arguments for  $id: $ret1");
-
+      my @possibleIds=({id=>$id, classad=>$job_ca, });
       if($type eq "queue"){
-	$element->{jdl} =~ s/\s+/ /g;
-	$ret2 = $element->{jdl};
-      }
-      $self->debug(1, "Got returning arguments for job $id: $ret1,$ret2");
-      if ($function) {
-	$self->debug(1, "Before returning, let's check if the extra function $function thinks everything is ok");
-	my @return=$self->$function($job_ca);
-	if ($return[0] ne "1"){
-	  $self->info("$function didn't return 1. We don't assign the task");
-	  return @return;
-	}
+	$possibleIds[0]->{jdl}=$element->{jdl};
+	$possibleIds[0]->{jdl}=~ s/\s+/ /g;
       }
 
-      $self->debug(1, "Checking if the $type is still free");
-      
-      if ( $self->{DB}->assignWaiting($id,$arg1,$arg2,$text)){
-	$self->debug(1, "$id successfully assigned");
-	push @toReturn, ($id, $ret1, $ret2);
-	$counter--;
-	$counter>0 or return @toReturn;
-	$self->info("We found one match, but we are still looking for other $counter");
-	
-      } else {
-	$self->debug(1, "$type has already been given");
+      if ($findIdFunction){
+	@possibleIds=$self->$findIdFunction($id);
+      }
+      $self->info("Checking all the possible Ids");
+      while (@possibleIds){
+	my $item=shift @possibleIds;
+	$self->$findIdFunction($id, \@possibleIds);
+	my $ret1=$item->{classad};
+	my $ret2=$item->{jdl};
+	my $realId=$item->{id};
+	if (!$ret1 ){
+	  $self->info("Creating the classad of $item->{jdl}");
+	  $ret1=$item->{classad}= Classad::Classad->new($element->{jdl});
+	  ($ret1 and $ret1->isOK())
+	    or $self->info("Error creating the jdl") and next;
+	}
+	$self->debug(1, "Got returning arguments for  $realId: $ret1");
+	if ($function) {
+	  $self->debug(1, "Before returning, let's check if the extra function $function thinks everything is ok");
+	  my @return=$self->$function($ret1);
+	  if ($return[0] ne "1"){
+	    $self->info("$function didn't return 1. We don't assign the task");
+	    return @return;
+	  }
+	}
+
+	$self->debug(1, "Checking if the $type is still free");
+	splice(@$pendingElements, $currentJob,1);
+	if ( $self->{DB}->assignWaiting($realId,$arg1,$arg2,$text)){
+	  $self->debug(1, "$realId successfully assigned");
+	  push @toReturn, ($realId, $ret1, $ret2);
+	  $counter--;
+	  $counter>0 or return @toReturn;
+	  $self->info("We found one match, but we are still looking for other $counter");
+	  
+	} else {
+	  $self->debug(1, "$type has already been given");
+	}
       }
     }
   }

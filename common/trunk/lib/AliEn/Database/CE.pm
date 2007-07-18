@@ -116,13 +116,15 @@ sub insertMessage {
   my $jobId=shift;
   my $tag=shift; 
   my $message=shift;
+  my $update=shift;
+  defined $update or $update=1;
   my $time=time;
   $self->debug(1,"The message is \'$jobId\', \'$message\', \'$tag\', \'$time\'");
   my $done= $self->insert("MESSAGES", {jobId=>$jobId, procinfo=>$message,
 			     tag=>$tag,  timestamp=>$time});
 
   $done or return;
-
+  $update or return 1;
   $self->updateJobAgent({jobId=>$jobId},"jobId= ?", {bind_values=>[$jobId]});
 }
 
