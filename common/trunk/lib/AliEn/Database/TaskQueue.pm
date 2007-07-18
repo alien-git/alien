@@ -78,11 +78,12 @@ sub initialize {
 		    masterjob=>"int(1) default 0",
 	            price=>"float",
 	            effectivePriority=>"float",
-	            finalPrice=>"float",};
+	            finalPrice=>"float",
+		    agentid=>'int(11)'};
   my $tables={ QUEUE=>{columns=>$queueColumns,
 		       id=>"queueId",
 		       index=>"queueId",
-		       extra_index=>["INDEX (split)", "INDEX (status)"]},
+		       extra_index=>["INDEX (split)", "INDEX (status)", "INDEX(agentid)"]},
 	       QUEUEPROC=>{
 			   columns=>{queueId=>"int(11) not null auto_increment primary key",
 				     runtime =>"varchar(20)",
@@ -114,9 +115,11 @@ sub initialize {
 				    counter=>"int(11) not null default 0",
 				    afterTime=>"time",
 				    beforeTime=>"time",
+				    priority=>"int(11)",
 				   },
 			  id=>"entryId",
 			  index=>"entryId",
+			  extra_index=>["INDEX(priority)"],
 			 },
 	       SITES=>{columns=>{siteName=>"char(255)",
 				 siteId =>"int(11) not null auto_increment primary key",
@@ -367,16 +370,22 @@ sub deleteFromQueue{
   $self->delete("$self->{QUEUETABLE}",@_);
 }
 
-sub getWaitingJobs{
-  my $self = shift;
-  my $order = shift;
-  my $minpriority = (shift or "-128");
-  $order and $order = " ORDER BY $order" or $order = "";
+#sub getWaitingJobs{
+#  my $self = shift;
+#  my $order = shift;
+#  my $minpriority = (shift or "-128");
+#  $order and $order = " ORDER BY $order" or $order = "";
+#
+#  $DEBUG and $self->debug(1, "In getWaitingJobs fetching attributes queueId,jdl for waiting jobs");
+#  $self->query("SELECT queueId, jdl FROM $self->{QUEUETABLE} WHERE status='WAITING' AND jdl IS NOT NULL AND priority > ? $order", undef, {bind_values=>[$minpriority]});
+#}
 
-  $DEBUG and $self->debug(1, "In getWaitingJobs fetching attributes queueId,jdl for waiting jobs");
-  $self->query("SELECT queueId, jdl FROM $self->{QUEUETABLE} WHERE status='WAITING' AND jdl IS NOT NULL AND priority > ? $order", undef, {bind_values=>[$minpriority]});
+sub getWaitingJobAgents{
+  my $self=shift;
+  
+  return $self->query("select entryId as agentId,concat('[',requirements,'Type=\"Job\";]') as jdl, counter from JOBAGENT");
+
 }
-
 sub updateJob{
   my $self = shift;
   my $id = shift
@@ -465,7 +474,7 @@ sub updateStatus{
   $DEBUG and $self->debug(1, "In updateStatus checking if job $id with status $oldstatus exists");
 
 
-  my $jobinfo = $self->getFieldsFromQueueEx("queueId,site,execHost,status,jdl,masterjob","where queueid=?", {bind_values=>[$id]});
+  my $jobinfo = $self->getFieldsFromQueueEx("queueId,site,execHost,status,jdl,masterjob,agentid","where queueid=?", {bind_values=>[$id]});
 	
   if ($jobinfo and @$jobinfo) {
     $DEBUG and $self->debug(1, "In updateStatus setting job's $id status to ". ($status or ""));
@@ -476,7 +485,8 @@ sub updateStatus{
       my $dbqueueid   = $_->{'queueId'};
       my $dbjdl       = $_->{'jdl'};
       my $masterjob   = $_->{masterjob};
-      
+      my $agentid     = $_->{agentid};
+
       if ( ($status !~ /^((INSERTING)|(WAITING)|(KILLED)|(SPLIT(TING)?)|(ERROR_I)|(STARTED)|(ASSIGNED))$/) 
 	   &&  ((!$dbsite) || ($dbsite eq "")  ) && (! $masterjob)) {
 	$message="TaskQueue: Job $id has no site set !";
@@ -491,11 +501,15 @@ sub updateStatus{
 	  && ($dboldstatus !~ /^((ZOMBIE)|(IDLE)|(INTERACTIV))$/ )
 	  && (! $masterjob)){
 	$message="The job $id [$dbsite] was in status $dboldstatus [$self->{JOBLEVEL}->{$dboldstatus}] and cannot be changed to $status [$self->{JOBLEVEL}->{$status}]";
+	if ($set->{jdl} and $status =~/^(SAVED)|(ERROR_V)$/){
+	  $message.= " (although we update the jdl)";
+	  $self->updateJob($id, {jdl=>$set->{jdl}});
+	}
       } else {
 	#update the value, it is correct
 	if ($self->updateJob($id,$set) ) {
 	  $self->info( "THE UPDATE WORKED!! Let's see if we have to delete an agent $dboldstatus");
-	  ($dboldstatus eq "WAITING") and $self->deleteJobAgent($dbjdl);
+	  ($dboldstatus eq "WAITING") and $self->deleteJobAgent($agentid);
 	  # update the SiteQueue table
 	  $self->unlock();
 
@@ -1137,27 +1151,29 @@ sub insertJobAgent {
   my $self=shift;
   my $text=shift;
 
+  $text=~ s/\s*$//s;
   $self->info( "Inserting a jobagent with '$text'");
   $self->lock("JOBAGENT");
-  my $done=$self->do("UPDATE JOBAGENT set counter=counter+1 where requirements=?", {bind_values=>[$text]});
-  if ( $done =~ /^0E0$/){
-    #Ok, the increment did not work. Let's insert the entry
-    $done=$self->insert("JOBAGENT", {counter=>1, requirements=>$text});
+  my $id=$self->queryValue("SELECT entryId from JOBAGENT where requirements=?", undef, {bind_values=>[$text]});
+  if (!$id){
+    if (!$self->insert("JOBAGENT", {counter=>"1", requirements=>$text})){
+      $self->info("Error inserting the new jobagent");
+      $self->unlock();
+      return;
+    }
+    $id=$self->getLastId();
+  }else{
+    $self->do("UPDATE JOBAGENT set counter=counter+1 where entryId=?", {bind_values=>[$id]});
   }
   $self->unlock();
-  return $done;
+  return $id;
 }
 
 sub deleteJobAgent {
   my $self=shift;
-  my $jdl=shift;
-  my $text="";
-  my $user;
-
-  $jdl =~ /requirements\s+=\s+([^;]*);/is and $text=$1;
-  $jdl =~ /user\s*=\s+([^;]*);/is and $user=$1;
-  $self->info( "Deleting a jobagent for '$text\%$user'");
-  my $done=$self->do("update JOBAGENT set counter=counter-1 where requirements like ?", {bind_values=>["Requirements= $text;\%user =$user;\n\%"]});
+  my $id=shift;
+  $self->info( "Deleting a jobagent for '$id'");
+  my $done=$self->do("update JOBAGENT set counter=counter-1 where entryId=?", {bind_values=>[$id]});
   $self->delete("JOBAGENT", "counter<1");
   return $done;
 }

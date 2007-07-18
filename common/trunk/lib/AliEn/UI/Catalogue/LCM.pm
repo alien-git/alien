@@ -282,7 +282,7 @@ sub get {
     $guidInfo=$info->{guidInfo};
     if ($info->{type} eq "c"){
       $self->info("This is in fact a collection!! Let's get all the files");
-      return $self->getCollection($info);
+      return $self->getCollection($info, $localFile);
     }
     ######################################################################################
     #get the authorization envelope and put it in the IO_AUTHZ environment variable
@@ -328,15 +328,36 @@ sub get {
 sub getCollection{
   my $self=shift;
   my $info=shift;
-  $self->info("We have to get all the files from $info");
-  my ($files)=$self->execute("listFilesFromCollection", $info->{lfn})
+  my $localFile=shift;
+  $self->debug(1, "We have to get all the files from $info->{lfn}");
+  my ($files)=$self->execute("listFilesFromCollection", "-silent", $info->{lfn})
     or $self->info("Error getting the list of files from the collection") and return;
   my @return;
+  if ($localFile){
+    $self->info("We have to rename it to $localFile");
+    AliEn::Util::mkdir($localFile) or 
+	$self->info("error making the direcotry $localFile") and return;
+  }
+  my $names={};
   foreach my $file (@$files){
     $self->info("Getting the file $file->{guid} from the collection");
-    my $localName=$file->{localName} || "";
+    my $localName= $file->{localName} || "";
+    if ($localFile) {
+      my $name=$file->{guid};
+      if ($file->{lfn}){
+	$name=$file->{lfn};
+	$name =~ s{^.*/([^/]*)$}{$1};
+      }
+      my $counter=1;
+      if ($names->{$name}){
+	$counter=$names->{$name}+1;
+	$name.=".$names->{$name}";
+      }
+      $names->{$name}=$counter;
+      $localName="$localFile/$name";
+    }
+    $self->debug(2,"In the collection, let's get $file->{guid}  $localName");
     my ($fileName)=$self->execute("get", "-g", $file->{guid}, $localName);
-    $self->info("Got the file $file->{guid}");
     push @return, $fileName;
   }
   $self->info("Got ". join (",",(map {$_ ? $_  : "<error>"} @return ))." and $#return");
@@ -674,10 +695,12 @@ sub selectClosestSE {
   while (@_) {
     my $newse  = shift;
     my $seName=$newse;
-    UNIVERSAL::isa($newse, "HASH") and $seName=$newse->{se};
-
-    $self->debug(1,"Checking $newse vs $self->{CONFIG}->{SE_FULLNAME}" );
-    if ( $newse =~ /^$self->{CONFIG}->{SE_FULLNAME}$/i ){
+    UNIVERSAL::isa($newse, "HASH") and $seName=$newse->{seName};
+    print "THE SE is $newse and $seName\n";
+    use Data::Dumper;
+    print Dumper($newse);
+    $self->debug(1,"Checking $seName vs $self->{CONFIG}->{SE_FULLNAME}" );
+    if ( $seName =~ /^$self->{CONFIG}->{SE_FULLNAME}$/i ){
       $se=$newse;
     }elsif( grep ( /^$newse$/i, @{ $self->{CONFIG}->{SEs_FULLNAME} } )){
       push @close, $newse;

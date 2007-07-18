@@ -39,14 +39,14 @@ sub get {
     my $localfile  = shift;
     my $remotefile = shift;
     my $options    = ( shift or "" );
-my $certificate = ( shift or "" );
-my $fromhost  = ( shift or "" );
-my $tohost  = ( shift or "" );
-
-print "we arrived here!!\n";
-my $command = "xrdcp root://$fromhost/$remotefile?cmd=trashbin $localfile -DIFirstConnectMaxCnt 1";
-print $command."\n";
-return system($command);
+    my $certificate = ( shift or "" );
+    my $fromhost  = ( shift or "" );
+    my $tohost  = ( shift or "" );
+    
+    print "we arrived here!!\n";
+    my $command = "xrdcp root://$fromhost/$remotefile?cmd=trashbin $localfile -DIFirstConnectMaxCnt 1";
+    print $command."\n";
+    return system($command);
 #    my $command = "$options; get $remotefile $localfile";
 #    return $self->transfer($command, @_);
 }
