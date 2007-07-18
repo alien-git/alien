@@ -3,6 +3,7 @@ package AliEn::Service::Optimizer::Job::Splitting;
 use strict;
 
 use AliEn::Service::Optimizer::Job;
+use AliEn::Service::Manager::Job;
 use vars qw(@ISA);
 push (@ISA, "AliEn::Service::Optimizer::Job");
 
@@ -54,7 +55,6 @@ sub checkWakesUp {
 
   my $method="info";
   $silent and $method="debug";
-
   $self->{LOGGER}->$method("Splitting", "The splitting optimizer starts");
   my $done2=$self->checkJobs($silent, "INSERTING' and jdl like '\% split =\%", 
 			     "updateSplitting");
@@ -449,15 +449,15 @@ sub _submitJDL {
   }
 
   $self->debug(1, "JDL $jdlText");
-
-#  my $inputBox=$self->createInputBox($job_ca, $files);
-  my $done =$self->{SOAP}->CallSOAP("Manager/Job", "enterCommand",
-				    $user, $jdlText,  );
-  if ($done) {
-    $self->info("Command submitted!! (jobid ". $done->result.")" );
-    my $newqueueid = $done->result;
+  my $newqueueid=AliEn::Service::Manager::Job::enterCommand($self,$user, $jdlText);
+#  my $inputBox=$self->createInputBox($job_ca, $files);#@  my $done =$self->{SOAP}->CallSOAP("Manager/Job", "enterCommand",
+#				    $user, $jdlText,  );
+#  if ($done) {
+  if ($newqueueid ) {
+    $self->info("Command submitted!! (jobid $newqueueid)" );
+    #    my $newqueueid = $done->result;
     $self->putJobLog($queueid,"submit","Subjob submitted: $newqueueid");
-    $self->{DB}->setSplit($done->result, $queueid)
+    $self->{DB}->setSplit($newqueueid, $queueid)
       or $self->{LOGGER}->warning( "Splitting", "In SubmitSplitJob error setting split for job $queueid" ) and $self->putJobLog($queueid,"error","Subjob submission failed!");
   }
   return 1;

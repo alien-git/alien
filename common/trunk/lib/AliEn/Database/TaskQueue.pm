@@ -275,6 +275,8 @@ sub insertJobLocked {
   ($set->{name}) = $set->{jdl}  =~ /.*executable\s*=\s*\"([^\"]*)\"/i;
 
   ($set->{price}) = $set->{jdl} =~ /.*price\s*=\s*(\d+[\.\d+]*.*)\s*/i;
+
+  $set->{price} =~ s/;//;
                                    
    $set->{effectivePriority} = $set->{priority} * $set->{price};
    #currently $set->{priority} is hardcoded to be '0'
