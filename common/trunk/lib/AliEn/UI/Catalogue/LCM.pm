@@ -696,9 +696,6 @@ sub selectClosestSE {
     my $newse  = shift;
     my $seName=$newse;
     UNIVERSAL::isa($newse, "HASH") and $seName=$newse->{seName};
-    print "THE SE is $newse and $seName\n";
-    use Data::Dumper;
-    print Dumper($newse);
     $self->debug(1,"Checking $seName vs $self->{CONFIG}->{SE_FULLNAME}" );
     if ( $seName =~ /^$self->{CONFIG}->{SE_FULLNAME}$/i ){
       $se=$newse;
