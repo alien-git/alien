@@ -227,6 +227,7 @@ sub InsertHost {
 
 sub enterCommand {
   my $this = shift;
+  $self->{LOGGER} or $this->info("We are entering the command directly") and  $self=$this;
   $DEBUG and $self->debug(1, "In enterCommand with @_" );
   my $host       = shift;
   my $jobca_text = shift;
@@ -275,9 +276,9 @@ sub enterCommand {
       and return(-1,"inserting job");
 
   if ($splitjob) {
-    $self->{JOBLOG}->putlog($procid,"state", "Job $procid inserted from $host [Master Job is $splitjob]");
+    $self->putJobLog($procid,"state", "Job $procid inserted from $host [Master Job is $splitjob]");
   } else { 
-    $self->{JOBLOG}->putlog($procid,"state", "Job $procid inserted from $host ");
+    $self->putJobLog($procid,"state", "Job $procid inserted from $host ");
   }
 
   my $procDir = AliEn::Util::getProcDir(undef, $host, $procid);
@@ -352,7 +353,7 @@ sub SetProcInfo {
 
     my ($ok) = $self->{DB}->updateJobStats($queueId, $updateRef);
 
-    $self->{JOBLOG}->putlog($queueId,"proc", $procinfo);
+    $self->putJobLog($queueId,"proc", $procinfo);
 
     ($ok)
       or $self->{LOGGER}->error( "JobManager", "In SetProcInfo error updating job $queueId" )
@@ -469,7 +470,7 @@ Type=\"Job\";
 
   ($ok) or $message="FAILED $message";
 
-  $self->{JOBLOG}->putlog($queueId,"state",$message, $putlog);
+  $self->putJobLog($queueId,"state",$message, $putlog);
 
   if (! $ok) {
     my $error=($AliEn::Logger::ERROR_MSG || "updating job $queueId from $oldStatus to $status");
@@ -1223,7 +1224,7 @@ sub reInsertCommand {
 
     my ($ok) = $self->{DB}->updateJob($queueId, {runtime=>"",runtimes=>"",cpu=>"",mem=>"",cputime=>"",rsize=>"",vsize=>"",ncpu=>"",cpufamily=>"",cpuspeed=>"",cost=>"",maxrsize=>"",maxvsize=>"",procinfotime=>"",status=>"WAITING",execHost=>"",priority=>"-1",started=>"",finished=>"",blocked=>"",spyurl=>"",site=>"",node=>""});
     $ok or $self->{LOGGER}->error( "JobManager", "Reinserting command for job $queueId couldn't change the QUEUE table entry properly!") and return ;
-    $self->{JOBLOG}->putlog($queueId,"state", "Job $queueId resubmitted");
+    $self->putJobLog($queueId,"state", "Job $queueId resubmitted");
 
     my $procDir = AliEn::Util::getProcDir($user, undef, $queueId);
 
@@ -1380,7 +1381,7 @@ sub putJobLog {
     my $procid  = shift or return (-1, "no process id specified");
     my $tag     = shift or return (-1, "no tag specified");
     my $message = shift or return (-1, "no message specified");
-    $self->{JOBLOG}->putlog($procid,$tag, "$message");
+    $self->{JOBLOG}->putlog($procid,$tag, "$message",@_);
 }
 
 =item C<getMasterJob>
@@ -1496,7 +1497,7 @@ sub getMasterJob {
      }
      
      push @$info, $message;
-     $self->{JOBLOG}->putlog($id,"state", "Removed all the subjobs ($cond): $message");
+     $self->putJobLog($id,"state", "Removed all the subjobs ($cond): $message");
 
    }
  } elsif ($data->{command} eq "merge") {
@@ -1529,11 +1530,11 @@ sub getMasterJob {
      my (@done)=$self->$subroutine($subjob, $user, @extra);
      if ($done[0] eq "-1") {
        shift @done;
-       $self->{JOBLOG}->putlog($id,"error", "Error $data->{command}ing  subjob $subjob: @done");
+       $self->putJobLog($id,"error", "Error $data->{command}ing  subjob $subjob: @done");
        return [$data->{command}, @$info,@done];
      }
      push @$info, "$data->{command}ing subjob $subjob";
-     $self->{JOBLOG}->putlog($id,"state", "$data->{command}ing  subjob $subjob");
+     $self->putJobLog($id,"state", "$data->{command}ing  subjob $subjob");
 
    }
  }
