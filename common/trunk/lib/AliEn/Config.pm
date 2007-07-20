@@ -217,51 +217,90 @@ sub checkConfigFile {
   return 1;
 }
 
+sub getVOLDAPfromFile{
+  my $self=shift;
+  my $time=shift;
+  my $file="$ENV{ALIEN_HOME}/.lastLDAP";
+  (-f $file )or return;
+  if ($time){
+    $self->debug(1, "Checking that the file is not older than $time seconds");
+    my @info=stat $file;
+    my $now=time;
+    ($now-$time) > $info[9] and return;
+  }
+  open (FILE, "<$file") or return;
+  my $info=join("", <FILE>);
+  close FILE;
+  chomp $info;
+  $info =~ s{\s*}{}m;
+  my ($host, $dn)=  split ("/",$info);
+  $self->debug(1, "Returning '$host' and '$dn' from the localfile '$file'");
+  return ($host, $dn);
+}
+sub getVOLDAP{
+  my $self=shift;
+  my ($host, $dn);
+  if ($ENV{ALIEN_LDAP_DN}) {
+    $self->debug(1, "Getting the Config from $ENV{ALIEN_LDAP_DN}");
+    ($host, $dn)=  split ("/",  "$ENV{ALIEN_LDAP_DN}");
+    $ENV{ALIEN_LDAP_DN}=~ /o=$self->{ORG_NAME},/i 
+      or $self->info( "We are supposed to get the configuration from ALIEN_LDAP_DN=$ENV{ALIEN_LDAP_DN}, but this doesn't look like our organisation $self->{ORG_NAME})") and return;
+    return ($host, $dn);
+  }
+  ($host, $dn)=$self->getVOLDAPfromFile(43200);
+  $host and return ($host, $dn);
+  eval {
+    my $ldap = Net::LDAP->new('alien.cern.ch:8389') or die "$@";
+    my $base = "o=alien,dc=cern,dc=ch";
+    
+    $DEBUG and $self->debug(1, "Getting the Config of $self->{ORG_NAME} from $base");
+    
+    $ldap->bind;    # an anonymous bind
+    
+    my $mesg = $ldap->search(    # perform a search
+			     base   => "$base",
+			     filter => "(ou=$self->{ORG_NAME})"
+			    );
+    
+    $mesg->code && die $mesg->error;
+    
+    my $total = $mesg->count;
+    
+    if ( !$total ) {
+      print STDERR
+	"ERROR: There are no organisations called '$self->{ORG_NAME}'\n";
+      return;
+    }
+    my $entry    = $mesg->entry(0);
+    my $ldaphost = $entry->get_value('ldaphost');
+    $ldaphost =~ s/\s+$//;
+    
+    $host = $ldaphost;
+    $dn   = $entry->get_value('ldapdn');
+    
+    $ldap->unbind;    # take down session
+  };
+  if ($@){
+    $self->info("Error contacting the ldap at 'alien.cern.ch': $@");
+  }
+  if ($host){
+    $self->debug(1,"We got the info from the ldap. Let's update the file");
+    if (open (FILE, ">$ENV{ALIEN_HOME}/.lastLDAP")){
+      print FILE "$host/$dn\n";
+      close FILE;
+    }
+    return ($host, $dn);
+  }
+  return $self->getVOLDAPfromFile();
+}
 sub GetLDAPDN {
   my $self=shift;
 
-  if ($ENV{ALIEN_LDAP_DN}) {
-    $self->debug(1, "Getting the Config from $ENV{ALIEN_LDAP_DN}");
-    ($self->{LDAPHOST} , $self->{LDAPDN})=
-      split ("/",  "$ENV{ALIEN_LDAP_DN}");
-    $ENV{ALIEN_LDAP_DN}=~ /o=$self->{ORG_NAME},/i 
-      or $self->info( "We are supposed to get the configuration from ALIEN_LDAP_DN=$ENV{ALIEN_LDAP_DN}, but this doesn't look like our organisation $self->{ORG_NAME})") and return;
-    my $ldap = Net::LDAP->new($self->{LDAPHOST} ) or die "Error connecting to$self->{LDAPHOST}\n $@";
-    $ldap->bind;      # an anonymous bind
-    return $ldap;
-  }
-  my $ldap = Net::LDAP->new('alien.cern.ch:8389') or die "$@";
-  my $base = "o=alien,dc=cern,dc=ch";
+  ($self->{LDAPHOST}, $self->{LDAPDN})=$self->getVOLDAP() or return;
 
-  $DEBUG and $self->debug(1, "Getting the Config of $self->{ORG_NAME} from $base");
-
-  $ldap->bind;    # an anonymous bind
-
-  my $mesg = $ldap->search(    # perform a search
-			   base   => "$base",
-			   filter => "(ou=$self->{ORG_NAME})"
-			  );
-
-  $mesg->code && die $mesg->error;
-
-  my $total = $mesg->count;
-
-  if ( !$total ) {
-    print STDERR
-      "ERROR: There are no organisations called '$self->{ORG_NAME}'\n";
-    return;
-  }
-  my $entry    = $mesg->entry(0);
-  my $ldaphost = $entry->get_value('ldaphost');
-  $ldaphost =~ s/\s+$//;
-
-  $self->{LDAPHOST} = $ldaphost;
-  $self->{LDAPDN}   = $entry->get_value('ldapdn');
-
-  $ldap->unbind;    # take down session
-  $DEBUG and $self->debug(1, "Connecting to $ldaphost");
-  $ldap = Net::LDAP->new($ldaphost) or die "Error contacting LDAP in $ldaphost\n $@\n";
-
+  $DEBUG and $self->debug(1, "Connecting to $self->{LDAPHOST}");
+  my $ldap = Net::LDAP->new($self->{LDAPHOST}) or die "Error contacting LDAP in $self->{LDAPHOST}\n $@\n";
+  
   $ldap->bind;      # an anonymous bind
 
   return $ldap;
