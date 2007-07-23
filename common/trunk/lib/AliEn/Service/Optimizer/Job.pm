@@ -477,29 +477,69 @@ sub copyInputCollection {
 
   foreach my $file (@inputData){
     $self->putJobLog($jobId,"trace", "Using the inputcollection $file");
+
     my ($file2, $options)=split(',', $file,2);
     $options and $options=",$options";
     $options or $options="";
     $file2 =~ s/^LF://;
-    my ($localFile)=$self->{CATALOGUE}->execute("get", $file2 );
-    if (! $localFile){
-      $self->putJobLog($jobId,"error", "Error getting the inputcollection $file2");
-      return;
+    my ($type)=$self->{CATALOGUE}->execute("type", $file2);
+    $self->info("IT IS A $type");
+    if ($type =~ /^collection$/) {
+      $self->copyInputCollectionFromColl($jobId,$file2, $options, $inputBox) or return;
+    } else {
+      $self->copyInputCollectionFromXML($jobId,$file2, $options, $inputBox) or return;
     }
-    $self->info("Let's read the dataset");
-    my $dataset=$self->{DATASET}->readxml($localFile);
-    if (!$dataset ){
-      $self->putJobLog($jobId,"error","Error creating the dataset from the collection $file2");
-      return;
-    }
-    $self->info("Getting the LFNS from the dataset");
-    my $lfnRef=$self->{DATASET}->getAllLFN()
-      or $self->info("Error getting the LFNS from the dataset") and return;
-    map {$_="LF:$_$options"} @{$lfnRef->{lfns}};
-    $self->info("Adding the files ".@{$lfnRef->{lfns}});
-    push @$inputBox, @{$lfnRef->{lfns}}
-
   }
+  return 1;
+}
+
+
+sub copyInputCollectionFromColl{
+  my $self=shift;
+  my $jobId=shift;
+  my $lfn=shift;
+  my $options=shift;
+  my $inputBox=shift;
+
+  my ($files)=$self->{CATALOGUE}->execute("listFilesFromCollection", $lfn);
+
+  if (!$files){
+    $self->putJobLog($jobId,"error", "Error getting the inputcollection $lfn");
+    return;
+  }
+  $self->info("Now we have to add the files");
+  foreach my $entry (@$files){
+    if ($entry->{origLFN}){
+     push @$inputBox, "LF:$entry->{origLFN}$options"
+   }else{
+     push @$inputBox, "GUID:$entry->{guid}";
+   }
+  }
+  return 1;
+}
+sub copyInputCollectionFromXML{
+  my $self=shift;
+  my $jobId=shift;
+  my $lfn=shift;
+  my $options=shift;
+  my $inputBox=shift;
+  my ($localFile)=$self->{CATALOGUE}->execute("get", $lfn );
+  if (! $localFile){
+    $self->putJobLog($jobId,"error", "Error getting the inputcollection $lfn");
+    return;
+  }
+  $self->info("Let's read the dataset");
+  my $dataset=$self->{DATASET}->readxml($localFile);
+  if (!$dataset ){
+    $self->putJobLog($jobId,"error","Error creating the dataset from the collection $lfn");
+    return;
+  }
+  $self->info("Getting the LFNS from the dataset");
+  my $lfnRef=$self->{DATASET}->getAllLFN()
+    or $self->info("Error getting the LFNS from the dataset") and return;
+  map {$_="LF:$_$options"} @{$lfnRef->{lfns}};
+  $self->info("Adding the files ".@{$lfnRef->{lfns}});
+  push @$inputBox, @{$lfnRef->{lfns}};
   return 1;
 }
 sub copyInputFiles {
