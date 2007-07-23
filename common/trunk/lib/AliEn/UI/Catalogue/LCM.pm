@@ -93,6 +93,8 @@ my %LCM_commands;
 		 'unzip'=> ['$self->unzip',0],
 		 'getLog' =>['$self->getLog', 0],
 		 'checkSEVolumes' =>['$self->{CATALOG}->checkSEVolumes', 0],
+		 'createCollection' => ['$self->createCollection', 0],
+
 
 );
 
@@ -2048,5 +2050,61 @@ sub getLog{
 
 
 }
+sub createCollection_HELP{
+  return "createCollection: adds a new entry to the catalogue that is a new collection
+Usage:
+    createCollection <lfn> [<guid> [<xmlFile>]]
+
+An empty collection will be created, with the guid <guid> (if specified). 
+If the xmlFile was also specified, the collection will be filled with the files specified in the xml file
+";
+
+}
+
+sub createCollection{
+  my $self=shift;
+  my $options={};
+  @ARGV=@_;
+  Getopt::Long::GetOptions($options,  "xml=s") or 
+      $self->info("Error parsing the options") and return;;
+  @_=@ARGV;
+  my $lfn=shift;
+  my $guid=shift;
+
+
+  my $collection=$self->{CATALOG}->f_createCollection($lfn, $guid) or return;
+
+  if ($options->{xml}){
+    $self->info("And now, let's populate the collection");
+    eval {
+      my ($localFile)=$self->get($options->{xml}) or 
+	die("Error getting $options->{xml}");
+      $self->{DATASET} or $self->{DATASET}=AliEn::Dataset->new();
+      my $dataset=$self->{DATASET}->readxml($localFile) or 
+	die ("Error creating the dataset from the collection $options->{xml}");
+      foreach my $entry (keys %{$dataset->{collection}->{event}}) {
+	foreach my $file (keys %{$dataset->{collection}->{event}->{$entry}->{file}}){
+	  my $hash=$dataset->{collection}->{event}->{$entry}->{file}->{$file};
+	  my $lfn=$hash->{lfn};
+	  my $info="";
+	  foreach my $i (keys %{$hash}){
+	    $i =~ /^(turl)|(lfn)$/ and next;
+	    $info.="$i=$hash->{$i} ";
+	  }
+	  $self->{CATALOG}->f_addFileToCollection($lfn, $collection, $info)
+	    or die("Error adding $lfn (with info '$info') to the collection\n");
+	}
+      }
+    }
+  };
+  if ($@){
+    $self->info("Error populating the collection: $@",1);
+    $self->{CATALOG}->f_removeFile($collection);
+    return;
+  }
+
+  return 1;
+}
+
 return 1;
 

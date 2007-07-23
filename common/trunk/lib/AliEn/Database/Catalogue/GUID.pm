@@ -339,14 +339,17 @@ sub getAllInfoFromGUID{
 
   $options->{pfn} or return $info;
   $DEBUG and $self->debug(1,"Let's get also the pfn");
-  my $where=", $table g where p.guidId=g.guidId and guid=string2binary(?)";
+  my $extraTable=", $table g where p.guidId=g.guidId and ";
+  my $where="guid=string2binary(?)";
   my @bind=($guid, $guid);
   if ($info->{guidId}){
-    $where=" where guidId=?";
+    $extraTable=" where ";
+    $where=" guidId=?";
     @bind=($info->{guidId}, $info->{guidId});
   }
-  my $pfn=$db->query("select seName, pfn from ${table}_PFN p, SE  $where and p.seNumber=SE.seNumber union select seName, '' as pfn from $table g, SE $where and seAutoStringlist like concat('%,',senumber , ',%')", undef ,{bind_values=>\@bind})
-    or $self->info("Error doing the query $where") and return;
+  my $fullQuery="select seName, pfn from ${table}_PFN p, SE$extraTable $where and p.seNumber=SE.seNumber union select seName, '' as pfn from $table g, SE where $where and seAutoStringlist like concat('%,',senumber , ',%')";
+  my $pfn=$db->query($fullQuery, undef ,{bind_values=>\@bind})
+    or $self->info("Error doing the query '$fullQuery'") and return;
   $info->{pfn}=$pfn;
 
   return $info

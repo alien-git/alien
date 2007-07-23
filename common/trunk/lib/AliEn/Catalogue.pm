@@ -2082,6 +2082,30 @@ sub displayLastError {
   return $str,$error_no;
 }
 
+sub f_type_HELP{
+  return "type: returns the type of entry an lfn is. Possibilities are: file, directory, collection";
+}
+sub f_type{
+  my $self=shift;
+  my $lfn=shift;
+  $lfn = $self->f_complete_path($lfn);
+
+  my $permFile=$self->checkPermissions( 'r', $lfn,undef, {RETURN_HASH=>1} ) or return;
+  my $type;
+  if ($self->isCollection($lfn, $permFile)){
+    $type='collection';
+  }elsif( $self->isFile($lfn, $permFile->{lfn})){
+    $type='file';
+  }elsif( $self->isDirectory($lfn, $permFile->{lfn})){
+    $type='directory';
+  }else{
+    $self->info("I don't know the type of the file $lfn");
+  }
+  $self->info("File '$lfn' is a '$type'");
+  
+  return $type;
+}
+
 return 1;
 
 __END__

@@ -98,6 +98,7 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
     'glob'     => ['$self->{CATALOG}->f_glob', 3],
     'mlconfig' => ['$self->{CATALOG}->f_mlconfig',0],
     'locatesites'    => ['$self->{CATALOG}->f_locatesites',0],
+    'type'    => ['$self->{CATALOG}->f_type',0],
     'showcertificates' => ['$self->{CATALOG}->f_showcertificates',0],
      '$?'      => ['$self->{CATALOG}->displayLastError',0],
      'history'=>['$self->history',0],
@@ -173,7 +174,6 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
 	     'removeTrigger' => ['$self->{CATALOG}->f_removeTrigger', 0],
 	     'setExpired' =>['$self->{CATALOG}->f_setExpired',16+64],
 	     #Collections
-	     'createCollection' => ['$self->{CATALOG}->f_createCollection', 0],
 #	     'removeCollection' => ['$self->{CATALOG}->f_addCollection', 0],
 	     'addFileToCollection' => ['$self->{CATALOG}->f_addFileToCollection', 0],
 	     'listFilesFromCollection' => ['$self->{CATALOG}->f_listFilesFromCollection', 0],
@@ -257,6 +257,7 @@ my %help_list =
     'transactFunds'   => "\tMakes fund transaction",
    'setExpired' => "\tSets the expiration date for a file",
    'phone'=> "\tdisplays the username behinds a userid",
+   'type' =>'\treturns the type of lfn (file, directory or collection)',
 );
 
 sub AddHelp {
