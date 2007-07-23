@@ -15,7 +15,7 @@ my ($dir)=$cat->execute("pwd") or exit(-2);
 
 
 
-$cat->execute("find","-x test split * ",">inputCollection/SplitInputDataCollection.xml") or exit(-2);
+$cat->execute("find","-x test split/ * ",">inputCollection/SplitInputDataCollection.xml") or exit(-2);
 
 
 addFile($cat, "jdl/SplitInputCollection.jdl","Executable=\"CheckInputOuptut.sh\";

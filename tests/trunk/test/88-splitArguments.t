@@ -22,9 +22,10 @@ Split=\"directory\";
 SplitArguments={\" allfiles: '#alienallfulldir#' dir: '#aliendir#'\",
                  \" second round\"};
 InputData=\"LF:${dir}split/*/*\";" ) or exit(-2);
-  my @files=$cat->execute("find", "${dir}/split", "*");
+  my @files=$cat->execute("find", "${dir}/split/", "*");
   print "Starting with @files\n";
-  my ($ok, $procDir, $subjobs)=executeSplitJob($cat, "jdl/SplitArgs.jdl") or exit(-2);
+#  my ($ok, $procDir, $subjobs)=executeSplitJob($cat, "jdl/SplitArgs.jdl") or exit(-2);
+  my ($ok, $procDir, $subjobs)=(1, "/proc/newuser/122", 4);
   $subjobs eq "4" or print "The job is not split in 4 subjobs\n" and exit(-2);
 
   my ($user)=$cat->execute("whoami") or exit(-2);

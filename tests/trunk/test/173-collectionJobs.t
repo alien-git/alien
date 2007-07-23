@@ -1,0 +1,38 @@
+use strict;
+use Test;
+
+use AliEn::UI::Catalogue::LCM::Computer;
+
+BEGIN { plan tests => 1 }
+
+
+
+{
+  $ENV{ALIEN_TESTDIR} or $ENV{ALIEN_TESTDIR}="/home/alienmaster/AliEn/t";
+  eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
+  includeTest("16-add") or exit(-2);
+  includeTest("86-split") or exit(-2);
+  includeTest("26-ProcessMonitorOutput") or exit(-2);
+
+  my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",}) or 
+    exit (-1);
+  my ($dir)=$cat->execute("pwd") or exit(-2);
+
+  addFile($cat, "jdl/collectionSingle.jdl","Executable=\"CheckInputOuptut.sh\";
+InputData=\"LF:$dir/collections/manual_collection\"
+") or exit(-2);
+  print "And now, let's execute the job\n";
+#  executeJDLFile($cat,  "jdl/collectionSingle.jdl") or exit(-2);
+  print "The first one went fine :)\nLet's try splitting it...\n"; 
+  addFile($cat, "jdl/collectionSplit.jdl","Executable=\"CheckInputOuptut.sh\";
+InputDataCollection=\"LF:$dir/collections/manual_collection\";
+Split=\"file\";
+") or exit(-2);
+  my ($ok, $procDir, $number)=executeSplitJob($cat,"jdl/collectionSplit.jdl")
+    or exit (-2);
+  print "The job got split in $procDir and $number\n";
+  $number eq "2" or print "The job wasn't split in 2 (there were $number)\n" and exit(-2);
+
+  print "ok\n";
+
+}
