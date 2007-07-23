@@ -236,7 +236,7 @@ sub enterCommand {
   my $priority = ( shift or 0 );
   my $splitjob = ( shift or "0");
   my $oldjob   = ( shift or "0");
-
+  my $options= shift || {};
   my $date = time;
   
 
@@ -245,7 +245,7 @@ sub enterCommand {
       and return(-1,"jdl is missing");
 
 
-  $self->info("Entering a new command " );
+  $options->{silent} or $self->info("Entering a new command " );
   $jobca_text =~ s/\\/\\\\/gs;
   $jobca_text =~ s/&amp;/&/g;
   $jobca_text =~ s/&amp;/&/g;
@@ -284,30 +284,21 @@ sub enterCommand {
   my $procDir = AliEn::Util::getProcDir(undef, $host, $procid);
   my $user;
   $procDir=~ m{/proc/([^/]*)/} and $user=$1;
-  
-  my ($olduser)= $self->{CATALOGUE}->execute("whoami");
-  $self->{CATALOGUE}->execute("user", "-", $user) or 
+  my $silent="";
+  $options->{silent} and $silent="-silent";
+  my ($olduser)= $self->{CATALOGUE}->execute("whoami",$silent );
+  $self->{CATALOGUE}->execute("user", "-", $user, $silent) or 
     $self->info("Error becoming user '$user'") and return (-1, "Error becoming user '$user'");
 
-  $self->{CATALOGUE}->execute('whoami');
+  $self->{CATALOGUE}->execute('whoami', $silent);
   my $done=$self->{CATALOGUE}->execute( "mkdir", $procDir, "-ps" );
-  $self->{CATALOGUE}->execute("user", "-", $olduser);
+  $self->{CATALOGUE}->execute("user", "-", $olduser, $silent);
   $done or $self->{LOGGER}->alert( "JobManager",
 			       "In enterCommand error creating the directory $procDir in the catalogue" )
       and return(-1,"creating the directory $procDir in the catalogue");
 
-#  mkdir "$self->{CONFIG}->{LOG_DIR}",        0777;
-#  mkdir "$self->{CONFIG}->{LOG_DIR}/server", 0777;
-#  my $localDir = "$self->{CONFIG}->{LOG_DIR}/server/proc$procid";
-
-#  if ( !( -d $localDir ) ) {
-#    ( mkdir $localDir, 0777 )
-#      or
-#	$self->{LOGGER}->critical( "JobManager", "In enterCommand could not create $localDir" )
-#          and return(-1,"creating directory $localDir");
-#  }
   $self->info("Job inserted");
-  #    $self->prepareJob($host, $procid, $inputBox);
+
   return $procid;
 }
 

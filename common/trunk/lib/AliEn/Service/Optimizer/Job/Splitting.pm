@@ -351,7 +351,7 @@ sub SubmitSplitJob {
   $text=~ s/;\s*inputdatacollection[^;\]]*;/;/i;
   $text =~ s/;\s*email[^;]*;/;/is;
   $text =~ s/\[;/\[/;
-  $self->info("Let's start with $text");
+  $self->debug(1, "Let's start with $text");
   my ($ok, @splitarguments)=$job_ca->evaluateAttributeVectorString("SplitArguments");
   if (@splitarguments){ 
     $self->info( "SplitArguments defined - OK!");
@@ -377,12 +377,12 @@ sub SubmitSplitJob {
   #Now, submit a job for each
   ( $ok, my $origreq ) = $job_ca->evaluateExpression("OrigRequirements");
   $origreq or  $origreq="( other.Type == \"machine\" )";
-  $self->info("The requirements are $origreq");
+  $self->debug(1, "The requirements are $origreq");
 
   ( $ok, my $origarg ) = $job_ca->evaluateExpression("Arguments");
   $origarg or $origarg="";
   $origarg=~ s/\"//g;
-  $self->info("OrigReq $origreq");
+  $self->debug(1,"OrigReq $origreq");
   my $i=0;
 
   ($ok, my $origOutputDir)=$job_ca->evaluateAttributeString("OutputDir");
@@ -398,7 +398,7 @@ sub SubmitSplitJob {
 
     $job_ca->set_expression("Requirements", $origreq);
 
-    $self->info("Setting Requ. $origreq");
+    $self->debug(1,"Setting Requ. $origreq");
 
     $self->{CATALOGUE}->{QUEUE}->checkRequirements($job_ca) or next;
 
@@ -407,7 +407,7 @@ sub SubmitSplitJob {
       $job_ca->set_expression("Arguments", "\"$origarg $newargs\"");
       #check also the outputDir
       $self->_checkOutputDir($origOutputDir, $job_ca,$jobs->{$pos});
-      $self->info("Setting Arguments $origarg $newargs");
+      $self->debug(1, "Setting Arguments $origarg $newargs");
       if ( !$job_ca->isOK() ) {
 	print STDERR "Splitting: in SubmitSplitJob new jdl is not valid\n";
 	return;
@@ -449,17 +449,11 @@ sub _submitJDL {
   }
 
   $self->debug(1, "JDL $jdlText");
-  my $newqueueid=AliEn::Service::Manager::Job::enterCommand($self,$user, $jdlText);
-#  my $inputBox=$self->createInputBox($job_ca, $files);#@  my $done =$self->{SOAP}->CallSOAP("Manager/Job", "enterCommand",
-#				    $user, $jdlText,  );
-#  if ($done) {
-  if ($newqueueid ) {
-    $self->info("Command submitted!! (jobid $newqueueid)" );
-    #    my $newqueueid = $done->result;
-    $self->putJobLog($queueid,"submit","Subjob submitted: $newqueueid");
-    $self->{DB}->setSplit($newqueueid, $queueid)
-      or $self->{LOGGER}->warning( "Splitting", "In SubmitSplitJob error setting split for job $queueid" ) and $self->putJobLog($queueid,"error","Subjob submission failed!");
-  }
+  my $newqueueid=AliEn::Service::Manager::Job::enterCommand($self,$user, $jdlText, undef, undef, $queueid, undef, {silent=>1}) or return;
+
+  $self->info("Command submitted!! (jobid $newqueueid)" );
+  $self->putJobLog($queueid,"submit","Subjob submitted: $newqueueid");
+
   return 1;
 }
 
@@ -586,7 +580,7 @@ sub _setInputData {
   chop $input;
   $input .= "}";
 
-  $self->info("Input is $input");
+  $self->debug(1,"Input is $input");
 
   return $input;
 }

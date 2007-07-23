@@ -22,17 +22,11 @@ use vars qw ($DEBUG);
 
 $DEBUG=0;
 #
-#This function adds an entry to the catalog
-#
-# Possible options:
-#          -f: create the entry even if the pfn is empty
-#
 sub f_createCollection {
   my $self = shift;
   $DEBUG and $self->debug(1, "In the catalogue, doing addCollection(".join(",", map {defined $_ ? $_ : ""} @_ ).")");
   my $file = shift;
   my $guid = shift ;
-  my $perm = (shift or $self->{UMASK});
 
   if (! $guid){
     $DEBUG and $self->debug(2, "Getting a new GUID for this file");
@@ -54,7 +48,7 @@ sub f_createCollection {
 
   # Now, insert it into D0, and in the table
   my $basename   = $self->f_basename($file);
-  my $insert={lfn=>$file,  perm=>$perm,  owner=>$self->{ROLE},
+  my $insert={lfn=>$file,  perm=>$self->{UMASK},  owner=>$self->{ROLE},
 	      gowner=>$self->{MAINGROUP}, guid=>$guid,  };
 
   $self->{DATABASE}->createCollection( $insert)
@@ -62,7 +56,8 @@ sub f_createCollection {
       and return;
 
   $self->info("File $file inserted in the catalog");
-  return 1;
+
+  return $file;
 }
 
 sub f_addFileToCollection_HELP{
@@ -91,7 +86,7 @@ sub f_addFileToCollection {
   my $name=$permFile->{lfn};
   $opt->{g} and $name=$permFile->{guid};
   $self->info( "File '$name' added to the collection!");
-  return $self->updateCollection("",$permColl);
+  return $self->updateCollection("s",$permColl);
 }
 sub updateCollection_HELP{
   return "updateCollection: Check the consistency of a collection. 
@@ -100,7 +95,7 @@ Usage:
 \tupdateCollection [<options>] <collection_name
 
 Possible options:
-
+\t\t-s: silent
 By default, it checks the SE that contains all the files of the collection and the size of the collection
 ";
 }
@@ -131,12 +126,11 @@ sub updateCollection {
   my @se;
   my $first=1;
   my $size=0;
+  my $silent="";
   foreach my $file (@$info){
-    use Data::Dumper;
     my $info=$self->f_whereis("slrgi", $file->{guid});
     my @tempSe;
     map {push @tempSe, $_->{seName}} @{$info->{pfn}};
-
     $size+=$info->{size};
     if ($first){
       @se=@tempSe;
@@ -151,9 +145,14 @@ sub updateCollection {
       }
       @se=@andse;
     }
-    @se or $self->info("So far, there are no SE that contain all the files") and last;
+    if (!@se){
+      $options=~ /s/ or $self->info("So far, there are no SE that contain all the files");
+      last;
+    }
   }
-  $self->info("All the files of this collection are in the SE: @se");
+  $options=~ /s/ or
+    $self->info("All the files of this collection are in the SE: @se");
+
   $self->{DATABASE}->updateFile($coll, {size=>$size, 
 					se=>join(",", @se)}, 
 				{autose=>1});
@@ -217,7 +216,7 @@ sub _checkFileAndCollection{
       return;
     }
   }
-  $self->info("And now, let's check the collection $collection");
+  $self->debug(1, "And now, let's check the collection $collection");
   $collection = $self->f_complete_path($collection);
 
 

@@ -120,7 +120,8 @@ sub createCatalogueTables {
 	      COLLECTIONS_ELEM=>['collectionId', {'collectionId'=>'int not null',
 						  origLFN=>'varchar(255)',
 						  guid=>'binary(16)',
-						  data=>"varchar(255)",},
+						  data=>"varchar(255)",
+						 localName=>"varchar(255)"},
 				 
 				 "",['INDEX (collectionId)']],
 	      
@@ -1797,7 +1798,7 @@ sub addFileToCollection {
 sub  getInfoFromCollection {
   my $self=shift;
   my $collGUID=shift;
-  $self->info("Getting all the info of '$collGUID'");
+  $self->debug(1,"Getting all the info of collection '$collGUID'");
   return $self->query("SELECT origLFN, binary2string(guid) as guid,data, localName from COLLECTIONS c, COLLECTIONS_ELEM e where c.collectionId=e.collectionId and collGUID=string2binary(?)", undef, {bind_values=>[$collGUID]});
 }
 
@@ -1805,7 +1806,7 @@ sub removeFileFromCollection{
   my $self=shift;
   my $permFile=shift;
   my $permColl=shift;
-  $self->info("Ready to delete the entry from $permColl->{lfn}");
+  $self->debug(1, "Ready to delete the entry from $permColl->{lfn}");
   my $collId=$self->queryValue("SELECT collectionId from COLLECTIONS where collGUID=string2binary(?)", undef, {bind_values=>[$permColl->{guid}]}) or
     $self->info("Error getting the collection id of $permColl->{lfn}") and 
       return;

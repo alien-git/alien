@@ -92,6 +92,12 @@ sub cleanCache {
   return 1;
 }
 
+sub registerOutput_HELP{
+  return "Registers in the catalogue the output of a job (if the job saved anything in the SE)
+Usage:
+\t\tregisterOutput <jobId>
+";
+}
 sub registerOutput{
   my $self=shift;
   my $jobid=shift;
