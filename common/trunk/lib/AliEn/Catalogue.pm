@@ -2100,6 +2100,7 @@ sub f_type{
     $type='directory';
   }else{
     $self->info("I don't know the type of the file $lfn");
+    return;
   }
   $self->info("File '$lfn' is a '$type'");
   

@@ -949,8 +949,6 @@ sub grantBasicPrivilegesToUser {
 
   my $rprivileges = ["SELECT ON $db.*",
 		     "INSERT, DELETE ON $db.TAG0", 
-		     "INSERT, DELETE, UPDATE on $db.COLLECTIONS",
-		     "INSERT, DELETE, UPDATE on $db.COLLECTIONS_ELEM",
 		    ];
 
 
@@ -978,6 +976,9 @@ sub grantExtendedPrivilegesToUser {
 #		     "INSERT ON $db.SE"
 		     "EXECUTE ON *",
 		     "UPDATE ON $db.ACTIONS",
+		     "INSERT, DELETE, UPDATE on $db.COLLECTIONS",
+		     "INSERT, DELETE, UPDATE on $db.COLLECTIONS_ELEM",
+
 ];
 
   $DEBUG and $self->debug(2,"In grantExtendedPrivilegesToUser granting privileges to user $user"); 
@@ -1278,14 +1279,14 @@ sub getTagNamesByPath {
   my $self = shift;
   my $path = shift;
   
-  $self->queryColumn("SELECT tagName from TAG0 where path='$path'");
+  $self->queryColumn("SELECT tagName from TAG0 where path=?",undef, {bind_values=>[$path]});
 }
 
 sub getAllTagNamesByPath {
   my $self = shift;
   my $path = shift;
   
-  $self->query("SELECT tagName,path from TAG0 where path like '$path%' group by tagName");
+  $self->query("SELECT tagName,path from TAG0 where ? like concat(path,'%') group by tagName", undef, {bind_values=>[$path]});
 }
 
 sub getFieldsByTagName {

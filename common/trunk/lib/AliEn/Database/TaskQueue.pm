@@ -385,7 +385,7 @@ sub deleteFromQueue{
 sub getWaitingJobAgents{
   my $self=shift;
   
-  return $self->query("select entryId as agentId,concat('[',requirements,'Type=\"Job\";]') as jdl, counter from JOBAGENT");
+  return $self->query("select entryId as agentId,concat('[',requirements,'Type=\"Job\";]') as jdl, counter from JOBAGENT order by priority desc");
 
 }
 sub updateJob{

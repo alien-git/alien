@@ -53,7 +53,7 @@ sub getJobIdFromAgentId {
     $self->info("Getting the jobids for jobagent '$agentId'");
     my $data=AliEn::Util::returnCacheValue($self, "WaitingJobsFor$agentId");
     if (! $data){
-      $data=$self->{DB}->query("select queueid as id, jdl from QUEUE where agentid=? and STATUS='WAITING'", undef, {bind_values=>[$agentId]});
+      $data=$self->{DB}->query("select queueid as id, jdl from QUEUE where agentid=? and STATUS='WAITING' order by queueid", undef, {bind_values=>[$agentId]});
     }
     $self->info("There are $#$data entries for that jobagent");
     return @$data;
@@ -278,7 +278,6 @@ sub offerAgent {
   my $ca_text=shift;
   my $free_slots=( shift or 0);
 
-  print "\n";
   $self->info( "Checking if there are any agents that can be started in the machine $host (up to a maximum of $free_slots)");
   $self->setAlive();
 
