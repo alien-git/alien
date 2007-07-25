@@ -60,7 +60,7 @@ BEGIN { plan tests => 1 }
 
 
   print "And the automatic collection has the right size\n";
-  my $dir= "/tmp/alien_col.$$";
+  $dir= "/tmp/alien_col.$$";
 
   my @files=$cat->execute("get", "automatic_collection", $dir)
     or print "Error getting the files\n" and return;
