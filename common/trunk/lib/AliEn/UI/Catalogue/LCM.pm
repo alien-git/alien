@@ -282,10 +282,7 @@ sub get {
 
     $file=$info->{lfn};
     $guidInfo=$info->{guidInfo};
-    if ($info->{type} eq "c"){
-      $self->info("This is in fact a collection!! Let's get all the files");
-      return $self->getCollection($info, $localFile);
-    }
+
     ######################################################################################
     #get the authorization envelope and put it in the IO_AUTHZ environment variable
     my @envelope = $self->access("-s","read","$file");
@@ -298,6 +295,12 @@ sub get {
   }
   $guidInfo->{guid} or 
     $self->info("Error getting the guid and md5 of $file",-1) and return;
+
+  if ($guidInfo->{type} and $guidInfo->{type} eq "c"){
+    $self->info("This is in fact a collection!! Let's get all the files");
+    return $self->getCollection($guidInfo->{guid}, $localFile);
+  }
+
   
   #First, let's check the local copy of the file
   my $result=$self->{STORAGE}->getLocalCopy($guidInfo->{guid}, $localFile);
@@ -329,10 +332,10 @@ sub get {
 
 sub getCollection{
   my $self=shift;
-  my $info=shift;
+  my $guid=shift;
   my $localFile=shift;
-  $self->debug(1, "We have to get all the files from $info->{lfn}");
-  my ($files)=$self->execute("listFilesFromCollection", "-silent", $info->{lfn})
+  $self->debug(1, "We have to get all the files from $guid");
+  my ($files)=$self->execute("listFilesFromCollection", "-silent", "-g", $guid)
     or $self->info("Error getting the list of files from the collection") and return;
   my @return;
   if ($localFile){
@@ -346,8 +349,8 @@ sub getCollection{
     my $localName= $file->{localName} || "";
     if ($localFile) {
       my $name=$file->{guid};
-      if ($file->{lfn}){
-	$name=$file->{lfn};
+      if ($file->{origLFN}){
+	$name=$file->{origLFN};
 	$name =~ s{^.*/([^/]*)$}{$1};
       }
       my $counter=1;
@@ -2091,10 +2094,11 @@ sub createCollection{
 	    $i =~ /^(turl)|(lfn)$/ and next;
 	    $info.="$i=$hash->{$i} ";
 	  }
-	  $self->{CATALOG}->f_addFileToCollection($lfn, $collection, $info)
+	  $self->{CATALOG}->f_addFileToCollection("-n", $lfn, $collection, $info, )
 	    or die("Error adding $lfn (with info '$info') to the collection\n");
 	}
       }
+      $self->{CATALOG}->updateCollection("s", $collection);
     }
   };
   if ($@){

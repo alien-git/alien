@@ -330,7 +330,7 @@ sub GetJDL {
   }
 
   while(1) {
-    print "Getting the jdl from the clusterMonitor, agentId is $ENV{ALIEN_JOBAGENT_ID}...\n";
+    $self->info("Getting the jdl from the clusterMonitor, agentId is $ENV{ALIEN_JOBAGENT_ID}...");
 
     my $hostca=$self->getHostClassad();
     if (!$hostca){
