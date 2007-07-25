@@ -29,7 +29,11 @@ sub initialize{
 sub setCatalogue{
   my $self=shift;
   my $cat=shift ;
-  $cat or return;
+  if (! $cat){
+    $self->info("Undefining the catalogue");
+    undef $self->{CATALOGUE};
+    return;
+  }
   $self->info("Setting the catalogue for the PackMan");
   $self->{CATALOGUE}=$cat;
   return 1;

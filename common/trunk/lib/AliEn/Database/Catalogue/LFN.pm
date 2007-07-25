@@ -403,7 +403,7 @@ sub updateLFN {
   my $tableName=$self->{INDEX_TABLENAME}->{name};
   my $lfn=$self->{INDEX_TABLENAME}->{lfn};
 
-  $self->info("There is something to update!!");
+  $self->debug(1,"There is something to update!!");
   $file=~ s{^$lfn}{};
   $self->update($tableName, $lfnUpdate, "lfn='$file'", {noquotes=>1}) or 
     return;

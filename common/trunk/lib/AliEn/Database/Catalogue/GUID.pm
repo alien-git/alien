@@ -146,6 +146,7 @@ sub checkGUIDTable {
 		 ref=>"int(11) default 0",
 		 owner=>"varchar(20)",
 		 gowner=>"varchar(20)",
+		 type=>"char(1)",
 		);
 
    $db->checkTable(${table}, "guidId", \%columns, 'guidId', ['UNIQUE INDEX (guid)'],) or return;
@@ -557,7 +558,7 @@ sub updateOrInsertGUID{
   }
 
   my $info=$self->checkPermission('w', $guid, {empty=>1}) or return;
-  $self->info("The checkpermission worked!!!");
+  $self->debug(1,"The checkpermission of the guid worked!!!");
 
   if (! $info->{guidId}){
     if ($newUp->{guid}){

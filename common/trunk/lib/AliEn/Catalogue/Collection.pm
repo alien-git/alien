@@ -49,7 +49,7 @@ sub f_createCollection {
   # Now, insert it into D0, and in the table
   my $basename   = $self->f_basename($file);
   my $insert={lfn=>$file,  perm=>$self->{UMASK},  owner=>$self->{ROLE},
-	      gowner=>$self->{MAINGROUP}, guid=>$guid,  };
+	      gowner=>$self->{MAINGROUP}, guid=>$guid, type=>'c' };
 
   $self->{DATABASE}->createCollection( $insert)
     or $self->info("Error inserting entry into directory")
@@ -63,9 +63,10 @@ sub f_createCollection {
 sub f_addFileToCollection_HELP{
   return "addFileToCollection: inserts a file into a collection of files
 Usage:
-\taddFileToCollection [-g] [-name <name>]  <file> <collection> [<extra>]
+\taddFileToCollection [-gn] [-name <name>]  <file> <collection> [<extra>]
 Options:
 \t\t-g: use the file as guid instead of lfn
+\t\t-n: do not update the collection after adding the file
 
 ";
 }
@@ -74,7 +75,7 @@ sub f_addFileToCollection {
   my $opt={};
 
   @ARGV=@_;
-  Getopt::Long::GetOptions($opt,  "g", "name=s", ) or 
+  Getopt::Long::GetOptions($opt,  "g", "n", "name=s", ) or 
       $self->info("Error parsing the arguments to addFileToCollection") and return;;
   @_=@ARGV;
   my $options=join("", keys %$opt);
@@ -86,6 +87,7 @@ sub f_addFileToCollection {
   my $name=$permFile->{lfn};
   $opt->{g} and $name=$permFile->{guid};
   $self->info( "File '$name' added to the collection!");
+  $opt->{n} and return 1;
   return $self->updateCollection("s",$permColl);
 }
 sub updateCollection_HELP{
@@ -175,14 +177,28 @@ sub isCollection{
 
 sub f_listFilesFromCollection{
   my $self=shift;
+  my $opt={};
+  @ARGV=@_;
+  Getopt::Long::GetOptions($opt,  "g", ) or 
+      $self->info("Error parsing the arguments to addFileToCollection") and return;;
+  @_=@ARGV;
   my $coll=shift;
-  $coll = $self->f_complete_path($coll);
-  my $perm=$self->checkPermissions( 'r', $coll, undef, {RETURN_HASH=>1} )  or  return;
-  if (! $self->isCollection($coll, $perm)){
-    $self->info("'$coll' is not a collection of files");
-    return;
+  my $guid;
+  if ($opt->{g}){
+    my $info=$self->{DATABASE}->{GUID_DB}->checkPermission('w', $coll, {retrieve=>'type'}) 
+      or return;
+    $info->{type} eq "c" or $self->info("The guid $coll is not a collection") and return;
+    $guid=$coll;
+  }else{
+    $coll = $self->f_complete_path($coll);
+    my $perm=$self->checkPermissions( 'r', $coll, undef, {RETURN_HASH=>1} )  or  return;
+    if (! $self->isCollection($coll, $perm)){
+      $self->info("'$coll' is not a collection of files");
+      return;
+    }
+    $guid=$perm->{guid};
   }
-  my $info=$self->{DATABASE}->getInfoFromCollection($perm->{guid})
+  my $info=$self->{DATABASE}->getInfoFromCollection($guid)
     or $self->info("Error getting the info for $coll") and return;
 
   my $message="";
