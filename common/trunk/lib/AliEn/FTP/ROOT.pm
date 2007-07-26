@@ -44,7 +44,7 @@ sub get {
     my $tohost  = ( shift or "" );
     
     print "we arrived here!!\n";
-    my $command = "xrdcp root://$fromhost/$remotefile?cmd=trashbin $localfile -DIFirstConnectMaxCnt 1";
+    my $command = "xrdcp root://$fromhost/$remotefile?cmd=trashbin root://$tohost/$localfile -DIFirstConnectMaxCnt 1 -np ";
     print $command."\n";
     return system($command);
 #    my $command = "$options; get $remotefile $localfile";
