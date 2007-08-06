@@ -83,7 +83,7 @@ sub insertCollectionTransfer{
     my ($info)=$self->{CATALOGUE}->execute("listFilesFromCollection","-silent", $transfer->{lfn}) or die("Error getting the files of the collection");
     foreach my $file (@$info){
       $self->info("Now we have to send a transfer for $file->{origLFN}");
-      $self->{CATALOGUE}->execute("mirror", "-t", $file->{origLFN}, $transfer->{destination}, "-g", $transfer->{transferid}) or $self->info("Error mirroring $file->{origLFN}");
+      $self->{CATALOGUE}->execute("mirror", "-t", $file->{origLFN}, $transfer->{destination}, "-m", $transfer->{transferid}) or $self->info("Error mirroring $file->{origLFN}");
     }
     $self->{DB}->updateTransfer($transfer->{transferid}, {status=>'SPLIT'})
       or die ("Error setting the status to SPLIT\n");

@@ -315,7 +315,7 @@ sub listTransfer_HELP{
 
   return "listTransfer: returns all the transfers that are waiting in the system
 \tUsage:
-\t\tlistTransfer [-status <status>] [-user <user>] [-id <queueId>] [-verbose] [-master] [-summary]
+\t\tlistTransfer [-status <status>] [-user <user>] [-id <queueId>] [-verbose] [-master] [-summary] [-all_status]
 ";
 }
 
@@ -353,6 +353,7 @@ sub listTransfer {
     my $argv=shift;
     ($argv=~ /^-?-summary$/) and next;
     ($argv=~ /^-?-verbose=?/) and $all_status=1 and  next;
+    ($argv=~ /^-?-all_status=?/) and $all_status=1 and  next;
     ($argv=~ /^-?-master=?/) and $master=1 and  next;
     my $found;
     foreach my $column (@columns){

@@ -94,6 +94,7 @@ my %LCM_commands;
 		 'getLog' =>['$self->getLog', 0],
 		 'checkSEVolumes' =>['$self->{CATALOG}->checkSEVolumes', 0],
 		 'createCollection' => ['$self->createCollection', 0],
+		 'updateCollection' => ['$self->updateCollection', 2],
 
 
 );
@@ -899,11 +900,12 @@ sub mirror_HELP{
 
   return "mirror Copies a file into another SE
 Usage:
-\tmirror [-ftbu] [-g <number>] <lfn>
+\tmirror [-ftgbu] [-m <number>] <lfn>
 Options:\t-f\t keep the same relative path
 \t\t-b\t Do not wait for the file transfer
 \t\t-t\t Issue a transfer instead of copying the file directly (this implies also -b)
-\t\t-g <id>\t Put the transfer under the masterTransferof <id>
+\t\t-g: Use the lfn as a guid
+\t\t-m <id>\t Put the transfer under the masterTransferof <id>
 \t\t-u\t Don't issue the transfer if the file is already in that SE
 ";
 }
@@ -913,7 +915,7 @@ sub mirror {
 
   my $opt={};
   @ARGV=@_;
-  Getopt::Long::GetOptions($opt,  "f", "g=i", "b","t", "u") or 
+  Getopt::Long::GetOptions($opt,  "f", "g", "m=i", "b","t", "u") or 
       $self->info("Error parsing the arguments to mirror". $self->mirror_HELP()) and return;;
   @_=@ARGV;
   my $options=join("", keys(%$opt));
@@ -924,22 +926,30 @@ sub mirror {
   my $se   = ( shift or "$self->{CONFIG}->{SE_FULLNAME}" );
   
   ($lfn) or $self->info("Error: not enough arguments:\n ". $self->mirror_HELP())     and return;
-  $lfn = $self->{CATALOG}->f_complete_path($lfn);
 
-  my $realLfn=$self->{CATALOG}->checkPermissions( 'w', $lfn )  or
-    $self->info("You don't have permission to do that") and return;
+  my $guid;
+  my $realLfn;
+  my $info;
+  if ($opt->{g}){
+    $self->info("STill to be implemented");
+    return;
+  }else{
+    $lfn = $self->{CATALOG}->f_complete_path($lfn);
 
-  $self->{CATALOG}->isFile($lfn, $realLfn) or 
-    $self->info("The entry $lfn is not a file!") and return;
+    my $realLfn=$self->{CATALOG}->checkPermissions( 'w', $lfn )  or
+      $self->info("You don't have permission to do that") and return;
+    
+    $self->{CATALOG}->isFile($lfn, $realLfn) or 
+      $self->info("The entry $lfn is not a file!") and return;
 
-  my $info=$self->{CATALOG}->f_whereis("i", $realLfn)
-    or $self->info("Error getting the info from $realLfn") and return;
-
+    my $info=$self->{CATALOG}->f_whereis("i", $realLfn)
+      or $self->info("Error getting the info from $realLfn") and return;
+    
+    $guid=$info->{guid}
+      or $self->info( "Error getting the guid of $lfn",11) and return;
+  }
   
-  my $guid=$info->{guid}
-    or $self->info( "Error getting the guid of $lfn",11) and return;
-
- my $seRef=$info->{guidInfo}->{pfn} or 
+  my $seRef=$info->{guidInfo}->{pfn} or 
     $self->info("Error getting the list of pfns of $lfn") and return;
 
   my ($pfn,$oldSE);
@@ -2107,6 +2117,45 @@ sub createCollection{
     return;
   }
 
+  return 1;
+}
+sub updateCollection_HELP{
+  return "updateCollection: Check the consistency of a collection. 
+
+Usage:
+\tupdateCollection [<options>] <collection_name>
+
+Possible options:
+\t\t-s: silent
+\t\t-c: collocate. Make sure that all the files are in one SE
+By default, it checks the SE that contains all the files of the collection and the size of the collection
+";
+}
+
+sub updateCollection {
+  my $self=shift;
+  my $options=shift;
+  my $info=$self->{CATALOG}->updateCollection($options, @_) or return;
+  if ($options =~ /c/){
+    my $collection=$info->{collection};
+    my $total=$info->{total};
+    my $files=-1;
+    my $bestSE;
+    $self->info("Checking if a SE already contains all the files");
+    foreach my $se (keys %$info){
+      $se=~ /^(total)|(collection)$/  and next;
+
+      if ( $files < $info->{$se}){
+	$bestSE=$se;
+	$files=$info->{$se};
+      }
+      $files eq $total and 
+	$self->info("The se $se has all the files") and return 1;
+    }
+    $self->info("The SE that contains most of the files is $bestSE ($files out of $total)");
+    $self->execute("mirror", "-u", $collection, $bestSE);
+
+  }
   return 1;
 }
 

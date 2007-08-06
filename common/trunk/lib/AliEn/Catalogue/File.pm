@@ -667,6 +667,15 @@ sub f_touch {
   
   return $self->f_registerFile($options, $lfn,0);
 }
+sub f_du_HELP{
+  return "Gives the disk space usge of a directory
+Usage:
+\tdu [-h] <dir>
+
+Options:
+\t\t-h: Give the output in human readable format
+";
+}
 sub f_du {
   my $self=shift;
   my $options=shift;
@@ -675,7 +684,16 @@ sub f_du {
   $entry or $self->info( "du: `$path': No such file or directory", 11,1) and return;
   $self->info( "Checking the disk space usage of $path");
   my $space=$self->{DATABASE}->getDiskUsage($entry);
-  $self->info( "$path uses $space bytes");
+  my $unit="";
+  if ($options=~ /h/){
+    my @possible=("K", "M", "G", "T","P", "H");
+    while (@possible  and $space>1024){
+      $space=sprintf("%.2f",$space/1024);
+      $unit=shift @possible;
+    }
+    
+  }
+  $self->info( "$path uses $space ${unit}bytes");
 
   return $space;
 }

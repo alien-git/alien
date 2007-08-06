@@ -178,7 +178,6 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
 	     'addFileToCollection' => ['$self->{CATALOG}->f_addFileToCollection', 0],
 	     'listFilesFromCollection' => ['$self->{CATALOG}->f_listFilesFromCollection', 0],
 	     'removeFileFromCollection' => ['$self->{CATALOG}->f_removeFileFromCollection', 2+64],
-	     'updateCollection' => ['$self->{CATALOG}->updateCollection', 2],
 
 );
 
