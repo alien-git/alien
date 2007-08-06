@@ -90,17 +90,12 @@ sub f_addFileToCollection {
   $opt->{n} and return 1;
   return $self->updateCollection("s",$permColl);
 }
-sub updateCollection_HELP{
-  return "updateCollection: Check the consistency of a collection. 
-
-Usage:
-\tupdateCollection [<options>] <collection_name
-
-Possible options:
-\t\t-s: silent
-By default, it checks the SE that contains all the files of the collection and the size of the collection
-";
-}
+#
+#  The help for 'updateCollection' is in UI/Catalogue/LCM.pm, since there are 
+#  some options that require interaction with the LCM
+#
+#
+#
 sub updateCollection {
   my $self=shift;
   my $options=shift;
@@ -129,11 +124,19 @@ sub updateCollection {
   my $first=1;
   my $size=0;
   my $silent="";
+  my $summary={total=>0, collection=>$coll};
   foreach my $file (@$info){
+    $summary->{total}++;
     my $info=$self->f_whereis("slrgi", $file->{guid});
     my @tempSe;
     map {push @tempSe, $_->{seName}} @{$info->{pfn}};
     $size+=$info->{size};
+    my @done;
+    foreach (@tempSe){
+      grep(/^$_$/, @done) and next;
+      $summary->{$_} or $summary->{$_}=0;
+      $summary->{$_}++;
+    }
     if ($first){
       @se=@tempSe;
       $first=0;
@@ -158,7 +161,7 @@ sub updateCollection {
   $self->{DATABASE}->updateFile($coll, {size=>$size, 
 					se=>join(",", @se)}, 
 				{autose=>1});
-
+  ($options=~ /c/) and return $summary;
   return 1;
 }
 

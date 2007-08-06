@@ -313,6 +313,7 @@ sub startTransfer {
       $args[1]=~ /^castor/ and $toPFN=~ s/^file/castor/;
       # in case of SRM, let's keep the full host
       $args[1]=~ /^srm/ and $toPFN=$args[1];
+      $args[1]=~ /^root/ and $toPFN=$args[1];
     }
     
   }

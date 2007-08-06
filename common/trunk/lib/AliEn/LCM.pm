@@ -597,8 +597,9 @@ sub listTransfer {
     or return;
 
   my $result=$done->result;
-  $result=~ /^listTransfer: Gets the list of transfers/ and
-    return;
+ 
+  $result=~ /^listTransfer: returns all the transfers/ and
+    $self->info($result) and     return;
 
   my $message="TransferId\tStatus\t\tUser\t\tDestination\t\t\tSize\t\tSource\n";
   my $format="%6s\t\t%-8s\t%-10s\t%-15s\t\t%-12i\t\%12s";
