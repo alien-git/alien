@@ -457,7 +457,7 @@ Type=\"Job\";
   my $message = sprintf "Job state transition$from to %-10s |=| ",$status;
 
 
-  my ($ok) = $self->{DB}->updateStatus($queueId, $oldStatus, $status, $set);
+  my ($ok) = $self->{DB}->updateStatus($queueId, $oldStatus, $status, $set, $self);
 
   ($ok) or $message="FAILED $message";
 
@@ -1052,11 +1052,11 @@ sub killProcess {
   my $rresult = $self->{DB}->getFieldsFromQueueEx("queueId, submitHost","where (queueId='$queueId' or split='$queueId') ");
   my @retvalue;
 
-  for (@$rresult) {
-    @retvalue = $self->killProcessInt($_->{queueId},$user);
-    if ($_->{queueId} != $queueId) {
+  for my $j (@$rresult) {
+    @retvalue = $self->killProcessInt($j->{queueId},$user);
+    if ($j->{queueId} != $queueId) {
       # remove the proc entries
-      my $procDir = AliEn::Util::getProcDir(undef, $_->{submitHost}, $_->{queueId});
+      my $procDir = AliEn::Util::getProcDir(undef, $j->{submitHost}, $j->{queueId});
       $self->{CATALOGUE}->execute( "rmdir", $procDir, "-r" ) or $self->{LOGGER}->error("JobManager","In killProcess error deleting $procDir");
     }
   }

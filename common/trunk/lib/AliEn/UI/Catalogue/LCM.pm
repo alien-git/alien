@@ -929,14 +929,14 @@ sub mirror {
 
   my $guid;
   my $realLfn;
-  my $info;
+  my $guidInfo;
   if ($opt->{g}){
     $self->info("STill to be implemented");
     return;
   }else{
     $lfn = $self->{CATALOG}->f_complete_path($lfn);
 
-    my $realLfn=$self->{CATALOG}->checkPermissions( 'w', $lfn )  or
+    $realLfn=$self->{CATALOG}->checkPermissions( 'w', $lfn )  or
       $self->info("You don't have permission to do that") and return;
     
     $self->{CATALOG}->isFile($lfn, $realLfn) or 
@@ -947,9 +947,11 @@ sub mirror {
     
     $guid=$info->{guid}
       or $self->info( "Error getting the guid of $lfn",11) and return;
+    $guidInfo=$info->{guidInfo} or $self->info("Error getting the list of pfns of '$realLfn'", 1) 
+      and return;
   }
   
-  my $seRef=$info->{guidInfo}->{pfn} or 
+  my $seRef=$guidInfo->{pfn} or 
     $self->info("Error getting the list of pfns of $lfn") and return;
 
   my ($pfn,$oldSE);

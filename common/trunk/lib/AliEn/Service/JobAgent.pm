@@ -724,7 +724,7 @@ sub startMonitor {
   $self->info("Command executed, with status $self->{STATUS}");
   my $status=$self->{STATUS};
   ($status eq "SAVING") and $status="DONE";
-  $self->sendEmail($status);
+
   exit;
 }
 
@@ -1729,69 +1729,11 @@ sub catch_zap {
     $self->registerLogs(0);
     $self->changeStatus("%", "INTERRUPTED");
     $self->{STATUS}="INTERRUPTED";
-    $self->sendEmail($self->{STATUS});
 
     finishMonitor();
     exit;
 }
 
-sub sendEmail {
-    my $self   = shift;
-    my $status = shift;
-
-    my ( $ok, $user ) = $self->{CA}->evaluateAttributeString("Email");
-
-    ($user) or print "Not sending any email\n" and return;
-
-    $self->info("Sending an email to $user (job $status)...");
-
-    ( $ok, my @files ) =
-      $self->{CA}->evaluateAttributeVectorString("OutputFile");
-    @files = ( "stdout", "stderr", @files );
-    my $output = join ", ", @files;
-    my $ua = new LWP::UserAgent;
-
-    my $procDir = AliEn::Util::getProcDir($self->{JOB_USER}, undef, $self->{QUEUEID});
-    map { $_ = "\tget $procDir/job-output/$_" } @files;
-    my $type = join "\n", @files;
-
-    map { $_ =~ s/get/alien --exec get/ } @files;
-    my $shell = join "\n", @files;
-
-    $ua->agent( "AgentName/0.1 " . $ua->agent );
-    
-    my $message="The job produced the following files: $output\n
-You can get the output from the AliEn prompt typing:
-$type
-
-You can also get the files from the shell prompt typing:
- 
-$shell";
-    $status=~ /^ERROR_/ and $message="The job did not run properly. This is probably due to a site being misconfigured\n\nYou can see the execution log in the AliEn prompt in the directory $procDir/job-log/execution.out\n";
-
-    # Create a request
-    my $req = HTTP::Request->new( POST => "mailto:$user" );
-    $req->header(
-        Subject => "AliEn-Job $self->{QUEUEID} finished with status $status" );
-    my $URL=($self->{CONFIG}->{PORTAL_URL} || "http://alien.cern.ch/Alien/main?task=job&");
-    $req->content("AliEn-Job $self->{QUEUEID} finished with status $status\n
-You can see the ouput produced by the job in ${URL}jobID=$self->{QUEUEID}
-
-$message
-
-Please, make sure to copy any file that you want, since those are temporary files, and will be deleted at some point.
-
-If you have any problem, please contact us
-"
-    );
-
-    # Pass request to the user agent and get a response back
-
-    my $res = $ua->request($req);
-
-    $self->info("ok");
-
-}
 sub getChildProcs {
   my $this = shift;
   my $pid = shift;

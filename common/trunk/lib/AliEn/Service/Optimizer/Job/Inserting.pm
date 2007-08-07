@@ -81,6 +81,12 @@ sub updateInserting {
 
     $set->{agentId}=$self->{DB}->insertJobAgent($req)
       or die("error creating the jobagent entry\n");
+    ($ok, my $email)=$job_ca->evaluateAttributeString("Email");
+    if ($email){
+      $self->info("This job will send an email to $email");
+      $self->putJobLog($queueid, "trace", "The job will send an email to '$email'");
+      $set->{notify}=$email;
+    }
   };
   my $return=1;
   if ($@) {

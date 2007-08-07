@@ -79,6 +79,7 @@ sub initialize {
 	            price=>"float",
 	            effectivePriority=>"float",
 	            finalPrice=>"float",
+		    notify=>"varchar(255)",
 		    agentid=>'int(11)'};
   my $tables={ QUEUE=>{columns=>$queueColumns,
 		       id=>"queueId",
@@ -463,6 +464,8 @@ sub updateStatus{
       and return;
   my $status = shift;
   my $set = shift || {};
+  #This is the service that will update the log of the job
+  my $service=shift;
 
   $set->{status} = $status;
   $set->{procinfotime}=time;
@@ -476,18 +479,18 @@ sub updateStatus{
   $DEBUG and $self->debug(1, "In updateStatus checking if job $id with status $oldstatus exists");
 
 
-  my $jobinfo = $self->getFieldsFromQueueEx("queueId,site,execHost,status,jdl,masterjob,agentid","where queueid=?", {bind_values=>[$id]});
+  my $jobinfo = $self->getFieldsFromQueueEx("queueId,site,execHost,status,jdl,masterjob,agentid,notify","where queueid=?", {bind_values=>[$id]});
 	
   if ($jobinfo and @$jobinfo) {
     $DEBUG and $self->debug(1, "In updateStatus setting job's $id status to ". ($status or ""));
-    foreach (@$jobinfo) {
-      my $dbsite      = ($_->{'site'} || "");
-      my $execHost    = ($_->{'execHost'} || "");
-      my $dboldstatus = $_->{'status'};
-      my $dbqueueid   = $_->{'queueId'};
-      my $dbjdl       = $_->{'jdl'};
-      my $masterjob   = $_->{masterjob};
-      my $agentid     = $_->{agentid};
+    foreach my $dd (@$jobinfo) {
+      my $dbsite      = ($dd->{'site'} || "");
+      my $execHost    = ($dd->{'execHost'} || "");
+      my $dboldstatus = $dd->{'status'};
+      my $dbqueueid   = $dd->{'queueId'};
+      my $dbjdl       = $dd->{'jdl'};
+      my $masterjob   = $dd->{masterjob};
+      my $agentid     = $dd->{agentid};
 
       if ( ($status !~ /^((INSERTING)|(WAITING)|(KILLED)|(SPLIT(TING)?)|(ERROR_I)|(STARTED)|(ASSIGNED))$/) 
 	   &&  ((!$dbsite) || ($dbsite eq "")  ) && (! $masterjob)) {
@@ -514,10 +517,11 @@ sub updateStatus{
 	  ($dboldstatus eq "WAITING") and $self->deleteJobAgent($agentid);
 	  # update the SiteQueue table
 	  $self->unlock();
-
+	  
 	  # send the status change to ML
 	  $self->sendJobStatus($id, $status, $execHost, "");
-	  
+	  $status=~ /^(DONE)|(ERROR_.*)|(EXPIRED)$/ and 
+	    $self->checkEmail($id, $dd, $status, $service);
 	  if ( $status ne $oldstatus ) {
 	    if ( $status eq "ASSIGNED" ) {
 	      $self->info("In updateStatus increasing $status for $dbsite");
@@ -555,6 +559,57 @@ sub updateStatus{
   }
 	
   return $done;
+}
+
+sub checkEmail{
+  my $self=shift;
+  my $id=shift;
+  my $jobinfo=shift;
+  my $status=shift;
+  my $service=shift;
+  $self->info("Checking if we have to send an email for job $id");
+  use Data::Dumper;
+  print Dumper($jobinfo);
+  $jobinfo->{notify} or return 1;
+  $self->info("We are supposed to send an email!!! (status $status)");
+
+  my $ua = new LWP::UserAgent;
+
+  $ua->agent( "AgentName/0.1 " . $ua->agent );
+
+#  my $message="The job produced the following files: $output\n
+#You can get the output from the AliEn prompt typing:
+#$type#
+#
+#You can also get the files from the shell prompt typing:
+# 
+#$shell";
+#  $status=~ /^ERROR_/ and $message="The job did not run properly. This could be either a site being misconfigured\nYou can see the execution log in the AliEn prompt in the directory $procDir/job-log/execution.out\n";
+  
+  # Create a request
+  my $req = HTTP::Request->new( POST => "mailto:$jobinfo->{notify}" );
+  $req->header(
+		 Subject => "AliEn-Job $id finished with status $status" );
+  my $URL=($self->{CONFIG}->{PORTAL_URL} || "http://alien.cern.ch/Alien/main?task=job&");
+    $req->content("AliEn-Job $id finished with status $status\n
+You can see the ouput produced by the job in ${URL}jobID=$id
+
+
+Please, make sure to copy any file that you want, since those are temporary files, and will be deleted at some point.
+
+If you have any problem, please contact us
+"
+		 );
+  
+  # Pass request to the user agent and get a response back
+  
+  my $res = $ua->request($req);
+  if ($service) {
+    $self->info("Let's put it in the job trace");
+    $service->putJobLog($id, "trace", "Sending an email to $jobinfo->{notify}");
+  }
+  $self->info("ok");
+  return 1;
 }
 
 
