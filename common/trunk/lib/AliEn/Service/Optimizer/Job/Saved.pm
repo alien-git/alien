@@ -90,7 +90,7 @@ sub checkSavedJob{
 
 
   
-  $self->{DB}->updateStatus($queueid,"SAVED", $status);
+  $self->{DB}->updateStatus($queueid,"SAVED", $status, undef, $self);
   $self->info("Status updated");
   $self->putJobLog($queueid,"state", "Job state transition from SAVED to $status");
 

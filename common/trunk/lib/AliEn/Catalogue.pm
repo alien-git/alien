@@ -1857,7 +1857,7 @@ sub createFindCollection{
     $self->info("And now we have to add $file to the collection");
     $self->f_addFileToCollection($file->{lfn}, $collec, "-n");
   }
-  $self->updateCollection($collec);
+  $self->updateCollection("",$collec);
   return 1;
 }
 
