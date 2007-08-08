@@ -122,30 +122,42 @@ sub f_showTags {
       and return;
 
   my @tags=();
+  my @hashtags=();
   my $result;
   my $return;
+
   if ($options =~ /all/) {
     $self->debug(1, "Getting all the tags ");  
     ($result) = $self->{DATABASE}->getAllTagNamesByPath($directory);
-    
-    foreach my $entry (@{$result}) {
+      foreach my $entry (@{$result}) {
+      my $hashval={};
       push @tags, $entry->{tagName};
+      $hashval->{tagname} = $entry->{tagName};
+      push @hashtags, $hashval;
     }
     $return=$result;
   } else {
-    
     ($result) = $self->{DATABASE}->getTagNamesByPath($directory);
     @tags=@$result;
     $return= join ( "###", @$result );
+    foreach my $tagname (@$result) {
+        my $hashval={};
+	$hashval->{tagname} = $tagname;
+	push @hashtags, $hashval;
+    }
   }
 
   if ( !$result or $#{$result} == -1) {
-    $self->info("There are no tags defined for $directory");
+      ($options =~ /z/) || $self->info("There are no tags defined for $directory");
     return ();
   }
 
-  $self->info("Tags defined for $directory \n@tags");
-  return $return;
+  ($options =~ /z/) || $self->info("Tags defined for $directory \n@tags");
+  if ($options =~ /z/) {
+      return @hashtags;
+  } else {
+      return $return;
+  }
 }
 
 sub existsTag {
@@ -262,9 +274,11 @@ sub modifyTagValue {
 
 sub f_showTagValue {
   my $self = shift;
+  my $opts   = shift;
   my $path = $self->GetAbsolutePath(shift);
   my $tag = shift;
-
+  
+  my $hashtags=();
   ($tag)
     or print STDERR
       "Error: not enough arguments in showTagValue\nUsage: showTagValue <file> <tag>\n"
@@ -308,23 +322,27 @@ sub f_showTagValue {
     my $l = length "$name($type)  ";
     $type =~ /(\d+)/ and $1 > $l and $l = $1;
 
-    $self->{SILENT} or printf "%-${l}s", "$name($type)  ";
+    if ((!$self->{SILENT}) && ($opts !~ /z/)) {printf "%-${l}s", "$name($type)  ";}
     push @fields, [$name, $l];
   }
 
   if ( !$self->{SILENT} ) {
-    print STDOUT "\n";
+    ($opts =~ /z/) || print STDOUT "\n";
     foreach my $line (@$rTags) {
       foreach my $rfield (@fields) {
 	my $value="";
 	defined $line->{$rfield->[0]} and $value=$line->{$rfield->[0]};
-	printf( "%-" . $rfield->[1] . "s", $value );
+	($opts =~ /z/) || printf( "%-" . $rfield->[1] . "s", $value );
       }
       print STDOUT "\n";
     }
   }
 
-  return ( $rcolumns, $rTags );
+  if ($opts =~ /z/) {
+      return @$rTags;
+  } else {
+      return ( $rcolumns, $rTags );
+  }
 }
 
 sub f_removeTagValue {
@@ -365,8 +383,9 @@ sub f_removeTagValue {
 
 sub f_showAllTagValues {
   my $self = shift;
+  my $opts   = shift;
   my $path = $self->GetAbsolutePath(shift);
-
+  my @hashresult = ();
   ($path)
     or $self->info("Error: not enough arguments in showAllTagValues\nUsage: showTagValue <file> ")
 	and return;
@@ -378,7 +397,7 @@ sub f_showAllTagValues {
   foreach my $entry (@{$tags}) {
     my $tag=$entry->{tagName};
     my $directory=$entry->{path};
-    $self->info("Getting all the '$tag' of $path");
+    ($opts =~ /z/) || $self->info("Getting all the '$tag' of $path");
     my $tagTableName = $self->{DATABASE}->getTagTableName($entry->{path}, $tag);
 
     my $where="";
@@ -392,11 +411,20 @@ sub f_showAllTagValues {
     my $rcolumns = $self->{DATABASE}->describeTable($tagTableName);
 
     push @result, {tagName=>$tag, data=>$rTags, columns=>$rcolumns};
-
+    foreach (@$rTags) {
+	my $tgcopy = $_;
+	$tgcopy->{tagname} = $tag;
+	push @hashresult, $tgcopy;
+    }
   }
 
-  $self->info("Done!!");
-  return \@result;
+  ($opts =~ /z/) || $self->info("Done!!");
+
+  if ($opts =~ /z/) {
+      return @hashresult;
+  } else {
+      return \@result;
+  }
 }
 
 return 1;
