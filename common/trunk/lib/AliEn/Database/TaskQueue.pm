@@ -184,6 +184,8 @@ sub initialize {
 			      id=>"ID",
 			      index=>"ID",
 	           	    },
+	       JOBSTOMERGE=>{columns=>{masterId=>"int(11) not null primary key"},
+			     id=>"masterId"},
 			
 	     };
 
@@ -479,7 +481,7 @@ sub updateStatus{
   $DEBUG and $self->debug(1, "In updateStatus checking if job $id with status $oldstatus exists");
 
 
-  my $jobinfo = $self->getFieldsFromQueueEx("queueId,site,execHost,status,jdl,masterjob,agentid,notify","where queueid=?", {bind_values=>[$id]});
+  my $jobinfo = $self->getFieldsFromQueueEx("queueId,site,execHost,status,jdl,masterjob,agentid","where queueid=?", {bind_values=>[$id]});
 	
   if ($jobinfo and @$jobinfo) {
     $DEBUG and $self->debug(1, "In updateStatus setting job's $id status to ". ($status or ""));
@@ -520,8 +522,8 @@ sub updateStatus{
 	  
 	  # send the status change to ML
 	  $self->sendJobStatus($id, $status, $execHost, "");
-	  $status=~ /^(DONE)|(ERROR_.*)|(EXPIRED)$/ and 
-	    $self->checkEmail($id, $dd, $status, $service);
+	  $status=~ /^(DONE)|(ERROR_.*)|(EXPIRED)|(KILLED)$/ and 
+	    $self->checkFinalAction($id, $service);
 	  if ( $status ne $oldstatus ) {
 	    if ( $status eq "ASSIGNED" ) {
 	      $self->info("In updateStatus increasing $status for $dbsite");
@@ -560,17 +562,33 @@ sub updateStatus{
 	
   return $done;
 }
-
-sub checkEmail{
+sub checkFinalAction{
   my $self=shift;
   my $id=shift;
-  my $jobinfo=shift;
+  my $service=shift;
+
+  my $info = $self->queryRow("SELECT status,notify,split FROM QUEUE where queueid=?", undef, {bind_values=>[$id]}) or return;
+  $self->info("Checking if we have to send an email for job $id...");  
+  $info->{notify} and $self->sendEmail($info->{notify},$id, $info->{status}, $service);
+  $self->info("Checking if we have to merge the master");
+  use Data::Dumper;
+  print Dumper($info);
+  if ($info->{split}){
+    $self->info("We have to check if all the subjobs of $info->{split} have finished");
+    $self->do("insert ignore into JOBSTOMERGE values (?)", {bind_values=>[$info->{split}]});
+    $self->do("update ACTIONS set todo=1 where action='MERGING'");
+  }
+  return 1;
+}
+
+
+sub sendEmail{
+  my $self=shift;
+  my $address=shift;
+  my $id=shift;
   my $status=shift;
   my $service=shift;
-  $self->info("Checking if we have to send an email for job $id");
-  use Data::Dumper;
-  print Dumper($jobinfo);
-  $jobinfo->{notify} or return 1;
+
   $self->info("We are supposed to send an email!!! (status $status)");
 
   my $ua = new LWP::UserAgent;
@@ -587,7 +605,7 @@ sub checkEmail{
 #  $status=~ /^ERROR_/ and $message="The job did not run properly. This could be either a site being misconfigured\nYou can see the execution log in the AliEn prompt in the directory $procDir/job-log/execution.out\n";
   
   # Create a request
-  my $req = HTTP::Request->new( POST => "mailto:$jobinfo->{notify}" );
+  my $req = HTTP::Request->new( POST => "mailto:$address" );
   $req->header(
 		 Subject => "AliEn-Job $id finished with status $status" );
   my $URL=($self->{CONFIG}->{PORTAL_URL} || "http://alien.cern.ch/Alien/main?task=job&");
@@ -606,7 +624,7 @@ If you have any problem, please contact us
   my $res = $ua->request($req);
   if ($service) {
     $self->info("Let's put it in the job trace");
-    $service->putJobLog($id, "trace", "Sending an email to $jobinfo->{notify} (job $status)");
+    $service->putJobLog($id, "trace", "Sending an email to $address (job $status)");
   }
   $self->info("ok");
   return 1;
