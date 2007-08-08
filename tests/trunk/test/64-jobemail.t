@@ -40,43 +40,20 @@ sub jobWithEmail {
 
   my ($procDir)=executeJDLFile($cat,$jdl, $status) or 
     print "The job did not execute correctly!!\n" and return;
-
-
-  my ($file)=$cat->execute("get", "-f", "$procDir/job-log/execution.out");
-
-  $file or return;
-  print "The job finished!! Let's see the output of the ProcessMonitor\n";
-
-  open (FILE, "<$file") or print  "THERE WAS NO OUTPUT\n" and return;
-
-  my @file=<FILE>;
-  close FILE;
-  unlink $file;
-
-  print "THE JOB WROTE: \n@file\n\n";
-
-  my @mail=grep(/Sending an email to \S+ \(job \S+\)/, @file);
-  if (! @mail){
-    print "The job did not send any email\n";
-    my $id=$procDir;
-    $id=~ s{^.*/(\d+)/?}{$1};
-    open (FILE, "find $cat->{CONFIG}->{TMP_DIR}/7200 -name proc.$id.out|") or print "Error finding the log file\n" and return;
-    my $file=join("",<FILE>);
-    close FILE or print "Error with the find\n" and return;
-    chomp $file;
-    $file or print "Error finding the temporary log file\n" and return;
-    print "Let's check $file\n";
-    open (FILE, "<$file") or print "Error checking $file\n" and return;
-    my @file=<FILE>;
-    close FILE;
-    @mail=grep(/Sending an email to \S+ \(job \S+\)/, @file);
-    if (@mail) {
-      print "in the local file there was some trace\n";
-    }else {
-      return;
-    }
+#my $procDir="/proc/newuser/81";
+  my $id;
+  $procDir=~ m{/(\d+)} or print "Error getting the job id from '$procDir'\n" and return;
+  $id=$1;
+  print "The job $id finished!! Let's wait 60 seconds before getting the trace\n";
+  sleep(60);
+  my ($trace)=$cat->execute("ps", "trace", $id, "all") or return;
+  use Data::Dumper;
+  foreach my $entry (@$trace){
+    $entry->{trace}=~ /Sending an email to (\S+) \(job (\S+)\)/ or next;
+    print "The job sent an email to $1, with status $2\n";
+    return $2;
   }
-  join("", @mail) =~ /Sending an email to \S+ \(job (\S+)\)/;
-  print "The email said that the job was $1\n";
-  return $1;
+  print "The job didn't send any emails\n";
+  print Dumper($trace);
+  return;
 }

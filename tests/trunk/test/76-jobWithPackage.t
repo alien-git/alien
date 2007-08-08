@@ -58,7 +58,7 @@ sub installPackage{
   use AliEn::SOAP;
   my $package=shift;
   my $soap=new AliEn::SOAP;
-  
+  print "Installing the package $package\n";
   my $result;
   while (1) {
     $result=$soap->CallSOAP("PACKMAN", "installPackage", "newuser", 
