@@ -111,7 +111,7 @@ sub installPackage{
     }
     
     #First, let's try to install all the dependencies
-    print "Ready to install $package and $version and $user (from $lfn)\n";
+    $self->info("Ready to install $package and $version and $user (from $lfn)");
     $dependencies->{"${package}::$version"}=1;
     
     my $old=$options->{NO_FORK} || 0;
@@ -146,6 +146,8 @@ sub installPackage{
 	  sleep(60);
 	  next;
 	}
+	$self->info("I think that here I have to return '$@'...");
+	die($@);
       }
       last;
     }
@@ -185,7 +187,7 @@ sub findPackageLFN{
     $self->debug(2, "$$ Got @files");
     if ($version) {
       @files=grep (/$package\/$version\// , @files);
-      print "After the version, we have @files\n";
+      $self->debug(2,"After the version, we have @files");
       @files or next;
     }
     $lfn=shift @files;
@@ -197,10 +199,8 @@ sub findPackageLFN{
     #Ok, let's look for the package source
     foreach (@dirs){
       my @files2=$self->{CATALOGUE}->execute("find", "-silent","$_/$package", "source") or next;
-      print "Got @files2\n";
       if ($version) {
 	@files2=grep (/$package\/$version\// , @files2);
-	print "After the version, we have @files2\n";
 	@files2 or next;
       }
       $lfn=shift @files2;
@@ -229,8 +229,6 @@ sub findPackageLFN{
    }
   }
   $self->info( "$$ Metadata of this item");
-  use Data::Dumper;
-  print Dumper($item);
   return ($lfn, $item);
 }
 
@@ -317,6 +315,7 @@ sub InstallPackage {
     if (!$pid){
       $self->info( "$$ Let's tell the client to retry in sometime...");
       $self->{LOGGER}->redirect();
+      $self->info( "$$ Let's tell the client to retry in sometime...");
       die ("Package is being installed\n");
     }
   }
