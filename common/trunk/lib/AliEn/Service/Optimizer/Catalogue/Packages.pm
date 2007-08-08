@@ -51,6 +51,7 @@ sub checkWakesUp {
   $self->info("READY TO INSERT @packages\n");
   $self->{DB}->{LFN_DB}->lock('PACKAGES');
   $self->{DB}->{LFN_DB}->delete('PACKAGES', "1");
+  @packages and 
   $self->{DB}->{LFN_DB}->multiinsert('PACKAGES', \@packages,);
   $self->{DB}->{LFN_DB}->unlock();
 
