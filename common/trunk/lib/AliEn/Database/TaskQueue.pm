@@ -606,7 +606,7 @@ If you have any problem, please contact us
   my $res = $ua->request($req);
   if ($service) {
     $self->info("Let's put it in the job trace");
-    $service->putJobLog($id, "trace", "Sending an email to $jobinfo->{notify}");
+    $service->putJobLog($id, "trace", "Sending an email to $jobinfo->{notify} (job $status)");
   }
   $self->info("ok");
   return 1;
