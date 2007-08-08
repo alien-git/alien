@@ -261,7 +261,7 @@ sub checkActionTable {
   my %columns= (action=>"char(40) not null primary key",
 		todo=>"int(1) not null default 0");
   $self->checkTable("ACTIONS", "action", \%columns, "action") or return;
-  return $self->do("INSERT IGNORE INTO ACTIONS(action) values  ('INSERTING'), ('MERGING'), ('KILLED'), ('SAVED')");
+  return $self->do("INSERT IGNORE INTO ACTIONS(action) values  ('INSERTING'), ('MERGING'), ('KILLED'), ('SAVED'), ('SPLITTING')");
 }
 
 #sub insertValuesIntoQueue {
@@ -309,8 +309,10 @@ sub insertJobLocked {
   
   $DEBUG and $self->debug(1, "In insertJobLocked unlocking the table $self->{QUEUETABLE}.");	
   $self->unlock();
-  $self->update("ACTIONS", {todo=>1}, "action='INSERTING'");
-
+  my $action="INSERTING";
+  $set->{jdl}=~ / split =/im and $action="SPLITTING";
+  $self->update("ACTIONS", {todo=>1}, "action='$action'");
+  $self->info("UPDATING $actions and $set-{jdl}");
   # send the new job's status to ML
   $self->sendJobStatus($procid, 'INSERTING', "", $set->{submitHost});
 

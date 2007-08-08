@@ -56,6 +56,12 @@ sub checkWakesUp {
   my $method="info";
   $silent and $method="debug";
   $self->{LOGGER}->$method("Splitting", "The splitting optimizer starts");
+  $self->{SLEEP_PERIOD}=10;
+  $self->{DB}->queryValue("SELECT todo from ACTIONS where action='SPLITTING'")
+    or return;
+  $self->{DB}->update("ACTIONS", {todo=>0}, "action='SPLITTING'");
+  $self->info("There are some jobs to split!!");
+
   my $done2=$self->checkJobs($silent, "INSERTING' and jdl like '\% split =\%", 
 			     "updateSplitting");
 
