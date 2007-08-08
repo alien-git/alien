@@ -798,13 +798,13 @@ sub f_whereis{
     $DEBUG and $self->debug(2,"Let's take a look at the transfer methods");
     my @newlist;
     foreach my $entry (@SElist){
-	my $found=0;
-	foreach my $checkentry (@newlist) {
-	    if ($checkentry->{seName} eq $entry->{seName}) {
-		$found=1;
-	    }
+	if ($entry->{seName} eq "no_se") {
+	    # zip files have 'no_se' set, so we need to add this 'virtual' SE anyway
+	    push @newlist, $entry;
+	} else {
+	    # non-zip files have to be checked for the required protocols
+	    push @newlist, $self->checkIOmethods($entry, @_);
 	}
-	! $found && push @newlist, $self->checkIOmethods($entry, @_);
     }
     @SElist=@newlist;
   }
