@@ -16,20 +16,29 @@ sub checkWakesUp {
 
   $self->{LOGGER}->$method("Merging", "The merging optimizer starts");
 
-  $self->{INSERTING_COUNTING} or $self->{INSERTING_COUNTING}=0;
-  $self->{INSERTING_COUNTING}++;
-  if ($self->{INSERTING_COUNTING}>6){
-    $self->{INSERTING_COUNTING}=0;
-  }else {
-    $self->{DB}->queryValue("SELECT todo from ACTIONS where action='MERGING'")
-      or return;
-  }
+  $self->{DB}->queryValue("SELECT todo from ACTIONS where action='MERGING'")
+    or return;
   $self->{DB}->update("ACTIONS", {todo=>0}, "action='MERGING'");
 
-  my $done3=$self->checkJobs($silent, "SPLIT","updateMerging",100);
-  $done3=$self->checkJobs($silent, "TERMSPLIT","updateMerging",100); 
-  $done3=$self->checkJobs($silent, "FORCEMERGE","updateMerging",100); 
-  $done3=$self->checkJobs($silent, "MERGING","checkMerging",100); 
+  $self->info("There are some jobs to check!!");
+
+  my $jobs=$self->{DB}->query("SELECT queueid, jdl, status from QUEUE q, JOBSTOMERGE j where q.queueid=j.masterid");
+  foreach my $job (@$jobs){
+    $self->{DB}->delete("JOBSTOMERGE", "masterId=?", {bind_values=>[$job->{queueid}]});
+    use Data::Dumper;
+    print Dumper($job);
+    my $job_ca=Classad::Classad->new($job->{jdl});
+    if ( !$job_ca->isOK() ) {
+      $self->info("JobOptimizer: in checkJobs incorrect JDL input\n" . $job->{jdl} );
+      $self->{DB}->updateStatus($job->{queueid},"%","ERROR_I");
+      
+      next;
+    }
+    $self->updateMerging($job->{queueid}, $job_ca, $job->{status});
+
+  }
+
+  my $done3=$self->checkJobs($silent, "MERGING","checkMerging",100); 
 
   $self->{LOGGER}->$method("Merging", "The merging optimizer finished");
 
