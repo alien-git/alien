@@ -109,13 +109,13 @@ sub assignWaiting{
 }
 
 sub updateExpiredTransfers{
-	my $self = shift;
-
-	my $yesterday=time;
-    $yesterday -= 86400; #24*60*60
-
-	$self->debug(1,"In updateExpiredTransfers updating status of expired transfers");
-	$self->update({status=>'EXPIRED'},"status = 'ASSIGNED' and sent<?", {bind_values=>[$yesterday]});
+  my $self = shift;
+  
+  my $yesterday=time;
+  $yesterday -= 86400; #24*60*60
+  
+  $self->debug(1,"In updateExpiredTransfers updating status of expired transfers");
+  $self->update({status=>'EXPIRED'},"(status = 'ASSIGNED' or status ='TRANSFERING')  and sent<?", {bind_values=>[$yesterday]});
 }
 
 sub updateLocalCopyTransfers{

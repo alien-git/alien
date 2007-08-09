@@ -3,11 +3,15 @@ use XML::Simple;
 package AliEn::Dataset;
 
 use strict;
+use AliEn::Logger;
+use vars qw( @ISA);
+push @ISA, 'AliEn::Logger::LogObject';
 
 sub new {
     my $proto = shift;
     my $self  = {};
     bless( $self, ( ref($proto) || $proto ) );
+    $self->SUPER::new({logfile=>$self->{logfile}}) or return;
     $self->{XMLhash} = ();
     $self->{XML} = "";
     $self->{XMLhashsplit} = 0;
@@ -85,19 +89,85 @@ sub writexml {
     return $self->{XML};
 }
 
-
-#sub readxmlold {
-#    my $self = shift;
-#    my $xml = (shift or $self->{XML});
-#    print "Reading $xml\n";
-#    my $xsimple = XML::Simple->new();
-#    $self->{XMLhash} = $xsimple->XMLin($xml, 
-#				       KeyAttr => {event => 'name', file => 'name', mirror => 'name'},
-#				       ForceArray => [ 'event' , 'file' , 'mirror' ],
-#				       ContentKey => '-content');
-#    return $self->{XMLhash};
-#}
 sub readxml {
+    my $self = shift;
+    my $xml = (shift or return);
+    my $limit = (shift or 999999);
+    my $nfiles=0;
+    $self->{XMLname} = "$xml";
+    
+    # parse by hand
+    open XMLIN , "$xml" or 
+      $self->info("Error opening the file $xml") and return;
+    my $ptr;
+    my $cnt=0;
+    $self->{XMLhash}={collection=>{event=>{}}};
+    while (<XMLIN>) {
+	if ( $_ =~ /collection[\s]*name=\"([^\"]*)\"/ ) {
+	    $self->{XMLhash}->{collection}->{name}=$1;
+	    next;
+	}
+	if ( $_ =~ /event[\s]*name=\"([^\"]*)\"/ ) {
+	    if ($cnt >= $limit) { last;}
+	    $cnt++;
+	    $ptr = 	"$1";
+	    my $filehash;
+	    $self->{XMLhash}->{collection}->{event}->{"$ptr"}->{file} = 
+$filehash;
+	    next;
+	}
+	if ( $_ =~ /info[\s]*comment==\"([^\"]*)\"/ ) {
+	    $self->{XMLhash}->{collection}->{comment}=$1;
+	    next;
+	}
+	
+	if ( $_ =~ /file[\s]*name=\"([^\"]*)\"/ ) {
+	    $nfiles++;
+	    my @tags = split " ",$_;
+	    my $name="";
+	    foreach my $tag (@tags) {
+		if ($tag =~ /^name/) {
+		    if ($tag =~ /([^=]*)=\"([^\"]*)\"/ ) {
+			$name = $2;
+		    }
+		}
+	    }
+	    
+	    my $infohash;
+	    foreach my $tag (@tags) {
+		if ( $tag =~ /file/) {
+		    next;
+		}
+		if ( $tag =~ /\/\>/) {
+		    next;
+		}
+		if ($tag =~ /([^=]*)=\"([^\"]*)\"/ ) {
+		    $infohash->{$1} = $2;
+		}
+	    }
+	    
+	    $self->{XMLhash}->{collection}->{event}->{"$ptr"}->{file}->{"$name"}=$infohash;
+	    next;
+	}
+    }
+    
+    $self->info("DSET:READXML  name=\"$xml\" N=\"$nfiles\" ");
+
+    return $self->{XMLhash};
+}
+
+sub readxmlold {
+    my $self = shift;
+    my $xml = (shift or $self->{XML});
+#    print "Reading $xml\n";
+    my $xsimple = XML::Simple->new();
+    $self->{XMLhash} = $xsimple->XMLin($xml, 
+				       KeyAttr => {event => 'name', file => 'name', mirror => 'name'},
+				       ForceArray => [ 'event' , 'file' , 'mirror' ],
+				       ContentKey => '-content');
+    return $self->{XMLhash};
+}
+sub readxmlfast {
   my $self = shift;
   my $xml = (shift or return);
   my $limit = (shift or 999999);

@@ -95,16 +95,19 @@ sub copyInput {
   my $procid=shift;
   my $job_ca=shift;
   my $user=shift;
-
+  $self->info("At the beginnning of copyInput of $procid");
   my ($ok, $split)=$job_ca->evaluateAttributeString("Split");
+  $self->info("Already evaluated the split");
   $split and
     $self->info("The job is going to be split... don't need to copy the input")
       and return {};
 
   ($ok, my @inputFile) = $job_ca->evaluateAttributeVectorString("InputBox");
   my @origFile=@inputFile;
+  $self->info("Already evaluated the inputbox");
   ($ok, my $createLinks)=$job_ca->evaluateAttributeString("CreateLinks");
   ($ok, my @inputData)= $job_ca->evaluateAttributeVectorString("InputData");
+  $self->info("Already evaluated the inputdata");
 #  if (grep (! /,nodownload/, @inputData)){
   push @inputFile, grep (! /,nodownload/, @inputData);
 #  }
@@ -112,6 +115,7 @@ sub copyInput {
 
   my @filesToDownload=();
   my $file;
+  $self->info("Before the copy of the inputcollection");
 
   $self->copyInputCollection($job_ca, $procid, \@inputFile)
     or  $self->info("Error checking the input collection") and return;
@@ -122,6 +126,7 @@ sub copyInput {
   my ($olduser)=$self->{CATALOGUE}->execute("whoami");
   my @allreq;
   my @allreqPattern;
+  $self->info("And the new eval");
   eval {
     foreach $file (@inputFile) {
       my ( $pfn, $pfnSize, $pfnName, $pfnSE ) = split "###", $file;
@@ -474,6 +479,7 @@ sub copyInputCollection {
   @inputData or
     $self->info("There is no inputDataCollection")
       and return 1;
+  ($ok, my $split)=$job_ca->evaluateAttributeString("Split");
 
   foreach my $file (@inputData){
     $self->putJobLog($jobId,"trace", "Using the inputcollection $file");
@@ -489,9 +495,20 @@ sub copyInputCollection {
     } else {
       $self->copyInputCollectionFromXML($jobId,$file2, $options, $inputBox) or return;
     }
+    my $lfnRef=$self->{DATASET}->getAllLFN()
+      or $self->info("Error getting the LFNS from the dataset") and return;
+    if ($split and $#{$inputBox}>3000){
+      $self->putJobLog($jobId, "error", "There are $#{$lfnRef->{lfns}} files in the collection $file2 (split job). Putting the job to error");
+      return;
+    }
+    if (!$split and $#{$inputBox}>1000){
+      $self->putJobLog($jobId, "error", "There are $#{$lfnRef->{lfns}} files in the collection $file2. Putting the job to error");
+      return;
+    }
   }
   return 1;
 }
+
 
 
 sub copyInputCollectionFromColl{
@@ -534,9 +551,26 @@ sub copyInputCollectionFromXML{
     $self->putJobLog($jobId,"error","Error creating the dataset from the collection $lfn");
     return;
   }
+  my $total=0;
+  $dataset->{collection} and $dataset->{collection}->{event}
+    and $total=keys %{$dataset->{collection}->{event}};
+  if ($total>1000){
+    $self->putJobLog($jobId, "error", "There are $total events in the collection $file2. Putting the job to error");
+    return;
+  }
   $self->info("Getting the LFNS from the dataset");
   my $lfnRef=$self->{DATASET}->getAllLFN()
     or $self->info("Error getting the LFNS from the dataset") and return;
+
+  if ($split and $#{$lfnRef->{lfns}}>3000){
+    $self->putJobLog($jobId, "error", "There are $#{$lfnRef->{lfns}} files in the collection $file2 (split job). Putting the job to error");
+    return;
+  }
+  if (!$split and $#{$lfnRef->{lfns}}>1000){
+    $self->putJobLog($jobId, "error", "There are $#{$lfnRef->{lfns}} files in the collection $file2. Putting the job to error");
+    return;
+  }
+
   map {$_="LF:$_$options"} @{$lfnRef->{lfns}};
   $self->info("Adding the files ".@{$lfnRef->{lfns}});
   push @$inputBox, @{$lfnRef->{lfns}};
