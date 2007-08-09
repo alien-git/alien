@@ -1184,14 +1184,9 @@ sub f_verifySubjectRole {
     $subject or print STDERR "You have to specify a subject!\n" and return;
 
     print "Verifying subject $subject\n";
-    my $done =
-      SOAP::Lite->uri('AliEn/Service/Authen')
-      ->proxy("http://$self->{CONFIG}->{AUTH_HOST}:$self->{CONFIG}->{AUTH_PORT}")
-      ->verifyRoleFromSubject($subject,$role );
-
-    $self->{SOAP}->checkSOAPreturn($done) or return ;
-
+    my $done=$self->{SOAP}->CallSOAP("Authen", "verifyRoleFromSubject", $subject,$role ) or return;
     $done=$done->result;
+
     $DEBUG and $self->debug(1,
                            "The Subject $subject requested as role $role will be mapped to role $done");
 

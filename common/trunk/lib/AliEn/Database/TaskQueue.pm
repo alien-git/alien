@@ -389,9 +389,18 @@ sub deleteFromQueue{
 
 sub getWaitingJobAgents{
   my $self=shift;
-  
-  return $self->query("select entryId as agentId,concat('[',requirements,'Type=\"Job\";]') as jdl, counter from JOBAGENT order by priority desc");
+  my $nocache=shift;
 
+  if (! $nocache){
+    my $list=AliEn::Util::returnCacheValue($self, "listWaitingJA");
+    $list and return $list;
+  }
+  my $list=$self->query("select entryId as agentId,concat('[',requirements,'Type=\"Job\";]') as jdl, counter from JOBAGENT order by priority desc");
+
+  if ($#$list >100){
+    $nocache or AliEn::Util::setCacheValue($self, "listWaitingJA", $list);
+  }
+  return $list;
 }
 sub updateJob{
   my $self = shift;
@@ -474,7 +483,7 @@ sub updateStatus{
   $set->{status} = $status;
   $set->{procinfotime}=time;
   $DEBUG and $self->debug(1, "in updateStatus locking the table $self->{QUEUETABLE}");
-  $self->lock("$self->{QUEUETABLE} WRITE, JOBAGENT WRITE, QUEUEPROC");
+  $self->lock("$self->{QUEUETABLE} WRITE, QUEUEPROC");
   $DEBUG and $self->debug(1, "in updateStatus table $self->{QUEUETABLE} locked");
 	
   my $message="";
@@ -518,9 +527,10 @@ sub updateStatus{
 	#update the value, it is correct
 	if ($self->updateJob($id,$set) ) {
 	  $self->info( "THE UPDATE WORKED!! Let's see if we have to delete an agent $dboldstatus");
+	  $self->unlock();
 	  ($dboldstatus eq "WAITING") and $self->deleteJobAgent($agentid);
 	  # update the SiteQueue table
-	  $self->unlock();
+
 	  
 	  # send the status change to ML
 	  $self->sendJobStatus($id, $status, $execHost, "");
