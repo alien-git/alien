@@ -40,8 +40,8 @@ sub updateInserting {
   my $job_ca=shift;
 
   my $status="WAITING";
-  print "\n";
-  $self->info( "Inserting a new job" );
+
+  $self->info( "\n\nInserting a new job" );
 
   my ($host)= $self->{DB}->getFieldFromQueue($queueid,"submitHost")
     or $self->info( "Job $queueid doesn't exist" )

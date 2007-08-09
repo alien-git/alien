@@ -37,13 +37,14 @@ my $splitPerSE =sub  {
     my $event=shift;
 
     $event=~ s/^LF://;
+    $event =~ s/,nodownload$//;
     my @se=$self->{CATALOGUE}->execute("whereis", "-l", "-silent", "$event");
 
 #    @se= grep (/::.*::/, @se);
 #    $event=~ s/\/[^\/]*$//;
 #    $event=~ s/^.*\/([^\/]*)$/$1/;
 
-    $self->info("Puting it in ". join (",", sort @se));
+    $self->info("Putting it in ". join (",", sort @se));
     return join (",", sort @se), "";
 };
 

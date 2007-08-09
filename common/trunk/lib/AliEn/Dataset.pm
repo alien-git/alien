@@ -86,18 +86,18 @@ sub writexml {
 }
 
 
-sub readxml {
-    my $self = shift;
-    my $xml = (shift or $self->{XML});
+#sub readxmlold {
+#    my $self = shift;
+#    my $xml = (shift or $self->{XML});
 #    print "Reading $xml\n";
-    my $xsimple = XML::Simple->new();
-    $self->{XMLhash} = $xsimple->XMLin($xml, 
-				       KeyAttr => {event => 'name', file => 'name', mirror => 'name'},
-				       ForceArray => [ 'event' , 'file' , 'mirror' ],
-				       ContentKey => '-content');
-    return $self->{XMLhash};
-}
-sub readxmlfast {
+#    my $xsimple = XML::Simple->new();
+#    $self->{XMLhash} = $xsimple->XMLin($xml, 
+#				       KeyAttr => {event => 'name', file => 'name', mirror => 'name'},
+#				       ForceArray => [ 'event' , 'file' , 'mirror' ],
+#				       ContentKey => '-content');
+#    return $self->{XMLhash};
+#}
+sub readxml {
   my $self = shift;
   my $xml = (shift or return);
   my $limit = (shift or 999999);
