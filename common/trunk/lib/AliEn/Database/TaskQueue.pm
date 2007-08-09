@@ -312,7 +312,7 @@ sub insertJobLocked {
   my $action="INSERTING";
   $set->{jdl}=~ / split =/im and $action="SPLITTING";
   $self->update("ACTIONS", {todo=>1}, "action='$action'");
-  $self->info("UPDATING $actions and $set-{jdl}");
+  $self->info("UPDATING $action and $set-{jdl}");
   # send the new job's status to ML
   $self->sendJobStatus($procid, 'INSERTING', "", $set->{submitHost});
 
