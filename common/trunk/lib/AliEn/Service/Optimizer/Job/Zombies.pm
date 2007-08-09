@@ -35,7 +35,7 @@ sub checkTransition{
 
   my $zombiewaittime = 12000;
 
-  my $pct = $self->{DB}->getFieldsFromQueueEx("p.procinfotime,status,p.queueId,site, $now-procinfotime as lastupdate","q, QUEUEPROC p where $status and p.queueId=q.queueId and $now-$zombiewaittime>procinfotime");
+  my $pct = $self->{DB}->getFieldsFromQueueEx("p.procinfotime,status,p.queueId,site, now()-procinfotime as lastupdate","q, QUEUEPROC p where $status and p.queueId=q.queueId and now()-$zombiewaittime>procinfotime");
 
   defined $pct
     or $self->{LOGGER}->warning( "Zombies", "In checkJobs error during execution of database query" ) and return;
