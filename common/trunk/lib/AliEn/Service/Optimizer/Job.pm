@@ -554,22 +554,10 @@ sub copyInputCollectionFromXML{
   my $total=0;
   $dataset->{collection} and $dataset->{collection}->{event}
     and $total=keys %{$dataset->{collection}->{event}};
-  if ($total>1000){
-    $self->putJobLog($jobId, "error", "There are $total events in the collection $file2. Putting the job to error");
-    return;
-  }
+
   $self->info("Getting the LFNS from the dataset");
   my $lfnRef=$self->{DATASET}->getAllLFN()
     or $self->info("Error getting the LFNS from the dataset") and return;
-
-  if ($split and $#{$lfnRef->{lfns}}>3000){
-    $self->putJobLog($jobId, "error", "There are $#{$lfnRef->{lfns}} files in the collection $file2 (split job). Putting the job to error");
-    return;
-  }
-  if (!$split and $#{$lfnRef->{lfns}}>1000){
-    $self->putJobLog($jobId, "error", "There are $#{$lfnRef->{lfns}} files in the collection $file2. Putting the job to error");
-    return;
-  }
 
   map {$_="LF:$_$options"} @{$lfnRef->{lfns}};
   $self->info("Adding the files ".@{$lfnRef->{lfns}});
