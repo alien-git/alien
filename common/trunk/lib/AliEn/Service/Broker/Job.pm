@@ -96,7 +96,7 @@ sub getJobAgent {
  
   @$list
     or $self->info( "In findjob no job to match" )
-      and return (-1, "No jobs waiting in the queue");
+      and return (-2, "No jobs waiting in the queue");
   $self->info( "Starting the match, with $number elements");
   
   my $site_ca = Classad::Classad->new($site_jdl);
@@ -184,7 +184,7 @@ sub getJobToken {
   $self->info("Getting  job $procid" );
   
   ($procid)
-    or print $self->info("Error: In getJobToken not enough arguments" )
+    or $self->info("Error: In getJobToken not enough arguments" )
       and return;
   
   my ($data) = $self->{addbh}->getFieldsFromJobToken($procid,"jobToken, userName");

@@ -395,7 +395,7 @@ sub getWaitingJobAgents{
     my $list=AliEn::Util::returnCacheValue($self, "listWaitingJA");
     $list and return $list;
   }
-  my $list=$self->query("select entryId as agentId,concat('[',requirements,'Type=\"Job\";]') as jdl, counter from JOBAGENT order by priority desc");
+  my $list=$self->query("select entryId as agentId,concat('[',requirements,'Type=\"Job\";TTL=999;]') as jdl, counter from JOBAGENT order by priority desc");
 
   if ($#$list >100){
     $nocache or AliEn::Util::setCacheValue($self, "listWaitingJA", $list);
