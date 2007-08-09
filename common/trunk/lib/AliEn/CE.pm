@@ -285,6 +285,10 @@ sub requirementsFromInput {
 
   my $num=$#inputdata+1;
   $self->info("There are $num input files");
+  if ($num>1000){
+    $self->info("The job is trying to access more than 1000 files... not submitting it", 1);
+    return;
+  }
   my @flatfiles;
 
   my $i=0;

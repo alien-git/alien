@@ -146,7 +146,9 @@ sub match {
       $self->info("Checking all the possible Ids");
       while (@possibleIds){
 	my $item=shift @possibleIds;
-	$self->$findIdFunction($id, \@possibleIds);
+	if ($findIdFunction){
+	  $self->$findIdFunction($id, \@possibleIds);
+	}
 	my $ret1=$item->{classad};
 	my $ret2=$item->{jdl};
 	my $realId=$item->{id};
