@@ -83,12 +83,7 @@ sub getJobAgent {
   $self->info( "Getting the list of jobs");
   #my ($list) = $self->{DB}->getWaitingJobs("priority desc, queueId","-1");
 #   my ($list) = $self->{DB}->getWaitingJobs("effectivePriority desc, queueId","-1");
-  my $list=AliEn::Util::returnCacheValue($self, "listWaitingJA");
-  if ($list) {
-    $self->info( "Using the list of entries from the cache");
-  } else {
-    $self->info("Getting again the list of waiting jobs from the database");
-    ($list) = $self->{DB}->getWaitingJobAgents("effectivePriority desc, queueId","-1");};
+  my $list= $self->{DB}->getWaitingJobAgents();
 
   defined $list                              
     or $self->{LOGGER}->warning( "JobBroker", "In findjob error during execution of database query" )
@@ -135,14 +130,8 @@ sub getJobAgent {
 
   my $token   = $result->{token};
   my $jobUser = $result->{user};
-  
+
   $self->debug(1, "In requestCommand $jobUser token is $token" );
-  if ($#$list >100){
-    $self->debug(1, "Keeping the list of jobs in the cache");
-    AliEn::Util::setCacheValue($self, "listWaitingJA", $list);
-  }else {
-    AliEn::Util::setCacheValue($self, "listWaitingJA", undef);
-  }
 
   $self->info(  "Command $queueId sent to $host" );
 
