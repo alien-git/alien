@@ -107,7 +107,7 @@ sub getJobAgent {
   my ($queueId, $job_ca, $jdl)=$self->match( "agent", $site_ca, $list, $user, $host , "checkPackagesToInstall", 0,"getJobIdFromAgentId");
   $queueId or 
     $self->info( "No job matches '$site_jdl'") and 
-      return (-1, "No jobs waiting in the queue");
+      return (-2, "No jobs waiting in the queue");
   if ($queueId eq "-3"){
     my @packages=@$job_ca;
     $self->info("Before we can assign the job, the WN has to install some packages (@packages)");
