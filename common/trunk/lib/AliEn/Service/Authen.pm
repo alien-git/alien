@@ -953,6 +953,35 @@ sub recreateJobToken {
   return 1;
 
 }
+sub _checkLDAPConnection{
+  my $self=shift;
+  $self->info("Checking if we have a connection to LDAP");
+  eval {
+    my $base = $self->{CONFIG}->{LDAPDN};
+    my $mesg=$LDAP->search(       # perform a search
+		  base   => "ou=Config,$base",
+		  filter => "(ou=Config)",);
+    $mesg->code && die("Error connecting to ldap: ".  $mesg->());
+    $self->debug(1,"The search worked");
+    my $total = $mesg->count;
+    $self->debug(1,"The total is $total");
+    ( $total ) or die("The total is zero!!");
+
+  };
+  if ($@){
+    $self->info("Error connecting: $@\n Let's reconnect");
+    $LDAP=Net::LDAP->new( $self->{CONFIG}->{LDAPHOST}, "onerror" => "warn" ) or print "$@" and return;
+    my $manager=($self->{CONFIG}->{LDAPMANAGER} or "cn=Manager,dc=cern,dc=ch");
+    my $result=  $LDAP->bind( $manager, password => $self->{LDAPpassword} );
+    $result->code && print "failed\nCould not bind to LDAP-Server: ",$result->error and return;
+    $self->debug(1,"We are connected!!");
+
+  }
+  $self->debug(1,"The connection is up!!!");
+  return 1;
+}
+
+
 ##### added for apiservice to translate a subject into a role #####
 
 sub verifyRoleFromSubject {
@@ -960,6 +989,7 @@ sub verifyRoleFromSubject {
     my $subject = shift;
     my $role    = shift;
 
+    $self->_checkLDAPConnection();
     my $UID = $SubjectToUid->( $LDAP, $subject );
     ($role) or $role = $UID;
 
