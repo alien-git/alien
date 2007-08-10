@@ -277,10 +277,8 @@ sub insertJobLocked {
   my $oldjob = (shift or 0);
   ($set->{name}) = $set->{jdl}  =~ /.*executable\s*=\s*\"([^\"]*)\"/i;
 
-  ($set->{price}) = $set->{jdl} =~ /.*price\s*=\s*(\d+[\.\d+]*.*)\s*/i;
+  ($set->{price}) = $set->{jdl} =~ /.*price\s*=\s*(\d+[\.\d+]?)\s*/i;
 
-  $set->{price} =~ s/;//;
-                                   
    $set->{effectivePriority} = $set->{priority} * $set->{price};
    #currently $set->{priority} is hardcoded to be '0'
     
@@ -408,6 +406,7 @@ sub updateJob{
     or $self->{LOGGER}->error("TaskQueue","In updateJob job id is missing")
       and return;
   my $set =shift;
+  my $opt=shift ||{};
 
   $DEBUG and $self->debug(1,"In updateJob updating job $id");
   my $procSet = {};
@@ -417,7 +416,17 @@ sub updateJob{
       delete $set->{$key};
     }
   }
-  $self->update($self->{QUEUETABLE}, $set,"queueId=?", {bind_values=>[$id]}) or return;
+  my $where="queueId=?";
+  $opt->{where} and $where.=" and $opt->{where}";
+  my @bind=($id);
+  $opt->{bind_values} and push @bind, @{$opt->{bind_values}};
+  my $done=$self->update($self->{QUEUETABLE}, $set,$where,{bind_values=>\@bind});
+
+  #the update didn't work
+  $done or return;
+  #the update didn't modify any entries
+  $done =~ /^0E0$/ and return;
+
   if(keys %$procSet){
     $self->update("QUEUEPROC", $procSet, "queueId=?", {bind_values=>[$id]}) or return;
   }
@@ -482,97 +491,80 @@ sub updateStatus{
 
   $set->{status} = $status;
   $set->{procinfotime}=time;
-  $DEBUG and $self->debug(1, "in updateStatus locking the table $self->{QUEUETABLE}");
-  $self->lock("$self->{QUEUETABLE} WRITE, QUEUEPROC");
-  $DEBUG and $self->debug(1, "in updateStatus table $self->{QUEUETABLE} locked");
 	
   my $message="";
-  my $done=1;
 
   $DEBUG and $self->debug(1, "In updateStatus checking if job $id with status $oldstatus exists");
 
 
-  my $jobinfo = $self->getFieldsFromQueueEx("queueId,site,execHost,status,jdl,masterjob,agentid","where queueid=?", {bind_values=>[$id]});
-	
-  if ($jobinfo and @$jobinfo) {
-    $DEBUG and $self->debug(1, "In updateStatus setting job's $id status to ". ($status or ""));
-    foreach my $dd (@$jobinfo) {
-      my $dbsite      = ($dd->{'site'} || "");
-      my $execHost    = ($dd->{'execHost'} || "");
-      my $dboldstatus = $dd->{'status'};
-      my $dbqueueid   = $dd->{'queueId'};
-      my $dbjdl       = $dd->{'jdl'};
-      my $masterjob   = $dd->{masterjob};
-      my $agentid     = $dd->{agentid};
+  my $oldjobinfo = $self->getFieldsFromQueueEx("masterjob,site,execHost,status,agentid","where queueid=?", {bind_values=>[$id]});
+  #Let's take the first entry
+  $oldjobinfo and $oldjobinfo=shift @$oldjobinfo;
+  if (!$oldjobinfo){
+    $self->{LOGGER}->set_error_msg("The job $id was no longer in the queue");
+    $self->info("There was an error: The job $id was no longer in the queue",1);
+    return;
+  }
+  my $dbsite=$set->{site} || $oldjobinfo->{site} || "";
+  my $execHost=$set->{execHost} || $oldjobinfo->{execHost};
+  my $dboldstatus=$oldjobinfo->{status};
+  my $masterjob=$oldjobinfo->{masterjob};
+  my  $where="status = ?";
 
-      if ( ($status !~ /^((INSERTING)|(WAITING)|(KILLED)|(SPLIT(TING)?)|(ERROR_I)|(STARTED)|(ASSIGNED))$/) 
-	   &&  ((!$dbsite) || ($dbsite eq "")  ) && (! $masterjob)) {
-	$message="TaskQueue: Job $id has no site set !";
-	$dbsite= "";
-      }
-      $set->{site} and (not $dbsite) and $dbsite=$set->{site};
-      # if a job was in error, it can happen, that the process monitor set's it afterwards to done
-      # (this is the case for ERROR_SV f.e.), so don't allow this status change!
-      # if a job run's as a ghost, it can try to change the status, even if it was
-      $self->info("Comparing $status and $dboldstatus");
-      if (($self->{JOBLEVEL}->{$status} <= $self->{JOBLEVEL}->{$dboldstatus} )
-	  && ($dboldstatus !~ /^((ZOMBIE)|(IDLE)|(INTERACTIV))$/ )
-	  && (! $masterjob)){
-	$message="The job $id [$dbsite] was in status $dboldstatus [$self->{JOBLEVEL}->{$dboldstatus}] and cannot be changed to $status [$self->{JOBLEVEL}->{$status}]";
-	if ($set->{jdl} and $status =~/^(SAVED)|(ERROR_V)$/){
-	  $message.= " (although we update the jdl)";
-	  $self->updateJob($id, {jdl=>$set->{jdl}});
-	}
-      } else {
-	#update the value, it is correct
-	if ($self->updateJob($id,$set) ) {
-	  $self->info( "THE UPDATE WORKED!! Let's see if we have to delete an agent $dboldstatus");
-	  $self->unlock();
-	  ($dboldstatus eq "WAITING") and $self->deleteJobAgent($agentid);
-	  # update the SiteQueue table
-
-	  
-	  # send the status change to ML
-	  $self->sendJobStatus($id, $status, $execHost, "");
-	  $status=~ /^(DONE)|(ERROR_.*)|(EXPIRED)|(KILLED)$/ and 
-	    $self->checkFinalAction($id, $service);
-	  if ( $status ne $oldstatus ) {
-	    if ( $status eq "ASSIGNED" ) {
-	      $self->info("In updateStatus increasing $status for $dbsite");
-	      $self->_do("UPDATE $self->{SITEQUEUETABLE} SET $status=$status+1 where site=?", {bind_values=>[$dbsite]}) or
-		$message="TaskQueue: in update Site Queue failed";
-	    } else {
-	      $self->info("In updateStatus decreasing $dboldstatus and increasing $status for $dbsite");
-		$self->_do("UPDATE $self->{SITEQUEUETABLE} SET $dboldstatus = $dboldstatus-1, $status=$status+1 where site=?", {bind_values=>[$dbsite]}) or
-		  $message="TaskQueue: in update Site Queue failed";
-	    }
-	    ($status eq "KILLED") and 
-	      $self->update("ACTIONS", {todo=>1}, "action='KILLED'");
-	    ($status eq "SAVED") and 
-	      $self->update("ACTIONS", {todo=>1}, "action='SAVED'");
-
-	  }
-	} else {
-	  $message="TaskQueue: in update status failed";
-	}
-      }
+  if (($self->{JOBLEVEL}->{$status} <= $self->{JOBLEVEL}->{$dboldstatus} )
+      && ($dboldstatus !~ /^((ZOMBIE)|(IDLE)|(INTERACTIV))$/ )
+      && (! $masterjob)){
+    my $message="The job $id [$dbsite] was in status $dboldstatus [$self->{JOBLEVEL}->{$dboldstatus}] and cannot be changed to $status [$self->{JOBLEVEL}->{$status}]";
+    if ($set->{jdl} and $status =~/^(SAVED)|(ERROR_V)$/){
+      $message.= " (although we update the jdl)";
+      $self->updateJob($id, {jdl=>$set->{jdl}});
     }
-  }
-  else {
-    $message="The job $id was no longer there";
-    ($oldstatus eq "%") or  $message="The job $id was not $oldstatus any more";
+    $self->{LOGGER}->set_error_msg("Error updating the job: $message");
+    $self->info("Error updating the job: $message",1);
+    return;
   }
 
-  $self->unlock();
-  $DEBUG and $self->debug(1, "In updateStatus table $self->{QUEUETABLE} successfully unlocked");
-  
-  if ($message) {
+  #update the value, it is correct
+  if (!$self->updateJob($id,$set, {where=>"status=?", 
+				   bind_values=>[$dboldstatus]}, ) ) {
+    my $message="The update failed (the job changed status in the meantime??)";
     $self->{LOGGER}->set_error_msg($message);
     $self->info("There was an error: $message",1);
-    undef $done;
+    return;
   }
-	
-  return $done;
+
+  $self->info( "THE UPDATE WORKED!! Let's see if we have to delete an agent $status");
+  ($status eq "ASSIGNED") and $oldjobinfo->{agentid} and 
+    $self->deleteJobAgent($oldjobinfo->{agentid});
+  # update the SiteQueue table
+  # send the status change to ML
+  $self->sendJobStatus($id, $status, $execHost, "");
+  $status=~ /^(DONE)|(ERROR_.*)|(EXPIRED)|(KILLED)$/ and 
+    $self->checkFinalAction($id, $service);
+  if ( $status ne $oldstatus ) {
+    if ( $status eq "ASSIGNED" ) {
+      $self->info("In updateStatus increasing $status for $dbsite");
+      $self->_do("UPDATE $self->{SITEQUEUETABLE} SET $status=$status+1 where site=?", {bind_values=>[$dbsite]}) or
+	$message="TaskQueue: in update Site Queue failed";
+    } else {
+      $self->info("In updateStatus decreasing $dboldstatus and increasing $status for $dbsite");
+      if (!$self->_do("UPDATE $self->{SITEQUEUETABLE} SET $dboldstatus = $dboldstatus-1, $status=$status+1 where site=?", {bind_values=>[$dbsite]})){
+	$message="TaskQueue: in update Site Queue failed";
+	$self->{LOGGER}->set_error_msg($message);
+	$self->info("There was an error: $message",1);
+	return;	
+      }
+    }
+    ($status eq "KILLED") and 
+      $self->update("ACTIONS", {todo=>1}, "action='KILLED'");
+    ($status eq "SAVED") and 
+      $self->update("ACTIONS", {todo=>1}, "action='SAVED'");
+  }
+
+
+  $DEBUG and $self->debug(1, "In updateStatus table $self->{QUEUETABLE} successfully unlocked");
+
+  return 1;
 }
 sub checkFinalAction{
   my $self=shift;
@@ -583,8 +575,6 @@ sub checkFinalAction{
   $self->info("Checking if we have to send an email for job $id...");  
   $info->{notify} and $self->sendEmail($info->{notify},$id, $info->{status}, $service);
   $self->info("Checking if we have to merge the master");
-  use Data::Dumper;
-  print Dumper($info);
   if ($info->{split}){
     $self->info("We have to check if all the subjobs of $info->{split} have finished");
     $self->do("insert ignore into JOBSTOMERGE values (?)", {bind_values=>[$info->{split}]});
