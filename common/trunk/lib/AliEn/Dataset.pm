@@ -90,65 +90,75 @@ sub writexml {
 }
 
 sub readxml {
-    my $self = shift;
-    my $xml = (shift or return);
-    my $limit = (shift or 999999);
-    my $nfiles=0;
-    $self->{XMLname} = "$xml";
-    
-    # parse by hand
-    open XMLIN , "$xml" or 
-      $self->info("Error opening the file $xml") and return;
-    my $ptr;
-    my $cnt=0;
-    $self->{XMLhash}={collection=>{event=>{}}};
-    while (<XMLIN>) {
-	if ( $_ =~ /collection[\s]*name=\"([^\"]*)\"/ ) {
-	    $self->{XMLhash}->{collection}->{name}=$1;
-	    next;
-	}
-	if ( $_ =~ /event[\s]*name=\"([^\"]*)\"/ ) {
-	    if ($cnt >= $limit) { last;}
-	    $cnt++;
-	    $ptr = 	"$1";
-	    my $filehash;
-	    $self->{XMLhash}->{collection}->{event}->{"$ptr"}->{file} = 
-$filehash;
-	    next;
-	}
-	if ( $_ =~ /info[\s]*comment==\"([^\"]*)\"/ ) {
-	    $self->{XMLhash}->{collection}->{comment}=$1;
-	    next;
-	}
-	
-	if ( $_ =~ /file[\s]*name=\"([^\"]*)\"/ ) {
-	    $nfiles++;
-	    my @tags = split " ",$_;
-	    my $name="";
-	    foreach my $tag (@tags) {
-	      if ($tag =~ /^name/) {
-		if ($tag =~ /([^=]*)=\"([^\"]*)\"/ ) {
-		  $name = $2;
-		}
-	      }
-	    }
-	    
-	    my $infohash;
-	    foreach my $tag (@tags) {
-	      ( $tag =~ /^\<file/) and next;
-	      ( $tag =~ /\/\>/)  and next;
-	      if ($tag =~ /([^=]*)=\"([^\"]*)\"/ ) {
-		$infohash->{$1} = $2;
-	      }
-	    }
-	    $self->{XMLhash}->{collection}->{event}->{"$ptr"}->{file}->{"$name"}=$infohash;
-	    next;
-	}
+  my $self = shift;
+  my $xml = (shift or return);
+  my $limit = (shift or 999999);
+  my $nfiles=0;
+  $self->{XMLname} = "$xml";
+  
+  # parse by hand
+  open XMLIN , "$xml" or 
+    $self->info("Error opening the file $xml") and return;
+  my $ptr;
+  my $cnt=0;
+  $self->{XMLhash}={collection=>{event=>{}}};
+  my $line="";
+  my $newline=1;
+  while (<XMLIN>) {
+    $newline and $line="";
+    $newline=0;
+    chomp;
+    $line.=" $_";
+    ( />/) or      next;
+    $newline=1;
+    $self->debug(1, "Starting with  '$line'");
+    if ( $line =~ /collection[\s]*name=\"([^\"]*)\"/ ) {
+      $self->{XMLhash}->{collection}->{name}=$1;
+      next;
+    }
+    if ( $line =~ /event[\s]*name=\"([^\"]*)\"/ ) {
+      if ($cnt >= $limit) { last;}
+      $cnt++;
+      $ptr = 	"$1";
+      my $filehash;
+      $self->{XMLhash}->{collection}->{event}->{"$ptr"}->{file} = 
+	$filehash;
+      next;
+    }
+    if ( $line =~ /info[\s]*comment==\"([^\"]*)\"/ ) {
+      $self->{XMLhash}->{collection}->{comment}=$1;
+      next;
     }
     
-    $self->info("DSET:READXML  name=\"$xml\" N=\"$nfiles\" ");
-
-    return $self->{XMLhash};
+    if ( $line =~ /file[\s]*name=\"([^\"]*)\"/ ) {
+      $self->info("Checking '$line'");
+      $nfiles++;
+      my @tags = split " ",$line;
+      my $name="";
+      foreach my $tag (@tags) {
+	if ($tag =~ /^name/) {
+	  if ($tag =~ /([^=]*)=\"([^\"]*)\"/ ) {
+	    $name = $2;
+	  }
+	}
+      }
+      
+      my $infohash;
+      foreach my $tag (@tags) {
+	( $tag =~ /^\<file/) and next;
+	( $tag =~ /\/\>/)  and next;
+	if ($tag =~ /([^=]*)=\"([^\"]*)\"/ ) {
+	  $infohash->{$1} = $2;
+	}
+	    }
+      $self->{XMLhash}->{collection}->{event}->{"$ptr"}->{file}->{"$name"}=$infohash;
+      next;
+    }
+  }
+  
+  $self->info("DSET:READXML  name=\"$xml\" N=\"$nfiles\" ");
+  
+  return $self->{XMLhash};
 }
 
 sub readxmlold {
