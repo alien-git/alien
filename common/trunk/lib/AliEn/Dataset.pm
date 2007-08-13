@@ -126,26 +126,21 @@ $filehash;
 	    my @tags = split " ",$_;
 	    my $name="";
 	    foreach my $tag (@tags) {
-		if ($tag =~ /^name/) {
-		    if ($tag =~ /([^=]*)=\"([^\"]*)\"/ ) {
-			$name = $2;
-		    }
+	      if ($tag =~ /^name/) {
+		if ($tag =~ /([^=]*)=\"([^\"]*)\"/ ) {
+		  $name = $2;
 		}
+	      }
 	    }
 	    
 	    my $infohash;
 	    foreach my $tag (@tags) {
-		if ( $tag =~ /file/) {
-		    next;
-		}
-		if ( $tag =~ /\/\>/) {
-		    next;
-		}
-		if ($tag =~ /([^=]*)=\"([^\"]*)\"/ ) {
-		    $infohash->{$1} = $2;
-		}
+	      ( $tag =~ /^\<file/) and next;
+	      ( $tag =~ /\/\>/)  and next;
+	      if ($tag =~ /([^=]*)=\"([^\"]*)\"/ ) {
+		$infohash->{$1} = $2;
+	      }
 	    }
-	    
 	    $self->{XMLhash}->{collection}->{event}->{"$ptr"}->{file}->{"$name"}=$infohash;
 	    next;
 	}
@@ -166,70 +161,6 @@ sub readxmlold {
 				       ForceArray => [ 'event' , 'file' , 'mirror' ],
 				       ContentKey => '-content');
     return $self->{XMLhash};
-}
-sub readxmlfast {
-  my $self = shift;
-  my $xml = (shift or return);
-  my $limit = (shift or 999999);
-  my $nfiles=0;
-  $self->{XMLname} = "$xml";
-  
-  # parse by hand
-  open XMLIN , "$xml";
-  my $ptr;
-  my $cnt=0;
-  while (<XMLIN>) {
-    if ( $_ =~ /collection[\s]*name=\"([^\"]*)\"/ ) {
-      $self->{XMLhash}->{collection}->{name}=$1;
-      next;
-    }
-    if ( $_ =~ /event[\s]*name=\"([^\"]*)\"/ ) {
-      if ($cnt >= $limit) { last;}
-      $cnt++;
-      $ptr = 	"$1";
-      my $filehash;
-      $self->{XMLhash}->{collection}->{event}->{"$ptr"}->{file} = 
-	$filehash;
-      next;
-    }
-    if ( $_ =~ /info[\s]*comment==\"([^\"]*)\"/ ) {
-      $self->{XMLhash}->{collection}->{comment}=$1;
-      next;
-    }
-    
-    if ( $_ =~ /file[\s]*name=\"([^\"]*)\"/ ) {
-      $nfiles++;
-      my @tags = split " ",$_;
-      my $name="";
-      foreach my $tag (@tags) {
-	if ($tag =~ /^name/) {
-	  if ($tag =~ /([^=]*)=\"([^\"]*)\"/ ) {
-	    $name = $2;
-	  }
-	}
-      }
-      
-      my $infohash;
-      foreach my $tag (@tags) {
-	if ( $tag =~ /file/) {
-	  next;
-	}
-	if ( $tag =~ /\/\>/) {
-	  next;
-	}
-	if ($tag =~ /([^=]*)=\"([^\"]*)\"/ ) {
-	  $infohash->{$1} = $2;
-	}
-      }
-      
-      $self->{XMLhash}->{collection}->{event}->{"$ptr"}->{file}->{"$name"}=$infohash;
-      next;
-    }
-    }
-  
-  printf "DSET:READXML  name=\"$xml\" N=\"$nfiles\" ";
-
-  return $self->{XMLhash};
 }
 
 # event - means to put 1 event per job
@@ -567,6 +498,7 @@ sub getAllLFN {
   my @list=();
   $self->{XMLhash} and $self->{XMLhash}->{collection} and 
     $self->{XMLhash}->{collection}->{event} or return;
+
   my $events=$self->{XMLhash}->{collection}->{event};
   #Loop over the events
   foreach my $entry (keys %{$events}){
