@@ -965,6 +965,11 @@ sub installPackage {
 
   $self->info("First, let's try to do it ourselves");
   eval {
+    if ($self->{CONFIG}->{PACKMAN_FORBIDWNINSTALL}){
+      $self->info("This site doesn't allow installation of software in the worker node");
+      $ok=-1;
+      die("This site doesn't allow installation of software in the worker node");
+    }
     ($ok, $source)=$self->{PACKMAN}->installPackage($user, $package, $version, undef, {NO_FORK=>1});
     
   };
