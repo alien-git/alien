@@ -35,6 +35,7 @@ my $configHost = exists($serviceConfigMap{$serviceName}) ? $serviceConfigMap{$se
 my $configPort = exists($serviceConfigMap{$serviceName}) ? $serviceConfigMap{$serviceName}->[1] : uc($serviceName) . "_PORT";
 
 my $host = (defined($configHost) ? $config->{$configHost} : $crtHost);
+$host =~ s/^http:\/\///;
 my $port;
 if ($host && $host =~ /^(.*):(\d+)$/){
   $host = $1;
