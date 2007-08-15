@@ -392,6 +392,11 @@ ALIEN_DoService ()
 	    then 
 		file="CE_$3"
 	    fi
+
+	    if [ "$arguments" != "${arguments#-queue }" ]
+	    then 
+		file="CE_${arguments#-queue }"
+	    fi
 	    args="LOGDIR $file \"CE\"  NO_PASSWORD"
 	    ALIEN_START="$ALIEN_ROOT/scripts/CE.pl"
 	    ;;
