@@ -307,7 +307,6 @@ statusService()
 
   getLogDir $DIR
 
-
   PINGOUTPUT=`${ALIEN_ROOT}/scripts/alien -x $ALIEN_ROOT/scripts/pingService.pl $2 $LOGDIR 2>&1`
   if [ "$?" -eq "0" ] ; then
     return 0
@@ -382,6 +381,10 @@ ALIEN_DoService ()
     service=${cmd##$pattern}
     extra_args=""
     export ALIEN_PROCESSNAME=$service
+    arguments=${service#?*_}
+    arguments=${arguments//_/ }
+    service=${service%%_?*}
+
     case $service in 
 	CE)
 	    file="CE"
@@ -484,7 +487,7 @@ ALIEN_DoService ()
     if [ -n "$args" ]
     then 
 	shift 1
-	args="$args $* $extra_args"
+	args="$args $* $arguments $extra_args"
 	[ $pattern  != "Start" ] \
 		&& args="$args  || echo -n '$service is down!!'"
 	$operation $args
