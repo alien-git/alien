@@ -31,16 +31,12 @@ InputData=\"LF:${dir}split/*/*\";") or exit(-2);
   $cat->execute("cp", "split/dir1/file1", "split/dir1/file2") or exit(-2);
   $cat->execute("cp", "split/dir1/file1", "split/dir2/file3") or exit(-2);
 
-  my ($ok,$procDir, $subjobs)=executeSplitJob($cat, "jdl/Split.jdl") or exit(-2);
+  my ($id)=$cat->execute("submit", "jdl/Split.jdl") or exit(-2);#
+  
+  $cat->close();
+  print "JOB submitted
+\#ALIEN_OUTPUT $id\n";
 
-  $subjobs eq "2" or print "The job is not split in 2 subjobs\n" and exit(-2);
-  print "ok\n";
-  print "Finally, let's check that the owner of the files is the use...\n";
-  my (@files)=$cat->execute("ls", "-la", $procDir);
-  foreach (@files) {
-    /^[^#]*###newuser###/ or print "Error the owner of $_ is not 'newuser'\n" and exit(-2);
-  }
-  print "ok\n";
 }
 
 sub executeSplitJob{
@@ -109,11 +105,13 @@ sub checkSubJobs{
   my $cat=shift;
   my $id=shift;
   my $jobs=shift;
+  my $options=shift || {};
   print "Checking if $id was split in $jobs (and all of them finished with DONE\n";
   my ($info)=$cat->execute("masterJob", $id) or exit(-2);
   my ($user)=$cat->execute("whoami");
   my $subjobs=0;
   my $expected={DONE=>$jobs};
+  $options->{expected} and $expected=$options->{expected};
   foreach my $s (@$info){
     my $status=$s->{status};
     $subjobs+=$s->{count};

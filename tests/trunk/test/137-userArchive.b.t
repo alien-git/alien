@@ -17,6 +17,7 @@ BEGIN { plan tests => 1 }
 
   my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",});
   $cat or exit (-1);
+  my $sename="$cat->{CONFIG}->{ORG_NAME}::cern::testse";
 
 
 

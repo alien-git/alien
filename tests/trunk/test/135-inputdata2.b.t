@@ -7,7 +7,7 @@ BEGIN { plan tests => 1 }
 
 {
 
-  my $id=shift || print "Error getting the job id\n" and exit(-2);
+  my $id=shift or print "Error getting the job id\n" and exit(-2);
   $ENV{ALIEN_TESTDIR} or $ENV{ALIEN_TESTDIR}="/home/alienmaster/AliEn/t";
   eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
 

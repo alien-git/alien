@@ -30,5 +30,7 @@ $done  or exit(-2);
 ($jobid)=$cat->execute("submit", "jdl/nomatching.jdl") or exit(-2);
 print "Checking if any job would match $jobid\n";
 ($done)=$cat->execute("jobListMatch", $jobid);
+$cat->execute("kill", $jobid);
 $done and print "This is not supposed to match!!\n" and exit(-2);
+
 

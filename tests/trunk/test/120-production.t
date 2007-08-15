@@ -42,25 +42,7 @@ SplitArguments=\"#alien_counter# big production\";
 OutputDir=\"$outputDir/#alien_counter_03i#/\";
 validationcommand=\"$dir/bin/validateProduction\";
 ","r") or exit(-2);
-my ($ok, $procDir, $subjobs)=executeSplitJob($cat, "jdl/production.jdl",{noSubjobs=>1}) or exit(-2);
-
-$subjobs eq "5" or print "The job is not split in 5 subjobs\n" and exit(-2);
-
-print "Production executed\n";
-
-print "Let's check that the output dir is ok\n";
-
-my @entries=$cat->execute("ls", $outputDir) or exit(-2);
-
-$#entries eq "3" or print "There are too many entries!! @entries\n" and exit(-2);
-foreach (@entries) {
-  print "\tChecking $_\n";
-  my ($file)=$cat->execute("get", "$outputDir/$_/stdout", "-silent") 
-    or print "Error getting $_\n" and exit(-2);
-  system ("grep  'finished successfully' $file") and
-    print "Error: event $_ didn't print anything\n" and exit(-2);
-}
-
-
-print "DONE!!\n";
-
+my ($id)=$cat->execute("submit", "jdl/production.jdl") or exit(-2);
+$cat->close();
+print "ok!!\n
+\#ALIEN_OUTPUT $id\n";

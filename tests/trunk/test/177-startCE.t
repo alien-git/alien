@@ -6,4 +6,4 @@ eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
 includeTest("14-se") or exit(-2);
 
 
-startService("CE") or exit(-2);
+startService("CE", {nolisten=>1}) or exit(-2);

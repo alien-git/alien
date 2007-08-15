@@ -8,21 +8,21 @@ BEGIN { plan tests => 1 }
 
 
 {
+
+  my $id=shift or print "No job to analyze!!\n" and exit(-2);
+
   $ENV{ALIEN_TESTDIR} or $ENV{ALIEN_TESTDIR}="/home/alienmaster/AliEn/t";
   eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
-  includeTest("16-add") or exit(-2);
+
+  includeTest("86-split") or exit(-2);
 
 
   my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",}) or 
     exit (-1);
   my ($dir)=$cat->execute("pwd") or exit(-2);
 
-  addFile($cat, "jdl/SplitFile.jdl","Executable=\"CheckInputOuptut.sh\";
-Split=\"file\";
-InputData=\"LF:${dir}split/*/*\";") or exit(-2);
 
-  my ($id)=$cat->execute("submit", "jdl/SplitFile.jdl") or exit(-2);
-  $cat->close();
-  print "ok!!\n
-\#ALIEN_OUTPUT $id\n";
+  my ($procDir)=checkSubJobs($cat, $id,3) or exit(-2); 
+
+  print "ok\n";
 }
