@@ -5,7 +5,6 @@ use AliEn::UI::Catalogue::LCM::Computer;
 $ENV{ALIEN_TESTDIR} or $ENV{ALIEN_TESTDIR}="/home/alienmaster/AliEn/t";
 eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
 includeTest("16-add") or exit(-2);
-includeTest("26-ProcessMonitorOutput") or exit(-2);
 
 my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user"=>"newuser"}) or exit(-2);
 
@@ -46,19 +45,7 @@ addFile($cat, "jdl/InputZip.jdl","Executable=\"CheckInputOuptut.sh\";
 InputZip=\"zip/files.zip\";
 ") or exit(-2);
 
-my $procDir=executeJDLFile($cat, "jdl/InputZip.jdl")  or exit(-2);
+my ($id)=$cat->execute("submit", "jdl/InputZip.jdl") or exit(-2);
 
-print "JOB DONE ($procDir)!!\n\n";
-my ($output)=$cat->execute("get", "$procDir/job-output/stdout", "-silent") or print "Error getting the output\n" and exit(-2);
-
-  
-  open (FILE, "<$output") or print "Error opening the file $output\n";
-my @content=<FILE>;
-close FILE;
-
-print @content;
-
-grep (/ file1$/, @content) or print "Error the file file1 is not there!!!!\n" and exit(-2);
-grep (/ file2$/, @content) or print "Error the file file1 is not there!!!!\n" and exit(-2);
-
-print "ok\n";
+print "Job submitted\n
+\#ALIEN_OUTPUT $id\n";

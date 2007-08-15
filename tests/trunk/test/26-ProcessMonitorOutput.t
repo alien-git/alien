@@ -76,9 +76,6 @@ sub waitForStatus{
 
   my $counter=0;
   while (1) {
-    print "The father sleeps (waiting for $Wstatus)\n";
-    sleep $sleep;
-    $counter++;
     my ($status)=$cat->execute("top", "-id", $id);
     $status or print "Error checking the status of the job\n" and return;
     $status = $status->{status};
@@ -87,6 +84,10 @@ sub waitForStatus{
     $status=~ /((ERROR_)|(FAILED)|(DONE))/ and 
       print "THE job finished with $1!!\n" and return;
     ($counter>$times) and print "We have been waiting for more than $counter *$sleep seconds.... let's quit" and return;
+    print "The father sleeps (waiting for $Wstatus)\n";
+    sleep $sleep;
+    $counter++;
+
   }
 
   return ;
@@ -166,6 +167,7 @@ sub checkOutput{
   $cat->execute("ls", "$procDir/job-output", "-l") or return;
   print "Getting the output\n";
   $cat->execute("cat", "$procDir/job-output/stdout") or return;
-  return 1;
+  return $procDir;
 
 }
+

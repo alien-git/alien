@@ -57,7 +57,7 @@ sub executeSplitJob{
 			 
   print "Checking if there are any warnings during the top...";
 
-  waitForStatus($cat, $id, "SPLIT", 15,5) or return;
+  waitForStatus($cat, $id, "SPLIT", 5,5) or return;
 
   my (@subjobs)=$cat->execute("top", "-split", $id, "-all_status") or return;
 
@@ -65,7 +65,7 @@ sub executeSplitJob{
   print "Job split in $number entries\n";
 
   print "Let's wait until the split jobs are ready\n";
-  sleep (20);
+  sleep (10);
   system("alien", "proxy-destroy");
   # only the user with role admin can open and add queues
   my $admincat=AliEn::UI::Catalogue::LCM::Computer->new({"user","$ENV{'USER'}","role","admin"});
@@ -87,7 +87,7 @@ sub executeSplitJob{
   $done or print "No jobs were executed \n" and return;
   print "The job finished!! Let's wait until it is merged\n";
 
-  waitForStatus($cat, $id, "DONE", 15,5) or return;
+  waitForStatus($cat, $id, "DONE", 5,5) or return;
 
   (@subjobs)=$cat->execute("top", "-split", $id, "-all_status") or return;
   my ($user)=$cat->execute("whoami") or return;
@@ -103,4 +103,29 @@ sub executeSplitJob{
   }
   print "ExecuteSplitJob finished successfully with $procDir and $number\n\n";
   return (1, $procDir, $number);
+}
+
+sub checkSubJobs{
+  my $cat=shift;
+  my $id=shift;
+  my $jobs=shift;
+  print "Checking if $id was split in $jobs (and all of them finished with DONE\n";
+  my ($info)=$cat->execute("masterJob", $id) or exit(-2);
+  my ($user)=$cat->execute("whoami");
+  my $subjobs=0;
+  my $expected={DONE=>$jobs};
+  foreach my $s (@$info){
+    my $status=$s->{status};
+    $subjobs+=$s->{count};
+    $expected->{$status} eq $s->{count} or print "There are $s->{count} $status jobs, and we were expecting $expected\n" and exit(-2);
+    $expected->{$status}=0;
+  }
+  foreach my $t (keys %$expected){
+
+    if ($expected->{$t}){
+      print "We expected $expected->{$t} jobs in $t\n" and exit(-2);
+    }
+  }
+
+  return "/proc/$user/$id";
 }

@@ -35,7 +35,7 @@ echo \"Validation passed!!\"
 
 
 my $outputDir="$dir/production";
-#$cat->execute("rmdir", "-rf", $outputDir);
+$cat->execute("rmdir", "-rf", $outputDir);
 addFile($cat, "jdl/production.jdl","Executable=\"production.sh\";
 Split=\"production:1-5\";
 SplitArguments=\"#alien_counter# big production\";

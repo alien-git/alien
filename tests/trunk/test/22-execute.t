@@ -26,7 +26,7 @@ $admincat->execute("debug", "CE ProcessMonitor LQ Service") or exit(-2);
 $admincat->execute("queue", "add $cat->{CONFIG}->{ORG_NAME}::CERN::testCE");
 $admincat->execute("queue", "open $cat->{CONFIG}->{ORG_NAME}::CERN::testCE") or exit(-2);
 print "Let's sleep until the job is ready";
-sleep(20);
+#sleep(20);
 my (@jobs)=$cat->execute("top", "-status", "WAITING");
 (@jobs) or print "ERROR: THERE ARE NO JOBS WAITING\n" and exit(-2);
 

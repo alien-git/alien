@@ -140,7 +140,7 @@ sub addLdapEntry {
 
 sub startService {
   my $service=shift;
-
+  my $options=shift || {};
   print "Starting the $service...\n";
   my $command="$ENV{ALIEN_ROOT}/bin/alien Start$service";
   $< or $command="su - alienmaster -c \"$command\"";
@@ -156,7 +156,7 @@ sub startService {
     system("cat", $logFile);
     return;
   }
-
+  $options->{nolisten} and print "ok\nSkipping the check if the service is listening\n" and return 1;
   print "ok\nChecking if the service is listening...\t";
   open (FILE, "<$logFile") or print "Error opening the log file $logFile" and return;
   my @file=<FILE>;

@@ -38,9 +38,11 @@ Packages=\"MyPS::1.0\"\n") or exit(-2);
   
   print "The package has been addedd!!!\n\n\n";
 
-  installPackage("MyPS") or exit(-2);
-
+  my ($ok, $source)=installPackage("MyPS"); 
+  $ok or print "Error installing the package!!\n" and  exit(-2);
+  $source or print "Error: don't have anything to source\n" and exit(-2);
   print "\n\nLet's submit the job\n";
+
   my $procDir=executeJDLFile($cat,"jdl/package.jdl") or exit(-2);
 
   my ($out)=$cat->execute("get","$procDir/job-output/stdout") or exit(-2);
@@ -74,6 +76,7 @@ sub installPackage{
 
   print "Got $ok and $source\n";
   $ok or return;
+  print "This is ok!!\n";
   return ($ok, $source);
 }
 sub addPackage{

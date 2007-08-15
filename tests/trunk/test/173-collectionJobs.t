@@ -11,8 +11,6 @@ BEGIN { plan tests => 1 }
   $ENV{ALIEN_TESTDIR} or $ENV{ALIEN_TESTDIR}="/home/alienmaster/AliEn/t";
   eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
   includeTest("16-add") or exit(-2);
-  includeTest("86-split") or exit(-2);
-  includeTest("26-ProcessMonitorOutput") or exit(-2);
 
   my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",}) or 
     exit (-1);
@@ -28,11 +26,11 @@ InputData=\"LF:$dir/collections/manual_collection\"
 InputDataCollection=\"LF:$dir/collections/manual_collection\";
 Split=\"file\";
 ") or exit(-2);
-  my ($ok, $procDir, $number)=executeSplitJob($cat,"jdl/collectionSplit.jdl")
-    or exit (-2);
-  print "The job got split in $procDir and $number\n";
-  $number eq "2" or print "The job wasn't split in 2 (there were $number)\n" and exit(-2);
 
-  print "ok\n";
+  my ($id)=$cat->execute("submit", "jdl/collectionSplit.jdl") or exit(-2);
+
+  print "Job submitted!!
+\#ALIEN_OUTPUT $id";
+
 
 }

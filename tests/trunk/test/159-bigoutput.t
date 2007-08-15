@@ -5,7 +5,7 @@ use AliEn::UI::Catalogue::LCM::Computer;
 $ENV{ALIEN_TESTDIR} or $ENV{ALIEN_TESTDIR}="/home/alienmaster/AliEn/t";
 eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
 includeTest("16-add") or exit(-2);
-includeTest("26-ProcessMonitorOutput") or exit(-2);
+
 
 my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user"=>"newuser"}) or exit(-2);
 
@@ -28,14 +28,7 @@ Workdirectorysize =  { \"10MB\" };
 ") or exit(-2);
 
 
-my $procDir=executeJDLFile($cat, "jdl/bigOutput.jdl", "ERROR_E") or 
-  print "The job was not killed \n" and exit(-2);
-
-
-print "The job was killed!!\n";
-print "And now, let's check with a job that is not supposed to be killed\n";
-$procDir=executeJDLFile($cat, "jdl/bigOutputWorks.jdl") or 
-  print "The job did not finish\n" and exit(-2);
-
-
-print "OK!!\n";
+my ($id)=$cat->execute("submit", "jdl/bigOutput.jdl") or exit(-2);
+my ($id2)=$cat->execute("submit", "jdl/bigOutputWorks.jdl") or exit(-2);
+print "Job Submitted!!
+\#ALIEN_OUTPUT $id $id2\n";

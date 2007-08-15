@@ -37,7 +37,7 @@ if ($pid){
 
 
 sleep (30);
-my $command="$ENV{ALIEN_ROOT}/bin/alien StartProxy <\$HOME/.alien/.startup/.passwd.$c->{CONFIG}->{ORG_NAME}";
+my $command="$ENV{ALIEN_ROOT}/bin/alien StartProxy -debug 5 <\$HOME/.alien/.startup/.passwd.$c->{CONFIG}->{ORG_NAME}";
 $< or $command="su - alienmaster -c '$command'";
 print "Doing $command";
 system($command);

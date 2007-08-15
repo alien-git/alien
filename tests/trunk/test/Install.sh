@@ -193,6 +193,82 @@ ALIEN_SLAVE_INSTALL()
     EXECUTE_SHELL
 
 }
+RUN_TEST()
+{
+    i=$1
+    TEST=$2
+
+    OUTPUT="$DIR/$i.test.$TEST"
+
+    shift 3
+    printf "Test %2i %-27s ......................  " $i "$TEST..."
+    number=${TEST%%-*}
+
+    if [ "$number" == "$BEGIN" ]
+	then
+	ACTIVE=1
+    fi
+
+    if [ "$IGNORE" != "${IGNORE/$number//}" ] || [ $ACTIVE -ne 1 ]
+    then
+	echo ignored
+	return 0
+    fi
+    
+    rm -rf $DIR/current
+    ln -s $OUTPUT $DIR/current
+
+    START=`date +"%s"`
+    INPUTFILE="$DIR/$TEST.input"
+    INPUT=""
+    [ -f $INPUTFILE ] && INPUT=`grep '^#ALIEN_OUTPUT' $INPUTFILE |sed -e 's/#ALIEN_OUTPUT //'`
+    $ALIEN -x $ALIEN_TESTDIR/${TEST}.t $INPUT >$OUTPUT 2>&1
+    #cat $OUTPUT
+    DONE=$?
+    grep '^#ALIEN_OUTPUT' $OUTPUT >$DIR/$TEST.b.input
+    END=`date +"%s"`
+    let TIME=$END-$START
+
+#	    $ALIEN proxy-info > /dev/null 2>&1  && echo -n "WARNING THERE IS A PROXY"
+    [ -f "$CAFILE"  ] ||  echo -n "WARNING THE CA $CAFILE IS NOT IN X509_CERT_DIR"
+    printf "(%-4s seconds)" $TIME
+    grep "Use of uninitialized value" $OUTPUT  && DONE=22
+    grep "masks earlier declaration in same scope" $OUTPUT  && DONE=22
+    grep "Useless use of " $OUTPUT  && DONE=22
+    grep "not ok " $OUTPUT && DONE=22
+            
+# 	ERROR=`grep -i error $OUTPUT`
+    [ -z "$APMON" ] || SEND_TO_ML "${TEST}_time" $TIME
+
+    if [  $DONE -ne 0  ] || [  -n "$ERROR"  ] ;
+    then
+	echo -n failed
+	if [ "$EXPECTED_FAILS" != "${EXPECTED_FAILS/,$number,/,}" ]
+	then
+	    echo -n "(expected)"
+	    EXPECTED_FAILS=${EXPECTED_FAILS/,$number,/,}
+	else 
+	    let FAILEDTESTS++
+	    if [ "$NO_BREAK" != "1" ] ;
+	    then
+		nSuccess=`expr $nTests - $FAILEDTESTS`
+		SEND_TO_ML "${FUNCTION}_nTests" $nTests \
+		"${FUNCTION}_nSuccess" $nSuccess \
+		"${FUNCTION}_pSuccess" `expr $nSuccess \* 100 / $nTests` \
+		"${FUNCTION}_time" `expr $END - $allStart`
+		echo; echo;echo
+		echo "Error doing $TEST $i" 
+		echo "Output"
+		cat $OUTPUT
+		exit -2
+	    fi
+	fi
+	echo
+    else
+	echo "ok"
+	rm -f $OUTPUT
+    fi
+}
 ALIEN_TESTS()
 {
     echo "Checking if the certificate is ok"
@@ -228,71 +304,18 @@ ALIEN_TESTS()
     CAFILE=$ALIEN_ROOT/globus/share/certificates/`openssl x509 -hash -noout < $HOME/.alien/globus/usercert.pem`.0
     for TEST in $TESTS
     do
-	FILE="$DIR/$i.test.$TEST"
-
-	printf "Test %2i %-27s ......................  " $i "$TEST..."
-
-	number=${TEST%%-*}
-
-	if [ "$number" == "$BEGIN" ]
-	then
-		ACTIVE=1
-	fi
-
-	if [ "$IGNORE" != "${IGNORE/$number//}" ] || [ $ACTIVE -ne 1 ]
-	then
-	    echo ignored
-	else
-	    rm -rf $DIR/current
-	    ln -s $FILE $DIR/current
-	    START=`date +"%s"`
-	    $ALIEN -x $ALIEN_TESTDIR/${TEST}.t >$FILE 2>&1
-	    #cat $FILE
-	    DONE=$?
-	    END=`date +"%s"`
-	    let TIME=$END-$START
-#	    $ALIEN proxy-info > /dev/null 2>&1  && echo -n "WARNING THERE IS A PROXY"
-	    [ -f "$CAFILE"  ] ||  echo -n "WARNING THE CA $CAFILE IS NOT IN X509_CERT_DIR"
-	    $ALIEN proxy-destroy > /dev/null 2>&1
-	    printf "(%-4s seconds)" $TIME
-	    grep "Use of uninitialized value" $FILE  && DONE=22
-	    grep "masks earlier declaration in same scope" $FILE  && DONE=22
-	    grep "Useless use of " $FILE  && DONE=22
-            grep "not ok " $FILE && DONE=22
-            
-# 	ERROR=`grep -i error $FILE`
-	    [ -z "$APMON" ] || SEND_TO_ML "${TEST}_time" $TIME
-
-	    if [  $DONE -ne 0  ] || [  -n "$ERROR"  ] ;
-	    then
-		echo -n failed
-		if [ "$EXPECTED_FAILS" != "${EXPECTED_FAILS/,$number,/,}" ]
-		then
-		    echo -n "(expected)"
-		    EXPECTED_FAILS=${EXPECTED_FAILS/,$number,/,}
-		else 
-		    let FAILEDTESTS++
-		    if [ "$NO_BREAK" != "1" ] ;
-		    then
-			nSuccess=`expr $nTests - $FAILEDTESTS`
-			SEND_TO_ML "${FUNCTION}_nTests" $nTests \
-				"${FUNCTION}_nSuccess" $nSuccess \
-				"${FUNCTION}_pSuccess" `expr $nSuccess \* 100 / $nTests` \
-				"${FUNCTION}_time" `expr $END - $allStart`
-			echo; echo;echo
-			echo "Error doing $TEST $i" 
-			echo "Output"
-			cat $FILE
-			exit -2
-		    fi
-		fi
-		echo
-	    else
-		echo "ok"
-		rm -f $FILE
-	    fi
-	fi
+	RUN_TEST $i $TEST
 	let i++
+    done
+
+
+    for TEST in $TESTS
+    do
+	if [ -f "$ALIEN_TESTDIR/${TEST}.b.t" ];
+	then
+	    RUN_TEST $i $TEST.b 
+	    let i++
+	fi
     done
     allEnd=`date +"%s"`
     nSuccess=`expr $nTests - $FAILEDTESTS`
@@ -435,7 +458,9 @@ EXECUTE_SHELL()
 }
 BANK_TESTS_LIST="304-putBankDataLDAP 301-bankAccount 302-transactFunds 303-addFunds 305-execOrder "
 
-JOB_TESTS_LIST="70-x509 89-jdl 19-ClusterMonitor 168-no_shared_cipher 21-submit 73-updateCE 22-execute 62-inputfile 23-resubmit 26-ProcessMonitorOutput 105-killRunningJob 85-inputdata 94-inputpfn 98-jobexit 64-jobemail 77-rekill 86-split 87-splitFile 88-splitArguments 115-queueList 118-validateJob 119-outputDir 120-production 124-OutputArchive 126-OutputInSeveralSE 133-queueInfo 134-dumplist 135-inputdata2 137-userArchive 140-jobWithMemory 141-executingTwoJobs 152-inputdatacollection 153-splitInputDataCollection 157-zip 159-bigoutput 160-JDLenvironment 161-userGUID 164-jdlMatch 163-specificOutput 170-splitDataset 173-collectionJobs 174-collectionFromXML "
+JOB_TEST2_LIST="177-startCE 135-inputdata2 137-userArchive 153-splitInputDataCollection 157-zip 159-bigoutput 160-JDLenvironment 161-userGUID 85-inputdata 163-specificOutput 170-splitDataset 173-collectionJobs 174-collectionFromXML 176-executeAllJobs"
+JOB_TESTS_LIST="70-x509 89-jdl 19-ClusterMonitor 168-no_shared_cipher 21-submit 73-updateCE 22-execute 62-inputfile 23-resubmit 26-ProcessMonitorOutput 105-killRunningJob 94-inputpfn 98-jobexit 64-jobemail 77-rekill 86-split 87-splitFile 88-splitArguments 115-queueList 118-validateJob 119-outputDir 120-production 124-OutputArchive 126-OutputInSeveralSE 133-queueInfo 134-dumplist 140-jobWithMemory 141-executingTwoJobs 152-inputdatacollection 164-jdlMatch $JOB_TEST2_LIST"
+JOB_TESTS_LIST=$JOB_TEST2_LIST
 PACKAGE_TESTS_LIST="75-PackMan 76-jobWithPackage 82-packageDependencies 84-sharedPackage 100-tcshPackage 83-gccPackage 130-localConfig 131-definedPackage"
 GAS_TESTS_LIST="69-gContainer 71-GAS 72-UI "
 CATALOGUE_TESTS_LIST="63-addEmptyFile 91-expandWildcards 16-add 17-retrieve 74-http 18-metadata 18-metadata 37-find 65-metadata2 15-tree 78-symlink 79-specialChar 95-listDir 93-cpdir 121-cp 101-registerFile 102-secondSE 103-mirror 117-findCaseSensitive 123-VirtualSE 125-mirror 128-modifyMd5 132-listDirectory 136-deleteFile 138-copyFile 139-vi 144-upperCase 146-mv 148-findXML 149-guid2lfn 162-expiration 169-changeUser 171-copyingMetadata 153-su 172-collections 175-sizeOfBigFile" 
