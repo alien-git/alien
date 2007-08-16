@@ -361,7 +361,9 @@ sub GetJDL {
 	    }
 	  }
 	  $i++; #this iteration doesn't count
-	}else {
+	}elsif ( $result eq "-2"){
+	  $self->info("No jobs waiting in the queue");
+	} else {
 	  $self->{SOAP}->CallSOAP("Manager/Job", "setSiteQueueStatus",$self->{CONFIG}->{CE_FULLNAME},"jobagent-matched");
 	  last;
 	}
