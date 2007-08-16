@@ -131,7 +131,7 @@ sub readxml {
     }
     
     if ( $line =~ /file[\s]*name=\"([^\"]*)\"/ ) {
-      $self->info("Checking '$line'");
+      $self->debug(1,"Checking '$line'");
       $nfiles++;
       my @tags = split " ",$line;
       my $name="";

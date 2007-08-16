@@ -10,6 +10,7 @@ push (@ISA, "AliEn::Service::Optimizer::Job");
 sub checkWakesUp {
     my $self = shift;
     my $silent = shift;
+    $self->{SLEEP_PERIOD}=3600;
     
     my $method="info";
     my @data;

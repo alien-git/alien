@@ -44,7 +44,7 @@ my $splitPerSE =sub  {
 #    $event=~ s/\/[^\/]*$//;
 #    $event=~ s/^.*\/([^\/]*)$/$1/;
 
-    $self->info("Putting it in ". join (",", sort @se));
+    $self->debug(1,"Putting it in ". join (",", sort @se));
     return join (",", sort @se), "";
 };
 
@@ -224,7 +224,7 @@ sub _getInputFiles{
 	push  @files, @entries;
       }
     } else {
-      $self->info("Inserting $file");
+      $self->debug(1,"Inserting $file");
       push @files, $file;
     }
   }
@@ -300,7 +300,7 @@ sub _singleSplit {
 	$self->info("Adding $nolffile with size @$rresult[0]->{size}");
       }
     } else {
-      $self->info("Size does not matter for $file");
+      $self->debug(1,"Size does not matter for $file");
     }
 
     $jobs->{$newpos}->{nfiles}++;
@@ -484,7 +484,7 @@ sub _checkArgumentsPatterns{
     }elsif ($pattern =~ s/^all//i){
       $file=join (",", @files);
     }else {
-      $self->info("warning: it is not defined if we have to take the first or the last entry. Taking the first");
+      $self->debug(1, "warning: it is not defined if we have to take the first or the last entry. Taking the first");
       $files[0] and $file=$files[0];
     }
     $file =~ s/,nodownload//g;
@@ -526,7 +526,7 @@ sub _checkArgumentsPatterns{
     } else {
       $self->info("Don't know what to do with $pattern");
     }
-    $self->info("Let's replace #alien$origPattern# with '$newpattern' in '$args'");
+    $self->debug(1,"Let's replace #alien$origPattern# with '$newpattern' in '$args'");
     $args =~ s/\#alien$origPattern\#/$newpattern/g;
   }
   return $args;

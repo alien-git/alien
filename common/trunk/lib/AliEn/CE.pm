@@ -3136,7 +3136,7 @@ sub requirementsFromPackages {
   }
 
 
-  $self->info("Checking if the packages @packages are defined in the system");
+  $self->debug(1,"Checking if the packages @packages are defined in the system");
   my ($status, @definedPack)=
     $self->{PACKMAN}->f_packman("list", "-silent", "-all");
   $status or
