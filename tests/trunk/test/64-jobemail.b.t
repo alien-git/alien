@@ -22,13 +22,13 @@ BEGIN { plan tests => 1 }
   $cat or exit (-1);
 
   checkEmail($cat, $id, "DONE") or exit(-2);
-  checkEmail($cat, $id, "ERROR_IB") or exit(-2);
+  checkEmail($cat, $id2, "ERROR_IB") or exit(-2);
   $cat->close();
   ok(1);
 }
 
 
-sub jobWithEmail {
+sub checkEmail {
   my $cat=shift;
   my $id=shift;
   my $status=shift;
@@ -37,8 +37,8 @@ sub jobWithEmail {
   use Data::Dumper;
   foreach my $entry (@$trace){
     $entry->{trace}=~ /Sending an email to (\S+) \(job (\S+)\)/ or next;
-    $status =~ /$1/ and print "The job sent the right email\n" and return 1;
-    print "The job sent an email to $1, with status $2\n";
+    $status =~ /$2/ and print "The job sent the right email\n" and return 1;
+    print "The job sent an email to $1, with status $2 (instead of $status)\n";
     return;
   }
   print "The job didn't send any emails\n";

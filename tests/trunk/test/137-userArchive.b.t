@@ -9,10 +9,10 @@ BEGIN { plan tests => 1 }
 
 {
 
-  my $id=shift || print "Error getting the id of the job\n" and exit(-2);
+  my $id=shift or print "Error getting the id of the job\n" and exit(-2);
   $ENV{ALIEN_TESTDIR} or $ENV{ALIEN_TESTDIR}="/home/alienmaster/AliEn/t";
   eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
-  includeTest("16-add") or exit(-2);
+
   includeTest("26-ProcessMonitorOutput") or exit(-2);
 
   my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",});
@@ -21,7 +21,7 @@ BEGIN { plan tests => 1 }
 
 
 
-  my $procDir=checkOuput($cat, $id) or exit(-2);#
+  my $procDir=checkOutput($cat, $id) or exit(-2);#
 
   print "JOB EXECUTED!!\nChecking if the archive is in the right place\n";
 

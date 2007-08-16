@@ -13,8 +13,8 @@ BEGIN { plan tests => 1 }
   includeTest("86-split") or exit(-2);
 
   my $id=shift or print "No job to analyze!!\n" and exit(-2);
-  my @files=@_;
-  print "And the files are @_\n";
+  my @files=@ARGV;
+  print "And the files are @files\n";
 
   my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",}) or 
     exit (-1);
