@@ -460,7 +460,7 @@ sub getJobAgent {
   my $done =$self->{SOAP}->CallSOAP("Broker/Job", "getJobAgent",$user, $self->{CONFIG}->{HOST},  @_);
 
   ($done) or return (-1, $self->{LOGGER}->error_msg);
-
+  ($done eq "-2") and return  (-2, "No jobs waiting in the queue");
   ($done, my @packages) = $self->{SOAP}->GetOutput($done);
   if ($done eq "-3") {
     $self->info("We have to install some packages (@packages) before we can execute the job");

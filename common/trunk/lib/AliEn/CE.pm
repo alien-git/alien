@@ -3098,7 +3098,7 @@ sub masterJob {
   }
   $self->info($summary);
 
-  return 1;
+  return $info;
 }
 
 sub checkJobAgents {
