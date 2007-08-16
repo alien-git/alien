@@ -490,7 +490,8 @@ sub testPackage{
   my $user=shift;
   my $package=shift;
   my $versionUser=shift;
-
+  my $command=join(" ", @_);
+  $command or $command="env";
   my ($done, $lfn, $info, $version)=$self->isPackageInstalled($user,$package,$versionUser);
 
   $done or  return (-1, "Package is not installed");
@@ -500,8 +501,8 @@ sub testPackage{
   $self->info( "$$ We should do $done and $source");
   my $env="";
   if ($source) {
-     $self->info( "$$ Lets's call $source env");
-    $env=`$source env`;
+     $self->info( "$$ Lets's call $source $command");
+    $env=`$source $command`;
     my $env2=`$source echo "The AliEn Package $package is installed properly"`;
     if ($env2 !~ /The AliEn Package $package is installed properly/s ){
       $self->info( "$$ Warning!!! The package has to source $source, but this script doesn't seem to execute commands");
