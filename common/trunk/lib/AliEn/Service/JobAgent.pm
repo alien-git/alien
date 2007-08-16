@@ -943,7 +943,7 @@ sub installPackage {
   $self->info("Installing Package $_");
 
   my ($version, $user);
-  $self->{PACKMAN}->setCatalogue($catalogue);
+  $self->{PACKMAN} and $self->{PACKMAN}->setCatalogue($catalogue);
   $package =~ s/::(.*)$// and $version=$1;
   $package =~ s/^(.*)\@// and $user=$1;
 
