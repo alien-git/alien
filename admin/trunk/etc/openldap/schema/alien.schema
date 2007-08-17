@@ -100,6 +100,7 @@ attributetype ( AliEnVOConfig:71 NAME 'si2kNominalPrice' SUP name )
 attributetype ( AliEnVOConfig:72 NAME 'bankAdmin' SUP name )
 attributetype ( AliEnVOConfig:73 NAME 'bankCurrency' SUP name )
 attributetype ( AliEnVOConfig:74 NAME 'proxyAddress' SUP name )
+attributetype ( AliEnVOConfig:75 NAME 'jobDatabaseRead' SUP name )
 
 objectclass ( AliEnVOConfig  NAME 'AliEnVOConfig'
 	SUP ( top $ organizationalUnit ) STRUCTURAL
@@ -122,7 +123,7 @@ objectclass ( AliEnVOConfig  NAME 'AliEnVOConfig'
 	      proofCryptPassword $ proofLogin $ proofTimeout $ proofMasterPort $ proofPackage $ 
 	      webserverURL $ myproxyServer $ gContainerAddress $ rlsAddress $
 	      portalUrl $ vomsServer $ apiServer $ jabberServer $ agentApiProxy $ 
-               lbsgAddress $ lbsgDatabase $ si2kNominalPrice $ bankAdmin $ bankCurrency )
+               lbsgAddress $ lbsgDatabase $ si2kNominalPrice $ bankAdmin $ bankCurrency $ jobDatabaseRead )
 	)
 #AliEnUser
 
