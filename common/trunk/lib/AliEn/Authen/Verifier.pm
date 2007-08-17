@@ -12,8 +12,13 @@ require AliEn::Authen::Comm;
 
 use AliEn::Logger::LogObject;
 use AliEn::Config;
-use Authen::AliEnSASL;
+
 use AliEn::SOAP;
+
+#use Authen::AliEnSASL;
+$ENV{'SASL_PATH'} = $ENV{'ALIEN_ROOT'}."/lib/sasl2";
+use Authen::SASL;
+
 
 use vars qw($VERSION @ISA);
 
@@ -23,13 +28,14 @@ $VERSION = "1.00";
 
 my $AUTH_ERROR;
 my $ADMINDBH;
+my $CALLBACK_DATA;
 
 # ***** For debugging only *************
-use Authen::AliEnSASL::Perl;
-use Authen::AliEnSASL;
-use Authen::AliEnSASL::Perl::Server::PLAIN;
-use Authen::AliEnSASL::Perl::Server::GSSAPI;
-use GSS;
+#use Authen::AliEnSASL::Perl;
+#use Authen::AliEnSASL;
+#use Authen::AliEnSASL::Perl::Server::PLAIN;
+#use Authen::AliEnSASL::Perl::Server::GSSAPI;
+#use GSS;
 
 # **************************************
 	 
@@ -44,9 +50,13 @@ use GSS;
 #
 ####################################################################
 sub get_sshkey {
-    my $self = shift;
+    #my $self = shift;
+    my $in = shift;
 
-    my $mech = $self->mechanism;
+    #my $mech = $self->mechanism;
+    
+     my ( $mech, $username) = split "\0", $$in;
+
 
     if ( $mech eq "SSH" ) {
         my $config = AliEn::Config->new();
@@ -56,7 +66,7 @@ sub get_sshkey {
 
         #	my $organisation = $self->{CONFIG}->{ORG_NAME};
 
-        my $username = $self->{username};
+        #my $username = $self->{username};
 
         $ldap->bind();
         my $mesg = $ldap->search(    # perform a search
@@ -95,42 +105,50 @@ sub get_sshkey {
 # Return 0 if either fails.
 #
 sub exists_user {
-  my $self = shift;
-  
-  my $mech = $self->mechanism;
-  
-  my $username = $self->{username};
-  my $role     = $self->{role};
-  
-  print "Authmethod: $mech\n";
-  print "Username  :   " . $self->{username} . "\n";
-  print "Role      :   " . $self->{role} . "\n";
-  
-  if ( $mech eq "PLAIN" ) {
-    #This one checks the password against masterpassword
-    if ( $self->{secret} ne "ThePassword" ) {
-      return 0;
+    
+	#my $self = shift;
+	my $in = shift;
+
+    my ( $mech, $username, $role, $secret) = split "\0", $$in;
+    
+    #my $mech = $self->mechanism;
+
+    #my $username = $self->{username};
+    #my $role     = $self->{role};
+
+    print "Authmethod: $mech\n";
+    print "Username  :   " . $username . "\n";
+    print "Role      :   " . $role . "\n";
+
+    if ( $mech eq "PLAIN" ) {
+
+        #This one checks the password against masterpassword
+        if ( $secret ne "ThePassword" ) {
+            return 0;
+        }
     }
-  }elsif ( $mech eq "TOKEN" ) {
-    if ($username eq "root"){
-      $username=$role;
-    }
-    my $DATA = $ADMINDBH->getFieldsFromTokens($role,"Token,(Expires-Now()) as validPeriod");
-    
-    defined $DATA
-      or print "Error fetching token and password for user $role\n"
-	and return 0;
-    
-    %$DATA
-      or print "Token and password for user $role don't exist\n"
-	and return 0;
-    
-    if ( ( $DATA->{Token} ne $self->{secret} ) || ( $DATA->{validPeriod} < 0 ) ) {
-      print "Expires in $DATA->{validPeriod} TOKEN $DATA->{Token} and $self->{secret}\n";
-      print "Either token was not correct, or it expired\n";
-      return 0;
-    }
-    
+    if ( $mech eq "TOKEN" ) {
+
+		if ($username eq "root")
+		{
+			$username=$role;
+		}
+       my $DATA = $ADMINDBH->getFieldsFromTokens($role,"Token,(Expires-Now()) as validPeriod");
+
+		defined $DATA
+			or print "Error fetching token and password for user $role\n"
+			and return 0;
+
+		%$DATA
+			or print "Token and password for user $role don't exist\n"
+			and return 0;
+
+        if ( ( $DATA->{Token} ne $secret ) || ( $DATA->{validPeriod} < 0 ) ) {
+            print "Expires in $DATA->{validPeriod} TOKEN $DATA->{Token} and $secret\n";
+            print "Either token was not correct, or it expired\n";
+            return 0;
+        }
+
 # 		my $DATA = $ADMINDBH->getTokenValidPeriod($role);
 # 
 # 		$DATA
@@ -143,108 +161,103 @@ sub exists_user {
 #             print "Either token was not correct, or it expired\n";
 #             return 0;
 #         }
-  } elsif ( $mech eq "JOBTOKEN"){
-    print "CHECKING THE JOB TOKEN for $self->{username} ($self->{secret})\n";
-    my $userName=$ADMINDBH->queryValue("SELECT userName from jobToken where jobId=? and jobToken=?", undef, {bind_values=>[$self->{role}, $self->{secret}]});
-    if (!$userName){
-      print "Job token is wrong!!\n";
-
-      $AUTH_ERROR="The job token for job $self->{role} is not valid";
-      return 0;
     }
-    print "Job Token is valid (user $username)\n";
-    $username=$role=$userName;
-  }
 
-  #Connect to LDAP host;
-  my $config = AliEn::Config->new;
-  my $ldap   = Net::LDAP->new( $config->{LDAPHOST} ) or die "$@";
-  my $base   = $config->{LDAPDN};
+    #Connect to LDAP host;
+    my $config = AliEn::Config->new;
+    my $ldap   = Net::LDAP->new( $config->{LDAPHOST} ) or die "$@";
+    my $base   = $config->{LDAPDN};
 
-  $ldap->bind();
+    $ldap->bind();
 
-  my $filter;
-  
-  # Search for different things depending on method
-  
-  if ( $role =~ /^\// ) {
-    print "Translating subject into uid.\n";
-    
-    # The role is a subject, translate into UID
-    $filter = "(&(objectclass=pkiUser)(subject=$role))";
-    my $mesg = $ldap->search(
-			     base   => "ou=People,$base",
-			     filter => $filter
-			    );
+    my $filter;
+
+    # Search for different things depending on method
+
+    if ( $role =~ /^\// ) {
+        print "Tranlating subject into uid.\n";
+
+        # The role is a subject, translate into UID
+        $filter = "(&(objectclass=pkiUser)(subject=$role))";
+        my $mesg = $ldap->search(
+            base   => "ou=People,$base",
+            filter => $filter
+        );
+        my $total = $mesg->count;
+        if ( $total == 0 ) {
+            print "Failure in translating $role into uid\n";
+
+            #No user registered with this subject:(
+            $ldap->unbind;
+            return 0;
+        }
+        my $entry = $mesg->entry(0);
+        my $tmprole = $role; 
+	$role = $entry->get_value('uid');
+        print "\"$tmprole\" => $role\n";
+        #$self->{role} = $role;
+
+        # Role is now translated into a uid!!
+    }
+    if ( $mech eq "GSSAPI" ) {
+
+        # If method is GSSAPI, $username will contain the full subject of the 
+        # clients certificate. Search for this.
+        $filter = "(&(objectclass=pkiUser)(subject=$username))";
+    }
+    else {
+
+        #All other methods will return the uid (string)
+        $filter = "(&(objectclass=pkiUser)(uid=$username))";
+    }
+    my $mesg = $ldap->search(    # perform a search
+        base   => "ou=People,$base",
+        filter => $filter,
+    );
     my $total = $mesg->count;
-    if ( $total == 0 ) {
-      print "Failure in translating $role into uid\n";
-      
-      #No user registered with this subject:(
-      $ldap->unbind;
-      return 0;
-    }
-    my $entry = $mesg->entry(0);
-    $role = $entry->get_value('uid');
-    print "\"$self->{role}\" => $role\n";
-    $self->{role} = $role;
-    
-    # Role is now translated into a uid!!
-  }
-  if ( $mech eq "GSSAPI" ) {
-    
-    # If method is GSSAPI, $username will contain the full subject of the 
-    # clients certificate. Search for this.
-    $filter = "(&(objectclass=pkiUser)(subject=$username))";
-  }
-  else {
-      
-    #All other methods will return the uid (string)
-    $filter = "(&(objectclass=pkiUser)(uid=$username))";
-  }
-  my $mesg = $ldap->search(    # perform a search
-			   base   => "ou=People,$base",
-			   filter => $filter,
-			  );
-  my $total = $mesg->count;
-  if ( $total < 1 ) {
-    print "No entry with common name $username\n";
-    $ldap->unbind;
-    $AUTH_ERROR="No entry with common name $username";
-    return 0;
-  }
-  
-  if ($total > 1) {
-    print "There are several entries with common name $username\n";
-  }
-  
-  for (my $i=0; $i<$total; ++$i) {
-    my $entry = $mesg->entry($i);
-    
-    my $uid   = $entry->get_value('uid');
-    if ($role eq $uid) {
-      print "Wants to be himself!!\n";
-      $ldap->unbind;
-      return $uid;
+    if ( $total < 1 ) {
+        print "No entry with common name $username\n";
+        $ldap->unbind;
+	$AUTH_ERROR="No entry with common name $username";
+        return 0;
     }
     
-    print "Checking if the user '$uid' can be '$role'\n";
-    my $mesgRole = $ldap->search(    # perform a search
-				 base   => "ou=Roles,$base",
-				 filter => "(&(uid=$role)(|(public=yes)(users=$uid)))",
-				);
-    
-    if ($mesgRole->count > 0) {
-      $ldap->unbind;
-      return $role;
+    if ($total > 1) {
+        print "There are several entries with common name $username\n";
     }
-    print "User $uid not allowed to be $role\n";
-  }
+    
+    for (my $i=0; $i<$total; ++$i) {
+      my $entry = $mesg->entry($i);
 
-  $ldap->unbind;
-  print "User $username not allowed to be $role\n";
-  $AUTH_ERROR="user $username is not allowed to be $role";
-  return 0;
+      my $uid   = $entry->get_value('uid');
+      if ($role eq $uid) {
+          print "Wants to be himself!!\n";
+          $ldap->unbind;
+          return 1;
+      }
+
+      print "Checking if the user '$uid' can be '$role'\n";
+      my $mesgRole = $ldap->search(    # perform a search
+          base   => "ou=Roles,$base",
+          filter => "(&(uid=$role)(|(public=yes)(users=$uid)))",
+      );
+
+      if ($mesgRole->count > 0) {
+        $ldap->unbind;
+
+        return 1;
+      }
+
+      print "User $uid not allowed to be $role\n";
+      print FH "m: $mech u: $username r: $role s: $secret 1: $uid HERE \n";
+     close FH;
+
+    }
+
+    $ldap->unbind;
+    print "User $username not allowed to be $role\n";
+    $AUTH_ERROR="user $username is not allowed to be $role";
+    return 0;
 }
 
 sub new {
@@ -276,23 +289,33 @@ sub new {
     }
     ###########################################################################
 
-    my $callbacks = {
-        credential => \&get_sshkey,
-        exists     => \&exists_user,
-    };
+    #my $callbacks = {
+    #    credential => \&get_sshkey,
+    #    exists     => \&exists_user,
+    #};
 
     #Create SASL object
-    my $sasl =
-      new Authen::AliEnSASL( $callbacks, "Alien Authentication server" );
+    #my $sasl =
+    #  new Authen::AliEnSASL( $callbacks, "Alien Authentication server" );
+      
+    my $sasl = Authen::SASL->new (
+      callback => {
+	    pass => [\&get_sshkey,  \$CALLBACK_DATA], #The only way to pass data 
+	    auth => [\&exists_user, \$CALLBACK_DATA]  #to callback functions
+      	  }
+ );
 
     #  Fetch server object
     #
     # IMPORTANT: the last option specifies minimum sec. level. 
     #
-    $self->{SASLserver} =
-      $sasl->server_new( "ProxyServer", "hostname", "noanonymous", 0 );
+    #$self->{SASLserver} =
+    #  $sasl->server_new( "ProxyServer", "hostname", "noanonymous", 0 );
 
-    $self->info("I have these mechs installed: " . $self->{SASLserver}->listmech() );
+    $self->{SASLserver} =
+      $sasl->server_new( "ProxyServer", "localhost");
+    
+    $self->info("I have these mechs installed: " . $self->{SASLserver}->listmech("", " ", "") );
 
     return $self;
 }
@@ -317,6 +340,7 @@ sub verify {
       
       AliEn::Authen::Comm::write_buffer( $self->{socket}, "AUTH OK", "",
 				       );
+
       if ( $self->authenticate($inTok) ) {
 	$self->info( "Context established\n" );
 	$done = 1;
@@ -330,7 +354,16 @@ sub verify {
     }
     elsif ( $status eq "REQUEST MECHS" ) {
       $self->debug(1, " Client wishes to retrive list of mecs" );
-      my $mechs = $self->{SASLserver}->listmech();
+      my $tmpmechs = $self->{SASLserver}->listmech("", " ", "");
+	
+	# Very BAD workaround !!!
+	my $mechs;
+	$tmpmechs =~ /GSSAPI ?/ and $mechs = "GSSAPI ";
+	$tmpmechs =~ /SSH ?/ and $mechs .= "SSH ";
+	$tmpmechs =~ /TOKEN ?/ and $mechs .= "TOKEN ";
+	$tmpmechs =~ /PLAIN ?/ and $mechs .= "PLAIN";
+	
+	
       $self->debug(1, " Mechlist: $mechs" );
       AliEn::Authen::Comm::write_buffer( $self->{socket},"AliEnAUTH MECHS",
 					 $mechs, length($mechs) );
@@ -341,10 +374,11 @@ sub verify {
     }
   } while ( !$done );
   
-  my $username = $self->{SASLserver}->getUsername;
-  my $role     = $self->{SASLserver}->getRole;
-#  print "On the server side, we should also know that it is $username\n";
-#  $role='newuser';
+#  my $username = $self->{SASLserver}->getUsername;
+#  my $role     = $self->{SASLserver}->getRole;
+
+my (undef, $username, $role) = split "\0", $CALLBACK_DATA;
+
   $self->info("Get password for $username (in $role)" );
   my $passwd = $self->{ADMINDBH}->getPassword($role);
   if (! $passwd ){ 
@@ -390,50 +424,39 @@ sub authenticate {
   my $self   = shift;
   my $method = shift;
 
-  local $SIG{ALRM} =sub {
-    print "$$ timeout in the authentication\n";
-    die("timeout in disconnect");
-  };
-  alarm 60;
-
+  
   my ( $status, $inTok, $inToklen ) =
     AliEn::Authen::Comm::read_buffer( $self->{socket} );
 
-  $self->info("Method used is $method" );
+   $CALLBACK_DATA = join "\0", $method ,$inTok;
+   
   
-  my ( $stat, $outTok, $outToklen ) =
-      $self->{SASLserver}->start( $method, $inTok, $inToklen );
-
-    $self->info("Method $method started" );
-
-  my $outbuffer;
-  
-  while ( $stat == $self->{SASLserver}->SASL_CONTINUE ) {
+  my $outTok = 
+  $self->{SASLserver}->server_start( $inTok,$method);
+  my $outToklen = length ($outTok);
+ 
+  while ( $self->{SASLserver}->need_step() ) {
+ 
     $self->debug(1,"Sending $outToklen bytes...\n");
     AliEn::Authen::Comm::write_buffer( $self->{socket},
 				       "AliEnAuth CONTINUE",
 				       $outTok, $outToklen );
     ( $status, $inTok, $inToklen ) =
       AliEn::Authen::Comm::read_buffer( $self->{socket} );
-    ( $stat, $outTok, $outToklen ) =
-      $self->{SASLserver}->step( $inTok, $inToklen );
+  
+  $outTok = $self->{SASLserver}->server_step( $inTok);
     $self->debug(1, "Stepping with $inToklen bytes\n");
   }
-  alarm 0;
-  if ( $stat == $self->{SASLserver}->SASL_OK ) {
-    $self->debug(1,"Server context is ok\n");
-    $outbuffer = "AliEnAuth OK";
-    AliEn::Authen::Comm::write_buffer( $self->{socket}, $outbuffer, $outTok,
-				       $outToklen );
+  
+  
+  if ( $self->{SASLserver}->code() == 0 ) {#SASL OK
+   $self->debug(1,"Server context is ok\n");
     return 1;
   }
-
-  $outbuffer = "AliEnAuth NOK";
-  $AUTH_ERROR or $AUTH_ERROR="user not authenticated";
-
+	
+  $AUTH_ERROR =  $self->{SASLserver}->error()." Error code is ". $self->{SASLserver}->code()." Outis: $inToklen ";
   $self->debug(1,"Returning error: $AUTH_ERROR\n");
-
-  AliEn::Authen::Comm::write_buffer( $self->{socket}, $outbuffer, 
+  AliEn::Authen::Comm::write_buffer( $self->{socket}, "AliEnAuth NOK", 
 				     $AUTH_ERROR, length($AUTH_ERROR) );
   return 0;
 }

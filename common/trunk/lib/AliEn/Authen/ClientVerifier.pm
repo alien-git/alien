@@ -1,8 +1,13 @@
+
 package AliEn::Authen::ClientVerifier;
 
 use strict;
 
-use Authen::AliEnSASL;
+#use Authen::AliEnSASL;
+
+$ENV{'SASL_PATH'} = $ENV{'ALIEN_ROOT'}."/lib/sasl2";
+use Authen::SASL;
+
 require IO::Socket;
 require Storable;
 require AliEn::Authen::Comm;
@@ -20,14 +25,15 @@ my $CACHE = new Cache::MemoryCache();
 
 
 # ***** For debugging only *************
-use Authen::AliEnSASL::Perl;
-use Authen::AliEnSASL;
-use Authen::AliEnSASL::Perl::Client::PLAIN;
-use Authen::AliEnSASL::Perl::Client::GSSAPI;
-use Authen::AliEnSASL::Perl::Client::SSH;
+#use Authen::AliEnSASL::Perl;
+#use Authen::AliEnSASL;
+#use Authen::AliEnSASL::Perl::Client::PLAIN;
+#use Authen::AliEnSASL::Perl::Client::GSSAPI;
+#use Authen::AliEnSASL::Perl::Client::SSH;
 
 # **************************************
 my $Logger;
+my $CALLBACK_DATA;
 
 $VERSION = "1.00";
 
@@ -43,10 +49,13 @@ $VERSION = "1.00";
 #
 ####################################################################
 sub get_secret {
-  my $self = shift;
+  #my $self = shift;
   
-  my $mech     = $self->mechanism;
-  my $username = $self->_call('user');
+  #my $mech     = $self->mechanism;
+  #my $username = $self->_call('user');
+  
+  my $in = shift;
+  my ($mech, $username) = split "\0", $$in;
   
   my $config = AliEn::Config->new();
   
@@ -105,9 +114,6 @@ sub new {
 
   $Logger->debug(1,"Creating a new ClientVerifier @_");
 
-  ($socket->peerhost() and $socket->peerport()) 
-    or print "Error: In ClientVerifier we got an empty socket\n" and 
-      return;
   my $key = join("::",$socket->peerhost(),$socket->peerport(),@_);
 	
   my ( $status, $token, $tokenlen ) =
@@ -257,7 +263,10 @@ sub _new {
         # We have a forced method, so use only that.
         $Logger->debug ("The forced method is " . $self->{FORCED_METHOD} . "\n");
         $self->{methods} = $self->{FORCED_METHOD};
+
     }
+
+
 
     return $self;
 }
@@ -267,37 +276,71 @@ sub verify {
   my $secret      = shift;
   my $AFSPasswork = shift;
 
-  # Create SASL object
+  
+  #Create SASL object
   my $config = AliEn::Config->new();
   
-  if ( !($secret) ) {
-    $secret = \&get_secret;
-  }
+  my $callback="";
+   
+   if (! ($secret) ) {
+	$secret = \&get_secret;
+	$callback = [$secret, \$CALLBACK_DATA];
+	}
+   else {
+	 $callback .= $secret;
+	 }
+	 
   
-  # Currently we use the same user and role
-  my $role     = $self->{ROLE};
-  my $username = $self->{USERNAME};
+   my $role 	= $self->{ROLE};
+   my $username = $self->{USERNAME};
   
-  my $callbacks = {
-		   user => $username,
-		   pass => $secret,
-		   role => $role,
-		  };
-  
-  my $sasl = new Authen::AliEnSASL( $callbacks, "My application" );
-  
-  my $client=($config->{AUTHEN_SUBJECT} or 
-	      "/C=ch/O=AliEn/O=Alice/OU=Host/CN=aliendb.cern.ch");
-  $self->{SASLclient} = $sasl->client_new($client);
-  
-  # Initiate SASL Client object with desired mechs
-  
-  my ( $status, $token, $tokenlen ) =
-    $self->{SASLclient}->start( $self->{methods} );
-  
-  $self->{mech} = $self->{SASLclient}->mechanism;
-  $Logger->debug(1,"  The negotiated authentication mechanism is: $self->{mech} \n");
+# print "Methods: $self->{methods} \n";
+($self->{methods}) =split " ", $self->{methods};
 
+	#Extremely weird problem
+	# $self->{methods} is not 'seen' by Authen::SASL when starting alien with '-f' option
+	#workaround follows
+	my $tmpVar = "";
+	$tmpVar .= $self->{methods};
+	
+   # Set data needed to callback function
+   $CALLBACK_DATA = join "\0", $self->{methods}, $username;
+
+	#Extremely weird problem
+	#$role is not 'seen' by Authen::SASL when AliEn Services (SE, CE etc)try to authenticate 
+	# whereas it works fine with 'alien -r aliprod'
+	#workaround follows
+	my $tmpVar1 = "";
+	$tmpVar1 .= $role;
+	
+	my $tmpVar2 = "";
+	$tmpVar2 .= $username;
+	
+	my $addr = \&Authen::SASL::Cyrus::client_start;
+	
+my $sasl = Authen::SASL->new (
+    mechanism => $tmpVar,
+    callback => {
+	    pass => $callback,
+	    user => $tmpVar2,
+	    auth => $tmpVar1
+      	  }
+ );
+ 
+   my $client=($config->{AUTHEN_SUBJECT} or 
+	      "/C=ch/O=AliEn/O=Alice/OU=Host/CN=aliendb.cern.ch");
+
+   $self->{SASLclient} = $sasl->client_new ($client, "localhost");
+   
+   # Start the authentication process 
+   my ($status, $token, $tokenlen);
+     ($self->{mech}, $token) = $self->{SASLclient}->client_start;
+
+      # $token contains "username\0role"
+      $status = $self->{SASLclient}->code();
+
+   $Logger->debug(1,"  The negotiated authentication mechanism is: $self->{mech} \n");
+   
   # Now ask server to authenticate 
   $Logger->debug(1,"  Asking server for permission to authenticate...");
   
@@ -315,85 +358,70 @@ sub verify {
     return ( 0, "" );
   }
   $Logger->debug(1,"OK\n****************** Starting authentication proccess *************\n");
-
-  if ( $status == $self->{SASLclient}->SASL_CONTINUE ) {
-
-    #print "Continue needed\n";
-    if (
+   my ($response, $resplen);
+  
+ while ( $self->{SASLclient}->need_step() ) {
+     # Send the data to server
+     $tokenlen = length ($token);
+	  if (
 	AliEn::Authen::Comm::write_buffer(
 					  $self->{socket}, "AliEnClient TOKEN",
 					  $token, $tokenlen
 					 )
-       )
-      {
-	$Logger->debug(1,"Sent $tokenlen bytes to server\nWaiting for answer...");
-      }
-    else {
-      print "Communications error. Aborting\n";
-      exit;
+         ){
+			$Logger->debug(1,"Sent $tokenlen bytes to server\nWaiting for answer...");
+	  }
+      
+      else {
+	   	   	print "Communications error. Aborting\n";
+			exit;
+      	   }
+    
+    #Get the response 
+    ( $status, $response, $resplen ) =
+            AliEn::Authen::Comm::read_buffer( $self->{socket} );
+    if ( !defined $response ) {
+	    print "Error: Didn't get anything from server $status \n";
+	    return ( 0, "" );
     }
-  }
-  else {
-    $Logger->debug(1,"An error occured. Context not established. Aborting\n");
-    return ( 0, $token );
-  }
+    if ($status eq "AliEnAuth NOK") # Error on server side  
+    {
+	    $Logger->debug(1,"Authentication failed. Server said: $response");
+	    return ( 0, "" );
+    }
+    $Logger->debug(1,"Got $resplen bytes\n");
 
-#  my $run = 1;
-  my $saslstat;
-#  do {
-  while (1) {
-    ( $status, $token, $tokenlen ) =
-      AliEn::Authen::Comm::read_buffer( $self->{socket} );
-    if ( !defined $token ) {
-      print "Error: token does not exist\n";
-      return ( 0, "" );
-    }
-    $Logger->debug(1,"Got $tokenlen bytes\n");
-    if ( $tokenlen < 14  ) {
-      $Logger->debug(1, "The server said: $token\nStatus: $status\n");
-    }
-    if ( $status eq "AliEnAuth OK" ) {
-      #print "Server says OK\n";
-      last;
-      #$run = 0;
-    }
-    elsif ( $status eq "AliEnAuth CONTINUE" ) {
-      ( $saslstat, $token, $tokenlen ) =
-	$self->{SASLclient}->step( $token, $tokenlen );
-      $Logger->debug(1,"Sent $tokenlen bytes to server.\nWaiting for answer...");
-      AliEn::Authen::Comm::write_buffer( $self->{socket},
-					 "AliEnClient TOKEN",
-					 $token, $tokenlen );
-    }
-    else {
-      $Logger->debug(1,"context not established\nWe got: $token and $tokenlen\n");
-      return ( 0, $token );
-    }
+       
+    # Pass server response to SASL 
+    $token = $self->{SASLclient}->client_step($response); 
   }
-
-  #Do the last client step
   
-  ( $saslstat, $token, $tokenlen ) =
-    $self->{SASLclient}->step( $token, $tokenlen );
-  if ( $saslstat == $self->{SASLclient}->SASL_OK ) {
-    $Logger->debug(1,"**************************************************************
-                   auhtentication succesfull  
+  if ( $self->{SASLclient}->code() == 0 ) #SASL OK 
+   {
+   # Workaround for SERVER SENT LAST
+    AliEn::Authen::Comm::write_buffer(
+					  $self->{socket}, "AliEnClient TOKEN",
+					  "OK", 2
+					 );
+    
+$Logger->debug(1, "The server said: $response\n");
+$Logger->debug(1,"**************************************************************
+                   auhtentication succesfull 
 **************************************************************\n");
     }
   else {
-    $Logger->debug(1,"the last step did not work...");
+   $response = $self->{SASLclient}->error();
+    $Logger->debug(1,"Authentication failed. Error string is: $response");
     return ( 0, "" );
   }
 
   my $pass = "";
   if ( $self->{mech} eq "TOKEN" ) {
-    $pass = $self->{SASLclient}->_call('pass') || "";
-  }elsif( $self->{mech} eq "JOBTOKEN"){
-    #The token is the username that submitted this job
-    $pass=$token;
+    $pass = $callback;
   }
-
-  return ( 1, $pass );
+  
+  $Logger->debug(1, "Here \n");
+    return ( 1, $pass );
 }
 
 sub encrypt {
@@ -443,7 +471,7 @@ Authen::ClientVerifier - A package used by DB-driver AlienProxy for authenticati
 
 =item Authen::ClientVerifier::new()
 
-=item Authen::ClientVerifier::verify()
+=item Authen::ClientVerifier::verify()$
 
 =item Authen::ClientVerifier::getNumberOfMethods()
 
