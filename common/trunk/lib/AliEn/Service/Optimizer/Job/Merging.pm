@@ -3,6 +3,10 @@ package AliEn::Service::Optimizer::Job::Merging;
 use strict;
 
 use AliEn::Service::Optimizer::Job;
+use AliEn::Service::Manager::Job;
+use AliEn::Database::Admin;
+
+
 use vars qw(@ISA);
 push (@ISA, "AliEn::Service::Optimizer::Job");
 
@@ -12,6 +16,9 @@ sub checkWakesUp {
 
   my $method="info";
   $silent and $method="debug";
+
+  #We need the admin db, because this optimizer can enter jobs automatically
+  $self->{ADMINDB} or  $self->{ADMINDB}= new AliEn::Database::Admin();
 
   $self->{LOGGER}->$method("Merging", "The merging optimizer starts");
 
@@ -131,6 +138,67 @@ sub checkMerging {
   return 1;
 }
 
+sub checkMasterResubmition {
+  my $self=shift;
+  my $user=shift;
+  my $queueid=shift;
+  my $job_ca=shift;
+  my $rparts=shift;
+  $self->info("Checking if the masterjob has some kind of resubmition"); 
+  my ($ok, $number)=$job_ca->evaluateAttributeString("MasterResubmitThreshold");
+  $ok or return 1;
+  ($ok, my $type)=$job_ca->evaluateAttributeString("ResubmitType");
+  $type or $type="system";
+
+  my @status=();
+  if ($type =~ /^system$/){
+    push @status, 'EXPIRED','ERROR_IB','ERROR_V','ERROR_E','FAILED','ERROR_SV', 'ERROR_A';
+  }elsif ($type =~ /^all$/){
+    push @status,  'EXPIRED','ERROR_IB','ERROR_V','ERROR_E','FAILED','ERROR_SV', 'ERROR_A', 'ERROR_V';
+  }else {
+    push @status,  split(",", $type);
+
+  }
+  $self->info("Checking the jobs in @status (they have to be less than $number)");
+  my $failed=0;
+  my $total=0;
+
+  foreach my $p (@$rparts){
+    $total+=$p->{count};
+    if (grep (/^$p->{status}$/i, @status)){
+      $self->info("This is a job that will be resubmitted");
+      $failed+=$p->{count};
+    }
+  }
+  my $resubmit=0;
+  if ($number =~ s/\%//){
+    $self->info("Resubmitting if more than $number %");
+    $failed*100.0/$total > $number and $resubmit=1;
+  } else {
+    $failed >$number and $resubmit=1;
+  }
+  $resubmit or $self->info("We don't resubmit any jobs. Only $failed failures, and we can have up to $number") and return 1;
+
+  $self->info("We have to resubmit some of the jobs!!");
+  my @newstatus;
+  foreach my $s (@status){
+    push @newstatus, "-status", $s;
+  }
+  $self->putJobLog($queueid, "info", "Automatic resubmition of jobs in $type (there were $failed)");
+  eval {
+    $self->info("At the moment, @ISA");
+    push @ISA, "AliEn::Service::Manager::Job";
+    my ($status, $error)=$self->getMasterJob($user, $queueid, "resubmit", @newstatus);
+    $status eq "-1" and die("resubmition failed: $error\n");
+  };
+  if ($@){
+    $self->info("The resubmition didn't work : $@");
+  }
+  @ISA=grep ( ! /AliEn::Service::Manager::Job/, @ISA);
+  $self->info("Back to @ISA");
+  return 1;
+}
+
 
 sub updateMerging {
   my $self=shift;
@@ -146,8 +214,6 @@ sub updateMerging {
     #my @part_jobs=$self->{DB}->query("SELECT count(*),status from QUEUE where split=$queueid group by status");
     my $rparts = $self->{DB}->getFieldsFromQueueEx("count(*) as count, status", "WHERE split=? GROUP BY status", {bind_values=>[$queueid]})
       or die("Could not get splitted jobs for $queueid");
-    my $allparts = $self->{DB}->getFieldsFromQueueEx("queueId,status,submitHost", "WHERE split=?", {bind_values=>[$queueid]})
-      or die ("Could not get splitted jobs for $queueid");
 
     my $user = AliEn::Util::getJobUserByDB($self->{DB}, $queueid);
     $self->{CATALOGUE}->execute("user", "-", "$user")
@@ -155,6 +221,7 @@ sub updateMerging {
     my $procDir = AliEn::Util::getProcDir($user, undef, $queueid);
     $self->{CATALOGUE}->execute("mkdir","-p", "$procDir/job-log");
 
+    $self->checkMasterResubmition($user, $queueid, $job_ca, $rparts) or return;
     if ($#{$rparts} > -1) {
       $self->info("Jobs for $queueid");
       for (@$rparts) {
@@ -179,14 +246,11 @@ sub updateMerging {
 
       $self->info( "All the jobs finished. Checking best place for execution");
 
-      my ($info)=$self->{DB}->getFieldsFromQueue($queueid,"submithost,merging")
+      my ($info)=$self->{DB}->getFieldsFromQueue($queueid,"merging")
 	or die ("Job $queueid doesn't exist");
-      my $host=$info->{submithost};
       my $oldmerging=$info->{merging} || "";
-      my $user = "";
-      ( $host =~ /^(.*)\@/ ) and ( $user = $1 );
 
-      $self->copyOutputDirectories($allparts, $queueid, $job_ca, $procDir, $user) 
+      $self->copyOutputDirectories( $queueid, $job_ca, $procDir, $user) 
 	or die ("error copying the output directories");
 
       my ($ok,  @merge)=$job_ca->evaluateAttributeVectorString("Merge");
@@ -227,11 +291,15 @@ sub updateMerging {
 
 sub copyOutputDirectories{
   my $self=shift;
-  my $subJobs=shift;
+  my $queueid=shift;
   my $masterId=shift;
   my $job_ca=shift;
   my $procDir=shift;
   my $user=shift;
+
+
+  my $subJobs = $self->{DB}->getFieldsFromQueueEx("queueId,status,submitHost", "WHERE split=?", {bind_values=>[$queueid]})
+	or die ("Could not get splitted jobs for $queueid");
 
   # copy all the result files into the master job directory
   my $cnt=0;
