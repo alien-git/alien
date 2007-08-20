@@ -1384,6 +1384,7 @@ Displaies information about a masterjob and all of its children
 
 sub getMasterJob {
  my $this=shift;
+  $self->{LOGGER} or $this->info("We are entering the command directly") and  $self=$this;
  my $user=shift;
  my $id=shift;
 
@@ -1408,7 +1409,7 @@ sub getMasterJob {
      if ($_[0] =~ /^ERROR_ALL$/i){
        shift;
        $data->{status} or $data->{status}=[];
-       push @{$data->{status}}, "status='EXPIRED'","status='ERROR_IB'","status='ERROR_V'","status='ERROR_E'","status='FAILED'","status='ERROR_SV'"; 
+       push @{$data->{status}}, "status='EXPIRED'","status='ERROR_IB'","status='ERROR_V'","status='ERROR_E'","status='FAILED'","status='ERROR_SV'", "status='ERROR_A'"; 
        next;
      }
    }
