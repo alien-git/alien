@@ -1,4 +1,3 @@
-
 package AliEn::Authen::ClientVerifier;
 
 use strict;
@@ -114,6 +113,10 @@ sub new {
 
   $Logger->debug(1,"Creating a new ClientVerifier @_");
 
+     ($socket->peerhost() and $socket->peerport()) 
+         or print "Error: In ClientVerifier we got an empty socket\n" and 
+           return;
+
   my $key = join("::",$socket->peerhost(),$socket->peerport(),@_);
 	
   my ( $status, $token, $tokenlen ) =
@@ -131,7 +134,7 @@ sub new {
     $auth->{FORCED_METHOD} = shift;
 
     # Ask server which authentication methods it support!
-    AliEn::Authen::Comm::write_buffer( $self->{socket}, "REQUEST MECHS", "",0);
+    AliEn::Authen::Comm::write_buffer( $self->{socket}, "REQUEST CYRUS MECHS", "",0);
     # Wait for answer...
     ( $status, $token, $tokenlen ) =
       AliEn::Authen::Comm::read_buffer( $self->{socket} );
@@ -140,7 +143,8 @@ sub new {
       $token = "";
     }
     ;
-		
+
+ 		
     $auth->{methods} = $token;
     $Logger->debug(1, "The server supports $token");
 		
@@ -160,6 +164,8 @@ sub new {
     $CACHE->set( $key, $auth, $ttl );
 		
   }
+
+  
 	
   $self->{methods}  = $auth->{methods};
   $self->{ROLE}     = $auth->{ROLE};
@@ -239,7 +245,7 @@ sub _new {
       AliEn::Authen::Comm::read_buffer( $self->{socket} );
 
     # Ask server which authentication methods it support!
-    AliEn::Authen::Comm::write_buffer( $self->{socket}, "REQUEST MECHS", "",
+    AliEn::Authen::Comm::write_buffer( $self->{socket}, "REQUEST CYRUS MECHS", "",
         0 );
 
     # Wait for answer...
@@ -290,23 +296,23 @@ sub verify {
 	 $callback .= $secret;
 	 }
 	 
-  
+   # Currently we use the same user and role
    my $role 	= $self->{ROLE};
    my $username = $self->{USERNAME};
   
-# print "Methods: $self->{methods} \n";
-($self->{methods}) =split " ", $self->{methods};
+   # print "Methods: $self->{methods} \n";
+   ($self->{methods}) =split " ", $self->{methods};
 
-	#Extremely weird problem
+	# Extremely weird problem
 	# $self->{methods} is not 'seen' by Authen::SASL when starting alien with '-f' option
-	#workaround follows
+	# workaround follows
 	my $tmpVar = "";
 	$tmpVar .= $self->{methods};
 	
    # Set data needed to callback function
    $CALLBACK_DATA = join "\0", $self->{methods}, $username;
 
-	#Extremely weird problem
+	# another weird problem
 	#$role is not 'seen' by Authen::SASL when AliEn Services (SE, CE etc)try to authenticate 
 	# whereas it works fine with 'alien -r aliprod'
 	#workaround follows
@@ -317,7 +323,9 @@ sub verify {
 	$tmpVar2 .= $username;
 	
 	my $addr = \&Authen::SASL::Cyrus::client_start;
-	
+
+
+ 	
 my $sasl = Authen::SASL->new (
     mechanism => $tmpVar,
     callback => {
@@ -345,7 +353,7 @@ my $sasl = Authen::SASL->new (
   $Logger->debug(1,"  Asking server for permission to authenticate...");
   
   AliEn::Authen::Comm::write_buffer(
-				    $self->{socket}, "REQUEST AUTH",
+				    $self->{socket}, "REQUEST CYRUS AUTH",
 				    $self->{mech},   length( $self->{mech} )
 				   );
   
@@ -380,8 +388,9 @@ my $sasl = Authen::SASL->new (
     #Get the response 
     ( $status, $response, $resplen ) =
             AliEn::Authen::Comm::read_buffer( $self->{socket} );
+
     if ( !defined $response ) {
-	    print "Error: Didn't get anything from server $status \n";
+	    print "Error: Didn't get anything from server \n";
 	    return ( 0, "" );
     }
     if ($status eq "AliEnAuth NOK") # Error on server side  
@@ -404,24 +413,33 @@ my $sasl = Authen::SASL->new (
 					  "OK", 2
 					 );
     
-$Logger->debug(1, "The server said: $response\n");
-$Logger->debug(1,"**************************************************************
+    $Logger->debug(1, "The server said: $response\n");
+    $Logger->debug(1,"**************************************************************
                    auhtentication succesfull 
 **************************************************************\n");
+    
+        
+
     }
-  else {
-   $response = $self->{SASLclient}->error();
-    $Logger->debug(1,"Authentication failed. Error string is: $response");
-    return ( 0, "" );
-  }
+    else 
+    {
+     $response = $self->{SASLclient}->error();
+     $Logger->debug(1,"Authentication failed. Error string is: $response");
+     return ( 0, "" );
+    }
 
   my $pass = "";
   if ( $self->{mech} eq "TOKEN" ) {
-    $pass = $callback;
+    $pass = $callback || "";
+  }
+  elsif ( $self->{mech} eq "JOBTOKEN"){
+    #The token is the username that submitted a job
+    $pass=$token;
+    $response =~ s/JOBTOKENSASL OK\s*//g;    
+    $ENV{ALIEN_JOBTOKEN_USER}=$response;
   }
   
-  $Logger->debug(1, "Here \n");
-    return ( 1, $pass );
+ return ( 1, $pass );
 }
 
 sub encrypt {
