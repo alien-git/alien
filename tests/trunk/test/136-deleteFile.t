@@ -27,20 +27,6 @@ $pfn =~ s{^file://[^/]*}{};
 $cat->{CATALOG}->{DATABASE}->{LFN_DB}->queryValue("select count(*) from TODELETE where guid=string2binary('$guid')")
   and print "The file is already in the queue to delete!!!\n" and exit(-2);
 $cat->execute("rm", "file_to_delete.txt") or exit(-2);
-
-my $value;
-for (my $i=0;$i<10;$i++) {
-  $value=$cat->{CATALOG}->{DATABASE}->{LFN_DB}->queryValue("select count(*) from TODELETE where guid=string2binary('$guid')")
-    and last;
-  (-f $pfn) or print "The file has been deleted :)" and exit(0);
-  print "The file is not yet in the queue to delete!!!
-Let's wait for a while\n";
-  sleep (20);
-}
-
-$value or exit -2;
-
-print "THE FILE IS IN THE LIST OF FILES TO BE DELETED!!!!!\n";
-
-
-
+print "OK! the file has been deleted. The second part of the test will
+check if the file is gone from the catalogue
+\#ALIEN_OUTPUT  $pfn $guid\n";
