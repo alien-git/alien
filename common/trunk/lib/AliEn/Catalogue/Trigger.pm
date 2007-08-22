@@ -51,10 +51,11 @@ sub f_addTrigger {
 
   $triggerAction=$self->getTriggerLFN($triggerAction) 
     or return;
-  print "Ready to create the trigger\n";
-  my $done = $self->{DATABASE}->do("create trigger $triggerName after $action on $table for each row insert into TRIGGERS(lfn, triggerName) values (concat('$prefix', NEW.lfn), '$triggerAction')");
+  $self->info("Ready to create the trigger");
+
+  my $done = $self->{DATABASE}->{LFN_DB}->do("create trigger $triggerName after $action on $table for each row insert into TRIGGERS(lfn, triggerName) values (concat('$prefix', NEW.lfn), '$triggerAction')");
   $done or $self->{LOGGER}->error("Tag", "Error inserting the entry!") and return;
-  print "Trigger created\n";
+  $self->info( "Trigger created");
 
   return 1;
 }
@@ -150,12 +151,13 @@ sub existsTrigger{
   my $index=$self->{DATABASE}->getIndexTable();
   my $table=$index->{name};
 
-  my $rresult = $self->{DATABASE}->query("show triggers like '$table'") 
+  my ($rresult) = $self->{DATABASE}->{LFN_DB}->query("show triggers like '$table'") 
     or return;
   use Data::Dumper;
   print Dumper($rresult);
 
   foreach my $entry (@$rresult){
+    $entry->{Timing} =~ /before/i and next;
     $entry->{Event} =~ /$action/i and return $entry->{Trigger};
   }
   $self->info("The trigger '$action' doesn't exist in '$directory'");

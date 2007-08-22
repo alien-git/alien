@@ -791,7 +791,9 @@ sub handler {
   if ($self->{CURRENTLOG} ne "$service"){
     print STDERR "$$ Redirecting to $service\n";
     $self->{LOGGER} or $self->{LOGGER}=AliEn::Logger->new();
-    $self->{LOGGER}->redirect("$ENV{ALIEN_ROOT}/httpd/logs/$service");
+    my $dir=$self->{CONFIG}->{LOG_DIR} || $ENV{ALIEN_HOME};
+    print STDERR "$$ Putting it in $dir\n";
+    $self->{LOGGER}->redirect("$dir/$service");
     $self->{CURRENTLOG}=$service;
   }
   Apache::SOAP::handler($r, @_);

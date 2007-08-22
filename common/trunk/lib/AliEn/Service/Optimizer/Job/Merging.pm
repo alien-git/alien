@@ -291,15 +291,14 @@ sub updateMerging {
 
 sub copyOutputDirectories{
   my $self=shift;
-  my $queueid=shift;
   my $masterId=shift;
   my $job_ca=shift;
   my $procDir=shift;
   my $user=shift;
 
 
-  my $subJobs = $self->{DB}->getFieldsFromQueueEx("queueId,status,submitHost", "WHERE split=?", {bind_values=>[$queueid]})
-	or die ("Could not get splitted jobs for $queueid");
+  my $subJobs = $self->{DB}->getFieldsFromQueueEx("queueId,status,submitHost", "WHERE split=?", {bind_values=>[$masterId]})
+	or die ("Could not get splitted jobs for $masterId");
 
   # copy all the result files into the master job directory
   my $cnt=0;
