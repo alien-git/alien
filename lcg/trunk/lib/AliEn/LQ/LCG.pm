@@ -264,6 +264,10 @@ sub getNumberRunning() {
   my ($run,$wait,$cpu) = $self->getInfoFromGRIS(qw(GlueCEStateRunningJobs GlueCEStateWaitingJobs GlueCEInfoTotalCPUs));
   my $value = $self->getQueueStatus();
   $value or $value = 0;
+  $run or $run=0;
+  $wait or $wait=0;
+  $cpu or $cpu=0;
+
 #  $self->debug(1,"Jobs: $run+$wait from GRIS, $value from local DB");
   $self->info("Jobs: $run running, $wait waiting from GRIS, $value from local DB");
   if ( $cpu == 0 ) {
@@ -282,6 +286,8 @@ sub getNumberQueued() {
   ## Number of CPUs will be wrong for multiple-CE sites; 
   ## we only check it against zero to check if GRIS is working
   my ($wait,$cpu) = $self->getInfoFromGRIS(qw(GlueCEStateWaitingJobs GlueCEInfoTotalCPUs));
+  $wait or $wait=0;
+  $cpu or $cpu=0;
   my $value = $self->{DB}->queryValue("SELECT COUNT (*) FROM JOBAGENT where status='QUEUED'");
   $value or $value = 0;
 #  $self->debug(1,"Queued: $wait from GRIS, $value from local DB");
