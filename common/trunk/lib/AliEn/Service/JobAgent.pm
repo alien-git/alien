@@ -323,10 +323,7 @@ sub GetJDL {
     $self->{PACKMAN}->setCatalogue($catalog);
   }else {
     $self->info("We couldn't get a catalogue... we won't be able to install packages manually");
-    $self->{PACKMAN}=undef;
-    delete $self->{PACKMAN};
-    
-    
+    $self->{PACKMAN}->setCatalogue(undef);
   }
 
   while(1) {
@@ -943,7 +940,7 @@ sub installPackage {
   $self->info("Installing Package $_");
 
   my ($version, $user);
-  $self->{PACKMAN} and $self->{PACKMAN}->setCatalogue($catalogue);
+   $self->{PACKMAN}->setCatalogue($catalogue);
   $package =~ s/::(.*)$// and $version=$1;
   $package =~ s/^(.*)\@// and $user=$1;
 
@@ -2327,6 +2324,7 @@ sub checkWakesUp {
   $self->checkProcess($self->{PROCESSID}) and return;
 
   $self->info("Process $self->{PROCESSID} has finished");
+  waitpid(-1, &WNOHANG);
 
   $self->lastExecution();
   $self->{LOGGER}->redirect();
