@@ -44,6 +44,36 @@ sub initialize {
   $self->{QUEUETABLE}="QUEUE";
   $self->{SITEQUEUETABLE}="SITEQUEUES";
   $self->SUPER::initialize() or return;
+  
+  $self->{JOBLEVEL}={'INSERTING'=>10,
+		     'SPLITTING'=>15, 'SPLIT'       =>18,
+		     'WAITING'     =>20,  'ASSIGNED'    =>25,
+		     'QUEUED'      =>30,  'STARTED'     =>40,
+		     'IDLE'        =>50,  'INTERACTIV'  =>50,
+		     'RUNNING'     =>50,  'SAVING'      =>60,
+		     'SAVED'       =>70,  'DONE'        =>980,
+		     'ERROR_A'     =>990,  'ERROR_I'     =>990,
+		     'ERROR_E'     =>990,  'ERROR_IB'    =>990,
+		     'ERROR_M'     =>990,  'ERROR_R'     =>990,
+		     'ERROR_S'     =>990,  'ERROR_SV'    =>990,
+		     'ERROR_V'     =>990,  'ERROR_VN'    =>990,
+		     'ERROR_VT'    =>990,  'ERROR_SPLT'  =>990,
+		     'EXPIRED'     =>1000,  'FAILED'      =>1000,
+		     'KILLED'      =>1001,  'FORCEMERGE'  =>950,
+		     
+		     'MERGING'     =>970,  'ZOMBIE'      =>999};
+
+  if ($self->{CONFIG}->{JOB_DATABASE_READ}){
+    $self->info("Connecting to $self->{CONFIG}->{JOB_DATABASE_READ} for the select queries");
+    my $options={};
+    foreach my $key (keys %$self){
+      $options->{$key}=$self->{$key};
+    }
+    ($options->{HOST}, $options->{DRIVER}, $options->{DB})=
+      split ("/", $self->{CONFIG}->{JOB_DATABASE_READ});
+    
+    $self->{DB_READ}=AliEn::Database->new($options) or return;
+  }
 
   $self->{SKIP_CHECK_TABLES} and return 1;
 
@@ -204,42 +234,6 @@ sub initialize {
 
   $self->checkActionTable() or return;
 
-  $self->{JOBLEVEL}->{'INSERTING'}   =10;
-  $self->{JOBLEVEL}->{'SPLITTING'}   =15;
-  $self->{JOBLEVEL}->{'SPLIT'}       =18;
-  $self->{JOBLEVEL}->{'WAITING'}     =20;
-  $self->{JOBLEVEL}->{'ASSIGNED'}    =25;
-  $self->{JOBLEVEL}->{'QUEUED'}      =30;
-  $self->{JOBLEVEL}->{'STARTED'}     =40;
-  $self->{JOBLEVEL}->{'IDLE'}        =50;
-  $self->{JOBLEVEL}->{'INTERACTIV'}  =50;
-  $self->{JOBLEVEL}->{'RUNNING'}     =50;
-  $self->{JOBLEVEL}->{'SAVING'}      =60;
-  $self->{JOBLEVEL}->{'SAVED'}       =70;
-  $self->{JOBLEVEL}->{'DONE'}        =980;
-  $self->{JOBLEVEL}->{'ERROR_A'}     =990;
-  $self->{JOBLEVEL}->{'ERROR_I'}     =990;
-  $self->{JOBLEVEL}->{'ERROR_E'}     =990;
-  $self->{JOBLEVEL}->{'ERROR_IB'}    =990;
-  $self->{JOBLEVEL}->{'ERROR_M'}     =990;
-  $self->{JOBLEVEL}->{'ERROR_R'}     =990;
-  $self->{JOBLEVEL}->{'ERROR_S'}     =990;
-  $self->{JOBLEVEL}->{'ERROR_SV'}    =990;
-  $self->{JOBLEVEL}->{'ERROR_V'}     =990;
-  $self->{JOBLEVEL}->{'ERROR_VN'}    =990;
-  $self->{JOBLEVEL}->{'ERROR_VT'}    =990;
-  $self->{JOBLEVEL}->{'ERROR_SPLT'}  =990;
-  $self->{JOBLEVEL}->{'EXPIRED'}     =1000;
-  $self->{JOBLEVEL}->{'FAILED'}      =1000;
-  $self->{JOBLEVEL}->{'KILLED'}      =1001;
-
-  $self->{JOBLEVEL}->{'FORCEMERGE'}  =950;
-
-  $self->{JOBLEVEL}->{'MERGING'}     =970;
-
-
-  $self->{JOBLEVEL}->{'ZOMBIE'}      =999;
-
 
   return 1;
 }
@@ -283,7 +277,7 @@ sub insertJobLocked {
    #currently $set->{priority} is hardcoded to be '0'
     
   $DEBUG and $self->debug(1, "In insertJobLocked locking the table $self->{QUEUETABLE}");
-  $self->lock("$self->{QUEUETABLE} WRITE,QUEUEPROC");
+  $self->lock($self->{QUEUETABLE});
 
   $DEBUG and $self->debug(1, "In insertJobLocked table $self->{QUEUETABLE} locked. Inserting new data.");
   $set->{jdl}=~ s/'/\\'/g;
@@ -292,6 +286,8 @@ sub insertJobLocked {
   my $procid="";
   ($out)
       and $procid = $self->getLastId();
+  $self->unlock();
+
   
   if ($procid){
     $DEBUG and $self->debug(1, "In insertJobLocked got job id $procid.");
@@ -306,7 +302,7 @@ sub insertJobLocked {
   }
   
   $DEBUG and $self->debug(1, "In insertJobLocked unlocking the table $self->{QUEUETABLE}.");	
-  $self->unlock();
+
   my $action="INSERTING";
   $set->{jdl}=~ / split =/im and $action="SPLITTING";
   $self->update("ACTIONS", {todo=>1}, "action='$action'");
@@ -345,21 +341,12 @@ sub assignWaiting{
   my $ce = $1;
   $self->debug(1,"CE is $ce! jdl $jdl");
 
-  $self->lock("$self->{QUEUETABLE} WRITE, QUEUEPROC");
   $DEBUG and $self->debug(1, "in assignWaiting table $self->{QUEUETABLE} locked");
 
   #Checking that the job is still waiting
-  eval {
-    $self->isWaiting($queueID) or die("the job '$queueID' is no longer waiting\n");
-    $self->updateStatus($queueID,"%","ASSIGNED",
-		      {sent=>time, execHost=>"$user\@$host", site=>"$ce"} ) 
-      or die("error setting the job to 'ASSIGNED'\n");
-  };
-  my $error=$@;
-  $self->unlock();
-
-  if ($error) {
-    $self->info( "Error assigning the job: $error");
+  if (! $self->updateStatus($queueID,"WAITING","ASSIGNED",
+			    {sent=>time, execHost=>"$user\@$host", site=>"$ce"} ) ){
+    $self->info( "Error assigning the job. The job wasn't waiting anymore");
     return ;
   }
   return 1;
@@ -676,6 +663,10 @@ sub getFieldsFromQueueEx {
   my $addsql = shift || "";
   
   $DEBUG and $self->debug(1,"In getFieldsFromQueueEx fetching attributes $attr with condition $addsql from table $self->{QUEUETABLE}");
+  if ($self->{DB_READ}){
+    $self->info("Retrieving the info from the read database!!");
+    return $self->{DB_READ}->query("SELECT $attr FROM $self->{QUEUETABLE} $addsql", undef, @_);
+  }
   $self->query("SELECT $attr FROM $self->{QUEUETABLE} $addsql", undef, @_);
 }
 

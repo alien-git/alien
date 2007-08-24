@@ -56,7 +56,7 @@ sub requestTransfer {
   my $this = shift;
   my $jdl=shift;
   my $slots=shift || 1;
-  print "\n";
+
 
   $jdl
     or $self->{LOGGER}->warning( "TransferBroker", "In requestTransfer no classad for the host received" )

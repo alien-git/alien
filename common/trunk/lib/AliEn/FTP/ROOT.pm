@@ -109,8 +109,9 @@ sub getURL{
   my $uri=$entry->{uri};
   $uri =~ /^root/ or $self->info("The URI of $se doesn't start with root",2) and return;
 
-  $pfn=~ s{^((file)|(castor))://[^/]*}{$uri} or 
+  $pfn=~ s{^((file)|(castor)|(root))://[^/]*}{$uri} or 
     $self->info("The file $pfn can't be accessed through xrootd") and return;
+  $pfn=~ s{//*}{//};
   $self->info("In the XROOTD method, returning $pfn");
   return $pfn;
 }
