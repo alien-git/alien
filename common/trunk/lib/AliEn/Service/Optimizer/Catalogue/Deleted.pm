@@ -42,10 +42,10 @@ sub deleteNonReferencedGUID {
       my $table="G${tableD}L";
       $self->info("Checking the table $table");
       $db->lock("$table WRITE, ${table}_PFN WRITE, TODELETE WRITE, SE");
-      $db->do("INSERT INTO TODELETE(guid, seNumber, pfn) select $table.guid, seNumber, pfn from $table, ${table}_PFN where ref=0 and $table.guidId=${table}_PFN.guidId");
+      $db->do("INSERT INTO TODELETE(guid, seNumber, pfn) select $table.guid, seNumber, pfn from $table, ${table}_PFN where ref=0 and $table.guidId=${table}_PFN.guidId and ctime<TIMESTAMPADD(minute,-15,now())");
       #We should also insert the entries that have the seAutoString
-      $db->do("INSERT INTO TODELETE(guid,seNumber) select $table.guid, seNumber from $table, SE where ref=0 and seAutoStringList like concat('%,',seNumber,',%')");
-      $db->do("DELETE from $table where ref=0 and ctime<TIMESTAMPADD(minute,-2,now())");
+      $db->do("INSERT INTO TODELETE(guid,seNumber) select $table.guid, seNumber from $table, SE where ref=0 and seAutoStringList like concat('%,',seNumber,',%') and ctime<TIMESTAMPADD(minute,-15,now())");
+      $db->do("DELETE from $table where ref=0 and ctime<TIMESTAMPADD(minute,-15,now())");
       $db->unlock();
 
     }

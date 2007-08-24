@@ -55,7 +55,12 @@ HOSTS,
 =cut
 
 
+
+
+my $binary2string="insert(insert(insert(insert(hex(guid),9,0,'-'),14,0,'-'),19,0,'-'),24,0,'-')";
+
 #
+
 # Checking the consistency of the database structure
 sub createCatalogueTables {
   my $self = shift;
@@ -168,7 +173,7 @@ sub checkLFNTable {
 		 type=> "char(1) NOT NULL default 'f'",
 		 ctime=>"timestamp",
 		 expiretime=>"datetime",
-		 size=>"int(11) not null default 0",
+		 size=>"bigint  not null default 0",
 		 aclId=>"mediumint(11)",
 		 perm=>"char(3) not null",
 		 guid=>"binary(16)",
@@ -260,9 +265,9 @@ sub getAllInfoFromLFN{
 
   if( $options->{retrieve}){
      $options->{retrieve} =~ s{lfn}{concat('$tablePath',lfn) as lfn};
-     $options->{retrieve} =~ s{guid}{binary2string(guid) as guid};
+     $options->{retrieve} =~ s{guid}{$binary2string as guid};
    }
-  my $retrieve=($options->{retrieve} or "*,concat('$tablePath',lfn) as lfn, binary2string(guid) as guid,DATE_FORMAT(ctime, '%b %d %H:%i') as ctime");
+  my $retrieve=($options->{retrieve} or "*,concat('$tablePath',lfn) as lfn, $binary2string as guid,DATE_FORMAT(ctime, '%b %d %H:%i') as ctime");
 
   my $method=($options->{method} or "query");
 
@@ -290,7 +295,7 @@ sub existsLFN {
 
   $entry=~ s{/?$}{};
   my $options={bind_values=>["$entry/"]};
-  my $tableRef=$self->queryRow("SELECT tableName,lfn from INDEXTABLE where ? like concat(lfn,'%') order by length(lfn) desc limit 1",undef, $options);
+  my $tableRef=$self->queryRow("SELECT tableName,lfn from INDEXTABLE where lfn= left( ?, length(lfn)) order by length(lfn) desc limit 1",undef, $options);
   defined $tableRef or return;
   return $self->getAllInfoFromLFN({method=>"queryValue",
 				      retrieve=>"lfn", table=>$tableRef}
@@ -310,7 +315,7 @@ sub getHostsForEntry{
 
   $lfn =~ s{/?$}{};
   #First, let's take the entry that has the directory
-  my $entry=$self->query("SELECT tableName,hostIndex,lfn from INDEXTABLE where '$lfn/' like concat(lfn,'%') order by length(lfn) desc limit 1");
+  my $entry=$self->query("SELECT tableName,hostIndex,lfn from INDEXTABLE where lfn=left('$lfn/',length(lfn)) order by length(lfn) desc limit 1");
   $entry or return;
   #Now, let's get all the possibles expansions (but the expansions at least as
   #long as the first index
@@ -456,7 +461,7 @@ sub getLFNlike {
 
 
   #First, look in the index for possible tables;
-  my $indexRef=$self->query("SELECT HOSTS.hostIndex, tableName,lfn,length(lfn) as length FROM INDEXTABLE, HOSTS where '$starting' like concat(lfn, '%') and INDEXTABLE.hostIndex=HOSTS.hostIndex order by length(lfn) desc limit 1");
+  my $indexRef=$self->query("SELECT HOSTS.hostIndex, tableName,lfn,length(lfn) as length FROM INDEXTABLE, HOSTS where lfn=left('$starting',length(lfn)) and INDEXTABLE.hostIndex=HOSTS.hostIndex order by length(lfn) desc limit 1");
 
   $indexRef or $self->info( "Error trying to find the indexes for $starting") and return;
 
@@ -813,7 +818,7 @@ sub copyDirectory{
 
     }else {
       $DEBUG and $self->debug(1, "This is complicated: from another database");
-      my $entries = $db->query("SELECT concat('$beginning', substring(concat('$entry->{lfn}',lfn), $sourceLength )) as lfn, size,type,binary2string(guid) as guid ,perm FROM L$entry->{tableName}L where $like");
+      my $entries = $db->query("SELECT concat('$beginning', substring(concat('$entry->{lfn}',lfn), $sourceLength )) as lfn, size,type,$binary2string as guid ,perm FROM L$entry->{tableName}L where $like");
       foreach  my $files (@$entries) {
 	my $guid="NULL";
 	(defined $files->{guid}) and  $guid="$files->{guid}";
@@ -1076,7 +1081,7 @@ sub getIndexHost {
   my $lfn=shift;
   $lfn=~ s{/?$}{/};
   my $options={bind_values=>[$lfn]};
-  return $self->queryRow("SELECT hostIndex, tableName,lfn FROM INDEXTABLE where ? like concat(lfn, '%') order by length(lfn) desc limit 1", undef, $options);
+  return $self->queryRow("SELECT hostIndex, tableName,lfn FROM INDEXTABLE where lfn=left(?,length(lfn))  order by length(lfn) desc limit 1", undef, $options);
 }
 
 sub getMaxHostIndex {
@@ -1587,7 +1592,7 @@ sub internalQuery {
 
   if ($file ne "\\" ) {
       @joinQueries = ("WHERE concat('$refTable->{lfn}', lfn) LIKE '$path%$file%' and replicated=0");
-      $options->{d} or $joinQueries[0].=" and lfn not like '%/' and lfn!= \"\"";
+      $options->{d} or $joinQueries[0].=" and right(lfn,1) != '/' and lfn!= \"\"";
   } else {
       # query an exact file name
       @joinQueries = ("WHERE concat('$refTable->{lfn}', lfn)='$path'");
@@ -1625,8 +1630,11 @@ sub internalQuery {
 	  # It is slow, since it has to do string comperation
 	  #The second query gets files with that metadata. 
 	  # (this part is pretty fast)
+
 	  push @newQueries, " JOIN $table $oldQuery $union $table.$query and $table.file like '%/' and concat('$refTable->{lfn}', $indexTable.lfn) like concat( $table.file,'%') ";
-	  push @newQueries, " JOIN $table $oldQuery $union $table.$query and concat('$refTable->{lfn}',$indexTable.lfn)= $table.file ";
+
+	  my $length=length($refTable->{lfn})+1;
+	  push @newQueries, " JOIN $table $oldQuery $union $table.$query and $indexTable.lfn=substring($table.file, $length) and left($table.file, $length-1)='$refTable->{lfn}'";
 	}
       }
     }
@@ -1637,7 +1645,8 @@ sub internalQuery {
   my $limit="";
   $options->{'s'} and $order="";
   $options->{l} and $limit = "limit $options->{l}";
-  map {s/^(.*)$/SELECT *,concat('$refTable->{lfn}', lfn) as lfn,binary2string(guid) as guid from $indexTable $1 $order $limit/} @joinQueries;
+  map {s/^(.*)$/SELECT *,concat('$refTable->{lfn}', lfn) as lfn,
+$binary2string  as guid from $indexTable $1 $order $limit/} @joinQueries;
 
   $self->debug(1,"We have to do $#joinQueries +1 to find out all the entries");
 
@@ -1800,7 +1809,7 @@ sub  getInfoFromCollection {
   my $self=shift;
   my $collGUID=shift;
   $self->debug(1,"Getting all the info of collection '$collGUID'");
-  return $self->query("SELECT origLFN, binary2string(guid) as guid,data, localName from COLLECTIONS c, COLLECTIONS_ELEM e where c.collectionId=e.collectionId and collGUID=string2binary(?)", undef, {bind_values=>[$collGUID]});
+  return $self->query("SELECT origLFN, $binary2string as guid,data, localName from COLLECTIONS c, COLLECTIONS_ELEM e where c.collectionId=e.collectionId and collGUID=string2binary(?)", undef, {bind_values=>[$collGUID]});
 }
 
 sub removeFileFromCollection{

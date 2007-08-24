@@ -659,7 +659,7 @@ sub deleteMirrorFromGUID{
   if ($pfn){
     $self->info("First, let's delete the pfn");
     my $deleted=$info->{db}->delete("$info->{table}_PFN",
-				    "guidId=? and pfn=?", {bind_values=>[$info->{guidId},$pfn]})
+				    "guidId=? and pfn=? and seNumber=?", {bind_values=>[$info->{guidId},$pfn, $seNumber]})
       or $self->info("Error deleting the entry") and return;
 
     if ($deleted=~ /^0E0$/){
