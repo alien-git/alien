@@ -755,6 +755,7 @@ sub authenticate_cyrus_sasl
   while ( $self->{CyrusSASLServer}->need_step() )
   {
      $beforeLast = $outTok;
+     $outToklen = length ($outTok);
      $self->debug(1,"Sending $outToklen bytes...\n");
      AliEn::Authen::Comm::write_buffer( $self->{socket},
                                         "AliEnAuth CONTINUE",
