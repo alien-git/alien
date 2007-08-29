@@ -1012,8 +1012,8 @@ sub mirror {
 
   $opt->{'m'} and $command="masterCopy";
 
-  $self->info( "Adding the mirror $pfn");
-  return $self->execute($command, $realLfn, $se, $pfn);
+  $self->info( "Adding the mirror $newPfn");
+  return $self->execute($command, $realLfn, $se, $newPfn);
 }
 
 sub findCloseSE {
