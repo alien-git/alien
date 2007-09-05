@@ -301,7 +301,7 @@ ALIEN_TESTS()
     nTests=`echo "$TESTS" | wc -w`
     allStart=`date +"%s"`
     FAILEDTESTS=0
-    CAFILE=$ALIEN_ROOT/globus/share/certificates/`openssl x509 -hash -noout < $HOME/.alien/globus/usercert.pem`.0
+    CAFILE=$ALIEN_ROOT/globus/share/certificates/`openssl x509 -hash -noout < $HOME/.alien/globus/cacert.pem`.0
     for TEST in $TESTS
     do
 	RUN_TEST $i $TEST
@@ -369,34 +369,51 @@ ALIEN_CREATE_CERT()
 
     USERDIR=$HOME/.alien/globus
     DIR=$HOME/.alien/etc/aliend/ldap/certs/
-    KEY=$DIR/host.key.pem
-    CERT=$DIR/host.cert.pem
+    CA_KEY=$HOME/.alien/globus/cakey.pem
+    CA_CERT=$HOME/.alien/globus/cacert.pem
+
+    HOST_KEY=$DIR/host.key.pem
+    HOST_CERT=$DIR/host.cert.pem
     COMMENTS[0]="Creating the directory for the certificate"
     COMMENTS[1]="Creating the certificate"
     COMMENTS[2]="Changing the privileges"
-    COMMENTS[3]="Creating a self signed certificate"
+    COMMENTS[3]="Creating a self signed CA certificate"
     COMMENTS[4]="Changing the privileges"
-    COMMENTS[5]="Making a copy of the certificate"
-    COMMENTS[6]="Making a copy of the key"
-    COMMENTS[7]="Creating CA file"
-    COMMENTS[8]="Using $HOME/.globus"
-    COMMENTS[9]="Running alien config"
+    COMMENTS[5]="Creating CA file"
+    COMMENTS[6]="Using $HOME/.globus"
+    COMMENTS[7]="Creating user certificate request"
+    COMMENTS[8]="Signing user certificate with CA key"
+    COMMENTS[9]="Changing permissions of user certificate and key"
+    COMMENTS[10]="Copying usercert.pem to host.cert.pem"
+    COMMENTS[11]="Copying userkey.pem to host.key.pem"
+    COMMENTS[12]="Running alien config"
 
     COMMANDS[0]="mkdir -p $DIR $USERDIR"
-    COMMANDS[1]="openssl genrsa -out $KEY 1024 > /dev/null 2>&1"
-    COMMANDS[2]="chmod go-rwx $KEY"
-    COMMANDS[3]="openssl req -new -batch -key $KEY -x509 -days 365 -out $CERT"
-    COMMANDS[4]="chmod go-rwx $CERT"
-    COMMANDS[5]="cp -f $CERT $USERDIR/usercert.pem"
-    COMMANDS[6]="cp -f $KEY $USERDIR/userkey.pem"
-    COMMANDS[7]="cp $CERT $ALIEN_ROOT/globus/share/certificates/\`openssl x509 -hash -noout < $CERT\`.0"
-    COMMANDS[8]="rm -rf $HOME/.globus;ln -s  $USERDIR $HOME/.globus"
-    COMMANDS[9]="$ALIEN_ROOT/bin/alien config "
+    COMMANDS[1]="openssl genrsa -out $CA_KEY 1024 > /dev/null 2>&1"
+    COMMANDS[2]="chmod go-rwx $CA_KEY"
+    COMMANDS[3]="openssl req -new -batch -key $CA_KEY -x509 -days 365 -out $CA_CERT  -subj \"/C=CH/O=AliEn/CN=AlienCA\" "
+    COMMANDS[4]="chmod go-rwx $CA_CERT"
+    COMMANDS[5]="cp $CA_CERT $ALIEN_ROOT/globus/share/certificates/\`openssl x509 -hash -noout < $USERDIR/cacert.pem\`.0"
+    COMMANDS[6]="rm -rf $HOME/.globus;ln -s  $USERDIR $HOME/.globus"
+    COMMANDS[7]="openssl req -nodes -newkey rsa:1024 -out $USERDIR/userreq.pem -keyout $USERDIR/userkey.pem -subj \"/C=CH/O=AliEn/CN=test user cert\" >/dev/null 2>&1"
+    COMMANDS[8]="openssl x509 -req -in $USERDIR/userreq.pem -CA $CA_CERT -CAkey $CA_KEY -CAcreateserial -out $USERDIR/usercert.pem >/dev/null 2>&1"
+    COMMANDS[9]="chmod 644 $USERDIR/usercert.pem;chmod 600 $USERDIR/userkey.pem"
+    COMMANDS[10]="cp -f $USERDIR/usercert.pem $HOST_CERT"
+    COMMANDS[11]="cp -f $USERDIR/userkey.pem $HOST_KEY"
+    COMMANDS[12]="$ALIEN_ROOT/bin/alien config "
 
     which openssl
     EXECUTE_SHELL "CREATE_CERT"
 
-    CAFILE=$ALIEN_ROOT/globus/share/certificates/`openssl x509 -hash -noout < $USERDIR/usercert.pem`.0
+    CAFILE=$ALIEN_ROOT/globus/share/certificates/`openssl x509 -hash -noout < $CA_CERT`.0
+    SIGNING_POLICY_FILE=$ALIEN_ROOT/globus/share/certificates/`openssl x509 -in $CA_CERT -noout -hash`.signing_policy
+    SUBJECT=`openssl x509 -subject -noout < $CA_CERT|awk -F' ' '{print $2}'`
+
+    echo "Let's create siging policy file"
+    echo "access_id_CA X509 '$SUBJECT'" >  $SIGNING_POLICY_FILE
+    echo "pos_rights globus CA:sign" >> $SIGNING_POLICY_FILE
+    echo "cond_subjects globus '*'" >> $SIGNING_POLICY_FILE
+
 
     echo "Let's check if the file $CAFILE exists"
     [ -f "$CAFILE"  ] ||  echo -n "WARNING THE CA IS NOT IN X509_CERT_DIR"
@@ -458,10 +475,10 @@ EXECUTE_SHELL()
 }
 BANK_TESTS_LIST="304-putBankDataLDAP 301-bankAccount 302-transactFunds 303-addFunds 305-execOrder "
 
-JOB_TEST2_LIST="177-startCE 64-jobemail 86-split 87-splitFile 88-splitArguments 120-production 135-inputdata2 137-userArchive 153-splitInputDataCollection 157-zip 159-bigoutput 160-JDLenvironment 161-userGUID 85-inputdata 163-specificOutput 170-splitDataset 173-collectionJobs 174-collectionFromXML 176-executeAllJobs"
-JOB_TESTS_LIST="70-x509 89-jdl 19-ClusterMonitor 168-no_shared_cipher 21-submit 73-updateCE 22-execute 62-inputfile 23-resubmit 26-ProcessMonitorOutput 105-killRunningJob 94-inputpfn 98-jobexit 77-rekill 115-queueList 118-validateJob 119-outputDir 124-OutputArchive 126-OutputInSeveralSE 133-queueInfo 134-dumplist 140-jobWithMemory 141-executingTwoJobs 152-inputdatacollection 164-jdlMatch $JOB_TEST2_LIST"
+JOB_TEST2_LIST="177-startCE 134-dumplist 98-jobexit 118-validateJob 64-jobemail 86-split 87-splitFile 88-splitArguments 120-production 135-inputdata2 137-userArchive 153-splitInputDataCollection 157-zip 159-bigoutput 160-JDLenvironment 161-userGUID 85-inputdata 163-specificOutput 170-splitDataset 173-collectionJobs 174-collectionFromXML 176-executeAllJobs"
+JOB_TESTS_LIST="70-x509 89-jdl 19-ClusterMonitor 168-no_shared_cipher 21-submit 73-updateCE 22-execute 62-inputfile 23-resubmit 26-ProcessMonitorOutput 105-killRunningJob 94-inputpfn 77-rekill 115-queueList 119-outputDir 124-OutputArchive 126-OutputInSeveralSE 133-queueInfo 140-jobWithMemory 141-executingTwoJobs 152-inputdatacollection 164-jdlMatch $JOB_TEST2_LIST"
 
-PACKAGE_TESTS_LIST="75-PackMan 76-jobWithPackage 82-packageDependencies 84-sharedPackage 100-tcshPackage 83-gccPackage 130-localConfig 131-definedPackage"
+PACKAGE_TESTS_LIST="75-PackMan 76-jobWithPackage 82-packageDependencies 84-sharedPackage 100-tcshPackage 83-gccPackage 130-localConfig 131-definedPackage 176-executeAllJobs"
 GAS_TESTS_LIST="69-gContainer 71-GAS 72-UI "
 CATALOGUE_TESTS_LIST="63-addEmptyFile 91-expandWildcards 16-add 17-retrieve 74-http 18-metadata 18-metadata 37-find 65-metadata2 15-tree 78-symlink 79-specialChar 95-listDir 93-cpdir 121-cp 101-registerFile 102-secondSE 103-mirror 117-findCaseSensitive 123-VirtualSE 125-mirror 128-modifyMd5 132-listDirectory 136-deleteFile 138-copyFile 139-vi 144-upperCase 146-mv 148-findXML 149-guid2lfn 162-expiration 169-changeUser 171-copyingMetadata 153-su 172-collections 175-sizeOfBigFile" 
 TRANSFER_TESTS_LIST="150-ftd 151-submitTransfer"
