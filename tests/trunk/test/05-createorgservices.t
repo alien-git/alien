@@ -16,6 +16,10 @@ system ("mkdir -p /tmp/$org/tmp");
 system ("mkdir -p /tmp/$org/log");
 #system ("chown -R alienmaster /tmp/$org");
 system ("touch /tmp/$org/tmp/AliEn_TEST_SYSTEM");
+
+# Delete proxy cert. Otherwise if there exists a valid proxy the tests will fail
+system ("$ENV{ALIEN_ROOT}/bin/alien proxy-destroy");  
+
 open (FILE, "|$ENV{ALIEN_ROOT}/bin/alien -x $ENV{ALIEN_ROOT}/scripts/CreateOrgServices.pl");
 
 my $user="";
