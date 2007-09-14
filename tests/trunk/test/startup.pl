@@ -9,7 +9,7 @@ my @services=("LBSG");
 
 #following line is a mark for 300-prepareBankService.t. Please don't remove or modify 
 #[TEST_MARK]
-$ENV{ALIEN_DATABASE_SSL}="adminssl";
+#$ENV{ALIEN_DATABASE_SSL}="adminssl";
 
 my $l=AliEn::Logger->new();
 

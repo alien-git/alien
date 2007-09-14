@@ -1,0 +1,330 @@
+# ONLY RUN THIS SCRIPT ONCE!!!
+
+# Transaction (Expanded from Base)
+Attribute Create Object=Transaction Name=Project DataType=String Description="Project Name" NoRefresh:=True
+Attribute Create Object=Transaction Name=User DataType=String Description="User Name" NoRefresh:=True
+Attribute Create Object=Transaction Name=Machine DataType=String Description="Machine Name" NoRefresh:=True
+Attribute Create Object=Transaction Name=JobId DataType=String Description="Job Id" NoRefresh:=True
+Attribute Create Object=Transaction Name=Amount DataType=Currency Description="Amount" NoRefresh:=True
+Attribute Create Object=Transaction Name=Delta DataType=Currency Description="Account Delta" NoRefresh:=True
+Attribute Create Object=Transaction Name=Account DataType=Integer Description="Account Id" NoRefresh:=True
+Attribute Create Object=Transaction Name=Allocation DataType=Integer Description="Allocation Id" NoRefresh:=True
+
+# Organization
+Object Create Name=Organization Description="Virtual Organization"
+Attribute Create Object=Organization Name=Name PrimaryKey=True DataType=String Description="Organization Name" NoRefresh:=True
+Attribute Create Object=Organization Name=Host DataType=String Description="Host Name" NoRefresh:=True
+Attribute Create Object=Organization Name=Port DataType=String Description="Port Number" NoRefresh:=True
+Attribute Create Object=Organization Name=Special Sequence=200 DataType=Boolean DefaultValue=False Hidden=True Description="Is this a Special Organization?" NoRefresh:=True
+Attribute Create Object=Organization Name=Description Sequence=900 DataType=String Description="Description" NoRefresh:=True
+Action Create Object=Organization Name=Create Display=True Description=Create NoRefresh:=True
+Action Create Object=Organization Name=Query Display=True Description=Query NoRefresh:=True
+Action Create Object=Organization Name=Modify Display=True Description=Modify NoRefresh:=True
+Action Create Object=Organization Name=Delete Display=True Description=Delete NoRefresh:=True
+Action Create Object=Organization Name=Undelete Display=True Description=Undelete NoRefresh:=True
+
+# System (Expanded from Base)
+Attribute Create Object=System Name=Organization DataType=String Values=@Organization Description="Organization Name" NoRefresh:=True
+
+# User (Expanded from Base)
+Attribute Create Object=User Name=Active DataType=Boolean DefaultValue=True Description="Is the User Active?" NoRefresh:=True
+Attribute Create Object=User Name=CommonName DataType=String Description="Full Name" NoRefresh:=True
+Attribute Create Object=User Name=PhoneNumber DataType=String Description="Phone Number" NoRefresh:=True
+Attribute Create Object=User Name=EmailAddress DataType=String Description="Email Address" NoRefresh:=True
+Attribute Create Object=User Name=DefaultProject DataType=String Values=@Project Description="Default Project" NoRefresh:=True
+Attribute Create Object=User Name=Organization DataType=String Values=@Organization Description="Organization" NoRefresh:=True
+User Create Name=root Description="Super User" NoRefresh:=True
+
+# Project
+Object Create Name=Project Description="Project"
+Attribute Create Object=Project Name=Name PrimaryKey=True DataType=String Description="Project Name" NoRefresh:=True # every Time you add a primary key will remake index and will automatically sequence
+Attribute Create Object=Project Name=Active DataType=Boolean DefaultValue=True Description="Is the Project Active?" NoRefresh:=True
+Attribute Create Object=Project Name=Organization DataType=String Values=@Organization Description="Organization" NoRefresh:=True
+Attribute Create Object=Project Name=Special Sequence=200 DataType=Boolean DefaultValue=False Hidden=True Description="Is this a Special Project?" NoRefresh:=True
+Attribute Create Object=Project Name=Description Sequence=900 DataType=String Description="Description" NoRefresh:=True
+Action Create Object=Project Name=Create Display=True Description=Create NoRefresh:=True
+Action Create Object=Project Name=Query Display=True Description=Query NoRefresh:=True
+Action Create Object=Project Name=Modify Display=True Description=Modify NoRefresh:=True
+Action Create Object=Project Name=Delete Display=True Description=Delete NoRefresh:=True
+Action Create Object=Project Name=Undelete Display=True Description=Undelete NoRefresh:=True
+
+# Machine
+Object Create Name=Machine Description="Machine"
+Attribute Create Object=Machine Name=Name PrimaryKey=True DataType=String Description="Machine Name" NoRefresh:=True
+Attribute Create Object=Machine Name=Active DataType=Boolean DefaultValue=True Description="Is the Machine Active?" NoRefresh:=True
+Attribute Create Object=Machine Name=Architecture DataType=String Description="System Architecture" NoRefresh:=True
+Attribute Create Object=Machine Name=OperatingSystem DataType=String Description="Operating System" NoRefresh:=True
+Attribute Create Object=Machine Name=Organization DataType=String Values=@Organization Description="Organization" NoRefresh:=True
+Attribute Create Object=Machine Name=Special Sequence=200 DataType=Boolean DefaultValue=False Hidden=True Description="Is this a Special Machine?" NoRefresh:=True
+Attribute Create Object=Machine Name=Description Sequence=900 DataType=String Description="Description" NoRefresh:=True
+Action Create Object=Machine Name=Create Display=True Description=Create NoRefresh:=True
+Action Create Object=Machine Name=Query Display=True Description=Query NoRefresh:=True
+Action Create Object=Machine Name=Modify Display=True Description=Modify NoRefresh:=True
+Action Create Object=Machine Name=Delete Display=True Description=Delete NoRefresh:=True
+Action Create Object=Machine Name=Undelete Display=True Description=Undelete NoRefresh:=True
+
+# ProjectUser
+Object Create Name=ProjectUser Association=True Parent=Project Child=User Description="Membership mapping Users to Projects"
+Attribute Create Object=ProjectUser Name=Project PrimaryKey=True Values=@Project DataType=String Description="Parent Project Name" NoRefresh:=True
+Attribute Create Object=ProjectUser Name=Name PrimaryKey=True Values=@User DataType=String Description="Member User Name" NoRefresh:=True
+Attribute Create Object=ProjectUser Name=Active DataType=Boolean DefaultValue=True Description="Is this subProject Active?" NoRefresh:=True
+Attribute Create Object=ProjectUser Name=Admin DataType=Boolean DefaultValue=False Description="Is this user a Project Administrator?" NoRefresh:=True
+Action Create Object=ProjectUser Name=Create Display=True Description=Create NoRefresh:=True
+Action Create Object=ProjectUser Name=Query Display=True Description=Query NoRefresh:=True
+Action Create Object=ProjectUser Name=Modify Display=True Description=Modify NoRefresh:=True
+Action Create Object=ProjectUser Name=Delete Display=True Description=Delete NoRefresh:=True
+Action Create Object=ProjectUser Name=Undelete Display=True Description=Undelete NoRefresh:=True
+
+# ProjectMachine
+Object Create Name=ProjectMachine Association=True Parent=Project Child=Machine Description="Membership mapping Machines to Projects"
+Attribute Create Object=ProjectMachine Name=Project PrimaryKey=True Values=@Project DataType=String Description="Parent Project Name" NoRefresh:=True
+Attribute Create Object=ProjectMachine Name=Name PrimaryKey=True Values=@Machine DataType=String Description="Member Machine Name" NoRefresh:=True
+Attribute Create Object=ProjectMachine Name=Active DataType=Boolean DefaultValue=True Description="Is this subProject Active?" NoRefresh:=True
+Action Create Object=ProjectMachine Name=Create Display=True Description=Create NoRefresh:=True
+Action Create Object=ProjectMachine Name=Query Display=True Description=Query NoRefresh:=True
+Action Create Object=ProjectMachine Name=Modify Display=True Description=Modify NoRefresh:=True
+Action Create Object=ProjectMachine Name=Delete Display=True Description=Delete NoRefresh:=True
+Action Create Object=ProjectMachine Name=Undelete Display=True Description=Undelete NoRefresh:=True
+
+# Account
+Object Create Name=Account Description="Account"
+Attribute Create Object=Account Name=Id PrimaryKey=True DataType=AutoGen Description="Account Id" NoRefresh:=True
+Attribute Create Object=Account Name=Name DataType=String Description="Account Name" NoRefresh:=True
+Attribute Create Object=Account Name=Description Sequence=900 DataType=String Description="Description" NoRefresh:=True
+Action Create Object=Account Name=Create Display=True Description=Create NoRefresh:=True
+Action Create Object=Account Name=Query Display=True Description=Query NoRefresh:=True
+Action Create Object=Account Name=Modify Display=True Description=Modify NoRefresh:=True
+Action Create Object=Account Name=Delete Display=True Description=Delete NoRefresh:=True
+Action Create Object=Account Name=Undelete Display=True Description=Undelete NoRefresh:=True
+Action Create Object=Account Name=Withdraw Display=True Description=Withdraw NoRefresh:=True
+Action Create Object=Account Name=Balance Display=True Description=Balance NoRefresh:=True
+Action Create Object=Account Name=Deposit Display=True Description=Deposit NoRefresh:=True
+Action Create Object=Account Name=Transfer Display=True Description=Transfer NoRefresh:=True
+
+# AccountProject
+Object Create Name=AccountProject Association=True Parent=Account Child=Project Description="Project Access control List"
+Attribute Create Object=AccountProject Name=Account PrimaryKey=True Values=@Account DataType=Integer Description="Parent Account Id" NoRefresh:=True
+Attribute Create Object=AccountProject Name=Name PrimaryKey=True Values=@Project DataType=String Description="Child Project Name" NoRefresh:=True
+Attribute Create Object=AccountProject Name=Access DataType=Boolean DefaultValue=True Description="Access Allowed? (vs Denied)" NoRefresh:=True
+Action Create Object=AccountProject Name=Create Display=True Description=Create NoRefresh:=True
+Action Create Object=AccountProject Name=Query Display=True Description=Query NoRefresh:=True
+Action Create Object=AccountProject Name=Modify Display=True Description=Modify NoRefresh:=True
+Action Create Object=AccountProject Name=Delete Display=True Description=Delete NoRefresh:=True
+Action Create Object=AccountProject Name=Undelete Display=True Description=Undelete NoRefresh:=True
+
+# AccountUser
+Object Create Name=AccountUser Association=True Parent=Account Child=User Description="User Access control List"
+Attribute Create Object=AccountUser Name=Account PrimaryKey=True Values=@Account DataType=Integer Description="Parent Account Id" NoRefresh:=True
+Attribute Create Object=AccountUser Name=Name PrimaryKey=True Values=@User DataType=String Description="Child User Name" NoRefresh:=True
+Attribute Create Object=AccountUser Name=Access DataType=Boolean DefaultValue=True Description="Access Allowed? (vs Denied)" NoRefresh:=True
+Action Create Object=AccountUser Name=Create Display=True Description=Create NoRefresh:=True
+Action Create Object=AccountUser Name=Query Display=True Description=Query NoRefresh:=True
+Action Create Object=AccountUser Name=Modify Display=True Description=Modify NoRefresh:=True
+Action Create Object=AccountUser Name=Delete Display=True Description=Delete NoRefresh:=True
+Action Create Object=AccountUser Name=Undelete Display=True Description=Undelete NoRefresh:=True
+
+# AccountMachine
+Object Create Name=AccountMachine Association=True Parent=Account Child=Machine Description="Machine Access control List"
+Attribute Create Object=AccountMachine Name=Account PrimaryKey=True Values=@Account DataType=Integer Description="Parent Account Id" NoRefresh:=True
+Attribute Create Object=AccountMachine Name=Name PrimaryKey=True Values=@Machine DataType=String Description="Child Machine Name" NoRefresh:=True
+Attribute Create Object=AccountMachine Name=Access DataType=Boolean DefaultValue=True Description="Access Allowed? (vs Denied)" NoRefresh:=True
+Action Create Object=AccountMachine Name=Create Display=True Description=Create NoRefresh:=True
+Action Create Object=AccountMachine Name=Query Display=True Description=Query NoRefresh:=True
+Action Create Object=AccountMachine Name=Modify Display=True Description=Modify NoRefresh:=True
+Action Create Object=AccountMachine Name=Delete Display=True Description=Delete NoRefresh:=True
+Action Create Object=AccountMachine Name=Undelete Display=True Description=Undelete NoRefresh:=True
+
+# AccountOrganization
+Object Create Name=AccountOrganization Association=True Parent=Account Child=Organization Description="Forwarding Account Information"
+Attribute Create Object=AccountOrganization Name=Account PrimaryKey=True Values=@Account DataType=Integer Description="Parent Account Id" NoRefresh:=True
+Attribute Create Object=AccountOrganization Name=Name PrimaryKey=True Values=@Organization DataType=String Description="Child Organization Name" NoRefresh:=True
+Attribute Create Object=AccountOrganization Name=User DataType=String Description="Forwarding User" NoRefresh:=True
+Attribute Create Object=AccountOrganization Name=Project DataType=String Description="Forwarding Project" NoRefresh:=True
+Attribute Create Object=AccountOrganization Name=Machine DataType=String Description="Forwarding Machine" NoRefresh:=True
+Attribute Create Object=AccountOrganization Name=Type DataType=String DefaultValue=Forward Description="Service Type" NoRefresh:=True
+Action Create Object=AccountOrganization Name=Create Description=Create NoRefresh:=True
+Action Create Object=AccountOrganization Name=Query Description=Query NoRefresh:=True
+Action Create Object=AccountOrganization Name=Modify Description=Modify NoRefresh:=True
+Action Create Object=AccountOrganization Name=Delete Description=Delete NoRefresh:=True
+Action Create Object=AccountOrganization Name=Undelete Description=Undelete NoRefresh:=True
+
+# Allocation
+Object Create Name=Allocation Description="Allocation"
+Attribute Create Object=Allocation Name=Id PrimaryKey=True DataType=AutoGen Description="Allocation Id" NoRefresh:=True
+Attribute Create Object=Allocation Name=Account Required=True Fixed=True Values=@Account DataType=Integer Description="Account Id" NoRefresh:=True
+Attribute Create Object=Allocation Name=StartTime DataType=TimeStamp DefaultValue="-infinity" Description="Start Time" NoRefresh:=True
+Attribute Create Object=Allocation Name=EndTime DataType=TimeStamp DefaultValue="infinity" Description="End Time" NoRefresh:=True
+Attribute Create Object=Allocation Name=Amount Required=True DataType=Currency Description="Amount" NoRefresh:=True
+Attribute Create Object=Allocation Name=CreditLimit DataType=Currency DefaultValue=0 Description="Credit Limit" NoRefresh:=True
+Attribute Create Object=Allocation Name=Deposited DataType=Currency DefaultValue=0 Description="Total Deposited" NoRefresh:=True
+Attribute Create Object=Allocation Name=Active DataType=Boolean DefaultValue=True Description="Is the Allocation Active?" NoRefresh:=True
+Attribute Create Object=Allocation Name=CallType Sequence=200 DataType=String Values="(Back,Forward,Normal)" DefaultValue=Normal Hidden=True Description="Call Type" NoRefresh:=True
+Attribute Create Object=Allocation Name=Description Sequence=900 DataType=String Description="Description" NoRefresh:=True
+Action Create Object=Allocation Name=Create Description=Create NoRefresh:=True
+Action Create Object=Allocation Name=Query Display=True Description=Query NoRefresh:=True
+Action Create Object=Allocation Name=Modify Display=True Description=Modify NoRefresh:=True
+Action Create Object=Allocation Name=Delete Display=True Description=Delete NoRefresh:=True
+Action Create Object=Allocation Name=Undelete Display=True Description=Undelete NoRefresh:=True
+Action Create Object=Allocation Name=Refresh Description=Refresh NoRefresh:=True
+
+# Reservation
+Object Create Name=Reservation Description="Reservation"
+Attribute Create Object=Reservation Name=Id PrimaryKey=True DataType=AutoGen Description="Reservation Id" NoRefresh:=True
+Attribute Create Object=Reservation Name=Name DataType=String Description="Reservation Name" NoRefresh:=True
+Attribute Create Object=Reservation Name=Job DataType=String Values=@Job Description="Gold Job Id" NoRefresh:=True
+Attribute Create Object=Reservation Name=User Values=@User DataType=String Description="User Name" NoRefresh:=True
+Attribute Create Object=Reservation Name=Project Values=@Project DataType=String Description="Project Name" NoRefresh:=True
+Attribute Create Object=Reservation Name=Machine Values=@Machine DataType=String Description="Machine Name" NoRefresh:=True
+Attribute Create Object=Reservation Name=StartTime DataType=TimeStamp DefaultValue="-infinity" Description="When does this Reservation start?" NoRefresh:=True
+Attribute Create Object=Reservation Name=EndTime DataType=TimeStamp DefaultValue="infinity" Description="When does this Reservation expire?" NoRefresh:=True
+Attribute Create Object=Reservation Name=CallType Sequence=200 DataType=String Values="(Back,Forward,Normal)" DefaultValue=Normal Hidden=True Description="Call Type" NoRefresh:=True
+Attribute Create Object=Reservation Name=Description Sequence=900 DataType=String Description="Description" NoRefresh:=True
+Action Create Object=Reservation Name=Create Description=Create NoRefresh:=True
+Action Create Object=Reservation Name=Query Display=True Description=Query NoRefresh:=True
+Action Create Object=Reservation Name=Modify Description=Modify NoRefresh:=True
+Action Create Object=Reservation Name=Delete Display=True Description=Delete NoRefresh:=True
+Action Create Object=Reservation Name=Undelete Display=True Description=Undelete NoRefresh:=True
+
+# ReservationAllocation
+Object Create Name=ReservationAllocation Association=True Parent=Reservation Child=Allocation Description="Reservation Allocation Association"
+Attribute Create Object=ReservationAllocation Name=Reservation PrimaryKey=True Values=@Reservation DataType=Integer Description="Parent Reservation Id" NoRefresh:=True
+Attribute Create Object=ReservationAllocation Name=Id PrimaryKey=True Values=@Allocation DataType=Integer Description="Child Allocation Id" NoRefresh:=True
+Attribute Create Object=ReservationAllocation Name=Account Required=True Values=@Account DataType=Integer Description="Account Id" NoRefresh:=True
+Attribute Create Object=ReservationAllocation Name=Amount DataType=Currency Required=True Description="Resource Credits" NoRefresh:=True
+Action Create Object=ReservationAllocation Name=Create Description=Create NoRefresh:=True
+Action Create Object=ReservationAllocation Name=Query Display=True Description=Query NoRefresh:=True
+Action Create Object=ReservationAllocation Name=Modify Description=Modify NoRefresh:=True
+Action Create Object=ReservationAllocation Name=Delete Description=Delete NoRefresh:=True
+Action Create Object=ReservationAllocation Name=Undelete Description=Undelete NoRefresh:=True
+
+# Quotation
+Object Create Name=Quotation Description="Quotation"
+Attribute Create Object=Quotation Name=Id PrimaryKey=True DataType=AutoGen Description="Quotation Id" NoRefresh:=True
+Attribute Create Object=Quotation Name=Amount DataType=Currency Description="Charge Estimate (calculated)" NoRefresh:=True
+Attribute Create Object=Quotation Name=StartTime DataType=TimeStamp Required=True Description="When does this Quotation start?" NoRefresh:=True
+Attribute Create Object=Quotation Name=EndTime DataType=TimeStamp Required=True Description="When does this Quotation expire?" NoRefresh:=True
+Attribute Create Object=Quotation Name=WallDuration DataType=Integer Description="WallTime Estimate" NoRefresh:=True
+Attribute Create Object=Quotation Name=Job DataType=String Values=@Job Description="Gold Job Id" NoRefresh:=True
+Attribute Create Object=Quotation Name=User Values=@User DataType=String Description="User Name" NoRefresh:=True
+Attribute Create Object=Quotation Name=Project Values=@Project DataType=String Description="Project Name" NoRefresh:=True
+Attribute Create Object=Quotation Name=Machine Values=@Machine DataType=String Description="Machine Name" NoRefresh:=True
+Attribute Create Object=Quotation Name=Uses DataType=Integer DefaultValue=1 Description="Number of Times Quote can be Used" NoRefresh:=True
+Attribute Create Object=Quotation Name=CallType Sequence=200 DataType=String Values="(Back,Forward,Normal)" DefaultValue=Normal Hidden=True Description="Call Type" NoRefresh:=True
+Attribute Create Object=Quotation Name=Description Sequence=900 DataType=String Description="Description" NoRefresh:=True
+Action Create Object=Quotation Name=Create Description=Create NoRefresh:=True
+Action Create Object=Quotation Name=Query Display=True Description=Query NoRefresh:=True
+Action Create Object=Quotation Name=Modify Description=Modify NoRefresh:=True
+Action Create Object=Quotation Name=Delete Display=True Description=Delete NoRefresh:=True
+Action Create Object=Quotation Name=Undelete Display=True Description=Undelete NoRefresh:=True
+
+# ChargeRate
+Object Create Name=ChargeRate Description="Charge Rates"
+Attribute Create Object=ChargeRate Name=Type PrimaryKey=True DataType=String Description="Charge Rate Type" NoRefresh:=True
+Attribute Create Object=ChargeRate Name=Name PrimaryKey=True Required=True DataType=String Description="Name of Instance of Charge Type" NoRefresh:=True
+Attribute Create Object=ChargeRate Name=Rate Required=True DataType=Float Description="Charge Rate" NoRefresh:=True
+Attribute Create Object=ChargeRate Name=Description Sequence=900 DataType=String Description="Description" NoRefresh:=True
+Action Create Object=ChargeRate Name=Create Display=True Description=Create NoRefresh:=True
+Action Create Object=ChargeRate Name=Query Display=True Description=Query NoRefresh:=True
+Action Create Object=ChargeRate Name=Modify Display=True Description=Modify NoRefresh:=True
+Action Create Object=ChargeRate Name=Delete Display=True Description=Delete NoRefresh:=True
+Action Create Object=ChargeRate Name=Undelete Display=True Description=Undelete NoRefresh:=True
+
+# QuotationChargeRate
+Object Create Name=QuotationChargeRate Association=True Parent=Quotation Child=ChargeRate Description="Charge Rate guaranteed by the associated Quotation"
+Attribute Create Object=QuotationChargeRate Name=Quotation PrimaryKey=True Values=@Quotation DataType=Integer Description="Parent Quotation Id" NoRefresh:=True
+Attribute Create Object=QuotationChargeRate Name=Type PrimaryKey=True DataType=String Description="Charge Rate Type" NoRefresh:=True
+Attribute Create Object=QuotationChargeRate Name=Name PrimaryKey=True DataType=String Description="Charge Rate Name" NoRefresh:=True
+Attribute Create Object=QuotationChargeRate Name=Rate DataType=Float Required=True Description="Charge Rate" NoRefresh:=True
+Action Create Object=QuotationChargeRate Name=Create Description=Create NoRefresh:=True
+Action Create Object=QuotationChargeRate Name=Query Display=True Description=Query NoRefresh:=True
+Action Create Object=QuotationChargeRate Name=Modify Description=Modify NoRefresh:=True
+Action Create Object=QuotationChargeRate Name=Delete Description=Delete NoRefresh:=True
+Action Create Object=QuotationChargeRate Name=Undelete Description=Undelete NoRefresh:=True
+
+# Job
+Object Create Name=Job Description="Job"
+Attribute Create Object=Job Name=Id PrimaryKey=True DataType=AutoGen Description="Instance Id" NoRefresh:=True
+Attribute Create Object=Job Name=JobId Required=True DataType=String Description="Job Id" NoRefresh:=True
+Attribute Create Object=Job Name=User DataType=String Description="User Name" NoRefresh:=True
+Attribute Create Object=Job Name=Project DataType=String Description="Project Name" NoRefresh:=True
+Attribute Create Object=Job Name=Machine DataType=String Description="Machine Name" NoRefresh:=True
+Attribute Create Object=Job Name=Charge DataType=Currency DefaultValue=0 Description="Amount Charged for Job" NoRefresh:=True
+Attribute Create Object=Job Name=Queue DataType=String Description="Class or Queue" NoRefresh:=True
+Attribute Create Object=Job Name=Type DataType=String Description="Job Type" NoRefresh:=True
+Attribute Create Object=Job Name=Stage DataType=String Values="(Charge,Quote,Reserve)" Description="Last Job Stage" NoRefresh:=True
+Attribute Create Object=Job Name=QualityOfService DataType=String Description="Quality of Service" NoRefresh:=True
+Attribute Create Object=Job Name=Nodes DataType=Integer Description="Number of Nodes for the Job" NoRefresh:=True
+Attribute Create Object=Job Name=Processors DataType=Integer Description="Number of Processors for the Job" NoRefresh:=True
+#Attribute Create Object=Job Name=State DataType=String Values="(Idle,Running,Hold,Completed,Removed)" Description="Job State" NoRefresh:=True
+Attribute Create Object=Job Name=Executable DataType=String Description="Executable" NoRefresh:=True
+Attribute Create Object=Job Name=Application DataType=String Values="(Gaussian,Nwchem)" Description="Application" NoRefresh:=True
+Attribute Create Object=Job Name=StartTime DataType=TimeStamp Description="Start Time" NoRefresh:=True
+Attribute Create Object=Job Name=EndTime DataType=TimeStamp Description="Completion Time" NoRefresh:=True
+Attribute Create Object=Job Name=WallDuration DataType=Integer Description="Wallclock Time in seconds" NoRefresh:=True
+Attribute Create Object=Job Name=QuoteId DataType=String Description="Quote Id" NoRefresh:=True
+Attribute Create Object=Job Name=CallType Sequence=200 DataType=String Values="(Back,Forward,Normal)" DefaultValue=Normal Hidden=True Description="Call Type" NoRefresh:=True
+Attribute Create Object=Job Name=Description Sequence=900 DataType=String Description="Description" NoRefresh:=True
+Action Create Object=Job Name=Create Display=True Description=Create NoRefresh:=True
+Action Create Object=Job Name=Query Display=True Description=Query NoRefresh:=True
+Action Create Object=Job Name=Modify Display=True Description=Modify NoRefresh:=True
+Action Create Object=Job Name=Delete Display=True Description=Delete NoRefresh:=True
+Action Create Object=Job Name=Undelete Display=True Description=Undelete NoRefresh:=True
+Action Create Object=Job Name=Charge Description="Charge" NoRefresh:=True
+Action Create Object=Job Name=Reserve Description="Reserve" NoRefresh:=True
+Action Create Object=Job Name=Quote Description="Quote" NoRefresh:=True
+Action Create Object=Job Name=Refund Display=True Description="Refund" NoRefresh:=True
+
+# AccountAccount
+Object Create Name=AccountAccount Association=True Parent=Account Child=Account Description="Account Deposit Linkage"
+Attribute Create Object=AccountAccount Name=Account PrimaryKey=True Values=@Account DataType=String Description="Parent Account Id" NoRefresh:=True
+Attribute Create Object=AccountAccount Name=Id PrimaryKey=True Values=@Account DataType=String Description="Child Account Id" NoRefresh:=True
+Attribute Create Object=AccountAccount Name=DepositShare Required=True DataType=Integer DefaultValue=0 Description="Deposit Share" NoRefresh:=True
+Attribute Create Object=AccountAccount Name=Overflow DataType=Boolean DefaultValue=False Description="Do descendant charges overflow into this Account?" NoRefresh:=True
+Action Create Object=AccountAccount Name=Create Description=Create NoRefresh:=True
+Action Create Object=AccountAccount Name=Query Description=Query NoRefresh:=True
+Action Create Object=AccountAccount Name=Modify Description=Modify NoRefresh:=True
+Action Create Object=AccountAccount Name=Delete Description=Delete NoRefresh:=True
+Action Create Object=AccountAccount Name=Undelete Description=Undelete NoRefresh:=True
+
+# Create Roles
+RoleAction Create Role=Anonymous Name=Balance Object=Account NoRefresh:=True
+Role Create Name=ProjectAdmin Description="Can update or view a project they are admin for" NoRefresh:=True
+RoleAction Create Role=ProjectAdmin Name=ANY Object=Project Instance=ADMIN NoRefresh:=True
+#RoleUser Create Role=ProjectAdmin Name=ANY NoRefresh:=True
+#Role Create Name=ProjectViewer Instance=mscfops Description="Can view a project they are member of" NoRefresh:=True
+Role Create Name=UserServices Description="User Services" NoRefresh:=True
+RoleAction Create Role=UserServices Name=Refund Object=Job NoRefresh:=True
+RoleAction Create Role=UserServices Name=ANY Object=User NoRefresh:=True
+RoleAction Create Role=UserServices Name=ANY Object=Machine NoRefresh:=True
+RoleAction Create Role=UserServices Name=ANY Object=Project NoRefresh:=True
+RoleAction Create Role=UserServices Name=ANY Object=ProjectUser NoRefresh:=True
+RoleAction Create Role=UserServices Name=ANY Object=ProjectMachine NoRefresh:=True
+Role Create Name=Scheduler Description="Scheduler relevant Transactions" NoRefresh:=True
+RoleAction Create Role=Scheduler Name=Charge Object=Job NoRefresh:=True
+RoleAction Create Role=Scheduler Name=Quote Object=Job NoRefresh:=True
+RoleAction Create Role=Scheduler Name=Reserve Object=Job NoRefresh:=True
+RoleUser Create Role=Scheduler Name=root NoRefresh:=True
+RoleUser Create Role=OVERRIDE Name=ANY NoRefresh:=True
+RoleAction Create Role=OVERRIDE Name=Balance Object=Account NoRefresh:=True
+#RoleAction Create Role=OVERRIDE Name=Query Object=Account NoRefresh:=True
+#RoleAction Create Role=OVERRIDE Name=Transfer Object=Account NoRefresh:=True
+
+# Refresh metadata cache
+System Refresh
+
+# Instantiate Objects
+Project Create Name=NONE Active=False Special=True Description="No Project" CreateAccount:=False
+Project Create Name=ADMIN Active=False Special=True Description="Any Project which the User is an admin for" CreateAccount:=False
+Project Create Name=MEMBERS Active=False Special=True Description="Any Project the User is a member of" CreateAccount:=False
+Project Create Name=ANY Active=False Special=True Description="Any Project" CreateAccount:=False
+User Modify Name==hartem Active=True
+User Modify Name!=hartem Active=False
+User Create Name=MEMBERS Active=False Special=True Description="Any User which is a member of the Project"
+Machine Create Name=NONE Active=False Special=True Description="No Machine"
+Machine Create Name=MEMBERS Active=False Special=True Description="Any Machine which is a member of the Project"
+Machine Create Name=ADMIN Active=False Special=True Description="Any Machine which the User is an admin for"
+Machine Create Name=ANY Active=False Special=True Description="Any Machine"
+ChargeRate Create Type=Resource Name=Processors Rate=1
+
+# Done -- Bail out
+quit

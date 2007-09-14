@@ -23,9 +23,9 @@ BEGIN { plan tests => 1 }
   
   #put JDLs to LDAP      
   addFile($cat, "jdl/date.E.jdl","Executable=\"date\";
-Price=\"200\";\n") or exit(-2);
+Price=\"30\";\n") or exit(-2);
   addFile($cat,"jdl/date.C.jdl","Executable=\"date\";
-Price=\"10\";\n") or exit (-2); 
+Price=\"3\";\n") or exit (-2); 
   print "Files added !\n";
 
   my $flag = 0;
@@ -45,13 +45,19 @@ Price=\"10\";\n") or exit (-2);
   killAllWaitingJobs($cat);
   sleep(15);  
   
+    
   # submit both jobs
   my ($id_cheap)=$cat->execute("submit", "jdl/date.C.jdl") or exit(-2);
   my ($id_expensive)=$cat->execute("submit", "jdl/date.E.jdl") or exit(-2);
   
-  # sleep 2 minutes, to be sure, that Priority Optimizer worked
-  sleep(120);
- 
+  # sleep half a minute, to be sure, that job was inserted
+  sleep(30);
+
+  
+  # restart job optimizers (to know that Priority optimizer worked) and sleep a bit
+  system ("$ALIEN_ROOT/bin/alien StartJobOptimizer");
+  sleep (100);
+
   # Start Cluster Monitor
   system ("$ALIEN_ROOT/bin/alien StartMonitor");
   print "Cluster monitor started\n";
