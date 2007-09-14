@@ -2660,128 +2660,28 @@ sub checkBankConnection {
   return $self->{SOAP}->checkService("LBSG", "LBSG", "-retry");
 }
 
-sub f_getBalance_HELP{
-return "getBalance returns the fund remainder on a given account
+sub getBankHELP {
+return "gold - Executes AliEn bank commands
 \t Usage:
-\t\t getBalance <-u|-s> <Name>
-\t\t\t  If no options given returns the funds remainder for the current user 
-\t\t\t  -u - returns the fund remainder for AliEn user <Name>
-\t\t\t  -s - returns the fund remainder for AliEn site <Name>
-\t\t\t  If only <Name> is given returns the reminder of bank account <Name>";
+\t\t gold command [options]
+\t\t\t  Where 'command' is of the the commands of 'Gold Allocation Manager'\
+\t\t\t  Please refer to \"Gold User's Guide\" for more details\n";
 }
 
-sub f_getBalance {
+sub f_bank {
   my $self=shift;
 
-  my $user;
-  my $param = shift;
-     $param or $param=""; 
-  	if ($param eq "-u") {
-	    my $userName = shift;	
-	    $user = $self->getUserBankAccount ($userName);
-	    $user or (print "Error: No bank account defined for $userName in LDAP\n" and return);
-	   }
-        elsif ($param eq "-s"){
-	    my $siteName = shift;
-	    $user = $self->getSiteBankAccount ($siteName);
-	    $user or (print "Error: No bank account defined for $siteName in LDAP\n" and return);
-	   }
-        elsif ($param){
-	    $user = $param;
-	   }
-        if (!$user){ #no params given
-            my $userName =  $self->{CATALOG}->{CATALOG}->{ROLE};
-	    $user = $self->getUserBankAccount ($userName);
-	    $user or (print "Error: No bank account defined for $userName in LDAP\n" and return);
-	   }
- 
-   print "Getting funds remainder for bank account $user\n"; 
-  ( $self->checkBankConnection() ) or return;
-    my $done = $self->{SOAP}->CallSOAP($self->{BANK_CONNECTION}, "getBalance",$user) or return;
-       $done or ((print "Error: SOAP call to $self->{CONNECTION} getBalance failed\n") and return);
+   my $help = join ("", @_);
+   (($help eq "--help") or ($help eq "-h") or ($help eq "-help"))  and ( print $self->getBankHELP() and (return 1));
+
+
+ ( $self->checkBankConnection() ) or return;
+
+    my $done = $self->{SOAP}->CallSOAP($self->{BANK_CONNECTION}, "bank",@_) or return;
+       $done or ((print "Error: SOAP call to $self->{CONNECTION} 'bank' failed\n") and return);
     
-  my $currency=$self->{CONFIG}->{BANK_CURRENCY} || "unit";
-    my $result = $done->result;
-       $result or ((print "Error: SOAP call to $self->{CONNECTION} getBalance returned nothing\n") and return);  
-    print " The remainder on $user account is $result $currency(s) \n";
-  
+  print $done->result(), "\n";
   return 1;
-}
-
-sub f_getTransactions_HELP{
-return " getTransactions returns the list of transactions
-\t Usage:
-\t\t getTransactions <-u|-s> <Name>
-\t\t\t  If no options given returns all transactions 
-\t\t\t  -u - returns the fund transactions for AliEn user <Name>
-\t\t\t  -s - returns the fund transactions for AliEn site <Name>
-\t\t\t  If only <Name> is given returns the transactions of bank account <Name>";
-}
-
-sub f_getTransactions{
-  my $self=shift;
-
-  my $user;
-  my $param = shift;
-     $param or $param="";  
-  	if ($param eq "-u") {
-	    my $userName = shift;	
-	    $user = $self->getUserBankAccount ($userName);
-	    $user or (print "Error: No bank account defined for $userName in LDAP\n" and return);
-	   }
-        elsif ($param eq "-s"){
-	    my $siteName = shift;
-	    $user = $self->getSiteBankAccount ($siteName);
-	    $user or (print "Error: No bank account defined for $siteName in LDAP\n" and return);
-	   }
-        elsif ($param){
-	    $user = $param;
-	   }
-#        elsif (!$user){ #no params given
-#            my $userName =  $self->{CATALOG}->{CATALOG}->{ROLE};
-#	    $user = $self->getUserBankAccount ($userName);
-#	    $user or (print "Error: No bank account defined for $userName in LDAP" and return);
-#	   }
-     
-	    
- 
-   $user and print "Getting funds transactions for bank account $user\n"; 
-   $user or print  "Getting all transactions\n";
-
-   ( $self->checkBankConnection() ) or return;
-    my $done = $self->{SOAP}->CallSOAP($self->{BANK_CONNECTION}, "getTransactions",$user) or return;
-       $done or ((print "Error: SOAP call to $self->{BANK_CONNECTION}  getTransactions failed\n") and return);
-    
-  my $result = $done->result;
-  $result or ((print "Error: SOAP call to $self->{BANK_CONNECTION} getTransactions returned nothing\n") and return);  
-  
-  $result or return (-1, $done->paramsout || "Error reading result of  getTransactions SOAP call to LBSG service\n");
-  my @transactions = split "\n", $result;
-  my $transaction;
-  
-    
-    
-  my $currency=$self->{CONFIG}->{BANK_CURRENCY} || "unit";
-  my $output .= sprintf "%-16s %-16s %-16s %-25s \n", "To group",
-                                                              "From group",
-                                                              $currency."(s)",
-                                                              "Moment";
-    
-    
-         foreach $transaction (@transactions) {
-         my ($toGroup, $fromGroup, $amount, $moment, $initiator) = ("","","","");
-    
-         ($toGroup, $fromGroup, $amount, $moment,    $initiator) = split "###", $transaction;
-    
-         $output .= sprintf "%-16s %-16s %-16s %-25s \nInitiator:%-60s \n\n", $toGroup,
-                                                                    $fromGroup,
-                                                                    $amount,
-                                                                    $moment,
-							            $initiator;
-        }
-    
-   print $output;
-return 1;
 }
 
 sub getUserBankAccount {

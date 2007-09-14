@@ -107,7 +107,7 @@ sub initialize {
 		    merging=>"varchar(64)",
 		    masterjob=>"int(1) default 0",
 	            price=>"float",
-	            effectivePriority=>"float",
+	            chargeStatus=>"varchar(20)",
 	            finalPrice=>"float",
 		    notify=>"varchar(255)",
 		    agentid=>'int(11)'};
@@ -199,21 +199,7 @@ sub initialize {
 					timestamp=>"int", },
 			     id=>"entryId", 
 			    },
-	       BALANCE=>{ columns=> { ID        =>" INT(11) not null auto_increment primary key",
-		                      groupName =>" VARCHAR(255) unique",
-				      balance   =>" DOUBLE",},
-		          id=>"ID",
-			  index=>"ID",
-			},	    
-	       TRANSACTION=>{ columns=> { ID	    => " INT(11) not null auto_increment primary key",
-			       		  fromGroup => " VARCHAR(255)",
-					  toGroup   => " VARCHAR(255)",
-					  amount    => " DOUBLE",
-					  initiator => " VARCHAR(255)",
-					  moment    => " TIMESTAMP",},
-			      id=>"ID",
-			      index=>"ID",
-	           	    },
+
 	       JOBSTOMERGE=>{columns=>{masterId=>"int(11) not null primary key"},
 			     id=>"masterId"},
 			
@@ -271,9 +257,11 @@ sub insertJobLocked {
   my $oldjob = (shift or 0);
   ($set->{name}) = $set->{jdl}  =~ /.*executable\s*=\s*\"([^\"]*)\"/i;
 
-  ($set->{price}) = $set->{jdl} =~ /.*price\s*=\s*(\d+[\.\d+]?)\s*/i;
+  my ($tmpPrice) = $set->{jdl} =~ /.*price\s*=\s*(\d+.*)\;\s*/i;
+      $tmpPrice = sprintf ("%.3f", $tmpPrice); 
+      $set->{price} = $tmpPrice;
 
-   $set->{effectivePriority} = $set->{priority} * $set->{price};
+   $set->{chargeStatus} = 0;
    #currently $set->{priority} is hardcoded to be '0'
     
   $DEBUG and $self->debug(1, "In insertJobLocked locking the table $self->{QUEUETABLE}");
