@@ -744,19 +744,15 @@ sub _CallManager {
 }
 ###################################################
 #
-#  Bank functions for users 
+#  Bank functions  
 # 
 ###################################################
 
-sub getBalance{
+sub bank {
     my $this=shift;
-    return $self->_CallBank("getBalance", @_);
+    return $self->_CallBank("bank", @_);
 }
 
-sub getTransactions{
-    my $this=shift;
-    return $self->_CallBank("getTransactions", @_);
-}
 sub _CallBank {
 	my $self = shift;
         my $function = shift;

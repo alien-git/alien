@@ -8,7 +8,6 @@ use Filesys::DiskFree;
 use AliEn::PackMan;
 use AliEn::Util;
 
-
 push @ISA,'AliEn::Logger::LogObject';
 
 sub new {
@@ -23,10 +22,8 @@ sub new {
 
   $self->debug(1, "Creating the ClassAd" );
 
-  #my $price = $self->getPrice();
   my $ca =
     Classad::Classad->new(
-#  "[ Type=\"machine\"; Requirements=(other.Type==\"Job\" && other.Price==\"2.4\"); WNHost = \"$self->{CONFIG}->{HOST}\";]" );
  "[ Type=\"machine\"; Requirements=(other.Type==\"Job\"); WNHost = \"$self->{CONFIG}->{HOST}\";]" );
 
   $self->setCloseSE($ca) or return;
@@ -146,28 +143,41 @@ sub setCloseSE{
 
   return $self->setItem($ca, "CloseSE", @closeSE);
 }
+
 sub setPackages {
   my $self=shift;
   my $ca=shift;
 
-  $self->{PACKMAN} or $self->{PACKMAN}=AliEn::PackMan->new();
-  $self->{PACKMAN} or return;
+  if ( defined($ENV{ALIEN_VM})) {
+      $self->{PACKMAN}=AliEn::PackMan->new({PACKMAN_METHOD=>"Simple",
+					   CREATE_CATALOGUE=>0}) or return;
+      $self->{PACKMAN} or return;
+      my ($status, @packages)=$self->{PACKMAN}->getListInstalledPackages();
+      if (@packages) {
+       $self->debug(1, "Setting the list of packages to @packages");
+       $self->setItem($ca, "Packages", @packages) or return;
+       $self->setItem($ca, "InstalledPackages", @packages);
+      }
+  } else {  
+     $self->{PACKMAN} or $self->{PACKMAN}=AliEn::PackMan->new();
+     $self->{PACKMAN} or return;
 
-  my $soap=new AliEn::SOAP or return;
-  #Let's ask the PackMan for the Packages that we have installed
+     my $soap=new AliEn::SOAP or return;
+     #Let's ask the PackMan for the Packages that we have installed
 
-  my ($status, @packages)=$self->{PACKMAN}->getListPackages(undef, "-s", "ALIEN_SOAP_SILENT");
-  if (@packages) {
-    $self->debug(1, "Setting the list of packages to @packages");
-    $self->setItem($ca, "Packages", @packages) or return;
-  }
-  $self->debug(1,"Asking for the installed packages");
-  ($status, @packages)=$self->{PACKMAN}->getListInstalledPackages(undef, "-s", "ALIEN_SOAP_SILENT");
-  if (@packages){
-    $self->debug(1, "Setting the installed packages");
-    $self->setItem($ca, "InstalledPackages", @packages);
-  }
-  return 1;
+     my ($status, @packages)=$self->{PACKMAN}->getListPackages(undef, "-s", "ALIEN_SOAP_SILENT");
+     if (@packages) {
+       $self->debug(1, "Setting the list of packages to @packages");
+       $self->setItem($ca, "Packages", @packages) or return;
+     }
+     $self->debug(1,"Asking for the installed packages");
+     ($status, @packages)=$self->{PACKMAN}->getListInstalledPackages(undef, "-s", "ALIEN_SOAP_SILENT");
+     if (@packages){
+       $self->debug(1, "Setting the installed packages");
+       $self->setItem($ca, "InstalledPackages", @packages);
+     }
+     return 1;
+ } 
 }
 
 

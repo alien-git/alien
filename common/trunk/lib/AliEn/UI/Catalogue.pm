@@ -119,11 +119,7 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
     'setSEio'		=> ['$self->{CATALOG}->setSEio',0],
     'getSEio'		=> ['$self->{CATALOG}->getSEio',0],
     
-    ###Bank functions
-    'addFunds'		=> ['$self->{CATALOG}->addFunds',0],
-    'createBankAccount' => ['$self->{CATALOG}->createBankAccount',0],
-    'transactFunds'     => ['$self->{CATALOG}->transactFunds',0],
-
+    
     #	       'addMethod' =>'f_addMethod', 0],
     #	       'showMethods' =>'f_showMethods', 0],
     #Group Interface
@@ -250,11 +246,7 @@ my %help_list =
     'time'            => "\tmeasures the time needed to execute a command",
     'pattern'         => "\tGives all the lfn that match a pattern",
     
-    # Bank functions for admins
-    'addFunds'	      => "\tAdds funds to the given account",	
-    'createBankAccount'   => "\tCreates new bank account",
-    'transactFunds'   => "\tMakes fund transaction",
-   'setExpired' => "\tSets the expiration date for a file",
+    'setExpired' => "\tSets the expiration date for a file",
    'phone'=> "\tdisplays the username behinds a userid",
    'type' =>'\treturns the type of lfn (file, directory or collection)',
 );

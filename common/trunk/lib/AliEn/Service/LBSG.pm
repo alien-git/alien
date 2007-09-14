@@ -15,7 +15,8 @@ use AliEn::JOBLOG;
 use AliEn::Util;
 use Classad;
 use AliEn::Database::Admin;
-#use AliEn::Config;
+use AliEn::Config;
+use Data::Dumper; 
 
 use vars qw (@ISA $DEBUG);
 @ISA=("AliEn::Service");
@@ -25,264 +26,337 @@ $DEBUG=0;
 my $self = {};
 
 ############################################################################
+##                       Internal functions                               ##
 ############################################################################
-##                                                                        ##
-##    			 Private (internal) functions                     ## 
-##                                                                        ##
-############################################################################
-############################################################################
+my $_initCommands = sub 
+{
+        $self->{COMMANDS} = {};
+        # init anonymous commands 
+        $self->{COMMANDS}->{"gbalance"}   = { "privilege" => "anon", "code" => ""};
+        $self->{COMMANDS}->{"glsmachine"} = { "privilege" => "anon", "code" => ""};
+        $self->{COMMANDS}->{"gstatement"} = { "privilege" => "anon", "code" => ""};
+        $self->{COMMANDS}->{"glsproject"} = { "privilege" => "anon", "code" => ""};
+        $self->{COMMANDS}->{"glsquote"}   = { "privilege" => "anon", "code" => ""};
+        $self->{COMMANDS}->{"gusage"}     = { "privilege" => "anon", "code" => ""};
+        $self->{COMMANDS}->{"glsaccount"} = { "privilege" => "anon", "code" => ""};
+        $self->{COMMANDS}->{"glstxn"}     = { "privilege" => "anon", "code" => ""};
+        $self->{COMMANDS}->{"glsres"}     = { "privilege" => "anon", "code" => ""};
+        $self->{COMMANDS}->{"glsjob"}     = { "privilege" => "anon", "code" => ""};
+        $self->{COMMANDS}->{"glsalloc"}   = { "privilege" => "anon", "code" => ""};
+        $self->{COMMANDS}->{"glsuser"}    = { "privilege" => "anon", "code" => ""};
+        #init user commands
+        $self->{COMMANDS}->{"gtransfer"}  = { "privilege" => "user", "code" => ""};
+        #init admin commands 
+        $self->{COMMANDS}->{"goldsh"}     = { "privilege" => "admin", "code" => ""};
+        $self->{COMMANDS}->{"gchquote"}   = { "privilege" => "admin", "code" => ""};
+        $self->{COMMANDS}->{"gmkmachine"} = { "privilege" => "admin", "code" => ""};
+        $self->{COMMANDS}->{"grmaccount"} = { "privilege" => "admin", "code" => ""};
+        $self->{COMMANDS}->{"gchaccount"} = { "privilege" => "admin", "code" => ""};
+        $self->{COMMANDS}->{"gchres"}     = { "privilege" => "admin", "code" => ""};
+        $self->{COMMANDS}->{"gmkproject"} = { "privilege" => "admin", "code" => ""};
+        $self->{COMMANDS}->{"grmalloc"}   = { "privilege" => "admin", "code" => ""};
+        $self->{COMMANDS}->{"gchalloc"}   = { "privilege" => "admin", "code" => ""};
+        $self->{COMMANDS}->{"gchuser"}    = { "privilege" => "admin", "code" => ""};
+        $self->{COMMANDS}->{"gmkuser"}    = { "privilege" => "admin", "code" => ""};
+        $self->{COMMANDS}->{"grmmachine"} = { "privilege" => "admin", "code" => ""};
+        $self->{COMMANDS}->{"gdeposit"}   = { "privilege" => "admin", "code" => ""};
+        $self->{COMMANDS}->{"grmproject"} = { "privilege" => "admin", "code" => ""};
+        $self->{COMMANDS}->{"gwithdraw"}  = { "privilege" => "admin", "code" => ""};
+        $self->{COMMANDS}->{"gchmachine"} = { "privilege" => "admin", "code" => ""};
+        $self->{COMMANDS}->{"gquote"}     = { "privilege" => "admin", "code" => ""};
+        $self->{COMMANDS}->{"grmquote"}   = { "privilege" => "admin", "code" => ""};
+        $self->{COMMANDS}->{"gchpasswd"}  = { "privilege" => "admin", "code" => ""};
+        $self->{COMMANDS}->{"grefund"}    = { "privilege" => "admin", "code" => ""};
+        $self->{COMMANDS}->{"grmres"}     = { "privilege" => "admin", "code" => ""};
+        $self->{COMMANDS}->{"gchproject"} = { "privilege" => "admin", "code" => ""};
+        $self->{COMMANDS}->{"grmaccount"} = { "privilege" => "admin", "code" => ""};
+        $self->{COMMANDS}->{"gmkaccount"} = { "privilege" => "admin", "code" => ""};
+        $self->{COMMANDS}->{"greserve"}   = { "privilege" => "admin", "code" => ""};
+        $self->{COMMANDS}->{"grmuser"}    = { "privilege" => "admin", "code" => ""};
+        $self->{COMMANDS}->{"gcharge"}    = { "privilege" => "admin", "code" => ""};
 
-#
-# Does the user authentication 
- my $_authenticate  = sub {
 
-     my $config = AliEn::Config->new();
+        $self->{ADMIN_COMMANDS} = {};
+        $self->{USER_COMMANDS} = {};
+
+        foreach my $key (keys (%{$self->{COMMANDS}}))
+        {
+             my $priv = $self->{COMMANDS}->{$key}->{"privilege"};
+
+            ($priv eq "admin") and ($self->{ADMIN_COMMANDS}->{$key} = \$self->{COMMANDS}->{$key}->{"code"}) and next;
+            ($priv eq "user")  and ($self->{USER_COMMANDS}->{$key} = \$self->{COMMANDS}->{$key}->{"code"}) 
+        }
+        
+};
+
+my $_authenticateAdmin = sub 
+{
+    my $config = AliEn::Config->new();
      
-     my $ldap = Net::LDAP->new( $config->{LDAPHOST}) or return
-	"Error: Can't connect to ldap server $config->{LDAPHOST}";
-	$ldap->bind();
+    my $ldap = Net::LDAP->new( $config->{LDAPHOST}) 
+                or return "Error in banking service: Can't connect to ldap server $config->{LDAPHOST}";
+	    
+    $ldap->bind();
+    
+    my $base = $config->{LDAPDN};
+     
+    my $mesg;
+    my $entry;
+    my $subject;
+    my $bankAdmin;
+    my @adminList;
 
-	
-	my $base = $config->{LDAPDN};
+    $config->{BANK_ADMIN_LIST} and @adminList = @{$config->{BANK_ADMIN_LIST}};
+ 
+    if ( @adminList )
+	 {
+		foreach $bankAdmin (@adminList) 
+        {
+            
+            #try to match DN first
+            if ($bankAdmin eq $ENV{SSL_CLIENT_I_DN})
+            {
+                $ldap->unbind();
+                return 1;
+            }
 
-	my $mesg;
-	my $entry;
-	my $subject;
-	my $bankAdmin;
-
-	my @adminList;
-
-	$config->{BANK_ADMIN_LIST} and 
-			@adminList = @{$config->{BANK_ADMIN_LIST}};
- 	
-	if ( @adminList )
-	{
-		foreach $bankAdmin (@adminList) {
  			#get the cert subject for $bankAdmin user
-	
 			$mesg = $ldap->search (
-				base   => "ou=People, $base",
-				filter => "(&(objectclass=pkiUser)(uid=$bankAdmin))" );
+                                    base   => "ou=People, $base",
+                                    filter => "(&(objectclass=pkiUser)(uid=$bankAdmin))" 
+                                  );
 
 			$mesg->count or next;
 			$entry = $mesg->entry(0);
 			$subject = $entry->get_value('subject');
 
-			# see if it is equal to one which came with SSL
-
+			# see if the DN of the user from LDAP matches $ENV{SSL_CLIENT_I_DN}
 			($subject eq $ENV{SSL_CLIENT_I_DN}) or next;
 			$ldap->unbind;
 			return 1;
 			
 		}
 	    $ldap->unbind;      
-	    return "Error: User is not a bank admin";
+	    return "Error: User is not a bank admin.";
 	}
 	
 	$ldap->unbind;
-	return "No bank admins defined in LDAP";
+	return "No bank admins defined in LDAP.";
 };
 
 #
-# Internal function for funds transaction
-my $_transactFundsEx = sub {
+# Loads the help and man pages for bank command
+my $_loadHelp = sub
+{
+    my $command = shift;
 
-	my $fromAccount   = shift;
-	my $toAccount = shift;
-	my $amount      = shift;
-	
-	$self->info("Transfering $amount from $fromAccount to $toAccount ");
+    # load help
+    system("$ENV{ALIEN_ROOT}/bin/alien-perl -T $ENV{ALIEN_ROOT}/bin/$command --help > /tmp/bankHelp 2>&1");
+    open HELP, "< /tmp/bankHelp";
+    my $help = join ("", <HELP>);
+    $self->{COMMANDS}->{$command}->{"help"} = $help;
+    close HELP;
 
-	# Try to do fund transaction
-	# 'prepare' statements
-         my $stmtFrom = "UPDATE $self->{BALANCE} SET balance = balance - $amount WHERE groupName='$fromAccount'";
-	 my $stmtTo   = "UPDATE $self->{BALANCE} SET balance = balance + $amount WHERE groupName='$toAccount'";
-	
-	 my $details = { toGroup   => $toAccount, 
-		         fromGroup => $fromAccount, 
-			 amount    => $amount,
-			 initiator => $ENV{SSL_CLIENT_I_DN},
-		       };
-
-	# Add debug output here $self->debug($stmt);
-        # 
-	  $self->debug(1, "In LBSG: trying to execute $stmtFrom");
-          $self->debug(1, "In LBSG: trying to execute $stmtTo");
-
-	#
-	# We need to update BALANCE table, and record fund TRANSACTION simultaneously ! 
-	# We will turn off auto commit, try to execute two statements, and commit them together 
-        # Since AlienProxy.pm does not support TRANSACTIONS we turn them off
-	#$self->{DB}->{DBH}->{'AutoCommit'} = 0;
-	#$self->{DB}->{DBH}->{'RaiseError'} = 1;
-
-	my $res1 = "";
-	my $res2 = "";	
-	my $res3 = "";
-	eval {
- 	
-	 $res1 = $self->{DB}->do($stmtFrom);
-         
- 	 ($res1 != 0) and ($res2 = $self->{DB}->do($stmtTo));
-	 ($res2 != 0) and ($res3 = $self->{DB}->insert("$self->{TRANSACTION}", $details));
-	 #       $self->{DB}->{DBH}->commit();  
-        };
-	if ($@) {
-           eval { $self->{DB}->{DBH}->rollback(); };
-	   $self->info("Error: In transactFunds SQL queries failed: $@");	
-  	}
-
-	#  Turn autocommit back on 
-	#  $self->{DB}->{DBH}->{'AutoCommit'} = 1;
-
-	($res1 != 0) or return "Error: $stmtFrom failed"; 
-	($res2 != 0) or return "Error: $stmtTo failed"; 
-	($res3 != 0) or return "Error: INSERT into $self->{TRANSACTION} table failed. Transaction not registered !!!";
-
-	return 1;
-
+    # load man
+    system("$ENV{ALIEN_ROOT}/bin/alien-perl -T $ENV{ALIEN_ROOT}/bin/$command --man > /tmp/bankMan 2>&1");
+    open MAN, "< /tmp/bankMan";
+    my $man = join ("", <MAN>);
+    $self->{COMMANDS}->{$command}->{"man"} = $man;
+    close MAN;
 };
 
 #
-# Internal function for bank account creation 
-
-my $_createBankAccountEx = sub {
-
-	my $account = shift;
-	my $amount  = shift;
-
-	$amount or $amount = 0;
-
-    my $details = { balance => $amount, groupName => $account};
-   
-    my $res = $self->{DB}->insert("$self->{BALANCE}", $details);
+# Loads bank command from file 
+my $_loadCommand = sub 
+{
+    my $command = shift;
     
-    #
-    # Check the result after {DB}->insert() call 
-    # If everything was OK, then $res should be '1'
-    ($res != 0) and return 1;
-    return "Error: Failed to create bank account for $account";
+    $_loadHelp->($command);
 
+    open FILE, "$ENV{ALIEN_ROOT}/bin/$command" or return "Error in banking service: Failed to open $ENV{ALIEN_ROOT}/bin/$command: $!";
+    my $tmp;
+
+        
+    while ($tmp = <FILE>)
+    {
+         # strip comments out 
+         $tmp =~ /^\#.*/ and next;   
+
+         # stop when __END__ is reached
+         $tmp =~ /^__END__/ and return 1;
+
+         $self->{COMMANDS}->{$command}->{"code"} .= $tmp;
+    }
+    
+
+
+    return 1;
+};
+
+
+
+#
+# Executes the command
+my $_exec = sub
+{       
+        my $showError = shift;
+        my $command = shift;
+           @ARGV = @_;
+        my $argvStr = join (" ", @ARGV);
+
+        
+
+        my $codeRef =  \$self->{COMMANDS}->{$command}->{"code"};
+
+        # Load the command if necessary
+        if ($$codeRef eq "") 
+        {
+            my $stat = $_loadCommand->($command);
+
+            #check if the command code has been loaded 
+            ($stat eq 1) or ($self->info ($stat) and return $stat);
+        }
+        
+        # check if help needs to be returned 
+        ($argvStr =~ /--man/)  and return $self->{COMMANDS}->{$command}->{"man"};
+        ($argvStr =~ /--help/) and return $self->{COMMANDS}->{$command}->{"help"};
+
+
+        # capture STDOUT before execution
+        open(OLDOUT, ">&STDOUT");
+        open(OLDERR, ">&STDERR");
+
+        my $out = "";
+        close STDOUT;
+        open STDOUT, '>', \$out or (return $self->info("Can't open STDOUT: $!") and return "Opening STDOUT on server failed\n");
+        
+        
+        my $err = "";
+        close STDERR;
+        open STDERR, ">", \$err or (return $self->info("Can't open STDERR: $!") and return "Openins STDERR on server failed\n");
+        
+
+        # execute the command
+        my $fun = sub { eval $$codeRef; };
+        $fun->();              
+        
+        # restore STDOUT and STDERR
+        close STDOUT;
+        close STDERR;
+        open(STDOUT, ">&OLDOUT");
+        open(STDERR, ">&OLDERR");
+
+        $showError and return $out."\n".$err."\n";
+        return $out;
 };
 
 #
-# Internal function which retrieves users' and sites' bank account names from LDAP
+# Retrieves the Bank account ID of the user 
+my $_getAccountIdFromAccountName = sub
+{
+    my $goldAccountName = shift;        
+    my $id = $_exec->(0, 'glsaccount', ('-n', $goldAccountName,'--show', 'Id', '--quiet'));
 
-my $_getBankAccounts = sub {
-
-     my $config = AliEn::Config->new();
+    return $id;
+};
+#
+# retrieves the bank account of the user usibg $ENV{SSL_CLIENT_I_DN}
+my $_getUserBankAccount = sub
+{
+    my $config = AliEn::Config->new();
      
-     my $ldap = Net::LDAP->new( $config->{LDAPHOST}) or return
-	"Error: Can't connect to ldap server $config->{LDAPHOST}";
-	$ldap->bind();
-
-     my $base = $config->{LDAPDN};
-
-     my $entry;
-     my $_account;
-     my $i;
-
-     my %accounts;
-
-
-     # perform search through all users' entries 
-     my $mesg = $ldap->search(
-     		 base   => "ou=People,$base",
-		 filter => "(objectClass=AliEnUser)"   	
-                             );
-
-     # this will loop over all users' entries from LDAP and fill in the  hash 
-     # where keys will be the names of bank accounts 
-     
-	     for ($i = 0; $i < $mesg->count; $i++)
-	     {
-		     $entry = $mesg->entry($i);
-	     
-		     $_account = $entry->get_value('accountName');
-		     $accounts{$_account} = 1;
-	     }
-
-     # perform search through all roles' entries 
-      $mesg = $ldap->search(
-     		 base   => "ou=Roles,$base",
-		 filter => "(objectClass=AliEnRole)"   	
-                             );
-
-     # this will loop over all users' entries from LDAP and fill in the  hash 
-     # where keys will be the names of bank accounts 
-     
-	     for ($i = 0; $i < $mesg->count; $i++)
-	     {
-		     $entry = $mesg->entry($i);
-	     
-		     $_account = $entry->get_value('accountName');
-		     $accounts{$_account} = 1;
-	     }
-
-     # perform search through site entries 
-       $mesg = $ldap->search(
-     		 base   => "ou=Sites,$base",
-		 filter => "(objectClass=AliEnSite)"   	
-                             );
-
-	     # loop over all sites' entries from LDAP and fill in the hash 
-	     for ($i = 0; $i < $mesg->count; $i++)
-	     {
-		     $entry = $mesg->entry($i);
-		     
-		     $_account = $entry->get_value('accountName');
-		     $accounts{$_account} = 1;
-	     }
-  
+    my $ldap = Net::LDAP->new( $config->{LDAPHOST}) 
+                or return (0,"Error in banking service: Can't connect to ldap server $config->{LDAPHOST}");
+	    
+    $ldap->bind();
     
+    my $base = $config->{LDAPDN};
      
-     # prepare the return value of the function which is the list of all accounts
-     # delimited by ':'
-     
-     my $ret="";
-     foreach (keys(%accounts)){
-     	$ret .= $_;
-	$ret .= ":"
+    my $msg;
+    my $entry;
+    my $account;
+
+	#get the bank account name using $ENV{SSL_CLIENT_I_DN} for finding user entry in LDAP
+	$msg = $ldap->search (
+                           base   => "ou=People, $base",
+                           filter => "(&(objectclass=pkiUser)(subject=$ENV{SSL_CLIENT_I_DN}))" 
+                         );
+
+     # check if the user with the provided subject exists in LDAP
+	 if ( !$msg->count) 
+     {
+        $ldap->unbind();
+        return (0, "Can not find user entry in LDAP with certificate subject $ENV{SSL_CLIENT_I_DN}");
      }
 
-     return $ret;
+	$entry = $msg->entry(0);
+	$account = $entry->get_value('accountName');
+    my $user;
+
+    # check if the bank account is defined for the user 
+    if (! $account)
+    {
+        $ldap->unbind();
+        $user = $entry->get_value ('uid');
+        return (0, "No bank account is defined in LDAP for user $user (cert subject $ENV{SSL_CLIENT_I_DN})");
+    }
+
+     # return account name 
+	$ldap->unbind;
+	return (1, $account);
 };
+
+
+
+
 
 #
-# Internal function which checks the existence of the given accounts, if they don't exists creates
-# them 
+# Checks if the user is allowed to execute '$command @ARGV'
+my $_authenticateUser = sub 
+{
+    my $command = shift;
+    my @ARGV = @_;
+    my $argvStr = join (" ", @ARGV);
 
-my $_checkAccounts = sub {
-	
-	my $_accounts  = shift;
-	$_accounts or return "Error: No account names given.";
+    my $isAdmin = $_authenticateAdmin->();
+    ($isAdmin == 1) and return 1;
 
-	my $amount = shift;
-           $amount or $amount = 0;	
-	my @accounts = split (":", $_accounts);
-        my $account; 
-	my $res;
-	
-	foreach $account (@accounts){
-	$res = $self->{DB}->queryValue("SELECT groupName FROM $self->{BALANCE} WHERE groupName='$account'");
-	  $res and next;
-	  $account or next;
-            $self->info("In checkAccounts, creating bank account for user  $account");
-	  $res = $_createBankAccountEx->($account, $amount);	  
-	  ($res eq 1) or return $res; 	
-	  $self->info("In checkAccounts, account for user $account created ");
-	}
-	
-	return 1;
+    my ($stat, $userAccount) = $_getUserBankAccount->();
+
+    # check if account was found, return error message otherwise 
+    $stat or return $userAccount;
+
+    # if --fromAccount (account ID) is given
+    $argvStr =~ /\.*--fromAccount\s+(\w+)\.*/;
+    my $accountID = $1;
+        
+        # see if the ID corresponds to the ID provided in request
+        my $allowedAccountId = $_getAccountIdFromAccountName->($userAccount);
+ 
+        if ($accountID)
+         {
+            ( $accountID == $allowedAccountId) and return 1;
+            return "User is not allowed to transfer funds from the account with ID = $accountID.\nUser has access to the account with ID = $allowedAccountId ";
+         }
+     
+      
+    # if -i is given (allocation ID )
+    $argvStr =~ /\.*-i\s+(\w+)\.*/;
+    my $allocationId = $1;
+
+        # see if the user can use the given allocation
+        my (@allowedAllocationId) = split ("\n", $_exec->(0, "glsalloc", ("-a", $allowedAccountId, "--show", "Id", "--quiet")));
+
+        foreach my $id (@allowedAllocationId)
+        {
+            ($id == $allocationId) and return 1;
+        }
+
+    return "Invalid command syntax. Please specify either '--fromAccount <account_id>' or '-i <allocation_id>' ";
 };
 
-
 ############################################################################
-############################################################################
-##                                                                        ##
 ##                       Service Initialization function                  ##
-##                                                                        ##
-############################################################################
 ############################################################################
 
 sub initialize {
@@ -293,386 +367,160 @@ sub initialize {
   $self->{SERVICE}="LBSG";
   $self->{SERVICENAME}="LBSG";
   
-  $self->{DB_MODULE}="AliEn::Database::TaskQueue";
-  
+   
   ## Taken from Manager/Job.pm, needed, since we are connecting to the same DB
   ## as the Job Manager
 
   my $name = "LBSG";
-  my ($host, $driver, $db) =
-            split ("/", $self->{CONFIG}->{"${name}_DATABASE"});
-
-  ($self->{HOST}, $self->{PORT})=
+ 
+ ($self->{HOST}, $self->{PORT})=
             split (":", $self->{CONFIG}->{"${name}_ADDRESS"});
 
 
   $self->{LISTEN}=1;
   $self->{PREFORK}=5;
  
-  $options->{role}="admin";
-         $ENV{ALIEN_DATABASE_SSL} and delete $options->{role};
-
-#   $self->{CATALOGUE} = AliEn::UI::Catalogue->new($options)
-#          or $self->{LOGGER}->error( "LBSG", "In initialize error creating AliEn::UI::Catalogue instance" )
-#	                 and return;
- 
-
-  $self->{DB_MODULE}="AliEn::Database::TaskQueue";     
-  my $role="admin";
-
-  $ENV{ALIEN_DATABASE_SSL} and $role.="ssl";
-
-  if ( (defined $ENV{ALIEN_NO_PROXY}) && ($ENV{ALIEN_NO_PROXY} eq "1") && (defined $ENV{ALIEN_DB_PASSWD}) ) {
-     $self->{DB} = "$self->{DB_MODULE}"->new({DB=>$db,HOST=> $host,DRIVER =>$driver,ROLE=>$role,"USE_PROXY" => 0,
-		   PASSWD=>"$ENV{ALIEN_DB_PASSWD}"});
-  } else {
-     $self->{DB} = "$self->{DB_MODULE}"->new({DB=>$db,HOST=> $host,DRIVER =>$driver,ROLE=>$role});	  
-  }
-
-
-  $self->{DB} 
-  	or $self->{LOGGER}->error( "LBSG", "In initialize creating $self->{DB_MODULE} instance failed" )
-      	   and return;
-     
+    
   if ($ENV{'ALIEN_N_MANAGER_JOB_SERVER'}  ) {
       $self->{PREFORK} = $ENV{'ALIEN_N_MANAGER_JOB_SERVER'};
   }
+     
+    # initialize command hashes
+    $_initCommands->();
 
-  $self->{TRANSACTION} = "TRANSACTION";
-  $self->{BALANCE}     = "BALANCE";
+  $_exec->(0, 'gmkproject', ('ALICE'));
 
-  my $accountsList = $_getBankAccounts->();
-     $accountsList or $self->{LOGGER}->error(
-	  "LBSG",  "In initalize failed to get get the bank accounts' names from LDAP") 
-           and return;
-  
-  my $res = $_checkAccounts->($accountsList); 
-  ($res eq 1) or $self->{LOGGER}->error(
-	   "LBSG", "In initialize failed to checkAccounts. Error is $res")
-            and return;
-  
   return $self;
 }
 
 ############################################################################
-############################################################################
-##                                                                        ##
 ##                             Public functions                           ##
-##                                                                        ##
 ############################################################################
-############################################################################
-
-
-#
-# getTransactions - return the transfers of a given user. If username if not
-# given returns all the transfers 
-# 
-
-sub getTransactions {
-     shift;
-       
-	my $account = shift || "";
-
-	my $res1 = "";
-	my $res2 = "";
-
-	if ($account){
-		$self->info("Geting transactions for $account");
-
-		my $stmt1 = "SELECT * FROM $self->{TRANSACTION} WHERE toGroup='$account'";
-		my $stmt2 = "SELECT * FROM $self->{TRANSACTION} WHERE fromGroup='$account'";
-
-		# Add debug output here $self->debug($stmt);
-	         $self->debug(1, "In LBSG: trying to execute $stmt1 ");
- 	         $self->debug(1, "In LBSG: trying to execute $stmt2 ");
-
-		eval {
-		$res1 = $self->{DB}->query($stmt1);			
-		$res2 = $self->{DB}->query($stmt2);
-		};
-		if ($@){
-		$self->info("Error: In getTransactions SQL query failed: $@");
-		return $@;
-		}
-	}
-	else ## gotta fetch'em all
-	{
-		$self->info("Getting all transactions");
-	
-		my $stmt = "SELECT * FROM $self->{TRANSACTION}";
-	         $self->debug(1, "In LBSG: trying to execute $stmt ");
-	
-
-		# TODO
-	        # Add debug output here $self->debug($stmt);
-	        #
-	        # $self->info($stmt);
-
-
-		eval{
-		$res1 = $self->{DB}->query($stmt);
-		};
-		if ($@){
-		$self->info("Error: In getTransactions SQL query failed: $@");
-		return $@;
-		}
-	}
-
-
-	my @transactions;
-
-	# Prepare the return data (inspired from alien 'ps' and 'top')
-	# 
-	if ($res1){
-         for (@$res1){
-	   push @transactions, join ("###", $_->{toGroup}, $_->{fromGroup},
-		                            $_->{amount},  $_->{moment}, 
-					    $_->{initiator});
-	   }	
-	}
-
-	if ($res2){
-         for (@$res2){
-	    push @transactions, join ("###", $_->{toGroup}, $_->{fromGroup},
-		                             $_->{amount}, $_->{moment}, 
-					     $_->{initiator});
-	    }
-        }
-	
-	(@transactions) or (push @transactions, "\n");
-
-	return join ("\n", @transactions);
-}
-
-#
-# getBalance - return the amount of funds on a given account 
-# 
-sub getBalance {
-     shift;
-           
-	my $account = shift;  
-           $account or return "No account name given ! Exiting.";
-	
-	$self->info("Geting fund remainder on $account ");
-        my $res;
- 
-	# workaround for remainder=0 case
-        my $stmt = "SELECT groupName from $self->{BALANCE} where groupName='$account'";
-	        eval {
-	        $res = $self->{DB}->queryValue($stmt);
-	        };
-	        if ($@){
-	        $self->info("Error: In getBalance SQL query failed: $@");
-	        return $@;
-	        }
-        $res or return "Account: $account does not exist";
-
-
-	$stmt = "SELECT balance from $self->{BALANCE} where groupName='$account'";
-
-	
-	# debug output here $self->debug($stmt);
-          $self->debug(1, "In LBSG: trying to execute $stmt");
- 
-	eval {
-	$res = $self->{DB}->queryValue($stmt);			
-	};
-	if ($@){
-	$self->info("Error: In getBalance SQL query failed: $@");
-	return $@;
-	}
-        
-        $res or $res="O";
- 	return $res;
-}
-
-
-
-#
-# transactFunds - transacts funds between given 2 accounts  
-# 
-
-sub transactFunds {
-     shift;
-
-     	my $fromAccount = shift;
-	my $toAccount   = shift;
-	my $amount  = shift;
-
-	# A regexp to validate that $amount is a number
-	 $amount =~ m/^\s*\d+[\.\d+]*\s*$/ or 
-	     ($self->info("Warinng: Invalid input from user. Amount is not numeric, exiting.") and return
-		     "Error: amount must be numeric !!!");
- 
-      $fromAccount or  
-      ($self->info("Warinng: Invalid input from user. Account name is not specified exiting.") 
-		     and return "Error: acount name is not specified");
-
-      $toAccount or  
-      ($self->info("Warinng: Invalid input from user. Account name is not specified exiting.") 
-		     and return "Error: acount name is not specified");
-
-      #  AUTHENTICATE !!!!!!!!!!!
-      #
-       my $authErr = $_authenticate->(); 
-         ($authErr eq 1) or return $authErr; 
-
-	 return $_transactFundsEx->($toAccount, $fromAccount, $amount);
-}
-
-#
-# transactFundsList - for making multiple transactions  
-# 
-
-sub transactFundsList {
-     shift;
-
-
-      #  AUTHENTICATE !!!!!!!!!!!
-      #
-      my $authErr = $_authenticate->(); 
-        ($authErr eq 1) or return $authErr; 
-
-      my $_list = shift;
-	 $_list or return "Error no list given";
-      
-      my @list = split ("\n", $_list);
-      my @res;
-      my $_res;
-
-
-      # @elem will contain $transactionID, $fromAccount, $toAccount and $amount
-      my @elem;
-      my $err;
-
-	foreach (@list)
-	{
-	  @elem = split (":", $_);
-	  $_res = $_transactFundsEx->($elem[1], $elem[2], $elem[3]);
-	 ($_res eq '1') and next;
-	  
-	 $err = "$elem[0]:$_res";
-	  push @res, $err;
-	   
-	}
-	
-	# if everything went well ;-) return 1
-	@res or return 1; 
-
-	#otherwise return list of failures
-	return join ("\n", @res);
-	
-}
-
-
-#
-# addFunds - adds given amount of funds (maybe be negative) to the given account 
-# 
-sub addFunds {
-     shift;
-         
-	my $account = shift;
-	my $amount  = shift;
-
- 	# A regexp to validate that $amount is a number
-	 $amount =~ m/^\s*-?\d+[\.\d+]*\s*$/ or 
-	     ($self->info("Warinng: Invalid input from user. Amount is not numeric, exiting.") and return
-		     "Error: amount must be numeric !!!");
-	
-     $account or  ($self->info("Warinng: Invalid input from user. Account name is not specified exiting.") 
-		     and return "Error: acount name is not specified");
-
-      #  Authenticate 
-      #
-       my $authErr = $_authenticate->(); 
-         ($authErr eq 1) or return $authErr; 
-
-	$self->info("Adding $amount to $account\'s account ");
-
-	# 'prepare' statement
-         my $stmt = "UPDATE $self->{BALANCE} SET balance = balance + $amount WHERE groupName='$account'";
-	
-	 my $details = { toGroup   => $account, 
-		         fromGroup => "DADDY", 
-			 amount    => $amount,
-			 initiator => $ENV{SSL_CLIENT_I_DN},
-		       };
-
-	# TODO 
-	# Add debug output here $self->debug($stmt);
-        # 
-	 $self->debug(1, "In LBSG: Trying to execute $stmt" );
-	
-	#
-	# We need to update BALANCE table, and record fund TRANSACTION simultaneously ! 
-	# We will turn off auto commit, try to execute two statements, and commit them together 
-        # Since AlienProxy.pm does not support TRANSACTIONS we turn them off
-	#$self->{DB}->{DBH}->{'AutoCommit'} = 0;
-	#$self->{DB}->{DBH}->{'RaiseError'} = 1;
-	 
- 	my ($res1, $res2);	
-	eval {
- 	 $res1 = $self->{DB}->do($stmt);
-  	 ($res1 != 0) and ($res2 = $self->{DB}->insert("$self->{TRANSACTION}", $details));
-	 #    $self->{DB}->{DBH}->commit();  
-        };
-	if ($@) {
-           eval { $self->{DB}->{DBH}->rollback(); };
-	   $self->info("Error: In addFunds SQL queries failed: $@");	
-  	}
-
-	# Turn autocommit back on 
-	# $self->{DB}->{DBH}->{'AutoCommit'} = 1;
-
-
-	($res1 != 0) or return "Error: $stmt failed";
-	($res2 != 0) or return "Error: INSERT into $self->{TRANSACTION} table failed. Transaction not registered";
-	return 1;
-}
-
-sub createBankAccount {
-    shift;
-   
-    my $account = shift;
-    my $amount  = shift;
-
-    $amount or $amount = 0;
-    
-    	# A regexp to validate that $amount is a number
-	 $amount =~ m/^\s*\d+[\.\d+]*\s*$/ or 
-	     ($self->info("Warinng: Invalid input from user. Amount is not numeric, exiting.") 
-			     and return "Error: amount must be numeric !!!");
- 
-     $account or  ($self->info("Warinng: Invalid input from user. Account name is not specified exiting.") 
-		     and return "Error: acount name is not specified");
-
-      #  Authenticate 
-      #
-       my $authErr = $_authenticate->(); 
-         ($authErr eq 1) or return $authErr; 
-
-	 return $_createBankAccountEx->($account, $amount);
-    
-}
-
-sub deleteBankAccount  {
+sub bank  {
   shift;
-      my $authErr = $_authenticate->(); 
-         ($authErr eq 1) or return $authErr; 
+  my $command = shift;
+  my @ARGV = @_;
 
-	my $account = shift;
-	$account or return "Error: No account name specified";
+  if ( ! defined ($self->{COMMANDS}->{$command}) )
+  {
+       return "Error: Command '$command' is unknown.";  
+  }
+  elsif ( defined ( ${$self->{USER_COMMANDS}->{$command}}) )
+  {
 
+      # Check if the has the privilege to execute '$command @ARGV'
+      my $isUser = $_authenticateUser->($command, @ARGV); 
+      if ( $isUser != 1 )
+      {
+            $self->info ("Access denied for $ENV{SSL_CLIENT_I_DN} to execute $command @ARGV. Error is $isUser" );
+            return "Error: User is not allowed to do $command @ARGV. Authentication error is: $isUser.";
+      }
+
+
+  } 
+  elsif ( defined  ($self->{ADMIN_COMMANDS}->{$command}) )
+  {
+
+        # Check if the user has admin privileges
+        my $isAdmin = $_authenticateAdmin->(); 
+        if (  $isAdmin != 1)
+        { 
+            $self->info ("Access denied for $ENV{SSL_CLIENT_I_DN} to execute $command @ARGV. Error is $isAdmin" );
+            return "You have to be bank administrator to execute $command. Authentication error is: $isAdmin\n";
+        }
+
+  }
    
-    my $res = $self->{DB}->do("DELETE from $self->{BALANCE} WHERE groupName='$account'");
-    $self->info("Deleting account $account");
-    
-    #
-    # Check the result after {DB}->do() call 
-    # If everything was OK, then $res should be '1'
-    ($res != 0) and return 1;
-    return "Error: Failed to delete account $account";
+  $self->info ("Doing '$command @ARGV' for ".$ENV{SSL_CLIENT_I_DN} ); 
+  return $_exec->("1", $command, @ARGV);
+}
 
+#
+# checks the existence of the account and the user, creates account and user if necessary
+sub checkUserAccount 
+{
+    shift;
+    my $user = shift;
+    my $account = shift;
+    
+    $self->info ("In 'checkUserAccount'. User is: $user account is: $account");
+
+    my $isAdmin = $_authenticateAdmin->();
+    if ( $isAdmin != 1) 
+    {
+            $self->info("Access denied for $ENV{SSL_CLIENT_I_DN} to execute 'checkUserAccount'. Error is $isAdmin");
+            return "\nYou have to be bank administrator to execute 'checkUserAdmin'. Authentication error is: $isAdmin";
+
+    }
+
+    # check if user exists
+    my $existsUser = $_exec->(0, 'glsuser', ('-u', $user,'--show', 'Name', '--quiet'));
+    $existsUser or $_exec->(0, 'gmkuser', ($user));
+
+    # check if account exists 
+    my $accountId = $_exec->(0, 'glsaccount', ('-n', $account, '--show', 'Id', '--quiet'));
+    if (!$accountId)
+    {
+        $_exec->(0, 'gmkaccount', ('-n', $account, '-u','NONE' ,'-m', 'ANY'));
+        $accountId = $_getAccountIdFromAccountName->($account);
+      
+    }
+    
+    $accountId =~ s/\s*//;
+
+    # check is the user belongs to the account 
+    my @users = split (',', $_exec->(0, 'glsaccount', ('-n', $account, '--show', 'User', '--quiet')) );
+
+   foreach my $belongingUser (@users)
+    {
+        $belongingUser =~ s/\s*//;
+       ($belongingUser eq $user) and (return $accountId);
+    }
+
+    # add user to the account and deposit some money (to create allocation)
+    $_exec->(0, 'gchaccount', ('-a' , $accountId, '--addUsers' , $user) );    
+    $_exec->(0, 'gdeposit', ('-a', $accountId, '-z', '1'));
+
+    return $accountId;
+}
+
+#
+# checks the existence of the machine, creates the machine if necessary
+sub checkMachineAccount
+{
+    shift;
+    my $machine = shift;
+    my $account = shift;
+
+    $self->info ("In 'checkMachineAccount'. Machine is: $machine");
+
+    my $isAdmin = $_authenticateAdmin->();
+    if ( $isAdmin != 1) 
+    {
+            $self->info ("Access denied for $ENV{SSL_CLIENT_I_DN} to execute 'checkMachine'. Error is $isAdmin");
+            return "\nYou have to be bank administrator to execute 'checkMachine'. Authentication error is: $isAdmin";
+
+    }
+
+    # check if machine exists 
+    my $existsMachine = $_exec->(0, 'glsmachine', ('-m', $machine, '--show', 'Name', '--quiet')); 
+    $existsMachine or $_exec->(0, 'gmkmachine', ($machine));
+
+    # check if account exists 
+    my $accountId = $_exec->(0, 'glsaccount', ('-n', $account, '--show', 'Id', '--quiet'));
+    if (!$accountId)
+    {
+        $_exec->(0, 'gmkaccount', ('-n', $account, '-u','NONE' ,'-m', 'ANY'));
+        $accountId = $_getAccountIdFromAccountName->($account);
+        #cleanup accountId
+        $accountId =~ s/\s*//;
+        # make deposit to create allocation 
+        $_exec->(0,'gdeposit', ('-i', $accountId, '-z', '1'));
+    }
+
+    $accountId =~ s/\s*//;
+
+    return $accountId;
 }
 
 1;
