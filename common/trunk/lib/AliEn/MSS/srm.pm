@@ -69,6 +69,13 @@ sub new {
   }
   my $SE=$se_hash{host};
   
+  if ($se_hash{uri} and $se_hash{mountpoint}){
+    $self->info("The uri and mountpoint are defined in the ldap");
+    $self->{URI}=$se_hash{uri};
+    $self->{MOUNTPOINT}=$se_hash{mountpoint};
+    return $self;
+  }
+
   $BDII or $self->info("Can't find the address of the BDII") and return;
   $self->info("Contacting the BDII at $BDII");
   

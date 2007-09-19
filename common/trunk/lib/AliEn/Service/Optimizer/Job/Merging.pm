@@ -244,7 +244,7 @@ sub updateMerging {
 	}
       }
 
-      $self->info( "All the jobs finished. Checking best place for execution");
+      $self->info( "All the jobs finished. Checking best place for execution (user $user)");
 
       my ($info)=$self->{DB}->getFieldsFromQueue($queueid,"merging")
 	or die ("Job $queueid doesn't exist");
