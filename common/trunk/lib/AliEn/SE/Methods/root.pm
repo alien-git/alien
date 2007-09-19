@@ -87,6 +87,16 @@ sub remove {
 }
 
 sub getSize {
-    return 1;
+  my $self=shift;
+
+  $self->info("Getting the size of $self->{PARSED}->{ORIG_PFN}");
+  open (FILE, " xrdstat $self->{PARSED}->{ORIG_PFN}|") or 
+    $self->info("Error doing xrdstat") and return;
+  my $buffer=join("", <FILE>);
+  close FILE;
+  $self->debug(1,"Got $buffer");
+  $buffer=~ /size=(\d+) / or $self->info("There is no line with the size in: $buffer") and return;
+  $self->info("The size is $1");
+  return $1;
 }
 return 1;
