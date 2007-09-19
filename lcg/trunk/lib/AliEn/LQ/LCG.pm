@@ -459,12 +459,26 @@ sub renewProxy {
                    "-d",
                    "-t",int($duration/3600), #in hours
                    "-o", "/tmp/tmpfile.$$");
-    		   
-    unless ( $self->_system(@command) ) {
+    
+   if (-f "/opt/lcg/bin/lcg-proxy-renew") {
+     $self->info("***Using '/opt/lcg/bin/lcg-proxy-renew' instead of get-delegation");
+     @command=("/opt/lcg/bin/lcg-proxy-renew", "-a", "$proxyfile",
+	       "-d", "-t",int($duration/3600).":", #in hours
+	       "-o", "/tmp/tmpfile.$$" , "--cert", $ENV{X509_USER_PROXY}, 
+	       "--key", $ENV{X509_USER_PROXY});
+   }
+   $self->info("Doing @command");
+   my $oldPath=$ENV{PATH};
+   my $pattern="$ENV{ALIEN_ROOT}"."[^:]*:";
+   $ENV{PATH}=~ s/$pattern//g;
+   unless ( $self->_system(@command) ) {
+     $ENV{PATH}=$oldPath;
       $self->{LOGGER}->error("LCG","unable to renew proxy");
       $ENV{X509_USER_PROXY} = $currentProxy;
       return;
-   }   
+   }
+   $ENV{PATH}=$oldPath;
+
    @command = ("mv", "-f", "/tmp/tmpfile.$$", "$proxyfile");
    if ( $self->_system(@command) ) {
      $self->{LOGGER}->error("LCG","unable to move new proxy");
