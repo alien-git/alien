@@ -45,7 +45,7 @@ sub getNumberQueued {
   my @output = <OUT>;
   close(OUT) or print "Error doing $self->{GET_QUEUE_STATUS}\n" and return -1;
 
-  @output=grep(/WAITING/, @output);
+  @output=grep(/(WAITING)|(PEND)/, @output);
   return $#output+1;
 }
 sub submit {
