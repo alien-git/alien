@@ -6,7 +6,7 @@ use strict;
 use Getopt::Long; 
 
 my @rbs = ();
-my $cfgdir = '~alicesgm/.alien';
+my $cfgdir = "$ENV{HOME}/.alien";
 my $fallback = 120; #minutes
 my $debug = 0;
 my $opt = new Getopt::Long::Parser;
