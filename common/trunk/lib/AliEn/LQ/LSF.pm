@@ -219,5 +219,19 @@ sub getAllBatchIds {
   return @output;
 
 }
+
+sub _filterOwnJobs{
+  my $self=shift;
+  my $user=getpwuid($<);
+  my @queueids;
+
+  foreach my $line (@_){
+    $line =~ /^(\d+)\s+$user/ or print "Ignoring $line\n" and next;
+    push @queueids, $1;
+  }
+
+  return @queueids;
+
+}
 return 1
 
