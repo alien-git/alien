@@ -129,6 +129,11 @@ sub getStatus {
   return $self->getDefaultStatus();
 
 }
+
+# This is supposed to return the number of queued jobs.
+# It has to be implemented by the different local queues
+# If it return -1, it means that there was a problem
+# 
 sub getNumberQueued {
   my $self=shift;
   return 0;

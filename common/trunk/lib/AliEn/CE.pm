@@ -782,6 +782,10 @@ sub getNumberFreeSlots{
   my $queued=$self->{BATCH}->getNumberQueued();
   if ($queued) {
     $self->info( "There are queued $queued job agents");
+    if ($queued <0){
+      $self->info("There was a problem getting the number of queued job agents");
+      return;
+    }
   }
   my $running=$self->{BATCH}->getNumberRunning();
   if (! defined $running){

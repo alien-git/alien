@@ -40,10 +40,10 @@ sub updateClassAd {
 sub getNumberQueued {
   my $self=shift;
 
-  open (OUT, "$self->{GET_QUEUE_STATUS} |") or print "Error doing $self->{GET_QUEUE_STATUS}\n" and return "Error doing $self->{GET_QUEUE_STATUS}\n";
+  open (OUT, "$self->{GET_QUEUE_STATUS} |") or print "Error doing $self->{GET_QUEUE_STATUS}\n" and return -1;
 
   my @output = <OUT>;
-  close(OUT) or print "Error doing $self->{GET_QUEUE_STATUS}\n" and return "Error doing $self->{GET_QUEUE_STATUS}\n";
+  close(OUT) or print "Error doing $self->{GET_QUEUE_STATUS}\n" and return -1;
 
   @output=grep(/WAITING/, @output);
   return $#output+1;

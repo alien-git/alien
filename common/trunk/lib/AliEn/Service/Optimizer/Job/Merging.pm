@@ -264,7 +264,7 @@ sub updateMerging {
 	my ($file, $jdl, $output)=split(":", $merge);
 
 	$self->{CATALOGUE}->{CATALOG}->{ROLE}=$user;
-	my ($id)=$self->{CATALOGUE}->execute("submit","$jdl $queueid $file $output $user");
+	my ($id)=$self->{CATALOGUE}->execute("submit","$jdl $queueid $file $output $user $procDir");
 	$self->{CATALOGUE}->{CATALOG}->{ROLE}="admin";
 
 	$id or die("Error submitting the job $jdl");
