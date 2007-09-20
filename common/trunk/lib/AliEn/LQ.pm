@@ -101,16 +101,24 @@ sub getQueuedJobs {
   $queuestatus[0]=~ /^Error doing / and return;
 
   @queuestatus=$self->removeKilledProcesses(@queuestatus);
-
-  my @queueids;
-  foreach (@queuestatus) {
+  my @queueids=$self->_filterOwnJobs(@queuestatus);
+  $self->debug(5, "We have $#queueids jobs: @queueids");
+  return @queueids;
+}
+# Usually, we only want the jobs that have something like 'alien'
+# or 'agent' in their names (in case the same user is submitting
+# some other jobs)
+sub _filterOwnJobs{
+  my $self=shift;
+  my @queueids=();
+  foreach (@_) {
     if ($_ =~ /((alien)|(agent.startup))/i) {
       push @queueids,$1;
     }
   }
-  $self->debug(5, "We have $#queueids jobs: @queueids");
   return @queueids;
 }
+
 #This subroutine parses the output of getQueueStatus, and 
 #it is supposed to remove the lines of jobs that have been killed
 #By default, it doesn't do anything. It should be overloaded in the 
@@ -129,11 +137,6 @@ sub getStatus {
   return $self->getDefaultStatus();
 
 }
-
-# This is supposed to return the number of queued jobs.
-# It has to be implemented by the different local queues
-# If it return -1, it means that there was a problem
-# 
 sub getNumberQueued {
   my $self=shift;
   return 0;
