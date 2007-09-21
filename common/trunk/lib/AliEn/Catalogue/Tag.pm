@@ -370,11 +370,11 @@ sub f_removeTagValue {
 
   my $error;
   if ($attribute) {
-    $error = $self->{DATABASE}->update($tagTableName, {$attribute => undef}, "file = ?", {bind_values=>[$file]});
+    $error = $self->{DATABASE}->{LFN_DB}->update($tagTableName, {$attribute => undef}, "file = ?", {bind_values=>[$file]});
   } else {
     ($self->isDirectory($file)) and $file.="/";
 
-    $error = $self->{DATABASE}->delete($tagTableName, "file = '$file'");
+    $error = $self->{DATABASE}->{LFN_DB}->delete($tagTableName, "file = '$file'");
   }
   ($error) or print STDERR "Error doing the update\n" and return;
   
