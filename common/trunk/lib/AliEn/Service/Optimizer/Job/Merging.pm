@@ -255,6 +255,13 @@ sub updateMerging {
 
       my ($ok,  @merge)=$job_ca->evaluateAttributeVectorString("Merge");
 
+      my $outputD="$procDir/merge";
+      ($ok, my $t)=$job_ca->evaluateAttributeString("OutputDir");
+      $t =~ s/\#.*$//;
+      $ok and $outputD=$t;
+      ($ok, $t)=$job_ca->evaluateAttributeString("MergeOutputDir");
+      $ok and $outputD=$t;
+
 
       my @subjobs;
       foreach my $merge (@merge) {
@@ -264,7 +271,7 @@ sub updateMerging {
 	my ($file, $jdl, $output)=split(":", $merge);
 
 	$self->{CATALOGUE}->{CATALOG}->{ROLE}=$user;
-	my ($id)=$self->{CATALOGUE}->execute("submit","$jdl $queueid $file $output $user $procDir");
+	my ($id)=$self->{CATALOGUE}->execute("submit","$jdl $queueid $file $output $user $procDir $outputD");
 	$self->{CATALOGUE}->{CATALOG}->{ROLE}="admin";
 
 	$id or die("Error submitting the job $jdl");
