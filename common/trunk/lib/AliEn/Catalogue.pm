@@ -314,7 +314,7 @@ sub f_pwd {
 
   if ( (! $self->{SILENT} ) and (!$silent) ) {
     if ($short) {
-      $self->info("$self->{DISPPATH}",undef, 0);
+      print STDOUT "$self->{DISPPATH}\n";
     } else {
       $self->info("Current path is: $self->{DISPPATH}",undef,0);
     }
@@ -1506,7 +1506,7 @@ sub f_getsite {
 	my @result;
 	my $newhash;
 	$newhash->{site}=$site;
-	$newhash->{se}  =$se;  
+	$newhash->{se}  ="$self->{CONFIG}->{ORG_NAME}::${site}::${se}";  
 	push @result, $newhash;
 	return @result;
     }
