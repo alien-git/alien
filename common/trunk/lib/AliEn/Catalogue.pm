@@ -1454,13 +1454,14 @@ sub f_getsite {
     my $self = shift;
     my $returnarrayhash = grep ( /-z/, @_ );
     if ($returnarrayhash) { shift;}
-    my $host = shift;
+    my $host = shift or print STDERR "ERROR: you have to give a hostname as argument!\n" and return   ;
     my $domain = $1 if $host =~ /[^\.]+\.(.*)$/;
     my $ldap = $self->{CONFIG}->GetLDAPDN();
     my $config = {};
     my $mesg;
     my $total;
     my $verbose=0;
+    my $se;
 
     if ($domain) {
 	$mesg = $ldap->search(base   => "ou=Sites,$self->{CONFIG}{LDAPDN}",
@@ -1474,6 +1475,7 @@ sub f_getsite {
 	    my @result;
 	    my $newhash;
 	    $newhash->{site}="none";
+	    $newhash->{se}="none";
 	    push @result, $newhash;
 	    return @result;
 	}
@@ -1483,14 +1485,32 @@ sub f_getsite {
     my $entry = $mesg->entry(0);
     my $site = $entry->get_value('ou');
     print "You are om site $site\n";  
+
+    my $fullLDAPdn = "ou=$site,ou=Sites,$self->{CONFIG}{LDAPDN}";
+    my $service = "SE";
+    $mesg = $ldap->search(base   => "ou=$service,ou=services,$fullLDAPdn",
+			  filter => "(objectClass=AliEn$service)"
+		      );
+    $total = $mesg->count;
+    if(! $total){
+	$se="none";
+	print STDERR "ERROR: Service $service is not configured for your site ($site)\n";
+    } else {
+	$entry = $mesg->entry(0);
+	$se = $entry->get_value('name');
+	print "You have $self->{CONFIG}->{ORG_NAME}::${site}::${se} as site SE\n";
+    }
+
+
     if ($returnarrayhash) {
 	my @result;
 	my $newhash;
 	$newhash->{site}=$site;
+	$newhash->{se}  =$se;  
 	push @result, $newhash;
 	return @result;
     }
-    return $site;
+    return "$site/$se";
 }
 
 sub f_mlconfig {
