@@ -702,12 +702,12 @@ sub selectClosestSE {
     my $newse  = shift;
     my $seName=$newse;
     UNIVERSAL::isa($newse, "HASH") and $seName=$newse->{seName};
-    $self->debug(1,"Checking $seName vs $self->{CONFIG}->{SE_FULLNAME}" );
+    $self->debug(1,"Checking $seName vs $self->{CONFIG}->{SE_FULLNAME}/$self->{CONFIG}->{ORG_NAME}/$self->{CONFIG}->{SITE}" );
     if ( $seName =~ /^$self->{CONFIG}->{SE_FULLNAME}$/i ){
       $se=$newse;
     }elsif( grep ( /^$newse$/i, @{ $self->{CONFIG}->{SEs_FULLNAME} } )){
       push @close, $newse;
-    }elsif( grep ( /^$newse/i, "$self->{CONFIG}->{ORG_NAME}::$self->{CONFIG}->{SITE}::") ){
+    }elsif( $newse =~ /$self->{CONFIG}->{ORG_NAME}::$self->{CONFIG}->{SITE}::/i ){
       push @site, $newse;
     }else{
       push @rest, $newse;
@@ -1385,7 +1385,7 @@ sub access {
 	      $nresolved++;
 	      my @where=$self->{CATALOG}->f_whereis("sgzt","$guid");
 
-	      my @whereis;
+	      my @whereis=();
 	      foreach (@where) {
 		  push @whereis, $_->{se};
 	      }
@@ -1456,8 +1456,8 @@ sub access {
 	      $pfn=0;
 
 	      foreach (@where) {
-		   (!($options =~/s/)) and $self->info("comparing $_->{se} to $se");
-		  if (( "$_->{se}" eq "$se") && ( ( $_->{pfn} =~ /^root/ ) || ( $_->{pfn} =~ /^guid/)) ) {
+		  (!($options =~/s/)) and $self->info("comparing $_->{se} to $se");
+		  if ((( "$_->{se}" eq "$se") && ( ( $_->{pfn} =~ /^root/ ))) || ( $_->{pfn} =~ /^guid/) ) {
 		      $pfn = $_->{pfn};
 		  }
 	      }
@@ -1517,7 +1517,7 @@ sub access {
 		  
 		  $urloptions =~ /ZIP=([^\&]*)/;
 		  
-		  my $options="s ";
+		  $options="s ";
 		  if (defined $1) {
 		      $anchor = $1;
 		  }
@@ -1538,6 +1538,8 @@ sub access {
 
 	  $filehash->{lfn}  = $lfn;
 	  $filehash->{turl} = $pfn;
+	  # patch for dCache
+	  $filehash->{turl} =~ s/\/\/pnfs/\/pnfs/;
 	  $filehash->{se}   = $se;
 	  $filehash->{nses} = $nses;
 	  if ($access =~ /^write/) {
@@ -1636,14 +1638,15 @@ sub access {
 	  } else {
 	      (!($options=~ /s/)) and $self->info("access: prepared your access envelope");
 	  }
-	  last;
 	  
-	  ($options=~ /s/) or
+	  ($options=~ /v/) or
 	      print "========================================================================
 $ticket
 ========================================================================
 ",$$newresult[0]->{envelope},"
-========================================================================\n";
+========================================================================\n", $ticket,"\n";
+	  last;
+
       }
   }
 
