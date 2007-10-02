@@ -849,7 +849,8 @@ sub executeCommand {
 
   $self->changeStatus("STARTED",$self->{STATUS},0,$self->{HOST},$self->{PORT});
 
-  $self->info("Ready to do the system call $s");
+  $s=~ s/^\s*//;
+  $self->info("Ready to do the system call '$s'");
   $ENV{LD_LIBRARY_PATH}="/lib:/usr/lib:$ENV{LD_LIBRARY_PATH}";
   open SAVEOUT,  ">&STDOUT";
   open SAVEOUT2, ">&STDERR";
