@@ -409,8 +409,10 @@ sub SubmitSplitJob {
 
     $self->{CATALOGUE}->{QUEUE}->checkRequirements($job_ca) or next;
 
+    my $counter=1;
     foreach my $splitargs (@splitarguments){
-      my $newargs=$self->_checkArgumentsPatterns($splitargs, $jobs->{$pos});
+      my $newargs=$self->_checkArgumentsPatterns($splitargs, $jobs->{$pos}, $counter);
+      $counter++;
       $job_ca->set_expression("Arguments", "\"$origarg $newargs\"");
       #check also the outputDir
       $self->_checkOutputDir($origOutputDir, $job_ca,$jobs->{$pos});
@@ -468,6 +470,7 @@ sub _checkArgumentsPatterns{
   my $self=shift;
   my $args=shift;
   my $jobDesc=shift;
+  my $counter=shift;
 
   my @files=@{$jobDesc->{files}};
   map {s/^\"LF://} @files;
@@ -515,13 +518,14 @@ sub _checkArgumentsPatterns{
 	$file=~ s /^.*\///;
 	$newpattern=$file;	
       }
-    }elsif ($pattern =~ /^_counter(.*)$/i){
+    }elsif ($pattern =~ /^_((counter)|(split))(.*)$/i){
       $newpattern=$jobDesc->{counter};
-      if ($1){
-	my $format=$1;
+      $1 =~ /split/ and $newpattern=$counter;
+      if ($4){
+	my $format=$4;
 	$format=~ s{^_}{};
 	$self->debug(1,"Using the format $format");
-	$newpattern=sprintf("%$format", $jobDesc->{counter});
+	$newpattern=sprintf("%$format", $newpattern);
       }
     } else {
       $self->info("Don't know what to do with $pattern");
