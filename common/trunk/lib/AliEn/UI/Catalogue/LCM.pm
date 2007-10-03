@@ -1535,9 +1535,14 @@ sub access {
 	      $globalticket .= $ticket;
 	  }
 
+	  $pfn =~ /^root\:\/\/([0-9a-zA-Z.\-_:]*)\/\/(.*)/;
+	  my $pfix = $1;
+	  my $ppfn = $2;
 
+	  $filehash->{pfn} = "/$ppfn";
 	  $filehash->{lfn}  = $lfn;
-	  $filehash->{turl} = $pfn;
+ 	  $filehash->{turl} = $pfn;
+
 	  # patch for dCache
 	  $filehash->{turl} =~ s/\/\/pnfs/\/pnfs/;
 	  $filehash->{se}   = $se;
@@ -1593,13 +1598,23 @@ sub access {
 #	      }
 	  } else {
 	      $newhash->{envelope} = $self->{envelopeengine}->GetEncodedEnvelope();
-	      $pfn =~ /^root\:\/\/([0-9a-zA-Z.\-_:]*)\/\/(.*)/;
+	      $newhash->{pfn}="/$ppfn";
 	      if ($anchor ne "") {
-		  $newhash->{url}="root://$1/$lfn#$anchor";
+		  # for DPM we cannot put the LFN into the root URL - we need the PFN !
+		  if ( $ppfn =~ /^dpm/ ) {
+		      $newhash->{url}="root://$pfix//$ppfn#$anchor";
+		  } else {
+		      $newhash->{url}="root://$pfix/$lfn#$anchor";
+		  }
 #		  $newhash->{lfn}="$lfn#$anchor";
 		  $newhash->{lfn}="$lfn";
 	      } else {
-		  $newhash->{url}="root://$1/$lfn";
+		  # for DPM we cannot put the LFN into the root URL - we need the PFN !
+		  if ( $ppfn =~ /^dpm/ ) {
+		      $newhash->{url}="root://$pfix//$ppfn";
+		  } else {
+		      $newhash->{url}="root://$pfix/$lfn";
+		  }
 		  $newhash->{lfn}="$lfn";
 	      }
 	      $newhash->{se}="$se";
