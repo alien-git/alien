@@ -780,19 +780,24 @@ sub f_whereis{
   $silent or $self->info("The file $lfn is in");
   my @return=();
   if ($options =~ /r/){
-      $DEBUG and $self->debug(2, "We are supposed to resolve links");
-    my @newlist=();
+    $DEBUG and $self->debug(2, "We are supposed to resolve links");
+
+    my @newSE=();
     foreach my $entry (@SElist){
-      if ($entry->{pfn} =~ m{^guid://[^/]*/(.*)(\?.*)$} ){
+      if ($entry->{pfn} =~ m{^guid://[^/]*/(.*)(\?.*)?$} ){
 	$DEBUG and $self->debug(2,"We should check the link $1!!");
-	my @done=$self->f_whereis("g$options", $1)
+	my @done=$self->f_whereis("grls", $1)
 	  or $self->info("Error doing the where is of guid '$1'") and return;
-	push @return, @done;
+	foreach my $d(@done){
+	  grep (/^$d$/, @return) or 
+	    push @return, $d;
+	}
       }else {
-	push @newlist, $entry;
+	grep (/^$entry->{seName}$/, @return) or push @return, $entry->{seName};
       }
     }
-    @SElist=@newlist;
+    my @tmp=@return;
+    $info->{REAL_SE}=\@tmp;
   }
   if ($options =~ /t/){
     $DEBUG and $self->debug(2,"Let's take a look at the transfer methods");
@@ -826,6 +831,10 @@ sub f_whereis{
       }
     }
   }
+  if ($options =~ /r/ and ! $silent){
+    $self->info("The file is really in these SE: @{$info->{REAL_SE}}");
+  }
+
   $options =~ /i/ and return $info;
   return @return;
 }
