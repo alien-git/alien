@@ -107,18 +107,14 @@ sub copyInput {
   $self->info("Already evaluated the inputbox");
   ($ok, my $createLinks)=$job_ca->evaluateAttributeString("CreateLinks");
   ($ok, my @inputData)= $job_ca->evaluateAttributeVectorString("InputData");
-  $self->info("Already evaluated the inputdata");
-#  if (grep (! /,nodownload/, @inputData)){
-  push @inputFile, grep (! /,nodownload/, @inputData);
-#  }
+  $self->info("Before the copy of the inputcollection");
+  $self->copyInputCollection($job_ca, $procid, \@inputData)
+    or  $self->info("Error checking the input collection") and return;
+
   my $procDir = AliEn::Util::getProcDir($user, undef, $procid);
 
   my @filesToDownload=();
   my $file;
-  $self->info("Before the copy of the inputcollection");
-
-  $self->copyInputCollection($job_ca, $procid, \@inputFile)
-    or  $self->info("Error checking the input collection") and return;
 
   my $size=0;
 
@@ -128,13 +124,15 @@ sub copyInput {
   my @allreqPattern;
   $self->info("And the new eval");
   eval {
-    foreach $file (@inputFile) {
+    foreach $file (@inputFile, @inputData) {
       my ( $pfn, $pfnSize, $pfnName, $pfnSE ) = split "###", $file;
+      my $nodownload=0;
+      $file=~ s/,nodownload$// and $nodownload=1;
       $pfnName and $file=$pfnName;
       $self->info("In copyInput adding file $file (from the InputBox $pfn)");
       #    my $procname=$self->findProcName($procid, $file, $done, $user);
-      my $procname=$self->findProcName($procDir, $file, $done,$createLinks);
       if ( defined $pfnSize ) {
+	my $procname=$self->findProcName($procDir, $file, $done,$createLinks);
 	$self->info("Adding $procname with $pfn and $pfnSize");
 	$size+=$pfnSize;
 	if (! $self->{CATALOGUE}->execute( "register", $procname, $pfn, $pfnSize, $pfnSE ) ) {
@@ -146,18 +144,15 @@ sub copyInput {
 	push @filesToDownload, "\"${procname}->$procname\"";
       }
       else {
-	$file=~ s/^LF://;
+	$file=~ s/^LF://i;
 	$self->info("Adding file $file (from the InputBox)" );
-	my ($fileInfo)=$self->{CATALOGUE}->execute("whereis", "-i", $file);
+	my ($fileInfo)=$self->{CATALOGUE}->execute("whereis", "-ri", $file);
 	if (!$fileInfo) {
 	  $self->putJobLog($procid,"error", "Error checking the file $file");
 	  die("The file $file doesn't exist");
 	}
 	$size+=$fileInfo->{size};
-	my @sites=();
-	foreach my $entry (@{$fileInfo->{guidInfo}->{pfn}}){
-	  push @sites, $entry->{seName};
-	}
+	my @sites=@{$fileInfo->{REAL_SE}};
 	if (!@sites ){
 	  $self->putJobLog($procid,"error", "Error checking the file $file");
 	  die("The file $file isn't in any SE");
@@ -165,8 +160,10 @@ sub copyInput {
 
 	my $sePattern=join("_", @sites);
 	#This has to be done only for the input data"
-	if (! grep (! m{^LF://$file$}, @origFile )){
+	if (! grep ( $file, @origFile )){
 	  if (! grep (/^$sePattern$/, @allreqPattern)) {
+	    $self->putJobLog($procid,"trace", "Adding the requirement to '@sites' due to $file");
+
 	    map {$_=" member(other.CloseSE,\"$_\") "} @sites;
 	    my $sereq="(".join(" || ",@sites). ")";
 	    $self->info("Putting the requirement $sereq ($sePattern is not in @allreqPattern)");
@@ -174,10 +171,12 @@ sub copyInput {
 	    push @allreqPattern, $sePattern;
 	  }
 	}
-	if ( $file=~ /,nodownload/) {
-	  $self->info("Skipping file $file (from the InputBox) - nodownload option" );
+	$nodownload and
+	  $self->info("Skipping file $file (from the InputBox) - nodownload option" ) and 
 	  next;
-	}
+	
+
+	my $procname=$self->findProcName($procDir, $file, $done,$createLinks);
 
 	if ($createLinks) {
 	  if (!$self->{CATALOGUE}->execute( "cp", $file, $procname, "-silent" )){
