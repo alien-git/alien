@@ -220,7 +220,10 @@ sub checkConfigFile {
 sub getVOLDAPfromFile{
   my $self=shift;
   my $time=shift;
-  my $file="$ENV{ALIEN_HOME}/.lastLDAP";
+
+  my $vo=$self->{ORG_NAME};
+  my $file="$ENV{ALIEN_HOME}/.lastLDAP.$vo";
+
   (-f $file )or return;
   if ($time){
     $self->debug(1, "Checking that the file is not older than $time seconds");
