@@ -160,7 +160,7 @@ sub copyInput {
 
 	my $sePattern=join("_", @sites);
 	#This has to be done only for the input data"
-	if (! grep ( $file, @origFile )){
+	if (! grep ( /$file/, @origFile )){
 	  if (! grep (/^$sePattern$/, @allreqPattern)) {
 	    $self->putJobLog($procid,"trace", "Adding the requirement to '@sites' due to $file");
 
@@ -170,6 +170,8 @@ sub copyInput {
 	    push @allreq, $sereq;
 	    push @allreqPattern, $sePattern;
 	  }
+	} else {
+	  $self->info("The file $file doesn't count for the requirements");
 	}
 	$nodownload and
 	  $self->info("Skipping file $file (from the InputBox) - nodownload option" ) and 
