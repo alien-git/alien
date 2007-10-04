@@ -482,6 +482,7 @@ sub _doAction {
 
 #  $self->{LOGGER}->redirect();
   $self->info( "$$ $action done with $error!!");
+  $error and die("Error doing the $action!!\n");
   return 1;
 }
 
