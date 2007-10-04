@@ -393,7 +393,8 @@ sub SubmitSplitJob {
   my $i=0;
 
   ($ok, my $origOutputDir)=$job_ca->evaluateAttributeString("OutputDir");
-
+  ($ok, my @origOutputFiles)=$job_ca->evaluateAttributeVectorString("OutputFiles");
+  my $origOutputFiles=join(" ", @origOutputFiles);
   foreach my $pos (sort keys %{$jobs}) {
     $i++;
     $self->info("Submitting job $i $pos");
@@ -411,12 +412,15 @@ sub SubmitSplitJob {
 
     my $counter=1;
     foreach my $splitargs (@splitarguments){
-      my $newargs=$self->_checkArgumentsPatterns($splitargs, $jobs->{$pos}, $counter);
-      $counter++;
-      $job_ca->set_expression("Arguments", "\"$origarg $newargs\"");
+#      my $newargs=$self->_checkArgumentsPatterns($splitargs, $jobs->{$pos}, $counter);
+#
+#      $job_ca->set_expression("Arguments", "\"$origarg $newargs\"");
       #check also the outputDir
-      $self->_checkOutputDir($origOutputDir, $job_ca,$jobs->{$pos});
-      $self->debug(1, "Setting Arguments $origarg $newargs");
+      $self->_checkEntryPattern("OutputDir", "String", $origOutputDir, $job_ca,$jobs->{$pos}, $counter);
+      $self->_checkEntryPattern("OutputFiles", "Vector", $origOutputFiles, $job_ca,$jobs->{$pos}, $counter);
+      $self->_checkEntryPattern("Arguments", "Expression", "$origarg $splitargs", $job_ca,$jobs->{$pos}, $counter);
+
+      $counter++;
       if ( !$job_ca->isOK() ) {
 	print STDERR "Splitting: in SubmitSplitJob new jdl is not valid\n";
 	return;
@@ -426,19 +430,30 @@ sub SubmitSplitJob {
   }
   return 1;
 }
-sub _checkOutputDir {
+sub _checkEntryPattern {
   my $self=shift;
-  my $jobDir=shift;
+  my $entryName=shift;
+  my $type=shift;
+  my $value=shift;
   my $job_ca=shift;
   my $jobDesc=shift;
-  $jobDir or return;
-  $self->debug(1,"The job is supposed to write in $jobDir");
+  $value or return;
+  $self->debug(1,"The job is supposed to write in $value");
   #this is for the second time we get the output dir
   #even if we overwrite the value, we keep an old copy
-  
-  my $newJobDir=$self->_checkArgumentsPatterns($jobDir, $jobDesc);
-  if ($newJobDir and ($newJobDir ne "$jobDir")){
-     $job_ca->insertAttributeString("OutputDir", $newJobDir);
+
+  my $newJobDir=$self->_checkArgumentsPatterns($value, $jobDesc);
+  if ($newJobDir and ( ($newJobDir ne "$value") or ($entryName eq "Arguments"))){
+    my @set=$newJobDir;
+    if ($type eq "Vector"){
+      my @f=split(/ /, $newJobDir);
+      map {$_="\"$_\"" } @f;
+      $newJobDir="{". join("," , @f) ."}";
+    }else {
+      $newJobDir="\"$newJobDir\"";
+    }
+    $self->info("Putting $entryName as $newJobDir ");
+    $job_ca->set_expression($entryName, $newJobDir);
   }
   return 1;
 }
@@ -466,6 +481,9 @@ sub _submitJDL {
   return 1;
 }
 
+#
+#
+#
 sub _checkArgumentsPatterns{
   my $self=shift;
   my $args=shift;
