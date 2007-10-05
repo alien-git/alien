@@ -393,8 +393,8 @@ sub SubmitSplitJob {
   my $i=0;
 
   ($ok, my $origOutputDir)=$job_ca->evaluateAttributeString("OutputDir");
-  ($ok, my @origOutputFiles)=$job_ca->evaluateAttributeVectorString("OutputFiles");
-  my $origOutputFiles=join(" ", @origOutputFiles);
+  ($ok, my @origOutputFile)=$job_ca->evaluateAttributeVectorString("OutputFile");
+  my $origOutputFile=join(" ", @origOutputFile);
   foreach my $pos (sort keys %{$jobs}) {
     $i++;
     $self->info("Submitting job $i $pos");
@@ -417,7 +417,7 @@ sub SubmitSplitJob {
 #      $job_ca->set_expression("Arguments", "\"$origarg $newargs\"");
       #check also the outputDir
       $self->_checkEntryPattern("OutputDir", "String", $origOutputDir, $job_ca,$jobs->{$pos}, $counter);
-      $self->_checkEntryPattern("OutputFiles", "Vector", $origOutputFiles, $job_ca,$jobs->{$pos}, $counter);
+      $self->_checkEntryPattern("OutputFile", "Vector", $origOutputFile, $job_ca,$jobs->{$pos}, $counter);
       $self->_checkEntryPattern("Arguments", "Expression", "$origarg $splitargs", $job_ca,$jobs->{$pos}, $counter);
 
       $counter++;
