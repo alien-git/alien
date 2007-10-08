@@ -11,7 +11,7 @@ BEGIN { plan tests => 1 }
   $ENV{ALIEN_TESTDIR} or $ENV{ALIEN_TESTDIR}="/home/alienmaster/AliEn/t";
   eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
   includeTest("16-add") or exit(-2);
-  includeTest("26-ProcessMonitorOutput") or exit(-2);
+
   my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",});
   $cat or exit (-1);
   my ($dir)=$cat->execute("pwd") or exit(-2);
@@ -45,21 +45,12 @@ InputDataList=\"myfile.list\";
 InputDataListFormat=\"xml-single\";
 ") or exit(-2);
 
+  my ($id)=$cat->execute("submit", "jdl/dumplfnlist.jdl") or exit(-2);
+  my ($id2)=$cat->execute("submit", "jdl/dumplfnlistxml.jdl") or exit(-2);
 
-  my $procDir=executeJDLFile($cat, "jdl/dumplfnlist.jdl") or exit(-2);
-  print "The job executed properly!!\n";
-  my ($out)=$cat->execute("get","$procDir/job-output/stdout") or exit(-2);
-  system("cat", "$out");
-  system("grep 'The JDL tag inputdatalist works' $out") and
-  print "The line is not there!!!" and exit(-2);
+  print "We have submitted both jobs!!\n
+\#ALIEN_OUTPUT $id $id2\n";
 
-  $procDir=executeJDLFile($cat, "jdl/dumplfnlistxml.jdl") or exit(-2);
-  print "The job executed properly!!\n";
-  ($out)=$cat->execute("get","$procDir/job-output/stdout") or exit(-2);
-  system("cat", "$out");
-  system("grep 'The JDL tag inputdatalist works' $out") and
-  print "The xml line is not there!!!" and exit(-2);
-  system("grep '<?xml version=\"1.0\"?>' $out") and print "The output is not in xml!!\n" and exit(-2);
 
 print "ok\n";
 exit;

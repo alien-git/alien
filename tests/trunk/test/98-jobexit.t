@@ -30,21 +30,13 @@ Arguments=\"0\";
 Arguments=\"2\";
 ") or exit(-2);
 
-  my $procDir=executeJDLFile($cat, "jdl/CheckReturnCode0.jdl") or exit(-2);
-  my $id;
-  $procDir=~ m{/(\d+)$} and $id=$1;
-  print "Checking the return code of $id (from $procDir\n";
 
-  my ($rc)=$cat->execute("ps", "rc", $id); 
-  ($rc eq "0") or print "The return code of $id is not 0 (is $rc)!!\n" and exit(-2);
 
-  $procDir=executeJDLFile($cat, "jdl/CheckReturnCode2.jdl") or exit(-2);
-  $procDir=~ m{/(\d+)$} and $id=$1;
+  my ($id)=$cat->execute("submit", "jdl/CheckReturnCode0.jdl") or exit(-2);
+  my ($id2)=$cat->execute("submit", "jdl/CheckReturnCode2.jdl") or exit(-2);
 
-  print "Checking the return code of $id\n";
-
-  ($rc)=$cat->execute("ps", "rc", $id); 
-  ($rc eq "2") or print "The return code of $id is not 2 (is $rc)!!\n" and exit(-2);
+  print "We have submitted both jobs!!\n
+\#ALIEN_OUTPUT $id $id2\n";
 
   ok(1);
 }

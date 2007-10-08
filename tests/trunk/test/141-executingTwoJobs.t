@@ -1,7 +1,7 @@
 use strict;
 
 use AliEn::UI::Catalogue::LCM::Computer;
-
+$ENV{ALIEN_JOBAGENT_RETRY}=1;
 $ENV{ALIEN_TESTDIR} or $ENV{ALIEN_TESTDIR}="/home/alienmaster/AliEn/t";
 eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
 includeTest("16-add") or exit(-2);
@@ -18,6 +18,12 @@ open (STDERR, ">&STDOUT") or print "Error redircting to $file\n" and exit(-2);
 
 eval {
   my $cat=AliEn::UI::Catalogue::LCM::Computer->new({user=>'newuser'}) or die("Error creating the UI");
+  addFile($cat, "bin/echo.sh","#!/bin/bash
+date
+echo 'Hello World'
+echo \"I've been called with '\$*'\"
+") or die ("Error adding the script");
+
 
   addFile($cat, "jdl/sendTwoJobs1.jdl","Executable=\"echo.sh\";
 Arguments=\"This is the first job\";

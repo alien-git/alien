@@ -32,7 +32,21 @@ Executable=\"inputdata2.sh\";
 InputData={\"lf:$dir/jdl/inputdata2.jdl,nodownload\"};
 ",'r') or exit(-2);
 
+  print "Let's put also a job that gets a file that is in 'no_se'\n";
+
+  my ($info)=$cat->execute("stat",  "jdl/inputdata2.jdl") or exit(-2);
+  my $pfn="guid:///$info->{guid}";
+  my $size=$info->{size};
+  $cat->execute("rm","-rf", "jdl/inputdata2.jdl.link");
+  $cat->execute("register", "jdl/inputdata2.jdl.link", $pfn, $size,"no_se", ) or exit(-2);
+
+  addFile($cat, "jdl/inputdata3.jdl", "
+Executable=\"inputdata2.sh\";
+InputData={\"lf:$dir/jdl/inputdata2.jdl.link,nodownload\"};
+",'r') or exit(-2);
+
   my ($id)=$cat->execute("submit", "jdl/inputdata2.jdl") or exit(-2);
-  print "Job submitted!!
-\#ALIEN_OUTPUT $id\n";
+  my ($id2)=$cat->execute("submit", "jdl/inputdata3.jdl") or exit(-2);
+  print "Jobs submitted!!
+\#ALIEN_OUTPUT $id $id2\n";
 }

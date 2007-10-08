@@ -13,7 +13,7 @@ BEGIN { plan tests => 1 }
   $ENV{ALIEN_TESTDIR} or $ENV{ALIEN_TESTDIR}="/home/alienmaster/AliEn/t";
   eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
   includeTest("16-add") or exit(-2);
-  includeTest("26-ProcessMonitorOutput") or exit(-2);
+
 
   my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",});
   $cat or exit (-1);
@@ -25,34 +25,9 @@ BEGIN { plan tests => 1 }
 InputFile=\"LF:$dir/jdl/Input.jdl\";
 OutputArchive={\"myarchive:file.out,stdout\"}") or exit(-2);
 
-  my $procDir=executeJDLFile($cat, "jdl/OutputArchive.jdl") or exit(-2);
+  my ($id)=$cat->execute("submit", "jdl/OutputArchive.jdl") or exit(-2);
 
-  my $files={"stdout"=>{}, "file.out"=>{}};
-  foreach my $file (keys %$files) {
-    my ($out)=$cat->execute("get","$procDir/job-output/$file") or exit(-2);
-    open (FILE, "<$out") or print "Error opening $out" and exit(-2);
-    my @data=<FILE>;
-    close FILE;
-    print "Got @data\n";
-    $files->{$file}=join ("",@data);
-    my ($se, @pfn)=$cat->execute("whereis", "$procDir/job-output/$file") or exit(-2);
-    my $found=0;
-    foreach my $pfn (@pfn) {
-      $pfn =~ /^guid:/ and $found=1;
-      }
-    $found or print "The pfns '@pfn' of $file doesn't look like a zip\n" and exit(-2);
-  }
-  $files->{stdout}=~ /Input\.jdl/ or print "Error the input data is not there!!!\n" and exit(-2);
+  print "We have submitted the jobs!!\n
+\#ALIEN_OUTPUT $id \n";
 
-  my ($log)=$cat->execute("get","$procDir/job-log/execution.out") or exit(-2);
-  open (LOG, "<$log" ) or exit(-2);
-  my @log=grep (/Getting/, <LOG>);
-  close LOG;
-  print "We got the files @log\n";
-  grep (m{Getting /proc/.*/job-log/execution.out}, @log)
-    and print "We downloaded the execution log!!!\n" and exit(-2);
-  grep (m{Getting .*/bin/}, @log) or
-    print "We didn't download any executable!!!\n" and exit(-2);
-  
-  ok(1);
 }

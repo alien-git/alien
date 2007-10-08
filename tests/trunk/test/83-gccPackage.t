@@ -76,24 +76,12 @@ echo \"This command checks if the compiled package was installed\"
 my_compiled && echo \"YUHUUU\";
 ") or exit(-2);
 
-  my $procDir=executeJDLFile($cat,"jdl/compiled_package.jdl") or exit(-2);
+  my ($id)=$cat->execute("submit", "jdl/compiled_package.jdl") or exit(-2);
 
-  print "Job executed successfully!!!\n";
-  my $installdir="$ENV{ALIEN_HOME}/packages/newuser/sourcePackage/1.0/";
-  print "Checking if the directory exist\n";
-  (-d $installdir) 
-    or print "Error the directory $installdir doesn't exist\n" and exit(-2);
-  (-f "$installdir/my_compiled") or 
-    print "The file 'my_compiled is not in the installation directory\n"
-      and exit(-2);
+  print "We have submitted both jobs!!\n
+\#ALIEN_OUTPUT $id \n";
 
-  my ($output)=$cat->execute("get", "$procDir/job-output/stdout") or exit(-2);
 
-  open (FILE, "<$output") or print "Error checking the output of the job"
-    and exit(-2);
-  grep (/YUHUUU/, <FILE>) or print "The command didn't say YUHUUU\n" and exit(-2);
-  close FILE;
-  $cat->close();
 
   kill 9, $checkProcess;
 

@@ -1,4 +1,5 @@
 package Dummy;
+use SOAP::Lite +trace;
 
 use strict;
 sub hello_world {
@@ -15,7 +16,6 @@ sub hello_world {
 #use AliEn::Service;
 #use IO::Socket::SSL;
 
-use SOAP::Lite;
 use  SOAP::Transport::HTTPS;
 #$IO::Socket::SSL::DEBUG=2;
 

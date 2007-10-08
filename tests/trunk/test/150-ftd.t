@@ -33,7 +33,7 @@ BEGIN { plan tests => 1 }
 		     ]) or exit(-2);
   $config=$config->Reload({force=>1});
 
-  print "Copying the certificate to $ENV{ALIEN_HOME}/.alien/identities.ftd\n";
+  print "Copying the certificate to $ENV{ALIEN_HOME}/identities.ftd\n";
   system("mkdir","-p","$ENV{ALIEN_HOME}/identities.ftd") and exit(-2);
   
   my $cert="$ENV{ALIEN_HOME}/identities.ftd/cert.pem";

@@ -271,6 +271,7 @@ RUN_TEST()
 }
 ALIEN_TESTS()
 {
+    ALLSTART=`date +"%s"`
     echo "Checking if the certificate is ok"
     env PATH=$ALIEN_ROOT/bin:$PATH LD_LIBRARY_PATH=$ALIEN_ROOT/lib:$LD_LIBRARY_PATH openssl verify -CApath $ALIEN_ROOT/globus/share/certificates -purpose sslclient $HOME/.alien/globus/usercert.pem
 
@@ -323,7 +324,9 @@ ALIEN_TESTS()
 		"${FUNCTION}_nSuccess" $nSuccess \
 		"${FUNCTION}_pSuccess" `expr $nSuccess \* 100 / $nTests` \
 		"${FUNCTION}_time" `expr $allEnd - $allStart`
-    echo "In total, there are $FAILEDTESTS tests that failed (there were supposed to be $EXPECTED_FAILURES"
+    ALLEND=`date +"%s"`
+    let ALLTIME=$ALLEND-$ALLSTART
+    echo "In total, there are $FAILEDTESTS tests that failed (there were supposed to be $EXPECTED_FAILURES). It took $ALLTIME seconds"
     if [ "$EXPECTED_FAILURES" != "$FAILEDTESTS" ] ;
     then
 	echo "NOPE!!"
@@ -475,8 +478,8 @@ EXECUTE_SHELL()
 }
 BANK_TESTS_LIST="301-putBankDataLDAP 302-bankUserCommand 303-bankAdminCommand 304-execOrder "
 
-JOB_TEST2_LIST="177-startCE 134-dumplist 98-jobexit 118-validateJob 64-jobemail 86-split 87-splitFile 88-splitArguments 120-production 135-inputdata2 137-userArchive 153-splitInputDataCollection 157-zip 159-bigoutput 160-JDLenvironment 161-userGUID 85-inputdata 163-specificOutput 170-splitDataset 173-collectionJobs 174-collectionFromXML 176-executeAllJobs"
-JOB_TESTS_LIST="70-x509 89-jdl 19-ClusterMonitor 168-no_shared_cipher 21-submit 73-updateCE 22-execute 62-inputfile 23-resubmit 26-ProcessMonitorOutput 105-killRunningJob 94-inputpfn 77-rekill 115-queueList 119-outputDir 124-OutputArchive 126-OutputInSeveralSE 133-queueInfo 140-jobWithMemory 141-executingTwoJobs 152-inputdatacollection 164-jdlMatch $JOB_TEST2_LIST"
+JOB_TEST2_LIST="177-startCE 134-dumplist 98-jobexit 118-validateJob 119-outputDir 124-OutputArchive 64-jobemail 86-split 87-splitFile 88-splitArguments 120-production 135-inputdata2 137-userArchive 153-splitInputDataCollection 157-zip 159-bigoutput 160-JDLenvironment 161-userGUID 85-inputdata 163-specificOutput 170-splitDataset 173-collectionJobs 174-collectionFromXML 176-executeAllJobs"
+JOB_TESTS_LIST="70-x509 89-jdl 19-ClusterMonitor 168-no_shared_cipher 21-submit 73-updateCE 22-execute 62-inputfile 23-resubmit 26-ProcessMonitorOutput 105-killRunningJob 94-inputpfn 77-rekill 115-queueList 126-OutputInSeveralSE 133-queueInfo 140-jobWithMemory 141-executingTwoJobs 152-inputdatacollection 164-jdlMatch $JOB_TEST2_LIST"
 
 PACKAGE_TESTS_LIST="75-PackMan 76-jobWithPackage 82-packageDependencies 84-sharedPackage 100-tcshPackage 83-gccPackage 130-localConfig 131-definedPackage 176-executeAllJobs"
 GAS_TESTS_LIST="69-gContainer 71-GAS 72-UI "

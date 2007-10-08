@@ -12,17 +12,15 @@ my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",})
   or exit (-1);
 my ($dir)=$cat->execute("pwd") or exit (-2);
 
+my $id=shift or print "Error getting the job id\n" and exit(-2);
+my $outputDir=shift or print "Error getting the output directory\n" and exit(-2);
 
-my $outputDir="$dir/job/output";
-$cat->execute("rmdir", "-rf", $outputDir);
+my $procDir=checkOutput($cat, $id) or exit(-2);
 
-addFile($cat, "jdl/outputDir.jdl","Executable=\"echo.sh\";
-OutputDir=\"$outputDir\";
-Arguments=\"It is still a beautiful day\";
-") or exit(-2);
+print "And let's check if the file is in the outputdir\n";
 
-my ($id)=$cat->execute("submit", "jdl/outputDir.jdl") or exit(-2);
+my ($info)=$cat->execute("stat", "$outputDir/stdout") or exit(-2);
+use Data::Dumper;
+print Dumper($info);
 
-print "We have submitted the jobs!!\n
-\#ALIEN_OUTPUT $id $outputDir\n";
-
+print "ok\n";

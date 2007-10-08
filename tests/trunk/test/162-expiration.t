@@ -20,12 +20,3 @@ addFile($cat, "expired/file", 'Hello world
 $cat->execute("setExpired",4, "expired/touch", "expired/file") or exit(-2);
 
 print "Now, let's wait until the files have been removed\n";
-sleep(60);
-
-print "And now let's check if they are there";
-$cat->execute('ls', 'expired/touch') and exit(-2);;
-$cat->execute('ls', 'expired/file') and exit(-2);;
-$cat->execute('ls', 'expired/touch.expired') or exit(-2);;
-$cat->execute('ls', 'expired/file.expired') or exit(-2);;
-
-print "ok\n";

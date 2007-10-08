@@ -13,11 +13,6 @@ my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",})
   or exit (-1);
 my ($dir)=$cat->execute("pwd") or exit (-2);
 
-addFile($cat, "bin/echo.sh","#!/bin/bash
-date
-echo 'Hello World'
-echo \"I've been called with '\$*'\"
-") or exit(-2);
 
 addFile($cat, "bin/validate","#!/bin/bash
 echo \"Cheking if the script said anything about beautiful days\"
@@ -36,12 +31,9 @@ ValidationCommand=\"$dir/bin/validate\";
 Arguments=\"It is not a beautiful day\";
 ") or exit(-2);
 
-my $procDir=executeJDLFile($cat, "jdl/validateJob.jdl") or exit(-2);
+my ($id)=$cat->execute("submit", "jdl/validateJob.jdl") or exit(-2);
+my ($id2)=$cat->execute("submit", "jdl/validateJobFailed.jdl") or exit(-2);
 
-print "Let's try with the job that is supposed to fail\n";
-
-$procDir=executeJDLFile($cat, "jdl/validateJobFailed.jdl", "ERROR_V")
-  or exit(-2);
-
-print "YUHUUU!!\n";
+print "We have submitted both jobs!!\n
+\#ALIEN_OUTPUT $id $id2\n";
 
