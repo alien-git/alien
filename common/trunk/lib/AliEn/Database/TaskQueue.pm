@@ -509,7 +509,7 @@ sub updateStatus{
   }
 
   $self->info( "THE UPDATE WORKED!! Let's see if we have to delete an agent $status");
-  ($status eq "ASSIGNED") and $oldjobinfo->{agentid} and 
+  ($status =~ /^(ASSIGNED)|(KILLED)|(ERROR_A)/) and $oldjobinfo->{agentid} and 
     $self->deleteJobAgent($oldjobinfo->{agentid});
   # update the SiteQueue table
   # send the status change to ML
