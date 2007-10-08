@@ -51,7 +51,8 @@ if ( -e "$rb_directory/lastGoodRB") {
   my $elapsed = (time-$timestamp)/60;
   print STDERR "FAILOVER: Last RB was first used $elapsed minutes ago.\n" if $debug;
   if ($elapsed > $fallback) {
-    print STDERR "FAILOVER: This is more than $fallback\n" if $debug;    
+    print STDERR "FAILOVER: This is more than $fallback\n" if $debug;
+    unlink "$rb_directory/lastGoodRB" or print STDERR "FAILOVER: Cound not remove $rb_directory/lastGoodRB\n";    
   } else {
     if (open LASTGOOD, "<$rb_directory/lastGoodRB") {
       my $last = <LASTGOOD>;
@@ -70,6 +71,7 @@ if ( -e "$rb_directory/lastGoodRB") {
   } 
 } else {
   if ( open LASTGOOD, ">$rb_directory/lastGoodRB" ) {
+    print STDERR "FAILOVER: saving $lastGoodRB in $rb_directory/lastGoodRB\n" if $debug;
     print LASTGOOD "$lastGoodRB\n";
     close LASTGOOD;
   } else {
