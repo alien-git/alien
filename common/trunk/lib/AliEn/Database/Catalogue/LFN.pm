@@ -142,6 +142,8 @@ sub createCatalogueTables {
   $self->do("create function string2binary (my_uuid varchar(36)) returns binary(16) deterministic sql security invoker return unhex(replace(my_uuid, '-', ''))");
   $self->do("create function binary2string (my_uuid binary(16)) returns varchar(36) deterministic sql security invoker return insert(insert(insert(insert(hex(my_uuid),9,0,'-'),14,0,'-'),19,0,'-'),24,0,'-')");
   $DEBUG and $self->debug(2,"In createCatalogueTables creation of tables finished.");
+  $self->do("alter table TAG0 drop key path");
+  $self->do("alter table TAG0 add index path (path)");
 
 
   1;

@@ -597,8 +597,8 @@ sub getCPMetadata{
     #let's put the entries 
     my @list=();
     $entries->{$tag->{tagName}} and push @list, @{$entries->{$tag->{tagName}}};
-    print "Getting the metadata\n";
-    my ($columns, $info)= $self->f_showTagValue($sourceDir, $tag->{tagName}) or return;
+    print "Getting the metadata for $sourceDir and $tag->{tagName}\n";
+    my ($columns, $info)= $self->f_showTagValue("",$sourceDir, $tag->{tagName}) or return;
     foreach my $entry (@$info){
       my $toInsert={file=>"$targetDir$targetName"};
       foreach my $key (keys %$entry){

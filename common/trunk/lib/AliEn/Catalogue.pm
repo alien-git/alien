@@ -1374,12 +1374,14 @@ sub f_stat {
   my $lfn=shift
     or $self->info("Error: missing path in stat") and return;
   $lfn = $self->GetAbsolutePath($lfn);
-  $lfn =~ s{/$}{};
+
   $DEBUG and $self->debug(1, "Getting the stat of $lfn");
-  
-  my $info=$self->{DATABASE}->getAllInfoFromLFN({method=>"queryRow"}, 
-						   $lfn, "$lfn/") or return;
+  my $info=$self->checkPermissions( "r", $lfn,undef, {RETURN_HASH=>1} );
+  $info or return;
+  $self->existsEntry($lfn, $info->{lfn}) 
+    or $self->info("The entry '$lfn' doesn't exist") and return;
   $self->info("File $info->{lfn} Type: $info->{type}  Perm: $info->{perm} Size: $info->{size}",undef,0);
+
   return $info;
 }
 sub f_showcertificates {
