@@ -1457,7 +1457,9 @@ sub access {
 
 	      foreach (@where) {
 		  (!($options =~/s/)) and $self->info("comparing $_->{se} to $se");
-		  if ((( "$_->{se}" eq "$se") && ( ( $_->{pfn} =~ /^root/ ))) || ( $_->{pfn} =~ /^guid/) ) {
+		  my $se1 = lc $_->{se};
+		  my $se2 = lc $se;
+		  if (((  ($se1 eq $se2)) && ( ( $_->{pfn} =~ /^root/ ))) || ( $_->{pfn} =~ /^guid/) ) {
 		      $pfn = $_->{pfn};
 		  }
 	      }
