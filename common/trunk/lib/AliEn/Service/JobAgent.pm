@@ -1989,6 +1989,8 @@ sub firstExecution {
 
   my @ap	= split " ",$procinfo;
   if ( ($procinfo) && ($procinfo ne "") ) { 
+    $self->{SLEEP_PERIOD}=60;
+
     $procinfo = "$ap[0] $ap[1] $ap[2] $ap[3] $ap[4] $ap[5] $ap[6] $ap[7] $ap[8] $ap[9] $ap[10] $self->{AVRSIZE} $self->{AVVSIZE}";
     $procinfo .= " $self->{CPU_KSI2K}" if(defined $self->{CPU_KSI2K});
     $self->info("Process started:  $procinfo");
@@ -2000,6 +2002,7 @@ sub firstExecution {
     $self->{SOAP}->checkSOAPreturn($done);
     return 1;
   }
+  $self->{SLEEP_PERIOD}=10;
   $self->{LOGGER}->$method("JobAgent", "Job hasn't started yet...");
 
   $self->checkProcess($self->{PROCESSID}) or

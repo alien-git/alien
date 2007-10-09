@@ -132,6 +132,7 @@ sub initialize {
 				     maxvsize =>"float",
 				     procinfotime =>"int(20)",
 				     si2k=>"float",
+				     lastupdate=>"timestamp",
 				    },
 			   id=>"queueId",
 			  },
