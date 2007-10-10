@@ -100,7 +100,7 @@ if (! $<) {
 }
 
 print "Creating my.cnf\n";
-open (FILE, "> my.cnf") or print "Error opening my.cnf\n" and exit(-2);
+open (FILE, "> mysql/my.cnf") or print "Error opening my.cnf\n" and exit(-2);
 print FILE "
 [mysqld]
 set-variable    = max_connections=2000
