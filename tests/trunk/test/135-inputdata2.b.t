@@ -17,7 +17,7 @@ BEGIN { plan tests => 1 }
   my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",});
   $cat or exit (-1);
   my ($dir)=$cat->execute("pwd") or exit(-2);
-
+  my ($se)=$cat->execute("echo", "SE_FULLNAME") or exit(-2);
 
   my $procDir=checkOutput($cat, $id) or exit(-2);
   print "The job executed properly!!\n";
@@ -33,12 +33,12 @@ BEGIN { plan tests => 1 }
   close FILE;
   print "Got @content\n";
 #  grep (/staging the file/, @content) or print "The file was not staged!!\n" and exit(-2);
-  getRequirements($cat, $id, "pcegee02::cern::testSE") or exit(-2);
+  getRequirements($cat, $id, $se) or exit(-2);
   print "ok\nLet's check the second job\n";
   my $procDir2=checkOutput($cat, $id2) or exit(-2);
   print "The job executed properly!!\nWas there a requirement about the se??\n"
 ;
-  getRequirements($cat, $id2, "pcegee02::cern::testSE") or exit(-2);
+  getRequirements($cat, $id2, $se) or exit(-2);
   print "ok!\n";
   exit;
 }
@@ -53,7 +53,7 @@ sub getRequirements{
 
   $info=~ /Requirements\s*=([^;]*);/i or return;
   print "The requirements are $1\n";
-  $1 =~ /member\(other.CloseSE,"$se"\)/ or print "The requirements don't include restriction on '$se'\n" and return;;
+  $1 =~ /member\(other.CloseSE,"$se"\)/i or print "The requirements don't include restriction on '$se'\n" and return;;
   return 1;
   
 

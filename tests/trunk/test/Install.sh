@@ -201,7 +201,10 @@ RUN_TEST()
     OUTPUT="$DIR/$i.test.$TEST"
 
     shift 3
-    printf "Test %2i %-27s ......................  " $i "$TEST..."
+    let C=`echo $TEST |wc -c |awk '{print $1}'`-30
+    EXTRA=""
+    [[ "$C" < "0" ]]  &&  EXTRA="........"
+    printf "Test %2i %-27s\t$EXTRA..............  " $i "$TEST..."
     number=${TEST%%-*}
 
     if [ "$number" == "$BEGIN" ]
