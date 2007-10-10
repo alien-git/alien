@@ -99,6 +99,13 @@ if (! $<) {
     and print "failed\n Error changing the owner of $mysqlDir\n $? $!\n" and exit(-2);
 }
 
+print "Creating my.cnf\n";
+open (FILE, "> my.cnf") or print "Error opening my.cnf\n" and exit(-2);
+print FILE "
+[mysqld]
+set-variable    = max_connections=2000
+";
+close FILE;
 my $configDir="/etc/aliend";
 ($<) and $configDir="$ENV{ALIEN_HOME}/etc/aliend";
 
