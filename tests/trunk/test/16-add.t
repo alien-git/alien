@@ -57,8 +57,6 @@ sub getNumberOfProcesses{
 
 #SUBROUTINE TO ADD A FILE
 sub addFile {
-  $ENV{X509_USER_PROXY}="/tmp/alien_proxy".$<;
-
   my $cat=shift;
   my $file=shift;
   my $content=shift;
