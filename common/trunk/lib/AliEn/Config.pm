@@ -151,7 +151,7 @@ sub checkVariables{
       unlink("$self->{$entry}/alien_test.$<");
       $ok and next;
     }
-    $self->info("Warning!! We are supposed to use $self->{$entry} ans $entry, but we can't write there. Changing it to /tmp/alien_auto_$</$entry");
+    $self->debug(1,"Warning!! We are supposed to use $self->{$entry} ans $entry, but we can't write there. Changing it to /tmp/alien_auto_$</$entry");
     $self->{$entry}="/tmp/alien_auto_$</$entry";
     AliEn::Util::mkdir($self->{$entry});
   }
