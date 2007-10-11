@@ -91,7 +91,8 @@ sub Initialize {
   $self->{SILENT} and $self->{LOGGER}->silentOn();
 
   if ($ENV{ALIEN_CM_AS_LDAP_PROXY}){
-    $self->GetConfigFromCM() or return; 
+    my $d=$self->GetConfigFromCM() or return; 
+    $d and $self=$d;
   }else {
     $self->debug(1, "Getting the configuration from the LDAP server");
 
@@ -778,52 +779,62 @@ sub getValue {
 
 
 sub GetConfigFromCM {
-  my $self=shift;
+  my $this=shift;
 
-  $DEBUG and $self->debug(1,"Getting the configuration from the ClusterMonitor");
+  $DEBUG and $this->debug(1,"Getting the configuration from the ClusterMonitor");
 
   my ($cluster, $port )=split ":", $ENV{ALIEN_CM_AS_LDAP_PROXY};
 
   ($cluster and $port) or print STDERR "ERROR: The environment variable ALIEN_CM_AS_LDAP_PROXY was set ($ENV{ALIEN_CM_AS_LDAP_PROXY}), but not with a host:port syntax!!\n" and return;
 
-  $DEBUG and $self->debug(2, "Using the CM at $cluster:$port");
+  $DEBUG and $this->debug(2, "Using the CM at $cluster:$port");
 
   my $config;
   my $retry=10;
   my $sleep=10;
+
   while (1) {
-    $config=SOAP::Lite
-      -> uri( "AliEn/Service/ClusterMonitor" )
+    $config=SOAP::Lite-> 
+      uri( "AliEn/Service/ClusterMonitor" )
 	-> proxy("http://$cluster:$port" )
 	  ->GetConfiguration();
     $config  and $config->result and last;
+
     $retry--;
-    $self->info("Error contacting the clustermonitor at $cluster:$port");
+    $this->info("Error contacting the clustermonitor at $cluster:$port");
     if (!$retry){
-      $self->info("We have retried enough times");
+      $this->info("We have retried enough times");
       return;
     }
 
     $sleep = $sleep*2 + int(rand(2));
-    $self->info("Sleeping $sleep seconds before trying again");
+    $this->info("Sleeping $sleep seconds before trying again");
     sleep($sleep);
   }
-  $self->debug(1, "Got the config from the ClusterMonitor");
+
+  $this->debug(1, "Got the config from the ClusterMonitor");
+
   $config=$config->result;
+
   (UNIVERSAL::isa($config, "HASH"))
     or print STDERR "Error the ClusterMonitor did not return a hash ($config)\n" and return;
 
+  my $log;
+  $this->{LOGGER}->{logfile} and $log=$this->{LOGGER}->{logfile};
+
   map { $DEBUG and $self->debug(6,"Setting $_ as $config->{$_}");
-	$self->{$_}=$config->{$_} } (keys %$config);
+	$this->{$_}=$config->{$_} } (keys %$config);
 
-  $DEBUG and $self->debug(1,"Getting the configuration done!");
+  $log and $this->{LOGGER}->{logfile}=$log;
+  $log or delete $this->{LOGGER}->{logfile};
+  $DEBUG and $this->debug(1,"Getting the configuration done!");
 
 
-  $self->{DOMAIN}=  $ENV{ALIEN_DOMAIN}=Net::Domain::hostdomain();
+  $this->{DOMAIN}=  $ENV{ALIEN_DOMAIN}=Net::Domain::hostdomain();
 
-  $self->{HOST}= $ENV{ALIEN_HOSTNAME}=Net::Domain::hostfqdn();
+  $this->{HOST}= $ENV{ALIEN_HOSTNAME}=Net::Domain::hostfqdn();
 
-  return $self;
+  return $this;
 }
 
 
