@@ -89,53 +89,76 @@ sub Initialize {
   
   $self->{DEBUG} and $self->{LOGGER}->debugOn($self->{DEBUG});
   $self->{SILENT} and $self->{LOGGER}->silentOn();
-  
-  $ENV{ALIEN_CM_AS_LDAP_PROXY} and return $self->GetConfigFromCM; 
-  $self->debug(1, "Getting the configuration from the LDAP server");
-  
-  $self->{LOCAL_USER} = getpwuid($<);
-  $ENV{ALIEN_USER} and $self->{LOCAL_USER}=$ENV{ALIEN_USER};
-  
-  $self->{ROLE} = $self->{LOCAL_USER};
-  $self->{role} and $self->{ROLE} = $self->{role};
-  
-  $self->debug(1, "Config for user $self->{LOCAL_USER} ($self->{ROLE})");
-  
-  #    my $ldapConfig=$struct->{proxyport}[0];
-  
-  $self->{ORG_NAME} = "$organisation";
-  
-  
-  my $ldap=$self->GetLDAPDN();
-  $ldap or return;
-  
-  $self->GetOrganisation($ldap) or return;
-  
-  
-  $self->GetSite($ldap) or return;
-  foreach my $service (@SERVICES) {
-    $self->GetServices( $ldap, $service) or return;
+
+  if ($ENV{ALIEN_CM_AS_LDAP_PROXY}){
+    $self->GetConfigFromCM() or return; 
+  }else {
+    $self->debug(1, "Getting the configuration from the LDAP server");
+
+    $self->{LOCAL_USER} = getpwuid($<);
+    $ENV{ALIEN_USER} and $self->{LOCAL_USER}=$ENV{ALIEN_USER};
+
+    $self->{ROLE} = $self->{LOCAL_USER};
+    $self->{role} and $self->{ROLE} = $self->{role};
+
+    $self->debug(1, "Config for user $self->{LOCAL_USER} ($self->{ROLE})");
+
+    #    my $ldapConfig=$struct->{proxyport}[0];
+
+    $self->{ORG_NAME} = "$organisation";
+
+
+    my $ldap=$self->GetLDAPDN();
+    $ldap or return;
+
+    $self->GetOrganisation($ldap) or return;
+
+
+    $self->GetSite($ldap) or return;
+    foreach my $service (@SERVICES) {
+      $self->GetServices( $ldap, $service) or return;
+    }
+
+    $self->GetHostConfig($ldap) or return;
+
+    if ( $self->{queue} ) {
+      $self->setService( $ldap, $self->{queue}, "CE" ) or return;
+    }
+
+    $self->GetTopLevelServices($ldap) or return;
+
+    if ($self->{LOCAL_CONFIG} && $self->{LOCAL_CONFIG} =~/^(add)|(overwrite)$/i ) {
+      $self->checkConfigFile(
+			     "$ENV{ALIEN_ROOT}/etc/alien/$self->{ORG_NAME}.conf",
+			     "/etc/alien/$self->{ORG_NAME}.conf",
+			     "$ENV{ALIEN_HOME}/\L$self->{ORG_NAME}\E.conf");
+    }
+    $self->GetGridPartition($ldap) or return;
+    $ldap->unbind;    # take down session
   }
-  
-  $self->GetHostConfig($ldap) or return;
-  
-  if ( $self->{queue} ) {
-    $self->setService( $ldap, $self->{queue}, "CE" ) or return;
+
+  return $self->checkVariables();
+}
+
+sub checkVariables{
+  my $self=shift;
+  $self->debug(1, "Checking if we can write to the directories");
+  for my $entry ("TMP_DIR", "LOG_DIR", "CACHE_DIR"){
+    $self->debug(1, "Checking $entry => $self->{$entry}");
+    my $ok=AliEn::Util::mkdir($self->{$entry});
+    if ($ok) {
+      system("touch $self->{$entry}/alien_test.$<") and $ok=0;
+      unlink("$self->{$entry}/alien_test.$<");
+      $ok and next;
+    }
+    $self->info("Warning!! We are supposed to use $self->{$entry} ans $entry, but we can't write there. Changing it to /tmp/alien_auto_$</$entry");
+    $self->{$entry}="/tmp/alien_auto_$</$entry";
+    AliEn::Util::mkdir($self->{$entry});
   }
-  
-  $self->GetTopLevelServices($ldap) or return;
-  
-  if ($self->{LOCAL_CONFIG} && $self->{LOCAL_CONFIG} =~/^(add)|(overwrite)$/i ) {
-    $self->checkConfigFile(
-			   "$ENV{ALIEN_ROOT}/etc/alien/$self->{ORG_NAME}.conf",
-			   "/etc/alien/$self->{ORG_NAME}.conf",
-			   "$ENV{ALIEN_HOME}/\L$self->{ORG_NAME}\E.conf");
-  }
-  $self->GetGridPartition($ldap) or return;
-  $ldap->unbind;    # take down session
-  
+
   return $self;
 }
+
 sub checkConfigFile {
   my $self=shift;
   my $config;
