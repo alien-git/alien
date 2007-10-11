@@ -7,7 +7,7 @@ use Net::LDAP;
 
 use AliEn::Logger::LogObject;
 use Net::Domain;
-
+use AliEn::Util;
 use vars qw(@ISA $DEBUG);
 
 push @ISA, "AliEn::Logger::LogObject";
