@@ -677,7 +677,7 @@ GET_ARGUMENTS $*
 ALIEN_ROOT=${ALIEN_ROOT:="/opt/alien"}
 ALIEN="${ALIEN_ROOT}/bin/alien"
 ALIEN_TESTDIR=${ALIEN_TESTDIR:="$ALIEN_ROOT/test"}
-export OPENSSL_CONF=$ALIEN_ROOT/openssl.cnf
+export OPENSSL_CONF=$ALIEN_TESTDIR/openssl.cnf
 
 
 if [ !  -d $ALIEN_ROOT ] 
