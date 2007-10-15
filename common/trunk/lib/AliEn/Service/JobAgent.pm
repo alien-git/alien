@@ -754,7 +754,7 @@ sub getCatalogue {
   my $catalog;
 
   eval{ 
-    my $options={silent=>0, packman_method=>'Local'};
+    my $options={silent=>0, packman_method=>'Local', 'role'=>$self->{CONFIG}->{CLUSTER_MONITOR_USER}};
     $self->{CONFIG}->{AGENT_API_PROXY} and 
       $options->{gapi_catalog}=$self->{CONFIG}->{AGENT_API_PROXY};
     $catalog = AliEn::UI::Catalogue::LCM::->new($options);
