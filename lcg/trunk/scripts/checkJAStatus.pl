@@ -303,7 +303,7 @@ sub sumsAndAverages {
   my $entries = {};
   foreach my $entry (@$summary) {
     ($entry->{'RB'}) = ( $entry->{'JobID'} =~ /^https:\/\/(.*):9000\/.*$/ );
-    $counters->{$entry->{"RB"}}++;
+    $counters->{"RB:$entry->{'RB'}"}++;
     $counters->{$entry->{'Status'}}++;
     if ($entry->{'Scheduled'}) {
       $entry->{'TimeToQueue'} += $entry->{'Scheduled'}-$entry->{'Submitted'};
