@@ -1220,7 +1220,7 @@ sub _do{
 
     if ($sqlError) {
       my $found=0;
-      $sqlError=~ /(Unexpected EOF)|(Lost connection)|(MySQL server has gone away at)/ and $found=1;
+      $sqlError=~ /(Unexpected EOF)|(Lost connection)|(MySQL server has gone away at)|(Connection reset by peer)/ and $found=1;
       if (!$found) {
 	$oldAlarmValue
 	  and $SIG{ALRM} = $oldAlarmValue

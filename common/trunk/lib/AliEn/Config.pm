@@ -809,6 +809,7 @@ sub GetConfigFromCM {
     }
 
     $sleep = $sleep*2 + int(rand(2));
+    $sleep =$sleep % 60;
     $this->info("Sleeping $sleep seconds before trying again");
     sleep($sleep);
   }
