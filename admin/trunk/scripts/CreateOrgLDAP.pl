@@ -171,7 +171,7 @@ $config{jobDatabase}="$mysqlHost/mysql/processes";
 $config{catalogueOptimizerAddress}="$hostName:".($portNumber+19);
 $config{catalogueDatabase}="$mysqlHost/mysql/alien_system";
 
-$config{lbsgAddress}  = "https://"."$hostName".":8051";
+$config{lbsgAddress}  = "https://"."$hostName".":18051";
 $config{lbsgDatabase} = $config{jobDatabase};
 
 #$config{si2kNominalPrice} = "1";
