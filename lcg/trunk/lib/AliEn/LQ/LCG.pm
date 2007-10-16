@@ -69,14 +69,18 @@ sub submit {
   my @args=();
   $self->{CONFIG}->{CE_SUBMITARG_LIST} and
     @args = @{$self->{CONFIG}->{CE_SUBMITARG_LIST}};
-   
+
+  my $bdiiReq=join(" && ",grep (/^-req /, @args)) ||"";
+  $bdiiReq=~ s/^-req//;
+  @args= grep (!/^-req /, @args);
+
   my @conf = ();
   $self->{CONFIG}->{CE_EDG_WL_UI_CONF} and
     @conf = ("--config-vo",$self->{CONFIG}->{CE_EDG_WL_UI_CONF}); 
   $ENV{CE_EDG_WL_UI_CONF} and
     @conf = ("--config-vo",$ENV{CE_EDG_WL_UI_CONF}); 
   push @args,@conf;
-  my $jdlfile = $self->generateJDL($jdl, $command);
+  my $jdlfile = $self->generateJDL($jdl, $command,$bdiiReq);
   $jdlfile or return;
 
   $self->renewProxy(10000); ####
@@ -548,9 +552,9 @@ sub updateClassAd {
 sub translateRequirements {
   my $self = shift;
   my $ca = shift;
-  $ca or return ();
+  my $requirements= shift || "";;
 
-  my $requirements = '';
+  $ca or return $requirements;
 
   my ($ok, $memory) =  $ca->evaluateAttributeString("Memory");
   if ($memory) {
@@ -578,7 +582,11 @@ sub translateRequirements {
 sub generateJDL {
   my $self = shift;
   my $ca = shift;
-  my $requirements = $self->translateRequirements($ca);
+  my $command=shift;
+  my $bdiiReq=shift;
+  my $requirements = $self->translateRequirements($ca, $bdiiReq);
+
+
   my $exeFile = AliEn::TMPFile->new({filename=>"dg-submit.$$.sh"})
     or return;
 
@@ -659,7 +667,7 @@ FuzzyRank = True;
 VirtualOrganisation = \"\L$voName\E\";
 InputSandbox = {\"$exeFile\"};
 OutputSandbox = { \"std.err\" , \"std.out\" };
-Environment = {\"ALIEN_CM_AS_LDAP_PROXY=$ENV{ALIEN_CM_AS_LDAP_PROXY}\",\"ALIEN_JOBAGENT_ID=$ENV{ALIEN_JOBAGENT_ID}\"};
+Environment = {\"ALIEN_CM_AS_LDAP_PROXY=$self->{CONFIG}->{VOBOX}\",\"ALIEN_JOBAGENT_ID=$ENV{ALIEN_JOBAGENT_ID}\", \"ALIEN_USER=$ENV{ALIEN_USER}\"};
 ";
   if (scalar @{$self->{CONFIG}->{CE_LCGCE_LIST}}) {
     my @celist = map {"other.GlueCEUniqueID==\"$_\""} @{$self->{CONFIG}->{CE_LCGCE_LIST}};
@@ -686,12 +694,101 @@ export PATH=/opt/alien/bin:\$PATH\n";
 sub installWithLocal {
   my $self=shift;
   my $version=$self->{CONFIG}->{VERSION};
-  $version=~ s{_.*$}{};
-  return "alien", "rm -rf alien-installer
-wget -O alien-installer http://alien.cern.ch/alien-installer
-chmod +x alien-installer
-./alien-installer --release $version  --prefix \$HOME/alien_install --type wn  update
-export ALIEN_ROOT=\$HOME/alien_install
+  $version=~ s{\..*$}{};
+  my $vo_dir="VO_".uc($self->{CONFIG}->{ORG_NAME})."_SW_DIR";
+
+  return "alien", "IDIR=\$HOME/alien_auto_install
+
+if [ -n \"\$$vo_dir\" ]
+then
+    echo \"Let's try to use $vo_dir=\$$vo_dir\"
+    [ -d \$$vo_dir ] || mkdir \$$vo_dir
+    touch \$$vo_dir/user.\$UID.lock
+    if [ \$? = \"0\" ]
+    then
+      echo 'The lock worked!! :)'
+      rm \$$vo_dir/user.\$UID.lock
+      IDIR=\$$vo_dir/alien_auto_install
+    fi
+fi
+
+
+if [ -e \$IDIR/lock ]
+then
+    echo \"The lock \$IDIR/lock exists. Is anybody installing alien?\"
+    echo \"Let's exit so that we do not interfere\"
+    exit -2
+fi
+IDIR=\$IDIR/$version
+if  [ -d \$IDIR  ]  && [ -f \$IDIR/bin/alien ]
+then
+    echo \"The installation already exists\"
+else
+
+    echo \"Let's install everything\" 
+    touch \$IDIR/lock
+    rm -rf alien-installer
+
+
+    wget -O alien-installer http://alien.cern.ch/alien-installer
+    chmod +x alien-installer
+    mkdir -p \$HOME/.alien \$IDIR \${IDIR}_cache
+
+    case `uname -m` in
+      i*86*)
+        PLATFORM=i686-pc-linux-gnu
+       ;;
+      x86_64)
+        PLATFORM=x86_64-unknown-linux-gnu
+        ;;
+      powerpc)
+        PLATFORM=powerpc-apple-darwin8.1.0
+        ;;
+      apple*)
+        PLATFORM=i686-apple-darwin8.6.1
+        ;;
+      ia64)
+        PLATFORM=ia64-unknown-linux-gnu
+        ;;
+       *)
+        echo 'Unknown or unsupported platform: ' `uname -m`
+        exit 1
+        ;;
+    esac
+
+
+    wget http://alien.cern.ch/BitServers -O BitServers
+
+    echo \"This platform is \$PLATFORM\"
+    URL=`grep -v -e '^#' BitServers | grep \$PLATFORM  |awk -F \\| '{print \$2}'| awk '{print \$1}'`
+    echo \"It will download from \$URL\"
+
+    cat  >\$HOME/.alien/installer.rc <<EOF
+ALIEN_INSTALLER_HOME=\${IDIR}_cache
+ALIEN_INSTALLER_PREFIX=\$IDIR
+ALIEN_INSTALLER_AUTODETECT=false
+ALIEN_INSTALLER_TYPE=wn
+ALIEN_INSTALLER_PLATFORM=\$PLATFORM
+ALIEN_DIALOG=dialog
+ALIEN_RELEASE=$version
+ALIEN_BITS_URL=\$URL/\$PLATFORM/$version/download/
+EOF
+    echo \"Starting the installation\"
+    date
+    ./alien-installer --trace   update
+    if [  $? ne 0 ]
+    then
+       echo \"The installer wasn't happy. Removing the installation\"
+       rn -rf \$IDIR
+    fi  
+    rm \$IDIR/lock
+    echo \"Installation finished!!\"
+    date
+    ls \$IDIR
+    echo \"And the size\"
+    du -sh \$IDIR
+fi
+export ALIEN_ROOT=\$IDIR
 export PATH=\$ALIEN_ROOT/bin:\$PATH
 ";
 }
