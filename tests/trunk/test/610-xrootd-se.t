@@ -48,8 +48,10 @@ BEGIN { plan tests => 1 }
   my $ui=AliEn::UI::Catalogue->new({role=>"admin"}) or exit(-2);
 
   $ui->execute("addSE", "-p", "cern", "xrootdSE") or exit(-2);
+  $ui->execute("setSEio","cern","xrootdSE","root://$config->{HOST}:54321","$config->{LOG_DIR}/SE_DATA");
   $ui->close();
  
+	
   print "ok\n";
   print "Creating the TkAuthz Configuration File for xrootd ... \n";
   if ((! -e "$ENV{'HOME'}/.alien/gapiserver/lpub.pem" ) ||
