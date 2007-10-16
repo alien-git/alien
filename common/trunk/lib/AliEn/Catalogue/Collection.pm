@@ -178,11 +178,21 @@ sub isCollection{
   return ;
 }
 
+sub f_listFilesFromCollection_HELP{
+  return "Usage: listFiles [options] <collection>
+
+Possible options:
+\t-g: The collection is a GUID instead of an lfn
+\t-v: Return the extended information for each entry in the collection (it might take some time if there are many entries in the collection)
+";
+}
+
+
 sub f_listFilesFromCollection{
   my $self=shift;
   my $opt={};
   @ARGV=@_;
-  Getopt::Long::GetOptions($opt,  "g", ) or 
+  Getopt::Long::GetOptions($opt,  "g","v", ) or 
       $self->info("Error parsing the arguments to addFileToCollection") and return;;
   @_=@ARGV;
   my $coll=shift;
@@ -210,8 +220,17 @@ sub f_listFilesFromCollection{
     $file->{origLFN} and $message.="  (from the file $file->{origLFN})";
     $file->{localName} and $message.=" (will save as '$file->{localName}')";
     $file->{data} and $message.=" (extra info '$file->{data}')";
+
+    if ($opt->{v}){
+      my $extra=$self->{DATABASE}->getAllInfoFromGUID({},$file->{guid});
+      for my $entry ("size", "md5"){
+	$message.= "( $entry = $extra->{$entry})";
+	$file->{$entry}=$extra->{$entry};
+      }
+    }
     $message.="\n";
   }
+
   $self->info($message,undef, 0);
   return $info;
 
