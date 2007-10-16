@@ -12,7 +12,12 @@ push @ISA, 'AliEn::Logger::LogObject', 'AliEn::PackMan';
 sub initialize{
   my $self=shift;
   $self->{INST_DIR}=($self->{CONFIG}->{PACKMAN_INSTALLDIR} || "$ENV{ALIEN_HOME}/packages");
+  
   $self->info("Using $self->{INST_DIR} as the installation directory");
+  while ($self->{INST_DIR} =~  s/\$([^\/]*)/$ENV{$1}/ ) {
+    $self->debug(1, "The installdir contains \$$1. Let's replace it with $ENV{$1}");
+    $ENV{$1} or $self->info("Error: the environment variable $1 is not defined. Using the home directory to install the packages") and $self->{INST_DIR}= "$ENV{ALIEN_HOME}/packages";
+  }
   if (! -d $self->{INST_DIR}) {
     $self->info( "$$ Creating the directory $self->{INST_DIR}");
     require  AliEn::MSS::file;;
@@ -270,7 +275,7 @@ sub InstallPackage {
   my $lock="$self->{INST_DIR}/$user.$package.$version.InstallLock";
   my $logFile="$self->{INST_DIR}/$user.$package.$version.InstallLog";
 
-  ( -f $lock) and $self->info( "$$ Package being installed\n")
+  ( -f $lock) and $self->info( "$$ Package being installed (lock $lock)\n")
     and  die ("Package is being installed\n");
 
 
