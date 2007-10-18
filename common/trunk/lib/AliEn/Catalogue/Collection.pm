@@ -192,7 +192,8 @@ sub f_listFilesFromCollection{
   my $self=shift;
   my $opt={};
   @ARGV=@_;
-  Getopt::Long::GetOptions($opt,  "g","v", ) or 
+
+  Getopt::Long::GetOptions($opt,  "g","v","z" ) or 
       $self->info("Error parsing the arguments to addFileToCollection") and return;;
   @_=@ARGV;
   my $coll=shift;
@@ -232,8 +233,10 @@ sub f_listFilesFromCollection{
   }
 
   $self->info($message,undef, 0);
+  if ($opt->{z}) {
+      return @$info;
+  }
   return $info;
-
 }
 
 sub _checkFileAndCollection{
