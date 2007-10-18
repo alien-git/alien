@@ -2101,11 +2101,21 @@ sub displayLastError {
 }
 
 sub f_type_HELP{
-  return "type: returns the type of entry an lfn is. Possibilities are: file, directory, collection";
+  return "type: returns the type of entry an lfn is. Possibilities are: file, directory, collection
+ Usage: type [-z] lfn
+
+ Options:
+   -z return an array of hash
+";
 }
+
 sub f_type{
   my $self=shift;
+  my $hash=grep (/^-z$/,@_);
+  @_=grep(!/^-z$/,@_);
+
   my $lfn=shift;
+
   $lfn = $self->f_complete_path($lfn);
 
   my $permFile=$self->checkPermissions( 'r', $lfn,undef, {RETURN_HASH=>1} ) or return;
@@ -2121,7 +2131,8 @@ sub f_type{
     return;
   }
   $self->info("File '$lfn' is a '$type'");
-  
+
+  $hash and return ({type=>$type});
   return $type;
 }
 
