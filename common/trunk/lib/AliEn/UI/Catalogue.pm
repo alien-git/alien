@@ -898,7 +898,7 @@ sub f_registerFile {
   my $file = shift;
   my $pfn  = shift;
   my $size = shift;
-  my $destSE = shift || $self->{CONFIG}->{SE_FULLNAME};
+  my $destSE = shift || $self->{CONFIG}->{SAVESE_FULLNAME} || $self->{CONFIG}->{SE_FULLNAME};
   my $guid = ( shift or "");
   my $type = (shift or $self->{UMASK});
   $options->{nose} and $destSE="";
