@@ -425,6 +425,8 @@ ALIEN_Config()
   ALIEN_PATH="$ALIEN_ROOT/api/bin"
   ALIEN_LD_LIBRARY_PATH=$ALIEN_ROOT/lib:$ALIEN_ROOT/lib/mysql:$ALIEN_ROOT/api/lib
 
+  if test "`uname -p`" = "x86_64" -o "`uname -p`" = 'ia64' ; then ALIEN_LD_LIBRARY_PATH="$ALIEN_LD_LIBRARY_PATH:$ALIEN_ROOT/lib64" ; fi
+
   ALIEN_MYPROXY_SERVER=""
   ALIEN_MYPROXY_DOMAIN=""
   ALIEN_LDAP_DN=""
