@@ -433,7 +433,7 @@ sub getFileFromSE {
 sub registerInLCM {
   my $self  = shift;
   my $pfn   = shift;
-  my $newSE = ( shift or $self->{CONFIG}->{SE_FULLNAME} or "");
+  my $newSE = ( shift or $self->{CONFIG}->{SAVESE_FULLNAME} or $self->{CONFIG}->{SE_FULLNAME} or "");
   my $oldSE = ( shift or "" );
   my $target = (shift or "");
   my $lfn=(shift or "");

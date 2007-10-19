@@ -402,6 +402,8 @@ sub checkService{
   $self->{CONFIG}->{"${configName}_PORT"} and
       $host.=":".$self->{CONFIG}->{"${configName}_PORT"};
   
+  $ENV{ALIEN_CM_AS_LDAP_PROXY} and ($service eq "ClusterMonitor") 
+    and $host=$ENV{ALIEN_CM_AS_LDAP_PROXY};
   $host or $host=$self->{CONFIG}->{"\U${configName}_ADDRESS\E"};
   
   #    if ($host=~ /^\:?$/) {

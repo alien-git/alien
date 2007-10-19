@@ -840,10 +840,9 @@ sub addFile {
 
   my $lfn   = shift;
   my $pfn   = shift;
-  my $newSE =(shift or "");
+  my $newSE =(shift or $self->{CONFIG}->{SAVESE_FULLNAME} or "");
   my $oldSE = ( shift or "" );
   my $target = (shift or "");
-
 
   $pfn or $self->info("Error: not enough parameters in add\n".
 		      $self->addFile_HELP(),2)	and return;
