@@ -24,13 +24,23 @@ sub cp {
     my $self = shift;
 
     $self->debug(1, "Checking if rfcp exists");
-    open (OUTPUT, "which rfcp >& /dev/null|");
+
+    open (OUTPUT, "which rfcp |");
+    my $info=join("", <OUTPUT>);
     my $done=close(OUTPUT);
-    
+    $self->debug(1, "We are using $info");
     $done or return 1;
     my (@args) = @_;
-    open (OUTPUT, "rfcp @args >& /dev/null|");
+
+    map { s{/+}{/} } @args;
+
+    $self->debug(1, "Doing rfcp @args");
+    open (OUTPUT, "rfcp @args |");
+    $info=join("", <OUTPUT>);
     $done=close(OUTPUT);
+    $self->debug(1, "Got $info");
+    $info =~ /bytes in \d+ seconds through/ 
+      and return 0;
     $done or return 1;
     return 0;
 }
