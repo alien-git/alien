@@ -163,8 +163,10 @@ sub initialize {
 
   $self->{JOBLOADED}=0;
   $self->{X509}= new AliEn::X509 or return;
-  $self->{PACKMAN}=AliEn::PackMan->new({PACKMAN_METHOD=>"Local"});
-  return 1;
+  $self->{PACKMAN}=AliEn::PackMan->new({PACKMAN_METHOD=>"Local"}) or 
+    $self->info("Error getting the packman") and return ;
+
+  return $self;
 }
 
 sub requestJob {
