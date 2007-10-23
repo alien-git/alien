@@ -11,10 +11,21 @@ $DEBUG=0;
 use strict;
 
 sub initialize {
-    my $self = shift;
-    $self->{SILENT}=1;
-    $self->{CLASS}= ref $self;
+  my $self = shift;
+  $self->{SILENT}=1;
+  $self->{CLASS}= ref $self;
+  $self->debug(1, "Let's see if xrdcpapmon is in the path");
 
+  $self->{XRDCP}="xrdcp";
+  if (open (FILE, "which xrdcpapmon 2>&1|")){
+    my $input=join("",<FILE>);
+    if (close FILE){
+      $self->debug(1, "Using $input");
+      $self->{XRDCP}="xrdcpapmon";
+    }
+  }
+  
+  return $self;
 }
 sub _execute {
   my $self=shift;
@@ -32,7 +43,7 @@ sub get {
 
   $self->debug(1,"Trying to get the file $self->{PARSED}->{ORIG_PFN} (to $self->{LOCALFILE})");
   $self->{PARSED}->{PATH}=~ s{^//}{/};
-  my $command="xrdcp root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH} $self->{LOCALFILE} -DIFirstConnectMaxCnt 1";
+  my $command="$self->{XRDCP} root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH} $self->{LOCALFILE} -DIFirstConnectMaxCnt 1";
 
   # At the moment, xrdcp doesn't return properly. Let's check if the file exists
   $self->_execute($command);
@@ -48,7 +59,7 @@ sub put {
   $self->debug(1,"Trying to put the file $self->{PARSED}->{ORIG_PFN} (from $self->{LOCALFILE})");
 
   $self->{PARSED}->{PATH}=~ s{^//}{/};
-  my $command="xrdcp -np -v $self->{LOCALFILE} root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH} -DIFirstConnectMaxCnt 1";
+  my $command="$self->{XRDCP} -np -v $self->{LOCALFILE} root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH} -DIFirstConnectMaxCnt 1";
 
 #  my $error = $self->_execute($command);
   open (OUTPUT, "$command 2> /dev/null |") or $self->info("Error: xrdcp is not in the path") and return;
