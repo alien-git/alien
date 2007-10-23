@@ -13,6 +13,17 @@ sub initialize {
 
   $self->{DESTHOST} = $options->{HOST};
   $self->{SOAP}=AliEn::SOAP->new() or return;
+  $self->debug(1, "Let's see if xrdcpapmon is in the path");
+
+  $self->{XRDCP}="xrdcp";
+  if (open (FILE, "which xrdcpapmon 2>&1|")){
+    my $input=join("",<FILE>);
+    if (close FILE){
+      $self->debug(1, "Using $input");
+      $self->{XRDCP}="xrdcpapmon";
+    }
+  }
+
   return $self;
 }
 
@@ -44,7 +55,7 @@ sub get {
     my $tohost  = ( shift or "" );
     
     print "we arrived here!!\n";
-    my $command = "xrdcp root://$fromhost/$remotefile?cmd=trashbin root://$tohost/$localfile -DIFirstConnectMaxCnt 1 -np ";
+    my $command = "$self->{XRDCP} root://$fromhost/$remotefile?cmd=trashbin root://$tohost/$localfile -DIFirstConnectMaxCnt 1 -np ";
     print $command."\n";
     return system($command);
 #    my $command = "$options; get $remotefile $localfile";
