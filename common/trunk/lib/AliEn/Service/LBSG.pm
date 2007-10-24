@@ -204,7 +204,7 @@ my $_exec = sub
            @ARGV = @_;
         my $argvStr = join (" ", @ARGV);
 
-        
+        $ENV{GOLD_HOME} || ($ENV{GOLD_HOME} = $ENV{ALIEN_ROOT});
 
         my $codeRef =  \$self->{COMMANDS}->{$command}->{"code"};
 
@@ -237,6 +237,7 @@ my $_exec = sub
         
 
         # execute the command
+	
         my $fun = sub { eval $$codeRef; };
         $fun->();              
         
