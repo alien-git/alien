@@ -35,9 +35,9 @@ BEGIN { plan tests => 1}
 my @commands=(# make auth_key for gold
               {  command=>"echo goldkey > $ALIEN_ROOT/etc/auth_key && chmod 400 $ALIEN_ROOT/etc/auth_key", ignore=>1 },
               # start gold
-              { command=>"$ALIEN_ROOT/bin/alien-perl -T $ALIEN_ROOT/sbin/goldd", ignore=>1, sleep=>5},
+              { command=>"env GOLD_HOME=$ALIEN_ROOT $ALIEN_ROOT/bin/alien-perl -T $ALIEN_ROOT/sbin/goldd", ignore=>1, sleep=>5},
               # init gold
-              { command=>"$ALIEN_ROOT/bin/alien-perl -T $ALIEN_ROOT/bin/goldsh < bank.gold", ignore=>1, sleep=>5},
+              { command=>"env GOLD_HOME=$ALIEN_ROOT $ALIEN_ROOT/bin/alien-perl -T $ALIEN_ROOT/bin/goldsh < bank.gold", ignore=>1, sleep=>5},
               #start apache
               { command=>"env LD_LIBRARY_PATH=$ALIEN_ROOT/httpd/lib:$ENV{LD_LIBRARY_PATH} $ALIEN_ROOT/httpd/bin/httpd -f $ALIEN_ROOT/httpd/conf/httpd.conf -k restart", ignore=>1, sleep=>15},
               #see if apache is running
