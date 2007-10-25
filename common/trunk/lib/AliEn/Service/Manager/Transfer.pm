@@ -315,7 +315,7 @@ sub listTransfer_HELP{
 
   return "listTransfer: returns all the transfers that are waiting in the system
 \tUsage:
-\t\tlistTransfer [-status <status>] [-user <user>] [-id <queueId>] [-verbose] [-master] [-summary] [-all_status]
+\t\tlistTransfer [-status <status>] [-user <user>] [-id <queueId>] [-verbose] [-master] [-summary] [-all_status] [-jdl]
 ";
 }
 
@@ -335,6 +335,7 @@ sub listTransfer {
   my $columns="transferId, status, destination, user, size,started, received, finished ";
   my $all_status=0;
   my $master=0;
+  my $jdl=0;
   my $error="";
   my $data;
 
@@ -355,6 +356,7 @@ sub listTransfer {
     ($argv=~ /^-?-verbose=?/) and $all_status=1 and  next;
     ($argv=~ /^-?-all_status=?/) and $all_status=1 and  next;
     ($argv=~ /^-?-master=?/) and $master=1 and  next;
+    ($argv=~ /^-?-jdl=?/) and $jdl=1 and  next;
     my $found;
     foreach my $column (@columns){
       if ($argv=~ /^-?-$column->{pattern}$/ ){
@@ -394,7 +396,7 @@ sub listTransfer {
   $all_status or $data->{status} or $data->{id} or $where.=" and ( status!='FAILED' and status !='DONE' and status !='KILLED')";
 
   $where.=" ORDER by transferId";
-
+  $jdl and $columns.=", jdl ";
   $self->info( "In getTop, doing query $columns, $where" );
 
   my $rresult = $self->{DB}->query("SELECT $columns from TRANSFERS  $where")

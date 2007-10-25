@@ -778,27 +778,39 @@ sub f_whereis{
     or $self->info("Error getting the data from $lfn") and return; 
   my @SElist=@{$guidInfo->{pfn}};
   $silent or $self->info("The file $lfn is in");
-  my @return=();
+
+
   if ($options =~ /r/){
     $DEBUG and $self->debug(2, "We are supposed to resolve links");
 
-    my @newSE=();
+    my @realSE=();
+    my @pfns;
+    my @allReal;
     foreach my $entry (@SElist){
+      $self->debug(1, "What do we do with $entry  ($entry->{pfn} and $entry->{seName} }??");
       if ($entry->{pfn} =~ m{^guid://[^/]*/(.*)(\?.*)?$} ){
 	$DEBUG and $self->debug(2,"We should check the link $1!!");
-	my @done=$self->f_whereis("grls", $1)
+	my @done=$self->f_whereis("grs", $1)
 	  or $self->info("Error doing the where is of guid '$1'") and return;
-	foreach my $d(@done){
-	  grep (/^$d$/, @return) or 
-	    push @return, $d;
+	while (@done) {
+	  my ($se, $pfn)=(shift @done, shift @done);
+	  grep (/^$se$/, @realSE) or  push @realSE, $se;
+	  $pfn =~ /^auto$/ or push @pfns, $pfn;
+	  push @allReal, {seName=>$se, pfn=>$pfn};
 	}
       }else {
-	grep (/^$entry->{seName}$/, @return) or push @return, $entry->{seName};
+	grep (/^$entry->{seName}$/, @realSE) or push @realSE, $entry->{seName};
+	push @allReal, $entry;
       }
     }
-    my @tmp=@return;
-    $info->{REAL_SE}=\@tmp;
+    $info->{REAL_SE}=\@realSE;
+    $info->{REAL_PFN}=\@pfns;
+    @SElist=@allReal;
+    $silent or  
+      $self->info("The file is really in these SE: @{$info->{REAL_SE}}");
+
   }
+
   if ($options =~ /t/){
     $DEBUG and $self->debug(2,"Let's take a look at the transfer methods");
     my @newlist;
@@ -814,6 +826,7 @@ sub f_whereis{
     @SElist=@newlist;
   }
 
+  my @return=();
   foreach my $entry (@SElist){
     my ($se, $pfn)=($entry->{seName}, $entry->{pfn} || "auto");
     $silent or $self->info("\t\t SE => $se  pfn =>$pfn\n", undef,0);
@@ -830,9 +843,6 @@ sub f_whereis{
 	push @return, $se;
       }
     }
-  }
-  if ($options =~ /r/ and ! $silent){
-    $self->info("The file is really in these SE: @{$info->{REAL_SE}}");
   }
 
   $options =~ /i/ and return $info;

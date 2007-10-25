@@ -602,7 +602,7 @@ sub listTransfer {
     $self->info($result) and     return;
 
   my $message="TransferId\tStatus\t\tUser\t\tDestination\t\t\tSize\t\tSource\n";
-  my $format="%6s\t\t%-8s\t%-10s\t%-15s\t\t%-12i\t\%12s";
+  my $format="%6s\t\t%-8s\t%-10s\t%-15s\t\t%-12i\t\%12s\%12s";
   my @transfers = @$result;
   my $summary="";
   my $info={};
@@ -613,7 +613,8 @@ sub listTransfer {
 		   $transfer->{user},
 		   $transfer->{destination} || "",
 		   $transfer->{size} || 0,
-		   $transfer->{SE} || "");
+		   $transfer->{SE} || "",
+		   $transfer->{jdl} || "",);
 
     $data[3] or $data[3]="";
 #    #Change the time from int to string
