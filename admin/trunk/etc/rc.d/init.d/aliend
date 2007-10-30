@@ -78,7 +78,7 @@ do
 	for service in $AliEnServices
 	do
 	
-	   COMMAND="$AliEnCommand --org $ALIEN_ORGANISATION $function${service//_/ } -silent"
+	   COMMAND="${AliEnCommand:=alien} --org $ALIEN_ORGANISATION $function${service//_/ } -silent"
 	   Sleep=0
 	   case "$function$service" in
         	StartProxy)
