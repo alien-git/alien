@@ -162,12 +162,9 @@ sub updateCatalogue {
 
   $self->info( "Transfer $id wants to $data->{type}");
   my @command=();
-  if ($data->{type} eq "mirror") {
+  if ($data->{type} =~ /(mirror)|(master)$/) {
     $self->debug(1, "In updateCatalogue adding a mirror");
     @command=("addMirror", $data->{lfn}, $data->{destination}, $data->{pfn});
-  } elsif ($data->{type} eq "master") {
-    $self->debug(1, "In updateCatalogue making it master copy");
-    @command=("masterCopy", $data->{lfn}, $data->{pfn}, $data->{destination});
   } elsif ($data->{type} eq "cache") {
     $self->debug(1, "In updateCatalogue just making a cache copy");
     $self->info( "Letting the SE $data->{destination} know that the file is there");
