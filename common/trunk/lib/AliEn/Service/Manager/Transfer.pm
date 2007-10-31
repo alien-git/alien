@@ -119,7 +119,14 @@ sub changeStatusTransfer {
 
   my $date=time;
 
-  ($status eq "TRANSFERING") and $query->{started} = $date;
+  if($status eq "TRANSFERING"){
+    $query->{started} = $date;
+    my $info = $self->{DB}->query("select size, destination from TRANSFERS where TRANSFERID=?", undef, {bind_values=>[$id]});
+    if($info && @{$info}){
+      $query->{size} = ${$info}[0]->{size};
+      $query->{destination} = ${$info}[0]->{destination};
+    }
+  }
   ($status eq "CLEANING" or $status eq "FAILED") and $query->{finished} = $date;
   
   $options->{FinalPFN}
