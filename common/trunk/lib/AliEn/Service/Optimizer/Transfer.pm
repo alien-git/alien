@@ -80,7 +80,7 @@ sub checkTransferRequirements {
     or $self->{LOGGER}->warning("TransferOptimizer", "In checkTransferRequirements error updating local copy transfers");
   
   #Updating the transfers with status 'WAITING' and only one PFN
-  my $transfers=$self->{DB}->query("SELECT transferid,jdl FROM TRANSFERS WHERE (STATUS='WAITING' or STATUS='CLEANING') and SE is NULL");
+  my $transfers=$self->{DB}->query("SELECT transferid,jdl,status FROM TRANSFERS WHERE (STATUS='WAITING' or STATUS='CLEANING' or STATUS='LOCAL COPY') and SE is NULL");
   
   defined $transfers
     or $self->{LOGGER}->warning( "TransferOptimizer", "In checkTransferRequirements error during execution of database query" )
@@ -96,8 +96,9 @@ sub checkTransferRequirements {
     $ca 
       or $self->info( "Error doing the classad of $data->{jdl}")
 	and next;
-    
-    my ( $ok, @se)=$ca->evaluateAttributeVectorString("OrigSE");
+    my $field='OrigSE';
+    $data->{status} eq "LOCAL COPY" and $field="ToSE";
+    my ( $ok, @se)=$ca->evaluateAttributeVectorString($field);
     
     $self->debug(1, "In checkTransferRequirements possible SE: @se");
     if ($#se eq 0){
