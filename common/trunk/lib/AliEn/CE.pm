@@ -938,42 +938,42 @@ rm -rf \$file\n";
 }
 
 sub checkQueueStatus() {
-    my $self   = shift;
-    my $silent = ( shift or 0 );
-    my $mode="info";
-    $silent and $mode="debug";
+  my $self   = shift;
+  my $silent = ( shift or 0 );
+  my $mode="info";
+  $silent and $mode="debug";
 
-    ( $self->checkConnection() ) or return;
-
-    ($self->{CONNECTION} eq "ClusterMonitor") or 
-      $self->{LOGGER}->error( "CE", "The ClusterMonitor is down. You cannot request jobs" ) and return;
-
-    $DEBUG and $self->debug(1, "Checking my queue status ..." );
-
-    my $user = $self->{CATALOG}->{CATALOG}->{DATABASE}->{USER};
-
-    my @queueids = $self->{BATCH}->getQueuedJobs();
-
-    if (! @queueids) {
-	$self->{LOGGER}->error( "CE","Could not retrieve Queue information!" ) and return;
-    } else {
-	foreach (@queueids) {
-	    $self->info("Found Job-Id $_ in the Queue!");
-	}
+  ( $self->checkConnection() ) or return;
+  
+  ($self->{CONNECTION} eq "ClusterMonitor") or 
+    $self->{LOGGER}->error( "CE", "The ClusterMonitor is down. You cannot request jobs" ) and return;
+  
+  $DEBUG and $self->debug(1, "Checking my queue status ..." );
+  
+  my $user = $self->{CATALOG}->{CATALOG}->{DATABASE}->{USER};
+  
+  my @queueids = $self->{BATCH}->getQueuedJobs();
+  
+  if (! @queueids) {
+    $self->{LOGGER}->error( "CE","Could not retrieve Queue information!" ) and return;
+  } else {
+    foreach (@queueids) {
+      $self->info("Found Job-Id $_ in the Queue!");
     }
-
-    my $done = $self->{SOAP}->CallSOAP("ClusterMonitor", "checkQueueStatus", $self->{CONFIG}->{CE_FULLNAME}, @queueids);
-    $done or return;
-
-    if ($done->result  eq "0") {
-	$self->info("There was a queue inconsistency!");
-    } else {
-	$self->info("The queue was consistent!");
+  }
+  
+  my $done = $self->{SOAP}->CallSOAP("ClusterMonitor", "checkQueueStatus", $self->{CONFIG}->{CE_FULLNAME}, @queueids);
+  $done or return;
+  
+  if ($done->result  eq "0") {
+    $self->info("There was a queue inconsistency!");
+  } else {
+    $self->info("The queue was consistent!");
     }
-
+  
     $self->info( "Executed checkQueueStatus!!" );
-
-    return 1; 
+  
+  return 1; 
 }
 
 
@@ -3020,6 +3020,13 @@ sub checkJobAgents {
   }
   if (@inBatch){
     $self->info("Jobs @inBatch are in the batch system, but not in the DB");
+  }
+  $self->info("Finally, let's check also in the LQ");
+  eval {
+    $self->{BATCH}->checkJobAgents();
+  };
+  if ($@){
+    $self->info("Error checking the jobagents in the LQ: $@");
   }
   return 1;
 }
