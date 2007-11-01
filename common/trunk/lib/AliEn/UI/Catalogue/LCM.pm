@@ -135,6 +135,7 @@ sub initialize {
   $self->AddHelp(%LCM_help);
 
   $self->{MONITOR} = 0;
+  AliEn::Util::setupApMon($self);
 
   if (defined $ENV{'SEALED_ENVELOPE_LOCAL_PRIVATE_KEY'} && defined $ENV{'SEALED_ENVELOPE_LOCAL_PUBLIC_KEY'} && defined $ENV{'SEALED_ENVELOPE_REMOTE_PRIVATE_KEY'} and defined $ENV{'SEALED_ENVELOPE_REMOTE_PUBLIC_KEY'}) {
       $self->info("local private key          : $ENV{'SEALED_ENVELOPE_LOCAL_PRIVATE_KEY'}");
@@ -146,7 +147,8 @@ sub initialize {
       $self->{envelopeengine} = SealedEnvelope::TSealedEnvelope->new("$ENV{'SEALED_ENVELOPE_LOCAL_PRIVATE_KEY'}","$ENV{'SEALED_ENVELOPE_LOCAL_PUBLIC_KEY'}","$ENV{'SEALED_ENVELOPE_REMOTE_PRIVATE_KEY'}","$ENV{'SEALED_ENVELOPE_REMOTE_PUBLIC_KEY'}","Blowfish","CatService\@ALIEN",0);
       # we want ordered results of se lists, no random
       $self->{noshuffle} = 1;
-      AliEn::Util::setupApMon($self);
+
+
       if ($self->{MONITOR}) {
 	  $self->{MONITOR}->sendParameters("$self->{CONFIG}->{SITE}_QUOTA","admin_readreq");
       }
@@ -319,7 +321,13 @@ sub get {
 
     while (my $entry=shift @seList) {
       my ($se, $pfn)=($entry->{seName}, $entry->{pfn});
+      my $start=time;
       $result = $self->{STORAGE}->getFile( $pfn, $se, $localFile, $opt, $file, $guidInfo->{guid},$guidInfo->{md5} );
+      my $time=time-$start;
+
+      if ($self->{MONITOR}){
+	$self->sendMonitor('read', $se, $time, $guidInfo->{size}, $result);
+      }
       if ($result) {
 	$self->info("And the file is $result",0,0);
 	return $result;
@@ -841,7 +849,7 @@ sub addFile {
 
   my $lfn   = shift;
   my $pfn   = shift;
-  my $newSE =(shift or $self->{CONFIG}->{SAVESE_FULLNAME} or "");
+  my $newSE =(shift or $self->{CONFIG}->{SAVESE_FULLNAME} or $self->{CONFIG}->{SE_FULLNAME} or "");
   my $oldSE = ( shift or "" );
   my $target = (shift or "");
 
@@ -873,17 +881,52 @@ sub addFile {
   ######################################################################################
 
   $self->debug(1, "\nRegistering  $pfn as $lfn, in SE $newSE and $oldSE (target $target)");
-  my $size;
+
   $pfn=$self->checkLocalPFN($pfn);
 #  if ($options=~ /u/) {#
 #
 #  }
+  my $start=time;
+  
+  my $data = $self->{STORAGE}->registerInLCM( $pfn, $newSE, $oldSE, $target,$lfn, $options);
 
-  my $data = $self->{STORAGE}->registerInLCM( $pfn, $newSE, $oldSE, $target,$lfn, $options) or return;
+  my $time=time-$start;
+  my $size=undef;
+  $data and $size=$data->{size};
+  $self->sendMonitor("write", $newSE, $time, $size, $data);
+  $data or return;
 
-  $newSE or $newSE=$self->{CONFIG}->{SE_FULLNAME};
   return $self->{CATALOG}->f_registerFile( "-f", $lfn, $data->{size}, $newSE, $data->{guid}, undef,undef, $data->{md5}, $data->{pfn});
 }
+
+
+sub sendMonitor {
+  my $self=shift;
+  my $access=shift;
+  my $se=shift;
+  my $time=shift;
+  my $size=shift;
+  my $ok=shift;
+  $self->{MONITOR} or return 1;
+
+  my @params=('time', $time);
+  if ($ok){
+    $time or $time=1;
+    push @params, 'size', $size, status=>1, speed=>$size/$time;
+  } else {
+    push @params, 'status', 0;
+  }
+  $self->debug(1,"Sending to monalisa @params (and $se)");
+
+
+  my $node="PROMPT_$self->{CONFIG}->{HOST}";
+  $ENV{ALIEN_PROC_ID} and push @params, 'queueid', $ENV{ALIEN_PROC_ID} 
+    and $node="JOB_$ENV{ALIEN_PROC_ID}";
+
+  $self->{MONITOR}->sendParameters(uc("SE_${access}_${se}"), $node, @params);
+  return 1;
+}
+  
 
 #  This subroutine mirrors an lfn in another SE. It received the name of the lfn, and the 
 #  target SE

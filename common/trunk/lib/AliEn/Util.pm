@@ -250,6 +250,7 @@ sub setupApMon {
       return;
     }
     my $apmon = ApMon->new(0);
+    $apmon->setLogLevel('WARNING');
     if($self->{CONFIG}->{MONALISA_APMONCONFIG}){
     	my $cfg = eval($self->{CONFIG}->{MONALISA_APMONCONFIG});
         $apmon->setDestinations($cfg);
@@ -265,6 +266,7 @@ sub setupApMon {
         $apmon->setDestinations([$cfg]);
 	$ENV{APMON_CONFIG} = $cfg;
     }
+    $apmon->setLogLevel('INFO');
 
     $self->{MONITOR} = $apmon;
   }
