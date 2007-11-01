@@ -47,6 +47,8 @@ sub initialize {
   
   $self->{JOBLEVEL}={'INSERTING'=>10,
 		     'SPLITTING'=>15, 'SPLIT'       =>18,
+		     'TO_STAGE'    =>16,  'A_STAGED'    =>17,
+		     'STAGING'    =>19,
 		     'WAITING'     =>20,  'ASSIGNED'    =>25,
 		     'QUEUED'      =>30,  'STARTED'     =>40,
 		     'IDLE'        =>50,  'INTERACTIV'  =>50,
@@ -203,6 +205,9 @@ sub initialize {
 
 	       JOBSTOMERGE=>{columns=>{masterId=>"int(11) not null primary key"},
 			     id=>"masterId"},
+	       STAGING=>{columns=>{queueid=>"int(11) not null primary key",
+				  staging_time=>"timestamp"},
+			 id=>"queueid"},
 			
 	     };
 
@@ -242,7 +247,7 @@ sub checkActionTable {
   my %columns= (action=>"char(40) not null primary key",
 		todo=>"int(1) not null default 0");
   $self->checkTable("ACTIONS", "action", \%columns, "action") or return;
-  return $self->do("INSERT IGNORE INTO ACTIONS(action) values  ('INSERTING'), ('MERGING'), ('KILLED'), ('SAVED'), ('SPLITTING')");
+  return $self->do("INSERT IGNORE INTO ACTIONS(action) values  ('INSERTING'), ('MERGING'), ('KILLED'), ('SAVED'), ('SPLITTING'), ('STAGING')");
 }
 
 #sub insertValuesIntoQueue {
@@ -332,8 +337,10 @@ sub assignWaiting{
 
   $DEBUG and $self->debug(1, "in assignWaiting table $self->{QUEUETABLE} locked");
 
+  my $status="ASSIGNED";
+  $host=~ s/_alienSTAGE$// and $status='A_STAGED';
   #Checking that the job is still waiting
-  if (! $self->updateStatus($queueID,"WAITING","ASSIGNED",
+  if (! $self->updateStatus($queueID,"WAITING",$status,
 			    {sent=>time, execHost=>"$user\@$host", site=>"$ce"} ) ){
     $self->info( "Error assigning the job. The job wasn't waiting anymore");
     return ;
@@ -510,7 +517,7 @@ sub updateStatus{
   }
 
   $self->info( "THE UPDATE WORKED!! Let's see if we have to delete an agent $status");
-  ($status =~ /^(ASSIGNED)|(KILLED)|(ERROR_A)/) and $oldjobinfo->{agentid} and 
+  ($status =~ /^(ASSIGNED)|(A_STAGED)|(KILLED)|(ERROR_A)/) and $oldjobinfo->{agentid} and 
     $self->deleteJobAgent($oldjobinfo->{agentid});
   # update the SiteQueue table
   # send the status change to ML
@@ -531,10 +538,9 @@ sub updateStatus{
 	return;	
       }
     }
-    ($status eq "KILLED") and 
-      $self->update("ACTIONS", {todo=>1}, "action='KILLED'");
-    ($status eq "SAVED") and 
-      $self->update("ACTIONS", {todo=>1}, "action='SAVED'");
+
+    $status =~ /^(KILLED)|(SAVED)|(STAGING)$/ 
+      and $self->update("ACTIONS", {todo=>1}, "action='$status'");
   }
 
 
