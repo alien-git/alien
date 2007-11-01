@@ -87,7 +87,8 @@ my %LCM_commands;
 		 'upload'   => ['$self->upload', 0],
 		 'listTransfer'=> ['$self->{STORAGE}->listTransfer', 0],
 		 'killTransfer'=> ['$self->{STORAGE}->killTransfer', 0],
-		 'stage'=> ['$self->stage', 0],
+		 'stage'=> ['$self->stage', 2],
+		 'isStage'=> ['$self->isStaged', 2],
 		 'find'=> ['$self->find',0],
 		 'zip'=> ['$self->zip',16+64],
 		 'unzip'=> ['$self->unzip',0],
@@ -903,9 +904,10 @@ Usage:
 Options:\t-f\t keep the same relative path
 \t\t-b\t Do not wait for the file transfer
 \t\t-t\t Issue a transfer instead of copying the file directly (this implies also -b)
-\t\t-g: Use the lfn as a guid
+\t\t-g:\t Use the lfn as a guid
 \t\t-m <id>\t Put the transfer under the masterTransferof <id>
 \t\t-u\t Don't issue the transfer if the file is already in that SE
+\t\t-r\t If the file is in a zip archive, transfer the whole archive
 ";
 }
 sub mirror {
@@ -914,7 +916,7 @@ sub mirror {
 
   my $opt={};
   @ARGV=@_;
-  Getopt::Long::GetOptions($opt,  "f", "g", "m=i", "b","t", "u") or 
+  Getopt::Long::GetOptions($opt,  "f", "g", "m=i", "b","t", "u", "r") or 
       $self->info("Error parsing the arguments to mirror". $self->mirror_HELP()) and return;;
   @_=@ARGV;
   my $options=join("", keys(%$opt));
@@ -929,37 +931,42 @@ sub mirror {
   my $guid;
   my $realLfn;
   my $guidInfo;
+  my ($pfn,$oldSE)=("","");
+  my $seRef;
   if ($opt->{g}){
     $self->info("STill to be implemented");
     return;
   }else{
     $lfn = $self->{CATALOG}->f_complete_path($lfn);
 
-    $realLfn=$self->{CATALOG}->checkPermissions( 'w', $lfn )  or
+    my $info=$self->{CATALOG}->checkPermissions( 'w', $lfn, undef, {RETURN_HASH=>1} )  or
       $self->info("You don't have permission to do that") and return;
+    $realLfn=$info->{lfn};
     
     $self->{CATALOG}->isFile($lfn, $realLfn) or 
       $self->info("The entry $lfn is not a file!") and return;
-
-    my $info=$self->{CATALOG}->f_whereis("i", $realLfn)
-      or $self->info("Error getting the info from $realLfn") and return;
     
-    $guid=$info->{guid}
-      or $self->info( "Error getting the guid of $lfn",11) and return;
-    $guidInfo=$info->{guidInfo} or $self->info("Error getting the list of pfns of '$realLfn'", 1) 
-      and return;
+    if ($info->{type} eq "f"){
+      
+      my $info=$self->{CATALOG}->f_whereis("i", $realLfn)
+	or $self->info("Error getting the info from $realLfn") and return;
+      
+      $guid=$info->{guid}
+	or $self->info( "Error getting the guid of $lfn",11) and return;
+      $guidInfo=$info->{guidInfo} or $self->info("Error getting the list of pfns of '$realLfn'", 1) 
+	and return;
+      
+      $seRef=$guidInfo->{pfn} or 
+	$self->info("Error getting the list of pfns of $lfn") and return;
+
+
+    }else {
+      $self->info("We are mirroring a $info->{type}!!\n");
+    }
   }
   
-  my $seRef=$guidInfo->{pfn} or 
-    $self->info("Error getting the list of pfns of $lfn") and return;
 
-  my ($pfn,$oldSE);
-  if ($seRef and ${$seRef}[0]){
-    ($pfn, $oldSE)=(${$seRef}[0]->{pfn}, ${$seRef}[0]->{seName});
-  } else {
-    $self->info("The file $lfn doesn't have any pfn");
-    return;
-  }
+
 
   if ($opt->{u}){
     $self->info("Making sure that the file is not in that SE");
@@ -976,8 +983,9 @@ sub mirror {
 		"USER" => $self->{CONFIG}->{ROLE}, "LFN" =>$realLfn,
 		"DESTINATION" =>$se,	             "OPTIONS" => "fm$options",
 		guid=>$guid};
-  $opt->{g} and $transfer->{transferGroup}=$opt->{g};
-  $opt->{'m'} and $transfer->{TYPE}="master";
+#  $opt->{g} and $transfer->{transferGroup}=$opt->{g};
+  $opt->{'m'} and $transfer->{transferGroup}=$opt->{'m'};
+  $opt->{'r'} and $transfer->{RESOLVE}=$opt->{r};
   
   if ($opt->{f})    {
     $self->info( "Keeping the same relative path");
@@ -1906,11 +1914,44 @@ sub upload {
 	  };
 }
 
+sub stage_HELP {
+  return "stage: Sends a message to the SE to bring a copy of the file to its cache.
 
+Usage:
+
+\tstage [-a] <lfn>
+
+Options:
+   -a: Send a message to all the SE that have that LFN
+";
+}
 sub stage {
   my $self=shift;
-  $self->info("Ready to stage the files @_");
-  return $self->{CATALOG}->f_whereis("s", @_);
+  my $options=shift;
+  my $lfn=shift;
+  $lfn or $self->info("Error: not enough arguments in stage:" .$self->stage_HELP()) and return;
+  $self->info("Ready to stage the files $lfn @_");
+  my @info= $self->{CATALOG}->f_whereis("rs", $lfn);
+  my $return={};
+  while (@info){
+    my ($se, $pfn)=(shift @info, shift @info);
+    $self->info("Staging the copy $pfn in $se");
+    if ($pfn eq "auto") {
+      $self->info("I'm not sure how to stage this file... The SE knows its path  Maybe I should ask the SE....");
+      next;
+    }
+    my $url=AliEn::SE::Methods->new($pfn)
+      or $self->info("Error building the url from '$pfn'") and next;
+    $url->stage();
+  }
+  return 1;
+}
+
+
+sub isStaged {
+  my $self=shift;
+  $self->info("Ready to look if a file is staged @_");
+  return 1;
 }
 
 #############################################################################################################

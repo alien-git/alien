@@ -56,7 +56,7 @@ sub initialize {
 #  $self->{JOBLOG} = new AliEn::JOBLOG();
 
 
-  my @optimizers=("Merging", "Inserting", "Splitting", "Zombies", "Hosts", "Expired", "HeartBeat", "Priority", "Resubmit", "Killed", "Saved");
+  my @optimizers=("Merging", "Inserting", "Splitting", "Zombies", "Hosts", "Expired", "HeartBeat", "Priority", "Resubmit", "Killed", "Saved", "Staging");
   
   my $mlEnabled = ($self->{CONFIG}->{MONALISA_HOST} || $self->{CONFIG}->{MONALISA_APMONCONFIG});
   $mlEnabled and push @optimizers, "MonALISA";
@@ -626,5 +626,21 @@ sub putJobLog {
   $self->info(join(" ", "Putting in the log: ", @_));
   return $self->{DB}->insertJobMessage(@_);
 }
+
+sub getJobAgentRequirements {
+  my $self=shift;
+  my $req=shift;
+  my $job_ca=shift;
+  $req= "Requirements = $req ;\n";
+  foreach my $entry ("user", "memory", "swap", "localdisk") {
+    my ($ok, $info)=$job_ca->evaluateExpression($entry);
+    ($ok and $info) or next;
+    $req.=" $entry =$info;\n";
+  }
+
+  return $req
+}
+
+
 return 1;
 

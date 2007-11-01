@@ -15,6 +15,7 @@ sub checkWakesUp {
   my $method="info";
   my @silentData=();
   $silent and $method="debug" and push @silentData, 1;
+  $self->{SLEEP_PERIOD}=10;
   $self->$method(@silentData, "Checking if there is anything to do");
   my $todo=$self->{DB}->queryValue("SELECT todo from ACTIONS where action='INSERTING'");
   $todo or return;
@@ -57,7 +58,6 @@ sub checkWakesUp {
 	or $self->{LOGGER}->error("TransferOptimizer", "In checkNewTransfers error updating status for transfer $transfer->{transferid}");
       next;
     }
-
     $self->debug(1,"In checkNewTransfers updating transfer $transfer->{transferid}. New jdl = $jdl,size = $size and status = WAITING");
     $self->{DB}->updateTransfer($transfer->{transferid},{jdl=>$jdl,
 							 size=>$size,
@@ -65,7 +65,7 @@ sub checkWakesUp {
 							 SE=>undef,
 							 sent=>undef,
 							 started=>undef,
-							 finished=>undef})
+							 finished=>undef,})
       or $self->info( "Error updating status, jdl and size for transfer $transfer->{transferid}")
 	and next;
 

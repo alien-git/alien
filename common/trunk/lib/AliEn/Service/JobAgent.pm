@@ -306,6 +306,41 @@ sub getHostClassad{
 
   return $ca->asJDL();
 }
+sub checkStageJob {
+  my $self=shift;
+  my $info=shift;
+  my $catalog=shift;
+  ($info and $info->{stage} and $info->{stage}->{queueid}) or return 1;
+  my $queueid= $info->{stage}->{queueid};
+  my $jdl= $info->{stage}->{jdl};
+  $self->info("We have to stage the files for job $queueid");
+  
+  my $pid=fork();
+  defined $pid or $self->info("ERROR FORKING THE STAGE PROCESS") and return;
+  $pid and return 1;
+  $self->info("Ok, let's start staging the files");
+  my $ca=Classad::Classad->new($jdl);
+  my $status="STAGING";
+  if (!$ca->isOK() ){
+    $self->info("The jdl of the stage job is not correct!! '$jdl'");
+    $status="ERROR_STG";
+  } else {
+    my ($ok, @files)=$ca->evaluateAttributeVectorString("inputdata");
+    if ($ok and @files){
+      map {s/,nodownload$//} @files;
+      $self->info("Staging the files @files");
+      $catalog->execute("stage", @files);
+    }
+  }
+  $ENV{ALIEN_PROC_ID}=$queueid;
+  $self->{CA}=$ca;
+  $self->{QUEUEID}=$queueid;
+  $self->checkJobJDL();
+  $jdl=~ s/\[/\[StageCE="$self->{CONFIG}->{CE_FULLNAME}";/;
+  $self->putJobLog("trace", "The jobagent finished issuing the staging commands(with $status");
+  $self->changeStatus("A_STAGED", "STAGING", $jdl);
+  exit(0);
+}
 
 sub GetJDL {
   my $self = shift;
@@ -321,6 +356,7 @@ sub GetJDL {
     $self->putJobLog("trace","Asking for a new job");
   }
   my $catalog=$self->getCatalogue();
+
   if ($catalog) {
     $self->{PACKMAN}->setCatalogue($catalog);
   }else {
@@ -334,23 +370,36 @@ sub GetJDL {
     my $hostca=$self->getHostClassad();
     if (!$hostca){
       $self->sendJAStatus('ERROR_HC');
-       $catalog and  $catalog->close();
+      $catalog and  $catalog->close();
       return;
     }
+    my $hostca_stage;
+    if ($catalog){
+      $self->info("We have a catalog (we can stage)");
+      $hostca_stage=$hostca;
+      $hostca_stage=~ s/\[/\[TO_STAGE=1;/;
+    }
+
     $self->sendJAStatus(undef, {TTL=>$self->{TTL}});
 
-    my $done = $self->{SOAP}->CallSOAP("CLUSTERMONITOR","getJobAgent", $ENV{ALIEN_JOBAGENT_ID}, "$self->{HOST}:$self->{PORT}", $self->{CONFIG}->{ROLE}, $hostca);
-    if ($done) {
+    my $done = $self->{SOAP}->CallSOAP("CLUSTERMONITOR","getJobAgent", $ENV{ALIEN_JOBAGENT_ID}, "$self->{HOST}:$self->{PORT}", $self->{CONFIG}->{ROLE}, $hostca, $hostca_stage);
+    my $info;
+    $done and $info=$done->result;
+    if ($info){
       $self->info("Got something from the ClusterMonitor");
-      $result=$done->result;
-      if ($result) {
+      use Data::Dumper;
+      print Dumper($info);
+      $self->checkStageJob($info, $catalog);
+      if (!$info->{execute}){
+	$self->info("We didn't get anything to execute");
+      }	else{
+	my @execute=@{$info->{execute}};
+	$result=shift @execute;
 	if ($result eq "-3") {
 	  $self->sendJAStatus('INSTALLING_PKGS');
 	  $self->{SOAP}->CallSOAP("Manager/Job", "setSiteQueueStatus",$self->{CONFIG}->{CE_FULLNAME},"jobagent-install-pack");
-	  my @packages=$done->paramsout();
-	  $self->info("We have to install some packages");
-
-	  foreach (@packages) {
+	  $self->info("We have to install some packages (@execute)");
+	  foreach (@execute) {
 	    my ($ok, $source)=$self->installPackage($catalog, $_);
 	    if (! $ok){
 	      $self->info("Error installing the package $_");
@@ -366,15 +415,18 @@ sub GetJDL {
 	  $self->{SOAP}->CallSOAP("Manager/Job", "setSiteQueueStatus",$self->{CONFIG}->{CE_FULLNAME},"jobagent-matched");
 	  last;
 	}
-       }
+	
+      }
+    } else{
+	$self->info("The clusterMonitor didn't return anything");
     }
     --$i or  last;
     print "We didn't get the jdl... let's sleep and try again\n";
     $self->{SOAP}->CallSOAP("Manager/Job", "setSiteQueueStatus",$self->{CONFIG}->{CE_FULLNAME},"jobagent-no-match", $hostca);
-
+    
     sleep (30);
     if($self->{MONITOR}){
-    	$self->{MONITOR}->sendBgMonitoring();
+      $self->{MONITOR}->sendBgMonitoring();
     }
     $self->sendJAStatus('REQUESTING_JOB');
   }

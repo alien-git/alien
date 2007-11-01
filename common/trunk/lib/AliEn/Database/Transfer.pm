@@ -57,10 +57,19 @@ sub initialize {
 				     status=>"varchar(15)",
 				     type=>"varchar(30)",
 				     SE=>"varchar(50)",
+				     agentid=>"int(11)", 
 
 				    },
 			   id=>"transferId",
 			   index=>"transferId"},
+	       AGENT=>{columns=>{entryId=>"int(11) not null auto_increment primary key",
+				 requirements=>"text not null",
+				 counter=>"int(11) not null default 0",
+				 SE=>"varchar(50)",
+				 priority=>"tinyint(4) default 0",
+				 
+				 },
+			id=>"entryId",},
 	       ACTIONS=>{columns=>{action=>"char(40) not null primary key",
 				   todo=>"int(1) not null default 0",
 				   extra=>"varchar(255) default ''",},
@@ -105,7 +114,11 @@ sub assignWaiting{
   my $self = shift;
   my $elementId = shift;
   my $date=time;
-  return $self->updateStatus($elementId, "WAITING' OR status='LOCAL COPY' OR status='CLEANING", "ASSIGNED", {sent=>$date}) ;
+  my $done=$self->updateStatus($elementId, "WAITING' OR status='LOCAL COPY' OR status='CLEANING", "ASSIGNED", {sent=>$date}) ;
+  #And now, let's reduce the number of agents
+  $self->do("UPDATE AGENT, TRANSFERS set counter=counter-1 where agentid=entryId and transferid=?", {bind_values=>[$elementId]});
+  $self->do("delete from AGENT where counter<1");
+  return $done;
 }
 
 sub updateExpiredTransfers{
@@ -195,8 +208,28 @@ sub updateTransfer{
   
   $self->debug(1,"In updateTransfer updating transfer $id");
   $self->sendTransferStatus($id, $set->{status}, $set);
+  my $ok=1;
+  if ($set->{status} =~ /^(WAITING)|(LOCAL COPY)|(CLEANING)$/  and $set->{jdl}){
+    $self->info("We have to insert an agent!!");
+    $set->{agentid}=$self->insertAgent($set->{jdl});
+    if (! $set->{agentid}){
+      $self->info("Error creating the agentid");
+      $set->{status}="FAILED";
+      $set->{error}="Error creating an agent";
+      $ok=0;
+    }
+    $self->info("THE AGENT ID for $id is  $set->{agentid}");
+  }elsif ($set->{status}=~ /^KILLED$/){
+    $self->info("Transfer killed. Shall we reduce the agents??");
+    
+  }
+  
 
-  $self->update($set,"transferid = ?", {bind_values=>[$id]});
+  my $done=$self->update($set,"transferid = ?", {bind_values=>[$id]});
+  $ok and return $done;
+  return ;
+
+
 }
 
 sub deleteTransfer{
@@ -224,10 +257,11 @@ sub setJdl {
 }
 
 sub setSE {
-	my $self = shift;
-	
-	$self->debug(1,"In setSE updating tranfers's SE");
-	$self->updateTransfer(shift, {SE=>shift});
+  my $self = shift;
+  my $agentid=shift;
+  my $se=shift;
+  $self->debug(1,"In setSE updating tranfers's SE");
+  $self->SUPER::update("AGENT", {SE=>$se}, "entryId=?", {bind_values=>[$agentid]});
 }
 
 sub getSize {
@@ -306,15 +340,15 @@ sub getFieldEx{
 }
 
 sub getWaitingTransfersBySE{
-	my $self = shift;
-	my $SE = shift;
-	my $order = shift || "";
+  my $self = shift;
+  my $SE = shift;
+  my $order = shift || "";
+  
+  my $query = "SELECT entryId as transferId,requirements as jdl FROM AGENT WHERE SE IS NULL OR ($SE)";
 
-	my $query = "SELECT transferId,jdl FROM TRANSFERS WHERE (status='WAITING' OR status='LOCAL COPY' OR status='CLEANING') AND jdl IS NOT NULL AND ($SE)";
+  $order and $query .= " ORDER BY $order";
 
-	$order and $query .= " ORDER BY $order";
-
-	$self->query($query, undef, @_);
+  $self->query($query, undef, @_);
 }
 
 sub getNewTransfers{
@@ -363,6 +397,31 @@ sub getActiveSubTransfers{
 sub _transferActiveReq{
   return "status<>'FAILED' AND status<>'DONE' AND status <>'KILLED'";
 }
+
+sub insertAgent{
+  my $self=shift;
+  my $text=shift;
+  $text=~ s/\s*$//s;
+  $text=~ /(Requirements\s*=[^;]*;)/is or $self->info("Error getting the requirements from $text") and return;
+  my $req="[ $1 Type = \"transfer\"; ]";
+  $self->info( "Inserting a jobagent with '$req'");
+  $self->lock("AGENT");
+  my $id=$self->queryValue("SELECT entryId from AGENT where requirements=?", undef, {bind_values=>[$req]});
+  if (!$id){
+    if (!$self->insert("AGENT", {counter=>"1", requirements=>$req})){
+      $self->info("Error inserting the new jobagent");
+      $self->unlock();
+      return;
+    }
+    $id=$self->getLastId();
+  }else{
+    $self->do("UPDATE AGENT set counter=counter+1 where entryId=?", {bind_values=>[$id]});
+  }
+  $self->unlock();
+
+  return $id;
+}
+
 =head1 NAME
 
 AliEn::Database::Transfer

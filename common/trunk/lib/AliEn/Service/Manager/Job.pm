@@ -400,7 +400,8 @@ sub changeStatusCommand {
   } elsif ( $status eq "SAVING" ) {
     $self->info("Setting the return code of the job as $error");
     $set->{error} = $error;
-  } elsif (( $status eq "SAVED" && $error)|| ($status eq "ERROR_V")) {
+  } elsif (( $status eq "SAVED" && $error)|| 
+	   ($status =~ /(ERROR_V)|(STAGING)/)) {
     $self->info("Updating the jdl of the job");
     $set->{jdl} = $error;
   } elsif ( $status eq "DONE" ) {
@@ -588,7 +589,7 @@ sub getTop {
     $data->{$column->{name}} or next;
     $where .= " and (".join (" or ", @{$data->{$column->{name}}} ).")";
   }
-  $all_status or $data->{status} or $data->{id} or $where.=" and ( status='RUNNING' or status='WAITING' or status='ASSIGNED' or status='QUEUED' or status='INSERTING' or status='STARTED' or status='SAVING' or status='SAVED' )";
+  $all_status or $data->{status} or $data->{id} or $where.=" and ( status='RUNNING' or status='WAITING' or status='ASSIGNED' or status='QUEUED' or status='INSERTING' or status='STARTED' or status='SAVING' or status='SAVED' or status='TO_STAGE' or status='STAGGING' or status='A_STAGED' or status='STAGING')";
 
   $where.=" ORDER by queueId";
 
