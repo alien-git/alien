@@ -133,53 +133,52 @@ sub match {
 
     my ( $match, $rank ) = Classad::Match( $job_ca, $site_ca );
 
-    if ($match) {
-      my @possibleIds=({id=>$id, classad=>$job_ca, });
-      if($type eq "queue"){
-	$possibleIds[0]->{jdl}=$element->{jdl};
-	$possibleIds[0]->{jdl}=~ s/\s+/ /g;
-      }
-
+    ($match) or next;
+    my @possibleIds=({id=>$id, classad=>$job_ca, });
+    if($type eq "queue"){
+      $possibleIds[0]->{jdl}=$element->{jdl};
+      $possibleIds[0]->{jdl}=~ s/\s+/ /g;
+    }
+    $self->info("WE HAVE A MATCH WITH $id!!!");
+    if ($findIdFunction){
+      @possibleIds=$self->$findIdFunction($id);
+    }
+    $self->info("Checking all the possible Ids");
+    while (@possibleIds){
+      my $item=shift @possibleIds;
       if ($findIdFunction){
-	@possibleIds=$self->$findIdFunction($id);
+	$self->$findIdFunction($id, \@possibleIds);
       }
-      $self->info("Checking all the possible Ids");
-      while (@possibleIds){
-	my $item=shift @possibleIds;
-	if ($findIdFunction){
-	  $self->$findIdFunction($id, \@possibleIds);
+      my $ret1=$item->{classad};
+      my $ret2=$item->{jdl};
+      my $realId=$item->{id};
+      if (!$ret1 ){
+	$self->info("Creating the classad of $item->{jdl}");
+	$ret1=$item->{classad}= Classad::Classad->new($item->{jdl});
+	($ret1 and $ret1->isOK())
+	  or $self->info("Error creating the jdl") and next;
+      }
+      $self->debug(1, "Got returning arguments for  $realId: $ret1");
+      if ($function) {
+	$self->debug(1, "Before returning, let's check if the extra function $function thinks everything is ok");
+	my @return=$self->$function($ret1);
+	if ($return[0] ne "1"){
+	  $self->info("$function didn't return 1. We don't assign the task");
+	  return @return;
 	}
-	my $ret1=$item->{classad};
-	my $ret2=$item->{jdl};
-	my $realId=$item->{id};
-	if (!$ret1 ){
-	  $self->info("Creating the classad of $item->{jdl}");
-	  $ret1=$item->{classad}= Classad::Classad->new($element->{jdl});
-	  ($ret1 and $ret1->isOK())
-	    or $self->info("Error creating the jdl") and next;
-	}
-	$self->debug(1, "Got returning arguments for  $realId: $ret1");
-	if ($function) {
-	  $self->debug(1, "Before returning, let's check if the extra function $function thinks everything is ok");
-	  my @return=$self->$function($ret1);
-	  if ($return[0] ne "1"){
-	    $self->info("$function didn't return 1. We don't assign the task");
-	    return @return;
-	  }
-	}
-
-	$self->debug(1, "Checking if the $type is still free");
-	splice(@$pendingElements, $currentJob,1);
-	if ( $self->{DB}->assignWaiting($realId,$arg1,$arg2,$text)){
-	  $self->debug(1, "$realId successfully assigned");
-	  push @toReturn, ($realId, $ret1, $ret2);
-	  $counter--;
-	  $counter>0 or return @toReturn;
-	  $self->info("We found one match, but we are still looking for other $counter");
-	  
-	} else {
-	  $self->debug(1, "$type has already been given");
-	}
+      }
+      
+      $self->debug(1, "Checking if the $type is still free");
+      splice(@$pendingElements, $currentJob,1);
+      if ( $self->{DB}->assignWaiting($realId,$arg1,$arg2,$text)){
+	$self->debug(1, "$realId successfully assigned");
+	push @toReturn, ($realId, $ret1, $ret2);
+	$counter--;
+	$counter>0 or return @toReturn;
+	$self->info("We found one match, but we are still looking for other $counter");
+	
+      } else {
+	$self->debug(1, "$type has already been given");
       }
     }
   }

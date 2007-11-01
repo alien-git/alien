@@ -16,21 +16,24 @@ sub checkWakesUp {
     $self->info("Error getting the admin database... we will have to talk to the Authen");
   my $method="info";
   $silent and $method="debug";
+  my @data;
+  $silent and push @data, 1;
   $self->{INSERTING_COUNTING} or $self->{INSERTING_COUNTING}=0;
   $self->{INSERTING_COUNTING}++;
   if ($self->{INSERTING_COUNTING}>10){
     $self->{INSERTING_COUNTING}=0;
   }else {
     $method="debug";
+    @data=(1);
   }
-  $self->{LOGGER}->$method("Inserting", "The inserting optimizer starts");
+  $self->$method(@data, "The inserting optimizer starts");
   my $todo=$self->{DB}->queryValue("SELECT todo from ACTIONS where action='INSERTING'");
   $todo or return;
   $self->{DB}->update("ACTIONS", {todo=>0}, "action='INSERTING'");
 
   my $done=$self->checkJobs($silent, "INSERTING' and jdl not like '\% Split = \"\%", "updateInserting");
 
-  $self->info( "The inserting optimizer finished");
+  $self->$method(@data, "The inserting optimizer finished");
   return;
 }
 
@@ -70,14 +73,15 @@ sub updateInserting {
     $set->{jdl}=$job_ca->asJDL();
 #    print "The jdl is $set->{jdl}\n";
 
-
-    $req = "Requirements= $req;\n";
-
-    foreach my $entry ("user", "memory", "swap", "localdisk") {
-      my ($ok, $info)=$job_ca->evaluateExpression($entry);
-      ($ok and $info) or next;
-      $req.=" $entry =$info;\n";
+    ($ok, my $stage)=$job_ca->evaluateExpression("Prestage");
+    if ($stage){
+      $self->putJobLog($queueid, "info", "The job asks for its data to be pre-staged");
+      $status="TO_STAGE";
+      $req.="  && other.TO_STAGE==1 ";
     }
+
+    $req=$self->getJobAgentRequirements($req, $job_ca);
+
 
     $set->{agentId}=$self->{DB}->insertJobAgent($req)
       or die("error creating the jobagent entry\n");

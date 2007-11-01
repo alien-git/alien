@@ -41,7 +41,7 @@ sub findTransfers {
   my $se=join (" or ", ("SE is NULL", @se));
   $self->debug(1, "Finding a transfer for '$se'");
 
-  my ($list) = $self->{DB}->getWaitingTransfersBySE($se,"priority desc, transferId");
+  my ($list) = $self->{DB}->getWaitingTransfersBySE($se,"priority desc");
 
   defined $list
     or $self->{LOGGER}->warning( "TransferBroker", "In findTransfer error during execution of database query" )
@@ -49,9 +49,27 @@ sub findTransfers {
   
   @$list  or return ();
   
-  return $self->match("transfer", $site_ca, $list, undef, undef, undef, $slots );
+  return $self->match("transfer", $site_ca, $list, undef, undef, undef, $slots , "getTransferFromAgentId");
 }
+sub getTransferFromAgentId {
+  my $self=shift;
+  my $agentId=shift;
+  my $cache=shift;
 
+  if (!$cache){
+    $self->info("Getting the jobids for jobagent '$agentId'");
+    my $data=AliEn::Util::returnCacheValue($self, "WaitingTransfersFor$agentId");
+    if (! $data){
+      $data=$self->{DB}->query("select transferid as id, jdl from TRANSFERS where agentid=? and (STATUS='WAITING' or STATUS='LOCAL COPY' or STATUS='CLEANING') order by transferid", undef, {bind_values=>[$agentId]});
+    }
+    $self->info("There are $#$data entries for that jobagent");
+    return @$data;
+  }
+  $self->info("For the next time that this thing is called, putting the info in the cache");
+  ( $#$cache>100) or $cache=undef;
+  AliEn::Util::setCacheValue($self, "WaitingTransfersFor$agentId", $cache);
+  return 1;
+}
 sub requestTransfer {
   my $this = shift;
   my $jdl=shift;
@@ -74,6 +92,7 @@ sub requestTransfer {
   my @toReturn;
   while (@ids){
     my ( $transferId, $transfer_ca, $id2 ) = (shift @ids, shift @ids, shift @ids);
+    $self->info("WE ARE GOIND TO RETURN TRANSFER $transferId, with ". $transfer_ca->asJDL() );
     push @toReturn, $self->getTransferArguments($transferId,  $transfer_ca, $ca );
 
   }
@@ -144,6 +163,8 @@ sub getTransferArguments {
     ($ok, my $host)=$ftd_ca->evaluateAttributeString("Name");
 
     $self->info("Sending transfer $id to $host");
+    use Data::Dumper;
+    print Dumper($transfer);
     return $transfer;
 }
 

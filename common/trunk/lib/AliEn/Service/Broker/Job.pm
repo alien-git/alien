@@ -53,7 +53,7 @@ sub getJobIdFromAgentId {
     $self->info("Getting the jobids for jobagent '$agentId'");
     my $data=AliEn::Util::returnCacheValue($self, "WaitingJobsFor$agentId");
     if (! $data){
-      $data=$self->{DB}->query("select queueid as id, jdl from QUEUE where agentid=? and STATUS='WAITING' order by queueid", undef, {bind_values=>[$agentId]});
+      $data=$self->{DB}->query("select queueid as id, jdl from QUEUE where agentid=? and (STATUS='WAITING' or STATUS='TO_STAGE') order by queueid", undef, {bind_values=>[$agentId]});
     }
     $self->info("There are $#$data entries for that jobagent");
     return @$data;
@@ -71,6 +71,7 @@ sub getJobAgent {
   my $user    =shift;
   my $host    = shift;
   my $site_jdl = shift;
+  my $site_stage_jdl =shift;
 
   my $date = time;
   #DO NOT PUT ANY print STATEMENTS!!! Otherwise, it doesn't work with an httpd container
@@ -94,48 +95,82 @@ sub getJobAgent {
     $self->{MONITOR}->sendParams(("WAITING_jobs", $number));
   }
  
-  @$list
-    or $self->info( "In findjob no job to match" )
-      and return (-2, "No jobs waiting in the queue");
+  if (!@$list){
+    $self->info( "In findjob no job to match" );
+    my @return=(-2, "No jobs waiting in the queue");
+    $site_stage_jdl and return { execute=>\@return};
+    return @return;
+  }
   $self->info( "Starting the match, with $number elements");
   
   my $site_ca = Classad::Classad->new($site_jdl);
   $self->{SITE_CA}=$site_ca;
   my ($ok, $msg)=$self->checkQueueOpen($site_ca);
-  $ok or return (-1, $msg);
+  if (!$ok){
+    $site_stage_jdl and return (-1, $msg);
+    return {execute=>[-1, $msg]};
+  }
 
   my ($queueId, $job_ca, $jdl)=$self->match( "agent", $site_ca, $list, $user, $host , "checkPackagesToInstall", 0,"getJobIdFromAgentId");
-  $queueId or 
-    $self->info( "No job matches '$site_jdl'") and 
-      return (-2, "No jobs waiting in the queue");
-  if ($queueId eq "-3"){
-    my @packages=@$job_ca;
-    $self->info("Before we can assign the job, the WN has to install some packages (@packages)");
-    $self->putlog($queueId, "debug", "Site needs to install @packages before retrieving the job");
-    $self->info("Telling the site to install @packages");
-    return (-3, @packages);
+
+  my $to_stage;
+  if ($site_stage_jdl){
+    $self->info("Checking if it can stage anything ($site_stage_jdl)");
+    my $site_stage_ca = Classad::Classad->new($site_stage_jdl);
+    if ($site_stage_ca){
+      my ($stageId, $stage_ca, $stage_jdl)=$self->match("agent", $site_stage_ca, $list, $user, $host."_alienSTAGE", undef, 0,"getJobIdFromAgentId");
+      $self->info("AFTER CHECKING, got $stageId, $stage_ca and $stage_jdl");
+
+      if ($stageId>0){
+	$self->info("The JobAgent could stage $stageId");
+	$to_stage={queueid=>$stageId, jdl=>$stage_jdl};
+      }
+    } else{
+      $self->info("The stage JDL has the wrong syntax!!"); 
+      
+    }
   }
-  $self->putlog($queueId,"state","Job state transition from WAITING to ASSIGNED ($host)");
+  my @return=();
+  eval {
+    if (!$queueId){
+      push @return,-2, "No jobs waiting in the queue";
+      die("No job matches '$site_jdl'\n");
+    }
+    if ($queueId eq "-3"){
+      my @packages=@$job_ca;
+      $self->info("Before we can assign the job, the WN has to install some packages (@packages)");
+      $self->putlog($queueId, "debug", "Site needs to install @packages before retrieving the job");
+      push @return, -3, @packages;
+      die("Telling the site to install @packages");
+    }
+    $self->putlog($queueId,"state","Job state transition from WAITING to ASSIGNED ($host)");
 
-  $self->info("Getting the token");
-  my $result=$self->getJobToken($queueId);
-#  my $result = $self->{TOKENMAN}->getJobToken($queueId);
-  $self->info("I got as token $result"); 
-  if ((! $result) || ($result eq "-1")) {
-    $self->{DB}->updateStatus($queueId, "%", "ERROR_A");
-    $self->putlog($queueId,"state","Job state transition from ASSIGNED to ERRROR_A");
-    $self->{LOGGER}->error( "Broker", "In requestCommand error getting the token" );
-    return ( -1, "getting the token of the job $queueId" );
+    $self->info("Getting the token");
+    my $result=$self->getJobToken($queueId);
+    #  my $result = $self->{TOKENMAN}->getJobToken($queueId);
+    $self->info("I got as token $result"); 
+    if ((! $result) || ($result eq "-1")) {
+      $self->{DB}->updateStatus($queueId, "%", "ERROR_A");
+      $self->putlog($queueId,"state","Job state transition from ASSIGNED to ERRROR_A");
+      $self->{LOGGER}->error( "Broker", "In requestCommand error getting the token" );
+      push @return, -1, "getting the token of the job $queueId" ;
+      die ("Error getting the token of the job");
+    }
+    my $token   = $result->{token};
+    my $jobUser = $result->{user};
+    $self->debug(1, "In requestCommand $jobUser token is $token" );
+    $self->info(  "Command $queueId sent to $host" );
+    push @return, {queueid=>$queueId, token=>$token, jdl=>$jdl, user=>$jobUser};
+  };
+
+  if ($site_stage_jdl){
+    $self->info("Returning the new format");
+    my $return={execute=>\@return,stage=>$to_stage};
+    
+  }else{
+    $self->info("The site is not updated. Using old format");
+    return @return;
   }
-
-  my $token   = $result->{token};
-  my $jobUser = $result->{user};
-
-  $self->debug(1, "In requestCommand $jobUser token is $token" );
-
-  $self->info(  "Command $queueId sent to $host" );
-
-  return {queueid=>$queueId, token=>$token, jdl=>$jdl, user=>$jobUser};
 
 }
 

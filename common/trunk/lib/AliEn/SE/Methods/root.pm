@@ -62,7 +62,8 @@ sub put {
   my $command="$self->{XRDCP} -np -v $self->{LOCALFILE} root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH} -DIFirstConnectMaxCnt 1";
 
 #  my $error = $self->_execute($command);
-  open (OUTPUT, "$command 2> /dev/null |") or $self->info("Error: xrdcp is not in the path") and return;
+  $self->debug(1,"The command is $command");
+  open (OUTPUT, "$command  2>&1 |") or $self->info("Error: xrdcp is not in the path") and return;
   my @output=<OUTPUT>;
   close OUTPUT;
   $self->debug(2, "Got the output: @output");
@@ -109,5 +110,21 @@ sub getSize {
   $buffer=~ /size=(\d+) / or $self->info("There is no line with the size in: $buffer") and return;
   $self->info("The size is $1");
   return $1;
+}
+
+sub stage {
+  my $self=shift;
+  my $pfn=shift;
+  $self->info("WE HAVE TO STAGE AN XROOTD FILE ($pfn)!!");
+  system("xrdstage", $pfn);
+  return 1;
+}
+
+sub isStaged{
+  my $self=shift;
+  my $pfn=shift;
+  $self->info("Checking if the file is in the xrootd cache");
+  system("xrdisonline", $pfn);
+  return 1;
 }
 return 1;

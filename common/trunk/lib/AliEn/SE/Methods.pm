@@ -296,12 +296,34 @@ sub getFTPCopy {
 
 sub stage {
   my $self=shift;
+  $self->tryMethod("stage", @_);
+}
+
+sub isStaged {
+  my $self=shift;
+  $self->tryMethod("isStaged", @_);
+}
+
+sub tryMethod{
+  my $self=shift;
+  my $method=shift;
+
   if ($self->{MSS})   {
-    $self->info( "Telling the MSS to stage the file");
-    return $self->{MSS}->stage($self->path);
+    $self->info( "Telling the MSS to $method the file");
+    return $self->{MSS}->$method($self->path);
   }
+  my $done;
+  eval { 
+    $self->info("Let's try also in the methods...");
+    my $n="SUPER::$method";
+    $done=$self->$n($self->{PARSED}->{ORIG_PFN});
+  }; 
+  if ($@){
+    $self->info("NOPE: $@\n");
+  }
+  $done and return 1;
+
   $self->info("The file doesn't have to be staged");
   return 1;
 }
-
 return 1;

@@ -221,54 +221,54 @@ sub getQueueInfo {
     return $returninfo;
 }
 
-# this command is called by the CE to match the queued jobs in the central queue with the queued jobs in the
-# local queue
+## this command is called by the CE to match the queued jobs in the central queue with the queued jobs in the
+## local queue
 
-sub checkQueueStatus() {
-  my $this = shift;
-  my $ce   = shift;
-  my @jobs = @_;
+#sub checkQueueStatus() {
+#  my $this = shift;
+#  my $ce   = shift;
+#  my @jobs = @_;
 
-  # for LCG, we do the check for the moment in the old ClusterMonitor way ....
-  if ( $ce=~ /LCG/ ) {
-    return 1;
-  }
-
-  $self->info( "In checkQueuedStatus .... for $ce");
-  
-  $ce or return;
-
-  $self->info( "Verifying the queue $ce with Job-Ids  @_");
+#  # for LCG, we do the check for the moment in the old ClusterMonitor way ....
+#  if ( $ce=~ /LCG/ ) {
+#    return 1;
 #  }
+
+#  $self->info( "In checkQueuedStatus .... for $ce");
   
-  $self->info( "Calling SOAP");
-  my $done =$self->{SOAP}->CallSOAP("Manager/Job", "jobinfo",$ce,"QUEUED","600");
-  $done or return;
-  my $returninfo="";
+#  $ce or return;
 
-  $self->info( "Calling SOAP successful!");
-  $done=$done->result;
-  my $refqueueid;
-  my $consistent = 1;
-  foreach  (@$done) {
-    $self->info( "Checking Job Id $_->{queueId} ");
-    if ($_->{queueId} > 0) {
-      # compare if we find this job in the list from the CE
-      my $found = grep (/^$_->{queueId}$/, @_);
-      if (!$found) {
-	# this job is not in our queue!
-	$self->{LOGGER}->error("ClusterMonitor","Job $refqueueid is not queued anymore in $ce - moving to ERROR_E!");
-	$self->changeStatusCommand($_->{queueId},"QUEUED", "ERROR_E","","");
-	$consistent = 0;
-      } else {
-	$self->info("Verified that job $refqueueid is still queued ....!");
-      }
-    }
-  }
-  $self->info("Finished checkQueueStatus");
-  return $consistent;
+#  $self->info( "Verifying the queue $ce with Job-Ids  @_");
+##  }
+  
+#  $self->info( "Calling SOAP");
+#  my $done =$self->{SOAP}->CallSOAP("Manager/Job", "jobinfo",$ce,"QUEUED","600");
+#  $done or return;
+#  my $returninfo="";
 
-}
+#  $self->info( "Calling SOAP successful!");
+#  $done=$done->result;
+#  my $refqueueid;
+#  my $consistent = 1;
+#  foreach  (@$done) {
+#    $self->info( "Checking Job Id $_->{queueId} ");
+#    if ($_->{queueId} > 0) {
+#      # compare if we find this job in the list from the CE
+#      my $found = grep (/^$_->{queueId}$/, @_);
+#      if (!$found) {
+#	# this job is not in our queue!
+#	$self->{LOGGER}->error("ClusterMonitor","Job $refqueueid is not queued anymore in $ce - moving to ERROR_E!");
+#	$self->changeStatusCommand($_->{queueId},"QUEUED", "ERROR_E","","");
+#	$consistent = 0;
+#      } else {
+#	$self->info("Verified that job $refqueueid is still queued ....!");
+#      }
+#    }
+#  }
+#  $self->info("Finished checkQueueStatus");
+#  return $consistent;
+
+#}
 
 sub getExcludedHosts {
     my $now   = time;
@@ -458,25 +458,32 @@ sub getJobAgent {
   $self->info( "Getting a job to be executed (by $user in $wn, agentId is $agentId)" );
 
   my $done =$self->{SOAP}->CallSOAP("Broker/Job", "getJobAgent",$user, $self->{CONFIG}->{HOST},  @_);
-
   ($done) or return (-1, $self->{LOGGER}->error_msg);
-  ($done eq "-2") and return  (-2, "No jobs waiting in the queue");
-  ($done, my @packages) = $self->{SOAP}->GetOutput($done);
-  ($done eq "-2") and return  (-2, "No jobs waiting in the queue");
-  if ($done eq "-3") {
-    $self->info("We have to install some packages (@packages) before we can execute the job");
-    return ($done, @packages);
 
-  }
-  $self->info( "Getting a jdl done ($done)!!" );
-  my $jdl=$done->{jdl};
-  $jdl =~ s{'}{\\'}g;
+  use Data::Dumper;
+  print Dumper($done);
+  my @info=$self->{SOAP}->GetOutput($done);
+  print Dumper(@info);
+  return @info;
+  
+#  ($done) or return (-1, $self->{LOGGER}->error_msg);
+#  ($done eq "-2") and return  (-2, "No jobs waiting in the queue");
+#  ($done, my @packages) = $self->{SOAP}->GetOutput($done);
+#  ($done eq "-2") and return  (-2, "No jobs waiting in the queue");
+#  if ($done eq "-3") {
+#    $self->info("We have to install some packages (@packages) before we can execute the job");
+#    return ($done, @packages);#
+#
+#  }
+#  $self->info( "Getting a jdl done ($done)!!" );
+#  my $jdl=$done->{jdl};
+#  $jdl =~ s{'}{\\'}g;#
 
-  $self->{LOCALJOBDB}->updateJobAgent({ jobId=>$done->{queueid}, 
-				       workernode=>$wn, agentId=>$agentId,
-				      }, "agentId=?", {bind_values=>[$agentId]});
-  $self->info("Sending the job id $done->{queueid}");
-  return $done;
+#  $self->{LOCALJOBDB}->updateJobAgent({ jobId=>$done->{queueid}, 
+#				       workernode=>$wn, agentId=>$agentId,
+#				      }, "agentId=?", {bind_values=>[$agentId]});
+#  $self->info("Sending the job id $done->{queueid}");
+#  return $done;
 }
 
 #sub getJobJDL {
