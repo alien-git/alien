@@ -704,6 +704,11 @@ sub getTags {
   return $self->{LFN_DB}->getTags(@_);
 }
 
+sub cleanupTagValue{
+  my $self=shift;
+  return $self->{LFN_DB}->cleanupTagValue(@_);
+}
+
 sub getFieldsFromTagEx {
   my $self = shift;
   return $self->{LFN_DB}->getFieldsFromTagEx(@_);

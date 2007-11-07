@@ -138,6 +138,7 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
     'removeTag'      => ['$self->{CATALOG}->f_removeTag', 0],
     'removeTagValue' => ['$self->{CATALOG}->f_removeTagValue', 0],
 	    'showTagDescription'=> ['$self->{CATALOG}->f_showTagDescription', 67],
+    'cleanupTagValue'=> ['$self->{CATALOG}->f_cleanupTagValue',0],
 
     #File Interface
     'register'     => ['$self->f_registerFile', 0],
