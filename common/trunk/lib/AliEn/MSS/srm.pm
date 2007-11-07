@@ -6,7 +6,7 @@ use strict;
 
 use AliEn::MSS;
 
-use SRM;
+#use SRM;
 use AliEn::X509;
 use vars qw(@ISA  $DEBUG);
 @ISA = ( "AliEn::MSS" );
