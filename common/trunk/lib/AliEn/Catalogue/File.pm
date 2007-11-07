@@ -533,6 +533,11 @@ sub f_cp {
 	      $self->f_chown("s",$self->{ROLE},$target);
 	  }
       }
+      if ($opt->{'m'}){
+	$self->info("We should get the metadata of the directory");
+	$self->getCPMetadata($sourceHash->{lfn} , $target, "", $todoMetadata)
+	  or return;
+      }
       next;
     }
     my $targetName=$self->f_basename($target);
@@ -554,14 +559,8 @@ sub f_cp {
 
     push @todo, $sourceHash;
     if ($opt->{'m'}){
-      my $info=$self->getCPMetadata($source, $targetDir, $targetName)
+      $self->getCPMetadata($source, $targetDir, $targetName, $todoMetadata)
 	or return;
-      foreach my $key (keys %$info){
-	my @list=();
-	$todoMetadata->{$key} and push @list, @{$todoMetadata->{$key}};
-	push @list, @{$info->{$key}};
-	$todoMetadata->{$key}=\@list;
-      }
     }
   }
   if (@todo) {
@@ -577,38 +576,66 @@ sub f_cp {
   return @done;
 }
 
+
+# This subroutine is used to find all the metadata of a file that is going
+# to be copied. The result is giving back in the variable $todoMetadata
+#
 sub getCPMetadata{
   my $self=shift;
   my $source=shift;
   my $targetDir=shift;
   my $targetName=shift;
+  my $todoMetadata=shift;
 
   $targetDir=~ s{/?$}{/};
-  $self->info("We are supposed to copy also the metadata");
+  $self->info("We are supposed to copy also the metadata (of $source)");
   my $sourceDir=$source;
-  $sourceDir=~ s{/[^/]*$}{};
-  my $tags=$self->f_showTags("all", $sourceDir);
+  $sourceDir=~ s{/[^/]*$}{/};
+  my $tags=$self->f_showTags("allr", $sourceDir);
   my $entries={};
   foreach my $tag (@$tags){
     #making sure that the destination has all the tags#
-    print "We should add the tag $tag\n";
+    $self->debug(1, "We should add the tag $tag->{tagName}");
     $self->f_addTag($targetDir, $tag->{tagName}, $tag->{tagName}, $tag->{path}) or $self->info("Error defining the metadata $tag->{tagName}") and return;
     my $tableName= $self->{DATABASE}->getTagTableName($targetDir, $tag->{tagName}) or $self->info("Error getting the name of the table") and return;
     #let's put the entries 
     my @list=();
     $entries->{$tag->{tagName}} and push @list, @{$entries->{$tag->{tagName}}};
-    print "Getting the metadata for $sourceDir and $tag->{tagName}\n";
-    my ($columns, $info)= $self->f_showTagValue("",$sourceDir, $tag->{tagName}) or return;
-    foreach my $entry (@$info){
+    $self->info( "Getting the metadata for $sourceDir and $tag->{tagName}");
+    my ($columns, $info)= $self->f_showTagValue("",$sourceDir, $tag->{tagName});
+    $self->info( "Getting the extra metadata for $sourceDir and $tag->{tagName}");
+
+    my ($columns2, $info2)= $self->f_showTagValue("r",$sourceDir, $tag->{tagName});
+
+    foreach my $entry (@$info, @$info2){
       my $toInsert={file=>"$targetDir$targetName"};
+      if (! $targetName){
+
+	$toInsert->{file}=$entry->{file};
+	$toInsert->{file} =~ s/^$source//;
+	$toInsert->{file}="$targetDir$toInsert->{file}";
+	$self->info( "Since we are copying a directory, the info is from $toInsert->{file} (from $entry->{file}, $source and $targetDir");
+	my $tempDir=$toInsert->{file};
+	$tempDir =~ s/[^\/]*$//;
+	$self->f_addTag($tempDir, $tag->{tagName}, $tag->{tagName}, $tag->{path}) or $self->info("Error creating the tag $tag->{tagName} in $tempDir") and return;
+      }
       foreach my $key (keys %$entry){
 	$key =~ /^(entryId)|(file)$/ and next;
 	$toInsert->{$key}=$entry->{$key};
       }
       push @list, $toInsert;
     }
+    @list or $self->info("For the tag $tag->{tagName}, there wasn't any metadata. Ignoring it") and next;
     $entries->{$tableName}=\@list;
   }
+
+  foreach my $key (keys %$entries){
+    my @list=();
+    $todoMetadata->{$key} and push @list, @{$todoMetadata->{$key}};
+    push @list, @{$entries->{$key}};
+    $todoMetadata->{$key}=\@list;
+  }
+
   return $entries;
 }
 

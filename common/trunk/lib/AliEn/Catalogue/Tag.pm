@@ -40,7 +40,7 @@ sub f_addTag {
     $self->info("Creating the table $tableName...");
     if ($options){
       $self->info("In fact, we want a table like the one for directory '$options'");
-      $tagSQL=$self->f_showTagDescription($tagName, $options)
+      $tagSQL=$self->f_showTagDescription("", $options, $tagName)
 	or $self->info("Error getting the description of the table") and return;
     }
     $self->selectDatabase($directory);
@@ -106,6 +106,18 @@ sub f_removeTag {
   return $self->{DATABASE}->deleteTagTable( $tag, $directory);
 }
 
+sub f_showTags_HELP{
+  return "showTags: describes the metadata tables that have been created for a directory.
+
+Usage:
+
+\tshowTags [-all [-r]] <directory>
+
+Options:
+\t-all: Give the tags of the parent directories 
+\t-r:   Give the tags of the children directories
+";
+}
 sub f_showTags {
   my $self      = shift;
   my $options   = shift;
@@ -125,27 +137,21 @@ sub f_showTags {
   my @hashtags=();
   my $result;
   my $return;
-
+  my $recursive;
+  $options =~ /r/ and $recursive=1;
   if ($options =~ /all/) {
     $self->debug(1, "Getting all the tags ");  
-    ($result) = $self->{DATABASE}->getAllTagNamesByPath($directory);
-      foreach my $entry (@{$result}) {
-      my $hashval={};
+    ($result) = $self->{DATABASE}->getAllTagNamesByPath($directory, {r=>$recursive});
+    foreach my $entry (@{$result}) {
       push @tags, $entry->{tagName};
-      $hashval->{tagname} = $entry->{tagName};
-      push @hashtags, $hashval;
     }
     $return=$result;
   } else {
     ($result) = $self->{DATABASE}->getTagNamesByPath($directory);
     @tags=@$result;
     $return= join ( "###", @$result );
-    foreach my $tagname (@$result) {
-        my $hashval={};
-	$hashval->{tagname} = $tagname;
-	push @hashtags, $hashval;
-    }
   }
+
 
   if ( !$result or $#{$result} == -1) {
       ($options =~ /z/) || $self->info("There are no tags defined for $directory");
@@ -154,10 +160,14 @@ sub f_showTags {
 
   ($options =~ /z/) || $self->info("Tags defined for $directory \n@tags");
   if ($options =~ /z/) {
-      return @hashtags;
-  } else {
-      return $return;
+    my @hashtags;
+    foreach my $tagname (@tags) {
+      push @hashtags, {tagname => $tagname};
+    }
+    return @hashtags;
   }
+  return $return;
+
 }
 
 sub existsTag {
@@ -271,7 +281,15 @@ sub modifyTagValue {
 
   return 1;
 }
+sub f_showTagValue_HELP{
+  return "showTagValue: displays the metadata of an entry;
+Usage:
+\t showTagValue [] <entry> <tagName>
 
+Options:
+\t  -r: recursive. Show also the metadata of any entry in any subdirectory
+"
+}
 sub f_showTagValue {
   my $self = shift;
   my $opts   = shift;
@@ -280,37 +298,53 @@ sub f_showTagValue {
   
   my $hashtags=();
   ($tag)
-    or print STDERR
-      "Error: not enough arguments in showTagValue\nUsage: showTagValue <file> <tag>\n"
-	and return;
+    or $self->info("Error: not enough arguments in showTagValue\n". $self->f_showTagValue_HELP()) and return;
 
   ( $self->checkPermissions( 'r', $path ) ) or return;
   my $path2=$self->{DATABASE}->existsEntry( $path) or 
     $self->info("The directory $path does not exist") and return;
 
-  my $directory=$path2;
-  $directory =~ m{/$} or $directory = $self->f_dirname($path);
+  my $tagTableName;
+  my $rTags;
+  if ($opts =~ /r/){
+    $self->info("We have to find all the entries with that tag");
+    my $tags=$self->{DATABASE}->getFieldsByTagName($tag, "tableName", 1, $path, )
+      or $self->info("Error getting the tags from the directory")
+	and return;
+    foreach my $entry (@$tags){
+      $self->info("Let's get the information from $entry");
+      $tagTableName=$entry->{tableName};
+      my $info= $self->{DATABASE}->{LFN_DB}->query("SELECT * from $entry->{tableName} where file like concat(?, '%')", undef, {bind_values=>[$path]});
+      push @$rTags, @$info;
+    }
+    $tagTableName or
+      $self->info("That tag is not defined in any subdirectory")
+	and return;
+  } else {
+    my $directory=$path2;
+    $directory =~ m{/$} or $directory = $self->f_dirname($path);
+    
+    while (! $self->existsTag( $directory, $tag, "silent" )) {
+      $directory =~ s{/$}{};
+      $directory = $self->f_dirname($directory);
+      $directory or  $self->{LOGGER}->error("Tag", "The tag $tag is not defined for $path") and return;
+      $self->debug(1,"Checking if the tag is defined in $directory");
+    }
+    my $fileName=$path2;
+    ($fileName eq "$directory") and $fileName="";
+    $fileName =~ s{^(${directory}[^/]*/?).*$}{$1};
+    my $where;
+    
+    $self->debug(1, "Checking $directory and $fileName");
+    
+    $tagTableName = $self->{DATABASE}->getTagTableName($directory, $tag);
+    
+    $where = "file like '$directory%'";
+    my $options={filename=>$fileName};
 
-  while (! $self->existsTag( $directory, $tag, "silent" )) {
-    $directory =~ s{/$}{};
-    $directory = $self->f_dirname($directory);
-    $directory or  $self->{LOGGER}->error("Tag", "The tag $tag is not defined for $path") and return;
-    $self->debug(1,"Checking if the tag is defined in $directory");
+    $self->debug(1, "Checking the tags of $directory and $where");
+    $rTags = $self->{DATABASE}->getTags($directory, $tag, undef, $where, $options);
   }
-  my $fileName=$path2;
-  ($fileName eq "$directory") and $fileName="";
-  $fileName =~ s{^(${directory}[^/]*/?).*$}{$1};
-  my $where;
-
-  $self->debug(1, "Checking $directory and $fileName");
-
-  my $tagTableName = $self->{DATABASE}->getTagTableName($directory, $tag);
-
-  $where = "file like '$directory%'";
-  my $options={filename=>$fileName};
-
-  $self->debug(1, "Checking the tags of $directory and $where");
-  my $rTags = $self->{DATABASE}->getTags($directory, $tag, undef, $where, $options);
 
   my $rcolumns = $self->{DATABASE}->describeTable($tagTableName) 
     or $self->info("Error getting the description of the metadata") and return;
@@ -322,7 +356,9 @@ sub f_showTagValue {
     my $l = length "$name($type)  ";
     $type =~ /(\d+)/ and $1 > $l and $l = $1;
 
-    if ((!$self->{SILENT}) && ($opts !~ /z/)) {printf "%-${l}s", "$name($type)  ";}
+    if ((!$self->{SILENT}) && ($opts !~ /z/)) {
+      printf "%-${l}s", "$name($type)  ";
+    }
     push @fields, [$name, $l];
   }
 
@@ -425,6 +461,33 @@ sub f_showAllTagValues {
   } else {
       return \@result;
   }
+}
+sub f_cleanupTagValue_HELP{
+  return "cleanupTagValue: deletes old metadata entries from a directory
+Usage:
+\tcleanupTagValue <lfn> <tagName>
+";
+}
+
+sub f_cleanupTagValue{
+  my $self=shift;
+  my $directory=shift;
+  my $tag=shift;
+
+  ($directory and $tag) or 
+    $self->info("Error: not enough arguments in cleanupTagValue\n". $self->f_cleanupTagValue_HELP()) and return;
+
+
+  $directory = $self->f_complete_path($directory);
+
+  $directory =~ s/\/?$/\//;
+  ( $self->checkPermissions( 'w', $directory ) ) or return;
+  $self->isDirectory($directory) or
+    print STDERR "$directory is not a direcotry!!\n" and return;
+
+  $self->info("Ready to cleanup the tag values of the directory $directory");
+
+  return $self->{DATABASE}->cleanupTagValue( $directory, $tag );
 }
 
 return 1;

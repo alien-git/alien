@@ -190,8 +190,6 @@ sub checkLFNTable {
   
   $self->info("We should also check if the triggers exist");
   my $info=$self->query("show triggers like '$table\%'");
-  use Data::Dumper;
-  print Dumper($info);
   my $triggers={"${table}_insert"=>'NEW', "${table}_delete"=>'OLD',
 		"${table}_update"=>"if ( NEW.guid != OLD.guid ) then insert into LFN_UPDATES(guid, action) VALUES (NEW.guid, 'insert'), (OLD.guid, 'delete');end if;"};
   foreach my $trigger (@$info) {
@@ -1270,9 +1268,10 @@ sub getTags {
   my $columns = shift || "*";
   my $where = shift || "";
   my $options=shift || {};
-  my $query="SELECT $columns from $tableName where $where";
+  my $query="SELECT $columns from $tableName t where t.entryId=(select max(entryId) from $tableName t2 where t.file=t2.file) and $where";
   if ($options->{filename}){
-    $query.=" and entryId=(select max(entryId) from $tableName where file=?)";
+#    $query.=" and entryId=(select max(entryId) from $tableName where file=?)";
+    $query.=" and file=? ";
     my @list=();
     $options->{bind_values} and @list=@{$options->{bind_values}};
     push @list, $options->{filename};
@@ -1292,8 +1291,16 @@ sub getTagNamesByPath {
 sub getAllTagNamesByPath {
   my $self = shift;
   my $path = shift;
+  my $options=shift || {};
+
+  my $rec="";
+  my @bind=($path);
+  if ($options->{r}){
+    $rec=" or path like concat(?, '%') ";
+    push @bind, $path;
+  }
   
-  $self->query("SELECT tagName,path from TAG0 where ? like concat(path,'%') group by tagName", undef, {bind_values=>[$path]});
+  $self->query("SELECT tagName,path from TAG0 where ? like concat(path,'%') $rec group by tagName", undef, {bind_values=>\@bind});
 }
 
 sub getFieldsByTagName {
@@ -1302,14 +1309,17 @@ sub getFieldsByTagName {
   my $fields = shift || "*";
   my $distinct = shift;
   my $directory = shift;
-  
+  my @bind=($tagName);
   my $sql = "SELECT ";
   $distinct and $sql .= "DISTINCT ";
   
-  $sql.="  $fields FROM TAG0 WHERE tagName='$tagName'";
-  $directory and  $sql.="";
+  $sql.="  $fields FROM TAG0 WHERE tagName=?";
+  if ($directory) {
+     $sql.=" and path like concat(?, '%')";
+     push @bind, $directory;
+   }
 
-  $self->query($sql);
+  $self->query($sql, undef, {bind_values=>\@bind});
 }
 
 
@@ -1831,6 +1841,44 @@ sub removeFileFromCollection{
   return $deleted;
 }
 
+
+
+sub cleanupTagValue{
+  my $self=shift;
+  my $directory=shift;
+  my $tag=shift;
+
+  my $tags=$self->getFieldsByTagName($tag, "tableName", 1, $directory  )
+    or $self->info("Error getting the directories for $tag and $directory")
+      and return;
+
+  my $dirs=$self->getHostsForEntry($directory)
+    or $self->info("Error getting the hosts of $directory") and return;
+
+  foreach my $tag (@$tags){
+    $self->info("First, let's delete duplicate entries");
+    $self->lock($tag->{tableName});
+    $self->do("create temporary table $tag->{tableName}temp select file as f, max(entryId) as e from $tag->{tableName} group by file");
+    $self->do("delete from  $tag->{tableName} using  $tag->{tableName},  $tag->{tableName}temp where file=f and entryId<e");
+    $self->do("drop temporary table  $tag->{tableName}temp");
+    $self->unlock($tag->{tableName});
+    foreach my $host (@$dirs){
+      $self->info("Deleting the entries from $tag->{tableName} that are not in $host->{tableName} (like $host->{lfn})");
+      my @bind=($host->{lfn},$host->{lfn});
+      my $where=" and file like concat(?,'%') ";
+      foreach my $entry (@$dirs){
+	$entry->{lfn} =~ /^$host->{lfn}./ or next;
+	$self->info("$entry->{lfn} is a subdirectory!!");
+	$where.=" and file not like concat(?,'%') ";
+	push @bind, $entry->{lfn};
+      }
+      $self->do("delete from $tag->{tableName} using $tag->{tableName} left join L$host->{tableName}L on file=concat(?, lfn) where lfn is null $where", {bind_values=>\@bind});
+    }
+
+  }
+
+  return 1;
+}
 =head1 SEE ALSO
 
 AliEn::Database
