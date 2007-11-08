@@ -3133,4 +3133,45 @@ sub f_jobListMatch {
   return $anyMatch;
 }
 
+sub resyncJobAgent{
+  my $self=shift;
+  $self->info("Ready to resync the number of jobs waiting in the system");
+
+  my ($host, $driver, $db) =
+    split ("/", $self->{CONFIG}->{"JOB_DATABASE"});
+
+
+  $self->{TASK_DB} or 
+    $self->{TASK_DB}=
+      AliEn::Database::TaskQueue->new({DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin', SKIP_CHECK_TABLES=> 1});
+  $self->{TASK_DB} or 
+    $self->info("In initialize creating TaskQueue instance failed" )
+      and return;
+  $self->info("First, let's take a look at the missing jobagents");
+
+  my $jobs=$self->{TASK_DB}->query("select agentid, jdl from QUEUE where queueid=(select min(queueid) from QUEUE left join JOBAGENT on agentid=entryid where entryid is null  and status='WAITING' group by agentid)") or $self->info("Error getting the jobs without jobagents") and return;
+  
+  foreach my $job (@$jobs){
+    $self->info("We have to insert a jobagent for $job->{jdl}");
+    $job->{jdl} =~ /(requirements[^;]*)/i or 
+      $self->info("Error getting the requirements from $job->{jdl}") and next;
+    my $req=$1;
+    $job->{jdl}=~ /(user[^;]*)/i or
+      $self->info("Error getting the user from $job->{jdl}") and next;
+    $req.=";$1;";
+
+    $self->{TASK_DB}->insert("JOBAGENT", {counter=>30, entryid=>$job->{agentid}, 
+					 requirements=>$req});
+  }
+
+
+
+  $self->info("Now, update the jobagent numbers");
+
+
+
+  $self->{TASK_DB}->do("update JOBAGENT j set counter=(select count(*) from QUEUE where status='WAITING' and agentid=entryid)");
+  $self->info("Resync done");
+  return 1;
+}
 return 1;

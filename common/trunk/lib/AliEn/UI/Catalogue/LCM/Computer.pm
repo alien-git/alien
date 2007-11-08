@@ -32,6 +32,7 @@ my (%command_list);
     'packman'  => ['$self->{PACKMAN}->f_packman',0],
     'masterJob'=> ['$self->{QUEUE}->masterJob',0],
     'checkAgents'=> ['$self->{QUEUE}->checkJobAgents',0],
+    'resyncJobAgent'=>['$self->{QUEUE}->resyncJobAgent',0],
     'cleanCache' => ['$self->cleanCache',0],
     'registerOutput' => ['$self->registerOutput',0],
     

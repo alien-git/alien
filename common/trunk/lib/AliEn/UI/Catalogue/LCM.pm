@@ -1001,7 +1001,8 @@ sub mirror {
       
       $seRef=$guidInfo->{pfn} or 
 	$self->info("Error getting the list of pfns of $lfn") and return;
-
+      ($seRef and ${$seRef}[0]) and 
+	($pfn, $oldSE)=(${$seRef}[0]->{pfn}, ${$seRef}[0]->{seName});
 
     }else {
       $self->info("We are mirroring a $info->{type}!!\n");
@@ -1018,7 +1019,7 @@ sub mirror {
     }
   }
 
-  $self->info( "Mirroring file $realLfn (from $oldSE)");
+  $self->info( "Mirroring file $realLfn (from $oldSE and $pfn)");
   
   
   my $transfer={"source", $pfn,                  "oldSE", $oldSE,
