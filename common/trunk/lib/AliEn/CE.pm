@@ -3149,7 +3149,7 @@ sub resyncJobAgent{
       and return;
   $self->info("First, let's take a look at the missing jobagents");
 
-  my $jobs=$self->{TASK_DB}->query("select agentid, jdl from QUEUE where queueid=(select min(queueid) from QUEUE left join JOBAGENT on agentid=entryid where entryid is null  and status='WAITING' group by agentid)") or $self->info("Error getting the jobs without jobagents") and return;
+  my $jobs=$self->{TASK_DB}->query("select jdl, agentid from QUEUE q join (select min(queueid) as q from QUEUE left join JOBAGENT on agentid=entryid where entryid is null  and status='WAITING' group by agentid) t  on queueid=q") or $self->info("Error getting the jobs without jobagents") and return;
   
   foreach my $job (@$jobs){
     $self->info("We have to insert a jobagent for $job->{jdl}");
