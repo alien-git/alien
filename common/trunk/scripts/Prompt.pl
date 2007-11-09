@@ -30,13 +30,14 @@ my $options = {
 	       'gasModules' => $ENV{ALIEN_GAS_MODULES},
 	       'no_catalog' => "",
 	       'packman_method'=> "",
+	       'file'=>"",
 	      };
 
 
 Getopt::Long::GetOptions(
 			 $options,  "help",           "silent",     "user=s",
 			 "exec=s",  "token=s",        "password=s", "role=s",
-			 "debug=s", "ForcedMethod=s", "domain=s", "organisation=s",
+			 "debug=s", "ForcedMethod=s", "domain=s", "organisation=s","file=s",
        "gasModules=s", "no_catalog", "packman_method=s","queue=s",
 			)
 
@@ -68,6 +69,21 @@ if (!($base)){
 
   my $error=$AliEn::Logger::ERROR_NO;
   exit $error;
+}
+
+if ($options->{file}){
+  print "Let's execute the commands in the file $options->{file}\n";
+  open (FILE, "<$options->{file}") or
+    print "Error opening the file $options->{file}\n" and exit(-2);
+  foreach my $line (<FILE>){
+    chomp $line;
+    $line =~ /^\s*$/ and next;
+    $line =~ /^\s*#/ and next;
+    print "Executing '$line' ...\n";
+    $base->execute(split(/ /, $line));
+  }
+  close FILE;
+  exit;
 }
 $base->startPrompt;
 
