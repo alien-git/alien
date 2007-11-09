@@ -36,6 +36,20 @@ BEGIN { plan tests => 1 }
   use Data::Dumper;
   print Dumper ($info);
 
+  $$info[0]->{my_value} eq 'sipe' or print "The metadata is not there!!\n" and exit(-2);
 
+  print "Let's try now a copy of the directory...\n";
+  
+  $cat->execute("cp", "-m", "copyMetadata/source", "copyMetadata/target2") or 
+    exit(-2);
+  print "Does it have the metadata?\n";
+
+  ($columns, $info)=$cat->execute("showTagValue",  "copyMetadata/target2/file1", "AnUserTag") or exit(-2);
+  print "Got the metadata\n";
+  use Data::Dumper;
+  print Dumper ($info);
+  $$info[0]->{my_value} eq 'sipe' or print "The metadata is not there!!\n" and exit(-2);
+
+  print "ok\n";
   
 }
