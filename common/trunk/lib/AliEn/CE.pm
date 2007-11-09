@@ -3156,7 +3156,7 @@ sub resyncJobAgent{
     $job->{jdl} =~ /(requirements[^;]*)/i or 
       $self->info("Error getting the requirements from $job->{jdl}") and next;
     my $req=$1;
-    $job->{jdl}=~ /(user[^;]*)/i or
+    $job->{jdl}=~ / (user\s*=[^;]*)/i or
       $self->info("Error getting the user from $job->{jdl}") and next;
     $req.=";$1;";
 
