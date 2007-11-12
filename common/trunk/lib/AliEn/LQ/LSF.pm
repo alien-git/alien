@@ -40,10 +40,18 @@ sub updateClassAd {
 sub getNumberQueued {
   my $self=shift;
 
-  open (OUT, "$self->{GET_QUEUE_STATUS} |") or print "Error doing $self->{GET_QUEUE_STATUS}\n" and return -1;
+  open (OUT, "$self->{GET_QUEUE_STATUS} 2>&1 |") or print "Error doing $self->{GET_QUEUE_STATUS}\n" and return -1;
 
   my @output = <OUT>;
-  close(OUT) or print "Error doing $self->{GET_QUEUE_STATUS}\n" and return -1;
+  if (!close(OUT)) {
+    if (grep /No unfinished job found/, @output){
+      $self->info("There are no jobs waiting in LSF");
+      return 0;
+    } else {
+      print "Error doing $self->{GET_QUEUE_STATUS}\n" and return -1;
+    }
+    
+  }
 
   @output=grep(/(WAITING)|(PEND)/, @output);
   return $#output+1;
