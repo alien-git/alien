@@ -612,8 +612,12 @@ sub getCPMetadata{
       if (! $targetName){
 
 	$toInsert->{file}=$entry->{file};
-	$toInsert->{file} =~ s/^$source//;
-	$toInsert->{file}="$targetDir$toInsert->{file}";
+	if ($toInsert->{file} =~ s/^$source//) {
+	  $toInsert->{file}="$targetDir$toInsert->{file}";
+	} else {
+	  $self->info("The file doesn't start with $source");
+	  $toInsert->{file}=$targetDir;
+	}
 	$self->info( "Since we are copying a directory, the info is from $toInsert->{file} (from $entry->{file}, $source and $targetDir");
 	my $tempDir=$toInsert->{file};
 	$tempDir =~ s/[^\/]*$//;
