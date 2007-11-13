@@ -2509,6 +2509,7 @@ sub sendJAStatus {
     $params->{ja_id_maj} = $1;
     $params->{ja_id_min} = $2;
   }
+  $ENV{SITE_NAME} and $params->{siteName}=$ENV{SITE_NAME};
   $params->{job_id} = $ENV{ALIEN_PROC_ID} || 0;
   $self->{MONITOR}->sendParameters("$self->{CONFIG}->{SITE}_".$self->{SERVICENAME}, "$self->{HOST}:$self->{PORT}", $params);
   return 1;
