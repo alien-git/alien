@@ -1910,7 +1910,7 @@ sub erase {
 sub upload_HELP {
   return "upload: copies a file to the SE
 Usage:
-\t\tupload <pfn> <se> [<guid>]
+\t\tupload <pfn> [<se> [<guid>]]
 ";
 }
 sub upload {
@@ -1919,7 +1919,7 @@ sub upload {
 
   (my $options, @_)=$self->GetOpts(@_);
   my $pfn=shift;
-  my $se=shift;
+  my $se=(shift or $self->{CONFIG}->{SAVESE_FULLNAME} or $self->{CONFIG}->{SE_FULLNAME} or "") ;
   my $guid=shift || "";
 
  (  $pfn and $se) or
@@ -1929,7 +1929,7 @@ sub upload {
   $pfn=$self->checkLocalPFN($pfn);
   my $data;
   if ($options !~ /u/ ){
-    $self->info("Trying to upload the file $pfn to the se");
+    $self->info("Trying to upload the file $pfn to the se $se");
     $data= $self->{STORAGE}->registerInLCM( $pfn, $se, undef, undef, undef, undef, $guid) or return;
   }else {
     $self->info("Making a link to the file $pfn");
