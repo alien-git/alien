@@ -257,6 +257,8 @@ sub _prepareEntries {
     }
     #And now, let's set the defaults
     $entry->{perm} or $entry->{perm}="755";
+    $entry->{owner} or $entry->{owner}=$self->{VIRTUAL_ROLE};
+    $entry->{gowner} or $entry->{gowner}=$self->{VIRTUAL_ROLE};
     push @new, $entry;
   }
   return \@pfns, \@new;
