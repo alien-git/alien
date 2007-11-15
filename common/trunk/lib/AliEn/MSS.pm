@@ -1,10 +1,13 @@
 package AliEn::MSS;
 
 use AliEn::Database::TXT::MSS;
-use AliEn::MSS::file;
+use strict;
 use AliEn::Config;
 use AliEn::GUID;
 use File::Basename;
+use AliEn::Util;
+
+
 use vars qw (@ISA);
 
 push @ISA, 'AliEn::Logger::LogObject';
@@ -102,9 +105,8 @@ sub new {
       ->warning( "MSS", "Error setting the MSS: no LOGDIR specified" )
 	and return;
 
-  AliEn::MSS::file->mkdir( $self->{LOGDIR} )
-      and $self->{LOGGER}->warning( "MSS:file",
-				    "Error creating the log directory $self->{LOGDIR}\n" )
+  AliEn::Util::mkdir($self->{LOGDIR} )
+      or $self->{LOGGER}->info("Error creating the log directory $self->{LOGDIR}\n" )
 	and return;
 
   $self->{HOST} = $self->{CONFIG}->{HOST};
@@ -158,9 +160,7 @@ sub newFileName {
   my $dir = sprintf "%02.2d/%05.5d",$self->{GUID}->GetCHash($guid),
     $self->{GUID}->GetHash($guid);
 
-  my $date=time;
-
-  my $saveFile = sprintf "$dir/$guid.$date";
+  my $saveFile = sprintf "$dir/$guid";
 
   $saveFile =~ s/$self->{SAVEDIR}\///;
   $self->debug(1, "Returning '$saveFile'" );
