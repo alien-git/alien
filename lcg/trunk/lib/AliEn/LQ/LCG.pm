@@ -39,10 +39,27 @@ sub initialize {
    
    if ( $ENV{CE_LCGCE} ) {
      $self->info("Taking the list of CEs from \$ENV: $ENV{CE_LCGCE}");
-     my @list=split(/,/,$ENV{CE_LCGCE});
-     $self->{CONFIG}->{CE_LCGCE_LIST} = \@list;
+     #Build list (of sublists) from env - is this robust enough?
+     my $string = $ENV{CE_LCGCE};
+     my @sublist = ($string =~ /\(.+?\)/g);
+     $string =~ s/\($_\)\,?// foreach (@sublist);
+     push  @sublist, split(/,/, $string);
+     $self->{CONFIG}->{CE_LCGCE_LIST} = \@sublist;
    }
    
+   # Flat-out sublist in CE list
+   my @flatlist = ();
+   foreach my $CE ( @{$self->{CONFIG}->{CE_LCGCE_LIST}} ) {
+     $CE =~ s/\s*//g;
+     if (  $CE =~ m/\(.*\)/ ) {
+       $CE =~ s/\(//; $CE =~ s/\)//;
+       push @flatlist, split (/,/,$CE);
+     } else {
+       push @flatlist, $CE;
+     }
+   }
+   $self->{CONFIG}->{CE_LCGCE_LIST_FLAT} = \@flatlist;
+
    if ( $ENV{CE_RBLIST} ) { 
      $self->info("Taking the list of RBs from \$ENV: $ENV{CE_RBLIST}");
      my @list=split(/,/,$ENV{CE_LCGCE});
@@ -367,28 +384,49 @@ sub getInfoFromGRIS {
   my $self = shift;
   my @items = @_;
   my %results = ();
+  my $someAnswer = 0;
   foreach my $CE ( @{$self->{CONFIG}->{CE_LCGCE_LIST}} ) {
+    # If it's a sublist take only the first one to avoid 
+    # double counting (all CEs in sublist see the same resources)
+    $CE =~ s/\s*//g; $CE =~ s/\(//; $CE =~ s/\)//;
+    ($CE, undef) = split (/,/,$CE,2);
     $self->debug(1,"Querying for $CE");
     (my $host,undef) = split (/:/,$CE);
     my $GRIS = "ldap://$host:2135";
     my $BaseDN = "mds-vo-name=local,o=grid";
     $self->debug(1,"Asking $GRIS/$BaseDN");
-    my $ldap =  Net::LDAP->new($GRIS) or return;
-    $ldap->bind() or return;
+    my $ldap;
+    unless ($ldap =  Net::LDAP->new($GRIS)) {
+      $self->{LOGGER}->error("LCG","Something wrong with \'$CE\', giving up");
+      next;   
+    }
+    unless ($ldap->bind()) {
+      $self->{LOGGER}->error("LCG","The GRIS for is $CE not responding");
+      next;
+    }
     my $result = $ldap->search( base   =>  $BaseDN,
                                 filter => "(&(objectClass=GlueCEState)(GlueCEUniqueID=$CE))");
-    $result->code && return;
+    if ($result->code) {
+      $self->{LOGGER}->error("LCG","Something wrong in answer from GRIS on $CE, skipping");
+      next;
+    };
     if ( ($result->all_entries)[0] ) {
       foreach (@items) {
         my $value = (($result->all_entries)[0])->get_value("$_");
         $self->debug(1, "$_ for $CE is $value");
         $results{$_}+=$value;
+	$someAnswer++;
       }
     } else {
     	$self->{LOGGER}->error("LCG","The GRIS query for $CE did not return any value");
     }
     $ldap->unbind();
   }
+  unless ($someAnswer) {
+    $self->{LOGGER}->error("LCG","No GRIS answered our queries!");
+    return;
+  } 
+  $self->debug(1,"Got $someAnswer answers from GRISes");
   my @values = ();
   push (@values,$results{$_}) foreach (@items);
   return @values;
@@ -510,7 +548,7 @@ sub updateClassAd {
   my $ldap =  Net::LDAP->new($BDII) or return;
   $ldap->bind() or return;
   my ($maxRAMSize, $maxSwapSize) = (0,0);
-  foreach my $CE (@{$self->{CONFIG}->{CE_LCGCE_LIST}}) {
+  foreach my $CE (@{$self->{CONFIG}->{CE_LCGCE_LIST_FLAT}}) {
     $self->debug(1,"Getting info for $CE");
     my $result = $ldap->search( base   => "mds-vo-name=local,o=grid",
                                 filter => "GlueCEUniqueID=$CE");
@@ -669,8 +707,8 @@ InputSandbox = {\"$exeFile\"};
 OutputSandbox = { \"std.err\" , \"std.out\" };
 Environment = {\"ALIEN_CM_AS_LDAP_PROXY=$self->{CONFIG}->{VOBOX}\",\"ALIEN_JOBAGENT_ID=$ENV{ALIEN_JOBAGENT_ID}\", \"ALIEN_USER=$ENV{ALIEN_USER}\"};
 ";
-  if (scalar @{$self->{CONFIG}->{CE_LCGCE_LIST}}) {
-    my @celist = map {"other.GlueCEUniqueID==\"$_\""} @{$self->{CONFIG}->{CE_LCGCE_LIST}};
+  if (scalar @{$self->{CONFIG}->{CE_LCGCE_LIST_FLAT}}) {
+    my @celist = map {"other.GlueCEUniqueID==\"$_\""} @{$self->{CONFIG}->{CE_LCGCE_LIST_FLAT}};
     my $ces=join (" || ", @celist);
     print BATCH "Requirements = ( $ces )";     
     print BATCH " && ".$requirements if $requirements;
