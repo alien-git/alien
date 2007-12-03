@@ -931,7 +931,7 @@ rm -rf \$file\n";
     open (FILE, ">$script") or print "Error opening the file $script\n" and return;
     print FILE "#!/bin/bash\n$content";
     close FILE;
-    chmod 0755, $script;
+    chmod 0750, $script;
     $content=$script;
   }
   return $content;

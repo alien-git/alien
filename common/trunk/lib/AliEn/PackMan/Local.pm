@@ -379,7 +379,7 @@ sub ConfigurePackage{
     $self->{LOGGER}->info( "$$ PacKMan","Testing if $dir/$sourceFile is executable");
     if (! -x "$dir/$sourceFile") {
       $self->info( "$$ The file wasn't executable");
-      chmod 0755 ,"$dir/$sourceFile";
+      chmod 0750 ,"$dir/$sourceFile";
     }
     $source="$dir/$sourceFile $dir ";
   }
@@ -454,7 +454,7 @@ sub _doAction {
   $self->info( "$$ Doing the $action with $script");
   my ($file)=$self->{CATALOGUE}->execute("get", $script)
     or die("Error getting the file $script for the $action\n");
-  chmod(0755, $file);
+  chmod(0750, $file);
 
 #  open SAVEOUT,  ">&STDOUT";
 #  open SAVEOUT2, ">&STDERR";
