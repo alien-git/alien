@@ -93,7 +93,7 @@ sub createTable{
 				 "Cannot create table $table ($description). Error: " . $self->{DBH}->errstr() )
 	and return;
 
-    chmod 0777, $file;
+    chmod 0770, $file;
   }
   return 1;
 

@@ -1234,7 +1234,7 @@ sub getFiles {
     }
   }
 
-  chmod 0755, "$self->{WORKDIR}/command";
+  chmod 0750, "$self->{WORKDIR}/command";
   $self->{LOGGER}->setMinimum(split(" ",$oldmode));
 
   return 1;
@@ -2194,7 +2194,7 @@ CPU Speed                           [MHz] : $ProcCpuspeed
     $validation=~ s{^.*/([^/]*)$}{$self->{WORKDIR}/$1};
 
     if ( -r $validation ) {	
-      chmod 0755, $validation;
+      chmod 0750, $validation;
       my $validatepid = fork();
       if (! $validatepid ) {
 	# execute the validation script

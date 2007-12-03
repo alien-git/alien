@@ -42,7 +42,7 @@ sub Initialize {
   my $class = ref($proto) || $proto;
   my $temp  = shift || {};
   
-  umask 0;
+  umask 027;
   my $organisation = "Alice";
   $ENV{ALIEN_ORGANISATION} and $organisation=$ENV{ALIEN_ORGANISATION};
   $temp->{organisation} and  $organisation=$temp->{organisation};
@@ -499,7 +499,6 @@ sub ChangeCacheDir {
       or print STDERR "Warning! not able to use  $cachedir as cache dir\n"
       and return;
     close(FILE);
-    chmod 0777, "$dbPath/LOCALFILES";
 
     $exists or unlink "$dbPath/LOCALFILES";
     $self->{CACHE_DIR} = $cachedir;
