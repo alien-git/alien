@@ -60,11 +60,27 @@ sub initialize {
    }
    $self->{CONFIG}->{CE_LCGCE_LIST_FLAT} = \@flatlist;
 
+   # Read RB list and generate config files if needed
    if ( $ENV{CE_RBLIST} ) { 
      $self->info("Taking the list of RBs from \$ENV: $ENV{CE_RBLIST}");
-     my @list=split(/,/,$ENV{CE_LCGCE});
+     my @list=split(/,/,$ENV{CE_RBLIST});
      $self->{CONFIG}->{CE_RB_LIST} = \@list;
    } 
+   opendir CONFDIR, $self->{CONFIG}->{LOG_DIR};
+   while (my $name = readdir CONFDIR){
+     foreach my $thisRB ( @{$self->{CONFIG}->{CE_RB_LIST}} ) {
+       if( !-e "$self->{CONFIG}->{LOG_DIR}/$thisRB.vo.conf" ){
+         $self->info("Config file for $thisRB not there, creating it.");
+         open STVOCONF, ">$self->{CONFIG}->{LOG_DIR}/$thisRB.vo.conf" or return;
+         print STVOCONF "[
+           VirtualOrganisation = \"alice\";
+           NSAddresses	       = \"$thisRB:7772\";
+           LBAddresses	       = \"$thisRB:9000\";
+           MyProxyServer       = \"myproxy.cern.ch\"\n]\n";
+         close STVOCONF;
+       }
+     }  
+   }
 
    $self->{CONFIG}->{CE_MINWAIT} = 180; #Seconds
    defined $ENV{CE_MINWAIT} and $self->{CONFIG}->{CE_MINWAIT} = $ENV{CE_MINWAIT};
@@ -72,6 +88,14 @@ sub initialize {
    $self->{LASTCHECKED} = time-$self->{CONFIG}->{CE_MINWAIT};
    
    $self->renewProxy();
+   my $defaults = "$ENV{EDG_LOCATION}/etc/edg_wl_ui_cmd_var.conf";
+   if ( open DEFAULTS, "<$defaults" ) {
+   while (<DEFAULTS>) {
+     chomp;
+     m/^\s*LoggingDestination/ and $self->{LOGGER}->warning("LCG"," \'$_\' defined in $defaults");
+   }
+   close DEFAULTS;
+}
    
    return 1;
 }
@@ -110,6 +134,11 @@ sub submit {
       return -1;
     }
   }
+  
+  if ($self->{CONFIG}->{CE_RB_LIST}) {
+    @args = ("-rb",join(',',@{$self->{CONFIG}->{CE_RB_LIST}}));
+  }
+  
   $self->info("Submitting to LCG with \'@args\'.");
   my $now = time;
   my $logFile = AliEn::TMPFile->new({filename=>"job-submit.$now.log"}) ## Or better a configurable TTL?
@@ -289,7 +318,6 @@ sub getNumberRunning() {
   $wait or $wait=0;
   $cpu or $cpu=0;
 
-#  $self->debug(1,"Jobs: $run+$wait from GRIS, $value from local DB");
   $self->info("Jobs: $run running, $wait waiting from GRIS, $value from local DB");
   if ( $cpu == 0 ) {
     $self->{LOGGER}->error("LCG","GRIS not responding, returning value from local DB");
@@ -311,7 +339,6 @@ sub getNumberQueued() {
   $cpu or $cpu=0;
   my $value = $self->{DB}->queryValue("SELECT COUNT (*) FROM JOBAGENT where status='QUEUED'");
   $value or $value = 0;
-#  $self->debug(1,"Queued: $wait from GRIS, $value from local DB");
   $self->info("Queued: $wait from GRIS, $value from local DB");
   if ( $cpu == 0 ) {
     $self->{LOGGER}->error("LCG","GRIS not responding, returning value from local DB.");
