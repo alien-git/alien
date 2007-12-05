@@ -1570,7 +1570,13 @@ sub access {
 		  
 		  $urloptions =~ /ZIP=([^\&]*)/;
 		  
-		  $options="s ";
+
+		  if ($options =~/p/) {
+		    $options="ps ";
+		  } else {
+		    $options="s ";
+		  }
+
 		  if (defined $1) {
 		      $anchor = $1;
 		  }
