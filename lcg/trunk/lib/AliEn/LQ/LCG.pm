@@ -418,42 +418,46 @@ sub getInfoFromGRIS {
     $CE =~ s/\s*//g; $CE =~ s/\(//; $CE =~ s/\)//;
     ($CE, undef) = split (/,/,$CE,2);
     $self->debug(1,"Querying for $CE");
-    (my $host,undef) = split (/:/,$CE);
-    my $GRIS = "ldap://$host:2135";
-    my $BaseDN = "mds-vo-name=local,o=grid";
-    $self->debug(1,"Asking $GRIS/$BaseDN");
-    my $ldap;
-    unless ($ldap =  Net::LDAP->new($GRIS)) {
-      $self->{LOGGER}->error("LCG","Something wrong with \'$CE\', giving up");
-      next;   
-    }
-    unless ($ldap->bind()) {
-      $self->{LOGGER}->error("LCG","The GRIS for is $CE not responding");
-      next;
-    }
-    my $result = $ldap->search( base   =>  $BaseDN,
+    (my $host,undef) = split (/:/,$CE);    
+    # Try resource BDII first, then resource GRIS
+    my @IS  = ("ldap://$host:2170,mds-vo-name=resource,o=grid","ldap://$host:2135,mds-vo-name=local,o=grid");
+    my $ldap = '';
+    foreach (@IS) {
+       my ($GRIS, $BaseDN) = split (/,/,$_,2);
+       $self->debug(1,"Asking $GRIS/$BaseDN");
+       unless ($ldap =  Net::LDAP->new($GRIS)) {
+         $self->{LOGGER}->error("LCG","Something wrong with $GRIS/$BaseDN...");
+	 next;
+       }
+       unless ($ldap->bind()) {
+         $self->{LOGGER}->error("LCG","$GRIS/$BaseDN not responding...");
+         next;
+       }
+       my $result = $ldap->search( base   =>  $BaseDN,
                                 filter => "(&(objectClass=GlueCEState)(GlueCEUniqueID=$CE))");
-    if ($result->code) {
-      $self->{LOGGER}->error("LCG","Something wrong in answer from GRIS on $CE, skipping");
-      next;
-    };
-    if ( ($result->all_entries)[0] ) {
-      foreach (@items) {
-        my $value = (($result->all_entries)[0])->get_value("$_");
-        $self->debug(1, "$_ for $CE is $value");
-        $results{$_}+=$value;
-	$someAnswer++;
-      }
-    } else {
-    	$self->{LOGGER}->error("LCG","The GRIS query for $CE did not return any value");
+       if ($result->code) {
+         $self->{LOGGER}->error("LCG","Something wrong in answer from $GRIS/$BaseDN");
+         next;
+       }
+       if ( ($result->all_entries)[0] ) {
+         foreach (@items) {
+           my $value = (($result->all_entries)[0])->get_value("$_");
+           $self->debug(1, "$_ for $CE is $value");
+           $results{$_}+=$value;
+	   $someAnswer++;
+	   last;
+         }
+       } else {
+    	 $self->{LOGGER}->error("LCG","The query to $GRIS/$BaseDN did not return any value");
+       }
+       $ldap->unbind();
     }
-    $ldap->unbind();
   }
   unless ($someAnswer) {
-    $self->{LOGGER}->error("LCG","No GRIS answered our queries!");
+    $self->{LOGGER}->error("LCG","No CE answered our queries!");
     return;
   } 
-  $self->debug(1,"Got $someAnswer answers from GRISes");
+  $self->debug(1,"Got $someAnswer answers from CEs");
   my @values = ();
   push (@values,$results{$_}) foreach (@items);
   return @values;
