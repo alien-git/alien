@@ -303,8 +303,6 @@ sub getQueueStatus { ##Still return values from the local DB
 
 sub getNumberRunning() {
   my $self = shift;
-  ## Number of CPUs will be wrong for multiple-CE sites; 
-  ## we only check it against zero to check if GRIS is working
   my $now = time;
   if ( $now < $self->{LASTCHECKED}+$self->{CONFIG}->{CE_MINWAIT} ) {
     my $still = $self->{LASTCHECKED}+$self->{CONFIG}->{CE_MINWAIT}-$now;
@@ -332,8 +330,6 @@ sub getNumberRunning() {
 
 sub getNumberQueued() {
   my $self=shift;
-  ## Number of CPUs will be wrong for multiple-CE sites; 
-  ## we only check it against zero to check if GRIS is working
   my ($wait,$cpu) = $self->getInfoFromGRIS(qw(GlueCEStateWaitingJobs GlueCEInfoTotalCPUs));
   $wait or $wait=0;
   $cpu or $cpu=0;
@@ -412,6 +408,7 @@ sub getInfoFromGRIS {
   my @items = @_;
   my %results = ();
   my $someAnswer = 0;
+  $self->debug(1,"Requested info: @items");
   foreach my $CE ( @{$self->{CONFIG}->{CE_LCGCE_LIST}} ) {
     # If it's a sublist take only the first one to avoid 
     # double counting (all CEs in sublist see the same resources)
@@ -426,17 +423,17 @@ sub getInfoFromGRIS {
        my ($GRIS, $BaseDN) = split (/,/,$_,2);
        $self->debug(1,"Asking $GRIS/$BaseDN");
        unless ($ldap =  Net::LDAP->new($GRIS)) {
-         $self->{LOGGER}->error("LCG","Something wrong with $GRIS/$BaseDN...");
+         $self->{LOGGER}->warning("LCG","Something wrong with $GRIS/$BaseDN...");
 	 next;
        }
        unless ($ldap->bind()) {
-         $self->{LOGGER}->error("LCG","$GRIS/$BaseDN not responding...");
+         $self->{LOGGER}->warning("LCG","$GRIS/$BaseDN not responding...");
          next;
        }
        my $result = $ldap->search( base   =>  $BaseDN,
-                                filter => "(&(objectClass=GlueCEState)(GlueCEUniqueID=$CE))");
+                                   filter => "(&(objectClass=GlueCEState)(GlueCEUniqueID=$CE))");
        if ($result->code) {
-         $self->{LOGGER}->error("LCG","Something wrong in answer from $GRIS/$BaseDN");
+         $self->{LOGGER}->warning("LCG","Something wrong in answer from $GRIS/$BaseDN");
          next;
        }
        if ( ($result->all_entries)[0] ) {
@@ -444,11 +441,11 @@ sub getInfoFromGRIS {
            my $value = (($result->all_entries)[0])->get_value("$_");
            $self->debug(1, "$_ for $CE is $value");
            $results{$_}+=$value;
-	   $someAnswer++;
-	   last;
          }
+	 $someAnswer++;
+	 last;
        } else {
-    	 $self->{LOGGER}->error("LCG","The query to $GRIS/$BaseDN did not return any value");
+    	 $self->{LOGGER}->warning("LCG","The query to $GRIS/$BaseDN did not return any value");
        }
        $ldap->unbind();
     }
@@ -460,6 +457,7 @@ sub getInfoFromGRIS {
   $self->debug(1,"Got $someAnswer answers from CEs");
   my @values = ();
   push (@values,$results{$_}) foreach (@items);
+  $self->debug(1,"Returning: ".Dumper(@values));
   return @values;
 }
 
@@ -640,11 +638,6 @@ sub translateRequirements {
      $self->info("Translating \'TTL\' requirement ($1)");
      $requirements .= "&& other.GlueCEPolicyMaxWallClockTime>=".$1/60; #minutes
    }
-
-#  ($ok, my $freeMemory) =  $ca->evaluateAttributeString("FreeMemory");
-#  $self->info("Translating \'FreeMemory\' requirement ($ok,$freeMemory)") if $freeMemory;
-#  ($ok, my $freeSwap) =  $ca->evaluateAttributeString("FreeSwap");
-#  $self->info("Translating \'FreeSwap\' requirement ($ok,$freeSwap)") if $freeSwap;
   return $requirements;
 }
 
