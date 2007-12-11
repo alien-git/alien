@@ -1016,7 +1016,7 @@ sub f_print {
 
 sub f_whoami {
   my $self = shift;
-  $self->{SILENT} or $self->info($self->{ROLE},undef,0);
+  $self->{SILENT} or $self->info(" $self->{ROLE}",undef,0);
   return $self->{ROLE};
 }
 

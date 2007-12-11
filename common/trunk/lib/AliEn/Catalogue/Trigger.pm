@@ -52,6 +52,8 @@ sub f_addTrigger {
   $triggerAction=$self->getTriggerLFN($triggerAction) 
     or return;
   $self->info("Ready to create the trigger");
+  #This is just to make sure that we are in the right database
+  ( $self->checkPermissions( 'w', $directory ) ) or return;
 
   my $done = $self->{DATABASE}->{LFN_DB}->do("create trigger $triggerName after $action on $table for each row insert into TRIGGERS(lfn, triggerName) values (concat('$prefix', NEW.lfn), '$triggerAction')");
   $done or $self->{LOGGER}->error("Tag", "Error inserting the entry!") and return;

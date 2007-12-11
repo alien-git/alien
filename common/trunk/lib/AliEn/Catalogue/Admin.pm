@@ -508,4 +508,29 @@ sub checkSEVolumes {
   return 1;
 }
 
+sub f_showStructure {
+  my $self=shift;
+  my $dir=shift;
+  
+  my $lfn = $self->GetAbsolutePath($dir);
+  $self->info("Checking the directories under $lfn");
+  my $info=$self->{DATABASE}->getHostsForLFN($lfn);
+  use Data::Dumper;
+  print Dumper($info);
+  return $info;
+}
+
+sub f_renumber {
+  my $self=shift;
+  my $dir=shift;
+
+ ( $self->{ROLE}  =~ /^admin(ssl)?$/ ) or
+    $self->info("Error: only the administrator can check the databse") and return;
+  my $lfn = $self->GetAbsolutePath($dir);
+  $self->checkPermissions("w", $lfn) or return;
+  $self->info("Ready to renumber the entries in $lfn");
+
+
+  return $self->{DATABASE}->renumberLFNtable($lfn);
+}
 return 1;

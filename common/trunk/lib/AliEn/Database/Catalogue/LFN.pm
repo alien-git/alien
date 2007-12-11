@@ -170,7 +170,7 @@ sub checkLFNTable {
   
   $table =~ /^\d+$/ and $table="L${table}L";
   
-  my %columns = (entryId=>"mediumint(11) NOT NULL auto_increment primary key", 
+  my %columns = (entryId=>"bigint(11) NOT NULL auto_increment primary key", 
 		 lfn=> "varchar(255) NOT NULL",
 		 type=> "char(1) NOT NULL default 'f'",
 		 ctime=>"timestamp",
@@ -180,7 +180,7 @@ sub checkLFNTable {
 		 perm=>"char(3) not null",
 		 guid=>"binary(16)",
 		 replicated=>"smallint(1) not null default 0",
-		 dir=>"mediumint(11)",
+		 dir=>"bigint(11)",
 		 owner=>"varchar(20) not null",
 		 gowner=>"varchar(20) not null",
 		 md5=>"varchar(32)",
@@ -1842,6 +1842,41 @@ sub removeFileFromCollection{
 }
 
 
+sub renumberLFNtable {
+  my $self=shift;
+  $self->info("How do we renumber??");
+  $self->info("Is it $self->{INDEX_TABLENAME}->{name} ??");
+  my $table=$self->{INDEX_TABLENAME}->{name};
+  my $info=$self->query("select t, t-max(entryId)-1 as reduce from $table, (select d.entryId as t from $table d left join $table r on d.entryId=r.entryId+1 where r.entryId is null) f where entryId<t group by t order by t desc");
+  use Data::Dumper;
+#  print Dumper($info);
+  $self->lock($table);
+  $self->do("alter table $table modify entryId bigint(11)");
+  $self->do("alter table $table drop primary key");
+
+  foreach my $entry( @$info){
+    my $new=$entry->{t};
+    my $reduce=$entry->{reduce};
+    $self->info("For entries bigger than $new, we should reduce by $reduce");
+    my $done=$self->do("update $table set dir=dir-$reduce where dir=$new");
+    my $done2=$self->do("update $table set entryId=entryId-$reduce where entryId>=$new");
+    ($done and $done2) or 
+      $self->info("ERROR !!") and last;
+  }
+
+  my $value=$self->queryValue("select min(entryId)-1 from $table");
+  if ($value){
+    $self->do("update $table set entryId=entryId-$value, dir=dir-$value");
+  }
+  $self->do("alter table $table modify entryId bigint(11) auto_increment primary key");
+  $self->do("alter table $table auto_increment=1");
+  $self->unlock($table);
+
+  return 1;
+}
+
+
+
 
 sub cleanupTagValue{
   my $self=shift;
@@ -1879,6 +1914,7 @@ sub cleanupTagValue{
 
   return 1;
 }
+
 =head1 SEE ALSO
 
 AliEn::Database
