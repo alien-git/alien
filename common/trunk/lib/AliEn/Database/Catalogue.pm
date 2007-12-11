@@ -168,7 +168,10 @@ sub getHostsForLFN{
 Retrieves the list of SE that have a copy of the lfn 
 
 =cut
-
+sub renumberLFNtable{
+  my $self=shift;
+  return $self->{LFN_DB}->renumberLFNtable(@_)
+}
 sub getSEListFromFile{
   return getSEListFromLFN(@_);
 }
