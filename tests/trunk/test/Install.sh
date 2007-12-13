@@ -276,7 +276,9 @@ ALIEN_TESTS()
 {
     ALLSTART=`date +"%s"`
     echo "Checking if the certificate is ok"
-    env PATH=$ALIEN_ROOT/bin:$PATH LD_LIBRARY_PATH=$ALIEN_ROOT/lib:$LD_LIBRARY_PATH openssl verify -CApath $ALIEN_ROOT/globus/share/certificates -purpose sslclient $HOME/.alien/globus/usercert.pem
+    export PATH=$ALIEN_ROOT/bin:$PATH
+    export LD_LIBRARY_PATH=$ALIEN_ROOT/lib:$LD_LIBRARY_PATH
+    openssl verify -CApath $ALIEN_ROOT/globus/share/certificates -purpose sslclient $HOME/.alien/globus/usercert.pem
 
     i=1
 
@@ -371,7 +373,7 @@ ALIEN_CREATE_CERT()
     echo "Creating a self signed certificate to run the tests"
 
     export PATH=$ALIEN_ROOT/bin:$PATH
-    export LD_LIBRARY_PATH=$ALIEN_ROOT/lib:$PATH
+    export LD_LIBRARY_PATH=$ALIEN_ROOT/lib:$LD_LIBRARY_PATH
 
     USERDIR=$HOME/.alien/globus
     DIR=$HOME/.alien/etc/aliend/ldap/certs/
