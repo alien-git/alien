@@ -34,7 +34,8 @@ sub initialize {
   $self->{DB_MODULE}="AliEn::Database::Transfer";
   $self->SUPER::initialize(@_) or return;
 
-  $self->StartChildren('Inserting', 'Merging', 'SE') or return;
+  $self->StartChildren('Inserting', 'Merging', 'SE', 'Agent') or return;
+
   return 1;
 
 }
