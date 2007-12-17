@@ -30,8 +30,8 @@ sub initialize {
   $self->{COMMAND}=$command;
 
   $self->{FTS_ENDPOINT}={};
-  $ENV{ALIEN_MYPROXY_PASSWORD} or 
-    $self->info("Error: the myproxy password has not been set. Please, define it in the environment variable  ALIEN_MYPROXY_PASSWORD") and return;
+#  $ENV{ALIEN_MYPROXY_PASSWORD} or 
+#    $self->info("Error: the myproxy password has not been set. Please, define it in the environment variable  ALIEN_MYPROXY_PASSWORD") and return;
 
   # Setup the properties for monitoring. These whould come from FTD
   for my $opt ("MONITOR", "FTD_TRANSFER_ID", "SITE_NAME", "FTD_FULLNAME"){
@@ -146,7 +146,7 @@ sub transfer {
   }
 
 
-  my $transfer="$self->{COMMAND} --verbose -s $ftsEndpoint -p \"$ENV{ALIEN_MYPROXY_PASSWORD}\" srm://$fromHost$from srm://$toHost/$to";
+  my $transfer="$self->{COMMAND} --verbose -s $ftsEndpoint srm://$fromHost$from srm://$toHost/$to";
   $self->info("Ready to do the transfer: $transfer");
   $self->prepareEnvironment();
 
@@ -186,6 +186,12 @@ sub prepareEnvironment{
     $self->{OLD_ENV}->{$_}=$ENV{$_};
     delete $ENV{$_};
   }
+  print "The LD_LIBRARY_PATH is $ENV{LD_LIBRARY_PATH}
+ROOT $ENV{ALIEN_ROOT}\n";
+  $self->{OLD_ENV}->{LD_LIBRARY_PATH}=$ENV{LD_LIBRARY_PATH};
+  my $d=$ENV{ALIEN_ROOT}."[^:]";
+  $ENV{LD_LIBRARY_PATH}=~ s/$d*\://g;
+  print "NOW $ENV{LD_LIBRARY_PATH}\n";
   return 1;
 }
 
@@ -223,7 +229,7 @@ sub checkStatusTransfer {
     $fileStatus=~ /^\s+Reason: (.*)/m and $reason=$1;
     $self->info("The FTS transfer $id failed ($reason)",2);
     return -11;
-  }elsif($status =~ /(active)|(submitted)|(pending)/i){
+  }elsif($status =~ /(active)|(submitted)|(pending)|(ready)/i){
     $self->info("Transfer still waiting");
     return 1
   }elsif($status =~ /(done)|(Finished)/i){
@@ -254,9 +260,10 @@ sub getFTSEndpoint {
 				  );
     if (!$mesg->count){
       $sleep = $sleep*2 + int(rand(2));
-      print "Error finding the FTS endpoint for $site. Let's sleep ($sleep seconds) and try again\n";
       sleep ($sleep);
       my $BDII=$ENV{LCG_GFAL_INFOSYS} || 'sc3-bdii.cern.ch:2170';
+
+      print "Error finding the FTS endpoint for $site in $BDII. Let's sleep ($sleep seconds) and try again\n";
       $self->{BDII}=    Net::LDAP->new( $BDII) or 
 	$self->info("Error contacting ldap at $BDII: $@") and return;
       $self->{BDII}->bind or $self->info("Error binding to LDAP") and return;
@@ -265,7 +272,15 @@ sub getFTSEndpoint {
     $mesg->count>1 and print "Warning!! there are more than one fts endpoints for $site\n";
 
     my $value=$mesg->entry(0)->get_value("GlueServiceEndPoint");
+    eval {
+      for (my $i=1; $i<$mesg->count(); $i++) {
+	my $v2=$mesg->entry($i)->get_value("GlueServiceEndPoint");
+	print "Shall we use $v2??\n";
+	$v2=~ /prod/ and print "SIPE\n" and $value=$v2;
+      }
+    };
     AliEn::Util::setFileCacheValue($self, "fts-$site", $value);
+
     return $value;
   }
   $self->info("Couldn't get the fts endpoint from $site");
@@ -286,7 +301,9 @@ sub getSite {
 				  );
   
   my   $total = $mesg->count;
+
   $total or $self->info("Error: Don't know the site of $host", 1) and return;
+
   $total >1 and $self->info("Warning!! the se $host is in more than one site");
   my $entry1=$mesg->entry(0);
   my @site=$entry1->get_value("GlueForeignKey");
@@ -311,9 +328,9 @@ sub getURL{
   my $file=shift;
   $self->info("Checking the fts url of $file");
   $file=~ s/^srm:/fts:/ and return $file;
-  if ($file =~ s{^castor://([^/]*)}{}){
+  if ($file =~ s{^((castor)|(root))://([^/]*)}{}){
     my $host2;
-    my $site=$1;
+    my $site=$4;
     $site=~ s{^[^\.]*.}{};
     
     $self->info("The file is in castor... we have to find the srm endpoint of $site");
@@ -325,7 +342,7 @@ sub getURL{
 	$self->{BDII}=    Net::LDAP->new( $BDII) or 
 	  die("Error contacting ldap at $BDII: $@");
 	$self->{BDII}->bind or die("Error binding to LDAP");
-	print "Searching in the BDII\n";
+	print "Searching in the BDII $BDII\n";
 
 	my $mesg=$self->{BDII}->search( base=>$self->{BDII_BASE},
 					filter=>"(&(GlueSEUniqueID=*$site)(GlueSEType=srm)(GlueSchemaVersionMinor=2))"
