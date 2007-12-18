@@ -51,6 +51,7 @@ sub checkWakesUp {
     }
     $size =~ s/^(.*\#\#\#){3}(\d+)(\#\#\#.*){2}$/$2/;
     $self->debug(1, "In checkNewTransfers file has size $size");
+    
     my $jdl=$self->createTransferJDL($transfer->{transferid}, $transfer->{lfn}, $transfer->{destination}, $size, $transfer->{pfn});
     $self->debug(1, "Got the jdl");
     if (!$jdl){
@@ -81,12 +82,20 @@ sub insertCollectionTransfer{
   eval {
     $self->{DB}->updateTransfer($transfer->{transferid}, {status=>'SPLITTING'}) or die("Error setting the status to SPLITTING\n");
     my ($info)=$self->{CATALOGUE}->execute("listFilesFromCollection","-silent", $transfer->{lfn}) or die("Error getting the files of the collection");
+    $transfer->{options}=~ s{m|f}{}g;
+    $transfer->{options}=~ /t/ or $transfer->{options}.="t";
+    my $total=0;
     foreach my $file (@$info){
-      $self->info("Now we have to send a transfer for $file->{origLFN}");
-      $self->{CATALOGUE}->execute("mirror", "-t", $file->{origLFN}, $transfer->{destination}, "-m", $transfer->{transferid}) or $self->info("Error mirroring $file->{origLFN}");
+      $self->info("Now we have to send a transfer for $file->{origLFN} (options $transfer->{options})");
+      my ($done)=$self->{CATALOGUE}->execute("mirror", "-$transfer->{options}", $file->{origLFN}, $transfer->{destination}, "-m", $transfer->{transferid});
+      $self->info("Got $done\n");
+      $done or $self->info("Error mirroring $file->{origLFN}");
+      $done and $total++;
     }
     $self->{DB}->updateTransfer($transfer->{transferid}, {status=>'SPLIT'})
       or die ("Error setting the status to SPLIT\n");
+    $self->info("Number of subtransfers: $total");
+    $total or die("There are no subtransfer for that collection\n");
   };
   if ($@){
     $self->info("Error splitting the transfer: $@");

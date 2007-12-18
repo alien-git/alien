@@ -34,55 +34,55 @@ sub initialize {
 
 
 sub enterTransfer {
-    my $this = shift;
-    $self->debug(1, "In enterTransfer asking for a new transfer @_" );
-    my $arguments=shift;
+  my $this = shift;
+  $self->debug(1, "In enterTransfer asking for a new transfer @_" );
+  my $arguments=shift;
 
-    my $message="";
-    $arguments or $message="not enough arguments ";
-    $arguments and (! UNIVERSAL::isa( $arguments, "HASH" ))
-	and $message="arguments is not a hash";
+  my $message="";
+  $arguments or $message="not enough arguments ";
+  $arguments and (! UNIVERSAL::isa( $arguments, "HASH" ))
+    and $message="arguments is not a hash";
 
-    $arguments or $arguments={};
-    my ($user, $lfn, $destination, $options, $type, $pfn)=
-	($arguments->{USER}, $arguments->{LFN}, $arguments->{DESTINATION}, $arguments->{OPTIONS}, $arguments->{TYPE}, $arguments->{TOPFN});
+  $arguments or $arguments={};
+  my ($user, $lfn, $destination, $options, $type, $pfn)=
+    ($arguments->{USER}, $arguments->{LFN}, $arguments->{DESTINATION}, $arguments->{OPTIONS}, $arguments->{TYPE}, $arguments->{TOPFN});
 
-    if (! $message){
-		$user or $message="missing USER ";
-		$lfn  or $message.="missing LFN ";
-		$destination or $message.="missing DESTINATION ";
-		$type or $type="cache";
-		$pfn or $pfn="";
-    }
+  if (! $message){
+    $user or $message="missing USER ";
+    $lfn  or $message.="missing LFN ";
+    $destination or $message.="missing DESTINATION ";
+    $type or $type="cache";
+    $pfn or $pfn="";
+  }
 
-    $message and $self->{LOGGER}->error("TransferManager", "In enterTransfer error: $message")
-	    and return (-1, $message);
+  $message and $self->{LOGGER}->error("TransferManager", "In enterTransfer error: $message")
+    and return (-1, $message);
 
-    my $priority = ( $arguments->{PRIORITY}  or 0 );
+  my $priority = ( $arguments->{PRIORITY}  or 0 );
 
-    my $date = time;
+  my $date = time;
     
-    $self->info( "Checking if the transfer is already scheduled");
+  $self->info( "Checking if the transfer is already scheduled");
     
-    #emir:
-    my $tranID;
-    $tranID = $self->{DB}->isScheduled($lfn,$destination) and
-      $self->info( "Transfer has already been scheduled (transferid: $tranID)")
-	and return $tranID;
+  #emir:
+  my $tranID;
+  $tranID = $self->{DB}->isScheduled($lfn,$destination) and
+    $self->info( "Transfer has already been scheduled (transferid: $tranID)")
+      and return $tranID;
 
-    $self->info( "Entering a new transfer" );
+  $self->info( "Entering a new transfer" );
     
-    #emir:
-    my $info={received=>$date, user=>$user, lfn=>$lfn, pfn=>$pfn,
-	      destination=>$destination, type=>$type};
-    $arguments->{transferGroup} and $info->{transferGroup}=$arguments->{transferGroup};
-    my $procid = $self->{DB}->insertTransferLocked($info) or
-      $self->{LOGGER}->error( "TransferManager", "In enterTransfer insertion of a new transfer failed" )
-		and return (-1, "in enterTransfer inserting a new transfer");
+  #emir:
+  my $info={received=>$date, user=>$user, lfn=>$lfn, pfn=>$pfn,
+	    destination=>$destination, type=>$type, options=>$options};
+  $arguments->{transferGroup} and $info->{transferGroup}=$arguments->{transferGroup};
+  my $procid = $self->{DB}->insertTransferLocked($info) or
+    $self->{LOGGER}->error( "TransferManager", "In enterTransfer insertion of a new transfer failed" )
+      and return (-1, "in enterTransfer inserting a new transfer");
 
-    $self->info( "New transfer inserted $procid" );
+  $self->info( "New transfer inserted $procid" );
 
-    return $procid;
+  return $procid;
 }
 
 sub changeStatusTransfer {
