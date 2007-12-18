@@ -1025,12 +1025,12 @@ sub mirror {
   my $transfer={"source", $pfn,                  "oldSE", $oldSE,
 		"target", "",                      "TYPE", "mirror",
 		"USER" => $self->{CONFIG}->{ROLE}, "LFN" =>$realLfn,
-		"DESTINATION" =>$se,	             "OPTIONS" => "fm$options",
+		"DESTINATION" =>$se,	             "OPTIONS" => $options,
 		guid=>$guid};
 #  $opt->{g} and $transfer->{transferGroup}=$opt->{g};
   $opt->{'m'} and $transfer->{transferGroup}=$opt->{'m'};
   $opt->{'r'} and $transfer->{RESOLVE}=$opt->{r};
-  
+
   if ($opt->{f})    {
     $self->info( "Keeping the same relative path");
     
