@@ -1225,7 +1225,7 @@ sub getFiles {
   if ($ok) {
     my @lfns=();
     foreach my $lfn (@stage) {
-      $lfn =~ /,nodownload/ or next;
+      $lfn =~ /,nodownload/ and next;
       print "The lfn $lfn has to be staged!!\n";
       push @lfns, $lfn;
     }
@@ -1527,7 +1527,10 @@ sub prepareZipArchives{
 
   my @archives=();
   foreach my $name (keys %$archiveList) {
-
+    if ($archiveList->{$name}->{zip}->numberOfMembers()<1){
+      $self->putJobLog("error","The archive '$name' doesn't have any files inside. Ignoring it...");
+      next;
+    }
     if (grep(/.root$/ , $archiveList->{$name}->{zip}->memberNames())) {
       $self->info("There is a root file. Do not compress the files");
       foreach my $member ($archiveList->{$name}->{zip}->members()){
