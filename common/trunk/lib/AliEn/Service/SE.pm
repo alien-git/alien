@@ -109,6 +109,7 @@ sub initialize {
   $self->{DATABASE}=AliEn::Database::SE->new() or return;
 #   configure options
   $self->{LVM}=$self->ConfigureLVM($name) or return;
+
   $self->{CERTIFICATE}=$self->{CONFIG}->{SE_CERTSUBJECT};
 
   $self->startIOServers() or return;
@@ -120,7 +121,6 @@ sub initialize {
     $QoS='replica';
   } 
   $self->{PROTOCOLS}=$QoS;
-
   
   return $self;
 }
@@ -385,6 +385,8 @@ sub ConfigureLVM {
 
   my $db=$self->{DATABASE};
   my @singlevolume=@{$self->{CONFIG}->{'SE_SAVEDIR_LIST'}};
+  my @se_options=();
+  $self->{CONFIG}->{SE_OPTIONS_LIST} and push @se_options, @{$self->{CONFIG}->{SE_OPTIONS_LIST}};
   my $mss=$self->{MSS};
   my $mss_type=$self->{CONFIG}->{SE_MSS};
   if ($virtual){
@@ -392,10 +394,12 @@ sub ConfigureLVM {
     @singlevolume=@{$self->{CONFIG}->{"SE_$virtual"}->{SAVEDIR_LIST}};
     $mss=$self->{$virtual}->{MSS};
     $mss_type=($self->{CONFIG}->{"SE_$virtual"}->{MSS} || $mss_type);
+    @se_options=();
+    $self->{CONFIG}->{"SE_$virtual"}->{OPTIONS_LIST} and
+      push @se_options, @{$self->{CONFIG}->{"SE_$virtual"}->{OPTIONS_LIST}};
   }
 
   my $lvm=AliEn::LVM->new({DB=>$db}) or return;
-
 
   #  startIOdaemon('testhost.test.ch','peters');
 
@@ -449,7 +453,11 @@ sub ConfigureLVM {
 LVM Free   Blocks :$freeblocks \t [1k]
 LVM Used   Blocks :$usedblocks \t [1k] \t $usedtb TB");
 
-
+  $lvm->{MIN_SIZE}=0;
+  if (my @limit=grep( s/^\s*min_size=(\d+)\s*;?\s*$/$1/, @se_options)){
+    $self->info("The size limit is for this SE is $limit[0]");
+    $lvm->{MIN_SIZE}=$limit[0];
+  }
   return $lvm;
 }
 
@@ -1214,6 +1222,15 @@ sub getFileName{
   ($seName, my $info) =$self->checkVirtualSEName($seName);
   my $lvm=$info->{lvm};
   my $mss=$info->{mss};
+  
+  $self->info("Ready to check the size ($size and $lvm->{MIN_SIZE}");
+
+  if ($size < $lvm->{MIN_SIZE}){
+    $self->info("Trying to register a file of size '$size'. This SE only accepts files bigger than $lvm->{MIN_SIZE}");
+    die ("Trying to register a file of size '$size'. This SE only accepts files bigger than $lvm->{MIN_SIZE}\n");
+  }
+
+
   (my $name, $guid)= $mss->newFileName($guid);
 
   $self->info("In getFileName -> new Name is $name -> guid is $guid"); 
