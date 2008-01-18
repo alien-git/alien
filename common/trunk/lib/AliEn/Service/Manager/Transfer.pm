@@ -450,5 +450,49 @@ sub killTransfer {
   return \@return;
 }
 
+sub findAlternativeSource {
+  my $this=shift;
+  my $id=shift;
+  my $failedSE=shift;
+  $self->info("We are trying to find an alternative source for transfer $id");
+
+  eval {
+    my $jdl=$self->{DB}->getJdl($id) or die("Error getting the jdl\n");
+    use Data::Dumper;
+    print Dumper($jdl);
+
+    my $ca=Classad::Classad->new($jdl) or die("Error creating the classad from '$jdl'\n");
+    my ($ok, @ses)=$ca->evaluateAttributeVectorString("OrigSE");
+    $ok or die("Error getting the source SE");
+    $self->info("Starting with @ses, and can't get it from $failedSE");
+    map {$_="\"$_\""} @ses;
+    @ses=grep(! /^\"$failedSE\"$/i, @ses);
+    @ses or die("There are no other se :( ");
+    $self->info("We could still transfer the file from @ses");
+    $ca->set_expression("OrigSE", "{". join(",", @ses). "}");
+    ($ok, my @failedSE)=$ca->evaluateAttributeVectorString("FailedSE");
+    push @failedSE, $failedSE;
+    map {$_="\"$_\""} @failedSE;
+
+    $ca->set_expression("FailedSE",  "{". join(",", @failedSE). "}");
+    $ca->insertAttributeString("Action", "local copy");
+    $self->info("Everything looks ok. Let's update the database");
+    my $newJDL=$ca->asJDL();
+    use Data::Dumper;
+    print $newJDL;
+
+    $self->{DB}->updateTransfer($id, {jdl=>$newJDL, status=>'WAITING'})
+      or die("Error updating the datbase\n");
+  };
+    
+  if ($@){
+    $self->info("Error finding an alternative: $@");
+    die("There are no alternative sources: $@\n");
+  }
+
+  $self->info("There are other alternatives for that transfer :)");
+  return 1;
+}
+
 return 1;
 
