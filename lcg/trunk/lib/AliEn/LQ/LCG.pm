@@ -134,11 +134,10 @@ sub submit {
       return -1;
     }
   }
-  
-  if ($self->{CONFIG}->{CE_RB_LIST}) {
-    @args = ("-rb",join(',',@{$self->{CONFIG}->{CE_RB_LIST}}));
+
+  if ($self->{CONFIG}->{CE_RB_LIST} and @{$self->{CONFIG}->{CE_RB_LIST}}) {
+    push @args, ("-rb",join(',',@{$self->{CONFIG}->{CE_RB_LIST}}));
   }
-  
   $self->info("Submitting to LCG with \'@args\'.");
   my $now = time;
   my $logFile = AliEn::TMPFile->new({filename=>"job-submit.$now.log"}) ## Or better a configurable TTL?
@@ -146,9 +145,10 @@ sub submit {
    
   my @command = ( $self->{SUBMIT_CMD}, "--noint", "--nomsg", "--logfile", $logFile, @args, "$jdlfile");
   my @output=$self->_system(@command) or return -1;
-  my $contact="";
-  @output and $contact=$output[$#output];
+  my $contact=join("", grep (/^https/, @output));
+#  @output and $contact=$output[$#output];
   $contact and chomp $contact;
+  
   if ($contact !~ /^https:\// ) {
     $self->{LOGGER}->warning("LCG","Error submitting the job. Log file $contact");
     if ($contact){
@@ -414,6 +414,13 @@ sub getInfoFromGRIS {
     # double counting (all CEs in sublist see the same resources)
     $CE =~ s/\s*//g; $CE =~ s/\(//; $CE =~ s/\)//;
     ($CE, undef) = split (/,/,$CE,2);
+
+# Introduced by P. Mendez
+    if ($CE =~/=/){
+	($CE, undef) = split (/=/,$CE,2);
+    }
+# End of P. Mendez code
+
     $self->debug(1,"Querying for $CE");
     (my $host,undef) = split (/:/,$CE);    
     # Try resource BDII first, then resource GRIS
@@ -730,13 +737,51 @@ OutputSandbox = { \"std.err\" , \"std.out\" };
 Environment = {\"ALIEN_CM_AS_LDAP_PROXY=$self->{CONFIG}->{VOBOX}\",\"ALIEN_JOBAGENT_ID=$ENV{ALIEN_JOBAGENT_ID}\", \"ALIEN_USER=$ENV{ALIEN_USER}\"};
 ";
   if (scalar @{$self->{CONFIG}->{CE_LCGCE_LIST_FLAT}}) {
-    my @celist = map {"other.GlueCEUniqueID==\"$_\""} @{$self->{CONFIG}->{CE_LCGCE_LIST_FLAT}};
-    my $ces=join (" || ", @celist);
-    print BATCH "Requirements = ( $ces )";     
-    print BATCH " && ".$requirements if $requirements;
-    print BATCH ";\n";
+      
+##### PART of P. Mendez (beginning)
+
+###### Calculating the random number:
+
+      my $range = 100;
+      my $random_number = int(rand($range));
+
+####### If "=" is included in the queue, decide which queue to chose
+
+      my $list_of_ces = join(" ",@{$self->{CONFIG}->{CE_LCGCE_LIST_FLAT}});
+      
+      my %ce_hash;
+      my $ce_name;
+      my $ces;
+      my @celist;
+      if ($list_of_ces =~/=/){
+	  my %ce_hash = $list_of_ces =~ /([\w:\/\-\_\.]+)=(\d+)/g;
+	  my $total = 0;
+	  foreach my $key (sort{ $ce_hash{$a} cmp $ce_hash{$b}} keys %ce_hash){
+      
+	      my @v = ($total..$total+$ce_hash{$key});    
+	      $total += $ce_hash{$key};
+	      foreach my $valor (@v){
+		  if ($valor == $random_number){
+		      $ce_name=$key;
+		      print "AQUIIIIIIIIIII: $random_number   $ce_hash{$key}   $key   $total  @v\n";
+		  }
+	      }            
+	  }
+
+	  $ces="other.GlueCEUniqueID==\"$ce_name\"";
+      }
+      
+      else{
+      
+	  @celist = map {"other.GlueCEUniqueID==\"$_\""} @{$self->{CONFIG}->{CE_LCGCE_LIST_FLAT}};
+	  $ces=join (" || ", @celist);
+      }
+      print BATCH "Requirements = ( $ces )";     
+      print BATCH " && ".$requirements if $requirements;
+      print BATCH ";\n";
   } else {
-    print BATCH "Requirements = $requirements;\n" if $requirements;
+
+      print BATCH "Requirements = $requirements;\n" if $requirements;
   }
   close BATCH;
   return $jdlFile;
