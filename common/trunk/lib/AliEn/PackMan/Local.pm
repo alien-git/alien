@@ -141,6 +141,8 @@ sub installPackage{
     }
     $options->{NO_FORK}=$old;
     $self->debug(2,  "Ready to do the installPackage $package for $user");
+    #Let's put the files public
+    umask 0022;
     while (1){
       eval {
 	$self->InstallPackage($lfn, $user, $package, $version,$info, $source, $options);
@@ -156,6 +158,7 @@ sub installPackage{
       }
       last;
     }
+    umask 0027;
     my ($done, $psource, $dir2)= $self->ConfigurePackage($user, $package, $version, $info);
     $psource and $source="$source $psource";
     $self->info( "$$ Returning $done and ($source)\n");
