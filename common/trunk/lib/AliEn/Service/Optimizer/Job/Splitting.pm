@@ -103,7 +103,14 @@ sub updateSplitting {
     }
     #    $self->ChangeOriginalJob($job_ca, $queueid, $user);
     $self->info( "Putting the status of $queueid to 'SPLIT'");
-    $self->{DB}->updateStatus($queueid,"SPLITTING","SPLIT", {masterjob=>1})
+    my $set={masterjob=>1};
+    my ($ok, $email)=$job_ca->evaluateAttributeString("Email");
+    if ($email){
+      $self->info("This job will send an email to $email");
+      $self->putJobLog($queueid, "trace", "The job will send an email to '$email'");
+      $set->{notify}=$email;
+    }
+    $self->{DB}->updateStatus($queueid,"SPLITTING","SPLIT", $set)
       or $self->info("Error updating status for job $queueid" )
 	and die("Error changing the status\n");;
     $self->putJobLog($queueid,"state", "Job state transition from SPLITTING to SPLIT");
