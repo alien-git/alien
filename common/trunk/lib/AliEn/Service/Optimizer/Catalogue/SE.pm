@@ -38,6 +38,8 @@ sub checkWakesUp {
     my $name=uc($entry->get_value("name"));
     my $dn=$entry->dn();
     $dn=~ /ou=Services,ou=([^,]*),ou=Sites,o=([^,]*),/i or $self->info("Error getting the site name of '$dn'") and next;
+    $dn=~ /disabled/ and 
+      $self->debug(1, "Skipping '$dn' (it is disabled)") and next;
     my ($site, $vo)=($1,$2);
     my $sename="${vo}::${site}::$name";
     $self->debug(1, "And the name is $sename ($dn)");
@@ -52,19 +54,52 @@ sub checkWakesUp {
     my $path=$entry->get_value('savedir') or next;
     $path=~ s/,.*$//;
     my $seioDaemons="root://$host:$port";
-    $self->info("***And the update should $sename be: $seioDaemons, $path"); 
-    
-    print "$self->{CATALOGUE} and $self->{CATALOGUE}->{CATALOG} and $self->{CATALOGUE}->{CATALOG}->{DATABASE}\n";
+    $self->debug(1, "And the update should $sename be: $seioDaemons, $path");
+
     my $e=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->query("SELECT sename,seioDaemons,sestoragepath from SE where seName='$sename'");
-    use Data::Dumper;
     my $path2=$path;
     $path2 =~ s/\/$// or $path2.="/";
     my $total=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->queryValue("SELECT count(*) from SE where seName='$sename' and seioDaemons='$seioDaemons' and ( seStoragePath='$path' or sestoragepath='$path2')");
-    print Dumper($total);
+
     if ($total<1){
-      print "NOPE SELECT count(*) from SE where seName='$sename' and seioDaemons='$seioDaemons' and seStoragePath='$path'\n";
-      print Dumper($e);
+      $self->info("***Updating the information of $site, $name ($seioDaemons and $path");
+      $self->{CATALOGUE}->execute("setSEio", $site, $name, $seioDaemons, $path);
     }
+    my @paths=$entry->get_value('savedir');
+    my $db_name=lc("se_$self->{CONFIG}->{ORG_NAME}_${site}_${name}");
+    my $db=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB};
+    my $info=  $db->query("select * from $db_name.VOLUMES");
+#    $db->do("update VOLUMES set 
+    use Data::Dumper;
+    my @existingPath=@$info;
+    my $t=$entry->get_value("mss");
+    my $method=lc("$t://$host");
+    foreach my $path (@paths){
+      my $found=0;
+      my $size=-1;
+      $path =~ s/,(\d+)$// and $size=$1;
+      $self->info("Checking the path of $path");
+      for my $e (@existingPath){
+        $e->{mountpoint} eq $path or next;
+        $self->debug(1, "The path already existed");
+        $e->{FOUND}=1;
+        $found=1;
+        ( $size eq $e->{size}) and next;
+        $self->info("THE SIZE IS DIFFERENT ($size and $e->{size})");
+        $db->do("update $db_name.VOLUMES set size=? where mountpoint=?", {bind_values=>[$size, $e->{mountpoint}]});
+      }
+      $found and next;
+      $self->info("WE HAVE TO ADD THE SE '$path'");
+      $db->do("insert into $db_name.VOLUMES(volume,method, mountpoint,size) values (?,?,?,?)", {bind_values=>[$path, "$host", $path, $size]});
+    }
+    foreach my $oldEntry (@existingPath){
+      $oldEntry->{FOUND} and next;
+      $self->info("The path $oldEntry->{mountpoint} is not used anymore");
+      $db->do("update $db_name.VOLUMES set size=usedspace where mountpoint=?", {bind_values=>[$oldEntry->{mountpoint}]});
+    }
+
+    $db->do("update $db_name.VOLUMES set freespace=size-usedspace where size!= -1");
+    $db->do("update $db_name.VOLUMES set freespace=2000000000 where size=-1");
   }
 
   

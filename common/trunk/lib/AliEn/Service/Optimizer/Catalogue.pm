@@ -37,7 +37,7 @@ sub initialize {
     or $self->{LOGGER}->error( "JobOptimizer", "In initialize error creating AliEn::UI::Catalogue::LCM instance" )
       and return;
   
-  my @optimizers=("Trigger", "Expired" ,"Deleted", "Packages");
+  my @optimizers=("SE","Trigger", "Expired" ,"Deleted", "Packages");
   $self->StartChildren(@optimizers) or return;
 
   return $self;
