@@ -216,10 +216,23 @@ sub f_packman {
     return $self->$soapCall(@_);
   }else{
     $silent or $self->info( "Let's do $operation (@arg)");
-    my $result=$self->{SOAP}->CallSOAP($serviceName, $soapCall,@arg)
-      or $self->info( "Error talking to the PackMan") and 
-	return;
+    my $result=$self->{SOAP}->CallSOAP($serviceName, $soapCall,@arg);
 
+    if (!$result){
+      my $print=0;
+      my $error=$self->{LOGGER}->error_msg();
+      $error =~ /Package is being installed/  or $print=1+$print;
+      $error or $error="Error talking to the PackMan";
+
+      ($soapCall eq "installPackage" ) and 
+	$error=~ /Package is being installed/
+	  and $error="Don't PANIC!! The previous message is not a real error. The package is being installed.\n\t\tYou can use installLog to check the status of the installation";
+      #If the error message is that the package is being installed, do not print an error
+
+      $self->info(  $error );
+      
+      return;
+    }
     ($done, @result)=$self->{SOAP}->GetOutput($result);
     $done or $self->info( "Error asking for the packages")
       and return;
