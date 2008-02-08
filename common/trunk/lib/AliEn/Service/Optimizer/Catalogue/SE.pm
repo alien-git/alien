@@ -42,7 +42,7 @@ sub checkWakesUp {
       $self->debug(1, "Skipping '$dn' (it is disabled)") and next;
     my ($site, $vo)=($1,$2);
     my $sename="${vo}::${site}::$name";
-    $self->debug(1, "And the name is $sename ($dn)");
+    $self->info("Doing the SE $sename");
     my (@io)=$entry->get_value('iodaemons');
     my $found= join("", grep (/xrootd/, @io)) or next;
     $self->debug(1, "This se has $found");
@@ -69,6 +69,7 @@ sub checkWakesUp {
     my $db_name=lc("se_$self->{CONFIG}->{ORG_NAME}_${site}_${name}");
     my $db=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB};
     my $info=  $db->query("select * from $db_name.VOLUMES");
+    $info or $self->info("Error getting the list of volumes for this SE") and next;
 #    $db->do("update VOLUMES set 
     use Data::Dumper;
     my @existingPath=@$info;
@@ -78,23 +79,23 @@ sub checkWakesUp {
       my $found=0;
       my $size=-1;
       $path =~ s/,(\d+)$// and $size=$1;
-      $self->info("Checking the path of $path");
+      $self->info("  Checking the path of $path");
       for my $e (@existingPath){
         $e->{mountpoint} eq $path or next;
         $self->debug(1, "The path already existed");
         $e->{FOUND}=1;
         $found=1;
         ( $size eq $e->{size}) and next;
-        $self->info("THE SIZE IS DIFFERENT ($size and $e->{size})");
+        $self->info("**THE SIZE IS DIFFERENT ($size and $e->{size})");
         $db->do("update $db_name.VOLUMES set size=? where mountpoint=?", {bind_values=>[$size, $e->{mountpoint}]});
       }
       $found and next;
-      $self->info("WE HAVE TO ADD THE SE '$path'");
+      $self->info("**WE HAVE TO ADD THE SE '$path'");
       $db->do("insert into $db_name.VOLUMES(volume,method, mountpoint,size) values (?,?,?,?)", {bind_values=>[$path, "$host", $path, $size]});
     }
     foreach my $oldEntry (@existingPath){
       $oldEntry->{FOUND} and next;
-      $self->info("The path $oldEntry->{mountpoint} is not used anymore");
+      $self->info("**The path $oldEntry->{mountpoint} is not used anymore");
       $db->do("update $db_name.VOLUMES set size=usedspace where mountpoint=?", {bind_values=>[$oldEntry->{mountpoint}]});
     }
 
