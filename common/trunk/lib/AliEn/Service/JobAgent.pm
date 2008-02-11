@@ -1866,9 +1866,13 @@ sub getProcInfo {
   $self->debug(1, "Got children @allprocs");
   @allprocs or return "";
   $self->debug(1, "Getting info");
-  if($self->{MONITOR} && $ENV{ALIEN_PROC_ID}){
-    my $res = $self->{MONITOR}->getJobMonInfo($ENV{ALIEN_PROC_ID}, "cpu_ksi2k");
-    $self->{CPU_KSI2K} = $res->{cpu_ksi2k} if $res->{cpu_ksi2k};
+  if($self->{MONITOR}){
+    my $res = $self->{MONITOR}->getJobMonInfo($pid, "cpu_ksi2k");
+    if(defined($res->{cpu_ksi2k})){
+      $self->{CPU_KSI2K} = $res->{cpu_ksi2k};
+    }else{
+      delete $self->{CPU_KSI2K};
+    }
   }
   
   # check if we have a new ps
@@ -2155,7 +2159,7 @@ sub lastExecution {
   if ($self->{OUTPUTFILES}) {
     $DuOutSize =`du -Lsc $self->{OUTPUTFILES}| tail -1|awk '{print \$1}'`;
   }
-  $cpuKsi2k = $self->{CPU_KSI2K} || "?";
+  $cpuKsi2k = defined($self->{CPU_KSI2K}) || "?";
 	
   chomp $DuSize;
   chomp $DuOutSize;
