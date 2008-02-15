@@ -618,6 +618,7 @@ sub moveGUIDs {
   my $tableName=$self->queryValue("SELECT max(tableName)+1 from GUIDINDEX");
   $tableName or $tableName=1;
   $self->checkGUIDTable($tableName, $db) or return;
+
   my $hostId=$self->{CURHOSTID};
 
   #insert it into the index
@@ -644,6 +645,18 @@ sub moveGUIDs {
   }
   #Finally, let's delete it from the old table
 #  $db->do("DELETE FROM $table where guid>string2date(?)", undef, {bind_values=>[$guid]}) or return;
+  $self->info("Now we have to grant privileges to the different users");
+  my $users=$self->queryColumn("select Username from ADMIN.TOKENS")
+    or $self->info("Error getting the users") and return;
+  use Data::Dumper;
+  print "Got the users\n";
+  print Dumper($users);
+  foreach my $info (@$users){
+    my $user=$info;
+    $self->info("User $user");
+    $db->do("GRANT insert,delete on $self->{DB}.G${tableName}L to $user");
+    $db->do("GRANT insert,delete on $self->{DB}.G${tableName}L_PFN to $user");
+  } 
   $self->info("YUHUUU!!!");
   return 1;
 }

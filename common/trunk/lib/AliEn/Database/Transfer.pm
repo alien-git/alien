@@ -35,47 +35,51 @@ sub preConnect {
   return 1;
 }
 
+my $tables={ TRANSFERS=>{columns=>{
+				   transferId=>" int(11) not null auto_increment primary key", 
+				   lfn=>"varchar(250)",
+				   pfn=>"varchar(250)",
+				   priority=>"tinyint(4) default 0",
+				   received=>"int(20) default 0",
+				   sent=>"int(20) default 0",
+				   started=>"int(20) default 0",
+				   finished=>"int(20) default 0",
+				   expires=> "int(10) default 0",
+				   error=>"int(11)",
+				   jdl=>"text",
+				   transferGroup=>"int(11)",
+				   user=>"varchar(30)",
+				   destination=>"varchar(50)",
+				   size=>"int(11)",
+				   options=>"varchar(250)",
+				   status=>"varchar(15)",
+				   type=>"varchar(30)",
+				   SE=>"varchar(50)",
+				   agentid=>"int(11)",
+				   ctime=>"timestamp DEFAULT CURRENT_TIMESTAMP  ON UPDATE CURRENT_TIMESTAMP",
+				   
+				  },
+			 id=>"transferId",
+			 index=>"transferId"},
+	     AGENT=>{columns=>{entryId=>"int(11) not null auto_increment primary key",
+			       requirements=>"text not null",
+			       counter=>"int(11) not null default 0",
+			       SE=>"varchar(50)",
+			       priority=>"tinyint(4) default 0",
+			       
+			      },
+		     id=>"entryId",},
+	     ACTIONS=>{columns=>{action=>"char(40) not null primary key",
+				 todo=>"int(1) not null default 0",
+				 extra=>"varchar(255) default ''",},
+		       id=>"action",
+		      }
+	   };
+
+
+
 sub initialize {
   my $self=shift;
-  my $tables={ TRANSFERS=>{columns=>{
-				     transferId=>" int(11) not null auto_increment primary key", 
-				     lfn=>"varchar(250)",
-				     pfn=>"varchar(250)",
-				     priority=>"tinyint(4) default 0",
-				     received=>"int(20) default 0",
-				     sent=>"int(20) default 0",
-				     started=>"int(20) default 0",
-				     finished=>"int(20) default 0",
-				     expires=> "int(10) default 0",
-				     error=>"int(11)",
-				     jdl=>"text",
-				     transferGroup=>"int(11)",
-				     user=>"varchar(30)",
-				     destination=>"varchar(50)",
-				     size=>"int(11)",
-				     options=>"varchar(250)",
-				     status=>"varchar(15)",
-				     type=>"varchar(30)",
-				     SE=>"varchar(50)",
-				     agentid=>"int(11)", 
-
-				    },
-			   id=>"transferId",
-			   index=>"transferId"},
-	       AGENT=>{columns=>{entryId=>"int(11) not null auto_increment primary key",
-				 requirements=>"text not null",
-				 counter=>"int(11) not null default 0",
-				 SE=>"varchar(50)",
-				 priority=>"tinyint(4) default 0",
-				 
-				 },
-			id=>"entryId",},
-	       ACTIONS=>{columns=>{action=>"char(40) not null primary key",
-				   todo=>"int(1) not null default 0",
-				   extra=>"varchar(255) default ''",},
-			 id=>"action",
-			 }
-	     };
   foreach my $table  (keys %$tables) {
     $self->checkTable($table, $tables->{$table}->{id}, $tables->{$table}->{columns}, $tables->{$table}->{index})
       or $self->{LOGGER}->error("TaskQueue", "Error checking the table $table") and return;
@@ -83,6 +87,16 @@ sub initialize {
   AliEn::Util::setupApMon($self);
 
   return $self->do("INSERT IGNORE INTO ACTIONS(action) values  ('INSERTING'),('MERGING')");
+}
+
+sub getArchiveTable {
+  my $self=shift;
+  my $date=gmtime();
+  $date=~ /^\S+\s+(\S+)\s+\S+\s+\S+\s+(\S+)/ or print "error getting the year!!\n" and return;
+  
+  my $name=uc("TRANSFERSARCHIVE_${2}_$1");
+  $self->checkTable($name, $tables->{TRANSFERS}->{id}, $tables->{TRANSFERS}->{columns}, $tables->{TRANSFERS}->{index}) or return;
+  return $name;
 }
 sub insertTransferLocked {
   my $self = shift;
@@ -300,14 +314,14 @@ sub isWaiting{
 }
 
 sub getFields{
-	my $self = shift;
-	my $id = shift
-		or $self->{LOGGER}->error("Transfer","In getFields transfer id is missing")
+  my $self = shift;
+  my $id = shift
+    or $self->{LOGGER}->error("Transfer","In getFields transfer id is missing")
 		and return;
-	my $attr = shift || "*";
-
-	$self->debug(1,"In getFields fetching attributes $attr of transfer $id");
-	$self->queryRow("SELECT $attr FROM TRANSFERS WHERE transferid=?", undef, {bind_values=>[$id]});
+  my $attr = shift || "*";
+  
+  $self->debug(1,"In getFields fetching attributes $attr of transfer $id");
+  $self->queryRow("SELECT $attr FROM TRANSFERS WHERE transferid=?", undef, {bind_values=>[$id]});
 }
 
 sub getField{
