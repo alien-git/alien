@@ -262,8 +262,25 @@ sub _selectPFN {
     $self->info("The pfn @pfn is valid (taking the first one)!!");
     return shift @pfn;
   }
+  if (@methods){
+    $self->info("The FTD wanted '@methods', but we can only get from @_.");
+    return;
+  }
   $self->info("There are no favourite methods... hope that the first one will do");
   return shift @_;
+}
+
+sub findAlternativeSource{
+  my $self=shift;
+  my $id=shift;
+  my $failedSE=shift;
+  $self->info("Asking the Transfer Manager if there are alternative sources");
+
+  my $done=$self->{SOAP}->CallSOAP("Manager/Transfer", "findAlternativeSource", $id, $failedSE)  or return;
+  $done->result or $self->info("There weren't any alternative sources :( ")
+    and return;
+  $self->info("The manager found an alternative source :)");
+  return 1;
 }
 
 sub startTransfer {
@@ -285,11 +302,17 @@ sub startTransfer {
   my $message="";
   my $sourceCertificate=$transfer->{FROMCERTIFICATE};
 
-  $sourceURL or $message="no FROMPFN in the transfer";
+  @listPFN or $message="no FROMPFN in the transfer";
   $size or $message="no SIZE in the transfer";
   
   $message and $self->{LOGGER}->error("FTD", "ID $id Error: $message",11) 
     and return;
+
+  if (! $sourceURL){
+    $self->info("We can't transfer from any of the elements that where proposed.");
+    return $self->findAlternativeSource($id, $transfer->{FROMSE});
+  }
+
   $self->info("ID $id Starting a transfer of  $sourceURL");
   my $toPFN=$transfer->{TOPFN};
   if (!$toPFN){
@@ -651,7 +674,7 @@ sub _forkTransfer{
 
   if (! $return ) {
     $self->info("The transfer failed due to: ".$self->{LOGGER}->error_msg() );
-    $self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, "FAILED", "ALIEN_SOAP_RETRY",{"Reason",$self->{LOGGER}->error_msg()});
+    $self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, "FAILED", "ALIEN_SOAP_RETRY",{"Reason","The FTD at $self->{CONFIG}->{FTD_FULLNAME} got". $self->{LOGGER}->error_msg()});
   }
   $self->info("$$ returns!!");
   return 1;
