@@ -409,7 +409,7 @@ sub getActiveSubTransfers{
 }
 
 sub _transferActiveReq{
-  return "status<>'FAILED' AND status<>'DONE' AND status <>'KILLED'";
+  return "status<>'FAILED' AND status<>'DONE' AND status <>'KILLED' AND status <>'EXPIRED'";
 }
 
 sub insertAgent{
