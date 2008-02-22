@@ -23,7 +23,14 @@ sub initialize {
       $self->{XRDCP}="xrdcpapmon";
     }
   }
-
+  if (open (FILE, "which xrdstagetool 2>&1|")){
+    my $input=join("",<FILE>);
+    if (close FILE){
+      $self->info("There is xrsstage!!! Using it");
+      $self->{XRDSTAGE}="xrdcstagetool";
+    }
+  }
+    
   return $self;
 }
 
@@ -55,6 +62,19 @@ sub get {
     my $tohost  = ( shift or "" );
     
     print "we arrived here!!\n";
+
+    if ($self->{XRDSTAGE}){
+      $self->info("Trying to copy with xrdstage");
+      open( FILE, "$self->{XRDSTAGE}  \"root://$tohost/$localfile?fetchfrom=root://$fromhost/$remotefile\" |");
+      my @data=<FILE>;
+      close FILE;
+      if (grep (m{OK root://$tohost/$localfile}, @data) ){
+	$self->info("The xrdstage worked!!");
+	return 0;
+      }
+      $self->info("There was some problem doing the xrdstage!! \n@data\nLet's try xrdcp");
+      
+    }
     my $command = "$self->{XRDCP} root://$fromhost/$remotefile?cmd=trashbin root://$tohost/$localfile -DIFirstConnectMaxCnt 1 -np ";
     print $command."\n";
     return system($command);
