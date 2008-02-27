@@ -303,7 +303,7 @@ sub startTransfer {
   my $sourceCertificate=$transfer->{FROMCERTIFICATE};
 
   @listPFN or $message="no FROMPFN in the transfer";
-  $size or $message="no SIZE in the transfer";
+  defined $size or $message="no SIZE in the transfer";
   
   $message and $self->{LOGGER}->error("FTD", "ID $id Error: $message",11) 
     and return;
