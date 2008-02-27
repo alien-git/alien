@@ -943,7 +943,7 @@ sub f_print {
     }
 
     $self->{SILENT} or ($opt =~ /s/) or
-      printf "%s   %-8s %-8s %8i %s%12s%s      %-10s %-20s\n", $permstring,
+      printf "%s   %-8s %-8s %12s %s%12s%s      %-10s %-20s\n", $permstring,
 	$user, $group, $size, $date, $textcolour,$name, $textneutral, $expire;
 
     if ( $opt =~/z/) {

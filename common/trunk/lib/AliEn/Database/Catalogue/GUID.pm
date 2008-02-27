@@ -136,7 +136,7 @@ sub checkGUIDTable {
   my %columns = (guidId=>"int(11) NOT NULL auto_increment primary key", 
 		 ctime=>"timestamp",
 		 expiretime=>"datetime",
-		 size=>"int(11) not null default 0",
+		 size=>"bigint not null default 0",
 		 seStringlist=>"varchar(255) not null default ','",
 		 seAutoStringlist=>"varchar(255) not null default ','",
 		 aclId=>"int(11)",
