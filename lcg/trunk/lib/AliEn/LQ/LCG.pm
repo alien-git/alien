@@ -423,24 +423,25 @@ sub getInfoFromGRIS {
 
     $self->debug(1,"Querying for $CE");
     (my $host,undef) = split (/:/,$CE);    
-    # Try resource BDII first, then resource GRIS
-    my @IS  = ("ldap://$host:2170,mds-vo-name=resource,o=grid","ldap://$host:2135,mds-vo-name=local,o=grid");
+    # Try resource GRIS first, then resource BDII (To swap when BDII will become more common...)
+    my @IS  = ("ldap://$host:2135,mds-vo-name=local,o=grid",
+               "ldap://$host:2170,mds-vo-name=resource,o=grid");
     my $ldap = '';
     foreach (@IS) {
        my ($GRIS, $BaseDN) = split (/,/,$_,2);
        $self->debug(1,"Asking $GRIS/$BaseDN");
        unless ($ldap =  Net::LDAP->new($GRIS)) {
-         $self->{LOGGER}->warning("LCG","Something wrong with $GRIS/$BaseDN...");
+         $self->info("$GRIS/$BaseDN not responding, trying next.");
 	 next;
        }
        unless ($ldap->bind()) {
-         $self->{LOGGER}->warning("LCG","$GRIS/$BaseDN not responding...");
+         $self->{LOGGER}->warning("LCG","$GRIS/$BaseDN not responding (2), trying next.");
          next;
        }
        my $result = $ldap->search( base   =>  $BaseDN,
                                    filter => "(&(objectClass=GlueCEState)(GlueCEUniqueID=$CE))");
        if ($result->code) {
-         $self->{LOGGER}->warning("LCG","Something wrong in answer from $GRIS/$BaseDN");
+         $self->{LOGGER}->warning("LCG","Something wrong in answer from $GRIS/$BaseDN, trying next.");
          next;
        }
        if ( ($result->all_entries)[0] ) {
@@ -449,10 +450,11 @@ sub getInfoFromGRIS {
            $self->debug(1, "$_ for $CE is $value");
            $results{$_}+=$value;
          }
+	 $self->info("OK, got an answer from $GRIS/$BaseDN");
 	 $someAnswer++;
 	 last;
        } else {
-    	 $self->{LOGGER}->warning("LCG","The query to $GRIS/$BaseDN did not return any value");
+    	 $self->{LOGGER}->warning("LCG","The query to $GRIS/$BaseDN did not return any value, trying next.");
        }
        $ldap->unbind();
     }
