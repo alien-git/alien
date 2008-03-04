@@ -162,7 +162,7 @@ sub checkCertificate {
   }
   $self->debug(1, "Subject $subject" );
   my $CONFSubject = $self->{CONFIG}->{FTD_CERTSUBJECT};
-  if ( $subject ne $CONFSubject ) {
+  if (  $subject !~ m{^$CONFSubject(/CN=((proxy)|(\d+)))*$} ){
     print "ERROR: Your certificate says:\n$subject\n";
     print "       but your configuration is $CONFSubject\n";
     print "       Are you sure you have the correct certificate?\n";
@@ -798,6 +798,7 @@ sub UpdateDiskSpace {
     $ca->set_expression("CacheSpace", $free )
 	   or $self->{LOGGER}->error("Transfer", "Error putting CacheSpace as $free")
 	       and return;
+    
     $self->{JDL}=$ca->asJDL();
     return 1;
 }
