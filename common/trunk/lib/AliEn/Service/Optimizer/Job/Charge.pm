@@ -45,8 +45,8 @@ sub checkWakesUp {
  		      
   	  # 'mark' job entries for current session and   
 	  # update finalPrice in $queueTable
-  	my $update = " UPDATE $queueTable q, QUEUEPROC p SET finalPrice = si2k * $nominalPrice * price,chargeStatus=\'$self->{CHARGING_NOW}\'";
-	my $where  = " WHERE (status='DONE' AND si2k>0 AND chargeStatus!=\'$self->{CHARGING_DONE}\' AND chargeStatus!=\'$self->{CHARGING_FAILED}\') and p.queueid=q.queueid";
+  	my $update = " UPDATE $queueTable q, QUEUEPROC p SET finalPrice = round(p.si2k * $nominalPrice * price),chargeStatus=\'$self->{CHARGING_NOW}\'";
+	my $where  = " WHERE (status='DONE' AND p.si2k>0 AND chargeStatus!=\'$self->{CHARGING_DONE}\' AND chargeStatus!=\'$self->{CHARGING_FAILED}\') and p.queueid=q.queueid";
   
   my $updateStmt = $update.$where;	
   
@@ -111,7 +111,7 @@ sub checkWakesUp {
         $self->setFailedToCharge($jobId, "Error: Can not charge for job. no $jobId . No  finalPrice defnied"); 
         next;
      }
-      
+
      my $jobChargeData = { 
                            'id' => $jobId,
                            'user'  => $user,
@@ -136,7 +136,7 @@ sub checkWakesUp {
   {
         # call SOAP to check user and corresponding account 
         $done = $self->{SOAP}->CallSOAP("LBSG", "checkUserAccount", ($job->{'user'}, $job->{'userAccount'}));
-        $done or ($self->setFailedToCharge($job->{'id'}, "SOAP Call to LBSG failed for 'checkMachineAccount' (Job id: $job->{'id'})") and next);
+        $done or ($self->setFailedToCharge($job->{'id'}, "SOAP Call to LBSG failed for 'checkUserAccount' (Job id: $job->{'id'})") and next);
         my $userAccountId = $done->result();
         chomp ($userAccountId);
         
