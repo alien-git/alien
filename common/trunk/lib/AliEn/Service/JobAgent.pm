@@ -1415,6 +1415,11 @@ sub putFiles {
       foreach my $se (@ses) {
 	my $optional=0;
 	$se=~ s/_optional$//i and $optional=1;
+	if ($se =~ /^localse$/i){
+	  $se=$self->{CONFIG}->{SE_FULLNAME}
+	    or $self->info("We are supposed to write in the local se, but it is not defined!!") and next;
+	  $self->info("We will write in the locaSE: $se");
+	}
 	$self->info("Putting the file $arch->{name} in $se (guid $guid)");
 	$self->putJobLog("trace","Registering $arch->{name} in $se");
 	my ($info2, $silent)=(undef, "-silent");
