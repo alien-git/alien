@@ -1433,10 +1433,11 @@ sub putFiles {
 	  next;
 	}
 	if ($info) {
-	  $info->{selist}.=",$info2->{selist}";
+	  push @{$info->{PFN_LIST}}, "$info2->{selist}/$info2->{pfn}";
 	}else{
 	  $info=$info2;
 	  $guid=$info->{guid};
+	  $info->{PFN_LIST}=["$info->{selist}/$info->{pfn}"];
 	}
       }
       if (!$info ) {
@@ -1449,7 +1450,7 @@ sub putFiles {
 	$submitted->{$arch->{name}}->{PFNS}.=\@list;
       }else{
 	$submitted->{$arch->{name}}=$info;
-	$submitted->{$arch->{name}}->{PFNS}=["$info->{selist}/$info->{pfn}"];
+	$submitted->{$arch->{name}}->{PFNS}=$info->{PFN_LIST};
 
       }
       my @list;
@@ -1470,7 +1471,8 @@ sub putFiles {
 	$links.=";;".join(";;",@{$entry->{links}});
       }
       push @list, "\"".join ("###", $key, $entry->{guid}, $entry->{size}, 
-			     $entry->{md5},  @{$entry->{PFNS}}, $links) ."\"";
+			     $entry->{md5},  join("###",@{$entry->{PFNS}}), 
+			     $links) ."\"";
     }
     if (@list) {
       

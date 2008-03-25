@@ -53,7 +53,7 @@ sub checkSavedJob{
   my %filesToRegister;
 
   if ($ok ){
-    my ($olduser)=$self->{CATALOGUE}->execute("whoami");
+    my ($olduser)=$self->{CATALOGUE}->execute("whoami", "-silent");
     $self->{CATALOGUE}->execute("user","-",  $user);
 
     $self->{CATALOGUE}->execute("mkdir", "-p", "$procDir/job-output");
