@@ -33,31 +33,38 @@ sub checkTriggers{
   my $silent=shift;
   my $db=shift;
 
-  my $data=$db->query("SELECT * from TRIGGERS")
+  my $limit=1000;
+  my $data=$db->query("SELECT * from TRIGGERS order by entryId limit $limit")
     or $self->info("Error getting the triggers of $db->{DB}")
       and return;
   my $entryId=0;
-  foreach my $entry (@$data){
-    my $done=1;
-    $entry->{entryId}>$entryId and $entryId=$entry->{entryId};
-    my ($file)=$self->{CATALOGUE}->execute("get", $entry->{triggerName});
-    if ($file){
-      chmod 0755, $file;
-      $self->info("Calling $file $entry->{lfn}");
-      system($file, $entry->{lfn}) or $done=1;
-    }else{
-      $self->info("Error getting the file $entry->{triggerName}");
+  my $counter=1000;
+  while ($counter eq $limit){
+    $counter=0;
+    foreach my $entry (@$data){
+      my $done=1;
+      $entry->{entryId}>$entryId and $entryId=$entry->{entryId};
+      my ($file)=$self->{CATALOGUE}->execute("get", $entry->{triggerName});
+      if ($file){
+	chmod 0755, $file;
+	$self->info("Calling $file $entry->{lfn}");
+	system($file, $entry->{lfn}) or $done=1;
+      }else{
+	$self->info("Error getting the file $entry->{triggerName}");
+	
+      }
+      if (! $done){
+	$self->info("The action didn't execute. Inserting it in the Triggers_failed");
+	$db->do("INSERT INTO TRIGGERS_FAILED select * from TRIGGERS where entryId=?", {bind_values=>[$entry->{entryId}]});
+      }
+      $counter++;
+    }
 
+    if ($entryId){
+      $entryId++;
+      $self->info("Deleting the entries smaller than $entryId");
+      $db->delete("TRIGGERS", "entryId<?", {bind_values=>[$entryId]});
     }
-    if (! $done){
-      $self->info("The action didn't execute. Inserting it in the Triggers_failed");
-      $db->do("INSERT INTO TRIGGERS_FAILED select * from TRIGGERS where entryId=?", {bind_values=>[$entry->{entryId}]});
-    }
-  }
-  if ($entryId){
-    $entryId++;
-    $self->info("Deleting the entries smaller than $entryId");
-    $db->delete("TRIGGERS", "entryId<$entryId");
   }
 
   return 1;
