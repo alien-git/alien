@@ -54,6 +54,10 @@ sub updateInserting {
   ( $host =~ /^(.*)\@/ ) and ( $user = $1 );
   my $set={};
   eval {
+    if ( !$job_ca->isOK() ) {
+      die("incorrect JDL input");
+    }
+
     my $done=$self->copyInput($queueid, $job_ca, $user) or 
       die("error copying the input\n");
 

@@ -301,42 +301,42 @@ sub checkJobs {
     foreach my $data (@$jobs){
       $self->{LOGGER}->$method("JobOptimizer", "Checking job $data->{queueid}");
       my $job_ca = Classad::Classad->new($data->{jdl});
-      if ( !$job_ca->isOK() ) {
-	print STDERR "JobOptimizer: in checkJobs incorrect JDL input\n" . $data->{jdl} . "\n";
-	$self->{DB}->updateStatus($data->{queueid},"%","ERROR_I");
-	
-	next;
-      }
+      #if ( !$job_ca->isOK() ) {
+      #	print STDERR "JobOptimizer: in checkJobs incorrect JDL input\n" . $data->{jdl} . "\n";
+      #	$self->{DB}->updateStatus($data->{queueid},"%","ERROR_I");
+      #
+      #	next;
+      #}
       
       ############################################################################
       # Job Predecessor functionality
       ############################################################################
-      my ( $ok, $jobPredecessors ) = $job_ca->evaluateExpression("JobPredecessor");
-      $ok and $self->info("Found Job Predecessor $jobPredecessors");
-      # here we have to replace the organisation name !!!
-      $jobPredecessors=~ s/\"//g;
-      $jobPredecessors=~ s/\{//g;
-      $jobPredecessors=~ s/\}//g;
-      $jobPredecessors=~ s/\s//g;
-      my @predecessors = split ',', $jobPredecessors;
-      my $checkpredecessor=0;
-      foreach (@predecessors) {
-	# check if the predecessor has status done
-	my $state = $self->{DB}->getFieldsFromQueueEx("status","where queueId='$_'");
-	defined $state
-	  or $self->{LOGGER}->warning( "JobOptimizer", "In checkJobs error during execution of database query" ) and $self->{DB}->updateStatus($data->{queueid},"INSERTING","ERROR_C")
-	    and next;
-	$self->info("Status of predecessor $_ is @$state[0]->{status}");
-	if (@$state[0]->{status} eq 'DONE') {
-	  $checkpredecessor=1;
-	} else {
-	  $checkpredecessor=-1;
-      }
-      }
-      if ($checkpredecessor<0) {
-	$self->info("In checkJobs - the predecessor @predecessors of job $data->{queueid} are not yet finished");
-	next;
-      }
+      #my ( $ok, $jobPredecessors ) = $job_ca->evaluateExpression("JobPredecessor");
+      #$ok and $self->info("Found Job Predecessor $jobPredecessors");
+      ## here we have to replace the organisation name !!!
+      #$jobPredecessors=~ s/\"//g;
+      #$jobPredecessors=~ s/\{//g;
+      #$jobPredecessors=~ s/\}//g;
+      #$jobPredecessors=~ s/\s//g;
+      #my @predecessors = split ',', $jobPredecessors;
+      #my $checkpredecessor=0;
+      #foreach (@predecessors) {
+      #	# check if the predecessor has status done
+      #	my $state = $self->{DB}->getFieldsFromQueueEx("status","where queueId='$_'");
+      #defined $state
+      #or $self->{LOGGER}->warning( "JobOptimizer", "In checkJobs error during execution of database query" ) and $self->{DB}->updateStatus($data->{queueid},"INSERTING","ERROR_C")
+      #and next;
+      #	$self->info("Status of predecessor $_ is @$state[0]->{status}");
+      #	if (@$state[0]->{status} eq 'DONE') {
+      #	  $checkpredecessor=1;
+      #	} else {
+      #	  $checkpredecessor=-1;
+      #      }
+      #      }
+      #      if ($checkpredecessor<0) {
+      #	$self->info("In checkJobs - the predecessor @predecessors of job $data->{queueid} are not yet finished");
+      #	next;
+      #      }
       
       $self->info("In checkJobs - calling $function");
       $self->$function($data->{queueid}, $job_ca, $status);
