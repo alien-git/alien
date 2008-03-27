@@ -140,7 +140,7 @@ sub exportSecureEnvironment {
   $ENV{HTTPS_CA_DIR}=$ENV{X509_CERT_DIR};
 
   #First, let's check if we have a proxy:
-  if (! system("$ENV{GLOBUS_LOCATION}/bin/grid-proxy-info >/dev/null 2>&1")) {
+  if (! system("$ENV{GLOBUS_LOCATION}/bin/grid-proxy-info -exists -valid 0:5 >/dev/null 2>&1")) {
     my $proxy=($ENV{X509_USER_PROXY} || "/tmp/x509up_u$<");
     $self->debug(1,"Using the proxy-certificate in $proxy");
 
