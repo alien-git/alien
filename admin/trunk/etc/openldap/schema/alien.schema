@@ -101,6 +101,8 @@ attributetype ( AliEnVOConfig:72 NAME 'bankAdmin' SUP name )
 attributetype ( AliEnVOConfig:73 NAME 'bankCurrency' SUP name )
 attributetype ( AliEnVOConfig:74 NAME 'proxyAddress' SUP name )
 attributetype ( AliEnVOConfig:75 NAME 'jobDatabaseRead' SUP name )
+attributetype ( AliEnVOConfig:76 NAME 'taxAccount' SUP name )
+attributetype ( AliEnVOConfig:77 NAME 'taxRate' SUP name )
 
 objectclass ( AliEnVOConfig  NAME 'AliEnVOConfig'
 	SUP ( top $ organizationalUnit ) STRUCTURAL
@@ -123,7 +125,8 @@ objectclass ( AliEnVOConfig  NAME 'AliEnVOConfig'
 	      proofCryptPassword $ proofLogin $ proofTimeout $ proofMasterPort $ proofPackage $ 
 	      webserverURL $ myproxyServer $ gContainerAddress $ rlsAddress $
 	      portalUrl $ vomsServer $ apiServer $ jabberServer $ agentApiProxy $ 
-               lbsgAddress $ lbsgDatabase $ si2kNominalPrice $ bankAdmin $ bankCurrency $ jobDatabaseRead )
+        lbsgAddress $ lbsgDatabase $ si2kNominalPrice $ bankAdmin $ taxAccount $ taxRate $
+				bankCurrency $ jobDatabaseRead )
 	)
 #AliEnUser
 
@@ -134,10 +137,12 @@ attributetype ( AliEnUser:1 NAME 'sshkey' SYNTAX 1.3.6.1.4.1.1466.115.121.1.5 )
 attributetype ( AliEnUser:2 NAME 'roles' SUP name )
 attributetype ( AliEnUser:3 NAME 'subject' SUP name )
 attributetype ( AliEnUser:4 NAME 'accountName' SUP name )
+attributetype ( AliEnUser:5 NAME 'email' SUP name )
+attributetype ( AliEnUser:6 NAME 'CCID' SUP name )
 
 objectclass ( AliEnUser  NAME 'AliEnUser'
  	     SUP ( top ) 
-	     MAY ( sshkey $ roles $ subject $ accountName )
+	     MAY ( sshkey $ roles $ subject $ accountName $ email $ CCID )
 	      )
 #AliEnUser
 
@@ -260,9 +265,8 @@ objectclass ( AliEnFTD  NAME 'AliEnFTD'
 	MUST ( name $ port $ host $ certsubject $ allowedDirs $ maxTransfers )
         MAY ( protocol $ localOptions $ remoteOptions )
 	      )
+
 #AliEnSite
-
-
 objectidentifier AliEnSite ALIEN_BASE:10
 
 
@@ -283,6 +287,7 @@ attributetype ( AliEnSite:14 NAME 'closese' SUP name )
 attributetype ( AliEnSite:15 NAME 'virtualSite' SUP name )
 attributetype ( AliEnSite:16 NAME 'siteKey' SUP name )
 attributetype ( AliEnSite:17 NAME 'siteToken' SUP name )
+attributetype ( AliEnSite:18 NAME 'distributeCreditsTo' SUP name )
 
 
 
@@ -292,7 +297,7 @@ objectclass ( AliEnSite  NAME 'AliEnSite'
 	MAY ( savese $ packages $ workdir $ processPort $
               administrator $ location $ country $ longitude $ latitude $ 
 	      record $ packmanAddress $ localconfig $ environment $
-              accountName $ closese $ virtualSite $ siteKey $ siteToken )
+              accountName $ distributeCreditsTo $ closese $ virtualSite $ siteKey $ siteToken )
 	      )
 
 #AliEnHostConfig
@@ -537,4 +542,16 @@ objectclass ( AliEnApiService  NAME 'AliEnApiService'
               debug $ commandlogging $ performancelogging $ filteredcommands $ environment 
 		$ uselocalconfig )
  )
+
+#AliEnSite
+objectidentifier AliEnInstitution ALIEN_BASE:25
+
+attributetype ( AliEnInstitution:1 NAME 'institutionName' SUP name )
+
+
+objectclass ( AliEnInstitution  NAME 'AliEnInstitution'
+	SUP ( top ) 
+	MUST ( uid $ institutionName )
+	
+	      )
 
