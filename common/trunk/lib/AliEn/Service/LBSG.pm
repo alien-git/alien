@@ -6,17 +6,15 @@ select(STDOUT);
 $| = 1;
  
 use strict;
+use warnings;
 
 use Net::LDAP;
 
-use AliEn::Database::TaskQueue;
 use AliEn::Service::Manager;
-use AliEn::JOBLOG;
 use AliEn::Util;
 use Classad;
 use AliEn::Database::Admin;
 use AliEn::Config;
-use Data::Dumper; 
 
 use vars qw (@ISA $DEBUG);
 @ISA=("AliEn::Service");
@@ -91,6 +89,7 @@ my $_initCommands = sub
 
 my $_authenticateAdmin = sub 
 {
+
     my $config = AliEn::Config->new();
      
     my $ldap = Net::LDAP->new( $config->{LDAPHOST}) 
@@ -114,7 +113,7 @@ my $_authenticateAdmin = sub
         {
             
             #try to match DN first
-            if ($bankAdmin eq $ENV{SSL_CLIENT_I_DN})
+            if ( (lc($bankAdmin) eq lc($ENV{SSL_CLIENT_I_DN})) or ( lc($bankAdmin) eq lc($ENV{SSL_CLIENT_S_DN})) )
             {
                 $ldap->unbind();
                 return 1;
@@ -130,8 +129,8 @@ my $_authenticateAdmin = sub
 			$entry = $mesg->entry(0);
 			$subject = $entry->get_value('subject');
 
-			# see if the DN of the user from LDAP matches $ENV{SSL_CLIENT_I_DN}
-			($subject eq $ENV{SSL_CLIENT_I_DN}) or next;
+			# see if the DN of the user from LDAP matches $ENV{SSL_CLIENT_I_DN} or $ENV{SSL_CLIENT_S_DN}
+			( (lc($subject) eq lc($ENV{SSL_CLIENT_I_DN})) or ( lc($subject) eq lc($ENV{SSL_CLIENT_S_DN}) )) or next;
 			$ldap->unbind;
 			return 1;
 			
@@ -173,7 +172,7 @@ my $_loadCommand = sub
     
     $_loadHelp->($command);
 
-    open FILE, "$ENV{ALIEN_ROOT}/bin/$command" or return "Error in banking service: Failed to open $ENV{ALIEN_ROOT}/bin/$command: $!";
+    open FILE, "< $ENV{ALIEN_ROOT}/bin/$command" or return "Error in banking service: Failed to open $ENV{ALIEN_ROOT}/bin/$command: $!";
     my $tmp;
 
         
@@ -206,8 +205,8 @@ my $_exec = sub
 
         $ENV{GOLD_HOME} || ($ENV{GOLD_HOME} = $ENV{ALIEN_ROOT});
 
-        my $codeRef =  \$self->{COMMANDS}->{$command}->{"code"};
-
+				my $codeRef =  \$self->{COMMANDS}->{$command}->{"code"};				
+				
         # Load the command if necessary
         if ($$codeRef eq "") 
         {
@@ -221,32 +220,53 @@ my $_exec = sub
         ($argvStr =~ /--man/)  and return $self->{COMMANDS}->{$command}->{"man"};
         ($argvStr =~ /--help/) and return $self->{COMMANDS}->{$command}->{"help"};
 
+				pipe (FROM_CHILD_OUT, TO_PARENT_OUT) or die "Can not open pipe on server: $!";
+				pipe (FROM_CHILD_ERR, TO_PARENT_ERR) or die "Can not open pipe on server: $!";
 
-        # capture STDOUT before execution
-        open(OLDOUT, ">&STDOUT");
-        open(OLDERR, ">&STDERR");
+				# fork to execute actual bank command
+				my $pid = fork();
 
-        my $out = "";
-        close STDOUT;
-        open STDOUT, '>', \$out or (return $self->info("Can't open STDOUT: $!") and return "Opening STDOUT on server failed\n");
-        
-        
-        my $err = "";
-        close STDERR;
-        open STDERR, ">", \$err or (return $self->info("Can't open STDERR: $!") and return "Openins STDERR on server failed\n");
-        
+				if ($pid == 0) #child
+				{
+						close FROM_CHILD_OUT;
+						close FROM_CHILD_ERR;
+						close STDERR;
+						open (STDERR, ">&TO_PARENT_ERR");
+						select STDERR; $|=1;
+						select (TO_PARENT_OUT); $|=1;
 
-        # execute the command
+			  		my $fun = sub { eval $$codeRef; };
+      			my $retCode = $fun->();  
+
+						close TO_PARENT_OUT;
+						close TO_PARENT_ERR;
+
+						# we have to kill the child, otherwise the parent will never return	
+						`kill -9 $$`;	       
+				}
 	
-        my $fun = sub { eval $$codeRef; };
-        $fun->();              
-        
-        # restore STDOUT and STDERR
-        close STDOUT;
-        close STDERR;
-        open(STDOUT, ">&OLDOUT");
-        open(STDERR, ">&OLDERR");
+				die "Can not fork $!" unless defined $pid;
 
+				close TO_PARENT_OUT;
+				close TO_PARENT_ERR;
+
+				waitpid ($pid, 0); # wait untill child finishes 				
+
+				my $out; 
+				while (my $line = <FROM_CHILD_OUT>)
+				{	$out .= $line; }
+
+				my $err; 
+				while (my $line = <FROM_CHILD_ERR>)
+				{	$err .= $line; }
+
+				close FROM_CHILD_OUT;	
+				close FROM_CHILD_ERR;	
+
+				$out and (chomp $out);
+				$err and (chomp $err);
+
+			
         $showError and return $out."\n".$err."\n";
         return $out;
 };
@@ -382,9 +402,9 @@ sub initialize {
   $self->{PREFORK}=5;
  
     
-  if ($ENV{'ALIEN_N_MANAGER_JOB_SERVER'}  ) {
-      $self->{PREFORK} = $ENV{'ALIEN_N_MANAGER_JOB_SERVER'};
-  }
+#  if ($ENV{'ALIEN_N_MANAGER_JOB_SERVER'}  ) {
+#      $self->{PREFORK} = $ENV{'ALIEN_N_MANAGER_JOB_SERVER'};
+#  }
      
     # initialize command hashes
     $_initCommands->();
@@ -413,7 +433,7 @@ sub bank  {
       my $isUser = $_authenticateUser->($command, @ARGV); 
       if ( $isUser != 1 )
       {
-            $self->info ("Access denied for $ENV{SSL_CLIENT_I_DN} to execute $command @ARGV. Error is $isUser" );
+            $self->info ("Access denied for $ENV{SSL_CLIENT_S_DN} to execute $command @ARGV. Error is $isUser" );
             return "Error: User is not allowed to do $command @ARGV. Authentication error is: $isUser.";
       }
 
@@ -426,14 +446,19 @@ sub bank  {
         my $isAdmin = $_authenticateAdmin->(); 
         if (  $isAdmin != 1)
         { 
-            $self->info ("Access denied for $ENV{SSL_CLIENT_I_DN} to execute $command @ARGV. Error is $isAdmin" );
+            $self->info ("Access denied for $ENV{SSL_CLIENT_S_DN} to execute $command @ARGV. Error is $isAdmin" );
             return "You have to be bank administrator to execute $command. Authentication error is: $isAdmin\n";
         }
 
   }
-   
-  $self->info ("Doing '$command @ARGV' for ".$ENV{SSL_CLIENT_I_DN} ); 
-  return $_exec->("1", $command, @ARGV);
+
+	
+  $self->info ("Doing '$command @ARGV' for ".$ENV{SSL_CLIENT_S_DN} );
+	my $ret = $_exec->("0", $command, @ARGV);
+		
+	$self->info ("returning $ret");
+	
+	return $ret;
 }
 
 #
@@ -444,12 +469,12 @@ sub checkUserAccount
     my $user = shift;
     my $account = shift;
     
-    $self->info ("In 'checkUserAccount'. User is: $user account is: $account");
-
+    $self->info ("In 'checkUserAccount'. User is: \'$user\' account is: \'$account\'");
+		
     my $isAdmin = $_authenticateAdmin->();
     if ( $isAdmin != 1) 
     {
-            $self->info("Access denied for $ENV{SSL_CLIENT_I_DN} to execute 'checkUserAccount'. Error is $isAdmin");
+            $self->info("Access denied for $ENV{SSL_CLIENT_S_DN} to execute 'checkUserAccount'. Error is $isAdmin");
             return "\nYou have to be bank administrator to execute 'checkUserAdmin'. Authentication error is: $isAdmin";
 
     }
@@ -464,22 +489,28 @@ sub checkUserAccount
     {
         $_exec->(0, 'gmkaccount', ('-n', $account, '-u','NONE' ,'-m', 'ANY'));
         $accountId = $_getAccountIdFromAccountName->($account);
-      
+      	$self->info ("In 'checkUserAccount'. Account: \'$account\' did not exsit. Created $account with Id \'$accountId\'");
     }
-    
-    $accountId =~ s/\s*//;
+
+		$accountId =~ /(\d+)/g;
+		$accountId = $1;
 
     # check is the user belongs to the account 
     my @users = split (',', $_exec->(0, 'glsaccount', ('-n', $account, '--show', 'User', '--quiet')) );
 
    foreach my $belongingUser (@users)
-    {
-        $belongingUser =~ s/\s*//;
-       ($belongingUser eq $user) and (return $accountId);
-    }
+   {
+ 				chomp $belongingUser;
+	      $belongingUser =~ s/\s+//g;
+				($belongingUser eq $user) and (return $accountId); 
+	 } 
+
 
     # add user to the account and deposit some money (to create allocation)
+		$self->info ("Adding \'$user\' to account: \'$accountId\'");
     $_exec->(0, 'gchaccount', ('-a' , $accountId, '--addUsers' , $user) );    
+
+		$self->info ("Depositing funds on account \'$accountId\' to create allocation");
     $_exec->(0, 'gdeposit', ('-a', $accountId, '-z', '1'));
 
     return $accountId;
@@ -498,7 +529,7 @@ sub checkMachineAccount
     my $isAdmin = $_authenticateAdmin->();
     if ( $isAdmin != 1) 
     {
-            $self->info ("Access denied for $ENV{SSL_CLIENT_I_DN} to execute 'checkMachine'. Error is $isAdmin");
+            $self->info ("Access denied for $ENV{SSL_CLIENT_S_DN} to execute 'checkMachine'. Error is $isAdmin");
             return "\nYou have to be bank administrator to execute 'checkMachine'. Authentication error is: $isAdmin";
 
     }
@@ -514,16 +545,50 @@ sub checkMachineAccount
         $_exec->(0, 'gmkaccount', ('-n', $account, '-u','NONE' ,'-m', 'ANY'));
         $accountId = $_getAccountIdFromAccountName->($account);
         #cleanup accountId
-        $accountId =~ s/\s*//;
+        $accountId =~ s/\s*//g;
         # make deposit to create allocation 
         $_exec->(0,'gdeposit', ('-i', $accountId, '-z', '1'));
     }
 
-    $accountId =~ s/\s*//;
+    $accountId =~ s/\s*//g;
 
     return $accountId;
 }
 
+#
+# checks the existence of the account, creates the account if necessary
+sub checkAccount
+{
+		shift;
+    my $account = shift;
+
+    $self->info ("In 'checkAccount'. Tax account is: $account");
+
+    my $isAdmin = $_authenticateAdmin->();
+    if ( $isAdmin != 1) 
+    {
+            $self->info ("Access denied for $ENV{SSL_CLIENT_S_DN} to execute 'checkMachine'. Error is $isAdmin");
+            return "\nYou have to be bank administrator to execute 'checkMachine'. Authentication error is: $isAdmin";
+
+    }
+
+   # check if account exists 
+    my $accountId = $_exec->(0, 'glsaccount', ('-n', $account, '--show', 'Id', '--quiet'));
+    if (!$accountId)
+    {
+        $_exec->(0, 'gmkaccount', ('-n', $account, '-u','NONE' ,'-m', 'ANY'));
+        $accountId = $_getAccountIdFromAccountName->($account);
+        #cleanup accountId
+        $accountId =~ s/\s*//g;
+        # make deposit to create allocation 
+        $_exec->(0,'gdeposit', ('-i', $accountId, '-z', '1'));
+    }
+
+    $accountId =~ s/\s*//g;
+
+    return $accountId;
+}
+ 
 1;
 
 
