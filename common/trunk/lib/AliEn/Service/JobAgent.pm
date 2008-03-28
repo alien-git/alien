@@ -811,6 +811,7 @@ sub getCatalogue {
     my $options={silent=>0, packman_method=>'Local', 'role'=>$self->{CONFIG}->{CLUSTER_MONITOR_USER}};
     $self->{CONFIG}->{AGENT_API_PROXY} and 
       $options->{gapi_catalog}=$self->{CONFIG}->{AGENT_API_PROXY};
+    $self->info("Trying to get a catalogue");
     $catalog = AliEn::UI::Catalogue::LCM::->new($options);
   };
   if ($@) {print "ERROR GETTING THE CATALOGUE $@\n";}
