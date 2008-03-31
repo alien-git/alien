@@ -546,11 +546,13 @@ sub _checkArgumentsPatterns{
       }
     }elsif ($pattern =~ /^_((counter)|(split))(.*)$/i){
       $self->info("Before replacing, we have $1, $4 and $counter");
+      my $format=$4;
+
       $newpattern=$jobDesc->{counter};
       $1 =~ /split/ and $newpattern=$counter;
-      if ($4){
-	my $format=$4;
+      if ($format){
 	$format=~ s{^_}{};
+	$format=~ s{^\%}{};
 	$self->debug(1,"Using the format $format");
 	$newpattern=sprintf("%$format", $newpattern);
       }
