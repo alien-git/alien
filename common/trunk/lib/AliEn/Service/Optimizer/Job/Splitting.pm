@@ -444,12 +444,13 @@ sub _checkEntryPattern {
   my $value=shift;
   my $job_ca=shift;
   my $jobDesc=shift;
+  my $counter=shift;
   $value or return;
   $self->debug(1,"The job is supposed to write in $value");
   #this is for the second time we get the output dir
   #even if we overwrite the value, we keep an old copy
 
-  my $newJobDir=$self->_checkArgumentsPatterns($value, $jobDesc);
+  my $newJobDir=$self->_checkArgumentsPatterns($value, $jobDesc, $counter);
   if ($newJobDir and ( ($newJobDir ne "$value") or ($entryName eq "Arguments"))){
     my @set=$newJobDir;
     if ($type eq "Vector"){
@@ -544,6 +545,7 @@ sub _checkArgumentsPatterns{
 	$newpattern=$file;	
       }
     }elsif ($pattern =~ /^_((counter)|(split))(.*)$/i){
+      $self->info("Before replacing, we have $1, $4 and $counter");
       $newpattern=$jobDesc->{counter};
       $1 =~ /split/ and $newpattern=$counter;
       if ($4){
