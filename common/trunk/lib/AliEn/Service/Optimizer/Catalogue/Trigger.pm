@@ -34,12 +34,13 @@ sub checkTriggers{
   my $db=shift;
 
   my $limit=1000;
-  my $data=$db->query("SELECT * from TRIGGERS order by entryId limit $limit")
-    or $self->info("Error getting the triggers of $db->{DB}")
-      and return;
-  my $entryId=0;
   my $counter=1000;
   while ($counter eq $limit){
+    my $entryId=0;
+
+    my $data=$db->query("SELECT * from TRIGGERS order by entryId limit $limit")
+      or $self->info("Error getting the triggers of $db->{DB}")
+	and return;
     $counter=0;
     foreach my $entry (@$data){
       my $done=1;
