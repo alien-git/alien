@@ -402,9 +402,10 @@ sub SubmitSplitJob {
   ($ok, my $origOutputDir)=$job_ca->evaluateAttributeString("OutputDir");
   ($ok, my @origOutputFile)=$job_ca->evaluateAttributeVectorString("OutputFile");
   my $origOutputFile=join(" ", @origOutputFile);
+  my $counter=1;
   foreach my $pos (sort keys %{$jobs}) {
     $i++;
-    $self->info("Submitting job $i $pos");
+    $self->info("Submitting job $i $pos $counter");
 
     my $input=$self->_setInputData($jobs->{$pos}, $inputdataaction, \@inputdataset);
     if ($input) {
@@ -417,7 +418,6 @@ sub SubmitSplitJob {
 
     $self->{CATALOGUE}->{QUEUE}->checkRequirements($job_ca) or next;
 
-    my $counter=1;
     foreach my $splitargs (@splitarguments){
 #      my $newargs=$self->_checkArgumentsPatterns($splitargs, $jobs->{$pos}, $counter);
 #
