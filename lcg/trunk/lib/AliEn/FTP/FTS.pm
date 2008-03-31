@@ -146,7 +146,7 @@ sub transfer {
   }
 
 
-  my $transfer="$self->{COMMAND} --verbose -s $ftsEndpoint srm://$fromHost$from srm://$toHost/$to";
+  my $transfer="$self->{COMMAND} -o --verbose -s $ftsEndpoint srm://$fromHost$from srm://$toHost/$to";
   $self->info("Ready to do the transfer: $transfer");
   $self->prepareEnvironment();
 
@@ -247,6 +247,12 @@ sub getFTSEndpoint {
 
   my $retry=5;
   my $sleep=1;
+
+  if ($ENV{ALIEN_FTS_ENDPOINT}){
+    $self->info("The environment variable ALIEN_FTS_ENDPOINT is set ('$ENV{ALIEN_FTS_ENDPOINT}'). Using it as the endpoint");
+    return $ENV{ALIEN_FTS_ENDPOINT};
+  }
+
   while ($retry){
     my $cache=AliEn::Util::returnFileCacheValue($self, "fts-$site");
     if ($cache) {
