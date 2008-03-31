@@ -127,13 +127,12 @@ sub f_bulkRegisterFile {
     my $insert={lfn=>$entry->{lfn},  perm=>$self->{UMASK}, 
 		owner=>$self->{ROLE}, gowner=>$self->{MAINGROUP},
 		size =>$entry->{size},	guid=>$entry->{guid},  };
-    $entry->{se} and $insert->{se}=$entry->{se};
-    $entry->{md5} and $insert->{md5}=$entry->{md5};
-    $entry->{selist} and $insert->{se}=$entry->{selist};
-    $entry->{seStringlist} and $insert->{seStringList}=$entry->{seStringlist};
+
+    for my $field ("se", "md5", "selist", "seStringlist", "pfn", "pfns", "type"){
+      $entry->{$field} and $insert->{$field}=$entry->{$field};
+    }
     $entry->{user} and $insert->{owner}=$insert->{gowner}=$entry->{user};
-    $entry->{pfn} and $insert->{pfn}=$entry->{pfn};
-    $entry->{pfns} and $insert->{pfns}=$entry->{pfns};
+
     $list.="$entry->{lfn} ";
     push @insert, $insert;
   }
@@ -551,6 +550,7 @@ sub f_cp {
     $sourceHash->{lfn}=$targetName;
     $self->{SILENT} or print "Copying $source to $targetName...\n";
     $opt->{user} and $sourceHash->{user}= $opt->{user};
+
     delete $sourceHash->{Groupname};
     delete $sourceHash->{Username};
     delete $sourceHash->{gowner};
