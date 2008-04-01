@@ -906,6 +906,9 @@ sub executeCommand {
 
   $s=~ s/^\s*//;
   $self->info("Ready to do the system call '$s'");
+  my $oldEnv=$ENV{ALIEN_CM_AS_LDAP_PROXY};
+  $ENV{ALIEN_CM_AS_LDAP_PROXY}="$self->{HOST}:$self->{PORT}/JobAgent";
+  $self->info("Setting the LDAP PROXY to  $ENV{ALIEN_CM_AS_LDAP_PROXY}");
   $ENV{LD_LIBRARY_PATH}="/lib:/usr/lib:$ENV{LD_LIBRARY_PATH}";
   open SAVEOUT,  ">&STDOUT";
   open SAVEOUT2, ">&STDERR";
@@ -931,7 +934,7 @@ sub executeCommand {
   chdir $self->{WORKDIR};
   my $error = system($s);
   $ENV{LD_LIBRARY_PATH} =~ s{^/lib:/usr/lib:}{};
-
+ $ENV{ALIEN_CM_AS_LDAP_PROXY}=$oldEnv;
   ##################################################################
   # now process resources.dat in a human readable format
   ##################################################################
