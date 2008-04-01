@@ -1234,18 +1234,6 @@ sub ReloadConfiguration{
   return 1;
 }
 
-sub GetConfiguration {
-  my $this=shift;
-
-  $self->info( "Someone asked us the configuration");
-  my $cache=AliEn::Util::returnCacheValue($self, "Config");
-  $cache and return $cache;
-  $self->info("Let's reload the configuration");
-  $self->{CONFIG}=$self->{CONFIG}->Reload({"force", 1});
-  AliEn::Util::setCacheValue($self, "Config", $self->{CONFIG});
-
-  return $self->{CONFIG};
-}
 
 sub DESTROY {
     my $this = shift;
