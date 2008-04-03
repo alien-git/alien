@@ -553,9 +553,9 @@ sub checkFinalAction{
   my $id=shift;
   my $service=shift;
 
-  my $info = $self->queryRow("SELECT status,notify,split FROM QUEUE where queueid=?", undef, {bind_values=>[$id]}) or return;
+  my $info = $self->queryRow("SELECT submitHost,status,notify,split FROM QUEUE where queueid=?", undef, {bind_values=>[$id]}) or return;
   $self->info("Checking if we have to send an email for job $id...");  
-  $info->{notify} and $self->sendEmail($info->{notify},$id, $info->{status}, $service);
+  $info->{notify} and $self->sendEmail($info->{notify},$id, $info->{status}, $service, $self->{submitHost});
   $self->info("Checking if we have to merge the master");
   if ($info->{split}){
     $self->info("We have to check if all the subjobs of $info->{split} have finished");
@@ -572,6 +572,8 @@ sub sendEmail{
   my $id=shift;
   my $status=shift;
   my $service=shift;
+  my $submitHost=shift;
+
 
   $self->info("We are supposed to send an email!!! (status $status)");
 
@@ -579,6 +581,7 @@ sub sendEmail{
 
   $ua->agent( "AgentName/0.1 " . $ua->agent );
 
+  my $procdir=AliEn::Util::getProcDir(undef, $submitHost, $id);
 #  my $message="The job produced the following files: $output\n
 #You can get the output from the AliEn prompt typing:
 #$type#
@@ -594,7 +597,7 @@ sub sendEmail{
 		 Subject => "AliEn-Job $id finished with status $status" );
   my $URL=($self->{CONFIG}->{PORTAL_URL} || "http://alien.cern.ch/Alien/main?task=job&");
     $req->content("AliEn-Job $id finished with status $status\n
-You can see the ouput produced by the job in ${URL}jobID=$id
+If the job created any output, you can find it in the alien directory $procdir/job-output
 
 
 Please, make sure to copy any file that you want, since those are temporary files, and will be deleted at some point.
