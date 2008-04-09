@@ -396,7 +396,9 @@ sub startTransfer {
 
 
   if ($error) {
-    $self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, "FAILED", {Reason=>$self->{LOGGER}->error_msg()});
+    my $errorM="The transfer failed (w eare getting things from  ". $fromURL->method();
+    $self->{LOGGER}->error_msg() and $errorM=$self->{LOGGER}->error_msg();
+    $self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, "FAILED", {Reason=>$errorM});
     return ;
   }
   $self->verifyTransfer($error, $toURL, $size, $retries, $id) or return;
