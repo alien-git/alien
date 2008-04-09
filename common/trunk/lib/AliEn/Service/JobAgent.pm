@@ -447,6 +447,10 @@ sub GetJDL {
 
   my $message="The job has been taken by the jobagent $ENV{ALIEN_JOBAGENT_ID}";
   $ENV{EDG_WL_JOBID} and $message.="(  $ENV{EDG_WL_JOBID} )";
+  if (  $ENV{LSB_JOBID} ){
+    $message.=" (LSF ID $ENV{LSB_JOBID} )";
+     $self->sendJAStatus(undef, {LSF_ID=>$ENV{LSB_JOBID}});
+  }
   $self->putJobLog("trace",$message);
 
 
