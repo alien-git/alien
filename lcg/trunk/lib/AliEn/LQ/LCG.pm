@@ -90,12 +90,12 @@ sub initialize {
    $self->renewProxy();
    my $defaults = "$ENV{EDG_LOCATION}/etc/edg_wl_ui_cmd_var.conf";
    if ( open DEFAULTS, "<$defaults" ) {
-   while (<DEFAULTS>) {
-     chomp;
-     m/^\s*LoggingDestination/ and $self->{LOGGER}->warning("LCG"," \'$_\' defined in $defaults");
-   }
-   close DEFAULTS;
-}
+     while (<DEFAULTS>) {
+       chomp;
+       m/^\s*LoggingDestination/ and $self->{LOGGER}->warning("LCG"," \'$_\' defined in $defaults");
+     }
+     close DEFAULTS;
+  }
    
    return 1;
 }
@@ -104,59 +104,70 @@ sub submit {
   my $self = shift;
   my $jdl = shift;
   my $command = shift;
-  my $arguments  = join " ", @_;
+
   my $startTime = time;
-
   my @args=();
-  $self->{CONFIG}->{CE_SUBMITARG_LIST} and
-    @args = @{$self->{CONFIG}->{CE_SUBMITARG_LIST}};
-
-  my $bdiiReq=join(" && ",grep (/^-req /, @args)) ||"";
-  $bdiiReq=~ s/^-req//;
-  @args= grep (!/^-req /, @args);
-
-  my @conf = ();
-  $self->{CONFIG}->{CE_EDG_WL_UI_CONF} and
-    @conf = ("--config-vo",$self->{CONFIG}->{CE_EDG_WL_UI_CONF}); 
-  $ENV{CE_EDG_WL_UI_CONF} and
-    @conf = ("--config-vo",$ENV{CE_EDG_WL_UI_CONF}); 
-  push @args,@conf;
-  my $jdlfile = $self->generateJDL($jdl, $command,$bdiiReq);
+  $self->{CONFIG}->{CE_SUBMITARG_LIST} and @args = @{$self->{CONFIG}->{CE_SUBMITARG_LIST}};
+  my $jdlfile = $self->generateJDL($jdl, $command);
   $jdlfile or return;
 
   $self->renewProxy(10000); ####
-  if ($self->{PRESUBMIT}){
-    $self->info("Checking if there are resources that match");
-    my @info=$self->_system($self->{PRESUBMIT}, $jdlfile);
 
-    if (!grep (/The following CE\(s\) matching your job requirements have been found/ , @info)){
-      $self->info("No CEs matched the requirements!!\n@info\n\n***** We don't submit the jobagent");
-      return -1;
-    }
-  }
-
-  if ($self->{CONFIG}->{CE_RB_LIST} and @{$self->{CONFIG}->{CE_RB_LIST}}) {
-    push @args, ("-rb",join(',',@{$self->{CONFIG}->{CE_RB_LIST}}));
-  }
   $self->info("Submitting to LCG with \'@args\'.");
   my $now = time;
-  my $logFile = AliEn::TMPFile->new({filename=>"job-submit.$now.log"}) ## Or better a configurable TTL?
+  my $logFile = AliEn::TMPFile->new({filename=>"job-submit.$now.log"}) 
      or return;
-   
-  my @command = ( $self->{SUBMIT_CMD}, "--noint", "--nomsg", "--logfile", $logFile, @args, "$jdlfile");
-  my @output=$self->_system(@command) or return -1;
-  my $contact=join("", grep (/^https/, @output));
-#  @output and $contact=$output[$#output];
-  $contact and chomp $contact;
-  
-  if ($contact !~ /^https:\// ) {
-    $self->{LOGGER}->warning("LCG","Error submitting the job. Log file $contact");
-    if ($contact){
-      open (LOG, "<$contact");
-      print <LOG>;
-      close LOG;
+
+  my $lastGoodRB = $self->{CONFIG}->{CE_RB_LIST}->[0];
+  $self->debug(1,"Default RB is $lastGoodRB");
+  if ( -e "$self->{CONFIG}->{LOG_DIR}/lastGoodRB") {
+    my $timestamp = (stat("$self->{CONFIG}->{LOG_DIR}/lastGoodRB"))[9];
+    my $elapsed = (time-$timestamp)/60;
+    $self->debug(1,"Last RB was first used $elapsed minutes ago.");
+    if ($elapsed > 120) {  ##minutes
+      unlink "$self->{CONFIG}->{LOG_DIR}/lastGoodRB";    
+    } else {
+      if (open LASTGOOD, "<$self->{CONFIG}->{LOG_DIR}/lastGoodRB") {
+        my $last = <LASTGOOD>;
+        chomp $last;
+        $self->info("Last RB was $last");
+        foreach (@{$self->{CONFIG}->{CE_RB_LIST}}) {
+          if ($_ eq $last) {
+            $lastGoodRB = $last;
+            last;
+          } #Don't use it if it's not in the current list
+        }
+        close LASTGOOD;
+      } else {
+        $self->{LOGGER}->error("LCG","Could not open $self->{CONFIG}->{LOG_DIR}/lastGoodRB");
+      }
+    } 
+  } else {
+    if ( open LASTGOOD, ">$self->{CONFIG}->{LOG_DIR}/lastGoodRB" ) {
+      $self->debug(1,"Saving $lastGoodRB in $self->{CONFIG}->{LOG_DIR}/lastGoodRB");
+      print LASTGOOD "$lastGoodRB\n";
+      close LASTGOOD;
+      $self->{LOGGER}->error("LCG","Could not save $self->{CONFIG}->{LOG_DIR}/lastGoodRB");
     }
-    return -2;
+  }
+  $self->info("Will use $lastGoodRB");
+
+  my $contact = $self->wrapSubmit($lastGoodRB, $logFile, $jdlfile, @args);
+
+  unless ( $contact ) {
+    redoit:foreach ( @{$self->{CONFIG}->{CE_RB_LIST}} ) { 
+      next redoit if ( $_ eq $lastGoodRB ); ##This one just failed
+      $contact = $self->wrapSubmit($_, $logFile, $jdlfile, @args);
+      next redoit unless $contact; 
+      if ( open LASTGOOD, ">$self->{CONFIG}->{LOG_DIR}/lastGoodRB" ) {
+        $self->debug(1,"Found a good one, will use $_ from now on");
+        print LASTGOOD "$_\n";
+        close LASTGOOD;
+      } else {
+        $self->{LOGGER}->error("LCG","Could not save $self->{CONFIG}->{LOG_DIR}/lastGoodRB");
+      }
+      last;
+    }
   }
 
   $self->info("LCG JobID is $contact");
@@ -167,7 +178,30 @@ sub submit {
 
   my $submissionTime = time - $startTime;
   $self->info("Submission took $submissionTime sec.");
-  return 0;#$error;
+  return 0;
+}
+
+sub wrapSubmit {
+  my $self = shift;
+  my $RB = shift;
+  my $logFile = shift;
+  my $jdlfile = shift;
+  my @args = @_ ;  
+  my @command = ( $self->{SUBMIT_CMD}, 
+                  "--noint", 
+		  "--nomsg", 
+		  "--config-vo", "$self->{CONFIG}->{LOG_DIR}/$RB.vo.conf",
+		  "--logfile", $logFile, 
+		  @args, 
+		  "$jdlfile");
+  my @output = $self->_system(@command);
+  my $error = $?;
+  (my $jobId) = grep { /https:/ } @output;
+  return if ( $error || !$jobId);
+  $jobId =~ m/(https:\/\/[A-Za-z0-9.-]*:9000\/[A-Za-z0-9_-]{22})/;
+  $jobId = $1;
+  chomp $jobId;
+  return $jobId;
 }
 
 sub kill {
@@ -414,12 +448,7 @@ sub getInfoFromGRIS {
     # double counting (all CEs in sublist see the same resources)
     $CE =~ s/\s*//g; $CE =~ s/\(//; $CE =~ s/\)//;
     ($CE, undef) = split (/,/,$CE,2);
-
-# Introduced by P. Mendez
-    if ($CE =~/=/){
-	($CE, undef) = split (/=/,$CE,2);
-    }
-# End of P. Mendez code
+    ($CE, undef) = split (/=/,$CE,2) if ($CE =~/=/);
 
     $self->debug(1,"Querying for $CE");
     (my $host,undef) = split (/:/,$CE);    
@@ -543,7 +572,7 @@ sub renewProxy {
                    "-o", "/tmp/tmpfile.$$");
     
    if (-f "/opt/lcg/bin/lcg-proxy-renew") {
-     $self->info("***Using '/opt/lcg/bin/lcg-proxy-renew' instead of get-delegation");
+     $self->info("Using '/opt/lcg/bin/lcg-proxy-renew' instead of get-delegation");
      @command=("/opt/lcg/bin/lcg-proxy-renew", "-a", "$proxyfile",
 	       "-d", "-t",int($duration/3600).":", #in hours
 	       "-o", "/tmp/tmpfile.$$" , "--cert", $ENV{X509_USER_PROXY}, 
@@ -765,7 +794,7 @@ Environment = {\"ALIEN_CM_AS_LDAP_PROXY=$self->{CONFIG}->{VOBOX}\",\"ALIEN_JOBAG
 	      foreach my $valor (@v){
 		  if ($valor == $random_number){
 		      $ce_name=$key;
-		      print "AQUIIIIIIIIIII: $random_number   $ce_hash{$key}   $key   $total  @v\n";
+                      $self->debug(1,"Random CE selection: $random_number $ce_hash{$key} $key $total @v");
 		  }
 	      }            
 	  }
@@ -902,7 +931,6 @@ export PATH=\$ALIEN_ROOT/bin:\$PATH
 
 sub _system {
   my $self=shift;
-
   my $command=join (" ", @_);
   $self->info("Doing '$command'");
 
