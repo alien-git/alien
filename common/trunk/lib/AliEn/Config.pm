@@ -786,22 +786,22 @@ sub GetConfigFromCM {
   my ($cluster, $port )=split ":", $ENV{ALIEN_CM_AS_LDAP_PROXY};
 
   ($cluster and $port) or print STDERR "ERROR: The environment variable ALIEN_CM_AS_LDAP_PROXY was set ($ENV{ALIEN_CM_AS_LDAP_PROXY}), but not with a host:port syntax!!\n" and return;
-
-  $DEBUG and $this->debug(2, "Using the CM at $cluster:$port");
-
+  my $service='ClusterMonitor';
+  $port =~ s{/(.*)$}{} and $service=$1;
+  $DEBUG and $this->debug(2, "Using the $service at $cluster:$port");
   my $config;
   my $retry=10;
   my $sleep=10;
 
   while (1) {
     $config=SOAP::Lite-> 
-      uri( "AliEn/Service/ClusterMonitor" )
+      uri( "AliEn/Service/$service" )
 	-> proxy("http://$cluster:$port" )
 	  ->GetConfiguration();
     $config  and $config->result and last;
 
     $retry--;
-    $this->info("Error contacting the clustermonitor at $cluster:$port");
+    $this->info("Error contacting the $service at $cluster:$port");
     if (!$retry){
       $this->info("We have retried enough times");
       return;

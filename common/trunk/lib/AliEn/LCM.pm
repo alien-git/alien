@@ -607,7 +607,7 @@ sub listTransfer {
   my $summary="";
   my $info={};
   foreach my $transfer (@transfers) {
-    $DEBUG and $self->debug(3, Dumper($transfer));
+#    $DEBUG and $self->debug(3, Data::Dumper($transfer));
     my (@data ) = ($transfer->{transferId},
 		   $transfer->{status},
 		   $transfer->{user},

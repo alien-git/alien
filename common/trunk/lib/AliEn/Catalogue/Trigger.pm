@@ -11,12 +11,14 @@ use strict;
 sub f_addTrigger_HELP {
   return "addTrigger - creates a Trigger on a table
 Syntax:
-\taddTriger <directory> <triggerName> [<action>]
+\taddTriger <directory> <triggerName> [<action> [<fileName>]]
 
 
 <action> can be:  insert, update or delete
 
 <triggerName> has to be the name of a file defined in /triggers, /<vo>/triggers or ~/triggers
+
+<fileName> will be the name of the entries that will activate the trigger (if not defined, all the entries will activate the trigger)
 
 When the specified action happens in the directory, the script '<triggerName>' will be called, and it will receive the name of the file that has triggered the event. 
 
@@ -28,6 +30,7 @@ sub f_addTrigger {
   my $directory = shift;
   my $triggerAction   = shift;
   my $action    = shift || "insert";
+  my $fileName= shift || "%";
 
 
   $action=~ /^(insert)|(update)|(delete)$/ or 
@@ -55,7 +58,7 @@ sub f_addTrigger {
   #This is just to make sure that we are in the right database
   ( $self->checkPermissions( 'w', $directory ) ) or return;
 
-  my $done = $self->{DATABASE}->{LFN_DB}->do("create trigger $triggerName after $action on $table for each row insert into TRIGGERS(lfn, triggerName) values (concat('$prefix', NEW.lfn), '$triggerAction')");
+  my $done = $self->{DATABASE}->{LFN_DB}->do("create trigger $triggerName after $action on $table for each row insert into TRIGGERS(lfn, triggerName) select * from (select concat('$prefix', NEW.lfn) as l, '$triggerAction' ) s  where l like '$fileName'");
   $done or $self->{LOGGER}->error("Tag", "Error inserting the entry!") and return;
   $self->info( "Trigger created");
 
@@ -128,8 +131,18 @@ sub f_showTrigger {
   my $index=$self->{DATABASE}->getIndexTable();
   my $table=$index->{name};
 
-  my $trigger=$self->{DATABASE}->query("show triggers like '$table'");
-  return 1;
+  my ($trigger)=$self->{DATABASE}->{LFN_DB}->query("show triggers like '$table'");
+  $self->info("\tTrigger\t\t\taction\t\tFile name",undef,0);
+  my @triggers;
+  foreach my $t (@$trigger){
+    $t->{Timing} =~ /BEFORE/ and next;
+    my $s={event=>$t->{Event}, action=>$t->{Statement}};
+    $s->{action} =~ s{^.*, \'(.*)\' ?\).*$}{$1};
+    push @triggers,  $s;
+    $self->info("\t$s->{action}\t$s->{event}\t\t\n", undef,0);
+  }
+  
+  return @triggers;
 }
 
 sub existsTrigger{

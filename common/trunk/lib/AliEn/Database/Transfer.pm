@@ -436,6 +436,15 @@ sub insertAgent{
   return $id;
 }
 
+sub getVirtualTransfers{
+  my $self=shift;
+  $self->info("Getting all the transfers that have to be done from the 'no_se'");
+
+  my $info=$self->query("select lfn,transferid,jdl,options from TRANSFERS t, AGENT a where agentid=entryid and a.SE='no_se'");
+
+  return $info;
+}
+
 =head1 NAME
 
 AliEn::Database::Transfer
