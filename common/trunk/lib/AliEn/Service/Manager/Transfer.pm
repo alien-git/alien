@@ -345,14 +345,15 @@ sub listTransfer {
 
   my @columns=(
 	       {name=>"user", pattern=>"u(ser)?",
-		start=>"user='",end=>"'"},
+		column=>"user"},
 	       {name=>"id", pattern=>"i(d)?",
-		start=>"transferid='",end=>"'"},
+		column=>"transferid"},
 	       {name=>"status", pattern=>"s(tatus)?",
-		start=>"status='",end=>"'"},
+		column=>"status"},
 	       {name=>"destination", pattern=>"d(estination)?",
-		start=>"destination='",end=>"'"},
+		column=>"destination"},
 	      );
+
 
   while (@_) {
     my $argv=shift;
@@ -372,9 +373,10 @@ sub listTransfer {
     my $type=$found->{name};
 
     my $value=shift or $error="--$type requires a value" and last;
-    $data->{$type} or $data->{$type}=[];
-
-    push @{$data->{$type}}, "$found->{start}$value$found->{end}";
+    $data->{$type} or $data->{$type}={'query'=>[],bind=>[]} ;
+    my $c=$found->{column} || $found->{name};
+    push @{$data->{$type}->{query}}, "$c= ?";
+    push @{$data->{$type}->{bind}}, $value;
   }
   if ($error) {
     my $message="Error in top: $error\n".$self->listTransfer_HELP();
@@ -382,28 +384,35 @@ sub listTransfer {
     return (-1, $message);
   }
 
+  my @bind=();
   foreach my $column (@columns){
     $data->{$column->{name}} or next;
     if ($master and $column->{name} eq "id"){
       $self->info("We want to return all the transfers of parent id ");
       my @new=();
-      foreach my $entry ( @{$data->{$column->{name}}} ){
+      my @newB=();
+      foreach my $entry ( @{$data->{id}->{query}} ){
 	push @new, $entry;
 	$entry=~ s/transferid/transferGroup/;
 	push @new, $entry;
+	my $bind=pop(@{$data->{id}->{bind}});
+	push @newB, $bind, $bind;
       }
-      $data->{id}=\@new;
+      $data->{id}={query=>\@new, bind=>\@newB};
       $self->info("NOW WE HAVE");
+      use Data::Dumper;
+      print Dumper($data->{id});
     }
-    $where .= " and (".join (" or ", @{$data->{$column->{name}}} ).")";
+    $where .= " and (".join (" or ", @{$data->{$column->{name}}->{query}} ).")";
+    push @bind, @{$data->{$column->{name}}->{bind}};
   }
   $all_status or $data->{status} or $data->{id} or $where.=" and ( status!='FAILED' and status !='DONE' and status !='KILLED')";
 
   $where.=" ORDER by transferId";
   $jdl and $columns.=", jdl ";
-  $self->info( "In getTop, doing query $columns, $where" );
+  $self->info( "In getTop, doing query $columns, $where (@bind)" );
 
-  my $rresult = $self->{DB}->query("SELECT $columns from TRANSFERS  $where")
+  my $rresult = $self->{DB}->query("SELECT $columns from TRANSFERS  $where", undef, {bind_values=>\@bind})
     or $self->{LOGGER}->error( "JobManager", "In getTop error getting data from database" )
       and return (-1, "error getting data from database");
 
@@ -476,6 +485,9 @@ sub findAlternativeSource {
 
     $ca->set_expression("FailedSE",  "{". join(",", @failedSE). "}");
     $ca->insertAttributeString("Action", "local copy");
+    map {$_="member(other.CloseSE, $_)"} @ses;
+    my $req="(other.type==\"FTD\") && (". join(" || ",  @ses) .")";
+    $ca->set_expression("requirements", $req);
     $self->info("Everything looks ok. Let's update the database");
     my $newJDL=$ca->asJDL();
     use Data::Dumper;
