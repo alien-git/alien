@@ -876,11 +876,17 @@ sub offerAgent {
       }
     }
   }
-#  unlink $script;
+
+  #  unlink $script;
 
   $self->UnsetEnvironmentForExecution();
 
   $self->info( "All the agents have been started");
+  
+  if ($self->{COUNTER}%100) {
+    $self->info("Submitted $self->{COUNTER}. Delete the old ones");
+    system("rm $self->{CONFIG}->{LOG_DIR}/AliEn.JobAgent.$$.*");
+  }
   return 1;
 }
 sub createAgentStartup {

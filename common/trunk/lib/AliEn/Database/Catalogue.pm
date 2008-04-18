@@ -308,7 +308,8 @@ sub updateLFN{
     my $guid=$self->{LFN_DB}->getGUIDFromLFN($lfn) or return;
     
     #First, let's update the information of the guid
-    $self->{GUID_DB}->updateOrInsertGUID($guid,$update, @_) or return;
+    $self->{GUID_DB}->updateOrInsertGUID($guid,$update, @_) or 
+      $self->info("Error updating the guid") and return;
   }
   if (!$self->{LFN_DB}->updateLFN($lfn,$update, )){
     $self->info("We should undo the change");

@@ -110,6 +110,16 @@ sub initialize {
   $self->{CATALOGUE}=AliEn::UI::Catalogue::LCM->new({role=>$self->{CONFIG}->{CLUSTER_MONITOR_USER}}) 
     or $self->info("Error creating the catalogue in the FTD") and return;
 
+  my $file="$self->{CONFIG}->{LOG_DIR}/FTD_children.pid";
+  $self->info("Checking if there were any instances before");
+  if (open (FILE, "<$file")){
+    my @d=split (/\s+/m , join("",<FILE>));
+    close FILE;
+    $self->info("There are already some pids!! @d");
+    $self->{FTD_PIDS}=\@d;
+    
+  }
+
   return $self;
 }
 sub createJDL {
@@ -556,6 +566,44 @@ sub verifyTransfer{
 #}
 #
 
+sub checkCurrentTransfers(){
+  my $self=shift;
+  my $silent=shift;
+
+  my $method="info";
+  my @methodData=();
+
+  $silent and $method="debug" and push @methodData, 1;
+
+  $self->$method(@methodData,"$$ The father checks how many children are running");
+  my $current=0;
+
+  if ($self->{FTD_PIDS}){
+    $self->info("Collecting zombies");
+    sleep(5);
+    my @list=@{$self->{FTD_PIDS}};
+    my @newList;
+    foreach (@list){
+      if (CORE::kill 0, $_ and waitpid($_, WNOHANG)<=0){
+	push @newList, $_;
+	$current++;
+      }
+    }
+    $self->{FTD_PIDS}=\@newList;
+  }
+
+  $self->$method(@methodData,"$$ There are $current transfers: $self->{FTD_PIDS}");
+
+  my $slots= $self->{MAX_TRANSFERS} - $current;
+  if ( $slots<=0 ) {
+    $self->$method(@methodData, "Already doing maximum number of transfers ($current). Wait" );
+    return;
+  }
+
+  return $slots;
+}
+
+
 # This function is called automatically every minute from Service.pm 
 # 
 # input:  $silent. If 0, print all the things in the stdout. Otherwise, print only important things
@@ -563,6 +611,7 @@ sub verifyTransfer{
 # output: 1     -> everything went ok. 
 #         undef -> the service will sleep for 1 minute before trying again
 #
+
 
 sub checkWakesUp {
   my $s = shift;
@@ -572,11 +621,8 @@ sub checkWakesUp {
   my @methodData=();
   $silent and $method="debug" and push @methodData, 1;
 
-  my $slots= $self->{MAX_TRANSFERS} - $self->CURRENT_TRANSFERS;
-  if ( $slots<=0 ) {
-    $self->$method(@methodData, "Already doing maximum number of transfers. Wait" );
-    return;
-  }
+  my $slots=$self->checkCurrentTransfers($silent) 
+    or return;
 
   $self->$method(@methodData,"$$ Asking the broker if we can do anything ($slots slots)");
 
@@ -622,6 +668,12 @@ sub checkWakesUp {
       }
     }
     $self->{FTD_PIDS}=\@newList;
+    my $file="$self->{CONFIG}->{LOG_DIR}/FTD_children.pid";
+    $self->info("Putting the pids into the file $file ");
+    if (open (FILE, ">$file")){
+      print FILE @{$self->{FTD_PIDS}};
+      close FILE;
+    }
   }
 
   return $repeat; 
@@ -648,7 +700,7 @@ sub _forkTransfer{
   
   my $pid="";
 
-  $self->CURRENT_TRANSFERS_INCREMENT("", $id);
+  #  $self->CURRENT_TRANSFERS_INCREMENT("", $id);
   $self->{FTD_CHILDREN}=$id;
 
   $self->info("$$ is going to do $action");
@@ -672,7 +724,7 @@ sub _forkTransfer{
   } else {
     $self->info("We don't know action $action :(");
   }
-  $self->CURRENT_TRANSFERS_DECREMENT("", $id);
+  #  $self->CURRENT_TRANSFERS_DECREMENT("", $id);
 
   if (! $return ) {
     $self->info("The transfer failed due to: ".$self->{LOGGER}->error_msg() );
@@ -848,44 +900,46 @@ sub CURRENT_TRANSFERS {
     my $s = shift;
 
 # We are getting back count(CURRENT), 
-    my $current = $self->{DB}->queryValue("SELECT count(*) from CURRENTTRANSFERS");
-    $current or $current=0;
+#    my $current = $self->{DB}->queryValue("SELECT count(*) from CURRENTTRANSFERS");
+#    $current or $current=0;
+    my $current=0;
+    $self->{FTD_PIDS} and $current=$#{$self->{FTD_PIDS}}+1;
     return $current;
 }
 
-sub CURRENT_TRANSFERS_INCREMENT {
-    my $s       = shift;
-    my $size=  (shift or $MAXIMUM_SIZE);
-    my $id=shift;
+#sub CURRENT_TRANSFERS_INCREMENT {
+#    my $s       = shift;
+#    my $size=  (shift or $MAXIMUM_SIZE);
+#    my $id=shift;
+#
+#    ($size<$MAXIMUM_SIZE) and return;#
+##
+#
+#    my $current = $self->CURRENT_TRANSFERS;
+#    $current++;
+#    print "INCREMENTING THE NUMBER OF TRANSFERS ($current)\n";
+#
+#    my $done=$self->{DB}->do("INSERT INTO CURRENTTRANSFERS values ($id)");#
+#
+#    return 1;
+#}
 
-    ($size<$MAXIMUM_SIZE) and return;
-
-
-    my $current = $self->CURRENT_TRANSFERS;
-    $current++;
-    print "INCREMENTING THE NUMBER OF TRANSFERS ($current)\n";
-
-    my $done=$self->{DB}->do("INSERT INTO CURRENTTRANSFERS values ($id)");
-
-    return 1;
-}
-
-sub CURRENT_TRANSFERS_DECREMENT {
-    my $s       = shift;
-    my $size= (shift or $MAXIMUM_SIZE);
-    my $id=shift;
-
-    ($size<$MAXIMUM_SIZE) and return;
-
-
-
-    my $current = $self->CURRENT_TRANSFERS;
-    $current--;
-    print "DECRESSING THE NUMBER OF TRANSFERS ($current)\n";
-
-    $self->{DB}->delete("CURRENTTRANSFERS","CURRENT='$id'");
-    return 1;
-}
+#sub CURRENT_TRANSFERS_DECREMENT {
+#    my $s       = shift;
+#    my $size= (shift or $MAXIMUM_SIZE);
+#    my $id=shift;
+#
+#    ($size<$MAXIMUM_SIZE) and return;
+#
+#
+#
+#    my $current = $self->CURRENT_TRANSFERS;
+#    $current--;
+#    print "DECRESSING THE NUMBER OF TRANSFERS ($current)\n";
+#
+#    $self->{DB}->delete("CURRENTTRANSFERS","CURRENT='$id'");
+#    return 1;
+#}
 
 sub checkIngoingTraffic {
     return 1;
