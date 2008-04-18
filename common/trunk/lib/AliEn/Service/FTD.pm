@@ -107,8 +107,8 @@ sub initialize {
   $self->{SOAP}->checkService("Manager/Transfer", "TRANSFER_MANAGER", "-retry") or return;
 
 #  $self->{SOAP}->checkService("SE", "-retry") or return;
-  $self->{CATALOGUE}=AliEn::UI::Catalogue::LCM->new({role=>$self->{CONFIG}->{CLUSTER_MONITOR_USER}}) 
-    or $self->info("Error creating the catalogue in the FTD") and return;
+#  $self->{CATALOGUE}=AliEn::UI::Catalogue::LCM->new({role=>$self->{CONFIG}->{CLUSTER_MONITOR_USER}}) 
+#    or $self->info("Error creating the catalogue in the FTD") and return;
 
   my $file="$self->{CONFIG}->{LOG_DIR}/FTD_children.pid";
   $self->info("Checking if there were any instances before");
@@ -743,14 +743,14 @@ sub makeLocalCopy {
   $self->debug(1, "Got @keys");
   my $id=$transfer->{ID};
   my $guid=$transfer->{GUID};
-#  my $pfn=$transfer->{ORIGPFN};
+  my $pfn=$transfer->{ORIGPFN};
   if (!$guid) {
     $self->{LOGGER}->error ("FTD", "ID $id Error: no GUID in makelocalcopy",1);
     return;
   }
-  my @pfns=$self->getPFNfromGUID($transfer->{ORIGSE}, $transfer->{GUID});
-  @pfns or $self->info ("Error getting the pfn!!") and return;
-  my $pfn=shift @pfns;
+  #  my @pfns=$self->getPFNfromGUID($transfer->{ORIGSE}, $transfer->{GUID});
+  #  @pfns or $self->info ("Error getting the pfn!!") and return;
+  #  my $pfn=shift @pfns;
 
   $self->info("ID $id The pfn is $pfn");
   my $file =AliEn::SE::Methods->new(
@@ -770,7 +770,7 @@ sub makeLocalCopy {
     return;
   }
 
-  @pfns=();
+  my  @pfns=();
   $self->info("ID $id The local copy is $localPfn" );
 
   foreach my $daemons (keys %{$self->{FTP_SERVERS}}){
@@ -1308,26 +1308,26 @@ sub senfFile {
 
 # Given an SE and a guid, it returns all the pfns that the SE 
 # has of that guid
-sub getPFNfromGUID {
-  my $self=shift;
-  my $se=shift;
-  my $guid=shift;
-  $self->info("Asking the catalogue for the PFN of $guid");
-  my @info=$self->{CATALOGUE}->execute("whereis", "-gr", $guid);
-  my @pfns=();
-  my $seInfo=shift @info;;
-  #We don't want the se name...
-  while ($seInfo){
-    my $pfn= shift @info;
-    if ($seInfo =~ /^$se$/){
-      $self->info("This is the se that we were looking for");
-      push @pfns, $pfn;
-    }
-    $seInfo= shift @info;
-  }
-  $self->info("Got @pfns");
-  return @pfns;
-}
+#sub getPFNfromGUID {
+#  my $self=shift;
+#  my $se=shift;
+#  my $guid=shift;
+#  $self->info("Asking the catalogue for the PFN of $guid");
+#  my @info=$self->{CATALOGUE}->execute("whereis", "-gr", $guid);
+#  my @pfns=();
+#  my $seInfo=shift @info;;
+#  #We don't want the se name...
+#  while ($seInfo){
+#    my $pfn= shift @info;
+#    if ($seInfo =~ /^$se$/){
+#      $self->info("This is the se that we were looking for");
+#      push @pfns, $pfn;
+#    }
+#    $seInfo= shift @info;
+#  }
+#  $self->info("Got @pfns");
+#  return @pfns;
+#}
 #aub createGridMapFromLdap {
 #   my $s = shift;#
 #

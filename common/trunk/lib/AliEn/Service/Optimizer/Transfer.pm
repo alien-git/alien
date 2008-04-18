@@ -89,11 +89,21 @@ sub createTransferJDL {
   $pfn and $exp->{ToPFN}="\"$pfn\"";
 
 
-  my (@se)=$self->{CATALOGUE}->execute("whereis","-silent", $lfn, "-l");
-  $self->info("The file $lfn is in @se");
-  map {$_= "\"$_\"" } @se;
+  my (@info)=$self->{CATALOGUE}->execute("whereis","-silent", $lfn, );
+
+  $self->info("The file $lfn is in @info");
+  map {$_= "\"$_\"" } @info;
+
+  my (@se, @pfn);
+  while (@info){
+    push @pfn, pop @info;
+
+    push @se, pop @info;
+  }
+
 
   $exp->{OrigSE}="{" . join(",",@se) ."}";
+  $exp->{OrigPFNs}="{" . join(",",@pfn) ."}";
 
   map {$_=~ s/^(.*)$/member\(other\.CloseSE, $1 \)/ } @se;
   #let's round the size 

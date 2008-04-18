@@ -135,6 +135,7 @@ sub getTransferArguments {
 
 #    if ($transfer->{ACTION} eq "local copy") {
     ( $ok, my @se)=$transfer_ca->evaluateAttributeVectorString("OrigSE");
+    ( $ok, my @pfns)=$transfer_ca->evaluateAttributeVectorString("OrigPFNs");
     ($ok, my @fromPFN)=$transfer_ca->evaluateAttributeVectorString("FromPFN");
     if (@fromPFN) {
       $transfer->{FROMPFN}=\@fromPFN;
@@ -150,6 +151,14 @@ sub getTransferArguments {
       $found and last;
     }
 
+    #Let's also check the PFN that we have to use
+    foreach my $se (@se){
+      if ($found =~ /^$se$/){
+	$transfer->{ORIGPFN}=shift @pfns;
+	last;
+      }
+      shift @pfns;
+    }
     $transfer->{ORIGSE}=$found; 
     $self->debug(1, "In getTransferArguments OrigPFN it from $transfer->{ORIGPFN}");
 
