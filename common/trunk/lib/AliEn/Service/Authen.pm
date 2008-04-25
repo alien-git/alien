@@ -20,7 +20,7 @@ use AliEn::Catalogue::Server;
 use Crypt::OpenSSL::RSA;
 use Crypt::OpenSSL::Random;
 use AliEn::Util;
-
+use AliEn::UI::Catalogue::LCM;
 
 use vars qw (@ISA $DEBUG);
 @ISA=("AliEn::Service");
@@ -66,6 +66,7 @@ sub initialize {
 	# $options->{debug}=5;
 
 	$self->{cat} = AliEn::Catalogue::Server->new($options);
+
 	$self->{options} = $options;
 	$self->{cat} or $self->{LOGGER}->error( "CatalogDaemon",
 					"Could not create instance of ServerInterface. Daemon did not start" )
@@ -76,12 +77,34 @@ sub initialize {
 	$self->info( "Initializing catalog daemon" );
 
 	$self->{addbh} = new AliEn::Database::Admin();    
+
 	($self->{addbh})
 		or $self->{LOGGER}->warning( "CatalogDaemon", "Error getting the Admin" )
 		  and return;
+
 	$self->_ConnectToLDAP() or return;
+	$self->{UI}=AliEn::UI::Catalogue::LCM->new($options) or $self->info("Error getting the ui") and return;
+	$self->{UI}->{envelopeengine} or $self->info("Error! We can't create the security envelopes!! Please, define the SEALED_ENVELOPE_ environment variables") and return;
 
 	return $self;
+}
+
+#################################################################
+# Create envelope
+# 
+################################################################
+
+sub  createEnvelope{
+  my $other=shift;
+  my $user=shift;
+  $self->info("Ready to create the envelope for user $user dd (and @_)");
+  $self->{UI}->execute("user","-", $user);
+  $self->info("Executing access");
+  my ($info)=$self->{UI}->execute("access", @_);
+  use Data::Dumper;
+  print Dumper($info);
+  $self->info("OK! Everything is done");
+  return $info;
 }
 
 # ***************************************************************
@@ -381,6 +404,7 @@ sub _ConnectToLDAP{
   $LDAP=Net::LDAP->new( $self->{CONFIG}->{LDAPHOST}, "onerror" => "warn" ) or print "$@" and return;
   print "Connecting to LDAP server .........";
   my $manager=($self->{CONFIG}->{LDAPMANAGER} or "cn=Manager,dc=cern,dc=ch");
+
   my $result=  $LDAP->bind( $manager, password => $self->{LDAPpassword} );
   $result->code && print "failed\nCould not bind to LDAP-Server: ",$result->error and return;
   print "OK\n";
@@ -575,9 +599,7 @@ sub getJobToken {
       and return (-1, "error setting the job token");
   $self->info( "Making sure that the job is there...");
   my @result=$self->{addbh}->query("SELECT * from jobToken where jobId=$procid");
-  use Data::Dumper;
-  print Dumper(@result);
-  
+
   $self->info("Changing the ownership of the directory" );
 
   my $procDir = AliEn::Util::getProcDir($user, undef, $procid);

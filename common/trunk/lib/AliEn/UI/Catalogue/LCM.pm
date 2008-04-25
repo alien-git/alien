@@ -137,6 +137,12 @@ sub initialize {
   $self->{MONITOR} = 0;
   AliEn::Util::setupApMon($self);
 
+
+
+  $self->{envelopeengine} =0;
+  $self->{noshuffle} = 0;
+
+
   if (defined $ENV{'SEALED_ENVELOPE_LOCAL_PRIVATE_KEY'} && defined $ENV{'SEALED_ENVELOPE_LOCAL_PUBLIC_KEY'} && defined $ENV{'SEALED_ENVELOPE_REMOTE_PRIVATE_KEY'} and defined $ENV{'SEALED_ENVELOPE_REMOTE_PUBLIC_KEY'}) {
     $self->info("local private key          : $ENV{'SEALED_ENVELOPE_LOCAL_PRIVATE_KEY'}");
     $self->info("local public  key          : $ENV{'SEALED_ENVELOPE_LOCAL_PUBLIC_KEY'}");
@@ -153,23 +159,12 @@ sub initialize {
       $self->{MONITOR}->sendParameters("$self->{CONFIG}->{SITE}_QUOTA","admin_readreq");
     }
     $self->{apmon} = 1;
-  } else {
-    $self->{enveleopengine} =0;
-    $self->{noshuffle} = 0;
-  }
-
-  $self->{envelopebackdoor} = 0;
-
-  if (!$self->{envelopeengine}) {
-      $self->info("Warning: cannot create envelope sealing engine = setting backdoor\n");
-      $self->{envelopebackdoor} = 1;
-  } else {
     if (!$self->{envelopeengine}->Initialize(2)) {
-      $self->info("Warning: cannot initialize envelope sealing engine = setting backdoor\n");
-      $self->{envelopebackdoor} = 1;
+      $self->info("Warning: the initialization of the envelope engine failed!!");
+      $self->{envelopeengine} = 0;
     }
   }
-  $self->{envelopebackdoor} and $ENV{'IO_AUTHZ'}="alien";
+
   return 1;
 }
 
@@ -1240,6 +1235,16 @@ sub access {
     # access <access> <lfn> 
     # -p create public url in case of read access 
   my $self = shift;
+
+  if (!  $self->{envelopeengine}) {
+    $self->info("Getting a security envelope...");
+    my $info=$self->{SOAP}->CallSOAP("Authen", "createEnvelope", $self->{CATALOG}->{ROLE}, @_)
+      or $self->info("Error asking the for an envelope") and return;
+    my $newhash=$info->result;
+    return $newhash;
+  }
+  $self->info("Making the envelope ourselves: @_ ");
+
   my $options = shift;
   my $maybeoption = ( shift or 0 );
 
@@ -1262,15 +1267,6 @@ sub access {
     $nosize =1 ;
   }
   my @list=();
-
-  # for the moment we leave the backdoor open to use the old alien shell
-  if ($self->{envelopebackdoor}) {
-    my $newhash;
-    $self->info("access: warning - we are using the backdoor ....");
-    $newhash->{envelope}="alien";
-    return $newhash;
-  }
-  
 
   my @lfnlist = split(",",$lfns);
   my @lnewresult;
