@@ -1231,6 +1231,172 @@ sub access_eof {
 }
 
 
+sub getPFNforAccess {
+  my $self=shift;
+  my $guid=shift;
+  my $se=shift;
+  my $sesel=shift;
+  my $lfn=shift;
+  my $options=shift;
+
+  my ($pfn, $anchor);
+  my @where=$self->{CATALOG}->f_whereis("sgzt","$guid");
+
+  if (! @where){
+    $self->info("There were no transfer methods....");
+    @where=$self->{CATALOG}->f_whereis("sgz","$guid");
+  }
+  my @whereis=();
+  foreach (@where) {
+    push @whereis, $_->{se};
+  }
+  my $error="There where no SE for the guid '$guid'";
+  $self->{LOGGER}->error_msg() and $error=$self->{LOGGER}->error_msg();
+  #Get the file from the LCM
+  @whereis or $self->info( "access: $error" )
+    and return access_eof;
+
+  my @closeList={};
+	
+  if ($se ne 0) {
+    my $tmpse = "$self->{CONFIG}->{SE_FULLNAME}";
+    my $tmpvo = "$self->{CONFIG}->{ORG_NAME}";
+    my $tmpsite = "$self->{CONFIG}->{SITE}";
+    my @tmpses = @{$self->{CONFIG}->{SEs_FULLNAME}};
+    @{$self->{CONFIG}->{SEs_FULLNAME}}={};
+    my ($lvo, $lsite, $lname) = split "::", $se;
+    
+    # change temporary the meaning of the 'local' se
+    $self->{CONFIG}->{SE_FULLNAME} = $se;
+    $self->{CONFIG}->{ORG_NAME} = $lvo;
+    $self->{CONFIG}->{SITE} = $lsite;
+    (@closeList) = $self->selectClosestSE(@whereis);
+    $self->{CONFIG}->{SE_FULLNAME} = $tmpse;
+    $self->{CONFIG}->{ORG_NAME} = $tmpvo;
+    $self->{CONFIG}->{SITE} = $tmpsite;
+    @{$self->{CONFIG}->{SEs_FULLNAME}}=@tmpses;
+  } else {
+    (@closeList) = $self->selectClosestSE(@whereis);
+  }
+
+  #check if the wished se is at all existing ....
+  my $sefound=0;
+  my $nses=scalar @closeList;
+  if ($sesel > 0) {
+    # the client wants a replica identified by its number
+    my $cnt=0;
+    if (defined $closeList[$sesel-1]) {
+      $se = $closeList[$sesel-1];
+    } else {
+      return access_eof;
+    }
+  } else {
+    # the client wants the closest match (entry 0)
+    foreach (@closeList) {
+      if ( (lc $_) eq (lc $se) ) {
+	$sefound=1;
+	last;
+      }
+    }
+    if (!$sefound) {
+      # set the closest one
+      $se = $closeList[0];
+    }
+    
+  }
+  
+  if (! $se) {
+    $self->info("access: File '$guid' does not exist in $se");
+    return;
+  }
+
+  $self->debug(1, "We can ask the following SE: $se");
+  (!($options =~/s/)) and $self->info( "The guid is $guid");
+
+  my $nonRoot;
+  my $se2 = lc $se;
+  foreach (@where) {
+    (!($options =~/s/)) and $self->info("comparing $_->{se} to $se");
+    my $se1 = lc $_->{se};
+    ($se1 eq $se2) or next;
+    $nonRoot=$_->{pfn};
+
+    if (( $_->{pfn} =~ /^root/ ) || ( $_->{pfn} =~ /^guid/) ) {
+      $pfn = $_->{pfn};
+    }
+  }
+	
+  if (!$pfn && $nonRoot) {
+    $self->info("access: this is not a root pfn: $nonRoot ");
+    return ($se, $nonRoot, "");
+  }
+
+  my ($urlprefix,$urlhostport,$urlfile,$urloptions);
+  $urlprefix="root://";
+  $urloptions="";
+  $urlfile="";
+  $urlhostport="";
+  if ($pfn =~ /([a-zA-Z]*):\/\/([0-9a-zA-Z.\-_:]*)\/(.*)/) {
+    if (defined $1) {
+      $urlprefix = "$1://";
+    }
+    if (defined $2) {
+      $urlhostport = $2;
+    } 
+    
+    if (defined $3) {
+      $urlfile = $3;
+    }
+  } else {
+    $self->{LOGGER}->error("LCM","access: parsing error for $pfn [host+port]");
+    return;
+  }
+  
+  if ($urlfile =~ /([^\?]*)\?([^\?]*)/) {
+    if (defined $1 ) {
+      $urlfile = $1;
+    }
+    if (defined $2 ) {
+      $urloptions = $2;
+    }
+  }
+  
+  # fix // in the urlfile part
+  $urlfile =~ s/\/\//\//g;
+  if ($urlfile =~ /^\//) {
+    $pfn = "$urlprefix$urlhostport/$urlfile";
+  } else {
+    $pfn = "$urlprefix$urlhostport//$urlfile";
+  }
+  
+  if ($urloptions ne "") {
+    $pfn .= "?$urloptions";
+  }
+  
+  if (($urlprefix =~ /^guid/) && ($urloptions =~ /ZIP/) && ( $pfn =~ /.*\/(\w\w\w\w\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\w\w\w\w\w\w\w\w)/ )) {
+    # we got a reference guid back
+    my $newguid = $1;
+    $guid = $newguid;
+    
+    $urloptions =~ /ZIP=([^\&]*)/ and $anchor=$1;
+    
+    
+    if ($options =~/p/) {
+      $options="ps ";
+    } else {
+      $options="s ";
+    }
+
+    $lfn .= "_$guid";
+    ($se, $pfn, $anchor, $lfn, $nses )=$self->getPFNforAccess($guid, $se, $sesel, $lfn, $options)
+      or return;
+    $self->info("The father pfn is $pfn");
+  }
+
+
+  return ($se, $pfn, $anchor, $lfn, $nses);
+}
+
 sub access {
     # access <access> <lfn> 
     # -p create public url in case of read access 
@@ -1426,164 +1592,12 @@ sub access {
 	
 	$guid=$self->{CATALOG}->f_lfn2guid("s",$lfn)
 	  or $self->info( "access: Error getting the guid of $lfn",11) and return;
-	
-	my $nresolved=0;
-      resolve_again:
-	$nresolved++;
-	my @where=$self->{CATALOG}->f_whereis("sgzt","$guid");
-	
-	my @whereis=();
-	foreach (@where) {
-	  push @whereis, $_->{se};
-	}
-	
-	#Get the file from the LCM
-	@whereis or $self->info( "access: " . $self->{LOGGER}->error_msg())
-	  and return access_eof;
-	
-	my @closeList={};
-	
-	if ($se ne 0) {
-	  my $tmpse = "$self->{CONFIG}->{SE_FULLNAME}";
-	  my $tmpvo = "$self->{CONFIG}->{ORG_NAME}";
-	  my $tmpsite = "$self->{CONFIG}->{SITE}";
-	  my @tmpses = @{$self->{CONFIG}->{SEs_FULLNAME}};
-	  @{$self->{CONFIG}->{SEs_FULLNAME}}={};
-	  my ($lvo, $lsite, $lname) = split "::", $se;
-	  
-	  # change temporary the meaning of the 'local' se
-	  $self->{CONFIG}->{SE_FULLNAME} = $se;
-	  $self->{CONFIG}->{ORG_NAME} = $lvo;
-	  $self->{CONFIG}->{SITE} = $lsite;
-	  (@closeList) = $self->selectClosestSE(@whereis);
-	  $self->{CONFIG}->{SE_FULLNAME} = $tmpse;
-	  $self->{CONFIG}->{ORG_NAME} = $tmpvo;
-	  $self->{CONFIG}->{SITE} = $tmpsite;
-	  @{$self->{CONFIG}->{SEs_FULLNAME}}=@tmpses;
-	} else {
-	  (@closeList) = $self->selectClosestSE(@whereis);
-	}
-	#check if the wished se is at all existing ....
-	my $sefound=0;
-	$nses=scalar @closeList;
-	if ($sesel > 0) {
-	  # the client wants a replica identified by its number
-	  my $cnt=0;
-	  if (defined $closeList[$sesel-1]) {
-	    $se = $closeList[$sesel-1];
-	  } else {
-	    return access_eof;
-	  }
-	} else {
-	  # the client wants the closest match (entry 0)
-	  foreach (@closeList) {
-	    if ( (lc $_) eq (lc $se) ) {
-	      $sefound=1;
-	      last;
-	    }
-	  }
-	  if (!$sefound) {
-	    # set the closest one
-	    $se = $closeList[0];
-	  }
-	  
-	}
-	
-	if (! $se) {
-	  $self->{LOGGER}->error("LCM","access: File $lfn does not exist in $se");
-	  return access_eof;
-	}
-	
-	
-	$self->debug(1, "We can ask the following SE: $se");
-	
-	(!($options =~/s/)) and $self->info( "The guid is $guid");
-	
-	
-	$pfn=0;
-	
-	foreach (@where) {
-	  (!($options =~/s/)) and $self->info("comparing $_->{se} to $se");
-	  my $se1 = lc $_->{se};
-	  my $se2 = lc $se;
-	  if (((  ($se1 eq $se2)) && ( ( $_->{pfn} =~ /^root/ ))) || ( $_->{pfn} =~ /^guid/) ) {
-	    $pfn = $_->{pfn};
-	  }
-	}
-	
-	if (!$pfn) {
-	  $self->{LOGGER}->error("LCM","access: could not get a root pfn");
-	  return ;
-	}
-	
-	
-	my ($urlprefix,$urlhostport,$urlfile,$urloptions);
-	$urlprefix="root://";
-	$urloptions="";
-	$urlfile="";
-	$urlhostport="";
-	if ($pfn =~ /([a-zA-Z]*):\/\/([0-9a-zA-Z.\-_:]*)\/(.*)/) {
-	  if (defined $1) {
-	    $urlprefix = "$1://";
-	  }
-	  if (defined $2) {
-	    $urlhostport = $2;
-	  } 
-	  
-	  if (defined $3) {
-	    $urlfile = $3;
-	  }
-	} else {
-	  $self->{LOGGER}->error("LCM","access: parsing error for $pfn [host+port]");
-	  return access_eof;
-	}
-	
-	if ($urlfile =~ /([^\?]*)\?([^\?]*)/) {
-	  if (defined $1 ) {
-	    $urlfile = $1;
-	  }
-	  if (defined $2 ) {
-	    $urloptions = $2;
-	  }
-	}
-	
-	# fix // in the urlfile part
-	$urlfile =~ s/\/\//\//g;
-	if ($urlfile =~ /^\//) {
-	  $pfn = "$urlprefix$urlhostport/$urlfile";
-	} else {
-	  $pfn = "$urlprefix$urlhostport//$urlfile";
-	}
-	
-	if ($urloptions ne "") {
-	  $pfn .= "?$urloptions";
-	}
-	
-	if (($urlprefix =~ /^guid/) && ($urloptions =~ /ZIP/) && ( $pfn =~ /.*\/(\w\w\w\w\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\w\w\w\w\w\w\w\w)/ )) {
-	  # we got a reference guid back
-	  my $newguid = $1;
-	  $guid = $newguid;
-	  
-	  $urloptions =~ /ZIP=([^\&]*)/;
-	  
-	  
-	  if ($options =~/p/) {
-	    $options="ps ";
-	  } else {
-	    $options="s ";
-	  }
-	  
-	  if (defined $1) {
-	    $anchor = $1;
-	  }
-	  
-	  $lfn .= "_$guid";
-	  goto resolve_again;
-	  
-	}
+
+	($se, $pfn, $anchor, $lfn, $nses)=$self->getPFNforAccess($guid, $se, $sesel, $lfn, $options)
+	  or return access_eof;
 	$DEBUG and $self->debug(1, "access: We can take it from the following SE: $se with PFN: $pfn");
       }
-      
+
       $ticket .= "<authz>\n";
       $ticket .= "  <file>\n";
       if ($globalticket eq "") {
