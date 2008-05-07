@@ -200,6 +200,15 @@ if ($install=~ /Authen/) {
     
     modifyFiles ("$ENV{ALIEN_ROOT}/etc/alien/rc.d/init.d", %files);
   }
+  print "Creating the keys for the security envelope\n";
+  mkdir "$ENV{ALIEN_HOME}/authen/";
+  for my $d ("l", "r"){
+    my $key="$ENV{ALIEN_HOME}/authen/${d}priv.pem";
+    my $cert="$ENV{ALIEN_HOME}/authen/${d}pub.pem";
+    system("openssl genrsa -out $key 1024 > /dev/null 2>&1");
+    system("openssl req -new -batch -key $key -x509 -days 365 -out $cert -subj \"/C=CH/O=AliEn/CN=AlienCA\"");
+  }
+
 }
 
 print "Changing the ownership of $aliendir...\t\t";
