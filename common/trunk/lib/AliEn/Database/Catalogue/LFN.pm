@@ -343,7 +343,7 @@ sub createFile {
   my $seNumbers={};
   my @inserts=@_;
   foreach my $insert (@inserts) {
-    $insert->{type}='f';
+    $insert->{type} or $insert->{type}='f';
     $entryDir or $entryDir=$self->getParentDir($insert->{lfn});
     $insert->{dir}=$entryDir;
     $insert->{lfn}=~ s{^$tableLFN}{};
