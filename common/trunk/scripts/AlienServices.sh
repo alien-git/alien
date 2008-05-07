@@ -440,6 +440,10 @@ ALIEN_DoService ()
 	Authen)
 	    args='VARDIR  Authen "Authentication" PASSWORD'
 #	    ALIEN_START="$ALIEN_ROOT/scripts/Authen.pl"
+	    export SEALED_ENVELOPE_REMOTE_PUBLIC_KEY=$ALIEN_HOME/authen/rpub.pem
+	    export SEALED_ENVELOPE_REMOTE_PRIVATE_KEY=$ALIEN_HOME/authen/rpriv.pem
+	    export SEALED_ENVELOPE_LOCAL_PUBLIC_KEY=$ALIEN_HOME/authen/lpub.pem
+	    export SEALED_ENVELOPE_LOCAL_PRIVATE_KEY=$ALIEN_HOME/authen/lpriv.pem
 	    ;;
 	  TransferOptimizer)
 	    args='VARDIR Optimizer::Transfer Transfer_Optimizes NO_PASSWORD'
