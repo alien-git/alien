@@ -24,9 +24,11 @@ sub submit {
   my $message = "#PBS -o $self->{PATH}/$ENV{ALIEN_LOG}.out
 #PBS -e $self->{PATH}/$ENV{ALIEN_LOG}.err
 #PBS -V
-#PBS -N $name
-#PBS -W stagein=$execute\@$self->{CONFIG}->{HOST}:$command
-$self->{SUBMIT_ARG}
+#PBS -N $name\n";
+  if (not $self->{NOT_STAGE_FILES}) {
+    $message.="#PBS -W stagein=$execute\@$self->{CONFIG}->{HOST}:$command\n";
+  }
+  $message.="$self->{SUBMIT_ARG}
 " . $self->excludeHosts() . "
 $execute\n";
 
@@ -127,9 +129,11 @@ sub initialize() {
     $self->{STATUS_CMD} = ( $self->{CONFIG}->{CE_STATUSCMD} or "qstat -n -1" );
 
     if ( $self->{CONFIG}->{CE_SUBMITARG} ) {
-        my @list = @{ $self->{CONFIG}->{CE_SUBMITARG_LIST} };
-        map { $_ = "#PBS $_\n" } @list;
-        $self->{SUBMIT_ARG} = "@list";
+      my @list = @{ $self->{CONFIG}->{CE_SUBMITARG_LIST} };
+      grep (/^alien_not_stage_files$/i, @list) and $self->{NOT_STAGE_FILES}=1;
+      @list =grep (! /^alien_not_stage_files$/i, @list);
+      map { $_ = "#PBS $_\n" } @list;
+      $self->{SUBMIT_ARG} = "@list";
     }
 
 
