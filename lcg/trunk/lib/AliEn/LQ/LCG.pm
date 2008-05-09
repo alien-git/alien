@@ -76,7 +76,8 @@ sub initialize {
            VirtualOrganisation = \"alice\";
            NSAddresses	       = \"$thisRB:7772\";
            LBAddresses	       = \"$thisRB:9000\";
-           MyProxyServer       = \"myproxy.cern.ch\"\n]\n";
+	   WMProxyEndpoints    = {\"https://$thisRB:7443/glite_wms_wmproxy_server\"};
+           MyProxyServer       = \"myproxy.cern.ch\";\n]\n";
          close STVOCONF;
        }
      }  
@@ -187,10 +188,13 @@ sub wrapSubmit {
   my $logFile = shift;
   my $jdlfile = shift;
   my @args = @_ ;  
+  # Ugly patch to accomodate gLite 3.0 along with gLite 3.1
+  my $configOptName = "--config";
+  $configOptName = "--config-vo" if ($self->{SUBMIT_CMD} eq "edg-job-submit");
   my @command = ( $self->{SUBMIT_CMD}, 
                   "--noint", 
 		  "--nomsg", 
-		  "--config-vo", "$self->{CONFIG}->{LOG_DIR}/$RB.vo.conf",
+		  $configOptName, "$self->{CONFIG}->{LOG_DIR}/$RB.vo.conf",
 		  "--logfile", $logFile, 
 		  @args, 
 		  "$jdlfile");
