@@ -41,6 +41,11 @@ sub new {
     $global->{CONFIG}->info("Error creating the temporary file $@");
     return;
   }
+  if (! $fileName){
+    $fileName="$global->{FILE}->{base_dir}/tempFiles/$global->{FILE}->{filename}";
+    $global->{CONFIG}->info("File cachedir didn't return a file name... doing it manually $fileName");
+
+  }
   return $fileName;
 }
 
