@@ -57,12 +57,13 @@ sub initialize {
 
 
   my @optimizers=("Merging", "Inserting", "Splitting", "Zombies", "Hosts", "Expired", "HeartBeat", "Priority", "Resubmit", "Killed", "Saved", "Staging");
-  
+
   my $mlEnabled = ($self->{CONFIG}->{MONALISA_HOST} || $self->{CONFIG}->{MONALISA_APMONCONFIG});
   $mlEnabled and push @optimizers, "MonALISA";
 
   my $chargeEnabled = $self->{CONFIG}->{LBSG_ADDRESS};
   $chargeEnabled and push @optimizers, "Charge";
+  #  @optimizers=("Merging");
   
   $self->StartChildren(@optimizers) or return;
 
