@@ -22,6 +22,8 @@ BEGIN { plan tests => 1 }
   includeTest("16-add") or exit(-2);
 #  includeTest("14-se") or exit(-2);
 
+  print "THE HOSTNAME IS $ENV{HOST}\n";
+
   my $host=Net::Domain::hostname();
   my $config=new AliEn::Config;
   $config or print "Error getting the configuration!!\n" and exit(-2);
