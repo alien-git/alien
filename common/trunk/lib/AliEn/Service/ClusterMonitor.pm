@@ -955,7 +955,7 @@ sub putFILE {
 
     if (! open( FILE, ">$fileName" ) ) {
       $self->{LOGGER}->error("ClusterMonitor", "Error opening the file $fileName");
-      return (-1, "Can't open  $fileName");
+      return (-1, "Can't open '$fileName'");
 
     }
 
