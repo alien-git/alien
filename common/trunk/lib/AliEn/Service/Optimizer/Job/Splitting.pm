@@ -402,6 +402,9 @@ sub SubmitSplitJob {
   ($ok, my $origOutputDir)=$job_ca->evaluateAttributeString("OutputDir");
   ($ok, my @origOutputFile)=$job_ca->evaluateAttributeVectorString("OutputFile");
   my $origOutputFile=join(" ", @origOutputFile);
+
+  ($ok, my @origOutputArchive)=$job_ca->evaluateAttributeVectorString("OutputArchive");
+  my $origOutputArchive=join(" ", @origOutputArchive);
   my $counter=1;
   foreach my $pos (sort keys %{$jobs}) {
     $i++;
@@ -425,6 +428,7 @@ sub SubmitSplitJob {
       #check also the outputDir
       $self->_checkEntryPattern("OutputDir", "String", $origOutputDir, $job_ca,$jobs->{$pos}, $counter);
       $self->_checkEntryPattern("OutputFile", "Vector", $origOutputFile, $job_ca,$jobs->{$pos}, $counter);
+      $self->_checkEntryPattern("OutputArchive", "Vector", $origOutputArchive, $job_ca,$jobs->{$pos}, $counter);
       $self->_checkEntryPattern("Arguments", "Expression", "$origarg $splitargs", $job_ca,$jobs->{$pos}, $counter);
 
       $counter++;
@@ -548,8 +552,9 @@ sub _checkArgumentsPatterns{
       $self->info("Before replacing, we have $1, $4 and $counter");
       my $format=$4;
 
-      $newpattern=$jobDesc->{counter};
-      $1 =~ /split/ and $newpattern=$counter;
+      $newpattern=$counter;
+
+      $1 =~ /split/ and $newpattern=$jobDesc->{counter};
       if ($format){
 	$format=~ s{^_}{};
 	$format=~ s{^\%}{};

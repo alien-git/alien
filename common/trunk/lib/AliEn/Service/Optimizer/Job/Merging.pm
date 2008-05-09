@@ -28,7 +28,7 @@ sub checkWakesUp {
 
   $self->info("There are some jobs to check!!");
 
-  my $jobs=$self->{DB}->query("SELECT queueid, jdl, status from QUEUE q, JOBSTOMERGE j where q.queueid=j.masterid and status='SPLIT'");
+  my $jobs=$self->{DB}->query("SELECT queueid, jdl, status from QUEUE q, JOBSTOMERGE j where q.queueid=j.masterid and status='SPLIT' ");
   foreach my $job (@$jobs){
     $self->{DB}->delete("JOBSTOMERGE", "masterId=?", {bind_values=>[$job->{queueid}]});
     use Data::Dumper;
@@ -248,36 +248,17 @@ sub updateMerging {
 
       my ($info)=$self->{DB}->getFieldsFromQueue($queueid,"merging")
 	or die ("Job $queueid doesn't exist");
-      my $oldmerging=$info->{merging} || "";
 
       $self->copyOutputDirectories( $queueid, $job_ca, $procDir, $user) 
 	or die ("error copying the output directories");
-
-      my ($ok,  @merge)=$job_ca->evaluateAttributeVectorString("Merge");
-
-      my $outputD="$procDir/merge";
-      ($ok, my $t)=$job_ca->evaluateAttributeString("OutputDir");
-      $t =~ s/\#.*$//;
-      $ok and $outputD=$t;
-      ($ok, $t)=$job_ca->evaluateAttributeString("MergeOutputDir");
-      $ok and $outputD=$t;
-
-
-      my @subjobs;
-      foreach my $merge (@merge) {
-	$newStatus="MERGING";
-	#Ok, let's submit the job that will merge the output
-	$self->info("We have to submit the job $merge");
-	my ($file, $jdl, $output)=split(":", $merge);
-
-	$self->{CATALOGUE}->{CATALOG}->{ROLE}=$user;
-	my ($id)=$self->{CATALOGUE}->execute("submit","$jdl $queueid $file $output $user $procDir $outputD");
-	$self->{CATALOGUE}->{CATALOG}->{ROLE}="admin";
-
-	$id or die("Error submitting the job $jdl");
-	push @subjobs, $id;
+      
+      $self->checkMergingCollection($job_ca, $queueid, $procDir);
+      $self->checkMergingSubmission($job_ca, $queueid, $procDir, $user, $set, $info) 
+	or die("Error doing the submission of the merging jobs");
+      if ($set->{newStatus}){
+	$status=$newStatus;
+	delete $set->{newStatus};
       }
-      (@subjobs) and $set->{merging}=join(",",$oldmerging,@subjobs);
     }
   };
   if ($@){
@@ -310,26 +291,7 @@ sub copyOutputDirectories{
   # copy all the result files into the master job directory
   my $cnt=0;
 
-#  my ( $ok, $outputdir ) = $job_ca->evaluateExpression("OutputDir");
-#  $self->info("Found Outputdir $outputdir");
-#    # here we have to replace the organisation name !!!
-#  $outputdir=~ s/[\"\{\}\s]//g;
-#  my $orgdir = lc $self->{CONFIG}->{ORG_NAME};
-#  my $userdir = "/$orgdir/production/$user";
-#  $outputdir and $outputdir = "$userdir/$outputdir" and $self->{CATALOGUE}->execute("mkdir","$outputdir");
-#
-#  $outputdir or 
-    my $outputdir = "$procDir/subjobs";
-
-#  ( $ok, my $jdlrun ) = $job_ca->evaluateExpression("Run");
-#  ( $ok, my $jdlevent ) = $job_ca->evaluateExpression("Event");
-
-  my ($olduser)=$self->{CATALOGUE}->execute("whoami");
-  if (!$self->{CATALOGUE}->execute("user", "-", "$user")){
-    $self->info("Error changing to user $user");
-    $self->{CATALOGUE}->execute("user", "-", "$olduser");
-    return ;
-  }
+  my $outputdir = "$procDir/subjobs";
 
   for (@$subJobs) {
     $_->{status} eq "DONE" or print "Skipping $_->{queueId}\n" and next;
@@ -340,7 +302,7 @@ sub copyOutputDirectories{
 #    my $eventdir=$self->getOutputDir($subId, $jdlrun, $jdlevent) or next;
     my $destdir="$outputdir/$subId";
     $destdir =~ s{//}{/}g;
-    $self->info("Copying from $origdir to $destdir");
+    $self->debug(1,"Copying from $origdir to $destdir");
     if (! $self->{CATALOGUE}->execute("cd", $origdir, "-silent")){
       if (! $self->{CATALOGUE}->execute("cd", $destdir)){
 	$self->info("The directory doesn't exist any more (and it has not been copied to $destdir!!)");
@@ -351,11 +313,11 @@ sub copyOutputDirectories{
 
     $self->{CATALOGUE}->execute("mkdir",$destdir,"-p") or
       $self->info("Error creating the destination directory $destdir");
-    $self->info("And now, the cp $origdir/job-output $destdir");
-    if ($self->{CATALOGUE}->execute("cp", "$origdir/job-output", $destdir) ) {
+    $self->debug(1, "And now, the cp $origdir/job-output $destdir");
+    if ($self->{CATALOGUE}->execute("cp", "-silent", "$origdir/job-output", $destdir) ) {
       #Let's put the log files of the subjobs
-      $self->{CATALOGUE}->execute("cp", "$origdir/job-log/execution.out", "$procDir/job-log/execution.$subId.out");
-      $self->{CATALOGUE}->execute("cp", "$origdir/job-log/execution.err", "$procDir/job-log/execution.$subId.err");
+      $self->{CATALOGUE}->execute("cp",  "-silent","$origdir/job-log/execution.out", "$procDir/job-log/execution.$subId.out");
+      $self->{CATALOGUE}->execute("cp",  "-silent","$origdir/job-log/execution.err", "$procDir/job-log/execution.$subId.err");
 
       # delete the proc directory
       if ($subId > 0) {
@@ -369,66 +331,90 @@ sub copyOutputDirectories{
     }
   }				
 
-  $self->{CATALOGUE}->execute("user","-", $olduser);
-
   return 1;
 }
 
 
-#
-# This subroutine chooses the directory where the subjob is going to be copied
-# By default, it will be /proc/<user>/<master job>/<subjob>
-#sub getOutputDir {
-#  my $self=shift;
-#  my $subId=shift;
-#  my $jdlrun=shift;
-#  my $jdlevent=shift;
-#
-#  # get the jdl for this job and extract run and event
-#  my $splitjobjdl = $self->{DB}->getFieldsFromQueue($subId);
-#  defined $splitjobjdl
-#    or $self->{LOGGER}->warning( "Merging", "In updateMerging error during execution of database query for queuejob $_->{queueId}" )
-#	  and return;
-#  my ($run, $event);#
-#
-#  $splitjobjdl->{jdl} =~ /\-\-run\s+(\d{1,8})\s+.*/ and $run = $1;
-#  $splitjobjdl->{jdl} =~ /\-\-event\s+(\d{1,8})\s+.*/ and $event = $1;
-#
-#  my $rundir = "";
-#  my $eventdir = "";
-#  my $newdir = "";
-#  if ( (defined $run) && ($run>0) ) {
-#    $rundir   = sprintf "%05d", $run;
-#    $newdir = "$rundir"; #
-#
-#    if ( (defined $event) && ($event>0) ) { 
-#      $eventdir = sprintf "%05d/%05d", $run,$event;
-#      $newdir   = "$eventdir";
-#    }
-#  } else {
-#    ## look for jdl definitions
-#    if (( $jdlrun) && ($jdlrun > 0) ) {
-#      $rundir = sprintf "%05d",$jdlrun;
-#    }#
-#
-#    if (( $jdlevent) && ($jdlevent ne "") ) {
-#      $eventdir = $jdlevent;
-#    }#
-#
-#    if (( $rundir ne "")) {
-#      if (($eventdir ne "") ){
-#	$newdir = "$rundir".'/'."$eventdir";
-#      } else {
-#	$newdir = "$rundir";
-#      }
-#    } else {
-#      $eventdir = $subId;
-#      $newdir = "$eventdir";
-#    }
-#  }
-#  return $newdir;
-#}
+sub checkMergingSubmission {
+  my $self=shift;
+  my $job_ca=shift;
+  my $queueid=shift;
+  my $procDir=shift;
+  my $user=shift;
+  my $set=shift;
+  my $info=shift;
+
+  my $oldmerging=$info->{merging} || "";
+
+  my ($ok,  @merge)=$job_ca->evaluateAttributeVectorString("Merge");
+  
+  my $outputD="$procDir/merge";
+  ($ok, my $t)=$job_ca->evaluateAttributeString("OutputDir");
+  $t =~ s/\#.*$//;
+  $ok and $outputD=$t;
+  ($ok, $t)=$job_ca->evaluateAttributeString("MergeOutputDir");
+  $ok and $outputD=$t;
+  
+  
+  my @subjobs;
+  foreach my $merge (@merge) {
+    $set->{newStatus}="MERGING";
+    #Ok, let's submit the job that will merge the output
+    $self->info("We have to submit the job $merge");
+    my ($file, $jdl, $output)=split(":", $merge);
+    
+    $self->{CATALOGUE}->{CATALOG}->{ROLE}=$user;
+    my ($id)=$self->{CATALOGUE}->execute("submit","$jdl $queueid $file $output $user $procDir $outputD");
+    $self->{CATALOGUE}->{CATALOG}->{ROLE}="admin";
+    
+    $id or $self->info("Error submitting the job $jdl") and return;
+    push @subjobs, $id;
+  }
+  (@subjobs) and $set->{merging}=join(",",$oldmerging,@subjobs);
 
 
+
+  return 1;
+}
+
+sub checkMergingCollection{
+  my $self=shift;
+  my $job_ca=shift;
+  my $queueid=shift;
+  my $procDir=shift;
+
+  $self->info("***Let's check if there are any collections");
+
+  my ($ok, @mergingCollections)=$job_ca->evaluateAttributeVectorString("MergeCollections");
+  @mergingCollections or return 1;
+
+  foreach my $entry (@mergingCollections){
+    $self->putJobLog($queueid, "info", "Creating the merging collection '$entry'");
+    my ($files, $collection)=split(/:/, $entry, 2);
+
+    eval{
+      $self->{CATALOGUE}->execute("rm", $collection);
+      $self->{CATALOGUE}->execute("createCollection", $collection)
+	or die("error creating the collection: '$collection'");
+      my @patterns=split(/,/ , $files);
+      foreach my $pattern (@patterns){
+	my @files=$self->{CATALOGUE}->execute("find", "$procDir/subjobs", $pattern);
+	foreach my $file(@files){
+	  $self->{CATALOGUE}->execute("addFileToCollection", "-n", $file, $collection) or die("Error adding the file '$file' to the collection");
+	}
+      }
+      $self->{CATALOGUE}->execute("updateCollection", $collection)
+	or die("Error updating the collection");
+    };
+
+    if ($@){
+      $self->putJobLog($queueid, "error", "Error creating the collection: $@");
+      return;
+    }
+  }
+  
+  return 1;
+}
+ 
 1;
 
