@@ -938,14 +938,16 @@ sub mirror_HELP{
 
   return "mirror Copies a file into another SE
 Usage:
-\tmirror [-ftgbu] [-m <number>] <lfn>
+\tmirror [-ftgbui] [-m <number>] [-c <collection>] <lfn>
 Options:\t-f\t keep the same relative path
 \t\t-b\t Do not wait for the file transfer
-\t\t-t\t Issue a transfer instead of copying the file directly (this implies also -b)
+\t\t-t\t Issue a transfer instead of copying the file directly (this implies also -b) (this is the default method)
+\t\t-i\t Immediate transfer. Do not schedule the transfer. Tell the SE to get the file right nows
 \t\t-g:\t Use the lfn as a guid
 \t\t-m <id>\t Put the transfer under the masterTransferof <id>
 \t\t-u\t Don't issue the transfer if the file is already in that SE
 \t\t-r\t If the file is in a zip archive, transfer the whole archive
+\t\t-c\t Once the transfer finishes, register the lfn in the collection <collection>
 ";
 }
 sub mirror {
@@ -954,7 +956,7 @@ sub mirror {
 
   my $opt={};
   @ARGV=@_;
-  Getopt::Long::GetOptions($opt,  "f", "g", "m=i", "b","t", "u", "r") or 
+  Getopt::Long::GetOptions($opt,  "f", "g", "m=i", "b","t", "u", "r", "c=s","i") or 
       $self->info("Error parsing the arguments to mirror". $self->mirror_HELP()) and return;;
   @_=@ARGV;
   my $options=join("", keys(%$opt));
@@ -1025,6 +1027,7 @@ sub mirror {
 #  $opt->{g} and $transfer->{transferGroup}=$opt->{g};
   $opt->{'m'} and $transfer->{transferGroup}=$opt->{'m'};
   $opt->{'r'} and $transfer->{RESOLVE}=$opt->{r};
+  $opt->{'c'} and $transfer->{collection}=$opt->{'c'};
 
   if ($opt->{f})    {
     $self->info( "Keeping the same relative path");
@@ -1036,7 +1039,7 @@ sub mirror {
     $transfer->{target}=~ s/^$service->{SAVEDIR}//;
   }
 
-  if ($opt->{t}){
+  if (! $opt->{i}){
     my $result=$self->{SOAP}->CallSOAP("Manager/Transfer","enterTransfer",$transfer);
     $result  or return;
     #Make the remote SE get the file

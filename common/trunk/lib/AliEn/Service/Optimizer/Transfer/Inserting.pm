@@ -52,7 +52,7 @@ sub checkWakesUp {
     $size =~ s/^(.*\#\#\#){3}(\d+)(\#\#\#.*){2}$/$2/;
     $self->debug(1, "In checkNewTransfers file has size $size");
     
-    my $jdl=$self->createTransferJDL($transfer->{transferid}, $transfer->{lfn}, $transfer->{destination}, $size, $transfer->{pfn});
+    my $jdl=$self->createTransferJDL($transfer->{transferid}, $transfer->{lfn}, $transfer->{destination}, $size, $transfer->{pfn}, $transfer->{collection});
     $self->debug(1, "Got the jdl");
     if (!$jdl){
       $self->{DB}->updateTransfer($transfer->{transferid},{status=>"FAILED"})

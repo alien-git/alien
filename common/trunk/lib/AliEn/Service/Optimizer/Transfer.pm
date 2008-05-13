@@ -77,6 +77,7 @@ sub createTransferJDL {
   my $destination=shift;
   my $size=shift;
   my $pfn =shift;
+  my $collection=shift;
 
 
   $self->debug(1, "In createTransferJDL creating a new jdl");
@@ -87,7 +88,7 @@ sub createTransferJDL {
   $exp->{Action}="\"local copy\"";
   $exp->{ToSE}="\"$destination\"";
   $pfn and $exp->{ToPFN}="\"$pfn\"";
-
+  $collection and $exp->{Collection}="\"$collection\"";
 
   my (@info)=$self->{CATALOGUE}->execute("whereis","-silent", $lfn, );
 
@@ -116,6 +117,7 @@ sub createTransferJDL {
     or $self->info("Error getting the guid of $lfn") and return;
 
   $exp->{GUID}="\"$guid\"";
+
 
 
   return $self->createJDL($exp);
