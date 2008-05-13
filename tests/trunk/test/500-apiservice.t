@@ -21,7 +21,16 @@ BEGIN { plan tests => 1 }
   eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
   includeTest("16-add") or exit(-2);
 #  includeTest("14-se") or exit(-2);
-
+  if (! defined $ENV{HOST}){
+    print "WARNING!!!!!!!!! The environment variable HOST is not defined!\n";
+    if (defined $ENV{HOSTNAME}){
+      print "Taking it from HOSTNAME\n";
+      $ENV{HOST}=$ENV{HOSTNAME};
+    } else{
+      $ENV{HOST}=`hostname`;
+      chomp $ENV{HOST};
+    }
+  }
   print "THE HOSTNAME IS $ENV{HOST}\n";
 
   my $host=Net::Domain::hostname();
