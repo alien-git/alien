@@ -57,6 +57,7 @@ my $tables={ TRANSFERS=>{columns=>{
 				   SE=>"varchar(50)",
 				   agentid=>"int(11)",
 				   ctime=>"timestamp DEFAULT CURRENT_TIMESTAMP  ON UPDATE CURRENT_TIMESTAMP",
+				   collection=>"varchar(255)",
 				   
 				  },
 			 id=>"transferId",
@@ -369,7 +370,7 @@ sub getNewTransfers{
 	my $self = shift;
 
 	$self->debug(1,"In getNewTransfers fetching attributes transferid,lfn, pfn, destination of transfers in INSERTING state");
-	$self->query("SELECT transferid,lfn, pfn, destination,options FROM TRANSFERS WHERE STATUS='INSERTING'");
+	$self->query("SELECT transferid,lfn, pfn, destination,options,collection FROM TRANSFERS WHERE STATUS='INSERTING'");
 }
 
 

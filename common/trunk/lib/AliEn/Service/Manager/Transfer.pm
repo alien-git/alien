@@ -76,6 +76,7 @@ sub enterTransfer {
   my $info={received=>$date, user=>$user, lfn=>$lfn, pfn=>$pfn,
 	    destination=>$destination, type=>$type, options=>$options};
   $arguments->{transferGroup} and $info->{transferGroup}=$arguments->{transferGroup};
+  $arguments->{collection} and $info->{collection}=$arguments->{collection};
   my $procid = $self->{DB}->insertTransferLocked($info) or
     $self->{LOGGER}->error( "TransferManager", "In enterTransfer insertion of a new transfer failed" )
       and return (-1, "in enterTransfer inserting a new transfer");
@@ -155,9 +156,10 @@ sub updateCatalogue {
   my $self=shift;
   my $id=shift;
 
+
   $self->debug(1,"In updateCatalogue checking if we have to update the catalogue");
 
-  my ($data)=$self->{DB}->getFields($id,"type,lfn,pfn,destination");
+  my ($data)=$self->{DB}->getFields($id,"type,user,lfn,pfn,destination,jdl");
 
   defined $data
     or $self->{LOGGER}->error("JobManager","In updateCatalogue error during execution of database query")
@@ -197,6 +199,8 @@ sub updateCatalogue {
     $self->{LOGGER}->warning ("TransferManager", "In updateCatalogue type $data->{type} unknown");
   }
   
+  my ($oldUser)=$self->{CATALOGUE}->execute("whoami");
+  $self->{CATALOGUE}->execute("user", "-", $data->{user});
   if (@command) {
     $self->debug(1, "In updateCatalogue doing @command");
     my $done=$self->{CATALOGUE}->execute(@command);
@@ -207,7 +211,37 @@ sub updateCatalogue {
       $self->info("This time we got $done\n\n");
     }
   }
+  $self->updateCollection($id, $data->{jdl}, $data->{lfn});
+
+  $self->{CATALOGUE}->execute("user", "-", $oldUser);
+
+  return 1;
+}
+
+
+sub updateCollection{
+  my $self=shift;
+  my $id=shift;
+  my $jdl=shift;
+  my $lfn=shift;
+
+  $jdl or return 1;
+  my $ca=Classad::Classad->new($jdl);
+  $ca or return;
+  my ($ok, @collections)=$ca->evaluateAttributeVectorString("Collection");
+  $ok or return 1;
   
+  foreach my $collection (@collections){
+    $self->info("We have to update the collection '$collection'");
+
+    my ($c)=$self->{CATALOGUE}->execute("type", $collection);
+    if (!$c){
+      $self->{CATALOGUE}->execute("createCollection", $collection) or
+	$self->info("Error updating the collection '$collection'") and next;
+    }
+    $self->{CATALOGUE}->execute("addFileToCollection", $lfn, $collection);
+  }
+
   return 1;
 }
 

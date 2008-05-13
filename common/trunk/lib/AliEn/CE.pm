@@ -3105,13 +3105,18 @@ sub f_jobListMatch_HELP{
   return "jobListMatch: Checks if the jdl of the job matches any of the current CE. 
 
 Usage:
-\t\tjobListMatch <jobid> [<ce_name>]
+\t\tjobListMatch [-v] <jobid> [<ce_name>]
 
-If the site is specified, it will only compare the jdl with that CE";
+If the site is specified, it will only compare the jdl with that CE
+
+Options:
+  -v: verbose mode: display also the name of the sites that do not match
+";
 
 }
 sub f_jobListMatch {
   my $self=shift;
+  my $options=shift;
   my $jobid=shift or
     $self->info("Error: no jobid in jobListMatch\n". $self->f_jobListMatch_HELP())  and return;
   my $ceName=shift || "%";
@@ -3126,14 +3131,20 @@ sub f_jobListMatch {
   $done=$done->result or return;
   my $anyMatch=0;
   foreach my $site (@$done){
-    $site->{jdl} or $self->info("\t Ignoring $site->{site} (the jdl is not right)",undef,0) and next;
+    if (!$site->{jdl}){
+      $options=~ /v/ and $self->info("\t Ignoring $site->{site} (the jdl is not right)",undef,0);
+      next;
+    }
     $self->debug(2,"Comparing with $site->{site} (and $site->{jdl})");
     my $ce_ca= Classad::Classad->new($site->{jdl});
-    $ce_ca->isOK() or $self->info("The syntax of the CE jdl is not correct") and next;
+    if ($ce_ca->isOK()){
+      $options=~ /v/ and $self->info("The syntax of the CE jdl is not correct");
+      next;
+    }
     my ( $match, $rank ) = Classad::Match( $job_ca, $ce_ca );
     my $status="no match :(";
     $match  and $status="MATCHED!!! :)" and $anyMatch++;
-    $self->info("\tComparing the jdl of the job with $site->{site}... $status",undef,0);
+    ($options=~ /v/ or  $status=~ /MATCHED!!! :\)/  ) and $self->info("\tComparing the jdl of the job with $site->{site}... $status",undef,0);
   }
   $self->info("In total, there are $anyMatch sites that match");
   return $anyMatch;
