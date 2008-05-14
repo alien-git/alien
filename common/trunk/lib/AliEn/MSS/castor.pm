@@ -175,8 +175,12 @@ return \@fileInSE;
 sub url {
     my $self = shift;
     my $file = shift;
-
-    return "castor://$self->{HOST}$file";
+    my $host=$self->{HOST};
+    if ($self->{CONFIG} and $self->{CONFIG}->{SE_OPTIONS_LIST}){
+       my @d=grep (s/^host=//i, @{$self->{CONFIG}->{SE_OPTIONS_LIST}});
+       @d and $d[0] and $host=$d[0];
+    }
+    return "castor://$host/$file";
 }
 
 sub setEnvironment{
