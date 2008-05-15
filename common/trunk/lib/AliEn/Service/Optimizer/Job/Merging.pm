@@ -28,7 +28,7 @@ sub checkWakesUp {
 
   $self->info("There are some jobs to check!!");
 
-  my $jobs=$self->{DB}->query("SELECT queueid, jdl, status from QUEUE q, JOBSTOMERGE j where q.queueid=j.masterid and status='SPLIT' ");
+    my $jobs=$self->{DB}->query("SELECT queueid, jdl, status from QUEUE q, JOBSTOMERGE j where q.queueid=j.masterid and status='SPLIT' union select queueid,jdl,status from QUEUE where status='FORCEMERGE'");
   foreach my $job (@$jobs){
     $self->{DB}->delete("JOBSTOMERGE", "masterId=?", {bind_values=>[$job->{queueid}]});
     use Data::Dumper;
