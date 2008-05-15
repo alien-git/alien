@@ -3137,7 +3137,7 @@ sub f_jobListMatch {
     }
     $self->debug(2,"Comparing with $site->{site} (and $site->{jdl})");
     my $ce_ca= Classad::Classad->new($site->{jdl});
-    if ($ce_ca->isOK()){
+    if (! $ce_ca->isOK()){
       $options=~ /v/ and $self->info("The syntax of the CE jdl is not correct");
       next;
     }
