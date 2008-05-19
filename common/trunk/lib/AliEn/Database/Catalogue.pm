@@ -1037,6 +1037,11 @@ sub addHost {
   $self->info( "Host added!!");
   return 1;
 }
+
+sub getNumberOfEntries{
+  my $self=shift;
+  return $self->{LFN_DB}->getNumberOfEntries(@_);
+}
 =head1 SEE ALSO
 
 AliEn::Database
