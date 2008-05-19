@@ -508,8 +508,19 @@ sub checkSEVolumes {
   return 1;
 }
 
+sub f_showStructure_HELP{
+  return "showStructure: returns the database tables that are used from within a directory in the catalogue. Usage
+
+  showStructure [-cs] <directory>
+
+Options: 
+-c: count the number of entries in each of the tables
+-s: summary at the end 
+\n";
+}
 sub f_showStructure {
   my $self=shift;
+  my $options=shift;
   my $dir=shift;
   
   my $lfn = $self->GetAbsolutePath($dir);
@@ -517,6 +528,16 @@ sub f_showStructure {
   my $info=$self->{DATABASE}->getHostsForLFN($lfn);
   use Data::Dumper;
   print Dumper($info);
+  if ($options=~ /(c|s)/  ){
+    $self->info("Let's print the number of entries");
+    my $total=0;
+    foreach my $dir (@$info){
+      my $s=$self->{DATABASE}->getNumberOfEntries($dir);
+      $options=~ /c/ and $self->info("Under $dir->{lfn}: $s entries");
+      $s>0 and $total+=$s;
+    }
+    $options=~ /s/ and $self->info("In total, under $lfn: $total entries");
+  }
   return $info;
 }
 
