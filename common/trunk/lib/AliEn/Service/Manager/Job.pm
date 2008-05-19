@@ -1348,6 +1348,10 @@ sub _setSiteQueueBlocked {
     my $site = shift;
     my $set={};
     $set->{'blocked'} = 'locked-error-sub';
+    if ($ENV{ALIEN_IGNORE_BLOCK}){
+      $self->info("IGNORING THE BLOCKING");
+      return 1;
+    }
     return $self->{DB}->updateSiteQueue($set,"site='$site'");
 }
 
