@@ -221,6 +221,17 @@ sub updateMerging {
     my $procDir = AliEn::Util::getProcDir($user, undef, $queueid);
     $self->{CATALOGUE}->execute("mkdir","-p", "$procDir/job-log");
 
+    if (! $self->checkMaxFailed($job_ca, $rparts)){
+      $self->putJobLog($queueid, "error","There were too many subjobs failing");
+      $self->info("At the moment, @ISA");
+      push @ISA, "AliEn::Service::Manager::Job";
+      my ($status, $error)=$self->getMasterJob($user, $queueid, "kill", "-status", "WAITING", "-status", "INSERTING");
+
+      @ISA=grep ( ! /AliEn::Service::Manager::Job/, @ISA);
+      $self->info("Back to @ISA");
+      return;
+    }
+
     $self->checkMasterResubmition($user, $queueid, $job_ca, $rparts) or return;
     if ($#{$rparts} > -1) {
       $self->info("Jobs for $queueid");
@@ -276,6 +287,50 @@ sub updateMerging {
   return 1;
 }
 
+
+sub checkMaxFailed{
+  my $self=shift;
+  my $job_ca=shift;
+  my $rparts=shift;
+
+  $self->info("Checking if there are too many failures");
+  my   ($ok,  $failed)=$job_ca->evaluateAttributeString("MaxFailed");
+  $ok or ($ok,  $failed)=$job_ca->evaluateExpression("MaxFailed");
+  ($ok,  my $initFailed)=$job_ca->evaluateAttributeString("MaxInitFailed");
+  $ok or ($ok,  $initFailed)=$job_ca->evaluateExpression("MaxInitFailed");
+  $self->info("We accept $failed and $initFailed");
+  ($failed or $initFailed) or return 1;
+
+  my $total=0;
+  my $failure=0;
+  my $success=0;
+  foreach my $p (@$rparts){
+    $total+=$p->{count};
+    $p->{status}=~ /^ERROR/ and $failure+=$p->{count};
+    $p->{status}=~ /^DONE/ and $success+=$p->{count};
+  }
+  $self->info("The job has $total ($failure/$success)");
+  if ($failed){
+    $self->info("Checking that there are no more than '$failed' jobs");
+    if ($failed =~ s/\%//){
+      $failed > ($failure/$total) and return;
+    }else {
+      $failed<$failure and return;
+    }
+  }
+
+  if ($initFailed){
+    $self->info("Checking that there are no more thatn '$initFailed' initial failures");
+    if (! $success){
+      if ($initFailed =~ s/\%//){
+	$initFailed > ($failure/$total) and return;
+      }else {
+	$failed<$failure and return;
+      }
+    }
+  }
+  return 1;
+}
 
 sub copyOutputDirectories{
   my $self=shift;
