@@ -1418,6 +1418,16 @@ sub putFiles {
       my @ses;
       $arch->{options} and push @ses, split (/,/, $arch->{options});
       push @ses, $arch->{se};
+      my $no_links=0;
+      if (grep (/no_links_registration/, @ses)){
+	@ses=grep (! /no_links_registration/, @ses);
+	$self->putJobLog("info","Skipping the registration of the files inside $arch->{name}");
+	$no_links=1;
+	if (! @ses){
+	  push @ses, uc($self->{CONFIG}->{SE_FULLNAME});
+	}
+	
+      }
       my $info;
       my $guid="";
       foreach my $se (@ses) {
@@ -1466,6 +1476,7 @@ sub putFiles {
 	$submitted->{$arch->{name}}->{PFNS}=$info->{PFN_LIST};
 
       }
+      $no_links and next;
       my @list;
       foreach my $file( keys %{$arch->{entries}}) {
 	my $guid=$guids{$file} || "";
