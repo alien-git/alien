@@ -874,8 +874,12 @@ sub addFile {
 
   $ENV{'IO_AUTHZ'} = $envelope[0]->{envelope};
   ######################################################################################
-
-  $self->debug(1, "\nRegistering  $pfn as $lfn, in SE $newSE and $oldSE (target $target)");
+  my $newPFN="";
+  if ($envelope[0]->{url}){
+    $newPFN=$envelope[0]->{url};
+    $newPFN=~ s{^([^/]*//[^/]*)//(.*)$}{$1/$envelope[0]->{pfn}};
+  }
+  $self->debug(1, "\nRegistering  $pfn as $lfn, in SE $newSE and $oldSE (target $target, and will be saved as $newPFN)");
 
   $pfn=$self->checkLocalPFN($pfn);
 #  if ($options=~ /u/) {#
@@ -890,8 +894,8 @@ sub addFile {
   $data and $size=$data->{size};
   $self->sendMonitor("write", $newSE, $time, $size, $data);
   $data or return;
-
-  return $self->{CATALOG}->f_registerFile( "-f", $lfn, $data->{size}, $newSE, $data->{guid}, undef,undef, $data->{md5}, $data->{pfn});
+  $newPFN or $newPFN=$data->{pfn};
+  return $self->{CATALOG}->f_registerFile( "-f", $lfn, $data->{size}, $newSE, $data->{guid}, undef,undef, $data->{md5}, $newPFN);
 }
 
 
@@ -1410,6 +1414,8 @@ sub access {
     my $info=$self->{SOAP}->CallSOAP("Authen", "createEnvelope", $self->{CATALOG}->{ROLE}, @_)
       or $self->info("Error asking the for an envelope") and return;
     my $newhash=$info->result;
+    $ENV{ALIEN_XRDCP_ENVELOPE}=$newhash->{envelope};
+    $ENV{ALIEN_XRDCP_URL}=$newhash->{url};
     return $newhash;
   }
   $self->info("Making the envelope ourselves: @_ ");
@@ -1944,12 +1950,15 @@ sub upload {
  (  $pfn and $se) or
    $self->info("Error not enough arguments in upload\n". $self->upload_HELP())
      and return;
-  
+
   $pfn=$self->checkLocalPFN($pfn);
   my $data;
   if ($options !~ /u/ ){
     $self->info("Trying to upload the file $pfn to the se $se");
+    #my @envelope= $self->access("-s","write-once","$guid",$se);
+
     $data= $self->{STORAGE}->registerInLCM( $pfn, $se, undef, undef, undef, undef, $guid) or return;
+    
   }else {
     $self->info("Making a link to the file $pfn");
 

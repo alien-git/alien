@@ -45,7 +45,13 @@ sub get {
   $self->{PARSED}->{PATH}=~ s{^//}{/};
   my $command="$self->{XRDCP} root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH} $self->{LOCALFILE} -DIFirstConnectMaxCnt 1";
 
-  # At the moment, xrdcp doesn't return properly. Let's check if the file exists
+  if ($ENV{ALIEN_XRDCP_ENVELOPE}){
+    $command="$self->{XRDCP} $ENV{ALIEN_XRDCP_URL} $self->{LOCALFILE} -DIFirstConnectMaxCnt 1 -OS\\\&authz=\"$ENV{ALIEN_XRDCP_ENVELOPE}\"";
+    $self->info("The envelope is $ENV{ALIEN_XRDCP_ENVELOPE}");
+  }
+  
+
+# At the moment, xrdcp doesn't return properly. Let's check if the file exists
   $self->_execute($command);
 
   (-f $self->{LOCALFILE}) or return;
@@ -59,8 +65,15 @@ sub put {
   $self->debug(1,"Trying to put the file $self->{PARSED}->{ORIG_PFN} (from $self->{LOCALFILE})");
 
   $self->{PARSED}->{PATH}=~ s{^//}{/};
+
+  $self->info("*****PUTTING THE SECURITY ENVELOPE IN THE XRDCP");
+
   my $command="$self->{XRDCP} -np -v $self->{LOCALFILE} root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH} -DIFirstConnectMaxCnt 1";
 
+  if ($ENV{ALIEN_XRDCP_ENVELOPE}){
+    $command="$self->{XRDCP} -np -v $self->{LOCALFILE} $ENV{ALIEN_XRDCP_URL} -DIFirstConnectMaxCnt 1  -OD\\\&authz=\"$ENV{ALIEN_XRDCP_ENVELOPE}\"";
+    $self->info("The envelope is $ENV{ALIEN_XRDCP_ENVELOPE}");
+  }
 #  my $error = $self->_execute($command);
   $self->debug(1,"The command is $command");
   open (OUTPUT, "$command  2>&1 |") or $self->info("Error: xrdcp is not in the path") and return;
