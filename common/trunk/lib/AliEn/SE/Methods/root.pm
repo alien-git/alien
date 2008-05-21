@@ -47,7 +47,7 @@ sub get {
 
   if ($ENV{ALIEN_XRDCP_ENVELOPE}){
     $command="$self->{XRDCP} $ENV{ALIEN_XRDCP_URL} $self->{LOCALFILE} -DIFirstConnectMaxCnt 1 -OS\\\&authz=\"$ENV{ALIEN_XRDCP_ENVELOPE}\"";
-    $self->info("The envelope is $ENV{ALIEN_XRDCP_ENVELOPE}");
+    $self->debug(1, "The envelope is $ENV{ALIEN_XRDCP_ENVELOPE}");
   }
   
 
@@ -66,13 +66,13 @@ sub put {
 
   $self->{PARSED}->{PATH}=~ s{^//}{/};
 
-  $self->info("*****PUTTING THE SECURITY ENVELOPE IN THE XRDCP");
+  $self->debug(1,"PUTTING THE SECURITY ENVELOPE IN THE XRDCP");
 
   my $command="$self->{XRDCP} -np -v $self->{LOCALFILE} root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH} -DIFirstConnectMaxCnt 1";
 
   if ($ENV{ALIEN_XRDCP_ENVELOPE}){
     $command="$self->{XRDCP} -np -v $self->{LOCALFILE} $ENV{ALIEN_XRDCP_URL} -DIFirstConnectMaxCnt 1  -OD\\\&authz=\"$ENV{ALIEN_XRDCP_ENVELOPE}\"";
-    $self->info("The envelope is $ENV{ALIEN_XRDCP_ENVELOPE}");
+    $self->debug(1,"The envelope is $ENV{ALIEN_XRDCP_ENVELOPE}");
   }
 #  my $error = $self->_execute($command);
   $self->debug(1,"The command is $command");
