@@ -1000,7 +1000,11 @@ sub verifyCompleteTransfer {
   
   if ( $size != $Origsize ) {
     $self->{LOGGER}->error( "FTD", "ID $id The file has size $size and should have $Origsize" );
-    return $error_codes->{TRANSFER_CORRUPTED};
+    if ($self->{CONFIG}->{FTD_SKIPSIZECHECK}){
+      $self->info("But we ignore the size check due to the ldap configuration");
+    } else {
+      return $error_codes->{TRANSFER_CORRUPTED};
+    }
   }
   $self->info("ID $id Tranport success\n" );
 
