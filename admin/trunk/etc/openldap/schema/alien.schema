@@ -258,12 +258,13 @@ attributetype ( AliEnFTD:3 NAME 'maxTransfers' SUP name )
 attributetype ( AliEnFTD:4 NAME 'localOptions' SUP name )
 attributetype ( AliEnFTD:5 NAME 'remoteOptions' SUP name )
 attributetype ( AliEnFTD:6 NAME 'protocol' SUP name )
+attributetype ( AliEnFTD:7 NAME 'skipSizeCheck' SUP name )
 
 
 objectclass ( AliEnFTD  NAME 'AliEnFTD'
 	SUP ( AliEnSOAPServer ) 
 	MUST ( name $ port $ host $ certsubject $ allowedDirs $ maxTransfers )
-        MAY ( protocol $ localOptions $ remoteOptions )
+        MAY ( protocol $ localOptions $ remoteOptions $ skipSizeCheck )
 	      )
 
 #AliEnSite
