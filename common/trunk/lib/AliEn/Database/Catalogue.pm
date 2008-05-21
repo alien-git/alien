@@ -1040,7 +1040,17 @@ sub addHost {
 
 sub getNumberOfEntries{
   my $self=shift;
-  return $self->{LFN_DB}->getNumberOfEntries(@_);
+  my $entry=shift;
+  if ($entry->{guidTime}){
+    $self->debug(1,"Getting the number of guids");
+    return $self->{GUID_DB}->getNumberOfEntries($entry, @_);
+  }
+  return $self->{LFN_DB}->getNumberOfEntries($entry, @_);
+}
+
+sub getIndexHostFromGUID{
+  my $self=shift;
+  return $self->{GUID_DB}->getIndexHostFromGUID(@_);
 }
 =head1 SEE ALSO
 

@@ -511,11 +511,12 @@ sub checkSEVolumes {
 sub f_showStructure_HELP{
   return "showStructure: returns the database tables that are used from within a directory in the catalogue. Usage
 
-  showStructure [-cs] <directory>
+  showStructure [-csg] <directory>
 
 Options: 
 -c: count the number of entries in each of the tables
 -s: summary at the end 
+-g: count the guid instead of the lfns
 \n";
 }
 sub f_showStructure {
@@ -523,9 +524,24 @@ sub f_showStructure {
   my $options=shift;
   my $dir=shift;
   
-  my $lfn = $self->GetAbsolutePath($dir);
-  $self->info("Checking the directories under $lfn");
-  my $info=$self->{DATABASE}->getHostsForLFN($lfn);
+  my $lfn;
+  my $info;
+  if ($options=~ /g/){
+    if ($dir){
+      $info=$self->{DATABASE}->getIndexHostFromGUID($dir);
+      if ($info){
+	$info->{guidTime}=$self->{DATABASE}->{GUID_DB}->queryValue("select string2date(?)", undef, {bind_values=>[$dir]});
+	$info->{tableName}=~ s/^G(.*)L$/$1/;
+	$info=[$info];
+      }
+    }else{
+      $info=$self->{DATABASE}->{GUID_DB}->query("SELECT * FROM GUIDINDEX order by guidTime");
+    }
+  }else{
+    $lfn= $self->GetAbsolutePath($dir);
+    $self->info("Checking the directories under $lfn");
+    $info=$self->{DATABASE}->getHostsForLFN($lfn);
+  }
   use Data::Dumper;
   print Dumper($info);
   if ($options=~ /(c|s)/  ){
@@ -533,10 +549,13 @@ sub f_showStructure {
     my $total=0;
     foreach my $dir (@$info){
       my $s=$self->{DATABASE}->getNumberOfEntries($dir);
-      $options=~ /c/ and $self->info("Under $dir->{lfn}: $s entries");
+      my $entryName=$dir->{lfn} || $dir->{guidTime};
+
+      $options=~ /c/ and $self->info("Under $entryName: $s entries");
       $s>0 and $total+=$s;
     }
-    $options=~ /s/ and $self->info("In total, under $lfn: $total entries");
+    my $field= $lfn || $dir || "the guid catalogue";
+    $options=~ /s/ and $self->info("In total, under $field: $total entries");
   }
   return $info;
 }

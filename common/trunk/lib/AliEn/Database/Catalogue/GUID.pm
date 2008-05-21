@@ -690,6 +690,17 @@ sub deleteMirrorFromGUID{
 
 }
 
+sub getNumberOfEntries {
+  my $self=shift;
+  my $entry=shift;
+
+  my ($db, $path2)=$self->reconnectToIndex( $entry->{hostIndex}) or return -1;
+
+  return $db->queryValue("SELECT COUNT(*) from G$entry->{tableName}L");
+}
+
+
+
 =head1 SEE ALSO
 
 AliEn::Database
