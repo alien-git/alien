@@ -878,7 +878,9 @@ sub addFile {
   if ($envelope[0]->{url}){
     $newPFN=$envelope[0]->{url};
     $newPFN=~ s{^([^/]*//[^/]*)//(.*)$}{$1/$envelope[0]->{pfn}};
+    $newPFN=~ m{root:////} and $newPFN="";
   }
+
   $self->debug(1, "\nRegistering  $pfn as $lfn, in SE $newSE and $oldSE (target $target, and will be saved as $newPFN)");
 
   $pfn=$self->checkLocalPFN($pfn);
@@ -894,6 +896,7 @@ sub addFile {
   $data and $size=$data->{size};
   $self->sendMonitor("write", $newSE, $time, $size, $data);
   $data or return;
+
   $newPFN or $newPFN=$data->{pfn};
   return $self->{CATALOG}->f_registerFile( "-f", $lfn, $data->{size}, $newSE, $data->{guid}, undef,undef, $data->{md5}, $newPFN);
 }
@@ -1434,6 +1437,7 @@ sub access {
   my $se      = (shift or 0);
   my $size    = (shift or "0");
   my $sesel   = (shift or 0);
+  my $extguid = (shift or 0);
 
   my $nosize  = 0;
 
@@ -1469,7 +1473,6 @@ sub access {
     }
       
     $lfn = $self->{CATALOG}->f_complete_path($lfn);
-      
     if ( $lfn =~ /(\w\w\w\w\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\w\w\w\w\w\w\w\w).*/ ) {
       $guid = $1;
       $self->debug(1, "We have to translate the guid $1");
@@ -1490,19 +1493,26 @@ sub access {
       }
     }
       
-          
+    if ($lfn eq "/NOLFN") {
+	$lfn = "";
+	$guid = $extguid;
+    }
     #    print "$access $lfn $se\n";
       
       
     my $filehash = {};
       
     while(1) {
-      $filehash = $self->{CATALOG}->checkPermissions($perm,$lfn,undef, 
-						     {RETURN_HASH=>1});
-      if (!$filehash) {
-	$self->{LOGGER}->error("LCM","access: access denied to $lfn");
-	return access_eof;
+
+      if ( $lfn ne "") {
+	  $filehash = $self->{CATALOG}->checkPermissions($perm,$lfn,undef, 
+							 {RETURN_HASH=>1});
+	  if (!$filehash) {
+	      $self->{LOGGER}->error("LCM","access: access denied to $lfn");
+	      return access_eof;
+	  }
       }
+
       if ( ($access eq "read")) {
 	if (!$self->{CATALOG}->isFile($lfn, $filehash->{lfn})) {
 	  $self->{LOGGER}->error("LCM","access: access find entry for $lfn");
@@ -1510,7 +1520,7 @@ sub access {
 	}
       } else {
 	
-	if ($access eq "write-once") {
+	if (($access eq "write-once") && ($lfn ne "") ) {
 	  my $parentdir = $self->{CATALOG}->f_dirname($lfn);
 	  $result = $self->{CATALOG}->checkPermissions($perm,$parentdir);
 	  if (!$result) {
@@ -1523,7 +1533,7 @@ sub access {
 	  }
 	}
 	
-	if ($access eq "write-version") {  
+	if (($access eq "write-version") && ($lfn ne "") ) {  
 	  my $parentdir = $self->{CATALOG}->f_dirname($lfn);
 	  $result = $self->{CATALOG}->checkPermissions($perm,$parentdir);
 	  if (!$result) {
@@ -1567,7 +1577,7 @@ sub access {
 	}
 	
 	
-	if ($access eq "delete") {
+	if (($access eq "delete") && ($lfn ne "")) {
 	  if (! $self->{CATALOG}->existsEntry($lfn, $filehash->{lfn})) {
 	    $self->{LOGGER}->error("LCM","access: delete of non existant file requested: $lfn");
 	    return access_eof;
@@ -1618,6 +1628,11 @@ sub access {
       my $ppfn = $2;
       
       $filehash->{pfn} = "/$ppfn";
+      if (($lfn eq "") && ($access =~ /^write/)) {
+	  $lfn = "/NOLFN";
+	  $guid = $extguid;
+      }
+
       $filehash->{lfn}  = $lfn;
       $filehash->{turl} = $pfn;
       
@@ -1950,15 +1965,21 @@ sub upload {
  (  $pfn and $se) or
    $self->info("Error not enough arguments in upload\n". $self->upload_HELP())
      and return;
-
+  
   $pfn=$self->checkLocalPFN($pfn);
   my $data;
   if ($options !~ /u/ ){
     $self->info("Trying to upload the file $pfn to the se $se");
-    #my @envelope= $self->access("-s","write-once","$guid",$se);
-
-    $data= $self->{STORAGE}->registerInLCM( $pfn, $se, undef, undef, undef, undef, $guid) or return;
+    my @envelope= $self->access("-s","write-once","/NOLFN", $se, 0,0,"$guid");
+    @envelope or $self->info("Error getting the security envelope") and return;
     
+    $data= $self->{STORAGE}->registerInLCM( $pfn, $se, undef, undef, undef, undef, $guid) or return;
+    if ($envelope[0]->{url}){
+      my $newPFN=$envelope[0]->{url};
+      $newPFN=~ s{^([^/]*//[^/]*)//(.*)$}{$1/$envelope[0]->{pfn}};
+      $newPFN=~ m{root:////} and $newPFN="";
+      $newPFN and $self->info("Using the pfn of the security envelope '$newPFN'") and $data->{pfn}=$newPFN;
+    }    
   }else {
     $self->info("Making a link to the file $pfn");
 
