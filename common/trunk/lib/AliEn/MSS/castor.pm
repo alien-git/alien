@@ -62,6 +62,7 @@ sub rm {
 sub sizeof {
     my $self = shift;
     my $file = shift;
+    $file=~ s{/+}{/}g;
 
 #    my $size = `nsls -l $file`;
     my $size = `rfdir $file`;
