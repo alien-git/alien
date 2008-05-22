@@ -860,7 +860,12 @@ Close the connection to the catalogue.
 sub close {
   my $self = shift;
   if ( $self->{CATALOG} ){
-    $self->{CATALOG}->f_disconnect;
+    eval{
+      $self->{CATALOG}->f_disconnect;
+    };
+    if ($@){
+      $self->info("The call to disconnect died!! $@");
+    }
     undef $self->{CATALOG};
   }
   undef $AliEn::UI::catalog;
