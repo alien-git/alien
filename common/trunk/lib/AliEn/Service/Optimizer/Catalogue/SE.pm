@@ -31,7 +31,7 @@ sub checkWakesUp {
   my $mesg=$ldap->search(base=>$self->{CONFIG}->{LDAPDN},
 			 filter=>"(objectClass=AliEnMSS)");
   my $total=$mesg->count;
-  $self->info("There are $total entries under AliEnMSS");
+  $self->$method(@info,"There are $total entries under AliEnMSS");
 
   
   foreach my $entry ($mesg->entries){
@@ -42,39 +42,21 @@ sub checkWakesUp {
       $self->debug(1, "Skipping '$dn' (it is disabled)") and next;
     my ($site, $vo)=($1,$2);
     my $sename="${vo}::${site}::$name";
-    $self->info("Doing the SE $sename");
-    my (@io)=$entry->get_value('iodaemons');
-    my $found= join("", grep (/xrootd/, @io)) or next;
-    $self->debug(1, "This se has $found");
+    $self->$method(@info,"Doing the SE $sename");
+    $self->checkIODaemons($entry, $site, $name, $sename);
 
-    $found =~ /port=(\d+)/i or $self->info("Error getting the port from '$found' for $sename") and next;
-    my $port=$1;
-    $found =~ /host=([^:]+)(:.*)?$/i or $self->info("Error getting the host from '$found' for $sename") and next;
-    my $host=$1;
-    my $path=$entry->get_value('savedir') or next;
-    $path=~ s/,.*$//;
-    my $seioDaemons="root://$host:$port";
-    $self->debug(1, "And the update should $sename be: $seioDaemons, $path");
-
-    my $e=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->query("SELECT sename,seioDaemons,sestoragepath from SE where seName='$sename'");
-    my $path2=$path;
-    $path2 =~ s/\/$// or $path2.="/";
-    my $total=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->queryValue("SELECT count(*) from SE where seName='$sename' and seioDaemons='$seioDaemons' and ( seStoragePath='$path' or sestoragepath='$path2')");
-
-    if ($total<1){
-      $self->info("***Updating the information of $site, $name ($seioDaemons and $path");
-      $self->{CATALOGUE}->execute("setSEio", $site, $name, $seioDaemons, $path);
-    }
     my @paths=$entry->get_value('savedir');
     my $db_name=lc("se_$self->{CONFIG}->{ORG_NAME}_${site}_${name}");
     my $db=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB};
     my $info=  $db->query("select * from $db_name.VOLUMES");
-    $info or $self->info("Error getting the list of volumes for this SE") and next;
-#    $db->do("update VOLUMES set 
-    use Data::Dumper;
+    if (!$info){
+      $self->info("Error getting the list of volumes for this SE. Let's add the SE");
+      $self->{CATALOGUE}->execute("addSE", $site, $name) or next;
+      $info=  $db->query("select * from $db_name.VOLUMES") or $self->info("There are still problems :(") and next;
+    }
     my @existingPath=@$info;
     my $t=$entry->get_value("mss");
-    my $method=lc("$t://$host");
+    my $host=$entry->get_value("host");
     foreach my $path (@paths){
       my $found=0;
       my $size=-1;
@@ -108,4 +90,37 @@ sub checkWakesUp {
   return;
 }
 
+
+sub checkIODaemons {
+  my $self=shift;
+  my $entry=shift;
+  my $site=shift;
+  my $name=shift;
+  my $sename=shift;
+
+  my (@io)=$entry->get_value('iodaemons');
+  my $found= join("", grep (/xrootd/, @io)) or return;
+  $self->debug(1, "This se has $found");
+
+  $found =~ /port=(\d+)/i or $self->info("Error getting the port from '$found' for $sename") and return;
+  my $port=$1;
+  $found =~ /host=([^:]+)(:.*)?$/i or $self->info("Error getting the host from '$found' for $sename") and return;
+  my $host=$1;
+  my $path=$entry->get_value('savedir') or return;
+
+  $path=~ s/,.*$//;
+  my $seioDaemons="root://$host:$port";
+  $self->debug(1, "And the update should $sename be: $seioDaemons, $path");
+  my $e=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->query("SELECT sename,seioDaemons,sestoragepath from SE where seName='$sename'");
+  my $path2=$path;
+  $path2 =~ s/\/$// or $path2.="/";
+  my $total=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->queryValue("SELECT count(*) from SE where seName='$sename' and seioDaemons='$seioDaemons' and ( seStoragePath='$path' or sestoragepath='$path2')");
+  
+  if ($total<1){
+    $self->info("***Updating the information of $site, $name ($seioDaemons and $path");
+    $self->{CATALOGUE}->execute("setSEio", $site, $name, $seioDaemons, $path);
+  }
+  
+  return 1;
+}
 1;
