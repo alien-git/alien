@@ -1398,7 +1398,8 @@ sub getPFNforAccess {
     }
 
     $lfn .= "_$guid";
-    ($se, $pfn, $anchor, $lfn, $nses )=$self->getPFNforAccess($guid, $se, $sesel, $lfn, $options)
+    my $newanchor;
+    ($se, $pfn, $newanchor, $lfn, $nses )=$self->getPFNforAccess($guid, $se, $sesel, $lfn, $options)
       or return;
     $self->info("The father pfn is $pfn");
   }
