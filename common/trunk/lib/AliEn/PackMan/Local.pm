@@ -147,14 +147,17 @@ sub installPackage{
       eval {
 	$self->InstallPackage($lfn, $user, $package, $version,$info, $source, $options);
       };
-      if ($@ and $@ =~ /Package is being installed/){
-	if ($self->{NO_FORK}){
-	  $self->info("Let's sleep for a while...");
-	  sleep(60);
-	  next;
+      my $error=$@;
+      if ($error) {
+	if ($error =~ /Package is being installed/){
+	  if ($self->{NO_FORK}){
+	    $self->info("Let's sleep for a while...");
+	    sleep(60);
+	    next;
+	  }
 	}
-	$self->info("I think that here I have to return '$@'...");
-	die($@);
+	$self->info("I think that here I have to return '$error'...");
+	die($error);
       }
       last;
     }
