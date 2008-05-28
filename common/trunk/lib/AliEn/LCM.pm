@@ -439,6 +439,7 @@ sub registerInLCM {
   my $lfn=(shift or "");
   my $options=(shift or "");
   my $reqGuid=(shift or "");
+  my $envelope=(shift or "");
   ($pfn)
     or $self->{LOGGER}->warning( "LCM", "Error no pfn specified" )
       and return;
@@ -446,7 +447,7 @@ sub registerInLCM {
   $self->info( "Registering the file $pfn in $newSE" );
 
   my $result=
-    $self->RegisterInRemoteSE($pfn, $newSE, $oldSE, $target, $lfn, $options, $reqGuid);
+    $self->RegisterInRemoteSE($pfn, $newSE, $oldSE, $target, $lfn, $options, $reqGuid, $envelope);
 
   $result
     #       or $self->{LOGGER}->warning( "LCM", "Error contacting the SE" )
@@ -487,9 +488,8 @@ sub RegisterInRemoteSE {
   my $lfn=(shift or "");
   my $options=(shift or {});
   my $reqGuid=(shift or "");
-  $self->{SOAP} or $self->{SOAP}=new AliEn::SOAP;
+  my $envelope=(shift or "");
 
-  my ($seName, $seCert)=$self->{SOAP}->resolveSEName($newSE) or return;
 
   my $use_cert=1;
   my $repeat=1;
@@ -497,6 +497,10 @@ sub RegisterInRemoteSE {
 
   if ( $options->{reverse}  ||   not  $localfile){
     while (1) {
+      $self->{SOAP} or $self->{SOAP}=new AliEn::SOAP;
+
+      my ($seName, $seCert)=$self->{SOAP}->resolveSEName($newSE) or return;
+
       my $newpfn=$self->startTransferDaemon($pfn, $seCert, $use_cert)
 	or return;
       my $message="Contacting SE $seName, and tell it to pick up $newpfn";
@@ -520,7 +524,7 @@ sub RegisterInRemoteSE {
     }
     $self->info( "Asking the SE to fetch the file didn't work... let's see if we can upload it");
   }
-  $self->info( "Trying to upload the file to the SE");
+  $self->debug (1, "Trying to upload the file to the SE");
   my $url=AliEn::SE::Methods->new($pfn) 
     or $self->info( "Error creating the url of $pfn")
       and return;
@@ -530,28 +534,73 @@ sub RegisterInRemoteSE {
     return;
   }
 
-  my $size=$options->{size} || $url->getSize();
-  defined $size or $self->info("Error getting the size of $pfn") 
+
+  my $info={};
+  $info->{size}=$options->{size} || $url->getSize();
+  defined $info->{size} or $self->info("Error getting the size of $pfn") 
     and return;
+  $info->{md5}=$options->{md5} ||AliEn::MD5->new($pfn);
 
+  $info=$self->getPFNName($newSE, $info, $reqGuid, $envelope );
+  $info or return;
 
-  my $md5=$options->{md5} ||AliEn::MD5->new($pfn);
-
-  my $result=$self->{SOAP}->CallSOAP($seName, "getFileName",$seName, $size,{md5=>$md5, guid=>$reqGuid})
-    or $self->info("Error asking for a filename") and return;
-
-  my @fileName=$self->{SOAP}->GetOutput($result);
-  $DEBUG and $self->debug(1, "Got @fileName");
-  my $guid=$fileName[4];
-  my $url2=AliEn::SE::Methods->new({PFN=>$fileName[3],
+  my $url2=AliEn::SE::Methods->new({PFN=>$info->{pfn},
 				    LOCALFILE=>$url->path()})
-    or $self->info("Error creating the url of $fileName[3]") and return;
-
+    or $self->info("Error creating the url of $pfn") and return;
+  
   my $done=$url2->put() or
     $self->info("Error uploading the file: ") and return;
 
   $self->info( "File uploaded successfuly");
-  return ({pfn=>$fileName[3], size=>$size, guid=>$guid, md5=>$md5});
+  return ($info);
+}
+
+sub getPFNName {
+  my $self=shift;
+  my $info=$self->getPFNNameFromEnvelope(@_);
+  $info and return $info;
+  $self->info("Couldn't get the pfn from the envelope...");
+  $self->getPFNNameFromSE(@_);
+}
+
+
+sub getPFNNameFromEnvelope{
+  my $self=shift;
+  my $newSE=shift;
+  my $info=shift;
+  my $reqGuid=shift;
+  my $envelope=shift;
+  $self->debug(1, "Can we get the guid and the pfn from the envelope???");
+  $envelope or return;
+  $envelope->{guid} or return;
+
+  $info->{guid}=$envelope->{guid};
+  $info->{pfn}=$envelope->{url};
+  $info->{pfn}=~ s{^([^/]*//[^/]*)//(.*)$}{$1/$envelope->{pfn}};
+  $info->{pfn}=~ m{root:////} and return;
+  $self->info("According to the envelope: $info->{pfn} and $info->{guid}");
+  return $info;
+}
+sub getPFNNameFromSE{
+  my $self=shift;
+  my $newSE=shift;
+  my $info=shift;
+  my $reqGuid=shift;
+
+  $self->info("We don't have an envelope. Asking the SE for a filename");
+  $self->{SOAP} or $self->{SOAP}=new AliEn::SOAP;
+  my ($seName, $seCert)=$self->{SOAP}->resolveSEName($newSE) or return;
+
+  my $result=$self->{SOAP}->CallSOAP($seName, "getFileName",$seName, $info->{size},{md5=>$info->{md5}, guid=>$reqGuid})
+      or $self->info("Error asking for a filename") and return;
+    
+  my @fileName=$self->{SOAP}->GetOutput($result);
+  $DEBUG and $self->debug(1, "Got @fileName");
+  $info->{guid}=$fileName[4];
+  $info->{pfn}=$fileName[3];
+
+  return $info;
+
 }
 
 sub waitForCopyFile {
