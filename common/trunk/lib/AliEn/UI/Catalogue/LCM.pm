@@ -273,6 +273,9 @@ sub get {
     $self->debug(1, "Getting it directly from the guid '$file'");
     $guidInfo=$self->{CATALOG}->getInfoFromGUID($file)
       or return;
+    $self->info("Let's get the envelope");
+    my @envelope = $self->access("-s","read",$guidInfo->{guid}) or return;
+    $ENV{'IO_AUTHZ'} = $envelope[0]->{envelope};
   }else {
     #Get the pfn from the catalog
 
@@ -874,22 +877,15 @@ sub addFile {
 
   $ENV{'IO_AUTHZ'} = $envelope[0]->{envelope};
   ######################################################################################
-  my $newPFN="";
-  if ($envelope[0]->{url}){
-    $newPFN=$envelope[0]->{url};
-    $newPFN=~ s{^([^/]*//[^/]*)//(.*)$}{$1/$envelope[0]->{pfn}};
-    $newPFN=~ m{root:////} and $newPFN="";
-  }
 
-  $self->debug(1, "\nRegistering  $pfn as $lfn, in SE $newSE and $oldSE (target $target, and will be saved as $newPFN)");
+  $self->debug(1, "\nRegistering  $pfn as $lfn, in SE $newSE and $oldSE (target $target)");
 
   $pfn=$self->checkLocalPFN($pfn);
 #  if ($options=~ /u/) {#
 #
 #  }
   my $start=time;
-  
-  my $data = $self->{STORAGE}->registerInLCM( $pfn, $newSE, $oldSE, $target,$lfn, $options);
+  my $data = $self->{STORAGE}->registerInLCM( $pfn, $newSE, $oldSE, $target,$lfn, $options,"", $envelope[0]);
 
   my $time=time-$start;
   my $size=undef;
@@ -897,8 +893,7 @@ sub addFile {
   $self->sendMonitor("write", $newSE, $time, $size, $data);
   $data or return;
 
-  $newPFN or $newPFN=$data->{pfn};
-  return $self->{CATALOG}->f_registerFile( "-f", $lfn, $data->{size}, $newSE, $data->{guid}, undef,undef, $data->{md5}, $newPFN);
+  return $self->{CATALOG}->f_registerFile( "-f", $lfn, $data->{size}, $newSE, $data->{guid}, undef,undef, $data->{md5}, $data->{pfn});
 }
 
 
