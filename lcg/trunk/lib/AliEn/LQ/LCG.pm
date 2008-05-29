@@ -37,6 +37,12 @@ sub initialize {
    $self->{CONFIG}->{CE_MATCHARG} and  $self->{MATCH_CMD} .= " $self->{CONFIG}->{CE_MATCHARG}";
    $self->{PRESUBMIT}  = $self->{MATCH_CMD};
    
+   if ($ENV{CE_SITE_BDII}) {
+     $self->{CONFIG}->{CE_SITE_BDII} = $ENV{CE_SITE_BDII};
+   } else {
+      $self->{LOGGER}->warning("LCG","No site BDII defined.");
+   } 
+
    if ( $ENV{CE_LCGCE} ) {
      $self->info("Taking the list of CEs from \$ENV: $ENV{CE_LCGCE}");
      #Build list (of sublists) from env - is this robust enough?
@@ -59,7 +65,7 @@ sub initialize {
      }
    }
    $self->{CONFIG}->{CE_LCGCE_LIST_FLAT} = \@flatlist;
-
+      
    # Read RB list and generate config files if needed
    if ( $ENV{CE_RBLIST} ) { 
      $self->info("Taking the list of RBs from \$ENV: $ENV{CE_RBLIST}");
@@ -456,9 +462,11 @@ sub getInfoFromGRIS {
 
     $self->debug(1,"Querying for $CE");
     (my $host,undef) = split (/:/,$CE);    
-    # Try resource GRIS first, then resource BDII (To swap when BDII will become more common...)
+    # Try resource GRIS first, then resource BDII, then site BDII 
+    #(To swap when BDII will become more common...)
     my @IS  = ("ldap://$host:2135,mds-vo-name=local,o=grid",
                "ldap://$host:2170,mds-vo-name=resource,o=grid");
+    @IS = (@IS,"ldap://$self->{CONFIG}->{CE_SITE_BDII}:2170,o=grid") if defined $self->{CONFIG}->{CE_SITE_BDII};      
     my $ldap = '';
     foreach (@IS) {
        my ($GRIS, $BaseDN) = split (/,/,$_,2);
