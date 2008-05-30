@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #
 # ServiceStatus.sh Checks all services, output parsed by MonaLisa
 #
