@@ -97,13 +97,13 @@ sub initialize {
 sub  createEnvelope{
   my $other=shift;
   my $user=shift;
-  $self->info("Ready to create the envelope for user $user dd (and @_)");
+  $self->info("$$ Ready to create the envelope for user $user (and @_)");
   $self->{UI}->execute("user","-", $user);
-  $self->info("Executing access");
-  my ($info)=$self->{UI}->execute("access", @_);
-  use Data::Dumper;
-  print Dumper($info);
-  $self->info("OK! Everything is done");
+  $self->debug(1, "Executing access");
+  my $options=shift;
+  $options.= "v";
+  my ($info)=$self->{UI}->execute("access", $options, @_);
+  $self->info("$$ OK! Everything is done");
   return $info;
 }
 
@@ -304,7 +304,7 @@ sub verify {
     my $tempuser = $VFusername;
     $role or $role = $VFusername;
     if ( $role ne $VFusername ) {
-      print "Checking if the user $VFusername can be '$role'\n";
+      $self->info("Checking if the user $VFusername can be '$role'");
       
       #	    my $ldap= Net::LDAP->new($self->{CONFIG}->{LDAPHOST}) or print "$@" and return;
       my $base = $self->{CONFIG}->{LDAPDN};
@@ -315,7 +315,7 @@ sub verify {
       #	    $ldap->unbind;
       my $total = $mesg->count;
       if ( !$total ) {
-	print "User is not allowed to be $role\n";
+	$self->info("User is not allowed to be $role");
 	return 0;
       }
       $tempuser = $role;
@@ -323,7 +323,7 @@ sub verify {
 
     }
     $self->{addbh}->addTime( $tempuser, 24 );
-    print "User is allowed to be $role \n";
+    $self->info("User is allowed to be $role");
     return $oldtoken;
 }
 
