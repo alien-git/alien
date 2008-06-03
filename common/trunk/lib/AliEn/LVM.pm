@@ -511,7 +511,7 @@ sub removeFile{
 
 
   $self->info("And now lets call the removeFile from the DB");
-  $self->{DB}->removeFile($hashref);
+  #$self->{DB}->removeFile($hashref);
   $voldetails->{'freespace'} = $voldetails->{'freespace'} + $hashref->{'size'};
   $voldetails->{'usedspace'} -= $hashref->{'size'};
   if ($voldetails->{'size'} == -1 ) {

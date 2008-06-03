@@ -208,7 +208,11 @@ sub copyInput {
     $self->info("Something went wrong while copying the input: $@"); 
     return;
   }
-  $size and $size=int($size/1024);
+  if ($size){
+    #let's round up the size
+    $size=(int($size/(1024*8192)+1)*8192;
+
+  }
   my ( $okwork, @workspace ) =
     $job_ca->evaluateAttributeVectorString("Workdirectorysize");
   if ($okwork && defined $workspace[0] && $workspace[0]>0){

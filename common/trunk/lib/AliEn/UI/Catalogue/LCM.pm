@@ -211,7 +211,7 @@ sub mssurl {
 "Error: not enough arguments in mssurl\nUsage: mssurl <SE> <PATH>\n" and return ;
 
   my $hostport = resolve($self,$se,"SE");
-print "H", $hostport;
+  print STDERR "H", $hostport;
   if ( $hostport eq "") {
     return;
   }
@@ -538,13 +538,13 @@ sub services {
  @checkservices or   
    push @checkservices, "SE","CLC","CLCAIO","ClusterMonitor","FTD","TcpRouter","Services";
 
- printf STDOUT "==   Service   == Servicename ============================================= Hostname ==   Status    ==";
+ printf STDERR "==   Service   == Servicename ============================================= Hostname ==   Status    ==";
  if ($replystatus) {
-   printf STDOUT "  Vers. =  R  S  D  T  Z =\n";
+   printf STDERR "  Vers. =  R  S  D  T  Z =\n";
  } else {
-   printf STDOUT "\n";
+   printf STDERR "\n";
  }
- printf STDOUT "-----------------------------------------------------------------------------------------------------------------------------\n";
+ printf STDERR "-----------------------------------------------------------------------------------------------------------------------------\n";
  foreach (@checkservices) {
    @hostports="";
    my $service = $_;
@@ -563,9 +563,9 @@ sub services {
        $printservice = "CluMon";
      }
 
-     printf STDOUT "- [ %-9s ]   not running \n",$printservice;
+     printf STDERR "- [ %-9s ]   not running \n",$printservice;
 
-     print STDOUT "-----------------------------------------------------------------------------------------------------------------------------\n";
+     print STDERR "-----------------------------------------------------------------------------------------------------------------------------\n";
      next;
    }
 
@@ -665,34 +665,34 @@ sub services {
      }
      $hashresult->{servicetype} = $printservice;
      $hashresult->{servicename} = $printname;
-     printf STDOUT "- [ %-9s ]   %-25s %40s ",$printservice, $printname,$_;
+     printf STDERR "- [ %-9s ]   %-25s %40s ",$printservice, $printname,$_;
      if ((! defined $response) || (($response eq "-1") || ($response eq "") || ($response ne "1"))) {
-       printf STDOUT "-- no response --\n";
+       printf STDERR "-- no response --\n";
        $hashresult->{servicestatus} = "noresponse";
      } else {
        $response = $response->result;
        if ( (defined $response->{'OK'}) && ($response->{'OK'} ==1) ) {
 	 $hashresult->{servicestatus} = "ok";
 	 if ((defined $response->{'VERSION'}) && ($replystatus)) {
-	   print STDOUT "--      OK     --  $response->{'VERSION'}";
+	   print STDERR "--      OK     --  $response->{'VERSION'}";
 	 } else {
-	   print STDOUT "--      OK     --";
+	   print STDERR "--      OK     --";
 	 }
        } else {
-	 print STDOUT "--     down    --";
+	 print STDERR "--     down    --";
 	 $hashresult->{servicestatus} = "down";
        }
        
        if ((defined $response->{'Sleep'}) && (defined $response->{'Run'}) && (defined $response->{'Trace'}) && (defined $response->{'Disk'}) && (defined $response->{'Zombie'})) {
-	 printf STDOUT " %2d %2d %2d %2d %2d\n",$response->{'Run'},$response->{'Sleep'},$response->{'Disk'},$response->{'Trace'}, $response->{'Zombie'};
+	 printf STDERR " %2d %2d %2d %2d %2d\n",$response->{'Run'},$response->{'Sleep'},$response->{'Disk'},$response->{'Trace'}, $response->{'Zombie'};
        } else {
-	 print STDOUT " \n";
+	 print STDERR " \n";
        }
      }
      push @returnarray, $hashresult;
      $cnt++;
    }
-   printf STDOUT "-----------------------------------------------------------------------------------------------------------------------------\n";
+   printf STDERR "-----------------------------------------------------------------------------------------------------------------------------\n";
  }
  $returnhash and  return @returnarray;
 
@@ -781,7 +781,7 @@ Old size: $oldStat[7], new size: $newStat[7]");
   ($oldStat[10] == $newStat[10]) and 
     ($oldStat[7] == $newStat[7]) and return 1;
 
-  print "File changed, uploading...\n";
+  $self->info("File changed, uploading...");
 
   my $pfn="file://$self->{CONFIG}->{HOST}$file";
   $pfn =~ s/\n//gs;
@@ -1441,6 +1441,17 @@ sub access {
     $size = 1024*1024*1024;
     $nosize =1 ;
   }
+  my $perm;
+
+  if ($access eq "read") {
+    $perm = "r";
+  } elsif ($access =~ /^(((write)((-once)|(-version))?)|(delete))$/ ) {
+    $perm = "w";
+  } else {
+    $self->{LOGGER}->error("LCM","access: illegal access type <$access> requested");
+    return access_eof;
+  }
+
   my @list=();
 
   my @lfnlist = split(",",$lfns);
@@ -1450,56 +1461,36 @@ sub access {
   my $globalticket="";
 
   foreach my $lfn (@lfnlist) {
-    my $perm = "";  
     my $result;
     my $ticket = "";
-      
-      
     my $guid="";
     my $pfn ="";
     my $seurl =""; 
     my $nses = 0;
-    if ($access eq "read") {
-      $perm = "r";
-    } elsif ($access =~ /^(((write)((-once)|(-version))?)|(delete))$/ ) {
-      $perm = "w";
-    } else {
-      $self->{LOGGER}->error("LCM","access: illegal access type <$access> requested");
-      return access_eof;
-    }
-      
+    my $filehash = {};
+
     $lfn = $self->{CATALOG}->f_complete_path($lfn);
     if ( $lfn =~ /(\w\w\w\w\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\w\w\w\w\w\w\w\w).*/ ) {
+      $self->info("Getting the permissions from the guid");
       $guid = $1;
       $self->debug(1, "We have to translate the guid $1");
       $lfn = "";
-      my @alllfns = $self->{CATALOG}->f_guid2lfn("s",$guid);
-      foreach (@alllfns) {
-	my $perms = $self->{CATALOG}->checkPermissions($perm,$_,undef, 
-						       {RETURN_HASH=>1});
-	if ($perms) {
-	  $lfn = $_;
-	  last;
-	}
-      }
-      
-      if ($lfn eq "") {
-	$self->{LOGGER}->error("LCM","access: access denied to guid $guid");
+      $filehash=$self->{CATALOG}->{DATABASE}->{GUID_DB}->checkPermission($perm, $guid, {retrieve=>"size,md5"});
+      if (! $filehash){
+	$self->info("access: access denied to guid '$guid'");
 	return access_eof;
       }
+      delete $filehash->{db};
     }
-      
+
     if ($lfn eq "/NOLFN") {
 	$lfn = "";
 	$guid = $extguid;
     }
     #    print "$access $lfn $se\n";
-      
-      
-    my $filehash = {};
-      
-    while(1) {
 
+
+    while(1) {
       if ( $lfn ne "") {
 	  $filehash = $self->{CATALOG}->checkPermissions($perm,$lfn,undef, 
 							 {RETURN_HASH=>1});
@@ -1509,7 +1500,8 @@ sub access {
 	  }
       }
 
-      if ( ($access eq "read")) {
+      if ( ($access eq "read") && ($lfn ne "")) {
+	
 	if (!$self->{CATALOG}->isFile($lfn, $filehash->{lfn})) {
 	  $self->{LOGGER}->error("LCM","access: access find entry for $lfn");
 	  return access_eof;
@@ -1604,10 +1596,10 @@ sub access {
       my $anchor="";
       if (($access =~ /^read/) || ($access =~/^delete/) ) {
 	my $cnt=0;
-	
-	$guid=$self->{CATALOG}->f_lfn2guid("s",$lfn)
-	  or $self->info( "access: Error getting the guid of $lfn",11) and return;
-
+	if (!$guid  ){
+	  $guid=$self->{CATALOG}->f_lfn2guid("s",$lfn)
+	    or $self->info( "access: Error getting the guid of $lfn",11) and return;
+	}
 	($se, $pfn, $anchor, $lfn, $nses)=$self->getPFNforAccess($guid, $se, $sesel, $lfn, $options)
 	  or return access_eof;
 	$DEBUG and $self->debug(1, "access: We can take it from the following SE: $se with PFN: $pfn");
@@ -1629,13 +1621,15 @@ sub access {
 	  $guid = $extguid;
       }
 
-      $filehash->{lfn}  = $lfn;
       $filehash->{turl} = $pfn;
       
       # patch for dCache
       $filehash->{turl} =~ s/\/\/pnfs/\/pnfs/;
       $filehash->{se}   = $se;
       $filehash->{nses} = $nses;
+
+      $filehash->{lfn}  = $lfn || $filehash->{pfn};
+
       if ($access =~ /^write/) {
 	$filehash->{guid} = $guid;
       }
@@ -1671,71 +1665,43 @@ sub access {
       $newhash->{guid} = $filehash->{guid};
       $newhash->{md5}  ="$filehash->{md5}";
       $newhash->{nSEs} = $nses;
+      $newhash->{lfn}=$filehash->{lfn};
       
       # the -p (public) option creates public access url's without envelopes
+      $newhash->{se}="$se";
       
       if ( ($options =~ /p/) && ($access =~ /^read/) ) {
 	$newhash->{envelope} = "alien";
-	$newhash->{se}="$se";
 	# we actually need this code, but then 'isonline' does not work anymore ...
 	#	      if ($anchor ne "") {
 	#		  $newhash->{url}="$pfn#$anchor";
 	#		  $newhash->{lfn}="$lfn#$anchor";
 	#	      } else {
 	$newhash->{url}="$pfn";
-	$newhash->{lfn}="$lfn";
 	#	      }
       } else {
 	$newhash->{envelope} = $self->{envelopeengine}->GetEncodedEnvelope();
 	$newhash->{pfn}="/$ppfn";
-	if ($anchor ne "") {
-	  # for DPM we cannot put the LFN into the root URL - we need the PFN !
-	  if ( $ppfn =~ /^dpm/ ) {
-	    $newhash->{url}="root://$pfix//$ppfn#$anchor";
-	  } else {
-	    $newhash->{url}="root://$pfix/$lfn#$anchor";
-	  }
-	  #		  $newhash->{lfn}="$lfn#$anchor";
-	  $newhash->{lfn}="$lfn";
-	} else {
-	  # for DPM we cannot put the LFN into the root URL - we need the PFN !
-	  if ( $ppfn =~ /^dpm/ ) {
-	    $newhash->{url}="root://$pfix//$ppfn";
-	  } else {
-	    $newhash->{url}="root://$pfix/$lfn";
-	  }
-	  $newhash->{lfn}="$lfn";
-	}
-	$newhash->{se}="$se";
+
+	$newhash->{url}="root://$pfix/$filehash->{lfn}";
+	# for DPM we cannot put the LFN into the root URL - we need the PFN !
+	( $ppfn =~ /^dpm/ ) and $newhash->{url}="root://$pfix//$ppfn";
+	($anchor) and $newhash->{url}.="#$anchor";
       }
       
       if ($self->{MONITOR}) {
-	my @params;
-	if ($access =~ /^read/) {
-	  # send read info
-	  push @params, "$se";
-	  push @params, "$filehash->{size}";
-	  $self->{MONITOR}->sendParameters("$self->{CONFIG}->{SITE}_QUOTA","$self->{CATALOG}->{ROLE}_readreq", @params); 		      
-	}
-	
-	if ($access =~ /^write/) {
-	  # send write info
-	  push @params, "$se";
-	  push @params, "$filehash->{size}";
-	  $self->{MONITOR}->sendParameters("$self->{CONFIG}->{SITE}_QUOTA","$self->{CATALOG}->{ROLE}_writereq", @params); 
-	}
-	
-	if ($access =~ /^delete/) {
-	  push @params, "$se";
-	  push @params, "$filehash->{size}";
-	  $self->{MONITOR}->sendParameters("$self->{CONFIG}->{SITE}_QUOTA","$self->{CATALOG}->{ROLE}_delete", @params); 
-	  # send write info
-	}
+	my @params= ("$se", $filehash->{size});
+	my $method;
+	($access =~ /^((read)|(write))/)  and $method="${1}req";
+	$access =~ /^delete/ and $method="delete";
+
+	$method and
+	  $self->{MONITOR}->sendParameters("$self->{CONFIG}->{SITE}_QUOTA","$self->{CATALOG}->{ROLE}_$method", @params); 		      
 	
       }
-      
+
       push @lnewresult,$newhash; 
-      
+
       if (!$coded) {
 	$self->{LOGGER}->error("LCM","access: error during envelope encryption");
 	return access_eof;
@@ -1744,7 +1710,7 @@ sub access {
       }
       
       ($options=~ /v/) or
-	print "========================================================================
+	print STDERR "========================================================================
 $ticket
 ========================================================================
 ",$$newresult[0]->{envelope},"
@@ -1762,7 +1728,6 @@ $ticket
     my $coded = $self->{envelopeengine}->encodeEnvelopePerl("$globalticket","0","none");
     $lnewresult[0]->{genvelope} = $self->{envelopeengine}->GetEncodedEnvelope();
   }
-
   return @$newresult; 
 }
 
@@ -1788,7 +1753,7 @@ sub commit {
   $self->{envelopeengine}->Reset();
 #    $self->{envelopeengine}->Verbose();
   $self->{envelopeengine}->IsInitialized();
-  print "Decoding Envelope: \n $envelope \n";
+  print STDERR "Decoding Envelope: \n $envelope \n";
 
     my $coded = $self->{envelopeengine}->decodeEnvelopePerl($envelope);
   if (!$coded) {

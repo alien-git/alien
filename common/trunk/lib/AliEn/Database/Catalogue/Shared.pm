@@ -227,6 +227,8 @@ sub checkSETable {
 		 seQoS=>"varchar(50)",
 		 seioDaemons=>"varchar(255)",
 		 seStoragePath=>"varchar(255)",
+		 seNumFiles=>"bigint",
+		 seUsedSpace=>"bigint",
 		);
 
   $self->checkTable("SE", "seNumber", \%columns, 'seNumber', ['UNIQUE INDEX (seName)'], {engine=>"innodb"} ) or return;

@@ -39,7 +39,7 @@ my (%command_list);
     #bank functions
     'gold'      => ['$self->{QUEUE}->f_bank',0],
    
-    'jobListMatch'=>['$self->{QUEUE}->f_jobListMatch',2],
+    'jobListMatch'=>['$self->{QUEUE}->f_jobListMatch',67],
 
 );
 
