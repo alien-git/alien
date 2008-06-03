@@ -39,7 +39,7 @@ sub initialize {
 
 
   my @optimizers=("SE","Trigger", "Expired" ,"Deleted", "Packages", "SEsize");
-  @optimizers=("SEsize");
+#  @optimizers=("SEsize");
   $self->StartChildren(@optimizers) or return;
 
   return $self;
