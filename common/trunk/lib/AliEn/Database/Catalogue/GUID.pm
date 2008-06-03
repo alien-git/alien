@@ -134,7 +134,7 @@ sub checkGUIDTable {
   $table =~ /^\d+$/ and $table="G${table}L";
   
   my %columns = (guidId=>"int(11) NOT NULL auto_increment primary key", 
-		 ctime=>"timestamp",
+		 ctime=>"timestamp" ,
 		 expiretime=>"datetime",
 		 size=>"bigint not null default 0",
 		 seStringlist=>"varchar(255) not null default ','",
@@ -155,7 +155,26 @@ sub checkGUIDTable {
 	     pfnId=>"int(11) NOT NULL auto_increment primary key",
 	     guidId=>"int(11) NOT NULL",
 	     seNumber=>"int(11) NOT NULL",);
-  return $db->checkTable("${table}_PFN", "pfnId", \%columns, 'pfnId', ['INDEX guid_ind (guidId)', "FOREIGN KEY (guidId) REFERENCES $table(guidId) ON DELETE CASCADE","FOREIGN KEY (seNumber) REFERENCES SE(seNumber) on DELETE CASCADE"],);
+  $db->checkTable("${table}_PFN", "pfnId", \%columns, 'pfnId', ['INDEX guid_ind (guidId)', "FOREIGN KEY (guidId) REFERENCES $table(guidId) ON DELETE CASCADE","FOREIGN KEY (seNumber) REFERENCES SE(seNumber) on DELETE CASCADE"],) or return;
+
+  %columns= (seNumber=>"int(11) NOT NULL primary key", 
+	     "seNumFiles"=> "bigint(20)", "seUsedSpace"=>"bigint(20)");
+  $db->checkTable("${table}_STATS", "seNumber",\%columns) or return;
+
+  
+  $db->checkTable("${table}_ACTIONS", "action", {action=>"char(40) not null primary key", time=>"timestamp default current_timestamp"});
+
+  $db->do("INSERT IGNORE INTO ${table}_ACTIONS(action)  values ('MODIFIED'), ('SE')"); 
+  #finally, let's check the triggers"
+  my $triggers=$db->query("show triggers like '$table'");
+  if (not ${$triggers}[0]){
+    $self->info("Adding the triggers for the table $table");
+    foreach my $t ("insert", "delete", "update"){
+      $db->do("create trigger ${table}_$t before $t on $table for each row update  ${table}_ACTIONS set time=now() where action='MODIFIED'");
+    }
+  }
+  return 1;
+
 }
 
 
@@ -700,6 +719,22 @@ sub getNumberOfEntries {
 }
 
 
+
+sub updateStatistics {
+  my $self=shift;
+  
+  my $index=shift;
+
+  my $table="G${index}L";
+  $self->info("Checking if the table is up to date");
+  $self->queryValue("select count(*) from ${table}_ACTIONS g, ${table}_ACTIONS g2 where g.action='SE' and g2.action='MODIFIED' and g.time>g2.time") 
+    and return;
+  $self->info("Updating the table");
+  $self->do("update ${table}_ACTIONS set time=now() where action='SE'"); 
+  $self->do("truncate ${table}_STATS");
+  $self->do("insert into ${table}_STATS select seNumber, count(*), sum(size) from SE, $table g  where locate(concat(',',seNumber,','), seStringList) group by senumber");
+  return 1;
+}
 
 =head1 SEE ALSO
 
