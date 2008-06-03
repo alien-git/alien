@@ -32,7 +32,10 @@ sub initialize {
    $self->{STATUS_CMD} = ( $self->{CONFIG}->{CE_STATUSCMD} or "edg-job-status" );
 
    $self->{KILL_CMD}   = ( $self->{CONFIG}->{CE_KILLCMD} or "edg-job-cancel" );
-
+   
+   $self->{CLEANUP_CMD} = "edg-job-output";
+   $self->{CLEANUP_CMD} = "glite-wms-job-output" if  ($self->{SUBMIT_CMD} eq "glite-wms-job-submit");
+   
    $self->{MATCH_CMD}  = ( $self->{CONFIG}->{CE_MATCHCMD} or '' );
    $self->{CONFIG}->{CE_MATCHARG} and  $self->{MATCH_CMD} .= " $self->{CONFIG}->{CE_MATCHARG}";
    $self->{PRESUBMIT}  = $self->{MATCH_CMD};
@@ -125,57 +128,62 @@ sub submit {
   my $logFile = AliEn::TMPFile->new({filename=>"job-submit.$now.log"}) 
      or return;
 
-  my $lastGoodRB = $self->{CONFIG}->{CE_RB_LIST}->[0];
-  $self->debug(1,"Default RB is $lastGoodRB");
-  if ( -e "$self->{CONFIG}->{LOG_DIR}/lastGoodRB") {
-    my $timestamp = (stat("$self->{CONFIG}->{LOG_DIR}/lastGoodRB"))[9];
-    my $elapsed = (time-$timestamp)/60;
-    $self->debug(1,"Last RB was first used $elapsed minutes ago.");
-    if ($elapsed > 120) {  ##minutes
-      unlink "$self->{CONFIG}->{LOG_DIR}/lastGoodRB";    
+  my $contact = '';
+  if ( defined $ENV{CE_RBLIST} ) {
+    my $lastGoodRB = $self->{CONFIG}->{CE_RB_LIST}->[0];
+    $self->debug(1,"Default RB is $lastGoodRB");
+    if ( -e "$self->{CONFIG}->{LOG_DIR}/lastGoodRB") {
+      my $timestamp = (stat("$self->{CONFIG}->{LOG_DIR}/lastGoodRB"))[9];
+      my $elapsed = (time-$timestamp)/60;
+      $self->debug(1,"Last RB was first used $elapsed minutes ago.");
+      if ($elapsed > 120) {  ##minutes
+	unlink "$self->{CONFIG}->{LOG_DIR}/lastGoodRB";    
+      } else {
+	if (open LASTGOOD, "<$self->{CONFIG}->{LOG_DIR}/lastGoodRB") {
+          my $last = <LASTGOOD>;
+          chomp $last;
+          $self->info("Last RB was $last");
+          foreach (@{$self->{CONFIG}->{CE_RB_LIST}}) {
+            if ($_ eq $last) {
+              $lastGoodRB = $last;
+              last;
+            } #Don't use it if it's not in the current list
+          }
+          close LASTGOOD;
+	} else {
+          $self->{LOGGER}->error("LCG","Could not open $self->{CONFIG}->{LOG_DIR}/lastGoodRB");
+	}
+      } 
     } else {
-      if (open LASTGOOD, "<$self->{CONFIG}->{LOG_DIR}/lastGoodRB") {
-        my $last = <LASTGOOD>;
-        chomp $last;
-        $self->info("Last RB was $last");
-        foreach (@{$self->{CONFIG}->{CE_RB_LIST}}) {
-          if ($_ eq $last) {
-            $lastGoodRB = $last;
-            last;
-          } #Don't use it if it's not in the current list
-        }
-        close LASTGOOD;
-      } else {
-        $self->{LOGGER}->error("LCG","Could not open $self->{CONFIG}->{LOG_DIR}/lastGoodRB");
-      }
-    } 
-  } else {
-    if ( open LASTGOOD, ">$self->{CONFIG}->{LOG_DIR}/lastGoodRB" ) {
-      $self->debug(1,"Saving $lastGoodRB in $self->{CONFIG}->{LOG_DIR}/lastGoodRB");
-      print LASTGOOD "$lastGoodRB\n";
-      close LASTGOOD;
-      $self->{LOGGER}->error("LCG","Could not save $self->{CONFIG}->{LOG_DIR}/lastGoodRB");
-    }
-  }
-  $self->info("Will use $lastGoodRB");
-
-  my $contact = $self->wrapSubmit($lastGoodRB, $logFile, $jdlfile, @args);
-
-  unless ( $contact ) {
-    redoit:foreach ( @{$self->{CONFIG}->{CE_RB_LIST}} ) { 
-      next redoit if ( $_ eq $lastGoodRB ); ##This one just failed
-      $contact = $self->wrapSubmit($_, $logFile, $jdlfile, @args);
-      next redoit unless $contact; 
       if ( open LASTGOOD, ">$self->{CONFIG}->{LOG_DIR}/lastGoodRB" ) {
-        $self->debug(1,"Found a good one, will use $_ from now on");
-        print LASTGOOD "$_\n";
-        close LASTGOOD;
-      } else {
-        $self->{LOGGER}->error("LCG","Could not save $self->{CONFIG}->{LOG_DIR}/lastGoodRB");
+	$self->debug(1,"Saving $lastGoodRB in $self->{CONFIG}->{LOG_DIR}/lastGoodRB");
+	print LASTGOOD "$lastGoodRB\n";
+	close LASTGOOD;
+	$self->{LOGGER}->error("LCG","Could not save $self->{CONFIG}->{LOG_DIR}/lastGoodRB");
       }
-      last;
     }
-  }
+    $self->info("Will use $lastGoodRB");
+    $contact = $self->wrapSubmit($lastGoodRB, $logFile, $jdlfile, @args);
+
+    unless ( $contact ) {
+      redoit:foreach ( @{$self->{CONFIG}->{CE_RB_LIST}} ) { 
+	next redoit if ( $_ eq $lastGoodRB ); ##This one just failed
+	$contact = $self->wrapSubmit($_, $logFile, $jdlfile, @args);
+	next redoit unless $contact; 
+	if ( open LASTGOOD, ">$self->{CONFIG}->{LOG_DIR}/lastGoodRB" ) {
+          $self->debug(1,"Found a good one, will use $_ from now on");
+          print LASTGOOD "$_\n";
+          close LASTGOOD;
+	} else {
+          $self->{LOGGER}->error("LCG","Could not save $self->{CONFIG}->{LOG_DIR}/lastGoodRB");
+	}
+	last;
+      }
+    }
+  } else {
+    $self->info("Failover submission not configured.");
+    $contact = $self->wrapSubmit("", $logFile, $jdlfile, @args);
+  } 
 
   $self->info("LCG JobID is $contact");
   $self->{LAST_JOB_ID} = $contact;
@@ -199,11 +207,13 @@ sub wrapSubmit {
   $configOptName = "--config-vo" if ($self->{SUBMIT_CMD} eq "edg-job-submit");
   my @command = ( $self->{SUBMIT_CMD}, 
                   "--noint", 
-		  "--nomsg", 
-		  $configOptName, "$self->{CONFIG}->{LOG_DIR}/$RB.vo.conf",
-		  "--logfile", $logFile, 
-		  @args, 
-		  "$jdlfile");
+		  "--nomsg");
+  @command = ( @command,		   
+	       $configOptName, "$self->{CONFIG}->{LOG_DIR}/$RB.vo.conf") if $RB;
+  @command = ( @command,
+	       "--logfile", $logFile, 
+	       @args, 
+	       "$jdlfile");
   my @output = $self->_system(@command);
   my $error = $?;
   (my $jobId) = grep { /https:/ } @output;
@@ -259,7 +269,7 @@ sub getStatus { ### This is apparently unused
         $contact or return;
         $self->info("Will retrieve OutputSandbox for job $queueid, JobID is $contact");
         system("mkdir -p $outdir");
-        system("edg-job-get-output --noint --dir $outdir $contact"); ####
+        system("$self->{CE_CLEANUPCMD} --noint --dir $outdir $contact"); 
         return 'DEQUEUED';
      }
      return 'QUEUED';
@@ -287,7 +297,7 @@ sub getAllBatchIds {
       chomp;
       if (m/\*\*\*\*\*\*\*\*/) {
 	if ($newRecord) { # First line of record, reset
-	  $time     = '';
+	  $time     = 0;
           $status   = '';
           $JobId    = '';
           $newRecord = 0;
@@ -416,7 +426,7 @@ sub cleanUp {
           my $logfile = AliEn::TMPFile->new({ ttl      => '24 hours',
                                               filename => "edg-job-get-output.log"});
           my $outdir = dirname($logfile); 
-	  my @output = $self->_system("edg-job-get-output","--noint",
+	  my @output = $self->_system($self->{CLEANUP_CMD},"--noint",
                                                 	   "--logfile", $logfile,
 					        	   "--dir", $outdir,
 					        	   $_->{'batchId'} );
