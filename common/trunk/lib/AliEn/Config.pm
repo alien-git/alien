@@ -147,6 +147,9 @@ sub checkVariables{
   for my $entry ("TMP_DIR", "LOG_DIR", "CACHE_DIR", "WORKDIR"){
     $self->{$entry} or next;
     $self->debug(1, "Checking $entry => $self->{$entry}");
+    while ( $self->{$entry} =~ s{\$([^/]*)}{$ENV{$1}}){
+      $self->debug(1, "Replacing $1 by  $ENV{$1} in $entry");
+    }
     my $ok=AliEn::Util::mkdir($self->{$entry});
     if ($ok) {
       system("touch $self->{$entry}/alien_test.$<") and $ok=0;
@@ -482,7 +485,12 @@ sub ChangeCacheDir {
     my $cachedir = shift;
     $cachedir or return;
 
-     $DEBUG and $self->debug(2,"Using $cachedir as Cache from the LDAP");
+    $DEBUG and $self->debug(2,"Using $cachedir as Cache from the LDAP");
+    while ( $cachedir =~ s{\$([^/]*)}{$ENV{$1}}){
+      $self->debug(1, "Replacing $1 by  $ENV{$1}");
+    }
+
+
 
     my $dbPath = "$cachedir/LCM.db";
     if ( !( -d $dbPath ) ) {
