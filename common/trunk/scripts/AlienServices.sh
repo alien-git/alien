@@ -162,7 +162,13 @@ ALIEN_StopMonitor()
 ALIEN_Starthttpd()
 ###########################################################################
 {
-  $ALIEN_ROOT/httpd/bin/httpd -k start >/dev/null 2>&1
+
+  export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$ALIEN_ROOT/api/lib
+  for file in `find  $HOME/.alien/httpd -name httpd.conf` ; 
+  do 
+     echo "CHECKING $file"
+    $ALIEN_ROOT/httpd/bin/httpd -k start -f $file# >/dev/null 2>&1
+  done
   exit $?
 }
 

@@ -45,8 +45,10 @@ sub initialize {
 	$options->{role} = 'admin';
 	$options->{ROLE} = 'admin';
 
+        ! $options->{password} and $ENV{ALIEN_LDAP_PASSWORD} and $options->{password}=$ENV{ALIEN_LDAP_PASSWORD};
+
 	if ( !( $options->{password} ) ) {
-		print "Please enter the password:\n";
+		print STDERR "Please enter the password:\n";
 		chomp( $options->{password} = <STDIN> );
 	}
 	$self->{LDAPpassword} = $options->{password};
@@ -253,7 +255,7 @@ sub verify {
     # *********************************************************************
 
     if ($res) {
-        print "PASSWORD $unencpasswd\n";
+        print STDERR "PASSWORD $unencpasswd\n";
         $self->info("Password not correct." );
         return;
     }
@@ -342,7 +344,7 @@ sub checkUserLDAP {
     #    $ldap->unbind;
     my $total = $mesg->count;
     if ( !$total ) {
-        print
+        print STDERR
           "User $user does not exist in LDAP as $self->{CONFIG}->{ORG_NAME} user!!\n";
         return 0;
     }
@@ -357,14 +359,14 @@ my $SubjectToUid = sub {
     my $ldap    = shift;
     my $subject = shift;
     local $SIG{ALRM} =sub {
-      print "$$ timeout while connecting to ldap\n";
+      print STDERR "$$ timeout while connecting to ldap\n";
       die("timeout!! ");
     };
     my $UID;
     while (1){
       eval {
 	alarm(60);
-	print "Tranlating subject into uid.\n";
+	print STDERR "Tranlating subject into uid.\n";
 	
 	# The role is a subject, translate into UID
 	my $filter = "(&(objectclass=pkiUser)(subject=$subject))";
@@ -375,7 +377,7 @@ my $SubjectToUid = sub {
 				  );
 	my $total = $mesg->count;
 	if ( $total == 0 ) {
-	  print "Failure in translating $subject into uid\n";
+	  print STDERR "Failure in translating $subject into uid\n";
 	  
 	  #No user registered with this subject:(
 	  #	$ldap->unbind;
@@ -401,13 +403,13 @@ my $SubjectToUid = sub {
 sub _ConnectToLDAP{
   my $self=shift;
   $LDAP and $LDAP->close();
-  $LDAP=Net::LDAP->new( $self->{CONFIG}->{LDAPHOST}, "onerror" => "warn" ) or print "$@" and return;
-  print "Connecting to LDAP server .........";
+  $LDAP=Net::LDAP->new( $self->{CONFIG}->{LDAPHOST}, "onerror" => "warn" ) or print STDERR "$@" and return;
+  print STDERR "Connecting to LDAP server .........";
   my $manager=($self->{CONFIG}->{LDAPMANAGER} or "cn=Manager,dc=cern,dc=ch");
 
   my $result=  $LDAP->bind( $manager, password => $self->{LDAPpassword} );
-  $result->code && print "failed\nCould not bind to LDAP-Server: ",$result->error and return;
-  print "OK\n";
+  $result->code && print STDERR "failed\nCould not bind to LDAP-Server: ",$result->error and return;
+  print STDERR "OK\n";
   return 1;
 
 }
@@ -427,9 +429,9 @@ sub getTokenFromSubject {
     my $UID = $SubjectToUid->( $LDAP, $subject );
     ($role) or $role = $UID;
 
-    print "Subject: $subject\n";
-    print "Role: $role\n";
-    print "UID: $UID\n";
+    print STDERR "Subject: $subject\n";
+    print STDERR "Role: $role\n";
+    print STDERR "UID: $UID\n";
 
     Crypt::OpenSSL::RSA->import_random_seed();
     open PUB, "$ENV{ALIEN_HOME}/identities.web/webkey.public";
@@ -443,7 +445,7 @@ sub getTokenFromSubject {
     my $challenge = $rsa->encrypt("AUTHOK::$oldtoken");
 
     if ( $role ne $UID ) {
-        print "Checking if the user $UID can be $role\n";
+        print STDERR "Checking if the user $UID can be $role\n";
         my $base = $self->{CONFIG}->{LDAPDN};
         my $mesg = $LDAP->search(       # perform a search
             base   => "ou=Roles,$base",
@@ -451,7 +453,7 @@ sub getTokenFromSubject {
         );
         my $total = $mesg->count;
         if ( !$total ) {
-            print "User $UID is not allowed to be $role\n";
+            print STDERR "User $UID is not allowed to be $role\n";
             return 0;
         }
     }
@@ -500,8 +502,8 @@ sub reconnect {
 #  my $index =	$self->{cat}->{DATABASE}->getHostIndex($host, $db, $driver);
   #"SELECT hostIndex FROM HOSTS where address='$host' and db='$db' and  driver='$driver'"
   my ($db2)=$self->{cat}->{DATABASE}->reconnect($host, $db, $driver);
-  $db2 or print "Error reconnecting\n" and return;
-  print "THE reconnection worked $db2!!\n";
+  $db2 or print STDERR "Error reconnecting\n" and return;
+  print STDERR "THE reconnection worked $db2!!\n";
 #  $self->{cat}->{DATABASE}->{LFN_DB}=$db2;
   return 1;
 }
@@ -560,7 +562,7 @@ sub insertJob {
   $self->info( "Job $procid inserted\nMaking sure that the job is there");
 
   my @list=$self->{addbh}->query("SELECT * from jobToken where jobId=$procid");
-  print Dumper(@list);
+  print STDERR Dumper(@list);
 
   return 1;
 }
@@ -569,12 +571,12 @@ sub getJobToken {
   my $this  = shift;
   my $procid = shift;
   
-  print "User is $ENV{SSL_CLIENT_SUBJECT}\n";
+  print STDERR "User is $ENV{SSL_CLIENT_SUBJECT}\n";
 
   $self->info("\nGetting  job $procid" );
   
   ($procid)
-    or print $self->{LOGGER}->notice( "Authen",
+    or print STDERR $self->{LOGGER}->notice( "Authen",
 				      "Error: In getJobToken not enough arguments" )
       and return;
   
@@ -680,7 +682,7 @@ sub insertKey {
     if ( $user eq "$self->{CONFIG}->{CLUSTER_MONITOR_USER}" ) {
       return $self->CheckProductionUser;
     }
-    print "Modifying sshkey for $user\n";
+    print STDERR "Modifying sshkey for $user\n";
 
     if ($LDAP->modify("uid=$user,ou=People,$self->{CONFIG}->{LDAPDN}",
             replace => { 'sshkey' => $key })){
@@ -735,7 +737,7 @@ sub  CheckLocalPassword {
 
   if ( !$total ) {
     #This user doesn't exist!!
-    print "User $user does not exist!!\n";
+    print STDERR "User $user does not exist!!\n";
     return ( 0, "User $user does not exist in LDAP" );
   }
 
@@ -769,10 +771,10 @@ sub CheckProductionUser{
   
   my $total  = $mesg->count;
   my $public = "NO KEY";
-  print
+  print STDERR
     "FOUND $total in ou=People,$self->{CONFIG}->{LDAPDN} with(uid=$username)\n";
   if ($total) {
-    print "Giving back the public key\n";
+    print STDERR "Giving back the public key\n";
     $public = $mesg->entry(0)->get_value("sshkey");
   }
   
@@ -793,7 +795,7 @@ sub insertCert {
     my ($ok, $message)=$self->CheckLocalPassword($user, $passwd);
     $ok or return (-1, $message);
 
-    print "Modifying certificate subject for $user\n";
+    print STDERR "Modifying certificate subject for $user\n";
 
     my $mesg = $LDAP->search(
         base   => "ou=People,$self->{CONFIG}->{LDAPDN}",
@@ -805,7 +807,7 @@ sub insertCert {
     if ( $total > 0 ) {
 
         #This certificate alredy exists one time.
-        print "Certificate alredy exists\n";
+        print STDERR "Certificate alredy exists\n";
         return ( -1,
             "A certificate with subject $subject is alredy in LDAP server" );
 
@@ -877,32 +879,32 @@ sub requestCert {
     my $request      = shift;
 
    
-    print "Creating certificate for $user\n";
+    print STDERR "Creating certificate for $user\n";
 
     my ($ok, $message)=$this->CheckLocalPassword($user, $passwd);
     $ok or return (0, $message);
 
     my $username=checkUserLDAP($user);
 
-    ($username) or print "User $user does not exist in LDAP \n" 
+    ($username) or print STDERR "User $user does not exist in LDAP \n" 
 	and return (0, "User $user does not exist in LDAP \n");
 
-    print "Usename $username\n";
+    print STDERR "Usename $username\n";
 
 
     my $date=time;
     my $file="$self->{CONFIG}->{TMP_DIR}/Cert.$user.$date";
     
-    open (FILE, ">$file") or print "Error opening the file $file" 
+    open (FILE, ">$file") or print STDERR "Error opening the file $file" 
 	and return(0, "Error opening the file $file");
     print FILE  "$request";
 
     close FILE;
-    print "Request $file\n";
+    print STDERR "Request $file\n";
 
     open SAVEOUT, ">&STDERR";
     if ( !open( STDERR, ">$file.subject" ) ) {
-	print "Error opening the file $file.subject\n";
+	print STDERR "Error opening the file $file.subject\n";
 	return (0,"Error opening the file $file.subject\n");
     }
     
@@ -917,9 +919,9 @@ sub requestCert {
     close FILE;
     my ($subject) =grep (/^subject=/, @subject);
        
-    print "SUBJECT $subject\n";
+    print STDERR "SUBJECT $subject\n";
 
-    $subject =~ /subject=\/C=ch\/ST=Switzerland\/L=Geneva\/O=AliEn\/O=$organisation\/OU=People\/CN=$username/i or print "Error $subject does not match with $username\n" and return (0,"Error $subject does not match with $username\n");
+    $subject =~ /subject=\/C=ch\/ST=Switzerland\/L=Geneva\/O=AliEn\/O=$organisation\/OU=People\/CN=$username/i or print STDERR "Error $subject does not match with $username\n" and return (0,"Error $subject does not match with $username\n");
 
 
 
@@ -935,14 +937,14 @@ sub requestCert {
     
     my $pem;
 
-    open (FILE, "$outfile") or print "Error opening the file $outfile\n" 
+    open (FILE, "$outfile") or print STDERR "Error opening the file $outfile\n" 
 	and return (0, "Error opening the file $outfile\n");
     my @file=<FILE>;
     close FILE;
 
     $pem = join ("", @file);
  
-    print "Returning the certificate\n";
+    print STDERR "Returning the certificate\n";
     return $pem;
 } 
 # This function is called if the role is authenticated, but the user doesn't
@@ -992,10 +994,10 @@ sub _checkLDAPConnection{
   };
   if ($@){
     $self->info("Error connecting: $@\n Let's reconnect");
-    $LDAP=Net::LDAP->new( $self->{CONFIG}->{LDAPHOST}, "onerror" => "warn" ) or print "$@" and return;
+    $LDAP=Net::LDAP->new( $self->{CONFIG}->{LDAPHOST}, "onerror" => "warn" ) or print STDERR "$@" and return;
     my $manager=($self->{CONFIG}->{LDAPMANAGER} or "cn=Manager,dc=cern,dc=ch");
     my $result=  $LDAP->bind( $manager, password => $self->{LDAPpassword} );
-    $result->code && print "failed\nCould not bind to LDAP-Server: ",$result->error and return;
+    $result->code && print STDERR "failed\nCould not bind to LDAP-Server: ",$result->error and return;
     $self->debug(1,"We are connected!!");
 
   }
@@ -1028,7 +1030,7 @@ sub verifyRoleFromSubject {
                                         );
         my $total = $mesg->count;
         if ( !$total ) {
-            print "User $UID is not allowed to be $role\n";
+            print STDERR "User $UID is not allowed to be $role\n";
             return "";
         }
     }
