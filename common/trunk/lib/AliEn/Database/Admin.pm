@@ -56,7 +56,14 @@ sub new {
     bless ($self, $class);
     
     $self->{GLOBALKEY} = $self->getDBKey();
-    
+    $self->checkTable("USERS_LDAP", "user",{user=>"varchar(15) not null",
+					    dn=>"varchar(255)",
+					    up=>"smallint"}) or return;
+
+
+    $self->checkTable("USERS_LDAP_ROLE", "user",{user=>"varchar(15) not null",
+						 role=>"varchar(15)",
+					    up=>"smallint"}) or return;
     return $self;
 }
 
