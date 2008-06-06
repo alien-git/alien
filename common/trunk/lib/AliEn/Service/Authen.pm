@@ -266,7 +266,8 @@ sub verify {
 
     #Checking if the user is in the LDAP
 
-    checkUserLDAP($VFusername)   or return;
+    #checkUserLDAP($VFusername)   or return;
+    checkUserDB($VFusername)   or return;
 
     #	my $newpasswd=$createPasswd->();
 
@@ -305,24 +306,12 @@ sub verify {
     
     my $tempuser = $VFusername;
     $role or $role = $VFusername;
+
+    $self->checkUserRole($VFusername, $role) or return 0;
+
     if ( $role ne $VFusername ) {
-      $self->info("Checking if the user $VFusername can be '$role'");
-      
-      #	    my $ldap= Net::LDAP->new($self->{CONFIG}->{LDAPHOST}) or print "$@" and return;
-      my $base = $self->{CONFIG}->{LDAPDN};
-      my $mesg = $LDAP->search(       # perform a search
-			       base   => "ou=Roles,$base",
-			       filter => "(&(uid=$role)(|(public=yes)(users=$VFusername)))",
-			      );
-      #	    $ldap->unbind;
-      my $total = $mesg->count;
-      if ( !$total ) {
-	$self->info("User is not allowed to be $role");
-	return 0;
-      }
       $tempuser = $role;
       $oldtoken = $self->{addbh}->getToken($role);
-
     }
     $self->{addbh}->addTime( $tempuser, 24 );
     $self->info("User is allowed to be $role");
@@ -330,82 +319,108 @@ sub verify {
 }
 
 #Checks if a user is in the LDAP database
-sub checkUserLDAP {
+#sub checkUserLDAP {
 
-    my $user = shift;
+#    my $user = shift;
 
-    #    my $ldap= Net::LDAP->new($self->{CONFIG}->{LDAPHOST}) or print "$@" and return;
-    my $base = $self->{CONFIG}->{LDAPDN};
-    my $mesg = $LDAP->search(       # perform a search
-        base   => "ou=People,$base",
-        filter => "(uid=$user)",
-    );
+#    #    my $ldap= Net::LDAP->new($self->{CONFIG}->{LDAPHOST}) or print "$@" and return;
+#    my $base = $self->{CONFIG}->{LDAPDN};
+#    my $mesg = $LDAP->search(       # perform a search
+#        base   => "ou=People,$base",
+#        filter => "(uid=$user)",
+#    );
 
-    #    $ldap->unbind;
-    my $total = $mesg->count;
-    if ( !$total ) {
-        print STDERR
-          "User $user does not exist in LDAP as $self->{CONFIG}->{ORG_NAME} user!!\n";
-        return 0;
-    }
-    my $entry = $mesg->entry(0);
-    my $UID   = $entry->get_value('cn');
-    return $UID;
-#    return 1;
+#    #    $ldap->unbind;
+#    my $total = $mesg->count;
+#    if ( !$total ) {
+#        print STDERR
+#          "User $user does not exist in LDAP as $self->{CONFIG}->{ORG_NAME} user!!\n";
+#        return 0;
+#    }
+#    my $entry = $mesg->entry(0);
+#    my $UID   = $entry->get_value('cn');
+#    return $UID;
+##    return 1;
 
+#}
+
+sub checkUserDB {
+  my $user=shift;
+  print STDERR "";
+  my $exists=$self->{addbh}->queryValue("SELECT user from USERS_LDAP where user=?", undef, {bind_values=>[$user]});
+  print STDERR Dumper($exists);
+  if (!$exists){
+    print STDERR  "User $user does not exist in LDAP as $self->{CONFIG}->{ORG_NAME} user!!\n";
+    return 0;
+  }
+  return $exists;
 }
 
 my $SubjectToUid = sub {
-    my $ldap    = shift;
-    my $subject = shift;
-    local $SIG{ALRM} =sub {
-      print STDERR "$$ timeout while connecting to ldap\n";
-      die("timeout!! ");
-    };
-    my $UID;
-    while (1){
-      eval {
-	alarm(60);
-	print STDERR "Tranlating subject into uid.\n";
-	
-	# The role is a subject, translate into UID
-	my $filter = "(&(objectclass=pkiUser)(subject=$subject))";
-	my $base   = $self->{CONFIG}->{LDAPDN};
-	my $mesg   = $ldap->search(
-				   base   => "ou=People,$base",
-				   filter => $filter
-				  );
-	my $total = $mesg->count;
-	if ( $total == 0 ) {
-	  print STDERR "Failure in translating $subject into uid\n";
-	  
-	  #No user registered with this subject:(
-	  #	$ldap->unbind;
-	  return 0;
-	}
-	my $entry = $mesg->entry(0);
-	$UID   = $entry->get_value('uid');
+  my $subject = shift;
 
-      };
-      my $error=$@;
-      alarm(0);
-      if($error){
-	$self->info("Error connecting to ldap. Let's try reconnecting");
-	$self->_ConnectToLDAP();
-	next;
-      }
-      return $UID;
-    }
+  my $uid=$self->{addbh}->queryValue("SELECT user from USERS_LDAP where dn=?",
+			     undef, {bind_values=>[$subject]});
+  if (! $uid){
+    $self->info("Failure in translating $subject into $uid");
+    return 0;
+  }
+  $self->info("***THE uid for $subject is $uid");
+  return $uid;
 
     # Role is now translated into a uid!!
 };
+#my $SubjectToUid = sub {
+#    my $ldap    = shift;
+#    my $subject = shift;
+#    local $SIG{ALRM} =sub {
+#      print STDERR "$$ timeout while connecting to ldap\n";
+#      die("timeout!! ");
+#    };
+#    my $UID;
+#    while (1){
+#      eval {
+#	alarm(60);
+#	print STDERR "Tranlating subject into uid.\n";
+	
+#	# The role is a subject, translate into UID
+#	my $filter = "(&(objectclass=pkiUser)(subject=$subject))";
+#	my $base   = $self->{CONFIG}->{LDAPDN};
+#	my $mesg   = $ldap->search(
+#				   base   => "ou=People,$base",
+#				   filter => $filter
+#				  );
+#	my $total = $mesg->count;
+#	if ( $total == 0 ) {
+#	  print STDERR "Failure in translating $subject into uid\n";
+	  
+#	  #No user registered with this subject:(
+#	  #	$ldap->unbind;
+#	  return 0;
+#	}
+#	my $entry = $mesg->entry(0);
+#	$UID   = $entry->get_value('uid');
+
+#      };
+#      my $error=$@;
+#      alarm(0);
+#      if($error){
+#	$self->info("Error connecting to ldap. Let's try reconnecting");
+##	$self->_ConnectToLDAP();
+#	next;
+#      }
+#      return $UID;
+#    }
+
+#    # Role is now translated into a uid!!
+#};
 
 sub _ConnectToLDAP{
   my $self=shift;
   $LDAP and $LDAP->close();
   $LDAP=Net::LDAP->new( $self->{CONFIG}->{LDAPHOST}, "onerror" => "warn" ) or print STDERR "$@" and return;
   print STDERR "Connecting to LDAP server .........";
-  my $manager=($self->{CONFIG}->{LDAPMANAGER} or "cn=Manager,dc=cern,dc=ch");
+  my $manager=($self->{CONFIG}->{LDAPMANAGER} or "cn=Manager,dc=cern,dc=ch");#
 
   my $result=  $LDAP->bind( $manager, password => $self->{LDAPpassword} );
   $result->code && print STDERR "failed\nCould not bind to LDAP-Server: ",$result->error and return;
@@ -422,45 +437,32 @@ sub _ConnectToLDAP{
 #  the key. Its nowhere near perfect, but it works.                    #
 ########################################################################
 sub getTokenFromSubject {
-    my $self2    = shift;
-    my $subject = shift;
-    my $role    = shift;
+  my $self2    = shift;
+  my $subject = shift;
+  my $role    = shift;
 
-    my $UID = $SubjectToUid->( $LDAP, $subject );
-    ($role) or $role = $UID;
+  my $UID = $SubjectToUid->( $subject );
+  $UID or print STDERR "The subject '$subject' does not exist\n" and return;
+  ($role) or $role = $UID;
 
-    print STDERR "Subject: $subject\n";
-    print STDERR "Role: $role\n";
-    print STDERR "UID: $UID\n";
+  print STDERR "Subject: $subject\nRole: $role\nUID: $UID\n";
 
-    Crypt::OpenSSL::RSA->import_random_seed();
-    open PUB, "$ENV{ALIEN_HOME}/identities.web/webkey.public";
-    my @lines = <PUB>;
-    my $pubkey = join ( "", @lines );
-    close PUB;
-     my $rsa  = Crypt::OpenSSL::RSA->new_public_key($pubkey);
+  Crypt::OpenSSL::RSA->import_random_seed();
+  open PUB, "$ENV{ALIEN_HOME}/identities.web/webkey.public";
+  my @lines = <PUB>;
+  my $pubkey = join ( "", @lines );
+  close PUB;
+  my $rsa  = Crypt::OpenSSL::RSA->new_public_key($pubkey);
 
-    my $oldtoken = $self->{addbh}->getToken($UID);
-    $rsa->load_public_key($pubkey);
-    my $challenge = $rsa->encrypt("AUTHOK::$oldtoken");
+  my $oldtoken = $self->{addbh}->getToken($UID);
+  $rsa->load_public_key($pubkey);
+  my $challenge = $rsa->encrypt("AUTHOK::$oldtoken");
 
-    if ( $role ne $UID ) {
-        print STDERR "Checking if the user $UID can be $role\n";
-        my $base = $self->{CONFIG}->{LDAPDN};
-        my $mesg = $LDAP->search(       # perform a search
-            base   => "ou=Roles,$base",
-            filter => "(&(uid=$role)(|(public=yes)(users=$UID)))",
-        );
-        my $total = $mesg->count;
-        if ( !$total ) {
-            print STDERR "User $UID is not allowed to be $role\n";
-            return 0;
-        }
-    }
+  $self->checkUserRole($UID, $role) or return;
 
-    # I think we should change the token every time, but its not done now:(
-    $self->{addbh}->addTime( $UID, 24 );
-    return ( $UID, $role, $challenge );
+  # I think we should change the token every time, but its not done now:(
+  $self->{addbh}->addTime( $UID, 24 );
+  return ( $UID, $role, $challenge );
 }
 
 sub createTable {
@@ -683,15 +685,22 @@ sub insertKey {
       return $self->CheckProductionUser;
     }
     print STDERR "Modifying sshkey for $user\n";
-
-    if ($LDAP->modify("uid=$user,ou=People,$self->{CONFIG}->{LDAPDN}",
-            replace => { 'sshkey' => $key })){
-      $self->info(
-		     "$user has succesfully updated is SSHKEY" );
+    $self->_checkLDAPConnection() or return (0, "Can't connect to the ldap");
+    eval {
+      if ($LDAP->modify("uid=$user,ou=People,$self->{CONFIG}->{LDAPDN}",
+			replace => { 'sshkey' => $key })){
+	$self->info(
+		    "$user has succesfully updated is SSHKEY" );
+      }
+      else {
+	$self->{LOGGER}->warning( "Authen", "Error in updating SSHKEY for $user" );
+      }
+    };
+    if ($@){
+      $self->info("Error modifying the key in ldap: $@");
+      return 
     }
-    else {
-      $self->{LOGGER}->warning( "Authen", "Error in updating SSHKEY for $user" );
-    }
+      
 
     # Disabling automatic user creation
     #    ( $self->{addbh}->existsToken($user) )  or $self->addUser($user);
@@ -729,17 +738,19 @@ sub  CheckLocalPassword {
     return (0, "Password is not correct");
   }
   $self->info("User passwd is correct" );
-
-  my $mesg = $LDAP->search(base   => "ou=People,$self->{CONFIG}->{LDAPDN}",
-			   filter => "(uid=$user)");
-
-  my $total = $mesg->count;
-
-  if ( !$total ) {
-    #This user doesn't exist!!
-    print STDERR "User $user does not exist!!\n";
+  
+  $self->checkUserDB($user) or  
     return ( 0, "User $user does not exist in LDAP" );
-  }
+#  my $mesg = $LDAP->search(base   => "ou=People,$self->{CONFIG}->{LDAPDN}",
+#			   filter => "(uid=$user)");#
+
+#  my $total = $mesg->count;
+#
+#  if ( !$total ) {
+#    #This user doesn't exist!!
+#    print STDERR "User $user does not exist!!\n";
+#    return ( 0, "User $user does not exist in LDAP" );
+#  }
 
   return 1;
 }
@@ -764,19 +775,29 @@ sub CheckProductionUser{
   $self->debug(1, "Base64 encoding key" );
   my $var = SOAP::Data->type( base64 => $buffer );
   $self->info("Sending back the key" );
-  my $mesg = $LDAP->search(
-			   base   => "ou=People,$self->{CONFIG}->{LDAPDN}",
-			   filter => "(uid=$username)"
-			  );
-  
-  my $total  = $mesg->count;
+  $self->_checkLDAPConnection() or return (0, "Can't connect to the ldap");
+
   my $public = "NO KEY";
-  print STDERR
-    "FOUND $total in ou=People,$self->{CONFIG}->{LDAPDN} with(uid=$username)\n";
-  if ($total) {
-    print STDERR "Giving back the public key\n";
-    $public = $mesg->entry(0)->get_value("sshkey");
+  eval {
+    my $mesg = $LDAP->search(
+			     base   => "ou=People,$self->{CONFIG}->{LDAPDN}",
+			     filter => "(uid=$username)"
+			    );
+    
+    my $total  = $mesg->count;
+    print STDERR
+      "FOUND $total in ou=People,$self->{CONFIG}->{LDAPDN} with(uid=$username)\n";
+    if ($total) {
+      print STDERR "Giving back the public key\n";
+      $public = $mesg->entry(0)->get_value("sshkey");
+    }
+    
+  };
+  if ($@){
+    $self->info("Error doing the ldap query");
+    return (0, "Error doing the ldap query");
   }
+
   
   #	$ldap->unbind;
   $buffer = $encrypter->crypt( $public, $VFpasswd );
@@ -796,32 +817,38 @@ sub insertCert {
     $ok or return (-1, $message);
 
     print STDERR "Modifying certificate subject for $user\n";
-
-    my $mesg = $LDAP->search(
-        base   => "ou=People,$self->{CONFIG}->{LDAPDN}",
+    $self->_checkLDAPConnection() or return (0, "Can't connect to the ldap");
+    eval {
+      my $mesg = $LDAP->search(
+			       base   => "ou=People,$self->{CONFIG}->{LDAPDN}",
         filter => "(subject=$subject)"
-    );
-
-    my $total = $mesg->count;
-
-    if ( $total > 0 ) {
-
+			      );
+      
+      my $total = $mesg->count;
+      
+      if ( $total > 0 ) {
+	
         #This certificate alredy exists one time.
         print STDERR "Certificate alredy exists\n";
         return ( -1,
             "A certificate with subject $subject is alredy in LDAP server" );
 
-    }
-
-    if ($LDAP->modify("uid=$user,ou=People,$self->{CONFIG}->{LDAPDN}",
-            replace => { 'subject' => $subject })){
-      $self->info("$subject mapped to AliEn user $user" );
+      }
       
-    }
-    else {
-      $self->{LOGGER}->warning( "Authen", "Error in updating subject for $user" );
-      return ( -1,
-	       "An LDAP error occured on serverside. Contact AliEn administrators" );
+      if ($LDAP->modify("uid=$user,ou=People,$self->{CONFIG}->{LDAPDN}",
+			replace => { 'subject' => $subject })){
+	$self->info("$subject mapped to AliEn user $user" );
+	
+      }
+      else {
+	$self->{LOGGER}->warning( "Authen", "Error in updating subject for $user" );
+	return ( -1,
+		 "An LDAP error occured on serverside. Contact AliEn administrators" );
+      }
+    };
+    if ($@){
+      $self->info("Error doing the ldap query: $@");
+      return (-1, "Error doing the ldap query: $@");
     }
 
     # DISABLING automatic user creation
@@ -884,10 +911,9 @@ sub requestCert {
     my ($ok, $message)=$this->CheckLocalPassword($user, $passwd);
     $ok or return (0, $message);
 
-    my $username=checkUserLDAP($user);
-
-    ($username) or print STDERR "User $user does not exist in LDAP \n" 
-	and return (0, "User $user does not exist in LDAP \n");
+#    my $username=checkUserLDAP($user);
+    my $username=checkUserDB($user) or
+      return (0, "User $user does not exist in LDAP \n");
 
     print STDERR "Usename $username\n";
 
@@ -1009,33 +1035,38 @@ sub _checkLDAPConnection{
 ##### added for apiservice to translate a subject into a role #####
 
 sub verifyRoleFromSubject {
-    my $self2    = shift;
-    my $subject = shift;
-    my $role    = shift;
+  my $self2    = shift;
+  my $subject = shift;
+  my $role    = shift;
 
-    $self->_checkLDAPConnection();
-    my $UID = $SubjectToUid->( $LDAP, $subject );
-    ($role) or $role = $UID;
+  my $UID = $SubjectToUid->( $subject );
+  $UID or print STDERR "The subject '$subject' does not exist\n" and return;
 
-    $self->info("Subject: $subject\n");
-    $self->info("Role: $role\n");
-    $self->info("UID: $UID\n");
+  ($role) or $role = $UID;
 
-    if ( $role ne $UID ) {
-        $self->info("Checking if the user $UID can be $role\n");
-        my $base = $self->{CONFIG}->{LDAPDN};
-        my $mesg = $LDAP->search(       # perform a search
-            base   => "ou=Roles,$base",
-            filter => "(&(uid=$role)(|(public=yes)(users=$UID)))",
-                                        );
-        my $total = $mesg->count;
-        if ( !$total ) {
-            print STDERR "User $UID is not allowed to be $role\n";
-            return "";
-        }
+  $self->info("Subject: $subject\nRole: $role\n UID: $UID");
+
+  $self->checkUserRole($UID, $role) or return;
+
+  return ( $role );
+}
+
+sub checkUserRole{
+  my $self=shift;
+  my $user=shift;
+  my $role=shift;
+
+  if ( $role ne $user ) {
+    $self->info("Checking if the user $user can be $role");
+    my $total=$self->{addbh}->queryValue("select count(*) from USERS_LDAP_ROLE where user=? and role=?", undef, 
+					  {bind_values=>[$user, $role]});
+    if ( !$total ) {
+      print STDERR "User $user is not allowed to be $role\n";
+      return "";
     }
+  }
+  return $role
 
-    return ( $role );
 }
 
 
