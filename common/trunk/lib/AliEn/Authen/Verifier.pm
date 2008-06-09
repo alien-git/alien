@@ -41,7 +41,39 @@ use Authen::AliEnSASL::Perl::Server::GSSAPI;
 use GSS;
 
 # **************************************
-	 
+my $SubjectToUid = sub {
+  my $subject = shift;
+
+  my $uid=$ADMINDBH->queryValue("SELECT user from USERS_LDAP where dn=?",
+			       undef, {bind_values=>[$subject]});
+  if (! $uid){
+    print STDERR "Failure in translating $subject into $uid\n";
+    return 0;
+  }
+  print STDERR "***THE uid for $subject is $uid\n";
+  return $uid;
+
+    # Role is now translated into a uid!!
+};	 
+
+my  $checkUserRole = sub {
+  my $user=shift;
+  my $role=shift;
+
+  if ( $role ne $user ) {
+    print STDERR "Checking if the user '$user' can be '$role'\n";
+    my $total=$ADMINDBH->queryValue("select count(*) from USERS_LDAP_ROLE where user=? and role=?", undef, 
+					  {bind_values=>[$user, $role]});
+    
+    if ( !$total ) {
+      print STDERR "User $user is not allowed to be $role\n";
+      return "";
+    }
+  }
+  return $role
+
+};
+
 ####################################################################
 #
 #  This method takes (It passed as a callback to server_new) should
@@ -53,81 +85,51 @@ use GSS;
 #
 ####################################################################
 sub get_sshkey {
-    my $self = shift;
+  my $self = shift;
+  my $mech = $self->mechanism;
 
-    my $mech = $self->mechanism;
-
-    if ( $mech eq "SSH" ) {
-        my $config = AliEn::Config->new();
-
-        my $ldap = Net::LDAP->new( $config->{LDAPHOST} ) or die "$@";
-        my $base = $config->{LDAPDN};
-
-        #	my $organisation = $self->{CONFIG}->{ORG_NAME};
-
-        my $username = $self->{username};
-
-        $ldap->bind();
-        my $mesg = $ldap->search(    # perform a search
-            base   => "ou=People,$base",
-            filter => "(&(objectclass=pkiUser)(uid=$username))"
-        );
-        if ( !$mesg->count ) {
-            print STDERR "User $username does not exist in the LDAP\n";
-            return 0;
-        }
-
-        my $entry = $mesg->entry(0);
-        $ldap->unbind;
-        print STDERR "Fetching public SSHkey for $username\n";
-        return $entry->get_value('sshkey');
-
+  if ( $mech eq "SSH" ) {
+    print STDERR "GETTING THE KEY FROM THE DATATBAT\n";
+    my $username=$self->{username};
+    my $ssh=$ADMINDBH->queryValue("select SSHKey from TOKENS where username=?",
+				  undef, {bind_values=>[$username]});
+    if ( ! $ssh ) {
+      print STDERR "User $username does not exist in the LDAP\n";
+      return 0;
     }
+    print STDERR "Fetching public SSHkey for $username\n";
+    return $ssh;
+  }
 
-    # If if was not one of these methods, return false.
-    return 0;
+  # If if was not one of these methods, return false.
+  return 0;
 }
 ##################### END GET_SSHKEY ###############################
 
 ###########      GET_SSHKEY_CYRUS_SASL  ############################
 sub get_sshkey_cyrus_sasl {
-    #my $self = shift;
-    my $in = shift;
+  #my $self = shift;
+  my $in = shift;
+  
+  #my $mech = $self->mechanism;
+  
+  my ( $mech, $username) = split "\0", $$in;
 
-    #my $mech = $self->mechanism;
 
-     my ( $mech, $username) = split "\0", $$in;
-
-
-    if ( $mech eq "SSH" ) {
-        my $config = AliEn::Config->new();
-
-        my $ldap = Net::LDAP->new( $config->{LDAPHOST} ) or die "$@";
-        my $base = $config->{LDAPDN};
-
-        #       my $organisation = $self->{CONFIG}->{ORG_NAME};
-
-        #my $username = $self->{username};
-
-        $ldap->bind();
-        my $mesg = $ldap->search(    # perform a search
-            base   => "ou=People,$base",
-            filter => "(&(objectclass=pkiUser)(uid=$username))"
-        );
-        if ( !$mesg->count ) {
-            print STDERR "User $username does not exist in the LDAP\n";
-            return 0;
-        }
-
-        my $entry = $mesg->entry(0);
-        $ldap->unbind;
-        print STDERR "Fetching public SSHkey for $username\n";
-        return $entry->get_value('sshkey');
-
+  if ( $mech eq "SSH" ) {
+    print STDERR "GETTING THE KEY FROM THE DATATBAT\n";
+    my $ssh=$ADMINDBH->queryValue("select SSHKey from TOKENS where username=?",
+				  undef, {bind_values=>[$username]});
+    if ( ! $ssh ) {
+      print STDERR "User $username does not exist in the LDAP\n";
+      return 0;
     }
+    print STDERR "Fetching public SSHkey for $username\n";
+    return $ssh;
+  }
 
-    # If if was not one of these methods, return false.
-    return 0;
+  # If if was not one of these methods, return false.
+  return 0;
 }
 ########### GET_SSHKEY_CYRUS_SASL  END ###########################
 
@@ -181,19 +183,6 @@ sub exists_user {
       print "Either token was not correct, or it expired\n";
       return 0;
     }
-    
-# 		my $DATA = $ADMINDBH->getTokenValidPeriod($role);
-# 
-# 		$DATA
-#  			or print "Token and password for user $role don't exist\n"
-#  			and return 0;
-# 
-# 		my ( $dbTOKEN, $dbEXPIRED ) = split "###", $DATA;
-#         if ( ( $dbTOKEN ne $self->{secret} ) || ( $dbEXPIRED < 0 ) ) {
-#             print "Expires in $dbEXPIRED TOKEN $dbTOKEN and $self->{secret}\n";
-#             print "Either token was not correct, or it expired\n";
-#             return 0;
-#         }
   } elsif ( $mech eq "JOBTOKEN"){
     print "CHECKING THE JOB TOKEN for $self->{username} ($self->{secret})\n";
     my $userName=$ADMINDBH->queryValue("SELECT userName from jobToken where jobId=? and jobToken=?", undef, {bind_values=>[$self->{role}, $self->{secret}]});
@@ -206,94 +195,22 @@ sub exists_user {
     print "Job Token is valid (user $username)\n";
     $username=$role=$userName;
   }
-
-  #Connect to LDAP host;
-  my $config = AliEn::Config->new;
-  my $ldap   = Net::LDAP->new( $config->{LDAPHOST} ) or die "$@";
-  my $base   = $config->{LDAPDN};
-
-  $ldap->bind();
-
-  my $filter;
-  
+  print "WE DON'T CONNECT TO LDAP ANYMORE\n";
   # Search for different things depending on method
-  
-  if ( $role =~ /^\// ) {
-    print "Translating subject into uid.\n";
-    
-    # The role is a subject, translate into UID
-    $filter = "(&(objectclass=pkiUser)(subject=$role))";
-    my $mesg = $ldap->search(
-			     base   => "ou=People,$base",
-			     filter => $filter
-			    );
-    my $total = $mesg->count;
-    if ( $total == 0 ) {
-      print "Failure in translating $role into uid\n";
-      
+
+  if ( $username =~ /^\// ) {
+    my $tmprole=$username;
+    $username=$SubjectToUid->( $username );
+    if (! $username ) {
+      print "Failure in translating $tmprole into uid\n";	
       #No user registered with this subject:(
-      $ldap->unbind;
       return 0;
     }
-    my $entry = $mesg->entry(0);
-    $role = $entry->get_value('uid');
-    print "\"$self->{role}\" => $role\n";
-    $self->{role} = $role;
-    
-    # Role is now translated into a uid!!
-  }
-  if ( $mech eq "GSSAPI" ) {
-    
-    # If method is GSSAPI, $username will contain the full subject of the 
-    # clients certificate. Search for this.
-    $filter = "(&(objectclass=pkiUser)(subject=$username))";
-  }
-  else {
-      
-    #All other methods will return the uid (string)
-    $filter = "(&(objectclass=pkiUser)(uid=$username))";
-  }
-  my $mesg = $ldap->search(    # perform a search
-			   base   => "ou=People,$base",
-			   filter => $filter,
-			  );
-  my $total = $mesg->count;
-  if ( $total < 1 ) {
-    print "No entry with common name $username\n";
-    $ldap->unbind;
-    $ALIEN_AUTH_ERROR="No entry with common name $username";
-    return 0;
-  }
-  
-  if ($total > 1) {
-    print "There are several entries with common name $username\n";
-  }
-  
-  for (my $i=0; $i<$total; ++$i) {
-    my $entry = $mesg->entry($i);
-    
-    my $uid   = $entry->get_value('uid');
-    if ($role eq $uid) {
-      print "Wants to be himself!!\n";
-      $ldap->unbind;
-      return $uid;
-    }
-    
-    print "Checking if the user '$uid' can be '$role'\n";
-    my $mesgRole = $ldap->search(    # perform a search
-				 base   => "ou=Roles,$base",
-				 filter => "(&(uid=$role)(|(public=yes)(users=$uid)))",
-				);
-    
-    if ($mesgRole->count > 0) {
-      $ldap->unbind;
-      return $role;
-    }
-    print "User $uid not allowed to be $role\n";
   }
 
-  $ldap->unbind;
+  $checkUserRole->($username, $role) and return $role;
   print "User $username not allowed to be $role\n";
+
   $ALIEN_AUTH_ERROR="user $username is not allowed to be $role";
   return 0;
 }
@@ -301,158 +218,76 @@ sub exists_user {
 ################### EXISTS_USER_CYRUS_SASL##########################
 sub exists_user_cyrus_sasl {
 
-        #my $self = shift;
-        my $in = shift;
+  #my $self = shift;
+  my $in = shift;
 
-    my ( $mech, $username, $role, $secret) = split "\0", $$in;
+  my ( $mech, $username, $role, $secret) = split "\0", $$in;
 
-    #my $mech = $self->mechanism;
+  print "Authmethod: $mech\n";
+  print "Username  :   " . $username . "\n";
+  print "Role      :   " . $role . "\n";
 
-    #my $username = $self->{username};
-    #my $role     = $self->{role};
-
-    print "Authmethod: $mech\n";
-    print "Username  :   " . $username . "\n";
-    print "Role      :   " . $role . "\n";
-
-    if ( $mech eq "PLAIN" ) {
-
-        #This one checks the password against masterpassword
-        if ( $secret ne "ThePassword" ) {
-            return 0;
-        }
+  if ( $mech eq "PLAIN" ) {
+    #This one checks the password against masterpassword
+    if ( $secret ne "ThePassword" ) {
+      return 0;
     }
-    elsif ( $mech eq "TOKEN" ) {
-
-                if ($username eq "root")
-                {
-                        $username=$role;
-                }
-       my $DATA = $ADMINDBH->getFieldsFromTokens($role,"Token,(Expires-Now()) as validPeriod");
-
-                defined $DATA
-                        or print "Error fetching token and password for user $role\n"
-                        and return 0;
-
-                %$DATA
-                        or print "Token and password for user $role don't exist\n"
-                        and return 0;
-
-        if ( ( $DATA->{Token} ne $secret ) || ( $DATA->{validPeriod} < 0 ) ) {
-            print "Expires in $DATA->{validPeriod} TOKEN $DATA->{Token} and $secret\n";
-            print "Either token was not correct, or it expired\n";
-            return 0;
-        }
+  }
+  elsif ( $mech eq "TOKEN" ) {
+    if ($username eq "root") {
+      $username=$role;
     }
-    elsif ($mech eq "JOBTOKEN")
-    {
-        print "CHECKING THE JOB TOKEN for $username ($secret)\n";
+    my $DATA = $ADMINDBH->getFieldsFromTokens($role,"Token,(Expires-Now()) as validPeriod");
 
-        my $userNameFromDB =
-           $ADMINDBH->queryValue("SELECT userName from jobToken where jobId=? and jobToken=?", undef, {bind_values=>[$role, $secret]});
+    defined $DATA
+      or print "Error fetching token and password for user $role\n"
+	and return 0;
 
-        if (!$userNameFromDB)
-            {
-          print "Job token is wrong!!\n";
-              $CYRUS_AUTH_ERROR="The job token for job $role is not valid";
-          return 0;
-        }
+    %$DATA
+      or print "Token and password for user $role don't exist\n"
+	and return 0;
+    
+    if ( ( $DATA->{Token} ne $secret ) || ( $DATA->{validPeriod} < 0 ) ) {
+      print "Expires in $DATA->{validPeriod} TOKEN $DATA->{Token} and $secret\n";
+      print "Either token was not correct, or it expired\n";
+      return 0;
+    }
+  }
+  elsif ($mech eq "JOBTOKEN")  {
+    print "CHECKING THE JOB TOKEN for $username ($secret)\n";
 
-        print "Job Token is valid (user $username)\n";
-        $username=$role=$userNameFromDB;
+    my $userNameFromDB =
+      $ADMINDBH->queryValue("SELECT userName from jobToken where jobId=? and jobToken=?", undef, {bind_values=>[$role, $secret]});
+    
+    if (!$userNameFromDB)      {
+      print "Job token is wrong!!\n";
+      $CYRUS_AUTH_ERROR="The job token for job $role is not valid";
+      return 0;
     }
 
-    #Connect to LDAP host;
-    my $config = AliEn::Config->new;
-    my $ldap   = Net::LDAP->new( $config->{LDAPHOST} ) or die "$@";
-    my $base   = $config->{LDAPDN};
+    print "Job Token is valid (user $username)\n";
+    $username=$role=$userNameFromDB;
+  }
 
-    $ldap->bind();
-
-     my $filter;
-
-    # Search for different things depending on method
-
-    if ( $role =~ /^\// ) {
-        print "Tranlating subject into uid.\n";
-
-        # The role is a subject, translate into UID
-        $filter = "(&(objectclass=pkiUser)(subject=$role))";
-        my $mesg = $ldap->search(
-                                 base   => "ou=People,$base",
-                                 filter => $filter
-                                );
-        my $total = $mesg->count;
-        if ( $total == 0 ) {
-            print "Failure in translating $role into uid\n";
-
-            #No user registered with this subject:(
-            $ldap->unbind;
-            return 0;
-        }
-        my $entry = $mesg->entry(0);
-        my $tmprole = $role;
-               $role = $entry->get_value('uid');
-        print "\"$tmprole\" => $role\n";
-        #$self->{role} = $role;
-
-        # Role is now translated into a uid!!
+  print "WE DON'T CONNECT TO LDAP ANYMORE\n";
+  # Search for different things depending on method
+  
+  if ( $username =~ /^\// ) {
+    my $tmprole=$username;
+    $username=$SubjectToUid->( $username );
+    if (! $username ) {
+      print "Failure in translating $tmprole into uid\n";	
+      #No user registered with this subject:(
+      return 0;
     }
-    if ( $mech eq "GSSAPI" ) {
+    # Role is now translated into a uid!!
+  }
 
-        # If method is GSSAPI, $username will contain the full subject of the
-        # clients certificate. Search for this.
-        $filter = "(&(objectclass=pkiUser)(subject=$username))";
-    }
-    else {
+  $checkUserRole->($username, $role) and return $role;
+  print "User $username not allowed to be $role\n";
 
-        #All other methods will return the uid (string)
-        $filter = "(&(objectclass=pkiUser)(uid=$username))";
-    }
-    my $mesg = $ldap->search(    # perform a search
-        base   => "ou=People,$base",
-        filter => $filter,
-    );
-    my $total = $mesg->count;
-    if ( $total < 1 ) {
-        print "No entry with common name $username\n";
-        $ldap->unbind;
-            $CYRUS_AUTH_ERROR="No entry with common name $username";
-        return 0;
-    }
-
-    if ($total > 1) {
-        print "There are several entries with common name $username\n";
-    }
-
-    for (my $i=0; $i<$total; ++$i) {
-      my $entry = $mesg->entry($i);
-
-      my $uid   = $entry->get_value('uid');
-      if ($role eq $uid) {
-          print "Wants to be himself!!\n";
-          $ldap->unbind;
-          return $uid;
-      }
-
-      print "Checking if the user '$uid' can be '$role'\n";
-      my $mesgRole = $ldap->search(    # perform a search
-          base   => "ou=Roles,$base",
-          filter => "(&(uid=$role)(|(public=yes)(users=$uid)))",
-      );
-
-      if ($mesgRole->count > 0) {
-        $ldap->unbind;
-
-        return $role;
-      }
-      print "User $uid not allowed to be $role\n";
-    }
-
-    $ldap->unbind;
-    print "User $username not allowed to be $role\n";
-    $CYRUS_AUTH_ERROR="user $username is not allowed to be $role";
-    return 0;
+  $CYRUS_AUTH_ERROR="user $username is not allowed to be $role";
+  return 0;
 }
 ################### END EXISTS_USER_CYRUS_SASL######################
 
@@ -825,6 +660,9 @@ sub keysize {
     my $self = shift;
     return 64;
 }
+
+
+
 1;
 
 
