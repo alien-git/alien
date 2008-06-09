@@ -90,10 +90,15 @@ sub Initialize {
   $self->{DEBUG} and $self->{LOGGER}->debugOn($self->{DEBUG});
   $self->{SILENT} and $self->{LOGGER}->silentOn();
 
+  my $done=0;
   if ($ENV{ALIEN_CM_AS_LDAP_PROXY}){
-    my $d=$self->GetConfigFromCM() or return; 
-    $d and $self=$d;
-  }else {
+    my $d=$self->GetConfigFromCM(); 
+    if ($d){
+      $self=$d;
+      $done=1;
+    }
+  }
+  if (! $done) {
     $self->debug(1, "Getting the configuration from the LDAP server");
 
     $self->{LOCAL_USER} = getpwuid($<);
@@ -802,10 +807,16 @@ sub GetConfigFromCM {
   my $sleep=10;
 
   while (1) {
-    $config=SOAP::Lite-> 
-      uri( "AliEn/Service/$service" )
-	-> proxy("http://$cluster:$port" )
-	  ->GetConfiguration();
+    eval {
+      $config=SOAP::Lite-> 
+	uri( "AliEn/Service/$service" )
+	  -> proxy("http://$cluster:$port" )
+	    ->GetConfiguration();
+    };
+    if ($@){
+      $self->info("It died: $@");
+      return;
+    }
     $config  and $config->result and last;
 
     $retry--;

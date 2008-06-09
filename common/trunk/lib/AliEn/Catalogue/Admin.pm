@@ -573,4 +573,62 @@ sub f_renumber {
 
   return $self->{DATABASE}->renumberLFNtable($lfn);
 }
+
+sub resyncLDAP {
+  my $self=shift;
+  
+  $self->info("Let's syncrhonize the DB with ldap");
+  eval {
+    my  $addbh = new AliEn::Database::Admin()
+      or die("Error getting the admin database");
+    $self->info("Got the database");
+    my $ldap = Net::LDAP->new($self->{CONFIG}->{LDAPHOST}) or die "Error contacting LDAP in $self->{CONFIG}->{LDAPHOST}\n $@\n";
+    
+    $ldap->bind;      # an anonymous bind
+    $self->info("Got the ldap");
+    $addbh->update("USERS_LDAP", {up=>0});
+    $addbh->update("USERS_LDAP_ROLE", {up=>0});
+    my $mesg = $ldap->search( base   => "ou=People,$self->{CONFIG}->{LDAPDN}",
+			     filter => "(objectclass=pkiUser)", );
+
+    foreach my $entry ($mesg->entries()) {
+      my $user=$entry->get_value('uid');
+      my @dn=$entry->get_value('subject');
+      $self->debug(1, "user: $user => @dn");
+      foreach my $dn (@dn){
+	$addbh->do("insert into USERS_LDAP(user,dn, up)  values (?,?,1)", {bind_values=>[$user, $dn]});
+      }
+      my $ssh=$entry->get_value('sshkey');
+      $addbh->do("update TOKENS set SSHkey=? where username=?", {bind_values=>[$ssh, $user]});
+
+       
+    }
+
+    $self->info("And now, the roles");
+    $mesg   = $ldap->search( base   => "ou=Roles,$self->{CONFIG}->{LDAPDN}",
+			     filter => "(objectclass=AliEnRole)",
+			  );
+    my $total = $mesg->count;
+    for (my $i=0; $i<$total; $i++){
+      my $entry=$mesg->entry($i);
+      my $user=$entry->get_value('uid');
+      my @dn=$entry->get_value('users');
+      $self->debug(1,"user: $user => @dn");
+      foreach my $dn (@dn){
+	$addbh->do("insert into USERS_LDAP_ROLE(user,role, up)  values (?,?,1)", {bind_values=>[$dn, $user]});
+      }
+    }
+    $addbh->delete("USERS_LDAP", "up=0");
+    $addbh->delete("USERS_LDAP_ROLE", "up=0");
+
+    $addbh->close();
+    
+  }; 
+  if ($@){
+    $self->info("Error doing the sync: $@"); 
+    return;
+  }
+  $self->info("ok!!");
+  return 1;
+}
 return 1;

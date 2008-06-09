@@ -64,6 +64,15 @@ sub new {
     $self->checkTable("USERS_LDAP_ROLE", "user",{user=>"varchar(15) not null",
 						 role=>"varchar(15)",
 					    up=>"smallint"}) or return;
+    $self->checkTable("TOKENS", "ID", {ID=>"int(11) not null auto_increment primary key",
+				       "Username","varchar(16)",
+				       "Expires","datetime",
+				       "Token"=>"varchar(32)",
+				       "password"=>"varchar(16)",
+				       "SSHKey"=>"text",
+				       "dn"=>"varchar(255)",
+				      }) or return;
+
     return $self;
 }
 
