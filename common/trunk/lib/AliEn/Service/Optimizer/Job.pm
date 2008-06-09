@@ -210,7 +210,7 @@ sub copyInput {
   }
   if ($size){
     #let's round up the size
-    $size=(int($size/(1024*8192)+1)*8192;
+    $size=(int($size/(1024*8192)+1))*8192;
 
   }
   my ( $okwork, @workspace ) =
