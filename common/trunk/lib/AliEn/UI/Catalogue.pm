@@ -118,6 +118,7 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
     'addSE'		=> ['$self->{CATALOG}->addSE',0],
     'setSEio'		=> ['$self->{CATALOG}->setSEio',0],
     'getSEio'		=> ['$self->{CATALOG}->getSEio',0],
+    'resyncLDAP'        => ['$self->{CATALOG}->resyncLDAP',0],
     
     
     #	       'addMethod' =>'f_addMethod', 0],
