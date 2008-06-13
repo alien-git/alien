@@ -636,10 +636,12 @@ sub updateClassAd {
   $self->debug(1,"BDII is $BDII");
   my $ldap =  Net::LDAP->new($BDII) or return;
   $ldap->bind() or return;
+  my $base="mds-vo-name=local,o=grid";
+  $BDII =~ /2170/ and $base="mds-vo-name=resource,o=grid";
   my ($maxRAMSize, $maxSwapSize) = (0,0);
   foreach my $CE (@{$self->{CONFIG}->{CE_LCGCE_LIST_FLAT}}) {
     $self->debug(1,"Getting info for $CE");
-    my $result = $ldap->search( base   => "mds-vo-name=local,o=grid",
+    my $result = $ldap->search( base   => $base,
                                 filter => "GlueCEUniqueID=$CE");
     if (! $result or $result->code){
       $self->info("Couldn't get the CE info from ldap");
@@ -650,7 +652,7 @@ sub updateClassAd {
     ($entry[0]) or next;
     my $cluster = $entry[0]->get_value("GlueForeignKey");
     $cluster =~ s/^GlueClusterUniqueID=//;
-    $result = $ldap->search( base   => "mds-vo-name=local,o=grid",
+    $result = $ldap->search( base   => $base,
                              filter => "GlueSubClusterUniqueID=$cluster");
     if (! $result or $result->code){
       $self->info("Couldn't get the Subcluster info from ldap");
