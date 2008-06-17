@@ -20,8 +20,7 @@ $self->{SUBMIT_ARG}
 " . $self->excludeHosts() . "
 $command\n";
 
-    $self->{DEBUG} > 5
-      and print STDERR "USING $self->{SUBMIT_CMD}\nTENGO \n$message\n";
+     $self->debug(2, "USING $self->{SUBMIT_CMD}\nThe message is \n$message");
     open( BATCH, "| $self->{SUBMIT_CMD} -C '#BSUB'" )
       or print STDERR "Can't send batch command: $!"
       and return -1;
@@ -107,7 +106,7 @@ sub initialize() {
     if ( $self->{CONFIG}->{CE_SUBMITARG} ) {
         my @list = @{ $self->{CONFIG}->{CE_SUBMITARG_LIST} };
         map { $_ = "#BSUB $_\n" } @list;
-        $self->{SUBMIT_ARG} = "@list";
+        $self->{SUBMIT_ARG} = join("", @list);
     }
 
     my $user = getpwuid($<);
