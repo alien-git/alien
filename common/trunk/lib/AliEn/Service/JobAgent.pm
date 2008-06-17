@@ -166,6 +166,18 @@ sub initialize {
   $self->{PACKMAN}=AliEn::PackMan->new({PACKMAN_METHOD=>"Local"}) or 
     $self->info("Error getting the packman") and return ;
 
+
+  $self->{WORKDIR} = $ENV{HOME};
+  # If specified, this directory is used. REMARK If $ENV{WORKDIR} is set, this is used!!
+  $self->{CONFIG}->{WORK_DIR} and $self->{WORKDIR} = $self->{CONFIG}->{WORK_DIR};
+    # If the batch-system defined this
+  ( defined $ENV{WORKDIR} ) and $self->{WORKDIR} = $ENV{WORKDIR};
+
+  
+  ( defined $ENV{ALIEN_WORKDIR} ) and $self->{WORKDIR} = $ENV{ALIEN_WORKDIR};
+  ( defined $ENV{TMPBATCH} ) and $self->{WORKDIR} = $ENV{TMPBATCH};
+
+
   return $self;
 }
 
@@ -547,16 +559,6 @@ sub CreateDirs {
   my $self=shift;
   my $done=1;
 
-  $self->{WORKDIR} = $ENV{HOME};
-  # If specified, this directory is used. REMARK If $ENV{WORKDIR} is set, this is used!!
-  $self->{CONFIG}->{WORK_DIR} and $self->{WORKDIR} = $self->{CONFIG}->{WORK_DIR};
-    # If the batch-system defined this
-  ( defined $ENV{WORKDIR} ) and $self->{WORKDIR} = $ENV{WORKDIR};
-
-  
-  ( defined $ENV{ALIEN_WORKDIR} ) and $self->{WORKDIR} = $ENV{ALIEN_WORKDIR};
-  ( defined $ENV{TMPBATCH} ) and $self->{WORKDIR} = $ENV{TMPBATCH};
-
   $self->{WORKDIR} =~ s{(/alien-job-\d+)?\/?$}{/alien-job-$ENV{ALIEN_PROC_ID}};
   $ENV{ALIEN_WORKDIR} = $self->{WORKDIR};
 
@@ -618,7 +620,7 @@ sub CreateDirs {
 
       if (($workspace[0]*$unit) > $freemegabytes) {
 	# not enough space
-	$self->putJobLog("error","Request $workspace[0] * $unit MB, but only $freemegabytes MB free!");
+	$self->putJobLog("error","Request $workspace[0] * $unit MB, but only $freemegabytes MB free in $self->{WORKDIR}!");
 	$self->registerLogs(0);
 	$self->changeStatus("%", "ERROR_IB");
 	$done=0;
