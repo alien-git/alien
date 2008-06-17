@@ -460,10 +460,8 @@ sub getJobAgent {
   my $done =$self->{SOAP}->CallSOAP("Broker/Job", "getJobAgent",$user, $self->{CONFIG}->{HOST},  @_);
   ($done) or return (-1, $self->{LOGGER}->error_msg);
 
-  use Data::Dumper;
-  print Dumper($done);
   my @info=$self->{SOAP}->GetOutput($done);
-  print Dumper(@info);
+  $self->info("Getting the job done");
   return @info;
   
 #  ($done) or return (-1, $self->{LOGGER}->error_msg);
