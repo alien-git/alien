@@ -114,7 +114,7 @@ sub getTransferArguments {
     $transfer->{ID}=$id;
     $self->info("Defining the transfer");
 
-    my @args=("Action","ToPFN", "ORIGPFN", "FromFTDOptions", "GUID", "FromCertificate", "ToSE" );
+    my @args=("Action","ToPFN", "ORIGPFN", "FromFTDOptions", "GUID", "FromCertificate", "ToSE", "FromSE" );
 
     my $ok;
 
