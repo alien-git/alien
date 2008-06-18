@@ -16,6 +16,7 @@ sub checkWakesUp {
 
   my $method="info";
   $silent and $method="debug" and  @info=1;
+  $self->{SLEEP_PERIOD}=3600;
 
   $self->$method(@info, "The LDAP optimizer starts");
 

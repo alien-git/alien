@@ -165,7 +165,7 @@ sub checkRequirements {
   if ($ok) {
     if ($split =~ /^none$/i) {
       
-    } elsif (grep ( /^$split/, ("xml","se", "event", "directory", "file","\-1","\-2","\-5","\-10","\-15","\-20","\-50","\-100"))){
+    } elsif (grep ( /^$split/, ("xml","se", "event", "directory", "file","\-1","\-2","\-5","\-10","\-15","\-20","\-50","\-100", "ce"))){
       $DEBUG and $self->debug(1, "Job is going to be splitted by $split" );
       $default ="other.SPLIT==1";
     }elsif ( $split =~ /production:(.+)-(.+)/ ) {
@@ -3189,6 +3189,16 @@ sub resyncJobAgent{
 
   $self->{TASK_DB}->do("update JOBAGENT j set counter=(select count(*) from QUEUE where status='WAITING' and agentid=entryid)");
   $self->info("Resync done");
+  return 1;
+}
+
+sub f_killAllAgents{
+  my $self=shift;
+  $self->info("Ready to kill all the jobagents that are on this site");
+  my @inBatch=$self->{BATCH}->getAllBatchIds();
+  foreach my $job (@inBatch){
+    $self->info("Ready to kill $job");
+  }
   return 1;
 }
 return 1;

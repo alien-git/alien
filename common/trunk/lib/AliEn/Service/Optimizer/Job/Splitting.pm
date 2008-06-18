@@ -164,6 +164,7 @@ sub SplitJob{
   ($split =~ /^se$/i) and $sort=$splitPerSE;
   ($split =~ /^\-(.*)/) and $sort=1 and $multisplit = $1;
   ($split =~ /^production:(.+)-(.+)/) and $sort=1 and $eventstart = $1 and $eventstop = $2 and $multisplit = ($eventstop-$eventstart+1);
+  ($split =~ /^ce$/i) and $sort=1 and $multisplit='ce';
 
   if ($split =~ /^userdefined$/ ) {
     $self->info("The user gave us the splitting jdls");
@@ -324,16 +325,28 @@ sub _multiSplit {
   $self->info("In SplitJob got $multisplit subjobs");
   my $jobs={};
   my $event = $eventstart;
-  foreach my $subjob (1 .. $multisplit) {
-    $self->info("In SplitJob doing subjob $subjob (Run $run Event $event)");
-    $jobs->{$subjob}={files=> [],
-		      args=> "",
-		      counter=>$event};
-    if ($run) {
-      # don't remove the space after event!
-      $jobs->{$subjob}->{args}="--run $run --event $event ";
+  if ($multisplit=~ /ce/i){
+    $self->info("How many different CE do we have??");
+    my $ces=$self->{DB}->queryColumn("select site from  SITEQUEUES where blocked='open'");
+    use Data::Dumper;
+    print Dumper($ces);
+    my $counter=1;
+    foreach my $ce (@$ces){
+      $jobs->{$ce}={files=>[], requirements=>"other.ce==\"$ce\""};
+      $counter++;
     }
-    $event++;
+  } else{
+    foreach my $subjob (1 .. $multisplit) {
+      $self->info("In SplitJob doing subjob $subjob (Run $run Event $event)");
+      $jobs->{$subjob}={files=> [],
+			args=> "",
+			counter=>$event};
+      if ($run) {
+	# don't remove the space after event!
+	$jobs->{$subjob}->{args}="--run $run --event $event ";
+      }
+      $event++;
+    }
   }
   return $jobs;
 }
@@ -415,9 +428,15 @@ sub SubmitSplitJob {
       $job_ca->set_expression("InputData", $input);
     }
 
-    $job_ca->set_expression("Requirements", $origreq);
 
     $self->debug(1,"Setting Requ. $origreq");
+
+    my $new_req=$origreq;
+    if ($jobs->{$pos}->{requirements}){
+      $self->info("This subjob has some requirements!!");
+      $new_req=$jobs->{$pos}->{requirements};
+    }
+    $job_ca->set_expression("Requirements", $new_req);
 
     $self->{CATALOGUE}->{QUEUE}->checkRequirements($job_ca) or next;
 
