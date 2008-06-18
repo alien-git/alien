@@ -1934,7 +1934,7 @@ sub upload {
     my @envelope= $self->access("-s","write-once","/NOLFN", $se, 0,0,"$guid");
     @envelope or $self->info("Error getting the security envelope") and return;
     
-    $data= $self->{STORAGE}->registerInLCM( $pfn, $se, undef, undef, undef, undef, $guid) or return;
+    $data= $self->{STORAGE}->registerInLCM( $pfn, $se, undef, undef, undef, undef, $guid, $envelope[0]) or return;
     if ($envelope[0]->{url}){
       my $newPFN=$envelope[0]->{url};
       $newPFN=~ s{^([^/]*//[^/]*)//(.*)$}{$1/$envelope[0]->{pfn}};
