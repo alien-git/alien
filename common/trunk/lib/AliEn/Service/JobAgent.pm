@@ -176,7 +176,7 @@ sub initialize {
   
   ( defined $ENV{ALIEN_WORKDIR} ) and $self->{WORKDIR} = $ENV{ALIEN_WORKDIR};
   ( defined $ENV{TMPBATCH} ) and $self->{WORKDIR} = $ENV{TMPBATCH};
-
+  $ENV{ALIEN_WORKDIR}=$self->{WORKDIR};
 
   return $self;
 }
