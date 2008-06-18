@@ -474,9 +474,17 @@ sub getInfoFromGRIS {
     (my $host,undef) = split (/:/,$CE);    
     # Try resource GRIS first, then resource BDII, then site BDII 
     #(To swap when BDII will become more common...)
-    my @IS  = ("ldap://$host:2135,mds-vo-name=local,o=grid",
-               "ldap://$host:2170,mds-vo-name=resource,o=grid");
-    @IS = (@IS,"ldap://$self->{CONFIG}->{CE_SITE_BDII}:2170,o=grid") if defined $self->{CONFIG}->{CE_SITE_BDII};      
+    my @IS  = ("ldap://$host:2135,mds-vo-name=local,o=grid",    # Resource GRIS
+               "ldap://$host:2170,mds-vo-name=resource,o=grid", # Resource BDII
+	      );
+    if ( defined $self->{CONFIG}->{CE_SITE_BDII} ) {	      
+      @IS = (@IS,"ldap://$self->{CONFIG}->{CE_SITE_BDII}:2170,mds-vo-name=$ENV{SITE_NAME},o=grid"); # Site BDII on separate node  
+    } else {
+      @IS = (@IS,"ldap://$host:2170,mds-vo-name=$ENV{SITE_NAME},o=grid" ); # Site BDII on CE
+    }  
+    if ( defined $ENV{LCG_GFAL_INFOSYS} ) {
+      @IS = (@IS,"ldap://$ENV{LCG_GFAL_INFOSYS},mds-vo-name=$ENV{SITE_NAME},mds-vo-name=local,o=grid"); # Top-level BDII
+    }
     my $ldap = '';
     foreach (@IS) {
        my ($GRIS, $BaseDN) = split (/,/,$_,2);
@@ -486,7 +494,7 @@ sub getInfoFromGRIS {
 	 next;
        }
        unless ($ldap->bind()) {
-         $self->{LOGGER}->warning("LCG","$GRIS/$BaseDN not responding (2), trying next.");
+         $self->{LOGGER}->info("LCG","$GRIS/$BaseDN not responding (2), trying next.");
          next;
        }
        my $result = $ldap->search( base   =>  $BaseDN,
