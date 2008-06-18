@@ -1602,12 +1602,15 @@ sub internalQuery {
 
   my @joinQueries;
 
-  if ($file ne "\\" ) {
-      @joinQueries = ("WHERE concat('$refTable->{lfn}', lfn) LIKE '$path%$file%' and replicated=0");
-      $options->{d} or $joinQueries[0].=" and right(lfn,1) != '/' and lfn!= \"\"";
-  } else {
+  foreach my $f (@$file){
+    if ($f ne "\\" ) {
+      my $d = ("WHERE concat('$refTable->{lfn}', lfn) LIKE '$path%$f%' and replicated=0");
+      $options->{d} or $d.=" and right(lfn,1) != '/' and lfn!= \"\"";
+      push @joinQueries, $d;
+    } else {
       # query an exact file name
-      @joinQueries = ("WHERE concat('$refTable->{lfn}', lfn)='$path'");
+      push @joinQueries ,("WHERE concat('$refTable->{lfn}', lfn)='$path'");
+    }
   }
 
   #First, let's construct the sql statements that will select all the files 

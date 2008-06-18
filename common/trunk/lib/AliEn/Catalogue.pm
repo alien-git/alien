@@ -1200,7 +1200,7 @@ sub f_verifySubjectRole {
     return @results;
 }
 sub f_find_HELP{
-  return "Usage: find [-<flags>] <path> <fileName> [[<tagname>:<condition>] [ [and|or] [<tagname>:<condition>]]*]\nPossible flags are:
+  return "Usage: find [-<flags>] <path> <fileName> [-name <fileName>]* [[<tagname>:<condition>] [ [and|or] [<tagname>:<condition>]]*]\nPossible flags are:
    z => return array of hash
    v => switch on verbose mode (write files found etc.)
    p => set the printout format
@@ -1666,21 +1666,6 @@ sub f_find {
   }
 
   $DEBUG and $self->debug(1,"printfields are: @printfields");
-  
-  #### -l option
-  my $limit = "";
-  if (defined $options{l}) {
-    $limit = "limit $options{l}";
-    $DEBUG and $self->debug(1, "Setting limit to $options{l}");
-  }
-
-
-  #### -r option
-  my $resolveall = "";
-  if (defined $options{r}) {
-    $resolveall = $options{r};
-    $DEBUG and $self->debug(1, "Setting resolve all tag to $options{r}");
-  }
 
   #### -g option
   my @filegroup = ();
@@ -1691,10 +1676,10 @@ sub f_find {
 
   my $path = ($self->f_complete_path(shift) or "");
   my $file = (shift or "");
-  
+
   $path =~ s/\*/%/g;
   $file =~ s/\*/%/g;
-  
+
   ($file) or print STDERR"Error: not enough arguments in find\n".$self->f_find_HELP()
     and return;
 
@@ -1714,7 +1699,9 @@ sub f_find {
   
   $file=~ s{'}{\\'};
   
-  if ($resolveall) {
+  #### -r option
+  if (defined $options{r}) {
+    $DEBUG and $self->debug(1, "Setting resolve all tag to $options{r}");
     #      $sitelocationhash = $self->f_locatesites("-s");
     if (! defined $self->{sitelocationarray} or ( (time - $self->{sitelocationtime}) > 600 ) )   {
       my @allsites = $self->f_locatesites("-z");
@@ -1722,17 +1709,24 @@ sub f_find {
       $self->{sitelocationtime} = time;
     }
   }
-  
+
+  $file=[$file];
+
+  while ($_[0] and $_[0] =~ /^-name$/i ){
+    $self->info("The option is -name!!");
+    shift;
+    push @$file, shift;
+  }
   my ($status, $refQueries, $refNames, $refUnions)=
     $self->getFindConstraints(@_);
   $status  or return;
-  
-  $DEBUG and $self->debug(1, "Searching for files like $path*$file* ...");
+  my $pattern=join("* or $path*", @$file);
+  $DEBUG and $self->debug(1, "Searching for files like $path*$pattern* ...");
   my $entriesRef=$self->{DATABASE}->findLFN($path, $file, $refNames, $refQueries,$refUnions, %options) or return;
   my @result=@$entriesRef;
   my $total = @result;
 
-  if ($resolveall) {
+  if (defined $options{r}) {
     # add the additional information like longitude, latitude, MSD
     foreach (@result) {
       $_->{msd} = ",";
@@ -1828,7 +1822,7 @@ sub createFindXML{
     my $newhash={}; 
     $newhash->{$bname} = $_;
     if ($options{g}) {
-      if ($bname eq $file) {
+      if (grep (/$bname/, @$file)) {
 	push @newresult,$newhash;
       }
     } else {
@@ -1973,7 +1967,7 @@ sub f_tree {
 
   $DEBUG and $self->debug(1, "In UserInterface::f_tree $dir");
   $dir =~ s{/?$}{/};
-  my $ref=$self->{DATABASE}->findLFN($dir, "", [], [], [], 'd',1)
+  my $ref=$self->{DATABASE}->findLFN($dir, [], [], [], [], 'd',1)
     or return;
   my @entries=@$ref;
   my @entriesLFN=();
