@@ -515,7 +515,7 @@ sub SetProcInfo {
   $self->info( "Set Procinfo for $queueId: $procinfo!!" );
 
 #  my $done =$self->{SOAP}->CallSOAP("Manager/Job", "SetProcInfo",  $queueId, $procinfo);
-  return $self->{LOCALJOBDB}->insertMessage($queueId, "proc", $procinfo);
+  return $self->{LOCALJOBDB}->insertMessage($queueId, "proc", $procinfo,0);
 #  ($done) or return (-1, $self->{LOGGER}->error_msg()); 
 #  $self->info( "New Procinfo for $queueId done!!" );
 #  return 1;
@@ -709,7 +709,7 @@ sub queueinfo {
 sub putJobLog {
   my $this=shift;
   my ($queueId, $tag, $message)=(shift,shift,shift);
-  return $self->{LOCALJOBDB}->insertMessage($queueId, $tag,$message);
+  return $self->{LOCALJOBDB}->insertMessage($queueId, $tag,$message,0);
 }
 
 
