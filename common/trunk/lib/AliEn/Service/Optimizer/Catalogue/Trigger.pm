@@ -35,6 +35,7 @@ sub checkTriggers{
 
   my $limit=1000;
   my $counter=1000;
+  my $files={};
   while ($counter eq $limit){
     my $entryId=0;
 
@@ -42,17 +43,22 @@ sub checkTriggers{
       or $self->info("Error getting the triggers of $db->{DB}")
 	and return;
     $counter=0;
+
     foreach my $entry (@$data){
       my $done=1;
       $entry->{entryId}>$entryId and $entryId=$entry->{entryId};
-      my ($file)=$self->{CATALOGUE}->execute("get", $entry->{triggerName});
-      if ($file){
-	chmod 0755, $file;
-	$self->info("Calling $file $entry->{lfn}");
-	system($file, $entry->{lfn}) or $done=1;
-      }else{
-	$self->info("Error getting the file $entry->{triggerName}");
-	
+      if (! $files->{$entry->{triggerName}}){
+	($files->{$entry->{triggerName}})=$self->{CATALOGUE}->execute("get", $entry->{triggerName});
+	if (!$files->{$entry->{triggerName}}){
+	  $self->info("Error getting the file $entry->{triggerName}");
+	  $done=0
+	} else{
+	  chmod 0755, $files->{file};
+	}
+       }
+      if ($done){
+	$self->info("Calling $files->{$entry->{triggerName}} $entry->{lfn}");
+	system($files->{$entry->{triggerName}}, $entry->{lfn}) or $done=1;
       }
       if (! $done){
 	$self->info("The action didn't execute. Inserting it in the Triggers_failed");
