@@ -106,7 +106,6 @@ sub initialize {
      }
      close DEFAULTS;
   }
-   
    return 1;
 }
 
@@ -121,7 +120,7 @@ sub submit {
   my $jdlfile = $self->generateJDL($jdl, $command);
   $jdlfile or return;
 
-  $self->renewProxy(10000); ####
+  $self->renewProxy();
 
   $self->info("Submitting to LCG with \'@args\'.");
   my $now = time;
@@ -566,7 +565,7 @@ sub renewProxy {
    $gracePeriod or $gracePeriod = 0;
    my $duration = shift;
    $duration or $duration=$self->{CONFIG}->{CE_TTL};
-   $duration or $duration = 100000; #in seconds
+   $duration or $duration = 172800; #in seconds
    $self->info("Checking whether to renew proxy for $duration seconds");
    $ENV{X509_USER_PROXY} and $self->debug(1,"\$X509_USER_PROXY is $ENV{X509_USER_PROXY}");
    my $ProxyRepository = "$self->{CONFIG}->{VOBOXDIR}/proxy_repository";
@@ -644,15 +643,15 @@ sub updateClassAd {
   $self->debug(1,"BDII is $BDII");
   my $ldap =  Net::LDAP->new($BDII) or return;
   $ldap->bind() or return;
-  my $base="mds-vo-name=local,o=grid";
-  $BDII =~ /2170/ and $base="mds-vo-name=resource,o=grid";
+  my $base="mds-vo-name=$ENV{SITE_NAME},mds-vo-name=local,o=grid";
   my ($maxRAMSize, $maxSwapSize) = (0,0);
   foreach my $CE (@{$self->{CONFIG}->{CE_LCGCE_LIST_FLAT}}) {
     $self->debug(1,"Getting info for $CE");
     my $result = $ldap->search( base   => $base,
                                 filter => "GlueCEUniqueID=$CE");
     if (! $result or $result->code){
-      $self->info("Couldn't get the CE info from ldap");
+      my $msg = $result->code;
+      $self->info("Couldn't get the CE info from ldap: $msg");
       $ldap->unbind();
        return;
     }
