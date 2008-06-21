@@ -1,5 +1,6 @@
 #!/bin/env alien-perl
 
+use AliEn::UI::Catalogue;
 BEGIN {
   unless(grep /blib/, @INC) {
     chdir 't' if -d 't';
@@ -51,7 +52,9 @@ open (FILE, "$ENV{ALIEN_ROOT}/bin/alien proxy-destroy|")
 
 @OUTPUT=<FILE>;
 close FILE or print ("Error doing alien proxy-destroy!!") and exit (-1);
-
+my $cat=AliEn::UI::Catalogue->new({role=>"admin"}) or exit(-2);
+$cat->execute("resyncLDAP") or exit(-2);
+$cat->close();
 ok(1);
 
 }
