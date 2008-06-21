@@ -9,7 +9,7 @@ use Net::LDAP;
 use Net::Domain qw(hostname hostfqdn hostdomain);
 use AliEn::Config;
 use Crypt::OpenSSL::RSA;
-
+use AliEn::UI::Catalogue;
 print "This script will configure the startup of the AliEn Services for a new AliEn Organisation\n\n";
 
 
@@ -131,6 +131,7 @@ Shadow passwor:        $shadow
 ##     NOW WE START WITH THE CREATION OF THE DATABASES!!! 
 ############################################################################
 print "Trying to connect to the catalogue...\n";
+
 my $aliendir="$homedir/.alien/";
 my $etcAliend="/etc/aliend";
 $< and $etcAliend="$ENV{ALIEN_HOME}$etcAliend";
@@ -184,11 +185,6 @@ AliEnCommand=\"$ENV{ALIEN_ROOT}/bin/alien\"
 
 AliEnServices=\"$install\"\n";
 
-if ($install=~ /Proxy/) {
-  $startup.="AliEnUserP=\"$aliendir/.startup/.passwd.$orgName\"\n";
-  checkMysqlConnection() or exit(-2);
-}
-
 if ($install=~ /Authen/) {
   $startup.="AliEnLDAPP=\"$aliendir/.startup/.ldap.secret.$orgName\"\n";
   checkLDAPConnection() or exit(-2);
@@ -210,6 +206,23 @@ if ($install=~ /Authen/) {
   }
 
 }
+
+
+print "ok\nAdding the first user\t\t\t";
+$ENV{ALIEN_DATABASE_PASSWORD}="pass";
+my $cat=AliEn::UI::Catalogue->new({role=>'admin'}) or exit(-2);
+$cat->execute("addUser", "alienmaster") or exit (-2);
+$cat->execute("mkdir", "-p", "/\L$orgName\E/user/a/admin") or exit(-2);
+$cat->execute("addUser",  $config->{CLUSTER_MONITOR_USER}) or exit(-2);
+$cat->close();
+delete $ENV{ALIEN_DATABASE_PASSWORD};
+
+
+if ($install=~ /Proxy/) {
+  $startup.="AliEnUserP=\"$aliendir/.startup/.passwd.$orgName\"\n";
+  checkMysqlConnection() or exit(-2);
+}
+
 
 print "Changing the ownership of $aliendir...\t\t";
 if (!$<) {
@@ -251,8 +264,6 @@ open (FILE, ">$etcAliend/$orgName/startup.conf")
 print FILE "$startup";
 close FILE;
 
-
-
 my $etcDir="$ENV{ALIEN_ROOT}/etc/";
 print "ok\nStarting the services...\n";
 system ("$etcDir/rc.d/init.d/aliend", "start", "$orgName")
@@ -271,12 +282,6 @@ close FILE or
 grep (/FAILED/i, @output) and print "Error! Some services are dead!!\n@output\n" and exit(-2);
 
 
-print "ok\nAdding the first user\n";
-my @list2=();
-$< or push @list2, "su", "-", $userName, "-c";
-system (@list2,"$ENV{ALIEN_ROOT}/bin/alien --org $orgName -r admin -exec mkdir '/\L$orgName\E/user/a/admin -p'") and print "FAILED!!\nError creating the directory /\L$orgName\E/user/a/admin" and exit(-2);
-
-system (@list2, "$ENV{ALIEN_ROOT}/bin/alien --org $orgName -r admin -exec addUser  $config->{CLUSTER_MONITOR_USER} ") and print "FAILED!!\nError adding user  $config->{CLUSTER_MONITOR_USER}\n" and exit(-2);
 
 
 
@@ -316,11 +321,15 @@ sub checkMysqlConnection {
   my ($hostName, $portNumber)=split ":", $config->{AUTHEN_HOST};
   print "Connecting to mysql $hostName $portNumber...\t\t\t";
   my $mysql="$ENV{ALIEN_ROOT}/bin/mysql";
-print "| $mysql -h $hostName -P $portNumber -u admin --password='$mysqlPasswd'";
+
+#print "| $mysql -h $hostName -P $portNumber -u admin --password='$mysqlPasswd'";
   open (MYSQL, "| $mysql -h $hostName -P $portNumber -u admin --password='$mysqlPasswd'") 
     or print "Error connecting to mysql in  $hostName -P $portNumber\n" and return;
   print  MYSQL "GRANT INSERT,DELETE ON processes.MESSAGES TO $config->{CLUSTER_MONITOR_USER};\n";
   print  MYSQL "GRANT INSERT,DELETE ON processes.MESSAGES TO $config->{CLUSTER_MONITOR_USER};\n";
+#  print MYSQL "INSERT INTO ADMIN.USERS_LDAP_ROLE(user,role) VALUES ('$userName', 'admin');\n";
+#  print MYSQL "INSERT INTO ADMIN.USERS_LDAP(user) VALUES ('$userName');\n";
+#  print MYSQL "UPDATE ADMIN.TOKENS set SSHKey='$sshkey' where username='$userName';\n";
 
   close MYSQL or print "Error closing connection to mysql in  $hostName -P $portNumber\n";# and return;
 
@@ -330,6 +339,7 @@ print "| $mysql -h $hostName -P $portNumber -u admin --password='$mysqlPasswd'";
   print FILE "$mysqlPasswd";
   close FILE;
   chmod 0600, "$aliendir/.startup/.passwd";
+
   print "ok\n";
   return 1;
 }
@@ -391,6 +401,7 @@ sub checkLDAPConnection {
 			     "uidNumber", "$userID",
 			     "userPassword", "{crypt}x",
 			     "loginShell", "false",
+                             "dn", "  ",
 			    ]);
   $mesg->code && print "failed\nCould not add $userName: ",$result->error and return;
   print "ok\nGiving admin privileges to $userName...\t\t\t";
@@ -403,7 +414,7 @@ sub checkLDAPConnection {
   $ldap->modify("uid=$config->{CLUSTER_MONITOR_USER},ou=Roles,$config->{LDAPDN}",
 		add => {"users", "$userName"});
   $mesg->code && print "failed\nCould not modify admin: ",$result->error and return;
-
+ 
   # if admin wants MonaLisa to be enabled, do it
   if($mlEnabled eq "Y"){
     my $key="ou=MonaLisa,ou=Services,ou=$config->{SITE},ou=Sites,$config->{LDAPDN}";
@@ -415,6 +426,7 @@ sub checkLDAPConnection {
                       "shouldUpdate", "false",
                       "host", $mlHost,
                       "apmonConfig", "['pcardaab.cern.ch']",
+                  
                      ]);
     $mesg->code && print "failed\nCould not add MonaLisa configuration: ", $result->error and return;
 #    $config=$config->Reload({force=>1});
