@@ -278,6 +278,7 @@ sub get {
 
   }else {
     #Get the pfn from the catalog
+    #print Dumper($self->{CATALOG});
     if ($self->{CATALOG}){
       my $info=$self->{CATALOG}->f_whereis("i",$file)
 	or $self->info("Error getting the info from '$file'") and return;
@@ -294,7 +295,6 @@ sub get {
   if (!defined $envelope[0]->{envelope}) {
     $self->info( "Cannot get access to $file") and return;
   }
-
   $guidInfo->{guid}=$envelope[0]->{guid};
   $ENV{'IO_AUTHZ'} = $envelope[0]->{envelope};
   $guidInfo->{guid} or 
@@ -1632,9 +1632,9 @@ sub access {
 
       $filehash->{lfn}  = $lfn || $filehash->{pfn};
 
-      if ($access =~ /^write/) {
+      #if ($access =~ /^write/) {
 	$filehash->{guid} = $guid;
-      }
+      #}
       
       if ((!defined $filehash->{md5}) || ($filehash->{md5} eq "")) {
 	$filehash->{md5} = "00000000000000000000000000000000";
