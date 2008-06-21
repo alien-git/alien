@@ -44,15 +44,8 @@ use GSS;
 my $SubjectToUid = sub {
   my $subject = shift;
   my $desired=shift;
-  my $uids=$ADMINDBH->queryColumn("SELECT user from USERS_LDAP where dn=?",
-			       undef, {bind_values=>[$subject]});
-  my $uid;
-  if ($uids) {
-    $uid=$$uids[0];
-    if ($desired){
-      grep (/^$desired$/, @$uids) and $uid=$desired;
-    }
-  }
+  my $uid=$ADMINDBH->queryValue("SELECT u.user from USERS_LDAP u, USERS_LDAP_ROLE r where r.user=u.user and dn=? and role=? union select user from USERS_LDAP u where user=?",
+			       undef, {bind_values=>[$subject, $desired, $desired]});
 
   if (! $uid){
     print STDERR "Failure in translating $subject into $uid\n";
@@ -208,15 +201,14 @@ sub exists_user {
 
   if ( $username =~ /^\// ) {
     my $tmprole=$username;
-    $username=$SubjectToUid->( $username, $role );
-    if (! $username ) {
-      print "Failure in translating $tmprole into uid\n";	
-      #No user registered with this subject:(
-      return 0;
-    }
-  }
+    $SubjectToUid->( $username, $role ) and return $role;
+    print "Failure in translating $tmprole into uid\n";	
+    #No user registered with this subject:(
+    return 0;
+  } else {
 
-  $checkUserRole->($username, $role) and return $role;
+    $checkUserRole->($username, $role) and return $role;
+  }
   print "User $username not allowed to be $role\n";
 
   $ALIEN_AUTH_ERROR="user $username is not allowed to be $role";
@@ -282,13 +274,10 @@ sub exists_user_cyrus_sasl {
   
   if ( $username =~ /^\// ) {
     my $tmprole=$username;
-    $username=$SubjectToUid->( $username, $role );
-    if (! $username ) {
-      print "Failure in translating $tmprole into uid\n";	
-      #No user registered with this subject:(
-      return 0;
-    }
-    # Role is now translated into a uid!!
+    $SubjectToUid->( $username, $role ) and return $role;
+    print "Failure in translating $tmprole into uid\n";	
+    #No user registered with this subject:(
+    return 0;
   }
 
   $checkUserRole->($username, $role) and return $role;
