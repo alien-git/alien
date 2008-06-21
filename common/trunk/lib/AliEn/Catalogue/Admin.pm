@@ -218,6 +218,8 @@ sub f_addUser {
   $self->f_chown("", $user, $procdir ) or return;
 
   $self->info(  "User $user added");
+
+  $self->resyncLDAP();
   return 1;
 }
 

@@ -302,7 +302,7 @@ sub startTransfer {
   my @listPFN;
   $transfer->{FROMPFN} and @listPFN=@{$transfer->{FROMPFN}};
   my $sourceURL=$self->_selectPFN( @listPFN);
-  $sourceURL=~ s/^([^:]*:)/\L$1\E/;
+  $sourceURL and $sourceURL=~ s/^([^:]*:)/\L$1\E/;
 
   my $size=$transfer->{SIZE};
   my $retries=$transfer->{RETRIES};
@@ -343,6 +343,7 @@ sub startTransfer {
     $toPFN="file://$self->{HOST}$toPFN";
     
     if ($args[1]){
+      $args[2]=~ /^root/ and $toPFN=$args[2];
       $args[1]=~ /^castor/ and $toPFN=$args[1];
       # in case of SRM, let's keep the full host
       $args[1]=~ /^srm/ and $toPFN=$args[1];
@@ -406,7 +407,7 @@ sub startTransfer {
 
 
   if ($error) {
-    my $errorM="The transfer failed (w eare getting things from  ". $fromURL->method();
+    my $errorM="The transfer failed (we are getting things from  ". $fromURL->method();
     $self->{LOGGER}->error_msg() and $errorM=$self->{LOGGER}->error_msg();
     $self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, "FAILED", {Reason=>$errorM});
     return ;
@@ -702,7 +703,8 @@ sub _forkTransfer{
 
   #  $self->CURRENT_TRANSFERS_INCREMENT("", $id);
   $self->{FTD_CHILDREN}=$id;
-
+  #let's clean the default error message
+  $self->{LOGGER}->set_error_msg();
   $self->info("$$ is going to do $action");
   if ($action  eq "local copy"){
     $return=$self->makeLocalCopy($transfer);

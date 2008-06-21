@@ -367,14 +367,14 @@ sub GetJDL {
     $self->info("ASKING FOR ANOTHER JOB");
     $self->putJobLog("trace","Asking for a new job");
   }
-  my $catalog=$self->getCatalogue();
-
-  if ($catalog) {
-    $self->{PACKMAN}->setCatalogue($catalog);
-  }else {
+#  my $catalog=$self->getCatalogue();
+#
+#  if ($catalog) {
+#    $self->{PACKMAN}->setCatalogue($catalog);
+#  }else {
     $self->info("We couldn't get a catalogue... we won't be able to install packages manually");
     $self->{PACKMAN}->setCatalogue(undef);
-  }
+#  }
 
   while(1) {
     $self->info("Getting the jdl from the clusterMonitor, agentId is $ENV{ALIEN_JOBAGENT_ID}...");
@@ -382,15 +382,15 @@ sub GetJDL {
     my $hostca=$self->getHostClassad();
     if (!$hostca){
       $self->sendJAStatus('ERROR_HC');
-      $catalog and  $catalog->close();
+#      $catalog and  $catalog->close();
       return;
     }
     my $hostca_stage;
-    if ($catalog){
-      $self->info("We have a catalog (we can stage)");
-      $hostca_stage=$hostca;
-      $hostca_stage=~ s/\[/\[TO_STAGE=1;/;
-    }
+ #   if ($catalog){
+ #     $self->info("We have a catalog (we can stage)");
+ #     $hostca_stage=$hostca;
+ #     $hostca_stage=~ s/\[/\[TO_STAGE=1;/;
+ #   }
 
     $self->sendJAStatus(undef, {TTL=>$self->{TTL}});
 
@@ -399,9 +399,9 @@ sub GetJDL {
     $done and $info=$done->result;
     if ($info){
       $self->info("Got something from the ClusterMonitor");
-      use Data::Dumper;
-      print Dumper($info);
-      $self->checkStageJob($info, $catalog);
+#      use Data::Dumper;
+#      print Dumper($info);
+#      $self->checkStageJob($info, $catalog);
       if (!$info->{execute}){
 	$self->info("We didn't get anything to execute");
       }	else{
@@ -412,11 +412,11 @@ sub GetJDL {
 	  $self->{SOAP}->CallSOAP("Manager/Job", "setSiteQueueStatus",$self->{CONFIG}->{CE_FULLNAME},"jobagent-install-pack");
 	  $self->info("We have to install some packages (@execute)");
 	  foreach (@execute) {
-	    my ($ok, $source)=$self->installPackage($catalog, $_);
+	    my ($ok, $source)=$self->installPackage( $_);
 	    if (! $ok){
 	      $self->info("Error installing the package $_");
 	      $self->sendJAStatus('ERROR_IP');
-	      $catalog and $catalog->close();
+#	      $catalog and $catalog->close();
 	      return;
 	    }
 	  }
@@ -442,7 +442,7 @@ sub GetJDL {
     }
     $self->sendJAStatus('REQUESTING_JOB');
   }
-  $catalog and  $catalog->close();
+#  $catalog and  $catalog->close();
 
   $result or $self->info("Error getting a jdl to execute");
   ( UNIVERSAL::isa( $result, "HASH" )) and $jdl=$result->{jdl};
@@ -811,10 +811,14 @@ sub setAlive {
 
 sub getCatalogue {
   my $self=shift;
+  my $options=shift || {};
   my $catalog;
 
   eval{ 
-    my $options={silent=>0, packman_method=>'Local', 'role'=>$self->{CONFIG}->{CLUSTER_MONITOR_USER}};
+    $options->{silent} or $options->{silent}=0;
+    $options->{packman_method} or $options->{packman_method}="Local";
+    $options->{role} or $options->{role}=$self->{CONFIG}->{CLUSTER_MONITOR_USER};
+#    my $options={silent=>0, packman_method=>'Local', 'role'=>$self->{CONFIG}->{CLUSTER_MONITOR_USER}};
     $self->{CONFIG}->{AGENT_API_PROXY} and 
       $options->{gapi_catalog}=$self->{CONFIG}->{AGENT_API_PROXY};
     $self->info("Trying to get a catalogue");
@@ -837,7 +841,7 @@ sub executeCommand {
   $self->changeStatus("%",  "STARTED", 0,$self->{HOST}, $self->{PROCESSPORT} );
   
   $ENV{ALIEN_PROC_ID} = $self->{QUEUEID};
-  my $catalog=$self->getCatalogue() or return;
+  my $catalog=$self->getCatalogue({no_catalog=>1}) or return;
 
   $self->debug(1, "Getting input files and command");
   if ( !( $self->getFiles($catalog) ) ) {
@@ -848,6 +852,7 @@ sub executeCommand {
     $self->changeStatus("%",  "ERROR_IB");
     return ;
   }
+  $catalog->close();
 
   #    my $localDir="$self->{CONFIG}->{TMP_DIR}/proc$self->{QUEUEID}";
   
@@ -887,14 +892,15 @@ sub executeCommand {
 #      @list=(@list, " --input ". join(",,",@inputFiles) . " ");
 #  }
   my ($ok,  @packages)=$self->{CA}->evaluateAttributeVectorString("Packages");
+  my $user=$self->{CA}->evaluateAttributeString("User");
   if ($ok) {
     my @packInst;
     foreach (@packages) {
-      my ($ok, $source)=$self->installPackage($catalog, $_);
+      my ($ok, $source)=$self->installPackage( $_, $user);
        if (!$ok){
 	 $self->registerLogs(0);
 	 $self->changeStatus("%",  "ERROR_E");
-	 $catalog->close();
+#	 $catalog->close();
 	 return;
        }
       if ($source){
@@ -904,7 +910,7 @@ sub executeCommand {
     @list=(@packInst, @list);
   }
   my $s=join (" ", @list);
-  $catalog->close();
+#  $catalog->close();
   $self->{STATUS}="RUNNING";
   ($self->{INTERACTIVE}) and  $self->{STATUS}="IDLE";
 
@@ -999,26 +1005,26 @@ Minor page faults                   [#  ] : $tags[9]\n";
 }
 sub installPackage {
   my $self=shift;
-  my $catalogue=shift;
   my $package=shift;
+  my $user=shift;
 #  my $user=$self->{INSTALL_USER};
   $self->info("Installing Package $_");
 
-  my ($version, $user);
-   $self->{PACKMAN}->setCatalogue($catalogue);
+  my ($version);
+#   $self->{PACKMAN}->setCatalogue($catalogue);
   $package =~ s/::(.*)$// and $version=$1;
   $package =~ s/^(.*)\@// and $user=$1;
 
   #The first time, we get the user from the catalogue
-  if (! $user) {
-    if ($self->{INSTALL_USER}){
-      $user=$self->{INSTALL_USER};
-    }else{
-      ($user)=$catalogue->execute("whoami", "-silent");
-      if (!$user) {print "ERROR GETTING THE CATALOGUE $@\n";}
-      $user and $self->{INSTALL_USER}=$user;
-    }
-  }
+  $user or $user=$self->{CONFIG}->{ROLE};
+#    if ($self->{INSTALL_USER}){
+#      $user=$self->{INSTALL_USER};
+#    }else{
+#      ($user)=$catalogue->execute("whoami", "-silent");
+#      if (!$user) {print "ERROR GETTING THE CATALOGUE $@\n";}
+#      $user and $self->{INSTALL_USER}=$user;
+#    }
+#  }
   $self->info("Getting the package $package (version $version) as $user");
 
   $ENV{ALIEN_PROC_ID} and
@@ -1215,7 +1221,7 @@ sub getFiles {
 
   $self->getInputZip($catalog) or return;
 
-  my @files=$self->getListInputFiles($catalog);
+  my @files=$self->getListInputFiles();
 
   foreach my $file (@files) {
     $self->_getInputFile($catalog, $file->{cat},$file->{real}) or return;
@@ -1223,11 +1229,11 @@ sub getFiles {
 
   my $procDir = AliEn::Util::getProcDir($self->{JOB_USER}, undef, $self->{QUEUEID});
 
-  if (!( $catalog->execute("mkdir","$procDir/job-output","-ps"))) {
-    print STDERR "ERROR Creating the job-output directory!\n";
-    $self->putJobLog("error","Could not create the output directory in the catalogue: $procDir/job-output");
-    return;
-  }
+#  if (!( $catalog->execute("mkdir","$procDir/job-output","-ps"))) {
+#    print STDERR "ERROR Creating the job-output directory!\n";
+#    $self->putJobLog("error","Could not create the output directory in the catalogue: $procDir/job-output");
+#    return;
+#  }
 
   $self->info("Let's check if there are any files to stage");
   
@@ -1253,7 +1259,7 @@ sub getFiles {
 
 sub getListInputFiles {
   my $self=shift;
-  my $catalog=shift;
+
   
   my $dir = AliEn::Util::getProcDir($self->{JOB_USER}, undef, $self->{QUEUEID}) . "/";
 
@@ -1266,38 +1272,21 @@ sub getListInputFiles {
   }else {
     $self->info("There is no validation script");
   }
-  my ($ok,  $createLinks)=$self->{CA}->evaluateAttributeString("CreateLinks");
-  if ($createLinks) {
-    foreach my $file ($catalog->execute("find",$dir, "*")) {
-      my $format="${dir}job-log/";
-      $file=~ /^$format/ and next;
-      $self->debug(1, "Adding '$file' (dir '$dir')");
-      my $work=$file;
-      $work =~ s{^$dir}{$self->{WORKDIR}/};
-      push @files, {cat=> $file, real=>$work};
-      if ($work =~ /^($self->{WORKDIR}\/.*\/)[^\/]*$/ ) {
-	$self->info("Checking if $1 exists");
-	if (! -d $1) {
-	  mkdir $1 or print "Error making the directory $1 ($!)\n";
-	}
+  my ( $ok,  @inputFiles)=$self->{CA}->evaluateAttributeVectorString("InputDownload");
+  foreach (@inputFiles){
+    my ($proc, $lfn)=split /->/;
+    $self->debug(1, "Adding '$lfn' (dir '$dir')");
+    $proc =~ s{^$dir}{$self->{WORKDIR}/};
+    push @files, {cat=> $lfn, real=>$proc};
+    if ($proc =~ /^($self->{WORKDIR}\/.*\/)[^\/]*$/ ) {
+      $self->info("Checking if $1 exists");
+      if (! -d $1) {
+	mkdir $1 or print "Error making the directory $1 ($!)\n";
       }
     }
-  } else {
-    ( $ok, my @inputFiles)=$self->{CA}->evaluateAttributeVectorString("InputDownload");
-    foreach (@inputFiles){
-      my ($proc, $lfn)=split /->/;
-      $self->debug(1, "Adding '$lfn' (dir '$dir')");
-      $proc =~ s{^$dir}{$self->{WORKDIR}/};
-      push @files, {cat=> $lfn, real=>$proc};
-      if ($proc =~ /^($self->{WORKDIR}\/.*\/)[^\/]*$/ ) {
-	$self->info("Checking if $1 exists");
-	if (! -d $1) {
-	  mkdir $1 or print "Error making the directory $1 ($!)\n";
-	}
-      }
 
-    }
   }
+ 
   return @files
 }
 
@@ -1671,83 +1660,83 @@ sub createDefaultZipArchive{
 }
 
 
-sub copyInMSS {
-  my $self=shift;
-  my $catalog=shift;
-  my $lfn=shift;
-  my $localfile=shift;
+#sub copyInMSS {
+#  my $self=shift;
+#  my $catalog=shift;
+#  my $lfn=shift;
+#  my $localfile=shift;
 
-  my $size=(-s $localfile);
-  $self->info("Trying to save directly in the MSS");
-  my $name = $self->{CONFIG}->{SE_MSS};
-  $name
-    or $self->{LOGGER}->warning( "SE", "Error: no mass storage system" )
-      and return;
-  if ($name eq "file"  ) {
-    if ($self->{HOST} ne  $self->{CONFIG}->{SE_HOST}) {
-      $self->info("Using the file method, and we are not in the right machine ($self->{CONFIG}->{SE_HOST})... let's exist just in case");
-      return;
-    }
-  }
-  $name = "AliEn::MSS::$name";
-  eval "require $name"
-    or $self->{LOGGER}->warning( "SE", "Error: $name does not exist $! and $@" )
-      and return;
-  my $mss = $name->new($self);
+#  my $size=(-s $localfile);
+#  $self->info("Trying to save directly in the MSS");
+#  my $name = $self->{CONFIG}->{SE_MSS};
+#  $name
+#    or $self->{LOGGER}->warning( "SE", "Error: no mass storage system" )
+#      and return;
+#  if ($name eq "file"  ) {
+#    if ($self->{HOST} ne  $self->{CONFIG}->{SE_HOST}) {
+#      $self->info("Using the file method, and we are not in the right machine ($self->{CONFIG}->{SE_HOST})... let's exist just in case");
+#      return;
+#    }
+#  }
+#  $name = "AliEn::MSS::$name";
+#  eval "require $name"
+#    or $self->{LOGGER}->warning( "SE", "Error: $name does not exist $! and $@" )
+#      and return;
+#  my $mss = $name->new($self);
 
-  $mss or return;
-  $self->info("Got the mss");
-  my ($target,$guid)=$mss->newFileName();
-  $target or return;
-  $target="$self->{CONFIG}->{SE_SAVEDIR}/$target";
-  $self->info("Writing to $target");
-  my $pfn;
-  eval {
-    $pfn=$mss->save($localfile,$target);
-  };
-  if ($@) {
-    $self->info("Error copying the file: $@");
-    return;
-  }
-  $pfn or $self->info("The save didn't work :(") and return;
-  $self->info("The save worked ($pfn)");
-  return $catalog->execute("register", $lfn, $pfn, $size);
-}
-sub submitLocalFile {
-  my $self            = shift;
-  my $catalog         = shift;
-  my $localdirectory  = shift;
-  my $remotedirectory = shift;
-  my $filename        = shift;
-  my $sename          = shift || "";
+#  $mss or return;
+#  $self->info("Got the mss");
+#  my ($target,$guid)=$mss->newFileName();
+#  $target or return;
+#  $target="$self->{CONFIG}->{SE_SAVEDIR}/$target";
+#  $self->info("Writing to $target");
+#  my $pfn;
+#  eval {
+#    $pfn=$mss->save($localfile,$target);
+#  };
+#  if ($@) {
+#    $self->info("Error copying the file: $@");
+#    return;
+#  }
+#  $pfn or $self->info("The save didn't work :(") and return;
+#  $self->info("The save worked ($pfn)");
+#  return $catalog->execute("register", $lfn, $pfn, $size);
+#}
+#sub submitLocalFile {
+#  my $self            = shift;
+#  my $catalog         = shift;
+#  my $localdirectory  = shift;
+#  my $remotedirectory = shift;
+#  my $filename        = shift;
+#  my $sename          = shift || "";
 
-  my $id=$ENV{ALIEN_PROC_ID};
-  my $lfn= AliEn::Util::getProcDir($self->{JOB_USER}, undef, $id) . "/job-output/$filename";
+#  my $id=$ENV{ALIEN_PROC_ID};
+#  my $lfn= AliEn::Util::getProcDir($self->{JOB_USER}, undef, $id) . "/job-output/$filename";
 
-  my $localfile="$localdirectory/$filename";
-  #Let's see if the file exists...
-  if (! -f $localfile) {
-    $self->info("The job was supposed to create $filename, but the file $filename doesn't exist!!",1);
-    return ;
-  }
+#  my $localfile="$localdirectory/$filename";
+#  #Let's see if the file exists...
+#  if (! -f $localfile) {
+#    $self->info("The job was supposed to create $filename, but the file $filename doesn't exist!!",1);
+#    return ;
+#  }
 
-  #First, let's try to put the file directly in the SE
-  if (!$catalog->execute("add", $lfn, "file://$self->{HOST}$localdirectory/$filename", $sename)) {  
-    #Now, let's try registering the file.
-    if (! $self->copyInMSS($catalog,$lfn,$localfile)) {
-      $self->info("The registration didn't work...");
-      $self->submitFileToClusterMonitor($localdirectory, $filename, $lfn, $catalog) or return;
-    }
-  }
-  #Ok The file is registered. Checking if it has to be registered in more than
-  # one place
-  if ($self->{OUTPUTDIR} and ($self->{STATUS} eq "DONE") ) {
-    #copying the output to the right place
-    $catalog->execute("cp", $lfn, $self->{OUTPUTDIR}) or
-      $self->putJobLog("error","Error copying $lfn to $self->{OUTPUTDIR}");
-  }
-  return $lfn;
-}
+#  #First, let's try to put the file directly in the SE
+#  if (!$catalog->execute("add", $lfn, "file://$self->{HOST}$localdirectory/$filename", $sename)) {  
+#    #Now, let's try registering the file.
+#    if (! $self->copyInMSS($catalog,$lfn,$localfile)) {
+#      $self->info("The registration didn't work...");
+#      $self->submitFileToClusterMonitor($localdirectory, $filename, $lfn, $catalog) or return;
+#    }
+#  }
+#  #Ok The file is registered. Checking if it has to be registered in more than
+#  # one place
+#  if ($self->{OUTPUTDIR} and ($self->{STATUS} eq "DONE") ) {
+#    #copying the output to the right place
+#    $catalog->execute("cp", $lfn, $self->{OUTPUTDIR}) or
+#      $self->putJobLog("error","Error copying $lfn to $self->{OUTPUTDIR}");
+#  }
+#  return $lfn;
+#}
 
 =item submitFileToClusterMonitor($localdirectory, $filename)
 
@@ -2446,9 +2435,9 @@ sub registerLogs {
   defined $skip_register or $skip_register=1;
   $self->{REGISTER_LOGS_DONE} and return 1;
 
-  $self->info("Let's try to put the log files (registering them $skip_register)");
+  $self->info("Let's try to put the log files in the jdl ");
   my $func=sub {
-    my $catalog=shift;
+#    my $catalog=shift;
   #    my $dir= AliEn::Util::getProcDir($self->{JOB_USER}, undef, $ENV{ALIEN_PROC_ID}) . "/job-log";
 #    my $localfile="$self->{CONFIG}->{LOG_DIR}/$ENV{ALIEN_LOG}";
     my $host="$ENV{ALIEN_CM_AS_LDAP_PROXY}";
@@ -2458,19 +2447,16 @@ sub registerLogs {
     my $dir=$self->{LOGFILE};
     $dir=~ s{/([^/]*)$}{/};
     my $basename=$1;
-    my $data=$self->submitFileToClusterMonitor($dir,$basename, "execution.out",
-					       $catalog, {no_register=>$skip_register});
+    my $data=$self->submitFileToClusterMonitor($dir,$basename, "execution.out");
     $data or $self->info("Error submitting the log file") and return;
     use Data::Dumper;
     print "After submitting the file". Dumper ($data);
 
-    if (defined $skip_register) {
-      $self->info("And now, let's update the jdl");
-      $self->{CA}->set_expression("RegisteredLog", "\"execution.out######$data->{size}###$data->{md5}###$data->{se}/$data->{pfn}###\"");
-      $self->{JDL_CHANGED}=1;
-    }
+    $self->info("And now, let's update the jdl");
+    $self->{CA}->set_expression("RegisteredLog", "\"execution.out######$data->{size}###$data->{md5}###$data->{se}/$data->{pfn}###\"");
+    $self->{JDL_CHANGED}=1;
   };
-  $self->doInAllVO({no_catalog=>$skip_register}, $func);
+  $self->doInAllVO({},$func);
   $self->{REGISTER_LOGS_DONE}=1;
 
 
@@ -2489,18 +2475,7 @@ sub doInAllVO{
     $ENV{ALIEN_ORGANISATION}=$org;
     $ENV{ALIEN_CM_AS_LDAP_PROXY}=$cm;
     $self->{CONFIG}=$self->{CONFIG}->Reload({"organisation", $org});
-    my $start={debug=>0,silent=>0};
-    $start->{gapi_catalog} = $self->{CONFIG}->{AGENT_API_PROXY};
-    my $catalog=undef;
-    if ( $options->{no_catalog}){
-      $start->{no_catalog}=1;
-    }else{
-      $catalog= AliEn::UI::Catalogue::LCM->new($start);
-      ($catalog) or print STDERR "Error getting the catalog!\n" and next;
-    }
-#    $catalog->execute("whoami");
-    $func->($catalog);
-    $catalog and $catalog->close;
+    $func->();
   }
 }
 
