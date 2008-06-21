@@ -532,8 +532,8 @@ GET_ARGUMENTS()
 		BANK_TESTS=1
 		;;
 	    -NEW_VO|-new_vo)
-		mv  $ALIEN_HOME/.Environment $ALIEN_HOME/.Environment_test
-		echo ALIEN_IGNORE_BLOCK=1>  $ALIEN_HOME/.Environment
+		mv  $HOME/.alien/Environment $HOME/.alien/Environment_test
+		echo export ALIEN_IGNORE_BLOCK=1>  $HOME/.alien/Environment
 	        NEW_VO=1
 		;;
 	    -CATALOGUE_TESTS|-catalogue_tests)

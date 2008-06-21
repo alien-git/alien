@@ -18,16 +18,6 @@ BEGIN { plan tests => 2 }
 
   includeTest("14-se") or exit(-2);
   print "Creating a new user...";
-  my $cat=AliEn::UI::Catalogue->new({"role", "admin","silent", 1});
-  $cat or exit (-1);
-#  $cat->execute("debug", 5);
-  $cat->execute("addUser", "aliprod"  ) or exit (-2);
-  $cat->execute("addUser", "alienmaster") or exit (-2);
-  $cat->close;
-
-  #print "OK\n";
-
-  #print 
   ok(1);
   my $host=Net::Domain::hostname();
   my $org=$host;
