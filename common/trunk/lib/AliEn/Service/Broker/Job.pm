@@ -97,9 +97,7 @@ sub getJobAgent {
  
   if (!@$list){
     $self->info( "In findjob no job to match" );
-    my @return=(-2, "No jobs waiting in the queue");
-    $site_stage_jdl and return { execute=>\@return};
-    return @return;
+    return {execute=> [-2, "No jobs waiting in the queue"]};
   }
   $self->info( "Starting the match, with $number elements");
   
@@ -107,7 +105,6 @@ sub getJobAgent {
   $self->{SITE_CA}=$site_ca;
   my ($ok, $msg)=$self->checkQueueOpen($site_ca);
   if (!$ok){
-    $site_stage_jdl and return (-1, $msg);
     return {execute=>[-1, $msg]};
   }
 
@@ -163,15 +160,8 @@ sub getJobAgent {
     push @return, {queueid=>$queueId, token=>$token, jdl=>$jdl, user=>$jobUser};
   };
 
-  if ($site_stage_jdl){
-    $self->info("Returning the new format");
-    my $return={execute=>\@return,stage=>$to_stage};
-    
-  }else{
-    $self->info("The site is not updated. Using old format");
-    return @return;
-  }
-
+  $self->info("Returning the new format");
+  return {execute=>\@return,stage=>$to_stage};
 }
 
 sub checkQueueOpen {

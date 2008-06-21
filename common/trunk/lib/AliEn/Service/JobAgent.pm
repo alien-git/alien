@@ -1785,7 +1785,8 @@ sub submitFileToClusterMonitor{
   
   my $return=$lfn;
 
-  if (! $options->{no_register}){
+  if ($catalog){
+#! $options->{no_register}){
     my $dir= AliEn::Util::getProcDir($self->{JOB_USER}, undef, $ENV{ALIEN_PROC_ID}) . "/job-log";
     my $host="$ENV{ALIEN_CM_AS_LDAP_PROXY}";
     $catalog->execute("mkdir", $dir);
