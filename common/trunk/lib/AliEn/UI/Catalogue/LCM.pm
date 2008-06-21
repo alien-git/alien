@@ -267,34 +267,36 @@ sub get {
 "Error: not enough arguments in get\nUsage: get [-n] [-o]<file> [<localfile>]\n"
   and return;
 
+  my @envelope;
   my ($guidInfo);
-  
   if ($opt =~ /g/){
     $self->debug(1, "Getting it directly from the guid '$file'");
     $guidInfo=$self->{CATALOG}->getInfoFromGUID($file)
       or return;
     $self->info("Let's get the envelope");
-    my @envelope = $self->access("-s","read",$guidInfo->{guid}) or return;
-    $ENV{'IO_AUTHZ'} = $envelope[0]->{envelope};
+    @envelope = $self->access("-s","read",$guidInfo->{guid}) or return;
+
   }else {
     #Get the pfn from the catalog
-
-    my $info=$self->{CATALOG}->f_whereis("i",$file)
-      or $self->info("Error getting the info from '$file'") and return;
-
-    $file=$info->{lfn};
-    $guidInfo=$info->{guidInfo};
-
+    if ($self->{CATALOG}){
+      my $info=$self->{CATALOG}->f_whereis("i",$file)
+	or $self->info("Error getting the info from '$file'") and return;
+      
+      $file=$info->{lfn};
+      $guidInfo=$info->{guidInfo};
+    }
     ######################################################################################
     #get the authorization envelope and put it in the IO_AUTHZ environment variable
-    my @envelope = $self->access("-s","read","$file");
-    if (!defined $envelope[0]->{envelope}) {
-      $self->info( "Cannot get access to $file") and return;
-    }
-    
-    $ENV{'IO_AUTHZ'} = $envelope[0]->{envelope};
+    @envelope = $self->access("-s","read","$file");
     ######################################################################################
   }
+
+  if (!defined $envelope[0]->{envelope}) {
+    $self->info( "Cannot get access to $file") and return;
+  }
+
+  $guidInfo->{guid}=$envelope[0]->{guid};
+  $ENV{'IO_AUTHZ'} = $envelope[0]->{envelope};
   $guidInfo->{guid} or 
     $self->info("Error getting the guid and md5 of $file",-1) and return;
 
@@ -1985,6 +1987,7 @@ sub stage {
   my $lfn=shift;
   $lfn or $self->info("Error: not enough arguments in stage:" .$self->stage_HELP()) and return;
   $self->info("Ready to stage the files $lfn @_");
+  $self->{CATALOG} or $self->info("We don't have a catlogue... can't stage") and return;
   my @info= $self->{CATALOG}->f_whereis("rs", $lfn);
   my $return={};
   while (@info){

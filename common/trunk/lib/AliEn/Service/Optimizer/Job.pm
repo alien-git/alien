@@ -106,7 +106,6 @@ sub copyInput {
   ($ok, my @inputFile) = $job_ca->evaluateAttributeVectorString("InputBox");
   my @origFile=@inputFile;
   $self->info("Already evaluated the inputbox");
-  ($ok, my $createLinks)=$job_ca->evaluateAttributeString("CreateLinks");
   ($ok, my @inputData)= $job_ca->evaluateAttributeVectorString("InputData");
   $self->info("Before the copy of the inputcollection");
   $self->copyInputCollection($job_ca, $procid, \@inputData)
@@ -133,7 +132,7 @@ sub copyInput {
       $self->info("In copyInput adding file $file (from the InputBox $pfn)");
       #    my $procname=$self->findProcName($procid, $file, $done, $user);
       if ( defined $pfnSize ) {
-	my $procname=$self->findProcName($procDir, $file, $done,$createLinks);
+	my $procname=$self->findProcName($procDir, $file, $done);
 	$self->info("Adding $procname with $pfn and $pfnSize");
 	$size+=$pfnSize;
 	if (! $self->{CATALOGUE}->execute( "register", $procname, $pfn, $pfnSize, $pfnSE ) ) {
@@ -179,24 +178,15 @@ sub copyInput {
 	  next;
 	
 
-	my $procname=$self->findProcName($procDir, $file, $done,$createLinks);
+	my $procname=$self->findProcName($procDir, $file, $done);
 
-	if ($createLinks) {
-	  if (!$self->{CATALOGUE}->execute( "cp", $file, $procname, "-silent" )){
-	    print "Copying failed!!! Let's try again\n";
-	    $self->{CATALOGUE}->execute( "cp", $file, $procname)
-	      or print STDERR "JobOptimizer: in copyInput error copying the entry $file to $procname to the catalog!!\n"
-		and return;
-	  }
-	}else {
-	  push @filesToDownload, "\"${procname}->$file\"";
-	}
+	push @filesToDownload, "\"${procname}->$file\"";
       }
     }
-    if ( ! $createLinks and @filesToDownload) {
+    if ( @filesToDownload) {
       $self->info("Putting in the jdl the list of files that have to be downloaded");
       $job_ca->set_expression("InputDownload", "{". join(",", @filesToDownload)."}");
-      }
+    }
     
     # change to the correct owner
     #      $self->{CATALOGUE}->execute("chown","$user","$procDir/", "-f");
@@ -238,7 +228,6 @@ sub findProcName{
   my $procDir = shift;
   my $origname=shift;
   my $done=(shift or {});
-  my $createLinks=shift ||0;
 
   $done->{files} or $done->{files}={stdout=>0, resources=>0, stderr=>0};
   $done->{dir} or $done->{dir}=-1;
@@ -254,10 +243,6 @@ sub findProcName{
   } else {
     $name= "/$procDir/$i/$origname";
     $done->{files}->{$origname}++;
-  }
-  if ($createLinks && defined $i && ($done->{dir}<$i) ){
-    $self->{CATALOGUE}->execute( "mkdir", "-p", "$procDir/$i","-silent" );
-    $done->{dir}=$i;
   }
   return $name;
 
