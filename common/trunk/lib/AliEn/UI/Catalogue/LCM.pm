@@ -267,31 +267,33 @@ sub get {
 "Error: not enough arguments in get\nUsage: get [-n] [-o]<file> [<localfile>]\n"
   and return;
 
-  my @envelope;
-  my ($guidInfo);
-  if ($opt =~ /g/){
-    $self->debug(1, "Getting it directly from the guid '$file'");
-    $guidInfo=$self->{CATALOG}->getInfoFromGUID($file)
-      or return;
-    $self->info("Let's get the envelope");
-    @envelope = $self->access("-s","read",$guidInfo->{guid}) or return;
+  my $entry=$file;
 
-  }else {
-    #Get the pfn from the catalog
-    #print Dumper($self->{CATALOG});
-    if ($self->{CATALOG}){
+  my $class="";
+  $self->{CATALOG} and $class=ref $self->{CATALOG};
+  my $guidInfo;
+  if ($class =~ /^AliEn/ ){
+    if ($opt =~ /g/){
+#      $self->debug(1, "Getting it directly from the guid '$file'");
+      $guidInfo=$self->{CATALOG}->getInfoFromGUID($file)
+        or return;
+      $entry=$guidInfo->{guid};
+#      
+    }else {
+      #Get the pfn from the catalog
+      #print Dumper($self->{CATALOG});
       my $info=$self->{CATALOG}->f_whereis("i",$file)
 	or $self->info("Error getting the info from '$file'") and return;
       
       $file=$info->{lfn};
       $guidInfo=$info->{guidInfo};
+      $entry=$file;
     }
-    ######################################################################################
-    #get the authorization envelope and put it in the IO_AUTHZ environment variable
-    @envelope = $self->access("-s","read","$file");
-    ######################################################################################
   }
 
+  my  @envelope = $self->access("-s","read",$entry) or return;
+
+  #print Dumper(@envelope);
   if (!defined $envelope[0]->{envelope}) {
     $self->info( "Cannot get access to $file") and return;
   }
@@ -310,12 +312,14 @@ sub get {
   my $result=$self->{STORAGE}->getLocalCopy($guidInfo->{guid}, $localFile);
   if (! $result) {
     $self->{STORAGE}->checkDiskSpace($guidInfo->{size}, $localFile) or return;
-    my $seRef = $guidInfo->{pfn};
+    my $seRef = $envelope[0]->{origpfn};
 
     #Get the file from the LCM
     $seRef or $self->info("Error getting the list of pfns")
       and return;
-
+    foreach my $d (@$seRef){
+      $d->{seName}=$d->{se};
+    }
     my (@seList ) = $self->selectClosestSE(@$seRef);
     $self->debug(1, "We can ask the following SE: @seList");
 
@@ -328,10 +332,7 @@ sub get {
       if ($self->{MONITOR}){
 	$self->sendMonitor('read', $se, $time, $guidInfo->{size}, $result);
       }
-      if ($result) {
-	$self->info("And the file is $result",0,0);
-	return $result;
-      }
+      $result and last;
     }
     $result or
       $self->info("Error: not possible to get the file $file", 1) and return;
@@ -711,8 +712,8 @@ sub selectClosestSE {
     my $newse  = shift;
     my $seName=$newse;
     UNIVERSAL::isa($newse, "HASH") and $seName=$newse->{seName};
-    $self->debug(1,"Checking $seName vs $self->{CONFIG}->{SE_FULLNAME}/$self->{CONFIG}->{ORG_NAME}/$self->{CONFIG}->{SITE}" );
-    if ( $seName =~ /^$self->{CONFIG}->{SE_FULLNAME}$/i ){
+    $self->debug(1,"Checking $seName vs " . $self->{CONFIG}->{SE_FULLNAME} || 'undef' ."/$self->{CONFIG}->{ORG_NAME}/$self->{CONFIG}->{SITE}" );
+    if ($self->{CONFIG}->{SE_FULLNAME} and  $seName =~ /^$self->{CONFIG}->{SE_FULLNAME}$/i ){
       $se=$newse;
     }elsif( grep ( /^$newse$/i, @{ $self->{CONFIG}->{SEs_FULLNAME} } )){
       push @close, $newse;
@@ -902,13 +903,14 @@ sub addFile {
 sub sendMonitor {
   my $self=shift;
   my $access=shift;
-  my $se=shift;
+  my $se=shift|| "";
   my $time=shift;
-  my $size=shift;
+  my $size=shift || 0;
   my $ok=shift;
   $self->{MONITOR} or return 1;
 
-  my @params=('time', $time);
+  my @params=('time', $time); 
+ print "HELLO $size or $time or $se\n";
   if ($ok){
     $time or $time=1;
     push @params, 'size', $size, status=>1, speed=>$size/$time;
@@ -1335,7 +1337,7 @@ sub getPFNforAccess {
 	
   if (!$pfn && $nonRoot) {
     $self->info("access: this is not a root pfn: $nonRoot ");
-    return ($se, $nonRoot, "");
+    return ($se, $nonRoot, "", ,$lfn, $nses, \@where);
   }
 
   my ($urlprefix,$urlhostport,$urlfile,$urloptions);
@@ -1344,29 +1346,18 @@ sub getPFNforAccess {
   $urlfile="";
   $urlhostport="";
   if ($pfn =~ /([a-zA-Z]*):\/\/([0-9a-zA-Z.\-_:]*)\/(.*)/) {
-    if (defined $1) {
-      $urlprefix = "$1://";
-    }
-    if (defined $2) {
-      $urlhostport = $2;
-    } 
-    
-    if (defined $3) {
-      $urlfile = $3;
-    }
+    (defined $1) and  $urlprefix = "$1://";
+    (defined $2) and   $urlhostport = $2;
+    (defined $3) and    $urlfile = $3;
   } else {
     $self->{LOGGER}->error("LCM","access: parsing error for $pfn [host+port]");
     return;
   }
   
-  if ($urlfile =~ /([^\?]*)\?([^\?]*)/) {
-    if (defined $1 ) {
-      $urlfile = $1;
-    }
-    if (defined $2 ) {
-      $urloptions = $2;
-    }
+  if ($urlfile =~ s/([^\?]*)\?([^\?]*)/$1/) {
+     (defined $2 )  and $urloptions = $2;
   }
+
   
   # fix // in the urlfile part
   $urlfile =~ s/\/\//\//g;
@@ -1396,13 +1387,13 @@ sub getPFNforAccess {
 
     $lfn .= "_$guid";
     my $newanchor;
-    ($se, $pfn, $newanchor, $lfn, $nses )=$self->getPFNforAccess($guid, $se, $sesel, $lfn, $options)
+    ($se, $pfn, $newanchor, $lfn, $nses, my $whereisr )=$self->getPFNforAccess($guid, $se, $sesel, $lfn, $options)
       or return;
     $self->info("The father pfn is $pfn");
   }
 
 
-  return ($se, $pfn, $anchor, $lfn, $nses);
+  return ($se, $pfn, $anchor, $lfn, $nses, \@where);
 }
 
 sub access {
@@ -1491,7 +1482,7 @@ sub access {
     }
     #    print "$access $lfn $se\n";
 
-
+    my $whereis;
     while(1) {
       if ( $lfn ne "") {
 	  $filehash = $self->{CATALOG}->checkPermissions($perm,$lfn,undef, 
@@ -1602,7 +1593,7 @@ sub access {
 	  $guid=$self->{CATALOG}->f_lfn2guid("s",$lfn)
 	    or $self->info( "access: Error getting the guid of $lfn",11) and return;
 	}
-	($se, $pfn, $anchor, $lfn, $nses)=$self->getPFNforAccess($guid, $se, $sesel, $lfn, $options)
+	($se, $pfn, $anchor, $lfn, $nses, $whereis)=$self->getPFNforAccess($guid, $se, $sesel, $lfn, $options)
 	  or return access_eof;
 	$DEBUG and $self->debug(1, "access: We can take it from the following SE: $se with PFN: $pfn");
       }
@@ -1668,7 +1659,8 @@ sub access {
       $newhash->{md5}  ="$filehash->{md5}";
       $newhash->{nSEs} = $nses;
       $newhash->{lfn}=$filehash->{lfn};
-      
+      $newhash->{size}=$filehash->{size};
+      $newhash->{origpfn}=$whereis;
       # the -p (public) option creates public access url's without envelopes
       $newhash->{se}="$se";
       
