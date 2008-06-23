@@ -105,7 +105,7 @@ sub initialize {
    $self->info("Will wait at least $self->{CONFIG}->{CE_MINWAIT}s between submission loops.");
    $self->{LASTCHECKED} = time-$self->{CONFIG}->{CE_MINWAIT};
    
-   $self->renewProxy();
+   $self->renewProxy(100000);
    my $defaults = "$ENV{EDG_LOCATION}/etc/edg_wl_ui_cmd_var.conf";
    if ( open DEFAULTS, "<$defaults" ) {
      while (<DEFAULTS>) {
@@ -128,7 +128,7 @@ sub submit {
   my $jdlfile = $self->generateJDL($jdl, $command);
   $jdlfile or return;
 
-  $self->renewProxy();
+  $self->renewProxy(100000);
 
   $self->info("Submitting to LCG with \'@args\'.");
   my $now = time;
@@ -642,7 +642,6 @@ sub renewProxy {
 	       "-o", "/tmp/tmpfile.$$" , "--cert", $ENV{X509_USER_PROXY}, 
 	       "--key", $ENV{X509_USER_PROXY});
    }
-   $self->info("Doing @command");
    my $oldPath=$ENV{PATH};
    my $pattern="$ENV{ALIEN_ROOT}"."[^:]*:";
    $ENV{PATH}=~ s/$pattern//g;
