@@ -76,6 +76,8 @@ sub requestTransfer {
   my $slots=shift || 1;
 
 
+
+
   $jdl
     or $self->{LOGGER}->warning( "TransferBroker", "In requestTransfer no classad for the host received" )
       and return ( -1, "no classad received" );
@@ -85,6 +87,9 @@ sub requestTransfer {
   my $ca = Classad::Classad->new($jdl);
   $self->debug(1, "Classad created");
   my ($ok, $host)=$ca->evaluateAttributeString("Name");
+
+  $self->redirectOutput("TransferBroker/$host");
+
   $self->info("New transfer requested from $host!!");
 
 
@@ -92,7 +97,7 @@ sub requestTransfer {
   my @toReturn;
   while (@ids){
     my ( $transferId, $transfer_ca, $id2 ) = (shift @ids, shift @ids, shift @ids);
-    $self->info("WE ARE GOIND TO RETURN TRANSFER $transferId, with ". $transfer_ca->asJDL() );
+    $self->info("WE ARE GOIND TO RETURN TRANSFER $transferId" );
     push @toReturn, $self->getTransferArguments($transferId,  $transfer_ca, $ca );
 
   }
@@ -112,7 +117,7 @@ sub getTransferArguments {
 
 
     $transfer->{ID}=$id;
-    $self->info("Defining the transfer");
+    $self->debug(1,"Defining the transfer");
 
     my @args=("Action","ToPFN", "ORIGPFN", "FromFTDOptions", "GUID", "FromCertificate", "ToSE", "FromSE" );
 
@@ -145,7 +150,7 @@ sub getTransferArguments {
     my $found;
     #Checking which one of the SE close to the FTD has the file
     foreach my $se (@allSE) {
-      $self->info("Checking $se");
+      $self->debug(1, "Checking $se");
       my @tempSE=grep (/^$se$/i, @se) or next;
       $found=shift @tempSE;
       $found and last;
@@ -172,8 +177,6 @@ sub getTransferArguments {
     ($ok, my $host)=$ftd_ca->evaluateAttributeString("Name");
 
     $self->info("Sending transfer $id to $host");
-    use Data::Dumper;
-    print Dumper($transfer);
     return $transfer;
 }
 
