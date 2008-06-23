@@ -96,18 +96,19 @@ sub copyInput {
   my $procid=shift;
   my $job_ca=shift;
   my $user=shift;
-  $self->info("At the beginnning of copyInput of $procid");
+  $self->debug(1, "At the beginnning of copyInput of $procid");
   my ($ok, $split)=$job_ca->evaluateAttributeString("Split");
-  $self->info("Already evaluated the split");
+  $self->debug(1,"Already evaluated the split");
   $split and
     $self->info("The job is going to be split... don't need to copy the input")
       and return {};
 
   ($ok, my @inputFile) = $job_ca->evaluateAttributeVectorString("InputBox");
   my @origFile=@inputFile;
-  $self->info("Already evaluated the inputbox");
+
+  $self->debug(1,"Already evaluated the inputbox");
   ($ok, my @inputData)= $job_ca->evaluateAttributeVectorString("InputData");
-  $self->info("Before the copy of the inputcollection");
+  $self->debug(1, "Before the copy of the inputcollection");
   $self->copyInputCollection($job_ca, $procid, \@inputData)
     or  $self->info("Error checking the input collection") and return;
 
@@ -119,10 +120,10 @@ sub copyInput {
   my $size=0;
 
   my $done={};
-  my ($olduser)=$self->{CATALOGUE}->execute("whoami");
+  my ($olduser)=$self->{CATALOGUE}->execute("whoami", "-silent");
   my @allreq;
   my @allreqPattern;
-  $self->info("And the new eval");
+  $self->debug(1, "And the new eval");
   eval {
     foreach $file (@inputFile, @inputData) {
       my ( $pfn, $pfnSize, $pfnName, $pfnSE ) = split "###", $file;
@@ -133,7 +134,7 @@ sub copyInput {
       #    my $procname=$self->findProcName($procid, $file, $done, $user);
       if ( defined $pfnSize ) {
 	my $procname=$self->findProcName($procDir, $file, $done);
-	$self->info("Adding $procname with $pfn and $pfnSize");
+	$self->debug(1, "Adding $procname with $pfn and $pfnSize");
 	$size+=$pfnSize;
 	if (! $self->{CATALOGUE}->execute( "register", $procname, $pfn, $pfnSize, $pfnSE ) ) {
 	  print "The registration failed ($AliEn::Logger::ERROR_MSG) let's try again...\n";
@@ -145,8 +146,8 @@ sub copyInput {
       }
       else {
 	$file=~ s/^LF://i;
-	$self->info("Adding file $file (from the InputBox)" );
-	my ($fileInfo)=$self->{CATALOGUE}->execute("whereis", "-ri", $file);
+	$self->debug(1, "Adding file $file (from the InputBox)" );
+	my ($fileInfo)=$self->{CATALOGUE}->execute("whereis", "-ri", $file, "-silent");
 	if (!$fileInfo) {
 	  $self->putJobLog($procid,"error", "Error checking the file $file");
 	  die("The file $file doesn't exist");
@@ -171,7 +172,7 @@ sub copyInput {
 	    push @allreqPattern, $sePattern;
 	  }
 	} else {
-	  $self->info("The file $file doesn't count for the requirements");
+	  $self->debug(1, "The file $file doesn't count for the requirements");
 	}
 	$nodownload and
 	  $self->info("Skipping file $file (from the InputBox) - nodownload option" ) and 
@@ -463,12 +464,12 @@ sub copyInputCollection {
   my $job_ca=shift;
   my $jobId=shift;
   my $inputBox=shift;
-  $self->info("Checking if the job defines the InputDataCollection");
+  $self->debug(1, "Checking if the job defines the InputDataCollection");
 
   my ( $ok, @inputData ) =
     $job_ca->evaluateAttributeVectorString("InputDataCollection");
   @inputData or
-    $self->info("There is no inputDataCollection")
+    $self->debug(1, "There is no inputDataCollection")
       and return 1;
   ($ok, my $split)=$job_ca->evaluateAttributeString("Split");
 
@@ -572,6 +573,7 @@ sub copyInputFiles {
       and return {requirements=>""};
 
   foreach my $lfn ( @inputData ) {
+    ($lfn =~ /nodownload/) and next;
     $lfn =~ s/^LF://;
     $self->debug(1, "In copyInputFiles updating $lfn");
     my $name = "";
