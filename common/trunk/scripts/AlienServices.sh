@@ -167,7 +167,7 @@ ALIEN_Starthttpd()
   for file in `find  $HOME/.alien/httpd -name httpd.conf` ; 
   do 
      echo "CHECKING $file"
-    $ALIEN_ROOT/httpd/bin/httpd -k start -f $file# >/dev/null 2>&1
+    $ALIEN_ROOT/httpd/bin/httpd -k start -f $file  # >/dev/null 2>&1
   done
   exit $?
 }
