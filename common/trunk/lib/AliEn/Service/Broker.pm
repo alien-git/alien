@@ -123,7 +123,7 @@ sub match {
     $self->debug(1, "in match pending$type = $id" );
 
     my $job_ca = Classad::Classad->new($element->{jdl});
-    $self->info("CHecking $element->{jdl}");
+    $self->debug(1, "Checking $element->{jdl}");
     if ( !$job_ca->isOK() ) {
       $self->{LOGGER}->error( "Broker", "Got an incorrect $type ca ($id)");
       $self->{DB}->updateStatus($id,"%", "INCORRECT");
@@ -153,7 +153,7 @@ sub match {
       my $ret2=$item->{jdl};
       my $realId=$item->{id};
       if (!$ret1 ){
-	$self->info("Creating the classad of $item->{jdl}");
+	$self->debug(1, "Creating the classad of $item->{jdl}");
 	$ret1=$item->{classad}= Classad::Classad->new($item->{jdl});
 	($ret1 and $ret1->isOK())
 	  or $self->info("Error creating the jdl") and next;
@@ -187,6 +187,26 @@ sub match {
   
   return @toReturn;
 }
+
+sub redirectOutput{
+  my $self=shift;
+  my $var=shift;
+
+  my $fullPath=$self->{CONFIG}->{LOG_DIR} || $ENV{ALIEN_HOME};
+  $fullPath.="/$var.log";
+  $self->{CURRENT_LOG} eq $fullPath and return 1;
+  
+  my $dir=$fullPath;
+  $dir=~ s{[^/]*$}{};
+  (-d $dir) || mkdir ($dir);
+  (-d $dir) or $self->info("Error creating '$dir'") and return;
+
+  #$self->info("Putting the output in $dir");
+  $self->{LOGGER}->redirect($fullPath);
+  $self->{CURRENT_LOG} =$fullPath; 
+  return 1;
+}
+
 
 return 1;
 

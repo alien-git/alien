@@ -21,24 +21,29 @@ sub checkWakesUp {
   #Updating the transfers with status 'WAITING' and only one PFN
   my $now=time;
   my $expired=$now-7*48*60*60;
-  my $transfers=$self->{DB}->query("SELECT transferid FROM TRANSFERS where (status='DONE' or status='FAILED' or status='EXPIRED') and finished<?",undef, {bind_values=>[$expired]});
-  
-  defined $transfers
-    or $self->{LOGGER}->warning( "TransferOptimizer", "In checkTransferRequirements error during execution of database query" )
+
+  my $limit=1000;
+  my $counter=$limit;
+  while ($counter eq $limit){
+    my $transfers=$self->{DB}->query("SELECT transferid FROM TRANSFERS where (status='DONE' or status='FAILED' or status='EXPIRED') and finished<? limit 1000",undef, {bind_values=>[$expired]});
+
+    defined $transfers
+      or $self->{LOGGER}->warning( "TransferOptimizer", "In checkTransferRequirements error during execution of database query" )
       and return;
-  
-  my $table=$self->{DB}->getArchiveTable();
 
-  $self->info( "There are ".($#{$transfers} +1)." transfers ready to be moved to $table (older than $expired)");
+    $counter=$#{$transfers} +1;
 
+    my $table=$self->{DB}->getArchiveTable();
 
-  foreach my $transfer (@$transfers){
-    $self->{DB}->do("INSERT into $table select * from TRANSFERS where transferid=?", {bind_values=>[$transfer->{transferid}]});
-    $self->{DB}->do("delete from TRANSFERS where transferid=?", {bind_values=>[$transfer->{transferid}]});
+    $self->info( "There are $counter transfers ready to be moved to $table (older than $expired)");
 
-    print ".";
+    
+    foreach my $transfer (@$transfers){
+      $self->{DB}->do("INSERT into $table select * from TRANSFERS where transferid=?", {bind_values=>[$transfer->{transferid}]});
+      $self->{DB}->do("delete from TRANSFERS where transferid=?", {bind_values=>[$transfer->{transferid}]});
+    }
+
   }
-
 
   return ;
 }

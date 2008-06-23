@@ -66,6 +66,9 @@ sub getJobIdFromAgentId {
 #
 # This function is called when a jobAgent starts, and tries to get a task
 #
+
+
+
 sub getJobAgent {
   my $this    = shift;
   my $user    =shift;
@@ -74,7 +77,10 @@ sub getJobAgent {
   my $site_stage_jdl =shift;
 
   my $date = time;
+
   #DO NOT PUT ANY print STATEMENTS!!! Otherwise, it doesn't work with an httpd container
+
+  $self->redirectOutput("JobBroker/$host");
   $self->info( "In findjob finding a job for $host");
 
   $self->{DB}->updateHost($host,{status=>'ACTIVE', date=>$date})
@@ -82,8 +88,6 @@ sub getJobAgent {
       and return;
 
   $self->info( "Getting the list of jobs");
-  #my ($list) = $self->{DB}->getWaitingJobs("priority desc, queueId","-1");
-#   my ($list) = $self->{DB}->getWaitingJobs("effectivePriority desc, queueId","-1");
   my $list= $self->{DB}->getWaitingJobAgents();
 
   defined $list                              
@@ -107,14 +111,15 @@ sub getJobAgent {
   if (!$ok){
     return {execute=>[-1, $msg]};
   }
-
+  ($ok, my $wn)= $site_ca->evaluateAttributeString("WNHost");
+  $self->info("The worker node is $wn");
   my ($queueId, $job_ca, $jdl)=$self->match( "agent", $site_ca, $list, $user, $host , "checkPackagesToInstall", 0,"getJobIdFromAgentId");
 
   my $to_stage;
-  if ($site_stage_jdl){
+  if ($site_stage_jdl and 0){
     $self->info("Checking if it can stage anything ($site_stage_jdl)");
     my $site_stage_ca = Classad::Classad->new($site_stage_jdl);
-    if ($site_stage_ca){
+    if (($site_stage_ca) and 0 ){
       my ($stageId, $stage_ca, $stage_jdl)=$self->match("agent", $site_stage_ca, $list, $user, $host."_alienSTAGE", undef, 0,"getJobIdFromAgentId");
       $self->info("AFTER CHECKING, got $stageId, $stage_ca and $stage_jdl");
 
@@ -292,7 +297,10 @@ sub offerAgent {
   my $ca_text=shift;
   my $free_slots=( shift or 0);
 
-  $self->info( "Checking if there are any agents that can be started in the machine $host (up to a maximum of $free_slots)");
+  
+  $self->redirectOutput("JobBroker/$host");
+   $self->info( "And now Checking if there are any agents that can be started in the machine $host (up to a maximum of $free_slots)");
+
   $self->setAlive();
 
   $free_slots or $self->info( "Not enough resources")
@@ -312,7 +320,7 @@ sub offerAgent {
     $self->info( "Error getting the entries from the queue");
     die("Error selecting the jobAgent entries\n");
   }
-  $self->info( "Got the list of needed agents");
+  $self->info( "Got the list of needed agents ($#$dbAgents +1 elements)");
   foreach my $element (@$dbAgents) {
     $self->debug(1, "Checking the jdl of $element->{jdl}");
     my $job_ca = Classad::Classad->new($element->{jdl});

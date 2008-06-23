@@ -79,15 +79,22 @@ sub checkWakesUp {
 sub insertCollectionTransfer{
   my $self=shift;
   my $transfer=shift;
+
+  my ($olduser)=$self->{CATALOGUE}->execute("whoami", "-silent");
+  $self->{CATALOGUE}->execute("user","-",  $transfer->{user});
+
   eval {
     $self->{DB}->updateTransfer($transfer->{transferid}, {status=>'SPLITTING'}) or die("Error setting the status to SPLITTING\n");
     my ($info)=$self->{CATALOGUE}->execute("listFilesFromCollection","-silent", $transfer->{lfn}) or die("Error getting the files of the collection");
     $transfer->{options}=~ s{m|f}{}g;
     $transfer->{options}=~ /t/ or $transfer->{options}.="t";
     my $total=0;
+    my @optionList= split (//, $transfer->{options});
+    map {s/^/-/} @optionList;
+    
     foreach my $file (@$info){
-      $self->info("Now we have to send a transfer for $file->{origLFN} (options $transfer->{options})");
-      my ($done)=$self->{CATALOGUE}->execute("mirror", "-$transfer->{options}", $file->{origLFN}, $transfer->{destination}, "-m", $transfer->{transferid});
+      $self->info("Now we have to send a transfer for $file->{origLFN} (options @optionList)");
+      my ($done)=$self->{CATALOGUE}->execute("mirror", @optionList, $file->{origLFN}, $transfer->{destination}, "-m", $transfer->{transferid});
       $self->info("Got $done\n");
       $done or $self->info("Error mirroring $file->{origLFN}");
       $done and $total++;
@@ -97,7 +104,9 @@ sub insertCollectionTransfer{
     $self->info("Number of subtransfers: $total");
     $total or die("There are no subtransfer for that collection\n");
   };
-  if ($@){
+  my $error=$@;
+  $self->{CATALOGUE}->execute("user", "-", $olduser);
+  if ($error){
     $self->info("Error splitting the transfer: $@");
     $self->{DB}->updateTransfer($transfer->{transferid}, {status=>'FAILED'});
     return;
