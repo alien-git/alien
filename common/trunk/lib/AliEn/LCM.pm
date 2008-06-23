@@ -258,23 +258,13 @@ sub new {
 
     $self->{TXTDB} or $self->{LOGGER}->error("LCM", "Error getting the text database") and return;
 
-    if ( $self->{CONFIG}->{SE} ) {
-        $DEBUG and $self->debug(1,
-"Contacting the SE at $self->{CONFIG}->{SE_HOST}:$self->{CONFIG}->{SE_PORT}"
-        );
-	$self->{SOAP}->checkService("SE") or 
-	  $self->info( "Error contacting the local SE");
-#        $self->{SE} =
-#          SOAP::Lite->uri("AliEn/Service/SE")
-#          ->proxy(
-#            "http://$self->{CONFIG}->{SE_HOST}:$self->{CONFIG}->{SE_PORT}",
-#		 timeout => 200);
-#
-#        $self->{SE}
-#          or $self->{LOGGER}->warning( "LCM",
-#"Error contacting the SE at $self->{CONFIG}->{SE_HOST}:$self->{CONFIG}->{SE_PORT}"
-#          );
-    }
+#    if ( $self->{CONFIG}->{SE} ) {
+#        $DEBUG and $self->debug(1,
+#"Contacting the SE at $self->{CONFIG}->{SE_HOST}:$self->{CONFIG}->{SE_PORT}"
+#        );
+#	$self->{SOAP}->checkService("SE") or 
+#	  $self->info( "Error contacting the local SE");
+#    }
     return $self;
 }
 
@@ -702,7 +692,7 @@ sub killTransfer {
 
 sub checkDiskSpace{
   my $self=shift;
-  my $space=shift;
+  my $space=shift ||0;
   my $localFile=shift;
 
   $self->debug(1, "Checking if we have $space bytes of diskspace to get the file");
