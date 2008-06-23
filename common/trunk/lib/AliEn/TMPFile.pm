@@ -20,12 +20,12 @@ sub new {
 
 
   my $oldttl=$global->{FILE}->{ttl};
-  $global->{CONFIG}->info("Creating a temporary file");
+  $global->{CONFIG}->debug(1,"Creating a temporary file");
 
   my $old={};
   foreach my $key (keys %$options){
     $global->{FILE}->{$key} and $old->{$key}=$global->{FILE}->{$key};
-    $global->{CONFIG}->info( "Setting $key of $options->{$key}");
+    $global->{CONFIG}->debug(1,"Setting $key of $options->{$key}");
     $global->{FILE}->{$key}=$options->{$key};
   }
   my $fileName;
