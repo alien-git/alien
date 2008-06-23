@@ -370,7 +370,7 @@ sub getNewTransfers{
 	my $self = shift;
 
 	$self->debug(1,"In getNewTransfers fetching attributes transferid,lfn, pfn, destination of transfers in INSERTING state");
-	$self->query("SELECT transferid,lfn, pfn, destination,options,collection FROM TRANSFERS WHERE STATUS='INSERTING'");
+	$self->query("SELECT transferid,lfn, pfn, destination,options,collection,user FROM TRANSFERS WHERE STATUS='INSERTING'");
 }
 
 

@@ -44,7 +44,7 @@ sub updateInserting {
 
   my $status="WAITING";
 
-  $self->info( "\n\nInserting a new job" );
+  $self->info( "\n\nInserting a new job $queueid" );
 
   my ($host)= $self->{DB}->getFieldFromQueue($queueid,"submitHost")
     or $self->info( "Job $queueid doesn't exist" )
@@ -67,7 +67,7 @@ sub updateInserting {
     my ($ok, $req)=$job_ca->evaluateExpression("Requirements");
     ($ok and $req) or
       die("error getting the requirements of the jdl");
-    $self->info( "Let's create the entry for the jobagent");
+    $self->debug(1,  "Let's create the entry for the jobagent");
     $req =~ s{ \&\& \( other.LocalDiskSpace > \d+ \)}{}g;
 
     $done->{requirements} and $req.=" && $done->{requirements}";
@@ -109,7 +109,7 @@ sub updateInserting {
   }
   $self->putJobLog($queueid,"state", "Job state transition from INSERTING to $status");
 
-  $return and $self->info( "Command $queueid inserted!" );
+  $return and $self->debug(1, "Command $queueid inserted!" );
   return $return
 
 

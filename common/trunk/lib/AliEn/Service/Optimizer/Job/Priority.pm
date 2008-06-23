@@ -18,6 +18,7 @@ sub checkWakesUp {
 
     $self->$method(@data, "The priority optimizer starts");
 
+    $self->{CATALOGUE}->execute("resyncJobAgent");
     $self->info("First, let's get all the users");
     my $userColumn="SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 )";
     $self->{DB}->do("INSERT IGNORE INTO PRIORITY(user, priority, maxparallelJobs, nominalparallelJobs) SELECT distinct $userColumn, 1,200, 100 from QUEUE");
