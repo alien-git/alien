@@ -362,20 +362,20 @@ sub getNumberRunning() {
     $self->info("Checking too early, still $still sec to wait");
     return;
   }
-  my ($run,$wait,$cpu) = $self->getInfoFromGRIS(qw(GlueCEStateRunningJobs GlueCEStateWaitingJobs GlueCEInfoTotalCPUs));
+  my ($run,$wait,$cpu) = $self->getCEInfo(qw(GlueCEStateRunningJobs GlueCEStateWaitingJobs GlueCEInfoTotalCPUs));
   my $value = $self->getQueueStatus();
   $value or $value = 0;
   $run or $run=0;
   $wait or $wait=0;
   $cpu or $cpu=0;
 
-  $self->info("Jobs: $run running, $wait waiting from GRIS, $value from local DB");
+  $self->info("Jobs: $run running, $wait waiting from IS, $value from local DB");
   if ( $cpu == 0 ) {
-    $self->{LOGGER}->error("LCG","GRIS not responding, returning value from local DB");
+    $self->{LOGGER}->error("LCG","IS not responding, returning value from local DB");
     return $value;
   }
   if ( $run == 4444 || $wait == 4444 ) {
-    $self->{LOGGER}->error("LCG","GRIS failure 4444, returning value from local DB");
+    $self->{LOGGER}->error("LCG","IS failure 4444, returning value from local DB");
     return $value;
   }
   return $run+$wait;    
@@ -383,18 +383,18 @@ sub getNumberRunning() {
 
 sub getNumberQueued() {
   my $self=shift;
-  my ($wait,$cpu) = $self->getInfoFromGRIS(qw(GlueCEStateWaitingJobs GlueCEInfoTotalCPUs));
+  my ($wait,$cpu) = $self->getCEInfo(qw(GlueCEStateWaitingJobs GlueCEInfoTotalCPUs));
   $wait or $wait=0;
   $cpu or $cpu=0;
   my $value = $self->{DB}->queryValue("SELECT COUNT (*) FROM JOBAGENT where status='QUEUED'");
   $value or $value = 0;
-  $self->info("Queued: $wait from GRIS, $value from local DB");
+  $self->info("Queued: $wait from IS, $value from local DB");
   if ( $cpu == 0 ) {
-    $self->{LOGGER}->error("LCG","GRIS not responding, returning value from local DB.");
+    $self->{LOGGER}->error("LCG","IS not responding, returning value from local DB.");
     return $value;
   }
   if ( $wait == 4444 ) {
-    $self->{LOGGER}->error("LCG","GRIS failure 4444, returning value from local DB");
+    $self->{LOGGER}->error("LCG","IS failure 4444, returning value from local DB");
     return $value;
   }
   return $wait;
@@ -456,12 +456,12 @@ sub needsCleaningUp {
 #---------------------------------------------------------------------
 #
 
-sub getInfoFromGRIS {
+sub getCEInfo {
   my $self = shift;
   my @items = @_;
   my %results = ();
   my $someAnswer = 0;
-  $self->debug(1,"Requested info: @items");
+  $self->debug(1,"Querying all CEs, requested info: @items");
   foreach my $CE ( @{$self->{CONFIG}->{CE_LCGCE_LIST}} ) {
     # If it's a sublist take only the first one to avoid 
     # double counting (all CEs in sublist see the same resources)
@@ -471,52 +471,15 @@ sub getInfoFromGRIS {
 
     $self->debug(1,"Querying for $CE");
     (my $host,undef) = split (/:/,$CE);    
-    # Try resource GRIS first, then resource BDII, then site BDII 
-    #(To swap when BDII will become more common...)
-    my @IS  = ("ldap://$host:2135,mds-vo-name=local,o=grid",    # Resource GRIS
-               "ldap://$host:2170,mds-vo-name=resource,o=grid", # Resource BDII
-	      );
-    if ( defined $self->{CONFIG}->{CE_SITE_BDII} ) {	      
-      @IS = (@IS,"ldap://$self->{CONFIG}->{CE_SITE_BDII}:2170,mds-vo-name=$ENV{SITE_NAME},o=grid"); # Site BDII on separate node  
-    } else {
-      @IS = (@IS,"ldap://$host:2170,mds-vo-name=$ENV{SITE_NAME},o=grid" ); # Site BDII on CE
-    }  
-    if ( defined $ENV{LCG_GFAL_INFOSYS} ) {
-      @IS = (@IS,"ldap://$ENV{LCG_GFAL_INFOSYS},mds-vo-name=$ENV{SITE_NAME},mds-vo-name=local,o=grid"); # Top-level BDII
+    my $res = $self->queryBDII($CE,@_);
+    if ( $res ) {
+      $someAnswer++;
+      $results{$_}+=$res->{$_} foreach (@items);
+    } else { 
+      $self->{LOGGER}->warning("LCG","Query for $CE failed.");
+      next;
     }
-    my $ldap = '';
-    foreach (@IS) {
-       my ($GRIS, $BaseDN) = split (/,/,$_,2);
-       $self->debug(1,"Asking $GRIS/$BaseDN");
-       unless ($ldap =  Net::LDAP->new($GRIS)) {
-         $self->info("$GRIS/$BaseDN not responding, trying next.");
-	 next;
-       }
-       unless ($ldap->bind()) {
-         $self->{LOGGER}->info("LCG","$GRIS/$BaseDN not responding (2), trying next.");
-         next;
-       }
-       my $result = $ldap->search( base   =>  $BaseDN,
-                                   filter => "(&(objectClass=GlueCEState)(GlueCEUniqueID=$CE))");
-       if ($result->code) {
-         $self->{LOGGER}->warning("LCG","Something wrong in answer from $GRIS/$BaseDN, trying next.");
-         next;
-       }
-       if ( ($result->all_entries)[0] ) {
-         foreach (@items) {
-           my $value = (($result->all_entries)[0])->get_value("$_");
-           $self->debug(1, "$_ for $CE is $value");
-           $results{$_}+=$value;
-         }
-	 $self->info("OK, got an answer from $GRIS/$BaseDN");
-	 $someAnswer++;
-	 last;
-       } else {
-    	 $self->{LOGGER}->warning("LCG","The query to $GRIS/$BaseDN did not return any value, trying next.");
-       }
-       $ldap->unbind();
-    }
-  }
+  }  
   unless ($someAnswer) {
     $self->{LOGGER}->error("LCG","No CE answered our queries!");
     return;
@@ -526,6 +489,67 @@ sub getInfoFromGRIS {
   push (@values,$results{$_}) foreach (@items);
   $self->debug(1,"Returning: ".Dumper(@values));
   return @values;
+}
+
+sub queryBDII {
+  my $self = shift;
+  my $CE = shift;
+  my @items = @_;
+  my %results = ();
+  my $someAnswer = 0;
+  $self->debug(1,"Querying $CE for @items");
+  (my $host,undef) = split (/:/,$CE);    
+  my @IS  = (
+             "ldap://$host:2135,mds-vo-name=local,o=grid",    # Resource GRIS
+             "ldap://$host:2170,mds-vo-name=resource,o=grid", # Resource BDII
+            );
+  if ( defined $self->{CONFIG}->{CE_SITE_BDII} ) { # Site BDII on separate node
+    @IS = (@IS,"ldap://$self->{CONFIG}->{CE_SITE_BDII}:2170,mds-vo-name=$ENV{SITE_NAME},o=grid");  
+  } else { # Site BDII on CE
+    @IS = (@IS,"ldap://$host:2170,mds-vo-name=$ENV{SITE_NAME},o=grid" ); 
+  }  
+  if ( defined $ENV{LCG_GFAL_INFOSYS} ) { # Top-level BDII
+    @IS = (@IS,"ldap://$ENV{LCG_GFAL_INFOSYS},mds-vo-name=$ENV{SITE_NAME},mds-vo-name=local,o=grid"); 
+  }
+  my $ldap = '';
+  foreach (@IS) {
+     my ($GRIS, $BaseDN) = split (/,/,$_,2);
+     $self->debug(1,"Asking $GRIS/$BaseDN");
+     unless ($ldap =  Net::LDAP->new($GRIS)) {
+       $self->info("$GRIS/$BaseDN not responding, trying next.");
+       next;
+     }
+     unless ($ldap->bind()) {
+       $self->{LOGGER}->info("LCG","$GRIS/$BaseDN not responding (2), trying next.");
+       next;
+     }
+     my $result = $ldap->search( base	=>  $BaseDN,
+  				 filter => "(&(objectClass=GlueCEState)(GlueCEUniqueID=$CE))");
+     my $code = $result->code;				 
+     if ($code) {
+       $self->{LOGGER}->warning("LCG","Something wrong ($code) in answer from $GRIS/$BaseDN, trying next.");
+       next;
+     }
+     if ( ($result->all_entries)[0] ) {
+       foreach (@items) {
+  	 my $value = (($result->all_entries)[0])->get_value("$_");
+  	 $self->debug(1, "$_ for $CE is $value");
+  	 $results{$_} = $value;
+       }
+       $self->info("OK, got an answer from $GRIS/$BaseDN");
+       $someAnswer++;
+       last;
+     } else {
+       $self->{LOGGER}->warning("LCG","The query to $GRIS/$BaseDN did not return any value, trying next.");
+     }
+     $ldap->unbind();
+  }
+  unless ($someAnswer) {
+    $self->{LOGGER}->error("LCG","No BDII answered our queries!");
+    return;
+  } 
+  $self->debug(1,"Returning: ".Dumper(\%results));
+  return \%results;
 }
 
 sub getJobStatus {
