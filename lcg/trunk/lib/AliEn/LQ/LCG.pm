@@ -23,7 +23,7 @@ sub initialize {
    chomp $host;
    $self->{CONFIG}->{VOBOX} = $host.':8084';
    $ENV{ALIEN_CM_AS_LDAP_PROXY} and $self->{CONFIG}->{VOBOX} = $ENV{ALIEN_CM_AS_LDAP_PROXY};
-   $self->info("This VO-Box is $self->{CONFIG}->{VOBOX}, site is \'$ENV{SITE_NAME}\'");
+   $self->info("This VO-Box is $self->{CONFIG}->{VOBOX}, site is \'$ENV{SITE_NAME}\', using $ENV{AliEn_WMS}");
    $self->{CONFIG}->{VOBOXDIR} = "/opt/vobox/\L$self->{CONFIG}->{ORG_NAME}";
    $self->{UPDATECLASSAD} = 0;
 
@@ -35,10 +35,6 @@ sub initialize {
    
    $self->{CLEANUP_CMD} = "edg-job-output";
    $self->{CLEANUP_CMD} = "glite-wms-job-output" if  ($self->{SUBMIT_CMD} eq "glite-wms-job-submit");
-   
-   $self->{MATCH_CMD}  = ( $self->{CONFIG}->{CE_MATCHCMD} or '' );
-   $self->{CONFIG}->{CE_MATCHARG} and  $self->{MATCH_CMD} .= " $self->{CONFIG}->{CE_MATCHARG}";
-   $self->{PRESUBMIT}  = $self->{MATCH_CMD};
    
    if ($ENV{CE_SITE_BDII}) {
      $self->{CONFIG}->{CE_SITE_BDII} = $ENV{CE_SITE_BDII};
@@ -193,34 +189,6 @@ sub submit {
   my $submissionTime = time - $startTime;
   $self->info("Submission took $submissionTime sec.");
   return 0;
-}
-
-sub wrapSubmit {
-  my $self = shift;
-  my $RB = shift;
-  my $logFile = shift;
-  my $jdlfile = shift;
-  my @args = @_ ;  
-  # Ugly patch to accomodate gLite 3.0 along with gLite 3.1
-  my $configOptName = "--config";
-  $configOptName = "--config-vo" if ($self->{SUBMIT_CMD} eq "edg-job-submit");
-  my @command = ( $self->{SUBMIT_CMD}, 
-                  "--noint", 
-		  "--nomsg");
-  @command = ( @command,		   
-	       $configOptName, "$self->{CONFIG}->{LOG_DIR}/$RB.vo.conf") if $RB;
-  @command = ( @command,
-	       "--logfile", $logFile, 
-	       @args, 
-	       "$jdlfile");
-  my @output = $self->_system(@command);
-  my $error = $?;
-  (my $jobId) = grep { /https:/ } @output;
-  return if ( $error || !$jobId);
-  $jobId =~ m/(https:\/\/[A-Za-z0-9.-]*:9000\/[A-Za-z0-9_-]{22})/;
-  $jobId = $1;
-  chomp $jobId;
-  return $jobId;
 }
 
 sub kill {
@@ -455,6 +423,34 @@ sub needsCleaningUp {
 #
 #---------------------------------------------------------------------
 #
+
+sub wrapSubmit {
+  my $self = shift;
+  my $RB = shift;
+  my $logFile = shift;
+  my $jdlfile = shift;
+  my @args = @_ ;  
+  # Ugly patch to accomodate gLite 3.0 along with gLite 3.1
+  my $configOptName = "--config";
+  $configOptName = "--config-vo" if ($self->{SUBMIT_CMD} eq "edg-job-submit");
+  my @command = ( $self->{SUBMIT_CMD}, 
+                  "--noint", 
+		  "--nomsg");
+  @command = ( @command,		   
+	       $configOptName, "$self->{CONFIG}->{LOG_DIR}/$RB.vo.conf") if $RB;
+  @command = ( @command,
+	       "--logfile", $logFile, 
+	       @args, 
+	       "$jdlfile");
+  my @output = $self->_system(@command);
+  my $error = $?;
+  (my $jobId) = grep { /https:/ } @output;
+  return if ( $error || !$jobId);
+  $jobId =~ m/(https:\/\/[A-Za-z0-9.-]*:9000\/[A-Za-z0-9_-]{22})/;
+  $jobId = $1;
+  chomp $jobId;
+  return $jobId;
+}
 
 sub getCEInfo {
   my $self = shift;
