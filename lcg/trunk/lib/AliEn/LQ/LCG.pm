@@ -26,15 +26,28 @@ sub initialize {
    $self->info("This VO-Box is $self->{CONFIG}->{VOBOX}, site is \'$ENV{SITE_NAME}\', using $ENV{AliEn_WMS}");
    $self->{CONFIG}->{VOBOXDIR} = "/opt/vobox/\L$self->{CONFIG}->{ORG_NAME}";
    $self->{UPDATECLASSAD} = 0;
-
-   $self->{SUBMIT_CMD} = ( $self->{CONFIG}->{CE_SUBMITCMD} or "edg-job-submit" );
-
-   $self->{STATUS_CMD} = ( $self->{CONFIG}->{CE_STATUSCMD} or "edg-job-status" );
-
-   $self->{KILL_CMD}   = ( $self->{CONFIG}->{CE_KILLCMD} or "edg-job-cancel" );
    
-   $self->{CLEANUP_CMD} = "edg-job-output";
-   $self->{CLEANUP_CMD} = "glite-wms-job-output" if  ($self->{SUBMIT_CMD} eq "glite-wms-job-submit");
+   my $cmds = { WMS => { SUBMIT_CMD  => 'glite-wms-job-submit',
+                         STATUS_CMD  => 'glite-wms-job-status',
+		         KILL_CMD    => 'glite-wms-job-cancel',
+		         CLEANUP_CMD => 'glite-wms-job-output',
+			 MATCH_CMD   => 'glite-wms-job-list-match' },
+	         RB => { SUBMIT_CMD  => 'edg-job-submit',
+                         STATUS_CMD  => 'edg-job-status',
+		         KILL_CMD    => 'edg-job-cancel',
+		         CLEANUP_CMD => 'edg-job-get-output',
+			 MATCH_CMD   => 'edg-job-list-match' }};
+			 
+   my @cmds_list = qw(SUBMIT_CMD STATUS_CMD KILL_CMD CLEANUP_CMD MATCH_CMD);	
+   if (defined $ENV{AliEn_WMS} ) {
+     if (exists $cmds->{$ENV{AliEn_WMS}}) {
+       $self->{$_} = ( $self->{CONFIG}->{$_} or $cmds->{$ENV{AliEn_WMS}}->{$_} ) foreach (@cmds_list);
+     } else {
+       $self->{LOGGER}->warning("LCG","AliEn_WMS=$ENV{AliEn_WMS} is unknown.");
+     }
+   } else {
+       $self->{$_} = $self->{CONFIG}->{$_} or '' foreach (@cmds_list);
+   }
    
    if ($ENV{CE_SITE_BDII}) {
      $self->{CONFIG}->{CE_SITE_BDII} = $ENV{CE_SITE_BDII};
@@ -44,7 +57,6 @@ sub initialize {
 
    if ( $ENV{CE_LCGCE} ) {
      $self->info("Taking the list of CEs from \$ENV: $ENV{CE_LCGCE}");
-     #Build list (of sublists) from env - is this robust enough?
      my $string = $ENV{CE_LCGCE};
      my @sublist = ($string =~ /\(.+?\)/g);
      $string =~ s/\($_\)\,?// foreach (@sublist);
@@ -432,7 +444,7 @@ sub wrapSubmit {
   my @args = @_ ;  
   # Ugly patch to accomodate gLite 3.0 along with gLite 3.1
   my $configOptName = "--config";
-  $configOptName = "--config-vo" if ($self->{SUBMIT_CMD} eq "edg-job-submit");
+  $configOptName = "--config-vo" if ($ENV{AliEn_WMS} eq 'RB');
   my @command = ( $self->{SUBMIT_CMD}, 
                   "--noint", 
 		  "--nomsg");
@@ -799,15 +811,8 @@ Environment = {\"ALIEN_CM_AS_LDAP_PROXY=$self->{CONFIG}->{VOBOX}\",\"ALIEN_JOBAG
 ";
   if (scalar @{$self->{CONFIG}->{CE_LCGCE_LIST_FLAT}}) {
       
-##### PART of P. Mendez (beginning)
-
-###### Calculating the random number:
-
       my $range = 100;
       my $random_number = int(rand($range));
-
-####### If "=" is included in the queue, decide which queue to chose
-
       my $list_of_ces = join(" ",@{$self->{CONFIG}->{CE_LCGCE_LIST_FLAT}});
       
       my %ce_hash;
