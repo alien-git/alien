@@ -471,7 +471,7 @@ sub getCEInfo {
 
     $self->debug(1,"Querying for $CE");
     (my $host,undef) = split (/:/,$CE);    
-    my $res = $self->queryBDII($CE,@_);
+    my $res = $self->queryBDII($CE,'',@_);
     if ( $res ) {
       $someAnswer++;
       $results{$_}+=$res->{$_} foreach (@items);
@@ -494,10 +494,13 @@ sub getCEInfo {
 sub queryBDII {
   my $self = shift;
   my $CE = shift;
+  my $filter = shift;
+  $filter or $filter = "GlueCEUniqueID=$CE";
   my @items = @_;
   my %results = ();
   my $someAnswer = 0;
   $self->debug(1,"Querying $CE for @items");
+  $self->debug(1,"Filter is $filter");
   (my $host,undef) = split (/:/,$CE);    
   my @IS  = (
              "ldap://$host:2135,mds-vo-name=local,o=grid",    # Resource GRIS
@@ -524,7 +527,7 @@ sub queryBDII {
        next;
      }
      my $result = $ldap->search( base	=>  $BaseDN,
-  				 filter => "(&(objectClass=GlueCEState)(GlueCEUniqueID=$CE))");
+  				 filter => "$filter");
      my $code = $result->code;				 
      if ($code) {
        $self->{LOGGER}->warning("LCG","Something wrong ($code) in answer from $GRIS/$BaseDN, trying next.");
@@ -659,54 +662,30 @@ sub renewProxy {
 
 sub updateClassAd {
   my $self = shift;
-  $self->debug(1,"Updating host classad from BDII...");
+  $self->debug(1,"Updating host classad from IS...");
   my $classad = shift;
   $classad or return;
-  my $BDII = $self->{CONFIG}->{CE_LCG_GFAL_INFOSYS};
-  $BDII = "ldap://$ENV{LCG_GFAL_INFOSYS}" if defined $ENV{LCG_GFAL_INFOSYS};
-  $self->debug(1,"BDII is $BDII");
-  my $ldap =  Net::LDAP->new($BDII) or return;
-  $ldap->bind() or return;
-  my $base="mds-vo-name=$ENV{SITE_NAME},mds-vo-name=local,o=grid";
   my ($maxRAMSize, $maxSwapSize) = (0,0);
   foreach my $CE (@{$self->{CONFIG}->{CE_LCGCE_LIST_FLAT}}) {
-    $self->debug(1,"Getting info for $CE");
-    my $result = $ldap->search( base   => $base,
-                                filter => "GlueCEUniqueID=$CE");
-    if (! $result or $result->code){
-      my $msg = $result->code;
-      $self->info("Couldn't get the CE info from ldap: $msg");
-      $ldap->unbind();
-       return;
-    }
-    my @entry = $result->all_entries();
-    ($entry[0]) or next;
-    my $cluster = $entry[0]->get_value("GlueForeignKey");
+    $self->debug(1,"Getting RAM and swap info for $CE");
+    my $res = $self->queryBDII($CE,'','GlueForeignKey');
+    $res or return;
+    my $cluster = $res->{'GlueForeignKey'};
     $cluster =~ s/^GlueClusterUniqueID=//;
-    $result = $ldap->search( base   => $base,
-                             filter => "GlueSubClusterUniqueID=$cluster");
-    if (! $result or $result->code){
-      $self->info("Couldn't get the Subcluster info from ldap");
-      $ldap->unbind();
-       return;
-    }
-    @entry = $result->all_entries();
-    if ($entry[0]){
-      my $RAMSize = $entry[0]->get_value("GlueHostMainMemoryRAMSize");
-      my $SwapSize = $entry[0]->get_value("GlueHostMainMemoryVirtualSize");
-      $self->debug(1,"$cluster: $RAMSize,$SwapSize");
-      $maxRAMSize = $RAMSize if ($RAMSize>$maxRAMSize );
-      $maxSwapSize = $SwapSize if ($SwapSize>$maxSwapSize );
-    }
-  }
-  $ldap->unbind();
-  $self->debug(1,"Memory, Swap: $maxRAMSize,$maxSwapSize");
+    $self->debug(1,"Cluster name from IS is $cluster");
+    $res = $self->queryBDII($CE,"GlueSubClusterUniqueID=$cluster",qw(GlueHostMainMemoryRAMSize GlueHostMainMemoryVirtualSize));
+    $res or return;
+    $maxRAMSize  = $res->{'GlueHostMainMemoryRAMSize'}  if ($res->{'GlueHostMainMemoryRAMSize'}>$maxRAMSize );
+    $maxSwapSize = $res->{'GlueHostMainMemoryVirtualSize'} if ($res->{'GlueHostMainMemoryVirtualSize'}>$maxSwapSize );
+  }  
+  $self->{UPDATECLASSAD} = time();    
+  $self->info("Updating host ClassAd from IS (RAM,Swap) = ($maxRAMSize,$maxSwapSize)" );
   $classad->set_expression("Memory",$maxRAMSize*1024);
   $classad->set_expression("Swap",$maxSwapSize*1024);
   $classad->set_expression("FreeMemory",$maxRAMSize*1024);
   $classad->set_expression("FreeSwap",$maxSwapSize*1024);
-  $self->{UPDATECLASSAD} = time();
   return $classad;
+  return;
 }
 
 sub translateRequirements {
