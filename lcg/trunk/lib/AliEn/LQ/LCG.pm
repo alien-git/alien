@@ -397,8 +397,8 @@ sub cleanUp {
 	my $status = $self->getJobStatus($_->{'batchId'});
 	if ( $status eq 'Aborted' || $status eq 'Cancelled') {
 	  $self->info("Job $_->{'batchId'} was aborted or cancelled, no logs to retrieve");
-	} elsif ( $status eq 'Running' ) {
-          $self->info("Job $_->{'batchId'} has not yet reported being finished");
+	} elsif ( $status eq 'Running' || $status eq 'Waiting' || $status eq 'Scheduled') {
+          $self->info("Job $_->{'batchId'} is still \'$status\'");
           next;
 	} else {
 	  $self->info("Will retrieve OutputSandbox for $status job $_->{'batchId'}");
