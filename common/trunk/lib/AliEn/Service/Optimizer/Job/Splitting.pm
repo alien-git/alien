@@ -38,7 +38,7 @@ my $splitPerSE =sub  {
 
     $event=~ s/^LF://;
     $event =~ s/,nodownload$//;
-    my @se=$self->{CATALOGUE}->execute("whereis", "-l", "-silent", "$event");
+    my @se=$self->{CATALOGUE}->execute("whereis", "-lr", "-silent", "$event");
 
 #    @se= grep (/::.*::/, @se);
 #    $event=~ s/\/[^\/]*$//;
@@ -553,20 +553,24 @@ sub _checkArgumentsPatterns{
       $file =~ s/,nodownload//g;
       $self->debug(1, "Using $file");
       $newpattern=$file;
-    }elsif ($pattern=~ /^filename$/i) {
+    }elsif ($pattern=~ m{^filename(/(.*)/(.*)/)?$}i) {
+      my $extra=$1;
+      my ($before, $after)=($2, $3);
+      my @all=$file;
       if ($origPattern=~ /^all/) {
-	my @basenames;
-	foreach my $f (@files){
-	    
-	  $f=~ s/^.*\///;
-	  $f=~ s/,nodownload//g;
-	  push @basenames, $f;
-	}
-	$newpattern=join(",", @basenames);
-      }else {
-	$file=~ s /^.*\///;
-	$newpattern=$file;	
+	my @all=@files;
       }
+      my @basenames;
+      foreach my $f (@all){
+	$f=~ s/^.*\///;
+	$f=~ s/,nodownload//g;
+	if ($extra){
+	  $f =~ s/$before/$after/;
+	}
+	push @basenames, $f;
+      }
+      $newpattern=join(",", @basenames);
+	
     }elsif ($pattern =~ /^_((counter)|(split))(.*)$/i){
       $self->info("Before replacing, we have $1, $4 and $counter");
       my $format=$4;
