@@ -209,7 +209,7 @@ if ($install=~ /Authen/) {
 
 
 print "ok\nAdding the first user\t\t\t";
-$ENV{ALIEN_DATABASE_PASSWORD}="pass";
+$ENV{ALIEN_DATABASE_PASSWORD}=$mysqlPasswd;
 my $cat=AliEn::UI::Catalogue->new({role=>'admin'}) or exit(-2);
 $cat->execute("addUser", "alienmaster") or exit (-2);
 $cat->execute("mkdir", "-p", "/\L$orgName\E/user/a/admin") or exit(-2);
@@ -401,7 +401,7 @@ sub checkLDAPConnection {
 			     "uidNumber", "$userID",
 			     "userPassword", "{crypt}x",
 			     "loginShell", "false",
-                             "dn", "  ",
+                             "subject", "/blabla/",
 			    ]);
   $mesg->code && print "failed\nCould not add $userName: ",$result->error and return;
   print "ok\nGiving admin privileges to $userName...\t\t\t";
