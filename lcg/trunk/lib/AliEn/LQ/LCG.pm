@@ -46,7 +46,7 @@ sub initialize {
        $self->{LOGGER}->warning("LCG","AliEn_WMS=$ENV{AliEn_WMS} is unknown.");
      }
    } else {
-       $self->{$_} = $self->{CONFIG}->{$_} or '' foreach (@cmds_list);
+       $self->{$_} = $self->{CONFIG}->{$_} || '' foreach (@cmds_list);
    }
    
    if ($ENV{CE_SITE_BDII}) {
