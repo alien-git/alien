@@ -673,8 +673,8 @@ sub moveGUIDs {
   foreach my $info (@$users){
     my $user=$info;
     $self->info("User $user");
-    $db->do("GRANT insert,delete on $self->{DB}.G${tableName}L to $user");
-    $db->do("GRANT insert,delete on $self->{DB}.G${tableName}L_PFN to $user");
+    $db->do("GRANT insert,update,delete on $self->{DB}.G${tableName}L to $user");
+    $db->do("GRANT insert,update,delete on $self->{DB}.G${tableName}L_PFN to $user");
   } 
   $self->info("YUHUUU!!!");
   return 1;
