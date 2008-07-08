@@ -211,7 +211,7 @@ if ($install=~ /Authen/) {
 print "ok\nAdding the first user\t\t\t";
 $ENV{ALIEN_DATABASE_PASSWORD}=$mysqlPasswd;
 my $cat=AliEn::UI::Catalogue->new({role=>'admin'}) or exit(-2);
-$cat->execute("addUser", "alienmaster") or exit (-2);
+$cat->execute("addUser", $userName) or exit (-2);
 $cat->execute("mkdir", "-p", "/\L$orgName\E/user/a/admin") or exit(-2);
 $cat->execute("addUser",  $config->{CLUSTER_MONITOR_USER}) or exit(-2);
 $cat->close();
