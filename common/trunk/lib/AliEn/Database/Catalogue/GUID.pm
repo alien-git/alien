@@ -99,7 +99,17 @@ sub createCatalogueTables {
 				      pfn=>"varchar(255)",
 				      seNumber=>"int(11) not null",
 				      guid=>"binary(16)"}],
-	     );
+	      GL_STATS=>["tableNumber", {
+				     tableNumber=>"int(11) NOT NULL",
+				     seNumber=>"int(11) NOT NULL",
+				     seNumFiles=> "bigint(20)", 
+				     seUsedSpace=>"bigint(20)",
+				    },undef,['UNIQUE INDEX(tableNumber,seNumber)']],
+	      GL_ACTIONS=>["tableNumber", {tableNumber=>"int(11) NOT NULL",
+					   action=>"char(40) not null", 
+					   time=>"timestamp default current_timestamp"}, undef, ['UNIQUE INDEX(tableNumber,action)']],);
+
+	     
   foreach my $table (keys %tables){
     $self->info("Checking table $table");
     $db->checkTable($table, @{$tables{$table}})
@@ -156,21 +166,15 @@ sub checkGUIDTable {
 	     guidId=>"int(11) NOT NULL",
 	     seNumber=>"int(11) NOT NULL",);
   $db->checkTable("${table}_PFN", "pfnId", \%columns, 'pfnId', ['INDEX guid_ind (guidId)', "FOREIGN KEY (guidId) REFERENCES $table(guidId) ON DELETE CASCADE","FOREIGN KEY (seNumber) REFERENCES SE(seNumber) on DELETE CASCADE"],) or return;
-
-  %columns= (seNumber=>"int(11) NOT NULL primary key", 
-	     "seNumFiles"=> "bigint(20)", "seUsedSpace"=>"bigint(20)");
-  $db->checkTable("${table}_STATS", "seNumber",\%columns) or return;
-
-  
-  $db->checkTable("${table}_ACTIONS", "action", {action=>"char(40) not null primary key", time=>"timestamp default current_timestamp"});
-
-  $db->do("INSERT IGNORE INTO ${table}_ACTIONS(action)  values ('MODIFIED'), ('SE')"); 
+  my $index=$table;
+  $index=~ s/^G(.*)L$/$1/;
+  $db->do("INSERT IGNORE INTO GL_ACTIONS(tableNumber,action)  values (?,'MODIFIED'), (?,'SE')", {bind_values=>[$index, $index]}); 
   #finally, let's check the triggers"
   my $triggers=$db->query("show triggers like '$table'");
   if (not ${$triggers}[0]){
     $self->info("Adding the triggers for the table $table");
     foreach my $t ("insert", "delete", "update"){
-      $db->do("create trigger ${table}_$t before $t on $table for each row update  ${table}_ACTIONS set time=now() where action='MODIFIED'");
+      $db->do("create trigger ${table}_$t before $t on $table for each row update  GL_ACTIONS set time=now() where action='MODIFIED'");
     }
   }
   return 1;
@@ -724,15 +728,14 @@ sub updateStatistics {
   my $self=shift;
   
   my $index=shift;
-
   my $table="G${index}L";
   $self->info("Checking if the table is up to date");
-  $self->queryValue("select count(*) from ${table}_ACTIONS g, ${table}_ACTIONS g2 where g.action='SE' and g2.action='MODIFIED' and g.time>g2.time") 
+  $self->queryValue("select count(*) from GL_ACTIONS g, GL_ACTIONS g2 where g.action='SE' and g2.action='MODIFIED' and g.time>g2.time and g.tableNumber=g2.tableNumber and g.tableNumber=?", undef, {bind_values=>[$index]}) 
     and return;
   $self->info("Updating the table");
-  $self->do("update ${table}_ACTIONS set time=now() where action='SE'"); 
-  $self->do("truncate ${table}_STATS");
-  $self->do("insert into ${table}_STATS select seNumber, count(*), sum(size) from SE, $table g  where locate(concat(',',seNumber,','), seStringList) group by senumber");
+  $self->do("update GL_ACTIONS set time=now() where action='SE' and tableNumber=?", {bind_values=>[$index]}); 
+  $self->do("delete from GL_STATS where tableNumber=?", {bind_values=>[$index]});
+  $self->do("insert into GL_STATS(tableNumber, seNumber, seNumFiles, seUsedSpace) select ?, seNumber, count(*), sum(size) from SE, $table g  where locate(concat(',',seNumber,','), seStringList) group by senumber", {bind_values=>[$index]});
   return 1;
 }
 
