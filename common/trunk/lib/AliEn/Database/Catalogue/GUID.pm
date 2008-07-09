@@ -356,7 +356,7 @@ sub getAllInfoFromGUID{
 
   $self->debug(2,"Looking into the table  $table");
 
-  my $info=$db->$method("select $retrieve from $table where guid=string2binary('$guid')");
+  my $info=$db->$method("select $retrieve from $table where guid=string2binary(?)",undef, {bind_values=>[$guid]});
 
   if ($options->{return} ){
     $info->{db}=$db; $info->{table}=$table;
