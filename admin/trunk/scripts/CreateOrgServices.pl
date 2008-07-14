@@ -63,7 +63,7 @@ if ($config->{PACKMANMASTER_ADDRESS} =~ /^$hostname:/) {
 }
 
 if ($config->{MESSAGESMASTER_ADDRESS} =~ /^$hostname:/) {
-  $install.="PackManMaster ";
+  $install.="MessagesMaster ";
 }
 
 
