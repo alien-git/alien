@@ -75,7 +75,7 @@ sub get {
       $self->info("There was some problem doing the xrdstage!! \n@data\nLet's try xrdcp");
       
     }
-    my $command = "$self->{XRDCP} -f root://$fromhost/$remotefile?cmd=trashbin root://$tohost/$localfile -DIFirstConnectMaxCnt 1 -np ";
+    my $command = "$self->{XRDCP} -f root://$fromhost/$remotefile root://$tohost/$localfile -DIFirstConnectMaxCnt 1 -np ";
     print $command."\n";
     return system($command);
 #    my $command = "$options; get $remotefile $localfile";

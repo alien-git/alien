@@ -6,6 +6,7 @@ use vars qw(@ISA);
 use AliEn::UI::Catalogue::LCM;
 use Filesys::DiskFree;
 use AliEn::Util;
+use AliEn::SOAP;
 push @ISA, 'AliEn::Logger::LogObject', 'AliEn::PackMan';
 
 
@@ -23,36 +24,30 @@ sub initialize{
     require  AliEn::MSS::file;;
     AliEn::MSS::file::mkdir($self, $self->{INST_DIR}) and return;
   }
-  if ($self->{CREATE_CATALOGUE}){
-    $self->info("CREATING THE CATALOGUE");
-    $self->{CATALOGUE}=AliEn::UI::Catalogue::LCM->new()  or return;
-  }else {
-    $self->info("We don't create the catalogue");
-  }
-  return 1;
-}
-sub setCatalogue{
-  my $self=shift;
-  my $cat=shift ;
-  if (! $cat){
-    $self->info("Undefining the catalogue");
-    undef $self->{CATALOGUE};
-    return;
-  }
-  $self->info("Setting the catalogue for the PackMan");
-  $self->{CATALOGUE}=$cat;
-  return 1;
+  $self->info("CREATING THE CATALOGUE");
+  $self->{CATALOGUE}=AliEn::UI::Catalogue::LCM->new({no_catalog=>1})  or return;
+
+
+  return $self->SUPER::initialize();
 }
 sub removeLocks{
   my $self=shift;
-  system ("rm -f $self->{INST_DIR}/*.InstallLock");
+  open (FILE, "ls $self->{INST_DIR}/*.InstallLock 2>/dev/null |") or 
+    $self->info("Error removing the locks");
+  while (<FILE>){
+    my $log=$_;
+    $self->info("Ready to remove $log");
+    if ($log =~ /^([\.]*)\.([\.]*)\.(.*).InstallLog/){
+      $self->info("Removing the directory  $1/$2/$3");
+      system ("rm -rf $self->{INST_DIR}/$1/$2/$3");
+    }
+    system ("rm -f $self->{INST_DIR}/$log");
+  }
+  close FILE;
+
 }
 sub getListInstalled_Internal {
   my $self=shift;
-  if (! $self->{CATALOGUE}){
-    $self->info("Even if we are running the local PackMan, the catalogue is not defined. Asking the 'Packman service' for the installed");
-    return $self->SUPER::getListInstalled_Internal();
-  }
   $self->info("Checking the packages that we have installed locally");
   my @allPackages=();
   eval {
@@ -100,10 +95,6 @@ sub installPackage{
   my $options=shift ||{};
 
   $self->debug (2,"checking if we have to install the package");
-  my $connected=$self->{CATALOGUE};
-  $self->{CATALOGUE} or $self->{CATALOGUE}=AliEn::UI::Catalogue::LCM->new();
-  $self->{CATALOGUE} or $self->info("Error getting an instance of the catalogue") 
-    and return (-1, "error getting an instance of the catalogue");
   my $source="";
   eval {
     my ($lfn, $info)=$self->findPackageLFN($user, $package, $version);
@@ -167,10 +158,6 @@ sub installPackage{
     $self->info( "$$ Returning $done and ($source)\n");
   };
   my $error=$@;
-  if (!$connected){
-    $self->{CATALOGUE}->close();
-    undef $self->{CATALOGUE};
-  }
   if ($error){
     $self->info("Error installing the package '$package'!! $error");
     return (-1, $error);
@@ -179,69 +166,30 @@ sub installPackage{
   return (1, $source);
 }
 
+
 sub findPackageLFN{
   my $self=shift;
   my $user=shift;
   my $package=shift;
   my $version=shift;
-
-  my @dirs=("$self->{CONFIG}->{USER_DIR}/". substr( $user, 0, 1 ). "/$user/packages",
-	    "/\L$self->{CONFIG}->{ORG_NAME}/packages",);
-  my $lfn;
+  
   my $platform=AliEn::Util::getPlatform($self);
-  $self->debug(1, "Looking for the lfn of $package ($version) for the user $user");
+  $self->info("$$ Looking for the lfn of $package ($version) for the user $user");
 
-  foreach (@dirs){
-    $self->debug (2, "Looking in the directory $_");
-    my @files=$self->{CATALOGUE}->execute("find",  "-silent",
-			    "$_/$package", $platform) or next;
-    $self->debug(2, "$$ Got @files");
-    if ($version) {
-      @files=grep (/$package\/$version\// , @files);
-      $self->debug(2,"After the version, we have @files");
-      @files or next;
-    }
-    $lfn=shift @files;
-    last;
-  }
+  my $result=$self->{SOAP}->CallSOAP("PackManMaster", "findPackageLFN", $user, $package, $version, $platform)
+    or $self->info("Error talking to the PackManMaster") and return;
 
-  if (!$lfn){  
-    $self->info("$$ So far, we didn't get the lfn. Looking for source packages");
-    #Ok, let's look for the package source
-    foreach (@dirs){
-      my @files2=$self->{CATALOGUE}->execute("find", "-silent","$_/$package", "source") or next;
-      if ($version) {
-	@files2=grep (/$package\/$version\// , @files2);
-	@files2 or next;
-      }
-      $lfn=shift @files2;
-      last;
-    }
-    if (!$lfn) {
-      $version or $version="";
-      my $message="The package $package (v $version) does not exist for $platform \n";
-      $self->info($message);
-      die $message;
-    }
+  my @info=$self->{SOAP}->GetOutput($result);
+  if (  $info[0] == -2){
+    my $message="The package $package (v $version) does not exist for $platform \n";
+    $self->info($message);
+    die $message;
   }
-  $self->info( "Using $lfn");
-  my (@dependencies)=$self->{CATALOGUE}->execute("showTagValue", "-silent",$lfn, "PackageDef");
-  my $item={};
-  @dependencies and $dependencies[1]  and $item=shift @{$dependencies[1]};
-
-  if (! $item->{installedSize}){
-   $self->info("Let's get the size of the package from the catalogue");
-   my ($info)=$self->{CATALOGUE}->execute("ls", '-lz', $lfn);
-   if ($info and $info->{size}){
-     $item->{installedSize}=2.5* $info->{size};
-   }else {
-     $self->info("Error getting the size of the file $lfn");
-     $item->{installedSize}=500;
-   }
-  }
-  $self->info( "$$ Metadata of this item");
-  return ($lfn, $item);
+  use Data::Dumper;
+  print Dumper(@info);
+  return @info;
 }
+
 
 sub checkDiskSpace {
   my $self=shift;
@@ -551,33 +499,6 @@ sub isPackageInstalled {
 
 
 
-sub getListPackages_Internal{
-  my $self=shift;
-  if (! $self->{CATALOGUE}){
-    $self->info("Even if we are running the local PackMan, the catalogue is not defined. Asking the 'Packman service");
-    return $self->SUPER::getListPackages_Internal();
-  }
-  $self->info("Getting the list of packages (from the catalogue)");
-  my $silent="";
-  $self->{DEBUG} or $silent="-silent";
-
-  my $query="SELECT distinct fullPackageName from PACKAGES";
-
-  if(!  grep (/^-?-all$/, @_)) {
-    $self->info("Returning the info of all platforms");
-    my $platform=AliEn::Util::getPlatform($self);
-    $query.=" where  (platform='$platform' or platform='source')";
-  }
-  print "Let's do $query\n";
-  my $packages=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn($query) or $self->info("Error doing the query") and return;
-
-  use Data::Dumper;
-  print Dumper($packages);
-  return (1, @$packages);
-
-}
-
-
 
 sub findOldPackages {
   my $self=shift;
@@ -633,9 +554,11 @@ sub removePackage{
 
 sub recomputeListPackages{
   my $self=shift;
+
   $self->info("Asking the package manager to recompute the list of packages");
-  $self->info("The DB is $self->{CATALOGUE}->{CATALOG}->{DATABASE_FIRST}->{LFN_DB}->{FIRST_DB}  $self->{CATALOGUE}->{CATALOG}->{DATABASE_FIRST}->{LFN_DB}->{FIRST_DB}->{DB}");
-  $self->{CATALOGUE}->{CATALOG}->{DATABASE_FIRST}->{LFN_DB}->{FIRST_DB}->do("update ACTIONS set todo=1 where action='PACKAGES'") or return;
+
+  my $result=$self->{SOAP}->CallSOAP("PackManMaster", "recomputeListPackages")
+    or $self->info("Error talking to the PackManMaster") and return;
   $self->info("The information will be updated in 10 seconds");
   return 1;
 }

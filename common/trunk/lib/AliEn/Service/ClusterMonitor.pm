@@ -80,40 +80,13 @@ sub initialize {
 
   #$self->{user}=($options->{user} or $self->{CONFIG}->{CLUSTER_MONITOR_USER});
 
-
-  #######################################################################
-  # Information for central Message log, can go into Config/Config      #
-
-  my $db     = $self->{CONFIG}->{QUEUE_DATABASE};
-  my $host   = $self->{CONFIG}->{QUEUE_DB_HOST};
-  my $driver = $self->{CONFIG}->{QUEUE_DRIVER};
-
-  $self->{DB} = AliEn::Database::TaskQueue->new(
-						{
-	 "DB"     => $db,
-	 "HOST"   => $host,
-	 "DRIVER" => $driver,
-	 "ROLE"   => $self->{CONFIG}->{CLUSTER_MONITOR_USER},
-#	 "FORCED_AUTH_METHOD" =>"SSH",
-	 "SKIP_CHECK_TABLES"=> 1
-        }
-				    );
-    $self->{DB}
-      	or $self->{LOGGER}->error( "ClusterMonitor",
-				 "Not able to get database with SSH. You can't authenticate as $self->{CONFIG}->{CLUSTER_MONITOR_USER}"
-			       )
-		and return;
-
-    #                                                                     #
-    #######################################################################
-
-    $self->{PASSWD} = $self->{DB}->{PASSWD};
-    $self->{TXTDB}  = new AliEn::Database::TXT::ClusterMonitor();
-
-    ( $self->{TXTDB} ) or return;
-
-    $self->info("Contacting the Manager/Job" );
-    ( $self->checkConnection() ) or return;
+  $self->{MESSAGES_LASTACK}=0;
+  $self->{TXTDB}  = new AliEn::Database::TXT::ClusterMonitor();
+  
+  ( $self->{TXTDB} ) or return;
+  
+  $self->info("Contacting the Manager/Job" );
+  ( $self->checkConnection() ) or return;
 
 
     my $done =$self->{SOAP}->CallSOAP("Manager/Job", "alive",  $self->{HOST}, $self->{PORT}, "", $self->{CONFIG}->{VERSION}) or return;
@@ -1032,44 +1005,41 @@ sub checkMessages {
   $silent and $method="debug";
 
   my $time = time;
+  $self->info("Ready to get the messages");
+  my $result=$self->{SOAP}->CallSOAP("getMessages", 'ClusterMonitor', $self->{HOST}, $self->{MESSAGES_LASTACK}) or 
+    $self->info("Error getting the messages");
+  my $res=$result->result;
+  use Data::Dumper;
+  print Dumper($res);
 
-  my $res  =
-    $self->{DB}->query("SELECT ID,TargetHost,Message,MessageArgs from MESSAGES WHERE (TargetService = 'ClusterMonitor' AND  '$self->{HOST}' like TargetHost AND (Expires > ? or Expires = 0) AND Ack not like '\%,$self->{HOST}:\%') ORDER BY ID DESC", undef, {bind_values=>[$time]});
-  
-  defined $res
-    or $self->{LOGGER}->error("ClusterMonitor","Error fetching messages from database")
-      and return;
-  
+  $self->info("Got the messages");
+
   my $ref;
-  
-  my $status = 'SUCCESS';
+
   my $UpperCaseName;
-  
+
   (@$res)
     or $self->debug(1, "Still alive: No messages to execute" );
-  
+
   foreach my $data ( @$res) {
     $self->info( "Message is for me!!" );
     $UpperCaseName = "\U$data->{Message}";
     $self->debug(2, "Command: $UpperCaseName" );
+    $data->{ID}>$self->{MESSAGES_LASTACK} and $self->{MESSAGES_LASTACK}=$data->{ID};
+    my $status = 'SUCCESS';
+
     if ( $commands{$UpperCaseName} ) {
       my $a = $commands{$UpperCaseName};
       if ( !( $self->$a( $data->{MessageArgs} ) ) ) {
 	$status = 'FAILED';
-      } else {
-	$self->info( "Removing message from the queue $data->{ID}" );
-	my $res2 = $self->{DB}->_do("DELETE from MESSAGES where ID=?", {bind_values=>[$data->{ID}]});
-	$self->info( "Removed message from the queue" );
-      }
+      } 
     }
     else {
       $self->{LOGGER}->error( "ClusterMonitor", "Command $data->{Message} not known" );
-
       #Do not know command
       $status = "UNKNOWN";
     }
-    $self->{DB}->update("MESSAGES", {Ack=>"concat(Ack, ',$self->{HOST}:$status')"}, 
-			"ID=?", {noquotes=>1, bind_values=>[$data->{ID}]});
+    $self->info("Message done with $status");
   }
 
   return 1;

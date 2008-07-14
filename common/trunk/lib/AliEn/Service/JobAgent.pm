@@ -367,14 +367,6 @@ sub GetJDL {
     $self->info("ASKING FOR ANOTHER JOB");
     $self->putJobLog("trace","Asking for a new job");
   }
-#  my $catalog=$self->getCatalogue();
-#
-#  if ($catalog) {
-#    $self->{PACKMAN}->setCatalogue($catalog);
-#  }else {
-    $self->info("We couldn't get a catalogue... we won't be able to install packages manually");
-    $self->{PACKMAN}->setCatalogue(undef);
-#  }
 
   while(1) {
     $self->info("Getting the jdl from the clusterMonitor, agentId is $ENV{ALIEN_JOBAGENT_ID}...");
@@ -1011,7 +1003,7 @@ sub installPackage {
   $self->info("Installing Package $_");
 
   my ($version);
-#   $self->{PACKMAN}->setCatalogue($catalogue);
+
   $package =~ s/::(.*)$// and $version=$1;
   $package =~ s/^(.*)\@// and $user=$1;
 

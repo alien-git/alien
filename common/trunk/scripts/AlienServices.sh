@@ -460,6 +460,12 @@ ALIEN_DoService ()
 	  TransferManager)
 	    args='VARDIR Manager::Transfer "Transfer_Manager"  NO_PASSWORD'
 	    ;;
+	  PackManMaster)
+	    args='VARDIR PackManMaster "PackManMaster"  NO_PASSWORD'
+	    ;;
+	  MessagesMaster)
+	    args='VARDIR MessagesMaster "MessagesMaster"  NO_PASSWORD'
+	    ;;
 	  Interface)
 	    args='VARDIR Interface "Interface"  NO_PASSWORD'
 	    ;;

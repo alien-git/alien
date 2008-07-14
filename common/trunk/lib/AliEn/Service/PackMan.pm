@@ -67,17 +67,17 @@ Returns a list of all the packages defined in the system
 
 sub getListPackages{
   shift;
+
   $self->info( "$$ Giving back all the packages defined (options @_)");
 
   grep (/^-?-force$/, @_)
     and  AliEn::Util::deleteCache($self);
 
   my $platform=AliEn::Util::getPlatform($self);
-  my $platformPattern="(($platform)|(source))";
+
   if(  grep (/^-?-all$/, @_)) {
     $self->info("Returning the info of all platforms");
     $platform="all";
-    $platformPattern=".*";
   }
 
   my $cache=AliEn::Util::returnCacheValue($self, "listPackages-$platform");
@@ -85,7 +85,8 @@ sub getListPackages{
     $self->info( "$$ $$ Returning the value from the cache (@$cache)");
     return (1, @$cache);
   }
-  my ($status, @packages)=$self->{PACKMAN}->getListPackages(@_);
+
+  my ($status, @packages)=$self->{PACKMAN}->getListPackages($platform, @_);
 
   $self->info( "$$ $$ RETURNING @packages");
   AliEn::Util::setCacheValue($self, "listPackages-$platform", \@packages);
@@ -183,7 +184,7 @@ sub getInstallLog{
   my $version=shift;
   my $options=shift;
   $self->info( "$$ Getting the installation log of $package, $user and $version");
-  my ($lfn, $info)=$self->findPackageLFN($user, $package, $version);
+  my ($lfn, $info)=$self->{PACKMAN}->findPackageLFN($user, $package, $version);
 
   $version or $lfn =~ /\/([^\/]*)\/[^\/]*$/
     and ($version)=($1);
@@ -230,7 +231,7 @@ sub initialize {
   #Remove all the possible locks;
   $self->info( "$$ Removing old lock files");
   $self->{PACKMAN}=AliEn::PackMan->new({PACKMAN_METHOD=>"Local", 
-				       CREATE_CATALOGUE=>1}) or return;
+					SOAP_SERVER=>"PackManMaster"}) or return;
 
   $self->{PACKMAN}->removeLocks();
   $self->{INST_DIR}=$self->{PACKMAN}->{INST_DIR};
@@ -240,64 +241,28 @@ sub initialize {
 }
 
 
-sub findPackageLFN{
-  my $self=shift;
-  my $user=shift;
-  my $package=shift;
-  my $version=shift;
+#sub findPackageLFN{
+#  my $self=shift;
+#  my $user=shift;
+#  my $package=shift;
+#  my $version=shift;
   
-  my @dirs=("$self->{CONFIG}->{USER_DIR}/". substr( $user, 0, 1 ). "/$user/packages",
-	    "/\L$self->{CONFIG}->{ORG_NAME}/packages",);
-  my $lfn;
-  my $platform=AliEn::Util::getPlatform($self);
-  $self->info("$$ Looking for the lfn of $package ($version) for the user $user");
+#  my $platform=AliEn::Util::getPlatform($self);
+#  $self->info("$$ Looking for the lfn of $package ($version) for the user $user");
 
-  foreach (@dirs){
-    $self->info("Looking in the directory $_");
-    my @files=$self->{PACKMAN}->{CATALOGUE}->execute("find", 
-#					  "-silent",
-					  "$_/$package", $platform) or next;
-    $self->info("$$ Got @files");
-    if ($version) {
-      @files=grep (/$package\/$version\// , @files);
-      print "After the version, we have @files\n";
-      @files or next;
-    }
-    $lfn=shift @files;
-    last;
-  }
+#  my $result=$self->{SOAP}->CallSOAP("PackManMaster", "findPackageLFN", $user, $package, $version, $platform)
+#    or $self->info("Error talking to the PackManMaster") and return;
 
-  if (!$lfn){  
-    $self->info("$$ So far, we didn't get the lfn. Looking for source packages");
-    #Ok, let's look for the package source
-    foreach (@dirs){
-      my @files=$self->{PACKMAN}->{CATALOGUE}->execute("find", "-silent","$_/$package", "source") or next;
-      print "Got @files\n";
-      if ($version) {
-	@files=grep (/$package\/$version\// , @files);
-	print "After the version, we have @files\n";
-	@files or next;
-      }
-      $lfn=shift @files;
-      last;
-    }
-    if (!$lfn) {
-      $version or $version="";
-      my $message="The package $package (v $version) does not exist for $platform \n";
-      $self->info($message);
-      die $message;
-    }
-  }
-  $self->info( "$$ Using $lfn");
-  my (@dependencies)=$self->{PACKMAN}->{CATALOGUE}->execute("showTagValue", "-silent",$lfn, "PackageDef");
-  my $item={};
-  @dependencies and $dependencies[1]  and $item=shift @{$dependencies[1]};
-
-  $self->info( "$$ Metadata of this item");
-  use Data::Dumper;
-  print Dumper($item);
-  return ($lfn, $item);
-}
+#  my @info=$self->{SOAP}->GetOutput($result);
+#  if (  $info[0]=-2){
+#    my $message="The package $package (v $version) does not exist for $platform \n";
+#    $self->info($message);
+#    die $message;
+#  }
+#  use Data::Dumper;
+#  print Dumper(@info);
+#  return @info;
+#}
 
 
 sub getDependencies {
@@ -315,7 +280,7 @@ sub getDependencies {
     return (@$cache);
   }
 
-  my ($lfn, $info)=$self->findPackageLFN($user, $package, $version);
+  my ($lfn, $info)=$self->{PACKMAN}->findPackageLFN($user, $package, $version);
   
   AliEn::Util::setCacheValue($self, $cacheName, [1,$info]);
   $self->info("Giving back the dependencies of $package");
