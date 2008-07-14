@@ -33,16 +33,18 @@ sub checkWakesUp {
     $self->debug(2,  "FOUND $pack");
     if ($pack =~ m{^$self->{CONFIG}->{USER_DIR}/?./([^/]*)/packages/([^/]*)/([^/]*)/([^/]*)$}) {
       push @packages,{'fullPackageName'=> "$1\@${2}::$3",
-		 packageName=>$2,
-		 username=>$1, 
-		 packageVersion=>$3,
-		 platform=>$4,};
+		      packageName=>$2,
+		      username=>$1, 
+		      packageVersion=>$3,
+		      platform=>$4,
+		      lfn=>$pack};
     }elsif ($pack =~ m{^/$org/packages/([^/]*)/([^/]*)/([^/]*)$}) {
       push @packages,{'fullPackageName'=> "VO_\U$org\E\@${1}::$2",
-		 packageName=>$1,
-		 username=>"VO_\U$org\E", 
-		 packageVersion=>$2,
-		 platform=>$3,};
+		      packageName=>$1,
+		      username=>"VO_\U$org\E", 
+		      packageVersion=>$2,
+		      platform=>$3,
+		      lfn=>$pack};
     }else {
       $self->info("Don't know what to do with $pack");
     }

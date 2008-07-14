@@ -25,19 +25,27 @@ sub new {
     bless($self, $name);
   }
   $self->{SOAP}=AliEn::SOAP->new() or return;
-  
+
   $self->initialize() or return;
   return $self;
 }
+
 sub initialize{
-  return 1;
+  my $self=shift;
+
+  $self->{SOAP_SERVER} or $self->{SOAP_SERVER}="PackMan";
+  $self->info("We will talk to the $self->{SOAP_SERVER}");
+
+  return $self;
 }
 
 sub getListInstalledPackages{
   my $self=shift;
-  my $op=shift;
+
   my @packages=$self->getListInstalled_Internal(@_) or return;
-  return $self->printPackages({input=>\@_, text=>" installed"}, @packages);
+  grep (/^-s(ilent)?$/, @_) or 
+    $self->printPackages({input=>\@_, text=>" installed"}, @packages);
+  return @packages;
 }
 
 #This is the method that has to be overwritten in other implemetations
@@ -54,19 +62,15 @@ sub getListInstalled_Internal {
 
 sub getListPackages {
   my $self=shift;
-  my $op=shift;
-  my @packages=$self->getListPackages_Internal(@_) or return;
-  return $self->printPackages({input=>\@_}, @packages);
+  $self->debug(1,"Asking the $self->{SOAP_SERVER} for the packages that it knows");
+  my ($done)=$self->{SOAP}->CallSOAP($self->{SOAP_SERVER},"getListPackages", @_) or return;
+
+  my @packages=$done->result, $done->paramsout;
+  grep (/^-s(ilent)?$/, @_) or 
+    $self->printPackages({input=>\@_},@packages);
+  return @packages;
 }
 
-sub getListPackages_Internal {
-  my $self=shift;
-  $self->debug(1,"Asking the PackMan for the packages that it knows");
-  my ($done)=$self->{SOAP}->CallSOAP("PackMan","getListPackages", @_) or return;
-  my $status=$done->result;
-  my @list=$done->paramsout;
-  return $status, @list;
-}
 
 sub installPackage{
   my $self=shift;
@@ -132,6 +136,7 @@ sub f_packman {
 
   my $string=join(" ", @arg);
   my $serviceName="PackMan";
+
   $string =~ s{-?-silent\s+}{} and $silent=1;
   if ( $string =~ s{-?-n(ame)?\s+(\S+)}{} ){
     my $name=$2;

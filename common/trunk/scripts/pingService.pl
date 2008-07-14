@@ -15,6 +15,8 @@ my %serviceConfigMap = (
 "Manager::Job" => ["JOB_MANAGER_ADDRESS", ""],
 "Broker::Job" => ["JOB_BROKER_ADDRESS", ""],
 "ClusterMonitor" => [undef, "CLUSTERMONITOR_PORT"],
+"PackManMaster" => ["PACKMANMASTER_ADDRESS", ""],
+"MessagesMaster" => ["MESSAGESMASTER_ADDRESS", ""],
 );
 
 my $serviceName = shift;

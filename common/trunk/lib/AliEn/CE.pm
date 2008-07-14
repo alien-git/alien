@@ -92,10 +92,11 @@ sub new {
   $self->{LOGGER}->notice( "CE", "Starting remotequeue..." );
 
   my $pOptions={};
+
   $options->{PACKMAN} and $self->{PACKMAN}=$pOptions->{PACKMAN}=$options->{PACKMAN};
   my $ca=AliEn::Classad::Host->new($pOptions) or return;
-  AliEn::Util::setCacheValue($self, "classad", $ca->asJDL);
 
+  AliEn::Util::setCacheValue($self, "classad", $ca->asJDL);
   $self->info( $ca->asJDL);
   $self->{X509}=new AliEn::X509 or return;
   $self->{DB}=new AliEn::Database::CE or return;
@@ -798,6 +799,21 @@ sub getNumberFreeSlots{
 
 
   (  ($max_running - $running)< $free) and $free=($max_running - $running);
+
+  my $file="$ENV{ALIEN_HOME}/alien_$self->{CONFIG}->{CE_NAME}_number.txt";
+
+  if ( -f $file){
+    $self->info("The file $file exists. Reading the limit from there");
+    if (open (FILE, "<$file") ){
+      my $number=join("", grep (! /^\s*#/, <FILE>));
+      chomp $number;
+      $self->info("The file says '$number'");
+      ($number  - $running <$free) and $free=$number - $running;
+      close FILE;
+    }else {
+      $self->info("Error opening $file");
+    }
+  }
   $self->info( "Returning $free free slots, with ".($running - $queued)." running jobs");
 
   if ($self->{MONITOR}){
