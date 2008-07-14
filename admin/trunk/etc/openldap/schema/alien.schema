@@ -103,6 +103,8 @@ attributetype ( AliEnVOConfig:74 NAME 'proxyAddress' SUP name )
 attributetype ( AliEnVOConfig:75 NAME 'jobDatabaseRead' SUP name )
 attributetype ( AliEnVOConfig:76 NAME 'taxAccount' SUP name )
 attributetype ( AliEnVOConfig:77 NAME 'taxRate' SUP name )
+attributetype ( AliEnVOConfig:78 NAME 'packmanmasterAddress' SUP name )
+attributetype ( AliEnVOConfig:79 NAME 'messagesmasterAddress' SUP name )
 
 objectclass ( AliEnVOConfig  NAME 'AliEnVOConfig'
 	SUP ( top $ organizationalUnit ) STRUCTURAL
@@ -126,7 +128,8 @@ objectclass ( AliEnVOConfig  NAME 'AliEnVOConfig'
 	      webserverURL $ myproxyServer $ gContainerAddress $ rlsAddress $
 	      portalUrl $ vomsServer $ apiServer $ jabberServer $ agentApiProxy $ 
         lbsgAddress $ lbsgDatabase $ si2kNominalPrice $ bankAdmin $ taxAccount $ taxRate $
-				bankCurrency $ jobDatabaseRead )
+				bankCurrency $ jobDatabaseRead $ packmanmasterAddress $ 
+ messagesmasterAddress )
 	)
 #AliEnUser
 

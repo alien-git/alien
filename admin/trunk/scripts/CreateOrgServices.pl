@@ -57,6 +57,16 @@ foreach my $service ("Job", "Catalogue"){
     $install.="${service}Optimizer ";
   }
 }
+
+if ($config->{PACKMANMASTER_ADDRESS} =~ /^$hostname:/) {
+  $install.="PackManMaster ";
+}
+
+if ($config->{MESSAGESMASTER_ADDRESS} =~ /^$hostname:/) {
+  $install.="PackManMaster ";
+}
+
+
 if ($config->{"GAS_FACTORY_ADDRESS"} &&  $config->{"GAS_FACTORY_ADDRESS"} =~ /^https?:\/\/$hostname:/) {
   $install.="GAS_FACTORY ";
 }
