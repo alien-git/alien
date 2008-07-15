@@ -36,7 +36,7 @@ sub initialize {
   return $self;
 }
 
-sub checkMessages {  
+sub getMessages {  
   my $this=shift;
 
   $self->info("Getting the last messages for @_");
@@ -54,12 +54,12 @@ sub checkMessages {
   my $time = time;
 
   my $res  =
-    $self->{DB}->query("SELECT ID,TargetHost,Message,MessageArgs from MESSAGES WHERE (TargetService = ? AND  ? like TargetHost AND (Expires > ? or Expires = 0)", undef, {bind_values=>[$service, $host, $time]});
+    $self->{DB}->query("SELECT ID,TargetHost,Message,MessageArgs from MESSAGES WHERE TargetService = ? AND  ? like TargetHost AND (Expires > ? or Expires = 0)", undef, {bind_values=>[$service, $host, $time]});
   
   defined $res
     or $self->{LOGGER}->error("ClusterMonitor","Error fetching messages from database")
       and return;
-  $self->info("Returning $#$res messages");
+  $self->info("Returning ".( $#$res +1 )." messages");
   return $res;
 }
 
