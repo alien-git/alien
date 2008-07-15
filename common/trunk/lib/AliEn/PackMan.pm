@@ -65,7 +65,7 @@ sub getListPackages {
   $self->debug(1,"Asking the $self->{SOAP_SERVER} for the packages that it knows");
   my ($done)=$self->{SOAP}->CallSOAP($self->{SOAP_SERVER},"getListPackages", @_) or return;
 
-  my @packages=$done->result, $done->paramsout;
+  my @packages=($done->result, $done->paramsout);
   grep (/^-s(ilent)?$/, @_) or 
     $self->printPackages({input=>\@_},@packages);
   return @packages;

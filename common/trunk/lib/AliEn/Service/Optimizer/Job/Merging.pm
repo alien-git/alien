@@ -152,9 +152,9 @@ sub checkMasterResubmition {
 
   my @status=();
   if ($type =~ /^system$/){
-    push @status, 'EXPIRED','ERROR_IB','ERROR_V','ERROR_E','FAILED','ERROR_SV', 'ERROR_A';
+    push @status, 'EXPIRED','ERROR_IB','ERROR_E','FAILED','ERROR_SV', 'ERROR_A';
   }elsif ($type =~ /^all$/){
-    push @status,  'EXPIRED','ERROR_IB','ERROR_V','ERROR_E','FAILED','ERROR_SV', 'ERROR_A', 'ERROR_V';
+    push @status,  'EXPIRED','ERROR_IB','ERROR_E','FAILED','ERROR_SV', 'ERROR_A', 'ERROR_V';
   }else {
     push @status,  split(",", $type);
 
@@ -366,8 +366,11 @@ sub copyOutputDirectories{
       next;
     }
 
-    $self->{CATALOGUE}->execute("mkdir",$destdir,"-p") or
+    if (! $self->{CATALOGUE}->execute("mkdir",$destdir,"-p") ){
       $self->info("Error creating the destination directory $destdir");
+      $self->putJobLog($masterId, "error", "Error creating the directory $destdir");
+      next;
+    }
     $self->debug(1, "And now, the cp $origdir/job-output $destdir");
     if ($self->{CATALOGUE}->execute("cp", "-silent", "$origdir/job-output", $destdir) ) {
       #Let's put the log files of the subjobs
