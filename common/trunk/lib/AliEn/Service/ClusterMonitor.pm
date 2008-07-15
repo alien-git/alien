@@ -1006,8 +1006,8 @@ sub checkMessages {
 
   my $time = time;
   $self->info("Ready to get the messages");
-  my $result=$self->{SOAP}->CallSOAP("getMessages", 'ClusterMonitor', $self->{HOST}, $self->{MESSAGES_LASTACK}) or 
-    $self->info("Error getting the messages");
+  my $result=$self->{SOAP}->CallSOAP('MessagesMaster', "getMessages", 'ClusterMonitor', $self->{HOST}, $self->{MESSAGES_LASTACK}) or 
+    $self->info("Error getting the messages") and return;
   my $res=$result->result;
   use Data::Dumper;
   print Dumper($res);
