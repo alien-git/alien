@@ -62,7 +62,7 @@ sub findPackageLFN {
   $self->info("We should check in the database for the package");
 
   my $vo_user=uc("VO_$self->{CONFIG}->{VO_NAME}");
-  my $query="SELECT lfn from PACKAGES where packageName=? and platform=? and (username=? or username=?)";
+  my $query="SELECT lfn from PACKAGES where packageName=? and (platform=? or platform='source') and (username=? or username=?)";
   my @bind=($package, $platform, $user, $vo_user);
   my @bind_source=($package, $platform, $user, $vo_user);
 
