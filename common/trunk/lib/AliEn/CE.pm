@@ -123,6 +123,31 @@ sub new {
   return $self;
 }
 
+sub checkZipArchives {
+  my $self=shift;
+  my $job_ca=shift;
+  my ( $ok, @list) = $job_ca->evaluateAttributeVectorString("InputZip");
+  $ok or return 1;
+  $self->info("There are some zip archives!! @list");
+
+  my $pwd=$self->{CATALOG}->{CATALOG}->{CURPATH};
+  my $change=0;
+  foreach my $f (@list){
+    $f =~ s{^LF:}{} and $change=1;
+    if ($f !~ m{^/}){
+      $f="$pwd$f";
+      $change=1;
+    }
+  }
+
+  if ($change){
+    $self->info("Updating the list to @list");
+    $job_ca->insertAttributeString("InputZip", @list);
+  }
+
+  return 1;
+}
+
 #_____________________________________________________________________________
 #sub defaultRequirements {
 #  
@@ -148,7 +173,7 @@ sub checkRequirements {
   }
 
   $self->checkInputDataCollections($job_ca) or return;
-
+  $self->checkZipArchives($job_ca) or return;
   $DEBUG and $self->debug(1, "Checking requirements of the job" );
   my ( $ok, $origreq ) = $job_ca->evaluateExpression("Requirements");
 
