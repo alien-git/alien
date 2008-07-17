@@ -97,7 +97,7 @@ sub findPackageLFN {
   use Data::Dumper;
   print Dumper($item);
 
-  return $lfn, $item;
+  return ($lfn, $item);
 }
 
 
