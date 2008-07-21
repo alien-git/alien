@@ -187,6 +187,10 @@ sub findPackageLFN{
   }
   use Data::Dumper;
   print Dumper(@info);
+  if ( $info[1] =~ /^$/) {
+    $self->info("The metadata is empty????");
+    $info[1]={};
+  }
   return @info;
 }
 
