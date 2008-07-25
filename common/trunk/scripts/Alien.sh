@@ -314,6 +314,21 @@ ALIEN_Grid()
     printf "Please (re)run 'alien config' command.\n\n"
     exit 1
   fi
+  if [ "$1" = "proxy-init" ] ;
+  then
+    echo "Checking the time difference"
+    if [ -f /usr/sbin/ntpdate ] ;
+    then
+      DIFF=` /usr/sbin/ntpdate   -q pool.ntp.org |grep 'offset'  |head -n 1 |awk -F offset '{print $2}' |awk -F , '{print $1}' |awk '{print $1$2}' |awk -F . '{print $1}'`
+      S=`expr $DIFF \< 300`
+      if [ "$S" = 0 ] ;
+      then
+         echo "Your clock doesn't seem to be synchronized. Please run 'ntpdate pool.ntp.org'"
+         exit -2
+      fi
+    fi
+  fi
+
 
   if [ -x $GLOBUS_LOCATION/bin/grid-$1 ]
   then 
