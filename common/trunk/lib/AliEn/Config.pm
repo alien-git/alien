@@ -321,7 +321,7 @@ sub getVOLDAP{
   }
   if ($host){
     $self->debug(1,"We got the info from the ldap. Let's update the file");
-    if (open (FILE, ">$ENV{ALIEN_HOME}/.lastLDAP")){
+    if (open (FILE, ">$ENV{ALIEN_HOME}/.lastLDAP.$self->{ORG_NAME}")){
       print FILE "$host/$dn\n";
       close FILE;
     }
