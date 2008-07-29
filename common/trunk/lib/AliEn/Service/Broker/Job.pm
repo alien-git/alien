@@ -331,6 +331,11 @@ sub offerAgent {
     my ( $match, $rank ) = Classad::Match( $job_ca, $site_ca );
     $match or next;
     $self->info( "There is a match");
+    $self->{SITE_CA}=$site_ca;
+    my ($ok, @packages)=$self->checkPackagesToInstall($job_ca);
+    if ($ok eq -3){
+      return ($ok, @packages);
+    }
     #If after starting all these job agents, we still have some free slots,
     #we have to keep doing the matching
     if ($element->{counter}<$free_slots) {
