@@ -624,7 +624,7 @@ sub getJobAgentRequirements {
   my $req=shift;
   my $job_ca=shift;
   $req= "Requirements = $req ;\n";
-  foreach my $entry ("user", "memory", "swap", "localdisk") {
+  foreach my $entry ("user", "memory", "swap", "localdisk", "packages") {
     my ($ok, $info)=$job_ca->evaluateExpression($entry);
     ($ok and $info) or next;
     $req.=" $entry =$info;\n";
