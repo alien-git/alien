@@ -894,6 +894,15 @@ sub offerAgent {
     $self->{LOGGER}->$mode("CE", $mesage);
     return -2;
   }
+  if (!@jobAgents || ($jobAgents[0] eq "-3")) {
+    shift @jobAgents;
+    $self->info("We have to install the packages '@jobAgents'");
+    foreach my $pack (@{$jobAgents[0]}){
+      $self->{CATALOG}->execute("packman", "install", $pack);
+    }
+    return -2;
+  }
+
   $DEBUG and $self->debug(1, "Got back that we have to start $#jobAgents +1  agents");
   my $script=$self->createAgentStartup() or return;
   foreach my $agent (@jobAgents) {
