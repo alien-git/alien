@@ -430,10 +430,9 @@ sub getSEio {
 sub addSE_HELP {
   return "addSE: creates a new database for an SE, and inserts it in the table of all the catalogues
 \tUsage:
-\t\taddSE [-pd] <site_name> <se_name>
+\t\taddSE [-p] <site_name> <se_name>
 \tOptions:
 \t\t -p: do not give an error if the SE already exists
-\t\t -d: copy the data from the existing catalogue (this is only needed after a migration from AliEn to AliEn2).
 The command will create a database called se_<vo>_<site>_<se_name>, where the se will put all its entries
 ";
 }
@@ -451,24 +450,7 @@ sub addSE {
 
   ($site and $name) or $self->info($self->addSE_HELP()) and return;
 
-  my ($dbName, $SEnumber)=$self->{DATABASE}->addSE($options, $site, $name) or return;
-
-  my $done=$self->{DATABASE_FIRST}->do("CREATE DATABASE IF NOT EXISTS $dbName")
-    or return;
-  print "The done returned $done\n";
-  if ($done ne "0E0"){
-    require AliEn::Database::SE;
-    my ($host, $driver, $db)=split ( m{/}, $self->{CONFIG}->{CATALOGUE_DATABASE});
-    $self->{DATABASE_FIRST}->do("grant all on $dbName.* to $self->{CONFIG}->{CLUSTER_MONITOR_USER}");
-
-    my $s=AliEn::Database::SE->new({DB=>$dbName, DRIVER=>$driver, HOST=>$host, ROLE=>'admin'})
-    or $self->info("Error connecting to the database $dbName",3) and return;
-
-    $self->{DATABASE_FIRST}->do("create function $dbName.string2binary (my_uuid varchar(36)) returns binary(16) deterministic sql security invoker return unhex(replace(my_uuid, '-', ''))") or return;
-    $self->{DATABASE_FIRST}->do("create function $dbName.binary2string (my_uuid binary(16)) returns varchar(36) deterministic sql security invoker return insert(insert(insert(insert(hex(my_uuid),9,0,'-'),14,0,'-'),19,0,'-'),24,0,'-')");
-    
-  }
-
+  my $SEnumber=$self->{DATABASE}->addSE($options, $site, $name) or return;
 
   return $SEnumber;
 }
@@ -578,25 +560,23 @@ sub f_renumber {
 
 sub resyncLDAP {
   my $self=shift;
-  
-  $self->info("Let's syncrhonize the DB with ldap");
+
+  $self->info("Let's syncrhonize the DB users with ldap");
   eval {
     my  $addbh = new AliEn::Database::Admin()
       or die("Error getting the admin database");
     $self->info("Got the database");
     my $ldap = Net::LDAP->new($self->{CONFIG}->{LDAPHOST}) or die "Error contacting LDAP in $self->{CONFIG}->{LDAPHOST}\n $@\n";
-    
+
     $ldap->bind;      # an anonymous bind
     $self->info("Got the ldap");
     $addbh->update("USERS_LDAP", {up=>0});
     $addbh->update("USERS_LDAP_ROLE", {up=>0});
     my $mesg = $ldap->search( base   => "ou=People,$self->{CONFIG}->{LDAPDN}",
 			     filter => "(objectclass=pkiUser)", );
-
-    foreach my $entry ($mesg->entries()) {
+    foreach my $entry ( $mesg->entries()) {
       my $user=$entry->get_value('uid');
       my @dn=$entry->get_value('subject');
-      $self->debug(1, "user: $user => @dn");
       foreach my $dn (@dn){
 	$addbh->do("insert into USERS_LDAP(user,dn, up)  values (?,?,1)", {bind_values=>[$user, $dn]});
       }
@@ -605,7 +585,6 @@ sub resyncLDAP {
 
        
     }
-
     $self->info("And now, the roles");
     $mesg   = $ldap->search( base   => "ou=Roles,$self->{CONFIG}->{LDAPDN}",
 			     filter => "(objectclass=AliEnRole)",
@@ -631,6 +610,139 @@ sub resyncLDAP {
     return;
   }
   $self->info("ok!!");
+  $self->resyncLDAPSE();
   return 1;
 }
+
+sub resyncLDAPSE {
+  my $self=shift;
+
+  $self->info("Let's resync the SE and volumes from LDAP");
+  my $ldap;
+  eval {
+    $ldap=Net::LDAP->new($self->{CONFIG}->{LDAPHOST}) or die("Error contacting $self->{CONFIG}->{LDAPHOST}");
+    $ldap->bind();
+  };
+  if ($@){
+    $self->info("Error connecting to ldap!: $@");
+    return;
+  }
+  my $mesg=$ldap->search(base=>$self->{CONFIG}->{LDAPDN},
+			 filter=>"(objectClass=AliEnMSS)");
+  my $total=$mesg->count;
+  $self->info("There are $total entries under AliEnMSS");
+
+  my $db=$self->{DATABASE}->{LFN_DB}->{FIRST_DB};
+
+  my $new_SEs={};
+
+  foreach my $entry ($mesg->entries){
+    my $name=uc($entry->get_value("name"));
+    my $dn=$entry->dn();
+    $dn=~ /ou=Services,ou=([^,]*),ou=Sites,o=([^,]*),/i or $self->info("Error getting the site name of '$dn'") and next;
+    $dn=~ /disabled/ and 
+      $self->debug(1, "Skipping '$dn' (it is disabled)") and next;
+    my ($site, $vo)=($1,$2);
+    my $sename="${vo}::${site}::$name";
+    $self->info("Doing the SE $sename");
+    $self->checkIODaemons($entry, $site, $name, $sename);
+
+    my @paths=$entry->get_value('savedir');
+
+    my $info=  $db->query("select * from SE_VOLUMES where sename=?",
+			 undef, {bind_values=>[$sename]});
+
+    my @existingPath=@$info;
+    my $t=$entry->get_value("mss");
+    my $host=$entry->get_value("host");
+    foreach my $path (@paths){
+      my $found=0;
+      my $size=-1;
+      $path =~ s/,(\d+)$// and $size=$1;
+      $self->info("  Checking the path of $path");
+      for my $e (@existingPath){
+        $e->{mountpoint} eq $path or next;
+        $self->debug(1, "The path already existed");
+        $e->{FOUND}=1;
+        $found=1;
+	$new_SEs->{$sename}=1;
+        ( $size eq $e->{size}) and next;
+        $self->info("**THE SIZE IS DIFFERENT ($size and $e->{size})");
+        $db->do("update SE_VOLUMES set size=? where mountpoint=? and sename=?", {bind_values=>[$size, $e->{mountpoint}, $sename]});
+      }
+      $found and next;
+      $self->info("**WE HAVE TO ADD THE SE '$path'");
+
+      if (! $host) {
+	$self->info("***The host didn't exist. Maybe we have to get it from the father??");
+	my $base=$dn;
+	$base =~ s/^[^,]*,(name=([^,]*),)/$1/;
+	$self->info("looking in $base (and $2");
+	my $mesg2=$ldap->search(base=>$base,
+				filter=>"(&(name=$2)(objectClass=AliEnMSS))");
+	my @entry2= $mesg2->entries();
+	$host=$entry2[0]->get_value('host');
+	
+      }
+      my $method= lc($t)."://$host";
+
+      $db->do("insert into SE_VOLUMES(sename, volume,method, mountpoint,size) values (?,?,?,?,?)", {bind_values=>[$sename, $path, $method, $path, $size]});
+      $new_SEs->{$sename} or  $new_SEs->{$sename}=0;
+    }
+    foreach my $oldEntry (@existingPath){
+      $oldEntry->{FOUND} and next;
+      $self->info("**The path $oldEntry->{mountpoint} is not used anymore");
+      $db->do("update SE_VOLUMES set size=usedspace where mountpoint=? and sename=?", {bind_values=>[$oldEntry->{mountpoint}, $sename]});
+      $new_SEs->{$sename}=1;
+    }
+  }
+
+  foreach my $item (keys %$new_SEs){
+    $new_SEs->{$item} and next;
+    $self->info("The se '$item' is new. We have to add it");
+    my ($vo, $site, $name)=split(/::/, $item, 3);
+    $self->addSE("-p", $site, $name);
+  }
+
+  $db->do("update SE_VOLUMES set freespace=size-usedspace where size!= -1");
+  $db->do("update SE_VOLUMES set freespace=2000000000 where size=-1");
+
+  $ldap->unbind();
+  return;
+}
+
+
+sub checkIODaemons {
+  my $self=shift;
+  my $entry=shift;
+  my $site=shift;
+  my $name=shift;
+  my $sename=shift;
+
+  my (@io)=$entry->get_value('iodaemons');
+  my $found= join("", grep (/xrootd/, @io)) or return;
+  $self->debug(1, "This se has $found");
+
+  $found =~ /port=(\d+)/i or $self->info("Error getting the port from '$found' for $sename") and return;
+  my $port=$1;
+  $found =~ /host=([^:]+)(:.*)?$/i or $self->info("Error getting the host from '$found' for $sename") and return;
+  my $host=$1;
+  my $path=$entry->get_value('savedir') or return;
+
+  $path=~ s/,.*$//;
+  my $seioDaemons="root://$host:$port";
+  $self->debug(1, "And the update should $sename be: $seioDaemons, $path");
+  my $e=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->query("SELECT sename,seioDaemons,sestoragepath from SE where seName='$sename'");
+  my $path2=$path;
+  $path2 =~ s/\/$// or $path2.="/";
+  my $total=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->queryValue("SELECT count(*) from SE where seName='$sename' and seioDaemons='$seioDaemons' and ( seStoragePath='$path' or sestoragepath='$path2')");
+  
+  if ($total<1){
+    $self->info("***Updating the information of $site, $name ($seioDaemons and $path");
+    $self->setSEio($site, $name, $seioDaemons, $path);
+  }
+  
+  return 1;
+}
+
 return 1;

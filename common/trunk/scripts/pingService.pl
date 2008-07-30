@@ -17,6 +17,7 @@ my %serviceConfigMap = (
 "ClusterMonitor" => [undef, "CLUSTERMONITOR_PORT"],
 "PackManMaster" => ["PACKMANMASTER_ADDRESS", ""],
 "MessagesMaster" => ["MESSAGESMASTER_ADDRESS", ""],
+"Manager::SEMaster" =>["SEMASTER_MANAGER_ADDRESS", ""],
 );
 
 my $serviceName = shift;
@@ -35,6 +36,7 @@ my $crtHost = $config->{HOST} || $config->{SITE_HOST} || Net::Domain::hostfqdn()
 
 my $configHost = exists($serviceConfigMap{$serviceName}) ? $serviceConfigMap{$serviceName}->[0] : uc($serviceName) . "_HOST";
 my $configPort = exists($serviceConfigMap{$serviceName}) ? $serviceConfigMap{$serviceName}->[1] : uc($serviceName) . "_PORT";
+
 
 my $host = (defined($configHost) ? $config->{$configHost} : $crtHost);
 $host =~ s/^http:\/\///;

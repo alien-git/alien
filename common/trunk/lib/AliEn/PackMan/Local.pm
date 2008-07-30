@@ -175,6 +175,13 @@ sub findPackageLFN{
   
   my $platform=AliEn::Util::getPlatform($self);
   $self->info("$$ Looking for the lfn of $package ($version) for the user $user");
+  
+  my $cacheName='lfn_${user}_${package}_${version}';
+  my $cache=AliEn::Util::returnCacheValue($self, $cacheName);
+  if ($cache) {
+    $self->info("Returning from the cache (@$cache)");
+    return @$cache ;
+  }
 
   my $result=$self->{SOAP}->CallSOAP("PackManMaster", "findPackageLFN", $user, $package, $version, $platform)
     or $self->info("Error talking to the PackManMaster") and return;
@@ -191,6 +198,9 @@ sub findPackageLFN{
     $self->info("The metadata is empty????");
     $info[1]={};
   }
+
+  AliEn::Util::setCacheValue($self, $cacheName, \@info);
+
   return @info;
 }
 

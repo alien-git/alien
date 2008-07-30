@@ -40,6 +40,7 @@ my (%command_list);
     'gold'      => ['$self->{QUEUE}->f_bank',0],
    
     'jobListMatch'=>['$self->{QUEUE}->f_jobListMatch',67],
+		 'killAllAgents'=>['$self->{QUEUE}->f_killAllAgents',0],
 
 );
 
@@ -61,6 +62,7 @@ my %help_list = (
     'queue'    => "\tOpen or close the the queue of a site",
     'packman'  => "\tTalks to the Package Manager (PackMan). Use 'packman --help' for more info",
     'masterJob'=> "\tDisplays information about a masterjob and all of its children",
+		 'killAllAgents'=>"\tKill all the jobagents in the site. Warning! Do not use it unless you know what you are doing",
 
      #bank functions
     'gold'=>"\tExecute AliEn bank command",
@@ -80,6 +82,7 @@ sub initialize {
 
     my $packOptions={PACKMAN_METHOD=> $options->{packman_method}|| "",
 		     CATALOGUE=>$self};
+
     $self->{PACKMAN}= AliEn::PackMan->new($packOptions) or return;
 
     $options->{PACKMAN}=$self->{PACKMAN};

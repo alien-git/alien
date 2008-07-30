@@ -348,7 +348,7 @@ sub getFile {
       $self->info("Let's guess that we have  $URL->{LOCALFILE}");
       $result=$URL->{LOCALFILE};
     }else {
-      $result=$self->getFileFromSE($result->{pfn}, $localFile, $SE);
+#      $result=$self->getFileFromSE($result->{pfn}, $localFile, $SE);
     }
   }
 
@@ -368,53 +368,53 @@ sub getFile {
 }
 
 
-sub getFileFromSE {
-  my $self=shift;
-  my $pfn=shift;
-  my $localFile=shift;
-  my $se=shift;
+#sub getFileFromSE {
+#  my $self=shift;
+#  my $pfn=shift;
+#  my $localFile=shift;
+#  my $se=shift;
 
-  $self->info("Getting the local copy brought by the SE $se $pfn");
+#  $self->info("Getting the local copy brought by the SE $se $pfn");
 
-  my $seInfo=$self->{CONFIG}->CheckServiceCache("SE", $se);
-  $seInfo or $self->info("Error getting the info of $se")
-    and return;
-  my $sePort=$seInfo->{PORT};
-  $sePort and $sePort=":$sePort";
-  $DEBUG and $self->debug(1, "We have to contact in port $sePort");
+#  my $seInfo=$self->{CONFIG}->CheckServiceCache("SE", $se);
+#  $seInfo or $self->info("Error getting the info of $se")
+#    and return;
+#  my $sePort=$seInfo->{PORT};
+#  $sePort and $sePort=":$sePort";
+#  $DEBUG and $self->debug(1, "We have to contact in port $sePort");
 
 
-  my @possibles=($pfn);
-  if ($possibles[0]=~ /^file/){
-    push @possibles, ($pfn,$pfn);
-    $possibles[1] =~ s/^file/rfio/;
-    $possibles[2] =~ s/^file(:\/\/[^:\/]*)(:\d+)?(\/.*)$/soap$1$sePort$3?URI=SE/;
-  }
-  if ($possibles[0]=~ /^bbftp/){
-    push @possibles, ($pfn);
-    $possibles[1] =~ s/^bbftp(:\/\/[^:\/]*)(:\d+)?([^\?]*)\?.*$/soap$1$sePort$3?URI=SE/;
-  }
+#  my @possibles=($pfn);
+#  if ($possibles[0]=~ /^file/){
+#    push @possibles, ($pfn,$pfn);
+#    $possibles[1] =~ s/^file/rfio/;
+#    $possibles[2] =~ s/^file(:\/\/[^:\/]*)(:\d+)?(\/.*)$/soap$1$sePort$3?URI=SE/;
+#  }
+#  if ($possibles[0]=~ /^bbftp/){
+#    push @possibles, ($pfn);
+#    $possibles[1] =~ s/^bbftp(:\/\/[^:\/]*)(:\d+)?([^\?]*)\?.*$/soap$1$sePort$3?URI=SE/;
+#  }
 
-  my $result="";
+#  my $result="";
 
-  while ( (! $result) && (my $pfn=shift @possibles)){
-    $DEBUG and $self->debug(1, "TRYING WITH $pfn");
-    my $URL=AliEn::SE::Methods->new({"PFN", $pfn,
-				     "LOCALFILE", $localFile,
-				     "DEBUG", 0,
-				     SILENT=>1}) or return;
-    eval {
-      $result=$URL->get("-s");
-    };
-  }
-  #If the SE started a service for us, let's stop it
-  if ($pfn=~ /^(bb|grid)ftp:\/\/[^:\/]*:(\d+)\// ){
-    $DEBUG and $self->debug(1, "Telling the SE to stop the service in $2");
-    $self->{SOAP}->CallSOAP("SE", "stopFTPServer", $2);
-  }
-  $result or $self->info("Error transfering the local copy brought by the SE to $pfn",1000) and  return;
-  return $result; 
-}
+#  while ( (! $result) && (my $pfn=shift @possibles)){
+#    $DEBUG and $self->debug(1, "TRYING WITH $pfn");
+#    my $URL=AliEn::SE::Methods->new({"PFN", $pfn,
+#				     "LOCALFILE", $localFile,
+#				     "DEBUG", 0,
+#				     SILENT=>1}) or return;
+#    eval {
+#      $result=$URL->get("-s");
+#    };
+#  }
+#  #If the SE started a service for us, let's stop it
+#  if ($pfn=~ /^(bb|grid)ftp:\/\/[^:\/]*:(\d+)\// ){
+#    $DEBUG and $self->debug(1, "Telling the SE to stop the service in $2");
+#    $self->{SOAP}->CallSOAP("SE", "stopFTPServer", $2);
+#  }
+#  $result or $self->info("Error transfering the local copy brought by the SE to $pfn",1000) and  return;
+#  return $result; 
+#}
 
 # Register a file in a SE
 #

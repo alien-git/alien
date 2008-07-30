@@ -1167,22 +1167,22 @@ sub preFetch {
 
 # Given an SE and a guid, it returns all the pfns that the SE 
 # has of that guid
-sub getPFNfromGUID {
-  my $self=shift;
-  my $se=shift;
-  my $guid=shift;
-  my $options=shift || {};
-  $self->debug(1,"Getting the pfn from $se");
+#sub getPFNfromGUID {
+#  my $self=shift;
+#  my $se=shift;
+#  my $guid=shift;
+#  my $options=shift || {};
+#  $self->debug(1,"Getting the pfn from $se");
 
-  my ($seName, $seCert)=$self->{SOAP}->resolveSEName($se) or return;
+#  my ($seName, $seCert)=$self->{SOAP}->resolveSEName($se) or return;
 
-#  $self->info( "Asking the SE at $seName");
-  my $result=$self->{SOAP}->CallSOAP($seName, "getPFNFromGUID",$seName, $guid, $self->{CONFIG}->{IOMETHODS_LIST}, $options) 
-    or $self->info( "Error asking the SE: $!", 1) and return;
-  my @pfns=$self->{SOAP}->GetOutput($result);
-  $self->debug(1, "Returning the list @pfns");
-  return @pfns;
-}
+##  $self->info( "Asking the SE at $seName");
+#  my $result=$self->{SOAP}->CallSOAP($seName, "getPFNFromGUID",$seName, $guid, $self->{CONFIG}->{IOMETHODS_LIST}, $options) 
+#    or $self->info( "Error asking the SE: $!", 1) and return;
+#  my @pfns=$self->{SOAP}->GetOutput($result);
+#  $self->debug(1, "Returning the list @pfns");
+#  return @pfns;
+#}
 
 
 #############################################################################################################
@@ -1249,11 +1249,11 @@ sub getPFNforAccess {
   my $options=shift;
 
   my ($pfn, $anchor);
-  my @where=$self->{CATALOG}->f_whereis("sgzt","$guid");
+  my @where=$self->{CATALOG}->f_whereis("sgztr","$guid");
 
   if (! @where){
     $self->info("There were no transfer methods....");
-    @where=$self->{CATALOG}->f_whereis("sgz","$guid");
+    @where=$self->{CATALOG}->f_whereis("sgzr","$guid");
   }
   my @whereis=();
   foreach (@where) {
@@ -1371,30 +1371,106 @@ sub getPFNforAccess {
     $pfn .= "?$urloptions";
   }
   
-  if (($urlprefix =~ /^guid/) && ($urloptions =~ /ZIP/) && ( $pfn =~ /.*\/(\w\w\w\w\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\w\w\w\w\w\w\w\w)/ )) {
-    # we got a reference guid back
-    my $newguid = $1;
-    $guid = $newguid;
+#  if (($urlprefix =~ /^guid/) && ($urloptions =~ /ZIP/) && ( $pfn =~ /.*\/(\w\w\w\w\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\w\w\w\w\w\w\w\w)/ )) {
+#    # we got a reference guid back
+#    my $newguid = $1;
+#    $guid = $newguid;
     
-    $urloptions =~ /ZIP=([^\&]*)/ and $anchor=$1;
+#    $urloptions =~ /ZIP=([^\&]*)/ and $anchor=$1;
     
     
-    if ($options =~/p/) {
-      $options="ps ";
-    } else {
-      $options="s ";
-    }
+#    if ($options =~/p/) {
+#      $options="ps ";
+#    } else {
+#      $options="s ";
+#    }
 
-    $lfn .= "_$guid";
-    my $newanchor;
-    ($se, $pfn, $newanchor, $lfn, $nses, my $whereisr )=$self->getPFNforAccess($guid, $se, $sesel, $lfn, $options)
-      or return;
-    $self->info("The father pfn is $pfn");
-  }
+#    $lfn .= "_$guid";
+#    my $newanchor;
+#    ($se, $pfn, $newanchor, $lfn, $nses, my $whereisr )=$self->getPFNforAccess($guid, $se, $sesel, $lfn, $options)
+#      or return;
+#    $self->info("The father pfn is $pfn");
+#  }
 
 
   return ($se, $pfn, $anchor, $lfn, $nses, \@where);
 }
+sub checkPermissionsOnLFN {
+  my $self=shift;
+  my $lfn=shift;
+  my $access=shift;
+  my $perm=shift;
+  
+  my $filehash = $self->{CATALOG}->checkPermissions($perm,$lfn,undef, 
+						    {RETURN_HASH=>1});
+  if (!$filehash) {
+    $self->{LOGGER}->error("LCM","access: access denied to $lfn");
+    return;
+  }
+
+  if  ($access eq "read")  {
+    if (!$self->{CATALOG}->isFile($lfn, $filehash->{lfn})) {
+      $self->{LOGGER}->error("LCM","access: access find entry for $lfn");
+      return ;
+    }
+  }elsif ($access eq "delete") {
+    if (! $self->{CATALOG}->existsEntry($lfn, $filehash->{lfn})) {
+      $self->{LOGGER}->error("LCM","access: delete of non existant file requested: $lfn");
+      return ;
+    }
+  } else {
+    my $parentdir = $self->{CATALOG}->f_dirname($lfn);
+    my $result = $self->{CATALOG}->checkPermissions($perm,$parentdir);
+    if (!$result) {
+      $self->{LOGGER}->error("LCM","access: parent dir missing for lfn $lfn");
+      return ;
+    }
+    if ($access eq "write-once")  {
+      if ($self->{CATALOG}->existsEntry($lfn, $filehash->{lfn})) {
+	$self->{LOGGER}->error("LCM","access: write-once but lfn $lfn exists already");
+	return ;
+      }
+    }
+    if (($access eq "write-version") && ($lfn ne "") ) {  
+      if ($self->{CATALOG}->existsEntry($lfn, $filehash->{lfn})) {
+	$self->info( "access: lfn <$lfn> exists - creating backup version ....\n");
+	my $filename = $self->{CATALOG}->f_basename($lfn);
+	
+	$self->{CATALOG}->f_mkdir("ps","$parentdir"."/."."$filename/") or
+	  $self->{LOGGER}->error("LCM","access: cannot create subversion directory - sorry") and return;
+	
+	my @entries = $self->{CATALOG}->f_ls("s","$parentdir"."/."."$filename/");
+	my $last;
+	foreach (@entries) {
+	  $last = $_;
+	}
+	
+	my $version=0;
+	if ($last ne "") {
+	  $last =~ /^v(\d)\.(\d)$/;
+	  $version = (($1*10) + $2) - 10 +1;
+	}
+	if ($version <0) {
+	  $self->{LOGGER}->error("LCM","access: cannot parse the last version number of $lfn");
+	  return ;
+	}
+	my $pversion = sprintf "%.1f", (10.0+($version))/10.0;
+	my $backupfile = "$parentdir"."/."."$filename/v$pversion";
+	$self->info( "access: backup file is $backupfile \n");
+	if (!$self->{CATALOG}->f_mv("",$lfn, $backupfile)) {
+	  $self->{LOGGER}->error("LCM","access: cannot move $lfn to the backup file $backupfile");
+	  return ;
+	}
+	# in the end we access a new file
+	$access="write-once";
+      } else {
+	$access="write-once";
+      }
+    }
+  }
+  return $filehash;
+}
+
 
 sub access {
     # access <access> <lfn> 
@@ -1454,7 +1530,6 @@ sub access {
   my $globalticket="";
 
   foreach my $lfn (@lfnlist) {
-    my $result;
     my $ticket = "";
     my $guid="";
     my $pfn ="";
@@ -1462,7 +1537,6 @@ sub access {
     my $nses = 0;
     my $filehash = {};
 
-    $lfn = $self->{CATALOG}->f_complete_path($lfn);
     if ( $lfn =~ /(\w\w\w\w\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\w\w\w\w\w\w\w\w).*/ ) {
       $self->info("Getting the permissions from the guid");
       $guid = $1;
@@ -1474,6 +1548,8 @@ sub access {
 	return access_eof;
       }
       delete $filehash->{db};
+    } else {
+      $lfn = $self->{CATALOG}->f_complete_path($lfn);
     }
 
     if ($lfn eq "/NOLFN") {
@@ -1485,87 +1561,10 @@ sub access {
     my $whereis;
     while(1) {
       if ( $lfn ne "") {
-	  $filehash = $self->{CATALOG}->checkPermissions($perm,$lfn,undef, 
-							 {RETURN_HASH=>1});
-	  if (!$filehash) {
-	      $self->{LOGGER}->error("LCM","access: access denied to $lfn");
-	      return access_eof;
-	  }
+	$filehash=$self->checkPermissionsOnLFN($lfn,$access, $perm)
+	  or return access_eof;
       }
-
-      if ( ($access eq "read") && ($lfn ne "")) {
-	
-	if (!$self->{CATALOG}->isFile($lfn, $filehash->{lfn})) {
-	  $self->{LOGGER}->error("LCM","access: access find entry for $lfn");
-	  return access_eof;
-	}
-      } else {
-	
-	if (($access eq "write-once") && ($lfn ne "") ) {
-	  my $parentdir = $self->{CATALOG}->f_dirname($lfn);
-	  $result = $self->{CATALOG}->checkPermissions($perm,$parentdir);
-	  if (!$result) {
-	    $self->{LOGGER}->error("LCM","access: parent dir missing for lfn $lfn");
-	    return access_eof;
-	  }
-	  if ($self->{CATALOG}->existsEntry($lfn, $filehash->{lfn})) {
-	    $self->{LOGGER}->error("LCM","access: write-once but lfn $lfn exists already");
-	    return access_eof;
-	  }
-	}
-	
-	if (($access eq "write-version") && ($lfn ne "") ) {  
-	  my $parentdir = $self->{CATALOG}->f_dirname($lfn);
-	  $result = $self->{CATALOG}->checkPermissions($perm,$parentdir);
-	  if (!$result) {
-	    $self->{LOGGER}->error("LCM","access: parent dir missing for lfn $lfn");
-	    return access_eof;
-	  }
-	  if ($self->{CATALOG}->existsEntry($lfn, $filehash->{lfn})) {
-	    $self->info( "access: lfn <$lfn> exists - creating backup version ....\n");
-	    my $filename = $self->{CATALOG}->f_basename($lfn);
-	    
-	    $self->{CATALOG}->f_mkdir("ps","$parentdir"."/."."$filename/") or
-	      $self->{LOGGER}->error("LCM","access: cannot create subversion directory - sorry") and return;
-	    
-	    my @entries = $self->{CATALOG}->f_ls("s","$parentdir"."/."."$filename/");
-	    my $last;
-	    foreach (@entries) {
-	      $last = $_;
-	    }
-	    
-	    my $version=0;
-	    if ($last ne "") {
-	      $last =~ /^v(\d)\.(\d)$/;
-	      $version = (($1*10) + $2) - 10 +1;
-	    }
-	    if ($version <0) {
-	      $self->{LOGGER}->error("LCM","access: cannot parse the last version number of $lfn");
-	      return access_eof;
-	    }
-	    my $pversion = sprintf "%.1f", (10.0+($version))/10.0;
-	    my $backupfile = "$parentdir"."/."."$filename/v$pversion";
-	    $self->info( "access: backup file is $backupfile \n");
-	    if (!$self->{CATALOG}->f_mv("",$lfn, $backupfile)) {
-	      $self->{LOGGER}->error("LCM","access: cannot move $lfn to the backup file $backupfile");
-	      return access_eof;
-	    }
-	    # in the end we access a new file
-	    $access="write-once";
-	  } else {
-	    $access="write-once";
-	  }
-	}
-	
-	
-	if (($access eq "delete") && ($lfn ne "")) {
-	  if (! $self->{CATALOG}->existsEntry($lfn, $filehash->{lfn})) {
-	    $self->{LOGGER}->error("LCM","access: delete of non existant file requested: $lfn");
-	    return access_eof;
-	  }
-	}
-      }
-      
+      $DEBUG and $self->debug(1, "We have permission on the lfn");
       if ($access =~ /^write/) {
 	if (!$se) {
 	  $se = $self->{CONFIG}->{SE_FULLNAME};
