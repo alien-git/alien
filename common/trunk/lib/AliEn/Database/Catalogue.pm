@@ -890,8 +890,6 @@ sub addSE{
       return;
     }
   }
-  my $dbName="se_".lc($SEName);
-  $dbName =~ s{::}{_}g;
 
   if ($addToTables) {
     #First, let's create the database
@@ -907,16 +905,11 @@ sub addSE{
       return;
     }
   }
+
   
-  $self->debug(2, "Let's create the tables");
-  
-  if ($options=~ /d/){
-    $self->info("Copying the data");
-    $self->{LFN_DB}->executeInAllDB("do", "insert into $dbName.FILES (pfn, size, guid)  select pfn, size, guid from FILES2 where se='$SEName'")
-  }
   $self->info("Entry Added!!!");
   
-  return ($dbName, $SEnumber);
+  return  $SEnumber;
 }
 
 

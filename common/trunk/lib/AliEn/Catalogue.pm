@@ -1205,6 +1205,7 @@ sub f_find_HELP{
    v => switch on verbose mode (write files found etc.)
    p => set the printout format
    l => limit number of returned files per database host
+   o => offset for the limit per database host
    x => write xml - 2nd arg is collection name
    r => resolve all file information (should be used together with -x -z)
    g => file group query (has to be used together with -x -z)
@@ -1639,7 +1640,7 @@ sub f_find {
   #### standard to retrieve options with and without parameters
   my %options=();
   @ARGV=@_;
-  getopts("vzrp:o:l:x:g:sO:q:dc:",\%options);
+  getopts("vzrpO:o:l:x:g:sO:q:dc:",\%options);
   @_=@ARGV;
   
   # option v => verbose

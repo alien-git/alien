@@ -819,15 +819,17 @@ sub f_whereis{
     my @allReal;
     foreach my $entry (@SElist){
       $self->debug(1, "What do we do with $entry  ($entry->{pfn} and $entry->{seName} }??");
-      if ($entry->{pfn} =~ m{^guid://[^/]*/(.*)(\?.*)?$} ){
+      if ($entry->{pfn} =~ m{^guid://[^/]*/([^\?]*)(\?.*)?$} ){
+	my $anchor=$2 || "";
+	print "AND THE ANCHOR IS $2 (of $entry->{pfn} and $1)\n";
 	$DEBUG and $self->debug(2,"We should check the link $1!!");
 	my @done=$self->f_whereis("grs", $1)
 	  or $self->info("Error doing the where is of guid '$1'") and return;
 	while (@done) {
 	  my ($se, $pfn)=(shift @done, shift @done);
 	  grep (/^$se$/, @realSE) or  push @realSE, $se;
-	  $pfn =~ /^auto$/ or push @pfns, $pfn;
-	  push @allReal, {seName=>$se, pfn=>$pfn};
+	  $pfn =~ /^auto$/ or push @pfns, "$pfn$anchor";
+	  push @allReal, {seName=>$se, pfn=>"$pfn$anchor"};
 	}
       }else {
 	grep (/^$entry->{seName}$/, @realSE) or push @realSE, $entry->{seName};

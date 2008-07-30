@@ -106,9 +106,9 @@ sub initialize {
   $self->debug(1,
 "Contacting Transfer Manager at $self->{CONFIG}->{TRANSFER_MANAGER_ADDRESS}");
 
-  $self->{DATABASE}=AliEn::Database::SE->new() or return;
+#  $self->{DATABASE}=AliEn::Database::SE->new() or return;
 #   configure options
-  $self->{LVM}=$self->ConfigureLVM($name) or return;
+  $self->{LVM}=$self->ConfigureLVM() or return;
 
   $self->{CERTIFICATE}=$self->{CONFIG}->{SE_CERTSUBJECT};
 
@@ -383,14 +383,14 @@ sub ConfigureLVM {
   my $name=shift;
   my $virtual=shift;
 
-  my $db=$self->{DATABASE};
+#  my $db=$self->{DATABASE};
   my @singlevolume=@{$self->{CONFIG}->{'SE_SAVEDIR_LIST'}};
   my @se_options=();
   $self->{CONFIG}->{SE_OPTIONS_LIST} and push @se_options, @{$self->{CONFIG}->{SE_OPTIONS_LIST}};
   my $mss=$self->{MSS};
   my $mss_type=$self->{CONFIG}->{SE_MSS};
   if ($virtual){
-    $db=AliEn::Database::SE->new({VIRTUAL=>$virtual}) or return;
+#    $db=AliEn::Database::SE->new({VIRTUAL=>$virtual}) or return;
     @singlevolume=@{$self->{CONFIG}->{"SE_$virtual"}->{SAVEDIR_LIST}};
     $mss=$self->{$virtual}->{MSS};
     $mss_type=($self->{CONFIG}->{"SE_$virtual"}->{MSS} || $mss_type);
@@ -399,59 +399,9 @@ sub ConfigureLVM {
       push @se_options, @{$self->{CONFIG}->{"SE_$virtual"}->{OPTIONS_LIST}};
   }
 
-  my $lvm=AliEn::LVM->new({DB=>$db}) or return;
-
-  #  startIOdaemon('testhost.test.ch','peters');
-
-
-  #########################################################################
-  # Logical Volume Manager LVM
-  # initilize the database, if file database is empty, set the rebuild flag
-
-  my $rebuild = $lvm->initialiseDatabase();
-
-  # read the volumes from the SAVEDIR configuration list and create them
-
-  foreach (@singlevolume) {
-    my ($mountpoint,$size) = split (",", $_);
-    (defined $size) or  $size = -1;
-#    $mss->{MOUNTPOINT} and $mountpoint="$mss->{MOUNTPOINT}$mountpoint";
-    my $host=lc($self->{CONFIG}->{HOST});
-    ($mss->{URI} and $mss->{URI}=~ m{^[^/]*/[^/]*/([^/]*)/}) and $host=$1;
-
-    my $volume = {
-		  'volume'      => $mountpoint,
-		  'mountpoint'  => $mountpoint,
-		  'size'        => $size,
-		  'freespace'   => $size,
-		 };
-
-    $self->info( "LVM Adding Volume name=$name path=$mountpoint size=$size");
-    $lvm->addVolume($volume, $mss,$rebuild, "\L$mss_type://$host\E");
-
-  }
+  my $lvm=AliEn::LVM->new({NAME=>$name}) or return;
 
   # crosscheck DB file entries against files on disk and recalculate the volume space
-  $self->info( "LVM Syncing the database");
-  $lvm->syncDatabase();
-  my $info=$lvm->{DB}->retrieveAllVolumesUsage();
-
-  my $totblocks =  $info->{size};
-  my $freeblocks = $info->{freespace};
-  my $usedblocks = $info->{usedspace};
-  my $nfiles     = $lvm->{DB}->getNumberOfFiles();
-  $self->sendApMonInfo($info, $nfiles);
-
-  my $usedtb = sprintf "%04.02f",$usedblocks*1.0/(1024.0*1024.0*1024.0);
-
-  if ($totblocks == -1) {
-    $self->info( "LVM Volume Space  :infinite");
-  } else {
-    $self->info( "LVM Volume Space  :$totblocks \t [1k]");
-  }
-  $self->info( "LVM #of Files     :$nfiles\n
-LVM Free   Blocks :$freeblocks \t [1k]
-LVM Used   Blocks :$usedblocks \t [1k] \t $usedtb TB");
 
   $lvm->{MIN_SIZE}=0;
   if (my @limit=grep( s/^\s*min_size=(\d+)\s*;?\s*$/$1/, @se_options)){
@@ -532,21 +482,20 @@ sub copyFile {
 	and return ( -1, "Not enough arguments (pfn)" );
   
   #checking if we have to clean the cache
-  if ($opt=~ /f/) {
-    #the local copy is not valid anymore. Delete all of them.
-    $self->{DATABASE}->deleteLocalCopies($pfn);
-  }
+#  if ($opt=~ /f/) {
+#    #the local copy is not valid anymore. Delete all of them.
+#    $self->{DATABASE}->deleteLocalCopies($pfn);
+#  }
 
   #We try to get the local copy
   $self->info( "Checking local copies");
-  my ($name, $size)=$self->checkLocalCopy($pfn, $target); 
+  my ($name, $size);#=$self->checkLocalCopy($pfn, $target); 
   if (!$name){
     if ($opt=~ /t/){
       $self->info("Skipping trying to get the file (a transfer will be issued)");
     } else {
       $self->info("Let's try to do the url");
       my $file =AliEn::SE::Methods->new({ "DEBUG", $self->{DEBUG}, "PFN", $pfn,
-					  "DATABASE", $self->{DATABASE},
 					});
       $self->info("URL created");
       if ($file){
@@ -587,9 +536,9 @@ sub copyFile {
 
     $name or return $self->SetTransfer($pfn, $target, $oldSE, $options, $size);
     
-    $self->{DATABASE}->insertLocalCopy({pfn=>$pfn,
-					localCopy=>"file://$self->{HOST}$name", 
-					size=>$size});
+#    $self->{DATABASE}->insertLocalCopy({pfn=>$pfn,
+#					localCopy=>"file://$self->{HOST}$name", 
+#					size=>$size});
   }
   $self->info("Ok, we got the file. What to do with it?");
 
@@ -608,11 +557,10 @@ sub registerInMSS {
   my $self=shift;
   my ($size, $target, $name, $lfn, $options, $seName, $md5)=@_;
 
-  my ($lvm, $mss)=($self->{LVM},$self->{MSS});
+  my  $mss=$self->{MSS};
 
   if ($seName){
     $mss=$self->{$seName}->{MSS};
-    $lvm=$self->{$seName}->{LVM};
   }
 
   ($target, my @rest)=$self->getFileName($seName, $size, {guid=>$target,
@@ -625,17 +573,8 @@ sub registerInMSS {
   $self->setMSSEnvironment($mss);
   my $save = $mss->save( $name, $target);
 
-  my $info = $lvm->{DB}->retrieveAllVolumesUsage();
-  my $freeblocks=$info->{freespace};
-  $self->info( "LVM Free   Blocks :$freeblocks \t [1k]");
-  if($self->{MONITOR}){
-    my $nfiles = $lvm->{DB}->getNumberOfFiles();
-    $self->sendApMonInfo($info, $nfiles);
-  }
-  
   if (!$save) {
-    $self->{LOGGER}->warning( "SE", "Error saving $name (and $target)" );
-    $lvm->removeFile({size=>$size, file=>$target});
+    $self->info(  "Error saving $name (and $target)" );
     return ( -1, "Error copying the file to the MSS" );
   }
 
@@ -684,17 +623,17 @@ sub registerInMSS {
 #  return ({"pfn" => "bbftp://$self->{HOST}:$port$file?SUBJECT=$cert", 
 #	   "size" => $size});
 #}
-
-sub stopFTPServer{
-  my $this=shift;
-  my $port=shift;
-  $self->info( "Stopping the service in port $port");
-  my $pid=$self->{DATABASE}->queryColumn("SELECT pid FROM FTPSERVERS where port=$port");
-  $self->{DATABASE}->delete("FTPSERVERS", "port=$port");
-  unlink "$self->{CONFIG}->{TMP_DIR}/PORTS/lockFile.$port";
-  map {$self->stopService($_)} @$pid;
-  return 1;
-}
+#
+#sub stopFTPServer{
+#  my $this=shift;
+#  my $port=shift;
+#  $self->info( "Stopping the service in port $port");
+#  my $pid=$self->{DATABASE}->queryColumn("SELECT pid FROM FTPSERVERS where port=$port");
+#  $self->{DATABASE}->delete("FTPSERVERS", "port=$port");
+#  unlink "$self->{CONFIG}->{TMP_DIR}/PORTS/lockFile.$port";
+#  map {$self->stopService($_)} @$pid;
+#  return 1;
+#}
 
 sub SetTransfer {
   my $self=shift;
@@ -727,50 +666,50 @@ sub SetTransfer {
   
   my $transferid=$result->result;
   $self->info( "New transfer $transferid");
-  $self->{DATABASE}->insertLocalCopy({pfn=>$pfn, transferid=>$transferid});
+#  $self->{DATABASE}->insertLocalCopy({pfn=>$pfn, transferid=>$transferid});
 
   return (-2, $transferid);
 }
 
 
-sub checkLocalCopy {
-  my $self      = shift;
-  my $pfn       = shift;
-  my $localFile = shift;
-#  my $client_cert  = shift;
-#  my $opt       =shift;
+#sub checkLocalCopy {
+#  my $self      = shift;
+#  my $pfn       = shift;
+#  my $localFile = shift;
+##  my $client_cert  = shift;
+##  my $opt       =shift;
 
-  $self->info( "Looking for local copies");   
-  my ($data) =$self->{DATABASE}->checkLocalCopies($pfn);
-  my $size=$data->{size};
-  if ($data and exists $data->{localCopy}) {
-    $self->info( "Got $data->{localCopy}");
-    my $URL=AliEn::SE::Methods->new({"PFN", $data->{localCopy},
-				     "LOCALFILE", $localFile,
-				     "DEBUG", 0});
-    if ($data->{localCopy}=~ s{^file://[^/]*/}{/} ) {
-      if (-s  $data->{localCopy} eq $size) {
-	$self->info("Returning the file $data->{localCopy} without getting it again!!");
-	return ($data->{localCopy}, $size);
-      }
-      $self->info("The file $data->{localCopy} doesn't have size $size");
-    } else{
-      $self->info("We are doing a get of $data->{localCopy}");
-      my $exists="";
-      $URL and ($exists)=$URL->get("-s");
-      if ( $exists ) {
-	return ($exists, $size);
-      }
-#      $self->info( "Giving back to $client_cert the local copy $data->{localCopy} ($exists)" );
-#      return $self->_startFTPServer($exists, $size, $client_cert, $opt);
-    }
-  }
-  $self->info( "File $data->{localCopy} does no longer exist"); 
-  $self->{DATABASE}->deleteLocalCopies($pfn);
+#  $self->info( "Looking for local copies");   
+#  my ($data) =$self->{DATABASE}->checkLocalCopies($pfn);
+#  my $size=$data->{size};
+#  if ($data and exists $data->{localCopy}) {
+#    $self->info( "Got $data->{localCopy}");
+#    my $URL=AliEn::SE::Methods->new({"PFN", $data->{localCopy},
+#				     "LOCALFILE", $localFile,
+#				     "DEBUG", 0});
+#    if ($data->{localCopy}=~ s{^file://[^/]*/}{/} ) {
+#      if (-s  $data->{localCopy} eq $size) {
+#	$self->info("Returning the file $data->{localCopy} without getting it again!!");
+#	return ($data->{localCopy}, $size);
+#      }
+#      $self->info("The file $data->{localCopy} doesn't have size $size");
+#    } else{
+#      $self->info("We are doing a get of $data->{localCopy}");
+#      my $exists="";
+#      $URL and ($exists)=$URL->get("-s");
+#      if ( $exists ) {
+#	return ($exists, $size);
+#      }
+##      $self->info( "Giving back to $client_cert the local copy $data->{localCopy} ($exists)" );
+##      return $self->_startFTPServer($exists, $size, $client_cert, $opt);
+#    }
+#  }
+#  $self->info( "File $data->{localCopy} does no longer exist"); 
+#  $self->{DATABASE}->deleteLocalCopies($pfn);
 
-  $self->info( "There are no local copies"); 
-  return;
-}
+#  $self->info( "There are no local copies"); 
+#  return;
+#}
 
 #sub removeFileFromLVM{
 #  my $this=shift;
@@ -801,18 +740,18 @@ sub checkTransfer {
 
 } 
 
-sub updateLocalCache {
-  my $this=shift;
-  my $id=shift;
-  my $pfn=shift;
-
-  $self->info( "The transfer is done ($pfn)\n. Inserting it in the table");
-  my $lURL = new AliEn::SE::Methods( $pfn );
-  my $size=$lURL->getSize;
-  $self->{DATABASE}->updateLocalCopy($pfn, $size,$id);
-
-  return 1;
-}
+#sub updateLocalCache {
+#  my $this=shift;
+#  my $id=shift;
+#  my $pfn=shift;#
+#
+#  $self->info( "The transfer is done ($pfn)\n. Inserting it in the table");
+#  my $lURL = new AliEn::SE::Methods( $pfn );
+#  my $size=$lURL->getSize;
+##  $self->{DATABASE}->updateLocalCopy($pfn, $size,$id);#
+#
+#  return 1;
+#}
 
 sub restartTransfer {
   my $this=shift;
@@ -1119,7 +1058,9 @@ sub  checkWakesUp {
  foreach my $subSE (grep (s/^SE_(VIRTUAL_)/$1/ , keys %{$self->{CONFIG}}), "") {
     my ($seName, $seInfo)=$self->checkVirtualSEName($subSE);
     
-    my $entries=$seInfo->{lvm}->{DB}->query("SELECT binary2string(guid) as guid, pfn from TODELETE limit 1000");
+    my $entries=[];
+    $self->info("We have to implement getting the list of deleted files!!");
+    #my $entries=$seInfo->{lvm}->{DB}->query("SELECT binary2string(guid) as guid, pfn from TODELETE limit 1000");
     foreach my $entry (@$entries){
       $self->info("Ready to do something with");
       use Data::Dumper;
@@ -1132,14 +1073,8 @@ sub  checkWakesUp {
 	my $now=time;
 	if ($info[9]+36000<$now){
 	  $self->info("The file is more than ten hours old. Let's delete it");
-
-	  $seInfo->{lvm}->removeFile({file=>$entry->{pfn},
-				      guid=>$entry->{guid}}) 
-	    or 	$self->info("Error deleting the entry from the LVM") and next;
 	  $self->info("And removing the file");
 	  system("mv", $path, "$ENV{HOME}/OLDFILES");
-
-	  $seInfo->{lvm}->{DB}->do("DELETE FROM TODELETE where pfn='$entry->{pfn}'");
 	}
       }
     }
@@ -1247,7 +1182,7 @@ sub getFileName{
 
   $self->debug(1, "Adding the file");
 
-  $name = $lvm->addFile($newFile) or 
+  $name = $lvm->chooseVolumeForFile($newFile) or 
     $self->info("$$ Error adding the file to the LVM". $self->{LOGGER}->error_msg()) 
       and die("Error adding the file to the LVM". $self->{LOGGER}->error_msg()."\n");
   $self->info("$$ Successfully added the file " . $newFile->{guid});
@@ -1258,51 +1193,51 @@ sub getFileName{
 
   $mss->mkdir($newdir);
 
-  my $infoSE=$lvm->{DB}->retrieveAllVolumesUsage();
-  my $freeblocks = $infoSE->{freespace};
-  my $usedblocks = $infoSE->{usedspace};
-  my $usedtb = sprintf "%04.02f",$usedblocks*1.0/(1024.0*1024.0*1024.0);
-  if($self->{MONITOR}){
-    my $nfiles     = $lvm->{DB}->getNumberOfFiles();
-    $self->sendApMonInfo($infoSE, $nfiles);
-  }
-
-  $self->info( "LVM Free   Blocks :$freeblocks \t [1k]");
-  $self->info( "LVM Used   Blocks :$usedblocks \t [1k] \t $usedtb TB");
+#  my $infoSE=$lvm->{DB}->retrieveAllVolumesUsage();
+#  my $freeblocks = $infoSE->{freespace};
+#  my $usedblocks = $infoSE->{usedspace};
+#  my $usedtb = sprintf "%04.02f",$usedblocks*1.0/(1024.0*1024.0*1024.0);
+#  if($self->{MONITOR}){
+#    my $nfiles     = $lvm->{DB}->getNumberOfFiles();
+#    $self->sendApMonInfo($infoSE, $nfiles);
+#  }
+#
+#  $self->info( "LVM Free   Blocks :$freeblocks \t [1k]");
+#  $self->info( "LVM Used   Blocks :$usedblocks \t [1k] \t $usedtb TB");
   my $url=$mss->url($name);
   $self->debug(1, "getFileName returns $name, $self->{CONFIG}->{FTD_REMOTEOPTIONS}, $url");
   my $iourl=$self->checkIOmethod($url, $ioMethods, $seName);
-  print "***************  $iourl $url $ioMethods $seName\n";
+  $self->info("***************  $iourl $url $ioMethods $seName");
   return ($name, "$self->{CONFIG}->{FTD_REMOTEOPTIONS}", $url, $iourl, $guid);
 
 }
 
-sub getVolumePath{
-  my $this=shift;
-  my $seName=shift;    
-  my $size=shift;
-  my $ioMethods=shift;
+#sub getVolumePath{
+#  my $this=shift;
+#  my $seName=shift;    
+#  my $size=shift;
+#  my $ioMethods=shift;
 
-  ($seName, my $info) =$self->checkVirtualSEName($seName);
+#  ($seName, my $info) =$self->checkVirtualSEName($seName);
 
-  my $lvm=$info->{lvm};
-  my $mss=$info->{mss};
+#  my $lvm=$info->{lvm};
+#  my $mss=$info->{mss};
 
-  my $volume = $lvm->{DB}->chooseVolume($size);
+#  my $volume = $lvm->{DB}->chooseVolume($size);
 
-  my $guid=$self->{GUID}->CreateGuid();
-  $guid and $self->debug(1,"Got $guid");
+#  my $guid=$self->{GUID}->CreateGuid();
+#  $guid and $self->debug(1,"Got $guid");
 
-  if ($volume) {
-    my $url=$mss->url($volume->{mountpoint});
-    my $iourl=$self->checkIOmethod($url, $ioMethods, $seName);
-    $self->info( "Returning vol=$volume->{mountpoint} guid=$guid 
-iourl=$iourl url=$url");
-    return ($volume->{mountpoint},$guid,$iourl,$url);
-  }
+#  if ($volume) {
+#    my $url=$mss->url($volume->{mountpoint});
+#    my $iourl=$self->checkIOmethod($url, $ioMethods, $seName);
+#    $self->info( "Returning vol=$volume->{mountpoint} guid=$guid 
+#iourl=$iourl url=$url");
+#    return ($volume->{mountpoint},$guid,$iourl,$url);
+#  }
 
-  return;
-}
+#  return;
+#}
 
 sub verifyFileName {
   my $this=shift;
@@ -1323,7 +1258,6 @@ sub verifyFileName {
   if ($sesize != $size) {
     $self->{MSS}->rm($name);
     $self->info( "In veryFileName -> $name has size $sesize instead of $size -> removed from LVM + SE!");
-    my $result = $self->{LVM}->removeFile($newFile);
     return 0;
   } else {
     $self->info( "In veryFileName -> $name has been stored with the correct size $size!");
@@ -1417,20 +1351,20 @@ sub _checkCacheSpace {
 #
 #
 #
-sub unregisterFile {
-  shift;
-  my $seName=shift;
-  ($seName, my $seInfo) = $self->checkVirtualSEName($seName);
-  my $guid=shift;
-  $self->info("***Ready to delete the entries of '$guid'");
-  if (!$seInfo->{lvm}->removeFile({file=>$guid,guid=>$guid})){
-    $self->info("Error removing the entry '$guid'");
-    die ("Error removing the entry '$guid' from the LVM\n");
-  }
-  
-  $self->info("***File deleted!!!");
-  return 1;
-}
+#sub unregisterFile {
+#  shift;
+#  my $seName=shift;
+#  ($seName, my $seInfo) = $self->checkVirtualSEName($seName);
+#  my $guid=shift;
+#  $self->info("***Ready to delete the entries of '$guid'");
+#  if (!$seInfo->{lvm}->removeFile({file=>$guid,guid=>$guid})){
+#    $self->info("Error removing the entry '$guid'");
+#    die ("Error removing the entry '$guid' from the LVM\n");
+#  }
+#  
+#  $self->info("***File deleted!!!");
+#  return 1;
+#}
 sub registerFile {
   shift;
 
@@ -1460,7 +1394,7 @@ sub registerFile {
   $options->{md5} and $newFile->{md5}=$options->{md5};
   $newFile->{md5} or $newFile->{md5}=AliEn::MD5->new($pfn);
 
-  $lvm->addFile($newFile, {volumeId=>"", })
+  $lvm->chooseVolumeForFile($newFile)
     or $self->info("Error registering the file in the LVM")
       and die ("Error registering the file in the LVM: ". $self->{LOGGER}->error_msg()."\n");
   #  $self->{DATABASE}->insert("FILES", {size=>$size,
@@ -1477,51 +1411,51 @@ sub registerFile {
 #  $self->info( "Got $pfn");
 #  return $pfn;
 #}
-sub getPFNFromGUID{
-  my $this=shift;
-  my $seName=shift;
-  my $guid=shift;
-  my $ioMethod=shift;
-  my $options=shift ||{};
+#sub getPFNFromGUID{
+#  my $this=shift;
+#  my $seName=shift;
+#  my $guid=shift;
+#  my $ioMethod=shift;
+#  my $options=shift ||{};
 
-  ($seName, my $seInfo)=$self->checkVirtualSEName($seName);
+#  ($seName, my $seInfo)=$self->checkVirtualSEName($seName);
 
-  $self->info("Getting the pfn of $guid");
+#  $self->info("Getting the pfn of $guid");
 
-  my $db=$seInfo->{lvm}->{DB};
-  my $pfn=$db->getPFNFromGUID($guid)
-    or return (-1, "Error doing the query");
-  my @pfns=@$pfn;
-  @pfns or return (-1, "guid $guid is not registered in this SE ($seName)");
-  if ($options->{stage}) {
-    foreach my $p (@pfns) {
-      $self->info("Staging the file $p");
-      eval{
-	my $url=AliEn::SE::Methods->new($p);
-	$url->stage();
-      };
-      if ($@){
-	$self->info("Error staging the file $p");
-      }
-    }
-  }
+#  my $db=$seInfo->{lvm}->{DB};
+#  my $pfn=$db->getPFNFromGUID($guid)
+#    or return (-1, "Error doing the query");
+#  my @pfns=@$pfn;
+#  @pfns or return (-1, "guid $guid is not registered in this SE ($seName)");
+#  if ($options->{stage}) {
+#    foreach my $p (@pfns) {
+#      $self->info("Staging the file $p");
+#      eval{
+#	my $url=AliEn::SE::Methods->new($p);
+#	$url->stage();
+#      };
+#      if ($@){
+#	$self->info("Error staging the file $p");
+#      }
+#    }
+#  }
 
-  if (! $options->{noiomethod}){
-    $self->info( "Got the pfns:  @pfns");
-    my @newPfns;
-    foreach my $p (@pfns) {
-      my $newPfn=$self->checkIOmethod($p, $ioMethod, $seName) 
-	or $self->info("Error checking the pfn $p") and next;
-      push @newPfns, $newPfn;
-    }
-    @newPfns or $self->info("Error translating the pfns") and return (-1, "Error checking the iomethods");
-    @pfns=@newPfns;
+#  if (! $options->{noiomethod}){
+#    $self->info( "Got the pfns:  @pfns");
+#    my @newPfns;
+#    foreach my $p (@pfns) {
+#      my $newPfn=$self->checkIOmethod($p, $ioMethod, $seName) 
+#	or $self->info("Error checking the pfn $p") and next;
+#      push @newPfns, $newPfn;
+#    }
+#    @newPfns or $self->info("Error translating the pfns") and return (-1, "Error checking the iomethods");
+#    @pfns=@newPfns;
 
-  }
+#  }
 
-  $self->info("Giving back @pfns");
-  return @pfns;
-}
+#  $self->info("Giving back @pfns");
+#  return @pfns;
+#}
 
 sub checkIOmethod {
   my $self=shift;

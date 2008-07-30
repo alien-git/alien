@@ -101,7 +101,7 @@ sub createCatalogueTables {
 		      tagName=>"varchar (50)",
 		      tableName=>"varchar(50)"}, 'entryId'],
 	      GROUPS=>["Userid", {Userid=>"int not null auto_increment primary key",
-				  Username=>"char(15) NOT NULL", 
+				  Username=>"char(20) NOT NULL", 
 				  Groupname=>"char (85)",
 				  PrimaryGroup=>"int(1)",}, 'Userid'],
 	      INDEXTABLE=>["indexId", {indexId=>"int(11) NOT NULL auto_increment primary key",
@@ -116,7 +116,7 @@ sub createCatalogueTables {
 		       'action'],
 	      PACKAGES=>['fullPackageName',{'fullPackageName'=> 'varchar(255)',
 					    packageName=>'varchar(255)',
-					    username=>'varchar(10)', 
+					    username=>'varchar(20)', 
 					    packageVersion=>'varchar(255)',
 					    platform=>'varchar(255)',
 					    lfn=>'varchar(255)'}, 
@@ -130,8 +130,17 @@ sub createCatalogueTables {
 						 localName=>"varchar(255)"},
 				 
 				 "",['INDEX (collectionId)']],
-	      
-	     );
+
+	      "SE_VOLUMES"=>["volume", {volumeId=>"int(11) NOT NULL auto_increment PRIMARY KEY",
+					seName=>"char(255) collate latin1_general_ci NOT NULL ",
+					volume=>"char(255) NOT NULL",
+					mountpoint=>"char(255)",
+					usedspace=>"bigint",
+					freespace=>"bigint",
+					size=>"bigint",
+					method=>"char(255)",}, 
+			     "volumeId", ['UNIQUE INDEX (volume)', 'INDEX(seName)'],],
+	         );
   foreach my $table (keys %tables){
     $self->info("Checking table $table");
     $self->checkTable($table, @{$tables{$table}}) or return;
@@ -1661,6 +1670,7 @@ sub internalQuery {
   my $limit="";
   $options->{'s'} and $order="";
   $options->{l} and $limit = "limit $options->{l}";
+  $options->{o} and $limit .= " offset $options->{o}";
   map {s/^(.*)$/SELECT *,concat('$refTable->{lfn}', lfn) as lfn,
 $binary2string  as guid from $indexTable $1 $order $limit/} @joinQueries;
 

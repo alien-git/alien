@@ -176,25 +176,25 @@ sub updateCatalogue {
     @command=("addMirror", $data->{lfn}, $data->{destination}, $data->{pfn});
   } elsif ($data->{type} eq "cache") {
     $self->debug(1, "In updateCatalogue just making a cache copy");
-    $self->info( "Letting the SE $data->{destination} know that the file is there");
-    my $done=$self->{SOAP}->CallSOAP("IS", "getService", $data->{destination}, "SE");
-    if ($self->{SOAP}->checkSOAPreturn($done)){
-      $self->info("The call to the IS worked");
-      my $SOAPdata=$done->result;
-      my $host=$SOAPdata->{HOST};
-      my $port=$SOAPdata->{PORT};
-      $self->{SOAP}->{"$host$port"}= SOAP::Lite->uri("AliEn/Service/SE")
-	->proxy("http://$host:$port");
-      $self->info("Updating the cache");
-      $done=$self->{SOAP}->CallSOAP("$host$port", "updateLocalCache",
-				    $id, $data->{pfn});
-      $self->{SOAP}->checkSOAPreturn($done)
-	or $self->info( "Error updating the entry");
+    $self->info( "It was just a cache copy");
+#     my $done=$self->{SOAP}->CallSOAP("IS", "getService", $data->{destination}, "SE");
+#    if ($self->{SOAP}->checkSOAPreturn($done)){
+#      $self->info("The call to the IS worked");
+#      my $SOAPdata=$done->result;
+#      my $host=$SOAPdata->{HOST};
+#      my $port=$SOAPdata->{PORT};
+#      $self->{SOAP}->{"$host$port"}= SOAP::Lite->uri("AliEn/Service/SE")
+#	->proxy("http://$host:$port");
+#      $self->info("Updating the cache");
+#      $done=$self->{SOAP}->CallSOAP("$host$port", "updateLocalCache",
+#				    $id, $data->{pfn});
+#      $self->{SOAP}->checkSOAPreturn($done)
+#	or $self->info( "Error updating the entry");
       
-      $self->info( "Cache updated");
-    } else {
-      $self->info( "Error contacting the IS");
-    }
+#      $self->info( "Cache updated");
+#    } else {
+#      $self->info( "Error contacting the IS");
+#    }
   } else {
     $self->{LOGGER}->warning ("TransferManager", "In updateCatalogue type $data->{type} unknown");
   }

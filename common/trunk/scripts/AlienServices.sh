@@ -460,6 +460,9 @@ ALIEN_DoService ()
 	  TransferManager)
 	    args='VARDIR Manager::Transfer "Transfer_Manager"  NO_PASSWORD'
 	    ;;
+	  SEManager)
+	    args='VARDIR Manager::SEMaster "SE_Manager" NO_PASSWORD'
+	    ;;
 	  PackManMaster)
 	    args='VARDIR PackManMaster "PackManMaster"  NO_PASSWORD'
 	    ;;
