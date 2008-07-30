@@ -49,6 +49,7 @@ sub stopTransferDaemon {
 
   return 1;
 }
+
 sub bringRemoteFile {
 
     my $self      = shift;
@@ -170,7 +171,7 @@ sub bringFileToSE {
 }
 
 
-sub inquireTransfer{
+ sub inquireTransfer{
   my $self=shift;
   my $seName=shift;
   my $transferID=shift;
@@ -554,7 +555,7 @@ sub getPFNName {
 }
 
 
-sub getPFNNameFromEnvelope{
+ sub getPFNNameFromEnvelope{
   my $self=shift;
   my $newSE=shift;
   my $info=shift;
@@ -571,7 +572,8 @@ sub getPFNNameFromEnvelope{
   $self->info("According to the envelope: $info->{pfn} and $info->{guid}");
   return $info;
 }
-sub getPFNNameFromSE{
+
+ sub getPFNNameFromSE{
   my $self=shift;
   my $newSE=shift;
   my $info=shift;
@@ -640,11 +642,12 @@ sub listTransfer {
   $result=~ /^listTransfer: returns all the transfers/ and
     $self->info($result) and     return;
 
-  my $message="TransferId\tStatus\t\tUser\t\tDestination\t\t\tSize\t\tSource\n";
+  my $message="TransferId\tStatus\t\tUser\t\tDestination\t\t\tSize\t\tSource\t\tAttmpts\n";
   my $format="%6s\t\t%-8s\t%-10s\t%-15s\t\t%-12i\t\%12s\%12s";
   my @transfers = @$result;
   my $summary="";
   my $info={};
+  
   foreach my $transfer (@transfers) {
 #    $DEBUG and $self->debug(3, Data::Dumper($transfer));
     my (@data ) = ($transfer->{transferId},
@@ -652,6 +655,7 @@ sub listTransfer {
 		   $transfer->{user},
 		   $transfer->{destination} || "",
 		   $transfer->{size} || 0,
+		   $transfer->{attempts},
 		   $transfer->{SE} || "",
 		   $transfer->{jdl} || "",);
 
@@ -660,12 +664,14 @@ sub listTransfer {
 
     my $string=sprintf "$format", @data;
     $message.="$string\n";
+    
     if ($doSummary){
       my $number=1;
       $info->{$transfer->{status}} and $number+=$info->{$transfer->{status}};
       $info->{$transfer->{status}}=$number;
     }
   }
+  
   if ($doSummary){
     $message.="\n\nSummary of all the transfers:\n";
     $self->debug(4,"Ready to do the summary");
@@ -673,6 +679,7 @@ sub listTransfer {
       $message.="\t\t$status -> $info->{$status}\n";
     }
   }
+  
   $self->info( $message,undef,0);
 
   return $result;
@@ -690,7 +697,7 @@ sub killTransfer {
   return $result;
 }
 
-sub checkDiskSpace{
+ sub checkDiskSpace{
   my $self=shift;
   my $space=shift ||0;
   my $localFile=shift;
@@ -699,6 +706,31 @@ sub checkDiskSpace{
 
   return 1;
 
+}
+
+
+sub resubmitTransfer {
+  my $self=shift; 
+  
+  my $res=$self->{SOAP}->CallSOAP("Manager/Transfer", "resubmitTransfer", @_);
+  
+  if(!$res){
+  	$self->{LOGGER}->error("LCM", "In resubmitTransfer while calling resubmitTransfer, in Manager/Transfer");
+	$res=$self->{SOAP}->CallSOAP("Manager/Transfer", "resubmitTransferHelp", @_);
+	return;
+  }
+  
+   $self->info( "Transfer Resubmitted");
+   return 1;
+}
+
+
+sub resubmitFailedTransfers {
+  my $self=shift; 
+  
+  my $res=$self->{SOAP}->CallSOAP("Manager/Transfer", "resubmitFailedTransfers", @_);
+  $self->info( "Resubmitting all failed Transfers");
+   return 1;
 }
 
 return 1;

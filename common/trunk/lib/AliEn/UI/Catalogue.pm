@@ -147,7 +147,7 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
     'update'       => ['$self->{CATALOG}->f_updateFile', 0],
     'rm'      	   => ['$self->{CATALOG}->f_removeFile', 3+16],
     'remove'   	   => ['$self->{CATALOG}->f_removeFile', 3+16],
-     'stat'         => ['$self->{CATALOG}->f_stat', 0],
+    'stat'         => ['$self->{CATALOG}->f_stat', 0],
     'addMirror'    => ['$self->{CATALOG}->f_addMirror', 0],
     'masterCopy'   => ['$self->{CATALOG}->f_masterCopy', 0],
     'deleteMirror' => ['$self->{CATALOG}->f_deleteMirror', 0],
@@ -178,7 +178,6 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
 	     'removeFileFromCollection' => ['$self->{CATALOG}->f_removeFileFromCollection', 2+64],
 	     'showStructure' => ['$self->{CATALOG}->f_showStructure', 2],
 	     'renumberDirectory' => ['$self->{CATALOG}->f_renumber', 0],
-
 );
 
 sub AddCommands {
@@ -269,7 +268,7 @@ my (@normalUser) = (
     'chmod',       'umask',      'cat',    'cp',
     'tree',        'zoom',       'addTag', 'showTags',
     'addTagValue', 'showTagValue', 'echo', 'host',
-	'register','whereis','history'
+    'register','whereis','history'
 );
 my $attribs;
 

@@ -82,6 +82,12 @@ sub checkWakesUp {
   $self->$method( @debugLevel,  "Still alive and checking messages" );
 
   my $messages=$self->{DB}->retrieveJobMessages();
+  
+  $self->info("And the message is...$messages");
+  
+  foreach my $entry (@$messages) {
+    $self->info("procinfo = $entry->{procinfo},  tag = $entry->{tag}, jobId = $entry->{jobId}");
+  }
 
   if ($messages and $#$messages>-1){
     $self->info("Sending $#$messages to the job manager");
