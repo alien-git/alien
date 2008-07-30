@@ -8,6 +8,7 @@ $| = 1;
 use AliEn::Database::Transfer;
 
 use AliEn::Service::Broker;
+
 use strict;
 
 use vars qw (@ISA);
@@ -26,7 +27,10 @@ sub initialize {
   $self->{SERVICE}="Transfer";
 
   $self->{DB_MODULE}="AliEn::Database::Transfer";
+  
+  $self->{TRANSFERLOG} = new AliEn::TRANSFERLOG();
 
+  
   return $self->SUPER::initialize($options);
 }
 
@@ -46,11 +50,11 @@ sub findTransfers {
   defined $list
     or $self->{LOGGER}->warning( "TransferBroker", "In findTransfer error during execution of database query" )
       and return;
-  
   @$list  or return ();
-  
+    
   return $self->match("transfer", $site_ca, $list, undef, undef, undef, $slots , "getTransferFromAgentId");
 }
+
 sub getTransferFromAgentId {
   my $self=shift;
   my $agentId=shift;
@@ -70,30 +74,30 @@ sub getTransferFromAgentId {
   AliEn::Util::setCacheValue($self, "WaitingTransfersFor$agentId", $cache);
   return 1;
 }
+
 sub requestTransfer {
   my $this = shift;
   my $jdl=shift;
   my $slots=shift || 1;
-
-
-
-
+  
   $jdl
     or $self->{LOGGER}->warning( "TransferBroker", "In requestTransfer no classad for the host received" )
       and return ( -1, "no classad received" );
+  #This is for the SE
   $self->debug(1, "The jdl is $jdl");
   $self->setAlive();
+  
 
   my $ca = Classad::Classad->new($jdl);
   $self->debug(1, "Classad created");
   my ($ok, $host)=$ca->evaluateAttributeString("Name");
-
+  
   $self->redirectOutput("TransferBroker/$host");
 
-  $self->info("New transfer requested from $host!!");
-
+  $self->info("requestTransfer: New transfer requested from $host!!");
 
   my @ids=$self->findTransfers($ca, $slots);
+  
   my @toReturn;
   while (@ids){
     my ( $transferId, $transfer_ca, $id2 ) = (shift @ids, shift @ids, shift @ids);
@@ -128,6 +132,7 @@ sub getTransferArguments {
 	($ok, $transfer->{$name})=
 	    $transfer_ca->evaluateAttributeString($arg);
 	$self->debug(1, "$arg -> $transfer->{$name}");
+	$self->info("getTransferArguments: $arg -> $transfer->{$name}");
     }
 #    (my $ok, $transfer->{ACTION})=
 #	$transfer_ca->evaluateAttributeString("Action");

@@ -96,8 +96,8 @@ my %LCM_commands;
 		 'checkSEVolumes' =>['$self->{CATALOG}->checkSEVolumes', 0],
 		 'createCollection' => ['$self->createCollection', 0],
 		 'updateCollection' => ['$self->updateCollection', 2],
-
-
+		 'resubmitTransfer'=> ['$self->{STORAGE}->resubmitTransfer', 0],
+		 'why'=>['$self->why', 0],
 );
 
 my %LCM_help = (
@@ -115,7 +115,8 @@ my %LCM_help = (
     'vi'       => "\tGets and opens the file with vi. In case of changes the file is uploaded into the catalogue.",
     'whereis'      => "Displays the SE and pfns of a given lfn",
     'upload'   => "\tUpload a file to the SE, but does not register it in the catalog",
-		'getLog' =>"\tGets the log file of a service",
+    'getLog' =>"\tGets the log file of a service",
+    'resubmitTransfer' =>"\tResubmits a Transfer",
 
 );
 
@@ -136,7 +137,6 @@ sub initialize {
 
   $self->{MONITOR} = 0;
   AliEn::Util::setupApMon($self);
-
 
 
   $self->{envelopeengine} =0;
@@ -944,7 +944,7 @@ sub mirror_HELP{
 
   return "mirror Copies a file into another SE
 Usage:
-\tmirror [-ftgbui] [-m <number>] [-c <collection>] <lfn>
+\tmirror [-ftgbui] [-m <number>] [-c <collection>] [-try <number>]<lfn>
 Options:\t-f\t keep the same relative path
 \t\t-b\t Do not wait for the file transfer
 \t\t-t\t Issue a transfer instead of copying the file directly (this implies also -b) (this is the default method)
@@ -954,19 +954,21 @@ Options:\t-f\t keep the same relative path
 \t\t-u\t Don't issue the transfer if the file is already in that SE
 \t\t-r\t If the file is in a zip archive, transfer the whole archive
 \t\t-c\t Once the transfer finishes, register the lfn in the collection <collection>
+\t\t-try <NumOfAttempts>\t Specifies the number of attempts to try and mirror the file
 ";
 }
+
 sub mirror {
   my $self = shift;
 
 
   my $opt={};
   @ARGV=@_;
-  Getopt::Long::GetOptions($opt,  "f", "g", "m=i", "b","t", "u", "r", "c=s","i") or 
+  Getopt::Long::GetOptions($opt,  "f", "g", "m=i", "b","t", "u", "r", "c=s","i","try=i") or 
       $self->info("Error parsing the arguments to mirror". $self->mirror_HELP()) and return;;
   @_=@ARGV;
   my $options=join("", keys(%$opt));
-
+  
   $self->debug(1, "UI/LCM Mirror with @_");
   $opt->{t} and $opt->{b}=1;
   my $lfn  = shift;
@@ -1012,9 +1014,6 @@ sub mirror {
     }
   }
   
-
-
-
   if ($opt->{u}){
     $self->info("Making sure that the file is not in that SE");
     foreach my $entry (@$seRef){
@@ -1034,7 +1033,8 @@ sub mirror {
   $opt->{'m'} and $transfer->{transferGroup}=$opt->{'m'};
   $opt->{'r'} and $transfer->{RESOLVE}=$opt->{r};
   $opt->{'c'} and $transfer->{collection}=$opt->{'c'};
-
+  $opt->{'try'} and $transfer->{persevere}=$opt->{'try'}; 
+  
   if ($opt->{f})    {
     $self->info( "Keeping the same relative path");
     
@@ -1044,7 +1044,7 @@ sub mirror {
     $transfer->{target}=$url->path;
     $transfer->{target}=~ s/^$service->{SAVEDIR}//;
   }
-
+  
   if (! $opt->{i}){
     my $result=$self->{SOAP}->CallSOAP("Manager/Transfer","enterTransfer",$transfer);
     $result  or return;
@@ -1907,6 +1907,7 @@ Usage:
 \t\tupload <pfn> [<se> [<guid>]]
 ";
 }
+
 sub upload {
   my $self=shift;
   $self->debug(1, "Starting the upload with @_");
@@ -1972,6 +1973,7 @@ Options:
    -a: Send a message to all the SE that have that LFN
 ";
 }
+
 sub stage {
   my $self=shift;
   my $options=shift;
@@ -2173,6 +2175,7 @@ sub getLog{
 
 
 }
+
 sub createCollection_HELP{
   return "createCollection: adds a new entry to the catalogue that is a new collection
 Usage:
@@ -2229,6 +2232,7 @@ sub createCollection{
 
   return 1;
 }
+
 sub updateCollection_HELP{
   return "updateCollection: Check the consistency of a collection. 
 
@@ -2269,5 +2273,21 @@ sub updateCollection {
   return 1;
 }
 
+
+
+sub why {
+  my $self=shift;
+  my $options=shift;
+  my @because=("Why not?",
+  		"You should know better",
+		"It was in the DB",
+		"I don't know, I'm not from here..",
+		"I was an idea from Matlab");
+  my $length = $#because + 1;
+  $length = rand($length);
+  $length = int $length;
+  print "$because[$length]\n"; 
+  return 1;
+}
 return 1;
 

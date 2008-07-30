@@ -15,6 +15,9 @@
 package AliEn::Database::Transfer;
 
 use AliEn::Database;
+
+use AliEn::TRANSFERLOG;
+
 use strict;
 
 use AliEn::Util;
@@ -58,7 +61,8 @@ my $tables={ TRANSFERS=>{columns=>{
 				   agentid=>"int(11)",
 				   ctime=>"timestamp DEFAULT CURRENT_TIMESTAMP  ON UPDATE CURRENT_TIMESTAMP",
 				   collection=>"varchar(255)",
-				   
+				   persevere=>"int(20)",
+				   attempts=>"int(20)",
 				  },
 			 id=>"transferId",
 			 index=>"transferId"},
@@ -86,6 +90,8 @@ sub initialize {
       or $self->{LOGGER}->error("TaskQueue", "Error checking the table $table") and return;
   }
   AliEn::Util::setupApMon($self);
+  
+  $self->{TRANSFERLOG} = new AliEn::TRANSFERLOG();
 
   return $self->do("INSERT IGNORE INTO ACTIONS(action) values  ('INSERTING'),('MERGING')");
 }
@@ -99,6 +105,7 @@ sub getArchiveTable {
   $self->checkTable($name, $tables->{TRANSFERS}->{id}, $tables->{TRANSFERS}->{columns}, $tables->{TRANSFERS}->{index}) or return;
   return $name;
 }
+
 sub insertTransferLocked {
   my $self = shift;
   my $info = shift;
@@ -120,23 +127,27 @@ sub insertTransferLocked {
 
   $self->sendTransferStatus($lastID, "INSERTING", {destination=>$info->{destination}, user=>$info->{user}, received=>$info->{received}});
 
-
   $self->updateActions({todo=>1}, "action='INSERTING'");
+  
+  $self->updateTransfer($lastID, $info);
+
   $lastID;
 }
 
-sub assignWaiting{
+ sub assignWaiting{
   my $self = shift;
   my $elementId = shift;
   my $date=time;
   my $done=$self->updateStatus($elementId, "WAITING' OR status='LOCAL COPY' OR status='CLEANING", "ASSIGNED", {sent=>$date}) ;
+  
+  
   #And now, let's reduce the number of agents
   $self->do("UPDATE AGENT, TRANSFERS set counter=counter-1 where agentid=entryId and transferid=?", {bind_values=>[$elementId]});
   $self->do("delete from AGENT where counter<1");
   return $done;
 }
 
-sub updateExpiredTransfers{
+ sub updateExpiredTransfers{
   my $self = shift;
   
   my $yesterday=time;
@@ -146,16 +157,18 @@ sub updateExpiredTransfers{
   $self->update({status=>'EXPIRED'},"(status = 'ASSIGNED' or status ='TRANSFERING')  and sent<?", {bind_values=>[$yesterday]});
 }
 
-sub updateLocalCopyTransfers{
+ sub updateLocalCopyTransfers{
   my $self = shift;
   
   $self->debug(1,"In updateLocalCopyTransfers updating SE of LOCAL_COPY transfers");
   $self->do("UPDATE TRANSFERS SET SE = destination WHERE status = 'LOCAL_COPY' AND SE IS NULL");
 }
-sub updateActions{
+
+ sub updateActions{
   shift->SUPER::update("ACTIONS", @_);
 }
-sub update{
+ 
+ sub update{
   shift->SUPER::update("TRANSFERS",@_);
 }
 
@@ -163,19 +176,21 @@ sub delete{
   shift->SUPER::delete("TRANSFERS",@_);
 }
 
-sub updateStatus{
+ sub updateStatus{
   my $self = shift;
   my $id = shift
     or $self->{LOGGER}->error("Transfer","In updateStatus transfer id is missing")
       and return;
+      
   my $oldstatus = shift
     or $self->{LOGGER}->error("Transfer","In updateStatus old status is missing")
       and return;
+      
   my $status = shift;
   my $set = shift || {};
   
   $set->{status} = $status;
-  
+    
   $self->debug(1, "In updateStatus locking table TRANSFERS");
   $self->lock("TRANSFERS");
   $self->debug(1, "In updateStatus table TRANSFERS locked");
@@ -210,11 +225,11 @@ sub updateStatus{
     $self->{LOGGER}->info("Job", $message);
     undef $done;
   }
-
+  
   return $done;
 }
 
-sub updateTransfer{
+ sub updateTransfer{
   my $self = shift;
   my $id = shift
     or $self->{LOGGER}->error("Transfer","In updateTransfer transfer id is missing")
@@ -238,16 +253,18 @@ sub updateTransfer{
     $self->info("Transfer killed. Shall we reduce the agents??");
     
   }
-  
 
+  $self->{TRANSFERLOG}->putlog($id,$set->{status});
+  
   my $done=$self->update($set,"transferid = ?", {bind_values=>[$id]});
+  
   $ok and return $done;
-  return ;
+  return;
 
 
 }
 
-sub deleteTransfer{
+ sub deleteTransfer{
   my $self = shift;
   my $id = shift
     or $self->{LOGGER}->error("TaskQueue","In deleteTransfer transfer id is missing")
@@ -291,7 +308,7 @@ sub getSE {
 	shift->getField(shift,"SE");
 }
 
-sub isScheduled{
+ sub isScheduled{
   my $self = shift;
   my $lfn = shift
     or $self->{LOGGER}->error("Transfer","In isScheduled lfn is missing")
@@ -304,7 +321,7 @@ sub isScheduled{
   $self->queryValue("SELECT transferId FROM TRANSFERS WHERE lfn=? AND destination=? AND ".$self->_transferActiveReq(), undef, {bind_values=>[$lfn, $destination]});
 }
 
-sub isWaiting{
+ sub isWaiting{
 	my $self = shift;
 	my $id = shift
 		or $self->{LOGGER}->error("Transfer","In isWaiting transfer id is missing")
@@ -314,7 +331,7 @@ sub isWaiting{
 	$self->queryValue("SELECT COUNT(*) FROM TRANSFERS WHERE (status='WAITING' OR status='LOCAL COPY' OR status='CLEANING') AND transferid=?", undef, {bind_values=>[$id]});
 }
 
-sub getFields{
+ sub getFields{
   my $self = shift;
   my $id = shift
     or $self->{LOGGER}->error("Transfer","In getFields transfer id is missing")
@@ -325,7 +342,7 @@ sub getFields{
   $self->queryRow("SELECT $attr FROM TRANSFERS WHERE transferid=?", undef, {bind_values=>[$id]});
 }
 
-sub getField{
+ sub getField{
 	my $self = shift;
 	my $id = shift
 		or $self->{LOGGER}->error("Transfer","In getField transfer id is missing")
@@ -336,7 +353,7 @@ sub getField{
 	$self->queryValue("SELECT $attr FROM TRANSFERS WHERE transferid=?", undef, {bind_values=>[$id]});
 }
 
-sub getFieldsEx{
+ sub getFieldsEx{
 	my $self = shift;
 	my $attr = shift || "*";
 	my $where = shift || "";
@@ -345,7 +362,7 @@ sub getFieldsEx{
 	$self->query("SELECT $attr FROM TRANSFERS $where", undef, @_);
 }
 
-sub getFieldEx{
+ sub getFieldEx{
 	my $self = shift;
 	my $attr = shift || "*";
 	my $where = shift || "";
@@ -354,7 +371,7 @@ sub getFieldEx{
 	$self->queryColumn("SELECT $attr FROM TRANSFERS $where", undef, @_);
 }
 
-sub getWaitingTransfersBySE{
+ sub getWaitingTransfersBySE{
   my $self = shift;
   my $SE = shift;
   my $order = shift || "";
@@ -366,7 +383,7 @@ sub getWaitingTransfersBySE{
   $self->query($query, undef, @_);
 }
 
-sub getNewTransfers{
+ sub getNewTransfers{
 	my $self = shift;
 
 	$self->debug(1,"In getNewTransfers fetching attributes transferid,lfn, pfn, destination of transfers in INSERTING state");
@@ -378,7 +395,7 @@ sub getNewTransfers{
 sub sendTransferStatus {
   my $self = shift;
   my ($jobID, $newStatus, $info) = @_;
-
+    
   if($self->{MONITOR}){
     my @params = $newStatus ? ("statusID", AliEn::Util::transferStatusForML($newStatus)) : ();
     foreach ('started', 'finished', 'size', 'destination', 'received', 'SE'){
@@ -389,7 +406,7 @@ sub sendTransferStatus {
   }
 }
 
-sub getTransfersToMerge{
+ sub getTransfersToMerge{
   my $self=shift;
   $self->lock("ACTIONS");
   my $value=$self->queryValue("SELECT extra from ACTIONS where action='MERGING'");
@@ -401,7 +418,7 @@ sub getTransfersToMerge{
   return \@list;
 }
 
-sub getActiveSubTransfers{
+ sub getActiveSubTransfers{
   my $self=shift;
   my $id=shift;
   my $info=$self->queryColumn("SELECT transferId from TRANSFERS where transfergroup=? and ". $self->_transferActiveReq(), undef, {bind_values=>[$id]});
@@ -409,11 +426,11 @@ sub getActiveSubTransfers{
   
 }
 
-sub _transferActiveReq{
+ sub _transferActiveReq{
   return "status<>'FAILED' AND status<>'DONE' AND status <>'KILLED' AND status <>'EXPIRED'";
 }
 
-sub insertAgent{
+ sub insertAgent{
   my $self=shift;
   my $text=shift;
   $text=~ s/\s*$//s;
@@ -437,7 +454,7 @@ sub insertAgent{
   return $id;
 }
 
-sub getVirtualTransfers{
+ sub getVirtualTransfers{
   my $self=shift;
   $self->info("Getting all the transfers that have to be done from the 'no_se'");
 

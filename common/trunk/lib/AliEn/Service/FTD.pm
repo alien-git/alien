@@ -75,7 +75,7 @@ sub initialize {
   @protocols or @protocols="BBFTP";
   $self->{PROTOCOLS}=\@protocols;
 
-  $self->info("Using configuration for " . $self->{CONFIG}->{FTD} );
+  $self->info("initialize: Using configuration for " . $self->{CONFIG}->{FTD} );
   
   $self->{MAX_RETRYS} = 10;
   
@@ -99,7 +99,7 @@ sub initialize {
   $self->{ALIVE_COUNTS} = 0;
   
   $self->{ALLOWED_DIRS} = $self->{CONFIG}->{FTD_ALLOWEDDIRS_LIST};
-  $self->info("Allowing clients to put into @{$self->{ALLOWED_DIRS}}" );
+  $self->info("initialize: Allowing clients to put into @{$self->{ALLOWED_DIRS}}" );
   
 #  $self->createGridMapFromLdap();
 
@@ -111,7 +111,7 @@ sub initialize {
 #    or $self->info("Error creating the catalogue in the FTD") and return;
 
   my $file="$self->{CONFIG}->{LOG_DIR}/FTD_children.pid";
-  $self->info("Checking if there were any instances before");
+  $self->info("initialize: Checking if there were any instances before");
   if (open (FILE, "<$file")){
     my @d=split (/\s+/m , join("",<FILE>));
     close FILE;
@@ -122,6 +122,7 @@ sub initialize {
 
   return $self;
 }
+
 sub createJDL {
     my $self =shift;
     my $exp={};
@@ -129,7 +130,8 @@ sub createJDL {
     $exp->{Name}="\"$self->{CONFIG}->{FTD_FULLNAME}\"";
     $exp->{SEName}="\"$self->{CONFIG}->{SE_FULLNAME}\"";
     $exp->{Type}="\"FTD\"";
-#	$exp->{DirectAccess}="1";
+        
+# 	$exp->{DirectAccess}="1";
 
     my $handle = new Filesys::DiskFree;
     $handle->df();
@@ -153,6 +155,7 @@ sub createJDL {
     
     return $self->SUPER::createJDL( $exp);
 }
+
 sub checkCertificate {
   my $self=shift;
   my $certfile = "$ENV{ALIEN_HOME}/identities.ftd/cert.pem";
@@ -262,6 +265,7 @@ sub alloc {
 #    my @route = ( $response->result, $response->paramsout );
 #    return @route;
 #}
+
 sub _selectPFN {
   my $self=shift;
   $self->info("Getting the best PFN from @_");
@@ -323,19 +327,17 @@ sub startTransfer {
     return $self->findAlternativeSource($id, $transfer->{FROMSE});
   }
 
-  $self->info("ID $id Starting a transfer of  $sourceURL");
+  $self->info("startTransfer: ID $id Starting a transfer of  $sourceURL");
   my $toPFN=$transfer->{TOPFN};
   if (!$toPFN){
 
     my ($seName, $seCert)=$self->{SOAP}->resolveSEName($targetSE) or return;
   
-    $self->info("ID $id asking the SE $targetSE for a new filename");
-    my $result=$self->{SOAP}->CallSOAP($seName,'getFileName', $seName, $size,
-				      {guid=>$guid}) 
-      or return;
+    $self->info("startTransfer: ID $id asking the SE $targetSE for a new filename");
+    my $result=$self->{SOAP}->CallSOAP($seName,'getFileName', $seName, $size,{guid=>$guid}) or return;
     $toPFN=$result->result;
     my @args=$result->paramsout;
-    $self->info("We got @args") ;
+    $self->info("We got @args");
 
     $toPFN or
       $self->{LOGGER}->error("FTD", "ID $id Error getting a new filename") 
@@ -352,7 +354,7 @@ sub startTransfer {
     
   }
     
-  $self->info("ID $id Starting a transfer to $toPFN");
+  $self->info("startTransfer: ID $id Starting a transfer to $toPFN");
  
   my $fromURL = new AliEn::SE::Methods( $sourceURL) or return;
   my $toURL = new AliEn::SE::Methods($toPFN) or return;
@@ -389,10 +391,15 @@ sub startTransfer {
       $destPath = "$fromURL->{PARSED}->{VARS_HOST}$destPath";
 
   my $options=$transfer->{FROMFTDOPTIONS};
+  
+  
+  $self->info("startTransfer: transfer=$transfer, transfer-FROMFTDOPTION=$transfer->{FROMFTDOPTIONS}");
+  
+  
   ($self->{CONFIG}->{FTD_LOCALOPTIONS})
     and $options.=join (";", @{$self->{CONFIG}->{FTD_LOCALOPTIONS_LIST}});
 
-  $self->info("ID $id Setting options ($options)");
+  $self->info("ID $id Setting options ($options),$self->{CONFIG}->{FTD_LOCALOPTIONS_LIST}");
 #    my $result=$self->{MANAGER}->changeStatusTransfer($id, "TRANSFERING", {});
   my $result=$self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, "TRANSFERING", {});
   my $fromHost=$fromURL->host;
@@ -409,19 +416,23 @@ sub startTransfer {
   if ($error) {
     my $errorM="The transfer failed (we are getting things from  ". $fromURL->method();
     $self->{LOGGER}->error_msg() and $errorM=$self->{LOGGER}->error_msg();
-    $self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, "FAILED", {Reason=>$errorM});
+       
+    if (! $self->findAlternativeSource($id, $transfer->{FROMSE})) {
+      $self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, "FAILED", {Reason=>$errorM});
+     }
     return ;
+    
   }
   $self->verifyTransfer($error, $toURL, $size, $retries, $id) or return;
 
-  $self->info("ID $id The transfer succeeded!!");
+  $self->info("startTransfer: ID $id The transfer succeeded!!");
 #    $self->CURRENT_TRANSFERS_DECREMENT($size);
     
   #Now kill this transferchild
   return 1;
 }
 
-sub verifyTransfer{
+ sub verifyTransfer{
   my $t=shift;
   my $error=(shift or "");
   my $URL=shift;
@@ -628,16 +639,17 @@ sub checkWakesUp {
   $self->$method(@methodData,"$$ Asking the broker if we can do anything ($slots slots)");
 
 
-
-  my ($result)=$self->{SOAP}->CallSOAP("Broker/Transfer", "requestTransfer",
-				       $self->{JDL}, $slots);
+  my ($result)=$self->{SOAP}->CallSOAP("Broker/Transfer", "requestTransfer",$self->{JDL}, $slots);
 
   $self->info("$$ Got an answer from the broker");
+    
   if (!$result) {
     return;
   }
+  
   my $repeat=1;
   my @transfers=$self->{SOAP}->GetOutput($result);
+  
   foreach my $transfer (@transfers){
     if ($transfer eq "-2"){
       $self->$method(@methodData, "No transfers for me");
@@ -681,7 +693,7 @@ sub checkWakesUp {
 
 }
 
-sub _forkTransfer{
+ sub _forkTransfer{
   my $self=shift;
   my $transfer=shift;
 
@@ -722,8 +734,10 @@ sub _forkTransfer{
     $self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, "FAILED", "ALIEN_SOAP_RETRY",{"Reason","The FTD at $self->{CONFIG}->{FTD_FULLNAME} got". $self->{LOGGER}->error_msg()});
   }
   $self->info("$$ returns!!");
+ 
   return 1;
 }
+
 sub makeLocalCopy {
   my $s =shift;
   my $transfer=shift;
@@ -793,6 +807,7 @@ sub makeLocalCopy {
   $self->{SOAP}->checkSOAPreturn($result, "Transfer Manager") or return;
   return 1;
 }
+
 sub cleanLocalCopy {
   my $this=shift;
   my $transfer=shift;
@@ -827,6 +842,7 @@ sub cleanLocalCopy {
 #    $self->{MANAGER}->changeStatusTransfer($id,  "DONE");
   return 1;
 }
+
 sub UpdateDiskSpace {
     my $this=shift;
 
@@ -847,6 +863,7 @@ sub UpdateDiskSpace {
     $self->{JDL}=$ca->asJDL();
     return 1;
 }
+
 sub dirandfile {
     my $fullname = shift;
     $fullname =~ /(.*)\/(.*)/;
@@ -1112,7 +1129,7 @@ sub askToPut {
 
 }
 
-sub CreateLocalUniquePFN{
+ sub CreateLocalUniquePFN{
   my $t=shift;
 
   my $host=$self->{CONFIG}->{FTD_HOST};
@@ -1223,7 +1240,8 @@ $size,$date,'WAITING', '$destURL','$email',0,0,'$direction',0)";
     $self->debug(1, "Inserting $SQL" );
 
     $self->{DB}->do($SQL);
-
+            
+#     my $result=$self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, "WAITING", {});
     return $id;
 
 }
