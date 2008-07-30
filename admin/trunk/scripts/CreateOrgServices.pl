@@ -66,6 +66,10 @@ if ($config->{MESSAGESMASTER_ADDRESS} =~ /^$hostname:/) {
   $install.="MessagesMaster ";
 }
 
+if ($config->{SEMASTER_MANAGER_ADDRESS} =~ /^$hostname:/) {
+  $install.="SEManager ";
+}
+
 
 if ($config->{"GAS_FACTORY_ADDRESS"} &&  $config->{"GAS_FACTORY_ADDRESS"} =~ /^https?:\/\/$hostname:/) {
   $install.="GAS_FACTORY ";

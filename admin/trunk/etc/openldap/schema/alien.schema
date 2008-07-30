@@ -105,6 +105,8 @@ attributetype ( AliEnVOConfig:76 NAME 'taxAccount' SUP name )
 attributetype ( AliEnVOConfig:77 NAME 'taxRate' SUP name )
 attributetype ( AliEnVOConfig:78 NAME 'packmanmasterAddress' SUP name )
 attributetype ( AliEnVOConfig:79 NAME 'messagesmasterAddress' SUP name )
+attributetype ( AliEnVOConfig:80 NAME 'semasterDatabase' SUP name )
+attributetype ( AliEnVOConfig:81 NAME 'semasterManagerAddress' SUP name )
 
 objectclass ( AliEnVOConfig  NAME 'AliEnVOConfig'
 	SUP ( top $ organizationalUnit ) STRUCTURAL
@@ -129,7 +131,7 @@ objectclass ( AliEnVOConfig  NAME 'AliEnVOConfig'
 	      portalUrl $ vomsServer $ apiServer $ jabberServer $ agentApiProxy $ 
         lbsgAddress $ lbsgDatabase $ si2kNominalPrice $ bankAdmin $ taxAccount $ taxRate $
 				bankCurrency $ jobDatabaseRead $ packmanmasterAddress $ 
- messagesmasterAddress )
+ messagesmasterAddress $ semasterDatabase $ semasterManagerAddress )
 	)
 #AliEnUser
 

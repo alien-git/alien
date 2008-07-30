@@ -185,6 +185,8 @@ $config{jobBrokerAddress}="$hostName:".($portNumber+10);
 $config{authenSubject}=$authenSubject;
 $config{packmanmasterAddress}="$hostName:".($portNumber+12);
 $config{messagesmasterAddress}="$hostName:".($portNumber+13);
+$config{semasterManagerAddress}="$hostName:".($portNumber+14);
+$config{semasterDatabase}="$mysqlHost/mysql/alien_system";
 
 push(@list,("ou=Config,$orgDN", [%config]));
 
