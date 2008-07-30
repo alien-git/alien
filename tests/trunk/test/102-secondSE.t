@@ -62,7 +62,7 @@ BEGIN { plan tests => 1 }
   my $done=0;
   my $ui=AliEn::UI::Catalogue->new({role=>"admin"});
   if ($ui) {
-    $ui->execute("addSE", "-p", "cern", "testSE2") and $done=1;
+    $ui->execute("resyncLDAP") and $done=1;
     $ui->close();
   }
   if (! $done) {

@@ -35,7 +35,7 @@ use Net::Domain qw(hostname hostfqdn hostdomain);
   my $error=0;
   my $ui=AliEn::UI::Catalogue->new({role=>"admin"}) or $error=1;
 
-  $error or $ui->execute("addSE", "-p", "cern", "otherSE") or $error=1;
+  $error or $ui->execute("resyncLDAP") or $error=1;
   $error or $ui->close();
   
   if ($error){

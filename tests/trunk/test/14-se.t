@@ -47,7 +47,7 @@ BEGIN { plan tests => 1 }
 
   my $ui=AliEn::UI::Catalogue->new({role=>"admin"}) or exit(-2);
 
-  $ui->execute("addSE", "-p", "cern", "testSE") or exit(-2);
+  $ui->execute("resyncLDAP") or exit(-2);
   $ui->close();
  
   print "ok\n";

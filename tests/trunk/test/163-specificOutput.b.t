@@ -19,9 +19,9 @@ print "And the output is in $procDir\n";
 my @where=$cat->execute("whereis", "-lr", "$procDir/job-output/stdout") or exit(-2);
 
 print "The file is in @where\n";
-grep( /^$otherSE$/, @where) or print "The file is not in $otherSE!!\n" and exit(-2);
+grep( /^$otherSE$/i, @where) or print "The file is not in $otherSE!!\n" and exit(-2);
 
-grep (/^${vo}::cern::testSE$/, @where) and print "The file is not supposed to tbe in the standard SE!!\n" and exit(-2);
+grep (/^${vo}::cern::testSE$/i, @where) and print "The file is not supposed to tbe in the standard SE!!\n" and exit(-2);
 
 print "ok!!\n";
 
