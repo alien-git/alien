@@ -87,7 +87,9 @@ sub initialize {
   if ( !( -d $self->{CACHE_DIR} ) ) {
     mkdir $self->{CACHE_DIR}, 0777;
   }
-  
+  if ( !( -d "$self->{CONFIG}->{TMP_DIR}/OLDFILES")){
+    mkdir "$self->{CONFIG}->{TMP_DIR}/OLDFILES",0777;
+  }
 #  $self->{IS} = SOAP::Lite->uri("AliEn/Service/IS")
 #    ->proxy("http://$self->{CONFIG}->{IS_HOST}:$self->{CONFIG}->{IS_PORT}");
 
@@ -1040,41 +1042,43 @@ sub startIOdaemon {
 sub  checkWakesUp {
   my $self = shift;
   my $silent =shift;
-  
-  if (!$self->{FIRST_EXEC} ){
-    $self->{FIRST_EXEC}=1;
-    $self->{LOGGER}->redirect("$self->{CONFIG}->{LOG_DIR}/SE_remove.log");
-  }
+
   my $method="info";
   my @methodData=();
   $silent and $method="debug" and push @methodData, 1;
   $self->$method(@methodData, "READY TO DELETE THE ENTRIES");
   my $time=time();
   $self->{PROXY_CHECKED} or $self->{PROXY_CHECKED}=1;
-  if ($time-$self->{PROXY_CREATED}>3600){
+  if (($time-$self->{PROXY_CHECKED})>3600){
     $self->{X509}->checkProxy();
     $self->{PROXY_CHECKED}=$time;
   }
- foreach my $subSE (grep (s/^SE_(VIRTUAL_)/$1/ , keys %{$self->{CONFIG}}), "") {
-    my ($seName, $seInfo)=$self->checkVirtualSEName($subSE);
-    
-    my $entries=[];
-    $self->info("We have to implement getting the list of deleted files!!");
-    #my $entries=$seInfo->{lvm}->{DB}->query("SELECT binary2string(guid) as guid, pfn from TODELETE limit 1000");
-    foreach my $entry (@$entries){
-      $self->info("Ready to do something with");
-      use Data::Dumper;
-      print Dumper ($entry);
-      my $pfn=AliEn::SE::Methods->new($entry->{pfn}) or next;
-      my $path=$pfn->path();
-      if (-f $path){
-	$self->info("The path $path exists. Let's move it to the olddirectory");
-	my @info=stat($path);
-	my $now=time;
-	if ($info[9]+36000<$now){
-	  $self->info("The file is more than ten hours old. Let's delete it");
-	  $self->info("And removing the file");
-	  system("mv", $path, "$ENV{HOME}/OLDFILES");
+  my @ses=$self->{CONFIG}->{SE_FULLNAME};
+
+  foreach my $k (grep (/^SE_VIRTUAL/, keys %{$self->{CONFIG}})){
+    push @ses, $self->{CONFIG}->{$k}->{FULLNAME};
+  }
+  foreach my $subSE (@ses) {
+    my $field="LAST_DELETED_${subSE}";
+    my $continue=1;
+    while ($continue){
+      $continue=0;
+      $self->{$field} or $self->{$field}=0;
+      $self->info("Asking the semaster for files to delete");
+      my $info=$self->{SOAP}->CallSOAP("Manager/SEMaster", "getFilesToDelete", $subSE,  $self->{$field})
+	  or $self->info("Error getting the volumes ") and last ;
+
+      my $entries=$info->result;
+      foreach my $entry (@$entries){
+	$self->info("Ready to do something with");
+	$continue=1;
+	my $pfn=AliEn::SE::Methods->new($entry->{pfn}) or next;
+	$entry->{entryId} > $self->{$field} and 
+	  $self->{$field}=$entry->{entryId};
+	my $path=$pfn->path();
+	if (-f $path){
+	  $self->info("The path $path exists. Let's move it to the olddirectory");
+	  system("mv", $path, "$self->{CONFIG}->{TMP_DIR}/OLDFILES");
 	}
       }
     }

@@ -140,6 +140,14 @@ sub createCatalogueTables {
 					size=>"bigint",
 					method=>"char(255)",}, 
 			     "volumeId", ['UNIQUE INDEX (volume)', 'INDEX(seName)'],],
+	      "LL_STATS" =>["tableNumber", {
+					    tableNumber=>"int(11) NOT NULL",
+					    min_time=>"char(16) NOT NULL",
+					    max_time=> "char(16) NOT NULL", 
+				    },undef,['UNIQUE INDEX(tableNumber)']],
+	      LL_ACTIONS=>["tableNumber", {tableNumber=>"int(11) NOT NULL",
+					   action=>"char(40) not null", 
+					   time=>"timestamp default current_timestamp"}, undef, ['UNIQUE INDEX(tableNumber,action)']],
 	         );
   foreach my $table (keys %tables){
     $self->info("Checking table $table");
@@ -179,7 +187,10 @@ sub checkLFNTable {
   defined $table or $self->info( "Error: we didn't get the table number to check") and return;
   
   $table =~ /^\d+$/ and $table="L${table}L";
-  
+
+  my $number;
+  $table=~ /^L(\d+)L$/ and $number=$1;
+
   my %columns = (entryId=>"bigint(11) NOT NULL auto_increment primary key", 
 		 lfn=> "varchar(255) NOT NULL",
 		 type=> "char(1) NOT NULL default 'f'",
@@ -200,25 +211,25 @@ sub checkLFNTable {
   
   $self->info("We should also check if the triggers exist");
   my $info=$self->query("show triggers like '$table\%'");
-  my $triggers={"${table}_insert"=>'NEW', "${table}_delete"=>'OLD',
-		"${table}_update"=>"if ( NEW.guid != OLD.guid ) then insert into LFN_UPDATES(guid, action) VALUES (NEW.guid, 'insert'), (OLD.guid, 'delete');end if;"};
+
+  my $triggers={"${table}_insert"=>1,"${table}_delete"=>1,
+		"${table}_update"=>1};
+
   foreach my $trigger (@$info) {
-    print "Checking $trigger\n";
-    $triggers->{$trigger->{Trigger}} or next;
-    $self->info("The trigger $trigger->{Trigger} exists");
-    delete $triggers->{$trigger->{Trigger}};
+    $trigger->{Timing} eq "BEFORE" or next;
+    if ($trigger->{Statement} =~ /LL_ACTIONS/){
+      delete $triggers->{$trigger->{Trigger}};
+      next;
+    }
+    $self->do("drop trigger $trigger->{Trigger}");
   }
-  
+  $self->do("INSERT IGNORE INTO LL_ACTIONS(tableNumber,action,time)  values (?,'MODIFIED',now()), (?,'STATS',now()-1)", {bind_values=>[$number, $number]}); 
+
   foreach my $triggerName (keys %$triggers){
     my $key=$triggerName;
     $key =~ s/^.*_//;
     $self->info("Creating the $key trigger");
-    if ($key =~ /update/){
-      $self->info("The update trigger is special");
-      $self->do("create trigger $triggerName before $key on $table for each row $triggers->{$triggerName}") or return; 
-    }else{
-      $self->do("create trigger $triggerName before $key on $table for each row insert into LFN_UPDATES(guid,action) values ($triggers->{$triggerName}.guid, '$key')") or return ;
-    }
+    $self->do("create trigger $triggerName before $key on $table for each row  update  LL_ACTIONS set time=now() where action='MODIFIED' and tableNumber=$number") or return; 
   }
   return 1;
 }
@@ -1932,9 +1943,63 @@ sub cleanupTagValue{
 sub getNumberOfEntries {
   my $self=shift;
   my $entry=shift;
+  my $options=shift;
   my ($db, $path2)=$self->reconnectToIndex( $entry->{hostIndex}) or return -1;
-  return $db->queryValue("SELECT COUNT(*) from L$entry->{tableName}L");
+  my $query="SELECT COUNT(*) from L$entry->{tableName}L";
+  $options =~ /f/ and $query.=" where right(lfn,1) != '/'";
+  return $db->queryValue($query);
 }
+
+sub updateStats {
+  my $self=shift;
+  my $table=shift;
+  $self->info("Let's update the statistics of the table $table");
+
+  $table =~ /^L/ or $table="L${table}L";
+  my $number=$table;
+  $number=~ s/L//g;
+  $self->do("update LL_ACTIONS set time=now() where action='STATS' and tableNumber=?", {bind_values=>[$number]});
+
+  my $oldGUIDList=$self->getPossibleGuidTables($number);
+  $self->do("delete from LL_STATS where tableNumber=?", {bind_values=>[$number]});
+  $self->do("insert into LL_STATS (tableNumber, max_time, min_time) select  ?, max(binary2date(guid)) max, min(binary2date(guid))  min from $table", {bind_values=>[$number]});
+  my $newGUIDList=$self->getPossibleGuidTables($number);
+
+  my $done={};
+  my @bind=();
+  my $values="";
+  foreach my $elem (@$oldGUIDList, @$newGUIDList){
+    $done->{$elem->{indexId}} and next;
+    $done->{$elem->{indexId}}=1;
+    $values.=" (?, 'TODELETE'), ";
+    push @bind, $elem->{tableName};
+    $self->info("Doing $elem->{indexId}");
+    my $gtable="G$elem->{tableName}L";
+    if ($elem->{address} eq $self->{HOST}){
+      $self->info("This is the same host. It is easy");
+      $self->do("update $gtable set lfnRef=replace(lfnRef, concat(',',?,',')  ,',')", {bind_values=>[$number]});
+      $self->do("update  $gtable g, $table l set lfnRef=concat(lfnRef,  ?, ',') where g.guid=l.guid", {bind_values=>[$number]});
+    }else {
+      $self->info("This is in another host. We can't do it easily :( 'orphan guids won't be detected'");
+      my ($db, $path2)=$self->reconnectToIndex( $elem->{hostIndex}) or next;
+      $db->do("update  $gtable g, $table l set lfnRef=concat(lfnRef,  ?, ',') where g.guid=l.guid and g.lfnRef not like concat(',',?,',')", {bind_values=>[$number,$number]});
+    }
+  }
+
+  $self->info("And now, let's put the guid tables in the list of tables that have to be checked");
+  $values=~ s/, $//;
+  $self->do("insert ignore into GL_ACTIONS(tableNumber, action) values $values", {bind_values=>[@bind]});
+  return 1;
+}
+
+sub getPossibleGuidTables{
+  my $self=shift;
+  my $number=shift;
+  return $self->query("select * from (select * from GUIDINDEX where guidTime< (select max_time from  LL_STATS where tableNumber=?)  and  guidTime>(select min_time from LL_STATS where tableNumber=?)  union select * from GUIDINDEX where guidTime= (select max(guidTime) from GUIDINDEX where guidTime< (select min_time from LL_STATS where tableNumber=?))) g, HOSTS h where g.hostIndex=h.hostIndex", undef, {bind_values=>[$number, $number, $number]});
+
+}
+
+
 =head1 SEE ALSO
 
 AliEn::Database

@@ -157,9 +157,10 @@ sub checkGUIDTable {
 		 owner=>"varchar(20)",
 		 gowner=>"varchar(20)",
 		 type=>"char(1)",
+		 lfnRef=>"varchar(255) not null default ','",
 		);
 
-   $db->checkTable(${table}, "guidId", \%columns, 'guidId', ['UNIQUE INDEX (guid)'],) or return;
+   $db->checkTable(${table}, "guidId", \%columns, 'guidId', ['UNIQUE INDEX (guid)', 'INDEX (lfnRef)', 'INDEX(seStringlist)'],) or return;
   
   %columns= (pfn=>'varchar(255)',
 	     pfnId=>"int(11) NOT NULL auto_increment primary key",
@@ -174,7 +175,12 @@ sub checkGUIDTable {
   if (not ${$triggers}[0]){
     $self->info("Adding the triggers for the table $table");
     foreach my $t ("insert", "delete", "update"){
-      $db->do("create trigger ${table}_$t before $t on $table for each row update  GL_ACTIONS set time=now() where action='MODIFIED'");
+      
+      my $trigger=" update  GL_ACTIONS set time=now() where action='MODIFIED' and tableNumber=$index ";
+      $t =~ /update/ and $trigger=" if ( NEW.seStringlist != OLD.seStringlist ) then $trigger ; end if;";
+
+
+      $db->do("create trigger ${table}_$t before $t on $table for each row $trigger");
     }
   }
   return 1;
@@ -738,6 +744,26 @@ sub updateStatistics {
   $self->do("insert into GL_STATS(tableNumber, seNumber, seNumFiles, seUsedSpace) select ?, seNumber, count(*), sum(size) from SE, $table g  where locate(concat(',',seNumber,','), seStringList) group by senumber", {bind_values=>[$index]});
   return 1;
 }
+
+sub checkOrphanGUID {
+  my $self=shift;
+  my $number=shift;
+
+  my $table="G${number}L";
+  $self->info("Checking the unused guids of $table");
+
+  $self->do("delete from GL_ACTIONS where action='TODELETE' and tableNUmber=?", {bind_values=>[$number]});
+  my $where="where lfnRef=',' and ctime<now() -3600";
+  (-f "$self->{CONFIG}->{TMP_DIR}/AliEn_TEST_SYSTEM") and
+    $self->info("We are testing the system. Let's remove the files immediately")      and $where =~ s/-3600/-120/;
+  $self->do("insert into TODELETE (pfn,seNumber, guid) select pfn,seNumber, guid from $table g, ${table}_PFN p  $where and g.guidId=p.guidId");
+  $self->do("insert into TODELETE (pfn, seNumber, guid) select '',senumber,guid from $table g, SE $where and locate(concat(',',senumber,','), seautostringlist) ");
+  $self->do("delete from p using ${table}_PFN p, $table g  $where and p.guidid=g.guidid");
+  my $info=$self->do("delete from $table $where");
+  $self->info("Done (removed $info entries)");
+  return 1;
+}
+
 
 =head1 SEE ALSO
 
