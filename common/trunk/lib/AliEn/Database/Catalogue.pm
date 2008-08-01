@@ -521,7 +521,7 @@ sub getNewDirIndex {
 
   $self->info( "New table number: $dir");
 
-  $self->checkDLTable($dir) or 
+  $self->{LFN_DB}->checkLFNTable($dir) or 
     $self->info( "Error checking the tables $dir") and return;
 
   return $dir;
@@ -1034,7 +1034,7 @@ sub addHost {
 sub getNumberOfEntries{
   my $self=shift;
   my $entry=shift;
-  if ($entry->{guidTime}){
+  if (defined $entry->{guidTime}){
     $self->debug(1,"Getting the number of guids");
     return $self->{GUID_DB}->getNumberOfEntries($entry, @_);
   }
@@ -1045,6 +1045,45 @@ sub getIndexHostFromGUID{
   my $self=shift;
   return $self->{GUID_DB}->getIndexHostFromGUID(@_);
 }
+
+sub checkLFN {
+  my $self=shift;
+  my $rhosts = $self->{LFN_DB}->getAllHosts();
+  
+  foreach my $rtempHost (@$rhosts) {
+    $self->info("Checking the tables in $rtempHost->{db}");
+    my ($db, $extra)=$self->{LFN_DB}->reconnectToIndex( $rtempHost->{hostIndex}, "", $rtempHost );
+    $db or $self->info("Error connecting to $db") and next;
+    
+    my $tables=$db->queryColumn('select a.tableNumber from LL_ACTIONS a, LL_ACTIONS b where a.action="MODIFIED" and b.action="STATS" and a.tableNumber=b.tableNumber and a.time>b.time');
+    foreach my $t (@$tables){
+      $self->info("We have to update the table $t");
+      $db->updateStats($t);
+    }
+  }
+  return 1;
+}
+
+
+sub checkOrphanGUID{
+  my $self=shift;
+  $self->debug(1, "Checking orphanguids in the database");
+  my $hosts=$self->getAllHosts();
+
+  foreach my $host (@$hosts){
+    my ($db, $extra)=$self->{GUID_DB}->reconnectToIndex($host->{hostIndex})
+      or $self->info("Error reconnecting to the index $host->{hostIndex}", 1) and return;
+    my $tables=$db->query("select * from GL_ACTIONS where action='TODELETE'");
+    foreach my $table (@$tables){
+      $self->info("Doing the table $table->{tableNumber}");
+      $db->checkOrphanGUID($table->{tableNumber});
+    }
+  }
+
+  return 1;
+}
+
+
 =head1 SEE ALSO
 
 AliEn::Database

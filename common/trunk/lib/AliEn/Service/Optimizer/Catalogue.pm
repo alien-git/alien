@@ -38,8 +38,8 @@ sub initialize {
       and return;
 
 
-  my @optimizers=("SE","Trigger", "Expired" ,"Deleted", "Packages", "SEsize", "LDAP");
-  @optimizers=("SE","Trigger", "Expired" ,"Packages", "SEsize", "LDAP");
+  my @optimizers=("Trigger", "Expired" ,"Deleted", "Packages", "SEsize", "LDAP");
+
   $self->StartChildren(@optimizers) or return;
 
   return $self;
@@ -65,79 +65,17 @@ sub checkLTables {
 sub checkWakesUp {
   my $this=shift;
   my $silent=shift;
-  
+
   my $method="info";
   $silent and $method="debug";
 
 
-  $self->{LOGGER}->$method("CatOpt", "Checking if there is anything to do");
-
-
-  my ($hosts) = $self->{DB}->getAllHosts();
-  defined $hosts
-    or return;
-  foreach my $tempHost (@$hosts) {
-    my ($db, $Path2)=$self->{DB}->{LFN_DB}->reconnectToIndex( $tempHost->{hostIndex},"",$tempHost) or $self->info("Error doing $tempHost->{db}") and next;;
-    $self->info("Doing $tempHost->{db}");
-
-    $self->checkGUID($silent, $db);
-
-    if (!$self->{DONE}) {
-      $self->info("Let's check all the catalogue tables");
-      $self->checkLTables($silent, $db);
-      $self->{DONE}=1;
-    }
-
-  }
-
-  $self->{LOGGER}->$method("CatOpt", "Going back to sleep");
-
-  (-f "$self->{CONFIG}->{TMP_DIR}/AliEn_TEST_SYSTEM") or
-    $self->info("Sleeping for a looooooonnnngggg time") and sleep(2*3600);
+  $self->info( "Checking if there is anything to do");
+  
   return;
+
 }
 
-#
-# This subroutine looks for all the entries in the SE database that are not
-# pointed at anymore from the catalogue
-#
-#
-#
-
-sub checkGUID {
-  my $self=shift;
-  my $silent=shift;
-  my $method="info";
-  $silent and $method="debug";
-  my $db=shift;
-
-  $self->info("Getting all the tables of this host");
-
-  my $tablesRef=$db->queryColumn("SELECT tableName from INDEXTABLE where hostIndex=?", undef, {bind_values=>[$db->{CURHOSTID}]});
-  
-  foreach my $table (@$tablesRef){
-    my $tableName="D${table}L";
-    my $entries=$db->queryColumn("SELECT entryId FROM $tableName WHERE ( (guid is NULL) or (guid = '') ) and lfn not like '%/' and lfn not like '' limit 10000");
-    
-    defined $entries
-      or $self->debug(1,"Error fetching entries from D0")
-	and return;
-    $#{$entries}>-1 or next;
-    $self->info("Updating ". $#{$entries}." entries");
-    my $i=1;
-    foreach my $entry (@$entries) {
-      my $guid=$self->{GUID}->CreateGuid() or next;
-      $self->info("Setting $entry and $guid");
-
-      $db->update($tableName, {guid=>"string2binary(\"$guid\")"},
-		  "entryId=?", {noquotes=>1, bind_values=>[$entry]});
-      $i++;
-      ($i %100) or   $self->info("Already checked $i files");
-    }
-  }
-  $self->info("Finished!!");
-  return ;
-}
 
 return 1;
 

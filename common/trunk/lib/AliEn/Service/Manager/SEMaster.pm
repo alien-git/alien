@@ -46,6 +46,25 @@ sub getVolumeInfo {
   return $info;
   
 }
+
+sub getFilesToDelete {
+  my $this=shift;
+  my $name=shift;
+  my $index=shift;
+  $self->info("Getting the list of files to delete that are newer than index $index");
+  my $seNumber=$self->{DB}->queryValue("SELECT seNumber from SE where seName=?", undef, {bind_values=>[$name]});
+  if (! $seNumber){
+    $self->info("Error getting the senumber of $name");
+    return (-1, "Error getting the senumber of $name");
+  }
+    
+  if ($index){
+    $self->{DB}->do("delete from TODELETE where entryId<=? and seNumber=?", {bind_values=>[$index, $seNumber]});
+  }
+  my $info=$self->{DB}->query("select entryId, pfn from TODELETE where seNumber=? order by 1 limit 100", undef, {bind_values=>[$seNumber]});
+  $self->info("Returning $#$info to $name ($seNumber)");
+  return $info;
+}
 1;
 
 

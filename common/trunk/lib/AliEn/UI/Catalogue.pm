@@ -119,6 +119,9 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
     'setSEio'		=> ['$self->{CATALOG}->setSEio',0],
     'getSEio'		=> ['$self->{CATALOG}->getSEio',0],
     'resyncLDAP'        => ['$self->{CATALOG}->resyncLDAP',0],
+    'checkLFN'          => ['$self->{CATALOG}->checkLFN',0],
+    'checkOrphanGUID'   => ['$self->{CATALOG}->checkOrphanGUID',0],
+       
     
     
     #	       'addMethod' =>'f_addMethod', 0],
@@ -206,6 +209,7 @@ my %help_list =
    'remove'   => "Remove file from the catalog",
    'guid2lfn' => "Give the lfn(s) for a guid", 
    'lfn2guid' => "Give the guid for an lfn",
+   'checkLFN' => "Verify the consistency of the catalogue (admin operation)",
    
    'addUser'  => "Add user",
    'addSE' => "Define a new SE",

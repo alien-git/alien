@@ -286,29 +286,6 @@ sub f_chgroup {
     }
     return 1;
 }
-#sub f_createNewIndexTable {
-#  my $self=shift;
-#  if ( $self->{ROLE} !~ /^admin(ssl)?$/ ) {
-#    $self->info("Error: only the administrator can add new table");
-#    return;
-#  }
-#  my $entry=$self->{DATABASE}->getNewDirIndex();
-#  $self->{DATABASE}->checkDLTable($entry) or return;
-#  $self->info( "Directory table D$entry created");
-#  return "D${entry}L";
-#}
-#sub makeNewIndex{
-#  my $self=shift;
-#  my $lfn=shift;
-#  my $index=$self->{DATABASE}->getNewDirIndex() or return;
-#
-#  $self->f_mkdir("s", $lfn) or return;
-#  my $done=$self->moveDirectoryToIndex($lfn, $index);
-#  $done and return 1;
-#  $self->info( "Moving the directory to the new index did not work");
-#  $self->f_rmdir("s", $lfn);
-#  return;
-#}
 
 sub moveDirectoryToIndex {
   my $self=shift;
@@ -495,12 +472,13 @@ sub checkSEVolumes {
 sub f_showStructure_HELP{
   return "showStructure: returns the database tables that are used from within a directory in the catalogue. Usage
 
-  showStructure [-csg] <directory>
+  showStructure [-csgf] <directory>
 
 Options: 
 -c: count the number of entries in each of the tables
 -s: summary at the end 
 -g: count the guid instead of the lfns
+-f: count only files (ignore directories)
 \n";
 }
 sub f_showStructure {
@@ -532,7 +510,7 @@ sub f_showStructure {
     $self->info("Let's print the number of entries");
     my $total=0;
     foreach my $dir (@$info){
-      my $s=$self->{DATABASE}->getNumberOfEntries($dir);
+      my $s=$self->{DATABASE}->getNumberOfEntries($dir, $options);
       my $entryName=$dir->{lfn} || $dir->{guidTime};
 
       $options=~ /c/ and $self->info("Under $entryName: $s entries");
@@ -732,10 +710,10 @@ sub checkIODaemons {
   $path=~ s/,.*$//;
   my $seioDaemons="root://$host:$port";
   $self->debug(1, "And the update should $sename be: $seioDaemons, $path");
-  my $e=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->query("SELECT sename,seioDaemons,sestoragepath from SE where seName='$sename'");
+  my $e=$self->{DATABASE}->{LFN_DB}->query("SELECT sename,seioDaemons,sestoragepath from SE where seName='$sename'");
   my $path2=$path;
   $path2 =~ s/\/$// or $path2.="/";
-  my $total=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->queryValue("SELECT count(*) from SE where seName='$sename' and seioDaemons='$seioDaemons' and ( seStoragePath='$path' or sestoragepath='$path2')");
+  my $total=$self->{DATABASE}->{LFN_DB}->queryValue("SELECT count(*) from SE where seName='$sename' and seioDaemons='$seioDaemons' and ( seStoragePath='$path' or sestoragepath='$path2')");
   
   if ($total<1){
     $self->info("***Updating the information of $site, $name ($seioDaemons and $path");
@@ -743,6 +721,27 @@ sub checkIODaemons {
   }
   
   return 1;
+}
+
+sub checkLFN {
+  my $self=shift;
+
+ ( $self->{ROLE}  =~ /^admin(ssl)?$/ ) or
+    $self->info("Error: only the administrator can check the databse") and return;
+
+  $self->info("Ready to check that the lfns are ok");
+
+  return  $self->{DATABASE}->checkLFN();
+}
+
+sub checkOrphanGUID{
+  my $self=shift;
+
+ ( $self->{ROLE}  =~ /^admin(ssl)?$/ ) or
+    $self->info("Error: only the administrator can check the databse") and return;
+
+  $self->info("And now, let's see if there are any orphan guids");
+  return $self->{DATABASE}->checkOrphanGUID();
 }
 
 return 1;
