@@ -755,7 +755,7 @@ sub checkOrphanGUID {
   $self->do("delete from GL_ACTIONS where action='TODELETE' and tableNUmber=?", {bind_values=>[$number]});
   my $where="where lfnRef=',' and ctime<now() -3600";
   (-f "$self->{CONFIG}->{TMP_DIR}/AliEn_TEST_SYSTEM") and
-    $self->info("We are testing the system. Let's remove the files immediately")      and $where =~ s/-3600/-120/;
+    $self->info("We are testing the system. Let's remove the files immediately")      and $where =~ s/-3600/-240/;
   $self->do("insert into TODELETE (pfn,seNumber, guid) select pfn,seNumber, guid from $table g, ${table}_PFN p  $where and g.guidId=p.guidId");
   $self->do("insert into TODELETE (pfn, seNumber, guid) select '',senumber,guid from $table g, SE $where and locate(concat(',',senumber,','), seautostringlist) ");
   $self->do("delete from p using ${table}_PFN p, $table g  $where and p.guidid=g.guidid");
