@@ -16,7 +16,7 @@ sub checkWakesUp {
 
   $self->{CATALOGUE}->execute("checkLFN");
   sleep (120);
-  $self->{CATTALOGUE}->execute("checkOrphanGUID");
+  $self->{CATALOGUE}->execute("checkOrphanGUID");
   return ;
 }
 

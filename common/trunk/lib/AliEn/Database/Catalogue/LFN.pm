@@ -1985,11 +1985,13 @@ sub updateStats {
       $db->do("update  $gtable g, $table l set lfnRef=concat(lfnRef,  ?, ',') where g.guid=l.guid and g.lfnRef not like concat(',',?,',')", {bind_values=>[$number,$number]});
     }
   }
-
-  $self->info("And now, let's put the guid tables in the list of tables that have to be checked");
-  $values=~ s/, $//;
-  $self->do("insert ignore into GL_ACTIONS(tableNumber, action) values $values", {bind_values=>[@bind]});
+  if ($values){
+    $self->info("And now, let's put the guid tables in the list of tables that have to be checked");
+    $values=~ s/, $//;
+    $self->do("insert ignore into GL_ACTIONS(tableNumber, action) values $values", {bind_values=>[@bind]});
+  }
   return 1;
+
 }
 
 sub getPossibleGuidTables{
