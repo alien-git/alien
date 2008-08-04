@@ -468,59 +468,50 @@ sub getLFNlike {
   my $lfn=shift;
 
   my @result;
+  $lfn=~ s/\*/%/g;
+  $lfn=~ s/\?/_/g;
 
   $self->debug(1, "Trying to find paths like $lfn");
-  #Take as the starting point the lfn up to the first % or _
-  my $starting=$lfn;
-  $lfn =~ s/([^\\])\*/$1%/g;
-  $lfn =~ s/([^\\])\?/$1_/g;
-  $starting=~ s/[\%\_\*\?].*$//;
+  my @todo=$lfn;
 
-  my $pos=length $starting;
-  $pos--;
-  $pos<0 and $pos=0;
+  while (@todo) {
+    my $parent =shift @todo;
 
+    if ( $parent =~ s{([^/]*[\%][^/]*)/?(.*)$}{}){
+      $self->debug(1,"Looking in $parent for $1 (still to do $2)");
+      my ($pattern, $todo)=($1,$2);
 
-  #First, look in the index for possible tables;
-  my $indexRef=$self->query("SELECT HOSTS.hostIndex, tableName,lfn,length(lfn) as length FROM INDEXTABLE, HOSTS where lfn=left('$starting',length(lfn)) and INDEXTABLE.hostIndex=HOSTS.hostIndex order by length(lfn) desc limit 1");
+      my $db=$self->selectDatabase($parent) or 
+	$self->info("Error selecting the database of $parent") and next;
+      my $parentdir=$self->getAllInfoFromLFN({retrieve=>'entryId', method=>'queryValue'}, $parent);
 
-  $indexRef or $self->info( "Error trying to find the indexes for $starting") and return;
+      my $tableName=$self->{INDEX_TABLENAME}->{name};
+      my $tablelfn=$self->{INDEX_TABLENAME}->{lfn};
 
-  my $indexRef2=$self->query("SELECT HOSTS.hostIndex, tableName,lfn FROM INDEXTABLE, HOSTS where lfn like '$starting\%' and INDEXTABLE.hostIndex=HOSTS.hostIndex and length(lfn)>${$indexRef}[0]->{length}");
+      my $ppattern="$parent$pattern";
 
-
-
-  my @dirs=split(/\//, $lfn);
-  my $pattern="";
-  foreach my $dir (@dirs) {
-    $dir=~ s{^%}{\[^/\]+};
-    $dir=~ s{([^\\])%}{$1\[^/\]*}g;
-    $pattern.="$dir/";
-  }
-  $pattern .= "?\$";
-
-
-
-  #now, for each index, find the matching lfn
-  foreach my $ref (@$indexRef, @$indexRef2){
-    my ($db, $path2)=$self->reconnectToIndex( $ref->{hostIndex}) or next;
-    my $orig="concat('$ref->{lfn}', lfn)";
-    my $ppattern=$pattern;
-    #If the entries that we are looking for already have the 
-    #start lfn of this table, we don't have to put it in the
-    #search
-    if ($ppattern =~ s{^$ref->{lfn}}{}) {
-      $orig="lfn";
+      my $entries=$db->queryColumn("SELECT concat('$tablelfn',lfn) from $tableName where dir=? and (lfn like ? or lfn like ?)",
+				  undef, {bind_values=>[$parentdir, $ppattern, "$ppattern/"]})
+	or $self->info("error doing the query") and next;
+      foreach my $entry (@$entries) {
+	if ($todo){
+	  $entry =~ m{/$} and 
+	    push @todo, "$entry$todo";
+	}else {
+	  push @result, $entry;
+	}
+      }
+    } else{
+      my $db=$self->selectDatabase($parent) or 
+	$self->info("Error selecting the database of $parent") and next;
+      my $parentdir=$self->getAllInfoFromLFN({retrieve=>'entryId', method=>'queryValue'}, $parent, "$parent/") or next;
+      push @result, "$self->{INDEX_TABLENAME}->{lfn}$parent";
     }
-    my $query="SELECT concat('$ref->{lfn}',lfn) from L$ref->{tableName}L where $orig rlike '^$ppattern'";
-    $self->debug(1, "Doing $query");
-    my $temp=$db->queryColumn($query);
-    push @result, @$temp;
-
   }
 
   return \@result;
 }
+
 ##############################################################################
 ##############################################################################
 #

@@ -187,7 +187,7 @@ sub findPackageLFN{
     or $self->info("Error talking to the PackManMaster") and return;
 
   my @info=$self->{SOAP}->GetOutput($result);
-  if (  $info[0] == -2){
+  if (  $info[0] eq /^-2$/ ){
     my $message="The package $package (v $version) does not exist for $platform \n";
     $self->info($message);
     die $message;
