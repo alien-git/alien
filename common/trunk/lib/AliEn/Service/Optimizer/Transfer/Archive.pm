@@ -25,7 +25,7 @@ sub checkWakesUp {
   my $limit=1000;
   my $counter=$limit;
   while ($counter eq $limit){
-    my $transfers=$self->{DB}->query("SELECT transferid FROM TRANSFERS where (status='DONE' or status='FAILED' or status='EXPIRED') and finished<? limit 1000",undef, {bind_values=>[$expired]});
+    my $transfers=$self->{DB}->query("SELECT transferid FROM TRANSFERS where (status='DONE' or status='FAILED' or status='EXPIRED') and finished<? order by 1 limit 1000",undef, {bind_values=>[$expired]});
 
     defined $transfers
       or $self->{LOGGER}->warning( "TransferOptimizer", "In checkTransferRequirements error during execution of database query" )
