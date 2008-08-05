@@ -40,5 +40,5 @@ test-performance:
 
 test-gapi:
 	@echo "Testing gapi"
-	[ -d test ] && cd test ; ./Install.sh -gapi_tests -no_break -expected 632,633,631
+	[ -d test ] && cd test ; ./Install.sh -gapi_tests -no_break -expected 632,633,631,501,502,600,600,601,602,603,610,620,621,622,23,624,630
 
