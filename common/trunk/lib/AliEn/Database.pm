@@ -1147,7 +1147,7 @@ sub _queryDB{
 
     if ($sqlError) {
       my $found=0;
-      $sqlError =~ /(Unexpected EOF)|(Lost connection)|(Constructor didn't return a handle)|(No such object)|(Connection reset by peer)|(MySQL server has gone away at)|(_set_fbav\(1\): not an array ref at)/ and $found=1;
+      $sqlError =~ /(Unexpected EOF)|(Lost connection)|(Constructor didn't return a handle)|(No such object)|(Connection reset by peer)|(MySQL server has gone away at)|(_set_fbav\(.*\): not an array ref at)|(Constructor didn't return a handle)/ and $found=1;
 
       if ($sqlError =~ /Died at .*AliEn\/UI\/Catalogue\.pm line \d+/) {
 	die("We got a ctrl+c... :( ");
