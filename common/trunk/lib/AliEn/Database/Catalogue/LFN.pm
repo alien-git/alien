@@ -88,7 +88,7 @@ sub createCatalogueTables {
 				entryId=>"int auto_increment primary key"}],
 	      LFN_UPDATES=>["guid", {guid=>"binary(16)", 
 				     action=>"char(10)",
-				     entryId=>"int auto_increment primary key"},'entryId',['guid']
+				     entryId=>"int auto_increment primary key"},'entryId',['INDEX (guid)']
 			   ],
 	      ACL=>["entryId", 
 		    {entryId=>"int(11) NOT NULL auto_increment primary key", 
@@ -159,6 +159,8 @@ sub createCatalogueTables {
   $self->info("Let's create the functions");
   $self->do("create function string2binary (my_uuid varchar(36)) returns binary(16) deterministic sql security invoker return unhex(replace(my_uuid, '-', ''))");
   $self->do("create function binary2string (my_uuid binary(16)) returns varchar(36) deterministic sql security invoker return insert(insert(insert(insert(hex(my_uuid),9,0,'-'),14,0,'-'),19,0,'-'),24,0,'-')");
+  $self->do("create function binary2date (my_uuid binary(16))  returns char(16) deterministic sql security invoker
+return upper(concat(right(left(hex(my_uuid),16),4), right(left(hex(my_uuid),12),4),left(hex(my_uuid),8)))");
   $DEBUG and $self->debug(2,"In createCatalogueTables creation of tables finished.");
   $self->do("alter table TAG0 drop key path");
   $self->do("alter table TAG0 add index path (path)");
@@ -1965,9 +1967,11 @@ sub updateStats {
     $values.=" (?, 'TODELETE'), ";
     push @bind, $elem->{tableName};
     $self->info("Doing $elem->{indexId}");
-    my $gtable="G$elem->{tableName}L";
+    my $gtable="$elem->{db}.G$elem->{tableName}L";
+
     if ($elem->{address} eq $self->{HOST}){
       $self->info("This is the same host. It is easy");
+
       $self->do("update $gtable set lfnRef=replace(lfnRef, concat(',',?,',')  ,',')", {bind_values=>[$number]});
       $self->do("update  $gtable g, $table l set lfnRef=concat(lfnRef,  ?, ',') where g.guid=l.guid", {bind_values=>[$number]});
     }else {

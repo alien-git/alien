@@ -160,7 +160,7 @@ sub checkGUIDTable {
 		 lfnRef=>"varchar(255) not null default ','",
 		);
 
-   $db->checkTable(${table}, "guidId", \%columns, 'guidId', ['UNIQUE INDEX (guid)', 'INDEX (lfnRef)', 'INDEX(seStringlist)'],) or return;
+   $db->checkTable(${table}, "guidId", \%columns, 'guidId', ['UNIQUE INDEX (guid)', 'INDEX(seStringlist)'],) or return;
   
   %columns= (pfn=>'varchar(255)',
 	     pfnId=>"int(11) NOT NULL auto_increment primary key",
