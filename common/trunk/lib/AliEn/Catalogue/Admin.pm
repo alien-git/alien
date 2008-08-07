@@ -335,7 +335,7 @@ sub moveGUIDToIndex {
 
   $self->info( "All the guids newer than '$guid' will be in a different table");
 
-  return $self->{DATABASE}->moveGUIDs($guid);
+  return $self->{DATABASE}->moveGUIDs($guid, @_);
 
 }
 sub expungeTables {

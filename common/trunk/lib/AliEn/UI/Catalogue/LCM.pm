@@ -741,7 +741,11 @@ sub selectClosestSE {
 
 sub cat {
   my $self=shift;
-  return $self->f_system_call("cat", @_);
+  my @done=$self->f_system_call("cat", @_);
+  if ($done[0] =~ /1/){
+    $self->info("", undef,0);
+  }
+  return @done;
 }
 sub less {
   my $self=shift;
@@ -910,7 +914,7 @@ sub sendMonitor {
   $self->{MONITOR} or return 1;
 
   my @params=('time', $time); 
- print "HELLO $size or $time or $se\n";
+
   if ($ok){
     $time or $time=1;
     push @params, 'size', $size, status=>1, speed=>$size/$time;

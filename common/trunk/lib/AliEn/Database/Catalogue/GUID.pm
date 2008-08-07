@@ -167,9 +167,14 @@ sub checkGUIDTable {
 	     guidId=>"int(11) NOT NULL",
 	     seNumber=>"int(11) NOT NULL",);
   $db->checkTable("${table}_PFN", "pfnId", \%columns, 'pfnId', ['INDEX guid_ind (guidId)', "FOREIGN KEY (guidId) REFERENCES $table(guidId) ON DELETE CASCADE","FOREIGN KEY (seNumber) REFERENCES SE(seNumber) on DELETE CASCADE"],) or return;
+
+  $db->do("optimize table $table");
+  $db->do("optimize table ${table}_PFN");
+
   my $index=$table;
   $index=~ s/^G(.*)L$/$1/;
   $db->do("INSERT IGNORE INTO GL_ACTIONS(tableNumber,action)  values (?,'MODIFIED'), (?,'SE')", {bind_values=>[$index, $index]}); 
+
   #finally, let's check the triggers"
   my $triggers=$db->query("show triggers like '$table'");
   if (not ${$triggers}[0]){
@@ -638,7 +643,7 @@ A new table is always created.
 sub moveGUIDs {
   my $self=shift;
   my $guid=shift;
-
+  my $options=shift ||"";
   $DEBUG and $self->debug(1,"Starting  moveGUIDs, with $guid ");
 
   my ($db, $table)=$self->selectDatabaseFromGUID($guid) or return;
@@ -648,6 +653,14 @@ sub moveGUIDs {
   $tableName or $tableName=1;
   $self->checkGUIDTable($tableName, $db) or return;
 
+
+  my $info=$db->query("describe G${tableName}L");
+  my $columns="";
+  foreach my $c (@$info){
+    $columns.="$c->{Field},";
+  }
+  $columns =~ s/,$//;
+
   my $hostId=$self->{CURHOSTID};
 
   #insert it into the index
@@ -656,18 +669,41 @@ sub moveGUIDs {
     return;
   }
   $self->debug(4, "INDEX READY!!!");
+  #to make things faster, let's remove triggers and indexes
+  $self->removeTriggers("G${tableName}L");
 
   #move the entries from the old table to the new one
-  my $error=0;
-  if ($self->{CURHOSTID} eq $db->{CURHOSTID}){
-    $db->do("INSERT INTO G${tableName}L select * from $table where  binary2date(guid)>binary2date('$guid')") or $error=1;
-  }elsif ($self->{HOST} eq $db->{HOST} and $self->{DRIVER} eq $db->{DRIVER}){
+  my $error=1;
+  if ($self->{HOST} eq $db->{HOST} and $self->{DRIVER} eq $db->{DRIVER}){
     #at least is in the same host, and driver
-    $db->do("INSERT INTO $self->{DB}.G${tableName}L select * from $table where  binary2date(guid)>string2date('$guid')") or $error=1;
+    my @queries=("INSERT INTO $self->{DB}.G${tableName}L ($columns) select $columns from $table where  binary2date(guid)>string2date('$guid')",
+		 "INSERT INTO $self->{DB}.G${tableName}L_PFN select p.* from ${table}_PFN p, $self->{DB}.G${tableName}L g where p.guidId=g.guidId",
+		"DELETE FROM $table where binary2date(guid)>string2date('$guid')",
+		"delete from p using ${table}_PFN p left join $table g on p.guidId=g.guidId where g.guidId is null");
+    $db->removeTriggers($table);
+    my $counter=$#queries;
+    foreach my $q (@queries){
+      $db->do($q) or last;
+      $counter--;
+    }
+    $db->checkGUIDTable($table);
+
+    $self->info("From $#queries, $counter left");
+    if ($counter<0) {
+      $self->info("We have done all the queries");
+      $error=0;
+    }
+    
   }else{
     #from a different database
   }
 
+  #let's check the table again
+  if ($options !~ /f/){
+    $self->checkGUIDTable($tableName, $db) or return;
+  } else {
+    $self->info("Skipping the index creation");
+  }
   if ($error){
     $self->info("WE SHOULD REMOVE THE INDEX\n");
     return;
@@ -677,12 +713,9 @@ sub moveGUIDs {
   $self->info("Now we have to grant privileges to the different users");
   my $users=$self->queryColumn("select Username from ADMIN.TOKENS")
     or $self->info("Error getting the users") and return;
-  use Data::Dumper;
-  print "Got the users\n";
-  print Dumper($users);
   foreach my $info (@$users){
     my $user=$info;
-    $self->info("User $user");
+    $self->debug(1,"User $user");
     $db->do("GRANT insert,update,delete on $self->{DB}.G${tableName}L to $user");
     $db->do("GRANT insert,update,delete on $self->{DB}.G${tableName}L_PFN to $user");
   } 
@@ -761,6 +794,26 @@ sub checkOrphanGUID {
   $self->do("delete from p using ${table}_PFN p, $table g  $where and p.guidid=g.guidid");
   my $info=$self->do("delete from $table $where");
   $self->info("Done (removed $info entries)");
+  return 1;
+}
+
+
+sub removeTriggers{
+  my $self=shift;
+  my $table=shift;
+  $self->info("Let's remove all the triggers and indexes from the table $table");
+
+  my $triggers=$self->query("SHOW TRIGGERS like '$table'");
+
+  foreach my $t (@$triggers){
+    $self->do("drop trigger $t->{Trigger}");
+  }
+  my $indexes=$self->query("SHOW KEYS FROM $table");
+  foreach my $i (@$indexes){
+    if ($i->{Key_name} !~ /PRIMARY/){
+      $self->do("alter table $table drop index  $i->{Key_name}");
+    }
+  }
   return 1;
 }
 
