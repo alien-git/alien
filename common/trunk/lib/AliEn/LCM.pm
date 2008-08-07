@@ -314,56 +314,12 @@ sub getFile {
   };
 
   $DEBUG and $@ and $self->debug(1,"There was an error: $@");
-  if ( !$result ) {
-    $self->info( "Asking the SE to get $pfn");
-    my $subject=($self->{X509}->checkProxySubject() or "");
-
-    $subject=~ s/\/CN=proxy//g;
-    my $transfer={"source", $pfn,              "oldSE", $SE,
-		  "target", "",                  "TYPE", "cache",
-		  "USER" => $self->{CONFIG}->{ROLE}, "LFN" =>$lfn,
-		  "DESTINATION" =>$self->{CONFIG}->{SE_FULLNAME},
-		  "retrieve_subject"=>$subject,
-		  "OPTIONS" => "c$opt"};
-    #let's put option c(ache). We don't need the SE to save the file forever
-    #First, let's try to talk to the remote SE directly
-    ($result, my $id) = $self->bringFileToSE($SE,$transfer, $opt);
-
-    if (!$result) {
-      my $closeSE=($self->{CONFIG}->{SE_FULLNAME} or "");
-      ($closeSE and $SE and ($closeSE ne $SE) )
-	or return;
-      
-      #ok, let's ask the closest SE to get the file (and start a transfer if
-      #it can't get it
-      ($result, $id)=$self->bringFileToSE($SE,$transfer, $opt);
-      $result or return;
-    }
-    $result eq "-1" and return;
-
-    if ($result eq "-2"){
-      $self->info( "The transfer has been scheduled (transfer $id)"); 
-      my $URL=AliEn::SE::Methods->new({"PFN", $pfn,
-				       "LOCALFILE", $localFile,
-				       "DEBUG", 0}) or return;
-      $self->info("Let's guess that we have  $URL->{LOCALFILE}");
-      $result=$URL->{LOCALFILE};
-    }else {
-#      $result=$self->getFileFromSE($result->{pfn}, $localFile, $SE);
-    }
-  }
-
-  if ($md5 and $result){
-    $self->debug(1,"The copy worked! Let's check if the md5 is right");
-    my $newMd5=AliEn::MD5->new($result);
-    $newMd5 eq $md5
-      or $self->info("Error: The md5sum of the file doesn't match what it is supposed to be (it is $newMd5 instead of $md5)") and return;
-
-  }
-
+  
   if ($result){
     $self->info( "Everything worked and got $result");
     $self->{TXTDB}->insertEntry($result, $guid);
+  } else {
+    $self->info("Error getting the file");
   }
   return $result;
 }
