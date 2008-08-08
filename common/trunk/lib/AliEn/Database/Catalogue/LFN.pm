@@ -1957,23 +1957,26 @@ sub updateStats {
   $self->do("delete from LL_STATS where tableNumber=?", {bind_values=>[$number]});
   $self->do("insert into LL_STATS (tableNumber, max_time, min_time) select  ?, max(binary2date(guid)) max, min(binary2date(guid))  min from $table", {bind_values=>[$number]});
   my $newGUIDList=$self->getPossibleGuidTables($number);
-
+  
   my $done={};
   my @bind=();
   my $values="";
+  my $total= $#$oldGUIDList +  $#$newGUIDList +2 ;
+  $self->info("In total, there are $total guid tables affected");
+  my $lfnRef="$self->{CURHOSTID}_$number";
   foreach my $elem (@$oldGUIDList, @$newGUIDList){
     $done->{$elem->{indexId}} and next;
     $done->{$elem->{indexId}}=1;
     $values.=" (?, 'TODELETE'), ";
     push @bind, $elem->{tableName};
-    $self->info("Doing $elem->{indexId}");
+    $self->info("Doing $elem->{tableName}");
     my $gtable="$elem->{db}.G$elem->{tableName}L";
 
     if ($elem->{address} eq $self->{HOST}){
-      $self->info("This is the same host. It is easy");
+      $self->debug(1, "This is the same host. It is easy");
 
-      $self->do("update $gtable set lfnRef=replace(lfnRef, concat(',',?,',')  ,',')", {bind_values=>[$number]});
-      $self->do("update  $gtable g, $table l set lfnRef=concat(lfnRef,  ?, ',') where g.guid=l.guid", {bind_values=>[$number]});
+      $self->do("delete from ${gtable}_REF where lfnRef=?", {bind_values=>[$lfnRef]});
+      $self->do("insert into ${gtable}_REF(guidid,lfnRef) select guidid, ? from $gtable g join $table l on g.guid=l.guid", {bind_values=>[$lfnRef]});
     }else {
       $self->info("This is in another host. We can't do it easily :( 'orphan guids won't be detected'");
       my ($db, $path2)=$self->reconnectToIndex( $elem->{hostIndex}) or next;

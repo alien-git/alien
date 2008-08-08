@@ -157,7 +157,6 @@ sub checkGUIDTable {
 		 owner=>"varchar(20)",
 		 gowner=>"varchar(20)",
 		 type=>"char(1)",
-		 lfnRef=>"varchar(255) not null default ','",
 		);
 
    $db->checkTable(${table}, "guidId", \%columns, 'guidId', ['UNIQUE INDEX (guid)', 'INDEX(seStringlist)'],) or return;
@@ -167,6 +166,11 @@ sub checkGUIDTable {
 	     guidId=>"int(11) NOT NULL",
 	     seNumber=>"int(11) NOT NULL",);
   $db->checkTable("${table}_PFN", "pfnId", \%columns, 'pfnId', ['INDEX guid_ind (guidId)', "FOREIGN KEY (guidId) REFERENCES $table(guidId) ON DELETE CASCADE","FOREIGN KEY (seNumber) REFERENCES SE(seNumber) on DELETE CASCADE"],) or return;
+
+
+  $db->checkTable("${table}_REF", "guidId", {guidId=>"int(11) NOT NULL",
+					     lfnRef=>"varchar(20) NOT NULL"},
+		  '', ['INDEX guidId(guidId)', 'INDEX lfnRef(lfnRef)', "FOREIGN KEY (guidId) REFERENCES $table(guidId) ON DELETE CASCADE"]) or return;
 
   $db->do("optimize table $table");
   $db->do("optimize table ${table}_PFN");
@@ -651,10 +655,10 @@ sub moveGUIDs {
   #Create the new guid table
   my $tableName=$self->queryValue("SELECT max(tableName)+1 from GUIDINDEX");
   $tableName or $tableName=1;
-  $self->checkGUIDTable($tableName, $db) or return;
+  $self->checkGUIDTable($tableName) or return;
 
 
-  my $info=$db->query("describe G${tableName}L");
+  my $info=$self->query("describe G${tableName}L");
   my $columns="";
   foreach my $c (@$info){
     $columns.="$c->{Field},";
@@ -786,12 +790,12 @@ sub checkOrphanGUID {
   $self->info("Checking the unused guids of $table");
 
   $self->do("delete from GL_ACTIONS where action='TODELETE' and tableNUmber=?", {bind_values=>[$number]});
-  my $where="where lfnRef=',' and ctime<now() -3600";
+  my $where="where lfnRef=',' and ctime<now() -3600 and r.guidid=g.guidid";
   (-f "$self->{CONFIG}->{TMP_DIR}/AliEn_TEST_SYSTEM") and
     $self->info("We are testing the system. Let's remove the files immediately")      and $where =~ s/-3600/-240/;
-  $self->do("insert into TODELETE (pfn,seNumber, guid) select pfn,seNumber, guid from $table g, ${table}_PFN p  $where and g.guidId=p.guidId");
+  $self->do("insert into TODELETE (pfn,seNumber, guid) select pfn,seNumber, guid from $table g, ${table}_PFN p, ${table}_REF r $where and g.guidId=p.guidId");
   $self->do("insert into TODELETE (pfn, seNumber, guid) select '',senumber,guid from $table g, SE $where and locate(concat(',',senumber,','), seautostringlist) ");
-  $self->do("delete from p using ${table}_PFN p, $table g  $where and p.guidid=g.guidid");
+  $self->do("delete from p using ${table}_PFN p, $table g, ${table}_REF $where and p.guidid=g.guidid");
   my $info=$self->do("delete from $table $where");
   $self->info("Done (removed $info entries)");
   return 1;
