@@ -314,8 +314,16 @@ sub getFile {
   };
 
   $DEBUG and $@ and $self->debug(1,"There was an error: $@");
-  
+
   if ($result){
+    if ($md5 ){
+      $self->debug(1,"The copy worked! Let's check if the md5 is right");
+      my $newMd5=AliEn::MD5->new($result);
+      $newMd5 eq $md5
+	or $self->info("Error: The md5sum of the file doesn't match what it is supposed to be (it is $newMd5 instead of $md5)") and return;
+
+    }
+
     $self->info( "Everything worked and got $result");
     $self->{TXTDB}->insertEntry($result, $guid);
   } else {
