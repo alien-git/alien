@@ -379,4 +379,43 @@ sub printConnections{
 }
 
 
+sub renumberTable {
+  my $self=shift;
+  my $table=shift;
+  my $index=shift;
+  my $options=shift || {};
+
+  $self->info("Let's renumber the table $table");
+
+    my $info=$self->query("select t, t-max($index)-1 as reduce from $table, (select d.$index as t from $table d left join $table r on d.$index=r.$index+1 where r.$index is null) f where $index<t group by t order by t desc");
+  use Data::Dumper;
+#  print Dumper($info);
+  my $lock=$table;
+  $options->{lock} and $lock="$options->{lock} $table";
+  $self->lock($lock);
+  $self->do("alter table $table modify $index bigint(11)");
+  $self->do("alter table $table drop primary key");
+
+  foreach my $entry( @$info){
+    my $new=$entry->{t};
+    my $reduce=$entry->{reduce};
+    $self->info("For entries bigger than $new, we should reduce by $reduce");
+    foreach my $up (@{$options->{update}}){
+      $self->info("Ready to do $up");
+      $self->do($up, {bind_values=>[$reduce, $new]});
+    }
+#    my $done=$self->do("update $table set dir=dir-$reduce where dir=$new");
+#    my $done2=$self->do("update $table set entryId=entryId-$reduce where entryId>=$new");
+#    ($done and $done2) or 
+#      $self->info("ERROR !!") and last;
+  }
+  $self->do("alter table $table modify $index bigint(11) auto_increment primary key");
+  $self->do("alter table $table auto_increment=1");
+  $self->unlock($table);
+
+  return 1;
+
+}
+
+
 1;
