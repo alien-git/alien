@@ -525,15 +525,19 @@ sub f_showStructure {
 sub f_renumber {
   my $self=shift;
   my $dir=shift;
-
+  my $options=shift || "";
  ( $self->{ROLE}  =~ /^admin(ssl)?$/ ) or
     $self->info("Error: only the administrator can check the databse") and return;
+  if ($options =~ /g/){
+    $self->info("Renumbering a guid table");
+    return $self->{DATABASE}->renumberGUIDtable($dir, $options);
+  }
   my $lfn = $self->GetAbsolutePath($dir);
   $self->checkPermissions("w", $lfn) or return;
   $self->info("Ready to renumber the entries in $lfn");
 
 
-  return $self->{DATABASE}->renumberLFNtable($lfn);
+  return $self->{DATABASE}->renumberLFNtable($lfn, $options);
 }
 
 sub resyncLDAP {
@@ -741,7 +745,7 @@ sub checkOrphanGUID{
     $self->info("Error: only the administrator can check the databse") and return;
 
   $self->info("And now, let's see if there are any orphan guids");
-  return $self->{DATABASE}->checkOrphanGUID();
+  return $self->{DATABASE}->checkOrphanGUID(@_);
 }
 
 return 1;

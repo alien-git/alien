@@ -168,10 +168,19 @@ sub getHostsForLFN{
 Retrieves the list of SE that have a copy of the lfn 
 
 =cut
+
 sub renumberLFNtable{
   my $self=shift;
   return $self->{LFN_DB}->renumberLFNtable(@_)
 }
+
+sub renumberGUIDtable{
+  my $self=shift;
+
+  return $self->{GUID_DB}->renumberGUIDtable(@_);
+}
+
+
 sub getSEListFromFile{
   return getSEListFromLFN(@_);
 }
@@ -1076,7 +1085,7 @@ sub checkOrphanGUID{
     my $tables=$db->query("select * from GL_ACTIONS where action='TODELETE'");
     foreach my $table (@$tables){
       $self->info("Doing the table $table->{tableNumber}");
-      $db->checkOrphanGUID($table->{tableNumber});
+      $db->checkOrphanGUID($table->{tableNumber}, @_);
     }
   }
 

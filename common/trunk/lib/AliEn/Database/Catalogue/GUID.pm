@@ -785,18 +785,33 @@ sub updateStatistics {
 sub checkOrphanGUID {
   my $self=shift;
   my $number=shift;
+  my $options=shift || "";
 
   my $table="G${number}L";
   $self->info("Checking the unused guids of $table");
 
+  
   $self->do("delete from GL_ACTIONS where action='TODELETE' and tableNUmber=?", {bind_values=>[$number]});
-  my $where="where ctime<now() -3600 and r.guidid=g.guidid";
+  my $where="$table, ${table}_REF where ctime<now() -3600 and ${table}_REF.guidid=$table.guidid";
   (-f "$self->{CONFIG}->{TMP_DIR}/AliEn_TEST_SYSTEM") and
     $self->info("We are testing the system. Let's remove the files immediately")      and $where =~ s/-3600/-240/;
-  $self->do("insert into TODELETE (pfn,seNumber, guid) select pfn,seNumber, guid from $table g, ${table}_PFN p, ${table}_REF r $where and g.guidId=p.guidId");
-  $self->do("insert into TODELETE (pfn, seNumber, guid) select '',senumber,guid from $table g, SE $where and locate(concat(',',senumber,','), seautostringlist) ");
-  $self->do("delete from p using ${table}_PFN p, $table g, ${table}_REF $where and p.guidid=g.guidid");
-  my $info=$self->do("delete from $table $where");
+
+  if (  $options =~ "f"){
+    $self->info("Locking the tables");
+    $self->lock("$table write, ${table}_PFN write, ${table}_REF write, TODELETE");
+    $self->removeTriggers($table,"t");
+  }
+
+  $self->do("insert into TODELETE (pfn,seNumber, guid) select pfn,seNumber, guid from  ${table}_PFN, $where and $table.guidId=${table}_PFN.guidId");
+  #$self->do("insert into TODELETE (pfn, seNumber, guid) select '',senumber,guid from $table g, SE $where and locate(concat(',',senumber,','), seautostringlist) ");
+  $self->do("delete from ${table}_PFN using ${table}_PFN , $where and ${table}_PFN.guidid=$table.guidid");
+  my $info=$self->do("delete from $table using $where");
+
+  if (  $options =~ "f"){
+    $self->info("Unlocking the table");
+    $self->checkGUIDTable($table);
+    $self->unlock();
+  }
   $self->info("Done (removed $info entries)");
   return 1;
 }
@@ -805,6 +820,7 @@ sub checkOrphanGUID {
 sub removeTriggers{
   my $self=shift;
   my $table=shift;
+  my $options=shift || "";
   $self->info("Let's remove all the triggers and indexes from the table $table");
 
   my $triggers=$self->query("SHOW TRIGGERS like '$table'");
@@ -812,15 +828,30 @@ sub removeTriggers{
   foreach my $t (@$triggers){
     $self->do("drop trigger $t->{Trigger}");
   }
-  my $indexes=$self->query("SHOW KEYS FROM $table");
-  foreach my $i (@$indexes){
-    if ($i->{Key_name} !~ /PRIMARY/){
-      $self->do("alter table $table drop index  $i->{Key_name}");
+  if ($options !~ /t/){
+    my $indexes=$self->query("SHOW KEYS FROM $table");
+    foreach my $i (@$indexes){
+      if ($i->{Key_name} !~ /PRIMARY/){
+	$self->do("alter table $table drop index  $i->{Key_name}");
+      }
     }
   }
   return 1;
 }
 
+
+sub renumberGUIDtable {
+  my $self=shift;
+  my $guid=shift;
+
+  my ($db, $table)=$self->selectDatabaseFromGUID($guid) or return;
+  $self->info("We have to renumber the table $table");
+  
+  $db->renumberTable($table, "guidId", {lock=>"${table}_PFN write, ",
+				       update=>["update $table set guidId=guidId- ? where guidId >= ?",
+						"update ${table}_PFN set guidId=guidId - ? where guidId >= ?",]});
+  return 1;
+}
 
 =head1 SEE ALSO
 
