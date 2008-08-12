@@ -748,4 +748,11 @@ sub checkOrphanGUID{
   return $self->{DATABASE}->checkOrphanGUID(@_);
 }
 
+sub optimizeGUIDtables{
+  my $self=shift;
+  
+  $self->info("Let's optimize the guid tables");
+  return $self->{DATABASE}->optimizeGUIDtables(@_);
+}
+
 return 1;

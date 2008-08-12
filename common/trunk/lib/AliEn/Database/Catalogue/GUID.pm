@@ -690,7 +690,9 @@ sub moveGUIDs {
       $db->do($q) or last;
       $counter--;
     }
-    $db->checkGUIDTable($table);
+    if ($options !~ /f/){
+      $db->checkGUIDTable($table);
+    }
 
     $self->info("From $#queries, $counter left");
     if ($counter<0) {
@@ -703,11 +705,11 @@ sub moveGUIDs {
   }
 
   #let's check the table again
-  if ($options !~ /f/){
+#  if ($options !~ /f/){
     $self->checkGUIDTable($tableName, $db) or return;
-  } else {
-    $self->info("Skipping the index creation");
-  }
+#  } else {
+#    $self->info("Skipping the index creation");
+#  }
   if ($error){
     $self->info("WE SHOULD REMOVE THE INDEX\n");
     return;
@@ -792,20 +794,20 @@ sub checkOrphanGUID {
 
   
   $self->do("delete from GL_ACTIONS where action='TODELETE' and tableNUmber=?", {bind_values=>[$number]});
-  my $where="$table, ${table}_REF where ctime<now() -3600 and ${table}_REF.guidid=$table.guidid";
+  my $where="left join ${table}_REF r on g.guidid=r.guidid where ctime<now() -3600 and r.guidid is null";
   (-f "$self->{CONFIG}->{TMP_DIR}/AliEn_TEST_SYSTEM") and
     $self->info("We are testing the system. Let's remove the files immediately")      and $where =~ s/-3600/-240/;
 
   if (  $options =~ "f"){
     $self->info("Locking the tables");
-    $self->lock("$table write, ${table}_PFN write, ${table}_REF write, TODELETE");
+    $self->lock("$table as g write , ${table}_PFN as p write, ${table}_REF as r write, TODELETE");
     $self->removeTriggers($table,"t");
   }
 
-  $self->do("insert into TODELETE (pfn,seNumber, guid) select pfn,seNumber, guid from  ${table}_PFN, $where and $table.guidId=${table}_PFN.guidId");
+  $self->do("insert into TODELETE (pfn,seNumber, guid) select pfn,seNumber, guid from  ${table}_PFN p join  $table g on p.guidid=g.guidid $where");
   #$self->do("insert into TODELETE (pfn, seNumber, guid) select '',senumber,guid from $table g, SE $where and locate(concat(',',senumber,','), seautostringlist) ");
-  $self->do("delete from ${table}_PFN using ${table}_PFN , $where and ${table}_PFN.guidid=$table.guidid");
-  my $info=$self->do("delete from $table using $where");
+  $self->do("delete from p using ${table}_PFN p join $table g  on p.guidid=g.guidid $where");
+  my $info=$self->do("delete from g using  $table g $where");
 
   if (  $options =~ "f"){
     $self->info("Unlocking the table");
@@ -843,10 +845,14 @@ sub removeTriggers{
 sub renumberGUIDtable {
   my $self=shift;
   my $guid=shift;
+  my $table=shift;
 
-  my ($db, $table)=$self->selectDatabaseFromGUID($guid) or return;
+  my $db=$self;
+  if (! $table){
+    ($db, $table)=$self->selectDatabaseFromGUID($guid) or return;
+  }
   $self->info("We have to renumber the table $table");
-  
+
   $db->renumberTable($table, "guidId", {lock=>"${table}_PFN write, ",
 				       update=>["update $table set guidId=guidId- ? where guidId >= ?",
 						"update ${table}_PFN set guidId=guidId - ? where guidId >= ?",]});

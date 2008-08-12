@@ -1093,6 +1093,80 @@ sub checkOrphanGUID{
 }
 
 
+sub optimizeGUIDtables{
+  my $self=shift;
+  
+  $self->info("Let's optimize the guid tables");
+
+  my $hosts=$self->getAllHosts();
+
+  foreach my $host (@$hosts){
+    $self->info("Doing the database $host->{db}");
+    my ($db, $extra)=$self->{GUID_DB}->reconnectToIndex($host->{hostIndex}) 
+      or next;
+    
+    my $tables=$db->query("SELECT tableName, guidTime from GUIDINDEX where hostIndex=?", undef,{bind_values=>[$host->{hostIndex}]});
+    foreach my $info (@$tables){
+      my $table="G$info->{tableName}L";
+      $self->info("  Checking the table $table");
+      my $number=$db->queryValue("select count(*) from $table");
+      $self->info("There are $number entries");
+      my $done=0;
+      while ($number > 3000000){
+	$self->info("There are more than 3M ($number) ! Splitting the table");
+	my $guid=$db->queryRow("select guidid, binary2string(guid) guid from $table order by 1 desc limit 1 offset 2000000");
+	$guid->{guid} or next;
+	$self->info("We have to split according to $guid->{guid}");
+	$db->moveGUIDs($guid->{guid}, "f") or last;
+	$self->info("Let's count again");
+	$number=$db->queryValue("select count(*) from $table");
+	$done=1;
+      }
+      $done and $db->checkGUIDTable($table);
+      if (0){
+	#	if ($number <1000000) {
+	
+	if ($info->{guidTime}){
+	  my $info2=$db->query("describe $table");
+	    my $columns="";
+	  foreach my $c (@$info2){
+	    $columns.="$c->{Field},";
+	  }
+	  $columns =~ s/,$//;
+	  $columns =~ s/guidid//i;
+	  
+	  $self->info("There are less than 1M. Let's merge with the previous (before $info->{guidTime})");
+	  my $previousGUID=$info->{guidTime};
+	  $previousGUID=~ s/....$//;
+	  $previousGUID= sprintf("%s%X", $previousGUID, hex(substr($info->{guidTime},-4)) -1);
+	  $self->info("IT IS $previousGUID");
+	  my $t=$db->queryRow("select * from GUIDINDEX where guidTime<? order by guidTime desc limit 1", undef, {bind_values=>[$previousGUID]});
+	  use Data::Dumper;
+	  print Dumper($t);
+	  
+	  if ($t->{hostIndex} eq $host->{hostIndex}) {
+	    $self->info("This is in the same database. Tables $table and G$t->{tableName}L");
+	    $db->renumberGUIDtable("",$table);
+	    $db->renumberGUIDtable("", "G$t->{tableName}L");
+	    $db->lock("$table write, G$t->{tableName}L");
+	    my $add=$db->queryValue("select max(guidid) from G$t->{tableName}L") || 0;
+	      $db->do("insert into G$t->{tableName}L_PFN  (pfnId, pfn,seNumber,guidId ) select  pfnid,pfn,seNumber, guidId+$add from ${table}_PFN");  
+	    
+	    $db->do("insert into G$t->{tableName}L  ($columns, guidId ) select  $columns, guidId+$add from ${table}_PFN");
+	    $self->info("And now, the index");
+	    $db->deleteFromIndex("guid", $info->{guidTime});
+	    $db->unlock();
+	    last;
+	    }
+	}
+      }
+    }
+
+  }
+  return 1;
+}
+
+
 =head1 SEE ALSO
 
 AliEn::Database
