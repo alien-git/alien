@@ -146,11 +146,12 @@ sub deleteFromIndex {
 
   map {$_="lfn like '$_'"} @entries;
   my $indexTable="INDEXTABLE";
-
-  if ($entries[0]=~ /^guid$/){
+  $self->info("Ready to delete the index for @_");
+  if ($_[0]=~ /^guid$/){
     $self->info("Deleting from the guidindex");
     $indexTable="GUIDINDEX";
     shift;
+    @entries=@_;
     @entries=map { $_="guidTime = '$_'"} @entries;
   }
 
@@ -396,34 +397,37 @@ sub renumberTable {
   my $index=shift;
   my $options=shift || {};
 
+  my $lock="$table";
+  $options->{lock} and $lock="$options->{lock} $lock";
+  my $info=$self->queryValue("select max($index)-count(1) from $table");
+  $info or $info=0;
+  if ($info < 100000){
+    $self->debug(1, "Only $info. We don't need to renumber");
+    return 1;
+  }
+
   $self->info("Let's renumber the table $table");
 
-
-  use Data::Dumper;
-#  print Dumper($info);
-  my $lock="$table write, $table as d write, $table as r ";
-  $options->{lock} and $lock="$options->{lock} $lock";
   $self->lock( $lock);
-  $self->do("alter table $table modify $index bigint(11)");
-  $self->do("alter table $table drop primary key");
-  my $todo=1;
-  while ($todo){
-    my $info=$self->query("select t, t-max($index)-1 as reduce from $table, (select d.$index as t from $table d left join $table r on d.$index=r.$index+1 where r.$index is null) f where $index<t group by t order by t desc limit 1000");
-    foreach my $entry( @$info){
-      my $new=$entry->{t};
-      my $reduce=$entry->{reduce};
-      $self->info("For entries bigger than $new, we should reduce by $reduce");
-      foreach my $up (@{$options->{update}}){
-	$self->info("Ready to do $up");
-	$self->do($up, {bind_values=>[$reduce, $new]});
-      }
+  my $ok=1;
+  $self->do("alter table $table modify $index int(11), drop primary key,  auto_increment=1, add new_index int(11) auto_increment primary key, add unique index (guidid)") or $ok=0;
+  if ($ok){
+    foreach my $t (@{$options->{update}}){
+      $self->debug(1, "Updating $t");
+      $self->do("update $t set $index= (select new_index from $table where $index=$t.$index)") and next;
+      $self->info("Error updating the table!!");
+      $ok=0;
+      last;
     }
-    $#$info>900 or $todo=0;
   }
-  $self->do("alter table $table modify $index bigint(11) auto_increment primary key");
-  $self->do("alter table $table auto_increment=1");
-  
-  
+  if ($ok){
+    $self->info("All the renumbering  worked! :)");
+    $self->do("alter table $table drop column $index, change new_index $index int(11) auto_increment");
+  } else {
+    $self->info("The update didn't work. Rolling back");
+    $self->do("alter table $table drop new_index, modify $index int(11) auto_increment primary key");
+  }
+
   $self->unlock($table);
 
   return 1;

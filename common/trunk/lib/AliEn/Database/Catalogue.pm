@@ -1123,48 +1123,66 @@ sub optimizeGUIDtables{
 	$done=1;
       }
       $done and $db->checkGUIDTable($table);
-      if (0){
-	#	if ($number <1000000) {
-	
-	if ($info->{guidTime}){
-	  my $info2=$db->query("describe $table");
-	    my $columns="";
-	  foreach my $c (@$info2){
-	    $columns.="$c->{Field},";
-	  }
-	  $columns =~ s/,$//;
-	  $columns =~ s/guidid//i;
-	  
-	  $self->info("There are less than 1M. Let's merge with the previous (before $info->{guidTime})");
-	  my $previousGUID=$info->{guidTime};
-	  $previousGUID=~ s/....$//;
-	  $previousGUID= sprintf("%s%X", $previousGUID, hex(substr($info->{guidTime},-4)) -1);
-	  $self->info("IT IS $previousGUID");
-	  my $t=$db->queryRow("select * from GUIDINDEX where guidTime<? order by guidTime desc limit 1", undef, {bind_values=>[$previousGUID]});
-	  use Data::Dumper;
-	  print Dumper($t);
-	  
-	  if ($t->{hostIndex} eq $host->{hostIndex}) {
-	    $self->info("This is in the same database. Tables $table and G$t->{tableName}L");
-	    $db->renumberGUIDtable("",$table);
-	    $db->renumberGUIDtable("", "G$t->{tableName}L");
-	    $db->lock("$table write, G$t->{tableName}L");
-	    my $add=$db->queryValue("select max(guidid) from G$t->{tableName}L") || 0;
-	      $db->do("insert into G$t->{tableName}L_PFN  (pfnId, pfn,seNumber,guidId ) select  pfnid,pfn,seNumber, guidId+$add from ${table}_PFN");  
-	    
-	    $db->do("insert into G$t->{tableName}L  ($columns, guidId ) select  $columns, guidId+$add from ${table}_PFN");
-	    $self->info("And now, the index");
-	    $db->deleteFromIndex("guid", $info->{guidTime});
-	    $db->unlock();
-	    last;
-	    }
-	}
+      if ($number <1000000) {
+	$self->info("There are less than 1M. Let's merge with the previous (before $info->{guidTime})");
+	$self->optimizeGUIDtables_removeTable($info, $db, $host, $table);
       }
     }
 
   }
   return 1;
 }
+
+sub optimizeGUIDtables_removeTable {
+  my $self=shift;
+  my $info=shift;
+  my $db=shift;
+  my $host=shift;
+  my $table=shift;
+
+  $info->{guidTime} or return 1;
+
+
+
+  my $previousGUID=$info->{guidTime};
+  $previousGUID=~ s/......$//;
+  $previousGUID= sprintf("%s%X", $previousGUID, hex(substr($info->{guidTime},-6)) -1);
+  
+  my $t=$db->queryRow("select * from GUIDINDEX where guidTime<? order by guidTime desc limit 1", undef, {bind_values=>[$previousGUID]});
+  
+
+  if (($t->{hostIndex} eq $host->{hostIndex}) and ($table ne "G$t->{tableName}L") ) {
+    my $info2=$db->query("describe $table");
+    my $columns="";
+    foreach my $c (@$info2){
+      $columns.="$c->{Field},";
+    }
+    $columns =~ s/guidid,//i;
+    $columns =~ s/,$//;
+    my $entries=$db->queryValue("select count(*) from  G$t->{tableName}L");
+    if ($entries>2000000){
+      $self->info("The previous table has too many entries");
+      return;
+    }
+
+    $self->info("This is in the same database. Tables $table and G$t->{tableName}L");
+    $db->renumberGUIDtable("",$table);
+    $db->renumberGUIDtable("", "G$t->{tableName}L");
+    $db->lock("$table write, G$t->{tableName}L write, ${table}_PFN write, ${table}_REF write, G$t->{tableName}L_PFN write, G$t->{tableName}L_REF");
+    my $add=$db->queryValue("select max(guidid) from G$t->{tableName}L") || 0;
+    $db->do("insert into G$t->{tableName}L_PFN  ( pfn,seNumber,guidId ) select  pfn,seNumber, guidId+$add from ${table}_PFN");  
+    $db->do("insert into G$t->{tableName}L_REF  (lfnRef,guidId ) select  lfnRef, guidId+$add from ${table}_REF");  
+    
+    $db->do("insert into G$t->{tableName}L  ($columns, guidId ) select  $columns, guidId+$add from ${table}");
+    $self->info("And now, the index  $info->{guidTime}");
+    $db->unlock();
+    $db->deleteFromIndex("guid", $info->{guidTime});
+  }
+  
+
+  return 1;
+}
+
 
 
 =head1 SEE ALSO
