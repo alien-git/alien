@@ -1148,9 +1148,11 @@ sub optimizeGUIDtables_removeTable {
   $previousGUID=~ s/......$//;
   $previousGUID= sprintf("%s%06X", $previousGUID, hex(substr($info->{guidTime},-6)) -1);
   
+  ($previousGUID eq "FFFFFFFF")
+    and $self->info("This is the first table") and return 1;
   my $t=$db->queryRow("select * from GUIDINDEX where guidTime<? order by guidTime desc limit 1", undef, {bind_values=>[$previousGUID]});
   
-  print "HELLO SO FAR SO GOOD $previousGUID\n";
+
   ($t->{hostIndex} ne $host->{hostIndex})
    and $self->info("Different hosts :( ") and return;
    
