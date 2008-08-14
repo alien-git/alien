@@ -162,10 +162,9 @@ sub checkGUIDTable {
    $db->checkTable(${table}, "guidId", \%columns, 'guidId', ['UNIQUE INDEX (guid)', 'INDEX(seStringlist)'],) or return;
   
   %columns= (pfn=>'varchar(255)',
-	     pfnId=>"int(11) NOT NULL auto_increment primary key",
 	     guidId=>"int(11) NOT NULL",
 	     seNumber=>"int(11) NOT NULL",);
-  $db->checkTable("${table}_PFN", "pfnId", \%columns, 'pfnId', ['INDEX guid_ind (guidId)', "FOREIGN KEY (guidId) REFERENCES $table(guidId) ON DELETE CASCADE","FOREIGN KEY (seNumber) REFERENCES SE(seNumber) on DELETE CASCADE"],) or return;
+  $db->checkTable("${table}_PFN", "guidId", \%columns, 'guidId', ['INDEX guid_ind (guidId)', "FOREIGN KEY (guidId) REFERENCES $table(guidId) ON DELETE CASCADE","FOREIGN KEY (seNumber) REFERENCES SE(seNumber) on DELETE CASCADE"],) or return;
 
 
   $db->checkTable("${table}_REF", "guidId", {guidId=>"int(11) NOT NULL",
@@ -832,10 +831,15 @@ sub removeTriggers{
   }
   if ($options !~ /t/){
     my $indexes=$self->query("SHOW KEYS FROM $table");
+    my $alter="";
     foreach my $i (@$indexes){
       if ($i->{Key_name} !~ /PRIMARY/){
-	$self->do("alter table $table drop index  $i->{Key_name}");
+	$alter.="drop index  $i->{Key_name},";
       }
+    }
+    if ($alter){
+      $alter=~ s/,$//;
+      $self->do("alter table $table $alter");
     }
   }
   return 1;
@@ -851,11 +855,10 @@ sub renumberGUIDtable {
   if (! $table){
     ($db, $table)=$self->selectDatabaseFromGUID($guid) or return;
   }
-  $self->info("We have to renumber the table $table");
+  $self->debug(1,"We have to renumber the table $table");
 
-  $db->renumberTable($table, "guidId", {lock=>"${table}_PFN write, ",
-				       update=>["update $table set guidId=guidId- ? where guidId >= ?",
-						"update ${table}_PFN set guidId=guidId - ? where guidId >= ?",]});
+  $db->renumberTable($table, "guidId", {lock=>"${table}_PFN write, ${table}_REF write, ",
+				       update=>["${table}_PFN","${table}_REF"]});
   return 1;
 }
 

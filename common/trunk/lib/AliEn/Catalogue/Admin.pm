@@ -528,7 +528,7 @@ sub f_renumber {
   my $options=shift || "";
  ( $self->{ROLE}  =~ /^admin(ssl)?$/ ) or
     $self->info("Error: only the administrator can check the databse") and return;
-  if ($options =~ /g/){
+  if ($options =~ /g/i){
     $self->info("Renumbering a guid table");
     return $self->{DATABASE}->renumberGUIDtable($dir, $options);
   }
