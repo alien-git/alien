@@ -513,7 +513,7 @@ sub f_showStructure {
       my $s=$self->{DATABASE}->getNumberOfEntries($dir, $options);
       my $entryName=$dir->{lfn} || $dir->{guidTime};
 
-      $options=~ /c/ and $self->info("Under $entryName: $s entries");
+      $options=~ /c/ and $self->info("Under $entryName ($dir->{tableName}): $s entries");
       $s>0 and $total+=$s;
     }
     my $field= $lfn || $dir || "the guid catalogue";
