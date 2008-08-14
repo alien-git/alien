@@ -164,7 +164,7 @@ sub checkGUIDTable {
   %columns= (pfn=>'varchar(255)',
 	     guidId=>"int(11) NOT NULL",
 	     seNumber=>"int(11) NOT NULL",);
-  $db->checkTable("${table}_PFN", "guidId", \%columns, 'guidId', ['INDEX guid_ind (guidId)', "FOREIGN KEY (guidId) REFERENCES $table(guidId) ON DELETE CASCADE","FOREIGN KEY (seNumber) REFERENCES SE(seNumber) on DELETE CASCADE"],) or return;
+  $db->checkTable("${table}_PFN", "guidId", \%columns, undef, ['INDEX guid_ind (guidId)', "FOREIGN KEY (guidId) REFERENCES $table(guidId) ON DELETE CASCADE","FOREIGN KEY (seNumber) REFERENCES SE(seNumber) on DELETE CASCADE"],) or return;
 
 
   $db->checkTable("${table}_REF", "guidId", {guidId=>"int(11) NOT NULL",
@@ -680,7 +680,7 @@ sub moveGUIDs {
   if ($self->{HOST} eq $db->{HOST} and $self->{DRIVER} eq $db->{DRIVER}){
     #at least is in the same host, and driver
     my @queries=("INSERT INTO $self->{DB}.G${tableName}L ($columns) select $columns from $table where  binary2date(guid)>string2date('$guid')",
-		 "INSERT INTO $self->{DB}.G${tableName}L_PFN select p.* from ${table}_PFN p, $self->{DB}.G${tableName}L g where p.guidId=g.guidId",
+		 "INSERT INTO $self->{DB}.G${tableName}L_PFN (guidid, pfn,seNumber) select p.guidid, p.pfn, p.seNumber from ${table}_PFN p, $self->{DB}.G${tableName}L g where p.guidId=g.guidId",
 		"DELETE FROM $table where binary2date(guid)>string2date('$guid')",
 		"delete from p using ${table}_PFN p left join $table g on p.guidId=g.guidId where g.guidId is null");
     $db->removeTriggers($table);
