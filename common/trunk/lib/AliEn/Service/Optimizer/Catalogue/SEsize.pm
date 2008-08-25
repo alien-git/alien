@@ -18,7 +18,7 @@ sub checkWakesUp {
   $silent and $method="debug" and  @info=1;
 
   $self->$method(@info, "The SE optimizer starts");
-
+  (-f "$self->{CONFIG}->{TMP_DIR}/AliEn_TEST_SYSTEM")  or $self->{SLEEP_PERIOD}=3600;
   my $dbs=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->queryColumn("show databases like 'se_%'");
   my $guiddb=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{GUID_DB};
 

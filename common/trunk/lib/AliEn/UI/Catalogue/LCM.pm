@@ -367,6 +367,7 @@ sub getCollection{
       my $counter=1;
       if ($names->{$name}){
 	$counter=$names->{$name}+1;
+	$names->{$name}=$counter;
 	$name.=".$names->{$name}";
       }
       $names->{$name}=$counter;
