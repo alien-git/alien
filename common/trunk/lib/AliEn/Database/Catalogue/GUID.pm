@@ -779,7 +779,7 @@ sub updateStatistics {
   $self->info("Updating the table");
   $self->do("update GL_ACTIONS set time=now() where action='SE' and tableNumber=?", {bind_values=>[$index]}); 
   $self->do("delete from GL_STATS where tableNumber=?", {bind_values=>[$index]});
-  $self->do("insert into GL_STATS(tableNumber, seNumber, seNumFiles, seUsedSpace) select ?, seNumber, count(*), sum(size) from SE, $table g  where locate(concat(',',seNumber,','), seStringList) group by senumber", {bind_values=>[$index]});
+  $self->do("insert into GL_STATS(tableNumber, seNumber, seNumFiles, seUsedSpace) select ?, s.seNumber, count(*), sum(size) from SE s, $table g ,${table}_PFN p where g.guidid=p.guidid and s.senumber=p.senumber group by s.senumber", {bind_values=>[$index]});
   return 1;
 }
 
