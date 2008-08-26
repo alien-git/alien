@@ -803,7 +803,7 @@ sub setAlive {
 
 sub getCatalogue {
   my $self=shift;
-  my $options=shift || {};
+  my $options={no_catalog=>1};
   my $catalog;
 
   eval{ 
@@ -833,7 +833,7 @@ sub executeCommand {
   $self->changeStatus("%",  "STARTED", 0,$self->{HOST}, $self->{PROCESSPORT} );
   
   $ENV{ALIEN_PROC_ID} = $self->{QUEUEID};
-  my $catalog=$self->getCatalogue({no_catalog=>1}) or return;
+  my $catalog=$self->getCatalogue() or return;
 
   $self->debug(1, "Getting input files and command");
   if ( !( $self->getFiles($catalog) ) ) {
