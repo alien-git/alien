@@ -600,7 +600,8 @@ sub setDebug {
   my $silent = (join ("", grep (/^\d*$/, @_)) or 0);
   my @modules =grep (! /^\d*$/, @_);
 
-  $self->{CATALOG}->{DEBUG} = $silent;
+  $self->{CATALOG} and 
+    $self->{CATALOG}->{DEBUG} = $silent;
 
   if (($silent) or @modules)  {
     @modules and print "Module(s) to debug: @modules\n";
