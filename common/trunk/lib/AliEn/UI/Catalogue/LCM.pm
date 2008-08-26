@@ -298,6 +298,7 @@ sub get {
     $self->info( "Cannot get access to $file") and return;
   }
   $guidInfo->{guid}=$envelope[0]->{guid};
+  $guidInfo->{size}=$envelope[0]->{size};
   $ENV{'IO_AUTHZ'} = $envelope[0]->{envelope};
   $guidInfo->{guid} or 
     $self->info("Error getting the guid and md5 of $file",-1) and return;
@@ -322,9 +323,9 @@ sub get {
     }
     my (@seList ) = $self->selectClosestSE(@$seRef);
     $self->debug(1, "We can ask the following SE: @seList");
-
-    while (my $entry=shift @seList) {
-      my ($se, $pfn)=($entry->{seName}, $entry->{pfn});
+    my $sesel=1;
+    while (my $entry2=shift @seList) {
+      my ($se, $pfn)=($entry2->{seName}, $entry2->{pfn});
       my $start=time;
       $result = $self->{STORAGE}->getFile( $pfn, $se, $localFile, $opt, $file, $guidInfo->{guid},$guidInfo->{md5} );
       my $time=time-$start;
@@ -333,6 +334,9 @@ sub get {
 	$self->sendMonitor('read', $se, $time, $guidInfo->{size}, $result);
       }
       $result and last;
+      $self->info("Getting the copy didn't work :(. Does anybody else have the file?");
+      $sesel++;
+      @envelope = $self->access("-s","read",$entry, 0,0,$sesel) or return;
     }
     $result or
       $self->info("Error: not possible to get the file $file", 1) and return;
@@ -713,12 +717,12 @@ sub selectClosestSE {
     my $newse  = shift;
     my $seName=$newse;
     UNIVERSAL::isa($newse, "HASH") and $seName=$newse->{seName};
-    $self->debug(1,"Checking $seName vs " . $self->{CONFIG}->{SE_FULLNAME} || 'undef' ."/$self->{CONFIG}->{ORG_NAME}/$self->{CONFIG}->{SITE}" );
+    $self->debug(1,"Checking $seName vs " . ( $self->{CONFIG}->{SE_FULLNAME} || 'undef') ." and $self->{CONFIG}->{ORG_NAME}/$self->{CONFIG}->{SITE}" );
     if ($self->{CONFIG}->{SE_FULLNAME} and  $seName =~ /^$self->{CONFIG}->{SE_FULLNAME}$/i ){
       $se=$newse;
     }elsif( grep ( /^$newse$/i, @{ $self->{CONFIG}->{SEs_FULLNAME} } )){
       push @close, $newse;
-    }elsif( $newse =~ /$self->{CONFIG}->{ORG_NAME}::$self->{CONFIG}->{SITE}::/i ){
+    }elsif( $seName =~ /$self->{CONFIG}->{ORG_NAME}::$self->{CONFIG}->{SITE}::/i ){
       push @site, $newse;
     }else{
       push @rest, $newse;
@@ -727,6 +731,7 @@ sub selectClosestSE {
   }
   my @return;
   $se and push @return, $se;
+
   if ($self->{noshuffle}) {
       @close and push @return, (@close);
       @site and push @return, (@site);
@@ -736,7 +741,8 @@ sub selectClosestSE {
       @site and push @return, shuffle(@site);
       @rest and push @return, shuffle(@rest);
   }
-  $self->debug(1, "After sorting we have @return");
+  
+  $self->debug(1, "After sorting we have ". Dumper(@return));
   return @return;
 }
 
@@ -1298,12 +1304,9 @@ sub getPFNforAccess {
   my $nses=scalar @closeList;
   if ($sesel > 0) {
     # the client wants a replica identified by its number
-    my $cnt=0;
-    if (defined $closeList[$sesel-1]) {
-      $se = $closeList[$sesel-1];
-    } else {
-      return access_eof;
-    }
+    (defined $closeList[$sesel-1]) or return access_eof;
+    $se = $closeList[$sesel-1];
+
   } else {
     # the client wants the closest match (entry 0)
     foreach (@closeList) {
@@ -1318,7 +1321,7 @@ sub getPFNforAccess {
     }
     
   }
-  
+
   if (! $se) {
     $self->info("access: File '$guid' does not exist in $se");
     return;
@@ -1483,10 +1486,13 @@ sub access {
   my $self = shift;
 
   if (!  $self->{envelopeengine}) {
-    $self->info("Getting a security envelope...");
-    my $info=$self->{SOAP}->CallSOAP("Authen", "createEnvelope", $self->{CATALOG}->{ROLE}, @_)
+    my $user=$self->{CONFIG}->{ROLE};
+    $self->{CATALOG} and $self->{CATALOG}->{ROLE} and $user=$self->{CATALOG}->{ROLE};
+    $self->info("Getting a security envelope..");
+    my $info=$self->{SOAP}->CallSOAP("Authen", "createEnvelope", $user, @_)
       or $self->info("Error asking the for an envelope") and return;
     my $newhash=$info->result;
+    $newhash->{envelope} or $self->info("There is no envelope!!") and return;
     $ENV{ALIEN_XRDCP_ENVELOPE}=$newhash->{envelope};
     $ENV{ALIEN_XRDCP_URL}=$newhash->{url};
     return $newhash;
