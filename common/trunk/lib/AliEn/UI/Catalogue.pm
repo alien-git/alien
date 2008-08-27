@@ -122,6 +122,7 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
     'checkLFN'          => ['$self->{CATALOG}->checkLFN',0],
     'checkOrphanGUID'   => ['$self->{CATALOG}->checkOrphanGUID',0],
     'optimizeGUIDtables'   => ['$self->{CATALOG}->optimizeGUIDtables',0],
+	     'setSElimit'=>['$self->{CATALOG}->setSElimit',0],
        
     
     
