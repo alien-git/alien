@@ -2015,7 +2015,7 @@ sub updateStats {
   if ($values){
     $self->info("And now, let's put the guid tables in the list of tables that have to be checked");
     $values=~ s/, $//;
-    $seld->do("insert ignore into GL_ACTIONS(tableNumber, action) values $values", {bind_values=>[@bind]});
+    $self->do("insert ignore into GL_ACTIONS(tableNumber, action) values $values", {bind_values=>[@bind]});
   }
   return 1;
 
