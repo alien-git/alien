@@ -238,8 +238,27 @@ Site name:$self->{CONFIG}->{SITE}");
   $self->{SILENT} = 1;
   $self->f_pwd();
   $self->{SILENT} = $oldSilent;
-
+  $self->{LIMIT_SE}="";
   return $self;
+}
+
+sub setSElimit {
+  my $self=shift;
+  my $se=shift;
+  if ($se){
+    my $number=$self->{DATABASE}->getSENumber($se);
+    if (!$number){
+      $self->info("Error getting the se number of '$se'");
+      return ;
+    }
+    $self->{LIMIT_SE}=$number;
+    $self->info("Displaying only the files in the se '$se'");
+    
+  } else{
+    $self->info("Displaying all the files");
+    $self->{LIMIT_SE}="";
+  }
+  return 1;
 }
 
 # sub validateDatabase {
@@ -381,8 +400,8 @@ sub f_lsInternal {
 
   my @all;
   if (($lfn=~ m{/$} ) && ($options !~ /t/ )){
-    $DEBUG and $self->debug(1, "Listing a directory $lfn");
-    push @all, $self->{DATABASE}->listDirectory($entryInfo, $options);
+    $DEBUG and $self->debug(1, "Listing a directory $lfn (se $self->{LIMIT_SE})");
+    push @all, $self->{DATABASE}->listDirectory($entryInfo, $options, $self->{LIMIT_SE});
   } else {
     #in case we are listing a directory with -t, the path is the parent directory
     $path=$lfn;

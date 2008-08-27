@@ -865,6 +865,12 @@ sub setSEio {
     return 1;
 }
 
+sub getSENumber {
+  my $self=shift;
+  my $se=shift;
+  return $self->{LFN_DB}->queryValue("SELECT seNumber from SE where seName=?", undef, {bind_values=>[$se]});
+}
+	
 sub getSEio {
     my $self=shift;
     my $options=shift;

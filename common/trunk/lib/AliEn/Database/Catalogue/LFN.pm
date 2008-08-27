@@ -550,7 +550,7 @@ sub listDirectory {
   my $self=shift;
   my $info=shift;
   my $options=shift || "";
-  
+  my $selimit=shift;
   my $entry;
 
   if ( UNIVERSAL::isa( $info, "HASH" )) {
@@ -561,11 +561,40 @@ sub listDirectory {
   }
   my $sort="order by lfn";
   $options =~ /f/ and $sort="";
-  my $content=$self->getAllInfoFromLFN({table=>$self->{INDEX_TABLENAME}, 
-					   where=>"dir=? $sort",
-					   bind_values=>[$entry->{entryId}]});
   my @all;
-  $content and push @all, @$content;
+
+  if (!$selimit){
+    my $content=$self->getAllInfoFromLFN({table=>$self->{INDEX_TABLENAME}, 
+					  where=>"dir=? $sort",
+					  bind_values=>[$entry->{entryId}]});
+    
+    $content and push @all, @$content;
+  } else{
+    $self->debug(1,"We only have to display from $selimit (table $self->{INDEX_TABLENAME}");
+    my $GUIDList=$self->getPossibleGuidTables( $self->{INDEX_TABLENAME}->{name});
+
+    my $content=$self->getAllInfoFromLFN({table=>$self->{INDEX_TABLENAME}, 
+					  where=>"dir=? and right(lfn,1)='/' $sort",
+					  bind_values=>[$entry->{entryId}]});
+    
+    $content and push @all, @$content;
+    foreach my $elem (@$GUIDList) {
+      $self->debug(1,"Checking table $elem and $elem->{tableName}");
+      ($elem->{address} eq $self->{HOST})
+	or $self->info("We can't check the se (the info is in another host") 
+	  and return;
+      
+      my $content=$self->getAllInfoFromLFN({table=>{tableName=>
+"$self->{INDEX_TABLENAME}->{name} l, $elem->{db}.G$elem->{tableName}L g, $elem->{db}.G$elem->{tableName}L_PFN p",
+						    lfn=>$self->{INDEX_TABLENAME}->{lfn}}, 
+					    where=>"dir=? and l.guid=g.guid and p.guidid=g.guidid and p.seNumber=? $sort",
+					    bind_values=>[$entry->{entryId}, $selimit],
+					   retrieve=>"distinct l.*,lfn, insert(insert(insert(insert(hex(l.Guid),9,0,'-'),14,0,'-'),19,0,'-'),24,0,'-') as Guid,DATE_FORMAT(l.ctime, '%b %d %H:%i') as ctime"});
+      
+      $content and push @all, @$content;
+    }
+    @all=sort {$a->{lfn} cmp $b->{lfn}} @all;
+  }
   if ($options=~ /a/) {
     $entry->{lfn}=".";
     @all=($entry,@all);
@@ -1986,7 +2015,7 @@ sub updateStats {
   if ($values){
     $self->info("And now, let's put the guid tables in the list of tables that have to be checked");
     $values=~ s/, $//;
-    $self->do("insert ignore into GL_ACTIONS(tableNumber, action) values $values", {bind_values=>[@bind]});
+    $seld->do("insert ignore into GL_ACTIONS(tableNumber, action) values $values", {bind_values=>[@bind]});
   }
   return 1;
 
@@ -1995,6 +2024,8 @@ sub updateStats {
 sub getPossibleGuidTables{
   my $self=shift;
   my $number=shift;
+  $number =~ s/L//g;
+
   return $self->query("select * from (select * from GUIDINDEX where guidTime< (select max_time from  LL_STATS where tableNumber=?)  and  guidTime>(select min_time from LL_STATS where tableNumber=?)  union select * from GUIDINDEX where guidTime= (select max(guidTime) from GUIDINDEX where guidTime< (select min_time from LL_STATS where tableNumber=?))) g, HOSTS h where g.hostIndex=h.hostIndex", undef, {bind_values=>[$number, $number, $number]});
 
 }
