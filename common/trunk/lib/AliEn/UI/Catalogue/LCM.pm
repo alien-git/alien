@@ -293,7 +293,6 @@ sub get {
 
   my  @envelope = $self->access("-s","read",$entry) or return;
 
-  #print Dumper(@envelope);
   if (!defined $envelope[0]->{envelope}) {
     $self->info( "Cannot get access to $file") and return;
   }
@@ -1378,7 +1377,10 @@ sub getPFNforAccess {
   if ($urloptions ne "") {
     $pfn .= "?$urloptions";
   }
-  
+  if ($pfn=~ s/\?ZIP=(.*)$//){
+    $self->info("The anchor is $1");
+#    $anchor=$1  
+}
 #  if (($urlprefix =~ /^guid/) && ($urloptions =~ /ZIP/) && ( $pfn =~ /.*\/(\w\w\w\w\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\w\w\w\w\w\w\w\w)/ )) {
 #    # we got a reference guid back
 #    my $newguid = $1;
@@ -1582,7 +1584,6 @@ sub access {
 	}
 	
 	($seurl,$guid,$se) = $self->{CATALOG}->createFileUrl($se, "root", $guid);
-	
 	$pfn = $seurl;
 	$pfn=~ s/\/$//;
 	$seurl=~ s/\/$//;
@@ -1605,6 +1606,7 @@ sub access {
 	}
 	($se, $pfn, $anchor, $lfn, $nses, $whereis)=$self->getPFNforAccess($guid, $se, $sesel, $lfn, $options)
 	  or return access_eof;
+	$self->info("AND NOW WE HAVE $se, $pfn, $anchor, $lfn, $nses, $whereis");
 	$DEBUG and $self->debug(1, "access: We can take it from the following SE: $se with PFN: $pfn");
       }
 
