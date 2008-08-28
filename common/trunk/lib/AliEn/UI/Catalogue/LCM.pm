@@ -1471,10 +1471,6 @@ sub checkPermissionsOnLFN {
 	  $self->{LOGGER}->error("LCM","access: cannot move $lfn to the backup file $backupfile");
 	  return ;
 	}
-	# in the end we access a new file
-	$access="write-once";
-      } else {
-	$access="write-once";
       }
     }
   }
@@ -1576,6 +1572,7 @@ sub access {
       if ( $lfn ne "") {
 	$filehash=$self->checkPermissionsOnLFN($lfn,$access, $perm)
 	  or return access_eof;
+	$access=~ /write-version/ and $access="write-once";
       }
       $DEBUG and $self->debug(1, "We have permission on the lfn");
       if ($access =~ /^write/) {
