@@ -97,6 +97,7 @@ my %LCM_commands;
 		 'createCollection' => ['$self->createCollection', 0],
 		 'updateCollection' => ['$self->updateCollection', 2],
 		 'resubmitTransfer'=> ['$self->{STORAGE}->resubmitTransfer', 0],
+		 'getTransferHistory'=> ['$self->{STORAGE}->getTransferHistory', 0],
 		 'why'=>['$self->why', 0],
 );
 
@@ -117,6 +118,7 @@ my %LCM_help = (
     'upload'   => "\tUpload a file to the SE, but does not register it in the catalog",
     'getLog' =>"\tGets the log file of a service",
     'resubmitTransfer' =>"\tResubmits a Transfer",
+    'showTransferHistory'=>"\tShows the history of a transfer",
 
 );
 

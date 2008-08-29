@@ -56,7 +56,7 @@ sub initialize {
 #  $self->{JOBLOG} = new AliEn::JOBLOG();
 
 
-  my @optimizers=("Merging", "Inserting", "Splitting", "Zombies", "Hosts", "Expired", "HeartBeat", "Priority", "Resubmit", "Killed", "Saved", "Staging");
+  my @optimizers=("Merging", "Inserting", "Splitting", "Zombies", "Hosts", "Expired", "HeartBeat", "Priority", "Resubmit", "Killed", "Saved", "Staging");#,"ResolveReq");
 
   my $mlEnabled = ($self->{CONFIG}->{MONALISA_HOST} || $self->{CONFIG}->{MONALISA_APMONCONFIG});
   $mlEnabled and push @optimizers, "MonALISA";
@@ -82,9 +82,7 @@ sub checkWakesUp {
   $self->$method( @debugLevel,  "Still alive and checking messages" );
 
   my $messages=$self->{DB}->retrieveJobMessages();
-  
-  $self->info("And the message is...$messages");
-  
+    
   foreach my $entry (@$messages) {
     $self->info("procinfo = $entry->{procinfo},  tag = $entry->{tag}, jobId = $entry->{jobId}");
   }

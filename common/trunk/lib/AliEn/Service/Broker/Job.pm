@@ -261,7 +261,7 @@ sub getJobToken {
 
 
 
-sub checkPackagesToInstall{
+ sub checkPackagesToInstall{
   my $self=shift;
   my $job_ca=shift;
   my $host_ca=$self->{SITE_CA};

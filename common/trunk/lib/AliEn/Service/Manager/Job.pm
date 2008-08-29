@@ -358,6 +358,7 @@ sub SetProcInfo {
 
   1;
 }
+
 sub changeStatusCommand {
   my $this    = shift;
   my $queueId = shift;

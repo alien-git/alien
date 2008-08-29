@@ -27,10 +27,7 @@ sub initialize {
   $self->{SERVICE}="Transfer";
 
   $self->{DB_MODULE}="AliEn::Database::Transfer";
-  
-  $self->{TRANSFERLOG} = new AliEn::TRANSFERLOG();
-
-  
+    
   return $self->SUPER::initialize($options);
 }
 

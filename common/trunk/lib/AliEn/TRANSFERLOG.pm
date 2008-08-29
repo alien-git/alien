@@ -58,33 +58,29 @@ sub setlogfile {
 	close OUTPUT;
 }
 
-# sub getlog {
-#   my $self = shift;
-#   my $transferid = shift;
-#   my @tags = @_;
-# 
-#   if ($tags[0] eq "all") {
-#     undef @tags;
-#     push @tags,"proc";
-#     push @tags,"error";
-#     push @tags,"submit";
-#     push @tags,"move";
-#     push @tags,"state";
-#     push @tags,"trace";
-#   }
-# 
-#   grep (/^error$/, @tags) or push @tags,"error";
-# 
-#   $self->{enabled} or return;
-#   $self->setlogfile($transferid);
-#   map {$_="($_)"} @tags;
-#   my $status=join ("|", @tags);
-#   open INPUT,  "$self->{TRANSFERLOGFILE}";
-#   my @result= grep (/\[$status/, <INPUT>);
-#   close INPUT;
-#   $self->{LOGGER}->info("TRANSFERLOG", "Looking for $status of $transferid and found $#result");
-# 
-#   return @result;
-# }
+sub getlog {
+  my $self = shift;
+  my $transferid = shift;
+  my @tags = @_;
+
+  if ($tags[0] eq "all") {
+    undef @tags;
+    push @tags,"error";
+    push @tags,"STATUS";
+  }
+
+  grep (/^error$/, @tags) or push @tags,"error";
+
+  $self->{enabled} or return;
+  $self->setlogfile($transferid);
+  map {$_="($_)"} @tags;
+  my $status=join ("|", @tags);
+  open INPUT,  "$self->{TRANSFERLOGFILE}";
+  my @result= grep (/\[$status/i, <INPUT>);
+  close INPUT;
+  $self->{LOGGER}->info("TRANSFERLOG", "Looking for $status of $transferid and found $#result");
+
+  return @result;
+}
 
 return 1;
