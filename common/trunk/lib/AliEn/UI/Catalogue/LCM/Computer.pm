@@ -36,6 +36,8 @@ my (%command_list);
     'cleanCache' => ['$self->cleanCache',0],
     'registerOutput' => ['$self->registerOutput',0],
     
+#     'jobFindReqMiss'=>['$self->{QUEUE}->jobFindReqMiss',0],
+    
     #bank functions
     'gold'      => ['$self->{QUEUE}->f_bank',0],
    

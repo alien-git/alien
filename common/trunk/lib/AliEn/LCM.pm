@@ -675,17 +675,33 @@ sub killTransfer {
 
 sub resubmitTransfer {
   my $self=shift; 
-  
-  my $res=$self->{SOAP}->CallSOAP("Manager/Transfer", "resubmitTransfer", @_);
+  my @args = @_;
+  push(@args,"-reset");
+  my $res=$self->{SOAP}->CallSOAP("Manager/Transfer", "resubmitTransfer", @args);
   
   if(!$res){
   	$self->{LOGGER}->error("LCM", "In resubmitTransfer while calling resubmitTransfer, in Manager/Transfer");
-	$res=$self->{SOAP}->CallSOAP("Manager/Transfer", "resubmitTransferHelp", @_);
+	$res=$self->{SOAP}->CallSOAP("Manager/Transfer", "resubmitTransferHelp", @args);
 	return;
   }
   
    $self->info( "Transfer Resubmitted");
    return 1;
+}
+
+
+
+sub getTransferHistory {
+	my $self=shift; 
+	
+	my $done=$self->{SOAP}->CallSOAP("Manager/Transfer", "getTransferHistory", @_);
+	
+	$done or $self->{LOGGER}->error("LCM", "In getTransferHistory error while calling resubmitTransfer, in Manager/Transfer") and return -1;
+	my $result=$done->result;
+	
+	$self->info("Transfer history for : @_");
+	print "$result\n";
+	return 1;
 }
 
 

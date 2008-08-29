@@ -254,7 +254,7 @@ sub delete{
     
   }
 
-  $self->{TRANSFERLOG}->putlog($id,$set->{status});
+  $self->{TRANSFERLOG}->putlog($id,"STATUS",$set->{status});
   
   my $done=$self->update($set,"transferid = ?", {bind_values=>[$id]});
   

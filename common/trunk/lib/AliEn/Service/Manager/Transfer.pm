@@ -9,6 +9,8 @@ use AliEn::Database::Transfer;
 
 use AliEn::Service::Manager;
 
+use AliEn::TRANSFERLOG;
+
 use strict;
 
 use Classad;
@@ -27,6 +29,8 @@ sub initialize {
   $self->{SERVICE}="Transfer";
 
   $self->{DB_MODULE}="AliEn::Database::Transfer";
+  
+  $self->{TRANSFERLOG} = new AliEn::TRANSFERLOG();
     
   return $self->SUPER::initialize($options);
 }
@@ -196,7 +200,7 @@ sub changeStatusTransfer {
 # 		$newJDL = $ca->asJDL();
 		$status = "INSERTING";
 		$self->info( "Transfer $id Failed. Retrying. Attempt num $attempts / $persevere");
-		$self->resubmitTransfer($id);		
+		$self->resubmitTransfer($id);
 # 		$query->{jdl}=$newJDL;
 		$query->{status}=$status;
 		$query->{attempts}=$attempts;
@@ -400,8 +404,8 @@ sub checkTransfer {
 
 sub resubmitTransferHelp{
 	my $self=shift;
-	return "resubmitTransfer: resubmits a trasfer. If used with -reset the number of attempts is set to 0\tUsage:
-\t\resubmitTransfer [-reset]";
+	return "resubmitTransfer: resubmits a trasfer.\tUsage:
+\t\resubmitTransfer <id>";
 }
 
 sub resubmitTransfer {
@@ -636,6 +640,24 @@ sub findAlternativeSource {
 
   $self->info("There are other alternatives for that transfer :)");
   return 1;
+}
+
+
+sub getTransferHistory {
+	my $this = shift;
+	my $id = shift;
+#   	$id and $id =~ /^trace$/ and $id=shift;
+	$id  or return (-1,"You have to specify a trasfer id!");
+	$self->info( "Asking history for transfer $id" );
+		
+	my @results={};
+	if ($_[0] eq ""){
+		 @results=$self->{TRANSFERLOG}->getlog($id,"STATUS");
+	} else {
+		@results=$self->{JOBLOG}->getlog($id,@_);
+  	}
+	$self->info("got back @results");
+	return join ("",@results);
 }
 
 

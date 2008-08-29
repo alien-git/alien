@@ -110,6 +110,7 @@ sub initialize {
 			      masterjob=>"int(1) default 0",
 			      price=>"float",
 			      chargeStatus=>"varchar(20)",
+			      optimized=>"int(1) default 0",
 			      finalPrice=>"float",
 			      notify=>"varchar(255)",
 			      agentid=>'int(11)'},
