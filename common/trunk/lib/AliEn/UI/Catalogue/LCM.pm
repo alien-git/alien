@@ -1381,7 +1381,7 @@ sub getPFNforAccess {
   }
   if ($pfn=~ s/\?ZIP=(.*)$//){
     $self->info("The anchor is $1");
-#    $anchor=$1  
+    $anchor=$1  
 }
 #  if (($urlprefix =~ /^guid/) && ($urloptions =~ /ZIP/) && ( $pfn =~ /.*\/(\w\w\w\w\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\w\w\w\w\w\w\w\w)/ )) {
 #    # we got a reference guid back
