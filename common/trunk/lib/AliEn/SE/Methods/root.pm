@@ -43,10 +43,14 @@ sub get {
 
   $self->debug(1,"Trying to get the file $self->{PARSED}->{ORIG_PFN} (to $self->{LOCALFILE})");
   $self->{PARSED}->{PATH}=~ s{^//}{/};
-  my $command="$self->{XRDCP} root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH} $self->{LOCALFILE} -DIFirstConnectMaxCnt 1";
+  my $p= $self->{PARSED}->{PATH};
+  $p =~ s/#.*$//;
+  my $command="$self->{XRDCP} root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$p $self->{LOCALFILE} -DIFirstConnectMaxCnt 1";
 
   if ($ENV{ALIEN_XRDCP_ENVELOPE}){
-    $command="$self->{XRDCP} $ENV{ALIEN_XRDCP_URL} $self->{LOCALFILE} -DIFirstConnectMaxCnt 1 -OS\\\&authz=\"$ENV{ALIEN_XRDCP_ENVELOPE}\"";
+    my $p=$ENV{ALIEN_XRDCP_URL};
+    $p=~ s/#.*$//;
+    $command="$self->{XRDCP} $p $self->{LOCALFILE} -DIFirstConnectMaxCnt 1 -OS\\\&authz=\"$ENV{ALIEN_XRDCP_ENVELOPE}\"";
     $self->debug(1, "The envelope is $ENV{ALIEN_XRDCP_ENVELOPE}");
   }
   
