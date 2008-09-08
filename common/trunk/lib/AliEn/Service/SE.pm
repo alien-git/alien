@@ -1064,7 +1064,7 @@ sub  checkWakesUp {
     while ($continue){
       $continue=0;
       $self->{$field} or $self->{$field}=0;
-      $self->info("Asking the semaster for files to delete");
+      $self->info("Asking the semaster for files to delete in $subSE (bigger than $self->{$field}");
       my $info=$self->{SOAP}->CallSOAP("Manager/SEMaster", "getFilesToDelete", $subSE,  $self->{$field})
 	  or $self->info("Error getting the volumes ") and last ;
 
@@ -1300,13 +1300,13 @@ sub getFileSize {
 sub getLVMDF {
   my $this=shift;
   my $seName=shift;
+  $self->info("Ready to get the df info");
   ($seName, my $seInfo) =$self->checkVirtualSEName($seName);
-
   my $lvm=$seInfo->{lvm};
   my $serviceName=$seInfo->{fullname};
+  my $info=$lvm->getStats();;
+  my $nfiles  = $info->{files};
 
-  my $nfiles  = $lvm->{DB}->getNumberOfFiles();
-  my $info=$lvm->{DB}->retrieveAllVolumesUsage();
   my $ublocks = $info->{usedspace};
   my $tblocks = $info->{size};
   my $fblocks = $tblocks - $ublocks;

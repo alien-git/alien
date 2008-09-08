@@ -975,6 +975,7 @@ sub checkSiteQueueTable{
 		 queueload=>"float",
 		 runload=>"float",
 		 jdl => "text",
+                 jdlAgent => 'text',
 		 timeblocked=>"datetime", 
 		);
 
@@ -993,7 +994,11 @@ sub setSiteQueueStatus {
   $set->{site}=$site;
   $set->{status} = "$status";
   $set->{statustime} = time;
-  $jdl and $set->{jdl}=$jdl;
+  if  ($jdl) {
+    my $field="jdl";
+    ($status =~/jobagent-no-match/) and $field="jdlagent";
+    $set->{$field}=$jdl;
+  }
 
   my $done=$self->updateSiteQueue($set,"site=?", {bind_values=>[$site]});
   if ( $done =~ /^0E0$/){

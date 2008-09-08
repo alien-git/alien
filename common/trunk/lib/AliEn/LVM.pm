@@ -95,6 +95,19 @@ sub GetDefaultOptions{
 }
 
 
+sub getStats{
+  my $self=shift;
+  my $info={freespace=>0, usedspace=>0, size=>0, nfiles=>0};
+  foreach my $v (@{$self->{VOLUMES}}){
+    foreach my $field ('freespace', 'size', 'usedspace', 'nfiles'){
+      $v->{$field} or next;
+      $info->{$field}+=$v->{$field};
+    }
+    
+  }
+  return $info;
+}
+
 #=head1 METHODS
 
 #=head2 subroutine initialiseDatabase
