@@ -418,6 +418,16 @@ get the cache information
 
 =cut
 
+sub df_HELP {
+  return "df: returns the disk space usage of the SE
+Usage:
+df [-af]
+
+Options:
+  -a:  all. Show all the SE
+  -f:  force Refresh the information
+"
+}
 sub df {
   my $self = shift;
   my $opt;
@@ -472,7 +482,7 @@ sub df {
     my $response = 
       SOAP::Lite->uri("AliEn/Service/$service")
 	  ->proxy("http://$address",timeout => 5)
-	    ->$function($name);
+	    ->$function($name, $opt);
     
     ($response) or next;
     $self->debug(1, "Got $response");

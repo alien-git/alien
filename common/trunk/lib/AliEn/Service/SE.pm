@@ -1300,13 +1300,15 @@ sub getFileSize {
 sub getLVMDF {
   my $this=shift;
   my $seName=shift;
-  $self->info("Ready to get the df info");
+  my $opt=shift;
+  $self->info("Ready to get the df info ($seName, $opt)");
   ($seName, my $seInfo) =$self->checkVirtualSEName($seName);
   my $lvm=$seInfo->{lvm};
+  $opt=~ /f/ and $self->info("Refreshing the volumes") and $lvm->getVolumes();
   my $serviceName=$seInfo->{fullname};
   my $info=$lvm->getStats();;
   my $nfiles  = $info->{files};
-
+#  my $info=$lvm->{DB}->retrieveAllVolumesUsage();
   my $ublocks = $info->{usedspace};
   my $tblocks = $info->{size};
   my $fblocks = $tblocks - $ublocks;
