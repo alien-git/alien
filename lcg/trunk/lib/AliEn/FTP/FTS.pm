@@ -118,12 +118,12 @@ sub transfer {
 
   print "\n  Configuring the transfer...\nTransfering from ($fromHost) $from to ($toHost) $to and $options\n";
 
-  my $fromSite=$self->getSite($fromHost) or return -1;
-  my $toSite=$self->getSite($toHost) or return -1;
-  
+  my $fromSite=$self->getSite($fromHost) ;
+  my $toSite=$self->getSite($toHost) ;
+  $fromSite or $toSite or ( $self->info("Don't know neither source, nor destination") and return -1) ;
+
   my $fromftsEndpoint=$self->getFTSEndpoint($fromSite);
   my $toftsEndpoint=$self->getFTSEndpoint($toSite);
-
   my $ftsEndpoint;
   if ($fromftsEndpoint && $toftsEndpoint) {
     $self->info("The FTS is defined in both sites. Which one to take??");
@@ -244,7 +244,6 @@ sub checkStatusTransfer {
 sub getFTSEndpoint {
   my $self=shift;
   my $site=shift;
-
   my $retry=5;
   my $sleep=1;
 
@@ -252,7 +251,7 @@ sub getFTSEndpoint {
     $self->info("The environment variable ALIEN_FTS_ENDPOINT is set ('$ENV{ALIEN_FTS_ENDPOINT}'). Using it as the endpoint");
     return $ENV{ALIEN_FTS_ENDPOINT};
   }
-
+ $site or return;
   while ($retry){
     my $cache=AliEn::Util::returnFileCacheValue($self, "fts-$site");
     if ($cache) {
