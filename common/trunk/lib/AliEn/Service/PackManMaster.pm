@@ -101,7 +101,7 @@ sub findPackageLFN {
 }
 
 
-sub recomputeListPackage {
+sub recomputeListPackages {
   my $this=shift;
   $self->info("Recomputing the list of packages");
   $self->{DB}->do("update ACTIONS set todo=1 where action='PACKAGES'") or return;
@@ -137,7 +137,6 @@ sub getListPackages{
   return (1, @$packages);
 
 }
-
 return 1;
 
 
