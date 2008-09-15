@@ -1307,10 +1307,10 @@ sub getLVMDF {
   $opt=~ /f/ and $self->info("Refreshing the volumes") and $lvm->getVolumes();
   my $serviceName=$seInfo->{fullname};
   my $info=$lvm->getStats();;
-  my $nfiles  = $info->{files};
+  my $nfiles  = $info->{files} || 0;
 #  my $info=$lvm->{DB}->retrieveAllVolumesUsage();
-  my $ublocks = $info->{usedspace};
-  my $tblocks = $info->{size};
+  my $ublocks = $info->{usedspace} || 0;
+  my $tblocks = $info->{size} || 0;
   my $fblocks = $tblocks - $ublocks;
   $self->sendApMonInfo($info, $nfiles);
   

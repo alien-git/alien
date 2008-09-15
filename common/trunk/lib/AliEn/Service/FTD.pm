@@ -74,6 +74,8 @@ sub initialize {
   
   @protocols or @protocols="BBFTP";
   $self->{PROTOCOLS}=\@protocols;
+  $self->{FAV_PROTOCOL}=$self->{CONFIG}->{FTD_PROTOCOL} || "BBFTP";
+
 
   $self->info("initialize: Using configuration for " . $self->{CONFIG}->{FTD} );
   
@@ -192,7 +194,7 @@ sub checkCertificate {
 sub startListening {
   my $this=shift;
   my @protocols=@{$self->{PROTOCOLS}};
-  $self->info("Starting the service. Protocols @protocols");
+  $self->info("Starting the service. Protocols @protocols (favourite $self->{FAV_PROTOCOL})");
   $self->{FTP_SERVERS}={};
   foreach my $name (@protocols) {
     my $class="AliEn::FTP::\U$name\E";
@@ -270,8 +272,8 @@ sub _selectPFN {
   my $self=shift;
   $self->info("Getting the best PFN from @_");
   my @methods=keys %{$self->{FTP_SERVERS}};
-  $self->info("Looking for any of @methods");
-  foreach my $method (@methods){
+  $self->info("Looking for any of @methods (favourite is $self->{FAV_PROTOCOL})");
+  foreach my $method ($self->{FAV_PROTOCOL}, @methods){
     my @pfn=grep (/^$method:/i, @_) or next;
     $self->info("The pfn @pfn is valid (taking the first one)!!");
     return shift @pfn;
@@ -696,7 +698,13 @@ sub checkWakesUp {
  sub _forkTransfer{
   my $self=shift;
   my $transfer=shift;
+  my $n=int($transfer->{ID}/1000);
+  -d "$self->{CONFIG}->{LOG_DIR}/FTD_transfers" || mkdir "$self->{CONFIG}->{LOG_DIR}/FTD_transfers";
+  -d "$self->{CONFIG}->{LOG_DIR}/FTD_transfers/$n" || mkdir "$self->{CONFIG}->{LOG_DIR}/FTD_transfers/$n";
+  my $logFile="$self->{CONFIG}->{LOG_DIR}/FTD_transfers/$n/$transfer->{ID}.log";
+  $self->info("Redirecting to $logFile");
 
+  $self->{LOGGER}->redirect($logFile);
   $self->info("$$ Is checking the action");
   my $action=($transfer->{ACTION} or"");
   

@@ -573,7 +573,7 @@ sub recomputeListPackages{
 
   my $result=$self->{SOAP}->CallSOAP("PackManMaster", "recomputeListPackages")
     or $self->info("Error talking to the PackManMaster") and return;
-  $self->info("The information will be updated in 10 seconds");
+  $self->info("The information will be updated in 20 seconds");
   return 1;
 }
 return 1;
