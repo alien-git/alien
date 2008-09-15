@@ -186,12 +186,12 @@ sub prepareEnvironment{
     $self->{OLD_ENV}->{$_}=$ENV{$_};
     delete $ENV{$_};
   }
-  print "The LD_LIBRARY_PATH is $ENV{LD_LIBRARY_PATH}
-ROOT $ENV{ALIEN_ROOT}\n";
+#  print "The LD_LIBRARY_PATH is $ENV{LD_LIBRARY_PATH}
+#ROOT $ENV{ALIEN_ROOT}\n";
   $self->{OLD_ENV}->{LD_LIBRARY_PATH}=$ENV{LD_LIBRARY_PATH};
   my $d=$ENV{ALIEN_ROOT}."[^:]";
   $ENV{LD_LIBRARY_PATH}=~ s/$d*\://g;
-  print "NOW $ENV{LD_LIBRARY_PATH}\n";
+#  print "NOW $ENV{LD_LIBRARY_PATH}\n";
   return 1;
 }
 
