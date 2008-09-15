@@ -420,10 +420,10 @@ sub startTransfer {
     $self->{LOGGER}->error_msg() and $errorM=$self->{LOGGER}->error_msg();
     $self->info("The error message is $errorM");
     if (! $self->findAlternativeSource($id, $transfer->{FROMSE})) {
-      $self->info("Updating the status of the transfer (reason '$errorM')");
-      $self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, "FAILED", {Reason=>$errorM});
-     }
-    return ;
+      $self->{LOGGER}->set_error_msg($errorM);
+      return ;
+    }
+    return 1;
     
   }
   $self->verifyTransfer($error, $toURL, $size, $retries, $id) or return;
