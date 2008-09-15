@@ -418,8 +418,9 @@ sub startTransfer {
   if ($error) {
     my $errorM="The transfer failed (we are getting things from  ". $fromURL->method();
     $self->{LOGGER}->error_msg() and $errorM=$self->{LOGGER}->error_msg();
-       
+    $self->info("The error message is $errorM");
     if (! $self->findAlternativeSource($id, $transfer->{FROMSE})) {
+      $self->info("Updating the status of the transfer (reason '$errorM')");
       $self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, "FAILED", {Reason=>$errorM});
      }
     return ;
