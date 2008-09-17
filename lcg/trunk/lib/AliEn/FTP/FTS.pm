@@ -340,7 +340,8 @@ sub getURL{
     
     $self->info("The file is in castor... we have to find the srm endpoint of $site");
     my $sleep=1;
-    while (1) {
+    my $try=5;
+    while ($try) {
       eval {
 	print "Connecting to the BDII\n";
 	my $BDII=$ENV{LCG_GFAL_INFOSYS} || 'sc3-bdii.cern.ch:2170';
@@ -366,7 +367,8 @@ sub getURL{
       ($@) and	$self->info("Got the error: $@");
 
       $host2 and last;
-      $self->info("Error getting the info from the BDII... let's try to sleep and reconnect");
+      $self->info("Error getting the info from the BDII... let's try to sleep and reconnect (still $try times to try)");
+      $try--;
       sleep($sleep);
       $sleep=($sleep+int(rand(10)))*2;
     }
