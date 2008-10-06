@@ -7,6 +7,7 @@ use AliEn::UI::Catalogue::LCM;
 use Filesys::DiskFree;
 use AliEn::Util;
 use AliEn::SOAP;
+use Data::Dumper;
 push @ISA, 'AliEn::Logger::LogObject', 'AliEn::PackMan';
 
 
@@ -176,10 +177,10 @@ sub findPackageLFN{
   my $platform=AliEn::Util::getPlatform($self);
   $self->info("$$ Looking for the lfn of $package ($version) for the user $user");
   
-  my $cacheName='lfn_${user}_${package}_${version}';
+  my $cacheName="lfn_${user}_${package}_${version}";
   my $cache=AliEn::Util::returnCacheValue($self, $cacheName);
   if ($cache) {
-    $self->info("Returning from the cache (@$cache)");
+    $self->info("Returning from the cache $cacheName (@$cache)");
     return @$cache ;
   }
 
@@ -192,8 +193,8 @@ sub findPackageLFN{
     $self->info($message);
     die $message;
   }
-  use Data::Dumper;
-  print Dumper(@info);
+
+  $self->info(Dumper(@info));
   if ( $info[1] =~ /^$/) {
     $self->info("The metadata is empty????");
     $info[1]={};

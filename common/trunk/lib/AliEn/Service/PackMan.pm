@@ -23,7 +23,7 @@ use AliEn::Service;
 use AliEn::Util;
 use AliEn::PackMan;
 use Cwd;
-
+use Data::Dumper;
 use vars qw(@ISA $DEBUG);
 
 @ISA=qw(AliEn::Service);
@@ -276,7 +276,7 @@ sub getDependencies {
 
   my $cache=AliEn::Util::returnCacheValue($self, $cacheName);
   if ($cache) {
-    $self->info( "$$ Returning the value from the cache (@$cache)");
+    $self->info( "$$ Returning the value from the cache $cacheName (@$cache)");
     return (@$cache);
   }
 
@@ -284,6 +284,7 @@ sub getDependencies {
   
   AliEn::Util::setCacheValue($self, $cacheName, [1,$info]);
   $self->info("Giving back the dependencies of $package");
+
   return (1, $info);
 }
 
