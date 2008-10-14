@@ -95,6 +95,9 @@ sub getLocalCopy {
 	  $DEBUG and $self->debug(1, "Copying '$file' to '$localFile'" );
 	  if ($file ne $localFile) {
 	    $self->info("They are not the same ??\n");
+            my $targetDir=$localFile;
+            $targetDir=~ s/[^\/]*$//;
+            AliEn::Util::mkdir($targetDir) or print STDERR "Error creating $targetDir\n" and return;
 	    (AliEn::MSS::file::cp({},$file, $localFile )) 
 	      and print STDERR "ERROR copying $file to $localFile $!\n" 
 		and return;

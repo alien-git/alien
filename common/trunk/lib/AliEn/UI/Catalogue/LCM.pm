@@ -263,17 +263,37 @@ Optional argument. If it is passed, the catalogue will retrieve the file from th
 =back
 
 =cut
+sub get_HELP{
+  return "get: copies a file from teh file catalogue  to the local computer:
+Usage  : get [-<options>] <file> [<localfile>]
 
+Options:
+  -n:
+  -o:
+  -g: The file is a guid instead of an lfn
+
+Get can also be used to retrieve collections. In that case, there are some extra options:
+  -c: Retrieve all the files with their original lfn name
+  -b <name>: Requires -c. Remove <name> from the beginning of the lfn
+
+";
+}
 sub get {
   my $self = shift;
-  my $opt;
-  ( $opt, @_ ) = $self->Getopts(@_);
+#  my $opt;
+#  ( $opt, @_ ) = $self->Getopts(@_);
+  my %options=();
+  @ARGV=@_;
+  getopts("gonb:c", \%options) or $self->info("Error parsing the arguments of get\n". $self->get_HELP()) and  return ;
+  @_=@ARGV;
+  
+  my $opt=join("",keys %options);
   my $file      = shift;
   my $localFile = shift;
 
   ($file)
     or print STDERR
-"Error: not enough arguments in get\nUsage: get [-n] [-o]<file> [<localfile>]\n"
+"Error: not enough arguments in get\n". $self->get_HELP()
   and return;
 
   my $entry=$file;
@@ -282,7 +302,7 @@ sub get {
   $self->{CATALOG} and $class=ref $self->{CATALOG};
   my $guidInfo;
   if ($class =~ /^AliEn/ ){
-    if ($opt =~ /g/){
+    if ($options{g} ){
 #      $self->debug(1, "Getting it directly from the guid '$file'");
       $guidInfo=$self->{CATALOG}->getInfoFromGUID($file)
         or return;
@@ -313,7 +333,7 @@ sub get {
 
   if ($guidInfo->{type} and $guidInfo->{type} eq "c"){
     $self->info("This is in fact a collection!! Let's get all the files");
-    return $self->getCollection($guidInfo->{guid}, $localFile);
+    return $self->getCollection($guidInfo->{guid}, $localFile, \%options);
   }
 
   
@@ -356,7 +376,9 @@ sub get {
 sub getCollection{
   my $self=shift;
   my $guid=shift;
-  my $localFile=shift;
+  my $localFile=shift || "";
+  my $options=shift || {};
+
   $self->debug(1, "We have to get all the files from $guid");
   my ($files)=$self->execute("listFilesFromCollection", "-silent", "-g", $guid)
     or $self->info("Error getting the list of files from the collection") and return;
@@ -364,13 +386,21 @@ sub getCollection{
   if ($localFile){
     $self->info("We have to rename it to $localFile");
     AliEn::Util::mkdir($localFile) or 
-	$self->info("error making the direcotry $localFile") and return;
+	$self->info("error making the directory $localFile") and return;
   }
-  my $names={};
+  my $names={}; 
+  my $counter=0;
   foreach my $file (@$files){
     $self->info("Getting the file $file->{guid} from the collection");
     my $localName= $file->{localName} || "";
-    if ($localFile) {
+    if($options->{c}){
+      $localFile or $localFile="$ENV{PWD}";
+      $self->info("We have to set the local filename according to the lfn");
+      my $lfn=$file->{origLFN} || "no_lfn.$counter";
+      $counter++;
+      $options->{b} and $lfn=~ s/^$options->{b}//;
+      $localName="$localFile/$lfn";
+    } elsif ($localFile) {
       my $name=$file->{guid};
       if ($file->{origLFN}){
 	$name=$file->{origLFN};
