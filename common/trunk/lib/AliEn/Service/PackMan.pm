@@ -223,7 +223,7 @@ sub initialize {
   }
 
   $self->{SERVICE}="PackMan";
-  $self->{SERVICENAME}="PackMan\@$self->{HOST}";
+  $self->{SERVICENAME}=$self->{CONFIG}->{PACKMAN_FULLNAME};
   $self->{LISTEN}=1;
   $self->{PREFORK}=5;
 
