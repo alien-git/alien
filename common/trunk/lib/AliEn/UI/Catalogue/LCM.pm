@@ -56,6 +56,7 @@ use AliEn::TMPFile;
 use Archive::Zip qw( :ERROR_CODES :CONSTANTS );
 use Data::Dumper;
 use AliEn::Util;
+use AliEn::PackMan;
 
 use vars qw(@ISA $DEBUG);
 @ISA = qw( AliEn::UI::Catalogue );
@@ -98,7 +99,7 @@ my %LCM_commands;
 		 'updateCollection' => ['$self->updateCollection', 2],
 		 'resubmitTransfer'=> ['$self->{STORAGE}->resubmitTransfer', 0],
 		 'getTransferHistory'=> ['$self->{STORAGE}->getTransferHistory', 0],
-		 'why'=>['$self->why', 0],
+		 'packman'  => ['$self->{PACKMAN}->f_packman',0],
 );
 
 my %LCM_help = (
@@ -119,6 +120,7 @@ my %LCM_help = (
     'getLog' =>"\tGets the log file of a service",
     'resubmitTransfer' =>"\tResubmits a Transfer",
     'showTransferHistory'=>"\tShows the history of a transfer",
+    'packman'  => "\tTalks to the Package Manager (PackMan). Use 'packman --help' for more info",
 
 );
 
@@ -166,6 +168,11 @@ sub initialize {
       $self->{envelopeengine} = 0;
     }
   }
+
+  my $packOptions={PACKMAN_METHOD=> $options->{packman_method}|| "",
+                   CATALOGUE=>$self};
+
+  $self->{PACKMAN}= AliEn::PackMan->new($packOptions) or return;
 
   return 1;
 }
