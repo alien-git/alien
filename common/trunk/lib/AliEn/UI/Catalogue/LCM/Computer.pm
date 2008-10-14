@@ -29,7 +29,7 @@ my (%command_list);
     'pgroup'   => ['$self->{QUEUE}->f_pgroup', 0],
     'spy'      => ['$self->{QUEUE}->f_spy', 0],
     'queue'    => ['$self->{QUEUE}->f_queue',0],
-    'packman'  => ['$self->{PACKMAN}->f_packman',0],
+ #   'packman'  => ['$self->{PACKMAN}->f_packman',0],
     'masterJob'=> ['$self->{QUEUE}->masterJob',0],
     'checkAgents'=> ['$self->{QUEUE}->checkJobAgents',0],
     'resyncJobAgent'=>['$self->{QUEUE}->resyncJobAgent',0],
@@ -62,7 +62,7 @@ my %help_list = (
     'pgroup'   => "\tHandling of Processgroups",
     'spy'      => "\tSpy on the output of a process, the workdir or the worker node", 		 
     'queue'    => "\tOpen or close the the queue of a site",
-    'packman'  => "\tTalks to the Package Manager (PackMan). Use 'packman --help' for more info",
+  #  'packman'  => "\tTalks to the Package Manager (PackMan). Use 'packman --help' for more info",
     'masterJob'=> "\tDisplays information about a masterjob and all of its children",
 		 'killAllAgents'=>"\tKill all the jobagents in the site. Warning! Do not use it unless you know what you are doing",
 
@@ -82,10 +82,10 @@ sub initialize {
 
     $options->{CATALOG} = $self;
 
-    my $packOptions={PACKMAN_METHOD=> $options->{packman_method}|| "",
-		     CATALOGUE=>$self};
+#    my $packOptions={PACKMAN_METHOD=> $options->{packman_method}|| "",
+#		     CATALOGUE=>$self};
 
-    $self->{PACKMAN}= AliEn::PackMan->new($packOptions) or return;
+#    $self->{PACKMAN}= AliEn::PackMan->new($packOptions) or return;
 
     $options->{PACKMAN}=$self->{PACKMAN};
 
