@@ -844,17 +844,12 @@ Old size: $oldStat[7], new size: $newStat[7]");
     ($oldStat[7] == $newStat[7]) and return 1;
 
   $self->info("File changed, uploading...");
-
   my $pfn="file://$self->{CONFIG}->{HOST}$file";
   $pfn =~ s/\n//gs;
   my $md5=AliEn::MD5->new($file)
     or $self->info("Error calculating the md5") and return;
-  my $result=$self->{STORAGE}->registerInLCM($pfn) or return;
 
-  ($self->{CATALOG}->isFile("${reallfn}~") )
-    and $self->execute("rm", "-silent", "${reallfn}~");
-  $self->execute("cp", $lfn, "${reallfn}~");
-  return $self->execute("update", $lfn, "-size", $result->{size}, "-guid", $result->{guid}, "-se", $self->{CONFIG}->{SE_FULLNAME}, "-md5", $md5,"-pfn", $result->{pfn});
+  return $self->addFile("-v", "-md5=$md5", $reallfn, $pfn);
 }
 
 sub Getopts {
@@ -929,7 +924,7 @@ sub addFile {
   #get the authorization envelope and put it in the IO_AUTHZ environment variable
   my @envelope;
   if ($options->{versioning}) {
-    @envelope = $self->access("-s","write","$lfn",$newSE);
+    @envelope = $self->access("-s","write-version","$lfn",$newSE);
   } else {
     @envelope = $self->access("-s","write-once","$lfn",$newSE);
   }
