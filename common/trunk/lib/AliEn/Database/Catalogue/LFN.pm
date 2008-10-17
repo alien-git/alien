@@ -485,10 +485,10 @@ sub getLFNlike {
 
       my $db=$self->selectDatabase($parent) or 
 	$self->info("Error selecting the database of $parent") and next;
-      my $parentdir=$self->getAllInfoFromLFN({retrieve=>'entryId', method=>'queryValue'}, $parent);
+      my $parentdir=$db->getAllInfoFromLFN({retrieve=>'entryId', method=>'queryValue'}, $parent);
 
-      my $tableName=$self->{INDEX_TABLENAME}->{name};
-      my $tablelfn=$self->{INDEX_TABLENAME}->{lfn};
+      my $tableName=$db->{INDEX_TABLENAME}->{name};
+      my $tablelfn=$db->{INDEX_TABLENAME}->{lfn};
 
       my $ppattern="$parent$pattern";
 
