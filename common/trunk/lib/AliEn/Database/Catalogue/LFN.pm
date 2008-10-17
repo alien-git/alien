@@ -506,8 +506,8 @@ sub getLFNlike {
     } else{
       my $db=$self->selectDatabase($parent) or 
 	$self->info("Error selecting the database of $parent") and next;
-      my $parentdir=$self->getAllInfoFromLFN({retrieve=>'entryId', method=>'queryValue'}, $parent, "$parent/") or next;
-      push @result, "$self->{INDEX_TABLENAME}->{lfn}$parent";
+      my $parentdir=$db->getAllInfoFromLFN({retrieve=>'entryId', method=>'queryValue'}, $parent, "$parent/") or next;
+      push @result, "$db->{INDEX_TABLENAME}->{lfn}$parent";
     }
   }
 
