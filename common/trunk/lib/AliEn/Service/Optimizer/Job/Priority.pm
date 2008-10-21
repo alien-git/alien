@@ -28,7 +28,7 @@ sub checkWakesUp {
 waiting=(select count(*) from QUEUE where status='WAITING' and p.user=$userColumn collate latin1_general_cs),
 running=(select count(*) from QUEUE where (status='RUNNING' or status='STARTED' or status='SAVING') and p.user= $userColumn  collate latin1_general_cs),
 userload=(running/maxparallelJobs),
-computedpriority=(if(running<maxparallelJobs, if((2-userload)*priority>0,50.0*(2-userload)*priority,0),0))";
+computedpriority=(if(running<maxparallelJobs, if((2-userload)*priority>0,50.0*(2-userload)*priority,1),1))";
 
     $self->info("Doing $update");
     $self->{DB}->do($update);
