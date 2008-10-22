@@ -152,6 +152,9 @@ sub checkVariables{
   for my $entry ("TMP_DIR", "LOG_DIR", "CACHE_DIR", "WORKDIR"){
     $self->{$entry} or next;
     $self->debug(1, "Checking $entry => $self->{$entry}");
+    if ($self->{$entry}=~ /\$/){
+      $self->{"${entry}_ORIG"}=$self->{$entry};
+    }
     while ( $self->{$entry} =~ s{\$([^/]*)}{$ENV{$1}}){
       $self->debug(1, "Replacing $1 by  $ENV{$1} in $entry");
     }
@@ -850,9 +853,20 @@ sub GetConfigFromCM {
   $DEBUG and $this->debug(1,"Getting the configuration done!");
 
 
+  if (grep(/_ORIG$/, keys %$self)){
+    $self->debug(1, "There are some variables that we have to recover");
+    foreach my $k (grep(/_ORIG$/, keys %$self)){
+      my $j=$k;
+      $j=~ s/_ORIG$//;
+      $self->{$j}=$self->{$k};
+    }
+    $self->checkVariables();
+  }
+
   $this->{DOMAIN}=  $ENV{ALIEN_DOMAIN}=Net::Domain::hostdomain();
 
   $this->{HOST}= $ENV{ALIEN_HOSTNAME}=Net::Domain::hostfqdn();
+
 
   return $this;
 }
