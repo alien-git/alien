@@ -284,7 +284,7 @@ sub get {
 #  ( $opt, @_ ) = $self->Getopts(@_);
   my %options=();
   @ARGV=@_;
-  getopts("gonb:c", \%options) or $self->info("Error parsing the arguments of get\n". $self->get_HELP()) and  return ;
+  getopts("gonb:cl", \%options) or $self->info("Error parsing the arguments of get\n". $self->get_HELP()) and  return ;
   @_=@ARGV;
   
   my $opt=join("",keys %options);
