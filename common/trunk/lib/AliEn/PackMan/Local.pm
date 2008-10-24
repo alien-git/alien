@@ -487,7 +487,24 @@ The package is supposed to do: $source
 This script will receive as the first argument the directory where the package is installed, and then the command to execute. Please, make sure that the script finishes with a line that calls the rest of the arguments (something like \$*).";
     }
   }
-
+  my $dir=$installDir || ".";
+  my $md5file="$dir/.alien_md5_list";
+  $self->info("And let's check the md5 sum");
+  if (not -f "$md5file.sorted"){
+    if (not -f "$md5file.lock"){
+      system("touch $md5file.lock");
+      system("rm", "-rf", $md5file);
+      system("find", "$dir -type f -not -path '/.*' --exec md5sum {} >> $md5file \\;");
+      system("sort $md5file > $md5file.sorted");
+      system("md5sum $md5file.sorted > $md5file.total");
+    }
+  }
+  if (-f "$md5file.total"){
+    if(open (FILE, "<$md5file.total")){
+      $env=join("", "And the total md5 is:", <FILE>, $env);
+      close FILE;
+    }
+  }
   my $directory=`ls -la $installDir`;
   return ($version, $info, $directory, $env);
 }
