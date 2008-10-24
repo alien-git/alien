@@ -936,7 +936,7 @@ sub offerAgent {
   
   if ($self->{COUNTER}%100) {
     $self->info("Submitted $self->{COUNTER}. Delete the old ones");
-    system("rm $self->{CONFIG}->{LOG_DIR}/AliEn.JobAgent.$$.*");
+    system("rm -rf $self->{CONFIG}->{LOG_DIR}/AliEn.JobAgent.$$.*");
   }
   return 1;
 }
