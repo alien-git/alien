@@ -1742,6 +1742,7 @@ sub f_find {
   $status  or return;
   my $pattern=join("* or $path*", @$file);
   $DEBUG and $self->debug(1, "Searching for files like $path*$pattern* ...");
+  $options{selimit}=$self->{LIMIT_SE};
   my $entriesRef=$self->{DATABASE}->findLFN($path, $file, $refNames, $refQueries,$refUnions, %options) or return;
   my @result=@$entriesRef;
   my $total = @result;
