@@ -284,7 +284,7 @@ sub modifyTagValue {
 sub f_showTagValue_HELP{
   return "showTagValue: displays the metadata of an entry;
 Usage:
-\t showTagValue [] <entry> <tagName>
+\t showTagValue [] <entry> <tagName> [<tagField>]
 
 Options:
 \t  -r: recursive. Show also the metadata of any entry in any subdirectory
@@ -295,6 +295,7 @@ sub f_showTagValue {
   my $opts   = shift;
   my $path = $self->GetAbsolutePath(shift);
   my $tag = shift;
+  my $tagField=shift || "";
   
   my $hashtags=();
   ($tag)
@@ -355,9 +356,11 @@ sub f_showTagValue {
 
     my $l = length "$name($type)  ";
     $type =~ /(\d+)/ and $1 > $l and $l = $1;
-
+    $l>200 and $l=60;
     if ((!$self->{SILENT}) && ($opts !~ /z/)) {
-      printf "%-${l}s", "$name($type)  ";
+      if (not $tagField or $name=~/^(file)|($tagField)$/){
+	printf "%-${l}s", "$name($type)  ";
+      }
     }
     push @fields, [$name, $l];
   }
@@ -366,9 +369,14 @@ sub f_showTagValue {
     ($opts =~ /z/) || print STDOUT "\n";
     foreach my $line (@$rTags) {
       foreach my $rfield (@fields) {
+	if ($tagField){
+	  $rfield->[0] =~ /^(file)|($tagField)$/ or next;
+	}
 	my $value="";
 	defined $line->{$rfield->[0]} and $value=$line->{$rfield->[0]};
-	($opts =~ /z/) || printf( "%-" . $rfield->[1] . "s", $value );
+	my $l= $rfield->[1];
+	$l >200 and $l=60;
+	($opts =~ /z/) || printf( "%-${l}s", $value );
       }
       print STDOUT "\n";
     }

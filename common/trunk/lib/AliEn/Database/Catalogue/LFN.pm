@@ -1631,6 +1631,7 @@ sub internalQuery {
   my $refQueries=shift;
   my $refUnions=shift;
   my $options=shift;
+  my $selimit=shift || "";
 
   my $indexTable="L$refTable->{tableName}L";
   my $indexLFN=$refTable->{lfn};
@@ -1704,11 +1705,28 @@ sub internalQuery {
   $options->{'s'} and $order="";
   $options->{l} and $limit = "limit $options->{l}";
   $options->{o} and $limit .= " offset $options->{o}";
+
+  my $b="$binary2string";
+  $b=~ s/guid/l.guid/;
+
   map {s/^(.*)$/SELECT *,concat('$refTable->{lfn}', lfn) as lfn,
-$binary2string  as guid from $indexTable $1 $order $limit/} @joinQueries;
+$b as guid from $indexTable l $1 $order $limit/} @joinQueries;
 
   $self->debug(1,"We have to do $#joinQueries +1 to find out all the entries");
-
+  if ($options->{selimit}) {
+    $self->debug(1, "Displaying only the files in a particular se");
+    my $GUIDList=$self->getPossibleGuidTables( $self->{INDEX_TABLENAME}->{name});
+    my @newQueries;
+    foreach my $entry (@$GUIDList){
+      foreach my $query (@joinQueries){
+	my $q=$query;
+	$q =~ s/ from / from $entry->{db}.G$entry->{tableName}L g,$entry->{db}.G$entry->{tableName}L_PFN p, /;
+	$q =~ s/ where / where g.guid=l.guid and p.guidid=g.guidid and senumber='$options->{selimit}' and /i;
+	push @newQueries, $q;
+      }
+    }
+    @joinQueries=@newQueries;
+  }
   #Finally, let's do all the queries:
   my @result;
   foreach (@joinQueries) {

@@ -44,9 +44,9 @@ use GSS;
 my $SubjectToUid = sub {
   my $subject = shift;
   my $desired=shift;
-  my $uid=$ADMINDBH->queryValue("SELECT u.user from USERS_LDAP u, USERS_LDAP_ROLE r where r.user=u.user and dn=? and role=? union select user from USERS_LDAP u where user=?",
-			       undef, {bind_values=>[$subject, $desired, $desired]});
-
+  my $uid=$ADMINDBH->queryValue("SELECT u.user from USERS_LDAP u, USERS_LDAP_ROLE r where r.user=u.user and dn=? and role=? union select user from USERS_LDAP u where user=? and dn=?",
+			       undef, {bind_values=>[$subject, $desired, $desired, $subject]});
+  
   if (! $uid){
     print STDERR "Failure in translating $subject into $uid\n";
     return 0;
@@ -201,12 +201,13 @@ sub exists_user {
 
   if ( $username =~ /^\// ) {
     my $tmprole=$username;
+    print "Translating the subject '$username' and '$role'\n";
     $SubjectToUid->( $username, $role ) and return $role;
     print "Failure in translating $tmprole into uid\n";	
     #No user registered with this subject:(
     return 0;
   } else {
-
+    print "DO WE HAVE TO CHECK '$username' and '$role'??\n";
     $checkUserRole->($username, $role) and return $role;
   }
   print "User $username not allowed to be $role\n";
@@ -274,6 +275,7 @@ sub exists_user_cyrus_sasl {
   
   if ( $username =~ /^\// ) {
     my $tmprole=$username;
+    print "Translating the subject $username and $role\n";
     $SubjectToUid->( $username, $role ) and return $role;
     print "Failure in translating $tmprole into uid\n";	
     #No user registered with this subject:(
@@ -371,74 +373,74 @@ sub verify {
   my $done = 0;
   do 
   {
-    	my ( $status, $inTok, $inToklen ) = AliEn::Authen::Comm::read_buffer( $self->{socket} );
+    my ( $status, $inTok, $inToklen ) = AliEn::Authen::Comm::read_buffer( $self->{socket} );
 
-        if ( $status eq "REQUEST AUTH" ) 
-        {
-             $self->debug(1, "User wishes to authenticate" );
-             AliEn::Authen::Comm::write_buffer( $self->{socket}, "AUTH OK", "", );
-
-             if ( $self->authenticate_alien_sasl ($inTok) ) 
-             {
-	         $self->info( "Context established using AliEn SASL\n" );
-                 $authWithAliEnSASL = "1";  
-	         $done = 1;
-             }
-             else 
-             {
-	        $ALIEN_AUTH_ERROR or $ALIEN_AUTH_ERROR="user did not authenticate (AliEn SASL was used)"; 
-                $self->info("Error context not established: $ALIEN_AUTH_ERROR" );
-	        return (undef, $ALIEN_AUTH_ERROR);
-             }
-        }
-        elsif ( $status eq "REQUEST MECHS" ) 
-        {
-             $self->debug(1, " Client wishes to retrive list of AliEn SASL mechs " );
-             my $mechs = $self->{AliEnSASLServer}->listmech();
-             $self->debug(1, " Mechlist: $mechs" );
-             AliEn::Authen::Comm::write_buffer( $self->{socket},"AliEnAUTH MECHS", $mechs, length($mechs) );
-        }
-        elsif ($status eq "REQUEST CYRUS MECHS" )
-        {
-             $self->debug(1, " Client wishes to retrive list of Cyrus SASL mechs" );
-             my $tmpmechs = $self->{CyrusSASLServer}->listmech("", " ", "");
-
-                # we need to have mechanisms in the correct order
-                my $mechs="";
-                $tmpmechs =~ /GSSAPI ?/ and $mechs = "GSSAPI ";
-                $tmpmechs =~ /SSH ?/ and $mechs .= "SSH ";
-                $tmpmechs =~ /JOBTOKEN ?/ and $mechs .= "JOBTOKEN";
-                $tmpmechs =~ /TOKEN ?/ and $mechs .= "TOKEN ";
+    if ( $status eq "REQUEST AUTH" ) 
+      {
+	$self->debug(1, "User wishes to authenticate" );
+	AliEn::Authen::Comm::write_buffer( $self->{socket}, "AUTH OK", "", );
+	
+	if ( $self->authenticate_alien_sasl ($inTok) ) 
+	  {
+	    $self->info( "Context established using AliEn SASL\n" );
+	    $authWithAliEnSASL = "1";  
+	    $done = 1;
+	  }
+	else 
+	  {
+	    $ALIEN_AUTH_ERROR or $ALIEN_AUTH_ERROR="user did not authenticate (AliEn SASL was used)"; 
+	    $self->info("Error context not established: $ALIEN_AUTH_ERROR" );
+	    return (undef, $ALIEN_AUTH_ERROR);
+	  }
+      }
+    elsif ( $status eq "REQUEST MECHS" ) 
+      {
+	$self->debug(1, " Client wishes to retrive list of AliEn SASL mechs " );
+	my $mechs = $self->{AliEnSASLServer}->listmech();
+	$self->debug(1, " Mechlist: $mechs" );
+	AliEn::Authen::Comm::write_buffer( $self->{socket},"AliEnAUTH MECHS", $mechs, length($mechs) );
+      }
+    elsif ($status eq "REQUEST CYRUS MECHS" )
+      {
+	$self->debug(1, " Client wishes to retrive list of Cyrus SASL mechs" );
+	my $tmpmechs = $self->{CyrusSASLServer}->listmech("", " ", "");
+	
+	# we need to have mechanisms in the correct order
+	my $mechs="";
+	$tmpmechs =~ /GSSAPI ?/ and $mechs = "GSSAPI ";
+	$tmpmechs =~ /SSH ?/ and $mechs .= "SSH ";
+	$tmpmechs =~ /JOBTOKEN ?/ and $mechs .= "JOBTOKEN";
+	$tmpmechs =~ /TOKEN ?/ and $mechs .= "TOKEN ";
                
 	
- 
-             $self->debug(1, " Mechlist: $mechs" );
-             AliEn::Authen::Comm::write_buffer( $self->{socket},"AliEnAUTH MECHS", $mechs, length($mechs) );
-        }
-        elsif ($status eq "REQUEST CYRUS AUTH" )
-        {
-            $self->debug(1, "User wishes to authenticate with Cyrus SASL " );
-            AliEn::Authen::Comm::write_buffer( $self->{socket}, "AUTH OK", "",);
-
-            $authOut = $self->authenticate_cyrus_sasl($inTok);
-            if ( $authOut )
-            {
-               $self->info( "Context established using Cyrus SASL\n" );
-               $authWithAliEnSASL = 0; 
-               $done = 1;
-            }
-            else
-            {
-               $CYRUS_AUTH_ERROR or $CYRUS_AUTH_ERROR="user did not authenticate (Cyrus SASL was used)";
-               $self->info("Error context not established: $CYRUS_AUTH_ERROR" );
-               return (undef, $CYRUS_AUTH_ERROR);
-            }
-        }     
-        else ## Command not understood
-        {
-             $self->debug(1,"The command is not understood by this server\n" );
-             return;
-        }
+	
+	$self->debug(1, " Mechlist: $mechs" );
+	AliEn::Authen::Comm::write_buffer( $self->{socket},"AliEnAUTH MECHS", $mechs, length($mechs) );
+      }
+    elsif ($status eq "REQUEST CYRUS AUTH" )
+      {
+	$self->debug(1, "User wishes to authenticate with Cyrus SASL " );
+	AliEn::Authen::Comm::write_buffer( $self->{socket}, "AUTH OK", "",);
+	
+	$authOut = $self->authenticate_cyrus_sasl($inTok);
+	if ( $authOut )
+	  {
+	    $self->info( "Context established using Cyrus SASL\n" );
+	    $authWithAliEnSASL = 0; 
+	    $done = 1;
+	  }
+	else
+	  {
+	    $CYRUS_AUTH_ERROR or $CYRUS_AUTH_ERROR="user did not authenticate (Cyrus SASL was used)";
+	    $self->info("Error context not established: $CYRUS_AUTH_ERROR" );
+	    return (undef, $CYRUS_AUTH_ERROR);
+	  }
+      }     
+    else ## Command not understood
+      {
+	$self->debug(1,"The command is not understood by this server\n" );
+	return;
+      }
   } while ( !$done );
   
 
@@ -457,7 +459,10 @@ sub verify {
     ($mech, $username, $role) = split "\0", $CALLBACK_DATA;
     ($mech eq "JOBTOKEN") and ($role = $authOut);
   }
-
+#  $self->info("Checking if the user exists");
+#  if (!$self->exists_user()){
+#    return (undef, "User '$username' can't connect as $role");
+#  }
   $self->info("Get password for $username (in $role)" );
 
   my $passwd = $self->{ADMINDBH}->getPassword($role);
