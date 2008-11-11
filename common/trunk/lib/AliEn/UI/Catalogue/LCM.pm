@@ -1648,6 +1648,10 @@ sub access {
 	($se, $pfn, $anchor, $lfn, $nses, $whereis)=$self->getPFNforAccess($guid, $se, $sesel, $lfn, $options)
 	  or return access_eof;
 	$self->info("AND NOW WE HAVE $se, $pfn, $anchor, $lfn, $nses, $whereis");
+	if (UNIVERSAL::isa($se, "HASH")){
+	  $self->info("Here we have to return eof");
+	  return access_eof;
+	}
 	$DEBUG and $self->debug(1, "access: We can take it from the following SE: $se with PFN: $pfn");
       }
 
