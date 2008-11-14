@@ -1690,10 +1690,10 @@ sub internalQuery {
 	  #The second query gets files with that metadata. 
 	  # (this part is pretty fast)
 
-	  push @newQueries, " JOIN $table $oldQuery $union $table.$query and $table.file like '%/' and concat('$refTable->{lfn}', $indexTable.lfn) like concat( $table.file,'%') ";
+	  push @newQueries, " JOIN $table $oldQuery $union $table.$query and $table.file like '%/' and concat('$refTable->{lfn}', l.lfn) like concat( $table.file,'%') ";
 
 	  my $length=length($refTable->{lfn})+1;
-	  push @newQueries, " JOIN $table $oldQuery $union $table.$query and $indexTable.lfn=substring($table.file, $length) and left($table.file, $length-1)='$refTable->{lfn}'";
+	  push @newQueries, " JOIN $table $oldQuery $union $table.$query and l.lfn=substring($table.file, $length) and left($table.file, $length-1)='$refTable->{lfn}'";
 	}
       }
     }
