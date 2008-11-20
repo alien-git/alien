@@ -23,32 +23,18 @@ sub initialize {
    chomp $host;
    $self->{CONFIG}->{VOBOX} = $host.':8084';
    $ENV{ALIEN_CM_AS_LDAP_PROXY} and $self->{CONFIG}->{VOBOX} = $ENV{ALIEN_CM_AS_LDAP_PROXY};
-   $self->info("This VO-Box is $self->{CONFIG}->{VOBOX}, site is \'$ENV{SITE_NAME}\', using $ENV{AliEn_WMS}");
+   $self->info("This VO-Box is $self->{CONFIG}->{VOBOX}, site is \'$ENV{SITE_NAME}\'");
    $self->{CONFIG}->{VOBOXDIR} = "/opt/vobox/\L$self->{CONFIG}->{ORG_NAME}";
    $self->{UPDATECLASSAD} = 0;
    
-   my $cmds = { WMS => { SUBMIT_CMD  => 'glite-wms-job-submit',
-                         STATUS_CMD  => 'glite-wms-job-status',
-		         KILL_CMD    => 'glite-wms-job-cancel',
-		         CLEANUP_CMD => 'glite-wms-job-output',
-			 MATCH_CMD   => 'glite-wms-job-list-match' },
-	         RB => { SUBMIT_CMD  => 'edg-job-submit',
-                         STATUS_CMD  => 'edg-job-status',
-		         KILL_CMD    => 'edg-job-cancel',
-		         CLEANUP_CMD => 'edg-job-get-output',
-			 MATCH_CMD   => 'edg-job-list-match' }};
+   my $cmds = {  SUBMIT_CMD  => 'glite-wms-job-submit',
+                 STATUS_CMD  => 'glite-wms-job-status',
+		 KILL_CMD    => 'glite-wms-job-cancel',
+		 CLEANUP_CMD => 'glite-wms-job-output',
+		 MATCH_CMD   => 'glite-wms-job-list-match' };
 			 
-   my @cmds_list = qw(SUBMIT_CMD STATUS_CMD KILL_CMD CLEANUP_CMD MATCH_CMD);	
-   if (defined $ENV{AliEn_WMS} ) {
-     if (exists $cmds->{$ENV{AliEn_WMS}}) {
-       $self->{$_} = ( $self->{CONFIG}->{$_} or $cmds->{$ENV{AliEn_WMS}}->{$_} ) foreach (@cmds_list);
-     } else {
-       $self->{LOGGER}->warning("LCG","AliEn_WMS=$ENV{AliEn_WMS} is unknown.");
-     }
-   } else {
-       $self->{$_} = $self->{CONFIG}->{$_} || '' foreach (@cmds_list);
-   }
-   
+   $self->{$_} = $cmds->{$_} || $self->{CONFIG}->{$_} || '' foreach (keys %$cmds);
+      
    if ($ENV{CE_SITE_BDII}) {
      $self->{CONFIG}->{CE_SITE_BDII} = $ENV{CE_SITE_BDII};
    } else {
@@ -91,8 +77,6 @@ sub initialize {
          open STVOCONF, ">$self->{CONFIG}->{LOG_DIR}/$thisRB.vo.conf" or return;
          print STVOCONF "[
            VirtualOrganisation = \"alice\";
-           NSAddresses	       = \"$thisRB:7772\";
-           LBAddresses	       = \"$thisRB:9000\";
 	   WMProxyEndpoints    = {\"https://$thisRB:7443/glite_wms_wmproxy_server\"};
            MyProxyServer       = \"myproxy.cern.ch\";\n]\n";
          close STVOCONF;
@@ -312,16 +296,16 @@ sub getAllBatchIds {
 	(undef,$status) = split /:/;
 	$status =~ s/\s//g;     
 	next;
-      } elsif ( m/reached on/) {
-        (undef,$time) = split /:/,$_,2;
-        $time =~ s/^\s+//;     
+      } elsif ( m/Stateentertime/) { 
+        (undef,$time) = split /=/,$_,2;
+        $time =~ s/^\s+//;    
 	my ( undef, $m, $d, $hrs, $min, $sec, $y ) = 
 	   ($time =~ /([A-Za-z]+)\s+([A-Za-z]+)\s+(\d+)\s+(\d+):(\d+):(\d+)\s+(\d+)/);
 	$m = { Jan => 0, Feb => 1, Mar => 2, Apr => 3,
 	       May => 4, Jun => 5, Jul => 6, Aug => 7,
 	       Sep => 8, Oct => 9, Nov => 10, Dec => 11 }->{"$m"};
-	$time = timegm($sec,$min,$hrs,$d,$m,$y-1900); # Timestamps returned by LB are UTC
-        next;
+	$time = timelocal($sec,$min,$hrs,$d,$m,$y-1900); 
+       next;
       }
     }  
   }
@@ -396,8 +380,8 @@ sub cleanUp {
     if ( $age < 60*60*24*3 ) {
       if ( $_->{'batchId'} ) {
 	my $status = $self->getJobStatus($_->{'batchId'});
-	if ( $status eq 'Aborted' || $status eq 'Cancelled') {
-	  $self->info("Job $_->{'batchId'} was aborted or cancelled, no logs to retrieve");
+	if ( $status eq 'Aborted' || $status eq 'Cancelled' || $status eq 'Done(Failed)') {
+	  $self->info("Job $_->{'batchId'} was aborted, cancelled or failed, no logs to retrieve");
 	} elsif ( $status eq 'Running' || $status eq 'Waiting' || $status eq 'Scheduled') {
           $self->info("Job $_->{'batchId'} is still \'$status\'");
           next;
@@ -415,10 +399,12 @@ sub cleanUp {
                                                 	   "--logfile", $logfile,
 					        	   "--dir", $outdir,
 					        	   $_->{'batchId'} );
+	  						   
 	  if ( $? ) {						     
-	    my $errmesg = (split(/\s+/,(grep(/\*\*\*\* Error: /,@output))[0]))[2];						     
-	    $self->info("Could not retrieve output for $_->{'batchId'}: $errmesg");
-	    next unless ($errmesg =~ m/NS_JOB_OUTPUT_RETRIEVED/);
+#	    my $errmesg = (split(/\s+/,(grep(/\*\*\*\* Error: /,@output))[0]))[2];						     
+	    $self->info("Could not retrieve output for $_->{'batchId'}: @?");
+#	    next unless ($errmesg =~ m/NS_JOB_OUTPUT_RETRIEVED/);
+            next;
 	  }
 	}
       } else {
@@ -448,14 +434,11 @@ sub wrapSubmit {
   my $logFile = shift;
   my $jdlfile = shift;
   my @args = @_ ;  
-  # Ugly patch to accomodate gLite 3.0 along with gLite 3.1
-  my $configOptName = "--config";
-  $configOptName = "--config-vo" if ($ENV{AliEn_WMS} eq 'RB');
   my @command = ( $self->{SUBMIT_CMD}, 
                   "--noint", 
 		  "--nomsg");
   @command = ( @command,		   
-	       $configOptName, "$self->{CONFIG}->{LOG_DIR}/$RB.vo.conf") if $RB;
+	       "--config", "$self->{CONFIG}->{LOG_DIR}/$RB.vo.conf") if $RB;
   @command = ( @command,
 	       "--logfile", $logFile, 
 	       @args, 
