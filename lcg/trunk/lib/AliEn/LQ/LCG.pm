@@ -265,6 +265,7 @@ sub getAllBatchIds {
     my @someJobs = splice(@$jobIds,0,25);
     my $logfile = AliEn::TMPFile->new({ ttl => '12 hours'});
     my @output=$self->_system($self->{STATUS_CMD}, "--noint", 
+                                                   "-v", "2",
                                                    "--logfile", $logfile,
 						   @someJobs);
     my $status = '';
@@ -400,6 +401,11 @@ sub cleanUp {
 	} elsif ( $status eq 'Running' || $status eq 'Waiting' || $status eq 'Scheduled') {
           $self->info("Job $_->{'batchId'} is still \'$status\'");
           next;
+	} elsif ( $status eq 'Cleared' ) {
+          $self->info("Output for job $_->{'batchId'} was already downloaded, this is funny...");
+          $self->info("Will remove DB entry for $_->{batchId}");
+          $self->{DB}->delete("TOCLEANUP","batchId=\'$_->{batchId}\'") if $_->{batchId};
+          next;
 	} else {
 	  $self->info("Will retrieve OutputSandbox for $status job $_->{'batchId'}");
           my $logfile = AliEn::TMPFile->new({ ttl      => '24 hours',
@@ -507,7 +513,7 @@ sub queryBDII {
   my @items = @_;
   my %results = ();
   my $someAnswer = 0;
-  $self->debug(1,"Querying $CE for @items");
+  $self->info("Querying $CE for @items");
   $self->debug(1,"Filter is $filter");
   (my $host,undef) = split (/:/,$CE);    
   my @IS  = (
@@ -803,6 +809,7 @@ Arguments = \"-x dg-submit.$$.sh\";
 StdOutput = \"std.out\";
 StdError = \"std.err\";
 RetryCount = 0;
+ShallowRetryCount = 0;
 VirtualOrganisation = \"\L$voName\E\";
 InputSandbox = {\"$exeFile\"};
 OutputSandbox = { \"std.err\" , \"std.out\" };
