@@ -392,10 +392,10 @@ sub startTransfer {
     and print "Checking if we are getting from hpss" and
       $destPath = "$fromURL->{PARSED}->{VARS_HOST}$destPath";
 
-  my $options=$transfer->{FROMFTDOPTIONS};
+  my $options=$transfer->{FROMFTDOPTIONS} || "";
   
   
-  $self->info("startTransfer: transfer=$transfer, transfer-FROMFTDOPTION=$transfer->{FROMFTDOPTIONS}");
+  $self->info("startTransfer: transfer=$id, transfer-FROMFTDOPTION=$options");
   
   
   ($self->{CONFIG}->{FTD_LOCALOPTIONS})

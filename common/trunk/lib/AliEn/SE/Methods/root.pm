@@ -7,6 +7,7 @@ use vars qw( @ISA $DEBUG);
 @ISA = ("AliEn::SE::Methods::Basic");
 
 $DEBUG=0;
+use IPC::Open2;
 
 use strict;
 
@@ -105,11 +106,29 @@ sub put {
 sub remove {
   my $self=shift;
   $self->debug(1,"Trying to remove the file $self->{PARSED}->{ORIG_PFN}");
+  print "We are in the remove\n";
+#  open(FILE, "| xrd $self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}
+  my $pid = open2(*Reader, *Writer, "xrd $self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}" )
+    or $self->info("Error calling xrd!") and return;
+  print "Open\n";
+  print Writer "rm $self->{PARSED}->{PATH}\n";
+  print "Just wrote\n";
+  my $error=close Writer;
+  print "Reading\n";
+  my $got="";
+  while(my $l=<Reader>){
+    print "Hello $l\n";
+    $got.="$l";
+    $l=~ /^\s*$/ and last;
+  }
 
-  my $command="xrm root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH}";
-  my $error=$self->_execute($command);
-
-  ($error<0) and return;
+  print "read\n";
+  my $error2=close Reader;
+  print "Hello $error and $got and ($error2)\n";
+#  my $command="xrm root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH}";
+#  my $error=$self->_execute($command);#
+#
+#  ($error<0) and return;
   $self->debug(1,"YUUHUUUUU!!\n");
   return "root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH}";
 
