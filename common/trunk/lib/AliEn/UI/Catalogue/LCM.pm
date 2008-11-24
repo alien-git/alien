@@ -471,69 +471,35 @@ sub df {
     ( $opt, @_ ) = $self->Getopts(@_);
   my $se   = (shift or $self->{CONFIG}->{SE_FULLNAME});
   my $oldsilent = $self->{CATALOG}->{SILENT};
-  my @hostportsName;
+#  my @hostportsName;
   my @results = ();
   if ($opt =~/a/) {
       $se = "";
   }
 
   my $service="SE";
-  my $function="getLVMDF";
+  my $function="getDF";
   if ($opt=~ /c/ ){
     $service="CLC";$function="getCacheDF";
     $self->info("Cachename               1k-blocks         Used(KB)  Available Use\%    Range \  #Files",0,0);
   } else {
-    $self->info("Storagename             1k-blocks         Used(KB)  Available Use\%    \#Files Type",0,0);
+    $self->info("Storagename             1k-blocks         Used(KB)  Available Use\%    \#Files Type   min_size",0,0);
   }
 
-  if ($se) {
-    # query only one special SE
-    $self->{CATALOG}->{SILENT} = 1;
-    my $hostport = $self->resolve($se,$service);
-    $self->{CATALOG}->{SILENT} = $oldsilent;
-    if (! defined $hostport) {
-      print STDERR "Error: $service $se is not known!\n" and return;
-    }
-    push @hostportsName, "$hostport###$se";
 
-  } else {
-    # query all SE from the IS
-    my $response=$self->{SOAP}->CallSOAP("IS", "getAllServices",$service) or 
-      $self->info("Error getting the list of $service") and return;
-    $response = $response->result;
-    #    print "All Service are $response->{HOSTS} and $response->{PORTS}\n";
 
-    my $cnt = 0;
-    my @hosts = split ":",$response->{HOSTS};
-    my @ports = split ":",$response->{PORTS};
-    my @names = split "###", $response->{NAMES};
-    for (@hosts) {
-      push @hostportsName, "$hosts[$cnt]:$ports[$cnt]###$names[$cnt]";
-      $cnt++;
-    }
-  }
-
-  for (@hostportsName) {
-    my ($address, $name)=split(/###/, $_);
-    $self->debug(1, "Calling $address");
-    my $response = 
-      SOAP::Lite->uri("AliEn/Service/$service")
-	  ->proxy("http://$address",timeout => 5)
-	    ->$function($name, $opt);
-    
-    ($response) or next;
-    $self->debug(1, "Got $response");
-    $response = $response->result;
-    ( defined $response) or next;
-    $self->debug(1, "Got $response");
+  my $response=$self->{CATALOG}->f_df($se, $opt);
+  $self->debug(1, "Got $response");
+  foreach my $line (@$response){
     my $details = {};
-    ($details->{name}, $details->{size}, $details->{used}, $details->{available}, $details->{usage}, $details->{files}, $details->{type}) 
-       =split(/\s+/, $response);
+    ($details->{name}, $details->{size}, $details->{used}, $details->{available}, $details->{usage}, $details->{files}, $details->{type}, $details->{min_size}) 
+      =($line->{seName}, $line->{freespace},$line->{usedspace},$line->{freespace},$line->{used},$line->{seNumFiles},$line->{seType}, $line->{seMinSize});
     push(@results, $details);
-    ( $response eq "-1") and next;
-    
-    $self->info("$response",0,0);
+    ( $line eq "-1") and next;
+    my $buffer  = sprintf " %-19s %+12s %+12s %+12s %+3s%% %+9s %-10s %s",$line->{seName}, $line->{freespace},$line->{usedspace},$line->{freespace},$line->{used},$line->{seNumFiles},$line->{seType}, $line->{seMinSize};
+    $self->info($buffer,0,0);
   }
+#  }
   return @results;
 }
 
@@ -920,13 +886,19 @@ sub addFile {
     $self->info("Saving the file in a custodial SE");
     $newSE=$self->findCloseSE("custodial") or return;
   }
+
+  $pfn=$self->checkLocalPFN($pfn);
+  my $size=AliEn::SE::Methods->new($pfn)->getSize();
+
   ######################################################################################
   #get the authorization envelope and put it in the IO_AUTHZ environment variable
+
+
   my @envelope;
   if ($options->{versioning}) {
-    @envelope = $self->access("-s","write-version","$lfn",$newSE);
+    @envelope = $self->access("-s","write-version","$lfn",$newSE, $size);
   } else {
-    @envelope = $self->access("-s","write-once","$lfn",$newSE);
+    @envelope = $self->access("-s","write-once","$lfn",$newSE, $size);
   }
   if (!defined $envelope[0]->{envelope}) {
     $self->info( "Cannot get access to $lfn") and return;
@@ -934,10 +906,8 @@ sub addFile {
 
   $ENV{'IO_AUTHZ'} = $envelope[0]->{envelope};
   ######################################################################################
-
   $self->debug(1, "\nRegistering  $pfn as $lfn, in SE $newSE and $oldSE (target $target)");
 
-  $pfn=$self->checkLocalPFN($pfn);
 #  if ($options=~ /u/) {#
 #
 #  }
@@ -945,8 +915,8 @@ sub addFile {
   my $data = $self->{STORAGE}->registerInLCM( $pfn, $newSE, $oldSE, $target,$lfn, $options,"", $envelope[0]);
 
   my $time=time-$start;
-  my $size=undef;
-  $data and $size=$data->{size};
+#  my $size=undef;
+#  $data and $size=$data->{size};
   $self->sendMonitor("write", $newSE, $time, $size, $data);
   $data or return;
 
@@ -1569,6 +1539,14 @@ sub access {
     $perm = "r";
   } elsif ($access =~ /^(((write)((-once)|(-version))?)|(delete))$/ ) {
     $perm = "w";
+    if ($size){
+      $self->info("Checking the size ($size)");
+      my ($info)=$self->df("", $se);
+      if ($info and $info->{min_size} and $info->{min_size}>$size){
+	$self->info("The file is too small!! ( only $size and it should be $info->{min_size}");
+	return access_eof;
+      } 
+    }
   } else {
     $self->{LOGGER}->error("LCM","access: illegal access type <$access> requested");
     return access_eof;
@@ -1983,7 +1961,8 @@ sub upload {
   my $data;
   if ($options !~ /u/ ){
     $self->info("Trying to upload the file $pfn to the se $se");
-    my @envelope= $self->access("-s","write-once","/NOLFN", $se, 0,0,"$guid");
+    my $size=AliEn::SE::Methods->new($pfn)->getSize();
+    my @envelope= $self->access("-s","write-once","/NOLFN", $se, $size,0,"$guid");
     @envelope or $self->info("Error getting the security envelope") and return;
     
     $data= $self->{STORAGE}->registerInLCM( $pfn, $se, undef, undef, undef, undef, $guid, $envelope[0]) or return;

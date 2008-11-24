@@ -2124,6 +2124,11 @@ sub f_type_HELP{
 ";
 }
 
+sub f_df{
+  my $self=shift;
+  return $self->{DATABASE}->getDF(@_);
+}
+
 sub f_type{
   my $self=shift;
   my $hash=grep (/^-z$/,@_);

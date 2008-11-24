@@ -1194,6 +1194,23 @@ sub optimizeGUIDtables_removeTable {
   return 1;
 }
 
+sub getDF {
+  my $self=shift;
+  my $sename=shift;
+  my $opt=shift;
+
+
+  my $query="select *, if(usedSpace/size<0, 0, floor(100* usedSpace/size)) used  from SE a join SE_VOLUMES b  on a.seName=b.seName";
+  my $bind=[];
+  if ($sename){
+    $query.=" where a.seName=?";
+    push @$bind, $sename;
+  }
+  my $info=$self->{LFN_DB}->{FIRST_DB}->query($query,undef, {bind_values=>$bind});
+  return $info;
+
+}
+
 
 
 =head1 SEE ALSO
