@@ -627,6 +627,7 @@ sub resyncLDAPSE {
     my ($site, $vo)=($1,$2);
     my $sename="${vo}::${site}::$name";
     $self->info("Doing the SE $sename");
+    $self->checkSEDescription($entry, $site, $name, $sename);
     $self->checkIODaemons($entry, $site, $name, $sename);
 
     my @paths=$entry->get_value('savedir');
@@ -691,6 +692,34 @@ sub resyncLDAPSE {
 
   $ldap->unbind();
   return;
+}
+
+sub checkSEDescription {
+  my $self=shift;
+  my $entry=shift;
+  my $site=shift;
+  my $name=shift;
+  my $sename=shift;
+
+
+  my $db=$self->{DATABASE}->{LFN_DB}->{FIRST_DB};
+
+  my $min_size=0;
+  foreach my $d ($entry->get_value('options')){
+    $self->info("Checking $d");
+    $d=~ /min_size\s*=\s*(\d+)/ and $min_size=$1;
+  }
+  my $type=$entry->get_value("mss");
+  
+  $self->info("The se $sename has $min_size and $type");
+
+  my $exists=$db->queryValue("select count(*) from SE where sename=? and seminsize=? and setype=?", undef, {bind_values=>[$sename, $min_size, $type]});
+  if (not $exists){
+    $self->info("We have to update the entry!!!");
+    $db->do("update SE set seminsize=?, setype=? where sename=?", {bind_values=>[$min_size,$type, $sename]});
+  }
+  return 1;
+
 }
 
 

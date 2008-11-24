@@ -19,7 +19,6 @@ sub checkWakesUp {
 
   $self->$method(@info, "The SE optimizer starts");
   (-f "$self->{CONFIG}->{TMP_DIR}/AliEn_TEST_SYSTEM")  or $self->{SLEEP_PERIOD}=3600;
-  my $dbs=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->queryColumn("show databases like 'se_%'");
   my $guiddb=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{GUID_DB};
 
   my $guids=$guiddb->query("select * froM GUIDINDEX");
@@ -29,25 +28,26 @@ sub checkWakesUp {
     $db2->checkGUIDTable($f->{tableName});
     $db2->updateStatistics($f->{tableName});
   }
-  my $hosts=$guiddb->query("select distinct hostIndex from  GUIDINDEX");
-  foreach my $db (@$dbs){
-    $self->info("Calculating the size of $db");
-    use Data::Dumper;
-    print Dumper($db);
-    $self->checkSESize($db, $hosts);
-  }
 
+  $self->info("All the GUID tables have been accounted");
+  my $hosts=$guiddb->query("select distinct hostIndex from  GUIDINDEX");
+
+  my $ses=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->queryColumn("select distinct sename from SE");
+
+  foreach my $se (@$ses){
+    $self->info("Calculating the size of $se");
+    $self->checkSESize($se, $hosts);
+  }
+  $self->info("Going back to sleep");
   return;
 }
 
 
 sub checkSESize{
   my $self=shift;
-  my $db=shift;
+  my $dbName=shift;
   my $guids=shift;
 
-  $db=~ /^se_([^_]*)_([^_]*)_(.*)$/ or $self->info("Error parsing '$db'") and return;
-  my $dbName="${1}::${2}::$3";
   
   my $guiddb=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{GUID_DB};
   my $index=$guiddb->getSENumber($dbName, {existing=>1});

@@ -1297,41 +1297,41 @@ sub getFileSize {
     return $var;
 }
 
-sub getLVMDF {
-  my $this=shift;
-  my $seName=shift;
-  my $opt=shift;
-  $self->info("Ready to get the df info ($seName, $opt)");
-  ($seName, my $seInfo) =$self->checkVirtualSEName($seName);
-  my $lvm=$seInfo->{lvm};
-  $opt=~ /f/ and $self->info("Refreshing the volumes") and $lvm->getVolumes();
-  my $serviceName=$seInfo->{fullname};
-  my $info=$lvm->getStats();;
-  my $nfiles  = $info->{files} || 0;
-#  my $info=$lvm->{DB}->retrieveAllVolumesUsage();
-  my $ublocks = $info->{usedspace} || 0;
-  my $tblocks = $info->{size} || 0;
-  my $fblocks = $tblocks - $ublocks;
-  $self->sendApMonInfo($info, $nfiles);
-  
-  my $use     = 0;
+#sub getLVMDF {
+#  my $this=shift;
+#  my $seName=shift;
+#  my $opt=shift;
+#  $self->info("Ready to get the df info ($seName, $opt)");
+#  ($seName, my $seInfo) =$self->checkVirtualSEName($seName);
+#  my $lvm=$seInfo->{lvm};
+#  $opt=~ /f/ and $self->info("Refreshing the volumes") and $lvm->getVolumes();
+#  my $serviceName=$seInfo->{fullname};
+#  my $info=$lvm->getStats();;
+#  my $nfiles  = $info->{files} || 0;
+##  my $info=$lvm->{DB}->retrieveAllVolumesUsage();
+#  my $ublocks = $info->{usedspace} || 0;
+#  my $tblocks = $info->{size} || 0;
+#  my $fblocks = $tblocks - $ublocks;
+#  $self->sendApMonInfo($info, $nfiles);
+#  
+#  my $use     = 0;#
 
-  if ($tblocks > 0) {
-      $use = sprintf "%d",(100 * $ublocks)/$tblocks;
-  } else {
-      $use = "100";
-  }
-
-  if ($fblocks <0) {
-      $fblocks = "-1";
-      $use = "0";
-  }
-
-  my $buffer  = sprintf "%-20s %+12s %+12s %+12s %+3s%% %+9s %s",$serviceName,$tblocks,$ublocks,$fblocks,$use,$nfiles,$self->{CONFIG}->{'SE_MSS'};
-#  my $buffer  = "$self->{SERVICENAME}\t$tblocks\t$ublocks\t$fblocks\t$use\t$self->{CONFIG}->{'SE_MSS'}";
-  $self->info("Returning the space: $buffer");
-  return $buffer;
-}
+#  if ($tblocks > 0) {
+#      $use = sprintf "%d",(100 * $ublocks)/$tblocks;
+#  } else {
+#      $use = "100";
+#  }##
+#
+#  if ($fblocks <0) {
+#      $fblocks = "-1";
+#      $use = "0";
+#  }
+#
+#  my $buffer  = sprintf "%-20s %+12s %+12s %+12s %+3s%% %+9s %s",$serviceName,$tblocks,$ublocks,$fblocks,$use,$nfiles,$self->{CONFIG}->{'SE_MSS'};
+##  my $buffer  = "$self->{SERVICENAME}\t$tblocks\t$ublocks\t$fblocks\t$use\t$self->{CONFIG}->{'SE_MSS'}";
+#  $self->info("Returning the space: $buffer");
+#  return $buffer;
+#}
 				   
 sub _checkCacheSpace {
   my $self=shift;

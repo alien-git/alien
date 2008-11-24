@@ -234,13 +234,15 @@ sub destroy {
 sub checkSETable {
   my $self = shift;
   
-  my %columns = (seName=>"char(60) NOT NULL", 
+  my %columns = (seName=>"varchar(60) character set latin1 collate latin1_general_ci NOT NULL", 
 		 seNumber=>"int(11) NOT NULL auto_increment primary key",
 		 seQoS=>"varchar(50)",
 		 seioDaemons=>"varchar(255)",
 		 seStoragePath=>"varchar(255)",
 		 seNumFiles=>"bigint",
 		 seUsedSpace=>"bigint",
+		 seType=>"varchar(60)",
+		 seMinSize=>"int default 0",
 		);
 
   $self->checkTable("SE", "seNumber", \%columns, 'seNumber', ['UNIQUE INDEX (seName)'], {engine=>"innodb"} ) or return;
