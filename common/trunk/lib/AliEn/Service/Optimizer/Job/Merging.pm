@@ -31,8 +31,6 @@ sub checkWakesUp {
     my $jobs=$self->{DB}->query("SELECT queueid, jdl, status from QUEUE q, JOBSTOMERGE j where q.queueid=j.masterid and status='SPLIT' union select queueid,jdl,status from QUEUE where status='FORCEMERGE'");
   foreach my $job (@$jobs){
     $self->{DB}->delete("JOBSTOMERGE", "masterId=?", {bind_values=>[$job->{queueid}]});
-    use Data::Dumper;
-    print Dumper($job);
     my $job_ca=Classad::Classad->new($job->{jdl});
     if ( !$job_ca->isOK() ) {
       $self->info("JobOptimizer: in checkJobs incorrect JDL input\n" . $job->{jdl} );
@@ -280,6 +278,7 @@ sub updateMerging {
 
   if ($newStatus) {
     my $message="Job state transition from $status to $newStatus";
+    delete $set->{newStatus};
     $self->{DB}->updateStatus($queueid,$status,$newStatus, $set) or 
       $message="Failed: $message";
     $self->putJobLog($queueid,"state", $message);
