@@ -61,7 +61,7 @@ sub findPackageLFN {
   my $platform=shift;
   $self->info("We should check in the database for the package");
 
-  my $vo_user=uc("VO_$self->{CONFIG}->{VO_NAME}");
+  my $vo_user=uc("VO_$self->{CONFIG}->{ORG_NAME}");
   my $query="SELECT lfn from PACKAGES where packageName=? and (platform=? or platform='source') and (username=? or username=?)";
   my @bind=($package, $platform, $user, $vo_user);
   my @bind_source=($package, $platform, $user, $vo_user);
@@ -94,9 +94,6 @@ sub findPackageLFN {
   @dependencies and $dependencies[1]  and $item=shift @{$dependencies[1]};
 
   $self->info( "$$ Metadata of this item");
-  use Data::Dumper;
-  print Dumper($item);
-
   return ($lfn, $item);
 }
 

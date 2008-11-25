@@ -19,9 +19,9 @@ sub checkWakesUp {
   my  $now = time; 
 
 
-  $self->archiveJobs("received < (? - 365*86540)", "1 year","QUEUEEXPIRED" );
+  $self->archiveJobs("received < (? - 865400)", "10 days","QUEUEEXPIRED" );
 
-  $self->archiveJobs("( ( (status='DONE') || (status='FAILED') || (status='EXPIRED') || (status like 'ERROR%')  ) && ( received < (? - 28*86540) ) )", "4 weeks" ,$self->{DB}->{QUEUEARCHIVE});
+  $self->archiveJobs("( ( (status='DONE') || (status='FAILED') || (status='EXPIRED') || (status like 'ERROR%')  ) && ( received < (? - 7*86540) ) )", "1 week" ,$self->{DB}->{QUEUEARCHIVE});
 
 
   $self->{LOGGER}->$method("Expired", "In checkWakesUp going back to sleep");
