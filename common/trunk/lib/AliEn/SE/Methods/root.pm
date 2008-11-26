@@ -103,6 +103,11 @@ sub put {
   return;
 }
 
+sub _timeout {
+  alarm(0);
+  print "Timeout!!\n";
+  die;
+}
 sub remove {
   my $self=shift;
   $self->debug(1,"Trying to remove the file $self->{PARSED}->{ORIG_PFN}");
@@ -116,13 +121,21 @@ sub remove {
   my $error=close Writer;
   print "Reading\n";
   my $got="";
-  while(my $l=<Reader>){
-    print "Hello $l\n";
-    $got.="$l";
-    $l=~ /^\s*$/ and last;
-  }
-
-  print "read\n";
+  my $oldAlarm=$SIG{ALRM};
+  $SIG{ALRM}=\&_timeout;
+  eval {
+    alarm(5);
+    while(my $l=<Reader>){
+      print "Hello '$l'\n";
+      $got.="$l";
+      $l=~ /^\s*$/ and last;
+      $l=~ /^\s*root:\/\// and last;
+    }
+  };
+  my $error=$@;
+  alarm(0);
+  $oldAlarm and $SIG{ALRM}=$oldAlarm;
+  print "read (with error $error)\n";
   my $error2=close Reader;
   print "Hello $error and $got and ($error2)\n";
 #  my $command="xrm root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH}";
