@@ -132,10 +132,10 @@ sub remove {
       $l=~ /^\s*root:\/\// and last;
     }
   };
-  my $error=$@;
+  my $error2=$@;
   alarm(0);
   $oldAlarm and $SIG{ALRM}=$oldAlarm;
-  print "read (with error $error)\n";
+  print "read (with error $error2)\n";
   my $error2=close Reader;
   print "Hello $error and $got and ($error2)\n";
 #  my $command="xrm root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH}";
