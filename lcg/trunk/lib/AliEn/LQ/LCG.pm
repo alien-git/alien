@@ -106,12 +106,17 @@ sub initialize {
    opendir CONFDIR, $self->{CONFIG}->{LOG_DIR};
    while (my $name = readdir CONFDIR){
      foreach my $thisRB ( @{$self->{CONFIG}->{CE_RB_LIST}} ) {
-       if( !-e "$self->{CONFIG}->{LOG_DIR}/$thisRB.vo.conf" ){
-         $self->info("Config file for $thisRB not there, creating it.");
-         open STVOCONF, ">$self->{CONFIG}->{LOG_DIR}/$thisRB.vo.conf" or return;
+       (my $wmslist = $thisRB) =~ s/:/_/g;
+       my @tmp_vectorwms = ();
+       push (@tmp_vectorwms,"\"https://$_:7443/glite_wms_wmproxy_server\"") foreach (split(/:/,$thisRB));
+       if( !-e "$self->{CONFIG}->{LOG_DIR}/$wmslist.vo.conf" ){ 
+         my $streamwms = join ",",@tmp_vectorwms;
+         $self->info("Config file for $wmslist not there, creating it."); 
+         open STVOCONF, ">$self->{CONFIG}->{LOG_DIR}/$wmslist.vo.conf" or return;
          print STVOCONF "[
            VirtualOrganisation = \"alice\";
-	   WMProxyEndpoints    = {\"https://$thisRB:7443/glite_wms_wmproxy_server\"};
+           EnableServiceDiscovery  =  false;
+           WMProxyEndpoints    = {$streamwms};
            MyProxyServer       = \"myproxy.cern.ch\";\n]\n";
          close STVOCONF;
        }
@@ -148,6 +153,7 @@ sub submit {
   my $contact = '';
   if ( defined $ENV{CE_RBLIST} ) {
     my $lastGoodRB = $self->{CONFIG}->{CE_RB_LIST}->[0];
+    $lastGoodRB =~ s/:/_/g;
     $self->debug(1,"Default RB is $lastGoodRB");
     if ( -e "$self->{CONFIG}->{LOG_DIR}/lastGoodRB") {
       my $timestamp = (stat("$self->{CONFIG}->{LOG_DIR}/lastGoodRB"))[9];
