@@ -701,10 +701,11 @@ sub f_touch {
 sub f_du_HELP{
   return "Gives the disk space usge of a directory
 Usage:
-\tdu [-h] <dir>
+\tdu [-hf] <dir>
 
 Options:
 \t\t-h: Give the output in human readable format
+\t\t-f: Count only files (ignore the size of collections)
 ";
 }
 sub f_du {
@@ -714,7 +715,7 @@ sub f_du {
   my $entry=$self->{DATABASE}->existsEntry( $path);
   $entry or $self->info( "du: `$path': No such file or directory", 11,1) and return;
   $self->info( "Checking the disk space usage of $path");
-  my $space=$self->{DATABASE}->getDiskUsage($entry);
+  my $space=$self->{DATABASE}->getDiskUsage($entry, $options);
   my $unit="";
   if ($options=~ /h/){
     my @possible=("K", "M", "G", "T","P", "H");

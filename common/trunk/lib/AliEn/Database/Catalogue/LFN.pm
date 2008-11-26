@@ -1413,6 +1413,7 @@ Gets the disk usage of an entry (either file or directory)
 sub getDiskUsage {
   my $self=shift;
   my $lfn=shift;
+  my $options=shift;
 
   my $size=0;
   if ($lfn=~ m{/$}){
@@ -1427,7 +1428,8 @@ sub getDiskUsage {
       my $pattern=$lfn;
       $pattern =~ s{^$entry->{lfn}}{};
       my $where="where lfn like '$pattern%'";
-      $entry->{lfn}=~ m{^$lfn} and $where="";
+      $entry->{lfn}=~ m{^$lfn} and $where="where 1";
+      $options =~ /f/ and $where.= " and type='f'" ;
       my $partialSize=$self->queryValue ("SELECT sum(size) from L$entry->{tableName}L $where");
       $DEBUG and $self->debug(1, "Got size $partialSize");
       $size+=$partialSize;
