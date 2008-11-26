@@ -1070,15 +1070,19 @@ sub  checkWakesUp {
 
       my $entries=$info->result;
       foreach my $entry (@$entries){
-	$self->info("Ready to do something with");
+	$self->info("Ready to do something with:::");
 	$continue=1;
 	my $pfn=AliEn::SE::Methods->new($entry->{pfn}) or next;
 	$entry->{entryId} > $self->{$field} and 
 	  $self->{$field}=$entry->{entryId};
+	$self->info("Removing the file '$entry->{pfn}'");
+	
 	my $path=$pfn->path();
 	if (-f $path){
 	  $self->info("The path $path exists. Let's move it to the olddirectory");
 	  system("mv", $path, "$self->{CONFIG}->{TMP_DIR}/OLDFILES");
+	} else {
+	  $pfn->remove();
 	}
       }
     }
