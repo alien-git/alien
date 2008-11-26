@@ -34,13 +34,47 @@ sub initialize {
 		 MATCH_CMD   => 'glite-wms-job-list-match' };
 			 
    $self->{$_} = $cmds->{$_} || $self->{CONFIG}->{$_} || '' foreach (keys %$cmds);
-      
+   
+   unless ( $ENV{LCG_GFAL_INFOSYS} ) {
+     $self->{LOGGER}->error("\$LCG_GFAL_INFOSYS not defined in environment");
+     return;
+   }    
+   $self->{CONFIG}->{CE_SITE_BDII} = '';
    if ($ENV{CE_SITE_BDII}) {
      $self->{CONFIG}->{CE_SITE_BDII} = $ENV{CE_SITE_BDII};
    } else {
-      $self->{LOGGER}->warning("LCG","No site BDII defined.");
-   } 
-
+      $self->info("No site BDII defined in \$ENV, querying $ENV{LCG_GFAL_INFOSYS}");
+      my $IS = "ldap://$ENV{LCG_GFAL_INFOSYS}";
+      my $DN = "mds-vo-name=$ENV{SITE_NAME},mds-vo-name=local,o=grid";
+      $self->debug(1,"Querying $IS/$DN");
+      if (my $ldap =  Net::LDAP->new($IS)) {
+        if ($ldap->bind()) {
+	  my $result = $ldap->search( base   => $DN,
+  		                      filter => "GlueServiceType=bdii_site");
+          my $code = $result->code;
+	  unless ($code) {
+	    my $entry  = $result->entry(0);
+	    my $thisDN = $entry->dn;
+	    $self->debug(1,"Found $thisDN");
+            my $found = $entry->get_value("GlueServiceEndpoint");
+  	    $self->{CONFIG}->{CE_SITE_BDII} = $found;
+	  } else {
+	    my $msg = $result->error();
+	    $self->{LOGGER}->error("LCG","Error querying: $code ($msg)");
+	  }			 
+	  $ldap->unbind();	
+        } else {
+	  $self->{LOGGER}->error("LCG","Could not bind to $IS");
+	}
+     } else {
+       $self->{LOGGER}->error("LCG","Could not contact $IS");
+     }
+   }    
+   if ($self->{CONFIG}->{CE_SITE_BDII}) {
+     $self->info("Site BDII is $self->{CONFIG}->{CE_SITE_BDII}"); 
+   } else {
+     $self->{LOGGER}->warning("LCG","No site BDII defined and could not find one in IS");
+   }  
    if ( $ENV{CE_LCGCE} ) {
      $self->info("Taking the list of CEs from \$ENV: $ENV{CE_LCGCE}");
      my $string = $ENV{CE_LCGCE};
@@ -90,14 +124,6 @@ sub initialize {
    $self->{LASTCHECKED} = time-$self->{CONFIG}->{CE_MINWAIT};
    
    $self->renewProxy(100000);
-   my $defaults = "$ENV{EDG_LOCATION}/etc/edg_wl_ui_cmd_var.conf";
-   if ( open DEFAULTS, "<$defaults" ) {
-     while (<DEFAULTS>) {
-       chomp;
-       m/^\s*LoggingDestination/ and $self->{LOGGER}->warning("LCG"," \'$_\' defined in $defaults");
-     }
-     close DEFAULTS;
-  }
    return 1;
 }
 
@@ -336,12 +362,12 @@ sub getNumberRunning() {
 
   $self->info("Jobs: $run running, $wait waiting from IS, $value from local DB");
   if ( $cpu == 0 ) {
-    $self->{LOGGER}->error("LCG","IS not responding, returning value from local DB");
-    return $value;
+    $self->{LOGGER}->error("LCG","IS not responding");
+    return;
   }
-  if ( $run == 4444 || $wait == 4444 ) {
-    $self->{LOGGER}->error("LCG","IS failure 4444, returning value from local DB");
-    return $value;
+  if ( $run =~ m/4444/ || $wait =~ m/4444/ ) {
+    $self->{LOGGER}->error("LCG","IS failure 4444");
+    return;
   }
   return $run+$wait;    
 }
@@ -355,12 +381,12 @@ sub getNumberQueued() {
   $value or $value = 0;
   $self->info("Queued: $wait from IS, $value from local DB");
   if ( $cpu == 0 ) {
-    $self->{LOGGER}->error("LCG","IS not responding, returning value from local DB.");
-    return $value;
+    $self->{LOGGER}->error("LCG","IS not responding");
+    return;
   }
-  if ( $wait == 4444 ) {
-    $self->{LOGGER}->error("LCG","IS failure 4444, returning value from local DB");
-    return $value;
+  if ( $wait =~ m/4444/ ) {
+    $self->{LOGGER}->error("LCG","IS failure 4444");
+    return;
   }
   return $wait;
 }
@@ -401,9 +427,7 @@ sub cleanUp {
 					        	   $_->{'batchId'} );
 	  						   
 	  if ( $? ) {						     
-#	    my $errmesg = (split(/\s+/,(grep(/\*\*\*\* Error: /,@output))[0]))[2];						     
 	    $self->info("Could not retrieve output for $_->{'batchId'}: @?");
-#	    next unless ($errmesg =~ m/NS_JOB_OUTPUT_RETRIEVED/);
             next;
 	  }
 	}
@@ -500,23 +524,18 @@ sub queryBDII {
   $self->debug(1,"Filter is $filter");
   (my $host,undef) = split (/:/,$CE);    
   my @IS  = (
-             "ldap://$host:2135,mds-vo-name=local,o=grid",    # Resource GRIS
-             "ldap://$host:2170,mds-vo-name=resource,o=grid", # Resource BDII
+              "ldap://$host:2170,mds-vo-name=resource,o=grid", # Resource BDII
             );
-  if ( defined $self->{CONFIG}->{CE_SITE_BDII} ) { # Site BDII on separate node
-    @IS = (@IS,"ldap://$self->{CONFIG}->{CE_SITE_BDII}:2170,mds-vo-name=$ENV{SITE_NAME},o=grid");  
-  } else { # Site BDII on CE
-    @IS = (@IS,"ldap://$host:2170,mds-vo-name=$ENV{SITE_NAME},o=grid" ); 
-  }  
-  if ( defined $ENV{LCG_GFAL_INFOSYS} ) { # Top-level BDII
-    @IS = (@IS,"ldap://$ENV{LCG_GFAL_INFOSYS},mds-vo-name=$ENV{SITE_NAME},mds-vo-name=local,o=grid"); 
-  }
+  @IS = (@IS,$self->{CONFIG}->{CE_SITE_BDII}) if ( defined $self->{CONFIG}->{CE_SITE_BDII} );  
+#  if ( defined $ENV{LCG_GFAL_INFOSYS} ) { # Top-level BDII
+#    @IS = (@IS,"ldap://$ENV{LCG_GFAL_INFOSYS},mds-vo-name=$ENV{SITE_NAME},mds-vo-name=local,o=grid"); 
+#  }
   my $ldap = '';
   foreach (@IS) {
      my ($GRIS, $BaseDN) = split (/,/,$_,2);
      $self->debug(1,"Asking $GRIS/$BaseDN");
      unless ($ldap =  Net::LDAP->new($GRIS)) {
-       $self->info("$GRIS/$BaseDN not responding, trying next.");
+       $self->info("$GRIS/$BaseDN not responding (1), trying next.");
        next;
      }
      unless ($ldap->bind()) {
@@ -526,8 +545,9 @@ sub queryBDII {
      my $result = $ldap->search( base	=>  $BaseDN,
   				 filter => "$filter");
      my $code = $result->code;				 
+     my $msg = $result->error;				 
      if ($code) {
-       $self->{LOGGER}->warning("LCG","Something wrong ($code) in answer from $GRIS/$BaseDN, trying next.");
+       $self->{LOGGER}->warning("LCG","\"$msg\" ($code) from $GRIS/$BaseDN, trying next.");
        next;
      }
      if ( ($result->all_entries)[0] ) {
@@ -536,7 +556,9 @@ sub queryBDII {
   	 $self->debug(1, "$_ for $CE is $value");
   	 $results{$_} = $value;
        }
-       $self->info("OK, got an answer from $GRIS/$BaseDN");
+       my $message = "OK, got an answer from $GRIS/$BaseDN: ";
+       $message = $message.$results{$_}." " foreach keys %results;
+       $self->info($message);
        $someAnswer++;
        last;
      } else {
@@ -998,7 +1020,4 @@ sub _system {
   return @output;
 }
 
-
 return 1;
-
-
