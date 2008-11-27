@@ -1256,9 +1256,11 @@ sub relocate {
 
 #############################################################################################################
 sub access_eof {
+  my $error=shift || "error creating the envelope";
   my $newhash;
   my @newresult;
   $newhash->{eof} = "1";
+  $newhash->{error}=$error;
   push @newresult, $newhash;
   return @newresult;
 }
@@ -1504,7 +1506,12 @@ sub access {
     my $info=$self->{SOAP}->CallSOAP("Authen", "createEnvelope", $user, @_)
       or $self->info("Error asking the for an envelope") and return;
     my $newhash=$info->result;
-    $newhash->{envelope} or $self->info("There is no envelope!!") and return;
+    if (!$newhash->{envelope} ){
+      my $error=$newhash->{error} || "";
+
+      $self->info("There is no envelope ($error)!!");
+      return;
+     }
     $ENV{ALIEN_XRDCP_ENVELOPE}=$newhash->{envelope};
     $ENV{ALIEN_XRDCP_URL}=$newhash->{url};
     return $newhash;
@@ -1544,7 +1551,7 @@ sub access {
       my ($info)=$self->df("", $se);
       if ($info and $info->{min_size} and $info->{min_size}>$size){
 	$self->info("The file is too small!! ( only $size and it should be $info->{min_size}");
-	return access_eof;
+	return access_eof("This storage element only accepts files bigger than $info->{min_size} (and your file is $size)");
       } 
     }
   } else {
