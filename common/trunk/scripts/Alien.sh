@@ -696,8 +696,13 @@ ALIEN_GetArg()
             if [ "$1" = "" ]
             then
 #	      alien -exec version
-	      alien -no_catalog virtual -exec version
+#	      unset ALIEN_CM_AS_LDAP_PROXY
+#	      alien -no_catalog virtual -exec version
 #              printf "%s\n" $VERSION
+	      
+	      V=`cat $ALIEN_ROOT/share/alien/ALIEN_VERSION |awk '{print $2$4}' |awk -F , '{print $1"."$2}'`
+	      D=`date +"%b %d %H:%I:%M"`
+	      echo "$D  info   Version: $V"
               exit
             fi
             ;;
