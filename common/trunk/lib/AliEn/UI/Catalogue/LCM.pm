@@ -1547,8 +1547,8 @@ sub access {
   } elsif ($access =~ /^(((write)((-once)|(-version))?)|(delete))$/ ) {
     $perm = "w";
     if ($size){
-      $self->info("Checking the size ($size)");
-      my ($info)=$self->df("", $se);
+      $self->info("Checking the size in $se ($size)");
+      my ($info)=$self->df( $se);
       if ($info and $info->{min_size} and $info->{min_size}>$size){
 	$self->info("The file is too small!! ( only $size and it should be $info->{min_size}");
 	return access_eof("This storage element only accepts files bigger than $info->{min_size} (and your file is $size)");
