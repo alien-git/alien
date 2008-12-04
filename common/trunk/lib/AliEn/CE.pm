@@ -3221,89 +3221,127 @@ Usage:
 }
 
 sub jobFindReqMiss {
-	my $self=shift;
-	my $sites=shift;
-	my $job_ca=shift;
-	my $tmpReq;
-	my $initReq;
-	my @reqs;
-	my $reason="Non";
-	my @allReasons;
-	my $count2=0;
-	my @requirements = ("CE","SE","Packages","TTL","Price","LocalDiskSpace");
-	my @explanation = ("The requested CE is doesn't exist, or there is something wrong with its jdl, or there is a typo in the job's jdl","One or more input files are located in a SE not close to the CE requested","Package doesn't exit or deleted from the Cataluge","TTL is not matched by this CE","Price is not matched by this CE","Not enough disk space");
-	my $siteErros;
-	my $numOfCorrectSites=0;
-	my $ce_ca;
-	
-	my $req  = $job_ca->evaluateExpression("Requirements");
-	$initReq = $req;
-	
-	$req or $self->{LOGGER}->error( "CE", "In jobFindReqMiss, failed to requirements" ) and return -1;
-	
-	#get rid of impossible requirements
-# 	my $unKnownCE="";
-# 	foreach my $site (@$sites){
-# 		my $ceName= $site->{site};#$ce_ca->evaluateAttributeString("CE");		
-# 		$self->debug(1, "Checkning if $ceName is in the job jdl" );
-# 		#assuming there can be only one CE
-# 		if($req =~ /other.CE ==(.*?)\&&/i && $req !~ m/$ceName/i ){
-# 			$unKnownCE = $1;
-# 			$siteErros++;
-# 		}
-# 	}
-# 	$self->debug(1, "$unKnownCE does not match any known CE" );
-	
-	foreach my $site (@$sites){
-		if (!$site->{jdl} ){
-			next;
-    		}
-		$ce_ca= Classad::Classad->new($site->{jdl});
-		if (! $ce_ca->isOK()){
-			next;
-		}
-		#Re-set the jdl
-		$tmpReq = $req = $initReq;
-		$ce_ca = Classad::Classad->new($site->{jdl});
+  my $self=shift;
+  my $sites=shift;
+  my $job_ca=shift;
+  my $tmpReq;
+  my $initReq;
+  my @reqs;
+  my $reason="Non";
 
-		$numOfCorrectSites++;
-		#now start removing reqirements till somthing matcches 	
-		my ( $match, $rank ) = Classad::Match( $job_ca, $ce_ca );
-		
-		while(!$match){
-			@reqs = split(/&&/,$req,2);
-			$reason = $reqs[0];
-			$req = $reqs[1];
-			if($req){
-				$req = $self->repairReq($req);
-				$job_ca->set_expression("Requirements",$req) or $self->{LOGGER}->error( "CE", "In jobFindReqMiss, failed to set new requirements" ) and return -1;
-				( $match, $rank ) = Classad::Match( $job_ca, $ce_ca );
-			}else{
-				$match=1;
-				
-			}
-			if ($match){
-# 				#dont add duplacte reasons 
-				my $exists=0;
-				foreach my $elem (@allReasons){
-					if($elem eq $reason){
-						$exists = 1;
-						last;
-					}
-				}
-				$exists or push(@allReasons, $reason);
-				if ($tmpReq =~ s/\Q$reason//) {
-					$tmpReq =~ s/&&&&/&&/
-				} 
-				$req = $tmpReq;
-				$job_ca->set_expression("Requirements",$req);
-				( $match, $rank ) = Classad::Match( $job_ca, $ce_ca );
-			}
-		}
-		
+  my $count2=0;
+  my @requirements = ("other\.CE","SE","Packages","TTL","Price","LocalDiskSpace");
+  my @explanation = ("This is not the CE that was requested","One or more input files are located in a SE not close to the CE requested","Package doesn't exit or deleted from the Cataluge","TTL is not matched by this CE","Price is not matched by this CE","Not enough disk space");
+  my $siteErros;
+  my $numOfCorrectSites=0;
+  my $ce_ca;
+  
+  my $req  = $job_ca->evaluateExpression("Requirements");
+  $initReq = $req;
+  
+  $req or $self->{LOGGER}->error( "CE", "In jobFindReqMiss, failed to requirements" ) and return -1;
+  
+  my $all_sites_reasons={};
+  #get rid of impossible requirements
+  # 	my $unKnownCE="";
+  # 	foreach my $site (@$sites){
+  # 		my $ceName= $site->{site};#$ce_ca->evaluateAttributeString("CE");		
+  # 		$self->debug(1, "Checkning if $ceName is in the job jdl" );
+  # 		#assuming there can be only one CE
+  # 		if($req =~ /other.CE ==(.*?)\&&/i && $req !~ m/$ceName/i ){
+  # 			$unKnownCE = $1;
+  # 			$siteErros++;
+  # 		}
+  # 	}
+  # 	$self->debug(1, "$unKnownCE does not match any known CE" );
+  $self->info("Starting with $req");
+  foreach my $site (@$sites){
+    $self->info("Checking $site->{site}");
+    my @allReasons;
+    if (!$site->{jdl} ){
+      next;
+    }
+    $ce_ca= Classad::Classad->new($site->{jdl});
+    if (! $ce_ca->isOK()){
+      next;
+    }
+
+    #Re-set the jdl
+    $tmpReq = $req = $initReq;
+    $job_ca->set_expression("Requirements", $initReq);
+    $ce_ca = Classad::Classad->new($site->{jdl});
+    $numOfCorrectSites++;
+    #now start removing reqirements till somthing matcches 	
+    my ( $match, $rank ) = Classad::Match( $job_ca, $ce_ca );
+    while(!$match){
+      @reqs = split(/&&/,$req,2);
+      $reason = $reqs[0];
+      if($reqs[1]){
+	$req = $reqs[1];
+	$req = $self->repairReq($req);
+	$job_ca->set_expression("Requirements",$req) or $self->{LOGGER}->error( "CE", "In jobFindReqMiss, failed to set new requirements" ) and return -1;
+	( $match, $rank ) = Classad::Match( $job_ca, $ce_ca );
+      }else{
+	$match=1;
+      }
+      $self->info("did we match?? $match ($req)");
+      if ($match){
+	# 				#dont add duplacte reasons 
+	my $exists=0;
+	foreach my $elem (@allReasons){
+	  if($elem eq $reason){
+	    $exists = 1;
+	    last;
+	  }
 	}
+	$exists or push(@allReasons, $reason);
+	if ($tmpReq =~ s/\Q$reason//) {
+	  $tmpReq =~ s/&&&&/&&/
+	} 
+	$req = $tmpReq;
+	$job_ca->set_expression("Requirements",$req);
+	( $match, $rank ) = Classad::Match( $job_ca, $ce_ca );
+      }
+    }
+    $all_sites_reasons->{$site->{site}}=\@allReasons;
+    if(@allReasons){
+      $self->info("Unmet Requirements for $site->{site}:");
+      my $count=0;
+      my $found;
+      foreach $reason (@allReasons){
+	$count++;
+	foreach $req (@requirements){
+	  $found = 0;
+	  if($reason =~ m/$req/){
+	    print "\t$count)$reason: $explanation[$count2]\n";
+	    $found = 1;
+	    $count2 = 0;
+	    last;
+	  }
+	  $count2++;
+	}
+	if(!$found){
+	  print "\tunknown problem : $reason\n";
+	}
+      }
+    }
+    
+  }
+
+  my $min_unmet=10000000;
+  my @min_sites=();
+  foreach my $s (keys %$all_sites_reasons){
+    $self->info("$s  has $#{$all_sites_reasons->{$s}}");
+    if ($#{$all_sites_reasons->{$s}} < $min_unmet){
+      @min_sites=$s;
+      $min_unmet=$#{$all_sites_reasons->{$s}};
+    } elsif  ($#{$all_sites_reasons->{$s}} eq $min_unmet){
+      push @min_sites,$s
+    }
+  }
+  $self->info("The best sites are @min_sites (with only $min_unmet)");
 	#put the init back
-# 	$job_ca->set_expression("Requirements",$initReq);
+  # 	$job_ca->set_expression("Requirements",$initReq);
 	
 # 	 my ($match, $rank ) = Classad::Match( $job_ca, $ce_ca );
 # 	my $size = @$sites;
@@ -3315,28 +3353,7 @@ sub jobFindReqMiss {
 # 		push(@allReasons, $reason);
 # 	}
 	
-	if(@allReasons){
-		$self->info("Unmet Requirements:");
-		my $count=0;
-		my $found;
-		foreach $reason (@allReasons){
-			$count++;
-			foreach $req (@requirements){
-				$found = 0;
-				if($reason =~ m/$req/){
-					print "\t$count)$reason: $explanation[$count2]\n";
-					$found = 1;
-					$count2 = 0;
-					last;
-				}
-				$count2++;
-			}
-			if(!$found){
-				print "\tunknown problem : $reason\n";
-			}
-		}
-	}
-	return @allReasons;
+  return $all_sites_reasons;
 }
 
 
