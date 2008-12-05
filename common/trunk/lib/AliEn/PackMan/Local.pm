@@ -31,18 +31,19 @@ sub initialize{
 
   return $self->SUPER::initialize();
 }
+
 sub removeLocks{
   my $self=shift;
-  open (FILE, "ls $self->{INST_DIR}/*.InstallLock 2>/dev/null |") or 
+  open (FILE, "ls $self->{INST_DIR}/*.InstallLock 2>/dev/null |") or
     $self->info("Error removing the locks");
   while (<FILE>){
-    my $log=$_;
-    $self->info("Ready to remove $log");
-    if ($log =~ /^([\.]*)\.([\.]*)\.(.*).InstallLog/){
+    my $lock=$_;
+    $self->info("Ready to remove $lock !");
+    if ($lock =~ /^(.*)\.([^\.]*)\.([^\.]*).InstallLock$/){
       $self->info("Removing the directory  $1/$2/$3");
-      system ("rm -rf $self->{INST_DIR}/$1/$2/$3");
+      system ("rm -rf $1/$2/$3");
     }
-    system ("rm -f $self->{INST_DIR}/$log");
+    system ("rm -f $lock");
   }
   close FILE;
 
@@ -255,7 +256,7 @@ sub InstallPackage {
     and close FILE
     or $self->info( "$$ Error creating $lock")
     and die ("Error creating $lock\n");
-
+  system("mv",$logFile, "$logFile.back");
   $self->{LOGGER}->redirect($logFile);
   eval {
     if (! $info->{shared}) {
