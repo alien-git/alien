@@ -3313,7 +3313,7 @@ sub jobFindReqMiss {
 	foreach $req (@requirements){
 	  $found = 0;
 	  if($reason =~ m/$req/){
-	    print "\t$count)$reason: $explanation[$count2]\n";
+	    $self->info("\t$count)$reason: $explanation[$count2]");
 	    $found = 1;
 	    $count2 = 0;
 	    last;
@@ -3321,7 +3321,7 @@ sub jobFindReqMiss {
 	  $count2++;
 	}
 	if(!$found){
-	  print "\tunknown problem : $reason\n";
+	  $self->info("\tunknown problem : $reason");
 	}
       }
     }
@@ -3331,7 +3331,7 @@ sub jobFindReqMiss {
   my $min_unmet=10000000;
   my @min_sites=();
   foreach my $s (keys %$all_sites_reasons){
-    $self->info("$s  has $#{$all_sites_reasons->{$s}}");
+    $self->debug(1,"$s  has $#{$all_sites_reasons->{$s}}");
     if ($#{$all_sites_reasons->{$s}} < $min_unmet){
       @min_sites=$s;
       $min_unmet=$#{$all_sites_reasons->{$s}};
