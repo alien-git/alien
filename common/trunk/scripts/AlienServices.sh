@@ -273,7 +273,9 @@ startService()
       AFS_PASSWORD=`ReadPassword`
      fi 
    fi
-  $ALIEN_PERL $ALIEN_DEBUG $ALIEN_START $* -logfile $LOGDIR/$FILE.log <<EOF &
+   SETSID=`which setsid 2> /dev/null`
+   echo "DOING IT WITH $SETSID" 
+   $SETSID  $ALIEN_PERL $ALIEN_DEBUG $ALIEN_START $* -logfile $LOGDIR/$FILE.log <<EOF &
 $PASSWD
 EOF
   error=$?
@@ -346,7 +348,7 @@ stopService()
   do
     if [ "$param" ]
     then
-      PIDS=`ps -A -o "pid ppid" |grep "$param"|awk '{print $1}'`
+      PIDS=`ps -A -o "pid ppid pgid" |grep " $param "|awk '{print $1}'`
       TOKILL="$TOKILL $PIDS";
     fi
   done
