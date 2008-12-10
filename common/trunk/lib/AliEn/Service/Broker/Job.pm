@@ -109,6 +109,7 @@ sub getJobAgent {
   $self->{SITE_CA}=$site_ca;
   my ($ok, $msg)=$self->checkQueueOpen($site_ca);
   if (!$ok){
+    $self->info("The site is blocked! '$msg'");
     return {execute=>[-1, $msg]};
   }
   ($ok, my $wn)= $site_ca->evaluateAttributeString("WNHost");
