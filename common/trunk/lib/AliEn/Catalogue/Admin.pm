@@ -504,8 +504,6 @@ sub f_showStructure {
     $self->info("Checking the directories under $lfn");
     $info=$self->{DATABASE}->getHostsForLFN($lfn);
   }
-  use Data::Dumper;
-  print Dumper($info);
   if ($options=~ /(c|s)/  ){
     $self->info("Let's print the number of entries");
     my $total=0;
@@ -686,6 +684,7 @@ sub resyncLDAPSE {
     my ($vo, $site, $name)=split(/::/, $item, 3);
     $self->addSE("-p", $site, $name);
   }
+  $db->do("update SE_VOLUMES set usedspace=0 where usedspace is null");
 
   $db->do("update SE_VOLUMES set freespace=size-usedspace where size!= -1");
   $db->do("update SE_VOLUMES set freespace=2000000000 where size=-1");
