@@ -1200,7 +1200,7 @@ sub getDF {
   my $opt=shift;
 
 
-  my $query="select *, if(usedSpace/size<0, 0, floor(100* usedSpace/size)) used  from SE a join SE_VOLUMES b  on a.seName=b.seName";
+  my $query="select *, if(size>0,if(usedSpace/size<0, 0, floor(100* usedSpace/size)),0) used  from SE a join SE_VOLUMES b  on a.seName=b.seName";
   my $bind=[];
   if ($sename){
     $query.=" where a.seName=?";
