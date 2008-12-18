@@ -52,8 +52,9 @@ sub initialize {
 	  my $result = $ldap->search( base   => $DN,
   		                      filter => "GlueServiceType=bdii_site");
           my $code = $result->code;
-	  unless ($code) {
-	    my $entry  = $result->entry(0);
+	  my $entry;
+	  $code or $entry=$result->entry(0);
+	  if ($entry)
 	    my $thisDN = $entry->dn;
 	    $self->debug(1,"Found $thisDN");
             my $found = $entry->get_value("GlueServiceEndpoint");

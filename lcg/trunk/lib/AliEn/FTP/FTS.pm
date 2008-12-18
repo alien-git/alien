@@ -372,8 +372,10 @@ sub getURL{
       sleep($sleep);
       $sleep=($sleep+int(rand(10)))*2;
     }
-    $self->info("Returning fts://$host2$file");
-    return "fts://$host2$file";
+    if ($host2){
+      $self->info("Returning fts://$host2$file");
+      return "fts://$host2$file";
+    }
 
   }
   $self->info("The file $file is not in srm. It can't be transfered through fts...");
