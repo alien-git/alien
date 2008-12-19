@@ -86,14 +86,20 @@ sub submit {
 
 #  my $message = "#BSUB -o $out
   my $message = "#BSUB -o $self->{PATH}/$ENV{ALIEN_LOG}.out
-#BSUB -J $ENV{ALIEN_LOG}
-#BSUB -f \"$command > $execute\"
-$LSFarguments
+#BSUB -J $ENV{ALIEN_LOG}";
+  if (not $self->{NOT_STAGE_FILES}) {
+    $message.="#BSUB -f \"$command > $execute\"";
+  }
+$message.="$LSFarguments
 $self->{SUBMIT_ARG}
 " . $self->excludeHosts() . "
-ls -al $execute
-$execute\n";
-
+ls -al $execute\n";
+  if (not $self->{NOT_STAGE_FILES}) {
+    $message.="$execute";
+  } else {
+    $message.="$command";
+  }
+  
   #".$self->excludeHosts()."
   #$command\n";
   
@@ -206,6 +212,8 @@ sub initialize() {
 
     if ( $self->{CONFIG}->{CE_SUBMITARG} ) {
         my @list = @{ $self->{CONFIG}->{CE_SUBMITARG_LIST} };
+        grep (/^alien_not_stage_files$/i, @list) and $self->{NOT_STAGE_FILES}=1;
+        @list =grep (! /^alien_not_stage_files$/i, @list);
         map { $_ = "#BSUB $_\n" } @list;
         $self->{SUBMIT_ARG} = "@list";
     }
