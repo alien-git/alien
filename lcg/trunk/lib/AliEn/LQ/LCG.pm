@@ -54,7 +54,7 @@ sub initialize {
           my $code = $result->code;
 	  my $entry;
 	  $code or $entry=$result->entry(0);
-	  if ($entry)
+	  if ($entry) {
 	    my $thisDN = $entry->dn;
 	    $self->debug(1,"Found $thisDN");
             my $found = $entry->get_value("GlueServiceEndpoint");
