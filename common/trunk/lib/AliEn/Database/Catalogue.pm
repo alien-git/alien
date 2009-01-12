@@ -1093,6 +1093,7 @@ sub checkOrphanGUID{
       $self->info("Doing the table $table->{tableNumber}");
       $db->checkOrphanGUID($table->{tableNumber}, @_);
     }
+    $db->do("delete from TODELETE  using TODELETE join SE s on TODELETE.senumber=s.senumber where sename='no_se' and pfn like 'guid://%'");
   }
 
   return 1;
