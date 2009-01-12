@@ -112,7 +112,7 @@ sub setLocalInfo{
     $dir=$ENV{ALIEN_WORKDIR};
   $self->debug(1,"Looking for the free space in $dir");
   my $handle=Filesys::DiskFree->new();
-  $handle->df();
+  $handle->df_dir($dir);
   my $space=$handle->avail($dir);
 #  if (open (FILE, "df -P $dir | tail -1 | awk \'{print \$4}\' |")) {
 #    my $space=join("", <FILE>);

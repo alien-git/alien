@@ -136,7 +136,7 @@ sub createJDL {
 # 	$exp->{DirectAccess}="1";
 
     my $handle = new Filesys::DiskFree;
-    $handle->df();
+    $handle->df_dir($self->{CACHE_DIR});
     my $free = $handle->avail( $self->{CACHE_DIR} );
 #    my $free=`df  --block-size 1 $self->{CACHE_DIR}`;
 #    $self->debug(1, "Got $free");
@@ -856,7 +856,7 @@ sub UpdateDiskSpace {
     my $this=shift;
 
     my $handle = new Filesys::DiskFree;
-    $handle->df();
+    $handle->df_dir($self->{CACHE_DIR});
     my $free = $handle->avail( $self->{CACHE_DIR} );
 
 #    my $free=`df  --block-size 1 $self->{CACHE_DIR}`;
@@ -1104,7 +1104,7 @@ sub askToPut {
 
     if ( $URL->scheme eq "file" ) {
         my $handle = new Filesys::DiskFree;
-        $handle->df();
+        $handle->df_dir($URL->path);
         $free = $handle->avail( $URL->path );
         $self->debug(1,
             "System has " . ( $free / ( 1024 * 1024 ) ) . "Mb of free space" );

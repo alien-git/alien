@@ -595,7 +595,7 @@ sub CreateDirs {
   close WORKDIRLIST;
   # check the space in our workind directory
   my $handle=Filesys::DiskFree->new();
-  $handle->df();
+  $handle->df_dir($self->{WORKDIR});
   my $space=$handle->avail($self->{WORKDIR});
   my $freemegabytes=int($space/(1024*1024));
   $self->info("Workdir has $freemegabytes MB free space");
