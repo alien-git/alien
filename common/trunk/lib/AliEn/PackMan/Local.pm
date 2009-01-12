@@ -214,7 +214,7 @@ sub checkDiskSpace {
   my $options=shift || {};
 
   my $handle=Filesys::DiskFree->new();
-  $handle->df();
+  $handle->df_dir($dir);
   my $size=$handle->avail($dir);
   #if there is enough space, just install
   if ($requestedSpace <$size){
