@@ -115,7 +115,7 @@ sub f_packman_HELP {return  "packman: talks to the Package Manager. By default, 
 \tpackman installLog <package>: get the installation log of the package
 \tpackman dependencies <name>: gives the list of dependencies of a package
 \tpackman remove  <package>: removes a package from the local cache
-\tpackman define <name> <version> <tar file> [<package options>]
+\tpackman define <name> <version> <tar file> [<package options>] [-se <sename>] [-platform <platform>]
 \tpackman undefine <name> <version>
 \tpackman recompute: (only for admin) recompute the list of packages.
 
