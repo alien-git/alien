@@ -3157,7 +3157,7 @@ sub f_jobListMatch_HELP{
   return "jobListMatch: Checks if the jdl of the job matches any of the current CE. 
 
 Usage:
-\t\tjobListMatch [-v] <jobid> [<ce_name>]
+\t\tjobListMatch [-v] <jobid> [<ce_name> ]
 
 If the site is specified, it will only compare the jdl with that CE
 
@@ -3224,16 +3224,16 @@ sub jobFindReqMiss {
   my $self=shift;
   my $sites=shift;
   my $job_ca=shift;
-  my $tmpReq;
+
   my $initReq;
-  my @reqs;
+
   my $reason="Non";
 
   my $count2=0;
   my @requirements = ("other\.CE","SE","Packages","TTL","Price","LocalDiskSpace");
   my @explanation = ("This is not the CE that was requested","One or more input files are located in a SE not close to the CE requested","Package doesn't exit or deleted from the Cataluge","TTL is not matched by this CE","Price is not matched by this CE","Not enough disk space");
   my $siteErros;
-  my $numOfCorrectSites=0;
+#  my $numOfCorrectSites=0;
   my $ce_ca;
   
   my $req  = $job_ca->evaluateExpression("Requirements");
@@ -3267,14 +3267,14 @@ sub jobFindReqMiss {
     }
 
     #Re-set the jdl
-    $tmpReq = $req = $initReq;
+    my $tmpReq = $req = $initReq;
     $job_ca->set_expression("Requirements", $initReq);
     $ce_ca = Classad::Classad->new($site->{jdl});
-    $numOfCorrectSites++;
-    #now start removing reqirements till somthing matcches 	
+#    $numOfCorrectSites++;
+    #now start removing reqirements till something matcches 	
     my ( $match, $rank ) = Classad::Match( $job_ca, $ce_ca );
     while(!$match){
-      @reqs = split(/&&/,$req,2);
+      my @reqs = split(/&&/,$req,2);
       $reason = $reqs[0];
       if($reqs[1]){
 	$req = $reqs[1];
@@ -3284,9 +3284,9 @@ sub jobFindReqMiss {
       }else{
 	$match=1;
       }
-      $self->info("did we match?? $match ($req)");
+      $self->debug(1, "did we match?? $match ($req)");
       if ($match){
-	# 				#dont add duplacte reasons 
+	# 				#dont add duplicate reasons 
 	my $exists=0;
 	foreach my $elem (@allReasons){
 	  if($elem eq $reason){
@@ -3294,11 +3294,16 @@ sub jobFindReqMiss {
 	    last;
 	  }
 	}
-	$exists or push(@allReasons, $reason);
+	if (!$exists) {
+	  $self->debug(1, "one problem is $reason");
+	  push(@allReasons, $reason);
+	}
 	if ($tmpReq =~ s/\Q$reason//) {
-	  $tmpReq =~ s/&&&&/&&/
+	  $tmpReq =~ s/&&&&/&&/;
+	  $tmpReq =~ s/&&\s*$//;
 	} 
 	$req = $tmpReq;
+	$self->debug(1, "Let's see if now it works... ($req)");
 	$job_ca->set_expression("Requirements",$req);
 	( $match, $rank ) = Classad::Match( $job_ca, $ce_ca );
       }
@@ -3339,6 +3344,7 @@ sub jobFindReqMiss {
       push @min_sites,$s
     }
   }
+  $min_unmet++;
   $self->info("The best sites are @min_sites (with only $min_unmet)");
 	#put the init back
   # 	$job_ca->set_expression("Requirements",$initReq);
