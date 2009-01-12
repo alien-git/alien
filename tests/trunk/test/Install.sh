@@ -278,6 +278,7 @@ ALIEN_TESTS()
     echo "Checking if the certificate is ok"
     export PATH=$ALIEN_ROOT/bin:$PATH
     export LD_LIBRARY_PATH=$ALIEN_ROOT/lib:$LD_LIBRARY_PATH
+    export DYLD_LIBRARY_PATH=$ALIEN_ROOT/lib:$DYLD_LIBRARY_PATH
     openssl verify -CApath $ALIEN_ROOT/globus/share/certificates -purpose sslclient $HOME/.alien/globus/usercert.pem
 
     i=1
