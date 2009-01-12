@@ -1370,20 +1370,9 @@ sub putFiles {
 	  }
 	}
       }
-      $self->info("Submitting file $file2");
-      if (! -f "$self->{WORKDIR}/$file2")  {
-	$self->info("The job was supposed to create $file2, but it doesn't exist!!",1);
-	$self->putJobLog("error", "The job didn't create $file2");
-	next;
-      }
-      my @options=("$self->{WORKDIR}/$file2", $se[0]);
-      $guids{$file2} and $self->putJobLog("trace", "The file $file2 has the guid $guids{$file2} ") and push @options, $guids{$file2};
-      my ($info)=$ui->execute("upload", @options);
-      if (!$info) {
-	$self->info("Error registering the file $self->{WORKDIR}/$fileName");
-	$self->putJobLog("error","Error registering the file $self->{WORKDIR}/$fileName");
-	next;
-      }
+      my ($info)=$self->uploadFile($ui, $file2,  $se[0], $guids{$file2}) 
+	or next;
+
       if ($submitted->{$file2}){
 	my @list=@{$submitted->{$file2}->{PFNS}};
 	push @list, "$info->{selist}/$info->{pfn}";
@@ -1425,19 +1414,15 @@ sub putFiles {
 	$self->putJobLog("trace","Registering $arch->{name} in $se");
 	my ($info2, $silent)=(undef, "-silent");
 	for (my $j=0;$j<5;$j++){
+	  $self->uploadFile($ui, $arch->{name}, $se, $guid, $silent) and last;
 	  ($info2)=$ui->execute("upload", "$self->{WORKDIR}/$arch->{name}",
 				$se, $guid, $silent);
-	  $info2 and  UNIVERSAL::isa( $info2, "HASH")  and last; 
-	  $self->info("Error uploading the file... sleep and retry");
 	  $self->putJobLog( "trace", "warning: file upload failed... sleeping  and retrying");
 	  sleep(10);
 	  $silent="";
 	}
-	if (!$info2 or !  UNIVERSAL::isa( $info2, "HASH")) {
-	  $self->info("Couldn't upload the file $arch->{name} to $se\n");
-	  $self->putJobLog("error","Error registering $arch->{name}");
-	  next;
-	}
+	$info2 or next;
+
 	if ($info) {
 	  push @{$info->{PFN_LIST}}, "$info2->{selist}/$info2->{pfn}";
 	}else{
@@ -1493,6 +1478,35 @@ sub putFiles {
   $self->info("Files uploaded");
   return $filesUploaded;
 }
+
+sub uploadFile {
+  my $self=shift;
+  my $ui=shift;;
+  my $file=shift;
+  my $se=shift;
+  my $guid=shift;
+  my $silent=shift;
+  
+  $self->info("Submitting the file $file");
+
+  if (! -f "$self->{WORKDIR}/$file")  {
+    $self->info("The job was supposed to create $file, but it doesn't exist!!",1);
+    $self->putJobLog("error", "The job didn't create $file");
+    return; 
+  }
+
+  $guid and $self->putJobLog("trace", "The file $file has the guid $guid");
+
+  my ($info)=$ui->execute("upload", "$self->{WORKDIR}/$file", $se, $guid, $silent);
+  if (!$info) {
+    $self->info("Error registering the file $self->{WORKDIR}/$file");
+    $self->putJobLog("error","Error registering the file $self->{WORKDIR}/$file");
+    return;
+  }
+  
+  return $info;
+}
+
 #This subroutine receives a list of local files 
 #that might include patterns, and it returns all
 #the local files that match the pattern

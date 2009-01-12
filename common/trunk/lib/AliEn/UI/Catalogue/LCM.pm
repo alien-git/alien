@@ -1961,6 +1961,12 @@ sub upload {
   my $se=(shift or $self->{CONFIG}->{SAVESE_FULLNAME} or $self->{CONFIG}->{SE_FULLNAME} or "") ;
   my $guid=shift || "";
 
+  
+  if ($se=~ /^local$/i){
+    $se=$self->{CONFIG}->{SAVESE_FULLNAME} || $self->{CONFIG}->{SE_FULLNAME};
+    $self->info("Uploading to the closest SE ($se)");
+  }
+
  (  $pfn and $se) or
    $self->info("Error not enough arguments in upload\n". $self->upload_HELP())
      and return;

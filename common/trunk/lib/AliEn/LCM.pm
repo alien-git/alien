@@ -501,7 +501,6 @@ sub RegisterInRemoteSE {
 
   $info=$self->getPFNName($newSE, $info, $reqGuid, $envelope );
   $info or return;
-
   my $url2=AliEn::SE::Methods->new({PFN=>$info->{pfn},
 				    LOCALFILE=>$url->path()})
     or $self->info("Error creating the url of $pfn") and return;
@@ -530,9 +529,17 @@ sub getPFNName {
   my $envelope=shift;
   $self->debug(1, "Can we get the guid and the pfn from the envelope???");
   $envelope or return;
-  $envelope->{guid} or return;
-
   $info->{guid}=$envelope->{guid};
+  if (! $info->{guid}){
+    $info->{guid}=$envelope->{pfn};
+    $info->{guid} =~ s/^.*\/([^\/]*)$/$1/;
+    $info->{guid}=~  /^[\dabcdef-]{36}$/i or $self->info("It doesn't have the right format ($info->{guid})") and return;
+
+  }
+  $info->{guid} or return;
+
+
+
   $info->{pfn}=$envelope->{url};
   $info->{pfn}=~ s{^([^/]*//[^/]*)//(.*)$}{$1/$envelope->{pfn}};
   $info->{pfn}=~ m{root:////} and return;
@@ -557,7 +564,6 @@ sub getPFNName {
   $DEBUG and $self->debug(1, "Got @fileName");
   $info->{guid}=$fileName[4];
   $info->{pfn}=$fileName[3];
-
   return $info;
 
 }
