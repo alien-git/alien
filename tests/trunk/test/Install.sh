@@ -375,6 +375,7 @@ ALIEN_CREATE_CERT()
 
     export PATH=$ALIEN_ROOT/bin:$PATH
     export LD_LIBRARY_PATH=$ALIEN_ROOT/lib:$LD_LIBRARY_PATH
+    export DYLD_LIBRARY_PATH=$ALIEN_ROOT/lib:$DYLD_LIBRARY_PATH
 
     USERDIR=$HOME/.alien/globus
     DIR=$HOME/.alien/etc/aliend/ldap/certs/
