@@ -344,11 +344,12 @@ stopService()
 
 
   TOKILL=""
+  echo "HELLO $OLDPIDS"
   for param in $OLDPIDS
   do
     if [ "$param" ]
     then
-      PIDS=`ps -A -o "pid ppid pgid" |grep " $param "|awk '{print $1}'`
+      PIDS=`ps -A -o "pid ppid pgid" |grep " $param\$"|awk '{print $1}'`
       TOKILL="$TOKILL $PIDS";
     fi
   done
@@ -359,7 +360,7 @@ stopService()
      kill $TOKILL >& /dev/null
      kill -9 $TOKILL >& /dev/null
   fi
-
+  
   [ -f  $KILLFILE ] &&  rm  -f $KILLFILE
   
   if [ "$ERROR" = "1" ]
