@@ -24,7 +24,7 @@ if ($fork eq "0") {
 #  my $user=getpwuid($<);
   my $start="$alien StartIS";
   $< or $start="su - alienmaster -c '$start'";
-  system($start) or  print "Error starting the IS\n" and exit(-2);
+  system($start) and  print "Error starting the IS (with $start)\n" and exit(-2);
   exit(0);
 
 }

@@ -38,8 +38,8 @@ if ($uname eq "ia64") {
 }
 
 system("$ENV{ALIEN_ROOT}/etc/rc.d/init.d/alien-mysqld stop");
-system("pkill mysql");
-system ("kill `ps -Ao command |grep mysql |awk '{print \$2}'` ");
+system("pkill mysql 2>&1");
+#system ("kill `ps -Ao command |grep mysql |awk '{print \$2}'` ");
 system("rm", "$prepend/etc/aliend/mysqld.conf");
 #to give some time to mysql
 sleep 3;

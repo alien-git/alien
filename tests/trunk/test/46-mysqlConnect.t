@@ -64,6 +64,11 @@ sub startServices{
 
 print "HELLO\n";
 stopServices();
+ countInstances("Before connecting");
+print "Let's sleep a little bit to give time to close everything\n";
+sleep (30);
+ countInstances("Before connecting");
+
 my $ok=0;
 for (my $i=0; $i<1; $i++){
   my ($before, $proxyBefore) = countInstances("Before connecting");
