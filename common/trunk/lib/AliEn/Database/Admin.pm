@@ -56,25 +56,41 @@ sub new {
     bless ($self, $class);
     
     $self->{GLOBALKEY} = $self->getDBKey();
-    $self->checkTable("USERS_LDAP", "user",{user=>"varchar(15) not null",
-					    dn=>"varchar(255)",
-					    up=>"smallint"}) or return;
+    return $self->checkTables();
+}  
 
-
-    $self->checkTable("USERS_LDAP_ROLE", "user",{user=>"varchar(15) not null",
-						 role=>"varchar(15)",
-					    up=>"smallint"}) or return;
-    $self->checkTable("TOKENS", "ID", {ID=>"int(11) not null auto_increment primary key",
-				       "Username","varchar(16)",
-				       "Expires","datetime",
-				       "Token"=>"varchar(32)",
-				       "password"=>"varchar(16)",
-				       "SSHKey"=>"text",
-				       "dn"=>"varchar(255)",
+sub checkTables{
+  my $self=shift;
+  $self->checkTable("USERS_LDAP", "user",{user=>"varchar(15) not null",
+					  dn=>"varchar(255)",
+					  up=>"smallint"}) or return;
+  
+  
+  $self->checkTable("USERS_LDAP_ROLE", "user",{user=>"varchar(15) not null",
+					       role=>"varchar(15)",
+					       up=>"smallint"}) or return;
+  $self->checkTable("TOKENS", "ID", {ID=>"int(11) not null auto_increment primary key",
+				     "Username","varchar(16)",
+				     "Expires","datetime",
+				     "Token"=>"varchar(32)",
+				     "password"=>"varchar(16)",
+				     "SSHKey"=>"text",
+				     "dn"=>"varchar(255)",
+				    }) or return;
+  $self->checkTable("DBKEYS", "Name", {"Name"=> "varchar(20) NOT NULL DEFAULT ''",
+				       "DBKey"=>"blob",
+				       "LastChanges"=>"datetime NOT NULL DEFAULT '0000-00-00 00:00:00'"
 				      }) or return;
-
-    return $self;
+  $self->checkTable("jobToken", "jobId", { "jobId"=>"int(11) NOT NULL DEFAULT '0' PRIMARY KEY",
+					   "userName"=>"char(20) DEFAULT NULL",
+					   "jobToken"=>"char(255) DEFAULT NULL",
+					 }) or return;
+  
+  return $self;
 }
+
+
+
 
 sub getServerKey {
     my $self = shift;

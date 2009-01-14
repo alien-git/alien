@@ -245,9 +245,9 @@ sub checkSETable {
 		 seMinSize=>"int default 0",
 		);
 
-  $self->checkTable("SE", "seNumber", \%columns, 'seNumber', ['UNIQUE INDEX (seName)'], {engine=>"innodb"} ) or return;
+  return $self->checkTable("SE", "seNumber", \%columns, 'seNumber', ['UNIQUE INDEX (seName)'], {engine=>"innodb"} ); #or return;
   #This table we want it case insensitive
-  return $self->do("alter table SE  convert to CHARacter SET latin1");
+#  return $self->do("alter table SE  convert to CHARacter SET latin1");
 }
 
 sub reconnectToIndex {
