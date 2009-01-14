@@ -28,7 +28,7 @@ if (-d "$mysqlDir"){
 }
 my $passwd;
 my $origPass=$passwd=createPasswd();
-my $rootPass=createPasswd();
+#my $rootPass=createPasswd();
 
 $passwd =getParam("Administrator password","$origPass", "secret");
 
@@ -87,11 +87,14 @@ if (!-d  $mysqlDir) {
   }
 }
 chdir ($mysqlDir) or print "failed\nError changing to $mysqlDir\n" and exit(-2);
-print "ok\nUncompressing the default database...\t\t\t\t";
+#print "ok\nUncompressing the default database...\t\t\t\t";#
+#
+#my $tar="$etcDir/AliEnCatalogue-mysql.tar.gz";
+#system ("tar", "zxf", "$tar")
+#  and print "failed\nError uncompressing $tar\n $! $?\n" and exit(-2);
+print "ok\nCalling mysql_isntall_db...";
+system("$ENV{ALIEN_ROOT}/bin/mysql_install_db", "--datadir=$mysqlDir/mysql", "--skip-name-resolve ") and print "Error creating the empty database\n" and exit(-2);
 
-my $tar="$etcDir/AliEnCatalogue-mysql.tar.gz";
-system ("tar", "zxf", "$tar")
-  and print "failed\nError uncompressing $tar\n $! $?\n" and exit(-2);
 
 if (! $<) {
   print "ok\nChanging owner of the directory...\t\t\t\t";
@@ -160,53 +163,68 @@ sleep (2);
 #
 # First of all, let's check the version:
 #
-my $mysql="$ENV{ALIEN_ROOT}/bin/mysql";
-open (FILE, "$mysql -V|") or print "Error using mysql\n" and exit(-2);
-my $version=join ("", <FILE>);
-close FILE or print "Error finding the version of mysql" and exit(-2);
-print "Using mysql $version";
+#my $mysql="$ENV{ALIEN_ROOT}/bin/mysql";
+#open (FILE, "$mysql -V|") or print "Error using mysql\n" and exit(-2);
+#my $version=join ("", <FILE>);
+#close FILE or print "Error finding the version of mysql" and exit(-2);
+#print "Using mysql $version";
 my $socket="/var/tmp/alien.mysql.$orgName.sock3";
-
-if ($version=~ /Distrib\s+4\.(\d+)\.(\d+)/) {
-  my $number=($1*100+$2);
-  print "This is version 4 ($number)\n";
-  my $file="$ENV{ALIEN_ROOT}/bin/mysql_fix_privilege_tables";
-  if ($number>19) {
-    system("$file --socket=$socket") and exit(-2);
-  }else {
-    open (FILE, "<$file") or print "Error searching for $file\n" and exit(-2);
-    my @commands=<FILE>;
-    close FILE or print "ERROR opening $file\n" and exit(-2);
-    map { s{cmd=.*}{cmd="$mysql -u root -S $socket mysql"}} @commands;
-    #  print "Let's do @commands\n";
-    open (FILE, "|/bin/sh")or print "ERRROR DOING @commands\n" and exit(-2);
-    print FILE @commands;
-    close FILE or print "ERRROR DOING @commands\n" and exit(-2);
-  }
-  print "YUHUUU\n";
-
-} elsif ($version =~ /Distrib\s+5/ ){
-  print "This is version 5!!\n";
-  my $file="$ENV{ALIEN_ROOT}/bin/mysql_fix_privilege_tables";
-  print "LET's see if we can connect to the database \n";
-  system("ps -A -o \"pid command\" |grep mysql");
-  sleep 30;
-  system("$file --socket=$socket --basedir=$ENV{ALIEN_ROOT}") and exit(-2);
-}
+#
+#if ($version=~ /Distrib\s+4\.(\d+)\.(\d+)/) {
+#  my $number=($1*100+$2);
+#  print "This is version 4 ($number)\n";
+#  my $file="$ENV{ALIEN_ROOT}/bin/mysql_fix_privilege_tables";
+#  if ($number>19) {
+#    system("$file --socket=$socket") and exit(-2);
+#  }else {
+#    open (FILE, "<$file") or print "Error searching for $file\n" and exit(-2);
+#    my @commands=<FILE>;
+#    close FILE or print "ERROR opening $file\n" and exit(-2);
+#    map { s{cmd=.*}{cmd="$mysql -u root -S $socket mysql"}} @commands;
+#    #  print "Let's do @commands\n";
+#    open (FILE, "|/bin/sh")or print "ERRROR DOING @commands\n" and exit(-2);
+#    print FILE @commands;
+#    close FILE or print "ERRROR DOING @commands\n" and exit(-2);
+#  }
+#  print "YUHUUU\n";#
+#
+#} elsif ($version =~ /Distrib\s+5/ ){
+#  print "This is version 5!!\n";
+#  my $file="$ENV{ALIEN_ROOT}/bin/mysql_fix_privilege_tables";
+#  print "LET's see if we can connect to the database \n";
+#  system("ps -A -o \"pid command\" |grep mysql");
+#  sleep 30;
+#  system("$file --socket=$socket --basedir=$ENV{ALIEN_ROOT}") and exit(-2);
+#}
 print "Let's change the root password";
 
-my $rootP=createPasswd();
-system ("$ENV{ALIEN_ROOT}/bin/mysqladmin -u root password '$rootP' -S $socket")
-  and exit(-2);
-system ("$ENV{ALIEN_ROOT}/bin/mysqladmin -u root password '$rootP' -P $portNumber -h $hostName")
-  and exit(-2);
+#my $rootP=createPasswd();
+sleep(10);
+
+#system ("$ENV{ALIEN_ROOT}/bin/mysqladmin -u root password '$rootPass' -S $socket")
+#  and exit(-2);
+
+print "update mysql.user set password=PASSWORD('$passwd') where User='root'\n\n";
+
+open(FILE, "| $ENV{ALIEN_ROOT}/bin/mysql  -u root -S $socket") or print "Error conecting to mysql \n" and exit(-2);
+print FILE "update mysql.user set password=PASSWORD('$passwd') where User='root';
+GRANT ALL PRIVILEGES ON *.* TO admin IDENTIFIED BY '$passwd' WITH GRANT OPTION;
+
+flush privileges;
+create database if not exists alien_system;
+create database if not exists processes;
+create database if not exists transfers;
+create database if not exists INFORMATIONSERVICE;
+create database if not exists ADMIN;";
+close FILE or print "Error updating the password!\n" and exit(-2);
+print "DONE!!\n";
 
 print "Connecting to mysql on $hostName:$portNumber...\t\t";
 
 my $db=AliEn::Database::Catalogue->new({USE_PROXY=>0,
-					USER=>"root",
-					ROLE=>"root",
-					PASSWD=>$rootP,
+					USER=>"admin",
+					ROLE=>"admin",
+					PASSWD=>$passwd,
 #					DEBUG=>5,
 				       }) or exit(-2);
 
@@ -215,24 +233,30 @@ $now =~ s/\n//;
 
 print "Creating the tables in the database\n";
 $db->createCatalogueTables() or exit(-2);
+
+foreach my $dbtype ('TaskQueue', 'Transfer', 'IS', 'Admin'){
+  print "Creating the $dbtype...";
+  my $s="AliEn::Database::$dbtype";
+
+  eval "require $s;";
+  my $d=$s->new({USE_PROXY=>0,
+		 USER=>'admin',
+		 ROLE=>'admin',
+		 PASSWD=>$passwd,
+		 #					DEBUG=>5,
+		}
+	       ) or exit(-2);
+  print "Done with $?\n";
+}
 my @q=(
-       "GRANT ALL PRIVILEGES ON *.* TO admin IDENTIFIED BY '$passwd' WITH GRANT OPTION",
-       "GRANT ALL PRIVILEGES ON processes.* to admin with grant option",
-       "GRANT ALL PRIVILEGES ON alien_system.* to admin with grant option",
        "INSERT INTO alien_system.HOSTS (hostIndex,address,db,driver) values('1', '$hostName:$portNumber', 'alien_system', 'mysql')",
-       "INSERT INTO ADMIN.TOKENS values(12, 'admin', DATE_ADD(now() ,INTERVAL 1 YEAR), '$token', '$passwd', 'NOKEY')",
+       "INSERT INTO ADMIN.TOKENS values(12, 'admin', DATE_ADD(now() ,INTERVAL 1 YEAR), '$token', '$passwd', 'NOKEY','')",
        "INSERT INTO L0L(lfn,owner, gowner,perm,type) values ('', 'admin', 'admin','755','d')",
        "INSERT INTO INDEXTABLE(hostIndex, lfn,tableName) values  ('1','/', 0)",
        "INSERT INTO GUIDINDEX(hostIndex, guidTime,tableName) values  ('1','', 0)",
        "Create DATABASE geoip",
        "GRANT SELECT ON geoip.* to alienmaster",
-       "drop table D0",
-       "drop table T1000",
-       "drop table DELETED",
-       "drop table TAGDELETED",
        "INSERT INTO SE(seName) VALUES ('no_se')",
-       "CREATE DATABASE GUID",
-
 );
 
 my $subject="";
