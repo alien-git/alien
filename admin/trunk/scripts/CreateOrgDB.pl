@@ -250,13 +250,15 @@ foreach my $dbtype ('TaskQueue', 'Transfer', 'IS', 'Admin'){
 }
 my @q=(
        "INSERT INTO alien_system.HOSTS (hostIndex,address,db,driver) values('1', '$hostName:$portNumber', 'alien_system', 'mysql')",
-       "INSERT INTO ADMIN.TOKENS values(12, 'admin', DATE_ADD(now() ,INTERVAL 1 YEAR), '$token', '$passwd', 'NOKEY','')",
+       "INSERT INTO ADMIN.TOKENS (ID, Username, expires, token, password, sshkey,dn)  values(12, 'admin', DATE_ADD(now() ,INTERVAL 1 YEAR), '$token', '$passwd', 'NOKEY','')",
        "INSERT INTO L0L(lfn,owner, gowner,perm,type) values ('', 'admin', 'admin','755','d')",
        "INSERT INTO INDEXTABLE(hostIndex, lfn,tableName) values  ('1','/', 0)",
        "INSERT INTO GUIDINDEX(hostIndex, guidTime,tableName) values  ('1','', 0)",
        "Create DATABASE geoip",
        "GRANT SELECT ON geoip.* to alienmaster",
        "INSERT INTO SE(seName) VALUES ('no_se')",
+       "insert into GROUPS values (1,1,'admin','admin')",
+
 );
 
 my $subject="";
