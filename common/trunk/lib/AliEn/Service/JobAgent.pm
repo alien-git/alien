@@ -1370,17 +1370,8 @@ sub putFiles {
 	  }
 	}
       }
-      my ($info)=$self->uploadFile($ui, $file2,  $se[0], $guids{$file2}) 
+      my ($info)=$self->uploadFile2($ui, $file2,  \@se, $guids{$file2}, $submitted)
 	or next;
-
-      if ($submitted->{$file2}){
-	my @list=@{$submitted->{$file2}->{PFNS}};
-	push @list, "$info->{selist}/$info->{pfn}";
-	$submitted->{$file2}->{PFNS}.=\@list;
-      }else{
-	$submitted->{$file2}=$info;
-	$submitted->{$file2}->{PFNS}=["$info->{selist}/$info->{pfn}"];
-      }
 				 
     }
     foreach my $arch(@zipArchive) {
@@ -1400,49 +1391,11 @@ sub putFiles {
 	}
 	
       }
-      my $info;
       my $guid="";
-      foreach my $se (@ses) {
-	my $optional=0;
-	$se=~ s/_optional$//i and $optional=1;
-	if ($se =~ /^localse$/i){
-	  $se=$self->{CONFIG}->{SE_FULLNAME}
-	    or $self->info("We are supposed to write in the local se, but it is not defined!!") and next;
-	  $self->info("We will write in the locaSE: $se");
-	}
-	$self->info("Putting the file $arch->{name} in $se (guid $guid)");
-	$self->putJobLog("trace","Registering $arch->{name} in $se");
-	my ($info2, $silent)=(undef, "-silent");
-	for (my $j=0;$j<5;$j++){
-	  $self->uploadFile($ui, $arch->{name}, $se, $guid, $silent) and last;
-	  ($info2)=$ui->execute("upload", "$self->{WORKDIR}/$arch->{name}",
-				$se, $guid, $silent);
-	  $self->putJobLog( "trace", "warning: file upload failed... sleeping  and retrying");
-	  sleep(10);
-	  $silent="";
-	}
-	$info2 or next;
-
-	if ($info) {
-	  push @{$info->{PFN_LIST}}, "$info2->{selist}/$info2->{pfn}";
-	}else{
-	  $info=$info2;
-	  $guid=$info->{guid};
-	  $info->{PFN_LIST}=["$info->{selist}/$info->{pfn}"];
-	}
-      }
+      my ($info)=$self->uploadFile2($ui,$arch->{name}, \@ses, $guid, $submitted);
       if (!$info ) {
 	$filesUploaded=0;
 	next;
-      }
-      if ($submitted->{$arch->{name}}){
-	my @list=@{$submitted->{$arch->{name}}->{PFNS}};
-	push @list, "$info->{selist}/$info->{pfn}";
-	$submitted->{$arch->{name}}->{PFNS}.=\@list;
-      }else{
-	$submitted->{$arch->{name}}=$info;
-	$submitted->{$arch->{name}}->{PFNS}=$info->{PFN_LIST};
-
       }
       $no_links and next;
       my @list;
@@ -1504,6 +1457,63 @@ sub uploadFile {
     return;
   }
   
+  return $info;
+}
+
+sub uploadFile2 {
+  my $self=shift;
+  my $ui=shift;;
+  my $file=shift;
+  my $seList=shift;
+  my $guid=shift;
+  my $submitted=shift;
+  
+  $self->info("Submitting the file $file");
+  if (! -f "$self->{WORKDIR}/$file")  {
+    $self->info("The job was supposed to create $file, but it doesn't exist!!",1);
+    $self->putJobLog("error", "The job didn't create $file");
+    return; 
+  }
+  $guid and $self->putJobLog("trace", "The file $file has the guid $guid");
+  my $info;
+  foreach my $se (@$seList){
+    my $optional=0;
+    $se=~ s/_optional$//i and $optional=1;
+    $self->putJobLog("trace","Registering $file in $se (guid $guid)");
+    my $silent="-silent";
+    my $info2;
+    for (my $j=0;$j<5;$j++){
+      ($info2)=$ui->execute("upload", "$self->{WORKDIR}/$file", $se, $guid, $silent);
+      $info2 and last;
+      $self->putJobLog( "trace", "warning: file upload failed... sleeping  and retrying");
+      sleep(10);
+      $silent="";
+    }
+    $info2 or next;
+    if ($info) {
+      push @{$info->{PFN_LIST}}, "$info2->{selist}/$info2->{pfn}";
+    }else{
+      $info=$info2;
+      $guid=$info->{guid};
+      $info->{PFN_LIST}=["$info->{selist}/$info->{pfn}"];
+    }
+  }
+  if (!$info) {
+    $self->info("Error registering the file $self->{WORKDIR}/$file");
+    $self->putJobLog("error","Error registering the file $self->{WORKDIR}/$file");
+    return;
+  }
+
+  
+  if ($submitted->{$file}){
+    my @list=@{$submitted->{$file}->{PFNS}};
+    push @list, "$info->{selist}/$info->{pfn}";
+    $submitted->{$file}->{PFNS}.=\@list;
+  }else{
+    $submitted->{$file}=$info;
+    $submitted->{$file}->{PFNS}=["$info->{selist}/$info->{pfn}"];
+  }
+
   return $info;
 }
 
