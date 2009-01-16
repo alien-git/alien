@@ -43,7 +43,7 @@ sub initialize {
 		status=>"char(15)",
 		lastchecked =>"int(11)",
 		version=>"char(10)",
-		name=>"varchar(200)",
+		name=>"varchar(200) collate latin1_general_ci NOT NULL default ''",
 		defaultSE=>"int(1)",
 		URI=>"char(50)",
 		protocols=>"char(255)",
