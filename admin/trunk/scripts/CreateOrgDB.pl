@@ -210,7 +210,7 @@ open(FILE, "| $ENV{ALIEN_ROOT}/bin/mysql  -u root -S $socket") or print "Error c
 print FILE "update mysql.user set password=PASSWORD('$passwd') where User='root';
 GRANT ALL PRIVILEGES ON *.* TO admin IDENTIFIED BY '$passwd' WITH GRANT OPTION;
 GRANT ALL PRIVILEGES ON *.* TO admin\@localhost IDENTIFIED BY '$passwd' WITH GRANT OPTION;
-
+delete from mysql.user where user !='root';
 flush privileges;
 create database if not exists alien_system;
 create database if not exists processes;
