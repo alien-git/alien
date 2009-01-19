@@ -149,7 +149,7 @@ sub Initialize {
 sub checkVariables{
   my $self=shift;
   $self->debug(1, "Checking if we can write to the directories");
-  for my $entry ("TMP_DIR", "LOG_DIR", "CACHE_DIR", "WORKDIR"){
+  for my $entry ("TMP_DIR", "LOG_DIR", "CACHE_DIR", "WORK_DIR", "WORKDIR"){
     $self->{$entry} or next;
     $self->debug(1, "Checking $entry => $self->{$entry}");
     if ($self->{$entry}=~ /\$/){

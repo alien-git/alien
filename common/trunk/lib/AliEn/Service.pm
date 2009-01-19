@@ -857,9 +857,16 @@ sub GetConfiguration {
   $cache and return $cache;
   $self->info("Let's reload the configuration");
   $self->{CONFIG}=$self->{CONFIG}->Reload({"force", 1});
-  AliEn::Util::setCacheValue($self, "Config", $self->{CONFIG});
 
-  return $self->{CONFIG};
+  my $t=$self->{CONFIG};
+  foreach my $key ( grep (s/_ORIG$//, keys %{$self->{CONFIG}}) ){
+    $self->info("Setting $key to its previous value");
+    $t->{$key}=$self->{CONFIG}->{"${key}_ORIG"};
+
+  }
+  AliEn::Util::setCacheValue($self, "Config", $t);
+
+  return $t;
 }
 
 
