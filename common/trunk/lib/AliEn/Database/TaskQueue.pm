@@ -100,7 +100,7 @@ sub initialize {
 			      error =>"int(11)",
 			      validate =>"int(1)",
 			      sent =>"int(20)",
-			      jdl =>"text",
+			      jdl =>"text collate latin1_general_ci",
 			      site=> "varchar(40)",
 			      node=>"varchar(64)",
 			      spyurl=>"varchar(64)",
