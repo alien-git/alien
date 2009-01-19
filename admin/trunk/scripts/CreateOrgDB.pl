@@ -208,9 +208,9 @@ print "update mysql.user set password=PASSWORD('$passwd') where User='root'\n\n"
 
 open(FILE, "| $ENV{ALIEN_ROOT}/bin/mysql  -u root -S $socket") or print "Error conecting to mysql \n" and exit(-2);
 print FILE "update mysql.user set password=PASSWORD('$passwd') where User='root';
+delete from mysql.user where user !='root';
 GRANT ALL PRIVILEGES ON *.* TO admin IDENTIFIED BY '$passwd' WITH GRANT OPTION;
 GRANT ALL PRIVILEGES ON *.* TO admin\@localhost IDENTIFIED BY '$passwd' WITH GRANT OPTION;
-delete from mysql.user where user !='root';
 flush privileges;
 create database if not exists alien_system;
 create database if not exists processes;
@@ -227,7 +227,16 @@ my $db=AliEn::Database::Catalogue->new({USE_PROXY=>0,
 					ROLE=>"admin",
 					PASSWD=>$passwd,
 #					DEBUG=>5,
-				       }) or exit(-2);
+				       });
+
+if (! $db) {
+  print "We couldn't connect to the database\n";
+  print "Let's try as root\n";
+  open (FILE, "| $ENV{ALIEN_ROOT}/bin/mysql  -p$passwd -u root -S $socket") or print "Error conecting to mysql \n" and exit(-2);
+  print FILE "select * from mysql.user;";
+  close FILE;
+  exit(-2);
+}
 
 my $now=`date "+%b %d %H:%M"`;
 $now =~ s/\n//;
