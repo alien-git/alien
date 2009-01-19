@@ -1266,7 +1266,7 @@ sub jobExits{
 
   $self->info("The job $jobId has finished");
   $self->{LOCALJOBDB}->removeJobAgent($self->{BATCH}->needsCleaningUp(), { jobId => $jobId });  
-  return;
+  return 1;
 }
 
 1;
