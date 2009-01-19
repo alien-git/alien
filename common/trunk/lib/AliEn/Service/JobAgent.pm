@@ -1370,7 +1370,7 @@ sub putFiles {
 	  }
 	}
       }
-      my ($info)=$self->uploadFile2($ui, $file2,  \@se, $guids{$file2}, $submitted)
+      my ($info)=$self->uploadFile($ui, $file2,  \@se, $guids{$file2}, $submitted)
 	or next;
 				 
     }
@@ -1392,11 +1392,13 @@ sub putFiles {
 	
       }
       my $guid="";
-      my ($info)=$self->uploadFile2($ui,$arch->{name}, \@ses, $guid, $submitted);
+      my ($info)=$self->uploadFile($ui,$arch->{name}, \@ses, $guid, $submitted);
+
       if (!$info ) {
 	$filesUploaded=0;
 	next;
       }
+
       $no_links and next;
       my @list;
       foreach my $file( keys %{$arch->{entries}}) {
@@ -1432,35 +1434,8 @@ sub putFiles {
   return $filesUploaded;
 }
 
+
 sub uploadFile {
-  my $self=shift;
-  my $ui=shift;;
-  my $file=shift;
-  my $se=shift;
-  my $guid=shift;
-  my $silent=shift;
-  
-  $self->info("Submitting the file $file");
-
-  if (! -f "$self->{WORKDIR}/$file")  {
-    $self->info("The job was supposed to create $file, but it doesn't exist!!",1);
-    $self->putJobLog("error", "The job didn't create $file");
-    return; 
-  }
-
-  $guid and $self->putJobLog("trace", "The file $file has the guid $guid");
-
-  my ($info)=$ui->execute("upload", "$self->{WORKDIR}/$file", $se, $guid, $silent);
-  if (!$info) {
-    $self->info("Error registering the file $self->{WORKDIR}/$file");
-    $self->putJobLog("error","Error registering the file $self->{WORKDIR}/$file");
-    return;
-  }
-  
-  return $info;
-}
-
-sub uploadFile2 {
   my $self=shift;
   my $ui=shift;;
   my $file=shift;
@@ -1497,6 +1472,13 @@ sub uploadFile2 {
       $guid=$info->{guid};
       $info->{PFN_LIST}=["$info->{selist}/$info->{pfn}"];
     }
+    if ($submitted->{$file}){
+      push @{$submitted->{$file}->{PFNS}}, "$info2->{selist}/$info2->{pfn}";
+    }else{
+      $submitted->{$file}=$info;
+      $submitted->{$file}->{PFNS}=["$info2->{selist}/$info2->{pfn}"];
+    }
+
   }
   if (!$info) {
     $self->info("Error registering the file $self->{WORKDIR}/$file");
@@ -1505,14 +1487,6 @@ sub uploadFile2 {
   }
 
   
-  if ($submitted->{$file}){
-    my @list=@{$submitted->{$file}->{PFNS}};
-    push @list, "$info->{selist}/$info->{pfn}";
-    $submitted->{$file}->{PFNS}.=\@list;
-  }else{
-    $submitted->{$file}=$info;
-    $submitted->{$file}->{PFNS}=["$info->{selist}/$info->{pfn}"];
-  }
 
   return $info;
 }
@@ -2466,8 +2440,6 @@ sub registerLogs {
     my $basename=$1;
     my $data=$self->submitFileToClusterMonitor($dir,$basename, "execution.out");
     $data or $self->info("Error submitting the log file") and return;
-    use Data::Dumper;
-    print "After submitting the file". Dumper ($data);
 
     $self->info("And now, let's update the jdl");
     $self->{CA}->set_expression("RegisteredLog", "\"execution.out######$data->{size}###$data->{md5}###$data->{se}/$data->{pfn}###\"");
