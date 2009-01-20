@@ -226,6 +226,9 @@ sub generateJOB {
       and return;
     my $fullFile=AliEn::TMPFile->new({filename=>$file}); 
     $fullFile or $self->info("Error generating the file name for the outpur") and return; 
+
+    $self->{CONFIG}->{TMP_DIR_ORIG} and
+      $fullFile="$self->{CONFIG}->{TMP_DIR_ORIG}/$file";
     my @list=();
     $self->{CONFIG}->{CE_SUBMITARG} and push @list, @{$self->{CONFIG}->{CE_SUBMITARG_LIST}};
     $self->info("The options are @list ");
