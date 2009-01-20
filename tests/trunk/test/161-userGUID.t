@@ -24,10 +24,22 @@ GUIDFile=\"myguidfile\";
 OutputFile=\"myguidfile\"
 ") or exit(-2);
 
+addFile($cat, "bin/userGUIDSFail.sh","#!/bin/sh
+echo \"Creating a file with a specific guid (but after sleeping for a while)\"
+sleep 60
+echo \"myguidfile $guid\" >myguidfile
+","r") or exit(-2);
+
+
+addFile($cat, "jdl/userGUIDSFail.jdl", "Executable=\"userGUIDSFail.sh\";
+GUIDFile=\"myguidfile\";
+OutputFile=\"myguidfile\"
+") or exit(-2);
+
 my ($id)=$cat->execute("submit", "jdl/userGUIDS.jdl") or exit(-2);
 
 print "Submitting the second job\n";
-my ($id2)=$cat->execute("submit", "jdl/userGUIDS.jdl") or exit(-2);
+my ($id2)=$cat->execute("submit", "jdl/userGUIDSFail.jdl") or exit(-2);
 $cat->close();
 
 print "Job submitted!! 
