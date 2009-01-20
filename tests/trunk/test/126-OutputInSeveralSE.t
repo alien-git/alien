@@ -44,7 +44,7 @@ OutputArchive={\"my_archive:stdout,stderr,resources,file.out\@$sename,${sename}2
   addFile($cat, "jdl/MultipleArchive2Output.jdl",
 	  "Executable=\"CheckInputOuptut.sh\";
 InputFile=\"LF:$dir/jdl/Input.jdl\";
-OutputArchive={\"my_archive:stdout,stderr,resources,file.out\@localse,${sename}2\"}") or exit(-2);
+OutputArchive={\"my_archive:stdout,stderr,resources,file.out\@local,${sename}2\"}") or exit(-2);
 
   my ($id3)=$cat->execute("submit", "jdl/MultipleArchive2Output.jdl") or exit(-2);
 
