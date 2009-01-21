@@ -407,7 +407,7 @@ sub checkLDAPConnection {
   print "ok\nAdding the user '$userName' to ldap...\t\t\t";
 
   $mesg=$ldap->add("uid=$userName,ou=People,$config->{LDAPDN}", 
-		      attr=>["objectClass", ["AliEnUser", "posixAccount", "pkiUser", "top"],
+		      attr=>["objectClass", ["AliEnUser", "posixAccount", "pkiUser"],
 			     "sshkey", $rsa->get_public_key_string,
 			     "roles", "admin",
 			     "cn", "$userName",
@@ -415,6 +415,8 @@ sub checkLDAPConnection {
 			     "uidNumber", "$userID",
 			     "userPassword", "{crypt}x",
 			     "loginShell", "false",
+			     "gidNumber",1,
+			     "homeDirectory", "/$orgName/user/a/admin",
                              "subject", "/blabla/",
 			    ]);
   $mesg->code && print "failed\nCould not add $userName: ",$result->error and return;
@@ -437,6 +439,7 @@ sub checkLDAPConnection {
     $mesg=$ldap->add($key, attr =>
 		     ["objectClass", ["AliEnMonaLisa"],
                       "name", $mlSerName,
+		      "ou", "MonaLisa",
                       "shouldUpdate", "false",
                       "host", $mlHost,
                       "apmonConfig", "['pcardaab.cern.ch']",

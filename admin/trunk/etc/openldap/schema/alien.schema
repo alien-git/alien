@@ -502,7 +502,7 @@ attributetype ( AliEnMonaLisa:9 NAME 'removeProperties' SUP name)
 attributetype ( AliEnMonaLisa:10 NAME 'apmonConfig' SUP name)
 
 objectclass ( AliEnMonaLisa  NAME 'AliEnMonaLisa'
-	SUP ( top )
+	SUP ( organizationalUnit )
 	MUST ( name )
 	MAY ( host $ group $ lus $ shouldUpdate $ javaOpts $ storeType $ addModules $ removeModules $ 
 		addProperties $ removeProperties $ apmonConfig $ 
