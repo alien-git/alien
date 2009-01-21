@@ -235,8 +235,6 @@ sub generateJOB {
     map { s/^(.*)/\# \@ $1\n/} @list;
     print JOBDESCRIPTION
 	"#!/bin/sh\n",
-        "# @ output = $fullFile.out\n",
-	"# @ error = $fullFile.err\n",
 	"# @ wall_clock_limit = $self->{CONFIG}->{CE_TTL}\n",
 	"# @ job_type = serial\n",
 	@list,
