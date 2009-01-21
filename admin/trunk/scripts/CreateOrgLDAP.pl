@@ -35,6 +35,8 @@ print "Please, enter the following information:\n";
 my $orgName       = getParam("Organisation name","ALICE");
 
 my $suffix=Net::Domain::hostdomain();
+my $topD=$suffix;
+$topD =~ s/\..*$//;
 $suffix=~ s/\./,dc=/g;
 $suffix="dc=$suffix";
 $suffix=getParam("Suffix", $suffix);
@@ -130,10 +132,9 @@ my @list=();
 
 my $orgDN="o=\L$orgName\E,$suffix";
 ($action  ne "A") and 
-push(@list,("$suffix",["objectClass", ["top", "domain"] ]));
+  push(@list,("$suffix",["objectClass", [ "domain"], dc=>$topD ]));
 
-push(@list,("$orgDN",["cn", $orgName,
-			"objectClass", ["top", "organization"]]));
+push(@list,("$orgDN",[o=> $orgName,"objectClass", [ "organization"]]));
 
 my %config;
 $config{ou}="Config";
@@ -160,6 +161,7 @@ $config{isDriver}=$config{queueDriver}=$config{catalogDriver}=$config{authenDriv
 $config{userDir}="/\L$orgName\E/user";
 $config{clusterMonitorUser}="$prodUser";
 
+$config{proxyAddress}="$hostName:".($portNumber+8);
 $config{transferManagerAddress}="$hostName:".($portNumber+15);
 $config{transferBrokerAddress}="$hostName:".($portNumber+16);
 $config{transferOptimizerAddress}="$hostName:".($portNumber+17);
@@ -192,7 +194,7 @@ push(@list,("ou=Config,$orgDN", [%config]));
 
 foreach my $subdir ("Packages", "People", "Roles", "Sites", "Partitions", "Services") {
   push(@list,("ou=$subdir,$orgDN",["ou", "$subdir",
-			"objectClass", ["top"]]));
+			"objectClass", ["organizationalUnit"]]));
 }
 push (@list, "uid=admin,ou=Roles,$orgDN", ["objectClass", "AliEnRole",
 					   "uid", "admin",
@@ -208,7 +210,7 @@ push (@list, "ou=gContainer,ou=Services,$orgDN", ["objectClass", "AliEngContaine
              "wakeupTime", "300",
 					   ]);
 
-push (@list, "ou=Judges,ou=gContainer,ou=Services,$orgDN", ["objectClass", "top",
+push (@list, "ou=Judges,ou=gContainer,ou=Services,$orgDN", ["objectClass", "organizationalUnit",
 					   "ou", "Judges",
 					   ]);
 
@@ -218,12 +220,12 @@ push (@list, "name=LogicalDistance,ou=Judges,ou=gContainer,ou=Services,$orgDN", 
              "active", "1",
 					   ]);
 
-push (@list, "ou=Services,ou=gContainer,ou=Services,$orgDN", ["objectClass", "top",
+push (@list, "ou=Services,ou=gContainer,ou=Services,$orgDN", ["objectClass", "organizationalUnit",
 					   "ou", "Services",
 					   ]);
 
 push (@list, "name=GAS,ou=Services,ou=gContainer,ou=Services,$orgDN", ["objectClass",
-              ["AliEngContainerService", "AliEngContainerServiceGAS" ],
+              [ "AliEngContainerServiceGAS" ],
 					   "name", "GAS",
              "authentication", "myproxy",
              "global", "0",
@@ -231,19 +233,19 @@ push (@list, "name=GAS,ou=Services,ou=gContainer,ou=Services,$orgDN", ["objectCl
              "creatorClass", "gFactory::GAS",
 					   ]);
 
-push (@list, "alias=AliEnFileCatalog,name=GAS,ou=Services,ou=gContainer,ou=Services,$orgDN", ["objectClass", ["AliEnGASMODULE",                  "top"], "alias", "AliEnFileCatalog",
+push (@list, "alias=AliEnFileCatalog,name=GAS,ou=Services,ou=gContainer,ou=Services,$orgDN", ["objectClass", ["AliEnGASMODULE",], "alias", "AliEnFileCatalog",
                       "type", 1,
                       "mandatory", 1,
                       "interface", "AliEn::EGEE::Interface::Catalogue",
                       "options", "AliEn::EGEE::Service::Catalogue",
                       ]);
-push (@list, "alias=AliEnMetaCatalog,name=GAS,ou=Services,ou=gContainer,ou=Services,$orgDN", ["objectClass", ["AliEnGASMODULE",                  "top"], "alias", "AliEnMetaCatalog",
+push (@list, "alias=AliEnMetaCatalog,name=GAS,ou=Services,ou=gContainer,ou=Services,$orgDN", ["objectClass", ["AliEnGASMODULE",], "alias", "AliEnMetaCatalog",
                       "type", 1,
                       "mandatory", 1,
                       "interface", "AliEn::EGEE::Interface::MetaCatalogue",
                       "options", "AliEn::EGEE::Service::MetaCatalogue",
                       ]);
-push (@list, "alias=AliEnTaskQueue,name=GAS,ou=Services,ou=gContainer,ou=Services,$orgDN", ["objectClass", ["AliEnGASMODULE",                  "top"], "alias", "AliEnTaskQueue",
+push (@list, "alias=AliEnTaskQueue,name=GAS,ou=Services,ou=gContainer,ou=Services,$orgDN", ["objectClass", ["AliEnGASMODULE"], "alias", "AliEnTaskQueue",
                       "type", 1,
                       "mandatory", 0,
                       "interface", "AliEn::EGEE::Interface::WMS",
@@ -251,7 +253,7 @@ push (@list, "alias=AliEnTaskQueue,name=GAS,ou=Services,ou=gContainer,ou=Service
                       ]);
 
  push (@list, "name=ExWrapper,ou=Services,ou=gContainer,ou=Services,$orgDN", ["objectClass",
-               ["AliEngContainerService", "AliEngContainerServiceExWrapper" ],
+               ["AliEngContainerServiceExWrapper" ],
  					   "name", "ExWrapper",
               "global", "0",
               "creatorClass", "gFactory::ExWrapper",
@@ -418,15 +420,15 @@ sub addSite{
   my $siteDN="ou=$siteName,ou=Sites,$orgDN";
   my $dir="/tmp/$orgName";
   my @list=();
-  push (@list,$siteDN,["objectClass",["top","AliEnSite"],
+  push (@list,$siteDN,["objectClass",["AliEnSite"],
 		       @siteInfo		
 		      ]);
-  push (@list,"ou=Config,$siteDN",["objectClass", "top",
+  push (@list,"ou=Config,$siteDN",["objectClass", "organizationalUnit",
 				   "ou", "Config"]);
-  push (@list,"ou=Services,$siteDN",["objectClass", "top",
+  push (@list,"ou=Services,$siteDN",["objectClass", "organizationalUnit",
 				     "ou", "Services"]);
   foreach my $service ("SE", "CE", "FTD", "PackMan") {
-    push (@list, "ou=$service,ou=Services,$siteDN", ["objectClass", "top",
+    push (@list, "ou=$service,ou=Services,$siteDN", ["objectClass", "organizationalUnit",
 						     "ou", "$service"]);
   }
 

@@ -17,11 +17,6 @@ objectclass ( AliEnVO  NAME 'AliEnVO'
 	MAY ( ou )
 	)
 
-#objectclass ( AliEnVO  NAME 'AliEnVO'
-#	SUP top
-#	MUST ( ldapHost $ ldapDN $ Name )
-#	)
-
 # AliEnVOConfig
 
 objectidentifier AliEnVOConfig ALIEN_BASE:2
@@ -116,7 +111,6 @@ objectclass ( AliEnVOConfig  NAME 'AliEnVOConfig'
 	       queuePort $ queueHost $ queueDatabase $queueDriver $
 	       queueDbHost $ logPort $ logHost $ userDir $ 
 	       isPort $ isDatabase $ isDriver $ isDbHost $ isHost $
-	       nwsPort $ nwsDatabase $ nwsDriver $ nwsDbHost $ nwsHost $
 	       clusterMonitorUser $ clustermonitorPort $ 
       	       brokerHost $ brokerPort $ transferManagerAddress $ 
 		transferBrokerAddress $ transferDatabase $
@@ -129,6 +123,7 @@ objectclass ( AliEnVOConfig  NAME 'AliEnVOConfig'
 	      proofCryptPassword $ proofLogin $ proofTimeout $ proofMasterPort $ proofPackage $ 
 	      webserverURL $ myproxyServer $ gContainerAddress $ rlsAddress $
 	      portalUrl $ vomsServer $ apiServer $ jabberServer $ agentApiProxy $ 
+	       nwsPort $ nwsDatabase $ nwsDriver $ nwsDbHost $ nwsHost $
         lbsgAddress $ lbsgDatabase $ si2kNominalPrice $ bankAdmin $ taxAccount $ taxRate $
 				bankCurrency $ jobDatabaseRead $ packmanmasterAddress $ 
  messagesmasterAddress $ semasterDatabase $ semasterManagerAddress )
@@ -298,7 +293,7 @@ attributetype ( AliEnSite:18 NAME 'distributeCreditsTo' SUP name )
 
 
 objectclass ( AliEnSite  NAME 'AliEnSite'
-	SUP ( top ) 
+	SUP ( organizationalUnit ) 
 	MUST ( domain $ logdir $ tmpdir $ cachedir )
 	MAY ( savese $ packages $ workdir $ processPort $
               administrator $ location $ country $ longitude $ latitude $ 
@@ -461,7 +456,7 @@ objectidentifier AliEngContainerServiceGAS  ALIEN_BASE:20
 attributetype ( AliEngContainerServiceGAS:1 NAME 'gasModules' SUP name )
 
 objectclass ( AliEngContainerServiceGAS  NAME 'AliEngContainerServiceGAS'
-	SUP ( top )
+	SUP ( AliEngContainerService )
   MUST ( gasModules )
 	)
 
@@ -472,8 +467,8 @@ objectidentifier AliEngContainerServiceExWrapper  ALIEN_BASE:21
 attributetype ( AliEngContainerServiceExWrapper:1 NAME 'exec' SUP name )
 
 objectclass ( AliEngContainerServiceExWrapper  NAME 'AliEngContainerServiceExWrapper'
-	SUP ( top )
-  MUST ( exec )
+	SUP ( AliEngContainerService )
+  MAY ( exec )
 	)
 
 #AliEn AliEnPackMan
@@ -556,7 +551,7 @@ attributetype ( AliEnInstitution:1 NAME 'institutionName' SUP name )
 
 
 objectclass ( AliEnInstitution  NAME 'AliEnInstitution'
-	SUP ( top ) 
+	SUP ( organizationalUnit ) 
 	MUST ( uid $ institutionName )
 	
 	      )
