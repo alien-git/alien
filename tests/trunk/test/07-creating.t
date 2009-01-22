@@ -36,7 +36,9 @@ BEGIN { plan tests => 2 }
 	    "cn", "newuser",
 	    "uid", "newuser",
 	    "uidNumber", "222",
+	    "gidNumber", "222",
 	    "userPassword", "{crypt}x",
+	    "homeDirectory", "/$org/user/n/newuser",
 	    "loginShell", "false",);
   $subject and push @data, "subject", $subject;
 
