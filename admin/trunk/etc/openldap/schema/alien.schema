@@ -241,7 +241,7 @@ attributetype ( AliEnCE:15 NAME 'matchcmd' SUP name )
 attributetype ( AliEnCE:16 NAME 'matcharg' SUP name )
 
 objectclass ( AliEnCE  NAME 'AliEnCE'
-	SUP ( AliEnSOAPServer ) 
+	SUP ( top ) 
 	MUST ( name $ type $ host $maxqueuedjobs  )
 	MAY  ( maxjobs $ submitcmd $ submitarg $ killcmd $ 
                killarg $ statuscmd $ statusarg $ packages $ TTL $ si2kPrice 
