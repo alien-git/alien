@@ -90,7 +90,7 @@ BEGIN { plan tests => 1 }
 
   # add the ApiService Service Entry
   my $servicekey="ou=ApiService,ou=Services,$config->{FULLLDAPDN}";
-  addLdapEntry($servicekey,["objectClass",["top"],
+  addLdapEntry($servicekey,["objectClass",["organizationalUnit"],
 		"ou","ApiService",
                 	     ]) ;
 
