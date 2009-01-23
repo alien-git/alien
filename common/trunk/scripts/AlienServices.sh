@@ -274,7 +274,7 @@ startService()
      fi 
    fi
    SETSID=`which setsid 2> /dev/null`
-   echo "DOING IT WITH $SETSID" 
+
    $SETSID  $ALIEN_PERL $ALIEN_DEBUG $ALIEN_START $* -logfile $LOGDIR/$FILE.log <<EOF &
 $PASSWD
 EOF
@@ -344,7 +344,7 @@ stopService()
 
 
   TOKILL=""
-  echo "HELLO $OLDPIDS"
+
   for param in $OLDPIDS
   do
     if [ "$param" ]
