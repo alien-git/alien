@@ -701,7 +701,7 @@ ALIEN_GetArg()
 #              printf "%s\n" $VERSION
 	      
 	      V=`cat $ALIEN_ROOT/share/alien/ALIEN_VERSION |awk '{print $2$4}' |awk -F , '{print $1"."$2}'`
-	      D=`date +"%b %d %H:%I:%M"`
+	      D=`date +"%b %d %H:%M:%S"`
 	      echo "$D  info   Version: $V"
               exit
             fi

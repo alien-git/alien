@@ -913,6 +913,7 @@ sub addFile {
 #
 #  }
   my $start=time;
+
   my $data = $self->{STORAGE}->registerInLCM( $pfn, $newSE, $oldSE, $target,$lfn, $options,"", $envelope[0]);
 
   my $time=time-$start;

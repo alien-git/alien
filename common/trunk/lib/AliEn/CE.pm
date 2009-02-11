@@ -69,8 +69,6 @@ sub new {
   $self->{WORKINGPGROUP} = 0;
 
 
-  $self->checkConnection() or return;
-
   $DEBUG and $self->debug(1, "Connecting to the file catalog..." );
 
   $self->{CATALOG} =
@@ -758,7 +756,6 @@ sub submitCommand {
     $DEBUG and $self->debug(1, "Input Box: {@list2}" );
   }
 
-  ( $self->checkConnection() ) or return;
   my $user = $self->{CATALOG}->{CATALOG}->{ROLE};
   $DEBUG and $self->debug(1, "Connecting to $self->{CONNECTION} " );
   my $done =$self->{SOAP}->CallSOAP($self->{CONNECTION},'enterCommand',
@@ -853,8 +850,6 @@ sub offerAgent {
   my $silent = ( shift or 0 );
   my $mode="info";
   $silent and $mode="debug";
-
-  ( $self->checkConnection() ) or return;
 
   ($self->{CONNECTION} eq "ClusterMonitor") or 
     $self->info( "The ClusterMonitor is down. You cannot request jobs" ) and return;
@@ -1000,8 +995,6 @@ sub checkQueueStatus() {
   my $mode="info";
   $silent and $mode="debug";
 
-  ( $self->checkConnection() ) or return;
-  
   ($self->{CONNECTION} eq "ClusterMonitor") or 
     $self->{LOGGER}->error( "CE", "The ClusterMonitor is down. You cannot request jobs" ) and return;
   
@@ -1125,9 +1118,8 @@ sub f_top {
 
   $DEBUG and $self->debug(1, "In RemoteQueue::top @_" );
 
-  ( $self->checkConnection() ) or return;
 
-  my $done= $self->{SOAP}->CallSOAP($self->{CONNECTION}, "getTop", @_) 
+  my $done= $self->{SOAP}->CallSOAP("Manager/JobInfo", "getTop", @_) 
     or return;
 
   my $result=$done->result;
@@ -1173,7 +1165,8 @@ sub f_top {
 sub f_queueinfo {
     my $self = shift;
     my $site = (shift or "%");
-    my $done =$self->{SOAP}->CallSOAP($self->{CONNECTION},"queueinfo",$site,@_);
+
+    my $done =$self->{SOAP}->CallSOAP("Manager/JobInfo","queueinfo",$site,@_);
     $done or return;
     $done=$done->result;
     $self->f_queueprint($done,$site);
@@ -1304,7 +1297,7 @@ sub f_spy {
     $options->{grep}=undef;
   }
 
-  my $done =$self->{SOAP}->CallSOAP($self->{CONNECTION},"spy",$queueId,$spyfile, $options);
+  my $done =$self->{SOAP}->CallSOAP("Manager/JobInfo","spy",$queueId,$spyfile, $options);
   
   $done or return;
   $done=$done->result;
@@ -1330,13 +1323,11 @@ sub f_jobsystem {
   $DEBUG and $self->debug(1,
 			  "Connecting to $self->{HOST}:$self->{CONFIG}->{CLUSTERMONITOR_PORT}" );
 
-  ( $self->checkConnection() ) or return;
-  
   my $done;
   if (@jobtag) {
-    $done= $self->{SOAP}->CallSOAP($self->{CONNECTION}, $callcommand,$username,@jobtag );
+    $done= $self->{SOAP}->CallSOAP("Manager/JobInfo", $callcommand,$username,@jobtag );
   } else {
-    $done= $self->{SOAP}->CallSOAP($self->{CONNECTION},$callcommand,$username);
+    $done= $self->{SOAP}->CallSOAP("Manager/JobInfo",$callcommand,$username);
   }
 
 
@@ -1442,8 +1433,8 @@ sub f_ps_trace {
     $self->info( "Usage: ps trace <jobid> [tags]");
     return;
   }
-  ( $self->checkConnection() ) or return;
-  my $done= $self->{SOAP}->CallSOAP($self->{CONNECTION}, "getTrace", "trace", $id, @_);
+
+  my $done= $self->{SOAP}->CallSOAP("Manager/JobInfo", "getTrace", "trace", $id, @_);
   $done or return;
   my @trace;
   my $result=$done->result;
@@ -1820,8 +1811,8 @@ sub f_ps_rc {
   my $id=shift;
   $id or $self->info( "Error: missing the id of the process",11) and return;
   $DEBUG and $self->debug(1, "Checking the return code of $id");
-  ( $self->checkConnection() ) or return;
-  my $done= $self->{SOAP}->CallSOAP($self->{CONNECTION}, "getJobRC", $id);
+
+  my $done= $self->{SOAP}->CallSOAP("Manager/JobInfo", "getJobRC", $id);
   $done or return;
   return $done->result;
 
@@ -1883,8 +1874,8 @@ sub f_ps_jdl{
   my $id=shift;
   my $options=shift ||{};
   $id or $self->info( "Usage: ps jdl <jobid> ") and  return;
-  ( $self->checkConnection() ) or return;
-  my $done= $self->{SOAP}->CallSOAP($self->{CONNECTION}, "GetJobJDL", $id);
+
+  my $done= $self->{SOAP}->CallSOAP("Manager/JobInfo", "GetJobJDL", $id);
   $done or return;
   $options->{silent} or $self->info("The jdl of $id is ".$done->result() );
   return $done->result;
@@ -1940,8 +1931,6 @@ sub f_ps {
   $DEBUG and $self->debug(1,
         "Connecting to $self->{HOST}:$self->{CONFIG}->{CLUSTERMONITOR_PORT}" );
 
-    ( $self->checkConnection() ) or return;
-
   my $addtags="";
 
   if ( $flags =~s/a//g) {
@@ -1957,7 +1946,7 @@ sub f_ps {
 
 #  grep (((/^-?-st?=?\s?(\d+)/) and ($addtags = " -s $1 -z")),@_);
 
-  my $done= $self->{SOAP}->CallSOAP($self->{CONNECTION}, "getPs",  $flags, $addtags, @id);
+  my $done= $self->{SOAP}->CallSOAP("Manager/JobInfo", "getPs",  $flags, $addtags, @id);
 
   #print "ps result:", $done->result, ":\n";
 
@@ -2081,10 +2070,10 @@ sub f_kill {
       ->warning( "CE", "Error: No queueId specified in kill job!" )
 	and return;
 
-  ( $self->checkConnection() ) or return;
+
   my $user=$self->{CATALOG}->{CATALOG}->{ROLE};
   foreach my $queueId (@_) {
-    my ($result) = $self->{SOAP}->CallSOAP($self->{CONNECTION}, "killProcess",$queueId, $user) or return;
+    my ($result) = $self->{SOAP}->CallSOAP("Manager/Job", "killProcess",$queueId, $user) or return;
     print "Process $queueId killed!!\n";
   }
   return 1;
@@ -2352,11 +2341,11 @@ sub f_validate {
       ->warning( "CE", "Error: No queueId specified in validate job!" )
       and return;
 
-    ( $self->checkConnection() ) or return;
+
 
     my $queueId;
     foreach $queueId (@_) {
-      my ($done) = $self->{SOAP}->CallSOAP($self->{CONNECTION}, "validateProcess",$queueId) or return;
+      my ($done) = $self->{SOAP}->CallSOAP("Manager/Job", "validateProcess",$queueId) or return;
       print "Job to validate  $queueId submitted!\n";
     }
     return 1;
@@ -2689,19 +2678,19 @@ sub f_quit {
   exit;
 }
 
-sub checkConnection {
-  my $self = shift;
-
-  #Checking the CM
-  $DEBUG and $self->debug(1, "Checking the connection to the CM");
-
-  if ($self->{SOAP}->checkService("ClusterMonitor")){
-    $self->{CONNECTION}="ClusterMonitor" ;
-    return 1;
-  }
-  $self->{CONNECTION}="Manager/Job" ;
-  return $self->{SOAP}->checkService("Manager/Job", "JOB_MANAGER", "-retry");
-}
+#sub checkConnection {
+#  my $self = shift;#
+#
+#  #Checking the CM
+#  $DEBUG and $self->debug(1, "Checking the connection to the CM");#
+#
+#  if ($self->{SOAP}->checkService("ClusterMonitor")){
+#    $self->{CONNECTION}="ClusterMonitor" ;
+#    return 1;
+#  }
+#  $self->{CONNECTION}="Manager/Job" ;
+#  return $self->{SOAP}->checkService("Manager/Job", "JOB_MANAGER", "-retry");
+#}
 
 ############################################################
 # Bank functions start 
@@ -2849,9 +2838,9 @@ sub resubmitCommand {
     }
   
     AliEn::Util::Confirm("Do you want to reinsert job $_[1]?") or return;
-    ( $self->checkConnection() ) or return;
+
     my $user = $self->{CATALOG}->{CATALOG}->{ROLE};
-    my $done = $self->{SOAP}->CallSOAP($self->{CONNECTION}, "reInsertCommand", $_[1], $user);
+    my $done = $self->{SOAP}->CallSOAP("Manager/Job", "reInsertCommand", $_[1], $user);
     my $result;
     $done or
       $self->info( "Error reinserting $_[1]") and
@@ -2884,7 +2873,7 @@ sub resubmitCommand {
 	  my $id2kill = $id;
 	  $id2kill =~ s/\-//g;
 	  my @result;
-	  my $done = $self->{SOAP}->CallSOAP($self->{CONNECTION}, "reInsertCommand", $id2kill, $user);
+	  my $done = $self->{SOAP}->CallSOAP("Manager/Job", "reInsertCommand", $id2kill, $user);
 	  $self->{SOAP}->checkSOAPreturn($done) or
 	    $self->info( "Error reinserting $id2kill") and return $done;
 	  push @result, $done->result;
@@ -2899,9 +2888,8 @@ sub resubmitCommand {
 	  # resubmit the same
 	  $DEBUG and $self->debug(1, "Resubmitting command $id2kill" );
 	  
-	  ( $self->checkConnection() ) or return;
 	  my $user = $self->{CATALOG}->{CATALOG}->{ROLE};
-	  my $done = $self->{SOAP}->CallSOAP($self->{CONNECTION}, "resubmitCommand", $id2kill, $user ,$_[1], $id2kill);
+	  my $done = $self->{SOAP}->CallSOAP("Manager/Job", "resubmitCommand", $id2kill, $user ,$_[1], $id2kill);
 	  my @result;
 	  $self->{SOAP}->checkSOAPreturn($done) or 
 	    $self->info( "Error resubmitting $id2kill") and 
@@ -2958,11 +2946,10 @@ sub resubmitCommand {
 	and return;
   $DEBUG and $self->debug(1, "Resubmitting command @_" );
 
-  ( $self->checkConnection() ) or return;
   my $user = $self->{CATALOG}->{CATALOG}->{ROLE};
   my @result;
   foreach my $queueId (@_) {
-    my $done = $self->{SOAP}->CallSOAP($self->{CONNECTION}, "resubmitCommand", $queueId, $user );
+    my $done = $self->{SOAP}->CallSOAP("Manager/Job", "resubmitCommand", $queueId, $user );
     $done or 
       $self->info( "Error resubmitting $queueId") and 
 	return @result;
@@ -3018,10 +3005,10 @@ sub masterJob {
 
   $self->info( "Checking the masterjob of $queueId");
 
-  ( $self->checkConnection() ) or return;
+
   my $user=$self->{CATALOG}->{CATALOG}->{ROLE};
 
-  my $done= $self->{SOAP}->CallSOAP($self->{CONNECTION}, "getMasterJob", $user, $queueId, @_) 
+  my $done= $self->{SOAP}->CallSOAP("Manager/Job", "getMasterJob", $user, $queueId, @_) 
     or return;
   my $info=$done->result();
 
@@ -3180,7 +3167,7 @@ sub f_jobListMatch {
   my $job_ca = Classad::Classad->new($jdl);
   $job_ca or $self->info("Error creating the classad of the job") and return;
   $job_ca->isOK() or $self->info("The syntax of the job jdl is not correct") and return;
-  my $done =$self->{SOAP}->CallSOAP($self->{CONNECTION},"queueinfo",$ceName,"-jdl");
+  my $done =$self->{SOAP}->CallSOAP("Manager/JobInfo","queueinfo",$ceName,"-jdl");
   $done or return;
   
   $done=$done->result or return;
