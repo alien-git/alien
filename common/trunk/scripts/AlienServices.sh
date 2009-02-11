@@ -359,6 +359,9 @@ stopService()
      ERROR=0
      kill $TOKILL >& /dev/null
      kill -9 $TOKILL >& /dev/null
+     sleep 5
+     kill $TOKILL >& /dev/null
+     kill -9 $TOKILL >& /dev/null
   fi
   
   [ -f  $KILLFILE ] &&  rm  -f $KILLFILE
@@ -425,6 +428,10 @@ ALIEN_DoService ()
 	JobManager|Server)
             export ALIEN_PROCESSNAME=JobManager
 	    args='VARDIR  Manager::Job "Queue_Server" NO_PASSWORD'
+	    ;;
+	JobInfoManager)
+            export ALIEN_PROCESSNAME=JobInfoManager
+	    args='VARDIR  Manager::JobInfo "JobInfo_Manager" NO_PASSWORD'
 	    ;;
 	Proxy)
 	    PROXY_PORT=`${ALIEN_ROOT}/scripts/alien -org $ALIEN_ORGANISATION -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl PROXY_PORT`

@@ -947,7 +947,7 @@ sub createFileUrl {
 
   foreach (@$protocols) {if ( $_ =~ /^$clientprot/) { $selectedprotocol =$_; last;} }
 
-  $selectedprotocol or $self->info("The client protocol $clientprot could not be found in the list of supported protocols of se $se") and return;
+  $selectedprotocol or $self->info("The client protocol '$clientprot' could not be found in the list of supported protocols of se $se") and return;
   
   my ($newpath,$newguid) = $self->createFileName($se,$guid)
       or return;
