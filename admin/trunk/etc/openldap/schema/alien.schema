@@ -102,6 +102,7 @@ attributetype ( AliEnVOConfig:78 NAME 'packmanmasterAddress' SUP name )
 attributetype ( AliEnVOConfig:79 NAME 'messagesmasterAddress' SUP name )
 attributetype ( AliEnVOConfig:80 NAME 'semasterDatabase' SUP name )
 attributetype ( AliEnVOConfig:81 NAME 'semasterManagerAddress' SUP name )
+attributetype ( AliEnVOConfig:82 NAME 'jobinfoManagerAddress' SUP name )
 
 objectclass ( AliEnVOConfig  NAME 'AliEnVOConfig'
 	SUP ( top $ organizationalUnit ) STRUCTURAL
@@ -126,7 +127,7 @@ objectclass ( AliEnVOConfig  NAME 'AliEnVOConfig'
 	       nwsPort $ nwsDatabase $ nwsDriver $ nwsDbHost $ nwsHost $
         lbsgAddress $ lbsgDatabase $ si2kNominalPrice $ bankAdmin $ taxAccount $ taxRate $
 				bankCurrency $ jobDatabaseRead $ packmanmasterAddress $ 
- messagesmasterAddress $ semasterDatabase $ semasterManagerAddress )
+ messagesmasterAddress $ semasterDatabase $ semasterManagerAddress $ jobinfoManagerAddress )
 	)
 #AliEnUser
 

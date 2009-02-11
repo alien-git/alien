@@ -70,6 +70,10 @@ if ($config->{SEMASTER_MANAGER_ADDRESS} =~ /^$hostname:/) {
   $install.="SEManager ";
 }
 
+if ($config->{JOBINFO_MANAGER_ADDRESS} =~ /^$hostname:/) {
+  $install.="SEManager ";
+}
+
 
 if ($config->{"GAS_FACTORY_ADDRESS"} &&  $config->{"GAS_FACTORY_ADDRESS"} =~ /^https?:\/\/$hostname:/) {
   $install.="GAS_FACTORY ";
