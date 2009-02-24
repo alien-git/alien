@@ -27,8 +27,7 @@ sub initialize {
    my $cmds = {  SUBMIT_CMD  => 'glite-ce-job-submit',
                  STATUS_CMD  => 'glite-ce-job-status',
 		 KILL_CMD    => 'glite-ce-job-cancel',
-		 CLEANUP_CMD => 'glite-ce-job-output',
-		 MATCH_CMD   => 'glite-ce-job-list-match' };
+		 CLEANUP_CMD => 'glite-ce-job-output'};
 			 
    $self->{$_} = $cmds->{$_} || $self->{CONFIG}->{$_} || '' foreach (keys %$cmds);
    
@@ -146,7 +145,7 @@ sub wrapSubmit {
   my $error = $?;
   (my $jobId) = grep { /https:/ } @output;
   return if ( $error || !$jobId);
-  $jobId =~ m/(https:\/\/[A-Za-z0-9.-]*:8443\/[A-Za-z0-9_-]{22})/;
+  $jobId =~ m/(https:\/\/[A-Za-z0-9.-]*:8443\/[A-Za-z0-9_-]{14})/;
   $jobId = $1; chomp $jobId;
   return $jobId;
 }
@@ -239,8 +238,8 @@ ls -lart
   StdOutput = \"std.out\";
   StdError = \"std.err\";
   InputSandbox = {\"$exeFile\"};
-  OutputSandbox = { \"std.err\" , \"std.out\" };
-  Outputsandboxbasedesturi = \"gsiftp://$host_name:2811/tmp/$now\";
+  #OutputSandbox = { \"std.err\" , \"std.out\" };
+  #Outputsandboxbasedesturi = \"gsiftp://$host_name:2811/tmp/$now\";
   Environment = {\"ALIEN_CM_AS_LDAP_PROXY=$self->{CONFIG}->{VOBOX}\",\"ALIEN_JOBAGENT_ID=$ENV{ALIEN_JOBAGENT_ID}\", \"ALIEN_USER=$ENV{ALIEN_USER}\"};
   ";
 
@@ -250,3 +249,4 @@ ls -lart
 }
 
 return 1;
+

@@ -15,12 +15,21 @@ use POSIX ":sys_wait_h";
 use Time::Local;
 
 sub initialize {
+
    my $self=shift;
    $self->SUPER::initialize() or return;
    $self->{DB}=AliEn::Database::CE->new();
    $ENV{X509_CERT_DIR} and $self->{LOGGER}->debug("LCG","X509: $ENV{X509_CERT_DIR}");
    my $host= `/bin/hostname` || $self->{CONFIG}->{HOST};
    chomp $host;
+ 
+####### P.Mendez implementation#######
+#   $self->{INITIME}=time;
+#   my $proxy_delegated = "AliceProxyDel";
+#     my $proxy_delegated = $self->{CONFIG}->{DEL_PROXY};
+#    print "THE VALIE OF THE DEL PROXY IS: $proxy_delegated\n";
+######################################
+
    $self->{CONFIG}->{VOBOX} = $host.':8084';
    $ENV{ALIEN_CM_AS_LDAP_PROXY} and $self->{CONFIG}->{VOBOX} = $ENV{ALIEN_CM_AS_LDAP_PROXY};
    $self->info("This VO-Box is $self->{CONFIG}->{VOBOX}, site is \'$ENV{SITE_NAME}\'");
@@ -31,6 +40,7 @@ sub initialize {
                  STATUS_CMD  => 'glite-wms-job-status',
 		 KILL_CMD    => 'glite-wms-job-cancel',
 		 CLEANUP_CMD => 'glite-wms-job-output',
+                 DELEGATION_CMD => 'glite-wms-job-delegate-proxy',
 		 MATCH_CMD   => 'glite-wms-job-list-match' };
 			 
    $self->{$_} = $cmds->{$_} || $self->{CONFIG}->{$_} || '' foreach (keys %$cmds);
@@ -52,9 +62,8 @@ sub initialize {
 	  my $result = $ldap->search( base   => $DN,
   		                      filter => "GlueServiceType=bdii_site");
           my $code = $result->code;
-	  my $entry;
-	  $code or $entry=$result->entry(0);
-	  if ($entry) {
+	  unless ($code) {
+	    my $entry  = $result->entry(0);
 	    my $thisDN = $entry->dn;
 	    $self->debug(1,"Found $thisDN");
             my $found = $entry->get_value("GlueServiceEndpoint");
@@ -99,44 +108,93 @@ sub initialize {
    $self->{CONFIG}->{CE_LCGCE_LIST_FLAT} = \@flatlist;
       
    # Read RB list and generate config files if needed
+   my @list;
+   my @wmslist;
    if ( $ENV{CE_RBLIST} ) { 
-     $self->info("Taking the list of RBs from \$ENV: $ENV{CE_RBLIST}");
-     my @list=split(/,/,$ENV{CE_RBLIST});
-     $self->{CONFIG}->{CE_RB_LIST} = \@list;
-   } 
+       $self->info("Taking the list of RBs from \$ENV: $ENV{CE_RBLIST}");
+       @list=split(/,/,$ENV{CE_RBLIST});
+       @wmslist=split(/:/,$ENV{CE_RBLIST});
+       $self->{CONFIG}->{CE_RB_LIST} = \@list;
+   }
+ 
+############################################################3
+
+# LET'S GO TO RENEW THE PROXY
+
+   $self->renewProxy(100000);
+
+################################################################
+
+   foreach my $thisWMS (@wmslist){
+       
+       if( !-e "$self->{CONFIG}->{LOG_DIR}/$thisWMS.vo.conf" ){
+	   $self->info("In addition, Config file for $thisWMS  not there, creating it.");
+	   my $wmsurl = "\"https://$thisWMS:7443/glite_wms_wmproxy_server\"";
+	   open WMSVOCONF, ">$self->{CONFIG}->{LOG_DIR}/$thisWMS.vo.conf" or return;
+	   print WMSVOCONF "[
+           VirtualOrganisation = \"alice\";
+           EnableServiceDiscovery  =  false;
+           WMProxyEndpoints    = {$wmsurl};
+           MyProxyServer       = \"myproxy.cern.ch\";\n]\n";
+	   close WMSVOCONF;
+       }
+  #     my @command = ($self->{DELEGATION_CMD},"-c","$self->{CONFIG}->{LOG_DIR}/$thisWMS.vo.conf","-d","$proxy_delegated");
+    my @command = ($self->{DELEGATION_CMD},"-c","$self->{CONFIG}->{LOG_DIR}/$thisWMS.vo.conf","-d","$ENV{DEL_PROXY}");   
+   my @output = $self->_system(@command);
+       my $error = $?;
+      print "AQUI::::::::::::::::::::::::::::::::::::::::::::::::::;@output\n";
+
+   }
+############################################################################
    opendir CONFDIR, $self->{CONFIG}->{LOG_DIR};
    while (my $name = readdir CONFDIR){
-     foreach my $thisRB ( @{$self->{CONFIG}->{CE_RB_LIST}} ) {
-       (my $wmslist = $thisRB) =~ s/:/_/g;
-       my @tmp_vectorwms = ();
-       push (@tmp_vectorwms,"\"https://$_:7443/glite_wms_wmproxy_server\"") foreach (split(/:/,$thisRB));
-       if( !-e "$self->{CONFIG}->{LOG_DIR}/$wmslist.vo.conf" ){ 
-         my $streamwms = join ",",@tmp_vectorwms;
-         $self->info("Config file for $wmslist not there, creating it."); 
-         open STVOCONF, ">$self->{CONFIG}->{LOG_DIR}/$wmslist.vo.conf" or return;
-         print STVOCONF "[
+       my @tmp_individualwms = ();
+       foreach my $thisRB ( @{$self->{CONFIG}->{CE_RB_LIST}} ) {
+	   (my $wmslist = $thisRB) =~ s/:/_/g;
+	   
+	   my @tmp_vectorwms = ();
+	   push (@tmp_vectorwms,"\"https://$_:7443/glite_wms_wmproxy_server\"") foreach (split(/:/,$thisRB));
+	   
+	   if( !-e "$self->{CONFIG}->{LOG_DIR}/$wmslist.vo.conf" ){ 
+	       my $streamwms = join ",",@tmp_vectorwms;
+	       $self->info("Config file for $wmslist not there, creating it."); 
+	       open STVOCONF, ">$self->{CONFIG}->{LOG_DIR}/$wmslist.vo.conf" or return;
+	       print STVOCONF "[
            VirtualOrganisation = \"alice\";
            EnableServiceDiscovery  =  false;
            WMProxyEndpoints    = {$streamwms};
            MyProxyServer       = \"myproxy.cern.ch\";\n]\n";
-         close STVOCONF;
+	       close STVOCONF;
+	   }
        }
-     }  
+       
    }
-
+   
    $self->{CONFIG}->{CE_MINWAIT} = 180; #Seconds
    defined $ENV{CE_MINWAIT} and $self->{CONFIG}->{CE_MINWAIT} = $ENV{CE_MINWAIT};
    $self->info("Will wait at least $self->{CONFIG}->{CE_MINWAIT}s between submission loops.");
    $self->{LASTCHECKED} = time-$self->{CONFIG}->{CE_MINWAIT};
    
-   $self->renewProxy(100000);
+### Modified by P. Mendez #######
+#   $self->renewProxy(100000);
+#################################
    return 1;
 }
 
+
+################################################################################################################################
 sub submit {
   my $self = shift;
   my $jdl = shift;
   my $command = shift;
+  
+### Implemented by P. Mendez ###########
+  my $timelimit = 3600; # 1 hour
+  my $testtime = time;
+#  my $proxy_delegated = "AliceProxyDel";
+  my $proxy_delegated = $self->{CONFIG}->{DEL_PROXY};
+
+########################################
 
   my $startTime = time;
   my @args=();
@@ -144,7 +202,59 @@ sub submit {
   my $jdlfile = $self->generateJDL($jdl, $command);
   $jdlfile or return;
 
-  $self->renewProxy(100000);
+
+### Implemented by P. Mendez #####################
+
+   my $timediff = $testtime - $self->{INITIME};
+
+   print "CHECKING THE TIME:::::::::::::::::::::::::$timediff, $testtime, $self->{INITIME}\n";
+   if ($timediff >= $timelimit){
+      print "RENEW THE PROXY ONTO THE SUBMISSION TOOL\n"; 
+      $self->renewProxy(100000); 
+
+
+
+#      my @list;
+       my @wmslist;
+       if ( $ENV{CE_RBLIST} ) {
+          $self->info("Taking the list of RBs from \$ENV: $ENV{CE_RBLIST}");
+#          @list=split(/,/,$ENV{CE_RBLIST});
+          @wmslist=split(/:/,$ENV{CE_RBLIST});
+#          $self->{CONFIG}->{CE_RB_LIST} = \@list;
+       }
+
+
+
+      
+  #    my @list;
+  #    if ( $ENV{CE_RBLIST} ) { 
+#	  $self->info("Taking the list of RBs from \$ENV: $ENV{CE_RBLIST}");
+#	  @list=split(/,/,$ENV{CE_RBLIST});
+#	  $self->{CONFIG}->{CE_RB_LIST} = \@list;
+     # }
+      
+      foreach my $thisWMS (@wmslist){
+	  
+#	  if( !-e "$self->{CONFIG}->{LOG_DIR}/$thisWMS.vo.conf" ){
+#	      $self->info("In addition, Config file for $thisWMS  not there, creating it.");
+#	      my $wmsurl = "\"https://$thisWMS:7443/glite_wms_wmproxy_server\"";
+#	      open WMSVOCONF, ">$self->{CONFIG}->{LOG_DIR}/$thisWMS.vo.conf" or return;
+#	      print WMSVOCONF "[
+ #          VirtualOrganisation = \"alice\";
+  #         EnableServiceDiscovery  =  false;
+   #        WMProxyEndpoints    = {$wmsurl};
+    #       MyProxyServer       = \"myproxy.cern.ch\";\n]\n";
+#	      close WMSVOCONF;
+#	  }
+	  my @command = ($self->{DELEGATION_CMD},"-c","$self->{CONFIG}->{LOG_DIR}/$thisWMS.vo.conf","-d","$ENV{DEL_PROXY}");
+	   
+      }
+   } 	
+
+###################################################
+
+
+#####  $self->renewProxy(100000);
 
   $self->info("Submitting to LCG with \'@args\'.");
   my $now = time;
@@ -464,6 +574,7 @@ sub wrapSubmit {
   my $RB = shift;
   my $logFile = shift;
   my $jdlfile = shift;
+#  my $proxy_delegated = "AliceProxyDel";
   my @args = @_ ;  
   my @command = ( $self->{SUBMIT_CMD}, 
                   "--noint", 
@@ -472,7 +583,7 @@ sub wrapSubmit {
 	       "--config", "$self->{CONFIG}->{LOG_DIR}/$RB.vo.conf") if $RB;
   @command = ( @command,
 	       "--logfile", $logFile, 
-	       @args, 
+	       @args, "$ENV{DEL_PROXY}",
 	       "$jdlfile");
   my @output = $self->_system(@command);
   my $error = $?;
@@ -614,6 +725,9 @@ sub getContactByQueueID {
 
 sub renewProxy {
    my $self = shift;
+    
+
+    $self->{INITIME}=time; 
    my $gracePeriod = shift;
    $gracePeriod or $gracePeriod = 0;
    my $duration = shift;
@@ -682,6 +796,7 @@ sub renewProxy {
    chomp $realDuration;
    $self->{LOGGER}->error("LCG","asked for $duration sec, got only $realDuration") if ( $realDuration < 0.9*$duration);
    $ENV{X509_USER_PROXY} = $currentProxy;
+
    return 1;
 }
 
@@ -743,7 +858,13 @@ sub generateJDL {
   my $ca = shift;
   my $command=shift;
   my $bdiiReq=shift;
+  my $currenttime = time;
+  my $delaytime = 900; #15 minutos
+
   my $requirements = $self->translateRequirements($ca, $bdiiReq);
+
+ # implementation for the WMS: Avoid any resubmission of jobs
+  my $newtime = $currenttime + $delaytime;
 
 
   my $exeFile = AliEn::TMPFile->new({filename=>"dg-submit.$$.sh"})
@@ -824,6 +945,7 @@ RetryCount = 0;
 ShallowRetryCount = 0;
 VirtualOrganisation = \"\L$voName\E\";
 InputSandbox = {\"$exeFile\"};
+ExpiryTime = $newtime;
 OutputSandbox = { \"std.err\" , \"std.out\" };
 Environment = {\"ALIEN_CM_AS_LDAP_PROXY=$self->{CONFIG}->{VOBOX}\",\"ALIEN_JOBAGENT_ID=$ENV{ALIEN_JOBAGENT_ID}\", \"ALIEN_USER=$ENV{ALIEN_USER}\"};
 ";
@@ -1026,5 +1148,6 @@ sub _system {
   }
   return @output;
 }
+
 
 return 1;
