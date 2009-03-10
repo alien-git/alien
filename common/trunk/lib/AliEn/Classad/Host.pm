@@ -22,10 +22,17 @@ sub new {
 
   $self->debug(1, "Creating the ClassAd" );
 
+
+  my $otherReq="";
+
+  $self->{CONFIG}->{CE_CEREQUIREMENTS} and 
+    $otherReq=" && ($self->{CONFIG}->{CE_CEREQUIREMENTS})";
+
   my $ca =
     Classad::Classad->new(
- "[ Type=\"machine\"; Requirements=(other.Type==\"Job\"); WNHost = \"$self->{CONFIG}->{HOST}\";]" );
-
+ "[ Type=\"machine\"; Requirements=(other.Type==\"Job\" $otherReq); WNHost = \"$self->{CONFIG}->{HOST}\";]" );
+ ( $ca and $ca->isOK()) 
+   or $self->info("Error creating the Classads.Check if the requirements ($otherReq) have the right format") and return;
   $self->setCloseSE($ca) or return;
   $self->setPackages($ca) or return;
   $self->setCE($ca) or return;
