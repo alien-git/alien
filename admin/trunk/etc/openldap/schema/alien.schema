@@ -240,13 +240,15 @@ attributetype ( AliEnCE:13 NAME 'si2kPrice' SUP name )
 attributetype ( AliEnCE:14 NAME 'installMethod' SUP name )
 attributetype ( AliEnCE:15 NAME 'matchcmd' SUP name )
 attributetype ( AliEnCE:16 NAME 'matcharg' SUP name )
+attributetype ( AliEnCE:17 NAME 'cerequirements' SUP name )
 
 objectclass ( AliEnCE  NAME 'AliEnCE'
 	SUP ( top ) 
 	MUST ( name $ type $ host $maxqueuedjobs  )
 	MAY  ( maxjobs $ submitcmd $ submitarg $ killcmd $ 
                killarg $ statuscmd $ statusarg $ packages $ TTL $ si2kPrice 
-	       $ environment $ installMethod $ matchcmd $ matcharg )
+	       $ environment $ installMethod $ matchcmd $ matcharg  
+	       $ cerequirements )
 	      )
 #AliEn FTD
 
