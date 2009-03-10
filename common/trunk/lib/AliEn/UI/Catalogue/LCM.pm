@@ -275,6 +275,7 @@ Options:
 Get can also be used to retrieve collections. In that case, there are some extra options:
   -c: Retrieve all the files with their original lfn name
   -b <name>: Requires -c. Remove <name> from the beginning of the lfn
+  -s <se>: Retrieve the file from the se <se>
 
 ";
 }
@@ -284,7 +285,7 @@ sub get {
 #  ( $opt, @_ ) = $self->Getopts(@_);
   my %options=();
   @ARGV=@_;
-  getopts("gonb:clf", \%options) or $self->info("Error parsing the arguments of get\n". $self->get_HELP()) and  return ;
+  getopts("gonb:clfs:", \%options) or $self->info("Error parsing the arguments of get\n". $self->get_HELP()) and  return ;
   @_=@ARGV;
   
   my $opt=join("",keys %options);
@@ -307,13 +308,11 @@ sub get {
       $guidInfo=$self->{CATALOG}->getInfoFromGUID($file)
         or return;
       $entry=$guidInfo->{guid};
-#      
     }else {
       #Get the pfn from the catalog
       #print Dumper($self->{CATALOG});
       my $info=$self->{CATALOG}->f_whereis("i",$file)
 	or $self->info("Error getting the info from '$file'") and return;
-      
       $file=$info->{lfn};
       $guidInfo=$info->{guidInfo};
       $entry=$file;
@@ -349,8 +348,9 @@ sub get {
     foreach my $d (@$seRef){
       $d->{seName}=$d->{se};
     }
-    my (@seList ) = $self->selectClosestSE(@$seRef);
+    my (@seList ) = $self->selectClosestSE({se=>$options{'s'}}, @$seRef);
     $self->debug(1, "We can ask the following SE: @seList");
+
     my $sesel=1;
     while (my $entry2=shift @seList) {
       my ($se, $pfn)=($entry2->{seName}, $entry2->{pfn});
@@ -727,13 +727,20 @@ sub services {
 #
 sub selectClosestSE {
   my $self = shift;
+  my $options=shift;
   my ($se, @close, @site, @rest);
+  my $prefered;
+  if ($options->{se}){
+    $self->info("We want to get the file from $options->{se}");
+  }
   while (@_) {
     my $newse  = shift;
     my $seName=$newse;
     UNIVERSAL::isa($newse, "HASH") and $seName=$newse->{seName};
     $self->debug(1,"Checking $seName vs " . ( $self->{CONFIG}->{SE_FULLNAME} || 'undef') ." and $self->{CONFIG}->{ORG_NAME}/$self->{CONFIG}->{SITE}" );
-    if ($self->{CONFIG}->{SE_FULLNAME} and  $seName =~ /^$self->{CONFIG}->{SE_FULLNAME}$/i ){
+    if ($options->{se} and $seName=~ /^$options->{se}$/i){
+      $prefered=$newse
+    }elsif ($self->{CONFIG}->{SE_FULLNAME} and  $seName =~ /^$self->{CONFIG}->{SE_FULLNAME}$/i ){
       $se=$newse;
     }elsif( grep ( /^$newse$/i, @{ $self->{CONFIG}->{SEs_FULLNAME} } )){
       push @close, $newse;
@@ -745,6 +752,10 @@ sub selectClosestSE {
 
   }
   my @return;
+  if ($options->{se} and not $prefered){
+    $self->info("The se '$options->{se}' doesn't have that file...");
+  }
+  $prefered and push @return, $prefered;
   $se and push @return, $se;
 
   if ($self->{noshuffle}) {
@@ -1307,13 +1318,13 @@ sub getPFNforAccess {
     $self->{CONFIG}->{SE_FULLNAME} = $se;
     $self->{CONFIG}->{ORG_NAME} = $lvo;
     $self->{CONFIG}->{SITE} = $lsite;
-    (@closeList) = $self->selectClosestSE(@whereis);
+    (@closeList) = $self->selectClosestSE({}, @whereis);
     $self->{CONFIG}->{SE_FULLNAME} = $tmpse;
     $self->{CONFIG}->{ORG_NAME} = $tmpvo;
     $self->{CONFIG}->{SITE} = $tmpsite;
     @{$self->{CONFIG}->{SEs_FULLNAME}}=@tmpses;
   } else {
-    (@closeList) = $self->selectClosestSE(@whereis);
+    (@closeList) = $self->selectClosestSE({}, @whereis);
   }
 
   #check if the wished se is at all existing ....
@@ -1726,7 +1737,9 @@ sub access {
 	( $ppfn =~ /^dpm/ ) and $newhash->{url}="root://$pfix//$ppfn";
 	($anchor) and $newhash->{url}.="#$anchor";
       }
-      
+      $ENV{ALIEN_XRDCP_ENVELOPE}=$newhash->{envelope};
+      $ENV{ALIEN_XRDCP_URL}=$newhash->{url};
+
       if ($self->{MONITOR}) {
 	my @params= ("$se", $filehash->{size});
 	my $method;
@@ -1913,7 +1926,7 @@ sub erase {
     my $guid=$self->{CATALOG}->f_lfn2guid("s",$lfn)
 	or $self->info("Error getting the guid of $lfn",11) and return;
         
-    my (@seList ) = $self->selectClosestSE(@$seRef);
+    my (@seList ) = $self->selectClosestSE({}, @$seRef);
 
     my $failure=0;
     while (my $se=shift @seList) {

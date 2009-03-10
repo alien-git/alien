@@ -322,7 +322,7 @@ sub _Install {
   my $lfn=shift;
   my $metadata=shift;
 
-   my ($file)=$self->{CATALOGUE}->execute("get", $lfn)
+   my ($file)=$self->{CATALOGUE}->execute("get", "-s", "no_se", $lfn)
       or die("getting the file $lfn\n");
   $self->info( "$$ Starting the uncompress...");
   system("tar zxf $file") and die("uncompressing $lfn ($file)\n");
