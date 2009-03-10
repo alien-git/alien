@@ -175,6 +175,9 @@ sub f_packman {
     $requiresPackage=1;
     $soapCall="installPackage";
     $operation="install";
+    if (grep (/^-local$/i, @arg)){
+      return $self->installPackageLocally(grep (! /^-local$/i, @arg));
+    }
   } elsif ($operation =~ /^r(emove|m)?$/){
     $requiresPackage=1;
     $soapCall="removePackage";
@@ -410,6 +413,31 @@ sub printPackages{
     }
 
   return $status, @packages;
+}
+
+sub installPackageLocally{
+  my $self=shift;
+  my $package=shift;
+  $package or 
+    $self->info( "Error not enough arguments in 'packman install -local") 
+      and $self->info( $self->f_packman_HELP(),0,0) 
+	and return;
+  my $version="";
+  my $user=$self->{CATALOGUE}->{CATALOG}->{ROLE};
+  $package =~ s/::([^:]*)$// and $version=$1;
+  $package =~ s/^([^\@]*)\@// and $user=$1;
+
+  $self->info("Ready to install the package '$package' locally");
+  my $p=AliEn::PackMan->new({PACKMAN_METHOD=>"Local"}) or 
+    $self->info("Error getting an instance of packman") and return;
+
+  my ($ok, $source)=$p->installPackage($user, $package, $version, undef, 
+				       {NO_FORK=>1});
+  $self->info("Did it work??? $ok, and '$source'");
+  ($ok eq '-1') and return;
+  $self->info("Yes!!!!!");
+  return ($ok, $source);
+
 }
 
 return 1;

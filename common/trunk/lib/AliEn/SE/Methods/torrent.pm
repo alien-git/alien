@@ -38,16 +38,32 @@ sub get {
   
   my $args="-V --bt-external-ip=$IP --follow-torrent=mem";
 
-  open (CMD, "aria2c $args --seed-time=0 $link|") or
+  open (CMD, "aria2c $args --seed-time=0 $link -d $self->{LOCALFILE}_dir|") or
     $self->info("Error getting the torrent file!!")  and return;
   my @out=<CMD>;
-  close CMD;
-  print "Got the file and @out\n";
-  $self->info("And now we should start the seeder");
-  
+  my $status=close CMD;
+  print "Got the file and @out and $status\n";
+  $status or
+    $self->info("Error getting the file '$link'") and return;
 
+  $self->info("Here we should check the signature");
+  $self->info("And move the file");
 
-  system("aria2c $args --seed-time=10 --seed-ratio=0 $link  > /dev/null 2&>1 &"); 
+  opendir (MYDIR, "$self->{LOCALFILE}_dir") or $self->info("Error opening the directory") and return;
+  my @dirs=grep (! /.sha1$/, grep (!/^\./, readdir(MYDIR)));
+  closedir(MYDIR);
+  if ($dirs[0]) {
+    opendir (MYDIR, "$self->{LOCALFILE}_dir/$dirs[0]") or 
+      $self->info("Error opening the directory $self->{LOCALFILE}_dir/$dirs[0]") and return;
+    my @dirs2=grep (! /.sha1$/, grep (!/^\./, readdir(MYDIR)));
+    closedir(MYDIR);
+    
+    if ($dirs2[0]) {
+      symlink("$self->{LOCALFILE}_dir/$dirs[0]/$dirs2[0]",$self->{LOCALFILE});
+    }
+  }
+  $self->info("Finally, start the seeder");
+  system("aria2c $args --seed-time=10 --seed-ratio=0 -d $self->{LOCALFILE}_dir  $link > /dev/null 2&>1 &"); 
   #"$PROGRAM" $ARGS --seed-time=10 --seed-ratio=0 "$@" &>/dev/null &
   $self->info("Returning");
   return $self->{LOCALFILE};

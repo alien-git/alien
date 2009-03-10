@@ -757,8 +757,8 @@ sub submitCommand {
   }
 
   my $user = $self->{CATALOG}->{CATALOG}->{ROLE};
-  $DEBUG and $self->debug(1, "Connecting to $self->{CONNECTION} " );
-  my $done =$self->{SOAP}->CallSOAP($self->{CONNECTION},'enterCommand',
+
+  my $done =$self->{SOAP}->CallSOAP("Manager/Job",'enterCommand',
 				    "$user\@$self->{HOST}", $job_ca->asJDL(), $self->{INPUTBOX} );
   if (! $done) {
       print STDERR "=====================================================\n";
@@ -850,9 +850,6 @@ sub offerAgent {
   my $silent = ( shift or 0 );
   my $mode="info";
   $silent and $mode="debug";
-
-  ($self->{CONNECTION} eq "ClusterMonitor") or 
-    $self->info( "The ClusterMonitor is down. You cannot request jobs" ) and return;
 
   $DEBUG and $self->debug(1, "Requesting a new command..." );
 
@@ -995,9 +992,6 @@ sub checkQueueStatus() {
   my $mode="info";
   $silent and $mode="debug";
 
-  ($self->{CONNECTION} eq "ClusterMonitor") or 
-    $self->{LOGGER}->error( "CE", "The ClusterMonitor is down. You cannot request jobs" ) and return;
-  
   $DEBUG and $self->debug(1, "Checking my queue status ..." );
   
   my $user = $self->{CATALOG}->{CATALOG}->{DATABASE}->{USER};
@@ -2728,7 +2722,7 @@ sub f_bank {
  ( $self->checkBankConnection() ) or return;
 
     my $done = $self->{SOAP}->CallSOAP($self->{BANK_CONNECTION}, "bank",@_) or return;
-       $done or ((print "Error: SOAP call to $self->{CONNECTION} 'bank' failed\n") and return);
+       $done or ((print "Error: SOAP call to $self->{BANK_CONNECTION} 'bank' failed\n") and return);
     
   print $done->result(), "\n";
   return 1;
