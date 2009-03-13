@@ -137,6 +137,13 @@ sub getStatus {
   return $self->getDefaultStatus();
 
 }
+
+sub getOutputFile {
+    my $self = shift;
+    return "This Batch system does not give file outputs";
+}
+
+
 sub getNumberQueued {
   my $self=shift;
   return 0;

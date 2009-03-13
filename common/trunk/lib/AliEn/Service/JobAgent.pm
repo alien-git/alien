@@ -190,6 +190,13 @@ sub requestJob {
 
   $self->GetJDL() or return;
   $self->info("Got the jdl");
+
+
+
+  $self->{SOAP}->CallSOAP("CLUSTERMONITOR","jobStarts", $ENV{ALIEN_PROC_ID}, $ENV{ALIEN_JOBAGENT_ID});
+
+
+
 #  $self->{LOGFILE}=AliEn::TMPFile->new({filename=>"proc.$ENV{ALIEN_PROC_ID}.out"});
   $self->{LOGFILE}="$self->{CONFIG}->{TMP_DIR}/proc.$ENV{ALIEN_PROC_ID}.out";
   if ($self->{LOGFILE}){
