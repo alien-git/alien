@@ -46,12 +46,12 @@ sub get {
   $self->{PARSED}->{PATH}=~ s{^//}{/};
   my $p= $self->{PARSED}->{PATH};
   $p =~ s/#.*$//;
-  my $command="$self->{XRDCP} root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$p $self->{LOCALFILE} -DIFirstConnectMaxCnt 1";
+  my $command="$self->{XRDCP} root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$p $self->{LOCALFILE} ";
 
   if ($ENV{ALIEN_XRDCP_ENVELOPE}){
     my $p=$ENV{ALIEN_XRDCP_URL};
     $p=~ s/#.*$//;
-    $command="$self->{XRDCP} $p $self->{LOCALFILE} -DIFirstConnectMaxCnt 1 -OS\\\&authz=\"$ENV{ALIEN_XRDCP_ENVELOPE}\"";
+    $command="$self->{XRDCP} $p $self->{LOCALFILE} -OS\\\&authz=\"$ENV{ALIEN_XRDCP_ENVELOPE}\"";
     $self->debug(1, "The envelope is $ENV{ALIEN_XRDCP_ENVELOPE}");
   }
   
@@ -73,11 +73,13 @@ sub put {
 
   $self->debug(1,"PUTTING THE SECURITY ENVELOPE IN THE XRDCP");
 
-  my $command="$self->{XRDCP} -np -v $self->{LOCALFILE} root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH} -DIFirstConnectMaxCnt 1";
+  my $command="$self->{XRDCP} -np -v $self->{LOCALFILE} ";
 
   if ($ENV{ALIEN_XRDCP_ENVELOPE}){
-    $command="$self->{XRDCP} -np -v $self->{LOCALFILE} $ENV{ALIEN_XRDCP_URL} -DIFirstConnectMaxCnt 1  -OD\\\&authz=\"$ENV{ALIEN_XRDCP_ENVELOPE}\"";
+    $command="$ENV{ALIEN_XRDCP_URL} -OD\\\&authz=\"$ENV{ALIEN_XRDCP_ENVELOPE}\"";
     $self->debug(1,"The envelope is $ENV{ALIEN_XRDCP_ENVELOPE}");
+  } else {
+    $command.="root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH}";
   }
 #  my $error = $self->_execute($command);
   $self->debug(1,"The command is $command");
@@ -92,7 +94,7 @@ sub put {
     my $size=-s $self->{LOCALFILE};
     if ($size eq $1){
       $self->info("YUHUUU!!");
-      return "root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH} -DIFirstConnectMaxCnt";
+      return "root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH}";
     } 
     $self->info("The file has not been completely transfered");
     return;
