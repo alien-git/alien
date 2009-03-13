@@ -779,7 +779,22 @@ sub getOutput {
     ->proxy("http://$url",
 	    options => {compress_threshold => 10000})
       ->getFile($output, @options);
-  my $data=($done->result or "");
+
+  $self->info("Finished Contacting the jobagent at $url"); ###############
+
+  my $data;
+
+  if(!$done) {
+      $self->info("Could not get file via SOAP, trying to get it via LRMS");
+      $data = $self->{BATCH}->getOutputFile($queueId,$output);
+      $data or $data = "";
+  }  
+  else {
+      $data=($done->result or "");
+  }
+
+  $self->info("Got $data" );
+
 
   $self->debug(1, "Got $data" );
   $data or $self->info("No output") and return "No output\n";
@@ -1257,6 +1272,16 @@ sub agentExits{
 
   $self->info("The jobAgent $agentId has finished");
   $self->{LOCALJOBDB}->removeJobAgent($self->{BATCH}->needsCleaningUp(), { agentId => $agentId });
+  return 1;
+}
+
+sub jobStarts{
+  my $this=shift;
+  my $jobId=shift;
+  my $agentId=shift;
+
+  $self->info("The job $jobId has started");
+  $self->{LOCALJOBDB}->insertJob( $jobId, $agentId);  
   return 1;
 }
 

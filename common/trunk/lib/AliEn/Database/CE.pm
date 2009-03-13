@@ -111,6 +111,39 @@ sub removeJobAgent {
    return 1;
 }
 
+sub insertJob {
+    my $self = shift;
+    my $jobId = shift;
+    my $agentId = shift;
+    my $time = time;
+
+    $self->info("Start insertJob $jobId $agentId");
+    my $info = $self->query("SELECT * FROM JOBAGENT WHERE agentId=?",undef,{bind_values=>[$agentId]});
+
+
+    @$info 
+	or $self->info("In insertJob, did not find anything with agentId $agentId")
+	and return;
+
+    my $model = (@$info)[0];
+#    if( (@$info == 1) && !($model->{jobId})) {
+#	my $done = $self->updateJobAgent({jobId=>$jobId},"agentId=?",{bind_values=>[$agentId]});
+#	return $done;
+#    }
+
+    $self->info("in insertJob, create entry in JOBAGENT with agentId: $agentId and jobId: $jobId (batchId: $model->{batchId}; workernode: $model->{workernode}; status: $model->{status}; jdl: $model->{jdl}");
+
+    my $done = $self->insertJobAgent({agentId=>$agentId, batchId=>$model->{batchId}, 
+				      workernode=>$model->{workernode}, 
+				      jobId=>$jobId, 
+				      status=>$model->{status}, 
+				      jdl=>$model->{jdl}});
+
+    return $done;
+}
+
+
+
 sub insertMessage {
   my $self=shift;
   my $jobId=shift;
