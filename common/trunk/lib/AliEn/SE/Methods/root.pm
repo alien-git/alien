@@ -76,7 +76,7 @@ sub put {
   my $command="$self->{XRDCP} -np -v $self->{LOCALFILE} ";
 
   if ($ENV{ALIEN_XRDCP_ENVELOPE}){
-    $command="$ENV{ALIEN_XRDCP_URL} -OD\\\&authz=\"$ENV{ALIEN_XRDCP_ENVELOPE}\"";
+    $command.="$ENV{ALIEN_XRDCP_URL} -OD\\\&authz=\"$ENV{ALIEN_XRDCP_ENVELOPE}\"";
     $self->debug(1,"The envelope is $ENV{ALIEN_XRDCP_ENVELOPE}");
   } else {
     $command.="root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH}";
