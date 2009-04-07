@@ -382,6 +382,8 @@ sub getWaitingJobAgents{
 
   if ($#$list >100){
     $nocache or AliEn::Util::setCacheValue($self, "listWaitingJA", $list);
+  } else {
+    AliEn::Util::setCacheValue($self, "listWaitingJA");
   }
   return $list;
 }
