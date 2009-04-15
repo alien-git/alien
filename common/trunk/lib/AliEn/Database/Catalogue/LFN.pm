@@ -17,6 +17,7 @@ package AliEn::Database::Catalogue::LFN;
 use AliEn::Database::Catalogue::Shared;
 use strict;
 
+use Data::Dumper;
 =head1 NAME
 
 AliEn::Database::Catalogue - database wrapper for AliEn catalogue
@@ -928,11 +929,12 @@ You can make sure that you are in the right database with a call to checkPermiss
 sub moveLFNs {
   my $self=shift;
   my $lfn=shift;
+  my $options=shift || {};
 
   $DEBUG and $self->debug(1,"Starting  moveLFNs, with $lfn ");
-  my   $toTable=$self->getNewDirIndex();
-  defined $toTable or $self->info( "Error getting the name of the new table") and return;
 
+
+  my $toTable;
 
   my $isIndex=$self->queryValue("SELECT 1 from INDEXTABLE where lfn=?", undef,
 			       {bind_values=>[$lfn]});
@@ -942,39 +944,78 @@ sub moveLFNs {
   my $sourceHostIndex=$entry->{hostIndex};
   my $fromTable=$entry->{tableName};
   my $fromLFN=$entry->{lfn};
+  my $toLFN=$lfn;
+
+  if ($options->{b}){
+    $isIndex or $self->info("We are supposed to move back, but the entry is not in a different table...")
+      and return;
+    $self->info("We have to move back!!");
+
+    my $parent=$lfn;
+    $parent =~ s{/[^/]*/?$}{/};
+    my $entryP=$self->getIndexHost($parent);
+    print "And the father is\n";
+    print Dumper($entryP);
+    $toTable=$entryP->{tableName};
+    ($entryP->{hostIndex} eq $entry->{hostIndex})
+      or $self->info("We can only move back if the entries are in the same database...")
+	and return;
+
+    $toLFN=$entryP->{lfn};
+
+  } else{
+    $toTable=$self->getNewDirIndex();
+  }
+  defined $toTable or $self->info( "Error getting the name of the new table") and return;
+
 
   $toTable =~ /^(\d+)*$/ and $toTable= "L${toTable}L";
   $fromTable =~ /^(\d+)*$/ and $fromTable= "L${fromTable}L";
 
   defined $sourceHostIndex or $self->info( "Error getting the hostindex of the table $toTable") and return;
 
-  if ($isIndex ) {
-    $DEBUG and $self->debug(1, "This is in fact an index...");
-    my $parent=$lfn;
-    $parent =~ s{/[^/]*/$}{/};
-    my $entryP=$self->getIndexHost($parent) or $self->info( "Error getting the info of $parent") and return;
-    my $parentTable=$entryP->{tableName};
-  }
+  $self->lock("$toTable WRITE, $toTable as ${toTable}d READ,  $toTable as ${toTable}r READ, $fromTable as ${fromTable}d READ, $fromTable as ${fromTable}r READ, $fromTable");
+  $self->renumberLFNtable($toTable, {'locked',1});
+  my $min=$self->queryValue("select max(entryId)+1 from $toTable");
+  $min or $min=1;
+
+  $self->renumberLFNtable($fromTable, {'locked',1, 'min',$min});
 
   #ok, this is the easy case, we just copy into the new table
   my $columns="entryId,md5,owner,gowner,replicated,aclId,expiretime,size,dir,type,guid,perm";
   my $tempLfn=$lfn;
   $tempLfn=~ s{$fromLFN}{};
+
   #First, let's insert the entries in the new table
-  $self->do("INSERT into $toTable($columns,lfn) select $columns,substring(concat('$fromLFN', lfn), length('$lfn')+1) from $fromTable where lfn like '${tempLfn}%'") or return;
-
-  ($isIndex) and  $self->deleteFromIndex($lfn);
-
-  if (!$self->insertInIndex($sourceHostIndex, $toTable, $lfn)){
-    $self->delete($toTable,"lfn like '${tempLfn}%'");
+  if (!$self->do("INSERT into $toTable($columns,lfn) select $columns,substring(concat('$fromLFN', lfn), length('$toLFN')+1) from $fromTable where lfn like '${tempLfn}%' and lfn not like ''")){
+    $self->unlock();
     return;
   }
-  if (!$isIndex ){
-    #Finally, let's delete the old table;
-    $self->delete($fromTable,"lfn like '${tempLfn}_%'");
-    $self->update($fromTable,{replicated=>1}, "lfn='$tempLfn'");
-  } else {
-    $self->delete($fromTable,"lfn like '${tempLfn}%'");
+  $self->unlock();
+
+  ($isIndex) and  $self->deleteFromIndex($lfn);
+  if ($options->{b}){
+    my $newLfn=$lfn;
+    $newLfn=~ s/^$toLFN//;
+
+    my $oldDir=$self->queryValue("select entryId from $fromTable where lfn=''");
+    my $newDir=$self->queryValue("select entryId from $toTable where lfn=?", undef, {bind_values=>[$newLfn]});
+    $self->do("update $toTable set replicated=0 where replicated=1 and lfn=?", {bind_values=>[$newLfn]});
+    $self->do("update $toTable set dir=? where dir=?", {bind_values=>[$newDir, $oldDir]});
+    $self->do("drop table $fromTable");
+  }else{
+    if (!$self->insertInIndex($sourceHostIndex, $toTable, $lfn)){
+      $self->delete($toTable,"lfn like '${tempLfn}%'");
+
+      return;
+    }
+    if (!$isIndex ){
+      #Finally, let's delete the old table;
+      $self->delete($fromTable,"lfn like '${tempLfn}_%'");
+      $self->update($fromTable,{replicated=>1}, "lfn='$tempLfn'");
+    } else {
+      $self->delete($fromTable,"lfn like '${tempLfn}%'");
+    }
   }
 
   return 1;
@@ -1911,13 +1952,15 @@ sub removeFileFromCollection{
 
 sub renumberLFNtable {
   my $self=shift;
-  $self->info("How do we renumber??");
-  $self->info("Is it $self->{INDEX_TABLENAME}->{name} ??");
-  my $table=$self->{INDEX_TABLENAME}->{name};
-  my $info=$self->query("select t, t-max(entryId)-1 as reduce from $table, (select d.entryId as t from $table d left join $table r on d.entryId=r.entryId+1 where r.entryId is null) f where entryId<t group by t order by t desc");
-  use Data::Dumper;
+  my $table=shift || $self->{INDEX_TABLENAME}->{name};
+  my $options=shift || {};
+  $self->info("How do we renumber '$table'??");
+
+  
+  my $info=$self->query("select t, t-max(entryId)-1 as reduce from $table, (select ${table}d.entryId as t from $table ${table}d left join $table ${table}r on ${table}d.entryId=${table}r.entryId+1 where ${table}r.entryId is null) f where entryId<t group by t order by t desc");
+
 #  print Dumper($info);
-  $self->lock($table);
+  defined $options->{locked} or  $self->lock($table);
   $self->do("alter table $table modify entryId bigint(11)");
   $self->do("alter table $table drop primary key");
 
@@ -1935,9 +1978,13 @@ sub renumberLFNtable {
   if ($value){
     $self->do("update $table set entryId=entryId-$value, dir=dir-$value");
   }
+  if ($options->{min}){
+    $self->info("And now, updating the minimun");
+    $self->do("update $table set entryId=entryId+$options->{min}-1, dir=dir+$options->{min}-1");
+  }
   $self->do("alter table $table modify entryId bigint(11) auto_increment primary key");
   $self->do("alter table $table auto_increment=1");
-  $self->unlock($table);
+  defined $options->{locked} or $self->unlock($table);
 
   return 1;
 }

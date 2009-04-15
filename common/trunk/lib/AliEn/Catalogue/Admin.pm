@@ -287,8 +287,29 @@ sub f_chgroup {
     return 1;
 }
 
-sub moveDirectoryToIndex {
+
+sub moveDirectory_HELP {
+  return "Usage:
+moveDirectory [-b] <lfn>
+where lfn is a directory
+
+Only 'admin' is allowed to excecute moveDirectory. It changes the structure of the database, putting the directory <lfn> into a new table
+
+Options:
+  -b: Go back to the previous table
+"
+
+}
+sub moveDirectory {
   my $self=shift;
+
+  @ARGV=@_;
+  my $opt={};
+  
+  Getopt::Long::GetOptions($opt,  "b") or
+     $self->info("Error: unkown options:'@_'\n" . $self->moveDirectory_HELP()) and return;
+  @_=@ARGV;
+
   my $lfn=shift;
 
 
@@ -306,7 +327,7 @@ sub moveDirectoryToIndex {
   $lfn =~ s{/?$}{/};
   $self->checkPermissions("w", $lfn) or return;
 
-  return $self->{DATABASE}->moveEntries($lfn);
+  return $self->{DATABASE}->moveEntries($lfn, $opt);
 
 }
 
