@@ -113,7 +113,7 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
     'mount'   		=> ['$self->{CATALOG}->f_mount', 0],
     'verifyToken' 	=> ['$self->{CATALOG}->f_verifyToken', 0],
     'verifySubjectRole' => ['$self->{CATALOG}->f_verifySubjectRole', 0],
-    'moveDirectory'	=> ['$self->{CATALOG}->moveDirectoryToIndex',0],
+    'moveDirectory'	=> ['$self->{CATALOG}->moveDirectory',0],
 	     'moveGUID'	=> ['$self->{CATALOG}->moveGUIDToIndex',0],
     'addSE'		=> ['$self->{CATALOG}->addSE',0],
     'setSEio'		=> ['$self->{CATALOG}->setSEio',0],

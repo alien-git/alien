@@ -1108,9 +1108,9 @@ sub checkWakesUp {
   my @debugLevel=();
   $silent and push @debugLevel,1;
   $self->$method( @debugLevel,  "Still alive and checking messages" );
-  my $done =
-      $self->{SOAP}->CallSOAP("IS", "alive", $self->{HOST}, $self->{PORT}, "",
-			      $self->{CONFIG}->{VERSION} );
+#  my $done =
+#      $self->{SOAP}->CallSOAP("IS", "alive", $self->{HOST}, $self->{PORT}, "",
+#			      $self->{CONFIG}->{VERSION} );
 
   $self->checkQueuedJobs($silent, $self->{SERVICENAME});
   $self->checkMessages($silent);
