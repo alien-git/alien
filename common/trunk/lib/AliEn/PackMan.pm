@@ -129,14 +129,19 @@ For instance, 'ROOT', 'ROOT::4.1.3', 'psaiz\@ROOT', 'psaiz\@ROOT::4.1.2' comply 
 sub f_packman {
   my $self=shift;
   $self->debug(1, "Talking to the PackMan: @_");
-  my $silent     = grep ( /^-s$/, @_ ); 
-  my $returnhash = grep ( /^-z$/, @_ ); 
+  my $silent     = grep ( /^-s$/, @_ );
+  my $returnhash = grep ( /^-z$/, @_ );
   my @arg        = grep ( !/^-z$/, @_ );
   @arg        = grep ( !/^-s$/, @arg );
 
   my $string=join(" ", @arg);
   my $serviceName="PackMan";
 
+
+
+#FIXME: TEST
+$self->info("*** calling PackMan with arguments $string");
+  my $direct = 0;
   $string =~ s{-?-silent\s+}{} and $silent=1;
   if ( $string =~ s{-?-n(ame)?\s+(\S+)}{} ){
     my $name=$2;
@@ -158,19 +163,27 @@ sub f_packman {
     $self->info( $self->f_packman_HELP(),0,0) and return;
   my $soapCall;
   my $requiresPackage=0;
-  my $direct=0;
   if ($operation =~ /^l(ist)?$/){
     $soapCall="getListPackages";
     $operation="list";
     $serviceName eq "PackMan" and $direct=1;
+    if (grep (/^-local$/i, @arg)){
+      return $self->getListPackagesLocally(grep (! /^-local$/i, @arg));
+    }
   } elsif  ($operation =~ /^listI(nstalled)?$/){
     $soapCall="getListInstalledPackages";
     $operation="listInstalled";
     $serviceName eq "PackMan" and $direct=1;
+    if (grep (/^-local$/i, @arg)){
+      return $self->getListInstalledPackagesLocally(grep (! /^-local$/i, @arg));
+    }
   } elsif  ($operation =~ /^t(est)?$/){
     $requiresPackage=1;
     $soapCall="testPackage";
     $operation="test";
+    if (grep (/^-local$/i, @arg)){
+      return $self->testPackageLocally(grep (! /^-local$/i, @arg));
+    }
   } elsif ($operation =~ /^i(nstall)?$/){
     $requiresPackage=1;
     $soapCall="installPackage";
@@ -182,6 +195,9 @@ sub f_packman {
     $requiresPackage=1;
     $soapCall="removePackage";
     $operation="remove";
+    if (grep (/^-local$/i, @arg)){
+      return $self->removePackageLocally(grep (! /^-local$/i, @arg));
+    }
   } elsif ($operation =~ /^d(efine)?$/){
     return $self->definePackage(@arg);
   } elsif ($operation =~ /^u(ndefine)?$/){
@@ -197,8 +213,9 @@ sub f_packman {
   } else {
     $self->info( "I'm sorry, but I don't understand $operation");
     $self->info( $self->f_packman_HELP(),0,0);
-    return
+    return;
   }
+
   if ($requiresPackage) {
     my $package=shift @arg;
     $package or 
@@ -219,6 +236,7 @@ sub f_packman {
   }
 
   my (@result, $done);
+#FIXME
   if ($direct){
     $self->info("Calling directly $soapCall (@_)");
     return $self->$soapCall(@_);
@@ -253,7 +271,13 @@ sub f_packman {
 
     if ($returnhash) {
 	my @hashresult;
-	map { my $newhash = {}; my ($user, $package) = split '@', $_; $newhash->{user} = $user; $newhash->{package} = $package ; push @hashresult, $newhash;} @result;
+	map { 
+          my $newhash = {}; 
+          my ($user, $package) = split '@', $_; 
+          $newhash->{user} = $user; 
+          $newhash->{package} = $package ; 
+          push @hashresult, $newhash;
+        } @result;
 	return @hashresult;
     }
 
@@ -418,21 +442,21 @@ sub printPackages{
 sub installPackageLocally{
   my $self=shift;
   my $package=shift;
-  $package or 
-    $self->info( "Error not enough arguments in 'packman install -local") 
-      and $self->info( $self->f_packman_HELP(),0,0) 
-	and return;
+  $package or
+    $self->info( "Error not enough arguments in 'packman install -local")
+      and $self->info( $self->f_packman_HELP(),0,0)
+        and return;
   my $version="";
   my $user=$self->{CATALOGUE}->{CATALOG}->{ROLE};
   $package =~ s/::([^:]*)$// and $version=$1;
   $package =~ s/^([^\@]*)\@// and $user=$1;
 
   $self->info("Ready to install the package '$package' locally");
-  my $p=AliEn::PackMan->new({PACKMAN_METHOD=>"Local"}) or 
+  my $p=AliEn::PackMan->new({PACKMAN_METHOD=>"Local"}) or
     $self->info("Error getting an instance of packman") and return;
 
-  my ($ok, $source)=$p->installPackage($user, $package, $version, undef, 
-				       {NO_FORK=>1});
+  my ($ok, $source)=$p->installPackage($user, $package, $version, undef,
+                                       {NO_FORK=>1});
   $self->info("Did it work??? $ok, and '$source'");
   ($ok eq '-1') and return;
   $self->info("Yes!!!!!");
@@ -440,5 +464,83 @@ sub installPackageLocally{
 
 }
 
-return 1;
 
+sub removePackageLocally{
+  my $self=shift;
+  my $package=shift;
+  $package or 
+    $self->info( "Error not enough arguments in 'packman remove -local") 
+      and $self->info( $self->f_packman_HELP(),0,0) 
+	and return;
+  my $version="";
+  my $user=$self->{CATALOGUE}->{CATALOG}->{ROLE};
+  $package =~ s/::([^:]*)$// and $version=$1;
+  $package =~ s/^([^\@]*)\@// and $user=$1;
+
+  $self->info("Ready to remove the package '$package' locally");
+  my $p=AliEn::PackMan->new({PACKMAN_METHOD=>"Local"}) or 
+    $self->info("Error getting an instance of packman") and return;
+
+  my ($ok)=$p->removePackage($user, $package, $version);
+
+  $self->info("Did it work??? $ok");
+  ($ok eq '-1') and return;
+  $self->info("Yes!!!!!");
+  return ($ok);
+
+}
+
+
+
+sub testPackageLocally{
+  my $self=shift;
+  my $package=shift;
+  my $silent = shift;
+  $package or
+    $self->info( "Error not enough arguments in 'packman remove -local")
+      and $self->info( $self->f_packman_HELP(),0,0)
+        and return;
+  my $version="";
+  my $user=$self->{CATALOGUE}->{CATALOG}->{ROLE};
+  $package =~ s/::([^:]*)$// and $version=$1;
+  $package =~ s/^([^\@]*)\@// and $user=$1;
+
+  $silent or $self->info("Ready to test the package '$package' locally");
+  my $p=AliEn::PackMan->new({PACKMAN_METHOD=>"Local"}) or
+    $self->info("Error getting an instance of packman") and return;
+
+  my @result=$p->testPackage($user, $package, $version);
+
+  @result or $self->info("the test failed") and return;
+  
+  my $vers = shift @result;
+  $silent or $self->info( "The package (version $vers) has been installed properly\nThe package has the following metainformation\n". Dumper(shift @result));
+  my $list=shift @result;
+  $silent or $self->info("This is how the directory of the package looks like:\n $list");
+  my $env=shift @result;
+  $env and $self->info("The package will configure the environment to something similar to:\n$env");
+  return;
+
+}
+
+
+sub getListInstalledPackagesLocally{
+  my $self=shift;
+  my $silent = shift;
+
+  $silent or $self->info("Getting the list of packages locally installed");
+  my $p=AliEn::PackMan->new({PACKMAN_METHOD=>"Local"}) or
+    $self->info("Error getting an instance of packman") and return;
+
+  my ($ok, @packages)=$p->getListInstalled_Internal();
+
+  $ok or $self->info("Error getting the list of installed packages");
+
+#  $silent or $self->info("The following packages are installed on the local cluster: @packages");
+
+  $self->printPackages({input=>\@_, text=>" installed"}, ($ok, @packages));
+  return @packages;
+
+}
+
+return 1;
