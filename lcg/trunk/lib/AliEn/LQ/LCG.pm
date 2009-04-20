@@ -1002,6 +1002,24 @@ chmod +x bootsh
 export PATH=/opt/alien/bin:\$PATH\n";
 }
 
+sub installWithTorrent {
+  my $self=shift;
+  $self->info("The worker node will install with the torrent method!!!");
+
+  return "$self->{CONFIG}->{TMP_DIR}/alien_installation.\$\$/alien/bin/alien","DIR=$self->{CONFIG}->{TMP_DIR}/alien_installation.\$\$
+mkdir -p \$DIR
+echo \"Ready to install alien\"
+date
+cd \$DIR
+wget http://alien.cern.ch/alien-torrent-installer -O alien-auto-installer
+export ALIEN_INSTALLER_PREFIX=\$DIR/alien
+chmod +x alien-auto-installer
+./alien-auto-installer -version v2-16 -skip_rc  -type workernode -batch
+echo \"Installation completed!!\"
+
+";
+}
+
 sub installWithLocal {
   my $self=shift;
   my $version=$self->{CONFIG}->{VERSION};
