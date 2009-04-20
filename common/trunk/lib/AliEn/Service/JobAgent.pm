@@ -1467,7 +1467,10 @@ sub uploadFile {
     for (my $j=0;$j<5;$j++){
       ($info2)=$ui->execute("upload", "$self->{WORKDIR}/$file", $se, $guid, $silent);
       $info2 and last;
-      $self->putJobLog( "trace", "warning: file upload failed... sleeping  and retrying");
+      my $error="";
+      ($self->{LOGGER}->error_msg()) and $error="(error: ".$self->{LOGGER}->error_msg().")";
+      $self->putJobLog( "trace", "warning: file upload failed... sleeping  and retrying $error");
+
       sleep(10);
       $silent="";
     }
