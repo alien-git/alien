@@ -71,7 +71,7 @@ if ($config->{SEMASTER_MANAGER_ADDRESS} =~ /^$hostname:/) {
 }
 
 if ($config->{JOBINFO_MANAGER_ADDRESS} =~ /^$hostname:/) {
-  $install.="SEManager ";
+  $install.="JobInfoManager ";
 }
 
 
