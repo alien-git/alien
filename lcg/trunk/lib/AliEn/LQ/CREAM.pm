@@ -145,7 +145,7 @@ sub wrapSubmit {
   my $error = $?;
   (my $jobId) = grep { /https:/ } @output;
   return if ( $error || !$jobId);
-  $jobId =~ m/(https:\/\/[A-Za-z0-9.-]*:8443\/[A-Za-z0-9_-]{14})/;
+  $jobId =~ m/(https:\/\/[A-Za-z0-9.-]*:8443\/CREAM\d+)/;
   $jobId = $1; chomp $jobId;
   return $jobId;
 }
