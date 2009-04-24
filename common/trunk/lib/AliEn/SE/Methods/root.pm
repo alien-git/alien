@@ -46,12 +46,12 @@ sub get {
   $self->{PARSED}->{PATH}=~ s{^//}{/};
   my $p= $self->{PARSED}->{PATH};
   $p =~ s/#.*$//;
-  my $command="$self->{XRDCP} root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$p $self->{LOCALFILE} ";
+  my $command="$self->{XRDCP} -DIFirstConnectMaxCnt 6  root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$p $self->{LOCALFILE} ";
 
   if ($ENV{ALIEN_XRDCP_ENVELOPE}){
     my $p=$ENV{ALIEN_XRDCP_URL};
     $p=~ s/#.*$//;
-    $command="$self->{XRDCP} $p $self->{LOCALFILE} -OS\\\&authz=\"$ENV{ALIEN_XRDCP_ENVELOPE}\"";
+    $command="$self->{XRDCP} -DIFirstConnectMaxCnt 6 $p $self->{LOCALFILE} -OS\\\&authz=\"$ENV{ALIEN_XRDCP_ENVELOPE}\"";
     $self->debug(1, "The envelope is $ENV{ALIEN_XRDCP_ENVELOPE}");
   }
   
@@ -73,7 +73,7 @@ sub put {
 
   $self->debug(1,"PUTTING THE SECURITY ENVELOPE IN THE XRDCP");
 
-  my $command="$self->{XRDCP} -np -v $self->{LOCALFILE} ";
+  my $command="$self->{XRDCP} -DIFirstConnectMaxCnt 6 -np -v $self->{LOCALFILE} ";
 
   if ($ENV{ALIEN_XRDCP_ENVELOPE}){
     $command.="$ENV{ALIEN_XRDCP_URL} -OD\\\&authz=\"$ENV{ALIEN_XRDCP_ENVELOPE}\"";
