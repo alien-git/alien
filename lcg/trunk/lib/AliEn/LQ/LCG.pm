@@ -763,19 +763,19 @@ sub renewProxy {
    $self->{LOGGER}->warning("LCG","$currentProxy and $proxyfile ") if ($currentProxy ne $proxyfile);
    $ENV{X509_USER_PROXY} = "$self->{CONFIG}->{VOBOXDIR}/renewal-proxy.pem";
    $self->debug(1,"Renewing proxy for $dn for $duration seconds");
-   my @command = ( 'myproxy-get-delegation',
-                   "-a", "$proxyfile",
-                   "-d",
-                   "-t",int($duration/3600), #in hours
-                   "-o", "/tmp/tmpfile.$$");
-    
-   if (-f "/opt/lcg/bin/lcg-proxy-renew") {
-     $self->info("Using '/opt/lcg/bin/lcg-proxy-renew' instead of get-delegation");
-     @command=("/opt/lcg/bin/lcg-proxy-renew", "-a", "$proxyfile",
+#   my @command = ( 'myproxy-get-delegation',
+#                   "-a", "$proxyfile",
+#                   "-d",
+#                   "-t",int($duration/3600), #in hours
+#                   "-o", "/tmp/tmpfile.$$");
+#    
+#   if (-f "/opt/lcg/bin/lcg-proxy-renew") {
+#     $self->info("Using '/opt/lcg/bin/lcg-proxy-renew' instead of get-delegation");
+     my @command=("$ENV{LCG_LOCATION}/bin/lcg-proxy-renew", "-a", "$proxyfile",
 	       "-d", "-t",int($duration/3600).":", #in hours
 	       "-o", "/tmp/tmpfile.$$" , "--cert", $ENV{X509_USER_PROXY}, 
 	       "--key", $ENV{X509_USER_PROXY});
-   }
+#   }
    my $oldPath=$ENV{PATH};
    my $pattern="$ENV{ALIEN_ROOT}"."[^:]*:";
    $ENV{PATH}=~ s/$pattern//g;
