@@ -108,6 +108,8 @@ sub initialize {
    $self->{CONFIG}->{CE_LCGCE_LIST_FLAT} = \@flatlist;
       
    # Read RB list and generate config files if needed
+
+   unlink "$self->{CONFIG}->{LOG_DIR}/lastGoodRB" if ( -e "$self->{CONFIG}->{LOG_DIR}/lastGoodRB");
    my @list;
    my @wmslist;
    if ( $ENV{CE_RBLIST} ) { 
