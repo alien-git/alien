@@ -210,7 +210,7 @@ sub checkLFNTable {
 		 md5=>"varchar(32)",
 		);
 
-  $self->checkTable(${table}, "entryId", \%columns, 'entryId', ['UNIQUE INDEX (lfn)',"INDEX(dir)", "INDEX(guid)"]) or return;
+  $self->checkTable(${table}, "entryId", \%columns, 'entryId', ['UNIQUE INDEX (lfn)',"INDEX(dir)", "INDEX(guid)", "INDEX(type)"]) or return;
   
   $self->info("We should also check if the triggers exist");
   my $info=$self->query("show triggers like '$table\%'");
@@ -840,29 +840,32 @@ sub copyDirectory{
   my $beginning=$target;
   $beginning=~ s/^$targetLFN//;
   
-  my $select="insert into $targetTable(lfn,owner,gowner,size,type,guid,perm,dir) select concat('$beginning',substring(concat('";
-  my $select2="', lfn), $sourceLength)) as lfn, '$user', '$user',size,type,guid,perm,-1 ";
+  my $select="insert into $targetTable(lfn,owner,gowner,size,type,guid,perm,dir) select distinct concat('$beginning',substring(concat('";
+  my $select2="', t1.lfn), $sourceLength)) as lfn, '$user', '$user',t1.size,t1.type,t1.guid,t1.perm,-1 ";
   my @values=();
 
+  my $binary2string=$binary2string;
+  $binary2string=~ s/guid/t1.guid/;
   foreach my $entry (@$sourceHosts){
     $DEBUG and $self->debug(1, "Copying from $entry to $targetIndex and $targetTable");
     my ($db, $Path2)=$self->reconnectToIndex( $entry->{hostIndex});
 
     my $tsource=$source;
     $tsource=~ s{^$entry->{lfn}}{};
-    my $like="replicated=0 and lfn like '$tsource%'";
-    $options->{k} and $like.=" and lfn!='$tsource'";
+    my $like="t1.replicated=0";
+    $options->{k} and $like.=" and t1.lfn!='$tsource'";
+    my $table="L$entry->{tableName}L";
+    my $join="$table t1 join $table t2 where t2.type='d' and (t1.dir=t2.entryId or t1.entryId=t2.entryId)  and t2.lfn like '$tsource%'";
     if ($targetIndex eq $entry->{hostIndex}){
-      my $table="L$entry->{tableName}L";
       $DEBUG and $self->debug(1, "This is easy: from the same database");
       # we want to copy the lf, which in fact would be something like
       # substring(concat('$entry->{lfn}', lfn), length('$sourceIndex'))
-      $self->do("$select$entry->{lfn}$select2 from $table where $like");
+      $self->do("$select$entry->{lfn}$select2 from $join and $like");
 #      $self->{FIRST_DB}->do("update GUID, $table set GUID.lfn=concat(GUID.lfn, '${targetIndex}_$targetTable,') where GUID.guid=$table.guid and $table.lfn  like '$tsource%' and $table.replicated=0");
 
     }else {
       $DEBUG and $self->debug(1, "This is complicated: from another database");
-      my $entries = $db->query("SELECT concat('$beginning', substring(concat('$entry->{lfn}',lfn), $sourceLength )) as lfn, size,type,$binary2string as guid ,perm FROM L$entry->{tableName}L where $like");
+      my $entries = $db->query("SELECT concat('$beginning', substring(concat('$entry->{lfn}',t1.lfn), $sourceLength )) as lfn, t1.size,t1.type,$binary2string as guid ,t1.perm FROM $join and $like");
       foreach  my $files (@$entries) {
 	my $guid="NULL";
 	(defined $files->{guid}) and  $guid="$files->{guid}";
@@ -888,8 +891,8 @@ sub copyDirectory{
   $DEBUG and $self->debug(1, "We have inserted the entries. Now we have to update the column dir");
 
   #and now, we should update the entryId of all the new entries
-
-  my $entries=$targetDB->query("SELECT lfn, entryId from $targetTable where (dir=-1 and lfn like '$target\%/') or lfn='$target' or lfn='$targetParent'");
+  #This query is divided in a subquery to profit from the index with the column dir
+  my $entries=$targetDB->query("select * from (SELECT lfn, entryId from $targetTable where dir=-1 or lfn='$target' or lfn='$targetParent') dd where lfn like '$target\%/' or lfn='$target' or lfn='$targetParent'");
   foreach my $entry (@$entries) {
     $DEBUG and $self->debug(1, "Updating tbe entry $entry->{lfn}");
     my $update="update $targetTable set dir=$entry->{entryId} where dir=-1 and lfn rlike '^$entry->{lfn}\[^/]+/?\$'";
@@ -1016,6 +1019,10 @@ sub moveLFNs {
     } else {
       $self->delete($fromTable,"lfn like '${tempLfn}%'");
     }
+    my $user=$self->queryValue("select owner from $toTable where lfn=''");
+    $self->info("And now, let's give access to $user to '$toTable");
+
+    $self->do("GRANT ALL on $toTable to $user");
   }
 
   return 1;
@@ -1957,33 +1964,71 @@ sub renumberLFNtable {
   $self->info("How do we renumber '$table'??");
 
   
-  my $info=$self->query("select t, t-max(entryId)-1 as reduce from $table, (select ${table}d.entryId as t from $table ${table}d left join $table ${table}r on ${table}d.entryId=${table}r.entryId+1 where ${table}r.entryId is null) f where entryId<t group by t order by t desc");
+  my $info=$self->query("select ${table}d.entryId as t from $table ${table}d left join $table ${table}r on ${table}d.entryId-1=${table}r.entryId where ${table}r.entryId is null order by t asc");
 
 #  print Dumper($info);
-  defined $options->{locked} or  $self->lock($table);
-  $self->do("alter table $table modify entryId bigint(11)");
-  $self->do("alter table $table drop primary key");
+  #Let's do this part before dropping the index
+  my @newlist;
+  my $reduce=0;
 
-  foreach my $entry( @$info){
-    my $new=$entry->{t};
-    my $reduce=$entry->{reduce};
-    $self->info("For entries bigger than $new, we should reduce by $reduce");
-    my $done=$self->do("update $table set dir=dir-$reduce where dir=$new");
-    my $done2=$self->do("update $table set entryId=entryId-$reduce where entryId>=$new");
+  print Dumper(@newlist);
+  while (@$info){
+    my $entry=shift @$info;
+    my $r=$self->queryValue("select max(entryId) from $table where entryId<?", undef, {bind_values=>[$entry->{t}]});
+    if (!$r){
+      #If this is the first value of the table
+      $entry->{t}<2 and next;
+      $r=0;
+    }
+    $r=$entry->{t}-$r-1;
+    $reduce+=$r;
+    my $max=undef;
+    $info and ${$info}[0] and $max=${$info}[0]->{t};
+    push @newlist, {min=>$entry->{t}, reduce=>$reduce, max=>$max};
+  }
+  if ($options->{n}){
+    $self->info("Just informing what we would do...");
+    foreach my $entry (@newlist){
+      my $message="For entries bigger than $entry->{min}, we should reduce by $entry->{reduce}";
+      $entry->{max} and $message.=" (up to $entry->{max}";
+      $self->info($message);
+    }
+    return 1;
+  }
+  #  print Dumper(@newlist);
+  defined $options->{locked} or  $self->lock($table);
+  $self->info("There are $#newlist +1 entries that need to be fixed");
+#  $self->do("alter table $table modify entryId bigint(11),drop primary key");
+#  $self->do("alter table $table drop primary key");
+  my $changes=0;
+  foreach my $entry( @newlist){
+    my $message="For entries bigger than $entry->{min}, we should reduce by $entry->{reduce}";
+    $entry->{max} and $message.=" (up to $entry->{max}";
+    $self->info($message);
+    my $max1="";
+    my $max2="";
+    my $bind=[$entry->{reduce}, $entry->{min}];
+    if ($entry->{max}){
+      $max1= "and dir<?";
+      $max2="and entryId<?";
+      $bind=[$entry->{reduce}, $entry->{min}, $entry->{max}];
+    }
+    my $done=$self->do("update $table set dir=dir-? where dir>=? $max1", {bind_values=>$bind});
+    my $done2=$self->do("update $table set entryId=entryId-? where entryId>=? $max2 order by entryId", {bind_values=>$bind});
     ($done and $done2) or 
       $self->info("ERROR !!") and last;
-  }
-
-  my $value=$self->queryValue("select min(entryId)-1 from $table");
-  if ($value){
-    $self->do("update $table set entryId=entryId-$value, dir=dir-$value");
+    $changes=1;
   }
   if ($options->{min}){
     $self->info("And now, updating the minimun");
-    $self->do("update $table set entryId=entryId+$options->{min}-1, dir=dir+$options->{min}-1");
+    $self->do("update $table set entryId=entryId+$options->{min}-1, dir=dir+$options->{min}-1 order by entryId");
+    $changes=1;
   }
-  $self->do("alter table $table modify entryId bigint(11) auto_increment primary key");
-  $self->do("alter table $table auto_increment=1");
+#  $self->do("alter table $table modify entryId bigint(11) auto_increment primary key");
+  if ($changes){
+    $self->do("alter table $table auto_increment=1");
+    $self->do("optimize table $table");
+  }
   defined $options->{locked} or $self->unlock($table);
 
   return 1;

@@ -61,12 +61,7 @@ sub getlog {
 
   if ($tags[0] eq "all") {
     undef @tags;
-    push @tags,"proc";
-    push @tags,"error";
-    push @tags,"submit";
-    push @tags,"move";
-    push @tags,"state";
-    push @tags,"trace";
+    @tags =("proc","error","submit","move","state","trace", "info");
   }
 
   grep (/^error$/, @tags) or push @tags,"error";
