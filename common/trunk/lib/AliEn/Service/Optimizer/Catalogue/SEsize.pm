@@ -70,6 +70,7 @@ sub checkSESize{
   }
   $self->info("The SE has $counter files and $size bytes");
   $guiddb->update("SE", {seNumFiles=>$counter, seUsedSpace=>$size}, "seNumber = ? ", {bind_values=>[$index]});
+  $guiddb->do("update SE, SE_VOLUMES set usedspace=seusedspace/1024, freespace=size-usedspace where  SE.sename=SE_VOLUMES.sename and size!= -1"); 
   return 1;
 }
 1;
