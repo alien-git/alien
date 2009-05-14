@@ -59,7 +59,7 @@ $hostName=getParam("Host name", $hostName);
 my $prodUser=getParam("Production user", "aliprod");
 my $portNumber=getParam("Initial Port number", "8080");
 
-my $mysqlHost=getParam("alien-mysql host",getDefaultMysql($orgName,$hostName));
+my $mysqlHost=getParam("alien-mysql host and port",getDefaultMysql($orgName,$hostName));
 my $siteName=getParam("Site name", "CERN");
 my $domainName=Net::Domain::hostdomain();
 $domainName=getParam("Domain of $siteName", $domainName);
