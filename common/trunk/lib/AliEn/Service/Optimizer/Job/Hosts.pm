@@ -31,6 +31,14 @@ sub checkWakesUp {
   my $done5=$self->checkHosts($silent);
   $self->unblockQueue($silent);
   $self->$method(@data, "The hosts optimizer finished");
+
+  $self->{COUNTER} or $self->{COUNTER}=0;
+  $self->{COUNTER}++;
+  if ($self->{COUNTER}>60){
+    $self->{DB}->resyncSiteQueueTable();
+    $self->{COUNTER}=0;
+  }
+  
   return;
 }
 

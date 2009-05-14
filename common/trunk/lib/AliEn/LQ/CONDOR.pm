@@ -21,6 +21,8 @@ sub submit {
   };
   $self->{X509} or $self->{X509}=AliEn::X509->new();
   $self->{X509}->checkProxy();
+  $self->{COUNTER} or $self->{COUNTER}=0;
+  my $cm="$self->{CONFIG}->{HOST}:$self->{CONFIG}->{CLUSTERMONITOR_PORT}";
 
   my $submit="executable = $command
 arguments = $arglist
@@ -28,10 +30,10 @@ output = $self->{PATH}/$ENV{ALIEN_LOG}.out
 error  = $self->{PATH}/$ENV{ALIEN_LOG}.err
 log    = $self->{PATH}/$ENV{ALIEN_LOG}.log
 $self->{SUBMIT_ARG}
-getenv = True
+environment=ALIEN_CM_AS_LDAP_PROXY=$cm;ALIEN_JOBAGENT_ID=$$.$self->{COUNTER};ALIEN_ALICE_CM_AS_LDAP_PROXY=$cm
 queue
 ";
-    
+  self->{COUNTER}++;
   eval {
     
     open( BATCH,"| $self->{SUBMIT_CMD}") or print  "Can't send batch command: $!" and return -2;
