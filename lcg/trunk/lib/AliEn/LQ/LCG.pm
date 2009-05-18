@@ -472,18 +472,13 @@ sub getNumberRunning() {
     $self->info("Checking too early, still $still sec to wait");
     return;
   }
-  my ($run,$wait,$cpu) = $self->getCEInfo(qw(GlueCEStateRunningJobs GlueCEStateWaitingJobs GlueCEInfoTotalCPUs));
+  my ($run,$wait) = $self->getCEInfo(qw(GlueCEStateRunningJobs GlueCEStateWaitingJobs ));
   my $value = $self->getQueueStatus();
   $value or $value = 0;
   $run or $run=0;
   $wait or $wait=0;
-  $cpu or $cpu=0;
 
   $self->info("Jobs: $run running, $wait waiting from IS, $value from local DB");
-  if ( $cpu == 0 ) {
-    $self->{LOGGER}->error("LCG","IS not responding");
-    return;
-  }
   if ( $run =~ m/4444/ || $wait =~ m/4444/ ) {
     $self->{LOGGER}->error("LCG","IS failure 4444");
     return;
@@ -493,16 +488,11 @@ sub getNumberRunning() {
 
 sub getNumberQueued() {
   my $self=shift;
-  my ($wait,$cpu) = $self->getCEInfo(qw(GlueCEStateWaitingJobs GlueCEInfoTotalCPUs));
+  my ($wait,$cpu) = $self->getCEInfo(qw(GlueCEStateWaitingJobs));
   $wait or $wait=0;
-  $cpu or $cpu=0;
   my $value = $self->{DB}->queryValue("SELECT COUNT (*) FROM JOBAGENT where status='QUEUED'");
   $value or $value = 0;
   $self->info("Queued: $wait from IS, $value from local DB");
-  if ( $cpu == 0 ) {
-    $self->{LOGGER}->error("LCG","IS not responding");
-    return;
-  }
   if ( $wait =~ m/4444/ ) {
     $self->{LOGGER}->error("LCG","IS failure 4444");
     return;
@@ -643,6 +633,7 @@ sub queryBDII {
   my %results = ();
   my $someAnswer = 0;
   $self->info("Querying $CE for @items");
+  $self->debug(1,"DN string is $base");
   $self->debug(1,"Filter is $filter");
   (my $host,undef) = split (/:/,$CE);    
   my @IS  = (
@@ -812,12 +803,12 @@ sub updateClassAd {
   my ($maxRAMSize, $maxSwapSize) = (0,0);
   foreach my $CE (@{$self->{CONFIG}->{CE_LCGCE_LIST_FLAT}}) {
     $self->debug(1,"Getting RAM and swap info for $CE");
-    my $res = $self->queryBDII($CE,'',"GlueVOViewLocalID=\L$self->{CONFIG}->{ORG_NAME}\E,GlueCEUniqueID=$CE",'GlueForeignKey');
+    my $res = $self->queryBDII($CE,'',"GlueCEUniqueID=$CE",'GlueForeignKey');
     $res or return;
     my $cluster = $res->{'GlueForeignKey'};
     $cluster =~ s/^GlueClusterUniqueID=//;
     $self->debug(1,"Cluster name from IS is $cluster");
-    $res = $self->queryBDII($CE,"GlueSubClusterUniqueID=$cluster",'',qw(GlueHostMainMemoryRAMSize GlueHostMainMemoryVirtualSize));
+    $res = $self->queryBDII($CE,'(GlueHostMainMemoryRAMSize=*)',"GlueClusterUniqueID=$cluster",qw(GlueHostMainMemoryRAMSize GlueHostMainMemoryVirtualSize));
     $res or return;
     $maxRAMSize  = $res->{'GlueHostMainMemoryRAMSize'}  if ($res->{'GlueHostMainMemoryRAMSize'}>$maxRAMSize );
     $maxSwapSize = $res->{'GlueHostMainMemoryVirtualSize'} if ($res->{'GlueHostMainMemoryVirtualSize'}>$maxSwapSize );
