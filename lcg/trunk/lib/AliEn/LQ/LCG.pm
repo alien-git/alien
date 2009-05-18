@@ -612,7 +612,7 @@ sub getCEInfo {
 
     $self->debug(1,"Querying for $CE");
     (my $host,undef) = split (/:/,$CE);    
-    my $res = $self->queryBDII($CE,'',@_);
+    my $res = $self->queryBDII($CE,'',"GlueVOViewLocalID=\L$self->{CONFIG}->{ORG_NAME}\E,GlueCEUniqueID=$CE",@_);
     if ( $res ) {
       $someAnswer++;
       $results{$_}+=$res->{$_} foreach (@items);
@@ -636,7 +636,9 @@ sub queryBDII {
   my $self = shift;
   my $CE = shift;
   my $filter = shift;
-  $filter or $filter = "GlueCEUniqueID=$CE";
+  $filter or $filter = "objectclass=*";
+  my $base = shift;
+  $base or $base = "GlueVOViewLocalID=\L$self->{CONFIG}->{ORG_NAME}\E,GlueCEUniqueID=$CE";
   my @items = @_;
   my %results = ();
   my $someAnswer = 0;
@@ -659,10 +661,10 @@ sub queryBDII {
        next;
      }
      unless ($ldap->bind()) {
-       $self->{LOGGER}->info("LCG","$GRIS/$BaseDN not responding (2), trying next.");
+       $self->{LOGGER}->info("$GRIS/$BaseDN not responding (2), trying next.");
        next;
      }
-     my $result = $ldap->search( base	=>  $BaseDN,
+     my $result = $ldap->search( base	=> "$base,$BaseDN",
   				 filter => "$filter");
      my $code = $result->code;				 
      my $msg = $result->error;				 
@@ -810,12 +812,12 @@ sub updateClassAd {
   my ($maxRAMSize, $maxSwapSize) = (0,0);
   foreach my $CE (@{$self->{CONFIG}->{CE_LCGCE_LIST_FLAT}}) {
     $self->debug(1,"Getting RAM and swap info for $CE");
-    my $res = $self->queryBDII($CE,'','GlueForeignKey');
+    my $res = $self->queryBDII($CE,'',"GlueVOViewLocalID=\L$self->{CONFIG}->{ORG_NAME}\E,GlueCEUniqueID=$CE",'GlueForeignKey');
     $res or return;
     my $cluster = $res->{'GlueForeignKey'};
     $cluster =~ s/^GlueClusterUniqueID=//;
     $self->debug(1,"Cluster name from IS is $cluster");
-    $res = $self->queryBDII($CE,"GlueSubClusterUniqueID=$cluster",qw(GlueHostMainMemoryRAMSize GlueHostMainMemoryVirtualSize));
+    $res = $self->queryBDII($CE,"GlueSubClusterUniqueID=$cluster",'',qw(GlueHostMainMemoryRAMSize GlueHostMainMemoryVirtualSize));
     $res or return;
     $maxRAMSize  = $res->{'GlueHostMainMemoryRAMSize'}  if ($res->{'GlueHostMainMemoryRAMSize'}>$maxRAMSize );
     $maxSwapSize = $res->{'GlueHostMainMemoryVirtualSize'} if ($res->{'GlueHostMainMemoryVirtualSize'}>$maxSwapSize );
