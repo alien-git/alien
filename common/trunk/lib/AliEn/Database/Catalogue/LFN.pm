@@ -942,7 +942,10 @@ sub moveLFNs {
   my $isIndex=$self->queryValue("SELECT 1 from INDEXTABLE where lfn=?", undef,
 			       {bind_values=>[$lfn]});
 
-
+  if ($isIndex){
+    $self->info("The directory $lfn is already in its own table. If you want to move it back, do 'moveDirectory -b'");
+    return 1;
+  }
   my $entry=$self->getIndexHost($lfn) or $self->info( "Error getting the info of $lfn") and return;
   my $sourceHostIndex=$entry->{hostIndex};
   my $fromTable=$entry->{tableName};
