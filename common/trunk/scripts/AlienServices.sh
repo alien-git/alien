@@ -364,12 +364,12 @@ stopService()
      kill -9 $TOKILL >& /dev/null
   fi
 
-  ps -u $USER -fww |grep PackMan |grep -v grep |grep -v $$ >/dev/null 2>&1
+  ps -u $USER -fww |grep " $NAME "  |grep -v grep |grep -v $$ >/dev/null 2>&1
 
   if [ "$?" = "0" ];
   then
     [ "$QUIET" = 1 ] || echo "It looks like there was something still running..."
-    kill -9 `ps -u $USER -fww |grep PackMan |grep -v grep |grep -v $$ |awk '{print \$2}'`
+    kill -9 `ps -u $USER -fww |grep  " $NAME " |grep -v grep |grep -v $$ |awk '{print \$2}'`
   fi
 
   [ -f  $KILLFILE ] &&  rm  -f $KILLFILE
