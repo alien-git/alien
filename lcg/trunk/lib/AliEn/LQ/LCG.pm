@@ -566,7 +566,7 @@ sub getCEInfo {
   return @values;
 }
 
-sub QueryBDII {
+sub queryBDII {
   my $self = shift;
   my $CE = shift;
   my $filter = shift;
