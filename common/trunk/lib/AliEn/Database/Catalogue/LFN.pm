@@ -853,10 +853,11 @@ sub copyDirectory{
     my $tsource=$source;
     $tsource=~ s{^$entry->{lfn}}{};
     my $like="t1.replicated=0";
-    $options->{k} and $like.=" and t1.lfn!='$tsource'";
+
     my $table="L$entry->{tableName}L";
     my $join="$table t1 join $table t2 where t2.type='d' and (t1.dir=t2.entryId or t1.entryId=t2.entryId)  and t2.lfn like '$tsource%'";
     if ($targetIndex eq $entry->{hostIndex}){
+      $options->{k} and $like.=" and t1.lfn!='$tsource'";
       $DEBUG and $self->debug(1, "This is easy: from the same database");
       # we want to copy the lf, which in fact would be something like
       # substring(concat('$entry->{lfn}', lfn), length('$sourceIndex'))
@@ -865,7 +866,9 @@ sub copyDirectory{
 
     }else {
       $DEBUG and $self->debug(1, "This is complicated: from another database");
-      my $entries = $db->query("SELECT concat('$beginning', substring(concat('$entry->{lfn}',t1.lfn), $sourceLength )) as lfn, t1.size,t1.type,$binary2string as guid ,t1.perm FROM $join and $like");
+      my $query="SELECT concat('$beginning', substring(concat('$entry->{lfn}',t1.lfn), $sourceLength )) as lfn, t1.size,t1.type,$binary2string as guid ,t1.perm FROM $join and $like";
+      $options->{k} and $query="select * from ($query) d where lfn!=concat('$beginning', substring('$entry->{lfn}$tsource', $sourceLength ))";
+      my $entries = $db->query($query);
       foreach  my $files (@$entries) {
 	my $guid="NULL";
 	(defined $files->{guid}) and  $guid="$files->{guid}";
