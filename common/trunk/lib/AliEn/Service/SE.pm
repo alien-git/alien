@@ -310,7 +310,7 @@ sub startXROOTD {
 
   my ($optionFile, %options)=$self->createXROOTConfFile($name,@_) or return;
 
-  if ($options{host}) {
+  if ($options{host} and $options{host} ne $self->{CONFIG}->{HOST}) {
     $self->info("We don't have to start the xrootd (it runs on $options{host})");
     return %options;
   }
