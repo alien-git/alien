@@ -134,7 +134,7 @@ sub copyInput {
       my $nodownload=0;
       $file=~ s/,nodownload$// and $nodownload=1;
       $pfnName and $file=$pfnName;
-      $self->info("In copyInput adding file $file (from the InputBox $pfn)");
+      $self->debug("In copyInput adding file $file (from the InputBox $pfn)");
       #    my $procname=$self->findProcName($procid, $file, $done, $user);
       if ( defined $pfnSize ) {
 	my $procname=$self->findProcName($procDir, $file, $done);
@@ -179,7 +179,7 @@ sub copyInput {
 	  $self->debug(1, "The file $file doesn't count for the requirements");
 	}
 	$nodownload and
-	  $self->info("Skipping file $file (from the InputBox) - nodownload option" ) and 
+	  $self->debug(1,"Skipping file $file (from the InputBox) - nodownload option" ) and 
 	  next;
 	
 
