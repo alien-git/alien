@@ -33,7 +33,7 @@ $self->{SUBMIT_ARG}
 environment=ALIEN_CM_AS_LDAP_PROXY=$cm;ALIEN_JOBAGENT_ID=$$.$self->{COUNTER};ALIEN_ALICE_CM_AS_LDAP_PROXY=$cm
 queue
 ";
-  self->{COUNTER}++;
+  $self->{COUNTER}++;
   eval {
     
     open( BATCH,"| $self->{SUBMIT_CMD}") or print  "Can't send batch command: $!" and return -2;
