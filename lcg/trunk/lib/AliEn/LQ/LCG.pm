@@ -127,11 +127,9 @@ sub initialize {
            MyProxyServer       = \"myproxy.cern.ch\";\n]\n";
 	   close WMSVOCONF;
        }
-  #     my @command = ($self->{DELEGATION_CMD},"-c","$self->{CONFIG}->{LOG_DIR}/$thisWMS.vo.conf","-d","$proxy_delegated");
     my @command = ($self->{DELEGATION_CMD},"-c","$self->{CONFIG}->{LOG_DIR}/$thisWMS.vo.conf","-d","$ENV{DEL_PROXY}");   
-   my @output = $self->_system(@command);
+    my @output = $self->_system(@command);
        my $error = $?;
-      print "AQUI::::::::::::::::::::::::::::::::::::::::::::::::::;@output\n";
 
    }
 
@@ -184,9 +182,8 @@ sub submit {
 
    my $timediff = $testtime - $self->{INITIME};
 
-   print "CHECKING THE TIME:::::::::::::::::::::::::$timediff, $testtime, $self->{INITIME}\n";
    if ($timediff >= $timelimit){
-      print "RENEW THE PROXY ONTO THE SUBMISSION TOOL\n"; 
+      $self->info("Renewing the proxy"); 
       $self->renewProxy(100000); 
 
 
