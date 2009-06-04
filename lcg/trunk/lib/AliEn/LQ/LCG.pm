@@ -446,6 +446,7 @@ sub getNumberQueued() {
 
 sub cleanUp {
   my $self = shift;
+  $self->{CLEANUP_CMD} or return;
   ### The following in principle should not be needed
   my $todelete = $self->{DB}->queryValue("SELECT COUNT (*) FROM JOBAGENT where status='DEAD'");
   if ($todelete) {
