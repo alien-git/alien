@@ -481,11 +481,12 @@ objectidentifier AliEnPackMan  ALIEN_BASE:22
 attributetype ( AliEnPackMan:1 NAME 'installDir' SUP name )
 attributetype ( AliEnPackMan:2 NAME 'platform' SUP name )
 attributetype ( AliEnPackMan:3 NAME 'forbidWnInstall' SUP name )
+attributetype ( AliEnPackMan:4 NAME 'method' SUP name )
 
 objectclass ( AliEnPackMan  NAME 'AliEnPackMan'
 	SUP ( AliEnSOAPServer )
   	MUST ( name  )
-        MAY ( platform $ installDir $ forbidWnInstall )
+        MAY ( platform $ installDir $ forbidWnInstall $ method )
 	)
 
 
