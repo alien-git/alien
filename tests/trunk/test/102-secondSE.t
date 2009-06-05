@@ -43,7 +43,7 @@ BEGIN { plan tests => 1 }
 		      "host", $config->{HOST},
 		      "mss", "File",
 		      "savedir", "$config->{LOG_DIR}/SE2/DATA",
-		      "port", 7090,
+		      "port", 7093,
 		      "certsubject",$subject,
 		     ]) or exit(-2);
 
