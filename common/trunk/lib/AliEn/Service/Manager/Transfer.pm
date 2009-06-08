@@ -119,8 +119,9 @@ sub changeStatusTransfer {
   ($status eq "TRANSFERRING") and  $query->{started} = $date;
   $options->{Reason} and $query->{Reason}=$options->{Reason};
 
-  ($status eq "DONE" or $status eq "FAILED") and $query->{finished} = $date;
+  ($status eq "DONE" or $status eq "FAILED_T") and $query->{finished} = $date;
   #
+  
   my $done=$self->{DB}->updateTransfer($id, $query);
   
   $done or  $self->{LOGGER}->error("TransferManager", "In changeStatusTransfer error: Updating the status")
@@ -135,7 +136,7 @@ sub changeStatusTransfer {
   if($status eq "DONE"){
     $self->updateCatalogue($id);
   }
-  
+
   if ($status =~ /^(DONE)|(FAILED)|(KILLED)$/){
     my $father=$self->{DB}->queryValue("SELECT transferGroup from TRANSFERS where transferId=?", undef, {bind_values=>[$id]});
     if ($father){
@@ -143,6 +144,8 @@ sub changeStatusTransfer {
       $father.=",";
       $self->{DB}->do("update ACTIONS set todo=1, extra=concat(replace(extra,?, ''), ?)where action='MERGING'", {bind_values=>[$father, $father]});
     }
+  }elsif ($status=~ /FAILED_T/){
+    $self->{DB}->do("UPDATE ACTIONS set todo=1 where action='FAILED_T'");
   }
 
 
