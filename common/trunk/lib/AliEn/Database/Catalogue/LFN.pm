@@ -2022,8 +2022,8 @@ sub renumberLFNtable {
       $self->info("ERROR !!") and last;
     $changes=1;
   }
-  if ($options->{min}){
-    $self->info("And now, updating the minimun");
+  if ($options->{min} and $options->{min}>1){
+    $self->info("And now, updating the minimun (to $options->{min}");
     $self->do("update $table set entryId=entryId+$options->{min}-1, dir=dir+$options->{min}-1 order by entryId");
     $changes=1;
   }
