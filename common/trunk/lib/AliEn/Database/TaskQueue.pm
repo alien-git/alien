@@ -116,7 +116,13 @@ sub initialize {
 			      agentid=>'int(11)'},
 		    id=>"queueId",
 		    index=>"queueId",
-		    extra_index=>["INDEX (split)", "INDEX (status)", "INDEX(agentid)"]
+		    extra_index=>["INDEX (split)", "INDEX (status)", "INDEX(agentid)", "UNIQUE INDEX (submitHost,queueId)","INDEX(priority)",
+				  "INDEX (site,status)",
+				  "INDEX (sent)",
+				  "INDEX (status,submitHost)",
+				  "INDEX (status,agentid)",
+				  "INDEX (status,queueId)"
+				 ]
 		   };
   my $queueColumnsProc={columns=>{queueId=>"int(11) not null auto_increment primary key",
 				  runtime =>"varchar(20)",
