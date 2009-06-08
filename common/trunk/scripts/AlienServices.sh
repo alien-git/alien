@@ -470,7 +470,7 @@ ALIEN_DoService ()
 	    export SEALED_ENVELOPE_LOCAL_PRIVATE_KEY=$ALIEN_HOME/authen/lpriv.pem
 	    ;;
 	  TransferOptimizer)
-	    args='VARDIR Optimizer::Transfer Transfer_Optimizes NO_PASSWORD'
+	    args='VARDIR Optimizer::Transfer Transfer_Optimizer NO_PASSWORD'
 	    ;;
 	  TransferBroker)
 	    args="VARDIR Broker::Transfer Transfer_Broker  NO_PASSWORD"

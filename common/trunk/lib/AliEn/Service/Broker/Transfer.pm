@@ -9,6 +9,7 @@ use AliEn::Database::Transfer;
 
 use AliEn::Service::Broker;
 
+
 use strict;
 
 use vars qw (@ISA);
@@ -27,7 +28,8 @@ sub initialize {
   $self->{SERVICE}="Transfer";
 
   $self->{DB_MODULE}="AliEn::Database::Transfer";
-    
+
+
   return $self->SUPER::initialize($options);
 }
 
@@ -36,13 +38,9 @@ sub findTransfers {
   my $this    = shift;
   my $site_ca = shift;
   my $slots   = shift;
-  
-  my ($ok, @se)=$site_ca->evaluateAttributeVectorString("CloseSE");
-  map {$_="SE='$_'"} @se;
-  my $se=join (" or ", ("SE is NULL", @se));
-  $self->debug(1, "Finding a transfer for '$se'");
 
-  my ($list) = $self->{DB}->getWaitingTransfersBySE($se,"priority desc");
+
+  my ($list) = $self->{DB}->getWaitingAgents();
 
   defined $list
     or $self->{LOGGER}->warning( "TransferBroker", "In findTransfer error during execution of database query" )
@@ -61,7 +59,7 @@ sub getTransferFromAgentId {
     $self->info("Getting the jobids for jobagent '$agentId'");
     my $data=AliEn::Util::returnCacheValue($self, "WaitingTransfersFor$agentId");
     if (! $data){
-      $data=$self->{DB}->query("select transferid as id, jdl from TRANSFERS where agentid=? and (STATUS='WAITING' or STATUS='LOCAL COPY' or STATUS='CLEANING') order by transferid", undef, {bind_values=>[$agentId]});
+      $data=$self->{DB}->query("select transferid as id, jdl from TRANSFERS_DIRECT where agentid=? and STATUS='WAITING' order by transferid", undef, {bind_values=>[$agentId]});
     }
     $self->info("There are $#$data entries for that jobagent");
     return @$data;
@@ -72,35 +70,35 @@ sub getTransferFromAgentId {
   return 1;
 }
 
-sub requestTransfer {
+sub requestTransferType {
   my $this = shift;
   my $jdl=shift;
   my $slots=shift || 1;
-  
+  $self->info("HELLO WORLD");
   $jdl
     or $self->{LOGGER}->warning( "TransferBroker", "In requestTransfer no classad for the host received" )
       and return ( -1, "no classad received" );
   #This is for the SE
   $self->debug(1, "The jdl is $jdl");
-  $self->setAlive();
-  
+#  $self->setAlive();
+
 
   my $ca = Classad::Classad->new($jdl);
   $self->debug(1, "Classad created");
   my ($ok, $host)=$ca->evaluateAttributeString("Name");
-  
+
   $self->redirectOutput("TransferBroker/$host");
 
   $self->info("requestTransfer: New transfer requested from $host!!");
 
   my @ids=$self->findTransfers($ca, $slots);
-  
+
   my @toReturn;
   while (@ids){
     my ( $transferId, $transfer_ca, $id2 ) = (shift @ids, shift @ids, shift @ids);
     $self->info("WE ARE GOIND TO RETURN TRANSFER $transferId" );
-    push @toReturn, $self->getTransferArguments($transferId,  $transfer_ca, $ca );
-
+    push @toReturn, {id=>$transferId, jdl=>$transfer_ca->asJDL()};
+    $self->info("Sending transfer $transferId to $host");
   }
   @toReturn or $self->info("Nothing to do") and return (-2);
   
@@ -178,7 +176,7 @@ sub getTransferArguments {
 
     ($ok, my $host)=$ftd_ca->evaluateAttributeString("Name");
 
-    $self->info("Sending transfer $id to $host");
+
     return $transfer;
 }
 

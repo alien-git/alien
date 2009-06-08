@@ -4,24 +4,19 @@
 
 package AliEn::Service::FTD;
 
-select(STDERR);
-$| = 1;
-select(STDOUT);
-$| = 1;
-
-use AliEn::Database::TXT::FTD;
+#use AliEn::Database::TXT::FTD;
 use LWP::UserAgent;
 
-use AliEn::SE::Methods;
-use AliEn::X509;
+#use AliEn::SE::Methods;
+#use AliEn::X509;
 use POSIX ":sys_wait_h";
 use strict;
 
 use vars qw(@ISA);
 use Classad;
 
-use AliEn::MSS::file;
-use AliEn::UI::Catalogue::LCM;
+#use AliEn::MSS::file;
+
 use AliEn::Service;
 @ISA=qw(AliEn::Service);
 # Uncomment when module is installed in alice/local...
@@ -56,7 +51,7 @@ sub initialize {
 
   $self->{METHOD} = "FTP";
   
-  $self->{PORT}=$self->{CONFIG}->{'FTD_PORT'};
+  $self->{PORT}="NO PORT";
   $self->{HOST}=$self->{CONFIG}->{HOST};
   chomp $self->{HOST};
 
@@ -64,53 +59,42 @@ sub initialize {
   $self->{SERVICENAME}=$self->{CONFIG}->{FTD_FULLNAME};
   $self->{LISTEN}=1;
   $self->{PREFORK}=1;
-  $self->{FORKCHECKPROCESS}=1;
+
 #  $self->{PROTOCOLS}=$self->{CONFIG}->{FTD_PROTOCOL};
   # the default protocol is "bbftp"
 #  $self->{PROTOCOLS} or $self->{PROTOCOLS} ="bbftp";
   my @protocols=();
   $self->{CONFIG}->{FTD_PROTOCOL_LIST} and 
     @protocols=@{$self->{CONFIG}->{FTD_PROTOCOL_LIST}};
-  
-  @protocols or @protocols="BBFTP";
+
+
   $self->{PROTOCOLS}=\@protocols;
-  $self->{FAV_PROTOCOL}=$self->{CONFIG}->{FTD_PROTOCOL} || "BBFTP";
+  foreach my $p (@protocols){
+    my $test="AliEn::FTP::".lc($p);
+    eval "require $test" or $self->info("Error requiring $test: $@") 
+      and return;
+    $self->info("initializing the $p protocol transfer");
+    $self->{PLUGINS}->{lc($p)}=$test->new() or 
+      $self->info("Error creating the module $test") and return;
+  }
 
 
   $self->info("initialize: Using configuration for " . $self->{CONFIG}->{FTD} );
-  
-  $self->{MAX_RETRYS} = 10;
-  
-  $self->{CACHE_DIR} = $self->{CONFIG}->{CACHE_DIR};    #"/tmp/Alien/CACHE";
-  if ( !( -d $self->{CACHE_DIR} ) ) {
-    mkdir $self->{CACHE_DIR}, 0777;
-  }
-  $self->{MAX_TRANSFERS} = $self->{CONFIG}->{FTD_MAXTRANSFERS} || 5;
 
-  $self->{IS_HOST} = $self->{CONFIG}->{IS_HOST};
-  $self->{IS_PORT} = $self->{CONFIG}->{IS_PORT};
-  $self->checkCertificate() or return;
+  $self->{MAX_RETRYS} = 10;
+
+  $self->{MAX_TRANSFERS} = $self->{CONFIG}->{FTD_MAXTRANSFERS} || 5;
 
   $self->{JDL}=$self->createJDL();
   $self->{JDL} or return;
   $self->info($self->{JDL});
-  $self->{DB} = new AliEn::Database::TXT::FTD();
-  $self->{DB} or print STDERR "Error creating the TXT database\n" and return;
 
   $self->{NAME} = "$self->{CONFIG}->{ORG_NAME}::$self->{CONFIG}->{SITE}";
   $self->{ALIVE_COUNTS} = 0;
-  
-  $self->{ALLOWED_DIRS} = $self->{CONFIG}->{FTD_ALLOWEDDIRS_LIST};
-  $self->info("initialize: Allowing clients to put into @{$self->{ALLOWED_DIRS}}" );
-  
-#  $self->createGridMapFromLdap();
+
 
   $self->{SOAP}->checkService("Broker/Transfer", "TRANSFER_BROKER", "-retry", [timeout=>50000]) or return;
   $self->{SOAP}->checkService("Manager/Transfer", "TRANSFER_MANAGER", "-retry") or return;
-
-#  $self->{SOAP}->checkService("SE", "-retry") or return;
-#  $self->{CATALOGUE}=AliEn::UI::Catalogue::LCM->new({role=>$self->{CONFIG}->{CLUSTER_MONITOR_USER}}) 
-#    or $self->info("Error creating the catalogue in the FTD") and return;
 
   my $file="$self->{CONFIG}->{LOG_DIR}/FTD_children.pid";
   $self->info("initialize: Checking if there were any instances before");
@@ -119,114 +103,53 @@ sub initialize {
     close FILE;
     $self->info("There are already some pids!! @d");
     $self->{FTD_PIDS}=\@d;
-    
   }
 
   return $self;
 }
 
 sub createJDL {
-    my $self =shift;
-    my $exp={};
-    
-    $exp->{Name}="\"$self->{CONFIG}->{FTD_FULLNAME}\"";
-    $exp->{SEName}="\"$self->{CONFIG}->{SE_FULLNAME}\"";
-    $exp->{Type}="\"FTD\"";
-        
-# 	$exp->{DirectAccess}="1";
+  my $self =shift;
+  my $exp={};
 
-    my $handle = new Filesys::DiskFree;
-    $handle->df_dir($self->{CACHE_DIR});
-    my $free = $handle->avail( $self->{CACHE_DIR} );
-#    my $free=`df  --block-size 1 $self->{CACHE_DIR}`;
-#    $self->debug(1, "Got $free");
-#    $free =~ s/^(\S+\s+){10}(\d+).*$/$2/s;
+  $exp->{Name}="\"$self->{CONFIG}->{FTD_FULLNAME}\"";
 
-    $exp->{CacheSpace}=$self->{CACHEx_SPACE}=$free;
-#    $exp->{DiskSpace}=$free;
- 
-    $exp->{Requirements}="other.Type==\"transfer\"";
+  $exp->{Type}="\"FTD\"";
+  my @protocols="none";
+  $self->{CONFIG}->{FTD_PROTOCOL_LIST} 
+    and @protocols=@{$self->{CONFIG}->{FTD_PROTOCOL_LIST}};
 
-    my @list=();
 
-    $self->{CONFIG}->{SEs_FULLNAME} and @list=@{$self->{CONFIG}->{SEs_FULLNAME}};
+  $exp->{SupportedProtocol}='{"'.join('","',@protocols).'"}';
+  $exp->{Requirements}="other.Type==\"transfer\"";
 
-    map {$_ =~ s/^(.*)$/\"$1\"/} @list;
+  my @list=();
 
-    $exp->{CloseSE}="{". join (",", @list)."}"; 
-    
-    return $self->SUPER::createJDL( $exp);
+
+  return $self->SUPER::createJDL( $exp);
 }
 
-sub checkCertificate {
-  my $self=shift;
-  my $certfile = "$ENV{ALIEN_HOME}/identities.ftd/cert.pem";
-  my $keyfile  = "$ENV{ALIEN_HOME}/identities.ftd/key.pem";
-    
-  if ( !( -e $certfile ) ||  !( -e $keyfile ) ) {
-    print STDERR "You do not have any certificate install in $certfile\n";
-    print STDERR "I cannot start without it. Aborting\n";
-    return;
-  }
-  my $hostcert = new AliEn::X509;
-  $hostcert->load($certfile);
-  my $subject = $hostcert->getSubject() ;
-  if (! $subject) {
-    print "ERROR: Getting the subject of the certificate\n";
-    return;
-  }
-  $self->debug(1, "Subject $subject" );
-  my $CONFSubject = $self->{CONFIG}->{FTD_CERTSUBJECT};
-  if (  $subject !~ m{^$CONFSubject(/CN=((proxy)|(\d+)))*$} ){
-    print "ERROR: Your certificate says:\n$subject\n";
-    print "       but your configuration is $CONFSubject\n";
-    print "       Are you sure you have the correct certificate?\n";
-    return 0;
-  }
-  $ENV{X509_RUN_AS_SERVER} = "1";
-  $ENV{X509_USER_CERT}     = $certfile;
-  $ENV{X509_USER_KEY}      = $keyfile;
-#  $ENV{X509_CERT_DIR}      = "$ENV{ALIEN_ROOT}/etc/alien-certs/certificates";
-  $self->{GRIDMAP} = $ENV{GRIDMAP} = "$ENV{ALIEN_HOME}/identities.ftd/map";
-  return 1;
-}
 
 sub startListening {
   my $this=shift;
-  my @protocols=@{$self->{PROTOCOLS}};
-  $self->info("Starting the service. Protocols @protocols (favourite $self->{FAV_PROTOCOL})");
-  $self->{FTP_SERVERS}={};
-  foreach my $name (@protocols) {
-    my $class="AliEn::FTP::\U$name\E";
-    $self->info("Trying to start method: $name");
-    if (eval "require $class"){
-      eval {
-	$self->{FTP_SERVERS}->{$name}=$class->new($self->{CONFIG}) 
-	  or die("Error creating an instance of $class");
-	$self->{FTP_SERVERS}->{$name}->startListening();
-      };
-    }
-    if ($@) {
-      $self->info("Error starting $name\n$@");
-      return;
-    }
-  }
-  return $self->SUPER::startListening();
+
+  $self->info("In fact, this is not a service. We don't listen for anything.");
+  return $self->startChecking();
 }
 
-sub alloc {
-    my $s    = shift;
-    my $dir  = shift;
-    my $size = shift;
-
-    $self->info("Trying to allocate $size bytes in $dir" );
-
-    #    print STDERR "Allocating $size bytes of data\n";
-
-    # At the momment we can not allocate discspace
-
-    return 0;
-}
+#sub alloc {
+#    my $s    = shift;
+#    my $dir  = shift;
+#    my $size = shift;#
+#
+#    $self->info("Trying to allocate $size bytes in $dir" );#
+#
+#    #    print STDERR "Allocating $size bytes of data\n";#
+#
+#    # At the momment we can not allocate discspace
+#
+#    return 0;
+#}
 
 
 #sub generateID {
@@ -268,174 +191,174 @@ sub alloc {
 #    return @route;
 #}
 
-sub _selectPFN {
-  my $self=shift;
-  $self->info("Getting the best PFN from @_");
-  my @methods=keys %{$self->{FTP_SERVERS}};
-  $self->info("Looking for any of @methods (favourite is $self->{FAV_PROTOCOL})");
-  foreach my $method ($self->{FAV_PROTOCOL}, @methods){
-    my @pfn=grep (/^$method:/i, @_) or next;
-    $self->info("The pfn @pfn is valid (taking the first one)!!");
-    return shift @pfn;
-  }
-  if (@methods){
-    $self->info("The FTD wanted '@methods', but we can only get from @_.");
-    return;
-  }
-  $self->info("There are no favourite methods... hope that the first one will do");
-  return shift @_;
-}
+#sub _selectPFN {
+#  my $self=shift;
+#  $self->info("Getting the best PFN from @_");
+#  my @methods=keys %{$self->{FTP_SERVERS}};
+#  $self->info("Looking for any of @methods (favourite is $self->{FAV_PROTOCOL})");
+#  foreach my $method ($self->{FAV_PROTOCOL}, @methods){
+#    my @pfn=grep (/^$method:/i, @_) or next;
+#    $self->info("The pfn @pfn is valid (taking the first one)!!");
+#    return shift @pfn;
+#  }
+#  if (@methods){
+#    $self->info("The FTD wanted '@methods', but we can only get from @_.");
+#    return;
+#  }
+#  $self->info("There are no favourite methods... hope that the first one will do");
+#  return shift @_;
+#}
 
-sub findAlternativeSource{
-  my $self=shift;
-  my $id=shift;
-  my $failedSE=shift;
-  $self->info("Asking the Transfer Manager if there are alternative sources");
+#sub findAlternativeSource{
+#  my $self=shift;
+#  my $id=shift;
+#  my $failedSE=shift;
+#  $self->info("Asking the Transfer Manager if there are alternative sources");
 
-  my $done=$self->{SOAP}->CallSOAP("Manager/Transfer", "findAlternativeSource", $id, $failedSE)  or return;
-  $done->result or $self->info("There weren't any alternative sources :( ")
-    and return;
-  $self->info("The manager found an alternative source :)");
-  return 1;
-}
+#  my $done=$self->{SOAP}->CallSOAP("Manager/Transfer", "findAlternativeSource", $id, $failedSE)  or return;
+#  $done->result or $self->info("There weren't any alternative sources :( ")
+#    and return;
+#  $self->info("The manager found an alternative source :)");
+#  return 1;
+#}
 
-sub startTransfer {
-  my $s = shift;
+#sub startTransfer {
+#  my $s = shift;
   
-  my $transfer =shift;
+#  my $transfer =shift;
   
-  $self->info("Starting a transfer");
-  my @listPFN;
-  $transfer->{FROMPFN} and @listPFN=@{$transfer->{FROMPFN}};
-  my $sourceURL=$self->_selectPFN( @listPFN);
-  $sourceURL and $sourceURL=~ s/^([^:]*:)/\L$1\E/;
+#  $self->info("Starting a transfer");
+#  my @listPFN;
+#  $transfer->{FROMPFN} and @listPFN=@{$transfer->{FROMPFN}};
+#  my $sourceURL=$self->_selectPFN( @listPFN);
+#  $sourceURL and $sourceURL=~ s/^([^:]*:)/\L$1\E/;
 
-  my $size=$transfer->{SIZE};
-  my $retries=$transfer->{RETRIES};
-  my $id=$transfer->{ID};
-  my $targetSE=$transfer->{TOSE};
-  my $guid=$transfer->{GUID};
-  my $message="";
-  my $sourceCertificate=$transfer->{FROMCERTIFICATE};
+#  my $size=$transfer->{SIZE};
+#  my $retries=$transfer->{RETRIES};
+#  my $id=$transfer->{ID};
+#  my $targetSE=$transfer->{TOSE};
+#  my $guid=$transfer->{GUID};
+#  my $message="";
+#  my $sourceCertificate=$transfer->{FROMCERTIFICATE};
 
-  @listPFN or $message="no FROMPFN in the transfer";
-  defined $size or $message="no SIZE in the transfer";
+#  @listPFN or $message="no FROMPFN in the transfer";
+#  defined $size or $message="no SIZE in the transfer";
   
-  $message and $self->{LOGGER}->error("FTD", "ID $id Error: $message",11) 
-    and return;
+#  $message and $self->{LOGGER}->error("FTD", "ID $id Error: $message",11) 
+#    and return;
 
-  if (! $sourceURL){
-    $self->info("We can't transfer from any of the elements that where proposed.");
-    return $self->findAlternativeSource($id, $transfer->{FROMSE});
-  }
+#  if (! $sourceURL){
+#    $self->info("We can't transfer from any of the elements that where proposed.");
+#    return $self->findAlternativeSource($id, $transfer->{FROMSE});
+#  }
 
-  $self->info("startTransfer: ID $id Starting a transfer of  $sourceURL");
-  my $toPFN=$transfer->{TOPFN};
-  if (!$toPFN){
+#  $self->info("startTransfer: ID $id Starting a transfer of  $sourceURL");
+#  my $toPFN=$transfer->{TOPFN};
+#  if (!$toPFN){
 
-    my ($seName, $seCert)=$self->{SOAP}->resolveSEName($targetSE) or return;
+#    my ($seName, $seCert)=$self->{SOAP}->resolveSEName($targetSE) or return;
   
-    $self->info("startTransfer: ID $id asking the SE $targetSE for a new filename");
-    my $result=$self->{SOAP}->CallSOAP($seName,'getFileName', $seName, $size,{guid=>$guid}) or return;
-    $toPFN=$result->result;
-    my @args=$result->paramsout;
-    $self->info("We got @args");
+#    $self->info("startTransfer: ID $id asking the SE $targetSE for a new filename");
+#    my $result=$self->{SOAP}->CallSOAP($seName,'getFileName', $seName, $size,{guid=>$guid}) or return;
+#    $toPFN=$result->result;
+#    my @args=$result->paramsout;
+#    $self->info("We got @args");
 
-    $toPFN or
-      $self->{LOGGER}->error("FTD", "ID $id Error getting a new filename") 
-	and return;
-    $toPFN="file://$self->{HOST}$toPFN";
+#    $toPFN or
+#      $self->{LOGGER}->error("FTD", "ID $id Error getting a new filename") 
+#	and return;
+#    $toPFN="file://$self->{HOST}$toPFN";
     
-    if ($args[1]){
-      $args[2]=~ /^root/ and $toPFN=$args[2];
-      $args[1]=~ /^castor/ and $toPFN=$args[1];
-      # in case of SRM, let's keep the full host
-      $args[1]=~ /^srm/ and $toPFN=$args[1];
-      $args[1]=~ /^root/ and $toPFN=$args[1];
-    }
-    
-  }
-    
-  $self->info("startTransfer: ID $id Starting a transfer to $toPFN");
- 
-  my $fromURL = new AliEn::SE::Methods( $sourceURL) or return;
-  my $toURL = new AliEn::SE::Methods($toPFN) or return;
-  my $now  = time;
-
-    # Now, fork so child-proccess handles the transfer,
-    # do Transfer($localfile, $remotefile, $host, $method, $direction); 
-#    my $transferpid = fork();
-
-      # THIS IS THE CHILD PROCESS Wait 2 seconds, so parent can update current number of transfer
-      # IF THE ONE THAT EXISTS IS THE FATHER, WE WOULD HAVE A DEFUNCT PROCESS
-      #Write our PID in the PID file
-
-#    if ( $transferpid  eq 0 ) {
-#	sleep(2);
-#	return;#
+#    if ($args[1]){
+#      $args[2]=~ /^root/ and $toPFN=$args[2];
+#      $args[1]=~ /^castor/ and $toPFN=$args[1];
+#      # in case of SRM, let's keep the full host
+#      $args[1]=~ /^srm/ and $toPFN=$args[1];
+#      $args[1]=~ /^root/ and $toPFN=$args[1];
 #    }
-
-  my $localCheck=$self->askToPut($toURL, $size, $id);
-  if ( $localCheck != $error_codes->{COMMENSE_TRANSFER} ) {
-    my $message =
-      "Not able to get file due to local restriction (Disk space, or permissions)?";
-    $self->{LOGGER}->error("FTD", "ID $id $message");
     
-    return;
-  }
-
-  $self->debug(1, "ID $id Doing the transfer" );
+#  }
     
-  my $destPath= $fromURL->path;
+#  $self->info("startTransfer: ID $id Starting a transfer to $toPFN");
  
-  ($fromURL->method eq "hpss" )
-    and print "Checking if we are getting from hpss" and
-      $destPath = "$fromURL->{PARSED}->{VARS_HOST}$destPath";
+#  my $fromURL = new AliEn::SE::Methods( $sourceURL) or return;
+#  my $toURL = new AliEn::SE::Methods($toPFN) or return;
+#  my $now  = time;
 
-  my $options=$transfer->{FROMFTDOPTIONS} || "";
-  
-  
-  $self->info("startTransfer: transfer=$id, transfer-FROMFTDOPTION=$options");
-  
-  
-  ($self->{CONFIG}->{FTD_LOCALOPTIONS})
-    and $options.=join (";", @{$self->{CONFIG}->{FTD_LOCALOPTIONS_LIST}});
+#    # Now, fork so child-proccess handles the transfer,
+#    # do Transfer($localfile, $remotefile, $host, $method, $direction); 
+##    my $transferpid = fork();
 
-  $self->info("ID $id Setting options ($options),$self->{CONFIG}->{FTD_LOCALOPTIONS_LIST}");
-#    my $result=$self->{MANAGER}->changeStatusTransfer($id, "TRANSFERING", {});
-  my $result=$self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, "TRANSFERING", {});
-  my $fromHost=$fromURL->host;
-  $fromURL->port() and $fromHost.=":".$fromURL->port();
-  my $toHost=$toURL->host;
-  $toURL->port() and $toHost.=":".$toURL->port();
+#      # THIS IS THE CHILD PROCESS Wait 2 seconds, so parent can update current number of transfer
+#      # IF THE ONE THAT EXISTS IS THE FATHER, WE WOULD HAVE A DEFUNCT PROCESS
+#      #Write our PID in the PID file
 
+##    if ( $transferpid  eq 0 ) {
+##	sleep(2);
+##	return;#
+##    }
 
-  my $error =  $self->doTransfer( $toURL->path, $destPath,  $fromURL->host, 
-		       $fromURL->method, "get", $id, $options, $sourceCertificate,
-		       $fromHost, $toHost);
-
-
-  if ($error) {
-    my $errorM="The transfer failed (we are getting things from  ". $fromURL->method();
-    $self->{LOGGER}->error_msg() and $errorM=$self->{LOGGER}->error_msg();
-    $self->info("The error message is $errorM");
-    if (! $self->findAlternativeSource($id, $transfer->{FROMSE})) {
-      $self->{LOGGER}->set_error_msg($errorM);
-      return ;
-    }
-    return 1;
+#  my $localCheck=$self->askToPut($toURL, $size, $id);
+#  if ( $localCheck != $error_codes->{COMMENSE_TRANSFER} ) {
+#    my $message =
+#      "Not able to get file due to local restriction (Disk space, or permissions)?";
+#    $self->{LOGGER}->error("FTD", "ID $id $message");
     
-  }
-  $self->verifyTransfer($error, $toURL, $size, $retries, $id) or return;
+#    return;
+#  }
 
-  $self->info("startTransfer: ID $id The transfer succeeded!!");
-#    $self->CURRENT_TRANSFERS_DECREMENT($size);
+#  $self->debug(1, "ID $id Doing the transfer" );
     
-  #Now kill this transferchild
-  return 1;
-}
+#  my $destPath= $fromURL->path;
+ 
+#  ($fromURL->method eq "hpss" )
+#    and print "Checking if we are getting from hpss" and
+#      $destPath = "$fromURL->{PARSED}->{VARS_HOST}$destPath";
 
- sub verifyTransfer{
+#  my $options=$transfer->{FROMFTDOPTIONS} || "";
+  
+  
+#  $self->info("startTransfer: transfer=$id, transfer-FROMFTDOPTION=$options");
+  
+  
+#  ($self->{CONFIG}->{FTD_LOCALOPTIONS})
+#    and $options.=join (";", @{$self->{CONFIG}->{FTD_LOCALOPTIONS_LIST}});
+
+#  $self->info("ID $id Setting options ($options),$self->{CONFIG}->{FTD_LOCALOPTIONS_LIST}");
+##    my $result=$self->{MANAGER}->changeStatusTransfer($id, "TRANSFERING", {});
+#  my $result=$self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, "TRANSFERING", {});
+#  my $fromHost=$fromURL->host;
+#  $fromURL->port() and $fromHost.=":".$fromURL->port();
+#  my $toHost=$toURL->host;
+#  $toURL->port() and $toHost.=":".$toURL->port();
+
+
+#  my $error =  $self->doTransfer( $toURL->path, $destPath,  $fromURL->host, 
+#		       $fromURL->method, "get", $id, $options, $sourceCertificate,
+#		       $fromHost, $toHost);
+
+
+#  if ($error) {
+#    my $errorM="The transfer failed (we are getting things from  ". $fromURL->method();
+#    $self->{LOGGER}->error_msg() and $errorM=$self->{LOGGER}->error_msg();
+#    $self->info("The error message is $errorM");
+#    if (! $self->findAlternativeSource($id, $transfer->{FROMSE})) {
+#      $self->{LOGGER}->set_error_msg($errorM);
+#      return ;
+#    }
+#    return 1;
+    
+#  }
+#  $self->verifyTransfer($error, $toURL, $size, $retries, $id) or return;
+
+#  $self->info("startTransfer: ID $id The transfer succeeded!!");
+##    $self->CURRENT_TRANSFERS_DECREMENT($size);
+    
+#  #Now kill this transferchild
+#  return 1;
+#}
+
+sub verifyTransfer{
   my $t=shift;
   my $error=(shift or "");
   my $URL=shift;
@@ -605,6 +528,8 @@ sub checkCurrentTransfers(){
       }
     }
     $self->{FTD_PIDS}=\@newList;
+  } else {
+    $self->{FTD_PIDS}=[];
   }
 
   $self->$method(@methodData,"$$ There are $current transfers: $self->{FTD_PIDS}");
@@ -628,7 +553,7 @@ sub checkCurrentTransfers(){
 #
 
 
-sub checkWakesUp {
+sub checkWakesUp{
   my $s = shift;
   my $silent =shift;
 
@@ -642,7 +567,7 @@ sub checkWakesUp {
   $self->$method(@methodData,"$$ Asking the broker if we can do anything ($slots slots)");
 
 
-  my ($result)=$self->{SOAP}->CallSOAP("Broker/Transfer", "requestTransfer",$self->{JDL}, $slots);
+  my ($result)=$self->{SOAP}->CallSOAP("Broker/Transfer", "requestTransferType",$self->{JDL}, $slots);
 
   $self->info("$$ Got an answer from the broker");
     
@@ -692,226 +617,270 @@ sub checkWakesUp {
     }
   }
 
-  return $repeat; 
+  return $repeat;
 
 }
 
  sub _forkTransfer{
   my $self=shift;
   my $transfer=shift;
-  my $n=int($transfer->{ID}/1000);
+  my $id=$transfer->{id};
+  my $n=int($id/1000);
   -d "$self->{CONFIG}->{LOG_DIR}/FTD_transfers" || mkdir "$self->{CONFIG}->{LOG_DIR}/FTD_transfers";
   -d "$self->{CONFIG}->{LOG_DIR}/FTD_transfers/$n" || mkdir "$self->{CONFIG}->{LOG_DIR}/FTD_transfers/$n";
-  my $logFile="$self->{CONFIG}->{LOG_DIR}/FTD_transfers/$n/$transfer->{ID}.log";
+  my $logFile="$self->{CONFIG}->{LOG_DIR}/FTD_transfers/$n/$id.log";
   $self->info("Redirecting to $logFile");
 
   $self->{LOGGER}->redirect($logFile);
-  $self->info("$$ Is checking the action");
-  my $action=($transfer->{ACTION} or"");
-  
-  my $message="";
-  $action or $message=" no action specified";
-  my $id=$transfer->{ID};
-  $id or $message=" transfer has no id";
-  
-  if ($message){
-    $self->{LOGGER}->error("FTD", "Error: $message");
+  $self->info("$$ Is ready to do the action");
+
+  if (not $id){
+    $self->{LOGGER}->error("FTD", "Error: the transfer does not have an id");
+    return;
+  }
+
+  my $ca;
+  $transfer->{jdl} and $ca=Classad::Classad->new($transfer->{jdl});
+  if (! $ca){
+    $self->{LOGGER}->error("Error creating the classad of '$transfer->{jdl}'");
+    $self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, "FAILED", "ALIEN_SOAP_RETRY",{"Reason","The FTD at $self->{CONFIG}->{FTD_FULLNAME} got". $self->{LOGGER}->error_msg()});
     return;
   }
   my $return;
+  $self->info("OK, ");
+  my ($ok, @pro)=$ca->evaluateAttributeVectorString('FullProtocolList');
+  $self->info("Got @pro");
   
-  my $pid="";
-
-  #  $self->CURRENT_TRANSFERS_INCREMENT("", $id);
-  $self->{FTD_CHILDREN}=$id;
-  #let's clean the default error message
-  $self->{LOGGER}->set_error_msg();
-  $self->info("$$ is going to do $action");
-  if ($action  eq "local copy"){
-    $return=$self->makeLocalCopy($transfer);
-  } elsif ($action eq "transfer") {
-    $return=$self->startTransfer($transfer);
-  } elsif ($action eq "cleaning") {
-    $return=$self->cleanLocalCopy($transfer);
-  } else {
-    $self->info("We don't know action $action :(");
+  $self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, "TRANSFERRING", "ALIEN_SOAP_RETRY");
+  foreach my $line (@pro){
+    my ($protocol, $source, @rest)=split(",", $line);
+    if (grep(/^$protocol$/i, @{$self->{CONFIG}->{FTD_PROTOCOL_LIST}})){
+      $self->info("We can get the file with '$protocol' from '$source'");
+      $self->transferFile($id, $ca, $protocol, $source, $line) and last;
+      $self->info("It didn't work :(");
+    }
   }
-  #  $self->CURRENT_TRANSFERS_DECREMENT("", $id);
-
+  my $status="DONE";
+  my $extra={};
   if (! $return ) {
     $self->info("The transfer failed due to: ".$self->{LOGGER}->error_msg() );
-    $self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, "FAILED", "ALIEN_SOAP_RETRY",{"Reason","The FTD at $self->{CONFIG}->{FTD_FULLNAME} got". $self->{LOGGER}->error_msg()});
+    $status="FAILED_T";
+    $extra={"Reason", "$self->{CONFIG}->{FTD_FULLNAME}: ". $self->{LOGGER}->error_msg()};
   }
+  $self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, $status, "ALIEN_SOAP_RETRY",$extra);
+
   $self->info("$$ returns!!");
- 
+
   return 1;
 }
 
-sub makeLocalCopy {
-  my $s =shift;
-  my $transfer=shift;
-  $self->debug(1, "Making a local copy");
+
+sub transferFile {
+  my $self=shift;
+  my $id=shift;
+  my $ca=shift;
+  my $protocol=shift;
+  my $source=shift;
+  my $line=shift;
+
+
+  $self->info("Ready to get the file from $source");
+
+  my ($ok, $user)=$ca->evaluateAttributeString("User");
+  ($ok, my $lfn)=$ca->evaluateAttributeString("FromLFN");
+  my $info=$self->{SOAP}->CallSOAP("Authen", "createEnvelope", $user, "", "read", $lfn, $source);
+  $info or $self->info("Error getting the envelope to read the source") and return;
+  my $sourceEnvelope=$info->result;
+
+  ($ok, my $target)=$ca->evaluateAttributeString("ToSE");
+  ($ok, my $guid)=$ca->evaluateAttributeString("GUID");
+  ($ok, my $size)=$ca->evaluateAttributeString("Size");
+  $target or $self->info("Error getting the destination of the transfer")
+    and return;
+  $self->info("And the second envelope");
+  $info=$self->{SOAP}->CallSOAP("Authen", "createEnvelope", $user, "", "write-once", $guid, $target, $size, 0, $guid);
+  $info or $self->info("Error getting the envelope to write the target") and return;
+  my $targetEnvelope=$info->result;
+  $self->info("Let's start with the transfer!!!");
+  my $done;
+  eval{
+    if ($self->{PLUGINS}->{lc($protocol)}->copy($sourceEnvelope, $targetEnvelope, $line)){
+      $self->info("The transfer worked!!!");
+      $done=1;
+    };
+  };
+  if ($@){
+    $self->info("Error doing the eval: $@");
+  }
+  
+  
+  return $done;
+}
+#sub makeLocalCopy {
+#  my $s =shift;
+#  my $transfer=shift;
+#  $self->debug(1, "Making a local copy");
 
   
-  my @keys =keys %{$transfer};
-  $self->debug(1, "Got @keys");
-  my $id=$transfer->{ID};
-  my $guid=$transfer->{GUID};
-  my $pfn=$transfer->{ORIGPFN};
-  if (!$guid) {
-    $self->{LOGGER}->error ("FTD", "ID $id Error: no GUID in makelocalcopy",1);
-    return;
-  }
-  #  my @pfns=$self->getPFNfromGUID($transfer->{ORIGSE}, $transfer->{GUID});
-  #  @pfns or $self->info ("Error getting the pfn!!") and return;
-  #  my $pfn=shift @pfns;
+#  my @keys =keys %{$transfer};
+#  $self->debug(1, "Got @keys");
+#  my $id=$transfer->{ID};
+#  my $guid=$transfer->{GUID};
+#  my $pfn=$transfer->{ORIGPFN};
+#  if (!$guid) {
+#    $self->{LOGGER}->error ("FTD", "ID $id Error: no GUID in makelocalcopy",1);
+#    return;
+#  }
+#  #  my @pfns=$self->getPFNfromGUID($transfer->{ORIGSE}, $transfer->{GUID});
+#  #  @pfns or $self->info ("Error getting the pfn!!") and return;
+#  #  my $pfn=shift @pfns;
 
-  $self->info("ID $id The pfn is $pfn");
-  my $file =AliEn::SE::Methods->new(
-				    { "DEBUG", $self->{DEBUG}, 
-				      "PFN", $pfn, "DATABASE", 
-				      $self->{DATABASE} } );
-  if (!$file){
-    #      $self->{MANAGER}->
-    $self->info("Error making the local copy (parsing $pfn)",22);
-    return;
-  }
-  $self->info("ID $id Getting the FTPCopy of  $pfn" );
+#  $self->info("ID $id The pfn is $pfn");
+#  my $file =AliEn::SE::Methods->new(
+#				    { "DEBUG", $self->{DEBUG}, 
+#				      "PFN", $pfn, "DATABASE", 
+#				      $self->{DATABASE} } );
+#  if (!$file){
+#    #      $self->{MANAGER}->
+#    $self->info("Error making the local copy (parsing $pfn)",22);
+#    return;
+#  }
+#  $self->info("ID $id Getting the FTPCopy of  $pfn" );
   
-  my $localPfn=$file->getFTPCopy();
-  if (!$pfn) {
-    $self->{LOGGER}->warning( "FTD", "ID $id Error getting the FTPCopy",22 );
-    return;
-  }
+#  my $localPfn=$file->getFTPCopy();
+#  if (!$pfn) {
+#    $self->{LOGGER}->warning( "FTD", "ID $id Error getting the FTPCopy",22 );
+#    return;
+#  }
 
-  my  @pfns=();
-  $self->info("ID $id The local copy is $localPfn" );
+#  my  @pfns=();
+#  $self->info("ID $id The local copy is $localPfn" );
 
-  foreach my $daemons (keys %{$self->{FTP_SERVERS}}){
-    push @pfns, $self->{FTP_SERVERS}->{$daemons}->getURL($localPfn, $transfer->{ORIGSE});
-  }
-  $self->UpdateDiskSpace() or return;
+#  foreach my $daemons (keys %{$self->{FTP_SERVERS}}){
+#    push @pfns, $self->{FTP_SERVERS}->{$daemons}->getURL($localPfn, $transfer->{ORIGSE});
+#  }
+#  $self->UpdateDiskSpace() or return;
 
-  $self->info("ID $id Copy of $pfn done (@pfns)" ); 
-  my $status="LOCAL COPY";
-  my $options="";
-  $self->{CONFIG}->{FTD_REMOTEOPTIONS} and 
-    $options=join(";", @{ $self->{CONFIG}->{FTD_REMOTEOPTIONS_LIST}});
-  $self->info("ID $id Setting options $options");
+#  $self->info("ID $id Copy of $pfn done (@pfns)" ); 
+#  my $status="LOCAL COPY";
+#  my $options="";
+#  $self->{CONFIG}->{FTD_REMOTEOPTIONS} and 
+#    $options=join(";", @{ $self->{CONFIG}->{FTD_REMOTEOPTIONS_LIST}});
+#  $self->info("ID $id Setting options $options");
 
-  my $info= {"FromPFN", \@pfns,
-	     ORIGPFN=>$pfn,
-	     "FromFTD", $self->{SERVICENAME},
-	     "FromSE", $transfer->{ORIGSE},
-	     "Action", "transfer",
-	     "FromFTDOptions", $options,
-	     "FromCertificate",  $self->{CONFIG}->{FTD_CERTSUBJECT}};
+#  my $info= {"FromPFN", \@pfns,
+#	     ORIGPFN=>$pfn,
+#	     "FromFTD", $self->{SERVICENAME},
+#	     "FromSE", $transfer->{ORIGSE},
+#	     "Action", "transfer",
+#	     "FromFTDOptions", $options,
+#	     "FromCertificate",  $self->{CONFIG}->{FTD_CERTSUBJECT}};
 
-  if (!@pfns) {
-    $status="FAILED";
-    $info->{Reason}="Not possible to get transport URL for $localPfn";
-  }
-  my $result=$self->{SOAP}->CallSOAP("Manager/Transfer",
-				     "changeStatusTransfer", "ALIEN_SOAP_RETRY",$id, $status, $info);
-  $self->{SOAP}->checkSOAPreturn($result, "Transfer Manager") or return;
-  return 1;
-}
+#  if (!@pfns) {
+#    $status="FAILED";
+#    $info->{Reason}="Not possible to get transport URL for $localPfn";
+#  }
+#  my $result=$self->{SOAP}->CallSOAP("Manager/Transfer",
+#				     "changeStatusTransfer", "ALIEN_SOAP_RETRY",$id, $status, $info);
+#  $self->{SOAP}->checkSOAPreturn($result, "Transfer Manager") or return;
+#  return 1;
+#}
 
-sub cleanLocalCopy {
-  my $this=shift;
-  my $transfer=shift;
+#sub cleanLocalCopy {
+#  my $this=shift;
+#  my $transfer=shift;
 
-  my $message="";
+#  my $message="";
 
-  $self->info("Cleaning the local copy");
-  my $origPFN=$transfer->{ORIGPFN};
-  my @listPFN;
-  $transfer->{FROMPFN} and @listPFN=@{$transfer->{FROMPFN}};
-  my $fromPFN=shift @listPFN;
+#  $self->info("Cleaning the local copy");
+#  my $origPFN=$transfer->{ORIGPFN};
+#  my @listPFN;
+#  $transfer->{FROMPFN} and @listPFN=@{$transfer->{FROMPFN}};
+#  my $fromPFN=shift @listPFN;
 
-  my $id=$transfer->{ID};
+#  my $id=$transfer->{ID};
 
 
-  $origPFN or $message=" missing ORIGPFN";
-  $fromPFN or $message.=" missing FROMPFN";
-  $id or $message.=" missing ID";
+#  $origPFN or $message=" missing ORIGPFN";
+#  $fromPFN or $message.=" missing FROMPFN";
+#  $id or $message.=" missing ID";
 
-  $message and $self->{LOGGER}->error("FTD", "Error $message",2) and return;
+#  $message and $self->{LOGGER}->error("FTD", "Error $message",2) and return;
 
-  my $origURL=AliEn::SE::Methods->new($origPFN) or $message="Checking $origPFN";
-  my $fromURL=AliEn::SE::Methods->new($fromPFN) or $message="Checking $fromPFN";
+#  my $origURL=AliEn::SE::Methods->new($origPFN) or $message="Checking $origPFN";
+#  my $fromURL=AliEn::SE::Methods->new($fromPFN) or $message="Checking $fromPFN";
 
-  $message and $self->{LOGGER}->error("FTD", "Error $message") and return;
+#  $message and $self->{LOGGER}->error("FTD", "Error $message") and return;
 
-  if (!($fromURL->path  eq $origURL->path)) {
-    $self->info("Removing ".$fromURL->path );
-    AliEn::MSS::file->rm($fromURL->path);
-    }
-  $self->{SOAP}->CallSOAP("Manager/Transfer", "changeStatusTransfer","ALIEN_SOAP_RETRY",$id,  "DONE");
-#    $self->{MANAGER}->changeStatusTransfer($id,  "DONE");
-  return 1;
-}
+#  if (!($fromURL->path  eq $origURL->path)) {
+#    $self->info("Removing ".$fromURL->path );
+#    AliEn::MSS::file->rm($fromURL->path);
+#    }
+#  $self->{SOAP}->CallSOAP("Manager/Transfer", "changeStatusTransfer","ALIEN_SOAP_RETRY",$id,  "DONE");
+##    $self->{MANAGER}->changeStatusTransfer($id,  "DONE");
+#  return 1;
+#}
 
-sub UpdateDiskSpace {
-    my $this=shift;
+#sub UpdateDiskSpace {
+#    my $this=shift;
 
-    my $handle = new Filesys::DiskFree;
-    $handle->df_dir($self->{CACHE_DIR});
-    my $free = $handle->avail( $self->{CACHE_DIR} );
+#    my $handle = new Filesys::DiskFree;
+#    $handle->df_dir($self->{CACHE_DIR});
+#    my $free = $handle->avail( $self->{CACHE_DIR} );
 
-#    my $free=`df  --block-size 1 $self->{CACHE_DIR}`;
-#    $self->debug(1, "Got $free");
-#   $free =~ s/^(\S+\s+){10}(\d+).*$/$2/s;
-   $self->{CACHE_SPACE}=$free;
+##    my $free=`df  --block-size 1 $self->{CACHE_DIR}`;
+##    $self->debug(1, "Got $free");
+##   $free =~ s/^(\S+\s+){10}(\d+).*$/$2/s;
+#   $self->{CACHE_SPACE}=$free;
 
-    my $ca= Classad::Classad->new($self->{JDL});
-    $ca->set_expression("CacheSpace", $free )
-	   or $self->{LOGGER}->error("Transfer", "Error putting CacheSpace as $free")
-	       and return;
+#    my $ca= Classad::Classad->new($self->{JDL});
+#    $ca->set_expression("CacheSpace", $free )
+#	   or $self->{LOGGER}->error("Transfer", "Error putting CacheSpace as $free")
+#	       and return;
     
-    $self->{JDL}=$ca->asJDL();
-    return 1;
-}
+#    $self->{JDL}=$ca->asJDL();
+#    return 1;
+#}
 
-sub dirandfile {
-    my $fullname = shift;
-    $fullname =~ /(.*)\/(.*)/;
-    my @retval = ( $1, $2 );
-    return @retval;
-}
+#sub dirandfile {
+#    my $fullname = shift;
+#    $fullname =~ /(.*)\/(.*)/;
+#    my @retval = ( $1, $2 );
+#    return @retval;
+#}
 
-sub doTransfer {
-    my $self       = shift;
-    my $file       = shift;
-    my $remotefile = shift;
-    my $host       = shift;
-    my $method     = shift;
-    my $direction  = shift;
-    my $id         = shift;
+#sub doTransfer {
+#    my $self       = shift;
+#    my $file       = shift;
+#    my $remotefile = shift;
+#    my $host       = shift;
+#    my $method     = shift;
+#    my $direction  = shift;
+#    my $id         = shift;
 
-    $method="\U$method\E";
-    # Now require the client, and create an instance
-    my $class = "AliEn::FTP::$method";
-    my $done=0;
-    if ( eval "require $class; " ) {
-      eval {
-	$self->debug(1, "Class $class exists" );
-        my $transfer = $class->new( { HOST => $host,
-                                      MONITOR => $self->{MONITOR},
-				      FTD_TRANSFER_ID => $id,
-				      SITE_NAME => $self->{CONFIG}->{SITE},
-				      FTD_FULLNAME => $self->{CONFIG}->{FTD_FULLNAME}
-				  } );
-        $done=$transfer->$direction( $file, $remotefile, @_ );
-      }
-    }
-    if ($@) {
-      $self->info("Error doing the transfer: $@",0);
-      return -1;
-    }
-    $self->info("Transfer done and returning $done");
-    return $done
-}
+#    $method="\U$method\E";
+#    # Now require the client, and create an instance
+#    my $class = "AliEn::FTP::$method";
+#    my $done=0;
+#    if ( eval "require $class; " ) {
+#      eval {
+#	$self->debug(1, "Class $class exists" );
+#        my $transfer = $class->new( { HOST => $host,
+#                                      MONITOR => $self->{MONITOR},
+#				      FTD_TRANSFER_ID => $id,
+#				      SITE_NAME => $self->{CONFIG}->{SITE},
+#				      FTD_FULLNAME => $self->{CONFIG}->{FTD_FULLNAME}
+#				  } );
+#        $done=$transfer->$direction( $file, $remotefile, @_ );
+#      }
+#    }
+#    if ($@) {
+#      $self->info("Error doing the transfer: $@",0);
+#      return -1;
+#    }
+#    $self->info("Transfer done and returning $done");
+#    return $done
+#}
 
 sub CURRENT_TRANSFERS {
     my $s = shift;
@@ -1029,114 +998,114 @@ sub verifyCompleteTransfer {
   return $error_codes->{TRANSFER_SUCCES};
 }
 
-sub askToGet {
-    my $s         = shift;
-    my $URLString = shift;
+#sub askToGet {
+#    my $s         = shift;
+#    my $URLString = shift;
 
-    $self->info("Asking to get the file $URLString");
-    my $URL = new AliEn::SE::Methods($URLString) 
-	or return $error_codes->{FILE_NOT_FOUND};
+#    $self->info("Asking to get the file $URLString");
+#    my $URL = new AliEn::SE::Methods($URLString) 
+#	or return $error_codes->{FILE_NOT_FOUND};
 
-    my $size =$URL->getSize();# -1;
+#    my $size =$URL->getSize();# -1;
 
-    # Should now check if file exists! And check size to return to user
-    my $localoptions = "";
+#    # Should now check if file exists! And check size to return to user
+#    my $localoptions = "";
 
-    $self->{CONFIG}->{FTD_REMOTEOPTIONS}
-      and $localoptions = join ";",@{ $self->{CONFIG}->{FTD_REMOTEOPTIONS_LIST} };
-    if ( $size < $MAXIMUM_SIZE ) {    #$self->{LOWER_SIZE_LIMIT}) {
-	#Always allow transfers of file less that 1 Mb.
-        $self->info("Transfer of $size bytes granted" );
-        my @returnv =
-          ( $error_codes->{COMMENSE_TRANSFER}, $size, $localoptions );
-        return @returnv;
-    }
-#    if ( $self->CURRENT_TRANSFERS > $self->{MAX_TRANSFERS} ) {
-#        $self->info("Transfer of $size bytes denied. Already doing max ("
-#              . $self->CURRENT_TRANSFERS
-#              . ") transfers" );
-#        return ( $error_codes->{TRANSFER_DENIED},
-#            "Already executing maximum number of transfers" );
+#    $self->{CONFIG}->{FTD_REMOTEOPTIONS}
+#      and $localoptions = join ";",@{ $self->{CONFIG}->{FTD_REMOTEOPTIONS_LIST} };
+#    if ( $size < $MAXIMUM_SIZE ) {    #$self->{LOWER_SIZE_LIMIT}) {
+#	#Always allow transfers of file less that 1 Mb.
+#        $self->info("Transfer of $size bytes granted" );
+#        my @returnv =
+#          ( $error_codes->{COMMENSE_TRANSFER}, $size, $localoptions );
+#        return @returnv;
 #    }
+##    if ( $self->CURRENT_TRANSFERS > $self->{MAX_TRANSFERS} ) {
+##        $self->info("Transfer of $size bytes denied. Already doing max ("
+##              . $self->CURRENT_TRANSFERS
+##              . ") transfers" );
+##        return ( $error_codes->{TRANSFER_DENIED},
+##            "Already executing maximum number of transfers" );
+##    }
 
-#    $self->CURRENT_TRANSFERS_INCREMENT($size);
-    $self->info("Transfer of $size bytes granted. Doing "
-		. $self->CURRENT_TRANSFERS
-		. " out of $self->{MAX_TRANSFERS} transfers" );
-    my @returnv =
-	( $error_codes->{COMMENSE_TRANSFER}, $size, $localoptions );
-    return @returnv;
+##    $self->CURRENT_TRANSFERS_INCREMENT($size);
+#    $self->info("Transfer of $size bytes granted. Doing "
+#		. $self->CURRENT_TRANSFERS
+#		. " out of $self->{MAX_TRANSFERS} transfers" );
+#    my @returnv =
+#	( $error_codes->{COMMENSE_TRANSFER}, $size, $localoptions );
+#    return @returnv;
 
-}
+#}
 
-sub askToPut {
-    my $s         = shift;
-    my $URLstring = shift;
-    my $size      = shift;
-    my $id        = shift;
+#sub askToPut {
+#    my $s         = shift;
+#    my $URLstring = shift;
+#    my $size      = shift;
+#    my $id        = shift;
 
-    $self->{LOGGER}
-      ->debug( "FTD", "ID $id In askToPut with $URLstring of size $size" );
+#    $self->{LOGGER}
+#      ->debug( "FTD", "ID $id In askToPut with $URLstring of size $size" );
 
-    my $URL = new AliEn::SE::Methods($URLstring) 
-	or return $error_codes->{FILE_NOT_FOUND} ;
+#    my $URL = new AliEn::SE::Methods($URLstring) 
+#	or return $error_codes->{FILE_NOT_FOUND} ;
 
-    my $dir;
+#    my $dir;
 
-    #    my @allowed = @{$self->{ALLOWED_DIRS}};
-    my $allo = 0;
-    foreach $dir ( @{ $self->{ALLOWED_DIRS} } ) {
-        if ( $URL->path =~ /^$dir/ ) {
-            $allo = 1;
-        }
-    }
-    if ( $allo == 0 ) {
-        $self->info("Trying to put in an ilegal directory ("
-              . $URL->path
-              . ")\n Allowed= @{$self->{ALLOWED_DIRS}}" );
-        return $error_codes->{PERMISSION_DENIED};
-    }
-
-    # First check if user is allowd to put the file here
-    # NOT Implemented
-
-    my $free = 1024 * 1024 * 1024;    #unlimited space... (2^32 bytes)
-
-    if ( $URL->scheme eq "file" ) {
-        my $handle = new Filesys::DiskFree;
-        $handle->df_dir($URL->path);
-        $free = $handle->avail( $URL->path );
-        $self->debug(1,
-            "System has " . ( $free / ( 1024 * 1024 ) ) . "Mb of free space" );
-    }
-
-#    if ( ($size) > $free ) {
-#        $self->{LOGGER}->warning( "FTD",
-#            "Not enough free disk space, trying to allocate diskscape" );
-#        my ( $localdir, $localfile ) = dirandfile( $URL->path );
-#        if ( !( $self->alloc( $localdir, $size ) ) ) {
-#            return $error_codes->{OUT_OF_DISK_SPACE};
+#    #    my @allowed = @{$self->{ALLOWED_DIRS}};
+#    my $allo = 0;
+#    foreach $dir ( @{ $self->{ALLOWED_DIRS} } ) {
+#        if ( $URL->path =~ /^$dir/ ) {
+#            $allo = 1;
 #        }
 #    }
-    if ( $size < $MAXIMUM_SIZE ) {    #$self->{LOWER_SIZE_LIMIT}) {
-	#Always allow transfers of file less that 1 Mb.
-        $self->info("ID $id Transfer of $size bytes granted" );
-        return $error_codes->{COMMENSE_TRANSFER};
-
-    }
-#    if ( $self->CURRENT_TRANSFERS > $self->{MAX_TRANSFERS} ) {
-#      $self->info("Transfer of $size bytes denied. Already doing max ("
-#		  . $self->CURRENT_TRANSFERS . ") transfers" );
-#      return $error_codes->{TRANSFER_DENIED};
+#    if ( $allo == 0 ) {
+#        $self->info("Trying to put in an ilegal directory ("
+#              . $URL->path
+#              . ")\n Allowed= @{$self->{ALLOWED_DIRS}}" );
+#        return $error_codes->{PERMISSION_DENIED};
 #    }
-    
-#    $self->CURRENT_TRANSFERS_INCREMENT($size);
-    $self->info("ID $id Transfer of $size bytes granted. Doing "
-			   . $self->CURRENT_TRANSFERS
-			   . " out of $self->{MAX_TRANSFERS} transfers" );
-    return $error_codes->{COMMENSE_TRANSFER};
 
-}
+#    # First check if user is allowd to put the file here
+#    # NOT Implemented
+
+#    my $free = 1024 * 1024 * 1024;    #unlimited space... (2^32 bytes)
+
+#    if ( $URL->scheme eq "file" ) {
+#        my $handle = new Filesys::DiskFree;
+#        $handle->df_dir($URL->path);
+#        $free = $handle->avail( $URL->path );
+#        $self->debug(1,
+#            "System has " . ( $free / ( 1024 * 1024 ) ) . "Mb of free space" );
+#    }
+
+##    if ( ($size) > $free ) {
+##        $self->{LOGGER}->warning( "FTD",
+##            "Not enough free disk space, trying to allocate diskscape" );
+##        my ( $localdir, $localfile ) = dirandfile( $URL->path );
+##        if ( !( $self->alloc( $localdir, $size ) ) ) {
+##            return $error_codes->{OUT_OF_DISK_SPACE};
+##        }
+##    }
+#    if ( $size < $MAXIMUM_SIZE ) {    #$self->{LOWER_SIZE_LIMIT}) {
+#	#Always allow transfers of file less that 1 Mb.
+#        $self->info("ID $id Transfer of $size bytes granted" );
+#        return $error_codes->{COMMENSE_TRANSFER};
+
+#    }
+##    if ( $self->CURRENT_TRANSFERS > $self->{MAX_TRANSFERS} ) {
+##      $self->info("Transfer of $size bytes denied. Already doing max ("
+##		  . $self->CURRENT_TRANSFERS . ") transfers" );
+##      return $error_codes->{TRANSFER_DENIED};
+##    }
+    
+##    $self->CURRENT_TRANSFERS_INCREMENT($size);
+#    $self->info("ID $id Transfer of $size bytes granted. Doing "
+#			   . $self->CURRENT_TRANSFERS
+#			   . " out of $self->{MAX_TRANSFERS} transfers" );
+#    return $error_codes->{COMMENSE_TRANSFER};
+
+#}
 
  sub CreateLocalUniquePFN{
   my $t=shift;
@@ -1155,178 +1124,178 @@ sub askToPut {
 # pfns are missing, it creates a temporary name
 #
 
-sub requestTransfer {
-    my $s = shift;
-    $self->debug(1, "In requestTransfer with @_" );
+#sub requestTransfer {
+#    my $s = shift;
+#    $self->debug(1, "In requestTransfer with @_" );
 
-    my $sourceURL = (shift or $self->CreateLocalUniquePFN());
-    my $destURL   = shift;
+#    my $sourceURL = (shift or $self->CreateLocalUniquePFN());
+#    my $destURL   = shift;
 
-    #my $size       = shift;
-    my $direction = shift;
-    my $priority  = shift || 10;     # 0 means the transfer is interactive.
-    my $email     = shift || "";
-    my $soapData  = shift || "";
-    my $origid    = shift || "-1";
+#    #my $size       = shift;
+#    my $direction = shift;
+#    my $priority  = shift || 10;     # 0 means the transfer is interactive.
+#    my $email     = shift || "";
+#    my $soapData  = shift || "";
+#    my $origid    = shift || "-1";
 
-    my $size = -1;                   #Means unknown
+#    my $size = -1;                   #Means unknown
 
-    $self->info("Requesting a transfer");
-    my $sURL = new AliEn::SE::Methods($sourceURL) or return;
-    my $dURL = new AliEn::SE::Methods($destURL) or return;
+#    $self->info("Requesting a transfer");
+#    my $sURL = new AliEn::SE::Methods($sourceURL) or return;
+#    my $dURL = new AliEn::SE::Methods($destURL) or return;
 
-    my $fileName = $sURL->path;
+#    my $fileName = $sURL->path;
 
-    my $localStorageMethod = $sURL->scheme;
+#    my $localStorageMethod = $sURL->scheme;
 
-    # As a minimum we need to know the file, the destination and source URL
+#    # As a minimum we need to know the file, the destination and source URL
 
-    if ( !($fileName) or !($destURL) or !($sourceURL) or !( defined $size ) ) {
-        $self->{LOGGER}
-          ->warning( "FTD", "Not enough arguments to requestTransfer" );
-        return;
-    }
+#    if ( !($fileName) or !($destURL) or !($sourceURL) or !( defined $size ) ) {
+#        $self->{LOGGER}
+#          ->warning( "FTD", "Not enough arguments to requestTransfer" );
+#        return;
+#    }
 
-    ( $direction eq "get" )
-      or ( $direction eq "put" )
-      or $self->{LOGGER}
-      ->warning( "FTD", "Error: direction has to be either get or put" )
-      and return;
+#    ( $direction eq "get" )
+#      or ( $direction eq "put" )
+#      or $self->{LOGGER}
+#      ->warning( "FTD", "Error: direction has to be either get or put" )
+#      and return;
 
-    my $destfile = $dURL->path;
-    my $srcfile  = $sURL->path;
+#    my $destfile = $dURL->path;
+#    my $srcfile  = $sURL->path;
 
-    if ( $direction eq "get" ) {
-        $self->info("Request to get $destURL to $sourceURL" );
-        if ( $srcfile =~ /\/$/ ) {
-            my ( $srcpath, $srcname ) = dirandfile($destfile);
-            $sURL->path( $srcfile . $srcname );
+#    if ( $direction eq "get" ) {
+#        $self->info("Request to get $destURL to $sourceURL" );
+#        if ( $srcfile =~ /\/$/ ) {
+#            my ( $srcpath, $srcname ) = dirandfile($destfile);
+#            $sURL->path( $srcfile . $srcname );
 
-        }
-    }
+#        }
+#    }
 
-    if ( $direction eq "put" ) {
+#    if ( $direction eq "put" ) {
 
-        if ( $destfile =~ /\/$/ ) {
-            my ( $srcpath, $srcname ) = dirandfile($srcfile);
-            $dURL->path( $destfile . $srcname );
-        }
-        $self->info("Request to put $sourceURL to $destURL" );
-    }
+#        if ( $destfile =~ /\/$/ ) {
+#            my ( $srcpath, $srcname ) = dirandfile($srcfile);
+#            $dURL->path( $destfile . $srcname );
+#        }
+#        $self->info("Request to put $sourceURL to $destURL" );
+#    }
 
-    my $id = $self->generateID;
+#    my $id = $self->generateID;
 
-    # Now we should check that we can handle files in $localStorageMethod mode.
-    # Only implemented for methos  = file 
+#    # Now we should check that we can handle files in $localStorageMethod mode.
+#    # Only implemented for methos  = file 
 
-    if ( ( $localStorageMethod eq "file" ) and ( $direction eq "put" ) ) {
-        if ( !( -e $sURL->path ) ) {
-            $self->debug(1, "File does not exists" );
-            return $error_codes->{FILE_NOT_FOUND};
-        }
-        $self->debug(1, "File is here" );
-        my (
-            $dev,   $ino,     $mode,     $nlink, $uid,
-            $gid,   $rdev,    $FILEsize, $atime, $mtime,
-            $ctime, $blksize, $blocks
-          )
-          = stat( $sURL->path );
-        $size = $FILEsize;
-        $self->debug(1, "The file has size $size" );
-    }
+#    if ( ( $localStorageMethod eq "file" ) and ( $direction eq "put" ) ) {
+#        if ( !( -e $sURL->path ) ) {
+#            $self->debug(1, "File does not exists" );
+#            return $error_codes->{FILE_NOT_FOUND};
+#        }
+#        $self->debug(1, "File is here" );
+#        my (
+#            $dev,   $ino,     $mode,     $nlink, $uid,
+#            $gid,   $rdev,    $FILEsize, $atime, $mtime,
+#            $ctime, $blksize, $blocks
+#          )
+#          = stat( $sURL->path );
+#        $size = $FILEsize;
+#        $self->debug(1, "The file has size $size" );
+#    }
 
-    my $exists =
-      $self->{DB}->queryValue( "SELECT ID from FILETRANSFERSNEW where sourceURL='$sourceURL' and finaldestURL='$destURL' and status='WAITING'" );
-    if (defined $exists) {
-        $self->info("File $sourceURL with destination $destURL is already scheduled for transfer" );
-        return $error_codes->{TRANSFER_ALREDY_REQUESTED};
-    }
+#    my $exists =
+#      $self->{DB}->queryValue( "SELECT ID from FILETRANSFERSNEW where sourceURL='$sourceURL' and finaldestURL='$destURL' and status='WAITING'" );
+#    if (defined $exists) {
+#        $self->info("File $sourceURL with destination $destURL is already scheduled for transfer" );
+#        return $error_codes->{TRANSFER_ALREDY_REQUESTED};
+#    }
 
-    my $date=time;
-    my $SQL ="INSERT INTO FILETRANSFERSNEW VALUES ('$id','$fileName','$sourceURL',
-$size,$date,'WAITING', '$destURL','$email',0,0,'$direction',0)";
+#    my $date=time;
+#    my $SQL ="INSERT INTO FILETRANSFERSNEW VALUES ('$id','$fileName','$sourceURL',
+#$size,$date,'WAITING', '$destURL','$email',0,0,'$direction',0)";
 
-    $self->debug(1, "Inserting $SQL" );
+#    $self->debug(1, "Inserting $SQL" );
 
-    $self->{DB}->do($SQL);
+#    $self->{DB}->do($SQL);
             
-#     my $result=$self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, "WAITING", {});
-    return $id;
+##     my $result=$self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, "WAITING", {});
+#    return $id;
 
-}
+#}
 
-sub inquireTransferByID {
-    my $s  = shift;
-    my $ID = shift;
-    my ($stat) =
-      $self->{DB}->queryRow(
-"SELECT status, sourceURL, finaldestURL, direction, message from FILETRANSFERSNEW where ID='$ID'"
-      );
-    if ( !($stat) || ! (exists $stat->{status}) )  {
-        return (-1, "The transferID $ID does not exist");
-    }
+#sub inquireTransferByID {
+#    my $s  = shift;
+#    my $ID = shift;
+#    my ($stat) =
+#      $self->{DB}->queryRow(
+#"SELECT status, sourceURL, finaldestURL, direction, message from FILETRANSFERSNEW where ID='$ID'"
+#      );
+#    if ( !($stat) || ! (exists $stat->{status}) )  {
+#        return (-1, "The transferID $ID does not exist");
+#    }
 
-    if ( $stat->{direction} eq "get" ) {
-        return ( $stat->{status}, $stat->{sURL}, $stat->{message} );
-    }
-    if ( $stat->{direction} eq "put" ) {
-        return ( $stat->{status}, $stat->{dURL}, $stat->{message} );
-    }
-    return -1;
-}
+#    if ( $stat->{direction} eq "get" ) {
+#        return ( $stat->{status}, $stat->{sURL}, $stat->{message} );
+#    }
+#    if ( $stat->{direction} eq "put" ) {
+#        return ( $stat->{status}, $stat->{dURL}, $stat->{message} );
+#    }
+#    return -1;
+#}
 
-sub checkTransfer {
-    my $s = shift;
-    $self->debug(1, "In checkTransfer with @_" );
+#sub checkTransfer {
+#    my $s = shift;
+#    $self->debug(1, "In checkTransfer with @_" );
 
-    my $pfn = shift;
+#    my $pfn = shift;
 
-    if ( !$pfn ) {
-        $self->{LOGGER}
-          ->warning( "FTD", "Not enough arguments to checkTransfer" );
-        return;
-    }
+#    if ( !$pfn ) {
+#        $self->{LOGGER}
+#          ->warning( "FTD", "Not enough arguments to checkTransfer" );
+#        return;
+#    }
 
-    my ($stat) =
-      $self->{DB}->queryRow(
-"SELECT status, filename, finaldestURL from FILETRANSFERSNEW where sourceURL='$pfn'"
-      );
+#    my ($stat) =
+#      $self->{DB}->queryRow(
+#"SELECT status, filename, finaldestURL from FILETRANSFERSNEW where sourceURL='$pfn'"
+#      );
 
-    if ($stat && exists $stat->{status}) {
-        my $uri = new AliEn::SE::Methods($stat->{finaldestURL}) or return;
-        my $basename = "";
-        $stat->{filename} =~ /\/([^\/]*)$/ and $basename = $1;
+#    if ($stat && exists $stat->{status}) {
+#        my $uri = new AliEn::SE::Methods($stat->{finaldestURL}) or return;
+#        my $basename = "";
+#        $stat->{filename} =~ /\/([^\/]*)$/ and $basename = $1;
 
-        $self->info("File $pfn is already scheduled for transfer $stat->{status} and $stat->{finaldestURL}" );
-        ( $stat->{status} eq "DONE" ) and 
-	  return $uri->path . "/$basename";
+#        $self->info("File $pfn is already scheduled for transfer $stat->{status} and $stat->{finaldestURL}" );
+#        ( $stat->{status} eq "DONE" ) and 
+#	  return $uri->path . "/$basename";
 
-        return -2;
+#        return -2;
 
-    }
-    $self->debug(1, "The file was not there" );
+#    }
+#    $self->debug(1, "The file was not there" );
 
-    return;
+#    return;
 
-}
+#}
 
-sub getInfo {
-    my $s = shift;
-    $self->debug(1, "Sending info about myself" );
-    my $msg = "I'm a " . ref($self) . " version $self->{CONFIG}->{VERSION}\n";
-    $msg .=
-      "I'm running version $DBBrowser::FTDTXTDB::VERSION on the text database\n";
-}
+#sub getInfo {
+#    my $s = shift;
+#    $self->debug(1, "Sending info about myself" );
+#    my $msg = "I'm a " . ref($self) . " version $self->{CONFIG}->{VERSION}\n";
+#    $msg .=
+#      "I'm running version $DBBrowser::FTDTXTDB::VERSION on the text database\n";
+#}
 
-sub senfFile {
-    my $s       = shift;
-    my $file    = shift;
-    my $tgtHost = shift;
-    my $tgtPort = shift;
+#sub senfFile {
+#    my $s       = shift;
+#    my $file    = shift;
+#    my $tgtHost = shift;
+#    my $tgtPort = shift;
 
-    $self->debug(1, "Sending  $file to $tgtHost $tgtPort" );
-    return 1;
-}
+#    $self->debug(1, "Sending  $file to $tgtHost $tgtPort" );
+#    return 1;
+#}
 
 # Given an SE and a guid, it returns all the pfns that the SE 
 # has of that guid

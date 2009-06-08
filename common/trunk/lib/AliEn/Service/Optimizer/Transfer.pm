@@ -8,6 +8,8 @@ use AliEn::Database::Transfer;
 
 use AliEn::Service::Optimizer;
 use AliEn::UI::Catalogue::LCM;
+
+use AliEn::TRANSFERLOG;
 use POSIX qw(ceil);
 @ISA=qw(AliEn::Service::Optimizer);
 
@@ -33,8 +35,9 @@ sub initialize {
 
   $self->{DB_MODULE}="AliEn::Database::Transfer";
   $self->SUPER::initialize(@_) or return;
-
-  $self->StartChildren('Assigned', 'Archive', 'Inserting', 'Merging', 'SE', 'Agent') or return;
+  $self->{TRANSFERLOG}=AliEn::TRANSFERLOG->new() or return;
+#  $self->StartChildren('Assigned', 'Archive', 'Inserting', 'Merging', 'SE', 'Agent') or return;
+  $self->StartChildren('Inserting') or return;
 #  $self->StartChildren('No_se') or return;
 
 
@@ -70,57 +73,5 @@ sub checkExpiredTransfers {
     or $self->{LOGGER}->warning("TransferOptimizer", "In checkExpiredTransfers error updating expired transfers");
 } 
 
-sub createTransferJDL {
-  my $self=shift;
-  my $id=shift;
-  my $lfn=shift;
-  my $destination=shift;
-  my $size=shift;
-  my $pfn =shift;
-  my $collection=shift;
-
-
-  $self->debug(1, "In createTransferJDL creating a new jdl");
-
-  my $exp={};
-  $exp->{FromLFN}="\"$lfn\"";
-  $exp->{Type}="\"transfer\"";
-  $exp->{Action}="\"local copy\"";
-  $exp->{ToSE}="\"$destination\"";
-  $pfn and $exp->{ToPFN}="\"$pfn\"";
-  $collection and $exp->{Collection}="\"$collection\"";
-
-  my (@info)=$self->{CATALOGUE}->execute("whereis","-silent", $lfn, );
-
-  $self->info("The file $lfn is in @info");
-  map {$_= "\"$_\"" } @info;
-
-  my (@se, @pfn);
-  while (@info){
-    push @pfn, pop @info;
-
-    push @se, pop @info;
-  }
-
-
-  $exp->{OrigSE}="{" . join(",",@se) ."}";
-  $exp->{OrigPFNs}="{" . join(",",@pfn) ."}";
-
-  map {$_=~ s/^(.*)$/member\(other\.CloseSE, $1 \)/ } @se;
-  #let's round the size 
-
-  $size= 1000*ceil($size/1000);
-  my $value=join("||",@se);    
-  $exp->{Requirements}="(other.type==\"FTD\")&&($value)&&((other.DirectAccess==1)||(other.CacheSpace>$size))";
-
-  my ($guid)=$self->{CATALOGUE}->execute("lfn2guid", $lfn)
-    or $self->info("Error getting the guid of $lfn") and return;
-
-  $exp->{GUID}="\"$guid\"";
-
-
-
-  return $self->createJDL($exp);
-}
 
 return 1;

@@ -5,13 +5,16 @@
 package AliEn::TRANSFERLOG;
 use AliEn::Logger;
 use strict;
+use vars qw($VERSION @ISA);
+
+push @ISA, 'AliEn::Logger::LogObject';
 
 sub new {
     my $proto = shift;
     my $self  = {};
     bless( $self, ( ref($proto) || $proto ) );
+    $self->SUPER::new() or return;
 
-    $self->{LOGGER}=new AliEn::Logger;
     $self->{CONFIG}=AliEn::Config->new();
 
     if ( $ENV{'ALIEN_TRANSFERINFORMATION'} ) {
@@ -20,7 +23,7 @@ sub new {
 	    $self->{enabled} = 0;
 	  }
     } else {
-      $self->{LOGGER}->info("TRANSFERLOG", "WARNING!! The directory for the transfer log is not defined. Taking $self->{CONFIG}->{TMP_DIR}/transferlog");
+      $self->info("WARNING!! The directory for the transfer log is not defined. Taking $self->{CONFIG}->{TMP_DIR}/transferlog");
       $ENV{'ALIEN_TRANSFERINFORMATION'}="$self->{CONFIG}->{TMP_DIR}/transferlog";
     }
     
@@ -63,13 +66,17 @@ sub getlog {
   my $transferid = shift;
   my @tags = @_;
 
-  if ($tags[0] eq "all") {
-    undef @tags;
-    push @tags,"error";
-    push @tags,"STATUS";
-  }
+  @tags or push @tags, "STATUS","INFO";
 
   grep (/^error$/, @tags) or push @tags,"error";
+
+  if ($tags[0] eq "all") {
+    undef @tags;
+#    push @tags,"error";
+#    push @tags,"STATUS";
+  }
+
+
 
   $self->{enabled} or return;
   $self->setlogfile($transferid);
@@ -78,7 +85,7 @@ sub getlog {
   open INPUT,  "$self->{TRANSFERLOGFILE}";
   my @result= grep (/\[$status/i, <INPUT>);
   close INPUT;
-  $self->{LOGGER}->info("TRANSFERLOG", "Looking for $status of $transferid and found $#result");
+  $self->info("Looking for $status of $transferid and found $#result");
 
   return @result;
 }

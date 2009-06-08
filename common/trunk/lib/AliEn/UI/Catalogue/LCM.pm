@@ -864,7 +864,7 @@ sub _canCreateFile{
   my $lfn=shift;
   $self->{CATALOG}->checkPermissions( 'w', $lfn )  or  return;
   if ($self->{CATALOG}->f_Database_existsEntry( $lfn)) {
-    $self->{LOGGER}->error("File", "file $lfn already exists!!",1);
+    $self->info( "file $lfn already exists!!",1);
     return;
   }
   return 1;
@@ -985,9 +985,8 @@ Usage:
 Options:\t-f\t keep the same relative path
 \t\t-b\t Do not wait for the file transfer
 \t\t-t\t Issue a transfer instead of copying the file directly (this implies also -b) (this is the default method)
-\t\t-i\t Immediate transfer. Do not schedule the transfer. Tell the SE to get the file right nows
 \t\t-g:\t Use the lfn as a guid
-\t\t-m <id>\t Put the transfer under the masterTransferof <id>
+\t\t-m <id>\t Put the transfer under the masterTransfer of <id>
 \t\t-u\t Don't issue the transfer if the file is already in that SE
 \t\t-r\t If the file is in a zip archive, transfer the whole archive
 \t\t-c\t Once the transfer finishes, register the lfn in the collection <collection>
@@ -1001,7 +1000,7 @@ sub mirror {
 
   my $opt={};
   @ARGV=@_;
-  Getopt::Long::GetOptions($opt,  "f", "g", "m=i", "b","t", "u", "r", "c=s","i","try=i") or 
+  Getopt::Long::GetOptions($opt,  "f", "g", "m=i", "b","t", "u", "r", "c=s","try=i") or 
       $self->info("Error parsing the arguments to mirror". $self->mirror_HELP()) and return;;
   @_=@ARGV;
   my $options=join("", keys(%$opt));
@@ -1050,7 +1049,7 @@ sub mirror {
       $self->info("We are mirroring a $info->{type}!!\n");
     }
   }
-  
+
   if ($opt->{u}){
     $self->info("Making sure that the file is not in that SE");
     foreach my $entry (@$seRef){
@@ -1059,8 +1058,8 @@ sub mirror {
   }
 
   $self->info( "Mirroring file $realLfn (from $oldSE and $pfn)");
-  
-  
+
+
   my $transfer={"source", $pfn,                  "oldSE", $oldSE,
 		"target", "",                      "TYPE", "mirror",
 		"USER" => $self->{CATALOG}->{ROLE}, "LFN" =>$realLfn,
@@ -1071,41 +1070,23 @@ sub mirror {
   $opt->{'r'} and $transfer->{RESOLVE}=$opt->{r};
   $opt->{'c'} and $transfer->{collection}=$opt->{'c'};
   $opt->{'try'} and $transfer->{persevere}=$opt->{'try'}; 
-  
+
   if ($opt->{f})    {
     $self->info( "Keeping the same relative path");
-    
+
     my $service=$self->{CONFIG}->CheckService("SE", $se);
-    $service or $self->{LOGGER}->error("UI/LCM", "SE $se does not exist!") and return;
+    $service or $self->info("SE $se does not exist!") and return;
     my $url=AliEn::SE::Methods->new($pfn) or return;
     $transfer->{target}=$url->path;
     $transfer->{target}=~ s/^$service->{SAVEDIR}//;
   }
-  
-  if (! $opt->{i}){
-    my $result=$self->{SOAP}->CallSOAP("Manager/Transfer","enterTransfer",$transfer);
-    $result  or return;
-    #Make the remote SE get the file
-    my $id=$result->result;
-    $self->info("The transfer has been scheduled!! ($id)");
-    return (-2, $id);
-  }
 
-  my ($done, $id)=$self->{STORAGE}->bringFileToSE($se, $transfer, $options);
+  my $result=$self->{SOAP}->CallSOAP("Manager/Transfer","enterTransfer",$transfer);
+  $result  or return;
 
-  $done or return;
-
-  ($done eq "-2") and return ($done, $id);
-
-  $done->{transfer} and return 1;
-  #Finally, add it to the catalogue
-  my $newPfn=$done->{pfn};
-  my $command="addMirror";
-
-  $opt->{'m'} and $command="masterCopy";
-
-  $self->info( "Adding the mirror $newPfn");
-  return $self->execute($command, $realLfn, $se, $newPfn);
+  my $id=$result->result;
+  $self->info("The transfer has been scheduled!! ($id)");
+  return (-2, $id);
 }
 
 sub findCloseSE {
@@ -1173,14 +1154,14 @@ sub addTag {
 sub preFetch {
   my $self=shift;
   my @files=@_;
-  @files or $self->{LOGGER}->error("LCM", "Error in preFetch. No files specified") and return; 
+  @files or $self->info( "Error in preFetch. No files specified") and return; 
   $self->info("Doing preFetch of ".($#files +1)." \n@files");
 
   my @local=();
   my @remote=();
   foreach my $file (@files) {
     my @se=$self->{CATALOG}->isFile($file) 
-      or $self->{LOGGER}->error("LCM", "Error file $file does not exist (ignoring this file)")
+      or $self->info("Error file $file does not exist (ignoring this file)")
 	and next;
     @se= grep (/::.*::/, @se);
     if (grep (/^$self->{CONFIG}->{SE_FULLNAME}$/, @se)) {
@@ -1247,7 +1228,7 @@ sub relocate {
       }
       
       if ($lfn eq "") {
-	  $self->{LOGGER}->error("LCM","access: access denied to guid $guid");
+	  $self->info("access: access denied to guid $guid");
 	  return;
       }
   }
@@ -1256,7 +1237,7 @@ sub relocate {
   my $filehash = $self->{CATALOG}->checkPermissions($perm,$lfn,undef, 
 						   {RETURN_HASH=>1});
   if (!$filehash) {
-      $self->{LOGGER}->error("LCM","access: access denied to $lfn");
+      $self->info("access: access denied to $lfn");
       return;
   }
   
@@ -1386,23 +1367,20 @@ sub getPFNforAccess {
     (defined $2) and   $urlhostport = $2;
     (defined $3) and    $urlfile = $3;
   } else {
-    $self->{LOGGER}->error("LCM","access: parsing error for $pfn [host+port]");
+    $self->info("access: parsing error for $pfn [host+port]");
     return;
   }
-  
+
   if ($urlfile =~ s/([^\?]*)\?([^\?]*)/$1/) {
      (defined $2 )  and $urloptions = $2;
   }
 
-  
+
   # fix // in the urlfile part
-  $urlfile =~ s/\/\//\//g;
-  if ($urlfile =~ /^\//) {
-    $pfn = "$urlprefix$urlhostport/$urlfile";
-  } else {
-    $pfn = "$urlprefix$urlhostport//$urlfile";
-  }
-  
+  $urlfile =~ s{/+}{/}g;
+  $urlfile=~ /^\// or $urlfile="/$urlfile";
+  $pfn = "$urlprefix$urlhostport/$urlfile";
+
   if ($urloptions ne "") {
     $pfn .= "?$urloptions";
   }
@@ -1443,30 +1421,30 @@ sub checkPermissionsOnLFN {
   my $filehash = $self->{CATALOG}->checkPermissions($perm,$lfn,undef, 
 						    {RETURN_HASH=>1});
   if (!$filehash) {
-    $self->{LOGGER}->error("LCM","access: access denied to $lfn");
+    $self->info("access: access denied to $lfn");
     return;
   }
 
   if  ($access eq "read")  {
     if (!$self->{CATALOG}->isFile($lfn, $filehash->{lfn})) {
-      $self->{LOGGER}->error("LCM","access: access find entry for $lfn");
+      $self->info("access: access find entry for $lfn");
       return ;
     }
   }elsif ($access eq "delete") {
     if (! $self->{CATALOG}->existsEntry($lfn, $filehash->{lfn})) {
-      $self->{LOGGER}->error("LCM","access: delete of non existant file requested: $lfn");
+      $self->info("access: delete of non existant file requested: $lfn");
       return ;
     }
   } else {
     my $parentdir = $self->{CATALOG}->f_dirname($lfn);
     my $result = $self->{CATALOG}->checkPermissions($perm,$parentdir);
     if (!$result) {
-      $self->{LOGGER}->error("LCM","access: parent dir missing for lfn $lfn");
+      $self->info("access: parent dir missing for lfn $lfn");
       return ;
     }
     if ($access eq "write-once")  {
       if ($self->{CATALOG}->existsEntry($lfn, $filehash->{lfn})) {
-	$self->{LOGGER}->error("LCM","access: write-once but lfn $lfn exists already");
+	$self->info("access: write-once but lfn $lfn exists already");
 	return ;
       }
     }
@@ -1476,7 +1454,7 @@ sub checkPermissionsOnLFN {
 	my $filename = $self->{CATALOG}->f_basename($lfn);
 	
 	$self->{CATALOG}->f_mkdir("ps","$parentdir"."/."."$filename/") or
-	  $self->{LOGGER}->error("LCM","access: cannot create subversion directory - sorry") and return;
+	  $self->info("access: cannot create subversion directory - sorry") and return;
 	
 	my @entries = $self->{CATALOG}->f_ls("s","$parentdir"."/."."$filename/");
 	my $last;
@@ -1490,14 +1468,14 @@ sub checkPermissionsOnLFN {
 	  $version = (($1*10) + $2) - 10 +1;
 	}
 	if ($version <0) {
-	  $self->{LOGGER}->error("LCM","access: cannot parse the last version number of $lfn");
+	  $self->info("access: cannot parse the last version number of $lfn");
 	  return ;
 	}
 	my $pversion = sprintf "%.1f", (10.0+($version))/10.0;
 	my $backupfile = "$parentdir"."/."."$filename/v$pversion";
 	$self->info( "access: backup file is $backupfile \n");
 	if (!$self->{CATALOG}->f_mv("",$lfn, $backupfile)) {
-	  $self->{LOGGER}->error("LCM","access: cannot move $lfn to the backup file $backupfile");
+	  $self->info("access: cannot move $lfn to the backup file $backupfile");
 	  return ;
 	}
       }
@@ -1522,7 +1500,7 @@ sub access {
     if (!$newhash->{envelope} ){
       my $error=$newhash->{error} || "";
 
-      $self->{LOGGER}->error("LCM","There is no envelope ($error)!!");
+      $self->info("There is no envelope ($error)!!");
       return;
      }
     $ENV{ALIEN_XRDCP_ENVELOPE}=$newhash->{envelope};
@@ -1563,13 +1541,13 @@ sub access {
       $self->info("Checking the size in $se ($size)");
       my ($info)=$self->df( $se);
       if ($info and $info->{min_size} and $info->{min_size}>$size){
-	$self->{LOGGER}->error("LCM", "The file is too small!! ( only $size and it should be $info->{min_size}");
+	$self->info( "The file is too small!! ( only $size and it should be $info->{min_size}");
 	
 	return access_eof("This storage element only accepts files bigger than $info->{min_size} (and your file is $size)");
       } 
     }
   } else {
-    $self->{LOGGER}->error("LCM","access: illegal access type <$access> requested");
+    $self->info("access: illegal access type <$access> requested");
     return access_eof;
   }
 
@@ -1660,11 +1638,11 @@ sub access {
 	$globalticket .= $ticket;
       }
       
-      $pfn =~ /^root\:\/\/([0-9a-zA-Z.\-_:]*)\/\/(.*)/;
+      $pfn =~ m{^root://([^/]*)/(.*)};
       my $pfix = $1;
       my $ppfn = $2;
       
-      $filehash->{pfn} = "/$ppfn";
+      $filehash->{pfn} = "$ppfn";
       if (($lfn eq "") && ($access =~ /^write/)) {
 	  $lfn = "/NOLFN";
 	  $guid = $extguid;
@@ -1680,7 +1658,7 @@ sub access {
       $filehash->{lfn}  = $lfn || $filehash->{pfn};
 
       #if ($access =~ /^write/) {
-	$filehash->{guid} = $guid;
+      $filehash->{guid} = $guid;
       #}
       
       if ((!defined $filehash->{md5}) || ($filehash->{md5} eq "")) {
@@ -1702,7 +1680,7 @@ sub access {
 	  $globalticket .= "    <${_}>$filehash->{$_}</${_}>\n";
 	}
       }
-      
+      $self->info("The ticket is $ticket");
       $ticket .= "  </file>\n";
       $ticket .= "</authz>\n";
       
@@ -1716,7 +1694,12 @@ sub access {
       $newhash->{nSEs} = $nses;
       $newhash->{lfn}=$filehash->{lfn};
       $newhash->{size}=$filehash->{size};
+      foreach my $t (@$whereis){
+        $self->info("HELLO $t");
+        $t->{pfn} and $t->{pfn} =~ s{//+}{//}g;
+      }
       $newhash->{origpfn}=$whereis;
+    
       # the -p (public) option creates public access url's without envelopes
       $newhash->{se}="$se";
       
@@ -1731,11 +1714,13 @@ sub access {
 	#	      }
       } else {
 	$newhash->{envelope} = $self->{envelopeengine}->GetEncodedEnvelope();
-	$newhash->{pfn}="/$ppfn";
+	$newhash->{pfn}="$ppfn";
 
-	$newhash->{url}="root://$pfix/$filehash->{lfn}";
-	# for DPM we cannot put the LFN into the root URL - we need the PFN !
-	( $ppfn =~ /^dpm/ ) and $newhash->{url}="root://$pfix//$ppfn";
+
+        $newhash->{url}="root://$pfix/$ppfn";
+        ($se =~ /dcache/i)  and $newhash->{url}="root://$pfix/$filehash->{lfn}";
+        ($se =~ /alice::((RAL)|(CNAF))::/i) and $newhash->{url}="root://$pfix/$filehash->{lfn}";
+
 	($anchor) and $newhash->{url}.="#$anchor";
       }
       $ENV{ALIEN_XRDCP_ENVELOPE}=$newhash->{envelope};
@@ -1755,7 +1740,7 @@ sub access {
       push @lnewresult,$newhash; 
 
       if (!$coded) {
-	$self->{LOGGER}->error("LCM","access: error during envelope encryption");
+	$self->info("access: error during envelope encryption");
 	return access_eof;
       } else {
 	(!($options=~ /s/)) and $self->info("access: prepared your access envelope");
@@ -1780,6 +1765,8 @@ $ticket
     my $coded = $self->{envelopeengine}->encodeEnvelopePerl("$globalticket","0","none");
     $lnewresult[0]->{genvelope} = $self->{envelopeengine}->GetEncodedEnvelope();
   }
+  use Data::Dumper;
+	print Dumper($newresult);
   return @$newresult; 
 }
 
@@ -1809,7 +1796,7 @@ sub commit {
 
     my $coded = $self->{envelopeengine}->decodeEnvelopePerl($envelope);
   if (!$coded) {
-      $self->{LOGGER}->error("LCM","commit: error during envelope decryption");
+      $self->info("commit: error during envelope decryption");
       return;
   } else {
       $$newresult[0]->{authz} = $self->{envelopeengine}->GetDecodedEnvelope();
@@ -1837,10 +1824,10 @@ sub commit {
 	      }
 	      if ($_->{access} =~ "^write") {
 		  $$newresult[0]->{$lfn} = 0;
-		  $self->{LOGGER}->debug("LCM","commit: Registering file lfn=$lfn storageurl=$storageurl size=$size se=$se guid=$guid md5=$md5");
+		  $self->debug("commit: Registering file lfn=$lfn storageurl=$storageurl size=$size se=$se guid=$guid md5=$md5");
 		  my $result = $self->f_registerFile("-md5=$md5",$lfn,$storageurl, $size , $se, $guid, $perm);
 		  if (!$result) {
-		      $self->{LOGGER}->error("LCM","commit: Cannot register file lfn=$lfn storageurl=$storageurl size=$size se=$se guid=$guid md5=$md5");
+		      $self->info("commit: Cannot register file lfn=$lfn storageurl=$storageurl size=$size se=$se guid=$guid md5=$md5");
 		  }
 		  $$newresult[0]->{$lfn} = 1;
 		  # send write-commit info
@@ -1937,12 +1924,12 @@ sub erase {
 	my @envelope = $self->access("-s","delete","$lfn",$se);
 
 	if ((!defined $envelope[0])||(!defined $envelope[0]->{envelope})) {
-	    $self->{LOGGER}->info("UI/LCM", "Cannot get access to $lfn for deletion @envelope") and return;
+	    $self->info("Cannot get access to $lfn for deletion @envelope") and return;
 	}
 	$ENV{'IO_AUTHZ'} = $envelope[0]->{envelope};
 
 	if (!$self->{STORAGE}->eraseFile($envelope[0]->{url})) {
-	    $self->{LOGGER}->info("UI/LCM", "Cannot remove $envelope[0]->{url} from the storage element $se");
+	    $self->info("Cannot remove $envelope[0]->{url} from the storage element $se");
 	    $failure=1;
 	    next;
 	}	
@@ -1950,11 +1937,11 @@ sub erase {
 
     if (!$failure) {
 	if (!$self->{CATALOG}->f_removeFile("-s",$lfn)) {
-	    $self->{LOGGER}->info("UI/LCM", "Cannot remove lfn $lfn from the catalogue, but I deleted the file in the storage element");
+	    $self->info("Cannot remove lfn $lfn from the catalogue, but I deleted the file in the storage element");
 	    return;
 	}
     } else {
-	$self->{LOGGER}->info("UI/LCM", "Could not remove all replicas of lfn $lfn - keeping catalogue entry" );
+	$self->info("Could not remove all replicas of lfn $lfn - keeping catalogue entry" );
 	return ;
     }
     return 1;

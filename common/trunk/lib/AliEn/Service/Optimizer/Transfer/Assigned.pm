@@ -35,12 +35,7 @@ sub checkWakesUp {
     $self->info( "Classad created");
     my ($ok, $action)=$ca->evaluateAttributeString("Action");
     $ok or $self->info("Error getting the action from the jdl!") and next;
-    my $status;
-    ($action =~ /transfer/) and  $status="LOCAL COPY";
-    ($action=~ /local copy/) and $status="WAITING";
-    ($action=~ /cleaning/) and $status="CLEANING";
-    
-    $status or $self->info("Don't know what to do about $action") and next;
+    my $status='INSERTING';
     $self->info("Setting the transfer to $status");
     $self->{DB}->updateTransfer($transfer->{transferid}, {status=> "$status", jdl=>$transfer->{jdl}});
   }
