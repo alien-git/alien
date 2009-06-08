@@ -105,7 +105,7 @@ sub initialize {
   AliEn::Util::setupApMon($self);
   
 
-  return $self->do("INSERT IGNORE INTO ACTIONS(action) values  ('INSERTING'),('INSERTING2'),('MERGING')");
+  return $self->do("INSERT IGNORE INTO ACTIONS(action) values  ('INSERTING'),('INSERTING2'),('MERGING'), ('FAILED_T')");
 }
 
 sub getArchiveTable {
