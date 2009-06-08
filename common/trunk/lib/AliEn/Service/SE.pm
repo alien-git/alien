@@ -734,13 +734,13 @@ sub alive {
     }
     return { "VERSION" => $self->{CONFIG}->{VERSION} };
 }
-sub checkTransfer {
-  my $this=shift;
-  my $id=shift;
-  my @status=$self->CallTransferManager("checkTransfer", $id);
-  return @status;
-
-} 
+#sub checkTransfer {
+#  my $this=shift;
+#  my $id=shift;
+#  my @status=$self->CallTransferManager("checkTransfer", $id);
+#  return @status;
+#
+#} 
 
 #sub updateLocalCache {
 #  my $this=shift;
@@ -755,13 +755,13 @@ sub checkTransfer {
 #  return 1;
 #}
 
-sub restartTransfer {
-  my $this=shift;
-  my $id=shift;
-
-  return $self->CallTransferManager("changeStatusTransfer", $id, "INSERTING");
-
-}
+#sub restartTransfer {
+#  my $this=shift;
+#  my $id=shift;#
+#
+#  return $self->CallTransferManager("changeStatusTransfer", $id, "INSERTING");
+#
+#}
 sub deleteTransfer {
   my $this=shift;
   my $id=shift;
