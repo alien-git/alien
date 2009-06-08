@@ -47,15 +47,14 @@ sub enterTransfer {
 	and $message="arguments is not a hash";
 	
 	$arguments or $arguments={};
-	my ($user, $lfn, $destination, $options, $type, $pfn)=
-	($arguments->{USER}, $arguments->{LFN}, $arguments->{DESTINATION}, $arguments->{OPTIONS}, $arguments->{TYPE}, $arguments->{TOPFN}); 
-	
+	my ($user, $lfn, $destination, $options, $type)=
+	($arguments->{USER}, $arguments->{LFN}, $arguments->{DESTINATION}, $arguments->{OPTIONS}, $arguments->{TYPE}); 
+
 	if (! $message){
 		$user or $message="missing USER ";
 		$lfn  or $message.="missing LFN ";
 		$destination or $message.="missing DESTINATION ";
 		$type or $type="cache";
-		$pfn or $pfn="";
 	}
 	
 	$message and $self->{LOGGER}->error("TransferManager", "In enterTransfer error: $message")
@@ -76,7 +75,7 @@ sub enterTransfer {
 	$self->info( "Entering a new transfer" );
 	
 	#emir:  
-	my $info={received=>$date, user=>$user, lfn=>$lfn, pfn=>$pfn,
+	my $info={received=>$date, user=>$user, lfn=>$lfn, 
 		destination=>$destination, type=>$type, options=>$options};
 	$arguments->{transferGroup} and $info->{transferGroup}=$arguments->{transferGroup};
 	$arguments->{collection} and $info->{collection}=$arguments->{collection};
@@ -97,125 +96,102 @@ sub enterTransfer {
 }
 
 sub changeStatusTransfer {
-	my $this=shift;
-	my $id=shift;
-	my $status=shift;
-	my $options=(shift or {});
-	
-	$self->debug(1, "In changeStatusTransfer changing the status of a transfer");
-	
-	my $message="";
-	$id or $message="no id specified ";
-	$status or $message.="no $status specified";
-	
-	$message and $self->{LOGGER}->error("TransferManager", "In changeStatusTransfer error: $message")
-	and return (-1 , $message);
-	
-	$self->info( "Changing the status of transfer $id to $status with options $options");
-	
-	my ($done, $newJDL)=$self->getNewRequirements($status, $id, $options);
-	
-		
-	if (!$done){
-		$status=~  /^KILLED/ or 
-		return (-1, "In changeStatusTransfer getting the new requirements");
-		$self->info("Ok, we just want to kill it...");
-		$newJDL="";
-	}
-		# temporary solution!!!
-		#my @tmpArr = split($newJDL,"=");
-	
-		#$newJDL = $tmpArr[1];
-	
-	my $query= {status=>$status, SE=>undef, jdl=>$newJDL};
-	
-	my $date=time;
-	
-	if($status eq "TRANSFERING"){
-		$query->{started} = $date;
-		my $info = $self->{DB}->query("select size, destination from TRANSFERS where TRANSFERID=?", undef, {bind_values=>[$id]});
-		if($info && @{$info}){
-			$query->{size} = ${$info}[0]->{size};
-			$query->{destination} = ${$info}[0]->{destination};
-		}
-	}
-	
-	($status eq "CLEANING" or $status eq "FAILED") and $query->{finished} = $date;
-	
-	$options->{FinalPFN}
-		and $self->info( "Setting FinalPFN") and $query->{pfn} = $options->{FinalPFN};
-	
-	$done=$self->{DB}->updateTransfer($id, $query);
-	
-	$done or  $self->{LOGGER}->error("TransferManager", "In changeStatusTransfer error: Updating the status")
-		and return (-1 , "updating the status");
-	
-	$self->info( "Change done");
-	
-	if($status eq "DONE"){
-		$self->updateCatalogue($id);
-	}
-	
-	if ($status =~ /^(DONE)|(FAILED)|(KILLED)$/){
-		my $father=$self->{DB}->queryValue("SELECT transferGroup from TRANSFERS where transferId=?", undef, {bind_values=>[$id]});
-		if ($father){
-			$self->info("This is a final status. Updating the father");
-			$father.=",";
-			$self->{DB}->do("update ACTIONS set todo=1, extra=concat(replace(extra,?, ''), ?)where action='MERGING'", {bind_values=>[$father, $father]});
-		}
-	}
-	
-	
-	#check if the DB has an attempts field
-	my $attempts;
-	$attempts=$self->{DB}->queryValue("SELECT attempts from TRANSFERS where transferid=$id") or $attempts=0;  
-	
-	
-	#This doesn't work cause some other module changes the jdl
-# 	my $ca=Classad::Classad->new($newJDL);
-# 	my ( $ok, $attempts)=$ca->evaluateAttributeInt("FailedTransferAttempts");  
-	# if not crate it
-# 	if(!$ok){
+  my $this=shift;
+  my $id=shift;
+  my $status=shift;
+  my $options=(shift or {});
+
+  $self->debug(1, "In changeStatusTransfer changing the status of a transfer");
+
+  my $message="";
+  $id or $message="no id specified ";
+  $status or $message.="no $status specified";
+
+  $message and $self->{LOGGER}->error("TransferManager", "In changeStatusTransfer error: $message")
+    and return (-1 , $message);
+
+  $self->info( "Changing the status of transfer $id to $status with options $options");
+
+  my $query= {status=>$status};
+
+  my $date=time;
+
+  ($status eq "TRANSFERRING") and  $query->{started} = $date;
+  $options->{Reason} and $query->{Reason}=$options->{Reason};
+
+  ($status eq "DONE" or $status eq "FAILED") and $query->{finished} = $date;
+  #
+  my $done=$self->{DB}->updateTransfer($id, $query);
+  
+  $done or  $self->{LOGGER}->error("TransferManager", "In changeStatusTransfer error: Updating the status")
+    and return (-1 , "updating the status");
+  
+  $self->info( "Change done");
+  
+  if($status eq "DONE"){
+    $self->updateCatalogue($id);
+  }
+  
+  if ($status =~ /^(DONE)|(FAILED)|(KILLED)$/){
+    my $father=$self->{DB}->queryValue("SELECT transferGroup from TRANSFERS where transferId=?", undef, {bind_values=>[$id]});
+    if ($father){
+      $self->info("This is a final status. Updating the father");
+      $father.=",";
+      $self->{DB}->do("update ACTIONS set todo=1, extra=concat(replace(extra,?, ''), ?)where action='MERGING'", {bind_values=>[$father, $father]});
+    }
+  }
+  
+  
+  #check if the DB has an attempts field
+  my $attempts;
+  $attempts=$self->{DB}->queryValue("SELECT attempts from TRANSFERS where transferid=$id") or $attempts=0;  
+  
+  
+  #This doesn't work cause some other module changes the jdl
+  # 	my $ca=Classad::Classad->new($newJDL);
+  # 	my ( $ok, $attempts)=$ca->evaluateAttributeInt("FailedTransferAttempts");  
+  # if not crate it
+  # 	if(!$ok){
 # 		$self->info( "FailedTransferAttempts was missing !");
-# 		$ca->insertAttributeInt("FailedTransferAttempts", 0 )
-# 		or $self->{LOGGER}->error("changeStatusTransfer:", "Error putting FailedTransferAttempts Attribute in JDL for Transfer $id");
-# 	}
-# 	$newJDL = $ca->asJDL();
+  # 		$ca->insertAttributeInt("FailedTransferAttempts", 0 )
+  # 		or $self->{LOGGER}->error("changeStatusTransfer:", "Error putting FailedTransferAttempts Attribute in JDL for Transfer $id");
+  # 	}
+  # 	$newJDL = $ca->asJDL();
+  
+  #check if the DB has a persevere entry, if not set defult value to 5
+  my $persevere;
+  $persevere=$self->{DB}->queryValue("SELECT persevere from TRANSFERS where transferid=$id") or $persevere=5;  
+  
+  #if it tryed more than persevere give it up
+  if($status eq "FAILED" and $attempts>=$persevere){
+    $self->info( "Giving up Transfer $id tried $attempts / $persevere times");
+    $query->{status}=$status;
+    $query->{attempts}=$attempts;
+  } 
+	
+  #if it failed try aging 
+  if($status eq "FAILED" and $attempts<$persevere){
+    $attempts++;
+    # 		$ca->insertAttributeInt("FailedTransferAttempts", $attempts);
+    # 		$newJDL = $ca->asJDL();
+    $status = "INSERTING";
+    $self->info( "Transfer $id Failed. Retrying. Attempt num $attempts / $persevere");
+    $self->resubmitTransfer($id);
+    # 		$query->{jdl}=$newJDL;
+    $query->{status}=$status;
+    $query->{attempts}=$attempts;
+    $self->{DB}->updateTransfer($id, $query)
+      or $self->{LOGGER}->error("TransferManager","In changeStatusTransfer error: Failed to update the datbase\n");
+  }  
 
-	#check if the DB has a persevere entry, if not set defult value to 5
-	my $persevere;
-	$persevere=$self->{DB}->queryValue("SELECT persevere from TRANSFERS where transferid=$id") or $persevere=5;  
-	
-	#if it tryed more than persevere give it up
-	if($status eq "FAILED" and $attempts>=$persevere){
-		$self->info( "Giving up Transfer $id tried $attempts / $persevere times");
-		$query->{status}=$status;
-		$query->{attempts}=$attempts;
-	} 
-	
-	#if it failed try aging 
-	if($status eq "FAILED" and $attempts<$persevere){
-		$attempts++;
-# 		$ca->insertAttributeInt("FailedTransferAttempts", $attempts);
-# 		$newJDL = $ca->asJDL();
-		$status = "INSERTING";
-		$self->info( "Transfer $id Failed. Retrying. Attempt num $attempts / $persevere");
-		$self->resubmitTransfer($id);
-# 		$query->{jdl}=$newJDL;
-		$query->{status}=$status;
-		$query->{attempts}=$attempts;
-		$self->{DB}->updateTransfer($id, $query)
-			or $self->{LOGGER}->error("TransferManager","In changeStatusTransfer error: Failed to update the datbase\n");
-	}  
-
-	
-# 	my $tmp=$self->{DB}->queryValue("SELECT status from TRANSFERS where transferid=$id");
+  
+  # 	my $tmp=$self->{DB}->queryValue("SELECT status from TRANSFERS where transferid=$id");
 # 	$self->info("changeStatusTransfer: Last transfer status....$tmp");
 	
 # 	$tmp=$self->{DB}->queryValue("SELECT attempts from TRANSFERS where transferid=$id");
 # 	$self->info("changeStatusTransfer: attempts....$tmp");	
 	
-	return 1;
+  return 1;
 }
 
 sub updateCatalogue {
@@ -311,66 +287,66 @@ sub updateCatalogue {
   return 1;
 }
 
-sub getNewRequirements {
-  my $this=shift;
-  my $status=shift;
-  my $id=shift;
-  my $options=shift;
+#sub getNewRequirements {
+#  my $this=shift;
+#  my $status=shift;
+#  my $id=shift;
+#  my $options=shift;
   
-  my $message="";
+#  my $message="";
 
-  my ($jdl)=$self->{DB}->getJdl($id);
+#  my ($jdl)=$self->{DB}->getJdl($id);
 
-  ($jdl) or $message="transfer $id does not have a jdl";
+#  ($jdl) or $message="transfer $id does not have a jdl";
 
-  my $ca;
-  if (! $message){
-    $ca=Classad::Classad->new($jdl);
-    $ca or $message="doing the classad of $jdl";
-  }
-  $message and $self->{LOGGER}->error("TransferManager", "In getNewRequirements $message")
-    and return;
+#  my $ca;
+#  if (! $message){
+#    $ca=Classad::Classad->new($jdl);
+#    $ca or $message="doing the classad of $jdl";
+#  }
+#  $message and $self->{LOGGER}->error("TransferManager", "In getNewRequirements $message")
+#    and return;
 
-    my $req="";
+#  my $req="";
 
-  $self->debug(1, "In getNewRequirements getting the new requirements $status");
-  if ($status eq "LOCAL COPY")   {
-    my ( $ok, $name)=$ca->evaluateAttributeString("ToSE");
-    $name or
-      $self->{LOGGER}->error("TransferManager", "In getNewRequirements ToSE is not defined")
-	and return;
-    $req="(other.Type==\"FTD\") && (member (other.CloseSE, \"$name\"))";
-  }elsif ($status eq "CLEANING") {
-    my ( $ok, $name)=$ca->evaluateAttributeString("FromFTD");
-    $name or
-      $self->{LOGGER}->error("TransferManager", "In getNewRequirements FromFTD is not defined")
-	and return;
-    $req="(other.Type==\"FTD\") && (other.Name==\"$name\")";
-  }
+#  $self->debug(1, "In getNewRequirements getting the new requirements $status");
+#  if ($status eq "LOCAL COPY")   {
+#    my ( $ok, $name)=$ca->evaluateAttributeString("ToSE");
+#    $name or
+#      $self->{LOGGER}->error("TransferManager", "In getNewRequirements ToSE is not defined")
+#	and return;
+#    $req="(other.Type==\"FTD\") && (member (other.CloseSE, \"$name\"))";
+#  }elsif ($status eq "CLEANING") {
+#    my ( $ok, $name)=$ca->evaluateAttributeString("FromFTD");
+#    $name or
+#      $self->{LOGGER}->error("TransferManager", "In getNewRequirements FromFTD is not defined")
+#	and return;
+#    $req="(other.Type==\"FTD\") && (other.Name==\"$name\")";
+#  }
 
-  if ($req) {
-    $self->debug(1, "New req= $req!!");
-    $ca->set_expression("requirements", $req )
-      or $self->{LOGGER}->error("TransferManager", "In getNewRequirements error putting requirements as $req ")
-	and return;
-  }
+#  if ($req) {
+#    $self->debug(1, "New req= $req!!");
+#    $ca->set_expression("requirements", $req )
+#      or $self->{LOGGER}->error("TransferManager", "In getNewRequirements error putting requirements as $req ")
+#	and return;
+#  }
   
-  foreach my $key (keys %{$options}) {
-    $self->debug(1, "Setting $key");
-    my $value=$options->{$key};
-    if ( UNIVERSAL::isa( $value, "ARRAY" )) {
-      map {$_="\"$_\""} @$value;
-      $value= "{". join (",", @$value) ."}";
-    } else {
-      $value="\"$value\"";
-    }
-    $ca->set_expression($key, $value )
-      or $self->{LOGGER}->error("TransferManager", "In getNewRequirements error putting $key as $value")
-	and return (-1, "putting $key as $value");
-  }
+#  foreach my $key (keys %{$options}) {
+#    $self->debug(1, "Setting $key");
+#    my $value=$options->{$key};
+#    if ( UNIVERSAL::isa( $value, "ARRAY" )) {
+#      map {$_="\"$_\""} @$value;
+#      $value= "{". join (",", @$value) ."}";
+#    } else {
+#      $value="\"$value\"";
+#    }
+#    $ca->set_expression($key, $value )
+#      or $self->{LOGGER}->error("TransferManager", "In getNewRequirements error putting $key as $value")
+#	and return (-1, "putting $key as $value");
+#  }
 
-  return (1, $ca->asJDL());
-}
+#  return (1, $ca->asJDL());
+#}
 
 sub checkTransfer {
     my $this=shift;
@@ -644,20 +620,14 @@ sub findAlternativeSource {
 
 
 sub getTransferHistory {
-	my $this = shift;
-	my $id = shift;
-#   	$id and $id =~ /^trace$/ and $id=shift;
-	$id  or return (-1,"You have to specify a trasfer id!");
-	$self->info( "Asking history for transfer $id" );
-		
-	my @results={};
-	if ($_[0] eq ""){
-		 @results=$self->{TRANSFERLOG}->getlog($id,"STATUS");
-	} else {
-		@results=$self->{JOBLOG}->getlog($id,@_);
-  	}
-	$self->info("got back @results");
-	return join ("",@results);
+  my $this = shift;
+  my $id = shift;
+
+  $id  or return (-1,"You have to specify a trasfer id!");
+  $self->info( "Asking history for transfer $id" );
+
+  my @results=$self->{TRANSFERLOG}->getlog($id,@_);
+  return join ("",@results);
 }
 
 

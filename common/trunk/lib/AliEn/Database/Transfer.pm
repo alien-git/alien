@@ -38,47 +38,52 @@ sub preConnect {
   return 1;
 }
 
-my $tables={ TRANSFERS=>{columns=>{
-				   transferId=>" int(11) not null auto_increment primary key", 
-				   lfn=>"varchar(250)",
-				   pfn=>"varchar(250)",
-				   priority=>"tinyint(4) default 0",
-				   received=>"int(20) default 0",
-				   sent=>"int(20) default 0",
-				   started=>"int(20) default 0",
-				   finished=>"int(20) default 0",
-				   expires=> "int(10) default 0",
-				   error=>"int(11)",
-				   jdl=>"text",
-				   transferGroup=>"int(11)",
-				   user=>"varchar(30)",
-				   destination=>"varchar(50)",
-				   size=>"int(11)",
-				   options=>"varchar(250)",
-				   status=>"varchar(15)",
-				   type=>"varchar(30)",
-				   SE=>"varchar(50)",
-				   agentid=>"int(11)",
-				   ctime=>"timestamp DEFAULT CURRENT_TIMESTAMP  ON UPDATE CURRENT_TIMESTAMP",
-				   collection=>"varchar(255)",
-				   persevere=>"int(20)",
-				   attempts=>"int(20)",
+my $tables={ TRANSFERS_DIRECT=>{columns=>{
+					  transferId=>" int(11) not null auto_increment primary key", 
+					  lfn=>"varchar(250)",
+					  priority=>"tinyint(4) default 0",
+					  received=>"int(20) default 0",
+					  sent=>"int(20) default 0",
+					  started=>"int(20) default 0",
+					  finished=>"int(20) default 0",
+					  expires=> "int(10) default 0",
+					  error=>"int(11)",
+					  jdl=>"text",
+					  #				   transferGroup=>"int(11)",
+					  size=>"int(11)",
+					  status=>"varchar(15)",
+					  attempts=>"int(11)",
+					  
+					  ctime=>"timestamp DEFAULT CURRENT_TIMESTAMP  ON UPDATE CURRENT_TIMESTAMP",
+					  protocols=>"varchar(250)",
+
+					  transferGroup=>"int(11)",
+					  user=>"varchar(30)",
+					  destination=>"varchar(50)",
+					  options=>"varchar(250)",
+					  type=>"varchar(30)",
+					  agentid=>"int(11)",
+					  reason=>'varchar(255)',
 				  },
 			 id=>"transferId",
-			 index=>"transferId"},
-	     AGENT=>{columns=>{entryId=>"int(11) not null auto_increment primary key",
-			       requirements=>"text not null",
-			       counter=>"int(11) not null default 0",
-			       SE=>"varchar(50)",
-			       priority=>"tinyint(4) default 0",
-			       
-			      },
-		     id=>"entryId",},
+				index=>"transferId",
+				extra_index=>["INDEX (agentid)"]},
+
 	     ACTIONS=>{columns=>{action=>"char(40) not null primary key",
 				 todo=>"int(1) not null default 0",
 				 extra=>"varchar(255) default ''",},
 		       id=>"action",
-		      }
+		      },
+	     PROTOCOLS=>{columns=>{sename=>"varchar(50) COLLATE latin1_general_ci ",
+				   protocol=>"varchar(50)",
+				  },
+			 id=>"sename"},
+	     AGENT_DIRECT=>{columns=>{entryId=>"int(11) not null auto_increment primary key",
+				      requirements=>"text not null",
+				      counter=>"int(11) not null default 0",
+				      priority=>"tinyint(4) default 0",
+				     },
+			    id=>"entryId",},
 	   };
 
 
@@ -86,14 +91,14 @@ my $tables={ TRANSFERS=>{columns=>{
 sub initialize {
   my $self=shift;
   foreach my $table  (keys %$tables) {
-    $self->checkTable($table, $tables->{$table}->{id}, $tables->{$table}->{columns}, $tables->{$table}->{index})
+    $self->checkTable($table, $tables->{$table}->{id}, $tables->{$table}->{columns}, $tables->{$table}->{index},  $tables->{$table}->{extra_index})
       or $self->{LOGGER}->error("TaskQueue", "Error checking the table $table") and return;
   }
   AliEn::Util::setupApMon($self);
   
   $self->{TRANSFERLOG} = new AliEn::TRANSFERLOG();
 
-  return $self->do("INSERT IGNORE INTO ACTIONS(action) values  ('INSERTING'),('MERGING')");
+  return $self->do("INSERT IGNORE INTO ACTIONS(action) values  ('INSERTING'),('INSERTING2'),('MERGING')");
 }
 
 sub getArchiveTable {
@@ -111,9 +116,9 @@ sub insertTransferLocked {
   my $info = shift;
   $info->{status}="INSERTING";
 
-  $self->lock("TRANSFERS");
+  $self->lock("TRANSFERS_DIRECT");
   my $lastID=0;
-  if ($self->insert("TRANSFERS",$info)){
+  if ($self->insert("TRANSFERS_DIRECT",$info)){
     $self->debug(1,"In insertTransferLocked fetching transferId");
     $lastID = $self->getLastId();
     ($lastID) or  $self->{LOGGER}->error("Transfer","In insertTransferLocked unable to fetch transferId. Unlocking table TRANSFER");
@@ -127,11 +132,11 @@ sub insertTransferLocked {
 
   $self->sendTransferStatus($lastID, "INSERTING", {destination=>$info->{destination}, user=>$info->{user}, received=>$info->{received}});
 
-  $self->updateActions({todo=>1}, "action='INSERTING'");
-  
-  $self->updateTransfer($lastID, $info);
+  $self->updateActions({todo=>1}, "action='INSERTING2'");
 
-  $lastID;
+#  $self->updateTransfer($lastID, $info);
+
+  return $lastID;
 }
 
  sub assignWaiting{
@@ -142,8 +147,8 @@ sub insertTransferLocked {
   
   
   #And now, let's reduce the number of agents
-  $self->do("UPDATE AGENT, TRANSFERS set counter=counter-1 where agentid=entryId and transferid=?", {bind_values=>[$elementId]});
-  $self->do("delete from AGENT where counter<1");
+  $self->do("UPDATE AGENT_DIRECT, TRANSFERS_DIRECT set counter=counter-1 where agentid=entryId and transferid=?", {bind_values=>[$elementId]});
+  $self->do("delete from AGENT_DIRECT where counter<1");
   return $done;
 }
 
@@ -169,34 +174,34 @@ sub insertTransferLocked {
 }
  
  sub update{
-  shift->SUPER::update("TRANSFERS",@_);
+  shift->SUPER::update("TRANSFERS_DIRECT",@_);
 }
 
 sub delete{
   shift->SUPER::delete("TRANSFERS",@_);
 }
 
- sub updateStatus{
+sub updateStatus{
   my $self = shift;
   my $id = shift
     or $self->{LOGGER}->error("Transfer","In updateStatus transfer id is missing")
       and return;
-      
+
   my $oldstatus = shift
     or $self->{LOGGER}->error("Transfer","In updateStatus old status is missing")
       and return;
-      
+
   my $status = shift;
   my $set = shift || {};
-  
+
   $set->{status} = $status;
-    
+
   $self->debug(1, "In updateStatus locking table TRANSFERS");
-  $self->lock("TRANSFERS");
+  $self->lock("TRANSFERS_DIRECT");
   $self->debug(1, "In updateStatus table TRANSFERS locked");
-  
-  my $query="SELECT count(*) from TRANSFERS where transferid=?";
-  
+
+  my $query="SELECT count(*) from TRANSFERS_DIRECT where transferid=?";
+
   ($oldstatus eq "%") or $query.=" and status='$oldstatus'";
 
   my $message="";
@@ -219,27 +224,30 @@ sub delete{
 
   $self->unlock();
   $self->debug(1, "In updateStatus table TRANSFERS successfully unlocked");
-	
+  $self->{TRANSFERLOG}->putlog($id,"STATUS",$status);
+
+  $query->{Reason} and $self->{TRANSFERLOG}->putlog($id,"ERROR",$query->{Reason});
   if ($message) {
     $self->{LOGGER}->set_error_msg($message);
     $self->{LOGGER}->info("Job", $message);
     undef $done;
   }
-  
+
   return $done;
 }
 
- sub updateTransfer{
+
+sub updateTransfer{
   my $self = shift;
   my $id = shift
     or $self->{LOGGER}->error("Transfer","In updateTransfer transfer id is missing")
       and return;
   my $set = shift;
-  
+
   $self->debug(1,"In updateTransfer updating transfer $id");
   $self->sendTransferStatus($id, $set->{status}, $set);
   my $ok=1;
-  if ($set->{status} =~ /^(WAITING)|(LOCAL COPY)|(CLEANING)$/  and $set->{jdl}){
+  if ($set->{status} =~ /^WAITING$/  and $set->{jdl}){
     $self->info("We have to insert an agent!!");
     $set->{agentid}=$self->insertAgent($set->{jdl});
     if (! $set->{agentid}){
@@ -251,13 +259,13 @@ sub delete{
     $self->info("THE AGENT ID for $id is  $set->{agentid}");
   }elsif ($set->{status}=~ /^KILLED$/){
     $self->info("Transfer killed. Shall we reduce the agents??");
-    
   }
 
   $self->{TRANSFERLOG}->putlog($id,"STATUS",$set->{status});
-  
+  $set->{Reason} and $self->{TRANSFERLOG}->putlog($id,"ERROR",$set->{Reason});
+
   my $done=$self->update($set,"transferid = ?", {bind_values=>[$id]});
-  
+
   $ok and return $done;
   return;
 
@@ -294,6 +302,12 @@ sub setSE {
   my $se=shift;
   $self->debug(1,"In setSE updating tranfers's SE");
   $self->SUPER::update("AGENT", {SE=>$se}, "entryId=?", {bind_values=>[$agentid]});
+}
+
+sub getWaitingAgents {
+  my $self=shift;
+  
+  return $self->query("SELECT entryId as transferId,requirements as jdl FROM AGENT_DIRECT ORDER BY PRIORITY DESC");
 }
 
 sub getSize {
@@ -371,23 +385,12 @@ sub getSE {
 	$self->queryColumn("SELECT $attr FROM TRANSFERS $where", undef, @_);
 }
 
- sub getWaitingTransfersBySE{
-  my $self = shift;
-  my $SE = shift;
-  my $order = shift || "";
-  
-  my $query = "SELECT entryId as transferId,requirements as jdl FROM AGENT WHERE SE IS NULL OR ($SE)";
-
-  $order and $query .= " ORDER BY $order";
-
-  $self->query($query, undef, @_);
-}
 
  sub getNewTransfers{
-	my $self = shift;
+   my $self = shift;
 
-	$self->debug(1,"In getNewTransfers fetching attributes transferid,lfn, pfn, destination of transfers in INSERTING state");
-	$self->query("SELECT transferid,lfn, pfn, destination,options,collection,user FROM TRANSFERS WHERE STATUS='INSERTING'");
+   $self->debug(1,"In getNewTransfers fetching attributes transferid,lfn, pfn, destination of transfers in INSERTING state");
+   $self->query("SELECT transferid,lfn, destination,options,user FROM TRANSFERS_DIRECT WHERE STATUS='INSERTING'");
 }
 
 
@@ -437,17 +440,17 @@ sub sendTransferStatus {
   $text=~ /(Requirements\s*=[^;]*;)/is or $self->info("Error getting the requirements from $text") and return;
   my $req="[ $1 Type = \"transfer\"; ]";
   $self->info( "Inserting a jobagent with '$req'");
-  $self->lock("AGENT");
-  my $id=$self->queryValue("SELECT entryId from AGENT where requirements=?", undef, {bind_values=>[$req]});
+  $self->lock("AGENT_DIRECT");
+  my $id=$self->queryValue("SELECT entryId from AGENT_DIRECT where requirements=?", undef, {bind_values=>[$req]});
   if (!$id){
-    if (!$self->insert("AGENT", {counter=>"1", requirements=>$req})){
+    if (!$self->insert("AGENT_DIRECT", {counter=>"1", requirements=>$req})){
       $self->info("Error inserting the new jobagent");
       $self->unlock();
       return;
     }
     $id=$self->getLastId();
   }else{
-    $self->do("UPDATE AGENT set counter=counter+1 where entryId=?", {bind_values=>[$id]});
+    $self->do("UPDATE AGENT_DIRECT set counter=counter+1 where entryId=?", {bind_values=>[$id]});
   }
   $self->unlock();
 
@@ -462,6 +465,17 @@ sub sendTransferStatus {
 
   return $info;
 }
+
+
+sub findCommonProtocols {
+  my  $self=shift;
+  my $source=shift;
+  my $dest=shift;
+  my $p=$self->query("select protocol, A.options sourceopt, B.options targetopt from PROTOCOLS A join PROTOCOLS B using (protocol) where A.sename=? and B.sename=?", undef, {bind_values=>[$source,$dest]});
+  $self->info("Common protocols between $source and $dest: @$p");
+  return @$p;
+}
+ 
 
 =head1 NAME
 
@@ -487,7 +501,6 @@ contains method specific for table Transfer.
   $res = $dbh->getJdl($transferId);
   $res = $dbh->getSize($transferId);
   
-  $arrRef = $dbh->getWaitingTransfersBySE($SE,$orderBy);
   $arrRef = $dbh->getNewTransfers;
   
   $res = $dbh->isScheduled($lfn,$destination);
@@ -577,16 +590,6 @@ Method fetches transfer's $transferId attribute.
 If argument $transferId is not defined method will return undef
 and report error.  
 
-=item C<getWaitingTransfersBySE>  
-
-  $arrRef = $dbh->getWaitingTransfersBySE($SE,$orderBy);
-  
-Method returns values of attributes transferId and jdl for tuples with status
-WAITING, LOCAL_COPY or CLEANING and defined storage elements(SE). Argument $SE
-contains list of storage elements in SQL form:
-	SE = value1 OR SE = value2 OR ... OR SE = valueN
-Argument $orderBy is ORDER BY part of SELECT query. 
-Method uses AliEn::Database method query. 
 
 =item C<getNewTransfers>  
 

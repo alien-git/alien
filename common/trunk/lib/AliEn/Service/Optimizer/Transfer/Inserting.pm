@@ -17,9 +17,9 @@ sub checkWakesUp {
   $silent and $method="debug" and push @silentData, 1;
   $self->{SLEEP_PERIOD}=10;
   $self->$method(@silentData, "Checking if there is anything to do");
-  my $todo=$self->{DB}->queryValue("SELECT todo from ACTIONS where action='INSERTING'");
+  my $todo=$self->{DB}->queryValue("SELECT todo from ACTIONS where action='INSERTING2'");
   $todo or return;
-  $self->{DB}->updateActions({todo=>0}, "action='INSERTING'");
+  $self->{DB}->updateActions({todo=>0}, "action='INSERTING2'");
 
 
   my $transfers=$self->{DB}->getNewTransfers;
@@ -52,10 +52,11 @@ sub checkWakesUp {
     $size =~ s/^(.*\#\#\#){3}(\d+)(\#\#\#.*){2}$/$2/;
     $self->debug(1, "In checkNewTransfers file has size $size");
     
-    my $jdl=$self->createTransferJDL($transfer->{transferid}, $transfer->{lfn}, $transfer->{destination}, $size, $transfer->{pfn}, $transfer->{collection});
+    my $jdl=$self->createTransferJDL($transfer->{transferid}, $transfer->{lfn}, $transfer->{destination}, $size,  $transfer->{collection}, $transfer->{user});
     $self->debug(1, "Got the jdl");
     if (!$jdl){
-      $self->{DB}->updateTransfer($transfer->{transferid},{status=>"FAILED"})
+      my $reason=$self->{LOGGER}->error_msg() || "error creating the jdl of the transfer";
+      $self->{DB}->updateTransfer($transfer->{transferid},{status=>"FAILED", Reason=>$reason})
 	or $self->{LOGGER}->error("TransferOptimizer", "In checkNewTransfers error updating status for transfer $transfer->{transferid}");
       next;
     }
@@ -63,12 +64,12 @@ sub checkWakesUp {
     $self->{DB}->updateTransfer($transfer->{transferid},{jdl=>$jdl,
 							 size=>$size,
 							 status=>'WAITING',
-							 SE=>undef,
 							 sent=>undef,
 							 started=>undef,
 							 finished=>undef,})
       or $self->info( "Error updating status, jdl and size for transfer $transfer->{transferid}")
 	and next;
+    $self->{TRANSFERLOG}->putlog($transfer->{transferid}, "info", "New transfer for $transfer->{destination}");
     $self->info( "Transfer scheduled");
   }
   return 1;
@@ -112,4 +113,90 @@ sub insertCollectionTransfer{
   }
   return 1;
 }
+
+
+sub createTransferJDL {
+  my $self=shift;
+  my $id=shift;
+  my $lfn=shift;
+  my $destination=shift;
+  my $size=shift;
+  my $collection=shift;
+  my $user=shift;
+
+  $self->debug(1, "In createTransferJDL creating a new jdl");
+
+  my $exp={};
+  $exp->{FromLFN}="\"$lfn\"";
+  $exp->{Type}="\"transfer\"";
+  $exp->{Action}="\"local copy\"";
+  $exp->{ToSE}="\"$destination\"";
+  $collection and $exp->{Collection}="\"$collection\"";
+
+  $exp->{User}="\"$user\"";
+  my (@info)=$self->{CATALOGUE}->execute("whereis","-silent", $lfn, );
+
+  $self->info("The file $lfn is in @info");
+
+  my (@se, @pfn);
+  while (@info){
+    push @pfn, pop @info;
+
+    push @se, pop @info;
+  }
+
+
+  $exp->{OrigSE}='{"' . join('","',@se) .'"}';
+  $exp->{OrigPFNs}='{"' . join('","',@pfn) .'"}';
+  $exp->{Size}=$size;
+  #let's round the size 
+
+
+  my ($protocols, $fulllist)=$self->findCommonProtocols($destination, \@se);
+  @$protocols or $self->info("There are no common protocols!!",1) and return;
+
+
+  $exp->{Protocols}='{"'. join('","', @$protocols). '"}';
+  $exp->{FullProtocolList}='{"'. join('","', @$fulllist). '"}';
+
+  map {$_=~ s/^(.*)$/member\(other\.SupportedProtocol, "$1" \)/ } @$protocols;
+
+  my $value=join("||",@$protocols);    
+
+
+  $exp->{Requirements}="(other.type==\"FTD\")&&($value)";
+
+  my ($guid)=$self->{CATALOGUE}->execute("lfn2guid", $lfn)
+    or $self->info("Error getting the guid of $lfn",1) and return;
+
+  $exp->{GUID}="\"$guid\"";
+
+
+
+  return $self->createJDL($exp);
+}
+
+
+sub findCommonProtocols {
+  my $self=shift;
+  my $target=shift;
+  my $sourceRef=shift;
+
+  my $protocols=[];
+  my $pDone={};
+  my @fullList;
+
+  foreach my $source (@$sourceRef){
+    my @p=$self->{DB}->findCommonProtocols($source,$target);
+    foreach my $info (@p){
+      my $p=$info->{protocol};
+      $pDone->{$p} or push @$protocols, $p;
+      $pDone->{$p}=1;
+      push @fullList, "${p},$source,$info->{sourceopt},$info->{targetopt}";
+    }
+  }
+
+  return $protocols, \@fullList;
+}
+
 return 1;
