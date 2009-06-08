@@ -673,7 +673,7 @@ sub moveGUIDs {
   }
   $self->debug(4, "INDEX READY!!!");
   #to make things faster, let's remove triggers and indexes
-  $self->removeTriggers("G${tableName}L");
+  #$self->removeTriggers("G${tableName}L");
 
   #move the entries from the old table to the new one
   my $error=1;
