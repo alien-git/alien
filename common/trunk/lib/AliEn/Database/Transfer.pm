@@ -293,7 +293,7 @@ sub isScheduled{
       and return;
 
   $self->debug(1,"In isScheduled checking if transfer of file $lfn to destination $destination is scheduled");
-  $self->queryValue("SELECT transferId FROM TRANSFERS WHERE lfn=? AND destination=? AND ".$self->_transferActiveReq(), undef, {bind_values=>[$lfn, $destination]});
+  $self->queryValue("SELECT transferId FROM TRANSFERS_DIRECT WHERE lfn=? AND destination=? AND ".$self->_transferActiveReq(), undef, {bind_values=>[$lfn, $destination]});
 }
 
 sub isWaiting{
