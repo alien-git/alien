@@ -9,6 +9,8 @@ use AliEn::Database::Transfer;
 
 use AliEn::Service::Broker;
 
+use AliEn::TRANSFERLOG;
+
 
 use strict;
 
@@ -30,7 +32,11 @@ sub initialize {
   $self->{DB_MODULE}="AliEn::Database::Transfer";
 
 
-  return $self->SUPER::initialize($options);
+  $self->SUPER::initialize($options) or return;
+
+  $self->{TRANSFERLOG}=AliEn::TRANSFERLOG->new({DB=> $self->{DB}});
+
+  return $self;
 }
 
 
@@ -97,6 +103,7 @@ sub requestTransferType {
   while (@ids){
     my ( $transferId, $transfer_ca, $id2 ) = (shift @ids, shift @ids, shift @ids);
     $self->info("WE ARE GOIND TO RETURN TRANSFER $transferId" );
+    $self->{TRANSFERLOG}->putlog($transferId, "STATUS", "Transfer changed to ASSIGNED (to $host)");
     push @toReturn, {id=>$transferId, jdl=>$transfer_ca->asJDL()};
     $self->info("Sending transfer $transferId to $host");
   }

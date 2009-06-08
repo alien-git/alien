@@ -69,7 +69,8 @@ sub checkWakesUp {
 							 finished=>undef,})
       or $self->info( "Error updating status, jdl and size for transfer $transfer->{transferid}")
 	and next;
-    $self->{TRANSFERLOG}->putlog($transfer->{transferid}, "info", "New transfer for $transfer->{destination}");
+
+    $self->{TRANSFERLOG}->putlog($transfer->{transferid}, "STATUS", "Transfer changed to WAITING");
     $self->info( "Transfer scheduled");
   }
   return 1;
