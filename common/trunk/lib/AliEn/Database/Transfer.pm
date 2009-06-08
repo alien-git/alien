@@ -16,7 +16,6 @@ package AliEn::Database::Transfer;
 
 use AliEn::Database;
 
-use AliEn::TRANSFERLOG;
 
 use strict;
 
@@ -84,6 +83,15 @@ my $tables={ TRANSFERS_DIRECT=>{columns=>{
 				      priority=>"tinyint(4) default 0",
 				     },
 			    id=>"entryId",},
+
+	     TRANSFERMESSAGES=>{columns=> {entryId=>" int(11) not null  auto_increment primary key",
+					   transferId =>"int", 
+					   message=>"varchar(200)",
+					   tag=>"varchar(40)", 
+					   timestamp=>"int", },
+				id=>"entryId",
+			       },
+
 	   };
 
 
@@ -96,7 +104,6 @@ sub initialize {
   }
   AliEn::Util::setupApMon($self);
   
-  $self->{TRANSFERLOG} = new AliEn::TRANSFERLOG();
 
   return $self->do("INSERT IGNORE INTO ACTIONS(action) values  ('INSERTING'),('INSERTING2'),('MERGING')");
 }
@@ -139,20 +146,20 @@ sub insertTransferLocked {
   return $lastID;
 }
 
- sub assignWaiting{
+sub assignWaiting{
   my $self = shift;
   my $elementId = shift;
   my $date=time;
-  my $done=$self->updateStatus($elementId, "WAITING' OR status='LOCAL COPY' OR status='CLEANING", "ASSIGNED", {sent=>$date}) ;
-  
-  
+  my $done=$self->updateTransfer($elementId, {status=>"ASSIGNED",sent=>$date});
+
+
   #And now, let's reduce the number of agents
   $self->do("UPDATE AGENT_DIRECT, TRANSFERS_DIRECT set counter=counter-1 where agentid=entryId and transferid=?", {bind_values=>[$elementId]});
   $self->do("delete from AGENT_DIRECT where counter<1");
   return $done;
 }
 
- sub updateExpiredTransfers{
+sub updateExpiredTransfers{
   my $self = shift;
   
   my $yesterday=time;
@@ -162,78 +169,23 @@ sub insertTransferLocked {
   $self->update({status=>'EXPIRED'},"(status = 'ASSIGNED' or status ='TRANSFERING')  and sent<?", {bind_values=>[$yesterday]});
 }
 
- sub updateLocalCopyTransfers{
+sub updateLocalCopyTransfers{
   my $self = shift;
   
   $self->debug(1,"In updateLocalCopyTransfers updating SE of LOCAL_COPY transfers");
   $self->do("UPDATE TRANSFERS SET SE = destination WHERE status = 'LOCAL_COPY' AND SE IS NULL");
 }
 
- sub updateActions{
+sub updateActions{
   shift->SUPER::update("ACTIONS", @_);
 }
- 
- sub update{
+
+sub update{
   shift->SUPER::update("TRANSFERS_DIRECT",@_);
 }
 
 sub delete{
   shift->SUPER::delete("TRANSFERS",@_);
-}
-
-sub updateStatus{
-  my $self = shift;
-  my $id = shift
-    or $self->{LOGGER}->error("Transfer","In updateStatus transfer id is missing")
-      and return;
-
-  my $oldstatus = shift
-    or $self->{LOGGER}->error("Transfer","In updateStatus old status is missing")
-      and return;
-
-  my $status = shift;
-  my $set = shift || {};
-
-  $set->{status} = $status;
-
-  $self->debug(1, "In updateStatus locking table TRANSFERS");
-  $self->lock("TRANSFERS_DIRECT");
-  $self->debug(1, "In updateStatus table TRANSFERS locked");
-
-  my $query="SELECT count(*) from TRANSFERS_DIRECT where transferid=?";
-
-  ($oldstatus eq "%") or $query.=" and status='$oldstatus'";
-
-  my $message="";
-
-  my $done=1;
-
-  $self->debug(1, "In updateStatus checking if transfer $id with status $oldstatus exists");
-  if ($self->queryValue($query, undef, {bind_values=>[$id]})) {
-    $self->debug(1, "In updateStatus setting transfer's $id status to ". ($status or ""));
-    if (!$self->update($set,"transferId = ?", {bind_values=>[$id]})){
-      $message="In update status failed";
-    } else {
-      $self->sendTransferStatus($id, $status, $set);
-    }
-  }
-  else {
-    $message="The transfer $id was no longer there";
-    ($oldstatus eq "%") or  $message="The transfer $id was not $oldstatus any more";
-  }
-
-  $self->unlock();
-  $self->debug(1, "In updateStatus table TRANSFERS successfully unlocked");
-  $self->{TRANSFERLOG}->putlog($id,"STATUS",$status);
-
-  $query->{Reason} and $self->{TRANSFERLOG}->putlog($id,"ERROR",$query->{Reason});
-  if ($message) {
-    $self->{LOGGER}->set_error_msg($message);
-    $self->{LOGGER}->info("Job", $message);
-    undef $done;
-  }
-
-  return $done;
 }
 
 
@@ -260,24 +212,33 @@ sub updateTransfer{
   }elsif ($set->{status}=~ /^KILLED$/){
     $self->info("Transfer killed. Shall we reduce the agents??");
   }
+  my $where="transferid = ?";
+  my @bind=($id);
+  if ($set->{oldstatus}){
+    push @bind, $set->{oldstatus};
+    $where .=" and status=?";
+    delete $set->{oldstatus};
+  }
 
-  $self->{TRANSFERLOG}->putlog($id,"STATUS",$set->{status});
-  $set->{Reason} and $self->{TRANSFERLOG}->putlog($id,"ERROR",$set->{Reason});
 
-  my $done=$self->update($set,"transferid = ?", {bind_values=>[$id]});
+  my $done=$self->update($set,$where, {bind_values=>\@bind});
 
+  #If the update didn't change any row, return error
+  ($done eq "0E0") and return;
   $ok and return $done;
+
+
   return;
 
 
 }
 
- sub deleteTransfer{
+sub deleteTransfer{
   my $self = shift;
   my $id = shift
     or $self->{LOGGER}->error("TaskQueue","In deleteTransfer transfer id is missing")
       and return;
-  
+
   $self->debug(1,"In deleteTransfer deleting transfer $id");	
   $self->delete("queueId=?", {bind_values=>[$id]});
 }
@@ -300,7 +261,7 @@ sub setSE {
   my $self = shift;
   my $agentid=shift;
   my $se=shift;
-  $self->debug(1,"In setSE updating tranfers's SE");
+  $self->debug(1,"In setSE updating transfers's SE");
   $self->SUPER::update("AGENT", {SE=>$se}, "entryId=?", {bind_values=>[$agentid]});
 }
 
@@ -322,7 +283,7 @@ sub getSE {
 	shift->getField(shift,"SE");
 }
 
- sub isScheduled{
+sub isScheduled{
   my $self = shift;
   my $lfn = shift
     or $self->{LOGGER}->error("Transfer","In isScheduled lfn is missing")
@@ -335,17 +296,17 @@ sub getSE {
   $self->queryValue("SELECT transferId FROM TRANSFERS WHERE lfn=? AND destination=? AND ".$self->_transferActiveReq(), undef, {bind_values=>[$lfn, $destination]});
 }
 
- sub isWaiting{
-	my $self = shift;
-	my $id = shift
-		or $self->{LOGGER}->error("Transfer","In isWaiting transfer id is missing")
-		and return;
-
-	$self->debug(1,"In isWaiting checking if transfer $id is waiting");
-	$self->queryValue("SELECT COUNT(*) FROM TRANSFERS WHERE (status='WAITING' OR status='LOCAL COPY' OR status='CLEANING') AND transferid=?", undef, {bind_values=>[$id]});
+sub isWaiting{
+  my $self = shift;
+  my $id = shift
+    or $self->{LOGGER}->error("Transfer","In isWaiting transfer id is missing")
+      and return;
+  
+  $self->debug(1,"In isWaiting checking if transfer $id is waiting");
+  $self->queryValue("SELECT COUNT(*) FROM TRANSFERS WHERE (status='WAITING' OR status='LOCAL COPY' OR status='CLEANING') AND transferid=?", undef, {bind_values=>[$id]});
 }
 
- sub getFields{
+sub getFields{
   my $self = shift;
   my $id = shift
     or $self->{LOGGER}->error("Transfer","In getFields transfer id is missing")
@@ -356,41 +317,41 @@ sub getSE {
   $self->queryRow("SELECT $attr FROM TRANSFERS WHERE transferid=?", undef, {bind_values=>[$id]});
 }
 
- sub getField{
-	my $self = shift;
-	my $id = shift
-		or $self->{LOGGER}->error("Transfer","In getField transfer id is missing")
-		and return;
-	my $attr = shift || "*";
-
-	$self->debug(1,"In getField fetching attribute $attr of transfer $id");
-	$self->queryValue("SELECT $attr FROM TRANSFERS WHERE transferid=?", undef, {bind_values=>[$id]});
+sub getField{
+  my $self = shift;
+  my $id = shift
+    or $self->{LOGGER}->error("Transfer","In getField transfer id is missing")
+      and return;
+  my $attr = shift || "*";
+  
+  $self->debug(1,"In getField fetching attribute $attr of transfer $id");
+  $self->queryValue("SELECT $attr FROM TRANSFERS WHERE transferid=?", undef, {bind_values=>[$id]});
 }
 
- sub getFieldsEx{
-	my $self = shift;
-	my $attr = shift || "*";
-	my $where = shift || "";
-
-	$self->debug(1,"In getFieldsEx fetching attributes $attr with condition $where");
-	$self->query("SELECT $attr FROM TRANSFERS $where", undef, @_);
+sub getFieldsEx{
+  my $self = shift;
+  my $attr = shift || "*";
+  my $where = shift || "";
+  
+  $self->debug(1,"In getFieldsEx fetching attributes $attr with condition $where");
+  $self->query("SELECT $attr FROM TRANSFERS $where", undef, @_);
 }
 
- sub getFieldEx{
-	my $self = shift;
-	my $attr = shift || "*";
-	my $where = shift || "";
+sub getFieldEx{
+  my $self = shift;
+  my $attr = shift || "*";
+  my $where = shift || "";
 
-	$self->debug(1,"In getFieldEx fetching attributes $attr with condition $where");
-	$self->queryColumn("SELECT $attr FROM TRANSFERS $where", undef, @_);
+  $self->debug(1,"In getFieldEx fetching attributes $attr with condition $where");
+  $self->queryColumn("SELECT $attr FROM TRANSFERS $where", undef, @_);
 }
 
 
- sub getNewTransfers{
-   my $self = shift;
+sub getNewTransfers{
+  my $self = shift;
 
-   $self->debug(1,"In getNewTransfers fetching attributes transferid,lfn, pfn, destination of transfers in INSERTING state");
-   $self->query("SELECT transferid,lfn, destination,options,user FROM TRANSFERS_DIRECT WHERE STATUS='INSERTING'");
+  $self->debug(1,"In getNewTransfers fetching attributes transferid,lfn, pfn, destination of transfers in INSERTING state");
+  $self->query("SELECT transferid,lfn, destination,options,user FROM TRANSFERS_DIRECT WHERE STATUS='INSERTING'");
 }
 
 
@@ -409,7 +370,7 @@ sub sendTransferStatus {
   }
 }
 
- sub getTransfersToMerge{
+sub getTransfersToMerge{
   my $self=shift;
   $self->lock("ACTIONS");
   my $value=$self->queryValue("SELECT extra from ACTIONS where action='MERGING'");
@@ -421,7 +382,7 @@ sub sendTransferStatus {
   return \@list;
 }
 
- sub getActiveSubTransfers{
+sub getActiveSubTransfers{
   my $self=shift;
   my $id=shift;
   my $info=$self->queryColumn("SELECT transferId from TRANSFERS where transfergroup=? and ". $self->_transferActiveReq(), undef, {bind_values=>[$id]});
@@ -429,11 +390,11 @@ sub sendTransferStatus {
   
 }
 
- sub _transferActiveReq{
+sub _transferActiveReq{
   return "status<>'FAILED' AND status<>'DONE' AND status <>'KILLED' AND status <>'EXPIRED'";
 }
 
- sub insertAgent{
+sub insertAgent{
   my $self=shift;
   my $text=shift;
   $text=~ s/\s*$//s;
@@ -457,7 +418,7 @@ sub sendTransferStatus {
   return $id;
 }
 
- sub getVirtualTransfers{
+sub getVirtualTransfers{
   my $self=shift;
   $self->info("Getting all the transfers that have to be done from the 'no_se'");
 
@@ -475,7 +436,22 @@ sub findCommonProtocols {
   $self->info("Common protocols between $source and $dest: @$p");
   return @$p;
 }
- 
+
+sub insertTransferMessage {
+  my $self=shift;
+  my $jobId=shift;
+  my $tag=shift; 
+  my $message=shift;
+  my $time=time;
+  return $self->insert("TRANSFERMESSAGES", {transferId=>$jobId, message=>$message,
+					    tag=>$tag,  timestamp=>$time});
+}
+
+sub retrieveTransferMessages{
+  my $self=shift;
+  return $self->query("SELECT transferid,tag, message, entryid from TRANSFERMESSAGES");
+}
+
 
 =head1 NAME
 

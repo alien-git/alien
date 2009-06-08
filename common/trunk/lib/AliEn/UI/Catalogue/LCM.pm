@@ -1026,42 +1026,36 @@ sub mirror {
     my $info=$self->{CATALOG}->checkPermissions( 'w', $lfn, undef, {RETURN_HASH=>1} )  or
       $self->info("You don't have permission to do that") and return;
     $realLfn=$info->{lfn};
-    
+    $guid=$info->{guid};
     $self->{CATALOG}->isFile($lfn, $realLfn) or 
       $self->info("The entry $lfn is not a file!") and return;
-    
-    if ($info->{type} eq "f"){
-      
-      my $info=$self->{CATALOG}->f_whereis("i", $realLfn)
-	or $self->info("Error getting the info from $realLfn") and return;
-      
-      $guid=$info->{guid}
-	or $self->info( "Error getting the guid of $lfn",11) and return;
-      $guidInfo=$info->{guidInfo} or $self->info("Error getting the list of pfns of '$realLfn'", 1) 
-	and return;
-      
-      $seRef=$guidInfo->{pfn} or 
-	$self->info("Error getting the list of pfns of $lfn") and return;
-      ($seRef and ${$seRef}[0]) and 
-	($pfn, $oldSE)=(${$seRef}[0]->{pfn}, ${$seRef}[0]->{seName});
 
-    }else {
+    if ($info->{type} ne "f"){
       $self->info("We are mirroring a $info->{type}!!\n");
+      return;
     }
   }
 
   if ($opt->{u}){
     $self->info("Making sure that the file is not in that SE");
+    my $info=$self->{CATALOG}->f_whereis("i", $realLfn)
+      or $self->info("Error getting the info from $realLfn") and return;
+
+    $guidInfo=$info->{guidInfo} or $self->info("Error getting the list of pfns of '$realLfn'", 1) 
+	and return;
+
+      $seRef=$guidInfo->{pfn} or 
+	$self->info("Error getting the list of pfns of $lfn") and return;
+
     foreach my $entry (@$seRef){
       $entry->{seName} =~ /^$se$/i and $self->info("The file is already in $se!") and return;
     }
   }
 
-  $self->info( "Mirroring file $realLfn (from $oldSE and $pfn)");
+  $self->info( "Mirroring file $realLfn at $se");
 
 
-  my $transfer={"source", $pfn,                  "oldSE", $oldSE,
-		"target", "",                      "TYPE", "mirror",
+  my $transfer={"target", "",                      "TYPE", "mirror",
 		"USER" => $self->{CATALOG}->{ROLE}, "LFN" =>$realLfn,
 		"DESTINATION" =>$se,	             "OPTIONS" => $options,
 		guid=>$guid};
