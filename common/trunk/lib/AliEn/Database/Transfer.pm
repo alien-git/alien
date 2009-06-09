@@ -55,7 +55,7 @@ my $tables={ TRANSFERS_DIRECT=>{columns=>{
 					  
 					  ctime=>"timestamp DEFAULT CURRENT_TIMESTAMP  ON UPDATE CURRENT_TIMESTAMP",
 					  protocols=>"varchar(250)",
-
+					  pfn=>"varchar(255)",
 					  transferGroup=>"int(11)",
 					  user=>"varchar(30)",
 					  destination=>"varchar(50)",

@@ -646,7 +646,7 @@ sub checkWakesUp{
     $self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, "FAILED", "ALIEN_SOAP_RETRY",{"Reason","The FTD at $self->{CONFIG}->{FTD_FULLNAME} got". $self->{LOGGER}->error_msg()});
     return;
   }
-  my $return;
+  my $pfn;
   $self->info("OK, ");
   my ($ok, @pro)=$ca->evaluateAttributeVectorString('FullProtocolList');
   $self->info("Got @pro");
@@ -656,13 +656,14 @@ sub checkWakesUp{
     my ($protocol, $source, @rest)=split(",", $line);
     if (grep(/^$protocol$/i, @{$self->{CONFIG}->{FTD_PROTOCOL_LIST}})){
       $self->info("We can get the file with '$protocol' from '$source'");
-      $self->transferFile($id, $ca, $protocol, $source, $line) and last;
+      $pfn=$self->transferFile($id, $ca, $protocol, $source, $line);
+      $pfn and last;
       $self->info("It didn't work :(");
     }
   }
   my $status="DONE";
-  my $extra={};
-  if (! $return ) {
+  my $extra={pfn=>$pfn};
+  if (! $pfn ) {
     $self->info("The transfer failed due to: ".$self->{LOGGER}->error_msg() );
     $status="FAILED_T";
     $extra={"Reason", "$self->{CONFIG}->{FTD_FULLNAME}: ". $self->{LOGGER}->error_msg()};
@@ -697,7 +698,7 @@ sub transferFile {
   ($ok, my $size)=$ca->evaluateAttributeString("Size");
   $target or $self->info("Error getting the destination of the transfer")
     and return;
-  $self->info("And the second envelope");
+  $self->info("And the second envelope ( $user, , write-once, $guid, $target, $size, 0, $guid");
   $info=$self->{SOAP}->CallSOAP("Authen", "createEnvelope", $user, "", "write-once", $guid, $target, $size, 0, $guid);
   $info or $self->info("Error getting the envelope to write the target") and return;
   my $targetEnvelope=$info->result;
@@ -714,7 +715,7 @@ sub transferFile {
   }
   
   
-  return $done;
+  return $targetEnvelope->{url};
 }
 #sub makeLocalCopy {
 #  my $s =shift;
