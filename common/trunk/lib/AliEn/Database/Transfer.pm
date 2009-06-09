@@ -296,15 +296,15 @@ sub isScheduled{
   $self->queryValue("SELECT transferId FROM TRANSFERS_DIRECT WHERE lfn=? AND destination=? AND ".$self->_transferActiveReq(), undef, {bind_values=>[$lfn, $destination]});
 }
 
-sub isWaiting{
-  my $self = shift;
-  my $id = shift
-    or $self->{LOGGER}->error("Transfer","In isWaiting transfer id is missing")
-      and return;
-  
-  $self->debug(1,"In isWaiting checking if transfer $id is waiting");
-  $self->queryValue("SELECT COUNT(*) FROM TRANSFERS WHERE (status='WAITING' OR status='LOCAL COPY' OR status='CLEANING') AND transferid=?", undef, {bind_values=>[$id]});
-}
+#sub isWaiting{
+#  my $self = shift;
+#  my $id = shift
+#    or $self->{LOGGER}->error("Transfer","In isWaiting transfer id is missing")
+#      and return;
+#  
+#  $self->debug(1,"In isWaiting checking if transfer $id is waiting");
+#  $self->queryValue("SELECT COUNT(*) FROM TRANSFERS WHERE (status='WAITING' OR status='LOCAL COPY' OR status='CLEANING') AND transferid=?", undef, {bind_values=>[$id]});
+#}
 
 sub getFields{
   my $self = shift;
@@ -314,7 +314,7 @@ sub getFields{
   my $attr = shift || "*";
   
   $self->debug(1,"In getFields fetching attributes $attr of transfer $id");
-  $self->queryRow("SELECT $attr FROM TRANSFERS WHERE transferid=?", undef, {bind_values=>[$id]});
+  $self->queryRow("SELECT $attr FROM TRANSFERS_DIRECT WHERE transferid=?", undef, {bind_values=>[$id]});
 }
 
 sub getField{
@@ -325,7 +325,7 @@ sub getField{
   my $attr = shift || "*";
   
   $self->debug(1,"In getField fetching attribute $attr of transfer $id");
-  $self->queryValue("SELECT $attr FROM TRANSFERS WHERE transferid=?", undef, {bind_values=>[$id]});
+  $self->queryValue("SELECT $attr FROM TRANSFERS_DIRECT WHERE transferid=?", undef, {bind_values=>[$id]});
 }
 
 sub getFieldsEx{
@@ -334,7 +334,7 @@ sub getFieldsEx{
   my $where = shift || "";
   
   $self->debug(1,"In getFieldsEx fetching attributes $attr with condition $where");
-  $self->query("SELECT $attr FROM TRANSFERS $where", undef, @_);
+  $self->query("SELECT $attr FROM TRANSFERS_DIRECT $where", undef, @_);
 }
 
 sub getFieldEx{
@@ -343,7 +343,7 @@ sub getFieldEx{
   my $where = shift || "";
 
   $self->debug(1,"In getFieldEx fetching attributes $attr with condition $where");
-  $self->queryColumn("SELECT $attr FROM TRANSFERS $where", undef, @_);
+  $self->queryColumn("SELECT $attr FROM TRANSFERS_DIRECT $where", undef, @_);
 }
 
 
