@@ -58,7 +58,7 @@ my $tables={ TRANSFERS_DIRECT=>{columns=>{
 					  pfn=>"varchar(255)",
 					  transferGroup=>"int(11)",
 					  user=>"varchar(30)",
-					  destination=>"varchar(50)",
+					  destination=>"varchar(50) COLLATE latin1_general_ci",
 					  options=>"varchar(250)",
 					  type=>"varchar(30)",
 					  agentid=>"int(11)",
@@ -66,7 +66,7 @@ my $tables={ TRANSFERS_DIRECT=>{columns=>{
 				  },
 			 id=>"transferId",
 				index=>"transferId",
-				extra_index=>["INDEX (agentid)"]},
+				extra_index=>["INDEX (agentid)", "INDEX(status)"]},
 
 	     ACTIONS=>{columns=>{action=>"char(40) not null primary key",
 				 todo=>"int(1) not null default 0",
