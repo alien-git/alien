@@ -92,7 +92,14 @@ sub initialize {
      }
    }
    $self->{CONFIG}->{CE_LCGCE_LIST_FLAT} = \@flatlist;
-      
+   # A list takin only the first from each sublist, to avoid double counting when needed
+   my @firsts = ();
+   foreach my $CE ( @{$self->{CONFIG}->{CE_LCGCE_LIST}} ) {
+     $CE =~ s/\s*//g; $CE =~ s/\(//; $CE =~ s/\)//;
+     ($CE, undef) = split (/,/,$CE,2);
+     push @firsts,$CE;
+   }
+   $self->{CONFIG}->{CE_LCGCE_LIST_FIRSTS} = \@firsts;
 
    $self->{CONFIG}->{CE_MINWAIT} = 180; #Seconds
    defined $ENV{CE_MINWAIT} and $self->{CONFIG}->{CE_MINWAIT} = $ENV{CE_MINWAIT};
@@ -248,22 +255,41 @@ ls -lart
 
 sub getAllBatchIds {
   my $self = shift;
+  return getCREAMStatus('RUNNING:REALLY-RUNNING:REGISTERED:PENDING:IDLE:HELD',
+                        $self->{CONFIG}->{CE_LCGCE_LIST_FIRSTS});
+}
+
+sub cleanUp {
+  return 1;
+}
+
+sub needsCleaningUp {
+  return 0;
+}
+
+#
+#---------------------------------------------------------------------
+#
+
+sub getCREAMStatus {
+  my $self = shift;
+  my $statusString = shift;
+  # Active states: 'RUNNING:REALLY-RUNNING:REGISTERED:PENDING:IDLE:HELD'
+  # Final states:  'DONE-OK:DONE-FAILED:CANCELLED:ABORTED'
+  # There is also: 'UNKNOWN'
+  $statusString or return;
+  my $CEList = shift;
+  $CEList or return;
   my @allJobs = ();
   my $logfile = AliEn::TMPFile->new({ ttl => '12 hours'});
-  foreach my $CE ( @{$self->{CONFIG}->{CE_LCGCE_LIST}} ) {
-    # If it's a sublist take only the first one to avoid 
-    # double counting (all CEs in sublist see the same resources)
-    $CE =~ s/\s*//g; $CE =~ s/\(//; $CE =~ s/\)//;
-    ($CE, undef) = split (/,/,$CE,2);
-    ($CE, undef) = split (/=/,$CE,2) if ($CE =~/=/);
-
+  foreach my $CE ( @$CEList ) {
     (my $endpoint, undef) = split /\//,$CE;
-    $self->info("Asking $CE the list of jobs");
+    $self->info("Asking $CE for jobs that are $statusString");
     my @output=$self->_system($self->{STATUS_CMD}, "--nomsg",
                                                    "--logfile", $logfile,
 	  					   "--endpoint", $endpoint,
 		    				   "--all",
-						   "--status", "RUNNING:REALLY-RUNNING:REGISTERED:PENDING:IDLE:HELD");
+						   "--status", $statusString);
     my $nJobs  = grep (/^\*\*\*\*\*\*  JobID=/,@output);
     $self->info("Got $nJobs jobIds.");                                             
     foreach (@output) {
@@ -276,15 +302,6 @@ sub getAllBatchIds {
   }
   return @allJobs;
 }
-
-sub cleanUp {
-  return 1;
-}
-
-sub needsCleaningUp {
-  return 0;
-}
-
 
 return 1;
 
