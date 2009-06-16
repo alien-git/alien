@@ -92,7 +92,7 @@ sub initialize {
      }
    }
    $self->{CONFIG}->{CE_LCGCE_LIST_FLAT} = \@flatlist;
-   # A list takin only the first from each sublist, to avoid double counting when needed
+   # A list with only the first from each sublist, to avoid double counting when needed
    my @firsts = ();
    foreach my $CE ( @{$self->{CONFIG}->{CE_LCGCE_LIST}} ) {
      $CE =~ s/\s*//g; $CE =~ s/\(//; $CE =~ s/\)//;
@@ -120,7 +120,10 @@ sub submit {
   $self->{CONFIG}->{CE_SUBMITARG_LIST} and @args = @{$self->{CONFIG}->{CE_SUBMITARG_LIST}};
   my $jdlfile = $self->generateJDL($jdl, $command);
   $jdlfile or return;
-
+  
+  #pick a random CE from the list
+  my $theCE = $self->{CONFIG}->{CE_LCGCE_LIST_FLAT}->[int(rand(@{$self->{CONFIG}->{CE_LCGCE_LIST_FLAT}}))];
+  push @args, ("-r",$theCE);
   $self->renewProxy(100000);
 
   $self->info("Submitting to LCG with \'@args\'.");
