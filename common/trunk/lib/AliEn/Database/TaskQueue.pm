@@ -121,7 +121,7 @@ sub initialize {
 				  "INDEX (sent)",
 				  "INDEX (status,submitHost)",
 				  "INDEX (status,agentid)",
-				  "INDEX (status,queueId)"
+				  "UNIQUE INDEX (status,queueId)"
 				 ]
 		   };
   my $queueColumnsProc={columns=>{queueId=>"int(11) not null auto_increment primary key",

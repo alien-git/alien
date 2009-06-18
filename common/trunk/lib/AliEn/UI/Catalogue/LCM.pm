@@ -872,7 +872,7 @@ sub _canCreateFile{
 
 sub addFile {
   my $self  = shift;
-  $self->debug(1, "UI/LCM Register @_");
+  $self->debug(1, "UI/LCM Add @_");
   my $options={};
   @ARGV=@_;
   Getopt::Long::GetOptions($options, "silent", "reverse", "versioning",
@@ -883,8 +883,7 @@ sub addFile {
   my $lfn   = shift;
   my $pfn   = shift;
   my $newSE =(shift or $self->{CONFIG}->{SAVESE_FULLNAME} or $self->{CONFIG}->{SE_FULLNAME} or "");
-  my $oldSE = ( shift or "" );
-  my $target = (shift or "");
+
 
   $pfn or $self->info("Error: not enough parameters in add\n".
 		      $self->addFile_HELP(),2)	and return;
@@ -918,14 +917,14 @@ sub addFile {
 
   $ENV{'IO_AUTHZ'} = $envelope[0]->{envelope};
   ######################################################################################
-  $self->debug(1, "\nRegistering  $pfn as $lfn, in SE $newSE and $oldSE (target $target)");
+  $self->debug(1, "\nRegistering  $pfn as $lfn, in SE $newSE ");
 
 #  if ($options=~ /u/) {#
 #
 #  }
   my $start=time;
 
-  my $data = $self->{STORAGE}->registerInLCM( $pfn, $newSE, $oldSE, $target,$lfn, $options,"", $envelope[0]);
+  my $data = $self->{STORAGE}->registerInLCM( $pfn, $newSE, $lfn, $options,"", $envelope[0]);
 
   my $time=time-$start;
 #  my $size=undef;
@@ -1014,7 +1013,7 @@ sub mirror {
   my $guid;
   my $realLfn;
   my $guidInfo;
-  my ($pfn,$oldSE)=("","");
+  my $pfn="";
   my $seRef;
   if ($opt->{g}){
     $self->info("STill to be implemented");
@@ -1610,6 +1609,7 @@ sub access {
 	if (!$se2){
 	  $self->info("Ok, let's create a default pfn");
 	  ($seurl, $guid)=$self->{CATALOG}->createDefaultUrl($se, $guid,$size);
+	  $seurl or return access_eof("Not an xrootd se, and there is no place in $se for $size");
 	  $self->info("Now, $seurl and $guid");
 	}
 	$pfn = $seurl;
@@ -1991,7 +1991,7 @@ sub upload {
     my @envelope= $self->access("-s","write-once","/NOLFN", $se, $size,0,"$guid");
     @envelope or $self->info("Error getting the security envelope") and return;
     
-    $data= $self->{STORAGE}->registerInLCM( $pfn, $se, undef, undef, undef, undef, $guid, $envelope[0]) or return;
+    $data= $self->{STORAGE}->registerInLCM( $pfn, $se,  undef, undef, $guid, $envelope[0]) or return;
     if ($envelope[0]->{url}){
       my $newPFN=$envelope[0]->{url};
       $newPFN=~ s{^([^/]*//[^/]*)//(.*)$}{$1/$envelope[0]->{pfn}};

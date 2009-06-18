@@ -178,19 +178,7 @@ sub checkGUIDTable {
   $index=~ s/^G(.*)L$/$1/;
   $db->do("INSERT IGNORE INTO GL_ACTIONS(tableNumber,action)  values (?,'MODIFIED'), (?,'SE')", {bind_values=>[$index, $index]}); 
 
-  #finally, let's check the triggers"
-  my $triggers=$db->query("show triggers like '$table'");
-  if (not ${$triggers}[0]){
-    $self->info("Adding the triggers for the table $table");
-    foreach my $t ("insert", "delete", "update"){
-      
-      my $trigger=" update  GL_ACTIONS set time=now() where action='MODIFIED' and tableNumber=$index ";
-      $t =~ /update/ and $trigger=" if ( NEW.seStringlist != OLD.seStringlist ) then $trigger ; end if;";
 
-
-      $db->do("create trigger ${table}_$t before $t on $table for each row $trigger");
-    }
-  }
   return 1;
 
 }

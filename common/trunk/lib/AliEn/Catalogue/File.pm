@@ -939,8 +939,11 @@ sub createDefaultUrl {
   my $se=shift;
   my $guid=shift;
   my $size=shift;
-  my $prefix=$self->{DATABASE}->{LFN_DB}->queryValue('select concat(method,"/",mountpoint) from SE_VOLUMES where freespace>? and sename=?', undef, {bind_values=>[$size, $se]});
-  $prefix or return;
+  my $prefix=$self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryValue('select concat(method,"/",mountpoint) from SE_VOLUMES where freespace>? and sename=?', undef, {bind_values=>[$size, $se]});
+  if (!$prefix){
+    $self->info("There is no space in '$se' to put that file (size $size)!!",1);
+    return;
+  }
   $self->info("So far so good: $prefix (and $guid)");
   my ($filename, $nguid)=$self->createFileName($se,$guid, "/");
   return ("$prefix$filename", $nguid);

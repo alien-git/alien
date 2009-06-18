@@ -679,8 +679,9 @@ sub setPrimaryKey{
       if ($list[0]){
 	$DEBUG and $self->debug(1, "Checking the column $list[0]");
 	my $unique= grep (/unique/i, $list[0]);
-	if ($unique eq $ind->{Non_unique}) {
-	  $self->info( "The uniqueness is not well defined");
+	
+	if ($unique eq $ind->{Non_unique} ){
+	  $self->info( "The uniqueness of $list[0] in $table is not well defined");
 	  $self->alterTable($table, "drop index $ind->{Key_name}");
 	} else {
 	  @indexes=grep (! /\W$ind->{Column_name}\W/, @indexes);
