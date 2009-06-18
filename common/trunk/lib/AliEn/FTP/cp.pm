@@ -9,7 +9,14 @@ use AliEn::FTP;
 
 use Net::LDAP;
 use AliEn::Util;
+use AliEn::MSS::file;
 
+sub initialize {
+  my $self=shift;
+  $self->{MSS}=AliEn::MSS::file->new({NO_CREATE_DIR=>1});
+  return $self->SUPER::initialize(@_);
+
+}
 
 sub copy {
   my $self=shift;
@@ -18,11 +25,9 @@ sub copy {
   my $line=shift;
 
   $self->info("Ready to copy $source into $target with cp");
-
-  my ($protocol, $se, $sourceHost, $targetHost)=split(',', $line);
-
-  use Data::Dumper;
-  print Dumper($source,$target, $line);
+  my $done=$self->{MSS}->cp($source->{pfn}, $target->{pfn});
+  $done eq 0 and return 1;
+  $self->info("Error copying $source->{pfn} into $target->{pfn}",1);
   return;
 }
 

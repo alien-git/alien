@@ -738,7 +738,7 @@ sub transferFile {
     } else{
       ($done, $prot_id)=$self->{PLUGINS}->{lc($protocol)}->copy($sourceEnvelope, $targetEnvelope, $line);
     }
-     if ($done eq 1){
+    if ($done eq 1){
       $self->info("The transfer worked  Final pfn:'$targetEnvelope->{url}'!!!");
       $done=1;
     }elsif ($done eq 2){

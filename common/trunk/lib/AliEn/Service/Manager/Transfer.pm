@@ -120,8 +120,14 @@ sub changeStatusTransfer {
   $options->{Reason} and $query->{Reason}=$options->{Reason};
 
   ($status eq "DONE" or $status eq "FAILED_T") and $query->{finished} = $date;
-  #
-  
+  $options->{pfn} and $query->{pfn}=$options->{pfn};
+  $options->{ftd} and $query->{ftd}=$options->{ftd};
+
+  if ($options->{protocolid}){
+    $self->{TRANSFERLOG}->putlog($id, "STATUS", "The transfer has internal id '$options->{protocolid}'");
+    $query->{protocolid}=$options->{protocolid};
+    delete $query->{started};
+  }  
   my $done=$self->{DB}->updateTransfer($id, $query);
   
   $done or  $self->{LOGGER}->error("TransferManager", "In changeStatusTransfer error: Updating the status")
@@ -144,7 +150,8 @@ sub changeStatusTransfer {
       $father.=",";
       $self->{DB}->do("update ACTIONS set todo=1, extra=concat(replace(extra,?, ''), ?)where action='MERGING'", {bind_values=>[$father, $father]});
     }
-  }elsif ($status=~ /FAILED_T/){
+  }
+  if ($status=~ /FAILED_T/){
     $self->{DB}->do("UPDATE ACTIONS set todo=1 where action='FAILED_T'");
   }
 
@@ -568,6 +575,17 @@ sub FetchTransferMessages {
 			       
   
 
+}
+
+sub checkOngoingTransfers {
+  my $this=shift;
+  my $ftd=shift;
+  $self->info("Checking the transfers that $ftd was doing");
+
+  my $info=$self->{DB}->query("select transferid id,jdl,protocolid from TRANSFERS_DIRECT where ftd=? and status='TRANSFERRING'",
+			      undef, {bind_values=>[$ftd]});
+  return $info;
+  
 }
 
 return 1;

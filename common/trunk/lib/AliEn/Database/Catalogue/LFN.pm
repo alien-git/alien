@@ -18,6 +18,8 @@ use AliEn::Database::Catalogue::Shared;
 use strict;
 
 use Data::Dumper;
+
+
 =head1 NAME
 
 AliEn::Database::Catalogue - database wrapper for AliEn catalogue
@@ -211,29 +213,7 @@ sub checkLFNTable {
 		);
 
   $self->checkTable(${table}, "entryId", \%columns, 'entryId', ['UNIQUE INDEX (lfn)',"INDEX(dir)", "INDEX(guid)", "INDEX(type)"]) or return;
-  
-  $self->info("We should also check if the triggers exist");
-  my $info=$self->query("show triggers like '$table\%'");
 
-  my $triggers={"${table}_insert"=>1,"${table}_delete"=>1,
-		"${table}_update"=>1};
-
-  foreach my $trigger (@$info) {
-    $trigger->{Timing} eq "BEFORE" or next;
-    if ($trigger->{Statement} =~ /LL_ACTIONS/){
-      delete $triggers->{$trigger->{Trigger}};
-      next;
-    }
-    $self->do("drop trigger $trigger->{Trigger}");
-  }
-  $self->do("INSERT IGNORE INTO LL_ACTIONS(tableNumber,action,time)  values (?,'MODIFIED',now()), (?,'STATS',now()-1)", {bind_values=>[$number, $number]}); 
-
-  foreach my $triggerName (keys %$triggers){
-    my $key=$triggerName;
-    $key =~ s/^.*_//;
-    $self->info("Creating the $key trigger");
-    $self->do("create trigger $triggerName before $key on $table for each row  update  LL_ACTIONS set time=now() where action='MODIFIED' and tableNumber=$number") or return; 
-  }
   return 1;
 }
 
@@ -458,11 +438,6 @@ sub deleteFile {
 #  my $index=",$self->{CURHOSTID}_$tableName,";
   $file=~ s{^$self->{INDEX_TABLENAME}->{lfn}}{};
 
-#  my $guid=$self->queryValue("select guid from $tableName where lfn='$file'");
-#  if ($guid) {
-#    $self->debug(1, "Removing the value $index from the GUID $guid");
-#    my $done= $self->{FIRST_DB}->do("update GUID set lfn=if(locate('$index', lfn), concat(left(lfn,locate('$index',lfn)), substring(lfn, length('$index')+locate('$index',lfn))), lfn) where guid='$guid'");
-#  }
 
   return $self->delete($tableName, "lfn='$file'");
 }
@@ -862,7 +837,6 @@ sub copyDirectory{
       # we want to copy the lf, which in fact would be something like
       # substring(concat('$entry->{lfn}', lfn), length('$sourceIndex'))
       $self->do("$select$entry->{lfn}$select2 from $join and $like");
-#      $self->{FIRST_DB}->do("update GUID, $table set GUID.lfn=concat(GUID.lfn, '${targetIndex}_$targetTable,') where GUID.guid=$table.guid and $table.lfn  like '$tsource%' and $table.replicated=0");
 
     }else {
       $DEBUG and $self->debug(1, "This is complicated: from another database");

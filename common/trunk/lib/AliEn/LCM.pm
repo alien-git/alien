@@ -392,8 +392,6 @@ sub registerInLCM {
   my $self  = shift;
   my $pfn   = shift;
   my $newSE = ( shift or $self->{CONFIG}->{SAVESE_FULLNAME} or $self->{CONFIG}->{SE_FULLNAME} or "");
-  my $oldSE = ( shift or "" );
-  my $target = (shift or "");
   my $lfn=(shift or "");
   my $options=(shift or "");
   my $reqGuid=(shift or "");
@@ -402,10 +400,10 @@ sub registerInLCM {
     or $self->{LOGGER}->warning( "LCM", "Error no pfn specified" )
       and return;
 
-  $self->info( "Registering the file $pfn in $newSE" );
+  $self->info( "Adding the file $pfn to $newSE" );
 
   my $result=
-    $self->RegisterInRemoteSE($pfn, $newSE, $oldSE, $target, $lfn, $options, $reqGuid, $envelope);
+    $self->RegisterInRemoteSE($pfn, $newSE, $lfn, $options, $reqGuid, $envelope);
 
   $result
     #       or $self->{LOGGER}->warning( "LCM", "Error contacting the SE" )
@@ -441,46 +439,23 @@ sub RegisterInRemoteSE {
   my $self=shift;
   my $pfn=shift;
   my $newSE= (shift or "");
-  my $oldSE= (shift or "");
-  my $target= (shift or "");
   my $lfn=(shift or "");
   my $options=(shift or {});
   my $reqGuid=(shift or "");
   my $envelope=(shift or "");
 
 
-  my $use_cert=1;
-  my $repeat=1;
   my $localfile=$self->checkPFNisLocal($pfn);
 
-  if ( $options->{reverse}  ||   not  $localfile){
-    while (1) {
-      $self->{SOAP} or $self->{SOAP}=new AliEn::SOAP;
-
-      my ($seName, $seCert)=$self->{SOAP}->resolveSEName($newSE) or return;
-
-      my $newpfn=$self->startTransferDaemon($pfn, $seCert, $use_cert)
-	or return;
-      my $message="Contacting SE $seName, and tell it to pick up $newpfn";
-      $oldSE and $message.="(using oldSE $oldSE)";
-      $self->info( $message );
-
-      my $result =$self->waitForCopyFile($seName,{"source"=> $newpfn,
-						  "oldSE"  => "$oldSE",
-						  "target"=>$target,
-						  "options"=> "f",
-						  lfn=>$lfn});
-      $message="Returned: ";
-      $result and $message.=$result;
-      $DEBUG and $self->debug(1, $message );
-      $self->stopTransferDaemon();
-      $result and return $result;
-      $use_cert or $repeat=0;
-      $use_cert=0;
-      $newpfn=~ /^((bb)|(grid)ftp)/ or last;
-      $self->info( "Ok, it didn't work... let's see if we can repeat it without $1");
-    }
-    $self->info( "Asking the SE to fetch the file didn't work... let's see if we can upload it");
+  if ( not  $localfile){
+    $self->info("The file is not local. Let's retrieve it first");
+    my $url=AliEn::SE::Methods->new($pfn) 
+      or $self->info( "Error creating the url of $pfn")
+	and return;
+    ($localfile)=$url->get();
+    $localfile or $self->info("Error getting the file '$pfn'", 1) and return;
+    print "Got $localfile\n";
+    $pfn="file://$self->{CONFIG}->{HOST}$localfile";
   }
   $self->debug (1, "Trying to upload the file to the SE");
   my $url=AliEn::SE::Methods->new($pfn) 
@@ -504,7 +479,7 @@ sub RegisterInRemoteSE {
   my $url2=AliEn::SE::Methods->new({PFN=>$info->{pfn},
 				    LOCALFILE=>$url->path()})
     or $self->info("Error creating the url of $pfn") and return;
-  
+
   my $done=$url2->put() or
     $self->info("Error uploading the file: ") and return;
 
