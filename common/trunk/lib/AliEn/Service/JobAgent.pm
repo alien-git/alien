@@ -833,12 +833,29 @@ sub getCatalogue {
   $self->info("Got the catalogue");
   return $catalog;
 }
+sub getBatchId{
+  my $self=shift;
+  $self->info("Finding out the batch id");
+
+  my $queuename = "AliEn::LQ";
+  ( $self->{CONFIG}->{CE} ) 
+    and $queuename .= "::$self->{CONFIG}->{CE_TYPE}";
+
+  eval "require $queuename"
+    or $self->info("Error requiring '$queuename': $@")
+      and return;
+  my $b = $queuename->new();
+  $b or $self->info("Error creating a $queuename") and return;
+
+  return $b->getBatchId();
+}
+
 sub executeCommand {
   my $this = shift;
-  
-  
-  $self->changeStatus("%",  "STARTED", 0,$self->{HOST}, $self->{PROCESSPORT} );
-  
+
+  my $batchid=$self->getBatchId();
+  $self->changeStatus("%",  "STARTED", $batchid,$self->{HOST}, $self->{PROCESSPORT} );
+
   $ENV{ALIEN_PROC_ID} = $self->{QUEUEID};
   my $catalog=$self->getCatalogue() or return;
 

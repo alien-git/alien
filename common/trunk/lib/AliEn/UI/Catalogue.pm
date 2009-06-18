@@ -758,7 +758,7 @@ sub execute {
 	    $command = $lcommand . ((defined($_)) ? "'$_'," : "") . $rcommand;
 	    $command =~ s/,\)/\)/;
 	    $command =~ s/\@/\\\@/g;
-	    $DEBUG and $self->debug(1, "Executing the command: '$command'");
+	    $DEBUG and $self->debug(1, "Executing  the command: '$command'");
 	    push @error, eval $command;
 	  }
 	}

@@ -597,7 +597,7 @@ sub f_cd {
   my $path = shift;
   my $pathIdx="";
 
-  ($path) or ( $path = $self->GetHomeDirectory() );
+  (defined $path) or ( $path = $self->GetHomeDirectory() );
 
   $path = $self->GetAbsolutePath($path, 2);
 
@@ -634,7 +634,8 @@ sub f_mkdir {
   my ($options, $path)= @_;
   $DEBUG and $self->debug(1,"In UserInterface f_mkdir @_");
   my $message;
-  ($path) or $message="not enough arguments";
+  (defined $path) or $message="not enough arguments";
+  $path =~ s{\\@}{@}g;
   ($options =~ /^[s|p]*$/) or $message="unknown option '$options'";
   $message and
     $self->{LOGGER}->error("Catalogue", "Error $message\nUsage: mkdir [-ps] <directory>\nOptions: -s silent\n\t-p create parents as needed") and return;
@@ -849,10 +850,13 @@ sub existsEntry {
 
     return $self->{DATABASE}->existsLFN( $lfn);
   }
+
   $lfn =~ s/\*/\\\*/g;
   $lfn =~ s/\?/\\\?/g;
+  $lfn=~ s{\+}{\\+}g;
   $DEBUG and $self->debug(1, "Comparing '$lfn' and '$permFile'");
   $lfn =~ s{(.)/$}{$1};
+
   ($permFile =~ /^$lfn\/?$/ ) or  return;
 
   $DEBUG and $self->debug(1, "The entry exists ($permFile)");
@@ -912,7 +916,7 @@ sub f_print {
   $opt =~ /e/ or $expire="";
 
   $name =~ s{^$path}{};
-  $name or $name =".";
+  defined $name or $name =".";
 
 
   my $permstring = $rentry->{type};

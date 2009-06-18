@@ -37,7 +37,7 @@ sub initialize {
   $self->SUPER::initialize(@_) or return;
   $self->{TRANSFERLOG}=AliEn::TRANSFERLOG->new({DB=>$self->{DB}}) or return;
 #  $self->StartChildren('Assigned', 'Archive', 'Inserting', 'Merging', 'SE', 'Agent') or return;
-  $self->StartChildren('Inserting') or return;
+  $self->StartChildren( 'Assigned', 'Failed','Agent', 'Inserting') or return;
 #  $self->StartChildren('No_se') or return;
 
   $self->{FORKCHECKPROCESS}=1;

@@ -195,5 +195,11 @@ sub needsCleaningUp {
   return 0;
 }
 
+sub getBatchId {
+  my $self=shift;
+  $self->info("Getting the batch id in FORK (returning the pid $$)");
+  return $$;
+}
+
 return 1;
 

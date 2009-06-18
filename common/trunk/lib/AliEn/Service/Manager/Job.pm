@@ -398,6 +398,7 @@ sub changeStatusCommand {
     $set->{started} = $date;
   } elsif ( $status eq "STARTED" ) {
     $set->{started} = $date;
+    $error and $set->{batchid}=$error;
   } elsif ( $status eq "SAVING" ) {
     $self->info("Setting the return code of the job as $error");
     $set->{error} = $error;
