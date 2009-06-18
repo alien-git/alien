@@ -141,6 +141,7 @@ sub initialize {
 				  procinfotime =>"int(20)",
 				  si2k=>"float",
 				  lastupdate=>"timestamp",
+				  batchid=>"varchar(255)",
 				 },
 			id=>"queueId",
 			index=>"queueId"};

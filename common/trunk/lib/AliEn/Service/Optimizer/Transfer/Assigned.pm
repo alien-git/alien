@@ -19,27 +19,20 @@ sub checkWakesUp {
   $self->$method(@silentData,"In checkTransferRequirements checking if we can archive some of the old transfers");
 
   #Updating the transfers with status 'WAITING' and only one PFN
-  my $transfers=$self->{DB}->query("SELECT transferid,jdl FROM TRANSFERS where status='ASSIGNED' and  ctime<SUBTIME(now(), SEC_TO_TIME(1800))");
+  my $transfers=$self->{DB}->query("SELECT transferid FROM TRANSFERS_DIRECT where (status='ASSIGNED' and  ctime<SUBTIME(now(), SEC_TO_TIME(1800))) or (status='TRANSFERRING' and from_unixtime(started)<SUBTIME(now(), SEC_TO_TIME(14400)))");
 
   defined $transfers
     or $self->{LOGGER}->warning( "TransferOptimizer", "In checkTransferRequirements error during execution of database query" )
       and return;
 
-
-  $self->info( "There are ".($#{$transfers} +1)." transfers have been stuck in ASSIGNED for more than 30 minutes ");
-
+  $self->info( "There are ".($#{$transfers} +1)." transfers stuck in ASSIGNED for more than 30 minutes (or TRANSFERRING for 2 hours)");
 
   foreach my $transfer (@$transfers){
-    $self->info("What can we do with '$transfer->{transferid}'?");
-    my $ca = Classad::Classad->new($transfer->{jdl});
-    $self->info( "Classad created");
-    my ($ok, $action)=$ca->evaluateAttributeString("Action");
-    $ok or $self->info("Error getting the action from the jdl!") and next;
-    my $status='INSERTING';
-    $self->info("Setting the transfer to $status");
-    $self->{DB}->updateTransfer($transfer->{transferid}, {status=> "$status", jdl=>$transfer->{jdl}});
+    $self->info("Putting the transfer $transfer->{transferid} back to 'INSERTING'");
+    $self->{DB}->updateTransfer($transfer->{transferid}, {status=> "INSERTING"});
+    $self->{TRANSFERLOG}->putlog($transfer->{transferid}, "STATUS", 'Transfer stalled. Moving it back to INSERTING');
   }
-
+  $self->{DB}->do("UPDATE ACTIONS set todo=1 where action='INSERTING2'");
 
   return ;
 }

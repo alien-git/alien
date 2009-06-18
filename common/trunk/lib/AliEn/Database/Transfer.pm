@@ -49,7 +49,7 @@ my $tables={ TRANSFERS_DIRECT=>{columns=>{
 					  error=>"int(11)",
 					  jdl=>"text",
 					  #				   transferGroup=>"int(11)",
-					  size=>"int(11)",
+					  size=>"bigint(11)",
 					  status=>"varchar(15)",
 					  attempts=>"int(11)",
 					  
@@ -63,6 +63,7 @@ my $tables={ TRANSFERS_DIRECT=>{columns=>{
 					  type=>"varchar(30)",
 					  agentid=>"int(11)",
 					  reason=>'varchar(255)',
+					  protocolid=>'varchar(255)',
 				  },
 			 id=>"transferId",
 				index=>"transferId",
@@ -75,6 +76,10 @@ my $tables={ TRANSFERS_DIRECT=>{columns=>{
 		      },
 	     PROTOCOLS=>{columns=>{sename=>"varchar(50) COLLATE latin1_general_ci ",
 				   protocol=>"varchar(50)",
+				   options=>'varchar(255)',
+				   max_transfers=>'int(11) default 5',
+				   current_transfers=>'int(11) default 0',
+				   updated=>'tinyint default 1',
 				  },
 			 id=>"sename"},
 	     AGENT_DIRECT=>{columns=>{entryId=>"int(11) not null auto_increment primary key",
@@ -435,6 +440,12 @@ sub findCommonProtocols {
   my $p=$self->query("select protocol, A.options sourceopt, B.options targetopt from PROTOCOLS A join PROTOCOLS B using (protocol) where A.sename=? and B.sename=?", undef, {bind_values=>[$source,$dest]});
   $self->info("Common protocols between $source and $dest: @$p");
   return @$p;
+}
+
+sub insertProtocol{
+  my $self=shift;
+
+  return $self->insert("PROTOCOLS", @_);
 }
 
 sub insertTransferMessage {

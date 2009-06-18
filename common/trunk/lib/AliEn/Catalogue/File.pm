@@ -921,7 +921,7 @@ sub createFileName {
   my $self=shift;
   my $seName=shift or return;
   my $guid=(shift or 0);
-  my $prefix=$self->getStoragePath($seName);
+  my $prefix=shift || $self->getStoragePath($seName);
   my $filename;
   if (!$guid) {
       $guid = $self->{GUID}->CreateGuid();
@@ -931,10 +931,21 @@ sub createFileName {
       }
   }
   $filename = sprintf "%s/%02.2d/%05.5d/%s",$prefix,$self->{GUID}->GetCHash($guid),$self->{GUID}->GetHash($guid),$guid;
-  while ($filename =~ /\/\//) {$filename =~ s/\/\//\//g;}
+  $filename =~ s{/+}{/}g;
   return ($filename,$guid);
 }
-
+sub createDefaultUrl {
+  my $self=shift;
+  my $se=shift;
+  my $guid=shift;
+  my $size=shift;
+  my $prefix=$self->{DATABASE}->{LFN_DB}->queryValue('select concat(method,"/",mountpoint) from SE_VOLUMES where freespace>? and sename=?', undef, {bind_values=>[$size, $se]});
+  $prefix or return;
+  $self->info("So far so good: $prefix (and $guid)");
+  my ($filename, $nguid)=$self->createFileName($se,$guid, "/");
+  return ("$prefix$filename", $nguid);
+    
+}
 sub createFileUrl {
   my $self = shift;
   my $se   = shift;
@@ -945,7 +956,9 @@ sub createFileUrl {
       or $self->info("Error getting the IO protocols of $se") and return;
   my $selectedprotocol=0;
 
-  foreach (@$protocols) {if ( $_ =~ /^$clientprot/) { $selectedprotocol =$_; last;} }
+  foreach (@$protocols) {
+    if ( $_ =~ /^$clientprot/) { $selectedprotocol =$_; last;}
+  }
 
   $selectedprotocol or $self->info("The client protocol '$clientprot' could not be found in the list of supported protocols of se $se") and return;
   

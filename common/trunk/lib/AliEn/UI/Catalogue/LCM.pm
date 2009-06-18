@@ -981,16 +981,15 @@ sub mirror_HELP{
 
   return "mirror Copies a file into another SE
 Usage:
-\tmirror [-ftgbui] [-m <number>] [-c <collection>] [-try <number>]<lfn>
+\tmirror [-fgui] [-m <number>] [-c <collection>] [-try <number>]<lfn>
 Options:\t-f\t keep the same relative path
-\t\t-b\t Do not wait for the file transfer
-\t\t-t\t Issue a transfer instead of copying the file directly (this implies also -b) (this is the default method)
 \t\t-g:\t Use the lfn as a guid
 \t\t-m <id>\t Put the transfer under the masterTransfer of <id>
 \t\t-u\t Don't issue the transfer if the file is already in that SE
 \t\t-r\t If the file is in a zip archive, transfer the whole archive
 \t\t-c\t Once the transfer finishes, register the lfn in the collection <collection>
 \t\t-try <NumOfAttempts>\t Specifies the number of attempts to try and mirror the file
+\t\t-w Wait until the transfer finishes
 ";
 }
 
@@ -1000,7 +999,7 @@ sub mirror {
 
   my $opt={};
   @ARGV=@_;
-  Getopt::Long::GetOptions($opt,  "f", "g", "m=i", "b","t", "u", "r", "c=s","try=i") or 
+  Getopt::Long::GetOptions($opt,  "f", "g", "m=i", "b","t", "u", "r", "c=s","try=i", "w") or 
       $self->info("Error parsing the arguments to mirror". $self->mirror_HELP()) and return;;
   @_=@ARGV;
   my $options=join("", keys(%$opt));
@@ -1080,7 +1079,21 @@ sub mirror {
 
   my $id=$result->result;
   $self->info("The transfer has been scheduled!! ($id)");
-  return (-2, $id);
+  $opt->{'w'} or return (-2, $id);
+  $self->info('Waiting until the transfer finishes');
+  while (1) {
+    sleep 40;
+    $self->info("Checking if the transfer finished");
+    my ($done)=$self->execute("listTransfer", "-id", $id);
+    $done or return;
+    my $t=shift  @$done;
+    $t or return;
+    $self->info("The transfer is $t->{status}");
+    $t->{status} =~ /DONE/ and return 1;
+    $t->{status} =~ /FAILED/ and return ;
+
+  }
+  return ;
 }
 
 sub findCloseSE {
@@ -1591,11 +1604,14 @@ sub access {
       }
       $DEBUG and $self->debug(1, "We have permission on the lfn");
       if ($access =~ /^write/) {
-	if (!$se) {
-	  $se = $self->{CONFIG}->{SE_FULLNAME};
+	$se or $se = $self->{CONFIG}->{SE_FULLNAME};
+		
+	($seurl,$guid,my $se2) = $self->{CATALOG}->createFileUrl($se, "root", $guid);
+	if (!$se2){
+	  $self->info("Ok, let's create a default pfn");
+	  ($seurl, $guid)=$self->{CATALOG}->createDefaultUrl($se, $guid,$size);
+	  $self->info("Now, $seurl and $guid");
 	}
-	
-	($seurl,$guid,$se) = $self->{CATALOG}->createFileUrl($se, "root", $guid);
 	$pfn = $seurl;
 	$pfn=~ s/\/$//;
 	$seurl=~ s/\/$//;
@@ -1631,11 +1647,11 @@ sub access {
       if ($globalticket eq "") {
 	$globalticket .= $ticket;
       }
-      
-      $pfn =~ m{^root://([^/]*)/(.*)};
-      my $pfix = $1;
-      my $ppfn = $2;
-      
+
+      $pfn =~ m{^(root)|(file)://([^/]*)/(.*)};
+      my $pfix = $3;
+      my $ppfn = $4;
+
       $filehash->{pfn} = "$ppfn";
       if (($lfn eq "") && ($access =~ /^write/)) {
 	  $lfn = "/NOLFN";
@@ -1643,7 +1659,7 @@ sub access {
       }
 
       $filehash->{turl} = $pfn;
-      
+
       # patch for dCache
       $filehash->{turl} =~ s/\/\/pnfs/\/pnfs/;
       $filehash->{se}   = $se;
@@ -1711,7 +1727,7 @@ sub access {
 	$newhash->{pfn}="$ppfn";
 
 
-        $newhash->{url}="root://$pfix/$ppfn";
+        $newhash->{url}=$filehash->{turl} ;#"root://$pfix/$ppfn";
         ($se =~ /dcache/i)  and $newhash->{url}="root://$pfix/$filehash->{lfn}";
         ($se =~ /alice::((RAL)|(CNAF))::/i) and $newhash->{url}="root://$pfix/$filehash->{lfn}";
 

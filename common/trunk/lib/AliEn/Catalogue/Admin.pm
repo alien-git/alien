@@ -3,7 +3,7 @@ package AliEn::Catalogue::Admin;
 use strict;
 
 use AliEn::Database::Admin;
-
+use AliEn::Database::Transfer;
 # This package contains the functions that can only be called by the 
 # administrator
 #
@@ -612,13 +612,12 @@ sub resyncLDAP {
   }
   $self->info("ok!!");
   $self->resyncLDAPSE();
+
   return 1;
 }
 
-sub resyncLDAPSE {
+sub getLDAP {
   my $self=shift;
-
-  $self->info("Let's resync the SE and volumes from LDAP");
   my $ldap;
   eval {
     $ldap=Net::LDAP->new($self->{CONFIG}->{LDAPHOST}) or die("Error contacting $self->{CONFIG}->{LDAPHOST}");
@@ -628,6 +627,44 @@ sub resyncLDAPSE {
     $self->info("Error connecting to ldap!: $@");
     return;
   }
+  return $ldap;
+}
+
+
+sub checkFTDProtocol{
+  my $self=shift;
+  my $entry=shift;
+  my $sename=shift;
+  my $db=shift;
+  $self->info("WHAT SHALL WE DO HERE????");
+  my @protocols=$entry->get_value('ftdprotocol');
+  foreach my $p (@protocols){
+    my ($name, $options)=split('\s+',$p,2);
+    $self->info("Inserting $name and $sename");
+    my $info={sename=>$sename, protocol=>$name};
+    if ($options){
+      ($options=~ s/\s*transfers=(\d+)\s*//) and
+	$info->{max_transfers}=$1;
+      $options!~ /^\s*$/ and $info->{options}=$options;
+    }
+    $db->insertProtocol($info);
+  }
+  return 1;
+}
+sub resyncLDAPSE {
+  my $self=shift;
+
+  $self->info("Let's resync the SE and volumes from LDAP");
+  my $ldap=$self->getLDAP() or return;
+
+  my $transfers=AliEn::Database::Transfer->new({ROLE=>'admin'});
+  if (! $transfers){
+    $self->info("Error getting the transfer database");
+    $ldap->unbind();
+    return;
+  }
+  $transfers->do("UPDATE PROTOCOLS set updated=0");
+
   my $mesg=$ldap->search(base=>$self->{CONFIG}->{LDAPDN},
 			 filter=>"(objectClass=AliEnMSS)");
   my $total=$mesg->count;
@@ -648,7 +685,7 @@ sub resyncLDAPSE {
     $self->info("Doing the SE $sename");
     $self->checkSEDescription($entry, $site, $name, $sename);
     $self->checkIODaemons($entry, $site, $name, $sename);
-
+    $self->checkFTDProtocol($entry,$sename, $transfers);
     my @paths=$entry->get_value('savedir');
 
     my $info=  $db->query("select * from SE_VOLUMES where sename=?",
@@ -710,7 +747,10 @@ sub resyncLDAPSE {
   $db->do("update SE_VOLUMES set freespace=size-usedspace where size!= -1");
   $db->do("update SE_VOLUMES set freespace=2000000000 where size=-1");
 
+  $transfers->do("delete from PROTOCOLS where updated=0");
+
   $ldap->unbind();
+  $transfers->close();
   return;
 }
 

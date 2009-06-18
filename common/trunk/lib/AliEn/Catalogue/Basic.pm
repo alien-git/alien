@@ -243,10 +243,11 @@ sub f_basename {
 #
 sub GetAbsolutePath {
   my $self = shift;
-  my $path = shift || "";
+  my $path = shift;
+  defined $path or $path="";
   my $trailingslash = (shift or 0);
   $DEBUG and $self->debug(3, "Getting the full path of $path");
-  ($path) or return $self->{CURPATH};
+  (defined $path) or return $self->{CURPATH};
 
   # replace ~
   $path =~ s/^~/$self->GetHomeDirectory()/e;

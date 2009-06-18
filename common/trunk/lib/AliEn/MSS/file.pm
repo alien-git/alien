@@ -32,7 +32,11 @@ sub cp {
 
   my @cmd = ( "cp", @args );
 
-
+  my $target=$cmd[$#cmd];
+  $self->info("Copying into $target");
+  $target=~ s{[^/]*$}{};
+  $self->info("Making the directory $target");
+  $self->mkdir($target);
 #  if ( $self->{SILENT} ) {
     open SAVEERR, ">&STDERR";
     open SAVEERR, ">&STDERR";

@@ -104,8 +104,31 @@ sub initialize {
     $self->info("There are already some pids!! @d");
     $self->{FTD_PIDS}=\@d;
   }
+  $self->checkOngoingTransfers();
 
   return $self;
+}
+
+sub checkOngoingTransfers{
+  my $self=shift;
+  $self->info("Checking all the transfers that we were supposed to be running");
+  my $info=$self->{SOAP}->CallSOAP("Manager/Transfer","checkOngoingTransfers", $self->{CONFIG}->{FTD_FULLNAME}) or return;
+  my $transfers=$info->result or return;
+
+  $self->info("Let's see if we can recover");
+  foreach my $t (@$transfers){
+    my $pid=fork();
+    if ($pid){
+      my @list=();
+      $self->{FTD_PIDS} and @list=@{$self->{FTD_PIDS}};
+      push @list, $pid;
+      $self->{FTD_PIDS}=\@list;
+      next;
+    }
+    $self->_forkTransfer($t, $t->{protocolid});
+    exit;
+  }
+
 }
 
 sub createJDL {
@@ -624,6 +647,8 @@ sub checkWakesUp{
  sub _forkTransfer{
   my $self=shift;
   my $transfer=shift;
+  my $recover=shift;
+
   my $id=$transfer->{id};
   my $n=int($id/1000);
   -d "$self->{CONFIG}->{LOG_DIR}/FTD_transfers" || mkdir "$self->{CONFIG}->{LOG_DIR}/FTD_transfers";
@@ -647,16 +672,16 @@ sub checkWakesUp{
     return;
   }
   my $pfn;
-  $self->info("OK, ");
+
   my ($ok, @pro)=$ca->evaluateAttributeVectorString('FullProtocolList');
   $self->info("Got @pro");
-  
-  $self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, "TRANSFERRING", "ALIEN_SOAP_RETRY");
+  $recover or
+    $self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, "TRANSFERRING", "ALIEN_SOAP_RETRY");
   foreach my $line (@pro){
     my ($protocol, $source, @rest)=split(",", $line);
     if (grep(/^$protocol$/i, @{$self->{CONFIG}->{FTD_PROTOCOL_LIST}})){
       $self->info("We can get the file with '$protocol' from '$source'");
-      $pfn=$self->transferFile($id, $ca, $protocol, $source, $line);
+      $pfn=$self->transferFile($id, $ca, $protocol, $source, $line, $recover);
       $pfn and last;
       $self->info("It didn't work :(");
     }
@@ -683,9 +708,9 @@ sub transferFile {
   my $protocol=shift;
   my $source=shift;
   my $line=shift;
+  my $recover=shift ||0;
 
-
-  $self->info("Ready to get the file from $source");
+  $self->info("Ready to get the file from $source (recover $recover)");
 
   my ($ok, $user)=$ca->evaluateAttributeString("User");
   ($ok, my $lfn)=$ca->evaluateAttributeString("FromLFN");
@@ -705,17 +730,61 @@ sub transferFile {
   $self->info("Let's start with the transfer!!!");
   my $done;
   eval{
-    if ($self->{PLUGINS}->{lc($protocol)}->copy($sourceEnvelope, $targetEnvelope, $line)){
-      $self->info("The transfer worked!!!");
+    my $prot_id;
+    if ($recover){
+      $self->info("We don't issue the transfer again (is is $recover)");
+      $done=2;
+      $prot_id=$recover;
+    } else{
+      ($done, $prot_id)=$self->{PLUGINS}->{lc($protocol)}->copy($sourceEnvelope, $targetEnvelope, $line);
+    }
+     if ($done eq 1){
+      $self->info("The transfer worked  Final pfn:'$targetEnvelope->{url}'!!!");
       $done=1;
-    };
+    }elsif ($done eq 2){
+      $done=0;
+      $self->waitForCompleteTransfer($self->{PLUGINS}->{lc($protocol)}, $id, $prot_id)
+	and $done=1;
+    }
   };
   if ($@){
     $self->info("Error doing the eval: $@");
   }
-  
-  
-  return $targetEnvelope->{url};
+  $done or return;
+  my $pfn=$targetEnvelope->{url};
+  $pfn=~ s{/NOLFN}{$targetEnvelope->{pfn}};
+
+  return $pfn;
+}
+
+sub waitForCompleteTransfer{
+  my $self=shift;
+  my $protocol=shift;
+  my $id=shift;
+  my $prot_id=shift;
+
+  my $retry=10;
+  $self->info("Let's tell the Transfer Manager that we are waiting for this one");
+  $self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer","ALIEN_SOAP_RETRY", $id, "TRANSFERRING", {"protocolid", $prot_id, ftd=>$self->{CONFIG}->{FTD_FULLNAME}});
+  while (1){
+    sleep(40);
+    $self->info("Checking if the transfer $prot_id has finished");
+    my $status=$protocol->checkStatusTransfer($prot_id);
+    if (! $status){
+      $self->info("The transfer finished!!");
+      return 1;
+    }
+    if ($status<0){
+      $self->info("Something went wrong ($status)");
+      $retry+=$status;
+      if ($retry <0){
+	$self->info("Giving up");
+	return;
+      }
+    }
+  }
+
+  return;
 }
 #sub makeLocalCopy {
 #  my $s =shift;
