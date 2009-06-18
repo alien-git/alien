@@ -92,7 +92,7 @@ chdir ($mysqlDir) or print "failed\nError changing to $mysqlDir\n" and exit(-2);
 #my $tar="$etcDir/AliEnCatalogue-mysql.tar.gz";
 #system ("tar", "zxf", "$tar")
 #  and print "failed\nError uncompressing $tar\n $! $?\n" and exit(-2);
-print "ok\nCalling mysql_isntall_db...";
+print "ok\nCalling mysql_install_db...";
 system("$ENV{ALIEN_ROOT}/bin/mysql_install_db", "--datadir=$mysqlDir/mysql", "--skip-name-resolve ", "--basedir=$ENV{ALIEN_ROOT}") and print "Error creating the empty database\n" and exit(-2);
 
 

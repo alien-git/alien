@@ -183,12 +183,13 @@ attributetype ( AliEnMSS:9 NAME 'environment' SUP name )
 attributetype ( AliEnMSS:10 NAME 'category' SUP name )
 attributetype ( AliEnMSS:11 NAME 'ioDaemonsConfig' SYNTAX 1.3.6.1.4.1.1466.115.121.1.5 )
 attributetype ( AliEnMSS:12 NAME 'QoS' SUP name )
+attributetype ( AliEnMSS:13 NAME 'ftdprotocol' SUP name )
 
 objectclass ( AliEnMSS  NAME 'AliEnMSS'
 	SUP ( top ) 
 	MUST ( name $ mss $ savedir )
 	MAY  ( options $ tmpdir $ lvmdatabase $ uploadEndpoint $ ioDaemons
-               $ category $ ioDaemonsConfig $ QoS )
+               $ category $ ioDaemonsConfig $ QoS $ ftdprotocol )
 	      )
 
 #AliEn SE
@@ -256,7 +257,7 @@ objectclass ( AliEnCE  NAME 'AliEnCE'
 objectidentifier AliEnFTD  ALIEN_BASE:9
 
 
-attributetype ( AliEnFTD:2 NAME 'allowedDirs' SUP name )
+
 attributetype ( AliEnFTD:3 NAME 'maxTransfers' SUP name )
 attributetype ( AliEnFTD:4 NAME 'localOptions' SUP name )
 attributetype ( AliEnFTD:5 NAME 'remoteOptions' SUP name )
@@ -266,7 +267,7 @@ attributetype ( AliEnFTD:7 NAME 'skipSizeCheck' SUP name )
 
 objectclass ( AliEnFTD  NAME 'AliEnFTD'
 	SUP ( AliEnSOAPServer ) 
-	MUST ( name $ port $ host $ certsubject $ allowedDirs $ maxTransfers )
+	MUST ( name $ port $ host $ certsubject $ maxTransfers )
         MAY ( protocol $ localOptions $ remoteOptions $ skipSizeCheck )
 	      )
 
