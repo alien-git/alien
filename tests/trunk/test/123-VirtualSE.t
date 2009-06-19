@@ -43,11 +43,11 @@ use Net::Domain qw(hostname hostfqdn hostdomain);
     exit(-2);
   }
 
-  startService("SE") or $error=1;
-  if ($error) {
-    removeLdapEntry($key);
-    exit(-2);
-  }
+#  startService("SE") or $error=1;
+#  if ($error) {
+#    removeLdapEntry($key);
+#    exit(-2);
+#  }
   print "The service started without problems!!!\n";
 
   print "Let's try asking for a new name to the new SE\n";

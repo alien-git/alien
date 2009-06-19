@@ -11,7 +11,7 @@ my $cat= AliEn::UI::Catalogue::LCM->new({user=>"newuser"})
 addFile($cat, "FTDfile.txt", "This file is going to be transfered with the FTD\n", "r") or exit(-2);
 print "Let's do a transfer of the file FTDfile.txt\n";
 my $seName=$cat->{CONFIG}->{SE_FULLNAME};
-my ($done, $id)=$cat->execute("mirror", "-t", "FTDfile.txt", "${seName}2") or exit(-2);
+my ($done, $id)=$cat->execute("mirror", "FTDfile.txt", "${seName}2") or exit(-2);
 
 
 print "YUHUUU. Transfer $id\n";

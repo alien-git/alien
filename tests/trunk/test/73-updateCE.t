@@ -4,9 +4,9 @@ use Net::Domain qw(hostname hostfqdn hostdomain);
 
 print "Connecting to ldap...";
 my $host=Net::Domain::hostfqdn();
-my $d=AliEn::Database::TaskQueue->new({DRIVER=>"mysql", HOST=>"$host:3307", DB=>"processes", "ROLE", "admin", 
-				      }) 
+my $d=AliEn::Database::TaskQueue->new({DRIVER=>"mysql", HOST=>"$host:3307", DB=>"processes", "ROLE", "admin", 				      }) 
   or print "Error connecting to the database\n" and exit(-2);
+
 my $number=$d->queryValue("SELECT maxjobs FROM HOSTS where hostName='$d->{CONFIG}->{HOST}'");
 if (!$number) {
   print "Error getting the maxjobs\n Let's sleep for a while and try again\n";
@@ -28,7 +28,7 @@ if (!$number) {
 changeNumberJobs(++$number);
 
 print "Let's sleep for a while and check if the number is updated...";
-sleep(70);
+sleep(90);
 my $newNumber=$d->queryValue("SELECT maxjobs FROM HOSTS where hostName='$d->{CONFIG}->{HOST}'") or exit(-2);
 print "\nWE SHOULD HAVE $number (now $newNumber)\n";
 ($number eq $newNumber) or exit(-2);

@@ -27,9 +27,8 @@ BEGIN { plan tests => 1 }
 		      "host", $config->{HOST},
 		      "port", 7091,
 		      "certsubject",$subject,
-		      "allowedDirs", ["$ENV{HOME}","$config->{LOG_DIR}"],
 		      maxTransfers=>10,
-		      protocol=>"bbftp",
+		      protocol=>"cp",
 		     ]) or exit(-2);
   $config=$config->Reload({force=>1});
 
@@ -41,7 +40,7 @@ BEGIN { plan tests => 1 }
   -e $cert or link ("$ENV{ALIEN_HOME}/globus/usercert.pem", $cert);
   -e $key or link ("$ENV{ALIEN_HOME}/globus/userkey.pem", $key);
 
-  my  $done=startService("FTD");
+  my  $done=startService("FTD", {nolisten=>1});
   print "Got ".($done || "undef") ."\n";
 
   $done or exit(-2);

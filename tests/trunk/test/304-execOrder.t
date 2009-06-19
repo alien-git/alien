@@ -78,10 +78,11 @@ Price=\"3\";\n") or exit (-2);
     my ($str_cheap)     = $cat->execute("ps", "-A -T -id $id_cheap");
     my ($str_expensive) = $cat->execute("ps", "-A -T -id $id_expensive");
     print ("C: $str_cheap E: $str_expensive \n");	
-    
     $time_cheap     = str2time ($str_cheap);
     $time_expensive = str2time ($str_expensive);	
+
     $time_expensive or (sleep(30) and next);
+    $time_expensive <0   and exit(-2);
     $res=1;
     if ($time_cheap and $time_expensive > $time_cheap) {
       $res=0; #Not OK 
@@ -98,7 +99,7 @@ sub str2time{
   my $str=shift;
   my $i = 0;
   my @list = split (/\s+/,$str);
- 
+  $list[2] =~ /^E/ and return -1;
   ($list[8] eq "....") and return;
                  
   my $month = {  'Jan' => '0',

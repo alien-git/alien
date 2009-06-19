@@ -45,19 +45,14 @@ BEGIN { plan tests => 1 }
 		      "savedir", "$config->{LOG_DIR}/SE2/DATA",
 		      "port", 7093,
 		      "certsubject",$subject,
-		     ]) or exit(-2);
-
-  addLdapEntry($configKey, ["objectClass", ["AliEnHostConfig"],
-		      host=>$host,
-		      se=>"testSE2",
-		      logdir=>"$config->{LOG_DIR}/SE2/",
+		      'ftdprotocol','cp',
 		     ]) or exit(-2);
 
 
-  $config=$config->Reload({force=>1});
-  print "AFTER RELOADIN WE HAVE $config->{SE_NAME} (and $config->{HOST})\n";
-  $config->{SE_NAME}=~ /testSE2$/ or print "THIS IS NOT WHAT WE WANTED!!\n"
-    and exit -2;
+#  $config=$config->Reload({force=>1});
+#  print "AFTER RELOADIN WE HAVE $config->{SE_NAME} (and $config->{HOST})\n";
+#  $config->{SE_NAME}=~ /testSE2$/ or print "THIS IS NOT WHAT WE WANTED!!\n"
+#    and exit -2;
 
   my $done=0;
   my $ui=AliEn::UI::Catalogue->new({role=>"admin"});
@@ -67,21 +62,21 @@ BEGIN { plan tests => 1 }
   }
   if (! $done) {
     print "Adding the SE didn't work!!!!\n";
-    removeLdapEntry($configKey);
+#    removeLdapEntry($configKey);
     exit(-2);
   }
 
   print "ok\n";
-  $done=startService("SE");
+  #$done=startService("SE");
 
   #Let's remove the hostconfig entry
-  removeLdapEntry($configKey) or exit(-2);
+  #removeLdapEntry($configKey) or exit(-2);
 
 
   print "Got ".($done || "undef") ."\n";
 
   $done or exit(-2);
-  $config=$config->Reload({force=>1});
+  #$config=$config->Reload({force=>1});
   print "AT THE END WE HAVE $config->{SE_NAME} (and $config->{HOST})\n";
   $config->{SE_NAME}=~ /testSE$/ or print "THIS IS NOT WHAT WE WANTED!!\n"
     and exit -2;
