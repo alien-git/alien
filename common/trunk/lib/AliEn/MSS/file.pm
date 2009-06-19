@@ -34,7 +34,7 @@ sub cp {
 
   my $target=$cmd[$#cmd];
   $target=~ s{[^/]*$}{};
-  $self->mkdir($target);
+  AliEn::MSS::file->mkdir($self,$target);
 #  if ( $self->{SILENT} ) {
     open SAVEERR, ">&STDERR";
     open SAVEERR, ">&STDERR";

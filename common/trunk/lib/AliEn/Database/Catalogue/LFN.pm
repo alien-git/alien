@@ -150,7 +150,8 @@ sub createCatalogueTables {
 				    },undef,['UNIQUE INDEX(tableNumber)']],
 	      LL_ACTIONS=>["tableNumber", {tableNumber=>"int(11) NOT NULL",
 					   action=>"char(40) not null", 
-					   time=>"timestamp default current_timestamp"}, undef, ['UNIQUE INDEX(tableNumber,action)']],
+					   time=>"timestamp default current_timestamp",
+					   extra=>"varchar(255)"}, undef, ['UNIQUE INDEX(tableNumber,action)']],
 	         );
   foreach my $table (keys %tables){
     $self->info("Checking table $table");
@@ -212,7 +213,7 @@ sub checkLFNTable {
 		 md5=>"varchar(32)",
 		);
 
-  $self->checkTable(${table}, "entryId", \%columns, 'entryId', ['UNIQUE INDEX (lfn)',"INDEX(dir)", "INDEX(guid)", "INDEX(type)"]) or return;
+  $self->checkTable(${table}, "entryId", \%columns, 'entryId', ['UNIQUE INDEX (lfn)',"INDEX(dir)", "INDEX(guid)", "INDEX(type)", "INDEX(ctime)"]) or return;
 
   return 1;
 }
@@ -2069,7 +2070,10 @@ sub updateStats {
   $table =~ /^L/ or $table="L${table}L";
   my $number=$table;
   $number=~ s/L//g;
-  $self->do("update LL_ACTIONS set time=now() where action='STATS' and tableNumber=?", {bind_values=>[$number]});
+  $self->do("delete from LL_ACTIONS where action='STATS' and tableNumber=?", {bind_values=>[$number]});
+
+  $self->do("insert into LL_ACTIONS(tablenumber, time, action, extra) select ?,max(ctime),'STATS', count(*) from L${number}L",
+	    {bind_values=>[$number]});
 
   my $oldGUIDList=$self->getPossibleGuidTables($number);
   $self->do("delete from LL_STATS where tableNumber=?", {bind_values=>[$number]});

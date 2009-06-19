@@ -32,7 +32,7 @@ sub checkWakesUp {
     $self->{DB}->updateTransfer($transfer->{transferid}, {status=> "INSERTING"});
     $self->{TRANSFERLOG}->putlog($transfer->{transferid}, "STATUS", 'Transfer stalled. Moving it back to INSERTING');
   }
-  $self->{DB}->do("UPDATE ACTIONS set todo=1 where action='INSERTING2'");
+  $self->{DB}->do("UPDATE ACTIONS set todo=1 where action='INSERTING'");
 
   return ;
 }
