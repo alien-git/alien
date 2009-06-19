@@ -17,9 +17,9 @@ sub checkWakesUp {
   $silent and $method="debug" and push @silentData, 1;
   $self->{SLEEP_PERIOD}=10;
   $self->$method(@silentData, "Checking if there is anything to do");
-  my $todo=$self->{DB}->queryValue("SELECT todo from ACTIONS where action='INSERTING2'");
+  my $todo=$self->{DB}->queryValue("SELECT todo from ACTIONS where action='INSERTING'");
   $todo or return;
-  $self->{DB}->updateActions({todo=>0}, "action='INSERTING2'");
+  $self->{DB}->updateActions({todo=>0}, "action='INSERTING'");
 
 
   my $transfers=$self->{DB}->getNewTransfers;

@@ -110,7 +110,7 @@ sub initialize {
   AliEn::Util::setupApMon($self);
   
 
-  return $self->do("INSERT IGNORE INTO ACTIONS(action) values  ('INSERTING'),('INSERTING2'),('MERGING'), ('FAILED_T')");
+  return $self->do("INSERT IGNORE INTO ACTIONS(action) values  ('INSERTING'),('MERGING'), ('FAILED_T')");
 }
 
 sub getArchiveTable {
@@ -126,7 +126,7 @@ sub getArchiveTable {
 sub insertTransferLocked {
   my $self = shift;
   my $info = shift;
-  $info->{status}="INSERTING";
+  $info->{status} or $info->{status}="INSERTING";
 
   $self->lock("TRANSFERS_DIRECT");
   my $lastID=0;
@@ -142,9 +142,9 @@ sub insertTransferLocked {
   $self->debug(1,"In insertTransferLocked transfer $lastID successfully inserted");
 
 
-  $self->sendTransferStatus($lastID, "INSERTING", {destination=>$info->{destination}, user=>$info->{user}, received=>$info->{received}});
+  $self->sendTransferStatus($lastID, $info->{status}, {destination=>$info->{destination}, user=>$info->{user}, received=>$info->{received}});
 
-  $self->updateActions({todo=>1}, "action='INSERTING2'");
+  $self->updateActions({todo=>1}, "action='$info->{status}'");
 
 #  $self->updateTransfer($lastID, $info);
 

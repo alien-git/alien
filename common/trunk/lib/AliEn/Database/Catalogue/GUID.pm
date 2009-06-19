@@ -660,8 +660,6 @@ sub moveGUIDs {
     return;
   }
   $self->debug(4, "INDEX READY!!!");
-  #to make things faster, let's remove triggers and indexes
-  #$self->removeTriggers("G${tableName}L");
 
   #move the entries from the old table to the new one
   my $error=1;
@@ -671,7 +669,7 @@ sub moveGUIDs {
 		 "INSERT INTO $self->{DB}.G${tableName}L_PFN (guidid, pfn,seNumber) select p.guidid, p.pfn, p.seNumber from ${table}_PFN p, $self->{DB}.G${tableName}L g where p.guidId=g.guidId",
 		"DELETE FROM $table where binary2date(guid)>string2date('$guid')",
 		"delete from p using ${table}_PFN p left join $table g on p.guidId=g.guidId where g.guidId is null");
-    $db->removeTriggers($table);
+
     my $counter=$#queries;
     foreach my $q (@queries){
       $db->do($q) or last;
@@ -788,48 +786,18 @@ sub checkOrphanGUID {
   if (  $options =~ "f"){
     $self->info("Locking the tables");
     $self->lock("$table as g write , ${table}_PFN as p write, ${table}_REF as r write, TODELETE");
-    $self->removeTriggers($table,"t");
   }
 
   $self->do("insert into TODELETE (pfn,seNumber, guid) select pfn,seNumber, guid from  ${table}_PFN p join  $table g on p.guidid=g.guidid $where");
   #$self->do("insert into TODELETE (pfn, seNumber, guid) select '',senumber,guid from $table g, SE $where and locate(concat(',',senumber,','), seautostringlist) ");
-  $self->do("delete from p using ${table}_PFN p join $table g  on p.guidid=g.guidid $where");
+  my $replicas=$self->do("delete from p using ${table}_PFN p join $table g  on p.guidid=g.guidid $where");
   my $info=$self->do("delete from g using  $table g $where");
 
   if (  $options =~ "f"){
     $self->info("Unlocking the table");
-    $self->checkGUIDTable($table);
     $self->unlock();
   }
-  $self->info("Done (removed $info entries)");
-  return 1;
-}
-
-
-sub removeTriggers{
-  my $self=shift;
-  my $table=shift;
-  my $options=shift || "";
-  $self->info("Let's remove all the triggers and indexes from the table $table");
-
-  my $triggers=$self->query("SHOW TRIGGERS like '$table'");
-
-  foreach my $t (@$triggers){
-    $self->do("drop trigger $t->{Trigger}");
-  }
-  if ($options !~ /t/){
-    my $indexes=$self->query("SHOW KEYS FROM $table");
-    my $alter="";
-    foreach my $i (@$indexes){
-      if ($i->{Key_name} !~ /PRIMARY/){
-	$alter.="drop index  $i->{Key_name},";
-      }
-    }
-    if ($alter){
-      $alter=~ s/,$//;
-      $self->do("alter table $table $alter");
-    }
-  }
+  $self->info("Done (removed $info entries and $replicas replicas)");
   return 1;
 }
 

@@ -1605,9 +1605,10 @@ sub access {
       if ($access =~ /^write/) {
 	$se or $se = $self->{CONFIG}->{SE_FULLNAME};
 		
-	($seurl,$guid,my $se2) = $self->{CATALOG}->createFileUrl($se, "root", $guid);
+	($seurl,my $guid2,my $se2) = $self->{CATALOG}->createFileUrl($se, "root", $guid);
+	$guid2 and $guid=$guid2;
 	if (!$se2){
-	  $self->info("Ok, let's create a default pfn");
+	  $self->info("Ok, let's create a default pfn (for $guid)");
 	  ($seurl, $guid)=$self->{CATALOG}->createDefaultUrl($se, $guid,$size);
 	  $seurl or return access_eof("Not an xrootd se, and there is no place in $se for $size");
 	  $self->info("Now, $seurl and $guid");

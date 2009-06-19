@@ -67,9 +67,6 @@ sub submit {
   return 0;
 }
 
-sub getBatchId {
-  return;
-}
 sub initialize {
 	return 1;
 }

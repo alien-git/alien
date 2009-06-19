@@ -1070,10 +1070,12 @@ sub checkLFN {
     my ($db, $extra)=$self->{LFN_DB}->reconnectToIndex( $rtempHost->{hostIndex}, "", $rtempHost );
     $db or $self->info("Error connecting to $db") and next;
     
-    my $tables=$db->queryColumn('select a.tableNumber from LL_ACTIONS a, LL_ACTIONS b where a.action="MODIFIED" and b.action="STATS" and a.tableNumber=b.tableNumber and a.time>b.time');
+    my $tables=$db->queryColumn('select tablename from INDEXTABLE where hostindex=?', undef, {bind_values=>[$rtempHost->{hostIndex}]});
     foreach my $t (@$tables){
-      $self->info("We have to update the table $t");
-      $db->updateStats($t);
+      if ($db->queryValue("select 1 from (select max(ctime) ctime, count(*) counter from L${t}L) a left join  LL_ACTIONS on tablenumber=? and action='STATS' where extra is null or extra<>counter or time is null or time<ctime", undef, {bind_values=>[$t]})){
+	$self->info("We have to update the table $t");
+	$db->updateStats($t);
+      }
     }
   }
   return 1;
