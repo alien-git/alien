@@ -31,47 +31,6 @@ sub initialize {
 			 
    $self->{$_} = $cmds->{$_} || $self->{CONFIG}->{$_} || '' foreach (keys %$cmds);
    
-   unless ( $ENV{LCG_GFAL_INFOSYS} ) {
-     $self->{LOGGER}->error("\$LCG_GFAL_INFOSYS not defined in environment");
-     return;
-   }    
-   $self->{CONFIG}->{CE_SITE_BDII} = '';
-   if ($ENV{CE_SITE_BDII}) {
-     $self->{CONFIG}->{CE_SITE_BDII} = $ENV{CE_SITE_BDII};
-   } else {
-      $self->info("No site BDII defined in \$ENV, querying $ENV{LCG_GFAL_INFOSYS}");
-      my $IS = "ldap://$ENV{LCG_GFAL_INFOSYS}";
-      my $DN = "mds-vo-name=$ENV{SITE_NAME},mds-vo-name=local,o=grid";
-      $self->debug(1,"Querying $IS/$DN");
-      if (my $ldap =  Net::LDAP->new($IS)) {
-        if ($ldap->bind()) {
-	  my $result = $ldap->search( base   => $DN,
-  		                      filter => "GlueServiceType=bdii_site");
-          my $code = $result->code;
-	  unless ($code) {
-	    my $entry  = $result->entry(0);
-	    my $thisDN = $entry->dn;
-	    $self->debug(1,"Found $thisDN");
-            my $found = $entry->get_value("GlueServiceEndpoint");
-  	    $self->{CONFIG}->{CE_SITE_BDII} = $found;
-	  } else {
-	    my $msg = $result->error();
-	    $self->{LOGGER}->error("LCG","Error querying: $code ($msg)");
-	  }			 
-	  $ldap->unbind();	
-        } else {
-	  $self->{LOGGER}->error("LCG","Could not bind to $IS");
-	}
-     } else {
-       $self->{LOGGER}->error("LCG","Could not contact $IS");
-     }
-   }    
-   if ($self->{CONFIG}->{CE_SITE_BDII}) {
-     $self->info("Site BDII is $self->{CONFIG}->{CE_SITE_BDII}"); 
-   } else {
-     $self->{LOGGER}->warning("LCG","No site BDII defined and could not find one in IS");
-   }  
-   
    if ( $ENV{CE_LCGCE} ) {
      $self->info("Taking the list of CEs from \$ENV: $ENV{CE_LCGCE}");
      my $string = $ENV{CE_LCGCE};
@@ -291,6 +250,7 @@ sub getNumberQueued() {
   $self->info("Queued: $wait from CREAM, $waitIS from BDII, $value from local DB");
   return $wait;
 }
+
 #
 #---------------------------------------------------------------------
 #
