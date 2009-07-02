@@ -24,10 +24,11 @@ sub initialize {
    $self->{CONFIG}->{VOBOXDIR} = "/opt/vobox/\L$self->{CONFIG}->{ORG_NAME}";
    $self->{UPDATECLASSAD} = 0;
    
-   my $cmds = {  SUBMIT_CMD  => 'glite-ce-job-submit',
-                 STATUS_CMD  => 'glite-ce-job-status',
-		 KILL_CMD    => 'glite-ce-job-cancel',
-		 CLEANUP_CMD => ''};
+   my $cmds = {  SUBMIT_CMD     => 'glite-ce-job-submit',
+                 STATUS_CMD     => 'glite-ce-job-status',
+		 KILL_CMD       => 'glite-ce-job-cancel',
+		 CLEANUP_CMD    => '',
+                 DELEGATION_CMD => 'glite-ce-delegate-proxy'};
 			 
    $self->{$_} = $cmds->{$_} || $self->{CONFIG}->{$_} || '' foreach (keys %$cmds);
    
@@ -61,6 +62,17 @@ sub initialize {
    $self->{CONFIG}->{CE_LCGCE_LIST_FIRSTS} = \@firsts;
 
    $self->renewProxy(100000);
+   foreach ( @{$self->{CONFIG}->{CE_LCGCE_LIST_FLAT}} ) {
+     (my $CE, undef) = split /\//;
+     my @command = ($self->{DELEGATION_CMD},"-e",$CE,
+                                            "-d","$self->{CONFIG}->{CE_FULLNAME}");   
+     my @output = $self->_system(@command);
+     my $error = $?;
+     if ($error) {
+       $self->{LOGGER}->error("LCG","Error $error delegating the proxy to $CE");
+       return 1;
+     }
+   }
    return 1;
 }
 
@@ -77,8 +89,9 @@ sub submit {
   
   #pick a random CE from the list
   my $theCE = $self->{CONFIG}->{CE_LCGCE_LIST_FLAT}->[int(rand(@{$self->{CONFIG}->{CE_LCGCE_LIST_FLAT}}))];
-  push @args, ("-r",$theCE);
-  $self->renewProxy(100000);
+  push @args, ("-r", $theCE);
+  push @args, ("-D", $self->{CONFIG}->{CE_FULLNAME});
+#  $self->renewProxy(100000);
 
   $self->info("Submitting to LCG with \'@args\'.");
   my $now = time;
