@@ -107,7 +107,9 @@ sub createCatalogueTables {
 				    },undef,['UNIQUE INDEX(tableNumber,seNumber)']],
 	      GL_ACTIONS=>["tableNumber", {tableNumber=>"int(11) NOT NULL",
 					   action=>"char(40) not null", 
-					   time=>"timestamp default current_timestamp"}, undef, ['UNIQUE INDEX(tableNumber,action)']],);
+					   time=>"timestamp default current_timestamp",
+					   extra=>"varchar(255)",}
+			   , undef, ['UNIQUE INDEX(tableNumber,action)']],);
 
 	     
   foreach my $table (keys %tables){
@@ -159,7 +161,7 @@ sub checkGUIDTable {
 		 type=>"char(1)",
 		);
 
-   $db->checkTable(${table}, "guidId", \%columns, 'guidId', ['UNIQUE INDEX (guid)', 'INDEX(seStringlist)'],) or return;
+   $db->checkTable(${table}, "guidId", \%columns, 'guidId', ['UNIQUE INDEX (guid)', 'INDEX(seStringlist)', 'INDEX(ctime)'],) or return;
   
   %columns= (pfn=>'varchar(255)',
 	     guidId=>"int(11) NOT NULL",
@@ -176,7 +178,7 @@ sub checkGUIDTable {
 
   my $index=$table;
   $index=~ s/^G(.*)L$/$1/;
-  $db->do("INSERT IGNORE INTO GL_ACTIONS(tableNumber,action)  values (?,'MODIFIED'), (?,'SE')", {bind_values=>[$index, $index]}); 
+  #$db->do("INSERT IGNORE INTO GL_ACTIONS(tableNumber,action)  values  (?,'SE')", {bind_values=>[$index, $index]}); 
 
 
   return 1;
@@ -726,6 +728,7 @@ sub deleteMirrorFromGUID{
   my $column="seAutoStringList";
   if ($pfn){
     $self->info("First, let's delete the pfn");
+    $info->{db}->do("insert into TODELETE(pfn,senumber,guid) select pfn,senumber,string2binary('$guid') from $info->{table}_PFN where guidId=? and pfn=? and seNumber=?", {bind_values=>[$info->{guidId},$pfn, $seNumber]}  );
     my $deleted=$info->{db}->delete("$info->{table}_PFN",
 				    "guidId=? and pfn=? and seNumber=?", {bind_values=>[$info->{guidId},$pfn, $seNumber]})
       or $self->info("Error deleting the entry") and return;
@@ -756,14 +759,19 @@ sub getNumberOfEntries {
 
 sub updateStatistics {
   my $self=shift;
-  
+
   my $index=shift;
   my $table="G${index}L";
   $self->info("Checking if the table is up to date");
-  $self->queryValue("select count(*) from GL_ACTIONS g, GL_ACTIONS g2 where g.action='SE' and g2.action='MODIFIED' and g.time>g2.time and g.tableNumber=g2.tableNumber and g.tableNumber=?", undef, {bind_values=>[$index]}) 
-    and return;
+  $self->queryValue("select 1 from (select max(ctime) ctime, count(*) counter from $table) a left join  GL_ACTIONS on tablenumber=? and action='STATS' where extra is null or extra<>counter or time is null or time<ctime",undef, {bind_values=>[$index]}) 
+    or return;
+
   $self->info("Updating the table");
-  $self->do("update GL_ACTIONS set time=now() where action='SE' and tableNumber=?", {bind_values=>[$index]}); 
+  $self->do("delete from GL_ACTIONS where action='STATS' and tableNumber=?", {bind_values=>[$index]});
+
+  $self->do("insert into GL_ACTIONS(tablenumber, time, action, extra) select ?,max(ctime),'STATS', count(*) from $table",
+	    {bind_values=>[$index]});
+
   $self->do("delete from GL_STATS where tableNumber=?", {bind_values=>[$index]});
   $self->do("insert into GL_STATS(tableNumber, seNumber, seNumFiles, seUsedSpace) select ?, s.seNumber, count(*), sum(size) from SE s, $table g ,${table}_PFN p where g.guidid=p.guidid and s.senumber=p.senumber group by s.senumber", {bind_values=>[$index]});
   return 1;
