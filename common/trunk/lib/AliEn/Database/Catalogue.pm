@@ -507,7 +507,7 @@ sub grantExtendedPrivilegesToUser {
 		     "INSERT, DELETE  ON $db.TAG0",
 #		     "INSERT, DELETE ON $db.FILES",
 		     "INSERT, DELETE ON $db.ENVIRONMENT", 
-#		     "INSERT ON $db.SE"
+		     "INSERT ON $db.TODELETE",
 		     "EXECUTE ON *",
 		     "INSERT, DELETE ON $db.G0L",
 ];

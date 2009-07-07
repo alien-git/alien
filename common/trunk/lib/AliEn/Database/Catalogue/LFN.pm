@@ -211,9 +211,11 @@ sub checkLFNTable {
 		 owner=>"varchar(20) not null",
 		 gowner=>"varchar(20) not null",
 		 md5=>"varchar(32)",
+		 guidtime=>"varchar(8)",
 		);
 
-  $self->checkTable(${table}, "entryId", \%columns, 'entryId', ['UNIQUE INDEX (lfn)',"INDEX(dir)", "INDEX(guid)", "INDEX(type)", "INDEX(ctime)"]) or return;
+  $self->checkTable(${table}, "entryId", \%columns, 'entryId', 
+		    ['UNIQUE INDEX (lfn)',"INDEX(dir)", "INDEX(guid)", "INDEX(type)", "INDEX(ctime)", "INDEX(guidtime)"]) or return;
 
   return 1;
 }
@@ -361,6 +363,7 @@ sub createFile {
       $insert->{$key}="'$insert->{$key}'";
     }
     if ( $insert->{guid}) {
+      $insert->{guidtime}="string2date('$insert->{guid}')";
       $insert->{guid}="string2binary('$insert->{guid}')";
     }
   }
@@ -816,8 +819,8 @@ sub copyDirectory{
   my $beginning=$target;
   $beginning=~ s/^$targetLFN//;
   
-  my $select="insert into $targetTable(lfn,owner,gowner,size,type,guid,perm,dir) select distinct concat('$beginning',substring(concat('";
-  my $select2="', t1.lfn), $sourceLength)) as lfn, '$user', '$user',t1.size,t1.type,t1.guid,t1.perm,-1 ";
+  my $select="insert into $targetTable(lfn,owner,gowner,size,type,guid,guidtime,perm,dir) select distinct concat('$beginning',substring(concat('";
+  my $select2="', t1.lfn), $sourceLength)) as lfn, '$user', '$user',t1.size,t1.type,t1.guid,t1.guidtime,t1.perm,-1 ";
   my @values=();
 
   my $binary2string=$binary2string;
@@ -850,14 +853,14 @@ sub copyDirectory{
 
 	$files->{lfn}=~ s{^}{};
 	$files->{lfn}=~ s{^$targetLFN}{};
-	push @values, " ( '$files->{lfn}',  '$user', '$user', '$files->{size}', '$files->{type}', string2binary('$guid'), '$files->{perm}', -1)";
+	push @values, " ( '$files->{lfn}',  '$user', '$user', '$files->{size}', '$files->{type}', string2binary('$guid'), string2date('$guid'),'$files->{perm}', -1)";
 
       }
     }
 
   }
   if ($#values>-1) {
-    my $insert="INSERT into $targetTable(lfn,owner,gowner,size,type,guid,perm,dir) values ";
+    my $insert="INSERT into $targetTable(lfn,owner,gowner,size,type,guid,guidtime,perm,dir) values ";
 
     $insert .= join (",", @values);
     $targetDB->do($insert);
@@ -2077,7 +2080,7 @@ sub updateStats {
 
   my $oldGUIDList=$self->getPossibleGuidTables($number);
   $self->do("delete from LL_STATS where tableNumber=?", {bind_values=>[$number]});
-  $self->do("insert into LL_STATS (tableNumber, max_time, min_time) select  ?, max(binary2date(guid)) max, min(binary2date(guid))  min from $table", {bind_values=>[$number]});
+  $self->do("insert into LL_STATS (tableNumber, max_time, min_time) select  ?, concat(conv(conv(max(guidtime),16,10)+1,10,16),'00000000') max, concat(min(guidtime),'00000000')  min from $table", {bind_values=>[$number]});
   my $newGUIDList=$self->getPossibleGuidTables($number);
   
   my $done={};
@@ -2097,8 +2100,8 @@ sub updateStats {
     if ($elem->{address} eq $self->{HOST}){
       $self->debug(1, "This is the same host. It is easy");
 
-      $self->do("delete from ${gtable}_REF where lfnRef=?", {bind_values=>[$lfnRef]});
-      $self->do("insert into ${gtable}_REF(guidid,lfnRef) select guidid, ? from $gtable g join $table l on g.guid=l.guid", {bind_values=>[$lfnRef]});
+      $self->do("delete from ${gtable}_REF using ${gtable}_REF left join $gtable using (guidid) left join $table l using (guid) where l.guid is null and lfnRef=?", {bind_values=>[$lfnRef]});
+      $self->do("insert into ${gtable}_REF(guidid,lfnRef) select guidid, ? from $gtable g join $table l using (guid) left join ${gtable}_REF r using(guidid) where r.guidid is null", {bind_values=>[$lfnRef]});
     }else {
       $self->info("This is in another host. We can't do it easily :( 'orphan guids won't be detected'");
       my ($db, $path2)=$self->reconnectToIndex( $elem->{hostIndex}) or next;
