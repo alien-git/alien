@@ -168,7 +168,7 @@ sleep (2);
 #my $version=join ("", <FILE>);
 #close FILE or print "Error finding the version of mysql" and exit(-2);
 #print "Using mysql $version";
-my $socket="/var/tmp/alien.mysql.$orgName.sock3";
+my $socket="/tmp/alien.mysql.$orgName.sock3";
 #
 #if ($version=~ /Distrib\s+4\.(\d+)\.(\d+)/) {
 #  my $number=($1*100+$2);
