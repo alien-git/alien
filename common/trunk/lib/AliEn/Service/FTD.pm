@@ -674,15 +674,31 @@ sub checkWakesUp{
   my $pfn;
 
   my ($ok, @pro)=$ca->evaluateAttributeVectorString('FullProtocolList');
-  $self->info("Got @pro");
+  $self->info("Let's use the methods  @pro");
   $recover or
     $self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, "TRANSFERRING", "ALIEN_SOAP_RETRY");
+  ($ok, my $type)=$ca->evaluateAttributeString("action");
+
   foreach my $line (@pro){
     my ($protocol, $source, @rest)=split(",", $line);
     if (grep(/^$protocol$/i, @{$self->{CONFIG}->{FTD_PROTOCOL_LIST}})){
-      $self->info("We can get the file with '$protocol' from '$source'");
-      $pfn=$self->transferFile($id, $ca, $protocol, $source, $line, $recover);
-      $pfn and last;
+      if ($type =~ /^remove$/i){
+	($ok, $pfn)=$ca->evaluateAttributeString("pfn");
+	$pfn or $self->info("There was no pfn in the CA",1);
+	$self->info("Deleting the file $pfn");
+	eval {
+	  $self->{PLUGINS}->{lc($protocol)}->delete($pfn);
+	};
+	if ($@){
+	  $self->info("Error doing the delete: $@",1);
+	  undef $pfn;
+	}
+	last;
+      }else{
+	$self->info("We can get the file with '$protocol' from '$source'");
+	$pfn=$self->transferFile($id, $ca, $protocol, $source, $line, $recover);
+	$pfn and last;
+      }
       $self->info("It didn't work :(");
     }
   }
