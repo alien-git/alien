@@ -90,7 +90,7 @@ sub get_sshkey {
   my $mech = $self->mechanism;
 
   if ( $mech eq "SSH" ) {
-    print STDERR "GETTING THE KEY FROM THE DATATBAT\n";
+    print STDERR "GETTING THE KEY FROM THE DATABASE\n";
     my $username=$self->{username};
     my $ssh=$ADMINDBH->queryValue("select SSHKey from TOKENS where username=?",
 				  undef, {bind_values=>[$username]});

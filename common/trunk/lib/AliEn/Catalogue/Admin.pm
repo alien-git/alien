@@ -584,7 +584,6 @@ sub resyncLDAP {
       my $ssh=$entry->get_value('sshkey');
       $addbh->do("update TOKENS set SSHkey=? where username=?", {bind_values=>[$ssh, $user]});
 
-       
     }
     $self->info("And now, the roles");
     $mesg   = $ldap->search( base   => "ou=Roles,$self->{CONFIG}->{LDAPDN}",
@@ -600,12 +599,17 @@ sub resyncLDAP {
 	$addbh->do("insert into USERS_LDAP_ROLE(user,role, up)  values (?,?,1)", {bind_values=>[$dn, $user]});
       }
     }
+    $self->info("And let's add the new users");
+    my $newUsers=$addbh->queryColumn("select a.user from USERS_LDAP a left join USERS_LDAP b on b.up=0 and a.user=b.user where a.up=1 and b.user is null");
+    foreach my $u (@$newUsers){
+      $self->info("Adding the user $u");
+      $self->f_addUser($u);
+    }
     $addbh->delete("USERS_LDAP", "up=0");
     $addbh->delete("USERS_LDAP_ROLE", "up=0");
 
     $addbh->close();
-    
-  }; 
+  };
   if ($@){
     $self->info("Error doing the sync: $@"); 
     return;

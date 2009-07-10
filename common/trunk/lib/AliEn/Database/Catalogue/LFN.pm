@@ -948,6 +948,7 @@ sub moveLFNs {
     $toLFN=$entryP->{lfn};
 
   } else{
+    $isIndex and $self->info("This is already in a different table...") and return;
     $toTable=$self->getNewDirIndex();
   }
   defined $toTable or $self->info( "Error getting the name of the new table") and return;
