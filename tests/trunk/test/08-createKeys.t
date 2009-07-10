@@ -21,15 +21,22 @@ print FILE "testPass
 my $done=close FILE;
 close STDOUT;
 open STDOUT, ">&SAVEOUT";
-$done  or print "ERROR Doing the command!!" and uploadKey() and exit (-2);
+$done  or print "ERROR Doing the command!!" ;
+uploadKey() or  exit (-2);
 
-open (FILE, "<$file");
-my @FILE=<FILE>;
-close FILE;
-system ("rm", "-rf", "$file");
-grep (/FAILED/, @FILE)  and print "FAILED!! @FILE" and uploadKey() and exit (-3);
+#open (FILE, "<$file");
+#my @FILE=<FILE>;
+#close FILE;
+#system ("rm", "-rf", "$file");
+#grep (/FAILED/, @FILE)  and print "FAILED!! @FILE" and uploadKey() and exit (-3);
 
-my $cat=AliEn::UI::Catalogue->new({user=>"newuser"}) or exit(-1);
+my $cat=AliEn::UI::Catalogue->new({ROLE=>"admin"}) or exit(-1);
+$cat->execute("resyncLDAP") or exit(-2);
+$cat->close();
+
+
+
+$cat=AliEn::UI::Catalogue->new({user=>"newuser"}) or exit(-1);
 my ($user)=$cat->execute("whoami") or exit(-2);
 $cat->close();
 ok(1);
