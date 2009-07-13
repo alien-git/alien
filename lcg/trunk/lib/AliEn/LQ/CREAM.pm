@@ -31,41 +31,16 @@ sub initialize {
                  DELEGATION_CMD => 'glite-ce-delegate-proxy'};
 			 
    $self->{$_} = $cmds->{$_} || $self->{CONFIG}->{$_} || '' foreach (keys %$cmds);
-   
-   if ( $ENV{CE_LCGCE} ) {
-     $self->info("Taking the list of CEs from \$ENV: $ENV{CE_LCGCE}");
-     my $string = $ENV{CE_LCGCE};
-     my @sublist = ($string =~ /\(.+?\)/g);
-     $string =~ s/\($_\)\,?// foreach (@sublist);
-     push  @sublist, split(/,/, $string);
-     $self->{CONFIG}->{CE_LCGCE_LIST} = \@sublist;
-   }   
-   # Flat-out sublist in CE list
-   my @flatlist = ();
-   foreach my $CE ( @{$self->{CONFIG}->{CE_LCGCE_LIST}} ) {
-     $CE =~ s/\s*//g;
-     if (  $CE =~ m/\(.*\)/ ) {
-       $CE =~ s/\(//; $CE =~ s/\)//;
-       push @flatlist, split (/,/,$CE);
-     } else {
-       push @flatlist, $CE;
-     }
-   }
-   $self->{CONFIG}->{CE_LCGCE_LIST_FLAT} = \@flatlist;
-   # A list with only the first from each sublist, to avoid double counting when needed
-   my @firsts = ();
-   foreach my $CE ( @{$self->{CONFIG}->{CE_LCGCE_LIST}} ) {
-     $CE =~ s/\s*//g; $CE =~ s/\(//; $CE =~ s/\)//;
-     ($CE, undef) = split (/,/,$CE,2);
-     push @firsts,$CE;
-   }
-   $self->{CONFIG}->{CE_LCGCE_LIST_FIRSTS} = \@firsts;
-
-   $self->renewProxy(100000);
+   unless ($self->readCEList()) {
+      $self->{LOGGER}->error("LCG","Error reading CE list");
+      return;
+   } 
+   $self->renewProxy(172800);
+   $self->{CONFIG}->{DELEGATION_ID} = "$self->{CONFIG}->{CE_FULLNAME}:".time();
    foreach ( @{$self->{CONFIG}->{CE_LCGCE_LIST_FLAT}} ) {
      (my $CE, undef) = split /\//;
      my @command = ($self->{DELEGATION_CMD},"-e",$CE,
-                                            "-d","$self->{CONFIG}->{CE_FULLNAME}");   
+                                            "-d","$self->{CONFIG}->{DELEGATION_ID}");   
      my @output = $self->_system(@command);
      my $error = $?;
      if ($error) {
@@ -90,8 +65,8 @@ sub submit {
   #pick a random CE from the list
   my $theCE = $self->{CONFIG}->{CE_LCGCE_LIST_FLAT}->[int(rand(@{$self->{CONFIG}->{CE_LCGCE_LIST_FLAT}}))];
   push @args, ("-r", $theCE);
-  push @args, ("-D", $self->{CONFIG}->{CE_FULLNAME});
-#  $self->renewProxy(100000);
+  push @args, ("-D", "$self->{CONFIG}->{DELEGATION_ID}");
+  $self->renewProxy(172800,172700); #########################
 
   $self->info("Submitting to LCG with \'@args\'.");
   my $now = time;
@@ -248,7 +223,7 @@ sub getNumberRunning() {
   my ($runIS,$waitIS) = $self->getCEInfo(qw(GlueCEStateRunningJobs GlueCEStateWaitingJobs ));
   $runIS or $runIS=0;
   $waitIS or $waitIS=0;
-  $self->info("Jobs running, waiting: $run,$wait  from CREAM, $runIS, waitIS from BDII, $value from local DB");
+  $self->info("Jobs running, waiting: $run,$wait  from CREAM, $runIS,$waitIS from BDII, $value from local DB");
   return $run+$wait;    
 }
 
