@@ -30,7 +30,7 @@ uploadKey() or  exit (-2);
 #system ("rm", "-rf", "$file");
 #grep (/FAILED/, @FILE)  and print "FAILED!! @FILE" and uploadKey() and exit (-3);
 
-my $cat=AliEn::UI::Catalogue->new({ROLE=>"admin"}) or exit(-1);
+my $cat=AliEn::UI::Catalogue->new({role=>"admin"}) or exit(-1);
 $cat->execute("resyncLDAP") or exit(-2);
 $cat->close();
 
