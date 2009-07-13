@@ -28,7 +28,7 @@ BEGIN { plan tests => 1 }
 		      "port", 7091,
 		      "certsubject",$subject,
 		      maxTransfers=>10,
-		      protocol=>"cp",
+		      protocol=>["cp",'rm']
 		     ]) or exit(-2);
   $config=$config->Reload({force=>1});
 
