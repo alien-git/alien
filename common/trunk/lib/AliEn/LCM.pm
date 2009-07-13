@@ -487,23 +487,25 @@ sub RegisterInRemoteSE {
   return ($info);
 }
 
-sub getPFNName {
-  my $self=shift;
-  my $info=$self->getPFNNameFromEnvelope(@_);
-  $info and return $info;
-  $self->info("Couldn't get the pfn from the envelope...");
-  $self->getPFNNameFromSE(@_);
-}
+#sub getPFNName {
+#  my $self=shift;
+#  my $info=$self->getPFNNameFromEnvelope(@_);
+#  $info and return $info;
+#  $self->info("Couldn't get the pfn from the envelope...");
+#  $self->getPFNNameFromSE(@_);
+#}
 
 
- sub getPFNNameFromEnvelope{
+sub getPFNName{
   my $self=shift;
   my $newSE=shift;
   my $info=shift;
   my $reqGuid=shift;
   my $envelope=shift;
   $self->debug(1, "Can we get the guid and the pfn from the envelope???");
-  $envelope or return;
+  
+  $envelope or 
+    $self->info("There is no envelope to get the filename",1) and return;
   $info->{guid}=$envelope->{guid};
   if (! $info->{guid}){
     $info->{guid}=$envelope->{pfn};
@@ -513,8 +515,6 @@ sub getPFNName {
   }
   $info->{guid} or return;
 
-
-
   $info->{pfn}=$envelope->{url};
   $info->{pfn}=~ s{^([^/]*//[^/]*)//(.*)$}{$1/$envelope->{pfn}};
   $info->{pfn}=~ m{root:////} and return;
@@ -522,26 +522,26 @@ sub getPFNName {
   return $info;
 }
 
- sub getPFNNameFromSE{
-  my $self=shift;
-  my $newSE=shift;
-  my $info=shift;
-  my $reqGuid=shift;
-
-  $self->info("We don't have an envelope. Asking the SE for a filename");
-  $self->{SOAP} or $self->{SOAP}=new AliEn::SOAP;
-  my ($seName, $seCert)=$self->{SOAP}->resolveSEName($newSE) or return;
-
-  my $result=$self->{SOAP}->CallSOAP($seName, "getFileName",$seName, $info->{size},{md5=>$info->{md5}, guid=>$reqGuid})
-      or $self->info("Error asking for a filename") and return;
-    
-  my @fileName=$self->{SOAP}->GetOutput($result);
-  $DEBUG and $self->debug(1, "Got @fileName");
-  $info->{guid}=$fileName[4];
-  $info->{pfn}=$fileName[3];
-  return $info;
-
-}
+# sub getPFNNameFromSE{
+#  my $self=shift;
+#  my $newSE=shift;
+#  my $info=shift;
+#  my $reqGuid=shift;#
+#
+#  $self->info("We don't have an envelope. Asking the SE for a filename");
+#  $self->{SOAP} or $self->{SOAP}=new AliEn::SOAP;
+#  my ($seName, $seCert)=$self->{SOAP}->resolveSEName($newSE) or return;
+#
+#  my $result=$self->{SOAP}->CallSOAP($seName, "getFileName",$seName, $info->{size},{md5=>$info->{md5}, guid=>$reqGuid})
+#      or $self->info("Error asking for a filename") and return;
+#    
+#  my @fileName=$self->{SOAP}->GetOutput($result);
+#  $DEBUG and $self->debug(1, "Got @fileName");
+#  $info->{guid}=$fileName[4];
+#  $info->{pfn}=$fileName[3];
+#  return $info;#
+#
+#}
 
 sub waitForCopyFile {
   my $self=shift;

@@ -452,8 +452,8 @@ sub addPFNtoINPUTBOX {
 #  my $se="Alice::CERN::scratch";
   $self->info( "Copying $input " );
   
-  my $data =
-    $self->{CATALOG}->{STORAGE}->registerInLCM( $input);
+  my ($data) =
+    $self->{CATALOG}->execute("upload", $input);
   $self->info( "Register done and $data->{pfn} and $data->{size}" );
   ($data->{pfn} and $data->{size}) or return;
   $self->{INPUTBOX}->{$name} = "$data->{pfn}###$data->{size}###$name###$self->{CONFIG}->{SE_FULLNAME}";

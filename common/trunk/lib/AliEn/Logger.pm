@@ -64,13 +64,13 @@ sub _initializeDispatch{
   foreach (keys %$options){
     $self->{$_}=$options->{$_};
   }
-  my $soapObj = AliEn::Logger::SoapLog->new(
-					    name      => 'Remote',
-					    min_level => 'critical'
-					   );
-  ($soapObj) or return;
-  
-  $self->add($soapObj);
+#  my $soapObj = AliEn::Logger::SoapLog->new(
+#					    name      => 'Remote',
+#					    min_level => 'critical'
+#					   );
+#  ($soapObj) or return;
+#  
+#  $self->add($soapObj);
   $self->add(
 	     AliEn::Logger::Local->new(
 				       name      => 'Local',
