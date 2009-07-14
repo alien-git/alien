@@ -55,8 +55,8 @@ sub initialize {
        @list=split(/,/,$ENV{CE_RBLIST});
        @wmslist=split(/:/,$ENV{CE_RBLIST});
        $self->{CONFIG}->{CE_RB_LIST} = \@list;
-       $self->{RBLASTTRY} = 0;
        $self->{CURRENTRB} = $self->{CONFIG}->{CE_RB_LIST}->[0];
+       $self->{RBTIME} = time;
    }
  
    $self->renewProxy(172800);   
@@ -136,6 +136,7 @@ sub submit {
      if ($elapsed > 120*60) {
       $self->info("This RB has been in use for $elapsed minutes, trying to revert to default.");
       $self->{CURRENTRB} = $self->{CONFIG}->{CE_RB_LIST}->[0];
+      $self->{RBTIME} = time;
     }    
     my $lastGoodRB = $self->{CURRENTRB};
     $lastGoodRB =~ s/:/_/g;
