@@ -23,6 +23,12 @@ sub countInstances {
   close READ;
 
   my $mysql=$#list;#`ps -U $userName $allThreadsFlag -o pid,ppid,command |grep mysql |wc -l`;
+  
+  print "Doing the Proxy count for user \"$userName\"\n";
+  print "The Proxy running processes are:\n";  
+  my $commandResult = `ps -U $userName |grep -i Proxy| grep -v grep`;
+  print "$commandResult\n";
+  
   my $proxy=`ps -U $userName -o pid,ppid,command  |grep -i Proxy| grep -v grep |wc -l`;
   chomp ($mysql);
   chomp ($proxy);
