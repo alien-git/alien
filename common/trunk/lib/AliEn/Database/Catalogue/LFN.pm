@@ -2101,8 +2101,16 @@ sub updateStats {
     if ($elem->{address} eq $self->{HOST}){
       $self->debug(1, "This is the same host. It is easy");
 
+      my $maxGuidTime=$self->queryValue("select left(min(guidTime),8) from GUIDINDEX where guidTime> (select guidTime from GUIDINDEX where tableName=?  and hostindex=?)", undef, {bind_values=>[ $elem->{tableName}, $elem->{hostIndex}]});
+      $self->info("The next guid is $maxGuidTime");
+      my $query="insert into ${gtable}_REF(guidid,lfnRef) select guidid, ? from $gtable g join $table l using (guid) left join ${gtable}_REF r using(guidid) where r.guidid is null and l.guidtime>=(select left(guidtime,8) from GUIDINDEX where tablename=? and hostIndex=? )";
+      my $bind=[$lfnRef, $elem->{tableName}, $elem->{hostIndex}];
+      if ($maxGuidTime){
+	$query.=" and l.guidTime<?";
+	push @$bind, $maxGuidTime;
+      }
       $self->do("delete from ${gtable}_REF using ${gtable}_REF left join $gtable using (guidid) left join $table l using (guid) where l.guid is null and lfnRef=?", {bind_values=>[$lfnRef]});
-      $self->do("insert into ${gtable}_REF(guidid,lfnRef) select guidid, ? from $gtable g join $table l using (guid) left join ${gtable}_REF r using(guidid) where r.guidid is null", {bind_values=>[$lfnRef]});
+      $self->do($query, {bind_values=>$bind});
     }else {
       $self->info("This is in another host. We can't do it easily :( 'orphan guids won't be detected'");
       my ($db, $path2)=$self->reconnectToIndex( $elem->{hostIndex}) or next;
