@@ -38,7 +38,7 @@ sub initialize {
       and return;
 
 
-  my @optimizers=("Trigger", "Expired" ,"Packages", "SEsize", "LDAP");
+  my @optimizers=("Trigger", "Expired" ,"Packages", "SEsize", "LDAP", "Deleted");
 
   $self->StartChildren(@optimizers) or return;
 
