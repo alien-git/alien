@@ -296,13 +296,24 @@ sub getAllBatchIds {
 
 sub getNumberRunning() {
   my $self = shift;
-  my ($run,$wait) = $self->getCEInfo(qw(GlueCEStateRunningJobs GlueCEStateWaitingJobs ));
+  my $run = '';
+  my $wait = '';
+  my $string = "IS"; 
+  if (defined $ENV{CE_GETRUNNING} && defined $ENV{CE_GETWAITING}) {
+    ($run)  = $self->_system($ENV{CE_GETRUNNING}); 
+    chomp $run;
+    ($wait) = $self->_system($ENV{CE_GETWAITING}); 
+    chomp $wait;
+    $string = "LRMS";
+  } else {
+    ($run,$wait) = $self->getCEInfo(qw(GlueCEStateRunningJobs GlueCEStateWaitingJobs ));
+  }  
   my $value = $self->getQueueStatus();
   $value or $value = 0;
-  $run or $run=0;
-  $wait or $wait=0;
+  $run or $run = 0;
+  $wait or $wait = 0;
 
-  $self->info("Jobs: $run running, $wait waiting from IS, $value from local DB");
+  $self->info("Jobs: $run running, $wait waiting from $string, $value from local DB");
   if ( $run =~ m/4444/ || $wait =~ m/4444/ ) {
     $self->{LOGGER}->error("LCG","IS failure 4444");
     return;
@@ -312,11 +323,19 @@ sub getNumberRunning() {
 
 sub getNumberQueued() {
   my $self=shift;
-  my ($wait,$cpu) = $self->getCEInfo(qw(GlueCEStateWaitingJobs));
+  my $wait = '';
+  my $string = "IS"; 
+  if (defined $ENV{CE_GETWAITING}) {
+    ($wait) = $self->_system($ENV{CE_GETWAITING}); 
+    chomp $wait;
+    $string = "LRMS";
+  } else {
+    ($wait) = $self->getCEInfo(qw(GlueCEStateRunningJobs ));
+  }  
   $wait or $wait=0;
   my $value = $self->{DB}->queryValue("SELECT COUNT (*) FROM JOBAGENT where status='QUEUED'");
   $value or $value = 0;
-  $self->info("Queued: $wait from IS, $value from local DB");
+  $self->info("Queued: $wait from $string, $value from local DB");
   if ( $wait =~ m/4444/ ) {
     $self->{LOGGER}->error("LCG","IS failure 4444");
     return;
