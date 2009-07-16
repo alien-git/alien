@@ -574,6 +574,7 @@ Environment = {\"ALIEN_CM_AS_LDAP_PROXY=$self->{CONFIG}->{VOBOX}\",\"ALIEN_JOBAG
 
       print BATCH "Requirements = $requirements;\n" if $requirements;
   }
+  print BATCH "Rank = $ENV{CE_RANKING};\n" if ($ENV{CE_RANKING});
   close BATCH;
   return $jdlFile;
 }
