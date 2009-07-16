@@ -89,10 +89,11 @@ sub initialize {
 	       $self->info("Config file for $wmslist not there, creating it."); 
 	       open STVOCONF, ">$self->{CONFIG}->{LOG_DIR}/$wmslist.vo.conf" or return;
 	       print STVOCONF "[
-           VirtualOrganisation = \"alice\";
+           VirtualOrganisation     = \"alice\";
            EnableServiceDiscovery  =  false;
-           WMProxyEndpoints    = {$streamwms};
-           MyProxyServer       = \"myproxy.cern.ch\";\n]\n";
+           Requirements            = other.GlueCEStateStatus == \"Production\";
+           WMProxyEndpoints        = {$streamwms};
+           MyProxyServer           = \"myproxy.cern.ch\";\n]\n";
 	       close STVOCONF;
 	   }
        }
