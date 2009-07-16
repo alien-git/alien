@@ -37,7 +37,7 @@ sub initialize {
    } 
    $self->renewProxy(172800);
    $self->{CONFIG}->{DELEGATION_ID} = "$self->{CONFIG}->{CE_FULLNAME}:".time();
-   foreach ( @{$self->{CONFIG}->{CE_LCGCE_LIST_FLAT}} ) {
+   foreach ( @{$self->{CONFIG}->{CE_LCGCE_FLAT_LIST}} ) {
      (my $CE, undef) = split /\//;
      my @command = ($self->{DELEGATION_CMD},"-e",$CE,
                                             "-d","$self->{CONFIG}->{DELEGATION_ID}");   
@@ -63,7 +63,7 @@ sub submit {
   $jdlfile or return;
   
   #pick a random CE from the list
-  my $theCE = $self->{CONFIG}->{CE_LCGCE_LIST_FLAT}->[int(rand(@{$self->{CONFIG}->{CE_LCGCE_LIST_FLAT}}))];
+  my $theCE = $self->{CONFIG}->{CE_LCGCE_FLAT_LIST}->[int(rand(@{$self->{CONFIG}->{CE_LCGCE_FLAT_LIST}}))];
   push @args, ("-r", $theCE);
   push @args, ("-D", "$self->{CONFIG}->{DELEGATION_ID}");
   $self->renewProxy(172800,172700); #########################
@@ -201,7 +201,7 @@ ls -lart
 sub getAllBatchIds {
   my $self = shift;
   return getCREAMStatus('RUNNING:REALLY-RUNNING:REGISTERED:PENDING:IDLE:HELD',
-                        $self->{CONFIG}->{CE_LCGCE_LIST_FIRSTS});
+                        $self->{CONFIG}->{CE_LCGCE_FIRSTS_LIST});
 }
 
 sub cleanUp {
@@ -214,8 +214,8 @@ sub needsCleaningUp {
 
 sub getNumberRunning() {
   my $self = shift;
-  my $run  = $self->getCREAMStatus('RUNNING:REALLY-RUNNING:HELD',$self->{CONFIG}->{CE_LCGCE_LIST_FIRSTS});
-  my $wait = $self->getCREAMStatus('REGISTERED:PENDING:IDLE',$self->{CONFIG}->{CE_LCGCE_LIST_FIRSTS});
+  my $run  = $self->getCREAMStatus('RUNNING:REALLY-RUNNING:HELD',$self->{CONFIG}->{CE_LCGCE_FIRSTS_LIST});
+  my $wait = $self->getCREAMStatus('REGISTERED:PENDING:IDLE',$self->{CONFIG}->{CE_LCGCE_FIRSTS_LIST});
   $run or $run=0;
   $wait or $wait=0;
   my $value = $self->getQueueStatus();
@@ -229,7 +229,7 @@ sub getNumberRunning() {
 
 sub getNumberQueued() {
   my $self=shift;
-  my $wait = $self->getCREAMStatus('REGISTERED:PENDING:IDLE',$self->{CONFIG}->{CE_LCGCE_LIST_FIRSTS});
+  my $wait = $self->getCREAMStatus('REGISTERED:PENDING:IDLE',$self->{CONFIG}->{CE_LCGCE_FIRSTS_L});
   $wait or $wait=0;
   my $value = $self->{DB}->queryValue("SELECT COUNT (*) FROM JOBAGENT where status='QUEUED'");
   $value or $value = 0;

@@ -45,9 +45,8 @@ sub initialize {
       $self->{LOGGER}->error("LCG","Error reading CE list");
       return;
    } 
-    
-   # Read RB list and generate config files if needed
 
+   # Read RB list and generate config files if needed
    my @list;
    my @wmslist;
    if ( $ENV{CE_RBLIST} ) { 
@@ -109,7 +108,6 @@ sub initialize {
       return 1;
     }
    }
-   
    return 1;
 }
 
@@ -315,8 +313,8 @@ sub getNumberRunning() {
   $wait or $wait = 0;
 
   $self->info("Jobs: $run running, $wait waiting from $string, $value from local DB");
-  if ( $run =~ m/4444/ || $wait =~ m/4444/ ) {
-    $self->{LOGGER}->error("LCG","IS failure 4444");
+  if ( $run =~ m/44444/ || $wait =~ m/44444/ ) {
+    $self->{LOGGER}->error("LCG","IS failure 44444");
     return;
   }
   return $run+$wait;    
@@ -337,8 +335,8 @@ sub getNumberQueued() {
   my $value = $self->{DB}->queryValue("SELECT COUNT (*) FROM JOBAGENT where status='QUEUED'");
   $value or $value = 0;
   $self->info("Queued: $wait from $string, $value from local DB");
-  if ( $wait =~ m/4444/ ) {
-    $self->{LOGGER}->error("LCG","IS failure 4444");
+  if ( $wait =~ m/44444/ ) {
+    $self->{LOGGER}->error("LCG","IS failure 44444");
     return;
   }
   return $wait;
@@ -535,11 +533,11 @@ ExpiryTime = $newtime;
 OutputSandbox = { \"std.err\" , \"std.out\" };
 Environment = {\"ALIEN_CM_AS_LDAP_PROXY=$self->{CONFIG}->{VOBOX}\",\"ALIEN_JOBAGENT_ID=$ENV{ALIEN_JOBAGENT_ID}\", \"ALIEN_USER=$ENV{ALIEN_USER}\"};
 ";
-  if (scalar @{$self->{CONFIG}->{CE_LCGCE_LIST_FLAT}}) {
+  if (scalar @{$self->{CONFIG}->{CE_LCGCE_FLAT_LIST}}) {
       
       my $range = 100;
       my $random_number = int(rand($range));
-      my $list_of_ces = join(" ",@{$self->{CONFIG}->{CE_LCGCE_LIST_FLAT}});
+      my $list_of_ces = join(" ",@{$self->{CONFIG}->{CE_LCGCE_FLAT_LIST}});
       
       my %ce_hash;
       my $ce_name;
@@ -565,7 +563,7 @@ Environment = {\"ALIEN_CM_AS_LDAP_PROXY=$self->{CONFIG}->{VOBOX}\",\"ALIEN_JOBAG
       
       else{
       
-	  @celist = map {"other.GlueCEUniqueID==\"$_\""} @{$self->{CONFIG}->{CE_LCGCE_LIST_FLAT}};
+	  @celist = map {"other.GlueCEUniqueID==\"$_\""} @{$self->{CONFIG}->{CE_LCGCE_FLAT_LIST}};
 	  $ces=join (" || ", @celist);
       }
       print BATCH "Requirements = ( $ces )";     

@@ -27,34 +27,29 @@ sub getQueueStatus { ##Still return values from the local DB
 
 sub readCEList {
    my $self = shift;
-   if ( $ENV{CE_LCGCE} ) {
-     $self->info("Taking the list of CEs from \$ENV: $ENV{CE_LCGCE}");
-     my $string = $ENV{CE_LCGCE};
-     my @sublist = ($string =~ /\(.+?\)/g);
-     $string =~ s/\($_\)\,?// foreach (@sublist);
-     push  @sublist, split(/,/, $string);
-     $self->{CONFIG}->{CE_LCGCE_LIST} = \@sublist;
-   }   
+   $self->error("No CE list defined in \$ENV") unless $ENV{CE_LCGCE};
+   my $string = $ENV{CE_LCGCE};
+   my @sublists = ($string =~ /\(.+?\)/g);
+   $string =~ s/\($_\)\,?// foreach (@sublists);
+   push  @sublists, split(/,/, $string);
+   $self->{CONFIG}->{CE_LCGCE_LIST} = \@sublists;
+   $self->info("CE list is: @{$self->{CONFIG}->{CE_LCGCE_LIST}}");
    # Flat-out sublist in CE list
-   my @flatlist = ();
-   foreach my $CE ( @{$self->{CONFIG}->{CE_LCGCE_LIST}} ) {
-     $CE =~ s/\s*//g;
-     if (  $CE =~ m/\(.*\)/ ) {
-       $CE =~ s/\(//; $CE =~ s/\)//;
-       push @flatlist, split (/,/,$CE);
-     } else {
-       push @flatlist, $CE;
-     }
-   }
-   $self->{CONFIG}->{CE_LCGCE_LIST_FLAT} = \@flatlist;
+   $string = $ENV{CE_LCGCE};
+   $string =~  s/\s*//g;
+   $string =~ s/\(//g; $string =~ s/\)//g;
+   my @flatlist = split /,/,$string;
+   $self->{CONFIG}->{CE_LCGCE_FLAT_LIST} = \@flatlist;
+
    # A list with only the first from each sublist, to avoid double counting when needed
    my @firsts = ();
-   foreach my $CE ( @{$self->{CONFIG}->{CE_LCGCE_LIST}} ) {
-     $CE =~ s/\s*//g; $CE =~ s/\(//; $CE =~ s/\)//;
+   my @list = @{$self->{CONFIG}->{CE_LCGCE_LIST}};
+   foreach my $CE ( @list ) {
+    $CE =~ s/\s*//g; $CE =~ s/\(//; $CE =~ s/\)//;
      ($CE, undef) = split (/,/,$CE,2);
      push @firsts,$CE;
    }
-   $self->{CONFIG}->{CE_LCGCE_LIST_FIRSTS} = \@firsts;
+   $self->{CONFIG}->{CE_LCGCE_FIRSTS_LIST} = \@firsts;
    return 1;
 }
 
@@ -68,7 +63,6 @@ sub queryBDII {
   $base or $base = "GlueVOViewLocalID=\L$self->{CONFIG}->{ORG_NAME}\E,GlueCEUniqueID=$CE";
   my @items = @_;
   my %results = ();
-  my $someAnswer = 0;
   $self->info("Querying $CE for @items");
   $self->debug(1,"DN string is $base");
   $self->debug(1,"Filter is $filter");
@@ -118,25 +112,47 @@ sub getCEInfo {
   my %results = ();
   my $someAnswer = 0;
   $self->debug(1,"Querying all CEs, requested info: @items");
-  foreach my $CE ( @{$self->{CONFIG}->{CE_LCGCE_LIST_FIRSTS}} ) {
-    $self->debug(1,"Querying for $CE");
-    (my $host,undef) = split (/:/,$CE);    
-    my $res = $self->queryBDII($CE,'',"GlueVOViewLocalID=\L$self->{CONFIG}->{ORG_NAME}\E,GlueCEUniqueID=$CE",@_);
-    if ( $res ) {
-      $someAnswer++;
-      $results{$_}+=$res->{$_} foreach (@items);
-    } else { 
-      $self->{LOGGER}->warning("LCG","Query for $CE failed.");
-      next;
+  foreach my $CE ( @{$self->{CONFIG}->{CE_LCGCE_LIST}} ) {
+    $self->info("Querying for $CE");
+    if (  $CE =~ m/\(.*\)/ ) { #It's a sublist, get the max value for each value
+      $CE =~ s/\s*//g; $CE =~ s/\(//; $CE =~ s/\)//;
+      my @sublist = split /,/, $CE;
+      my %max = ();
+      foreach my $subCE (@sublist) {
+        $self->info("In the sublist, querying for $subCE");
+        my $res = $self->queryBDII($subCE,'',"GlueVOViewLocalID=\L$self->{CONFIG}->{ORG_NAME}\E,GlueCEUniqueID=$subCE",@_);
+        if ( $res ) {
+          foreach (@items) {
+            if ($res->{$_} =~ m/44444/) {
+              $self->{LOGGER}->warning("LCG","Query for $subCE gave 44444.");
+              next;
+            }
+            $max{$_} = $res->{$_} if (!defined  $max{$_} || $res->{$_}>$max{$_});
+          }
+        } else { 
+          $self->{LOGGER}->warning("LCG","Query for $CE failed.");
+          next;
+        }   
+      }   
+      foreach (@items) {
+        $results{$_} += $max{$_} if defined $max{$_};
+      }
+    } else {
+      (my $host,undef) = split (/:/,$CE);    
+      my $res = $self->queryBDII($CE,'',"GlueVOViewLocalID=\L$self->{CONFIG}->{ORG_NAME}\E,GlueCEUniqueID=$CE",@_);
+      if ( $res ) {
+        $results{$_} += $res->{$_} foreach (@items);
+      } else { 
+        $self->{LOGGER}->warning("LCG","Query for $CE failed.");
+        next;
+      }   
     }
-  }  
-  unless ($someAnswer) {
-    $self->{LOGGER}->error("LCG","No CE answered our queries!");
-    return;
-  } 
-  $self->debug(1,"Got $someAnswer answers from CEs");
+   }    
   my @values = ();
-  push (@values,$results{$_}) foreach (@items);
+  foreach (@items) {
+    $results{$_} = 44444 unless defined $results{$_};
+    push (@values,$results{$_});
+  }
   $self->debug(1,"Returning: ".Dumper(@values));
   return @values;
 }
@@ -243,15 +259,15 @@ sub updateClassAd {
   my $classad = shift;
   $classad or return;
   my ($maxRAMSize, $maxSwapSize) = (0,0);
-  foreach my $CE (@{$self->{CONFIG}->{CE_LCGCE_LIST_FLAT}}) {
+  foreach my $CE (@{$self->{CONFIG}->{CE_LCGCE_FLAT_LIST}}) {
     $self->debug(1,"Getting RAM and swap info for $CE");
     my $res = $self->queryBDII($CE,'',"GlueCEUniqueID=$CE",'GlueForeignKey');
-    $res or return;
+    $res or return $classad;
     my $cluster = $res->{'GlueForeignKey'};
     $cluster =~ s/^GlueClusterUniqueID=//;
     $self->debug(1,"Cluster name from IS is $cluster");
     $res = $self->queryBDII($CE,'(GlueHostMainMemoryRAMSize=*)',"GlueClusterUniqueID=$cluster",qw(GlueHostMainMemoryRAMSize GlueHostMainMemoryVirtualSize));
-    $res or return;
+    $res or return $classad;
     $maxRAMSize  = $res->{'GlueHostMainMemoryRAMSize'}  if ($res->{'GlueHostMainMemoryRAMSize'}>$maxRAMSize );
     $maxSwapSize = $res->{'GlueHostMainMemoryVirtualSize'} if ($res->{'GlueHostMainMemoryVirtualSize'}>$maxSwapSize );
   }  
@@ -262,7 +278,6 @@ sub updateClassAd {
   $classad->set_expression("FreeMemory",$maxRAMSize*1024);
   $classad->set_expression("FreeSwap",$maxSwapSize*1024);
   return $classad;
-  return;
 }
 
 sub translateRequirements {
