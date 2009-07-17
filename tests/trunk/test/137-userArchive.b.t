@@ -17,7 +17,7 @@ BEGIN { plan tests => 1 }
 
   my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",});
   $cat or exit (-1);
-  my $sename="$cat->{CONFIG}->{ORG_NAME}::cern::testse";
+  my $sename="$cat->{CONFIG}->{ORG_NAME}::CERN::TESTSE";
 
 
 
@@ -27,7 +27,15 @@ BEGIN { plan tests => 1 }
 
   my (@out)=$cat->execute("whereis", "-r", "$procDir/job-output/stdout");
   
-  print "IT IS IN @out\n";
+  my $resstatus=0;
+
   $out[0] or print "It isn't in any se!!!\n" and exit(-2);
-  $out[0]=~ /^${sename}2$/i or print "It's in the wrong one!!\n" and exit(-2);
+
+  print "IT IS IN @out\n";
+  for my $se (@out) {
+     
+     ($se=~ /^${sename}2$/i) and $resstatus=1; 
+  }
+  $resstatus or print "It's in the wrong one!!\n" and exit(-2);
+  $resstatus and  ok(1);
 }
