@@ -54,6 +54,7 @@ sub initialize {
 		     'IDLE'        =>50,  'INTERACTIV'  =>50,
 		     'RUNNING'     =>50,  'SAVING'      =>60,
 		     'SAVED'       =>70,  'DONE'        =>980,
+                     'SAVED_WARNING'=>71, 'DONE_WARNING'=>981,
 		     'ERROR_A'     =>990,  'ERROR_I'     =>990,
 		     'ERROR_E'     =>990,  'ERROR_IB'    =>990,
 		     'ERROR_M'     =>990,  'ERROR_R'     =>990,
@@ -550,10 +551,14 @@ sub updateStatus{
       }
     }
 
-    $status =~ /^(KILLED)|(SAVED)|(STAGING)$/ 
+    $status =~ /^(KILLED)|(SAVED)|(SAVED_WARNING)|(STAGING)$/
       and $self->update("ACTIONS", {todo=>1}, "action='$status'");
   }
+  if ($status  =~ /^DONE_WARNING$/) {
+       
+    $self->sendJobStatus($id, "DONE", $execHost, "");
 
+  }
 
   $DEBUG and $self->debug(1, "In updateStatus table $self->{QUEUETABLE} successfully unlocked");
 

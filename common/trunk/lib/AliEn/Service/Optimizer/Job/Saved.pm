@@ -28,8 +28,7 @@ sub checkWakesUp {
   my $todo=$self->{DB}->queryValue("SELECT todo from ACTIONS where action='SAVED'");
   $todo or return;
   $self->{DB}->update("ACTIONS", {todo=>0}, "action='SAVED'");
-
-  my $done=$self->checkJobs($silent, "SAVED", "checkSavedJob");
+  my $done=$self->checkJobs($silent, "SAVED' or status='SAVED_WARNING", "checkSavedJob");
 
   return;
 
@@ -39,10 +38,10 @@ sub checkSavedJob{
   my $self=shift;
   my $queueid=shift;
   my $job_ca=shift;
+  my $status=shift;
   my $now = time;
 
   $self->info("********************************\n\tWe should do something with job $queueid");
-  my $status="DONE";
 
   my ($ok, $user)=$job_ca->evaluateAttributeString("user");
   my $procDir = AliEn::Util::getProcDir($user, undef, $queueid);
@@ -88,11 +87,12 @@ sub checkSavedJob{
     }	
   }
 
+  my $newstatus = "DONE_WARNING";
+  ($status eq "SAVED") and $newstatus = "DONE"; 
 
-  
-  $self->{DB}->updateStatus($queueid,"SAVED", $status, undef, $self);
+  $self->{DB}->updateStatus($queueid,$status, $newstatus, undef, $self);
   $self->info("Status updated");
-  $self->putJobLog($queueid,"state", "Job state transition from SAVED to $status");
+  $self->putJobLog($queueid,"state", "Job state transition from $status to $newstatus");
 
   return 1;
 }
