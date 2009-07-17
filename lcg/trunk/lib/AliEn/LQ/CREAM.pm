@@ -229,7 +229,7 @@ sub getNumberRunning() {
 
 sub getNumberQueued() {
   my $self=shift;
-  my $wait = $self->getCREAMStatus('REGISTERED:PENDING:IDLE',$self->{CONFIG}->{CE_LCGCE_FIRSTS_L});
+  my $wait = $self->getCREAMStatus('REGISTERED:PENDING:IDLE',$self->{CONFIG}->{CE_LCGCE_FIRSTS_LIST});
   $wait or $wait=0;
   my $value = $self->{DB}->queryValue("SELECT COUNT (*) FROM JOBAGENT where status='QUEUED'");
   $value or $value = 0;
