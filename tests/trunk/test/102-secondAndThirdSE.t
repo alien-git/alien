@@ -30,7 +30,9 @@ BEGIN { plan tests => 1 }
       exit -2;
     }
   }
-  my $key="name=testSE2,ou=SE,ou=Services,$config->{FULLLDAPDN}";
+  my $key2="name=testSE2,ou=SE,ou=Services,$config->{FULLLDAPDN}";
+  my $key3="name=testSE3,ou=SE,ou=Services,$config->{FULLLDAPDN}";
+
 
   print"ok\nGetting the subject of the certificate...";
 
@@ -38,14 +40,24 @@ BEGIN { plan tests => 1 }
   $c->load("$ENV{ALIEN_HOME}/globus/usercert.pem");
   my $subject=$c->getSubject();
   print "ok\n";
-  addLdapEntry($key, ["objectClass",["AliEnSE", "AliEnMSS", "AliEnSOAPServer"],
+  addLdapEntry($key2, ["objectClass",["AliEnSE", "AliEnMSS", "AliEnSOAPServer"],
 		      "name", "testSE2",
 		      "host", $config->{HOST},
 		      "mss", "File",
 		      "savedir", "$config->{LOG_DIR}/SE2/DATA",
 		      "port", 7093,
 		      "certsubject",$subject,
-		      'ftdprotocol','cp',
+		     # 'ftdprotocol','cp',
+		     ]) or exit(-2);
+
+  addLdapEntry($key3, ["objectClass",["AliEnSE", "AliEnMSS", "AliEnSOAPServer"],
+		      "name", "testSE3",
+		      "host", $config->{HOST},
+		      "mss", "File",
+		      "savedir", "$config->{LOG_DIR}/SE3/DATA",
+		      "port", 7094,
+		      "certsubject",$subject,
+		     # 'ftdprotocol','cp',
 		     ]) or exit(-2);
 
 
