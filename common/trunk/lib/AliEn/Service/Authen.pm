@@ -1069,6 +1069,16 @@ sub checkUserRole{
 
 }
 
+################
+## the job agent will use this function to get SE information if it can't connect to MonALISA
+##
+sub getListOfSEoutOfDB{
+  my $this=shift;
+
+  my $dbtrans=$self->{addbh}->query('select name,protocols from INFORMATIONSERVICE.SE where status="ACTIVE"');
+  $dbtrans and return $dbtrans;
+  return 0;
+}
 
 return 1;
 
