@@ -112,7 +112,8 @@ sub getCEInfo {
   my %results = ();
   my $someAnswer = 0;
   $self->debug(1,"Querying all CEs, requested info: @items");
-  foreach my $CE ( @{$self->{CONFIG}->{CE_LCGCE_LIST}} ) {
+  my @list = @{$self->{CONFIG}->{CE_LCGCE_LIST}};
+  foreach my $CE ( @list ) {
     $self->info("Querying for $CE");
     if (  $CE =~ m/\(.*\)/ ) { #It's a sublist, get the max value for each value
       $CE =~ s/\s*//g; $CE =~ s/\(//; $CE =~ s/\)//;

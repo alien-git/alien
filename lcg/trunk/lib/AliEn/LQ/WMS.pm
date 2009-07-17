@@ -53,6 +53,7 @@ sub initialize {
        $self->info("Taking the list of RBs from \$ENV: $ENV{CE_RBLIST}");
        @list=split(/,/,$ENV{CE_RBLIST});
        @wmslist=split(/:/,$ENV{CE_RBLIST});
+       $_ =~ s/:/_/g foreach @list;
        $self->{CONFIG}->{CE_RB_LIST} = \@list;
        $self->{CURRENTRB} = $self->{CONFIG}->{CE_RB_LIST}->[0];
        $self->{RBTIME} = time;
@@ -138,7 +139,6 @@ sub submit {
       $self->{RBTIME} = time;
     }    
     my $lastGoodRB = $self->{CURRENTRB};
-    $lastGoodRB =~ s/:/_/g;
     $self->info("Will use $lastGoodRB");
     $contact = $self->wrapSubmit($lastGoodRB, $logFile, $jdlfile, @args);
 
