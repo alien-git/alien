@@ -329,7 +329,8 @@ sub getNumberQueued() {
     chomp $wait;
     $string = "LRMS";
   } else {
-    ($wait) = $self->getCEInfo(qw(GlueCEStateRunningJobs ));
+#P. Mendez    #($wait) = $self->getCEInfo(qw(GlueCEStateRunningJobs ));
+    ($wait) = $self->getCEInfo(qw(GlueCEStateWaitingJobs ));
   }  
   $wait or $wait=0;
   my $value = $self->{DB}->queryValue("SELECT COUNT (*) FROM JOBAGENT where status='QUEUED'");
