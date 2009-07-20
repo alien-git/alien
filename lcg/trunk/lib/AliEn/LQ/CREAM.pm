@@ -45,8 +45,9 @@ sub initialize {
      my $error = $?;
      if ($error) {
        $self->{LOGGER}->error("LCG","Error $error delegating the proxy to $CE");
-       return 1;
+       return;
      }
+     $self->{DELEGATIONTIME} = time;
    }
    return 1;
 }
@@ -66,7 +67,8 @@ sub submit {
   my $theCE = $self->{CONFIG}->{CE_LCGCE_FLAT_LIST}->[int(rand(@{$self->{CONFIG}->{CE_LCGCE_FLAT_LIST}}))];
   push @args, ("-r", $theCE);
   push @args, ("-D", "$self->{CONFIG}->{DELEGATION_ID}");
-  $self->renewProxy(172800,172700); #########################
+  $self->renewProxy(172800,172700);
+  $self->renewDelegation(72000); 
 
   $self->info("Submitting to LCG with \'@args\'.");
   my $now = time;
@@ -273,6 +275,31 @@ sub getCREAMStatus {
     } 
   }
   return @allJobs;
+}
+
+sub renewDelegation {
+  my $self = shift;
+  my $interval = shift;
+  $interval or $interval = 2*60*60; #2 hours 
+  my $still = $interval-(time-$self->{DELEGATIONTIME});
+  if ( $still<=0 ) {
+    $self->info("Renewing proxy delegation for all CEs");
+    foreach ( @{$self->{CONFIG}->{CE_LCGCE_FLAT_LIST}} ) {
+      (my $CE, undef) = split /\//;
+      my @command = ("glite-ce-proxy-renew","-e",$CE,
+                                            "-d","$self->{CONFIG}->{DELEGATION_ID}");   
+      my @output = $self->_system(@command);
+      my $error = $?;
+      if ($error) {
+        $self->{LOGGER}->error("LCG","Error $error renewing the delegation to $CE");
+      return;
+     }
+   }
+    $self->{DELEGATIONTIME} = time;
+  } else {
+    $self->debug(1,"No need to renew the delegation yet, still $still seconds to go (requested interval is $interval)");
+  }
+  return 1;
 }
 
 return 1;
