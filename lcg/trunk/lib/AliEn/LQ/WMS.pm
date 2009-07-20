@@ -153,7 +153,7 @@ sub submit {
       }
     }
   } else {
-    $self->info("Failover submission not configured.");
+    $self->info("Failover submission not configured, using default WMS.");
     $contact = $self->wrapSubmit("", $logFile, $jdlfile, @args);
   } 
 
@@ -329,7 +329,6 @@ sub getNumberQueued() {
     chomp $wait;
     $string = "LRMS";
   } else {
-#P. Mendez    #($wait) = $self->getCEInfo(qw(GlueCEStateRunningJobs ));
     ($wait) = $self->getCEInfo(qw(GlueCEStateWaitingJobs ));
   }  
   $wait or $wait=0;
@@ -410,7 +409,6 @@ sub wrapSubmit {
   my $RB = shift;
   my $logFile = shift;
   my $jdlfile = shift;
-#  my $proxy_delegated = "AliceProxyDel";
   my @args = @_ ;  
   my @command = ( $self->{SUBMIT_CMD}, 
                   "--noint", 
@@ -445,13 +443,12 @@ sub generateJDL {
   my $ca = shift;
   my $command=shift;
   my $bdiiReq=shift;
-  my $currenttime = time;
-  my $delaytime = 900; #15 minutos
 
   my $requirements = $self->translateRequirements($ca, $bdiiReq);
 
   # implementation for the WMS: Avoid any resubmission of jobs
-  my $newtime = $currenttime + $delaytime;
+  my $delaytime = 900; #15 minutos
+  my $expirationtime = time + $delaytime;
 
   my $exeFile = AliEn::TMPFile->new({filename=>"dg-submit.$$.sh"})
     or return;
@@ -530,7 +527,7 @@ RetryCount = 0;
 ShallowRetryCount = 0;
 VirtualOrganisation = \"\L$voName\E\";
 InputSandbox = {\"$exeFile\"};
-ExpiryTime = $newtime;
+ExpiryTime = $expirationtime;
 OutputSandbox = { \"std.err\" , \"std.out\" };
 Environment = {\"ALIEN_CM_AS_LDAP_PROXY=$self->{CONFIG}->{VOBOX}\",\"ALIEN_JOBAGENT_ID=$ENV{ALIEN_JOBAGENT_ID}\", \"ALIEN_USER=$ENV{ALIEN_USER}\"};
 ";
