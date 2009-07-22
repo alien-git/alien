@@ -83,8 +83,6 @@ BEGIN { plan tests => 1 }
        my $fileStatus=0;
        my $defaultFileStatus=0;
 
-       my $noLinkRegistration=0;
-
        $testTable->{$tcase}->{status}=0;
        ($run_test->{$tcase} and ($testTable->{$tcase}->{id} ne 0))or next;
 
@@ -98,9 +96,10 @@ BEGIN { plan tests => 1 }
        my @filefiles=();
        (scalar(@{$testTable->{$tcase}->{filetag}}) > 0) and
               @filefiles=@{$testTable->{$tcase}->{filetag}}; 
+       my $filePointer = \@filefiles;
 
        my @archives=();
-       ($testTable->{$tcase}->{archivename} ne "") and
+       doEqualsOnStrings($testTable->{$tcase}->{archivename},"") and
               push @archives, $testTable->{$tcase}->{archivename};
 
 
@@ -109,35 +108,26 @@ BEGIN { plan tests => 1 }
        for my $filename (@{$fileTable->{$tcase}->{listing}}) {
 
 
-
-
-#         print "FILENAME: $filename\n";
-        
          for my $j(0..$#defaultFiles) {
-             if($defaultFiles[$j] eq $filename) {
-               delete $defaultFiles[$j]; 
-               last;
+             if(doEqualsOnStrings($defaultFiles[$j],$filename)) {
+               splice(@defaultFiles,$j,1);
              }
          }
 
 
-         if(grep(/$filename/, @archivefiles)) {
-#         print "FILE IN archivefiles, archivefiles: @archivefiles\n";
-           if(grep(/no_se/, @{$fileTable->{$tcase}->{$filename}->{ses}})){
-#          print "ARCHIVE FILE: $filename\n";
-#          print "ARCHIVE FILE: $fileTable->{$tcase}->{$fileTable->{$tcase}->{$filename}->{guid}}\n";
-#          print "ARCHIVE FILE: $testTable->{$tcase}->{archivename}\n";
-               if($fileTable->{$tcase}->{$fileTable->{$tcase}->{$filename}->{guid}} eq $testTable->{$tcase}->{archivename}) {
-                   if($testTable->{$tcase}->{asec} eq "") {
+         if(doEqualsOnArray($filename,\@archivefiles)) {
+           if(doEqualsOnArray("no_se",\@{$fileTable->{$tcase}->{$filename}->{ses}})) {
+               if(doEqualsOnStrings($fileTable->{$tcase}->{$fileTable->{$tcase}->{$filename}->{guid}}, $testTable->{$tcase}->{archivename})) {
+                   if(doEqualsOnStrings($testTable->{$tcase}->{asec}, "")){
                         if( $fileTable->{$tcase}->{$testTable->{$tcase}->{archivename}}->{copies} >= $defaultCopies ) {
                            for my $j(0..$#archivefiles) {
-                                   ($archivefiles[$j] eq $filename) and delete $archivefiles[$j];
+                                   doEqualsOnStrings($archivefiles[$j], $filename) and splice(@archivefiles,$j,1);
                            }   
                         }
                    } else {
-                        if($testTable->{$tcase}->{asec} eq $fileTable->{$tcase}->{$testTable->{$tcase}->{archivename}}->{copies}){
+                        if(doEqualsOnStrings($testTable->{$tcase}->{asec}, $fileTable->{$tcase}->{$testTable->{$tcase}->{archivename}}->{copies})) {
                            for my $j(0..$#archivefiles) {
-                                   ($archivefiles[$j] eq $filename) and delete $archivefiles[$j];
+                                   doEqualsOnStrings($archivefiles[$j], $filename) and splice(@archivefiles,$j,1);
                            }   
                         } 
                    }
@@ -146,53 +136,52 @@ BEGIN { plan tests => 1 }
          }
 
 
-         if(grep(/$filename/, @filefiles)) {
-#         print "GREP FILE: $filename\n";
-             if(grep(/no_archive/, @{$testTable->{$tcase}->{fopt}})){
-                 if(!grep(/no_se/, @{$fileTable->{$tcase}->{$filename}->{ses}})){ 
-                     if($testTable->{$tcase}->{fsec} eq "") {
+         if(doEqualsOnArray($filename,\@filefiles)) {
+             if(doEqualsOnArray("no_archive",\@{$testTable->{$tcase}->{fopt}})){
+                 if(!doEqualsOnArray("no_se",\@{$fileTable->{$tcase}->{$filename}->{ses}})){
+                     if(doEqualsOnStrings($testTable->{$tcase}->{fsec}, "")){
                         if($fileTable->{$tcase}->{$filename}->{copies}  >= $defaultCopies) {
                             for my $j(0..$#filefiles) {
-                                    ($filefiles[$j] eq $filename) and delete $filefiles[$j];
+                                    doEqualsOnStrings($filefiles[$j], $filename) and splice(@filefiles,$j,1);
                              } 
                         }
                      } else {
-                        if($fileTable->{$tcase}->{$filename}->{copies} eq $testTable->{$tcase}->{fsec}) {
+                        if(doEqualsOnStrings($fileTable->{$tcase}->{$filename}->{copies}, $testTable->{$tcase}->{fsec})) {
                             for my $j(0..$#filefiles) {
-                                    ($filefiles[$j] eq $filename) and delete $filefiles[$j];
+                                    doEqualsOnStrings($filefiles[$j], $filename) and splice(@filefiles,$j,1);
                              } 
                         }
                      }
                  }
              } else {
-                 if(grep(/no_se/, @{$fileTable->{$tcase}->{$filename}->{ses}}) && (scalar( @{$fileTable->{$tcase}->{$filename}->{ses}}) eq 1)) {
+                 if(doEqualsOnArray("no_se",\@{$fileTable->{$tcase}->{$filename}->{ses}})) {
                      my $archivename = $fileTable->{$tcase}->{$fileTable->{$tcase}->{$filename}->{guid}};
-                     if(grep(/$archivename/, @archives)) {
-                         if($testTable->{$tcase}->{fsec} eq "") {
+                     if(doEqualsOnArray($archivename,\@archives)) {
+                         if(doEqualsOnStrings($testTable->{$tcase}->{asec}, "")){
                            if( $fileTable->{$tcase}->{$testTable->{$tcase}->{archivename}}->{copies} >= $defaultCopies ) {
                              for my $j(0..$#filefiles) {
-                                     ($filefiles[$j] eq $filename) and delete $filefiles[$j];
+                                     doEqualsOnStrings($filefiles[$j], $filename) and splice(@filefiles,$j,1);
                              } 
                            }   
                          } else {
-                           if( $fileTable->{$tcase}->{$testTable->{$tcase}->{archivename}}->{copies} eq $testTable->{$tcase}->{fsec} ) {
+                           if(doEqualsOnStrings($fileTable->{$tcase}->{$testTable->{$tcase}->{archivename}}->{copies}, $testTable->{$tcase}->{asec})) {
                               for my $j(0..$#filefiles) {
-                                   ($filefiles[$j] eq $filename) and delete $filefiles[$j];
+                                   doEqualsOnStrings($filefiles[$j], $filename) and splice(@filefiles,$j,1);
                               } 
                            } 
                          }
                      } else {
-                         if($testTable->{$tcase}->{fsec} eq "") {
+                         if(doEqualsOnStrings($testTable->{$tcase}->{fsec}, "")){
                            if( $fileTable->{$tcase}->{$fileTable->{$tcase}->{$fileTable->{$tcase}->{$filename}->{guid}}}->{copies} >= $defaultCopies ) {
                              for my $j(0..$#filefiles) {
-                                     ($filefiles[$j] eq $filename) and delete $filefiles[$j];
+                                     doEqualsOnStrings($filefiles[$j], $filename) and splice(@filefiles,$j,1);
                              } 
                            }   
                          } else {
-                           if( $fileTable->{$tcase}->{$fileTable->{$tcase}->{$fileTable->{$tcase}->{$filename}->{guid}}}->{copies} eq $testTable->{$tcase}->{fsec} ) {
-                              for my $j(0..$#filefiles) {
-                                   ($filefiles[$j] eq $filename) and delete $filefiles[$j];
-                              } 
+                           if(doEqualsOnStrings($fileTable->{$tcase}->{$fileTable->{$tcase}->{$fileTable->{$tcase}->{$filename}->{guid}}}->{copies}, $testTable->{$tcase}->{fsec})) {
+                             for my $j(0..$#filefiles) {
+                                     doEqualsOnStrings($filefiles[$j], $filename) and splice(@filefiles,$j,1);
+                             } 
                            } 
                          }
                      }
@@ -200,53 +189,62 @@ BEGIN { plan tests => 1 }
              }
          }
 
-         if(grep(/$filename/, @archives)) {
-             if($testTable->{$tcase}->{asec} eq $fileTable->{$tcase}->{$filename}->{copies}) {
+         if(doEqualsOnArray($filename,\@archives)) {
+             if(doEqualsOnStrings($testTable->{$tcase}->{asec}, $fileTable->{$tcase}->{$filename}->{copies})) {
                       for my $j(0..$#archives) {
-                                 ($archives[$j] eq $filename) and delete $archives[$j];
+                                 doEqualsOnStrings($archives[$j], $filename) and splice(@archives,$j,1);;
                       } 
              } 
          }
  
        
        }
-       for my $j(0..$#defaultFiles) {
-             if(grep(/$defaultFiles[$j]/, @{$testTable->{$tcase}->{archivecontent}})) {
-                 if(grep(/no_link_registration/, @{$testTable->{$tcase}->{aopt}})){ 
-                        $noLinkRegistration=1;
-                        delete $defaultFiles[$j];
-                 } 
+
+
+       #### Testing the no_link_registration case
+       my $defoffset  = 0;
+       my $archoffset  = 0;
+       my $fileoffset  = 0;
+
+       if(doEqualsOnArray("no_link_registration",\@{$testTable->{$tcase}->{aopt}} )) {
+          my @defaultFilesCopy = @defaultFiles;
+          for my $j(0..$#defaultFilesCopy) {
+             if(doEqualsOnArray($defaultFilesCopy[$j],\@{$testTable->{$tcase}->{archivecontent}} )) {
+                        splice(@defaultFiles,$j-$defoffset,1);
+                        $defoffset++;
+             } 
+          }
+          my @archivefilesCopy = @archivefiles;
+          for my $j(0..$#archivefilesCopy) {
+             if(doEqualsOnArray($archivefilesCopy[$j],\@{$testTable->{$tcase}->{archivecontent}} )) {
+                        splice(@archivefiles,$j-$archoffset,1);
+                        $archoffset++;
              }
-             if(grep(/$defaultFiles[$j]/, @{$testTable->{$tcase}->{filetag}})) {
-                 if(grep(/no_link_registration/, @{$testTable->{$tcase}->{fopt}})){ 
-                        $noLinkRegistration=1;
-                        delete $defaultFiles[$j];
-                 } 
-             }
-             
-       }
-       for my $j(0..$#archivefiles) {
-             if(grep(/$archivefiles[$j]/, @{$testTable->{$tcase}->{archivecontent}})) {
-                 if(grep(/no_link_registration/, @{$testTable->{$tcase}->{aopt}})){ 
-                        $noLinkRegistration=1;
-                        delete $archivefiles[$j];
-                 } 
-             }
-       }
-       for my $j(0..$#filefiles) {
-             if(grep(/$filefiles[$j]/, @{$testTable->{$tcase}->{filetag}})) {
-                 if(grep(/no_link_registration/, @{$testTable->{$tcase}->{fopt}})){ 
-                        $noLinkRegistration=1;
-                        delete $filefiles[$j];
-                 } 
-             }
+          }
+       } 
+       $defoffset  = 0;
+       if(doEqualsOnArray("no_link_registration",\@{$testTable->{$tcase}->{fopt}} )) {
+          my @defaultFilesCopy = @defaultFiles;
+          for my $j(0..$#defaultFilesCopy) {
+             if(doEqualsOnArray($defaultFilesCopy[$j],\@{$testTable->{$tcase}->{filetag}})) {
+                        splice(@defaultFiles,$j-$defoffset,1);
+                        $defoffset++;
+             } 
+          }
+          my @filefilesCopy = @filefiles;
+          for my $j(0..$#filefilesCopy) {
+             if(doEqualsOnArray($filefilesCopy[$j],\@{$testTable->{$tcase}->{filetag}} )) {
+                        splice(@filefiles,$j-$fileoffset,1);
+                        $fileoffset++;
+             } 
+          }
        }
 
   
-       (scalar(@archivefiles) eq 0) and $archiveContentStatus=1;
-       (scalar(@archives) eq 0) and $archiveStatus=1;
-       (scalar(@filefiles) eq 0) and $fileStatus=1;
-       (scalar(@defaultFiles) eq 0) and $defaultFileStatus=1;
+       ($#archivefiles < 0) and $archiveContentStatus=1;
+       ($#archives < 0) and $archiveStatus=1;
+       ($#filefiles < 0) and $fileStatus=1;
+       ($#defaultFiles < 0) and $defaultFileStatus=1;
 
        $testTable->{$tcase}->{status} = $archiveStatus && $archiveContentStatus && $fileStatus && $defaultFileStatus;
        $TotalTestStatus = $TotalTestStatus && $testTable->{$tcase}->{status}; 
@@ -254,15 +252,29 @@ BEGIN { plan tests => 1 }
   print "#########################################\n";
   print "Test result of $tcase with id: $testTable->{$tcase}->{id}\n";
   statusPrint("   ArchiveOutput",$archiveStatus);   
+  $archiveStatus or print "Failed with archives: @archives\n";
+
   statusPrint("   ArchiveContentOutput",$archiveContentStatus);   
-  statusPrint("   OutputFiles",$fileStatus);   
+  $archiveContentStatus or print "Failed with archivefiles: @archivefiles\n";
+
+  statusPrint("   FileOutput",$fileStatus);   
+  $fileStatus or print "Failed with filefiles: @filefiles\n";
+
+
   statusPrint("   Default Files",$defaultFileStatus);   
+  $defaultFileStatus or print "Failed with defaultFiles: @defaultFiles\n";
+
   statusPrint("   TEST FINAL STATUS",$testTable->{$tcase}->{status});
-
-
-
+  
 
   } 
+
+  print "#########################################\n";
+  print "#########################################\n";
+  
+
+
+
   print "#########################################\n";
   print "#########################################\n";
   print "#########################################\n";
@@ -273,6 +285,9 @@ BEGIN { plan tests => 1 }
   exit(-2);
   
 }
+
+
+
 
 sub statusPrint{
 my $testname=shift;
@@ -333,6 +348,50 @@ sub getSEsAndGuidForAJobsOutputFile{
   $cat->close();
   return (scalar(@senames),\@senames,$guid);
 }
+
+sub doEqualsOnArray{
+  my $pattern=shift;
+  my $anArray=shift;
+
+  $anArray or return 0;
+  $pattern or return 0;
+
+  ($pattern ne "") or return 0;
+  ($#$anArray >= 0) or return 0;
+
+
+  for my $el (@$anArray) {
+     $el or next;
+     ($el ne "") or next;
+     ($el =~ $pattern) and return 1;
+  }
+  return 0;
+}
+
+sub doEqualsOnStrings{
+  my $stringOne=shift;
+  my $stringTwo=shift;
+
+  ($stringOne and $stringTwo) or return 0;
+
+  ($stringOne eq $stringTwo) and return 1;
+  return 0;
+
+}
+
+
+sub spliceCertainArrayElement{
+  my $pattern=shift;
+  my $ArrayPointer=shift;
+
+  my @myArray = $$ArrayPointer;
+  
+  for my $j(0..$#myArray) {
+     doEqualsOnStrings($myArray[$j], $pattern) and splice(@myArray,$j,1);
+  }
+  return \@myArray;
+}
+
 
 
 
