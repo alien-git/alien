@@ -28,7 +28,8 @@ sub checkWakesUp {
   my $todo=$self->{DB}->queryValue("SELECT todo from ACTIONS where action='SAVED'");
   $todo or return;
   $self->{DB}->update("ACTIONS", {todo=>0}, "action='SAVED'");
-  my $done=$self->checkJobs($silent, "SAVED' or status='SAVED_WARNING", "checkSavedJob");
+  my $done=$self->checkJobs($silent, "SAVED", "checkSavedJob");
+  $self->checkJobs($silent, "SAVED_WARNING", "checkSavedJob");
 
   return;
 
