@@ -4,6 +4,7 @@ use strict;
 use Test;
 
 use AliEn::UI::Catalogue::LCM::Computer;
+use Net::Domain;
 
 BEGIN { plan tests => 1 }
 
@@ -200,7 +201,8 @@ sub fillTestTableWithTests{
   my @fses1 = ();
   my $fsec1 = "";
   my @foptions1 = ();
-
+  
+  my $vo=Net::Domain::hostname();
   $testTable->{noJDL}={archivename=>$archivename1,archivecontent=>\@archivecontent1,ases=>\@ases1,asec=>$asec1,aopt=>\@aoptions1,
                          filetag=>\@filetag1,fses=>\@fses1,fsec=>$fsec1,fopt=>\@foptions1,status=>0,id=>0,seres=>0,secres=>0};
 
@@ -208,7 +210,8 @@ sub fillTestTableWithTests{
 
   my $archivename2="SomeThing.zip";
   my @archivecontent2=("stderr","resources");
-  my @ases2 = ("pcepalice10::CERN::TESTSE","pcepalice10::CERN::TESTSE2","pcepalice10::CERN::TESTSE3");
+  
+  my @ases2 = ("${vo}::CERN::TESTSE","${vo}::CERN::TESTSE2","${vo}::CERN::TESTSE3");
   my $asec2 = 2;
   my @aoptions2 = ();
   my @filetag2=("stdout");
@@ -227,7 +230,7 @@ sub fillTestTableWithTests{
   my $asec3 = "";
   my @aoptions3 = ();
   my @filetag3=("stderr","resources","stdout");
-  my @fses3 = ("pcepalice10::CERN::TESTSE","pcepalice10::CERN::TESTSE2");
+  my @fses3 = ("${vo}::CERN::TESTSE","${vo}::CERN::TESTSE2");
   my $fsec3 = 3;
   my @foptions3 = ();
 
@@ -237,7 +240,7 @@ sub fillTestTableWithTests{
 
   my $archivename4="AZipArchive.zip";
   my @archivecontent4=("stderr","stdout","resources");
-  my @ases4 = ("pcepalice10::CERN::TESTSE","pcepalice10::CERN::TESTSE2","pcepalice10::CERN::TESTSE3");
+  my @ases4 = ("${vo}::CERN::TESTSE","${vo}::CERN::TESTSE2","${vo}::CERN::TESTSE3");
   my $asec4 = 2;
   my @aoptions4 = ("no_link_registration");
   my @filetag4=();
@@ -251,7 +254,7 @@ sub fillTestTableWithTests{
 
   my $archivename5="someName.zip";
   my @archivecontent5=("stderr","stdout");
-  my @ases5 = ("pcepalice10::CERN::TESTSE","pcepalice10::CERN::TESTSE2","pcepalice10::CERN::TESTSE3");
+  my @ases5 = ("${vo}::CERN::TESTSE","${vo}::CERN::TESTSE2","${vo}::CERN::TESTSE3");
   my $asec5 = 2;
   my @aoptions5 = ();
   my @filetag5=("resources");
@@ -265,11 +268,11 @@ sub fillTestTableWithTests{
 
   my $archivename6="someOtherName.zip";
   my @archivecontent6=("stderr","resources");
-  my @ases6 = ("pcepalice10::CERN::TESTSE","pcepalice10::CERN::TESTSE2","pcepalice10::CERN::TESTSE3");
+  my @ases6 = ("${vo}::CERN::TESTSE","${vo}::CERN::TESTSE2","${vo}::CERN::TESTSE3");
   my $asec6 = 3;
   my @aoptions6 = ("custodial=1");
   my @filetag6=("stdout");
-  my @fses6 = ("pcepalice10::CERN::TESTSE2");
+  my @fses6 = ("${vo}::CERN::TESTSE2");
   my $fsec6 = 2;
   my @foptions6 = ();
 
