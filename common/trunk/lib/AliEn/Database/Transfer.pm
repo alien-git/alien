@@ -80,6 +80,7 @@ my $tables={ TRANSFERS_DIRECT=>{columns=>{
 				   max_transfers=>'int(11) default 5',
 				   current_transfers=>'int(11) default 0',
 				   updated=>'tinyint default 1',
+				   deleteprotocol=>'tinyint not null default 0', 
 				  },
 			 id=>"sename"},
 	     AGENT_DIRECT=>{columns=>{entryId=>"int(11) not null auto_increment primary key",
@@ -437,7 +438,7 @@ sub findCommonProtocols {
   my  $self=shift;
   my $source=shift;
   my $dest=shift;
-  my $p=$self->query("select protocol, A.options sourceopt, B.options targetopt from PROTOCOLS A join PROTOCOLS B using (protocol) where A.sename=? and B.sename=?", undef, {bind_values=>[$source,$dest]});
+  my $p=$self->query("select protocol, A.options sourceopt, B.options targetopt from PROTOCOLS A join PROTOCOLS B using (protocol) where A.sename=? and B.sename=? and A.deleteprotocol=0 and B.deleteprotocol=0", undef, {bind_values=>[$source,$dest]});
   $self->info("Common protocols between $source and $dest: @$p");
   return @$p;
 }
