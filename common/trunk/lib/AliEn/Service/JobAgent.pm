@@ -1534,7 +1534,7 @@ sub prepare_File_And_Archives_From_JDL_And_Upload_Files{
   my $defaultArchiveName= ".alien_archive.$ENV{ALIEN_PROC_ID}.".uc($self->{CONFIG}->{SE_FULLNAME}.".");
 
   my @localDefaultSEs = @{$self->{CONFIG}->{SEs_FULLNAME}};
-  my @defaultOutputFiles = ("stdout","stderr","resources");
+  my @defaultOutputFilesList = ("stdout","stderr","resources");
   my $defaultOutputFiles = \@defaultOutputFilesList;
   my @defaultTags = ("copies=2");
   #######################################################################################################
