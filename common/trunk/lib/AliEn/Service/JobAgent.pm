@@ -1421,20 +1421,28 @@ sub analyseJDL_And_Move_By_Default_Files_To_Archives{
   my $archives=shift;
   my $files=shift;
   my $defaultArchiveName=shift;
+  my $defaultFiles=shift;
 
   for my $j(0..$#{$files}) {
-     my ($filestring, $optionstring)=split (/\@/, $$files[$j],2);
-     my @options = split (/,/, $optionstring);
-     my $toarchive=1;
-     $self->info("Default Analysis found filestring with options: @options");
-     (grep( /^no_archive$/ , @options)) and $toarchive=0;
-     if($toarchive) {
-         push @$archives, $defaultArchiveName.time()."_".$j.".zip:".$$files[$j];
-         delete $$files[$j];
-         $self->info("Filestring $filestring will be moved from files to archives");
+     if(! grep(/\@/, $$files[$j])){
+           $self->info("Filestring has no options, so we put it in the Default Archive.");
+           my @toDefFiles =  split (/,/, $$files[$j]);
+           push @$defaultFiles, @toDefFiles;
+           delete $$files[$j];
+     } else {
+           my ($filestring, $optionstring)=split (/\@/, $$files[$j],2);
+           my @options = split (/,/, $optionstring);
+           my $toarchive=1;
+           $self->info("Default Analysis found filestring with options: @options");
+           (grep( /^no_archive$/ , @options)) and $toarchive=0;
+           if($toarchive) {
+               push @$archives, $defaultArchiveName.time()."_".$j.".zip:".$$files[$j];
+               delete $$files[$j];
+               $self->info("Filestring $filestring will be moved from files to archives");
+           }
      }
   }
-  return ($archives, $files);
+  return ($archives, $files, $defaultFiles);
 }
 
 
@@ -1527,6 +1535,7 @@ sub prepare_File_And_Archives_From_JDL_And_Upload_Files{
 
   my @localDefaultSEs = @{$self->{CONFIG}->{SEs_FULLNAME}};
   my @defaultOutputFiles = ("stdout","stderr","resources");
+  my $defaultOutputFiles = \@defaultOutputFilesList;
   my @defaultTags = ("copies=2");
   #######################################################################################################
   #######################################################################################################
@@ -1545,7 +1554,7 @@ sub prepare_File_And_Archives_From_JDL_And_Upload_Files{
   ##
   if((scalar(@archives) < 1) and (scalar(@files) < 1)) {
       $self->putJobLog("trace", "The JDL didn't contain any output specification. Creating default Archive.");
-      push @archives, $self->create_Default_Output_Archive_Entry($defaultArchiveName.time().".zip", \@defaultOutputFiles, 
+      push @archives, $self->create_Default_Output_Archive_Entry($defaultArchiveName.time().".zip", $defaultOutputFiles, 
               $defaultSEsString, $defaultTagString);
       $archives = \@archives;
       $files = \@files;
@@ -1555,10 +1564,10 @@ sub prepare_File_And_Archives_From_JDL_And_Upload_Files{
 
       ## move all files from Files to Archives if they are non tagged with no_archive
       ##
-      ($archives, $files) = $self->analyseJDL_And_Move_By_Default_Files_To_Archives(\@archives, \@files, $defaultArchiveName);
+      ($archives, $files, $defaultOutputFiles) = $self->analyseJDL_And_Move_By_Default_Files_To_Archives(\@archives, \@files, $defaultArchiveName, $defaultOutputFiles);
       
       ($archives, $files) = $self->check_On_Default_Output_Files_And_Put_In_Archive_If_Not_Exist(\@archives, \@files, $defaultArchiveName.time().".zip",
-				\@defaultOutputFiles, $defaultSEsString, $defaultTagString);
+				$defaultOutputFiles, $defaultSEsString, $defaultTagString);
       
   }
 
