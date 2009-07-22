@@ -653,6 +653,12 @@ sub checkFTDProtocol{
     }
     $db->insertProtocol($info);
   }
+  foreach my $p ($entry->get_value('deleteprotocol')){
+    my ($name, $options)=split('\s+',$p,2);
+    $db->insertProtocol({sename=>$sename, protocol=>$name, 
+			 deleteprotocol=>1});
+
+  }
   return 1;
 }
 sub resyncLDAPSE {

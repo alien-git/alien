@@ -59,7 +59,10 @@ sub checkWakesUp {
 sub findDeleteProtocol{
   my $self=shift;
   my $sename=shift;
-  return "rm";
+  my $items=$self->{DB}->queryColumn("SELECT protocol from PROTOCOLS where sename=? and deleteprotocol=1", undef ,{bind_values=>[$sename]});
+  my @list=@$items;
+  @list or $self->info("There are no default method to remove. Assuming rm") and push @list, "rm";
+  return @list;
 }
 
 return 1;
