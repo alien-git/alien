@@ -47,7 +47,7 @@ BEGIN { plan tests => 1 }
 		      "savedir", "$config->{LOG_DIR}/SE2/DATA",
 		      "port", 7093,
 		      "certsubject",$subject,
-		     # 'ftdprotocol','cp',
+		      'ftdprotocol','cp',
 		     ]) or exit(-2);
 
   addLdapEntry($key3, ["objectClass",["AliEnSE", "AliEnMSS", "AliEnSOAPServer"],
@@ -57,7 +57,7 @@ BEGIN { plan tests => 1 }
 		      "savedir", "$config->{LOG_DIR}/SE3/DATA",
 		      "port", 7094,
 		      "certsubject",$subject,
-		     # 'ftdprotocol','cp',
+		      'ftdprotocol','cp',
 		     ]) or exit(-2);
 
 

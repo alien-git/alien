@@ -4,6 +4,7 @@ use warnings;
 use Test;
 use Net::LDAP;
 use AliEn::Config;
+use Net::Domain;
 
 my $ALIEN_ROOT=$ENV{ALIEN_ROOT};
 my $ALIEN_HOME=$ENV{HOME}."/.alien";
@@ -17,7 +18,7 @@ BEGIN { plan tests => 2}
    $rootdn =~ s/\"//g;
 
    #get LDAP password
-   my $hostname = `hostname -s`;
+   my $hostname =Net::Domain::hostname();
    chop $hostname;
    my $pass = `cat $ALIEN_HOME/.startup/.ldap.secret.$hostname`;
 
