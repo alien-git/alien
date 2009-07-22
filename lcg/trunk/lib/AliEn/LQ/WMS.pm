@@ -59,7 +59,16 @@ sub initialize {
        $self->{RBTIME} = time;
    }
  
-   $self->renewProxy(172800);   
+   # Some optionally configurable values
+   $ENV{CE_PROXYDURATION} and $self->{CONFIG}->{CE_PROXYDURATION} = $ENV{CE_PROXYDURATION};
+   $self->{CONFIG}->{CE_PROXYDURATION} or $self->{CONFIG}->{CE_PROXYDURATION} = 172800;
+   $ENV{CE_PROXYTHRESHOLD} and $self->{CONFIG}->{CE_PROXYTHRESHOLD} = $ENV{CE_PROXYTHRESHOLD};
+   $self->{CONFIG}->{CE_PROXYTHRESHOLD} or $self->{CONFIG}->{CE_PROXYTHRESHOLD} = 165600;
+   $self->info("Proxies will be renewed for $self->{CONFIG}->{CE_PROXYDURATION} sec, with a threshold of $self->{CONFIG}->{CE_PROXYTHRESHOLD} sec.");
+   $ENV{CE_RBINTERVAL} and $self->{CONFIG}->{CE_RBINTERVAL} = $ENV{CE_RBINTERVAL};
+   $self->{CONFIG}->{CE_RBINTERVAL} or $self->{CONFIG}->{CE_RBINTERVAL} = 120*60;
+	
+   $self->renewProxy($self->{CONFIG}->{CE_PROXYDURATION});
 
    foreach my $thisWMS (@wmslist){
        
@@ -123,7 +132,7 @@ sub submit {
   my $jdlfile = $self->generateJDL($jdl, $command);
   $jdlfile or return;
 
-  $self->renewProxy(172800,169200); 
+  $self->renewProxy($self->{CONFIG}->{CE_PROXYDURATION},$self->{CONFIG}->{CE_PROXYTHRESHOLD});
 
   $self->info("Submitting to LCG with \'@args\'.");
   my $now = time;
@@ -133,7 +142,7 @@ sub submit {
   my $contact = '';
   if ( defined $ENV{CE_RBLIST} ) {
      my $elapsed = time - $self->{RBTIME};
-     if ($elapsed > 120*60) {
+     if ($elapsed > $self->{CONFIG}->{CE_RBINTERVAL}) {
       $self->info("This RB has been in use for $elapsed minutes, trying to revert to default.");
       $self->{CURRENTRB} = $self->{CONFIG}->{CE_RB_LIST}->[0];
       $self->{RBTIME} = time;

@@ -35,7 +35,17 @@ sub initialize {
       $self->{LOGGER}->error("LCG","Error reading CE list");
       return;
    } 
-   $self->renewProxy(172800);
+   # Some optionally configurable values
+   $ENV{CE_PROXYDURATION} and $self->{CONFIG}->{CE_PROXYDURATION} = $ENV{CE_PROXYDURATION};
+   $self->{CONFIG}->{CE_PROXYDURATION} or $self->{CONFIG}->{CE_PROXYDURATION} = 172800;
+   $ENV{CE_PROXYTHRESHOLD} and $self->{CONFIG}->{CE_PROXYTHRESHOLD} = $ENV{CE_PROXYTHRESHOLD};
+   $self->{CONFIG}->{CE_PROXYTHRESHOLD} or $self->{CONFIG}->{CE_PROXYTHRESHOLD} = 165600;
+   $self->info("Proxies will be renewed for $self->{CONFIG}->{CE_PROXYDURATION} sec, with a threshold of $self->{CONFIG}->{CE_PROXYTHRESHOLD} sec.");
+   $ENV{CE_DELEGATIONINTERVAL} and $self->{CONFIG}->{CE_DELEGATIONINTERVAL} = $ENV{CE_DELEGATIONINTERVAL};
+   $self->{CONFIG}->{CE_DELEGATIONINTERVAL} or $self->{CONFIG}->{CE_DELEGATIONINTERVAL} = 72000;
+   $self->info("Delegations will be renewed with an interval of $self->{CONFIG}->{CE_DELEGATIONINTERVAL} sec"); 
+		
+   $self->renewProxy($self->{CONFIG}->{CE_PROXYDURATION});
    $self->{CONFIG}->{DELEGATION_ID} = "$self->{CONFIG}->{CE_FULLNAME}:".time();
    foreach ( @{$self->{CONFIG}->{CE_LCGCE_FLAT_LIST}} ) {
      (my $CE, undef) = split /\//;
@@ -67,8 +77,8 @@ sub submit {
   my $theCE = $self->{CONFIG}->{CE_LCGCE_FLAT_LIST}->[int(rand(@{$self->{CONFIG}->{CE_LCGCE_FLAT_LIST}}))];
   push @args, ("-r", $theCE);
   push @args, ("-D", "$self->{CONFIG}->{DELEGATION_ID}");
-  $self->renewProxy(172800,172700);
-  $self->renewDelegation(72000); 
+  $self->renewProxy($self->{CONFIG}->{CE_PROXYDURATION},$self->{CONFIG}->{CE_PROXYTHRESHOLD});
+  $self->renewDelegation($self->{CONFIG}->{CE_DELEGATIONINTERVAL}); 
 
   $self->info("Submitting to LCG with \'@args\'.");
   my $now = time;
