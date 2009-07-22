@@ -155,7 +155,6 @@ $config{authenDatabase}="ADMIN";
 $config{catalogDatabase}="alien_system";
 $config{isDatabase}="INFORMATIONSERVICE";
 $config{queueDatabase}="processes";
-$config{sedetectmonalisaurl}="http://pcalimonitor.cern.ch/services/getBestSE.jsp";
 
 
 
