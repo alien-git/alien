@@ -13,22 +13,22 @@ BEGIN { plan tests => 2}
 {
    # get rootdn
    my $rootdn = `grep -m 1 \"^rootdn\" $ALIEN_ROOT/etc/openldap/slapd.conf`;
-   chop $rootdn; 
+   chomp $rootdn; 
    $rootdn =~ s/^\s*rootdn\s*//;
    $rootdn =~ s/\"//g;
 
    #get LDAP password
    my $hostname =Net::Domain::hostname();
-   chop $hostname;
+   chomp $hostname;
    my $pass = `cat $ALIEN_HOME/.startup/.ldap.secret.$hostname`;
 
    #get LDAP dn 
    my $alienLdapDn = `grep -m 1 ALIEN_LDAP_DN $ALIEN_HOME/Environment`;
-   chop $alienLdapDn;
+   chomp $alienLdapDn;
    (undef, $alienLdapDn) = split (/ALIEN_LDAP_DN\s*=\s*/, $alienLdapDn);
 
    my $alienOrg = `grep -m 1 ALIEN_ORGANISATION $ALIEN_HOME/Environment`;
-   chop $alienOrg;
+   chomp $alienOrg;
    (undef, $alienOrg) = split (/=\s*/, $alienOrg);
 
    $ENV{ALIEN_ORGANISATION}=$alienOrg;
