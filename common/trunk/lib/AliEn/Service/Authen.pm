@@ -1075,9 +1075,9 @@ sub checkUserRole{
 sub getListOfSEoutOfDB{
   my $this=shift;
 
-  my $dbtrans=$self->{UI}->{CATALOG}->{DATABASE}->{LFN_DB}->query("select sename,seQoS protocols from SE where sename!='no_se'");
+  my $dbtrans=$self->{UI}->{CATALOG}->{DATABASE}->{LFN_DB}->query("select sename,seQoS protocols from alien_system.SE where sename!='no_se'");
   $dbtrans and return $dbtrans;
-  return ();
+  return [];
 }
 
 return 1;

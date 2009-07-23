@@ -2090,11 +2090,22 @@ sub getAlternateSEInfoFromDB {
    my $dbsetable=$self->{SOAP}->CallSOAP("Authen", "getListOfSEoutOfDB");
    $dbsetable or return 0;
    $dbsetable and $dbsetable=$dbsetable->result;
+
+   my $spliceoffset=0;
+   for my $j(0..$#{$dbsetable}) {
+         if(!$$dbsetable[$j]->{sename}){
+              splice(@$dbsetable,$j-$spliceoffset,1);
+                        $spliceoffset++;
+          }elsif(!$$dbsetable[$j]->{protocols}){
+              $$dbsetable[$j]->{protocols}  = "none";
+          }
+   }
+  
   
 #   $self->info("getAlternateSEInfoFromDB, SOAP called is performed successfully.");
 
    for my $j(0..$#{$dbsetable}) {
-       $$dbsetable[$j]->{name} = uc( $$dbsetable[$j]->{name} );
+       $$dbsetable[$j]->{sename} = uc( $$dbsetable[$j]->{sename} );
    }
 
 
@@ -2105,8 +2116,8 @@ sub getAlternateSEInfoFromDB {
    
    while((scalar(@selist) < $custodial) and ($#$dbsetable >= $resc)) {
        if(($$dbsetable[$resc]->{protocols} eq "custodial") &&
-                         (($weightTable->{$$dbsetable[$resc]->{name}}) && ($weightTable->{$$dbsetable[$resc]->{name}} > 0 ))) {
-           push @selist, $$dbsetable[$resc]->{name};
+                         (($weightTable->{$$dbsetable[$resc]->{sename}}) && ($weightTable->{$$dbsetable[$resc]->{sename}} > 0 ))) {
+           push @selist, $$dbsetable[$resc]->{sename};
        }
        $resc++;
    }
@@ -2115,8 +2126,8 @@ sub getAlternateSEInfoFromDB {
 
    while((scalar(@selist) < $secount) and ($#$dbsetable >= $resc)) {
        if(($$dbsetable[$resc]->{protocols} ne "custodial") && 
-                         (($weightTable->{$$dbsetable[$resc]->{name}}) && ($weightTable->{$$dbsetable[$resc]->{name}} > 0 ))) {
-           push @selist, $$dbsetable[$resc]->{name};
+                         (($weightTable->{$$dbsetable[$resc]->{sename}}) && ($weightTable->{$$dbsetable[$resc]->{sename}} > 0 ))) {
+           push @selist, $$dbsetable[$resc]->{sename};
        }
        $resc++;
    }
@@ -2125,9 +2136,9 @@ sub getAlternateSEInfoFromDB {
    $resc=0;
    while((scalar(@selist) < $custodial) and ($#$dbsetable >= $resc)) {
        if(($$dbsetable[$resc]->{protocols} eq "custodial") && (
-                         (($weightTable->{$$dbsetable[$resc]->{name}}) && ($weightTable->{$$dbsetable[$resc]->{name}} eq 0))
-                         or (! $weightTable->{$$dbsetable[$resc]->{name}}))) {
-           push @selist, $$dbsetable[$resc]->{name};
+                         (($weightTable->{$$dbsetable[$resc]->{sename}}) && ($weightTable->{$$dbsetable[$resc]->{sename}} eq 0))
+                         or (! $weightTable->{$$dbsetable[$resc]->{sename}}))) {
+           push @selist, $$dbsetable[$resc]->{sename};
        }
        $resc++;
    }
@@ -2135,9 +2146,9 @@ sub getAlternateSEInfoFromDB {
    $resc=0;
    while((scalar(@selist) < $secount) and ($#$dbsetable >= $resc)) {
        if(($$dbsetable[$resc]->{protocols} ne "custodial") && (
-                         (($weightTable->{$$dbsetable[$resc]->{name}}) && ($weightTable->{$$dbsetable[$resc]->{name}} eq 0))
-                         or (! $weightTable->{$$dbsetable[$resc]->{name}}))) {
-           push @selist, $$dbsetable[$resc]->{name};
+                         (($weightTable->{$$dbsetable[$resc]->{sename}}) && ($weightTable->{$$dbsetable[$resc]->{sename}} eq 0))
+                         or (! $weightTable->{$$dbsetable[$resc]->{sename}}))) {
+           push @selist, $$dbsetable[$resc]->{sename};
        }
        $resc++;
    }
