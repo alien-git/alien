@@ -246,6 +246,19 @@ BEGIN { plan tests => 1 }
        ($#filefiles < 0) and $fileStatus=1;
        ($#defaultFiles < 0) and $defaultFileStatus=1;
 
+
+       if(scalar(@{$fileTable->{$tcase}->{listing}}) < 1){
+          print "#########################################\n";
+          print "FATAL ERROR: ls on $testTable->{$tcase}->{id}/job-out was empty, job didn't store any files.\n";
+          print "#########################################\n";
+
+          $archiveContentStatus=0;
+          $archiveStatus=0;
+          $fileStatus=0;
+          $defaultFileStatus=0;
+       }
+  
+
        $testTable->{$tcase}->{status} = $archiveStatus && $archiveContentStatus && $fileStatus && $defaultFileStatus;
        $TotalTestStatus = $TotalTestStatus && $testTable->{$tcase}->{status}; 
 
