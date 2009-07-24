@@ -206,7 +206,7 @@ BEGIN { plan tests => 1 }
        my $archoffset  = 0;
        my $fileoffset  = 0;
 
-       if(doEqualsOnArray("no_link_registration",\@{$testTable->{$tcase}->{aopt}} )) {
+       if(doEqualsOnArray("no_links_registration",\@{$testTable->{$tcase}->{aopt}} )) {
           my @defaultFilesCopy = @defaultFiles;
           for my $j(0..$#defaultFilesCopy) {
              if(doEqualsOnArray($defaultFilesCopy[$j],\@{$testTable->{$tcase}->{archivecontent}} )) {
@@ -223,7 +223,7 @@ BEGIN { plan tests => 1 }
           }
        } 
        $defoffset  = 0;
-       if(doEqualsOnArray("no_link_registration",\@{$testTable->{$tcase}->{fopt}} )) {
+       if(doEqualsOnArray("no_links_registration",\@{$testTable->{$tcase}->{fopt}} )) {
           my @defaultFilesCopy = @defaultFiles;
           for my $j(0..$#defaultFilesCopy) {
              if(doEqualsOnArray($defaultFilesCopy[$j],\@{$testTable->{$tcase}->{filetag}})) {
@@ -280,10 +280,11 @@ BEGIN { plan tests => 1 }
   print "#########################################\n";
   statusPrint("ALL TESTS FINAL STATUS",$TotalTestStatus); 
 
-  $TotalTestStatus and ok(1);
- 
-  exit(-2);
-  
+
+  $TotalTestStatus or exit(-2);
+
+  print "ok\n";
+
 }
 
 

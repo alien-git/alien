@@ -227,7 +227,7 @@ sub fillTestTableWithTests{
   my @archivecontent4=("stderr","stdout","resources");
   my @ases4 = ("${vo}::CERN::TESTSE","${vo}::CERN::TESTSE2","${vo}::CERN::TESTSE3");
   my $asec4 = 2;
-  my @aoptions4 = ("no_link_registration");
+  my @aoptions4 = ("no_links_registration");
   my @filetag4=();
   my @fses4 = ();
   my $fsec4 = "";
@@ -245,7 +245,7 @@ sub fillTestTableWithTests{
   my @filetag5=("resources");
   my @fses5 = ();
   my $fsec5 = 3;
-  my @foptions5 = ("no_link_registration");
+  my @foptions5 = ("no_links_registration");
 
   $testTable->{fnolink}={archivename=>$archivename5,archivecontent=>\@archivecontent5,ases=>\@ases5,asec=>$asec5,aopt=>\@aoptions5,
                          filetag=>\@filetag5,fses=>\@fses5,fsec=>$fsec5,fopt=>\@foptions5,status=>0,id=>0,seres=>0,secres=>0};
