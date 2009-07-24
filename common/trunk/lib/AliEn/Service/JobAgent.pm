@@ -1341,8 +1341,7 @@ sub processJDL_split_Output_Filenames_From_Options_And_Initialize_fileTable{
     my $options="";
     foreach my $jdlelement (@$jdlstrings){
         ($filestring, $options)=split(/\@/, $jdlelement,2);
-        my @files = split (/,/,$filestring);
-        @files=$self->_findFilesLike(@files);
+        my @files=$self->_findFilesLike(($filestring));
         foreach my $filename (@files) {
              $fileTable->{$filename}={
                                name=>$filename,
@@ -1379,9 +1378,10 @@ sub processJDL_get_SEnames_And_Real_Options{
     my $sename;
     my @seweights;
     my $seweight;
-    my $copies=2;
+    my $copies=0;
     my @tags;
     ($jdlstring eq "NONE") and ($jdlstring="");
+
     my (@options)=split (/,/, $jdlstring);
     foreach my $option (@options){
        if($option =~ /::/){
@@ -1398,19 +1398,21 @@ sub processJDL_get_SEnames_And_Real_Options{
              if(isdigit $option) {
                if($option > 9){    # we don't allow more than 9 copies
                  $copies=9;
-               } elsif ($option > 2){  #if not a natural number, we use default
+               } elsif ($option > 1){  #if not a natural number, we use default
                     $copies=$option;
                }
              }
        } else {
             push @tags, $option;
        }   
-
     }
-    if(scalar(@senames) < 1){  # if the use didn't supply any SEs, we add the config one
+    if(scalar(@senames) > 0){
+      ($copies eq 0) and $copies=scalar(@senames);
+    }else{  # if the use didn't supply any SEs, we add the config one
       push @senames, uc($self->{CONFIG}->{SE_FULLNAME});
       push (@seweights, "1");
     }
+    ($copies eq 0) and $copies=2;
     (scalar(@tags) < 1) and @tags = ("");
     return (\@senames,\@seweights,$copies,\@tags);
 }
@@ -1536,7 +1538,7 @@ sub prepare_File_And_Archives_From_JDL_And_Upload_Files{
   my @localDefaultSEs = @{$self->{CONFIG}->{SEs_FULLNAME}};
   my @defaultOutputFilesList = ("stdout","stderr","resources");
   my $defaultOutputFiles = \@defaultOutputFilesList;
-  my @defaultTags = ("copies=2");
+  my @defaultTags = ();
   #######################################################################################################
   #######################################################################################################
   my $defaultSEsString = join(";1,",@localDefaultSEs).";1";
