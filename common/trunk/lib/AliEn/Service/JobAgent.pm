@@ -1425,6 +1425,7 @@ sub analyseJDL_And_Move_By_Default_Files_To_Archives{
   my $defaultArchiveName=shift;
   my $defaultFiles=shift;
 
+  my $fileTable;
   for my $j(0..$#{$files}) {
      if(! grep(/\@/, $$files[$j])){
            $self->info("Filestring has no options, so we put it in the Default Archive.");
@@ -1433,16 +1434,28 @@ sub analyseJDL_And_Move_By_Default_Files_To_Archives{
            delete $$files[$j];
      } else {
            my ($filestring, $optionstring)=split (/\@/, $$files[$j],2);
-           my @options = split (/,/, $optionstring);
-           my $toarchive=1;
-           $self->info("Default Analysis found filestring with options: @options");
-           (grep( /^no_archive$/ , @options)) and $toarchive=0;
-           if($toarchive) {
-               push @$archives, $defaultArchiveName.time()."_".$j.".zip:".$$files[$j];
-               delete $$files[$j];
-               $self->info("Filestring $filestring will be moved from files to archives");
+           if(!(grep( /^no_archive$/, split (/,/, $optionstring)))){
+              if($fileTable->{$optionstring}) {
+                   $self->info("A file with already known options, will be united in one archive");
+                   push @{$fileTable->{$optionstring}}, $filestring;
+              } else {
+                   my @filetag=($filestring);
+                   $fileTable->{$optionstring}=\@filetag;
+              }
+              delete $$files[$j];
            }
      }
+  }
+  my $j=0;
+  foreach my $optionstring (keys(%$fileTable)) {
+           my $filestring="";
+           foreach my $filename (@{$fileTable->{$optionstring}}) {
+              $filestring .= $filename.",";
+           } 
+           $filestring =~ s/,$//;
+
+           push @$archives, $defaultArchiveName.time()."_".$j++.".zip:".$filestring."@".$optionstring;
+           $self->info("Filestring $filestring will be moved from files to archives");
   }
   return ($archives, $files, $defaultFiles);
 }
