@@ -1671,7 +1671,7 @@ sub putFiles {
 
           my ($ses, $seweights, $copies, $tags)=$self->processJDL_get_SEnames_And_Real_Options($filesAndArchives->{$fileOrArchiveEntry}->{options});
     
-          ($no_links, $tags)  = $self->processJDL_Check_on_Tag($tags, "no_link_registration"); 
+          ($no_links, $tags)  = $self->processJDL_Check_on_Tag($tags, "no_links_registration"); 
           
           $optionStore->{$filesAndArchives->{$fileOrArchiveEntry}->{options}}={
                                  ses=>$ses,
@@ -2010,7 +2010,7 @@ sub askMonALISAForNPrioritizedSEs{
    }else{
       return;
    }
-   my @nonMonALISATags = ("no_link_registration","no_archive");
+   my @nonMonALISATags = ("no_links_registration","no_archive");
    foreach (@$options){
       if(($_ ne "") and (grep(!/$_/ , @nonMonALISATags))){
          $url .= "tag=$_&";
