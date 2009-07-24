@@ -13,10 +13,6 @@ BEGIN { plan tests => 1 }
   eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
   includeTest("16-add") or exit(-2);
 
-  eval `cat $ENV{ALIEN_TESTDIR}/FillTableFor126-OutputInSeveralSE.pl`;
-
-
-
   my ($testTable, $run_test)=fillTestTableWithTests();
 
   my @archivename=();
@@ -36,36 +32,41 @@ BEGIN { plan tests => 1 }
 
   my $testrun = "Tests ";
 
+
+  my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",});
+
+  $cat or exit (-1);
+
+
+  $cat->execute("cd") or exit (-2);
+  $cat->execute("pwd") or exit (-2);
+  $cat->execute("mkdir", "-p", "jdl") or exit(-2);
+
   for my $tcase (keys(%$testTable)) {
 
-        if($run_test->{$tcase}) {
-                $testrun .= $tcase.", ";
-  
-
-                print "Test $tcase is about to be started.\n";
-                ($testTable->{$tcase}->{status}, $testTable->{$tcase}->{id}) 
-                       = submitCopiesOnMultipleSes($testTable->{$tcase}->{archivename},$testTable->{$tcase}->{archivecontent},
-                       $testTable->{$tcase}->{ases},$testTable->{$tcase}->{asec}, $testTable->{$tcase}->{aopt},
-                       $testTable->{$tcase}->{filetag},
-                       $testTable->{$tcase}->{fses},$testTable->{$tcase}->{fsec}, $testTable->{$tcase}->{fopt});
-          
-          
-       }
+    if($run_test->{$tcase}) {
+      $testrun .= $tcase.", ";
+      print "Test $tcase is about to be started.\n";
+      ($testTable->{$tcase}->{status}, $testTable->{$tcase}->{id}) 
+	= submitCopiesOnMultipleSes($cat,$tcase,  $testTable->{$tcase});
+    }
   }
 
-print " were run and are finished now.";
+  $cat->close();
 
-my $outputstring="";
+  print " were run and are finished now.";
 
-for my $tcase (keys(%$testTable)) {
+  my $outputstring="";
+
+  for my $tcase (keys(%$testTable)) {
     ($run_test->{$tcase}) and
-    $outputstring.=$tcase."::".$testTable->{$tcase}->{id}.",";
-}
+      $outputstring.=$tcase."::".$testTable->{$tcase}->{id}.",";
+  }
 
-$outputstring=~ s/,$//;
+  $outputstring=~ s/,$//;
 
 
-print "Job submitted!! 
+  print "Job submitted!! 
 \#ALIEN_OUTPUT $outputstring\n"
 
 }
@@ -76,14 +77,14 @@ sub buildSEOptionString{
   my $ses=shift;
   my $secount=shift;
   my $options=shift;
-    
+
   my $sestring = '@';
   foreach (@$ses){
      if( $_ ne "" ){
          $sestring .= "$_,";
      }
   }
-  
+
   if ($secount ne "") {
       $sestring .= "copies=$secount,";
   }
@@ -102,24 +103,27 @@ sub buildSEOptionString{
 }
 
 sub submitCopiesOnMultipleSes{
-  
-  my $archivename=shift;
-  my $archivecontent=shift;
-  my $ases=shift;
-  my $asecount=shift;
-  my $aoptions=shift;
-  my $filetag=shift;
-  my $fses=shift;
-  my $fsecount=shift;
-  my $foptions=shift;
-  
+  my $cat=shift;
+  my $case_name=shift;
+  my $entry=shift;
+
+  my $archivename=  $entry->{archivename};
+  my $archivecontent=$entry->{archivecontent};
+
+  my $ases=$entry->{ases};
+  my $asecount=$entry->{asec};
+  my $aoptions=$entry->{aopt};
+  my $filetag=$entry->{filetag};
+  my $fses=$entry->{fses};
+  my $fsecount=$entry->{fsec};
+  my $foptions=$entry->{fopt};
+
   my $asestring=buildSEOptionString($ases,$asecount,$aoptions);
   my $fsestring=buildSEOptionString($fses,$fsecount,$foptions);
-  
-  
-  
-  my $jdlstring = "Executable=\"date\";\n";
 
+
+
+  my $jdlstring = "Executable=\"date\";\n";
 
   if ($archivename ne "" ) {
      $jdlstring .= "OutputArchive = (\"";
@@ -145,29 +149,10 @@ sub submitCopiesOnMultipleSes{
 
 
   print "JDL STRING IS:".$jdlstring."\n";
-  
 
-
-  my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",});
-  #my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",});
-
-
-  $cat or exit (-1);
-
-  $cat->execute("cd");
-  $cat->execute("cd","jdl");
-  $cat->execute("rm","date.jdl");
-
-  $cat->execute("cd") or exit (-2);
-  #my ($list)= $cat->execute("ls","-la") or exit(-2);
-  #print "ls says: $list";  
-  $cat->execute("pwd") or exit (-2);
-  $cat->execute("mkdir", "-p", "jdl") or exit(-2);
-
-  addFile($cat, "jdl/date.jdl",$jdlstring) or exit(-2);
-  my ($id)=$cat->execute("submit", "jdl/date.jdl");
+  addFile($cat, "jdl/date_${case_name}.jdl",$jdlstring) or exit(-2);
+  my ($id)=$cat->execute("submit", "jdl/date_${case_name}.jdl");
   $id or exit(-2); ;
-  $cat->close();
   #my $id=$out->{id}; 
   print "job id is: $id";
 
