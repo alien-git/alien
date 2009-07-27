@@ -1505,8 +1505,9 @@ sub access {
     my $newhash=$info->result;
     if (!$newhash->{envelope} ){
       my $error=$newhash->{error} || "";
-
-      $self->info("There is no envelope ($error)!!");
+      $self->info("We are putting the error $error");
+      $self->info($self->{LOGGER}->error_msg());
+      $self->info("There is no envelope ($error)!!", 1);
       return;
      }
     $ENV{ALIEN_XRDCP_ENVELOPE}=$newhash->{envelope};
