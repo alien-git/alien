@@ -85,7 +85,7 @@ start()
 	[ -f $homedir/my.cnf ] && default="--defaults-file=$homedir/my.cnf"
 #	$ALIEN_ROOT/libexec/mysqld_safe $default --socket=/tmp/alien.mysql.$organisation.sock3 --datadir=$homedir --pid-file=$homedir/mysqld.pid --port $port -u mysql --log=$homedir/queries.log --log-slow-queries=$homedir/slow_queries.log --log-update=$homedir/updates.log   >/dev/null 2>&1 &
 
-	env LD_LIBRARY_PATH=/lib:$LD_LIBRARY_PATH $ALIEN_ROOT/bin/mysqld_safe $default --socket=/tmp/alien.mysql.$organisation.sock3 --datadir=$homedir --pid-file=$homedir/mysqld.pid --port $port -u mysql --slow_query_log_file=$homedir/slow_queries.log --$log=$homedir/error.log   >/dev/null 2>&1  &
+	env LD_LIBRARY_PATH=/lib:$LD_LIBRARY_PATH $ALIEN_ROOT/bin/mysqld_safe $default --socket=/tmp/alien.mysql.$organisation.sock3 --datadir=$homedir --pid-file=$homedir/mysqld.pid --port $port -u mysql --$log=$homedir/error.log   >/dev/null 2>&1  &
         ret=$?
         if [ $ret -eq 0 ]; then
 	    if  [ -f $ALIEN_ROOT/scripts/apmonPID.pl ] ; 

@@ -186,12 +186,13 @@ attributetype ( AliEnMSS:10 NAME 'category' SUP name )
 attributetype ( AliEnMSS:11 NAME 'ioDaemonsConfig' SYNTAX 1.3.6.1.4.1.1466.115.121.1.5 )
 attributetype ( AliEnMSS:12 NAME 'QoS' SUP name )
 attributetype ( AliEnMSS:13 NAME 'ftdprotocol' SUP name )
+attributetype ( AliEnMSS:14 NAME 'deleteprotocol' SUP name )
 
 objectclass ( AliEnMSS  NAME 'AliEnMSS'
 	SUP ( top ) 
 	MUST ( name $ mss $ savedir )
 	MAY  ( options $ tmpdir $ lvmdatabase $ uploadEndpoint $ ioDaemons
-               $ category $ ioDaemonsConfig $ QoS $ ftdprotocol )
+               $ category $ ioDaemonsConfig $ QoS $ ftdprotocol $ deleteprotocol )
 	      )
 
 #AliEn SE
