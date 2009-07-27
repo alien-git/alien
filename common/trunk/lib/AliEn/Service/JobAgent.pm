@@ -1871,6 +1871,7 @@ sub uploadFile {
     my $statusOfExecuteUpload;
      for my $j(0..5) {  # this 5 times try was just taken from the old version
       ($statusOfExecuteUpload)=$ui->execute("upload", "$self->{WORKDIR}/$file", @$seList[$seselecter], $guid, $silent);
+      $self->info("After the upload, we have". $self->{LOGGER}->error_msg());
       if($statusOfExecuteUpload){
           $sereplicacount++;
           last;
