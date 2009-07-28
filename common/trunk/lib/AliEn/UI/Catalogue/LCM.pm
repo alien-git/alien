@@ -1650,9 +1650,9 @@ sub access {
 	$globalticket .= $ticket;
       }
 
-      $pfn =~ m{^(root)|(file)://([^/]*)/(.*)};
-      my $pfix = $3;
-      my $ppfn = $4;
+      $pfn =~ m{^((root)|(file))://([^/]*)/(.*)};
+      my $pfix = $4;
+      my $ppfn = $5;
 
       $filehash->{pfn} = "$ppfn";
       if (($lfn eq "") && ($access =~ /^write/)) {
