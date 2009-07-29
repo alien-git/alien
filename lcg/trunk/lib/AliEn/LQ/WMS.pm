@@ -37,7 +37,8 @@ sub initialize {
 			 
    $self->{$_} = $cmds->{$_} || $self->{CONFIG}->{$_} || '' foreach (keys %$cmds);
    
-   if ($self->{CONFIG}->{CE_SITE_BDII}) {
+   if ( $ENV{CE_SITE_BDII} ) {
+     $self->{CONFIG}->{CE_SITE_BDII} = $ENV{CE_SITE_BDII};
      $self->info("Site BDII is $self->{CONFIG}->{CE_SITE_BDII}, will be used for queries"); 
    } 
    
