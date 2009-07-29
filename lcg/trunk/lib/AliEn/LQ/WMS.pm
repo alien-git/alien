@@ -47,16 +47,22 @@ sub initialize {
    } 
 
    # Read RB list and generate config files if needed
-   my @list;
-   my @wmslist;
+   my @list = ();
+   my @flatlist = ();
    if ( $ENV{CE_RBLIST} ) { 
        $self->info("Taking the list of RBs from \$ENV: $ENV{CE_RBLIST}");
-       @list=split(/,/,$ENV{CE_RBLIST});
-       @wmslist=split(/:/,$ENV{CE_RBLIST});
-       $_ =~ s/:/_/g foreach @list;
-       $self->{CONFIG}->{CE_RB_LIST} = \@list;
-       $self->{CURRENTRB} = $self->{CONFIG}->{CE_RB_LIST}->[0];
-       $self->{RBTIME} = time;
+       my $string = $ENV{CE_RBLIST};
+       my @sublists = ($string =~ /\(.+?\)/g);
+       $string =~ s/\($_\)\,?// foreach (@sublists);
+       push  @sublists, split(/,/, $string);
+       $self->{CONFIG}->{CE_WMS_LIST} = \@sublists;
+       $self->info("WMS list is: @{$self->{CONFIG}->{CE_WMS_LIST}}");
+       # Flat-out sublists in CE lis
+       $string = $ENV{CE_RBLIST};
+       $string =~  s/\s*//g;
+       $string =~ s/\(//g; $string =~ s/\)//g;
+       my @flatlist = split /,/,$string;
+       $self->{CONFIG}->{CE_WMS_FLAT_LIST} = \@flatlist;
    }
  
    # Some optionally configurable values
@@ -69,55 +75,37 @@ sub initialize {
    $self->{CONFIG}->{CE_RBINTERVAL} or $self->{CONFIG}->{CE_RBINTERVAL} = 120*60;
 	
    $self->renewProxy($self->{CONFIG}->{CE_PROXYDURATION});
-
-   foreach my $thisWMS (@wmslist){
-       
-       if( !-e "$self->{CONFIG}->{LOG_DIR}/$thisWMS.vo.conf" ){
-	   $self->info("Config file for $thisWMS  not there, creating it.");
-	   my $wmsurl = "\"https://$thisWMS:7443/glite_wms_wmproxy_server\"";
-	   open WMSVOCONF, ">$self->{CONFIG}->{LOG_DIR}/$thisWMS.vo.conf" or return;
-	   print WMSVOCONF "[
-           VirtualOrganisation = \"alice\";
-           EnableServiceDiscovery  =  false;
-           WMProxyEndpoints    = {$wmsurl};
-           MyProxyServer       = \"myproxy.cern.ch\";\n]\n";
-	   close WMSVOCONF;
-       }
-
-   opendir CONFDIR, $self->{CONFIG}->{LOG_DIR};
-   while (my $name = readdir CONFDIR){
-       my @tmp_individualwms = ();
-       foreach my $thisRB ( @{$self->{CONFIG}->{CE_RB_LIST}} ) {
-	   (my $wmslist = $thisRB) =~ s/:/_/g;
-	   
-	   my @tmp_vectorwms = ();
-	   push (@tmp_vectorwms,"\"https://$_:7443/glite_wms_wmproxy_server\"") foreach (split(/:/,$thisRB));
-	   
-	   if( !-e "$self->{CONFIG}->{LOG_DIR}/$wmslist.vo.conf" ){ 
-	       my $streamwms = join ",",@tmp_vectorwms;
-	       $self->info("Config file for $wmslist not there, creating it."); 
-	       open STVOCONF, ">$self->{CONFIG}->{LOG_DIR}/$wmslist.vo.conf" or return;
-	       print STVOCONF "[
-           VirtualOrganisation     = \"alice\";
-           EnableServiceDiscovery  =  false;
-           Requirements            = other.GlueCEStateStatus == \"Production\";
-           WMProxyEndpoints        = {$streamwms};
-           MyProxyServer           = \"myproxy.cern.ch\";\n]\n";
-	       close STVOCONF;
-	   }
-       }
-       
+   foreach my $thisWMS (@{$self->{CONFIG}->{CE_WMS_LIST}}){
+     $thisWMS =~ s/\s*//g; $thisWMS =~ s/\(//; $thisWMS =~ s/\)//;
+     my @sublist = split /,/, $thisWMS;
+     my $filename = join("_",@sublist);
+     $_ = "\"https://$_:7443/glite_wms_wmproxy_server\"" foreach (@sublist);
+     my $wmsstring = join(",",@sublist);
+     if( !-e "$self->{CONFIG}->{LOG_DIR}/$filename.vo.conf" ){
+	$self->info("Config file for $thisWMS  not there, creating it.");
+	open WMSVOCONF, ">$self->{CONFIG}->{LOG_DIR}/$filename.vo.conf" or return;
+	print WMSVOCONF "[
+        VirtualOrganisation = \"alice\";
+        EnableServiceDiscovery  =  false;
+        Requirements            = other.GlueCEStateStatus == \"Production\";
+        WMProxyEndpoints    = {$wmsstring};
+        MyProxyServer       = \"myproxy.cern.ch\";\n]\n";
+	close WMSVOCONF;
+     }
    }
-   
    $self->{CONFIG}->{DELEGATION_ID} = "$self->{CONFIG}->{CE_FULLNAME}:".time();
-    my @command = ($self->{DELEGATION_CMD},"-c","$self->{CONFIG}->{LOG_DIR}/$thisWMS.vo.conf","-d","$self->{CONFIG}->{DELEGATION_ID}");   
-    my @output = $self->_system(@command);
-    my $error = $?;
-    if ($error) {
-      $self->{LOGGER}->error("LCG","Error $error delegating the proxy to $thisWMS");
-      return 1;
-    }
+   foreach (@{$self->{CONFIG}->{CE_WMS_FLAT_LIST}}) { 
+     my @command = ($self->{DELEGATION_CMD},"-e","https://$_:7443/glite_wms_wmproxy_server","-d","$self->{CONFIG}->{DELEGATION_ID}");   
+     my @output = $self->_system(@command);
+     my $error = $?;
+     if ($error) {
+       $self->{LOGGER}->error("LCG","Error $error delegating the proxy to $_");
+       next;
+     }
    }
+   s/\,/_/g foreach (@{$self->{CONFIG}->{CE_WMS_LIST}});
+   $self->{CURRENTRB} = $self->{CONFIG}->{CE_WMS_LIST}->[0];
+   $self->{RBTIME} = time;
    return 1;
 }
 
@@ -144,7 +132,7 @@ sub submit {
      my $elapsed = time - $self->{RBTIME};
      if ($elapsed > $self->{CONFIG}->{CE_RBINTERVAL}) {
       $self->info("This RB has been in use for $elapsed minutes, trying to revert to default.");
-      $self->{CURRENTRB} = $self->{CONFIG}->{CE_RB_LIST}->[0];
+      $self->{CURRENTRB} = $self->{CONFIG}->{CE_WMS_LIST}->[0];
       $self->{RBTIME} = time;
     }    
     my $lastGoodRB = $self->{CURRENTRB};
@@ -152,7 +140,7 @@ sub submit {
     $contact = $self->wrapSubmit($lastGoodRB, $logFile, $jdlfile, @args);
 
     unless ( $contact ) {
-      redoit:foreach ( @{$self->{CONFIG}->{CE_RB_LIST}} ) { 
+      redoit:foreach ( @{$self->{CONFIG}->{CE_WMS_LIST}} ) { 
 	next redoit if ( $_ eq $lastGoodRB ); ##This one just failed
 	$contact = $self->wrapSubmit($_, $logFile, $jdlfile, @args);
 	next redoit unless $contact; 

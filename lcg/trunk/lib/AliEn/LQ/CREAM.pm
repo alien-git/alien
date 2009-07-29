@@ -47,6 +47,7 @@ sub initialize {
 		
    $self->renewProxy($self->{CONFIG}->{CE_PROXYDURATION});
    $self->{CONFIG}->{DELEGATION_ID} = "$self->{CONFIG}->{CE_FULLNAME}:".time();
+   $self->info("Delegation ID is  $self->{CONFIG}->{DELEGATION_ID}");
    foreach ( @{$self->{CONFIG}->{CE_LCGCE_FLAT_LIST}} ) {
      (my $CE, undef) = split /\//;
      my @command = ($self->{DELEGATION_CMD},"-e",$CE,
