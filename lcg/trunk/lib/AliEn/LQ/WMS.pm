@@ -47,7 +47,7 @@ sub initialize {
       return;
    } 
 
-   # Read RB list and generate config files if needed
+   # Read RB list and generate config files
    my @list = ();
    my @flatlist = ();
    if ( $ENV{CE_RBLIST} ) { 
@@ -66,6 +66,29 @@ sub initialize {
        $self->{CONFIG}->{CE_WMS_FLAT_LIST} = \@flatlist;
    }
  
+  $self->info("Removing old config files...");
+  foreach ( glob("$self->{CONFIG}->{LOG_DIR}/*.vo.conf") ) {
+      $self->debug(1,"Removing $_");
+      unlink $_;
+   }
+
+   foreach my $thisWMS (@{$self->{CONFIG}->{CE_WMS_LIST}}){
+     $thisWMS =~ s/\s*//g; $thisWMS =~ s/\(//; $thisWMS =~ s/\)//;
+     my @sublist = split /,/, $thisWMS;
+     my $filename = join("_",@sublist);
+     $_ = "\"https://$_:7443/glite_wms_wmproxy_server\"" foreach (@sublist);
+     my $wmsstring = join(",",@sublist);
+     $self->info("Creating config file for submission to $thisWMS");
+     open WMSVOCONF, ">$self->{CONFIG}->{LOG_DIR}/$filename.vo.conf" or return;
+     print WMSVOCONF "[
+       VirtualOrganisation     = \"alice\";
+       EnableServiceDiscovery  =  false;
+       Requirements            = other.GlueCEStateStatus == \"Production\";
+       WMProxyEndpoints        = {$wmsstring};
+       MyProxyServer           = \"myproxy.cern.ch\";\n]\n";
+     close WMSVOCONF;
+   }
+
    # Some optionally configurable values
    $ENV{CE_PROXYDURATION} and $self->{CONFIG}->{CE_PROXYDURATION} = $ENV{CE_PROXYDURATION};
    $self->{CONFIG}->{CE_PROXYDURATION} or $self->{CONFIG}->{CE_PROXYDURATION} = 172800;
@@ -76,24 +99,7 @@ sub initialize {
    $self->{CONFIG}->{CE_RBINTERVAL} or $self->{CONFIG}->{CE_RBINTERVAL} = 120*60;
 	
    $self->renewProxy($self->{CONFIG}->{CE_PROXYDURATION});
-   foreach my $thisWMS (@{$self->{CONFIG}->{CE_WMS_LIST}}){
-     $thisWMS =~ s/\s*//g; $thisWMS =~ s/\(//; $thisWMS =~ s/\)//;
-     my @sublist = split /,/, $thisWMS;
-     my $filename = join("_",@sublist);
-     $_ = "\"https://$_:7443/glite_wms_wmproxy_server\"" foreach (@sublist);
-     my $wmsstring = join(",",@sublist);
-     if( !-e "$self->{CONFIG}->{LOG_DIR}/$filename.vo.conf" ){
-	$self->info("Config file for $thisWMS  not there, creating it.");
-	open WMSVOCONF, ">$self->{CONFIG}->{LOG_DIR}/$filename.vo.conf" or return;
-	print WMSVOCONF "[
-        VirtualOrganisation = \"alice\";
-        EnableServiceDiscovery  =  false;
-        Requirements            = other.GlueCEStateStatus == \"Production\";
-        WMProxyEndpoints    = {$wmsstring};
-        MyProxyServer       = \"myproxy.cern.ch\";\n]\n";
-	close WMSVOCONF;
-     }
-   }
+
    $self->{CONFIG}->{DELEGATION_ID} = "$self->{CONFIG}->{CE_FULLNAME}:".time();
    foreach (@{$self->{CONFIG}->{CE_WMS_FLAT_LIST}}) { 
      my @command = ($self->{DELEGATION_CMD},"-e","https://$_:7443/glite_wms_wmproxy_server","-d","$self->{CONFIG}->{DELEGATION_ID}");   
