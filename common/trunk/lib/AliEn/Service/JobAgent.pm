@@ -1555,9 +1555,16 @@ sub prepare_File_And_Archives_From_JDL_And_Upload_Files{
 
   my $defaultArchiveName= ".alien_archive.$ENV{ALIEN_PROC_ID}.".uc($self->{CONFIG}->{SE_FULLNAME}.".");
 
-  my @localDefaultSEs = @{$self->{CONFIG}->{SEs_FULLNAME}};
-  my @defaultOutputFilesList = ("stdout","stderr","resources");
+  my @localDefaultSEs = ();
+  push @localDefaultSEs , $self->{CONFIG}->{SE_FULLNAME};  # we could have done without an array, but maybe we would like to have more than one SE in the future
+
+
+  my @defaultOutputFilesList = ();   # This variable is maybe never again used, but was planned to force certain files not to be lost
+                                     # like the @defaultOutputArchiveFilesList with "stdout","stderr","resources".
+  my @defaultOutputArchiveFilesList = ("stdout","stderr","resources");
   my $defaultOutputFiles = \@defaultOutputFilesList;
+  my $defaultOutputArchiveFiles = \@defaultOutputArchiveFilesList;
+
   my @defaultTags = ();
   #######################################################################################################
   #######################################################################################################
@@ -1576,7 +1583,7 @@ sub prepare_File_And_Archives_From_JDL_And_Upload_Files{
   ##
   if((scalar(@archives) < 1) and (scalar(@files) < 1)) {
       $self->putJobLog("trace", "The JDL didn't contain any output specification. Creating default Archive.");
-      push @archives, $self->create_Default_Output_Archive_Entry($defaultArchiveName.time().".zip", $defaultOutputFiles, 
+      push @archives, $self->create_Default_Output_Archive_Entry($defaultArchiveName.time().".zip", $defaultOutputArchiveFiles, 
               $defaultSEsString, $defaultTagString);
       $archives = \@archives;
       $files = \@files;
@@ -1840,7 +1847,7 @@ sub putFiles {
   $self->putJobLog("trace", "we had ".scalar(keys(%$filesAndArchives))
           ." files and archives to store, we successfully stored $successCounter");
 
-  $incompleteUploades and $self->putJobLog("trace", "yet not all files and archives were stored as many times as wanted.");
+  $incompleteUploades and $self->putJobLog("warning", "yet not all files and archives were stored as many times as wanted.");
   $incompleteUploades and return -1;
 
   if (scalar(keys(%$filesAndArchives)) eq $successCounter) {
@@ -1885,7 +1892,7 @@ sub uploadFile {
       }
       my $error="(no error message)";
       ($self->{LOGGER}->error_msg()) and $error="(error: ".$self->{LOGGER}->error_msg().")";
-      $self->putJobLog( "trace", "warning: file upload failed... sleeping  and retrying $error");
+      $self->putJobLog( "warning", "File upload failed... sleeping  and retrying $error");
       sleep(10);
       $silent="";
     }
@@ -1911,13 +1918,13 @@ sub uploadFile {
   ($info) or $self->putJobLog("error","Error registering the file $self->{WORKDIR}/$file");
   if ($sereplicacount != $seWishCount) {
        if($sereplicacount eq 0) {
-             $self->putJobLog("Could not store the file $file on any of the $seWishCount wished SEs");
+             $self->putJobLog("error","Could not store the file $file on any of the $seWishCount wished SEs");
              return (0, $failedSEs);
        }
-       $self->putJobLog("Could store the file $file only on $sereplicacount of the $seWishCount wished SEs");
+       $self->putJobLog("warning","Could store the file $file only on $sereplicacount of the $seWishCount wished SEs");
        return (-1, $failedSEs);
   } else {
-       $self->putJobLog("Successfully stored the file $file on $sereplicacount of the $seWishCount wished SEs");
+       $self->putJobLog("trace","Successfully stored the file $file on $sereplicacount of the $seWishCount wished SEs");
        return (1, $failedSEs);
   }
   return 0;
