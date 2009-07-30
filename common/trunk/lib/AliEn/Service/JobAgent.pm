@@ -848,7 +848,14 @@ sub getBatchId{
   my $b = $queuename->new();
   $b or $self->info("Error creating a $queuename") and return;
 
-  return $b->getBatchId();
+   #my $id="";
+   my $id=0;
+   eval { $id=$b->getBatchId()};
+   if ($@){
+       $self->info("Error getting the id of the batch system");
+   }
+   return $id 
+
 }
 
 
