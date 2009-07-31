@@ -2,7 +2,7 @@ package AliEn::LQ::LCG;
 
 use AliEn::LQ;
 use vars qw (@ISA);
-push @ISA, qw( AliEn::LQ);
+push @ISA,   qw( AliEn::LQ);
 
 use strict;
 use AliEn::Database::CE;
@@ -27,7 +27,7 @@ sub getQueueStatus { ##Still return values from the local DB
 
 sub readCEList {
    my $self = shift;
-   $self->error("No CE list defined in \$ENV") unless $ENV{CE_LCGCE};
+   $self->{LOGGER}->error("LCG", "No CE list defined in \$ENV") unless $ENV{CE_LCGCE};
    my $string = $ENV{CE_LCGCE};
    my @sublists = ($string =~ /\(.+?\)/g);
    $string =~ s/\($_\)\,?// foreach (@sublists);
