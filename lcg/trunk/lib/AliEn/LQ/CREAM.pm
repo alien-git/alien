@@ -99,6 +99,17 @@ sub submit {
   return 0;
 }
 
+sub getBatchId {
+  #Don't trust this too much...
+  my $self = shift;
+  my $id = $ENV{PBS_JOBNAME} or return;
+  my $ce = $ENV{GLITE_WMS_LOG_DESTINATION} or return;
+  (undef, $id) = split /_/,$id;
+  $id or return;
+  return "https://$ce:8443/CREAM$id";
+}
+
+
 sub wrapSubmit {
   my $self = shift;
   my $logFile = shift;
