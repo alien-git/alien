@@ -1958,7 +1958,6 @@ sub createZipArchive{
   my $self=shift;
   my $archiveTable=shift;
   my @files=();
-  my $MAXSIZE=2*1024*1204;
   foreach my $name (keys(%$archiveTable)) {
        my $filename = $name;
        my @includedFiles =  @{$archiveTable->{$name}->{includedFiles}};
@@ -1977,10 +1976,6 @@ sub createZipArchive{
           my $size=-s $file;
           if (!defined $size) {
             $self->putJobLog("error","The file $file doesn't exist");
-            next;
-          }
-          if($size>$MAXSIZE) {
-            push @files, $file."@".$archiveTable->{$name}->{options};
             next;
           }
           $archiveTable->{$name}->{zip}->addFile($file);
