@@ -189,7 +189,10 @@ sub kill {
 
 sub getBatchId {
    my $self=shift;
-   return $ENV{EDG_WL_JOBID};
+   $ENV{GRID_JOBID} and return $ENV{GRID_JOBID};
+   $ENV{GLITE_WMS_JOBID} and return $ENV{GLITE_WMS_JOBID};
+   $ENV{EDG_WL_JOBID} and return $ENV{EDG_WL_JOBID};
+   return;
 }
 
 sub getStatus { ### This is apparently unused
