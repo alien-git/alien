@@ -1349,7 +1349,7 @@ sub processJDL_split_Output_Filenames_From_Options_And_Initialize_fileTable{
     foreach my $jdlelement (@$jdlstrings){
         ($filestring, $options)=split(/\@/, $jdlelement,2);
         my @files = split (/,/, $filestring);
-        my @files=$self->_findFilesLike((@files));
+        @files=$self->_findFilesLike(@files);
         foreach my $filename (@files) {
              $fileTable->{$filename}={
                                name=>$filename,
@@ -1370,7 +1370,7 @@ sub processJDL_get_Output_Archivename_And_Included_Files_And_Initialize_archiveT
     foreach  my $jdlelement (@$jdlstrings){
         ($filestring, $options)=split (/\@/, $jdlelement,2);
         ($name, my @files)=split(/[\:,]/, $filestring);
-        my @files=$self->_findFilesLike((@files));
+        @files=$self->_findFilesLike(@files);
         (scalar(@files) < 1) and next;  # for false JDLs, with archive definition and missing file definition
         $archiveTable->{$name}={name=>$name,
                                includedFiles=>\@files,
