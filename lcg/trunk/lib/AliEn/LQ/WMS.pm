@@ -162,7 +162,6 @@ sub submit {
   } 
 
   $self->info("LCG JobID is $contact");
-  $self->{LAST_JOB_ID} = $contact;
   open JOBIDS, ">>$self->{CONFIG}->{LOG_DIR}/CE.db/JOBIDS";
   print JOBIDS "$now,$contact\n";
   close JOBIDS;
@@ -190,7 +189,7 @@ sub kill {
 
 sub getBatchId {
    my $self=shift;
-   return $self->{LAST_JOB_ID};
+   return $ENV{EDG_WL_JOBID};
 }
 
 sub getStatus { ### This is apparently unused
