@@ -2,7 +2,7 @@ package AliEn::LQ::LCG;
 
 use AliEn::LQ;
 use vars qw (@ISA);
-@ISA = qw( AliEn::LQ);
+push @ISA, qw( AliEn::LQ);
 
 use strict;
 use AliEn::Database::CE;
