@@ -2105,7 +2105,7 @@ sub getAlternateSEInfoFromDB {
       }
    }
 #   $self->info("getAlternateSEInfoFromDB, custodial=$custodial");
-  
+   # some more additional information 
    # build a weighted SE table
    my $weightTable;
    for my $j(0..$#{$ses}) {
