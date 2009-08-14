@@ -36,14 +36,18 @@ for ALIEN_ORGANISATION in $ALL_ORG ; do
 		err_msg=`$AliEnCommand --org $ALIEN_ORGANISATION Status$service -silent 2>&1`
 		error=$?
 		err_msg=`echo $err_msg | while read line ; do echo -n \$line | sed -e "s/\t/  /g"; done`
+		other_info=""
+		if [ "$service" = "CE" ]; then
+		    other_info=`$AliEnCommand login -exec request -n  2>&1 |tail -n 1 |awk -F "\t" '{print "\tInfo\t"$2}'`
+		fi
 		if [ "$error" != "0" ] ; then
 			if [ ! -x $AliEnCommand ] ; then
 				echo -e "$service\tStatus\t$error\tMessage\tCannot execute $AliEnCommand"
 			else
-				echo -e "$service\tStatus\t$error\tMessage\t$err_msg. Exit code $error"
+				echo -e "$service\tStatus\t$error\tMessage\t$err_msg. Exit code $error$other_info"
 			fi
 		else
-			echo -e "$service\tStatus\t$error"
+			echo -e "$service\tStatus\t$error$other_info"
 		fi
 	done
 done
