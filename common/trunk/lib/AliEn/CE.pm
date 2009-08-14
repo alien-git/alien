@@ -919,11 +919,13 @@ sub offerAgent {
   }
   if ($opt->{n}){
     my $total=0;
-    foreach my $entry (@jobAgents){
-      my ($c,$j)=@$entry;
-      $total+=$c;
+    if (! $message){
+      foreach my $entry (@jobAgents){
+	my ($c,$j)=@$entry;
+	$total+=$c;
+      }
+      $message="We could start $total agents";
     }
-    $message or $message="We could start $total agents";
     $self->info("We do not start the agents. This is just for info");
     $self->info($message);
     return 1;
