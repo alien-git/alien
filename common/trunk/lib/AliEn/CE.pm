@@ -845,9 +845,27 @@ sub getNumberFreeSlots{
   };
   return $free;
 }
+
+sub offerAgent_HELP {
+  return "request - offer agents to be executed in the CE
+Usage:
+
+request [-n]
+
+Options: 
+  -n: Do not start the agents. Just verify that there are jobs waiting to be executed
+";
+}
 sub offerAgent {
   my $self   = shift;
+  my $opt={};
+  @ARGV=@_;
+  Getopt::Long::GetOptions($opt,  "n") or 
+      $self->info("Error parsing the arguments to request". $self->offerAgent_HELP()) and return;;
+  @_=@ARGV;
   my $silent = ( shift or 0 );
+
+
   my $mode="info";
   $silent and $mode="debug";
 
@@ -880,22 +898,37 @@ sub offerAgent {
 				 );
   $done or return;
   $DEBUG and $self->debug(1, "Got back that we have to start  agents");
-
+  my $message;
   my @jobAgents=$self->{SOAP}->GetOutput($done);
+
   if (!@jobAgents || ($jobAgents[0] eq "-2")) {
-    my $mesage=($done->paramsout || "no more jobs");
-    $self->{LOGGER}->$mode("CE", $mesage);
-    return -2;
+    $message=($done->paramsout || "no more jobs");
+    $self->{LOGGER}->$mode("CE", $message);
+    $opt->{n} or return -2;
   }
   if (!@jobAgents || ($jobAgents[0] eq "-3")) {
     shift @jobAgents;
     $self->info("We have to install the packages '@jobAgents'");
-    foreach my $pack (@{$jobAgents[0]}){
-      $self->{CATALOG}->execute("packman", "install", $pack);
+    $message="We have to install the pacakages '@jobAgents'";
+    if (! $opt->{n}){
+      foreach my $pack (@{$jobAgents[0]}){
+	$self->{CATALOG}->execute("packman", "install", $pack);
+      }
+      return -2;
     }
-    return -2;
   }
-
+  if ($opt->{n}){
+    my $total=0;
+    foreach my $entry (@jobAgents){
+      my ($c,$j)=@$entry;
+      $total+=$c;
+    }
+    $message or $message="We could start $total agents";
+    $self->info("We do not start the agents. This is just for info");
+    $self->info($message);
+    return 1;
+  }
+  
   $DEBUG and $self->debug(1, "Got back that we have to start $#jobAgents +1  agents");
   my $script=$self->createAgentStartup() or return;
   foreach my $agent (@jobAgents) {

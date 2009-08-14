@@ -826,6 +826,13 @@ sub checkIODaemons {
   return 1;
 }
 
+
+sub checkLFN_HELP {
+  return "checkLFN. Updates all the guids that are referenced by lfn
+Usage:
+       checkLFN [<db> [<table>]] ";
+}
+
 sub checkLFN {
   my $self=shift;
 
@@ -834,7 +841,7 @@ sub checkLFN {
 
   $self->info("Ready to check that the lfns are ok");
 
-  return  $self->{DATABASE}->checkLFN();
+  return  $self->{DATABASE}->checkLFN(@_);
 }
 
 sub checkOrphanGUID{

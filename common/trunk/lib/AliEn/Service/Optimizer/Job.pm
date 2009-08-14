@@ -134,7 +134,7 @@ sub copyInput {
       my $nodownload=0;
       $file=~ s/,nodownload$// and $nodownload=1;
       $pfnName and $file=$pfnName;
-      $self->debug("In copyInput adding file $file (from the InputBox $pfn)");
+      $self->debug(1, "In copyInput adding file $file (from the InputBox $pfn)");
       #    my $procname=$self->findProcName($procid, $file, $done, $user);
       if ( defined $pfnSize ) {
 	my $procname=$self->findProcName($procDir, $file, $done);
