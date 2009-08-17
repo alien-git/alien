@@ -53,7 +53,7 @@ sub checkTriggers{
 	  $self->info("Error getting the file $entry->{triggerName}");
 	  $done=0
 	} else{
-	  chmod 0755, $files->{file};
+	  chmod 0755, $files->{$entry->{triggerName}};
 	}
        }
       if ($done){

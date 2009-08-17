@@ -212,6 +212,7 @@ sub checkLFNTable {
 		 gowner=>"varchar(20) not null",
 		 md5=>"varchar(32)",
 		 guidtime=>"varchar(8)",
+		 broken=>'smallint(1) not null default 0',
 		);
 
   $self->checkTable(${table}, "entryId", \%columns, 'entryId', 

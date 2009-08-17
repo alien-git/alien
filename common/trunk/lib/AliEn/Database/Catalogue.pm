@@ -1063,15 +1063,22 @@ sub getIndexHostFromGUID{
 
 sub checkLFN {
   my $self=shift;
+  my $dbname=shift;
+  my $ctable=shift;
   my $rhosts = $self->{LFN_DB}->getAllHosts();
   
   foreach my $rtempHost (@$rhosts) {
+    $dbname and $dbname!~ /^$rtempHost->{db}$/ and 
+      $self->info("Skipping db $rtempHost->{db}") and next;
     $self->info("Checking the tables in $rtempHost->{db}");
+
     my ($db, $extra)=$self->{LFN_DB}->reconnectToIndex( $rtempHost->{hostIndex}, "", $rtempHost );
     $db or $self->info("Error connecting to $db") and next;
     
-    my $tables=$db->queryColumn('select tablename from INDEXTABLE where hostindex=?', undef, {bind_values=>[$rtempHost->{hostIndex}]});
+    my $tables=$db->queryColumn('select tablename from INDEXTABLE where hostindex=? order by 1', undef, {bind_values=>[$rtempHost->{hostIndex}]});
     foreach my $t (@$tables){
+      $ctable and $ctable!~/^L${t}L$/ and
+	$self->info("Skipping table L${t}L") and next;
       if ($db->queryValue("select 1 from (select max(ctime) ctime, count(*) counter from L${t}L) a left join  LL_ACTIONS on tablenumber=? and action='STATS' where extra is null or extra<>counter or time is null or time<ctime", undef, {bind_values=>[$t]})){
 	$self->info("We have to update the table $t");
 	$db->updateStats($t);
@@ -1154,8 +1161,8 @@ sub optimizeGUIDtables_removeTable {
 
 
   my $previousGUID=$info->{guidTime};
-  $previousGUID=~ s/......$//;
-  $previousGUID= sprintf("%s%06X", $previousGUID, hex(substr($info->{guidTime},-6)) -1);
+  $previousGUID=~ s/.........$//;
+  $previousGUID= sprintf("%s%09X", $previousGUID, hex(substr($info->{guidTime},-9)) -1);
   
   ($previousGUID eq "FFFFFFFF")
     and $self->info("This is the first table") and return 1;
