@@ -54,7 +54,7 @@ sub initialize {
 		     'IDLE'        =>50,  'INTERACTIV'  =>50,
 		     'RUNNING'     =>50,  'SAVING'      =>60,
 		     'SAVED'       =>70,  'DONE'        =>980,
-                     'SAVED_WARNING'=>71, 'DONE_WARNING'=>981,
+                     'SAVED_WARN'  =>71,  'DONE_WARN'=>981,
 		     'ERROR_A'     =>990,  'ERROR_I'     =>990,
 		     'ERROR_E'     =>990,  'ERROR_IB'    =>990,
 		     'ERROR_M'     =>990,  'ERROR_R'     =>990,
@@ -406,7 +406,7 @@ sub updateJob{
   $DEBUG and $self->debug(1,"In updateJob updating job $id");
   my $procSet = {};
   foreach my $key (keys  %$set){
-    if($key =~ /(si2k)|(cpuspeed)|(maxrsize)|(cputime)|(ncpu)|(cost)|(cpufamily)|(cpu)|(vsize)|(rsize)|(runtimes)|(procinfotime)|(maxvsize)|(runtime)|(mem)/){
+    if($key =~ /(si2k)|(cpuspeed)|(maxrsize)|(cputime)|(ncpu)|(cost)|(cpufamily)|(cpu)|(vsize)|(rsize)|(runtimes)|(procinfotime)|(maxvsize)|(runtime)|(mem)|(batchid)/){
       $procSet->{$key} = $set->{$key};
       delete $set->{$key};
     }
@@ -551,10 +551,10 @@ sub updateStatus{
       }
     }
 
-    $status =~ /^(KILLED)|(SAVED)|(SAVED_WARNING)|(STAGING)$/
+    $status =~ /^(KILLED)|(SAVED)|(SAVED_WARN)|(STAGING)$/
       and $self->update("ACTIONS", {todo=>1}, "action='$status'");
   }
-  if ($status  =~ /^DONE_WARNING$/) {
+  if ($status  =~ /^DONE_WARN$/) {
        
     $self->sendJobStatus($id, "DONE", $execHost, "");
 
