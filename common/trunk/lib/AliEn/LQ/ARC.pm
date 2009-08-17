@@ -5,6 +5,7 @@ use AliEn::Config;
 @ISA = qw( AliEn::LQ);
 use strict;
 
+use AliEn::Database::CE;
 
 
 sub initialize {
