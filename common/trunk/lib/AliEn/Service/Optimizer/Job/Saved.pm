@@ -29,7 +29,7 @@ sub checkWakesUp {
   $todo or return;
   $self->{DB}->update("ACTIONS", {todo=>0}, "action='SAVED'");
   my $done=$self->checkJobs($silent, "SAVED", "checkSavedJob");
-  $self->checkJobs($silent, "SAVED_WARNING", "checkSavedJob");
+  $self->checkJobs($silent, "SAVED_WARN", "checkSavedJob");
 
   return;
 
@@ -88,7 +88,7 @@ sub checkSavedJob{
     }	
   }
 
-  my $newstatus = "DONE_WARNING";
+  my $newstatus = "DONE_WARN";
   ($status eq "SAVED") and $newstatus = "DONE"; 
 
   $self->{DB}->updateStatus($queueid,$status, $newstatus, undef, $self);
