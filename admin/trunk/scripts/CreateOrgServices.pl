@@ -212,7 +212,7 @@ if ($install=~ /Authen/) {
     $files{aliend}={};
     $files{aliend}->{'Shadow=0'}='Shadow=1';
     
-    modifyFiles ("$ENV{ALIEN_ROOT}/etc/alien/rc.d/init.d", %files);
+    modifyFiles ("$ENV{ALIEN_ROOT}/etc/rc.d/init.d", %files);
   }
   print "Creating the keys for the security envelope\n";
   mkdir "$ENV{ALIEN_HOME}/authen/";
