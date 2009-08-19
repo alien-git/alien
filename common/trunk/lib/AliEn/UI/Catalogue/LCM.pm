@@ -1731,7 +1731,7 @@ sub access {
 
         $newhash->{url}=$filehash->{turl} ;#"root://$pfix/$ppfn";
         ($se =~ /dcache/i)  and $newhash->{url}="root://$pfix/$filehash->{lfn}";
-        ($se =~ /alice::((RAL)|(CNAF))::/i) and $newhash->{url}="root://$pfix/$filehash->{lfn}";
+        ($se =~ /alice::((RAL)|(CNAF))::castor/i) and $newhash->{url}="root://$pfix/$filehash->{lfn}";
 
 	($anchor) and $newhash->{url}.="#$anchor";
       }
@@ -1777,8 +1777,6 @@ $ticket
     my $coded = $self->{envelopeengine}->encodeEnvelopePerl("$globalticket","0","none");
     $lnewresult[0]->{genvelope} = $self->{envelopeengine}->GetEncodedEnvelope();
   }
-  use Data::Dumper;
-	print Dumper($newresult);
   return @$newresult; 
 }
 
