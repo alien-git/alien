@@ -2806,10 +2806,10 @@ CPU Speed                           [MHz] : $ProcCpuspeed
   #$self->putFiles() or $self->{STATUS}="ERROR_SV";  old entry, redirected trough new funtion:
   my $uploadFilesState = $self->prepare_File_And_Archives_From_JDL_And_Upload_Files() ;
 
-  ($uploadFilesState eq -1) and $self->{STATUS}="SAVED_WARN";
- 
-  ($uploadFilesState eq 0) and $self->{STATUS}="ERROR_SV";
-
+  if ($self->{STATUS}=~ /SAVED/){
+    ($uploadFilesState eq -1) and $self->{STATUS}="SAVED_WARN";
+    ($uploadFilesState eq 0) and $self->{STATUS}="ERROR_SV";
+  }
   $self->registerLogs();
 
   my $jdl;
