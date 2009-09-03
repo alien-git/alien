@@ -395,6 +395,57 @@ sub getFile {
 sub registerInLCM {
   my $self  = shift;
   my $pfn   = shift;
+  my $ses = ( shift or {} );
+  my $lfn=(shift or "");
+  my $options=(shift or "");
+  my $reqGuid=(shift or "");
+  my $envelopes=(shift or {});
+  my $result = (shift or {});
+
+#my $result = {};
+
+  ($pfn)
+    or $self->{LOGGER}->warning( "LCM", "Error no pfn specified" )
+      and return;
+
+  my @failedSes = ();
+  my @usedSes = ();
+
+  for my $j(0..$#{$ses}) {
+
+     $self->info( "Adding the file $pfn to @$ses[$j]" );
+     my $res;
+     for my $j(0..5) {   # try five times in case of error
+          $res= $self->RegisterInRemoteSE($pfn, @$ses[$j], $lfn, $options, $reqGuid, $envelopes->{@$ses[$j]});
+#          $res or sleep sometime... this should be maybe added 
+          $res and last;
+     }
+   
+     ( $res eq -1 ) and print STDERR "ERROR copying $pfn\n" . $res->paramsout . "\n";
+   
+     if(!$res->{pfn}) {
+        $self->{LOGGER}->warning( "LCM", "Error transfering the file to the SE" );
+        push @failedSes , @$ses[$j];
+        next;
+     }
+     if($j eq 0) {
+       $reqGuid = $res->{guid};
+       $result->{guid} = $res->{guid};
+       $result->{md5} = $res->{md5};
+       $result->{size} = $res->{size};
+     } 
+     $result->{se}->{@$ses[$j]}->{pfn}=$res->{pfn};
+     push @usedSes, @$ses[$j];
+  }
+
+  return $result,\@usedSes, \@failedSes;
+}
+
+
+
+sub registerOLDTOBEDELETEDInLCM {
+  my $self  = shift;
+  my $pfn   = shift;
   my $newSE = ( shift or $self->{CONFIG}->{SAVESE_FULLNAME} or $self->{CONFIG}->{SE_FULLNAME} or "");
   my $lfn=(shift or "");
   my $options=(shift or "");
@@ -424,6 +475,9 @@ sub registerInLCM {
   $self->info( "Getting the file $result->{pfn} of size $result->{size}" );
   return $result;
 }
+
+
+
 
 sub checkPFNisLocal {
   my $self=shift;

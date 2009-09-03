@@ -780,13 +780,15 @@ sub checkSEDescription {
     $d=~ /min_size\s*=\s*(\d+)/ and $min_size=$1;
   }
   my $type=$entry->get_value("mss");
-  
+  my $qos=$entry->get_value("QoS");
+
+
   $self->info("The se $sename has $min_size and $type");
 
-  my $exists=$db->queryValue("select count(*) from SE where sename=? and seminsize=? and setype=?", undef, {bind_values=>[$sename, $min_size, $type]});
+  my $exists=$db->queryValue("select count(*) from SE where sename=? and seminsize=? and setype=? and seqos=?", undef, {bind_values=>[$sename, $min_size, $type, $qos]});
   if (not $exists){
     $self->info("We have to update the entry!!!");
-    $db->do("update SE set seminsize=?, setype=? where sename=?", {bind_values=>[$min_size,$type, $sename]});
+    $db->do("update SE set seminsize=?, setype=?, seqos=? where sename=?", {bind_values=>[$min_size,$type, $qos, $sename]});
   }
   return 1;
 
