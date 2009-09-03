@@ -103,34 +103,33 @@ BEGIN { plan tests => 1 }
               push @archives, $testTable->{$tcase}->{archivename};
 
 
-       my @defaultFiles=("stdout","stderr","resources");
-
        for my $filename (@{$fileTable->{$tcase}->{listing}}) {
-
-
-         for my $j(0..$#defaultFiles) {
-             if(doEqualsOnStrings($defaultFiles[$j],$filename)) {
-               splice(@defaultFiles,$j,1);
-             }
+         my $copyCount = 0;
+         if(doEqualsOnArray($filename,\@archivefiles)){
+             (isdigit $testTable->{$tcase}->{asel}) and $copyCount += $testTable->{$tcase}->{asel};
+             (isdigit $testTable->{$tcase}->{adisk}) and $copyCount += $testTable->{$tcase}->{adisk};
+             (isdigit $testTable->{$tcase}->{atape}) and $copyCount += $testTable->{$tcase}->{atape};
+             ($testTable->{$tcase}->{asel} eq 0) and $copyCount += scalar(@{$testTable->{$tcase}->{ases}});
          }
 
+         if(doEqualsOnArray($filename,\@filefiles)){
+             (isdigit $testTable->{$tcase}->{fsel}) and $copyCount += $testTable->{$tcase}->{fsel};
+             (isdigit $testTable->{$tcase}->{fdisk}) and $copyCount += $testTable->{$tcase}->{fdisk};
+             (isdigit $testTable->{$tcase}->{ftape}) and $copyCount += $testTable->{$tcase}->{ftape};
+             ($testTable->{$tcase}->{fsel} eq 0) and $copyCount += scalar(@{$testTable->{$tcase}->{fses}});
+         } 
+
+
+         $copyCount < 1 and $copyCount = 2; # When there wasn't specified anything it should do 2 copies;
 
          if(doEqualsOnArray($filename,\@archivefiles)) {
            if(doEqualsOnArray("no_se",\@{$fileTable->{$tcase}->{$filename}->{ses}})) {
                if(doEqualsOnStrings($fileTable->{$tcase}->{$fileTable->{$tcase}->{$filename}->{guid}}, $testTable->{$tcase}->{archivename})) {
-                   if(doEqualsOnStrings($testTable->{$tcase}->{asec}, "")){
-                        if( $fileTable->{$tcase}->{$testTable->{$tcase}->{archivename}}->{copies} >= $defaultCopies ) {
-                           for my $j(0..$#archivefiles) {
-                                   doEqualsOnStrings($archivefiles[$j], $filename) and splice(@archivefiles,$j,1);
-                           }   
-                        }
-                   } else {
-                        if(doEqualsOnStrings($testTable->{$tcase}->{asec}, $fileTable->{$tcase}->{$testTable->{$tcase}->{archivename}}->{copies})) {
-                           for my $j(0..$#archivefiles) {
-                                   doEqualsOnStrings($archivefiles[$j], $filename) and splice(@archivefiles,$j,1);
-                           }   
-                        } 
-                   }
+                    if(doEqualsOnStrings($copyCount, $fileTable->{$tcase}->{$testTable->{$tcase}->{archivename}}->{copies})) {
+                       for my $j(0..$#archivefiles) {
+                               doEqualsOnStrings($archivefiles[$j], $filename) and splice(@archivefiles,$j,1);
+                       }   
+                    } 
                }
            }
          }
@@ -139,58 +138,34 @@ BEGIN { plan tests => 1 }
          if(doEqualsOnArray($filename,\@filefiles)) {
              if(doEqualsOnArray("no_archive",\@{$testTable->{$tcase}->{fopt}})){
                  if(!doEqualsOnArray("no_se",\@{$fileTable->{$tcase}->{$filename}->{ses}})){
-                     if(doEqualsOnStrings($testTable->{$tcase}->{fsec}, "")){
-                        if($fileTable->{$tcase}->{$filename}->{copies}  >= $defaultCopies) {
-                            for my $j(0..$#filefiles) {
-                                    doEqualsOnStrings($filefiles[$j], $filename) and splice(@filefiles,$j,1);
-                             } 
-                        }
-                     } else {
-                        if(doEqualsOnStrings($fileTable->{$tcase}->{$filename}->{copies}, $testTable->{$tcase}->{fsec})) {
-                            for my $j(0..$#filefiles) {
-                                    doEqualsOnStrings($filefiles[$j], $filename) and splice(@filefiles,$j,1);
-                             } 
-                        }
+                     if(doEqualsOnStrings($copyCount, $fileTable->{$tcase}->{$filename}->{copies})) {
+                         for my $j(0..$#filefiles) {
+                                doEqualsOnStrings($filefiles[$j], $filename) and splice(@filefiles,$j,1);
+                         } 
                      }
                  }
              } else {
                  if(doEqualsOnArray("no_se",\@{$fileTable->{$tcase}->{$filename}->{ses}})) {
                      my $archivename = $fileTable->{$tcase}->{$fileTable->{$tcase}->{$filename}->{guid}};
                      if(doEqualsOnArray($archivename,\@archives)) {
-                         if(doEqualsOnStrings($testTable->{$tcase}->{asec}, "")){
-                           if( $fileTable->{$tcase}->{$testTable->{$tcase}->{archivename}}->{copies} >= $defaultCopies ) {
-                             for my $j(0..$#filefiles) {
-                                     doEqualsOnStrings($filefiles[$j], $filename) and splice(@filefiles,$j,1);
-                             } 
-                           }   
-                         } else {
-                           if(doEqualsOnStrings($fileTable->{$tcase}->{$testTable->{$tcase}->{archivename}}->{copies}, $testTable->{$tcase}->{asec})) {
+                           if(doEqualsOnStrings($copyCount, $fileTable->{$tcase}->{$testTable->{$tcase}->{archivename}}->{copies})) {
                               for my $j(0..$#filefiles) {
                                    doEqualsOnStrings($filefiles[$j], $filename) and splice(@filefiles,$j,1);
                               } 
                            } 
-                         }
                      } else {
-                         if(doEqualsOnStrings($testTable->{$tcase}->{fsec}, "")){
-                           if( $fileTable->{$tcase}->{$fileTable->{$tcase}->{$fileTable->{$tcase}->{$filename}->{guid}}}->{copies} >= $defaultCopies ) {
-                             for my $j(0..$#filefiles) {
-                                     doEqualsOnStrings($filefiles[$j], $filename) and splice(@filefiles,$j,1);
-                             } 
-                           }   
-                         } else {
-                           if(doEqualsOnStrings($fileTable->{$tcase}->{$fileTable->{$tcase}->{$fileTable->{$tcase}->{$filename}->{guid}}}->{copies}, $testTable->{$tcase}->{fsec})) {
+                           if(doEqualsOnStrings($copyCount, $fileTable->{$tcase}->{$fileTable->{$tcase}->{$fileTable->{$tcase}->{$filename}->{guid}}}->{copies})) {
                              for my $j(0..$#filefiles) {
                                      doEqualsOnStrings($filefiles[$j], $filename) and splice(@filefiles,$j,1);
                              } 
                            } 
-                         }
                      }
                  }
              }
          }
 
          if(doEqualsOnArray($filename,\@archives)) {
-             if(doEqualsOnStrings($testTable->{$tcase}->{asec}, $fileTable->{$tcase}->{$filename}->{copies})) {
+             if(doEqualsOnStrings($copyCount, $fileTable->{$tcase}->{$filename}->{copies})) {
                       for my $j(0..$#archives) {
                                  doEqualsOnStrings($archives[$j], $filename) and splice(@archives,$j,1);;
                       } 
@@ -202,18 +177,10 @@ BEGIN { plan tests => 1 }
 
 
        #### Testing the no_link_registration case
-       my $defoffset  = 0;
        my $archoffset  = 0;
        my $fileoffset  = 0;
 
        if(doEqualsOnArray("no_links_registration",\@{$testTable->{$tcase}->{aopt}} )) {
-          my @defaultFilesCopy = @defaultFiles;
-          for my $j(0..$#defaultFilesCopy) {
-             if(doEqualsOnArray($defaultFilesCopy[$j],\@{$testTable->{$tcase}->{archivecontent}} )) {
-                        splice(@defaultFiles,$j-$defoffset,1);
-                        $defoffset++;
-             } 
-          }
           my @archivefilesCopy = @archivefiles;
           for my $j(0..$#archivefilesCopy) {
              if(doEqualsOnArray($archivefilesCopy[$j],\@{$testTable->{$tcase}->{archivecontent}} )) {
@@ -222,15 +189,7 @@ BEGIN { plan tests => 1 }
              }
           }
        } 
-       $defoffset  = 0;
        if(doEqualsOnArray("no_links_registration",\@{$testTable->{$tcase}->{fopt}} )) {
-          my @defaultFilesCopy = @defaultFiles;
-          for my $j(0..$#defaultFilesCopy) {
-             if(doEqualsOnArray($defaultFilesCopy[$j],\@{$testTable->{$tcase}->{filetag}})) {
-                        splice(@defaultFiles,$j-$defoffset,1);
-                        $defoffset++;
-             } 
-          }
           my @filefilesCopy = @filefiles;
           for my $j(0..$#filefilesCopy) {
              if(doEqualsOnArray($filefilesCopy[$j],\@{$testTable->{$tcase}->{filetag}} )) {
@@ -244,7 +203,6 @@ BEGIN { plan tests => 1 }
        ($#archivefiles < 0) and $archiveContentStatus=1;
        ($#archives < 0) and $archiveStatus=1;
        ($#filefiles < 0) and $fileStatus=1;
-       ($#defaultFiles < 0) and $defaultFileStatus=1;
 
 
        if(scalar(@{$fileTable->{$tcase}->{listing}}) < 1){
@@ -255,11 +213,10 @@ BEGIN { plan tests => 1 }
           $archiveContentStatus=0;
           $archiveStatus=0;
           $fileStatus=0;
-          $defaultFileStatus=0;
        }
   
 
-       $testTable->{$tcase}->{status} = $archiveStatus && $archiveContentStatus && $fileStatus && $defaultFileStatus;
+       $testTable->{$tcase}->{status} = $archiveStatus && $archiveContentStatus && $fileStatus;
        $TotalTestStatus = $TotalTestStatus && $testTable->{$tcase}->{status}; 
 
   print "#########################################\n";
@@ -272,10 +229,6 @@ BEGIN { plan tests => 1 }
 
   statusPrint("   FileOutput",$fileStatus);   
   $fileStatus or print "Failed with filefiles: @filefiles\n";
-
-
-  statusPrint("   Default Files",$defaultFileStatus);   
-  $defaultFileStatus or print "Failed with defaultFiles: @defaultFiles\n";
 
   statusPrint("   TEST FINAL STATUS",$testTable->{$tcase}->{status});
   

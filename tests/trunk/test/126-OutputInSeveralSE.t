@@ -15,16 +15,18 @@ BEGIN { plan tests => 1 }
 
   my ($testTable, $run_test)=fillTestTableWithTests();
 
-  my @archivename=();
-  my @archivecontent=();
-  my @filetag=();
-  my @ses = ();
-  my $secount;
-  my @options = ();
-  my @ids = ();
-  my $statustemp;
-  my $archivetag = "";
-  my $filetag = "";
+#  my @archivename=();
+#  my @archivecontent=();
+#  my @filetag=();
+#  my @ses = ();
+#  my $selcount;
+#  my $diskcount;
+#  my $tapecount;
+#  my @options = ();
+#  my @ids = ();
+#  my $statustemp;
+#  my $archivetag = "";
+#  my $filetag = "";
 
 
 
@@ -75,7 +77,9 @@ BEGIN { plan tests => 1 }
 sub buildSEOptionString{
 
   my $ses=shift;
-  my $secount=shift;
+  my $selcount=shift;
+  my $diskcount=shift;
+  my $tapecount=shift;
   my $options=shift;
 
   my $sestring = '@';
@@ -85,9 +89,12 @@ sub buildSEOptionString{
      }
   }
 
-  if ($secount ne "") {
-      $sestring .= "copies=$secount,";
-  }
+  ($selcount ne 0) and $sestring .= "select=$selcount,";
+  ($diskcount ne 0) and $sestring .= "disk=$diskcount,";
+  ($tapecount ne 0) and $sestring .= "tape=$tapecount,";
+  
+  
+  
   
   
   foreach (@$options){
@@ -111,15 +118,19 @@ sub submitCopiesOnMultipleSes{
   my $archivecontent=$entry->{archivecontent};
 
   my $ases=$entry->{ases};
-  my $asecount=$entry->{asec};
+  my $aselcount=$entry->{asel};
+  my $adiskcount=$entry->{adisk};
+  my $atapecount=$entry->{atape};
   my $aoptions=$entry->{aopt};
   my $filetag=$entry->{filetag};
   my $fses=$entry->{fses};
-  my $fsecount=$entry->{fsec};
+  my $fselcount=$entry->{fsel};
+  my $fdiskcount=$entry->{fdisk};
+  my $ftapecount=$entry->{ftape};
   my $foptions=$entry->{fopt};
 
-  my $asestring=buildSEOptionString($ases,$asecount,$aoptions);
-  my $fsestring=buildSEOptionString($fses,$fsecount,$foptions);
+  my $asestring=buildSEOptionString($ases,$aselcount,$adiskcount,$atapecount,$aoptions);
+  my $fsestring=buildSEOptionString($fses,$fselcount,$fdiskcount,$ftapecount,$foptions);
 
 
 
@@ -177,92 +188,115 @@ sub fillTestTableWithTests{
 
   my $testTable;
 
-  my $archivename1="";
-  my @archivecontent1=();
+  my $archivename1="myArchive";
+  my @archivecontent1=("stdout");
   my @ases1 = ();
-  my $asec1 = "";
+  my $asel1 = 0;
+  my $adisk1 = 0;
+  my $atape1 = 0;
   my @aoptions1 = ();
-  my @filetag1=();
+  my @filetag1=("stderr");
   my @fses1 = ();
-  my $fsec1 = "";
-  my @foptions1 = ();
-  
+  my $fsel1 = 0;
+  my @foptions1 = ("no_archive");
+  my $fdisk1 = 0;
+  my $ftape1 = 0;
   my $vo=Net::Domain::hostname();
-  $testTable->{noJDL}={archivename=>$archivename1,archivecontent=>\@archivecontent1,ases=>\@ases1,asec=>$asec1,aopt=>\@aoptions1,
-                         filetag=>\@filetag1,fses=>\@fses1,fsec=>$fsec1,fopt=>\@foptions1,status=>0,id=>0,seres=>0,secres=>0};
+  $testTable->{noJDL}={archivename=>$archivename1,archivecontent=>\@archivecontent1,ases=>\@ases1,asel=>$asel1,adisk=>$adisk1,atape=>$atape1,aopt=>\@aoptions1,
+                         filetag=>\@filetag1,fses=>\@fses1,fsel=>$fsel1,fdisk=>$fdisk1,ftape=>$ftape1,fopt=>\@foptions1,status=>0,id=>0,seres=>0,secres=>0};
 
 
 
   my $archivename2="SomeThing.zip";
   my @archivecontent2=("stderr","resources");
   
-  my @ases2 = ("${vo}::CERN::TESTSE","${vo}::CERN::TESTSE2","${vo}::CERN::TESTSE3");
-  my $asec2 = 2;
+  my @ases2 = ("${vo}::CERN::TESTSE","${vo}::CERN::TESTSE2");
+  my $asel2 = 2;
+  my $adisk2 = 0;
+  my $atape2 = 1;
   my @aoptions2 = ();
   my @filetag2=("stdout");
   my @fses2 = ();
-  my $fsec2 = 3;
+  my $fsel2 = 0;
+  my $fdisk2 = 2;
+  my $ftape2 = 1;
   my @foptions2 = ("no_archive");
 
-  $testTable->{noarchivec2s2}={archivename=>$archivename2,archivecontent=>\@archivecontent2,ases=>\@ases2,asec=>$asec2,aopt=>\@aoptions2,
-                         filetag=>\@filetag2,fses=>\@fses2,fsec=>$fsec2,fopt=>\@foptions2,status=>0,id=>0,seres=>0,secres=>0};
+  $testTable->{noarchivec2s2}={archivename=>$archivename2,archivecontent=>\@archivecontent2,ases=>\@ases2,asel=>$asel2,adisk=>$adisk2,atape=>$atape2,aopt=>\@aoptions2,
+                         filetag=>\@filetag2,fses=>\@fses2,fsel=>$fsel2,fdisk=>$fdisk2,ftape=>$ftape2,fopt=>\@foptions2,status=>0,id=>0,seres=>0,secres=>0};
 
 
 
   my $archivename3="";
   my @archivecontent3=();
   my @ases3 = ();
-  my $asec3 = "";
+  my $asel3 = 0;
+  my $adisk3 = 2;
+  my $atape3 = 1;
   my @aoptions3 = ();
   my @filetag3=("stderr","resources","stdout");
   my @fses3 = ("${vo}::CERN::TESTSE","${vo}::CERN::TESTSE2");
-  my $fsec3 = 3;
+  my $fsel3 = 2;
+  my $fdisk3 = 0;
+  my $ftape3 = 0;
   my @foptions3 = ();
 
-  $testTable->{a2f1}={archivename=>$archivename3,archivecontent=>\@archivecontent3,ases=>\@ases3,asec=>$asec3,aopt=>\@aoptions3,
-                         filetag=>\@filetag3,fses=>\@fses3,fsec=>$fsec3,fopt=>\@foptions3,status=>0,id=>0,seres=>0,secres=>0};
+  $testTable->{a2f1}={archivename=>$archivename3,archivecontent=>\@archivecontent3,ases=>\@ases3,asel=>$asel3,adisk=>$adisk3,atape=>$atape3,aopt=>\@aoptions3,
+                         filetag=>\@filetag3,fses=>\@fses3,fsel=>$fsel3,fdisk=>$fdisk3,ftape=>$ftape3,fopt=>\@foptions3,status=>0,id=>0,seres=>0,secres=>0};
 
 
   my $archivename4="AZipArchive.zip";
   my @archivecontent4=("stderr","stdout","resources");
   my @ases4 = ("${vo}::CERN::TESTSE","${vo}::CERN::TESTSE2","${vo}::CERN::TESTSE3");
-  my $asec4 = 2;
+  my $asel4 = 2;
+  my $adisk4 = 0;
+  my $atape4 = 0;
   my @aoptions4 = ("no_links_registration");
   my @filetag4=();
   my @fses4 = ();
-  my $fsec4 = "";
+  my $fsel4 = 0;
+  my $fdisk4 = 0;
+  my $ftape4 = 0;
   my @foptions4 = ();
 
-  $testTable->{nolink}={archivename=>$archivename4,archivecontent=>\@archivecontent4,ases=>\@ases4,asec=>$asec4,aopt=>\@aoptions4,
-                         filetag=>\@filetag4,fses=>\@fses4,fsec=>$fsec4,fopt=>\@foptions4,status=>0,id=>0,seres=>0,secres=>0};
+  $testTable->{nolink}={archivename=>$archivename4,archivecontent=>\@archivecontent4,ases=>\@ases4,asel=>$asel4,adisk=>$adisk4,atape=>$atape4,aopt=>\@aoptions4,
+                         filetag=>\@filetag4,fses=>\@fses4,fsel=>$fsel4,fdisk=>$fdisk4,ftape=>$ftape4,fopt=>\@foptions4,status=>0,id=>0,seres=>0,secres=>0};
 
 
   my $archivename5="someName.zip";
   my @archivecontent5=("stderr","stdout");
   my @ases5 = ("${vo}::CERN::TESTSE","${vo}::CERN::TESTSE2","${vo}::CERN::TESTSE3");
-  my $asec5 = 2;
+  my $asel5 = 3;
+  my $adisk5 = 0;
+  my $atape5 = 0;
   my @aoptions5 = ();
   my @filetag5=("resources");
   my @fses5 = ();
-  my $fsec5 = 3;
+  my $fsel5 = 0;
+  my $fdisk5 = 0;
+  my $ftape5 = 1;
   my @foptions5 = ("no_links_registration");
 
-  $testTable->{fnolink}={archivename=>$archivename5,archivecontent=>\@archivecontent5,ases=>\@ases5,asec=>$asec5,aopt=>\@aoptions5,
-                         filetag=>\@filetag5,fses=>\@fses5,fsec=>$fsec5,fopt=>\@foptions5,status=>0,id=>0,seres=>0,secres=>0};
+  $testTable->{fnolink}={archivename=>$archivename5,archivecontent=>\@archivecontent5,ases=>\@ases5,asel=>$asel5,adisk=>$adisk5,atape=>$atape5,aopt=>\@aoptions5,
+                         filetag=>\@filetag5,fses=>\@fses5,fsel=>$fsel5,fdisk=>$fdisk5,ftape=>$ftape5,fopt=>\@foptions5,status=>0,id=>0,seres=>0,secres=>0};
 
 
   my $archivename6="someOtherName.zip";
   my @archivecontent6=("stderr","resources");
-  my @ases6 = ("${vo}::CERN::TESTSE","${vo}::CERN::TESTSE2","${vo}::CERN::TESTSE3");
-  my $asec6 = 3;
-  my @aoptions6 = ("custodial=1");
+  my @ases6 = ();
+  my $asel6 = 0;
+  my $adisk6 = 2;
+  my $atape6 = 1;
+  my @aoptions6 = ();
   my @filetag6=("stdout");
   my @fses6 = ("${vo}::CERN::TESTSE2");
-  my $fsec6 = 2;
+  my $fsel6 = 1;
+  my $fdisk6 = 0;
+  my $ftape6 = 1;
   my @foptions6 = ();
 
-  $testTable->{std}={archivename=>$archivename6,archivecontent=>\@archivecontent6,ases=>\@ases6,asec=>$asec6,aopt=>\@aoptions6,
-                         filetag=>\@filetag6,fses=>\@fses6,fsec=>$fsec6,fopt=>\@foptions6,status=>0,id=>0,seres=>0,secres=>0};
+  $testTable->{std}={archivename=>$archivename6,archivecontent=>\@archivecontent6,ases=>\@ases6,asel=>$asel6,adisk=>$adisk6,atape=>$atape6,aopt=>\@aoptions6,
+                         filetag=>\@filetag6,fses=>\@fses6,fsel=>$fsel6,fdisk=>$fdisk6,ftape=>$ftape6,fopt=>\@foptions6,status=>0,id=>0,seres=>0,secres=>0};
 
 
 

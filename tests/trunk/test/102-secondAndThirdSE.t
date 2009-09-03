@@ -48,6 +48,7 @@ BEGIN { plan tests => 1 }
 		      "port", 7093,
 		      "certsubject",$subject,
 		      'ftdprotocol','cp',
+                      'QoS', 'disk',
 		     ]) or exit(-2);
 
   addLdapEntry($key3, ["objectClass",["AliEnSE", "AliEnMSS", "AliEnSOAPServer"],
@@ -58,6 +59,7 @@ BEGIN { plan tests => 1 }
 		      "port", 7094,
 		      "certsubject",$subject,
 		      'ftdprotocol','cp',
+                      'QoS', 'tape',
 		     ]) or exit(-2);
 
 
