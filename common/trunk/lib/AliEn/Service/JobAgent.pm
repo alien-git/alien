@@ -1371,6 +1371,7 @@ sub processJDL_get_Output_Archivename_And_Included_Files_And_Initialize_archiveT
         ($filestring, $options)=split (/\@/, $jdlelement,2);
         ($name, my @files)=split(/[\:,]/, $filestring);
         @files=$self->_findFilesLike(@files);
+        $self->info("Found Archive: $name, incl. Files: @files, options: $options");
         (scalar(@files) < 1) and next;  # for false JDLs, with archive definition and missing file definition
         $archiveTable->{$name}={name=>$name,
                                includedFiles=>\@files,
@@ -1383,47 +1384,47 @@ sub processJDL_get_Output_Archivename_And_Included_Files_And_Initialize_archiveT
 sub processJDL_get_SEnames_And_Real_Options{
     my $self=shift;
     my $jdlstring=shift;
-    my @senames;
-    my $sename;
-    my @seweights;
-    my $seweight;
-    my $copies=0;
+    my $selist = "";
+    my $exclselist = ""; 
+    my $replicaTags = "";
     my @tags;
     ($jdlstring eq "NONE") and ($jdlstring="");
 
     my (@options)=split (/,/, $jdlstring);
     foreach my $option (@options){
        if($option =~ /::/){
-          if($option =~ /;/){
-             my ($sename, $seweight)=split (/;/, $option,2);
-             push (@senames, uc($sename));
-             push (@seweights, $seweight);
-          } else{
-             push (@senames, uc($option));
-             push (@seweights, "1");
+          if($option  =~ /;\-\d/) {
+		$option =~ s/;\-\d//;
+                $exclselist .= uc($option).";";
+          } else {
+		$option =~ s/;\d//;
+                $selist .= uc($option).";";
           }
-       } elsif ($option =~ /copies/){
-             $option =~ s/copies\=//;
-             if(isdigit $option) {
-               if($option > 9){    # we don't allow more than 9 copies
-                 $copies=9;
-               } elsif ($option > 1){  #if not a natural number, we use default
-                    $copies=$option;
-               }
-             }
+
+       } elsif ($option =~ /\=/){
+             my ($repltag, $copies)=split (/\=/, $option,2);
+             (isdigit $copies) and
+             $replicaTags .= $option.";";
        } else {
             push @tags, $option;
        }   
     }
-    if(scalar(@senames) > 0){
-      ($copies eq 0) and $copies=scalar(@senames);
-    }else{  # if the use didn't supply any SEs, we add the config one
-      push @senames, uc($self->{CONFIG}->{SE_FULLNAME});
-      push (@seweights, "1");
-    }
-    ($copies eq 0) and $copies=2;
-    (scalar(@tags) < 1) and @tags = ("");
-    return (\@senames,\@seweights,$copies,\@tags);
+    $selist =~ s/;$//;
+    $exclselist =~ s/;$//;
+    $replicaTags =~ s/;$//;
+
+
+##########################################
+#########################################
+    ($selist eq "") and ($exclselist eq "") and ($replicaTags eq "") and $replicaTags .="disk=2";
+######################################
+#######################################
+
+
+    ($selist eq "") and $selist="NONE";
+    ($exclselist eq "") and $exclselist="NONE";
+    ($replicaTags eq "") and $replicaTags="NONE";
+    return ($selist,$exclselist,$replicaTags,\@tags);
 }
 
 
@@ -1537,6 +1538,9 @@ sub putJDLerrorInJobLog{
   return 0;
 }
 
+
+
+
 sub prepare_File_And_Archives_From_JDL_And_Upload_Files{
   my $self=shift;
   my $archiveTable;
@@ -1551,8 +1555,8 @@ sub prepare_File_And_Archives_From_JDL_And_Upload_Files{
   #######
   ## configuration parameters for the submit putFiles
   #my $monALISA_URL = "http://pcalimonitor.cern.ch/services/getBestSE.jsp";
-  my $monALISA_URL = "";
-  $self->{CONFIG}->{SEDETECTMONALISAURL} and  $monALISA_URL=$self->{CONFIG}->{SEDETECTMONALISAURL};
+  #my $monALISA_URL = "";
+  #$self->{CONFIG}->{SEDETECTMONALISAURL} and  $monALISA_URL=$self->{CONFIG}->{SEDETECTMONALISAURL};
 
 
   my $defaultArchiveName= ".alien_archive.$ENV{ALIEN_PROC_ID}.".uc($self->{CONFIG}->{SE_FULLNAME}.".");
@@ -1634,7 +1638,7 @@ sub prepare_File_And_Archives_From_JDL_And_Upload_Files{
 
 
   if(scalar(keys(%$overallFileTable)) > 0){
-      return $self->putFiles($overallFileTable, $username, $monALISA_URL);
+      return $self->putFiles($overallFileTable, $username);
   }
   
 
@@ -1645,7 +1649,7 @@ sub prepare_File_And_Archives_From_JDL_And_Upload_Files{
 
 sub putFiles {
   my $self=shift;
-  my $filesAndArchives=shift;
+  my $fs_table=shift;
   my $username=shift;
   my $monALISA_URL=shift;
   my $filesUploaded=1;
@@ -1681,148 +1685,49 @@ sub putFiles {
     my $submitted={};
     my $localdir= $self->{WORKDIR};
 
+    foreach my $fileOrArch (keys(%$fs_table)) {
 
-
-
-    foreach my $fileOrArchiveEntry (keys(%$filesAndArchives)) {
-
-      $self->info("Processing  file  ".$filesAndArchives->{$fileOrArchiveEntry}->{name});
-      $self->info("File has options  ".$filesAndArchives->{$fileOrArchiveEntry}->{options});
-
-      $filesAndArchives->{$fileOrArchiveEntry}->{options} or $filesAndArchives->{$fileOrArchiveEntry}->{options}="NONE";
-
+      $fs_table->{$fileOrArch}->{options} or $fs_table->{$fileOrArch}->{options}="NONE";
+      $self->info("Processing  file  ".$fs_table->{$fileOrArch}->{name});
+      $self->info("File has options  ".$fs_table->{$fileOrArch}->{options});
       
-
-      my $lastShot=0;  # will trigger not to stick in the failedSEs while loop, in case of MonALISA is not answering or available.
 
       ##
       ## If we didn't already process exactly this options string
       ##
-      if (!exists($optionStore->{$filesAndArchives->{$fileOrArchiveEntry}->{options}})) {    # if optionstore was not initialized before
-
-          my ($ses, $seweights, $copies, $tags)=$self->processJDL_get_SEnames_And_Real_Options($filesAndArchives->{$fileOrArchiveEntry}->{options});
-    
+      if (!exists($optionStore->{$fs_table->{$fileOrArch}->{options}})) {    # if optionstore was not initialized before
+          my ($ses, $exses, $replicaTags, $tags)=$self->processJDL_get_SEnames_And_Real_Options($fs_table->{$fileOrArch}->{options});
           ($no_links, $tags)  = $self->processJDL_Check_on_Tag($tags, "no_links_registration"); 
-          
-          $optionStore->{$filesAndArchives->{$fileOrArchiveEntry}->{options}}={
+          $optionStore->{$fs_table->{$fileOrArch}->{options}}={
                                  ses=>$ses,
-                                 seweights=>$seweights,
-                                 copies=>$copies,
+                                 exses=>$exses,
+                                 replicaTags=>$replicaTags,
                                  tags=>$tags,
-                                 username=>$username
+                                 username=>$username,
                                  };
-    
-    
-          if(($monALISA_URL ne "") and (my $monSes = $self->askMonALISAForNPrioritizedSEs($monALISA_URL, $username, $copies, $ses, $seweights, $tags))){
-                (scalar(@$monSes)  > 0) and $optionStore->{$filesAndArchives->{$fileOrArchiveEntry}->{options}}->{ses}  = $monSes;
-                $self->putJobLog("trace","SE list after asking MonALISA: @{$optionStore->{$filesAndArchives->{$fileOrArchiveEntry}->{options}}->{ses}}");
-          } else {
-                $self->putJobLog("trace","MonALISA wasn't available, so we use alternative SE list generation.");
-                $lastShot=1; 
-                my ($ISreturn, $ISses) = $self->getAlternateSEInfoFromDB($username, $copies, $ses, $seweights, $tags);
-                if($ISreturn){
-                     (scalar(@$ISses)  > 0) and $optionStore->{$filesAndArchives->{$fileOrArchiveEntry}->{options}}->{ses}  = $ISses;
-                     $self->putJobLog("trace","We got an SE list from the IS DB");
-                } else {
-                     $self->putJobLog("trace","The IS DB request failed, we take the local SE specification and ignore the weights from the JDL.");
-                     $ses=$self->complementSEListWithLocalConfigSEList($ses); 
-                     $optionStore->{$filesAndArchives->{$fileOrArchiveEntry}->{options}}->{ses} = $ses; 
-                     if(scalar(@$ses) < $copies) {  
-                        $self->putJobLog("trace","The local SE specification has not enough SEs in order to fullfill the requirement of $copies.");
-                     }
-                }
-          }
-       
       } 
-      $self->putJobLog("trace","Effective SE list for the current file will be @{$optionStore->{$filesAndArchives->{$fileOrArchiveEntry}->{options}}->{ses}}");
 
-      (exists($guids{$filesAndArchives->{$fileOrArchiveEntry}->{name}})) or 
-             $guids{$filesAndArchives->{$fileOrArchiveEntry}->{name}} = "";
-          
-      my ($uploadStatus, $failedSEs) = $self->uploadFile($ui,$filesAndArchives->{$fileOrArchiveEntry}->{name},
-                                 $optionStore->{$filesAndArchives->{$fileOrArchiveEntry}->{options}}->{copies},
-                                 $optionStore->{$filesAndArchives->{$fileOrArchiveEntry}->{options}}->{ses},
-                                 $optionStore->{$filesAndArchives->{$fileOrArchiveEntry}->{options}}->{tags},
-		                 $guids{$filesAndArchives->{$fileOrArchiveEntry}->{name}}, $submitted);
+
+      $self->putJobLog("trace","Effective SE list for the current file will be $optionStore->{$fs_table->{$fileOrArch}->{options}}->{ses}");
+
+      (exists($guids{$fs_table->{$fileOrArch}->{name}})) or 
+             $guids{$fs_table->{$fileOrArch}->{name}} = "";
+
+      my $uploadStatus = $self->uploadFile($ui, $fs_table->{$fileOrArch}->{name}, $optionStore->{$fs_table->{$fileOrArch}->{options}}, $guids{$fs_table->{$fileOrArch}->{name}}, $submitted);
+
 
       $uploadStatus and $successCounter++;
       ($uploadStatus eq -1) and $incompleteUploades=1;
-      $lastShot and %$failedSEs=();
-
-      $lastShot=0;  # will trigger not to stick in the while loop, in case of MonALISA is not answering or available.
-
-      while (keys(%$failedSEs) ne 0) {      
-
-              $self->putJobLog("trace","We have failed SEs");
-              $self->putJobLog("trace","Gonna prepare the failed SE list for a request to MonALISA for an adapted SE list.");
-                   $optionStore->{$filesAndArchives->{$fileOrArchiveEntry}->{options}}->{seweights}
-                   = $self->mark_Failed_Attempted_SEs($optionStore->{$filesAndArchives->{$fileOrArchiveEntry}->{options}}->{ses}, $failedSEs);
-
-              my @selist = @{$optionStore->{$filesAndArchives->{$fileOrArchiveEntry}->{options}}->{ses}};
-
-              if(($monALISA_URL ne "") and ($optionStore->{$filesAndArchives->{$fileOrArchiveEntry}->{options}}->{ses}
-                         = $self->askMonALISAForNPrioritizedSEs($monALISA_URL, $username, 
-                                       $optionStore->{$filesAndArchives->{$fileOrArchiveEntry}->{options}}->{copies}, 
-                                       $optionStore->{$filesAndArchives->{$fileOrArchiveEntry}->{options}}->{ses}, 
-                                       $optionStore->{$filesAndArchives->{$fileOrArchiveEntry}->{options}}->{seweights},
-                                       $optionStore->{$filesAndArchives->{$fileOrArchiveEntry}->{options}}->{tags}))){
-                     $self->putJobLog("trace","MonALISA has delivered a fail adapted SE list, we will use it.");
-              } else {
-                     $self->putJobLog("trace","MonALiSA wasn't available, so we use alternative SE list generation.");
-                     $lastShot=1; 
-                     
-                     my ($ISreturn, $ISses) = $self->getAlternateSEInfoFromDB(
-                                             $optionStore->{$filesAndArchives->{$fileOrArchiveEntry}->{options}}->{username},
-                                             $optionStore->{$filesAndArchives->{$fileOrArchiveEntry}->{options}}->{copies},
-                                             $optionStore->{$filesAndArchives->{$fileOrArchiveEntry}->{options}}->{ses},
-                                             $optionStore->{$filesAndArchives->{$fileOrArchiveEntry}->{options}}->{seweights},
-                                             $optionStore->{$filesAndArchives->{$fileOrArchiveEntry}->{options}}->{tags});
-                     $self->info("DB IS SE LIST IS: @$ISses");
-                     if($ISreturn){
-                          (scalar(@$ISses)  > 0) and $optionStore->{$filesAndArchives->{$fileOrArchiveEntry}->{options}}->{ses}  = $ISses;
-                          $self->putJobLog("trace","We got an adapted SE list from the IS DB");
-                     } else {
-                       $self->putJobLog("trace","The IS DB request failed, we take the local SE specification and ignore the weights from the JDL.");
-                       $optionStore->{$filesAndArchives->{$fileOrArchiveEntry}->{options}}->{ses}
-                          =$self->complementSEListWithLocalConfigSEList($optionStore->{$filesAndArchives->{$fileOrArchiveEntry}->{options}}->{ses});
-                       if(scalar(@{$optionStore->{$filesAndArchives->{$fileOrArchiveEntry}->{options}}->{ses}}) 
-                                 < $optionStore->{$filesAndArchives->{$fileOrArchiveEntry}->{options}}->{copies}) {
-                          $self->putJobLog("trace","The local SE specification has not enough SEs in order to fullfill the requirement of"
-                                   .$optionStore->{$filesAndArchives->{$fileOrArchiveEntry}->{options}}->{copies});
-                       }
-                    }
-                }
-                     
-
-                ($uploadStatus, my $newFailedSEs) = $self->uploadFile($ui,$filesAndArchives->{$fileOrArchiveEntry}->{name},
-                                 $optionStore->{$filesAndArchives->{$fileOrArchiveEntry}->{options}}->{copies},
-                                 $optionStore->{$filesAndArchives->{$fileOrArchiveEntry}->{options}}->{ses},
-                                 $optionStore->{$filesAndArchives->{$fileOrArchiveEntry}->{options}}->{tags}, 
-                                 $guids{$filesAndArchives->{$fileOrArchiveEntry}->{name}}, $submitted);
-                if($uploadStatus) {
-                    $failedSEs= ();
-                } else {
-                    push @selist, @{$optionStore->{$filesAndArchives->{$fileOrArchiveEntry}->{options}}->{ses}};
-                    if($lastShot) {
-                        %$failedSEs=();
-                    } else {
-                        %$failedSEs= (%$failedSEs, %$newFailedSEs);
-                    }
-                }
-
-              $uploadStatus and $successCounter++;
-              ($uploadStatus eq -1) and $incompleteUploades=1;
-      }
 
       $no_links and next;
       my @list;
-      foreach my $file( keys %{$filesAndArchives->{$fileOrArchiveEntry}->{entries}}) {
+      foreach my $file( keys %{$fs_table->{$fileOrArch}->{entries}}) {
          my $guid=$guids{$file} || "";
          $self->info("Checking if $file has a guid ($guid)");
-         push @list, join("###", $file, $filesAndArchives->{$fileOrArchiveEntry}->{entries}->{$file}->{size},
-         $filesAndArchives->{$fileOrArchiveEntry}->{entries}->{$file}->{md5},$guid );
+         push @list, join("###", $file, $fs_table->{$fileOrArch}->{entries}->{$file}->{size},
+         $fs_table->{$fileOrArch}->{entries}->{$file}->{md5},$guid );
       }
-      $submitted->{$filesAndArchives->{$fileOrArchiveEntry}->{name}}->{links}=\@list;
+      $submitted->{$fs_table->{$fileOrArch}->{name}}->{links}=\@list;
     }
 
 
@@ -1833,10 +1738,8 @@ sub putFiles {
       if ($entry->{links} ) {
 	$links.=";;".join(";;",@{$entry->{links}});
       }
-      my $pfns="";
-      $entry->{PFNS} and $pfns=join("###",@{$entry->{PFNS}});
       push @list, "\"".join ("###", $key, $entry->{guid}, $entry->{size}, 
-			     $entry->{md5},  $pfns, 
+			     $entry->{md5},  join("###",@{$entry->{PFNS}}), 
 			     $links) ."\"";
     }
     if (@list) {
@@ -1848,14 +1751,14 @@ sub putFiles {
   }
   $self->{CONFIG}=$self->{CONFIG}->Reload({"organisation", $oldOrg});
 
-  $self->putJobLog("trace", "we had ".scalar(keys(%$filesAndArchives))
+  $self->putJobLog("trace", "we had ".scalar(keys(%$fs_table))
           ." files and archives to store, we successfully stored $successCounter");
 
-  $incompleteUploades and $self->putJobLog("warning", "yet not all files and archives were stored as many times as wanted.");
+  $incompleteUploades and $self->putJobLog("warning", "yet not all files and archives were stored as many times as specified.");
   $incompleteUploades and return -1;
 
-  if (scalar(keys(%$filesAndArchives)) eq $successCounter) {
-      $self->putJobLog("trace","OK, SUCCESS. All files for this submit were sucessfully uploaded.");
+  if (scalar(keys(%$fs_table)) eq $successCounter) {
+      $self->putJobLog("trace","OK, SUCCESS. All files for this submit were uploaded as specified.");
       return 1;
   }
   return 0;
@@ -1863,75 +1766,61 @@ sub putFiles {
 
 
 sub uploadFile {
-  my $self=shift;
-  my $ui=shift;;
-  my $file=shift;
-  my $seWishCount=shift;
-  my $seList=shift;
-  my $options=shift;
-  my $guid=shift;
-  my $submitted=shift;
-  my $failedSEs;
-  
-  $self->info("Submitting the file $file");
-  if (! -f "$self->{WORKDIR}/$file")  {
-    $self->info("The job was supposed to create $file, but it doesn't exist!!",1);
-    $self->putJobLog("error", "The job didn't create $file");
-    return; 
-  }
-  $guid and $self->putJobLog("trace", "The file $file has the guid $guid");
-  my $info;
-  my $sereplicacount = 0;
-  my $seselecter = 0;
-  while($sereplicacount < $seWishCount && $seselecter < scalar(@$seList)) {
-    $self->putJobLog("trace","Registering $file in @$seList[$seselecter] (guid $guid)");
-    my $silent="-silent";
-    my $statusOfExecuteUpload;
-     for my $j(0..5) {  # this 5 times try was just taken from the old version
-      ($statusOfExecuteUpload)=$ui->execute("upload", "$self->{WORKDIR}/$file", @$seList[$seselecter], $guid, $silent);
-      $self->info("After the upload, we have". $self->{LOGGER}->error_msg());
-      if($statusOfExecuteUpload){
-          $sereplicacount++;
-          last;
-      }
-      my $error="(no error message)";
-      ($self->{LOGGER}->error_msg()) and $error="(error: ".$self->{LOGGER}->error_msg().")";
-      $self->putJobLog( "warning", "File upload failed... sleeping  and retrying $error");
-      sleep(10);
-      $silent="";
+    my $self=shift;
+    my $ui=shift;;
+    my $file=shift;
+    my $optionTable=shift;
+    my $guid=shift;
+    my $submitted=shift;
+
+    my $replicaTags=$optionTable->{replicaTags};
+    my $ses=$optionTable->{ses};
+    my $exses=$optionTable->{exses};
+    my $tags=$optionTable->{tags};
+    my $username=$optionTable->{username};
+    my $uploadResult;
+    my @pfns = (); 
+    #my $silent="-silent";
+    my $silent="";
+
+    $self->info("Submitting the file $file");
+    if (! -f "$self->{WORKDIR}/$file")  {
+      $self->putJobLog("error", "The job didn't create $file");
+      return; 
     }
-    if($statusOfExecuteUpload){
-       if ($info) {
-         push @{$info->{PFN_LIST}}, "$statusOfExecuteUpload->{selist}/$statusOfExecuteUpload->{pfn}";
-       }else{
-         $info=$statusOfExecuteUpload;
-         $guid=$info->{guid};
-         $info->{PFN_LIST}=["$info->{selist}/$info->{pfn}"];
-       }
-       if ($submitted->{$file}){
-         push @{$submitted->{$file}->{PFNS}}, "$statusOfExecuteUpload->{selist}/$statusOfExecuteUpload->{pfn}";
-       }else{
-         $submitted->{$file}=$info;
-         $submitted->{$file}->{PFNS}=["$statusOfExecuteUpload->{selist}/$statusOfExecuteUpload->{pfn}"];
-       }
+    $guid and $self->putJobLog("trace", "The file $file has the guid $guid");
+    $self->putJobLog("trace","Registering $file with (guid $guid)");
+
+    ($uploadResult)=$ui->execute("upload", "$self->{WORKDIR}/$file", $ses, $exses, $replicaTags, $guid, $silent);
+
+foreach (keys %$uploadResult){
+   $self->info("JobAgent after exec upload,uploadResult: $_ is $uploadResult->{$_}");
+}
+foreach (keys %{$uploadResult->{se}}){
+   $self->info("JobAgent after exec upload,uploadResult->se: $_ is $uploadResult->{se}->{$_}");
+}
+
+    (scalar(keys(%$uploadResult)) gt 0) or 
+         $self->putJobLog("error","Error, could not store the file $self->{WORKDIR}/$file on any SEs")
+         and return 0;
+
+    $submitted->{$file}=$uploadResult;
+    foreach my $se (keys(%{$uploadResult->{se}})) {
+$self->putJobLog("trace", "an se is: $se");
+$self->putJobLog("trace", "the corres pfn is: $uploadResult->{se}->{$se}->{pfn}");
+
+       push @{$submitted->{$file}->{PFNS}}, "$se/$uploadResult->{se}->{$se}->{pfn}";
+    }
+    
+    if ($uploadResult->{totalCount} eq scalar(keys %{$uploadResult->{se}})) {
+         $self->putJobLog("trace","Successfully stored the file $self->{WORKDIR}/$file on $uploadResult->{totalCount} SEs");
+         return (1);
     } else {
-       $failedSEs->{@$seList[$seselecter]} = 1;
+         $self->putJobLog("warning","Could store the file $self->{WORKDIR}/$file only on ".scalar(keys %{$uploadResult->{se}}).
+				"  of the $uploadResult->{totalCount} wished SEs");
+         return (-1,);
     }
-    $seselecter++;
-  }
-  ($info) or $self->putJobLog("error","Error registering the file $self->{WORKDIR}/$file");
-  if ($sereplicacount != $seWishCount) {
-       if($sereplicacount eq 0) {
-             $self->putJobLog("error","Could not store the file $file on any of the $seWishCount wished SEs");
-             return (0, $failedSEs);
-       }
-       $self->putJobLog("warning","Could store the file $file only on $sereplicacount of the $seWishCount wished SEs");
-       return (-1, $failedSEs);
-  } else {
-       $self->putJobLog("trace","Successfully stored the file $file on $sereplicacount of the $seWishCount wished SEs");
-       return (1, $failedSEs);
-  }
-  return 0;
+    return 0;
 }
 
 #This subroutine receives a list of local files 
@@ -2000,203 +1889,8 @@ sub createZipArchive{
   return ($archiveTable,\@files);
 }
 
-###################################
-##
-## Ask MonALISA for a priorized list of SEs, with respect to
-## a list of known (and weighted) list of SE, a count of desired return entries,
-## and a open list of options that are altogether send over HTTP 
-##
-## Example of the HTTP Get Request
-## http://pcalimonitor.cern.ch/services/getBestSE.jsp?se=ALICE::Catania::DPM;1&se=ALICE::IPNO::DPM;-1&count=3&tag=something&tag=somethingelse 
-##
-## the weights for the send to MonALISA are
-## 	SENAME		# nothing means the SE should be considered as a wish
-##	SENAME;-1 	# minus one means either the user did specify as not to use
-##	SENAME;-1	#    or we want to do a request while having already used that SE, so we need more 
-##	SENAME;-2	# is supposed to be set due to a failed uploadFiles request, after receiving this SE from MonALISA request before
-##	
-##	
-##################################
-sub askMonALISAForNPrioritizedSEs{
-   my $self=shift;
-   my $url=shift;
-   my $username=shift;
-   my $secount=shift;
-   my $ses=shift;
-   my $seweights=shift;
-   my $options=shift;
-  
-   $url .= "?username=$username&"; 
-   for my $j(0..$#{$ses}) {
-   
-      if( @$ses[$j] ne ""){
-          $url .= "se=@$ses[$j];@$seweights[$j]&";
-      }
-   }
-   
-   if($secount > 0) {
-      $url .= "count=$secount&";
-   }else{
-      return;
-   }
-   my @nonMonALISATags = ("no_links_registration","no_archive");
-   foreach (@$options){
-      if(($_ ne "") and (grep(!/$_/ , @nonMonALISATags))){
-         $url .= "tag=$_&";
-      }
-   }
-   $url =~ s/&$//;
-   $self->putJobLog("trace","MonALISA will be asked: ".$url);
-   my $monua = LWP::UserAgent->new();
-   $monua->timeout(25);
-   $monua->agent( "AgentName/0.1 " . $monua->agent );
-   my $monreq = HTTP::Request->new("GET" => $url);
-   $monreq->header("Accept" => "text/html");
-   my $monres = $monua->request($monreq);
-   my $monoutput = $monres->content;
-   my @selist;
-   ( $monres->is_success() ) and @selist =  split (/\n/, $monoutput);
-   
-   return (\@selist);
-}
 
 
-############################
-## Suppose we hat failing SEs in a list delivered before by MonALISA.
-## Now we supply new weights for the list, telling MonALISA by '-1'
-## that we don't want to have it again, because we already used it,
-## and by '-2' that we tried to use it, but it failed.
-##
-##
-sub mark_Failed_Attempted_SEs {
-   my $self=shift;
-   my $OrigSElist=shift;
-   my $failedSEs=shift;
-   my @newSEweights;
-   
-   foreach (@$OrigSElist){
-      if($failedSEs->{$_}) {
-         push @newSEweights,"-2";   
-      } else {
-         push @newSEweights,"-1";   
-      }
-   }
-   return \@newSEweights;
-}
-
-
-
-sub getAlternateSEInfoFromDB {
-   my $self=shift;
-   my $username=shift;
-   my $secount=shift;
-   my $ses=shift;
-   my $seweights=shift;
-   my $options=shift;
-   my $custodial=0;
-
-
-   # get out the custiodial info if available
-   for my $option (@$options) {
-      if ($option =~ /custodial/){
-         $option =~ s/custodial\=//;
-         if(isdigit $option) {
-              if ($option > $secount) { $custodial=$secount;}
-              else {  $custodial=$option }
-         }
-      }
-   }
-#   $self->info("getAlternateSEInfoFromDB, custodial=$custodial");
-   # some more additional information 
-   # build a weighted SE table
-   my $weightTable;
-   for my $j(0..$#{$ses}) {
-      $weightTable->{$$ses[$j]}=$$seweights[$j];
-   }
-#   $self->info("getAlternateSEInfoFromDB, past weightTable generation.");
-  
-   $self->{SOAP} or $self->{SOAP}=new AliEn::SOAP;
-   my $dbsetable=$self->{SOAP}->CallSOAP("Authen", "getListOfSEoutOfDB");
-   $dbsetable or return 0;
-   $dbsetable and $dbsetable=$dbsetable->result;
-
-   my $spliceoffset=0;
-   for my $j(0..$#{$dbsetable}) {
-         if(!$$dbsetable[$j]->{sename}){
-              splice(@$dbsetable,$j-$spliceoffset,1);
-                        $spliceoffset++;
-          }elsif(!$$dbsetable[$j]->{protocols}){
-              $$dbsetable[$j]->{protocols}  = "none";
-          }
-   }
-  
-  
-#   $self->info("getAlternateSEInfoFromDB, SOAP called is performed successfully.");
-
-   for my $j(0..$#{$dbsetable}) {
-       $$dbsetable[$j]->{sename} = uc( $$dbsetable[$j]->{sename} );
-   }
-
-
-   my @selist=();
-   my $resc = 0;
- 
-   # consider the weights as a priority
-   
-   while((scalar(@selist) < $custodial) and ($#$dbsetable >= $resc)) {
-       if(($$dbsetable[$resc]->{protocols} eq "custodial") &&
-                         (($weightTable->{$$dbsetable[$resc]->{sename}}) && ($weightTable->{$$dbsetable[$resc]->{sename}} > 0 ))) {
-           push @selist, $$dbsetable[$resc]->{sename};
-       }
-       $resc++;
-   }
-
-   $resc=0;
-
-   while((scalar(@selist) < $secount) and ($#$dbsetable >= $resc)) {
-       if(($$dbsetable[$resc]->{protocols} ne "custodial") && 
-                         (($weightTable->{$$dbsetable[$resc]->{sename}}) && ($weightTable->{$$dbsetable[$resc]->{sename}} > 0 ))) {
-           push @selist, $$dbsetable[$resc]->{sename};
-       }
-       $resc++;
-   }
-
-   # go beyong weights   
-   $resc=0;
-   while((scalar(@selist) < $custodial) and ($#$dbsetable >= $resc)) {
-       if(($$dbsetable[$resc]->{protocols} eq "custodial") && (
-                         (($weightTable->{$$dbsetable[$resc]->{sename}}) && ($weightTable->{$$dbsetable[$resc]->{sename}} eq 0))
-                         or (! $weightTable->{$$dbsetable[$resc]->{sename}}))) {
-           push @selist, $$dbsetable[$resc]->{sename};
-       }
-       $resc++;
-   }
-
-   $resc=0;
-   while((scalar(@selist) < $secount) and ($#$dbsetable >= $resc)) {
-       if(($$dbsetable[$resc]->{protocols} ne "custodial") && (
-                         (($weightTable->{$$dbsetable[$resc]->{sename}}) && ($weightTable->{$$dbsetable[$resc]->{sename}} eq 0))
-                         or (! $weightTable->{$$dbsetable[$resc]->{sename}}))) {
-           push @selist, $$dbsetable[$resc]->{sename};
-       }
-       $resc++;
-   }
-
-   (scalar(@selist) eq $secount) and return (1, \@selist);
-   return (0,\@selist);
-}
-
-
-sub complementSEListWithLocalConfigSEList {
-  my $self=shift;
-  my $ses=shift;
-  my @localDefaultSEs=@{$self->{CONFIG}->{SEs_FULLNAME}};
-
-  for my $entry (@localDefaultSEs) {
-    (!grep (/^$entry$/i, @$ses)) and push @$ses, $entry;
-  }
-  return $ses;
-}
 
 #sub copyInMSS {
 #  my $self=shift;
@@ -2810,6 +2504,7 @@ CPU Speed                           [MHz] : $ProcCpuspeed
     ($uploadFilesState eq -1) and $self->{STATUS}="SAVED_WARN";
     ($uploadFilesState eq 0) and $self->{STATUS}="ERROR_SV";
   }
+
   $self->registerLogs();
 
   my $jdl;

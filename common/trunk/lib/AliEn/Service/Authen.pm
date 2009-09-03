@@ -1069,16 +1069,5 @@ sub checkUserRole{
 
 }
 
-################
-## the job agent will use this function to get SE information if it can't connect to MonALISA
-##
-sub getListOfSEoutOfDB{
-  my $this=shift;
-
-  my $dbtrans=$self->{UI}->{CATALOG}->{DATABASE}->{LFN_DB}->query("select sename,seQoS protocols from alien_system.SE where sename!='no_se'");
-  $dbtrans and return $dbtrans;
-  return [];
-}
-
 return 1;
 

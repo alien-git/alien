@@ -152,6 +152,14 @@ sub createCatalogueTables {
 					   action=>"char(40) not null", 
 					   time=>"timestamp default current_timestamp",
 					   extra=>"varchar(255)"}, undef, ['UNIQUE INDEX(tableNumber,action)']],
+             SiteCache=>["sitename", {sitename=>"varchar(100) collate latin1_general_ci not null",
+                                      hostname=>"varchar(200) collate latin1_general_ci  not null",
+                                      ip=>"varchar(17)",}, "sitename", ['UNIQUE INDEX(sitename)'],],
+             SERanks=>["sitename", {sitename=>"varchar(100) collate latin1_general_ci  not null",
+                                    seName=>"varchar(100) collate latin1_general_ci not null",
+                                    rank=>"smallint(7) not null",}, 
+                                    undef, ['UNIQUE INDEX(sitename,seName), PRIMARY KEY(sitename,seName), INDEX(sitename), INDEX(seName)']],
+                                      
 	         );
   foreach my $table (keys %tables){
     $self->info("Checking table $table");
