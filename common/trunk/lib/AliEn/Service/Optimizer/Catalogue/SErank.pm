@@ -29,7 +29,7 @@ sub checkWakesUp {
 
   foreach my $site (@$sites) {
 
-     my $selist = $self->rankStorageElementsWithMonAlisa($site,$silent);
+     my $selist = $self->rankStorageElementsWithMonAlisa($site,$silent) or return 0;
   
      $self->$method(@info, "SE Rank Optimizer, the ses for site $site are: @$selist");
 
@@ -47,13 +47,12 @@ sub checkWakesUp {
 
 sub rankStorageElementsWithMonAlisa{
    my $self=shift;
-   my $siteip=shift;
-   my $silent=shift;
+   my $siteip=(shift || "");
+   my $silent=(shift || "");
 
-   my $url = "http://pcalimonitor.cern.ch/services/getBestSE.jsp?";
+   my $url = "";
    $self->{CONFIG}->{SEDETECTMONALISAURL} and  $url=$self->{CONFIG}->{SEDETECTMONALISAURL}."?";
-
-   $url = "http://137.138.170.238/selist?";
+   $url eq "" and retun 0;
 
    ($siteip and $siteip ne "") and $url .= "ip=$siteip&";
    $url .= "dumpall=true";
