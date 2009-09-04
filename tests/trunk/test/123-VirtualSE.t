@@ -27,6 +27,7 @@ use Net::Domain qw(hostname hostfqdn hostdomain);
   addLdapEntry($key, ["objectClass", ["AliEnMSS"],
 		      "name", "otherSE",
 		      "mss", "File", 
+		      "Qos", "tape", 
 		      "savedir", "$config->{LOG_DIR}/OTHER_SE_DATA",
 		     ]) or exit(-2);
 
