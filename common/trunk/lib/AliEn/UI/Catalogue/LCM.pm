@@ -57,6 +57,7 @@ use Archive::Zip qw( :ERROR_CODES :CONSTANTS );
 use Data::Dumper;
 use AliEn::Util;
 use AliEn::PackMan;
+use POSIX "isdigit";
 
 use vars qw(@ISA $DEBUG);
 @ISA = qw( AliEn::UI::Catalogue );
@@ -924,7 +925,9 @@ sub addFile {
 #  }
   my $start=time;
 
-  my $data = $self->{STORAGE}->registerInLCM( $pfn, $newSE, $lfn, $options,"", $envelope[0]);
+  #my $data = $self->{STORAGE}->registerInLCM( $pfn, $newSE, $lfn, $options,"", $envelope[0]);
+  my $data = $self->{STORAGE}->registerOLDTOBEDELETEDInLCM( $pfn, $newSE, $lfn, $options,"", $envelope[0]);
+
 
   my $time=time-$start;
 #  my $size=undef;
@@ -1777,6 +1780,8 @@ $ticket
     my $coded = $self->{envelopeengine}->encodeEnvelopePerl("$globalticket","0","none");
     $lnewresult[0]->{genvelope} = $self->{envelopeengine}->GetEncodedEnvelope();
   }
+  use Data::Dumper;
+	print Dumper($newresult);
   return @$newresult; 
 }
 
@@ -1964,66 +1969,248 @@ Usage:
 ";
 }
 
+#
+#sub upload {
+#  my $self=shift;
+#  $self->debug(1, "Starting the upload with @_");
+#
+#  (my $options, @_)=$self->GetOpts(@_);
+#  my $pfn=shift;
+#  my $se=(shift or $self->{CONFIG}->{SAVESE_FULLNAME} or $self->{CONFIG}->{SE_FULLNAME} or "") ;
+#  my $guid=shift || "";
+#
+#
+#  if ($se=~ /^local$/i){
+#
+
 sub upload {
-  my $self=shift;
-  $self->debug(1, "Starting the upload with @_");
+   my $self=shift;
+   $self->debug(1, "Starting the upload with @_");
+   $self->info("Starting the upload with @_");
+   (my $options, @_)=$self->GetOpts(@_);
+ 
+   my $pfn=shift;
+   my $selist=(shift || "NONE");
+   my $exclselist=(shift || "NONE");
+   my $qoslist=(shift || "NONE");
+   my $guid=(shift || "");
+ 
+   $pfn or $self->info("Error not enough arguments in upload\n". $self->upload_HELP()) and return;
+   $pfn=$self->checkLocalPFN($pfn);
+   my $size=AliEn::SE::Methods->new($pfn)->getSize();
+   my $result = {};
 
-  (my $options, @_)=$self->GetOpts(@_);
-  my $pfn=shift;
-  my $se=(shift or $self->{CONFIG}->{SAVESE_FULLNAME} or $self->{CONFIG}->{SE_FULLNAME} or "") ;
-  my $guid=shift || "";
+   my $maximumCopyCount = 9;
+   my $selOutOf=0;
+ 
+$self->info("Sitename is: $self->{CONFIG}->{SITE}");
+ 
+   my @ses = ();
+   my @excludedSes = ();
+   my @qosList = ();
+   ($selist and $selist ne "NONE") and push @ses , split(/;/,$selist);
+   ($exclselist and $exclselist ne "NONE") and push @excludedSes, split(/;/,$exclselist);
+   ($qoslist and $qoslist ne "NONE") and push @qosList , split(/;/,$qoslist);
+ 
+   @ses = @{$self->arrayEliminateDuplicates(\@ses)};
+   @excludedSes = @{$self->arrayEliminateDuplicates(\@excludedSes)};
+   @qosList = @{$self->arrayEliminateDuplicates(\@qosList)};
+   push @excludedSes, @ses;
+ 
+
+   ($selOutOf < 1 or $selOutOf > scalar(@ses)) and $selOutOf = scalar(@ses);
+   my $totalCount = 0;
+   my $qosTags;
+   foreach (@qosList) {
+      my ($repltag, $copies)=split (/\=/, $_,2);
+      (isdigit $copies) or next;
+      if($repltag eq "select") {
+         ($totalCount+$copies) < $maximumCopyCount 
+            and $selOutOf = $copies 
+            and $totalCount += $copies
+            or $selOutOf = $maximumCopyCount - $totalCount;
+      } else {
+         ($totalCount+$copies) < $maximumCopyCount 
+            and $qosTags->{$repltag} = $copies
+            and $totalCount += $copies
+            or $qosTags->{$repltag} = $maximumCopyCount - $totalCount;
+      }
+ 
+   }
+ 
+
+$self->info("we were called with ses: @ses .");  
+$self->info("we were called with select: $selOutOf.");  
+$self->info("we were called with exses: @excludedSes .");  
+foreach (keys %$qosTags) { $self->info("we were called with $_: $qosTags->{$_} .");}
 
   
-  if ($se=~ /^local$/i){
-    $se=$self->{CONFIG}->{SAVESE_FULLNAME} || $self->{CONFIG}->{SE_FULLNAME};
-    $self->info("Uploading to the closest SE ($se)");
-  }
-
- (  $pfn and $se) or
-   $self->info("Error not enough arguments in upload\n". $self->upload_HELP())
-     and return;
-  
-  $pfn=$self->checkLocalPFN($pfn);
-  my $data;
-  if ($options !~ /u/ ){
-    $self->info("Trying to upload the file $pfn to the se $se");
-    my $size=AliEn::SE::Methods->new($pfn)->getSize();
-    my @envelope= $self->access("-s","write-once","/NOLFN", $se, $size,0,"$guid");
-    @envelope or $self->info("Error getting the security envelope") and return;
-    
-    $data= $self->{STORAGE}->registerInLCM( $pfn, $se,  undef, undef, $guid, $envelope[0]) or return;
-    if ($envelope[0]->{url}){
-      my $newPFN=$envelope[0]->{url};
-      $newPFN=~ s{^([^/]*//[^/]*)//(.*)$}{$1/$envelope[0]->{pfn}};
-      $newPFN=~ m{root:////} and $newPFN="";
-      $newPFN and $self->info("Using the pfn of the security envelope '$newPFN'") and $data->{pfn}=$newPFN;
-    }    
-  }else {
-    $self->info("Making a link to the file $pfn");
-
-    my $url=AliEn::SE::Methods->new($pfn) 
-      or $self->info( "Error creating the url of $pfn")
-	and return;
-
-    my $size=$url->getSize();
-    defined $size or $self->info("Error getting the size of $pfn") 
-      and return;
-    
-    my $md5=AliEn::MD5->new($pfn);
-    my ($newguid, $sename)=$self->registerFileInSE($se, undef, $pfn, $size, {md5=>$md5}) or return;
-    $data->{guid}=$newguid;
-    $data->{size}=$size;
-    $data->{md5}=$md5;
-  }
-  $self->info("The upload of $pfn worked!!"); 
-  $se or $se=$self->{CONFIG}->{SE_FULLNAME};
-  return {guid=>$data->{guid},
-	  selist=>$se,
-	  size=>$data->{size},
-	  md5=>$data->{md5},
-	  pfn=>$data->{pfn},
-	  };
+   
+   $result = $self->putOnStaticSESelectionList($result,$pfn,$size,$guid,$selOutOf,\@ses);
+ 
+   foreach my $qos(keys %$qosTags){
+       $result = $self->putOnDynamicDiscoveredSEListByQoS($result,$pfn,$size,$guid,$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes);
+   }
+ 
+   $result->{totalCount}=$totalCount;
+ 
+   return $result;
 }
+
+#  }else {
+#    $self->info("Making a link to the file $pfn");
+#
+#    my $url=AliEn::SE::Methods->new($pfn) 
+#      or $self->info( "Error creating the url of $pfn")
+#	and return;
+#
+#    my $size=$url->getSize();
+#    defined $size or $self->info("Error getting the size of $pfn") 
+#      and return;
+#    
+#    my $md5=AliEn::MD5->new($pfn);
+#    my ($newguid, $sename)=$self->registerFileInSE($se, undef, $pfn, $size, {md5=>$md5}) or return;
+#    $data->{guid}=$newguid;
+#    $data->{size}=$size;
+#    $data->{md5}=$md5;
+#    $self->info("The upload of $pfn worked!!"); 
+#    $se or $se=$self->{CONFIG}->{SE_FULLNAME};
+#    return {guid=>$data->{guid},
+#	  selist=>$se,
+#	  size=>$data->{size},
+#	  md5=>$data->{md5},
+#	  pfn=>$data->{pfn},
+#	  };
+#  }
+
+
+
+
+
+
+sub putOnStaticSESelectionList{
+   my $self=shift;
+   my $result=shift;
+   my $pfn=(shift || "");
+   my $size=(shift || 0);
+   my $guid=(shift || "");
+   my $selOutOf=(shift || 0);
+   my $ses=(shift || "");
+   
+
+  while ((scalar(@$ses) gt 0 and $selOutOf gt 0)) {
+  
+      (scalar(@$ses) gt 0) and my @staticSes= splice(@$ses, 0, $selOutOf);
+$self->info("UI_LCM_UPLOAD_STATIC: we have ses: @staticSes, remaing ses: @$ses, select was: $selOutOf");
+      my $envelopes = {};
+    
+      for my $j(0..$#staticSes) {
+        my @envelope= $self->access("-s","write-once","/NOLFN", $staticSes[$j], $size,0,"$guid");
+        if(@envelope) {
+            $envelopes->{$staticSes[$j]}=$envelope[0];
+        } else {
+            $self->info("Error getting the security envelope");
+            delete $staticSes[$j];
+        }
+      }
+  
+      ($result, my $usedSes, my $failedSes)
+        = $self->{STORAGE}->registerInLCM( $pfn, \@staticSes,  undef, undef, $guid, $envelopes, $result);
+
+$self->info("UI_LCM_UPLOAD_STATIC: we have, failed SEs: @$failedSes, used SEs: @$usedSes, and seloutof: $selOutOf.");
+     
+     foreach my $se (@$usedSes){
+        $selOutOf--; 
+        
+# the following code needs to be questioned if necessary and what it does 
+        if ($envelopes->{$se}->{url}){
+          my $newPFN=$envelopes->{$se}->{url};
+          $newPFN=~ s{^([^/]*//[^/]*)//(.*)$}{$1/$envelopes->{$se}->{url}};
+          $newPFN=~ m{root:////} and $newPFN="";
+          $newPFN and $self->info("Using the pfn of the security envelope '$newPFN'") and $result->{$se}->{pfn}=$newPFN;
+        }
+     }
+  }
+
+  return $result;
+}  
+
+
+
+
+sub putOnDynamicDiscoveredSEListByQoS{
+   my $self=shift;
+   my $result=shift;
+   my $pfn=(shift || "");
+   my $size=(shift || 0);
+   my $guid=(shift || "");
+   my $count=(shift || 0);
+   my $qos=(shift || "");
+   my $sitename=(shift || "");
+   my $excludedSes=(shift || "");
+
+   while($count gt 0) {
+
+     my $res = $self->{SOAP}->CallSOAP("IS", "getSEListFromSiteSECache", $count, $qos, $sitename, $excludedSes);
+     $self->{SOAP}->checkSOAPreturn($res) or next ;
+     my @discoveredSes=@{$res->result};
+
+$self->info("UI_LCM_UPLOAD_DYNAMIC: discovered SEs are: @discoveredSes, count was: $count, type flag was: $_.");
+
+     scalar(@discoveredSes) gt 0 or last;
+
+     my $envelopes = {};
+     for my $j(0..$#discoveredSes) {
+        my @envelope= $self->access("-s","write-once","/NOLFN", $discoveredSes[$j], $size,0,"$guid");
+        if(@envelope) {
+            $envelopes->{$discoveredSes[$j]}=$envelope[0]; 
+        } else {
+            $self->info("Error getting the security envelope");
+            push @$excludedSes, $discoveredSes[$j]; 
+            delete $discoveredSes[$j];
+        }
+     } 
+
+     ($result, my $usedSes, my $failedSes) 
+        = $self->{STORAGE}->registerInLCM( $pfn, \@discoveredSes,  undef, undef, $guid, $envelopes, $result);
+     push @$excludedSes, @$failedSes;
+     push @$excludedSes, @$usedSes;
+
+     foreach my $se (@$usedSes){ 
+        $count--;
+# the following code needs to be questioned if necessary and what it does 
+        if ($envelopes->{$se}->{url}){
+          my $newPFN=$envelopes->{$se}->{url};
+          $newPFN=~ s{^([^/]*//[^/]*)//(.*)$}{$1/$envelopes->{$se}->{url}};
+          $newPFN=~ m{root:////} and $newPFN="";
+          $newPFN and $self->info("Using the pfn of the security envelope '$newPFN'") and $result->{$se}->{pfn}=$newPFN;
+        }
+     }    
+  }
+
+  return $result;
+}
+
+
+
+
+sub arrayEliminateDuplicates {
+   shift;
+   my $array=shift;
+   my @unique = ();
+   my %seen   = ();
+
+   foreach my $elem ( @$array )
+   {
+     next if $seen{ $elem }++;
+     push @unique, $elem;
+   }
+   return \@unique;
+}
+
+
+
+
 
 sub stage_HELP {
   return "stage: Sends a message to the SE to bring a copy of the file to its cache.
