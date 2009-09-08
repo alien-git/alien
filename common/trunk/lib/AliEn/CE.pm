@@ -939,7 +939,10 @@ sub offerAgent {
     my $classad= Classad::Classad->new($jdl);
     while ($count --) {
       $self->SetEnvironmentForExecution($jdl);
-      my $error = $self->{BATCH}->submit($classad,$script);
+
+      $self->info("*********READY TO SUBMIT $script ");
+      my $error = $self->{BATCH}->submit($classad,$script); 
+	
       if ($error) {
 	$self->{SOAP}->CallSOAP("Manager/Job", "setSiteQueueStatus",$self->{CONFIG}->{CE_FULLNAME},"error-submitting-agents");
 	$self->info( "Error starting the job agent");
@@ -977,7 +980,25 @@ sub createAgentStartup {
 
   my $proxyName=($ENV{X509_USER_PROXY} || "/tmp/x509up_u$<");
 
-  my $content="$ENV{ALIEN_ROOT}/bin/alien RunAgent\n";
+  
+  my $before="";
+  my $after="";
+  my $alienScript="$ENV{ALIEN_ROOT}/bin/alien";
+
+  if ( $self->{CONFIG}->{CE_INSTALLMETHOD}) {
+    $self->info("We are installing alien with $self->{CONFIG}->{CE_INSTALLMETHOD}");
+    my $method="installWith".$self->{CONFIG}->{CE_INSTALLMETHOD};
+    eval {
+      ($alienScript, $before)=$self->$method();
+    };
+    if ($@){
+      $self->info("Error calling $method: $@");
+      return;
+
+    };
+  }
+
+
   if ($proxy) {
 
     open (PROXY, "<$proxyName") or print "Error opening $proxyName\n" and return;
@@ -985,7 +1006,7 @@ sub createAgentStartup {
     close PROXY;
     my $jobProxy="$self->{CONFIG}->{TMP_DIR}/proxy.\$\$.`date +\%s`";
     my $debugTag = $self->{DEBUG} ? "--debug $self->{DEBUG}" : "";
-    $content= "echo 'Using the proxy'
+    $before.= "echo 'Using the proxy'
 mkdir -p $self->{CONFIG}->{TMP_DIR}
 file=$jobProxy
 cat >\$file <<EOF\n". join("", @proxy)."
@@ -993,14 +1014,16 @@ EOF
 chmod 0400 \$file
 export X509_USER_PROXY=\$file;
 echo USING \$X509_USER_PROXY
-$ENV{ALIEN_ROOT}/bin/alien proxy-info
-$ENV{ALIEN_ROOT}/bin/alien RunAgent $debugTag
-
-
+$alienScript proxy-info";
+    $after.="
 
 rm -rf \$file\n";
 
   }
+  my $content="$before
+$alienScript RunAgent
+$after";
+
   if (! $returnContent){
     my $script="$self->{CONFIG}->{TMP_DIR}/agent.startup.$$";
 
@@ -1019,6 +1042,24 @@ rm -rf \$file\n";
     $content=$script;
   }
   return $content;
+}
+
+sub installWithTorrent {
+  my $self=shift;
+  $self->info("The worker node will install with the torrent method!!!");
+
+  return "$self->{CONFIG}->{TMP_DIR}/alien_installation.\$\$/alien/bin/alien","DIR=$self->{CONFIG}->{TMP_DIR}/alien_installation.\$\$
+mkdir -p \$DIR
+echo \"Ready to install alien\"
+date
+cd \$DIR
+wget http://alien.cern.ch/alien-torrent-installer -O alien-auto-installer
+export ALIEN_INSTALLER_PREFIX=\$DIR/alien
+chmod +x alien-auto-installer
+./alien-auto-installer -skip_rc  -type workernode -batch
+echo \"Installation completed!!\"
+
+";
 }
 
 sub checkQueueStatus() {
