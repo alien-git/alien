@@ -42,6 +42,8 @@ if ($before ne $after) {
   exit(-2);
 }
 
+print "yes\n";
+
 ok(1);
 }
 
