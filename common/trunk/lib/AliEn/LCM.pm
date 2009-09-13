@@ -543,7 +543,7 @@ sub RegisterInRemoteSE {
   my $done=$url2->put() or
     $self->info("Error uploading the file: ") and return;
 
-  $self->info( "File uploaded successfuly");
+  $self->info( "File saved successfully in SE: $newSE.");
   return ($info);
 }
 
