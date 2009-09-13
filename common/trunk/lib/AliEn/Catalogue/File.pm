@@ -800,7 +800,7 @@ sub f_whereis{
     $lfn = $self->GetAbsolutePath($lfn);
     my $permFile=$self->checkPermissions( 'r', $lfn,  )  or  return;
     $info=$self->{DATABASE}->getAllExtendedInfoFromLFN($lfn)
-      or $self->info("Error getting the info from '$lfn'") and return;
+      or $self->info(" Error getting the info from '$lfn'") and return;
     $info->{guidInfo} or 
       $self->info("That lfn is not associated with a guid") and return;
     $guidInfo=$info->{guidInfo};

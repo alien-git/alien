@@ -925,7 +925,7 @@ $self->info("Sitename is: $self->{CONFIG}->{SITE}");
              if($repltag eq "select") {
                 ($copies < 1 or $copies > scalar(@ses))
                    and $copies = scalar(@ses);
-                $selOutOf = $copies;
+                $selOutOf = 0;
              } else {
                 $qosTags->{$repltag} = $copies
              }
@@ -936,7 +936,7 @@ $self->info("Sitename is: $self->{CONFIG}->{SITE}");
   @ses = @{$self->arrayEliminateDuplicates(\@ses)};
   @excludedSes = @{$self->arrayEliminateDuplicates(\@excludedSes)};
   push @excludedSes, @ses;
-  $selOutOf eq 0 and $selOutOf = scalar(@ses) and $totalCount += $selOutOf;
+  $selOutOf eq 0 and $totalCount += scalar(@ses);
 
 
   #if nothing is specified, we get the default case, priority on LDAP entry
@@ -947,6 +947,7 @@ $self->info("Sitename is: $self->{CONFIG}->{SITE}");
             $totalCount += $copies;
        } else {
              push @ses, $self->{CONFIG}->{SE_FULLNAME};
+             $totalCount = 1;
        }
   }
 
@@ -999,19 +1000,22 @@ foreach (keys %$qosTags) { $self->info("we were called with $_: $qosTags->{$_} .
        $result = $self->putOnDynamicDiscoveredSEListByQoS($result,$pfn,$lfn,$size,"",$envreq,$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes);
    }
 
-   $result or return;
+   $result->{status} and $self->info("DEBUG: status store on SE is ok");
+   $result->{status} or return;
+
+
 
    $ENV{'IO_AUTHZ'} = $result->{envref};
 
 
-   my $leastOne = $self->{CATALOG}->f_registerFile( "-f", $lfn, $result->{size}, $result->{seref}, $result->{guid}, undef,undef, $result->{md5}, $result->{se}->{$result->{seref}}->{pfn});
+   my $registered = $self->{CATALOG}->f_registerFile( "-f", $lfn, $result->{size}, $result->{seref}, $result->{guid}, undef,undef, $result->{md5}, $result->{se}->{$result->{seref}}->{pfn});
 
    foreach my $se (keys(%{$result->{se}})) {
      $se ne $result->{seref}
        and  $self->{CATALOG}->f_addMirror( $lfn, $se, $result->{se}->{$se}->{pfn}, "-c","-md5=".$result->{md5});
    }
-   
-  return $leastOne;
+  
+  return ($result->{status} && $registered);
 }
 
 
@@ -2039,10 +2043,10 @@ sub upload {
    (my $options, @_)=$self->GetOpts(@_);
  
    my $pfn=shift;
-   my $selist=(shift || "NONE");
-   my $exclselist=(shift || "NONE");
-   my $qoslist=(shift || "NONE");
-   my $guid=(shift || "");
+   my $selist=shift;
+   my $exclselist=shift;
+   my $qoslist=shift;
+   my $guid=shift;
  
    $pfn or $self->info("Error not enough arguments in upload\n". $self->upload_HELP()) and return;
    $pfn=$self->checkLocalPFN($pfn);
@@ -2057,9 +2061,12 @@ $self->info("Sitename is: $self->{CONFIG}->{SITE}");
    my @ses = ();
    my @excludedSes = ();
    my @qosList = ();
-   ($selist and $selist ne "NONE") and push @ses , split(/;/,$selist);
-   ($exclselist and $exclselist ne "NONE") and push @excludedSes, split(/;/,$exclselist);
-   ($qoslist and $qoslist ne "NONE") and push @qosList , split(/;/,$qoslist);
+   #($selist and $selist ne "NONE") and push @ses , split(/;/,$selist);
+   #($exclselist and $exclselist ne "NONE") and push @excludedSes, split(/;/,$exclselist);
+   #($qoslist and $qoslist ne "NONE") and push @qosList , split(/;/,$qoslist);
+   $selist and push @ses , split(/;/,$selist);
+   $exclselist and push @excludedSes, split(/;/,$exclselist);
+   $qoslist and push @qosList , split(/;/,$qoslist);
  
    @ses = @{$self->arrayEliminateDuplicates(\@ses)};
    @excludedSes = @{$self->arrayEliminateDuplicates(\@excludedSes)};
@@ -2078,7 +2085,7 @@ $self->info("Sitename is: $self->{CONFIG}->{SITE}");
       if($repltag eq "select") {
             ($copies < 1 or $copies > scalar(@ses))
                and $copies = scalar(@ses);
-            $selOutOf = $copies;
+            $selOutOf = 0;
       } else {
             $qosTags->{$repltag} = $copies
       }
@@ -2086,7 +2093,7 @@ $self->info("Sitename is: $self->{CONFIG}->{SITE}");
  
    }
   # if select Out of the Selist is not correct
-  $selOutOf eq 0 and $selOutOf = scalar(@ses) and $totalCount += $selOutOf;
+  $selOutOf eq 0 and $totalCount += scalar(@ses);
 
   #if nothing is specified, we get the default case, priority on LDAP entry
   if($totalCount le 0) {
@@ -2097,6 +2104,7 @@ $self->info("Sitename is: $self->{CONFIG}->{SITE}");
        } else {
             $self->{CONFIG}->{SAVESE_FULLNAME} and push @ses, $self->{CONFIG}->{SAVESE_FULLNAME}
              or push @ses, $self->{CONFIG}->{SE_FULLNAME};
+             $totalCount = 1;
        }
   }
 
@@ -2187,8 +2195,8 @@ $self->info("UI_LCM_UPLOAD_STATIC: we have ses: @staticSes, remaing ses: @$ses, 
       ($result, my $usedSes, my $failedSes)
         = $self->registerInMultipleSEs($result, $pfn, \@staticSes,  undef, undef, $guid, $envelopes, $size);
 
-$self->info("UI_LCM_UPLOAD_STATIC: we have, failed SEs: @$failedSes, used SEs: @$usedSes, and seloutof: $selOutOf.");
-      $result->{envref} = $envelopes->{$result->{seref}}->{envelope};
+$self->info("UI_LCM_UPLOAD_STATIC: done registerInMultipleSEs, we have, failed SEs: @$failedSes, used SEs: @$usedSes, and seloutof: $selOutOf.");
+      $result->{status} and $result->{envref} = $envelopes->{$result->{seref}}->{envelope};
      
      
      
@@ -2287,6 +2295,7 @@ sub registerInMultipleSEs {
 
   my @failedSes = ();
   my @usedSes = ();
+  my $firstHit = 0;
 
   for my $j(0..$#{$ses}) {
 
@@ -2296,34 +2305,43 @@ sub registerInMultipleSEs {
 
      $self->info( "Adding the file $pfn to @$ses[$j]" );
      my $res;
-     for my $z(0..5) {   # try five times in case of error
+     my $z = 0;
+     while ($z < 5 ) {   # try five times in case of error
           $res= $self->{STORAGE}->RegisterInRemoteSE($pfn, @$ses[$j], $lfn, $options, $reqGuid, $envelopes->{@$ses[$j]});
 #          $res or sleep sometime... this should be maybe added 
-          $res and last;
+          $res and $z = 6 or $z++;
      }
 
-     ( $res eq -1 ) and print STDERR "ERROR copying $pfn\n" . $res->paramsout . "\n";
+     $res or print STDERR "ERROR storing $pfn in @$ses[$j]\n" 
+       and push @failedSes , @$ses[$j]
+        and next;
 
-     if(!$res->{pfn}) {
-        $self->{LOGGER}->warning( "LCM", "Error transfering the file to the SE" );
-        push @failedSes , @$ses[$j];
-        next;
-     }
 
+     #($res eq -1) and  print STDERR "ERROR copying $pfn\n". $res->paramsout . "\n";
+
+     $res->{pfn}   or $self->{LOGGER}->warning( "LCM", "Error transfering the file to the SE" );
+
+    
+     $self->info("DEBUG: res was ok, after storage->RegisterInRemoteSE");
+   
      my $time=time-$start;
      $self->sendMonitor("write", @$ses[$j], $time, $size, $res);
 
 
-     if($j eq 0) {
-       $reqGuid = $res->{guid};
-       $result->{guid} = $res->{guid};
-       $result->{md5} = $res->{md5};
-       $result->{size} = $res->{size};
+     if($firstHit eq 0 ) {
+        $reqGuid = $res->{guid};
+        $result->{guid} = $res->{guid};
+        $result->{md5} = $res->{md5};
+        $result->{size} = $res->{size};
+        $result->{pfn} = $res->{pfn};
+        $result->{seref} = @$ses[$j];
+        $result->{status} = 1;
+        $firstHit = 1;
      }
      $result->{se}->{@$ses[$j]}->{pfn}=$res->{pfn};
      push @usedSes, @$ses[$j];
   }
-  @$ses[0] ne "" and $result->{seref} = @$ses[0];
+
 
   return $result,\@usedSes, \@failedSes;
 }
