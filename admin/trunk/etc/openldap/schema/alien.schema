@@ -103,7 +103,9 @@ attributetype ( AliEnVOConfig:79 NAME 'messagesmasterAddress' SUP name )
 attributetype ( AliEnVOConfig:80 NAME 'semasterDatabase' SUP name )
 attributetype ( AliEnVOConfig:81 NAME 'semasterManagerAddress' SUP name )
 attributetype ( AliEnVOConfig:82 NAME 'jobinfoManagerAddress' SUP name )
-attributetype ( AliEnVOConfig:83 NAME 'sedetectmonalisaurl' SUP name )
+attributetype ( AliEnVOConfig:83 NAME 'seDetectMonALISAurl' SUP name )
+attributetype ( AliEnVOConfig:84 NAME 'seDefaultQosAndCount' SUP name )
+
 
 
 objectclass ( AliEnVOConfig  NAME 'AliEnVOConfig'
@@ -129,7 +131,7 @@ objectclass ( AliEnVOConfig  NAME 'AliEnVOConfig'
 	       nwsPort $ nwsDatabase $ nwsDriver $ nwsDbHost $ nwsHost $
         lbsgAddress $ lbsgDatabase $ si2kNominalPrice $ bankAdmin $ taxAccount $ taxRate $
 				bankCurrency $ jobDatabaseRead $ packmanmasterAddress $ 
- messagesmasterAddress $ semasterDatabase $ semasterManagerAddress $ jobinfoManagerAddress $ sedetectmonalisaurl )
+ messagesmasterAddress $ semasterDatabase $ semasterManagerAddress $ jobinfoManagerAddress $ seDetectMonALISAurl $ seDefaultQosAndCount)
 	)
 #AliEnUser
 
