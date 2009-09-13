@@ -855,8 +855,8 @@ sub addFile_HELP {
 If the method and host are not specified, the system will try with 'file://<localhost>'
 Possible options:
 \t-r:(reverse) Start an io server on the client side and let the SE fetch the file from there.
-\t-v:(versioning) a new version of the file is created, if it already existed
-\t-c (custodial) add the file to the closest custodial se\n";
+\t-v:(versioning) a new version of the file is created, if it already existed\n";
+#\t-c (custodial) add the file to the closest custodial se\n";
 }
 #
 # Check if the user can create the file
@@ -876,15 +876,88 @@ sub addFile {
   $self->debug(1, "UI/LCM Add @_");
   my $options={};
   @ARGV=@_;
-  Getopt::Long::GetOptions($options, "silent", "reverse", "versioning",
-			   "size=i", "md5=s", "custodial")
+  Getopt::Long::GetOptions($options, "silent", "reverse", "versioning")
       or $self->info("Error checking the options of add") and return;
   @_=@ARGV;
 
   my $lfn   = shift;
   my $pfn   = shift;
-  my $newSE =(shift or $self->{CONFIG}->{SAVESE_FULLNAME} or $self->{CONFIG}->{SE_FULLNAME} or "");
+  my $sestring =shift;
 
+$self->info("lfn is: $lfn");
+$self->info("pfn is: $pfn");
+$self->info("sestring is: $sestring");
+
+
+
+
+
+  
+  my $result = {};
+
+  my $maximumCopyCount = 9;
+  my $selOutOf=0;
+
+$self->info("Sitename is: $self->{CONFIG}->{SITE}");
+
+  my @ses = ();
+  my @excludedSes = ();
+  my @seentry= ();
+  my $totalCount = 0;
+  my $qosTags;
+
+  $sestring and $sestring ne "" and @seentry = split (/,/, $sestring);
+
+  foreach (@seentry) {
+     if($_ =~ /::/){
+         if($_  =~ /;\-\d/) {
+                    $_ =~ s/;\-\d//;
+                    push @excludedSes, $_;
+         } else {
+                    $_ =~ s/;\d//;
+                    push @ses, $_;
+         }
+     } elsif ($_ =~ /\=/){
+             my ($repltag, $copies)=split (/\=/, $_,2);
+             (isdigit $copies) or next;
+             ($totalCount+$copies) < $maximumCopyCount
+                or $copies = $maximumCopyCount - $totalCount;
+             if($repltag eq "select") {
+                ($copies < 1 or $copies > scalar(@ses))
+                   and $copies = scalar(@ses);
+                $selOutOf = $copies;
+             } else {
+                $qosTags->{$repltag} = $copies
+             }
+             $totalCount += $copies;
+     }
+  }
+
+  @ses = @{$self->arrayEliminateDuplicates(\@ses)};
+  @excludedSes = @{$self->arrayEliminateDuplicates(\@excludedSes)};
+  push @excludedSes, @ses;
+  $selOutOf eq 0 and $selOutOf = scalar(@ses) and $totalCount += $selOutOf;
+
+
+  #if nothing is specified, we get the default case, priority on LDAP entry
+  if($totalCount le 0) {
+       if ($self->{CONFIG}->{SEDEFAULTQOSANDCOUNT}) {
+            my ($repltag, $copies)=split (/\=/, $self->{CONFIG}->{SEDEFAULTQOSANDCOUNT},2);
+            $qosTags->{$repltag} = $copies;
+            $totalCount += $copies;
+       } else {
+             push @ses, $self->{CONFIG}->{SE_FULLNAME};
+       }
+  }
+
+ 
+
+############################################################################
+############################################################################
+############################################################################
+############################################################################
+
+  
 
   $pfn or $self->info("Error: not enough parameters in add\n".
 		      $self->addFile_HELP(),2)	and return;
@@ -894,79 +967,55 @@ sub addFile {
     $self->_canCreateFile($lfn) or return;
   }
 
-  if ($options->{custodial}){
-    $self->info("Saving the file in a custodial SE");
-    $newSE=$self->findCloseSE("custodial") or return;
-  }
-
   $pfn=$self->checkLocalPFN($pfn);
   my $size=AliEn::SE::Methods->new($pfn)->getSize();
 
-  ######################################################################################
-  #get the authorization envelope and put it in the IO_AUTHZ environment variable
+
+  my $envreq="write-once";
+  ($options->{versioning}) and $envreq="write-version";
+
+#######################################################################################
+#######################################################################################
+#######################################################################################
+#######################################################################################
+######################################################################################
+
+  $self->debug(1, "\nRegistering  $pfn as $lfn ");
 
 
-  my @envelope;
-  if ($options->{versioning}) {
-    @envelope = $self->access("-s","write-version","$lfn",$newSE, $size);
-  } else {
-    @envelope = $self->access("-s","write-once","$lfn",$newSE, $size);
-  }
-  if (!defined $envelope[0]->{envelope}) {
-    $self->info( "Cannot get access to $lfn") and return;
-  }
-
-  $ENV{'IO_AUTHZ'} = $envelope[0]->{envelope};
-  ######################################################################################
-  $self->debug(1, "\nRegistering  $pfn as $lfn, in SE $newSE ");
-
-#  if ($options=~ /u/) {#
-#
-#  }
-  my $start=time;
-
-  #my $data = $self->{STORAGE}->registerInLCM( $pfn, $newSE, $lfn, $options,"", $envelope[0]);
-  my $data = $self->{STORAGE}->registerOLDTOBEDELETEDInLCM( $pfn, $newSE, $lfn, $options,"", $envelope[0]);
 
 
-  my $time=time-$start;
-#  my $size=undef;
-#  $data and $size=$data->{size};
-  $self->sendMonitor("write", $newSE, $time, $size, $data);
-  $data or return;
+$self->info( "\nRegistering  $pfn as $lfn ");
+$self->info("we were called with ses: @ses .");
+$self->info("we were called with select: $selOutOf.");
+$self->info("we were called with exses: @excludedSes .");
+foreach (keys %$qosTags) { $self->info("we were called with $_: $qosTags->{$_} .");}
 
-  return $self->{CATALOG}->f_registerFile( "-f", $lfn, $data->{size}, $newSE, $data->{guid}, undef,undef, $data->{md5}, $data->{pfn});
+
+
+   $result = $self->putOnStaticSESelectionList($result,$pfn,$lfn,$size,"",$envreq,$selOutOf,\@ses);
+
+   foreach my $qos(keys %$qosTags){
+       $result = $self->putOnDynamicDiscoveredSEListByQoS($result,$pfn,$lfn,$size,"",$envreq,$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes);
+   }
+
+   $result or return;
+
+   $ENV{'IO_AUTHZ'} = $result->{envref};
+
+
+   my $leastOne = $self->{CATALOG}->f_registerFile( "-f", $lfn, $result->{size}, $result->{seref}, $result->{guid}, undef,undef, $result->{md5}, $result->{se}->{$result->{seref}}->{pfn});
+
+   foreach my $se (keys(%{$result->{se}})) {
+     $se ne $result->{seref}
+       and  $self->{CATALOG}->f_addMirror( $lfn, $se, $result->{se}->{$se}->{pfn}, "-c","-md5=".$result->{md5});
+   }
+   
+  return $leastOne;
 }
 
 
-sub sendMonitor {
-  my $self=shift;
-  my $access=shift;
-  my $se=shift|| "";
-  my $time=shift;
-  my $size=shift || 0;
-  my $ok=shift;
-  $self->{MONITOR} or return 1;
 
-  my @params=('time', $time); 
-
-  if ($ok){
-    $time or $time=1;
-    push @params, 'size', $size, status=>1, speed=>$size/$time;
-  } else {
-    push @params, 'status', 0;
-  }
-  $self->debug(1,"Sending to monalisa @params (and $se)");
-
-
-  my $node="PROMPT_$self->{CONFIG}->{HOST}";
-  $ENV{ALIEN_PROC_ID} and push @params, 'queueid', $ENV{ALIEN_PROC_ID} 
-    and $node="JOB_$ENV{ALIEN_PROC_ID}";
-
-  $self->{MONITOR}->sendParameters(uc("SE_${access}_${se}"), $node, @params);
-  return 1;
-}
-  
 
 #  This subroutine mirrors an lfn in another SE. It received the name of the lfn, and the 
 #  target SE
@@ -2018,25 +2067,40 @@ $self->info("Sitename is: $self->{CONFIG}->{SITE}");
    push @excludedSes, @ses;
  
 
-   ($selOutOf < 1 or $selOutOf > scalar(@ses)) and $selOutOf = scalar(@ses);
    my $totalCount = 0;
    my $qosTags;
    foreach (@qosList) {
       my ($repltag, $copies)=split (/\=/, $_,2);
       (isdigit $copies) or next;
+      ($totalCount+$copies) < $maximumCopyCount
+                or $copies = $maximumCopyCount - $totalCount;
+
       if($repltag eq "select") {
-         ($totalCount+$copies) < $maximumCopyCount 
-            and $selOutOf = $copies 
-            and $totalCount += $copies
-            or $selOutOf = $maximumCopyCount - $totalCount;
+            ($copies < 1 or $copies > scalar(@ses))
+               and $copies = scalar(@ses);
+            $selOutOf = $copies;
       } else {
-         ($totalCount+$copies) < $maximumCopyCount 
-            and $qosTags->{$repltag} = $copies
-            and $totalCount += $copies
-            or $qosTags->{$repltag} = $maximumCopyCount - $totalCount;
+            $qosTags->{$repltag} = $copies
       }
+      $totalCount += $copies;
  
    }
+  # if select Out of the Selist is not correct
+  $selOutOf eq 0 and $selOutOf = scalar(@ses) and $totalCount += $selOutOf;
+
+  #if nothing is specified, we get the default case, priority on LDAP entry
+  if($totalCount le 0) {
+       if ($self->{CONFIG}->{SEDEFAULTQOSANDCOUNT}) {
+            my ($repltag, $copies)=split (/\=/, $self->{CONFIG}->{SEDEFAULTQOSANDCOUNT},2);
+            $qosTags->{$repltag} = $copies;
+            $totalCount += $copies;
+       } else {
+            $self->{CONFIG}->{SAVESE_FULLNAME} and push @ses, $self->{CONFIG}->{SAVESE_FULLNAME}
+             or push @ses, $self->{CONFIG}->{SE_FULLNAME};
+       }
+  }
+
+
  
 
 $self->info("we were called with ses: @ses .");  
@@ -2046,11 +2110,13 @@ foreach (keys %$qosTags) { $self->info("we were called with $_: $qosTags->{$_} .
 
   
    
-   $result = $self->putOnStaticSESelectionList($result,$pfn,$size,$guid,$selOutOf,\@ses);
- 
+   $result = $self->putOnStaticSESelectionList($result,$pfn,"/NOLFN",$size,$guid,"write-once",$selOutOf,\@ses);
+
    foreach my $qos(keys %$qosTags){
-       $result = $self->putOnDynamicDiscoveredSEListByQoS($result,$pfn,$size,$guid,$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes);
+       $result = $self->putOnDynamicDiscoveredSEListByQoS($result,$pfn,"/NOLFN",$size,$guid,"write-once",$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes);
    }
+
+
  
    $result->{totalCount}=$totalCount;
  
@@ -2086,16 +2152,20 @@ foreach (keys %$qosTags) { $self->info("we were called with $_: $qosTags->{$_} .
 
 
 
-
-
 sub putOnStaticSESelectionList{
    my $self=shift;
    my $result=shift;
    my $pfn=(shift || "");
+   my $lfn=(shift || "");
    my $size=(shift || 0);
    my $guid=(shift || "");
+   my $envreq=(shift || "");
    my $selOutOf=(shift || 0);
    my $ses=(shift || "");
+ 
+
+   # we take seloutof==0 as take all !
+   $selOutOf eq 0 and  $selOutOf = scalar(@$ses);
    
 
   while ((scalar(@$ses) gt 0 and $selOutOf gt 0)) {
@@ -2105,7 +2175,7 @@ $self->info("UI_LCM_UPLOAD_STATIC: we have ses: @staticSes, remaing ses: @$ses, 
       my $envelopes = {};
     
       for my $j(0..$#staticSes) {
-        my @envelope= $self->access("-s","write-once","/NOLFN", $staticSes[$j], $size,0,"$guid");
+        my @envelope= $self->access("-s",$envreq,$lfn, $staticSes[$j], $size,0,"$guid");
         if(@envelope) {
             $envelopes->{$staticSes[$j]}=$envelope[0];
         } else {
@@ -2115,9 +2185,12 @@ $self->info("UI_LCM_UPLOAD_STATIC: we have ses: @staticSes, remaing ses: @$ses, 
       }
   
       ($result, my $usedSes, my $failedSes)
-        = $self->{STORAGE}->registerInLCM( $pfn, \@staticSes,  undef, undef, $guid, $envelopes, $result);
+        = $self->registerInMultipleSEs($result, $pfn, \@staticSes,  undef, undef, $guid, $envelopes, $size);
 
 $self->info("UI_LCM_UPLOAD_STATIC: we have, failed SEs: @$failedSes, used SEs: @$usedSes, and seloutof: $selOutOf.");
+      $result->{envref} = $envelopes->{$result->{seref}}->{envelope};
+     
+     
      
      foreach my $se (@$usedSes){
         $selOutOf--; 
@@ -2131,10 +2204,8 @@ $self->info("UI_LCM_UPLOAD_STATIC: we have, failed SEs: @$failedSes, used SEs: @
         }
      }
   }
-
   return $result;
 }  
-
 
 
 
@@ -2142,8 +2213,10 @@ sub putOnDynamicDiscoveredSEListByQoS{
    my $self=shift;
    my $result=shift;
    my $pfn=(shift || "");
+   my $lfn=(shift || "");
    my $size=(shift || 0);
    my $guid=(shift || "");
+   my $envreq=(shift || "");
    my $count=(shift || 0);
    my $qos=(shift || "");
    my $sitename=(shift || "");
@@ -2155,13 +2228,13 @@ sub putOnDynamicDiscoveredSEListByQoS{
      $self->{SOAP}->checkSOAPreturn($res) or next ;
      my @discoveredSes=@{$res->result};
 
-$self->info("UI_LCM_UPLOAD_DYNAMIC: discovered SEs are: @discoveredSes, count was: $count, type flag was: $_.");
+$self->info("UI_LCM_UPLOAD_DYNAMIC: discovered SEs are: @discoveredSes, count was: $count, type flag was: $qos.");
 
      scalar(@discoveredSes) gt 0 or last;
 
      my $envelopes = {};
      for my $j(0..$#discoveredSes) {
-        my @envelope= $self->access("-s","write-once","/NOLFN", $discoveredSes[$j], $size,0,"$guid");
+        my @envelope= $self->access("-s",$envreq,$lfn, $discoveredSes[$j], $size,0,"$guid");
         if(@envelope) {
             $envelopes->{$discoveredSes[$j]}=$envelope[0]; 
         } else {
@@ -2172,9 +2245,10 @@ $self->info("UI_LCM_UPLOAD_DYNAMIC: discovered SEs are: @discoveredSes, count wa
      } 
 
      ($result, my $usedSes, my $failedSes) 
-        = $self->{STORAGE}->registerInLCM( $pfn, \@discoveredSes,  undef, undef, $guid, $envelopes, $result);
+        = $self->registerInMultipleSEs($result, $pfn, \@discoveredSes,  undef, undef, $guid, $envelopes, $size);
      push @$excludedSes, @$failedSes;
      push @$excludedSes, @$usedSes;
+     $result->{envref} = $envelopes->{$result->{seref}}->{envelope};
 
      foreach my $se (@$usedSes){ 
         $count--;
@@ -2187,9 +2261,103 @@ $self->info("UI_LCM_UPLOAD_DYNAMIC: discovered SEs are: @discoveredSes, count wa
         }
      }    
   }
-
   return $result;
 }
+
+
+
+
+
+sub registerInMultipleSEs {
+  my $self  = shift;
+  my $result = (shift or {});
+  my $pfn   = shift;
+  my $ses = ( shift or {} );
+  my $lfn=(shift or "");
+  my $options=(shift or "");
+  my $reqGuid=(shift or "");
+  my $envelopes=(shift or {});
+  my $size=(shift or 0);
+
+#my $result = {};
+
+  ($pfn)
+    or $self->{LOGGER}->warning( "LCM", "Error no pfn specified" )
+      and return;
+
+  my @failedSes = ();
+  my @usedSes = ();
+
+  for my $j(0..$#{$ses}) {
+
+     my $start=time;
+
+     $self->info( "Adding the file $pfn to @$ses[$j]" );
+     my $res;
+     for my $j(0..5) {   # try five times in case of error
+          $res= $self->{STORAGE}->RegisterInRemoteSE($pfn, @$ses[$j], $lfn, $options, $reqGuid, $envelopes->{@$ses[$j]});
+#          $res or sleep sometime... this should be maybe added 
+          $res and last;
+     }
+
+     ( $res eq -1 ) and print STDERR "ERROR copying $pfn\n" . $res->paramsout . "\n";
+
+     if(!$res->{pfn}) {
+        $self->{LOGGER}->warning( "LCM", "Error transfering the file to the SE" );
+        push @failedSes , @$ses[$j];
+        next;
+     }
+
+     my $time=time-$start;
+     $self->sendMonitor("write", @$ses[$j], $time, $size, $res);
+
+
+     if($j eq 0) {
+       $reqGuid = $res->{guid};
+       $result->{guid} = $res->{guid};
+       $result->{md5} = $res->{md5};
+       $result->{size} = $res->{size};
+     }
+     $result->{se}->{@$ses[$j]}->{pfn}=$res->{pfn};
+     push @usedSes, @$ses[$j];
+  }
+  @$ses[0] ne "" and $result->{seref} = @$ses[0];
+
+  return $result,\@usedSes, \@failedSes;
+}
+
+
+
+
+sub sendMonitor {
+  my $self=shift;
+  my $access=shift;
+  my $se=shift|| "";
+  my $time=shift;
+  my $size=shift || 0;
+  my $ok=shift;
+  $self->{MONITOR} or return 1;
+
+  my @params=('time', $time); 
+
+  if ($ok){
+    $time or $time=1;
+    push @params, 'size', $size, status=>1, speed=>$size/$time;
+  } else {
+    push @params, 'status', 0;
+  }
+  $self->debug(1,"Sending to monalisa @params (and $se)");
+
+
+  my $node="PROMPT_$self->{CONFIG}->{HOST}";
+  $ENV{ALIEN_PROC_ID} and push @params, 'queueid', $ENV{ALIEN_PROC_ID} 
+    and $node="JOB_$ENV{ALIEN_PROC_ID}";
+
+  $self->{MONITOR}->sendParameters(uc("SE_${access}_${se}"), $node, @params);
+  return 1;
+}
+  
+
 
 
 

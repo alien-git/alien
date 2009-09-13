@@ -50,9 +50,10 @@ sub rankStorageElementsWithMonAlisa{
    my $siteip=(shift || "");
    my $silent=(shift || "");
 
-   my $url = "";
-   $self->{CONFIG}->{SEDETECTMONALISAURL} and  $url=$self->{CONFIG}->{SEDETECTMONALISAURL}."?";
-   $url eq "" and return 0;
+
+   $self->{CONFIG}->{SEDETECTMONALISAURL} or return 0;
+
+   my $url=$self->{CONFIG}->{SEDETECTMONALISAURL}."?";
 
    ($siteip and $siteip ne "") and $url .= "ip=$siteip&";
    $url .= "dumpall=true";

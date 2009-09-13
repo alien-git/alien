@@ -1807,7 +1807,7 @@ foreach (keys %{$uploadResult->{se}}){
     $submitted->{$file}=$uploadResult;
     foreach my $se (keys(%{$uploadResult->{se}})) {
 $self->putJobLog("trace", "an se is: $se");
-$self->putJobLog("trace", "the corres pfn is: $uploadResult->{se}->{$se}->{pfn}");
+$self->putJobLog("trace", "the therefore corresponding pfn is: $uploadResult->{se}->{$se}->{pfn}");
 
        push @{$submitted->{$file}->{PFNS}}, "$se/$uploadResult->{se}->{$se}->{pfn}";
     }
