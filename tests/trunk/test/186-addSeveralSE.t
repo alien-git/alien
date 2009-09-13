@@ -13,6 +13,7 @@ BEGIN { plan tests => 1 }
 my $before=getNumberOfProcesses();
 my $host=Net::Domain::hostname();
 
+
 print "Before we start, there are $before processes\n";
 my $cat=AliEn::UI::Catalogue::LCM->new({"role", "admin"});
 $cat or exit (-1);
@@ -24,33 +25,41 @@ $cat->execute("mkdir", "-p", "/$host/bin") or exit (-2);
 my @testTable = ();
 my $res;
 
-$res = addFile($cat, "/bin/multipleSEaddSelect2of2","#!/bin/sh
+$res = addFile($cat, "/bin/multipleSEaddSelect1of3","#!/bin/sh
 echo This is a test
 date
-", "PCEPALICE10::CERN::TESTSE,PCEPALICE10::CERN::TESTSE2,PCEPALICE10::CERN::TESTSE3,select=2","2");
+", "${host}::CERN::TESTSE,${host}::CERN::TESTSE2,${host}::CERN::TESTSE3,select=1","1");
+push @testTable, $res;
+  
+$res = addFile($cat, "/bin/multipleSEaddSelect2of3","#!/bin/sh
+echo This is a test
+date
+", "${host}::CERN::TESTSE,${host}::CERN::TESTSE2,${host}::CERN::TESTSE3,select=2","2");
+push @testTable, $res;
+  
+$res = addFile($cat, "/bin/multipleSEaddSelect3of3","#!/bin/sh
+echo This is a test
+date
+", "${host}::CERN::TESTSE,${host}::CERN::TESTSE2,${host}::CERN::TESTSE3,select=3","3");
 push @testTable, $res;
   
   
+$res = addFile($cat, "/bin/multipleSEaddTestDisk1","#!/bin/sh
+echo This is a test
+date
+","disk=1","1");
+push @testTable, $res;
   
 $res = addFile($cat, "/bin/multipleSEaddTestDisk2","#!/bin/sh
 echo This is a test
 date
-echo Sleeping for one minute
-sleep 60
-date
-echo Done
 ","disk=2","2");
 push @testTable, $res;
   
 
-
 $res = addFile($cat, "/bin/multipleSEaddTape2","#!/bin/sh
 echo This is a test
 date
-echo Sleeping for one minute
-sleep 60
-date
-echo Done
 ","tape=2","2");
 push @testTable, $res;
   
@@ -64,7 +73,7 @@ if ($before ne $after) {
 
 my $result = 1;
 
-print "\n";
+print "\nAll tests finished.\n\n";
 for my $j(0..$#testTable) {
    print "Test No $j is ";
    $testTable[$j] and print "OK\n" and next;
