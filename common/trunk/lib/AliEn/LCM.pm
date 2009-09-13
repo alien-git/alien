@@ -498,11 +498,11 @@ sub checkPFNisLocal {
 sub RegisterInRemoteSE {
   my $self=shift;
   my $pfn=shift;
-  my $newSE= (shift or "");
-  my $lfn=(shift or "");
-  my $options=(shift or {});
-  my $reqGuid=(shift or "");
-  my $envelope=(shift or "");
+  my $newSE= (shift || "");
+  my $lfn=(shift || "");
+  my $options=(shift || {});
+  my $reqGuid=(shift || "");
+  my $envelope=(shift || "");
 
 
   my $localfile=$self->checkPFNisLocal($pfn);
