@@ -2296,7 +2296,7 @@ sub registerInMultipleSEs {
 
      $self->info( "Adding the file $pfn to @$ses[$j]" );
      my $res;
-     for my $j(0..5) {   # try five times in case of error
+     for my $z(0..5) {   # try five times in case of error
           $res= $self->{STORAGE}->RegisterInRemoteSE($pfn, @$ses[$j], $lfn, $options, $reqGuid, $envelopes->{@$ses[$j]});
 #          $res or sleep sometime... this should be maybe added 
           $res and last;
