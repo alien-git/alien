@@ -850,7 +850,7 @@ sub Getopts {
 }
 
 sub addFile_HELP {
-  return "'add' copies a file into the SE, and register an entry in the catalogue that points to the file in the SE\n\tUsage: add [-r]  <lfn> <pfn> [<SE> [<previous storage element>]]\nPossible pfns:\tsrm://<host>/<path>, castor://<host>/<path>, 
+  return "'add' copies a file into the SE, and register an entry in the catalogue that points to the file in the SE\n\tUsage: add [-r]  <lfn> <pfn> [<SE1>,<SEn> ,select=N ,qosFlag=N ,[<previous storage element>]]\nPossible pfns:\tsrm://<host>/<path>, castor://<host>/<path>, 
 \t\tfile://<host>/<path>
 If the method and host are not specified, the system will try with 'file://<localhost>'
 Possible options:
@@ -882,7 +882,7 @@ sub addFile {
 
   my $lfn   = shift;
   my $pfn   = shift;
-  my $sestring =shift;
+  my $sestring =(shift || "");
 
 $self->info("lfn is: $lfn");
 $self->info("pfn is: $pfn");
@@ -2270,14 +2270,14 @@ $self->info("UI_LCM_UPLOAD_DYNAMIC: discovered SEs are: @discoveredSes, count wa
 
 sub registerInMultipleSEs {
   my $self  = shift;
-  my $result = (shift or {});
+  my $result = (shift || {});
   my $pfn   = shift;
-  my $ses = ( shift or {} );
-  my $lfn=(shift or "");
-  my $options=(shift or "");
-  my $reqGuid=(shift or "");
-  my $envelopes=(shift or {});
-  my $size=(shift or 0);
+  my $ses = ( shift || {} );
+  my $lfn=(shift || "");
+  my $options=(shift || "");
+  my $reqGuid=(shift || "");
+  my $envelopes=(shift || {});
+  my $size=(shift || 0);
 
 #my $result = {};
 
@@ -2289,6 +2289,8 @@ sub registerInMultipleSEs {
   my @usedSes = ();
 
   for my $j(0..$#{$ses}) {
+
+     $envelopes->{@$ses[$j]} or $self->{LOGGER}->warning( "LCM", "Missing envelope for SE: @$ses[$j]" ) and next; 
 
      my $start=time;
 
