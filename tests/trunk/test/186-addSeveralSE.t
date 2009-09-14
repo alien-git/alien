@@ -57,10 +57,10 @@ date
 push @testTable, $res;
   
 
-$res = addFile($cat, "/bin/multipleSEaddTape2","#!/bin/sh
+$res = addFile($cat, "/bin/multipleSEaddTape1","#!/bin/sh
 echo This is a test
 date
-","tape=2","2");
+","tape=1","1");
 push @testTable, $res;
   
 $cat->close;
