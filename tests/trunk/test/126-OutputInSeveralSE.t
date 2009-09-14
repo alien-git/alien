@@ -175,12 +175,14 @@ sub submitCopiesOnMultipleSes{
 sub fillTestTableWithTests{
 
   my $run_test;
-  $run_test->{noJDL}  =1;
+
   $run_test->{noarchivec2s2}   =1;
   $run_test->{a2f1}   =1;
   $run_test->{nolink} =1;
   $run_test->{fnolink} =1;
   $run_test->{std} =1;
+  $run_test->{simple} =1;
+
 
 
 
@@ -188,17 +190,18 @@ sub fillTestTableWithTests{
 
   my $testTable;
 
-  my $archivename1="myArchive";
-  my @archivecontent1=("stdout");
+  $run_test->{noJDL}  =0;
+  my $archivename1="";
+  my @archivecontent1=("");
   my @ases1 = ();
   my $asel1 = 0;
   my $adisk1 = 0;
   my $atape1 = 0;
   my @aoptions1 = ();
-  my @filetag1=("stderr");
+  my @filetag1=("");
   my @fses1 = ();
   my $fsel1 = 0;
-  my @foptions1 = ("no_archive");
+  my @foptions1 = ("");
   my $fdisk1 = 0;
   my $ftape1 = 0;
   my $vo=Net::Domain::hostname();
@@ -298,6 +301,23 @@ sub fillTestTableWithTests{
   $testTable->{std}={archivename=>$archivename6,archivecontent=>\@archivecontent6,ases=>\@ases6,asel=>$asel6,adisk=>$adisk6,atape=>$atape6,aopt=>\@aoptions6,
                          filetag=>\@filetag6,fses=>\@fses6,fsel=>$fsel6,fdisk=>$fdisk6,ftape=>$ftape6,fopt=>\@foptions6,status=>0,id=>0,seres=>0,secres=>0};
 
+
+
+  my $archivename7="myArchive";
+  my @archivecontent7=("stdout");
+  my @ases7 = ();
+  my $asel7 = 0;
+  my $adisk7 = 0;
+  my $atape7 = 0;
+  my @aoptions7 = ();
+  my @filetag7=("stderr");
+  my @fses7 = ();
+  my $fsel7 = 0;
+  my @foptions7 = ("no_archive");
+  my $fdisk7 = 0;
+  my $ftape7 = 0;
+  $testTable->{simple}={archivename=>$archivename7,archivecontent=>\@archivecontent7,ases=>\@ases7,asel=>$asel7,adisk=>$adisk7,atape=>$atape7,aopt=>\@aoptions7,
+                         filetag=>\@filetag7,fses=>\@fses7,fsel=>$fsel7,fdisk=>$fdisk7,ftape=>$ftape7,fopt=>\@foptions7,status=>0,id=>0,seres=>0,secres=>0};
 
 
 

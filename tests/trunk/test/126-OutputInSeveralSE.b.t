@@ -6,6 +6,9 @@ use POSIX;
 
 
 use AliEn::UI::Catalogue::LCM::Computer;
+use AliEn::Config;
+
+
 
 BEGIN { plan tests => 1 }
 
@@ -16,7 +19,7 @@ BEGIN { plan tests => 1 }
   includeTest("126-OutputInSeveralSE") or exit(-2);
   #  eval `cat $ENV{ALIEN_TESTDIR}/FillTableFor126-OutputInSeveralSE.pl`;
 
-  my $outputstring=shift;
+  my $outputstring=(shift || exit(-2));
 
   print "OutputString is $outputstring.\n";
   ((!$outputstring) or ($outputstring eq "")) and exit(-2);
@@ -46,6 +49,7 @@ BEGIN { plan tests => 1 }
   for my $tcase (@testcases) {
         if($run_test->{$tcase}) {
            
+            cleanUpTestJDL($tcase);
 
             print "Test $tcase has id: $testTable->{$tcase}->{id}\n";
 
@@ -120,7 +124,9 @@ BEGIN { plan tests => 1 }
          } 
 
 
-         $copyCount < 1 and $copyCount = 2; # When there wasn't specified anything it should do 2 copies;
+         ($copyCount < 1) and  $copyCount = setUnspecifiedCopyCount(); #When there wasn't specified anything
+
+
 
          if(doEqualsOnArray($filename,\@archivefiles)) {
            if(doEqualsOnArray("no_se",\@{$fileTable->{$tcase}->{$filename}->{ses}})) {
@@ -381,6 +387,31 @@ sub doLsOnJobsOutputDir{
   my @listing = $cat->execute("ls","/proc/newuser/$id/job-output/");
   $cat->close();
   return \@listing; 
+}
+
+
+
+sub  setUnspecifiedCopyCount{
+
+     my $ldap = new AliEn::Config();
+     if ($ldap->{SEDEFAULT_QOSAND_COUNT}) {  # check if LDAP knows sth about this
+         my ($repltag, $replcopies)=split (/\=/, $ldap->{SEDEFAULT_QOSAND_COUNT},2);
+         return $replcopies;
+     }
+
+     return  1; 
+}
+
+
+
+
+sub cleanUpTestJDL{
+  my $case_name=shift;
+
+  my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",});
+  my $stat =$cat->execute("rm", "jdl/date_${case_name}.jdl");
+  $cat->close();
+  return $stat; 
 }
 
 
