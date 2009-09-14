@@ -519,7 +519,7 @@ sub RegisterInRemoteSE {
   }
   $self->debug (1, "Trying to upload the file to the SE");
   my $url=AliEn::SE::Methods->new($pfn) 
-    or $self->info( "Error creating the url of $pfn")
+    or $self->info( "Error creating the url of $pfn while uploading to the SE: $newSE")
       and return;
 
   if ($url->method()=~ /^file/ and $url->host() !~ /^($self->{CONFIG}->{HOST})|(localhost)$/){
