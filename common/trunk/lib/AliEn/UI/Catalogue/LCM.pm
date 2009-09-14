@@ -847,8 +847,7 @@ sub Getopts {
       @files = ( @files, $word );
     }
   }
-  return ( $flags, @files );
-}
+  return ( $flags, @files ); }
 
 sub addFile_HELP {
   return "'add' copies a file into the SE, and register an entry in the catalogue that points to the file in the SE\n\tUsage: add [-r]  <lfn> <pfn> [<SE1>,<SEn> ,select=N ,qosFlag=N ,[<previous storage element>]]\nPossible pfns:\tsrm://<host>/<path>, castor://<host>/<path>, 
@@ -877,7 +876,8 @@ sub addFile {
   $self->debug(1, "UI/LCM Add @_");
   my $options={};
   @ARGV=@_;
-  Getopt::Long::GetOptions($options, "silent", "reverse", "versioning")
+  Getopt::Long::GetOptions($options, "silent", "reverse", "versioning", "size=i", "md5=s")
+
       or $self->info("Error checking the options of add") and return;
   @_=@ARGV;
 
@@ -920,7 +920,7 @@ $self->info("Sitename is: $self->{CONFIG}->{SITE}");
          }
      } elsif ($_ =~ /\=/){
              my ($repltag, $copies)=split (/\=/, $_,2);
-             (isdigit $copies) or next;
+             $copies and  (isdigit $copies) or next;
              ($totalCount+$copies) < $maximumCopyCount
                 or $copies = $maximumCopyCount - $totalCount;
              if($repltag eq "select") {
@@ -2080,7 +2080,7 @@ $self->info("Sitename is: $self->{CONFIG}->{SITE}");
    my $qosTags;
    foreach (@qosList) {
       my ($repltag, $copies)=split (/\=/, $_,2);
-      (isdigit $copies) or next;
+      $copies and (isdigit $copies) or next;
       ($totalCount+$copies) < $maximumCopyCount
                 or $copies = $maximumCopyCount - $totalCount;
 
