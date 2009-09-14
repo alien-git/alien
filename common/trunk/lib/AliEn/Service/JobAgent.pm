@@ -1739,10 +1739,10 @@ sub putFiles {
 	$links.=";;".join(";;",@{$entry->{links}});
       }
 
-      $self->info("guid: $entry->{guid}");
-      $self->info("size: $entry->{size}");
-      $self->info("md5: $entry->{md5}");
-      $self->info("pfns: @{$entry->{PFNS}}");
+#gron $self->info("guid: $entry->{guid}");
+#gron $self->info("size: $entry->{size}");
+#gron $self->info("md5: $entry->{md5}");
+#gron $self->info("pfns: @{$entry->{PFNS}}");
   
   
       push @list, "\"".join ("###", $key, $entry->{guid}, $entry->{size}, 
@@ -1753,19 +1753,21 @@ sub putFiles {
       $self->{CA}->set_expression("RegisteredOutput", "{".join(",",@list)."}");
       $self->{JDL_CHANGED}=1;
     }
-    $self->info("Closing the catalogue");
+    $self->debug(1, "Closing the catalogue");
     $ui->close();
   }
   $self->{CONFIG}=$self->{CONFIG}->Reload({"organisation", $oldOrg});
 
-  $self->putJobLog("trace", "we had ".scalar(keys(%$fs_table))
-          ." files and archives to store, we successfully stored $successCounter");
 
-  $incompleteUploades and $self->putJobLog("warning", "yet not all files and archives were stored as many times as specified.");
+  $incompleteUploades 
+              and self->putJobLog("warning", "WE HAD ".scalar(keys(%$fs_table))
+                 ." files and archives to store, we successfully stored $successCounter")
+              and  $self->putJobLog("warning", "YET NOT ALL FILES AND ARCHIVES were stored as many times as specified.");
+
   $incompleteUploades and return -1;
 
   if (scalar(keys(%$fs_table)) eq $successCounter) {
-      $self->putJobLog("trace","OK, SUCCESS. All files for this submit were uploaded as specified.");
+      $self->putJobLog("trace","OK, ALL RIGHT. All files and archives for this job where uploaded successfully and as specified.");
       return 1;
   }
   return 0;
@@ -1798,17 +1800,17 @@ sub uploadFile {
     $guid and $self->putJobLog("trace", "The file $file has the guid $guid");
     $self->putJobLog("trace","Registering $file with (guid $guid)");
 
- $self->info("JobAgent:: about to call upload in LCM, ses: $ses, exses: $exses, tags: $replicaTags, guid: $guid");
+#gron $self->info("JobAgent:: about to call upload in LCM, ses: $ses, exses: $exses, tags: $replicaTags, guid: $guid");
 
 
     ($uploadResult)=$ui->execute("upload", "$self->{WORKDIR}/$file", $ses, $exses, $replicaTags, $guid, $silent);
 
-foreach (keys %$uploadResult){
-   $_ ne "envref" and $self->info("JobAgent after exec upload,uploadResult: $_ is $uploadResult->{$_}");
-}
-foreach (keys %{$uploadResult->{se}}){
-   $self->info("JobAgent after exec upload,uploadResult->se: $_ is $uploadResult->{se}->{$_}");
-}
+#gron foreach (keys %$uploadResult){
+#gron    $_ ne "envref" and $self->info("JobAgent after exec upload,uploadResult: $_ is $uploadResult->{$_}");
+#gron }
+#gron foreach (keys %{$uploadResult->{se}}){
+#gron    $self->info("JobAgent after exec upload,uploadResult->se: $_ is $uploadResult->{se}->{$_}");
+#gron }
 
     (scalar(keys(%$uploadResult)) gt 0) or 
          $self->putJobLog("error","Error, could not store the file $self->{WORKDIR}/$file on any SEs")
@@ -1816,16 +1818,16 @@ foreach (keys %{$uploadResult->{se}}){
 
     $submitted->{$file}=$uploadResult;
 
-$self->info("guid: $uploadResult->{guid}");
-$self->info("size: $uploadResult->{size}");
-$self->info("md5: $uploadResult->{md5}");
-$self->info("pfn: $uploadResult->{pfn}");
+#gron $self->info("guid: $uploadResult->{guid}");
+#gron $self->info("size: $uploadResult->{size}");
+#gron $self->info("md5: $uploadResult->{md5}");
+#gron $self->info("pfn: $uploadResult->{pfn}");
 
 
 
     foreach my $se (keys(%{$uploadResult->{se}})) {
-$self->putJobLog("trace", "an se is: $se");
-$self->putJobLog("trace", "the therefore corresponding pfn is: $uploadResult->{se}->{$se}->{pfn}");
+#gron $self->putJobLog("trace", "an se is: $se");
+#gron $self->putJobLog("trace", "the therefore corresponding pfn is: $uploadResult->{se}->{$se}->{pfn}");
 
        push @{$submitted->{$file}->{PFNS}}, "$se/$uploadResult->{se}->{$se}->{pfn}";
     }

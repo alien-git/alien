@@ -885,21 +885,16 @@ sub addFile {
   my $pfn   = shift;
   my $sestring =(shift || "");
 
-$self->info("lfn is: $lfn");
-$self->info("pfn is: $pfn");
-$self->info("sestring is: $sestring");
+#gron $self->info("lfn is: $lfn");
+#gron $self->info("pfn is: $pfn");
+#gron $self->info("sestring is: $sestring");
 
-
-
-
-
-  
   my $result = {};
 
   my $maximumCopyCount = 9;
   my $selOutOf=0;
 
-$self->info("Sitename is: $self->{CONFIG}->{SITE}");
+#gron $self->info("Sitename is: $self->{CONFIG}->{SITE}");
 
   my @ses = ();
   my @excludedSes = ();
@@ -952,15 +947,6 @@ $self->info("Sitename is: $self->{CONFIG}->{SITE}");
        }
   }
 
- 
-
-############################################################################
-############################################################################
-############################################################################
-############################################################################
-
-  
-
   $pfn or $self->info("Error: not enough parameters in add\n".
 		      $self->addFile_HELP(),2)	and return;
 
@@ -972,28 +958,17 @@ $self->info("Sitename is: $self->{CONFIG}->{SITE}");
   $pfn=$self->checkLocalPFN($pfn);
   my $size=AliEn::SE::Methods->new($pfn)->getSize();
 
-
   my $envreq="write-once";
   ($options->{versioning}) and $envreq="write-version";
-
-#######################################################################################
-#######################################################################################
-#######################################################################################
-#######################################################################################
-######################################################################################
 
   $self->debug(1, "\nRegistering  $pfn as $lfn ");
 
 
-
-
-$self->info( "\nRegistering  $pfn as $lfn ");
-$self->info("we were called with ses: @ses .");
-$self->info("we were called with select: $selOutOf.");
-$self->info("we were called with exses: @excludedSes .");
-foreach (keys %$qosTags) { $self->info("we were called with $_: $qosTags->{$_} .");}
-
-
+#gron $self->info( "\nRegistering  $pfn as $lfn ");
+#gron $self->info("we were called with ses: @ses .");
+#gron $self->info("we were called with select: $selOutOf.");
+#gron $self->info("we were called with exses: @excludedSes .");
+#gron foreach (keys %$qosTags) { $self->info("we were called with $_: $qosTags->{$_} .");}
 
    $result = $self->putOnStaticSESelectionList($result,$pfn,$lfn,$size,"",$envreq,$selOutOf,\@ses);
 
@@ -1001,7 +976,7 @@ foreach (keys %$qosTags) { $self->info("we were called with $_: $qosTags->{$_} .
        $result = $self->putOnDynamicDiscoveredSEListByQoS($result,$pfn,$lfn,$size,"",$envreq,$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes);
    }
 
-   $result->{status} and $self->info("DEBUG: status store on SE is ok");
+#gron $result->{status} and $self->info("DEBUG: status store on SE is ok");
    $result->{status} or return;
 
 
@@ -1015,6 +990,9 @@ foreach (keys %$qosTags) { $self->info("we were called with $_: $qosTags->{$_} .
      $se ne $result->{seref}
        and  $self->{CATALOG}->f_addMirror( $lfn, $se, $result->{se}->{$se}->{pfn}, "-c","-md5=".$result->{md5});
    }
+
+    ($totalCount eq scalar(keys %{$result->{se}}))
+        and  $self->info("Successfully added the file $lfn on $totalCount SEs, as specified.");
   
   return ($result->{status} && $registered);
 }
@@ -2058,7 +2036,7 @@ sub upload {
    my $maximumCopyCount = 9;
    my $selOutOf=0;
  
-$self->info("Sitename is: $self->{CONFIG}->{SITE}");
+#gron $self->info("Sitename is: $self->{CONFIG}->{SITE}");
  
    my @ses = ();
    my @excludedSes = ();
@@ -2066,9 +2044,6 @@ $self->info("Sitename is: $self->{CONFIG}->{SITE}");
    ($selist and $selist ne "NONE") and push @ses , split(/;/,$selist);
    ($exclselist and $exclselist ne "NONE") and push @excludedSes, split(/;/,$exclselist);
    ($qoslist and $qoslist ne "NONE") and push @qosList , split(/;/,$qoslist);
-   #$selist and push @ses , split(/;/,$selist);
-   #$exclselist and push @excludedSes, split(/;/,$exclselist);
-   #$qoslist and push @qosList , split(/;/,$qoslist);
  
    @ses = @{$self->arrayEliminateDuplicates(\@ses)};
    @excludedSes = @{$self->arrayEliminateDuplicates(\@excludedSes)};
@@ -2113,10 +2088,10 @@ $self->info("Sitename is: $self->{CONFIG}->{SITE}");
 
  
 
-$self->info("we were called with ses: @ses .");  
-$self->info("we were called with select: $selOutOf.");  
-$self->info("we were called with exses: @excludedSes .");  
-foreach (keys %$qosTags) { $self->info("we were called with $_: $qosTags->{$_} .");}
+#gron $self->info("we were called with ses: @ses .");  
+#gron $self->info("we were called with select: $selOutOf.");  
+#gron $self->info("we were called with exses: @excludedSes .");  
+#gron foreach (keys %$qosTags) { $self->info("we were called with $_: $qosTags->{$_} .");}
 
   
    
@@ -2181,7 +2156,7 @@ sub putOnStaticSESelectionList{
   while ((scalar(@$ses) gt 0 and $selOutOf gt 0)) {
   
       (scalar(@$ses) gt 0) and my @staticSes= splice(@$ses, 0, $selOutOf);
-$self->info("UI_LCM_UPLOAD_STATIC: we have ses: @staticSes, remaing ses: @$ses, select was: $selOutOf");
+      $self->info("Will use the following list of statically selected SE list to save on: @staticSes . The remaing SEs are: @$ses, select was: $selOutOf");
       my $envelopes = {};
     
       for my $j(0..$#staticSes) {
@@ -2197,7 +2172,7 @@ $self->info("UI_LCM_UPLOAD_STATIC: we have ses: @staticSes, remaing ses: @$ses, 
       ($result, my $usedSes, my $failedSes)
         = $self->registerInMultipleSEs($result, $pfn, \@staticSes,  undef, undef, $guid, $envelopes, $size);
 
-$self->info("UI_LCM_UPLOAD_STATIC: done registerInMultipleSEs, we have, failed SEs: @$failedSes, used SEs: @$usedSes, and seloutof: $selOutOf.");
+#gron $self->info("UI_LCM_UPLOAD_STATIC: done registerInMultipleSEs, we have, failed SEs: @$failedSes, used SEs: @$usedSes, and seloutof: $selOutOf.");
       $result->{status} and $result->{envref} = $envelopes->{$result->{seref}}->{envelope};
      
      
@@ -2238,9 +2213,10 @@ sub putOnDynamicDiscoveredSEListByQoS{
      $self->{SOAP}->checkSOAPreturn($res) or next ;
      my @discoveredSes=@{$res->result};
 
-$self->info("UI_LCM_UPLOAD_DYNAMIC: discovered SEs are: @discoveredSes, count was: $count, type flag was: $qos.");
+     $self->info("Will use the following list of dynamic discovered SEs to save on: @discoveredSes . Count was: $count , type flag was: $qos.");
 
      scalar(@discoveredSes) gt 0 or last;
+
 
      my $envelopes = {};
      for my $j(0..$#discoveredSes) {
@@ -2312,7 +2288,6 @@ sub registerInMultipleSEs {
      my $z = 0;
      while ($z < 5 ) {   # try five times in case of error
           $res= $self->{STORAGE}->RegisterInRemoteSE($pfn, @$ses[$j], $lfn, $options, $reqGuid, $envelopes->{@$ses[$j]});
-#          $res or sleep sometime... this should be maybe added 
           $res and $z = 6 or $z++;
      }
 
@@ -2326,7 +2301,7 @@ sub registerInMultipleSEs {
      $res->{pfn}   or $self->{LOGGER}->warning( "LCM", "Error transfering the file to the SE" );
 
     
-     $self->info("DEBUG: res was ok, after storage->RegisterInRemoteSE");
+#gron $self->info("DEBUG: res was ok, after storage->RegisterInRemoteSE");
    
      my $time=time-$start;
      $self->sendMonitor("write", @$ses[$j], $time, $size, $res);
@@ -2340,7 +2315,7 @@ sub registerInMultipleSEs {
         $result->{seref} = @$ses[$j];
         $result->{status} = 1;
         $firstHit = 1;
-$self->info("DEBUG: registered data for first SE, status is ok");
+#gron $self->info("DEBUG: registered data for first SE, status is ok");
      }
      $result->{se}->{@$ses[$j]}->{pfn}=$res->{pfn};
      push @usedSes, @$ses[$j];
