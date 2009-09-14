@@ -1416,7 +1416,7 @@ sub processJDL_get_SEnames_And_Real_Options{
 
 ##########################################
 #########################################
-    ($selist eq "") and ($exclselist eq "") and ($replicaTags eq "") and $replicaTags .="disk=2";
+#    ($selist eq "") and ($exclselist eq "") and ($replicaTags eq "") and $replicaTags .="disk=2";
 ######################################
 #######################################
 
@@ -1738,6 +1738,13 @@ sub putFiles {
       if ($entry->{links} ) {
 	$links.=";;".join(";;",@{$entry->{links}});
       }
+
+      $self->info("guid: $entry->{guid}");
+      $self->info("size: $entry->{size}");
+      $self->info("md5: $entry->{md5}");
+      $self->info("pfns: @{$entry->{PFNS}}");
+  
+  
       push @list, "\"".join ("###", $key, $entry->{guid}, $entry->{size}, 
 			     $entry->{md5},  join("###",@{$entry->{PFNS}}), 
 			     $links) ."\"";
@@ -1791,10 +1798,13 @@ sub uploadFile {
     $guid and $self->putJobLog("trace", "The file $file has the guid $guid");
     $self->putJobLog("trace","Registering $file with (guid $guid)");
 
+ $self->info("JobAgent:: about to call upload in LCM, ses: $ses, exses: $exses, tags: $replicaTags, guid: $guid");
+
+
     ($uploadResult)=$ui->execute("upload", "$self->{WORKDIR}/$file", $ses, $exses, $replicaTags, $guid, $silent);
 
 foreach (keys %$uploadResult){
-   $self->info("JobAgent after exec upload,uploadResult: $_ is $uploadResult->{$_}");
+   $_ ne "envref" and $self->info("JobAgent after exec upload,uploadResult: $_ is $uploadResult->{$_}");
 }
 foreach (keys %{$uploadResult->{se}}){
    $self->info("JobAgent after exec upload,uploadResult->se: $_ is $uploadResult->{se}->{$_}");
@@ -1805,6 +1815,14 @@ foreach (keys %{$uploadResult->{se}}){
          and return 0;
 
     $submitted->{$file}=$uploadResult;
+
+$self->info("guid: $uploadResult->{guid}");
+$self->info("size: $uploadResult->{size}");
+$self->info("md5: $uploadResult->{md5}");
+$self->info("pfn: $uploadResult->{pfn}");
+
+
+
     foreach my $se (keys(%{$uploadResult->{se}})) {
 $self->putJobLog("trace", "an se is: $se");
 $self->putJobLog("trace", "the therefore corresponding pfn is: $uploadResult->{se}->{$se}->{pfn}");

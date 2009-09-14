@@ -175,6 +175,7 @@ sub initialize {
 
   $self->{PACKMAN}= AliEn::PackMan->new($packOptions) or return;
 
+
   return 1;
 }
 
@@ -925,7 +926,7 @@ $self->info("Sitename is: $self->{CONFIG}->{SITE}");
              if($repltag eq "select") {
                 ($copies < 1 or $copies > scalar(@ses))
                    and $copies = scalar(@ses);
-                $selOutOf = 0;
+                $selOutOf = $copies;
              } else {
                 $qosTags->{$repltag} = $copies
              }
@@ -936,13 +937,13 @@ $self->info("Sitename is: $self->{CONFIG}->{SITE}");
   @ses = @{$self->arrayEliminateDuplicates(\@ses)};
   @excludedSes = @{$self->arrayEliminateDuplicates(\@excludedSes)};
   push @excludedSes, @ses;
-  $selOutOf eq 0 and $totalCount += scalar(@ses);
+  $selOutOf eq 0 and $selOutOf = scalar(@ses) and $totalCount += $selOutOf;
 
 
   #if nothing is specified, we get the default case, priority on LDAP entry
   if($totalCount le 0) {
-       if ($self->{CONFIG}->{SEDEFAULTQOSANDCOUNT}) {
-            my ($repltag, $copies)=split (/\=/, $self->{CONFIG}->{SEDEFAULTQOSANDCOUNT},2);
+       if ($self->{CONFIG}->{SEDEFAULT_QOSAND_COUNT}) {
+            my ($repltag, $copies)=split (/\=/, $self->{CONFIG}->{SEDEFAULT_QOSAND_COUNT},2);
             $qosTags->{$repltag} = $copies;
             $totalCount += $copies;
        } else {
@@ -2047,6 +2048,7 @@ sub upload {
    my $exclselist=shift;
    my $qoslist=shift;
    my $guid=shift;
+
  
    $pfn or $self->info("Error not enough arguments in upload\n". $self->upload_HELP()) and return;
    $pfn=$self->checkLocalPFN($pfn);
@@ -2061,12 +2063,12 @@ $self->info("Sitename is: $self->{CONFIG}->{SITE}");
    my @ses = ();
    my @excludedSes = ();
    my @qosList = ();
-   #($selist and $selist ne "NONE") and push @ses , split(/;/,$selist);
-   #($exclselist and $exclselist ne "NONE") and push @excludedSes, split(/;/,$exclselist);
-   #($qoslist and $qoslist ne "NONE") and push @qosList , split(/;/,$qoslist);
-   $selist and push @ses , split(/;/,$selist);
-   $exclselist and push @excludedSes, split(/;/,$exclselist);
-   $qoslist and push @qosList , split(/;/,$qoslist);
+   ($selist and $selist ne "NONE") and push @ses , split(/;/,$selist);
+   ($exclselist and $exclselist ne "NONE") and push @excludedSes, split(/;/,$exclselist);
+   ($qoslist and $qoslist ne "NONE") and push @qosList , split(/;/,$qoslist);
+   #$selist and push @ses , split(/;/,$selist);
+   #$exclselist and push @excludedSes, split(/;/,$exclselist);
+   #$qoslist and push @qosList , split(/;/,$qoslist);
  
    @ses = @{$self->arrayEliminateDuplicates(\@ses)};
    @excludedSes = @{$self->arrayEliminateDuplicates(\@excludedSes)};
@@ -2085,7 +2087,7 @@ $self->info("Sitename is: $self->{CONFIG}->{SITE}");
       if($repltag eq "select") {
             ($copies < 1 or $copies > scalar(@ses))
                and $copies = scalar(@ses);
-            $selOutOf = 0;
+            $selOutOf = $copies;
       } else {
             $qosTags->{$repltag} = $copies
       }
@@ -2093,17 +2095,17 @@ $self->info("Sitename is: $self->{CONFIG}->{SITE}");
  
    }
   # if select Out of the Selist is not correct
-  $selOutOf eq 0 and $totalCount += scalar(@ses);
+  $selOutOf eq 0 and $selOutOf = scalar(@ses) and $totalCount += $selOutOf;
+
 
   #if nothing is specified, we get the default case, priority on LDAP entry
   if($totalCount le 0) {
-       if ($self->{CONFIG}->{SEDEFAULTQOSANDCOUNT}) {
-            my ($repltag, $copies)=split (/\=/, $self->{CONFIG}->{SEDEFAULTQOSANDCOUNT},2);
+       if ($self->{CONFIG}->{SEDEFAULT_QOSAND_COUNT}) {
+            my ($repltag, $copies)=split (/\=/, $self->{CONFIG}->{SEDEFAULT_QOSAND_COUNT},2);
             $qosTags->{$repltag} = $copies;
             $totalCount += $copies;
        } else {
-            $self->{CONFIG}->{SAVESE_FULLNAME} and push @ses, $self->{CONFIG}->{SAVESE_FULLNAME}
-             or push @ses, $self->{CONFIG}->{SE_FULLNAME};
+             push @ses, $self->{CONFIG}->{SE_FULLNAME};
              $totalCount = 1;
        }
   }
@@ -2256,7 +2258,7 @@ $self->info("UI_LCM_UPLOAD_DYNAMIC: discovered SEs are: @discoveredSes, count wa
         = $self->registerInMultipleSEs($result, $pfn, \@discoveredSes,  undef, undef, $guid, $envelopes, $size);
      push @$excludedSes, @$failedSes;
      push @$excludedSes, @$usedSes;
-     $result->{envref} = $envelopes->{$result->{seref}}->{envelope};
+     $result->{status} and $result->{envref} = $envelopes->{$result->{seref}}->{envelope};
 
      foreach my $se (@$usedSes){ 
         $count--;
@@ -2286,6 +2288,8 @@ sub registerInMultipleSEs {
   my $reqGuid=(shift || "");
   my $envelopes=(shift || {});
   my $size=(shift || 0);
+
+  $reqGuid eq "" and $result->{guid} and $reqGuid = $result->{guid};
 
 #my $result = {};
 
@@ -2328,8 +2332,7 @@ sub registerInMultipleSEs {
      $self->sendMonitor("write", @$ses[$j], $time, $size, $res);
 
 
-     if($firstHit eq 0 ) {
-        $reqGuid = $res->{guid};
+     if($firstHit eq 0 and (! $result->{status})) {
         $result->{guid} = $res->{guid};
         $result->{md5} = $res->{md5};
         $result->{size} = $res->{size};
@@ -2337,6 +2340,7 @@ sub registerInMultipleSEs {
         $result->{seref} = @$ses[$j];
         $result->{status} = 1;
         $firstHit = 1;
+$self->info("DEBUG: registered data for first SE, status is ok");
      }
      $result->{se}->{@$ses[$j]}->{pfn}=$res->{pfn};
      push @usedSes, @$ses[$j];
