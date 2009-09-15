@@ -906,13 +906,20 @@ sub addFile {
 
   foreach (@seentry) {
      if($_ =~ /::/){
-         if($_  =~ /;\-\d/) {
-                    $_ =~ s/;\-\d//;
-                    push @excludedSes, $_;
-         } else {
-                    $_ =~ s/;\d//;
-                    push @ses, $_;
-         }
+#         if($_  =~ /;\-\d/) {
+#                    $_ =~ s/;\-\d//;
+#                    push @excludedSes, $_;
+#         } else {
+#                    $_ =~ s/;\d//;
+#                    push @ses, $_;
+#         }
+          if($_ =~ /!/) {
+                $_ =~ s/!//;
+                push @excludedSes, uc($_);
+          } else {
+                 push @ses, uc($_);
+          }
+
      } elsif ($_ =~ /\=/){
              my ($repltag, $copies)=split (/\=/, $_,2);
              $copies and  (isdigit $copies) or next;
@@ -977,22 +984,22 @@ sub addFile {
    }
 
 #gron $result->{status} and $self->info("DEBUG: status store on SE is ok");
-   $result->{status} or return;
-
-
-
-   $ENV{'IO_AUTHZ'} = $result->{envref};
-
+   $result->{status} or $self->info("Error, we couldn't add/store the file on any SE!") and return 0;
 
    my $registered = $self->{CATALOG}->f_registerFile( "-f", $lfn, $result->{size}, $result->{seref}, $result->{guid}, undef,undef, $result->{md5}, $result->{se}->{$result->{seref}}->{pfn});
-
+   
    foreach my $se (keys(%{$result->{se}})) {
      $se ne $result->{seref}
        and  $self->{CATALOG}->f_addMirror( $lfn, $se, $result->{se}->{$se}->{pfn}, "-c","-md5=".$result->{md5});
    }
 
-    ($totalCount eq scalar(keys %{$result->{se}}))
-        and  $self->info("Successfully added the file $lfn on $totalCount SEs, as specified.");
+    if ($totalCount eq scalar(keys %{$result->{se}})){
+        $self->info("Successfully added the file $lfn on $totalCount SEs, as specified.");
+    } elsif(scalar(keys %{$result->{se}}) > 0) {
+             $self->info("WARNING: Added the file to ".scalar(keys %{$result->{se}})." SEs, yet specified was to add it on $totalCount.");
+    } else {
+             $self->info("Error, we couldn't add/store the file on any SE!") and return 0;
+    }
   
   return ($result->{status} && $registered);
 }
@@ -2173,14 +2180,14 @@ sub putOnStaticSESelectionList{
         = $self->registerInMultipleSEs($result, $pfn, \@staticSes,  undef, undef, $guid, $envelopes, $size);
 
 #gron $self->info("UI_LCM_UPLOAD_STATIC: done registerInMultipleSEs, we have, failed SEs: @$failedSes, used SEs: @$usedSes, and seloutof: $selOutOf.");
-      $result->{status} and $result->{envref} = $envelopes->{$result->{seref}}->{envelope};
+      #$result->{status} and $result->{envref} = $envelopes->{$result->{seref}}->{envelope};
      
      
      
      foreach my $se (@$usedSes){
         $selOutOf--; 
         
-# the following code needs to be questioned if necessary and what it does 
+# the following code replaces pfns. it is only needed in case of an upload (not add) on certain SE (dCache)
         if ($envelopes->{$se}->{url}){
           my $newPFN=$envelopes->{$se}->{url};
           $newPFN=~ s{^([^/]*//[^/]*)//(.*)$}{$1/$envelopes->{$se}->{url}};
@@ -2234,11 +2241,11 @@ sub putOnDynamicDiscoveredSEListByQoS{
         = $self->registerInMultipleSEs($result, $pfn, \@discoveredSes,  undef, undef, $guid, $envelopes, $size);
      push @$excludedSes, @$failedSes;
      push @$excludedSes, @$usedSes;
-     $result->{status} and $result->{envref} = $envelopes->{$result->{seref}}->{envelope};
+     #$result->{status} and $result->{envref} = $envelopes->{$result->{seref}}->{envelope};
 
      foreach my $se (@$usedSes){ 
         $count--;
-# the following code needs to be questioned if necessary and what it does 
+# the following code replaces pfns. it is only needed in case of an upload (not add) on certain SE (dCache)
         if ($envelopes->{$se}->{url}){
           my $newPFN=$envelopes->{$se}->{url};
           $newPFN=~ s{^([^/]*//[^/]*)//(.*)$}{$1/$envelopes->{$se}->{url}};
