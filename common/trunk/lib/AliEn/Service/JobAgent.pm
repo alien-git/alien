@@ -1393,11 +1393,17 @@ sub processJDL_get_SEnames_And_Real_Options{
     my (@options)=split (/,/, $jdlstring);
     foreach my $option (@options){
        if($option =~ /::/){
-          if($option  =~ /;\-\d/) {
-		$option =~ s/;\-\d//;
+#          if($option  =~ /;\-\d/) {
+#		$option =~ s/;\-\d//;
+#                $exclselist .= uc($option).";";
+#          } else {
+#		$option =~ s/;\d//;
+#                $selist .= uc($option).";";
+#          }
+          if($option  =~ /!/) {
+		$option =~ s/!//;
                 $exclselist .= uc($option).";";
           } else {
-		$option =~ s/;\d//;
                 $selist .= uc($option).";";
           }
 
