@@ -984,7 +984,7 @@ sub addFile {
    }
 
 #gron $result->{status} and $self->info("DEBUG: status store on SE is ok");
-   $result->{status} or $self->info("Error, we couldn't add/store the file on any SE!") and return 0;
+   $result->{status} or $self->info("Error, we couldn't add/store the file on any SE!") and return;
 
    my $registered = $self->{CATALOG}->f_registerFile( "-f", $lfn, $result->{size}, $result->{seref}, $result->{guid}, undef,undef, $result->{md5}, $result->{se}->{$result->{seref}}->{pfn});
    
@@ -998,7 +998,7 @@ sub addFile {
     } elsif(scalar(keys %{$result->{se}}) > 0) {
              $self->info("WARNING: Added the file to ".scalar(keys %{$result->{se}})." SEs, yet specified was to add it on $totalCount.");
     } else {
-             $self->info("Error, we couldn't add/store the file on any SE!") and return 0;
+             $self->info("Error, we couldn't add/store the file on any SE!") and return;
     }
   
   return ($result->{status} && $registered);
