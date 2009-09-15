@@ -36,7 +36,7 @@ date
 
   addFile($cat, "jdl/Input.jdl","Executable=\"CheckInputOuptut.sh\";
 InputFile=\"LF:$dir/jdl/Input.jdl\";
-OutputFile=\"file.out\"") or exit(-2);
+OutputFile={\"file.out\",\"stdout\",\"stderr\",\"resources\"}") or exit(-2);
 
   my $procDir=executeJDLFile($cat, "jdl/Input.jdl") or exit(-2);
 
