@@ -1766,7 +1766,7 @@ sub putFiles {
 
 
   $incompleteUploades 
-              and self->putJobLog("warning", "WE HAD ".scalar(keys(%$fs_table))
+              and $self->putJobLog("warning", "WE HAD ".scalar(keys(%$fs_table))
                  ." files and archives to store, we successfully stored $successCounter")
               and  $self->putJobLog("warning", "YET NOT ALL FILES AND ARCHIVES were stored as many times as specified.");
 
