@@ -1580,7 +1580,7 @@ sub prepare_File_And_Archives_From_JDL_And_Upload_Files{
   my @defaultTags = ();
   #######################################################################################################
   #######################################################################################################
-  my $defaultSEsString = join(";1,",@localDefaultSEs).";1";
+  my $defaultSEsString = join(",",@localDefaultSEs);
   my $defaultTagString = join(",",@defaultTags);
   $defaultArchiveName=~ s/\:\://g; # if :: exists in the filename, the later processing will fail !
   #######
