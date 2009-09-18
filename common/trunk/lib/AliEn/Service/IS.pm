@@ -8,6 +8,7 @@ use AliEn::Database::IS;
 use AliEn::Database::TaskQueue;
 use AliEn::Database::Catalogue;
 
+
 use AliEn::UI::Catalogue;
 use AliEn::Service;
 use strict;
@@ -708,7 +709,6 @@ sub getCloseSE{
 }
 
 
-
 sub getSEListFromSiteSECache{
    my $this=shift;
    my $count=(shift || 0);
@@ -718,7 +718,10 @@ sub getSEListFromSiteSECache{
    $self->info("The SERank Cache is accessed");
    $self->info("Parameters are, Type: $type, Count: $count, Site: $sitename, Exclud. Ses: @$excludeList");
 
-   my $catalogueDB=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn("select sename from SE");
+   my $catalogue=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
+
+
+   my $catalogueDB=$catalogue->queryColumn("select sename from SE");
 
 $self->info("CATALOGUE_DB: We asked for the SE table in the catalogue, we got:");
 foreach (@$catalogueDB) { $self->info("CATALOGUE_DB: one se element is: $_"); }
@@ -733,7 +736,7 @@ foreach (@$catalogueDB) { $self->info("CATALOGUE_DB: one se element is: $_"); }
 
 $self->info("query on DB will be: ||$query||");
  
-   return $self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn($query);
+   return $catalogue->queryColumn($query);
 }
 
 
@@ -741,13 +744,15 @@ sub checkSiteSECache{
    my $this=shift;
    my $site=shift;
 
+   my $catalogue=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
+
 $self->info("Checking the SERank Cache for site: $site");
 
    my $query="SELECT sitename FROM SERanks WHERE sitename = '$site';";
 
 $self->info("query on DB will be: ||$query||");
 
-   my $reply = $self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn($query);
+   my $reply = $catalogue->queryColumn($query);
 
 $self->info("Reply was: @$reply .");  
 
@@ -761,6 +766,9 @@ $self->info("Reply was: @$reply .");
 sub updateSiteSECacheForSite{
    my $this=shift;
    my $site=shift;
+
+   my $catalogue=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
+
    $self->info("Starting the add SERank Cache entries for site: $site");
 
    my $query = "INSERT INTO SERanks (sitename,rank,sename) "
@@ -769,7 +777,8 @@ sub updateSiteSECacheForSite{
 
 $self->info("query on DB will be: ||$query||");
 
-   my $reply = $self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn($query);
+   my $reply = $catalogue->queryColumn($query);
+
    
    return 1;
 }
