@@ -37,6 +37,8 @@ sub initialize {
   
 
   my $role="admin";
+
+
   $ENV{ALIEN_DATABASE_SSL} and $role.="ssl";
   my $connect={DEBUG=>$self->{DEBUG}, 
 	       ROLE=>$role};
@@ -716,7 +718,7 @@ sub getSEListFromSiteSECache{
    $self->info("The SERank Cache is accessed");
    $self->info("Parameters are, Type: $type, Count: $count, Site: $sitename, Exclud. Ses: @$excludeList");
 
-   my $catalogueDB=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->queryColumn("select sename from SE");
+   my $catalogueDB=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn("select sename from SE");
 
 $self->info("CATALOGUE_DB: We asked for the SE table in the catalogue, we got:");
 foreach (@$catalogueDB) { $self->info("CATALOGUE_DB: one se element is: $_"); }
@@ -726,12 +728,12 @@ foreach (@$catalogueDB) { $self->info("CATALOGUE_DB: one se element is: $_"); }
    my $query="SELECT SERanks.seName FROM SERanks,SE WHERE "
       ." sitename = '$sitename' and SERanks.seName = SE.seName ";
    foreach(@$excludeList){   $query .= "and SERanks.seName <> '$_' ";   }  
-   $type and $query .=" and SE.seQoS='$type'"; 
+   $type and $query .=" and SE.seQoS  LIKE '%$type%'"; 
    $query .= " ORDER BY rank ASC limit $count ;";
 
 $self->info("query on DB will be: ||$query||");
  
-   return $self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->queryColumn($query);
+   return $self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn($query);
 }
 
 
@@ -741,15 +743,15 @@ sub checkSiteSECache{
 
 $self->info("Checking the SERank Cache for site: $site");
 
-   my $query="SELECT sitename FROM SiteCache WHERE sitename = '$site';";
+   my $query="SELECT sitename FROM SERanks WHERE sitename = '$site';";
 
 $self->info("query on DB will be: ||$query||");
 
-   my $reply = $self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->queryColumn($query);
+   my $reply = $self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn($query);
 
 $self->info("Reply was: @$reply .");  
 
-   (@$reply[0] ne $site) and $self->info("We need to update the SERank Cache. Adding not listed site: $site")
+   (scalar(@$reply) < 1) and $self->info("We need to update the SERank Cache. Adding not listed site: $site")
             and return $self->updateSiteSECacheForSite($site);
    return 1;
 }
@@ -759,29 +761,16 @@ $self->info("Reply was: @$reply .");
 sub updateSiteSECacheForSite{
    my $this=shift;
    my $site=shift;
-   $self->info("Starting the update SERank Cache for site: $site");
+   $self->info("Starting the add SERank Cache entries for site: $site");
 
-# we need to get the ip, the hostname and the name of the site !
-my $siteip = "137.138.170.238";
-my $hostname = "pcepalice10.cern.ch";
-
-   my $query = "INSERT INTO SiteCache (sitename,ip,hostname) VALUES ('".$site."','".$siteip."','".$hostname."');";
-   my $reply = $self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->queryColumn($query);
-
-   $query="SELECT sename FROM SERanks WHERE sitename = '$site';";
-$self->info("query on DB will be: ||$query||");
-
-   $reply = $self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->queryColumn($query);
-$self->info("Reply was: @$reply .");
-
-   if (scalar(@$reply) < 1) {
-      $self->info("We need to update the SERank Table/Cache. Adding SE entries for site: $site");
-      $query = "INSERT INTO SERanks (sitename,rank,sename) "
+   my $query = "INSERT INTO SERanks (sitename,rank,sename) "
            ."SELECT '$site' sitename, \@num := \@num + 1 rank , SE.seName FROM "
            ."(SELECT \@num := 0) rank, SE ;";
+
 $self->info("query on DB will be: ||$query||");
-      $reply = $self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->queryColumn($query);
-   }
+
+   my $reply = $self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn($query);
+   
    return 1;
 }
 

@@ -21,9 +21,9 @@ sub checkWakesUp {
   $self->$method(@info, "The SE Rank optimizer starts");
   $self->{SLEEP_PERIOD}=7200;
 
-  my $catalogue=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB};
+  my $catalogue=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
 
-  my $sites = $catalogue->queryColumn("select ip from SiteCache");
+  my $sites = $catalogue->queryColumn("select distinct sitename from SERanks");
 
   $self->$method(@info, "SE Rank Optimizer, the sites are: @$sites");
 
@@ -35,8 +35,11 @@ sub checkWakesUp {
 
      for my $rank(0..$#{$selist}) {
       
-        $catalogue->do(" update SERanks,SiteCache set SERanks.rank=$rank where SERanks.seName='$$selist[$rank]' and SiteCache.ip='$site' and SERanks.sitename=SiteCache.sitename");
+        $catalogue->do(" update SERanks set SERanks.rank=$rank,SERanks.updated=1 where SERanks.seName='$$selist[$rank]' and SERanks.sitename='$site'");
      }
+  
+     $catalogue->do("delete from SERanks where SERanks.updated=0 and SERanks.sitename='$site'");
+     $catalogue->do(" update SERanks set SERanks.updated=0 where SERanks.sitename='$site'");
   }
 
   $self->info("Going back to sleep");
@@ -47,7 +50,7 @@ sub checkWakesUp {
 
 sub rankStorageElementsWithMonAlisa{
    my $self=shift;
-   my $siteip=(shift || "");
+   my $sitename=(shift || "");
    my $silent=(shift || "");
 
 
@@ -55,7 +58,7 @@ sub rankStorageElementsWithMonAlisa{
 
    my $url=$self->{CONFIG}->{SEDETECTMONALISAURL}."?";
 
-   ($siteip and $siteip ne "") and $url .= "ip=$siteip&";
+   ($sitename and $sitename ne "") and $url .= "site=$sitename&";
    $url .= "dumpall=true";
 
 
