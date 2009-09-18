@@ -55,19 +55,6 @@ sub initialize {
     $self->checkTable($_, "host", \%columns, "name");
   }
 
-  $self->checkTable("SiteCache", "name", {
-		name => "varchar(200) collate latin1_general_ci NOT NULL default ''",
-		ip => "char(16)",
-		hostname => "varchar(200)" }, "name");		
-
-  $self->checkTable("SERanks", "id",{
-		id => "int(6) not null AUTO_INCREMENT, PRIMARY KEY (id)",
-		sitename => "varchar(200) collate latin1_general_ci ",
-		rank => "int(7)",
-		sename => "varchar(200)collate latin1_general_ci "}, "id");
-
-
-
 
   $self->checkTable("cpu_si2k", "cpu_model_name", {
   		cpu_model_name => "varchar(100)",
