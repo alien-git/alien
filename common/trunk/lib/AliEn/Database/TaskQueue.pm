@@ -257,7 +257,7 @@ sub checkActionTable {
   my %columns= (action=>"char(40) not null primary key",
 		todo=>"int(1) not null default 0");
   $self->checkTable("ACTIONS", "action", \%columns, "action") or return;
-  return $self->do("INSERT IGNORE INTO ACTIONS(action) values  ('INSERTING'), ('MERGING'), ('KILLED'), ('SAVED'), ('SPLITTING'), ('STAGING')");
+  return $self->do("INSERT IGNORE INTO ACTIONS(action) values  ('INSERTING'), ('MERGING'), ('KILLED'), ('SAVED'), ('SAVED_WARN'),('SPLITTING'), ('STAGING')");
 }
 
 #sub insertValuesIntoQueue {
@@ -510,7 +510,7 @@ sub updateStatus{
       && ($dboldstatus !~ /^((ZOMBIE)|(IDLE)|(INTERACTIV))$/ )
       && (! $masterjob)){
     my $message="The job $id [$dbsite] was in status $dboldstatus [$self->{JOBLEVEL}->{$dboldstatus}] and cannot be changed to $status [$self->{JOBLEVEL}->{$status}]";
-    if ($set->{jdl} and $status =~/^(SAVED)|(ERROR_V)$/){
+    if ($set->{jdl} and $status =~/^(SAVED)|(SAVED_WARN)|(ERROR_V)$/){
       $message.= " (although we update the jdl)";
       $self->updateJob($id, {jdl=>$set->{jdl}});
     }
