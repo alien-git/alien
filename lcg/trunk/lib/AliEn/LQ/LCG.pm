@@ -442,7 +442,6 @@ export PATH=\$ALIEN_ROOT/bin:\$PATH
 sub _system {
   my $self=shift;
   my $command=join (" ", @_);
-  $self->info("Doing '$command'");
 
   my $pid;
   local $SIG{ALRM} =sub {
@@ -458,6 +457,8 @@ sub _system {
   my @output;
   eval {
     alarm(300);
+    $self->setEnvironmentForLCG();
+    $self->info("Doing '$command'");
     $pid=open(FILE, "$command |") or
       die("Error doing '$command'!!\n$!");
     @output=<FILE>;
@@ -468,20 +469,48 @@ sub _system {
       if (CORE::kill 0,$pid) {
         my $kid;
         do {
-  	  $kid = waitpid($pid, WNOHANG);
+          $kid = waitpid($pid, WNOHANG);
         }   until $kid > 0;
       }
     }
     alarm(0);
   };
-  if ($@) {
-    $self->info("Error: $@");
+  my $error=$@;
+  $self->unsetEnvironmentForLCG();
+  if ($error) {
+    $self->info("Error: $error");
     close FILE;
     $pid and print "Killing the process $pid\n" and CORE::kill(9, $pid);
     alarm(0);
     return;
   }
   return @output;
+}
+sub setEnvironmentForLCG{
+  my $self=shift;
+
+  $self->info("Setting the environment for an LCG call");
+  $self->{LCG_ENV}={};
+  foreach  my $v ("GLOBUS_LOCATION", "X509_CERT_DIR", "MYPROXY_LOCATION"){
+    $self->{LCG_ENV}->{$v}=$ENV{$v};
+    delete $ENV{$v};
+  }
+  $self->{LCG_ENV}->{PATH}=$ENV{PATH};
+
+  $ENV{PATH}=~ s/$ENV{ALIEN_PATH}//;
+  $self->{LCG_ENV}->{LD_LIBRARY_PATH}=$ENV{LD_LIBRARY_PATH};
+
+  $ENV{LD_LIBRARY_PATH}=~ s/$ENV{ALIEN_LD_LIBRARY_PATH}//;
+
+
+  $ENV{GLOBUS_LOCATION}="/opt/globus";
+}
+sub unsetEnvironmentForLCG{
+  my $self=shift;
+  $self->info("Back to the normal environment");
+  foreach my $v (keys %{$self->{LCG_ENV}}){
+    $ENV{$v}=$self->{LCG_ENV}->{$v};
+  }
 }
 
 sub generateStartAgent{
