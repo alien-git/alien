@@ -1,4 +1,6 @@
+
 PREFIX=@prefix@
+asdf
 
 .PHONY: test 
 
