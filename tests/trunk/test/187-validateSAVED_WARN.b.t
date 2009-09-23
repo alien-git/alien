@@ -31,6 +31,8 @@ BEGIN { plan tests => 1 }
 
   print "OUTPUT FILES ARE THERE\n";
 
+  system ("alien", "proxy-destroy");
+
   $cat->close();
 
   print "OK, TEST WAS FINE\n";
