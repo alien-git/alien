@@ -887,7 +887,7 @@ sub addFile {
 
 #gron $self->info("lfn is: $lfn");
 #gron $self->info("pfn is: $pfn");
-#gron $self->info("sestring is: $sestring");
+$self->info("sestring is: $sestring");
 
   my $result = {};
 
@@ -906,13 +906,6 @@ sub addFile {
 
   foreach (@seentry) {
      if($_ =~ /::/){
-#         if($_  =~ /;\-\d/) {
-#                    $_ =~ s/;\-\d//;
-#                    push @excludedSes, $_;
-#         } else {
-#                    $_ =~ s/;\d//;
-#                    push @ses, $_;
-#         }
           if($_ =~ /!/) {
                 $_ =~ s/!//;
                 push @excludedSes, uc($_);
@@ -968,14 +961,11 @@ sub addFile {
   my $envreq="write-once";
   ($options->{versioning}) and $envreq="write-version";
 
-  $self->debug(1, "\nRegistering  $pfn as $lfn ");
+   $self->debug(2,"we were called with ses: @ses .");
+   $self->debug(2,"we were called with select: $selOutOf.");
+   $self->debug(2,"we were called with exses: @excludedSes .");
+   foreach (keys %$qosTags) { $self->debug(2,"we were called with $_: $qosTags->{$_} .");}
 
-
-#gron $self->info( "\nRegistering  $pfn as $lfn ");
-#gron $self->info("we were called with ses: @ses .");
-#gron $self->info("we were called with select: $selOutOf.");
-#gron $self->info("we were called with exses: @excludedSes .");
-#gron foreach (keys %$qosTags) { $self->info("we were called with $_: $qosTags->{$_} .");}
 
    $result = $self->putOnStaticSESelectionList($result,$pfn,$lfn,$size,"",$envreq,$selOutOf,\@ses);
 
@@ -983,14 +973,12 @@ sub addFile {
        $result = $self->putOnDynamicDiscoveredSEListByQoS($result,$pfn,$lfn,$size,"",$envreq,$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes);
    }
 
-#gron $result->{status} and $self->info("DEBUG: status store on SE is ok");
    $result->{status} or $self->info("Error, we couldn't add/store the file on any SE!") and return;
 
    my $registered = $self->{CATALOG}->f_registerFile( "-f", $lfn, $result->{size}, $result->{seref}, $result->{guid}, undef,undef, $result->{md5}, $result->{se}->{$result->{seref}}->{pfn});
    
    foreach my $se (keys(%{$result->{se}})) {
-     $se ne $result->{seref}
-       and  $self->{CATALOG}->f_addMirror( $lfn, $se, $result->{se}->{$se}->{pfn}, "-c","-md5=".$result->{md5});
+     $se ne $result->{seref} and  $self->{CATALOG}->f_addMirror( $lfn, $se, $result->{se}->{$se}->{pfn}, "-c","-md5=".$result->{md5});
    }
 
     if ($totalCount eq scalar(keys %{$result->{se}})){
@@ -2008,24 +1996,10 @@ Usage:
 ";
 }
 
-#
-#sub upload {
-#  my $self=shift;
-#  $self->debug(1, "Starting the upload with @_");
-#
-#  (my $options, @_)=$self->GetOpts(@_);
-#  my $pfn=shift;
-#  my $se=(shift or $self->{CONFIG}->{SAVESE_FULLNAME} or $self->{CONFIG}->{SE_FULLNAME} or "") ;
-#  my $guid=shift || "";
-#
-#
-#  if ($se=~ /^local$/i){
-#
 
 sub upload {
    my $self=shift;
    $self->debug(1, "Starting the upload with @_");
-   $self->info("Starting the upload with @_");
    (my $options, @_)=$self->GetOpts(@_);
  
    my $pfn=shift;
@@ -2043,7 +2017,7 @@ sub upload {
    my $maximumCopyCount = 9;
    my $selOutOf=0;
  
-#gron $self->info("Sitename is: $self->{CONFIG}->{SITE}");
+   $self->debug(2,"Sitename is: $self->{CONFIG}->{SITE}");
  
    my @ses = ();
    my @excludedSes = ();
@@ -2092,20 +2066,17 @@ sub upload {
        }
   }
 
-
- 
-
-#gron $self->info("we were called with ses: @ses .");  
-#gron $self->info("we were called with select: $selOutOf.");  
-#gron $self->info("we were called with exses: @excludedSes .");  
-#gron foreach (keys %$qosTags) { $self->info("we were called with $_: $qosTags->{$_} .");}
+  $self->debug(2,"we were called with ses: @ses .");  
+  $self->debug(2,"we were called with select: $selOutOf.");  
+  $self->debug(2,"we were called with exses: @excludedSes .");  
+  foreach (keys %$qosTags) { $self->debug(2,"we were called with $_: $qosTags->{$_} .");}
 
   
    
-   $result = $self->putOnStaticSESelectionList($result,$pfn,"/NOLFN",$size,$guid,"write-once",$selOutOf,\@ses);
+   $result = $self->putOnStaticSESelectionList($result,$pfn,"/NOLFN",$size,$guid,"write-once",$selOutOf,\@ses,1);
 
    foreach my $qos(keys %$qosTags){
-       $result = $self->putOnDynamicDiscoveredSEListByQoS($result,$pfn,"/NOLFN",$size,$guid,"write-once",$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes);
+       $result = $self->putOnDynamicDiscoveredSEListByQoS($result,$pfn,"/NOLFN",$size,$guid,"write-once",$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes,1);
    }
 
 
@@ -2114,34 +2085,6 @@ sub upload {
  
    return $result;
 }
-
-#  }else {
-#    $self->info("Making a link to the file $pfn");
-#
-#    my $url=AliEn::SE::Methods->new($pfn) 
-#      or $self->info( "Error creating the url of $pfn")
-#	and return;
-#
-#    my $size=$url->getSize();
-#    defined $size or $self->info("Error getting the size of $pfn") 
-#      and return;
-#    
-#    my $md5=AliEn::MD5->new($pfn);
-#    my ($newguid, $sename)=$self->registerFileInSE($se, undef, $pfn, $size, {md5=>$md5}) or return;
-#    $data->{guid}=$newguid;
-#    $data->{size}=$size;
-#    $data->{md5}=$md5;
-#    $self->info("The upload of $pfn worked!!"); 
-#    $se or $se=$self->{CONFIG}->{SE_FULLNAME};
-#    return {guid=>$data->{guid},
-#	  selist=>$se,
-#	  size=>$data->{size},
-#	  md5=>$data->{md5},
-#	  pfn=>$data->{pfn},
-#	  };
-#  }
-
-
 
 
 sub putOnStaticSESelectionList{
@@ -2154,49 +2097,25 @@ sub putOnStaticSESelectionList{
    my $envreq=(shift || "");
    my $selOutOf=(shift || 0);
    my $ses=(shift || "");
- 
+   my $pfnRewrite=(shift || 0);
 
-   # we take seloutof==0 as take all !
    $selOutOf eq 0 and  $selOutOf = scalar(@$ses);
-   
 
-  while ((scalar(@$ses) gt 0 and $selOutOf gt 0)) {
+   while ((scalar(@$ses) gt 0 and $selOutOf gt 0)) {
   
-      (scalar(@$ses) gt 0) and my @staticSes= splice(@$ses, 0, $selOutOf);
-      $self->info("Will use the following list of statically selected SE list to save on: @staticSes . The remaing SEs are: @$ses, select was: $selOutOf");
-      my $envelopes = {};
-    
-      for my $j(0..$#staticSes) {
-        my @envelope= $self->access("-s",$envreq,$lfn, $staticSes[$j], $size,0,"$guid");
-        if(@envelope) {
-            $envelopes->{$staticSes[$j]}=$envelope[0];
-        } else {
-            $self->info("Error getting the security envelope");
-            delete $staticSes[$j];
-        }
-      }
-  
-      ($result, my $usedSes, my $failedSes)
-        = $self->registerInMultipleSEs($result, $pfn, \@staticSes,  undef, undef, $guid, $envelopes, $size);
+     (scalar(@$ses) gt 0) and my @staticSes= splice(@$ses, 0, $selOutOf);
 
-#gron $self->info("UI_LCM_UPLOAD_STATIC: done registerInMultipleSEs, we have, failed SEs: @$failedSes, used SEs: @$usedSes, and seloutof: $selOutOf.");
-      #$result->{status} and $result->{envref} = $envelopes->{$result->{seref}}->{envelope};
+
+     $self->debug(1,"We select out of a supplied static list the following SEs to save on: @staticSes, count:".scalar(@staticSes));
+
+     ($result, my $success, my $JustConsideredSes) = $self->registerInMultipleSEs($result, $pfn, $guid, $lfn, $size, \@staticSes, $envreq, $pfnRewrite);
      
-     
-     
-     foreach my $se (@$usedSes){
-        $selOutOf--; 
-        
-# the following code replaces pfns. it is only needed in case of an upload (not add) on certain SE (dCache)
-        if ($envelopes->{$se}->{url}){
-          my $newPFN=$envelopes->{$se}->{url};
-          $newPFN=~ s{^([^/]*//[^/]*)//(.*)$}{$1/$envelopes->{$se}->{url}};
-          $newPFN=~ m{root:////} and $newPFN="";
-          $newPFN and $self->info("Using the pfn of the security envelope '$newPFN'") and $result->{$se}->{pfn}=$newPFN;
-        }
-     }
-  }
-  return $result;
+     $self->debug(2,"We came back and stored $success times.");
+
+     $selOutOf = $selOutOf - $success;
+
+   }
+   return $result;
 }  
 
 
@@ -2213,50 +2132,31 @@ sub putOnDynamicDiscoveredSEListByQoS{
    my $qos=(shift || "");
    my $sitename=(shift || "");
    my $excludedSes=(shift || "");
+   my $pfnRewrite=(shift || 0);
 
    while($count gt 0) {
+     
+     $self->debug(2,"Going to ask for $count SEs with qos flag $qos in the cache.");;
 
      my $res = $self->{SOAP}->CallSOAP("IS", "getSEListFromSiteSECache", $count, $qos, $sitename, $excludedSes);
      $self->{SOAP}->checkSOAPreturn($res) or next ;
      my @discoveredSes=@{$res->result};
 
-     $self->info("Will use the following list of dynamic discovered SEs to save on: @discoveredSes . Count was: $count , type flag was: $qos.");
+     scalar(@discoveredSes) gt 0 or last and $self->info("We could'nt find any of the $count requested SEs with qos flag $qos in the cache.");;
 
-     scalar(@discoveredSes) gt 0 or last;
+     $self->debug(1,"We discovered the following SEs to save on: @discoveredSes, count:".scalar(@discoveredSes).", type flag was: $qos.");
 
+     ($result, my $success, my $JustConsideredSes) = $self->registerInMultipleSEs($result, $pfn, $guid, $lfn, $size, \@discoveredSes, $envreq, $pfnRewrite);
 
-     my $envelopes = {};
-     for my $j(0..$#discoveredSes) {
-        my @envelope= $self->access("-s",$envreq,$lfn, $discoveredSes[$j], $size,0,"$guid");
-        if(@envelope) {
-            $envelopes->{$discoveredSes[$j]}=$envelope[0]; 
-        } else {
-            $self->info("Error getting the security envelope");
-            push @$excludedSes, $discoveredSes[$j]; 
-            delete $discoveredSes[$j];
-        }
-     } 
+     push @$excludedSes, @$JustConsideredSes;
 
-     ($result, my $usedSes, my $failedSes) 
-        = $self->registerInMultipleSEs($result, $pfn, \@discoveredSes,  undef, undef, $guid, $envelopes, $size);
-     push @$excludedSes, @$failedSes;
-     push @$excludedSes, @$usedSes;
-     #$result->{status} and $result->{envref} = $envelopes->{$result->{seref}}->{envelope};
+     $self->debug(2,"Saving on qos $qos, we came back and stored $success times.");
 
-     foreach my $se (@$usedSes){ 
-        $count--;
-# the following code replaces pfns. it is only needed in case of an upload (not add) on certain SE (dCache)
-        if ($envelopes->{$se}->{url}){
-          my $newPFN=$envelopes->{$se}->{url};
-          $newPFN=~ s{^([^/]*//[^/]*)//(.*)$}{$1/$envelopes->{$se}->{url}};
-          $newPFN=~ m{root:////} and $newPFN="";
-          $newPFN and $self->info("Using the pfn of the security envelope '$newPFN'") and $result->{$se}->{pfn}=$newPFN;
-        }
-     }    
+     $count = $count - $success;
+
   }
   return $result;
 }
-
 
 
 
@@ -2265,72 +2165,84 @@ sub registerInMultipleSEs {
   my $self  = shift;
   my $result = (shift || {});
   my $pfn   = shift;
-  my $ses = ( shift || {} );
-  my $lfn=(shift || "");
-  my $options=(shift || "");
   my $reqGuid=(shift || "");
-  my $envelopes=(shift || {});
+  my $lfn=(shift || "");
   my $size=(shift || 0);
+  my $suggestedSes = ( shift || {} );
+  my $envreq=(shift || "");
+  my $pfnRewrite=(shift || 0);
+
 
   $reqGuid eq "" and $result->{guid} and $reqGuid = $result->{guid};
 
-#my $result = {};
-
-  ($pfn)
-    or $self->{LOGGER}->warning( "LCM", "Error no pfn specified" )
-      and return;
-
-  my @failedSes = ();
-  my @usedSes = ();
+  ($pfn) or $self->{LOGGER}->warning( "LCM", "Error no pfn specified" ) and return;
+  
   my $firstHit = 0;
+  my $successCounter = 0;
+  my @ses= ();
+  my @excludedSes = ();
 
-  for my $j(0..$#{$ses}) {
+  my $envelopes = {};
+  for my $j(0..$#{$suggestedSes}) {
+     my @envelope= $self->access("-s",$envreq,$lfn, @$suggestedSes[$j], $size,0,"$reqGuid");
+     if(@envelope) {
+         $envelopes->{@$suggestedSes[$j]}=$envelope[0]; 
+         push @ses, @$suggestedSes[$j];
+     } else {
+         $self->info("Error getting the security envelope");
+         push @excludedSes, @$suggestedSes[$j]; 
+     }
+  } 
 
-     $envelopes->{@$ses[$j]} or $self->{LOGGER}->warning( "LCM", "Missing envelope for SE: @$ses[$j]" ) and next; 
+  $self->debug(2,"We got envelopes for and will use the following SEs to save on: @ses, count:".scalar(@ses));
+
+  for my $j(0..$#ses) {
+
+     $envelopes->{$ses[$j]} or $self->{LOGGER}->warning( "LCM", "Missing envelope for SE: $ses[$j]" ) and next; 
 
      my $start=time;
 
-     $self->info( "Adding the file $pfn to @$ses[$j]" );
+     $self->info( "Adding the file $pfn to $ses[$j]" );
      my $res;
      my $z = 0;
      while ($z < 5 ) {   # try five times in case of error
-          $res= $self->{STORAGE}->RegisterInRemoteSE($pfn, @$ses[$j], $lfn, $options, $reqGuid, $envelopes->{@$ses[$j]});
+          $res= $self->{STORAGE}->RegisterInRemoteSE($pfn, $ses[$j], $lfn, undef, $reqGuid, $envelopes->{$ses[$j]});
           $res and $z = 6 or $z++;
      }
 
-     $res or print STDERR "ERROR storing $pfn in @$ses[$j]\n" 
-       and push @failedSes , @$ses[$j]
-        and next;
+     $res or print STDERR "ERROR storing $pfn in $ses[$j]\n" and push @excludedSes, $ses[$j] and next;
 
+     $res->{pfn} or $self->{LOGGER}->warning( "LCM", "Error transfering the file to the SE" );
 
-     #($res eq -1) and  print STDERR "ERROR copying $pfn\n". $res->paramsout . "\n";
-
-     $res->{pfn}   or $self->{LOGGER}->warning( "LCM", "Error transfering the file to the SE" );
-
-    
-#gron $self->info("DEBUG: res was ok, after storage->RegisterInRemoteSE");
-   
      my $time=time-$start;
-     $self->sendMonitor("write", @$ses[$j], $time, $size, $res);
-
+     $self->sendMonitor("write", $ses[$j], $time, $size, $res);
 
      if($firstHit eq 0 and (! $result->{status})) {
         $result->{guid} = $res->{guid};
         $result->{md5} = $res->{md5};
         $result->{size} = $res->{size};
         $result->{pfn} = $res->{pfn};
-        $result->{seref} = @$ses[$j];
+        $result->{seref} = $ses[$j];
         $result->{status} = 1;
         $firstHit = 1;
-#gron $self->info("DEBUG: registered data for first SE, status is ok");
+        $self->debug(1,"Registered data for first SE, status is ok");
      }
-     $result->{se}->{@$ses[$j]}->{pfn}=$res->{pfn};
-     push @usedSes, @$ses[$j];
+     $result->{se}->{$ses[$j]}->{pfn}=$res->{pfn};
+
+     if ($envelopes->{$ses[$j]}->{url} and $pfnRewrite){
+          my $newPFN=$envelopes->{$ses[$j]}->{url};
+          $newPFN=~ s{^([^/]*//[^/]*)//(.*)$}{$1/$envelopes->{$ses[$j]}->{url}};
+          $newPFN=~ m{root:////} and $newPFN="";
+          $newPFN and $self->info("Using the pfn of the security envelope '$newPFN'") and $result->{$ses[$j]}->{pfn}=$newPFN;
+     }
+     push @excludedSes, $ses[$j];
+     $successCounter++;
   }
 
-
-  return $result,\@usedSes, \@failedSes;
+  return $result, $successCounter, \@excludedSes;
 }
+
+
 
 
 
