@@ -2074,7 +2074,7 @@ sub upload {
        $result = $self->putOnDynamicDiscoveredSEListByQoS($result,$pfn,"/NOLFN",$size,$guid,"write-once",$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes,1);
    }
 
-   if ($result->{status} ne 1 and $selOutOf le 0){ # if dynamic was either not specified or not successfull (not even one time, that's $result->{status} ne 1) 
+   if (!$result->{status} and $selOutOf le 0){ # if dynamic was either not specified or not successfull (not even one time, that's $result->{status} ne 1) 
       push @ses, $self->{CONFIG}->{SE_FULLNAME};   # and there were not SEs specified in a static list, THEN push in at least the local static LDAP entry not to loose data
       $totalCount = 1;
    }
