@@ -153,10 +153,10 @@ sub createCatalogueTables {
 					   time=>"timestamp default current_timestamp",
 					   extra=>"varchar(255)"}, undef, ['UNIQUE INDEX(tableNumber,action)']],
              SERanks=>["sitename", {sitename=>"varchar(100) collate latin1_general_ci  not null",
-                                    seName=>"varchar(100) collate latin1_general_ci not null",
+                                    seNumber=>"integer not null",
                                     rank=>"smallint(7) not null",
                                     updated=>"smallint(1)"}, 
-                                    undef, ['UNIQUE INDEX(sitename,seName), PRIMARY KEY(sitename,seName), INDEX(sitename), INDEX(seName)']],
+                                    undef, ['UNIQUE INDEX(sitename,seNumber), PRIMARY KEY(sitename,seNumber), INDEX(sitename), INDEX(seNumber)']],
                                       
 	         );
   foreach my $table (keys %tables){

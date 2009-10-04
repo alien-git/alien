@@ -1535,7 +1535,7 @@ sub access {
     my $newhash=$info->result;
     if (!$newhash->{envelope} ){
       my $error=$newhash->{error} || "";
-      $self->info("We are putting the error $error");
+      $self->info("There was an error, putting into log: $error");
       $self->info($self->{LOGGER}->error_msg());
       $self->info("There is no envelope ($error)!!", 1);
       return;
@@ -2055,30 +2055,31 @@ sub upload {
 
 
   #if nothing is specified, we get the default case, priority on LDAP entry
-  if($totalCount le 0) {
-       if ($self->{CONFIG}->{SEDEFAULT_QOSAND_COUNT}) {
+  if($totalCount le 0 and $self->{CONFIG}->{SEDEFAULT_QOSAND_COUNT}) {
             my ($repltag, $copies)=split (/\=/, $self->{CONFIG}->{SEDEFAULT_QOSAND_COUNT},2);
             $qosTags->{$repltag} = $copies;
             $totalCount += $copies;
-       } else {
-             push @ses, $self->{CONFIG}->{SE_FULLNAME};
-             $totalCount = 1;
-       }
   }
 
-  $self->debug(2,"we were called with ses: @ses .");  
-  $self->debug(2,"we were called with select: $selOutOf.");  
-  $self->debug(2,"we were called with exses: @excludedSes .");  
-  foreach (keys %$qosTags) { $self->debug(2,"we were called with $_: $qosTags->{$_} .");}
+  #$self->debug(2,"we were called with ses: @ses .");  
+  #$self->debug(2,"we were called with select: $selOutOf.");  
+  #$self->debug(2,"we were called with exses: @excludedSes .");  
+  #foreach (keys %$qosTags) { $self->debug(2,"we were called with $_: $qosTags->{$_} .");}
 
   
    
-   $result = $self->putOnStaticSESelectionList($result,$pfn,"/NOLFN",$size,$guid,"write-once",$selOutOf,\@ses,1);
 
    foreach my $qos(keys %$qosTags){
+        $self->info("Processing storage discovery qos: $qos with $qosTags->{$qos} requested elements.");
        $result = $self->putOnDynamicDiscoveredSEListByQoS($result,$pfn,"/NOLFN",$size,$guid,"write-once",$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes,1);
    }
 
+   if ($result->{status} ne 1 and $selOutOf le 0){ # if dynamic was either not specified or not successfull (not even one time, that's $result->{status} ne 1) 
+      push @ses, $self->{CONFIG}->{SE_FULLNAME};   # and there were not SEs specified in a static list, THEN push in at least the local static LDAP entry not to loose data
+      $totalCount = 1;
+   }
+   
+   $result = $self->putOnStaticSESelectionList($result,$pfn,"/NOLFN",$size,$guid,"write-once",$selOutOf,\@ses,1);
 
  
    $result->{totalCount}=$totalCount;
@@ -2106,11 +2107,11 @@ sub putOnStaticSESelectionList{
      (scalar(@$ses) gt 0) and my @staticSes= splice(@$ses, 0, $selOutOf);
 
 
-     $self->debug(1,"We select out of a supplied static list the following SEs to save on: @staticSes, count:".scalar(@staticSes));
+     $self->info("We select out of a supplied static list the following SEs to save on: @staticSes, count:".scalar(@staticSes));
 
      ($result, my $success, my $JustConsideredSes) = $self->registerInMultipleSEs($result, $pfn, $guid, $lfn, $size, \@staticSes, $envreq, $pfnRewrite);
      
-     $self->debug(2,"We came back and stored $success times.");
+     $self->info("We came back and stored $success times.");
 
      $selOutOf = $selOutOf - $success;
 
@@ -2136,21 +2137,21 @@ sub putOnDynamicDiscoveredSEListByQoS{
 
    while($count gt 0) {
      
-     $self->debug(2,"Going to ask for $count SEs with qos flag $qos in the cache.");;
+     $self->info("Going to ask for '$count' SEs with qos flag '$qos' in the cache.");;
 
      my $res = $self->{SOAP}->CallSOAP("IS", "getSEListFromSiteSECache", $count, $qos, $sitename, $excludedSes);
      $self->{SOAP}->checkSOAPreturn($res) or next ;
      my @discoveredSes=@{$res->result};
 
-     scalar(@discoveredSes) gt 0 or last and $self->info("We could'nt find any of the $count requested SEs with qos flag $qos in the cache.");;
+     scalar(@discoveredSes) gt 0 or $self->info("We could'nt find any of the '$count' requested SEs with qos flag '$qos' in the cache.") and last;;
 
-     $self->debug(1,"We discovered the following SEs to save on: @discoveredSes, count:".scalar(@discoveredSes).", type flag was: $qos.");
+     $self->info("We discovered the following SEs to save on: @discoveredSes, count:".scalar(@discoveredSes).", type flag was: $qos.");
 
      ($result, my $success, my $JustConsideredSes) = $self->registerInMultipleSEs($result, $pfn, $guid, $lfn, $size, \@discoveredSes, $envreq, $pfnRewrite);
 
      push @$excludedSes, @$JustConsideredSes;
 
-     $self->debug(2,"Saving on qos $qos, we came back and stored $success times.");
+     $self->info("Saving on qos '$qos', we came back and stored '$success' times.");
 
      $count = $count - $success;
 
@@ -2194,7 +2195,7 @@ sub registerInMultipleSEs {
      }
   } 
 
-  $self->debug(2,"We got envelopes for and will use the following SEs to save on: @ses, count:".scalar(@ses));
+  $self->info("We got envelopes for and will use the following SEs to save on: @ses, count:".scalar(@ses));
 
   for my $j(0..$#ses) {
 
@@ -2225,7 +2226,7 @@ sub registerInMultipleSEs {
         $result->{seref} = $ses[$j];
         $result->{status} = 1;
         $firstHit = 1;
-        $self->debug(1,"Registered data for first SE, status is ok");
+        $self->info("Registered data for first SE, status is ok");
      }
      $result->{se}->{$ses[$j]}->{pfn}=$res->{pfn};
 

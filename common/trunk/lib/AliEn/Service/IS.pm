@@ -718,25 +718,22 @@ sub getSEListFromSiteSECache{
    $self->info("The SERank Cache is accessed");
    $self->info("Parameters are, Type: $type, Count: $count, Site: $sitename, Exclud. Ses: @$excludeList");
 
-   my $catalogue=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
-
-
-   my $catalogueDB=$catalogue->queryColumn("select sename from SE");
+   my $catalogueDB=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn("select sename from SE");
 
 $self->info("CATALOGUE_DB: We asked for the SE table in the catalogue, we got:");
 foreach (@$catalogueDB) { $self->info("CATALOGUE_DB: one se element is: $_"); }
 
    $self->checkSiteSECache($sitename) or return 0;
 
-   my $query="SELECT SERanks.seName FROM SERanks,SE WHERE "
-      ." sitename = '$sitename' and SERanks.seName = SE.seName ";
-   foreach(@$excludeList){   $query .= "and SERanks.seName <> '$_' ";   }  
+   my $query="SELECT SE.seName FROM SERanks,SE WHERE "
+      ." sitename = '$sitename' and SERanks.seNumber = SE.seNumber ";
+   foreach(@$excludeList){   $query .= "and SE.seName <> '$_' ";   }  
    $type and $query .=" and SE.seQoS  LIKE '%$type%'"; 
    $query .= " ORDER BY rank ASC limit $count ;";
 
 $self->info("query on DB will be: ||$query||");
  
-   return $catalogue->queryColumn($query);
+   return $self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn($query);
 }
 
 
@@ -744,15 +741,13 @@ sub checkSiteSECache{
    my $this=shift;
    my $site=shift;
 
-   my $catalogue=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
-
 $self->info("Checking the SERank Cache for site: $site");
 
    my $query="SELECT sitename FROM SERanks WHERE sitename = '$site';";
 
 $self->info("query on DB will be: ||$query||");
 
-   my $reply = $catalogue->queryColumn($query);
+   my $reply = $self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn($query);
 
 $self->info("Reply was: @$reply .");  
 
@@ -766,19 +761,15 @@ $self->info("Reply was: @$reply .");
 sub updateSiteSECacheForSite{
    my $this=shift;
    my $site=shift;
-
-   my $catalogue=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
-
    $self->info("Starting the add SERank Cache entries for site: $site");
 
-   my $query = "INSERT INTO SERanks (sitename,rank,sename) "
-           ."SELECT '$site' sitename, \@num := \@num + 1 rank , SE.seName FROM "
+   my $query = "INSERT INTO SERanks (sitename,rank,seNumber,updated) "
+           ."SELECT '$site' sitename, \@num := \@num + 1 rank , SE.seNumber, 0 updated FROM "
            ."(SELECT \@num := 0) rank, SE ;";
 
 $self->info("query on DB will be: ||$query||");
 
-   my $reply = $catalogue->queryColumn($query);
-
+   my $reply = $self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn($query);
    
    return 1;
 }
