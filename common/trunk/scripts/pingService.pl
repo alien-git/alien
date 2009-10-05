@@ -56,8 +56,9 @@ if ($host && $host =~ /^(.*):(\d+)$/){
 #  check_pid($logDir, $serviceName);
 #}
 
+
 # This script cannot check the ProxyServer and MonaLisa because they do not inherit from AliEn::Service
-if ($serviceName =~ /^(ProxyServer)|(MonaLisa)|(CE.*)|(FTD)|(.*Optimizer)$/)
+if ($serviceName =~ /^(ProxyServer)|(MonaLisa)|(CE.*)|(FTD)|(Optimizer.*)$/)
 {
   print "Doing PID-only check for $serviceName...\n";
   check_pid($logDir, $serviceName);
