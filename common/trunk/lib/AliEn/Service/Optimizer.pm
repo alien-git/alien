@@ -122,6 +122,17 @@ sub StartChildren{
   return $self;
 }
 
+sub startListening {
+  my $this=shift;
+
+  $self->info("In fact, this is not a service. We don't listen for anything.");
+  while(1){
+    sleep(90000000);
+  }
+  return 1;
+}
+
+
 
 return 1;
 

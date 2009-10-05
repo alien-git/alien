@@ -122,7 +122,8 @@ sub createCatalogueTables {
 					    username=>'varchar(20)', 
 					    packageVersion=>'varchar(255)',
 					    platform=>'varchar(255)',
-					    lfn=>'varchar(255)'}, 
+					    lfn=>'varchar(255)',
+					    size=>'bigint'}, 
 			],
 	      COLLECTIONS=>['collectionId', {'collectionId'=>"int not null auto_increment primary key",
 					     'collGUID'=>'binary(16)'}],
@@ -1597,21 +1598,6 @@ sub selectDatabase {
   return $db;
 }
 
-sub getLFNfromGUID {
-  my $self=shift;
-  my $guid=shift;
-  my @lfns;
-
-  my $entries=$self->query("select lfn,tableName,hostIndex from INDEXTABLE");
-  foreach my $entry (@$entries){
-    $DEBUG and $self->debug(1, "Checking in the table $entry->{hostIndex}");
-    my ($db, $path2)=$self->reconnectToIndex( $entry->{hostIndex}) or next;
-    my $paths = $db->queryColumn("SELECT concat('$entry->{lfn}',lfn) FROM L$entry->{tableName}L WHERE guid=string2binary(?) ", undef, {bind_values=>[$guid]});
-    $paths and push @lfns, @$paths;
-  }
-
-  return @lfns;
-} 
 
 sub getPathPrefix{
   my $self=shift;
@@ -2110,8 +2096,8 @@ sub updateStats {
 
       my $maxGuidTime=$self->queryValue("select left(min(guidTime),8) from GUIDINDEX where guidTime> (select guidTime from GUIDINDEX where tableName=?  and hostindex=?)", undef, {bind_values=>[ $elem->{tableName}, $elem->{hostIndex}]});
       $self->info("The next guid is $maxGuidTime");
-      my $query="insert into ${gtable}_REF(guidid,lfnRef) select guidid, ? from $gtable g join $table l using (guid) left join ${gtable}_REF r using(guidid) where r.guidid is null and l.guidtime>=(select left(guidtime,8) from GUIDINDEX where tablename=? and hostIndex=? )";
-      my $bind=[$lfnRef, $elem->{tableName}, $elem->{hostIndex}];
+      my $query="insert into ${gtable}_REF(guidid,lfnRef) select g.guidid, ? from $gtable g join $table l using (guid) left join ${gtable}_REF r on g.guidid=r.guidid and lfnref=? where r.guidid is null and l.guidtime>=(select left(guidtime,8) from GUIDINDEX where tablename=? and hostIndex=? )";
+      my $bind=[$lfnRef, $lfnRef, $elem->{tableName}, $elem->{hostIndex}];
       if ($maxGuidTime){
 	$query.=" and l.guidTime<?";
 	push @$bind, $maxGuidTime;

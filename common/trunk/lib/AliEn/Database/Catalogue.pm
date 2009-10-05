@@ -783,7 +783,7 @@ sub selectLFNDatabase {
 
 sub getLFNfromGUID {
   my $self=shift;
-  return $self->{LFN_DB}->getLFNfromGUID(@_);
+  return $self->{GUID_DB}->getLFNfromGUID(@_);
 }
 
 sub getPathPrefix{
@@ -1219,8 +1219,100 @@ sub getDF {
   my $info=$self->{LFN_DB}->{FIRST_DB}->query($query,undef, {bind_values=>$bind});
   return $info;
 
+
 }
 
+
+sub masterSE_list {
+  my $self=shift;
+  my $sename=shift;
+
+  my $senumber=$self->getSENumber($sename)
+    or $self->info("Error getting the se number of $sename")
+      and return;
+
+  my $info={referenced=>0,
+	    unique=>0,
+	    orphan=>0};
+  my $rhosts = $self->{LFN_DB}->getAllHosts();
+
+  foreach my $h (@$rhosts){
+    my ($db, $extra)=$self->{LFN_DB}->reconnectToIndex($h->{hostIndex}) 
+      or next;
+
+    my $tables=$db->queryColumn("SELECT tableName from GUIDINDEX where hostIndex=?", undef,{bind_values=>[$h->{hostIndex}]});
+    foreach my $table (@$tables){
+      $table ="G${table}L" or next;
+      $info->{referenced}+=$db->queryValue("select count(*) from $table join 
+${table}_PFN p  using (guidid) left join ${table}_REF r using (guidid)
+where  p.senumber=? and r.guidid is not null", 
+				   undef, {bind_values=>[$senumber]} );
+
+
+      $info->{broken}+=$db->queryValue("select count(*) from $table join 
+${table}_PFN p  using (guidid) left join ${table}_REF r using (guidid)
+where  p.senumber=? and r.guidid is null", 
+				   undef, {bind_values=>[$senumber]} );
+
+      $info->{unique}+=$db->queryValue("select count(*) from
+   (select guid,guidId, count(*) d from ${table}_PFN join (select guid, guidid from $table  join  ${table}_PFN p  using (guidid) left join ${table}_REF r using (guidid) where    p.senumber=? and r.guidid is not null) s using (guidid) group by guidId) ss where d=1",undef, {bind_values=>[$senumber]} );
+
+    }
+  }
+
+  return $info;
+}
+
+sub masterSE_getFiles{
+  my $self=shift;
+  my $sename=shift;
+  my $previous_table=shift ||"";
+  my $limit=shift;
+  my $options=shift || {};
+
+  my $previous_host;
+  $previous_table =~ s/^(\d+)_// and $previous_host=$1;
+  my $senumber=$self->getSENumber($sename)
+    or $self->info("Error getting the se number of $sename")
+      and return;
+
+  my $return=[];
+  my $rhosts = $self->{LFN_DB}->getAllHosts();
+
+  my $query="select binary2string(guid)guid,pfn from ";
+  my $endquery="";
+  if ($options->{unique}){
+    $query="select * from  ( $query";
+    $endquery=") ss where d=1"
+  }
+  foreach my $h (@$rhosts){
+    #Let's skip all the hosts that we have already seen
+    $previous_host and $previous_host!=$h->{hostIndex} and next;
+    $previous_host="";
+    my ($db, $extra)=$self->{LFN_DB}->reconnectToIndex($h->{hostIndex}) 
+      or next;
+    my $tables=$db->queryColumn("SELECT tableName from GUIDINDEX where hostIndex=? order by 1", undef,{bind_values=>[$h->{hostIndex}]});
+    foreach my $table (@$tables){
+      $table ="G${table}L";
+      $previous_table and $previous_table!~ /^$table$/ and next;
+      if ($previous_table){
+	$previous_table="";
+	next;
+      }
+
+      my $entries=$db->query("$query $table  join  ${table}_PFN p  using (guidid) join ${table}_REF r using (guidid) where p.senumber=? $endquery",undef, {bind_values=>[$senumber]} );
+      $return=[@$return, @$entries];
+      if ($#$return >$limit){
+	$self->info("Let's return now before putting more entries");
+	return ($return, "$h->{hostIndex}_$table");
+      }
+
+    }
+  }
+  $self->info("We have seen all the entries");
+  return ($return,"");
+}
+  
 
 
 =head1 SEE ALSO
