@@ -728,7 +728,7 @@ foreach (@$catalogueDB) { $self->info("CATALOGUE_DB: one se element is: $_"); }
    my $query="SELECT SE.seName FROM SERanks,SE WHERE "
       ." sitename = '$sitename' and SERanks.seNumber = SE.seNumber ";
    foreach(@$excludeList){   $query .= "and SE.seName <> '$_' ";   }  
-   $type and $query .=" and SE.seQoS  LIKE '%$type%'"; 
+   $type and $query .=" and SE.seQoS  LIKE '%,$type,%'"; 
    $query .= " ORDER BY rank ASC limit $count ;";
 
 $self->info("query on DB will be: ||$query||");

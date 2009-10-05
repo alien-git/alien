@@ -1350,6 +1350,7 @@ sub processJDL_split_Output_Filenames_From_Options_And_Initialize_fileTable{
         ($filestring, $options)=split(/\@/, $jdlelement,2);
         my @files = split (/,/, $filestring);
         @files=$self->_findFilesLike(@files);
+        $self->info("Found Files: @files, options: $options");
         foreach my $filename (@files) {
              $fileTable->{$filename}={
                                name=>$filename,
@@ -1568,7 +1569,7 @@ sub prepare_File_And_Archives_From_JDL_And_Upload_Files{
   my $defaultArchiveName= ".alien_archive.$ENV{ALIEN_PROC_ID}.".uc($self->{CONFIG}->{SE_FULLNAME}.".");
 
   my @localDefaultSEs = ();
-  push @localDefaultSEs , $self->{CONFIG}->{SE_FULLNAME};  # we could have done without an array, but maybe we would like to have more than one SE in the future
+  #push @localDefaultSEs , $self->{CONFIG}->{SE_FULLNAME};  # we could have done without an array, but maybe we would like to have more than one SE in the future
 
 
   my @defaultOutputFilesList = ();   # This variable is maybe never again used, but was planned to force certain files not to be lost
@@ -1740,6 +1741,7 @@ sub putFiles {
     my @list=();
     foreach my $key (keys %$submitted){
       my $links="";
+      $submitted->{$key}->{status} or next;
       my $entry=$submitted->{$key};
       if ($entry->{links} ) {
 	$links.=";;".join(";;",@{$entry->{links}});
@@ -1765,18 +1767,23 @@ sub putFiles {
   $self->{CONFIG}=$self->{CONFIG}->Reload({"organisation", $oldOrg});
 
 
-  $incompleteUploades 
-              and $self->putJobLog("warning", "WE HAD ".scalar(keys(%$fs_table))
-                 ." files and archives to store, we successfully stored $successCounter")
-              and  $self->putJobLog("warning", "YET NOT ALL FILES AND ARCHIVES were stored as many times as specified.");
-
-  $incompleteUploades and return -1;
-
-  if (scalar(keys(%$fs_table)) eq $successCounter) {
-      $self->putJobLog("trace","OK, ALL RIGHT. All files and archives for this job where uploaded successfully and as specified.");
-      return 1;
+  if (scalar(keys(%$fs_table)) ne $successCounter) {
+     $self->putJobLog("error","There was at least one file, that we couldn't store on any SE.");
+     return 0;
   }
-  return 0;
+
+  if($incompleteUploades) {
+     $self->putJobLog("warning", "WE HAD ".scalar(keys(%$fs_table))
+             ." files and archives to store, we successfully stored $successCounter");
+     $self->putJobLog("warning", "YET NOT ALL FILES AND ARCHIVES were stored as many times as specified.");
+     return -1;
+  }
+
+  #if (scalar(keys(%$fs_table)) eq $successCounter) {
+  $self->putJobLog("trace","OK, ALL RIGHT. All files and archives for this job where uploaded successfully and as specified.");
+  return 1;
+  #}
+  #return 0;
 }
 
 
@@ -1841,6 +1848,10 @@ sub uploadFile {
     if ($uploadResult->{totalCount} eq scalar(keys %{$uploadResult->{se}})) {
          $self->putJobLog("trace","Successfully stored the file $self->{WORKDIR}/$file on $uploadResult->{totalCount} SEs");
          return (1);
+    }
+    elsif(scalar(keys %{$uploadResult->{se}}) eq 0) {
+         $self->putJobLog("error","Could not store the file $self->{WORKDIR}/$file only on any of the $uploadResult->{totalCount} wished SEs");
+         return 0;
     } else {
          $self->putJobLog("warning","Could store the file $self->{WORKDIR}/$file only on ".scalar(keys %{$uploadResult->{se}}).
 				"  of the $uploadResult->{totalCount} wished SEs");
