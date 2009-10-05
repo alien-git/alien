@@ -402,7 +402,7 @@ sub changeStatusCommand {
   } elsif ( $status eq "SAVING" ) {
     $self->info("Setting the return code of the job as $error");
     $set->{error} = $error;
-  } elsif (( $status eq "SAVED" && $error)|| ( $status eq "SAVED_WARN" && $error)||
+  } elsif (( $status =~ /SAVED.*/ && $error)||
 	   ($status =~ /(ERROR_V)|(STAGING)/)) {
     $self->info("Updating the jdl of the job");
     $set->{jdl} = $error;
@@ -1266,9 +1266,15 @@ sub resubmitCommand {
     or $self->{LOGGER}->error( "JobManager", "In resubmitCommand process $queueId does not belong to '$user'" )
       and return ( -1, "process $queueId does not belong to $user" );
 
-  $self->info("Removing the 'registeredoutput' field");
+  $self->info("Removing the 'registeredoutput' and requirements field");
   $data->{jdl}=~ s/registeredlog\s*=\s*"[^"]*"\s*;\s*//im;
   $data->{jdl}=~ s/registeredoutput\s*=\s*{[^}]*}\s*;\s*//im;
+
+  my $defaultReq=" (other.Type==\"machine\") ";
+  $data->{jdl}=~ s/origrequirements\s*=([^;]*\s*);\s*//im and $defaultReq.=" && $1";
+  $data->{jdl}=~ s/\s(requirements\s*=)\s*[^;]*;\s*/$1$defaultReq/im;
+
+
   $data->{priority}++;
   my $jobId =$self->enterCommand( $data->{submitHost}, $data->{jdl}, "", 
 				  $data->{priority} ,$masterId, $replacedId);
@@ -1533,7 +1539,7 @@ sub getMasterJob {
        return [$data->{command}, @$info,@done];
      }
      push @$info, "$data->{command}ing subjob $subjob";
-     $self->putJobLog($id,"state", "$data->{command}ing  subjob $subjob");
+     $self->putJobLog($id,"state", "$data->{command}ing subjob $subjob ($done[0])");
 
    }
  }
