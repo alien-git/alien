@@ -810,6 +810,33 @@ sub checkOrphanGUID {
 }
 
 
+sub getLFNfromGUID {
+  my $self=shift;
+  my $guid=shift;
+  my @lfns;
+
+
+  my ($db, $table)=$self->selectDatabaseFromGUID($guid) or return;
+
+  $self->info("And now, let's check which lfn tables we are supposed to use ($table)");
+  my $ref=$db->queryColumn("select lfnRef from 
+  ${table}_REF join $table using (guidid)
+ where guid=string2binary(?)", undef, {bind_values=>[$guid]});
+#  my $entries=$self->query("select lfn,tableName,hostIndex from INDEXTABLE");
+  foreach my $entry (@$ref){
+    $self->info("We have to check $entry");
+    my ($host, $lfnTable)=split(/_/, $entry);
+#    $DEBUG and $self->debug(1, "Checking in the table $entry->{hostIndex}");
+    my ($db2, $path2)=$self->reconnectToIndex( $host) or next;
+    my $prefix=$db2->queryValue("SELECT lfn from INDEXTABLE where hostIndex=? and tableName=?", undef, {bind_values=>[$host, $lfnTable]});
+    my $paths = $db2->queryColumn("SELECT concat('$prefix', lfn) FROM L${lfnTable}L WHERE guid=string2binary(?) ", undef, {bind_values=>[$guid]});
+    $paths and push @lfns, @$paths;
+  }
+
+  return @lfns;
+} 
+
+
 sub renumberGUIDtable {
   my $self=shift;
   my $guid=shift;

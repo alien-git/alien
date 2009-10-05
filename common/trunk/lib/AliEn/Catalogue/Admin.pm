@@ -863,4 +863,16 @@ sub optimizeGUIDtables{
   return $self->{DATABASE}->optimizeGUIDtables(@_);
 }
 
+sub masterSE_list {
+  my $self=shift;
+  my $sename=shift;
+  $self->info("Counting the number of entries in $sename");
+  return $self->{DATABASE}->masterSE_list($sename);
+}
+
+sub masterSE_getFiles{
+  my $self=shift;
+  return $self->{DATABASE}->masterSE_getFiles(@_);
+}
+
 return 1;

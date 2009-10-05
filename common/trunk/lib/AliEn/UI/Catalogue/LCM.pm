@@ -101,6 +101,7 @@ my %LCM_commands;
 		 'resubmitTransfer'=> ['$self->{STORAGE}->resubmitTransfer', 0],
 		 'getTransferHistory'=> ['$self->{STORAGE}->getTransferHistory', 0],
 		 'packman'  => ['$self->{PACKMAN}->f_packman',0],
+		 'masterSE' => ['$self->masterSE',0],
 );
 
 my %LCM_help = (
@@ -1046,8 +1047,11 @@ sub mirror {
   my $pfn="";
   my $seRef;
   if ($opt->{g}){
-    $self->info("STill to be implemented");
-    return;
+    $guid=$lfn;
+    my $info=$self->{CATALOG}->{DATABASE}->{GUID_DB}->checkPermission( 'w', $guid )  or
+      $self->info("You don't have permission to do that") and return;
+    $realLfn="";
+
   }else{
     $lfn = $self->{CATALOG}->f_complete_path($lfn);
 
@@ -2625,6 +2629,106 @@ sub why {
   $length = int $length;
   print "$because[$length]\n"; 
   return 1;
+}
+
+
+sub masterSE_HELP{
+  return "masterSE: Manage SE.
+
+Usage:
+
+    masterSE  <SENAME> [<action> [<arguments>]]
+
+where:
+    action can be list(default), replicate, print  or erase. 
+
+Possible actions:
+   masterSE <SENAME> print [-lfn] [<filename>] 
+       Creates a filename with all the pfns on that SE. If -lfn is present, writes the lfn
+";
+
+
+
+}
+
+sub masterSE {
+  my $self=shift;
+  my $sename=shift;
+  my $action=shift || "list";
+
+  if ($action =~ /^list$/i){
+    my $info=$self->{CATALOG}->masterSE_list($sename);
+    $self->info("The SE $sename has:
+  $info->{referenced} entries in the catalogue.
+  $info->{unique} of those entries are not replicated
+  $info->{orphan} entries not pointed by any LFN");
+    return $info;
+  } elsif ($action=~ /^replicate$/i){
+    $self->info("Let's replicate all the files from $sename that do not have a copy");
+    my $counter=$self->executeInAllPFNEntries($sename, "masterSEReplicate");
+    $self->info("$counter transfers have been issued. You should wait until the transfers have been completed");
+    
+    return $counter
+  } elsif ($action=~ /print/){
+    my $lfn=grep (/^-lfn$/i, @_);
+    @_=grep (! /^-lfn$/i,@_);
+    my $output=shift || "$self->{CONFIG}->{TMP_DIR}/list.$sename.txt";
+    $self->info("Creating the file $output with all the entries");
+    open (FILE, ">$output") or $self->info("Error opening $output") and return;
+    my $counter=$self->executeInAllPFNEntries($sename, "masterSEprint",\*FILE, $lfn);
+    close FILE;
+    return $counter;
+  }
+  $self->info("Sorry, I don't understand 'masterSE $action'");
+  return undef;
+
+}
+
+sub masterSEReplicate{
+  my $self=shift;
+  my $guid=shift;
+  my ($lfn)=$self->execute("guid2lfn", $guid) or next;
+  return $self->execute("mirror", $lfn, "alice::subatech::se");
+
+}
+
+sub masterSEprint {
+  my $self=shift;
+  my $entries=shift;
+  my $FILE=shift;
+  my $lfn=shift;
+  my $print =$entries->{pfn};
+  if ($lfn){
+    my @info=$self->execute("guid2lfn", "-silent", $entries->{guid});
+    $print=join("\n", @info);
+  }
+  print $FILE "$print\n";
+  return 1;
+}
+
+sub executeInAllPFNEntries{
+  my $self=shift;
+  my $sename=shift;
+  my $function=shift;
+  my $counter=0;
+  my $limit=1000;
+  my $repeat=1;
+  my $previous_table="";
+
+  while ($repeat){
+    print "Reading table $previous_table and $counter\n";
+    (my $entries, $previous_table)=
+      $self->{CATALOG}->masterSE_getFiles($sename, $previous_table,$limit);
+    $repeat=0;
+    $previous_table and $repeat=1;
+    foreach my $g (@$entries){
+      $self->debug(1, "Doing $function with $g ($counter)");
+      $self->$function($g, @_);
+      $counter++;
+    }
+  }
+  return $counter;
+  
 }
 return 1;
 
