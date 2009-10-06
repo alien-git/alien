@@ -109,7 +109,6 @@ sub getBatchId {
   return "https://$ce:8443/CREAM$id";
 }
 
-
 sub wrapSubmit {
   my $self = shift;
   my $logFile = shift;
@@ -190,7 +189,12 @@ sub getNumberRunning() {
   $runIS or $runIS=0;
   $waitIS or $waitIS=0;
   $self->info("Jobs running, waiting: $run,$wait  from CREAM, $runIS,$waitIS from BDII, $value from local DB");
-  return $run+$wait;    
+  if ($ENV{CE_USE_BDII} ) {
+     $self->info("(Returning value from BDII)");
+     return $runIS+$waitIS;    
+  } else {
+    return $run+$wait;
+  }   
 }
 
 sub getNumberQueued() {
@@ -202,7 +206,12 @@ sub getNumberQueued() {
   (my $waitIS) = $self->getCEInfo(qw(GlueCEStateWaitingJobs));
   $waitIS or $waitIS=0;
   $self->info("Queued: $wait from CREAM, $waitIS from BDII, $value from local DB");
-  return $wait;
+  if ($ENV{CE_USE_BDII} ) {
+    $self->info("(Returning value from BDII)");
+    return $waitIS;
+  } else {
+    return $wait;
+  }   
 }
 
 #
