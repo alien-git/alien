@@ -1272,7 +1272,7 @@ sub resubmitCommand {
 
   my $defaultReq=" (other.Type==\"machine\") ";
   $data->{jdl}=~ s/origrequirements\s*=([^;]*\s*);\s*//im and $defaultReq.=" && $1";
-  $data->{jdl}=~ s/\s(requirements\s*=)\s*[^;]*;\s*/$1$defaultReq/im;
+  $data->{jdl}=~ s/\s(requirements\s*=)\s*[^;]*;\s*/$1$defaultReq;/im;
 
 
   $data->{priority}++;
