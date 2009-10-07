@@ -10,7 +10,9 @@ my $cat=AliEn::UI::Catalogue::LCM->new({user=>"newuser"}) or exit(-2);
 
 addFile($cat, "lfn2gui","This is just to check the guid...
 ") or exit(-2);
-
+my $cat2=AliEn::UI::Catalogue::LCM->new({role=>'admin'}) or exit(-2);
+$cat2->execute("checkLFN");
+$cat2->close();
 my ($guid)=$cat->execute("lfn2guid", "lfn2gui") or exit(-2);
 print "The guid is $guid\n";
 
