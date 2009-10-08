@@ -2138,13 +2138,15 @@ sub putOnDynamicDiscoveredSEListByQoS{
    my $sitename=(shift || "");
    my $excludedSes=(shift || "");
    my $pfnRewrite=(shift || 0);
+   my $countOutSOAP=0;
 
    while($count gt 0) {
      
      $self->info("Going to ask for '$count' SEs with qos flag '$qos' in the cache.");;
 
      my $res = $self->{SOAP}->CallSOAP("IS", "getSEListFromSiteSECache", $count, $qos, $sitename, $excludedSes);
-     $self->{SOAP}->checkSOAPreturn($res) or next ;
+     $countOutSOAP++;
+     $self->{SOAP}->checkSOAPreturn($res) or ($countOutSOAP < 4 and next or last);
      my @discoveredSes=@{$res->result};
 
      scalar(@discoveredSes) gt 0 or $self->info("We could'nt find any of the '$count' requested SEs with qos flag '$qos' in the cache.") and last;;
