@@ -486,7 +486,7 @@ EXECUTE_SHELL()
 }
 BANK_TESTS_LIST="301-putBankDataLDAP 302-bankUserCommand 303-bankAdminCommand 304-execOrder "
 
-JOB_TEST2_LIST="177-startCE 134-dumplist 98-jobexit 118-validateJob 119-outputDir 124-OutputArchive 64-jobemail 86-split 87-splitFile 88-splitArguments 120-production 135-inputdata2 137-userArchive 153-splitInputDataCollection 157-zip 159-bigoutput 160-JDLenvironment 161-userGUID 85-inputdata 163-specificOutput 170-splitDataset 173-collectionJobs 174-collectionFromXML 178-stageData 176-executeAllJobs 181-mergeCollection 183-outputArchive 126-OutputInSeveralSE 182-maxfailed 186-addSeveralSE"
+JOB_TEST2_LIST="177-startCE 134-dumplist 98-jobexit 118-validateJob 119-outputDir 124-OutputArchive 64-jobemail 86-split 87-splitFile 88-splitArguments 120-production 135-inputdata2 137-userArchive 153-splitInputDataCollection 157-zip 159-bigoutput 160-JDLenvironment 161-userGUID 85-inputdata 163-specificOutput 170-splitDataset 173-collectionJobs 174-collectionFromXML 178-stageData 176-executeAllJobs 181-mergeCollection 183-outputArchive 126-OutputInSeveralSE 182-maxfailed 186-addSeveralSE 187-validateSAVED_WARN"
 JOB_TESTS_LIST="70-x509 89-jdl 19-ClusterMonitor 168-no_shared_cipher 21-submit 73-updateCE 22-execute 62-inputfile 23-resubmit 186-killrequirements 26-ProcessMonitorOutput 105-killRunningJob 94-inputpfn 77-rekill 115-queueList 133-queueInfo 140-jobWithMemory 141-executingTwoJobs 152-inputdatacollection 164-jdlMatch $JOB_TEST2_LIST"
 
 PACKAGE_TESTS_LIST="75-PackMan 76-jobWithPackage 82-packageDependencies 84-sharedPackage 100-tcshPackage 83-gccPackage 130-localConfig 131-definedPackage 176-executeAllJobs"
