@@ -1544,6 +1544,7 @@ sub access {
       $self->info("There is no envelope ($error)!!", 1);
       return;
      }
+    print "Setting the environment to $newhash->{url}\n";
     $ENV{ALIEN_XRDCP_ENVELOPE}=$newhash->{envelope};
     $ENV{ALIEN_XRDCP_URL}=$newhash->{url};
     return $newhash;
@@ -1811,8 +1812,6 @@ $ticket
     my $coded = $self->{envelopeengine}->encodeEnvelopePerl("$globalticket","0","none");
     $lnewresult[0]->{genvelope} = $self->{envelopeengine}->GetEncodedEnvelope();
   }
-  use Data::Dumper;
-	print Dumper($newresult);
   return @$newresult; 
 }
 
@@ -2197,15 +2196,17 @@ sub registerInMultipleSEs {
          push @ses, @$suggestedSes[$j];
      } else {
          $self->info("Error getting the security envelope");
-         push @excludedSes, @$suggestedSes[$j]; 
+         push @excludedSes, @$suggestedSes[$j];
      }
-  } 
+  }
 
   $self->info("We got envelopes for and will use the following SEs to save on: @ses, count:".scalar(@ses));
 
   for my $j(0..$#ses) {
 
-     $envelopes->{$ses[$j]} or $self->{LOGGER}->warning( "LCM", "Missing envelope for SE: $ses[$j]" ) and next; 
+     $envelopes->{$ses[$j]} or $self->{LOGGER}->warning( "LCM", "Missing envelope for SE: $ses[$j]" ) and next;
+     $ENV{ALIEN_XRDCP_ENVELOPE}=$envelopes->{$ses[$j]}->{envelope};
+     $ENV{ALIEN_XRDCP_URL}=$envelopes->{$ses[$j]}->{url};
 
      my $start=time;
 
