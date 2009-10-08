@@ -236,7 +236,7 @@ sub checkSETable {
   
   my %columns = (seName=>"varchar(60) character set latin1 collate latin1_general_ci NOT NULL", 
 		 seNumber=>"int(11) NOT NULL auto_increment primary key",
-		 seQoS=>"varchar(50)",
+		 seQoS=>"varchar(200)",
 		 seioDaemons=>"varchar(255)",
 		 seStoragePath=>"varchar(255)",
 		 seNumFiles=>"bigint",
