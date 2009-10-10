@@ -851,7 +851,7 @@ sub Getopts {
   return ( $flags, @files ); }
 
 sub addFile_HELP {
-  return "'add' copies a file into the SE, and register an entry in the catalogue that points to the file in the SE\n\tUsage: add [-r]  <lfn> <pfn> [<SE1>,<SEn> ,select=N ,qosFlag=N ,[<previous storage element>]]\nPossible pfns:\tsrm://<host>/<path>, castor://<host>/<path>, 
+  return "'add' copies a file into the SE, and register an entry in the catalogue that points to the file in the SE\n\tUsage: add [-r]  <lfn> <pfn> [<SE1>,<SEn> ,select=N ,qosFlag=N ,guid:<guid>,[<previous storage element>]]\nPossible pfns:\tsrm://<host>/<path>, castor://<host>/<path>, 
 \t\tfile://<host>/<path>
 If the method and host are not specified, the system will try with 'file://<localhost>'
 Possible options:
@@ -878,118 +878,40 @@ sub addFile {
   my $options={};
   @ARGV=@_;
   Getopt::Long::GetOptions($options, "silent", "reverse", "versioning", "size=i", "md5=s")
-
       or $self->info("Error checking the options of add") and return;
   @_=@ARGV;
-
   my $lfn   = shift;
   my $pfn   = shift;
-  my $sestring =(shift || "");
-
-#gron $self->info("lfn is: $lfn");
-#gron $self->info("pfn is: $pfn");
-$self->info("sestring is: $sestring");
-
-  my $result = {};
-
-  my $maximumCopyCount = 9;
-  my $selOutOf=0;
-
-#gron $self->info("Sitename is: $self->{CONFIG}->{SITE}");
-
-  my @ses = ();
-  my @excludedSes = ();
-  my @seentry= ();
-  my $totalCount = 0;
-  my $qosTags;
-
-  $sestring and $sestring ne "" and @seentry = split (/,/, $sestring);
-
-  foreach (@seentry) {
-     if($_ =~ /::/){
-          if($_ =~ /!/) {
-                $_ =~ s/!//;
-                push @excludedSes, uc($_);
-          } else {
-                 push @ses, uc($_);
-          }
-
-     } elsif ($_ =~ /\=/){
-             my ($repltag, $copies)=split (/\=/, $_,2);
-             $copies and  (isdigit $copies) or next;
-             ($totalCount+$copies) < $maximumCopyCount
-                or $copies = $maximumCopyCount - $totalCount;
-             if($repltag eq "select") {
-                ($copies < 1 or $copies > scalar(@ses))
-                   and $copies = scalar(@ses);
-                $selOutOf = $copies;
-             } else {
-                $qosTags->{$repltag} = $copies
-             }
-             $totalCount += $copies;
-     }
-  }
-
-  @ses = @{$self->arrayEliminateDuplicates(\@ses)};
-  @excludedSes = @{$self->arrayEliminateDuplicates(\@excludedSes)};
-  push @excludedSes, @ses;
-  $selOutOf eq 0 and $selOutOf = scalar(@ses) and $totalCount += $selOutOf;
-
-
-  #if nothing is specified, we get the default case, priority on LDAP entry
-  if($totalCount le 0) {
-       if ($self->{CONFIG}->{SEDEFAULT_QOSAND_COUNT}) {
-            my ($repltag, $copies)=split (/\=/, $self->{CONFIG}->{SEDEFAULT_QOSAND_COUNT},2);
-            $qosTags->{$repltag} = $copies;
-            $totalCount += $copies;
-       } else {
-             push @ses, $self->{CONFIG}->{SE_FULLNAME};
-             $totalCount = 1;
-       }
-  }
+  my $optstring =(shift || "");
+  $self->info("optstring is: $optstring");
 
   $pfn or $self->info("Error: not enough parameters in add\n".
 		      $self->addFile_HELP(),2)	and return;
-
   $lfn = $self->{CATALOG}->f_complete_path($lfn);
-  if (! $options->{versioning}) {
-    $self->_canCreateFile($lfn) or return;
-  }
-
-  $pfn=$self->checkLocalPFN($pfn);
-  my $size=AliEn::SE::Methods->new($pfn)->getSize();
+  $options->{versioning} or ( $self->_canCreateFile($lfn) or return);
 
   my $envreq="write-once";
-  ($options->{versioning}) and $envreq="write-version";
+  $options->{versioning} and $envreq="write-version";
 
-   $self->debug(2,"we were called with ses: @ses .");
-   $self->debug(2,"we were called with select: $selOutOf.");
-   $self->debug(2,"we were called with exses: @excludedSes .");
-   foreach (keys %$qosTags) { $self->debug(2,"we were called with $_: $qosTags->{$_} .");}
+  my $result = $self->upload($pfn, $optstring, $options->{silent});
 
+  $result->{status} or $self->info("Error, we couldn't add/store the file on any SE!") and return;
 
-   $result = $self->putOnStaticSESelectionList($result,$pfn,$lfn,$size,"",$envreq,$selOutOf,\@ses);
-
-   foreach my $qos(keys %$qosTags){
-       $result = $self->putOnDynamicDiscoveredSEListByQoS($result,$pfn,$lfn,$size,"",$envreq,$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes);
-   }
-
-   $result->{status} or $self->info("Error, we couldn't add/store the file on any SE!") and return;
-
-   my $registered = $self->{CATALOG}->f_registerFile( "-f", $lfn, $result->{size}, $result->{seref}, $result->{guid}, undef,undef, $result->{md5}, $result->{se}->{$result->{seref}}->{pfn});
+  my $registered = $self->{CATALOG}->f_registerFile( "-f", $lfn, $result->{size},
+             $result->{seref}, $result->{guid}, undef,undef, $result->{md5}, $result->{se}->{$result->{seref}}->{pfn});
    
-   foreach my $se (keys(%{$result->{se}})) {
-     $se ne $result->{seref} and  $self->{CATALOG}->f_addMirror( $lfn, $se, $result->{se}->{$se}->{pfn}, "-c","-md5=".$result->{md5});
-   }
+  foreach my $se (keys(%{$result->{se}})) {
+      $se ne $result->{seref} 
+         and  $self->{CATALOG}->f_addMirror( $lfn, $se, $result->{se}->{$se}->{pfn}, "-c","-md5=".$result->{md5});
+  }
 
-    if ($totalCount eq scalar(keys %{$result->{se}})){
-        $self->info("Successfully added the file $lfn on $totalCount SEs, as specified.");
-    } elsif(scalar(keys %{$result->{se}}) > 0) {
-             $self->info("WARNING: Added the file to ".scalar(keys %{$result->{se}})." SEs, yet specified was to add it on $totalCount.");
-    } else {
-             $self->info("Error, we couldn't add/store the file on any SE!") and return;
-    }
-  
+  if ($result->{totalCount} eq scalar(keys %{$result->{se}})){
+      $self->info("Successfully added the file $lfn on $result->{totalCount} SEs, as specified.");
+  } elsif(scalar(keys %{$result->{se}}) > 0) {
+      $self->info("WARNING: Added the file to ".scalar(keys %{$result->{se}})." SEs, yet specified was to add it on $result->{totalCount}.");
+  } else {
+      $self->info("Error, we couldn't add/store the file on any SE!") and return;
+  }
   return ($result->{status} && $registered);
 }
 
@@ -1995,39 +1917,46 @@ sub erase {
 sub upload_HELP {
   return "upload: copies a file to the SE
 Usage:
-\t\tupload <pfn> [<se> [<guid>]]
+\t\tupload <pfn> [<se>,!<se>,<qosflag>=N,guid:<guid>]
 ";
 }
 
 
 sub upload {
    my $self=shift;
-   $self->debug(1, "Starting the upload with @_");
+   #$self->debug(1, "Starting the upload with @_");
    (my $options, @_)=$self->GetOpts(@_);
  
    my $pfn=shift;
-   my $selist=shift;
-   my $exclselist=shift;
-   my $qoslist=shift;
-   my $guid=shift;
 
- 
-   $pfn or $self->info("Error not enough arguments in upload\n". $self->upload_HELP()) and return;
+   my $optstring =(shift || "");
+   $self->info("optstring is: $optstring");
+   my @optentry= ();
+   my @ses = ();
+   my @excludedSes = ();
+   my @qosList;
+   my $guid="";
+   $pfn or $self->info("Error not enough arguments in upload\n". $self->upload_HELP()) 
+          and return;
    $pfn=$self->checkLocalPFN($pfn);
    my $size=AliEn::SE::Methods->new($pfn)->getSize();
+
+   $optstring and $optstring ne "" and @optentry = split (/,/, $optstring);
+   foreach (@optentry) {
+     ($_ =~ /::/) and ( ($_ =~ /!/) and ($_ =~ s/!// and push @excludedSes, uc($_) and next)
+          or push @ses, uc($_) and next);
+     ($_ =~ /\=/) and push @qosList, $_ and next;
+     $self->identifyValidGUID($guid) and $guid= $_ and next;
+     $_ =~ s/^\s+//;     $_ =~ s/\s+$//;     $_ eq "" and next;
+     $self->info("WARNING: Found the following unrecognizeable option:".$_);
+   }
+
    my $result = {};
 
    my $maximumCopyCount = 9;
    my $selOutOf=0;
  
    $self->debug(2,"Sitename is: $self->{CONFIG}->{SITE}");
- 
-   my @ses = ();
-   my @excludedSes = ();
-   my @qosList = ();
-   ($selist and $selist ne "NONE") and push @ses , split(/;/,$selist);
-   ($exclselist and $exclselist ne "NONE") and push @excludedSes, split(/;/,$exclselist);
-   ($qoslist and $qoslist ne "NONE") and push @qosList , split(/;/,$qoslist);
  
    @ses = @{$self->arrayEliminateDuplicates(\@ses)};
    @excludedSes = @{$self->arrayEliminateDuplicates(\@excludedSes)};
@@ -2088,6 +2017,24 @@ sub upload {
    $result->{totalCount}=$totalCount;
  
    return $result;
+}
+
+sub identifyValidGUID{
+   my $self=shift;
+   my $guid=shift;
+   my $lines = $guid;
+   # guid has to be 36 chars long, containing 4 times '-', at position 9,14,19,24 and the rest needs to be hexdec
+   (length($guid) eq 36)
+     and $lines = substr($lines, 8, 1)
+        .substr($lines, 13, 1).substr($lines, 18, 1).substr($lines, 23, 1)
+     and $lines =~ s/[-]*// and (length($lines) eq 0)
+     and $guid  = substr($guid, 0, 8)
+        .substr($guid, 9, 4).substr($guid, 14, 4)
+        .substr($guid, 19, 4).substr($guid, 24, 12)
+     and $guid =~ s/[0-9a-f]*//
+     and (length($guid) eq 0)
+     and return 1;
+     return 0;
 }
 
 
@@ -2196,15 +2143,15 @@ sub registerInMultipleSEs {
          push @ses, @$suggestedSes[$j];
      } else {
          $self->info("Error getting the security envelope");
-         push @excludedSes, @$suggestedSes[$j];
+         push @excludedSes, @$suggestedSes[$j]; 
      }
-  }
+  } 
 
   $self->info("We got envelopes for and will use the following SEs to save on: @ses, count:".scalar(@ses));
 
   for my $j(0..$#ses) {
 
-     $envelopes->{$ses[$j]} or $self->{LOGGER}->warning( "LCM", "Missing envelope for SE: $ses[$j]" ) and next;
+     $envelopes->{$ses[$j]} or $self->{LOGGER}->warning( "LCM", "Missing envelope for SE: $ses[$j]" ) and next; 
      $ENV{ALIEN_XRDCP_ENVELOPE}=$envelopes->{$ses[$j]}->{envelope};
      $ENV{ALIEN_XRDCP_URL}=$envelopes->{$ses[$j]}->{url};
 
@@ -2214,7 +2161,7 @@ sub registerInMultipleSEs {
      my $res;
      my $z = 0;
      while ($z < 5 ) {   # try five times in case of error
-          $res= $self->{STORAGE}->RegisterInRemoteSE($pfn, $ses[$j], $lfn, undef, $reqGuid, $envelopes->{$ses[$j]});
+          $res= $self->{STORAGE}->RegisterInRemoteSE($pfn, $lfn, $envelopes->{$ses[$j]});
           $res and $z = 6 or $z++;
      }
 

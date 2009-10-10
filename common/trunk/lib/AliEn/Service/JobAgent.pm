@@ -1338,23 +1338,18 @@ sub getUserDefinedGUIDS{
 }
 
 
-
-
 sub processJDL_split_Output_Filenames_From_Options_And_Initialize_fileTable{
     my $self=shift;
     my $jdlstrings=shift;
     my $fileTable;
-    my $filestring;
-    my $options="";
     foreach my $jdlelement (@$jdlstrings){
-        ($filestring, $options)=split(/\@/, $jdlelement,2);
-        my @files = split (/,/, $filestring);
-        @files=$self->_findFilesLike(@files);
+        my ($filestring, $options)=split(/\@/, $jdlelement,2);
+        $options or $options = "";
+        my @files = $self->_findFilesLike(split (/,/, $filestring));
+#        @files=$self->_findFilesLike(@files);
         $self->info("Found Files: @files, options: $options");
         foreach my $filename (@files) {
-             $fileTable->{$filename}={
-                               name=>$filename,
-                               options=>$options};
+             $fileTable->{$filename}={ name=>$filename, options=>$options};
         }
     }
     return $fileTable;
@@ -1365,73 +1360,16 @@ sub processJDL_get_Output_Archivename_And_Included_Files_And_Initialize_archiveT
     my $self=shift;
     my $jdlstrings=shift;
     my $archiveTable;
-    my $name;
-    my $filestring;
-    my $options="";
     foreach  my $jdlelement (@$jdlstrings){
-        ($filestring, $options)=split (/\@/, $jdlelement,2);
-        ($name, my @files)=split(/[\:,]/, $filestring);
+        my ($filestring, $options)=split (/\@/, $jdlelement,2);
+        $options or $options = "";
+        my ($name, @files)=split(/[\:,]/, $filestring);
         @files=$self->_findFilesLike(@files);
         $self->info("Found Archive: $name, incl. Files: @files, options: $options");
         (scalar(@files) < 1) and next;  # for false JDLs, with archive definition and missing file definition
-        $archiveTable->{$name}={name=>$name,
-                               includedFiles=>\@files,
-                               options=>$options};
+        $archiveTable->{$name}={name=>$name, includedFiles=>\@files, options=>$options};
     }
     return $archiveTable;
-}
-
-
-sub processJDL_get_SEnames_And_Real_Options{
-    my $self=shift;
-    my $jdlstring=shift;
-    my $selist = "";
-    my $exclselist = ""; 
-    my $replicaTags = "";
-    my @tags;
-    ($jdlstring eq "NONE") and ($jdlstring="");
-
-    my (@options)=split (/,/, $jdlstring);
-    foreach my $option (@options){
-       if($option =~ /::/){
-#          if($option  =~ /;\-\d/) {
-#		$option =~ s/;\-\d//;
-#                $exclselist .= uc($option).";";
-#          } else {
-#		$option =~ s/;\d//;
-#                $selist .= uc($option).";";
-#          }
-          if($option  =~ /!/) {
-		$option =~ s/!//;
-                $exclselist .= uc($option).";";
-          } else {
-                $selist .= uc($option).";";
-          }
-
-       } elsif ($option =~ /\=/){
-             my ($repltag, $copies)=split (/\=/, $option,2);
-             (isdigit $copies) and
-             $replicaTags .= $option.";";
-       } else {
-            push @tags, $option;
-       }   
-    }
-    $selist =~ s/;$//;
-    $exclselist =~ s/;$//;
-    $replicaTags =~ s/;$//;
-
-
-##########################################
-#########################################
-#    ($selist eq "") and ($exclselist eq "") and ($replicaTags eq "") and $replicaTags .="disk=2";
-######################################
-#######################################
-
-
-    ($selist eq "") and $selist="NONE";
-    ($exclselist eq "") and $exclselist="NONE";
-    ($replicaTags eq "") and $replicaTags="NONE";
-    return ($selist,$exclselist,$replicaTags,\@tags);
 }
 
 
@@ -1440,18 +1378,14 @@ sub analyseJDL_And_Move_By_Default_Files_To_Archives{
   my $archives=shift;
   my $files=shift;
   my $defaultArchiveName=shift;
-  my $defaultFiles=shift;
+  my $defaultOptionString=shift;
 
   my $fileTable;
   for my $j(0..$#{$files}) {
-     if(! grep(/\@/, $$files[$j])){
-           $self->info("Filestring has no options, so we put it in the Default Archive.");
-           my @toDefFiles =  split (/,/, $$files[$j]);
-           push @$defaultFiles, @toDefFiles;
-           delete $$files[$j];
-     } else {
            my ($filestring, $optionstring)=split (/\@/, $$files[$j],2);
-           if(!(grep( /^no_archive$/, split (/,/, $optionstring)))){
+           $optionstring or $optionstring = "<NONE>";
+           (my $no_archive, $optionstring)  = $self->processJDL_Check_on_Tag($optionstring, "no_archive");
+           if(!$no_archive){
               if($fileTable->{$optionstring}) {
                    $self->info("A file with already known options, will be united in one archive");
                    push @{$fileTable->{$optionstring}}, $filestring;
@@ -1461,7 +1395,6 @@ sub analyseJDL_And_Move_By_Default_Files_To_Archives{
               }
               delete $$files[$j];
            }
-     }
   }
   my $j=0;
   foreach my $optionstring (keys(%$fileTable)) {
@@ -1470,54 +1403,26 @@ sub analyseJDL_And_Move_By_Default_Files_To_Archives{
               $filestring .= $filename.",";
            } 
            $filestring =~ s/,$//;
-
+           $optionstring eq "<NONE>" and $optionstring = $defaultOptionString;
            push @$archives, $defaultArchiveName.time()."_".$j++.".zip:".$filestring."@".$optionstring;
            $self->info("Filestring $filestring will be moved from files to archives");
   }
-  return ($archives, $files, $defaultFiles);
-}
-
-
-sub check_On_Default_Output_Files_And_Put_In_Archive_If_Not_Exist{
-  my $self=shift;
-  my $archives=shift;
-  my $files=shift;
-  my $defaultArchiveName=shift;
-  my $defaultOutputFiles=shift;
-  my $localDefaultSEs=shift;
-  my $defaultTags=shift;
-  my @toBeAddedDefaultOutputFiles=();
-  my @allfiles = (); 
-  foreach my $archive (@$archives) {
-      my ($archivestring, $options)=split(/\@/, $archive,2);
-      my ($archivename, $filestring)=split(/:/, $archivestring,2);
-      push @allfiles , split (/,/, $filestring);
-  }
-  foreach my $file (@$files) {
-      my ($filestring, $options)=split (/\@/, $file,2);
-      push @allfiles , split (/,/, $filestring);
-  }
-  for my $deffile (@$defaultOutputFiles) {
-     if (! grep( /$deffile/ , @allfiles)){
-        push @toBeAddedDefaultOutputFiles, $deffile;
-     }
-  }  
-  (scalar(@toBeAddedDefaultOutputFiles) > 0) and push @$archives, $defaultArchiveName
-		.":".join(",",@toBeAddedDefaultOutputFiles)."@".$localDefaultSEs.",".$defaultTags;
   return ($archives, $files);
 }
 
 sub processJDL_Check_on_Tag{
   my $self=shift;
-  my $tags=shift;
+  my $tagstring=shift;
   my $pattern=shift;
-  for my $j(0..$#{$tags}) {
-     if($$tags[$j] =~ /^$pattern$/i) { 
-        delete $$tags[$j]; 
-        return (1, $tags);
-     }
+  my @tags = split (/,/, $tagstring);
+  $tagstring = "";
+  my $back=0;
+  foreach (@tags){
+     ($_ =~ /^$pattern$/i) and $back=1 and next;
+     $tagstring .= $_.","; 
   }
-  return (0, $tags);
+  $tagstring =~ s/,$//;
+  return ($back, $tagstring);
 }
 
 sub create_Default_Output_Archive_Entry{
@@ -1535,330 +1440,6 @@ sub create_Default_Output_Archive_Entry{
    return $jdlstring;
 }
 
-
-sub putJDLerrorInJobLog{
-  my $self=shift;
-  my $message=shift;
-
-  $self->putJobLog("error", "We encountered an error in the supplied JDL.");
-  $self->putJobLog("error", "The error is: $message");
-  return 0;
-}
-
-
-
-
-sub prepare_File_And_Archives_From_JDL_And_Upload_Files{
-  my $self=shift;
-  my $archiveTable;
-  my $fileTable;
-  my $archives;
-  my $files;
-  my $ArchiveFailedFiles;
-  my $archivesSpecified = 0;
-  my $filesSpecified = 0;
-  #######################################################################################################
-  #######################################################################################################
-  #######
-  ## configuration parameters for the submit putFiles
-  #my $monALISA_URL = "http://pcalimonitor.cern.ch/services/getBestSE.jsp";
-  #my $monALISA_URL = "";
-  #$self->{CONFIG}->{SEDETECTMONALISAURL} and  $monALISA_URL=$self->{CONFIG}->{SEDETECTMONALISAURL};
-
-
-  my $defaultArchiveName= ".alien_archive.$ENV{ALIEN_PROC_ID}.".uc($self->{CONFIG}->{SE_FULLNAME}.".");
-
-  my @localDefaultSEs = ();
-  #push @localDefaultSEs , $self->{CONFIG}->{SE_FULLNAME};  # we could have done without an array, but maybe we would like to have more than one SE in the future
-
-
-  my @defaultOutputFilesList = ();   # This variable is maybe never again used, but was planned to force certain files not to be lost
-                                     # like the @defaultOutputArchiveFilesList with "stdout","stderr","resources".
-  my @defaultOutputArchiveFilesList = ("stdout","stderr","resources");
-  my $defaultOutputFiles = \@defaultOutputFilesList;
-  my $defaultOutputArchiveFiles = \@defaultOutputArchiveFilesList;
-
-  my @defaultTags = ();
-  #######################################################################################################
-  #######################################################################################################
-  my $defaultSEsString = join(",",@localDefaultSEs);
-  my $defaultTagString = join(",",@defaultTags);
-  $defaultArchiveName=~ s/\:\://g; # if :: exists in the filename, the later processing will fail !
-  #######
-
-  my ( $ok, @files ) =
-    $self->{CA}->evaluateAttributeVectorString("OutputFile");
-  ( $ok, my @archives ) =
-    $self->{CA}->evaluateAttributeVectorString("OutputArchive");
-  ($ok, my $username ) = $self->{CA}->evaluateAttributeString("User");
-
-  ## create a default archive if nothing is specified
-  ##
-  if((scalar(@archives) < 1) and (scalar(@files) < 1)) {
-      $self->putJobLog("trace", "The JDL didn't contain any output specification. Creating default Archive.");
-      push @archives, $self->create_Default_Output_Archive_Entry($defaultArchiveName.time().".zip", $defaultOutputArchiveFiles, 
-              $defaultSEsString, $defaultTagString);
-      $archives = \@archives;
-      $files = \@files;
-
-  } else {
-
-
-      ## move all files from Files to Archives if they are non tagged with no_archive
-      ##
-      ($archives, $files, $defaultOutputFiles) = $self->analyseJDL_And_Move_By_Default_Files_To_Archives(\@archives, \@files, $defaultArchiveName, $defaultOutputFiles);
-      
-      ($archives, $files) = $self->check_On_Default_Output_Files_And_Put_In_Archive_If_Not_Exist(\@archives, \@files, $defaultArchiveName.time().".zip",
-				$defaultOutputFiles, $defaultSEsString, $defaultTagString);
-      
-  }
-
-
-  $archiveTable = $self->processJDL_get_Output_Archivename_And_Included_Files_And_Initialize_archiveTable(\@$archives);
-
-
-  ($archiveTable, $ArchiveFailedFiles) = $self->createZipArchive($archiveTable) or
-       print "Error creating the Archives\n" and return;
-
-  push @files, @$ArchiveFailedFiles;
-
-  (scalar(@files) > 0) and
-                 $fileTable = $self->processJDL_split_Output_Filenames_From_Options_And_Initialize_fileTable(\@$files);
-
-
-
-  my @filesAndArchivesAndFiles = each(%$archiveTable);
-  push @filesAndArchivesAndFiles, each(%$fileTable);
-
-  my $overallFileTable;
-  %$overallFileTable= (%$archiveTable, %$fileTable);
-
- 
-  #foreach my $entry (keys(%$overallFileTable)) {
-  #   $self->putJobLog("trace", "We will call putFiles with filesAndArchivessAndFiles elements: ".$overallFileTable->{$entry}->{name});
-  #}
-  
-  
-  $self->putJobLog("trace", "Finally, processing archives: @archives");
-
-  $self->putJobLog("trace", "Finally, processing files: @files");
-
-
-  if(scalar(keys(%$overallFileTable)) > 0){
-      return $self->putFiles($overallFileTable, $username);
-  }
-  
-
- 
-  return 0;
-}
-
-
-sub putFiles {
-  my $self=shift;
-  my $fs_table=shift;
-  my $username=shift;
-  my $monALISA_URL=shift;
-  my $filesUploaded=1;
-  system ("ls -al $self->{WORKDIR}");
-  my $oldOrg=$self->{CONFIG}->{ORG_NAME};
-  my $jdl;
-  my $no_links=0;
-  my %guids=$self->getUserDefinedGUIDS();
-  my $optionStore;
-  my $incompleteUploades=0;
-  my $successCounter=0;
-  my $failedSEs;
-
-  foreach my $data (split (/\s+/, $self->{VOs})){
-    my ($org, $cm,$id, $token)=split ("#", $data);
-    $self->info("Connecting to services for $org ($data)");
-    $ENV{ALIEN_PROC_ID}=$id;
-    $ENV{ALIEN_JOB_TOKEN}=$token;
-    $ENV{ALIEN_ORGANISATION}=$org;
-    $ENV{ALIEN_CM_AS_LDAP_PROXY}=$cm;
-    $self->{CONFIG}=$self->{CONFIG}->Reload({"organisation", $org});
-    my @uploadedFiles=();
-    my $remoteDir = "$self->{CONFIG}->{LOG_DIR}/proc$id";
-    my $ui=AliEn::UI::Catalogue::LCM->new({no_catalog=>1});
-    if (!$ui) {
-      $self->info("Error getting an instance of the catalog");
-      $self->putJobLog("error","Could not get an instance of the LCM");
-      return;
-    }
-
-    #this hash will contain all the files that have already been submitted,
-    #so that we can know if we are registering a new file or a replica
-    my $submitted={};
-    my $localdir= $self->{WORKDIR};
-
-    foreach my $fileOrArch (keys(%$fs_table)) {
-
-      $fs_table->{$fileOrArch}->{options} or $fs_table->{$fileOrArch}->{options}="NONE";
-      $self->info("Processing  file  ".$fs_table->{$fileOrArch}->{name});
-      $self->info("File has options  ".$fs_table->{$fileOrArch}->{options});
-      
-
-      ##
-      ## If we didn't already process exactly this options string
-      ##
-      if (!exists($optionStore->{$fs_table->{$fileOrArch}->{options}})) {    # if optionstore was not initialized before
-          my ($ses, $exses, $replicaTags, $tags)=$self->processJDL_get_SEnames_And_Real_Options($fs_table->{$fileOrArch}->{options});
-          ($no_links, $tags)  = $self->processJDL_Check_on_Tag($tags, "no_links_registration"); 
-          $optionStore->{$fs_table->{$fileOrArch}->{options}}={
-                                 ses=>$ses,
-                                 exses=>$exses,
-                                 replicaTags=>$replicaTags,
-                                 tags=>$tags,
-                                 username=>$username,
-                                 };
-      } 
-
-
-      $self->putJobLog("trace","Effective SE list for the current file will be $optionStore->{$fs_table->{$fileOrArch}->{options}}->{ses}");
-
-      (exists($guids{$fs_table->{$fileOrArch}->{name}})) or 
-             $guids{$fs_table->{$fileOrArch}->{name}} = "";
-
-      my $uploadStatus = $self->uploadFile($ui, $fs_table->{$fileOrArch}->{name}, $optionStore->{$fs_table->{$fileOrArch}->{options}}, $guids{$fs_table->{$fileOrArch}->{name}}, $submitted);
-
-
-      $uploadStatus and $successCounter++;
-      ($uploadStatus eq -1) and $incompleteUploades=1;
-
-      $no_links and next;
-      my @list;
-      foreach my $file( keys %{$fs_table->{$fileOrArch}->{entries}}) {
-         my $guid=$guids{$file} || "";
-         $self->info("Checking if $file has a guid ($guid)");
-         push @list, join("###", $file, $fs_table->{$fileOrArch}->{entries}->{$file}->{size},
-         $fs_table->{$fileOrArch}->{entries}->{$file}->{md5},$guid );
-      }
-      $submitted->{$fs_table->{$fileOrArch}->{name}}->{links}=\@list;
-    }
-
-
-    my @list=();
-    foreach my $key (keys %$submitted){
-      my $links="";
-      $submitted->{$key}->{status} or next;
-      my $entry=$submitted->{$key};
-      if ($entry->{links} ) {
-	$links.=";;".join(";;",@{$entry->{links}});
-      }
-
-#gron $self->info("guid: $entry->{guid}");
-#gron $self->info("size: $entry->{size}");
-#gron $self->info("md5: $entry->{md5}");
-#gron $self->info("pfns: @{$entry->{PFNS}}");
-  
-  
-      push @list, "\"".join ("###", $key, $entry->{guid}, $entry->{size}, 
-			     $entry->{md5},  join("###",@{$entry->{PFNS}}), 
-			     $links) ."\"";
-    }
-    if (@list) {
-      $self->{CA}->set_expression("RegisteredOutput", "{".join(",",@list)."}");
-      $self->{JDL_CHANGED}=1;
-    }
-    $self->debug(1, "Closing the catalogue");
-    $ui->close();
-  }
-  $self->{CONFIG}=$self->{CONFIG}->Reload({"organisation", $oldOrg});
-
-
-  if (scalar(keys(%$fs_table)) ne $successCounter) {
-     $self->putJobLog("error","There was at least one file, that we couldn't store on any SE.");
-     return 0;
-  }
-
-  if($incompleteUploades) {
-     $self->putJobLog("warning", "WE HAD ".scalar(keys(%$fs_table))
-             ." files and archives to store, we successfully stored $successCounter");
-     $self->putJobLog("warning", "YET NOT ALL FILES AND ARCHIVES were stored as many times as specified.");
-     return -1;
-  }
-
-  #if (scalar(keys(%$fs_table)) eq $successCounter) {
-  $self->putJobLog("trace","OK, ALL RIGHT. All files and archives for this job where uploaded successfully and as specified.");
-  return 1;
-  #}
-  #return 0;
-}
-
-
-sub uploadFile {
-    my $self=shift;
-    my $ui=shift;;
-    my $file=shift;
-    my $optionTable=shift;
-    my $guid=shift;
-    my $submitted=shift;
-
-    my $replicaTags=$optionTable->{replicaTags};
-    my $ses=$optionTable->{ses};
-    my $exses=$optionTable->{exses};
-    my $tags=$optionTable->{tags};
-    my $username=$optionTable->{username};
-    my $uploadResult;
-    my @pfns = (); 
-    #my $silent="-silent";
-    my $silent="";
-
-    $self->info("Submitting the file $file");
-    if (! -f "$self->{WORKDIR}/$file")  {
-      $self->putJobLog("error", "The job didn't create $file");
-      return; 
-    }
-    $guid and $self->putJobLog("trace", "The file $file has the guid $guid");
-    $self->putJobLog("trace","Registering $file with (guid $guid)");
-
-#gron $self->info("JobAgent:: about to call upload in LCM, ses: $ses, exses: $exses, tags: $replicaTags, guid: $guid");
-
-
-    ($uploadResult)=$ui->execute("upload", "$self->{WORKDIR}/$file", $ses, $exses, $replicaTags, $guid, $silent);
-
-#gron foreach (keys %$uploadResult){
-#gron    $_ ne "envref" and $self->info("JobAgent after exec upload,uploadResult: $_ is $uploadResult->{$_}");
-#gron }
-#gron foreach (keys %{$uploadResult->{se}}){
-#gron    $self->info("JobAgent after exec upload,uploadResult->se: $_ is $uploadResult->{se}->{$_}");
-#gron }
-
-    (scalar(keys(%$uploadResult)) gt 0) or 
-         $self->putJobLog("error","Error, could not store the file $self->{WORKDIR}/$file on any SEs")
-         and return 0;
-
-    $submitted->{$file}=$uploadResult;
-
-#gron $self->info("guid: $uploadResult->{guid}");
-#gron $self->info("size: $uploadResult->{size}");
-#gron $self->info("md5: $uploadResult->{md5}");
-#gron $self->info("pfn: $uploadResult->{pfn}");
-
-
-
-    foreach my $se (keys(%{$uploadResult->{se}})) {
-#gron $self->putJobLog("trace", "an se is: $se");
-#gron $self->putJobLog("trace", "the therefore corresponding pfn is: $uploadResult->{se}->{$se}->{pfn}");
-
-       push @{$submitted->{$file}->{PFNS}}, "$se/$uploadResult->{se}->{$se}->{pfn}";
-    }
-    
-    if ($uploadResult->{totalCount} eq scalar(keys %{$uploadResult->{se}})) {
-         $self->putJobLog("trace","Successfully stored the file $self->{WORKDIR}/$file on $uploadResult->{totalCount} SEs");
-         return (1);
-    }
-    elsif(scalar(keys %{$uploadResult->{se}}) eq 0) {
-         $self->putJobLog("error","Could not store the file $self->{WORKDIR}/$file only on any of the $uploadResult->{totalCount} wished SEs");
-         return 0;
-    } else {
-         $self->putJobLog("warning","Could store the file $self->{WORKDIR}/$file only on ".scalar(keys %{$uploadResult->{se}}).
-				"  of the $uploadResult->{totalCount} wished SEs");
-         return (-1,);
-    }
-    return 0;
-}
 
 #This subroutine receives a list of local files 
 #that might include patterns, and it returns all
@@ -1882,7 +1463,7 @@ sub _findFilesLike {
 
 
 
-sub createZipArchive{
+sub createZipArchives{
   my $self=shift;
   my $archiveTable=shift;
   my @files=();
@@ -1928,6 +1509,245 @@ sub createZipArchive{
 
 
 
+
+sub prepare_File_And_Archives_From_JDL_And_Upload_Files{
+  my $self=shift;
+  my $archiveTable;
+  my $fileTable = {};
+  my $archives;
+  my $files;
+  my $ArchiveFailedFiles;
+  my $archivesSpecified = 0;
+  my $filesSpecified = 0;
+
+  my $defaultArchiveName= ".alien_archive.$ENV{ALIEN_PROC_ID}.".uc($self->{CONFIG}->{SE_FULLNAME}.".");
+  $defaultArchiveName=~ s/\:\://g; # if :: exists in the filename, the later processing will fail ! just an ensurence
+
+  my @defaultOutputArchiveFiles = ("stdout","stderr","resources");
+  my $defaultOptionString = ""; # could be SE,!SE,qos=N,select=N,guid etc. , equal to a valid continuation of file@
+
+  my ( $ok, @fileEntries ) = $self->{CA}->evaluateAttributeVectorString("OutputFile");
+  ( $ok, my @archiveEntries ) = $self->{CA}->evaluateAttributeVectorString("OutputArchive");
+  #($ok, my $username ) = $self->{CA}->evaluateAttributeString("User");
+
+  ## create a default archive if nothing is specified
+  ##
+  if((scalar(@archiveEntries) < 1) and (scalar(@fileEntries) < 1)) {
+      $self->putJobLog("trace", "The JDL didn't contain any output specification. Creating default Archive.");
+      push @archiveEntries, $self->create_Default_Output_Archive_Entry($defaultArchiveName.time().".zip", 
+            \@defaultOutputArchiveFiles, $defaultOptionString);
+      $archives = \@archiveEntries;
+      $files = \@fileEntries;
+
+  } else {
+      ($archives, $files) = $self->analyseJDL_And_Move_By_Default_Files_To_Archives(\@archiveEntries, \@fileEntries,
+              $defaultArchiveName.time().".zip", $defaultOptionString);
+  }
+
+  $archiveTable = $self->processJDL_get_Output_Archivename_And_Included_Files_And_Initialize_archiveTable($archives);
+
+  ($archiveTable, $ArchiveFailedFiles) = $self->createZipArchives($archiveTable) or
+       print "Error creating the Archives\n" and return;
+
+  push @$files, @$ArchiveFailedFiles;
+
+  (scalar(@$files) > 0) and
+                 $fileTable = $self->processJDL_split_Output_Filenames_From_Options_And_Initialize_fileTable($files);
+
+  my $overallFileTable;
+  %$overallFileTable= (%$archiveTable, %$fileTable);
+  
+  $self->putJobLog("trace", "Finally, processing archives: @$archives");
+  $self->putJobLog("trace", "Finally, processing files: @$files");
+
+  (scalar(keys(%$overallFileTable)) > 0) and
+      return $self->putFiles($overallFileTable);
+ 
+  return 0;
+}
+
+
+sub putFiles {
+  my $self=shift;
+  my $fs_table=shift;
+  my $filesUploaded=1;
+  system ("ls -al $self->{WORKDIR}");
+  my $oldOrg=$self->{CONFIG}->{ORG_NAME};
+  my $jdl;
+  my %guids=$self->getUserDefinedGUIDS();
+  my $incompleteUploades=0;
+  my $successCounter=0;
+  my $failedSEs;
+
+  foreach my $data (split (/\s+/, $self->{VOs})){
+    my ($org, $cm,$id, $token)=split ("#", $data);
+    $self->info("Connecting to services for $org ($data)");
+    $ENV{ALIEN_PROC_ID}=$id;
+    $ENV{ALIEN_JOB_TOKEN}=$token;
+    $ENV{ALIEN_ORGANISATION}=$org;
+    $ENV{ALIEN_CM_AS_LDAP_PROXY}=$cm;
+    $self->{CONFIG}=$self->{CONFIG}->Reload({"organisation", $org});
+    my @uploadedFiles=();
+    my $remoteDir = "$self->{CONFIG}->{LOG_DIR}/proc$id";
+    my $ui=AliEn::UI::Catalogue::LCM->new({no_catalog=>1});
+    if (!$ui) {
+      $self->info("Error getting an instance of the catalog");
+      $self->putJobLog("error","Could not get an instance of the LCM");
+      return;
+    }
+
+    #this hash will contain all the files that have already been submitted,
+    #so that we can know if we are registering a new file or a replica
+    my $submitted={};
+    my $localdir= $self->{WORKDIR};
+
+    foreach my $fileOrArch (keys(%$fs_table)) {
+
+      $fs_table->{$fileOrArch}->{options} or $fs_table->{$fileOrArch}->{options}="";
+      $self->info("Processing  file  ".$fs_table->{$fileOrArch}->{name});
+      $self->info("File has options  ".$fs_table->{$fileOrArch}->{options});
+
+      (my $no_links, $fs_table->{$fileOrArch}->{options})  = $self->processJDL_Check_on_Tag($fs_table->{$fileOrArch}->{options}, "no_links_registration");
+
+      
+      (exists($guids{$fs_table->{$fileOrArch}->{name}}))  and
+                 $fs_table->{$fileOrArch}->{options} .= ",".$guids{$fs_table->{$fileOrArch}->{name}}
+                 and $self->putJobLog("trace", "The file $fs_table->{$fileOrArch}->{name} has the guid $guids{$fs_table->{$fileOrArch}->{name}}");
+
+      my $uploadStatus = $self->uploadFile($ui, $fs_table->{$fileOrArch}->{name}, $fs_table->{$fileOrArch}->{options}, $submitted);
+
+      $self->putJobLog("trace", "Back from uploadFile for $fs_table->{$fileOrArch}->{name}");
+      $uploadStatus and $self->putJobLog("trace", "UploadStatus true for $fs_table->{$fileOrArch}->{name}");
+
+
+      $uploadStatus or next;
+      ($uploadStatus ne 0) and  $successCounter++;
+      ($uploadStatus eq -1) and $incompleteUploades=1;
+      
+
+      # $no_links and $self->putJobLog("trace", "No Link Registration activated for $fs_table->{$fileOrArch}->{name}") and next;
+      # $self->putJobLog("trace", "Normal Link Registration for $fs_table->{$fileOrArch}->{name}");
+      $no_links and next;
+
+      my @list=();
+      foreach my $file( keys %{$fs_table->{$fileOrArch}->{entries}}) {  # if it is a file, there are just no entries
+         my $guid=$guids{$file} || "";
+         $self->info("Checking if $file has a guid ($guid)");
+         push @list, join("###", $file, $fs_table->{$fileOrArch}->{entries}->{$file}->{size},
+         $fs_table->{$fileOrArch}->{entries}->{$file}->{md5},$guid );
+      }
+      $submitted->{$fs_table->{$fileOrArch}->{name}}->{links}=\@list;
+      $self->putJobLog("trace", "Done with Normal Link Registration for $fs_table->{$fileOrArch}->{name}");
+    }
+
+
+    my @list=();
+    foreach my $key (keys %$submitted){
+      my $links="";
+      $submitted->{$key}->{status} or next;
+      my $entry=$submitted->{$key};
+      if ($entry->{links} ) {
+	$links.=";;".join(";;",@{$entry->{links}});
+      }
+
+#gron $self->info("guid: $entry->{guid}");
+#gron $self->info("size: $entry->{size}");
+#gron $self->info("md5: $entry->{md5}");
+#gron $self->info("pfns: @{$entry->{PFNS}}");
+  
+  
+      push @list, "\"".join ("###", $key, $entry->{guid}, $entry->{size}, 
+			     $entry->{md5},  join("###",@{$entry->{PFNS}}), 
+			     $links) ."\"";
+    }
+    if (@list) {
+      $self->{CA}->set_expression("RegisteredOutput", "{".join(",",@list)."}");
+      $self->{JDL_CHANGED}=1;
+    }
+    $self->debug(1, "Closing the catalogue");
+    $ui->close();
+  }
+
+  $self->{CONFIG}=$self->{CONFIG}->Reload({"organisation", $oldOrg});
+
+  if (scalar(keys(%$fs_table)) ne $successCounter) {
+     $self->putJobLog("error","There was at least one file, that we couldn't store on any SE.");
+     return 0;
+  }
+
+  if($incompleteUploades) {
+     $self->putJobLog("warning", "WE HAD ".scalar(keys(%$fs_table))
+             ." files and archives to store, we successfully stored $successCounter");
+     $self->putJobLog("warning", "YET NOT ALL FILES AND ARCHIVES were stored as many times as specified.");
+     return -1;
+  }
+
+  $self->putJobLog("trace","OK, ALL RIGHT. All files and archives for this job where uploaded successfully and as specified.");
+  return 1;
+}
+
+
+sub uploadFile {
+    my $self=shift;
+    my $ui=shift;;
+    my $file=shift;
+    my $storeTags=shift;
+    my $submitted=shift;
+    my $uploadResult;
+    my @pfns = (); 
+    #my $silent="-silent";
+    my $silent="";
+
+    $self->info("Submitting the file $file");
+    if (! -f "$self->{WORKDIR}/$file")  {
+      $self->putJobLog("error", "The job didn't create $file");
+      return; 
+    }
+    $self->putJobLog("trace","Registering $file.");
+
+#gron $self->info("JobAgent:: about to call upload in LCM, ses: $ses, exses: $exses, tags: $replicaTags, guid: $guid");
+	
+    ($uploadResult)=$ui->execute("upload", "$self->{WORKDIR}/$file", $storeTags, $silent);
+
+#gron foreach (keys %$uploadResult){
+#gron    $_ ne "envref" and $self->info("JobAgent after exec upload,uploadResult: $_ is $uploadResult->{$_}");
+#gron }
+#gron foreach (keys %{$uploadResult->{se}}){
+#gron    $self->info("JobAgent after exec upload,uploadResult->se: $_ is $uploadResult->{se}->{$_}");
+#gron }
+
+    (scalar(keys(%$uploadResult)) gt 0) or 
+         $self->putJobLog("error","Error, could not store the file $self->{WORKDIR}/$file on any SEs")
+         and return 0;
+
+    $submitted->{$file}=$uploadResult;
+
+#gron $self->info("guid: $uploadResult->{guid}");
+#gron $self->info("size: $uploadResult->{size}");
+#gron $self->info("md5: $uploadResult->{md5}");
+#gron $self->info("pfn: $uploadResult->{pfn}");
+
+    foreach my $se (keys(%{$uploadResult->{se}})) {
+#gron $self->putJobLog("trace", "an se is: $se");
+#gron $self->putJobLog("trace", "the therefore corresponding pfn is: $uploadResult->{se}->{$se}->{pfn}");
+
+       push @{$submitted->{$file}->{PFNS}}, "$se/$uploadResult->{se}->{$se}->{pfn}";
+    }
+    
+    if ($uploadResult->{totalCount} eq scalar(keys %{$uploadResult->{se}})) {
+         $self->putJobLog("trace","Successfully stored the file $self->{WORKDIR}/$file on $uploadResult->{totalCount} SEs");
+         return (1);
+    }
+    elsif(scalar(keys %{$uploadResult->{se}}) eq 0) {
+         $self->putJobLog("error","Could not store the file $self->{WORKDIR}/$file on any of the $uploadResult->{totalCount} wished SEs");
+         return 0;
+    } else {
+         $self->putJobLog("warning","Could store the file $self->{WORKDIR}/$file only on ".scalar(keys %{$uploadResult->{se}}).
+				"  of the $uploadResult->{totalCount} wished SEs");
+         return (-1,);
+    }
+    return 0;
+}
 
 #sub copyInMSS {
 #  my $self=shift;
