@@ -498,10 +498,7 @@ sub checkPFNisLocal {
 sub RegisterInRemoteSE {
   my $self=shift;
   my $pfn=shift;
-  my $newSE= (shift || "");
   my $lfn=(shift || "");
-  my $options=(shift || {});
-  my $reqGuid=(shift || "");
   my $envelope=(shift || "");
 
 
@@ -519,7 +516,7 @@ sub RegisterInRemoteSE {
   }
   $self->debug (1, "Trying to upload the file to the SE");
   my $url=AliEn::SE::Methods->new($pfn) 
-    or $self->info( "Error creating the url of $pfn while uploading to the SE: $newSE")
+    or $self->info( "Error creating the url of $pfn while uploading to the SE: ".$envelope->{se})
       and return;
 
   if ($url->method()=~ /^file/ and $url->host() !~ /^($self->{CONFIG}->{HOST})|(localhost)$/){
@@ -529,12 +526,12 @@ sub RegisterInRemoteSE {
 
 
   my $info={};
-  $info->{size}=$options->{size} || $url->getSize();
+  $info->{size} = $url->getSize();
   defined $info->{size} or $self->info("Error getting the size of $pfn") 
     and return;
-  $info->{md5}=$options->{md5} ||AliEn::MD5->new($pfn);
+  $info->{md5} = AliEn::MD5->new($pfn);
 
-  $info=$self->getPFNName($newSE, $info, $reqGuid, $envelope );
+  $info=$self->getPFNName($info, $envelope );
   $info or return;
   my $url2=AliEn::SE::Methods->new({PFN=>$info->{pfn},
 				    LOCALFILE=>$url->path()})
@@ -543,7 +540,7 @@ sub RegisterInRemoteSE {
   my $done=$url2->put() or
     $self->info("Error uploading the file: ") and return;
 
-  $self->info( "File saved successfully in SE: $newSE.");
+  $self->info( "File saved successfully in SE: ".$envelope->{se});
   return ($info);
 }
 
@@ -558,9 +555,7 @@ sub RegisterInRemoteSE {
 
 sub getPFNName{
   my $self=shift;
-  my $newSE=shift;
   my $info=shift;
-  my $reqGuid=shift;
   my $envelope=shift;
   $self->debug(1, "Can we get the guid and the pfn from the envelope???");
   
