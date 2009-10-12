@@ -34,7 +34,7 @@ BEGIN { plan tests => 1 }
 		      "savedir", "$config->{LOG_DIR}/SE_DATA",
 		      "port", "8092",
 		      "certsubject",$subject,
-		      "QoS", ',disk,',
+		      "QoS", 'disk',
 		      "ftdprotocol",'cp',
 		     ]) or exit(-2);
   $key="host=$config->{HOST},ou=Config,ou=CERN,ou=Sites,$config->{LDAPDN}";
