@@ -105,9 +105,7 @@ sub installPackage{
 }
 
 
-
-
-sub f_packman_HELP {return  "packman: talks to the Package Manager. By default, it talks to the closest PackMan. You can also specify '-name <PackManName>' to talk to a specific instance. Depending on the first argument, it does different tasks:\nUsage: 
+sub f_packman_HELP {return  "packman: talks to the Package Manager. By default, it talks to the closest PackMan. You can also specify '-name <PackManName>' to talk to a specific instance. Depending on the first argument, it does different tasks:\nUsage:
 \tpackman list:\treturns all the packages defined in the system
 \tpackman listInstalled:\treturns all the packages that the service has installed
 \tpackman test <package>: tries to configure a package. Returns the metainformation associated with the package, a view of the directory where the package is installed, and an environment that the package would set
@@ -115,16 +113,17 @@ sub f_packman_HELP {return  "packman: talks to the Package Manager. By default, 
 \tpackman installLog <package>: get the installation log of the package
 \tpackman dependencies <name>: gives the list of dependencies of a package
 \tpackman remove  <package>: removes a package from the local cache
-\tpackman define <name> <version> <tar file> [<package options>] [-se <sename>] [-platform <platform>]
+\tpackman define <name> <version> <tar file> [<package options>]
 \tpackman undefine <name> <version>
 \tpackman recompute: (only for admin) recompute the list of packages.
-
-
+Package options: -platform source, else the default for the local system is used
+                  post_install <script> where the script should be given with the full catalogue path
 The format of the string <package> is:
-   [<user>\@]<PackageName>[::PackageVersion}
+    [<user>\@]<PackageName>[::PackageVersion}
 For instance, 'ROOT', 'ROOT::4.1.3', 'psaiz\@ROOT', 'psaiz\@ROOT::4.1.2' comply with the format of <package>
 ";
 }
+
 
 sub f_packman {
   my $self=shift;
