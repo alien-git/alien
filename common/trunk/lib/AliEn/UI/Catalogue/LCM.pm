@@ -1616,7 +1616,8 @@ sub access {
       $filehash->{pfn} = "$ppfn";
       if (($lfn eq "") && ($access =~ /^write/)) {
 	  $lfn = "/NOLFN";
-	  $guid = $extguid;
+          $self->identifyValidGUID($extguid) 
+          and $guid = $extguid;
       }
 
       $filehash->{turl} = $pfn;
@@ -1937,7 +1938,7 @@ sub upload {
    my @ses = ();
    my @excludedSes = ();
    my @qosList;
-   my $guid="";
+   my $result = {};
    $pfn or $self->info("Error not enough arguments in upload\n". $self->upload_HELP()) 
           and return;
    $pfn=$self->checkLocalPFN($pfn);
@@ -1948,12 +1949,11 @@ sub upload {
      ($_ =~ /::/) and ( ($_ =~ /!/) and ($_ =~ s/!// and push @excludedSes, uc($_) and next)
           or push @ses, uc($_) and next);
      ($_ =~ /\=/) and push @qosList, $_ and next;
-     $self->identifyValidGUID($guid) and $guid= $_ and next;
+     $self->identifyValidGUID($_) and $result->{guid}=$_ and next;
      $_ =~ s/^\s+//;     $_ =~ s/\s+$//;     $_ eq "" and next;
      $self->info("WARNING: Found the following unrecognizeable option:".$_);
    }
 
-   my $result = {};
 
    my $maximumCopyCount = 9;
    my $selOutOf=0;
@@ -1997,7 +1997,7 @@ sub upload {
 
    foreach my $qos(keys %$qosTags){
         $self->info("Processing storage discovery qos: $qos with $qosTags->{$qos} requested elements.");
-       $result = $self->putOnDynamicDiscoveredSEListByQoS($result,$pfn,"/NOLFN",$size,$guid,"write-once",$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes,1);
+       $result = $self->putOnDynamicDiscoveredSEListByQoS($result,$pfn,"/NOLFN",$size,"write-once",$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes,1);
    }
 
    if (!$result->{status} and $selOutOf le 0){ # if dynamic was either not specified or not successfull (not even one time, that's $result->{status} ne 1) 
@@ -2005,7 +2005,7 @@ sub upload {
       $totalCount = 1;
    }
    
-   (scalar(@ses) gt 0) and $result = $self->putOnStaticSESelectionList($result,$pfn,"/NOLFN",$size,$guid,"write-once",$selOutOf,\@ses,1);
+   (scalar(@ses) gt 0) and $result = $self->putOnStaticSESelectionList($result,$pfn,"/NOLFN",$size,"write-once",$selOutOf,\@ses,1);
 
  
    $result->{totalCount}=$totalCount;
@@ -2038,7 +2038,6 @@ sub putOnStaticSESelectionList{
    my $pfn=(shift || "");
    my $lfn=(shift || "");
    my $size=(shift || 0);
-   my $guid=(shift || "");
    my $envreq=(shift || "");
    my $selOutOf=(shift || 0);
    my $ses=(shift || "");
@@ -2054,7 +2053,7 @@ sub putOnStaticSESelectionList{
      (scalar(@$ses) gt 0) and my @staticSes= splice(@$ses, 0, $selOutOf);
      $self->info("We select out of a supplied static list the SEs to save on: @staticSes, count:".scalar(@staticSes));
      ($result, my $success, my $JustConsideredSes) = $self->registerInMultipleSEs($result, 
-                         $pfn, $guid, $lfn, $size, \@staticSes, $envreq, $pfnRewrite);
+                         $pfn, $lfn, $size, \@staticSes, $envreq, $pfnRewrite);
      $selOutOf = $selOutOf - $success;
    }
    return $result;
@@ -2068,7 +2067,6 @@ sub putOnDynamicDiscoveredSEListByQoS{
    my $pfn=(shift || "");
    my $lfn=(shift || "");
    my $size=(shift || 0);
-   my $guid=(shift || "");
    my $envreq=(shift || "");
    my $count=(shift || 0);
    my $qos=(shift || "");
@@ -2084,7 +2082,7 @@ sub putOnDynamicDiscoveredSEListByQoS{
      my @discoveredSes=@{$res->result};
      scalar(@discoveredSes) gt 0 or $self->info("We could'nt find any of the '$count' requested SEs with qos flag '$qos' in the cache.") and last;;
      $self->info("We discovered the following SEs to save on: @discoveredSes, count:".scalar(@discoveredSes).", type flag was: $qos.");
-     ($result, my $success, my $JustConsideredSes) = $self->registerInMultipleSEs($result, $pfn, $guid, $lfn, $size, \@discoveredSes, $envreq, $pfnRewrite);
+     ($result, my $success, my $JustConsideredSes) = $self->registerInMultipleSEs($result, $pfn, $lfn, $size, \@discoveredSes, $envreq, $pfnRewrite);
      push @$excludedSes, @$JustConsideredSes;
      $count = $count - $success;
   }
@@ -2098,15 +2096,15 @@ sub registerInMultipleSEs {
   my $self  = shift;
   my $result = (shift || {});
   my $pfn   = shift;
-  my $reqGuid=(shift || "");
   my $lfn=(shift || "");
   my $size=(shift || 0);
   my $suggestedSes = ( shift || {} );
   my $envreq=(shift || "");
   my $pfnRewrite=(shift || 0);
 
+$result->{guid} and $self->info("File has guid: $result->{guid}");
+  $result->{guid} or $result->{guid} = "";
 
-  $reqGuid eq "" and $result->{guid} and $reqGuid = $result->{guid};
 
   ($pfn) or $self->{LOGGER}->warning( "LCM", "Error no pfn specified" ) and return;
   
@@ -2117,7 +2115,7 @@ sub registerInMultipleSEs {
 
   my $envelopes = {};
   for my $j(0..$#{$suggestedSes}) {
-     my @envelope= $self->access("-s",$envreq,$lfn, @$suggestedSes[$j], $size,0,"$reqGuid");
+     my @envelope= $self->access("-s",$envreq,$lfn, @$suggestedSes[$j], $size,0,$result->{guid});
      if(@envelope) {
          $envelopes->{@$suggestedSes[$j]}=$envelope[0]; 
          push @ses, @$suggestedSes[$j];
@@ -2125,6 +2123,9 @@ sub registerInMultipleSEs {
          $self->info("Error getting the security envelope");
          push @excludedSes, @$suggestedSes[$j]; 
      }
+
+     ($j eq 0) and $result->{guid} = $envelopes->{@$suggestedSes[$j]}->{guid};
+
   } 
 
   $self->info("We got envelopes for and will use the following SEs to save on: @ses, count:".scalar(@ses));
