@@ -851,7 +851,9 @@ sub Getopts {
   return ( $flags, @files ); }
 
 sub addFile_HELP {
-  return "'add' copies a file into the SE, and register an entry in the catalogue that points to the file in the SE\n\tUsage: add [-r]  <lfn> <pfn> [<SE1>,<SEn> ,select=N ,qosFlag=N ,guid:<guid>,[<previous storage element>]]\nPossible pfns:\tsrm://<host>/<path>, castor://<host>/<path>, 
+  return "'add' copies a file into the SE, and register an entry in the catalogue that points to the file in the SE\n\t
+Usage: add [-r]  <lfn> <pfn> [<se>,!<se>,select=N,<qosflag>=N,<guid>]\n
+Possible pfns:\tsrm://<host>/<path>, castor://<host>/<path>, 
 \t\tfile://<host>/<path>
 If the method and host are not specified, the system will try with 'file://<localhost>'
 Possible options:
@@ -883,7 +885,7 @@ sub addFile {
   my $lfn   = shift;
   my $pfn   = shift;
   my $optstring =(shift || "");
-  $self->info("optstring is: $optstring");
+  $self->debug(1,"Option string is: $optstring");
 
   $pfn or $self->info("Error: not enough parameters in add\n".
 		      $self->addFile_HELP(),2)	and return;
@@ -906,7 +908,7 @@ sub addFile {
   }
 
   if ($result->{totalCount} eq scalar(keys %{$result->{se}})){
-      $self->info("Successfully added the file $lfn on $result->{totalCount} SEs, as specified.");
+      $self->info("OK. Added the file $lfn on $result->{totalCount} SEs as specified. Superb!");
   } elsif(scalar(keys %{$result->{se}}) > 0) {
       $self->info("WARNING: Added the file to ".scalar(keys %{$result->{se}})." SEs, yet specified was to add it on $result->{totalCount}.");
   } else {
@@ -1917,7 +1919,7 @@ sub erase {
 sub upload_HELP {
   return "upload: copies a file to the SE
 Usage:
-\t\tupload <pfn> [<se>,!<se>,<qosflag>=N,guid:<guid>]
+\t\tupload <pfn> [<se>,!<se>,select=N,<qosflag>=N,<guid>]
 ";
 }
 
@@ -1993,14 +1995,6 @@ sub upload {
             $totalCount += $copies;
   }
 
-  #$self->debug(2,"we were called with ses: @ses .");  
-  #$self->debug(2,"we were called with select: $selOutOf.");  
-  #$self->debug(2,"we were called with exses: @excludedSes .");  
-  #foreach (keys %$qosTags) { $self->debug(2,"we were called with $_: $qosTags->{$_} .");}
-
-  
-   
-
    foreach my $qos(keys %$qosTags){
         $self->info("Processing storage discovery qos: $qos with $qosTags->{$qos} requested elements.");
        $result = $self->putOnDynamicDiscoveredSEListByQoS($result,$pfn,"/NOLFN",$size,$guid,"write-once",$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes,1);
@@ -2050,21 +2044,18 @@ sub putOnStaticSESelectionList{
    my $ses=(shift || "");
    my $pfnRewrite=(shift || 0);
 
+   for my $j(0..3) {
+      my $res = $self->{SOAP}->CallSOAP("IS", "checkExclusiveUserOnSEs", $self->{CONFIG}->{ROLE}, $ses);
+      $self->{SOAP}->checkSOAPreturn($res) and $ses=$res->result and last;
+   }
+
    $selOutOf eq 0 and  $selOutOf = scalar(@$ses);
-
    while ((scalar(@$ses) gt 0 and $selOutOf gt 0)) {
-  
      (scalar(@$ses) gt 0) and my @staticSes= splice(@$ses, 0, $selOutOf);
-
-
-     $self->info("We select out of a supplied static list the following SEs to save on: @staticSes, count:".scalar(@staticSes));
-
-     ($result, my $success, my $JustConsideredSes) = $self->registerInMultipleSEs($result, $pfn, $guid, $lfn, $size, \@staticSes, $envreq, $pfnRewrite);
-     
-     $self->info("We came back and stored $success times.");
-
+     $self->info("We select out of a supplied static list the SEs to save on: @staticSes, count:".scalar(@staticSes));
+     ($result, my $success, my $JustConsideredSes) = $self->registerInMultipleSEs($result, 
+                         $pfn, $guid, $lfn, $size, \@staticSes, $envreq, $pfnRewrite);
      $selOutOf = $selOutOf - $success;
-
    }
    return $result;
 }  
@@ -2087,26 +2078,15 @@ sub putOnDynamicDiscoveredSEListByQoS{
    my $countOutSOAP=0;
 
    while($count gt 0) {
-     
-     $self->info("Going to ask for '$count' SEs with qos flag '$qos' in the cache.");;
-
-     my $res = $self->{SOAP}->CallSOAP("IS", "getSEListFromSiteSECache", $count, $qos, $sitename, $excludedSes);
+     my $res = $self->{SOAP}->CallSOAP("IS", "getSEListFromSiteSECache", $count, $qos, $sitename, $excludedSes, $self->{CONFIG}->{ROLE});
      $countOutSOAP++;
      $self->{SOAP}->checkSOAPreturn($res) or ($countOutSOAP < 4 and next or last);
      my @discoveredSes=@{$res->result};
-
      scalar(@discoveredSes) gt 0 or $self->info("We could'nt find any of the '$count' requested SEs with qos flag '$qos' in the cache.") and last;;
-
      $self->info("We discovered the following SEs to save on: @discoveredSes, count:".scalar(@discoveredSes).", type flag was: $qos.");
-
      ($result, my $success, my $JustConsideredSes) = $self->registerInMultipleSEs($result, $pfn, $guid, $lfn, $size, \@discoveredSes, $envreq, $pfnRewrite);
-
      push @$excludedSes, @$JustConsideredSes;
-
-     $self->info("Saving on qos '$qos', we came back and stored '$success' times.");
-
      $count = $count - $success;
-
   }
   return $result;
 }
