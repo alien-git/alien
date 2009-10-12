@@ -124,6 +124,10 @@ sub StartChildren{
 
 sub startListening {
   my $this=shift;
+  if ($self->{FORKCHECKPROCESS}){
+    $self->info("Forking a process");
+    $self->forkCheckProcess() or return;
+  }
 
   $self->info("In fact, this is not a service. We don't listen for anything.");
   while(1){

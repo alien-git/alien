@@ -58,6 +58,8 @@ sub checkWakesUp {
       my $reason=$self->{LOGGER}->error_msg() || "error creating the jdl of the transfer";
       $self->{DB}->updateTransfer($transfer->{transferid},{status=>"FAILED", Reason=>$reason})
 	or $self->{LOGGER}->error("TransferOptimizer", "In checkNewTransfers error updating status for transfer $transfer->{transferid}");
+      $self->{TRANSFERLOG}->putlog($transfer->{transferid}, "ERROR", "Error defining the transfer: $reason");
+
       next;
     }
     $self->debug(1,"In checkNewTransfers updating transfer $transfer->{transferid}. New jdl = $jdl,size = $size and status = WAITING");
