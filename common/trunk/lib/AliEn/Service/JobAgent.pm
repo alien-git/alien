@@ -1471,8 +1471,8 @@ sub createZipArchives{
        my $filename = $name;
        my @includedFiles =  @{$archiveTable->{$name}->{includedFiles}};
        if (! @includedFiles) {
-         $self->info("There are no files for the archive $filename!!");
-         $self->putJobLog("error","The files ".@includedFiles." weren't produced!! (ignoring the zip file $filename)");
+         $self->info("There are no files for the archive $filename.");
+         $self->putJobLog("error","The files ".@includedFiles." weren't produced/present. (ignoring the zip file $filename)");
          next;
        }
        $archiveTable->{$name}={zip=>Archive::Zip->new() ,
@@ -1528,7 +1528,6 @@ sub prepare_File_And_Archives_From_JDL_And_Upload_Files{
 
   my ( $ok, @fileEntries ) = $self->{CA}->evaluateAttributeVectorString("OutputFile");
   ( $ok, my @archiveEntries ) = $self->{CA}->evaluateAttributeVectorString("OutputArchive");
-  #($ok, my $username ) = $self->{CA}->evaluateAttributeString("User");
 
   ## create a default archive if nothing is specified
   ##
@@ -1616,17 +1615,11 @@ sub putFiles {
 
       my $uploadStatus = $self->uploadFile($ui, $fs_table->{$fileOrArch}->{name}, $fs_table->{$fileOrArch}->{options}, $submitted);
 
-      $self->putJobLog("trace", "Back from uploadFile for $fs_table->{$fileOrArch}->{name}");
-      $uploadStatus and $self->putJobLog("trace", "UploadStatus true for $fs_table->{$fileOrArch}->{name}");
-
-
       $uploadStatus or next;
       ($uploadStatus ne 0) and  $successCounter++;
       ($uploadStatus eq -1) and $incompleteUploades=1;
       
 
-      # $no_links and $self->putJobLog("trace", "No Link Registration activated for $fs_table->{$fileOrArch}->{name}") and next;
-      # $self->putJobLog("trace", "Normal Link Registration for $fs_table->{$fileOrArch}->{name}");
       $no_links and next;
 
       my @list=();
@@ -1637,7 +1630,6 @@ sub putFiles {
          $fs_table->{$fileOrArch}->{entries}->{$file}->{md5},$guid );
       }
       $submitted->{$fs_table->{$fileOrArch}->{name}}->{links}=\@list;
-      $self->putJobLog("trace", "Done with Normal Link Registration for $fs_table->{$fileOrArch}->{name}");
     }
 
 
@@ -1649,12 +1641,6 @@ sub putFiles {
       if ($entry->{links} ) {
 	$links.=";;".join(";;",@{$entry->{links}});
       }
-
-#gron $self->info("guid: $entry->{guid}");
-#gron $self->info("size: $entry->{size}");
-#gron $self->info("md5: $entry->{md5}");
-#gron $self->info("pfns: @{$entry->{PFNS}}");
-  
   
       push @list, "\"".join ("###", $key, $entry->{guid}, $entry->{size}, 
 			     $entry->{md5},  join("###",@{$entry->{PFNS}}), 
@@ -1671,7 +1657,7 @@ sub putFiles {
   $self->{CONFIG}=$self->{CONFIG}->Reload({"organisation", $oldOrg});
 
   if (scalar(keys(%$fs_table)) ne $successCounter) {
-     $self->putJobLog("error","There was at least one file, that we couldn't store on any SE.");
+     $self->putJobLog("error","THERE WAS AT LEAST ONE FILE, THAT WE COULDN'T STORE ON ANY SE.");
      return 0;
   }
 
@@ -1682,7 +1668,7 @@ sub putFiles {
      return -1;
   }
 
-  $self->putJobLog("trace","OK, ALL RIGHT. All files and archives for this job where uploaded successfully and as specified.");
+  $self->putJobLog("trace","OK. All files and archives for this job where uploaded as specified. Superb!");
   return 1;
 }
 
@@ -1695,8 +1681,7 @@ sub uploadFile {
     my $submitted=shift;
     my $uploadResult;
     my @pfns = (); 
-    #my $silent="-silent";
-    my $silent="";
+    my $silent="-silent";
 
     $self->info("Submitting the file $file");
     if (! -f "$self->{WORKDIR}/$file")  {
@@ -1705,16 +1690,7 @@ sub uploadFile {
     }
     $self->putJobLog("trace","Registering $file.");
 
-#gron $self->info("JobAgent:: about to call upload in LCM, ses: $ses, exses: $exses, tags: $replicaTags, guid: $guid");
-	
     ($uploadResult)=$ui->execute("upload", "$self->{WORKDIR}/$file", $storeTags, $silent);
-
-#gron foreach (keys %$uploadResult){
-#gron    $_ ne "envref" and $self->info("JobAgent after exec upload,uploadResult: $_ is $uploadResult->{$_}");
-#gron }
-#gron foreach (keys %{$uploadResult->{se}}){
-#gron    $self->info("JobAgent after exec upload,uploadResult->se: $_ is $uploadResult->{se}->{$_}");
-#gron }
 
     (scalar(keys(%$uploadResult)) gt 0) or 
          $self->putJobLog("error","Error, could not store the file $self->{WORKDIR}/$file on any SEs")
@@ -1722,14 +1698,7 @@ sub uploadFile {
 
     $submitted->{$file}=$uploadResult;
 
-#gron $self->info("guid: $uploadResult->{guid}");
-#gron $self->info("size: $uploadResult->{size}");
-#gron $self->info("md5: $uploadResult->{md5}");
-#gron $self->info("pfn: $uploadResult->{pfn}");
-
     foreach my $se (keys(%{$uploadResult->{se}})) {
-#gron $self->putJobLog("trace", "an se is: $se");
-#gron $self->putJobLog("trace", "the therefore corresponding pfn is: $uploadResult->{se}->{$se}->{pfn}");
 
        push @{$submitted->{$file}->{PFNS}}, "$se/$uploadResult->{se}->{$se}->{pfn}";
     }

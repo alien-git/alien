@@ -709,30 +709,39 @@ sub getCloseSE{
 }
 
 
+sub checkExclusiveUserOnSEs{
+   my $this=shift;
+   my $role=(shift || return 0);
+   my $seList=(shift || return 0);
+
+   my $query="SELECT seName FROM SE WHERE (";
+   foreach(@$seList){   $query .= " seName = '$_' or";   }  
+   $query =~ s/or$//;
+   $query  .= ") and (exclusiveUsers = '' or exclusiveUsers  LIKE '%,$role,%');";
+
+   return $self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn($query);
+}
+
+
 sub getSEListFromSiteSECache{
    my $this=shift;
    my $count=(shift || 0);
    my $type=(shift || "none");
    my $sitename=(shift || "none");
    my $excludeList=(shift || "");
-   $self->info("The SERank Cache is accessed");
-   $self->info("Parameters are, Type: $type, Count: $count, Site: $sitename, Exclud. Ses: @$excludeList");
+   my $role=(shift || "");
 
    my $catalogueDB=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn("select sename from SE");
-
-$self->info("CATALOGUE_DB: We asked for the SE table in the catalogue, we got:");
-foreach (@$catalogueDB) { $self->info("CATALOGUE_DB: one se element is: $_"); }
 
    $self->checkSiteSECache($sitename) or return 0;
 
    my $query="SELECT SE.seName FROM SERanks,SE WHERE "
       ." sitename = '$sitename' and SERanks.seNumber = SE.seNumber ";
    foreach(@$excludeList){   $query .= "and SE.seName <> '$_' ";   }  
-   $type and $query .=" and SE.seQoS  LIKE '%,$type,%'"; 
-   $query .= " ORDER BY rank ASC limit $count ;";
+   $query .=" and SE.seQoS  LIKE '%,$type,%'" 
+    ." and (SE.exclusiveUsers = '' or SE.exclusiveUsers  LIKE '%,$role,%')" 
+    ." ORDER BY rank ASC limit $count ;";
 
-$self->info("query on DB will be: ||$query||");
- 
    return $self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn($query);
 }
 
@@ -741,17 +750,11 @@ sub checkSiteSECache{
    my $this=shift;
    my $site=shift;
 
-$self->info("Checking the SERank Cache for site: $site");
-
    my $query="SELECT sitename FROM SERanks WHERE sitename = '$site';";
-
-$self->info("query on DB will be: ||$query||");
 
    my $reply = $self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn($query);
 
-$self->info("Reply was: @$reply .");  
-
-   (scalar(@$reply) < 1) and $self->info("We need to update the SERank Cache. Adding not listed site: $site")
+   (scalar(@$reply) < 1) and $self->info("We need to update the SERank Cache for the not listed site: $site")
             and return $self->updateSiteSECacheForSite($site);
    return 1;
 }
@@ -761,15 +764,13 @@ $self->info("Reply was: @$reply .");
 sub updateSiteSECacheForSite{
    my $this=shift;
    my $site=shift;
-   $self->info("Starting the add SERank Cache entries for site: $site");
 
    my $query = "INSERT INTO SERanks (sitename,rank,seNumber,updated) "
            ."SELECT '$site' sitename, \@num := \@num + 1 rank , SE.seNumber, 0 updated FROM "
            ."(SELECT \@num := 0) rank, SE ;";
 
-$self->info("query on DB will be: ||$query||");
-
    my $reply = $self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn($query);
+   $self->info("Finished to add SERank Cache entries for site: $site");
    
    return 1;
 }
