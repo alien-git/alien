@@ -1,4 +1,4 @@
-package AliEn::Service::Optimizer::Catalogue::SErank;
+package AliEn::Service::Optimizer::Catalogue::SERank;
  
 use strict;
 
@@ -15,10 +15,8 @@ sub checkWakesUp {
   my $silent=shift;
   my @info;
 
-  my $stat = 0;
-
   my $method="info";
-  $silent and $method="debug" and  @info=1;
+#  $silent and $method="debug" and  @info=1;
 
   $self->$method(@info, "The SE Rank optimizer starts");
   $self->{SLEEP_PERIOD}=7200;
@@ -31,30 +29,51 @@ sub checkWakesUp {
 
   foreach my $site (@$sites) {
 
-     my $selist = $self->rankStorageElementsWithMonAlisa($site,$silent) or return 0;
-  
-     $self->$method(@info, "SE Rank Optimizer, the ses for site $site are: @$selist");
+    $self->updateRanksForSite($site,$silent);
 
-     for my $rank(0..$#{$selist}) {
-      
-        $stat = $catalogue->do(" update SERanks,SE set SERanks.rank=$rank,SERanks.updated=1 where SE.seName='$$selist[$rank]' and SE.seNumber=SERanks.seNumber and SERanks.sitename='$site'");
-        $self->$method(@info, "SE Rank Optimizer, updating for site $site the SE ".$$selist[$rank]." with rank $rank");
-        $stat and  $self->$method(@info, "SE Rank Optimizer, setting ".$$selist[$rank]." to $rank was OK");
-
-     }
-  
-     $stat  = $catalogue->do("delete from SERanks where SERanks.updated=0 and SERanks.sitename='$site'");
-    
-     $stat and  $self->$method(@info, "SE Rank Optimizer, deleted old entries"); 
-
-     $stat = $catalogue->do(" update SERanks set SERanks.updated=0 where SERanks.sitename='$site'");
-
-     $stat and  $self->$method(@info, "SE Rank Optimizer, set new entries as old ones from now on.");
   }
 
   $self->info("Going back to sleep");
   return;
 }
+
+
+sub updateRanksForSite{
+  my $self=shift;
+  my $site=(shift || return 0);
+  my $silent=(shift || "");
+  my $stat = 0;
+  my @info;
+  my $method="info";
+#  $silent and $method="debug" and  @info=1;
+
+  my $selist = $self->rankStorageElementsWithMonAlisa($site,$silent) or return 0;
+
+  my $catalogue=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
+
+
+  $self->$method(@info, "SE Rank Optimizer, the ses for site $site are: @$selist");
+
+  for my $rank(0..$#{$selist}) {
+   
+     $stat = $catalogue->do("REPLACE INTO SERanks (sitename,seNumber,rank,updated) values ('$site',(select seNumber from SE where seName='$$selist[$rank]'),$rank,1);");
+     $self->$method(@info, "SE Rank Optimizer, updating for site $site the SE ".$$selist[$rank]." with rank $rank");
+     $stat and  $self->$method(@info, "SE Rank Optimizer, setting ".$$selist[$rank]." to $rank was OK");
+
+  }
+
+  $stat  = $catalogue->do("delete from SERanks where SERanks.updated=0 and SERanks.sitename='$site'");
+ 
+  $stat and  $self->$method(@info, "SE Rank Optimizer, deleted old entries"); 
+
+  $stat = $catalogue->do(" update SERanks set SERanks.updated=0 where SERanks.sitename='$site'");
+
+  $stat and  $self->$method(@info, "SE Rank Optimizer, set new entries as old ones from now on.");
+
+  return $stat;
+
+}
+
 
 
 
@@ -75,7 +94,7 @@ sub rankStorageElementsWithMonAlisa{
    my @info;
 
    my $method="info";
-   $silent and $method="debug" and  @info=1;
+#   $silent and $method="debug" and  @info=1;
 
    $self->$method(@info, "SE Rank Optimizer, gonna ask MonAlisa for: $url");
 

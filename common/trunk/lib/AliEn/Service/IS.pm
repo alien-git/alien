@@ -771,7 +771,11 @@ sub updateSiteSECacheForSite{
 
    my $reply = $self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn($query);
    $self->info("Finished to add SERank Cache entries for site: $site");
-   
+
+   $self->info("Manually calling CatalogueOptimizer->SERank code for site: $site");
+   my $rankopt = AliEn::Service::Optimizer::Catalogue::SERank->new();
+   $rankopt->updateRanksForSite($site,"-silent");
+
    return 1;
 }
 

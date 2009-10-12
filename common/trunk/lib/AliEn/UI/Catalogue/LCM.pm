@@ -2005,7 +2005,7 @@ sub upload {
       $totalCount = 1;
    }
    
-   $result = $self->putOnStaticSESelectionList($result,$pfn,"/NOLFN",$size,$guid,"write-once",$selOutOf,\@ses,1);
+   (scalar(@ses) gt 0) and $result = $self->putOnStaticSESelectionList($result,$pfn,"/NOLFN",$size,$guid,"write-once",$selOutOf,\@ses,1);
 
  
    $result->{totalCount}=$totalCount;
