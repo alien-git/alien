@@ -255,7 +255,7 @@ sub createXROOTConfFile{
   print FILE "# Start the server on port $port
 xrd.port $port
 # Use the authorization library
-xrootd.fslib $fsLibdir/$fsLib
+#xrootd.fslib $fsLibdir/$fsLib
 # Export files
 @dirs
 xrd.sched mint 16 maxt 16 avlt 4
