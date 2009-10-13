@@ -163,7 +163,9 @@ ALIEN_Starthttpd()
 ###########################################################################
 {
 
-  export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$ALIEN_ROOT/api/lib
+  
+  export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$ALIEN_ROOT/api/lib:$ALIEN_ROOT/httpd/lib
+  export PERL5LIB=$PERL5LIB:$ALIEN_ROOT/lib/perl5/site_perl/5.8.8:$ALIEN_ROOT/lib/perl5/5.8.8
   for file in `find  $HOME/.alien/httpd -name httpd.conf` ; 
   do 
      echo "CHECKING $file"
