@@ -895,7 +895,8 @@ sub addFile {
   my $envreq="write-once";
   $options->{versioning} and $envreq="write-version";
 
-  my $result = $self->upload($pfn, $optstring, $options->{silent});
+  my ($result)=$self->execute("upload", $pfn, $optstring, $options->{silent});
+
 
   $result->{status} or $self->info("Error, we couldn't add/store the file on any SE!") and return;
 
