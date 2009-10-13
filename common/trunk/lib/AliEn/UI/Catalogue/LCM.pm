@@ -829,6 +829,8 @@ Old size: $oldStat[7], new size: $newStat[7]");
   $pfn =~ s/\n//gs;
   my $md5=AliEn::MD5->new($file)
     or $self->info("Error calculating the md5") and return;
+  $self->execute("rm", "$reallfn~", "-silent");
+  $self->execute("mv", $reallfn, "$reallfn~", "-silent");
 
   return $self->addFile("-v", "-md5=$md5", $reallfn, $pfn);
 }
