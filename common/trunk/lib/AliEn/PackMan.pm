@@ -130,16 +130,36 @@ sub f_packman {
   $self->debug(1, "Talking to the PackMan: @_");
   my $silent     = grep ( /^-s$/, @_ );
   my $returnhash = grep ( /^-z$/, @_ );
+  my $allPackMan = grep (/^-all$/i, @_);
   my @arg        = grep ( !/^-z$/, @_ );
   @arg        = grep ( !/^-s$/, @arg );
+  @arg        = grep ( !/^-all$/, @arg );
 
   my $string=join(" ", @arg);
   my $serviceName="PackMan";
 
 
 
-#FIXME: TEST
-$self->info("*** calling PackMan with arguments $string");
+  #FIXME: TEST
+  $self->info("*** calling PackMan with arguments $string");
+  if ($allPackMan){
+    $self->info("We are going to call all the packman");
+    my $response =$self->{SOAP}->CallSOAP("IS", "getAllServices", "PackMan")
+     or return;
+    $response = $response->result;
+    print Dumper($response);
+    my @n=split (/###/, $response->{NAMES});
+     $silent and $string.=" -s";
+    foreach my $n (@n){
+      $self->info("Checking $n");
+
+      $self->f_packman("-name $n $string");
+    }
+    return 1;
+  }
+
+
+
   my $direct = 0;
   $string =~ s{-?-silent\s+}{} and $silent=1;
   if ( $string =~ s{-?-n(ame)?\s+(\S+)}{} ){
