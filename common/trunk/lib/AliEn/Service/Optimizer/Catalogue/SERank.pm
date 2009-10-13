@@ -33,6 +33,15 @@ sub checkWakesUp {
 
   }
 
+
+  my $stat  = $catalogue->do("delete from SERanks where updated=0");
+
+  $stat and  $self->$method(@info, "SE Rank Optimizer, deleted old entries");
+
+  $stat = $catalogue->do(" update SERanks set updated=0");
+
+  $stat and  $self->$method(@info, "SE Rank Optimizer, set new entries as old ones from now on.");
+
   $self->info("Going back to sleep");
   return;
 }
@@ -61,15 +70,6 @@ sub updateRanksForSite{
      $stat and  $self->$method(@info, "SE Rank Optimizer, setting ".$$selist[$rank]." to $rank was OK");
 
   }
-
-  $stat  = $catalogue->do("delete from SERanks where SERanks.updated=0 and SERanks.sitename=?", {bind_values=>[$site]});
- 
-  $stat and  $self->$method(@info, "SE Rank Optimizer, deleted old entries"); 
-
-  $stat = $catalogue->do(" update SERanks set SERanks.updated=0 where SERanks.sitename=?", {bind_values=>[$site]});
-
-  $stat and  $self->$method(@info, "SE Rank Optimizer, set new entries as old ones from now on.");
-
   return $stat;
 
 }
