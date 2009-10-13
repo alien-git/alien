@@ -1429,14 +1429,13 @@ sub create_Default_Output_Archive_Entry{
    my $self=shift;
    my $jdlstring=shift;
    my $defaultOutputFiles=shift;
-   my $defaultses=shift;
    my $defaulttags=shift;
    $jdlstring .= ":";
    foreach (@$defaultOutputFiles){
       $jdlstring .= $_.",";
    } 
    $jdlstring =~ s/,$//;
-   $jdlstring .= "@".$defaultses.",".$defaulttags;
+   $jdlstring .= "@".$defaulttags;
    return $jdlstring;
 }
 
@@ -1693,7 +1692,7 @@ sub uploadFile {
     ($uploadResult)=$ui->execute("upload", "$self->{WORKDIR}/$file", $storeTags, $silent);
 
     (scalar(keys(%$uploadResult)) gt 0) or 
-         $self->putJobLog("error","Error, could not store the file $self->{WORKDIR}/$file on any SEs")
+         $self->putJobLog("error","Error in upload, could not store the file $self->{WORKDIR}/$file on any SE")
          and return 0;
 
     $submitted->{$file}=$uploadResult;
