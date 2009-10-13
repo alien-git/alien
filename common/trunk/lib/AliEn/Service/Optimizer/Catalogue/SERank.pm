@@ -16,7 +16,7 @@ sub checkWakesUp {
   my @info;
 
   my $method="info";
-#  $silent and $method="debug" and  @info=1;
+  $silent and $method="debug" and  @info=1;
 
   $self->$method(@info, "The SE Rank optimizer starts");
   $self->{SLEEP_PERIOD}=7200;
@@ -33,15 +33,6 @@ sub checkWakesUp {
 
   }
 
-
-  my $stat  = $catalogue->do("delete from SERanks where updated=0");
-
-  $stat and  $self->$method(@info, "SE Rank Optimizer, deleted old entries");
-
-  $stat = $catalogue->do(" update SERanks set updated=0");
-
-  $stat and  $self->$method(@info, "SE Rank Optimizer, set new entries as old ones from now on.");
-
   $self->info("Going back to sleep");
   return;
 }
@@ -54,7 +45,7 @@ sub updateRanksForSite{
   my $stat = 0;
   my @info;
   my $method="info";
-#  $silent and $method="debug" and  @info=1;
+  $silent and $method="debug" and  @info=1;
 
   my $selist = $self->rankStorageElementsWithMonAlisa($site,$silent) or return 0;
 
@@ -65,11 +56,20 @@ sub updateRanksForSite{
 
   for my $rank(0..$#{$selist}) {
    
-     $stat = $catalogue->do("REPLACE INTO SERanks (sitename,seNumber,rank,updated) values ('$site',(select seNumber from SE where seName='$$selist[$rank]'),$rank,1);");
+     $stat = $catalogue->do("REPLACE INTO SERanks (sitename,seNumber,rank,updated) values (?,(select seNumber from SE where seName=?),?,1);", {bind_values=>[$site,$$selist[$rank],$rank]});
      $self->$method(@info, "SE Rank Optimizer, updating for site $site the SE ".$$selist[$rank]." with rank $rank");
      $stat and  $self->$method(@info, "SE Rank Optimizer, setting ".$$selist[$rank]." to $rank was OK");
 
   }
+
+  $stat  = $catalogue->do("delete from SERanks where SERanks.updated=0 and SERanks.sitename=?", {bind_values=>[$site]});
+ 
+  $stat and  $self->$method(@info, "SE Rank Optimizer, deleted old entries"); 
+
+  $stat = $catalogue->do(" update SERanks set SERanks.updated=0 where SERanks.sitename=?", {bind_values=>[$site]});
+
+  $stat and  $self->$method(@info, "SE Rank Optimizer, set new entries as old ones from now on.");
+
   return $stat;
 
 }
@@ -94,7 +94,7 @@ sub rankStorageElementsWithMonAlisa{
    my @info;
 
    my $method="info";
-#   $silent and $method="debug" and  @info=1;
+   $silent and $method="debug" and  @info=1;
 
    $self->$method(@info, "SE Rank Optimizer, gonna ask MonAlisa for: $url");
 
