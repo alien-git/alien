@@ -105,7 +105,16 @@ sub installPackage{
 }
 
 
-sub f_packman_HELP {return  "packman: talks to the Package Manager. By default, it talks to the closest PackMan. You can also specify '-name <PackManName>' to talk to a specific instance. Depending on the first argument, it does different tasks:\nUsage:
+sub f_packman_HELP {return  "packman: talks to the Package Manager. By default, it talks to the closest PackMan. 
+Usage:
+
+   packman [-name <PackManName>] [-everywhere] <command> [<command options and arguments>]
+
+Global options:
+     -everywhere:  Do the command in all the packmans currently available
+     -name <PackManName>' to talk to a specific instance. By default, it will talk to the closest 
+
+Possible commands:
 \tpackman list:\treturns all the packages defined in the system
 \tpackman listInstalled:\treturns all the packages that the service has installed
 \tpackman test <package>: tries to configure a package. Returns the metainformation associated with the package, a view of the directory where the package is installed, and an environment that the package would set
@@ -130,10 +139,10 @@ sub f_packman {
   $self->debug(1, "Talking to the PackMan: @_");
   my $silent     = grep ( /^-s$/, @_ );
   my $returnhash = grep ( /^-z$/, @_ );
-  my $allPackMan = grep (/^-all$/i, @_);
+  my $allPackMan = grep (/^-everywhere$/i, @_);
   my @arg        = grep ( !/^-z$/, @_ );
   @arg        = grep ( !/^-s$/, @arg );
-  @arg        = grep ( !/^-all$/, @arg );
+  @arg        = grep ( !/^-everywhere$/, @arg );
 
   my $string=join(" ", @arg);
   my $serviceName="PackMan";
