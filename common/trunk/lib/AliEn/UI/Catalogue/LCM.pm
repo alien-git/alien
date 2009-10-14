@@ -2003,12 +2003,15 @@ sub upload {
        $result = $self->putOnDynamicDiscoveredSEListByQoS($result,$pfn,"/NOLFN",$size,"write-once",$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes,1);
    }
 
-   if (!$result->{status} and $selOutOf le 0){ # if dynamic was either not specified or not successfull (not even one time, that's $result->{status} ne 1) 
+   my $suppressISCheck = 0;
+   if (!$result->{status} and scalar(@ses) eq 0 and $selOutOf le 0){ # if dynamic was either not specified or not successfull (not even one time, that's $result->{status} ne 1) 
+
       push @ses, $self->{CONFIG}->{SE_FULLNAME};   # and there were not SEs specified in a static list, THEN push in at least the local static LDAP entry not to loose data
+      $suppressISCheck = 1;
       $totalCount = 1;
    }
    
-   (scalar(@ses) gt 0) and $result = $self->putOnStaticSESelectionList($result,$pfn,"/NOLFN",$size,"write-once",$selOutOf,\@ses,1);
+   (scalar(@ses) gt 0) and $result = $self->putOnStaticSESelectionList($result,$pfn,"/NOLFN",$size,"write-once",$selOutOf,\@ses,1,$suppressISCheck);
 
  
    $result->{totalCount}=$totalCount;
@@ -2045,10 +2048,14 @@ sub putOnStaticSESelectionList{
    my $selOutOf=(shift || 0);
    my $ses=(shift || "");
    my $pfnRewrite=(shift || 0);
+   my $suppressISCheck=(shift || 0);
 
-   for my $j(0..3) {
-      my $res = $self->{SOAP}->CallSOAP("IS", "checkExclusiveUserOnSEs", $self->{CONFIG}->{ROLE}, $ses);
-      $self->{SOAP}->checkSOAPreturn($res) and $ses=$res->result and last;
+
+   if ($suppressISCheck eq 0) {
+      for my $j(0..3) {
+         my $res = $self->{SOAP}->CallSOAP("IS", "checkExclusiveUserOnSEs", $self->{CONFIG}->{ROLE}, $ses);
+         $self->{SOAP}->checkSOAPreturn($res) and $ses=$res->result and last;
+      }
    }
 
    $selOutOf eq 0 and  $selOutOf = scalar(@$ses);
