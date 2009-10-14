@@ -897,8 +897,9 @@ sub addFile {
   my $envreq="write-once";
   $options->{versioning} and $envreq="write-version";
 
-  my ($result)=$self->execute("upload", $pfn, $optstring, "-silent");
-
+  my $silence = "";
+  $options->{silent} and $silence = "-silent";
+  my ($result)=$self->execute("upload", $pfn, $optstring, $silence);
 
   $result->{status} or $self->info("Error, we couldn't add/store the file on any SE!") and return;
 
@@ -1961,7 +1962,7 @@ sub upload {
    my $maximumCopyCount = 9;
    my $selOutOf=0;
  
-   $self->debug(2,"Sitename is: $self->{CONFIG}->{SITE}");
+   $self->debug(4,"Sitename is: $self->{CONFIG}->{SITE}");
  
    @ses = @{$self->arrayEliminateDuplicates(\@ses)};
    @excludedSes = @{$self->arrayEliminateDuplicates(\@excludedSes)};
@@ -1999,7 +2000,7 @@ sub upload {
   }
 
    foreach my $qos(keys %$qosTags){
-        $self->info("Processing storage discovery qos: $qos with $qosTags->{$qos} requested elements.");
+        $self->debug(2,"Processing storage discovery qos: $qos with $qosTags->{$qos} requested elements.");
        $result = $self->putOnDynamicDiscoveredSEListByQoS($result,$pfn,"/NOLFN",$size,"write-once",$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes,1);
    }
 
@@ -2009,8 +2010,10 @@ sub upload {
       push @ses, $self->{CONFIG}->{SE_FULLNAME};   # and there were not SEs specified in a static list, THEN push in at least the local static LDAP entry not to loose data
       $suppressISCheck = 1;
       $totalCount = 1;
+      $self->debug(2,"There was neither a user specification for the SEs to use, nor is there a default setting defined in LDAP, we use CONFIG->SE_FULLNAME: $self->{CONFIG}->{SE_FULLNAME}");
    }
    
+   $self->debug(2,"Processing static SE list: @ses");
    (scalar(@ses) gt 0) and $result = $self->putOnStaticSESelectionList($result,$pfn,"/NOLFN",$size,"write-once",$selOutOf,\@ses,1,$suppressISCheck);
 
  
@@ -2061,7 +2064,7 @@ sub putOnStaticSESelectionList{
    $selOutOf eq 0 and  $selOutOf = scalar(@$ses);
    while ((scalar(@$ses) gt 0 and $selOutOf gt 0)) {
      (scalar(@$ses) gt 0) and my @staticSes= splice(@$ses, 0, $selOutOf);
-     $self->info("We select out of a supplied static list the SEs to save on: @staticSes, count:".scalar(@staticSes));
+     $self->debug(2,"We select out of a supplied static list the SEs to save on: @staticSes, count:".scalar(@staticSes));
      ($result, my $success, my $JustConsideredSes) = $self->registerInMultipleSEs($result, 
                          $pfn, $lfn, $size, \@staticSes, $envreq, $pfnRewrite);
      $selOutOf = $selOutOf - $success;
@@ -2091,7 +2094,7 @@ sub putOnDynamicDiscoveredSEListByQoS{
      $self->{SOAP}->checkSOAPreturn($res) or ($countOutSOAP < 4 and next or last);
      my @discoveredSes=@{$res->result};
      scalar(@discoveredSes) gt 0 or $self->info("We could'nt find any of the '$count' requested SEs with qos flag '$qos' in the cache.") and last;;
-     $self->info("We discovered the following SEs to save on: @discoveredSes, count:".scalar(@discoveredSes).", type flag was: $qos.");
+     $self->debug(2,"We discovered the following SEs to save on: @discoveredSes, count:".scalar(@discoveredSes).", type flag was: $qos.");
      ($result, my $success, my $JustConsideredSes) = $self->registerInMultipleSEs($result, $pfn, $lfn, $size, \@discoveredSes, $envreq, $pfnRewrite);
      push @$excludedSes, @$JustConsideredSes;
      $count = $count - $success;
@@ -2130,7 +2133,7 @@ $result->{guid} and $self->info("File has guid: $result->{guid}");
          $envelopes->{@$suggestedSes[$j]}=$envelope[0]; 
          push @ses, @$suggestedSes[$j];
      } else {
-         $self->info("Error getting the security envelope");
+         $self->debug(2,"Error getting the security envelope");
          push @excludedSes, @$suggestedSes[$j]; 
      }
 
@@ -2138,7 +2141,7 @@ $result->{guid} and $self->info("File has guid: $result->{guid}");
 
   } 
 
-  $self->info("We got envelopes for and will use the following SEs to save on: @ses, count:".scalar(@ses));
+  $self->debug(2,"We got envelopes for and will use the following SEs to save on: @ses, count:".scalar(@ses));
 
   for my $j(0..$#ses) {
 
@@ -2148,7 +2151,7 @@ $result->{guid} and $self->info("File has guid: $result->{guid}");
 
      my $start=time;
 
-     $self->info( "Adding the file $pfn to $ses[$j]" );
+     $self->debug(2, "Adding the file $pfn to $ses[$j]" );
      my $res;
      my $z = 0;
      while ($z < 5 ) {   # try five times in case of error
@@ -2171,7 +2174,7 @@ $result->{guid} and $self->info("File has guid: $result->{guid}");
         $result->{seref} = $ses[$j];
         $result->{status} = 1;
         $firstHit = 1;
-        $self->info("Registered data for first SE, status is ok");
+        $self->debug(2,"Registered data for first SE, status is ok");
      }
      $result->{se}->{$ses[$j]}->{pfn}=$res->{pfn};
 
@@ -2179,7 +2182,7 @@ $result->{guid} and $self->info("File has guid: $result->{guid}");
           my $newPFN=$envelopes->{$ses[$j]}->{url};
           $newPFN=~ s{^([^/]*//[^/]*)//(.*)$}{$1/$envelopes->{$ses[$j]}->{url}};
           $newPFN=~ m{root:////} and $newPFN="";
-          $newPFN and $self->info("Using the pfn of the security envelope '$newPFN'") and $result->{$ses[$j]}->{pfn}=$newPFN;
+          $newPFN and $self->debug(3,"Using the pfn of the security envelope '$newPFN'") and $result->{$ses[$j]}->{pfn}=$newPFN;
      }
      push @excludedSes, $ses[$j];
      $successCounter++;
