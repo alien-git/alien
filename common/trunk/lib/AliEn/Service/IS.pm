@@ -12,6 +12,8 @@ use AliEn::Database::Catalogue;
 use AliEn::UI::Catalogue;
 use AliEn::Service;
 use strict;
+use AliEn::Util;
+
 
 use Classad;
 
@@ -328,6 +330,15 @@ sub getAllServices {
   my $service=shift;
 
   $self->info("Getting all $service services" );
+
+  my $update="service_$service";
+  if (AliEn::Util::returnCacheValue($self, $update){
+    my $now=time;
+    $now=$now-24*3600;
+    $self->info("UPDATING THE DATABASE FOR $service ");
+    $self->{DB}->do("update $service set status='INACTIVE' where lastchecked<?", {bind_values=>[$now]});
+    AliEn::Util::setCacheValue($self, $update,1);
+  }
   my ($aservices) =
     $self->{DB}->getActiveServices($service,"host, port, name");
   
