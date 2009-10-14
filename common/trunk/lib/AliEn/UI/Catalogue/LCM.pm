@@ -1937,7 +1937,7 @@ sub upload {
    my $pfn=shift;
 
    my $optstring =(shift || "");
-   $self->info("optstring is: $optstring");
+   $self->debug(1,"optstring is: $optstring");
    my @optentry= ();
    my @ses = ();
    my @excludedSes = ();
