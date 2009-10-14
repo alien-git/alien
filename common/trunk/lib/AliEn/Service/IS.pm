@@ -332,7 +332,7 @@ sub getAllServices {
   $self->info("Getting all $service services" );
 
   my $update="service_$service";
-  if (AliEn::Util::returnCacheValue($self, $update){
+  if (AliEn::Util::returnCacheValue($self, $update)){
     my $now=time;
     $now=$now-24*3600;
     $self->info("UPDATING THE DATABASE FOR $service ");
@@ -728,7 +728,7 @@ sub checkExclusiveUserOnSEs{
    my $query="SELECT seName FROM SE WHERE (";
    foreach(@$seList){   $query .= " seName = '$_' or";   }  
    $query =~ s/or$//;
-   $query  .= ") and (exclusiveUsers = '' or exclusiveUsers  LIKE '%,$role,%');";
+   $query  .= ") and (exclusiveUsers is NULL or exclusiveUsers = '' or exclusiveUsers  LIKE '%,$role,%');";
 
    return $self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn($query);
 }
