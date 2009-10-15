@@ -25,7 +25,6 @@ sub copy {
   my $source=shift;
   my $target=shift;
   $self->info("Ready to copy $source into $target ");
-  
 
 
   $self->{MSS}->{LOCALFILE}.=".$source->{guid}";
@@ -33,19 +32,26 @@ sub copy {
   $ENV{ALIEN_XRDCP_URL}=$source->{url};
 
   $self->info("Issuing the get");
-  my $file=$self->{MSS}->get() or return ;
+  my $file=$self->{MSS}->get()
+  if (!$file) {
+    $self->info("Error getting the file $source->{url}", 1);
+    return ;
+  }
   $self->info("Checking if it has the right size");
 
   my $size=-s $self->{MSS}->{LOCALFILE};
   if ($size ne $source->{size}){
-    $self->info("Error: the file was supposed to be $source->{size}, but it is only $size");
+    $self->info("Error: the file was supposed to be $source->{size}, but it is only $size",1);
     return;
   }
   
   $self->info("We got the file $file. Let's put it now in the destination");
   $ENV{ALIEN_XRDCP_ENVELOPE}=$target->{envelope};
   $ENV{ALIEN_XRDCP_URL}=$target->{url};
-  $self->{MSS}->put() or return ;
+  if (!$self->{MSS}->put()){
+    $self->info("Error putting the file $target->{url}");
+    return ;
+  }
   $self->info("File copied!!");
   unlink $self->{MSS}->{LOCALFILE};
 #  $self->info("Doing the command xrd3cp '$source->{url}?$source->{envelope}' '$target->{url}?$target->{envelope}'");
