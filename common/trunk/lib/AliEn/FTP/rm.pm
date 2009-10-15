@@ -10,6 +10,7 @@ use AliEn::FTP;
 use Net::LDAP;
 use AliEn::Util;
 use AliEn::MSS::file;
+use AliEn::SE::Methods;
 
 sub initialize {
   my $self=shift;
@@ -21,6 +22,15 @@ sub initialize {
 sub delete {
   my $self=shift;
   my $pfn=shift;
+
+  if ($pfn =~ /^root:/){
+    $self->info("THIS FILE IS NOT LOCAL");
+    my $pfn=AliEn::SE::Methods->new($pfn) or return;
+    $self->info("Ready to delete the file");
+    $pfn->remove();
+    $self->info("File removed (?)");
+    return;
+  }
 
   $pfn=~ s{^file://[^/]*}{};
   $self->info("Ready to delete $pfn with rm");
