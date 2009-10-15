@@ -156,7 +156,7 @@ sub assignWaiting{
   my $self = shift;
   my $elementId = shift;
   my $date=time;
-  my $done=$self->updateTransfer($elementId, {status=>"ASSIGNED",sent=>$date});
+  my $done=$self->updateTransfer($elementId, {status=>"ASSIGNED",sent=>$date,oldstatus=>'WAITING'});
 
 
   #And now, let's reduce the number of agents
