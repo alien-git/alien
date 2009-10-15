@@ -21,6 +21,7 @@ sub initialize {
    $self->{CONFIG}->{VOBOX} = $host.':8084';
    $ENV{ALIEN_CM_AS_LDAP_PROXY} and $self->{CONFIG}->{VOBOX} = $ENV{ALIEN_CM_AS_LDAP_PROXY};
    $self->info("This VO-Box is $self->{CONFIG}->{VOBOX}, site is \'$ENV{SITE_NAME}\'");
+   $self->{CONFIG}->{LCGVO} = $ENV{ALIEN_VOBOX_ORG}|| $self->{CONFIG}->{ORG_NAME};
    $self->{CONFIG}->{VOBOXDIR} = "/opt/vobox/\L$self->{CONFIG}->{ORG_NAME}";
    $self->{UPDATECLASSAD} = 0;
    
@@ -142,7 +143,6 @@ sub generateJDL {
   open( BATCH, ">$jdlFile" )
     or print STDERR "Can't open file '$jdlFile': $!"
       and return;
-  my $voName=$ENV{ALIEN_VOBOX_ORG}|| $self->{CONFIG}->{ORG_NAME};
 
   my $now = gmtime()." "."$$"; 
   $now =~ s/\s+/\_/g;

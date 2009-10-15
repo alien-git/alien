@@ -60,7 +60,7 @@ sub queryBDII {
   my $filter = shift;
   $filter or $filter = "objectclass=*";
   my $base = shift;
-  $base or $base = "GlueVOViewLocalID=\L$self->{CONFIG}->{ORG_NAME}\E,GlueCEUniqueID=$CE";
+  $base or $base = "GlueVOViewLocalID=\L$self->{CONFIG}->{LCGVO}\E,GlueCEUniqueID=$CE";
   my @items = @_;
   my %results = ();
   $self->info("Querying $CE for @items");
@@ -121,7 +121,7 @@ sub getCEInfo {
       my %max = ();
       foreach my $subCE (@sublist) {
         $self->info("In the sublist, querying for $subCE");
-        my $res = $self->queryBDII($subCE,'',"GlueVOViewLocalID=\L$self->{CONFIG}->{ORG_NAME}\E,GlueCEUniqueID=$subCE",@_);
+        my $res = $self->queryBDII($subCE,'',"GlueVOViewLocalID=\L$self->{CONFIG}->{LCGVO}\E,GlueCEUniqueID=$subCE",@_);
         if ( $res ) {
           foreach (@items) {
             if ($res->{$_} =~ m/44444/) {
@@ -140,7 +140,7 @@ sub getCEInfo {
       }
     } else {
       (my $host,undef) = split (/:/,$CE);    
-      my $res = $self->queryBDII($CE,'',"GlueVOViewLocalID=\L$self->{CONFIG}->{ORG_NAME}\E,GlueCEUniqueID=$CE",@_);
+      my $res = $self->queryBDII($CE,'',"GlueVOViewLocalID=\L$self->{CONFIG}->{LCGVO}\E,GlueCEUniqueID=$CE",@_);
       if ( $res ) {
         $results{$_} += $res->{$_} foreach (@items);
       } else { 
@@ -200,8 +200,7 @@ sub renewProxy {
    $self->info("Checking whether to renew proxy for $duration seconds");
    $ENV{X509_USER_PROXY} and $self->debug(1,"\$X509_USER_PROXY is $ENV{X509_USER_PROXY}");
    my $ProxyRepository = "$self->{CONFIG}->{VOBOXDIR}/proxy_repository";
-   my $voName=$ENV{ALIEN_VOBOX_ORG} || $self->{CONFIG}->{ORG_NAME};
-   my $command = "vobox-proxy --vo \L$voName\E query";
+   my $command = "vobox-proxy --vo \L $self->{CONFIG}->{LCGVO}\E query";
    
    my @lines = $self->_system($command);
    my $dn = '';
@@ -245,7 +244,7 @@ sub renewProxy {
      $ENV{X509_USER_PROXY} = $currentProxy;
      return;
    }  
-   $command = "vobox-proxy --vo \L$self->{CONFIG}->{ORG_NAME}\E --dn \'$dn\' query-proxy-timeleft";
+   $command = "vobox-proxy --vo \L$self->{CONFIG}->{LCGVO}\E --dn \'$dn\' query-proxy-timeleft";
    ( my $realDuration ) = $self->_system($command);
    chomp $realDuration;
    $self->{LOGGER}->error("LCG","asked for $duration sec, got only $realDuration") if ( $realDuration < 0.9*$duration);
