@@ -640,7 +640,7 @@ sub checkFTDProtocol{
   my $entry=shift;
   my $sename=shift;
   my $db=shift;
-  $self->info("WHAT SHALL WE DO HERE????");
+  # $self->info("WHAT SHALL WE DO HERE????");
   my @protocols=$entry->get_value('ftdprotocol');
   foreach my $p (@protocols){
     my ($name, $options)=split('\s+',$p,2);
@@ -758,6 +758,7 @@ sub resyncLDAPSE {
   $db->do("update SE_VOLUMES set freespace=2000000000 where size=-1");
 
   $transfers->do("delete from PROTOCOLS where updated=0");
+  $transfers->do("insert into PROTOCOLS(sename,max_transfers) values ('no_se',10)");
 
   $ldap->unbind();
   $transfers->close();
@@ -781,19 +782,14 @@ sub checkSEDescription {
   }
   my $type=$entry->get_value("mss");
   my @qos=$entry->get_value("QoS");
-  my @exclU=$entry->get_value("exclusiveUsers");
-
 
   my $qos="," . join(",",@qos). ",";
-  $qos eq ",," and $qos="";
-  my $exclU="," . join(",",@exclU). ",";
-  $exclU eq ",," and $exclU = "";
   $self->info("The se $sename has $min_size and $type");
 
-  my $exists=$db->queryValue("select count(*) from SE where sename=? and seminsize=? and setype=? and seqos=? and exclusiveUsers=?", undef, {bind_values=>[$sename, $min_size, $type, $qos, $exclU]});
+  my $exists=$db->queryValue("select count(*) from SE where sename=? and seminsize=? and setype=? and seqos=?", undef, {bind_values=>[$sename, $min_size, $type, $qos]});
   if (not $exists){
     $self->info("We have to update the entry!!!");
-    $db->do("update SE set seminsize=?, setype=?, seqos=?, exclusiveUsers=? where sename=?", {bind_values=>[$min_size,$type, $qos, $exclU, $sename]});
+    $db->do("update SE set seminsize=?, setype=?, seqos=? where sename=?", {bind_values=>[$min_size,$type, $qos, $sename]});
   }
   return 1;
 
@@ -813,8 +809,10 @@ sub checkIODaemons {
 
   $found =~ /port=(\d+)/i or $self->info("Error getting the port from '$found' for $sename") and return;
   my $port=$1;
-  $found =~ /host=([^:]+)(:.*)?$/i or $self->info("Error getting the host from '$found' for $sename") and return;
-  my $host=$1;
+  my $host=$entry->get_value('host');
+  $found =~ /host=([^:]+)(:.*)?$/i and $host=$1;
+  $self->info("Using host=$host and port=$port for $sename");
+
   my $path=$entry->get_value('savedir') or return;
 
   $path=~ s/,.*$//;
