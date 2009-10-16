@@ -899,7 +899,7 @@ sub addFile {
 
   my $silence = "";
   $options->{silent} and $silence = "-silent";
-  my ($result)=$self->execute("upload", $pfn, $optstring, $silence);
+  my ($result)=$self->execute("upload", $pfn.",".$envreq, $optstring, $silence);
 
   $result->{status} or $self->info("Error, we couldn't add/store the file on any SE!") and return;
 
@@ -1934,7 +1934,11 @@ sub upload {
    #$self->debug(1, "Starting the upload with @_");
    (my $options, @_)=$self->GetOpts(@_);
  
-   my $pfn=shift;
+   my $pfnAndEnv=shift;
+
+   my ($pfn,$envReq) = split (/,/, @$pfnAndEnv);
+   $envReq or $envReq = "write-once";
+  
 
    my $optstring =(shift || "");
    $self->debug(1,"optstring is: $optstring");
@@ -2001,7 +2005,7 @@ sub upload {
 
    foreach my $qos(keys %$qosTags){
         $self->debug(2,"Processing storage discovery qos: $qos with $qosTags->{$qos} requested elements.");
-       $result = $self->putOnDynamicDiscoveredSEListByQoS($result,$pfn,"/NOLFN",$size,"write-once",$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes,1);
+       $result = $self->putOnDynamicDiscoveredSEListByQoS($result,$pfn,"/NOLFN",$size,$envReq,$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes,1);
    }
 
    my $suppressISCheck = 0;
@@ -2014,7 +2018,7 @@ sub upload {
    }
    
    $self->debug(2,"Processing static SE list: @ses");
-   (scalar(@ses) gt 0) and $result = $self->putOnStaticSESelectionList($result,$pfn,"/NOLFN",$size,"write-once",$selOutOf,\@ses,1,$suppressISCheck);
+   (scalar(@ses) gt 0) and $result = $self->putOnStaticSESelectionList($result,$pfn,"/NOLFN",$size,$envReq,$selOutOf,\@ses,1,$suppressISCheck);
 
  
    $result->{totalCount}=$totalCount;
