@@ -32,7 +32,7 @@ sub copy {
   $ENV{ALIEN_XRDCP_URL}=$source->{url};
 
   $self->info("Issuing the get");
-  my $file=$self->{MSS}->get()
+  my $file=$self->{MSS}->get();
   if (!$file) {
     $self->info("Error getting the file $source->{url}", 1);
     return ;
