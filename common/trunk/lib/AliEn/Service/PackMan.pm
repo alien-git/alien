@@ -109,14 +109,14 @@ sub getListInstalledPackages {
     and  AliEn::Util::deleteCache($self);
 
   $self->info( "$$ Giving back the list of packages that have been installed");
-  my $cache=AliEn::Util::returnCacheValue($self, "installedPackages @_");
+  my $cache=AliEn::Util::returnCacheValue($self, "installedPackages");
   if ($cache) {
     $self->info( "$$ $$ Returning the value from the cache (@$cache)");
     return (1, @$cache);
   }
-  my ($status, @allPackages)=$self->{PACKMAN}->getListInstalledPackages(@_);
+  my ($status, @allPackages)=$self->{PACKMAN}->getListInstalledPackages();
   $self->info( "$$ Returning @allPackages");
-  AliEn::Util::setCacheValue($self, "installedPackages @_", \@allPackages);
+  AliEn::Util::setCacheValue($self, "installedPackages", \@allPackages);
   return ($status, @allPackages);
 }
 
