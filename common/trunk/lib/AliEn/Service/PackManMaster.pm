@@ -62,7 +62,7 @@ sub findPackageLFN {
   $self->info("We should check in the database for the package");
 
   my $vo_user=uc("VO_$self->{CONFIG}->{ORG_NAME}");
-  my $query="SELECT lfn,size from PACKAGES where packageName=? and (platform=? or platform='source') and (username=? or username=?)";
+  my $query="SELECT lfn from PACKAGES where packageName=? and (platform=? or platform='source') and (username=? or username=?)";
   my @bind=($package, $platform, $user, $vo_user);
   my @bind_source=($package, $platform, $user, $vo_user);
 
@@ -71,13 +71,13 @@ sub findPackageLFN {
     push @bind, $version;
     push @bind_source, $version
   }
-  my $result=$self->{DB}->query($query, undef, {bind_values=>\@bind})
+  my $result=$self->{DB}->queryColumn($query, undef, {bind_values=>\@bind})
     or die ("Error doing the query $query");
 
 
   if (! @$result){
     $self->info("The package doesn't exist for that platform. Let's look for source");
-    $result=$self->{DB}->query($query, undef, {bind_values=>\@bind_source})
+    $result=$self->{DB}->queryColumn($query, undef, {bind_values=>\@bind_source})
       or die ("Error doing the query $query");
   }
   $self->info("We got $#$result and @$result");
@@ -86,8 +86,7 @@ sub findPackageLFN {
     return -2;
   }
 
-  my $lfn=$$result[0]->{lfn};
-  my $size=$$result[0]->{size};
+  my $lfn=$$result[0];
   $self->info("The package '$lfn' exists!!!");
 
   my (@dependencies)=$self->{UI}->execute("showTagValue", "-silent",$lfn, "PackageDef");
@@ -95,7 +94,7 @@ sub findPackageLFN {
   @dependencies and $dependencies[1]  and $item=shift @{$dependencies[1]};
 
   $self->info( "$$ Metadata of this item");
-  return ($lfn, $item, $size);
+  return ($lfn, $item);
 }
 
 
