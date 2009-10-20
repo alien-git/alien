@@ -8,6 +8,8 @@ use Filesys::DiskFree;
 use AliEn::Util;
 use AliEn::SOAP;
 use Data::Dumper;
+use File::Find;
+
 push @ISA, 'AliEn::Logger::LogObject', 'AliEn::PackMan';
 
 
@@ -50,6 +52,8 @@ sub removeLocks{
 }
 sub getListInstalled_Internal {
   my $self=shift;
+
+  my $verbose=grep (/-verbose/, @_);
   $self->info("Checking the packages that we have installed locally");
   my @allPackages=();
   eval {
@@ -63,7 +67,14 @@ sub getListInstalled_Internal {
 	  $self->debug(1, "Checking $dir/$user/$package/$version");
 	  (-f "$dir/$user.$package.$version.InstallLock") and
 	    $self->debug(1, "The package is being installed") and next;
-	  push @allPackages, "${user}\@${package}::$version";
+	  my $text="${user}\@${package}::$version";
+	  if ($verbose ){
+	    my $size;
+	    find(sub{ -f and ( $size += -s ) }, "$dir/$user/$package/$version/" );
+	    $size = sprintf("%.02f",$size / 1024 / 1024);
+	    $text .= " (size $size)";
+	  }
+	  push @allPackages, $text;
 	}
       }
     }
@@ -98,8 +109,9 @@ sub installPackage{
 
   $self->debug (2,"checking if we have to install the package");
   my $source="";
+
   eval {
-    my ($lfn, $info)=$self->findPackageLFN($user, $package, $version);
+    my ($lfn, $info, $tarSize)=$self->findPackageLFN($user, $package, $version);
     
     $version or $lfn =~ /\/([^\/]*)\/[^\/]*$/
       and ($version)=($1);
@@ -138,7 +150,7 @@ sub installPackage{
     umask 0022;
     while (1){
       eval {
-	$self->InstallPackage($lfn, $user, $package, $version,$info, $source, $options);
+	$self->InstallPackage($lfn, $user, $package, $version,$info, $source, $options, $tarSize);
       };
       my $error=$@;
       if ($error) {
@@ -240,6 +252,7 @@ sub InstallPackage {
   my $lfn=shift;
   my ($user, $package, $version, $info,$depConf)=(shift, shift, shift,shift,shift);
   my $options=shift || {};
+  my $tarSize=shift || 0;
 
   my $dir="$self->{INST_DIR}/$user/$package/$version";
   my $lock="$self->{INST_DIR}/$user.$package.$version.InstallLock";
@@ -249,7 +262,7 @@ sub InstallPackage {
     and  die ("Package is being installed\n");
 
 
-  $self->existsPackage($user, $package, $version,$info) and return 1;
+  $self->existsPackage($user, $package, $version,$info, $tarSize) and return 1;
   $self->info( "$$ Ready to install the package (output in $logFile) ");
 
   open FILE, ">$lock" 
@@ -361,6 +374,7 @@ sub existsPackage{
   my $package=shift;
   my $version=shift;
   my $info=shift;
+  my $tarSize=shift;
 
   $self->debug(2, "Checking if $package is already installed");
 
@@ -380,6 +394,15 @@ sub existsPackage{
   if (-l $dir) {
     $self->info( "$$ This is installed in the common area... let's ignore it for the time being");
   }else {
+    my $realSize;
+    find(sub{ -f and ( $size += -s ) }, "$dir/$user/$package/$version/" );
+    $self->info("The directory size is $realSize");
+    if ($realSize<$tarSize){
+      $self->info("The directory is smaller than the tar file!!");
+      system("rm -rf $dir");
+      return;
+    }
+
 #    open (FILE, "du -s $dir|") or 
 #      $self->info( "$$ Error getting the size of the directory")
 #	and return;
@@ -468,7 +491,7 @@ sub testPackage{
   my $versionUser=shift;
   my $command=join(" ", @_);
   $command or $command="env";
-  my ($done, $lfn, $info, $version)=$self->isPackageInstalled($user,$package,$versionUser);
+  my ($done, $lfn, $info, $version,$size)=$self->isPackageInstalled($user,$package,$versionUser);
 
   $done or  return (-1, "Package is not installed");
   $self->info( "$$ Ok, the package is installed");
@@ -516,7 +539,7 @@ sub isPackageInstalled {
   my $package=shift;
   my $version=shift;
 
-  my ($lfn, $info)=$self->findPackageLFN($user, $package, $version);
+  my ($lfn, $info, $size)=$self->findPackageLFN($user, $package, $version);
 
   $version or $lfn =~ /\/([^\/]*)\/[^\/]*$/
     and ($version)=($1);
@@ -527,7 +550,7 @@ sub isPackageInstalled {
   $self->existsPackage($user, $package, $version,$info)  or
     $self->info( "$$ The package is not installed :D") and 
       return ;
-  return (1, $lfn, $info, $version)
+  return (1, $lfn, $info, $version, $size)
 }
 
 
@@ -567,7 +590,7 @@ sub removePackage{
   my $package=shift;
   my $versionUser=shift;
 
-  my ($done, $lfn, $info, $version)=$self->isPackageInstalled($user,$package,$versionUser);
+  my ($done, $lfn, $info, $version, $size)=$self->isPackageInstalled($user,$package,$versionUser);
   
   $done or return (-1, "Package is not installed");
 

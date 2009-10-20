@@ -1600,20 +1600,21 @@ sub putFiles {
     my $localdir= $self->{WORKDIR};
 
     foreach my $fileOrArch (keys(%$fs_table)) {
-
+      
       $fs_table->{$fileOrArch}->{options} or $fs_table->{$fileOrArch}->{options}="";
       $self->info("Processing  file  ".$fs_table->{$fileOrArch}->{name});
       $self->info("File has options  ".$fs_table->{$fileOrArch}->{options});
-
-      (my $no_links, $fs_table->{$fileOrArch}->{options})  = $self->processJDL_Check_on_Tag($fs_table->{$fileOrArch}->{options}, "no_links_registration");
-
       
-      (exists($guids{$fs_table->{$fileOrArch}->{name}}))  and
-                 $fs_table->{$fileOrArch}->{options} .= ",".$guids{$fs_table->{$fileOrArch}->{name}}
-                 and $self->putJobLog("trace", "The file $fs_table->{$fileOrArch}->{name} has the guid $guids{$fs_table->{$fileOrArch}->{name}}");
-
-      my $uploadStatus = $self->uploadFile($ui, $fs_table->{$fileOrArch}->{name}, $fs_table->{$fileOrArch}->{options}, $submitted);
-
+      (my $no_links, $fs_table->{$fileOrArch}->{options})  = $self->processJDL_Check_on_Tag($fs_table->{$fileOrArch}->{options}, "no_links_registration");
+      
+      my $guid="";
+      if (exists($guids{$fs_table->{$fileOrArch}->{name}})){
+	$guid=" -g $guids{$fs_table->{$fileOrArch}->{name}}";
+	$self->putJobLog("trace", "The file $fs_table->{$fileOrArch}->{name} has the guid $guids{$fs_table->{$fileOrArch}->{name}}");
+      }
+      
+      my $uploadStatus = $self->uploadFile($ui, $fs_table->{$fileOrArch}->{name}, "$fs_table->{$fileOrArch}->{options}$guid", $submitted);
+      
       $uploadStatus or next;
       ($uploadStatus ne 0) and  $successCounter++;
       ($uploadStatus eq -1) and $incompleteUploades=1;
@@ -1673,48 +1674,48 @@ sub putFiles {
 
 
 sub uploadFile {
-    my $self=shift;
-    my $ui=shift;;
-    my $file=shift;
-    my $storeTags=shift;
-    my $submitted=shift;
-    my $uploadResult;
-    my @pfns = (); 
-    my $silent="-silent";
+  my $self=shift;
+  my $ui=shift;;
+  my $file=shift;
+  my $storeTags=shift;
+  my $submitted=shift;
+  my $uploadResult;
+  my @pfns = (); 
+  my $silent="-silent";
 
-    $self->info("Submitting the file $file");
-    if (! -f "$self->{WORKDIR}/$file")  {
-      $self->putJobLog("error", "The job didn't create $file");
-      return; 
-    }
-    $self->putJobLog("trace","Registering $file.");
+  $self->info("Submitting the file $file");
+  if (! -f "$self->{WORKDIR}/$file")  {
+    $self->putJobLog("error", "The job didn't create $file");
+    return; 
+  }
+  $self->putJobLog("trace","Registering $file.");
 
-    ($uploadResult)=$ui->execute("upload", "$self->{WORKDIR}/$file", $storeTags, $silent);
+  ($uploadResult)=$ui->execute("upload", "$self->{WORKDIR}/$file", $storeTags, $silent);
+  
+  (scalar(keys(%$uploadResult)) gt 0) or 
+    $self->putJobLog("error","Error in upload, could not store the file $self->{WORKDIR}/$file on any SE")
+      and return 0;
 
-    (scalar(keys(%$uploadResult)) gt 0) or 
-         $self->putJobLog("error","Error in upload, could not store the file $self->{WORKDIR}/$file on any SE")
-         and return 0;
+  $submitted->{$file}=$uploadResult;
 
-    $submitted->{$file}=$uploadResult;
+  foreach my $se (keys(%{$uploadResult->{se}})) {
 
-    foreach my $se (keys(%{$uploadResult->{se}})) {
-
-       push @{$submitted->{$file}->{PFNS}}, "$se/$uploadResult->{se}->{$se}->{pfn}";
-    }
+    push @{$submitted->{$file}->{PFNS}}, "$se/$uploadResult->{se}->{$se}->{pfn}";
+  }
     
-    if ($uploadResult->{totalCount} eq scalar(keys %{$uploadResult->{se}})) {
-         $self->putJobLog("trace","Successfully stored the file $self->{WORKDIR}/$file on $uploadResult->{totalCount} SEs");
-         return (1);
-    }
-    elsif(scalar(keys %{$uploadResult->{se}}) eq 0) {
-         $self->putJobLog("error","Could not store the file $self->{WORKDIR}/$file on any of the $uploadResult->{totalCount} wished SEs");
-         return 0;
-    } else {
-         $self->putJobLog("warning","Could store the file $self->{WORKDIR}/$file only on ".scalar(keys %{$uploadResult->{se}}).
-				"  of the $uploadResult->{totalCount} wished SEs");
-         return (-1,);
-    }
+  if ($uploadResult->{totalCount} eq scalar(keys %{$uploadResult->{se}})) {
+    $self->putJobLog("trace","Successfully stored the file $self->{WORKDIR}/$file on $uploadResult->{totalCount} SEs");
+    return (1);
+  }
+  elsif(scalar(keys %{$uploadResult->{se}}) eq 0) {
+    $self->putJobLog("error","Could not store the file $self->{WORKDIR}/$file on any of the $uploadResult->{totalCount} wished SEs");
     return 0;
+  } else {
+    $self->putJobLog("warning","Could store the file $self->{WORKDIR}/$file only on ".scalar(keys %{$uploadResult->{se}}).
+		     "  of the $uploadResult->{totalCount} wished SEs");
+    return (-1,);
+  }
+  return 0;
 }
 
 #sub copyInMSS {
