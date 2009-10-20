@@ -854,12 +854,11 @@ sub Getopts {
 
 sub addFile_HELP {
   return "'add' copies a file into the SE, and register an entry in the catalogue that points to the file in the SE\n\t
-Usage: add [-r]  <lfn> <pfn> [<se>,!<se>,select=N,<qosflag>=N,<guid>]\n
+Usage: add [-v] [-g <guid>] [-s <size>] [-md5 <md5>] <lfn> <pfn> [<se>,!<se>,select=N,<qosflag>=N]\n
 Possible pfns:\tsrm://<host>/<path>, castor://<host>/<path>, 
 \t\tfile://<host>/<path>
 If the method and host are not specified, the system will try with 'file://<localhost>'
 Possible options:
-\t-r:(reverse) Start an io server on the client side and let the SE fetch the file from there.
 \t-v:(versioning) a new version of the file is created, if it already existed\n";
 #\t-c (custodial) add the file to the closest custodial se\n";
 }
@@ -879,29 +878,26 @@ sub _canCreateFile{
 sub addFile {
   my $self  = shift;
   $self->debug(1, "UI/LCM Add @_");
+  my $lineOptions=join(" ", @_);
   my $options={};
   @ARGV=@_;
-  Getopt::Long::GetOptions($options, "silent", "reverse", "versioning", "size=i", "md5=s")
+  Getopt::Long::GetOptions($options, "silent", "versioning", "size=i", "md5=s", "guid=s")
       or $self->info("Error checking the options of add") and return;
   @_=@ARGV;
   my $lfn   = shift;
   my $pfn   = shift;
-  my $optstring =(shift || "");
-  $self->debug(1,"Option string is: $optstring");
+
+  $lineOptions=~ s/ ?$lfn ?/ /;
 
   $pfn or $self->info("Error: not enough parameters in add\n".
 		      $self->addFile_HELP(),2)	and return;
   $lfn = $self->{CATALOG}->f_complete_path($lfn);
   $options->{versioning} or ( $self->_canCreateFile($lfn) or return);
 
-  my $envreq="write-once";
-  $options->{versioning} and $envreq="write-version";
+  my ($result)=$self->execute("upload", $pfn, $lineOptions);
 
-  my $silence = "";
-  $options->{silent} and $silence = "-silent";
-  my ($result)=$self->execute("upload", $pfn.",".$envreq, $optstring, $silence);
-
-  $result->{status} or $self->info("Error, we couldn't add/store the file on any SE!") and return;
+  $result and $result->{status} or 
+    $self->info("Error, we couldn't add/store the file on any SE!") and return;
 
   my $registered = $self->{CATALOG}->f_registerFile( "-f", $lfn, $result->{size},
              $result->{seref}, $result->{guid}, undef,undef, $result->{md5}, $result->{se}->{$result->{seref}}->{pfn});
@@ -1930,100 +1926,105 @@ Usage:
 
 
 sub upload {
-   my $self=shift;
-   #$self->debug(1, "Starting the upload with @_");
-   (my $options, @_)=$self->GetOpts(@_);
+  my $self=shift;
+  #$self->debug(1, "Starting the upload with @_");
+  my $options={};
+  @ARGV=@_;
+  Getopt::Long::GetOptions($options, "silent", "versioning", 
+			   "size=i", "md5=s", "guid=s")
+      or $self->info("Error checking the options of add") and return;
+  @_=@ARGV;
+  my $pfn=shift;
+
+  my $envReq="write-once";
+  $options->{versioning} and $envReq = "write-version";
+
+
+  my $result = {};
+  $options->{guid} and $result->{guid}=$options->{guid};
  
-   my $pfnAndEnv=shift;
+  my @ses = ();
+  my @excludedSes = ();
+  my @qosList;
 
-   my ($pfn,$envReq) = split (/,/, @$pfnAndEnv);
-   $envReq or $envReq = "write-once";
-  
+  $pfn or $self->info("Error not enough arguments in upload\n". $self->upload_HELP())
+    and return;
+  $pfn=$self->checkLocalPFN($pfn);
+  my $size=AliEn::SE::Methods->new($pfn)->getSize();
 
-   my $optstring =(shift || "");
-   $self->debug(1,"optstring is: $optstring");
-   my @optentry= ();
-   my @ses = ();
-   my @excludedSes = ();
-   my @qosList;
-   my $result = {};
-   $pfn or $self->info("Error not enough arguments in upload\n". $self->upload_HELP()) 
-          and return;
-   $pfn=$self->checkLocalPFN($pfn);
-   my $size=AliEn::SE::Methods->new($pfn)->getSize();
+  my @optentry=split(",", join(",",@_));
+  foreach my $d (@optentry) {
+    if ($d =~ /::/){
+      my $list=\@ses;
+      $d =~ s/!// and $list=\@excludedSes;
+      my $n=uc($d);
+      grep (/^$n$/,@$list) or push @$list, $n;
+      next;
+    }
+    if ($d =~ /\=/){
+      grep (/^$d$/, @qosList) or push @qosList, $d;
+      next;
+    }
+    $d =~ /^\s*$/ and next;
+    $self->info("WARNING: Found the following unrecognizeable option:".$d);
+  }
 
-   $optstring and $optstring ne "" and @optentry = split (/,/, $optstring);
-   foreach (@optentry) {
-     ($_ =~ /::/) and ( ($_ =~ /!/) and ($_ =~ s/!// and push @excludedSes, uc($_) and next)
-          or push @ses, uc($_) and next);
-     ($_ =~ /\=/) and push @qosList, $_ and next;
-     $self->identifyValidGUID($_) and $result->{guid}=$_ and next;
-     $_ =~ s/^\s+//;     $_ =~ s/\s+$//;     $_ eq "" and next;
-     $self->info("WARNING: Found the following unrecognizeable option:".$_);
-   }
+  my $maximumCopyCount = 9;
+  my $selOutOf=0;
+  $self->debug(4,"Saving in @ses, ignoring @excludedSes, and using @qosList");
 
+  push @excludedSes, @ses;
 
-   my $maximumCopyCount = 9;
-   my $selOutOf=0;
- 
-   $self->debug(4,"Sitename is: $self->{CONFIG}->{SITE}");
- 
-   @ses = @{$self->arrayEliminateDuplicates(\@ses)};
-   @excludedSes = @{$self->arrayEliminateDuplicates(\@excludedSes)};
-   @qosList = @{$self->arrayEliminateDuplicates(\@qosList)};
-   push @excludedSes, @ses;
- 
-
-   my $totalCount = 0;
-   my $qosTags;
-   foreach (@qosList) {
-      my ($repltag, $copies)=split (/\=/, $_,2);
-      $copies and (isdigit $copies) or next;
-      ($totalCount+$copies) < $maximumCopyCount
-                or $copies = $maximumCopyCount - $totalCount;
-
-      if($repltag eq "select") {
-            ($copies < 1 or $copies > scalar(@ses))
-               and $copies = scalar(@ses);
-            $selOutOf = $copies;
-      } else {
-            $qosTags->{$repltag} = $copies
-      }
-      $totalCount += $copies;
- 
-   }
+  my $totalCount = 0;
+  my $qosTags;
+  foreach (@qosList) {
+    my ($repltag, $copies)=split (/\=/, $_,2);
+    $copies and (isdigit $copies) or next;
+    ($totalCount+$copies) < $maximumCopyCount
+      or $copies = $maximumCopyCount - $totalCount;
+    
+    if($repltag eq "select") {
+      ($copies < 1 or $copies > scalar(@ses))
+	and $copies = scalar(@ses);
+      $selOutOf = $copies;
+    } else {
+      $qosTags->{$repltag} = $copies
+    }
+    $totalCount += $copies;
+    
+  }
   # if select Out of the Selist is not correct
   $selOutOf eq 0 and $selOutOf = scalar(@ses) and $totalCount += $selOutOf;
-
+  
 
   #if nothing is specified, we get the default case, priority on LDAP entry
   if($totalCount le 0 and $self->{CONFIG}->{SEDEFAULT_QOSAND_COUNT}) {
-            my ($repltag, $copies)=split (/\=/, $self->{CONFIG}->{SEDEFAULT_QOSAND_COUNT},2);
-            $qosTags->{$repltag} = $copies;
-            $totalCount += $copies;
+    my ($repltag, $copies)=split (/\=/, $self->{CONFIG}->{SEDEFAULT_QOSAND_COUNT},2);
+    $qosTags->{$repltag} = $copies;
+    $totalCount += $copies;
   }
-
-   foreach my $qos(keys %$qosTags){
-        $self->debug(2,"Processing storage discovery qos: $qos with $qosTags->{$qos} requested elements.");
-       $result = $self->putOnDynamicDiscoveredSEListByQoS($result,$pfn,"/NOLFN",$size,$envReq,$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes,1);
-   }
-
-   my $suppressISCheck = 0;
-   if (!$result->{status} and scalar(@ses) eq 0 and $selOutOf le 0){ # if dynamic was either not specified or not successfull (not even one time, that's $result->{status} ne 1) 
-
-      push @ses, $self->{CONFIG}->{SE_FULLNAME};   # and there were not SEs specified in a static list, THEN push in at least the local static LDAP entry not to loose data
-      $suppressISCheck = 1;
-      $totalCount = 1;
-      $self->debug(2,"There was neither a user specification for the SEs to use, nor is there a default setting defined in LDAP, we use CONFIG->SE_FULLNAME: $self->{CONFIG}->{SE_FULLNAME}");
-   }
-   
-   $self->debug(2,"Processing static SE list: @ses");
-   (scalar(@ses) gt 0) and $result = $self->putOnStaticSESelectionList($result,$pfn,"/NOLFN",$size,$envReq,$selOutOf,\@ses,1,$suppressISCheck);
-
- 
-   $result->{totalCount}=$totalCount;
- 
-   return $result;
+  
+  foreach my $qos(keys %$qosTags){
+    $self->debug(2,"Processing storage discovery qos: $qos with $qosTags->{$qos} requested elements.");
+    $result = $self->putOnDynamicDiscoveredSEListByQoS($result,$pfn,"/NOLFN",$size,$envReq,$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes,1);
+  }
+  
+  my $suppressISCheck = 0;
+  if (!$result->{status} and scalar(@ses) eq 0 and $selOutOf le 0){ # if dynamic was either not specified or not successfull (not even one time, that's $result->{status} ne 1) 
+    
+    push @ses, $self->{CONFIG}->{SE_FULLNAME};   # and there were not SEs specified in a static list, THEN push in at least the local static LDAP entry not to loose data
+    $suppressISCheck = 1;
+    $totalCount = 1;
+    $self->debug(2,"There was neither a user specification for the SEs to use, nor is there a default setting defined in LDAP, we use CONFIG->SE_FULLNAME: $self->{CONFIG}->{SE_FULLNAME}");
+  }
+  
+  $self->debug(2,"Processing static SE list: @ses");
+  (scalar(@ses) gt 0) and $result = $self->putOnStaticSESelectionList($result,$pfn,"/NOLFN",$size,$envReq,$selOutOf,\@ses,1,$suppressISCheck);
+  
+  
+  $result->{totalCount}=$totalCount;
+  
+  return $result;
 }
 
 sub identifyValidGUID{
@@ -2233,19 +2234,19 @@ sub sendMonitor {
 
 
 
-sub arrayEliminateDuplicates {
-   shift;
-   my $array=shift;
-   my @unique = ();
-   my %seen   = ();
-
-   foreach my $elem ( @$array )
-   {
-     next if $seen{ $elem }++;
-     push @unique, $elem;
-   }
-   return \@unique;
-}
+#sub arrayEliminateDuplicates {
+#   shift;
+#   my $array=shift;
+#   my @unique = ();
+#   my %seen   = ();#
+#
+#   foreach my $elem ( @$array )
+#   {
+#     next if $seen{ $elem }++;
+#     push @unique, $elem;
+#   }
+#   return \@unique;
+#}
 
 
 

@@ -25,11 +25,13 @@ sub checkWakesUp {
   $self->{DB}->{LFN_DB}->update("ACTIONS", {todo=>0}, "action='PACKAGES'");
 
   my $Fsilent="";
-  my @userPackages=$self->{CATALOGUE}->execute("find", $Fsilent, $self->{CONFIG}->{USER_DIR}, "/packages/*");
-  my @voPackages=$self->{CATALOGUE}->execute("find", $Fsilent, "\L/$self->{CONFIG}->{ORG_NAME}/packages", "*");
+  my ($userPackages)=$self->{CATALOGUE}->execute("find","-z", $Fsilent, $self->{CONFIG}->{USER_DIR}, "/packages/*");
+  my ($voPackages)=$self->{CATALOGUE}->execute("find", "-z", $Fsilent, "\L/$self->{CONFIG}->{ORG_NAME}/packages", "*");
   my @packages;
   my $org="\L$self->{CONFIG}->{ORG_NAME}\E";
-  foreach my $pack (@userPackages, @voPackages) {
+  foreach my $entry (@$userPackages, @$voPackages) {
+    my $pack=$entry->{lfn};
+    my $size=$entry->{size};
     $self->debug(2,  "FOUND $pack");
     if ($pack =~ m{^$self->{CONFIG}->{USER_DIR}/?./([^/]*)/packages/([^/]*)/([^/]*)/([^/]*)$}) {
       push @packages,{'fullPackageName'=> "$1\@${2}::$3",
@@ -37,14 +39,16 @@ sub checkWakesUp {
 		      username=>$1, 
 		      packageVersion=>$3,
 		      platform=>$4,
-		      lfn=>$pack};
+		      lfn=>$pack,
+		      size=>$size,};
     }elsif ($pack =~ m{^/$org/packages/([^/]*)/([^/]*)/([^/]*)$}) {
       push @packages,{'fullPackageName'=> "VO_\U$org\E\@${1}::$2",
 		      packageName=>$1,
 		      username=>"VO_\U$org\E", 
 		      packageVersion=>$2,
 		      platform=>$3,
-		      lfn=>$pack};
+		      lfn=>$pack, 
+		      size=>$size};
     }else {
       $self->info("Don't know what to do with $pack");
     }

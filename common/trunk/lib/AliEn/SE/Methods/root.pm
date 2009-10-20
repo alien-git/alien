@@ -4,7 +4,7 @@ use AliEn::SE::Methods::Basic;
 
 use strict;
 use vars qw( @ISA $DEBUG);
-@ISA = ("AliEn::SE::Methods::Basic");
+push @ISA,"AliEn::SE::Methods::Basic";
 
 $DEBUG=0;
 use IPC::Open2;
@@ -114,10 +114,13 @@ sub remove {
   my $self=shift;
   $self->debug(1,"Trying to remove the file $self->{PARSED}->{ORIG_PFN}");
   print "We are in the remove\n";
+  use Data::Dumper;
+  print Dumper($self->{PARSED});
 #  open(FILE, "| xrd $self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}
-  my $pid = open2(*Reader, *Writer, "xrd $self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}" )
+  my $pid = open2(*Reader, *Writer, "xrd " )
     or $self->info("Error calling xrd!") and return;
-  print "Open\n";
+  print "Open to $self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}\n";
+  print Writer "connect $self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}\n";
   print Writer "rm $self->{PARSED}->{PATH}\n";
   print "Just wrote\n";
   my $error=close Writer;
