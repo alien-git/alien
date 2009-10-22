@@ -1468,7 +1468,6 @@ sub access {
       $self->info("There is no envelope ($error)!!", 1);
       return;
      }
-    print "Setting the environment to $newhash->{url}\n";
     $ENV{ALIEN_XRDCP_ENVELOPE}=$newhash->{envelope};
     $ENV{ALIEN_XRDCP_URL}=$newhash->{url};
     return $newhash;
