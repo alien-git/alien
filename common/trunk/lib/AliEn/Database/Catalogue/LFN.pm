@@ -224,7 +224,7 @@ sub checkLFNTable {
 
   $self->checkTable(${table}, "entryId", \%columns, 'entryId', 
 		    ['UNIQUE INDEX (lfn)',"INDEX(dir)", "INDEX(guid)", "INDEX(type)", "INDEX(ctime)", "INDEX(guidtime)"]) or return;
-
+  $self->checkTable("${table}_broken", "entryId", {entryId=>"bigint(11) NOT NULL  primary key"}) or return;
   return 1;
 }
 

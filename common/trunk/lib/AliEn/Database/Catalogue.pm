@@ -1242,10 +1242,11 @@ sub masterSE_list {
 
     my $tables=$db->queryColumn("SELECT tableName from GUIDINDEX where hostIndex=?", undef,{bind_values=>[$h->{hostIndex}]});
     foreach my $table (@$tables){
+      $db->updateStatistics($table);
       $table ="G${table}L" or next;
       $info->{referenced}+=$db->queryValue("select count(*) from $table join 
-${table}_PFN p  using (guidid) left join ${table}_REF r using (guidid)
-where  p.senumber=? and r.guidid is not null", 
+${table}_PFN p  using (guidid)  join ${table}_REF r using (guidid)
+where  p.senumber=? ", 
 				   undef, {bind_values=>[$senumber]} );
 
 
@@ -1254,8 +1255,9 @@ ${table}_PFN p  using (guidid) left join ${table}_REF r using (guidid)
 where  p.senumber=? and r.guidid is null", 
 				   undef, {bind_values=>[$senumber]} );
 
-      $info->{unique}+=$db->queryValue("select count(*) from
-   (select guid,guidId, count(*) d from ${table}_PFN join (select guid, guidid from $table  join  ${table}_PFN p  using (guidid) left join ${table}_REF r using (guidid) where    p.senumber=? and r.guidid is not null) s using (guidid) group by guidId) ss where d=1",undef, {bind_values=>[$senumber]} );
+      $info->{unique}+=$db->queryValue("select count(*) from $table join
+${table}_PFN p using (guidid) join $[table}_REF r using (guidid) join ${table}_SITES using (guidid)
+where p.senumber=? and sites=1",undef, {bind_values=>[$senumber]} );
 
     }
   }
@@ -1280,11 +1282,6 @@ sub masterSE_getFiles{
   my $rhosts = $self->{LFN_DB}->getAllHosts();
 
   my $query="select binary2string(guid)guid,pfn from ";
-  my $endquery="";
-  if ($options->{unique}){
-    $query="select * from  ( $query";
-    $endquery=") ss where d=1"
-  }
   foreach my $h (@$rhosts){
     #Let's skip all the hosts that we have already seen
     $previous_host and $previous_host!=$h->{hostIndex} and next;
@@ -1299,8 +1296,17 @@ sub masterSE_getFiles{
 	$previous_table="";
 	next;
       }
-
-      my $entries=$db->query("$query $table  join  ${table}_PFN p  using (guidid) join ${table}_REF r using (guidid) where p.senumber=? $endquery",undef, {bind_values=>[$senumber]} );
+            my $endquery="";
+      my $midquery="";
+      if ($options->{unique}){
+        $self->info("Checking the number of sites");
+        $db->do("replace  into ${table}_SITES (sites,guidid) select count(di
+stinct senumber) sites, guidid from ${table}_PFN group by guidid");
+        $midquery=" join ${table}_SITES using (guidid) ";
+        $endquery="and sites=1";
+      }
+      my $entries=$db->query("$query $table  join  ${table}_PFN p  using (gu
+idid) join ${table}_REF r using (guidid) $midquery where p.senumber=? $endquery",undef, {bind_values=>[$senumber]} );
       $return=[@$return, @$entries];
       if ($#$return >$limit){
 	$self->info("Let's return now before putting more entries");
@@ -1313,6 +1319,72 @@ sub masterSE_getFiles{
   return ($return,"");
 }
   
+sub calculateBrokenLFN{
+  my $self=shift;
+  my $table=shift;
+  my $db=shift;
+
+
+  $self->info("Calculating all the broken links in $table->{lfn}");
+  my $GUIDList=$db->getPossibleGuidTables( $table->{tableName});
+  my $t= "L$table->{tableName}L";
+  $db->checkLFNTable($table->{tableName});
+  $db->do("truncate table ${t}_broken");
+  $db->do("insert into ${t}_broken  select entryId from  $t where type='f'");
+  foreach my $entry (@$GUIDList) {
+    $db->do("delete from  ${t}_broken using  ${t}_broken join $t using (entryId) join $entry->{db}.G$entry->{tableName}L using (guid)");
+  }
+  return 1;
+}
+
+sub getBrokenLFN{
+  my $self=shift;
+  my $options=shift;
+  $self->info("Getting all the broken lfn @_");
+
+  my $dir=shift || "";
+
+  my $rhosts = $self->{LFN_DB}->getAllHosts();
+
+  my $all=[];
+  my $allEntries;
+  if ($dir){
+    $self->info("Doing only $dir");
+    $allEntries=$self->{LFN_DB}->getHostsForEntry($dir);
+  }
+  foreach my $h (@$rhosts){
+    my ($db, $extra)=$self->{LFN_DB}->reconnectToIndex($h->{hostIndex})
+      or next;
+
+    my $tables;
+    if ($allEntries){
+      foreach my $c (@$allEntries){
+        $c->{hostIndex} eq $h->{hostIndex} or next;
+        push @$tables, $c;
+      }
+    } else {
+      $tables=$db->query("SELECT tableName,lfn from INDEXTABLE where hostindex=?",
+                        undef, {bind_values=>[$h->{hostIndex}]});
+     }
+     for my $t (@$tables){
+      $db->checkLFNTable($t->{tableName});
+      $self->info("Checking the table $t->{tableName}");
+      $options->{calculate} and  $self->calculateBrokenLFN($t, $db);
+      my $like="";
+      my $bind=[$t->{lfn}];
+      if ($dir){
+        $like="where concat('$t->{lfn}',lfn) like concat(?,'%')";
+        push @$bind, $dir;
+      }
+      my $entries=$db->queryColumn("SELECT concat(?,lfn) from L$t->{tableName}L join  L$t->{tableName}L_broken using (entryId) $like ", undef,{ bind_values=>$bind });
+      foreach my $e (@$entries){
+        $self->info($e,0,0);
+      }
+      push @$all, @$entries;
+    }
+  }
+  return $all;
+}
 
 
 =head1 SEE ALSO
