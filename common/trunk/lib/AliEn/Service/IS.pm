@@ -8,6 +8,7 @@ use AliEn::Database::IS;
 use AliEn::Database::TaskQueue;
 use AliEn::Database::Catalogue;
 
+use AliEn::Service::Optimizer::Catalogue::SERank;
 
 use AliEn::UI::Catalogue;
 use AliEn::Service;
@@ -750,7 +751,7 @@ sub getSEListFromSiteSECache{
       ." sitename = '$sitename' and SERanks.seNumber = SE.seNumber ";
    foreach(@$excludeList){   $query .= "and SE.seName <> '$_' ";   }  
    $query .=" and SE.seQoS  LIKE '%,$type,%'" 
-    ." and (SE.exclusiveUsers = '' or SE.exclusiveUsers  LIKE '%,$role,%')" 
+    ." and (exclusiveUsers is NULL or SE.exclusiveUsers = '' or SE.exclusiveUsers  LIKE '%,$role,%')" 
     ." ORDER BY rank ASC limit $count ;";
 
    return $self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn($query);
@@ -784,8 +785,12 @@ sub updateSiteSECacheForSite{
    $self->info("Finished to add SERank Cache entries for site: $site");
 
    $self->info("Manually calling CatalogueOptimizer->SERank code for site: $site");
-   my $rankopt = AliEn::Service::Optimizer::Catalogue::SERank->new();
-   $rankopt->updateRanksForSite($site,"-silent");
+
+   my @sites = ();
+   push @sites, $site;
+   AliEn::Service::Optimizer::Catalogue::SERank::updateRanksForSites($self,\@sites,"0") and $self->info("CatalogueOptimizer->SERank came back true");
+
+   $self->info("Finished here");
 
    return 1;
 }

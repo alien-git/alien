@@ -876,20 +876,25 @@ sub _canCreateFile{
 
 sub addFile {
   my $self  = shift;
-  $self->debug(1, "UI/LCM Add @_");
-  my $lineOptions=join(" ", @_);
   my $options={};
+  my $lineOptions=join(" ", @_);
   @ARGV=@_;
   Getopt::Long::GetOptions($options, "silent", "versioning", "size=i", "md5=s", "guid=s")
       or $self->info("Error checking the options of add") and return;
   @_=@ARGV;
   my $lfn   = shift;
 
-  $lineOptions=~ s/ ?$lfn ?/ /;
+  my $pfn   = shift;
+
+  $pfn or $self->info("Error: not enough parameters in add\n".
+                    $self->addFile_HELP(),2)  and return;
+  $lineOptions=~ s/$lfn ?//;
+  $lineOptions=~ s/$pfn ?//;
   $lfn = $self->{CATALOG}->f_complete_path($lfn);
   $options->{versioning} or ( $self->_canCreateFile($lfn) or return);
 
-  my ($result)=$self->execute("upload", $lineOptions);
+  my ($result)=$self->execute("upload", $pfn, $lineOptions);
+
 
   $result and $result->{status} or 
     $self->info("Error, we couldn't add/store the file on any SE!") and return;

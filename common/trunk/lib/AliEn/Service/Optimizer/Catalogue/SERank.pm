@@ -25,52 +25,91 @@ sub checkWakesUp {
 
   my $sites = $catalogue->queryColumn("select distinct sitename from SERanks");
 
-  $self->$method(@info, "SE Rank Optimizer, the sites are: @$sites");
-
-  foreach my $site (@$sites) {
-
-    $self->updateRanksForSite($site,$silent);
-
-  }
-
-
-  my $stat  = $catalogue->do("delete from SERanks where updated=0");
-
-  $stat and  $self->$method(@info, "SE Rank Optimizer, deleted old entries");
-
-  $stat = $catalogue->do(" update SERanks set updated=0");
-
-  $stat and  $self->$method(@info, "SE Rank Optimizer, set new entries as old ones from now on.");
+  $self->updateRanksForSites($sites,$silent);
 
   $self->info("Going back to sleep");
   return;
 }
 
 
-sub updateRanksForSite{
+sub updateRanksForSites{
   my $self=shift;
-  my $site=(shift || return 0);
-  my $silent=(shift || "");
-  my $stat = 0;
+  my $sites=(shift|| return 0);
+  my $silent=(shift || 1);
   my @info;
+
   my $method="info";
   $silent and $method="debug" and  @info=1;
 
-  my $selist = $self->rankStorageElementsWithMonAlisa($site,$silent) or return 0;
+  my @updatedSites = ();
+
+  $self->info("Going to handle an updateRanksForSites request for sites: @$sites");
+
+  foreach my $site (@$sites) {
+
+    AliEn::Service::Optimizer::Catalogue::SERank::processUpdateRanksForSite($self,$site,$silent) and push @updatedSites, $site; 
+
+  }
+
+  if(scalar(@updatedSites) gt 0) {
+
+     my $query = "delete from SERanks where updated=0 and (sitename = '$updatedSites[0]'";
+   
+     for my $siteC(1..$#updatedSites) {
+        $query .= " or sitename = '$updatedSites[$siteC]'";
+     }
+     $query .= ")";
+
+     $self->$method(@info,$query);
+  
+     my $catalogue=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
+
+     my $stat  = $catalogue->do($query);
+
+     $stat and  $self->$method(@info, "SE Rank Optimizer, deleted old entries");
+
+     $stat = $catalogue->do(" update SERanks set updated=0");
+
+     $stat and  $self->$method(@info, "SE Rank Optimizer, set new entries as old ones from now on.");
+  }
+
+
+  return 1;
+}
+
+
+
+
+
+sub processUpdateRanksForSite{
+  my $self=shift;
+  my $site=(shift || return 0);
+  my $silent=(shift || 1);
+  my $stat = 0;
+  my @info;
+  my $method="info";
+
+  $silent and $method="debug" and  @info=1;
+
+  my $selist = AliEn::Service::Optimizer::Catalogue::SERank::rankStorageElementsWithMonAlisa($self,$site,$silent) or $self->info("Error calling MonALISA by HTTP") and return 0;
+  
+  scalar(@$selist) gt 0 or $self->info("MonALISA didn't supply any SE for site: $site") and return 0;
 
   my $catalogue=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
 
-
+  my $status = 1;
   $self->$method(@info, "SE Rank Optimizer, the ses for site $site are: @$selist");
+
 
   for my $rank(0..$#{$selist}) {
    
      $stat = $catalogue->do("REPLACE INTO SERanks (sitename,seNumber,rank,updated) values (?,(select seNumber from SE where seName=?),?,1);", {bind_values=>[$site,$$selist[$rank],$rank]});
      $self->$method(@info, "SE Rank Optimizer, updating for site $site the SE ".$$selist[$rank]." with rank $rank");
      $stat and  $self->$method(@info, "SE Rank Optimizer, setting ".$$selist[$rank]." to $rank was OK");
+     $status = $status && $stat;
 
   }
-  return $stat;
+  return $status;
 
 }
 
