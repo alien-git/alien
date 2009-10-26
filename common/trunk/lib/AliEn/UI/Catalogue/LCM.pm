@@ -827,12 +827,11 @@ Old size: $oldStat[7], new size: $newStat[7]");
   $self->info("File changed, uploading...");
   my $pfn="file://$self->{CONFIG}->{HOST}$file";
   $pfn =~ s/\n//gs;
-  my $md5=AliEn::MD5->new($file)
-    or $self->info("Error calculating the md5") and return;
+  
   $self->execute("rm", "$reallfn~", "-silent");
   $self->execute("mv", $reallfn, "$reallfn~", "-silent");
 
-  return $self->addFile("-v", "-md5=$md5", $reallfn, $pfn);
+  return $self->addFile(  $reallfn, $pfn);
 }
 
 sub Getopts {
@@ -885,16 +884,12 @@ sub addFile {
       or $self->info("Error checking the options of add") and return;
   @_=@ARGV;
   my $lfn   = shift;
-  my $pfn   = shift;
 
   $lineOptions=~ s/ ?$lfn ?/ /;
-
-  $pfn or $self->info("Error: not enough parameters in add\n".
-		      $self->addFile_HELP(),2)	and return;
   $lfn = $self->{CATALOG}->f_complete_path($lfn);
   $options->{versioning} or ( $self->_canCreateFile($lfn) or return);
 
-  my ($result)=$self->execute("upload", $pfn, $lineOptions);
+  my ($result)=$self->execute("upload", $lineOptions);
 
   $result and $result->{status} or 
     $self->info("Error, we couldn't add/store the file on any SE!") and return;
@@ -2579,7 +2574,6 @@ sub why {
   return 1;
 }
 
-
 sub masterSE_HELP{
   return "masterSE: Manage SE.
 
@@ -2588,21 +2582,36 @@ Usage:
     masterSE  <SENAME> [<action> [<arguments>]]
 
 where:
-    action can be list(default), replicate, print  or erase. 
+    action can be list(default), replicate, print  or erase.
 
 Possible actions:
-   masterSE <SENAME> print [-lfn] [<filename>] 
+   masterSE  <SENAME> list
+       Prints statistics about the usage of the SE
+
+   masterSE <SENAME> print [-lfn] [<filename>]
        Creates a filename with all the pfns on that SE. If -lfn is present, writes the lfn
+
+   masterSE <SENAME> replicate  [-all]  <SE destination>
+       Moves the entries from this SE to another one. By default, it copies only the entries that are not replicated already
+
+   masterSE  broken [-calculate] [-recover <sename>] [<dir>]
+       Prints all the lfns in the catalogue that do not have a pfn
+
+
 ";
-
-
 
 }
 
 sub masterSE {
   my $self=shift;
   my $sename=shift;
-  my $action=shift || "list";
+  my $action;
+  if ($sename=~ /broken/ ){
+    $action=$sename;
+  } else {
+    $action=shift || "list";
+  }
+
 
   if ($action =~ /^list$/i){
     my $info=$self->{CATALOG}->masterSE_list($sename);
@@ -2611,11 +2620,13 @@ sub masterSE {
   $info->{unique} of those entries are not replicated
   $info->{orphan} entries not pointed by any LFN");
     return $info;
-  } elsif ($action=~ /^replicate$/i){
+   } elsif ($action=~ /^replicate$/i){
     $self->info("Let's replicate all the files from $sename that do not have a copy");
-    my $counter=$self->executeInAllPFNEntries($sename, "masterSEReplicate");
+    my $options={unique=>1};
+    grep (/^-all$/i, @_) and delete $options->{unique};
+    my $counter=$self->executeInAllPFNEntries($sename, $options, "masterSEReplicate");
     $self->info("$counter transfers have been issued. You should wait until the transfers have been completed");
-    
+
     return $counter
   } elsif ($action=~ /print/){
     my $lfn=grep (/^-lfn$/i, @_);
@@ -2623,13 +2634,72 @@ sub masterSE {
     my $output=shift || "$self->{CONFIG}->{TMP_DIR}/list.$sename.txt";
     $self->info("Creating the file $output with all the entries");
     open (FILE, ">$output") or $self->info("Error opening $output") and return;
-    my $counter=$self->executeInAllPFNEntries($sename, "masterSEprint",\*FILE, $lfn);
+    my $counter=$self->executeInAllPFNEntries($sename, {}, "masterSEprint",\*FILE, $lfn);
     close FILE;
     return $counter;
+  } elsif ($action =~ /remove/){
+    $self->info("Removing the files from the se");
+    my $options={duplicate=>1};
+    grep (/^-all$/i, @_) and delete $options->{duplicate};
+    my $counter=$self->executeInAllPFNEntries($sename, {}, "masterSEremove");
+    return $counter;
+  } elsif ($action =~ /broken/){
+    $self->info("Printing all the broken lfn");
+    my $options={};
+    @ARGV=@_;
+    Getopt::Long::GetOptions($options, "calculate", "recover=s")
+        or $self->info("Error checking the options of masterSE broken") and return;
+    @_=@ARGV;
+
+    my $entries=$self->{CATALOG}->getBrokenLFN($options, @_);
+    
+    $options->{recover} and $self->masterSERecover($options->{recover},$entries);
+    my $t=$#$entries+1;
+    $self->info("There are $t broken links in the catalogue");
+    return $entries;
   }
   $self->info("Sorry, I don't understand 'masterSE $action'");
   return undef;
 
+}
+sub masterSERecover {
+  my $self=shift;
+  my $sename=shift;
+  my $entries=shift;
+  
+  $self->{GUID} or $self->{GUID}=AliEn::GUID->new();
+
+  my $seprefix=$self->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryValue('select concat(seioDaemons,"/",seStoragePath) from SE where sename=?', undef, {bind_values=>[$sename]});
+
+  $seprefix or $self->info("Error getting the prefix of $sename") and return;
+  $self->info("SE $sename -> $seprefix");
+
+  foreach my $f(@$entries){
+    $self->info("Recovering the entry $f");
+    my ($guid)=$self->execute("lfn2guid", $f);
+    $guid=lc($guid);
+    my $ff=sprintf("%02.2d",  $self->{GUID}->GetCHash($guid));
+    my $f2=sprintf("%05.5d",  $self->{GUID}->GetHash($guid));
+
+    my $pfn="$seprefix$ff/$f2/$guid";
+    system("xrdstat $pfn > /dev/null 2>&1") and next;
+    my ($size)=$self->execute("ls", "-la", $f);
+    $size=~s/^[^#]*###[^#]*###[^#]*###(\d+)###.*$/$1/;
+    $self->info("Ready to recover $f and $pfn and $size");
+    if ($self->execute("register", "${f}_new", $pfn, $size, $sename, $guid)){
+      $self->execute("rm", "${f}_new");
+    }
+  }
+  return 1;
+
+}
+
+sub masterSEremove {
+  my $self=shift;
+  my $info=shift;
+
+  $self->info("We are going to remove $info->{guid}");
+  return 1;
 }
 
 sub masterSEReplicate{
@@ -2657,6 +2727,7 @@ sub masterSEprint {
 sub executeInAllPFNEntries{
   my $self=shift;
   my $sename=shift;
+  my $options=shift;
   my $function=shift;
   my $counter=0;
   my $limit=1000;
@@ -2666,7 +2737,7 @@ sub executeInAllPFNEntries{
   while ($repeat){
     print "Reading table $previous_table and $counter\n";
     (my $entries, $previous_table)=
-      $self->{CATALOG}->masterSE_getFiles($sename, $previous_table,$limit);
+      $self->{CATALOG}->masterSE_getFiles($sename, $previous_table,$limit, $options);
     $repeat=0;
     $previous_table and $repeat=1;
     foreach my $g (@$entries){

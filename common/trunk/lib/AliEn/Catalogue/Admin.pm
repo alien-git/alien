@@ -764,6 +764,10 @@ sub resyncLDAPSE {
   $transfers->close();
   return;
 }
+sub getBrokenLFN{
+  my $self=shift;
+  return $self->{DATABASE}->getBrokenLFN(@_);
+}
 
 sub checkSEDescription {
   my $self=shift;
