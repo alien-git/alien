@@ -19,15 +19,15 @@ my $self = {};
 sub initialize {
   $self     = shift;
   my $options =(shift or {});
-  
+
   $self->{SERVICE} or
     print STDERR "Optimizer: in initialize service name missing\n"
       and return;
-  
+
   $self->{SERVICENAME}="$self->{SERVICE}Optimizer";
-  
+
   $self->debug(1, "In initialize setting up a $self->{SERVICENAME}");
-  
+
   my $name="\U$self->{SERVICE}\E";
   
   $self->debug(1, "In initialize getting information for $self->{SERVICENAME}" );
@@ -124,6 +124,11 @@ sub StartChildren{
 
 sub startListening {
   my $this=shift;
+
+  if ($self->{FORKCHECKPROCESS}){
+    $self->info("Forking a process");
+    $self->forkCheckProcess() or return;
+  }
 
   $self->info("In fact, this is not a service. We don't listen for anything.");
   while(1){
