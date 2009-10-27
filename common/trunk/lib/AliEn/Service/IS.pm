@@ -785,14 +785,11 @@ sub updateSiteSECacheForSite{
    $self->info("Finished to add SERank Cache entries for site: $site");
 
    $self->info("Manually calling CatalogueOptimizer->SERank code for site: $site");
+   push @ISA, "AliEn::Service::Optimizer::Catalogue::SERank";
+   my $stat = $self->updateRanksForOneSite($site);
+   pop @ISA;
 
-   my @sites = ();
-   push @sites, $site;
-   AliEn::Service::Optimizer::Catalogue::SERank::updateRanksForSites($self,\@sites,"0") and $self->info("CatalogueOptimizer->SERank came back true");
-
-   $self->info("Finished here");
-
-   return 1;
+   return $stat;
 }
 
 
