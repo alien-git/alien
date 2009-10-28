@@ -646,7 +646,7 @@ sub listTransfer {
     $self->info($result) and     return;
 
   my $message="TransferId\tStatus\t\tUser\t\tDestination\t\t\tSize\t\tSource\t\tAttmpts\n";
-  my $format="%6s\t\t%-8s\t%-10s\t%-15s\t\t%-12i\t\%12s\%12s";
+  my $format="%6s\t\t%-8s\t%-10s\t%-15s\t\t%-12.0f\t\%12s\%12s";
   my @transfers = @$result;
   my $summary="";
   my $info={};

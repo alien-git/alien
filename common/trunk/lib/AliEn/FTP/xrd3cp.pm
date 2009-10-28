@@ -27,12 +27,16 @@ sub copy {
   my $source=shift;
   my $target=shift;
   $self->info("Ready to copy $source into $target");
-  use Data::Dumper;
-  print Dumper($source);
-  print Dumper($target);
+  my @args=("$source->{url} $target->{url}  \"authz=$source->{envelope}\" \"authz=$target->{envelope}\" ");
 
-  
-  return;
+#  -OS\\\&authz=\"$source->{envelope}\" $target->{url} -OD\\\&authx=\"$target->{envelope}\" ");
+
+  if(system("xrd3cp  @args")){
+    $self->info("Error doing the xrd3cp @args",1);
+    return;
+  }
+  $self->info("The transfer worked!!");
+  return 1;
 }
 
 1;
