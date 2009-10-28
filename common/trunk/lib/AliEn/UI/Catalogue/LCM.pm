@@ -809,6 +809,7 @@ sub f_system_call{
   return (1, $file, @oldStat);
 }
 
+
 sub vi {
   my $self=shift;
   my $lfn=shift;
@@ -821,18 +822,18 @@ sub vi {
   $self->debug(1, "Old time: $oldStat[10], new time: $newStat[10]
 Old size: $oldStat[7], new size: $newStat[7]");
 
-  ($oldStat[10] == $newStat[10]) and 
+  ($oldStat[10] == $newStat[10]) and
     ($oldStat[7] == $newStat[7]) and return 1;
 
   $self->info("File changed, uploading...");
   my $pfn="file://$self->{CONFIG}->{HOST}$file";
   $pfn =~ s/\n//gs;
-  
-  $self->execute("rm", "$reallfn~", "-silent");
-  $self->execute("mv", $reallfn, "$reallfn~", "-silent");
+  my $md5=AliEn::MD5->new($file)
+    or $self->info("Error calculating the md5") and return;
 
-  return $self->addFile(  $reallfn, $pfn);
+  return $self->addFile("-v", "-md5=$md5", $reallfn, $pfn);
 }
+
 
 sub Getopts {
   my $self = shift;
