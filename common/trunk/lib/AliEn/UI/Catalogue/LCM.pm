@@ -883,7 +883,6 @@ sub addFile {
       or $self->info("Error checking the options of add") and return;
   @_=@ARGV;
   my $lfn   = shift;
-
   my $pfn   = shift;
 
   $pfn or $self->info("Error: not enough parameters in add\n".
@@ -891,6 +890,8 @@ sub addFile {
   $lineOptions=~ s/$lfn ?//;
   $lineOptions=~ s/$pfn ?//;
   $lfn = $self->{CATALOG}->f_complete_path($lfn);
+  $options->{versioning} and $lineOptions=~ s/ ?-v ?/ -v=$lfn /;
+
   $options->{versioning} or ( $self->_canCreateFile($lfn) or return);
 
   my ($result)=$self->execute("upload", $pfn, $lineOptions);
@@ -1926,18 +1927,19 @@ Usage:
 
 sub upload {
   my $self=shift;
-  #$self->debug(1, "Starting the upload with @_");
   my $options={};
   @ARGV=@_;
-  Getopt::Long::GetOptions($options, "silent", "versioning", 
+  Getopt::Long::GetOptions($options, "silent", "versioning=s", 
 			   "size=i", "md5=s", "guid=s")
       or $self->info("Error checking the options of add") and return;
   @_=@ARGV;
   my $pfn=shift;
-
+  my $lfn="/NOLFN";
   my $envReq="write-once";
-  $options->{versioning} and $envReq = "write-version";
-
+  if ($options->{versioning} and $options->{versioning} ne ""){
+          $lfn = $options->{versioning};
+          $envReq = "write-version";
+   }
 
   my $result = {};
   $options->{guid} and $result->{guid}=$options->{guid};
@@ -2005,7 +2007,7 @@ sub upload {
   
   foreach my $qos(keys %$qosTags){
     $self->debug(2,"Processing storage discovery qos: $qos with $qosTags->{$qos} requested elements.");
-    $result = $self->putOnDynamicDiscoveredSEListByQoS($result,$pfn,"/NOLFN",$size,$envReq,$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes,1);
+    $result = $self->putOnDynamicDiscoveredSEListByQoS($result,$pfn,$lfn,$size,$envReq,$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes,1);
   }
   
   my $suppressISCheck = 0;
@@ -2018,7 +2020,7 @@ sub upload {
   }
   
   $self->debug(2,"Processing static SE list: @ses");
-  (scalar(@ses) gt 0) and $result = $self->putOnStaticSESelectionList($result,$pfn,"/NOLFN",$size,$envReq,$selOutOf,\@ses,1,$suppressISCheck);
+  (scalar(@ses) gt 0) and $result = $self->putOnStaticSESelectionList($result,$pfn,$lfn,$size,$envReq,$selOutOf,\@ses,1,$suppressISCheck);
   
   
   $result->{totalCount}=$totalCount;
