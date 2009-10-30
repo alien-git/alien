@@ -989,7 +989,7 @@ sub createAgentStartup {
     $self->info("We are installing alien with $self->{CONFIG}->{CE_INSTALLMETHOD}");
     my $method="installWith".$self->{CONFIG}->{CE_INSTALLMETHOD};
     eval {
-      ($alienScript, $before)=$self->$method();
+      ($alienScript, $before, $after)=$self->$method();
     };
     if ($@){
       $self->info("Error calling $method: $@");
@@ -1048,7 +1048,7 @@ sub installWithTorrent {
   my $self=shift;
   $self->info("The worker node will install with the torrent method!!!");
 
-  return "$self->{CONFIG}->{TMP_DIR}/alien_installation.\$\$/alien/bin/alien","DIR=$self->{CONFIG}->{TMP_DIR}/alien_installation.\$\$
+  return "./alien/bin/alien","DIR=\`pwd\`/alien_installation.\$\$
 mkdir -p \$DIR
 echo \"Ready to install alien\"
 date
@@ -1059,7 +1059,7 @@ chmod +x alien-auto-installer
 ./alien-auto-installer -skip_rc  -type workernode -batch
 echo \"Installation completed!!\"
 
-";
+", "rm -rf \$DIR";
 }
 
 sub checkQueueStatus() {
