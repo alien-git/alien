@@ -534,7 +534,7 @@ sub updateStatus{
   # update the SiteQueue table
   # send the status change to ML
   $self->sendJobStatus($id, $status, $execHost, "");
-  $status=~ /^(DONE)|(ERROR_.*)|(EXPIRED)|(KILLED)$/ and 
+  $status=~ /^(DONE.*)|(ERROR_.*)|(EXPIRED)|(KILLED)$/ and 
     $self->checkFinalAction($id, $service);
   if ( $status ne $oldstatus ) {
     if ( $status eq "ASSIGNED" ) {

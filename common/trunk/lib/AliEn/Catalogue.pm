@@ -510,6 +510,18 @@ sub f_ls
 
   return @result;
 }
+sub f_guid2lfn_HELP{
+  return "guid2lfn: look for the LFNs pointing to a guid. Usage
+
+guid2lfn [-a] [-s] <guid>
+
+Options: 
+   -s: silent
+   -a: all tables. Do a deep search in all the possible tables of the catalogue
+";
+
+}
+
 
 sub f_guid2lfn
 {
@@ -517,7 +529,7 @@ sub f_guid2lfn
   my $options = shift;
   my $guid = shift or print STDERR "Error: you have to specify a guid to translate!" and return;
 
-  my @lfns = $self->f_getByGuid($options,$guid);
+  my @lfns=$self->{DATABASE}->getLFNfromGUID($options, $guid);
 
   if ( $options !~ /s/ ) {
     # be silent
@@ -629,6 +641,14 @@ silent mode. Does not put anything in the output
 
 =cut
 
+sub f_mkdir_HELP{
+ return "Usage: mkdir [-ps] <directory>
+Options: 
+\t-s silent
+\t-p create parents as needed
+\t-d return the directory number";
+}
+
 sub f_mkdir {
   my $self=shift;
   my ($options, $path)= @_;
@@ -636,13 +656,15 @@ sub f_mkdir {
   my $message;
   (defined $path) or $message="not enough arguments";
   $path =~ s{\\@}{@}g;
-  ($options =~ /^[s|p]*$/) or $message="unknown option '$options'";
+  ($options =~ /^[s|p|d]*$/) or $message="unknown option '$options'";
   $message and
-    $self->{LOGGER}->error("Catalogue", "Error $message\nUsage: mkdir [-ps] <directory>\nOptions: -s silent\n\t-p create parents as needed") and return;
+    $self->{LOGGER}->error("Catalogue", "Error $message\n ". $self->f_mkdir_HELP()) and return;
   my $silent = ($options =~ /s/) ? 1 : undef;
   $path = $self->GetAbsolutePath($path, 1);
-
   if ($self->existsEntry( $path)){
+    ($options =~ /d/)  and 
+      return $self->{DATABASE}->getAllInfoFromLFN({options=>'d', retrieve=>'entryId', 
+						 method=>'queryValue'}, "$path/");
     $options=~ /p/ and return 1;
     $self->info( "Directory or File $path already exists.\n");
     return;
@@ -665,6 +687,10 @@ sub f_mkdir {
   my $done=$self->{DATABASE}->createDirectory("$path/",$self->{UMASK});
 
   $DEBUG and $self->debug(1, "Directory $path created");
+
+  ($done) and ($options =~ /d/)  and 
+    return $self->{DATABASE}->getAllInfoFromLFN({options=>'d', retrieve=>'entryId', 
+						 method=>'queryValue'}, "$path/");
   return $done;
 }
 sub f_rmdir {
@@ -1235,6 +1261,7 @@ sub f_find_HELP{
    s => no sorting
    d => return also the directories
    c => put the output in a collection - 2nd arg is the collection name
+   m => metadata on file level 
 ";
 }
 
@@ -1278,15 +1305,15 @@ sub getFindConstraints {
 
     $name  or $error="Missing the name of the Tag";
     $query or $error="Missing the condition";
-      $error and print STDERR
-	"Error: not enough arguments in find\n(\t\t$error ) \n".$self->f_find_HELP()
-	    and return;
-      $self->info( "Filtering according to '$union' $name $query");
+    $error and print STDERR
+      "Error: not enough arguments in find\n(\t\t$error ) \n".$self->f_find_HELP()
+	and return;
+    $self->info( "Filtering according to '$union' $name $query");
 
     $query =~ s/===/ like / and $self->info( "This is a like query");
-      push @unions,     $union;
-      push @tagNames,   $name;
-      push @tagQueries, $query;
+    push @unions,     $union;
+    push @tagNames,   $name;
+    push @tagQueries, $query;
   }
   shift @unions;
   return ( 1, \@tagQueries, \@tagNames, \@unions);
@@ -1663,9 +1690,9 @@ sub f_find {
   #### standard to retrieve options with and without parameters
   my %options=();
   @ARGV=@_;
-  getopts("vzrpO:o:l:x:g:sO:q:dc:",\%options);
+  getopts("mvzrpO:o:l:x:g:sO:q:dc:",\%options);
   @_=@ARGV;
-  
+
   # option v => verbose
   # option z => return array of hash
   # option p => set the printout format 
@@ -1677,7 +1704,8 @@ sub f_find {
   # option O => add opaque information to the results
   # option q => quiet mode
   # option d => return directories
-
+  # option m => metadata on file level
+ 
   my $quiet = $options{'q'};
   my $verbose = $options{v};
 

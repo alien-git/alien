@@ -1673,7 +1673,10 @@ sub internalQuery {
 
   foreach my $f (@$file){
     if ($f ne "\\" ) {
-      my $d = ("WHERE concat('$refTable->{lfn}', lfn) LIKE '$path%$f%' and replicated=0");
+      my $searchP=$path;
+      my $concat="concat('$refTable->{lfn}', lfn)";
+      $searchP =~ s/^$refTable->{lfn}// and $concat="lfn";
+      my $d = ("WHERE $concat LIKE '$searchP%$f%' and replicated=0");
       $options->{d} or $d.=" and right(lfn,1) != '/' and lfn!= \"\"";
       push @joinQueries, $d;
     } else {
@@ -1699,7 +1702,7 @@ sub internalQuery {
     else {
       $DEBUG and $self->debug(1, "Selecting directories with tag $tagName");
       #Checking which directories have that tag defined
-      my $tables = $self->getFieldsByTagName($tagName, "tableName", 1);
+      my $tables = $self->getFieldsByTagName($tagName, "tableName", 1, $refTable->{lfn});
       $tables and $#{$tables} != -1
 	or $self->info( "Error: there are no directories with tag $tagName in $self->{DATABASE}->{DB}") 
 	  and return;
@@ -1715,10 +1718,15 @@ sub internalQuery {
 	  #The second query gets files with that metadata. 
 	  # (this part is pretty fast)
 
-	  push @newQueries, " JOIN $table $oldQuery $union $table.$query and $table.file like '%/' and concat('$refTable->{lfn}', l.lfn) like concat( $table.file,'%') ";
-
-	  my $length=length($refTable->{lfn})+1;
-	  push @newQueries, " JOIN $table $oldQuery $union $table.$query and l.lfn=substring($table.file, $length) and left($table.file, $length-1)='$refTable->{lfn}'";
+	  if ($options->{'m'}){
+	    $self->info("WE WANT EXACT FILES!!");
+	    push @newQueries, " JOIN $table $oldQuery $union $table.$query and $table.file= concat('$refTable->{lfn}', l.lfn) ";
+	  } else{
+	    push @newQueries, " JOIN $table $oldQuery $union $table.$query and $table.file like '%/' and concat('$refTable->{lfn}', l.lfn) like concat( $table.file,'%') ";
+	    
+	    my $length=length($refTable->{lfn})+1;
+	    push @newQueries, " JOIN $table $oldQuery $union $table.$query and l.lfn=substring($table.file, $length) and left($table.file, $length-1)='$refTable->{lfn}'";
+	  }
 	}
       }
     }
@@ -1756,6 +1764,7 @@ $b as guid from $indexTable l $1 $order $limit/} @joinQueries;
   my @result;
   foreach (@joinQueries) {
     $DEBUG and $self->debug(1, "Doing the query $_");
+#    print "SKIPPING THE QUERIES '$_'\n";
     my $query=$self->query($_);
     push @result, @$query;
   }
