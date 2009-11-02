@@ -812,6 +812,7 @@ sub checkOrphanGUID {
 
 sub getLFNfromGUID {
   my $self=shift;
+  my $options=shift;
   my $guid=shift;
   my @lfns;
 
@@ -822,7 +823,10 @@ sub getLFNfromGUID {
   my $ref=$db->queryColumn("select lfnRef from 
   ${table}_REF join $table using (guidid)
  where guid=string2binary(?)", undef, {bind_values=>[$guid]});
-#  my $entries=$self->query("select lfn,tableName,hostIndex from INDEXTABLE");
+  if ($options =~ /a/){
+    $self->info("Looking in all possible tables");
+    $ref=$self->queryColumn("select concat(hostIndex,'_',tableName) from INDEXTABLE");
+  }
   foreach my $entry (@$ref){
     $self->info("We have to check $entry");
     my ($host, $lfnTable)=split(/_/, $entry);

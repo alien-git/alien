@@ -278,20 +278,6 @@ sub f_getMD5 {
   return $md5;
 }
 
-
-sub f_getByGuid {
-  my $self = shift;
-  $DEBUG and $self->debug(2, "In FileInterface getByGuid @_");
-  my $options = shift || "";
-  my $guid = shift;
-  my @result;
-  ($guid)
-    or print STDERR "Error: not enough arguments in f_getByGuid!\n"
-      and return;
-  return $self->{DATABASE}->getLFNfromGUID($guid);
-}
-
-
 #
 #This function retrieves a file from the catalog.
 #
