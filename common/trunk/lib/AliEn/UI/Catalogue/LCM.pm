@@ -2655,13 +2655,13 @@ sub masterSE {
     $self->info("Printing all the broken lfn");
     my $options={};
     @ARGV=@_;
-    Getopt::Long::GetOptions($options, "calculate", "recover=s")
+    Getopt::Long::GetOptions($options, "calculate", "recover=s", "rawdata")
         or $self->info("Error checking the options of masterSE broken") and return;
     @_=@ARGV;
 
     my $entries=$self->{CATALOG}->getBrokenLFN($options, @_);
     
-    $options->{recover} and $self->masterSERecover($options->{recover},$entries);
+    $options->{recover} and $self->masterSERecover($options->{recover},$entries, $options);
     my $t=$#$entries+1;
     $self->info("There are $t broken links in the catalogue");
     return $entries;
@@ -2674,22 +2674,39 @@ sub masterSERecover {
   my $self=shift;
   my $sename=shift;
   my $entries=shift;
-  
+  my $options=shift;
+
   $self->{GUID} or $self->{GUID}=AliEn::GUID->new();
 
   my $seprefix=$self->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryValue('select concat(seioDaemons,"/",seStoragePath) from SE where sename=?', undef, {bind_values=>[$sename]});
 
   $seprefix or $self->info("Error getting the prefix of $sename") and return;
+  $seprefix =~ s{/?$}{/};
   $self->info("SE $sename -> $seprefix");
 
   foreach my $f(@$entries){
     $self->info("Recovering the entry $f");
     my ($guid)=$self->execute("lfn2guid", $f);
     $guid=lc($guid);
-    my $ff=sprintf("%02.2d",  $self->{GUID}->GetCHash($guid));
-    my $f2=sprintf("%05.5d",  $self->{GUID}->GetHash($guid));
 
-    my $pfn="$seprefix$ff/$f2/$guid";
+    my $pfn="";
+    if ($options->{rawdata}){
+      $f=~ m{([^/]*)$} or next;
+      my $basename=$1;
+      open (FILE, "grep $basename /tmp/list|");
+      my $line=<FILE>;
+      close FILE;
+      print "'$line'\n";
+      chomp $line;
+      $pfn="root://voalice08.cern.ch/$line"
+    }else{
+      my $ff=sprintf("%02.2d",  $self->{GUID}->GetCHash($guid));
+      my $f2=sprintf("%05.5d",  $self->{GUID}->GetHash($guid));
+
+      $pfn="$seprefix$ff/$f2/$guid";
+    }
+    $self->info("Checking if $pfn exists");
+
     system("xrdstat $pfn > /dev/null 2>&1") and next;
     my ($size)=$self->execute("ls", "-la", $f);
     $size=~s/^[^#]*###[^#]*###[^#]*###(\d+)###.*$/$1/;
@@ -2697,6 +2714,7 @@ sub masterSERecover {
     if ($self->execute("register", "${f}_new", $pfn, $size, $sename, $guid)){
       $self->execute("rm", "${f}_new");
     }
+
   }
   return 1;
 
