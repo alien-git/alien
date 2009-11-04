@@ -951,7 +951,7 @@ Options:\t-f\t keep the same relative path
 
 sub mirror {
   my $self = shift;
-
+  my $origP= join(" ", @_);
 
   my $opt={};
   @ARGV=@_;
@@ -959,17 +959,16 @@ sub mirror {
       $self->info("Error parsing the arguments to mirror". $self->mirror_HELP()) and return;;
   @_=@ARGV;
   my $options=join("", keys(%$opt));
-  
+
   $self->debug(1, "UI/LCM Mirror with @_");
   $opt->{t} and $opt->{b}=1;
   my $lfn  = shift;
   my $se   = ( shift or "$self->{CONFIG}->{SE_FULLNAME}" );
-  
   ($lfn) or $self->info("Error: not enough arguments:\n ". $self->mirror_HELP())     and return;
+  $origP=~  s/\s*$lfn\s*/ /;
 
   my $guid;
   my $realLfn;
-  my $guidInfo;
   my $pfn="";
   my $seRef;
   if ($opt->{g}){
@@ -988,25 +987,29 @@ sub mirror {
     $self->{CATALOG}->isFile($lfn, $realLfn) or 
       $self->info("The entry $lfn is not a file!") and return;
 
-    if ($info->{type} ne "f"){
-      $self->info("We are mirroring a $info->{type}!!\n");
+    if ($info->{type} eq "c"){
+      $self->info("Ready to mirror a collection");
+      my ($files)=$self->execute("listFilesFromCollection", $lfn);
+
+      foreach my $f (@$files){
+	$self->info("Ready to mirror $f");
+	$self->execute("mirror","$origP",$f->{origLFN});
+      }
+      return 1;
+    } elsif ($info->{type} ne "f"){
+      $self->info("We don't know how to mirror a $info->{type}!!\n",1);
       return;
     }
   }
 
   if ($opt->{u}){
     $self->info("Making sure that the file is not in that SE");
-    my $info=$self->{CATALOG}->f_whereis("i", $realLfn)
+    my $nopt="";
+    $opt->{r} and $nopt.="r";
+    my @info=$self->{CATALOG}->f_whereis($nopt, $realLfn)
       or $self->info("Error getting the info from $realLfn") and return;
-
-    $guidInfo=$info->{guidInfo} or $self->info("Error getting the list of pfns of '$realLfn'", 1) 
-	and return;
-
-      $seRef=$guidInfo->{pfn} or 
-	$self->info("Error getting the list of pfns of $lfn") and return;
-
-    foreach my $entry (@$seRef){
-      $entry->{seName} =~ /^$se$/i and $self->info("The file is already in $se!") and return;
+    if (grep (/^$se$/i, @info)){
+      $self->info("The file is already in $se!") and return;
     }
   }
 

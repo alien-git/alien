@@ -34,6 +34,10 @@ sub checkWakesUp {
 
   foreach my $transfer (@$transfers) {
     $self->info( "New transfer of $transfer->{lfn}");
+    if ($transfer->{options}=~ /r/){
+      $self->checkFileInsideArchive($transfer) or next;
+      $self->info("Now $transfer->{lfn}");
+    }
 
     my ($size)=$self->{CATALOGUE}->execute("ls","-silent", "-l", "$transfer->{lfn}");
 
@@ -52,7 +56,7 @@ sub checkWakesUp {
     $size =~ s/^(.*\#\#\#){3}(\d+)(\#\#\#.*){2}$/$2/;
     $self->debug(1, "In checkNewTransfers file has size $size");
     
-    my $jdl=$self->createTransferJDL($transfer->{transferid}, $transfer->{lfn}, $transfer->{destination}, $size,  $transfer->{collection}, $transfer->{user});
+    my $jdl=$self->createTransferJDL($transfer->{transferid}, $transfer->{lfn}, $transfer->{destination}, $size,  $transfer->{collection}, $transfer->{user}, $transfer->{options});
     $self->debug(1, "Got the jdl");
     if (!$jdl){
       my $reason=$self->{LOGGER}->error_msg() || "error creating the jdl of the transfer";
@@ -65,6 +69,7 @@ sub checkWakesUp {
     $self->debug(1,"In checkNewTransfers updating transfer $transfer->{transferid}. New jdl = $jdl,size = $size and status = WAITING");
     $self->{DB}->updateTransfer($transfer->{transferid},{jdl=>$jdl,
 							 size=>$size,
+							 lfn=>$transfer->{lfn},
 							 status=>'WAITING',
 							 sent=>undef,
 							 started=>undef,
@@ -77,6 +82,40 @@ sub checkWakesUp {
   }
   return 1;
 }
+
+sub checkFileInsideArchive{
+  my $self=shift;
+  my $transfer=shift;
+
+  $self->info("If this is inside an archive, transfer the archive");
+  my (@se)=$self->{CATALOGUE}->execute("whereis", "-silent", "$transfer->{lfn}");
+
+  my $guid="";
+  map { m{^guid://[^/]*/([^\?]*)\?*} and $guid=$1} @se;
+  $guid or return 1;
+
+  $self->info("This is inside an archive (guid: $guid)!!");
+
+  my ($lfn)=$self->{CATALOGUE}->execute("guid2lfn", $guid, "-silent");
+  if (! $lfn){
+    $self->{TRANSFERLOG}->putlog($transfer->{transferid}, "ERROR", "In checkNewTransfers file $transfer->{lfn} is inside the archive of $guid, but that entry does not exist in the catalogue");
+    $self->{DB}->updateTransfer($transfer->{transferid},{status=>"FAILED"})
+      or $self->{LOGGER}->error("TransferOptimizer", "In checkNewTransfers error updating status for transfer $transfer->{transferid}");
+    return;
+  }
+  $transfer->{lfn}=$lfn;
+  $self->{TRANSFERLOG}->putlog($transfer->{transferid}, "INFO", "This is inside an archive. Transfering the archive $transfer->{lfn}");
+  my $id=$self->{DB}->isScheduled($lfn,$transfer->{destination});
+  if ($id){
+    $self->{TRANSFERLOG}->putlog($transfer->{transferid}, "STATUS", "The transfer of the archive has already been scheduled: $id");
+    $self->{DB}->updateTransfer($transfer->{transferid},{status=>"DONE"})
+      or $self->{LOGGER}->error("TransferOptimizer", "In checkNewTransfers error updating status for transfer $transfer->{transferid}");
+
+    return;
+  }  
+  return 1;
+}
+
 
 
 sub insertCollectionTransfer{
@@ -126,6 +165,7 @@ sub createTransferJDL {
   my $size=shift;
   my $collection=shift;
   my $user=shift;
+
 
   $self->debug(1, "In createTransferJDL creating a new jdl");
 
