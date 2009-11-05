@@ -71,7 +71,7 @@ sub getlog {
   map {$_="($_)"} @tags;
   my $status=join ("|", @tags);
   open INPUT,  "$self->{JOBLOGFILE}";
-  my @result= grep (/\[$status/, <INPUT>);
+  my @result= grep (/\[($status)/, <INPUT>);
   close INPUT;
   $self->{LOGGER}->info("JOBLOG", "Looking for $status of $jobid and found $#result");
 
