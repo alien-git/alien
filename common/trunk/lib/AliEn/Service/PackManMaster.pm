@@ -129,8 +129,8 @@ sub getListPackages{
   my $packages=$self->{DB}->queryColumn($query,undef, {bind_values=>$bind}) 
     or $self->info("Error doing the query") and return;
 
-  use Data::Dumper;
-  print Dumper($packages);
+#  use Data::Dumper;
+#  print Dumper($packages);
   return (1, @$packages);
 
 }
