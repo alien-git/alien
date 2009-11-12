@@ -85,7 +85,7 @@ ALIEN_StartApiService()
 ###########################################################################
 {
   getLogDir LOGDIR;
-  $ALIEN_PERL $ALIEN_ROOT/scripts/ApiConfig.pl
+  #  $ALIEN_PERL $ALIEN_ROOT/scripts/ApiConfig.pl
   export GSHELL_ROOT=$ALIEN_ROOT/api;
   if [ $? != "0" ]; then
       exit -1;
@@ -526,6 +526,7 @@ ALIEN_DoService ()
 	  Config)
 	    args="VARDIR Config Config NO_PASSWORD"
 	    ;;
+
 	esac
 
     if [ -n "$args" ]
