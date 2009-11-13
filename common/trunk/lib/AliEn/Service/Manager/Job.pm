@@ -1422,7 +1422,7 @@ sub getMasterJob {
      if ($_[0] =~ /^ERROR_ALL$/i){
        shift;
        $data->{status} or $data->{status}=[];
-       push @{$data->{status}}, "status='EXPIRED'","status='ERROR_IB'","status='ERROR_V'","status='ERROR_E'","status='FAILED'","status='ERROR_SV'", "status='ERROR_A'"; 
+       push @{$data->{status}}, "status='EXPIRED'","status='ERROR_IB'","status='ERROR_V'","status='ERROR_E'","status='FAILED'","status='ERROR_SV'", "status='ERROR_A'", "status='ERROR_VN'"; 
        next;
      }
    }
