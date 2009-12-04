@@ -2144,6 +2144,17 @@ AliEn::Database
 
 =cut
 
+sub getAllHostAndTable{
+  my $self=shift;
+
+  my $result = $self->query("SELECT distinct hostIndex, tableName from INDEXTABLE");
+  defined $result
+    or $self->info("Error: not possible to get all the pair of host and table")
+      and return;
+
+  return $result;
+}
+
 1;
 
 

@@ -13,6 +13,9 @@ use AliEn::JOBLOG;
 use AliEn::Util;
 use Classad;
 use AliEn::Database::Admin;
+use AliEn::Service::Optimizer::Job::Splitting;
+use AliEn::Database::TaskPriority;
+use Data::Dumper;
 
 use vars qw (@ISA $DEBUG);
 @ISA=("AliEn::Service::Manager");
@@ -43,6 +46,15 @@ sub initialize {
   $self->{JOBLOG} = new AliEn::JOBLOG();
   $self->{ADMINDB}= new AliEn::Database::Admin()
     or $self->info("Error getting the Admin" ) and return;
+
+	# Initialize TaskPriority table
+	$self->{CONFIG} = new AliEn::Config() or return;
+	my ($host, $driver, $db) = split("/", $self->{CONFIG}->{"JOB_DATABASE"});
+  $self->{PRIORITY_DB} or 
+      $self->{PRIORITY_DB}=
+  AliEn::Database::TaskPriority->new({DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin', SKIP_CHECK_TABLES=> 1});
+  $self->{PRIORITY_DB} or $self->{LOGGER}->error( "Admin-UI", "In initialize creating TaskPriority instance failed" );
+
   return $self;
 }
 
@@ -224,7 +236,6 @@ sub InsertHost {
   return 1;
 }
 
-
 sub enterCommand {
   my $this = shift;
   $self->{LOGGER} or $this->info("We are entering the command directly") and  $self=$this;
@@ -238,12 +249,12 @@ sub enterCommand {
   my $oldjob   = ( shift or "0");
   my $options= shift || {};
   my $date = time;
-  
+
+	my ($user) = split '@', $host;
 
   ($jobca_text)
     or $self->{LOGGER}->error( "JobManager", "In enterCommand jdl is missing" )
       and return(-1,"jdl is missing");
-
 
   $options->{silent} or $self->info("Entering a new command " );
   $jobca_text =~ s/\\/\\\\/gs;
@@ -256,7 +267,6 @@ sub enterCommand {
     $self->info("In enterCommand incorrect JDL input\n $jobca_text");
     return(-1,"incorrect JDL input");
   }
-
 
   if ($inputBox) {
     my @list=sort values %$inputBox;
@@ -282,8 +292,8 @@ sub enterCommand {
   }
 
   my $procDir = AliEn::Util::getProcDir(undef, $host, $procid);
-  my $user;
-  $procDir=~ m{/proc/([^/]*)/} and $user=$1;
+  #my $user;
+  #$procDir=~ m{/proc/([^/]*)/} and $user=$1;
   my $silent="";
   $options->{silent} and $silent="-silent";
   my ($olduser)= $self->{CATALOGUE}->execute("whoami",$silent );
@@ -330,6 +340,10 @@ sub SetProcInfo {
   if ($procinfo) {
     my @values = split " ",$procinfo;
     $values[13] or $values[13]='-1'; # si2k consumed by the job
+
+ 		# SHLEE: should be removed
+    #$values[13]='1.3'; #si2k
+		#$values[4]='3'; #cputime
 
     my ($status) = $self->{DB}->getFieldsFromQueue($queueId,"status");
 
@@ -591,7 +605,7 @@ sub getTop {
     $data->{$column->{name}} or next;
     $where .= " and (".join (" or ", @{$data->{$column->{name}}} ).")";
   }
-  $all_status or $data->{status} or $data->{id} or $where.=" and ( status='RUNNING' or status='WAITING' or status='ASSIGNED' or status='QUEUED' or status='INSERTING' or status='STARTED' or status='SAVING' or status='SAVED' or status='SAVED_WARN' or status='TO_STAGE' or status='STAGGING' or status='A_STAGED' or status='STAGING')";
+  $all_status or $data->{status} or $data->{id} or $where.=" and ( status='RUNNING' or status='WAITING' or status='OVER_WAITING' or status='ASSIGNED' or status='QUEUED' or status='INSERTING' or status='STARTED' or status='SAVING' or status='SAVED' or status='SAVED_WARN' or status='TO_STAGE' or status='STAGGING' or status='A_STAGED' or status='STAGING')";
 
   $where.=" ORDER by queueId";
 
@@ -864,7 +878,7 @@ sub getPs {
   my $date = time;
   my $i;
 
-  my $status="status='RUNNING' or status='WAITING' or status='ASSIGNED' or status='QUEUED' or status='INSERTING' or status='SPLIT' or status='SPLITTING' or status='STARTED' or status='SAVING'";
+  my $status="status='RUNNING' or status='WAITING' or status='OVER_WAITING' or status='ASSIGNED' or status='QUEUED' or status='INSERTING' or status='SPLIT' or status='SPLITTING' or status='STARTED' or status='SAVING'";
   my $site="";
 
   $self->info( "Asking for ps (@_)..." );
@@ -879,7 +893,7 @@ sub getPs {
       "status='KILLED'","status='FAILED'","status='ZOMBIE'";
   }
   if ( $flags=~ s/r//g) {
-    push @userStatus,"status='RUNNING'", "status='SAVING'","status='WAITING'", "status='ASSIGNED'", "status='QUEUED'", "status='INSERTING'", "status='SPLITTING'", "status='STARTED'", "status='SPLIT'";
+    push @userStatus,"status='RUNNING'", "status='SAVING'","status='WAITING'", "status='OVER_WAITING'", "status='ASSIGNED'", "status='QUEUED'", "status='INSERTING'", "status='SPLITTING'", "status='STARTED'", "status='SPLIT'";
   }
   
   if ( $flags =~ s/A//g) {
@@ -1216,7 +1230,7 @@ sub reInsertCommand {
     $self->{ADMINDB}->insertJobToken($queueId,$user,-1) or
       $self->{LOGGER}->error("JobManager","In reInsertCommand: cannot insert new Token for job $queueId") and return (-1,"Cannot insert new Token for this job");
 
-    my ($ok) = $self->{DB}->updateJob($queueId, {runtime=>"",runtimes=>"",cpu=>"",mem=>"",cputime=>"",rsize=>"",vsize=>"",ncpu=>"",cpufamily=>"",cpuspeed=>"",cost=>"",maxrsize=>"",maxvsize=>"",procinfotime=>"",status=>"WAITING",execHost=>"",priority=>"-1",started=>"",finished=>"",blocked=>"",spyurl=>"",site=>"",node=>""});
+    my ($ok) = $self->{DB}->updateJob($queueId, {runtime=>"",runtimes=>"",cpu=>"",mem=>"",cputime=>"",rsize=>"",vsize=>"",ncpu=>"",cpufamily=>"",cpuspeed=>"",cost=>"",maxrsize=>"",maxvsize=>"",procinfotime=>"",status=>"WAITING",execHost=>"",priority=>"-1",started=>"",finished=>"", spyurl=>"",site=>"",node=>""});
     $ok or $self->{LOGGER}->error( "JobManager", "Reinserting command for job $queueId couldn't change the QUEUE table entry properly!") and return ;
     $self->putJobLog($queueId,"state", "Job $queueId resubmitted");
 
@@ -1549,6 +1563,92 @@ sub getMasterJob {
 
 }
 
+#_______________________________________________________________________________________________________________________
+sub getNbSubJobs {
+  my $this = shift;
+  my $jobca_text = shift
+		or $self->{LOGGER}->error("In getNbSubJobs jobca_text is missing\n")
+		and return (-1, "jobca_text is missing");
+  my $inputBox = shift;
+
+	$DEBUG and $self->debug(1, "In getNbSubJobs with @_" );
+
+  my $job_ca = Classad::Classad->new($jobca_text);
+  if ( !$job_ca->isOK() ) {
+    $self->info("In getNbSubJobs incorrect JDL input\n $jobca_text");
+    return (-1,"incorrect JDL input");
+  }
+
+  if ($inputBox) {
+    my @list = sort values %$inputBox;
+    if (@list) {
+      $self->info( "Adding the inputbox" );
+      map {$_="\"$_\""} @list;
+      my $input="{". join(", ", @list). '}';
+      $self->info( "Putting $input" );
+      $job_ca->set_expression("InputBox", $input);
+    }
+  }
+	$DEBUG and $self->debug(1, "In getNbSubJobs JDL:".$job_ca->asJDL);
+
+	my $nbSubJobs; 
+
+	$self->info("Manually calling SplittingOptimizer");
+	push @ISA, "AliEn::Service::Optimizer::Job::Splitting";
+	$nbSubJobs = $self->_getNbSubJobs($job_ca);
+	pop @ISA;
+
+	(defined $nbSubJobs) or return { message=>"Failed to get nbSubJobs" };
+	return { nbSubJobs=>$nbSubJobs };
+}
+
+sub checkJobQuota {
+  my $this = shift;
+  my $user = shift 
+		or $self->{LOGGER}->error("In checkJobQuota user is missing\n")
+		and return (-1, "user is missing");
+  my $nbJobsToSubmit = shift 
+		or $self->{LOGGER}->error("In checkJobQuota nbJobsToSubmit is missing\n")
+		and return (-1, "nbJobsToSubmit is missing");
+
+	$DEBUG and $self->debug(1, "In checkJobQuota user:$user, nbJobs:$nbJobsToSubmit");
+
+  my $array = $self->{PRIORITY_DB}->getFieldsFromPriorityEx("unfinishedJobsLast24h, maxUnfinishedJobs, totalRunningTimeLast24h, maxTotalRunningTime, totalCpuCostLast24h, maxTotalCpuCost", "where user like '$user'")
+		or $self->{LOGGER}->error("Failed to getting data from PRIORITY table")
+		and return (-1, "Failed to getting data from PRIORITY table");
+	$array->[0] or $self->{LOGGER}->error("User $user not exist")
+		and return (-1, "User $user not exist in PRIORITY table");
+
+  my $unfinishedJobsLast24h = $array->[0]->{'unfinishedJobsLast24h'};
+  my $maxUnfinishedJobs = $array->[0]->{'maxUnfinishedJobs'};
+  my $totalRunningTimeLast24h = $array->[0]->{'totalRunningTimeLast24h'};
+  my $maxTotalRunningTime = $array->[0]->{'maxTotalRunningTime'};
+  my $totalCpuCostLast24h = $array->[0]->{'totalCpuCostLast24h'};
+  my $maxTotalCpuCost = $array->[0]->{'maxTotalCpuCost'};
+	
+	$DEBUG and $self->debug(1, "nbJobs: $nbJobsToSubmit, unfinishedJobs: $unfinishedJobsLast24h/$maxUnfinishedJobs");
+	$DEBUG and $self->debug(1, "totalRunningTime: $totalRunningTimeLast24h/$maxTotalRunningTime");
+	$DEBUG and $self->debug(1, "totalCpuCostLast24h: $totalCpuCostLast24h/$maxTotalCpuCost");
+
+  if ($nbJobsToSubmit + $unfinishedJobsLast24h > $maxUnfinishedJobs) {
+		$self->info("In checkJobQuota $user: Not allowed for nbJobs overflow");
+		return { allowed=>0, message=>"DENIED: You're trying to submit $nbJobsToSubmit jobs. That exceeds your limit." };
+  }
+
+  if ($totalRunningTimeLast24h >= $maxTotalRunningTime) {
+		$self->info("In checkJobQuota $user: Not allowed for totalRunningTime overflow");
+		return { allowed=>0, message=>"DENIED: You've already executed your jobs for enough time." };
+  }
+
+  if ($totalCpuCostLast24h >= $maxTotalCpuCost) {
+		$self->info("In checkJobQuota $user: Not allowed for totalCpuCost overflow");
+		return { allowed=>0, message=>"DENIED: You've already used enough CPU." };
+  }
+
+	$self->info("In checkJobQuota $user: Allowed");
+	return { allowed=>1 };
+}
+
+#_______________________________________________________________________________________________________________________
+
 1;
-
-

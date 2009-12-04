@@ -4,6 +4,8 @@ use strict;
 
 use AliEn::Service::Optimizer::Job;
 use AliEn::Service::Manager::Job;
+use Data::Dumper;
+
 use vars qw(@ISA);
 push (@ISA, "AliEn::Service::Optimizer::Job");
 
@@ -63,11 +65,31 @@ sub checkWakesUp {
   $self->{DB}->update("ACTIONS", {todo=>0}, "action='SPLITTING'");
   $self->info("There are some jobs to split!!");
 
-  my $done2=$self->checkJobs($silent, "INSERTING' and jdl like '\% split =\%", 
-			     "updateSplitting");
+  my $done2=$self->checkJobs($silent, "INSERTING' and jdl like '\% split =\%", "updateSplitting");
+
+  $self->info("Caculate Job Quota");
+	$self->{CATALOGUE}->execute("calculateJobQuota", "1");
 
   $self->{LOGGER}->$method("Splitting", "The splitting optimizer finished");
   return;
+}
+
+# Compute the number of sub-jobs for job quota
+# This calls SplitJob using DummyQueueID to only know the number of jobs
+sub _getNbSubJobs {
+	my $self = shift;
+	my $job_ca = shift;
+
+	my $nbSubJobs;
+  my ($strategy, $jobs)=$self->SplitJob("DummyQueueID", $job_ca) or $self->{LOGGER}->error("The job can't be split") and return;
+  if ($strategy !~ /^userDefined/) {
+  	$nbSubJobs = scalar(keys %$jobs);
+  } else {
+  	my ($ok, @def)=$job_ca->evaluateAttributeVectorString("SplitDefinitions");
+  	$nbSubJobs = scalar(@def);
+  }
+
+	return $nbSubJobs;
 }
 
 sub updateSplitting {
@@ -78,30 +100,30 @@ sub updateSplitting {
     my ($strategy, $jobs)=$self->SplitJob($queueid, $job_ca) or 
       die("The job can't be split\n");
 
-    my ($user)=$self->{DB}->getFieldFromQueue($queueid,"submithost")
+    my ($submitHost)=$self->{DB}->getFieldFromQueue($queueid,"submithost")
       or $self->info("Job $queueid doesn't exist")
-	and die ("Error getting the user of $queueid\n");
+				and die ("Error getting the user of $queueid\n");
+		my ($user) = split '@', $submitHost;
 
     #Change the status of the job
     my $job = $self->{DB}->updateStatus($queueid, "INSERTING", "SPLITTING")
       or $self->{LOGGER}->warning("Splitting", "in SubmitSplitJob setting status to 'SPLITTING' failed") 
-	and die ("Error setting the job to SPLITTING\n");
+				and die ("Error setting the job to SPLITTING\n");
 
     ($job == -1) and $self->info("The job was not waiting any more...") and die ("The job was not waiting any more\n");
 
     $self->putJobLog($queueid,"state", "Job state transition to SPLITTING");
 
     if ($strategy !~ /^userDefined/) {
-      $self->SubmitSplitJob($job_ca, $queueid, $user, $jobs) or
-	die ("Error submitting the subjobs\n");
+      $self->SubmitSplitJob($job_ca, $queueid, $submitHost, $jobs) or
+				die ("Error submitting the subjobs\n");
     } else {
       my ($ok, @def)=$job_ca->evaluateAttributeVectorString("SplitDefinitions");
       foreach my $jdl (@def) {
-	$self->_submitJDL($queueid, $user, $jdl) or
-	  die("Error submitting one of the splitDefinitions: $jdl\n");
+				$self->_submitJDL($queueid, $submitHost, $jdl) or die("Error submitting one of the splitDefinitions: $jdl\n");
       }
     }
-    #    $self->ChangeOriginalJob($job_ca, $queueid, $user);
+    #    $self->ChangeOriginalJob($job_ca, $queueid, $submitHost);
     $self->info( "Putting the status of $queueid to 'SPLIT'");
     my $set={masterjob=>1};
     my ($ok, $email)=$job_ca->evaluateAttributeString("Email");

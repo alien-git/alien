@@ -68,7 +68,8 @@ sub initialize {
     @protocols=@{$self->{CONFIG}->{FTD_PROTOCOL_LIST}};
 
 
-  $self->{PROTOCOLS}=\@protocols;
+  #$self->{PROTOCOLS}=\@protocols;
+  $self->{PROTOCOLS}=join(",", @protocols);
   foreach my $p (@protocols){
     my $test="AliEn::FTP::".lc($p);
     eval "require $test" or $self->info("Error requiring $test: $@") 

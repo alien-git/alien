@@ -534,7 +534,7 @@ sub checkPermission{
   my $guid=shift;
   my $options=shift || {};
 
-  my $retrieve='guidId,perm,owner,gowner';
+  my $retrieve='guidId,perm,owner,gowner,size';
   $options->{retrieve} and $retrieve.=",$options->{retrieve}";
   my $info=$self->getAllInfoFromGUID({retrieve=>$retrieve,
 				     return=>"db"}, $guid);
@@ -862,6 +862,21 @@ sub renumberGUIDtable {
 AliEn::Database
 
 =cut
+
+
+
+sub getAllHostAndTable{
+  my $self=shift;
+
+  my $result = $self->query("SELECT distinct hostIndex, tableName from GUIDINDEX");
+  defined $result
+    or $self->info("Error: not possible to get all the pair of host and table")
+      and return;
+
+  return $result;
+}
+
+
 
 1;
 

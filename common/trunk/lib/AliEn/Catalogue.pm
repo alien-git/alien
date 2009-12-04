@@ -106,8 +106,9 @@ $DEBUG=0;
 	'AliEn::Catalogue::Collection',	'AliEn::Logger::LogObject',@ISA
 );
 
-
 use AliEn::Database::Catalogue;
+use AliEn::Database::TaskPriority;
+use AliEn::Database::TaskQueue;
 
 #use AliEn::Utilities;
 use AliEn::Config;
@@ -205,7 +206,14 @@ Site name:$self->{CONFIG}->{SITE}");
   $self->{DATABASE} = AliEn::Database::Catalogue->new($DBoptions)
     or return;
 
+	my ($host, $driver, $db) = split("/", $self->{CONFIG}->{"JOB_DATABASE"});
+	$self->{TASK_DB} = AliEn::Database::TaskQueue->new({DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin', SKIP_CHECK_TABLES=> 1}) or return;
+  $self->{PRIORITY_DB} = AliEn::Database::TaskPriority->new({DB=>$db,HOST=>$host,DRIVER=>$driver,ROLE=>'admin',SKIP_CHECK_TABLES=> 1}) or return;
+
   $self->{ROLE}=$self->{DATABASE}->{LFN_DB}->{ROLE};
+
+	# check if an entry exists in PRIORITY table
+  $self->{PRIORITY_DB}->checkPriorityValue($self->{ROLE});
 
   $self->_setUserGroups($self->{ROLE});
 
@@ -1102,6 +1110,9 @@ sub f_user {
   $self->{ROLE}=$user;
 
   $self->_setUserGroups($user, $changeUser);
+
+	# Check if a changeUser exists
+  $self->{PRIORITY_DB}->checkPriorityValue($user);
 }
 
 sub _executeInAllDatabases{
