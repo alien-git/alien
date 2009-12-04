@@ -63,7 +63,14 @@ sub checkPriorityTable{
 		 priority=>"float",
 		 maxparallelJobs=>"int",
 		 nominalparallelJobs=>"int",
-		 computedpriority=>"float"
+		 computedpriority=>"float",
+		#Job Quota
+		 unfinishedJobsLast24h=>"int",
+		 totalRunningTimeLast24h=>"int",
+		 totalCpuCostLast24h=>"float",
+		 maxUnfinishedJobs=>"int",
+		 maxTotalRunningTime=>"int",
+		 maxTotalCpuCost=>"float",
 		);
 
   $self->checkTable($self->{PRIORITYTABLE}, "user", \%columns, 'user');
@@ -86,6 +93,14 @@ sub checkPriorityValue() {
     $set->{'maxparallelJobs'} = 20;
     $set->{'nominalparallelJobs'} = 10;
     $set->{'computedpriority'} = 1;
+		#Job Quota
+    $set->{'unfinishedJobsLast24h'} = 0;
+    $set->{'maxUnfinishedJobs'} = 10;
+    $set->{'totalRunningTimeLast24h'} = 0;
+    $set->{'maxTotalRunningTime'} = 10;
+    $set->{'totalCpuCostLast24h'} = 0;
+    $set->{'maxTotalCpuCost'} = 10;
+
     $self->insertPrioritySet($user,$set);
   }
 }

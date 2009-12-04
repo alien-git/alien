@@ -971,12 +971,13 @@ sub mirror {
   my $realLfn;
   my $pfn="";
   my $seRef;
+	my $size;
   if ($opt->{g}){
     $guid=$lfn;
     my $info=$self->{CATALOG}->{DATABASE}->{GUID_DB}->checkPermission( 'w', $guid )  or
       $self->info("You don't have permission to do that") and return;
     $realLfn="";
-
+		$size=$info->{size};
   }else{
     $lfn = $self->{CATALOG}->f_complete_path($lfn);
 
@@ -1000,6 +1001,7 @@ sub mirror {
       $self->info("We don't know how to mirror a $info->{type}!!\n",1);
       return;
     }
+		$size=$info->{size};
   }
 
   if ($opt->{u}){
@@ -1014,7 +1016,6 @@ sub mirror {
   }
 
   $self->info( "Mirroring file $realLfn at $se");
-
 
   my $transfer={"target", "",                      "TYPE", "mirror",
 		"USER" => $self->{CATALOG}->{ROLE}, "LFN" =>$realLfn,
@@ -2075,9 +2076,8 @@ sub putOnStaticSESelectionList{
    while ((scalar(@$ses) gt 0 and $selOutOf gt 0)) {
      (scalar(@$ses) gt 0) and my @staticSes= splice(@$ses, 0, $selOutOf);
      $self->debug(2,"We select out of a supplied static list the SEs to save on: @staticSes, count:".scalar(@staticSes));
-     ($result, my $success, my $JustConsideredSes) = $self->registerInMultipleSEs($result, 
-                         $pfn, $lfn, $size, \@staticSes, $envreq, $pfnRewrite);
-     $selOutOf = $selOutOf - $success;
+     ($result, my $success, my $JustConsideredSes) = $self->registerInMultipleSEs($result, $pfn, $lfn, $size, \@staticSes, $envreq, $pfnRewrite);
+		 (defined $success) and $selOutOf = $selOutOf - $success;
    }
    return $result;
 }  
@@ -2106,8 +2106,10 @@ sub putOnDynamicDiscoveredSEListByQoS{
      scalar(@discoveredSes) gt 0 or $self->info("We could'nt find any of the '$count' requested SEs with qos flag '$qos' in the cache.") and last;;
      $self->debug(2,"We discovered the following SEs to save on: @discoveredSes, count:".scalar(@discoveredSes).", type flag was: $qos.");
      ($result, my $success, my $JustConsideredSes) = $self->registerInMultipleSEs($result, $pfn, $lfn, $size, \@discoveredSes, $envreq, $pfnRewrite);
-     push @$excludedSes, @$JustConsideredSes;
-     $count = $count - $success;
+		 if (defined $result) {
+       push @$excludedSes, @$JustConsideredSes;
+       $count = $count - $success;
+		 }
   }
   return $result;
 }
@@ -2153,8 +2155,8 @@ $result->{guid} and $self->info("File has guid: $result->{guid}");
 
   $self->debug(2,"We got envelopes for and will use the following SEs to save on: @ses, count:".scalar(@ses));
 
+	my $user=$self->{CATALOG}->{ROLE};
   for my $j(0..$#ses) {
-
      $envelopes->{$ses[$j]} or $self->{LOGGER}->warning( "LCM", "Missing envelope for SE: $ses[$j]" ) and next; 
      $ENV{ALIEN_XRDCP_ENVELOPE}=$envelopes->{$ses[$j]}->{envelope};
      $ENV{ALIEN_XRDCP_URL}=$envelopes->{$ses[$j]}->{url};
@@ -2778,5 +2780,6 @@ sub executeInAllPFNEntries{
   return $counter;
   
 }
+
 return 1;
 

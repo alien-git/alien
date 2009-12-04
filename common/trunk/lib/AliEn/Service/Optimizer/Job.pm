@@ -56,7 +56,7 @@ sub initialize {
 #  $self->{JOBLOG} = new AliEn::JOBLOG();
 
 
-  my @optimizers=("Merging", "Inserting", "Splitting", "Zombies", "Hosts", "Expired", "HeartBeat", "Priority", "Resubmit", "Killed", "Saved", "Staging");#,"ResolveReq");
+  my @optimizers=("Merging", "Inserting", "Splitting", "Zombies", "Hosts", "Expired", "HeartBeat", "Priority", "Resubmit", "Killed", "Saved", "Staging", "Quota");#,"ResolveReq");
 
   my $mlEnabled = ($self->{CONFIG}->{MONALISA_HOST} || $self->{CONFIG}->{MONALISA_APMONCONFIG});
   $mlEnabled and push @optimizers, "MonALISA";

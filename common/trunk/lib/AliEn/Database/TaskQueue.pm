@@ -49,7 +49,7 @@ sub initialize {
 		     'SPLITTING'=>15, 'SPLIT'       =>18,
 		     'TO_STAGE'    =>16,  'A_STAGED'    =>17,
 		     'STAGING'    =>19,
-		     'WAITING'     =>20,  'ASSIGNED'    =>25,
+		     'WAITING'     =>20,  'OVER_WAITING' => 21, 'ASSIGNED'    =>25,
 		     'QUEUED'      =>30,  'STARTED'     =>40,
 		     'IDLE'        =>50,  'INTERACTIV'  =>50,
 		     'RUNNING'     =>50,  'SAVING'      =>60,
@@ -88,7 +88,7 @@ sub initialize {
 			      execHost=>"varchar(64)",
 			      submitHost=>"varchar(64)",
 			      priority =>"tinyint(4)",
-			      status  =>"varchar(10)",
+			      status  =>"varchar(12)",
 			      command =>"varchar(255)",
 			      commandArg =>"varchar(255)",
 			      name =>"varchar(255)",
@@ -279,7 +279,7 @@ sub insertJobLocked {
 
    $set->{chargeStatus} = 0;
    #currently $set->{priority} is hardcoded to be '0'
-    
+	
   $DEBUG and $self->debug(1, "In insertJobLocked locking the table $self->{QUEUETABLE}");
   $self->lock($self->{QUEUETABLE});
 
@@ -386,7 +386,7 @@ sub getWaitingJobAgents{
     my $list=AliEn::Util::returnCacheValue($self, "listWaitingJA");
     $list and return $list;
   }
-  my $list=$self->query("select entryId as agentId,concat('[',requirements,'Type=\"Job\";TTL=999;]') as jdl, counter from JOBAGENT order by priority desc");
+  my $list=$self->query("select entryId as agentId,concat('[',requirements,'Type=\"Job\";TTL=999;]') as jdl, counter from JOBAGENT j, QUEUE q where j.entryId=q.agentId and q.status='WAITING' order by j.priority desc");
 
   if ($#$list >100){
     $nocache or AliEn::Util::setCacheValue($self, "listWaitingJA", $list);
