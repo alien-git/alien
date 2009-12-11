@@ -157,7 +157,8 @@ sub assignWaiting{
   my $elementId = shift;
   my $date=time;
   my $done=$self->updateTransfer($elementId, {status=>"ASSIGNED",sent=>$date,oldstatus=>'WAITING'});
-
+  
+  $done or return;
 
   #And now, let's reduce the number of agents
   $self->do("UPDATE AGENT_DIRECT, TRANSFERS_DIRECT set counter=counter-1 where agentid=entryId and transferid=?", {bind_values=>[$elementId]});
