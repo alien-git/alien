@@ -836,6 +836,10 @@ sub getLFNfromGUID {
     my $paths = $db2->queryColumn("SELECT concat('$prefix', lfn) FROM L${lfnTable}L WHERE guid=string2binary(?) ", undef, {bind_values=>[$guid]});
     $paths and push @lfns, @$paths;
   }
+  if ($options !~ /a/ and not @lfns){
+    $self->info("We didn't find any lfn in the normal tables. Doing a full search");
+    return $self->getLFNfromGUID("a$options", $guid);
+  }
 
   return @lfns;
 } 
