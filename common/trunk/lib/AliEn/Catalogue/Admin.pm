@@ -886,6 +886,9 @@ sub calculateJobQuota {
 	my $self = shift;
 	my $silent = shift;
 
+ ( $self->{ROLE}  =~ /^admin(ssl)?$/ ) or
+    $self->info("Error: only the administrator can check the databse") and return;
+
   my $method="info";
   my @data;
   $silent and $method="debug" and push @data, 1;
