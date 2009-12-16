@@ -778,7 +778,7 @@ sub submitCommand {
   $done = $self->{SOAP}->CallSOAP("Manager/Job", 'checkJobQuota', $user, $nbJobsToSubmit);
 	$done or return;
 	my $result=$done->result;
-	$result->{'allowed'} or print STDERR $result->{'message'}."\n" and $self->f_quota_list($user) and return;
+	$result->{'allowed'} or print STDERR $result->{'message'}."\n" and $self->f_jquota_list($user) and return;
 	$self->info("OK");
 
   $done =$self->{SOAP}->CallSOAP("Manager/Job", 'enterCommand',
@@ -2947,7 +2947,7 @@ sub resubmitCommand {
  		$done = $self->{SOAP}->CallSOAP("Manager/Job", 'checkJobQuota', $user, 1);
 		$done or return;
 		$result = $done->result;
-		$result->{'allowed'} or print STDERR $result->{'message'}."\n" and $self->f_quota_list($user) and return;
+		$result->{'allowed'} or print STDERR $result->{'message'}."\n" and $self->f_jquota_list($user) and return;
 		$self->info("OK");
 
     $done = $self->{SOAP}->CallSOAP("Manager/Job", "reInsertCommand", $_[1], $user);
@@ -3056,9 +3056,14 @@ sub resubmitCommand {
 
   my $user = $self->{CATALOG}->{CATALOG}->{ROLE};
 
+  my ($host, $driver, $db) = split("/", $self->{CONFIG}->{"JOB_DATABASE"});
+	$self->{TASK_DB} or
+  $self->{TASK_DB}=AliEn::Database::TaskQueue->new({DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin', SKIP_CHECK_TABLES=> 1});
+  $self->{TASK_DB} or $self->{LOGGER}->error( "CE", "In initialize creating TaskQueue instance failed" )
+  and return;
+
   my @result;
   foreach my $queueId (@_) {
-
 		my ($data) = $self->{TASK_DB}->getFieldsFromQueue($queueId, "status, masterjob, split");
 		#$self->info("status:".$data->{status}." masterjob:".$data->{masterjob}." split:".$data->{split});
 
@@ -3083,7 +3088,7 @@ sub resubmitCommand {
   		my $done = $self->{SOAP}->CallSOAP("Manager/Job", 'checkJobQuota', $user, $nbNewJobs);
 			$done or return;
 			my $result=$done->result;
-			$result->{'allowed'} or print STDERR $result->{'message'}."\n" and $self->f_quota_list($user) and last;
+			$result->{'allowed'} or print STDERR $result->{'message'}."\n" and $self->f_jquota_list($user) and last;
 			$self->info("OK");
 		}
 
@@ -3102,7 +3107,7 @@ sub resubmitCommand {
 
 		sleep 1;
   	$self->info("Calculate Job Quota");
-  	$self->{CATALOG}->execute("calculateJobQuota", "1");
+    $self->{SOAP}->CallSOAP("Manager/Job", "calculateJobQuota", "1");
   }
 
   return @result;
@@ -3649,51 +3654,58 @@ sub repairReq{
 # Quota
 #____________________________________________________________________________________
 
-sub f_quota_HELP {
-  return "'quota': Displays information about Job Quotas. Usage:
+sub f_jquota_HELP {
+	my $self=shift;
+	my $whoami=$self->{CATALOG}->{CATALOG}->{ROLE};
+	if (($whoami !~ /^admin(ssl)?$/)) {
+		return "jquota: Displays information about Job Quotas.
+Usage:
+  jquota list                       - show the user quota for job\n";
+	}
 
-\tquota list       \t\t\t- list the user quota
+	return "jquota: Displays information about Job Quotas.
+Usage:
+  jquota list <user>                - list the user quota for job
+                                     use just 'jquota list' for all users
 
-Only for the administrator:
-\tquota list [user]\t\t\t- list the user quota, 'quota list' for all users
-\tquota set  [user] [field] [value]\t- set the user quota
-\t                                 \t  (maxUnfinishedJobs, maxTotalRunningTime)
-\t                                 \t  use <user>=% for all users\n";
+  jquota set <user> <field> <value> - set the user quota for job
+                                      (maxUnfinishedJobs, maxTotalCpuCost, maxTotalRunningTime)
+                                      use <user>=% for all users\n";
 }
 
-sub f_quota {
+sub f_jquota {
   my $self = shift;
-  my $command = shift or print $self->f_quota_HELP() and return;
+  my $command = shift or print $self->f_jquota_HELP() and return;
 
 
-  $DEBUG and $self->debug(1, "Calling f_quota_$command");
+  $DEBUG and $self->debug(1, "Calling f_jquota_$command");
   if (($self->{CATALOG}->{CATALOG}->{ROLE} !~ /^admin(ssl)?$/) && ($command eq "set")) {
 		print STDERR "You are not allowed to execute this command!\n";
 		return;
   }
 
   my @return;
-  my $func = "f_quota_$command";
+  my $func = "f_jquota_$command";
   eval {
     @return = $self->$func(@_);
   };
   if ($@) {
     #If the command is not defined, just print the error message
     if ($@ =~ /Can\'t locate object method \"$func\"/) {
-      $self->info( "quota doesn't understand '$command'", 111);
+      $self->info( "jquota doesn't understand '$command'", 111);
       #this is just to print the error message"
-      return $self->f_quota();
+      return $self->f_jquota();
     }
-    $self->info("Error executing quota $command: $@");
+    $self->info("Error executing jquota $command: $@");
     return;
   }
   return @return;
 }
 
-sub f_quota_list {
-  my $self = shift;
-  my $user = shift || "%";
-  my $whoami = $self->{CATALOG}->{CATALOG}->{ROLE};
+sub f_jquota_list {
+	my $self = shift;
+	my $user = shift || "%";
+	my $whoami = $self->{CATALOG}->{CATALOG}->{ROLE};
 
   # normal users can see their own information 
 	if (($whoami !~ /^admin(ssl)?$/) and ($user eq "%")) {
@@ -3701,52 +3713,46 @@ sub f_quota_list {
 	}
 
 	if (($whoami !~ /^admin(ssl)?$/) and ($user ne $whoami)) {
-		print STDERR "You can see your own quota information!\n";
+		print STDERR "Not allowed to see other users' quota information\n";
 		return;
 	}
 
-  my $array = $self->{PRIORITY_DB}->getFieldsFromPriorityEx("user, unfinishedJobsLast24h, totalRunningTimeLast24h, maxUnfinishedJobs, maxTotalRunningTime, totalCpuCostLast24h, maxTotalCpuCost", "where user like '$user'")
-		or $self->{LOGGER}->error( "CE", "In f_quota_list error getting data from database" ) and return;
+	my $done = $self->{SOAP}->CallSOAP("Manager/Job", 'getJobQuotaList', $user);
+	$done or return;
+	my $result = $done->result;
 
-  my $cnt = 0;
+	my $cnt = 0;
 	printf "-------------------------------------------------------------------------------------------\n";
 	printf "            %12s        %12s        %12s        %16s\n", "user", "unfinishedJobs", "totalCpuCost", "totalRunningTime";
 	printf "-------------------------------------------------------------------------------------------\n";
-	foreach (@$array) {
-    $cnt++;
-	  printf " [%04d. ]   %12s           %5s/%5s         %5s/%5s             %5s/%5s\n", $cnt, $_->{'user'}, $_->{'unfinishedJobsLast24h'}, $_->{'maxUnfinishedJobs'},$_->{'totalCpuCostLast24h'}, $_->{'maxTotalCpuCost'}, $_->{'totalRunningTimeLast24h'}, $_->{'maxTotalRunningTime'};
+	foreach (@$result) {
+		$cnt++;
+		printf " [%04d. ]   %12s           %5s/%5s         %5s/%5s             %5s/%5s\n", $cnt, $_->{'user'}, $_->{'unfinishedJobsLast24h'}, $_->{'maxUnfinishedJobs'},$_->{'totalCpuCostLast24h'}, $_->{'maxTotalCpuCost'}, $_->{'totalRunningTimeLast24h'}, $_->{'maxTotalRunningTime'};
 	}
 	printf "-------------------------------------------------------------------------------------------\n";
 }
 
-sub f_quota_set_HELP {
-	return "quota set  [user] [field] [value]\t- set job quota of user
-\t                                  (maxUnfinishedJobs, maxTotalRunningTime, maxTotalCpuCost)
-\t                                  use <user>=% for all users\n";
+sub f_jquota_set_HELP {
+	return "Usage:
+  jquota set <user> <field> <value> - set the user quota for job
+                                      (maxUnfinishedJobs, maxTotalCpuCost, maxTotalRunningTime)
+                                      use <user>=% for all users\n";
 }
 
-sub f_quota_set {
+sub f_jquota_set {
 	my $self = shift;
-	my $user = shift or print STDERR $self->f_quota_set_HELP() and return;
-	my $field = shift or print STDERR $self->f_quota_set_HELP() and return;
+	my $user = shift or print STDERR $self->f_jquota_set_HELP() and return;
+	my $field = shift or print STDERR $self->f_jquota_set_HELP() and return;
 	my $value = shift;
-  (defined $value) or print STDERR $self->f_quota_set_HELP() and return;
+	(defined $value) or print STDERR $self->f_jquota_set_HELP() and return;
 
-  if ($field !~ /(maxUnfinishedJobs)|(maxTotalRunningTime)|(maxTotalCpuCost)/) {
+	if ($field !~ /(maxUnfinishedJobs)|(maxTotalRunningTime)|(maxTotalCpuCost)/) {
 		print STDERR "Wrong field name! Choose one of them: maxUnfinishedJobs, maxTotalRunningTime, maxTotalCpuCost\n";
 		return;
 	}
 
-	my $set = {};
-	$set->{$field} = $value;
-	my $done = $self->{PRIORITY_DB}->updatePrioritySet($user, $set);
-  $done or print "Failed to set the value\n" and return;
-
-  if ($done eq '0E0') {
-		($user ne "%") and print STDERR "User '$user' not exist.\n" and return;
-	}
-	
-	$self->f_quota_list("$user");
+	my $done = $self->{SOAP}->CallSOAP("Manager/Job", 'setJobQuotaInfo', $user, $field, $value);
+	$done and $self->f_jquota_list("$user");
 }
 
 return 1;
