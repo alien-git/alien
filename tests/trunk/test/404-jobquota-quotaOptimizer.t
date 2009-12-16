@@ -20,15 +20,29 @@ my $d=AliEn::Database::TaskPriority->new({DRIVER=>"mysql", HOST=>"$host:3307", D
   eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
   includeTest("16-add") or exit(-2);
 	includeTest("400-jobquota-submit") or exit(-2);
+  includeTest("410-filequota-calculateFileQuota") or exit(-2);
 
-	my $user="newuser";
+  my $user="newuser";
   my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", $user});
   $cat or exit(-1);
+  my $cat_adm=AliEn::UI::Catalogue::LCM::Computer->new({"user", "admin"});
+  $cat_adm or exit(-1);
 
-  $cat->execute("pwd") or exit (-2);
-  $cat->execute("cd") or exit (-2);
-	$cat->execute("mkdir", "-p", "jdl") or exit(-2);
-	$cat->execute("mkdir", "-p", "bin") or exit(-2);
+  my ($pwd)=$cat->execute("pwd") or exit(-2);
+  $cat->execute("cd") or exit(-2);
+
+  cleanDir($cat, $pwd);
+  cleanDir($cat, "/proc/$user");
+  $cat->execute("mkdir", "-p", "jdl") or exit(-2);
+  $cat->execute("mkdir", "-p", "bin") or exit(-2);
+
+  refreshLFNandGUIDtable($cat_adm);
+
+  print "0. Set the file quota (maxNbFiles 100, maxTotalSize 100000)\n";
+  $d->update("PRIORITY", {maxNbFiles=>100, maxTotalSize=>100000}, "user='$user'");
+  assertEqual($d, $user, "maxTotalSize", 100000) or exit(-2);
+  assertEqual($d, $user, "maxNbFiles", 100) or exit(-2);
+  print "0. DONE\n\n";
 
   addFile($cat, "bin/sum","#!/bin/sh
 sum=0
@@ -52,8 +66,8 @@ echo \"sum: \$sum\"
   print "2. Set the Limit (maxUnfinishedJobs 1000, maxTotalCpuCost 1000, maxTotalRunningTime 1000)\n";	
 	$d->update("PRIORITY", {maxUnfinishedJobs=>1000, maxTotalCpuCost=>1000, maxTotalRunningTime=>1000}, "user='$user'");
 	waitForNoJobs($cat, $user);
-	$cat->execute("calculateJobQuota", "1"); # 1 for silent
-  $cat->execute("quota", "list", "$user");
+	$cat_adm->execute("calculateJobQuota", "1"); # 1 for silent
+  $cat->execute("jquota", "list", "$user");
   assertEqual($d, $user, "unfinishedJobsLast24h", 0) or exit(-2);
   assertEqual($d, $user, "totalRunningTimeLast24h", 0) or exit(-2);
   assertEqual($d, $user, "totalCpuCostLast24h", 0) or exit(-2);
@@ -68,31 +82,32 @@ echo \"sum: \$sum\"
 	print "3. Submit a job and then modify the maxTotalRunningTime as 0 and check if the status is changed into OVER_WAITING\n";
 	($id1)=$cat->execute("submit", "jdl/sum.jdl") or exit(-2);
   $d->update("PRIORITY", {maxTotalRunningTime=>0}, "user='$user'");
-  $cat->execute("quota", "list", "$user");
+  $cat->execute("jquota", "list", "$user");
   assertEqual($d, $user, "maxTotalRunningTime", 0) or exit(-2);
-	waitForStatus($cat, $id1, "INSERTING", 5) or exit(-2);
-	$cat->execute("calculateJobQuota", "1");
-	waitForStatus($cat, $id1, "OVER_WAITING", 10) or exit(-2);
+	$cat_adm->execute("calculateJobQuota", "1");
+	waitForStatus($cat, $id1, "WAITING", 3, 10) or exit(-2);
+	$cat_adm->execute("calculateJobQuota", "1");
+	waitForStatus($cat, $id1, "OVER_WAITING", 10, 10, 1) or exit(-2);
 	print "3. PASSED\n\n";
 
   print "4. Modify the maxTotalRunningTime as 1000 and check if the status is changed back into WAITING\n";
   $d->update("PRIORITY", {maxTotalRunningTime=>1000}, "user='$user'");
-  $cat->execute("quota", "list", "$user");
+  $cat->execute("jquota", "list", "$user");
   assertEqual($d, $user, "maxTotalRunningTime", 1000) or exit(-2);
-	$cat->execute("calculateJobQuota", "1");
+	$cat_adm->execute("calculateJobQuota", "1");
 	waitForStatus($cat, $id1, "WAITING", 10) or exit(-2);
 	print "4. PASSED\n\n";
 
 	print "5. Killing job $id1\n";	
 	$cat->execute("kill", $id1); 
 	waitForNoJobs($cat, $user);
-	$cat->execute("calculateJobQuota", "1");
-  $cat->execute("quota", "list", "$user");
+	$cat_adm->execute("calculateJobQuota", "1");
+  $cat->execute("jquota", "list", "$user");
 	print "5. DONE\n\n";
 
   print "6. Set the Limit (maxUnfinishedJobs 1000, maxTotalCpuCost 1000, maxTotalRunningTime 1000)\n";	
 	$d->update("PRIORITY", {maxUnfinishedJobs=>1000, maxTotalCpuCost=>1000, maxTotalRunningTime=>1000}, "user='$user'");
-  $cat->execute("quota", "list", "$user");
+  $cat->execute("jquota", "list", "$user");
   assertEqual($d, $user, "unfinishedJobsLast24h", 0) or exit(-2);
   assertEqual($d, $user, "totalRunningTimeLast24h", 0) or exit(-2);
   assertEqual($d, $user, "totalCpuCostLast24h", 0) or exit(-2);
@@ -104,18 +119,18 @@ echo \"sum: \$sum\"
   print "7. Submit an another job and then modify the maxTotalCpuCost as 0 and check if the status is changed into OVER_WAITING\n";
   ($id2)=$cat->execute("submit", "jdl/sum.jdl") or exit(-2);
   $d->update("PRIORITY", {maxTotalCpuCost=>0}, "user='$user'");
-  $cat->execute("quota", "list", "$user");
+  $cat->execute("jquota", "list", "$user");
   assertEqual($d, $user, "maxTotalCpuCost", 0) or exit(-2);
   waitForStatus($cat, $id2, "INSERTING", 5) or exit(-2);
-  $cat->execute("calculateJobQuota", "1");
+  $cat_adm->execute("calculateJobQuota", "1");
   waitForStatus($cat, $id2, "OVER_WAITING", 10) or exit(-2);
   print "7. PASSED\n\n";
 
   print "8. Modify the maxTotalCpuCost as 1000 and check if the status is changed back into WAITING\n";
   $d->update("PRIORITY", {maxTotalCpuCost=>1000}, "user='$user'");
-  $cat->execute("quota", "list", "$user");
+  $cat->execute("jquota", "list", "$user");
   assertEqual($d, $user, "maxTotalCpuCost", 1000) or exit(-2);
-  $cat->execute("calculateJobQuota", "1");
+  $cat_adm->execute("calculateJobQuota", "1");
   waitForStatus($cat, $id2, "WAITING", 10) or exit(-2);
   print "8. PASSED\n\n";
 

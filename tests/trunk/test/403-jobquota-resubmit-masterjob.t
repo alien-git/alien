@@ -20,19 +20,31 @@ my $d=AliEn::Database::TaskPriority->new({DRIVER=>"mysql", HOST=>"$host:3307", D
   eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
   includeTest("16-add") or exit(-2);
 	includeTest("400-jobquota-submit") or exit(-2);
+  includeTest("410-filequota-calculateFileQuota") or exit(-2);
 
-	my $user="newuser";
+  my $user="newuser";
   my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", $user});
   $cat or exit(-1);
+  my $cat_adm=AliEn::UI::Catalogue::LCM::Computer->new({"user", "admin"});
+  $cat_adm or exit(-1);
 
-  $cat->execute("pwd") or exit (-2);
-  $cat->execute("cd") or exit (-2);
-	$cat->execute("mkdir", "-p", "jdl") or exit(-2);
-	$cat->execute("mkdir", "-p", "bin") or exit(-2);
+  my ($pwd)=$cat->execute("pwd") or exit(-2);
+  $cat->execute("cd") or exit(-2);
 
-  $cat->execute("rmdir", "-rf", "split", "-silent") ;
+  cleanDir($cat, $pwd);
+  cleanDir($cat, "/proc/$user");
+  $cat->execute("mkdir", "-p", "jdl") or exit(-2);
+  $cat->execute("mkdir", "-p", "bin") or exit(-2);
   $cat->execute("mkdir", "-p", "split/dir1") or exit(-2);
   $cat->execute("mkdir", "-p", "split/dir2") or exit(-2);
+
+  refreshLFNandGUIDtable($cat_adm);
+
+  print "0. Set the file quota (maxNbFiles 100, maxTotalSize 100000)\n";
+  $d->update("PRIORITY", {maxNbFiles=>100, maxTotalSize=>100000}, "user='$user'");
+  assertEqual($d, $user, "maxTotalSize", 100000) or exit(-2);
+  assertEqual($d, $user, "maxNbFiles", 100) or exit(-2);
+  print "0. DONE\n\n";
 
   addFile($cat, "split/dir1/file1", "This is a test") or exit(-2);
   $cat->execute("cp", "split/dir1/file1", "split/dir1/file2") or exit(-2);
@@ -68,8 +80,8 @@ InputData=\"LF:${dir}split/*/*\";", "r") or exit(-2);
   print "2. Set the Limit (maxUnfinishedJobs 1000, maxTotalCpuCost 1000, maxTotalRunningTime 1000)\n";	
 	$d->update("PRIORITY", {maxUnfinishedJobs=>1000, maxTotalCpuCost=>1000, maxTotalRunningTime=>1000}, "user='$user'");
 	waitForNoJobs($cat, $user);
-	$cat->execute("calculateJobQuota", "1"); # 1 for silent
-  $cat->execute("quota", "list", "$user");
+	$cat_adm->execute("calculateJobQuota", "1"); # 1 for silent
+  $cat->execute("jquota", "list", "$user");
   assertEqual($d, $user, "unfinishedJobsLast24h", 0) or exit(-2);
   assertEqual($d, $user, "totalRunningTimeLast24h", 0) or exit(-2);
   assertEqual($d, $user, "totalCpuCostLast24h", 0) or exit(-2);
@@ -84,10 +96,12 @@ InputData=\"LF:${dir}split/*/*\";", "r") or exit(-2);
 	print "3. Submit 2 jobs\n";
 	($id1)=$cat->execute("submit", "jdl/Split2Jobs.jdl") or exit(-2);
   waitForStatus($cat, $id1, "SPLIT", 10) or exit(-2);
-  $cat->execute("calculateJobQuota", "1");
-  $cat->execute("quota", "list", "$user");
+  $cat_adm->execute("calculateJobQuota", "1");
+  $cat->execute("jquota", "list", "$user");
   assertEqual($d, $user, "unfinishedJobsLast24h", 2) or exit(-2);
   waitForStatus($cat, $id1, "DONE", 60) or exit(-2);
+  waitForSubjobsProcInfo($d, $cat, $id1) or exit(-2);
+  $cat_adm->execute("calculateJobQuota", "1");
 	print "3. PASSED\n\n";
 
   ok(1);

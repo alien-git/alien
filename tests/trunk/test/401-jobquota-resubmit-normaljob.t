@@ -2,7 +2,6 @@
 use strict;
 use Test;
 
-use Data::Dumper;
 use AliEn::Database::TaskPriority;
 use AliEn::Service::Optimizer::Job::Quota;
 use Net::Domain qw(hostname hostfqdn hostdomain);
@@ -15,21 +14,35 @@ my $host=Net::Domain::hostfqdn();
 my $d=AliEn::Database::TaskPriority->new({DRIVER=>"mysql", HOST=>"$host:3307", DB=>"processes", "ROLE", "admin"})
   or print "Error connecting to the database\n" and exit(-2);
 
+
 {
   $ENV{ALIEN_TESTDIR} or $ENV{ALIEN_TESTDIR}="/home/alienmaster/AliEn/t";
   eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
   includeTest("16-add") or exit(-2);
-	includeTest("26-ProcessMonitorOutput") or exit(-2);
 	includeTest("400-jobquota-submit") or exit(-2);
+  includeTest("410-filequota-calculateFileQuota") or exit(-2);
 
-	my $user="newuser";
+  my $user="newuser";
   my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", $user});
   $cat or exit(-1);
+  my $cat_adm=AliEn::UI::Catalogue::LCM::Computer->new({"user", "admin"});
+  $cat_adm or exit(-1);
 
-  $cat->execute("pwd") or exit (-2);
-  $cat->execute("cd") or exit (-2);
-	$cat->execute("mkdir", "-p", "jdl") or exit(-2);
-	$cat->execute("mkdir", "-p", "bin") or exit(-2);
+  my ($pwd)=$cat->execute("pwd") or exit(-2);
+  $cat->execute("cd") or exit(-2);
+
+  cleanDir($cat, $pwd);
+  cleanDir($cat, "/proc/$user");
+  $cat->execute("mkdir", "-p", "jdl") or exit(-2);
+  $cat->execute("mkdir", "-p", "bin") or exit(-2);
+
+  refreshLFNandGUIDtable($cat_adm);
+
+  print "0. Set the file quota (maxNbFiles 100, maxTotalSize 100000)\n";
+  $d->update("PRIORITY", {maxNbFiles=>100, maxTotalSize=>100000}, "user='$user'");
+  assertEqual($d, $user, "maxTotalSize", 100000) or exit(-2);
+  assertEqual($d, $user, "maxNbFiles", 100) or exit(-2);
+  print "0. DONE\n\n";
 
   addFile($cat, "bin/sum","#!/bin/sh
 sum=0
@@ -53,8 +66,8 @@ echo \"sum: \$sum\"
   print "2. Set the Limit (maxUnfinishedJobs 1000, maxTotalCpuCost 1000, maxTotalRunningTime 1000)\n";	
 	$d->update("PRIORITY", {maxUnfinishedJobs=>1000, maxTotalCpuCost=>1000, maxTotalRunningTime=>1000}, "user='$user'");
 	waitForNoJobs($cat, $user);
-	$cat->execute("calculateJobQuota", "1"); # 1 for silent
-  $cat->execute("quota", "list", "$user");
+	$cat_adm->execute("calculateJobQuota", "1"); # 1 for silent
+  $cat->execute("jquota", "list", "$user");
   assertEqual($d, $user, "unfinishedJobsLast24h", 0) or exit(-2);
   assertEqual($d, $user, "totalRunningTimeLast24h", 0) or exit(-2);
   assertEqual($d, $user, "totalCpuCostLast24h", 0) or exit(-2);
@@ -68,8 +81,9 @@ echo \"sum: \$sum\"
   print "3. Submit 1 job\n";
   ($id1)=$cat->execute("submit", "jdl/sum.jdl") or exit(-2);
 	waitForStatus($cat, $id1, "DONE", 60) or exit(-2);
-  $cat->execute("calculateJobQuota", "1");
-  $cat->execute("quota", "list", "$user");
+  waitForProcInfo($d, $id1) or exit(-2);
+  $cat_adm->execute("calculateJobQuota", "1");
+  $cat->execute("jquota", "list", "$user");
 
   my $cpucost1=$d->queryValue("SELECT totalCpuCostLast24h FROM PRIORITY WHERE user='$user'");
   (defined $cpucost1) or print "Error checking the totalCpuCostLast24h of the user\n" and exit(-2);
@@ -83,8 +97,9 @@ echo \"sum: \$sum\"
   print "4. Submit 1 job\n";
   ($id2)=$cat->execute("submit", "jdl/sum.jdl") or exit(-2);
   waitForStatus($cat, $id2, "DONE", 60) or exit(-2);
-  $cat->execute("calculateJobQuota", "1");
-  $cat->execute("quota", "list", "$user");
+  waitForProcInfo($d, $id2) or exit(-2);
+  $cat_adm->execute("calculateJobQuota", "1");
+  $cat->execute("jquota", "list", "$user");
 
   my $cpucost2=$d->queryValue("SELECT totalCpuCostLast24h FROM PRIORITY WHERE user='$user'");
   (defined $cpucost2) or print "Error checking the totalCpuCostLast24h of the user\n" and exit(-2);
@@ -102,7 +117,7 @@ echo \"sum: \$sum\"
 
   print "6. Modify the maxUnfinishedJobs as 0\n";	
 	$d->update("PRIORITY", {maxUnfinishedJobs=>0}, "user='$user'");
-  $cat->execute("quota", "list", "$user");
+  $cat->execute("jquota", "list", "$user");
   assertEqual($d, $user, "maxUnfinishedJobs", 0) or exit(-2);
   print "6. DONE\n\n";
 
@@ -113,7 +128,7 @@ echo \"sum: \$sum\"
 
   print "8. Modify the maxTotalCpuCost as $cpucost2 and the maxUnfinishedJobs as 1000 back\n";	
 	$d->update("PRIORITY", {maxUnfinishedJobs=>1000, maxTotalCpuCost=>$cpucost2}, "user='$user'");
-  $cat->execute("quota", "list", "$user");
+  $cat->execute("jquota", "list", "$user");
   assertEqual($d, $user, "maxTotalCpuCost", $cpucost2) or exit(-2);
   assertEqual($d, $user, "maxUnfinishedJobs", 1000) or exit(-2);
 	print "8. DONE\n\n";
@@ -125,7 +140,7 @@ echo \"sum: \$sum\"
 
   print "10. Modify the maxTotalRunningTime as $rtime2 and the maxCpuCost as 1000 back\n";	
 	$d->update("PRIORITY", {maxTotalCpuCost=>1000, maxTotalRunningTime=>$rtime2}, "user='$user'");
-  $cat->execute("quota", "list", "$user");
+  $cat->execute("jquota", "list", "$user");
   assertEqual($d, $user, "maxTotalRunningTime", $rtime2) or exit(-2);
   assertEqual($d, $user, "maxTotalCpuCost", 1000) or exit(-2);
 	print "10. DONE\n\n";
@@ -137,7 +152,7 @@ echo \"sum: \$sum\"
 
   print "12. Set the Limit (maxUnfinishedJobs 1000, maxTotalCpuCost 1000, maxTotalRunningTime 1000)\n";	
 	$d->update("PRIORITY", {maxUnfinishedJobs=>1000, maxTotalCpuCost=>1000, maxTotalRunningTime=>1000}, "user='$user'");
-  $cat->execute("quota", "list", "$user");
+  $cat->execute("jquota", "list", "$user");
   assertEqual($d, $user, "maxUnfinishedJobs", 1000) or exit(-2);
   assertEqual($d, $user, "maxTotalRunningTime", 1000) or exit(-2);
   assertEqual($d, $user, "maxTotalCpuCost", 1000) or exit(-2);
