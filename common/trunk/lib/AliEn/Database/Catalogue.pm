@@ -1226,38 +1226,56 @@ sub getDF {
 sub masterSE_list {
   my $self=shift;
   my $sename=shift;
-
+  #If this option is given, give back all the guids
+  $self->info("The options are @_");
+  my $guids= grep (/^-guid$/, @_);
   my $senumber=$self->getSENumber($sename)
     or $self->info("Error getting the se number of $sename")
       and return;
 
   my $info={referenced=>0,
-	    unique=>0,
-	    orphan=>0};
+	    replicated=>0,
+	    broken=>0};
+
+  $guids and $info->{guids}={referenced=>[], replicated=>[], broken=>[]};
   my $rhosts = $self->{LFN_DB}->getAllHosts();
 
+  my $method="queryValue";
+  my $select="count(*)";
+  if ($guids){
+    $method="queryColumn";
+    $select="binary2string(guid)";
+  }
   foreach my $h (@$rhosts){
-    my ($db, $extra)=$self->{LFN_DB}->reconnectToIndex($h->{hostIndex}) 
+    my ($db, $extra)=$self->{GUID_DB}->reconnectToIndex($h->{hostIndex}) 
       or next;
 
     my $tables=$db->queryColumn("SELECT tableName from GUIDINDEX where hostIndex=?", undef,{bind_values=>[$h->{hostIndex}]});
     foreach my $table (@$tables){
-      $db->updateStatistics($table);
+
       $table ="G${table}L" or next;
-      $info->{referenced}+=$db->queryValue("select count(*) from $table join 
-${table}_PFN p  using (guidid)  join ${table}_REF r using (guidid)
-where  p.senumber=? ", 
-				   undef, {bind_values=>[$senumber]} );
+      my $referenced=$db->$method("select $select from $table join 
+${table}_PFN p  using (guidid) join ${table}_REF r using (guidid)
+where  p.senumber=? ",    undef, {bind_values=>[$senumber]} );
 
-
-      $info->{broken}+=$db->queryValue("select count(*) from $table join 
+      my $broken=$db->$method("select $select from $table join 
 ${table}_PFN p  using (guidid) left join ${table}_REF r using (guidid)
 where  p.senumber=? and r.guidid is null", 
 				   undef, {bind_values=>[$senumber]} );
-
-      $info->{unique}+=$db->queryValue("select count(*) from $table join
-${table}_PFN p using (guidid) join $[table}_REF r using (guidid) join ${table}_SITES using (guidid)
-where p.senumber=? and sites=1",undef, {bind_values=>[$senumber]} );
+      my $replicated=$db->$method("select $select from (select guid from $table join
+${table}_PFN p using (guidid) join ${table}_PFN p2 using (guidid) 
+where p.senumber=? and p2.senumber!= p.senumber group by guidid) a",undef, {bind_values=>[$senumber]} );
+      if ($guids){
+	$info->{broken}+=$#$broken+1;
+	$info->{replicated}+=$#$replicated+1;
+	$info->{referenced}+=$#$referenced+1;
+	$info->{guids}->{broken}=[@$broken, @{$info->{guids}->{broken}}];
+      } else {
+	$info->{broken}+=$broken;
+	$info->{replicated}+=$replicated;
+	$info->{referenced}+=$referenced;
+      }
+      $self->info("After $table, $info->{referenced},  $info->{broken} and $info->{replicated}");
 
     }
   }
@@ -1281,7 +1299,7 @@ sub masterSE_getFiles{
   my $return=[];
   my $rhosts = $self->{LFN_DB}->getAllHosts();
 
-  my $query="select binary2string(guid)guid,pfn from ";
+  my $query="select binary2string(g.guid)guid,p.pfn  ";
   foreach my $h (@$rhosts){
     #Let's skip all the hosts that we have already seen
     $previous_host and $previous_host!=$h->{hostIndex} and next;
@@ -1292,21 +1310,32 @@ sub masterSE_getFiles{
     foreach my $table (@$tables){
       $table ="G${table}L";
       $previous_table and $previous_table!~ /^$table$/ and next;
+#      $table =~ /G46L/ or next;
       if ($previous_table){
 	$previous_table="";
 	next;
       }
-            my $endquery="";
-      my $midquery="";
+      my $endquery="";
+
       if ($options->{unique}){
-        $self->info("Checking the number of sites");
-        $db->do("replace  into ${table}_SITES (sites,guidid) select count(di
-stinct senumber) sites, guidid from ${table}_PFN group by guidid");
-        $midquery=" join ${table}_SITES using (guidid) ";
-        $endquery="and sites=1";
+        $self->info("Checking that the file is not replicated");
+        $endquery="and not exists (select 1 from ${table}_PFN p2 where p2.senumber!=p.senumber and p2.guidid=p.guidid) group by guid";
+
       }
-      my $entries=$db->query("$query $table  join  ${table}_PFN p  using (gu
-idid) join ${table}_REF r using (guidid) $midquery where p.senumber=? $endquery",undef, {bind_values=>[$senumber]} );
+      my $entries=[];
+      if ($options->{lfn}){
+	$self->debug(1,"Getting the lfn of the files");
+	my $ref=$db->query("select lfnRef, db, a.lfn  from (select  distinct lfnRef  from  ${table}_REF join  ${table}_PFN p using (guidid) where p.senumber=?) a join  HOSTS h join INDEXTABLE a using (hostindex)   where lfnRef like concat(h.hostindex, '_%') and lfnRef=concat(a.hostIndex,'_', a.tableName) ",  undef, {bind_values=>[$senumber]});
+	foreach my $entry (@$ref){
+	  my ($host, $lfnTable)=split(/_/, $entry->{lfnRef});
+	  my $dd=$db->query("$query, concat(?,lfn) lfn  from $table g join  ${table}_PFN p  using (guidid) join $entry->{db}.L${lfnTable}L l using (guid) where p.senumber=? $endquery",undef, {bind_values=>[$entry->{lfn},$senumber]} );
+	  print "    doing $table and $entry->{lfnRef} $#$dd\n";
+#	  my $dd=[];
+	  $entries=[@$entries, @$dd];
+	}
+      }else{
+	$entries=$db->query("$query from  $table g join  ${table}_PFN p  using (guidid) where p.senumber=? $endquery",undef, {bind_values=>[$senumber]} );
+      }
       $return=[@$return, @$entries];
       if ($#$return >$limit){
 	$self->info("Let's return now before putting more entries");
@@ -1323,16 +1352,23 @@ sub calculateBrokenLFN{
   my $self=shift;
   my $table=shift;
   my $db=shift;
+  my $options=shift;
 
-
+  my $extratable="";
   $self->info("Calculating all the broken links in $table->{lfn}");
+
+
+
   my $GUIDList=$db->getPossibleGuidTables( $table->{tableName});
   my $t= "L$table->{tableName}L";
   $db->checkLFNTable($table->{tableName});
   $db->do("truncate table ${t}_broken");
   $db->do("insert into ${t}_broken  select entryId from  $t where type='f'");
   foreach my $entry (@$GUIDList) {
-    $db->do("delete from  ${t}_broken using  ${t}_broken join $t using (entryId) join $entry->{db}.G$entry->{tableName}L using (guid)");
+    $options->{nopfn} and $extratable="join  $entry->{db}.G$entry->{tableName}L_PFN using (guidid)";
+    $db->do("delete from  ${t}_broken using  ${t}_broken join $t using (entryId) join $entry->{db}.G$entry->{tableName}L using (guid) $extratable");
+
+
   }
   return 1;
 }
@@ -1369,7 +1405,7 @@ sub getBrokenLFN{
      for my $t (@$tables){
       $db->checkLFNTable($t->{tableName});
       $self->info("Checking the table $t->{tableName}");
-      $options->{calculate} and  $self->calculateBrokenLFN($t, $db);
+      $options->{calculate} and  $self->calculateBrokenLFN($t, $db, $options);
       my $like="";
       my $bind=[$t->{lfn}];
       if ($dir){

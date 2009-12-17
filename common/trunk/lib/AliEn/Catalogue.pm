@@ -206,14 +206,14 @@ Site name:$self->{CONFIG}->{SITE}");
   $self->{DATABASE} = AliEn::Database::Catalogue->new($DBoptions)
     or return;
 
-	my ($host, $driver, $db) = split("/", $self->{CONFIG}->{"JOB_DATABASE"});
-	$self->{TASK_DB} = AliEn::Database::TaskQueue->new({DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin', SKIP_CHECK_TABLES=> 1}) or return;
-  $self->{PRIORITY_DB} = AliEn::Database::TaskPriority->new({DB=>$db,HOST=>$host,DRIVER=>$driver,ROLE=>'admin',SKIP_CHECK_TABLES=> 1}) or return;
+#  my ($host, $driver, $db) = split("/", $self->{CONFIG}->{"JOB_DATABASE"});
+#  $self->{TASK_DB} = AliEn::Database::TaskQueue->new({DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin', SKIP_CHECK_TABLES=> 1}) or return;
+#  $self->{PRIORITY_DB} = AliEn::Database::TaskPriority->new({DB=>$db,HOST=>$host,DRIVER=>$driver,ROLE=>'admin',SKIP_CHECK_TABLES=> 1}) or return;
 
   $self->{ROLE}=$self->{DATABASE}->{LFN_DB}->{ROLE};
 
-	# check if an entry exists in PRIORITY table
-  $self->{PRIORITY_DB}->checkPriorityValue($self->{ROLE});
+  # check if an entry exists in PRIORITY table
+  #$self->{PRIORITY_DB}->checkPriorityValue($self->{ROLE});
 
   $self->_setUserGroups($self->{ROLE});
 
@@ -224,18 +224,6 @@ Site name:$self->{CONFIG}->{SITE}");
 
   $self->{MOUNT}="";
 
-  if ($self->{CONFIG}->{RLS_ADDRESS}) {
-    $DEBUG and $self->debug(1, "Creating an interface to RLS");
-    require RLS::API;
-    eval {
-      $self->{RLS} = RLS::API->new($self->{CONFIG}->{RLS_ADDRESS})
-    };
-    if ($@ or ! $self->{RLS}){
-      $self->{LOGGER}->error("RLS", "Error getting an instance of the RLS:$@");
-      $self->f_disconnect();
-      return;
-    }
-  }
   $self->{GUID}=new AliEn::GUID();
   if(! $self->{GUID}){
     $self->f_disconnect();
@@ -1112,7 +1100,7 @@ sub f_user {
   $self->_setUserGroups($user, $changeUser);
 
 	# Check if a changeUser exists
-  $self->{PRIORITY_DB}->checkPriorityValue($user);
+#  $self->{PRIORITY_DB}->checkPriorityValue($user);
 }
 
 sub _executeInAllDatabases{

@@ -874,7 +874,7 @@ sub masterSE_list {
   my $self=shift;
   my $sename=shift;
   $self->info("Counting the number of entries in $sename");
-  return $self->{DATABASE}->masterSE_list($sename);
+  return $self->{DATABASE}->masterSE_list($sename, @_);
 }
 
 sub masterSE_getFiles{
@@ -882,41 +882,5 @@ sub masterSE_getFiles{
   return $self->{DATABASE}->masterSE_getFiles(@_);
 }
 
-sub calculateJobQuota {
-	my $self = shift;
-	my $silent = shift;
-
- ( $self->{ROLE}  =~ /^admin(ssl)?$/ ) or
-    $self->info("Error: only the administrator can check the databse") and return;
-
-  my $method="info";
-  my @data;
-  $silent and $method="debug" and push @data, 1;
-  
-  $self->$method(@data, "Calculate Job Quota");
-
-  $self->$method(@data, "Compute the number of unfinished jobs in last 24 hours per user");
-  $self->{TASK_DB}->do("update PRIORITY pr left join (select SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user, count(1) as unfinishedJobsLast24h from QUEUE q where (status='INSERTING' or status='WAITING' or status='STARTED' or status='RUNNING' or status='SAVING' or status='OVER_WAITING') and (unix_timestamp()>=q.received and unix_timestamp()-q.received<60*60*24) group by submithost) as C on pr.user=C.user collate latin1_general_cs set pr.unfinishedJobsLast24h=IFNULL(C.unfinishedJobsLast24h, 0)") or $self->$method(@data, "Failed");
-
-  $self->$method(@data, "Compute the total runnning time of jobs in last 24 hours per user");
-  $self->{TASK_DB}->do("update PRIORITY pr left join (select SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user, sum(p.runtimes) as totalRunningTimeLast24h from QUEUE q join QUEUEPROC p using(queueId) where (unix_timestamp()>=q.received and unix_timestamp()-q.received<60*60*24) group by submithost) as C on pr.user=C.user collate latin1_general_cs set pr.totalRunningTimeLast24h=IFNULL(C.totalRunningTimeLast24h, 0)");
-
-  $self->$method(@data, "Compute the total cpu cost of jobs in last 24 hours per user");
-  $self->{TASK_DB}->do("update PRIORITY pr left join (select SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user, sum(p.cost) as totalCpuCostLast24h from QUEUE q join QUEUEPROC p using(queueId) where (unix_timestamp()>=q.received and unix_timestamp()-q.received<60*60*24) group by submithost) as C on pr.user=C.user collate latin1_general_cs set pr.totalCpuCostLast24h=IFNULL(C.totalCpuCostLast24h, 0)") or $self->$method(@data, "Failed");
-
-  $self->$method(@data, "Change job status from OVER_WAITING to WAITING");
-	$self->{TASK_DB}->do("update QUEUE q join PRIORITY pr on pr.user=SUBSTRING( q.submitHost, 1, POSITION('\@' in q.submitHost)-1 ) collate latin1_general_cs set q.status='WAITING' where (pr.totalRunningTimeLast24h<pr.maxTotalRunningTime and pr.totalCpuCostLast24h<pr.maxTotalCpuCost) and q.status='OVER_WAITING'") or $self->$method(@data, "Failed");
-
-  $self->$method(@data, "Change job status from WAITING to OVER_WAITING");
-	$self->{TASK_DB}->do("update QUEUE q join PRIORITY pr on pr.user=SUBSTRING( q.submitHost, 1, POSITION('\@' in q.submitHost)-1 ) collate latin1_general_cs set q.status='OVER_WAITING' where (pr.totalRunningTimeLast24h>=pr.maxTotalRunningTime or pr.totalCpuCostLast24h>=pr.maxTotalCpuCost) and q.status='WAITING'") or $self->$method(@data, "Failed");
-
-  $self->$method(@data, "Synchronize with SITEQUEUES");
-  foreach (qw(OVER_WAITING WAITING)) {
-    $self->{TASK_DB}->do("update SITEQUEUES s set $_=(select count(1) from QUEUE q where status='$_' and s.site=q.site)") or $self->$method(@data, "$_ Failed");
-    $self->{TASK_DB}->do("update SITEQUEUES s set $_=(select count(1) from QUEUE q where status='$_' and q.site is null) where s.site='UNASSIGNED::SITE'") or $self->$method(@data, "$_ UNASSIGNED::SITE Failed");
-  }
-
-  return;
-}
 
 return 1;

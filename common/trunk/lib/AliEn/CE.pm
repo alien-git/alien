@@ -103,22 +103,23 @@ sub new {
 
   my $role = $self->{CATALOG}->{CATALOG}->{ROLE};
 
-  my ($host, $driver, $db) = split("/", $self->{CONFIG}->{"JOB_DATABASE"});
-
   if ($role eq "admin") {
+    my ($host, $driver, $db) =
+      split("/", $self->{CONFIG}->{"JOB_DATABASE"});
+
     $self->{TASK_DB} or 
       $self->{TASK_DB}=
 	AliEn::Database::TaskQueue->new({PASSWD=>"$self->{PASSWD}",DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin', SKIP_CHECK_TABLES=> 1});
     $self->{TASK_DB} or $self->{LOGGER}->error( "CE", "In initialize creating TaskQueue instance failed" )
       and return;
     $self->{TASK_DB}->setSiteQueueTable();
-  }
 
 	# Initialize TaskPriority table
-  $self->{PRIORITY_DB} or 
-      $self->{PRIORITY_DB}=
+    $self->{PRIORITY_DB}=
 	AliEn::Database::TaskPriority->new({DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin', SKIP_CHECK_TABLES=> 1});
-  $self->{PRIORITY_DB} or $self->{LOGGER}->error( "Admin-UI", "In initialize creating TaskPriority instance failed" );
+    $self->{PRIORITY_DB} or $self->info( "In initialize creating TaskPriority instance failed" ) and return;
+    
+  }
 
   if ($options->{MONITOR}) {
     AliEn::Util::setupApMon($self);
@@ -710,15 +711,14 @@ sub submitCommand {
     while ( $content =~ /\$$i\D/ ) {
       my $data = shift @arg;
       (defined $data)
-				or $self->{LOGGER}->error("CE", "Error: jdl requires at least $i arguments\nTemplate :\n$template\n") and return;
+	or $self->{LOGGER}->error("CE", "Error: jdl requires at least $i arguments\nTemplate :\n$template\n") and return;
       $DEBUG and $self->debug(1, "Using $data for \$$i" );
       $content =~ s/\$$i/$data/g;
       $i++;
     }
     $content =~ /(\$\d)/ and $self->{LOGGER}->warning("CE", "Warning! Argument $i was not in the template, but there is $1\nTemplate:\n$template");
     $content or print STDERR "Error: no description for the job\n" and return;
-  }
-  elsif ($arg[0] eq "=<") {
+  }  elsif ($arg[0] eq "=<") {
     shift @arg;
     $content = (join " ",@arg);
   } else {
@@ -752,37 +752,15 @@ sub submitCommand {
 
   if ($self->{INPUTBOX}){
     my $l = $self->{INPUTBOX};
-
+    
     my @list =sort keys %$l;
     my @list2=sort values %$l;
     $self->info( "Input Box: {@list}" );
     $DEBUG and $self->debug(1, "Input Box: {@list2}" );
   }
 
-	my $done;
-	my $nbJobsToSubmit;
-  if ($job_ca->asJDL() =~ / split =/i) {
-		$DEBUG and $self->debug(1, "Master Job! Compute the number of sub-jobs");
-  	$done = $self->{SOAP}->CallSOAP("Manager/Job", 'getNbSubJobs', $job_ca->asJDL(), $self->{INPUTBOX});
-		$done or return;
-		my $result = $done->result;
-		(defined $result->{'nbSubJobs'}) or print STDERR "JobManager didn't return nbSubJobs\n" and return;
-		$nbJobsToSubmit = $result->{'nbSubJobs'};
-		(defined $nbJobsToSubmit) or print STDERR $result->{'message'} and return;
-		$DEBUG and $self->debug(1, "This Master Job contains $nbJobsToSubmit sub-jobs");
-	} else {
-		$nbJobsToSubmit = 1;
-	}
-
-	$self->info("Checking your job quota...");
-  $done = $self->{SOAP}->CallSOAP("Manager/Job", 'checkJobQuota', $user, $nbJobsToSubmit);
-	$done or return;
-	my $result=$done->result;
-	$result->{'allowed'} or print STDERR $result->{'message'}."\n" and $self->f_jquota_list($user) and return;
-	$self->info("OK");
-
-  $done =$self->{SOAP}->CallSOAP("Manager/Job", 'enterCommand',
-				    "$user\@$self->{HOST}", $job_ca->asJDL(), $self->{INPUTBOX} );
+  my $done =$self->{SOAP}->CallSOAP("Manager/Job", 'enterCommand',
+				 "$user\@$self->{HOST}", $job_ca->asJDL(), $self->{INPUTBOX} );
   if (! $done) {
       print STDERR "=====================================================\n";
       print STDERR "Cannot enter your job !\n";
@@ -1014,7 +992,7 @@ sub createAgentStartup {
     $self->info("We are installing alien with $self->{CONFIG}->{CE_INSTALLMETHOD}");
     my $method="installWith".$self->{CONFIG}->{CE_INSTALLMETHOD};
     eval {
-      ($alienScript, $before)=$self->$method();
+      ($alienScript, $before,$after)=$self->$method();
     };
     if ($@){
       $self->info("Error calling $method: $@");
@@ -1073,7 +1051,7 @@ sub installWithTorrent {
   my $self=shift;
   $self->info("The worker node will install with the torrent method!!!");
 
-  return "$self->{CONFIG}->{TMP_DIR}/alien_installation.\$\$/alien/bin/alien","DIR=$self->{CONFIG}->{TMP_DIR}/alien_installation.\$\$
+  return "./alien/bin/alien","DIR=\`pwd\`/alien_installation.\$\$
 mkdir -p \$DIR
 echo \"Ready to install alien\"
 date
@@ -1084,7 +1062,7 @@ chmod +x alien-auto-installer
 ./alien-auto-installer -skip_rc  -type workernode -batch
 echo \"Installation completed!!\"
 
-";
+", "rm -rf \$DIR";
 }
 
 sub checkQueueStatus() {
@@ -1708,17 +1686,6 @@ sub f_ps2 {
     my $sqlmasterjobs = "  ";
     my $sqlids = "  ";
 
-
-    my ($host, $driver, $db) =
-	split ("/", $self->{CONFIG}->{"JOB_DATABASE"});
-    
-    $self->{TASK_DB} or 
-	$self->{TASK_DB}=
-	AliEn::Database::TaskQueue->new({DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin', SKIP_CHECK_TABLES=> 1});
-    $self->{TASK_DB} or $self->{LOGGER}->error( "CE", "In initialize creating TaskQueue instance failed" )
-	and return;
-    $self->{TASK_DB}->setSiteQueueTable();
-    
 
     my $or ="";
 #    my $user="";
@@ -2468,23 +2435,14 @@ sub f_queue {
     split ("/", $self->{CONFIG}->{"JOB_DATABASE"});
 
   if (! defined $command) {
-    
     print $self->f_queue_HELP();
     return;
   }
 
   $self->{TASK_DB} or 
-    $self->{TASK_DB}=
-      AliEn::Database::TaskQueue->new({DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin', SKIP_CHECK_TABLES=> 1});
-  $self->{TASK_DB} or $self->{LOGGER}->error( "Admin-UI", "In initialize creating TaskQueue instance failed" )
+    $self->info(  "In queue, we can't connect to the database directly")
     and return;
-  $self->{TASK_DB}->setSiteQueueTable();
 
-  $self->{ADMIN_DB} or 
-      $self->{ADMIN_DB}=
-	  AliEn::Database::Admin->new({SKIP_CHECK_TABLES=> 1});
-
-  $self->{ADMIN_DB} or $self->{LOGGER}->error( "Admin-UI", "In initialize creating Admin instance failed" );
 
   $DEBUG and $self->debug(1, "Calling f_queue_$command");
   my @return;
@@ -2757,7 +2715,14 @@ sub f_queue_tokens{
     my $status = (shift or "%");
     printf "Doing listing\n";
     my $tolist=$self->{TASK_DB}->getFieldsFromQueueEx("queueId","where status='$status'");
+    $self->{ADMIN_DB} or 
+      $self->{ADMIN_DB}=
+	  AliEn::Database::Admin->new({SKIP_CHECK_TABLES=> 1});
+
+    $self->{ADMIN_DB} or $self->{LOGGER}->error( "Admin-UI", "In initialize creating Admin instance failed" ) and return;
+
     foreach (@$tolist) {
+
       my $token = $self->{ADMIN_DB}->getFieldFromJobToken($_->{queueId},"jobToken");
       printf "Job %04d Token %40s\n",$_->{queueId},$token;
     }
@@ -2923,10 +2888,10 @@ sub resubmitCommand {
   my $self = shift;
   my @args = @_;
 
-	my $CONFIRM = 1;
-	if ($_[0] eq 'noconfirm') {
-		$CONFIRM = 0;
-		shift;
+  my $CONFIRM = 1;
+  if ($_[0] eq 'noconfirm') {
+    $CONFIRM = 0;
+    shift;
   }
 
 #   check for the -f 'fix' flag, which resubmits all faulty jobs ....
@@ -2936,23 +2901,14 @@ sub resubmitCommand {
       print STDERR "Error: no queueId specified to <resubmit -i> \n";
       return;
     }
-  
+    
     $CONFIRM and (AliEn::Util::Confirm("Do you want to reinsert job $_[1]?") or return);
 
     my $user = $self->{CATALOG}->{CATALOG}->{ROLE};
 
-		my $done;
-		my $result;
-		$self->info("Checking your job quota...");
- 		$done = $self->{SOAP}->CallSOAP("Manager/Job", 'checkJobQuota', $user, 1);
-		$done or return;
-		$result = $done->result;
-		$result->{'allowed'} or print STDERR $result->{'message'}."\n" and $self->f_jquota_list($user) and return;
-		$self->info("OK");
-
-    $done = $self->{SOAP}->CallSOAP("Manager/Job", "reInsertCommand", $_[1], $user);
-    $done or $self->info( "Error reinserting $_[1]") and return $result;
-    $result = $done->result;
+    my $done = $self->{SOAP}->CallSOAP("Manager/Job", "reInsertCommand", $_[1], $user);
+    $done or $self->info( "Error reinserting $_[1]") and return;
+    my $result = $done->result;
     $self->info( "Process $_[1] reinserted!!");
     return $result;
   }
@@ -2977,73 +2933,55 @@ sub resubmitCommand {
       my ($user, $id, $status, @rest) = split " ",$_;
       if ( (($status ne 'R') and ($status ne 'ST') and ($status ne 'A') and ($status ne 'I') and ($status ne 'Q') and ($status ne 'W') and ($status ne 'D' ) and ($status ne 'SV') and ($status ne 'Z') ) and ($id =~ /\-.*/)) {
 
-				if ((defined $_[2]) && ($_[2] eq '-i')) {
-				  my $id2kill = $id;
-	  			$id2kill =~ s/\-//g;
-
-	  			my @result;
-	  			my $done = $self->{SOAP}->CallSOAP("Manager/Job", "reInsertCommand", $id2kill, $user);
-	  			$self->{SOAP}->checkSOAPreturn($done) or $self->info( "Error reinserting $id2kill") and return $done;
-	  			push @result, $done->result;
-	  			$self->info( "Process $id2kill [$status] reinserted!!");
-				} else {
-	  			die;
-	  			my $id2kill = $id;
-	  			$id2kill =~ s/\-//g;
-	  			print("Resubmitting process <$id2kill> [ status |$status| ] \n");
-	  			# kill first the actual process
-	  			$self->f_kill($id2kill);
-	  			# resubmit the same
-	  			$DEBUG and $self->debug(1, "Resubmitting command $id2kill" );
-
-	  			my $user = $self->{CATALOG}->{CATALOG}->{ROLE};
-
-	  			my $done = $self->{SOAP}->CallSOAP("Manager/Job", "resubmitCommand", $id2kill, $user ,$_[1], $id2kill);
-	  			my @result;
-	  			$self->{SOAP}->checkSOAPreturn($done) or $self->info( "Error resubmitting $id2kill") and 
-	      	return @result;
-	  			push @result, $done->result;
-	  			$self->info( "Process $id2kill resubmitted!!");
-				}
+	if ((defined $_[2]) && ($_[2] eq '-i')) {
+	  my $id2kill = $id;
+	  $id2kill =~ s/\-//g;
+	  
+	  my @result;
+	  my $done = $self->{SOAP}->CallSOAP("Manager/Job", "reInsertCommand", $id2kill, $user);
+	  $self->{SOAP}->checkSOAPreturn($done) or $self->info( "Error reinserting $id2kill") and return $done;
+	  push @result, $done->result;
+	  $self->info( "Process $id2kill [$status] reinserted!!");
+	} else {
+	  die;
+	  my $id2kill = $id;
+	  $id2kill =~ s/\-//g;
+	  print("Resubmitting process <$id2kill> [ status |$status| ] \n");
+	  # kill first the actual process
+	  $self->f_kill($id2kill);
+	  # resubmit the same
+	  $DEBUG and $self->debug(1, "Resubmitting command $id2kill" );
+	  
+	  my $user = $self->{CATALOG}->{CATALOG}->{ROLE};
+	  
+	  my $done = $self->{SOAP}->CallSOAP("Manager/Job", "resubmitCommand", $id2kill, $user ,$_[1], $id2kill);
+	  my @result;
+	  $self->{SOAP}->checkSOAPreturn($done) or $self->info( "Error resubmitting $id2kill") and 
+	    return @result;
+	  push @result, $done->result;
+	  $self->info( "Process $id2kill resubmitted!!");
+	}
       }
     }
     return;
   }
-  
-  if ($_[0] eq '-k') {
+
+  if (($_[0] eq '-k') or  ($_[0] eq '-q') ) {
     if (!defined $_[1]) {
-      print STDERR "Error: no queueId specified to <resubmit -k> \n";
+      print STDERR "Error: no queueId specified to <resubmit $_[0]> \n";
       return;
     }
     my @allps = $self->f_ps("-q","-Aafs","-id","$_[1]");
     foreach (@allps) {
       my ($user, $id, $status, @rest) = split " ",$_;
-      if ( (($status eq 'Z') ) ){
-	my $id2kill = $id;
-	$id2kill =~ s/\-//g;
-	print("Killing Zombie process <$id2kill> [ status |$status| ] \n");
-	# kill first the actual process
-	$self->f_kill($id2kill);
-      }
-    }
-    return;
-  }
-  
-  if ($_[0] eq '-q') {
-    if (!defined $_[1]) {
-      print STDERR "Error: no queueId specified to <resubmit -q> \n";
-      return;
-    }
-    my @allps = $self->f_ps("-q","-Aafs","-id","$_[1]");
-    foreach (@allps) {
-      my ($user, $id, $status, @rest) = split " ",$_;
-      if ( (($status eq 'Z') || ($status eq 'W' ) || ($status eq 'EE') || ($status eq 'EA') || ($status eq 'ES') || ($status eq 'ER') || ($status eq 'Q') || ($status eq 'ESV') || ($status eq 'EV') || ($status eq 'EVT') || ($status eq 'EVN') || ($status eq 'EIB')) ){
-	my $id2kill = $id;
-	$id2kill =~ s/\-//g;
-	print("Killing process <$id2kill> [ status |$status| ] \n");
-	# kill first the actual process
-	$self->f_kill($id2kill);
-      }
+      ($_[0] eq '-k') and ($status ne 'Z')  and next;
+      ($_[0] eq '-q') and ($status != /^Z|W|(EE)|(EA)|(ES)|(ER)|Q|(ESV)|(EV)|(EVT)|(EVN)|(EIB)$/ ) 
+	and next;
+      my $id2kill = $id;
+      $id2kill =~ s/\-//g;
+      print("Killing Zombie process <$id2kill> [ status |$status| ] \n");
+      # kill first the actual process
+      $self->f_kill($id2kill);
     }
     return;
   }
@@ -3064,50 +3002,13 @@ sub resubmitCommand {
 
   my @result;
   foreach my $queueId (@_) {
-		my ($data) = $self->{TASK_DB}->getFieldsFromQueue($queueId, "status, masterjob, split");
-		#$self->info("status:".$data->{status}." masterjob:".$data->{masterjob}." split:".$data->{split});
-
-		my $nbNewJobs;
-		if ($data->{masterjob}) {
-			$self->info("Master Job: Compute the number of sub jobs to be counted as a new job for quota");
- 			my $row = $self->{TASK_DB}->queryRow("select count(1) as count from QUEUE where split=$queueId and !(status='INSERTING' or status='WAITING' or status='STARTED' or status='RUNNING' or status='SAVING' or status='OVER_WAITING')");
-			$nbNewJobs = $row->{count};
-			$self->info("nbJobs to be counted as a new job for quota: $nbNewJobs");
-		} else {
-			if ($data->{status} !~ /(INSERTING)|(WAITING)|(STARTED)|(RUNNING)|(SAVING)|(OVER_WAITING)/) {
-				$nbNewJobs = 1;
-			}
-			else {
-				$nbNewJobs = 0;
-			}
-		}
-		(defined $nbNewJobs) or print STDERR "Error: Failed to get the number of sub jobs to be couned as a new job for quota\n" and return;
-
-		if ($nbNewJobs > 0) {
-			$self->info("Checking your job quota...");
-  		my $done = $self->{SOAP}->CallSOAP("Manager/Job", 'checkJobQuota', $user, $nbNewJobs);
-			$done or return;
-			my $result=$done->result;
-			$result->{'allowed'} or print STDERR $result->{'message'}."\n" and $self->f_jquota_list($user) and last;
-			$self->info("OK");
-		}
-
-		my $masterId = $data->{split};
-		my $done;
-		if ($masterId) {
-			$self->info("Sub Job: resubmitCommand with masterId $masterId");
-    	$done = $self->{SOAP}->CallSOAP("Manager/Job", "resubmitCommand", $queueId, $user, $masterId );
-		} else {
-    	$done = $self->{SOAP}->CallSOAP("Manager/Job", "resubmitCommand", $queueId, $user );
-		}
+    my $done = $self->{SOAP}->CallSOAP("Manager/Job", "resubmitCommand", $queueId, $user );
     $done or 
-      $self->info( "Error resubmitting $queueId") and return @result;
+      $self->info( "Error resubmitting $queueId") and 
+	return @result;
     push @result, $done->result;
     $self->info( "Process $queueId resubmitted!! (new jobid is ".$done->result .")");
 
-		sleep 1;
-  	$self->info("Calculate Job Quota");
-    $self->{SOAP}->CallSOAP("Manager/Job", "calculateJobQuota", "1");
   }
 
   return @result;
@@ -3598,7 +3499,7 @@ sub repairReq{
 	return $req;
 }
 
- sub resyncJobAgent{
+sub resyncJobAgent{
   my $self=shift;
   $self->info("Ready to resync the number of jobs waiting in the system");
 
@@ -3703,56 +3604,97 @@ sub f_jquota {
 }
 
 sub f_jquota_list {
-	my $self = shift;
-	my $user = shift || "%";
-	my $whoami = $self->{CATALOG}->{CATALOG}->{ROLE};
-
+  my $self = shift;
+  my $user = shift || "%";
+  my $whoami = $self->{CATALOG}->{CATALOG}->{ROLE};
+  
   # normal users can see their own information 
-	if (($whoami !~ /^admin(ssl)?$/) and ($user eq "%")) {
-		$user = $whoami;
-	}
+  if (($whoami !~ /^admin(ssl)?$/) and ($user eq "%")) {
+    $user = $whoami;
+  }
+  
+  if (($whoami !~ /^admin(ssl)?$/) and ($user ne $whoami)) {
+    print STDERR "Not allowed to see other users' quota information\n";
+    return;
+  }
 
-	if (($whoami !~ /^admin(ssl)?$/) and ($user ne $whoami)) {
-		print STDERR "Not allowed to see other users' quota information\n";
-		return;
-	}
-
-	my $done = $self->{SOAP}->CallSOAP("Manager/Job", 'getJobQuotaList', $user);
-	$done or return;
-	my $result = $done->result;
-
-	my $cnt = 0;
-	printf "-------------------------------------------------------------------------------------------\n";
-	printf "            %12s        %12s        %12s        %16s\n", "user", "unfinishedJobs", "totalCpuCost", "totalRunningTime";
-	printf "-------------------------------------------------------------------------------------------\n";
-	foreach (@$result) {
-		$cnt++;
-		printf " [%04d. ]   %12s           %5s/%5s         %5s/%5s             %5s/%5s\n", $cnt, $_->{'user'}, $_->{'unfinishedJobsLast24h'}, $_->{'maxUnfinishedJobs'},$_->{'totalCpuCostLast24h'}, $_->{'maxTotalCpuCost'}, $_->{'totalRunningTimeLast24h'}, $_->{'maxTotalRunningTime'};
-	}
-	printf "-------------------------------------------------------------------------------------------\n";
+  my $done = $self->{SOAP}->CallSOAP("Manager/Job", 'getJobQuotaList', $user);
+  $done or return;
+  my $result = $done->result;
+  
+  my $cnt = 0;
+  printf "-------------------------------------------------------------------------------------------\n";
+  printf "            %12s        %12s        %12s        %16s\n", "user", "unfinishedJobs", "totalCpuCost", "totalRunningTime";
+  printf "-------------------------------------------------------------------------------------------\n";
+  foreach (@$result) {
+    $cnt++;
+    printf " [%04d. ]   %12s           %5s/%5s         %5s/%5s             %5s/%5s\n", $cnt, $_->{'user'}, $_->{'unfinishedJobsLast24h'}, $_->{'maxUnfinishedJobs'},$_->{'totalCpuCostLast24h'}, $_->{'maxTotalCpuCost'}, $_->{'totalRunningTimeLast24h'}, $_->{'maxTotalRunningTime'};
+  }
+  printf "-------------------------------------------------------------------------------------------\n";
 }
 
 sub f_jquota_set_HELP {
-	return "Usage:
+  return "Usage:
   jquota set <user> <field> <value> - set the user quota for job
                                       (maxUnfinishedJobs, maxTotalCpuCost, maxTotalRunningTime)
                                       use <user>=% for all users\n";
 }
 
 sub f_jquota_set {
-	my $self = shift;
-	my $user = shift or print STDERR $self->f_jquota_set_HELP() and return;
-	my $field = shift or print STDERR $self->f_jquota_set_HELP() and return;
-	my $value = shift;
-	(defined $value) or print STDERR $self->f_jquota_set_HELP() and return;
+  my $self = shift;
+  my $user = shift or print STDERR $self->f_jquota_set_HELP() and return;
+  my $field = shift or print STDERR $self->f_jquota_set_HELP() and return;
+  my $value = shift;
+  (defined $value) or print STDERR $self->f_jquota_set_HELP() and return;
+  if ($field !~ /(maxUnfinishedJobs)|(maxTotalRunningTime)|(maxTotalCpuCost)/) {
+    print STDERR "Wrong field name! Choose one of them: maxUnfinishedJobs, maxTotalRunningTime, maxTotalCpuCost\n";
+    return;
+  }
 
-	if ($field !~ /(maxUnfinishedJobs)|(maxTotalRunningTime)|(maxTotalCpuCost)/) {
-		print STDERR "Wrong field name! Choose one of them: maxUnfinishedJobs, maxTotalRunningTime, maxTotalCpuCost\n";
-		return;
-	}
+  my $done = $self->{SOAP}->CallSOAP("Manager/Job", 'setJobQuotaInfo', $user, $field, $value);
+  $done and $self->f_jquota_list("$user");
 
-	my $done = $self->{SOAP}->CallSOAP("Manager/Job", 'setJobQuotaInfo', $user, $field, $value);
-	$done and $self->f_jquota_list("$user");
 }
+
+
+sub calculateJobQuota {
+  my $self = shift;
+  my $silent = shift;
+
+  my $method="info";
+  my @data;
+  $silent and $method="debug" and push @data, 1;
+
+  my $user = $self->{CATALOG}->{CATALOG}->{ROLE};
+
+ ( $user =~ /^admin(ssl)?$/ ) or
+    $self->info("Error: only the administrator can check the databse") and return;
+
+  $self->$method(@data, "Calculate Job Quota");
+
+  $self->$method(@data, "Compute the number of unfinished jobs in last 24 hours per user");
+  $self->{TASK_DB}->do("update PRIORITY pr left join (select SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user, count(1) as unfinishedJobsLast24h from QUEUE q where (status='INSERTING' or status='WAITING' or status='STARTED' or status='RUNNING' or status='SAVING' or status='OVER_WAITING') and (unix_timestamp()>=q.received and unix_timestamp()-q.received<60*60*24) group by submithost) as C on pr.user=C.user collate latin1_general_cs set pr.unfinishedJobsLast24h=IFNULL(C.unfinishedJobsLast24h, 0)") or $self->$method(@data, "Failed");
+
+  $self->$method(@data, "Compute the total runnning time of jobs in last 24 hours per user");
+  $self->{TASK_DB}->do("update PRIORITY pr left join (select SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user, sum(p.runtimes) as totalRunningTimeLast24h from QUEUE q join QUEUEPROC p using(queueId) where (unix_timestamp()>=q.received and unix_timestamp()-q.received<60*60*24) group by submithost) as C on pr.user=C.user collate latin1_general_cs set pr.totalRunningTimeLast24h=IFNULL(C.totalRunningTimeLast24h, 0)");
+
+  $self->$method(@data, "Compute the total cpu cost of jobs in last 24 hours per user");
+  $self->{TASK_DB}->do("update PRIORITY pr left join (select SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user, sum(p.cost) as totalCpuCostLast24h from QUEUE q join QUEUEPROC p using(queueId) where (unix_timestamp()>=q.received and unix_timestamp()-q.received<60*60*24) group by submithost) as C on pr.user=C.user collate latin1_general_cs set pr.totalCpuCostLast24h=IFNULL(C.totalCpuCostLast24h, 0)") or $self->$method(@data, "Failed");
+
+  $self->$method(@data, "Change job status from OVER_WAITING to WAITING");
+	$self->{TASK_DB}->do("update QUEUE q join PRIORITY pr on pr.user=SUBSTRING( q.submitHost, 1, POSITION('\@' in q.submitHost)-1 ) collate latin1_general_cs set q.status='WAITING' where (pr.totalRunningTimeLast24h<pr.maxTotalRunningTime and pr.totalCpuCostLast24h<pr.maxTotalCpuCost) and q.status='OVER_WAITING'") or $self->$method(@data, "Failed");
+
+  $self->$method(@data, "Change job status from WAITING to OVER_WAITING");
+	$self->{TASK_DB}->do("update QUEUE q join PRIORITY pr on pr.user=SUBSTRING( q.submitHost, 1, POSITION('\@' in q.submitHost)-1 ) collate latin1_general_cs set q.status='OVER_WAITING' where (pr.totalRunningTimeLast24h>=pr.maxTotalRunningTime or pr.totalCpuCostLast24h>=pr.maxTotalCpuCost) and q.status='WAITING'") or $self->$method(@data, "Failed");
+
+  $self->$method(@data, "Synchronize with SITEQUEUES");
+  foreach (qw(OVER_WAITING WAITING)) {
+    $self->{TASK_DB}->do("update SITEQUEUES s set $_=(select count(1) from QUEUE q where status='$_' and s.site=q.site)") or $self->$method(@data, "$_ Failed");
+    $self->{TASK_DB}->do("update SITEQUEUES s set $_=(select count(1) from QUEUE q where status='$_' and q.site is null) where s.site='UNASSIGNED::SITE'") or $self->$method(@data, "$_ UNASSIGNED::SITE Failed");
+  }
+
+  return;
+}
+
 
 return 1;
