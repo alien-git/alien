@@ -156,7 +156,7 @@ sub f_packman {
     my $response =$self->{SOAP}->CallSOAP("IS", "getAllServices", "PackMan")
      or return;
     $response = $response->result;
-    print Dumper($response);
+    #    print Dumper($response);
     my @n=split (/###/, $response->{NAMES});
      $silent and $string.=" -s";
     foreach my $n (@n){
