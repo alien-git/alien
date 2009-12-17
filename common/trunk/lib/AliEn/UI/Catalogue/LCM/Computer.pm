@@ -13,6 +13,7 @@ my (%command_list);
 
 %command_list = (
     'jquota'    => ['$self->{QUEUE}->f_jquota', 0],
+    'calculateJobQuota'        => ['$self->{QUEUE}->calculateJobQuota',0],
     'top'      => ['$self->{QUEUE}->f_top', 0],
     'ps'       => ['$self->{QUEUE}->f_ps', 0],
     'ps2'      => ['$self->{QUEUE}->f_ps2', 0],

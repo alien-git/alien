@@ -119,7 +119,6 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
     'setSEio'		=> ['$self->{CATALOG}->setSEio',0],
     'getSEio'		=> ['$self->{CATALOG}->getSEio',0],
     'resyncLDAP'        => ['$self->{CATALOG}->resyncLDAP',0],
-    'calculateJobQuota'        => ['$self->{CATALOG}->calculateJobQuota',0],
     'checkLFN'          => ['$self->{CATALOG}->checkLFN',0],
     'checkOrphanGUID'   => ['$self->{CATALOG}->checkOrphanGUID',0],
     'optimizeGUIDtables'   => ['$self->{CATALOG}->optimizeGUIDtables',0],
@@ -474,6 +473,7 @@ sub new {
       } else {
 	  $self->{CATALOG} = AliEn::Catalogue->new($options)   
 	      or return;
+
       }
   }
 
@@ -803,7 +803,7 @@ sub execute {
     open STDOUT, ">& SAVE_STDOUT";
     my ($path,$se) = split ('@',$stdoutredirect[0]);
     $se or $se="";
-    print "Path $path Se $se\n";
+    #print "Path $path Se $se\n";
     if ($path=~/^file\:\/\/(.*)/) {
       system("mv $tmpstdout $1") or print "Output piped into local file $1 !\n";
     } else {
