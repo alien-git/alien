@@ -1720,7 +1720,9 @@ sub internalQuery {
 
 	  if ($options->{'m'}){
 	    $self->info("WE WANT EXACT FILES!!");
-	    push @newQueries, " JOIN $table $oldQuery $union $table.$query and $table.file= concat('$refTable->{lfn}', l.lfn) ";
+	    my $l=length($refTable->{lfn});
+	    push @newQueries, " JOIN $table $oldQuery $union $table.$query and substring($table.file,$l+1)=l.lfn  and left($table.file,$l)='$refTable->{lfn}'";
+
 	  } else{
 	    push @newQueries, " JOIN $table $oldQuery $union $table.$query and $table.file like '%/' and concat('$refTable->{lfn}', l.lfn) like concat( $table.file,'%') ";
 	    

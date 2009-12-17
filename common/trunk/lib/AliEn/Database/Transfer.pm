@@ -67,7 +67,7 @@ my $tables={ TRANSFERS_DIRECT=>{columns=>{
 				  },
 			 id=>"transferId",
 				index=>"transferId",
-				extra_index=>["INDEX (agentid)", "INDEX(status)"]},
+				extra_index=>["INDEX (agentid)", "INDEX(status)", "INDEX(lfn)"]},
 
 	     ACTIONS=>{columns=>{action=>"char(40) not null primary key",
 				 todo=>"int(1) not null default 0",
