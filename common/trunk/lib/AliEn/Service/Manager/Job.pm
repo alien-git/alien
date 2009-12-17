@@ -47,13 +47,15 @@ sub initialize {
   $self->{ADMINDB}= new AliEn::Database::Admin()
     or $self->info("Error getting the Admin" ) and return;
 
-	# Initialize TaskPriority table
-	$self->{CONFIG} = new AliEn::Config() or return;
-	my ($host, $driver, $db) = split("/", $self->{CONFIG}->{"JOB_DATABASE"});
+  # Initialize TaskPriority table
+  $self->{CONFIG} = new AliEn::Config() or return;
+  my ($host, $driver, $db) = split("/", $self->{CONFIG}->{"JOB_DATABASE"});
   $self->{PRIORITY_DB} or 
-      $self->{PRIORITY_DB}=
-  AliEn::Database::TaskPriority->new({DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin', SKIP_CHECK_TABLES=> 1});
-  $self->{PRIORITY_DB} or $self->{LOGGER}->error( "Admin-UI", "In initialize creating TaskPriority instance failed" );
+    $self->{PRIORITY_DB}=
+      AliEn::Database::TaskPriority->new({DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin'});
+
+  $self->{PRIORITY_DB} or 
+    $self->info( "In initialize creating TaskPriority instance failed" ) and return;
 
   return $self;
 }
@@ -250,7 +252,8 @@ sub enterCommand {
   my $options= shift || {};
   my $date = time;
 
-	my ($user) = split '@', $host;
+  my ($user) = split '@', $host;
+
 
   ($jobca_text)
     or $self->{LOGGER}->error( "JobManager", "In enterCommand jdl is missing" )
@@ -278,8 +281,29 @@ sub enterCommand {
       $job_ca->set_expression("InputBox", $input);
     }
   }
-
   $jobca_text=$job_ca->asJDL;
+
+  $self->info("First of all, let's check the quota");
+
+  my $nbJobsToSubmit=1;
+  if ($jobca_text =~ / split =/i) {
+    $DEBUG and $self->debug(1, "Master Job! Compute the number of sub-jobs");
+    $self->{DATASET} or $self->{DATASET}=AliEn::Dataset->new();
+    $self->{DATASET} or $self->info("Error creating the dataset parser") and return;
+    push @ISA, "AliEn::Service::Optimizer::Job::Splitting";
+
+    $nbJobsToSubmit = $self->_getNbSubJobs($job_ca);
+    pop @ISA;
+    $nbJobsToSubmit or 
+      $self->info("Error getting the number of subjobs")
+	and return (-1, "Error getting the number of subjobs");
+  }
+
+  $self->info("Checking your job quota...");
+  my ($ok, $error)=$self->checkJobQuota($user, $nbJobsToSubmit);
+  ($ok > 0 ) or return (-1, $error);
+  $self->info("OK");
+
 
   my $procid = $self->{DB}->insertJobLocked($jobca_text, $date, 'INSERTING', $host, $priority, $splitjob, $oldjob)
     or $self->{LOGGER}->alert( "JobManager", "In enterCommand error inserting job" )
@@ -1564,61 +1588,24 @@ sub getMasterJob {
 }
 
 #_______________________________________________________________________________________________________________________
-sub getNbSubJobs {
-  my $this = shift;
-  my $jobca_text = shift
-		or $self->{LOGGER}->error("In getNbSubJobs jobca_text is missing\n")
-		and return (-1, "jobca_text is missing");
-  my $inputBox = shift;
-
-	$DEBUG and $self->debug(1, "In getNbSubJobs with @_" );
-
-  my $job_ca = Classad::Classad->new($jobca_text);
-  if ( !$job_ca->isOK() ) {
-    $self->info("In getNbSubJobs incorrect JDL input\n $jobca_text");
-    return (-1,"incorrect JDL input");
-  }
-
-  if ($inputBox) {
-    my @list = sort values %$inputBox;
-    if (@list) {
-      $self->info( "Adding the inputbox" );
-      map {$_="\"$_\""} @list;
-      my $input="{". join(", ", @list). '}';
-      $self->info( "Putting $input" );
-      $job_ca->set_expression("InputBox", $input);
-    }
-  }
-	$DEBUG and $self->debug(1, "In getNbSubJobs JDL:".$job_ca->asJDL);
-
-	my $nbSubJobs; 
-
-	$self->info("Manually calling SplittingOptimizer");
-	push @ISA, "AliEn::Service::Optimizer::Job::Splitting";
-	$nbSubJobs = $self->_getNbSubJobs($job_ca);
-	pop @ISA;
-
-	(defined $nbSubJobs) or return { message=>"Failed to get nbSubJobs" };
-	return { nbSubJobs=>$nbSubJobs };
-}
 
 sub checkJobQuota {
-  my $this = shift;
+  my $self = shift;
   my $user = shift 
-		or $self->{LOGGER}->error("In checkJobQuota user is missing\n")
-		and return (-1, "user is missing");
+    or $self->info("In checkJobQuota user is missing\n")
+      and return(-1, "user is missing");
   my $nbJobsToSubmit = shift 
-		or $self->{LOGGER}->error("In checkJobQuota nbJobsToSubmit is missing\n")
-		and return (-1, "nbJobsToSubmit is missing");
-
-	$DEBUG and $self->debug(1, "In checkJobQuota user:$user, nbJobs:$nbJobsToSubmit");
-
+    or $self->info("In checkJobQuota nbJobsToSubmit is missing\n")
+      and return (-1, "nbJobsToSubmit is missing");
+  
+  $DEBUG and $self->debug(1, "In checkJobQuota user:$user, nbJobs:$nbJobsToSubmit");
+  
   my $array = $self->{PRIORITY_DB}->getFieldsFromPriorityEx("unfinishedJobsLast24h, maxUnfinishedJobs, totalRunningTimeLast24h, maxTotalRunningTime, totalCpuCostLast24h, maxTotalCpuCost", "where user like '$user'")
-		or $self->{LOGGER}->error("Failed to getting data from PRIORITY table")
-		and return (-1, "Failed to getting data from PRIORITY table");
-	$array->[0] or $self->{LOGGER}->error("User $user not exist")
-		and return (-1, "User $user not exist in PRIORITY table");
-
+    or $self->info("Failed to getting data from PRIORITY table")
+      and return (-1, "Failed to getting data from PRIORITY table");
+  $array->[0] or $self->{LOGGER}->error("User $user not exist")
+    and return (-1, "User $user not exist in PRIORITY table");
+  
   my $unfinishedJobsLast24h = $array->[0]->{'unfinishedJobsLast24h'};
   my $maxUnfinishedJobs = $array->[0]->{'maxUnfinishedJobs'};
   my $totalRunningTimeLast24h = $array->[0]->{'totalRunningTimeLast24h'};
@@ -1626,27 +1613,27 @@ sub checkJobQuota {
   my $totalCpuCostLast24h = $array->[0]->{'totalCpuCostLast24h'};
   my $maxTotalCpuCost = $array->[0]->{'maxTotalCpuCost'};
 	
-	$DEBUG and $self->debug(1, "nbJobs: $nbJobsToSubmit, unfinishedJobs: $unfinishedJobsLast24h/$maxUnfinishedJobs");
-	$DEBUG and $self->debug(1, "totalRunningTime: $totalRunningTimeLast24h/$maxTotalRunningTime");
-	$DEBUG and $self->debug(1, "totalCpuCostLast24h: $totalCpuCostLast24h/$maxTotalCpuCost");
-
+  $DEBUG and $self->debug(1, "nbJobs: $nbJobsToSubmit, unfinishedJobs: $unfinishedJobsLast24h/$maxUnfinishedJobs");
+  $DEBUG and $self->debug(1, "totalRunningTime: $totalRunningTimeLast24h/$maxTotalRunningTime");
+  $DEBUG and $self->debug(1, "totalCpuCostLast24h: $totalCpuCostLast24h/$maxTotalCpuCost");
+  
   if ($nbJobsToSubmit + $unfinishedJobsLast24h > $maxUnfinishedJobs) {
-		$self->info("In checkJobQuota $user: Not allowed for nbJobs overflow");
-		return { allowed=>0, message=>"DENIED: You're trying to submit $nbJobsToSubmit jobs. That exceeds your limit." };
+    $self->info("In checkJobQuota $user: Not allowed for nbJobs overflow");
+    return (-1, "DENIED: You're trying to submit $nbJobsToSubmit jobs. That exceeds your limit.");
   }
 
   if ($totalRunningTimeLast24h >= $maxTotalRunningTime) {
-		$self->info("In checkJobQuota $user: Not allowed for totalRunningTime overflow");
-		return { allowed=>0, message=>"DENIED: You've already executed your jobs for enough time." };
+    $self->info("In checkJobQuota $user: Not allowed for totalRunningTime overflow");
+    return (-1,"DENIED: You've already executed your jobs for enough time.");
   }
 
   if ($totalCpuCostLast24h >= $maxTotalCpuCost) {
-		$self->info("In checkJobQuota $user: Not allowed for totalCpuCost overflow");
-		return { allowed=>0, message=>"DENIED: You've already used enough CPU." };
+    $self->info("In checkJobQuota $user: Not allowed for totalCpuCost overflow");
+    return (-1, "DENIED: You've already used enough CPU." );
   }
 
-	$self->info("In checkJobQuota $user: Allowed");
-	return { allowed=>1 };
+  $self->info("In checkJobQuota $user: Allowed");
+  return (1,undef);
 }
 
 sub getJobQuotaList {

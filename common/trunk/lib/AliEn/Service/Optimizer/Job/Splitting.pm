@@ -54,6 +54,14 @@ my $splitPerSE =sub  {
 
 sub checkWakesUp {
   $self=shift;
+
+  $self->{PRIORITY_DB} or 
+    $self->{PRIORITY_DB}=
+      AliEn::Database::TaskPriority->new({ROLE=>'admin'});
+
+  $self->{PRIORITY_DB} or $self->info("Error getting the priority table!!")
+    and exit(-2);
+
   my $silent=shift;
 
   my $method="info";
@@ -526,8 +534,10 @@ sub _submitJDL {
   }
 
   $self->debug(1, "JDL $jdlText");
-  my $newqueueid=AliEn::Service::Manager::Job::enterCommand($self,$user, $jdlText, undef, undef, $queueid, undef, {silent=>1}) or return;
-
+  push @ISA, "AliEn::Service::Manager::Job";
+  my $newqueueid=$self->enterCommand($user, $jdlText, undef, undef, $queueid, undef, {silent=>1});
+  pop @ISA;
+  $newqueueid or return;
   $self->info("Command submitted!! (jobid $newqueueid)" );
   $self->putJobLog($queueid,"submit","Subjob submitted: $newqueueid");
 

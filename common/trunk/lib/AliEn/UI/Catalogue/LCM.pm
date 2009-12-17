@@ -2601,15 +2601,18 @@ Possible actions:
    masterSE  <SENAME> list
        Prints statistics about the usage of the SE
 
-   masterSE <SENAME> print [-lfn] [<filename>]
-       Creates a filename with all the pfns on that SE. If -lfn is present, writes the lfn
+   masterSE <SENAME> print [-lfn] [-unique][-replicated] [<filename>]
+       Creates a filename with all the pfns on that SE. If -lfn is present, writes the lfn 
 
-   masterSE <SENAME> replicate  [-all]  <SE destination>
+   masterSE <SENAME> replicate  [-all]   <SE destination>
        Moves the entries from this SE to another one. By default, it copies only the entries that are not replicated already
 
    masterSE  broken [-calculate] [-recover <sename>] [<dir>]
        Prints all the lfns in the catalogue that do not have a pfn
 
+Common options:
+   -unique: Do the action only for files that are not replicated in another SE
+   -replicated: Do the action only for files that are replicated in another SE
 
 ";
 
@@ -2627,32 +2630,40 @@ sub masterSE {
 
 
   if ($action =~ /^list$/i){
-    my $info=$self->{CATALOG}->masterSE_list($sename);
+    my $info=$self->{CATALOG}->masterSE_list($sename, @_) or return;
     $self->info("The SE $sename has:
   $info->{referenced} entries in the catalogue.
-  $info->{unique} of those entries are not replicated
-  $info->{orphan} entries not pointed by any LFN");
+  $info->{replicated} of those entries are replicated
+  $info->{broken} entries not pointed by any LFN");
+    if ($info->{guids}){
+	$self->info("And the guids are:".Dumper($info->{guids}));
+      }
+	
     return $info;
    } elsif ($action=~ /^replicate$/i){
     $self->info("Let's replicate all the files from $sename that do not have a copy");
-    my $options={unique=>1};
+    my $options={unique=>1,lfn=>1};
     grep (/^-all$/i, @_) and delete $options->{unique};
     my $counter=$self->executeInAllPFNEntries($sename, $options, "masterSEReplicate");
     $self->info("$counter transfers have been issued. You should wait until the transfers have been completed");
 
     return $counter
   } elsif ($action=~ /print/){
-    my $lfn=grep (/^-lfn$/i, @_);
-    @_=grep (! /^-lfn$/i,@_);
+    my $options={};
+    @ARGV=@_;
+    Getopt::Long::GetOptions($options, "-lfn", "-unique", "-replicated")
+	or $self->info("Error in masterSE print. Unrecognize options") and return;
+    @_=@ARGV;
+
     my $output=shift || "$self->{CONFIG}->{TMP_DIR}/list.$sename.txt";
     $self->info("Creating the file $output with all the entries");
     open (FILE, ">$output") or $self->info("Error opening $output") and return;
-    my $counter=$self->executeInAllPFNEntries($sename, {}, "masterSEprint",\*FILE, $lfn);
+    my $counter=$self->executeInAllPFNEntries($sename, $options, "masterSEprint",\*FILE, $options->{lfn});
     close FILE;
     return $counter;
   } elsif ($action =~ /remove/){
     $self->info("Removing the files from the se");
-    my $options={duplicate=>1};
+    my $options={duplicate=>1, lfn=>1};
     grep (/^-all$/i, @_) and delete $options->{duplicate};
     my $counter=$self->executeInAllPFNEntries($sename, {}, "masterSEremove");
     return $counter;
@@ -2660,7 +2671,7 @@ sub masterSE {
     $self->info("Printing all the broken lfn");
     my $options={};
     @ARGV=@_;
-    Getopt::Long::GetOptions($options, "calculate", "recover=s", "rawdata")
+    Getopt::Long::GetOptions($options, "calculate", "recover=s", "rawdata", "nopfn")
         or $self->info("Error checking the options of masterSE broken") and return;
     @_=@ARGV;
 
@@ -2670,9 +2681,34 @@ sub masterSE {
     my $t=$#$entries+1;
     $self->info("There are $t broken links in the catalogue");
     return $entries;
+  } elsif ($action =~ /collection/){
+    $self->info("Let's create a collection with those files (@_)");
+    my $options={};
+    @ARGV=@_;
+    Getopt::Long::GetOptions($options, "-lfn", "-unique", "-replicated")
+	or $self->info("Error in masterSE print. Unrecognize options") and return;
+    @_=@ARGV;
+    my $collection=shift || "collection.$sename";
+    $self->execute("createCollection",$collection) or return;
+    my $counter=$self->executeInAllPFNEntries($sename, $options, "masterSEcollection", $collection);
+    $self->execute("updateCollection", $collection);
+    $self->info("Collection created with $counter files");
+    return 1;
   }
   $self->info("Sorry, I don't understand 'masterSE $action'");
   return undef;
+
+}
+
+sub masterSEcollection {
+  my $self=shift;
+  my $guid=shift;
+  my $collection=shift;
+
+  $self->debug (1, "We have to add $guid->{guid} to $collection");
+  my ($lfn)=$self->execute("guid2lfn", "-silent", $guid->{guid}) or return;
+
+  return $self->execute("addFileToCollection", $lfn, $collection, "-n");
 
 }
 sub masterSERecover {
@@ -2716,8 +2752,11 @@ sub masterSERecover {
     my ($size)=$self->execute("ls", "-la", $f);
     $size=~s/^[^#]*###[^#]*###[^#]*###(\d+)###.*$/$1/;
     $self->info("Ready to recover $f and $pfn and $size");
-    if ($self->execute("register", "${f}_new", $pfn, $size, $sename, $guid)){
-      $self->execute("rm", "${f}_new");
+    if (! $self->execute("addMirror" , $f, $sename, $pfn)){
+      $self->info("Error adding the mirror. Let's try putting the guid as well");
+      if ($self->execute("register", "${f}_new", $pfn, $size, $sename, $guid)){
+	$self->execute("rm", "${f}_new");
+      }
     }
 
   }
@@ -2729,15 +2768,17 @@ sub masterSEremove {
   my $self=shift;
   my $info=shift;
 
-  $self->info("We are going to remove $info->{guid}");
+  $self->info("We are going to remove $info->{guid} (or $info->{lfn}");
   return 1;
 }
 
 sub masterSEReplicate{
   my $self=shift;
   my $guid=shift;
-  my ($lfn)=$self->execute("guid2lfn", $guid) or next;
-  return $self->execute("mirror", $lfn, "alice::subatech::se");
+#  my ($lfn)=$self->execute("guid2lfn", $guid->{guid}) or return;
+
+  return $self->execute("mirror", $guid->{lfn}, "alice::subatech::se");
+#  return 1;
 
 }
 
@@ -2747,10 +2788,8 @@ sub masterSEprint {
   my $FILE=shift;
   my $lfn=shift;
   my $print =$entries->{pfn};
-  if ($lfn){
-    my @info=$self->execute("guid2lfn", "-silent", $entries->{guid});
-    $print=join("\n", @info);
-  }
+  ($lfn) and $print=$entries->{lfn};
+
   print $FILE "$print\n";
   return 1;
 }
@@ -2766,11 +2805,12 @@ sub executeInAllPFNEntries{
   my $previous_table="";
 
   while ($repeat){
-    print "Reading table $previous_table and $counter\n";
+    $self->info("Reading table $previous_table and $counter");
     (my $entries, $previous_table)=
       $self->{CATALOG}->masterSE_getFiles($sename, $previous_table,$limit, $options);
     $repeat=0;
     $previous_table and $repeat=1;
+    $self->info("GOT $#$entries files");
     foreach my $g (@$entries){
       $self->debug(1, "Doing $function with $g ($counter)");
       $self->$function($g, @_);
