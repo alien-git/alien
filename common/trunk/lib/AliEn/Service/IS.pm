@@ -751,7 +751,7 @@ sub getSEListFromSiteSECache{
       ." sitename = '$sitename' and SERanks.seNumber = SE.seNumber ";
    foreach(@$excludeList){   $query .= "and SE.seName <> '$_' ";   }  
    $query .=" and SE.seQoS  LIKE '%,$type,%'" 
-    ." and (exclusiveUsers is NULL or SE.exclusiveUsers = '' or SE.exclusiveUsers  LIKE '%,$role,%')" 
+    ." and (SE.exclusiveUsers is NULL or SE.exclusiveUsers = '' or SE.exclusiveUsers  LIKE '%,$role,%')" 
     ." ORDER BY rank ASC limit $count ;";
 
    return $self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn($query);
