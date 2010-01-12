@@ -367,39 +367,53 @@ sub existsPackage{
   my $dir="$self->{INST_DIR}/$user/$package/$version";
   (-d $dir) or return;
   my $lock="$self->{INST_DIR}/$user.$package.$version.InstallLock";
-  (-f $lock) and $self->info("The lock exists. Someone is installing the package") and return 
-#  if (!-d $dir) {
-#    $self->debug("Checking among the VO packages");
-#    $dir="$self->{INST_DIR}/VO_\U$self->{CONFIG}->{ORG_NAME}\E/$package/$version";
-#
-#  } 
+  (-f $lock) and $self->info("The lock exists. Someone is installing the package") and return  ;
+  #  if (!-d $dir) {
+  #    $self->debug("Checking among the VO packages");
+  #    $dir="$self->{INST_DIR}/VO_\U$self->{CONFIG}->{ORG_NAME}\E/$package/$version";
+  #
+  #  } 
 
   $self->debug(2,  "$$ Checking the size of $dir");
-  my $size="";
 
-  if (-l $dir) {
-    $self->info( "$$ This is installed in the common area... let's ignore it for the time being");
-  }else {
-#    open (FILE, "du -s $dir|") or 
-#      $self->info( "$$ Error getting the size of the directory")
-#	and return;
-#    $size=<FILE>;
-#    close FILE;
-#    $size=~ s/^\s*(\d+)\s+.*$/$1/s;
-#    if ( $size eq "0") {
-#      $self->info( "$$ The size of the package is 0");
-#      system("rm -rf $dir");
-#    return;
-#    }
+  if (system("find $dir -name .alien_last_checked -mtime -1 | grep last_checked > /dev/null 2>&1")){
+    my $size="";
+    $self->info("****** THE PACKAGE HAS NOT BEEN CHECKED IN THE LAST 24 HOURS***");
+    if (-l $dir) {
+      $self->info( "$$ This is installed in the common area... let's ignore it for the time being");
+    }else {
+      open (FILE, "du -s $dir|") or 
+	$self->info( "$$ Error getting the size of the directory")
+	  and return;
+      $size=<FILE>;
+      close FILE;
+      $size=~ s/^\s*(\d+)\s+.*$/$1/s;
+      $self->info("The size of the package is $size bytes");
+      if ( $size eq "0") {
+	$self->info( "$$ The size of the package is 0");
+	system("rm -rf $dir");
+	return;
+      }
+    }
+
+    $info and $info->{size} and chomp $info->{size};
+    $info->{size} or $info->{size}="";
+    $self->debug(2,  "$$ Size $size (has to be $info->{size})");
+    if (  $info->{size} and ($size ne $info->{size}) ){
+      $self->info( "$$ The size of the package does not correspond (has to be $info->{size} and is $size)");
+      system("rm -rf $dir");
+      return;
+    }
+    if ($info->{min_size}){
+      $self->info("Checking the minimum size of the package");
+      if ($info->{min_size}>$size){
+	$self->info("$$ The package is too small!! It is only $size, and it should be at least $info->{min_size}");
+	system("rm -rf $dir");
+	return;
+      }
+    }
   }
-  $info and $info->{size} and chomp $info->{size};
-  $info->{size} or $info->{size}="";
-  $self->debug(2,  "$$ Size $size (has to be $info->{size})");
-  if (  $info->{size} and ($size ne $info->{size}) ){
-    $self->info( "$$ The size of the package does not correspond (has to be $info->{size} and is $size)");
-    system("rm -rf $dir");
-    return;
-  }
+
   if ($info->{md5sum}) {
     $self->info( "$$ Checking the md5sum of $info->{executable}");
     chdir $dir;
@@ -408,6 +422,7 @@ sub existsPackage{
 	and return;
   }
   $self->info( "The package is already installed (in $dir)!!");
+  system("touch", "$dir/.alien_last_checked");
   return $dir;
 }
 
