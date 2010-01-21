@@ -1690,8 +1690,11 @@ sub uploadFile {
   }
   $self->putJobLog("trace","Registering $file.");
 
-  ($uploadResult)=$ui->execute("upload", "$self->{WORKDIR}/$file", $storeTags, $silent);
-  
+  ($uploadResult)=$ui->execute("upload", "$self->{WORKDIR}/$file", $storeTags, "-user=$self->{JOB_USER}", $silent);
+  ($uploadResult==-1) and
+    $self->putJobLog("error","Error in upload, could not store the file $self->{WORKDIR}/$file on any SE because of quota overflow")
+      and return 0;
+	 
   (scalar(keys(%$uploadResult)) gt 0) or 
     $self->putJobLog("error","Error in upload, could not store the file $self->{WORKDIR}/$file on any SE")
       and return 0;

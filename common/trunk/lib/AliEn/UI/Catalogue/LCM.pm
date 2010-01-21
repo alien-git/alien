@@ -66,6 +66,7 @@ my %LCM_commands;
 
 %LCM_commands = (
     #File Interface
+		 'fquota' => ['$self->fquota', 0],
 		 'add' => ['$self->addFile', 0],
 		 'get'      => ['$self->get', 0],
 		 'access'   => ['$self->access', 2+4+8],
@@ -105,6 +106,7 @@ my %LCM_commands;
 );
 
 my %LCM_help = (
+    'fquota'   => "\tDisplay catalogue quota information",
     'get'      => "\tGet a copy of the file",
     'mirror'   => "Add mirror method for a file",
     'cat'      => "\tDisplay a file on the standard output",
@@ -897,6 +899,9 @@ sub addFile {
 
   my ($result)=$self->execute("upload", $pfn, $lineOptions);
 
+	# -1 means a failure for quota overflow
+	($result==-1) and 
+		$self->info("Error, we couldn't add/store the file on any SE because of quota overflow!") and return;
 
   $result and $result->{status} or 
     $self->info("Error, we couldn't add/store the file on any SE!") and return;
@@ -1472,6 +1477,7 @@ sub access {
       $self->info("There was an error, putting into log: $error");
       $self->info($self->{LOGGER}->error_msg());
       $self->info("There is no envelope ($error)!!", 1);
+			($error =~ /Not allowed because of quota overflow/) and return $newhash;
       return;
      }
     $ENV{ALIEN_XRDCP_ENVELOPE}=$newhash->{envelope};
@@ -1479,8 +1485,8 @@ sub access {
     return $newhash;
   }
   $self->info("Making the envelope ourselves: @_ ");
-
-  my $options = shift;
+	
+	my $options = shift;
   my $maybeoption = ( shift or 0 );
 
   my $access;
@@ -1490,11 +1496,30 @@ sub access {
   } else {
     $access = ( $maybeoption or 0);
   }
+
+	my $userForFileQuota=$self->{CONFIG}->{ROLE};
+	$self->{CATALOG} and $self->{CATALOG}->{ROLE} and $userForFileQuota=$self->{CATALOG}->{ROLE};
+
+	my $tmp_options={};
+  @ARGV=@_;
+  Getopt::Long::GetOptions($tmp_options, "user=s");
+  @_=@ARGV;    
+	$tmp_options->{user} and $userForFileQuota = $tmp_options->{user};
+
   my $lfns    = (shift or 0);
   my $se      = (shift or 0);
   my $size    = (shift or "0");
   my $sesel   = (shift or 0);
   my $extguid = (shift or 0);
+
+	if ($access =~ /^write/) {
+		$self->info("Checking file quota of user $userForFileQuota, file size : $size");
+		my $done = $self->{SOAP}->CallSOAP("Manager/Job", 'checkFileQuota', $userForFileQuota, $size);
+		$done or $self->info("failed to check file quota") and return;
+		my $r=$done->result;
+		$r->{'allowed'} or print STDERR $r->{'message'}."\n" and return access_eof("Not allowed because of quota overflow");
+		$self->info("OK");
+	}
 
   my $nosize  = 0;
 
@@ -1935,8 +1960,9 @@ sub upload {
   my $options={};
   @ARGV=@_;
   Getopt::Long::GetOptions($options, "silent", "versioning=s", 
-			   "size=i", "md5=s", "guid=s")
+			   "size=i", "md5=s", "guid=s", "user=s")
       or $self->info("Error checking the options of add") and return;
+
   @_=@ARGV;
   my $pfn=shift;
   my $lfn="/NOLFN";
@@ -1948,6 +1974,9 @@ sub upload {
 
   my $result = {};
   $options->{guid} and $result->{guid}=$options->{guid};
+
+  my $user=$self->{CATALOG}->{ROLE};
+	$options->{user} and $user=$options->{user};
  
   my @ses = ();
   my @excludedSes = ();
@@ -2012,7 +2041,7 @@ sub upload {
   
   foreach my $qos(keys %$qosTags){
     $self->debug(2,"Processing storage discovery qos: $qos with $qosTags->{$qos} requested elements.");
-    $result = $self->putOnDynamicDiscoveredSEListByQoS($result,$pfn,$lfn,$size,$envReq,$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes,1);
+    $result = $self->putOnDynamicDiscoveredSEListByQoS($user, $result,$pfn,$lfn,$size,$envReq,$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes,1);
   }
   
   my $suppressISCheck = 0;
@@ -2025,8 +2054,11 @@ sub upload {
   }
   
   $self->debug(2,"Processing static SE list: @ses");
-  (scalar(@ses) gt 0) and $result = $self->putOnStaticSESelectionList($result,$pfn,$lfn,$size,$envReq,$selOutOf,\@ses,1,$suppressISCheck);
-  
+  (scalar(@ses) gt 0) and $result = $self->putOnStaticSESelectionList($user, $result,$pfn,$lfn,$size,$envReq,$selOutOf,\@ses,1,$suppressISCheck);
+
+	# -1 means a failure by quota overflow 
+	# JobAgent returns not defined value
+	($result == -1) and return -1;
   
   $result->{totalCount}=$totalCount;
   
@@ -2054,6 +2086,7 @@ sub identifyValidGUID{
 
 sub putOnStaticSESelectionList{
    my $self=shift;
+	 my $user=shift;
    my $result=shift;
    my $pfn=(shift || "");
    my $lfn=(shift || "");
@@ -2076,7 +2109,7 @@ sub putOnStaticSESelectionList{
    while ((scalar(@$ses) gt 0 and $selOutOf gt 0)) {
      (scalar(@$ses) gt 0) and my @staticSes= splice(@$ses, 0, $selOutOf);
      $self->debug(2,"We select out of a supplied static list the SEs to save on: @staticSes, count:".scalar(@staticSes));
-     ($result, my $success, my $JustConsideredSes) = $self->registerInMultipleSEs($result, $pfn, $lfn, $size, \@staticSes, $envreq, $pfnRewrite);
+     ($result, my $success, my $JustConsideredSes) = $self->registerInMultipleSEs($user, $result, $pfn, $lfn, $size, \@staticSes, $envreq, $pfnRewrite);
 		 (defined $success) and $selOutOf = $selOutOf - $success;
    }
    return $result;
@@ -2086,6 +2119,7 @@ sub putOnStaticSESelectionList{
 
 sub putOnDynamicDiscoveredSEListByQoS{
    my $self=shift;
+	 my $user=shift;
    my $result=shift;
    my $pfn=(shift || "");
    my $lfn=(shift || "");
@@ -2105,7 +2139,7 @@ sub putOnDynamicDiscoveredSEListByQoS{
      my @discoveredSes=@{$res->result};
      scalar(@discoveredSes) gt 0 or $self->info("We could'nt find any of the '$count' requested SEs with qos flag '$qos' in the cache.") and last;;
      $self->debug(2,"We discovered the following SEs to save on: @discoveredSes, count:".scalar(@discoveredSes).", type flag was: $qos.");
-     ($result, my $success, my $JustConsideredSes) = $self->registerInMultipleSEs($result, $pfn, $lfn, $size, \@discoveredSes, $envreq, $pfnRewrite);
+     ($result, my $success, my $JustConsideredSes) = $self->registerInMultipleSEs($user, $result, $pfn, $lfn, $size, \@discoveredSes, $envreq, $pfnRewrite);
 		 if (defined $result) {
        push @$excludedSes, @$JustConsideredSes;
        $count = $count - $success;
@@ -2119,6 +2153,7 @@ sub putOnDynamicDiscoveredSEListByQoS{
 
 sub registerInMultipleSEs {
   my $self  = shift;
+	my $user=shift;
   my $result = (shift || {});
   my $pfn   = shift;
   my $lfn=(shift || "");
@@ -2138,10 +2173,13 @@ $result->{guid} and $self->info("File has guid: $result->{guid}");
   my @ses= ();
   my @excludedSes = ();
 
+
   my $envelopes = {};
+	my $quota_overflow = 0;
   for my $j(0..$#{$suggestedSes}) {
-     my @envelope= $self->access("-s",$envreq,$lfn, @$suggestedSes[$j], $size,0,$result->{guid});
+     my @envelope= $self->access("-s",$envreq,$lfn, @$suggestedSes[$j], $size,0,$result->{guid}, "-user=$user");
      if(@envelope) {
+         (defined $envelope[0]->{error}) and ($envelope[0]->{error} =~ /Not allowed because of quota overflow/) and $quota_overflow=1 and last;
          $envelopes->{@$suggestedSes[$j]}=$envelope[0]; 
          push @ses, @$suggestedSes[$j];
      } else {
@@ -2150,14 +2188,14 @@ $result->{guid} and $self->info("File has guid: $result->{guid}");
      }
 
      ($j eq 0) and $result->{guid} = $envelopes->{@$suggestedSes[$j]}->{guid};
-
   } 
 
   $self->debug(2,"We got envelopes for and will use the following SEs to save on: @ses, count:".scalar(@ses));
 
-	my $user=$self->{CATALOG}->{ROLE};
+	(scalar(@ses)==0) and ($quota_overflow==1) and return -1;
+
   for my $j(0..$#ses) {
-     $envelopes->{$ses[$j]} or $self->{LOGGER}->warning( "LCM", "Missing envelope for SE: $ses[$j]" ) and next; 
+     $envelopes->{$ses[$j]} or $self->{LOGGER}->warning( "LCM", "Missing envelope for SE: $ses[$j]" ) and next;
      $ENV{ALIEN_XRDCP_ENVELOPE}=$envelopes->{$ses[$j]}->{envelope};
      $ENV{ALIEN_XRDCP_URL}=$envelopes->{$ses[$j]}->{url};
 
@@ -2821,5 +2859,126 @@ sub executeInAllPFNEntries{
   
 }
 
+sub fquota_HELP {
+	my $self=shift;
+  my $whoami=$self->{CATALOG}->{ROLE};
+  if (($whoami !~ /^admin(ssl)?$/)) {
+	  return "fquota: Displays information about File Quotas.
+Usage: 
+  fquota list [-<options>]        - show the user quota for file catalogue
+Options:
+  -unit = B|K|M|G: unit of file size\n";
+	}
+
+	return "fquota: Displays and modifies information about File Quotas.
+Usage:
+  fquota list [-<options>] <user>   - list the user quota for file catalogue
+                                      use just 'fquota list' for all users
+Options:
+  -unit = B|K|M|G: unit of file size
+
+  fquota set <user> <field> <value> - set the user quota for file catalogue
+                                      (maxNbFiles, maxTotalSize(Byte))
+                                      use <user>=% for all users\n";
+}
+
+sub fquota {
+  my $self = shift;
+  my $command = shift or print $self->fquota_HELP() and return;
+
+  $DEBUG and $self->debug(1, "Calling fquota_$command");
+  if (($self->{CATALOG}->{ROLE} !~ /^admin(ssl)?$/) && ($command eq "set")) {
+    print STDERR "You are not allowed to execute this command!\n";
+    return;
+  }
+
+  my @return;
+  my $func = "fquota_$command";
+  eval {
+    @return = $self->$func(@_);
+  };
+  if ($@) {
+    #If the command is not defined, just print the error message
+    if ($@ =~ /Can\'t locate object method \"$func\"/) {
+      $self->info( "fquota doesn't understand '$command'", 111);
+      #this is just to print the error message"
+      return $self->fquota();
+    }
+    $self->info("Error executing fquota $command: $@");
+    return;
+  }
+  return @return;
+}
+
+sub fquota_list {
+  my $self = shift;
+  my $options={};
+  @ARGV=@_;
+  Getopt::Long::GetOptions($options, "silent", "unit=s") 
+		or $self->info("Error checking the options of fquota list") and return;
+  @_=@ARGV;
+
+	my $unit="B";
+	my $unitV;
+	$options->{unit} and $unit=$options->{unit};
+	($unit !~ /[BKMG]/) and $self->info("unknown unit. use default unit: Byte")
+		and $unit="B";
+	($unit eq "B") and $unitV=1;
+	($unit eq "K") and $unitV=1024;
+	($unit eq "M") and $unitV=1024*1024;
+	($unit eq "G") and $unitV=1024*1024*1024;
+
+  my $user = shift || "%";
+  my $whoami = $self->{CATALOG}->{ROLE};
+
+  # normal users can see their own information 
+  if (($whoami !~ /^admin(ssl)?$/) and ($user eq "%")) {
+    $user = $whoami;
+  }
+
+  if (($whoami !~ /^admin(ssl)?$/) and ($user ne $whoami)) {
+    print STDERR "Not allowed to see other users' quota information\n";
+    return;
+  }
+
+  my $done = $self->{SOAP}->CallSOAP("Manager/Job", 'getFileQuotaList', $user);
+  $done or return;
+  my $result = $done->result;
+
+  my $cnt = 0;
+  printf "------------------------------------------------------------------------------------------\n";
+  printf "            %12s    %12s    %42s\n", "user", "nbFiles", "totalSize($unit)";
+  printf "------------------------------------------------------------------------------------------\n";
+  foreach (@$result) {
+    $cnt++;
+		my $totalSize = ($_->{'totalSize'} + $_->{'tmpIncreasedTotalSize'}) / $unitV;
+		my $maxTotalSize = $_->{'maxTotalSize'} / $unitV;
+    printf " [%04d. ]   %12s     %5s/%5s         %20d/%20d\n", $cnt, $_->{'user'}, ($_->{'nbFiles'} + $_->{'tmpIncreasedNbFiles'}), $_->{'maxNbFiles'}, $totalSize, $maxTotalSize;
+  }
+  printf "------------------------------------------------------------------------------------------\n";
+}
+
+sub fquota_set_HELP {
+  return "Usage:
+  fquota set <user> <field> <value> - set the user quota
+                                      (maxNbFiles, maxTotalSize(Byte))
+                                      use <user>=% for all users\n";
+}
+
+sub fquota_set {
+  my $self = shift;
+  my $user = shift or print STDERR $self->fquota_set_HELP() and return;
+  my $field = shift or print STDERR $self->fquota_set_HELP() and return;
+  my $value = shift;
+  (defined $value) or print STDERR $self->fquota_set_HELP() and return;
+
+  if ($field !~ /(maxNbFiles)|(maxTotalSize)/) {
+    print STDERR "Wrong field name! Choose one of them: maxNbFiles, maxTotalSize\n";
+    return;
+  }
+
+  my $done = $self->{SOAP}->CallSOAP("Manager/Job", 'setFileQuotaInfo', $user, $field, $value);
+  $done and $self->fquota_list("$user");
+}
 return 1;
 

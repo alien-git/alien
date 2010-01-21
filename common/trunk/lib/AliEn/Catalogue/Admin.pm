@@ -890,5 +890,72 @@ sub masterSE_getFiles{
   return $self->{DATABASE}->masterSE_getFiles(@_);
 }
 
+sub calculateFileQuota {
+  my $self = shift;
+  my $silent = shift;
+
+ ( $self->{ROLE}  =~ /^admin(ssl)?$/ ) or
+    $self->info("Error: only the administrator can check the database") and return;
+
+  my $method="info";
+  my @data;
+  $silent and $method="debug" and push @data, 1;
+
+  $self->$method(@data, "Calculate File Quota");
+  my $guiddb=$self->{DATABASE}->{GUID_DB};
+
+  my $calculate=0;
+  my $rhosts=$guiddb->getAllHostAndTable();
+  foreach my $h (@$rhosts){
+    my ($db, $tableIdx)=$guiddb->reconnectToIndex($h->{hostIndex}, $h->{tableName}) or next;
+    my $tableName="G${tableIdx}L";
+    $self->$method(@data, "Checking if the table $tableName is up to date");
+    $guiddb->queryValue("select 1 from (select max(ctime) ctime, count(1) counter from $tableName) a left join GL_ACTIONS on tablenumber=? and action='QUOTA' where extra is null or extra<>counter or time is null or time<ctime", undef, {bind_values=>[$tableIdx]}) or next;
+
+  	$self->$method(@data, "Updating the table");
+  	$guiddb->do("delete from GL_ACTIONS where action='QUOTA' and tableNumber=?", {bind_values=>[$tableIdx]});
+  	$guiddb->do("insert into GL_ACTIONS(tablenumber, time, action, extra) select ?, max(ctime), 'QUOTA', count(1) from $tableName", {bind_values=>[$tableIdx]});
+
+		$guiddb->do("delete from ${tableName}_QUOTA");
+   	$guiddb->do("insert into ${tableName}_QUOTA (user, nbFiles, totalSize) select owner, count(1), sum(size) from ${tableName}_PFN p left join $tableName g on p.guidid=g.guidid group by owner");
+		$calculate=1;
+  }
+  $calculate or $self->$method(@data, "No need to calculate") and return;
+
+  my %infoGUID;
+  foreach my $h (@$rhosts) {
+    my ($db, $tableIdx)=$self->{DATABASE}->{GUID_DB}->reconnectToIndex($h->{hostIndex}, $h->{tableName}) or next;
+
+    my $tableName="G${tableIdx}L";
+    $self->$method(@data, "Getting from Table ${tableName}_QUOTA in Host $h->{hostIndex}");
+    my $userinfo=$db->query("select user, nbFiles, totalSize from ${tableName}_QUOTA");
+    foreach my $u (@$userinfo) {
+      my $user = $u->{user};
+      if (exists $infoGUID{$user}) {
+        $infoGUID{$user} = {
+          nbfiles => $infoGUID{$user}{nbfiles}+$u->{nbFiles},
+          totalsize => $infoGUID{$user}{totalsize}+$u->{totalSize}
+        };
+      } else {
+        $infoGUID{$user} = {
+          nbfiles => $u->{nbFiles},
+          totalsize => $u->{totalSize}
+        };
+      }
+    }
+  }
+
+	# tmp solution
+	my ($host, $driver, $db) = split("/", $self->{CONFIG}->{"JOB_DATABASE"});
+  $self->{PRIORITY_DB} = AliEn::Database::TaskPriority->new({DB=>$db,HOST=>$host,DRIVER=>$driver,ROLE=>'admin',SKIP_CHECK_TABLES=> 1}) or return;
+
+  $self->$method(@data, "Updating PRIORITY table");
+  $self->{PRIORITY_DB}->lock("PRIORITY");
+  $self->{PRIORITY_DB}->do("update PRIORITY set nbFiles=0, totalSize=0, tmpIncreasedNbFiles=0, tmpIncreasedTotalSize=0") or $self->$method(@data, "initialization failure for all users");
+  foreach my $user (keys %infoGUID) {
+    $self->{PRIORITY_DB}->do("update PRIORITY set nbFiles=$infoGUID{$user}{nbfiles}, totalSize=$infoGUID{$user}{totalsize} where user='$user'") or $self->$method(@data, "update failure for user $user");
+  }
+  $self->{PRIORITY_DB}->unlock();
+}
 
 return 1;
