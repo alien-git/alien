@@ -1569,6 +1569,7 @@ sub getMasterJob {
    my @extra;
    $commands->{$data->{command}}->{extra} and 
      push @extra, @{$commands->{$data->{command}}->{extra}};
+   my $masterWaiting=0;
    foreach my $subjob (@$ids){
      my (@done)=$self->$subroutine($subjob, $user, @extra);
      if ($done[0] eq "-1") {
@@ -1576,9 +1577,14 @@ sub getMasterJob {
        $self->putJobLog($id,"error", "Error $data->{command}ing  subjob $subjob: @done");
        return [$data->{command}, @$info,@done];
      }
+     $data->{command} =~ /resubmit/ and $masterWaiting=1;
      push @$info, "$data->{command}ing subjob $subjob";
      $self->putJobLog($id,"state", "$data->{command}ing subjob $subjob ($done[0])");
 
+   }
+   if ($masterWaiting){
+     $self->info("And we should put the masterJob to SPLIT");
+     $self->{DB}->updateStatus($id, 'DONE', 'SPLIT');
    }
  }
  unshift @$info, $data->{command};
