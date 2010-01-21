@@ -14,7 +14,11 @@ BEGIN { plan tests => 1 }
   eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
   includeTest("16-add") or exit(-2);
 
-  my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",});
+  my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"role", "admin",});
+  $cat or exit (-1);
+  $cat->execute("queue", "priority", "add", "newuser"); 
+  $cat->close();
+  $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",});
   $cat or exit (-1);
 
   $cat->execute("cd") or exit (-2);
