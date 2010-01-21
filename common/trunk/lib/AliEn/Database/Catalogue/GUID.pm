@@ -173,6 +173,8 @@ sub checkGUIDTable {
 					     lfnRef=>"varchar(20) NOT NULL"},
 		  '', ['INDEX guidId(guidId)', 'INDEX lfnRef(lfnRef)', "FOREIGN KEY (guidId) REFERENCES $table(guidId) ON DELETE CASCADE"]) or return;
 
+  $db->checkTable("${table}_QUOTA", "user", {user=>"varchar(64) NOT NULL", nbFiles=>"int(11) NOT NULL", totalSize=>"bigint(20) NOT NULL"}, undef, ['INDEX user_ind (user)'],) or return;
+
   $db->do("optimize table $table");
   $db->do("optimize table ${table}_PFN");
 
@@ -784,14 +786,19 @@ sub checkOrphanGUID {
 
   my $table="G${number}L";
   $self->info("Checking the unused guids of $table");
-
   
   $self->do("delete from GL_ACTIONS where action='TODELETE' and tableNUmber=?", {bind_values=>[$number]});
   my $where="left join ${table}_REF r on g.guidid=r.guidid where ctime<now() -3600 and r.guidid is null";
-  (-f "$self->{CONFIG}->{TMP_DIR}/AliEn_TEST_SYSTEM") and
-    $self->info("We are testing the system. Let's remove the files immediately")      and $where =~ s/-3600/-240/;
 
-  if (  $options =~ "f"){
+  if ($options eq "force"){
+    $self->info("remove the files regardless of time") and $where =~ s/\Qctime<now() -3600 and//;
+	}
+	else {
+		(-f "$self->{CONFIG}->{TMP_DIR}/AliEn_TEST_SYSTEM") and
+			$self->info("We are testing the file quotas. Let's remove the files immediately") and $where =~ s/-3600/-240/;
+	}
+
+  if (  $options eq "f"){
     $self->info("Locking the tables");
     $self->lock("$table as g write , ${table}_PFN as p write, ${table}_REF as r write, TODELETE");
   }
@@ -801,7 +808,7 @@ sub checkOrphanGUID {
   my $replicas=$self->do("delete from p using ${table}_PFN p join $table g  on p.guidid=g.guidid $where");
   my $info=$self->do("delete from g using  $table g $where");
 
-  if (  $options =~ "f"){
+  if (  $options eq "f"){
     $self->info("Unlocking the table");
     $self->unlock();
   }

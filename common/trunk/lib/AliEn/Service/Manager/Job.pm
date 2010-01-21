@@ -1593,13 +1593,14 @@ sub checkJobQuota {
   my $self = shift;
   my $user = shift 
     or $self->info("In checkJobQuota user is missing\n")
-      and return(-1, "user is missing");
-  my $nbJobsToSubmit = shift 
+      and return (-1, "user is missing");
+  my $nbJobsToSubmit = shift;
+  (defined $nbJobsToSubmit)
     or $self->info("In checkJobQuota nbJobsToSubmit is missing\n")
       and return (-1, "nbJobsToSubmit is missing");
-  
+
   $DEBUG and $self->debug(1, "In checkJobQuota user:$user, nbJobs:$nbJobsToSubmit");
-  
+
   my $array = $self->{PRIORITY_DB}->getFieldsFromPriorityEx("unfinishedJobsLast24h, maxUnfinishedJobs, totalRunningTimeLast24h, maxTotalRunningTime, totalCpuCostLast24h, maxTotalCpuCost", "where user like '$user'")
     or $self->info("Failed to getting data from PRIORITY table")
       and return (-1, "Failed to getting data from PRIORITY table");
@@ -1681,6 +1682,148 @@ sub calculateJobQuota {
 	$self->{CATALOGUE}->execute("calculateJobQuota", $silent);
 
 	return 1;
+}
+
+sub getJobQuotaList {
+	my $this = shift;
+	my $user = shift
+    or $self->{LOGGER}->error("In getJobQuotaList user is missing\n")
+    and return (-1, "user is missing");
+
+  my $array = $self->{PRIORITY_DB}->getFieldsFromPriorityEx("user, unfinishedJobsLast24h, maxUnfinishedJobs, totalRunningTimeLast24h, maxTotalRunningTime, totalCpuCostLast24h, maxTotalCpuCost", "where user like '$user'")
+    or $self->{LOGGER}->error("Failed to getting data from PRIORITY table")
+    and return (-1, "Failed to getting data from PRIORITY table");
+  $array->[0] or $self->{LOGGER}->error("User $user not exist")
+    and return (-1, "User $user not exist in PRIORITY table");
+
+	return $array;
+}
+
+sub setJobQuotaInfo {
+	my $this = shift;
+  my $user = shift
+    or $self->{LOGGER}->error("In setJobQuotaInfo user is missing\n")
+    and return (-1, "user is missing");
+  my $field = shift
+    or $self->{LOGGER}->error("In setJobQuotaInfo field is missing\n")
+    and return (-1, "field is missing");
+  my $value = shift;
+  (defined $value) or $self->{LOGGER}->error("In setJobQuotaInfo value is missing\n")
+    and return (-1, "value is missing");
+
+  my $set = {};
+  $set->{$field} = $value;
+  my $done = $self->{PRIORITY_DB}->updatePrioritySet($user, $set);
+  $done or return (-1, "Failed to set the value in PRIORITY table");
+
+  if ($done eq '0E0') {
+    ($user ne "%") and return (-1, "User '$user' not exist.");
+  }
+
+	return 1;
+}
+
+sub calculateJobQuota {
+	my $this = shift;
+	my $silent = shift;
+	$self->{CATALOGUE}->execute("calculateJobQuota", $silent);
+
+	return 1;
+}
+
+sub getFileQuotaList {
+  my $this = shift;
+  my $user = shift
+    or $self->{LOGGER}->error("In getFileQuotaList user is missing\n")
+    and return (-1, "user is missing");
+
+  my $array = $self->{PRIORITY_DB}->getFieldsFromPriorityEx("user, nbFiles, maxNbFiles, totalSize, maxTotalSize, tmpIncreasedNbFiles, tmpIncreasedTotalSize", "where user like '$user'")
+    or $self->{LOGGER}->error("Failed to getting data from PRIORITY table")
+    and return (-1, "Failed to getting data from PRIORITY table");
+  $array->[0] or $self->{LOGGER}->error("User $user not exist")
+    and return (-1, "User $user not exist in PRIORITY table");
+
+  return $array;
+}
+
+sub setFileQuotaInfo {
+  my $this = shift;
+  my $user = shift
+    or $self->{LOGGER}->error("In setFileQuotaInfo user is missing\n")
+    and return (-1, "user is missing");
+  my $field = shift
+    or $self->{LOGGER}->error("In setFileQuotaInfo field is missing\n")
+    and return (-1, "field is missing");
+  my $value = shift;
+  (defined $value) or $self->{LOGGER}->error("In setFileQuotaInfo value is missing\n")
+    and return (-1, "value is missing");
+
+  my $set = {};
+  $set->{$field} = $value;
+  my $done = $self->{PRIORITY_DB}->updatePrioritySet($user, $set);
+  $done or return (-1, "Failed to set the value in PRIORITY table");
+
+  if ($done eq '0E0') {
+    ($user ne "%") and return (-1, "User '$user' not exist.");
+  }
+
+  return 1;
+}
+
+sub calculateFileQuota {
+  my $this = shift;
+  my $silent = shift;
+  $self->{CATALOGUE}->execute("calculateFileQuota", $silent);
+
+  return 1;
+}
+
+sub checkFileQuota {
+  my $this = shift;
+  my $user = shift
+    or $self->{LOGGER}->error("In checkFileQuota user is missing\n")
+    and return (-1, "user is missing");
+  my $size = shift;
+	(defined $size) 
+    or $self->{LOGGER}->error("In checkFileQuota size is missing\n")
+    and return (-1, "size is missing");
+
+  $DEBUG and $self->debug(1, "In checkFileQuota user:$user, size:$size");
+  $self->info("In checkFileQuota user:$user, size:$size");
+ 
+  my $array = $self->{PRIORITY_DB}->getFieldsFromPriorityEx("nbFiles, totalSize, maxNbFiles, maxTotalSize, tmpIncreasedNbFiles, tmpIncreasedTotalSize", "where user like '$user'")
+    or $self->{LOGGER}->error("Failed to getting data from PRIORITY table")
+    and return (-1, "Failed to getting data from PRIORITY table");
+  $array->[0] or $self->{LOGGER}->error("User $user not exist")
+    and return (-1, "User $user not exist in PRIORITY table");
+ 
+  my $nbFiles = $array->[0]->{'nbFiles'};
+  my $maxNbFiles = $array->[0]->{'maxNbFiles'};
+  my $tmpIncreasedNbFiles = $array->[0]->{'tmpIncreasedNbFiles'};
+  my $totalSize = $array->[0]->{'totalSize'};
+  my $maxTotalSize = $array->[0]->{'maxTotalSize'};
+  my $tmpIncreasedTotalSize = $array->[0]->{'tmpIncreasedTotalSize'};
+ 
+  $DEBUG and $self->debug(1, "size: $size");
+  $DEBUG and $self->debug(1, "nbFile: $nbFiles/$tmpIncreasedNbFiles/$maxNbFiles");
+  $DEBUG and $self->debug(1, "totalSize: $totalSize/$tmpIncreasedTotalSize/$maxTotalSize");
+  $self->info("nbFile: $nbFiles/$tmpIncreasedNbFiles/$maxNbFiles");
+  $self->info("totalSize: $totalSize/$tmpIncreasedTotalSize/$maxTotalSize");
+
+    if ($nbFiles + $tmpIncreasedNbFiles + 1 > $maxNbFiles) {
+    $self->info("In checkFileQuota $user: Not allowed for nbFiles overflow");
+    return { allowed=>0, message=>"DENIED: You're trying to upload 1 file. That exceeds your limit." };
+  }
+
+  if ($size + $totalSize + $tmpIncreasedTotalSize > $maxTotalSize) {
+    $self->info("In checkFileQuota $user: Not allowed for totalSize overflow");
+    return { allowed=>0, message=>"DENIED: You've trying to upload a file which size is $size. That exceeds your limit." };
+  }
+
+	$self->{PRIORITY_DB}->do("update PRIORITY set tmpIncreasedNbFiles=tmpIncreasedNbFiles+1, tmpIncreasedTotalSize=tmpIncreasedTotalSize+$size where user like '$user'") or $self->info("failed to increase tmpIncreasedNbFile and tmpIncreasedTotalSize");
+
+  $self->info("In checkFileQuota $user: Allowed");
+  return { allowed=>1 };
 }
 
 #_______________________________________________________________________________________________________________________

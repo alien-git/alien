@@ -410,7 +410,7 @@ sub transferFile {
 
   ($ok, my $target)=$ca->evaluateAttributeString("ToSE");
   ($ok, my $guid)=$ca->evaluateAttributeString("GUID");
-  ($ok, my $size)=$ca->evaluateAttributeString("Size");
+  ($ok, my $size)=$ca->evaluateAttributeInt("Size");
   $target or $self->info("Error getting the destination of the transfer")
     and return;
   $self->info("And the second envelope ( $user, , write-once, $guid, $target, $size, 0, $guid");

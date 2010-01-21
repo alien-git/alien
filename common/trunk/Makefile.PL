@@ -6,11 +6,11 @@ WriteMakefile(
 	      'NAME'		=> 'AliEn',
 	      'VERSION_FROM'	=> 'lib/AliEn/Config.pm',
 	      'PREREQ_PM'		=> {}, # e.g., Module::Name => 1.1
-	      'PERL'              =>"$Config{prefix}/bin/alien-perl",
+	      'PERL'              =>"/home/shlee/alien/bin/alien-perl",
 	      ($] >= 5.005 ?    ## Add these new keywords supported since 5.005
 	       (ABSTRACT_FROM => 'lib/AliEn/Config.pm', # retrieve abstract from module
 		AUTHOR     => 'Pablo Saiz <Pablo.Saiz@cern.ch>') : ()),
-	      'INSTALLSCRIPT'     => "$Config{prefix}/scripts",
+	      'INSTALLSCRIPT'     => "/home/shlee/alien/scripts",
 	      
 	      'EXE_FILES'         => [
 				      'scripts/API.pl',

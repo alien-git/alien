@@ -3607,7 +3607,6 @@ sub f_jquota_list {
   my $self = shift;
   my $user = shift || "%";
   my $whoami = $self->{CATALOG}->{CATALOG}->{ROLE};
-  
   # normal users can see their own information 
   if (($whoami !~ /^admin(ssl)?$/) and ($user eq "%")) {
     $user = $whoami;
@@ -3621,7 +3620,8 @@ sub f_jquota_list {
   my $done = $self->{SOAP}->CallSOAP("Manager/Job", 'getJobQuotaList', $user);
   $done or return;
   my $result = $done->result;
-  
+
+
   my $cnt = 0;
   printf "-------------------------------------------------------------------------------------------\n";
   printf "            %12s        %12s        %12s        %16s\n", "user", "unfinishedJobs", "totalCpuCost", "totalRunningTime";
@@ -3653,6 +3653,7 @@ sub f_jquota_set {
 
   my $done = $self->{SOAP}->CallSOAP("Manager/Job", 'setJobQuotaInfo', $user, $field, $value);
   $done and $self->f_jquota_list("$user");
+
 
 }
 
@@ -3686,7 +3687,6 @@ sub calculateJobQuota {
 
   $self->$method(@data, "Change job status from WAITING to OVER_WAITING");
 	$self->{TASK_DB}->do("update QUEUE q join PRIORITY pr on pr.user=SUBSTRING( q.submitHost, 1, POSITION('\@' in q.submitHost)-1 ) collate latin1_general_cs set q.status='OVER_WAITING' where (pr.totalRunningTimeLast24h>=pr.maxTotalRunningTime or pr.totalCpuCostLast24h>=pr.maxTotalCpuCost) and q.status='WAITING'") or $self->$method(@data, "Failed");
-
   $self->$method(@data, "Synchronize with SITEQUEUES");
   foreach (qw(OVER_WAITING WAITING)) {
     $self->{TASK_DB}->do("update SITEQUEUES s set $_=(select count(1) from QUEUE q where status='$_' and s.site=q.site)") or $self->$method(@data, "$_ Failed");
