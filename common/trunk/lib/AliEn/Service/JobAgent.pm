@@ -1555,8 +1555,8 @@ sub prepare_File_And_Archives_From_JDL_And_Upload_Files{
   my $overallFileTable;
   %$overallFileTable= (%$archiveTable, %$fileTable);
   
-  $self->putJobLog("trace", "Finally, processing archives: @$archives");
-  $self->putJobLog("trace", "Finally, processing files: @$files");
+  (scalar(@$archives)> 0 ) and $self->putJobLog("trace", "Finally, processing archives: @$archives");
+  (scalar(@$files)> 0 ) and $self->putJobLog("trace", "Finally, processing files: @$files");
 
   (scalar(keys(%$overallFileTable)) > 0) and
       return $self->putFiles($overallFileTable);
@@ -1662,9 +1662,9 @@ sub putFiles {
   }
 
   if($incompleteUploades) {
-     $self->putJobLog("warning", "WE HAD ".scalar(keys(%$fs_table))
+     $self->putJobLog("trace", "WE HAD ".scalar(keys(%$fs_table))
              ." files and archives to store, we successfully stored $successCounter");
-     $self->putJobLog("warning", "YET NOT ALL FILES AND ARCHIVES were stored as many times as specified.");
+     $self->putJobLog("trace", "YET NOT ALL FILES AND ARCHIVES were stored as many times as specified.");
      return -1;
   }
 
@@ -1688,37 +1688,33 @@ sub uploadFile {
     $self->putJobLog("error", "The job didn't create $file");
     return; 
   }
-  $self->putJobLog("trace","Registering $file.");
+  $self->putJobLog("trace","Will store $file ...");
+
 
   ($uploadResult)=$ui->execute("upload", "$self->{WORKDIR}/$file", $storeTags, "-user=$self->{JOB_USER}", $silent);
   ($uploadResult==-1) and
-    $self->putJobLog("error","Error in upload, could not store the file $self->{WORKDIR}/$file on any SE because of quota overflow")
-      and return 0;
-	 
-  (scalar(keys(%$uploadResult)) gt 0) or 
-    $self->putJobLog("error","Error in upload, could not store the file $self->{WORKDIR}/$file on any SE")
+    $self->putJobLog("error","Error in upload, could not store the file $self->{WORKDIR}/$file on any SE because of quota overflow.")
       and return 0;
 
-  $submitted->{$file}=$uploadResult;
 
-  foreach my $se (keys(%{$uploadResult->{se}})) {
-
-    push @{$submitted->{$file}->{PFNS}}, "$se/$uploadResult->{se}->{$se}->{pfn}";
+  if ( $uploadResult && (scalar(keys(%$uploadResult)) gt 0) && (scalar(keys %{$uploadResult->{se}}) gt 0) ) {
+     $submitted->{$file}=$uploadResult;
+     foreach my $se (keys(%{$uploadResult->{se}})) {
+       push @{$submitted->{$file}->{PFNS}}, "$se/$uploadResult->{se}->{$se}->{pfn}";
+     }
+  } else {
+     $self->putJobLog("error","Could not store the file $self->{WORKDIR}/$file on any SE. This file is lost!");
+     return 0;
   }
+
     
   if ($uploadResult->{totalCount} eq scalar(keys %{$uploadResult->{se}})) {
-    $self->putJobLog("trace","Successfully stored the file $self->{WORKDIR}/$file on $uploadResult->{totalCount} SEs");
+    $self->putJobLog("trace","Successfully stored the file $self->{WORKDIR}/$file on $uploadResult->{totalCount} SEs.");
     return (1);
   }
-  elsif(scalar(keys %{$uploadResult->{se}}) eq 0) {
-    $self->putJobLog("error","Could not store the file $self->{WORKDIR}/$file on any of the $uploadResult->{totalCount} wished SEs");
-    return 0;
-  } else {
-    $self->putJobLog("warning","Could store the file $self->{WORKDIR}/$file only on ".scalar(keys %{$uploadResult->{se}}).
-		     "  of the $uploadResult->{totalCount} wished SEs");
-    return (-1,);
-  }
-  return 0;
+  $self->putJobLog("trace","Could store the file $self->{WORKDIR}/$file only on ".scalar(keys %{$uploadResult->{se}}).
+		     "  of the $uploadResult->{totalCount} wished SEs.");
+  return (-1);
 }
 
 #sub copyInMSS {
@@ -2322,7 +2318,8 @@ CPU Speed                           [MHz] : $ProcCpuspeed
       $self->putJobLog("error","The validation script '$validation' didn't exist");
       $self->{STATUS} = "ERROR_VN";
     }
-    $self->putJobLog("trace","After the validation $self->{STATUS}");
+    # following out, since STATUS is not always true as SAVED, see above.
+    #$self->putJobLog("trace","After the validation preliminary Job status: $self->{STATUS}");
   }
 
   # store the files

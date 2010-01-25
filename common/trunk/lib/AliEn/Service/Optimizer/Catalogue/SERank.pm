@@ -22,17 +22,17 @@ sub checkWakesUp {
   $self->{SLEEP_PERIOD}=7200;
   my $catalogue=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
 
-  my $sites = $catalogue->queryColumn("select distinct sitename from SERanks");
+  my $sites = $catalogue->queryColumn("select distinct sitename from SERanks;");
   $self->info("Going to handle an updateRanksForSites request for sites: @$sites");
   
   foreach my $site (@$sites) {
     $self->updateRanksForSite($site,$silent);
   }
 
-  my $stat  = $catalogue->do("delete from SERanks where updated=0");
-  $stat and  $self->$method(@info, "SE Rank Optimizer, deleted old entries");
+  my $stat  = $catalogue->query("delete from SERanks where updated=0;");
+  $stat and  $self->$method(@info, "SE Rank Optimizer, deleted old entries;");
 
-  $stat = $catalogue->do(" update SERanks set updated=0");
+  $stat = $catalogue->query(" update SERanks set updated=0;");
   $stat and  $self->$method(@info, "SE Rank Optimizer, set new entries as old ones from now on.");
 
   $self->info("Going back to sleep");
@@ -57,13 +57,13 @@ sub updateRanksForSite{
      $self->$method(@info, "SE Rank Optimizer, the ses for site $site are: @$selist");
    
      for my $rank(0..$#{$selist}) {
-        $stat = $stat && $catalogue->do("REPLACE INTO SERanks (sitename,seNumber,rank,updated) values (?,(select seNumber from SE where seName=?),?,1);", {bind_values=>[$site,$$selist[$rank],$rank]});
+        $stat = $stat && $catalogue->query("REPLACE INTO SERanks (sitename,seNumber,rank,updated) values (?,(select seNumber from SE where seName=?),?,1);", undef, {bind_values=>[$site,$$selist[$rank],$rank]});
         $stat and  $self->$method(@info, "SE Rank Optimizer, setting ".$$selist[$rank]." to $rank was OK");
      }
   } else {
 
      $self->info("MonALISA didn't supply any SE for site: $site");
-     $stat = $stat && $catalogue->do("update SERanks set updated=1 where sitename = '".$site."'");
+     $stat = $stat && $catalogue->query("update SERanks set updated=1 where sitename = ? ;", undef, {bind_values=>[ $site ]});
   }
   return $stat;
 
@@ -123,9 +123,10 @@ sub updateRanksForOneSite{
 
   $self->updateRanksForSite($site,$silent) or return 0;
 
-  $catalogue->do("delete from SERanks where updated=0 and sitename='".$site."'") or return 0;
+  $catalogue->query("delete from SERanks where updated=0 and sitename=? ;", undef,  {bind_values=>[ $site ]});
 
-  return $catalogue->do(" update SERanks set updated=0 where sitename='".$site."'");
+  return $catalogue->query("update SERanks set updated=0 where sitename=? ;", undef,  {bind_values=>[ $site ]});
+
 }
 
 

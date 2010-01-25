@@ -726,13 +726,61 @@ sub checkExclusiveUserOnSEs{
    my $role=(shift || return 0);
    my $seList=(shift || return 0);
 
-   my $query="SELECT seName FROM SE WHERE (";
-   foreach(@$seList){   $query .= " seName = '$_' or";   }  
-   $query =~ s/or$//;
-   $query  .= ") and (exclusiveUsers is NULL or exclusiveUsers = '' or exclusiveUsers  LIKE '%,$role,%');";
+   my @queryValues = ();
 
-   return $self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn($query);
+   my $query="SELECT seName FROM SE WHERE (";
+   foreach(@$seList){   $query .= " seName = ? or";   push @queryValues, $_; }  
+   $query =~ s/or$//;
+   $query  .= ") and (exclusiveUsers is NULL or exclusiveUsers = '' or exclusiveUsers  LIKE concat ('%,' , ? , ',%') );";
+
+   push @queryValues, $role;
+
+   my $catalogue=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
+
+   $self->info( "gron: the reply from IS for excluser is: ". Dumper($catalogue->queryColumn($query, undef, {bind_values=>\@queryValues})));
+
+   return $catalogue->queryColumn($query, undef, {bind_values=>\@queryValues});
 }
+
+
+sub sortSEListBasedOnSiteSECache{
+   my $this=shift;
+   my $sitename=(shift || "none");
+   my $seList=(shift || 0);
+   my $excludeList=(shift || 0);
+ 
+   my $catalogue=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
+
+   $self->checkSiteSECache($sitename) or return 0;
+
+   my @queryValues = ();
+   push @queryValues, $sitename;
+    
+   my $query="SELECT DISTINCT seName FROM SERanks,SE WHERE "
+     ." sitename = ? and SERanks.seNumber = SE.seNumber ";
+   if($seList) { $query .= " and "; foreach (@{$seList}){ $query .= " SE.seName = ? or"; push @queryValues, $_;  } $query =~ s/or$//; }
+   if($excludeList) { foreach (@{$excludeList}) {   $query .= " and SE.seName <> ? ";   push @queryValues, $_; } }
+   $query .= " ORDER BY rank ASC limit ?;";
+
+   push @queryValues, scalar(@{$seList});
+
+   
+   $self->info("gron: the list was : @{$seList}"); 
+
+   $self->info("gron: the query is: $query"); 
+   $self->info("gron: the values are: @queryValues"); 
+
+
+
+   #my $between = $catalogue->queryColumn($query, undef, {bind_values=>\@queryValues});
+
+   #$self->info("gron: the reply is: @$between"); 
+
+   #return $between;
+
+   return  $catalogue->queryColumn($query, undef, {bind_values=>\@queryValues});
+} 
+
 
 
 sub getSEListFromSiteSECache{
@@ -743,18 +791,28 @@ sub getSEListFromSiteSECache{
    my $excludeList=(shift || "");
    my $role=(shift || "");
 
-   my $catalogueDB=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn("select sename from SE");
+
+   my $catalogue=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
 
    $self->checkSiteSECache($sitename) or return 0;
 
    my $query="SELECT SE.seName FROM SERanks,SE WHERE "
-      ." sitename = '$sitename' and SERanks.seNumber = SE.seNumber ";
-   foreach(@$excludeList){   $query .= "and SE.seName <> '$_' ";   }  
-   $query .=" and SE.seQoS  LIKE '%,$type,%'" 
-    ." and (SE.exclusiveUsers is NULL or SE.exclusiveUsers = '' or SE.exclusiveUsers  LIKE '%,$role,%')" 
-    ." ORDER BY rank ASC limit $count ;";
+       ." sitename = ? and SERanks.seNumber = SE.seNumber ";
 
-   return $self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn($query);
+   my @queryValues = ();
+   push @queryValues, $sitename;
+
+   foreach(@$excludeList){   $query .= "and SE.seName <> ? "; push @queryValues, $_;  }
+   $query .=" and SE.seQoS  LIKE concat('%,' , ? , ',%' ) "
+    ." and (SE.exclusiveUsers is NULL or SE.exclusiveUsers = '' or SE.exclusiveUsers  LIKE concat ('%,' , ? , ',%') )"
+    ." ORDER BY rank ASC limit ? ;";
+
+   push @queryValues, $type;
+   push @queryValues, $role;
+   push @queryValues, $count;
+
+   return $catalogue->queryColumn($query, undef, {bind_values=>\@queryValues});
+
 }
 
 
@@ -762,9 +820,9 @@ sub checkSiteSECache{
    my $this=shift;
    my $site=shift;
 
-   my $query="SELECT sitename FROM SERanks WHERE sitename = '$site';";
+   my $catalogue=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
 
-   my $reply = $self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn($query);
+   my $reply = $catalogue->query("SELECT sitename FROM SERanks WHERE sitename = ?;", undef, {bind_values=>[$site]});
 
    (scalar(@$reply) < 1) and $self->info("We need to update the SERank Cache for the not listed site: $site")
             and return $self->updateSiteSECacheForSite($site);
@@ -777,11 +835,18 @@ sub updateSiteSECacheForSite{
    my $this=shift;
    my $site=shift;
 
+   my $catalogue=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
+
    my $query = "INSERT INTO SERanks (sitename,rank,seNumber,updated) "
-           ."SELECT '$site' sitename, \@num := \@num + 1 rank , SE.seNumber, 0 updated FROM "
+           ."SELECT ? sitename, \@num := \@num + 1 rank , SE.seNumber, 0 updated FROM "
            ."(SELECT \@num := 0) rank, SE ;";
 
-   my $reply = $self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn($query);
+
+   $self->info("query: $query");
+   $self->info("values: $site ");
+
+   my $reply = $catalogue->queryColumn($query, undef, {bind_values=>[$site]});
+
    $self->info("Finished to add SERank Cache entries for site: $site");
 
    $self->info("Manually calling CatalogueOptimizer->SERank code for site: $site");
