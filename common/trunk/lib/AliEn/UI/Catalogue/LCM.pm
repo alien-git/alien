@@ -1512,14 +1512,12 @@ sub access {
   my $sesel   = (shift or 0);
   my $extguid = (shift or 0);
 
-	if ($access =~ /^write/) {
-		$self->info("Checking file quota of user $userForFileQuota, file size : $size");
-		my $done = $self->{SOAP}->CallSOAP("Manager/Job", 'checkFileQuota', $userForFileQuota, $size);
-		$done or $self->info("failed to check file quota") and return;
-		my $r=$done->result;
-		$r->{'allowed'} or print STDERR $r->{'message'}."\n" and return access_eof("Not allowed because of quota overflow");
-		$self->info("OK");
-	}
+  if ($access =~ /^write/) {
+    $self->info("Checking file quota of user $userForFileQuota, file size : $size");
+    my ($ok, $message) = $self->checkFileQuota( $userForFileQuota, $size);
+    $ok or $self->info("failed to check file quota: $message") and return  access_eof("No quota: $message");
+    $self->info("OK");
+  }
 
   my $nosize  = 0;
 
@@ -2636,14 +2634,20 @@ where:
     action can be list(default), replicate, print  or erase.
 
 Possible actions:
-   masterSE  <SENAME> list
+   masterSE <SENAME> list
        Prints statistics about the usage of the SE
 
-   masterSE <SENAME> print [-lfn] [-unique][-replicated] [<filename>]
+   masterSE <SENAME> print [-lfn] [-md5] [-unique][-replicated] [<filename>]
        Creates a filename with all the pfns on that SE. If -lfn is present, writes the lfn 
 
    masterSE <SENAME> replicate  [-all]   <SE destination>
        Moves the entries from this SE to another one. By default, it copies only the entries that are not replicated already
+
+   masterSE <SENAME> collection [<filename>]
+       Creates a collection with all the entries of the SE
+
+   masterSE <SENAME> remove [-unique] [-replicated] [-all]
+       Removes all the entries of that SE in the catalogue
 
    masterSE  broken [-calculate] [-recover <sename>] [<dir>]
        Prints all the lfns in the catalogue that do not have a pfn
@@ -2689,21 +2693,15 @@ sub masterSE {
   } elsif ($action=~ /print/){
     my $options={};
     @ARGV=@_;
-    Getopt::Long::GetOptions($options, "-lfn", "-unique", "-replicated")
+    Getopt::Long::GetOptions($options, "-lfn", "-md5", "-unique", "-replicated")
 	or $self->info("Error in masterSE print. Unrecognize options") and return;
     @_=@ARGV;
 
     my $output=shift || "$self->{CONFIG}->{TMP_DIR}/list.$sename.txt";
     $self->info("Creating the file $output with all the entries");
     open (FILE, ">$output") or $self->info("Error opening $output") and return;
-    my $counter=$self->executeInAllPFNEntries($sename, $options, "masterSEprint",\*FILE, $options->{lfn});
+    my $counter=$self->executeInAllPFNEntries($sename, $options, "masterSEprint",\*FILE, $options);
     close FILE;
-    return $counter;
-  } elsif ($action =~ /remove/){
-    $self->info("Removing the files from the se");
-    my $options={duplicate=>1, lfn=>1};
-    grep (/^-all$/i, @_) and delete $options->{duplicate};
-    my $counter=$self->executeInAllPFNEntries($sename, {}, "masterSEremove");
     return $counter;
   } elsif ($action =~ /broken/){
     $self->info("Printing all the broken lfn");
@@ -2721,9 +2719,9 @@ sub masterSE {
     return $entries;
   } elsif ($action =~ /collection/){
     $self->info("Let's create a collection with those files (@_)");
-    my $options={};
+    my $options={lfn=>1};
     @ARGV=@_;
-    Getopt::Long::GetOptions($options, "-lfn", "-unique", "-replicated")
+    Getopt::Long::GetOptions($options, "-unique", "-replicated")
 	or $self->info("Error in masterSE print. Unrecognize options") and return;
     @_=@ARGV;
     my $collection=shift || "collection.$sename";
@@ -2732,21 +2730,44 @@ sub masterSE {
     $self->execute("updateCollection", $collection);
     $self->info("Collection created with $counter files");
     return 1;
+  } elsif($action=~ /^remove$/){
+    $self->info("Removing the entries from the se $sename");
+    my $options={replicated=>1};
+    @ARGV=@_;
+    Getopt::Long::GetOptions($options, "-unique", "-replicated", "-all")
+	or $self->info("Error in masterSE print. Unrecognize options") and return;
+    @_=@ARGV;
+
+    $options->{all} and delete $options->{replicated};
+    my $counter=$self->executeInAllPFNEntries($sename, $options, "masterSERemove", $sename);
+    $self->info("$counter entries removed");
+    if ($options->{all}){
+      $self->info("Since all the entries have been removed, removing also the SE");
+      $self->{CATALOG}->{DATABASE}->removeSE($sename);
+    }
+    return $counter;
   }
   $self->info("Sorry, I don't understand 'masterSE $action'");
   return undef;
 
 }
 
+sub masterSERemove{ 
+  my $self=shift;
+  my $info=shift;
+  my $sename=shift;
+  $self->execute("deleteMirror", "-g", $info->{guid}, $sename, $info->{pfn});
+  $self->info("Mirror deleted");
+  return 1;
+}
 sub masterSEcollection {
   my $self=shift;
   my $guid=shift;
   my $collection=shift;
 
-  $self->debug (1, "We have to add $guid->{guid} to $collection");
-  my ($lfn)=$self->execute("guid2lfn", "-silent", $guid->{guid}) or return;
+  $self->debug (1, "We have to add $guid->{lfn} to $collection");
 
-  return $self->execute("addFileToCollection", $lfn, $collection, "-n");
+  return $self->execute("addFileToCollection", $guid->{lfn}, $collection, "-n");
 
 }
 sub masterSERecover {
@@ -2802,13 +2823,6 @@ sub masterSERecover {
 
 }
 
-sub masterSEremove {
-  my $self=shift;
-  my $info=shift;
-
-  $self->info("We are going to remove $info->{guid} (or $info->{lfn}");
-  return 1;
-}
 
 sub masterSEReplicate{
   my $self=shift;
@@ -2824,11 +2838,12 @@ sub masterSEprint {
   my $self=shift;
   my $entries=shift;
   my $FILE=shift;
-  my $lfn=shift;
+  my $options=shift;
   my $print =$entries->{pfn};
-  ($lfn) and $print=$entries->{lfn};
-
+  ($options->{lfn}) and $print.=" $entries->{lfn}";
+  ($options->{md5}) and $print.=" $entries->{md5}";
   print $FILE "$print\n";
+
   return 1;
 }
 
@@ -2980,5 +2995,64 @@ sub fquota_set {
   my $done = $self->{SOAP}->CallSOAP("Manager/Job", 'setFileQuotaInfo', $user, $field, $value);
   $done and $self->fquota_list("$user");
 }
+
+
+
+
+sub checkFileQuota {
+  my $self= shift;
+  my $user = shift
+    or $self->{LOGGER}->error("In checkFileQuota user is missing\n")
+    and return (0, "user is missing");
+  my $size = shift;
+	(defined $size) 
+    or $self->{LOGGER}->error("In checkFileQuota size is missing\n")
+    and return (0, "size is missing");
+
+  $self->info("In checkFileQuota user:$user, size:$size");
+
+  if (!$self->{PRIORITY_DB}){
+    my ($host, $driver, $db) = split("/", $self->{CONFIG}->{"JOB_DATABASE"});
+    $self->{PRIORITY_DB}=
+      AliEn::Database::TaskPriority->new({DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin'});
+  }
+  $self->{PRIORITY_DB} or $self->info("Error: couldn't connect to the priority database") and return (0, "Error connecting to the quotas");
+
+  my $array = $self->{PRIORITY_DB}->getFieldsFromPriorityEx("nbFiles, totalSize, maxNbFiles, maxTotalSize, tmpIncreasedNbFiles, tmpIncreasedTotalSize", "where user like '$user'")
+    or $self->{LOGGER}->error("Failed to getting data from PRIORITY table")
+    and return (0, "Failed to getting data from PRIORITY table");
+  $array->[0] or $self->{LOGGER}->error("User $user not exist")
+    and return (0, "User $user not exist in PRIORITY table");
+ 
+  my $nbFiles = $array->[0]->{'nbFiles'};
+  my $maxNbFiles = $array->[0]->{'maxNbFiles'};
+  my $tmpIncreasedNbFiles = $array->[0]->{'tmpIncreasedNbFiles'};
+  my $totalSize = $array->[0]->{'totalSize'};
+  my $maxTotalSize = $array->[0]->{'maxTotalSize'};
+  my $tmpIncreasedTotalSize = $array->[0]->{'tmpIncreasedTotalSize'};
+ 
+  $DEBUG and $self->debug(1, "size: $size");
+  $DEBUG and $self->debug(1, "nbFile: $nbFiles/$tmpIncreasedNbFiles/$maxNbFiles");
+  $DEBUG and $self->debug(1, "totalSize: $totalSize/$tmpIncreasedTotalSize/$maxTotalSize");
+  $self->info("nbFile: $nbFiles/$tmpIncreasedNbFiles/$maxNbFiles");
+  $self->info("totalSize: $totalSize/$tmpIncreasedTotalSize/$maxTotalSize");
+
+    if ($nbFiles + $tmpIncreasedNbFiles + 1 > $maxNbFiles) {
+    $self->info("In checkFileQuota $user: Not allowed for nbFiles overflow");
+    return (0, "DENIED: You're trying to upload 1 file. That exceeds your limit." );
+  }
+
+  if ($size + $totalSize + $tmpIncreasedTotalSize > $maxTotalSize) {
+    $self->info("In checkFileQuota $user: Not allowed for totalSize overflow");
+    return (0, "DENIED: You've trying to upload a file which size is $size. That exceeds your limit." );
+  }
+  
+  $self->{PRIORITY_DB}->do("update PRIORITY set tmpIncreasedNbFiles=tmpIncreasedNbFiles+1, tmpIncreasedTotalSize=tmpIncreasedTotalSize+$size where user like '$user'") or $self->info("failed to increase tmpIncreasedNbFile and tmpIncreasedTotalSize");
+
+  $self->info("In checkFileQuota $user: Allowed");
+  return (1,undef);
+}
+
+
 return 1;
 

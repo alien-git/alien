@@ -156,7 +156,7 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
     'stat'         => ['$self->{CATALOG}->f_stat', 0],
     'addMirror'    => ['$self->{CATALOG}->f_addMirror', 0],
     'masterCopy'   => ['$self->{CATALOG}->f_masterCopy', 0],
-    'deleteMirror' => ['$self->{CATALOG}->f_deleteMirror', 0],
+    'deleteMirror' => ['$self->{CATALOG}->f_deleteMirror', 2+64],
     'showMirror'   => ['$self->{CATALOG}->f_showMirror', 3],
     'help'         => ['$self->help', 0],
     'man'         => ['$self->help', 0],

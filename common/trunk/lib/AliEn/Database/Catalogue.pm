@@ -928,6 +928,15 @@ sub addSE{
 }
 
 
+sub removeSE {
+  my $self=shift;
+  my $sename=shift;
+  $self->info("Removing the se $sename from the database");
+  
+  $self->{LFN_DB}->executeInAllDB("delete", "SE", "seName='$sename'");
+  return 1;
+}
+
 sub createTable {
   my $self=shift;
   my $host       = shift;
@@ -1300,6 +1309,7 @@ sub masterSE_getFiles{
   my $rhosts = $self->{LFN_DB}->getAllHosts();
 
   my $query="select binary2string(g.guid)guid,p.pfn  ";
+  $options->{md5} and $query.=", g.md5 ";
   foreach my $h (@$rhosts){
     #Let's skip all the hosts that we have already seen
     $previous_host and $previous_host!=$h->{hostIndex} and next;
@@ -1320,7 +1330,9 @@ sub masterSE_getFiles{
       if ($options->{unique}){
         $self->info("Checking that the file is not replicated");
         $endquery="and not exists (select 1 from ${table}_PFN p2 where p2.senumber!=p.senumber and p2.guidid=p.guidid) group by guid";
-
+      }
+      if ($options->{replicated}){
+	$endquery="and exists (select 1 from ${table}_PFN p2 where p2.senumber!=p.senumber and p2.guidid=p.guidid) group by guid";
       }
       my $entries=[];
       if ($options->{lfn}){

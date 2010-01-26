@@ -359,18 +359,36 @@ sub f_addMirror {
   return 1;
 }
 
+sub f_deleteMirror_HELP{
+  return "deleteMirror: 
+Removes a replica of a file from the catalogue
+Uage:
+\tdeleteMirror [-g] <lfn> <se> [<pfn>]
+
+Options:
+   -g: the lfn is a guid
+"
+
+}
 
 
 sub f_deleteMirror {
   my $self = shift;
-
+  my $options=shift;
   ( $self->{SILENT} ) or print "Deleting a mirror @_\n";
 
   my $file = shift;
   my $se   = shift;
 
-  $file or $self->info( "Error not enough arguments in deleteMirror\nUsage:\n\tdeleteMirror <lfn> <se>\n",1) and return;
+  $file or $self->info( "Error not enough arguments in deleteMirror\n" . $self->f_deleteMirror_HELP())
+    and return ;
 
+  if ($options =~ /g/){
+    $self->info("Removing the replica from the guid directly");
+    $self->{DATABASE}->deleteMirrorFromGUID( $file, $se,@_) or 
+      $self->info( "Error removing the mirror of $file in $se") and return;
+    return 1;
+  }
   $file = $self->f_complete_path($file);
 
   my $permLFN= $self->checkPermissions( 'w', $file ) or return;

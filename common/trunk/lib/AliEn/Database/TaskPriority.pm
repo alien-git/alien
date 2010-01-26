@@ -60,24 +60,24 @@ sub checkPriorityTable{
 
   my %columns = (	
 		 user=>"varchar(64) CHARACTER SET latin1 not null",
-		 priority=>"float",
-		 maxparallelJobs=>"int",
-		 nominalparallelJobs=>"int",
-		 computedpriority=>"float",
+		 priority=>"float not null default 0",
+		 maxparallelJobs=>"int not null default 0 ",
+		 nominalparallelJobs=>"int not null default 0",
+		 computedpriority=>"float not null default 0",
 		#Job Quota
-		 unfinishedJobsLast24h=>"int",
-		 totalRunningTimeLast24h=>"int",
-		 totalCpuCostLast24h=>"float",
-		 maxUnfinishedJobs=>"int",
-		 maxTotalRunningTime=>"int",
-		 maxTotalCpuCost=>"float",
+		 unfinishedJobsLast24h=>"int not null default 0",
+		 totalRunningTimeLast24h=>"int not null default 0",
+		 totalCpuCostLast24h=>"float not null default 0",
+		 maxUnfinishedJobs=>"int not null default 0",
+		 maxTotalRunningTime=>"int not null default 0",
+		 maxTotalCpuCost=>"float not null default 0",
     #File Quota
-     nbFiles=>"int",
-     totalSize=>"bigint",
-     maxNbFiles=>"int",
-     maxTotalSize=>"bigint",
-     tmpIncreasedNbFiles=>"int",
-     tmpIncreasedTotalSize=>"bigint",
+     nbFiles=>"int not null default 0",
+     totalSize=>"bigint not null default 0",
+     maxNbFiles=>"int not null default 0",
+     maxTotalSize=>"bigint not null default 0",
+     tmpIncreasedNbFiles=>"int not null default 0",
+     tmpIncreasedTotalSize=>"bigint not null default 0",
 		);
 
   $self->checkTable($self->{PRIORITYTABLE}, "user", \%columns, 'user');
@@ -114,6 +114,8 @@ sub checkPriorityValue() {
     $set->{'maxTotalSize'} = 1000;
     $set->{'tmpIncreasedNbFiles'} = 0;
     $set->{'tmpIncreasedTotalSize'} = 0;
+    $set->{'maxNbFiles'}=1000;
+    $set->{'maxTotalSize'}=1000000;
     $self->insertPrioritySet($user,$set);
   }
 }

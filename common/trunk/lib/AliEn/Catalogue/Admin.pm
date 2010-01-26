@@ -158,6 +158,12 @@ sub f_addUser {
 			   "Error: not enough arguments\nUsage: addUser <username> \n");
     return;
   }
+
+
+  $self->{PRIORITY_DB} or 
+    $self->{PRIORITY_DB} = AliEn::Database::TaskPriority->new({ROLE=>'admin',SKIP_CHECK_TABLES=> 1});
+  $self->{PRIORITY_DB} or $self->info("Error getting the instance of the priorityDB!!") and return;
+
   my $passwd =  $createPasswd->();
   
   my $homedir ="$self->{CONFIG}->{USER_DIR}/" . substr( $user, 0, 1 ) . "/$user/";
@@ -216,9 +222,10 @@ sub f_addUser {
   $self->info("Changing privileges for  $user");
   $self->f_chown("", $user, $homedir ) or return;
   $self->f_chown("", $user, $procdir ) or return;
-
+  $self->info("Adding the quotas");
+  $self->{PRIORITY_DB}->checkPriorityValue($user) or return;
   $self->info(  "User $user added");
-
+  
   $self->resyncLDAP();
   return 1;
 }
@@ -945,9 +952,12 @@ sub calculateFileQuota {
     }
   }
 
-	# tmp solution
-	my ($host, $driver, $db) = split("/", $self->{CONFIG}->{"JOB_DATABASE"});
-  $self->{PRIORITY_DB} = AliEn::Database::TaskPriority->new({DB=>$db,HOST=>$host,DRIVER=>$driver,ROLE=>'admin',SKIP_CHECK_TABLES=> 1}) or return;
+  # tmp solution
+
+  $self->{PRIORITY_DB} or 
+    $self->{PRIORITY_DB}=AliEn::Database::TaskPriority->new({ROLE=>'admin',SKIP_CHECK_TABLES=> 1});
+  $self->{PRIORITY_DB}
+    or return;
 
   $self->$method(@data, "Updating PRIORITY table");
   $self->{PRIORITY_DB}->lock("PRIORITY");
