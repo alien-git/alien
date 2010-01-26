@@ -16,7 +16,7 @@ use AliEn::Database::CE;
 use AliEn::LQ;
 use AliEn::Util;
 
-use AliEn::Service::JobAgent;
+use AliEn::Service::JobAgent::Local;
 use AliEn::Classad::Host;
 use AliEn::X509;
 use Data::Dumper;
@@ -687,14 +687,25 @@ sub getJdl {
 
     return $content;
 }
+sub submitCommand_HELP {
+  return "submit: sends a JDL to be executed on the grid
 
+Usage:
+
+submit [-n] (<jdl in the catalogue> | < <local jdl file> | <<EOF job description  EOF) 
+
+
+Options: 
+   -n: Do not submit the job. Run it on the current machine
+"
+}
 sub submitCommand {
   my $self = shift;
-  my @arg = grep ( !/-z/, @_);
+  my @arg = grep ( !/-(z|n)/, @_);
   my $content = "";
 
   my $zoption = grep ( /-z/, @_);
-
+  my $noption = grep (/-n/, @_);
   my $user = $self->{CATALOG}->{CATALOG}->{ROLE};
 
   if ($arg[0] eq "==<") {
@@ -750,6 +761,8 @@ sub submitCommand {
   }
   $DEBUG and $self->debug(1, "Job description" . $job_ca->asJDL() );
 
+
+  my @filesToDownload;
   if ($self->{INPUTBOX}){
     my $l = $self->{INPUTBOX};
     
@@ -757,8 +770,38 @@ sub submitCommand {
     my @list2=sort values %$l;
     $self->info( "Input Box: {@list}" );
     $DEBUG and $self->debug(1, "Input Box: {@list2}" );
+    foreach my $entry (@list){
+      my $entry2=shift @list2;
+      push @filesToDownload, "\"${entry}->$entry2\"";
+    }
   }
 
+
+  if ($noption){
+    $self->info("Instead of running the job, let's execute it ourselves");
+    (@filesToDownload) and 
+    $job_ca->set_expression("InputDownload", "{". join(",", @filesToDownload)."}");
+
+
+    my $agent=AliEn::Service::JobAgent::Local->new({CA=>$job_ca}) or return;
+
+    $agent->CreateDirs({remove=>1}) or 
+      $self->info("Error creating the directories for the execution of the job") 
+	and return;
+
+    $agent->checkJobJDL() or 
+      $self->info("Error checking the jdl at the startup of the jobagent") and return;
+
+
+
+
+
+    $self->info("Ready to run the agent!!!");
+    my $d=$agent->executeCommand();
+    $self->info("And the job was executed with $d. You can find the output of the job in $agent->{WORKDIR} (on your local machine)");
+    
+    return 1;
+  }
   my $done =$self->{SOAP}->CallSOAP("Manager/Job", 'enterCommand',
 				 "$user\@$self->{HOST}", $job_ca->asJDL(), $self->{INPUTBOX} );
   if (! $done) {
