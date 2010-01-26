@@ -222,6 +222,7 @@ print "DONE!!\n";
 
 print "Connecting to mysql on $hostName:$portNumber...\t\t";
 
+exit;
 my $db=AliEn::Database::Catalogue->new({USE_PROXY=>0,
 					USER=>"admin",
 					ROLE=>"admin",
@@ -256,6 +257,7 @@ foreach my $dbtype ('TaskQueue', 'Transfer', 'IS', 'Admin', 'TaskPriority') {
 		 #					DEBUG=>5,
 		}
 	       ) or exit(-2);
+  $dbtype =~ /TaskPriority/ and $d->checkPriorityValue('admin');
   print "Done with $?\n";
 }
 my @q=(
