@@ -124,9 +124,14 @@ sub initialize {
   $self->{OUTPUTFILES} = "";
   $self->{TTL}=($self->{CONFIG}->{CE_TTL} || 12*3600);
   $self->{TTL} and $self->info("This jobagent is going to live for $self->{TTL} seconds");
-  ($self->{HOSTNAME},$self->{HOSTPORT}) =
-    split ":" , $ENV{ALIEN_CM_AS_LDAP_PROXY};
 
+  if ( $ENV{ALIEN_CM_AS_LDAP_PROXY}){
+    ($self->{HOSTNAME},$self->{HOSTPORT}) =
+      split ":" , $ENV{ALIEN_CM_AS_LDAP_PROXY};
+    $self->{SOAP}->{CLUSTERMONITOR}=SOAP::Lite
+      ->uri("AliEn/Service/ClusterMonitor")
+	->proxy("http://$self->{HOSTNAME}:$self->{HOSTPORT}");
+  }
   #$self->{HOST} = $ENV{'ALIEN_HOSTNAME'}.".".$ENV{'ALIEN_DOMAIN'};
   $self->{HOST} = $self->{CONFIG}->{HOST};
 
@@ -140,13 +145,10 @@ sub initialize {
   $options->{disablePack} and $packConfig=0;
   $self->{SOAP}=new AliEn::SOAP;
 
-  $self->{SOAP}->{CLUSTERMONITOR}=SOAP::Lite
-    ->uri("AliEn/Service/ClusterMonitor")
-      ->proxy("http://$self->{HOSTNAME}:$self->{HOSTPORT}");
 
   $self->{CONFIG} = new AliEn::Config() or return;
 
-  $self->{PORT} = $self->getPort();
+  $self->{PORT} or $self->{PORT} = $self->getPort();
   $self->{PORT} or return;
 
   $self->{SERVICE}="JobAgent";
@@ -487,7 +489,7 @@ sub checkJobJDL {
   ($ok, $self->{INTERACTIVE}) = $self->{CA}->evaluateAttributeString("Interactive");
   ($ok, $self->{COMMAND} ) = $self->{CA}->evaluateAttributeString("Executable");
   ($ok, $self->{VALIDATIONSCRIPT} ) = $self->{CA}->evaluateAttributeString("Validationcommand");
-  print "AFTER CHECKING THE JDL, we have $self->{VALIDATIONSCRIPT}\n";
+  $self->info("AFTER CHECKING THE JDL, we have $self->{VALIDATIONSCRIPT}");
   ($ok, $self->{OUTPUTDIR})=$self->{CA}->evaluateAttributeString("OutputDir");
   ($ok, my @args ) = $self->{CA}->evaluateAttributeVectorString("Arguments");
   $self->{ARG}="";
@@ -556,10 +558,16 @@ sub checkJobJDL {
 
 sub CreateDirs {
   my $self=shift;
+  my $options=shift || {};
   my $done=1;
 
   $self->{WORKDIR} =~ s{(/alien-job-\d+)?\/?$}{/alien-job-$ENV{ALIEN_PROC_ID}};
   $ENV{ALIEN_WORKDIR} = $self->{WORKDIR};
+
+  if ($options->{remove} and -d $self->{WORKDIR}){
+    $self->info("Removing the existing directory $self->{WORKDIR}");
+    system("rm", "-rf", "$self->{WORKDIR}");
+  }
 
   my @dirs=($self->{CONFIG}->{LOG_DIR},
 	    "$self->{CONFIG}->{TMP_DIR}/PORTS", $self->{WORKDIR},
@@ -860,8 +868,7 @@ sub getBatchId{
 
 
 sub executeCommand {
-  my $this = shift;
-  
+  my $self=shift;
   
   my $batchid=$self->getBatchId();
   $self->changeStatus("%",  "STARTED", $batchid,$self->{HOST}, $self->{PROCESSPORT} );
