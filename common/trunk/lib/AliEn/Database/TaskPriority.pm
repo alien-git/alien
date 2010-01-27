@@ -64,6 +64,9 @@ sub checkPriorityTable{
 		 maxparallelJobs=>"int not null default 0 ",
 		 nominalparallelJobs=>"int not null default 0",
 		 computedpriority=>"float not null default 0",
+		 waiting=>"int not null default 0",
+		 running=>"int not null default 0",
+		 userload=>"float not null default 0",
 		#Job Quota
 		 unfinishedJobsLast24h=>"int not null default 0",
 		 totalRunningTimeLast24h=>"int not null default 0",
@@ -71,13 +74,13 @@ sub checkPriorityTable{
 		 maxUnfinishedJobs=>"int not null default 0",
 		 maxTotalRunningTime=>"int not null default 0",
 		 maxTotalCpuCost=>"float not null default 0",
-    #File Quota
-     nbFiles=>"int not null default 0",
-     totalSize=>"bigint not null default 0",
-     maxNbFiles=>"int not null default 0",
-     maxTotalSize=>"bigint not null default 0",
-     tmpIncreasedNbFiles=>"int not null default 0",
-     tmpIncreasedTotalSize=>"bigint not null default 0",
+		 #File Quota
+		 nbFiles=>"int not null default 0",
+		 totalSize=>"bigint not null default 0",
+		 maxNbFiles=>"int not null default 0",
+		 maxTotalSize=>"bigint not null default 0",
+		 tmpIncreasedNbFiles=>"int not null default 0",
+		 tmpIncreasedTotalSize=>"bigint not null default 0",
 		);
 
   $self->checkTable($self->{PRIORITYTABLE}, "user", \%columns, 'user');
@@ -100,13 +103,13 @@ sub checkPriorityValue() {
     $set->{'maxparallelJobs'} = 20;
     $set->{'nominalparallelJobs'} = 10;
     $set->{'computedpriority'} = 1;
-		#Job Quota
+    #Job Quota
     $set->{'unfinishedJobsLast24h'} = 0;
     $set->{'maxUnfinishedJobs'} = 10;
     $set->{'totalRunningTimeLast24h'} = 0;
-    $set->{'maxTotalRunningTime'} = 10;
+    $set->{'maxTotalRunningTime'} = 1000;
     $set->{'totalCpuCostLast24h'} = 0;
-    $set->{'maxTotalCpuCost'} = 10;
+    $set->{'maxTotalCpuCost'} = 1000;
     #File Quota
     $set->{'nbFiles'} = 0;
     $set->{'totalSize'} = 0;
