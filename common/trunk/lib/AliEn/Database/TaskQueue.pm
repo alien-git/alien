@@ -229,10 +229,6 @@ sub initialize {
     or $self->{LOGGER}->error( "TaskQueue", "In initialize altering tables failed for SITEQUEUES") 
 		  and return;
 
-  $self->checkPriorityTable("PRIORITY")
-    or $self->{LOGGER}->error( "TaskQueue", "In initialize altering tables failed for PRIORITY")
-      and return;
-
   $self->checkActionTable() or return;
 
 
@@ -1080,24 +1076,6 @@ sub setPriorityTable{
   $self->{PRIORITYTABLE} = (shift or "PRIORITY");
 }
 
-sub checkPriorityTable{
-  my $self = shift;
-  $self->{PRIORITYTABLE} = (shift or "PRIORITY");
-
-  my %columns = (	
-		 user=>"varchar(64) not null",
-			priority=>"float",
-			maxparallelJobs=>"int",
-			nominalparallelJobs=>"int",
-			computedpriority=>"float",
-			waiting=>"int",
-			running=>"int",
-			userload=>"float"
-		);
-
-  $self->checkTable($self->{PRIORITYTABLE}, "user", \%columns, 'user');
-  
-}
 
 #sub checkPriorityValue() {
 #    my $self = shift;
