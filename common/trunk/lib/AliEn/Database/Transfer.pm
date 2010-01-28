@@ -64,10 +64,11 @@ my $tables={ TRANSFERS_DIRECT=>{columns=>{
 					  agentid=>"int(11)",
 					  reason=>'varchar(255)',
 					  protocolid=>'varchar(255)',
+					  "ftd"=>"varchar(50)"
 				  },
 			 id=>"transferId",
 				index=>"transferId",
-				extra_index=>["INDEX (agentid)", "INDEX(status)", "INDEX(lfn)"]},
+				extra_index=>["INDEX (agentid)", "INDEX(status)", "INDEX(lfn)","INDEX(ftd)" ]},
 
 	     ACTIONS=>{columns=>{action=>"char(40) not null primary key",
 				 todo=>"int(1) not null default 0",
