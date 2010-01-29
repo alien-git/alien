@@ -1261,6 +1261,7 @@ sub f_find_HELP{
    d => return also the directories
    c => put the output in a collection - 2nd arg is the collection name
    m => metadata on file level 
+   y => (FOR THE OCDB) return only the biggest version of each file
 ";
 }
 
@@ -1689,7 +1690,7 @@ sub f_find {
   #### standard to retrieve options with and without parameters
   my %options=();
   @ARGV=@_;
-  getopts("mvzrpO:o:l:x:g:sO:q:dc:",\%options);
+  getopts("mvzrpO:o:l:x:g:sO:q:dc:y",\%options);
   @_=@ARGV;
 
   # option v => verbose
