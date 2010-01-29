@@ -1607,7 +1607,7 @@ sub getPathPrefix{
   return $self->queryValue("SELECT lfn from INDEXTABLE where tableName='$table' and hostIndex='$host'");
 }
 
-sub findLFN() {
+sub findLFN {
   my $self=shift;
   my ($path, $file, $refNames, $refQueries,$refUnions, %options)=@_;
 
@@ -1687,6 +1687,7 @@ sub internalQuery {
 
   #First, let's construct the sql statements that will select all the files 
   # that we want. 
+  $self->debug(1, "READY TO START LOOKING FOR THE TAGS");
   my $tagsDone={};
   foreach my $tagName (@tagNames) {
     my $union=shift @unions;
@@ -1764,14 +1765,24 @@ $b as guid from $indexTable l $1 $order $limit/} @joinQueries;
   }
   #Finally, let's do all the queries:
   my @result;
-  foreach (@joinQueries) {
-    $DEBUG and $self->debug(1, "Doing the query $_");
-#    print "SKIPPING THE QUERIES '$_'\n";
-    my $query=$self->query($_);
+  foreach my $q (@joinQueries) {
+    if ($options->{'y'}){
+      my $t="";
+      $q=~ /JOIN (\S+VCDB) /m and $t=$1;
+      $self->info("WE ARE RETRIEVING ONLY THE BIGGEST METADADATA from $t");
+      if ($t){
+	$q =~ s/select \*/select substr(max(version_path),7) lfn from (SELECT $t.*/i;
+	$q.=")d  group by dir_number";
+      }
+    }
+    $DEBUG and $self->debug(1, "Doing the query $q");
+   
+#    print "SKIPPING THE QUERIES '$q'\n";
+    my $query=$self->query($q);
     push @result, @$query;
   }
   return @result;
-
+  
 }
 
 sub setExpire{
