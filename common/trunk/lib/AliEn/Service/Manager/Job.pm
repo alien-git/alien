@@ -1578,7 +1578,7 @@ sub getMasterJob {
        return [$data->{command}, @$info,@done];
      }
      $data->{command} =~ /resubmit/ and $masterWaiting=1;
-     push @$info, "$data->{command}ing subjob $subjob";
+     push @$info, "$data->{command}ing subjob $subjob ($done[0])";
      $self->putJobLog($id,"state", "$data->{command}ing subjob $subjob ($done[0])");
 
    }

@@ -220,7 +220,7 @@ sub f_updateFile {
     or $self->info( "Error doing the update of $file",11)
       and return;
 
-  $self->{SILENT} or print "File $file updated in the catalog\n";
+  $self->info("File $file updated in the catalog");
   return 1;
 }
 
@@ -328,7 +328,7 @@ Options:
 sub f_addMirror {
   my $self = shift;
 
-  ( $self->{SILENT} ) or print "Adding a mirror @_\n";
+  $self->info("Adding a mirror @_");
 
   my $file = shift;
   my $se   = shift || $self->{CONFIG}->{SE_FULLNAME};
@@ -354,8 +354,8 @@ sub f_addMirror {
     $opt->{md5} or $self->info("Error getting the md5sum of '$pfn'") and return;
   }
   $self->{DATABASE}->insertMirrorFromFile($file, $se, $pfn, $opt->{md5}) or return;
-  $self->{SILENT}
-    or print "File '$file' has a mirror in '${se}'\n";
+
+  $self->info("File '$file' has a mirror in '${se}'");
   return 1;
 }
 
@@ -375,7 +375,7 @@ Options:
 sub f_deleteMirror {
   my $self = shift;
   my $options=shift;
-  ( $self->{SILENT} ) or print "Deleting a mirror @_\n";
+  $self->info("Deleting a mirror @_");
 
   my $file = shift;
   my $se   = shift;
@@ -399,8 +399,7 @@ sub f_deleteMirror {
 
   $self->{DATABASE}->deleteMirrorFromLFN( $file, $se,@_) or 
     $self->info( "Error removing the mirror of $file in $se") and return;
-  $self->{SILENT}
-    or print "Mirror from ${se} removed\n";
+  $self->info("Mirror from ${se} removed");
   return 1;
 }
 
@@ -552,7 +551,7 @@ sub f_cp {
 #    $sourceHash->{guid}=$self->{GUID}->getGUIDfromIntegers($sourceHash->{guid1},$sourceHash->{guid2},$sourceHash->{guid3},$sourceHash->{guid4});
     $DEBUG and $self->debug(2, "Let's copy $source into $targetName");
     $sourceHash->{lfn}=$targetName;
-    $self->{SILENT} or print "Copying $source to $targetName...\n";
+    $self->info("Copying $source to $targetName...");
     $opt->{user} and $sourceHash->{user}= $opt->{user};
 
     delete $sourceHash->{Groupname};
