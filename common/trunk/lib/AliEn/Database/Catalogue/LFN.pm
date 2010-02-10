@@ -1771,7 +1771,7 @@ $b as guid from $indexTable l $1 $order $limit/} @joinQueries;
       $q=~ /JOIN (\S+VCDB) /m and $t=$1;
       $self->info("WE ARE RETRIEVING ONLY THE BIGGEST METADADATA from $t");
       if ($t){
-	$q =~ s/select \*/select substr(max(version_path),7) lfn from (SELECT $t.*/i;
+	$q =~ s/select \*/select substr(max(version_path),10) lfn from (SELECT $t.*/i;
 	$q.=")d  group by dir_number";
       }
     }

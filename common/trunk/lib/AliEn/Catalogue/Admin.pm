@@ -359,7 +359,9 @@ sub moveGUIDToIndex {
     return;
   }
   $self->{GUID} or $self->{GUID}=AliEn::GUID->new();
-  $guid or $guid=$self->{GUID}->CreateGuid();
+  if (!$guid){ 
+    $guid=$self->{GUID}->CreateGuid();
+  }
 
   $self->info( "All the guids newer than '$guid' will be in a different table");
 
