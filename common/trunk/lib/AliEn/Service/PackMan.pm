@@ -158,9 +158,9 @@ sub installPackage{
     $self->info( "$$ Returning the value from the cache (@$cache)");
     return (@$cache);
   }
-  my ($done,@rest )=$self->{PACKMAN}->isPackageInstalled($user, $package, $version);
+  my ($done2,@rest )=$self->{PACKMAN}->isPackageInstalled($user, $package, $version);
   my $exit=0;
-  if (! $done){
+  if (! $done2){
     if (-f "$self->{PACKMAN}->{INST_DIR}/$user.$package.$version.InstallLock"){
       $self->info("Someone is already installing the package");
       return (-1, "Package is being installed");
