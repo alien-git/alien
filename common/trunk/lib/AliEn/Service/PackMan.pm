@@ -158,15 +158,26 @@ sub installPackage{
     $self->info( "$$ Returning the value from the cache (@$cache)");
     return (@$cache);
   }
-
-  my ($done, $psource, $dir)=$self->{PACKMAN}->installPackage($user, $package, $version, undef, {fork=>1});
-  if (! $done or $done eq "-1"){
-    $self->info("Error trying to install the package $psource");
-    return (-1, $psource);
+  my ($done,@rest )=$self->{PACKMAN}->isPackageInstalled($user, $package, $version);
+  my $exit=0;
+  if (! $done){
+    if (-f "$self->{PACKMAN}->{INST_DIR}/$user.$package.$version.InstallLock"){
+      $self->info("Someone is already installing the package");
+      return (-1, "Package is being installed");
+    }
+    $self->info("The package is not installed. Forking and installing it");
+    fork() and return (-1, "Package is being installed");
+    $exit=1;
   }
+
+  my ($done, $psource, $dir)=$self->{PACKMAN}->installPackage($user, $package, $version);
+
+
   my @list= ($done, $psource, $dir);
   AliEn::Util::setCacheValue($self, $cacheName, \@list);
-  $self->info("The PackMan service returns @list");
+  $self->info("The PackMan service returns @list (and we exit $exit)");
+  $exit and    exit(0);
+
   return ($done, $psource, $dir);
 }
 

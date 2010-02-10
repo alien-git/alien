@@ -88,6 +88,35 @@ sub getSubDir{
   return @entries;
 }
 
+sub createLock{
+  my $self=shift;
+  my ($user, $package, $version)=(shift, shift, shift);
+
+  my $dir="$self->{INST_DIR}/$user/$package/$version";
+  my $lock="$self->{INST_DIR}/$user.$package.$version.InstallLock";
+  (-f $lock) 
+    and return 0;
+
+  (-d $dir) and return 1;
+
+  $self->info("Locking the file $lock");
+
+  open FILE, ">$lock" 
+    and close FILE
+      or die("$$ Error creating $lock");
+
+  return 1;
+}
+
+sub removeLock {
+  my $self=shift;
+  my ($user, $package, $version)=(shift, shift, shift);
+
+  my $lock="$self->{INST_DIR}/$user.$package.$version.InstallLock";
+  system ("rm", "-rf", $lock);
+}
+
+
 sub installPackage{
   my $self=shift;
   my $user=shift;
@@ -98,74 +127,66 @@ sub installPackage{
 
   $self->debug (2,"checking if we have to install the package");
   my $source="";
-  eval {
-    my ($lfn, $info)=$self->findPackageLFN($user, $package, $version);
-    
-    $version or $lfn =~ /\/([^\/]*)\/[^\/]*$/
-      and ($version)=($1);
-    if ($lfn =~ m{^/$self->{CONFIG}->{ORG_NAME}/packages/}i ) {
-      $self->info( "$$ This package is defined by the VO. Let's put the user to VO");
-      $user=uc("VO_$self->{CONFIG}->{ORG_NAME}");
-    }
-    
-    #First, let's try to install all the dependencies
-    $self->info("Ready to install $package and $version and $user (from $lfn)");
-    $dependencies->{"${package}::$version"}=1;
-    
-    my $old=$options->{NO_FORK} || 0;
-
-    if ($info && $info->{dependencies}) {
-
-      $self->info( "$$ Installing the dependencies of $package (without forking");
-      $options->{NO_FORK}=1;
-      foreach (split(/,/,$info->{dependencies})){
-	my ($pack, $ver)=split(/::/, $_, 2);
-	my $pack_user=$user;
-	$pack=~ s/^(.*)\@// and $pack_user=$1;
-	#let's install the packages without configuring them
-	if ($dependencies->{"${pack}::$ver"} ) {
-	  $self->info( "$$ Package $pack $ver already configured");
-	  next;
-	}
-	
-	my ($ok, $depsource, $dir)=$self->installPackage($user, $pack, $ver, $dependencies, $options);
-	$depsource and $source="$source $depsource";
-      }
-    }
-    $options->{NO_FORK}=$old;
-    $self->debug(2,  "Ready to do the installPackage $package for $user");
-    #Let's put the files public
-    umask 0022;
-    while (1){
-      eval {
-	$self->InstallPackage($lfn, $user, $package, $version,$info, $source, $options);
-      };
-      my $error=$@;
-      if ($error) {
-	if ($error =~ /Package is being installed/){
-	  if ($self->{NO_FORK}){
-	    $self->info("Let's sleep for a while...");
-	    sleep(60);
-	    next;
-	  }
-	}
-	$self->info("I think that here I have to return '$error'...");
-	die($error);
-      }
-      last;
-    }
-    umask 0027;
-    my ($done, $psource, $dir2)= $self->ConfigurePackage($user, $package, $version, $info);
-    $psource and $source="$source $psource";
-    $self->info( "$$ Returning $done and ($source)\n");
-  };
-  my $error=$@;
-  if ($error){
-    $self->info("Error installing the package '$package'!! $error");
-    return (-1, $error);
+  my ($lfn, $info)=$self->findPackageLFN($user, $package, $version);
+  if (!$lfn){
+    $self->info("Error installing $package: $info");
+    return (0, "Error finding the lfn for $package");
   }
+  $version or $lfn =~ /\/([^\/]*)\/[^\/]*$/
+    and ($version)=($1);
+  if ($lfn =~ m{^/$self->{CONFIG}->{ORG_NAME}/packages/}i ) {
+    $self->info( "$$ This package is defined by the VO. Let's put the user to VO");
+    $user=uc("VO_$self->{CONFIG}->{ORG_NAME}");
+  }
+
+  #First, let's try to install all the dependencies
+  $self->info("Ready to install $package and $version and $user (from $lfn)");
+
+  while (1){
+    my $done=$self->createLock($user, $package, $version);
+    $done and last;
+    defined ($done) or $self->info("Error creating the lock")
+      and return (0, "Error creating the lock");
+    $self->info("Sleeping for a while");
+    sleep(20);
+  }
+
+  $dependencies->{"${package}::$version"}=1;
+
+  if ($info && $info->{dependencies}) {
+	
+    $self->info( "$$ Installing the dependencies of $package (without forking");
+
+    foreach (split(/,/,$info->{dependencies})){
+      my ($pack, $ver)=split(/::/, $_, 2);
+      my $pack_user=$user;
+      $pack=~ s/^(.*)\@// and $pack_user=$1;
+      #let's install the packages without configuring them
+      if ($dependencies->{"${pack}::$ver"} ) {
+	$self->info( "$$ Package $pack $ver already configured");
+	next;
+      }
+      my ($ok, $depsource, $dir)=$self->installPackage($user, $pack, $ver, $dependencies, $options);
+      $ok or return (-1, $depsource);
+      $depsource and $source="$source $depsource";
+    }
+  }
+
+  $self->debug(2,  "Ready to do the installPackage $package for $user");
+  #Let's put the files public
+  umask 0022;
+  my ($done2, $error)=$self->InstallPackage($lfn, $user, $package, $version,$info, $source, $options);
+  umask 0027;
+  $self->removeLock($user, $package, $version);
+  $done2 or return (-1, $error);
+
+
+  my ($done, $psource, $dir2)= $self->ConfigurePackage($user, $package, $version, $info);
+  $psource and $source="$source $psource";
+  $self->info( "$$ Returning $done and ($source)\n");
+
   $self->info("Everything is ready. We just have to do $source");
-  return (1, $source);
+  return ($done, $source, $dir2);
 }
 
 
@@ -174,10 +195,10 @@ sub findPackageLFN{
   my $user=shift;
   my $package=shift;
   my $version=shift;
-  
+
   my $platform=AliEn::Util::getPlatform($self);
   $self->info("$$ Looking for the lfn of $package ($version) for the user $user");
-  
+
   my $cacheName="lfn_${user}_${package}_${version}";
   my $cache=AliEn::Util::returnCacheValue($self, $cacheName);
   if ($cache) {
@@ -186,13 +207,11 @@ sub findPackageLFN{
   }
 
   my $result=$self->{SOAP}->CallSOAP("PackManMaster", "findPackageLFN", $user, $package, $version, $platform)
-    or $self->info("Error talking to the PackManMaster") and return;
+    or return undef, "Error talking to the PackManMaster";
 
   my @info=$self->{SOAP}->GetOutput($result);
   if (  $info[0] eq /^-2$/ ){
-    my $message="The package $package (v $version) does not exist for $platform \n";
-    $self->info($message);
-    die $message;
+    return undef,"The package $package (v $version) does not exist for $platform \n"; 
   }
 
   $self->info(Dumper(@info));
@@ -242,20 +261,13 @@ sub InstallPackage {
   my $options=shift || {};
 
   my $dir="$self->{INST_DIR}/$user/$package/$version";
-  my $lock="$self->{INST_DIR}/$user.$package.$version.InstallLock";
-  my $logFile="$self->{INST_DIR}/$user.$package.$version.InstallLog";
 
-  ( -f $lock) and $self->info( "$$ Package being installed (lock $lock)\n")
-    and  die ("Package is being installed\n");
+  my $logFile="$self->{INST_DIR}/$user.$package.$version.InstallLog";
 
 
   $self->existsPackage($user, $package, $version,$info) and return 1;
   $self->info( "$$ Ready to install the package (output in $logFile) ");
 
-  open FILE, ">$lock" 
-    and close FILE
-    or $self->info( "$$ Error creating $lock")
-    and die ("Error creating $lock\n");
   system("mv",$logFile, "$logFile.back");
   $self->{LOGGER}->redirect($logFile);
   eval {
@@ -276,24 +288,15 @@ sub InstallPackage {
     }
   };
   if ($@) {
-    system ("rm -rf $dir $lock");
 
     $self->info( "$$ Error $@");
     $self->{LOGGER}->redirect();
-    $self->info( "$$ Error $@") and die ("Error $@\n");
+    $self->info( "$$ Error $@");
+    return (-1, "Error $@\n");
   }
 
 
   $self->info( "$$ Installing package $package (V $version)");
-  if (! $options->{NO_FORK}){
-    my $pid=fork();
-    if (!$pid){
-      $self->info( "$$ Let's tell the client to retry in sometime...");
-      $self->{LOGGER}->redirect();
-      $self->info( "$$ Let's tell the client to retry in sometime...");
-      die ("Package is being installed\n");
-    }
-  }
 
   eval {
     $self->_doAction($package, $version, $dir, $info, "pre_install", $depConf);
@@ -303,11 +306,11 @@ sub InstallPackage {
   };
   my $error=$@;
 
-  system ("rm $lock");
   if ($error) {
     $self->{LOGGER}->redirect();
     system ("rm -rf $dir");
-    $self->info( "$$ Error $@") and die ("Error $@\n");
+    $self->info( "$$ Error $@");
+    return (-1, "Error $@\n");
   }
   $self->info( "$$ Package $package installed successfully!");
   $self->{LOGGER}->redirect();
