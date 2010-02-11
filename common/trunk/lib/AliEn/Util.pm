@@ -337,42 +337,49 @@ sub _system {
 # process group. You can set that by calling "POSIX::setpgid($$, 0);" in it and then
 # you give its pid to this function to kill it and all its children.
 sub kill_really_all {
-	my $pid = shift;
+  my $pid = shift;
 	
-	print "Killing all processes beyond $pid...\n";
-	my $procmap = {};
-	my @tokill = ($pid);
-	my @killed = ();
-	if(open(PS, "ps -A -eo pid,ppid,pgrp |")){
-		<PS>;	# skip header
-		while(<PS>){
-			s/^\s+//;
-			my ($pid,$ppid,$pgrp) = split(/\s+/, $_);
-			my @list = ($pid, $pgrp);
-			if($procmap->{$ppid}){
-				push(@list, @{$procmap->{$ppid}});
-			}
-			$procmap->{$ppid} = \@list;
-			
-			my @list2 = ($pid, $pgrp);
-			if($procmap->{$pgrp}){
-				push(@list2, @{$procmap->{$pgrp}});
-			}
-			$procmap->{$pgrp} = \@list2;
-		}
-		close(PS);	
-	}else{
-		print "kill_really_all: Cannot run PS!!!\n";
-	}
-	while(@tokill){
-		my $ptk = shift @tokill;
-		next if($ptk == $$);
-		next if(grep(/^$ptk$/, @killed));
-		kill(9, $ptk);
-		push(@tokill, @{$procmap->{$ptk}}) if($procmap->{$ptk});
-		push(@killed, $ptk);
-	}
-	print "Killed procs: @killed\n";
+  print "Killing all processes beyond $pid...\n";
+  my $procmap = {};
+  my @tokill = ($pid);
+  my @killed = ();
+  if(open(PS, "ps -A -eo pid,ppid,pgrp |")){
+    <PS>;	# skip header
+    while(<PS>){
+      s/^\s+//;
+      my ($pid,$ppid,$pgrp) = split(/\s+/, $_);
+      my @list = ($pid, $pgrp);
+      if($procmap->{$ppid}){
+	push(@list, @{$procmap->{$ppid}});
+      }
+      $procmap->{$ppid} = \@list;
+      
+      my @list2 = ($pid, $pgrp);
+      if($procmap->{$pgrp}){
+	push(@list2, @{$procmap->{$pgrp}});
+      }
+      $procmap->{$pgrp} = \@list2;
+    }
+    close(PS);	
+  }else{
+    print "kill_really_all: Cannot run PS!!!\n";
+  }
+  #First, let's give them a warning.
+  foreach my $p ($tokill){
+    next if($ptk == $$);
+    next if(grep(/^$ptk$/, @killed));
+    kill (11, $p);
+  }
+  sleep(3); 
+  while(@tokill){
+    my $ptk = shift @tokill;
+    next if($ptk == $$);
+    next if(grep(/^$ptk$/, @killed));
+    kill(9, $ptk);
+    push(@tokill, @{$procmap->{$ptk}}) if($procmap->{$ptk});
+    push(@killed, $ptk);
+  }
+  print "Killed procs: @killed\n";
 }
 
 # Compute the total jiffies for the given pid and all its children.
