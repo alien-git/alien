@@ -395,36 +395,33 @@ sub checkService{
 
 
   $self->debug(1, "Making connection to $service");
-  
+ 
   my $host=($self->{CONFIG}->{"${configName}_HOST"} or "");
+
+  my @sublist =();
+  $self->{CONFIG}->{"${configName}_HOST_LIST"} and 
+   @sublist=@{$self->{CONFIG}->{"${configName}_HOST_LIST"}};
+
   ($service eq "ClusterMonitor") and $host=$self->{CONFIG}->{HOST};
-  
-  $self->{CONFIG}->{"${configName}_PORT"} and
-      $host.=":".$self->{CONFIG}->{"${configName}_PORT"};
-  
-  $ENV{ALIEN_CM_AS_LDAP_PROXY} and ($service eq "ClusterMonitor") 
+
+  my @sublist2=();
+  foreach $host (@sublist){
+     $self->{CONFIG}->{"${configName}_PORT"} and
+     $host.=":".$self->{CONFIG}->{"${configName}_PORT"};
+
+   $ENV{ALIEN_CM_AS_LDAP_PROXY} and ($service eq "ClusterMonitor") 
     and $host=$ENV{ALIEN_CM_AS_LDAP_PROXY};
-  $host or $host=$self->{CONFIG}->{"\U${configName}_ADDRESS\E"};
-  
-  #    if ($host=~ /^\:?$/) {
-  #      $serviceName="/$service";
-  #      $configName=$service;
-  #      $self->debug(1, "New names $serviceName and $configName");
-  #      $host=$self->{CONFIG}->{"\U${configName}_ADDRESS\E"};
-  #      $serviceName="AliEn/Service$serviceName";#
-#    } 
-  
-  if (!$host) {
-    #    $self->info("Asking the IS for the address of a $configName");
-
-#   $host or $self->{LOGGER}->error("SOAP", "Error: not possible to get the address of $service") and return;
-    return;
-  }
+   $host or $host=$self->{CONFIG}->{"\U${configName}_ADDRESS\E"};
+ 
   $host =~ /^http/ or $host="http://$host";
-
   $host =~ /^https/ and $self->exportSecureEnvironment();
+  push (@sublist2,$host);
+  }
+
   my $sleep=1;
-  while (1) {
+
+  foreach $host (@sublist2){
+   while (1) {
     my @list=($host);
     $options and push @list, @$options;
     $self->debug(1,"(Re)making connection to $service: @list");
@@ -444,6 +441,8 @@ sub checkService{
     $sleep=$sleep*2+int(rand(3));
     $sleep>3600 and $sleep=1;
   }
+  }
+
   $self->debug(1, "Connection is down");
   return;
 
