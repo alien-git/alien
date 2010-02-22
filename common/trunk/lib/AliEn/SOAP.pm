@@ -398,24 +398,24 @@ sub checkService{
  
   my $host=($self->{CONFIG}->{"${configName}_HOST"} or "");
 
+  $ENV{ALIEN_CM_AS_LDAP_PROXY} and ($service eq "ClusterMonitor") 
+      and $host=$ENV{ALIEN_CM_AS_LDAP_PROXY};
+  $host or $host=$self->{CONFIG}->{"\U${configName}_ADDRESS\E"};
+
   my @sublist =();
   $self->{CONFIG}->{"${configName}_HOST_LIST"} and 
    @sublist=@{$self->{CONFIG}->{"${configName}_HOST_LIST"}};
 
   ($service eq "ClusterMonitor") and $host=$self->{CONFIG}->{HOST};
 
-  my @sublist2=();
+  my @sublist2=($host);
   foreach $host (@sublist){
      $self->{CONFIG}->{"${configName}_PORT"} and
      $host.=":".$self->{CONFIG}->{"${configName}_PORT"};
 
-   $ENV{ALIEN_CM_AS_LDAP_PROXY} and ($service eq "ClusterMonitor") 
-    and $host=$ENV{ALIEN_CM_AS_LDAP_PROXY};
-   $host or $host=$self->{CONFIG}->{"\U${configName}_ADDRESS\E"};
- 
-  $host =~ /^http/ or $host="http://$host";
-  $host =~ /^https/ and $self->exportSecureEnvironment();
-  push (@sublist2,$host);
+     $host =~ /^http/ or $host="http://$host";
+     $host =~ /^https/ and $self->exportSecureEnvironment();
+     push (@sublist2,$host);
   }
 
   my $sleep=1;

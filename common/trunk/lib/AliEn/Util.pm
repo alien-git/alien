@@ -365,10 +365,10 @@ sub kill_really_all {
     print "kill_really_all: Cannot run PS!!!\n";
   }
   #First, let's give them a warning.
-  foreach my $p ($tokill){
+  foreach my $ptk (@tokill){
     next if($ptk == $$);
     next if(grep(/^$ptk$/, @killed));
-    kill (11, $p);
+    kill (11, $ptk);
   }
   sleep(3); 
   while(@tokill){
