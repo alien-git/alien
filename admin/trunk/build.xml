@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<project name="alien-admin" default="make">
+    <description>
+        Ant adaptor for the unzip Makefile.
+    </description>
+
+    <target name="make" description="build unzip">
+    	<exec executable="autoconf"/>
+    	<exec executable="./configure"/>
+        <exec executable="make">
+        </exec>
+    </target>
+
+    <target name="test" description="test unzip"
+        depends="make">
+        <exec executable="make">
+            <arg value="-f"/>
+            <arg value="unix/Makefile"/>
+            <arg value="test"/>
+        </exec>
+    </target>
+
+    <target name="install" description="install unzip"
+        depends="make">
+        <exec executable="make">
+            <arg value="install"/>
+        </exec>
+    </target>
+</project>
