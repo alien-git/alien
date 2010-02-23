@@ -59,7 +59,10 @@ export LD_LIBRARY_PATH=$ALIEN_ROOT/lib:$ALIEN_ROOT/lib64:$LD_LIBRARY_PATH
 
 CONFIG=$ALIEN_ROOT/etc/openldap/slapd.conf
 [ -f /etc/aliend/ldap/slapd.conf ] && CONFIG=/etc/aliend/ldap/slapd.conf
-LOCK=/var/lock/subsys/ldap
+
+LOGDIR=$HOME/.alien/var/log/
+mkdir -p $LOGDIR
+LOCK=$LOGDIR/ldap.lock
 
 LOGNAME=${LOGNAME:=root}
 if [ ! "$LOGNAME" = "root" ] 
@@ -72,7 +75,6 @@ if [ ! "$LOGNAME" = "root" ]
       echo "The file $CONFIG does not exist" 
       exit -2
     fi
-    LOCK=$HOME/.alien/etc/aliend/ldap/slapd.lock
 fi
 
 FIND_EXECUTABLE slapd || exit -2
@@ -87,7 +89,7 @@ case "$1" in
     start)
         # Start daemons.
         echo -n "Starting ldap: "
-	$DAEMON $SLAPD -d 0 -s 0 -h ldap://:8389/ -f $CONFIG &
+	$DAEMON $SLAPD -d 0 -s 0 -h ldap://:8389/ -f $CONFIG  > $LOGDIR/ldap.log 2>&1 &
 	RETVAL=$?
 	if [ $RETVAL -eq 0 ]; then
             if grep -q "^replogfile" $CONFIG; then

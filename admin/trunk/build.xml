@@ -20,6 +20,19 @@
         </exec>
     </target>
 
+	<target name="buildremote" description="build on the test machine">
+		<exec executable="rsync">
+			<arg value="-r"/>
+			<arg value="."/>
+			<arg value="alientests@aliendb1:alien-admin"/>
+		</exec>
+		<exec executable="ssh">
+			<arg value="alientests@aliendb1"/>
+			<arg value="cd alien-admin;cp Makefile.remote Makefile; make install"/>
+		</exec>
+    </target>
+
+	
     <target name="install" description="install unzip"
         depends="make">
         <exec executable="make">
