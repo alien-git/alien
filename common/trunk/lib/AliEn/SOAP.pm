@@ -381,10 +381,11 @@ sub checkService {
     and ( $service eq "ClusterMonitor" )
     and $host = $ENV{ALIEN_CM_AS_LDAP_PROXY};
   $host or $host = $self->{CONFIG}->{"\U${configName}_ADDRESS\E"};
+  ( $service eq "ClusterMonitor" ) and $host = $self->{CONFIG}->{HOST};
   my @sublist = ($host);
   $self->{CONFIG}->{"${configName}_HOST_LIST"}
     and @sublist = @{ $self->{CONFIG}->{"${configName}_HOST_LIST"} };
-  ( $service eq "ClusterMonitor" ) and $host = $self->{CONFIG}->{HOST};
+  
   my @sublist2 = ();
 
   foreach $host (@sublist) {
