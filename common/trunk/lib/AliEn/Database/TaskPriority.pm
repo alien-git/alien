@@ -105,7 +105,7 @@ sub checkPriorityValue() {
     $set->{'computedpriority'} = 1;
     #Job Quota
     $set->{'unfinishedJobsLast24h'} = 0;
-    $set->{'maxUnfinishedJobs'} = 10;
+    $set->{'maxUnfinishedJobs'} = 60;
     $set->{'totalRunningTimeLast24h'} = 0;
     $set->{'maxTotalRunningTime'} = 1000;
     $set->{'totalCpuCostLast24h'} = 0;
