@@ -13,7 +13,7 @@ use AliEn::JOBLOG;
 use AliEn::Util;
 use Classad;
 use AliEn::Database::Admin;
-use AliEn::Service::Optimizer::Job::Splitting;
+#use AliEn::Service::Optimizer::Job::Splitting;
 use AliEn::Database::TaskPriority;
 use Data::Dumper;
 
@@ -1626,7 +1626,7 @@ sub checkJobQuota {
   
   if ($nbJobsToSubmit + $unfinishedJobsLast24h > $maxUnfinishedJobs) {
     $self->info("In checkJobQuota $user: Not allowed for nbJobs overflow");
-    return (-1, "DENIED: You're trying to submit $nbJobsToSubmit jobs. That exceeds your limit.");
+    return (-1, "DENIED: You're trying to submit $nbJobsToSubmit jobs. That exceeds your limit (at the moment,  $unfinishedJobsLast24h/$maxUnfinishedJobs).");
   }
 
   if ($totalRunningTimeLast24h >= $maxTotalRunningTime) {
