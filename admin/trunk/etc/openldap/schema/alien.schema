@@ -490,11 +490,12 @@ attributetype ( AliEnPackMan:1 NAME 'installDir' SUP name )
 attributetype ( AliEnPackMan:2 NAME 'platform' SUP name )
 attributetype ( AliEnPackMan:3 NAME 'forbidWnInstall' SUP name )
 attributetype ( AliEnPackMan:4 NAME 'method' SUP name )
+attributetype ( AliEnPackMan:5 NAME 'soapType' SUP name )
 
 objectclass ( AliEnPackMan  NAME 'AliEnPackMan'
 	SUP ( AliEnSOAPServer )
   	MUST ( name  )
-        MAY ( platform $ installDir $ forbidWnInstall $ method )
+        MAY ( platform $ installDir $ forbidWnInstall $ method $ soapType )
 	)
 
 
