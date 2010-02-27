@@ -1689,6 +1689,7 @@ sub uploadFile {
   my $uploadResult;
   my @pfns = (); 
   my $silent="-silent";
+  my $jobtracelog="-jobtracelog";
 
   $self->info("Submitting the file $file");
   if (! -f "$self->{WORKDIR}/$file")  {
@@ -1698,10 +1699,14 @@ sub uploadFile {
   $self->putJobLog("trace","Will store $file ...");
 
 
-  ($uploadResult)=$ui->execute("upload", "$self->{WORKDIR}/$file", $storeTags, "-user=$self->{JOB_USER}", $silent);
-  ($uploadResult==-1) and
-    $self->putJobLog("error","Error in upload, could not store the file $self->{WORKDIR}/$file on any SE because of quota overflow.")
-      and return 0;
+  ($uploadResult)=$ui->execute("upload", "$self->{WORKDIR}/$file", $storeTags, $silent,$jobtracelog);
+
+  #(scalar(keys(%$uploadResult)) gt 0) or 
+  #  $self->putJobLog("error","Error in upload, could not store the file $self->{WORKDIR}/$file on any SE")
+  #    and return 0;
+  if( (defined $uploadResult->{jobtracelog}) and (scalar(@{$uploadResult->{jobtracelog}}) gt 0) ) {
+        foreach(@{$uploadResult->{jobtracelog}}) { $self->putJobLog($_->{flag}, $_->{text});}
+  }
 
 
   if ( $uploadResult && (scalar(keys(%$uploadResult)) gt 0) && (scalar(keys %{$uploadResult->{se}}) gt 0) ) {
@@ -1716,11 +1721,11 @@ sub uploadFile {
 
     
   if ($uploadResult->{totalCount} eq scalar(keys %{$uploadResult->{se}})) {
-    $self->putJobLog("trace","Successfully stored the file $self->{WORKDIR}/$file on $uploadResult->{totalCount} SEs.");
+    $self->putJobLog("trace","Successfully stored the file $self->{WORKDIR}/$file on $uploadResult->{totalCount} SEs");
     return (1);
   }
   $self->putJobLog("trace","Could store the file $self->{WORKDIR}/$file only on ".scalar(keys %{$uploadResult->{se}}).
-		     "  of the $uploadResult->{totalCount} wished SEs.");
+		     "  of the $uploadResult->{totalCount} wished SEs");
   return (-1);
 }
 
