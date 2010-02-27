@@ -629,6 +629,19 @@ sub resyncLDAP {
   return 1;
 }
 
+ sub refreshSERankCache{
+   my $self=shift;
+ 
+   $self->info("Let's force a refresh on the SE Rank Cache based on MonALISA info!");
+ 
+   use AliEn::Service::Optimizer::Catalogue::SERank;
+   return AliEn::Service::Optimizer::Catalogue::SERank->updateRanksForAllSites($self,$self->{DATABASE}->{LFN_DB}->{FIRST_DB},1);
+ 
+ 
+   return 1;
+ }
+
+
 sub getLDAP {
   my $self=shift;
   my $ldap;
