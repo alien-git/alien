@@ -72,8 +72,11 @@ BEGIN { plan tests => 1 }
   my $ui=AliEn::UI::Catalogue->new({role=>"admin"});
   if ($ui) {
     $ui->execute("resyncLDAP") and $done=1;
+    $ui->execute("refreshSERankCache") and $done=1;
     $ui->close();
   }
+
+  
   if (! $done) {
     print "Adding the SE didn't work!!!!\n";
 #    removeLdapEntry($configKey);
@@ -98,3 +101,7 @@ BEGIN { plan tests => 1 }
   print "ok!!\n";
 
 }
+
+
+
+

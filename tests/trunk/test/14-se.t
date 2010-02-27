@@ -49,6 +49,7 @@ BEGIN { plan tests => 1 }
   my $ui=AliEn::UI::Catalogue->new({role=>"admin"}) or exit(-2);
 
   $ui->execute("resyncLDAP") or exit(-2);
+  $ui->execute("refreshSERankCache") or exit(-2);
   $ui->close();
  
   print "ok\nSkipping starting up the service\n";

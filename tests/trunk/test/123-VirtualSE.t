@@ -37,6 +37,7 @@ use Net::Domain qw(hostname hostfqdn hostdomain);
   my $ui=AliEn::UI::Catalogue->new({role=>"admin"}) or $error=1;
 
   $error or $ui->execute("resyncLDAP") or $error=1;
+  $error or $ui->execute("refreshSERankCache") or $error=1;
   $error or $ui->close();
   
   if ($error){
@@ -114,3 +115,6 @@ sub getNewNames {
   $file2[3] =~ s{[^:]*$}{};
   $file1[3] eq $file2[3] and print "The methods to retrieve are identical  $file1[3]  $file2[3] (@file1) and (@file2)!!!\n" and exit(-2);
 }
+
+
+
