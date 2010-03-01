@@ -4,10 +4,13 @@ use strict;
 
 use AliEn::Database::Admin;
 use AliEn::Database::Transfer;
+require AliEn::Service::Optimizer::Catalogue::SERank;
+require AliEn::Database::SE;
 # This package contains the functions that can only be called by the 
 # administrator
 #
 #
+
 
 # ***************************************************************
 # Creates a new token randomly. Alway 32 caracters long.
@@ -481,7 +484,7 @@ sub checkSEVolumes {
 
   ($site and $se) or $self->info("Error: not enough arguments in checkSEVolumes. ". $self->checkSEVolumes_HELP()) and return;
   my $oldInfo=$self->{CONFIG}->{SE_LVMDATABASE};
-  require AliEn::Database::SE;
+  
   $self->{CONFIG}->{SE_LVMDATABASE}=$self->{CONFIG}->{CATALOGUE_DATABASE};
 
   $self->{CONFIG}->{SE_LVMDATABASE}=~ s{/[^/]*$}{/\Lse_$self->{CONFIG}->{ORG_NAME}_${site}_${se}\E};
@@ -634,7 +637,7 @@ sub resyncLDAP {
  
    $self->info("Let's force a refresh on the SE Rank Cache based on MonALISA info!");
  
-   use AliEn::Service::Optimizer::Catalogue::SERank;
+   
    return AliEn::Service::Optimizer::Catalogue::SERank->updateRanksForAllSites($self,$self->{DATABASE}->{LFN_DB}->{FIRST_DB},1);
  
  
