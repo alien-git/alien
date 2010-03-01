@@ -2039,9 +2039,12 @@ sub upload {
   
   foreach my $qos(keys %$qosTags){
     $self->debug(2,"Processing storage discovery qos: $qos with $qosTags->{$qos} requested elements.");
-    $options->{jobtracelog} and $jobLogEntry={} and $jobLogEntry->{flag}="trace" 
-       and $jobLogEntry->{text} = "Processing dynamic SE discovery based on qos $qos with count $qosTags->{$qos}. "
-	and push @{$result->{jobtracelog}}, $jobLogEntry;
+    if  ($options->{jobtracelog}){
+    	push @{$result->{jobtracelog}},{'flag'=>"trace",
+    		'text'=> "Processing dynamic SE discovery based on qos $qos with count $qosTags->{$qos}. "
+    	};
+		 
+    }
 
 
     $result = $self->putOnDynamicDiscoveredSEListByQoSV2($result,$pfn,$lfn,$size,$envReq,$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes,1,$options->{jobtracelog});
@@ -2051,22 +2054,23 @@ sub upload {
     
     push @ses, $self->{CONFIG}->{SE_FULLNAME};   # and there were not SEs specified in a static list, THEN push in at least the local static LDAP entry not to loose data
     $self->info("SE Discovery didn't work and no static SEs were specified, we gonna try the CONFIG->SE_FULLNAME as a fallback to safe the files.");
-    $options->{jobtracelog} and $jobLogEntry={} and $jobLogEntry->{flag}="error" 
-       and $jobLogEntry->{text} = 
-         "SE Discovery didn't work and no static SEs were specified, we gonna try the CONFIG->SE_FULLNAME as a fallback to safe the files."
-       and push @{$result->{jobtracelog}}, $jobLogEntry;
-
+	$options->{jobtracelog} and 
+      push @{$result->{jobtracelog}}, {flag=>"error", 
+       text=>"SE Discovery didn't work and no static SEs were specified, we gonna try the CONFIG->SE_FULLNAME as a fallback to safe the files."};
 
     $totalCount = 1;
     $self->debug(2,"There was neither a user specification for the SEs to use, nor is there a default setting defined in LDAP, we use CONFIG->SE_FULLNAME: $self->{CONFIG}->{SE_FULLNAME}");
   }
   
   $self->debug(2,"Processing static SE list: @ses");
-  (scalar(@ses) gt 0)  and $options->{jobtracelog} and $jobLogEntry={} and $jobLogEntry->{flag}="trace" 
-       and $jobLogEntry->{text} = "Processing static SE list: - @ses - ith select $selOutOf. "
-       and push @{$result->{jobtracelog}}, $jobLogEntry;
+  if (scalar(@ses) gt 0){
+   $options->{jobtracelog} and 
+     push @{$result->{jobtracelog}}, {flag=>"trace", 
+      text => "Processing static SE list: - @ses - ith select $selOutOf. "};
+       
 
-  (scalar(@ses) gt 0) and $result = $self->putOnStaticSESelectionListV2($result,$pfn,$lfn,$size,$envReq,$selOutOf,\@ses,1,$options->{jobtracelog});
+   $result = $self->putOnStaticSESelectionListV2($result,$pfn,$lfn,$size,$envReq,$selOutOf,\@ses,1,$options->{jobtracelog});
+  }
   
 	# -1 means a failure by quota overflow 
 	# JobAgent returns not defined value
