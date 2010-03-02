@@ -28,12 +28,12 @@
 		</exec>
 		<exec executable="ssh">
 		 	<arg value="alientests@aliendb1"/>
-			<arg value="kill -9 `ps -ef |grep alientest | awk '{print $2}'`"/>
+			<arg value="cd alien-tests; ./killAll.sh"/>
 		</exec>
 		<exec executable="ssh">
 		 	<arg value="alientests@aliendb1"/>
 			<arg value="cd alien-tests;rm -rf /home/alientests/.alien/var/log/ /tmp/aliendb1 /tmp/alien_tests;make test"/>
-		</exec>
+		</exec> 
     </target>
 
 	
