@@ -124,6 +124,7 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
     'checkOrphanGUID'   => ['$self->{CATALOG}->checkOrphanGUID',0],
     'optimizeGUIDtables'   => ['$self->{CATALOG}->optimizeGUIDtables',0],
 	     'setSElimit'=>['$self->{CATALOG}->setSElimit',0],
+	     'refreshSERankCache'=> ['$self->{CATALOG}->refreshSERankCache',0],
        
     
     
