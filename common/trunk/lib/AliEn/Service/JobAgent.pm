@@ -124,14 +124,9 @@ sub initialize {
   $self->{OUTPUTFILES} = "";
   $self->{TTL}=($self->{CONFIG}->{CE_TTL} || 12*3600);
   $self->{TTL} and $self->info("This jobagent is going to live for $self->{TTL} seconds");
+  ($self->{HOSTNAME},$self->{HOSTPORT}) =
+    split ":" , $ENV{ALIEN_CM_AS_LDAP_PROXY};
 
-  if ( $ENV{ALIEN_CM_AS_LDAP_PROXY}){
-    ($self->{HOSTNAME},$self->{HOSTPORT}) =
-      split ":" , $ENV{ALIEN_CM_AS_LDAP_PROXY};
-    $self->{SOAP}->{CLUSTERMONITOR}=SOAP::Lite
-      ->uri("AliEn/Service/ClusterMonitor")
-	->proxy("http://$self->{HOSTNAME}:$self->{HOSTPORT}");
-  }
   #$self->{HOST} = $ENV{'ALIEN_HOSTNAME'}.".".$ENV{'ALIEN_DOMAIN'};
   $self->{HOST} = $self->{CONFIG}->{HOST};
 
@@ -145,10 +140,13 @@ sub initialize {
   $options->{disablePack} and $packConfig=0;
   $self->{SOAP}=new AliEn::SOAP;
 
+  $self->{SOAP}->{CLUSTERMONITOR}=SOAP::Lite
+    ->uri("AliEn/Service/ClusterMonitor")
+      ->proxy("http://$self->{HOSTNAME}:$self->{HOSTPORT}");
 
   $self->{CONFIG} = new AliEn::Config() or return;
 
-  $self->{PORT} or $self->{PORT} = $self->getPort();
+  $self->{PORT} = $self->getPort();
   $self->{PORT} or return;
 
   $self->{SERVICE}="JobAgent";
@@ -489,7 +487,7 @@ sub checkJobJDL {
   ($ok, $self->{INTERACTIVE}) = $self->{CA}->evaluateAttributeString("Interactive");
   ($ok, $self->{COMMAND} ) = $self->{CA}->evaluateAttributeString("Executable");
   ($ok, $self->{VALIDATIONSCRIPT} ) = $self->{CA}->evaluateAttributeString("Validationcommand");
-  $self->info("AFTER CHECKING THE JDL, we have $self->{VALIDATIONSCRIPT}");
+  print "AFTER CHECKING THE JDL, we have $self->{VALIDATIONSCRIPT}\n";
   ($ok, $self->{OUTPUTDIR})=$self->{CA}->evaluateAttributeString("OutputDir");
   ($ok, my @args ) = $self->{CA}->evaluateAttributeVectorString("Arguments");
   $self->{ARG}="";
@@ -558,16 +556,10 @@ sub checkJobJDL {
 
 sub CreateDirs {
   my $self=shift;
-  my $options=shift || {};
   my $done=1;
 
   $self->{WORKDIR} =~ s{(/alien-job-\d+)?\/?$}{/alien-job-$ENV{ALIEN_PROC_ID}};
   $ENV{ALIEN_WORKDIR} = $self->{WORKDIR};
-
-  if ($options->{remove} and -d $self->{WORKDIR}){
-    $self->info("Removing the existing directory $self->{WORKDIR}");
-    system("rm", "-rf", "$self->{WORKDIR}");
-  }
 
   my @dirs=($self->{CONFIG}->{LOG_DIR},
 	    "$self->{CONFIG}->{TMP_DIR}/PORTS", $self->{WORKDIR},
@@ -868,7 +860,8 @@ sub getBatchId{
 
 
 sub executeCommand {
-  my $self=shift;
+  my $this = shift;
+  
   
   my $batchid=$self->getBatchId();
   $self->changeStatus("%",  "STARTED", $batchid,$self->{HOST}, $self->{PROCESSPORT} );
@@ -1689,7 +1682,6 @@ sub uploadFile {
   my $uploadResult;
   my @pfns = (); 
   my $silent="-silent";
-  my $jobtracelog="-jobtracelog";
 
   $self->info("Submitting the file $file");
   if (! -f "$self->{WORKDIR}/$file")  {
@@ -1699,14 +1691,10 @@ sub uploadFile {
   $self->putJobLog("trace","Will store $file ...");
 
 
-  ($uploadResult)=$ui->execute("upload", "$self->{WORKDIR}/$file", $storeTags, $silent,$jobtracelog);
-
-  #(scalar(keys(%$uploadResult)) gt 0) or 
-  #  $self->putJobLog("error","Error in upload, could not store the file $self->{WORKDIR}/$file on any SE")
-  #    and return 0;
-  if( (defined $uploadResult->{jobtracelog}) and (scalar(@{$uploadResult->{jobtracelog}}) gt 0) ) {
-        foreach(@{$uploadResult->{jobtracelog}}) { $self->putJobLog($_->{flag}, $_->{text});}
-  }
+  ($uploadResult)=$ui->execute("upload", "$self->{WORKDIR}/$file", $storeTags, "-user=$self->{JOB_USER}", $silent);
+  ($uploadResult==-1) and
+    $self->putJobLog("error","Error in upload, could not store the file $self->{WORKDIR}/$file on any SE because of quota overflow.")
+      and return 0;
 
 
   if ( $uploadResult && (scalar(keys(%$uploadResult)) gt 0) && (scalar(keys %{$uploadResult->{se}}) gt 0) ) {
@@ -1721,11 +1709,11 @@ sub uploadFile {
 
     
   if ($uploadResult->{totalCount} eq scalar(keys %{$uploadResult->{se}})) {
-    $self->putJobLog("trace","Successfully stored the file $self->{WORKDIR}/$file on $uploadResult->{totalCount} SEs");
+    $self->putJobLog("trace","Successfully stored the file $self->{WORKDIR}/$file on $uploadResult->{totalCount} SEs.");
     return (1);
   }
   $self->putJobLog("trace","Could store the file $self->{WORKDIR}/$file only on ".scalar(keys %{$uploadResult->{se}}).
-		     "  of the $uploadResult->{totalCount} wished SEs");
+		     "  of the $uploadResult->{totalCount} wished SEs.");
   return (-1);
 }
 
