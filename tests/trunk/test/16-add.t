@@ -63,6 +63,7 @@ sub addFile {
   my $file=shift;
   my $content=shift;
   my $options=(shift or "");
+  my $extra= (shift or {});
   print "Registering the file $file...";
   $options=~ /r/ and  $cat->execute("rm", "-silent", $file);
 
@@ -75,7 +76,18 @@ sub addFile {
   print FILE $content;
   close FILE;
 
-  my $done=$cat->execute("add", "$file", $name);
+  my $arguments=$extra->{options} || "";
+  my $done=$cat->execute("add", "$file", $name, $arguments);
+  
+  if ($extra->{check}){
+    my(@outputarch)=$cat->execute("whereis","$file") or return;
+    my @ses = grep (/::/, @outputarch);
+    print "file has ".scalar(@ses)." copies\n";
+    scalar(@ses)  eq $extra->{check} or 
+      print "Error, file $file has not as much copies as specified (".scalar(@ses)." instead of $extra->{check}).\n" 
+       and return;    
+  }
+  
   system("rm", "-f", "$name");
   $done or return;
   print "ok\n";
