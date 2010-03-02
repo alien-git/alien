@@ -113,12 +113,10 @@ sub checkPriorityValue() {
     #File Quota
     $set->{'nbFiles'} = 0;
     $set->{'totalSize'} = 0;
-    $set->{'maxNbFiles'} = 10;
-    $set->{'maxTotalSize'} = 1000;
     $set->{'tmpIncreasedNbFiles'} = 0;
     $set->{'tmpIncreasedTotalSize'} = 0;
-    $set->{'maxNbFiles'}=1000;
-    $set->{'maxTotalSize'}=1000000;
+    $set->{'maxNbFiles'}=10000;
+    $set->{'maxTotalSize'}=100000000;
     $self->insertPrioritySet($user,$set);
   }
 }

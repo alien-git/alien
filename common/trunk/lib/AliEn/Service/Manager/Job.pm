@@ -291,12 +291,12 @@ sub enterCommand {
     $self->{DATASET} or $self->{DATASET}=AliEn::Dataset->new();
     $self->{DATASET} or $self->info("Error creating the dataset parser") and return;
     push @ISA, "AliEn::Service::Optimizer::Job::Splitting";
-
+    require AliEn::Service::Optimizer::Job::Splitting;
     $nbJobsToSubmit = $self->_getNbSubJobs($job_ca);
     pop @ISA;
     $nbJobsToSubmit or 
       $self->info("Error getting the number of subjobs")
-	and return (-1, "Error getting the number of subjobs");
+	      and return (-1, "Error getting the number of subjobs");
   }
 
   $self->info("Checking your job quota...");
@@ -1690,52 +1690,6 @@ sub calculateJobQuota {
 	return 1;
 }
 
-sub getJobQuotaList {
-	my $this = shift;
-	my $user = shift
-    or $self->{LOGGER}->error("In getJobQuotaList user is missing\n")
-    and return (-1, "user is missing");
-
-  my $array = $self->{PRIORITY_DB}->getFieldsFromPriorityEx("user, unfinishedJobsLast24h, maxUnfinishedJobs, totalRunningTimeLast24h, maxTotalRunningTime, totalCpuCostLast24h, maxTotalCpuCost", "where user like '$user'")
-    or $self->{LOGGER}->error("Failed to getting data from PRIORITY table")
-    and return (-1, "Failed to getting data from PRIORITY table");
-  $array->[0] or $self->{LOGGER}->error("User $user not exist")
-    and return (-1, "User $user not exist in PRIORITY table");
-
-	return $array;
-}
-
-sub setJobQuotaInfo {
-	my $this = shift;
-  my $user = shift
-    or $self->{LOGGER}->error("In setJobQuotaInfo user is missing\n")
-    and return (-1, "user is missing");
-  my $field = shift
-    or $self->{LOGGER}->error("In setJobQuotaInfo field is missing\n")
-    and return (-1, "field is missing");
-  my $value = shift;
-  (defined $value) or $self->{LOGGER}->error("In setJobQuotaInfo value is missing\n")
-    and return (-1, "value is missing");
-
-  my $set = {};
-  $set->{$field} = $value;
-  my $done = $self->{PRIORITY_DB}->updatePrioritySet($user, $set);
-  $done or return (-1, "Failed to set the value in PRIORITY table");
-
-  if ($done eq '0E0') {
-    ($user ne "%") and return (-1, "User '$user' not exist.");
-  }
-
-	return 1;
-}
-
-sub calculateJobQuota {
-	my $this = shift;
-	my $silent = shift;
-	$self->{CATALOGUE}->execute("calculateJobQuota", $silent);
-
-	return 1;
-}
 
 sub getFileQuotaList {
   my $this = shift;
