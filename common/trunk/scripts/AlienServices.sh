@@ -111,6 +111,123 @@ ALIEN_StopApiService()
 
 
 ###########################################################################
+ALIEN_CheckHttpd()
+###########################################################################
+{
+DIR=$1
+
+getLogDir $DIR
+
+declare -a ServicesSoapType
+export ALIEN_HOME=/home/alienmaster/.alien
+
+ServiceNames=("PackMan" "ClusterMonitor" "SE" "FTD" "IS")
+lenNames=${#ServiceNames[*]}
+
+i=0
+j=0
+
+HttpdType="httpd"
+while [ $i -lt $lenNames ]
+do
+  tmp_name=$(echo ${ServiceNames[i]} | tr [a-z] [A-Z])
+  HttpdType=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl ${tmp_name}_SOAPTYPE 2> /dev/null `
+   if [ "$HttpdType" = "httpd" ]
+        then
+       ServicesSoapType[j]=${ServiceNames[i]}
+       let j++
+   fi
+  let i++
+done
+
+#if more than one service want to start in httpd
+if [ ${#ServicesSoapType[@]} -gt 0 ]
+then
+        if [ ! -f $ALIEN_HOME/httpd/conf/httpd.conf ] || [ ! -f $ALIEN_HOME/httpd/conf/startup.pl ]
+        then
+               if [ -d $ALIEN_HOME/httpd/conf ]
+               then
+                        rm -rf $ALIEN_RHOME/httpd/conf
+               fi
+               mkdir -p $ALIEN_HOME/httpd/conf
+               cp $ALIEN_ROOT/httpd/conf/httpd.conf $ALIEN_HOME/httpd/conf/httpd.conf
+               cp $ALIEN_ROOT/httpd/conf/startup.pl $ALIEN_HOME/httpd/conf/startup.pl
+               sed "s#PerlConfigRequire .*#PerlConfigRequire $ALIEN_HOME/httpd/conf/startup.pl#" $ALIEN_HOME/httpd/conf/httpd.conf > /tmp/httpd.$$
+               cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf/httpd.conf
+               rm /tmp/httpd.$$
+        fi
+        if [ -f $ALIEN_ROOT/httpd/conf/httpd.conf ] && [ -f $ALIEN_ROOT/httpd/conf/startup.pl ]
+        then
+                 lenSoapType=${#ServicesSoapType[*]}
+                 ServicesFinalList=(${ServicesSoapType[@]})
+                 startupFormat=${ServicesSoapType[@]}
+                 echo $startupFormat
+                echo $lenSoapType
+                j=0
+                while [ $j -lt $lenSoapType ]
+                do
+                        ServicesSoapType[j]="Alien::Service::"${ServicesSoapType[j]}
+                         let j++
+
+                done
+                 httpdFormat=${ServicesSoapType[@]}
+        sed -e "s#PerlSetVar dispatch_to.*#PerlSetVar dispatch_to \"$ALIEN_ROOT/lib/perl5/site_perl/5.8.8 $httpdFormat \"#" $ALIEN_HOME/httpd/conf/httpd.conf> /tmp/httpd.conf.new
+
+        sed -e "s#my @services=.*#my @services=qw( $startupFormat ) ;#" $ALIEN_HOME/httpd/conf/startup.pl > /tmp/startup.pl.new
+
+        stringNew=`cat /tmp/startup.pl.new | grep "my @services" | grep -v "#" `
+        
+        stringOld=`cat $ALIEN_HOME/httpd/conf/startup.pl | grep "my @services" | grep -v "#" `
+
+
+        if [ -f $ALIEN_ROOT/httpd/logs/httpd.pid ] && [ "$stringNew" = "$stringOld" ]
+        then                
+              
+                rm /tmp/httpd.conf.new
+                rm /tmp/startup.pl.new
+        
+                 exit 0 
+
+        elif [ -f $ALIEN_ROOT/httpd/logs/httpd.pid ] && [ "$stringNew" != "$stringOld" ]
+	then
+                	         
+               ALIEN_Stophttpd
+               
+        fi
+             
+           
+             cp /tmp/httpd.conf.new $ALIEN_HOME/httpd/conf/httpd.conf
+             cp /tmp/startup.pl.new $ALIEN_HOME/httpd/conf/startup.pl
+          
+  
+             rm /tmp/httpd.conf.new
+             rm /tmp/startup.pl.new
+      
+             ALIEN_Starthttpd
+             sleep 15
+             
+             if [ -f $ALIEN_ROOT/httpd/logs/httpd.pid ]
+             then
+
+                 for FILE in ${ServicesFinalList[@]}      
+                 do
+                      cp  $ALIEN_ROOT/httpd/logs/httpd.pid $LOGDIR/$FILE.pid
+                      let k++
+                 done
+              fi
+              exit 0
+        
+      else
+         echo "$ALIEN_ROOT and $ALIEN_HOME don't have httpd.conf and startup.pl"
+                  exit 1
+     fi
+ else 
+ echo "No Services want to use httpd!"
+ return 0
+fi
+
+}
+###########################################################################
 ALIEN_StartMonitor()
 ###########################################################################
 {
@@ -132,6 +249,7 @@ ALIEN_StartMonitor()
   done
 
   export ALIEN_PROCESSNAME=Monitor
+  ALIEN_CheckSoapType ClusterMonitor
 
   startService LOGDIR ClusterMonitor  "cluster monitor" NO_PASSWORD $arg
 
@@ -166,12 +284,14 @@ ALIEN_Starthttpd()
   
   export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$ALIEN_ROOT/api/lib:$ALIEN_ROOT/httpd/lib
   export PERL5LIB=$PERL5LIB:$ALIEN_ROOT/lib/perl5/site_perl/5.8.8:$ALIEN_ROOT/lib/perl5/5.8.8
-  for file in `find  $HOME/.alien/httpd -name httpd.conf` ; 
-  do 
-     echo "CHECKING $file"
-    $ALIEN_ROOT/httpd/bin/httpd -k start -f $file  # >/dev/null 2>&1
-  done
-  exit $?
+ if [ -f $ALIEN_HOME/httpd/conf/httpd.conf ]   
+ then
+      file="$ALIEN_HOME/httpd/conf/httpd.conf"
+      SETSID=`which setsid 2> /dev/null`
+      $SETSID   $ALIEN_ROOT/httpd/bin/httpd -k start -f $file  # >/dev/null 2>&1
+  fi
+ # exit $?
+  return 0
 }
 
 ###########################################################################
@@ -186,8 +306,15 @@ ALIEN_Statushttpd()
 ALIEN_Stophttpd()
 ###########################################################################
 {
-  $ALIEN_ROOT/httpd/bin/httpd -k stop >/dev/null 2>&1
-  exit $?
+  
+  export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$ALIEN_ROOT/api/lib:$ALIEN_ROOT/httpd/lib
+  export PERL5LIB=$PERL5LIB:$ALIEN_ROOT/lib/perl5/site_perl/5.8.8:$ALIEN_ROOT/lib/perl5/5.8.8
+  for file in `find  $HOME/.alien/httpd -name httpd.conf` ;
+  do
+     $ALIEN_ROOT/httpd/bin/httpd -k stop -f $file  # >/dev/null 2>&1
+  done
+ # exit $?
+  return 0
 }
 
 ###########################################################################
@@ -380,8 +507,45 @@ stopService()
    then
     [ "$QUIET" = 1 ] || echo "Service was dead!!"
   fi
+
+  tmpName=$(echo $NAME | tr [a-z] [A-Z])
+  HttpdType=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl ${tmpName}_SOAPTYPE 2> /dev/null  `
+  if [ "$HttpdType" = "httpd" ]
+  then
+ 	if [ -f $ALIEN_ROOT/httpd/logs/httpd.pid ]
+        then
+           rm -f $ALIEN_ROOT/httpd/logs/httpd.pid      
+       fi    
+  fi
+
+
   return $ERROR
 }
+
+
+
+###########################################################################
+ALIEN_CheckSoapType ( )
+###########################################################################
+{
+   ServiceName=$1
+   tmpName=$(echo $ServiceName | tr [a-z] [A-Z])
+   HttpdType=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl ${tmpName}_SOAPTYPE 2> /dev/null `
+  
+     if [ "$HttpdType" != "httpd" ]
+     then
+ #         echo "the soapType of the $ServiceName is not httpd "
+           return 0
+     else
+  #      echo "the soapType of the $ServiceName is httpd "
+         ALIEN_CheckHttpd LOGDIR 
+         exit 0
+    fi
+ 
+ }
+
+
+
 
 ###########################################################################
 ALIEN_DoService ()
@@ -406,7 +570,14 @@ ALIEN_DoService ()
     arguments=${service#?*_}
     arguments=${arguments//_/ }
     service=${service%%_?*}
+    
 
+    if [ $pattern = "Start" ]
+    then
+    ALIEN_CheckSoapType $service
+    fi
+
+ 
     case $service in 
 	CE)
 	    file="CE"
