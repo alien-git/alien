@@ -292,6 +292,8 @@ sub getFile {
   my $guid      = ( shift or "" );
   my $md5       = (shift or "");
 
+  $self->info( "In getfile, with $SE ");
+
   ($pfn)
     or $self->{LOGGER}->warning( "LCM", "Error no file specified" )
       and return;
