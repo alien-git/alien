@@ -2,11 +2,11 @@
 
 use strict;
 use Test;
-use AliEn::EGEE::WSRF;
+#use AliEn::EGEE::WSRF;
 use AliEn::SOAP::WSRF;
 use AliEn::X509;
 use AliEn::Config;
-use AliEn::EGEE::MCAttributes;
+#use AliEn::EGEE::MCAttributes;
 use XML::Simple;
 
 BEGIN { plan tests => 1 }
