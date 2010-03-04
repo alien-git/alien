@@ -82,7 +82,7 @@ sub updateRanksForSite{
     }
     return $stat;
   }
-  $self->$method(@info, "ERROR in SE Rank Optimizer, we didn't get any SEs (neither MonALISA nor SE table) while updating site $site.");
+  $self->info( "ERROR in SE Rank Optimizer, we didn't get any SEs (neither MonALISA nor SE table) while updating site $site.");
   return 0;
 }
 

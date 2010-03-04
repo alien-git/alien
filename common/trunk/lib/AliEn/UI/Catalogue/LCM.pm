@@ -2135,7 +2135,7 @@ sub putOnDynamicDiscoveredSEListByQoS{
      $countOutSOAP++;
      $self->{SOAP}->checkSOAPreturn($res) or ($countOutSOAP < 4 and next or last);
      my @discoveredSes=@{$res->result};
-     scalar(@discoveredSes) gt 0 or $self->info("We could'nt find any of the '$count' requested SEs with qos flag '$qos' in the cache.") and last;;
+     scalar(@discoveredSes) gt 0 or $self->info("We couldn't find any of the '$count' requested SEs with qos flag '$qos' in the cache.") and last;;
      $self->debug(2,"We discovered the following SEs to save on: @discoveredSes, count:".scalar(@discoveredSes).", type flag was: $qos.");
      ($result, my $success, my $JustConsideredSes) = $self->registerInMultipleSEs($user, $result, $pfn, $lfn, $size, \@discoveredSes, $envreq, $pfnRewrite);
 		 if (defined $result) {

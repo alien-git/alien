@@ -784,34 +784,35 @@ sub sortSEListBasedOnSiteSECache{
 
 
 sub getSEListFromSiteSECache{
-   my $this=shift;
-   my $count=(shift || 0);
-   my $type=(shift || "none");
-   my $sitename=(shift || "none");
-   my $excludeList=(shift || "");
-   my $role=(shift || "");
+  my $this=shift;
+  $self->info("Getting the list of SE for @_");
+  my $count=(shift || 0);
+  my $type=(shift || "none");
+  my $sitename=(shift || "none");
+  my $excludeList=(shift || "");
+  my $role=(shift || "");
 
 
-   my $catalogue=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
+  my $catalogue=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
 
-   $self->checkSiteSECache($sitename) or return 0;
+  $self->checkSiteSECache($sitename);# or return 0;
 
-   my $query="SELECT SE.seName FROM SERanks,SE WHERE "
+  my $query="SELECT SE.seName FROM SERanks,SE WHERE "
        ." sitename = ? and SERanks.seNumber = SE.seNumber ";
 
-   my @queryValues = ();
-   push @queryValues, $sitename;
+  my @queryValues = ();
+  push @queryValues, $sitename;
 
-   foreach(@$excludeList){   $query .= "and SE.seName <> ? "; push @queryValues, $_;  }
-   $query .=" and SE.seQoS  LIKE concat('%,' , ? , ',%' ) "
+  foreach(@$excludeList){   $query .= "and SE.seName <> ? "; push @queryValues, $_;  }
+  $query .=" and SE.seQoS  LIKE concat('%,' , ? , ',%' ) "
     ." and (SE.exclusiveUsers is NULL or SE.exclusiveUsers = '' or SE.exclusiveUsers  LIKE concat ('%,' , ? , ',%') )"
     ." ORDER BY rank ASC limit ? ;";
 
-   push @queryValues, $type;
-   push @queryValues, $role;
-   push @queryValues, $count;
+  push @queryValues, $type;
+  push @queryValues, $role;
+  push @queryValues, $count;
 
-   return $catalogue->queryColumn($query, undef, {bind_values=>\@queryValues});
+  return $catalogue->queryColumn($query, undef, {bind_values=>\@queryValues});
 
 }
 
@@ -824,7 +825,8 @@ sub checkSiteSECache{
 
    my $reply = $catalogue->query("SELECT sitename FROM SERanks WHERE sitename = ?;", undef, {bind_values=>[$site]});
 
-   (scalar(@$reply) < 1) and $self->info("We need to update the SERank Cache for the not listed site: $site")
+   (scalar(@$reply) < 1) 
+      and $self->info("We need to update the SERank Cache for the not listed site: $site")
             and return $self->updateSiteSECacheForSite($site);
    return 1;
 }
@@ -853,7 +855,7 @@ sub updateSiteSECacheForSite{
    push @ISA, "AliEn::Service::Optimizer::Catalogue::SERank";
    my $stat = $self->updateRanksForOneSite($site);
    pop @ISA;
-
+   $self->info("Site updated with $stat");
    return $stat;
 }
 
