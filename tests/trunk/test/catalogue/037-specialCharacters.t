@@ -10,7 +10,9 @@ my $ui=AliEn::UI::Catalogue::LCM->new(
 ) or exit(-2);
 
 
-my @dirs=('0','1+1', '1%2',  '1@5', '1$6');
+my @dirs=('0','1+1', '1%2',  '1@5', 
+#'1$6'
+);
 
 $ui->execute("rmdir","-rf", 'special');
 $ui->execute("mkdir", 'special') or exit(-2);

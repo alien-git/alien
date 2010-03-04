@@ -482,30 +482,20 @@ EXECUTE_SHELL()
     endTime=`date +"%s"`
     SEND_TO_ML "${group}_nTests" $nCmds "${group}_nSuccess" $nCmds "${group}_pSuccess" 100 "${group}_time" `expr $endTime - $startTime`
 }
-BANK_TESTS_LIST=`find bank -type f|sort`
 
-JOB_AUTOMATIC_TESTS_LIST=`find job_automatic -type f -not -name "*.b.t" |sort `
-#JOB_QUOTA_LIST=`find job_quota -type f |sort`
-FILE_QUOTA_LIST=`find file_quota -type f|sort`
-JOB_MANUAL_TESTS_LIST=`find job_manual -type f -not -name "*.b.t" |sort`
-JOB_TESTS_LIST="$JOB_MANUAL_TESTS_LIST $JOB_AUTOMATIC_TESTS_LIST $JOB_QUOTA_LIST"
+DIRS=`find .  -maxdepth 1 -type d | grep -v CVS |grep ./ | awk -F / '{print $2}'`
+for DIR in $DIRS; do
+  var=`echo $DIR | tr '[:lower:]' '[:upper:]'`_TESTS_LIST 
+  value=`find $DIR -type f -not -name "*.b.t" |grep -v CVS | sort `
+  export $var="$value"
+done;
 
-PACKAGE_TESTS_LIST=`find packages -type f -not -name "*.b.t" |sort`" job_automatic/025-executeAllJobs"
-GAS_TESTS_LIST=`find gas -type f |sort`
-CATALOGUE_TESTS_LIST=`find catalogue -type f -not -name "*.b.t" |sort`
-TRANSFER_TESTS_LIST=`find  transfers/ -type f |sort`
-USER_BASIC_TESTS_LIST=`find user_basic -type f |sort`
-USER_TESTS_LIST="$USER_BASIC_TESTS_LIST $CATALOGUE_TESTS_LIST $TRANSFER_TESTS_LIST $JOB_TESTS_LIST 20-xfiles $PACKAGE_TESTS_LIST $BANK_TESTS_LIST 68-dbthreads 142-mysqlOpenssl"
-
-GAPI_TESTS_LIST=`find gapi -type f |sort `
-
-
+JOB_TESTS_LIST="$JOB_MANUAL_TESTS_LIST $JOB_AUTOMATIC_TESTS_LIST"
+PACKAGE_TESTS_LIST="$PACKAGES_TESTS_LIST job_automatic/025-executeAllJobs"
+USER_TESTS_LIST="$USER_BASIC_TESTS_LIST $CATALOGUE_TESTS_LIST $TRANSFER_TESTS_LIST $JOB_TESTS_LIST 20-xfiles $PACKAGE_TESTS_LIST 68-dbthreads 142-mysqlOpenssl"
 CVS_INSTALL_LIST="10-cvs-co "
 
-
-NEW_VO_LIST="user_basic/001-use "`find new_vo -type f |sort`
-PERFORMANCE_TESTS_LIST=`find performance -type f |sort`
-
+NEW_VO_LIST="user_basic/001-use $NEW_VO_TESTS_LIST"
 
 GET_ARGUMENTS()
 {
