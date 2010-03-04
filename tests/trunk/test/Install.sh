@@ -196,15 +196,13 @@ ALIEN_SLAVE_INSTALL()
 RUN_TEST()
 {
     i=$1
-    TEST=$2
+    TEST=${2%%.t}
 
-    OUTPUT="$DIR/$i.test.$TEST"
-
+	OUTPUT="$DIR/$i.test.${TEST/\//.}"
     shift 3
-    let C=`echo $TEST |wc -c |awk '{print $1}'`-30
-    EXTRA=""
-    [[ "$C" < "0" ]]  &&  EXTRA="........"
-    printf "Test %2i %-27s\t$EXTRA..............  " $i "$TEST..."
+
+    LINE2="$TEST........................................................................"
+    printf "Test %2i ${LINE2:0:60}" $i
     number=${TEST%%-*}
 
     if [ "$number" == "$BEGIN" ]
@@ -222,13 +220,13 @@ RUN_TEST()
     ln -s $OUTPUT $DIR/current
 
     START=`date +"%s"`
-    INPUTFILE="$DIR/$TEST.input"
+    INPUTFILE="$DIR/${TEST/\//.}.input"
     INPUT=""
     [ -f $INPUTFILE ] && INPUT=`grep '^#ALIEN_OUTPUT' $INPUTFILE |sed -e 's/#ALIEN_OUTPUT //'`
     $ALIEN -x $ALIEN_TESTDIR/${TEST}.t $INPUT >$OUTPUT 2>&1
     #cat $OUTPUT
     DONE=$?
-    grep '^#ALIEN_OUTPUT' $OUTPUT >$DIR/$TEST.b.input
+    grep '^#ALIEN_OUTPUT' $OUTPUT >$DIR/${TEST/\//.}.b.input
     END=`date +"%s"`
     let TIME=$END-$START
 
@@ -311,16 +309,16 @@ ALIEN_TESTS()
     CAFILE=$ALIEN_ROOT/globus/share/certificates/`openssl x509 -hash -noout < $HOME/.alien/globus/cacert.pem`.0
     for TEST in $TESTS
     do
-	RUN_TEST $i $TEST
-	let i++
+	  RUN_TEST $i $TEST
+	  let i++
     done
 
 
     for TEST in $TESTS
     do
-	if [ -f "$ALIEN_TESTDIR/${TEST}.b.t" ];
+	if [ -f "$ALIEN_TESTDIR/${TEST%%.t}.b.t" ];
 	then
-	    RUN_TEST $i $TEST.b 
+	    RUN_TEST $i ${TEST%%.t}.b 
 	    let i++
 	fi
     done
@@ -484,26 +482,29 @@ EXECUTE_SHELL()
     endTime=`date +"%s"`
     SEND_TO_ML "${group}_nTests" $nCmds "${group}_nSuccess" $nCmds "${group}_pSuccess" 100 "${group}_time" `expr $endTime - $startTime`
 }
-BANK_TESTS_LIST="301-putBankDataLDAP 302-bankUserCommand 303-bankAdminCommand 304-execOrder "
+BANK_TESTS_LIST=`find bank -type f|sort`
 
-JOB_TEST2_LIST="177-startCE 134-dumplist 98-jobexit 118-validateJob 119-outputDir 124-OutputArchive 64-jobemail 86-split 87-splitFile 88-splitArguments 120-production 135-inputdata2 137-userArchive 153-splitInputDataCollection 157-zip 159-bigoutput 160-JDLenvironment 161-userGUID 85-inputdata 163-specificOutput 170-splitDataset 173-collectionJobs 174-collectionFromXML 178-stageData 176-executeAllJobs 181-mergeCollection 183-outputArchive 126-OutputInSeveralSE 182-maxfailed 186-addSeveralSE 188-verifyFinalJobStates 189-addVersioning"
-#JOB_QUOTA_LIST="400-jobquota-submit 401-jobquota-resubmit-normaljob 402-jobquota-resubmit-multiple_normaljobs 403-jobquota-resubmit-masterjob 404-jobquota-quotaOptimizer"
-JOB_TESTS_LIST="70-x509 89-jdl 19-ClusterMonitor 168-no_shared_cipher 21-submit 73-updateCE 22-execute 62-inputfile 23-resubmit 186-killrequirements 26-ProcessMonitorOutput 105-killRunningJob 94-inputpfn 77-rekill 115-queueList 133-queueInfo 140-jobWithMemory 141-executingTwoJobs 152-inputdatacollection 164-jdlMatch $JOB_TEST2_LIST $JOB_QUOTA_LIST"
+JOB_AUTOMATIC_TESTS_LIST=`find job_automatic -type f -not -name "*.b.t" |sort `
+#JOB_QUOTA_LIST=`find job_quota -type f |sort`
+FILE_QUOTA_LIST=`find file_quota -type f|sort`
+JOB_MANUAL_TESTS_LIST=`find job_manual -type f -not -name "*.b.t" |sort`
+JOB_TESTS_LIST="$JOB_MANUAL_TESTS_LIST $JOB_AUTOMATIC_TESTS_LIST $JOB_QUOTA_LIST"
 
-PACKAGE_TESTS_LIST="75-PackMan 76-jobWithPackage 82-packageDependencies 84-sharedPackage 100-tcshPackage 83-gccPackage 130-localConfig 131-definedPackage 176-executeAllJobs"
-GAS_TESTS_LIST="69-gContainer 71-GAS 72-UI "
-CATALOGUE_TESTS_LIST="63-addEmptyFile 91-expandWildcards 16-add 17-retrieve 74-http 18-metadata 18-metadata 37-find 65-metadata2 15-tree 78-symlink 79-specialChar 95-listDir 93-cpdir 121-cp 101-registerFile 102-secondAndThirdSE 117-findCaseSensitive 123-VirtualSE 125-mirror 128-modifyMd5 132-listDirectory 136-deleteFile 138-copyFile 139-vi 144-upperCase 146-mv 148-findXML 149-guid2lfn 162-expiration 169-changeUser 171-copyingMetadata 153-su 172-collections 175-sizeOfBigFile 179-copyCollection" 
-TRANSFER_TESTS_LIST="150-ftd 151-submitTransfer 103-mirror" 
-USER_TESTS_LIST="01-use 116-uninitialized 06-connecting 34-mkdir 07-creating 45-checkOnePerm 52-wrongQuery 51-soapretry 09-ldap 97-pam 08-createKeys 40-forkDatabase 12-certificates  168-no_shared_cipher 55-httpsConnect 32-rmdir 13-addhost 13-addhost 31-checkdir 46-mysqlConnect  168-no_shared_cipher 14-se 109-loggerRedirect $CATALOGUE_TESTS_LIST $TRANSFER_TESTS_LIST $JOB_TESTS_LIST 20-xfiles 30-logger 114-silentMode $PACKAGE_TESTS_LIST  $BANK_TESTS_LIST 68-dbthreads 81-guid 142-mysqlOpenssl 168-no_shared_cipher"
+PACKAGE_TESTS_LIST=`find packages -type f -not -name "*.b.t" |sort`" job_automatic/025-executeAllJobs"
+GAS_TESTS_LIST=`find gas -type f |sort`
+CATALOGUE_TESTS_LIST=`find catalogue -type f -not -name "*.b.t" |sort`
+TRANSFER_TESTS_LIST=`find  transfers/ -type f |sort`
+USER_BASIC_TESTS_LIST=`find user_basic -type f |sort`
+USER_TESTS_LIST="$USER_BASIC_TESTS_LIST $CATALOGUE_TESTS_LIST $TRANSFER_TESTS_LIST $JOB_TESTS_LIST 20-xfiles $PACKAGE_TESTS_LIST $BANK_TESTS_LIST 68-dbthreads 142-mysqlOpenssl"
 
-GAPI_TESTS_LIST="168-no_shared_cipher 165-gssconnect 500-apiservice 501-apiservice-connect 502-apiservice-motd 600-aliensh-tokeninit 601-aliensh-tokeninfo 602-aliensh-tokendestroy 600-aliensh-tokeninit 603-aliensh-basics 610-xrootd-se 500-apiservice 610-xrootd-se 620-aliensh-cp-l2se 621-aliensh-cp-se2l 622-aliensh-cp-se2se 623-aliensh-cp-l2l 624-aliensh-rm 630-aliensh-submit 631-aliensh-getzipoutput 632-aliensh-jdl 633-aliensh-trace"
+GAPI_TESTS_LIST=`find gapi -type f |sort `
 
 
 CVS_INSTALL_LIST="10-cvs-co "
 
 
-NEW_VO_LIST="01-use 02-classads 04-createorgldap 03-createorgdb 61-rotate 05-createorgservices 300-prepareBankService 49-uninitialized"
-PERFORMANCE_TESTS_LIST="106-performanceInsert 108-performanceQuery 107-performanceDelete"
+NEW_VO_LIST="user_basic/001-use "`find new_vo -type f |sort`
+PERFORMANCE_TESTS_LIST=`find performance -type f |sort`
 
 
 GET_ARGUMENTS()

@@ -23,12 +23,15 @@
 	<target name="buildremote" description="build on the test machine">
 		<exec executable="rsync">
 			<arg value="-r"/>
+			<arg value="--stats"/>
+			<arg value="--del"/>
 			<arg value="."/>
 			<arg value="alientests@aliendb1:alien-tests"/>
 		</exec>
+		
 		<exec executable="ssh">
 		 	<arg value="alientests@aliendb1"/>
-			<arg value="cd alien-tests; ./killAll.sh"/>
+			<arg value="cp alien-tests.backup/* alien-tests; cd alien-tests; ./killAll.sh"/>
 		</exec>
 		<exec executable="ssh">
 		 	<arg value="alientests@aliendb1"/>

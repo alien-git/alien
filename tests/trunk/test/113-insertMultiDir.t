@@ -2,7 +2,7 @@ use strict;
 use Time::HiRes qw (time);
 use AliEn::UI::Catalogue;
 do "$ENV{ALIEN_TESTDIR}/functions.pl";
-includeTest("106-performanceInsert") or exit(-2);
+includeTest("performance/106-performanceInsert") or exit(-2);
   
 my $c=AliEn::UI::Catalogue->new({USER=>"admin", role=>"admin", 
 				 USE_PROXY=>0, passwd=>"pass",

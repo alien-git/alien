@@ -15,7 +15,7 @@ BEGIN { plan tests => 1 }
   $ENV{ALIEN_TESTDIR} or $ENV{ALIEN_TESTDIR}="/home/alienmaster/AliEn/t";
   eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
   
-  includeTest("14-se") or exit(-2);
+  includeTest("user_basic/021-se") or exit(-2);
 
   my $host=`hostname -s`;
   chomp $host;

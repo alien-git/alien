@@ -15,7 +15,7 @@ BEGIN { plan tests => 1 }
   $ENV{ALIEN_TESTDIR} or $ENV{ALIEN_TESTDIR}="/home/alienmaster/AliEn/t";
   eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
   
-  includeTest("14-se") or exit(-2);
+  includeTest("user_basic/021-se") or exit(-2);
 
   my $host=`hostname -s`;
   chomp $host;
@@ -23,7 +23,7 @@ BEGIN { plan tests => 1 }
   $config or print "Error getting the configuration!!\n" and exit(-2);
 
   my $key="ou=MonaLisa,ou=Services,$config->{FULLLDAPDN}";
-
+  my $subject="";
   print "ok\n";
   addLdapEntry($key, ["objectClass", ["AliEnSE"],
 		      "name", "testSE",

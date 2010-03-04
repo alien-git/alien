@@ -12,7 +12,7 @@ BEGIN { plan tests => 1 }
 {
   $ENV{ALIEN_TESTDIR} or $ENV{ALIEN_TESTDIR}="/home/alienmaster/AliEn/t";
   eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
-  includeTest("16-add") or exit(-2);
+  includeTest("catalogue/003-add") or exit(-2);
 
   my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"role", "admin",});
   $cat or exit (-1);

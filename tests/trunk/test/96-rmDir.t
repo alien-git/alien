@@ -7,7 +7,7 @@ eval "require AliEn::Service::ClusterMonitor"
 $ENV{ALIEN_TESTDIR} or $ENV{ALIEN_TESTDIR}="/home/alienmaster/AliEn/t";
 eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
 
-includeTest("93-cpdir") or exit(-2);
+includeTest("catalogue/13-cpdir") or exit(-2);
 
 my $c=AliEn::UI::Catalogue->new ({user=>'newuser'}) or exit(-2);
 my $c2=AliEn::UI::Catalogue->new ({user=>'alienmaster'}) or exit(-2);
