@@ -545,12 +545,13 @@ sub startPrompt {
   while ($continue) {
     eval {
       while ( defined( $line = $term->readline( $prompt, "" ) ) ) {
-	$line =~ s/^\s+//;
-	my ( $command, @arg ) = split ( /\s+/, $line );
+	     $line =~ s/^\s+//;
 	
-	($command) and
-	  $self->execute( $command, @arg );
-	$prompt = "[$host] " . $self->{CATALOG}->getDispPath() . " > ";
+    	 my ( $command, @arg ) = split ( /\s+/, $line );
+	
+	     ($command) and
+	       $self->execute( $command, @arg );
+	     $prompt = "[$host] " . $self->{CATALOG}->getDispPath() . " > ";
       }
       $continue=0;
       $term->write_history($historyFile);

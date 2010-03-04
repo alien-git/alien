@@ -811,8 +811,10 @@ sub existsEntry {
   $lfn =~ s/\*/\\\*/g;
   $lfn =~ s/\?/\\\?/g;
   $lfn =~ s{\+}{\\+}g;
+  $lfn =~ s{\$}{\\\$}g;
   $DEBUG and $self->debug( 1, "Comparing '$lfn' and '$permFile'" );
-  $lfn =~ s{(.)/$}{$1};
+  
+  $lfn =~ s{/$}{};
   ( $permFile =~ /^$lfn\/?$/ ) or return;
   $DEBUG and $self->debug( 1, "The entry exists ($permFile)" );
   return $permFile;
