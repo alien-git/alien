@@ -11,6 +11,7 @@ WriteMakefile(
 	       (ABSTRACT_FROM => 'lib/AliEn/Config.pm', # retrieve abstract from module
 		AUTHOR     => 'Pablo Saiz <Pablo.Saiz@cern.ch>') : ()),
 	      'INSTALLSCRIPT'     => "$Config{prefix}/scripts",
+	      'INSTALLSITESCRIPT' =>"$Config{prefix}/scripts",
 	      
 	      'EXE_FILES'         => [
 				      'scripts/API.pl',
