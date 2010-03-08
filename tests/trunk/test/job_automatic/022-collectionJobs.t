@@ -30,7 +30,7 @@ Split=\"file\";
   my ($id)=$cat->execute("submit", "jdl/collectionSplit.jdl") or exit(-2);
 
   print "Job submitted!!
-\#ALIEN_OUTPUT $id";
+\#ALIEN_OUTPUT $id\n";
 
 
 }

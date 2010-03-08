@@ -23,7 +23,9 @@ BEGIN { plan tests => 1 }
   $cat->execute("touch", $source) or exit(-2);
   print "File touched";
   addFile($cat, "tags/AnUserTag","my_value varchar(200)") or exit(-2);
+  print "Adding the tag\n";
   $cat->execute("addTag","copyMetadata/source", "AnUserTag") or exit(-2);
+  print "Assing the tagValue\n";
   $cat->execute("addTagValue", $source, "AnUserTag", "my_value='sipe'") or exit(-2);
   print "So far so good. Let's try the real copy\n";
 
