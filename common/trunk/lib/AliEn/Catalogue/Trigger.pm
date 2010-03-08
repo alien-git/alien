@@ -291,7 +291,7 @@ sub f_showTagValue2 {
 
   $self->debug(1, "Checking $directory and $fileName");
 
-  my $tagTableName = $self->{DATABASE}->getTagTableName($directory, $tag);
+  my $tagTableName = $self->{DATABASE}->getTagTableName($directory, $tag, {parents=>1});
 
   $where = "file like '$directory%'";
   $fileName and $where = "file='$fileName'";
@@ -299,7 +299,7 @@ sub f_showTagValue2 {
 #  my $options="new";
 #  $fileName and $options="one";
 
-  $self->debug(1, "Checking the tags of $directory and $where");
+  $self->debug(1, "Checking the tags of $directory and $where (table: $tagTableName)");
   my $rTags = $self->{DATABASE}->getTags($directory, $tag, undef, $where);
 
   my $rcolumns = $self->{DATABASE}->describeTable($tagTableName);
