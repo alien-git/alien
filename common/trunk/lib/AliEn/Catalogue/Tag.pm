@@ -8,14 +8,15 @@ use strict;
 #        tagSQL    -> SQL description of the table
 # Output  1 if it works, undef if it doesn't
 # Call from: UI/Catalogue/LCM
+
 sub f_addTag {
   my $self      = shift;
 
   my $directory = shift;
   my $tagName   = shift;
   my $tagSQL    = shift;
-  my $options   =(shift or "");
-
+  my $sourceTable   =(shift or "");
+  my $options   =(shift || "");
   ($tagSQL)
     or print STDERR
       "Error: not enough arguments in addTag\nUsage: addTag <directory> <tag name> <tag description>\n"
@@ -28,19 +29,24 @@ sub f_addTag {
   $self->isDirectory($directory) or
     print STDERR "$directory is not a direcotry!!\n" and return;
 
-  $self->existsTag($directory, $tagName, "silent")
+
+  my $parents={all=>1, user=>$self->{CONFIG}->{ROLE}};
+  
+  ($options =~ /d/) and delete $parents->{all};
+  
+  $self->existsTag($directory, $tagName, "silent", $parents)
     and  $self->info("Tag already exists") and return 1;
 
   my $create = 1;
   my $fileLength = 255;
 
   $self->debug(1, "Creating only one table for all the metadata");
-  my $tableName = "T$self->{DATABASE}->{USER}V$tagName";
+  my $tableName = "T$self->{DATABASE}->{ROLE}V$tagName";
   if (! $self->{DATABASE}->existsTable($tableName)) {
     $self->info("Creating the table $tableName...");
-    if ($options){
-      $self->info("In fact, we want a table like the one for directory '$options'");
-      $tagSQL=$self->f_showTagDescription("", $options, $tagName)
+    if ($sourceTable){
+      $self->info("In fact, we want a table like the one for directory '$sourceTable'");
+      $tagSQL=$self->f_showTagDescription("", $sourceTable, $tagName)
 	or $self->info("Error getting the description of the table") and return;
     }
     $self->selectDatabase($directory);
@@ -55,7 +61,7 @@ sub f_addTag {
     $self->info("The table exists");
   }
 
-  my $done = $self->{DATABASE}->insertIntoTag0($directory, $tagName, $tableName);
+  my $done = $self->{DATABASE}->insertIntoTag0($directory, $tagName, $tableName, $self->{CONFIG}->{ROLE});
   $done or $self->{LOGGER}->error("Tag", "Error inserting the entry!") and return;
     print "Tag created\n";
 
@@ -175,6 +181,7 @@ sub existsTag {
   my $directory = shift;
   my $tag       = shift;
   my $silent    = (shift or 0);
+  my $options   = (shift || {});
 
   ($tag)
     or print STDERR
@@ -189,8 +196,21 @@ sub existsTag {
   }
  # $self->selectDatabase($directory) or return;
 
-  my $rresult = $self->{DATABASE}->getTagNamesByPath($directory);
-
+  my $rresult;
+  
+  if ($options->{all}){
+  
+    my $allTags=$self->{DATABASE}->getAllTagNamesByPath($directory, $options);
+    $rresult=[];    
+    foreach my $entry (@{$allTags}) {
+      push @$rresult, $entry->{tagName};
+    }
+    
+  } else {
+  
+   $rresult= $self->{DATABASE}->getTagNamesByPath($directory, $options);
+  }
+  
   $self->debug(1, "Got @$rresult");
 
   if (! grep (/^$tag$/, @$rresult)){
@@ -270,7 +290,7 @@ sub modifyTagValue {
 
   my $basename = $self->f_basename($file);
 
-  $self->existsTag( $directory, $tag ) or return;
+  $self->existsTag( $directory, $tag, 0, {all=>1} ) or return;
   #Here, we should make sure that if the tag is assigned to a directory, the
   #entry finishes with /
   #This is used to speed up the 'find'. 
@@ -313,38 +333,40 @@ sub f_showTagValue {
       or $self->info("Error getting the tags from the directory")
 	and return;
     foreach my $entry (@$tags){
-      $self->info("Let's get the information from $entry");
+      $self->info("Let's get the information from $entry->{tableName}");
       $tagTableName=$entry->{tableName};
-      my $info= $self->{DATABASE}->{LFN_DB}->query("SELECT * from $entry->{tableName} where file like concat(?, '%')", undef, {bind_values=>[$path]});
+      my $info= $self->{DATABASE}->{LFN_DB}->query(
+        "SELECT * from $entry->{tableName} where file like concat(?, '%')",
+         undef, {bind_values=>[$path]});
       push @$rTags, @$info;
     }
     $tagTableName or
       $self->info("That tag is not defined in any subdirectory")
 	and return;
   } else {
-    my $directory=$path2;
-    $directory =~ m{/$} or $directory = $self->f_dirname($path);
+    #my $directory=$path2;
+    #$directory =~ m{/$} or $directory = $self->f_dirname($path);
     
-    while (! $self->existsTag( $directory, $tag, "silent" )) {
-      $directory =~ s{/$}{};
-      $directory = $self->f_dirname($directory);
-      $directory or  $self->{LOGGER}->error("Tag", "The tag $tag is not defined for $path") and return;
-      $self->debug(1,"Checking if the tag is defined in $directory");
-    }
-    my $fileName=$path2;
-    ($fileName eq "$directory") and $fileName="";
-    $fileName =~ s{^(${directory}[^/]*/?).*$}{$1};
-    my $where;
+   # while (! $self->existsTag( $directory, $tag, "silent" )) {
+   #   $directory =~ s{/$}{};
+   #   $directory = $self->f_dirname($directory);
+   #   $directory or  $self->{LOGGER}->error("Tag", "The tag $tag is not defined for $path") and return;
+   #   $self->debug(1,"Checking if the tag is defined in $directory");
+   # }
+    #my $fileName=$path2;
+    #($fileName eq "$directory") and $fileName="";
+    #$fileName =~ s{^(${directory}[^/]*/?).*$}{$1};
+    #my $where;
     
-    $self->debug(1, "Checking $directory and $fileName");
+    #$self->debug(1, "Checking $directory and $fileName");
     
-    $tagTableName = $self->{DATABASE}->getTagTableName($directory, $tag);
+    $tagTableName = $self->{DATABASE}->getTagTableName($path2, $tag, {parents=>1});
     
-    $where = "file like '$directory%'";
-    my $options={filename=>$fileName};
+    my $where = "? like concat(file,'\%') order by file desc limit 1";
+    my $options={bind_values=>[$path2]};
 
-    $self->debug(1, "Checking the tags of $directory and $where");
-    $rTags = $self->{DATABASE}->getTags($directory, $tag, undef, $where, $options);
+    $self->debug(1, "Checking the tags of $path2 and $where");
+    $rTags = $self->{DATABASE}->getTags($path2, $tag, undef, $where, $options);
   }
 
   my $rcolumns = $self->{DATABASE}->describeTable($tagTableName) 

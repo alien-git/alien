@@ -22,7 +22,7 @@ use AliEn::Database::CE;
 use AliEn::TMPFile;
 
 use AliEn::CE;
-use AliEn::X509;
+#use AliEn::X509;
 use vars qw (@ISA $DEBUG);
 @ISA=("AliEn::Service");
 $DEBUG=0;
@@ -124,9 +124,9 @@ sub initialize {
   $self->info( "Batch systems: @list" );
 
 
-  $self->{X509}=new AliEn::X509 or return;
-  $self->{X509}->checkProxy() or
-    $self->info("Error checking the proxy") and return;
+  #$self->{X509}=new AliEn::X509 or return;
+  #$self->{X509}->checkProxy() or
+  #  $self->info("Error checking the proxy") and return;
   #############################################################################
   $self->{LOCALJOBDB}=new AliEn::Database::CE or return;
 

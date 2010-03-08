@@ -1086,6 +1086,25 @@ sub findCloseSE {
   return $seName;
 }
 
+sub addTag_HELP{
+  my $self=shift;
+  return "addTag: creates a metadata table so that the entries in the catalogue can have more information
+  
+Usage:
+   addTag [-d] <dir> <meta>
+   
+ If you add a tag to a directory, everything under it can have that meta information. 
+ <meta> should be the name of an entry either in /tags, /$self->{CONFIG}->{ORG_NAME}/tags, or in the \$HOME/tags
+ 
+ Options:
+ 
+   -d: create a new table for the metadata (even if the a parent directory has already that metadata) 
+ ";
+  
+}
+  
+
+
 sub addTag {
     my $self      = shift;
     ( my $opt, @_ ) = $self->Getopts(@_);
@@ -1094,7 +1113,7 @@ sub addTag {
 
     ($tag)
       or print STDERR
-"Error: not enough arguments in addTag\nUsage: addTag  [-d] <directory> <tag name>\n\tOptions: -d create a new metadata table for this directory\n"
+"Error: not enough arguments in addTag\n". $self->addTag_HELP()
       and return;
 
     my @tagdirs  = ("\L/$self->{CONFIG}->{ORG_NAME}/tags\E",
@@ -1121,7 +1140,7 @@ sub addTag {
     my $description = join "", @FILE;
 
     $description or return;
-    $self->{CATALOG}->f_addTag( $directory, $tag, $description, $opt) or return;
+    $self->{CATALOG}->f_addTag( $directory, $tag, $description, undef, $opt) or return;
 
     return 1;
 }

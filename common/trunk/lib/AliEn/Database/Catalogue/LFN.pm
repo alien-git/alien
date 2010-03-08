@@ -102,7 +102,8 @@ sub createCatalogueTables {
 		     {entryId=>"int(11) NOT NULL auto_increment primary key", 
 		      path=>"varchar (255)",
 		      tagName=>"varchar (50)",
-		      tableName=>"varchar(50)"}, 'entryId'],
+		      tableName=>"varchar(50)",
+		      user=>'varchar(20)'}, 'entryId'],
 	      GROUPS=>["Userid", {Userid=>"int not null auto_increment primary key",
 				  Username=>"char(20) NOT NULL", 
 				  Groupname=>"char (85)",
@@ -1299,14 +1300,17 @@ sub insertTagValue {
   my $file = shift;
   my $rdata = shift;
   
-  my $tableName = $self->getTagTableName($path, $tag);
-  
+  my $tableName = $self->getTagTableName($path, $tag, {parents=>1});
+  $tableName or 
+    $self->info("Error: we can't find the name of the table",1)
+      and return;
   my $fileName = "$path$file";
   
 #  $tableName =~ /T[0-9]+V$tag$/ or $fileName="$path$fileName";
   
   my $finished = 0;
   my $result;
+  $self->debug(1,"Ready to insert in the table $tableName and $fileName");
   if ($action eq "update") {
     $self->info( "We want to update the latest entry (if it exists)");
     my $maxEntryId = $self->queryValue("SELECT MAX(entryId) FROM $tableName where file=?", 
@@ -1342,7 +1346,7 @@ sub getTags {
   my $directory = shift;
   my $tag = shift;
 
-  my $tableName = $self->getTagTableName($directory, $tag)
+  my $tableName = $self->getTagTableName($directory, $tag, {parents=>1})
     or $self->info("In getFieldsFromTagEx table name is missing")
       and return;
 
@@ -1375,13 +1379,19 @@ sub getAllTagNamesByPath {
   my $options=shift || {};
 
   my $rec="";
+  my $rec2="";
   my @bind=($path);
   if ($options->{r}){
     $rec=" or path like concat(?, '%') ";
     push @bind, $path;
   }
-  
-  $self->query("SELECT tagName,path from TAG0 where ? like concat(path,'%') $rec group by tagName", undef, {bind_values=>\@bind});
+  if ($options->{user}){
+    $self->debug(1, "Only for the user $options->{user}");
+    $rec2=" and user=?";
+    push @bind, $options->{user};
+  }
+      
+  $self->query("SELECT tagName,path from TAG0 where (? like concat(path,'%') $rec) $rec2 group by tagName", undef, {bind_values=>\@bind});
 }
 
 sub getFieldsByTagName {
@@ -1408,9 +1418,11 @@ sub getTagTableName {
   my $self=shift;
   my $path=shift;
   my $tag=shift;
-
-  $self->queryValue("SELECT tableName from TAG0 where path=? and tagName=?",undef, 
-		    {bind_values=>[$path, $tag]});
+  my $options=shift ||{};
+  my $query="path=?";
+  $options->{parents} and $query="? like concat(path, '%') order by path desc limit 1";
+  $self->queryValue("SELECT tableName from TAG0 where tagName=? and $query",undef, 
+		    {bind_values=>[$tag, $path]});
 }
 
 sub deleteTagTable {
@@ -1438,8 +1450,11 @@ sub insertIntoTag0 {
 	my $directory = shift;
 	my $tagName = shift;
 	my $tableName=shift;
+	my $user=shift || $self->{CONFIG}->{ROLE};
 
-	$self->insert("TAG0", {path => $directory, tagName => $tagName, tableName => $tableName});
+	$self->insert("TAG0", {path => $directory, tagName => $tagName, 
+	     tableName => $tableName, user=>$user
+	});
 }
 
 =item getDiskUsage($lfn)

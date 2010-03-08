@@ -2188,7 +2188,12 @@ sub checkProcess{
     $space <$self->{WORKSPACE} or 
       $killMessage="using more than $self->{WORKSPACE} MB of diskspace (right now we were using $space MB)";
   }
-
+  if ($self->{MEMORY}){
+    $self->info("Checking the memory requirements");
+    my $memory=AliEn::Util::find_memory_consumption($self->{PROCESSID});
+    $memory > $self->{MEMORY}
+      and $killMessage="using more than $self->{MEMORY} memory (right now, $memory)";
+  }
   if ($killMessage){
     AliEn::Util::kill_really_all($self->{PROCESSID});
     $self->info("Killing the job ($killMessage)");

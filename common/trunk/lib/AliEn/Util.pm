@@ -460,5 +460,9 @@ sub mkdir{
   (-d $dir) and return 1;
   return;
 }
+sub find_memory_consumption {
+  my $id=shift;
+  return 0;
 
+}
 return 1;
