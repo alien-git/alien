@@ -48,7 +48,7 @@ use strict;
 use AliEn::LCM;
 use List::Util 'shuffle';
 
-use AliEn::UI::Catalogue;
+require AliEn::UI::Catalogue;
 use AliEn::SOAP;
 use Getopt::Long;
 use Compress::Zlib;

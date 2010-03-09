@@ -27,11 +27,12 @@ This is the basic interface to the file and metadata catalogue. This base class 
 use strict;
 use DBI;
 use Time::HiRes;
-$readline'rl_NoInitFromFile = 1;    #'
-
 use Term::ReadLine;
+#$readline 'rl_NoInitFromFile = 1;    #'
+
+
 use Getopt::Long ();
-use AliEn::Catalogue;
+require AliEn::Catalogue;
 use AliEn::UI;
 use AliEn::SOAP;
 use Data::Dumper;
@@ -701,6 +702,7 @@ sub execute {
   if ($#stdoutredirect>-1) {
       $stdoutredirect[0] =~ s/\>//g;
       open SAVE_STDOUT,">&STDOUT";
+      open SAVE_STDOUT,">&STDOUT"; #the second is to get rid of the warning
       $tmpstdout = "/tmp/". time() . $$ . rand();
       open STDOUT,"> $tmpstdout";
       open STDOUTTMP,"$tmpstdout";

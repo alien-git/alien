@@ -77,7 +77,7 @@ To access the Catalog, type the command "alien". First, you have to authenticate
 use DBI;
 use File::Basename;
 use AliEn::Catalogue::File;
-use AliEn::Catalogue::Admin;
+require AliEn::Catalogue::Admin;
 use AliEn::Catalogue::Group;
 use AliEn::Catalogue::Tag;
 use AliEn::Catalogue::GUID;
@@ -106,8 +106,8 @@ use AliEn::Database::TaskPriority;
 use AliEn::Database::TaskQueue;
 
 #use AliEn::Utilities;
-use AliEn::Config;
-use AliEn::SOAP;
+require AliEn::Config;
+require AliEn::SOAP;
 use Getopt::Std;
 
 # OBJECTS VARIABLES:

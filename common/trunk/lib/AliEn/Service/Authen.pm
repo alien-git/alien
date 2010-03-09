@@ -681,7 +681,7 @@ sub removeToken {
     my $done = $self->{addbh}->deleteJobToken($job);
     ($done)
       or
-      $self->{LOGGER}->warning( "Authen", "Error removing token $DBI::errstrs" );
+      $self->{LOGGER}->warning( "Authen", "Error removing token $DBI::errstrs ($DBI::errstrs" );
 
     return 1;
 }
@@ -944,18 +944,19 @@ sub requestCert {
     close FILE;
     print STDERR "Request $file\n";
 
-    open SAVEOUT, ">&STDERR";
-    if ( !open( STDERR, ">$file.subject" ) ) {
-	print STDERR "Error opening the file $file.subject\n";
-	return (0,"Error opening the file $file.subject\n");
-    }
     
+    open FILE, ">&STDERR";
+    if ( !open( STDERR, ">$file.subject" ) ) {
+	   print STDERR "Error opening the file $file.subject\n";
+	   return (0,"Error opening the file $file.subject\n");
+    }
 
     #This part should be moved to AliEn::X509
     system("$ENV{ALIEN_ROOT}/bin/openssl","x509","-in","$file","-noout","-req","-signkey","$ENV{ALIEN_CA}/private/key.pem");
 
     close STDERR;
-    open STDERR, ">&SAVEOUT";
+    open STDERR, ">&FILE";
+    
     open (FILE, "$file.subject" );
     my @subject=<FILE>;
     close FILE;

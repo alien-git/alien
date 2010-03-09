@@ -21,12 +21,12 @@ use DBI;
 
 use strict;
 
-use AliEn::TokenManager;
+require AliEn::TokenManager;
 
-use AliEn::Config;
+require AliEn::Config;
 
-use AliEn::SOAP;
-use AliEn::Logger::LogObject;
+require AliEn::SOAP;
+require AliEn::Logger::LogObject;
 
 use vars qw($DEBUG @ISA);
 
