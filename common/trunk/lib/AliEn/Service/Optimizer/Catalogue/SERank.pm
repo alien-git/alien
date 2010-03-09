@@ -3,7 +3,7 @@ package AliEn::Service::Optimizer::Catalogue::SERank;
  
 use strict;
 
-use AliEn::Service::Optimizer::Catalogue;
+require AliEn::Service::Optimizer::Catalogue;
 use AliEn::Database::IS;
 use LWP::UserAgent;
 

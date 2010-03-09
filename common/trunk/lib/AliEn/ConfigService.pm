@@ -4,7 +4,7 @@ use strict;
 
 #use IO::Socket;
 #use AliEn::PackMan;
-use AliEn::Logger::LogObject;
+require AliEn::Logger::LogObject;
 use Net::Domain;
 
 use vars qw(@ISA $DEBUG);

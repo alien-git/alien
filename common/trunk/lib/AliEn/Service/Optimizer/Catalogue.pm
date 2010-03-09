@@ -10,7 +10,7 @@ use AliEn::Database::Catalogue;
 use AliEn::Database::SE;
 use AliEn::GUID;
 
-use AliEn::UI::Catalogue::LCM;
+require AliEn::UI::Catalogue::LCM;
 @ISA=qw(AliEn::Service::Optimizer);
 
 use Data::Dumper;
