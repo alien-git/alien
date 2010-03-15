@@ -636,13 +636,82 @@ sub resyncLDAP {
    my $self=shift;
  
    $self->info("Let's force a refresh on the SE Rank Cache based on MonALISA info!");
- 
+   ( $self->{ROLE}  =~ /^admin(ssl)?$/ ) or
+    $self->info("Error: only the administrator can check the database") and return;
+    
+
+  my $sitename=shift ||"";
+  my $db=$self->{DATABASE}->{LFN_DB}->{FIRST_DB};
+
+  $self->info("Ready to update the ranks ");  
+  print "Using $db\n";
+  my $where="";
+  my @bind=();
+  my @sites=$sitename;
+  if ($sitename){
+    $self->info("  Doing it only for $sitename");
+    $where=' and sitename=?';
+    push @bind, $sitename;    
+  } else {
+    my $info=$db->queryColumn("select distinct sitename from SERanks");
+    @sites=@$info;
+    
+  }
+  $db->do("update SERanks set updated=0 where 1 $where", {bind_values=>\@bind});
+  foreach my $site (@sites){
+    $self->info("Ready to update $site");
+    $self->refreshSERankCacheSite($db, $site);  
+  }
    
-   return AliEn::Service::Optimizer::Catalogue::SERank->updateRanksForAllSites($self,$self->{DATABASE}->{LFN_DB}->{FIRST_DB},1);
- 
- 
-   return 1;
- }
+  $db->do("delete from SERanks where updated=0");
+  
+  return 1;
+}
+
+sub refreshSERankCacheSite{
+  my $self=shift;
+  my $db=shift;
+  my $site=shift;
+  
+  my @selist;
+  $self->{CONFIG}->{SEDETECTMONALISAURL} and
+    @selist=$self->getListOfSEFromMonaLisa($site);
+  
+  if (!@selist){
+    $self->info("We couldn't get the info from ML. Putting all the ses");
+    @selist = @{$db->queryColumn("select distinct seName from SE")};
+  }
+  
+
+  for my $rank(0..$#selist) {
+    $db->do("insert into SERanks (sitename,seNumber,rank,updated)
+              select ?, seNumber,  ?, 1  from SE where seName=?", 
+              {bind_values=>[$site,$rank, $selist[$rank]]});
+  }
+  
+  return 1; 
+}
+
+sub getListOfSEFromMonaLisa {
+  my $self=shift;
+  my $site=shift;
+  
+  my $url="$self->{CONFIG}->{SEDETECTMONALISAURL}?site=$site&dumpall=true";
+  
+  $self->info("Getting the list from $url");
+  my @selist;
+  my $monua = LWP::UserAgent->new();
+  $monua->timeout(120);
+  $monua->agent( "AgentName/0.1 " . $monua->agent );
+  my $monreq = HTTP::Request->new("GET" => $url);
+  $monreq->header("Accept" => "text/html");
+  my $monres = $monua->request($monreq);
+  my $monoutput = $monres->content;
+  $monres->is_success() and push @selist, split (/\n/, $monoutput);
+  $self->info("SE Rank Optimizer, MonAlisa replied for site $site with se list: @selist");
+  return @selist;
+  
+}
 
 
 sub getLDAP {
@@ -985,5 +1054,6 @@ sub calculateFileQuota {
   }
   $self->{PRIORITY_DB}->unlock();
 }
+
 
 return 1;

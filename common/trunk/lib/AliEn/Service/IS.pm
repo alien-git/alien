@@ -8,8 +8,6 @@ use AliEn::Database::IS;
 use AliEn::Database::TaskQueue;
 use AliEn::Database::Catalogue;
 
-use AliEn::Service::Optimizer::Catalogue::SERank;
-
 use AliEn::UI::Catalogue;
 use AliEn::Service;
 use strict;
@@ -823,45 +821,33 @@ sub checkSiteSECache{
 
    my $catalogue=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
 
-   my $reply = $catalogue->query("SELECT sitename FROM SERanks WHERE sitename = ?;", undef, {bind_values=>[$site]});
+   my $reply = $catalogue->query("SELECT sitename FROM SERanks WHERE sitename = ?", undef, {bind_values=>[$site]});
 
    (scalar(@$reply) < 1) 
       and $self->info("We need to update the SERank Cache for the not listed site: $site")
-            and return $self->updateSiteSECacheForSite($site);
+            and return $self->{CATALOGUE}->execute("refreshSERankCache", $site);
    return 1;
 }
 
 
-
-sub updateSiteSECacheForSite{
-   my $this=shift;
-   my $site=shift;
-
-   my $catalogue=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
-
-   my $query = "INSERT INTO SERanks (sitename,rank,seNumber,updated) "
-           ."SELECT ? sitename, \@num := \@num + 1 rank , SE.seNumber, 0 updated FROM "
-           ."(SELECT \@num := 0) rank, SE ;";
-
-
-   $self->info("query: $query");
-   $self->info("values: $site ");
-
-   my $reply = $catalogue->queryColumn($query, undef, {bind_values=>[$site]});
-
-   $self->info("Finished to add SERank Cache entries for site: $site");
-
-   $self->info("Manually calling CatalogueOptimizer->SERank code for site: $site");
-   push @ISA, "AliEn::Service::Optimizer::Catalogue::SERank";
-   my $stat = $self->updateRanksForOneSite($site);
-   pop @ISA;
-   $self->info("Site updated with $stat");
-   return $stat;
-}
+# Is this being called??
+#sub updateSiteSECacheForSite{
+#   my $this=shift;
+#   my $site=shift;
+#
+#   $self->info("Finished to add SERank Cache entries for site: $site");
+#   
+#   my $stat = $self->{CATALOGUE}->execute("refreshSERank", $site);
+#   
+#   $self->info("Site updated with $stat");
+#   return $stat;
+#}
 
 
 
 return 1;
+
+
 __END__
 
 =head1 NAME
