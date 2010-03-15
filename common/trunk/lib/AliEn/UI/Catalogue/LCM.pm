@@ -1488,24 +1488,31 @@ sub access {
     my $user=$self->{CONFIG}->{ROLE};
     $self->{CATALOG} and $self->{CATALOG}->{ROLE} and $user=$self->{CATALOG}->{ROLE};
     $self->info("Getting a security envelope..");
+    #my $info=$self->{SOAP}->CallSOAP("Authen", "createArrayOfEnvelopes", $user, @_)
+    #  or $self->info("Error asking the for an envelope") and return;
+    #my $resultHash = $info->result;
+    #my @newhash= values %$resultHash;
     my $info=$self->{SOAP}->CallSOAP("Authen", "createEnvelope", $user, @_)
       or $self->info("Error asking the for an envelope") and return;
-    my $newhash=$info->result;
-    if (!$newhash->{envelope} ){
-      my $error=$newhash->{error} || "";
+    #my @newhash=$info->result;
+    my @newhash=$self->{SOAP}->GetOutput($info);
+
+  
+    if (!$newhash[0]->{envelope} ){
+      my $error=$newhash[0]->{error} || "";
       $self->info("There was an error, putting into log: $error");
       $self->info($self->{LOGGER}->error_msg());
       $self->info("There is no envelope ($error)!!", 1);
-			($error =~ /Not allowed because of quota overflow/) and return $newhash;
+      ($error =~ /Not allowed because of quota overflow/) and return @newhash;
       return;
      }
-    $ENV{ALIEN_XRDCP_ENVELOPE}=$newhash->{envelope};
-    $ENV{ALIEN_XRDCP_URL}=$newhash->{url};
-    return $newhash;
+    $ENV{ALIEN_XRDCP_ENVELOPE}=$newhash[0]->{envelope};
+    $ENV{ALIEN_XRDCP_URL}=$newhash[0]->{url};
+    return (@newhash);
   }
   $self->info("Making the envelope ourselves: @_ ");
-	
-	my $options = shift;
+
+  my $options = shift;
   my $maybeoption = ( shift or 0 );
 
   my $access;
@@ -1516,17 +1523,18 @@ sub access {
     $access = ( $maybeoption or 0);
   }
 
-	my $userForFileQuota=$self->{CONFIG}->{ROLE};
-	$self->{CATALOG} and $self->{CATALOG}->{ROLE} and $userForFileQuota=$self->{CATALOG}->{ROLE};
+        my $userForFileQuota=$self->{CONFIG}->{ROLE};
+        $self->{CATALOG} and $self->{CATALOG}->{ROLE} and $userForFileQuota=$self->{CATALOG}->{ROLE};
 
-	my $tmp_options={};
+        my $tmp_options={};
   @ARGV=@_;
   Getopt::Long::GetOptions($tmp_options, "user=s");
-  @_=@ARGV;    
-	$tmp_options->{user} and $userForFileQuota = $tmp_options->{user};
+  @_=@ARGV;
+        $tmp_options->{user} and $userForFileQuota = $tmp_options->{user};
+
 
   my $lfns    = (shift or 0);
-  my $se      = (shift or 0);
+  my $se      = (shift or "");
   my $size    = (shift or "0");
   my $sesel   = (shift or 0);
   my $extguid = (shift or 0);
@@ -1537,6 +1545,37 @@ sub access {
     $ok or $self->info("failed to check file quota: $message") and return  access_eof("No quota: $message");
     $self->info("OK");
   }
+
+
+  my @ses = ();
+  my @tempSE= split(/;/, $se);
+  foreach (@tempSE) { $self->identifyValidSEName($_) and push @ses, $_; }
+  my $seList= \@ses;
+
+  my @exxSEs = ();
+  @tempSE= split(/;/, $sesel);
+  foreach (@tempSE) { $self->identifyValidSEName($_) and push @exxSEs, $_; }
+  my $excludedAndfailedSEs = \@exxSEs;
+  ($sesel =~ /^[0-9]+$/) or $sesel = 0;
+
+
+  my $sitename= (shift || 0);
+  ($sitename eq "") and $sitename=0;
+  my $writeQos = (shift || 0);
+  ($writeQos eq "") and $writeQos=0;
+  my $writeQosCount = (shift || 0);
+
+  if ($access =~ /^write/){
+
+    (scalar(@ses) eq 0) or $seList = $self->checkExclWriteUserOnSEsForAccess($seList) and @ses = @$seList; 
+
+    if(($sitename ne 0) and ($writeQos ne "") and ($writeQosCount gt 0)) {
+       # we don't need to check for Cache below, cause there it's implicit
+       my $dynamicSElist = $self->getSEListFromSiteSECacheForAccess($writeQos,$writeQosCount,$sitename,$excludedAndfailedSEs);
+       push @ses,@$dynamicSElist;
+    }
+
+  } 
 
   my $nosize  = 0;
 
@@ -1595,14 +1634,14 @@ sub access {
       $lfn = $self->{CATALOG}->f_complete_path($lfn);
     }
 
-    if ($lfn eq "/NOLFN") {
-	$lfn = "";
-	$guid = $extguid;
-    }
     #    print "$access $lfn $se\n";
 
     my $whereis;
     while(1) {
+      if ($lfn eq "/NOLFN") {
+         $lfn = "";
+         $guid = $extguid;
+      }
       if ( $lfn ne "") {
 	$filehash=$self->checkPermissionsOnLFN($lfn,$access, $perm)
 	  or return access_eof;
@@ -1610,8 +1649,10 @@ sub access {
       }
       $DEBUG and $self->debug(1, "We have permission on the lfn");
       if ($access =~ /^write/) {
-	$se or $se = $self->{CONFIG}->{SE_FULLNAME};
-		
+        
+        $se = shift(@ses);
+        $self->identifyValidSEName($se) or $self->info("access: no SE asked to write on") and return access_eof; 
+
 	($seurl,my $guid2,my $se2) = $self->{CATALOG}->createFileUrl($se, "root", $guid);
 	$guid2 and $guid=$guid2;
 	if (!$se2){
@@ -1631,6 +1672,7 @@ sub access {
 	} else {
 	  $filehash->{size} = $size;
 	}
+
       }
       
       my $anchor="";
@@ -1640,9 +1682,9 @@ sub access {
 	  $guid=$self->{CATALOG}->f_lfn2guid("s",$lfn)
 	    or $self->info( "access: Error getting the guid of $lfn",11) and return;
 	}
-	($se, $pfn, $anchor, $lfn, $nses, $whereis)=$self->getPFNforAccess($guid, $se, $sesel, $lfn, $options)
+
+	($se, $pfn, $anchor, $lfn, $nses, $whereis)=$self->getPFNforAccess($guid, $se, $excludedAndfailedSEs, $lfn, $sitename, $options)
 	  or return access_eof;
-	$self->info("AND NOW WE HAVE $se, $pfn, $anchor, $lfn, $nses, $whereis");
 	if (UNIVERSAL::isa($se, "HASH")){
 	  $self->info("Here we have to return eof");
 	  return access_eof;
@@ -1771,8 +1813,10 @@ $ticket
 ========================================================================
 ",$$newresult[0]->{envelope},"
 ========================================================================\n", $ticket,"\n";
-      last;
-      
+      #last;
+      ($access =~ /^write/) and (scalar(@ses) gt 0)
+	and ($self->info("gonna recall next iteration") ) 
+      or last;
     }
   }
 
@@ -1784,8 +1828,140 @@ $ticket
     my $coded = $self->{envelopeengine}->encodeEnvelopePerl("$globalticket","0","none");
     $lnewresult[0]->{genvelope} = $self->{envelopeengine}->GetEncodedEnvelope();
   }
+
   return @$newresult; 
 }
+
+
+
+
+
+sub identifyValidSEName{
+   my $self=shift;
+   my $se=shift;
+   my @entries = split(/\:\:/,$se);
+   my $isOk = (scalar(@entries) eq 3) ;
+   foreach (@entries) { $isOk = $isOk and ($_ =~ /[0-9a-zA-Z]/); }
+   return $isOk;
+}
+
+
+sub checkExclWriteUserOnSEsForAccess{
+   my $self=shift;
+   my $seList=(shift || return 0);
+   (scalar(@$seList) gt 0) or return [];
+
+   my $catalogue = $self->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
+   my @queryValues = ();
+
+   my $query="SELECT seName FROM SE WHERE (";
+   foreach(@$seList){   $query .= " seName = ? or";   push @queryValues, $_; }
+   $query =~ s/or$//;
+   $query  .= ") and (exclusiveUsers is NULL or exclusiveUsers = '' or exclusiveUsers  LIKE concat ('%,' , ? , ',%') );";
+
+   push @queryValues, $self->{CONFIG}->{ROLE};
+
+   $self->info("gron: query: $query");
+   $self->info("gron: values: @queryValues");
+ 
+ 
+#   $self->info( "gron: the reply from SE table for excl.user is: ". Dumper($catalogue->queryColumn($query, undef, {bind_values=>\@queryValues})));
+
+   return $catalogue->queryColumn($query, undef, {bind_values=>\@queryValues});
+}
+
+
+
+
+
+sub getSEListFromSiteSECacheForAccess{
+   my $self=shift;
+   
+   my $type=(shift || return 0);
+   my $count=(shift || return 0);
+   my $sitename=(shift || return 0);
+   my $excludeList=(shift || "");
+
+   my $catalogue = $self->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
+
+   $self->info("gron: getSEListFromSiteSECacheForAccess was asked for, type=$type,count=$count,sitename=$sitename,excludeList=$excludeList .");
+
+   $self->checkSiteSECacheForAccess($sitename) or return 0;
+
+   my $query="SELECT SE.seName FROM SERanks,SE WHERE "
+       ." sitename = ? and SERanks.seNumber = SE.seNumber ";
+
+   my @queryValues = ();
+   push @queryValues, $sitename;
+
+   foreach(@$excludeList){   $query .= "and SE.seName <> ? "; push @queryValues, $_;  }
+   $query .=" and SE.seQoS  LIKE concat('%,' , ? , ',%' ) "
+    ." and (SE.exclusiveUsers is NULL or SE.exclusiveUsers = '' or SE.exclusiveUsers  LIKE concat ('%,' , ? , ',%') )"
+    ." ORDER BY rank ASC limit ? ;";
+
+   push @queryValues, $type;
+   push @queryValues, $self->{CONFIG}->{ROLE};
+   push @queryValues, $count;
+
+   return $catalogue->queryColumn($query, undef, {bind_values=>\@queryValues});
+
+}
+
+
+sub checkSiteSECacheForAccess{
+   my $self=shift;
+   my $site=shift;
+   my $catalogue = $self->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
+
+   my $reply = $catalogue->query("SELECT sitename FROM SERanks WHERE sitename = ?;", undef, {bind_values=>[$site]});
+
+   (scalar(@$reply) < 1) and $self->info("We need to update the SERank Cache for the not listed site: $site")
+            and return $self->updateSiteSECacheForSiteForAccess($site,$catalogue);
+   return 1;
+}
+
+sub updateSiteSECacheForSiteForAccess{
+   my $self=shift;
+   my $site=shift;
+   my $catalogue =  $self->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
+
+#   my $query = "INSERT INTO SERanks (sitename,rank,seNumber,updated) "
+#           ."SELECT ? sitename, \@num := \@num + 1 rank , SE.seNumber, 0 updated FROM "
+#           ."(SELECT \@num := 0) rank, SE ;";
+
+
+   #$self->info("query: $query");
+   #$self->info("values: $site ");
+
+#   my $reply = $catalogue->queryColumn($query, undef, {bind_values=>[$site]});
+
+#   $self->info("Finished to add SERank Cache entries for site: $site");
+
+   #$self->info("Manually calling CatalogueOptimizer->SERank code for site: $site");
+   #push @ISA, "AliEn::Service::Optimizer::Catalogue::SERank";
+   #return "SERank"->updateRanksForOneSite($self,$site,$catalogue);
+   $self->info("gron: Going to call updateRanksForOneSite.");
+
+   use AliEn::Service::Optimizer::Catalogue::SERank;
+   AliEn::Service::Optimizer::Catalogue::SERank->updateRanksForOneSite($self,$site,$catalogue,0);
+  
+   return 1; # If the SE Rank Optimizer comes back with bad things, we don't want to kill the 
+             # the access operation here...
+#   pop @ISA;
+#   pop @ISA;
+#   pop @ISA;
+
+#   return $stat;
+
+}
+
+
+
+
+
+
+
+
 
 sub commit {
   my $self = shift;
@@ -1977,7 +2153,7 @@ sub upload {
   my $options={};
   @ARGV=@_;
   Getopt::Long::GetOptions($options, "silent", "versioning=s", 
-			   "size=i", "md5=s", "guid=s", "user=s")
+			   "size=i", "md5=s", "guid=s", "user=s", "jobtracelog")
       or $self->info("Error checking the options of add") and return;
 
   @_=@ARGV;
@@ -1990,6 +2166,9 @@ sub upload {
    }
 
   my $result = {};
+  $result->{jobtracelog} = [];
+  my $jobLogEntry;
+
   $options->{guid} and $result->{guid}=$options->{guid};
 
   my $user=$self->{CATALOG}->{ROLE};
@@ -2058,21 +2237,35 @@ sub upload {
   
   foreach my $qos(keys %$qosTags){
     $self->debug(2,"Processing storage discovery qos: $qos with $qosTags->{$qos} requested elements.");
-    $result = $self->putOnDynamicDiscoveredSEListByQoS($user, $result,$pfn,$lfn,$size,$envReq,$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes,1);
+    $options->{jobtracelog} and $jobLogEntry={} and $jobLogEntry->{flag}="trace" 
+       and $jobLogEntry->{text} = "Processing dynamic SE discovery based on qos $qos with count $qosTags->{$qos}. "
+	and push @{$result->{jobtracelog}}, $jobLogEntry;
+
+
+    $result = $self->putOnDynamicDiscoveredSEListByQoSV2($result,$pfn,$lfn,$size,$envReq,$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes,1,$options->{jobtracelog});
   }
   
-  my $suppressISCheck = 0;
   if (!$result->{status} and scalar(@ses) eq 0 and $selOutOf le 0){ # if dynamic was either not specified or not successfull (not even one time, that's $result->{status} ne 1) 
     
     push @ses, $self->{CONFIG}->{SE_FULLNAME};   # and there were not SEs specified in a static list, THEN push in at least the local static LDAP entry not to loose data
-    $suppressISCheck = 1;
+    $self->info("SE Discovery didn't work and no static SEs were specified, we gonna try the CONFIG->SE_FULLNAME as a fallback to safe the files.");
+    $options->{jobtracelog} and $jobLogEntry={} and $jobLogEntry->{flag}="error" 
+       and $jobLogEntry->{text} = 
+         "SE Discovery didn't work and no static SEs were specified, we gonna try the CONFIG->SE_FULLNAME as a fallback to safe the files."
+       and push @{$result->{jobtracelog}}, $jobLogEntry;
+
+
     $totalCount = 1;
     $self->debug(2,"There was neither a user specification for the SEs to use, nor is there a default setting defined in LDAP, we use CONFIG->SE_FULLNAME: $self->{CONFIG}->{SE_FULLNAME}");
   }
   
   $self->debug(2,"Processing static SE list: @ses");
-  (scalar(@ses) gt 0) and $result = $self->putOnStaticSESelectionList($user, $result,$pfn,$lfn,$size,$envReq,$selOutOf,\@ses,1,$suppressISCheck);
+  (scalar(@ses) gt 0)  and $options->{jobtracelog} and $jobLogEntry={} and $jobLogEntry->{flag}="trace" 
+       and $jobLogEntry->{text} = "Processing static SE list: - @ses - ith select $selOutOf. "
+       and push @{$result->{jobtracelog}}, $jobLogEntry;
 
+  (scalar(@ses) gt 0) and $result = $self->putOnStaticSESelectionListV2($result,$pfn,$lfn,$size,$envReq,$selOutOf,\@ses,1,$options->{jobtracelog});
+  
 	# -1 means a failure by quota overflow 
 	# JobAgent returns not defined value
 	($result == -1) and return -1;
@@ -2100,10 +2293,162 @@ sub identifyValidGUID{
      return 0;
 }
 
+#
+#sub putOnStaticSESelectionList{
+#   my $self=shift;
+#   my $result=shift;
+#   my $pfn=(shift || "");
+#   my $lfn=(shift || "");
+#   my $size=(shift || 0);
+#   my $envreq=(shift || "");
+#   my $selOutOf=(shift || 0);
+#   my $ses=(shift || "");
+#   my $pfnRewrite=(shift || 0);
+#   my $suppressISCheck=(shift || 0);
+#
+#
+#   if ($suppressISCheck eq 0) {
+#      for my $j(0..3) {
+#         my $res = $self->{SOAP}->CallSOAP("IS", "checkExclusiveUserOnSEs", $self->{CONFIG}->{ROLE}, $ses);
+#         $self->{SOAP}->checkSOAPreturn($res) and $ses=$res->result and last;
+#      }
+#   }
+#
+#   $selOutOf eq 0 and  $selOutOf = scalar(@$ses);
+#   while ((scalar(@$ses) gt 0 and $selOutOf gt 0)) {
+#     (scalar(@$ses) gt 0) and my @staticSes= splice(@$ses, 0, $selOutOf);
+#     $self->debug(2,"We select out of a supplied static list the SEs to save on: @staticSes, count:".scalar(@staticSes));
+#     ($result, my $success, my $JustConsideredSes) = $self->registerInMultipleSEs($result, 
+#                         $pfn, $lfn, $size, \@staticSes, $envreq, $pfnRewrite);
+#     $selOutOf = $selOutOf - $success;
+#   }
+#   return $result;
+#}  
+#
+#
+#
+#sub putOnDynamicDiscoveredSEListByQoS{
+#   my $self=shift;
+#   my $result=shift;
+#   my $pfn=(shift || "");
+#   my $lfn=(shift || "");
+#   my $size=(shift || 0);
+#   my $envreq=(shift || "");
+#   my $count=(shift || 0);
+#   my $qos=(shift || "");
+#   my $sitename=(shift || "");
+#   my $excludedSes=(shift || "");
+#   my $pfnRewrite=(shift || 0);
+#   my $countOutSOAP=0;
+#
+#   while($count gt 0) {
+#     my $res = $self->{SOAP}->CallSOAP("IS", "getSEListFromSiteSECache", $count, $qos, $sitename, $excludedSes, $self->{CONFIG}->{ROLE});
+#     $countOutSOAP++;
+#     $self->{SOAP}->checkSOAPreturn($res) or ($countOutSOAP < 4 and next or last);
+#     my @discoveredSes=@{$res->result};
+#     scalar(@discoveredSes) gt 0 or $self->info("We could'nt find any of the '$count' requested SEs with qos flag '$qos' in the cache.") and last;;
+#     $self->debug(2,"We discovered the following SEs to save on: @discoveredSes, count:".scalar(@discoveredSes).", type flag was: $qos.");
+#     ($result, my $success, my $JustConsideredSes) = $self->registerInMultipleSEs($result, $pfn, $lfn, $size, \@discoveredSes, $envreq, $pfnRewrite);
+#     push @$excludedSes, @$JustConsideredSes;
+#     $count = $count - $success;
+#  }
+#  return $result;
+#}
+#
+#
+#
+#
+#
+#sub registerInMultipleSEs {
+#  my $self  = shift;
+#  my $result = (shift || {});
+#  my $pfn   = shift;
+#  my $lfn=(shift || "");
+#  my $size=(shift || 0);
+#  my $suggestedSes = ( shift || {} );
+#  my $envreq=(shift || "");
+#  my $pfnRewrite=(shift || 0);
+#
+#$result->{guid} and $self->info("File has guid: $result->{guid}");
+#  $result->{guid} or $result->{guid} = "";
+#
+#
+#  ($pfn) or $self->{LOGGER}->warning( "LCM", "Error no pfn specified" ) and return;
+#  
+#  my $firstHit = 0;
+#  my $successCounter = 0;
+#  my @ses= ();
+#  my @excludedSes = ();
+#
+#  my $envelopes = {};
+#  for my $j(0..$#{$suggestedSes}) {
+#     my (@envelope)= $self->access("-s",$envreq,$lfn, @$suggestedSes[$j], $size,0,$result->{guid});
+#     if(@envelope) {
+#         $envelopes->{@$suggestedSes[$j]}=$envelope[0]; 
+#         push @ses, @$suggestedSes[$j];
+#     } else {
+#         $self->debug(2,"Error getting the security envelope");
+#         push @excludedSes, @$suggestedSes[$j]; 
+#     }
+#
+#     ($j eq 0) and $result->{guid} = $envelopes->{@$suggestedSes[$j]}->{guid};
+#
+#  } 
+#
+#  $self->debug(2,"We got envelopes for and will use the following SEs to save on: @ses, count:".scalar(@ses));
+#
+#  for my $j(0..$#ses) {
+#
+#     $envelopes->{$ses[$j]} or $self->{LOGGER}->warning( "LCM", "Missing envelope for SE: $ses[$j]" ) and next; 
+#     $ENV{ALIEN_XRDCP_ENVELOPE}=$envelopes->{$ses[$j]}->{envelope};
+#     $ENV{ALIEN_XRDCP_URL}=$envelopes->{$ses[$j]}->{url};
+#
+#     my $start=time;
+#
+#     $self->debug(2, "Adding the file $pfn to $ses[$j]" );
+#     my $res;
+#     my $z = 0;
+#     while ($z < 5 ) {   # try five times in case of error
+#          $res= $self->{STORAGE}->RegisterInRemoteSE($pfn, $lfn, $envelopes->{$ses[$j]});
+#          $res and $z = 6 or $z++;
+#     }
+#
+#     $res or print STDERR "ERROR storing $pfn in $ses[$j]\n" and push @excludedSes, $ses[$j] and next;
+#
+#     $res->{pfn} or $self->{LOGGER}->warning( "LCM", "Error transfering the file to the SE" );
+#
+#     my $time=time-$start;
+#     $self->sendMonitor("write", $ses[$j], $time, $size, $res);
+#
+#     if($firstHit eq 0 and (! $result->{status})) {
+#        $result->{guid} = $res->{guid};
+#        $result->{md5} = $res->{md5};
+#        $result->{size} = $res->{size};
+#        $result->{pfn} = $res->{pfn};
+#        $result->{seref} = $ses[$j];
+#        $result->{status} = 1;
+#        $firstHit = 1;
+#        $self->debug(2,"Registered data for first SE, status is ok");
+#     }
+#     $result->{se}->{$ses[$j]}->{pfn}=$res->{pfn};
+#
+#     if ($envelopes->{$ses[$j]}->{url} and $pfnRewrite){
+#          my $newPFN=$envelopes->{$ses[$j]}->{url};
+#          $newPFN=~ s{^([^/]*//[^/]*)//(.*)$}{$1/$envelopes->{$ses[$j]}->{url}};
+#          $newPFN=~ m{root:////} and $newPFN="";
+#          $newPFN and $self->debug(3,"Using the pfn of the security envelope '$newPFN'") and $result->{$ses[$j]}->{pfn}=$newPFN;
+#     }
+#     push @excludedSes, $ses[$j];
+#     $successCounter++;
+#  }
+#
+#  return $result, $successCounter, \@excludedSes;
+#}
+#
+#
 
-sub putOnStaticSESelectionList{
+sub putOnStaticSESelectionListV2{
    my $self=shift;
-	 my $user=shift;
    my $result=shift;
    my $pfn=(shift || "");
    my $lfn=(shift || "");
@@ -2112,31 +2457,44 @@ sub putOnStaticSESelectionList{
    my $selOutOf=(shift || 0);
    my $ses=(shift || "");
    my $pfnRewrite=(shift || 0);
-   my $suppressISCheck=(shift || 0);
+   my $jobtracelog=(shift || 0);
 
+   my $jobLogEntry;
 
-   if ($suppressISCheck eq 0) {
-      for my $j(0..3) {
-         my $res = $self->{SOAP}->CallSOAP("IS", "checkExclusiveUserOnSEs", $self->{CONFIG}->{ROLE}, $ses);
-         $self->{SOAP}->checkSOAPreturn($res) and $ses=$res->result and last;
-      }
-   }
 
    $selOutOf eq 0 and  $selOutOf = scalar(@$ses);
    while ((scalar(@$ses) gt 0 and $selOutOf gt 0)) {
      (scalar(@$ses) gt 0) and my @staticSes= splice(@$ses, 0, $selOutOf);
      $self->debug(2,"We select out of a supplied static list the SEs to save on: @staticSes, count:".scalar(@staticSes));
-     ($result, my $success, my $JustConsideredSes) = $self->registerInMultipleSEs($user, $result, $pfn, $lfn, $size, \@staticSes, $envreq, $pfnRewrite);
-		 (defined $success) and $selOutOf = $selOutOf - $success;
+    $jobtracelog and $jobLogEntry = {} and $jobLogEntry->{flag}="trace"
+       and $jobLogEntry->{text} = "Static SE list: @staticSes . "
+       and push @{$result->{jobtracelog}}, $jobLogEntry;
+
+
+     my (@envelopes)= $self->access("-s",$envreq,$lfn, join(";", @staticSes), $size,0,($result->{guid} || 0));
+
+     (scalar(@envelopes) eq scalar(@staticSes)) or $self->info("We couldn't get all envelopes for the SEs, @staticSes .");
+     (scalar(@envelopes) gt 0) or $self->info("We couldn't get envelopes for any the SEs, @staticSes .") and last;
+     #(defined $envelopes[0]->{nestedEnvelopes}) and (scalar(@{$envelopes[0]->{nestedEnvelopes}}) gt 0) and @envelopes = @{$envelopes[0]->{nestedEnvelopes}};
+     if($jobtracelog) { 
+        foreach (@envelopes) { 
+          $jobLogEntry={};
+          $jobLogEntry->{flag}="trace";
+          $jobLogEntry->{text} = "We got an envelope for a static SE: $_->{se}";
+          push @{$result->{jobtracelog}}, $jobLogEntry;
+        }
+     }
+
+     ($result, my $success, my $JustConsideredSes) = $self->registerFileAccordingEnvelopes($result, $pfn, $lfn, $size, \@envelopes, $pfnRewrite,$jobtracelog);
+     $selOutOf = $selOutOf - $success;
    }
    return $result;
 }  
 
 
 
-sub putOnDynamicDiscoveredSEListByQoS{
+sub putOnDynamicDiscoveredSEListByQoSV2{
    my $self=shift;
-	 my $user=shift;
    my $result=shift;
    my $pfn=(shift || "");
    my $lfn=(shift || "");
@@ -2145,122 +2503,120 @@ sub putOnDynamicDiscoveredSEListByQoS{
    my $count=(shift || 0);
    my $qos=(shift || "");
    my $sitename=(shift || "");
-   my $excludedSes=(shift || "");
+   my $excludedSes=(shift || []);
    my $pfnRewrite=(shift || 0);
-   my $countOutSOAP=0;
+   my $jobtracelog=(shift || 0);
+
+ 
 
    while($count gt 0) {
-     my $res = $self->{SOAP}->CallSOAP("IS", "getSEListFromSiteSECache", $count, $qos, $sitename, $excludedSes, $self->{CONFIG}->{ROLE});
-     $countOutSOAP++;
-     $self->{SOAP}->checkSOAPreturn($res) or ($countOutSOAP < 4 and next or last);
-     my @discoveredSes=@{$res->result};
-     scalar(@discoveredSes) gt 0 or $self->info("We couldn't find any of the '$count' requested SEs with qos flag '$qos' in the cache.") and last;;
-     $self->debug(2,"We discovered the following SEs to save on: @discoveredSes, count:".scalar(@discoveredSes).", type flag was: $qos.");
-     ($result, my $success, my $JustConsideredSes) = $self->registerInMultipleSEs($user, $result, $pfn, $lfn, $size, \@discoveredSes, $envreq, $pfnRewrite);
-		 if (defined $result) {
-       push @$excludedSes, @$JustConsideredSes;
-       $count = $count - $success;
-		 }
+     my (@envelopes) = $self->access("-s",$envreq,$lfn, 0, $size,(join(";", @$excludedSes) || 0),($result->{guid} || 0),$sitename,$qos,$count);
+     (scalar(@envelopes) eq $count) or $self->info("We couldn't get envelopes for the specified '$count' SEs with qos flag '$qos'.");
+     (scalar(@envelopes) gt 0) or $self->info("We couldn't get envelopes for any of the '$count' requested SEs with qos flag '$qos'.") and last;
+
+     #(defined $envelopes[0]->{nestedEnvelopes}) and (scalar(@{$envelopes[0]->{nestedEnvelopes}}) gt 0) and @envelopes = @{$envelopes[0]->{nestedEnvelopes}};
+     if($jobtracelog) { 
+        foreach (@envelopes) { 
+          my $jobLogEntry = {};
+          $jobLogEntry->{flag}="trace";
+          $jobLogEntry->{text} = "We got an envelope for a discovered SE: $_->{se}";
+          push @{$result->{jobtracelog}}, $jobLogEntry;
+        }
+     }
+
+
+
+     $self->debug(2,"We discovered the following SEs to save on: @envelopes, count:".scalar(@envelopes).", type flag was: $qos.");
+      
+
+     ($result, my $success, my $JustConsideredSes) = $self->registerFileAccordingEnvelopes($result, $pfn, $lfn, $size, \@envelopes, $pfnRewrite,$jobtracelog);
+     push @$excludedSes, @$JustConsideredSes;
+     $count = $count - $success;
   }
   return $result;
 }
 
 
 
-
-sub registerInMultipleSEs {
+sub registerFileAccordingEnvelopes{
   my $self  = shift;
-	my $user=shift;
   my $result = (shift || {});
   my $pfn   = shift;
   my $lfn=(shift || "");
   my $size=(shift || 0);
-  my $suggestedSes = ( shift || {} );
-  my $envreq=(shift || "");
+  my $envelopes= ( shift || return 0 );
   my $pfnRewrite=(shift || 0);
+  my $jobtracelog=(shift || 0);
 
-$result->{guid} and $self->info("File has guid: $result->{guid}");
-  $result->{guid} or $result->{guid} = "";
+  my $jobLogEntry;
 
 
+  $result->{guid} and $self->info("File has guid: $result->{guid}") or $result->{guid} = "";
   ($pfn) or $self->{LOGGER}->warning( "LCM", "Error no pfn specified" ) and return;
   
   my $firstHit = 0;
   my $successCounter = 0;
-  my @ses= ();
   my @excludedSes = ();
 
+  $self->debug(2,"We got scalar(@$envelopes) envelopes");
 
-  my $envelopes = {};
-	my $quota_overflow = 0;
-  for my $j(0..$#{$suggestedSes}) {
-     my @envelope= $self->access("-s",$envreq,$lfn, @$suggestedSes[$j], $size,0,$result->{guid}, "-user=$user");
-     if(@envelope) {
-         (defined $envelope[0]->{error}) and ($envelope[0]->{error} =~ /Not allowed because of quota overflow/) and $quota_overflow=1 and last;
-         $envelopes->{@$suggestedSes[$j]}=$envelope[0]; 
-         push @ses, @$suggestedSes[$j];
-     } else {
-         $self->debug(2,"Error getting the security envelope");
-         push @excludedSes, @$suggestedSes[$j]; 
-     }
+  foreach my $envelope (@$envelopes){
 
-     ($j eq 0) and $result->{guid} = $envelopes->{@$suggestedSes[$j]}->{guid};
-  } 
+     (defined $envelope->{error})
+       and ($envelope->{error} =~ /Not allowed because of quota overflow/) and return -1;
 
-  $self->debug(2,"We got envelopes for and will use the following SEs to save on: @ses, count:".scalar(@ses));
 
-	(scalar(@ses)==0) and ($quota_overflow==1) and return -1;
-
-  for my $j(0..$#ses) {
-     $envelopes->{$ses[$j]} or $self->{LOGGER}->warning( "LCM", "Missing envelope for SE: $ses[$j]" ) and next;
-     $ENV{ALIEN_XRDCP_ENVELOPE}=$envelopes->{$ses[$j]}->{envelope};
-     $ENV{ALIEN_XRDCP_URL}=$envelopes->{$ses[$j]}->{url};
+     $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope->{envelope};
+     $ENV{ALIEN_XRDCP_URL}=$envelope->{url};
 
      my $start=time;
 
-     $self->debug(2, "Adding the file $pfn to $ses[$j]" );
+     $self->debug(2, "Adding the file $pfn to $envelope->{se}" );
+     $jobtracelog and $jobLogEntry={} and $jobLogEntry->{flag}="trace"
+            and $jobLogEntry->{text} = "Adding the file $pfn to $envelope->{se}"
+            and push @{$result->{jobtracelog}}, $jobLogEntry;
      my $res;
      my $z = 0;
      while ($z < 5 ) {   # try five times in case of error
-          $res= $self->{STORAGE}->RegisterInRemoteSE($pfn, $lfn, $envelopes->{$ses[$j]});
+          $res= $self->{STORAGE}->RegisterInRemoteSE($pfn, $lfn, $envelope);
           $res and $z = 6 or $z++;
      }
+     
+     $res or $jobtracelog and $jobLogEntry = {} and $jobLogEntry->{flag}="error"
+            and $jobLogEntry->{text} = "ERROR storing $pfn in $envelope->{se}\n"
+            and push @{$result->{jobtracelog}}, $jobLogEntry;
 
-     $res or print STDERR "ERROR storing $pfn in $ses[$j]\n" and push @excludedSes, $ses[$j] and next;
+     $res or print STDERR "ERROR storing $pfn in $envelope->{se}\n" and push @excludedSes, $envelope->{se} and next;
 
      $res->{pfn} or $self->{LOGGER}->warning( "LCM", "Error transfering the file to the SE" );
 
      my $time=time-$start;
-     $self->sendMonitor("write", $ses[$j], $time, $size, $res);
+     $self->sendMonitor("write", $envelope->{se}, $time, $size, $res);
 
      if($firstHit eq 0 and (! $result->{status})) {
         $result->{guid} = $res->{guid};
         $result->{md5} = $res->{md5};
         $result->{size} = $res->{size};
         $result->{pfn} = $res->{pfn};
-        $result->{seref} = $ses[$j];
+        $result->{seref} = $envelope->{se};
         $result->{status} = 1;
         $firstHit = 1;
         $self->debug(2,"Registered data for first SE, status is ok");
      }
-     $result->{se}->{$ses[$j]}->{pfn}=$res->{pfn};
+     $result->{se}->{$envelope->{se}}->{pfn}=$res->{pfn};
 
-     if ($envelopes->{$ses[$j]}->{url} and $pfnRewrite){
-          my $newPFN=$envelopes->{$ses[$j]}->{url};
-          $newPFN=~ s{^([^/]*//[^/]*)//(.*)$}{$1/$envelopes->{$ses[$j]}->{url}};
+     if ($envelope->{url} and $pfnRewrite){
+          my $newPFN=$envelope->{url};
+          $newPFN=~ s{^([^/]*//[^/]*)//(.*)$}{$1/$envelope->{url}};
           $newPFN=~ m{root:////} and $newPFN="";
-          $newPFN and $self->debug(3,"Using the pfn of the security envelope '$newPFN'") and $result->{$ses[$j]}->{pfn}=$newPFN;
+          $newPFN and $self->debug(3,"Using the pfn of the security envelope '$newPFN'") and $result->{$envelope->{se}}->{pfn}=$newPFN;
      }
-     push @excludedSes, $ses[$j];
+     push @excludedSes, $envelope->{se};
      $successCounter++;
   }
 
   return $result, $successCounter, \@excludedSes;
 }
-
-
-
-
 
 
 sub sendMonitor {
