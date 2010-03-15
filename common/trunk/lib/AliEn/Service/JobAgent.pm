@@ -1682,6 +1682,7 @@ sub uploadFile {
   my $uploadResult;
   my @pfns = (); 
   my $silent="-silent";
+  my $jobtracelog="-jobtracelog";
 
   $self->info("Submitting the file $file");
   if (! -f "$self->{WORKDIR}/$file")  {
@@ -1691,10 +1692,14 @@ sub uploadFile {
   $self->putJobLog("trace","Will store $file ...");
 
 
-  ($uploadResult)=$ui->execute("upload", "$self->{WORKDIR}/$file", $storeTags, "-user=$self->{JOB_USER}", $silent);
+  ($uploadResult)=$ui->execute("upload", "$self->{WORKDIR}/$file", $storeTags, "-user=$self->{JOB_USER}", $silent, $jobtracelog);
   ($uploadResult==-1) and
     $self->putJobLog("error","Error in upload, could not store the file $self->{WORKDIR}/$file on any SE because of quota overflow.")
       and return 0;
+
+   if( (defined $uploadResult->{jobtracelog}) and (scalar(@{$uploadResult->{jobtracelog}}) gt 0) ) {
+         foreach(@{$uploadResult->{jobtracelog}}) { $self->putJobLog($_->{flag}, $_->{text});}
+   }
 
 
   if ( $uploadResult && (scalar(keys(%$uploadResult)) gt 0) && (scalar(keys %{$uploadResult->{se}}) gt 0) ) {
