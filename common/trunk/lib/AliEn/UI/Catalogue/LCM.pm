@@ -1987,8 +1987,8 @@ sub checkSiteSECacheForAccess{
    my $reply = $catalogue->query("SELECT sitename FROM SERanks WHERE sitename = ?;", undef, {bind_values=>[$site]});
 
    (scalar(@$reply) < 1) and $self->info("We need to update the SERank Cache for the not listed site: $site")
-            and return $self->{CATALOGUE}->execute("refreshSERankCache", $site);
-    #        and return AliEn::Catalogue::Admin->refreshSERankCacheSite($self,$catalogue,$site,0);
+    #        and return $self->execute("refreshSERankCache", $site);
+            and return AliEn::Catalogue::Admin->refreshSERankCacheSite($self,$catalogue,$site,0);
 
    return 1;
 }

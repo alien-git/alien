@@ -660,7 +660,7 @@ sub resyncLDAP {
   $db->do("update SERanks set updated=0 where 1 $where", {bind_values=>\@bind});
   foreach my $site (@sites){
     $self->info("Ready to update $site");
-    $self->refreshSERankCacheSite($db, $site);  
+    AliEn::Catalogue::Admin->refreshSERankCacheSite($self, $db, $site);  
   }
    
   $db->do("delete from SERanks where updated=0");
@@ -669,13 +669,16 @@ sub resyncLDAP {
 }
 
 sub refreshSERankCacheSite{
+  my $proto = shift;
+  my $class = ref($proto) || $proto;
+
   my $self=shift;
   my $db=shift;
   my $site=shift;
   
   my @selist;
   $self->{CONFIG}->{SEDETECTMONALISAURL} and
-    @selist=$self->getListOfSEFromMonaLisa($site);
+    @selist=AliEn::Catalogue::Admin->getListOfSEFromMonaLisa($self, $site);
   
   if (!@selist){
     $self->info("We couldn't get the info from ML. Putting all the ses");
@@ -693,6 +696,9 @@ sub refreshSERankCacheSite{
 }
 
 sub getListOfSEFromMonaLisa {
+  my $proto = shift;
+  my $class = ref($proto) || $proto;
+
   my $self=shift;
   my $site=shift;
   
