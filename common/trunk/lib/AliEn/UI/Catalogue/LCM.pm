@@ -49,6 +49,7 @@ use AliEn::LCM;
 use List::Util 'shuffle';
 
 require AliEn::UI::Catalogue;
+require AliEn::Catalogue::Admin;
 use AliEn::SOAP;
 use Getopt::Long;
 use Compress::Zlib;
@@ -280,103 +281,141 @@ Options:
 Get can also be used to retrieve collections. In that case, there are some extra options:
   -c: Retrieve all the files with their original lfn name
   -b <name>: Requires -c. Remove <name> from the beginning of the lfn
-  -s <se>: Retrieve the file from the se <se>
+  -s [<se>][,!<se>]* : Retrieve the file from the se <se> and/or don't use the list of !<se>
 
 ";
 }
 sub get {
-  my $self = shift;
-#  my $opt;
-#  ( $opt, @_ ) = $self->Getopts(@_);
-  my %options=();
-  @ARGV=@_;
-  getopts("gonb:clfs:", \%options) or $self->info("Error parsing the arguments of get\n". $self->get_HELP()) and  return ;
-  @_=@ARGV;
-  
-  my $opt=join("",keys %options);
-  my $file      = shift;
-  my $localFile = shift;
+   my $self = shift;
+ #  my $opt;
+ #  ( $opt, @_ ) = $self->Getopts(@_);
+   my %options=();
+   @ARGV=@_;
+   getopts("gonb:clfs:", \%options) or $self->info("Error parsing the arguments of get\n". $self->get_HELP()) and  return ;
+   @_=@ARGV;
+   
+   my $opt=join("",keys %options);
+   my $file      = shift;
+   my $localFile = shift;
+ 
+   ($file)
+     or print STDERR
+ "Error: not enough arguments in get\n". $self->get_HELP()
+   and return;
+ 
+ 
+   my $excludedAndfailedSEs = "";
+   my $wishedSE = 0;
+   if($options{s}) {
+     foreach (split(/,/, $options{s})) {
+        ($_ =~ /!/) 
+          and $_ =~ s/!//
+          and $excludedAndfailedSEs .= $_.";"
+          and next;
+        $wishedSE = $_;
+     }
+     $excludedAndfailedSEs=~ s/;$//;
+   }
 
-  ($file)
-    or print STDERR
-"Error: not enough arguments in get\n". $self->get_HELP()
-  and return;
+   my $entry=$file;
+ 
+   my $class="";
+   $self->{CATALOG} and $class=ref $self->{CATALOG};
+   my $guidInfo;
+   if ($class =~ /^AliEn/ ){
+     if ($options{g} ){
+ #      $self->debug(1, "Getting it directly from the guid '$file'");
+       $guidInfo=$self->{CATALOG}->getInfoFromGUID($file)
+         or return;
+       $entry=$guidInfo->{guid};
+     }else {
+       #Get the pfn from the catalog
+       #print Dumper($self->{CATALOG});
+       my $info=$self->{CATALOG}->f_whereis("i",$file)
+ 	or $self->info("Error getting the info from '$file'") and return;
+       $file=$info->{lfn};
+       $guidInfo=$info->{guidInfo};
+       $entry=$file;
+     }
+   }
+ 
+   my  (@envelope) = $self->access("-s","read",$entry,$wishedSE,0,$excludedAndfailedSEs,0,$self->{CONFIG}->{SITE},0,0) or return;
 
-  my $entry=$file;
+   my $envelop = $envelope[0];
+ 
+   if (!defined $envelop->{envelope}) {
+     $self->info( "Cannot get access to $file") and return;
+ 
+   }
+ 
+   $guidInfo->{guid}=$envelop->{guid};
+   $guidInfo->{size}=$envelop->{size};
+   $guidInfo->{se}=$envelop->{se};
+   $guidInfo->{pfn}=$envelop->{pfn};
+ 
+ 
+   $ENV{'IO_AUTHZ'} = $envelop->{envelope};
+    
+   $guidInfo->{guid} or 
+     $self->info("Error getting the guid and md5 of $file",-1) and return;
+ 
+   if ($guidInfo->{type} and $guidInfo->{type} eq "c"){
+     $self->info("This is in fact a collection!! Let's get all the files");
+     return $self->getCollection($guidInfo->{guid}, $localFile, \%options);
+   }
+ 
+   
+   #First, let's check the local copy of the file
+   my $result=$self->{STORAGE}->getLocalCopy($guidInfo->{guid}, $localFile);
+ 
+   while((!$result) or (!defined $envelop->{envelope})) {
+ 
+     my $seRef = $envelop->{origpfn};
+     $self->{STORAGE}->checkDiskSpace($guidInfo->{size}, $localFile) or return;
+     #Get the file from the LCM
+     $seRef or $self->info("Error getting the list of pfns")
+       and return;
+     my $origpfn;
+     foreach my $d (@$seRef){ (lc $d->{se} eq lc $envelop->{se}) and $origpfn = $d->{pfn}; }
+ 
+     my $start=time;
+     #$result = $self->{STORAGE}->getFile( @{$seRef}[0]->{pfn}, @{$seRef}[0]->{se}, $localFile, $opt, $file, $guidInfo->{guid},$guidInfo->{md5} );
+     $result = $self->{STORAGE}->getFile( $origpfn, $guidInfo->{se}, $localFile, $opt, $file, $guidInfo->{guid},$guidInfo->{md5} );
+     my $time=time-$start;
 
-  my $class="";
-  $self->{CATALOG} and $class=ref $self->{CATALOG};
-  my $guidInfo;
-  if ($class =~ /^AliEn/ ){
-    if ($options{g} ){
-#      $self->debug(1, "Getting it directly from the guid '$file'");
-      $guidInfo=$self->{CATALOG}->getInfoFromGUID($file)
-        or return;
-      $entry=$guidInfo->{guid};
-    }else {
-      #Get the pfn from the catalog
-      #print Dumper($self->{CATALOG});
-      my $info=$self->{CATALOG}->f_whereis("i",$file)
-	or $self->info("Error getting the info from '$file'") and return;
-      $file=$info->{lfn};
-      $guidInfo=$info->{guidInfo};
-      $entry=$file;
-    }
-  }
+     if ($self->{MONITOR}){
+	$self->sendMonitor('read', $guidInfo->{se}, $time, $guidInfo->{size}, $result);
+     }
+     $result and last;
+     ######## if everything worked fine for the first SE, we go out here sucessfully!
+     ###
+     ###
+     my $alreadyInList = 0;
+     foreach (split(";",$excludedAndfailedSEs)) { (lc $_ eq lc $guidInfo->{se}) and $alreadyInList=1;}
+     if(!$alreadyInList) {
+       $excludedAndfailedSEs ne "" and $excludedAndfailedSEs .= ";";
+       $excludedAndfailedSEs .= $guidInfo->{se}; # Mark that SE as failed.
+     }
+     $self->info("Getting the copy didn't work :(. Does anybody else have the file? Feeding back used/failed $excludedAndfailedSEs.");
+     (@envelope) = $self->access("-s","read",$entry,0,0,$excludedAndfailedSEs,0,$self->{CONFIG}->{SITE},0,0) or return;
 
-  my  @envelope = $self->access("-s","read",$entry) or return;
+     $envelop = $envelope[0];
+     $envelop = $envelope[0];
+     $guidInfo->{guid}=$envelop->{guid};
+     $guidInfo->{size}=$envelop->{size};
+     $guidInfo->{se}=$envelop->{se};
+     $guidInfo->{pfn}=$envelop->{pfn};
+     $ENV{'IO_AUTHZ'} = $envelop->{envelope};
+     $guidInfo->{guid} or $self->info("Error getting the guid and md5 of $file",-1) and return;
+ 
+   } 
+   $result or
+     $self->info("Error: not possible to get the file $file", 1) and return;
 
-  if (!defined $envelope[0]->{envelope}) {
-    $self->info( "Cannot get access to $file") and return;
-  }
-  $guidInfo->{guid}=$envelope[0]->{guid};
-  $guidInfo->{size}=$envelope[0]->{size};
-  $ENV{'IO_AUTHZ'} = $envelope[0]->{envelope};
-  $guidInfo->{guid} or 
-    $self->info("Error getting the guid and md5 of $file",-1) and return;
-
-  if ($guidInfo->{type} and $guidInfo->{type} eq "c"){
-    $self->info("This is in fact a collection!! Let's get all the files");
-    return $self->getCollection($guidInfo->{guid}, $localFile, \%options);
-  }
-
-  
-  #First, let's check the local copy of the file
-  my $result=$self->{STORAGE}->getLocalCopy($guidInfo->{guid}, $localFile);
-  if (! $result) {
-    $self->{STORAGE}->checkDiskSpace($guidInfo->{size}, $localFile) or return;
-    my $seRef = $envelope[0]->{origpfn};
-
-    #Get the file from the LCM
-    $seRef or $self->info("Error getting the list of pfns")
-      and return;
-    foreach my $d (@$seRef){
-      $d->{seName}=$d->{se};
-    }
-    my (@seList ) = $self->selectClosestSE({se=>$options{'s'}}, @$seRef);
-    $self->debug(1, "We can ask the following SE: @seList");
-
-    my $sesel=1;
-    while (my $entry2=shift @seList) {
-      my ($se, $pfn)=($entry2->{seName}, $entry2->{pfn});
-      my $start=time;
-      $result = $self->{STORAGE}->getFile( $pfn, $se, $localFile, $opt, $file, $guidInfo->{guid},$guidInfo->{md5} );
-      my $time=time-$start;
-
-      if ($self->{MONITOR}){
-	$self->sendMonitor('read', $se, $time, $guidInfo->{size}, $result);
-      }
-      $result and last;
-      $self->info("Getting the copy didn't work :(. Does anybody else have the file?");
-      $sesel++;
-      @envelope = $self->access("-s","read",$entry, 0,0,$sesel) or return;
-    }
-    $result or
-      $self->info("Error: not possible to get the file $file", 1) and return;
-  }
-  $self->info("And the file is $result",0,0);
-  return $result;
+   $self->info("And the file is $result",0,0);
+   return $result;
 }
+
 
 sub getCollection{
   my $self=shift;
@@ -776,6 +815,76 @@ sub selectClosestSE {
   $self->debug(1, "After sorting we have ". Dumper(@return));
   return @return;
 }
+
+
+
+
+# This subroutine receives a list of SE, and returns the same list, 
+# but ordered according to the se
+#
+#
+sub selectClosestSEOnRank {
+  my $self = shift;
+  my $sitename = (shift || 0);
+  my $seList = (shift || return 0);
+  my $sePrio = (shift || 0);
+  my $excludedAndfailedSEs= (shift || {});
+
+  $sitename or return $seList;
+
+  my $res = $self->sortSEListBasedOnSiteSECache($sitename, $seList,$excludedAndfailedSEs);
+
+
+  my $return = [];
+  $res and $return = $self->resortArrayToPrioElementIfExists($sePrio,$res)
+    or   $return = $self->resortArrayToPrioElementIfExists($sePrio,$seList)  
+         and$self->info("Error: The sortSEListBasedOnSiteSECache didn't work, replying original SE list.");
+
+  $self->debug(1, "After sorting we have ". Dumper(@$return));
+
+  return $return;
+}
+
+sub resortArrayToPrioElementIfExists {
+   my $self=shift;
+   my $prio=shift;
+   my $list=shift;
+   my @newlist=();
+   my $exists=0;
+   foreach (@$list) { 
+     (lc $prio eq lc $_) and $exists=1 
+      or push @newlist, $_; 
+   }
+   $exists and  @newlist = ($prio,@newlist); 
+   return \@newlist;
+}
+
+
+sub sortSEListBasedOnSiteSECache{
+   my $self=shift;
+   my $sitename=(shift || return 0);
+   my $seList=(shift || return 0 );
+   my $excludeList=(shift || []);
+
+
+   $self->checkSiteSECacheForAccess($sitename) or return 0;
+
+   my $catalogue = $self->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
+
+   my @queryValues = ();
+   push @queryValues, $sitename;
+
+   my $query="SELECT DISTINCT seName FROM SERanks JOIN SE USING (seNumber) WHERE sitename = ?  ";
+   if(scalar(@{$seList}) > 0)  { $query .= " and ( "; foreach (@{$seList}){ $query .= " seName = ? or"; push @queryValues, $_;  } $query =~ s/or$/)/;}
+   if(scalar(@{$excludeList}) > 0)  { foreach (@{$excludeList}) {   $query .= " and seName <> ? ";   push @queryValues, $_; };}
+   $query .= " ORDER BY rank ASC ;";
+
+   return  $catalogue->queryColumn($query, undef, {bind_values=>\@queryValues});
+}
+
+
+
+
 
 sub cat {
   my $self=shift;
@@ -1258,9 +1367,16 @@ sub getPFNforAccess {
   my $self=shift;
   my $guid=shift;
   my $se=shift;
-  my $sesel=shift;
+  my $excludedAndfailedSEs=shift;
   my $lfn=shift;
+  my $sitename=(shift || 0);
   my $options=shift;
+
+  my $sesel = 0;
+  if ($$excludedAndfailedSEs[0] =~ /^[0-9]+$/ ) { 
+     $sesel=$excludedAndfailedSEs;
+     @{$excludedAndfailedSEs} = ();
+  }
 
   my ($pfn, $anchor);
   my @where=$self->{CATALOG}->f_whereis("sgztr","$guid");
@@ -1279,50 +1395,17 @@ sub getPFNforAccess {
   @whereis or $self->info( "access: $error" )
     and return access_eof;
 
-  my @closeList={};
+  my $closeList;
 	
-  if ($se ne 0) {
-    my $tmpse = "$self->{CONFIG}->{SE_FULLNAME}";
-    my $tmpvo = "$self->{CONFIG}->{ORG_NAME}";
-    my $tmpsite = "$self->{CONFIG}->{SITE}";
-    my @tmpses = @{$self->{CONFIG}->{SEs_FULLNAME}};
-    @{$self->{CONFIG}->{SEs_FULLNAME}}={};
-    my ($lvo, $lsite, $lname) = split "::", $se;
-    
-    # change temporary the meaning of the 'local' se
-    $self->{CONFIG}->{SE_FULLNAME} = $se;
-    $self->{CONFIG}->{ORG_NAME} = $lvo;
-    $self->{CONFIG}->{SITE} = $lsite;
-    (@closeList) = $self->selectClosestSE({}, @whereis);
-    $self->{CONFIG}->{SE_FULLNAME} = $tmpse;
-    $self->{CONFIG}->{ORG_NAME} = $tmpvo;
-    $self->{CONFIG}->{SITE} = $tmpsite;
-    @{$self->{CONFIG}->{SEs_FULLNAME}}=@tmpses;
-  } else {
-    (@closeList) = $self->selectClosestSE({}, @whereis);
-  }
+  $closeList = $self->selectClosestSEOnRank($sitename, \@whereis, $se, $excludedAndfailedSEs);
 
-  #check if the wished se is at all existing ....
-  my $sefound=0;
-  my $nses=scalar @closeList;
-  if ($sesel > 0) {
-    # the client wants a replica identified by its number
-    (defined $closeList[$sesel-1]) or return access_eof;
-    $se = $closeList[$sesel-1];
+  
+  $se = @{$closeList}[$sesel];
 
-  } else {
-    # the client wants the closest match (entry 0)
-    foreach (@closeList) {
-      if ( (lc $_) eq (lc $se) ) {
-	$sefound=1;
-	last;
-      }
-    }
-    if (!$sefound) {
-      # set the closest one
-      $se = $closeList[0];
-    }
-    
+  my $nses=scalar @$closeList;
+  my @whereisClean=();
+  foreach (@where) {
+    push @whereis, $_->{se};
   }
 
   if (! $se) {
@@ -1406,6 +1489,8 @@ sub getPFNforAccess {
 
   return ($se, $pfn, $anchor, $lfn, $nses, \@where);
 }
+
+
 sub checkPermissionsOnLFN {
   my $self=shift;
   my $lfn=shift;
@@ -1497,7 +1582,7 @@ sub access {
     #my @newhash=$info->result;
     my @newhash=$self->{SOAP}->GetOutput($info);
 
-  
+
     if (!$newhash[0]->{envelope} ){
       my $error=$newhash[0]->{error} || "";
       $self->info("There was an error, putting into log: $error");
@@ -1833,9 +1918,6 @@ $ticket
 }
 
 
-
-
-
 sub identifyValidSEName{
    my $self=shift;
    my $se=shift;
@@ -1861,17 +1943,8 @@ sub checkExclWriteUserOnSEsForAccess{
 
    push @queryValues, $self->{CONFIG}->{ROLE};
 
-   $self->info("gron: query: $query");
-   $self->info("gron: values: @queryValues");
- 
- 
-#   $self->info( "gron: the reply from SE table for excl.user is: ". Dumper($catalogue->queryColumn($query, undef, {bind_values=>\@queryValues})));
-
    return $catalogue->queryColumn($query, undef, {bind_values=>\@queryValues});
 }
-
-
-
 
 
 sub getSEListFromSiteSECacheForAccess{
@@ -1883,8 +1956,6 @@ sub getSEListFromSiteSECacheForAccess{
    my $excludeList=(shift || "");
 
    my $catalogue = $self->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
-
-   $self->info("gron: getSEListFromSiteSECacheForAccess was asked for, type=$type,count=$count,sitename=$sitename,excludeList=$excludeList .");
 
    $self->checkSiteSECacheForAccess($sitename) or return 0;
 
@@ -1916,51 +1987,11 @@ sub checkSiteSECacheForAccess{
    my $reply = $catalogue->query("SELECT sitename FROM SERanks WHERE sitename = ?;", undef, {bind_values=>[$site]});
 
    (scalar(@$reply) < 1) and $self->info("We need to update the SERank Cache for the not listed site: $site")
-            and return $self->updateSiteSECacheForSiteForAccess($site,$catalogue);
+            and return $self->{CATALOGUE}->execute("refreshSERankCache", $site);
+    #        and return AliEn::Catalogue::Admin->refreshSERankCacheSite($self,$catalogue,$site,0);
+
    return 1;
 }
-
-sub updateSiteSECacheForSiteForAccess{
-   my $self=shift;
-   my $site=shift;
-   my $catalogue =  $self->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
-
-#   my $query = "INSERT INTO SERanks (sitename,rank,seNumber,updated) "
-#           ."SELECT ? sitename, \@num := \@num + 1 rank , SE.seNumber, 0 updated FROM "
-#           ."(SELECT \@num := 0) rank, SE ;";
-
-
-   #$self->info("query: $query");
-   #$self->info("values: $site ");
-
-#   my $reply = $catalogue->queryColumn($query, undef, {bind_values=>[$site]});
-
-#   $self->info("Finished to add SERank Cache entries for site: $site");
-
-   #$self->info("Manually calling CatalogueOptimizer->SERank code for site: $site");
-   #push @ISA, "AliEn::Service::Optimizer::Catalogue::SERank";
-   #return "SERank"->updateRanksForOneSite($self,$site,$catalogue);
-   $self->info("gron: Going to call updateRanksForOneSite.");
-
-   use AliEn::Service::Optimizer::Catalogue::SERank;
-   AliEn::Service::Optimizer::Catalogue::SERank->updateRanksForOneSite($self,$site,$catalogue,0);
-  
-   return 1; # If the SE Rank Optimizer comes back with bad things, we don't want to kill the 
-             # the access operation here...
-#   pop @ISA;
-#   pop @ISA;
-#   pop @ISA;
-
-#   return $stat;
-
-}
-
-
-
-
-
-
-
 
 
 sub commit {
@@ -2114,7 +2145,7 @@ sub erase {
 #	my $pfn=$self->getPFNfromGUID($se, $guid);
 #	$pfn or next;
 
-	my @envelope = $self->access("-s","delete","$lfn",$se);
+	my (@envelope) = $self->access("-s","delete","$lfn",$se);
 
 	if ((!defined $envelope[0])||(!defined $envelope[0]->{envelope})) {
 	    $self->info("Cannot get access to $lfn for deletion @envelope") and return;
@@ -2183,18 +2214,23 @@ sub upload {
   $pfn=$self->checkLocalPFN($pfn);
   my $size=AliEn::SE::Methods->new($pfn)->getSize();
 
-  my @optentry=split(",", join(",",@_));
-  foreach my $d (@optentry) {
-    if ($d =~ /::/){
-      my $list=\@ses;
-      $d =~ s/!// and $list=\@excludedSes;
-      my $n=uc($d);
-      grep (/^$n$/,@$list) or push @$list, $n;
-      next;
+  #my @optentry=split(",", join(",",@_));
+  foreach my $d ((split(",", join(",",@_)))) {
+    if ($self->identifyValidSEName($d)) {
+        $d=uc($d);
+        grep (/^$d$/,@ses) or push @ses, $d;
+        next;
     }
-    if ($d =~ /\=/){
+    elsif (($d =~ s/!//) and ($self->identifyValidSEName($d))) {
+        $d=uc($d);
+        grep (/^$d$/,@excludedSes) or push @excludedSes, $d;
+        next;
+    }
+    elsif ($d =~ /\=/){
       grep (/^$d$/, @qosList) or push @qosList, $d;
       next;
+    } else {
+        $self->info("WARNING: Found the following unrecognizeable option:".$d);
     }
     $d =~ /^\s*$/ and next;
     $self->info("WARNING: Found the following unrecognizeable option:".$d);
