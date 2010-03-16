@@ -230,12 +230,12 @@ sub getCpuSI2k {
   my $min_cpu_mhz = $cpu_type->{cpu_MHz} - $cpu_type->{cpu_MHz} * 0.02; # allow 2% deviation
   my $max_cpu_mhz = $cpu_type->{cpu_MHz} + $cpu_type->{cpu_MHz} * 0.02;
   # try querying the database for exactly this configuration
-  #my $result = $self->queryValue("SELECT si2k FROM cpu_si2k WHERE ? LIKE cpu_model_name AND ? LIKE cpu_cache AND cpu_MHz >= ? AND cpu_MHz <= ? ORDER BY length(cpu_model_name) DESC LIMIT 1", undef, {bind_values=>[$cpu_type->{cpu_model_name}, $cpu_type->{cpu_cache}, $min_cpu_mhz, $max_cpu_mhz]});
-  my $result = $self->queryValue("SELECT si2k FROM cpu_si2k WHERE cpu_model_name LIKE ? AND cpu_cache LIKE ? AND cpu_MHz >= ? AND cpu_MHz <= ? ORDER BY length(cpu_model_name) DESC LIMIT 1", undef, {bind_values=>[$cpu_type->{cpu_model_name}, $cpu_type->{cpu_cache}, $min_cpu_mhz, $max_cpu_mhz]});
+  my $result = $self->queryValue("SELECT si2k FROM cpu_si2k WHERE ? LIKE cpu_model_name AND ? LIKE cpu_cache AND cpu_MHz >= ? AND cpu_MHz <= ? ORDER BY length(cpu_model_name) DESC LIMIT 1", undef, {bind_values=>[$cpu_type->{cpu_model_name}, $cpu_type->{cpu_cache}, $min_cpu_mhz, $max_cpu_mhz]});
+  
   
   if(! defined($result)){
-    #my $list = $self->query("SELECT si2k, cpu_MHz FROM cpu_si2k WHERE ? LIKE cpu_model_name AND ? LIKE cpu_cache order by length(cpu_model_name) desc, abs(cpu_MHz - ?) asc", undef, {bind_values=>[$cpu_type->{cpu_model_name}, $cpu_type->{cpu_cache}, $cpu_type->{cpu_MHz}]});
-    my $list = $self->query("SELECT si2k, cpu_MHz FROM cpu_si2k WHERE cpu_model_name LIKE ? AND cpu_cache LIKE ? order by length(cpu_model_name) desc, abs(cpu_MHz - ?) asc", undef, {bind_values=>[$cpu_type->{cpu_model_name}, $cpu_type->{cpu_cache}, $cpu_type->{cpu_MHz}]});
+    my $list = $self->query("SELECT si2k, cpu_MHz FROM cpu_si2k WHERE ? LIKE cpu_model_name AND ? LIKE cpu_cache order by length(cpu_model_name) desc, abs(cpu_MHz - ?) asc", undef, {bind_values=>[$cpu_type->{cpu_model_name}, $cpu_type->{cpu_cache}, $cpu_type->{cpu_MHz}]});
+    
     if(defined($list) && (@$list >= 2)){
       my $cpu1 = $list->[0];
       my $cpu2 = $list->[1];
