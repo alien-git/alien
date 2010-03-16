@@ -316,6 +316,7 @@ sub get {
      }
      $excludedAndfailedSEs=~ s/;$//;
    }
+#   ($excludedAndfailedSEs eq "") and $excludedAndfailedSEs = 0;
 
    my $entry=$file;
  
@@ -339,7 +340,7 @@ sub get {
      }
    }
  
-   my  (@envelope) = $self->access("-s","read",$entry,$wishedSE,0,$excludedAndfailedSEs,0,$self->{CONFIG}->{SITE},0,0) or return;
+   my  (@envelope) = $self->access("-s","read",$entry,$wishedSE,0,($excludedAndfailedSEs or 0),0,$self->{CONFIG}->{SITE},0,0) or return;
 
    my $envelop = $envelope[0];
  
@@ -397,7 +398,7 @@ sub get {
        $excludedAndfailedSEs .= $guidInfo->{se}; # Mark that SE as failed.
      }
      $self->info("Getting the copy didn't work :(. Does anybody else have the file? Feeding back used/failed $excludedAndfailedSEs.");
-     (@envelope) = $self->access("-s","read",$entry,0,0,$excludedAndfailedSEs,0,$self->{CONFIG}->{SITE},0,0) or return;
+     (@envelope) = $self->access("-s","read",$entry,0,0,($excludedAndfailedSEs or 0),0,$self->{CONFIG}->{SITE},0,0) or return;
 
      $envelop = $envelope[0];
      $envelop = $envelope[0];
@@ -830,15 +831,19 @@ sub selectClosestSEOnRank {
   my $sePrio = (shift || 0);
   my $excludedAndfailedSEs= (shift || {});
 
-  $sitename or return $seList;
-
-  my $res = $self->sortSEListBasedOnSiteSECache($sitename, $seList,$excludedAndfailedSEs);
-
-
   my $return = [];
-  $res and $return = $self->resortArrayToPrioElementIfExists($sePrio,$res)
-    or   $return = $self->resortArrayToPrioElementIfExists($sePrio,$seList)  
-         and$self->info("Error: The sortSEListBasedOnSiteSECache didn't work, replying original SE list.");
+
+  if($sitename) {
+    my $res = $self->sortSEListBasedOnSiteSECache($sitename, $seList,$excludedAndfailedSEs);
+  
+    $res and $return = $self->resortArrayToPrioElementIfExists($sePrio,$res)
+      or   $return = $self->resortArrayToPrioElementIfExists($sePrio,$seList)  
+           and $self->info("Error: The sortSEListBasedOnSiteSECache didn't work, replying original SE list.");
+  
+  } else {
+    $return = $self->resortArrayToPrioElementIfExists($sePrio,$seList)  
+       and $self->info("There was no sitename given, so we won't call sortSEListBasedOnSiteSECache, replying original SE list.");
+  }
 
   $self->debug(1, "After sorting we have ". Dumper(@$return));
 
@@ -852,7 +857,7 @@ sub resortArrayToPrioElementIfExists {
    my @newlist=();
    my $exists=0;
    foreach (@$list) { 
-     (lc $prio eq lc $_) and $exists=1 
+     (lc($prio) eq lc($_)) and $exists=1 
       or push @newlist, $_; 
    }
    $exists and  @newlist = ($prio,@newlist); 
@@ -1398,7 +1403,6 @@ sub getPFNforAccess {
   my $closeList;
 	
   $closeList = $self->selectClosestSEOnRank($sitename, \@whereis, $se, $excludedAndfailedSEs);
-
   
   $se = @{$closeList}[$sesel];
 
@@ -1768,6 +1772,7 @@ sub access {
 	    or $self->info( "access: Error getting the guid of $lfn",11) and return;
 	}
 
+        $self->info("Calling getPFNforAccess with sitename: $sitename");
 	($se, $pfn, $anchor, $lfn, $nses, $whereis)=$self->getPFNforAccess($guid, $se, $excludedAndfailedSEs, $lfn, $sitename, $options)
 	  or return access_eof;
 	if (UNIVERSAL::isa($se, "HASH")){
