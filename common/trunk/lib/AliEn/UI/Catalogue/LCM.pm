@@ -1659,11 +1659,11 @@ sub access {
 
   if ($access =~ /^write/){
 
-    (scalar(@ses) eq 0) or $seList = $self->checkExclWriteUserOnSEsForAccess($seList) and @ses = @$seList; 
+    (scalar(@ses) eq 0) or $seList = $self->checkExclWriteUserOnSEsForAccess($size,$seList) and @ses = @$seList; 
 
     if(($sitename ne 0) and ($writeQos ne "") and ($writeQosCount gt 0)) {
        # we don't need to check for Cache below, cause there it's implicit
-       my $dynamicSElist = $self->getSEListFromSiteSECacheForAccess($writeQos,$writeQosCount,$sitename,$excludedAndfailedSEs);
+       my $dynamicSElist = $self->getSEListFromSiteSECacheForAccess($size,$writeQos,$writeQosCount,$sitename,$excludedAndfailedSEs);
        push @ses,@$dynamicSElist;
     }
 
@@ -1681,15 +1681,15 @@ sub access {
     $perm = "r";
   } elsif ($access =~ /^(((write)((-once)|(-version))?)|(delete))$/ ) {
     $perm = "w";
-    if ($size){
-      $self->info("Checking the size in $se ($size)");
-      my ($info)=$self->df( $se);
-      if ($info and $info->{min_size} and $info->{min_size}>$size){
-	$self->info( "The file is too small!! ( only $size and it should be $info->{min_size}");
-	
-	return access_eof("This storage element only accepts files bigger than $info->{min_size} (and your file is $size)");
-      } 
-    }
+    #if ($size){
+    #  $self->info("Checking the size in $se ($size)");
+    #  my ($info)=$self->df( $se);
+    #  if ($info and $info->{min_size} and $info->{min_size}>$size){
+    #	$self->info( "The file is too small!! ( only $size and it should be $info->{min_size}");
+    #	
+    #	return access_eof("This storage element only accepts files bigger than $info->{min_size} (and your file is $size)");
+    #  } 
+    #}
   } else {
     $self->info("access: illegal access type <$access> requested");
     return access_eof;
@@ -1938,6 +1938,7 @@ sub identifyValidSEName{
 
 sub checkExclWriteUserOnSEsForAccess{
    my $self=shift;
+   my $fileSize=(shift || 0);
    my $seList=(shift || return 0);
    (scalar(@$seList) gt 0) or return [];
 
@@ -1947,7 +1948,7 @@ sub checkExclWriteUserOnSEsForAccess{
    my $query="SELECT seName FROM SE WHERE (";
    foreach(@$seList){   $query .= " seName = ? or";   push @queryValues, $_; }
    $query =~ s/or$//;
-   $query  .= ") and (exclusiveUsers is NULL or exclusiveUsers = '' or exclusiveUsers  LIKE concat ('%,' , ? , ',%') );";
+   $query  .= ") and seMinSize < $fileSize and ( exclusiveUsers is NULL or exclusiveUsers = '' or exclusiveUsers  LIKE concat ('%,' , ? , ',%') );";
 
    push @queryValues, $self->{CONFIG}->{ROLE};
 
@@ -1958,6 +1959,7 @@ sub checkExclWriteUserOnSEsForAccess{
 sub getSEListFromSiteSECacheForAccess{
    my $self=shift;
    
+   my $fileSize=(shift || 0);
    my $type=(shift || return 0);
    my $count=(shift || return 0);
    my $sitename=(shift || return 0);
@@ -1974,7 +1976,8 @@ sub getSEListFromSiteSECacheForAccess{
    push @queryValues, $sitename;
 
    foreach(@$excludeList){   $query .= "and SE.seName <> ? "; push @queryValues, $_;  }
-   $query .=" and SE.seQoS  LIKE concat('%,' , ? , ',%' ) "
+   
+   $query .=" and SE.seMinSize < $fileSize and SE.seQoS  LIKE concat('%,' , ? , ',%' ) "
     ." and (SE.exclusiveUsers is NULL or SE.exclusiveUsers = '' or SE.exclusiveUsers  LIKE concat ('%,' , ? , ',%') )"
     ." ORDER BY rank ASC limit ? ;";
 
