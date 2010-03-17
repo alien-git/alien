@@ -1948,8 +1948,9 @@ sub checkExclWriteUserOnSEsForAccess{
    my $query="SELECT seName FROM SE WHERE (";
    foreach(@$seList){   $query .= " seName = ? or";   push @queryValues, $_; }
    $query =~ s/or$//;
-   $query  .= ") and seMinSize < $fileSize and ( exclusiveUsers is NULL or exclusiveUsers = '' or exclusiveUsers  LIKE concat ('%,' , ? , ',%') );";
+   $query  .= ") and seMinSize < ? and ( exclusiveUsers is NULL or exclusiveUsers = '' or exclusiveUsers  LIKE concat ('%,' , ? , ',%') );";
 
+   push @queryValues, $fileSize;
    push @queryValues, $self->{CONFIG}->{ROLE};
 
    return $catalogue->queryColumn($query, undef, {bind_values=>\@queryValues});
@@ -1977,10 +1978,11 @@ sub getSEListFromSiteSECacheForAccess{
 
    foreach(@$excludeList){   $query .= "and SE.seName <> ? "; push @queryValues, $_;  }
    
-   $query .=" and SE.seMinSize < $fileSize and SE.seQoS  LIKE concat('%,' , ? , ',%' ) "
+   $query .=" and SE.seMinSize < ? and SE.seQoS  LIKE concat('%,' , ? , ',%' ) "
     ." and (SE.exclusiveUsers is NULL or SE.exclusiveUsers = '' or SE.exclusiveUsers  LIKE concat ('%,' , ? , ',%') )"
     ." ORDER BY rank ASC limit ? ;";
-
+ 
+   push @queryValues, $fileSize;
    push @queryValues, $type;
    push @queryValues, $self->{CONFIG}->{ROLE};
    push @queryValues, $count;
