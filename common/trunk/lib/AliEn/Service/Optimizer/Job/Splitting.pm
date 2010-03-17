@@ -218,7 +218,7 @@ sub SplitJob{
   $jobs or return;
 
   my $total=keys %{$jobs};
-  print "Splitting: the job can be split in  $total\n";
+  $self->info("Splitting: the job can be split in  $total");
   ($total>0) or return;
   return ( $split,$jobs );
 
@@ -230,7 +230,7 @@ sub _getInputFiles{
   my $queueId=shift;
 
   my ($ok, @patterns)=$job_ca->evaluateAttributeVectorString("InputData");
-  print "Checking if there is an inputcollection\n";
+  $self->info("Checking if there is an inputcollection");
   $self->copyInputCollection($job_ca, $queueId, \@patterns);
   @patterns or $self->info( "There is no input data")
     and return;
@@ -358,8 +358,6 @@ sub _multiSplit {
   if ($multisplit=~ /ce/i){
     $self->info("How many different CE do we have??");
     my $ces=$self->{DB}->queryColumn("select site from  SITEQUEUES where blocked='open'");
-    use Data::Dumper;
-    print Dumper($ces);
     my $counter=1;
     foreach my $ce (@$ces){
       $jobs->{$ce}={files=>[], requirements=>"other.ce==\"$ce\""};
