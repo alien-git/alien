@@ -207,12 +207,12 @@ objectidentifier AliEnSOAPServer  ALIEN_BASE:6
 
 attributetype ( AliEnSOAPServer:4 NAME 'port' SUP name )
 attributetype ( AliEnSOAPServer:5 NAME 'certsubject' SUP name )
-
+attributebyte ( AliEnSOAPServer:6 NAME 'soapType' SUP name )
 
 objectclass ( AliEnSOAPServer  NAME 'AliEnSOAPServer'
 	SUP ( top ) 
 	MUST ( host $ port )
-	MAY  ( certsubject $ environment )
+	MAY  ( certsubject $ environment $ soapType )
 	      )
 
 #AliEn SE
@@ -490,12 +490,11 @@ attributetype ( AliEnPackMan:1 NAME 'installDir' SUP name )
 attributetype ( AliEnPackMan:2 NAME 'platform' SUP name )
 attributetype ( AliEnPackMan:3 NAME 'forbidWnInstall' SUP name )
 attributetype ( AliEnPackMan:4 NAME 'method' SUP name )
-attributetype ( AliEnPackMan:5 NAME 'soapType' SUP name )
 
 objectclass ( AliEnPackMan  NAME 'AliEnPackMan'
 	SUP ( AliEnSOAPServer )
   	MUST ( name  )
-        MAY ( platform $ installDir $ forbidWnInstall $ method $ soapType )
+        MAY ( platform $ installDir $ forbidWnInstall $ method )
 	)
 
 
