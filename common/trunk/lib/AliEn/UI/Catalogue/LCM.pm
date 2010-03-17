@@ -879,10 +879,13 @@ sub sortSEListBasedOnSiteSECache{
    my @queryValues = ();
    push @queryValues, $sitename;
 
-   my $query="SELECT DISTINCT seName FROM SERanks JOIN SE USING (seNumber) WHERE sitename = ?  ";
+
+
+   my $query="SELECT DISTINCT seName FROM SERanks a right JOIN SE b 
+   on (a.seNumber=b.seNumber and sitename=?) WHERE 1";
    if(scalar(@{$seList}) > 0)  { $query .= " and ( "; foreach (@{$seList}){ $query .= " seName = ? or"; push @queryValues, $_;  } $query =~ s/or$/)/;}
    if(scalar(@{$excludeList}) > 0)  { foreach (@{$excludeList}) {   $query .= " and seName <> ? ";   push @queryValues, $_; };}
-   $query .= " ORDER BY rank ASC ;";
+   $query .= " ORDER BY if(rank is null, 1000, rank) ASC ;";
 
    return  $catalogue->queryColumn($query, undef, {bind_values=>\@queryValues});
 }
@@ -1992,8 +1995,7 @@ sub checkSiteSECacheForAccess{
    my $reply = $catalogue->query("SELECT sitename FROM SERanks WHERE sitename = ?;", undef, {bind_values=>[$site]});
 
    (scalar(@$reply) < 1) and $self->info("We need to update the SERank Cache for the not listed site: $site")
-    #        and return $self->execute("refreshSERankCache", $site);
-            and return AliEn::Catalogue::Admin->refreshSERankCacheSite($self,$catalogue,$site,0);
+            and return $self->execute("refreshSERankCache", $site);
 
    return 1;
 }

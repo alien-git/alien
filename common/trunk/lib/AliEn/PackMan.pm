@@ -125,6 +125,8 @@ Possible commands:
 \tpackman define <name> <version> <tar file> [<package options>]
 \tpackman undefine <name> <version>
 \tpackman recompute: (only for admin) recompute the list of packages.
+\tpackman syncrhonize:\tinstalls all the existing packages, and removes the packages locally installed that do not exist anymore
+
 Package options: -platform source, else the default for the local system is used
                   post_install <script> where the script should be given with the full catalogue path
 The format of the string <package> is:
@@ -238,6 +240,8 @@ sub f_packman {
     $requiresPackage=1;
   } elsif ($operation =~ /^recompute?$/){
     $soapCall="recomputeListPackages";
+  }elsif($operation =~ /^synchronize$/){
+    return $self->synchronizePackages(@_);
   } else {
     $self->info( "I'm sorry, but I don't understand $operation");
     $self->info( $self->f_packman_HELP(),0,0);
@@ -335,6 +339,36 @@ $done
   }
 
   return $return;
+}
+
+sub synchronizePackages {
+  my $self=shift;
+  my $cmd=shift;
+  $self->info("Ready to synchronize the packages with the catalogue");
+  my $local=grep (/^-local$/i, @_);
+  $local and $self->info("Doing it locally");
+  my ($ok1, @packages)=$self->getListPackages();
+  $ok1 or self->info("Error getting the list of packages") and return;
+  my ($ok, @installed)=$self->getListInstalledPackages(@_);
+  $ok or self->info("Error getting the list of packages") and return;
+   
+  foreach my $p (@packages){
+    if (!grep (/^$p$/, @installed)){
+      print "  We have to install $p\n";
+      $self->f_packman("install", $p, @_);
+    }
+    @installed=grep (!/^$p$/, @installed);  
+  }
+  foreach my $p (@installed){
+    print "  And we have to delete $p\n";
+    $self->f_packman("remove", $p, @_);  
+  }
+  
+  
+  
+  
+  return 1;
+  
 }
 
 sub definePackage{

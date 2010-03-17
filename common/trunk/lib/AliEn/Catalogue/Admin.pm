@@ -636,8 +636,8 @@ sub resyncLDAP {
    my $self=shift;
  
    $self->info("Let's force a refresh on the SE Rank Cache based on MonALISA info!");
-   ( $self->{ROLE}  =~ /^admin(ssl)?$/ ) or
-    $self->info("Error: only the administrator can check the database") and return;
+   #( $self->{ROLE}  =~ /^admin(ssl)?$/ ) or
+   # $self->info("Error: only the administrator can check the database") and return;
     
 
   my $sitename=shift ||"";
@@ -660,7 +660,7 @@ sub resyncLDAP {
   $db->do("update SERanks set updated=0 where 1 $where", {bind_values=>\@bind});
   foreach my $site (@sites){
     $self->info("Ready to update $site");
-    AliEn::Catalogue::Admin->refreshSERankCacheSite($self, $db, $site);  
+    $self->refreshSERankCacheSite( $db, $site);  
   }
    
   $db->do("delete from SERanks where updated=0");
@@ -669,16 +669,13 @@ sub resyncLDAP {
 }
 
 sub refreshSERankCacheSite{
-  my $proto = shift;
-  my $class = ref($proto) || $proto;
-
   my $self=shift;
   my $db=shift;
   my $site=shift;
   
   my @selist;
   $self->{CONFIG}->{SEDETECTMONALISAURL} and
-    @selist=AliEn::Catalogue::Admin->getListOfSEFromMonaLisa($self, $site);
+    @selist=$self->getListOfSEFromMonaLisa( $site);
   
   if (!@selist){
     $self->info("We couldn't get the info from ML. Putting all the ses");
@@ -696,9 +693,6 @@ sub refreshSERankCacheSite{
 }
 
 sub getListOfSEFromMonaLisa {
-  my $proto = shift;
-  my $class = ref($proto) || $proto;
-
   my $self=shift;
   my $site=shift;
   

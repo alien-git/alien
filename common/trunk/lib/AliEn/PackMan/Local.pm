@@ -163,11 +163,14 @@ sub installPackage{
       $pack=~ s/^(.*)\@// and $pack_user=$1;
       #let's install the packages without configuring them
       if ($dependencies->{"${pack}::$ver"} ) {
-	$self->info( "$$ Package $pack $ver already configured");
-	next;
+	        $self->info( "$$ Package $pack $ver already configured");
+	        next;
       }
       my ($ok, $depsource, $dir)=$self->installPackage($user, $pack, $ver, $dependencies, $options);
-      $ok or return (-1, $depsource);
+      if (! $ok or $ok eq '-1'){
+          $self->removeLock($user, $package, $version);
+          return (-1, $depsource);
+      }
       $depsource and $source="$source $depsource";
     }
   }
@@ -178,8 +181,10 @@ sub installPackage{
   my ($done2, $error)=$self->InstallPackage($lfn, $user, $package, $version,$info, $source, $options);
   umask 0027;
   $self->removeLock($user, $package, $version);
+ 
+  $self->info("The installation of $user, $package, $version finished with $done2 and $error");
   $done2 or return (-1, $error);
-
+  $done2 eq '-1' and return (-1, $error);
 
   my ($done, $psource, $dir2)= $self->ConfigurePackage($user, $package, $version, $info);
   $psource and $source="$source $psource";
@@ -307,6 +312,7 @@ sub InstallPackage {
   my $error=$@;
 
   if ($error) {
+    $self->info("Something failed. Removing the directory");
     $self->{LOGGER}->redirect();
     system ("rm -rf $dir");
     $self->info( "$$ Error $@");
