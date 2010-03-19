@@ -1401,7 +1401,7 @@ sub getPFNforAccess {
   $self->{LOGGER}->error_msg() and $error=$self->{LOGGER}->error_msg();
   #Get the file from the LCM
   @whereis or $self->info( "access: $error" )
-    and return access_eof;
+    and return access_eof("access: Error on whereis for file $lfn.");
 
   my $closeList;
 	
@@ -1692,7 +1692,7 @@ sub access {
     #}
   } else {
     $self->info("access: illegal access type <$access> requested");
-    return access_eof;
+    return access_eof("access: illegal access type <$access> requested");
   }
 
   my @list=();
@@ -1719,7 +1719,7 @@ sub access {
       $filehash=$self->{CATALOG}->{DATABASE}->{GUID_DB}->checkPermission($perm, $guid, {retrieve=>"size,md5"});
       if (! $filehash){
 	$self->info("access: access denied to guid '$guid'");
-	return access_eof;
+	return access_eof("access: access denied to guid '$guid'");
       }
       delete $filehash->{db};
     } else {
@@ -1736,14 +1736,15 @@ sub access {
       }
       if ( $lfn ne "") {
 	$filehash=$self->checkPermissionsOnLFN($lfn,$access, $perm)
-	  or return access_eof;
+	  or return access_eof("checkPermissionsOnLFN failed for $lfn");
 	$access=~ /write-version/ and $access="write-once";
       }
       $DEBUG and $self->debug(1, "We have permission on the lfn");
       if ($access =~ /^write/) {
         
         $se = shift(@ses);
-        $self->identifyValidSEName($se) or $self->info("access: no SE asked to write on") and return access_eof; 
+        $self->identifyValidSEName($se) or $self->info("access: no SE asked to write on") and 
+		return access_eof("List of SE is empty, after permission checks on user's right to access SEs."); 
 
 	($seurl,my $guid2,my $se2) = $self->{CATALOG}->createFileUrl($se, "root", $guid);
 	$guid2 and $guid=$guid2;
@@ -1777,7 +1778,7 @@ sub access {
 
         $self->info("Calling getPFNforAccess with sitename: $sitename");
 	($se, $pfn, $anchor, $lfn, $nses, $whereis)=$self->getPFNforAccess($guid, $se, $excludedAndfailedSEs, $lfn, $sitename, $options)
-	  or return access_eof;
+	  or return access_eof("Calling getPFNforAccess for $lfn, for read or delete access was not successfull.");
 	if (UNIVERSAL::isa($se, "HASH")){
 	  $self->info("Here we have to return eof");
 	  return access_eof;
@@ -1895,7 +1896,7 @@ sub access {
 
       if (!$coded) {
 	$self->info("access: error during envelope encryption");
-	return access_eof;
+	return access_eof("access: error during envelope encryption");
       } else {
 	(!($options=~ /s/)) and $self->info("access: prepared your access envelope");
       }
