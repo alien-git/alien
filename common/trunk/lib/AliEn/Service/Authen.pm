@@ -101,15 +101,13 @@ sub  createEnvelope{
   my $user=shift;
   $self->info("$$ Ready to create the envelope for user $user (and @_)");
   
-  
-  
   $self->{UI}->execute("user","-", $user);
   
   $self->debug(1, "Executing access");
   my $options=shift;
   $options.= "v";
   my (@info)=$self->{UI}->execute("access", $options, @_);
-  $self->info("$$ OK! Everything is done");
+  $self->info("$$ Everything is done for user $user (and @_)");
   return @info;
 }
 

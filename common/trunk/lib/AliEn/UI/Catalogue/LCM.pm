@@ -1577,8 +1577,8 @@ sub access {
   my $self = shift;
 
   if (!  $self->{envelopeengine}) {
-    my $user=$self->{CONFIG}->{ROLE};
-    $self->{CATALOG} and $self->{CATALOG}->{ROLE} and $user=$self->{CATALOG}->{ROLE};
+    my $user= ($self->{CATALOG}->{ROLE} or $self->{CONFIG}->{ROLE});
+
     $self->info("Getting a security envelope..");
     #my $info=$self->{SOAP}->CallSOAP("Authen", "createArrayOfEnvelopes", $user, @_)
     #  or $self->info("Error asking the for an envelope") and return;
@@ -1595,14 +1595,14 @@ sub access {
       $self->info("There was an error, putting into log: $error");
       $self->info($self->{LOGGER}->error_msg());
       $self->info("There is no envelope ($error)!!", 1);
-      ($error =~ /Not allowed because of quota overflow/) and return @newhash;
-      return;
+      #($error =~ /Not allowed because of quota overflow/) and return @newhash;
+      return (0,$error) ;
      }
     $ENV{ALIEN_XRDCP_ENVELOPE}=$newhash[0]->{envelope};
     $ENV{ALIEN_XRDCP_URL}=$newhash[0]->{url};
     return (@newhash);
   }
-  $self->info("Making the envelope ourselves: @_ ");
+  $self->info("Starting envelope creation: @_ ");
 
   my $options = shift;
   my $maybeoption = ( shift or 0 );
@@ -1615,25 +1615,18 @@ sub access {
     $access = ( $maybeoption or 0);
   }
 
-        my $userForFileQuota=$self->{CONFIG}->{ROLE};
-        $self->{CATALOG} and $self->{CATALOG}->{ROLE} and $userForFileQuota=$self->{CATALOG}->{ROLE};
-
-        my $tmp_options={};
-  @ARGV=@_;
-  Getopt::Long::GetOptions($tmp_options, "user=s");
-  @_=@ARGV;
-        $tmp_options->{user} and $userForFileQuota = $tmp_options->{user};
-
-
   my $lfns    = (shift or 0);
   my $se      = (shift or "");
   my $size    = (shift or "0");
   my $sesel   = (shift or 0);
   my $extguid = (shift or 0);
 
+  my $user= ($self->{CATALOG}->{ROLE} or $self->{CONFIG}->{ROLE});
+
   if ($access =~ /^write/) {
-    $self->info("Checking file quota of user $userForFileQuota, file size : $size");
-    my ($ok, $message) = $self->checkFileQuota( $userForFileQuota, $size);
+    $self->info("Checking file quota of user $user, file size : $size");
+    my ($ok, $message) = $self->checkFileQuota( $user, $size);
+    $self->info("after quota check, ok is: $ok, message: $message.");
     $ok or $self->info("failed to check file quota: $message") and return  access_eof("No quota: $message");
     $self->info("OK");
   }
@@ -1659,11 +1652,11 @@ sub access {
 
   if ($access =~ /^write/){
 
-    (scalar(@ses) eq 0) or $seList = $self->checkExclWriteUserOnSEsForAccess($size,$seList) and @ses = @$seList; 
+    (scalar(@ses) eq 0) or $seList = $self->checkExclWriteUserOnSEsForAccess($user,$size,$seList) and @ses = @$seList; 
 
     if(($sitename ne 0) and ($writeQos ne "") and ($writeQosCount gt 0)) {
        # we don't need to check for Cache below, cause there it's implicit
-       my $dynamicSElist = $self->getSEListFromSiteSECacheForAccess($size,$writeQos,$writeQosCount,$sitename,$excludedAndfailedSEs);
+       my $dynamicSElist = $self->getSEListFromSiteSECacheForAccess($user,$size,$writeQos,$writeQosCount,$sitename,$excludedAndfailedSEs);
        push @ses,@$dynamicSElist;
     }
 
@@ -1939,6 +1932,7 @@ sub identifyValidSEName{
 
 sub checkExclWriteUserOnSEsForAccess{
    my $self=shift;
+   my $user=(shift || return 0);
    my $fileSize=(shift || 0);
    my $seList=(shift || return 0);
    (scalar(@$seList) gt 0) or return [];
@@ -1952,7 +1946,7 @@ sub checkExclWriteUserOnSEsForAccess{
    $query  .= ") and seMinSize < ? and ( exclusiveUsers is NULL or exclusiveUsers = '' or exclusiveUsers  LIKE concat ('%,' , ? , ',%') );";
 
    push @queryValues, $fileSize;
-   push @queryValues, $self->{CONFIG}->{ROLE};
+   push @queryValues, $user;
 
    return $catalogue->queryColumn($query, undef, {bind_values=>\@queryValues});
 }
@@ -1960,7 +1954,7 @@ sub checkExclWriteUserOnSEsForAccess{
 
 sub getSEListFromSiteSECacheForAccess{
    my $self=shift;
-   
+   my $user=(shift || return 0);
    my $fileSize=(shift || 0);
    my $type=(shift || return 0);
    my $count=(shift || return 0);
@@ -1985,7 +1979,7 @@ sub getSEListFromSiteSECacheForAccess{
  
    push @queryValues, $fileSize;
    push @queryValues, $type;
-   push @queryValues, $self->{CONFIG}->{ROLE};
+   push @queryValues, $user;
    push @queryValues, $count;
 
    return $catalogue->queryColumn($query, undef, {bind_values=>\@queryValues});
@@ -2508,26 +2502,34 @@ sub putOnStaticSESelectionListV2{
    my $pfnRewrite=(shift || 0);
    my $jobtracelog=(shift || 0);
 
-   my $jobLogEntry;
+   my $jobLogEntry = {};
 
 
    $selOutOf eq 0 and  $selOutOf = scalar(@$ses);
    while ((scalar(@$ses) gt 0 and $selOutOf gt 0)) {
      (scalar(@$ses) gt 0) and my @staticSes= splice(@$ses, 0, $selOutOf);
      $self->debug(2,"We select out of a supplied static list the SEs to save on: @staticSes, count:".scalar(@staticSes));
-    $jobtracelog and $jobLogEntry = {} and $jobLogEntry->{flag}="trace"
+    $jobtracelog and $jobLogEntry->{flag}="trace"
        and $jobLogEntry->{text} = "Static SE list: @staticSes . "
        and push @{$result->{jobtracelog}}, $jobLogEntry;
 
 
      my (@envelopes)= $self->access("-s",$envreq,$lfn, join(";", @staticSes), $size,0,($result->{guid} || 0));
 
+     $envelopes[0] or ($jobtracelog and $envelopes[1] and $jobLogEntry->{flag}="error"
+       and $jobLogEntry->{text} = "Envelope/Access request had error: ".$envelopes[1]
+       and push @{$result->{jobtracelog}}, $jobLogEntry);
+     
+     $envelopes[0] or $envelopes[1] and $self->info("ERROR with access envelope: ".$envelopes[1]);
+     $envelopes[0] or return $result;
+
+
+
      (scalar(@envelopes) eq scalar(@staticSes)) or $self->info("We couldn't get all envelopes for the SEs, @staticSes .");
      (scalar(@envelopes) gt 0) or $self->info("We couldn't get envelopes for any the SEs, @staticSes .") and last;
      #(defined $envelopes[0]->{nestedEnvelopes}) and (scalar(@{$envelopes[0]->{nestedEnvelopes}}) gt 0) and @envelopes = @{$envelopes[0]->{nestedEnvelopes}};
      if($jobtracelog) { 
         foreach (@envelopes) { 
-          $jobLogEntry={};
           $jobLogEntry->{flag}="trace";
           $jobLogEntry->{text} = "We got an envelope for a static SE: $_->{se}";
           push @{$result->{jobtracelog}}, $jobLogEntry;
@@ -2556,17 +2558,24 @@ sub putOnDynamicDiscoveredSEListByQoSV2{
    my $pfnRewrite=(shift || 0);
    my $jobtracelog=(shift || 0);
 
- 
+   my $jobLogEntry = {};
 
    while($count gt 0) {
      my (@envelopes) = $self->access("-s",$envreq,$lfn, 0, $size,(join(";", @$excludedSes) || 0),($result->{guid} || 0),$sitename,$qos,$count);
+
+     $envelopes[0] or ($jobtracelog and $envelopes[1] and $jobLogEntry->{flag}="error"
+       and $jobLogEntry->{text} = "Envelope/Access request had error: ".$envelopes[1]
+       and push @{$result->{jobtracelog}}, $jobLogEntry);
+
+     $envelopes[0] or $envelopes[1] and $self->info("ERROR with access envelope: ".$envelopes[1]);
+     $envelopes[0] or return $result;
+
      (scalar(@envelopes) eq $count) or $self->info("We couldn't get envelopes for the specified '$count' SEs with qos flag '$qos'.");
      (scalar(@envelopes) gt 0) or $self->info("We couldn't get envelopes for any of the '$count' requested SEs with qos flag '$qos'.") and last;
 
      #(defined $envelopes[0]->{nestedEnvelopes}) and (scalar(@{$envelopes[0]->{nestedEnvelopes}}) gt 0) and @envelopes = @{$envelopes[0]->{nestedEnvelopes}};
      if($jobtracelog) { 
         foreach (@envelopes) { 
-          my $jobLogEntry = {};
           $jobLogEntry->{flag}="trace";
           $jobLogEntry->{text} = "We got an envelope for a discovered SE: $_->{se}";
           push @{$result->{jobtracelog}}, $jobLogEntry;
@@ -2611,8 +2620,16 @@ sub registerFileAccordingEnvelopes{
 
   foreach my $envelope (@$envelopes){
 
+
+     (defined $envelope->{error}) and $jobtracelog and $jobLogEntry={} and $jobLogEntry->{flag}="error"
+            and $jobLogEntry->{text} = "ENVELOPE ERROR: $envelope->{error}"
+            and push @{$result->{jobtracelog}}, $jobLogEntry;
+      
      (defined $envelope->{error})
-       and ($envelope->{error} =~ /Not allowed because of quota overflow/) and return -1;
+       #and ($envelope->{error} =~ /Not allowed because of quota overflow/) and return -1;
+       and ($envelope->{error} =~ /Not allowed because of quota overflow/) and return $result, 0, {};
+
+
 
 
      $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope->{envelope};
@@ -3447,6 +3464,8 @@ sub checkFileQuota {
     and return (0, "Failed to getting data from PRIORITY table");
   $array->[0] or $self->{LOGGER}->error("User $user not exist")
     and return (0, "User $user not exist in PRIORITY table");
+
+  $self->info("middle of nowhere");
  
   my $nbFiles = $array->[0]->{'nbFiles'};
   my $maxNbFiles = $array->[0]->{'maxNbFiles'};
