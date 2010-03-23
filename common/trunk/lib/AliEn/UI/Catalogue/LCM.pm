@@ -3477,15 +3477,16 @@ sub checkFileQuota {
   $self->info("nbFile: $nbFiles/$tmpIncreasedNbFiles/$maxNbFiles");
   $self->info("totalSize: $totalSize/$tmpIncreasedTotalSize/$maxTotalSize");
 
-    if ($nbFiles + $tmpIncreasedNbFiles + 1 > $maxNbFiles) {
+  if ($nbFiles + $tmpIncreasedNbFiles + 1 > $maxNbFiles) {
     $self->info("In checkFileQuota $user: Not allowed for nbFiles overflow");
-    return (0, "DENIED: You're trying to upload 1 file. That exceeds your limit." );
+    return (0, "DENIED checkFileQuota user $user nbFiles overflow: You're trying to upload 1 file. That exceeds your limit." );
   }
 
   if ($size + $totalSize + $tmpIncreasedTotalSize > $maxTotalSize) {
     $self->info("In checkFileQuota $user: Not allowed for totalSize overflow");
-    return (0, "DENIED: You've trying to upload a file which size is $size. That exceeds your limit." );
+    return (0, "DENIED checkFileQuota user $user totalSize overflow: You've trying to upload a file which size is $size. That exceeds your limit." );
   }
+
   
   $self->{PRIORITY_DB}->do("update PRIORITY set tmpIncreasedNbFiles=tmpIncreasedNbFiles+1, tmpIncreasedTotalSize=tmpIncreasedTotalSize+$size where user like '$user'") or $self->info("failed to increase tmpIncreasedNbFile and tmpIncreasedTotalSize");
 
