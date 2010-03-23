@@ -13,7 +13,9 @@ push @ISA, 'AliEn::Logger::LogObject', 'AliEn::PackMan';
 
 sub initialize{
   my $self=shift;
-  $self->{INST_DIR}=($self->{CONFIG}->{PACKMAN_INSTALLDIR} || "$ENV{ALIEN_HOME}/packages");
+
+  ($self->{INST_DIR}) or 
+    $self->{INST_DIR}=($self->{CONFIG}->{PACKMAN_INSTALLDIR} || "$ENV{ALIEN_HOME}/packages");
   
   $self->info("Using $self->{INST_DIR} as the installation directory");
   while ($self->{INST_DIR} =~  s/\$([^\/]*)/$ENV{$1}/ ) {
@@ -124,7 +126,8 @@ sub installPackage{
   my $version=shift;
   my $dependencies=shift ||{};
   my $options=shift ||{};
-
+  
+ 
   $self->debug (2,"checking if we have to install the package");
   my $source="";
   my ($lfn, $info)=$self->findPackageLFN($user, $package, $version);
@@ -141,7 +144,7 @@ sub installPackage{
 
   #First, let's try to install all the dependencies
   $self->info("Ready to install $package and $version and $user (from $lfn)");
-
+  
   while (1){
     my $done=$self->createLock($user, $package, $version);
     $done and last;
@@ -177,9 +180,11 @@ sub installPackage{
 
   $self->debug(2,  "Ready to do the installPackage $package for $user");
   #Let's put the files public
+
   umask 0022;
   my ($done2, $error)=$self->InstallPackage($lfn, $user, $package, $version,$info, $source, $options);
   umask 0027;
+
   $self->removeLock($user, $package, $version);
  
   $self->info("The installation of $user, $package, $version finished with $done2 and $error");
@@ -519,7 +524,7 @@ This script will receive as the first argument the directory where the package i
     if (not -f "$md5file.lock"){
       system("touch $md5file.lock");
       system("rm", "-rf", $md5file);
-      system("find", "$dir -type f -not -path '/.*' --exec md5sum {} >> $md5file \\;");
+      system("find $dir -type f -not -path '/.*' -exec md5sum {} >> $md5file \\;");
       system("sort $md5file > $md5file.sorted");
       system("md5sum $md5file.sorted > $md5file.total");
     }
@@ -530,7 +535,8 @@ This script will receive as the first argument the directory where the package i
       close FILE;
     }
   }
-  my $directory=`ls -la $installDir`;
+  my $directory=`ls -la $dir`;
+  $self->info( "We have $env");
   return ($version, $info, $directory, $env);
 }
 
@@ -570,11 +576,11 @@ sub findOldPackages {
     $self->info("Checking if the package '$file' is old");
     my (@info)=stat $file;
     
-    print "GOT @info (comparing $now and $info[9]\n";
+    
     if  ($info[9]+3600*24*7 <$now) {
       print "The file $file hasn't been accessed in one week\n";
       $file =~ m{/([^/]*)/([^/]*)/([^/]*)/\.alien_last_used$} or 
-	print "Error getting the information out of the link\n" and next;
+	         print "Error getting the information out of the link\n" and next;
       my ($user, $package, $version)=($1,$2,$3);
 
       push @list, "$user\@${package}::$version";
