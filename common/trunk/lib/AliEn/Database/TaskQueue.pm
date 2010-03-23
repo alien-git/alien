@@ -378,17 +378,17 @@ sub getWaitingJobAgents{
   my $self=shift;
   my $nocache=shift;
 
-  if (! $nocache){
-    my $list=AliEn::Util::returnCacheValue($self, "listWaitingJA");
-    $list and return $list;
-  }
-  my $list=$self->query("select entryId as agentId,concat('[',requirements,'Type=\"Job\";TTL=999;]') as jdl, counter from JOBAGENT j, QUEUE q where j.entryId=q.agentId and q.status='WAITING' order by j.priority desc");
+  #if (! $nocache){
+  #  my $list=AliEn::Util::returnCacheValue($self, "listWaitingJA");
+  #  $list and return $list;
+  #}
+  my $list=$self->query("select entryId as agentId,concat('[',requirements,'Type=\"Job\";TTL=999;]') as jdl, counter from JOBAGENT order by priority desc");
 
-  if ($#$list >100){
-    $nocache or AliEn::Util::setCacheValue($self, "listWaitingJA", $list);
-  } else {
-    AliEn::Util::setCacheValue($self, "listWaitingJA");
-  }
+  #if ($#$list >100){
+  #  $nocache or AliEn::Util::setCacheValue($self, "listWaitingJA", $list);
+  #} else {
+  ##  AliEn::Util::setCacheValue($self, "listWaitingJA");
+  #}
   return $list;
 }
 sub updateJob{
