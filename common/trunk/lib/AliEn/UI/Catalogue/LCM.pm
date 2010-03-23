@@ -340,7 +340,7 @@ sub get {
      }
    }
  
-   my  (@envelope) = $self->access("-s","read",$entry,$wishedSE,0,($excludedAndfailedSEs or 0),0,$self->{CONFIG}->{SITE},0,0) or return;
+   my  (@envelope) = $self->access("-s","read",$entry,$wishedSE,0,($excludedAndfailedSEs || 0),0,$self->{CONFIG}->{SITE},0,0) or return;
 
    my $envelop = $envelope[0];
  
@@ -398,7 +398,7 @@ sub get {
        $excludedAndfailedSEs .= $guidInfo->{se}; # Mark that SE as failed.
      }
      $self->info("Getting the copy didn't work :(. Does anybody else have the file? Feeding back used/failed $excludedAndfailedSEs.");
-     (@envelope) = $self->access("-s","read",$entry,0,0,($excludedAndfailedSEs or 0),0,$self->{CONFIG}->{SITE},0,0) or return;
+     (@envelope) = $self->access("-s","read",$entry,0,0,($excludedAndfailedSEs || 0),0,$self->{CONFIG}->{SITE},0,0) or return;
 
      $envelop = $envelope[0];
      $envelop = $envelope[0];
@@ -820,35 +820,30 @@ sub selectClosestSE {
 
 
 
-# This subroutine receives a list of SE, and returns the same list, 
-# but ordered according to the se
+## This subroutine receives a list of SE, and returns the same list, 
+## but ordered according to the se
+##
+##
+#sub selectClosestSEOnRank {
+#  my $self = shift;
+#  my $sitename = (shift || 0);
+#  my $seList = (shift || return 0);
+#  my $sePrio = (shift || 0);
+#  my $excludedAndfailedSEs= (shift || {});
 #
+#  my $return = [];
 #
-sub selectClosestSEOnRank {
-  my $self = shift;
-  my $sitename = (shift || 0);
-  my $seList = (shift || return 0);
-  my $sePrio = (shift || 0);
-  my $excludedAndfailedSEs= (shift || {});
-
-  my $return = [];
-
-  if($sitename) {
-    my $res = $self->sortSEListBasedOnSiteSECache($sitename, $seList,$excludedAndfailedSEs);
-  
-    $res and $return = $self->resortArrayToPrioElementIfExists($sePrio,$res)
-      or   $return = $self->resortArrayToPrioElementIfExists($sePrio,$seList)  
-           and $self->info("Error: The sortSEListBasedOnSiteSECache didn't work, replying original SE list.");
-  
-  } else {
-    $return = $self->resortArrayToPrioElementIfExists($sePrio,$seList)  
-       and $self->info("There was no sitename given, so we won't call sortSEListBasedOnSiteSECache, replying original SE list.");
-  }
-
-  $self->debug(1, "After sorting we have ". Dumper(@$return));
-
-  return $return;
-}
+#  my $res = $self->sortSEListBasedOnSiteSECache($sitename, $seList,$excludedAndfailedSEs);
+#
+#  #$res and $return = $self->resortArrayToPrioElementIfExists($sePrio,$res)
+#  #       or $return = $self->resortArrayToPrioElementIfExists($sePrio,$seList)  
+#  #         and $self->info("Error: The sortSEListBasedOnSiteSECache didn't work, replying original SE list.");
+#
+#  
+#  $self->debug(1, "After sorting we have ". Dumper(@$return));
+#
+#  return $return;
+#}
 
 sub resortArrayToPrioElementIfExists {
    my $self=shift;
@@ -865,29 +860,49 @@ sub resortArrayToPrioElementIfExists {
 }
 
 
-sub sortSEListBasedOnSiteSECache{
+#sub sortSEListBasedOnSiteSECache{
+
+# This subroutine receives a list of SE, and returns the same list, 
+# but ordered according to the se
+#
+#
+sub selectClosestSEOnRank {
    my $self=shift;
-   my $sitename=(shift || return 0);
+   my $sitename=(shift || 0);
    my $seList=(shift || return 0 );
+   my $sePrio = (shift || 0);
    my $excludeList=(shift || []);
 
-
-   $self->checkSiteSECacheForAccess($sitename) or return 0;
-
-   my $catalogue = $self->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
-
-   my @queryValues = ();
-   push @queryValues, $sitename;
-
-
-
-   my $query="SELECT DISTINCT seName FROM SERanks a right JOIN SE b 
-   on (a.seNumber=b.seNumber and sitename=?) WHERE 1";
-   if(scalar(@{$seList}) > 0)  { $query .= " and ( "; foreach (@{$seList}){ $query .= " seName = ? or"; push @queryValues, $_;  } $query =~ s/or$/)/;}
-   if(scalar(@{$excludeList}) > 0)  { foreach (@{$excludeList}) {   $query .= " and seName <> ? ";   push @queryValues, $_; };}
-   $query .= " ORDER BY if(rank is null, 1000, rank) ASC ;";
-
-   return  $catalogue->queryColumn($query, undef, {bind_values=>\@queryValues});
+   if($sitename) {
+   
+      $self->checkSiteSECacheForAccess($sitename) or return 0;
+   
+      my $catalogue = $self->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
+   
+      my @queryValues = ();
+      push @queryValues, $sitename;
+   
+   
+   
+      my $query="SELECT DISTINCT seName FROM SERanks a right JOIN SE b 
+      on (a.seNumber=b.seNumber and sitename=?) WHERE 1";
+      if(scalar(@{$seList}) > 0)  { $query .= " and ( "; foreach (@{$seList}){ $query .= " seName = ? or"; push @queryValues, $_;  } $query =~ s/or$/)/;}
+      if(scalar(@{$excludeList}) > 0)  { foreach (@{$excludeList}) {   $query .= " and seName <> ? ";   push @queryValues, $_; };}
+      $query .= " ORDER BY if(rank is null, 1000, rank) ASC ;";
+   
+#      return  $catalogue->queryColumn($query, undef, {bind_values=>\@queryValues});
+      return $self->resortArrayToPrioElementIfExists($sePrio,$catalogue->queryColumn($query, undef, {bind_values=>\@queryValues}));
+   
+   } else { # sitename not given, so we just delete the excluded SEs
+         my @newlist=();
+         foreach my $ex (@$excludeList) {
+            foreach my $se (@$seList) {
+               (lc($se) ne lc($ex)) and push @newlist, $se;
+            }
+         }
+   return $self->resortArrayToPrioElementIfExists($sePrio,\@newlist);
+   }
+   return 0;
 }
 
 
@@ -1406,8 +1421,15 @@ sub getPFNforAccess {
   my $closeList;
 	
   $closeList = $self->selectClosestSEOnRank($sitename, \@whereis, $se, $excludedAndfailedSEs);
-  
+
   $se = @{$closeList}[$sesel];
+  if(!$self->identifyValidSEName($se)) {
+      foreach(@{$closeList}) {
+         $self->identifyValidSEName($_) and $se = $_ and last;
+      }    
+  }
+  $self->identifyValidSEName($se) or  return access_eof("access: Error: getPFNforAccess given: lfn: $lfn, whereis: @whereis, excl. SEs: @$excludedAndfailedSEs. No SEs left to reply an envelope for. ");
+
 
   my $nses=scalar @$closeList;
   my @whereisClean=();
@@ -2205,7 +2227,6 @@ sub upload {
 
   my $result = {};
   $result->{jobtracelog} = [];
-  my $jobLogEntry;
 
   $options->{guid} and $result->{guid}=$options->{guid};
 
@@ -2280,10 +2301,8 @@ sub upload {
   
   foreach my $qos(keys %$qosTags){
     $self->debug(2,"Processing storage discovery qos: $qos with $qosTags->{$qos} requested elements.");
-    $options->{jobtracelog} and $jobLogEntry={} and $jobLogEntry->{flag}="trace" 
-       and $jobLogEntry->{text} = "Processing dynamic SE discovery based on qos $qos with count $qosTags->{$qos}. "
-	and push @{$result->{jobtracelog}}, $jobLogEntry;
-
+    $options->{jobtracelog} and 
+           push @{$result->{jobtracelog}}, {flag=>"trace", text=>"Processing dynamic SE discovery based on qos $qos with count $qosTags->{$qos}."};
 
     $result = $self->putOnDynamicDiscoveredSEListByQoSV2($result,$pfn,$lfn,$size,$envReq,$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes,1,$options->{jobtracelog});
   }
@@ -2292,20 +2311,16 @@ sub upload {
     
     push @ses, $self->{CONFIG}->{SE_FULLNAME};   # and there were not SEs specified in a static list, THEN push in at least the local static LDAP entry not to loose data
     $self->info("SE Discovery didn't work and no static SEs were specified, we gonna try the CONFIG->SE_FULLNAME as a fallback to safe the files.");
-    $options->{jobtracelog} and $jobLogEntry={} and $jobLogEntry->{flag}="error" 
-       and $jobLogEntry->{text} = 
-         "SE Discovery didn't work and no static SEs were specified, we gonna try the CONFIG->SE_FULLNAME as a fallback to safe the files."
-       and push @{$result->{jobtracelog}}, $jobLogEntry;
-
+    $options->{jobtracelog} and 
+          push @{$result->{jobtracelog}}, {flag=>"error", text=>"SE Discovery didn't work and no static SEs were specified, we gonna try the CONFIG->SE_FULLNAME as a fallback to safe the files."};
 
     $totalCount = 1;
     $self->debug(2,"There was neither a user specification for the SEs to use, nor is there a default setting defined in LDAP, we use CONFIG->SE_FULLNAME: $self->{CONFIG}->{SE_FULLNAME}");
   }
   
   $self->debug(2,"Processing static SE list: @ses");
-  (scalar(@ses) gt 0)  and $options->{jobtracelog} and $jobLogEntry={} and $jobLogEntry->{flag}="trace" 
-       and $jobLogEntry->{text} = "Processing static SE list: - @ses - ith select $selOutOf. "
-       and push @{$result->{jobtracelog}}, $jobLogEntry;
+  (scalar(@ses) gt 0)  and $options->{jobtracelog} and 
+          push @{$result->{jobtracelog}}, {flag=>"trace", text=>"Processing static SE list: - @ses - with select $selOutOf."};
 
   (scalar(@ses) gt 0) and $result = $self->putOnStaticSESelectionListV2($result,$pfn,$lfn,$size,$envReq,$selOutOf,\@ses,1,$options->{jobtracelog});
   
@@ -2502,24 +2517,18 @@ sub putOnStaticSESelectionListV2{
    my $pfnRewrite=(shift || 0);
    my $jobtracelog=(shift || 0);
 
-   my $jobLogEntry = {};
-
-
    $selOutOf eq 0 and  $selOutOf = scalar(@$ses);
    while ((scalar(@$ses) gt 0 and $selOutOf gt 0)) {
      (scalar(@$ses) gt 0) and my @staticSes= splice(@$ses, 0, $selOutOf);
      $self->debug(2,"We select out of a supplied static list the SEs to save on: @staticSes, count:".scalar(@staticSes));
-    $jobtracelog and $jobLogEntry->{flag}="trace"
-       and $jobLogEntry->{text} = "Static SE list: @staticSes . "
-       and push @{$result->{jobtracelog}}, $jobLogEntry;
-
+    $jobtracelog and 
+          push @{$result->{jobtracelog}}, {flag=>"trace", text=>"Static SE list: @staticSes."};
 
      my (@envelopes)= $self->access("-s",$envreq,$lfn, join(";", @staticSes), $size,0,($result->{guid} || 0));
 
-     $envelopes[0] or ($jobtracelog and $envelopes[1] and $jobLogEntry->{flag}="error"
-       and $jobLogEntry->{text} = "Envelope/Access request had error: ".$envelopes[1]
-       and push @{$result->{jobtracelog}}, $jobLogEntry);
-     
+     $envelopes[0] or ($jobtracelog and $envelopes[1] and 
+          push @{$result->{jobtracelog}}, {flag=>"error", text=>"Envelope/Access request had error: ".$envelopes[1]});
+
      $envelopes[0] or $envelopes[1] and $self->info("ERROR with access envelope: ".$envelopes[1]);
      $envelopes[0] or return $result;
 
@@ -2530,9 +2539,7 @@ sub putOnStaticSESelectionListV2{
      #(defined $envelopes[0]->{nestedEnvelopes}) and (scalar(@{$envelopes[0]->{nestedEnvelopes}}) gt 0) and @envelopes = @{$envelopes[0]->{nestedEnvelopes}};
      if($jobtracelog) { 
         foreach (@envelopes) { 
-          $jobLogEntry->{flag}="trace";
-          $jobLogEntry->{text} = "We got an envelope for a static SE: $_->{se}";
-          push @{$result->{jobtracelog}}, $jobLogEntry;
+          push @{$result->{jobtracelog}}, {flag=>"trace", text=>"We got an envelope for a static SE: $_->{se}."};
         }
      }
 
@@ -2558,14 +2565,11 @@ sub putOnDynamicDiscoveredSEListByQoSV2{
    my $pfnRewrite=(shift || 0);
    my $jobtracelog=(shift || 0);
 
-   my $jobLogEntry = {};
-
    while($count gt 0) {
      my (@envelopes) = $self->access("-s",$envreq,$lfn, 0, $size,(join(";", @$excludedSes) || 0),($result->{guid} || 0),$sitename,$qos,$count);
 
-     $envelopes[0] or ($jobtracelog and $envelopes[1] and $jobLogEntry->{flag}="error"
-       and $jobLogEntry->{text} = "Envelope/Access request had error: ".$envelopes[1]
-       and push @{$result->{jobtracelog}}, $jobLogEntry);
+     $envelopes[0] or ($jobtracelog and $envelopes[1] and 
+          push @{$result->{jobtracelog}}, {flag=>"error", text=>"Envelope/Access request had error: ".$envelopes[1]});
 
      $envelopes[0] or $envelopes[1] and $self->info("ERROR with access envelope: ".$envelopes[1]);
      $envelopes[0] or return $result;
@@ -2576,9 +2580,7 @@ sub putOnDynamicDiscoveredSEListByQoSV2{
      #(defined $envelopes[0]->{nestedEnvelopes}) and (scalar(@{$envelopes[0]->{nestedEnvelopes}}) gt 0) and @envelopes = @{$envelopes[0]->{nestedEnvelopes}};
      if($jobtracelog) { 
         foreach (@envelopes) { 
-          $jobLogEntry->{flag}="trace";
-          $jobLogEntry->{text} = "We got an envelope for a discovered SE: $_->{se}";
-          push @{$result->{jobtracelog}}, $jobLogEntry;
+          push @{$result->{jobtracelog}}, {flag=>"trace", text=>"We got an envelope for a discovered SE: $_->{se}"};
         }
      }
 
@@ -2606,9 +2608,6 @@ sub registerFileAccordingEnvelopes{
   my $pfnRewrite=(shift || 0);
   my $jobtracelog=(shift || 0);
 
-  my $jobLogEntry;
-
-
   $result->{guid} and $self->info("File has guid: $result->{guid}") or $result->{guid} = "";
   ($pfn) or $self->{LOGGER}->warning( "LCM", "Error no pfn specified" ) and return;
   
@@ -2621,9 +2620,8 @@ sub registerFileAccordingEnvelopes{
   foreach my $envelope (@$envelopes){
 
 
-     (defined $envelope->{error}) and $jobtracelog and $jobLogEntry={} and $jobLogEntry->{flag}="error"
-            and $jobLogEntry->{text} = "ENVELOPE ERROR: $envelope->{error}"
-            and push @{$result->{jobtracelog}}, $jobLogEntry;
+     (defined $envelope->{error}) and $jobtracelog and 
+          push @{$result->{jobtracelog}}, {flag=>"error", text=>"ENVELOPE ERROR: $envelope->{error}"};
       
      (defined $envelope->{error})
        #and ($envelope->{error} =~ /Not allowed because of quota overflow/) and return -1;
@@ -2638,9 +2636,9 @@ sub registerFileAccordingEnvelopes{
      my $start=time;
 
      $self->debug(2, "Adding the file $pfn to $envelope->{se}" );
-     $jobtracelog and $jobLogEntry={} and $jobLogEntry->{flag}="trace"
-            and $jobLogEntry->{text} = "Adding the file $pfn to $envelope->{se}"
-            and push @{$result->{jobtracelog}}, $jobLogEntry;
+     $jobtracelog and 
+          push @{$result->{jobtracelog}}, {flag=>"trace", text=>"Adding the file $pfn to $envelope->{se}"};
+
      my $res;
      my $z = 0;
      while ($z < 5 ) {   # try five times in case of error
@@ -2648,9 +2646,8 @@ sub registerFileAccordingEnvelopes{
           $res and $z = 6 or $z++;
      }
      
-     $res or $jobtracelog and $jobLogEntry = {} and $jobLogEntry->{flag}="error"
-            and $jobLogEntry->{text} = "ERROR storing $pfn in $envelope->{se}\n"
-            and push @{$result->{jobtracelog}}, $jobLogEntry;
+     $res or $jobtracelog and  
+          push @{$result->{jobtracelog}}, {flag=>"error", text=>"ERROR storing $pfn in $envelope->{se}"};
 
      $res or print STDERR "ERROR storing $pfn in $envelope->{se}\n" and push @excludedSes, $envelope->{se} and next;
 
