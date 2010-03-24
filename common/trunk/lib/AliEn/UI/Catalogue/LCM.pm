@@ -1599,7 +1599,10 @@ sub access {
   my $self = shift;
 
   if (!  $self->{envelopeengine}) {
-    my $user= ($self->{CATALOG}->{ROLE} or $self->{CONFIG}->{ROLE});
+#    my $user= ($self->{CATALOG}->{ROLE} or $self->{CONFIG}->{ROLE});
+    my $user=$self->{CONFIG}->{ROLE};
+    $self->{CATALOG} and $self->{CATALOG}->{ROLE} and $user=$self->{CATALOG}->{ROLE};
+
 
     $self->info("Getting a security envelope..");
     #my $info=$self->{SOAP}->CallSOAP("Authen", "createArrayOfEnvelopes", $user, @_)
@@ -1643,7 +1646,10 @@ sub access {
   my $sesel   = (shift or 0);
   my $extguid = (shift or 0);
 
-  my $user= ($self->{CATALOG}->{ROLE} or $self->{CONFIG}->{ROLE});
+#  my $user= ($self->{CATALOG}->{ROLE} or $self->{CONFIG}->{ROLE});
+  my $user=$self->{CONFIG}->{ROLE};
+  $self->{CATALOG} and $self->{CATALOG}->{ROLE} and $user=$self->{CATALOG}->{ROLE};
+
 
   if ($access =~ /^write/) {
     $self->info("Checking file quota of user $user, file size : $size");
