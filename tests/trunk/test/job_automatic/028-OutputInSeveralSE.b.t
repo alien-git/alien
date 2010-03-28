@@ -16,6 +16,7 @@ BEGIN { plan tests => 1 }
   $ENV{ALIEN_TESTDIR} or $ENV{ALIEN_TESTDIR}="/home/userenmaster/AliEn/t";
   eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
   includeTest("catalogue/003-add") or exit(-2);
+
   includeTest("job_automatic/028-OutputInSeveralSE") or exit(-2);
   #  eval `cat $ENV{ALIEN_TESTDIR}/FillTableFor126-OutputInSeveralSE.pl`;
 
@@ -142,7 +143,6 @@ BEGIN { plan tests => 1 }
 
 
          if(doEqualsOnArray($filename,\@filefiles)) {
-             if(doEqualsOnArray("no_archive",\@{$testTable->{$tcase}->{fopt}})){
                  if(!doEqualsOnArray("no_se",\@{$fileTable->{$tcase}->{$filename}->{ses}})){
                      if(doEqualsOnStrings($copyCount, $fileTable->{$tcase}->{$filename}->{copies})) {
                          for my $j(0..$#filefiles) {
@@ -150,24 +150,6 @@ BEGIN { plan tests => 1 }
                          } 
                      }
                  }
-             } else {
-                 if(doEqualsOnArray("no_se",\@{$fileTable->{$tcase}->{$filename}->{ses}})) {
-                     my $archivename = $fileTable->{$tcase}->{$fileTable->{$tcase}->{$filename}->{guid}};
-                     if(doEqualsOnArray($archivename,\@archives)) {
-                           if(doEqualsOnStrings($copyCount, $fileTable->{$tcase}->{$testTable->{$tcase}->{archivename}}->{copies})) {
-                              for my $j(0..$#filefiles) {
-                                   doEqualsOnStrings($filefiles[$j], $filename) and splice(@filefiles,$j,1);
-                              } 
-                           } 
-                     } else {
-                           if(doEqualsOnStrings($copyCount, $fileTable->{$tcase}->{$fileTable->{$tcase}->{$fileTable->{$tcase}->{$filename}->{guid}}}->{copies})) {
-                             for my $j(0..$#filefiles) {
-                                     doEqualsOnStrings($filefiles[$j], $filename) and splice(@filefiles,$j,1);
-                             } 
-                           } 
-                     }
-                 }
-             }
          }
 
          if(doEqualsOnArray($filename,\@archives)) {
