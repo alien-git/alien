@@ -1373,41 +1373,70 @@ sub processJDL_get_Output_Archivename_And_Included_Files_And_Initialize_archiveT
 }
 
 
-sub analyseJDL_And_Move_By_Default_Files_To_Archives{
+# DROPPED IN v2-18
+#
+#sub analyseJDL_And_Move_By_Default_Files_To_Archives{
+#  my $self=shift;
+#  my $archives=shift;
+#  my $files=shift;
+#  my $defaultArchiveName=shift;
+#  my $defaultOptionString=shift;
+#
+#  my $fileTable;
+#  for my $j(0..$#{$files}) {
+#           my ($filestring, $optionstring)=split (/\@/, $$files[$j],2);
+#           $optionstring or $optionstring = "<NONE>";
+#           (my $no_archive, $optionstring)  = $self->processJDL_Check_on_Tag($optionstring, "no_archive");
+#           if(!$no_archive){
+#              if($fileTable->{$optionstring}) {
+#                   $self->info("A file with already known options, will be united in one archive");
+#                   push @{$fileTable->{$optionstring}}, $filestring;
+#              } else {
+#                   my @filetag=($filestring);
+#                   $fileTable->{$optionstring}=\@filetag;
+#              }
+#              delete $$files[$j];
+#           }
+#  }
+#  my $j=0;
+#  foreach my $optionstring (keys(%$fileTable)) {
+#           my $filestring="";
+#           foreach my $filename (@{$fileTable->{$optionstring}}) {
+#              $filestring .= $filename.",";
+#           } 
+#           $filestring =~ s/,$//;
+#           $optionstring eq "<NONE>" and $optionstring = $defaultOptionString;
+#           push @$archives, $defaultArchiveName.time()."_".$j++.".zip:".$filestring."@".$optionstring;
+#           $self->info("Filestring $filestring will be moved from files to archives");
+#  }
+#  return ($archives, $files);
+#}
+
+sub analyseOutputTag_getArchivesAndFiles{
   my $self=shift;
   my $archives=shift;
   my $files=shift;
-  my $defaultArchiveName=shift;
-  my $defaultOptionString=shift;
+  my $outputtags=shift;
 
-  my $fileTable;
-  for my $j(0..$#{$files}) {
-           my ($filestring, $optionstring)=split (/\@/, $$files[$j],2);
-           $optionstring or $optionstring = "<NONE>";
-           (my $no_archive, $optionstring)  = $self->processJDL_Check_on_Tag($optionstring, "no_archive");
-           if(!$no_archive){
-              if($fileTable->{$optionstring}) {
-                   $self->info("A file with already known options, will be united in one archive");
-                   push @{$fileTable->{$optionstring}}, $filestring;
-              } else {
-                   my @filetag=($filestring);
-                   $fileTable->{$optionstring}=\@filetag;
-              }
-              delete $$files[$j];
-           }
-  }
-  my $j=0;
-  foreach my $optionstring (keys(%$fileTable)) {
-           my $filestring="";
-           foreach my $filename (@{$fileTable->{$optionstring}}) {
-              $filestring .= $filename.",";
-           } 
-           $filestring =~ s/,$//;
-           $optionstring eq "<NONE>" and $optionstring = $defaultOptionString;
-           push @$archives, $defaultArchiveName.time()."_".$j++.".zip:".$filestring."@".$optionstring;
-           $self->info("Filestring $filestring will be moved from files to archives");
+  foreach my $outputtag (@$outputtags) {
+      my ($filestring, $optionstring)=split (/\@/, $outputtag,2);
+      ($filestring =~ /:/) and push @$archives, $outputtag and next;
+      push @$files, $outputtag;
   }
   return ($archives, $files);
+}
+
+
+sub delete__no_archive__tagforbackwardcompabilitytorlessV218{
+  my $self=shift;
+  my $files=(shift || return ());
+  
+  foreach (@$files) {
+     my ($filestring, $optionstring)=split (/\@/, $_,2);
+     (my $uselessBool, $optionstring)  = $self->processJDL_Check_on_Tag($optionstring, "no_archive");
+     $_ = $filestring."@".$optionstring;
+  }
+  return $files;
 }
 
 sub processJDL_Check_on_Tag{
@@ -1435,7 +1464,7 @@ sub create_Default_Output_Archive_Entry{
       $jdlstring .= $_.",";
    } 
    $jdlstring =~ s/,$//;
-   $jdlstring .= "@".$defaulttags;
+   ($defaulttags ne "") and $jdlstring .= "@".$defaulttags;
    return $jdlstring;
 }
 
@@ -1516,31 +1545,30 @@ sub prepare_File_And_Archives_From_JDL_And_Upload_Files{
   my $archives;
   my $files;
   my $ArchiveFailedFiles;
-  my $archivesSpecified = 0;
-  my $filesSpecified = 0;
 
-  my $defaultArchiveName= ".alien_archive.$ENV{ALIEN_PROC_ID}.".uc($self->{CONFIG}->{SE_FULLNAME}.".");
-  $defaultArchiveName=~ s/\:\://g; # if :: exists in the filename, the later processing will fail ! just an ensurence
-
+  my $defaultArchiveName= "alien_default-archive.$ENV{ALIEN_PROC_ID}";
   my @defaultOutputArchiveFiles = ("stdout","stderr","resources");
   my $defaultOptionString = ""; # could be SE,!SE,qos=N,select=N,guid etc. , equal to a valid continuation of file@
 
+
   my ( $ok, @fileEntries ) = $self->{CA}->evaluateAttributeVectorString("OutputFile");
   ( $ok, my @archiveEntries ) = $self->{CA}->evaluateAttributeVectorString("OutputArchive");
+  ($ok, my @outputEntries ) = $self->{CA}->evaluateAttributeVectorString("Output");
+  $archives = \@archiveEntries;
+  $files = \@fileEntries;
+  ($archives, $files) = $self->analyseOutputTag_getArchivesAndFiles($archives, $files,\@outputEntries);
 
   ## create a default archive if nothing is specified
   ##
-  if((scalar(@archiveEntries) < 1) and (scalar(@fileEntries) < 1)) {
-      $self->putJobLog("trace", "The JDL didn't contain any output specification. Creating default Archive.");
-      push @archiveEntries, $self->create_Default_Output_Archive_Entry($defaultArchiveName.time().".zip", 
+  ((scalar(@$archives) < 1) and (scalar(@$files) < 1)) 
+     and  $self->putJobLog("trace", "The JDL didn't contain any output specification. Creating default Archive.")
+     and  push @$archives, $self->create_Default_Output_Archive_Entry($defaultArchiveName.".zip", 
             \@defaultOutputArchiveFiles, $defaultOptionString);
-      $archives = \@archiveEntries;
-      $files = \@fileEntries;
-
-  } else {
-      ($archives, $files) = $self->analyseJDL_And_Move_By_Default_Files_To_Archives(\@archiveEntries, \@fileEntries,
-              $defaultArchiveName.time().".zip", $defaultOptionString);
-  }
+  #} else {
+  #    ($archives, $files) = $self->analyseJDL_And_Move_By_Default_Files_To_Archives(\@archiveEntries, \@fileEntries,
+  #            $defaultArchiveName.time().".zip", $defaultOptionString);
+  #}
+  ($files) = $self->delete__no_archive__tagforbackwardcompabilitytorlessV218($files);
 
   $archiveTable = $self->processJDL_get_Output_Archivename_And_Included_Files_And_Initialize_archiveTable($archives);
 
@@ -1555,8 +1583,8 @@ sub prepare_File_And_Archives_From_JDL_And_Upload_Files{
   my $overallFileTable;
   %$overallFileTable= (%$archiveTable, %$fileTable);
   
-  (scalar(@$archives)> 0 ) and $self->putJobLog("trace", "Finally, processing archives: @$archives");
-  (scalar(@$files)> 0 ) and $self->putJobLog("trace", "Finally, processing files: @$files");
+  (scalar(@$archives)> 0 ) and $self->putJobLog("trace", "We marked the following archives to be uploaded: @$archives");
+  (scalar(@$files)> 0 ) and $self->putJobLog("trace", "We marked the following files to be uploaded: @$files");
 
   (scalar(keys(%$overallFileTable)) > 0) and
       return $self->putFiles($overallFileTable);
@@ -1614,11 +1642,11 @@ sub putFiles {
       }
       
       my $uploadStatus = $self->uploadFile($ui, $fs_table->{$fileOrArch}->{name}, "$fs_table->{$fileOrArch}->{options}$guid", $submitted);
-      
-      $uploadStatus or next;
-      ($uploadStatus ne 0) and  $successCounter++;
+     
+      $uploadStatus  or ($uploadStatus eq -2) or next;
+      $uploadStatus and  $successCounter++;
       ($uploadStatus eq -1) and $incompleteUploades=1;
-      
+      ($uploadStatus eq -1) and $incompleteUploades=1;
 
       $no_links and next;
 
@@ -1630,8 +1658,10 @@ sub putFiles {
          $fs_table->{$fileOrArch}->{entries}->{$file}->{md5},$guid );
       }
       $submitted->{$fs_table->{$fileOrArch}->{name}}->{links}=\@list;
+   
+      ($uploadStatus eq -2) and $incompleteUploades=1 and last; # -2 means access exception, e.g. file quota overflow, we mark 
+                                                                # incompleteUploades and don't try to upload anything more
     }
-
 
     my @list=();
     foreach my $key (keys %$submitted){
@@ -1662,9 +1692,9 @@ sub putFiles {
   }
 
   if($incompleteUploades) {
-     $self->putJobLog("trace", "WE HAD ".scalar(keys(%$fs_table))
-             ." files and archives to store, we successfully stored $successCounter");
-     $self->putJobLog("trace", "YET NOT ALL FILES AND ARCHIVES were stored as many times as specified.");
+     #$self->putJobLog("trace", "WARNING: We had  ".scalar(keys(%$fs_table))
+     #        ." files and archives to store.");
+     $self->putJobLog("trace", "WARNING: We could store all files at least one time, but not all files were stored as many times as specified.");
      return -1;
   }
 
@@ -1687,15 +1717,15 @@ sub uploadFile {
   $self->info("Submitting the file $file");
   if (! -f "$self->{WORKDIR}/$file")  {
     $self->putJobLog("error", "The job didn't create $file");
-    return; 
+    return 0; 
   }
   $self->putJobLog("trace","Will store $file ...");
 
 
   ($uploadResult)=$ui->execute("upload", "$self->{WORKDIR}/$file", $storeTags, "-user=$self->{JOB_USER}", $silent, $jobtracelog);
-  ($uploadResult==-1) and
-    $self->putJobLog("error","Error in upload, could not store the file $self->{WORKDIR}/$file on any SE because of quota overflow.")
-      and return 0;
+  ($uploadResult eq -1) and
+    $self->putJobLog("error","Error in upload for $self->{WORKDIR}/$file, we have a file quota overflow.")
+      and return -2;
 
    if( (defined $uploadResult->{jobtracelog}) and (scalar(@{$uploadResult->{jobtracelog}}) gt 0) ) {
          foreach(@{$uploadResult->{jobtracelog}}) { $self->putJobLog($_->{flag}, $_->{text});}
@@ -1715,11 +1745,11 @@ sub uploadFile {
     
   if ($uploadResult->{totalCount} eq scalar(keys %{$uploadResult->{se}})) {
     $self->putJobLog("trace","Successfully stored the file $self->{WORKDIR}/$file on $uploadResult->{totalCount} SEs.");
-    return (1);
+    return 1;
   }
   $self->putJobLog("trace","Could store the file $self->{WORKDIR}/$file only on ".scalar(keys %{$uploadResult->{se}}).
 		     "  of the $uploadResult->{totalCount} wished SEs.");
-  return (-1);
+  return -1;
 }
 
 #sub copyInMSS {
