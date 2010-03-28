@@ -316,7 +316,6 @@ sub get {
      }
      $excludedAndfailedSEs=~ s/;$//;
    }
-#   ($excludedAndfailedSEs eq "") and $excludedAndfailedSEs = 0;
 
    my $entry=$file;
  
@@ -339,22 +338,31 @@ sub get {
        $entry=$file;
      }
    }
+
+#   my $guidInfo = {};
+#   my $class="";
+#   $self->{CATALOG} and $class=ref $self->{CATALOG};
+#   if($class =~ /^AliEn/ ){
+#     if ($options{g} ){
+#        $guidInfo=$self->{CATALOG}->getInfoFromGUID($file) or return;
+#        $entry=$guidInfo->{guid};
+#     } else { 
+#        $file = $self->{CATALOG}->GetAbsolutePath( $file );
+#        $guidInfo=$self->{CATALOG}->{DATABASE}->getAllExtendedInfoFromLFN($file)
+#     }
+#   }
  
-   my  (@envelope) = $self->access("-s","read",$entry,$wishedSE,0,($excludedAndfailedSEs || 0),0,$self->{CONFIG}->{SITE},0,0) or return;
+   my  (@envelope) = $self->access("-s","read",$file,$wishedSE,0,($excludedAndfailedSEs || 0),0,$self->{CONFIG}->{SITE},0,0) or return;
 
    my $envelop = $envelope[0];
- 
-   if (!defined $envelop->{envelope}) {
+
+   ((!$envelop) or (!defined $envelop->{envelope}) or $envelop->{eof}) and 
      $self->info( "Cannot get access to $file") and return;
- 
-   }
- 
+
    $guidInfo->{guid}=$envelop->{guid};
    $guidInfo->{size}=$envelop->{size};
    $guidInfo->{se}=$envelop->{se};
    $guidInfo->{pfn}=$envelop->{pfn};
- 
- 
    $ENV{'IO_AUTHZ'} = $envelop->{envelope};
     
    $guidInfo->{guid} or 
@@ -387,7 +395,7 @@ sub get {
      if ($self->{MONITOR}){
 	$self->sendMonitor('read', $guidInfo->{se}, $time, $guidInfo->{size}, $result);
      }
-     $result and last;
+     $result and last or $self->info("ERROR: getFile failed with: ".$self->{LOGGER}->error_msg());
      ######## if everything worked fine for the first SE, we go out here sucessfully!
      ###
      ###
@@ -398,10 +406,12 @@ sub get {
        $excludedAndfailedSEs .= $guidInfo->{se}; # Mark that SE as failed.
      }
      $self->info("Getting the copy didn't work :(. Does anybody else have the file? Feeding back used/failed $excludedAndfailedSEs.");
-     (@envelope) = $self->access("-s","read",$entry,0,0,($excludedAndfailedSEs || 0),0,$self->{CONFIG}->{SITE},0,0) or return;
+     (@envelope) = $self->access("-s","read",$file,0,0,($excludedAndfailedSEs || 0),0,$self->{CONFIG}->{SITE},0,0) or return;
 
      $envelop = $envelope[0];
-     $envelop = $envelope[0];
+     ((!$envelop) or (!defined $envelop->{envelope}) or $envelop->{eof}) and 
+        $self->info( "Cannot get access to $file") and return;
+
      $guidInfo->{guid}=$envelop->{guid};
      $guidInfo->{size}=$envelop->{size};
      $guidInfo->{se}=$envelop->{se};
@@ -912,7 +922,7 @@ sub selectClosestSEOnRank {
 sub cat {
   my $self=shift;
   my @done=$self->f_system_call("cat", @_);
-  if ($done[0] =~ /1/){
+  if ($done[0] and $done[0] =~ /1/){
     $self->info("", undef,0);
   }
   return @done;
@@ -1029,11 +1039,11 @@ sub addFile {
 
   $options->{versioning} or ( $self->_canCreateFile($lfn) or return);
 
-  my ($result)=$self->execute("upload", $pfn, $lineOptions);
+  my ($result, $success)=$self->execute("upload", $pfn, $lineOptions);
 
 	# -1 means a failure for quota overflow
-	($result==-1) and 
-		$self->info("Error, we couldn't add/store the file on any SE because of quota overflow!") and return;
+	($success eq -1) and 
+	   $self->info("ERROR: Adding the file was not successful because of access exception, check above!");
 
   $result and $result->{status} or 
     $self->info("Error, we couldn't add/store the file on any SE!") and return;
@@ -1047,11 +1057,11 @@ sub addFile {
   }
 
   if ($result->{totalCount} eq scalar(keys %{$result->{se}})){
-      $self->info("OK. Added the file $lfn on $result->{totalCount} SEs as specified. Superb!");
+      $self->info("OK. The file $lfn  was added to $result->{totalCount} SEs as specified. Superb!");
   } elsif(scalar(keys %{$result->{se}}) > 0) {
-      $self->info("WARNING: Added the file to ".scalar(keys %{$result->{se}})." SEs, yet specified was to add it on $result->{totalCount}.");
+      $self->info("WARNING: The file $lfn was added to ".scalar(keys %{$result->{se}})." SEs, yet specified were to add it on $result->{totalCount}!");
   } else {
-      $self->info("Error, we couldn't add/store the file on any SE!") and return;
+      $self->info("ERROR: Adding the file $lfn failed completely!") and return;
   }
   return ($result->{status} && $registered);
 }
@@ -1376,11 +1386,13 @@ sub relocate {
 
 #############################################################################################################
 sub access_eof {
-  my $error=shift || "error creating the envelope";
+  my $error=(shift || "error creating the envelope");
+  my $exception=(shift || 0);
   my $newhash;
   my @newresult;
   $newhash->{eof} = "1";
   $newhash->{error}=$error;
+  $exception and $newhash->{exception} = $exception;
   push @newresult, $newhash;
   return @newresult;
 }
@@ -1396,6 +1408,7 @@ sub getPFNforAccess {
   my $options=shift;
 
   my $sesel = 0;
+  # if excludedAndfailedSEs is an int, we have the old <= AliEn v2-17 version of the envelope request, to select the n-th element
   if ($$excludedAndfailedSEs[0] =~ /^[0-9]+$/ ) { 
      $sesel=$excludedAndfailedSEs;
      @{$excludedAndfailedSEs} = ();
@@ -1416,31 +1429,29 @@ sub getPFNforAccess {
   $self->{LOGGER}->error_msg() and $error=$self->{LOGGER}->error_msg();
   #Get the file from the LCM
   @whereis or $self->info( "access: $error" )
-    and return access_eof("access: Error on whereis for file $lfn.");
+    and return access_eof("access ERROR within getPFNforAccess: given lfn: $lfn, guid: $guid, whereis: @whereis, excl. SEs: @$excludedAndfailedSEs, Error on whereis for file.");
 
-  my $closeList;
-	
-  $closeList = $self->selectClosestSEOnRank($sitename, \@whereis, $se, $excludedAndfailedSEs);
+  my $closeList = $self->selectClosestSEOnRank($sitename, \@whereis, $se, $excludedAndfailedSEs);
 
+  # if excludedAndfailedSEs is an int, we have the old <= AliEn v2-17 version of the envelope request, to select the n-th element
   $se = @{$closeList}[$sesel];
+
+  # if nothing worked, reply the first valid se from the close list
   if(!$self->identifyValidSEName($se)) {
       foreach(@{$closeList}) {
          $self->identifyValidSEName($_) and $se = $_ and last;
       }    
   }
-  $self->identifyValidSEName($se) or  return access_eof("access: Error: getPFNforAccess given: lfn: $lfn, whereis: @whereis, excl. SEs: @$excludedAndfailedSEs. No SEs left to reply an envelope for. ");
+  $self->identifyValidSEName($se) or 
+      return access_eof("access ERROR within getPFNforAccess: given lfn: $lfn, guid: $guid, whereis: @whereis, excl. SEs: @$excludedAndfailedSEs. No SEs left to reply an envelope for. ");
 
 
   my $nses=scalar @$closeList;
-  my @whereisClean=();
-  foreach (@where) {
-    push @whereis, $_->{se};
-  }
 
-  if (! $se) {
-    $self->info("access: File '$guid' does not exist in $se");
-    return;
-  }
+#  if (! $se) {
+#    $self->info("access: File '$guid' does not exist in $se");
+#    return access_eof("access ERROR within getPFNforAccess: given lfn: $lfn, guid: $guid,whereis: @whereis, excl. SEs: @$excludedAndfailedSEs. No SEs left to reply an envelope for. ");
+#  }
 
   $self->debug(1, "We can ask the following SE: $se");
   (!($options =~/s/)) and $self->info( "The guid is $guid");
@@ -1473,8 +1484,8 @@ sub getPFNforAccess {
     (defined $2) and   $urlhostport = $2;
     (defined $3) and    $urlfile = $3;
   } else {
-    $self->info("access: parsing error for $pfn [host+port]");
-    return;
+    $self->info("access ERROR within getPFNforAccess: parsing error for $pfn [host+port]");
+    return access_eof("access ERROR within getPFNforAccess: given lfn: $lfn, guid: $guid, whereis: @whereis, excl. SEs: @$excludedAndfailedSEs. Parsing error for $pfn [host+port]");
   }
 
   if ($urlfile =~ s/([^\?]*)\?([^\?]*)/$1/) {
@@ -1604,30 +1615,30 @@ sub access {
     $self->{CATALOG} and $self->{CATALOG}->{ROLE} and $user=$self->{CATALOG}->{ROLE};
 
 
-    $self->info("Getting a security envelope..");
+    $self->info("Connecting to Authen...");
     #my $info=$self->{SOAP}->CallSOAP("Authen", "createArrayOfEnvelopes", $user, @_)
     #  or $self->info("Error asking the for an envelope") and return;
     #my $resultHash = $info->result;
     #my @newhash= values %$resultHash;
     my $info=$self->{SOAP}->CallSOAP("Authen", "createEnvelope", $user, @_)
-      or $self->info("Error asking the for an envelope") and return;
+      or $self->info("Connecting to the Authen service failed!") and return;
     #my @newhash=$info->result;
     my @newhash=$self->{SOAP}->GetOutput($info);
 
 
-    if (!$newhash[0]->{envelope} ){
+    if (!$newhash[0]->{envelope}){
       my $error=$newhash[0]->{error} || "";
-      $self->info("There was an error, putting into log: $error");
       $self->info($self->{LOGGER}->error_msg());
-      $self->info("There is no envelope ($error)!!", 1);
-      #($error =~ /Not allowed because of quota overflow/) and return @newhash;
+      $self->info("Access envelope creation failed: $error", 1);
+      ($newhash[0]->{exception}) and 
+        return ({error=>$error, exception=>$newhash[0]->{exception}});
       return (0,$error) ;
      }
     $ENV{ALIEN_XRDCP_ENVELOPE}=$newhash[0]->{envelope};
     $ENV{ALIEN_XRDCP_URL}=$newhash[0]->{url};
     return (@newhash);
   }
-  $self->info("Starting envelope creation: @_ ");
+  $self->info("STARTING envelope creation: @_ ");
 
   my $options = shift;
   my $maybeoption = ( shift or 0 );
@@ -1652,11 +1663,14 @@ sub access {
 
 
   if ($access =~ /^write/) {
-    $self->info("Checking file quota of user $user, file size : $size");
+    #$self->info("Checking file quota of user $user, file size: $size");
     my ($ok, $message) = $self->checkFileQuota( $user, $size);
-    $self->info("after quota check, ok is: $ok, message: $message.");
-    $ok or $self->info("failed to check file quota: $message") and return  access_eof("No quota: $message");
-    $self->info("OK");
+    if($ok eq -1) {
+       $self->info("We gonna throw an access exception: "."[quotaexception]") and return  access_eof($message,"[quotaexception]");
+    }elsif($ok eq 0) {
+       return  access_eof($message);
+    }
+    #$self->info("OK");
   }
 
 
@@ -1691,7 +1705,6 @@ sub access {
   } 
 
   my $nosize  = 0;
-
   if ($size eq "0") {
     $size = 1024*1024*1024;
     $nosize =1 ;
@@ -1732,9 +1745,10 @@ sub access {
     my $nses = 0;
     my $filehash = {};
 
-    if ( $lfn =~ /(\w\w\w\w\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\w\w\w\w\w\w\w\w).*/ ) {
+#    if ( $lfn =~ /(\w\w\w\w\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\w\w\w\w\w\w\w\w).*/ ) {
+    if($self->identifyValidGUID($lfn)) {
       $self->info("Getting the permissions from the guid");
-      $guid = $1;
+      $guid = $lfn;
       $self->debug(1, "We have to translate the guid $1");
       $lfn = "";
       $filehash=$self->{CATALOG}->{DATABASE}->{GUID_DB}->checkPermission($perm, $guid, {retrieve=>"size,md5"});
@@ -1753,7 +1767,13 @@ sub access {
     while(1) {
       if ($lfn eq "/NOLFN") {
          $lfn = "";
-         $guid = $extguid;
+         #$guid = $extguid;
+         if($self->identifyValidGUID($extguid)) {
+            my $guidCheck = $self->{CATALOG}->getInfoFromGUID($extguid);
+            $guidCheck and $guidCheck->{guid} and (lc $extguid eq lc $guidCheck->{guid})
+              and return access_eof("The requested guid ($extguid) as already in use.");
+            $guid = $extguid;
+         }
       }
       if ( $lfn ne "") {
 	$filehash=$self->checkPermissionsOnLFN($lfn,$access, $perm)
@@ -1799,10 +1819,10 @@ sub access {
 
         $self->info("Calling getPFNforAccess with sitename: $sitename");
 	($se, $pfn, $anchor, $lfn, $nses, $whereis)=$self->getPFNforAccess($guid, $se, $excludedAndfailedSEs, $lfn, $sitename, $options)
-	  or return access_eof("Calling getPFNforAccess for $lfn, for read or delete access was not successfull.");
+	  or return access_eof("Not possible to get file info for file $lfn [getPFNforAccess error].");
 	if (UNIVERSAL::isa($se, "HASH")){
 	  $self->info("Here we have to return eof");
-	  return access_eof;
+	  return access_eof("Not possible to get file info for file $lfn [getPFNforAccess error].");
 	}
 	$DEBUG and $self->debug(1, "access: We can take it from the following SE: $se with PFN: $pfn");
       }
@@ -1820,8 +1840,8 @@ sub access {
       $filehash->{pfn} = "$ppfn";
       if (($lfn eq "") && ($access =~ /^write/)) {
 	  $lfn = "/NOLFN";
-          $self->identifyValidGUID($extguid) 
-          and $guid = $extguid;
+          #$self->identifyValidGUID($extguid) 
+          #and $guid = $extguid;
       }
 
       $filehash->{turl} = $pfn;
@@ -1971,7 +1991,7 @@ sub checkExclWriteUserOnSEsForAccess{
    my $query="SELECT seName FROM SE WHERE (";
    foreach(@$seList){   $query .= " seName = ? or";   push @queryValues, $_; }
    $query =~ s/or$//;
-   $query  .= ") and seMinSize < ? and ( exclusiveUsers is NULL or exclusiveUsers = '' or exclusiveUsers  LIKE concat ('%,' , ? , ',%') );";
+   $query  .= ") and seMinSize <= ? and ( exclusiveUsers is NULL or exclusiveUsers = '' or exclusiveUsers  LIKE concat ('%,' , ? , ',%') );";
 
    push @queryValues, $fileSize;
    push @queryValues, $user;
@@ -2001,7 +2021,7 @@ sub getSEListFromSiteSECacheForAccess{
 
    foreach(@$excludeList){   $query .= "and SE.seName <> ? "; push @queryValues, $_;  }
    
-   $query .=" and SE.seMinSize < ? and SE.seQoS  LIKE concat('%,' , ? , ',%' ) "
+   $query .=" and SE.seMinSize <= ? and SE.seQoS  LIKE concat('%,' , ? , ',%' ) "
     ." and (SE.exclusiveUsers is NULL or SE.exclusiveUsers = '' or SE.exclusiveUsers  LIKE concat ('%,' , ? , ',%') )"
     ." ORDER BY rank ASC limit ? ;";
  
@@ -2182,7 +2202,7 @@ sub erase {
 
 	my (@envelope) = $self->access("-s","delete","$lfn",$se);
 
-	if ((!defined $envelope[0])||(!defined $envelope[0]->{envelope})) {
+	if ((!defined $envelope[0]) || (!defined $envelope[0]->{envelope})) {
 	    $self->info("Cannot get access to $lfn for deletion @envelope") and return;
 	}
 	$ENV{'IO_AUTHZ'} = $envelope[0]->{envelope};
@@ -2232,6 +2252,7 @@ sub upload {
    }
 
   my $result = {};
+  my $success = 0;
   $result->{jobtracelog} = [];
 
   $options->{guid} and $result->{guid}=$options->{guid};
@@ -2247,6 +2268,8 @@ sub upload {
     and return;
   $pfn=$self->checkLocalPFN($pfn);
   my $size=AliEn::SE::Methods->new($pfn)->getSize();
+
+  ((!$size) or ($size eq 0)) and $self->info("The file $pfn has size 0. Let's hope you wanted to upload an empty file.");
 
   #my @optentry=split(",", join(",",@_));
   foreach my $d ((split(",", join(",",@_)))) {
@@ -2306,37 +2329,41 @@ sub upload {
   }
   
   foreach my $qos(keys %$qosTags){
-    $self->debug(2,"Processing storage discovery qos: $qos with $qosTags->{$qos} requested elements.");
+    ($success eq -1) and last;
+    $self->debug(2,"Uploading file based on Storage Discovery, requesting QoS=$qos, count=$qosTags->{$qos}.");
     $options->{jobtracelog} and 
-           push @{$result->{jobtracelog}}, {flag=>"trace", text=>"Processing dynamic SE discovery based on qos $qos with count $qosTags->{$qos}."};
+           push @{$result->{jobtracelog}}, {flag=>"trace", text=>"Uploading file based on Storage Discovery, requesting QoS=$qos, count=$qosTags->{$qos}."};
 
-    $result = $self->putOnDynamicDiscoveredSEListByQoSV2($result,$pfn,$lfn,$size,$envReq,$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes,1,$options->{jobtracelog});
+    ($result, $success) = $self->putOnDynamicDiscoveredSEListByQoSV2($result,$pfn,$lfn,$size,$envReq,$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes,1,$options->{jobtracelog});
   }
   
-  if (!$result->{status} and scalar(@ses) eq 0 and $selOutOf le 0){ # if dynamic was either not specified or not successfull (not even one time, that's $result->{status} ne 1) 
+  if (($success ne -1) and (!$result->{status}) and (scalar(@ses) eq 0) and ($selOutOf le 0)){ # if dynamic was either not specified or not successfull (not even one time, that's $result->{status} ne 1) 
     
     push @ses, $self->{CONFIG}->{SE_FULLNAME};   # and there were not SEs specified in a static list, THEN push in at least the local static LDAP entry not to loose data
-    $self->info("SE Discovery didn't work and no static SEs were specified, we gonna try the CONFIG->SE_FULLNAME as a fallback to safe the files.");
-    $options->{jobtracelog} and 
-          push @{$result->{jobtracelog}}, {flag=>"error", text=>"SE Discovery didn't work and no static SEs were specified, we gonna try the CONFIG->SE_FULLNAME as a fallback to safe the files."};
-
+    $selOutOf= 1;
     $totalCount = 1;
+    $self->info("SE Discovery is not available, no static SE specification, using CONFIG->SE_FULLNAME as a fallback to try not to lose the file.");
+    $options->{jobtracelog} and 
+          push @{$result->{jobtracelog}}, {flag=>"error", text=>"SE Discovery is not available, no static SE specification, using CONFIG->SE_FULLNAME as a fallback to try not to lose the file."};
+
     $self->debug(2,"There was neither a user specification for the SEs to use, nor is there a default setting defined in LDAP, we use CONFIG->SE_FULLNAME: $self->{CONFIG}->{SE_FULLNAME}");
   }
   
-  $self->debug(2,"Processing static SE list: @ses");
-  (scalar(@ses) gt 0)  and $options->{jobtracelog} and 
-          push @{$result->{jobtracelog}}, {flag=>"trace", text=>"Processing static SE list: - @ses - with select $selOutOf."};
 
-  (scalar(@ses) gt 0) and $result = $self->putOnStaticSESelectionListV2($result,$pfn,$lfn,$size,$envReq,$selOutOf,\@ses,1,$options->{jobtracelog});
+  my $staticmessage = "Uploading file to @ses (based on static SE specification).";
+  ($selOutOf ne scalar(@ses)) and $staticmessage = "Uploading file to @ses, with select $selOutOf out of ".scalar(@ses)." (based on static SE specification).";
+  $self->debug(2,"$staticmessage");
+
+  (scalar(@ses) gt 0)  and $options->{jobtracelog} and 
+          push @{$result->{jobtracelog}}, {flag=>"trace", text=>"$staticmessage"};
+
+  ($success ne -1) and (scalar(@ses) gt 0) and ($result, $success) = $self->putOnStaticSESelectionListV2($result,$pfn,$lfn,$size,$envReq,$selOutOf,\@ses,1,$options->{jobtracelog});
   
-	# -1 means a failure by quota overflow 
-	# JobAgent returns not defined value
-	($result == -1) and return -1;
-  
+  # -1 means a access exception, e.g. exceeded quota limit
+  # This will trigger the JobAgent to stop trying further write attempts.
   $result->{totalCount}=$totalCount;
   
-  return $result;
+  return ($result, $success);
 }
 
 sub identifyValidGUID{
@@ -2522,6 +2549,7 @@ sub putOnStaticSESelectionListV2{
    my $ses=(shift || "");
    my $pfnRewrite=(shift || 0);
    my $jobtracelog=(shift || 0);
+   my $success=0;
 
    $selOutOf eq 0 and  $selOutOf = scalar(@$ses);
    while ((scalar(@$ses) gt 0 and $selOutOf gt 0)) {
@@ -2536,7 +2564,7 @@ sub putOnStaticSESelectionListV2{
           push @{$result->{jobtracelog}}, {flag=>"error", text=>"Envelope/Access request had error: ".$envelopes[1]});
 
      $envelopes[0] or $envelopes[1] and $self->info("ERROR with access envelope: ".$envelopes[1]);
-     $envelopes[0] or return $result;
+     $envelopes[0] or return ($result,0);
 
 
 
@@ -2549,10 +2577,10 @@ sub putOnStaticSESelectionListV2{
         }
      }
 
-     ($result, my $success, my $JustConsideredSes) = $self->registerFileAccordingEnvelopes($result, $pfn, $lfn, $size, \@envelopes, $pfnRewrite,$jobtracelog);
-     $selOutOf = $selOutOf - $success;
+     ($result, $success, my $JustConsideredSes) = $self->registerFileAccordingEnvelopes($result, $pfn, $lfn, $size, \@envelopes, $pfnRewrite,$jobtracelog);
+     ($success ne -1) and $selOutOf = $selOutOf - $success or last;
    }
-   return $result;
+   return ($result, $success);
 }  
 
 
@@ -2570,6 +2598,7 @@ sub putOnDynamicDiscoveredSEListByQoSV2{
    my $excludedSes=(shift || []);
    my $pfnRewrite=(shift || 0);
    my $jobtracelog=(shift || 0);
+   my $success=0;
 
    while($count gt 0) {
      my (@envelopes) = $self->access("-s",$envreq,$lfn, 0, $size,(join(";", @$excludedSes) || 0),($result->{guid} || 0),$sitename,$qos,$count);
@@ -2578,7 +2607,7 @@ sub putOnDynamicDiscoveredSEListByQoSV2{
           push @{$result->{jobtracelog}}, {flag=>"error", text=>"Envelope/Access request had error: ".$envelopes[1]});
 
      $envelopes[0] or $envelopes[1] and $self->info("ERROR with access envelope: ".$envelopes[1]);
-     $envelopes[0] or return $result;
+     $envelopes[0] or return ($result,0);
 
      (scalar(@envelopes) eq $count) or $self->info("We couldn't get envelopes for the specified '$count' SEs with qos flag '$qos'.");
      (scalar(@envelopes) gt 0) or $self->info("We couldn't get envelopes for any of the '$count' requested SEs with qos flag '$qos'.") and last;
@@ -2595,11 +2624,11 @@ sub putOnDynamicDiscoveredSEListByQoSV2{
      $self->debug(2,"We discovered the following SEs to save on: @envelopes, count:".scalar(@envelopes).", type flag was: $qos.");
       
 
-     ($result, my $success, my $JustConsideredSes) = $self->registerFileAccordingEnvelopes($result, $pfn, $lfn, $size, \@envelopes, $pfnRewrite,$jobtracelog);
+     ($result, $success, my $JustConsideredSes) = $self->registerFileAccordingEnvelopes($result, $pfn, $lfn, $size, \@envelopes, $pfnRewrite,$jobtracelog);
      push @$excludedSes, @$JustConsideredSes;
-     $count = $count - $success;
+     ($success ne -1) and $count = $count - $success or last;
   }
-  return $result;
+  return ($result,$success);
 }
 
 
@@ -2610,12 +2639,12 @@ sub registerFileAccordingEnvelopes{
   my $pfn   = shift;
   my $lfn=(shift || "");
   my $size=(shift || 0);
-  my $envelopes= ( shift || return 0 );
+  my $envelopes= ( shift || return (0,0,[]) );
   my $pfnRewrite=(shift || 0);
   my $jobtracelog=(shift || 0);
 
   $result->{guid} and $self->info("File has guid: $result->{guid}") or $result->{guid} = "";
-  ($pfn) or $self->{LOGGER}->warning( "LCM", "Error no pfn specified" ) and return;
+  ($pfn) or $self->{LOGGER}->warning( "LCM", "Error no pfn specified" ) and return (0,0,[]) ;
   
   my $firstHit = 0;
   my $successCounter = 0;
@@ -2626,15 +2655,13 @@ sub registerFileAccordingEnvelopes{
   foreach my $envelope (@$envelopes){
 
 
-     (defined $envelope->{error}) and $jobtracelog and 
-          push @{$result->{jobtracelog}}, {flag=>"error", text=>"ENVELOPE ERROR: $envelope->{error}"};
+     (defined $envelope->{error}) and $jobtracelog 
+           and  push @{$result->{jobtracelog}}, {flag=>"error", text=>"ENVELOPE ERROR: $envelope->{error}"}
+       and (defined $envelope->{exception}) 
+           and push @{$result->{jobtracelog}}, {flag=>"error", text=>"Authen has thrown an access exception: $envelope->{exception}"};
       
-     (defined $envelope->{error})
-       #and ($envelope->{error} =~ /Not allowed because of quota overflow/) and return -1;
-       and ($envelope->{error} =~ /Not allowed because of quota overflow/) and return $result, 0, {};
-
-
-
+     (defined $envelope->{error}) and (defined $envelope->{exception}) # This will trigger consecutive write attempts to 
+              and return ($result, -1, []); # be dropped e.g. for exceeded quota limits
 
      $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope->{envelope};
      $ENV{ALIEN_XRDCP_URL}=$envelope->{url};
@@ -3444,29 +3471,34 @@ sub fquota_set {
 
 
 sub checkFileQuota {
+#######
+## return (0,message) for normal error
+## return (-1,message) for error that should throw access exception. Consequence is all 
+##                     remaining write accesses will be dropped, as they will fail anyway.
+##
   my $self= shift;
   my $user = shift
-    or $self->{LOGGER}->error("In checkFileQuota user is missing\n")
-    and return (0, "user is missing");
+    or $self->{LOGGER}->error("In checkFileQuota user is not specified.\n")
+    and return (-1, "user is not specified.");
   my $size = shift;
 	(defined $size) 
-    or $self->{LOGGER}->error("In checkFileQuota size is missing\n")
-    and return (0, "size is missing");
+    or $self->{LOGGER}->error("In checkFileQuota size is not specified.\n")
+    and return (-1, "size is not specified.");
 
-  $self->info("In checkFileQuota user:$user, size:$size");
+  $self->info("In checkFileQuota for user: $user, request file size:$size");
 
   if (!$self->{PRIORITY_DB}){
     my ($host, $driver, $db) = split("/", $self->{CONFIG}->{"JOB_DATABASE"});
     $self->{PRIORITY_DB}=
       AliEn::Database::TaskPriority->new({DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin'});
   }
-  $self->{PRIORITY_DB} or $self->info("Error: couldn't connect to the priority database") and return (0, "Error connecting to the quotas");
+  $self->{PRIORITY_DB} or $self->info("Error: couldn't connect to the priority database") and return (0, "Error connecting to the quota database.");
 
   my $array = $self->{PRIORITY_DB}->getFieldsFromPriorityEx("nbFiles, totalSize, maxNbFiles, maxTotalSize, tmpIncreasedNbFiles, tmpIncreasedTotalSize", "where user like '$user'")
-    or $self->{LOGGER}->error("Failed to getting data from PRIORITY table")
-    and return (0, "Failed to getting data from PRIORITY table");
-  $array->[0] or $self->{LOGGER}->error("User $user not exist")
-    and return (0, "User $user not exist in PRIORITY table");
+    or $self->{LOGGER}->error("Failed to get data from the PRIORITY quota table.")
+    and return (0, "Failed to get data from the PRIORITY quota table. ");
+  $array->[0] or $self->{LOGGER}->error("There's no entry for user $user in the PRIORITY quota table.")
+    and return (-1, "There's no entry for user $user in the PRIORITY quota table.");
 
   $self->info("middle of nowhere");
  
@@ -3484,13 +3516,13 @@ sub checkFileQuota {
   $self->info("totalSize: $totalSize/$tmpIncreasedTotalSize/$maxTotalSize");
 
   if ($nbFiles + $tmpIncreasedNbFiles + 1 > $maxNbFiles) {
-    $self->info("In checkFileQuota $user: Not allowed for nbFiles overflow");
-    return (0, "DENIED checkFileQuota user $user nbFiles overflow: You're trying to upload 1 file. That exceeds your limit." );
+    $self->info("Uploading file for user ($user) is denied - number of files quota exceeded.");
+    return (-1, "Uploading file for user ($user) is denied - number of files quota exceeded." );
   }
 
   if ($size + $totalSize + $tmpIncreasedTotalSize > $maxTotalSize) {
-    $self->info("In checkFileQuota $user: Not allowed for totalSize overflow");
-    return (0, "DENIED checkFileQuota user $user totalSize overflow: You've trying to upload a file which size is $size. That exceeds your limit." );
+    $self->info("Uploading file for user ($user) is denied, file size ($size) - total file size quota exceeded." );
+    return (-1, "Uploading file for user ($user) is denied, file size ($size) - total file size quota exceeded." );
   }
 
   
