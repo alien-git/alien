@@ -735,8 +735,6 @@ sub checkExclusiveUserOnSEs{
 
    my $catalogue=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
 
-   $self->info( "gron: the reply from IS for excluser is: ". Dumper($catalogue->queryColumn($query, undef, {bind_values=>\@queryValues})));
-
    return $catalogue->queryColumn($query, undef, {bind_values=>\@queryValues});
 }
 
@@ -761,21 +759,7 @@ sub sortSEListBasedOnSiteSECache{
    $query .= " ORDER BY rank ASC limit ?;";
 
    push @queryValues, scalar(@{$seList});
-
    
-   $self->info("gron: the list was : @{$seList}"); 
-
-   $self->info("gron: the query is: $query"); 
-   $self->info("gron: the values are: @queryValues"); 
-
-
-
-   #my $between = $catalogue->queryColumn($query, undef, {bind_values=>\@queryValues});
-
-   #$self->info("gron: the reply is: @$between"); 
-
-   #return $between;
-
    return  $catalogue->queryColumn($query, undef, {bind_values=>\@queryValues});
 } 
 

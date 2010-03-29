@@ -339,21 +339,7 @@ sub get {
      }
    }
 
-#   my $guidInfo = {};
-#   my $class="";
-#   $self->{CATALOG} and $class=ref $self->{CATALOG};
-#   if($class =~ /^AliEn/ ){
-#     if ($options{g} ){
-#        $guidInfo=$self->{CATALOG}->getInfoFromGUID($file) or return;
-#        $entry=$guidInfo->{guid};
-#     } else { 
-#        $file = $self->{CATALOG}->GetAbsolutePath( $file );
-#        $guidInfo=$self->{CATALOG}->{DATABASE}->getAllExtendedInfoFromLFN($file)
-#     }
-#   }
- 
    my  (@envelope) = $self->access("-s","read",$file,$wishedSE,0,($excludedAndfailedSEs || 0),0,$self->{CONFIG}->{SITE},0,0) or return;
-
    my $envelop = $envelope[0];
 
    ((!$envelop) or (!defined $envelop->{envelope}) or $envelop->{eof}) and 
@@ -373,25 +359,20 @@ sub get {
      return $self->getCollection($guidInfo->{guid}, $localFile, \%options);
    }
  
-   
    #First, let's check the local copy of the file
    my $result=$self->{STORAGE}->getLocalCopy($guidInfo->{guid}, $localFile);
  
-   while((!$result) or (!defined $envelop->{envelope})) {
- 
-     my $seRef = $envelop->{origpfn};
-     $self->{STORAGE}->checkDiskSpace($guidInfo->{size}, $localFile) or return;
-     #Get the file from the LCM
-     $seRef or $self->info("Error getting the list of pfns")
-       and return;
+   while((!$result) || (!defined $envelop->{error})) {
+
+     $self->{STORAGE}->checkDiskSpace($guidInfo->{size}, $localFile) or return;     
+     foreach(split(";",$excludedAndfailedSEs)) { $_ eq $guidInfo->{se} and $guidInfo->{se}="" and last;}
+     ($guidInfo->{se} ne "") or last;
      my $origpfn;
-     foreach my $d (@$seRef){ (lc $d->{se} eq lc $envelop->{se}) and $origpfn = $d->{pfn}; }
+     foreach my $d (@{$envelop->{origpfn}}){ (lc $d->{se} eq lc $guidInfo->{se}) and $origpfn = $d->{pfn}; }
  
      my $start=time;
-     #$result = $self->{STORAGE}->getFile( @{$seRef}[0]->{pfn}, @{$seRef}[0]->{se}, $localFile, $opt, $file, $guidInfo->{guid},$guidInfo->{md5} );
      $result = $self->{STORAGE}->getFile( $origpfn, $guidInfo->{se}, $localFile, $opt, $file, $guidInfo->{guid},$guidInfo->{md5} );
      my $time=time-$start;
-
      if ($self->{MONITOR}){
 	$self->sendMonitor('read', $guidInfo->{se}, $time, $guidInfo->{size}, $result);
      }
@@ -401,11 +382,11 @@ sub get {
      ###
      my $alreadyInList = 0;
      foreach (split(";",$excludedAndfailedSEs)) { (lc $_ eq lc $guidInfo->{se}) and $alreadyInList=1;}
-     if(!$alreadyInList) {
+     if(!$alreadyInList)  {
        $excludedAndfailedSEs ne "" and $excludedAndfailedSEs .= ";";
        $excludedAndfailedSEs .= $guidInfo->{se}; # Mark that SE as failed.
      }
-     $self->info("Getting the copy didn't work :(. Does anybody else have the file? Feeding back used/failed $excludedAndfailedSEs.");
+     $self->info("Getting the file didn't work :(. Trying to get an envelope for another SE, excluding: $excludedAndfailedSEs.");
      (@envelope) = $self->access("-s","read",$file,0,0,($excludedAndfailedSEs || 0),0,$self->{CONFIG}->{SITE},0,0) or return;
 
      $envelop = $envelope[0];
@@ -418,11 +399,9 @@ sub get {
      $guidInfo->{pfn}=$envelop->{pfn};
      $ENV{'IO_AUTHZ'} = $envelop->{envelope};
      $guidInfo->{guid} or $self->info("Error getting the guid and md5 of $file",-1) and return;
- 
    } 
    $result or
      $self->info("Error: not possible to get the file $file", 1) and return;
-
    $self->info("And the file is $result",0,0);
    return $result;
 }
@@ -876,33 +855,35 @@ sub resortArrayToPrioElementIfExists {
 # but ordered according to the se
 #
 #
-sub selectClosestSEOnRank {
+sub selectClosestRealSEOnRank {
    my $self=shift;
    my $sitename=(shift || 0);
    my $seList=(shift || return 0 );
    my $sePrio = (shift || 0);
    my $excludeList=(shift || []);
+   my $nose=0;
+   my @cleanList=();
+   my $result={};
 
+   foreach (@$seList) { 
+      UNIVERSAL::isa($_, "HASH") and $_=$_->{seName};
+      ($_ eq "no_se") and $nose=1 and next;
+      $self->identifyValidSEName($_) and push @cleanList, $_;
+   }
+   $seList=\@cleanList;
+      
    if($sitename) {
-   
       $self->checkSiteSECacheForAccess($sitename) or return 0;
-   
       my $catalogue = $self->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
-   
       my @queryValues = ();
       push @queryValues, $sitename;
-   
-   
    
       my $query="SELECT DISTINCT seName FROM SERanks a right JOIN SE b 
       on (a.seNumber=b.seNumber and sitename=?) WHERE 1";
       if(scalar(@{$seList}) > 0)  { $query .= " and ( "; foreach (@{$seList}){ $query .= " seName = ? or"; push @queryValues, $_;  } $query =~ s/or$/)/;}
       if(scalar(@{$excludeList}) > 0)  { foreach (@{$excludeList}) {   $query .= " and seName <> ? ";   push @queryValues, $_; };}
       $query .= " ORDER BY if(rank is null, 1000, rank) ASC ;";
-   
-#      return  $catalogue->queryColumn($query, undef, {bind_values=>\@queryValues});
-      return $self->resortArrayToPrioElementIfExists($sePrio,$catalogue->queryColumn($query, undef, {bind_values=>\@queryValues}));
-   
+      $result = $self->resortArrayToPrioElementIfExists($sePrio,$catalogue->queryColumn($query, undef, {bind_values=>\@queryValues}));
    } else { # sitename not given, so we just delete the excluded SEs
          my @newlist=();
          foreach my $ex (@$excludeList) {
@@ -910,9 +891,10 @@ sub selectClosestSEOnRank {
                (lc($se) ne lc($ex)) and push @newlist, $se;
             }
          }
-   return $self->resortArrayToPrioElementIfExists($sePrio,\@newlist);
+   $result = $self->resortArrayToPrioElementIfExists($sePrio,\@newlist);
    }
-   return 0;
+   $nose and @$result = ( "no_se", @$result);
+   return $result;
 }
 
 
@@ -1421,37 +1403,23 @@ sub getPFNforAccess {
     $self->info("There were no transfer methods....");
     @where=$self->{CATALOG}->f_whereis("sgzr","$guid");
   }
+
   my @whereis=();
   foreach (@where) {
     push @whereis, $_->{se};
   }
-  my $error="There where no SE for the guid '$guid'";
+  my $error="There was no SE for the guid '$guid'";
   $self->{LOGGER}->error_msg() and $error=$self->{LOGGER}->error_msg();
   #Get the file from the LCM
   @whereis or $self->info( "access: $error" )
     and return access_eof("access ERROR within getPFNforAccess: given lfn: $lfn, guid: $guid, whereis: @whereis, excl. SEs: @$excludedAndfailedSEs, Error on whereis for file.");
 
-  my $closeList = $self->selectClosestSEOnRank($sitename, \@whereis, $se, $excludedAndfailedSEs);
+  my $closeList = $self->selectClosestRealSEOnRank($sitename, \@whereis, $se, $excludedAndfailedSEs);
 
   # if excludedAndfailedSEs is an int, we have the old <= AliEn v2-17 version of the envelope request, to select the n-th element
   $se = @{$closeList}[$sesel];
 
-  # if nothing worked, reply the first valid se from the close list
-  if(!$self->identifyValidSEName($se)) {
-      foreach(@{$closeList}) {
-         $self->identifyValidSEName($_) and $se = $_ and last;
-      }    
-  }
-  $self->identifyValidSEName($se) or 
-      return access_eof("access ERROR within getPFNforAccess: given lfn: $lfn, guid: $guid, whereis: @whereis, excl. SEs: @$excludedAndfailedSEs. No SEs left to reply an envelope for. ");
-
-
   my $nses=scalar @$closeList;
-
-#  if (! $se) {
-#    $self->info("access: File '$guid' does not exist in $se");
-#    return access_eof("access ERROR within getPFNforAccess: given lfn: $lfn, guid: $guid,whereis: @whereis, excl. SEs: @$excludedAndfailedSEs. No SEs left to reply an envelope for. ");
-#  }
 
   $self->debug(1, "We can ask the following SE: $se");
   (!($options =~/s/)) and $self->info( "The guid is $guid");
@@ -1485,7 +1453,8 @@ sub getPFNforAccess {
     (defined $3) and    $urlfile = $3;
   } else {
     $self->info("access ERROR within getPFNforAccess: parsing error for $pfn [host+port]");
-    return access_eof("access ERROR within getPFNforAccess: given lfn: $lfn, guid: $guid, whereis: @whereis, excl. SEs: @$excludedAndfailedSEs. Parsing error for $pfn [host+port]");
+    return ($se, "", "", $lfn, 1, \@where);  
+    #return access_eof("access ERROR within getPFNforAccess: given lfn: $lfn, guid: $guid, whereis: @whereis, excl. SEs: @$excludedAndfailedSEs. Parsing error for $pfn [host+port]");
   }
 
   if ($urlfile =~ s/([^\?]*)\?([^\?]*)/$1/) {
@@ -1609,23 +1578,15 @@ sub access {
     # -p create public url in case of read access 
   my $self = shift;
 
+  #
+  # Start of the Client side code
   if (!  $self->{envelopeengine}) {
-#    my $user= ($self->{CATALOG}->{ROLE} or $self->{CONFIG}->{ROLE});
     my $user=$self->{CONFIG}->{ROLE};
     $self->{CATALOG} and $self->{CATALOG}->{ROLE} and $user=$self->{CATALOG}->{ROLE};
-
-
     $self->info("Connecting to Authen...");
-    #my $info=$self->{SOAP}->CallSOAP("Authen", "createArrayOfEnvelopes", $user, @_)
-    #  or $self->info("Error asking the for an envelope") and return;
-    #my $resultHash = $info->result;
-    #my @newhash= values %$resultHash;
     my $info=$self->{SOAP}->CallSOAP("Authen", "createEnvelope", $user, @_)
       or $self->info("Connecting to the Authen service failed!") and return;
-    #my @newhash=$info->result;
     my @newhash=$self->{SOAP}->GetOutput($info);
-
-
     if (!$newhash[0]->{envelope}){
       my $error=$newhash[0]->{error} || "";
       $self->info($self->{LOGGER}->error_msg());
@@ -1638,11 +1599,12 @@ sub access {
     $ENV{ALIEN_XRDCP_URL}=$newhash[0]->{url};
     return (@newhash);
   }
-  $self->info("STARTING envelope creation: @_ ");
 
+  #
+  # Start of the Server/Authen side code
+  $self->info("STARTING envelope creation: @_ ");
   my $options = shift;
   my $maybeoption = ( shift or 0 );
-
   my $access;
   if ( $maybeoption =~ /^-/ ) {
     $options .= $maybeoption;
@@ -1650,29 +1612,22 @@ sub access {
   } else {
     $access = ( $maybeoption or 0);
   }
-
   my $lfns    = (shift or 0);
   my $se      = (shift or "");
   my $size    = (shift or "0");
   my $sesel   = (shift or 0);
   my $extguid = (shift or 0);
-
-#  my $user= ($self->{CATALOG}->{ROLE} or $self->{CONFIG}->{ROLE});
   my $user=$self->{CONFIG}->{ROLE};
   $self->{CATALOG} and $self->{CATALOG}->{ROLE} and $user=$self->{CATALOG}->{ROLE};
 
-
   if ($access =~ /^write/) {
-    #$self->info("Checking file quota of user $user, file size: $size");
     my ($ok, $message) = $self->checkFileQuota( $user, $size);
     if($ok eq -1) {
        $self->info("We gonna throw an access exception: "."[quotaexception]") and return  access_eof($message,"[quotaexception]");
     }elsif($ok eq 0) {
        return  access_eof($message);
     }
-    #$self->info("OK");
   }
-
 
   my @ses = ();
   my @tempSE= split(/;/, $se);
@@ -1685,7 +1640,6 @@ sub access {
   my $excludedAndfailedSEs = \@exxSEs;
   ($sesel =~ /^[0-9]+$/) or $sesel = 0;
 
-
   my $sitename= (shift || 0);
   ($sitename eq "") and $sitename=0;
   my $writeQos = (shift || 0);
@@ -1693,48 +1647,29 @@ sub access {
   my $writeQosCount = (shift || 0);
 
   if ($access =~ /^write/){
-
     (scalar(@ses) eq 0) or $seList = $self->checkExclWriteUserOnSEsForAccess($user,$size,$seList) and @ses = @$seList; 
-
     if(($sitename ne 0) and ($writeQos ne "") and ($writeQosCount gt 0)) {
-       # we don't need to check for Cache below, cause there it's implicit
        my $dynamicSElist = $self->getSEListFromSiteSECacheForAccess($user,$size,$writeQos,$writeQosCount,$sitename,$excludedAndfailedSEs);
        push @ses,@$dynamicSElist;
     }
-
   } 
 
   my $nosize  = 0;
-  if ($size eq "0") {
-    $size = 1024*1024*1024;
-    $nosize =1 ;
-  }
+  ($size eq "0") and $size = 1024*1024*1024 and $nosize =1 ;
   my $perm;
-
   if ($access eq "read") {
     $perm = "r";
   } elsif ($access =~ /^(((write)((-once)|(-version))?)|(delete))$/ ) {
     $perm = "w";
-    #if ($size){
-    #  $self->info("Checking the size in $se ($size)");
-    #  my ($info)=$self->df( $se);
-    #  if ($info and $info->{min_size} and $info->{min_size}>$size){
-    #	$self->info( "The file is too small!! ( only $size and it should be $info->{min_size}");
-    #	
-    #	return access_eof("This storage element only accepts files bigger than $info->{min_size} (and your file is $size)");
-    #  } 
-    #}
   } else {
     $self->info("access: illegal access type <$access> requested");
     return access_eof("access: illegal access type <$access> requested");
   }
 
   my @list=();
-
   my @lfnlist = split(",",$lfns);
   my @lnewresult;
   my $newresult = \@lnewresult;
-
   my $globalticket="";
 
   foreach my $lfn (@lfnlist) {
@@ -1745,36 +1680,32 @@ sub access {
     my $nses = 0;
     my $filehash = {};
 
-#    if ( $lfn =~ /(\w\w\w\w\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\w\w\w\w\w\w\w\w).*/ ) {
     if($self->identifyValidGUID($lfn)) {
       $self->info("Getting the permissions from the guid");
       $guid = $lfn;
       $self->debug(1, "We have to translate the guid $1");
       $lfn = "";
       $filehash=$self->{CATALOG}->{DATABASE}->{GUID_DB}->checkPermission($perm, $guid, {retrieve=>"size,md5"});
-      if (! $filehash){
-	$self->info("access: access denied to guid '$guid'");
-	return access_eof("access: access denied to guid '$guid'");
-      }
+      $filehash 
+	or $self->info("access: access denied to guid '$guid'")
+	and return access_eof("access: access denied to guid '$guid'");
       delete $filehash->{db};
     } else {
       $lfn = $self->{CATALOG}->f_complete_path($lfn);
     }
 
-    #    print "$access $lfn $se\n";
-
+    if ($lfn eq "/NOLFN") {
+       $lfn = "";
+       #$guid = $extguid;
+       if($self->identifyValidGUID($extguid)) {
+          my $guidCheck = $self->{CATALOG}->getInfoFromGUID($extguid);
+          $guidCheck and $guidCheck->{guid} and (lc $extguid eq lc $guidCheck->{guid})
+            and return access_eof("The requested guid ($extguid) as already in use.");
+          $guid = $extguid;
+       }
+    }
     my $whereis;
     while(1) {
-      if ($lfn eq "/NOLFN") {
-         $lfn = "";
-         #$guid = $extguid;
-         if($self->identifyValidGUID($extguid)) {
-            my $guidCheck = $self->{CATALOG}->getInfoFromGUID($extguid);
-            $guidCheck and $guidCheck->{guid} and (lc $extguid eq lc $guidCheck->{guid})
-              and return access_eof("The requested guid ($extguid) as already in use.");
-            $guid = $extguid;
-         }
-      }
       if ( $lfn ne "") {
 	$filehash=$self->checkPermissionsOnLFN($lfn,$access, $perm)
 	  or return access_eof("checkPermissionsOnLFN failed for $lfn");
@@ -1782,11 +1713,9 @@ sub access {
       }
       $DEBUG and $self->debug(1, "We have permission on the lfn");
       if ($access =~ /^write/) {
-        
         $se = shift(@ses);
         $self->identifyValidSEName($se) or $self->info("access: no SE asked to write on") and 
 		return access_eof("List of SE is empty, after permission checks on user's right to access SEs."); 
-
 	($seurl,my $guid2,my $se2) = $self->{CATALOG}->createFileUrl($se, "root", $guid);
 	$guid2 and $guid=$guid2;
 	if (!$se2){
@@ -1800,7 +1729,6 @@ sub access {
 	$seurl=~ s/\/$//;
 	
 	$filehash->{storageurl} = $seurl;
-	
 	if ($nosize) {
 	  $filehash->{size} = 0;
 	} else {
@@ -1816,7 +1744,6 @@ sub access {
 	  $guid=$self->{CATALOG}->f_lfn2guid("s",$lfn)
 	    or $self->info( "access: Error getting the guid of $lfn",11) and return;
 	}
-
         $self->info("Calling getPFNforAccess with sitename: $sitename");
 	($se, $pfn, $anchor, $lfn, $nses, $whereis)=$self->getPFNforAccess($guid, $se, $excludedAndfailedSEs, $lfn, $sitename, $options)
 	  or return access_eof("Not possible to get file info for file $lfn [getPFNforAccess error].");
@@ -1827,23 +1754,15 @@ sub access {
 	$DEBUG and $self->debug(1, "access: We can take it from the following SE: $se with PFN: $pfn");
       }
 
-      $ticket .= "<authz>\n";
-      $ticket .= "  <file>\n";
-      if ($globalticket eq "") {
-	$globalticket .= $ticket;
-      }
-
+      $ticket .= "<authz>\n  <file>\n";
+      ($globalticket eq "") and $globalticket .= $ticket;
       $pfn =~ m{^((root)|(file))://([^/]*)/(.*)};
       my $pfix = $4;
       my $ppfn = $5;
-
       $filehash->{pfn} = "$ppfn";
-      if (($lfn eq "") && ($access =~ /^write/)) {
-	  $lfn = "/NOLFN";
-          #$self->identifyValidGUID($extguid) 
-          #and $guid = $extguid;
-      }
-
+      #($pfn =~ /^soap:/) and $filehash->{pfn} = "$pfn" or $filehash->{pfn} = "$ppfn";
+      #$filehash->{pfn} = "$pfn";
+      (($lfn eq "") && ($access =~ /^write/)) and $lfn = "/NOLFN";
       $filehash->{turl} = $pfn;
 
       # patch for dCache
@@ -1852,21 +1771,14 @@ sub access {
       $filehash->{nses} = $nses;
 
       $filehash->{lfn}  = $lfn || $filehash->{pfn};
-
-      #if ($access =~ /^write/) {
       $filehash->{guid} = $guid;
-      #}
-      
       if ((!defined $filehash->{md5}) || ($filehash->{md5} eq "")) {
 	$filehash->{md5} = "00000000000000000000000000000000";
       }
-      
-      # the lfn has to be the first member in the <file> list
       $ticket .= "    <lfn>$filehash->{'lfn'}</lfn>\n";
       $globalticket .= "    <lfn>$filehash->{'lfn'}</lfn>\n";
       $ticket .= "    <access>$access</access>\n";
       $globalticket .= "    <access>$access</access>\n";
-      
       foreach ( keys %{$filehash}) {
 	if ($_ eq "lfn") {
 	  next;
@@ -1877,13 +1789,10 @@ sub access {
 	}
       }
       $self->info("The ticket is $ticket");
-      $ticket .= "  </file>\n";
-      $ticket .= "</authz>\n";
-      
+      $ticket .= "  </file>\n</authz>\n";
       $self->{envelopeengine}->Reset();
       #    $self->{envelopeengine}->Verbose();
       my $coded = $self->{envelopeengine}->encodeEnvelopePerl("$ticket","0","none");
-      
       my $newhash;
       $newhash->{guid} = $filehash->{guid};
       $newhash->{md5}  ="$filehash->{md5}";
@@ -1910,9 +1819,8 @@ sub access {
 	#	      }
       } else {
 	$newhash->{envelope} = $self->{envelopeengine}->GetEncodedEnvelope();
+	#$newhash->{pfn}=$filehash->{pfn};
 	$newhash->{pfn}="$ppfn";
-
-
         $newhash->{url}=$filehash->{turl} ;#"root://$pfix/$ppfn";
         ($se =~ /dcache/i)  and $newhash->{url}="root://$pfix/$filehash->{lfn}";
         ($se =~ /alice::((RAL)|(CNAF))::castor/i) and $newhash->{url}="root://$pfix/$filehash->{lfn}";
@@ -1927,14 +1835,10 @@ sub access {
 	my $method;
 	($access =~ /^((read)|(write))/)  and $method="${1}req";
 	$access =~ /^delete/ and $method="delete";
-
 	$method and
 	  $self->{MONITOR}->sendParameters("$self->{CONFIG}->{SITE}_QUOTA","$self->{CATALOG}->{ROLE}_$method", @params); 		      
-	
       }
-
       push @lnewresult,$newhash; 
-
       if (!$coded) {
 	$self->info("access: error during envelope encryption");
 	return access_eof("access: error during envelope encryption");
@@ -1956,9 +1860,7 @@ $ticket
   }
 
   if ($options =~ /g/) {
-    $globalticket .= "  </file>\n";
-    $globalticket .= "</authz>\n";
-    
+    $globalticket .= "  </file>\n</authz>\n";
     $self->{envelopeengine}->Reset();
     my $coded = $self->{envelopeengine}->encodeEnvelopePerl("$globalticket","0","none");
     $lnewresult[0]->{genvelope} = $self->{envelopeengine}->GetEncodedEnvelope();
@@ -1971,6 +1873,7 @@ $ticket
 sub identifyValidSEName{
    my $self=shift;
    my $se=shift;
+   ($se eq "no_se") and return 1;
    my @entries = split(/\:\:/,$se);
    my $isOk = (scalar(@entries) eq 3) ;
    foreach (@entries) { $isOk = $isOk and ($_ =~ /[0-9a-zA-Z]/); }
