@@ -287,8 +287,6 @@ Get can also be used to retrieve collections. In that case, there are some extra
 }
 sub get {
    my $self = shift;
- #  my $opt;
- #  ( $opt, @_ ) = $self->Getopts(@_);
    my %options=();
    @ARGV=@_;
    getopts("gonb:clfs:", \%options) or $self->info("Error parsing the arguments of get\n". $self->get_HELP()) and  return ;
@@ -302,7 +300,6 @@ sub get {
      or print STDERR
  "Error: not enough arguments in get\n". $self->get_HELP()
    and return;
- 
  
    my $excludedAndfailedSEs = "";
    my $wishedSE = 0;
@@ -318,7 +315,6 @@ sub get {
    }
 
    my $entry=$file;
- 
    my $class="";
    $self->{CATALOG} and $class=ref $self->{CATALOG};
    my $guidInfo;
@@ -339,9 +335,8 @@ sub get {
      }
    }
 
-   my  (@envelope) = $self->access("-s","read",$file,$wishedSE,0,($excludedAndfailedSEs || 0),0,$self->{CONFIG}->{SITE},0,0) or return;
+   my  (@envelope) = $self->access("-s","read",$entry,$wishedSE,0,($excludedAndfailedSEs || 0),0,$self->{CONFIG}->{SITE},0,0) or return;
    my $envelop = $envelope[0];
-
    ((!$envelop) or (!defined $envelop->{envelope}) or $envelop->{eof}) and 
      $self->info( "Cannot get access to $file") and return;
 
@@ -353,11 +348,9 @@ sub get {
     
    $guidInfo->{guid} or 
      $self->info("Error getting the guid and md5 of $file",-1) and return;
- 
-   if ($guidInfo->{type} and $guidInfo->{type} eq "c"){
-     $self->info("This is in fact a collection!! Let's get all the files");
-     return $self->getCollection($guidInfo->{guid}, $localFile, \%options);
-   }
+   ($guidInfo->{type} and $guidInfo->{type} eq "c") 
+     and  $self->info("This is in fact a collection!! Let's get all the files")
+     and return $self->getCollection($guidInfo->{guid}, $localFile, \%options);
  
    #First, let's check the local copy of the file
    my $result=$self->{STORAGE}->getLocalCopy($guidInfo->{guid}, $localFile);
@@ -377,8 +370,6 @@ sub get {
 	$self->sendMonitor('read', $guidInfo->{se}, $time, $guidInfo->{size}, $result);
      }
      $result and last or $self->info("ERROR: getFile failed with: ".$self->{LOGGER}->error_msg());
-     ######## if everything worked fine for the first SE, we go out here sucessfully!
-     ###
      ###
      my $alreadyInList = 0;
      foreach (split(";",$excludedAndfailedSEs)) { (lc $_ eq lc $guidInfo->{se}) and $alreadyInList=1;}
@@ -1620,15 +1611,6 @@ sub access {
   my $user=$self->{CONFIG}->{ROLE};
   $self->{CATALOG} and $self->{CATALOG}->{ROLE} and $user=$self->{CATALOG}->{ROLE};
 
-  if ($access =~ /^write/) {
-    my ($ok, $message) = $self->checkFileQuota( $user, $size);
-    if($ok eq -1) {
-       $self->info("We gonna throw an access exception: "."[quotaexception]") and return  access_eof($message,"[quotaexception]");
-    }elsif($ok eq 0) {
-       return  access_eof($message);
-    }
-  }
-
   my @ses = ();
   my @tempSE= split(/;/, $se);
   foreach (@tempSE) { $self->identifyValidSEName($_) and push @ses, $_; }
@@ -1645,6 +1627,18 @@ sub access {
   my $writeQos = (shift || 0);
   ($writeQos eq "") and $writeQos=0;
   my $writeQosCount = (shift || 0);
+
+  my $copyMultiplyer = 1;
+  ($writeQosCount and $copyMultiplyer = $writeQosCount) 
+     or (scalar(@ses) gt 1 and $copyMultiplyer = scalar(@ses));
+  if ($access =~ /^write/) {
+    my ($ok, $message) = $self->checkFileQuota( $user, $size * $copyMultiplyer);
+    if($ok eq -1) {
+       $self->info("We gonna throw an access exception: "."[quotaexception]") and return  access_eof($message,"[quotaexception]");
+    }elsif($ok eq 0) {
+       return  access_eof($message);
+    }
+  }
 
   if ($access =~ /^write/){
     (scalar(@ses) eq 0) or $seList = $self->checkExclWriteUserOnSEsForAccess($user,$size,$seList) and @ses = @$seList; 
@@ -1706,6 +1700,7 @@ sub access {
     }
     my $whereis;
     while(1) {
+      ($lfn eq "/NOLFN") and $lfn = ""; #gron
       if ( $lfn ne "") {
 	$filehash=$self->checkPermissionsOnLFN($lfn,$access, $perm)
 	  or return access_eof("checkPermissionsOnLFN failed for $lfn");
