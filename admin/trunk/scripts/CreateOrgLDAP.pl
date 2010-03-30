@@ -114,7 +114,14 @@ print "ok\nStarting the daemon...\n";
 system("$etcDir/rc.d/init.d/alien-ldap", "start")
   and print "failed!!\nError starting the daemon\n$! and $?\n" and exit(-1);
 
-sleep (1);
+sleep (3);
+
+print "\nps aux | grep ldap:\n";
+   system("ps aux | grep ldap");
+print "\n ls /tmp/alien-slapd*:\n";
+   system("ls /tmp/alien-slapd*");
+print "\ncat /tmp/alien-slapd*:\n";
+   system("cat /tmp/alien-slapd*");
 
 ############################################################################
 ############################################################################
@@ -122,7 +129,24 @@ sleep (1);
 ############################################################################
 print "Connecting to the ldap server $hostName:8389...\t";
 
-my $ldap = Net::LDAP->new("$hostName:8389", "onerror" => "warn") or print "failed\nError conecting to the ldap server\n $? and $! and  $@\n" and exit(-1);
+my $ldap = Net::LDAP->new("$hostName:8389", "onerror" => "warn") ;
+
+$ldap or print "failed\nError connecting to the ldap server\n $? and $! and  $@\n";
+$ldap or print "\n\nretrying in 15 seconds...\n";
+$ldap or sleep(15);
+print "\nps aux | grep ldap:\n";
+   system("ps aux | grep ldap");
+print "\n ls /tmp/alien-slapd*:\n";
+   system("ls /tmp/alien-slapd*");
+print "\ncat /tmp/alien-slapd*:\n";
+   system("cat /tmp/alien-slapd*");
+
+
+$ldap or $ldap = Net::LDAP->new("$hostName:8389", "onerror" => "warn");
+$ldap or print "failed\nError connecting to the ldap server\n $? and $! and  $@\n";
+$ldap or print "\n telneting $hostName 8389\n" and system("telnet $hostName 8389");
+$ldap or exit(-1);
+
 
 my $result=$ldap->bind($rootdn, "password" => "$passwd");
 $result->code && print "failed\nCould not bind to LDAP-Server: ",$result->error and exit(-1);
