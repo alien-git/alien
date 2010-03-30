@@ -1359,11 +1359,16 @@ sub processJDL_split_Output_Filenames_From_Options_And_Initialize_fileTable{
 sub processJDL_get_Output_Archivename_And_Included_Files_And_Initialize_archiveTable{
     my $self=shift;
     my $jdlstrings=shift;
+    my $defaultArchiveName=shift;
     my $archiveTable;
+    my $archiveCounter=0;
+
     foreach  my $jdlelement (@$jdlstrings){
         my ($filestring, $options)=split (/\@/, $jdlelement,2);
         $options or $options = "";
         my ($name, @files)=split(/[\:,]/, $filestring);
+        ($name eq "") and $name = "$defaultArchiveName.$archiveCounter.zip";
+        $archiveCounter++;
         @files=$self->_findFilesLike(@files);
         $self->info("Found Archive: $name, incl. Files: @files, options: $options");
         (scalar(@files) < 1) and next;  # for false JDLs, with archive definition and missing file definition
@@ -1546,7 +1551,8 @@ sub prepare_File_And_Archives_From_JDL_And_Upload_Files{
   my $files;
   my $ArchiveFailedFiles;
 
-  my $defaultArchiveName= "alien_default-archive.$ENV{ALIEN_PROC_ID}";
+  my $defaultArchNoSpec = "alien_defarchNOSPEC.$ENV{ALIEN_PROC_ID}";
+  my $defaultArchiveName= "alien_defarch.$ENV{ALIEN_PROC_ID}";
   my @defaultOutputArchiveFiles = ("stdout","stderr","resources");
   my $defaultOptionString = ""; # could be SE,!SE,qos=N,select=N,guid etc. , equal to a valid continuation of file@
 
@@ -1562,7 +1568,7 @@ sub prepare_File_And_Archives_From_JDL_And_Upload_Files{
   ##
   ((scalar(@$archives) < 1) and (scalar(@$files) < 1)) 
      and  $self->putJobLog("trace", "The JDL didn't contain any output specification. Creating default Archive.")
-     and  push @$archives, $self->create_Default_Output_Archive_Entry($defaultArchiveName.".zip", 
+     and  push @$archives, $self->create_Default_Output_Archive_Entry($defaultArchNoSpec,
             \@defaultOutputArchiveFiles, $defaultOptionString);
   #} else {
   #    ($archives, $files) = $self->analyseJDL_And_Move_By_Default_Files_To_Archives(\@archiveEntries, \@fileEntries,
@@ -1570,7 +1576,7 @@ sub prepare_File_And_Archives_From_JDL_And_Upload_Files{
   #}
   ($files) = $self->delete__no_archive__tagforbackwardcompabilitytorlessV218($files);
 
-  $archiveTable = $self->processJDL_get_Output_Archivename_And_Included_Files_And_Initialize_archiveTable($archives);
+  $archiveTable = $self->processJDL_get_Output_Archivename_And_Included_Files_And_Initialize_archiveTable($archives,$defaultArchiveName);
 
   ($archiveTable, $ArchiveFailedFiles) = $self->createZipArchives($archiveTable) or
        print "Error creating the Archives\n" and return;
