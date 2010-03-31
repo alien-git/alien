@@ -122,6 +122,8 @@ print "\n ls /tmp/alien-slapd*:\n";
    system("ls /tmp/alien-slapd*");
 print "\ncat /tmp/alien-slapd*:\n";
    system("cat /tmp/alien-slapd*");
+print "\nAnd the log\n";
+system("cat \$HOME/.alien/var/log/ldap.log");
 
 ############################################################################
 ############################################################################
