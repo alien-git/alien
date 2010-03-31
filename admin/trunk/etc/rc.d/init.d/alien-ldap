@@ -89,7 +89,7 @@ case "$1" in
     start)
         # Start daemons.
         echo -n "Starting ldap: "
-	$DAEMON $SLAPD -d 0 -s 0 -h ldap://:8389/ -f $CONFIG  > $LOGDIR/ldap.log 2>&1 &
+	$DAEMON $SLAPD -d 1 -s 0 -h ldap://:8389/ -f $CONFIG  > $LOGDIR/ldap.log 2>&1 &
 	RETVAL=$?
 	if [ $RETVAL -eq 0 ]; then
             if grep -q "^replogfile" $CONFIG; then
