@@ -31,8 +31,21 @@ BEGIN { plan tests => 1 }
     $i--;
 
   }
-  print "DONE!!\n";
 
+  my $notok=0;
+
+  my (@info)=$cat->execute("top", "-all")  or exit(-2);
+
+  foreach (@info) {
+     if ( $_->{status} ne "DONE" ) {
+        print "ATTENTION TO JOB: $_->{queueId} was just now in status: $_->{status}\n";
+        $notok=1;
+     }
+  }
+  $notok and exit(-2);
+
+
+  print "DONE!!\n";
   $cat->close();
   print "ok\n";
 }
