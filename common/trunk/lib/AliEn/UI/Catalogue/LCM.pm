@@ -1749,7 +1749,7 @@ sub access {
 	$DEBUG and $self->debug(1, "access: We can take it from the following SE: $se with PFN: $pfn");
       }
 
-      $ticket .= "<authz>\n  <file>\n";
+      $ticket = "<authz>\n  <file>\n";
       ($globalticket eq "") and $globalticket .= $ticket;
       $pfn =~ m{^((root)|(file))://([^/]*)/(.*)};
       my $pfix = $4;
