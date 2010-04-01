@@ -32,10 +32,30 @@ BEGIN { plan tests => 1 }
 
   }
 
+  my $stillToWait=0;
+  my $timeItOut=0;
+  while ($timeItOut lt 20) {
+    my (@info)=$cat->execute("top", "-all")  or exit(-2);
+    foreach (@info) {
+       if ( ($_->{status} eq "INSERTED") or ($_->{status} eq "WAITING")  or ($_->{status} eq "ASSIGNED")
+           or ($_->{status} eq "STARTED") or ($_->{status} eq "RUNNING")  
+           or ($_->{status} eq "SAVING") or ($_->{status} eq "SAVED") ) {
+          $stillToWait=1;
+       }
+    }
+    print "We already waited: ".($timeItOut*30)." seconds\n";
+    $stillToWait or last;
+    $stillToWait=0;
+    print "There are jobs we need to wait for, sleeping 30 seconds ...\n";
+    sleep(30);
+    $timeItOut++;
+  }
+
+
+
+
   my $notok=0;
-
   my (@info)=$cat->execute("top", "-all")  or exit(-2);
-
   foreach (@info) {
      if ( $_->{status} ne "DONE" ) {
         print "ATTENTION TO JOB: $_->{queueId} was just now in status: $_->{status}\n";
