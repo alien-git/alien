@@ -34,37 +34,37 @@ BEGIN { plan tests => 1 }
 
   my $stillToWait=0;
   my $timeItOut=0;
-  while ($timeItOut lt 20) {
-    my (@info)=$cat->execute("top", "-all")  or exit(-2);
-    foreach (@info) {
-       if ( ($_->{status} eq "INSERTED") or ($_->{status} eq "WAITING")  or ($_->{status} eq "ASSIGNED")
-           or ($_->{status} eq "STARTED") or ($_->{status} eq "RUNNING")  
-           or ($_->{status} eq "SAVING") or ($_->{status} eq "SAVED") ) {
-          $stillToWait=1;
-       }
+  while ($timeItOut le 19) {
+    print "\n";
+    print "Getting top -all information from the Catalogue:\n";
+    my (@jobs)=$cat->execute("top", "-all")  or exit(-2);
+    foreach my $job (@jobs) {
+      $stillToWait and last;
+      ($job->{status} =~ /^(INSERTED)|(WAITING)|(ASSIGNED)|(STARTED)|(RUNNING)|(SAVING)|(SAVED)$/)
+         and $stillToWait=1;
     }
     print "We already waited: ".($timeItOut*30)." seconds\n";
     $stillToWait or last;
-    $stillToWait=0;
-    print "There are jobs we need to wait for, sleeping 30 seconds ...\n";
+    print "There are still jobs we need to wait for. Sleeping 30 seconds ...\n";
     sleep(30);
+    $stillToWait=0;
     $timeItOut++;
   }
 
-
-
+  print "All right, seems like all jobs are in a ready state. Let's do a final checkup...\n";
 
   my $notok=0;
-  my (@info)=$cat->execute("top", "-all")  or exit(-2);
-  foreach (@info) {
-     if ( $_->{status} ne "DONE" ) {
-        print "ATTENTION TO JOB: $_->{queueId} was just now in status: $_->{status}\n";
-        $notok=1;
-     }
+  print "\n";
+  print "Getting top -all information from the Catalogue:\n";
+  my (@jobs)=$cat->execute("top", "-all")  or exit(-2);
+  foreach my $job (@jobs) {
+        ($job and $job->{status}) or next;
+        ($job->{status} =~ /^(INSERTED)|(WAITING)|(ASSIGNED)|(STARTED)|(RUNNING)|(SAVING)|(SAVED)$/)
+          and print "ATTENTION TO JOB: $job->{queueId} was just now in status: $job->{status}\n"
+          and $notok=1;
   }
+
   $notok and exit(-2);
-
-
   print "DONE!!\n";
   $cat->close();
   print "ok\n";
