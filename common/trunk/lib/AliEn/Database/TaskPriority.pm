@@ -107,9 +107,9 @@ sub checkPriorityValue() {
     $set->{'unfinishedJobsLast24h'} = 0;
     $set->{'maxUnfinishedJobs'} = 60;
     $set->{'totalRunningTimeLast24h'} = 0;
-    $set->{'maxTotalRunningTime'} = 1000;
+    $set->{'maxTotalRunningTime'} = 10000;
     $set->{'totalCpuCostLast24h'} = 0;
-    $set->{'maxTotalCpuCost'} = 1000;
+    $set->{'maxTotalCpuCost'} = 10000;
     #File Quota
     $set->{'nbFiles'} = 0;
     $set->{'totalSize'} = 0;
