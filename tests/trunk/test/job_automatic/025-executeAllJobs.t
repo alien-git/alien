@@ -34,19 +34,20 @@ BEGIN { plan tests => 1 }
 
   my $stillToWait=0;
   my $timeItOut=0;
-  while ($timeItOut le 19) {
+  while ($timeItOut le 9) {
     print "\n";
     print "Getting top -all information from the Catalogue:\n";
     my (@jobs)=$cat->execute("top", "-all")  or exit(-2);
     foreach my $job (@jobs) {
       $stillToWait and last;
       ($job->{status} =~ /^(INSERTED)|(WAITING)|(ASSIGNED)|(STARTED)|(RUNNING)|(SAVING)|(SAVED)$/)
-         and $stillToWait=1;
+         and $stillToWait=1 and print "matched job in status: ($job->{status}";
     }
-    print "We already waited: ".($timeItOut*30)." seconds\n";
+    print "\n";
+    print "We already waited: ".($timeItOut*60)." seconds\n";
     $stillToWait or last;
-    print "There are still jobs we need to wait for. Sleeping 30 seconds ...\n";
-    sleep(30);
+    print "There are still jobs we need to wait for. Sleeping 60 seconds ...\n";
+    sleep(60);
     $stillToWait=0;
     $timeItOut++;
   }
@@ -58,7 +59,6 @@ BEGIN { plan tests => 1 }
   print "Getting top -all information from the Catalogue:\n";
   my (@jobs)=$cat->execute("top", "-all")  or exit(-2);
   foreach my $job (@jobs) {
-        ($job and $job->{status}) or next;
         ($job->{status} =~ /^(INSERTED)|(WAITING)|(ASSIGNED)|(STARTED)|(RUNNING)|(SAVING)|(SAVED)$/)
           and print "ATTENTION TO JOB: $job->{queueId} was just now in status: $job->{status}\n"
           and $notok=1;
