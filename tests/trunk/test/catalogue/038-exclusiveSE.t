@@ -5,6 +5,7 @@ use Test;
 use AliEn::Service::SE;
 use AliEn::X509;
 use AliEn::UI::Catalogue;
+use AliEn::UI::Catalogue::LCM::Computer;
 BEGIN { plan tests => 1 }
 
 {
@@ -35,11 +36,6 @@ BEGIN { plan tests => 1 }
                       'QoS', 'vip',
 		     ]) or exit(-2);
 
-#  $config=$config->Reload({force=>1});
-#  print "AFTER RELOADIN WE HAVE $config->{SE_NAME} (and $config->{HOST})\n";
-#  $config->{SE_NAME}=~ /testSE2$/ or print "THIS IS NOT WHAT WE WANTED!!\n"
-#    and exit -2;
-
   my $done=0;
   my $ui=AliEn::UI::Catalogue->new({role=>"admin"});
   if ($ui) {
@@ -53,22 +49,16 @@ BEGIN { plan tests => 1 }
   }
 
   print "\nAll right, we added the SE, now lets add a file to it.\n\n";
-  #$done=startService("SE");
-  #$done=startService("SE");
-  #$done=startService("SE");
-
-  #Let's remove the hostconfig entry
-  #removeLdapEntry($configKey) or exit(-2);
-
 
   print "Got ".($done || "undef") ."\n";
 
   $done or exit(-2);
 
-  my $cat=AliEn::UI::Catalogue::LCM->new({"role", "admin"});
-  $cat or exit (-1);
 
-  my $file="exlusiveUserFlagTestOnSE";
+  my $filecat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser"});
+  $filecat or exit (-1);
+
+  my $file="exclusiveUserFlagTestOnSE";
   my $name="/tmp/testexclUser.$$";
   open (FILE, ">$name")
     or print "Error opening the file $name\n" and return;
@@ -77,12 +67,12 @@ BEGIN { plan tests => 1 }
 
    my $vo=Net::Domain::hostname();
    chomp $vo;
-   $done=$cat->execute("add", "$file", $name , "${vo}::cern::exclusiveSE");
+   $done=$filecat->execute("add", "$file", $name , "${vo}::cern::exclusiveSE");
 
-  $cat->execute("whereis", "-i", "-silent", $file) 
+  $filecat->execute("whereis", "-i", "-silent", $file) 
          or print "ERROR: We could not add a file for the test \n" and exit(-2);
 
-  my ($fileoutput)=$cat->execute("get", "-silent", "$file") or print "ERROR: We could not get the file.\n" and exit(-2);
+  my ($fileoutput)=$filecat->execute("get", "-silent", "$file") or print "ERROR: We could not get the file.\n" and exit(-2);
 
   print "\nAll right, adding a test file worked, now let's make the SE exclusive.\n\n";
 
@@ -116,12 +106,16 @@ BEGIN { plan tests => 1 }
 
   print "\nAll right, SE is exclusive now and should be accessable only to 'NOT_U'.\n\n";
 
+  print "Trying to read the file...\n";
 
-  ($fileoutput)=$cat->execute("get", "-silent", "$file") and print "ERROR: We were still able to get the file.\n" and exit(-2);
+  ($fileoutput)=$filecat->execute("get", "$file") and print "ERROR: We were still able to get the file.\n" and exit(-2);
   
-  $file .= "_copy";
-  $cat->execute("add", "$file", $name , "${vo}::cern::exclusiveSE") and print "ERROR: We are still able to write on the SE.\n" and exit(-2);
+  print "Perfect it didn't work. No try to write a new file on the SE...\n";
 
+  $file .= "_copy";
+  $filecat->execute("add", "$file", $name , "${vo}::cern::exclusiveSE") and print "ERROR: We are still able to write on the SE.\n" and exit(-2);
+
+  $filecat->close();
 
   print "Perfect, we could neither read nor write on ${vo}::cern::exclusiveSE after making it exclusive.\n";
 
