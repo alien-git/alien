@@ -1406,9 +1406,13 @@ sub getPFNforAccess {
   $self->{LOGGER}->error_msg() and $error=$self->{LOGGER}->error_msg();
   #Get the file from the LCM
   @whereis or $self->info( "access: $error" )
-    and return access_eof("access ERROR within getPFNforAccess: given lfn: $lfn, guid: $guid, whereis: @whereis, excl. SEs: @$excludedAndfailedSEs, Error on whereis for file.");
+    and return 0;
 
   my $closeList = $self->selectClosestRealSEOnRank($sitename, $user, \@whereis, $se, $excludedAndfailedSEs);
+
+  scalar(@$closeList) eq 0 
+           and $self->info("access ERROR within getPFNforAccess: SE list was empty after checkup. Either problem with the file's info or you don't have access on relevant SEs.") 
+           and return 0;
 
   # if excludedAndfailedSEs is an int, we have the old <= AliEn v2-17 version of the envelope request, to select the n-th element
   $se = @{$closeList}[$sesel];
@@ -1448,7 +1452,6 @@ sub getPFNforAccess {
   } else {
     $self->info("access ERROR within getPFNforAccess: parsing error for $pfn [host+port]");
     return ($se, "", "", $lfn, 1, \@where);  
-    #return access_eof("access ERROR within getPFNforAccess: given lfn: $lfn, guid: $guid, whereis: @whereis, excl. SEs: @$excludedAndfailedSEs. Parsing error for $pfn [host+port]");
   }
 
   if ($urlfile =~ s/([^\?]*)\?([^\?]*)/$1/) {
@@ -1467,28 +1470,7 @@ sub getPFNforAccess {
   if ($pfn=~ s/\?ZIP=(.*)$//){
     $self->info("The anchor is $1");
     $anchor=$1  
-}
-#  if (($urlprefix =~ /^guid/) && ($urloptions =~ /ZIP/) && ( $pfn =~ /.*\/(\w\w\w\w\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\-\w\w\w\w\w\w\w\w\w\w\w\w)/ )) {
-#    # we got a reference guid back
-#    my $newguid = $1;
-#    $guid = $newguid;
-    
-#    $urloptions =~ /ZIP=([^\&]*)/ and $anchor=$1;
-    
-    
-#    if ($options =~/p/) {
-#      $options="ps ";
-#    } else {
-#      $options="s ";
-#    }
-
-#    $lfn .= "_$guid";
-#    my $newanchor;
-#    ($se, $pfn, $newanchor, $lfn, $nses, my $whereisr )=$self->getPFNforAccess($guid, $se, $sesel, $lfn, $options)
-#      or return;
-#    $self->info("The father pfn is $pfn");
-#  }
-
+  }
 
   return ($se, $pfn, $anchor, $lfn, $nses, \@where);
 }
@@ -1743,11 +1725,12 @@ sub access {
 	    or $self->info( "access: Error getting the guid of $lfn",11) and return;
 	}
         $self->info("Calling getPFNforAccess with sitename: $sitename");
-	($se, $pfn, $anchor, $lfn, $nses, $whereis)=$self->getPFNforAccess($user, $guid, $se, $excludedAndfailedSEs, $lfn, $sitename, $options)
-	  or return access_eof("Not possible to get file info for file $lfn [getPFNforAccess error].");
+	($se, $pfn, $anchor, $lfn, $nses, $whereis)=$self->getPFNforAccess($user, $guid, $se, $excludedAndfailedSEs, $lfn, $sitename, $options);
+
+        $se or return access_eof("Not possible to get file info for file $lfn [getPFNforAccess error]. File info is not correct or you don't have access on certain SEs.");
 	if (UNIVERSAL::isa($se, "HASH")){
 	  $self->info("Here we have to return eof");
-	  return access_eof("Not possible to get file info for file $lfn [getPFNforAccess error].");
+	  return access_eof("Not possible to get file info for file $lfn [getPFNforAccess error]. File info is not correct or you don't have access on certain SEs.");
 	}
 	$DEBUG and $self->debug(1, "access: We can take it from the following SE: $se with PFN: $pfn");
       }
@@ -1786,8 +1769,8 @@ sub access {
 	  $globalticket .= "    <${_}>$filehash->{$_}</${_}>\n";
 	}
       }
-      $self->info("The ticket is $ticket");
       $ticket .= "  </file>\n</authz>\n";
+      $self->info("The ticket is $ticket");
       $self->{envelopeengine}->Reset();
       #    $self->{envelopeengine}->Verbose();
       my $coded = $self->{envelopeengine}->encodeEnvelopePerl("$ticket","0","none");
