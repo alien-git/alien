@@ -334,7 +334,6 @@ sub get {
        $entry=$file;
      }
    }
-
    my  (@envelope) = $self->access("-s","read",$entry,$wishedSE,0,($excludedAndfailedSEs || 0),0,$self->{CONFIG}->{SITE},0,0) or return;
    my $envelop = $envelope[0];
    ((!$envelop) or (!defined $envelop->{envelope}) or $envelop->{eof}) and 
@@ -849,6 +848,7 @@ sub resortArrayToPrioElementIfExists {
 sub selectClosestRealSEOnRank {
    my $self=shift;
    my $sitename=(shift || 0);
+   my $user=(shift || return 0);
    my $seList=(shift || return 0 );
    my $sePrio = (shift || 0);
    my $excludeList=(shift || []);
@@ -863,27 +863,29 @@ sub selectClosestRealSEOnRank {
    }
    $seList=\@cleanList;
       
+   my $catalogue = $self->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
+   my @queryValues = ();
+   my $query = "";
    if($sitename) {
       $self->checkSiteSECacheForAccess($sitename) or return 0;
-      my $catalogue = $self->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
-      my @queryValues = ();
       push @queryValues, $sitename;
    
-      my $query="SELECT DISTINCT seName FROM SERanks a right JOIN SE b 
-      on (a.seNumber=b.seNumber and sitename=?) WHERE 1";
-      if(scalar(@{$seList}) > 0)  { $query .= " and ( "; foreach (@{$seList}){ $query .= " seName = ? or"; push @queryValues, $_;  } $query =~ s/or$/)/;}
-      if(scalar(@{$excludeList}) > 0)  { foreach (@{$excludeList}) {   $query .= " and seName <> ? ";   push @queryValues, $_; };}
-      $query .= " ORDER BY if(rank is null, 1000, rank) ASC ;";
-      $result = $self->resortArrayToPrioElementIfExists($sePrio,$catalogue->queryColumn($query, undef, {bind_values=>\@queryValues}));
-   } else { # sitename not given, so we just delete the excluded SEs
-         my @newlist=();
-         foreach my $ex (@$excludeList) {
-            foreach my $se (@$seList) {
-               (lc($se) ne lc($ex)) and push @newlist, $se;
-            }
-         }
-   $result = $self->resortArrayToPrioElementIfExists($sePrio,\@newlist);
+      $query="SELECT DISTINCT b.seName FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename LIKE ?) WHERE ";
+      $query .= " (b.exclusiveUsers is NULL or b.exclusiveUsers = '' or b.exclusiveUsers  LIKE concat ('%,' , ? , ',%') ) ";
+      push @queryValues, $user;
+      if(scalar(@{$seList}) > 0)  { $query .= " and ( "; foreach (@{$seList}){ $query .= " b.seName LIKE ? or"; push @queryValues, $_;  } 
+           $query =~ s/or$/)/;}
+      foreach (@{$excludeList}) {   $query .= " and b.seName NOT LIKE ? ";   push @queryValues, $_; };
+      $query .= " ORDER BY if(a.rank is null, 1000, a.rank) ASC ;";
+   } else { # sitename not given, so we just delete the excluded SEs and check for exclusive Users
+       my $query="SELECT seName FROM SE WHERE ";
+       foreach(@$seList){   $query .= " seName LIKE ? or"; push @queryValues, $_;  };
+       $query =~ s/or$//;
+       foreach(@$excludeList){   $query .= " and seName NOT LIKE ? "; push @queryValues, $_;  }
+       $query .= " and (exclusiveUsers is NULL or exclusiveUsers = '' or exclusiveUsers  LIKE concat ('%,' , ? , ',%') ) ;";
+       push @queryValues, $user;
    }
+   $result = $self->resortArrayToPrioElementIfExists($sePrio,$catalogue->queryColumn($query, undef, {bind_values=>\@queryValues}));
    $nose and @$result = ( "no_se", @$result);
    return $result;
 }
@@ -1373,6 +1375,7 @@ sub access_eof {
 
 sub getPFNforAccess {
   my $self=shift;
+  my $user=(shift || return 0);
   my $guid=shift;
   my $se=shift;
   my $excludedAndfailedSEs=shift;
@@ -1405,7 +1408,7 @@ sub getPFNforAccess {
   @whereis or $self->info( "access: $error" )
     and return access_eof("access ERROR within getPFNforAccess: given lfn: $lfn, guid: $guid, whereis: @whereis, excl. SEs: @$excludedAndfailedSEs, Error on whereis for file.");
 
-  my $closeList = $self->selectClosestRealSEOnRank($sitename, \@whereis, $se, $excludedAndfailedSEs);
+  my $closeList = $self->selectClosestRealSEOnRank($sitename, $user, \@whereis, $se, $excludedAndfailedSEs);
 
   # if excludedAndfailedSEs is an int, we have the old <= AliEn v2-17 version of the envelope request, to select the n-th element
   $se = @{$closeList}[$sesel];
@@ -1700,7 +1703,7 @@ sub access {
     }
     my $whereis;
     while(1) {
-      ($lfn eq "/NOLFN") and $lfn = ""; #gron
+      ($lfn eq "/NOLFN") and $lfn = "";
       if ( $lfn ne "") {
 	$filehash=$self->checkPermissionsOnLFN($lfn,$access, $perm)
 	  or return access_eof("checkPermissionsOnLFN failed for $lfn");
@@ -1740,7 +1743,7 @@ sub access {
 	    or $self->info( "access: Error getting the guid of $lfn",11) and return;
 	}
         $self->info("Calling getPFNforAccess with sitename: $sitename");
-	($se, $pfn, $anchor, $lfn, $nses, $whereis)=$self->getPFNforAccess($guid, $se, $excludedAndfailedSEs, $lfn, $sitename, $options)
+	($se, $pfn, $anchor, $lfn, $nses, $whereis)=$self->getPFNforAccess($user, $guid, $se, $excludedAndfailedSEs, $lfn, $sitename, $options)
 	  or return access_eof("Not possible to get file info for file $lfn [getPFNforAccess error].");
 	if (UNIVERSAL::isa($se, "HASH")){
 	  $self->info("Here we have to return eof");
@@ -1887,7 +1890,7 @@ sub checkExclWriteUserOnSEsForAccess{
    my @queryValues = ();
 
    my $query="SELECT seName FROM SE WHERE (";
-   foreach(@$seList){   $query .= " seName = ? or";   push @queryValues, $_; }
+   foreach(@$seList){   $query .= " seName LIKE ? or";   push @queryValues, $_; }
    $query =~ s/or$//;
    $query  .= ") and seMinSize <= ? and ( exclusiveUsers is NULL or exclusiveUsers = '' or exclusiveUsers  LIKE concat ('%,' , ? , ',%') );";
 
@@ -1912,12 +1915,12 @@ sub getSEListFromSiteSECacheForAccess{
    $self->checkSiteSECacheForAccess($sitename) or return 0;
 
    my $query="SELECT SE.seName FROM SERanks,SE WHERE "
-       ." sitename = ? and SERanks.seNumber = SE.seNumber ";
+       ." sitename LIKE ? and SERanks.seNumber = SE.seNumber ";
 
    my @queryValues = ();
    push @queryValues, $sitename;
 
-   foreach(@$excludeList){   $query .= "and SE.seName <> ? "; push @queryValues, $_;  }
+   foreach(@$excludeList){   $query .= "and SE.seName NOT LIKE ? "; push @queryValues, $_;  }
    
    $query .=" and SE.seMinSize <= ? and SE.seQoS  LIKE concat('%,' , ? , ',%' ) "
     ." and (SE.exclusiveUsers is NULL or SE.exclusiveUsers = '' or SE.exclusiveUsers  LIKE concat ('%,' , ? , ',%') )"
@@ -1938,7 +1941,7 @@ sub checkSiteSECacheForAccess{
    my $site=shift;
    my $catalogue = $self->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
 
-   my $reply = $catalogue->query("SELECT sitename FROM SERanks WHERE sitename = ?;", undef, {bind_values=>[$site]});
+   my $reply = $catalogue->query("SELECT sitename FROM SERanks WHERE sitename LIKE ?;", undef, {bind_values=>[$site]});
 
    (scalar(@$reply) < 1) and $self->info("We need to update the SERank Cache for the not listed site: $site")
             and return $self->execute("refreshSERankCache", $site);
@@ -3392,7 +3395,7 @@ sub checkFileQuota {
   }
   $self->{PRIORITY_DB} or $self->info("Error: couldn't connect to the priority database") and return (0, "Error connecting to the quota database.");
 
-  my $array = $self->{PRIORITY_DB}->getFieldsFromPriorityEx("nbFiles, totalSize, maxNbFiles, maxTotalSize, tmpIncreasedNbFiles, tmpIncreasedTotalSize", "where user like '$user'")
+  my $array = $self->{PRIORITY_DB}->getFieldsFromPriorityEx("nbFiles, totalSize, maxNbFiles, maxTotalSize, tmpIncreasedNbFiles, tmpIncreasedTotalSize", "where user LIKE '$user'")
     or $self->{LOGGER}->error("Failed to get data from the PRIORITY quota table.")
     and return (0, "Failed to get data from the PRIORITY quota table. ");
   $array->[0] or $self->{LOGGER}->error("There's no entry for user $user in the PRIORITY quota table.")
@@ -3424,7 +3427,7 @@ sub checkFileQuota {
   }
 
   
-  $self->{PRIORITY_DB}->do("update PRIORITY set tmpIncreasedNbFiles=tmpIncreasedNbFiles+1, tmpIncreasedTotalSize=tmpIncreasedTotalSize+$size where user like '$user'") or $self->info("failed to increase tmpIncreasedNbFile and tmpIncreasedTotalSize");
+  $self->{PRIORITY_DB}->do("update PRIORITY set tmpIncreasedNbFiles=tmpIncreasedNbFiles+1, tmpIncreasedTotalSize=tmpIncreasedTotalSize+$size where user LIKE  '$user'") or $self->info("failed to increase tmpIncreasedNbFile and tmpIncreasedTotalSize");
 
   $self->info("In checkFileQuota $user: Allowed");
   return (1,undef);

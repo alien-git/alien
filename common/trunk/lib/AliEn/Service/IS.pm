@@ -727,7 +727,7 @@ sub checkExclusiveUserOnSEs{
    my @queryValues = ();
 
    my $query="SELECT seName FROM SE WHERE (";
-   foreach(@$seList){   $query .= " seName = ? or";   push @queryValues, $_; }  
+   foreach(@$seList){   $query .= " seName LIKE ? or";   push @queryValues, $_; }  
    $query =~ s/or$//;
    $query  .= ") and (exclusiveUsers is NULL or exclusiveUsers = '' or exclusiveUsers  LIKE concat ('%,' , ? , ',%') );";
 
@@ -753,9 +753,9 @@ sub sortSEListBasedOnSiteSECache{
    push @queryValues, $sitename;
     
    my $query="SELECT DISTINCT seName FROM SERanks,SE WHERE "
-     ." sitename = ? and SERanks.seNumber = SE.seNumber ";
-   if($seList) { $query .= " and "; foreach (@{$seList}){ $query .= " SE.seName = ? or"; push @queryValues, $_;  } $query =~ s/or$//; }
-   if($excludeList) { foreach (@{$excludeList}) {   $query .= " and SE.seName <> ? ";   push @queryValues, $_; } }
+     ." sitename LIKE ? and SERanks.seNumber = SE.seNumber ";
+   if($seList) { $query .= " and "; foreach (@{$seList}){ $query .= " SE.seName LIKE ? or"; push @queryValues, $_;  } $query =~ s/or$//; }
+   if($excludeList) { foreach (@{$excludeList}) {   $query .= " and SE.seName NOT LIKE ? ";   push @queryValues, $_; } }
    $query .= " ORDER BY rank ASC limit ?;";
 
    push @queryValues, scalar(@{$seList});
@@ -780,12 +780,12 @@ sub getSEListFromSiteSECache{
   $self->checkSiteSECache($sitename);# or return 0;
 
   my $query="SELECT SE.seName FROM SERanks,SE WHERE "
-       ." sitename = ? and SERanks.seNumber = SE.seNumber ";
+       ." sitename LIKE ? and SERanks.seNumber = SE.seNumber ";
 
   my @queryValues = ();
   push @queryValues, $sitename;
 
-  foreach(@$excludeList){   $query .= "and SE.seName <> ? "; push @queryValues, $_;  }
+  foreach(@$excludeList){   $query .= "and SE.seName NOT LIKE ? "; push @queryValues, $_;  }
   $query .=" and SE.seQoS  LIKE concat('%,' , ? , ',%' ) "
     ." and (SE.exclusiveUsers is NULL or SE.exclusiveUsers = '' or SE.exclusiveUsers  LIKE concat ('%,' , ? , ',%') )"
     ." ORDER BY rank ASC limit ? ;";
@@ -805,7 +805,7 @@ sub checkSiteSECache{
 
    my $catalogue=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
 
-   my $reply = $catalogue->query("SELECT sitename FROM SERanks WHERE sitename = ?", undef, {bind_values=>[$site]});
+   my $reply = $catalogue->query("SELECT sitename FROM SERanks WHERE sitename LIKE ?", undef, {bind_values=>[$site]});
 
    (scalar(@$reply) < 1) 
       and $self->info("We need to update the SERank Cache for the not listed site: $site")
