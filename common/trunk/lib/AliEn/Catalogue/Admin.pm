@@ -685,7 +685,7 @@ sub refreshSERankCacheSite{
 
   for my $rank(0..$#selist) {
     $db->do("insert into SERanks (sitename,seNumber,rank,updated)
-              select ?, seNumber,  ?, 1  from SE where seName=?", 
+              select ?, seNumber,  ?, 1  from SE where seName LIKE ?", 
               {bind_values=>[$site,$rank, $selist[$rank]]});
   }
   
