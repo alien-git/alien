@@ -9,8 +9,9 @@ BEGIN { plan tests => 1 }
 
 {
   eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
-  includeTest("14-se") or exit(-2);
-  
+
+  includeTest("user_basic/021-se") or exit(-2);
+
 
   my $config=new AliEn::Config;
   $config or print "Error getting the configuration!!\n" and exit(-2);
