@@ -34,22 +34,26 @@ BEGIN { plan tests => 1 }
 
   my $stillToWait=0;
   my $timeItOut=0;
-  while ($timeItOut le 9) {
+  while ($timeItOut < 20) {
+
+    ($timeItOut eq 10) and  ($cat->execute("request") and print "Did again a request, maybe this helps!!\n" or print "Error requesting a job\n" and exit(-2));
+    
     print "\n";
     print "Getting top -all information from the Catalogue:\n";
     my (@jobs)=$cat->execute("top", "-all")  or exit(-2);
     foreach my $job (@jobs) {
       $stillToWait and last;
       ($job->{status} =~ /^(INSERTED)|(WAITING)|(ASSIGNED)|(STARTED)|(RUNNING)|(SAVING)|(SAVED)$/)
-         and $stillToWait=1 and print "matched job in status: ($job->{status}";
+         and $stillToWait=1 and print "matched job in status: ($job->{status})";
     }
     print "\n";
-    print "We already waited: ".($timeItOut*60)." seconds\n";
+    my $waited = $timeItOut*60;
+    print "We already waited: $waited seconds\n";
     $stillToWait or last;
     print "There are still jobs we need to wait for. Sleeping 60 seconds ...\n";
     sleep(60);
     $stillToWait=0;
-    $timeItOut++;
+    $timeItOut = $timeItOut + 1;
   }
 
   print "All right, seems like all jobs are in a ready state. Let's do a final checkup...\n";
