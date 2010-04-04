@@ -125,9 +125,9 @@ print "\ncat /tmp/alien-slapd*:\n";
 print "\nAnd the log\n";
    system("cat \$HOME/.alien/var/log/ldap.log");
 print "\n echoing LD_LIBRARY_PATH\n";
-   system("echo $LD_LIBRARY_PATH\n";
+   system("echo \$LD_LIBRARY_PATH\n");
 print "\n echoing DYLD_LIBRARY_PATH\n";
-   system("echo $DYLD_LIBRARY_PATH\n";
+   system("echo \$DYLD_LIBRARY_PATH\n");
 
 
 ############################################################################
