@@ -243,7 +243,8 @@ sub checkSETable {
 		 seUsedSpace=>"bigint",
 		 seType=>"varchar(60)",
 		 seMinSize=>"int default 0",
-                 exclusiveUsers=>"varchar(300)",
+                 seExclusiveWrite=>"varchar(300)",
+                 seExclusiveRead=>"varchar(300)",
 		);
 
   return $self->checkTable("SE", "seNumber", \%columns, 'seNumber', ['UNIQUE INDEX (seName)'], {engine=>"innodb"} ); #or return;

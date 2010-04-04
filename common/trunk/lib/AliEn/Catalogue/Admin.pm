@@ -880,22 +880,27 @@ sub checkSEDescription {
   }
   my $type=$entry->get_value("mss");
   my @qos=$entry->get_value("QoS");
-  my @exclusiveUsers=$entry->get_value("exclusiveUsers");
+  my @seExclusiveWrite=$entry->get_value("seExclusiveWrite");
+  my @seExclusiveRead=$entry->get_value("seExclusiveRead");
+
 
 
   my $qos="";
   scalar(@qos) > 0 and $qos="," . join(",",@qos). ",";
   
   
-  my $exclusiveUsers= "";
-  scalar(@exclusiveUsers) > 0 and $exclusiveUsers = "," . join(",",@exclusiveUsers). ",";
+  my $seExclusiveWrite= "";
+  scalar(@seExclusiveWrite) > 0 and $seExclusiveWrite = "," . join(",",@seExclusiveWrite). ",";
+  my $seExclusiveRead= "";
+  scalar(@seExclusiveRead) > 0 and $seExclusiveRead = "," . join(",",@seExclusiveRead). ",";
 
-  $self->info("The se $sename has $min_size and $type and $qos and $exclusiveUsers");
 
-  my $exists=$db->queryValue("select count(*) from SE where sename=? and seminsize=? and setype=? and seqos=? and exclusiveUsers=? ", undef, {bind_values=>[$sename, $min_size, $type, $qos, $exclusiveUsers]});
+  $self->info("The se $sename has $min_size and $type and $qos and ex-write: $seExclusiveWrite and  ex-read: $seExclusiveRead");
+
+  my $exists=$db->queryValue("select count(*) from SE where sename=? and seminsize=? and setype=? and seqos=? and seExclusiveWrite=? and seExclusiveRead=?", undef, {bind_values=>[$sename, $min_size, $type, $qos, $seExclusiveWrite, $seExclusiveRead]});
   if (not $exists){
     $self->info("We have to update the entry!!!");
-    $db->do("update SE set seminsize=?, setype=?, seqos=?, exclusiveUsers=? where sename=?", {bind_values=>[$min_size,$type, $qos, $exclusiveUsers, $sename]});
+    $db->do("update SE set seminsize=?, setype=?, seqos=?, seExclusiveWrite=?, seExclusiveRead=? where sename=?", {bind_values=>[$min_size,$type, $qos,  $seExclusiveWrite, $seExclusiveRead, $sename]});
   }
   return 1;
 
