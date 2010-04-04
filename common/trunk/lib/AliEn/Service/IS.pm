@@ -729,7 +729,7 @@ sub checkExclusiveUserOnSEs{
    my $query="SELECT seName FROM SE WHERE (";
    foreach(@$seList){   $query .= " seName LIKE ? or";   push @queryValues, $_; }  
    $query =~ s/or$//;
-   $query  .= ") and (exclusiveUsers is NULL or exclusiveUsers = '' or exclusiveUsers  LIKE concat ('%,' , ? , ',%') );";
+   $query  .= ") and (seExclusiveWrite is NULL or seExclusiveWrite = '' or seExclusiveWrite  LIKE concat ('%,' , ? , ',%') );";
 
    push @queryValues, $role;
 
@@ -787,7 +787,7 @@ sub getSEListFromSiteSECache{
 
   foreach(@$excludeList){   $query .= "and SE.seName NOT LIKE ? "; push @queryValues, $_;  }
   $query .=" and SE.seQoS  LIKE concat('%,' , ? , ',%' ) "
-    ." and (SE.exclusiveUsers is NULL or SE.exclusiveUsers = '' or SE.exclusiveUsers  LIKE concat ('%,' , ? , ',%') )"
+    ." and (SE.seExclusiveWrite is NULL or SE.seExclusiveWrite = '' or SE.seExclusiveWrite  LIKE concat ('%,' , ? , ',%') )"
     ." ORDER BY rank ASC limit ? ;";
 
   push @queryValues, $type;

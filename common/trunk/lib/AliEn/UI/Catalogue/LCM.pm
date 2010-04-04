@@ -849,12 +849,17 @@ sub selectClosestRealSEOnRank {
    my $self=shift;
    my $sitename=(shift || 0);
    my $user=(shift || return 0);
+   my $readOrDelete=shift;
    my $seList=(shift || return 0 );
    my $sePrio = (shift || 0);
    my $excludeList=(shift || []);
    my $nose=0;
    my @cleanList=();
    my $result={};
+   my $exclusiveUserCheck = "";
+   ($readOrDelete  =~/^read/) and $exclusiveUserCheck = "seExclusiveRead";
+   ($readOrDelete  =~/^delete/) and $exclusiveUserCheck = "seExclusiveWrite";
+
 
    foreach (@$seList) { 
       UNIVERSAL::isa($_, "HASH") and $_=$_->{seName};
@@ -871,7 +876,7 @@ sub selectClosestRealSEOnRank {
       push @queryValues, $sitename;
    
       $query="SELECT DISTINCT b.seName FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename LIKE ?) WHERE ";
-      $query .= " (b.exclusiveUsers is NULL or b.exclusiveUsers = '' or b.exclusiveUsers  LIKE concat ('%,' , ? , ',%') ) ";
+      $query .= " (b.$exclusiveUserCheck is NULL or b.$exclusiveUserCheck = '' or b.$exclusiveUserCheck  LIKE concat ('%,' , ? , ',%') ) ";
       push @queryValues, $user;
       if(scalar(@{$seList}) > 0)  { $query .= " and ( "; foreach (@{$seList}){ $query .= " b.seName LIKE ? or"; push @queryValues, $_;  } 
            $query =~ s/or$/)/;}
@@ -882,7 +887,7 @@ sub selectClosestRealSEOnRank {
        foreach(@$seList){   $query .= " seName LIKE ? or"; push @queryValues, $_;  };
        $query =~ s/or$//;
        foreach(@$excludeList){   $query .= " and seName NOT LIKE ? "; push @queryValues, $_;  }
-       $query .= " and (exclusiveUsers is NULL or exclusiveUsers = '' or exclusiveUsers  LIKE concat ('%,' , ? , ',%') ) ;";
+       $query .= " and ($exclusiveUserCheck is NULL or $exclusiveUserCheck = '' or $exclusiveUserCheck  LIKE concat ('%,' , ? , ',%') ) ;";
        push @queryValues, $user;
    }
    $result = $self->resortArrayToPrioElementIfExists($sePrio,$catalogue->queryColumn($query, undef, {bind_values=>\@queryValues}));
@@ -1373,15 +1378,17 @@ sub access_eof {
 }
 
 
-sub getPFNforAccess {
+sub getPFNforReadOrDeleteAccess {
   my $self=shift;
   my $user=(shift || return 0);
+  my $readOrDelete=(shift || -1);
   my $guid=shift;
   my $se=shift;
   my $excludedAndfailedSEs=shift;
   my $lfn=shift;
   my $sitename=(shift || 0);
   my $options=shift;
+
 
   my $sesel = 0;
   # if excludedAndfailedSEs is an int, we have the old <= AliEn v2-17 version of the envelope request, to select the n-th element
@@ -1408,10 +1415,10 @@ sub getPFNforAccess {
   @whereis or $self->info( "access: $error" )
     and return 0;
 
-  my $closeList = $self->selectClosestRealSEOnRank($sitename, $user, \@whereis, $se, $excludedAndfailedSEs);
+  my $closeList = $self->selectClosestRealSEOnRank($sitename, $user, $readOrDelete, \@whereis, $se, $excludedAndfailedSEs);
 
   scalar(@$closeList) eq 0 
-           and $self->info("access ERROR within getPFNforAccess: SE list was empty after checkup. Either problem with the file's info or you don't have access on relevant SEs.") 
+           and $self->info("access ERROR within getPFNforReadOrDeleteAccess: SE list was empty after checkup. Either problem with the file's info or you don't have access on relevant SEs.") 
            and return 0;
 
   # if excludedAndfailedSEs is an int, we have the old <= AliEn v2-17 version of the envelope request, to select the n-th element
@@ -1450,7 +1457,7 @@ sub getPFNforAccess {
     (defined $2) and   $urlhostport = $2;
     (defined $3) and    $urlfile = $3;
   } else {
-    $self->info("access ERROR within getPFNforAccess: parsing error for $pfn [host+port]");
+    $self->info("access ERROR within getPFNforReadOrDeleteAccess: parsing error for $pfn [host+port]");
     return ($se, "", "", $lfn, 1, \@where);  
   }
 
@@ -1628,7 +1635,7 @@ sub access {
   if ($access =~ /^write/){
     (scalar(@ses) eq 0) or $seList = $self->checkExclWriteUserOnSEsForAccess($user,$size,$seList) and @ses = @$seList; 
     if(($sitename ne 0) and ($writeQos ne "") and ($writeQosCount gt 0)) {
-       my $dynamicSElist = $self->getSEListFromSiteSECacheForAccess($user,$size,$writeQos,$writeQosCount,$sitename,$excludedAndfailedSEs);
+       my $dynamicSElist = $self->getSEListFromSiteSECacheForWriteAccess($user,$size,$writeQos,$writeQosCount,$sitename,$excludedAndfailedSEs);
        push @ses,@$dynamicSElist;
     }
   } 
@@ -1724,13 +1731,14 @@ sub access {
 	  $guid=$self->{CATALOG}->f_lfn2guid("s",$lfn)
 	    or $self->info( "access: Error getting the guid of $lfn",11) and return;
 	}
-        $self->info("Calling getPFNforAccess with sitename: $sitename");
-	($se, $pfn, $anchor, $lfn, $nses, $whereis)=$self->getPFNforAccess($user, $guid, $se, $excludedAndfailedSEs, $lfn, $sitename, $options);
+        $self->info("Calling getPFNforReadOrDeleteAccess with sitename: $sitename, $user, $access.");
+	($se, $pfn, $anchor, $lfn, $nses, $whereis)=$self->getPFNforReadOrDeleteAccess($user, $access, $guid, $se, $excludedAndfailedSEs, $lfn, $sitename, $options);
+        $self->info("Back from getPFNforReadOrDeleteAccess.");
 
-        $se or return access_eof("Not possible to get file info for file $lfn [getPFNforAccess error]. File info is not correct or you don't have access on certain SEs.");
+        $se or return access_eof("Not possible to get file info for file $lfn [getPFNforReadOrDeleteAccess error]. File info is not correct or you don't have access on certain SEs.");
 	if (UNIVERSAL::isa($se, "HASH")){
 	  $self->info("Here we have to return eof");
-	  return access_eof("Not possible to get file info for file $lfn [getPFNforAccess error]. File info is not correct or you don't have access on certain SEs.");
+	  return access_eof("Not possible to get file info for file $lfn [getPFNforReadOrDeleteAccess error]. File info is not correct or you don't have access on certain SEs.");
 	}
 	$DEBUG and $self->debug(1, "access: We can take it from the following SE: $se with PFN: $pfn");
       }
@@ -1875,7 +1883,7 @@ sub checkExclWriteUserOnSEsForAccess{
    my $query="SELECT seName FROM SE WHERE (";
    foreach(@$seList){   $query .= " seName LIKE ? or";   push @queryValues, $_; }
    $query =~ s/or$//;
-   $query  .= ") and seMinSize <= ? and ( exclusiveUsers is NULL or exclusiveUsers = '' or exclusiveUsers  LIKE concat ('%,' , ? , ',%') );";
+   $query  .= ") and seMinSize <= ? and ( seExclusiveWrite is NULL or seExclusiveWrite = '' or seExclusiveWrite  LIKE concat ('%,' , ? , ',%') );";
 
    push @queryValues, $fileSize;
    push @queryValues, $user;
@@ -1884,7 +1892,7 @@ sub checkExclWriteUserOnSEsForAccess{
 }
 
 
-sub getSEListFromSiteSECacheForAccess{
+sub getSEListFromSiteSECacheForWriteAccess{
    my $self=shift;
    my $user=(shift || return 0);
    my $fileSize=(shift || 0);
@@ -1906,7 +1914,7 @@ sub getSEListFromSiteSECacheForAccess{
    foreach(@$excludeList){   $query .= "and SE.seName NOT LIKE ? "; push @queryValues, $_;  }
    
    $query .=" and SE.seMinSize <= ? and SE.seQoS  LIKE concat('%,' , ? , ',%' ) "
-    ." and (SE.exclusiveUsers is NULL or SE.exclusiveUsers = '' or SE.exclusiveUsers  LIKE concat ('%,' , ? , ',%') )"
+    ." and (SE.seExclusiveWrite is NULL or SE.seExclusiveWrite = '' or SE.seExclusiveWrite  LIKE concat ('%,' , ? , ',%') )"
     ." ORDER BY rank ASC limit ? ;";
  
    push @queryValues, $fileSize;
