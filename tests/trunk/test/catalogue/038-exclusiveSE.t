@@ -85,7 +85,8 @@ BEGIN { plan tests => 1 }
 		      "certsubject",$subject,
 		      'ftdprotocol','cp',
                       'QoS', 'vip',
-                      'exclusiveUsers', 'NOT_U'
+                      'seExclusiveWrite', 'NOT_U',
+                      'seExclusiveRead', 'NOT_U'
 		     ]) or exit(-2);
 
    $done=0;
