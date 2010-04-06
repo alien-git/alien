@@ -817,6 +817,39 @@ sub submitCommand {
     $self->info( "Job $jobId added to process group $self->{WORKINGPGROUP}\n");
   }
 
+
+
+
+
+  my ( $okf, @files) = $job_ca->evaluateAttributeVectorString("OutputFile");
+  my ( $oka, @archives) = $job_ca->evaluateAttributeVectorString("OutputArchive");
+
+  (@files and scalar(@files) > 0)
+    and print STDERR "\n"
+    and print STDERR "    ATTENTION. You just submitted a JDL containing the tag 'OutputFile'. The OutputFile and OutputArchive\n";
+  
+  (@archives and scalar(@archives) > 0)
+    and print STDERR "\n"
+    and print STDERR "    ATTENTION. You just submitted a JDL containing the tag 'OutputArchive'. The OutputFile and OutputArchive\n";
+
+  if ((@files and scalar(@files) > 0) or (@archives and scalar(@archives) > 0)) {
+    print STDERR "    tags will be dropped in future versions of AliEn. For the moment the old tags work as usual, but\n";
+    print STDERR "    please update your JDLs in the near future to utilize the 'Output' tag:\n";
+    print STDERR "\n";
+    print STDERR "    The syntax of the actual entries is still the same, but now you can just mixup files\n";
+    print STDERR "    and archives, as e.g.:\n";
+    print STDERR "\n";
+    print STDERR "           Output = { \"fileA,fileB,*.abc\" , \"myArchive:fileC,fileD,*.xyz\" } ;\n";
+    print STDERR "\n";
+    print STDERR "\n";
+    print STDERR "    Thanks a lot!\n";
+    print STDERR "\n";
+  }
+  $self->info("OK, all right!");
+
+
+
+
   $self->info( "Command submitted (job $jobId)!!" );
   print STDERR "Job ID is $jobId - $zoption\n";
   if ($zoption) {
