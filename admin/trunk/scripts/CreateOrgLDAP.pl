@@ -152,6 +152,7 @@ print "\ncat /tmp/alien-slapd*:\n";
 $ldap or $ldap = Net::LDAP->new("$hostName:8389", "onerror" => "warn");
 $ldap or print "failed\nError connecting to the ldap server\n $? and $! and  $@\n";
 $ldap or print "\n telneting $hostName 8389\n" and system("telnet $hostName 8389");
+$ldap or print "\n telneting 127.0.0.1 8389\n" and system("telnet 127.0.0.1 8389");
 $ldap or exit(-1);
 
 
