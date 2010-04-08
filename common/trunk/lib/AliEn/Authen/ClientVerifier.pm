@@ -18,9 +18,9 @@ use vars qw($VERSION @ISA);
 push @ISA, 'AliEn::Logger::LogObject';
 
 
-#use Cache::MemoryCache;
+use Cache::MemoryCache;
 
-#my $CACHE = new Cache::MemoryCache();
+my $CACHE = new Cache::MemoryCache();
 
 
 # ***** For debugging only *************
@@ -113,18 +113,17 @@ sub new {
 
   $Logger->debug(1,"Creating a new ClientVerifier @_");
 
-  $self->info("BEFORE THE PEERHOST");
      ($socket->peerhost() and $socket->peerport()) 
          or print "Error: In ClientVerifier we got an empty socket\n" and 
            return;
-$self->info("AFTER THE PEERHOST");
+
   my $key = join("::",$socket->peerhost(),$socket->peerport(),@_);
 	
   my ( $status, $token, $tokenlen ) =
     AliEn::Authen::Comm::read_buffer( $self->{socket} );
-	$self->info("After reading the buffer");
-  my $auth;# = $CACHE->get($key);
-	$self->info("Got the key and $auth");
+	
+  my $auth = $CACHE->get($key);
+	
   if ( not defined $auth ) {
 
     # username is who the user really is.
@@ -162,19 +161,17 @@ $self->info("AFTER THE PEERHOST");
       $auth->{methods} = $auth->{FORCED_METHOD};
     }
 		
-    #$CACHE->set( $key, $auth, $ttl );
+    $CACHE->set( $key, $auth, $ttl );
 		
   }
 
- $self->info("AFTER THE IF STATEMENT");  
+  
 	
   $self->{methods}  = $auth->{methods};
   $self->{ROLE}     = $auth->{ROLE};
   $self->{USERNAME} = $auth->{USERNAME};
   $self->{FORCED_METHOD} = $auth->{FORCED_METHOD};
 	
-	$self->info("And we have $self->{methods}, $self->{ROLE}, $self->{USERNAME}, 
-	$self->{FORCED_METHOD}");
   return $self;
 }
 sub findToken {
@@ -218,10 +215,9 @@ sub findUserCertificate {
   my $self=shift;
   my $auth=shift;
 
-  print STDERR "BEFORE FINDING the certficate\n";
   my $proxy= ($ENV{X509_USER_PROXY} || "/tmp/x509up_u$<");
   my $command="$ENV{GLOBUS_LOCATION}/bin/openssl x509 -checkend 1 -noout -in $proxy > /dev/null  2>&1";
-  print STDERR "AFTER THE CERTIFICATE\n";
+
   if (not -e $proxy or  system($command)) {
     print "Warning: No valid proxy. Trying SSH key...\n";
     $auth->{methods} =~ s/GSSAPI ?//g;
@@ -341,13 +337,13 @@ my $sasl = Authen::SASL->new (
  
    my $client=($config->{AUTHEN_SUBJECT} or 
 	      "/C=ch/O=AliEn/O=Alice/OU=Host/CN=aliendb.cern.ch");
-$self->info("BEFORE CREATING THE SASL $ENV{LD_LIBRARY_PATH} and $ENV{SASL_PATH}");
+
    $self->{SASLclient} = $sasl->client_new ($client, "localhost");
-   $self->info("AFTER THE SASL, $tmpVar2, $tmpVar1, $tmpVar,");
+   
    # Start the authentication process 
    my ($status, $token, $tokenlen);
      ($self->{mech}, $token) = $self->{SASLclient}->client_start;
-       $self->info("AFTER THE CLIENT START ");
+
       # $token contains "username\0role"
       $status = $self->{SASLclient}->code();
 
