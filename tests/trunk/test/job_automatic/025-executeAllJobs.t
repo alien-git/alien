@@ -24,36 +24,14 @@ BEGIN { plan tests => 1 }
     $admincat->execute("queue", "open $cat->{CONFIG}->{ORG_NAME}::CERN::testCE") 
       or print "Error opening the queue\n" and exit(-2);
 
-    my @jobs=$cat->execute("top", "-status", "WAITING","-status", "INSERTING");
-    @jobs or last;  
     $cat->execute("request") or print "Error requesting a job\n" and exit(-2);
     print "We have executed all the jobs!!\n";
+    my @jobs=$cat->execute("top", "-status WAITING -status INSERTING -status RUNNING -status SAVING -status SAVED");
+    @jobs or last;
+    print "There are still some jobs waiting. Sleeping 10 seconds and retrying";
+    sleep(10);
     $i--;
 
-  }
-
-  my $stillToWait=0;
-  my $timeItOut=0;
-  while ($timeItOut < 20) {
-
-    ($timeItOut eq 10) and  ($cat->execute("request") and print "Did again a request, maybe this helps!!\n" or print "Error requesting a job\n" and exit(-2));
-    
-    print "\n";
-    print "Getting top -all information from the Catalogue:\n";
-    my (@jobs)=$cat->execute("top", "-all")  or exit(-2);
-    foreach my $job (@jobs) {
-      $stillToWait and last;
-      ($job->{status} =~ /^(INSERTED)|(WAITING)|(ASSIGNED)|(STARTED)|(RUNNING)|(SAVING)|(SAVED)$/)
-         and $stillToWait=1 and print "matched job in status: ($job->{status})";
-    }
-    print "\n";
-    my $waited = $timeItOut*60;
-    print "We already waited: $waited seconds\n";
-    $stillToWait or last;
-    print "There are still jobs we need to wait for. Sleeping 60 seconds ...\n";
-    sleep(60);
-    $stillToWait=0;
-    $timeItOut = $timeItOut + 1;
   }
 
   print "All right, seems like all jobs are in a ready state. Let's do a final checkup...\n";
@@ -67,9 +45,8 @@ BEGIN { plan tests => 1 }
           and print "ATTENTION TO JOB: $job->{queueId} was just now in status: $job->{status}\n"
           and $notok=1;
   }
-
+  $cat->close();
   $notok and exit(-2);
   print "DONE!!\n";
-  $cat->close();
   print "ok\n";
 }

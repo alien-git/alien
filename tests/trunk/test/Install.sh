@@ -483,13 +483,19 @@ EXECUTE_SHELL()
     SEND_TO_ML "${group}_nTests" $nCmds "${group}_nSuccess" $nCmds "${group}_pSuccess" 100 "${group}_time" `expr $endTime - $startTime`
 }
 
+D=`dirname $0`;
+if [ -d "$ALIEN_TESTDIR" ];
+then
+  D=$ALIEN_TESTDIR
+fi
+cd $D
 DIRS=`find .  -maxdepth 1 -type d | grep -v CVS |grep ./ | awk -F / '{print $2}'`
 for DIR in $DIRS; do
   var=`echo $DIR | tr '[:lower:]' '[:upper:]'`_TESTS_LIST 
   value=`find $DIR -type f -not -name "*.b.t" |grep -v CVS | sort `
   export $var="$value"
 done;
-
+echo "VAMOS BIEN"
 JOB_TESTS_LIST="$JOB_MANUAL_TESTS_LIST $JOB_AUTOMATIC_TESTS_LIST"
 PACKAGE_TESTS_LIST="$PACKAGES_TESTS_LIST job_automatic/025-executeAllJobs"
 USER_TESTS_LIST="$USER_BASIC_TESTS_LIST $CATALOGUE_TESTS_LIST $TRANSFER_TESTS_LIST $JOB_TESTS_LIST 20-xfiles $PACKAGE_TESTS_LIST 68-dbthreads 142-mysqlOpenssl"
