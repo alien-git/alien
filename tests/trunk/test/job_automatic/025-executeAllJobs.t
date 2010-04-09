@@ -29,7 +29,7 @@ BEGIN { plan tests => 1 }
     my @jobs=$cat->execute("top", "-status WAITING -status INSERTING -status RUNNING -status SAVING -status SAVED");
     @jobs or last;
     print "There are still some jobs waiting. Sleeping 10 seconds and retrying";
-    sleep(10);
+    sleep(15);
     $i--;
 
   }
