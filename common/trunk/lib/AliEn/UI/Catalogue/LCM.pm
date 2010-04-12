@@ -883,7 +883,7 @@ sub selectClosestRealSEOnRank {
       foreach (@{$excludeList}) {   $query .= " and b.seName NOT LIKE ? ";   push @queryValues, $_; };
       $query .= " ORDER BY if(a.rank is null, 1000, a.rank) ASC ;";
    } else { # sitename not given, so we just delete the excluded SEs and check for exclusive Users
-       my $query="SELECT seName FROM SE WHERE ";
+       $query="SELECT seName FROM SE WHERE ";
        foreach(@$seList){   $query .= " seName LIKE ? or"; push @queryValues, $_;  };
        $query =~ s/or$//;
        foreach(@$excludeList){   $query .= " and seName NOT LIKE ? "; push @queryValues, $_;  }
