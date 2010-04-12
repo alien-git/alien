@@ -302,6 +302,8 @@ attributetype ( AliEnSite:15 NAME 'virtualSite' SUP name )
 attributetype ( AliEnSite:16 NAME 'siteKey' SUP name )
 attributetype ( AliEnSite:17 NAME 'siteToken' SUP name )
 attributetype ( AliEnSite:18 NAME 'distributeCreditsTo' SUP name )
+attributetype ( AliEnSite:19 NAME 'officialLcgName' SUP name )
+
 
 
 
@@ -311,7 +313,7 @@ objectclass ( AliEnSite  NAME 'AliEnSite'
 	MAY ( savese $ packages $ workdir $ processPort $
               administrator $ location $ country $ longitude $ latitude $ 
 	      record $ packmanAddress $ localconfig $ environment $
-              accountName $ distributeCreditsTo $ closese $ virtualSite $ siteKey $ siteToken )
+              accountName $ distributeCreditsTo $ closese $ virtualSite $ siteKey $ siteToken $ officialLcgName )
 	      )
 
 #AliEnHostConfig
