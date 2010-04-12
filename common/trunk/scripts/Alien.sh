@@ -308,22 +308,23 @@ ALIEN_Grid()
 ###########################################################################
 {
   SetupCertEnvVars
-  if [ -z $GLOBUS_LOCATION ]
-  then
-    printf "Error: GLOBUS_LOCATION not set.\n"
-    printf "Please (re)run 'alien config' command.\n\n"
-    exit 1
-  fi
+#  if [ -z $GLOBUS_LOCATION ]
+#  then
+#    printf "Error: GLOBUS_LOCATION not set.\n"
+#    printf "Please (re)run 'alien config' command.\n\n"
+#    exit 1
+#  fi
   if [ "$1" = "proxy-init" ] ;
   then
     echo "Checking the time difference"
     if [ -f /usr/sbin/ntpdate ] ;
     then
-      DIFF=` /usr/sbin/ntpdate   -q pool.ntp.org |grep 'offset'  |head -n 1 |awk -F offset '{print $2}' |awk -F , '{print $1}' |awk '{print $1$2}' |awk -F . '{print $1}'`
+      ALIEN_NTP_HOST=${ALIEN_NTP_HOST:=pool.ntp.org}
+      DIFF=` /usr/sbin/ntpdate   -q $ALIEN_NTP_HOST |grep 'offset'  |head -n 1 |awk -F offset '{print $2}' |awk -F , '{print $1}' |awk '{print $1$2}' |awk -F . '{print $1}'`
       S=`expr $DIFF \< 300`
       if [ "$S" = 0 ] ;
       then
-         echo "Your clock doesn't seem to be synchronized. Please run 'ntpdate pool.ntp.org'"
+         echo "Your clock doesn't seem to be synchronized. Please run 'ntpdate $ALIEN_NTP_HOST'"
          exit -2
       fi
     fi
