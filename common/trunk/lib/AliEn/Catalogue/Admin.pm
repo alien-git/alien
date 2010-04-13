@@ -644,7 +644,7 @@ sub resyncLDAP {
   my $db=$self->{DATABASE}->{LFN_DB}->{FIRST_DB};
 
   $self->info("Ready to update the ranks ");  
-  print "Using $db\n";
+#  print "Using $db\n";
   my $where="";
   my @bind=();
   my @sites=$sitename;
