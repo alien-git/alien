@@ -2270,7 +2270,7 @@ sub identifyValidGUID{
      and $guid  = substr($guid, 0, 8)
         .substr($guid, 9, 4).substr($guid, 14, 4)
         .substr($guid, 19, 4).substr($guid, 24, 12)
-     and $guid =~ s/[0-9a-f]*//
+     and $guid =~ s/[0-9a-f]*//i
      and (length($guid) eq 0)
      and return 1;
      return 0;
