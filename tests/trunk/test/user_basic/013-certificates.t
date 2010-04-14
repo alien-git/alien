@@ -15,12 +15,14 @@ BEGIN { plan tests => 3 }
 
 
 {
+
+print "Synchronizing with $ALIEN_NTP_HOST (or pool.ntp.org)\n"; 
 print "Creating a new proxy...";
 open (FILE, "$ENV{ALIEN_ROOT}/bin/alien proxy-init|") 
   or print "ERROR OPENING alien proxy-init\n" and exit(-1);
 
 my @OUTPUT=<FILE>;
-close FILE or print ("Error doing alien proxy-init!!") and exit (-1);
+close FILE or print ("Error doing alien proxy-init!!\n output: @OUTPUT") and exit (-1);
 
 grep (/Your proxy is valid until/i,  @OUTPUT)
   or print "Alien proxy-init did not create a proxy" and exit(-1);
