@@ -201,8 +201,11 @@ sub f_packman {
   if (grep (/^-local$/i, @arg)){
     $local=1;
     @ARGV=@arg;
-    Getopt::Long::GetOptions($optionsLocal, "local","dir=s")
-      or $self->info("Error checking the options of packman -local") and return;
+    Getopt::Long::Configure("pass_through");
+    Getopt::Long::GetOptions($optionsLocal, "local","dir=s");
+    Getopt::Long::Configure("default");
+
+#      or $self->info("Error checking the options of packman -local") and return;
     $optionsLocal->{dir} and $optionsLocal->{INST_DIR}=$optionsLocal->{dir};
     @arg=@ARGV;
   }
@@ -259,8 +262,8 @@ sub f_packman {
     $package =~ s/^([^\@]*)\@// and $user=$1;
     if  ($operation =~ /^r(emove|m)?$/){
       if ($user ne $self->{CATALOGUE}->{CATALOG}->{ROLE}) {
-	$self->{CATALOGUE}->{CATALOG}->{ROLE} eq "admin" or 
-	  $self->info( "You can't uninstall the package of someone else") and return;
+#	$self->{CATALOGUE}->{CATALOG}->{ROLE} eq "admin" or 
+#	  $self->info( "You can't uninstall the package of someone else") and return;
       }
     }
     @arg=($user, $package, $version, @arg);
@@ -349,28 +352,39 @@ $done
 sub synchronizePackages {
   my $self=shift;
   my $cmd=shift;
-  $self->info("Ready to synchronize the packages with the catalogue");
-  my $local=grep (/^-local$/i, @_);
-  $local and $self->info("Doing it locally");
-  my ($ok1, @packages)=$self->getListPackages();
+  $self->info("Ready to synchronize the packages with the catalogue (@_)");
+  my @arg=@_;
+  my $optionsPackages={};
+  @ARGV=@arg;
+
+Getopt::Long::Configure("pass_through");
+  Getopt::Long::GetOptions($optionsPackages, "packages=s");
+Getopt::Long::Configure("default");
+
+#      or $self->info("Error checking the options of packman synchronize") and return;
+  @arg=@ARGV;
+  $optionsPackages->{packages} and $self->info("Doing only the packages '$optionsPackages->{packages}'");
+  my $pattern="(".join(")|(", split(/,/, $optionsPackages->{packages} ||"")).")";
+
+  my ($ok1, @packages)=$self->getListPackages("-s");
   $ok1 or self->info("Error getting the list of packages") and return;
-  my ($ok, @installed)=$self->f_packman("listInstalled", @_);
+  my ($ok, @installed)=$self->f_packman("listInstalled", "-s", @arg);
   $ok or self->info("Error getting the list of packages") and return;
    
-  foreach my $p (@packages){
+  foreach my $p (@packages){    
     if (!grep (/^$p$/, @installed)){
-      print "  We have to install $p\n";
-      $self->f_packman("install", $p, @_);
+      if ( grep(/^$pattern/, $p)){
+        $self->info("  We have to install $p");
+        $self->f_packman("install", "-s", $p, @arg);
+      }
     }
     @installed=grep (!/^$p$/, @installed);  
   }
   foreach my $p (@installed){
-    print "  And we have to delete $p\n";
-    $self->f_packman("remove", $p, @_);  
+    grep(/^$pattern/, $p) or next;
+    $self->info("  And we have to delete $p");
+    $self->f_packman("remove", "-s", $p, @arg);  
   }
-  
-  
-  
   
   return 1;
   
