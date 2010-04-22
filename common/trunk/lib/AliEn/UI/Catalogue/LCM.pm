@@ -1557,15 +1557,23 @@ sub checkPermissionsOnLFN {
 
 
 sub access {
-    # access <access> <lfn> 
-    # -p create public url in case of read access 
+  # access <access> <lfn> 
+  # -p create public url in case of read access 
   my $self = shift;
+
 
   #
   # Start of the Client side code
   if (!  $self->{envelopeengine}) {
+    my $opts={};
     my $user=$self->{CONFIG}->{ROLE};
     $self->{CATALOG} and $self->{CATALOG}->{ROLE} and $user=$self->{CATALOG}->{ROLE};
+   
+    if($_[0] =~ /^-user=([\w]+)$/)  {
+      $user = shift;
+      $user =~ s/^-user=([\w]+)$/$1/; 
+    }
+
     $self->info("Connecting to Authen...");
     my $info=$self->{SOAP}->CallSOAP("Authen", "createEnvelope", $user, @_)
       or $self->info("Connecting to the Authen service failed!") and return;
@@ -2132,7 +2140,7 @@ sub upload {
   @ARGV=@_;
   Getopt::Long::GetOptions($options, "silent", "versioning=s", 
 			   "size=i", "md5=s", "guid=s", "user=s", "jobtracelog")
-      or $self->info("Error checking the options of add") and return;
+      or $self->info("Error checking the options of add/upload") and return;
 
   @_=@ARGV;
   my $pfn=shift;
@@ -2150,7 +2158,7 @@ sub upload {
   $options->{guid} and $result->{guid}=$options->{guid};
 
   my $user=$self->{CATALOG}->{ROLE};
-	$options->{user} and $user=$options->{user};
+  $options->{user} and $user=$options->{user};
  
   my @ses = ();
   my @excludedSes = ();
@@ -2226,7 +2234,7 @@ sub upload {
     $options->{jobtracelog} and 
            push @{$result->{jobtracelog}}, {flag=>"trace", text=>"Uploading file based on Storage Discovery, requesting QoS=$qos, count=$qosTags->{$qos}."};
 
-    ($result, $success) = $self->putOnDynamicDiscoveredSEListByQoSV2($result,$pfn,$lfn,$size,$envReq,$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes,1,$options->{jobtracelog});
+    ($result, $success) = $self->putOnDynamicDiscoveredSEListByQoSV2($result,$user,$pfn,$lfn,$size,$envReq,$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes,1,$options->{jobtracelog});
   }
   
   if (($success ne -1) and (!$result->{status}) and (scalar(@ses) eq 0) and ($selOutOf le 0)){ # if dynamic was either not specified or not successfull (not even one time, that's $result->{status} ne 1) 
@@ -2249,7 +2257,7 @@ sub upload {
   (scalar(@ses) gt 0)  and $options->{jobtracelog} and 
           push @{$result->{jobtracelog}}, {flag=>"trace", text=>"$staticmessage"};
 
-  ($success ne -1) and (scalar(@ses) gt 0) and ($result, $success) = $self->putOnStaticSESelectionListV2($result,$pfn,$lfn,$size,$envReq,$selOutOf,\@ses,1,$options->{jobtracelog});
+  ($success ne -1) and (scalar(@ses) gt 0) and ($result, $success) = $self->putOnStaticSESelectionListV2($result,$user,$pfn,$lfn,$size,$envReq,$selOutOf,\@ses,1,$options->{jobtracelog});
   
   # -1 means a access exception, e.g. exceeded quota limit
   # This will trigger the JobAgent to stop trying further write attempts.
@@ -2433,6 +2441,7 @@ sub identifyValidGUID{
 sub putOnStaticSESelectionListV2{
    my $self=shift;
    my $result=shift;
+   my $user=(shift || return 0);
    my $pfn=(shift || "");
    my $lfn=(shift || "");
    my $size=(shift || 0);
@@ -2450,7 +2459,7 @@ sub putOnStaticSESelectionListV2{
     $jobtracelog and 
           push @{$result->{jobtracelog}}, {flag=>"trace", text=>"Static SE list: @staticSes."};
 
-     my (@envelopes)= $self->access("-s",$envreq,$lfn, join(";", @staticSes), $size,0,($result->{guid} || 0));
+     my (@envelopes)= $self->access("-user=$user","-s",$envreq,$lfn, join(";", @staticSes), $size,0,($result->{guid} || 0));
 
      $envelopes[0] or ($jobtracelog and $envelopes[1] and 
           push @{$result->{jobtracelog}}, {flag=>"error", text=>"Envelope/Access request had error: ".$envelopes[1]});
@@ -2480,6 +2489,7 @@ sub putOnStaticSESelectionListV2{
 sub putOnDynamicDiscoveredSEListByQoSV2{
    my $self=shift;
    my $result=shift;
+   my $user=(shift || return 0);
    my $pfn=(shift || "");
    my $lfn=(shift || "");
    my $size=(shift || 0);
@@ -2493,7 +2503,7 @@ sub putOnDynamicDiscoveredSEListByQoSV2{
    my $success=0;
 
    while($count gt 0) {
-     my (@envelopes) = $self->access("-s",$envreq,$lfn, 0, $size,(join(";", @$excludedSes) || 0),($result->{guid} || 0),$sitename,$qos,$count);
+     my (@envelopes) = $self->access("-user=$user","-s",$envreq,$lfn, 0, $size,(join(";", @$excludedSes) || 0),($result->{guid} || 0),$sitename,$qos,$count);
 
      $envelopes[0] or ($jobtracelog and $envelopes[1] and 
           push @{$result->{jobtracelog}}, {flag=>"error", text=>"Envelope/Access request had error: ".$envelopes[1]});
