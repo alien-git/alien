@@ -191,7 +191,7 @@ sub createTransferJDL {
 
   $exp->{OrigSE}='{"' . join('","',@se) .'"}';
   $exp->{OrigPFNs}='{"' . join('","',@pfn) .'"}';
-  $exp->{Size}=$size;
+  $exp->{Size}="\"$size\"";
   #let's round the size 
 
 

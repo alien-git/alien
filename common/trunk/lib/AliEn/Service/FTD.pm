@@ -410,13 +410,16 @@ sub transferFile {
 
   ($ok, my $target)=$ca->evaluateAttributeString("ToSE");
   ($ok, my $guid)=$ca->evaluateAttributeString("GUID");
-  ($ok, my $size)=$ca->evaluateAttributeInt("Size");
+  ($ok, my $size)=$ca->evaluateAttributeString("Size");
   $target or $self->info("Error getting the destination of the transfer")
     and return;
   $self->info("And the second envelope ( $user, , write-once, $guid, $target, $size, 0, $guid");
   $info=$self->{SOAP}->CallSOAP("Authen", "createEnvelope", $user, "", "write-once", $guid, $target, $size, 0, $guid);
+
   $info or $self->info("Error getting the envelope to write the target") and return;
   my $targetEnvelope=$info->result;
+  $targetEnvelope and $targetEnvelope->{url} or
+    $self->info("Error getting the envelope to write!", 1) and return;
   $self->info("Let's start with the transfer!!!");
   my $done;
   eval{
