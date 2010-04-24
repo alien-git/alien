@@ -3383,9 +3383,9 @@ sub checkFileQuota {
     or $self->{LOGGER}->error("In checkFileQuota user is not specified.\n")
     and return (-1, "user is not specified.");
   my $size = shift;
-	(defined $size) 
-    or $self->{LOGGER}->error("In checkFileQuota size is not specified.\n")
-    and return (-1, "size is not specified.");
+    (defined $size) and ($size ge 0)
+        or $self->{LOGGER}->error("In checkFileQuota invalid file size (undefined or negative).\n")
+        and return (-1, "size is not specified.");
 
   $self->info("In checkFileQuota for user: $user, request file size:$size");
 
