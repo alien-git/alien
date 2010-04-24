@@ -632,6 +632,7 @@ sub resyncLDAP {
   return 1;
 }
 
+
 sub refreshSERankCache{
    my $self=shift;
 
@@ -639,11 +640,10 @@ sub refreshSERankCache{
    #( $self->{ROLE}  =~ /^admin(ssl)?$/ ) or
    # $self->info("Error: only the administrator can check the database") and return;
 
-
   my $sitename=(shift ||"");
   my $db=$self->{DATABASE}->{LFN_DB}->{FIRST_DB};
 
-  $self->info("Ready to update the ranks ");
+  $self->info("Going to update the ranks.");
   my $where="";
   my @sites=();
 
@@ -655,31 +655,22 @@ sub refreshSERankCache{
     @sites=@$info;
   }
 
-  scalar(@sites) < 1 and return 0;
+  (scalar(@sites) gt 0) or return 0;
 
-  foreach (@sites) {
-    $where = " sitename=? and";
-  }
-  $where =~ s/and$/;/;
-
-  $db->do("update SERanks set updated=0 where $where", {bind_values=>\@sites});
   foreach my $site (@sites){
     $self->info("Ready to update $site");
-    $self->refreshSERankCacheSite( $db, $site);  
+    $self->refreshSERankCacheSite( $db, $site);
   }
-   
-  $db->do("delete from SERanks where updated=0");
-  
+
   return 1;
 }
-
 
 
 sub refreshSERankCacheSite{
   my $self=shift;
   my $db=shift;
   my $site=shift;
-  
+
   my @selist;
   $self->{CONFIG}->{SEDETECTMONALISAURL} and
     @selist=$self->getListOfSEFromMonaLisa( $site);
@@ -688,13 +679,16 @@ sub refreshSERankCacheSite{
     $self->info("We couldn't get the info from ML. Putting all the ses");
     @selist = @{$db->queryColumn("select distinct seName from SE")};
   }
-  
+  $site and (scalar(@selist) gt 0) or return 0;
 
+  $db->lock("SE read, SERanks");
+  $db->do("delete from SERanks where sitename=?", {bind_values=>[$site]});
   for my $rank(0..$#selist) {
     $db->do("insert into SERanks (sitename,seNumber,rank,updated)
-              select ?, seNumber,  ?, 1  from SE where seName LIKE ?", 
+              select ?, seNumber,  ?, 0  from SE where seName LIKE ?", 
               {bind_values=>[$site,$rank, $selist[$rank]]});
   }
+  $db->unlock();
   
   return 1; 
 }

@@ -1557,21 +1557,19 @@ sub checkPermissionsOnLFN {
 
 
 sub access {
-  # access <access> <lfn> 
-  # -p create public url in case of read access 
+    # access <access> <lfn> 
+    # -p create public url in case of read access 
   my $self = shift;
-
 
   #
   # Start of the Client side code
   if (!  $self->{envelopeengine}) {
-    my $opts={};
     my $user=$self->{CONFIG}->{ROLE};
     $self->{CATALOG} and $self->{CATALOG}->{ROLE} and $user=$self->{CATALOG}->{ROLE};
-   
+
     if($_[0] =~ /^-user=([\w]+)$/)  {
       $user = shift;
-      $user =~ s/^-user=([\w]+)$/$1/; 
+      $user =~ s/^-user=([\w]+)$/$1/;
     }
 
     $self->info("Connecting to Authen...");
@@ -1710,7 +1708,7 @@ sub access {
       if ($access =~ /^write/) {
         $se = shift(@ses);
         $self->identifyValidSEName($se) or $self->info("access: no SE asked to write on") and 
-		return access_eof("List of SE is empty, after permission checks on user's right to access SEs."); 
+		return access_eof("List of SE is empty after checkups, no SE to create write envelope on."); 
 	($seurl,my $guid2,my $se2) = $self->{CATALOG}->createFileUrl($se, "root", $guid);
 	$guid2 and $guid=$guid2;
 	if (!$se2){
@@ -1913,7 +1911,7 @@ sub getSEListFromSiteSECacheForWriteAccess{
 
    $self->checkSiteSECacheForAccess($sitename) or return 0;
 
-   my $query="SELECT SE.seName FROM SERanks,SE WHERE "
+   my $query="SELECT DISTINCT SE.seName FROM SERanks,SE WHERE "
        ." sitename LIKE ? and SERanks.seNumber = SE.seNumber ";
 
    my @queryValues = ();
@@ -2140,7 +2138,7 @@ sub upload {
   @ARGV=@_;
   Getopt::Long::GetOptions($options, "silent", "versioning=s", 
 			   "size=i", "md5=s", "guid=s", "user=s", "jobtracelog")
-      or $self->info("Error checking the options of add/upload") and return;
+      or $self->info("Error checking the options of upload") and return;
 
   @_=@ARGV;
   my $pfn=shift;
@@ -2158,7 +2156,7 @@ sub upload {
   $options->{guid} and $result->{guid}=$options->{guid};
 
   my $user=$self->{CATALOG}->{ROLE};
-  $options->{user} and $user=$options->{user};
+	$options->{user} and $user=$options->{user};
  
   my @ses = ();
   my @excludedSes = ();
@@ -2241,7 +2239,7 @@ sub upload {
     
     push @ses, $self->{CONFIG}->{SE_FULLNAME};   # and there were not SEs specified in a static list, THEN push in at least the local static LDAP entry not to loose data
     $selOutOf= 1;
-    $totalCount = 1;
+    #$totalCount = 1;
     $self->info("SE Discovery is not available, no static SE specification, using CONFIG->SE_FULLNAME as a fallback to try not to lose the file.");
     $options->{jobtracelog} and 
           push @{$result->{jobtracelog}}, {flag=>"error", text=>"SE Discovery is not available, no static SE specification, using CONFIG->SE_FULLNAME as a fallback to try not to lose the file."};
@@ -2849,7 +2847,7 @@ sub getLog{
   my $options={};
   @ARGV=@_;
   Getopt::Long::GetOptions($options, "help","tail=i", "grep=s", "head=i" )
-      or $self->info("Error checking the options of add") and return;
+      or $self->info("Error checking the options of getLog") and return;
   @_=@ARGV;
 
   $options->{help} and $self->info($self->getLog_HELP()) and return 1;
@@ -3383,9 +3381,9 @@ sub checkFileQuota {
     or $self->{LOGGER}->error("In checkFileQuota user is not specified.\n")
     and return (-1, "user is not specified.");
   my $size = shift;
-    (defined $size) and ($size ge 0)
-        or $self->{LOGGER}->error("In checkFileQuota invalid file size (undefined or negative).\n")
-        and return (-1, "size is not specified.");
+        (defined $size) and ($size ge 0)
+            or $self->{LOGGER}->error("In checkFileQuota invalid file size (undefined or negative).\n")
+            and return (-1, "size is not specified.");
 
   $self->info("In checkFileQuota for user: $user, request file size:$size");
 
