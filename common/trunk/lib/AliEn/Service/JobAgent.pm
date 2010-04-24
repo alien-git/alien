@@ -456,7 +456,7 @@ sub GetJDL {
   $self->{JOB_USER} = $result->{user};
 
 
-  my $message="The job has been taken by the jobagent $ENV{ALIEN_JOBAGENT_ID}";
+  my $message="The Job has been taken by Jobagent $ENV{ALIEN_JOBAGENT_ID}, AliEn Version: $self->{CONFIG}->{VERSION}";
   $ENV{EDG_WL_JOBID} and $message.="(  $ENV{EDG_WL_JOBID} )";
   if (  $ENV{LSB_JOBID} ){
     $message.=" (LSF ID $ENV{LSB_JOBID} )";

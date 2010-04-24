@@ -632,32 +632,37 @@ sub resyncLDAP {
   return 1;
 }
 
- sub refreshSERankCache{
+sub refreshSERankCache{
    my $self=shift;
- 
+
    $self->info("Let's force a refresh on the SE Rank Cache based on MonALISA info!");
    #( $self->{ROLE}  =~ /^admin(ssl)?$/ ) or
    # $self->info("Error: only the administrator can check the database") and return;
-    
 
-  my $sitename=shift ||"";
+
+  my $sitename=(shift ||"");
   my $db=$self->{DATABASE}->{LFN_DB}->{FIRST_DB};
 
-  $self->info("Ready to update the ranks ");  
-#  print "Using $db\n";
+  $self->info("Ready to update the ranks ");
   my $where="";
-  my @bind=();
-  my @sites=$sitename;
+  my @sites=();
+
   if ($sitename){
+    push @sites, $sitename;
     $self->info("  Doing it only for $sitename");
-    $where=' and sitename=?';
-    push @bind, $sitename;    
   } else {
     my $info=$db->queryColumn("select distinct sitename from SERanks");
     @sites=@$info;
-    
   }
-  $db->do("update SERanks set updated=0 where 1 $where", {bind_values=>\@bind});
+
+  scalar(@sites) < 1 and return 0;
+
+  foreach (@sites) {
+    $where = " sitename=? and";
+  }
+  $where =~ s/and$/;/;
+
+  $db->do("update SERanks set updated=0 where $where", {bind_values=>\@sites});
   foreach my $site (@sites){
     $self->info("Ready to update $site");
     $self->refreshSERankCacheSite( $db, $site);  
@@ -667,6 +672,8 @@ sub resyncLDAP {
   
   return 1;
 }
+
+
 
 sub refreshSERankCacheSite{
   my $self=shift;
