@@ -139,8 +139,8 @@ print "Connecting to the ldap server $hostName:8389...\t";
 my $ldap = Net::LDAP->new("$hostName:8389", "onerror" => "warn") ;
 
 $ldap or print "failed\nError connecting to the ldap server\n $? and $! and  $@\n";
-$ldap or print "\n\nretrying in 15 seconds...\n";
-$ldap or sleep(15);
+$ldap or print "\n\nretrying in 240 seconds...\n";
+$ldap or sleep(240);
 print "\nps aux | grep ldap:\n";
    system("ps aux | grep ldap");
 print "\n ls /tmp/alien-slapd*:\n";
