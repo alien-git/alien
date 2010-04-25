@@ -2237,9 +2237,9 @@ sub upload {
   
   if (($success ne -1) and (!$result->{status}) and (scalar(@ses) eq 0) and ($selOutOf le 0)){ # if dynamic was either not specified or not successfull (not even one time, that's $result->{status} ne 1) 
     
-    push @ses, $self->{CONFIG}->{SE_FULLNAME};   # and there were not SEs specified in a static list, THEN push in at least the local static LDAP entry not to loose data
+    ($totalCount eq 0) and $totalCount = 1; # if there was simpy no specification, totalCount wasn't set before, so we set it here, if SEdyn fails, it will have already its value.
     $selOutOf= 1;
-    #$totalCount = 1;
+    push @ses, $self->{CONFIG}->{SE_FULLNAME};   # and there were not SEs specified in a static list, THEN push in at least the local static LDAP entry not to loose data
     $self->info("SE Discovery is not available, no static SE specification, using CONFIG->SE_FULLNAME as a fallback to try not to lose the file.");
     $options->{jobtracelog} and 
           push @{$result->{jobtracelog}}, {flag=>"error", text=>"SE Discovery is not available, no static SE specification, using CONFIG->SE_FULLNAME as a fallback to try not to lose the file."};
