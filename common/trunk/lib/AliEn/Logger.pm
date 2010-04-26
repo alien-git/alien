@@ -39,6 +39,9 @@ sub new {
   open SAVEOUT,  ">&STDOUT";
   open SAVEOUT2, ">&STDERR";
 
+#to avoid typo warning
+  open SAVEOUT,  ">&STDOUT";
+  open SAVEOUT2, ">&STDERR";
 
   return $self;
 }
