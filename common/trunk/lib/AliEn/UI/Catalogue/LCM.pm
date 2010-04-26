@@ -354,7 +354,7 @@ sub get {
    #First, let's check the local copy of the file
    my $result=$self->{STORAGE}->getLocalCopy($guidInfo->{guid}, $localFile);
  
-   while((!$result) || (!defined $envelop->{error})) {
+   while((!$result) and (!defined $envelop->{error})) {
 
      $self->{STORAGE}->checkDiskSpace($guidInfo->{size}, $localFile) or return;     
      foreach(split(";",$excludedAndfailedSEs)) { $_ eq $guidInfo->{se} and $guidInfo->{se}="" and last;}
