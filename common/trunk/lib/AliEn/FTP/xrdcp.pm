@@ -42,6 +42,7 @@ sub copy {
   my $size=-s $self->{MSS}->{LOCALFILE};
   if ($size ne $source->{size}){
     $self->info("Error: the file was supposed to be $source->{size}, but it is only $size",1);
+    unlink $self->{MSS}->{LOCALFILE};    
     return;
   }
   
@@ -50,6 +51,7 @@ sub copy {
   $ENV{ALIEN_XRDCP_URL}=$target->{url};
   if (!$self->{MSS}->put()){
     $self->info("Error putting the file $target->{url}");
+    unlink $self->{MSS}->{LOCALFILE};
     return ;
   }
   $self->info("File copied!!");
