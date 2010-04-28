@@ -396,7 +396,7 @@ sub listTransfer {
     my $argv=shift;
     #if argv contains summary, next 
     ($argv=~ /^-?-summary$/) and next;
-    ($argv=~ /^-?-verbose=?/) and $all_status=1 and  next;
+    ($argv=~ /^-?-verbose=?/) and $columns.=",reason" and  next;
     ($argv=~ /^-?-all_status=?/) and $all_status=1 and  next;
     ($argv=~ /^-?-master=?/) and $master=1 and  next;
     ($argv=~ /^-?-jdl=?/) and $jdl=1 and  next;

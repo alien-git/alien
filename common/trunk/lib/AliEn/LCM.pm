@@ -636,6 +636,8 @@ sub eraseFile {
 sub listTransfer {
   my $self=shift;
   my $doSummary=grep (/^-?-summary$/, @_);
+  my $jdl=grep (/^-jdl$/, @_);
+  my $verbose=grep (/^-verbose$/, @_);
   $self->info("Checking the transfer @_");
   my $done=$self->{SOAP}->CallSOAP("Manager/Transfer", "listTransfer", @_)
     or return;
@@ -647,6 +649,14 @@ sub listTransfer {
 
   my $message="TransferId\tStatus\t\tUser\t\tDestination\t\t\tSize\t\tSource\t\tAttmpts\n";
   my $format="%6s\t\t%-8s\t%-10s\t%-15s\t\t%-12.0f\t\%12s\%12s";
+  if ($verbose){
+  	$message=~ s/\n/\t\tError reason\n/;
+  	$format.="%s";
+  }
+  if ($jdl){
+  	$message =~ s/\n/\t\tJDL\n/;
+  	$format.="%s";
+  } 
   my @transfers = @$result;
   my $summary="";
   my $info={};
@@ -659,10 +669,10 @@ sub listTransfer {
 		   $transfer->{destination} || "",
 		   $transfer->{size} || 0,
 		   $transfer->{attempts},
-		   $transfer->{SE} || "",
-		   $transfer->{jdl} || "",);
+		   $transfer->{SE} || "");
+	$verbose and push @data, $transfer->{reason} ||"";
+	$jdl and push @data, $transfer->{jdl} || "";
 
-    $data[3] or $data[3]="";
 #    #Change the time from int to string
 
     my $string=sprintf "$format", @data;
