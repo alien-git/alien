@@ -1573,13 +1573,18 @@ sub access {
     }
 
     $self->info("Connecting to Authen...");
-    my $info=$self->{SOAP}->CallSOAP("Authen", "createEnvelope", $user, @_)
-      or $self->info("Connecting to the Authen service failed!") and return;
+    my $info=0;
+    for (my $tries = 0; $tries < 5 1; $tries++) { # try five times 
+      $info=$self->{SOAP}->CallSOAP("Authen", "createEnvelope", $user, @_) and last;
+      sleep(5);
+    }
+    $info or $self->info("Connecting to the [Authen] service failed!") 
+       and return ({error=>"Connecting to the [Authen] service failed!"}); 
     my @newhash=$self->{SOAP}->GetOutput($info);
     if (!$newhash[0]->{envelope}){
       my $error=$newhash[0]->{error} || "";
       $self->info($self->{LOGGER}->error_msg());
-      $self->info("Access envelope creation failed: $error", 1);
+      $self->info("Access [envelope] creation failed: $error", 1);
       ($newhash[0]->{exception}) and 
         return ({error=>$error, exception=>$newhash[0]->{exception}});
       return (0,$error) ;
@@ -2135,10 +2140,16 @@ Usage:
 sub upload {
   my $self=shift;
   my $options={};
+  my $result = {};
+  my $success = 0;
+  $result->{jobtracelog} = [];
+
   @ARGV=@_;
   Getopt::Long::GetOptions($options, "silent", "versioning=s", 
-			   "size=i", "md5=s", "guid=s", "user=s", "jobtracelog")
-      or $self->info("Error checking the options of upload") and return;
+	   "size=i", "md5=s", "guid=s", "user=s", "jobtracelog")
+      or $self->info("Error checking the options of upload.") and 
+         and push @{$result->{jobtracelog}}, {flag=>"error", text=>"Error checking the options of [upload]."};
+         and return ($result, $success);
 
   @_=@ARGV;
   my $pfn=shift;
@@ -2162,8 +2173,10 @@ sub upload {
   my @excludedSes = ();
   my @qosList;
 
-  $pfn or $self->info("Error not enough arguments in upload\n". $self->upload_HELP())
-    and return;
+  $pfn or $self->info("Error not enough arguments in upload\n". $self->upload_HELP()) and
+      ($options->{jobtracelog} and push @{$result->{jobtracelog}}, {flag=>"error", text=>"Error not enough arguments in [upload], PFN not specified."};
+    and return ($result, $success);
+
   $pfn=$self->checkLocalPFN($pfn);
   my $size=AliEn::SE::Methods->new($pfn)->getSize();
 
@@ -2438,8 +2451,8 @@ sub identifyValidGUID{
 
 sub putOnStaticSESelectionListV2{
    my $self=shift;
-   my $result=shift;
-   my $user=(shift || return 0);
+   my $result=(shift || {});
+   my $user=(shift || 0);
    my $pfn=(shift || "");
    my $lfn=(shift || "");
    my $size=(shift || 0);
@@ -2486,8 +2499,8 @@ sub putOnStaticSESelectionListV2{
 
 sub putOnDynamicDiscoveredSEListByQoSV2{
    my $self=shift;
-   my $result=shift;
-   my $user=(shift || return 0);
+   my $result=(shift || {});
+   my $user=(shift || 0);
    my $pfn=(shift || "");
    my $lfn=(shift || "");
    my $size=(shift || 0);
@@ -2536,15 +2549,17 @@ sub putOnDynamicDiscoveredSEListByQoSV2{
 sub registerFileAccordingEnvelopes{
   my $self  = shift;
   my $result = (shift || {});
-  my $pfn   = shift;
+  my $pfn   = (shift || 0);
   my $lfn=(shift || "");
   my $size=(shift || 0);
-  my $envelopes= ( shift || return (0,0,[]) );
+  my $envelopes= ( shift || return ($result,0,[]) );
   my $pfnRewrite=(shift || 0);
   my $jobtracelog=(shift || 0);
 
   $result->{guid} and $self->info("File has guid: $result->{guid}") or $result->{guid} = "";
-  ($pfn) or $self->{LOGGER}->warning( "LCM", "Error no pfn specified" ) and return (0,0,[]) ;
+  ($pfn) or $self->{LOGGER}->warning( "LCM", "Error no pfn specified" )
+    push @{$result->{jobtracelog}}, {flag=>"error", text=>"Error: No PFN specified [registerFileAccordingEnvelopes]"} 
+    and return ($result,0,[]) ;
   
   my $firstHit = 0;
   my $successCounter = 0;
