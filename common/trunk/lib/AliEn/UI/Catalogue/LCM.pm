@@ -314,26 +314,10 @@ sub get {
      $excludedAndfailedSEs=~ s/;$//;
    }
 
-   my $entry=$file;
-   my $class="";
-   $self->{CATALOG} and $class=ref $self->{CATALOG};
-   my $guidInfo;
-   if ($class =~ /^AliEn/ ){
-     if ($options{g} ){
- #      $self->debug(1, "Getting it directly from the guid '$file'");
-       $guidInfo=$self->{CATALOG}->getInfoFromGUID($file)
-         or return;
-       $entry=$guidInfo->{guid};
-     }else {
-       #Get the pfn from the catalog
-       #print Dumper($self->{CATALOG});
-       my $info=$self->{CATALOG}->f_whereis("i",$file)
- 	or $self->info("Error getting the info from '$file'") and return;
-       $file=$info->{lfn};
-       $guidInfo=$info->{guidInfo};
-       $entry=$file;
-     }
-   }
+   my $entry = $file;
+   ($self->identifyValidGUID($file)) or $entry = $self->{CATALOG}->f_complete_path($file);
+   my $guidInfo = {};
+
    my  (@envelope) = $self->access("-s","read",$entry,$wishedSE,0,($excludedAndfailedSEs || 0),0,$self->{CONFIG}->{SITE},0,0) or return;
    my $envelop = $envelope[0];
    ((!$envelop) or (!defined $envelop->{envelope}) or $envelop->{eof}) and 
@@ -343,6 +327,8 @@ sub get {
    $guidInfo->{size}=$envelop->{size};
    $guidInfo->{se}=$envelop->{se};
    $guidInfo->{pfn}=$envelop->{pfn};
+   $guidInfo->{md5}=$envelop->{md5};
+   $guidInfo->{type}=$envelop->{type};
    $ENV{'IO_AUTHZ'} = $envelop->{envelope};
     
    $guidInfo->{guid} or 
@@ -1574,7 +1560,7 @@ sub access {
 
     $self->info("Connecting to Authen...");
     my $info=0;
-    for (my $tries = 0; $tries < 5 1; $tries++) { # try five times 
+    for (my $tries = 0; $tries < 5; $tries++) { # try five times 
       $info=$self->{SOAP}->CallSOAP("Authen", "createEnvelope", $user, @_) and last;
       sleep(5);
     }
@@ -1699,6 +1685,7 @@ sub access {
           $guidCheck and $guidCheck->{guid} and (lc $extguid eq lc $guidCheck->{guid})
             and return access_eof("The requested guid ($extguid) as already in use.");
           $guid = $extguid;
+          $self->info("gron: type: $guidCheck->{type}.");
        }
     }
     my $whereis;
@@ -1742,6 +1729,7 @@ sub access {
 	  $guid=$self->{CATALOG}->f_lfn2guid("s",$lfn)
 	    or $self->info( "access: Error getting the guid of $lfn",11) and return;
 	}
+        $filehash->{filetype}=$self->{CATALOG}->f_type($lfn);
         $self->info("Calling getPFNforReadOrDeleteAccess with sitename: $sitename, $user, $access.");
 	($se, $pfn, $anchor, $lfn, $nses, $whereis)=$self->getPFNforReadOrDeleteAccess($user, $access, $guid, $se, $excludedAndfailedSEs, $lfn, $sitename, $options);
         $self->info("Back from getPFNforReadOrDeleteAccess.");
@@ -1799,6 +1787,7 @@ sub access {
       $newhash->{nSEs} = $nses;
       $newhash->{lfn}=$filehash->{lfn};
       $newhash->{size}=$filehash->{size};
+      $filehash->{type} and $newhash->{type}=$filehash->{type};
       foreach my $t (@$whereis){
         $self->info("HELLO $t");
         $t->{pfn} and $t->{pfn} =~ s{//+}{//}g;
@@ -2147,8 +2136,8 @@ sub upload {
   @ARGV=@_;
   Getopt::Long::GetOptions($options, "silent", "versioning=s", 
 	   "size=i", "md5=s", "guid=s", "user=s", "jobtracelog")
-      or $self->info("Error checking the options of upload.") and 
-         and push @{$result->{jobtracelog}}, {flag=>"error", text=>"Error checking the options of [upload]."};
+      or $self->info("Error checking the options of upload.") 
+         and push @{$result->{jobtracelog}}, {flag=>"error", text=>"Error checking the options of [upload]."}
          and return ($result, $success);
 
   @_=@ARGV;
@@ -2158,11 +2147,7 @@ sub upload {
   if ($options->{versioning} and $options->{versioning} ne ""){
           $lfn = $options->{versioning};
           $envReq = "write-version";
-   }
-
-  my $result = {};
-  my $success = 0;
-  $result->{jobtracelog} = [];
+  }
 
   $options->{guid} and $result->{guid}=$options->{guid};
 
@@ -2174,7 +2159,7 @@ sub upload {
   my @qosList;
 
   $pfn or $self->info("Error not enough arguments in upload\n". $self->upload_HELP()) and
-      ($options->{jobtracelog} and push @{$result->{jobtracelog}}, {flag=>"error", text=>"Error not enough arguments in [upload], PFN not specified."};
+      ($options->{jobtracelog} and push @{$result->{jobtracelog}}, {flag=>"error", text=>"Error not enough arguments in [upload], PFN not specified."})
     and return ($result, $success);
 
   $pfn=$self->checkLocalPFN($pfn);
@@ -2558,7 +2543,7 @@ sub registerFileAccordingEnvelopes{
 
   $result->{guid} and $self->info("File has guid: $result->{guid}") or $result->{guid} = "";
   ($pfn) or $self->{LOGGER}->warning( "LCM", "Error no pfn specified" )
-    push @{$result->{jobtracelog}}, {flag=>"error", text=>"Error: No PFN specified [registerFileAccordingEnvelopes]"} 
+    and push @{$result->{jobtracelog}}, {flag=>"error", text=>"Error: No PFN specified [registerFileAccordingEnvelopes]"} 
     and return ($result,0,[]) ;
   
   my $firstHit = 0;
