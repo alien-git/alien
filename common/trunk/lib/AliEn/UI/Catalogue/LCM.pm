@@ -277,11 +277,11 @@ Options:
   -n:
   -o:
   -g: The file is a guid instead of an lfn
+  -s [<se>][,!<se>]* : Retrieve the file from the se <se> and/or don't use the list of !<se>
 
 Get can also be used to retrieve collections. In that case, there are some extra options:
   -c: Retrieve all the files with their original lfn name
   -b <name>: Requires -c. Remove <name> from the beginning of the lfn
-  -s [<se>][,!<se>]* : Retrieve the file from the se <se> and/or don't use the list of !<se>
 
 ";
 }
@@ -315,7 +315,9 @@ sub get {
    }
 
    my $entry = $file;
-   ($self->identifyValidGUID($file)) or $entry = $self->{CATALOG}->f_complete_path($file);
+   my $class = "";
+   $self->{CATALOG} and $class=ref $self->{CATALOG};
+   ($self->identifyValidGUID($file)) or ($class =~ /^AliEn/ ) and $entry = $self->{CATALOG}->f_complete_path($file);
    my $guidInfo = {};
 
    my  (@envelope) = $self->access("-s","read",$entry,$wishedSE,0,($excludedAndfailedSEs || 0),0,$self->{CONFIG}->{SITE},0,0) or return;
@@ -1685,7 +1687,6 @@ sub access {
           $guidCheck and $guidCheck->{guid} and (lc $extguid eq lc $guidCheck->{guid})
             and return access_eof("The requested guid ($extguid) as already in use.");
           $guid = $extguid;
-          $self->info("gron: type: $guidCheck->{type}.");
        }
     }
     my $whereis;
