@@ -323,7 +323,7 @@ sub getFile {
   $DEBUG and $@ and $self->debug(1,"There was an error: $@");
 
   if ($result){
-    if ($md5 ){
+    if (($md5 ) and ($md5 ne "00000000000000000000000000000000")){
       $self->debug(1,"The copy worked! Let's check if the md5 is right");
       my $newMd5=AliEn::MD5->new($result);
       $newMd5 eq $md5
