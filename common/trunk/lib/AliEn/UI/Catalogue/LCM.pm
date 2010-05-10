@@ -1619,25 +1619,31 @@ sub access {
   ($writeQos eq "") and $writeQos=0;
   my $writeQosCount = (shift || 0);
 
-  my $copyMultiplyer = 1;
-  ($writeQosCount and $copyMultiplyer = $writeQosCount) 
-     or (scalar(@ses) gt 1 and $copyMultiplyer = scalar(@ses));
   if ($access =~ /^write/) {
+    # if nothing is or wrong specified SE info, get default from Config, if there is a sitename
+    if ( (scalar(@ses) eq 0) and ($sitename ne 0) and ( ($writeQos eq 0) or ($writeQosCount eq 0) ) and $self->{CONFIG}->{SEDEFAULT_QOSAND_COUNT} ) {
+      my ($repltag, $copies)=split (/\=/, $self->{CONFIG}->{SEDEFAULT_QOSAND_COUNT},2);
+      $writeQos = $repltag;
+      $writeQosCount = $copies;
+    }
+
+    my $copyMultiplyer = 1;
+    ($writeQosCount and $copyMultiplyer = $writeQosCount)
+     or (scalar(@ses) gt 1 and $copyMultiplyer = scalar(@ses));
+
     my ($ok, $message) = $self->checkFileQuota( $user, $size * $copyMultiplyer);
     if($ok eq -1) {
        $self->info("We gonna throw an access exception: "."[quotaexception]") and return  access_eof($message,"[quotaexception]");
     }elsif($ok eq 0) {
        return  access_eof($message);
     }
-  }
 
-  if ($access =~ /^write/){
-    (scalar(@ses) eq 0) or $seList = $self->checkExclWriteUserOnSEsForAccess($user,$size,$seList) and @ses = @$seList; 
-    if(($sitename ne 0) and ($writeQos ne "") and ($writeQosCount gt 0)) {
+    (scalar(@ses) eq 0) or $seList = $self->checkExclWriteUserOnSEsForAccess($user,$size,$seList) and @ses = @$seList;
+    if(($sitename ne 0) and ($writeQos ne 0) and ($writeQosCount gt 0)) {
        my $dynamicSElist = $self->getSEListFromSiteSECacheForWriteAccess($user,$size,$writeQos,$writeQosCount,$sitename,$excludedAndfailedSEs);
        push @ses,@$dynamicSElist;
     }
-  } 
+  }
 
   my $nosize  = 0;
   ($size eq "0") and $size = 1024*1024*1024 and $nosize =1 ;
@@ -3401,8 +3407,6 @@ sub checkFileQuota {
   $array->[0] or $self->{LOGGER}->error("There's no entry for user $user in the PRIORITY quota table.")
     and return (-1, "There's no entry for user $user in the PRIORITY quota table.");
 
-  $self->info("middle of nowhere");
- 
   my $nbFiles = $array->[0]->{'nbFiles'};
   my $maxNbFiles = $array->[0]->{'maxNbFiles'};
   my $tmpIncreasedNbFiles = $array->[0]->{'tmpIncreasedNbFiles'};
