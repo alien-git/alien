@@ -1872,7 +1872,7 @@ sub identifyValidSEName{
    ($se eq "no_se") and return 1;
    my @entries = split(/\:\:/,$se);
    my $isOk = (scalar(@entries) eq 3) ;
-   foreach (@entries) { $isOk = $isOk and ($_ =~ /[0-9a-zA-Z]/); }
+   foreach (@entries) { $isOk = ($isOk and ($_ =~ /^[0-9a-zA-Z]+$/)) ; }
    return $isOk;
 }
 
