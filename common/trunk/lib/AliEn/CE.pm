@@ -1132,10 +1132,10 @@ mkdir -p \$DIR
 echo \"Ready to install alien\"
 date
 cd \$DIR
-wget http://alien.cern.ch/alien-torrent-installer -O alien-auto-installer
+wget http://alien.cern.ch/alien-installer -O alien-auto-installer
 export ALIEN_INSTALLER_PREFIX=\$DIR/alien
 chmod +x alien-auto-installer
-./alien-auto-installer -skip_rc  -type workernode -batch
+./alien-auto-installer -skip_rc  -type workernode -batch -torrent
 echo \"Installation completed!!\"
 
 ", "rm -rf \$DIR";
