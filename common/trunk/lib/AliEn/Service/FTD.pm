@@ -67,7 +67,6 @@ sub initialize {
   $self->{CONFIG}->{FTD_PROTOCOL_LIST} and 
     @protocols=@{$self->{CONFIG}->{FTD_PROTOCOL_LIST}};
 
-
   #$self->{PROTOCOLS}=\@protocols;
   $self->{PROTOCOLS}=join(",", @protocols);
   foreach my $p (@protocols){
@@ -88,8 +87,7 @@ sub initialize {
 
   $self->{JDL}=$self->createJDL();
   $self->{JDL} or return;
-  $self->info($self->{JDL});
-
+  
   $self->{NAME} = "$self->{CONFIG}->{ORG_NAME}::$self->{CONFIG}->{SITE}";
   $self->{ALIVE_COUNTS} = 0;
 
@@ -143,14 +141,30 @@ sub createJDL {
   $self->{CONFIG}->{FTD_PROTOCOL_LIST} 
     and @protocols=@{$self->{CONFIG}->{FTD_PROTOCOL_LIST}};
 
-
   $exp->{SupportedProtocol}='{"'.join('","',@protocols).'"}';
   $exp->{Requirements}="other.Type==\"transfer\"";
-
   my @list=();
+  push @list, $self->SUPER::createJDL( $exp);
+  
+  $list[0] or return;
 
+  if ($self->{CONFIG}->{FTD_LOCALOPTIONS_LIST} ){
+  	$self->info("In fact, this FTD has some preferences:");
+  	@list=();
+  	foreach my $line (@{$self->{CONFIG}->{FTD_LOCALOPTIONS_LIST}}){
+  	  $exp->{Requirements}="other.Type==\"transfer\" && $line ";
+  	  my $jdl=$self->SUPER::createJDL( $exp);
+  	  $jdl or $self->info("Error creating the jdl with '$line'") and return;
+  	  $self->debug(1, "We got '$jdl' from $line");
+  	  $jdl =~ /$line/ or $self->info("The requirements doesn't seem to be correct: '$line', but got '$jdl'") and return;
+  	  push @list, $jdl;
+  		
+  	}
+	@list or $self->info("Error creating the jdls!") and return;  	
+  	
+  } 
 
-  return $self->SUPER::createJDL( $exp);
+  return \@list;
 }
 
 
@@ -258,41 +272,42 @@ sub checkWakesUp{
   my @methodData=();
   $silent and $method="debug" and push @methodData, 1;
 
-  my $slots=$self->checkCurrentTransfers($silent) 
-    or return;
+  my $repeat=0;
+  foreach my $ftdJDL (@{$self->{JDL}}){
+    my $slots=$self->checkCurrentTransfers($silent) or return;
 
-  $self->$method(@methodData,"$$ Asking the broker if we can do anything ($slots slots)");
+    $self->$method(@methodData,"$$ Asking the broker if we can do anything ($slots slots)");
 
 
-  my ($result)=$self->{SOAP}->CallSOAP("Broker/Transfer", "requestTransferType",$self->{JDL}, $slots);
+    my ($result)=$self->{SOAP}->CallSOAP("Broker/Transfer", "requestTransferType",$ftdJDL, $slots);
 
-  $self->info("$$ Got an answer from the broker");
+    $self->info("$$ Got an answer from the broker");
     
-  if (!$result) {
-    return;
-  }
+    (!$result) and next;
+    
+     
+     my @transfers=$self->{SOAP}->GetOutput($result);
   
-  my $repeat=1;
-  my @transfers=$self->{SOAP}->GetOutput($result);
-  
-  foreach my $transfer (@transfers){
-    if ($transfer eq "-2"){
-      $self->$method(@methodData, "No transfers for me");
-      undef $repeat;
-      next;
+     foreach my $transfer (@transfers){
+      if ($transfer eq "-2"){
+        $self->$method(@methodData, "No transfers for me");
+        undef $repeat;
+        next;
+      }
+	  $repeat=1;
+      my $pid=fork();
+      defined $pid or self->info("Error doing the fork");
+      if ($pid){
+        my @list=();
+        $self->{FTD_PIDS} and @list=@{$self->{FTD_PIDS}};
+        push @list, $pid;
+        $self->{FTD_PIDS}=\@list;
+        next;
+      }
+      $self->_forkTransfer($transfer);
+      exit;
     }
-
-    my $pid=fork();
-    defined $pid or self->info("Error doing the fork");
-    if ($pid){
-      my @list=();
-      $self->{FTD_PIDS} and @list=@{$self->{FTD_PIDS}};
-      push @list, $pid;
-      $self->{FTD_PIDS}=\@list;
-      next;
-    }
-    $self->_forkTransfer($transfer);
-    exit;
+    
   }
 
   if ($self->{FTD_PIDS}){
