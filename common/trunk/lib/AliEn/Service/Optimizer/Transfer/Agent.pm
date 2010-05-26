@@ -33,7 +33,7 @@ sub checkWakesUp {
 
 
   $self->info("Now, update the jobagent numbers");
-  $self->{DB}->do("update AGENT_DIRECT j set counter=(select count(*) from TRANSFERS_DIRECT where status='WAITING' and agentid=entryid)");
+  $self->{DB}->do("update AGENT_DIRECT j  set currentTransfers=0, counter=(select count(*) from TRANSFERS_DIRECT where status='WAITING' and agentid=entryid)");
   $self->{SLEEP_PERIOD}=3600;
 
 
