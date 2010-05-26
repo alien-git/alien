@@ -23,6 +23,18 @@ use AliEn::Service;
 use Filesys::DiskFree;
 
 
+my $kid_finished=0;
+sub REAPER {
+	while ((waitpid(-1,WNOHANG)) > 0) {
+     $kid_finished=1;
+    }
+    $SIG{CHLD} = \&REAPER;
+};
+
+
+$SIG{CHLD} = \&REAPER;
+
+
 my $MAXIMUM_SIZE = 1024 * 1024
   ; #This is the maximum size of a "free" transfer, meaning always granted. (In bytes);
 
@@ -250,7 +262,6 @@ sub checkCurrentTransfers(){
     $self->$method(@methodData, "Already doing maximum number of transfers ($current). Wait" );
     return;
   }
-
   return $slots;
 }
 
@@ -271,8 +282,8 @@ sub checkWakesUp{
   my $method="info";
   my @methodData=();
   $silent and $method="debug" and push @methodData, 1;
-
-  my $repeat=0;
+  
+  $kid_finished=0;
   foreach my $ftdJDL (@{$self->{JDL}}){
     my $slots=$self->checkCurrentTransfers($silent) or return;
 
@@ -291,10 +302,9 @@ sub checkWakesUp{
      foreach my $transfer (@transfers){
       if ($transfer eq "-2"){
         $self->$method(@methodData, "No transfers for me");
-        undef $repeat;
         next;
       }
-	  $repeat=1;
+
       my $pid=fork();
       defined $pid or self->info("Error doing the fork");
       if ($pid){
@@ -328,8 +338,17 @@ sub checkWakesUp{
       close FILE;
     }
   }
+  my $i=60;
+  while ($i){
+    $i--;
+    sleep (1);
+    $kid_finished or next;
+    $self->info("ONE KID FINISHED!!Sleeping 5 more seconds before asking again");  
+    sleep 5;
+    last;
+  }
 
-  return $repeat;
+  return 1;
 
 }
 
