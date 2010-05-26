@@ -159,6 +159,36 @@ ALIEN_StopMonitor()
   exit 
 }
 
+########################################################################### 
+FindLocation() 
+########################################################################### 
+{ 
+  STANDARD_DIRS="$ALIEN_ROOT/ $ALIEN_ROOT/api/ $ALIEN_ROOT/globus/ /opt/globus/ /opt/glite/ /opt/glite/externals/ /usr/local/ /usr/bin/ /usr/lib/" 
+  if [ "$2" != "" ] 
+  then 
+     echo $2 
+  else 
+     for dir in $STANDARD_DIRS 
+     do 
+       if [ -d $dir ] 
+       then 
+         if test "`uname -s`" = "Darwin" ; then 
+           file=`find -L $dir -path $1 -type f -print -maxdepth 3 2>/dev/null` 
+         else 
+           file=`find $dir -path $1 -xtype f -print -maxdepth 3 2>/dev/null` 
+         fi 
+         if [ -f "$file" ] 
+         then 
+           bindir=`dirname $file` 
+           dirname $bindir 
+           break 
+         fi 
+       fi 
+     done 
+  fi 
+} 
+
+
 
 ###########################################################################
 ALIEN_OneHttpdService()
@@ -168,12 +198,27 @@ ALIEN_OneHttpdService()
 
   export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$ALIEN_ROOT/api/lib:$ALIEN_ROOT/httpd/lib
   export PERL5LIB=$PERL5LIB:$ALIEN_ROOT/lib/perl5/site_perl/5.8.8:$ALIEN_ROOT/lib/perl5/5.8.8
+
+  ######### 
+  # globus 
+  ######### 
+  set -f 
+  GLOBUS_LOCATION=`FindLocation "*/bin/grid-proxy-init" $GLOBUS_LOCATION` 
+
+  if [ ! -f $GLOBUS_LOCATION/bin/grid-proxy-init ] 
+  then 
+     printf "Error: GLOBUS_LOCATION not set correctly: %s\n" $GLOBUS_LOCATION 
+     exit 1 
+  fi 
+
+
   logDir=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl LOG_DIR`
   # echo $logDir
   tmpN=$serviceName
   tmpName=$(echo $tmpN | tr [a-z] [A-Z])
   portNum=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl "$tmpName"_PORT 2> /dev/null `
-  if [ -f $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf ]
+
+ if [ -f $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf ]
   then
         file=$ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
         $ALIEN_ROOT/httpd/bin/httpd -k start -f $file  # >/dev/null 2>&1
@@ -287,6 +332,7 @@ ALIEN_Starthttpd()
 {
   export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$ALIEN_ROOT/api/lib:$ALIEN_ROOT/httpd/lib
   export PERL5LIB=$PERL5LIB:$ALIEN_ROOT/lib/perl5/site_perl/5.8.8:$ALIEN_ROOT/lib/perl5/5.8.8
+  export GLOBUS_LOCATION=$ALIEN_ROOT/globus
   logDir=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl LOG_DIR`
  # echo $logDir
 
