@@ -88,6 +88,7 @@ my $tables={ TRANSFERS_DIRECT=>{columns=>{
 				      requirements=>"text not null",
 				      counter=>"int(11) not null default 0",
 				      priority=>"tinyint(4) default 0",
+				      currentTransfers=>"int(11) not null default 0",
 				     },
 			    id=>"entryId",},
 
@@ -162,7 +163,7 @@ sub assignWaiting{
   $done or return;
 
   #And now, let's reduce the number of agents
-  $self->do("UPDATE AGENT_DIRECT, TRANSFERS_DIRECT set counter=counter-1 where agentid=entryId and transferid=?", {bind_values=>[$elementId]});
+  $self->do("UPDATE AGENT_DIRECT, TRANSFERS_DIRECT set currentTransfers=ccurrentTransfers+1, ounter=counter-1 where agentid=entryId and transferid=?", {bind_values=>[$elementId]});
   $self->do("delete from AGENT_DIRECT where counter<1");
   return $done;
 }
@@ -276,7 +277,7 @@ sub setSE {
 sub getWaitingAgents {
   my $self=shift;
   
-  return $self->query("SELECT entryId as transferId,requirements as jdl FROM AGENT_DIRECT ORDER BY PRIORITY DESC");
+  return $self->query("SELECT entryId as transferId,requirements as jdl FROM AGENT_DIRECT ORDER BY PRIORITY DESC, currentTransfers");
 }
 
 sub getSize {
