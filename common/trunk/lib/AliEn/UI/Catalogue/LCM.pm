@@ -3346,7 +3346,7 @@ sub fquota_list {
     $cnt++;
 		my $totalSize = ($_->{'totalSize'} + $_->{'tmpIncreasedTotalSize'}) / $unitV;
 		my $maxTotalSize = $_->{'maxTotalSize'} / $unitV;
-    printf " [%04d. ]   %12s     %5s/%5s         %20d/%20d\n", $cnt, $_->{'user'}, ($_->{'nbFiles'} + $_->{'tmpIncreasedNbFiles'}), $_->{'maxNbFiles'}, $totalSize, $maxTotalSize;
+    printf " [%04d. ]   %12s     %5s/%5s         %25d/%25d\n", $cnt, $_->{'user'}, ($_->{'nbFiles'} + $_->{'tmpIncreasedNbFiles'}), $_->{'maxNbFiles'}, $totalSize, $maxTotalSize;
   }
   printf "------------------------------------------------------------------------------------------\n";
 }
