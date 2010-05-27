@@ -28,6 +28,7 @@ sub REAPER {
 	while ((waitpid(-1,WNOHANG)) > 0) {
      $kid_finished=1;
     }
+
     $SIG{CHLD} = \&REAPER;
 };
 
@@ -284,15 +285,16 @@ sub checkWakesUp{
   $silent and $method="debug" and push @methodData, 1;
   
   $kid_finished=0;
+  
   foreach my $ftdJDL (@{$self->{JDL}}){
-    my $slots=$self->checkCurrentTransfers($silent) or return;
+    my $slots=$self->checkCurrentTransfers($silent) or last;
 
-    $self->$method(@methodData,"$$ Asking the broker if we can do anything ($slots slots)");
+    $self->info("$$ Asking the broker if we can do anything ($slots slots)");
 
 
     my ($result)=$self->{SOAP}->CallSOAP("Broker/Transfer", "requestTransferType",$ftdJDL, $slots);
 
-    $self->info("$$ Got an answer from the broker");
+    $self->$method(@methodData, "$$ Got an answer from the broker");
     
     (!$result) and next;
     
@@ -320,34 +322,33 @@ sub checkWakesUp{
     
   }
 
+  my $i=60;
+  while ($i){
+    $i--;
+    sleep (1);
+    $kid_finished or next;
+    $self->info("ONE KID FINISHED!!");  
+    last;
+  }
+
   if ($self->{FTD_PIDS}){
     $self->info("Collecting zombies");
     sleep(5);
     my @list=@{$self->{FTD_PIDS}};
     my @newList;
     foreach (@list){
-      if (CORE::kill 0, $_ and waitpid($_, WNOHANG)<=0){
-	push @newList, $_
-      }
+     if (CORE::kill 0, $_ and waitpid($_, WNOHANG)<=0){
+	   push @newList, $_
+     }
     }
     $self->{FTD_PIDS}=\@newList;
     my $file="$self->{CONFIG}->{LOG_DIR}/FTD_children.pid";
     $self->info("Putting the pids into the file $file ");
     if (open (FILE, ">$file")){
-      print FILE @{$self->{FTD_PIDS}};
+      print FILE "@{$self->{FTD_PIDS}}";
       close FILE;
     }
   }
-  my $i=60;
-  while ($i){
-    $i--;
-    sleep (1);
-    $kid_finished or next;
-    $self->info("ONE KID FINISHED!!Sleeping 5 more seconds before asking again");  
-    sleep 5;
-    last;
-  }
-
   return 1;
 
 }
