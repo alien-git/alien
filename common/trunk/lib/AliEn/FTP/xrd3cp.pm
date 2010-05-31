@@ -27,7 +27,7 @@ sub copy {
   my $source=shift;
   my $target=shift;
   $self->info("Ready to copy $source into $target");
-  my @args=("-m $source->{url} $target->{url}  \"authz=$source->{envelope}\" \"authz=$target->{envelope}\" ");
+  my @args=("-m -S $source->{url} $target->{url}  \"authz=$source->{envelope}\" \"authz=$target->{envelope}\" ");
 
 #  -OS\\\&authz=\"$source->{envelope}\" $target->{url} -OD\\\&authx=\"$target->{envelope}\" ");
 
