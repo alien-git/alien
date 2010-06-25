@@ -3311,11 +3311,11 @@ sub fquota_list {
 		or $self->info("Error checking the options of fquota list") and return;
   @_=@ARGV;
 
-	my $unit="B";
-	my $unitV;
+	my $unit="M";
+	my $unitV=1024*1024;
 	$options->{unit} and $unit=$options->{unit};
-	($unit !~ /[BKMG]/) and $self->info("unknown unit. use default unit: Byte")
-		and $unit="B";
+	($unit !~ /[BKMG]/) and $self->info("unknown unit. use default unit: Mega Byte")
+		and $unit="M";
 	($unit eq "B") and $unitV=1;
 	($unit eq "K") and $unitV=1024;
 	($unit eq "M") and $unitV=1024*1024;
