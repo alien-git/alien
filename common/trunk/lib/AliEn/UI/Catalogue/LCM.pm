@@ -3310,9 +3310,15 @@ sub fquota_list {
   Getopt::Long::GetOptions($options, "silent", "unit=s") 
 		or $self->info("Error checking the options of fquota list") and return;
   @_=@ARGV;
+<<<<<<< LCM.pm
+  #Default unit - Megabyte
+	my $unit="M";
+	my $unitV=1024*1024;
+=======
 
 	my $unit="M";
 	my $unitV=1024*1024;
+>>>>>>> 1.171
 	$options->{unit} and $unit=$options->{unit};
 	($unit !~ /[BKMG]/) and $self->info("unknown unit. use default unit: Mega Byte")
 		and $unit="M";
@@ -3330,7 +3336,8 @@ sub fquota_list {
   }
 
   if (($whoami !~ /^admin(ssl)?$/) and ($user ne $whoami)) {
-    print STDERR "Not allowed to see other users' quota information\n";
+    print STDERR "Not allowed to see ot
+her users' quota information\n";
     return;
   }
 
@@ -3345,8 +3352,12 @@ sub fquota_list {
   foreach (@$result) {
     $cnt++;
 		my $totalSize = ($_->{'totalSize'} + $_->{'tmpIncreasedTotalSize'}) / $unitV;
-		my $maxTotalSize = $_->{'maxTotalSize'} / $unitV;
-    printf " [%04d. ]   %12s     %5s/%5s         %25d/%25d\n", $cnt, $_->{'user'}, ($_->{'nbFiles'} + $_->{'tmpIncreasedNbFiles'}), $_->{'maxNbFiles'}, $totalSize, $maxTotalSize;
+		my $maxTotalSize = $_->{'maxTotalSize'} / $unitV;;
+		##Changes for unlimited file size
+		if($_->{'maxTotalSize'}==-1){
+		    $maxTotalSize = -1;
+		}
+		printf " [%04d. ]   %12s     %5s/%5s           \t %.4f/%.4f\n", $cnt, $_->{'user'}, ($_->{'nbFiles'} + $_->{'tmpIncreasedNbFiles'}), $_->{'maxNbFiles'}, $totalSize, $maxTotalSize;
   }
   printf "------------------------------------------------------------------------------------------\n";
 }
@@ -3420,16 +3431,28 @@ sub checkFileQuota {
   $self->info("nbFile: $nbFiles/$tmpIncreasedNbFiles/$maxNbFiles");
   $self->info("totalSize: $totalSize/$tmpIncreasedTotalSize/$maxTotalSize");
 
-  if ($nbFiles + $tmpIncreasedNbFiles + 1 > $maxNbFiles) {
-    $self->info("Uploading file for user ($user) is denied - number of files quota exceeded.");
-    return (-1, "Uploading file for user ($user) is denied - number of files quota exceeded." );
+#Implementing unlimited file quotas
+  #Unlimited number of files
+  if($maxNbFiles==-1){
+      $self->info("Unlimited number of files allowed for user ($user)");
   }
-
-  if ($size + $totalSize + $tmpIncreasedTotalSize > $maxTotalSize) {
-    $self->info("Uploading file for user ($user) is denied, file size ($size) - total file size quota exceeded." );
-    return (-1, "Uploading file for user ($user) is denied, file size ($size) - total file size quota exceeded." );
+  else{
+      if ($nbFiles + $tmpIncreasedNbFiles + 1 > $maxNbFiles) {
+	  $self->info("Uploading file for user ($user) is denied - number of files quota exceeded.");
+	  return (-1, "Uploading file for user ($user) is denied - number of files quota exceeded." );
+      }
   }
-
+  #Unlimited size for files
+  if($maxTotalSize==-1){
+      $self->info("Unlimited file size allowed for user ($user)");
+  }
+  else{
+      if ($size + $totalSize + $tmpIncreasedTotalSize > $maxTotalSize) {
+	  $self->info("Uploading file for user ($user) is denied, file size ($size) - total file size quota exceeded." );
+	  return (-1, "Uploading file for user ($user) is denied, file size ($size) - total file size quota exceeded." );
+      }
+  }
+  
   
   $self->{PRIORITY_DB}->do("update PRIORITY set tmpIncreasedNbFiles=tmpIncreasedNbFiles+1, tmpIncreasedTotalSize=tmpIncreasedTotalSize+$size where user LIKE  '$user'") or $self->info("failed to increase tmpIncreasedNbFile and tmpIncreasedTotalSize");
 
