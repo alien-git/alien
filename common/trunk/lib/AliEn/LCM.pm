@@ -638,6 +638,8 @@ sub listTransfer {
   my $doSummary=grep (/^-?-summary$/, @_);
   my $jdl=grep (/^-jdl$/, @_);
   my $verbose=grep (/^-verbose$/, @_);
+  my $list;
+  my $limit = 49;
   $self->info("Checking the transfer @_");
   my $done=$self->{SOAP}->CallSOAP("Manager/Transfer", "listTransfer", @_)
     or return;
@@ -660,7 +662,17 @@ sub listTransfer {
   my @transfers = @$result;
   my $summary="";
   my $info={};
-  
+  $list = join(" ", @_);
+  #$self->info("List = $aux and @ = @_");
+  $list =~ m/-?-list=(\d+)?/; 
+  if($1){
+    if( $1<$limit ){$limit = $1;}
+    elsif ( $#transfers > $limit && $1>$limit){ $self->info("The limit of transfer to show is ".($limit+1));}
+  }
+  else {
+    if ($#transfers>$limit){ $self->info("There are more than $limit tranfers, just showing the ".($limit+1)." first ones");}
+  }
+
   foreach my $transfer (@transfers) {
 #    $DEBUG and $self->debug(3, Data::Dumper($transfer));
     my (@data ) = ($transfer->{transferId},
@@ -676,7 +688,8 @@ sub listTransfer {
 #    #Change the time from int to string
 
     my $string=sprintf "$format", @data;
-    $message.="$string\n";
+#    $self->info("List = ".$transfer->{transferId});
+    if ($transfer->{transferId} <= ($limit+1)){$message.="$string\n";}
     
     if ($doSummary){
       my $number=1;
@@ -692,9 +705,9 @@ sub listTransfer {
       $message.="\t\t$status -> $info->{$status}\n";
     }
   }
-  
+ 
   $self->info( $message,undef,0);
-
+ 
   return $result;
 }
 

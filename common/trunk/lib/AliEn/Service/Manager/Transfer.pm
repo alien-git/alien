@@ -355,7 +355,7 @@ sub listTransfer_HELP{
 
   return "listTransfer: returns all the transfers that are waiting in the system
 \tUsage:
-\t\tlistTransfer [-status <status>] [-user <user>] [-id <queueId>] [-verbose] [-master] [-summary] [-all_status] [-jdl] [-destination <site>]
+\t\tlistTransfer [-status <status>] [-user <user>] [-id <queueId>] [-verbose] [-master] [-summary] [-all_status] [-jdl] [-destination <site>]  [-list=<number(all transfers by default)>]
 ";
 }
 
@@ -373,12 +373,14 @@ sub listTransfer {
   }
   
   my $where=" WHERE 1";
+#  my $where= "WHERE transferId <= 200";
   my $columns="transferId, status, destination, user, size,started, received, finished, attempts ";
   my $all_status=0;
   my $master=0;
   my $jdl=0;
   my $error="";
   my $data;
+  my @alist;
 	
 	
   # 	ARRAY OF HASHES
@@ -394,6 +396,8 @@ sub listTransfer {
 	
   while (@_) {
     my $argv=shift;
+#    $self->info("Argv = ".$argv);
+#    sleep(4);
     #if argv contains summary, next 
     ($argv=~ /^-?-summary$/) and next;
     ($argv=~ /^-?-verbose=?/) and $columns.=",reason" and  next;
@@ -401,8 +405,11 @@ sub listTransfer {
     ($argv=~ /^-?-master=?/) and $master=1 and  next;
     ($argv=~ /^-?-jdl=?/) and $jdl=1 and  next;
     ($argv=~ /^-?-attempts=?/) and $jdl=1 and  next;
-    my $found;    
+#    ($argv=~ /^-?-list=?/) and  @alist = split(/=/,$argv) and   $where = "WHERE transferId <= ".$alist[1] and  next;
+    ($argv=~ /^-?-list=?/) and next;
+    $self->info("Listing  ".$alist[1]." transfers");
 
+    my $found;    
     foreach my $column (@columns){
       if ($argv=~ /^-?-$column->{pattern}$/ ){
 	$found=$column;
@@ -436,6 +443,7 @@ sub listTransfer {
       my @new=();
       my @newB=();
       foreach my $entry ( @{$data->{id}->{query}} ){
+	print "\n Entry = $entry";
 	push @new, $entry;
 	$entry=~ s/transferid/transferGroup/;
 	push @new, $entry;
@@ -449,7 +457,7 @@ sub listTransfer {
     $where .= " and (".join (" or ", @{$data->{$column->{name}}->{query}} ).")";
     push @bind, @{$data->{$column->{name}}->{bind}};
   }
-
+  print "\nColumnas ".$#columns."\n";
   $all_status or $data->{status} or $data->{id} or $where.=" and ( status!='FAILED' and status !='DONE' and status !='KILLED')";
 
   $where.=" ORDER by transferId";
