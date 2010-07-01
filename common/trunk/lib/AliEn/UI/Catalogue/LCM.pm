@@ -3310,15 +3310,14 @@ sub fquota_list {
   Getopt::Long::GetOptions($options, "silent", "unit=s") 
 		or $self->info("Error checking the options of fquota list") and return;
   @_=@ARGV;
-<<<<<<< LCM.pm
+
   #Default unit - Megabyte
 	my $unit="M";
 	my $unitV=1024*1024;
-=======
 
 	my $unit="M";
 	my $unitV=1024*1024;
->>>>>>> 1.171
+
 	$options->{unit} and $unit=$options->{unit};
 	($unit !~ /[BKMG]/) and $self->info("unknown unit. use default unit: Mega Byte")
 		and $unit="M";
