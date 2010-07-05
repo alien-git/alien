@@ -278,8 +278,14 @@ sub getJobToken {
     $package =~ /::/ or $package="${package}::.*";
     grep (/^$package$/, @host_packages) and next;
     my @solution=grep (/^$package$/, @host_defined);
-    $self->info("Telling the jobagent to install $solution[0]");
-    push @packages, $solution[0];
+    if ($solution[0]){
+      $self->info("Telling the jobagent to install $solution[0]");
+      push @packages, $solution[0];
+    }else{
+      $self->info("There were no alternatives to install '$package'");
+      return 0;
+    }
+      
     
   }
   (@packages) and  return -3, \@packages;
