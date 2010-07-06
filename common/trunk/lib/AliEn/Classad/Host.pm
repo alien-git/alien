@@ -126,10 +126,16 @@ sub setLocalInfo{
 #    close FILE;
 #    chomp $space;
 #    $space =~ s/^(\d+)\s.*$/$1/;
+  if (! $space){
+     $self->info("Probably '$dir' is a link... getting the size in a different way");
+     $handle->df();
+     $space=$handle->avail($dir);
+  }
+
   if ($space){
     $ca->set_expression( "LocalDiskSpace", $space/1024 );
   }else {
-    $self->info("Error getting the diskspace") and return 1;
+    $self->info("Error getting the diskspace") and return 0;
   }
   if (open (FILE, "uname -r |")) {
     my $uname=join("", <FILE>);
