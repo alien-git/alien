@@ -3315,9 +3315,6 @@ sub fquota_list {
 	my $unit="M";
 	my $unitV=1024*1024;
 
-	my $unit="M";
-	my $unitV=1024*1024;
-
 	$options->{unit} and $unit=$options->{unit};
 	($unit !~ /[BKMG]/) and $self->info("unknown unit. use default unit: Mega Byte")
 		and $unit="M";
