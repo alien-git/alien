@@ -1754,6 +1754,7 @@ sub internalQuery {
   my $order=" ORDER BY lfn";
   my $limit="";
   $options->{'s'} and $order="";
+  $options->{'y'} and $order="";
   $options->{l} and $limit = "limit $options->{l}";
   $options->{o} and $limit .= " offset $options->{o}";
 
@@ -1783,11 +1784,11 @@ $b as guid from $indexTable l $1 $order $limit/} @joinQueries;
   foreach my $q (@joinQueries) {
     if ($options->{'y'}){
       my $t="";
-      $q=~ /JOIN (\S+VCDB) /m and $t=$1;
-      $self->info("WE ARE RETRIEVING ONLY THE BIGGEST METADADATA from $t");
+      $q=~ /JOIN (\S+VCDB) /m and $t=$1;     
       if ($t){
-	$q =~ s/select \*/select substr(max(version_path),10) lfn from (SELECT $t.*/i;
-	$q.=")d  group by dir_number";
+        $self->info("WE ARE RETRIEVING ONLY THE BIGGEST METADADATA from $t");          
+	      $q =~ s/select .*? from /select substr(max(version_path),10) lfn from (SELECT version_path,dir_number from /si;
+	      $q.=")d  group by dir_number";
       }
     }
     $DEBUG and $self->debug(1, "Doing the query $q");
