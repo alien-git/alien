@@ -69,10 +69,10 @@ sub checkPriorityTable{
 		 userload=>"float not null default 0",
 		#Job Quota
 		 unfinishedJobsLast24h=>"int not null default 0",
-		 totalRunningTimeLast24h=>"int not null default 0",
+		 totalRunningTimeLast24h=>"bigint not null default 0",
 		 totalCpuCostLast24h=>"float not null default 0",
 		 maxUnfinishedJobs=>"int not null default 0",
-		 maxTotalRunningTime=>"int not null default 0",
+		 maxTotalRunningTime=>"bigint not null default 0",
 		 maxTotalCpuCost=>"float not null default 0",
 		 #File Quota
 		 nbFiles=>"int not null default 0",
@@ -107,16 +107,16 @@ sub checkPriorityValue() {
     $set->{'unfinishedJobsLast24h'} = 0;
     $set->{'maxUnfinishedJobs'} = 60;
     $set->{'totalRunningTimeLast24h'} = 0;
-    $set->{'maxTotalRunningTime'} = 10000;
+    $set->{'maxTotalRunningTime'} = 1000000;
     $set->{'totalCpuCostLast24h'} = 0;
-    $set->{'maxTotalCpuCost'} = 10000;
+    $set->{'maxTotalCpuCost'} = 2000000;
     #File Quota
     $set->{'nbFiles'} = 0;
     $set->{'totalSize'} = 0;
     $set->{'tmpIncreasedNbFiles'} = 0;
     $set->{'tmpIncreasedTotalSize'} = 0;
     $set->{'maxNbFiles'}=10000;
-    $set->{'maxTotalSize'}=100000000;
+    $set->{'maxTotalSize'}=10000000000;
     $self->insertPrioritySet($user,$set);
   }
 }
