@@ -115,11 +115,11 @@ sub configureHTTPD
       # Substitute "/opt/alien" with $ALIEN_ROOT in httpd.conf
       "'s/\\\/opt\\\/alien/$ALIEN_ROOT_TMP/' $ALIEN_TESTDIR/httpd.conf",
 	  # Substitute "/opt/alien" with $ALIEN_ROOT in ssl.conf
-	  "'s/\\\/opt\\\/alien/$ALIEN_ROOT_TMP/' $ALIEN_ROOT/httpd/conf/ssl.conf",
+	  "'s/\\\/opt\\\/alien/$ALIEN_ROOT_TMP/' $ALIEN_ROOT/httpd/conf/extra/httpd-ssl.conf",
 	  # Substitute "/opt/alien" with $ALIEN_ROOT in highperformance.conf
-	  "'s/\\\/opt\\\/alien/$ALIEN_ROOT_TMP/' $ALIEN_ROOT/httpd/conf/highperformance.conf",
+	#  "'s/\\\/opt\\\/alien/$ALIEN_ROOT_TMP/' $ALIEN_ROOT/httpd/conf/highperformance.conf",
 	  # Substitute "Listen 80" with Listen "11983" in highperformance.conf
-	  "'s/Listen 80/Listen 11983/' $ALIEN_ROOT/httpd/conf/highperformance.conf",
+	 # "'s/Listen 80/Listen 11983/' $ALIEN_ROOT/httpd/conf/highperformance.conf",
 	  # Substitute "User alienmaster" with the username of current user in httpd.conf
       "'s/User alienmaster/User $USER/' $ALIEN_TESTDIR/httpd.conf",
        );
