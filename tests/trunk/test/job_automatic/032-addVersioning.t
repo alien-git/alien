@@ -35,18 +35,17 @@ sub doVersioningTest {
   $cat->execute("rm", "-silent", $lfn);
   $cat->execute("rmdir","-rf", ".$lfn");
 
-  addFileForVersioning($cat, $lfn, $v0) or exit(-2);
-  (addFileForVersioning($cat, $lfn, $v0) eq -1) or exit(-2);
-  addFileForVersioning($cat, $lfn,$v1,"-v") or exit(-2);
-  addFileForVersioning($cat, $lfn,$v2,"-v") or exit(-2);
-  addFileForVersioning($cat, $lfn,$v3,"-v") or exit(-2);
+  addFileForVersioning($cat, $lfn, $v0) or print "level 0.0\n" and exit(-2);
+  addFileForVersioning($cat, $lfn,$v1) or print "level 0.2\n" and exit(-2);
+  addFileForVersioning($cat, $lfn,$v2) or print "level 0.3\n" and exit(-2);
+  addFileForVersioning($cat, $lfn,$v3) or print "level 0.4\n" and exit(-2);
 
   print "Added all files, now let's check them.\n";
 
-  checkContentOfFile($cat, $lfn, $v3) or exit(-2);
-  checkContentOfFile($cat, ".$lfn/v1.0", $v0) or exit(-2);
-  checkContentOfFile($cat, ".$lfn/v1.1", $v1) or exit(-2);
-  checkContentOfFile($cat, ".$lfn/v1.2", $v2) or exit(-2);
+  checkContentOfFile($cat, $lfn, $v3) or print "level 1.0\n" and exit(-2);
+  checkContentOfFile($cat, ".$lfn/v1.0", $v0) or print "level 1.1\n" and exit(-2);
+  checkContentOfFile($cat, ".$lfn/v1.1", $v1) or print "level 1.2\n" and exit(-2);
+  checkContentOfFile($cat, ".$lfn/v1.2", $v2) or print "level 1.3\n" and exit(-2);
 
   return 1; 
 }
@@ -56,7 +55,7 @@ sub checkContentOfFile{
   my $lfn=shift;
   my $content=shift;
 
-  my ($c)=$cat->execute("get", $lfn) or exit(-2);
+  my ($c)=$cat->execute("get", $lfn) or print "error in get\n" and exit(-2);
   open (FILE, "<$c") or print "Error opening the file $c ($lfn)\n"
     and exit(-2);
   my @filec = <FILE>;
@@ -64,7 +63,7 @@ sub checkContentOfFile{
 
   my $rcont = join("",@filec);
 
-  $rcont eq $content or exit(-2);
+  $rcont eq $content or print "error in content comparison\n" and exit(-2);
 
   print "File $lfn has the content '$content'\n";
 
@@ -80,10 +79,6 @@ sub addFileForVersioning {
   my $options=(shift or "");
   print "Registering the file $file...";
 
-  $options ne "-v" and 
-      $cat->execute("whereis", "-i", "-silent", $file) and print "ok\nThe file  $file already exists\n"
-                and return -1;
-
   my $name="/tmp/test16.$$";
   open (FILE, ">$name")
     or print "Error opening the file $name\n" and return;
@@ -92,8 +87,8 @@ sub addFileForVersioning {
 
   my $done=$cat->execute("add", "$file", $name, $options);
   system("rm", "-f", "$name");
-  $done or return;
-  print "ok\n";
+  $done or print "not possible to add file" and return;
+  print "ok adding $file\n";
   return 1;
 }
 
