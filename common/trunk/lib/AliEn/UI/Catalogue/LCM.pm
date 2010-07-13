@@ -943,7 +943,7 @@ Old size: $oldStat[7], new size: $newStat[7]");
   my $md5=AliEn::MD5->new($file)
     or $self->info("Error calculating the md5") and return;
 
-  return $self->addFile("-v", "-md5=$md5", $reallfn, $pfn);
+  return $self->addFile("-md5=$md5", $reallfn, $pfn);
 }
 
 
@@ -966,14 +966,12 @@ sub Getopts {
 
 sub addFile_HELP {
   return "'add' copies a file into the SE, and register an entry in the catalogue that points to the file in the SE\n\t
-Usage: add [-v] [-g <guid>] [-s <size>] [-md5 <md5>] <lfn> <pfn> [<se>,!<se>,select=N,<qosflag>=N]\n
+Usage: add [-g <guid>] [-s <size>] [-md5 <md5>] <lfn> <pfn> [<se>,!<se>,select=N,<qosflag>=N]\n
 Possible pfns:\tsrm://<host>/<path>, castor://<host>/<path>, 
 \t\tfile://<host>/<path>
-If the method and host are not specified, the system will try with 'file://<localhost>'
-Possible options:
-\t-v:(versioning) a new version of the file is created, if it already existed\n";
-#\t-c (custodial) add the file to the closest custodial se\n";
+If the method and host are not specified, the system will try with 'file://<localhost>' \n";
 }
+
 #
 # Check if the user can create the file
 sub _canCreateFile{
@@ -992,7 +990,7 @@ sub addFile {
   my $options={};
   my $lineOptions=join(" ", @_);
   @ARGV=@_;
-  Getopt::Long::GetOptions($options, "silent", "versioning", "size=i", "md5=s", "guid=s")
+  Getopt::Long::GetOptions($options, "silent", "versioning", "size=i", "md5=s", "guid=s") # versioning is only there for backward compability and should not be used anymore!
       or $self->info("Error checking the options of add") and return;
   @_=@ARGV;
   my $lfn   = shift;
@@ -1003,9 +1001,7 @@ sub addFile {
   $lineOptions=~ s/$lfn ?//;
   $lineOptions=~ s/$pfn ?//;
   $lfn = $self->{CATALOG}->f_complete_path($lfn);
-  $options->{versioning} and $lineOptions=~ s/ ?-v ?/ -v=$lfn /;
-
-  $options->{versioning} or ( $self->_canCreateFile($lfn) or return);
+  $lineOptions = $lineOptions." -lfn=$lfn ";
 
   my ($result, $success)=$self->execute("upload", $pfn, $lineOptions);
 
@@ -1501,14 +1497,8 @@ sub checkPermissionsOnLFN {
       $self->info("access: parent dir missing for lfn $lfn");
       return ;
     }
-    if ($access eq "write-once")  {
-      if ($self->{CATALOG}->existsEntry($lfn, $filehash->{lfn})) {
-	$self->info("access: write-once but lfn $lfn exists already");
-	return ;
-      }
-    }
-    if (($access eq "write-version") && ($lfn ne "") ) {  
-      if ($self->{CATALOG}->existsEntry($lfn, $filehash->{lfn})) {
+    if (($access =~ /^write[\-a-z]*/) && ($lfn ne "")
+      && $self->{CATALOG}->existsEntry($lfn, $filehash->{lfn})) {
 	$self->info( "access: lfn <$lfn> exists - creating backup version ....\n");
 	my $filename = $self->{CATALOG}->f_basename($lfn);
 	
@@ -1537,7 +1527,7 @@ sub checkPermissionsOnLFN {
 	  $self->info("access: cannot move $lfn to the backup file $backupfile");
 	  return ;
 	}
-      }
+      #}
     }
   }
   return $filehash;
@@ -1619,7 +1609,7 @@ sub access {
   ($writeQos eq "") and $writeQos=0;
   my $writeQosCount = (shift || 0);
 
-  if ($access =~ /^write/) {
+  if ($access =~ /^write[\-a-z]*/) {
     # if nothing is or wrong specified SE info, get default from Config, if there is a sitename
     if ( (scalar(@ses) eq 0) and ($sitename ne 0) and ( ($writeQos eq 0) or ($writeQosCount eq 0) ) and $self->{CONFIG}->{SEDEFAULT_QOSAND_COUNT} ) {
       my ($repltag, $copies)=split (/\=/, $self->{CONFIG}->{SEDEFAULT_QOSAND_COUNT},2);
@@ -1650,7 +1640,7 @@ sub access {
   my $perm;
   if ($access eq "read") {
     $perm = "r";
-  } elsif ($access =~ /^(((write)((-once)|(-version))?)|(delete))$/ ) {
+  } elsif ($access =~ /^((write[\-a-z]*)|(delete))$/ ) {
     $perm = "w";
   } else {
     $self->info("access: illegal access type <$access> requested");
@@ -1701,10 +1691,9 @@ sub access {
       if ( $lfn ne "") {
 	$filehash=$self->checkPermissionsOnLFN($lfn,$access, $perm)
 	  or return access_eof("checkPermissionsOnLFN failed for $lfn");
-	$access=~ /write-version/ and $access="write-once";
       }
       $DEBUG and $self->debug(1, "We have permission on the lfn");
-      if ($access =~ /^write/) {
+      if ($access =~ /^write[\-a-z]*/) {
         $se = shift(@ses);
         $self->identifyValidSEName($se) or $self->info("access: no SE asked to write on") and 
 		return access_eof("List of SE is empty after checkups, no SE to create write envelope on."); 
@@ -1757,7 +1746,7 @@ sub access {
       $filehash->{pfn} = "$ppfn";
       #($pfn =~ /^soap:/) and $filehash->{pfn} = "$pfn" or $filehash->{pfn} = "$ppfn";
       #$filehash->{pfn} = "$pfn";
-      (($lfn eq "") && ($access =~ /^write/)) and $lfn = "/NOLFN";
+      (($lfn eq "") && ($access =~ /^write[\-a-z]*/)) and $lfn = "/NOLFN";
       $filehash->{turl} = $pfn;
 
       # patch for dCache
@@ -1829,7 +1818,7 @@ sub access {
       if ($self->{MONITOR}) {
 	my @params= ("$se", $filehash->{size});
 	my $method;
-	($access =~ /^((read)|(write))/)  and $method="${1}req";
+	($access =~ /^((read)|(write[\-a-z]*))/)  and $method="${1}req";
 	$access =~ /^delete/ and $method="delete";
 	$method and
 	  $self->{MONITOR}->sendParameters("$self->{CONFIG}->{SITE}_QUOTA","$self->{CATALOG}->{ROLE}_$method", @params); 		      
@@ -1849,7 +1838,7 @@ $ticket
 ",$$newresult[0]->{envelope},"
 ========================================================================\n", $ticket,"\n";
       #last;
-      ($access =~ /^write/) and (scalar(@ses) gt 0)
+      ($access =~ /^write[\-a-z]*/) and (scalar(@ses) gt 0)
 	and ($self->info("gonna recall next iteration") ) 
       or last;
     }
@@ -2000,7 +1989,7 @@ sub commit {
 	      if (!$guid) {
 		  $guid = $_->{guid};
 	      }
-	      if ($_->{access} =~ "^write") {
+	      if ($_->{access} =~ /^write[\-a-z]*/) {
 		  $$newresult[0]->{$lfn} = 0;
 		  $self->debug("commit: Registering file lfn=$lfn storageurl=$storageurl size=$size se=$se guid=$guid md5=$md5");
 		  my $result = $self->f_registerFile("-md5=$md5",$lfn,$storageurl, $size , $se, $guid, $perm);
@@ -2128,7 +2117,7 @@ sub erase {
 sub upload_HELP {
   return "upload: copies a file to the SE
 Usage:
-\t\tupload <pfn> [<se>,!<se>,select=N,<qosflag>=N,<guid>]
+\t\tupload -lfn=<lfn> <pfn> [<se>,!<se>,select=N,<qosflag>=N,<guid>]
 ";
 }
 
@@ -2141,7 +2130,7 @@ sub upload {
   $result->{jobtracelog} = [];
 
   @ARGV=@_;
-  Getopt::Long::GetOptions($options, "silent", "versioning=s", 
+  Getopt::Long::GetOptions($options, "silent", "lfn=s","versioning=s", # versioning is only there for backward compability and should not be used anymore!
 	   "size=i", "md5=s", "guid=s", "user=s", "jobtracelog")
       or $self->info("Error checking the options of upload.") 
          and push @{$result->{jobtracelog}}, {flag=>"error", text=>"Error checking the options of [upload]."}
@@ -2150,11 +2139,8 @@ sub upload {
   @_=@ARGV;
   my $pfn=shift;
   my $lfn="/NOLFN";
-  my $envReq="write-once";
-  if ($options->{versioning} and $options->{versioning} ne ""){
-          $lfn = $options->{versioning};
-          $envReq = "write-version";
-  }
+  $options->{lfn} and $lfn = $options->{lfn};
+  my $envReq="write";
 
   $options->{guid} and $result->{guid}=$options->{guid};
 
