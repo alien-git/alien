@@ -892,3 +892,21 @@ sub getAllHostAndTable{
 1;
 
 
+€ı`€ı,€ı.v€ı,€ı.€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ıK€ı,€ı.:q
+€ku€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€ku€ıU:tabnew G					€kb~/al	€kb-c	l	Al	D	Ca	G	
+€ğX€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıL€ıa€ı`€ıa€ı`€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€ıa€ı`€ıa€ı`€ıa€ı`€ıa€ı`€ıa€ı`€ıa€ı`€ğX/queryValue
+nnnnn/sub queryValue
+€ıa€ı`€ıa€ı`€ı,€ı./queryValue
+nnnnnnn/selectD
+nnnnnnnnnnnnn€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd€kd/query
+nnnnnnnnnnnnnnn€ıa€ı`€ıa€ı`€ıa€ı`€ıa€ı`€ıa€ı`€ıa€ı`€ğX€ıa€ı`€ıa€ı`€ıa€ı`€ıa€ı`€ıa€ı`/get€kb€kb€kbsub getAllHostsn€kb
+€ıU/getAllH	€kb€kb
+nnnn/sub getALl€kb€kbllH
+€ıa€ı`nnnnnnnnnnnnnnnnnnnnnn€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€ku€kuq"qqqqqqqqq:w
+:qqqq€kb€kb€kb€kb€kb€kb€kb€kb€kb€kb€kb€kb€kb€kb€kb€kb€kb€kb€kb€kb€kb€kb€kb€kb€kb€kb€kb€kb€kb€kb€kb€kb:u
+:u
+:i
+:u
+:u
+€kb€kbdddd€ku€ku€ku€ku€ku€ku:€kb€ı,€ı.q€ıa€ı`/getAllHos	€kb
+€kd€kd€kd€kd€ıa€ı`€ıa€ı`€ıa€ı`€ıa€ı`€ıa€ı`€ıa€ı`€ıa€ı`€ıa€ı`€ıa€ı`€ıa€ı`€ıa

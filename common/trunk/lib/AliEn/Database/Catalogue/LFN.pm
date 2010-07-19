@@ -226,6 +226,11 @@ sub checkLFNTable {
   $self->checkTable(${table}, "entryId", \%columns, 'entryId', 
 		    ['UNIQUE INDEX (lfn)',"INDEX(dir)", "INDEX(guid)", "INDEX(type)", "INDEX(ctime)", "INDEX(guidtime)"]) or return;
   $self->checkTable("${table}_broken", "entryId", {entryId=>"bigint(11) NOT NULL  primary key"}) or return;
+  $self->checkTable("${table}_QUOTA", "user", {user=>"varchar(64) NOT NULL", nbFiles=>"int(11) NOT NULL", totalSize=>"bigint(20) NOT NULL"}, undef, ['INDEX user_ind (user)'],) or return;
+  
+  $self->do("optimize table ${table}");
+#  $self->do("optimize table ${table}_QUOTA");
+  
   return 1;
 }
 
