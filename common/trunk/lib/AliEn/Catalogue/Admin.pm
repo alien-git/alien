@@ -4,8 +4,10 @@ use strict;
 
 use AliEn::Database::Admin;
 use AliEn::Database::Transfer;
+
 require AliEn::Service::Optimizer::Catalogue::SERank;
 require AliEn::Database::SE;
+
 # This package contains the functions that can only be called by the 
 # administrator
 #
@@ -1002,42 +1004,78 @@ sub calculateFileQuota {
   $silent and $method="debug" and push @data, 1;
 
   $self->$method(@data, "Calculate File Quota");
-  my $guiddb=$self->{DATABASE}->{GUID_DB};
+  my $lfndb=$self->{DATABASE}->{LFN_DB};
 
   my $calculate=0;
-  my $rhosts=$guiddb->getAllHostAndTable();
+  my $rhosts=$lfndb->getAllHostAndTable();
+  
   foreach my $h (@$rhosts){
-    my ($db, $tableIdx)=$guiddb->reconnectToIndex($h->{hostIndex}, $h->{tableName}) or next;
-    my $tableName="G${tableIdx}L";
-    $self->$method(@data, "Checking if the table $tableName is up to date");
-    $guiddb->queryValue("select 1 from (select max(ctime) ctime, count(1) counter from $tableName) a left join GL_ACTIONS on tablenumber=? and action='QUOTA' where extra is null or extra<>counter or time is null or time<ctime", undef, {bind_values=>[$tableIdx]}) or next;
-
-  	$self->$method(@data, "Updating the table");
-  	$guiddb->do("delete from GL_ACTIONS where action='QUOTA' and tableNumber=?", {bind_values=>[$tableIdx]});
-  	$guiddb->do("insert into GL_ACTIONS(tablenumber, time, action, extra) select ?, max(ctime), 'QUOTA', count(1) from $tableName", {bind_values=>[$tableIdx]});
-
-		$guiddb->do("delete from ${tableName}_QUOTA");
-   	$guiddb->do("insert into ${tableName}_QUOTA (user, nbFiles, totalSize) select owner, count(1), sum(size) from ${tableName}_PFN p left join $tableName g on p.guidid=g.guidid group by owner");
-		$calculate=1;
+    my ($db, $LTableIdx)=$lfndb->reconnectToIndex($h->{hostIndex}, $h->{tableName}) or next;
+    my $LTableName="L${LTableIdx}L";
+    
+    #check if all tables exist for $LTableIdx
+    $self->{DATABASE}->{LFN_DB}->checkLFNTable("${LTableIdx}");
+    
+    $self->$method(@data, "Checking if the table ${LTableName} is up to date");
+    $db->queryValue("select 1 from (select max(ctime) ctime, count(1) counter from $LTableName) a left join LL_ACTIONS on tablenumber=? and action='QUOTA' where extra is null or extra<>counter or time is null or time<ctime", undef, {bind_values=>[$LTableIdx]}) or next;
+    
+  	$self->$method(@data, "Updating the table ${LTableName}");
+  	$db->do("delete from LL_ACTIONS where action='QUOTA' and tableNumber=?", {bind_values=>[$LTableIdx]});
+  	$db->do("insert into LL_ACTIONS(tablenumber, time, action, extra) select ${LTableIdx}, max(ctime), 'QUOTA', count(1) from $LTableName");
+  	
+#        #Get possible G#L tables
+#        my $possibleGTables=$db->query("select h.db, gI.tableName from GUIDINDEX gI, HOSTS h where h.hostIndex=gI.hostIndex and hex(gI.guidTime)<(select max(hex(guidtime)) from ${LTableName} where guidtime<>'')");
+        my %sizeInfo;
+        $db->do("delete from ${LTableName}_QUOTA");
+        my %dataFromJoin;
+#        foreach my $i (@$possibleGTables) {
+#          my $GTableIdx=$i->{tableName};
+#          my $GTableName="$i->{db}.G$i->{tableName}L";
+#          #Join G#L with L#L -> get data
+#          $my $data=$db->query("select l.owner as user, count(g2.guidid) as nbFiles, sum(g.size) as totSize from ${LTableName} l, ${GTableName} g, ${GTableName}_PFN g2 where g.guid=l.guid and g.guidid=g2.guidid group by l.owner order by l.owner");
+          #Counting LFNs(not checking GUIDs)
+          my $data=$db->query("select l.owner as user, count(l.lfn) as nbFiles, sum(l.size) as totSize from ${LTableName} l where l.size>0 group by l.owner order by l.owner");
+          for my $tmp (@$data)
+          {
+            if(exists $dataFromJoin{$tmp->{user}})
+            {
+              $dataFromJoin{$tmp->{user}} = {
+                nbFiles => $dataFromJoin{$tmp->{user}}{nbFiles} + $tmp->{nbFiles},
+                totalSize => $dataFromJoin{$tmp->{user}}{totalSize} + $tmp->{totSize}
+              };
+            }
+            else
+            {
+              $dataFromJoin{$tmp->{user}} = {
+                nbFiles => $tmp->{nbFiles},
+                totalSize => $tmp->{totSize}
+              };
+            }
+          }          
+#	}
+	#Write data from joins to L#L_QUOTA
+	foreach my $user (keys %dataFromJoin) {
+	  $db->do("insert into ${LTableName}_QUOTA (user, nbFiles, totalSize) values ('${user}', $dataFromJoin{$user}{nbFiles}, $dataFromJoin{$user}{totalSize})");
+	}
+	$calculate=1;
   }
   $calculate or $self->$method(@data, "No need to calculate") and return;
 
-  my %infoGUID;
+  my %infoLFN;
   foreach my $h (@$rhosts) {
-    my ($db, $tableIdx)=$self->{DATABASE}->{GUID_DB}->reconnectToIndex($h->{hostIndex}, $h->{tableName}) or next;
-
-    my $tableName="G${tableIdx}L";
+    my ($db, $tableIdx)=$lfndb->reconnectToIndex($h->{hostIndex}, $h->{tableName}) or next;
+    my $tableName="L${tableIdx}L";
     $self->$method(@data, "Getting from Table ${tableName}_QUOTA in Host $h->{hostIndex}");
     my $userinfo=$db->query("select user, nbFiles, totalSize from ${tableName}_QUOTA");
     foreach my $u (@$userinfo) {
       my $user = $u->{user};
-      if (exists $infoGUID{$user}) {
-        $infoGUID{$user} = {
-          nbfiles => $infoGUID{$user}{nbfiles}+$u->{nbFiles},
-          totalsize => $infoGUID{$user}{totalsize}+$u->{totalSize}
+      if (exists $infoLFN{$user}) {
+        $infoLFN{$user} = {
+          nbfiles => $infoLFN{$user}{nbfiles}+$u->{nbFiles},
+          totalsize => $infoLFN{$user}{totalsize}+$u->{totalSize}
         };
       } else {
-        $infoGUID{$user} = {
+        $infoLFN{$user} = {
           nbfiles => $u->{nbFiles},
           totalsize => $u->{totalSize}
         };
@@ -1055,8 +1093,8 @@ sub calculateFileQuota {
   $self->$method(@data, "Updating PRIORITY table");
   $self->{PRIORITY_DB}->lock("PRIORITY");
   $self->{PRIORITY_DB}->do("update PRIORITY set nbFiles=0, totalSize=0, tmpIncreasedNbFiles=0, tmpIncreasedTotalSize=0") or $self->$method(@data, "initialization failure for all users");
-  foreach my $user (keys %infoGUID) {
-    $self->{PRIORITY_DB}->do("update PRIORITY set nbFiles=$infoGUID{$user}{nbfiles}, totalSize=$infoGUID{$user}{totalsize} where user='$user'") or $self->$method(@data, "update failure for user $user");
+  foreach my $user (keys %infoLFN) {
+    $self->{PRIORITY_DB}->do("update PRIORITY set nbFiles=$infoLFN{$user}{nbfiles}, totalSize=$infoLFN{$user}{totalsize} where user='$user'") or $self->$method(@data, "update failure for user $user");
   }
   $self->{PRIORITY_DB}->unlock();
 }
