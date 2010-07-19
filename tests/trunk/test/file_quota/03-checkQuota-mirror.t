@@ -85,8 +85,8 @@ my $d=AliEn::Database::TaskPriority->new({DRIVER=>"mysql", HOST=>"$host:3307", D
   refreshLFNandGUIDtable($cat_adm);
   $cat_adm->execute("calculateFileQuota");
   $cat->execute("fquota", "list $user"); 
-  assertEqual($d, $user, "nbFiles", 2) or exit(-2);
-  assertEqual($d, $user, "totalSize", 28) or exit(-2);
+  assertEqual($d, $user, "nbFiles", 1) or exit(-2);
+  assertEqual($d, $user, "totalSize", 14) or exit(-2);
 	print "8. PASSED\n\n";
 
   ok(1);

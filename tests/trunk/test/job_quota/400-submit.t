@@ -275,7 +275,15 @@ sub assertEqual {
   my $field = shift;
   my $value = shift;
 
-  my $result=$d->queryValue("SELECT $field FROM PRIORITY WHERE user='$user'");
+  my $result=0;
+#  if($field eq "nbFiles" || $field eq "totalSize")
+#  {
+#  	$result=$d->queryValue("SELECT $field+tmpIncreased$field FROM PRIORITY WHERE user='$user'");
+#  }
+#  else
+#  {
+  	$result=$d->queryValue("SELECT $field FROM PRIORITY WHERE user='$user'");
+#  }
   (defined $result) or print "Error checking the $field of the user\n" and exit(-2);
   ($result eq $value) or print "FAILED: $field expected:<$value> but was: $result\n";
   return ($result eq $value);

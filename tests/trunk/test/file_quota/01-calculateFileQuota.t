@@ -65,16 +65,16 @@ my $d=AliEn::Database::TaskPriority->new({DRIVER=>"mysql", HOST=>"$host:3307", D
   refreshLFNandGUIDtable($cat_adm);
   $cat_adm->execute("calculateFileQuota");
   $cat->execute("fquota", "list $user");
-  assertEqual($d, $user, "nbFiles", 2) or exit(-2);
-  assertEqual($d, $user, "totalSize", 28) or exit(-2);
+  assertEqual($d, $user, "nbFiles", 1) or exit(-2);
+  assertEqual($d, $user, "totalSize", 14) or exit(-2);
   print "4. PASSED\n\n";
 
 	print "5. Add a file (size 14)\n";
   addFile($cat, "dir1/file2", "This is a test") or exit(-2);
 	$cat_adm->execute("calculateFileQuota"); 
   $cat->execute("fquota", "list $user");
-	assertEqual($d, $user, "nbFiles", 3) or exit(-2);
-	assertEqual($d, $user, "totalSize", 42) or exit(-2);
+	assertEqual($d, $user, "nbFiles", 2) or exit(-2);
+	assertEqual($d, $user, "totalSize", 28) or exit(-2);
 	print "5. PASSED\n\n";
 
 	print "6. copy a file (size 14)\n";
@@ -89,24 +89,24 @@ my $d=AliEn::Database::TaskPriority->new({DRIVER=>"mysql", HOST=>"$host:3307", D
 	$cat->execute("cp", "dir1", "dir2") or exit(-2);
 	$cat_adm->execute("calculateFileQuota");
   $cat->execute("fquota", "list $user");
-	assertEqual($d, $user, "nbFiles", 3) or exit(-2);
-	assertEqual($d, $user, "totalSize", 42) or exit(-2);
+	assertEqual($d, $user, "nbFiles", 6) or exit(-2);
+	assertEqual($d, $user, "totalSize", 84) or exit(-2);
 	print "7. PASSED\n\n";
 
 	print "8. move a file\n";
 	$cat->execute("mv", "dir2/file3", "dir2/file4") or exit(-2);
 	$cat_adm->execute("calculateFileQuota");
   $cat->execute("fquota", "list $user");
-	assertEqual($d, $user, "nbFiles", 3) or exit(-2);
-	assertEqual($d, $user, "totalSize", 42) or exit(-2);
+	assertEqual($d, $user, "nbFiles", 6) or exit(-2);
+	assertEqual($d, $user, "totalSize", 84) or exit(-2);
 	print "8. PASSED\n\n";
 
 	print "9. move a directory\n";
 	$cat->execute("mv", "dir2", "dir3") or exit(-2);
 	$cat_adm->execute("calculateFileQuota");
   $cat->execute("fquota", "list $user");
-	assertEqual($d, $user, "nbFiles", 3) or exit(-2);
-	assertEqual($d, $user, "totalSize", 42) or exit(-2);
+	assertEqual($d, $user, "nbFiles", 6) or exit(-2);
+	assertEqual($d, $user, "totalSize", 84) or exit(-2);
 	print "9. PASSED\n\n";
 
 	print "10. remove a directory\n";
@@ -123,8 +123,8 @@ my $d=AliEn::Database::TaskPriority->new({DRIVER=>"mysql", HOST=>"$host:3307", D
 	refreshLFNandGUIDtable($cat_adm);
 	$cat_adm->execute("calculateFileQuota");
   $cat->execute("fquota", "list $user");
-	assertEqual($d, $user, "nbFiles", 3) or exit(-2);
-	assertEqual($d, $user, "totalSize", 42) or exit(-2);
+	assertEqual($d, $user, "nbFiles", 2) or exit(-2);
+	assertEqual($d, $user, "totalSize", 28) or exit(-2);
 	print "11. PASSED\n\n";
 
 	print "12. remove a file\n";
@@ -166,6 +166,7 @@ sub refreshLFNandGUIDtable {
 	my $cat_adm=shift;
 	print "cleaning tables related to guid...\n";
 	$cat_adm->execute("checkLFN");
+	$cat_adm->execute("calculateFileQuota");
 	$cat_adm->execute("checkOrphanGUID", "force");
 }
 
