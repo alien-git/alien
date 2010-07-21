@@ -664,6 +664,7 @@ sub listTransfer {
   my @transfers = @$result;
   my $summary="";
   my $info={};
+  my $transferNum = 0;
   $list = join(" ", @_);
   #$self->info("List = $aux and @ = @_");
   $list =~ m/-?-list=(\d+)?/; 
@@ -674,9 +675,10 @@ sub listTransfer {
   else {
     if ($#transfers>$limit){ $self->info("There are more than $limit tranfers, just showing the ".($limit+1)." first ones");}
   }
-
+#  $self->info("Transfers = ".$#transfers);
   foreach my $transfer (@transfers) {
 #    $DEBUG and $self->debug(3, Data::Dumper($transfer));
+    $transferNum++; 
     my (@data ) = ($transfer->{transferId},
 		   $transfer->{status},
 		   $transfer->{user},
@@ -691,7 +693,7 @@ sub listTransfer {
 
     my $string=sprintf "$format", @data;
 #    $self->info("List = ".$transfer->{transferId});
-    if ($transfer->{transferId} <= ($limit+1)){$message.="$string\n";}
+    if ($transferNum <= $limit){$message.="$string\n";}
     
     if ($doSummary){
       my $number=1;
