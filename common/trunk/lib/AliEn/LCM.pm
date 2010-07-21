@@ -314,8 +314,9 @@ sub getFile {
     ($file) or die ("We are not able to parse the pfn $pfn\n");
     if ( $opt =~ /l/ ) {
       $result = $file->getLink("-s");
-    }
-    else {
+    } elsif ($DEBUG) {
+      $result = $file->get(); 
+    } else {
       $result = $file->get("-s");
     }
   };
@@ -515,7 +516,8 @@ sub RegisterInRemoteSE {
     $pfn="file://$self->{CONFIG}->{HOST}$localfile";
   }
   $self->debug (1, "Trying to upload the file to the SE");
-  my $url=AliEn::SE::Methods->new($pfn) 
+
+  my $url=AliEn::SE::Methods->new({PFN=>$pfn,DEBUG=>$DEBUG})
     or $self->info( "Error creating the url of $pfn while uploading to the SE: ".$envelope->{se})
       and return;
 
@@ -533,7 +535,7 @@ sub RegisterInRemoteSE {
 
   $info=$self->getPFNName($info, $envelope );
   $info or return;
-  my $url2=AliEn::SE::Methods->new({PFN=>$info->{pfn},
+  my $url2=AliEn::SE::Methods->new({PFN=>$info->{pfn},DEBUG=>$DEBUG,
 				    LOCALFILE=>$url->path()})
     or $self->info("Error creating the url of $pfn") and return;
 

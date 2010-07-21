@@ -1228,10 +1228,11 @@ sub _getInputFile {
     $catalog->execute("get", "-l", $lfnName,$pfn, $options ) and return 1;
 
     $options="";
-    $self->putJobLog("trace","Error downloading input file: $lfnName (trying again)");
+    $self->putJobLog("trace","Error downloading input file: $lfnName (trying again). Message: ". $self->{LOGGER}->error_msg());
 
   }
-  $self->putJobLog("error","Could not download the input file: $lfnName (into $pfn)");
+  $self->putJobLog("error","Could not download the input file: $lfnName (into $pfn). Message: ". $self->{LOGGER}->error_msg());
+
 
   return;
 }
@@ -1446,8 +1447,8 @@ sub delete__no_archive__tagforbackwardcompabilitytorlessV218{
 
 sub processJDL_Check_on_Tag{
   my $self=shift;
-  my $tagstring=shift;
-  my $pattern=shift;
+  my $tagstring=(shift || return (0,""));
+  my $pattern=(shift || return (0,""));
   my @tags = split (/,/, $tagstring);
   $tagstring = "";
   my $back=0;
@@ -1461,7 +1462,7 @@ sub processJDL_Check_on_Tag{
 
 sub create_Default_Output_Archive_Entry{
    my $self=shift;
-   my $jdlstring=shift;
+   my $jdlstring=(shift || return "");
    my $defaultOutputFiles=shift;
    my $defaulttags=shift;
    $jdlstring .= ":";

@@ -3,7 +3,7 @@ package AliEn::FTP;
 use strict;
 use AliEn::Logger::LogObject;
 
-use vars qw(@ISA);
+use vars qw(@ISA $DEBUG);
 
 push @ISA, 'AliEn::Logger::LogObject';
 sub new {
@@ -16,6 +16,10 @@ sub new {
   $self->{DESTHOST} = $options->{HOST};
 
   $self->SUPER::new() or return;
+
+  $options->{DEBUG} and $self->{DEBUG} = $options->{DEBUG} or $self->{DEBUG} = 0;
+  $self->{LOGGER} or $self->{LOGGER}= new AliEn::Logger;
+  $self->{DEBUG} and $self->{LOGGER}->debugOn();
 
   $self->initialize($options) or return;
   return $self;

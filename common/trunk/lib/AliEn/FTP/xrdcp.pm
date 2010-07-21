@@ -2,7 +2,10 @@ package AliEn::FTP::xrdcp;
 
 use AliEn::SE::Methods::root;
 use strict;
-use vars qw(@ISA);
+use vars qw(@ISA $DEBUG);
+
+use AliEn::Logger::LogObject;
+push @ISA, 'AliEn::Logger::LogObject';
 
 
 use AliEn::FTP;
@@ -12,8 +15,7 @@ sub initialize {
   my $self=shift;
   $self->info("This does the copy in two steps");
 
-
-  $self->{MSS}=AliEn::SE::Methods->new('root://host/path') 
+  $self->{MSS}=AliEn::SE::Methods->new({PFN=>'root://host/path',DEBUG=>$self->{DEBUG}}) 
     or $self->info("Error creating the interface to xrootd") 
       and return;
 
@@ -25,7 +27,6 @@ sub copy {
   my $source=shift;
   my $target=shift;
   $self->info("Ready to copy $source into $target ");
-
 
   $self->{MSS}->{LOCALFILE}.=".$source->{guid}";
   $ENV{ALIEN_XRDCP_ENVELOPE}=$source->{envelope};
