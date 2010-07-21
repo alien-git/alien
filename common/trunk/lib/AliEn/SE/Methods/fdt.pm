@@ -33,7 +33,7 @@ sub _execute {
 sub get {
   my $self = shift;
 
-  $self->debug(1,"Trying to get the file $self->{PARSED}->{ORIG_PFN} (to $self->{LOCALFILE})");
+  $self->debug(1,"Trying to get the file $self->{PARSED}->{ORIG_PFN} (to $self->{LOCALFILE}) along with the transfer");
   $self->{PARSED}->{PATH}=~ s{^//}{/};
   my $localDir = ($self->{LOCALFILE} =~ /^(.*)\// ? $1 : "");
   my $localTarget = ($self->{LOCALFILE} =~ /([^\/]*)$/ ? $1 : "");
@@ -53,7 +53,7 @@ sub get {
 
 sub put {
   my $self=shift;
-  $self->debug(1,"Trying to put the file $self->{PARSED}->{ORIG_PFN} (from $self->{LOCALFILE})");
+  $self->debug(1,"Trying to put the file $self->{PARSED}->{ORIG_PFN} (from $self->{LOCALFILE}) along with the transfer");
 
   my $rmtDir = ($self->{PARSED}->{PATH} =~ /^(.*)\// ? $1 : "");
   my $rmtFile= ($self->{PARSED}->{PATH} =~ /([^\/]*)$/ ? $1 : "");

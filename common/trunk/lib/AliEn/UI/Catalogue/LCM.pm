@@ -289,7 +289,10 @@ sub get {
    my $self = shift;
    my %options=();
    @ARGV=@_;
-   getopts("gonb:clfs:", \%options) or $self->info("Error parsing the arguments of get\n". $self->get_HELP()) and  return ;
+
+   
+   getopts("gonb:clfs:", \%options) or $self->info("Error parsing the arguments of [get]\n". $self->get_HELP(),1)
+              and return ;
    @_=@ARGV;
    
    my $opt=join("",keys %options);
@@ -298,7 +301,7 @@ sub get {
  
    ($file)
      or print STDERR
- "Error: not enough arguments in get\n". $self->get_HELP()
+ "Error: not enough arguments in [get]\n". $self->get_HELP()
    and return;
  
    my $excludedAndfailedSEs = "";
@@ -320,10 +323,14 @@ sub get {
    ($self->identifyValidGUID($file)) or ($class =~ /^AliEn/ ) and $entry = $self->{CATALOG}->f_complete_path($file);
    my $guidInfo = {};
 
-   my  (@envelope) = $self->access("-s","read",$entry,$wishedSE,0,($excludedAndfailedSEs || 0),0,$self->{CONFIG}->{SITE},0,0) or return;
+   my  (@envelope) = $self->access("-s","read",$entry,$wishedSE,0,($excludedAndfailedSEs || 0),0,$self->{CONFIG}->{SITE},0,0) 
+      or $self->info("Getting an envelope was not successfull for file $file.",1) and return;
+
+
    my $envelop = $envelope[0];
    ((!$envelop) or (!defined $envelop->{envelope}) or $envelop->{eof}) and 
-     $self->info( "Cannot get access to $file") and return;
+     $self->info( "Cannot get access to $file",1)
+              and  return;
 
    $guidInfo->{guid}=$envelop->{guid};
    $guidInfo->{size}=$envelop->{size};
@@ -356,7 +363,7 @@ sub get {
      if ($self->{MONITOR}){
 	$self->sendMonitor('read', $guidInfo->{se}, $time, $guidInfo->{size}, $result);
      }
-     $result and last or $self->info("ERROR: getFile failed with: ".$self->{LOGGER}->error_msg());
+     $result and last or $self->info("ERROR: getFile failed with: ".$self->{LOGGER}->error_msg(),1);
      ###
      my $alreadyInList = 0;
      foreach (split(";",$excludedAndfailedSEs)) { (lc $_ eq lc $guidInfo->{se}) and $alreadyInList=1;}
@@ -365,11 +372,13 @@ sub get {
        $excludedAndfailedSEs .= $guidInfo->{se}; # Mark that SE as failed.
      }
      $self->info("Getting the file didn't work :(. Trying to get an envelope for another SE, excluding: $excludedAndfailedSEs.");
-     (@envelope) = $self->access("-s","read",$file,0,0,($excludedAndfailedSEs || 0),0,$self->{CONFIG}->{SITE},0,0) or return;
+     (@envelope) = $self->access("-s","read",$file,0,0,($excludedAndfailedSEs || 0),0,$self->{CONFIG}->{SITE},0,0) or 
+         or  $self->info("ERROR: Getting an envelope was not successfull for file $file.",1) and return;
 
      $envelop = $envelope[0];
      ((!$envelop) or (!defined $envelop->{envelope}) or $envelop->{eof}) and 
-        $self->info( "Cannot get access to $file") and return;
+        $self->info( "Cannot get access to $file",1) 
+              and return;
 
      $guidInfo->{guid}=$envelop->{guid};
      $guidInfo->{size}=$envelop->{size};
@@ -379,7 +388,7 @@ sub get {
      $guidInfo->{guid} or $self->info("Error getting the guid and md5 of $file",-1) and return;
    } 
    $result or
-     $self->info("Error: not possible to get the file $file", 1) and return;
+     $self->info("Error: not possible to get the file $file. Message: ".$self->{LOGGER}->error_msg(), 1) and return;
    $self->info("And the file is $result",0,0);
    return $result;
 }
@@ -398,7 +407,7 @@ sub getCollection{
   if ($localFile){
     $self->info("We have to rename it to $localFile");
     AliEn::Util::mkdir($localFile) or 
-	$self->info("error making the directory $localFile") and return;
+	$self->info("error making the directory $localFile",1) and return;
   }
   my $names={}; 
   my $counter=0;
@@ -2573,7 +2582,7 @@ sub registerFileAccordingEnvelopes{
      }
      
      $res or $jobtracelog and  
-          push @{$result->{jobtracelog}}, {flag=>"error", text=>"ERROR storing $pfn in $envelope->{se}"};
+          push @{$result->{jobtracelog}}, {flag=>"error", text=>"ERROR storing $pfn in $envelope->{se}, Message: ".$self->{LOGGER}->error_msg };
 
      $res or print STDERR "ERROR storing $pfn in $envelope->{se}\n" and push @excludedSes, $envelope->{se} and next;
 

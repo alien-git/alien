@@ -1,12 +1,14 @@
 package AliEn::SE::Methods::root;
 
 use AliEn::SE::Methods::Basic;
+use AliEn::Logger::LogObject;
 
 use strict;
 use vars qw( @ISA $DEBUG);
 @ISA = ("AliEn::SE::Methods::Basic");
 
-$DEBUG=0;
+push @ISA, 'AliEn::Logger::LogObject';
+
 use IPC::Open2;
 
 use strict;
@@ -25,6 +27,8 @@ sub initialize {
       $self->{XRDCP}="xrdcpapmon";
     }
   }
+
+  $self->{XRD} = "xrd";
   
   return $self;
 }
@@ -39,27 +43,39 @@ sub _execute {
   return system ($command);
 }
 
+
 sub get {
   my $self = shift;
 
-  $self->debug(1,"Trying to get the file $self->{PARSED}->{ORIG_PFN} (to $self->{LOCALFILE})");
-  $self->{PARSED}->{PATH}=~ s{^//}{/};
-  my $p= $self->{PARSED}->{PATH};
-  $p =~ s/#.*$//;
-  my $command="$self->{XRDCP} -DIFirstConnectMaxCnt 6  root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$p $self->{LOCALFILE} ";
+  my $xrddebug = "";
+  $self->{DEBUG} and $self->{DEBUG} > 2 and $xrddebug = " -d ".($self->{DEBUG}-2);
+
+  my $command;
 
   if ($ENV{ALIEN_XRDCP_ENVELOPE}){
     my $p=$ENV{ALIEN_XRDCP_URL};
     $p=~ s/#.*$//;
-    $command="$self->{XRDCP} -DIFirstConnectMaxCnt 6 $p $self->{LOCALFILE} -OS\\\&authz=\"$ENV{ALIEN_XRDCP_ENVELOPE}\"";
+    $command="$self->{XRDCP} $xrddebug -DIFirstConnectMaxCnt 6 $p $self->{LOCALFILE} -OS\\\&authz=\"$ENV{ALIEN_XRDCP_ENVELOPE}\"";
     $self->debug(1, "The envelope is $ENV{ALIEN_XRDCP_ENVELOPE}");
+    $self->debug(1,"Trying to get the file $self->{PARSED}->{ORIG_PFN} (to $self->{LOCALFILE})");
+  # Isn't the following branch old and useless ? Not sure !
+  } else {
+    $self->{PARSED}->{PATH}=~ s{^//}{/};
+    my $p= $self->{PARSED}->{PATH};
+    $p =~ s/#.*$//;
+    $command="$self->{XRDCP} -d 3 -DIFirstConnectMaxCnt 6 root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$p $self->{LOCALFILE} ";
+    $self->debug(1,"Trying to get the file $self->{PARSED}->{ORIG_PFN} (to $self->{LOCALFILE})");
   }
   
+  my $output = `$command 2>&1 ; echo "ALIEN_XRD_SUBCALL_RETURN_VALUE=\$?"` or $self->info("ERROR: Not possible to call $self->{XRDCP}!",1) and return;
+  $output =~ s/\s+$//;
+  $output =~ /ALIEN_XRD_SUBCALL_RETURN_VALUE\=([-]*\d+)$/;
+  my $com_exit_value = $1;
+  
+  $self->debug(2, "Exit code: $com_exit_value, Returned output: $output");
 
-# At the moment, xrdcp doesn't return properly. Let's check if the file exists
-  $self->_execute($command);
-
-  (-f $self->{LOCALFILE}) or return;
+  ( ($com_exit_value eq 0) and (-f $self->{LOCALFILE}) ) 
+      or $self->info("ERROR: Getting the file with xrdcp didn't work! Exit code: $com_exit_value, Returned output: $output",1) and return;
 
   $self->debug(1,"YUUHUUUUU!!\n");
   return $self->{LOCALFILE};
@@ -67,41 +83,50 @@ sub get {
 
 sub put {
   my $self=shift;
+ 
+   my $xrddebug = "";
+  $self->{DEBUG} and $self->{DEBUG} > 2 and $xrddebug = " -d ".($self->{DEBUG}-2);
+
+
   $self->debug(1,"Trying to put the file $self->{PARSED}->{ORIG_PFN} (from $self->{LOCALFILE})");
-
   $self->{PARSED}->{PATH}=~ s{^//}{/};
-
   $self->debug(1,"PUTTING THE SECURITY ENVELOPE IN THE XRDCP");
 
-  my $command="$self->{XRDCP} -DIFirstConnectMaxCnt 6 -np -v $self->{LOCALFILE} -f ";
+  my $command="$self->{XRDCP} $xrddebug -DIFirstConnectMaxCnt 6 -np -v $self->{LOCALFILE} -f";
 
   if ($ENV{ALIEN_XRDCP_ENVELOPE}){
     $command.="$ENV{ALIEN_XRDCP_URL} -OD\\\&authz=\"$ENV{ALIEN_XRDCP_ENVELOPE}\"";
     $self->debug(1,"The envelope is $ENV{ALIEN_XRDCP_ENVELOPE}");
-  } else {
-    $command.="root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH}";
-  }
-#  my $error = $self->_execute($command);
-  $self->debug(1,"The command is $command");
-  open (OUTPUT, "$command  2>&1 |") or $self->info("Error: xrdcp is not in the path") and return;
-  my @output=<OUTPUT>;
-  close OUTPUT;
-  $self->debug(2, "Got the output: @output");
-  my ($line)=grep (/Data Copied \[bytes\]\s*:\s*(\d+)/, @output);
-  if ($line){
-    $line=~ /Data Copied \[bytes\]\s*:\s*(\d+)/;
-    $self->info("Transfered  $1  bytes");
-    my $size=-s $self->{LOCALFILE};
-    if ($size eq $1){
-      $self->info("YUHUUU!!");
-      return "root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH}";
-    } 
-    $self->info("The file has not been completely transfered");
-    return;
-  }
 
-#  $error and return;
-  $self->info("Something went wrong with xrdcp!!\n @output\n");
+  } else {
+    $command.=" root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH}";
+  }
+  $self->debug(1,"The command is $command");
+  my $output = `$command  2>&1 ; echo "ALIEN_XRD_SUBCALL_RETURN_VALUE=\$?"` or $self->info("Error: xrdcp is not in the path",1) and return;
+  $output =~ s/\s+$//; 
+  $output =~ /ALIEN_XRD_SUBCALL_RETURN_VALUE\=([-]*\d+)$/;
+  my $com_exit_value = $1;
+
+  $self->debug(2, "Exit code: $com_exit_value, Returned output: $output");
+  if($com_exit_value eq 0) {
+      $output=~ /Data Copied \[bytes\]\s*:\s*(\d+)/;
+      $output=~ /Data Copied \[bytes\]\s*:\s*(\d+)/;
+      $self->info("Transfered  $1  bytes");
+      my $size=-s $self->{LOCALFILE};
+      if ($size eq $1){
+         $self->info("YUHUUU!! File was properly uploaded, now let's double check destination file size again ...");
+         my $vercommand = "$self->{XRD} $self->{PARSED}->{HOST}:$self->{PARSED}->{PORT} stat $self->{PARSED}->{PATH}";
+         my $doxrcheck = `$vercommand` or $self->info("WARNING: xrd stat to double check file size after successful write was not possible!",1);
+         $doxrcheck =~ /Size:\ (\d+)/;
+         ( ($1 eq $size) and $self->info("EXCELLENT! Double checking file size on destination SE was successfully.") )
+             or $self->info("ERROR: Double checking the file size on the SE with xrd stat showed unequal file sizes!",1);
+         $self->debug(2,"Double check file size value from xrd stat: $1");
+         return "root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH}";
+      }
+      $self->info("The file has not been completely uploaded. Exit code: $com_exit_value, Returned output: $output",1);
+      return;
+  }
+  $self->info("Exit code not equal to zero. Something went wrong with xrdcp!! Exit code: $com_exit_value, Returned output: $output",1);
   return;
 }
 
@@ -116,7 +141,7 @@ sub remove {
   print "We are in the remove\n";
 #  open(FILE, "| xrd $self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}
   my $pid = open2(*Reader, *Writer, "xrd $self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}" )
-    or $self->info("Error calling xrd!") and return;
+    or $self->info("Error calling xrd!") && return;
   print "Open\n";
   print Writer "rm $self->{PARSED}->{PATH}\n";
   print "Just wrote\n";

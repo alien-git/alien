@@ -12,7 +12,11 @@ use LWP::UserAgent;
 use POSIX ":sys_wait_h";
 use strict;
 
-use vars qw(@ISA);
+use vars qw(@ISA $DEBUG);
+use AliEn::Logger::LogObject;
+
+push @ISA, 'AliEn::Logger::LogObject';
+
 use Classad;
 
 #use AliEn::MSS::file;
@@ -466,13 +470,15 @@ sub transferFile {
     } else{
       ($done, $prot_id)=$self->{PLUGINS}->{lc($protocol)}->copy($sourceEnvelope, $targetEnvelope, $line);
     }
-    if ($done eq 1){
-      $self->info("The transfer worked  Final pfn:'$targetEnvelope->{url}'!!!");
-      $done=1;
-    }elsif ($done eq 2){
-      $done=0;
-      $self->waitForCompleteTransfer($self->{PLUGINS}->{lc($protocol)}, $id, $prot_id)
-	and $done=1;
+    if ($done) {
+      if ($done eq 1){
+        $self->info("The transfer worked  Final pfn:'$targetEnvelope->{url}'!!!");
+        $done=1;
+      }elsif ($done eq 2){
+        $done=0;
+        $self->waitForCompleteTransfer($self->{PLUGINS}->{lc($protocol)}, $id, $prot_id)
+  	and $done=1;
+      }
     }
   };
   if ($@){
