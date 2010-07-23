@@ -372,7 +372,7 @@ sub get {
        $excludedAndfailedSEs .= $guidInfo->{se}; # Mark that SE as failed.
      }
      $self->info("Getting the file didn't work :(. Trying to get an envelope for another SE, excluding: $excludedAndfailedSEs.");
-     (@envelope) = $self->access("-s","read",$file,0,0,($excludedAndfailedSEs || 0),0,$self->{CONFIG}->{SITE},0,0) or 
+     (@envelope) = $self->access("-s","read",$file,0,0,($excludedAndfailedSEs || 0),0,$self->{CONFIG}->{SITE},0,0) 
          or  $self->info("ERROR: Getting an envelope was not successfull for file $file.",1) and return;
 
      $envelop = $envelope[0];
