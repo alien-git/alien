@@ -51,14 +51,10 @@ sub getListInstalledPackages{
 #This is the method that has to be overwritten in other implemetations
 sub getListInstalled_Internal {
   my $self=shift;
-  
-  my ($status,@list)=$self->readPackagesFromFile("alien_list_Installedpackages_");  
   $self->debug(1,"Asking the PackMan for the packages that it has installed");
-  if (! $status){
-    my ($done)=$self->{SOAP}->CallSOAP("PackMan","getListInstalledPackages","ALIEN_SOAP_SILENT", @_) or return;
-    $status=$done->result;
-    @list=$done->paramsout;
-  }
+  my ($done)=$self->{SOAP}->CallSOAP("PackMan","getListInstalledPackages","ALIEN_SOAP_SILENT", @_) or return;
+  my $status=$done->result;
+  my @list=$done->paramsout;
   $self->debug(2, "The list of installed is @list");
   return  $status, @list;
 
@@ -66,43 +62,13 @@ sub getListInstalled_Internal {
 
 sub getListPackages {
   my $self=shift;
-  my $platform=AliEn::Util::getPlatform($self);
-  grep (/^-all/, @_) and $platform="all";
- 
-  my @packages;
-  if (!grep (/-force/, @_)){
-    @packages=$self->readPackagesFromFile("alien_list_packages_$platform");  
-  }
-  
-  if (! @packages){
-    $self->info("Asking the $self->{SOAP_SERVER} for the packages that it knows");
-    my ($done)=$self->{SOAP}->CallSOAP($self->{SOAP_SERVER},"getListPackages", @_) or return;
+  $self->debug(1,"Asking the $self->{SOAP_SERVER} for the packages that it knows");
+  my ($done)=$self->{SOAP}->CallSOAP($self->{SOAP_SERVER},"getListPackages", @_) or return;
 
-    @packages=($done->result, $done->paramsout);
-  } 
+  my @packages=($done->result, $done->paramsout);
   grep (/^-s(ilent)?$/, @_) or 
     $self->printPackages({input=>\@_},@packages);
   return @packages;
-}
-
-
-sub readPackagesFromFile{
-  my $self=shift;
-  my $file=shift;
-  
-  my $dir=($self->{CONFIG}->{PACKMAN_INSTALLDIR} || '$ALIEN_HOME/packages');  
-  $dir =~ s{\$([^/]*)}{$ENV{$1}}g;
-  $file="$dir/$file";
-  
-  $self->info("Checking if the file $file exists...");
-  (-f $file) or return;
-  $self->info("The file exists!");
-  open (FILE, "<$file") or $self->info("Error opening the file $file") and return;
-  my @packages=<FILE>;
-  close FILE;
-  chomp @packages;
-  $self->info("File read");
-  return 1, @packages;
 }
 
 
@@ -231,7 +197,7 @@ sub f_packman {
   my $requiresPackage=0;
   
   my $local=0;
-  my $optionsLocal={PACKMAN_METHOD=>"Local", SKIP_FILE_CREATION=>1};
+  my $optionsLocal={PACKMAN_METHOD=>"Local"};
   if (grep (/^-local$/i, @arg)){
     $local=1;
     @ARGV=@arg;
@@ -391,9 +357,9 @@ sub synchronizePackages {
   my $optionsPackages={};
   @ARGV=@arg;
 
-  Getopt::Long::Configure("pass_through");
+Getopt::Long::Configure("pass_through");
   Getopt::Long::GetOptions($optionsPackages, "packages=s");
-  Getopt::Long::Configure("default");
+Getopt::Long::Configure("default");
 
 #      or $self->info("Error checking the options of packman synchronize") and return;
   @arg=@ARGV;
@@ -401,16 +367,15 @@ sub synchronizePackages {
   my $pattern="(".join(")|(", split(/,/, $optionsPackages->{packages} ||"")).")";
 
   my ($ok1, @packages)=$self->getListPackages("-s");
-  $ok1 or $self->info("Error getting the list of packages") and return;
+  $ok1 or self->info("Error getting the list of packages") and return;
   my ($ok, @installed)=$self->f_packman("listInstalled", "-s", @arg);
-  $ok or $self->info("Error getting the list of packages") and return;
+  $ok or self->info("Error getting the list of packages") and return;
    
-  my $done=1;
   foreach my $p (@packages){    
     if (!grep (/^$p$/, @installed)){
       if ( grep(/^$pattern/, $p)){
         $self->info("  We have to install $p");
-        $self->f_packman("install", "-s", $p, @arg) or $done=-2;
+        $self->f_packman("install", "-s", $p, @arg);
       }
     }
     @installed=grep (!/^$p$/, @installed);  
@@ -418,10 +383,10 @@ sub synchronizePackages {
   foreach my $p (@installed){
     grep(/^$pattern/, $p) or next;
     $self->info("  And we have to delete $p");
-    $self->f_packman("remove", "-s", $p, @arg) or $done=-2;  
+    $self->f_packman("remove", "-s", $p, @arg);  
   }
   
-  return $done;
+  return 1;
   
 }
 
