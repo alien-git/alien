@@ -92,7 +92,7 @@ sub put {
   $self->{PARSED}->{PATH}=~ s{^//}{/};
   $self->debug(1,"PUTTING THE SECURITY ENVELOPE IN THE XRDCP");
 
-  my $command="$self->{XRDCP} $xrddebug -DIFirstConnectMaxCnt 6 -np -v $self->{LOCALFILE} -f";
+  my $command="$self->{XRDCP} $xrddebug -DIFirstConnectMaxCnt 6 -np -v $self->{LOCALFILE} -f ";
 
   if ($ENV{ALIEN_XRDCP_ENVELOPE}){
     $command.="$ENV{ALIEN_XRDCP_URL} -OD\\\&authz=\"$ENV{ALIEN_XRDCP_ENVELOPE}\"";
