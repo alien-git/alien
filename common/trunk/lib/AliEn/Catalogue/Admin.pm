@@ -1034,7 +1034,7 @@ sub calculateFileQuota {
 #          #Join G#L with L#L -> get data
 #          $my $data=$db->query("select l.owner as user, count(g2.guidid) as nbFiles, sum(g.size) as totSize from ${LTableName} l, ${GTableName} g, ${GTableName}_PFN g2 where g.guid=l.guid and g.guidid=g2.guidid group by l.owner order by l.owner");
           #Counting LFNs(not checking GUIDs)
-          my $data=$db->query("select l.owner as user, count(l.lfn) as nbFiles, sum(l.size) as totSize from ${LTableName} l where l.size>0 group by l.owner order by l.owner");
+          my $data=$db->query("select l.owner as user, count(l.lfn) as nbFiles, sum(l.size) as totSize from ${LTableName} l where l.type='f' group by l.owner order by l.owner");
           for my $tmp (@$data)
           {
             if(exists $dataFromJoin{$tmp->{user}})
