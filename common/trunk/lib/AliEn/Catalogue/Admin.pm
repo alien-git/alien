@@ -1014,7 +1014,7 @@ sub calculateFileQuota {
     my $LTableName="L${LTableIdx}L";
     
     #check if all tables exist for $LTableIdx
-    $self->{DATABASE}->{LFN_DB}->checkLFNTable("${LTableIdx}");
+    $db->checkLFNTable("${LTableIdx}");
     
     $self->$method(@data, "Checking if the table ${LTableName} is up to date");
     $db->queryValue("select 1 from (select max(ctime) ctime, count(1) counter from $LTableName) a left join LL_ACTIONS on tablenumber=? and action='QUOTA' where extra is null or extra<>counter or time is null or time<ctime", undef, {bind_values=>[$LTableIdx]}) or next;
