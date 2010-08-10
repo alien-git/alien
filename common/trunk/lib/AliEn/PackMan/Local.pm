@@ -29,7 +29,11 @@ sub initialize{
   }
   $self->info("CREATING THE CATALOGUE");
   $self->{CATALOGUE}=AliEn::UI::Catalogue::LCM->new({no_catalog=>1})  or return;
-
+  $self->info("DO WE SKIP?");
+  if (! $self->{SKIP_FILE_CREATION}) {
+   $self->createListFiles() or
+    $self->info("WARNING! We couldn't create the list of packages");   
+  }
 
   return $self->SUPER::initialize();
 }
