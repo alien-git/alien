@@ -1380,6 +1380,20 @@ sub _destroyCache{
 	system ("rm","-r","$self->{CACHE_ROOT}/$key");
 }
 
+
+sub optimizeTable{
+  my $self=shift;
+  my $table=shift;
+  $self->info("Ready to optimize the table $table (from $self->{DB})");
+  if ($self->queryValue("SELECT count(*) FROM information_schema.TABLES where table_schema=? and table_name=? 
+                          and (data_free > 100000000 or data_free/data_length>0.1)",
+                          undef, {bind_values=>[$self->{DB}, $table]})){
+      $self->info("We have to optimize the table");
+      $self->do("optimize table $table");
+  }
+  return 1;
+}
+
 =item C<createTable>
 
   $res = $dbh->createTable($table,$spec,$checkExists);
