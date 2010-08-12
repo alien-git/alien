@@ -175,8 +175,8 @@ sub checkGUIDTable {
 
   $db->checkTable("${table}_QUOTA", "user", {user=>"varchar(64) NOT NULL", nbFiles=>"int(11) NOT NULL", totalSize=>"bigint(20) NOT NULL"}, undef, ['INDEX user_ind (user)'],) or return;
 
-  $db->do("optimize table $table");
-  $db->do("optimize table ${table}_PFN");
+  $db->optimizeTable($table);
+  $db->optimizeTable("${table}_PFN");
 
   my $index=$table;
   $index=~ s/^G(.*)L$/$1/;
