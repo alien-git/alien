@@ -38,6 +38,38 @@ sub initialize{
   return $self->SUPER::initialize();
 }
 
+ 
+sub createListFiles {
+  my $self=shift;
+  my $options=shift || {};
+  
+  my $platform=AliEn::Util::getPlatform($self);
+  $self->{PACKMAN_PLATFORM} and $platform=$self->{PACKMAN_PLATFORM};
+  
+  
+  my @list=({function=>"", arguments=>$platform},
+                    {function=>"", arguments=>"all"},
+                    {function=>"Installed", arguments=>""});
+  $options->{only_installed} and @list=$list[2];                    
+  
+  foreach my $e (@list){
+    my $file="$self->{INST_DIR}/alien_list_$e->{function}packages_$e->{arguments}";
+   
+    $self->info("Making the list of all the $e->{function} packages in $file");
+    
+    open (FILE, ">$file")
+      or $self->info("Error creating the file $file}") and return;
+    my $fun="getList$e->{function}Packages";
+    my ($ok,@list)=$self->$fun($e->{arguments}, "-force");
+    $ok or $self->info("Error getting the list of  packages") and return;
+    print FILE join ("\n", @list);
+    close FILE;
+  }  
+
+  
+  return 1;
+}
+
 sub removeLocks{
   my $self=shift;
   open (FILE, "ls $self->{INST_DIR}/*.InstallLock 2>/dev/null |") or
