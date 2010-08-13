@@ -29,18 +29,21 @@ sub initialize{
   }
   $self->info("CREATING THE CATALOGUE");
   $self->{CATALOGUE}=AliEn::UI::Catalogue::LCM->new({no_catalog=>1})  or return;
-  $self->info("DO WE SKIP?");
-  if (! $self->{SKIP_FILE_CREATION}) {
-   $self->createListFiles() or
-    $self->info("WARNING! We couldn't create the list of packages");   
-  }
+  $self->SUPER::initialize() or return;
 
-  return $self->SUPER::initialize();
+  $self->createListFiles() or
+    $self->info("WARNING! We couldn't create the list of packages")
+      and return
+
+  return 1;
 }
 
  
 sub createListFiles {
   my $self=shift;
+  $self->{LIST_FILE_CREATION} 
+    or $self->debug(1, "In fact, we don't do any lists")
+      and return 1;
   my $options=shift || {};
   
   my $platform=AliEn::Util::getPlatform($self);
