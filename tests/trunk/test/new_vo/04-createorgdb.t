@@ -69,7 +69,7 @@ $exp->soft_close();
 print "Checking that the databases are there...";
 
 my $hostName=Net::Domain::hostfqdn();
-my $portNumber="3307";
+my $portNumber=$ENV{ALIEN_MYSQL_PORT} || "3307";
 my $mysqlPasswd="pass";
 
 my $mysql="mysql";

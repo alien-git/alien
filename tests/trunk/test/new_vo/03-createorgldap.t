@@ -22,6 +22,9 @@ BEGIN { plan tests => 1 }
 
 my $user="";
 $< and $user="Y\n";
+
+my $mysql_port=$ENV{ALIEN_MYSQL_PORT} || "3307";
+my $services_port=$ENV{ALIEN_SERVICES_PORT} || "7070";
 my $org=Net::Domain::hostname();
 my $fqd=Net::Domain::hostfqdn();
 open (FILE, "|$ENV{ALIEN_ROOT}/bin/alien -x $ENV{ALIEN_ROOT}/scripts/CreateOrgLDAP.pl");
@@ -33,8 +36,8 @@ ldap-pass
 ldap-pass
 
 
-7070
-$fqd:3307
+$services_port
+$fqd:$mysql_port
 
 cern.ch
 $subject

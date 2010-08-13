@@ -15,7 +15,7 @@ BEGIN { plan tests => 2 }
 print "Connecting to mysql...";
 
 my $hostName=Net::Domain::hostname();
-my $portNumber="3307";
+my $portNumber= $ENV{ALIEN_MYSQL_PORT} ||"3307";
 my $mysqlPasswd="pass";
 
 open SAVEOUT,  ">&STDOUT";

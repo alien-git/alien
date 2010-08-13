@@ -15,8 +15,8 @@ BEGIN { plan tests => 3 }
 
 
 {
-
-print "Synchronizing with $ENV{ALIEN_NTP_HOST} (or pool.ntp.org)\n"; 
+my $h=$ENV{ALIEN_NTP_HOST} || "pool.ntp.org";
+print "Synchronizing with $h\n"; 
 print "Creating a new proxy...";
 open (FILE, "$ENV{ALIEN_ROOT}/bin/alien proxy-init|") 
   or print "ERROR OPENING alien proxy-init\n" and exit(-1);
