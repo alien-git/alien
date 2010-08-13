@@ -85,7 +85,7 @@ sub getListPackages{
     $self->info( "$$ $$ Returning the value from the cache (@$cache)");
     return (1, @$cache);
   }
-
+  $self->{PACKMAN}->createListFiles();
   my ($status, @packages)=$self->{PACKMAN}->getListPackages($platform, @_);
 
   $self->info( "$$ $$ RETURNING @packages");
@@ -114,6 +114,7 @@ sub getListInstalledPackages {
     $self->info( "$$ $$ Returning the value from the cache (@$cache)");
     return (1, @$cache);
   }
+  $self->{PACKMAN}->createListFiles();
   my ($status, @allPackages)=$self->{PACKMAN}->getListInstalledPackages();
   $self->info( "$$ Returning @allPackages");
   AliEn::Util::setCacheValue($self, "installedPackages", \@allPackages);
@@ -242,6 +243,7 @@ sub initialize {
   #Remove all the possible locks;
   $self->info( "$$ Removing old lock files");
   $self->{PACKMAN}=AliEn::PackMan->new({PACKMAN_METHOD=>"Local", 
+                LIST_FILE_TTL=>600,
 					SOAP_SERVER=>"PackManMaster"}) or return;
 
   $self->{PACKMAN}->removeLocks();

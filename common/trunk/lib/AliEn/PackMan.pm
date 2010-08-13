@@ -25,7 +25,7 @@ sub new {
     bless($self, $name);
   }
   $self->{SOAP}=AliEn::SOAP->new() or return;
-
+  $self->{LIST_FILE_TTL} or $self->{LIST_FILE_TTL}=7200;
   $self->initialize(@_) or return;
   return $self;
 }
@@ -51,24 +51,90 @@ sub getListInstalledPackages{
 #This is the method that has to be overwritten in other implemetations
 sub getListInstalled_Internal {
   my $self=shift;
+  my ($status, @list)= (0,undef);
+  if (!grep (/-force/, @_)){
+    ($status, @list)=$self->readPackagesFromFile("alien_list_installed");  
+  } 
   $self->debug(1,"Asking the PackMan for the packages that it has installed");
-  my ($done)=$self->{SOAP}->CallSOAP("PackMan","getListInstalledPackages","ALIEN_SOAP_SILENT", @_) or return;
-  my $status=$done->result;
-  my @list=$done->paramsout;
+
+  if ($status != 1){
+    my ($done)=$self->{SOAP}->CallSOAP("PackMan","getListInstalledPackages","ALIEN_SOAP_SILENT", @_) or return;
+    if ($done->result){      
+      $status=$done->result;
+      @list=$done->paramsout;
+    }elsif($status< 0){
+      $self->info("Well, the info is old, but it is better than nothing");
+      $status=1;
+    }
+  }
   $self->debug(2, "The list of installed is @list");
   return  $status, @list;
-
 }
 
 sub getListPackages {
   my $self=shift;
-  $self->debug(1,"Asking the $self->{SOAP_SERVER} for the packages that it knows");
-  my ($done)=$self->{SOAP}->CallSOAP($self->{SOAP_SERVER},"getListPackages", @_) or return;
 
-  my @packages=($done->result, $done->paramsout);
+  my $platform=AliEn::Util::getPlatform($self);
+  grep (/^-all/, @_) and $platform="all";
+ 
+  my ($status, @packages)= (0,undef);
+  if (!grep (/-force/, @_)){
+    ($status, @packages)=$self->readPackagesFromFile("alien_list_packages_$platform");  
+  }
+  
+  if ($status != 1){
+    $self->info("Asking the $self->{SOAP_SERVER} for the packages that it knows");
+    my ($done, @pack);
+    eval {
+      ($done)=$self->{SOAP}->CallSOAP($self->{SOAP_SERVER},"getListPackages", @_) or return;
+      ($done, @pack)=($done->result, $done->paramsout);
+    };
+    if ($@){
+      $self->info("Error contacting the packman: $@");
+    }    
+    
+    if ($done and $done == 1){
+      ($status, @packages)=($done,@pack)
+    }elsif ($status<0){
+      $self->info("Well, the info is old, but it is better than nothing");
+      $status=1;
+    }
+  } 
   grep (/^-s(ilent)?$/, @_) or 
     $self->printPackages({input=>\@_},@packages);
-  return @packages;
+  return $status, @packages;
+}
+
+
+
+sub readPackagesFromFile{
+  my $self=shift;
+  my $file=shift;
+  
+  my $dir=($self->{CONFIG}->{PACKMAN_INSTALLDIR} || '$ALIEN_HOME/packages');  
+  $dir =~ s{\$([^/]*)}{$ENV{$1}}g;
+  $file="$dir/$file";
+  
+  $self->debug(1,"Checking if the file $file exists...");
+  use File::stat;
+  my $st = stat($file)  or return 0;
+  $self->debug(2, "Reading from the file $file!");
+
+  open (FILE, "<$file") or $self->info("Error opening the file $file") and return 0;
+  my @packages=<FILE>;
+  close FILE;
+  chomp @packages;
+  $self->info("File '$file' read");
+  my $return=1;
+
+  my $time=time;
+  
+  if ($time - $st->mtime > $self->{LIST_FILE_TTL}){
+    $self->info("The file is older than $self->{LIST_FILE_TTL} seconds... use at your own risk");
+    $return=-2;  
+  
+  }
+  return $return, @packages;
 }
 
 
