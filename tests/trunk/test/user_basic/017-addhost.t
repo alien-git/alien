@@ -57,11 +57,11 @@ close MYSQL or print "Error closing connection to mysql in  $hostName -P $portNu
 print "ok\nDoing the alien command...";
 
 
-$cat->execute("addHost", "$hostName:3307", "mysql", "alien_cat2") or exit (-2);
+$cat->execute("addHost", "$hostName:$portNumber", "mysql", "alien_cat2") or exit (-2);
 
 print "ok\nDoing mkremdir...";
 
-$cat->execute("mkremdir","$hostName:3307", "mysql", "alien_cat2","/remote")
+$cat->execute("mkremdir","$hostName:$portNumber", "mysql", "alien_cat2","/remote")
   or print "Error making the remote directory\n" and exit(-2);
 
 my $host=$cat->execute("host");
