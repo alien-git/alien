@@ -243,7 +243,8 @@ sub initialize {
   #Remove all the possible locks;
   $self->info( "$$ Removing old lock files");
   $self->{PACKMAN}=AliEn::PackMan->new({PACKMAN_METHOD=>"Local", 
-                LIST_FILE_TTL=>600,
+					LIST_FILE_TTL=>600,
+					LIST_FILE_CREATION=> 1,
 					SOAP_SERVER=>"PackManMaster"}) or return;
 
   $self->{PACKMAN}->removeLocks();

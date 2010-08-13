@@ -163,8 +163,7 @@ sub initialize {
 
   $self->{JOBLOADED}=0;
   $self->{X509}= new AliEn::X509 or return;
-  $self->{PACKMAN}=AliEn::PackMan->new({PACKMAN_METHOD=>"Local", 
-				     SKIP_FILE_CREATION=>1  }) or 
+  $self->{PACKMAN}=AliEn::PackMan->new({PACKMAN_METHOD=>"Local"}) or 
     $self->info("Error getting the packman") and return ;
 
 
