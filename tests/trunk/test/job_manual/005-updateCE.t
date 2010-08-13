@@ -4,7 +4,8 @@ use Net::Domain qw(hostname hostfqdn hostdomain);
 
 print "Connecting to ldap...";
 my $host=Net::Domain::hostfqdn();
-my $d=AliEn::Database::TaskQueue->new({DRIVER=>"mysql", HOST=>"$host:3307", DB=>"processes", "ROLE", "admin", 				      }) 
+my $port=$ENV{ALIEN_MYSQL_PORT} ||3307;
+my $d=AliEn::Database::TaskQueue->new({DRIVER=>"mysql", HOST=>"$host:$port", DB=>"processes", "ROLE", "admin", 				      }) 
   or print "Error connecting to the database\n" and exit(-2);
 
 my $number=$d->queryValue("SELECT maxjobs FROM HOSTS where hostName='$d->{CONFIG}->{HOST}'");
