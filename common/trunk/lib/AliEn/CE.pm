@@ -1133,9 +1133,8 @@ echo \"Ready to install alien\"
 date
 cd \$DIR
 wget http://alien.cern.ch/alien-installer -O alien-auto-installer
-export ALIEN_INSTALLER_PREFIX=\$DIR/alien
 chmod +x alien-auto-installer
-./alien-auto-installer -skip_rc  -type workernode -batch -torrent
+./alien-auto-installer -type workernode -batch -torrent -install-dir $self->{CONFIG}->{WORK_DIR}/alien
 echo \"Installation completed!!\"
 
 ", "rm -rf \$DIR";
