@@ -13,10 +13,10 @@
 		<exec executable="rsync">
 			<arg value="-r"/>
 			<arg value="."/>
-			<arg value="alientests@aliendb1:alien-common"/>
+			<arg value="alientests@aliendb06d:alien-common"/>
 		</exec>
 		<exec executable="ssh">
-			<arg value="alientests@aliendb1"/>
+			<arg value="alientests@aliendb06d"/>
 			<arg value="cd alien-common;cp Makefile.remote Makefile; make install"/>
 		</exec>
     </target>
