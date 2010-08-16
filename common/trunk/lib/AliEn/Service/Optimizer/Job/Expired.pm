@@ -18,10 +18,12 @@ sub checkWakesUp {
   $self->{LOGGER}->$method("Expired", "In checkWakesUp .... optimizing the QUEUE table ...");
   my  $now = time; 
 
+  #Completed Jobs older than 10 days are moved to the archive
+  $self->archiveJobs("( ( (status='DONE') || (status='FAILED') || (status='EXPIRED') || (status like 'ERROR%')  ) && ( mtime < (? - 865400) ) )", "10 days" ,$self->{DB}->{QUEUEARCHIVE});
 
-  $self->archiveJobs("received < (? - 865400)", "10 days","QUEUEEXPIRED" );
+  #This is slightly more than ten days, and we move it to another table
+  $self->archiveJobs("mtime < (? - 866400)", "10 days","QUEUEEXPIRED" );
 
-  $self->archiveJobs("( ( (status='DONE') || (status='FAILED') || (status='EXPIRED') || (status like 'ERROR%')  ) && ( received < (? - 7*86540) ) )", "1 week" ,$self->{DB}->{QUEUEARCHIVE});
 
 
   $self->{LOGGER}->$method("Expired", "In checkWakesUp going back to sleep");

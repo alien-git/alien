@@ -1570,6 +1570,8 @@ sub getMasterJob {
    $commands->{$data->{command}}->{extra} and 
      push @extra, @{$commands->{$data->{command}}->{extra}};
    my $masterWaiting=0;
+   
+   $self->{DB}->do("update QUEUE set mtime=now() where queueid=?'", {bind_values=>[$id]});
    foreach my $subjob (@$ids){
      my (@done)=$self->$subroutine($subjob, $user, @extra);
      if ($done[0] eq "-1") {
