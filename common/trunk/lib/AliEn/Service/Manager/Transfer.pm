@@ -94,6 +94,75 @@ sub enterTransfer {
   $self->{TRANSFERLOG}->putlog($procid, "STATUS", "New transfer INSERTED to $info->{destination}");
   return $procid;
 }
+sub sendMessageBroker{
+  my $self=shift;
+  my $id=shift;
+  my $broker=$self->{CONFIG}->{MSG_BROKER};
+  $self->info("$$ Sending a messsage to $broker, notifying that the transfer finished");
+  my ($host, $port)=split(/:/, $broker,2);
+  eval {
+
+    my $info=$self->{DB}->queryRow("select substring_index(substr(pfn,8), ':',1) destination,
+ substring_index(substring_index(substring_index(substring(jdl, locate( 'OrigPFNs',jdl)), ':', 2),'//',2), '://', -1) source, 
+date_format(from_unixtime(started -time_to_sec(now() -UTC_TIMESTAMP())), '%Y-%m-%dT%H:%i:%S.000Z') start,
+ date_format(from_unixtime(finished-time_to_sec(now() -UTC_TIMESTAMP())), '%Y-%m-%dT%H:%i:%S.000Z')  end,
+ lfn, size from TRANSFERS_DIRECT where transferid= ? ", undef,{bind_values=>[$id]});
+    use Data::Dumper;
+
+    require Net::STOMP::Client;
+    
+
+    my $stomp = Net::STOMP::Client->new(host => $host, port=>$port);
+    $stomp->connect();
+
+    my $start=$info->{start};
+    my $end=$info->{end};
+    my $file=$info->{lfn};
+    my $source=$info->{source};
+    my $target=$info->{destination};
+    my $size=$info->{size};
+
+    $stomp->send(destination => "/topic/grid.usage.transfer", 
+		 transferProtocol => "xrootd",
+		 body=>"transferProtocol: xrootd
+voName: alice
+fileName: $file
+startTime: $start
+endTime: $end
+srcHost: $source
+destHost: $target
+numberBytes: $size
+gridtfpStreams: 5
+publishingHost: $source
+userName: psaiz
+EOT",
+ receipt     => $stomp->uuid()
+		);
+    $self->info("Message sent!");
+
+    print "
+transferProtocol: xrootd
+voName: alice
+fileName: $file
+startTime: $start
+endTime: $end
+srcHost: $source
+destHost: $target
+numberBytes: $size
+gridtfpStreams: 5
+publishingHost: $source
+userName: psaiz\n";
+
+  } ;
+
+  if ($@){
+    $self->info("Error sending the message to $broker: $@");
+    return;
+  }
+
+  return 1;
+}
+
 
 sub changeStatusTransfer {
   my $this=shift;
@@ -141,6 +210,8 @@ sub changeStatusTransfer {
 
   if($status eq "DONE"){
     $self->updateCatalogue($id);
+    $self->{CONFIG}->{MSG_BROKER} 
+      and $self->sendMessageBroker($id);
   }
 
   if ($status =~ /^(DONE)|(FAILED)|(KILLED)$/){
@@ -443,12 +514,11 @@ sub listTransfer {
       my @new=();
       my @newB=();
       foreach my $entry ( @{$data->{id}->{query}} ){
-	print "\n Entry = $entry";
-	push @new, $entry;
-	$entry=~ s/transferid/transferGroup/;
-	push @new, $entry;
-	my $bind=pop(@{$data->{id}->{bind}});
-	push @newB, $bind, $bind;
+	      push @new, $entry;
+    	  $entry=~ s/transferid/transferGroup/;
+	      push @new, $entry;
+	      my $bind=pop(@{$data->{id}->{bind}});
+	      push @newB, $bind, $bind;
       }
       $data->{id}={query=>\@new, bind=>\@newB};
       $self->info("NOW WE HAVE");
@@ -457,7 +527,7 @@ sub listTransfer {
     $where .= " and (".join (" or ", @{$data->{$column->{name}}->{query}} ).")";
     push @bind, @{$data->{$column->{name}}->{bind}};
   }
-  print "\nColumnas ".$#columns."\n";
+  
   $all_status or $data->{status} or $data->{id} or $where.=" and ( status!='FAILED' and status !='DONE' and status !='KILLED')";
 
   $where.=" ORDER by transferId";
