@@ -18,11 +18,19 @@ sub checkWakesUp {
   $self->{LOGGER}->$method("Expired", "In checkWakesUp .... optimizing the QUEUE table ...");
   my  $now = time; 
 
-  #Completed Jobs older than 10 days are moved to the archive
-  $self->archiveJobs("( ( (status='DONE') || (status='FAILED') || (status='EXPIRED') || (status like 'ERROR%')  ) && ( mtime < (? - 865400) ) )", "10 days" ,$self->{DB}->{QUEUEARCHIVE});
+  #Completed master Jobs older than 10 days are moved to the archive
+  $self->archiveJobs("where (( status in ('DONE','FAILED','EXPIRED') || status like 'ERROR%'  ) 
+                      and ( mtime < (? - 865400)  and split=0) )", "10 days" ,$self->{DB}->{QUEUEARCHIVE});
 
-  #This is slightly more than ten days, and we move it to another table
-  $self->archiveJobs("mtime < (? - 866400)", "10 days","QUEUEEXPIRED" );
+
+
+# #This is to archive the subjobs 'select count(*) from QUEUE q left join QUEUE q2
+  $self->archiveJobs("left join QUEUE q2 on q.split=q2.queueid where 
+                      q.split!=0 and q2.queueid is null and q.mtime<(? -865400)", 
+                      " subjobs ", $self->{DB}->{QUEUEARCHIVE});
+  
+    #This is slightly more than ten days, and we move it to another table
+  $self->archiveJobs("where mtime < (? - 866400) and split=0", "10 days","QUEUEEXPIRED" );
 
 
 
@@ -39,7 +47,7 @@ sub archiveJobs{
 
   my  $now = time; 
   $self->info("Archiving the jobs older than $time");
-  my $data= $self->{DB}->getFieldsFromQueueEx("*","where $query ORDER by queueId", {bind_values=>[$now]});
+  my $data= $self->{DB}->getFieldsFromQueueEx("*","q $query ORDER by q.queueId", {bind_values=>[$now]});
 
   my $columns=$self->{DB}->query("describe QUEUEPROC");
 
@@ -47,13 +55,13 @@ sub archiveJobs{
   my $c2="";
   foreach my $column (@$columns){
     $c.="$column->{Field}, ";
-    $c2.="q.$column->{Field}, ";
+    $c2.="s.$column->{Field}, ";
   }
   $c=~ s/, $//;
   $c2=~ s/, $//;
   for my $q ("insert into ${table}PROC ($c) select $c2 from ",
-	     "delete from q using" ){
-    $self->{DB}->do("$q QUEUEPROC q, QUEUE s where s.queueid=q.queueid and $query", {bind_values=>[$now]});
+	     "delete from s using" ){
+    $self->{DB}->do("$q QUEUEPROC s, QUEUE q $query and s.queueid=q.queueid", {bind_values=>[$now]});
   }
 
 
