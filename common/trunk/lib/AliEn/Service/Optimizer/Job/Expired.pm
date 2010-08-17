@@ -16,21 +16,21 @@ sub checkWakesUp {
 
   $self->{SLEEP_PERIOD}=3600;
   $self->{LOGGER}->$method("Expired", "In checkWakesUp .... optimizing the QUEUE table ...");
-  my  $now = time; 
+   
 
   #Completed master Jobs older than 10 days are moved to the archive
   $self->archiveJobs("where (( status in ('DONE','FAILED','EXPIRED') || status like 'ERROR%'  ) 
-                      and ( mtime < (? - 865400)  and split=0) )", "10 days" ,$self->{DB}->{QUEUEARCHIVE});
+                      and ( mtime < addtime(now(), '-10 00:00:00')  and split=0) )", "10 days" ,$self->{DB}->{QUEUEARCHIVE});
 
 
 
 # #This is to archive the subjobs 'select count(*) from QUEUE q left join QUEUE q2
   $self->archiveJobs("left join QUEUE q2 on q.split=q2.queueid where 
-                      q.split!=0 and q2.queueid is null and q.mtime<(? -865400)", 
+                      q.split!=0 and q2.queueid is null and q.mtime<addtime(now(), '-10 00:00:00')", 
                       " subjobs ", $self->{DB}->{QUEUEARCHIVE});
   
     #This is slightly more than ten days, and we move it to another table
-  $self->archiveJobs("where mtime < (? - 866400) and split=0", "10 days","QUEUEEXPIRED" );
+  $self->archiveJobs("where mtime < addtime(now(), '-10 00:00:00') and split=0", "10 days","QUEUEEXPIRED" );
 
 
 
@@ -45,9 +45,9 @@ sub archiveJobs{
   my $time=shift;
   my $table=shift;
 
-  my  $now = time; 
+  
   $self->info("Archiving the jobs older than $time");
-  my $data= $self->{DB}->getFieldsFromQueueEx("*","q $query ORDER by q.queueId", {bind_values=>[$now]});
+  my $data= $self->{DB}->getFieldsFromQueueEx("*","q $query ORDER by q.queueId");
 
   my $columns=$self->{DB}->query("describe QUEUEPROC");
 
@@ -61,7 +61,7 @@ sub archiveJobs{
   $c2=~ s/, $//;
   for my $q ("insert into ${table}PROC ($c) select $c2 from ",
 	     "delete from s using" ){
-    $self->{DB}->do("$q QUEUEPROC s, QUEUE q $query and s.queueid=q.queueid", {bind_values=>[$now]});
+    $self->{DB}->do("$q QUEUEPROC s, QUEUE q $query and s.queueid=q.queueid");
   }
 
 
