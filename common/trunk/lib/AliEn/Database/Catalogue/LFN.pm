@@ -159,7 +159,21 @@ sub createCatalogueTables {
                                     rank=>"smallint(7) not null",
                                     updated=>"smallint(1)"}, 
                                     undef, ['UNIQUE INDEX(sitename,seNumber), PRIMARY KEY(sitename,seNumber), INDEX(sitename), INDEX(seNumber)']],
-                                      
+        LFN_BOOKED=>["lfn",{lfn=>"varchar(255)",
+            expiretime=>"int",
+            guid=>"binary(16) ",
+            size=>"bigint",
+            md5sum=>"varchar(32)",
+            owner=>"varchar(20)",
+            gowner=>"varchar(20)",
+            pfn=>"varchar(255)",
+            se=>"int",
+            quotaCalculated=>"smallint",
+            
+          },
+            undef, ['INDEX(lfn)', 'INDEX(guid)', 'INDEX(expiretime)']
+            
+        ]                                      
 	         );
   foreach my $table (keys %tables){
     $self->info("Checking table $table");
