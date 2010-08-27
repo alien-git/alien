@@ -50,6 +50,7 @@ use List::Util 'shuffle';
 
 require AliEn::UI::Catalogue;
 require AliEn::Catalogue::Admin;
+require AliEn::Database::Catalogue::LFN;
 use AliEn::SOAP;
 use Getopt::Long;
 use Compress::Zlib;
@@ -1370,6 +1371,21 @@ sub access_eof {
   return @newresult;
 }
 
+sub access_return {
+  my $error=(shift || "error creating the envelope");
+  my $exception=(shift || 0);
+  my $newhash;
+  my @newresult;
+  $newhash->{error}=$error;
+  $newhash->{execption} = $exception;
+  if($exception == 0)
+  {
+          $newhash->{envelope} = 1;
+  }
+  push @newresult, $newhash;
+  return @newresult;
+}
+
 
 sub getPFNforReadOrDeleteAccess {
   my $self=shift;
@@ -1561,7 +1577,7 @@ sub access {
 
     $self->info("Connecting to Authen...");
     my $info=0;
-    for (my $tries = 0; $tries < 5; $tries++) { # try five times 
+    for (my $tries = 0; $tries < 5; $tries++) { # try five times
       $info=$self->{SOAP}->CallSOAP("Authen", "createEnvelope", $user, @_) and last;
       sleep(5);
     }
@@ -1576,8 +1592,8 @@ sub access {
         return ({error=>$error, exception=>$newhash[0]->{exception}});
       return (0,$error) ;
      }
-    $ENV{ALIEN_XRDCP_ENVELOPE}=$newhash[0]->{envelope};
-    $ENV{ALIEN_XRDCP_URL}=$newhash[0]->{url};
+    $ENV{ALIEN_XRDCP_ENVELOPE}=$newhash[0]->{envelope}||"";
+    $ENV{ALIEN_XRDCP_URL}=$newhash[0]->{url}||"";
     return (@newhash);
   }
 
@@ -1617,6 +1633,88 @@ sub access {
   my $writeQos = (shift || 0);
   ($writeQos eq "") and $writeQos=0;
   my $writeQosCount = (shift || 0);
+
+  # DELETE FILE
+  if ($access =~ /^deletefile/) {
+          #Check permissions
+          my $filehash=$self->checkPermissionsOnLFN($lfns,"delete","w")
+                  or return access_return("ERROR: checkPermissionsOnLFN failed for $lfns","[checkPermission]");
+          
+          #Insert into LFN_BOOKED
+          my $parent = "$lfns";
+          $parent =~ s{([^/]*[\%][^/]*)/?(.*)$}{};
+          my $db = $self->{CATALOG}->selectDatabase($parent) or return access_return("Error selecting the database of $parent","[connectToDatabse]");
+          my $tableName = "$db->{INDEX_TABLENAME}->{name}";
+          my $tablelfn = "$db->{INDEX_TABLENAME}->{lfn}";
+          my $lfnOnTable = "$lfns";
+          $lfnOnTable =~ s/$tablelfn//;
+          my $size = $db->queryValue("SELECT l.size FROM $tableName l WHERE l.lfn LIKE '$lfnOnTable'") || 0;
+          $db->do("INSERT INTO LFN_BOOKED(lfn, owner, expiretime, size, guid, gowner)
+                   SELECT '$lfns', l.owner, -1, l.size, l.guid, l.gowner FROM $tableName l WHERE l.lfn LIKE '$lfnOnTable'")
+                   or return access_return("ERROR: Could not add entry $lfns to LFN_BOOKED","[insertIntoDatabase]");
+          
+          #Delete LFN and update quotas
+          $db->do("DELETE FROM $tableName WHERE lfn LIKE '$lfnOnTable'");
+          $self->{PRIORITY_DB} or $self->{PRIORITY_DB}=AliEn::Database::TaskPriority->new({ROLE=>'admin',SKIP_CHECK_TABLES=> 1});
+          $self->{PRIORITY_DB}or return access_return("Could not get access to PRIORITY DB","[updateQuotas]");
+          $self->{PRIORITY_DB}->lock("PRIORITY");
+          $self->{PRIORITY_DB}->do("UPDATE PRIORITY SET nbFiles=nbFiles+tmpIncreasedNbFiles-1, totalSize=totalSize+tmpIncreasedTotalSize-$size, tmpIncreasedNbFiles=0, tmpIncreasedTotalSize=0 WHERE user LIKE '$user'") or return access_return("ERROR: Could not write to PRIORITY DB","[updateQuotas]");
+          $self->{PRIORITY_DB}->unlock();
+          return access_return("Success - File<$lfns> scheduled for deletion");
+  }
+
+  # DELETE FOLDER
+  if ($access =~ /^deletefolder/) {
+          #Check permissions
+          my $parentdir = $self->{CATALOG}->GetParentDir($lfns);
+          my $filehash=$self->checkPermissionsOnLFN($parentdir,"delete","w")
+                  or return access_return("ERROR: checkPermissionsOnLFN failed for $parentdir","[checkPermission]");
+          $filehash=$self->checkPermissionsOnLFN("$lfns/","delete","w")
+                  or return access_return("ERROR: checkPermissionsOnLFN failed for $lfns","[checkPermission]");
+          
+          #Insert into LFN_BOOKED and delete lfns
+#          $self->{LFN_DB} or $self->{LFN_DB}=AliEn::Database::Catalogue::LFN->new();
+          my $entries=$self->{CATALOG}->{DATABASE}->{LFN_DB}->getHostsForEntry($lfns) or return access_return("ERROR: Could not get hosts for $lfns","[getHosts]");
+          my @index=();
+          my $size = 0;
+          my $count = 0;          
+          foreach my $db (@$entries) {
+                  $self->info(1, "Deleting all the entries from $db->{hostIndex} (table $db->{tableName} and lfn=$db->{lfn})");
+                  my ($db2, $lfns2)=$self->{CATALOG}->{DATABASE}->{LFN_DB}->reconnectToIndex($db->{hostIndex}, $lfns);
+                  $db2 or return access_return("ERROR: Could not reconnect to host","[getHosts]");
+                  my $tmpPath="$lfns/";
+                  $tmpPath=~ s{^$db->{lfn}}{};
+                  $count += ($db2->queryValue("SELECT count(*) FROM L$db->{tableName}L l WHERE l.lfn LIKE '$tmpPath%' AND l.type<>'d'")||0);
+                  $size += ($db2->queryValue("SELECT SUM(l.size) FROM L$db->{tableName}L l WHERE l.lfn LIKE '$tmpPath%'")||0);
+                  $db2->do("INSERT INTO LFN_BOOKED(lfn, owner, expiretime, size, guid, gowner)
+                            SELECT l.lfn, l.owner, -1, l.size, l.guid, l.gowner FROM L$db->{tableName}L l WHERE l.lfn LIKE '$tmpPath%'")
+                            or return access_return("ERROR: Could not add entries $tmpPath to LFN_BOOKED","[insertIntoDatabase]");
+                  $db2->delete("L$db->{tableName}L", "lfn like '$tmpPath%'");
+                  $db->{lfn} =~ /^$lfns/ and push @index, "$db->{lfn}\%";
+          }
+          #Clean up index
+          if ($#index>-1) {
+                  $self->deleteFromIndex(@index);
+                  if (grep( m{^$lfns/?\%$}, @index)){
+                          my $entries=$self->{CATALOG}->{DATABASE}->{LFN_DB}->getHostsForEntry($parentdir) or 
+                              return access_return( "Error getting the hosts for '$lfns'","[getHosts]");
+                          my $db=${$entries}[0];
+                          my ($newdb, $lfns2)=$self->{CATALOG}->{DATABASE}->{LFN_DB}->reconnectToIndex($db->{hostIndex}, $parentdir);
+                          $newdb or return access_return("Error reconecting to index","[getHosts]");
+                          my $tmpPath="$lfns/";
+                          $tmpPath=~ s{^$db->{lfn}}{};
+                          $newdb->delete("L$db->{tableName}L", "lfn='$tmpPath'");
+                  }
+          }
+
+          #Update quotas
+          $self->{PRIORITY_DB} or $self->{PRIORITY_DB}=AliEn::Database::TaskPriority->new({ROLE=>'admin',SKIP_CHECK_TABLES=> 1});
+          $self->{PRIORITY_DB}or return access_return("ERROR: Could not get access to PRIORITY DB","[updateQuotas]");
+          $self->{PRIORITY_DB}->lock("PRIORITY");
+          $self->{PRIORITY_DB}->do("UPDATE PRIORITY SET nbFiles=nbFiles+tmpIncreasedNbFiles-$count, totalSize=totalSize+tmpIncreasedTotalSize-$size, tmpIncreasedNbFiles=0, tmpIncreasedTotalSize=0 WHERE user LIKE '$user'") or access_return("ERROR: Could not write to PRIORITY DB","[updateQuotas]");
+          $self->{PRIORITY_DB}->unlock();
+          return access_return("Success - Folder<$lfns> scheduled for deletion [$count files ; $size size]");
+  }
 
   if ($access =~ /^write[\-a-z]*/) {
     # if nothing is or wrong specified SE info, get default from Config, if there is a sitename

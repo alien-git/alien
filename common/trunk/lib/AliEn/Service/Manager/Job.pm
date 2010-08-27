@@ -288,6 +288,7 @@ sub enterCommand {
   my $nbJobsToSubmit=1;
   if ($jobca_text =~ / split =/i) {
     $DEBUG and $self->debug(1, "Master Job! Compute the number of sub-jobs");
+    $self->info("$jobca_text");
     $self->{DATASET} or $self->{DATASET}=AliEn::Dataset->new();
     $self->{DATASET} or $self->info("Error creating the dataset parser") and return;
     push @ISA, "AliEn::Service::Optimizer::Job::Splitting";

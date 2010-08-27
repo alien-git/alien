@@ -656,15 +656,19 @@ sub f_mv {
   my $docopy = $self->f_cp($source,$target);
   $self->{SILENT} = $oldsilent;
 
+  unless($self->{UI}){
+    my $options_UI = {};
+    $options_UI->{role} = "$self->{ROLE}";
+    $self->{UI} = AliEn::UI::Catalogue::LCM->new($options_UI) or $self->info("Could not get UI") and return -2;
+  }
   if ( $docopy ) {
     $source = $self->GetAbsolutePath($source, 1);
     my $sourceIsFile=$self->isFile($source);
     if (!$sourceIsFile) {
-      return $self->f_rmdir("-r",$source);
+      return $self->{UI}->f_rmdir("-r",$source);
     } else {
       $self->info("In removeFile");
-      
-      return $self->f_removeFile("", $source);
+      return $self->{UI}->f_removeFile("", $source);
     }
   }
 
