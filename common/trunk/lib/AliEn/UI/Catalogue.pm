@@ -79,7 +79,6 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
     'lsinternal' => ['$self->{CATALOG}->f_lsinternal', 3+16+32],
     'mkremdir' => ['$self->{CATALOG}->f_mkremdir', 0],
     'mkdir'    => ['$self->{CATALOG}->f_mkdir', 3],
-    'rmdir'    => ['$self->{CATALOG}->f_rmdir', 3+16],
     'quit'     => ['$self->{CATALOG}->f_quit', 0],
     'exit'     => ['$self->{CATALOG}->f_quit', 0],
     'whoami'   => ['$self->{CATALOG}->f_whoami', 0],
@@ -153,8 +152,9 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
     'register'     => ['$self->f_registerFile', 0],
     'bulkRegister' => ['$self->{CATALOG}->f_bulkRegisterFile', 0],
     'update'       => ['$self->{CATALOG}->f_updateFile', 0],
-    'rm'      	   => ['$self->{CATALOG}->f_removeFile', 3+16],
-    'remove'   	   => ['$self->{CATALOG}->f_removeFile', 3+16],
+    'rm'      	   => ['$self->f_removeFile', 3+16],
+    'remove'   	   => ['$self->f_removeFile', 3+16],
+    'rmdir'        => ['$self->f_rmdir', 3+16],
     'stat'         => ['$self->{CATALOG}->f_stat', 0],
     'addMirror'    => ['$self->{CATALOG}->f_addMirror', 0],
     'masterCopy'   => ['$self->{CATALOG}->f_masterCopy', 0],
@@ -959,6 +959,58 @@ Possible pfns:\tsrm://<host>/<path>, castor://<host>/<path>,
   return $self->{CATALOG}->f_registerFile( $opt, $file, $size, $destSE, $guid, $type, undef,$options->{md5}, $pfn);
 }
 
+sub f_removeFile {
+        my $self = shift;
+        my $options = shift;
+        my $file = shift;
+        my $silent = ($options =~ /s/);
+        my $fullPath = $self->{CATALOG}->GetAbsolutePath($file);
+        $self->{CATALOG}->isDirectory($fullPath) and $self->info("ERROR: <$file> is a directory") and return -2;
+
+        if(!$file)
+        {
+                ( $options =~ /s/ )
+                        or print STDERR "Error in remove: not enough arguments\nUsage remove [-s] <path>\nOptions: -s : silent. Do not print error messages\n";
+                return;
+        }
+        
+        my (@envelope) = $self->access("-s", "deletefile", "$fullPath");
+        my $envelop = $envelope[0];
+        ((!$envelop))
+                and  return;
+        my $message = $envelop->{error};
+        $self->info("From Authen: $message");
+        
+        return !$envelop->{exception};
+}
+
+sub f_rmdir {
+        my $self = shift;
+        my ( $options, $path ) = @_;
+        my $deleteall = ( ( $options =~ /r/ ) ? 1 : 0 );
+        my $message = "";
+        ($path) or $message = "no directory specified";
+        ( $path and $path eq "." )  and $message = "Cannot remove current directory";
+        ( $path and $path eq ".." ) and $message = "Cannot remove parent directory.";
+        $message and $self->{LOGGER}->error( "Catalogue", "Error $message\nUsage: rmdir [-r] <directory>" )
+                and return;
+        $path = $self->{CATALOG}->GetAbsolutePath( $path, 1 );
+        unless($self->{CATALOG}->isDirectory($path)) {
+                        $self->info("ERROR: <$path> is not a directory");
+                        return -2;
+        }
+
+        my (@envelope) = $self->access("-s","deletefolder","$path");
+ 
+        my $envelop = $envelope[0];
+        ((!$envelop))
+                and  return;
+        $message = $envelop->{error};
+        $self->info("From Authen: $message");
+        
+        return !$envelop->{exception};
+
+}
 
 sub registerFileInSE {
   my $self=shift;

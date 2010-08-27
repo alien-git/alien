@@ -145,13 +145,13 @@ sub AlienMkDir {
 
 sub AlienRmDir {
 	my ($this, $dir, $option) = @_;
-	my $result = $self->{CATALOG}->f_rmdir($option, $dir);
+	my $result = $self->{UI}->f_rmdir($option, $dir);
 	return (defined($result)) ? "0" : "";
 }
 
 sub AlienRm {
 	my ($this, $file, $option) = @_;
-	my $result = $self->{CATALOG}->f_removeFile($option, $file);
+	my $result = $self->{UI}->f_removeFile($option, $file);
 	return (defined($result)) ? "0" : "";
 }
 

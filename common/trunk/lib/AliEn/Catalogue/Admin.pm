@@ -99,7 +99,12 @@ sub f_mount {
   
   if (!$self->f_addHost($host, $driver, $db, $organisation)){
     $self->info( "Error adding the new host");
-    $self->f_removeFile("s", $mountpoint);
+    unless ($self->{UI}) {
+      my $options = {};
+      $options->{role} = "$self->{ROLE}";
+      $self->{UI} or $self->{UI} = AliEn::UI::Catalogue::LCM->new($options) or $self->info("Could not get UI") and return -2;
+    }
+    $self->{UI}->f_removeFile("s", $mountpoint);
     return 0;
   }
   my ($hostIndex) = $self->{DATABASE}->getHostIndex ($host, $db, $driver);
