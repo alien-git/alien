@@ -1,8 +1,8 @@
 use strict;
 
-use AliEn::UI::Catalogue;
+use AliEn::UI::Catalogue::LCM;
 
-my $c=AliEn::UI::Catalogue->new({user=>"newuser"}) or exit(-2);
+my $c=AliEn::UI::Catalogue::LCM->new({user=>"newuser"}) or exit(-2);
 
 $c->execute("rmdir", "-rf", "cpDir/");
 
