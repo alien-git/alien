@@ -18,7 +18,7 @@ if (-f $pfn) {
   my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",})
     or exit (-1);
 
-  if (! $cat->{CATALOG}->{DATABASE}->{LFN_DB}->queryValue("select count(*) from TODELETE where guid=string2binary('$guid')")){
+  if (! $cat->{CATALOG}->{DATABASE}->{LFN_DB}->queryValue("select count(*) from LFN_BOOKED where guid=string2binary('$guid') and expiretime=-1")){
     exit(-2);
   }
   print "At least, is in the queue to be deleted\n";
