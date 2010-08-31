@@ -1,12 +1,14 @@
 package AliEn::Catalogue::Admin;
 
 use strict;
+use Data::Dumper;
 
 use AliEn::Database::Admin;
 use AliEn::Database::Transfer;
 
 require AliEn::Service::Optimizer::Catalogue::SERank;
 require AliEn::Database::SE;
+
 
 # This package contains the functions that can only be called by the 
 # administrator
@@ -966,6 +968,77 @@ sub checkLFN {
   $self->info("Ready to check that the lfns are ok");
 
   return  $self->{DATABASE}->checkLFN(@_);
+}
+
+sub removeExpiredFiles {
+        my $self = shift;
+
+        ( $self->{ROLE} =~ /^admin(ssl)?$/ )
+                or $self->info("Error: Only the administrator can remove entries from LFN_BOOKED") and return;
+        $self->info("Removing expired entries from LFN_BOOKED");
+        
+        my $hosts = $self->{DATABASE}->getAllHosts();
+        foreach my $host (@$hosts) {
+                my ($db, $extra) = $self->{DATABASE}->{LFN_DB}->reconnectToIndex($host->{hostIndex});
+                #Get files
+                use Time::HiRes qw (time); 
+                my $currentTime = time();
+                $db->query("DELETE FROM LFN_BOOKED WHERE lfn LIKE '%/' AND expiretime<?", undef ,{bind_values=>[$currentTime]});
+                my $files = $db->query("SELECT lfn, binary2string(guid) as guid, substr(binary2date(guid),1,8) as guidtime FROM LFN_BOOKED 
+                                        WHERE expiretime<?", undef, {bind_values=>[$currentTime]});
+                $files or next;
+                #Get possible G#L tables
+                foreach my $file (@$files) {
+                        my $lfn = $file->{lfn};
+                        my $guid = $file->{guid};
+                        my $guidtime = $file->{guidtime};
+                        $self->info("Deleting $lfn");
+                        my $possibleGuidTable = $db->query("SELECT h.db AS dbName, gI.tableName AS tableName FROM GUIDINDEX gI, HOSTS h 
+                                WHERE h.hostIndex=gI.hostIndex AND hex(gI.guidTime)<hex(?) ORDER BY hex(gI.guidTime)",
+                                undef, {bind_values=>[$guidtime]});
+                        #Delete file
+                        foreach my $guidtable (@$possibleGuidTable) {
+                                my $gTableName = "$guidtable->{dbName}.G$guidtable->{tableName}L";
+                                my $gTableName_PFN = $gTableName."_PFN";
+                                my $guidId;
+                                #Get file storage data
+                                my $fileData = $db->query("SELECT g_p.pfn, g_p.seNumber, g.guidId, s.seName
+                                                           FROM $gTableName_PFN g_p, $gTableName g, SE s, LFN_BOOKED l
+                                                           WHERE g_p.guidId=g.guidId AND s.seNumber=g_p.seNumber AND g.guid=l.guid AND l.lfn LIKE ?",
+                                                           undef, {bind_values=>[$lfn]});
+                                #Delete from SE
+                                foreach my $data (@$fileData) {
+                                        my $pfn = $data->{pfn};
+                                        my $seNumber = $data->{seNumber};
+                                        my $seName = $data->{seName};
+                                        $guidId = $data->{guidId};
+                                        
+                                        #DELETE FROM SE
+                                        my $list=$db->queryColumn("SELECT protocol FROM transfers.PROTOCOLS 
+                                                WHERE sename=? AND deleteprotocol=1",undef ,{bind_values=>[$seName]});
+                                        my @protocols = @$list;
+                                        @protocols or push @protocols, "rm";
+                                        foreach my $protocol (@protocols) {
+                                                 if (grep(/^$protocol$/i, @{$self->{CONFIG}->{FTD_PROTOCOL_LIST}})){
+                                                         my $protName = "AliEn::FTP::".lc($protocol);
+                                                         unless($self->{DELETE}->{lc($protocol)}){
+                                                                 eval "require $protName";
+                                                                 $self->{DELETE}->{lc($protocol)}=$protName->new();
+                                                         }
+                                                         $self->{DELETE}->{lc($protocol)}->delete($pfn) and last;
+                                                 } else {
+                                                         $self->info("$protocol is not in the FTD_PROTOCOL_LIST");
+                                                 }
+                                        }
+                                        
+                                        #CLEAN G#L, G#L_PFN and LFN_BOOKED TABLES
+                                        $db->do("DELETE FROM $gTableName_PFN WHERE pfn LIKE '$pfn'");
+                                }
+                                $db->do("DELETE FROM $gTableName WHERE binary2string(guid) LIKE '$guid'");
+                        }
+                        $db->do("DELETE FROM LFN_BOOKED WHERE binary2string(guid) LIKE '$guid'");
+                }
+        }
 }
 
 sub checkOrphanGUID{

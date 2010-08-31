@@ -121,6 +121,7 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
     'resyncLDAP'        => ['$self->{CATALOG}->resyncLDAP',0],
     'calculateFileQuota'        => ['$self->{CATALOG}->calculateFileQuota',0],
     'checkLFN'          => ['$self->{CATALOG}->checkLFN',0],
+    'removeExpiredFiles' => ['$self->{CATALOG}->removeExpiredFiles',0],
     'checkOrphanGUID'   => ['$self->{CATALOG}->checkOrphanGUID',0],
     'optimizeGUIDtables'   => ['$self->{CATALOG}->optimizeGUIDtables',0],
 	     'setSElimit'=>['$self->{CATALOG}->setSElimit',0],

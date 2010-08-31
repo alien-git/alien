@@ -14,9 +14,12 @@ sub checkWakesUp {
   my $self=shift;
   my $silent=shift;
 
-  $self->{CATALOGUE}->execute("checkLFN");
-  sleep (120);
-  $self->{CATALOGUE}->execute("checkOrphanGUID");
+  #Clean LFN_BOOKED, G#L, G#L_PFN
+  $self->{CATALOGUE}->execute("removeExpiredFiles");
+
+  #$self->{CATALOGUE}->execute("checkLFN");
+  #sleep (120);
+  #$self->{CATALOGUE}->execute("checkOrphanGUID");
   return ;
 }
 
