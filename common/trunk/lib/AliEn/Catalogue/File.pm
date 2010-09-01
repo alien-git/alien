@@ -651,31 +651,29 @@ sub f_mv {
   my $options = shift;
   my $source = shift;
   my $target = shift;
-  my $oldsilent = $self->{SILENT};
-  $self->{SILENT} = 1;
-  my $docopy = $self->f_cp($source,$target);
-  $self->{SILENT} = $oldsilent;
+
+  $source or $target or $self->info("ERROR: Source and/or target not specified") and return;
+
+  my $fullSource = $self->GetAbsolutePath($source);
+  my $fullTarget = $self->GetAbsolutePath($target);
+
+  $self->isDirectory($fullSource) and $self->info("ERROR: <$source> is a directory") and return -2;
 
   unless($self->{UI}){
     my $options_UI = {};
     $options_UI->{role} = "$self->{ROLE}";
     $self->{UI} = AliEn::UI::Catalogue::LCM->new($options_UI) or $self->info("Could not get UI") and return -2;
-  }
-  if ( $docopy ) {
-    $source = $self->GetAbsolutePath($source, 1);
-    my $sourceIsFile=$self->isFile($source);
-    if (!$sourceIsFile) {
-      return $self->{UI}->f_rmdir("-r",$source);
-    } else {
-      $self->info("In removeFile");
-      return $self->{UI}->f_removeFile("", $source);
-    }
-  }
+  }  
 
+  my (@envelope) = $self->{UI}->access("-s", "mv", "$fullSource", "$fullTarget");
+  my $envelop = $envelope[0];
+  ((!$envelop)) and return;
+  my $message = $envelop->{error};
+  $self->info("From Authen: $message");
 
-  return;
-
+  return !$envelop->{exception}; 
 }
+
 #
 #returns the flags and the files of the input line
 # (

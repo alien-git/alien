@@ -1649,9 +1649,16 @@ sub access {
           my $lfnOnTable = "$lfns";
           $lfnOnTable =~ s/$tablelfn//;
           my $size = $db->queryValue("SELECT l.size FROM $tableName l WHERE l.lfn LIKE '$lfnOnTable'") || 0;
-          $db->do("INSERT INTO LFN_BOOKED(lfn, owner, expiretime, size, guid, gowner)
+          my $guid = $db->queryValue("SELECT binary2string(l.guid) as guid FROM $tableName l WHERE l.lfn LIKE '$lfnOnTable'") || 0;
+          $filehash = $self->{CATALOG}->{DATABASE}->{GUID_DB}->checkPermission("w",$guid); # Check permissions on the GUID
+          if($filehash) {
+              $db->do("INSERT INTO LFN_BOOKED(lfn, owner, expiretime, size, guid, gowner)
                    SELECT '$lfns', l.owner, -1, l.size, l.guid, l.gowner FROM $tableName l WHERE l.lfn LIKE '$lfnOnTable'")
                    or return access_return("ERROR: Could not add entry $lfns to LFN_BOOKED","[insertIntoDatabase]");
+          }
+          else {
+              $self->info("$user does not have permissions for deleting $guid. Only deleting $lfns");
+          }
           
           #Delete LFN and update quotas
           $db->do("DELETE FROM $tableName WHERE lfn LIKE '$lfnOnTable'");
@@ -1714,6 +1721,58 @@ sub access {
           $self->{PRIORITY_DB}->do("UPDATE PRIORITY SET nbFiles=nbFiles+tmpIncreasedNbFiles-$count, totalSize=totalSize+tmpIncreasedTotalSize-$size, tmpIncreasedNbFiles=0, tmpIncreasedTotalSize=0 WHERE user LIKE '$user'") or access_return("ERROR: Could not write to PRIORITY DB","[updateQuotas]");
           $self->{PRIORITY_DB}->unlock();
           return access_return("Success - Folder<$lfns> scheduled for deletion [$count files ; $size size]");
+  }
+
+  #MOVE FILE
+  if($access =~ /^mv/) {
+    my $source = $lfns;
+    my $target = $se;
+
+    my $filehash1=$self->checkPermissionsOnLFN($source,"delete","w")
+                  or return access_return("ERROR: checkPermissionsOnLFN failed for $source","[checkPermission]");
+    my $filehash2=$self->checkPermissionsOnLFN($target,"write","w")
+                  or return access_return("ERROR: checkPermissionsOnLFN failed for $target","[checkPermission]");
+
+     my $parent = "$source";
+     $parent =~ s{([^/]*[\%][^/]*)/?(.*)$}{};
+     my $dbSource = $self->{CATALOG}->selectDatabase($parent)
+                   or return access_return("Error selecting the database of $parent","[connectToDatabse]");
+     my $tableName_source = "$dbSource->{INDEX_TABLENAME}->{name}";
+     my $tablelfn_source = "$dbSource->{INDEX_TABLENAME}->{lfn}";
+     $parent = "$target";
+     my $dbTarget = $self->{CATALOG}->selectDatabase($parent)
+                    or return access_return("Error selecting the database of $parent","[connectToDatabse]");
+     my $tableName_target = "$dbTarget->{INDEX_TABLENAME}->{name}";
+     my $tablelfn_target = "$dbTarget->{INDEX_TABLENAME}->{lfn}";
+
+     my $lfnOnTable_source = "$source";
+     $lfnOnTable_source =~ s/$tablelfn_source//;
+     my $lfnOnTable_target = "$target";
+     $lfnOnTable_target =~ s/$tablelfn_target//;
+
+     if($tablelfn_source eq $tablelfn_target) {
+       #If source and target are in same L#L table then just edit the names
+       $dbSource->do("UPDATE $tableName_source SET lfn='$lfnOnTable_target' WHERE lfn LIKE '$lfnOnTable_source'")
+                    or return access_return("Error updating database","[updateDatabse]");
+     }
+     else {
+       #If the source and target are in different L#L tables then add in new table and delete from old table
+       my $schema = $dbSource->queryRow("SELECT h.db FROM HOSTS h, INDEXTABLE i WHERE i.hostIndex=h.hostIndex AND i.lfn LIKE '$tablelfn_source'")
+                                         or return access_return("Error updating database","[updateDatabse]");
+       my $db = $schema->{db};
+       $dbTarget->do("INSERT INTO $tableName_target(owner, replicated, ctime, guidtime, aclId, lfn, broken, expiretime, size, dir, gowner, type, guid, md5, perm) 
+                      SELECT owner, replicated, ctime, guidtime, aclId, '$lfnOnTable_target', broken, expiretime, size, dir, gowner, type, guid, md5, perm FROM $db.$tableName_source WHERE lfn LIKE '$lfnOnTable_source'")
+                     or return access_return("Error updating database","[updateDatabse]");
+       my $parentdir = "$lfnOnTable_target";
+       $parentdir =~ s/([.]*)\/([^\/]+)$/$1\//;
+       my $entryId = $dbTarget->queryValue("SELECT entryId FROM $tableName_target WHERE lfn LIKE '$parentdir'");
+       $dbTarget->do("UPDATE $tableName_target SET dir=$entryId WHERE lfn LIKE '$lfnOnTable_target'")
+                     or return access_return("Error updating database","[updateDatabse]");
+       $dbSource->do("DELETE FROM $tableName_source WHERE lfn LIKE '$lfnOnTable_source'")
+                     or return access_return("Error updating database","[updateDatabse]");
+     }
+
+    return access_return("Success - $source moved to $target");
   }
 
   if ($access =~ /^write[\-a-z]*/) {
