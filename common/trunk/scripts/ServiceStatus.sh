@@ -38,7 +38,7 @@ for ALIEN_ORGANISATION in $ALL_ORG ; do
 		err_msg=`echo $err_msg | while read line ; do echo -n \$line | sed -e "s/\t/  /g"; done`
 		other_info=""
 		if [ "$service" = "CE" ]; then
-		    other_info=`$AliEnCommand login -exec request -n  2>&1 |tail -n 1 |awk -F "\t" '{print "\tInfo\t"$2}'`
+		    other_info=`$AliEnCommand login -no_catalog -exec request -n  2>&1 |tail -n 1 |awk -F "\t" '{print "\tInfo\t"$2}'`
 		fi
 		if [ "$error" != "0" ] ; then
 			if [ ! -x $AliEnCommand ] ; then
