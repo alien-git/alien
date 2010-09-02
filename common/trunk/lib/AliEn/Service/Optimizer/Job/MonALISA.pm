@@ -13,7 +13,7 @@ use AliEn::Util;
 sub checkWakesUp {
   my $self=shift;
   my $silent=shift;
-  $self->{SLEEP_PERIOD}=10;
+  $self->{SLEEP_PERIOD}=300;
   my $method="info";
   $silent and $method = "debug";
     
