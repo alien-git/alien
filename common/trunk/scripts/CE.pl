@@ -12,6 +12,7 @@ my $options = {
     'role'     =>"",
     'debug'    => 0,
 		'logfile'=>"",
+		'no_catalog'=>1,
 };
 
 Getopt::Long::Configure("pass_through");

@@ -454,28 +454,28 @@ sub new {
 
   my $silent = 0;
   ($sentence) and ( $silent = 1 );
-
+ 
   if (! $options->{no_catalog}) {
       if ($options->{gapi_catalog}) {
-	  eval {
-	      require gapi::catalogue;
-	  };
-	  if (! defined $options->{user}) {
-	      $self->{CONFIG}=AliEn::Config->new();
-	      $options->{user}=$self->{CONFIG}->{LOCAL_USER};
-	  }
-	  if (! defined $options->{noprompt}) {
-	      $options->{noprompt}=1;
-	  }
-	  if (! defined $options->{nogsi}) {
-	      $options->{nogsi}=1;
-	  }
+	      eval {
+	        require gapi::catalogue;
+	        };
+	      if (! defined $options->{user}) {
+	        $self->{CONFIG}=AliEn::Config->new();
+	        $options->{user}=$self->{CONFIG}->{LOCAL_USER};
+	      }
+	      if (! defined $options->{noprompt}) {
+	        $options->{noprompt}=1;
+	      }
+	      if (! defined $options->{nogsi}) {
+	        $options->{nogsi}=1;
+	      }
 
-	  $self->{CATALOG} = gapi::catalogue->new($options)
-	      or return;
-	  $self->{CATALOG}->{GLOB} = 1;
+	      $self->{CATALOG} = gapi::catalogue->new($options)
+	        or return;
+	      $self->{CATALOG}->{GLOB} = 1;
       } else {
-	  $self->{CATALOG} = AliEn::Catalogue->new($options)   
+	     $self->{CATALOG} = AliEn::Catalogue->new($options)   
 	      or return;
 
       }
@@ -491,9 +491,9 @@ sub new {
       $self->{CONFIG}=$self->{CATALOG}->{CONFIG};
     }
   }else {
-    $self->{CONFIG}=AliEn::Config->new();
+    $self->{CONFIG}=AliEn::Config->new($options);
   }
-
+  
   if(! $self->initialize($options)){
     $self->close();
     return;
@@ -502,6 +502,7 @@ sub new {
   $self->{SOAP}=new AliEn::SOAP;
   $self->{GUID}=AliEn::GUID->new();
 
+  
   if ($sentence) {
     $DEBUG and $self->debug(1, "Executing '$sentence'...");
 

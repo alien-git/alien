@@ -101,7 +101,7 @@ sub new {
   $self->{X509}=new AliEn::X509 or return;
   $self->{DB}=new AliEn::Database::CE or return;
 
-  my $role = $self->{CATALOG}->{CATALOG}->{ROLE};
+  my $role = $self->{CATALOG}->{CATALOG}->{ROLE} || "";
 
   if ($role eq "admin") {
     my ($host, $driver, $db) =
