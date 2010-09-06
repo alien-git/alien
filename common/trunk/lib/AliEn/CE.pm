@@ -1140,6 +1140,26 @@ echo \"Installation completed!!\"
 ", "rm -rf \$DIR";
 }
 
+sub installWithTorrentPerHost {
+  my $self=shift;
+  $self->info("The worker node will install with the torrent  method!!!");
+ 
+
+  return "../alien/bin/alien","DIR=$self->{CONFIG}->{WORK_DIR}/alien_process.\$\$
+
+ mkdir -p \$DIR
+ echo \"Ready to install alien in  $self->{CONFIG}->{WORK_DIR}/alien \"
+
+ date
+ cd \$DIR
+ wget http://alien.cern.ch/alien-installer -O alien-installer
+ export ALIEN_INSTALLER_PREFIX=\$DIR/alien
+ chmod +x alien-installer
+ ./alien-installer -skip_rc  -type workernode -batch -torrent  -install-dir $self->{CONFIG}->{WORK_DIR}/alien
+ echo \"Installation completed!!\"
+
+ ", "rm -rf \$DIR";
+}
 sub checkQueueStatus() {
   my $self   = shift;
   my $silent = ( shift or 0 );
