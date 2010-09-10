@@ -4,6 +4,7 @@ use strict;
 
 use AliEn::Service::Optimizer::Catalogue;
 use AliEn::Database::IS;
+use AliEn::GUID;
 
 
 use vars qw(@ISA);
@@ -21,6 +22,9 @@ sub checkWakesUp {
   (-f "$self->{CONFIG}->{TMP_DIR}/AliEn_TEST_SYSTEM")  or $self->{SLEEP_PERIOD}=3600;
   my $guiddb=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{GUID_DB};
 
+
+  $self->checkSplitGUID($guiddb);
+  
   my $guids=$guiddb->query("select * froM GUIDINDEX");
   foreach my $f (@$guids){
     $self->info("Checking the table $f->{tableName}");
@@ -73,4 +77,31 @@ sub checkSESize{
   $guiddb->do("update SE, SE_VOLUMES set usedspace=seusedspace/1024, freespace=size-usedspace where  SE.sename=SE_VOLUMES.sename and size!= -1"); 
   return 1;
 }
+
+sub checkSplitGUID{
+  my $self=shift; 
+    
+  $self->{GUID} or $self->{GUID}=AliEn::GUID->new();
+  
+  $self->info("Checking how many entries are in the latest G table");
+  my $g=$self->{GUID}->CreateGuid();
+  $g=~ s/^.{8}/00000000/;
+  $self->info("The guid is '$g'");
+  my $exists=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{GUID_DB}->
+     queryValue("SELECT count(*) from GUIDINDEX where guidTime=string2date(?)",
+                undef, {bind_values=>[$g]});
+  $exists and $self->info("The entry is already an index") and return 1;
+  
+  my ($db, $table)=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{GUID_DB}->selectDatabaseFromGUID($g) or return;
+  
+  my $entries=$db->queryValue("SELECT count(*) from $table");
+  $self->info("AND THERE ARE $entries in $table");
+  my $maxEntries=10000000;
+  if ($entries > $maxEntries){
+    $self->info("There are more than $maxEntries in the last guid table ($entries)");
+    $self->{CATALOGUE}->execute("moveGUID", $g);  
+  
+  }
+}
+
 1;
