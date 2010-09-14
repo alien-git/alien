@@ -511,7 +511,7 @@ sub _checkEntryPattern {
     }else {
       $newJobDir="\"$newJobDir\"";
     }
-    $self->info("Putting $entryName as $newJobDir ");
+    $self->debug(1,"Putting $entryName as $newJobDir ");
     $job_ca->set_expression($entryName, $newJobDir);
   }
   return 1;
@@ -536,7 +536,7 @@ sub _submitJDL {
   my $newqueueid=$self->enterCommand($user, $jdlText, undef, undef, $queueid, undef, {silent=>1});
   pop @ISA;
   $newqueueid or return;
-  $self->info("Command submitted!! (jobid $newqueueid)" );
+  $self->debug(1, "Command submitted!! (jobid $newqueueid)" );
   $self->putJobLog($queueid,"submit","Subjob submitted: $newqueueid");
 
   return 1;
