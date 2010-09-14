@@ -283,12 +283,11 @@ sub enterCommand {
   }
   $jobca_text=$job_ca->asJDL;
 
-  $self->info("First of all, let's check the quota");
+   $options->{silent} or $self->info("First of all, let's check the quota");
 
   my $nbJobsToSubmit=1;
   if ($jobca_text =~ / split =/i) {
     $DEBUG and $self->debug(1, "Master Job! Compute the number of sub-jobs");
-    $self->info("$jobca_text");
     $self->{DATASET} or $self->{DATASET}=AliEn::Dataset->new();
     $self->{DATASET} or $self->info("Error creating the dataset parser") and return;
     push @ISA, "AliEn::Service::Optimizer::Job::Splitting";
@@ -297,13 +296,13 @@ sub enterCommand {
     pop @ISA;
     $nbJobsToSubmit or 
       $self->info("Error getting the number of subjobs")
-	      and return (-1, "Error getting the number of subjobs");
+    	      and return (-1, "Error getting the number of subjobs");
   }
 
-  $self->info("Checking your job quota...");
+   $options->{silent} or $self->info("Checking your job quota...");
   my ($ok, $error)=$self->checkJobQuota($user, $nbJobsToSubmit);
   ($ok > 0 ) or return (-1, $error);
-  $self->info("OK");
+   $options->{silent} or $self->info("OK");
 
 
   my $procid = $self->{DB}->insertJobLocked($jobca_text, $date, 'INSERTING', $host, $priority, $splitjob, $oldjob)

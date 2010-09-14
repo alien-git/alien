@@ -3242,8 +3242,8 @@ sub requirementsFromPackages {
 
 
   $self->debug(1,"Checking if the packages @packages are defined in the system");
-  my ($status, @definedPack)=
-    $self->{PACKMAN}->f_packman("list", "-silent", "-all");
+  my ($status, @definedPack)=$self->getAllPackages();
+
   $status or
     $self->info("Error getting the list of packages") and return;
   my $requirements="";
@@ -3264,7 +3264,21 @@ sub requirementsFromPackages {
   return $requirements;
 }
 
- sub requirementsFromMemory{
+sub getAllPackages{
+  my $self=shift;
+
+  my ($info)=  AliEn::Util::returnCacheValue($self,"all_packages");
+  if ($info and ${$info}[0]){
+    return @$info;
+  }
+
+  my ($status, @definedPack)=
+    $self->{PACKMAN}->f_packman("list", "-silent", "-all");
+  AliEn::Util::setCacheValue($self, "all_packages", [$status, @definedPack]);
+  return $status, @definedPack;
+}
+
+sub requirementsFromMemory{
   my $self=shift;
   my $job_ca=shift;
   my $requirements="";
