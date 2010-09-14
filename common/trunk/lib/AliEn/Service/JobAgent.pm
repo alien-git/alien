@@ -608,6 +608,12 @@ sub CreateDirs {
   my $handle=Filesys::DiskFree->new();
   $handle->df_dir($self->{WORKDIR});
   my $space=$handle->avail($self->{WORKDIR});
+  if (! $space){
+     $self->info("Probably '$self->{WORKDIR}' is a link... getting the size in a different way");
+     $handle->df();
+     $space=$handle->avail($self->{WORKDIR});
+  }
+  
   my $freemegabytes=int($space/(1024*1024));
   $self->info("Workdir has $freemegabytes MB free space");
 
