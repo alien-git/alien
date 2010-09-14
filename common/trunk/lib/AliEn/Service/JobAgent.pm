@@ -318,6 +318,10 @@ sub getHostClassad{
 #    $requirements .= " && (other.TTL<$timeleft) ";
     $ca->set_expression("TTL", $timeleft);
     $self->{TTL}=$timeleft;
+    if ($timeleft<0){
+      $self->info("We don't have any time left to execute jobs!");
+      return;
+    }
 #    $ca->set_expression( "Requirements", $requirements ) or return;
 
   }

@@ -748,7 +748,18 @@ ALIEN_DoService ()
 	[ $pattern  != "Start" ] \
 		&& args="$args  || echo -n '$service is down!!'"
 	$operation $args
-	exit $?
+	
+	error=$?
+	
+	if [ $operation$service = 'statusServiceAuthen' ];
+	then 
+	  if [ $error != 0 ];
+	  then
+	    echo "THERE WAS A PROBLEM TALKING TO Authen!! Checking the database"
+	    [ -f "/home/alienmaster/checkMysql.sh" ] &&  /home/alienmaster/checkMysql.sh
+	  fi
+	fi
+	exit $error
     fi
 
 }
