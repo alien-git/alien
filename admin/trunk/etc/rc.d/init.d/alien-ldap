@@ -79,8 +79,9 @@ fi
 
 FIND_EXECUTABLE slapd || exit -2
 SLAPD=$FILE
-FIND_EXECUTABLE slurpd || exit -2
-SLURPD=$FILE
+#removing the slurpd, it was removed from latest versions of ldap
+#FIND_EXECUTABLE slurpd || exit -2
+#SLURPD=$FILE
 
 RETVAL=0
 
@@ -102,11 +103,11 @@ case "$1" in
 	$DAEMON $SLAPD -d 1 -s 0 -h ldap://:8389/ -f $CONFIG  > $LOGDIR/ldap.log 2>&1 &
 	RETVAL=$?
 	if [ $RETVAL -eq 0 ]; then
-            if grep -q "^replogfile" $CONFIG; then
-		$DAEMON $SLURPD -f $CONFIG
-		RETVAL=$?
-		[ $RETVAL -eq 0 ] && pidof slurpd | cut -f 1 -d " " > /var/run/slurpd
-            fi
+#if grep -q "^replogfile" $CONFIG; then
+#	$DAEMON $SLURPD -f $CONFIG
+#	RETVAL=$?
+#	[ $RETVAL -eq 0 ] && pidof slurpd | cut -f 1 -d " " > /var/run/slurpd
+#   fi
 	    echo_success
 	fi
 	[ $RETVAL -eq 0 ] && touch $LOCK  
@@ -117,13 +118,13 @@ case "$1" in
 	echo -n "Shutting down ldap: "
 	$KILL slapd 
 	RETVAL=$?
-	if [ $RETVAL -eq 0 ]; then
-	    if grep -q "^replogfile" $CONFIG; then
-		$KILL slurpd
-		RETVAL=$?
-	    fi
-	fi
-	echo
+#	if [ $RETVAL -eq 0 ]; then
+#	    if grep -q "^replogfile" $CONFIG; then
+#		$KILL slurpd
+#		RETVAL=$?
+#	    fi
+#	fi
+#	echo
         if [ $RETVAL -eq 0 ]; then
 	    rm -f $LOCK
 	    rm -f /var/run/slapd.args
@@ -132,12 +133,12 @@ case "$1" in
     status)
 	status slapd
 	RETVAL=$?
-	if [ $RETVAL -eq 0 ]; then
-	    if grep -q "^replogfile" $CONFIG; then
-		status slurpd
-		RETVAL=$?
-	    fi
-	fi
+#	if [ $RETVAL -eq 0 ]; then
+#	    if grep -q "^replogfile" $CONFIG; then
+#		status slurpd
+#		RETVAL=$?
+#	    fi
+#	fi
 	;;
     restart)
 	$0 stop
@@ -147,12 +148,12 @@ case "$1" in
     reload)
     	killproc -HUP slapd
 	RETVAL=$?
-	if [ $RETVAL -eq 0 ]; then
-	    if grep -q "^replogfile" $CONFIG; then
-		killproc -HUP slurpd
-		RETVAL=$?
-	    fi
-	fi
+#	if [ $RETVAL -eq 0 ]; then
+#	    if grep -q "^replogfile" $CONFIG; then
+#		killproc -HUP slurpd
+#		RETVAL=$?
+#	    fi
+#	fi
 	;;
     *)
 	echo "Usage: $0 start|stop|restart|status}"
@@ -160,4 +161,3 @@ case "$1" in
 esac
 
 exit $RETVAL
-
