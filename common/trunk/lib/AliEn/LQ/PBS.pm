@@ -34,7 +34,7 @@ $execute\n";
 
   $self->debug(1, "USING $self->{SUBMIT_CMD}\nWith  \n$message");
 
-  my $pid = open2(*Reader, *Writer, "$self->{SUBMIT_CMD} -C '#PBS'" )
+  my $pid = open2(*Reader, *Writer, "$self->{SUBMIT_CMD} " )
     or print STDERR "Can't send batch command: $!"
       and return -1;
   print Writer "$message\n";
