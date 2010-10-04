@@ -169,6 +169,7 @@ sub createCatalogueTables {
             pfn=>"varchar(255)",
             se=>"varchar(100)",
             quotaCalculated=>"smallint",
+            user=>"varchar(20)",
             existing=>"smallint(1)",
           },
             undef, ['PRIMARY KEY(lfn,pfn)','INDEX(pfn)','INDEX(lfn)', 'INDEX(guid)', 'INDEX(expiretime)']
@@ -400,7 +401,8 @@ sub createFile {
   if (!$done and $DBI::errstr=~ /Duplicate entry '(\S+)'/ ){
     $self->info("The entry '$tableLFN$1' already exists");
   }
-
+  #Update quotas
+  $self->fquota_update(0,scalar(@inserts));  
   return $done;
 }
 
@@ -661,44 +663,202 @@ sub createRemoteDirectory {
 
 }
 
+#Delete file from Catalogue
+sub removeFile {
+  my $self = shift;
+  my $lfn = shift;
+  my $filehash = shift;
+  my $user = $self->{CONFIG}->{ROLE};
+  #Insert into LFN_BOOKED
+  my $parent = "$lfn";
+  $parent =~ s{([^/]*[\%][^/]*)/?(.*)$}{};
+  my $db = $self->selectDatabase($parent) 
+    or $self->{LOGGER}->error("Error selecting the database of $parent")
+    and return;
+  my $tableName = "$db->{INDEX_TABLENAME}->{name}";
+  my $tablelfn = "$db->{INDEX_TABLENAME}->{lfn}";
+  my $lfnOnTable = "$lfn";
+  $lfnOnTable =~ s/$tablelfn//;
+  my $guid = $db->queryValue("SELECT binary2string(l.guid) as guid FROM $tableName l WHERE l.lfn=?", undef, {bind_values=>[$lfnOnTable]}) || 0;
+  #Insert into LFN_BOOKED only when the GUID has to be deleted
+  $db->do("INSERT INTO LFN_BOOKED(lfn, owner, expiretime, size, guid, gowner, user, pfn)
+    SELECT ?, l.owner, -1, l.size, l.guid, l.gowner, ?,'*' FROM $tableName l WHERE l.lfn=? AND l.type<>'l'", {bind_values=>[$lfn,$user,$lfnOnTable]})
+    or return ("ERROR: Could not add entry $lfn to LFN_BOOKED","[insertIntoDatabase]");
+  
+  #Delete from table
+  $db->do("DELETE FROM $tableName WHERE lfn=?",{bind_values=>[$lfnOnTable]});
+
+  #Update Quotas
+  if($filehash->{type} eq "f"){
+    $self->fquota_update(-1*$filehash->{size},-1) 
+      or $self->{LOGGER}->error("ERROR: Could not update quotas")
+      and return;
+  }
+  
+  return 1;
+}
+
+#Delete folder from Catalogue
 sub removeDirectory {
   my $self=shift;
   my $path=shift;
   my $parentdir=shift;
-  
-  #Let's get all the hosts that can have files under this directory
-  my $entries=$self->getHostsForEntry($path) or 
-    $self->info( "Error getting the hosts for '$path'") and return;
-  $DEBUG and $self->debug(1, "Getting dir from $path");
+  my $user = $self->{CONFIG}->{ROLE};
+  #Insert into LFN_BOOKED and delete lfns
+  my $entries=$self->getHostsForEntry($path) 
+    or $self->{LOGGER}->error("ERROR: Could not get hosts for $path")
+    and return;
   my @index=();
-
+  my $size = 0;
+  my $count = 0;          
   foreach my $db (@$entries) {
-    $DEBUG and $self->debug(1, "Deleting all the entries from $db->{hostIndex} (table $db->{tableName} and lfn=$db->{lfn})");
+    $self->info(1, "Deleting all the entries from $db->{hostIndex} (table $db->{tableName} and lfn=$db->{lfn})");
     my ($db2, $path2)=$self->reconnectToIndex($db->{hostIndex}, $path);
-    $db2 or  $self->info( "Error reconecting") and next;
-
+    $db2 
+      or $self->{LOGGER}->error("ERROR: Could not reconnect to host")
+      and return;
     my $tmpPath="$path/";
     $tmpPath=~ s{^$db->{lfn}}{};
+    $count += ($db2->queryValue("SELECT count(*) FROM L$db->{tableName}L l WHERE l.type='f' AND l.lfn LIKE concat(?,'%')",
+        undef, {bind_values=>[$tmpPath]})||0);
+    $size += ($db2->queryValue("SELECT SUM(l.size) FROM L$db->{tableName}L l WHERE l.lfn LIKE concat(?,'%') AND l.type='f'",
+        undef, {bind_values=>[$tmpPath]})||0);
+    $db2->do("INSERT INTO LFN_BOOKED(lfn, owner, expiretime, size, guid, gowner, user, pfn)
+      SELECT l.lfn, l.owner, -1, l.size, l.guid, l.gowner, ?,'*' FROM L$db->{tableName}L l WHERE l.type<>'l' AND l.lfn LIKE concat(?,'%')",
+      {bind_values=>[$user,$tmpPath]})
+      or $self->{LOGGER}->error("ERROR: Could not add entries $tmpPath to LFN_BOOKED")
+      and return;
     $db2->delete("L$db->{tableName}L", "lfn like '$tmpPath%'");
     $db->{lfn} =~ /^$path/ and push @index, "$db->{lfn}\%";
   }
-
+  #Clean up index
   if ($#index>-1) {
-    $DEBUG and $self->debug(1, "And now, let's clean the index table (@index)");
     $self->deleteFromIndex(@index);
     if (grep( m{^$path/?\%$}, @index)){
-      $DEBUG and $self->debug(1, "The directory we were trying to remove was an index");
-      my $entries=$self->getHostsForEntry($parentdir) or 
-	$self->info( "Error getting the hosts for '$path'") and return;
+      my $entries=$self->getHostsForEntry($parentdir) 
+        or $self->{LOGGER}->error( "Error getting the hosts for '$path'")
+        and return;
       my $db=${$entries}[0];
       my ($newdb, $path2)=$self->reconnectToIndex($db->{hostIndex}, $parentdir);
-      $newdb or $self->info( "Error reconecting") and return;
+      $newdb 
+        or $self->{LOGGER}->error("Error reconecting to index")
+        and return;
       my $tmpPath="$path/";
       $tmpPath=~ s{^$db->{lfn}}{};
       $newdb->delete("L$db->{tableName}L", "lfn='$tmpPath'");
     }
   }
+  $self->fquota_update(-$size,-$count) 
+    or $self->{LOGGER}->error("ERROR: Could not update quotas")
+    and return;
   return 1;
+}
+
+#Move file
+sub moveFile {
+  my $self = shift;
+  my $source = shift;
+  my $target = shift;
+  my $user = $self->{CONFIG}->{ROLE};
+  my $parent = "$source";
+  $parent =~ s{([^/]*[\%][^/]*)/?(.*)$}{};
+  my $dbSource = $self->selectDatabase($parent)
+    or $self->{LOGGER}->error("Error selecting the database of $parent")
+    and return;
+  my $tableName_source = "$dbSource->{INDEX_TABLENAME}->{name}";
+  my $tablelfn_source = "$dbSource->{INDEX_TABLENAME}->{lfn}";
+  $parent = "$target";
+  my $dbTarget = $self->selectDatabase($parent)
+    or $self->{LOGGER}->error("Error selecting the database of $parent")
+    and return;
+  my $tableName_target = "$dbTarget->{INDEX_TABLENAME}->{name}";
+  my $tablelfn_target = "$dbTarget->{INDEX_TABLENAME}->{lfn}";
+  
+  my $lfnOnTable_source = "$source";
+  $lfnOnTable_source =~ s/$tablelfn_source//;
+  my $lfnOnTable_target = "$target";
+  $lfnOnTable_target =~ s/$tablelfn_target//;
+  
+  if($tablelfn_source eq $tablelfn_target) {
+    #If source and target are in same L#L table then just edit the names
+    $dbSource->do("UPDATE $tableName_source SET lfn=? WHERE lfn=?",{bind_values=>[$lfnOnTable_target,$lfnOnTable_source]})
+      or $self->{LOGGER}->error("Error updating database")
+      and return;
+  }
+  else {
+    #If the source and target are in different L#L tables then add in new table and delete from old table
+    my $schema = $dbSource->queryRow("SELECT h.db FROM HOSTS h, INDEXTABLE i WHERE i.hostIndex=h.hostIndex AND i.lfn=?",
+      undef,{bind_values=>[$tablelfn_source]})
+      or $self->{LOGGER}->error("Error updating database")
+      and return;
+    my $db = $schema->{db};
+    $dbTarget->do("INSERT INTO $tableName_target(owner, replicated, ctime, guidtime, aclId, lfn, broken, expiretime, size, dir, gowner, type, guid, md5, perm) 
+      SELECT owner, replicated, ctime, guidtime, aclId, ?, broken, expiretime, size, dir, gowner, type, guid, md5, perm FROM $db.$tableName_source WHERE lfn=?",{bind_values=>[$lfnOnTable_target,$lfnOnTable_source]})
+      or $self->{LOGGER}->error("Error updating database")
+      and return;
+  }
+  my $parentdir = "$lfnOnTable_target";
+  $parentdir =~ s{[^/]*$}{}; $parentdir = s/$tablelfn_target//;
+  my $entryId = $dbTarget->queryValue("SELECT entryId FROM $tableName_target WHERE lfn=?",undef,{bind_values=>[$parentdir]});
+  $dbTarget->do("UPDATE $tableName_target SET dir=? WHERE lfn=?",{bind_values=>[$entryId,$lfnOnTable_target]})
+    or $self->{LOGGER}->error("Error updating database")
+    and return;
+  $dbSource->do("DELETE FROM $tableName_source WHERE lfn=?",{bind_values=>[$lfnOnTable_source]})
+    or $self->{LOGGER}->error("Error updating database")
+    and return;  
+  return 1;
+}
+
+#Create softlink between two LFNs
+sub softLink {
+  my $self = shift;
+  my $source = shift;
+  my $target = shift;
+  my $parent = "$source";
+  $parent =~ s{([^/]*[\%][^/]*)/?(.*)$}{};
+  my $dbSource = $self->selectDatabase($parent)
+    or $self->{LOGGER}->error("Error selecting the database of $parent")
+    and return;
+  my $tableName_source = "$dbSource->{INDEX_TABLENAME}->{name}";
+  my $tablelfn_source = "$dbSource->{INDEX_TABLENAME}->{lfn}";
+  $parent = "$target";
+  my $dbTarget = $self->selectDatabase($parent)
+    or $self->{LOGGER}->error("Error selecting the database of $parent")
+    and return;
+  my $tableName_target = "$dbTarget->{INDEX_TABLENAME}->{name}";
+  my $tablelfn_target = "$dbTarget->{INDEX_TABLENAME}->{lfn}";
+  my $lfnOnTable_source = "$source";
+  $lfnOnTable_source =~ s/$tablelfn_source//;
+  my $lfnOnTable_target = "$target";
+  $lfnOnTable_target =~ s/$tablelfn_target//;
+  
+  if($tablelfn_source eq $tablelfn_target) {
+    #If source and target are in same L#L table then just edit the names
+    $dbTarget->do("INSERT INTO $tableName_target(owner, replicated, ctime, guidtime, aclId, lfn, broken, expiretime, size, dir, gowner, type, guid, md5, perm) 
+      SELECT owner, replicated, ctime, guidtime, aclId, ?, broken, expiretime, size, dir, gowner, 'l', guid, md5, perm FROM $tableName_source WHERE lfn=?",{bind_values=>[$lfnOnTable_target,$lfnOnTable_source]})
+      or $self->{LOGGER}->error("Error updating database","[updateDatabse]")
+      and return;
+  }
+  else {
+    #If the source and target are in different L#L tables then add in new table and delete from old table
+    my $schema = $dbSource->queryRow("SELECT h.db FROM HOSTS h, INDEXTABLE i WHERE i.hostIndex=h.hostIndex AND i.lfn=?",
+      undef,{bind_values=>[$tablelfn_source]})
+      or $self->{LOGGER}->error("Error updating database")
+      and return;
+    my $db = $schema->{db};
+    $dbTarget->do("INSERT INTO $tableName_target(owner, replicated, ctime, guidtime, aclId, lfn, broken, expiretime, size, dir, gowner, type, guid, md5, perm) 
+      SELECT owner, replicated, ctime, guidtime, aclId, ?, broken, expiretime, size, dir, gowner, 'l', guid, md5, perm FROM $db.$tableName_source WHERE lfn=?",{bind_values=>[$lfnOnTable_target,$lfnOnTable_source]})
+      or $self->{LOGGER}->error("Error updating database")
+      and return;
+  }
+  my $parentdir = "$lfnOnTable_target";
+  $parentdir =~ s{[^/]*$}{};
+  my $entryId = $dbTarget->queryValue("SELECT entryId FROM $tableName_target WHERE lfn=?",undef,{bind_values=>[$parentdir]});
+  $self->info("$parentdir : $entryId");
+  $dbTarget->do("UPDATE $tableName_target SET dir=? WHERE lfn=?",{bind_values=>[$entryId,$lfnOnTable_target]})
+    or $self->{LOGGER}->error("Error updating database")
+    and return;
+ return 1; 
 }
 
 sub getSENumber{
@@ -2201,6 +2361,22 @@ sub getAllHostAndTable{
       and return;
 
   return $result;
+}
+
+sub fquota_update {
+  my $self = shift;
+  my $size = shift;
+  my $count = shift;
+
+  my $user=$self->{CONFIG}->{ROLE};
+
+  (defined $size) and (defined $count) or $self->info("Update fquota : not enough parameters") and return;
+
+  $self->{PRIORITY_DB} or $self->{PRIORITY_DB}=AliEn::Database::TaskPriority->new({ROLE=>'admin',SKIP_CHECK_TABLES=> 1});
+  $self->{PRIORITY_DB} or return;
+  $self->{PRIORITY_DB}->do("UPDATE PRIORITY SET nbFiles=nbFiles+tmpIncreasedNbFiles+?, totalSize=totalSize+tmpIncreasedTotalSize+?, tmpIncreasedNbFiles=0, tmpIncreasedTotalSize=0 WHERE user=?", {bind_values=>[$count,$size,$user]}) or return;
+
+  return 1;
 }
 
 1;

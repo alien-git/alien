@@ -33,6 +33,7 @@ use Term::ReadLine;
 
 use Getopt::Long ();
 require AliEn::Catalogue;
+require AliEn::ClientCatalogue;
 use AliEn::UI;
 use AliEn::SOAP;
 use Data::Dumper;
@@ -88,7 +89,7 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
     'findEx'   => ['$self->{CATALOG}->findEx', 0],
     'linkfind' => ['$self->{CATALOG}->f_linkfind', 0],
     'cp'       => ['$self->{CATALOG}->f_cp', 16+64],
-    'ln'       => ['$self->{CATALOG}->f_ln', 11+16],
+    'ln'       => ['$self->{CATALOG}->f_ln', 16+64],
     'tree'     => ['$self->{CATALOG}->f_tree', 0],
     'zoom'     => ['$self->{CATALOG}->f_zoom', 0],
     'getsite'  => ['$self->{CATALOG}->f_getsite',0],
@@ -153,9 +154,9 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
     'register'     => ['$self->f_registerFile', 0],
     'bulkRegister' => ['$self->{CATALOG}->f_bulkRegisterFile', 0],
     'update'       => ['$self->{CATALOG}->f_updateFile', 0],
-    'rm'      	   => ['$self->f_removeFile', 3+16],
-    'remove'   	   => ['$self->f_removeFile', 3+16],
-    'rmdir'        => ['$self->f_rmdir', 3+16],
+    'rm'      	   => ['$self->{CATALOG}->f_removeFile', 3+16],
+    'remove'   	   => ['$self->{CATALOG}->f_removeFile', 3+16],
+    'rmdir'        => ['$self->{CATALOG}->f_rmdir', 3+16],
     'stat'         => ['$self->{CATALOG}->f_stat', 0],
     'addMirror'    => ['$self->{CATALOG}->f_addMirror', 0],
     'masterCopy'   => ['$self->{CATALOG}->f_masterCopy', 0],
@@ -198,7 +199,7 @@ my %help_list =
   (
    'help'     => "\tDisplay this message",
    'pwd'      => "\tDisplay the current directory",
-    'cd'       => "\tChange directory",
+   'cd'       => "\tChange directory",
    'ls'       => "\tList directory",
    'mkremdir' => "Make remote directory",
    'mkdir'    => "Make directory",
@@ -206,7 +207,7 @@ my %help_list =
    'quit'     => "\tExit the program",
    'exit'     => "\tExit the program",
    'whoami'   => "Display the current user",
-    'user'     => "\tChange user",
+   'user'     => "\tChange user",
    'chown'    => "Change owner of directory or file",
    'passwd'   => "Change password",
    'find'     => "\tFind files",
@@ -501,7 +502,6 @@ sub new {
 
   $self->{SOAP}=new AliEn::SOAP;
   $self->{GUID}=AliEn::GUID->new();
-
   
   if ($sentence) {
     $DEBUG and $self->debug(1, "Executing '$sentence'...");
@@ -532,7 +532,7 @@ sub startPrompt {
     $self->info("AliEn was started with '-no_catalog' option. You cannot have the prompt");
     return;
   }
-  my $host = $self->{CATALOG}->f_Database_getVar("HOST");
+  my $host = $self->{CATALOG}->getHost();
   $catalog=$self->{CATALOG};
   $AliEn::UI::catalog=undef;
   $term    = new Term::ReadLine 'ALIEN';
@@ -567,7 +567,7 @@ sub startPrompt {
 }
 
 sub initialize {
-    return 1;
+  return 1;
 }
 
 sub setSilent {
@@ -961,58 +961,6 @@ Possible pfns:\tsrm://<host>/<path>, castor://<host>/<path>,
   return $self->{CATALOG}->f_registerFile( $opt, $file, $size, $destSE, $guid, $type, undef,$options->{md5}, $pfn);
 }
 
-sub f_removeFile {
-        my $self = shift;
-        my $options = shift;
-        my $file = shift;
-        my $silent = ($options =~ /s/);
-        my $fullPath = $self->{CATALOG}->GetAbsolutePath($file);
-        $self->{CATALOG}->isDirectory($fullPath) and $self->info("ERROR: <$file> is a directory") and return -2;
-
-        if(!$file)
-        {
-                ( $options =~ /s/ )
-                        or print STDERR "Error in remove: not enough arguments\nUsage remove [-s] <path>\nOptions: -s : silent. Do not print error messages\n";
-                return;
-        }
-        
-        my (@envelope) = $self->access("-s", "deletefile", "$fullPath");
-        my $envelop = $envelope[0];
-        ((!$envelop))
-                and  return;
-        my $message = $envelop->{error};
-        $self->info("From Authen: $message");
-        
-        return !$envelop->{exception};
-}
-
-sub f_rmdir {
-        my $self = shift;
-        my ( $options, $path ) = @_;
-        my $deleteall = ( ( $options =~ /r/ ) ? 1 : 0 );
-        my $message = "";
-        ($path) or $message = "no directory specified";
-        ( $path and $path eq "." )  and $message = "Cannot remove current directory";
-        ( $path and $path eq ".." ) and $message = "Cannot remove parent directory.";
-        $message and $self->{LOGGER}->error( "Catalogue", "Error $message\nUsage: rmdir [-r] <directory>" )
-                and return;
-        $path = $self->{CATALOG}->GetAbsolutePath( $path, 1 );
-        unless($self->{CATALOG}->isDirectory($path)) {
-                        $self->info("ERROR: <$path> is not a directory");
-                        return -2;
-        }
-
-        my (@envelope) = $self->access("-s","deletefolder","$path");
- 
-        my $envelop = $envelope[0];
-        ((!$envelop))
-                and  return;
-        $message = $envelop->{error};
-        $self->info("From Authen: $message");
-        
-        return !$envelop->{exception};
-
-}
 
 sub registerFileInSE {
   my $self=shift;
@@ -1201,6 +1149,40 @@ sub phone {
   }
   $self->info($message);
   return $user;
+}
+
+sub access {
+  my $self=shift;
+  $self->info("We are going to ask for an envelope");
+  my $user=$self->{CONFIG}->{ROLE};
+  $self->{CATALOG} and $self->{CATALOG}->{ROLE} and $user=$self->{CATALOG}->{ROLE};
+
+  if($_[0] =~ /^-user=([\w]+)$/)  {
+    $user = shift;
+    $user =~ s/^-user=([\w]+)$/$1/;
+  }
+  
+  my $info=0;
+  for (my $tries = 0; $tries < 5; $tries++) { # try five times
+    $info=$self->{SOAP}->CallSOAP("Authen", "createEnvelope", $user, @_) and last;
+    $self->info("Sleeping for a while before retrying...");
+    sleep(5);
+  }
+  $info or $self->info("Connecting to the [Authen] service failed!") 
+       and return ({error=>"Connecting to the [Authen] service failed!"}); 
+  my @newhash=$self->{SOAP}->GetOutput($info);
+  if (!$newhash[0]->{envelope}){
+    my $error=$newhash[0]->{error} || "";
+    $self->info($self->{LOGGER}->error_msg());
+    $self->info("Access [envelope] creation failed: $error", 1);
+    ($newhash[0]->{exception}) and 
+      return ({error=>$error, exception=>$newhash[0]->{exception}});
+    return (0,$error) ;
+   }
+  $ENV{ALIEN_XRDCP_ENVELOPE}=$newhash[0]->{envelope}||"";
+  $ENV{ALIEN_XRDCP_URL}=$newhash[0]->{url}||"";
+  return (@newhash);
+  
 }
 
 return 1;

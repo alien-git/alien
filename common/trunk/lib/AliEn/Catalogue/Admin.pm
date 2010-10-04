@@ -988,7 +988,7 @@ sub removeExpiredFiles {
       use Time::HiRes qw (time); 
       my $currentTime = time();
       $db->query("DELETE FROM LFN_BOOKED WHERE lfn LIKE '%/' AND expiretime<?", undef ,{bind_values=>[$currentTime]});
-      my $files = $db->query("SELECT lfn, binary2string(guid) as guid, substr(binary2date(guid),1,8) as guidtime FROM LFN_BOOKED 
+      my $files = $db->query("SELECT lfn, binary2string(guid) as guid, substr(binary2date(guid),1,8) as guidtime, user FROM LFN_BOOKED 
                               WHERE expiretime<?", undef, {bind_values=>[$currentTime]});
       $files or next;
       #Get possible G#L tables
@@ -996,54 +996,60 @@ sub removeExpiredFiles {
         my $lfn = $file->{lfn};
         my $guid = $file->{guid};
         my $guidtime = $file->{guidtime};
-        $self->info("Deleting $lfn");
+        my $action_user = $file->{user};
         my $possibleGuidTable = $db->query("SELECT h.db AS dbName, gI.tableName AS tableName FROM GUIDINDEX gI, HOSTS h 
                                             WHERE h.hostIndex=gI.hostIndex AND hex(gI.guidTime)<hex(?) ORDER BY hex(gI.guidTime)",
                                             undef, {bind_values=>[$guidtime]});
-        #Delete file
-        foreach my $guidtable (@$possibleGuidTable) {
-          my $gTableName = "$guidtable->{dbName}.G$guidtable->{tableName}L";
-          my $gTableName_PFN = $gTableName."_PFN";
-          my $guidId;
-          #Get file storage data
-          my $fileData = $db->query("SELECT g_p.pfn, g_p.seNumber, g.guidId, s.seName
-                                    FROM $gTableName_PFN g_p, $gTableName g, SE s, LFN_BOOKED l
-                                    WHERE g_p.guidId=g.guidId AND s.seNumber=g_p.seNumber AND g.guid=l.guid AND l.lfn LIKE ?",
-                                    undef, {bind_values=>[$lfn]});
-          #Delete from SE
-          foreach my $data (@$fileData) {
-            my $pfn = $data->{pfn};
-            my $seNumber = $data->{seNumber};
-            my $seName = $data->{seName};
-            $guidId = $data->{guidId};
-            
-            #DELETE FROM SE
-            my $list=$db->queryColumn("SELECT protocol FROM transfers.PROTOCOLS 
-                                       WHERE sename=? AND deleteprotocol=1",undef ,{bind_values=>[$seName]});
-            my @protocols = @$list;    
-            @protocols or push @protocols, "rm";
-            foreach my $protocol (@protocols) {
-              if (grep(/^$protocol$/i, @{$self->{CONFIG}->{FTD_PROTOCOL_LIST}})){
-                my $protName = "AliEn::FTP::".lc($protocol);
-                unless($self->{DELETE}->{lc($protocol)}){
-                  eval "require $protName";
-                  $self->{DELETE}->{lc($protocol)}=$protName->new();
-                }
-                $self->{DELETE}->{lc($protocol)}->delete($pfn) and last;
-              }
-              else {   
-                $self->info("$protocol is not in the FTD_PROTOCOL_LIST");
-              }
-            }                                     
-             
-            #CLEAN G#L, G#L_PFN and LFN_BOOKED TABLES
-            $db->do("DELETE FROM $gTableName_PFN WHERE pfn LIKE '$pfn'");
-          }
-          $db->do("DELETE FROM $gTableName WHERE binary2string(guid) LIKE '$guid'");
+        $self->{DATABASE}->{GUID_DB}->{VIRTUAL_ROLE} = "$action_user";
+        $self->info("Deleting $lfn as $self->{DATABASE}->{GUID_DB}->{VIRTUAL_ROLE}");
+	      if($self->{DATABASE}->{GUID_DB}->checkPermission("w",$guid)) {
+          $self->info("Have Permission on GUID");
+          #Delete file
+	        foreach my $guidtable (@$possibleGuidTable) {
+	          my $gTableName = "$guidtable->{dbName}.G$guidtable->{tableName}L";
+	          my $gTableName_PFN = $gTableName."_PFN";
+	          my $guidId;
+	          #Get file storage data
+	          my $fileData = $db->query("SELECT g_p.pfn, g_p.seNumber, g.guidId, s.seName
+	                                    FROM $gTableName_PFN g_p, $gTableName g, SE s, LFN_BOOKED l
+	                                    WHERE g_p.guidId=g.guidId AND s.seNumber=g_p.seNumber AND g.guid=l.guid AND l.lfn LIKE ?",
+	                                    undef, {bind_values=>[$lfn]});
+	          #Delete from SE
+	          foreach my $data (@$fileData) {
+	            my $pfn = $data->{pfn};
+	            my $seNumber = $data->{seNumber};
+	            my $seName = $data->{seName};
+	            $guidId = $data->{guidId};
+	            
+	            #DELETE FROM SE
+	            my $list=$db->queryColumn("SELECT protocol FROM transfers.PROTOCOLS 
+	                                       WHERE sename=? AND deleteprotocol=1",undef ,{bind_values=>[$seName]});
+	            my @protocols = @$list;    
+	            @protocols or push @protocols, "rm";
+	            foreach my $protocol (@protocols) {
+	              if (grep(/^$protocol$/i, @{$self->{CONFIG}->{FTD_PROTOCOL_LIST}})){
+	                my $protName = "AliEn::FTP::".lc($protocol);
+	                unless($self->{DELETE}->{lc($protocol)}){
+	                  eval "require $protName";
+	                  $self->{DELETE}->{lc($protocol)}=$protName->new();
+	                }
+	                $self->{DELETE}->{lc($protocol)}->delete($pfn) and last;
+	              }
+	              else {   
+	                $self->info("$protocol is not in the FTD_PROTOCOL_LIST");
+	              }
+	            }                                     
+	             
+	            #CLEAN G#L, G#L_PFN and LFN_BOOKED TABLES
+	            $db->do("DELETE FROM $gTableName_PFN WHERE pfn LIKE '$pfn'");
+	          }
+	          $db->do("DELETE FROM $gTableName WHERE binary2string(guid) LIKE '$guid'");
+	        }
         }
-        $db->do("DELETE FROM LFN_BOOKED WHERE binary2string(guid) LIKE '$guid'");
+        $db->do("DELETE FROM LFN_BOOKED WHERE lfn LIKE '$lfn'");
       }
     }
+    $self->{DATABASE}->{GUID_DB}->{VIRTUAL_ROLE} = "admin";
   }
 
 sub checkOrphanGUID{
@@ -1104,43 +1110,12 @@ sub calculateFileQuota {
     
   	$self->$method(@data, "Updating the table ${LTableName}");
   	$db->do("delete from LL_ACTIONS where action='QUOTA' and tableNumber=?", {bind_values=>[$LTableIdx]});
-  	$db->do("insert into LL_ACTIONS(tablenumber, time, action, extra) select ${LTableIdx}, max(ctime), 'QUOTA', count(1) from $LTableName");
+  	$db->do("insert into LL_ACTIONS(tablenumber, time, action, extra) select ?, max(ctime), 'QUOTA', count(1) from $LTableName",{bind_values=>[$LTableIdx]});
   	
-#        #Get possible G#L tables
-#        my $possibleGTables=$db->query("select h.db, gI.tableName from GUIDINDEX gI, HOSTS h where h.hostIndex=gI.hostIndex and hex(gI.guidTime)<(select max(hex(guidtime)) from ${LTableName} where guidtime<>'')");
-        my %sizeInfo;
-        $db->do("delete from ${LTableName}_QUOTA");
-        my %dataFromJoin;
-#        foreach my $i (@$possibleGTables) {
-#          my $GTableIdx=$i->{tableName};
-#          my $GTableName="$i->{db}.G$i->{tableName}L";
-#          #Join G#L with L#L -> get data
-#          $my $data=$db->query("select l.owner as user, count(g2.guidid) as nbFiles, sum(g.size) as totSize from ${LTableName} l, ${GTableName} g, ${GTableName}_PFN g2 where g.guid=l.guid and g.guidid=g2.guidid group by l.owner order by l.owner");
-          #Counting LFNs(not checking GUIDs)
-          my $data=$db->query("select l.owner as user, count(l.lfn) as nbFiles, sum(l.size) as totSize from ${LTableName} l where l.type='f' group by l.owner order by l.owner");
-          for my $tmp (@$data)
-          {
-            if(exists $dataFromJoin{$tmp->{user}})
-            {
-              $dataFromJoin{$tmp->{user}} = {
-                nbFiles => $dataFromJoin{$tmp->{user}}{nbFiles} + $tmp->{nbFiles},
-                totalSize => $dataFromJoin{$tmp->{user}}{totalSize} + $tmp->{totSize}
-              };
-            }
-            else
-            {
-              $dataFromJoin{$tmp->{user}} = {
-                nbFiles => $tmp->{nbFiles},
-                totalSize => $tmp->{totSize}
-              };
-            }
-          }          
-#	}
-	#Write data from joins to L#L_QUOTA
-	foreach my $user (keys %dataFromJoin) {
-	  $db->do("insert into ${LTableName}_QUOTA (user, nbFiles, totalSize) values ('${user}', $dataFromJoin{$user}{nbFiles}, $dataFromJoin{$user}{totalSize})");
-	}
-	$calculate=1;
+    my %sizeInfo;
+    $db->do("delete from ${LTableName}_QUOTA");
+    $db->do("insert into ${LTableName}_QUOTA (user, nbFiles, totalSize) select l.owner as user, count(l.lfn) as nbFiles, sum(l.size) as totSize from ${LTableName} l where l.type='f' group by l.owner order by l.owner");
+    $calculate=1;
   }
   $calculate or $self->$method(@data, "No need to calculate") and return;
 
