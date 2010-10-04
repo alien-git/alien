@@ -125,10 +125,12 @@ sub getDispPath {
   my $self = shift;
   return $self->{DISPPATH};
 }
+
 sub getHost{
   my $self=shift;
   return $self->f_Database_getVar("HOST");
 }
+
 sub new {
   my $proto   = shift;
   my $class   = ref($proto) || $proto;
