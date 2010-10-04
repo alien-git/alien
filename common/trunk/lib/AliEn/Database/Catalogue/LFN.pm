@@ -2381,19 +2381,3 @@ sub fquota_update {
 
 1;
 
-sub fquota_update {
-  my $self = shift;
-  my $size = shift;
-  my $count = shift;
-
-  my $user=$self->{CONFIG}->{ROLE};
-
-  (defined $size) and (defined $count) or $self->info("Update fquota : not enough parameters") and return;
-
-  $self->{PRIORITY_DB} or $self->{PRIORITY_DB}=AliEn::Database::TaskPriority->new({ROLE=>'admin',SKIP_CHECK_TABLES=> 1});
-  $self->{PRIORITY_DB} or return;
-  $self->{PRIORITY_DB}->do("UPDATE PRIORITY SET nbFiles=nbFiles+tmpIncreasedNbFiles+?, totalSize=totalSize+tmpIncreasedTotalSize+?, tmpIncreasedNbFiles=0, tmpIncreasedTotalSize=0 WHERE user=?", {bind_values=>[$count,$size,$user]}) or return;
-
-  return 1;
-}
-

@@ -18,12 +18,14 @@ sub new {
   $self->{SOAP} = new AliEn::SOAP
     or print "Error creating AliEn::SOAP $! $?" and return;
   $self->{UMASK} = 0755;
+  $self->{DISPPATH} = "$self->{CONFIG}->{USER_DIR}/".substr($self->{CONFIG}->{ROLE},0,1)."/$self->{CONFIG}->{ROLE}";
+  $self->{CURPATH} = $self->{DISPPATH};
   return $self;
 }
 
 sub getHost{
    my $self=shift;
-   return $self->{CONFIG}->{CATALOGHOST};
+   return $self->{CONFIG}->{CATALOG_HOST};
 }
 
 sub callAuthen {
