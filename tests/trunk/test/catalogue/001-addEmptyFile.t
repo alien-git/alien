@@ -19,7 +19,7 @@ $cat->execute("cd") or exit(-2);
 $cat->execute("pwd") or exit(-2);
 $cat->execute("rm","emptyFile");
 $cat->execute("debug","Catalogue,Methods");
-$cat->execute("register","emptyFile file://$cat->{CONFIG}->{HOST}$file") and 
+$cat->execute("add","-r","emptyFile file://$cat->{CONFIG}->{HOST}$file") and 
   print "This is not supposed to work!!\n" and exit(-2);
 
 

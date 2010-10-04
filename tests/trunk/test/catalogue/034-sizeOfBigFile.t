@@ -11,7 +11,7 @@ my $size=78103968171;
 
 
 $cat->execute("rm", "-rf", $file);
-$cat->execute("register", $file, "file://localhost/dev/null", $size) or exit(-2);
+$cat->execute("add", "-r", $file, "file://localhost/dev/null", $size) or exit(-2);
 
 print "The file is registered. Let's check the size\n";
 my ($info)=$cat->execute("ls", "-z", $file, "-la")or exit(-2);

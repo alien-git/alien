@@ -35,7 +35,7 @@ sub insertEntries {
   my $before=time;
   while ($start) {
     $c->execute("touch", "$dir/file$start") or exit(-2);
-#    $c->execute("register", "$dir/file$start", "/etc/passwd", 1700);
+#    $c->execute("add", "-r", "$dir/file$start", "/etc/passwd", 1700);
     $start--;
     if ( $start%$step eq "0") {
       my $intermediate=time();

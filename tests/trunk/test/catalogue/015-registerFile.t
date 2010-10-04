@@ -12,7 +12,7 @@ open (FILE, ">$file") or print "Error creating $file\n" and exit(-2);
 print FILE "HELLO\n";
 close FILE;
 
-$cat->execute("register", "not_a_directory/myfile.".time, $file) and
+$cat->execute("add", "-r", "not_a_directory/myfile.".time, $file) and
   print "The registration worked!!!!! :(\n" and exit(-2);
 
 print "ok\nLet's try to create a directory in a non_existent directory...";

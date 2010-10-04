@@ -19,7 +19,7 @@ foreach my $file (@files) {
   print "Trying $file\n";
 #  my @f=$cat->{CATALOG}->ExpandWildcards("specialChar/$_");
 #  print "AFTER EXPANDING @f\n";
-  $cat->execute("register", "specialChar/$file", "file://ddd/d", 22) or exit(-2);
+  $cat->execute("add", "-r", "specialChar/$file", "file://ddd/d", 22) or exit(-2);
 
 }
 print "TENGO @files\n";

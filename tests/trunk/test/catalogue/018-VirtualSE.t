@@ -68,8 +68,8 @@ use Net::Domain qw(hostname hostfqdn hostdomain);
   $error or $ui->execute("add", "seVirtual1", $localfile) or $error=1;
   $error or $ui->execute("add", "seVirtual2", $localfile, "${host}::CERN::otherse") or $error=1;
 
-  $error or $ui->execute("register", "seVirtual3", $localfile) or $error=1;
-  $error or $ui->execute("register", "seVirtual4", $localfile, 1024,"${host}::CERN::otherse") or $error=1;
+  $error or $ui->execute("add", "-r", "seVirtual3", $localfile) or $error=1;
+  $error or $ui->execute("add", "-r", "seVirtual4", $localfile, 1024,"${host}::CERN::otherse") or $error=1;
 
   unlink $localfile;
   ($error) and exit(-2);
