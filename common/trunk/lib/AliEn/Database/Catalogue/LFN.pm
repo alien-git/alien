@@ -401,15 +401,9 @@ sub createFile {
   if (!$done and $DBI::errstr=~ /Duplicate entry '(\S+)'/ ){
     $self->info("The entry '$tableLFN$1' already exists");
   }
-<<<<<<< LFN.pm
  #Update quota
  $self->fquota_update(0,scalar(@inserts));
  return $done;
-=======
-  #Update quotas
-  $self->fquota_update(0,scalar(@inserts));  
-  return $done;
->>>>>>> 1.61
 }
 
 #
@@ -669,44 +663,6 @@ sub createRemoteDirectory {
 
 }
 
-<<<<<<< LFN.pm
-#Delete file from Catalogue
-sub removeFile {
-  my $self = shift;
-  my $lfn = shift;
-  my $filehash = shift;
-  my $user = $self->{CONFIG}->{ROLE};
-  #Insert into LFN_BOOKED
-  my $parent = "$lfn";
-  $parent =~ s{([^/]*[\%][^/]*)/?(.*)$}{};
-  my $db = $self->selectDatabase($parent) 
-    or $self->{LOGGER}->error("Error selecting the database of $parent")
-    and return;
-  my $tableName = "$db->{INDEX_TABLENAME}->{name}";
-  my $tablelfn = "$db->{INDEX_TABLENAME}->{lfn}";
-  my $lfnOnTable = "$lfn";
-  $lfnOnTable =~ s/$tablelfn//;
-  my $guid = $db->queryValue("SELECT binary2string(l.guid) as guid FROM $tableName l WHERE l.lfn=?", undef, {bind_values=>[$lfnOnTable]}) || 0;
-  #Insert into LFN_BOOKED only when the GUID has to be deleted
-  $db->do("INSERT INTO LFN_BOOKED(lfn, owner, expiretime, size, guid, gowner, user)
-    SELECT ?, l.owner, -1, l.size, l.guid, l.gowner, ? FROM $tableName l WHERE l.lfn=? AND l.type<>'l'", {bind_values=>[$lfn,$user,$lfnOnTable]})
-    or return ("ERROR: Could not add entry $lfn to LFN_BOOKED","[insertIntoDatabase]");
-  
-  #Delete from table
-  $db->do("DELETE FROM $tableName WHERE lfn=?",{bind_values=>[$lfnOnTable]});
-
-  #Update Quotas
-  if($filehash->{type} eq "f"){
-    $self->fquota_update(-1*$filehash->{size},-1) 
-      or $self->{LOGGER}->error("ERROR: Could not update quotas")
-      and return;
-  }
-  
-  return 1;
-}
-
-#Delete folder from Catalogue
-=======
 #Delete file from Catalogue
 sub removeFile {
   my $self = shift;
@@ -743,7 +699,6 @@ sub removeFile {
 }
 
 #Delete folder from Catalogue
->>>>>>> 1.61
 sub removeDirectory {
   my $self=shift;
   my $path=shift;
@@ -764,17 +719,6 @@ sub removeDirectory {
       and return;
     my $tmpPath="$path/";
     $tmpPath=~ s{^$db->{lfn}}{};
-<<<<<<< LFN.pm
-    $count += ($db2->queryValue("SELECT count(*) FROM L$db->{tableName}L l WHERE l.type='f' AND l.lfn LIKE concat(?,'%')",
-        undef, {bind_values=>[$tmpPath]})||0);
-    $size += ($db2->queryValue("SELECT SUM(l.size) FROM L$db->{tableName}L l WHERE l.lfn LIKE concat(?,'%') AND l.type='f'",
-        undef, {bind_values=>[$tmpPath]})||0);
-    $db2->do("INSERT INTO LFN_BOOKED(lfn, owner, expiretime, size, guid, gowner, user)
-      SELECT l.lfn, l.owner, -1, l.size, l.guid, l.gowner, ? FROM L$db->{tableName}L l WHERE l.type<>'l' AND l.lfn LIKE concat(?,'%')",
-      {bind_values=>[$user,$tmpPath]})
-      or $self->{LOGGER}->error("ERROR: Could not add entries $tmpPath to LFN_BOOKED")
-      and return;
-=======
     $count += ($db2->queryValue("SELECT count(*) FROM L$db->{tableName}L l WHERE l.type='f' AND l.lfn LIKE concat(?,'%')",
         undef, {bind_values=>[$tmpPath]})||0);
     $size += ($db2->queryValue("SELECT SUM(l.size) FROM L$db->{tableName}L l WHERE l.lfn LIKE concat(?,'%') AND l.type='f'",
@@ -784,7 +728,6 @@ sub removeDirectory {
       {bind_values=>[$user,$tmpPath]})
       or $self->{LOGGER}->error("ERROR: Could not add entries $tmpPath to LFN_BOOKED")
       and return;
->>>>>>> 1.61
     $db2->delete("L$db->{tableName}L", "lfn like '$tmpPath%'");
     $db->{lfn} =~ /^$path/ and push @index, "$db->{lfn}\%";
   }
