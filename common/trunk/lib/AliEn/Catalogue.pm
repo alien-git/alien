@@ -125,7 +125,10 @@ sub getDispPath {
   my $self = shift;
   return $self->{DISPPATH};
 }
-
+sub getHost{
+  my $self=shift;
+  return $self->f_Database_getVar("HOST");
+}
 sub new {
   my $proto   = shift;
   my $class   = ref($proto) || $proto;
@@ -591,90 +594,44 @@ Options:
 
 sub f_mkdir {
   my $self = shift;
-  my ( $options, $path ) = @_;
+  my ($options,$path) = @_;
   $DEBUG and $self->debug( 1, "In UserInterface f_mkdir @_" );
   my $message;
   ( defined $path ) or $message = "not enough arguments";
   $path =~ s{\\@}{@}g;
   ( $options =~ /^[s|p|d]*$/ ) or $message = "unknown option '$options'";
-  $message
-    and $self->{LOGGER}
-    ->error( "Catalogue", "Error $message\n " . $self->f_mkdir_HELP() )
+  $message 
+    and $self->{LOGGER}->error( "Catalogue", "Error $message\n " . $self->f_mkdir_HELP() )
     and return;
   my $silent = ( $options =~ /s/ ) ? 1 : undef;
   $path = $self->GetAbsolutePath( $path, 1 );
 
-  if ( $self->existsEntry($path) ) {
-    ( $options =~ /d/ )
-      and return
-      $self->{DATABASE}->getAllInfoFromLFN(
-                                            {
-                                              options  => 'd',
-                                              retrieve => 'entryId',
-                                              method   => 'queryValue'
-                                            },
-                                            "$path/"
-      );
-    $options =~ /p/ and return 1;
-    $self->info("Directory or File $path already exists.\n");
-    return;
-  }
   my $parentdir = $self->f_dirname($path);
   $DEBUG and $self->debug( 1, "Checking the parent: $parentdir" );
-
-  # With the -p, we create all the tree structure if needed
   if ( $options =~ /p/ and $parentdir ne '/' ) {
     if ( !$self->existsEntry($parentdir) ) {
-      $self->f_mkdir( $options . "s", $parentdir ) or return;
+      $self->f_mkdir( $options . "s", $parentdir ) or 
+      $self->{LOGGER}->error("Error building $parentdir");
+      return;
     }
   }
-  if ( !( $self->checkPermissions( 'w', $path, $silent ) ) ) {
-    $self->info("You don't have privileges to create the directory");
-    return;
+  
+  $DEBUG and $self->debug( 1, "Creating directory in $path" );
+
+  #Check permissions
+  $self->checkPermissions("w",$path,undef,{RETURN_HASH=>1}) 
+    or return;
+  
+  my @returnVal = $self->{DATABASE}->createDirectory( "$path/", $self->{UMASK} );
+
+  #Get directory number
+  if ( $options =~ /d/ and $self->existsEntry($path) ) {
+      return ($self->{DATABASE}->getAllInfoFromLFN({
+                                              options  => 'd',
+                                              retrieve => 'entryId',
+                                              method   => 'queryValue'},"$path/"));
   }
-  my $done = $self->{DATABASE}->createDirectory( "$path/", $self->{UMASK} );
-  $DEBUG and $self->debug( 1, "Directory $path created" );
-  ($done)
-    and ( $options =~ /d/ )
-    and return
-    $self->{DATABASE}->getAllInfoFromLFN(
-                                          {
-                                            options  => 'd',
-                                            retrieve => 'entryId',
-                                            method   => 'queryValue'
-                                          },
-                                          "$path/"
-    );
-  return $done;
-}
-
-sub f_rmdir {
-  my $self = shift;
-  $DEBUG and $self->debug( 1, "In UserInterface rmdir:@_" );
-  my ( $options, $path ) = @_;
-  my $deleteall = ( ( $options =~ /r/ ) ? 1 : 0 );
-  my $message = "";
-  ($path) or $message = "no directory specified";
-  ( $path and $path eq "." )  and $message = "Cannot remove current directory";
-  ( $path and $path eq ".." ) and $message = "Cannot remove parent directory.";
-  $message
-    and $self->{LOGGER}
-    ->error( "Catalogue", "Error $message\nUsage: rmdir [-r] <directory>" )
-    and return;
-  $path = $self->GetAbsolutePath( $path, 1 );
-  my $parentdir = $self->GetParentDir($path);
-
-  # $parentdir with /
-  ( $self->checkPermissions( "w", $parentdir ) )
-    or print STDERR "You dont have permission to delete directory $path\n"
-    and return;
-  $DEBUG and $self->debug( 1, "Checking if we can read the directory" );
-
-  #checkPermission implicits call to $self->selectDatabase("$path/");
-  ( $self->checkPermissions( "w", "$path/" ) )
-    or print STDERR "You dont have permission to read directory $path\n"
-    and return;
-  return $self->{DATABASE}->removeDirectory( $path, $parentdir );
+  return @returnVal;
 }
 
 sub f_quit {

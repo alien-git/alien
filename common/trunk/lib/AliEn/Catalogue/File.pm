@@ -438,34 +438,6 @@ sub f_setExpired{
     return 1;
 
 }
-sub f_removeFile {
-  my $self = shift;
-  my $options = shift;
-  my $file = shift;
-  my $silent = ($options =~ /s/);
-  
-  if ( !$file ) {
-    ( $options =~ /s/ )
-      or print STDERR
-	"Error in remove: not enough arguments\nUsage remove [-s] <path>\nOptions: -s : silent. Do not print error messages\n";
-    return;
-  }
-  $file = $self->GetAbsolutePath($file);
-#  my $parentdir = $self->GetParentDir($file);
-  my $permLFN=$self->checkPermissions( "w", $file, $silent )
-    or return;
-
-  if (! $self->isFile($file, $permLFN) ) {
-      if ($options =~ /f/) {
-          return $file;
-      }
-    $self->{LOGGER}->error("File", "file $file doesn't exist!!",1);
-    return;
-  }
-  # First, we check that we have permission in that directory
-
-  return $self->{DATABASE}->deleteFile($file);
-}
 
 sub f_cp_HELP {
   return "cp - copy files and directories
@@ -479,106 +451,131 @@ Possible options:
    -m: copy also the metadata
 ";
 }
+
+#
+#Copy files from one LFN to another
+#
 sub f_cp {
-  my $self   = shift;
-  my $opt= {};
+  my $self = shift;
+  my $opt = {};
   @ARGV=@_;
   Getopt::Long::GetOptions($opt,  "k", "user=s", "m") or 
       $self->info("Error parsing the ") and return;;
   @_=@ARGV;
   my $source = shift;
   my $target = pop;
+  my @srcFileList=@_;
+  my @returnvals = ();
 
-  $opt->{user} and $self->{DATABASE}->{ROLE} !~ /^admin(ssl)?$/
-    and $self->info("Only the admin can copy on behave of other users") and 
-      return;
-
-  my @moreFiles=@_;
   ($target)
-    or print STDERR
-      "Error: not enough arguments in cp!!\nUsage: cp <source> <target>\n"
-	and return;
+    or $self->{LOGGER}->error("Error: not enough arguments in cp!!\nUsage: cp <source> <target>\n")
+       and return;
 
+  #Set user role -- if option is specified
+  #NOT BEING USED
+  my $user = $self->{ROLE};
+  $user = $opt->{'user'} if($opt->{'user'});
+  
   $target = $self->GetAbsolutePath($target, 1);
-
-  my $targetPerm=$self->checkPermissions( "w", $target, undef, {ROLE=>$opt->{user}} ) or return;
-  my $targetIsDir=$self->isDirectory($target, $targetPerm);
+  my $targetIsDir=$self->isDirectory($target);
+  ( $opt->{'k'} or scalar(@srcFileList)>0 ) and ( !$targetIsDir ) 
+    and $self->{LOGGER}->error("Error: Multiple source files specified but last argument is not a directory\n")
+    and return;
   my $targetDir=$target;
-  ( $targetIsDir) or $targetDir=~ s{/[^/]*$}{/}; 
+  ( $targetIsDir ) or $targetDir=~ s{/[^/]*$}{/};
 
-  if (@moreFiles && not $targetIsDir) {
-    $self->info("cp: copying multiple files, but last argument '$target' is not a directory", 0,0);
-    return;
-  } 
-  if ($self->isFile($target, $targetPerm)){
-    $self->info("cp: file $target already exists", 0,0);
-    return;
+  #Get objetct to AliEn::UI::Catalogue <<<------ new add will change this
+  unless($self->{UI}){
+    my $options_UI = {};
+    $options_UI->{role} = "$self->{CONFIG}->{ROLE}";
+    $self->{UI} = AliEn::UI::Catalogue::LCM->new($options_UI) 
+      or $self->{LOGGER}->error("Could not get UI") 
+      and return;
   }
-  my @done;
-  my @todo;
-  my $todoMetadata={};
-  foreach my $file ($source,@moreFiles) {
-    $source = $self->GetAbsolutePath($file, 1);
 
-    my $sourceHash=$self->checkPermissions( "r", $source,undef, {RETURN_HASH=>1} )
-    or return;
+  #Populate list of source files
+  if($opt->{'k'}) {
+    #Find all files in source directory
+    $source = $self->GetAbsolutePath($source,1);
+    my $sourceIsDir = $self->isDirectory($source) ;
+    ( $sourceIsDir)
+      or $self->{LOGGER}->error("Error: $source is not a directory")
+      and return;
+    my $db = $self->selectDatabase($source);
+    my $tableName = "$db->{INDEX_TABLENAME}->{name}";
+    my $tablelfn = "$db->{INDEX_TABLENAME}->{lfn}";
+    my $lfnOnTable = $source;
+    $lfnOnTable =~ s/$tablelfn//;
+    my $entryId = $db->queryValue("SELECT entryId FROM $tableName WHERE lfn=concat(?,'/')",undef,{bind_values=>[$lfnOnTable]}) || 0;
+    my $files = $db->queryColumn("SELECT lfn FROM $tableName WHERE type<>'d' AND dir=?",undef,{bind_values=>[$entryId]});
+    @srcFileList = map {$_ = $tablelfn.$_} @$files;
+  }
+  else {
+    #Append source file to srcFileList
+    push @srcFileList, $source;
+    @srcFileList = map {$_ = $self->GetAbsolutePath($_,1)} @srcFileList;
+  }
 
-    $self->existsEntry($source, $sourceHash->{lfn})
-      or $self->info("$source: no such file or directory",1,0) 
-	and return;
-    # fast directory -> directory copy mechanism ...
-    if ($sourceHash->{lfn}=~ m{/$} ) {
-      $DEBUG and $self->debug(1, "Copying a whole directory");
-      push @done, $self->{DATABASE}->copyDirectory($opt, $source, $target);
-      if ($self->{DATABASE}->{ROLE} =~  /^admin(ssl)?$/) {
-	  if ($self->{ROLE} !~  /^admin(ssl)?$/) {
-	      $self->f_chown("s",$self->{ROLE},$target);
-	  }
-      }
-      if ($opt->{'m'}){
-	$self->info("We should get the metadata of the directory");
-	$self->getCPMetadata($sourceHash->{lfn} , $target, "", $todoMetadata)
-	  or return;
-      }
-      next;
+  #Do copy
+  foreach my $sourceFile (@srcFileList) {
+    my $targetFile;
+    if($targetIsDir) {
+      my $fileName = "$sourceFile";
+      $fileName =~ s!.*/(.*$)!$1!;
+      $targetFile = $targetDir."/".$fileName;
     }
-    my $targetName=$self->f_basename($target);
-    if ($targetIsDir) {
-      $targetName = $self->f_basename($source);
-    } else {
-      $target=~ s{/[^/]*$}{};
+    else {
+      $targetFile = $target;
     }
-#    $sourceHash->{guid}=$self->{GUID}->getGUIDfromIntegers($sourceHash->{guid1},$sourceHash->{guid2},$sourceHash->{guid3},$sourceHash->{guid4});
-    $DEBUG and $self->debug(2, "Let's copy $source into $targetName");
-    $sourceHash->{lfn}=$targetName;
-    $self->info("Copying $source to $targetName...");
-    $opt->{user} and $sourceHash->{user}= $opt->{user};
-
-    delete $sourceHash->{Groupname};
-    delete $sourceHash->{Username};
-    delete $sourceHash->{gowner};
-    delete $sourceHash->{owner};
-    delete $sourceHash->{PrimaryGroup};
-
-    push @todo, $sourceHash;
-    if ($opt->{'m'}){
-      $self->getCPMetadata($source, $targetDir, $targetName, $todoMetadata)
-	or return;
+    my @pfns = $self->f_whereis("sz",$source);
+    foreach my $pfn (@pfns){
+           $self->info("PFN: $pfn->{pfn}");#<<<--------------------CHANGE WITH ADD---------------------------->>>
+           my $t = $self->{UI}->execute("add",$targetFile,$pfn->{pfn});
+           push @returnvals, $t;
+           $t and last;
+    }
+    #Manage metadata if option specified
+    if($opt->{'m'})
+    {
+      my $todoMetadata = {};
+      $self->getCPMetadata($sourceFile,$targetDir,$targetFile,$todoMetadata);
     }
   }
-  if (@todo) {
-    push @done, $self->f_bulkRegisterFile("k", $target, \@todo);
-  }
-  foreach my $key (keys %$todoMetadata){
-    $self->info("Inserting also the metadata information");
-    $self->{DATABASE}->{LFN_DB}->multiinsert($key, $todoMetadata->{$key}) 
-      or return;
-  }
-    
-
-  return @done;
+  return @returnvals;  
 }
 
+sub f_ln {
+  my $self = shift;
+  my $source = shift;
+  my $target = shift;
+
+  ($source and $target) 
+    or $self->{LOGGER}->error("Error: not enough arguments in ln!!\nUsage: ln <source> <target>\n")
+        and return;
+
+  $source = $self->GetAbsolutePath($source);
+  $target = $self->GetAbsolutePath($target);
+
+  (!$self->isDirectory($source)) 
+    or $self->{LOGGER}->error("$source cannot be a directory\n")
+    and return;
+  (!$self->isDirectory($target)) 
+    or $self->{LOGGER}->error("$target cannot be a directory\n") 
+    and return;
+  ($self->{DATABASE}->existsEntry($target)) 
+    and $self->{LOGGER}->error("$target exists!\n") 
+    and return;
+  #Check permissions
+  my $filehash = $self->checkPermissions("r",$source,undef,{RETURN_HASH=>1});
+  $filehash 
+    or $self->{LOGGER}->error("ERROR: checkPermission failed for $source") 
+    and return;
+  $filehash = $self->checkPermissions("w",$target,undef,{RETURN_HASH=>1});
+  $filehash 
+    or $self->{LOGGER}->error("ERROR: checkPermission failed for $target")
+    and return;
+  return $self->{DATABASE}->{LFN_DB}->softLink($source,$target);
+}
 
 # This subroutine is used to find all the metadata of a file that is going
 # to be copied. The result is giving back in the variable $todoMetadata
@@ -646,33 +643,108 @@ sub getCPMetadata{
   return $entries;
 }
 
+#
+#Move files
+#
 sub f_mv {
   my $self = shift;
   my $options = shift;
   my $source = shift;
   my $target = shift;
-
-  $source or $target or $self->info("ERROR: Source and/or target not specified") and return;
+  
+  $source or $target 
+    or $self->{LOGGER}->error("ERROR: Source and/or target not specified") 
+    and return;
 
   my $fullSource = $self->GetAbsolutePath($source);
   my $fullTarget = $self->GetAbsolutePath($target);
-
-  $self->isDirectory($fullSource) and $self->info("ERROR: <$source> is a directory") and return -2;
-
-  unless($self->{UI}){
-    my $options_UI = {};
-    $options_UI->{role} = "$self->{ROLE}";
-    $self->{UI} = AliEn::UI::Catalogue::LCM->new($options_UI) or $self->info("Could not get UI") and return -2;
-  }  
-
-  my (@envelope) = $self->{UI}->access("-s", "mv", "$fullSource", "$fullTarget");
-  my $envelop = $envelope[0];
-  ((!$envelop)) and return;
-  my $message = $envelop->{error};
-  $self->info("From Authen: $message");
-
-  return !$envelop->{exception}; 
+  $self->isDirectory($fullSource)
+    and $self->{LOGGER}->error("ERROR: <$source> is a directory")
+    and return;
+  #Check quotas
+  my $filehash = $self->checkPermissions("w",$fullTarget,undef,{RETURN_HASH=>1});
+  $filehash 
+    or $self->{LOGGER}->error("ERROR: checkPermission failed for $fullTarget")
+    and return;
+  $filehash = $self->checkPermissions("w",$fullSource,undef,{RETURN_HASH=>1});
+  $filehash 
+    or $self->{LOGGER}->error("ERROR: checkPermission failed for $fullSource")
+    and return;
+  #Do move
+  my @returnVal = $self->{DATABASE}->{LFN_DB}->moveFile($source,$target);
+  #Manage metadata if option specified
+  if($options=~/m/)
+  {
+    my $todoMetadata = {};
+    my $targetDir = "$fullTarget";
+    $targetDir=~ s{/[^/]*$}{/};
+    $self->getCPMetadata($fullSource,$targetDir,$fullTarget,$todoMetadata);
+  }
+  return @returnVal
 }
+
+#
+#Delete file from catalogue
+#
+sub f_removeFile {
+  my $self = shift;
+  my $options = shift;
+  my $file = shift;
+  my $silent = ($options =~ /s/);
+  if(!$file)
+  {
+    ( $options =~ /s/ )
+      or $self->{LOGGER}->error("Catalogue","Error in remove: not enough arguments\nUsage remove [-s] <path>\n
+                                Options: -s : silent. Do not print error messages\n")
+      and return;
+  }
+  #Check if file specified is a directory
+  my $fullPath = $self->GetAbsolutePath($file);
+  $self->isDirectory($fullPath) 
+    and $self->{LOGGER}->error("ERROR: $fullPath is a directory") 
+    and return;
+  #Check permissions
+  my $filehash = $self->checkPermissions("w",$fullPath,undef,{RETURN_HASH=>1});
+  if (!$filehash) {
+    $self->{LOGGER}->error("Check permission on $fullPath failed");
+    return;
+  }
+  return $self->{DATABASE}->{LFN_DB}->removeFile($fullPath,$filehash);
+}
+
+#
+#Delete directory and all associated files from catalogue
+#
+sub f_rmdir {
+  my $self = shift;
+  my ( $options, $path ) = @_;
+  my $deleteall = ( ( $options =~ /r/ ) ? 1 : 0 );
+  my $message = "";
+  ($path) or $message = "no directory specified";
+  ( $path and $path eq "." )  and $message = "Cannot remove current directory";
+  ( $path and $path eq ".." ) and $message = "Cannot remove parent directory.";
+  $message and $self->{LOGGER}->error( "Catalogue", "Error $message\nUsage: rmdir [-r] <directory>" )
+    and return;
+  #Check if path specifed is a file
+  $path = $self->GetAbsolutePath( $path, 1 );
+  unless($self->isDirectory($path)) {
+    $self->{LOGGER}->error("ERROR: $path is not a directory");
+    return;
+  }
+  #Check permissions
+  my $parentdir = $self->GetParentDir($path);
+  my $filehash = $self->checkPermissions("w",$parentdir,undef,{RETURN_HASH=>1});
+  $filehash 
+    or $self->{LOGGER}->error("ERROR: checkPermissions failed on $parentdir")
+    and return;
+  $filehash = $self->checkPermissions("w",$path,undef,{RETURN_HASH=>1});
+  $filehash 
+    or $self->{LOGGER}->error("ERROR: checkPermsissions failed on $path")
+    and return;
+  return $self->{DATABASE}->{LFN_DB}->removeDirectory($path,$parentdir);
+}
+
+
 
 #
 #returns the flags and the files of the input line
@@ -694,15 +766,36 @@ sub Getopts {
   }
   return ( $flags, @files );
 }
+
+#
+#touch file in catalogue
+#
 sub f_touch {
   my $self=shift;
   my $options=shift;
-  my $lfn=shift or $self->info("Error missing the name of the file to touch",undef,2) and return;
-  
-  $self->info( "Touching $lfn");
-  
-  return $self->f_registerFile($options, $lfn,0);
+  my $lfn=shift 
+    or $self->{LOGGER}->error("Error missing the name of the file to touch",undef,2) 
+    and return;
+  #Check quota <--- better way to do this?
+  my $options_UI = {};
+  $options_UI->{role} = "$self->{CONFIG}->{ROLE}";
+  my $ui = AliEn::UI::Catalogue::LCM->new($options_UI) 
+    or $self->info("Could not get UI") 
+    and return;
+  $lfn = $self->GetAbsolutePath($lfn);
+  my ($ok, $message) = $ui->checkFileQuota( $self->{CONFIG}->{ROLE}, 0 );
+  if($ok eq -1) {
+    $self->{LOGGER}->error("File Quota Execption");
+    return;
+  }
+  #Insert file in catalogue
+  $self->info("Inserting file $lfn");
+  $self->f_registerFile($options, $lfn,0) 
+    or $self->{LOGGER}->error("Could not touch file")
+    and return;
+  return 1;
 }
+
 sub f_du_HELP{
   return "Gives the disk space usge of a directory
 Usage:

@@ -2777,152 +2777,6 @@ sub AuthenConsultation {
   $registReq and return $self->registerFileInCatalogueAccordingToEnvelopes($user,\@registerEnvelopes);
 
 
-
-
-
-
-  # DELETE FILE
-  if ($access =~ /^deletefile/) {
-          #Check permissions
-          my $filehash=$self->checkPermissionsOnLFN($lfns,"delete","w")
-                  or return access_return("ERROR: checkPermissionsOnLFN failed for $lfns","[checkPermission]");
-          
-          #Insert into LFN_BOOKED
-          my $parent = "$lfns";
-          $parent =~ s{([^/]*[\%][^/]*)/?(.*)$}{};
-          my $db = $self->{CATALOG}->selectDatabase($parent) or return access_return("Error selecting the database of $parent","[connectToDatabse]");
-          my $tableName = "$db->{INDEX_TABLENAME}->{name}";
-          my $tablelfn = "$db->{INDEX_TABLENAME}->{lfn}";
-          my $lfnOnTable = "$lfns";
-          $lfnOnTable =~ s/$tablelfn//;
-          my $size = $db->queryValue("SELECT l.size FROM $tableName l WHERE l.lfn LIKE '$lfnOnTable'") || 0;
-          my $guid = $db->queryValue("SELECT binary2string(l.guid) as guid FROM $tableName l WHERE l.lfn LIKE '$lfnOnTable'") || 0;
-          $filehash = $self->{CATALOG}->{DATABASE}->{GUID_DB}->checkPermission("w",$guid); # Check permissions on the GUID
-          if($filehash) {
-              $db->do("INSERT INTO LFN_BOOKED(lfn, owner, expiretime, size, guid, gowner)
-                   SELECT '$lfns', l.owner, -1, l.size, l.guid, l.gowner FROM $tableName l WHERE l.lfn LIKE '$lfnOnTable'")
-                   or return access_return("ERROR: Could not add entry $lfns to LFN_BOOKED","[insertIntoDatabase]");
-          }
-          else {
-              $self->info("$user does not have permissions for deleting $guid. Only deleting $lfns");
-          }
-          
-          #Delete LFN and update quotas
-          $db->do("DELETE FROM $tableName WHERE lfn LIKE '$lfnOnTable'");
-          $self->{PRIORITY_DB} or $self->{PRIORITY_DB}=AliEn::Database::TaskPriority->new({ROLE=>'admin',SKIP_CHECK_TABLES=> 1});
-          $self->{PRIORITY_DB}or return access_return("Could not get access to PRIORITY DB","[updateQuotas]");
-          $self->{PRIORITY_DB}->lock("PRIORITY");
-          $self->{PRIORITY_DB}->do("UPDATE PRIORITY SET nbFiles=nbFiles+tmpIncreasedNbFiles-1, totalSize=totalSize+tmpIncreasedTotalSize-$size, tmpIncreasedNbFiles=0, tmpIncreasedTotalSize=0 WHERE user LIKE '$user'") or return access_return("ERROR: Could not write to PRIORITY DB","[updateQuotas]");
-          $self->{PRIORITY_DB}->unlock();
-          return access_return("Success - File<$lfns> scheduled for deletion");
-  }
-
-  # DELETE FOLDER
-  if ($access =~ /^deletefolder/) {
-          #Check permissions
-          my $parentdir = $self->{CATALOG}->GetParentDir($lfns);
-          my $filehash=$self->checkPermissionsOnLFN($parentdir,"delete","w")
-                  or return access_return("ERROR: checkPermissionsOnLFN failed for $parentdir","[checkPermission]");
-          $filehash=$self->checkPermissionsOnLFN("$lfns/","delete","w")
-                  or return access_return("ERROR: checkPermissionsOnLFN failed for $lfns","[checkPermission]");
-          
-          #Insert into LFN_BOOKED and delete lfns
-#          $self->{LFN_DB} or $self->{LFN_DB}=AliEn::Database::Catalogue::LFN->new();
-          my $entries=$self->{CATALOG}->{DATABASE}->{LFN_DB}->getHostsForEntry($lfns) or return access_return("ERROR: Could not get hosts for $lfns","[getHosts]");
-          my @index=();
-          my $size = 0;
-          my $count = 0;          
-          foreach my $db (@$entries) {
-                  $self->info(1, "Deleting all the entries from $db->{hostIndex} (table $db->{tableName} and lfn=$db->{lfn})");
-                  my ($db2, $lfns2)=$self->{CATALOG}->{DATABASE}->{LFN_DB}->reconnectToIndex($db->{hostIndex}, $lfns);
-                  $db2 or return access_return("ERROR: Could not reconnect to host","[getHosts]");
-                  my $tmpPath="$lfns/";
-                  $tmpPath=~ s{^$db->{lfn}}{};
-                  $count += ($db2->queryValue("SELECT count(*) FROM L$db->{tableName}L l WHERE l.lfn LIKE '$tmpPath%' AND l.type<>'d'")||0);
-                  $size += ($db2->queryValue("SELECT SUM(l.size) FROM L$db->{tableName}L l WHERE l.lfn LIKE '$tmpPath%'")||0);
-                  $db2->do("INSERT INTO LFN_BOOKED(lfn, owner, expiretime, size, guid, gowner)
-                            SELECT l.lfn, l.owner, -1, l.size, l.guid, l.gowner FROM L$db->{tableName}L l WHERE l.lfn LIKE '$tmpPath%'")
-                            or return access_return("ERROR: Could not add entries $tmpPath to LFN_BOOKED","[insertIntoDatabase]");
-                  $db2->delete("L$db->{tableName}L", "lfn like '$tmpPath%'");
-                  $db->{lfn} =~ /^$lfns/ and push @index, "$db->{lfn}\%";
-          }
-          #Clean up index
-          if ($#index>-1) {
-                  $self->deleteFromIndex(@index);
-                  if (grep( m{^$lfns/?\%$}, @index)){
-                          my $entries=$self->{CATALOG}->{DATABASE}->{LFN_DB}->getHostsForEntry($parentdir) or 
-                              return access_return( "Error getting the hosts for '$lfns'","[getHosts]");
-                          my $db=${$entries}[0];
-                          my ($newdb, $lfns2)=$self->{CATALOG}->{DATABASE}->{LFN_DB}->reconnectToIndex($db->{hostIndex}, $parentdir);
-                          $newdb or return access_return("Error reconecting to index","[getHosts]");
-                          my $tmpPath="$lfns/";
-                          $tmpPath=~ s{^$db->{lfn}}{};
-                          $newdb->delete("L$db->{tableName}L", "lfn='$tmpPath'");
-                  }
-          }
-
-          #Update quotas
-          $self->{PRIORITY_DB} or $self->{PRIORITY_DB}=AliEn::Database::TaskPriority->new({ROLE=>'admin',SKIP_CHECK_TABLES=> 1});
-          $self->{PRIORITY_DB}or return access_return("ERROR: Could not get access to PRIORITY DB","[updateQuotas]");
-          $self->{PRIORITY_DB}->lock("PRIORITY");
-          $self->{PRIORITY_DB}->do("UPDATE PRIORITY SET nbFiles=nbFiles+tmpIncreasedNbFiles-$count, totalSize=totalSize+tmpIncreasedTotalSize-$size, tmpIncreasedNbFiles=0, tmpIncreasedTotalSize=0 WHERE user LIKE '$user'") or access_return("ERROR: Could not write to PRIORITY DB","[updateQuotas]");
-          $self->{PRIORITY_DB}->unlock();
-          return access_return("Success - Folder<$lfns> scheduled for deletion [$count files ; $size size]");
-  }
-
-  #MOVE FILE
-  if($access =~ /^mv/) {
-    my $source = $lfns;
-    my $target = $se;
-
-    my $filehash1=$self->checkPermissionsOnLFN($source,"delete","w")
-                  or return access_return("ERROR: checkPermissionsOnLFN failed for $source","[checkPermission]");
-    my $filehash2=$self->checkPermissionsOnLFN($target,"write","w")
-                  or return access_return("ERROR: checkPermissionsOnLFN failed for $target","[checkPermission]");
-
-     my $parent = "$source";
-     $parent =~ s{([^/]*[\%][^/]*)/?(.*)$}{};
-     my $dbSource = $self->{CATALOG}->selectDatabase($parent)
-                   or return access_return("Error selecting the database of $parent","[connectToDatabse]");
-     my $tableName_source = "$dbSource->{INDEX_TABLENAME}->{name}";
-     my $tablelfn_source = "$dbSource->{INDEX_TABLENAME}->{lfn}";
-     $parent = "$target";
-     my $dbTarget = $self->{CATALOG}->selectDatabase($parent)
-                    or return access_return("Error selecting the database of $parent","[connectToDatabse]");
-     my $tableName_target = "$dbTarget->{INDEX_TABLENAME}->{name}";
-     my $tablelfn_target = "$dbTarget->{INDEX_TABLENAME}->{lfn}";
-
-     my $lfnOnTable_source = "$source";
-     $lfnOnTable_source =~ s/$tablelfn_source//;
-     my $lfnOnTable_target = "$target";
-     $lfnOnTable_target =~ s/$tablelfn_target//;
-
-     if($tablelfn_source eq $tablelfn_target) {
-       #If source and target are in same L#L table then just edit the names
-       $dbSource->do("UPDATE $tableName_source SET lfn='$lfnOnTable_target' WHERE lfn LIKE '$lfnOnTable_source'")
-                    or return access_return("Error updating database","[updateDatabse]");
-     }
-     else {
-       #If the source and target are in different L#L tables then add in new table and delete from old table
-       my $schema = $dbSource->queryRow("SELECT h.db FROM HOSTS h, INDEXTABLE i WHERE i.hostIndex=h.hostIndex AND i.lfn LIKE '$tablelfn_source'")
-                                         or return access_return("Error updating database","[updateDatabse]");
-       my $db = $schema->{db};
-       $dbTarget->do("INSERT INTO $tableName_target(owner, replicated, ctime, guidtime, aclId, lfn, broken, expiretime, size, dir, gowner, type, guid, md5, perm) 
-                      SELECT owner, replicated, ctime, guidtime, aclId, '$lfnOnTable_target', broken, expiretime, size, dir, gowner, type, guid, md5, perm FROM $db.$tableName_source WHERE lfn LIKE '$lfnOnTable_source'")
-                     or return access_return("Error updating database","[updateDatabse]");
-       my $parentdir = "$lfnOnTable_target";
-       $parentdir =~ s/([.]*)\/([^\/]+)$/$1\//;
-       my $entryId = $dbTarget->queryValue("SELECT entryId FROM $tableName_target WHERE lfn LIKE '$parentdir'");
-       $dbTarget->do("UPDATE $tableName_target SET dir=$entryId WHERE lfn LIKE '$lfnOnTable_target'")
-                     or return access_return("Error updating database","[updateDatabse]");
-       $dbSource->do("DELETE FROM $tableName_source WHERE lfn LIKE '$lfnOnTable_source'")
-                     or return access_return("Error updating database","[updateDatabse]");
-     }
-
-    return access_return("Success - $source moved to $target");
-  }
-
-
   my $seList = $self->validateArrayOfSEs(split(/;/, $seOrLFNOrEnv));
   $self->info("gron: seList @$seList");
 
@@ -3499,7 +3353,7 @@ sub addFileToSEs {
   my $size=AliEn::SE::Methods->new($sourcePFN)->getSize();
   my $md5=AliEn::MD5->new($sourcePFN);
   ((!$size) or ($size eq 0)) and $self->tracePlusLogError("error", "The file $sourcePFN has size 0. We won't upload an empty file.") and return {ok=>0,tracelog=>\@{$self->{tracelog}}};
-
+  
   foreach my $qos(keys %$qosTags){
     ($success eq -1) and last;
     $self->tracePlusLogError("info","Uploading file based on Storage Discovery, requesting QoS=$qos, count=$qosTags->{$qos}");
@@ -4463,23 +4317,23 @@ sub checkFileQuota {
 #Implementing unlimited file quotas
   #Unlimited number of files
   if($maxNbFiles==-1){
-      $self->info("Unlimited number of files allowed for user ($user)");
+    $self->info("Unlimited number of files allowed for user ($user)");
   }
   else{
-      if ($nbFiles + $tmpIncreasedNbFiles + 1 > $maxNbFiles) {
-	  $self->info("Uploading file for user ($user) is denied - number of files quota exceeded.");
-	  return (-1, "Uploading file for user ($user) is denied - number of files quota exceeded." );
-      }
+    if ($nbFiles + $tmpIncreasedNbFiles + 1 > $maxNbFiles) {
+      $self->info("Uploading file for user ($user) is denied - number of files quota exceeded.");
+      return (-1, "Uploading file for user ($user) is denied - number of files quota exceeded." );
+    }
   }
   #Unlimited size for files
   if($maxTotalSize==-1){
-      $self->info("Unlimited file size allowed for user ($user)");
+    $self->info("Unlimited file size allowed for user ($user)");
   }
   else{
-      if ($size + $totalSize + $tmpIncreasedTotalSize > $maxTotalSize) {
-	  $self->info("Uploading file for user ($user) is denied, file size ($size) - total file size quota exceeded." );
-	  return (-1, "Uploading file for user ($user) is denied, file size ($size) - total file size quota exceeded." );
-      }
+    if ($size + $totalSize + $tmpIncreasedTotalSize > $maxTotalSize) {
+      $self->info("Uploading file for user ($user) is denied, file size ($size) - total file size quota exceeded." );
+      return (-1, "Uploading file for user ($user) is denied, file size ($size) - total file size quota exceeded." );
+    }
   }
   
   

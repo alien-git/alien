@@ -99,6 +99,7 @@ sub initialize {
 sub  createEnvelope{
   my $other=shift;
   my $user=shift;
+  $self->{LOGGER}->set_error_msg();
   $self->info("$$ Ready to create the envelope for user $user (and @_)");
   
   $self->{UI}->execute("user","-", $user);
@@ -108,6 +109,24 @@ sub  createEnvelope{
   $options.= "v";
   my (@info)=$self->{UI}->execute("access", $options, @_);
   $self->info("$$ Everything is done for user $user (and @_)");
+  return @info;
+}
+
+sub doOperation {
+  my $other=shift;
+  my $user=shift;
+  $self->{LOGGER}->set_error_msg();
+  $self->info("$$ Ready to do an operation  for $user (and @_)");
+  
+  $self->{UI}->execute("user","-", $user);
+  $self->info("@_");
+  my @info=$self->{UI}->execute(@_);
+  my $error=$self->{LOGGER}->error_msg();
+  if ($error){
+     die($error);
+  }
+  $self->info("$$ Everything is done for user $user (and @_)");
+  $self->info("doOperation: @info, ".scalar(@info));
   return @info;
 }
 
