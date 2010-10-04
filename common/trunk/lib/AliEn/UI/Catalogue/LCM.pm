@@ -1548,7 +1548,6 @@ sub access {
     # access <access> <lfn> 
     # -p create public url in case of read access 
   my $self = shift;
-#
 #  #
 #  # Start of the Client side code
 #  if (!  $self->{envelopeCipherEngine}) {
@@ -1598,6 +1597,7 @@ sub access {
   my $se      = (shift or "");
   my $size    = (shift or "0");
   my $sesel   = (shift or 0);
+  my @accessOptions = @_;
   my $extguid = (shift or 0);
   my $user=$self->{CONFIG}->{ROLE};
   $self->{CATALOG} and $self->{CATALOG}->{ROLE} and $user=$self->{CATALOG}->{ROLE};
@@ -4254,7 +4254,6 @@ sub checkFileQuota {
   $self->info("nbFile: $nbFiles/$tmpIncreasedNbFiles/$maxNbFiles");
   $self->info("totalSize: $totalSize/$tmpIncreasedTotalSize/$maxTotalSize");
 
-#Implementing unlimited file quotas
   #Unlimited number of files
   if($maxNbFiles==-1){
     $self->info("Unlimited number of files allowed for user ($user)");
