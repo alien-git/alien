@@ -30,12 +30,12 @@ sub copy {
 
   $self->{MSS}->{LOCALFILE}.=".$source->{guid}";
   $ENV{ALIEN_XRDCP_ENVELOPE}=$source->{envelope};
-  $ENV{ALIEN_XRDCP_URL}=$source->{url};
+  $ENV{ALIEN_XRDCP_URL}=$source->{turl};
 
   $self->info("Issuing the get");
   my $file=$self->{MSS}->get();
   if (!$file) {
-    $self->info("Error getting the file $source->{url}", 1);
+    $self->info("Error getting the file $source->{turl}", 1);
     return ;
   }
   $self->info("Checking if it has the right size");
@@ -49,16 +49,16 @@ sub copy {
   
   $self->info("We got the file $file. Let's put it now in the destination");
   $ENV{ALIEN_XRDCP_ENVELOPE}=$target->{envelope};
-  $ENV{ALIEN_XRDCP_URL}=$target->{url};
+  $ENV{ALIEN_XRDCP_URL}=$target->{turl};
   if (!$self->{MSS}->put()){
-    $self->info("Error putting the file $target->{url}");
+    $self->info("Error putting the file $target->{turl}");
     unlink $self->{MSS}->{LOCALFILE};
     return ;
   }
   $self->info("File copied!!");
   unlink $self->{MSS}->{LOCALFILE};
-#  $self->info("Doing the command xrd3cp '$source->{url}?$source->{envelope}' '$target->{url}?$target->{envelope}'");
-#  open (FILE, "xrd3cp '$source->{url}?$source->{envelope}' '$target->{url}?$target->{envelope}'|") or 
+#  $self->info("Doing the command xrd3cp '$source->{turl}?$source->{envelope}' '$target->{turl}?$target->{envelope}'");
+#  open (FILE, "xrd3cp '$source->{turl}?$source->{envelope}' '$target->{turl}?$target->{envelope}'|") or 
 #    $self->info("Error doing the xrdc3p call!") and return;
 #  my @info=<FILE>;
 #  close FILE or 

@@ -7,6 +7,7 @@ use vars qw( @ISA $DEBUG);
 
 
 use AliEn::FTP;
+use AliEn::Util;
 use AliEn::UI::Catalogue::LCM;
 
 @ISA = ( "AliEn::FTP" );
@@ -30,7 +31,7 @@ sub copy {
   my $target=shift;
 
   $self->info("Ready to copy $source into $target");
-  my $args="-m -S $source->{url} $target->{url}  \"authz=$source->{envelope}\" \"authz=$target->{envelope}\" ";
+  my $args="-m -S $source->{turl} $target->{turl}  \"authz=$source->{envelope}\" \"authz=$target->{envelope}\" ";
   $DEBUG and $args = " -d ".$args;
   my $output = `xrd3cp  $args  2>&1 ; echo "ALIEN_XRD_SUBCALL_RETURN_VALUE=\$?"` or $self->info("Error: Error doing the xrd3cp $args",1) and return;
   $output =~ s/\s+$//;
@@ -47,10 +48,10 @@ sub copy {
      $self->info("Exit code not equal to zero. Something went wrong with xrdcp!! Exit code: $com_exit_value, Returned output: $output",1);
      $output=~ /xferuuid=([0-9a-fA-F\-]+)/;
      my $xferuuid = $1;
-     ($self->identifyValidGUID($xferuuid))
+     (AliEn::Util::isValidGUID($xferuuid))
        or $self->info("Error doing the xrd3cp $args. Not possible to retrieve additional log info due to invalid xferuuid",1) and return;
 
-     my @logargs= ("-l $xferuuid $source->{url} $target->{url}  \"authz=$source->{envelope}\" \"authz=$target->{envelope}\" ");  
+     my @logargs= ("-l $xferuuid $source->{turl} $target->{turl}  \"authz=$source->{envelope}\" \"authz=$target->{envelope}\" ");  
      my $logoutput = `xrd3cp $args  2>&1 ` or $self->info("Error: Error doing the xrd3cp $args",1) and return;
      #my $com_exit_value=$? >> 8;
      $logoutput =~ s/\s+$//;

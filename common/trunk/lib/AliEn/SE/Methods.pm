@@ -241,6 +241,14 @@ sub getSize {
   return $size;
 }
 
+sub getStat {
+  my $self=shift;
+
+  return 1;
+}
+
+
+
 sub initialize{ 
   my $self=shift;
   

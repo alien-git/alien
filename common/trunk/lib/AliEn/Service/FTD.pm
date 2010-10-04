@@ -443,7 +443,7 @@ sub transferFile {
 
   my ($ok, $user)=$ca->evaluateAttributeString("User");
   ($ok, my $lfn)=$ca->evaluateAttributeString("FromLFN");
-  my $info=$self->{SOAP}->CallSOAP("Authen", "createEnvelope", $user, "", "read", $lfn, $source);
+  my $info=$self->{SOAP}->CallSOAP("Authen", "consultAuthenService", $user, "read", $lfn, $source);
   $info or $self->info("Error getting the envelope to read the source") and return;
   my $sourceEnvelope=$info->result;
 
@@ -452,12 +452,12 @@ sub transferFile {
   ($ok, my $size)=$ca->evaluateAttributeString("Size");
   $target or $self->info("Error getting the destination of the transfer")
     and return;
-  $self->info("And the second envelope ( $user, , write-once, $guid, $target, $size, 0, $guid");
-  $info=$self->{SOAP}->CallSOAP("Authen", "createEnvelope", $user, "", "write-once", $guid, $target, $size, 0, $guid);
+  $self->info("And the second envelope ( $user, mirror, $guid, $target, $size, 0, $guid");
+  $info=$self->{SOAP}->CallSOAP("Authen", "consultAuthenService", $user, "mirror", $guid, $target, $size, 0, $guid);
 
   $info or $self->info("Error getting the envelope to write the target") and return;
   my $targetEnvelope=$info->result;
-  $targetEnvelope and $targetEnvelope->{url} or
+  $targetEnvelope and $targetEnvelope->{turl} or
     $self->info("Error getting the envelope to write!", 1) and return;
   $self->info("Let's start with the transfer!!!");
   my $done;
@@ -472,7 +472,7 @@ sub transferFile {
     }
     if ($done) {
       if ($done eq 1){
-        $self->info("The transfer worked  Final pfn:'$targetEnvelope->{url}'!!!");
+        $self->info("The transfer worked  Final pfn:'$targetEnvelope->{turl}'!!!");
         $done=1;
       }elsif ($done eq 2){
         $done=0;
@@ -485,7 +485,7 @@ sub transferFile {
     $self->info("Error doing the eval: $@");
   }
   $done or return;
-  my $pfn=$targetEnvelope->{url};
+  my $pfn=$targetEnvelope->{turl};
   $pfn=~ s{/NOLFN}{$targetEnvelope->{pfn}};
 
   return $pfn;
