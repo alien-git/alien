@@ -1010,16 +1010,9 @@ sub addFile {
   $options->{tracelog} and $self->{tracelogenabled}=1;
 
 
-  if($options->{link}) {
-    $self->info("gron: Linking file entry");
-    $sourcePFN =~ /^root:\/\// and $self->info("You cannot link a root PFN\n".$self->addFile_HELP(),2)  and return;
-    return $self->registerLink($targetLFN, $sourcePFN, $options->{guid},$options->{silent},$options->{user});
-  }
-
-  if($options->{registerroot}) {
-    $self->info("gron: Registering root pfn ...");
-    $sourcePFN =~ /^root:\/\// or $self->info("You can only register a root PFN\n".$self->addFile_HELP(),2)  and return;
-    return $self->registerRootPFN($targetLFN, $sourcePFN, $options->{guid},$options->{silent},$options->{user});
+  if($options->{register}) {
+    $self->info("gron: Registering pfn ...");
+    return $self->registerPFN($targetLFN, $sourcePFN, $options->{guid},$options->{silent},$options->{user});
   }
 
   $self->info("gron: Adding a file");
@@ -1027,26 +1020,7 @@ sub addFile {
 
 }
 
-
-sub registerLink{
-  my $self  = shift;
-  my $targetLFN   = (shift || return {ok=>0,tracelog=>\@{$self->{tracelog}}});
-  my $sourcePFN   = (shift || return {ok=>0,tracelog=>\@{$self->{tracelog}}});
-  my $guid=(shift || 0); # gron: guid is to be handeled
-  my $silent=(shift || 0);
-  my $user=(shift || $self->{CATALOG}->{ROLE});
-  my $result = {};
-
-  $self->traceLogFlush();
-
-  my $authenReply = $self->authorize("-user=$user", "link", $targetLFN, $sourcePFN, 0, 0, $guid);
-
-  $authenReply->{ok} and return {ok=>1,tracelog=>\@{$self->{tracelog}}};
-  return {ok=>0,tracelog=>\@{$self->{tracelog}}};
-}
-
-
-sub registerRootPFN{
+sub registerPFN{
   my $self  = shift;
   my $targetLFN   = (shift || return {ok=>0,tracelog=>\@{$self->{tracelog}}});
   my $sourcePFN   = (shift || return {ok=>0,tracelog=>\@{$self->{tracelog}}});
@@ -1057,7 +1031,7 @@ sub registerRootPFN{
  
   $self->traceLogFlush();
 
-  my $authenReply = $self->authorize("-user=$user", "insert", $targetLFN, $sourcePFN, 0, 0, $guid );
+  my $authenReply = $self->authorize("-user=$user", "register", $targetLFN, $sourcePFN, 0, 0, $guid );
 
   $authenReply->{ok} and return {ok=>1,tracelog=>\@{$self->{tracelog}}};
   return {ok=>0,tracelog=>\@{$self->{tracelog}}};
@@ -2452,6 +2426,10 @@ sub  getBaseEnvelopeForWriteAccess {
   $envelope->{size} = $size;
   $envelope->{md5} = $md5;
 
+  my ($ok, $message) = $self->checkFileQuota($user, $envelope->{size});
+  ($ok eq -1) and $self->info("We gonna throw an access exception: "."[quotaexception]") and return  $self->authorize_return(-1, $message."[quotaexception]");
+  ($ok eq 0) and return  $self->authorize_return(0,$message);
+  
   foreach ( keys %{$envelope}) { $self->info("gron: filehash for write before cleaning checkPermissions: $_: $envelope->{$_}"); }
   return $self->reduceFileHashAndInitializeEnvelope("write-once",$envelope,"lfn","guid","size","md5");
 }
@@ -2512,16 +2490,6 @@ sub  getSEsAndCheckQuotaForWriteOrMirrorAccess{
   ( (scalar(@$seList) eq 0) and ($sitename ne 0) and ( ($writeQos eq 0) or ($writeQosCount eq 0) ) and $self->{CONFIG}->{SEDEFAULT_QOSAND_COUNT} ) 
     and ($writeQos, $writeQosCount) =split (/\=/, $self->{CONFIG}->{SEDEFAULT_QOSAND_COUNT},2);
 
-#  my $copyMultiplyer = 1;
-#  ($writeQosCount and $copyMultiplyer = $writeQosCount) or (scalar(@$seList) gt 1 and $copyMultiplyer = scalar(@$seList));
-#  my ($ok, $message) = $self->checkFileQuota( $user, $size * $copyMultiplyer);
-
-$self->info("gron: ok, size is $envelope->{size} before the quota checkup!");
-
-  my ($ok, $message) = $self->checkFileQuota($user, $envelope->{size});
-  ($ok eq -1) and $self->info("We gonna throw an access exception: "."[quotaexception]") and return  $self->authorize_return(-1, $message."[quotaexception]");
-  ($ok eq 0) and return  $self->authorize_return(0,$message);
-  
   (scalar(@$seList) eq 0) or $seList = $self->checkExclWriteUserOnSEsForAccess($user,$envelope->{size},$seList);
   if(($sitename ne 0) and ($writeQos ne 0) and ($writeQosCount gt 0)) {
      my $dynamicSElist = $self->getSEListFromSiteSECacheForWriteAccess($user,$envelope->{size},$writeQos,$writeQosCount,$sitename,$excludedAndfailedSEs);
@@ -2534,31 +2502,12 @@ $self->info("gron: ok, size is $envelope->{size} before the quota checkup!");
 }
 
 
-sub linkFileInCatalogue {
+sub registerPFNInCatalogue{
   my $self=shift;
   my $user=(shift || return 0);
   my $envelope=(shift || return 0);
   my $pfn=(shift || return 0);
-
-  $envelope->{lfn} or return  $self->authorize_return(0,"The access to link a file with the LFN $envelope->{lfn} could not be granted.");
-
-  if ($self->{CATALOG}->f_Database_existsEntry($envelope->{lfn})) {
-      $self->{CATALOG}->f_addMirror( $envelope->{lfn}, "no_se", $pfn, "-c","-md5=".$envelope->{md5})
-          or return  $self->authorize_return(0,"File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $pfn could not be linked as a replica.");
-  } else {
-      $self->{CATALOG}->f_registerFile( "-f", $envelope->{lfn}, $envelope->{size},
-               "no_se", $envelope->{guid}, undef,undef, $envelope->{md5}, $pfn) 
-          or return  $self->authorize_return(0,"File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $pfn could not be linked.");
-  }
-  return $self->authorize_return(1, "File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $pfn was successfully linked.");
-}
-
-
-sub insertPFNInCatalogue{
-  my $self=shift;
-  my $user=(shift || return 0);
-  my $envelope=(shift || return 0);
-  my $pfn=(shift || return 0);
+  my $se=(shift || return 0);
 
   $envelope->{lfn} or return  $self->authorize_return(0,"The access to registering a PFN with LFN $envelope->{lfn} could not be granted.");
   my $size=AliEn::SE::Methods->new($pfn)->getSize();
@@ -2566,13 +2515,9 @@ sub insertPFNInCatalogue{
   my $md5 = 0; #gron
   #my $md5=AliEn::MD5->new($pfn); #gron
   #$md5 or return $self->authorize_return(0, "File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $pfn could not be registered. We couldn't get a md5 for the file.");
-  my $se=$self->getSEforPFN($pfn);
+  $se or $se=$self->getSEforPFN($pfn);
   $se or return $self->authorize_return(0, "File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $pfn could not be registered. The PFN doesn't correspond to any known SE.");
  
-  my ($ok, $message) = $self->checkFileQuota($user, $size); #gron: we should throw the returns here directly in the subfunction
-  ($ok eq -1) and $self->info("We gonna throw an access exception: "."[quotaexception]") and return  $self->authorize_return(-1, $message."[quotaexception]");
-  ($ok eq 0) and return  $self->authorize_return(0,$message);
-
   $self->{CATALOG}->f_registerFile( "-f", $envelope->{lfn}, $size,
            $se, $envelope->{guid}, undef,undef, $md5,
                 $pfn) 
@@ -2606,19 +2551,17 @@ sub registerFileInCatalogueAccordingToEnvelopes{
             and next; # gron: we have to track this error with "could not valdite this register with a pretaken booking"
 
     $self->info("gron: ok, registering the file ...");
-    my $pfn = $self->{STORAGE}->rewriteCatalogueRegistrationPFN($envelope->{turl},$envelope->{pfn}) ; 
-    $self->info("gron: $envelope->{lfn}, $envelope->{size},$envelope->{se}, $envelope->{guid}, $envelope->{md5}, ... $pfn");
+    $self->info("gron: $envelope->{lfn}, $envelope->{size},$envelope->{se}, $envelope->{guid}, $envelope->{md5}, ... $envelope->{turl}");
     if(!$envelope->{existing}) {
       $self->info("gron: file is not yet existing");
       $self->{CATALOG}->f_registerFile( "-f", $envelope->{lfn}, $envelope->{size},
                $envelope->{se}, $envelope->{guid}, undef,undef, $envelope->{md5}, 
-            #   ($self->{STORAGE}->rewriteCatalogueRegistrationPFN($envelope->{turl},$envelope->{pfn}) or ""))
-                $pfn) and $justRegistered=1 
+                $envelope->{turl}) and $justRegistered=1 
        or $self->info("File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $envelope->{turl} could not be registered.")
        and $returnMessage .= "File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $envelope->{turl} could not be registered."
        and next;
      } else {
-        $self->{CATALOG}->f_addMirror( $envelope->{lfn}, $envelope->{se}, $pfn, "-c","-md5=".$envelope->{md5})
+        $self->{CATALOG}->f_addMirror( $envelope->{lfn}, $envelope->{se}, $envelope->{turl}, "-c","-md5=".$envelope->{md5})
           or $self->info("File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $envelope->{turl} could not be registered as a replica.")
           and $returnMessage .= "File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $envelope->{turl} could not be registered as a replica."
         and next;
@@ -2760,9 +2703,8 @@ sub AuthenConsultation {
   my $delFolderReq = ( ($access =~/^deletefolder$/) || 0 );
   my $moveReq = ( ($access =~/^move$/) || 0 );
   my $versionReq = ( ($access =~/^version$/) || 0 );
-  my $registReq = ( ($access =~/^register$/) || 0 );
-  my $linkReq = ( ($access =~/^link$/) || 0 );
-  my $insertReq = ( ($access =~/^insert$/) || 0 );
+  my $registenvsReq = ( ($access =~/^registerenvs$/) || 0 );
+  my $registerReq = ( ($access =~/^register$/) || 0 );
 
   my $exceptions = 0;
 
@@ -2774,7 +2716,7 @@ sub AuthenConsultation {
   $delFileReq and return $self->deleteFileFromCatalogue($lfn,$user);
   $delFolderReq and return $self->deleteFolderFromCatalogue($lfn,$user);
   $moveReq and return $self->moveFileInCatalogue($lfn,$seOrLFNOrEnv);
-  $registReq and return $self->registerFileInCatalogueAccordingToEnvelopes($user,\@registerEnvelopes);
+  $registenvsReq and return $self->registerFileInCatalogueAccordingToEnvelopes($user,\@registerEnvelopes);
 
 
   my $seList = $self->validateArrayOfSEs(split(/;/, $seOrLFNOrEnv));
@@ -2784,11 +2726,9 @@ sub AuthenConsultation {
   my @packedEnvelopeList = ();
   my $packedEnvelope = {};
 
-  ($writeReq or $linkReq or $insertReq) and $packedEnvelope = $self->getBaseEnvelopeForWriteAccess($user,$lfn,$size,$md5,$guidRequest);
+  ($writeReq or $registerReq) and $packedEnvelope = $self->getBaseEnvelopeForWriteAccess($user,$lfn,$size,$md5,$guidRequest);
 
-  $linkReq and return $self->linkFileInCatalogue($user,$packedEnvelope,$seOrLFNOrEnv);
-
-  $insertReq and return $self->insertPFNInCatalogue($user,$packedEnvelope,$seOrLFNOrEnv);
+  $registerReq and return $self->registerPFNInCatalogue($user,$packedEnvelope,$seOrLFNOrEnv);
 
   $mirrorReq and $packedEnvelope = $self->getBaseEnvelopeForMirrorAccess($user,$lfn,$guidRequest,$size,$md5);
 
@@ -3125,7 +3065,7 @@ sub commit {
 	      }
 	      if (!$CatRegPFN) {
 	        #	  $CatRegPFN = $_->{CatRegPFN};
-                $CatRegPFN = ($self->{STORAGE}->rewriteCatalogueRegistrationPFN($_->{turl},$_->{pfn}) or "");
+                $CatRegPFN = ($_->{turl} or "");
 	      }
              
 	      if (!$se) {
@@ -3376,7 +3316,7 @@ sub addFileToSEs {
 
   (scalar(@{$result->{usedEnvelopes}}) gt 0) or $self->tracePlusLogError("error","We couldn't upload any copy of the file.") and return {ok=>0,tracelog=>\@{$self->{tracelog}}};
   
-  my $authenReply = $self->authorize("-user=$user", "register", @{$result->{usedEnvelopes}});
+  my $authenReply = $self->authorize("-user=$user", "registerenvs", @{$result->{usedEnvelopes}});
   my @regSuccessMap = @{$authenReply->{envelopes}};
 
   (scalar(@regSuccessMap) gt 0) or return {ok=>0,tracelog=>\@{$self->{tracelog}}};
