@@ -1026,6 +1026,22 @@ sub createFileName {
   $filename =~ s{/+}{/}g;
   return ($filename,$guid);
 }
+
+
+sub createTURLforSE{
+  my $self = shift;
+  my $se   = shift;
+  my $guid = (shift or 0);
+
+  my $protocols = $self->getIOProtocols($se)
+      or $self->info("Error getting the IO protocols of $se") and return;
+
+  my ($newpath,$newguid) = $self->createFileName($se,$guid)
+      or return;
+  return ("$$protocols[0]/$newpath",$newpath);
+}
+
+
 sub createDefaultUrl {
   my $self=shift;
   my $se=shift;
@@ -1041,6 +1057,7 @@ sub createDefaultUrl {
   return ("$prefix$filename", $nguid);
     
 }
+
 sub createFileUrl {
   my $self = shift;
   my $se   = shift;
