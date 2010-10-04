@@ -114,5 +114,53 @@ sub f_ln {
   return $env;
 }
 
+sub f_addTag {
+  my $self = shift;
+  $_[0] = $self->GetAbsolutePath($_[0]);
+  my $env = $self->callAuthen("removeTag",@_);
+  $self->info("From Authen: $env");
+  return $env;
+}
+
+sub f_addTagValue {
+  my $self = shift;
+  $_[1] = $self->GetAbsolutePath($_[1]);
+  my $env = $self->callAuthen("addTagValue",@_);
+  $self->info("From Authen: $env");
+  return $env;
+}
+
+sub f_updateTagValue {
+  my $self = shift;
+  $_[1] = $self->GetAbsolutePath($_[1]);
+  my $env = $self->callAuthen("updateTagValue",@_);
+  $self->info("From Authen: $env");
+  return $env;
+}
+
+sub f_removeTag {
+  my $self = shift;
+  $_[0] = $self->GetAbsolutePath($_[0]);
+  my $env = $self->callAuthen("removeTag",@_);
+  $self->info("From Authen: $env");
+  return $env;
+}
+
+sub f_removeTagValue {
+  my $self = shift;
+  $_[0] = $self->GetAbsolutePath($_[0]);
+  my $env = $self->callAuthen("removeTagValue",@_);
+  $self->info("From Authen: $env");
+  return $env;
+}
+
+sub f_cleanupTagValue {
+  my $self = shift;
+  $_[0] = $self->GetAbsolutePath($_[0]);
+  my $env = $self->callAuthen("removeTagValue",@_);
+  $self->info("From Authen: $env");
+  return $env;
+}
+
 return 1;
 __END__
