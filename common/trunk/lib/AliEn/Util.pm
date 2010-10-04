@@ -460,9 +460,46 @@ sub mkdir{
   (-d $dir) and return 1;
   return;
 }
+
 sub find_memory_consumption {
   my $id=shift;
   return 0;
 
 }
+
+
+sub isValidSEName{
+   my $se=shift;
+   ($se eq "no_se") and return 1;
+   my @entries = split(/\:\:/,$se);
+   my $isOk = (scalar(@entries) eq 3) ;
+   foreach (@entries) { $isOk = ($isOk and ($_ =~ /^[0-9a-zA-Z_\-]+$/)) ; }
+   return $isOk;
+}
+
+sub isValidGUID{
+   my $guid=shift;
+   my $lines = $guid;
+   # guid has to be 36 chars long, containing 4 times '-', at position 9,14,19,24 and the rest needs to be hexdec
+   (length($guid) eq 36)
+     and $lines = substr($lines, 8, 1)
+        .substr($lines, 13, 1).substr($lines, 18, 1).substr($lines, 23, 1)
+     and $lines =~ s/[-]*// and (length($lines) eq 0)
+     and $guid  = substr($guid, 0, 8)
+        .substr($guid, 9, 4).substr($guid, 14, 4)
+        .substr($guid, 19, 4).substr($guid, 24, 12)
+     and $guid =~ s/[0-9a-f]*//i
+     and (length($guid) eq 0)
+     and return 1;
+     return 0;
+}
+
+
+
+
+
+
+
+
+
 return 1;

@@ -90,12 +90,13 @@ sub put {
 
   $self->debug(1,"Trying to put the file $self->{PARSED}->{ORIG_PFN} (from $self->{LOCALFILE})");
   $self->{PARSED}->{PATH}=~ s{^//}{/};
-  $self->debug(1,"PUTTING THE SECURITY ENVELOPE IN THE XRDCP");
 
   my $command="$self->{XRDCP} $xrddebug -DIFirstConnectMaxCnt 6 -np -v $self->{LOCALFILE} -f ";
 
+
   if ($ENV{ALIEN_XRDCP_ENVELOPE}){
-    $command.="$ENV{ALIEN_XRDCP_URL} -OD\\\&authz=\"$ENV{ALIEN_XRDCP_ENVELOPE}\"";
+    $self->debug(1,"PUTTING THE SECURITY ENVELOPE IN THE XRDCP");
+    $command.=" $ENV{ALIEN_XRDCP_URL} -OD\\\&authz=\"$ENV{ALIEN_XRDCP_ENVELOPE}\"";
     $self->debug(1,"The envelope is $ENV{ALIEN_XRDCP_ENVELOPE}");
 
   } else {
@@ -187,6 +188,20 @@ sub getSize {
   $self->info("The size is $1");
   return $1;
 }
+
+sub getStat {
+  my $self=shift;
+
+  $self->info("Getting the stat of $self->{PARSED}->{ORIG_PFN}");
+  open (FILE, " xrdstat $self->{PARSED}->{ORIG_PFN}|") or
+    $self->info("Error doing xrdstat") and return;
+  my $buffer=join("", <FILE>);
+  close FILE;
+  $self->debug(1,"Got $buffer");
+  return $buffer;
+}
+
+
 
 sub stage {
   my $self=shift;

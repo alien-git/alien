@@ -86,13 +86,13 @@ sub initialize {
 
 	$self->_ConnectToLDAP() or return;
 	$self->{UI}=AliEn::UI::Catalogue::LCM->new($options) or $self->info("Error getting the ui") and return;
-	$self->{UI}->{envelopeengine} or $self->info("Error! We can't create the security envelopes!! Please, define the SEALED_ENVELOPE_ environment variables") and return;
+	$self->{UI}->{envelopeCipherEngine} or $self->info("Error! We can't create the security envelopes!! Please, define the SEALED_ENVELOPE_ environment variables") and return;
 
 	return $self;
 }
 
 #################################################################
-# Create envelope
+# Create envelope, only for backward compability on < v2.19, see below
 # 
 ################################################################
 
@@ -110,6 +110,27 @@ sub  createEnvelope{
   $self->info("$$ Everything is done for user $user (and @_)");
   return @info;
 }
+
+#################################################################
+# Create envelope in new fasion, scheduled v2.19+, created Aug 2010
+# 
+################################################################
+
+sub  consultAuthenService{
+  my $other=shift;
+  my $user=shift;
+  $self->info("$$ Ready to create envelopes for user $user (and @_)");
+  
+  $self->{UI}->execute("user","-", $user);
+  
+  $self->debug(1, "Executing consultAuthen");
+  #my (@info)=$self->{UI}->execute("authorize", @_);
+  my ($info)=$self->{UI}->execute("authorize", @_);
+  $self->info("$$ Everything is done for user $user (and @_)");
+  #return @info;
+  return $info;
+}
+
 
 # ***************************************************************
 # Conversation function for PAM

@@ -484,41 +484,42 @@ sub getFile {
 
 sub checkPFNisLocal {
   my $self=shift;
-  my $pfn=shift or return;
-  $DEBUG and $self->debug(1,"Checking if $pfn is a localfile");
-  $pfn =~ /^file:\/\// or return;
+  my $local_pfn=shift or return;
+  $DEBUG and $self->debug(1,"Checking if $local_pfn is a localfile");
+  $local_pfn =~ /^file:\/\// or return;
 
   my $shortName=$self->{CONFIG}->{HOST};
   $shortName =~ s/\..*$//;
 
-  $pfn=~ /^(localhost)|($self->{CONFIG}->{HOST})|($shortName)|(\/)/ or return;
+  $local_pfn=~ /^(localhost)|($self->{CONFIG}->{HOST})|($shortName)|(\/)/ or return;
   $DEBUG and $self->debug(1,"It is a local file");
   return 1;
 }
 
 sub RegisterInRemoteSE {
   my $self=shift;
-  my $pfn=shift;
-  my $lfn=(shift || "");
+  my $local_pfn=shift;
   my $envelope=(shift || "");
 
+  $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope->{envelope};
+  $ENV{ALIEN_XRDCP_URL}=$envelope->{turl};
 
-  my $localfile=$self->checkPFNisLocal($pfn);
+  my $localfile=$self->checkPFNisLocal($local_pfn);
 
   if ( not  $localfile){
     $self->info("The file is not local. Let's retrieve it first");
-    my $url=AliEn::SE::Methods->new($pfn) 
-      or $self->info( "Error creating the url of $pfn")
+    my $url=AliEn::SE::Methods->new($local_pfn) 
+      or $self->info( "Error creating the url of $local_pfn")
 	and return;
     ($localfile)=$url->get();
-    $localfile or $self->info("Error getting the file '$pfn'", 1) and return;
+    $localfile or $self->info("Error getting the file '$local_pfn'", 1) and return;
     print "Got $localfile\n";
-    $pfn="file://$self->{CONFIG}->{HOST}$localfile";
+    $local_pfn="file://$self->{CONFIG}->{HOST}$localfile";
   }
-  $self->debug (1, "Trying to upload the file to the SE");
+  $self->debug (1, "Trying to upload the file $local_pfn to the SE $envelope->{se}");
 
-  my $url=AliEn::SE::Methods->new({PFN=>$pfn,DEBUG=>$DEBUG})
-    or $self->info( "Error creating the url of $pfn while uploading to the SE: ".$envelope->{se})
+  my $url=AliEn::SE::Methods->new({PFN=>$local_pfn,DEBUG=>$DEBUG})
+    or $self->info( "Error creating the url of $local_pfn while uploading to the SE: ".$envelope->{se})
       and return;
 
   if ($url->method()=~ /^file/ and $url->host() !~ /^($self->{CONFIG}->{HOST})|(localhost)$/){
@@ -529,22 +530,41 @@ sub RegisterInRemoteSE {
 
   my $info={};
   $info->{size} = $url->getSize();
-  defined $info->{size} or $self->info("Error getting the size of $pfn") 
+  defined $info->{size} or $self->info("Error getting the size of $local_pfn") 
     and return;
-  $info->{md5} = AliEn::MD5->new($pfn);
+  $info->{md5} = AliEn::MD5->new($local_pfn);
 
   $info=$self->getPFNName($info, $envelope );
   $info or return;
   my $url2=AliEn::SE::Methods->new({PFN=>$info->{pfn},DEBUG=>$DEBUG,
 				    LOCALFILE=>$url->path()})
-    or $self->info("Error creating the url of $pfn") and return;
+    or $self->info("Error creating the url of $local_pfn") and return;
 
   my $done=$url2->put() or
-    $self->info("Error uploading the file: ") and return;
+    $self->info("Error uploading the file: $local_pfn") and return;
 
   $self->info( "File saved successfully in SE: ".$envelope->{se});
   return ($info);
 }
+
+
+
+sub getStat {
+  my $self=shift;
+  my $local_pfn=shift;
+  my $envelope=(shift || "");
+
+
+  #my $info=$self->getPFNName($envelope );
+  #my $url2=AliEn::SE::Methods->new(PFN=>$info->{pfn},DEBUG=>$DEBUG,
+  #                                  LOCALFILE=>$url->path()})
+  #  or $self->info("Error creating the url of $local_pfn") and return;
+ 
+
+  #return $stat->getStat();
+  return 1;
+}
+
 
 #sub getPFNName {
 #  my $self=shift;
@@ -572,12 +592,26 @@ sub getPFNName{
   }
   $info->{guid} or return;
 
-  $info->{pfn}=$envelope->{url};
-  $info->{pfn}=~ s{^([^/]*//[^/]*)//(.*)$}{$1/$envelope->{pfn}};
-  $info->{pfn}=~ m{root:////} and return;
+  $info->{pfn}=$self->rewriteCatalogueRegistrationPFN($envelope->{turl},$envelope->{pfn}) or return;
   $self->info("According to the envelope: $info->{pfn} and $info->{guid}");
   return $info;
 }
+
+
+sub rewriteCatalogueRegistrationPFN {
+  my $self=shift;
+  my $url=(shift|| return);
+  my $pfn=(shift|| return);
+  $self->info("gron: url: $url");
+  $self->info("gron: pfn: $pfn");
+  my $registrationPFN=$url;
+  $registrationPFN=~ s{^([^/]*//[^/]*)//(.*)$}{$1/$pfn};
+  $self->info("gron: registrationPFN: $registrationPFN");
+  $registrationPFN =~ m{root:////} and return;
+  return $registrationPFN;
+}
+
+
 
 # sub getPFNNameFromSE{
 #  my $self=shift;

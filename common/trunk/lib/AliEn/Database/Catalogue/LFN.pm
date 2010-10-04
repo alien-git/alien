@@ -167,11 +167,11 @@ sub createCatalogueTables {
             owner=>"varchar(20)",
             gowner=>"varchar(20)",
             pfn=>"varchar(255)",
-            se=>"int",
+            se=>"varchar(100)",
             quotaCalculated=>"smallint",
-            
+            existing=>"smallint(1)",
           },
-            undef, ['INDEX(lfn)', 'INDEX(guid)', 'INDEX(expiretime)']
+            undef, ['PRIMARY KEY(lfn,pfn)','INDEX(pfn)','INDEX(lfn)', 'INDEX(guid)', 'INDEX(expiretime)']
             
         ]                                      
 	         );
