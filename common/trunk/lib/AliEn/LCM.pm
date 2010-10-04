@@ -536,6 +536,7 @@ sub RegisterInRemoteSE {
 
   $info=$self->getPFNName($info, $envelope );
   $info or return;
+
   my $url2=AliEn::SE::Methods->new({PFN=>$info->{pfn},DEBUG=>$DEBUG,
 				    LOCALFILE=>$url->path()})
     or $self->info("Error creating the url of $local_pfn") and return;

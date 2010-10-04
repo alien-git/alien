@@ -484,6 +484,55 @@ sub f_cp {
   my $targetDir=$target;
   ( $targetIsDir ) or $targetDir=~ s{/[^/]*$}{/};
 
+<<<<<<< File.pm
+  #Get objetct to AliEn::UI::Catalogue <<<------ new add will change this
+  unless($self->{UI}){
+    my $options_UI = {};
+    $options_UI->{role} = "$self->{CONFIG}->{ROLE}";
+    $self->{UI} = AliEn::UI::Catalogue::LCM->new($options_UI) or $self->{LOGGER}->error("Could not get UI") and return;
+  }
+
+  #Populate list of source files
+  if($opt->{'k'}) {
+    #Find all files in source directory
+    $source = $self->GetAbsolutePath($source,1);
+    my $sourceIsDir = $self->isDirectory($source) ;
+    ( $sourceIsDir)
+      or $self->{LOGGER}->error("Error: $source is not a directory")
+      and return;
+    my $db = $self->selectDatabase($source);
+    my $tableName = "$db->{INDEX_TABLENAME}->{name}";
+    my $tablelfn = "$db->{INDEX_TABLENAME}->{lfn}";
+    my $lfnOnTable = $source;
+    $lfnOnTable =~ s/$tablelfn//;
+    my $entryId = $db->queryValue("SELECT entryId FROM $tableName WHERE lfn=concat(?,'/')",undef,{bind_values=>[$lfnOnTable]}) || 0;
+    my $files = $db->queryColumn("SELECT lfn FROM $tableName WHERE type<>'d' AND dir=?",undef,{bind_values=>[$entryId]});
+    @srcFileList = map {$_ = $tablelfn.$_} @$files;
+  }
+  else {
+    #Append source file to srcFileList
+    push @srcFileList, $source;
+    @srcFileList = map {$_ = $self->GetAbsolutePath($_,1)} @srcFileList;
+  }
+
+  #Do copy
+  foreach my $sourceFile (@srcFileList) {
+    my $targetFile;
+    if($targetIsDir) {
+      my $fileName = "$sourceFile";
+      $fileName =~ s!.*/(.*$)!$1!;
+      $targetFile = $targetDir."/".$fileName;
+    }
+    else {
+      $targetFile = $target;
+    }
+    my @pfns = $self->f_whereis("sz",$source);
+    foreach my $pfn (@pfns){
+           $self->info("PFN: $pfn->{pfn}");#<<<--------------------CHANGE WITH ADD---------------------------->>>
+           my $t = $self->{UI}->execute("add",$targetFile,$pfn->{pfn});
+           push @returnvals, $t;
+           $t and last;
+=======
   #Get objetct to AliEn::UI::Catalogue <<<------ new add will change this
   unless($self->{UI}){
     my $options_UI = {};
@@ -533,6 +582,7 @@ sub f_cp {
            my $t = $self->{UI}->execute("add",$targetFile,$pfn->{pfn});
            push @returnvals, $t;
            $t and last;
+>>>>>>> 1.42
     }
     #Manage metadata if option specified
     if($opt->{'m'})
@@ -651,10 +701,17 @@ sub f_mv {
   my $options = shift;
   my $source = shift;
   my $target = shift;
+<<<<<<< File.pm
+
+  $source or $target 
+    or $self->{LOGGER}->error("ERROR: Source and/or target not specified") 
+    and return;
+=======
   
   $source or $target 
     or $self->{LOGGER}->error("ERROR: Source and/or target not specified") 
     and return;
+>>>>>>> 1.42
 
   my $fullSource = $self->GetAbsolutePath($source);
   my $fullTarget = $self->GetAbsolutePath($target);
@@ -712,6 +769,39 @@ sub f_removeFile {
   return $self->{DATABASE}->{LFN_DB}->removeFile($fullPath,$filehash);
 }
 
+<<<<<<< File.pm
+#
+#Delete directory and all associated files from catalogue
+#
+sub f_rmdir {
+  my $self = shift;
+  my ( $options, $path ) = @_;
+  my $deleteall = ( ( $options =~ /r/ ) ? 1 : 0 );
+  my $message = "";
+  ($path) or $message = "no directory specified";
+  ( $path and $path eq "." )  and $message = "Cannot remove current directory";
+  ( $path and $path eq ".." ) and $message = "Cannot remove parent directory.";
+  $message and $self->{LOGGER}->error( "Catalogue", "Error $message\nUsage: rmdir [-r] <directory>" )
+    and return;
+  #Check if path specifed is a file
+  $path = $self->GetAbsolutePath( $path, 1 );
+  unless($self->isDirectory($path)) {
+    $self->{LOGGER}->error("ERROR: $path is not a directory");
+    return;
+  }
+  #Check permissions
+  my $parentdir = $self->GetParentDir($path);
+  my $filehash = $self->checkPermissions("w",$parentdir,undef,{RETURN_HASH=>1});
+  $filehash 
+    or $self->{LOGGER}->error("ERROR: checkPermissions failed on $parentdir");
+    and return;
+  $filehash = $self->checkPermissions("w",$path,undef,{RETURN_HASH=>1});
+  $filehash 
+    or $self->{LOGGER}->error("ERROR: checkPermsissions failed on $path")
+    and return;
+  return $self->{DATABASE}->{LFN_DB}->removeDirectory($path,$parentdir);
+}
+=======
 #
 #Delete directory and all associated files from catalogue
 #
@@ -743,6 +833,7 @@ sub f_rmdir {
     and return;
   return $self->{DATABASE}->{LFN_DB}->removeDirectory($path,$parentdir);
 }
+>>>>>>> 1.42
 
 
 
@@ -773,6 +864,26 @@ sub Getopts {
 sub f_touch {
   my $self=shift;
   my $options=shift;
+<<<<<<< File.pm
+  my $lfn=shift 
+    or $self->info("Error missing the name of the file to touch",undef,2) 
+    and return ("Error missing the name of the file to touch","[usage]");
+  #Check quota <--- better way to do this?
+  my $options_UI = {};
+  $options_UI->{role} = "$self->{CONFIG}->{ROLE}";
+  my $ui = AliEn::UI::Catalogue::LCM->new($options_UI) 
+    or $self->info("Could not get UI") 
+    and return ("Could not get UI","[object]");
+  $lfn = $self->GetAbsolutePath($lfn);
+  my ($ok, $message) = $ui->checkFileQuota( $self->{CONFIG}->{ROLE}, 0 );
+  if($ok eq -1) {
+    return  ($message,"[quotaException]");
+  }
+  #Insert file in catalogue
+  $self->info("Inserting file $lfn");
+  $self->f_registerFile($options, $lfn,0) or return ("Could not touch file","[registerFile]");
+  return ("Success");
+=======
   my $lfn=shift 
     or $self->{LOGGER}->error("Error missing the name of the file to touch",undef,2) 
     and return;
@@ -794,6 +905,7 @@ sub f_touch {
     or $self->{LOGGER}->error("Could not touch file")
     and return;
   return 1;
+>>>>>>> 1.42
 }
 
 sub f_du_HELP{

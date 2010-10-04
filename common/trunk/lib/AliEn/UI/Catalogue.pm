@@ -77,7 +77,7 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
     'pwd'      => ['$self->{CATALOG}->f_pwd', 0],
     'cd'       => ['$self->{CATALOG}->f_cd', 0],
     'ls'       => ['$self->{CATALOG}->f_ls', 3+16+32],
-    'lsinternal' => ['$self->{CATALOG}->f_lsinternal', 3+16+32],
+    'lsinternal' => ['$self->{CATALOG}->f_lsInternal', 3+16+32],
     'mkremdir' => ['$self->{CATALOG}->f_mkremdir', 0],
     'mkdir'    => ['$self->{CATALOG}->f_mkdir', 3],
     'quit'     => ['$self->{CATALOG}->f_quit', 0],
@@ -456,7 +456,10 @@ sub new {
   my $silent = 0;
   ($sentence) and ( $silent = 1 );
  
-  if (! $options->{no_catalog}) {
+  bless( $self, $class );
+  $self->SUPER::new();
+
+  if(! $options->{no_catalog}) {
       if ($options->{gapi_catalog}) {
 	      eval {
 	        require gapi::catalogue;
@@ -475,17 +478,19 @@ sub new {
 	      $self->{CATALOG} = gapi::catalogue->new($options)
 	        or return;
 	      $self->{CATALOG}->{GLOB} = 1;
-      } else {
-	     $self->{CATALOG} = AliEn::Catalogue->new($options)   
-	      or return;
-
       }
-  }
-
-  bless( $self, $class );
-  $self->SUPER::new();
-
-  if ($self->{CATALOG}) {
+      else {
+        if($options->{role} =~ /^admin$/) {
+          $self->{CATALOG} = AliEn::Catalogue->new($options)
+            or return;
+        } else {
+          $self->{CATALOG} =AliEn::ClientCatalogue->new($options)
+            or return;
+        }
+      }
+    }
+  
+    if ($self->{CATALOG}) {
     $AliEn::UI::catalog=$self->{CATALOG};
     $options->{DATABASE} = $self->{CATALOG}->{DATABASE};
     if (! $options->{gapi_catalog}) {
@@ -494,7 +499,6 @@ sub new {
   }else {
     $self->{CONFIG}=AliEn::Config->new($options);
   }
-  
   if(! $self->initialize($options)){
     $self->close();
     return;
