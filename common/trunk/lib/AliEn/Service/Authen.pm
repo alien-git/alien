@@ -122,10 +122,10 @@ sub doOperation {
   $self->{LOGGER}->keepAllMessages();
   
   my @info=$self->{UI}->execute($op, split(/\s+/, "@_"));
-  my $error=join ("\n", @{$self->{LOGGER}->{MESSAGES}});
+  my $error=join ("", @{$self->{LOGGER}->{MESSAGES}});
   $self->{LOGGER}->displayMessages();
-
-  $self->info("doOperation: @info, ".scalar(@info));
+  print "We are going to return $error\n";
+  $self->info("doOperation: $op @_ done!! ".scalar(@info));
   return {ok=>1, message=>$error},@info; 
 }
 

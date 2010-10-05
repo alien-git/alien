@@ -20,6 +20,7 @@ sub new {
   $self->{UMASK} = 0755;
   $self->{DISPPATH} = "$self->{CONFIG}->{USER_DIR}/".substr($self->{CONFIG}->{ROLE},0,1)."/$self->{CONFIG}->{ROLE}";
   $self->{CURPATH} = $self->{DISPPATH};
+  $self->{GLOB}=1;
   return $self;
 }
 
@@ -44,7 +45,8 @@ sub callAuthen {
     sleep(5);
   }
    ($info,my  @out)=$self->{SOAP}->GetOutput($info);
-  $info->{message} and $self->info("The server returned: $info->{message}");
+  
+  $info->{message} and $self->info($info->{message},undef, 0);
   if ($info->{ok}){
     print "The call worked!\n";
   } 
