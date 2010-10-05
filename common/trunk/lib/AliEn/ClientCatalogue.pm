@@ -43,11 +43,7 @@ sub callAuthen {
     $self->info("Sleeping for a while before retrying...");
     sleep(5);
   }
-<<<<<<< ClientCatalogue.pm
    ($info,my  @out)=$self->{SOAP}->GetOutput($info);
-=======
-  ($info, my @out)=$self->{SOAP}->GetOutput($info);
->>>>>>> 1.5
   $info->{message} and $self->info("The server returned: $info->{message}");
   if ($info->{ok}){
     print "The call worked!\n";
