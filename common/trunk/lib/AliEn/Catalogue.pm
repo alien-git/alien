@@ -310,9 +310,8 @@ sub f_pwd {
   my $silent          = grep ( /-s/, @_ );
   my $short           = grep ( /-1/, @_ );
   $DEBUG and $self->debug( 1, "\n\t\t UserInterface pwd:@_" );
-  $self->checkPermissions( 'x', $self->{CURPATH}, 1 ) or return;
-  my $path = $self->getVOPath( $self->{CURPATH} );
-  $self->{DISPPATH} = $self->{CURPATH};
+  #$self->checkPermissions( 'x', $self->{DISPPATH}, 1 ) or return;
+  $self->{DISPPATH} = $self->{DISPPATH};
 
   if ( ( !$self->{SILENT} ) and ( !$silent ) ) {
     if ($short) {
@@ -582,8 +581,21 @@ sub f_cd {
   $self->isDirectory( $path, $targetPerm )
     or $self->info( "cd $path: Not a directory", 3, 0 )
     and return;
-  $self->{CURPATH} = $path;
+  $self->{DISPPATH} = $path;
   $self->f_pwd("-s");
+  return 1;
+}
+
+sub checkPermissionOnDirectory {
+  my $self = shift;
+  my $path = shift;
+  (defined $path) or return;
+  my $targetPerm = $self->checkPermissions( "x", $path )
+    or $self->{LOGGER}->error("Check permissions failed for $path")
+    and return;
+  $self->isDirectory( $path, $targetPerm )
+    or $self->{LOGGER}->error("$path is not a directory")
+    and return;
   return 1;
 }
 
@@ -1801,7 +1813,7 @@ sub createFindXML {
   }
   $dumpxml =~ s/\"//g;
   my $dataset = new AliEn::Dataset;
-  $dataset->setarray( \@newresult, "$dumpxml", "[$self->{CURPATH}]: $cmdline",
+  $dataset->setarray( \@newresult, "$dumpxml", "[$self->{DISPPATH}]: $cmdline",
                       "", "", "$self->{CONFIG}->{ROLE}" );
   $self->{DEBUG} and $dataset->print();
   my $xml = $dataset->writexml();
@@ -1903,7 +1915,7 @@ sub printTreeLevel {
 
 sub f_tree {
   my $self = shift;
-  my $dir = ( shift or $self->{CURPATH} );
+  my $dir = ( shift or $self->{DISPPATH} );
   $dir = $self->GetAbsolutePath($dir);
   $DEBUG and $self->debug( 1, "In UserInterface::f_tree $dir" );
   $dir =~ s{/?$}{/};
@@ -1924,7 +1936,7 @@ sub f_tree {
 
 sub f_zoom {
   my $self       = shift;
-  my $likestring = $self->{CURPATH} . "%";
+  my $likestring = $self->{DISPPATH} . "%";
   my $rdirs      = $self->{DATABASE}->getFieldFromD0Ex( "path",
                       "where path like '$likestring' order by path limit 100" );
   defined $rdirs
@@ -1935,7 +1947,7 @@ sub f_zoom {
   ( $files[0] )
     or print STDERR "No files under the current directory!!\n" and return;
   $files[0] =~ /^(.*\/)[^\/]*$/;
-  $self->{CURPATH} = "$1";
+  $self->{DISPPATH} = "$1";
   $self->f_pwd();
   return 1;
 }
