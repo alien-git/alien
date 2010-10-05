@@ -957,41 +957,49 @@ sub addFile {
   my $lineOptions=join(" ", @_);
   @ARGV=@_;
   Getopt::Long::GetOptions($options, 
-        "silent", "versioning", "tracelog", "user=s", "guid=s", "link", "registerroot") 
+        "silent", "versioning", "tracelog", "user=s", "guid=s", "register") 
       or $self->info("Error checking the options of add") and return;
   @_=@ARGV;
   my $targetLFN   = (shift || ($self->info("ERROR, missing paramter: lfn") and return));
   my $sourcePFN   = (shift || ($self->info("ERROR, missing paramter: pfn") and return));
-  my @seSpecs=split(/ /, (shift|| ""));
+  my @seSpecs=@_;
 
+  my $size = 0;
+  my $md5sum = 0;
+  
   $sourcePFN or $self->info("Error: not enough parameters in add\n".
                     $self->addFile_HELP(),2)  and return;
   $targetLFN = $self->{CATALOG}->f_complete_path($targetLFN);
   $options->{tracelog} and $self->{tracelogenabled}=1;
-
+ #pre-gridsite workaround
+ $options->{user} or $options->{user} = $self->{CONFIG}->{ROLE};
 
   if($options->{register}) {
+    $size = shift @seSpecs;
+    $md5sum = shift @seSpecs;
     $self->info("gron: Registering pfn ...");
-    return $self->registerPFN($targetLFN, $sourcePFN, $options->{guid},$options->{silent},$options->{user});
+    return $self->registerPFN($options->{user}, $targetLFN, $sourcePFN, $options->{guid}, $size, $md5sum, $options->{silent});
   }
 
   $self->info("gron: Adding a file");
-  return $self->addFileToSEs($targetLFN, $sourcePFN, \@seSpecs, $options->{guid},$options->{silent},$options->{user});
+  return $self->addFileToSEs($options->{user}, $targetLFN, $sourcePFN, \@seSpecs, $options->{guid}, $options->{silent});
 
 }
 
 sub registerPFN{
   my $self  = shift;
+  my $user=(shift || $self->{CATALOG}->{ROLE});
   my $targetLFN   = (shift || return {ok=>0,tracelog=>\@{$self->{tracelog}}});
   my $sourcePFN   = (shift || return {ok=>0,tracelog=>\@{$self->{tracelog}}});
   my $guid=(shift || 0); # gron: guid is to be handeled
+  my $size=(shift || 0);
+  my $md5sum=(shift || 0);
   my $silent=(shift || 0);
-  my $user=(shift || $self->{CATALOG}->{ROLE});
   my $result = {};
  
   $self->traceLogFlush();
 
-  my $authenReply = $self->authorize("-user=$user", "register", $targetLFN, $sourcePFN, 0, 0, $guid );
+  my $authenReply = $self->authorize("-user=$user", "register", $targetLFN, $sourcePFN, $size, $md5sum, $guid );
 
   $authenReply->{ok} and return {ok=>1,tracelog=>\@{$self->{tracelog}}};
   return {ok=>0,tracelog=>\@{$self->{tracelog}}};
@@ -2467,19 +2475,14 @@ sub registerPFNInCatalogue{
   my $user=(shift || return 0);
   my $envelope=(shift || return 0);
   my $pfn=(shift || return 0);
-  my $se=(shift || return 0);
+  my $se=(shift || 0);
 
   $envelope->{lfn} or return  $self->authorize_return(0,"The access to registering a PFN with LFN $envelope->{lfn} could not be granted.");
-  my $size=AliEn::SE::Methods->new($pfn)->getSize();
-  $size or return $self->authorize_return(0, "File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $pfn could not be registered. We won't insert a zero sized file.");
-  my $md5 = 0; #gron
-  #my $md5=AliEn::MD5->new($pfn); #gron
-  #$md5 or return $self->authorize_return(0, "File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $pfn could not be registered. We couldn't get a md5 for the file.");
   $se or $se=$self->getSEforPFN($pfn);
   $se or return $self->authorize_return(0, "File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $pfn could not be registered. The PFN doesn't correspond to any known SE.");
  
-  $self->{CATALOG}->f_registerFile( "-f", $envelope->{lfn}, $size,
-           $se, $envelope->{guid}, undef,undef, $md5,
+  $self->{CATALOG}->f_registerFile( "-f", $envelope->{lfn}, $envelope->{size},
+           $se, $envelope->{guid}, undef,undef, $envelope->{md5},
                 $pfn) 
      or return $self->authorize_return(0, "File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $pfn could not be registered.");
   return $self->authorize_return(1, "File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $pfn was successfully registered.");
@@ -3181,12 +3184,12 @@ sub traceLogFlush{
 
 sub addFileToSEs {
   my $self=shift;
+  my $user=(shift || $self->{CATALOG}->{ROLE});
   my $targetLFN   = (shift || return {ok=>0,tracelog=>\@{$self->{tracelog}}});
   my $sourcePFN   = (shift || return {ok=>0,tracelog=>\@{$self->{tracelog}}});
   my $SErequirements=(shift || []);
   my $guid=(shift || 0); # gron: guid is to be handeled
   my $silent=(shift || 0);
-  my $user=(shift || $self->{CATALOG}->{ROLE});
 
   my $result = {};
   my @ses = ();
