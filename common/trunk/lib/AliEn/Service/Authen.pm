@@ -120,8 +120,10 @@ sub doOperation {
   $self->{UI}->execute("user","-", $user);
   $self->info("Ready to call '@_'");
   $self->{LOGGER}->keepAllMessages();
-  
-  my @info=$self->{UI}->execute($op, split(/\s+/, "@_"));
+  my $line="@_";
+  $line =~ s/^\s+//;
+  $line =~ s/\s+$//;
+  my @info=$self->{UI}->execute($op, split(/\s+/, $line));
   my $error=join ("", @{$self->{LOGGER}->{MESSAGES}});
   $self->{LOGGER}->displayMessages();
   print "We are going to return $error\n";
