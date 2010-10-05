@@ -392,6 +392,7 @@ sub display {
     $msg="$date $level\t$msg";
  }
   if ($self->{KEEP_MESSAGES}){
+    $format and $msg.="\n";
     push @{$self->{MESSAGES}}, $msg;
     return 1;
   }
