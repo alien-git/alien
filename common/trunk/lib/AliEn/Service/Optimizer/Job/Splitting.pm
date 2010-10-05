@@ -5,7 +5,7 @@ use strict;
 use AliEn::Service::Optimizer::Job;
 use AliEn::Service::Manager::Job;
 use Data::Dumper;
-
+use AliEn::Database::Admin;
 use vars qw(@ISA);
 push (@ISA, "AliEn::Service::Optimizer::Job");
 
@@ -61,7 +61,8 @@ sub checkWakesUp {
 
   $self->{PRIORITY_DB} or $self->info("Error getting the priority table!!")
     and exit(-2);
-
+  $self->{ADMINDB} or $self->{ADMINDB}= new AliEn::Database::Admin();
+  $self->{ADMINDB} or $self->info("Error getting the connection to the admindb") and return;
   my $silent=shift;
 
   my $method="info";
@@ -429,17 +430,13 @@ sub SubmitSplitJob {
   ($ok, my $inputdataaction)=$job_ca->evaluateAttributeVectorString("InputDataAction");
   $inputdataaction and $self->info( "InputDataAction is $inputdataaction - OK!");
 
-  #Now, submit a job for each
-  ( $ok, my $origreq ) = $job_ca->evaluateExpression("OrigRequirements");
-  $origreq or  $origreq="( other.Type == \"machine\" )";
-  $self->debug(1, "The requirements are $origreq");
 
   ( $ok, my $origarg ) = $job_ca->evaluateExpression("Arguments");
   $origarg or $origarg="";
   $origarg=~ s/\"//g;
-  $self->debug(1,"OrigReq $origreq");
+  
   my $i=0;
-
+  #$job_ca->setExpression("");
   ($ok, my $origOutputDir)=$job_ca->evaluateAttributeString("OutputDir");
   ($ok, my @origOutputFile)=$job_ca->evaluateAttributeVectorString("OutputFile");
   my $origOutputFile=join(" ", @origOutputFile);
@@ -447,15 +444,18 @@ sub SubmitSplitJob {
   ($ok, my @origOutputArchive)=$job_ca->evaluateAttributeVectorString("OutputArchive");
   my $origOutputArchive=join(" ", @origOutputArchive);
   my $counter=1;
+  $self->info("Checking the requirements before setting the inputdata");
+  #$self->{CATALOGUE}->{QUEUE}->checkRequirements($job_ca) or next;
+
+  ( $ok, my $origreq ) = $job_ca->evaluateExpression("Requirements");
+  
+  $self->info("The requirements are $origreq");
+
+  #Now, submit a job for each
+
   foreach my $pos (sort keys %{$jobs}) {
     $i++;
-    $self->info("Submitting job $i $pos $counter");
-
-    my $input=$self->_setInputData($jobs->{$pos}, $inputdataaction, \@inputdataset);
-    if ($input) {
-      $job_ca->set_expression("InputData", $input);
-    }
-
+    $self->info("HOLA Submitting job $i $pos $counter");
 
     $self->debug(1,"Setting Requ. $origreq");
 
@@ -466,7 +466,11 @@ sub SubmitSplitJob {
     }
     $job_ca->set_expression("Requirements", $new_req);
 
-    $self->{CATALOGUE}->{QUEUE}->checkRequirements($job_ca) or next;
+    my $input=$self->_setInputData($jobs->{$pos}, $inputdataaction, \@inputdataset);
+    if ($input) {
+      $job_ca->set_expression("InputData", $input);
+      $self->{CATALOGUE}->{QUEUE}->checkRequirements($job_ca) or next;
+    }
 
     foreach my $splitargs (@splitarguments){
 #      my $newargs=$self->_checkArgumentsPatterns($splitargs, $jobs->{$pos}, $counter);
@@ -480,10 +484,11 @@ sub SubmitSplitJob {
 
       $counter++;
       if ( !$job_ca->isOK() ) {
-	print STDERR "Splitting: in SubmitSplitJob new jdl is not valid\n";
-	return;
+	       print STDERR "Splitting: in SubmitSplitJob new jdl is not valid\n";
+	       return;
       }
-      $self->_submitJDL($queueid, $user, $job_ca->asJDL, $jobs->{$pos}->{files},$job_ca) or return;
+      $self->_submitJDL($queueid, $user, $job_ca->asJDL, 
+                        $jobs->{$pos}->{files}, $job_ca)      or return;
     }
   }
   return 1;
@@ -524,6 +529,7 @@ sub _submitJDL {
   my $jdlText=shift;
   my $files=shift;
   my $job_ca=shift;
+  my $direct=shift ||0;
 
   ( $job_ca) or $job_ca=Classad::Classad->new($jdlText);
   if (!$files) {
@@ -533,7 +539,9 @@ sub _submitJDL {
 
   $self->debug(1, "JDL $jdlText");
   push @ISA, "AliEn::Service::Manager::Job";
-  my $newqueueid=$self->enterCommand($user, $jdlText, undef, undef, $queueid, undef, {silent=>1});
+  
+  my $newqueueid=$self->enterCommand($user, $jdlText, undef, undef, $queueid, undef, 
+    {silent=>0,direct=>$direct});
   pop @ISA;
   $newqueueid or return;
   $self->debug(1, "Command submitted!! (jobid $newqueueid)" );

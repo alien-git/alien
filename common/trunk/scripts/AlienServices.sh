@@ -676,7 +676,7 @@ ALIEN_DoService ()
 	    args='SOAPProxy SOAPProxy "SOAPProxy" NO_PASSWORD'
 	    ;;
 	Authen)
-	    args='VARDIR  Authen "Authentication" PASSWORD'
+	    args='VARDIR  Authen "Authentication" NO_PASSWORD'
 #	    ALIEN_START="$ALIEN_ROOT/scripts/Authen.pl"
 	    export SEALED_ENVELOPE_REMOTE_PUBLIC_KEY=$ALIEN_HOME/authen/rpub.pem
 	    export SEALED_ENVELOPE_REMOTE_PRIVATE_KEY=$ALIEN_HOME/authen/rpriv.pem

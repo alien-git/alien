@@ -45,13 +45,13 @@ sub initialize {
 	$options->{role} = 'admin';
 	$options->{ROLE} = 'admin';
 
-        ! $options->{password} and $ENV{ALIEN_LDAP_PASSWORD} and $options->{password}=$ENV{ALIEN_LDAP_PASSWORD};
+#        ! $options->{password} and $ENV{ALIEN_LDAP_PASSWORD} and $options->{password}=$ENV{ALIEN_LDAP_PASSWORD};
 
-	if ( !( $options->{password} ) ) {
-		print STDERR "Please enter the password:\n";
-		chomp( $options->{password} = <STDIN> );
-	}
-	$self->{LDAPpassword} = $options->{password};
+#	if ( !( $options->{password} ) ) {
+#		print STDERR "Please enter the password:\n";
+#		chomp( $options->{password} = <STDIN> );
+#	}
+#	$self->{LDAPpassword} = $options->{password};
 
 	#    $ADMINPASSWD = $password;
 
@@ -67,12 +67,12 @@ sub initialize {
 	$options->{password} = '';
 	# $options->{debug}=5;
 
-	$self->{cat} = AliEn::Catalogue::Server->new($options);
+	#$self->{cat} = AliEn::Catalogue::Server->new($options);
 
 	$self->{options} = $options;
-	$self->{cat} or $self->{LOGGER}->error( "CatalogDaemon",
-					"Could not create instance of ServerInterface. Daemon did not start" )
-		and return;
+#	$self->{cat} or $self->{LOGGER}->error( "CatalogDaemon",
+#					"Could not create instance of ServerInterface. Daemon did not start" )
+#		and return;
 
 	#	$self->{cat}->f_whoami();
 	#	exit;
@@ -115,19 +115,18 @@ sub  createEnvelope{
 sub doOperation {
   my $other=shift;
   my $user=shift;
-  $self->{LOGGER}->set_error_msg();
-  $self->info("$$ Ready to do an operation  for $user (and @_)");
-  
+  my $op=shift;
+  $self->info("$$ Ready to do an operation for $user (and $op '@_')");
   $self->{UI}->execute("user","-", $user);
-  $self->info("@_");
-  my @info=$self->{UI}->execute(@_);
-  my $error=$self->{LOGGER}->error_msg();
-  if ($error){
-     die($error);
-  }
-  $self->info("$$ Everything is done for user $user (and @_)");
+  $self->info("Ready to call '@_'");
+  $self->{LOGGER}->keepAllMessages();
+  
+  my @info=$self->{UI}->execute($op, split(/\s+/, "@_"));
+  my $error=join ("\n", @{$self->{LOGGER}->{MESSAGES}});
+  $self->{LOGGER}->displayMessages();
+
   $self->info("doOperation: @info, ".scalar(@info));
-  return @info;
+  return {ok=>1, message=>$error},@info; 
 }
 
 #################################################################
@@ -464,7 +463,8 @@ sub _ConnectToLDAP{
   print STDERR "Connecting to LDAP server .........";
   my $manager=($self->{CONFIG}->{LDAPMANAGER} or "cn=Manager,dc=cern,dc=ch");#
 
-  my $result=  $LDAP->bind( $manager, password => $self->{LDAPpassword} );
+#  my $result=  $LDAP->bind( $manager, password => $self->{LDAPpassword} );
+  my $result= $LDAP->bind();
   $result->code && print STDERR "failed\nCould not bind to LDAP-Server: ",$result->error and return;
   print STDERR "OK\n";
   return 1;

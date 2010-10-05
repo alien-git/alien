@@ -188,7 +188,7 @@ sub checkRequirements {
     $default .= " && $origreq";
     $job_ca->set_expression( "OrigRequirements", $origreq ) or 
       $self->info( "Error with the original requirements")
-	and return 1;
+	and return ;
   }
 
   $DEBUG and $self->debug(1, "Checking if the job is going to be splitted" );

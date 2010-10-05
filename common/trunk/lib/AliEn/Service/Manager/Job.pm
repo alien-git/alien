@@ -250,7 +250,7 @@ sub enterCommand {
   my $splitjob = ( shift or "0");
   my $oldjob   = ( shift or "0");
   my $options= shift || {};
-  my $date = time;
+
 
   my ($user) = split '@', $host;
 
@@ -283,7 +283,13 @@ sub enterCommand {
   }
   $jobca_text=$job_ca->asJDL;
 
-   $options->{silent} or $self->info("First of all, let's check the quota");
+
+  my ($ok,  @inputdata)=$job_ca->evaluateAttributeVectorString("InputData");
+  my ($ok2,  @inputcollection)=$job_ca->evaluateAttributeVectorString("InputDataCollection");
+
+  my $direct=1;
+  ($ok && $inputdata[0]) and $direct=0;
+  ($ok2 && $inputcollection[0]) and $direct=0;  
 
   my $nbJobsToSubmit=1;
   if ($jobca_text =~ / split =/i) {
@@ -296,45 +302,84 @@ sub enterCommand {
     pop @ISA;
     $nbJobsToSubmit or 
       $self->info("Error getting the number of subjobs")
-    	      and return (-1, "Error getting the number of subjobs");
+    	  and return (-1, "Error getting the number of subjobs");
+    $direct=0;
   }
 
-   $options->{silent} or $self->info("Checking your job quota...");
-  my ($ok, $error)=$self->checkJobQuota($user, $nbJobsToSubmit);
-  ($ok > 0 ) or return (-1, $error);
-   $options->{silent} or $self->info("OK");
+  my $set={jdl=>$jobca_text,
+      status=>'INSERTING',
+      submitHost=>$host,
+      priority=>$priority,
+      split=>$splitjob
+  };
 
+  if ($direct){
+    $self->info("The job should go directly to WAITING");
+    $set->{status}='WAITING';
+    my ($ok,$req)=$job_ca->evaluateExpression("Requirements");
+    my $agentReq=$self->getJobAgentRequirements($req, $job_ca);
+    $set->{agentId}=$self->{DB}->insertJobAgent($agentReq);
+  } else {
+    $options->{silent} or $self->info("Checking your job quota...");
+    my ($ok, $error)=$self->checkJobQuota($user, $nbJobsToSubmit);
+    ($ok > 0 ) or return (-1, $error);
+    $options->{silent} or $self->info("OK");
+  }
 
-  my $procid = $self->{DB}->insertJobLocked($jobca_text, $date, 'INSERTING', $host, $priority, $splitjob, $oldjob)
+  ($ok, my  $email)=$job_ca->evaluateAttributeString("Email");
+  if ($email){
+      $self->info("This job will send an email to $email");
+      $set->{notify}=$email;
+  }
+
+  my $procid = $self->{DB}->insertJobLocked($set, $oldjob)
     or $self->{LOGGER}->alert( "JobManager", "In enterCommand error inserting job" )
       and return(-1,"inserting job");
+  $self->{ADMINDB}->insertJobToken($procid,$user,-1) or 
+    $self->info("Error creating the token") and return ;
+  $email and $self->putJobLog($procid, "trace", "The job will send an email to '$email'");
+  
+  my $msg="Job $procid inserted from $host ($set->{status})";
+  ($splitjob) and $msg.=" [Master Job is $splitjob]";
+   
+  $self->putJobLog($procid,"state", $msg);
+  
 
-  if ($splitjob) {
-    $self->putJobLog($procid,"state", "Job $procid inserted from $host [Master Job is $splitjob]");
-  } else { 
-    $self->putJobLog($procid,"state", "Job $procid inserted from $host ");
-  }
+#  my $procDir = AliEn::Util::getProcDir(undef, $host, $procid);
+#  #my $user;
+#  #$procDir=~ m{/proc/([^/]*)/} and $user=$1;
+#  my $silent="";
+#  $options->{silent} and $silent="-silent";
+#  my ($olduser)= $self->{CATALOGUE}->execute("whoami",$silent );
+#  $self->{CATALOGUE}->execute("user", "-", $user, $silent) or 
+#    $self->info("Error becoming user '$user'") and return (-1, "Error becoming user '$user'");
 
-  my $procDir = AliEn::Util::getProcDir(undef, $host, $procid);
-  #my $user;
-  #$procDir=~ m{/proc/([^/]*)/} and $user=$1;
-  my $silent="";
-  $options->{silent} and $silent="-silent";
-  my ($olduser)= $self->{CATALOGUE}->execute("whoami",$silent );
-  $self->{CATALOGUE}->execute("user", "-", $user, $silent) or 
-    $self->info("Error becoming user '$user'") and return (-1, "Error becoming user '$user'");
-
-  $self->{CATALOGUE}->execute('whoami', $silent);
-  my $done=$self->{CATALOGUE}->execute( "mkdir", $procDir, "-ps" );
-  $self->{CATALOGUE}->execute("user", "-", $olduser, $silent);
-  $done or $self->{LOGGER}->alert( "JobManager",
-			       "In enterCommand error creating the directory $procDir in the catalogue" )
-      and return(-1,"creating the directory $procDir in the catalogue");
+#  $self->{CATALOGUE}->execute('whoami', $silent);
+#  my $done=$self->{CATALOGUE}->execute( "mkdir", $procDir, "-ps" );
+#  $self->{CATALOGUE}->execute("user", "-", $olduser, $silent);
+#  $done or $self->{LOGGER}->alert( "JobManager",
+#			       "In enterCommand error creating the directory $procDir in the catalogue" )
+#      and return(-1,"creating the directory $procDir in the catalogue");
 
   $self->info("Job inserted");
 
   return $procid;
 }
+
+sub getJobAgentRequirements {
+  my $self=shift;
+  my $req=shift;
+  my $job_ca=shift;
+  $req= "Requirements = $req ;\n";
+  foreach my $entry ("user", "memory", "swap", "localdisk", "packages") {
+    my ($ok, $info)=$job_ca->evaluateExpression($entry);
+    ($ok and $info) or next;
+    $req.=" $entry =$info;\n";
+  }
+
+  return $req
+}
+
 
 sub SetProcInfoBunch {
   my ($this, $host, $info)=(shift, shift, shift);
@@ -1304,13 +1349,13 @@ sub resubmitCommand {
     or $self->{LOGGER}->error( "JobManager", "In resubmitCommand process $queueId does not belong to '$user'" )
       and return ( -1, "process $queueId does not belong to $user" );
 
-  $self->info("Removing the 'registeredoutput' and requirements field");
+  $self->info("Removing the 'registeredoutput'  field");
   $data->{jdl}=~ s/registeredlog\s*=\s*"[^"]*"\s*;\s*//im;
   $data->{jdl}=~ s/registeredoutput\s*=\s*{[^}]*}\s*;\s*//im;
 
-  my $defaultReq=" (other.Type==\"machine\") ";
-  $data->{jdl}=~ s/origrequirements\s*=([^;]*\s*);\s*//im and $defaultReq.=" && $1";
-  $data->{jdl}=~ s/\s(requirements\s*=)\s*[^;]*;\s*/$1$defaultReq;/im;
+  #my $defaultReq=" (other.Type==\"machine\") ";
+  #$data->{jdl}=~ s/origrequirements\s*=([^;]*\s*);\s*//im and $defaultReq.=" && $1";
+  #$data->{jdl}=~ s/\s(requirements\s*=)\s*[^;]*;\s*/$1$defaultReq;/im;
 
 
   $data->{priority}++;

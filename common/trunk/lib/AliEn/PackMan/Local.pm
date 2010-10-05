@@ -284,6 +284,13 @@ sub checkDiskSpace {
   my $handle=Filesys::DiskFree->new();
   $handle->df_dir($dir);
   my $size=$handle->avail($dir);
+  if (! $size){
+     $self->info("Probably '$dir' is a link... getting the size in a different way");
+     $handle->df();
+     $size=$handle->avail($dir);
+  }
+  
+  
   #if there is enough space, just install
   if ($requestedSpace <$size){
     $self->debug(3, "There is enough space to install the file");

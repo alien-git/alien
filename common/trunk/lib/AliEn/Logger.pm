@@ -136,6 +136,19 @@ sub redirect{
   }
   return 1;
 }
+ 
+
+sub keepAllMessages{
+  my $self=shift;
+  $self->{KEEP_MESSAGES}=1;
+  $self->{MESSAGES}=[];
+}
+
+sub displayMessages{
+  my $self=shift;
+  delete $self->{KEEP_MESSAGES};
+  delete  $self->{MESSAGES};
+}
 
 sub _initializeAgentRotate{
   my $self=shift;
@@ -377,8 +390,11 @@ sub display {
     my $date =localtime;
     $date =~ s/^\S+\s((\S+\s+){3}).*$/$1/	;
     $msg="$date $level\t$msg";
+ }
+  if ($self->{KEEP_MESSAGES}){
+    push @{$self->{MESSAGES}}, $msg;
+    return 1;
   }
-  
   if ($self->{logagent}){
     $msg=~ s{\%}{\%\%}g;
     Log::Agent::logsay(  $msg);
