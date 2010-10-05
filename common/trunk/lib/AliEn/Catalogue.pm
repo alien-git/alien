@@ -724,8 +724,7 @@ sub f_mkremdir {
 "Error: $DB in $host (driver $driver) is not in the current list of remote hosts. Add it first with 'addHost'\n";
     return;
   }
-  return $self->{DATABASE}
-    ->createRemoteDirectory( $hostIndex, $host, $DB, $driver, $lfn );
+  return $self->{DATABASE}->createRemoteDirectory( $hostIndex, $host, $DB, $driver, $lfn );
 }
 
 #sub f_rmlink {
@@ -1936,7 +1935,13 @@ sub f_tree {
 
 sub f_zoom {
   my $self       = shift;
-  my $likestring = $self->{DISPPATH} . "%";
+  my $likestring = shift;
+  if(defined $likestring) {
+    $likestring = $self->GetAbsolutePath($likestring) . "%";
+  }
+  else {
+    $likestring = $self->{DISPPATH} . "%";
+  }
   my $rdirs      = $self->{DATABASE}->getFieldFromD0Ex( "path",
                       "where path like '$likestring' order by path limit 100" );
   defined $rdirs

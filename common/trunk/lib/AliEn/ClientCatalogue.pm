@@ -19,9 +19,9 @@ sub new {
     or print "Error creating AliEn::SOAP $! $?" and return;
   $self->{UMASK} = 0755;
   $self->{DISPPATH} = "$self->{CONFIG}->{USER_DIR}/".substr($self->{CONFIG}->{ROLE},0,1)."/$self->{CONFIG}->{ROLE}";
-  $self->f_cd("$self->{DISPPATH}")
-    or $self->info("Home directory for $self->{CONFIG}->{ROLE} does not exist")
-    and return;
+  $self->f_cd("$self->{DISPPATH}");
+  #  or $self->info("Home directory for $self->{CONFIG}->{ROLE} does not exist")
+  #  and return;
   $self->{GLOB}=1;
   return $self;
 }
@@ -134,48 +134,54 @@ sub f_ln {
 
 sub f_addTag {
   my $self = shift;
-  $_[0] = $self->GetAbsolutePath($_[0]);
-  my $env = $self->callAuthen("removeTag",@_);
+  my @args = @_;
+  $args[0] = $self->GetAbsolutePath($args[0]);
+  my $env = $self->callAuthen("removeTag",@args);
   $self->info("From Authen: $env");
   return $env;
 }
 
 sub f_addTagValue {
   my $self = shift;
-  $_[1] = $self->GetAbsolutePath($_[1]);
-  my $env = $self->callAuthen("addTagValue",@_);
+  my @args = @_;
+  $args[1] = $self->GetAbsolutePath($args[1]);
+  my $env = $self->callAuthen("addTagValue",@args);
   $self->info("From Authen: $env");
   return $env;
 }
 
 sub f_updateTagValue {
   my $self = shift;
-  $_[1] = $self->GetAbsolutePath($_[1]);
-  my $env = $self->callAuthen("updateTagValue",@_);
+  my @args = @_;
+  $args[1] = $self->GetAbsolutePath($args[1]);
+  my $env = $self->callAuthen("updateTagValue",@args);
   $self->info("From Authen: $env");
   return $env;
 }
 
 sub f_removeTag {
   my $self = shift;
-  $_[0] = $self->GetAbsolutePath($_[0]);
-  my $env = $self->callAuthen("removeTag",@_);
+  my @args = @_;
+  $args[0] = $self->GetAbsolutePath($args[0]);
+  my $env = $self->callAuthen("removeTag",@args);
   $self->info("From Authen: $env");
   return $env;
 }
 
 sub f_removeTagValue {
   my $self = shift;
-  $_[0] = $self->GetAbsolutePath($_[0]);
-  my $env = $self->callAuthen("removeTagValue",@_);
+  my @args = @_;
+  $args[0] = $self->GetAbsolutePath($args[0]);
+  my $env = $self->callAuthen("removeTagValue",@args);
   $self->info("From Authen: $env");
   return $env;
 }
 
 sub f_cleanupTagValue {
   my $self = shift;
-  $_[0] = $self->GetAbsolutePath($_[0]);
-  my $env = $self->callAuthen("cleanupTagValue",@_);
+  my @args = @_;
+  $args[0] = $self->GetAbsolutePath($args[0]);
+  my $env = $self->callAuthen("cleanupTagValue",@args);
   $self->info("From Authen: $env");
   return $env;
 }
@@ -191,6 +197,57 @@ sub f_cd {
     and return;
   $self->{DISPPATH} = $path;
   return 1;
+}
+
+sub f_mkremdir {
+  my $self = shift;
+  my @args = @_;
+  if(defined $args[3]) {
+    $args[3] = $self->GetAbsolutePath($args[3]);
+  }
+  else {
+    $self->info("File not specified");
+    return;
+  }
+  my $env = $self->callAuthen("mkremdir",@args);
+  $self->info("From Authen: $env");
+  return $env;
+}
+
+sub f_zoom {
+  my $self = shift;
+  my @args = @_;
+  $args[0] = $self->GetAbsolutePath($args[0]);
+  my $env = $self->callAuthen("zoom",@args);
+  $self->info("From Authen: $env");
+  return $env;
+}
+
+sub f_tree {
+  my $self = shift;
+  my @args = @_;
+  $args[0] = $self->GetAbsolutePath($args[0]);
+  my $env = $self->callAuthen("tree",@args);
+  $self->info("From Authen: $env");
+  return $env;
+}
+
+sub f_type {
+  my $self = shift;
+  my @args = @_;
+  $args[0] = $self->GetAbsolutePath($args[0]);
+  my $env = $self->callAuthen("type",@args);
+  $self->info("From Authen: $env");
+  return $env;
+}
+
+sub f_du {
+  my $self = shift;
+  my @args = @_;
+  $args[1] = $self->GetAbsolutePath($args[1]);
+  my $env = $self->callAuthen("du",@args);
+  $self->info("From Authen: $env");
+  return $env;
 }
 
 sub authorize{
@@ -241,7 +298,6 @@ sub authorize{
 
  return $hash;
 }
-
 
 return 1;
 __END__
