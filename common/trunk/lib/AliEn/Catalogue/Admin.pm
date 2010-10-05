@@ -1010,18 +1010,24 @@ sub removeExpiredFiles {
 	          my $gTableName_PFN = $gTableName."_PFN";
 	          my $guidId;
 	          #Get file storage data
-	          my $fileData = $db->query("SELECT g_p.pfn, g_p.seNumber, g.guidId, s.seName
-	                                    FROM $gTableName_PFN g_p, $gTableName g, SE s, LFN_BOOKED l
-	                                    WHERE g_p.guidId=g.guidId AND s.seNumber=g_p.seNumber AND g.guid=l.guid AND l.lfn LIKE ?",
-	                                    undef, {bind_values=>[$lfn]});
-	          #Delete from SE
-	          foreach my $data (@$fileData) {
+            #These come from rm/rmdir commands
+	          my $fileData_delete_all_pfn = $db->query("SELECT g_p.pfn, g_p.seNumber, g.guidId, s.seName
+              FROM $gTableName_PFN g_p, $gTableName g, SE s, LFN_BOOKED l
+              WHERE g_p.guidId=g.guidId AND s.seNumber=g_p.seNumber AND g.guid=l.guid AND l.lfn LIKE ? AND l.pfn='*'",
+              undef, {bind_values=>[$lfn]});
+            #These come from deleteMirror
+            my $fileData_delete_single_pfn = $db->query("SELECT g_p.pfn, g_p.seNumber, g.guidId, s.seName
+                FROM $gTableName_PFN g_p, $gTableName g, SE s, LFN_BOOKED l
+                WHERE g_p.guidId=g.guidId AND s.seNumber=g_p.seNumber AND g.guid=l.guid AND l.lfn LIKE ? AND g_p.pfn=l.pfn",
+                undef, {bind_values=>[$lfn]});
+            my @fileData = (@$fileData_delete_all_pfn,@$fileData_delete_single_pfn);
+
+            #Delete from SE
+	          foreach my $data (@fileData) {
 	            my $pfn = $data->{pfn};
 	            my $seNumber = $data->{seNumber};
 	            my $seName = $data->{seName};
 	            $guidId = $data->{guidId};
-	            
-	            #DELETE FROM SE
 	            my $list=$db->queryColumn("SELECT protocol FROM transfers.PROTOCOLS 
 	                                       WHERE sename=? AND deleteprotocol=1",undef ,{bind_values=>[$seName]});
 	            my @protocols = @$list;    
@@ -1036,7 +1042,7 @@ sub removeExpiredFiles {
 	                $self->{DELETE}->{lc($protocol)}->delete($pfn) and last;
 	              }
 	              else {   
-	                $self->info("$protocol is not in the FTD_PROTOCOL_LIST");
+	                $self->info("$protocol is not in the FTD_PROTOCOL_LIST - File not being deleted!");
 	              }
 	            }                                     
 	             
