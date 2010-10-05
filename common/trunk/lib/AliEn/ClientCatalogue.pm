@@ -19,7 +19,9 @@ sub new {
     or print "Error creating AliEn::SOAP $! $?" and return;
   $self->{UMASK} = 0755;
   $self->{DISPPATH} = "$self->{CONFIG}->{USER_DIR}/".substr($self->{CONFIG}->{ROLE},0,1)."/$self->{CONFIG}->{ROLE}";
-  $self->{CURPATH} = $self->{DISPPATH};
+  $self->f_cd("$self->{DISPPATH}")
+    or $self->info("Home directory for $self->{CONFIG}->{ROLE} does not exist")
+    and return;
   $self->{GLOB}=1;
   return $self;
 }
@@ -178,6 +180,18 @@ sub f_cleanupTagValue {
   return $env;
 }
 
+sub f_cd {
+  my $self = shift;
+  my $path = shift;
+  (defined $path) or ($path = $self->GetHomeDirectory());
+  $path = $self->GetAbsolutePath($path);
+  my $env = $self->callAuthen("checkPermissionOnDirectory",$path);
+  $env 
+    or $self->info("You do not have permissions in $path")
+    and return;
+  $self->{DISPPATH} = $path;
+  return 1;
+}
 
 sub authorize{
   my $self = shift;

@@ -3,7 +3,7 @@ package AliEn::Catalogue::Env;
 sub loadEnvironment {
     my $self = shift;
 
-#    $self->{CURPATH} = "/";
+#    $self->{DISPPATH} = "/";
 
 #    ( $self->{DEBUG} > 2 )
 #      and print "In ENVInterface: Loading the environment\n";
@@ -15,8 +15,8 @@ sub loadEnvironment {
 #      and return;
 #    my %env = split " ", $env;
 #
-#    ( $env{pwd} ) and $self->{CURPATH} = $env{pwd};
-    $self->{CURPATH}=$self->GetHomeDirectory()."/";
+#    ( $env{pwd} ) and $self->{DISPPATH} = $env{pwd};
+    $self->{DISPPATH}=$self->GetHomeDirectory()."/";
 #    ( $self->{DEBUG} > 2 ) and print "In ENVInterface: path $env{pwd}\n";
     return 1;
 }
@@ -28,7 +28,7 @@ sub saveEnvironment {
 #      and print
 #	"DEBUG LEVEL 2\tIn ENVInterface: Saving the environment $self->{DATABASE_FIRST}->{USER}\n";
 
-#    $self->{DATABASE_FIRST}->insertEnv($self->{DATABASE_FIRST}->{ROLE}, $self->{CURPATH})
+#    $self->{DATABASE_FIRST}->insertEnv($self->{DATABASE_FIRST}->{ROLE}, $self->{DISPPATH})
 #		or return;
 
 #    ( $self->{DEBUG} > 2 )

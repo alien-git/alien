@@ -247,11 +247,11 @@ sub GetAbsolutePath {
   defined $path or $path="";
   my $trailingslash = (shift or 0);
   $DEBUG and $self->debug(3, "Getting the full path of $path");
-  (defined $path) or return $self->{CURPATH};
+  (defined $path) or return $self->{DISPPATH};
 
   # replace ~
   $path =~ s/^~/$self->GetHomeDirectory()/e;
-  $path = $self->{CURPATH} . $path if (index( $path, '/' ) != 0);
+  $path = $self->{DISPPATH} . $path if (index( $path, '/' ) != 0);
   $DEBUG and $self->debug(4, "Starting with $path");
   while (
 	 $path =~ s{//+}{/}g or

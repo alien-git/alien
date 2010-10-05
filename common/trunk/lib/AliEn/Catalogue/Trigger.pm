@@ -119,7 +119,7 @@ sub f_showTrigger {
   my $options   = shift;
   my $directory = shift;
 
-  ($directory) or ( $directory = $self->{CURPATH} );
+  ($directory) or ( $directory = $self->{DISPPATH} );
   $directory = $self->f_complete_path($directory);
   $directory =~ s/\/?$/\//;
 

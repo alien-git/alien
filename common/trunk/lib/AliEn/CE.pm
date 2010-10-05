@@ -136,7 +136,7 @@ sub checkZipArchives {
   $ok or return 1;
   $self->info("There are some zip archives!! @list");
 
-  my $pwd=$self->{CATALOG}->{CATALOG}->{CURPATH};
+  my $pwd=$self->{CATALOG}->{CATALOG}->{DISPPATH};
   my $change=0;
   foreach my $f (@list){
     $f =~ s{^LF:}{} and $change=1;
@@ -259,7 +259,7 @@ sub checkInputDataCollections{
   $ok or return 1;
   my @newlist;
   my $modified=0;
-  my $pwd=$self->{CATALOG}->{CATALOG}->{CURPATH};
+  my $pwd=$self->{CATALOG}->{CATALOG}->{DISPPATH};
   foreach my $file (@inputdata){
     $self->info("Checking the input collection $file");
     $file=~ s/^LF:// or $self->info("Wrong format with $file. It doesn't start with 'LF:'",1) and return;
@@ -324,7 +324,7 @@ sub requirementsFromInput {
   my @flatfiles;
 
   my $i=0;
-  my $pwd=$self->{CATALOG}->{CATALOG}->{CURPATH};
+  my $pwd=$self->{CATALOG}->{CATALOG}->{DISPPATH};
   my $modified=0;
   foreach my $origlfn (@inputdata) {
     my ($file, @options)=split(',', $origlfn);
