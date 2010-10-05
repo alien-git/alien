@@ -599,6 +599,23 @@ sub getPFNName{
 }
 
 
+sub rewriteCatalogueRegistrationPFN {
+  my $self=shift;
+  my $url=(shift|| return);
+  my $pfn=(shift|| return);
+  $self->info("gron: url: $url");
+  $self->info("gron: pfn: $pfn");
+  my $registrationPFN=$url;
+  $registrationPFN=~ s{^([^/]*//[^/]*)//(.*)$}{$1/$pfn};
+  $self->info("gron: registrationPFN: $registrationPFN");
+  $registrationPFN =~ m{root:////} and return;
+  return $registrationPFN;
+}
+
+
+
+
+
 # sub getPFNNameFromSE{
 #  my $self=shift;
 #  my $newSE=shift;
