@@ -928,86 +928,6 @@ sub Getopts {
     }
   }
   return ( $flags, @files ); }
-
-sub addFile_HELP {
-  return "'add' copies a file into the SE, and register an entry in the catalogue that points to the file in the SE\n\t
-Usage: add [-g <guid>] [-s <size>] [-md5 <md5>] <lfn> <pfn> [<se>,!<se>,select=N,<qosflag>=N]\n
-Possible pfns:\tsrm://<host>/<path>, castor://<host>/<path>, 
-\t\tfile://<host>/<path>
-If the method and host are not specified, the system will try with 'file://<localhost>' \n";
-}
-
-#
-# Check if the user can create the file
-sub _canCreateFile{
-  my $self=shift;
-  my $lfn=shift;
-  $self->{CATALOG}->checkPermissions( 'w', $lfn )  or  return;
-  if ($self->{CATALOG}->f_Database_existsEntry( $lfn)) {
-    $self->info( "file $lfn already exists!!",1);
-    return;
-  }
-  return 1;
-}
-
-sub addFile {
-  my $self  = shift;
-  my $options={};
-  my $lineOptions=join(" ", @_);
-  @ARGV=@_;
-  Getopt::Long::GetOptions($options, 
-        "silent", "versioning", "tracelog", "user=s", "guid=s", "register") 
-      or $self->info("Error checking the options of add") and return;
-  @_=@ARGV;
-  my $targetLFN   = (shift || ($self->info("ERROR, missing paramter: lfn") and return));
-  my $sourcePFN   = (shift || ($self->info("ERROR, missing paramter: pfn") and return));
-  my @seSpecs=@_;
-
-  my $size = 0;
-  my $md5sum = 0;
-  
-  $sourcePFN or $self->info("Error: not enough parameters in add\n".
-                    $self->addFile_HELP(),2)  and return;
-  my $gron = $targetLFN;
-  $targetLFN = $self->{CATALOG}->f_complete_path($targetLFN);
-  $options->{tracelog} and $self->{tracelogenabled}=1;
- #pre-gridsite workaround
- $options->{user} or $options->{user} = $self->{CONFIG}->{ROLE};
-
- $targetLFN =~ s/$gron/\/$gron/;
-
-  if($options->{register}) {
-    $size = shift @seSpecs;
-    $md5sum = shift @seSpecs;
-    $self->info("gron: Registering pfn ...");
-    return $self->registerPFN($options->{user}, $targetLFN, $sourcePFN, $options->{guid}, $size, $md5sum, $options->{silent});
-  }
-
-  $self->info("gron: Adding a file");
-  return $self->addFileToSEs($options->{user}, $targetLFN, $sourcePFN, \@seSpecs, $options->{guid}, $options->{silent});
-
-}
-
-sub registerPFN{
-  my $self  = shift;
-  my $user=(shift || $self->{CATALOG}->{ROLE});
-  my $targetLFN   = (shift || return {ok=>0,tracelog=>\@{$self->{tracelog}}});
-  my $sourcePFN   = (shift || return {ok=>0,tracelog=>\@{$self->{tracelog}}});
-  my $guid=(shift || 0); # gron: guid is to be handeled
-  my $size=(shift || 0);
-  my $md5sum=(shift || 0);
-  my $silent=(shift || 0);
-  my $result = {};
- 
-  $self->traceLogFlush();
-
-  my $authenReply = $self->{CATALOG}->authorize("-user=$user", "register", $targetLFN, $sourcePFN, $size, $md5sum, $guid );
-
-  $authenReply->{ok} and return {ok=>1,tracelog=>\@{$self->{tracelog}}};
-  return {ok=>0,tracelog=>\@{$self->{tracelog}}};
-}
-
-
 #  This subroutine mirrors an lfn in another SE. It received the name of the lfn, and the 
 #  target SE
 #  It may also receive several options:
@@ -1324,59 +1244,6 @@ sub relocate {
 
 
 
-
-
-sub versionLFN {
-  my $self=shift;
-  my $lfn=shift;
-  my $perm=shift;
-  
-  my $filehash = $self->{CATALOG}->checkPermissions($perm,$lfn,undef, {RETURN_HASH=>1});
-  if (!$filehash) {
-    $self->info("access: access denied to $lfn");
-    return;
-  }
-
-  my $parentdir = $self->{CATALOG}->f_dirname($lfn);
-  my $result = $self->{CATALOG}->checkPermissions($perm,$parentdir);
-  if (!$result) {
-    $self->info("access: parent dir missing for lfn $lfn");
-    return ;
-  }
-
-  if (($lfn ne "") && $self->{CATALOG}->existsEntry($lfn, $filehash->{lfn})) {
-	$self->info( "access: lfn <$lfn> exists - creating backup version ....\n");
-	my $filename = $self->{CATALOG}->f_basename($lfn);
-	
-	$self->{CATALOG}->f_mkdir("ps","$parentdir"."/."."$filename/") or
-	  $self->info("access: cannot create subversion directory - sorry") and return;
-	
-	my @entries = $self->{CATALOG}->f_ls("s","$parentdir"."/."."$filename/");
-	my $last;
-	foreach (@entries) {
-	  $last = $_;
-	}
-	
-	my $version=0;
-	if ($last ne "") {
-	  $last =~ /^v(\d)\.(\d)$/;
-	  $version = (($1*10) + $2) - 10 +1;
-	}
-	if ($version <0) {
-	  $self->info("access: cannot parse the last version number of $lfn");
-	  return ;
-	}
-	my $pversion = sprintf "%.1f", (10.0+($version))/10.0;
-	my $backupfile = "$parentdir"."/."."$filename/v$pversion";
-	$self->info( "access: backup file is $backupfile \n");
-	if (!$self->{CATALOG}->f_mv("",$lfn, $backupfile)) {
-	  $self->info("access: cannot move $lfn to the backup file $backupfile");
-	  return ;
-	}
-  }
-  return $filehash;
-}
-
 sub commit {
   my $self = shift;
   my @lnewresult;
@@ -1554,6 +1421,144 @@ sub erase {
 	return ;
     }
     return 1;
+}
+
+
+sub addFile_HELP {
+  return "'add' copies a file into the SE, and register an entry in the catalogue that points to the file in the SE\n\t
+Usage: add [-g <guid>] [-s <size>] [-md5 <md5>] <lfn> <pfn> [<se>,!<se>,select=N,<qosflag>=N]\n
+Possible pfns:\tsrm://<host>/<path>, castor://<host>/<path>, 
+\t\tfile://<host>/<path>
+If the method and host are not specified, the system will try with 'file://<localhost>' \n";
+}
+
+#
+# Check if the user can create the file
+sub _canCreateFile{
+  my $self=shift;
+  my $lfn=shift;
+  $self->{CATALOG}->checkPermissions( 'w', $lfn )  or  return;
+  if ($self->{CATALOG}->f_Database_existsEntry( $lfn)) {
+    $self->info( "file $lfn already exists!!",1);
+    return;
+  }
+  return 1;
+}
+
+sub addFile {
+  my $self  = shift;
+  my $options={};
+  my $lineOptions=join(" ", @_);
+  @ARGV=@_;
+  Getopt::Long::GetOptions($options, 
+        "silent", "versioning", "tracelog", "user=s", "guid=s", "register") 
+      or $self->info("Error checking the options of add") and return;
+  @_=@ARGV;
+  my $targetLFN   = (shift || ($self->info("ERROR, missing paramter: lfn") and return));
+  my $sourcePFN   = (shift || ($self->info("ERROR, missing paramter: pfn") and return));
+  my @seSpecs=@_;
+
+  my $size = 0;
+  my $md5sum = 0;
+  
+  $sourcePFN or $self->info("Error: not enough parameters in add\n".
+                    $self->addFile_HELP(),2)  and return;
+  my $gron = $targetLFN;
+  $targetLFN = $self->{CATALOG}->f_complete_path($targetLFN);
+  $options->{tracelog} and $self->{tracelogenabled}=1;
+ #pre-gridsite workaround
+ $options->{user} or $options->{user} = $self->{CONFIG}->{ROLE};
+
+ $targetLFN =~ s/$gron/\/$gron/;
+
+  $options->{versioning} and $self->version_LFN($targetLFN) or $self->info("ERROR: Versioning file failed") and return 0;
+
+
+  if($options->{register}) {
+    $size = shift @seSpecs;
+    $md5sum = shift @seSpecs;
+    $self->info("gron: Registering pfn ...");
+    return $self->registerPFN($options->{user}, $targetLFN, $sourcePFN, $options->{guid}, $size, $md5sum, $options->{silent});
+  }
+
+  $self->info("gron: Adding a file");
+  return $self->addFileToSEs($options->{user}, $targetLFN, $sourcePFN, \@seSpecs, $options->{guid}, $options->{silent});
+
+}
+
+sub registerPFN{
+  my $self  = shift;
+  my $user=(shift || $self->{CATALOG}->{ROLE});
+  my $targetLFN   = (shift || return {ok=>0,tracelog=>\@{$self->{tracelog}}});
+  my $sourcePFN   = (shift || return {ok=>0,tracelog=>\@{$self->{tracelog}}});
+  my $guid=(shift || 0); # gron: guid is to be handeled
+  my $size=(shift || 0);
+  my $md5sum=(shift || 0);
+  my $silent=(shift || 0);
+  my $result = {};
+ 
+  $self->traceLogFlush();
+
+  my $authenReply = $self->{CATALOG}->authorize("-user=$user", "register", $targetLFN, $sourcePFN, $size, $md5sum, $guid );
+
+  $authenReply->{ok} and return {ok=>1,tracelog=>\@{$self->{tracelog}}};
+  return {ok=>0,tracelog=>\@{$self->{tracelog}}};
+}
+
+
+
+
+sub versionLFN {
+  my $self=shift;
+  my $lfn=shift;
+  my $perm="w";
+  
+  my $filehash = $self->{CATALOG}->checkPermissions($perm,$lfn,undef, {RETURN_HASH=>1});
+  if (!$filehash) {
+    $self->info("access: access denied to $lfn");
+    return;
+  }
+
+  my $parentdir = $self->{CATALOG}->f_dirname($lfn);
+  my $result = $self->{CATALOG}->checkPermissions($perm,$parentdir);
+  if (!$result) {
+    $self->info("access: parent dir missing for lfn $lfn");
+    return ;
+  }
+
+  if (($lfn ne "") && $self->{CATALOG}->existsEntry($lfn, $filehash->{lfn})) {
+	$self->info( "access: lfn <$lfn> exists - creating backup version ....\n");
+	my $filename = $self->{CATALOG}->f_basename($lfn);
+	
+	$self->{CATALOG}->f_mkdir("ps","$parentdir"."/."."$filename/") or
+   	  $self->info("access: cannot create subversion directory - sorry") and return;
+	
+	my @entries = $self->{CATALOG}->f_ls("s","$parentdir"."/."."$filename/");
+	my $last;
+	foreach (@entries) {
+	  $last = $_;
+	}
+	
+	my $version=0;
+	if ($last ne "") {
+	  $last =~ /^v(\d)\.(\d)$/;
+	  $version = (($1*10) + $2) - 10 +1;
+	}
+	if ($version <0) {
+	  $self->info("access: cannot parse the last version number of $lfn");
+	  return ;
+	}
+	my $pversion = sprintf "%.1f", (10.0+($version))/10.0;
+	my $backupfile = "$parentdir"."/."."$filename/v$pversion";
+        $self->info( "access: backup file is $backupfile \n");
+        if (!$self->{CATALOG}->f_mv("",$lfn, $backupfile)) {
+          $self->info("access: cannot move $lfn to the backup file $backupfile");
+          return ;
+        }
+
+        
+  }
+  return 1;
 }
 
 sub tracePlusLogError{
