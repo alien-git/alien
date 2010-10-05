@@ -175,7 +175,7 @@ sub f_removeTagValue {
 sub f_cleanupTagValue {
   my $self = shift;
   $_[0] = $self->GetAbsolutePath($_[0]);
-  my $env = $self->callAuthen("removeTagValue",@_);
+  my $env = $self->callAuthen("cleanupTagValue",@_);
   $self->info("From Authen: $env");
   return $env;
 }

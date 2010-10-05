@@ -192,7 +192,6 @@ return upper(concat(right(left(hex(my_uuid),16),4), right(left(hex(my_uuid),12),
   $self->do("alter table TAG0 drop key path");
   $self->do("alter table TAG0 add index path (path)");
 
-
   1;
 }
 
