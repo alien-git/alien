@@ -126,6 +126,20 @@ sub getDispPath {
   return $self->{DISPPATH};
 }
 
+sub f_getTabCompletion {
+  my $self=shift;
+  my $word=shift;
+  my $path = $self->f_complete_path($word);
+  $path or return;
+
+  my ($dirname) = $self->f_dirname($path);
+
+  $self->selectDatabase($dirname) or return;
+  my @result=$self->{DATABASE}->tabCompletion ($dirname);
+  @result = grep (s/^$path/$word/, @result);
+  return @result;
+}
+
 sub getHost{
   my $self=shift;
   return $self->f_Database_getVar("HOST");

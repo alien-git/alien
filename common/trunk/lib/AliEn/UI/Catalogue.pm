@@ -93,6 +93,7 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
     'tree'     => ['$self->{CATALOG}->f_tree', 0],
     'zoom'     => ['$self->{CATALOG}->f_zoom', 0],
     'getsite'  => ['$self->{CATALOG}->f_getsite',0],
+    'tabCompletion' => ['$self->{CATALOG}->f_getTabCompletion', 0],
     'partitions'  => ['$self->{CATALOG}->f_partitions',0],
     'echo'     => ['$self->{CATALOG}->f_echo', 0],
     'mv'       => ['$self->{CATALOG}->f_mv', 11+16],
@@ -343,15 +344,7 @@ my $complete = sub {
 
 sub file_complete {
   my $word=shift;
-  my $path = $catalog->f_complete_path($word);
-  $path or return;
-
-  my ($dirname) = $catalog->f_dirname($path);
-
-  $catalog->selectDatabase($dirname) or return;
-  my @result=$catalog->{DATABASE}->tabCompletion ($dirname);
-  @result = grep (s/^$path/$word/, @result);
-
+  my @result=$catalog->f_getTabCompletion($word);
 
   ($#result)
     or ( $result[0] =~ /\/$/ )
@@ -360,7 +353,7 @@ sub file_complete {
   return @result;
   
 }
-
+ 
 
 
 =item C<help([$command])>
@@ -551,7 +544,7 @@ sub checkEnvelopeCreation {
 
   require SealedEnvelope;
 #  print "AT THE MOMENT, THE ENVELOPEENGINE IS NOT THERE\n";
-#  return 1;
+ # return 1;
   $self->{envelopeCipherEngine} = SealedEnvelope::TSealedEnvelope->new("$ENV{'SEALED_ENVELOPE_LOCAL_PRIVATE_KEY'}","$ENV{'SEALED_ENVELOPE_LOCAL_PUBLIC_KEY'}","$ENV{'SEALED_ENVELOPE_REMOTE_PRIVATE_KEY'}","$ENV{'SEALED_ENVELOPE_REMOTE_PUBLIC_KEY'}","Blowfish","CatService\@ALIEN",0);
       # we want ordered results of se lists, no random
   $self->{noshuffle} = 1;

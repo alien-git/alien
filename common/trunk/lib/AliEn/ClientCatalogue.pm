@@ -43,7 +43,11 @@ sub callAuthen {
     $self->info("Sleeping for a while before retrying...");
     sleep(5);
   }
+<<<<<<< ClientCatalogue.pm
+   ($info,my  @out)=$self->{SOAP}->GetOutput($info);
+=======
   ($info, my @out)=$self->{SOAP}->GetOutput($info);
+>>>>>>> 1.5
   $info->{message} and $self->info("The server returned: $info->{message}");
   if ($info->{ok}){
     print "The call worked!\n";
@@ -61,7 +65,13 @@ sub f_mkdir {
   $self->info("Making directory '$path'");
   return $self->callAuthen("mkdir","$path$options" );
 }
-
+sub f_getTabCompletion {
+  my $self=shift;
+  $self->info("WE ARE CHECKING THE TAB WITHOUT DATABASE");
+  my @e=$self->callAuthen("tabCompletion", @_);
+  $self->info("Hello world, we got @e");
+  return @e;
+}
 sub f_removeFile {
   my $self = shift;
   my ($options,$path) = @_;
