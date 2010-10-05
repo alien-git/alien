@@ -523,6 +523,8 @@ sub checkEnvelopeCreation {
   $self->info("Checking if we can create envelopes");
   defined $ENV{'SEALED_ENVELOPE_LOCAL_PRIVATE_KEY'}  or return;
   defined $ENV{'SEALED_ENVELOPE_LOCAL_PUBLIC_KEY'} or return;
+  defined $ENV{'SEALED_ENVELOPE_REMOTE_PRIVATE_KEY'}  or return;
+  defined $ENV{'SEALED_ENVELOPE_REMOTE_PUBLIC_KEY'} or return;
   return 1;
 }
 
