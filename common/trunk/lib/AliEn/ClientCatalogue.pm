@@ -176,5 +176,56 @@ sub f_cleanupTagValue {
   return $env;
 }
 
+
+sub authorize{
+  my $self = shift;
+
+  #
+  # Start of the Client side code
+  my $user=$self->{CONFIG}->{ROLE};
+  $self->{CATALOG} and $self->{CATALOG}->{ROLE} and $user=$self->{CATALOG}->{ROLE};
+
+  if($_[0] =~ /^-user=([\w]+)$/)  {
+    $user = shift;
+    $user =~ s/^-user=([\w]+)$/$1/;
+  }
+  #gron: isn't the following working and better:
+  #($_[0] =~ /^-user=([\w]+)$/) and $user=$1 and shift;
+
+
+  $self->info("Connecting to Authen...");
+  my $info=0;
+  for (my $tries = 0; $tries < 5; $tries++) { # try five times 
+    $info=$self->{SOAP}->CallSOAP("Authen", "consultAuthenService", $user, @_) and last;
+    $self->info("Connecting to the [Authen] service was not seccussful, trying ".(4 - $tries)." more times till giving up.");
+    sleep(5);
+  }
+  $info or $self->info("Connecting to the [Authen] service failed!")
+     and return ({error=>"Connecting to the [Authen] service failed!"});
+  #my @authorize=$self->{SOAP}->GetOutput($info);
+  #my $hash = shift @authorize; 
+
+#  my @hasha =$self->{SOAP}->GetOutput($info);
+#  my $hash=$hasha[0];
+  my ($hash) =$self->{SOAP}->GetOutput($info);
+  $self->info("gron: rc is $hash->{ok} and we got $hash->{envelopecount} envelopes...");
+#  my $hash = shift @authorize; 
+
+  my $messtype="info";
+  my $message="Authorize replied ";
+  if($hash->{ok}) {
+    $message .= "[OK]. ";
+  } else {
+    $messtype="error";
+    $message .= "[ERROR]. ";
+  }
+  $hash->{interrupt} and $message .= "Thrown [INTERRUPT]! " ;
+  $hash->{message} and  $message .= "Message: $hash->{message} ";
+#  $self->tracePlusLogError($messtype,$message);
+
+ return $hash;
+}
+
+
 return 1;
 __END__

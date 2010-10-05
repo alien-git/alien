@@ -86,7 +86,7 @@ sub initialize {
 
 	$self->_ConnectToLDAP() or return;
 	$self->{UI}=AliEn::UI::Catalogue::LCM->new($options) or $self->info("Error getting the ui") and return;
-	$self->{UI}->{envelopeCipherEngine} or $self->info("Error! We can't create the security envelopes!! Please, define the SEALED_ENVELOPE_ environment variables") and return;
+	$self->{UI}->{CATALOG}->{envelopeCipherEngine} or $self->info("Error! We can't create the security envelopes!! Please, define the SEALED_ENVELOPE_ environment variables") and return;
 
 	return $self;
 }
