@@ -137,16 +137,16 @@ sub copyInput {
       $self->debug(1, "In copyInput adding file $file (from the InputBox $pfn)");
       #    my $procname=$self->findProcName($procid, $file, $done, $user);
       if ( defined $pfnSize ) {
-	my $procname=$self->findProcName($procDir, $file, $done);
-	$self->debug(1, "Adding $procname with $pfn and $pfnSize");
-	$size+=$pfnSize;
-	if (! $self->{CATALOGUE}->execute( "register", $procname, $pfn, $pfnSize, $pfnSE ) ) {
-	  print "The registration failed ($AliEn::Logger::ERROR_MSG) let's try again...\n";
-	  $self->{CATALOGUE}->execute( "register", $procname, $pfn, $pfnSize ) or 
-	    print STDERR "ERROR Adding the entry $pfn to the catalog as $procname!!\n"
-	      and return;
-	}
-	push @filesToDownload, "\"${procname}->$procname\"";
+	       my $procname=$self->findProcName($procDir, $file, $done);
+	       $self->debug(1, "Adding $procname with $pfn and $pfnSize");
+	       $size+=$pfnSize;
+	       if (! $self->{CATALOGUE}->execute( "register", $procname, $pfn, $pfnSize, $pfnSE ) ) {
+	        print "The registration failed ($AliEn::Logger::ERROR_MSG) let's try again...\n";
+	        $self->{CATALOGUE}->execute( "register", $procname, $pfn, $pfnSize ) or 
+	          print STDERR "ERROR Adding the entry $pfn to the catalog as $procname!!\n"
+	           and return;
+       	}
+	    push @filesToDownload, "\"${procname}->$procname\"";
       }
       else {
 	$file=~ s/^LF://i;

@@ -152,46 +152,6 @@ sub initialize {
   $self->{MONITOR} = 0;
   AliEn::Util::setupApMon($self);
 
-
-  $self->{envelopeCipherEngine} =0;
-  $self->{noshuffle} = 0;
-
-
-  if (defined $ENV{'SEALED_ENVELOPE_LOCAL_PRIVATE_KEY'} && defined $ENV{'SEALED_ENVELOPE_LOCAL_PUBLIC_KEY'} && defined $ENV{'SEALED_ENVELOPE_REMOTE_PRIVATE_KEY'} and defined $ENV{'SEALED_ENVELOPE_REMOTE_PUBLIC_KEY'}) {
-    $self->info("local private key          : $ENV{'SEALED_ENVELOPE_LOCAL_PRIVATE_KEY'}");
-    $self->info("local public  key          : $ENV{'SEALED_ENVELOPE_LOCAL_PUBLIC_KEY'}");
-    $self->info("remote private key         : $ENV{'SEALED_ENVELOPE_REMOTE_PRIVATE_KEY'}");
-    $self->info("remote public key          : $ENV{'SEALED_ENVELOPE_REMOTE_PUBLIC_KEY'}");
-    require Crypt::OpenSSL::RSA;
-    require Crypt::OpenSSL::X509;
-    
-    open(PRIV, $ENV{'SEALED_ENVELOPE_LOCAL_PRIVATE_KEY'}); my @prkey = <PRIV>; close PRIV;
-    my $private_key = join("",@prkey);
-    my $public_key = Crypt::OpenSSL::X509->new_from_file( $ENV{'SEALED_ENVELOPE_LOCAL_PUBLIC_KEY'} )->pubkey();
-    $self->{signEngine} = Crypt::OpenSSL::RSA->new_private_key($private_key);
-    $self->{verifyEngine} = Crypt::OpenSSL::RSA->new_public_key($public_key);
-
- 
-    require SealedEnvelope;
-    
-    $self->{envelopeCipherEngine} = SealedEnvelope::TSealedEnvelope->new("$ENV{'SEALED_ENVELOPE_LOCAL_PRIVATE_KEY'}","$ENV{'SEALED_ENVELOPE_LOCAL_PUBLIC_KEY'}","$ENV{'SEALED_ENVELOPE_REMOTE_PRIVATE_KEY'}","$ENV{'SEALED_ENVELOPE_REMOTE_PUBLIC_KEY'}","Blowfish","CatService\@ALIEN",0);
-      # we want ordered results of se lists, no random
-    $self->{noshuffle} = 1;
-    
-
-    
-
-
-    if ($self->{MONITOR}) {
-      $self->{MONITOR}->sendParameters("$self->{CONFIG}->{SITE}_QUOTA","admin_readreq");
-    }
-    $self->{apmon} = 1;
-    if (!$self->{envelopeCipherEngine}->Initialize(2)) {
-      $self->info("Warning: the initialization of the envelope engine failed!!");
-      $self->{envelopeCipherEngine} = 0;
-    }
-  }
-
   my $packOptions={PACKMAN_METHOD=> $options->{packman_method}|| "",
                    CATALOGUE=>$self};
 
@@ -1756,7 +1716,7 @@ sub access {
       $filehash->{pfn} = "$ppfn";
       #($pfn =~ /^soap:/) and $filehash->{pfn} = "$pfn" or $filehash->{pfn} = "$ppfn";
       #$filehash->{pfn} = "$pfn";
-      (($lfn eq "") && ($access =~ /^write[\-a-z]*/)) and $lfn = "/NOLFN";
+      (($lfn eq "")  && ($access =~ /^write[\-a-z]*/)) and $lfn = "/NOLFN";
       $filehash->{turl} = $pfn;
 
       # patch for dCache

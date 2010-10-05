@@ -3,7 +3,7 @@ package AliEn::Service::Optimizer::Job::Inserting;
 use strict;
 
 use AliEn::Service::Optimizer::Job;
-use AliEn::Database::Admin;
+#use AliEn::Database::Admin;
 use vars qw(@ISA);
 push (@ISA, "AliEn::Service::Optimizer::Job");
 
@@ -11,9 +11,6 @@ sub checkWakesUp {
   my $self=shift;
   my $silent=shift;
   $self->{SLEEP_PERIOD}=10;
-  $self->{addbh} or $self->{addbh} = new AliEn::Database::Admin();    
-  $self->{addbh} or 
-    $self->info("Error getting the admin database... we will have to talk to the Authen");
   my $method="info";
   $silent and $method="debug";
   my @data;
@@ -61,8 +58,8 @@ sub updateInserting {
     my $done=$self->copyInput($queueid, $job_ca, $user) or 
       die("error copying the input\n");
 
-    $self->info("Updating the ADMIN table for $queueid" );
-    $self->insertToken($queueid, $user);
+#    $self->info("Updating the ADMIN table for $queueid" );
+#    $self->insertToken($queueid, $user);
 
     my ($ok, $req)=$job_ca->evaluateExpression("Requirements");
     ($ok and $req) or
@@ -89,12 +86,6 @@ sub updateInserting {
 
     $set->{agentId}=$self->{DB}->insertJobAgent($req)
       or die("error creating the jobagent entry\n");
-    ($ok, my $email)=$job_ca->evaluateAttributeString("Email");
-    if ($email){
-      $self->info("This job will send an email to $email");
-      $self->putJobLog($queueid, "trace", "The job will send an email to '$email'");
-      $set->{notify}=$email;
-    }
   };
   my $return=1;
   if ($@) {
@@ -116,23 +107,23 @@ sub updateInserting {
 }
 
 
-sub insertToken{
-  my $self=shift;
-  my $queueid=shift;
-  my $user=shift;
-  
-  if ($self->{addbh}) {
-    $self->info("Inserting the jobtoken in the database");
-    $self->{addbh}->insertJobToken($queueid,$user,-1) and return 1;
-  }
-  $self->info("Talking to the Authen");
-  my $result =$self->{SOAP}->CallSOAP("Authen", "insertJob", $queueid, $user );
-  if (!$result) {
-    $self->info( "Talking to the Authen failed... trying again");
-    $self->{SOAP}->CallSOAP("Authen", "insertJob", $queueid, $user )
-      or die("error inserting the job token\n");
-  }
-  return 1;
-}
+#sub insertToken{
+#  my $self=shift;
+#  my $queueid=shift;
+#  my $user=shift;
+#  
+#  if ($self->{addbh}) {
+#    $self->info("Inserting the jobtoken in the database");
+#    $self->{addbh}->insertJobToken($queueid,$user,-1) and return 1;
+#  }
+#  $self->info("Talking to the Authen");
+#  my $result =$self->{SOAP}->CallSOAP("Authen", "insertJob", $queueid, $user );
+#  if (!$result) {
+#    $self->info( "Talking to the Authen failed... trying again");
+#    $self->{SOAP}->CallSOAP("Authen", "insertJob", $queueid, $user )
+#      or die("error inserting the job token\n");
+#  }
+#  return 1;
+#}
 
 1

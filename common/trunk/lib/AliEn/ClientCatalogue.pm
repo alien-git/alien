@@ -37,30 +37,29 @@ sub callAuthen {
     $user =~ s/^-user=([\w]+)$/$1/;
   }
   my $info = 0;
-  eval {
-    for (my $tries = 0; $tries < 5; $tries++) { # try five times
-      $info=$self->{SOAP}->CallSOAP("Authen", "doOperation", $user, @_) and last;
-      $self->info("Sleeping for a while before retrying...");
-      sleep(5);
-    }
-  };
-  if (@_){
-   print "ERROR @_\n";
-   return;
+  
+  for (my $tries = 0; $tries < 5; $tries++) { # try five times
+    $info=$self->{SOAP}->CallSOAP("Authen", "doOperation", $user, @_) and last;
+    $self->info("Sleeping for a while before retrying...");
+    sleep(5);
   }
+  my ($info, @out)=$self->{SOAP}->GetOutput($info);
+  $info->{message} and $self->info("The server returned: $info->{message}");
+  if ($info->{ok}){
+    print "The call worked!\n";
+  } 
+  return @out;
  # $info or $self->info("Connecting to the [Authen] service failed!") 
  #  and return ({error=>"Connecting to the [Authen] service failed!"}); 
-  my $newhash=$self->{SOAP}->GetOutput($info);
-  return $newhash;
 }
 
 sub f_mkdir {
   my $self = shift;
   my ($options,$path) = @_;
+  $options and $options=" -$options";
   $path = $self->GetAbsolutePath($path);
-  $self->info("Making directory $path");
-  my $env = $self->callAuthen("mkdir","$options","$path");
-  return $env
+  $self->info("Making directory '$path'");
+  return $self->callAuthen("mkdir","$path$options" );
 }
 
 sub f_removeFile {
@@ -80,6 +79,15 @@ sub f_rmdir {
   my $env = $self->callAuthen("rmdir","$options","$path");
   $self->info("From Authen: $env");
   return $env;
+}
+
+sub f_ls {
+  my $self=shift;
+  my $options = shift;
+  my $path    = ( shift or $self->{DISPPATH} ); 
+  $options and $options=" -$options";
+ 
+  return  $self->callAuthen("ls", "$path$options");
 }
 
 sub f_mv {

@@ -261,22 +261,19 @@ sub checkActionTable {
 #sub insertValuesIntoQueue {
 sub insertJobLocked {
   my $self = shift;
-  my $set = {};
-  $set->{jdl} = shift;
-  $set->{received} = shift;
-  $set->{status} = shift;
-  $set->{submitHost} = shift;
-  $set->{priority} = shift;
-  $set->{split} = (shift or 0);
+  my $set = shift 
+    or $self->info("Error getting the job to insert") and return;
   my $oldjob = (shift or 0);
+  
+  $set->{received} = time;
   ($set->{name}) = $set->{jdl}  =~ /.*executable\s*=\s*\"([^\"]*)\"/i;
 
   my ($tmpPrice) = $set->{jdl} =~ /.*price\s*=\s*(\d+.*)\;\s*/i;
       $tmpPrice = sprintf ("%.3f", $tmpPrice); 
       $set->{price} = $tmpPrice;
 
-   $set->{chargeStatus} = 0;
-   #currently $set->{priority} is hardcoded to be '0'
+  $set->{chargeStatus} = 0;
+  #currently $set->{priority} is hardcoded to be '0'
 	
   $DEBUG and $self->debug(1, "In insertJobLocked locking the table $self->{QUEUETABLE}");
   $self->lock($self->{QUEUETABLE});
@@ -307,10 +304,11 @@ sub insertJobLocked {
 
   my $action="INSERTING";
   $set->{jdl}=~ / split =/im and $action="SPLITTING";
-  $self->update("ACTIONS", {todo=>1}, "action='$action'");
+  ($set->{status} !~ /WAITING/) and 
+    $self->update("ACTIONS", {todo=>1}, "action='$action'");
 
   # send the new job's status to ML
-  $self->sendJobStatus($procid, 'INSERTING', "", $set->{submitHost});
+  $self->sendJobStatus($procid, $set->{status}, "", $set->{submitHost});
 
   return $procid;
 }

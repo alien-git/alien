@@ -607,6 +607,21 @@ sub f_mkdir {
     and return;
   my $silent = ( $options =~ /s/ ) ? 1 : undef;
   $path = $self->GetAbsolutePath( $path, 1 );
+  if ( $self->existsEntry($path) ) {
+    ( $options =~ /d/ )
+      and return
+      $self->{DATABASE}->getAllInfoFromLFN(
+                                            {
+                                              options  => 'd',
+                                              retrieve => 'entryId',
+                                              method   => 'queryValue'
+                                            },
+                                            "$path/"
+      );
+    $options =~ /p/ and return 1;
+    $self->info("Directory or File $path already exists.\n");
+    return;
+  }
 
   my $parentdir = $self->f_dirname($path);
   $DEBUG and $self->debug( 1, "Checking the parent: $parentdir" );
@@ -872,8 +887,8 @@ sub f_print {
     }
     $self->{SILENT}
       or ( $opt =~ /s/ )
-      or printf "%s   %-8s %-8s %12s %s%12s%s      %-10s %-20s\n", $permstring,
-      $user, $group, $size, $date, $textcolour, $name, $textneutral, $expire;
+      or $self->info(sprintf ("%s   %-8s %-8s %12s %s%12s%s      %-10s %-20s\n", $permstring,
+      $user, $group, $size, $date, $textcolour, $name, $textneutral, $expire), undef, 0);
     if ( $opt =~ /z/ ) {
       my $rethash = {};
       $rethash->{permissions} = $permstring;
@@ -892,9 +907,9 @@ sub f_print {
     if ( ( !defined $md5 ) || ( $md5 eq "" ) ) {
       $md5 = "00000000000000000000000000000000";
     }
-    $self->{SILENT}
-      or ( $opt =~ /s/ )
-      or printf "%s   %s\n", $md5, $path . $name;
+    if (! $self->{SILENT} and $opt !~ /s/ ) {
+      $self->info(sprintf( "%s   %s\n", $md5, $path . $name), undef, 0);
+    }
     if ( $opt =~ /z/ ) {
       my $rethash = {};
       $rethash->{path} = $path . $name;
@@ -919,11 +934,11 @@ sub f_print {
         $pguid = "           -- undef --             ";
       }
       $rguid = $pguid;
-      $self->{SILENT} or printf "%36s   %s\n", $pguid, $path;
+      $self->{SILENT} or $self->info(sprintf( "%36s   %s\n", $pguid, $path), undef, 0);
     } else {
       $pguid = "------------------------------------";
       $rguid = "";
-      $self->{SILENT} or printf "%36s   %s\n", $pguid, $path;
+      $self->{SILENT} or $self->info(sprintf( "%36s   %s\n", $pguid, $path),undef, 0);
     }
     if ( $opt =~ /z/ ) {
       my $rethash = {};
@@ -933,7 +948,7 @@ sub f_print {
     }
     return "$rguid###$path";
   }
-  $self->{SILENT} or ( $opt =~ /s/ ) or printf "%s%s\n", $name, $t;
+  $self->{SILENT} or ( $opt =~ /s/ ) or $self->info(sprintf( "%s%s\n", $name, $t),undef, 0);
   if ( $opt =~ /z/ ) {
     my $rethash = {};
     $rethash->{path} = $path;

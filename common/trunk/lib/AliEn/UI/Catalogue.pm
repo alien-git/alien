@@ -455,44 +455,46 @@ sub new {
 
   my $silent = 0;
   ($sentence) and ( $silent = 1 );
+
+
+
+  bless( $self, $class );
  
   bless( $self, $class );
   $self->SUPER::new();
 
-  if(! $options->{no_catalog}) {
-      if ($options->{gapi_catalog}) {
-	      eval {
-	        require gapi::catalogue;
-	        };
-	      if (! defined $options->{user}) {
-	        $self->{CONFIG}=AliEn::Config->new();
-	        $options->{user}=$self->{CONFIG}->{LOCAL_USER};
-	      }
-	      if (! defined $options->{noprompt}) {
-	        $options->{noprompt}=1;
-	      }
-	      if (! defined $options->{nogsi}) {
-	        $options->{nogsi}=1;
-	      }
-
-	      $self->{CATALOG} = gapi::catalogue->new($options)
-	        or return;
-	      $self->{CATALOG}->{GLOB} = 1;
-      }
-      else {
-        if($options->{role} =~ /^admin$/) {
-          $self->{CATALOG} = AliEn::Catalogue->new($options)
-            or return;
-        } else {
-          $self->{CATALOG} =AliEn::ClientCatalogue->new($options)
-            or return;
-        }
-      }
+  if ($options->{gapi_catalog}) {
+    eval {
+        require gapi::catalogue;
+        };
+    if (! defined $options->{user}) {
+        $self->{CONFIG}=AliEn::Config->new();
+        $options->{user}=$self->{CONFIG}->{LOCAL_USER};
     }
-  
-    if ($self->{CATALOG}) {
+    if (! defined $options->{noprompt}) {
+        $options->{noprompt}=1;
+    }
+    if (! defined $options->{nogsi}) {
+       $options->{nogsi}=1;
+    }
+
+    $self->{CATALOG} = gapi::catalogue->new($options)
+        or return;
+    $self->{CATALOG}->{GLOB} = 1;
+  } else {
+    if ($self->checkEnvelopeCreation()) {
+      $self->{CATALOG} =AliEn::Catalogue->new($options)
+          or return;
+    } else {
+      $self->{CATALOG} = AliEn::ClientCatalogue->new($options)   
+       or return;
+    }
+  }
+
+  $self->SUPER::new();
+
+  if ($self->{CATALOG}) {
     $AliEn::UI::catalog=$self->{CATALOG};
-    $options->{DATABASE} = $self->{CATALOG}->{DATABASE};
     if (! $options->{gapi_catalog}) {
       $self->{CONFIG}=$self->{CATALOG}->{CONFIG};
     }
@@ -520,6 +522,54 @@ sub new {
 
   return $self;
 }
+
+
+sub checkEnvelopeCreation {
+  my $self=shift; 
+
+  $self->{envelopeCipherEngine} =0;
+  $self->{noshuffle} = 0;
+
+
+  $self->info("Checking if we can create envelopes");
+
+  defined $ENV{'SEALED_ENVELOPE_LOCAL_PRIVATE_KEY'}  or return;
+
+  defined $ENV{'SEALED_ENVELOPE_LOCAL_PUBLIC_KEY'} or return;
+
+  $self->info("local private key          : $ENV{'SEALED_ENVELOPE_LOCAL_PRIVATE_KEY'}");
+  $self->info("local public  key          : $ENV{'SEALED_ENVELOPE_LOCAL_PUBLIC_KEY'}");
+  require Crypt::OpenSSL::RSA;
+  require Crypt::OpenSSL::X509;
+
+  open(PRIV, $ENV{'SEALED_ENVELOPE_LOCAL_PRIVATE_KEY'}); my @prkey = <PRIV>; close PRIV;
+  my $private_key = join("",@prkey);
+  my $public_key = Crypt::OpenSSL::X509->new_from_file( $ENV{'SEALED_ENVELOPE_LOCAL_PUBLIC_KEY'} )->pubkey();
+  $self->{signEngine} = Crypt::OpenSSL::RSA->new_private_key($private_key);
+  $self->{verifyEngine} = Crypt::OpenSSL::RSA->new_public_key($public_key);
+
+
+  require SealedEnvelope;
+#  print "AT THE MOMENT, THE ENVELOPEENGINE IS NOT THERE\n";
+#  return 1;
+  $self->{envelopeCipherEngine} = SealedEnvelope::TSealedEnvelope->new("$ENV{'SEALED_ENVELOPE_LOCAL_PRIVATE_KEY'}","$ENV{'SEALED_ENVELOPE_LOCAL_PUBLIC_KEY'}","$ENV{'SEALED_ENVELOPE_REMOTE_PRIVATE_KEY'}","$ENV{'SEALED_ENVELOPE_REMOTE_PUBLIC_KEY'}","Blowfish","CatService\@ALIEN",0);
+      # we want ordered results of se lists, no random
+  $self->{noshuffle} = 1;
+
+  if ($self->{MONITOR}) {
+    $self->{MONITOR}->sendParameters("$self->{CONFIG}->{SITE}_QUOTA","admin_readreq");
+  }
+  $self->{apmon} = 1;
+  if (!$self->{envelopeCipherEngine}->Initialize(2)) {
+    $self->info("Warning: the initialization of the envelope engine failed!!");
+    $self->{envelopeCipherEngine} = 0;
+    return;
+  }
+ 
+
+  return 1;
+}
+
 
 =item C<startPrompt()>
 
@@ -660,7 +710,6 @@ sub execute {
   my $self    = shift;
   my $command = shift;
   my @arg     = grep ( !/-silent/, @_ );
-
   $DEBUG and $self->debug(1, "Doing execute '$command @_'");
   my $silent = grep ( /-silent/, @_ );
   my $retref = grep ( /-z/, @_ );
