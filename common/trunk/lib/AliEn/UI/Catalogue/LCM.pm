@@ -306,8 +306,8 @@ sub get {
 
 
    while (!$result) {
-     my  @envelopes = $self->{CATALOG}->authorize("read",$filename,$wishedSE,0,0,(join(";",@excludedAndfailedSEs) || 0),$self->{CONFIG}->{SITE});
-     my $envelope = $envelopes[0];
+     my  @$envelopes = $self->{CATALOG}->authorize("read",$filename,$wishedSE,0,0,(join(";",@excludedAndfailedSEs) || 0),$self->{CONFIG}->{SITE});
+     my $envelope = $$envelopes[0];
      $envelope->{turl} or 
       $self->tracePlusLogError("error","Getting an envelope was not successfull for file $file.") and return {ok=>0,tracelog=>\@{$self->{tracelog}}};
  
@@ -1397,15 +1397,15 @@ sub erase {
 #	my $pfn=$self->getPFNfromGUID($se, $guid);
 #	$pfn or next;
 
-	my @envelope = $self->{CATALOG}->authorize("-s","delete","$lfn",$se);
+	my @$envelope = $self->{CATALOG}->authorize("-s","delete","$lfn",$se);
 
-	if ((!defined $envelope[0]) || (!defined $envelope[0]->{envelope})) {
-	    $self->info("Cannot get access to $lfn for deletion @envelope") and return;
+	if ((!defined $$envelope[0]) || (!defined $$envelope[0]->{envelope})) {
+	    $self->info("Cannot get access to $lfn for deletion @$envelope") and return;
 	}
-	$ENV{'IO_AUTHZ'} = $envelope[0]->{envelope};
+	$ENV{'IO_AUTHZ'} = $$envelope[0]->{envelope};
 
-	if (!$self->{STORAGE}->eraseFile($envelope[0]->{turl})) {
-	    $self->info("Cannot remove $envelope[0]->{turl} from the storage element $se");
+	if (!$self->{STORAGE}->eraseFile($$envelope[0]->{turl})) {
+	    $self->info("Cannot remove $$envelope[0]->{turl} from the storage element $se");
 	    $failure=1;
 	    next;
 	}	
@@ -1722,14 +1722,14 @@ sub putOnStaticSESelectionListV2{
      ($selOutOf = scalar(@$ses)) or
      $self->tracePlusLogError("info","We select out of a supplied static list the SEs to save on: @staticSes, count:".scalar(@staticSes));
 
-     my @envelopes = $self->{CATALOG}->authorize("-user=$user", $envreq, $targetLFN, join(";", @staticSes), $size, $md5, ($result->{guid} || 0));
+     my $envelopes = $self->{CATALOG}->authorize("-user=$user", $envreq, $targetLFN, join(";", @staticSes), $size, $md5, ($result->{guid} || 0));
      
-     ((!@envelopes) || (scalar(@envelopes) eq 0)) and
+     ((!@$envelopes) || (scalar(@$envelopes) eq 0)) and
            $self->tracePlusLogError("error","We couldn't get envelopes for any of the SEs, @staticSes .") and return($result, $success);
-     (scalar(@envelopes) eq scalar(@staticSes)) or
+     (scalar(@$envelopes) eq scalar(@staticSes)) or
         $self->tracePlusLogError("info","We couldn't get all envelopes for the SEs, @staticSes .");
 
-     foreach my $envelope (@envelopes){
+     foreach my $envelope (@$envelopes){
        (my $res, $result) = $self->uploadFileAccordingToEnvelope($result, $sourcePFN, $envelope);
        $res && push @{$result->{usedEnvelopes}}, $envelope->{signedEnvelope}; 
        $selOutOf = $selOutOf - $success;
@@ -1758,14 +1758,16 @@ sub putOnDynamicDiscoveredSEListByQoSV2{
    my @successfulUploads = ();
 
    while($count gt 0) {
-     my @envelopes= $self->{CATALOG}->authorize("-user=$user", $envreq, $targetLFN, 0, $size, $md5, ($result->{guid} || 0), $sitename, $qos, $count, (join(";", @$excludedSes) || 0));
+     my $envelopes= $self->{CATALOG}->authorize("-user=$user", $envreq, $targetLFN, 0, $size, $md5, ($result->{guid} || 0), $sitename, $qos, $count, (join(";", @$excludedSes) || 0));
 
-     ((!@envelopes) || (scalar(@envelopes) eq 0)) and
+     ((!@$envelopes) || (scalar(@$envelopes) eq 0)) and
          $self->tracePlusLogError("error","We couldn't get any envelopes (requested were '$count')  with qos flag '$qos'.") and return($result, $success);
-     (scalar(@envelopes) eq $count) or
-         $self->tracePlusLogError("trace","We could get only scalar(@envelopes) envelopes (requested were '$count') with qos flag '$qos'.");
+     (scalar(@$envelopes) eq $count) or
+         $self->tracePlusLogError("trace","We could get only scalar(@$envelopes) envelopes (requested were '$count') with qos flag '$qos'.");
 
-     foreach my $envelope (@envelopes){
+
+
+     foreach my $envelope (@$envelopes){
        (my $res, $result) = $self->uploadFileAccordingToEnvelope($result, $sourcePFN, $envelope);
        push @$excludedSes, $envelope->{se};
        $res or next;
