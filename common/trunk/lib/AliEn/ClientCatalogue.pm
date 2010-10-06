@@ -20,8 +20,8 @@ sub new {
   $self->{UMASK} = 0755;
   $self->{DISPPATH} = "$self->{CONFIG}->{USER_DIR}/".substr($self->{CONFIG}->{ROLE},0,1)."/$self->{CONFIG}->{ROLE}";
   $self->f_cd("$self->{DISPPATH}");
-  #  or $self->info("Home directory for $self->{CONFIG}->{ROLE} does not exist")
-  #  and return;
+    or $self->info("Home directory for $self->{CONFIG}->{ROLE} does not exist")
+    and return;
   $self->{GLOB}=1;
   return $self;
 }
@@ -113,6 +113,38 @@ sub f_ln {
   $source = $self->GetAbsolutePath($source);
   $self->info("Moving $source to $target");
   my $env = $self->callAuthen("ln","$options","$source","$target");
+  $self->info("From Authen: $env");
+  return $env;
+}
+
+sub f_groups {
+  my $self = shift;
+  my $env = $self->callAuthen("groups",@_);
+  $self->info("From Authen: $env");
+  return $env;
+}
+
+sub f_chgroup {
+  my $self = shift;
+  my $env = $self->callAuthen("chgroups",@_);
+  $self->info("From Authen: $env");
+  return $env;
+}
+
+sub f_chmod {
+  my $self = shift;
+  my @args = @_;
+  $args[1] = $self->GetAbsolutePath($args[1]);
+  my $env = $self->callAuthen("chmod",@args);
+  $self->info("From Authen: $env");
+  return $env;
+}
+
+sub f_chown {
+  my $self = shift;
+  my @args = @_;
+  $args[2] = $self->GetAbsolutePath($args[2]);
+  my $env = $self->callAuthen("chown",@args);
   $self->info("From Authen: $env");
   return $env;
 }
@@ -231,6 +263,83 @@ sub f_du {
   my @args = @_;
   $args[1] = $self->GetAbsolutePath($args[1]);
   my $env = $self->callAuthen("du",@args);
+  $self->info("From Authen: $env");
+  return $env;
+}
+
+sub f_stat {
+  my $self = shift;
+  my @args = @_;
+  $args[0] = $self->GetAbsolutePath($args[0]);
+  my $env = $self->callAuthen("stat",@args);
+  $self->info("From Authen: $env");
+  return $env;
+}
+
+sub f_guid2lfn {
+  my $self = shift;
+  my $env = $self->callAuthen("guid2lfn",@_);
+  $self->info("From Authen: $env");
+  return $env;
+}
+
+sub f_lfn2guid {
+  my $self = shift;
+  my @args = @_;
+  $args[1] = $self->GetAbsolutePath($args[1]);
+  my $env = $self->callAuthen("lfn2guid",@args);
+  $self->info("From Authen: $env");
+  return $env;
+}
+
+sub expungeTables {
+  my $self = shift;
+  my $env = $self->callAuthen("expungeTables");
+  $self->info("From Authen: $env");
+  return $env;
+}
+
+sub f_showTrigger {
+  my $self = shift;
+  my @args = @_;
+  $args[1] = $self->GetAbsolutePath($args[1]);
+  my $env = $self->callAuthen("showTrigger",@args);
+  $self->info("From Authen: $env");
+  return $env;
+}
+
+sub f_removeTrigger {
+  my $self = shift;
+  my @args = @_;
+  $args[0] = $self->GetAbsolutePath($args[1]);
+  my $env = $self->callAuthen("removeTrigger",@args);
+  $self->info("From Authen: $env");
+  return $env;
+}
+
+sub f_setExpired {
+  my $self = shift;
+  my ($sec,@files) = @_;
+  map{$_ = $self->GetAbsolutePath($_)}@files;
+  my $env = $self->callAuthen("setExpired",$sec,@files);
+  $self->info("From Authen: $env");
+  return $env;
+}
+
+sub f_showStructure {
+  my $self = shift;
+  my @args = @_;
+  $args[1] = $self->GetAbsolutePath($args[1]);
+  my $env = $self->callAuthen("showStructure",@args);
+  $self->info("From Authen: $env");
+  return $env;
+}
+
+sub f_renumber {
+  my $self = shift;
+  my @args = @_;
+  $args[0] = $self->GetAbsolutePath($args[0]);
+  my $env = $self->callAuthen("renumberDirectory",@args);
   $self->info("From Authen: $env");
   return $env;
 }
