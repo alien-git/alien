@@ -306,7 +306,7 @@ sub get {
 
 
    while (!$result) {
-     my  @$envelopes = $self->{CATALOG}->authorize("read",$filename,$wishedSE,0,0,(join(";",@excludedAndfailedSEs) || 0),$self->{CONFIG}->{SITE});
+     my  $envelopes = $self->{CATALOG}->authorize("read",$filename,$wishedSE,0,0,(join(";",@excludedAndfailedSEs) || 0),$self->{CONFIG}->{SITE});
      my $envelope = $$envelopes[0];
      $envelope->{turl} or 
       $self->tracePlusLogError("error","Getting an envelope was not successfull for file $file.") and return {ok=>0,tracelog=>\@{$self->{tracelog}}};
@@ -1397,7 +1397,7 @@ sub erase {
 #	my $pfn=$self->getPFNfromGUID($se, $guid);
 #	$pfn or next;
 
-	my @$envelope = $self->{CATALOG}->authorize("-s","delete","$lfn",$se);
+	my $envelope = $self->{CATALOG}->authorize("-s","delete","$lfn",$se);
 
 	if ((!defined $$envelope[0]) || (!defined $$envelope[0]->{envelope})) {
 	    $self->info("Cannot get access to $lfn for deletion @$envelope") and return;
