@@ -777,11 +777,11 @@ sub authorize_return {
 
 
 #  ($rc eq 1 ) and $hash->{ok}=1;
-  $hash->{ok}=$rc;
-  ($rc eq -1 ) and $hash->{stop}=1 and $hash->{ok}=0;
+  $hash->{rc}=$rc;
+  ($rc eq -1 ) and $hash->{stop}=1 and $hash->{rc}=0;
   if(!$hash->{message}) {
-    $hash->{ok} and $message = "OK";
-    !$hash->{ok} and $message = "Authorize: unspecified error!";
+    $hash->{rc} and $message = "OK";
+    !$hash->{rc} and $message = "Authorize: unspecified error!";
   } else {
     $message = $hash->{message};
   }
@@ -791,14 +791,15 @@ sub authorize_return {
   $hash->{envelopes} = [];
 
   foreach (@$envelopes) {
-    push @{$hash->{envelopes}}, $_;
+    push @{$hash->{rcvalues}}, $_;
   }
   #$hash->{envelopes} = {};
 
   #for (my $c = 0; $c < $hash->{envelopecount}; $c++) {
   #  $hash->{envelopes}->{($c+1)} = $$envelopes[$c];
   #}
-  return $hash;
+  #return $hash;
+  return @{$hash->{rcvalues}}
 }
 
 

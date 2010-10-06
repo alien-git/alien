@@ -210,6 +210,34 @@ sub GetOutput {
   return ( $return->result, $return->paramsout );
 }
 
+
+sub CallAndGetOverSOAP{
+  my $self = shift;
+  my @signature = @_;
+  my $service = shift;
+  my $function = shift;
+  my $callsoap;
+  
+
+  for (my $tries = 0; $tries < 5; $tries++) { # try five times 
+    $callsoap=$self->CallSOAP(@signature) and last;
+    $self->info("Calling $service over SOAP did not work, trying ".(4 - $tries)." more times till giving up.");
+    sleep((5*$tries));
+  }
+  my ($rcvals) =$self->GetOutput($callsoap) or $self->info("ERROR: Calling $service over SOAP was not possible",1);
+
+  $rcvals->{rc} or $self->info("ERROR: Calling $service over SOAP, $function returned and error (see below).", 1); 
+  $rcvals->{rcmessage} and  $self->info("Calling $service over SOAP, $function replied: ".$rcvals->{rcmessage}, !$rcvals->{rc}); # if rc=1 log 0 as info, if rc=0 log 1 as error
+  $rcvals->{rc} or return 0;
+  
+  $self->info("gron: CallAndGetOverSOAP finished ok with $service / $function ");
+  return $rcvals->{rcvalues};
+}
+
+
+ 
+
+
 sub CallSOAP {
   my $self     = shift;
   my $service  = shift;

@@ -118,17 +118,17 @@ sub doOperation {
   my $op=shift;
   $self->info("$$ Ready to do an operation for $user (and $op '@_')");
   $self->{UI}->execute("user","-", $user);
-  $self->info("Ready to call '@_'");
+
   $self->{LOGGER}->keepAllMessages();
-  my $line="@_";
-  $line =~ s/^\s+//;
-  $line =~ s/\s+$//;
-  my @info=$self->{UI}->execute($op, split(/\s+/, $line));
-  my $error=join ("", @{$self->{LOGGER}->{MESSAGES}});
+  
+  my @info = $self->{UI}->execute($op, split(/\s+/, "@_"));
+  my $error=join ("\n", @{$self->{LOGGER}->{MESSAGES}});
   $self->{LOGGER}->displayMessages();
-  print "We are going to return $error\n";
-  $self->info("doOperation: $op @_ done!! ".scalar(@info));
-  return {ok=>1, message=>$error},@info; 
+  my $rc = 0;
+  @info and $rc=1;
+
+  $self->info("doOperation DONE: @info, ".scalar(@info));
+  return {rc=>$rc, rcmessage=>$error, rcvalues=>\@info}; 
 }
 
 #################################################################
@@ -140,15 +140,18 @@ sub  consultAuthenService{
   my $other=shift;
   my $user=shift;
   $self->info("$$ Ready to create envelopes for user $user (and @_)");
-  
   $self->{UI}->execute("user","-", $user);
   
-  $self->debug(1, "Executing consultAuthen");
-  #my (@info)=$self->{UI}->execute("authorize", @_);
-  my ($info)=$self->{UI}->execute("authorize", @_);
+  $self->{LOGGER}->keepAllMessages();
+  
+  my @info=$self->{UI}->execute("authorize", @_);
+  my $error=join ("\n", @{$self->{LOGGER}->{MESSAGES}});
+  $self->{LOGGER}->displayMessages();
+  my $rc = 0;
+  @info and $rc=1;
+  
   $self->info("$$ Everything is done for user $user (and @_)");
-  #return @info;
-  return $info;
+  return {rc=>$rc, rcmessage=>$error, rcvalues=>\@info};
 }
 
 

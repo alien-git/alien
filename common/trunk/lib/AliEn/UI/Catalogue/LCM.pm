@@ -306,14 +306,14 @@ sub get {
 
 
    while (!$result) {
-     my  $authenReply = $self->{CATALOG}->authorize("read",$filename,$wishedSE,0,0,(join(";",@excludedAndfailedSEs) || 0),$self->{CONFIG}->{SITE});
-     my $envelope = shift @{$authenReply->{envelopes}};
-     ($authenReply->{interrupt} or (!$envelope) or (!defined $envelope->{envelope})) 
-      and $self->tracePlusLogError("error","Getting an envelope was not successfull for file $file.") and return {ok=>0,tracelog=>\@{$self->{tracelog}}};
+     my  @envelopes = $self->{CATALOG}->authorize("read",$filename,$wishedSE,0,0,(join(";",@excludedAndfailedSEs) || 0),$self->{CONFIG}->{SITE});
+     my $envelope = $envelopes[0];
+     $envelope->{turl} or 
+      $self->tracePlusLogError("error","Getting an envelope was not successfull for file $file.") and return {ok=>0,tracelog=>\@{$self->{tracelog}}};
  
  foreach (keys %{$envelope}) { defined($envelope->{$_}) and $self->info("gron: envelopee info, $_: $envelope->{$_}"); }
  
-     $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope->{envelope};
+     $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope;
      $ENV{ALIEN_XRDCP_URL}=$envelope->{turl};
      my $start=time;
      $result = $self->{STORAGE}->getFile( $envelope->{turl}, $envelope->{se}, $localFile, join("",keys %options), $file, $envelope->{guid},$envelope->{md5} );
@@ -1397,7 +1397,7 @@ sub erase {
 #	my $pfn=$self->getPFNfromGUID($se, $guid);
 #	$pfn or next;
 
-	my (@envelope) = $self->{CATALOG}->authorize("-s","delete","$lfn",$se);
+	my @envelope = $self->{CATALOG}->authorize("-s","delete","$lfn",$se);
 
 	if ((!defined $envelope[0]) || (!defined $envelope[0]->{envelope})) {
 	    $self->info("Cannot get access to $lfn for deletion @envelope") and return;
@@ -1471,7 +1471,9 @@ sub addFile {
 
  $targetLFN =~ s/$gron/\/$gron/;
 
-  $options->{versioning} and $self->version_LFN($targetLFN) or $self->info("ERROR: Versioning file failed") and return 0;
+ if($options->{versioning}) {
+     $self->version_LFN($targetLFN) or $self->info("ERROR: Versioning file failed") and return 0;
+ }
 
 
   if($options->{register}) {
@@ -1499,9 +1501,9 @@ sub registerPFN{
  
   $self->traceLogFlush();
 
-  my $authenReply = $self->{CATALOG}->authorize("-user=$user", "register", $targetLFN, $sourcePFN, $size, $md5sum, $guid );
+  $self->{CATALOG}->authorize("-user=$user", "register", $targetLFN, $sourcePFN, $size, $md5sum, $guid )
+     and return {ok=>1,tracelog=>\@{$self->{tracelog}}};
 
-  $authenReply->{ok} and return {ok=>1,tracelog=>\@{$self->{tracelog}}};
   return {ok=>0,tracelog=>\@{$self->{tracelog}}};
 }
 
@@ -1678,8 +1680,7 @@ sub addFileToSEs {
 
   (scalar(@{$result->{usedEnvelopes}}) gt 0) or $self->tracePlusLogError("error","We couldn't upload any copy of the file.") and return {ok=>0,tracelog=>\@{$self->{tracelog}}};
   
-  my $authenReply = $self->{CATALOG}->authorize("-user=$user", "registerenvs", @{$result->{usedEnvelopes}});
-  my @regSuccessMap = @{$authenReply->{envelopes}};
+  my @regSuccessMap = $self->{CATALOG}->authorize("-user=$user", "registerenvs", @{$result->{usedEnvelopes}});
 
   (scalar(@regSuccessMap) gt 0) or return {ok=>0,tracelog=>\@{$self->{tracelog}}};
 
@@ -1721,14 +1722,14 @@ sub putOnStaticSESelectionListV2{
      ($selOutOf = scalar(@$ses)) or
      $self->tracePlusLogError("info","We select out of a supplied static list the SEs to save on: @staticSes, count:".scalar(@staticSes));
 
-     my $authenReply = $self->{CATALOG}->authorize("-user=$user", $envreq, $targetLFN, join(";", @staticSes), $size, $md5, ($result->{guid} || 0));
+     my @envelopes = $self->{CATALOG}->authorize("-user=$user", $envreq, $targetLFN, join(";", @staticSes), $size, $md5, ($result->{guid} || 0));
      
-     ((!@{$authenReply->{envelopes}}) || (scalar(@{$authenReply->{envelopes}}) eq 0)) and
+     ((!@envelopes) || (scalar(@envelopes) eq 0)) and
            $self->tracePlusLogError("error","We couldn't get envelopes for any of the SEs, @staticSes .") and return($result, $success);
-     (scalar(@{$authenReply->{envelopes}}) eq scalar(@staticSes)) or
+     (scalar(@envelopes) eq scalar(@staticSes)) or
         $self->tracePlusLogError("info","We couldn't get all envelopes for the SEs, @staticSes .");
 
-     foreach my $envelope (@{$authenReply->{envelopes}}){
+     foreach my $envelope (@envelopes){
        (my $res, $result) = $self->uploadFileAccordingToEnvelope($result, $sourcePFN, $envelope);
        $res && push @{$result->{usedEnvelopes}}, $envelope->{signedEnvelope}; 
        $selOutOf = $selOutOf - $success;
@@ -1757,14 +1758,14 @@ sub putOnDynamicDiscoveredSEListByQoSV2{
    my @successfulUploads = ();
 
    while($count gt 0) {
-     my $authenReply = $self->{CATALOG}->authorize("-user=$user", $envreq, $targetLFN, 0, $size, $md5, ($result->{guid} || 0), $sitename, $qos, $count, (join(";", @$excludedSes) || 0));
+     my @envelopes= $self->{CATALOG}->authorize("-user=$user", $envreq, $targetLFN, 0, $size, $md5, ($result->{guid} || 0), $sitename, $qos, $count, (join(";", @$excludedSes) || 0));
 
-     ((!@{$authenReply->{envelopes}}) || (scalar(@{$authenReply->{envelopes}}) eq 0)) and
+     ((!@envelopes) || (scalar(@envelopes) eq 0)) and
          $self->tracePlusLogError("error","We couldn't get any envelopes (requested were '$count')  with qos flag '$qos'.") and return($result, $success);
-     (scalar(@{$authenReply->{envelopes}}) eq $count) or
-         $self->tracePlusLogError("trace","We could get only scalar(@{$authenReply->{envelopes}}) envelopes (requested were '$count') with qos flag '$qos'.");
+     (scalar(@envelopes) eq $count) or
+         $self->tracePlusLogError("trace","We could get only scalar(@envelopes) envelopes (requested were '$count') with qos flag '$qos'.");
 
-     foreach my $envelope (@{$authenReply->{envelopes}}){
+     foreach my $envelope (@envelopes){
        (my $res, $result) = $self->uploadFileAccordingToEnvelope($result, $sourcePFN, $envelope);
        push @$excludedSes, $envelope->{se};
        $res or next;
