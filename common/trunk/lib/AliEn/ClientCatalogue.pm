@@ -39,7 +39,7 @@ sub callAuthen {
     $user = shift;
     $user =~ s/^-user=([\w]+)$/$1/;
   }
-  return @{$self->{SOAP}->CallAndGetOverSOAP("Authen", "doOperation", $user, @_)};
+  return $self->{SOAP}->CallAndGetOverSOAP("Authen", "doOperation", $user, @_);
 }
 
 sub f_mkdir {
@@ -360,7 +360,7 @@ sub authorize{
   #($_[0] =~ /^-user=([\w]+)$/) and $user=$1 and shift;
 
 
-  return @{$self->{SOAP}->CallAndGetOverSOAP("Authen", "consultAuthenService", $user, @_)};
+  return $self->{SOAP}->CallAndGetOverSOAP("Authen", "consultAuthenService", $user, @_);
 }
 
 

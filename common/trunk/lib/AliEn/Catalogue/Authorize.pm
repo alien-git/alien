@@ -1272,12 +1272,10 @@ sub authorize{
   my $registenvsReq = ( ($access =~/^registerenvs$/) || 0 );
   my $registerReq = ( ($access =~/^register$/) || 0 );
 
+
   my $exceptions = 0;
 
   # the following three return immediately without envelope creation
-  $delFileReq and return $self->deleteFileFromCatalogue($lfn,$user);
-  $delFolderReq and return $self->deleteFolderFromCatalogue($lfn,$user);
-  $moveReq and return $self->moveFileInCatalogue($lfn,$seOrLFNOrEnv);
   $registenvsReq and return $self->registerFileInCatalogueAccordingToEnvelopes($user,\@registerEnvelopes);
 
 
@@ -1339,9 +1337,10 @@ sub authorize{
    #    ( ($se =~ /dcache/i) or ($se =~ /alice::((RAL)|(CNAF))::castor/i)) 
    #       and  $packedEnvelope->{turl}="root://$pfix/".($packedEnvelope->{lfn} || "/NOLFN");
    
-       foreach ( keys %{$packedEnvelope}) { $self->info("Authorize: gron: final packedEnvelope, $_: $packedEnvelope->{$_}"); }
-   
        $self->info("Authorize: gron: finally se is: $packedEnvelope->{se}");  
+
+
+       foreach ( keys %{$packedEnvelope}) { $self->info("Authorize: gron: final packedEnvelope, $_: $packedEnvelope->{$_}"); }
          
        push @packedEnvelopeList, $packedEnvelope;
    

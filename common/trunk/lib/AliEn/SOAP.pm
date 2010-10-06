@@ -229,9 +229,7 @@ sub CallAndGetOverSOAP{
   $rcvals->{rc} or $self->info("ERROR: Calling $service over SOAP, $function returned and error (see below).", 1); 
   $rcvals->{rcmessage} and  $self->info("Calling $service over SOAP, $function replied: ".$rcvals->{rcmessage}, !$rcvals->{rc}); # if rc=1 log 0 as info, if rc=0 log 1 as error
   $rcvals->{rc} or return 0;
-  
-  $self->info("gron: CallAndGetOverSOAP finished ok with $service / $function ");
-  return $rcvals->{rcvalues};
+  return ($rcvals->{rcvalues});
 }
 
 
