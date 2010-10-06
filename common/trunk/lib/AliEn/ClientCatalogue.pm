@@ -33,28 +33,13 @@ sub getHost{
 
 sub callAuthen {
   my $self = shift;
-  $self->info("Calling Authen over SOAP");
+
   my $user=$self->{CONFIG}->{ROLE};
   if($_[0] =~ /^-user=([\w]+)$/)  {
     $user = shift;
     $user =~ s/^-user=([\w]+)$/$1/;
   }
-  my $info = 0;
-  
-  for (my $tries = 0; $tries < 5; $tries++) { # try five times
-    $info=$self->{SOAP}->CallSOAP("Authen", "doOperation", $user, @_) and last;
-    $self->info("Sleeping for a while before retrying...");
-    sleep(5);
-  }
-   ($info,my  @out)=$self->{SOAP}->GetOutput($info);
-  
-  $info->{message} and $self->info($info->{message},undef, 0);
-  if ($info->{ok}){
-    print "The call worked!\n";
-  } 
-  return @out;
- # $info or $self->info("Connecting to the [Authen] service failed!") 
- #  and return ({error=>"Connecting to the [Authen] service failed!"}); 
+  return @{$self->{SOAP}->CallAndGetOverSOAP("Authen", "doOperation", $user, @_)};
 }
 
 sub f_mkdir {
@@ -266,38 +251,9 @@ sub authorize{
   #($_[0] =~ /^-user=([\w]+)$/) and $user=$1 and shift;
 
 
-  $self->info("Connecting to Authen...");
-  my $info=0;
-  for (my $tries = 0; $tries < 5; $tries++) { # try five times 
-    $info=$self->{SOAP}->CallSOAP("Authen", "consultAuthenService", $user, @_) and last;
-    $self->info("Connecting to the [Authen] service was not seccussful, trying ".(4 - $tries)." more times till giving up.");
-    sleep(5);
-  }
-  $info or $self->info("Connecting to the [Authen] service failed!")
-     and return ({error=>"Connecting to the [Authen] service failed!"});
-  #my @authorize=$self->{SOAP}->GetOutput($info);
-  #my $hash = shift @authorize; 
-
-#  my @hasha =$self->{SOAP}->GetOutput($info);
-#  my $hash=$hasha[0];
-  my ($hash) =$self->{SOAP}->GetOutput($info);
-  $self->info("gron: rc is $hash->{ok} and we got $hash->{envelopecount} envelopes...");
-#  my $hash = shift @authorize; 
-
-  my $messtype="info";
-  my $message="Authorize replied ";
-  if($hash->{ok}) {
-    $message .= "[OK]. ";
-  } else {
-    $messtype="error";
-    $message .= "[ERROR]. ";
-  }
-  $hash->{interrupt} and $message .= "Thrown [INTERRUPT]! " ;
-  $hash->{message} and  $message .= "Message: $hash->{message} ";
-#  $self->tracePlusLogError($messtype,$message);
-
- return $hash;
+  return @{$self->{SOAP}->CallAndGetOverSOAP("Authen", "consultAuthenService", $user, @_)};
 }
+
 
 return 1;
 __END__
