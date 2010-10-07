@@ -222,7 +222,11 @@ print "DONE!!\n";
 
 print "Connecting to mysql on $hostName:$portNumber...\t\t";
 
+$ENV{'SEALED_ENVELOPE_LOCAL_PRIVATE_KEY'} = "$ENV{ALIEN_HOME}/authen/lpriv.pem";
 
+$ENV{'SEALED_ENVELOPE_LOCAL_PUBLIC_KEY'} = "$ENV{ALIEN_HOME}/authen/lpub.pem";
+$ENV{'SEALED_ENVELOPE_REMOTE_PRIVATE_KEY'} = "$ENV{ALIEN_HOME}/authen/rpriv.pem";
+$ENV{'SEALED_ENVELOPE_REMOTE_PUBLIC_KEY'} = "$ENV{ALIEN_HOME}/authen/rpub.pem";
 my $db=AliEn::Database::Catalogue->new({USE_PROXY=>0,
 					USER=>"admin",
 					ROLE=>"admin",
