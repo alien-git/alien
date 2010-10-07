@@ -50,13 +50,15 @@ sub f_mkdir {
   $self->info("Making directory '$path'");
   return $self->callAuthen("mkdir","$path$options" );
 }
+
 sub f_getTabCompletion {
   my $self=shift;
   $self->info("WE ARE CHECKING THE TAB WITHOUT DATABASE");
-  my @e=$self->callAuthen("tabCompletion", @_);
-  $self->info("Hello world, we got @e");
-  return @e;
+  my $e=$self->callAuthen("tabCompletion", @_);
+  $self->info("Hello world, we got @$e");
+  return @$e;
 }
+
 sub f_removeFile {
   my $self = shift;
   my ($options,$path) = @_;
@@ -72,7 +74,6 @@ sub f_rmdir {
   $path = $self->GetAbsolutePath($path);
   $self->info("Removing directory $path");
   my $env = $self->callAuthen("rmdir","$options","$path");
-  $self->info("From Authen: $env");
   return $env;
 }
 
@@ -92,7 +93,6 @@ sub f_mv {
   $source = $self->GetAbsolutePath($source);
   $self->info("Moving $source to $target");
   my $env = $self->callAuthen("mv","$options","$source","$target");
-  $self->info("From Authen: $env");
   return $env;
 }
 
@@ -102,7 +102,6 @@ sub f_touch {
   $path = $self->GetAbsolutePath($path);
   $self->info("Creating file $path");
   my $env = $self->callAuthen("touch","$options","$path");
-  $self->info("From Authen: $env");
   return $env;
 }
 
@@ -113,21 +112,18 @@ sub f_ln {
   $source = $self->GetAbsolutePath($source);
   $self->info("Moving $source to $target");
   my $env = $self->callAuthen("ln","$options","$source","$target");
-  $self->info("From Authen: $env");
   return $env;
 }
 
 sub f_groups {
   my $self = shift;
   my $env = $self->callAuthen("groups",@_);
-  $self->info("From Authen: $env");
   return $env;
 }
 
 sub f_chgroup {
   my $self = shift;
   my $env = $self->callAuthen("chgroups",@_);
-  $self->info("From Authen: $env");
   return $env;
 }
 
@@ -136,7 +132,6 @@ sub f_chmod {
   my @args = @_;
   $args[1] = $self->GetAbsolutePath($args[1]);
   my $env = $self->callAuthen("chmod",@args);
-  $self->info("From Authen: $env");
   return $env;
 }
 
@@ -145,7 +140,6 @@ sub f_chown {
   my @args = @_;
   $args[2] = $self->GetAbsolutePath($args[2]);
   my $env = $self->callAuthen("chown",@args);
-  $self->info("From Authen: $env");
   return $env;
 }
 
@@ -154,7 +148,6 @@ sub f_addTag {
   my @args = @_;
   $args[0] = $self->GetAbsolutePath($args[0]);
   my $env = $self->callAuthen("removeTag",@args);
-  $self->info("From Authen: $env");
   return $env;
 }
 
@@ -163,7 +156,6 @@ sub f_addTagValue {
   my @args = @_;
   $args[1] = $self->GetAbsolutePath($args[1]);
   my $env = $self->callAuthen("addTagValue",@args);
-  $self->info("From Authen: $env");
   return $env;
 }
 
@@ -172,7 +164,6 @@ sub f_updateTagValue {
   my @args = @_;
   $args[1] = $self->GetAbsolutePath($args[1]);
   my $env = $self->callAuthen("updateTagValue",@args);
-  $self->info("From Authen: $env");
   return $env;
 }
 
@@ -181,7 +172,6 @@ sub f_removeTag {
   my @args = @_;
   $args[0] = $self->GetAbsolutePath($args[0]);
   my $env = $self->callAuthen("removeTag",@args);
-  $self->info("From Authen: $env");
   return $env;
 }
 
@@ -190,7 +180,6 @@ sub f_removeTagValue {
   my @args = @_;
   $args[0] = $self->GetAbsolutePath($args[0]);
   my $env = $self->callAuthen("removeTagValue",@args);
-  $self->info("From Authen: $env");
   return $env;
 }
 
@@ -199,7 +188,6 @@ sub f_cleanupTagValue {
   my @args = @_;
   $args[0] = $self->GetAbsolutePath($args[0]);
   my $env = $self->callAuthen("cleanupTagValue",@args);
-  $self->info("From Authen: $env");
   return $env;
 }
 
@@ -207,12 +195,13 @@ sub f_cd {
   my $self = shift;
   my $path = shift;
   (defined $path) or ($path = $self->GetHomeDirectory());
+  $path =~ s/\/$//;
   $path = $self->GetAbsolutePath($path);
   my $env = $self->callAuthen("checkPermissionOnDirectory",$path);
   $env 
     or $self->info("You do not have permissions in $path")
     and return;
-  $self->{DISPPATH} = $path;
+  $self->{DISPPATH} = "$path/";
   return 1;
 }
 
@@ -227,7 +216,6 @@ sub f_mkremdir {
     return;
   }
   my $env = $self->callAuthen("mkremdir",@args);
-  $self->info("From Authen: $env");
   return $env;
 }
 
@@ -236,7 +224,6 @@ sub f_zoom {
   my @args = @_;
   $args[0] = $self->GetAbsolutePath($args[0]);
   my $env = $self->callAuthen("zoom",@args);
-  $self->info("From Authen: $env");
   return $env;
 }
 
@@ -245,7 +232,6 @@ sub f_tree {
   my @args = @_;
   $args[0] = $self->GetAbsolutePath($args[0]);
   my $env = $self->callAuthen("tree",@args);
-  $self->info("From Authen: $env");
   return $env;
 }
 
@@ -254,7 +240,6 @@ sub f_type {
   my @args = @_;
   $args[0] = $self->GetAbsolutePath($args[0]);
   my $env = $self->callAuthen("type",@args);
-  $self->info("From Authen: $env");
   return $env;
 }
 
@@ -263,7 +248,6 @@ sub f_du {
   my @args = @_;
   $args[1] = $self->GetAbsolutePath($args[1]);
   my $env = $self->callAuthen("du",@args);
-  $self->info("From Authen: $env");
   return $env;
 }
 
@@ -272,14 +256,12 @@ sub f_stat {
   my @args = @_;
   $args[0] = $self->GetAbsolutePath($args[0]);
   my $env = $self->callAuthen("stat",@args);
-  $self->info("From Authen: $env");
   return $env;
 }
 
 sub f_guid2lfn {
   my $self = shift;
   my $env = $self->callAuthen("guid2lfn",@_);
-  $self->info("From Authen: $env");
   return $env;
 }
 
@@ -288,14 +270,12 @@ sub f_lfn2guid {
   my @args = @_;
   $args[1] = $self->GetAbsolutePath($args[1]);
   my $env = $self->callAuthen("lfn2guid",@args);
-  $self->info("From Authen: $env");
   return $env;
 }
 
 sub expungeTables {
   my $self = shift;
   my $env = $self->callAuthen("expungeTables");
-  $self->info("From Authen: $env");
   return $env;
 }
 
@@ -304,7 +284,6 @@ sub f_showTrigger {
   my @args = @_;
   $args[1] = $self->GetAbsolutePath($args[1]);
   my $env = $self->callAuthen("showTrigger",@args);
-  $self->info("From Authen: $env");
   return $env;
 }
 
@@ -313,7 +292,6 @@ sub f_removeTrigger {
   my @args = @_;
   $args[0] = $self->GetAbsolutePath($args[1]);
   my $env = $self->callAuthen("removeTrigger",@args);
-  $self->info("From Authen: $env");
   return $env;
 }
 
@@ -322,7 +300,6 @@ sub f_setExpired {
   my ($sec,@files) = @_;
   map{$_ = $self->GetAbsolutePath($_)}@files;
   my $env = $self->callAuthen("setExpired",$sec,@files);
-  $self->info("From Authen: $env");
   return $env;
 }
 
@@ -331,7 +308,6 @@ sub f_showStructure {
   my @args = @_;
   $args[1] = $self->GetAbsolutePath($args[1]);
   my $env = $self->callAuthen("showStructure",@args);
-  $self->info("From Authen: $env");
   return $env;
 }
 
@@ -340,7 +316,6 @@ sub f_renumber {
   my @args = @_;
   $args[0] = $self->GetAbsolutePath($args[0]);
   my $env = $self->callAuthen("renumberDirectory",@args);
-  $self->info("From Authen: $env");
   return $env;
 }
 
