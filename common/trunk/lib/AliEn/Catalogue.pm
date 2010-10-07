@@ -659,8 +659,8 @@ sub f_mkdir {
   if ( $options =~ /p/ and $parentdir ne '/' ) {
     if ( !$self->existsEntry($parentdir) ) {
       $self->f_mkdir( $options . "s", $parentdir ) or 
-      $self->{LOGGER}->error("Error building $parentdir");
-      return;
+        $self->{LOGGER}->error("Catalogue", "Error building $parentdir") and 
+        return;
     }
   }
   

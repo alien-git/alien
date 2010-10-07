@@ -781,19 +781,19 @@ sub moveFile {
   if($tablelfn_source eq $tablelfn_target) {
     #If source and target are in same L#L table then just edit the names
     $dbSource->do("UPDATE $tableName_source SET lfn=? WHERE lfn=?",{bind_values=>[$lfnOnTable_target,$lfnOnTable_source]})
-      or $self->{LOGGER}->error("Error updating database")
+      or $self->{LOGGER}->error(1, "Error updating database")
       and return;
   }
   else {
     #If the source and target are in different L#L tables then add in new table and delete from old table
     my $schema = $dbSource->queryRow("SELECT h.db FROM HOSTS h, INDEXTABLE i WHERE i.hostIndex=h.hostIndex AND i.lfn=?",
       undef,{bind_values=>[$tablelfn_source]})
-      or $self->{LOGGER}->error("Error updating database")
+      or $self->{LOGGER}->error(1, "Error updating database")
       and return;
     my $db = $schema->{db};
     $dbTarget->do("INSERT INTO $tableName_target(owner, replicated, ctime, guidtime, aclId, lfn, broken, expiretime, size, dir, gowner, type, guid, md5, perm) 
       SELECT owner, replicated, ctime, guidtime, aclId, ?, broken, expiretime, size, dir, gowner, type, guid, md5, perm FROM $db.$tableName_source WHERE lfn=?",{bind_values=>[$lfnOnTable_target,$lfnOnTable_source]})
-      or $self->{LOGGER}->error("Error updating database")
+      or $self->{LOGGER}->error(1, "Error updating database")
       and return;
   }
   my $parentdir = "$lfnOnTable_target";

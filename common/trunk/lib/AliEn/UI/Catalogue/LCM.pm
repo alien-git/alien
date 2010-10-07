@@ -130,7 +130,6 @@ my %LCM_help = (
     'resubmitTransfer' =>"\tResubmits a Transfer",
     'showTransferHistory'=>"\tShows the history of a transfer",
     'packman'  => "\tTalks to the Package Manager (PackMan). Use 'packman --help' for more info",
-
 );
 
 sub initialize {
