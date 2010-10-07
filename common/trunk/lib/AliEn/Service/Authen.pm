@@ -116,10 +116,6 @@ sub doOperation {
   my $other=shift;
   my $user=shift;
   my $op=shift;
-  open FILE, "+>", "/home/subho/test";
-  use Data::Dumper;
-  print FILE "ref:-- ".Dumper(ref($self))."\n";
-  close FILE;
   $self->info("$$ Ready to do an operation for $user (and $op '@_')");
   $self->{UI}->execute("user","-", $user);
 
