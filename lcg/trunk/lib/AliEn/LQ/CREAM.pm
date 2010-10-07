@@ -79,6 +79,14 @@ sub submit {
   my $theCE = $self->{CONFIG}->{CE_LCGCE_FLAT_LIST}->[int(rand(@{$self->{CONFIG}->{CE_LCGCE_FLAT_LIST}}))];
   push @args, ("-r", $theCE);
   push @args, ("-D", "$self->{CONFIG}->{DELEGATION_ID}");
+
+  my $status = $self->getCEStatus($theCE);
+  $self->debug(1,"$theCE is in \"$status\" mode");
+  unless ($status =~ /^Production$/i) {
+     $self->{LOGGER}->warning("CREAM","$theCE is in \"$status\" mode, will not submit.");
+     return;
+  }
+ 
   $self->renewProxy($self->{CONFIG}->{CE_PROXYDURATION},$self->{CONFIG}->{CE_PROXYTHRESHOLD});
   $self->renewDelegation($self->{CONFIG}->{CE_DELEGATIONINTERVAL}); 
 

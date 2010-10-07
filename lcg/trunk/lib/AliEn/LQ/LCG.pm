@@ -56,7 +56,7 @@ sub readCEList {
 
 sub queryBDII {
   my $self = shift;
-  my $CE = shift;
+  my $CE = shift; #GlueCEUniqueID
   my $filter = shift;
   $filter or $filter = "objectclass=*";
   my $base = shift;
@@ -104,6 +104,18 @@ sub queryBDII {
   $ldap->unbind();
   $self->debug(1,"Returning: ".Dumper(\%results));
   return \%results;
+}
+
+sub getCEStatus {
+  my $self = shift;
+  my $theCE = shift;  #GlueCEUniqueId
+  my $object = shift; 
+  $object or $object = "GlueCEStateStatus";
+  $self->debug(1,"Checking status of $theCE");
+  my $result = $self->queryBDII($theCE,'',"GlueCEUniqueID=$theCE",$object);
+  my $status = $result->{$object};
+  $self->debug(1, "$object for $theCE is \"$status\"");
+  return $status;
 }
 
 sub getCEInfo {
