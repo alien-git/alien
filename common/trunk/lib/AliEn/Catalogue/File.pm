@@ -468,7 +468,7 @@ sub f_cp {
   my @returnvals = ();
 
   ($target)
-    or $self->{LOGGER}->error("Error: not enough arguments in cp!!\nUsage: cp <source> <target>\n")
+    or $self->{LOGGER}->error("File", "Error: not enough arguments in cp!!\nUsage: cp <source> <target>\n")
        and return;
 
   #Set user role -- if option is specified
@@ -479,7 +479,7 @@ sub f_cp {
   $target = $self->GetAbsolutePath($target, 1);
   my $targetIsDir=$self->isDirectory($target);
   ( $opt->{'k'} or scalar(@srcFileList)>0 ) and ( !$targetIsDir ) 
-    and $self->{LOGGER}->error("Error: Multiple source files specified but last argument is not a directory\n")
+    and $self->{LOGGER}->error("File", "Error: Multiple source files specified but last argument is not a directory\n")
     and return;
   my $targetDir=$target;
   ( $targetIsDir ) or $targetDir=~ s{/[^/]*$}{/};
@@ -488,7 +488,7 @@ sub f_cp {
   unless($self->{UI}){
     my $options_UI = {};
     $options_UI->{role} = "$self->{CONFIG}->{ROLE}";
-    $self->{UI} = AliEn::UI::Catalogue::LCM->new($options_UI) or $self->{LOGGER}->error("Could not get UI") and return;
+    $self->{UI} = AliEn::UI::Catalogue::LCM->new($options_UI) or $self->{LOGGER}->error("File", "Could not get UI") and return;
   }
 
   #Populate list of source files
@@ -497,7 +497,7 @@ sub f_cp {
     $source = $self->GetAbsolutePath($source,1);
     my $sourceIsDir = $self->isDirectory($source) ;
     ( $sourceIsDir)
-      or $self->{LOGGER}->error("Error: $source is not a directory")
+      or $self->{LOGGER}->error("File", "Error: $source is not a directory")
       and return;
     my $db = $self->selectDatabase($source);
     my $tableName = "$db->{INDEX_TABLENAME}->{name}";
@@ -548,29 +548,29 @@ sub f_ln {
   my $target = shift;
 
   ($source and $target) 
-    or $self->{LOGGER}->error("Error: not enough arguments in ln!!\nUsage: ln <source> <target>\n")
+    or $self->{LOGGER}->error("File", "Error: not enough arguments in ln!!\nUsage: ln <source> <target>\n")
         and return;
 
   $source = $self->GetAbsolutePath($source);
   $target = $self->GetAbsolutePath($target);
 
   (!$self->isDirectory($source)) 
-    or $self->{LOGGER}->error("$source cannot be a directory\n")
+    or $self->{LOGGER}->error("File", "$source cannot be a directory\n")
     and return;
   (!$self->isDirectory($target)) 
-    or $self->{LOGGER}->error("$target cannot be a directory\n") 
+    or $self->{LOGGER}->error("File", "$target cannot be a directory\n") 
     and return;
   ($self->{DATABASE}->existsEntry($target)) 
-    and $self->{LOGGER}->error("$target exists!\n") 
+    and $self->{LOGGER}->error("File", "$target exists!\n") 
     and return;
   #Check permissions
   my $filehash = $self->checkPermissions("r",$source,undef,{RETURN_HASH=>1});
   $filehash 
-    or $self->{LOGGER}->error("ERROR: checkPermission failed for $source") 
+    or $self->{LOGGER}->error("File", "ERROR: checkPermission failed for $source") 
     and return;
   $filehash = $self->checkPermissions("w",$target,undef,{RETURN_HASH=>1});
   $filehash 
-    or $self->{LOGGER}->error("ERROR: checkPermission failed for $target")
+    or $self->{LOGGER}->error("File", "ERROR: checkPermission failed for $target")
     and return;
   return $self->{DATABASE}->{LFN_DB}->softLink($source,$target);
 }
@@ -650,22 +650,22 @@ sub f_mv {
   my $source = shift;
   my $target = shift;
   $source or $target 
-    or $self->{LOGGER}->error("ERROR: Source and/or target not specified") 
+    or $self->{LOGGER}->error("File", "ERROR: Source and/or target not specified") 
     and return;
 
   my $fullSource = $self->GetAbsolutePath($source);
   my $fullTarget = $self->GetAbsolutePath($target);
   $self->isDirectory($fullSource)
-    and $self->{LOGGER}->error("ERROR: <$source> is a directory")
+    and $self->{LOGGER}->error("File", "ERROR: <$source> is a directory")
     and return;
   #Check quotas
   my $filehash = $self->checkPermissions("w",$fullTarget,undef,{RETURN_HASH=>1});
   $filehash 
-    or $self->{LOGGER}->error("ERROR: checkPermission failed for $fullTarget")
+    or $self->{LOGGER}->error("File", "ERROR: checkPermission failed for $fullTarget")
     and return;
   $filehash = $self->checkPermissions("w",$fullSource,undef,{RETURN_HASH=>1});
   $filehash 
-    or $self->{LOGGER}->error("ERROR: checkPermission failed for $fullSource")
+    or $self->{LOGGER}->error("File", "ERROR: checkPermission failed for $fullSource")
     and return;
   #Do move
   my @returnVal = $self->{DATABASE}->{LFN_DB}->moveFile($source,$target);
@@ -691,19 +691,19 @@ sub f_removeFile {
   if(!$file)
   {
     ( $options =~ /s/ )
-      or $self->{LOGGER}->error("Catalogue","Error in remove: not enough arguments\nUsage remove [-s] <path>\n
+      or $self->{LOGGER}->error("File","Error in remove: not enough arguments\nUsage remove [-s] <path>\n
                                 Options: -s : silent. Do not print error messages\n")
       and return;
   }
   #Check if file specified is a directory
   my $fullPath = $self->GetAbsolutePath($file);
   $self->isDirectory($fullPath) 
-    and $self->{LOGGER}->error("ERROR: $fullPath is a directory") 
+    and $self->{LOGGER}->error("File", "ERROR: $fullPath is a directory") 
     and return;
   #Check permissions
   my $filehash = $self->checkPermissions("w",$fullPath,undef,{RETURN_HASH=>1});
   if (!$filehash) {
-    $self->{LOGGER}->error("Check permission on $fullPath failed");
+    $self->{LOGGER}->error("File", "Check permission on $fullPath failed");
     return;
   }
   return $self->{DATABASE}->{LFN_DB}->removeFile($fullPath,$filehash);
@@ -720,23 +720,23 @@ sub f_rmdir {
   ($path) or $message = "no directory specified";
   ( $path and $path eq "." )  and $message = "Cannot remove current directory";
   ( $path and $path eq ".." ) and $message = "Cannot remove parent directory.";
-  $message and $self->{LOGGER}->error( "Catalogue", "Error $message\nUsage: rmdir [-r] <directory>" )
+  $message and $self->{LOGGER}->error( "File", "Catalogue", "Error $message\nUsage: rmdir [-r] <directory>" )
     and return;
   #Check if path specifed is a file
   $path = $self->GetAbsolutePath( $path, 1 );
   unless($self->isDirectory($path)) {
-    $self->{LOGGER}->error("ERROR: $path is not a directory");
+    $self->{LOGGER}->error("File", "ERROR: $path is not a directory");
     return;
   }
   #Check permissions
   my $parentdir = $self->GetParentDir($path);
   my $filehash = $self->checkPermissions("w",$parentdir,undef,{RETURN_HASH=>1});
   $filehash 
-    or $self->{LOGGER}->error("ERROR: checkPermissions failed on $parentdir")
+    or $self->{LOGGER}->error("File", "ERROR: checkPermissions failed on $parentdir")
     and return;
   $filehash = $self->checkPermissions("w",$path,undef,{RETURN_HASH=>1});
   $filehash 
-    or $self->{LOGGER}->error("ERROR: checkPermsissions failed on $path")
+    or $self->{LOGGER}->error("File", "ERROR: checkPermsissions failed on $path")
     and return;
   return $self->{DATABASE}->{LFN_DB}->removeDirectory($path,$parentdir);
 }

@@ -641,16 +641,11 @@ sub f_mkdir {
   if ( $self->existsEntry($path) ) {
     ( $options =~ /d/ )
       and return
-      $self->{DATABASE}->getAllInfoFromLFN(
-                                            {
-                                              options  => 'd',
-                                              retrieve => 'entryId',
-                                              method   => 'queryValue'
-                                            },
-                                            "$path/"
-      );
+      $self->{DATABASE}->getAllInfoFromLFN({options  => 'd',
+                                            retrieve => 'entryId',
+                                            method   => 'queryValue'},"$path/");
     $options =~ /p/ and return 1;
-    $self->info("Directory or File $path already exists.\n");
+    $self->info("Directory $path already exists.\n");
     return;
   }
 
