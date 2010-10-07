@@ -187,38 +187,30 @@ sub needsCleaningUp {
 
 sub getNumberRunning() {
   my $self = shift;
-  my $run  = $self->getCREAMStatus('RUNNING:REALLY-RUNNING:HELD',$self->{CONFIG}->{CE_LCGCE_FIRSTS_LIST});
-  my $wait = $self->getCREAMStatus('REGISTERED:PENDING:IDLE',$self->{CONFIG}->{CE_LCGCE_FIRSTS_LIST});
+  my ($run,$wait) = $self->getCEInfo(qw(GlueCEStateRunningJobs GlueCEStateWaitingJobs ));
   $run or $run=0;
   $wait or $wait=0;
-  my $value = $self->getQueueStatus();
-  $value or $value = 0;
-  my ($runIS,$waitIS) = $self->getCEInfo(qw(GlueCEStateRunningJobs GlueCEStateWaitingJobs ));
-  $runIS or $runIS=0;
-  $waitIS or $waitIS=0;
-  $self->info("Jobs running, waiting: $run,$wait  from CREAM, $runIS,$waitIS from BDII, $value from local DB");
+  $self->info("JobAgents running, waiting: $run,$wait");
   if ($ENV{CE_USE_BDII} ) {
      $self->info("(Returning value from BDII)");
-     return $runIS+$waitIS;    
+     return $run+$wait;    
   } else {
-    return $run+$wait;
+    $self->{LOGGER}->error("CREAM","Only info from BDII available in this release");
+    return;
   }   
 }
 
 sub getNumberQueued() {
-  my $self=shift;
-  my $wait = $self->getCREAMStatus('REGISTERED:PENDING:IDLE',$self->{CONFIG}->{CE_LCGCE_FIRSTS_LIST});
+  my $self = shift;
+  (my $wait) = $self->getCEInfo(qw(GlueCEStateWaitingJobs));
   $wait or $wait=0;
-  my $value = $self->{DB}->queryValue("SELECT COUNT (*) FROM JOBAGENT where status='QUEUED'");
-  $value or $value = 0;
-  (my $waitIS) = $self->getCEInfo(qw(GlueCEStateWaitingJobs));
-  $waitIS or $waitIS=0;
-  $self->info("Queued: $wait from CREAM, $waitIS from BDII, $value from local DB");
+  $self->info("JobAgents waiting: $wait");
   if ($ENV{CE_USE_BDII} ) {
     $self->info("(Returning value from BDII)");
-    return $waitIS;
-  } else {
     return $wait;
+  } else {
+    $self->{LOGGER}->error("CREAM","Only info from BDII available in this release");
+    return;
   }   
 }
 
@@ -239,7 +231,7 @@ sub getCREAMStatus {
   my $logfile = AliEn::TMPFile->new({ ttl => '12 hours'});
   foreach my $CE ( @$CEList ) {
     (my $endpoint, undef) = split /\//,$CE;
-    $self->info("Asking $CE for jobs that are $statusString");
+    $self->info("Asking $CE for JobAgents that are $statusString");
     my @output=$self->_system($self->{STATUS_CMD}, "--nomsg",
                                                    "--logfile", $logfile,
 	  					   "--endpoint", $endpoint,
