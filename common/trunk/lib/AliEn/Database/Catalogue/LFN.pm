@@ -725,7 +725,7 @@ sub removeDirectory {
     $size += ($db2->queryValue("SELECT SUM(l.size) FROM L$db->{tableName}L l WHERE l.lfn LIKE concat(?,'%') AND l.type='f'",
         undef, {bind_values=>[$tmpPath]})||0);
     $db2->do("INSERT INTO LFN_BOOKED(lfn, owner, expiretime, size, guid, gowner, user, pfn)
-      SELECT l.lfn, l.owner, -1, l.size, l.guid, l.gowner, ?,'*' FROM L$db->{tableName}L l WHERE l.type<>'l' AND l.lfn LIKE concat(?,'%')",
+      SELECT l.lfn, l.owner, -1, l.size, l.guid, l.gowner, ?,'*' FROM L$db->{tableName}L l WHERE l.type='f' AND l.lfn LIKE concat(?,'%')",
       {bind_values=>[$user,$tmpPath]})
       or $self->{LOGGER}->error("Database::Catalogue::LFN","ERROR: Could not add entries $tmpPath to LFN_BOOKED")
       and return;
