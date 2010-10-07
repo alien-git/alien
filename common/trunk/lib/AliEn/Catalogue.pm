@@ -32,8 +32,6 @@ AliEn::Catalogue
 
 =item f_mkdir
 
-=item f_rmdir
-
 =item f_quit
 
 =item f_disconnect
