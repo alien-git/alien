@@ -192,6 +192,7 @@ sub new{
 
   $ENV{ALIEN_USE_CACHE} and $self->{USE_CACHE}=$ENV{ALIEN_USE_CACHE};
   $ENV{ALIEN_DATABASE_SSL} and $self->{SSL}=1 and $self->{ROLE}=$ENV{ALIEN_DATABASE_SSL};
+
   if ($ENV{ALIEN_DATABASE_PASSWORD}){
     $self->debug(1, "CONNECTING TO THE DATABASE DIRECTLY!");
     $self->{USE_PROXY}=0;
@@ -1002,7 +1003,7 @@ sub getDatabaseDSN {
   my $dsn="";
 
   if($self->{USE_PROXY} and not $self->{SSL}){
-    $self->{CONFIG}= new AliEn::Config();
+    $self->{CONFIG} or $self->{CONFIG}= new AliEn::Config();
     ($self->{CONFIG})
       or $self->{LOGGER}->error("Database","Initial configuration not found")
 	and return;
@@ -1015,6 +1016,8 @@ sub getDatabaseDSN {
       $self->debug(1, "There are several proxies (using $self->{PROXY_HOST} $number)");
 
     }
+    if ($self->{PROXY_HOST}){
+
     $dsn =
       "DBI:AliEnProxy:hostname=$self->{PROXY_HOST};port=$self->{PROXY_PORT};local_user=$self->{USER};forced_method=$self->{FORCED_AUTH_METHOD};";
 
@@ -1022,9 +1025,13 @@ sub getDatabaseDSN {
       and $dsn .= "PASSWD=$self->{PASSWD};";
 
     $dsn .= ";dsn=";
+    }
   }
 
   $dsn .= "DBI:$self->{DRIVER}:database=$self->{DB};host=$self->{HOST}";
+ 
+  ($self->{PASSWD})
+      and $dsn .= ";PASSWD=$self->{PASSWD};";
 
   if ($self->{SSL}) {
     my $cert=$ENV{X509_USER_CERT} || "$ENV{ALIEN_HOME}/globus/usercert.pem";
@@ -1032,7 +1039,6 @@ sub getDatabaseDSN {
     $DEBUG and $self->debug(1, "Authenticating with the certificate in $cert and $key");
     $dsn.=";mysql_ssl=1;mysql_ssl_client_key=$key;mysql_ssl_client_cert=$cert";
   }
-
   return $dsn;
 
 }
