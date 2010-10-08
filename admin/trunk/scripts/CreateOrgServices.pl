@@ -269,6 +269,12 @@ if (-e  $startFile) {
   rename("$startFile", "$startFile.old");
 
   $content=join("", @file, $orgs);
+  $content.="export SEALED_ENVELOPE_REMOTE_PUBLIC_KEY=\$ALIEN_HOME/authen/rpub.pem
+            export SEALED_ENVELOPE_REMOTE_PRIVATE_KEY=\$ALIEN_HOME/authen/rpriv.pem
+            export SEALED_ENVELOPE_LOCAL_PUBLIC_KEY=\$ALIEN_HOME/authen/lpub.pem
+            export SEALED_ENVELOPE_LOCAL_PRIVATE_KEY=\$ALIEN_HOME/authen/lpriv.pem
+            export ALIEN_DATABASE_PASSWORD='$mysqlPasswd'"
+
 }
 print "ok\nCreating $startFile...\t\t\t\t";
 

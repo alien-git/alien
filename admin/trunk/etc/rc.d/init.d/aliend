@@ -88,14 +88,14 @@ do
 		    fi
 		    Sleep=1
 		;;
-	        StartAuthen)
-		    if [ "$AliEnLDAPP" != "" ] ;
-		    then 
-			COMMAND="$COMMAND -passwd $AliEnLDAPP"
-		    fi
-		    Sleep=1
-	        ;;
-	        StartIS|StartServer)
+	      #  StartAuthen)
+		    #if [ "$AliEnLDAPP" != "" ] ;
+		    #then 
+			#COMMAND="$COMMAND -passwd $AliEnLDAPP"
+		  #  fi
+		  #  Sleep=1
+	    #    ;;
+	        StartIS|StartServer|Authen)
 		    Sleep=2
 	        ;;
 # Start/Stop/Status for httpd moved to alien-common/scripts

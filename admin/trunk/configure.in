@@ -3,7 +3,7 @@ AC_INIT(Makefile.in)
 
 # Configuration items
 
-AC_PREFIX_DEFAULT([/opt/alien])
+AC_PREFIX_DEFAULT([$ALIEN_ROOT])
 
 AC_ARG_WITH(build_dir,
             [  --with-build-dir=dir     build directory],
