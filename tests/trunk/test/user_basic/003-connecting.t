@@ -28,6 +28,9 @@ BEGIN { plan tests => 1 }
       kill 9, $pid;
       exit;
     }
+$ENV{SEALED_ENVELOPE_LOCAL_PRIVATE_KEY}="$ENV{ALIEN_HOME}/authen/lpriv.pem";
+$ENV{SEALED_ENVELOPE_LOCAL_PUBLIC_KEY}="$ENV{ALIEN_HOME}/authen/lpub.pem";
+
     my $cat=AliEn::UI::Catalogue->new({"role", "admin"});
     $cat or exit (-1);
     
