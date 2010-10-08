@@ -771,23 +771,21 @@ sub f_touch {
   my $self=shift;
   my $options=shift;
   my $lfn=shift 
-    or $self->info("Error missing the name of the file to touch",undef,2) 
-    and return ("Error missing the name of the file to touch","[usage]");
-  #Check quota <--- better way to do this?
-  my $options_UI = {};
-  $options_UI->{role} = "$self->{CONFIG}->{ROLE}";
-  my $ui = AliEn::UI::Catalogue::LCM->new($options_UI) 
-    or $self->info("Could not get UI") 
-    and return ("Could not get UI","[object]");
+    or $self->{LOGGER}->error("Catalogue::File","Error missing the name of the file to touch") 
+    and return;
   $lfn = $self->GetAbsolutePath($lfn);
-  my ($ok, $message) = $ui->checkFileQuota( $self->{CONFIG}->{ROLE}, 0 );
+  my ($ok, $message) = $self->checkFileQuota( $self->{CONFIG}->{ROLE}, 0 );
   if($ok eq -1) {
-    return  ($message,"[quotaException]");
+    $self->{LOGGER}->error($message) 
+      or return; 
   }
   #Insert file in catalogue
   $self->info("Inserting file $lfn");
-  $self->f_registerFile($options, $lfn,0) or return ("Could not touch file","[registerFile]");
-  return ("Success");
+  $self->f_registerFile($options, $lfn,0) 
+    or $self->{LOGGER}->error("Catalogue::File","Could not touch file")
+    and return;
+  $self->info("$lfn successfully created") 
+    and return 1;
 }
 
 sub f_du_HELP{
