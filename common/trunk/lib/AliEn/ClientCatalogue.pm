@@ -64,8 +64,7 @@ sub f_removeFile {
   my ($options,$path) = @_;
   $path = $self->GetAbsolutePath($path);
   $self->info("Removing $path");
-  my $env = $self->callAuthen("rm","$options","$path");
-  return $env;
+  return $self->callAuthen("rm","$options","$path");
 }
 
 sub f_rmdir {
@@ -73,8 +72,7 @@ sub f_rmdir {
   my ($options,$path) = @_;
   $path = $self->GetAbsolutePath($path);
   $self->info("Removing directory $path");
-  my $env = $self->callAuthen("rmdir","$options","$path");
-  return $env;
+  return $self->callAuthen("rmdir","$options","$path");
 }
 
 sub f_ls {
@@ -92,8 +90,7 @@ sub f_mv {
   $target = $self->GetAbsolutePath($target);
   $source = $self->GetAbsolutePath($source);
   $self->info("Moving $source to $target");
-  my $env = $self->callAuthen("mv","$options","$source","$target");
-  return $env;
+  return $self->callAuthen("mv","$options","$source","$target");
 }
 
 sub f_touch {
@@ -101,8 +98,7 @@ sub f_touch {
   my ($options,$path) = @_;
   $path = $self->GetAbsolutePath($path);
   $self->info("Creating file $path");
-  my $env = $self->callAuthen("touch","$options","$path");
-  return $env;
+  return $self->callAuthen("touch","$options","$path");
 }
 
 sub f_ln {
@@ -111,84 +107,73 @@ sub f_ln {
   $target = $self->GetAbsolutePath($target);
   $source = $self->GetAbsolutePath($source);
   $self->info("Moving $source to $target");
-  my $env = $self->callAuthen("ln","$options","$source","$target");
-  return $env;
+  return $self->callAuthen("ln","$options","$source","$target");
 }
 
 sub f_groups {
   my $self = shift;
-  my $env = $self->callAuthen("groups",@_);
-  return $env;
+  return $self->callAuthen("groups",@_);
 }
 
 sub f_chgroup {
   my $self = shift;
-  my $env = $self->callAuthen("chgroups",@_);
-  return $env;
+  return $self->callAuthen("chgroups",@_);
 }
 
 sub f_chmod {
   my $self = shift;
   my @args = @_;
   $args[1] = $self->GetAbsolutePath($args[1]);
-  my $env = $self->callAuthen("chmod",@args);
-  return $env;
+  return $self->callAuthen("chmod",@args);
 }
 
 sub f_chown {
   my $self = shift;
   my @args = @_;
   $args[2] = $self->GetAbsolutePath($args[2]);
-  my $env = $self->callAuthen("chown",@args);
-  return $env;
+  return $self->callAuthen("chown",@args);
 }
 
 sub f_addTag {
   my $self = shift;
   my @args = @_;
   $args[0] = $self->GetAbsolutePath($args[0]);
-  my $env = $self->callAuthen("removeTag",@args);
-  return $env;
+  return $self->callAuthen("removeTag",@args);
 }
 
 sub f_addTagValue {
   my $self = shift;
   my @args = @_;
   $args[1] = $self->GetAbsolutePath($args[1]);
-  my $env = $self->callAuthen("addTagValue",@args);
-  return $env;
+  return $self->callAuthen("addTagValue",@args);
 }
 
 sub f_updateTagValue {
   my $self = shift;
   my @args = @_;
   $args[1] = $self->GetAbsolutePath($args[1]);
-  my $env = $self->callAuthen("updateTagValue",@args);
-  return $env;
+  return $self->callAuthen("updateTagValue",@args);
 }
 
 sub f_removeTag {
   my $self = shift;
   my @args = @_;
   $args[0] = $self->GetAbsolutePath($args[0]);
-  my $env = $self->callAuthen("removeTag",@args);
-  return $env;
+  return $self->callAuthen("removeTag",@args);
 }
 
 sub f_removeTagValue {
   my $self = shift;
   my @args = @_;
   $args[0] = $self->GetAbsolutePath($args[0]);
-  my $env = $self->callAuthen("removeTagValue",@args);
-  return $env;
+  return $self->callAuthen("removeTagValue",@args);
 }
 
 sub f_cleanupTagValue {
   my $self = shift;
   my @args = @_;
   $args[0] = $self->GetAbsolutePath($args[0]);
-  my $env = $self->callAuthen("cleanupTagValue",@args);
-  return $env;
+  return $self->callAuthen("cleanupTagValue",@args);
 }
 
 sub f_cd {
@@ -215,108 +200,99 @@ sub f_mkremdir {
     $self->info("File not specified");
     return;
   }
-  my $env = $self->callAuthen("mkremdir",@args);
-  return $env;
+  return $self->callAuthen("mkremdir",@args);
 }
 
 sub f_zoom {
   my $self = shift;
   my @args = @_;
   $args[0] = $self->GetAbsolutePath($args[0]);
-  my $env = $self->callAuthen("zoom",@args);
-  return $env;
+  return $self->callAuthen("zoom",@args);
 }
 
 sub f_tree {
   my $self = shift;
   my @args = @_;
   $args[0] = $self->GetAbsolutePath($args[0]);
-  my $env = $self->callAuthen("tree",@args);
-  return $env;
+  return $self->callAuthen("tree",@args);
 }
 
 sub f_type {
   my $self = shift;
   my @args = @_;
   $args[0] = $self->GetAbsolutePath($args[0]);
-  my $env = $self->callAuthen("type",@args);
-  return $env;
+  return $self->callAuthen("type",@args);
 }
 
 sub f_du {
   my $self = shift;
   my @args = @_;
   $args[1] = $self->GetAbsolutePath($args[1]);
-  my $env = $self->callAuthen("du",@args);
-  return $env;
+  return $self->callAuthen("du",@args);
 }
 
 sub f_stat {
   my $self = shift;
   my @args = @_;
   $args[0] = $self->GetAbsolutePath($args[0]);
-  my $env = $self->callAuthen("stat",@args);
-  return $env;
+  return $self->callAuthen("stat",@args);
 }
 
 sub f_guid2lfn {
   my $self = shift;
-  my $env = $self->callAuthen("guid2lfn",@_);
-  return $env;
+  return $self->callAuthen("guid2lfn",@_);
 }
 
 sub f_lfn2guid {
   my $self = shift;
   my @args = @_;
   $args[1] = $self->GetAbsolutePath($args[1]);
-  my $env = $self->callAuthen("lfn2guid",@args);
-  return $env;
+  return $self->callAuthen("lfn2guid",@args);
 }
 
 sub expungeTables {
   my $self = shift;
-  my $env = $self->callAuthen("expungeTables");
-  return $env;
+  return $self->callAuthen("expungeTables");
 }
 
 sub f_showTrigger {
   my $self = shift;
   my @args = @_;
   $args[1] = $self->GetAbsolutePath($args[1]);
-  my $env = $self->callAuthen("showTrigger",@args);
-  return $env;
+  return $self->callAuthen("showTrigger",@args);
 }
 
 sub f_removeTrigger {
   my $self = shift;
   my @args = @_;
   $args[0] = $self->GetAbsolutePath($args[1]);
-  my $env = $self->callAuthen("removeTrigger",@args);
-  return $env;
+  return $self->callAuthen("removeTrigger",@args);
 }
 
 sub f_setExpired {
   my $self = shift;
   my ($sec,@files) = @_;
   map{$_ = $self->GetAbsolutePath($_)}@files;
-  my $env = $self->callAuthen("setExpired",$sec,@files);
-  return $env;
+  return $self->callAuthen("setExpired",$sec,@files);
 }
 
 sub f_showStructure {
   my $self = shift;
   my @args = @_;
   $args[1] = $self->GetAbsolutePath($args[1]);
-  my $env = $self->callAuthen("showStructure",@args);
-  return $env;
+  return  $self->callAuthen("showStructure",@args);
 }
 
 sub f_renumber {
   my $self = shift;
   my @args = @_;
   $args[0] = $self->GetAbsolutePath($args[0]);
-  my $env = $self->callAuthen("renumberDirectory",@args);
-  return $env;
+  return $self->callAuthen("renumberDirectory",@args);
+}
+
+sub removeExpiredFiles {
+  my $self = shift;
+  return $self->callAuthen("removeExpiredFiles");
 }
 
 sub authorize{

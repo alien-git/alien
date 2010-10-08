@@ -2089,25 +2089,18 @@ sub checkFileQuota {
 
   $self->info("In checkFileQuota for user: $user, request file size:$size");
 
-  if (!$self->{PRIORITY_DB}){
-    my ($host, $driver, $db) = split("/", $self->{CONFIG}->{"JOB_DATABASE"});
-    $self->{PRIORITY_DB}=
-      AliEn::Database::TaskPriority->new({DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin'});
-  }
-  $self->{PRIORITY_DB} or $self->info("Error: couldn't connect to the priority database") and return (0, "Error connecting to the quota database.");
-
-  my $array = $self->{PRIORITY_DB}->getFieldsFromPriorityEx("nbFiles, totalSize, maxNbFiles, maxTotalSize, tmpIncreasedNbFiles, tmpIncreasedTotalSize", "where user LIKE '$user'")
+  my $array = $self->{DATABASE}->{LFN_DB}->queryRow("SELECT nbFiles, totalSize, maxNbFiles, maxTotalSize, tmpIncreasedNbFiles, tmpIncreasedTotalSize FROM processes.PRIORITY WHERE user='$user'")
     or $self->{LOGGER}->error("Failed to get data from the PRIORITY quota table.")
     and return (0, "Failed to get data from the PRIORITY quota table. ");
-  $array->[0] or $self->{LOGGER}->error("There's no entry for user $user in the PRIORITY quota table.")
+  $array or $self->{LOGGER}->error("There's no entry for user $user in the PRIORITY quota table.")
     and return (-1, "There's no entry for user $user in the PRIORITY quota table.");
 
-  my $nbFiles = $array->[0]->{'nbFiles'};
-  my $maxNbFiles = $array->[0]->{'maxNbFiles'};
-  my $tmpIncreasedNbFiles = $array->[0]->{'tmpIncreasedNbFiles'};
-  my $totalSize = $array->[0]->{'totalSize'};
-  my $maxTotalSize = $array->[0]->{'maxTotalSize'};
-  my $tmpIncreasedTotalSize = $array->[0]->{'tmpIncreasedTotalSize'};
+  my $nbFiles = $array->{'nbFiles'};
+  my $maxNbFiles = $array->{'maxNbFiles'};
+  my $tmpIncreasedNbFiles = $array->{'tmpIncreasedNbFiles'};
+  my $totalSize = $array->{'totalSize'};
+  my $maxTotalSize = $array->{'maxTotalSize'};
+  my $tmpIncreasedTotalSize = $array->{'tmpIncreasedTotalSize'};
  
   $DEBUG and $self->debug(1, "size: $size");
   $DEBUG and $self->debug(1, "nbFile: $nbFiles/$tmpIncreasedNbFiles/$maxNbFiles");
@@ -2136,8 +2129,7 @@ sub checkFileQuota {
     }
   }
   
-  
-  $self->{PRIORITY_DB}->do("update PRIORITY set tmpIncreasedNbFiles=tmpIncreasedNbFiles+1, tmpIncreasedTotalSize=tmpIncreasedTotalSize+$size where user LIKE  '$user'") or $self->info("failed to increase tmpIncreasedNbFile and tmpIncreasedTotalSize");
+  #$self->{PRIORITY_DB}->do("update PRIORITY set tmpIncreasedNbFiles=tmpIncreasedNbFiles+1, tmpIncreasedTotalSize=tmpIncreasedTotalSize+$size where user LIKE  '$user'") or $self->info("failed to increase tmpIncreasedNbFile and tmpIncreasedTotalSize");
 
   $self->info("In checkFileQuota $user: Allowed");
   return (1,undef);
