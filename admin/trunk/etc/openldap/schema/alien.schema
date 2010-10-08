@@ -110,7 +110,7 @@ attributetype ( AliEnVOConfig:84 NAME 'sedefaultQosandCount' SUP name )
 
 objectclass ( AliEnVOConfig  NAME 'AliEnVOConfig'
 	SUP ( top $ organizationalUnit ) STRUCTURAL
-	MUST ( proxyPort $ proxyHost $ authPort $ authenDatabase $
+	MUST ( authPort $ authenDatabase $
 	       authenHost $ authenDriver $ authHost $ catalogHost $
 	       catalogPort $ catalogDatabase $ catalogDriver $
 	       queuePort $ queueHost $ queueDatabase $queueDriver $
@@ -121,8 +121,8 @@ objectclass ( AliEnVOConfig  NAME 'AliEnVOConfig'
 		transferBrokerAddress $ transferDatabase $
 		transferOptimizerAddress $ jobOptimizerAddress $ 
 		jobDatabase $ ldapmanager $ jobManagerAddress $ 
-		jobBrokerAddress $ proxyAddress )
-	MAY ( processPort $catalogueDatabase $ catalogueOptimizerAddress $
+		jobBrokerAddress )
+	MAY ( proxyPort $ proxyHost $ proxyAddress $ processPort $catalogueDatabase $ catalogueOptimizerAddress $
 	      monalisaLUS $ monalisaGroup $ authenSubject $ proofPort $ proofDatabase $
 	      proofDriver $ proofDbHost $ proofHost $ proofMuxPortRange $
 	      proofCryptPassword $ proofLogin $ proofTimeout $ proofMasterPort $ proofPackage $ 

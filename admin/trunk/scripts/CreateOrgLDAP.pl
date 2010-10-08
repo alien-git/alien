@@ -171,7 +171,7 @@ push(@list,("$orgDN",[o=> $orgName,"objectClass", [ "organization"]]));
 my %config;
 $config{ou}="Config";
 $config{objectClass}=["top",  "AliEnVOConfig"];
-$config{proxyPort}=$portNumber+8;
+#$config{proxyPort}=$portNumber+8;
 $config{authPort}=$portNumber;
 $config{catalogPort}=$portNumber+2;
 $config{queuePort}=$portNumber+3;
@@ -182,7 +182,7 @@ $config{brokerPort}=$portNumber+10;
 $config{ldapmanager}=$rootdn;
 $config{processPort}=[$portNumber+5,$portNumber+6,$portNumber+7,$portNumber+8,$portNumber+9 ];
 
-$config{brokerHost}=$config{isHost}=$config{logHost}=$config{catalogHost}=$config{queueHost}=$config{authHost}=$config{proxyHost}=$hostName;
+$config{brokerHost}=$config{isHost}=$config{logHost}=$config{catalogHost}=$config{queueHost}=$config{authHost}=$hostName;
 $config{authenDatabase}="ADMIN";
 $config{catalogDatabase}="alien_system";
 $config{isDatabase}="INFORMATIONSERVICE";
@@ -195,7 +195,7 @@ $config{isDriver}=$config{queueDriver}=$config{catalogDriver}=$config{authenDriv
 $config{userDir}="/\L$orgName\E/user";
 $config{clusterMonitorUser}="$prodUser";
 
-$config{proxyAddress}="$hostName:".($portNumber+8);
+#$config{proxyAddress}="$hostName:".($portNumber+8);
 $config{transferManagerAddress}="$hostName:".($portNumber+15);
 $config{transferBrokerAddress}="$hostName:".($portNumber+16);
 $config{transferOptimizerAddress}="$hostName:".($portNumber+17);

@@ -40,7 +40,7 @@ $names->{QUEUE}="Server";
 $names->{LOG}="Logger";
 
 my $install="";
-foreach my $service ("Proxy", "IS", "AUTH", "QUEUE", "LOG", "Broker") {
+foreach my $service ("IS", "AUTH", "QUEUE", "LOG", "Broker") {
   if ($config->{"\U${service}\E_HOST"} eq "$hostname") {
     my $name=$service;
     $names->{$service} and $name=$names->{$service};
@@ -112,10 +112,10 @@ my $environment=getParam("Create an environment file in user directory (Y/N)", "
 
 
 my ($mysqlPasswd, $ldapPasswd, $rootdn, $shadow);
-if ($install =~ /Proxy/) {
-  print "To install the proxy you need the mysql admin password to $config->{AUTHEN_HOST}\n";
+#if ($install =~ /Proxy/) {
+#  print "To install the proxy you need the mysql admin password to $config->{AUTHEN_HOST}\n";
   $mysqlPasswd=getParam("Enter admin password for mysql on $config->{AUTHEN_HOST}","", "secret");
-}
+#}
 if ($install =~ /Authen/) {
   print "To install the authen you need the ldap root password to $config->{LDAPHOST}\n";
   $ldapPasswd=getParam("Enter admin password for $config->{LDAPHOST}", "", "secret");
@@ -228,11 +228,12 @@ if ($install=~ /Authen/) {
 
 print "ok\nAdding the first user\t\t\t";
 $ENV{ALIEN_DATABASE_PASSWORD}=$mysqlPasswd;
+
 $ENV{'SEALED_ENVELOPE_LOCAL_PRIVATE_KEY'} = "$ENV{ALIEN_HOME}/authen/lpriv.pem";
 $ENV{'SEALED_ENVELOPE_LOCAL_PUBLIC_KEY'} = "$ENV{ALIEN_HOME}/authen/lpub.pem";
 $ENV{'SEALED_ENVELOPE_REMOTE_PRIVATE_KEY'} = "$ENV{ALIEN_HOME}/authen/rpriv.pem";
 $ENV{'SEALED_ENVELOPE_REMOTE_PUBLIC_KEY'} = "$ENV{ALIEN_HOME}/authen/rpub.pem";
-my $cat=AliEn::UI::Catalogue->new({role=>'admin'}) or exit(-2);
+my $cat=AliEn::UI::Catalogue->new({role=>'admin', debug=>1}) or exit(-2);
 $cat->execute("addUser", $userName) or exit (-2);
 $cat->execute("mkdir", "-p", "/\L$orgName\E/user/a/admin") or exit(-2);
 $cat->execute("addUser",  $config->{CLUSTER_MONITOR_USER}) or exit(-2);
