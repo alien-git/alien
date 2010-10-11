@@ -228,7 +228,7 @@ sub CallAndGetOverSOAP{
   my @rcvals =$self->GetOutput($callsoap) or $self->error("ERROR: Getting output of ".$service."::".$function." call over SOAP was not possible");
 
   $rcvals[0]->{rc} 
-    or $self->error("ERROR: Calling ".$service."::".$function." over SOAP returned and error (see below)."); 
+    or $self->error("ERROR: Calling ".$service."::".$function." over SOAP returned and error (check below)."); 
 
   if (defined(@{$rcvals[0]->{rcmessages}})) {
     my @rcmess = map { $service."::".$function."||".$_ } (@{$rcvals[0]->{rcmessages}});
@@ -236,8 +236,15 @@ sub CallAndGetOverSOAP{
     $rcvals[0]->{rc} and $self->notice($message) or $self->error($message);
   }
 
-  $rcvals[0]->{rc} or $self->error($service."::".$function." replied ERROR (see above).") and return 0;
-  return (@{$rcvals[0]->{rcvalues}});
+  $rcvals[0]->{rc} or $self->error($service."::".$function." replied ERROR (see above).");
+
+
+  #$self->info("gron: SOAP reply: @{$rcvals[0]->{rcvalues}} \n");
+
+  defined(@{$rcvals[0]->{rcvalues}}) and (scalar(@{$rcvals[0]->{rcvalues}}) gt 0 ) or return 0;
+  
+
+  return @{$rcvals[0]->{rcvalues}};
 }
 
 
