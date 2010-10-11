@@ -13,6 +13,9 @@ sub new {
   my $self    = {};
   my $options = shift;
   bless( $self, $class );
+  if((defined $options->{user}) and !(defined $options->{role})) {
+    $options->{role} = $options->{user};
+  }
   $self->{LOGGER} = new AliEn::Logger;
   $self->{CONFIG} = new AliEn::Config($options);
   $self->{SOAP} = new AliEn::SOAP
@@ -186,14 +189,15 @@ sub f_cleanupTagValue {
 sub f_cd {
   my $self = shift;
   my $path = shift;
-  (defined $path) or ($path = $self->GetHomeDirectory());
-  $path =~ s/\/$//;
+  (defined $path) 
+    or ($path = "$self->{CONFIG}->{USER_DIR}/".substr($self->{CONFIG}->{ROLE},0,1)."/$self->{CONFIG}->{ROLE}");
+  #$path =~ s/\/$//;
   $path = $self->GetAbsolutePath($path);
   my $env = $self->callAuthen("checkPermissionOnDirectory",$path);
   $env 
     or $self->info("You do not have permissions in $path")
     and return;
-  $self->{DISPPATH} = "$path/";
+  $self->{DISPPATH} = "$path";
   return 1;
 }
 
