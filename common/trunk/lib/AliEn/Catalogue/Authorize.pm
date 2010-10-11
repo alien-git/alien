@@ -1141,11 +1141,11 @@ sub registerFileInCatalogueAccordingToEnvelopes{
      pop @successMap; push @successMap, 1; 
      $success++;
   }
-  ($success eq scalar(@$signedEnvelopes)) and $self->info("Authorize: EXCELLENT! All of the ".scalar(@$signedEnvelopes)." PFNs where correctly registered.") 
+  ($success eq scalar(@$signedEnvelopes)) and $self->notice("Authorize: EXCELLENT! All of the ".scalar(@$signedEnvelopes)." PFNs where correctly registered.") 
     and return @successMap;
-  (scalar(@$signedEnvelopes) gt 0) and $self->info("Authorize: WARNING! Only ".scalar(@$signedEnvelopes)." PFNs could be registered correctly registered.") 
+  (scalar(@$signedEnvelopes) gt 0) and $self->notice("Authorize: WARNING! Only ".scalar(@$signedEnvelopes)." PFNs could be registered correctly registered.") 
     and return @successMap;
-   $self->info("Authorize: ERROR! We could not register any of the requested PFNS.",1)
+   $self->error("Authorize: ERROR! We could not register any of the requested PFNS.",1)
     and return  @successMap;
 }
 
@@ -1340,7 +1340,7 @@ sub authorize{
        $self->info("Authorize: gron: finally se is: $packedEnvelope->{se}");  
 
 
-       foreach ( keys %{$packedEnvelope}) { $self->info("Authorize: gron: final packedEnvelope, $_: $packedEnvelope->{$_}"); }
+       foreach ( keys %{$packedEnvelope}) { $self->notice("Authorize: gron: final packedEnvelope, $_: $packedEnvelope->{$_}"); }
          
        push @packedEnvelopeList, $packedEnvelope;
    

@@ -118,17 +118,26 @@ sub doOperation {
   my $op=shift;
   $self->info("$$ Ready to do an operation for $user (and $op '@_')");
   $self->{UI}->execute("user","-", $user);
+  my $mydebug=$self->{LOGGER}->getDebugLevel();
+  my $params=[];
 
+  (my $tracelog,$params) = AliEn::Util::findAndDropArrayElement("-tracelog", @_);
+  $tracelog and $self->{LOGGER}->tracelogOn();
+  (my $debug,$params) = $self->getDebugLevelFromParameters(@$params);
+  $debug and $self->{LOGGER}->debugOn($debug);
+  @_ = @{$params};
   $self->{LOGGER}->keepAllMessages();
-  
   my @info = $self->{UI}->execute($op, split(/\s+/, "@_"));
-  my $error=join ("\n", @{$self->{LOGGER}->{MESSAGES}});
-  $self->{LOGGER}->displayMessages();
+
   my $rc = 0;
   @info and $rc=1;
+  my @loglist = @{$self->{LOGGER}->getMessages()};
 
+  $debug and $self->{LOGGER}->debugOn($mydebug);
+  $self->{LOGGER}->tracelogOff();
+  $self->{LOGGER}->displayMessages();
   $self->info("doOperation DONE: @info, ".scalar(@info));
-  return {rc=>$rc, rcmessage=>$error, rcvalues=>\@info}; 
+  return { rc=>$rc, rcvalues=>\@info, rcmessages=>\@loglist};
 }
 
 #################################################################
@@ -141,18 +150,40 @@ sub  consultAuthenService{
   my $user=shift;
   $self->info("$$ Ready to create envelopes for user $user (and @_)");
   $self->{UI}->execute("user","-", $user);
-  
+  my $mydebug=$self->{LOGGER}->getDebugLevel();
+  my $params=[];
+
+  (my $tracelog,$params) = AliEn::Util::findAndDropArrayElement("-tracelog", @_);
+  $tracelog and $self->{LOGGER}->tracelogOn();
+  (my $debug,$params) = $self->getDebugLevelFromParameters(@$params);
+  $debug and $self->{LOGGER}->debugOn($debug);
+  @_ = @{$params};
   $self->{LOGGER}->keepAllMessages();
   
-  my @info=$self->{UI}->execute("authorize", @_);
-  my $error=join ("\n", @{$self->{LOGGER}->{MESSAGES}});
-  $self->{LOGGER}->displayMessages();
+  my (@info) =$self->{UI}->execute("authorize", @_);
+
   my $rc = 0;
   @info and $rc=1;
-  
-  $self->info("$$ Everything is done for user $user (and @_)");
-  return {rc=>$rc, rcmessage=>$error, rcvalues=>\@info};
+  my @loglist = @{$self->{LOGGER}->getMessages()};
+
+  $debug and $self->{LOGGER}->debugOn($mydebug);
+  $self->{LOGGER}->tracelogOff();
+  $self->{LOGGER}->displayMessages();
+  $self->info("$$ Everything is done for user $user (and @_), rc = $rc");
+  return { rc=>$rc, rcvalues=>\@info, rcmessages=>\@loglist};
 }
+
+
+sub getDebugLevelFromParameters{
+  my $self=shift;
+  my $back=0;
+  my @rlist=();
+  foreach (@_){
+     ($_ =~ /-debug=([0-9])/) and $back = $1 or push @rlist, $_;
+  }
+  return ($back, \@rlist);
+}
+
 
 
 # ***************************************************************

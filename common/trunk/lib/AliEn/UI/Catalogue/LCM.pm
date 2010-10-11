@@ -154,8 +154,6 @@ sub initialize {
                    CATALOGUE=>$self};
 
   $self->{PACKMAN}= AliEn::PackMan->new($packOptions) or return;
-  $self->{tracelogenabled}=0;
-  $self->{tracelog}=();
 
   return 1;
 }
@@ -269,11 +267,9 @@ sub get {
    getopts("gonbt:clfs:", \%options) or $self->info("Error parsing the arguments of [get]\n". $self->get_HELP(),1)
               and return 0;
    @_=@ARGV;
-   $options{t} and $self->{tracelogenabled}=1;
-   $self->traceLogFlush();
    my $file      = shift;
    my $localFile = shift;
-   ($file) or print STDERR "Error: not enough arguments in [get]\n". $self->get_HELP() and return {ok=>0,tracelog=>\@{$self->{tracelog}}};
+   ($file) or print STDERR "Error: not enough arguments in [get]\n". $self->get_HELP() and return;
    my @excludedAndfailedSEs = ();
    my $wishedSE = 0;
    if($options{s}) {
@@ -297,18 +293,18 @@ sub get {
      ($class =~ /^AliEn/ ) and $filename = $self->{CATALOG}->f_complete_path($filename);
      $filehash=$self->{CATALOG}->checkPermissions("r",$filename,undef, {RETURN_HASH=>1});
    }
-   $filehash->{guid} or $self->tracePlusLogError("error","Could not retrieve file info for: $file") and return {ok=>0,tracelog=>\@{$self->{tracelog}}};
-   ($filehash->{type} eq "c") and  $self->tracePlusLogError("info","This is in fact a collection!! Let's get all the files")
+   $filehash->{guid} or $self->error("Could not retrieve file info for: $file") and return;
+   ($filehash->{type} eq "c") and  $self->notice("This is in fact a collection!! Let's get all the files")
      and return $self->getCollection($filehash->{guid}, $localFile, \%options);
    my $result=$self->{STORAGE}->getLocalCopy($filehash->{guid}, $localFile);
-   $self->{STORAGE}->checkDiskSpace($filehash->{size}, $localFile) or return {ok=>0,tracelog=>\@{$self->{tracelog}}};
+   $self->{STORAGE}->checkDiskSpace($filehash->{size}, $localFile) or return;
 
 
    while (!$result) {
-     my  $envelopes = $self->{CATALOG}->authorize("read",$filename,$wishedSE,0,0,(join(";",@excludedAndfailedSEs) || 0),$self->{CONFIG}->{SITE});
-     my $envelope = $$envelopes[0];
+     my  @envelopes = $self->{CATALOG}->authorize("read",$filename,$wishedSE,0,0,(join(";",@excludedAndfailedSEs) || 0),$self->{CONFIG}->{SITE});
+     my $envelope = $envelopes[0];
      $envelope->{turl} or 
-      $self->tracePlusLogError("error","Getting an envelope was not successfull for file $file.") and return {ok=>0,tracelog=>\@{$self->{tracelog}}};
+      $self->error("Getting an envelope was not successfull for file $file.") and return;
  
  foreach (keys %{$envelope}) { defined($envelope->{$_}) and $self->info("gron: envelopee info, $_: $envelope->{$_}"); }
  
@@ -317,7 +313,7 @@ sub get {
      my $start=time;
      $result = $self->{STORAGE}->getFile( $envelope->{turl}, $envelope->{se}, $localFile, join("",keys %options), $file, $envelope->{guid},$envelope->{md5} );
      my $time=time-$start; if ($self->{MONITOR}){ $self->sendMonitor('read', $envelope->{se}, $time, $envelope->{size}, $result); }
-     $result and last or $self->tracePlusLogError("error","getFile failed with: ".$self->{LOGGER}->error_msg());
+     $result and last or $self->error("getFile failed with: ".$self->{LOGGER}->error_msg());
      push @excludedAndfailedSEs, $envelope->{se};
      $wishedSE = 0;
    } 
@@ -1396,15 +1392,15 @@ sub erase {
 #	my $pfn=$self->getPFNfromGUID($se, $guid);
 #	$pfn or next;
 
-	my $envelope = $self->{CATALOG}->authorize("-s","delete","$lfn",$se);
+	my @envelope = $self->{CATALOG}->authorize("delete","$lfn",$se);
 
-	if ((!defined $$envelope[0]) || (!defined $$envelope[0]->{envelope})) {
-	    $self->info("Cannot get access to $lfn for deletion @$envelope") and return;
+	if ((!defined $envelope[0]) || (!defined $envelope[0]->{envelope})) {
+	    $self->info("Cannot get access to $lfn for deletion $envelope[0]") and return;
 	}
-	$ENV{'IO_AUTHZ'} = $$envelope[0]->{envelope};
+	$ENV{'IO_AUTHZ'} = $envelope[0]->{envelope};
 
-	if (!$self->{STORAGE}->eraseFile($$envelope[0]->{turl})) {
-	    $self->info("Cannot remove $$envelope[0]->{turl} from the storage element $se");
+	if (!$self->{STORAGE}->eraseFile($envelope[0]->{turl})) {
+	    $self->info("Cannot remove $envelope[0]->{turl} from the storage element $se");
 	    $failure=1;
 	    next;
 	}	
@@ -1450,12 +1446,14 @@ sub addFile {
   my $lineOptions=join(" ", @_);
   @ARGV=@_;
   Getopt::Long::GetOptions($options, 
-        "silent", "versioning", "tracelog", "user=s", "guid=s", "register") 
+        "silent", "versioning", "user=s", "guid=s", "register", "tracelog") 
       or $self->info("Error checking the options of add") and return;
   @_=@ARGV;
   my $targetLFN   = (shift || ($self->info("ERROR, missing paramter: lfn") and return));
   my $sourcePFN   = (shift || ($self->info("ERROR, missing paramter: pfn") and return));
   my @seSpecs=@_;
+
+  $options->{tracelog} and $self->{LOGGER}->{TRACELOG}=1; 
 
   my $size = 0;
   my $md5sum = 0;
@@ -1464,7 +1462,6 @@ sub addFile {
                     $self->addFile_HELP(),2)  and return;
   my $gron = $targetLFN;
   $targetLFN = $self->{CATALOG}->f_complete_path($targetLFN);
-  $options->{tracelog} and $self->{tracelogenabled}=1;
  #pre-gridsite workaround
  $options->{user} or $options->{user} = $self->{CONFIG}->{ROLE};
 
@@ -1490,20 +1487,17 @@ sub addFile {
 sub registerPFN{
   my $self  = shift;
   my $user=(shift || $self->{CATALOG}->{ROLE});
-  my $targetLFN   = (shift || return {ok=>0,tracelog=>\@{$self->{tracelog}}});
-  my $sourcePFN   = (shift || return {ok=>0,tracelog=>\@{$self->{tracelog}}});
+  my $targetLFN   = (shift || return);
+  my $sourcePFN   = (shift || return);
   my $guid=(shift || 0); # gron: guid is to be handeled
   my $size=(shift || 0);
   my $md5sum=(shift || 0);
   my $silent=(shift || 0);
   my $result = {};
  
-  $self->traceLogFlush();
-
-  $self->{CATALOG}->authorize("-user=$user", "register", $targetLFN, $sourcePFN, $size, $md5sum, $guid )
-     and return {ok=>1,tracelog=>\@{$self->{tracelog}}};
-
-  return {ok=>0,tracelog=>\@{$self->{tracelog}}};
+  $self->{CATALOG}->authorize("register", $targetLFN, $sourcePFN, $size, $md5sum, $guid )
+    and return 1;
+  return;
 }
 
 
@@ -1562,31 +1556,11 @@ sub versionLFN {
   return 1;
 }
 
-sub tracePlusLogError{
-  my $self=shift;
-  my $message=(shift || return 0); 
-  my $flag=(shift || return 0);
-  ($flag eq "error") && $self->info("ERROR $message");
-  if ($flag eq "info")  {
-    ($self->info("$message") and $flag="trace");
-  } else {
-    ($flag eq "info") || $self->debug(2,$message);
-  }
-  $self->{tracelogenabled} and push @{$self->{tracelog}}, {flag=>$flag, text=>$message};
-  return 1;
-}
-
-sub traceLogFlush{
-  my $self=shift;
-  $self->{tracelogenabled} and @{$self->{tracelog}} = ();
-  return 1; 
-} 
-
 sub addFileToSEs {
   my $self=shift;
   my $user=(shift || $self->{CATALOG}->{ROLE});
-  my $targetLFN   = (shift || return {ok=>0,tracelog=>\@{$self->{tracelog}}});
-  my $sourcePFN   = (shift || return {ok=>0,tracelog=>\@{$self->{tracelog}}});
+  my $targetLFN   = (shift || return);
+  my $sourcePFN   = (shift || return);
   my $SErequirements=(shift || []);
   my $guid=(shift || 0); # gron: guid is to be handeled
   my $silent=(shift || 0);
@@ -1595,8 +1569,6 @@ sub addFileToSEs {
   my @ses = ();
   my @excludedSes = ();
   my @qosList;
-
-  $self->traceLogFlush();
 
   foreach my $d ((split(",", join(",",@$SErequirements)))) {
     if (AliEn::Util::isValidSEName($d)) {
@@ -1613,10 +1585,10 @@ sub addFileToSEs {
       grep (/^$d$/, @qosList) or push @qosList, $d;
       next;
     } else {
-       $self->tracePlusLogError("info","WARNING: Found the following unrecognizeable option:".$d);
+       $self->notice("WARNING: Found the following unrecognizeable option:".$d);
     }
     $d =~ /^\s*$/ and next;
-    $self->tracePlusLogError("info","WARNING: Found the following unrecognizeable option:".$d);
+    $self->notice("WARNING: Found the following unrecognizeable option:".$d);
   }
   my $maximumCopyCount = 9;
   my $selOutOf=0;
@@ -1655,50 +1627,50 @@ sub addFileToSEs {
   $sourcePFN=$self->checkLocalPFN($sourcePFN);
   my $size=AliEn::SE::Methods->new($sourcePFN)->getSize();
   my $md5=AliEn::MD5->new($sourcePFN);
-  ((!$size) or ($size eq 0)) and $self->tracePlusLogError("error", "The file $sourcePFN has size 0. We won't upload an empty file.") and return {ok=>0,tracelog=>\@{$self->{tracelog}}};
+  ((!$size) or ($size eq 0)) and $self->error( "The file $sourcePFN has size 0. We won't upload an empty file.") and return;
   
   foreach my $qos(keys %$qosTags){
     ($success eq -1) and last;
-    $self->tracePlusLogError("info","Uploading file based on Storage Discovery, requesting QoS=$qos, count=$qosTags->{$qos}");
+    $self->notice("Uploading file based on Storage Discovery, requesting QoS=$qos, count=$qosTags->{$qos}");
 
-    ($result, $success) = $self->putOnDynamicDiscoveredSEListByQoSV2($result,$user,$sourcePFN,$targetLFN,$size,$md5,"write",$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes);
+    ($result, $success) = $self->putOnDynamicDiscoveredSEListByQoSV2($result,$user,$sourcePFN,$targetLFN,$size,$md5,$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes);
   }
   
   if (($success ne -1) and (scalar(@{$result->{usedEnvelopes}}) le 0) and (scalar(@ses) eq 0) and ($selOutOf le 0)){ 
     # if dynamic was either not specified or not successfull (not even one time, thats the @{$result->{usedEnvelopes}}
     $selOutOf= 1;
     push @ses, $self->{CONFIG}->{SE_FULLNAME};   # and there were not SEs specified in a static list, THEN push in at least the local static LDAP entry not to loose data
-    $self->tracePlusLogError("info","SE Discovery is not available, no static SE specification, using CONFIG->SE_FULLNAME as a fallback to try not to lose the file.");
+    $self->notice("SE Discovery is not available, no static SE specification, using CONFIG->SE_FULLNAME as a fallback to try not to lose the file.");
     $totalCount=1;  # if there was simpy no specification, totalCount wasn't set before, so we set it here, if SEdyn fails, it will have already its value.
   }
   my $staticmessage = "Uploading file to @ses (based on static SE specification).";
   ($selOutOf ne scalar(@ses)) and $staticmessage = "Uploading file to @ses, with select $selOutOf out of ".scalar(@ses)." (based on static SE specification).";
-  (scalar(@ses) gt 0) and $self->tracePlusLogError("info",$staticmessage);
+  (scalar(@ses) gt 0) and $self->notice($staticmessage);
 
-  (($success ne -1) && (scalar(@ses) gt 0)) and ($result, $success) = $self->putOnStaticSESelectionListV2($result,$user,$sourcePFN,$targetLFN,$size,$md5,"write",$selOutOf,\@ses);
+  (($success ne -1) && (scalar(@ses) gt 0)) and ($result, $success) = $self->putOnStaticSESelectionListV2($result,$user,$sourcePFN,$targetLFN,$size,$md5,$selOutOf,\@ses);
 
-  (scalar(@{$result->{usedEnvelopes}}) gt 0) or $self->tracePlusLogError("error","We couldn't upload any copy of the file.") and return {ok=>0,tracelog=>\@{$self->{tracelog}}};
+  (scalar(@{$result->{usedEnvelopes}}) gt 0) or $self->error("We couldn't upload any copy of the file.") and return;
   
-  my @regSuccessMap = $self->{CATALOG}->authorize("-user=$user", "registerenvs", @{$result->{usedEnvelopes}});
+  my @regSuccessMap = $self->{CATALOG}->authorize("registerenvs", @{$result->{usedEnvelopes}});
 
-  (scalar(@regSuccessMap) gt 0) or return {ok=>0,tracelog=>\@{$self->{tracelog}}};
+  (scalar(@regSuccessMap) gt 0) or return;
 
   for (0 .. (scalar(@{$result->{usedEnvelopes}})-1)) {
     ($regSuccessMap[$_]) and $counter++  and
-         $self->tracePlusLogError("error",getValFromEnvelope($result->{usedEnvelopes}[$_],"pfn")." could not be registered correctly");
+         $self->error(getValFromEnvelope($result->{usedEnvelopes}[$_],"pfn")." could not be registered correctly");
   }
   
   if ($totalCount eq $counter){
       $success=1;
-      $self->tracePlusLogError("info","OK. The file $targetLFN  was added to $totalCount SEs as specified. Superb!");
+      $self->notice("OK. The file $targetLFN  was added to $totalCount SEs as specified. Superb!");
   } elsif($counter > 0) {
-      $self->tracePlusLogError("info","WARNING: The file $targetLFN was added to ".scalar(@{$result->{usedEnvelopes}})." SEs, yet specified were to add it on $totalCount!");
+      $self->notice("WARNING: The file $targetLFN was added to ".scalar(@{$result->{usedEnvelopes}})." SEs, yet specified were to add it on $totalCount!");
   } else {
-      $self->tracePlusLogError("error","ERROR: Adding the file $targetLFN failed completely!");
+      $self->error("ERROR: Adding the file $targetLFN failed completely!");
   }
   # -1 means a access exception, e.g. exceeded quota limit
   # This will trigger the JobAgent to stop trying further write attempts.
-  return  {ok=>$success,tracelog=>\@{$self->{tracelog}}};
+  return $success;
 
 }
 
@@ -1710,7 +1682,6 @@ sub putOnStaticSESelectionListV2{
    my $targetLFN=(shift || "");
    my $size=(shift || 0);
    my $md5=(shift || 0);
-   my $envreq=(shift || "");
    my $selOutOf=(shift || 0);
    my $ses=(shift || "");
    my $success=0;
@@ -1719,16 +1690,16 @@ sub putOnStaticSESelectionListV2{
    while ((scalar(@$ses) gt 0 and $selOutOf gt 0)) {
      (scalar(@$ses) gt 0) and my @staticSes= splice(@$ses, 0, $selOutOf);
      ($selOutOf = scalar(@$ses)) or
-     $self->tracePlusLogError("info","We select out of a supplied static list the SEs to save on: @staticSes, count:".scalar(@staticSes));
+     $self->notice("We select out of a supplied static list the SEs to save on: @staticSes, count:".scalar(@staticSes));
 
-     my $envelopes = $self->{CATALOG}->authorize("-user=$user", $envreq, $targetLFN, join(";", @staticSes), $size, $md5, ($result->{guid} || 0));
+     my @envelopes = $self->{CATALOG}->authorize("write", $targetLFN, join(";", @staticSes), $size, $md5, ($result->{guid} || 0));
      
-     ((!@$envelopes) || (scalar(@$envelopes) eq 0)) and
-           $self->tracePlusLogError("error","We couldn't get envelopes for any of the SEs, @staticSes .") and return($result, $success);
-     (scalar(@$envelopes) eq scalar(@staticSes)) or
-        $self->tracePlusLogError("info","We couldn't get all envelopes for the SEs, @staticSes .");
+     ((!@envelopes) || (scalar(@envelopes) eq 0)) and
+           $self->error("We couldn't get envelopes for any of the SEs, @staticSes .") and return($result, $success);
+     (scalar(@envelopes) eq scalar(@staticSes)) or
+        $self->notice("We couldn't get all envelopes for the SEs, @staticSes .");
 
-     foreach my $envelope (@$envelopes){
+     foreach my $envelope (@envelopes){
        (my $res, $result) = $self->uploadFileAccordingToEnvelope($result, $sourcePFN, $envelope);
        $res && push @{$result->{usedEnvelopes}}, $envelope->{signedEnvelope}; 
        $selOutOf = $selOutOf - $success;
@@ -1748,7 +1719,6 @@ sub putOnDynamicDiscoveredSEListByQoSV2{
    my $targetLFN=(shift || "");
    my $size=(shift || 0);
    my $md5=(shift || 0);
-   my $envreq=(shift || "");
    my $count=(shift || 0);
    my $qos=(shift || "");
    my $sitename=(shift || "");
@@ -1757,16 +1727,16 @@ sub putOnDynamicDiscoveredSEListByQoSV2{
    my @successfulUploads = ();
 
    while($count gt 0) {
-     my $envelopes= $self->{CATALOG}->authorize("-user=$user", $envreq, $targetLFN, 0, $size, $md5, ($result->{guid} || 0), $sitename, $qos, $count, (join(";", @$excludedSes) || 0));
+     my @envelopes= $self->{CATALOG}->authorize("write", $targetLFN, 0, $size, $md5, ($result->{guid} || 0), $sitename, $qos, $count, (join(";", @$excludedSes) || 0));
 
-     ((!@$envelopes) || (scalar(@$envelopes) eq 0)) and
-         $self->tracePlusLogError("error","We couldn't get any envelopes (requested were '$count')  with qos flag '$qos'.") and return($result, $success);
-     (scalar(@$envelopes) eq $count) or
-         $self->tracePlusLogError("trace","We could get only scalar(@$envelopes) envelopes (requested were '$count') with qos flag '$qos'.");
+     ((!@envelopes) || (scalar(@envelopes) eq 0)) and
+         $self->error("We couldn't get any envelopes (requested were '$count')  with qos flag '$qos'.") and return($result, $success);
+     (scalar(@envelopes) eq $count) or
+         $self->notice("We could get only scalar(@envelopes) envelopes (requested were '$count') with qos flag '$qos'.");
 
 
 
-     foreach my $envelope (@$envelopes){
+     foreach my $envelope (@envelopes){
        (my $res, $result) = $self->uploadFileAccordingToEnvelope($result, $sourcePFN, $envelope);
        push @$excludedSes, $envelope->{se};
        $res or next;
@@ -1785,7 +1755,7 @@ sub uploadFileAccordingToEnvelope{
 
   $result->{guid} and $self->info("File has guid: $result->{guid}") or $result->{guid} = "";
   ($sourcePFN) or $self->{LOGGER}->warning( "LCM", "Error no pfn specified" )
-    and $self->tracePlusLogError("error","Error: No PFN specified [uploadFileAccordingToEnvelope]")
+    and $self->error("Error: No PFN specified [uploadFileAccordingToEnvelope]")
     and return ($result,0,[]) ;
   
      $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope->{envelope};
@@ -1793,7 +1763,7 @@ sub uploadFileAccordingToEnvelope{
 
      my $start=time;
      $self->debug(2, "We will upload the file $sourcePFN to $envelope->{se}" );
-     $self->tracePlusLogError("info", "We will upload the file $sourcePFN to $envelope->{se}");
+     $self->notice( "We will upload the file $sourcePFN to $envelope->{se}");
 
      my $res;
      my $z = 0;
@@ -1808,7 +1778,7 @@ sub uploadFileAccordingToEnvelope{
      $res and $res->{pfn} and return (1,$res);
 
      $res or 
-       $self->tracePlusLogError("error", "ERROR storing $sourcePFN in $envelope->{se}, Message: ".$self->{LOGGER}->error_msg );
+       $self->error( "ERROR storing $sourcePFN in $envelope->{se}, Message: ".$self->{LOGGER}->error_msg );
 
      $res or print STDERR "ERROR storing $sourcePFN in $envelope->{se}\n";
 

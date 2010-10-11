@@ -494,6 +494,18 @@ sub isValidGUID{
      return 0;
 }
 
+  
+sub findAndDropArrayElement{
+  my $tag=(shift || return (0,[]));
+  my $back=0;
+  my @list=();
+  foreach (@_){
+     ($_ eq $tag) and $back=1 or push @list, $_;
+  }
+  return ($back, \@list);
+}
+
+
 
 
 
