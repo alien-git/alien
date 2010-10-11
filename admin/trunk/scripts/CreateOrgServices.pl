@@ -253,7 +253,12 @@ if (!$<) {
 }
 
 
-my $content="#Startup configuration for alien\n\nALIEN_ORGANISATIONS=\"$orgName\"\n";;
+my $content="#Startup configuration for alien\n\nALIEN_ORGANISATIONS=\"$orgName\"\n
+export SEALED_ENVELOPE_REMOTE_PUBLIC_KEY=\$ALIEN_HOME/authen/rpub.pem
+export SEALED_ENVELOPE_REMOTE_PRIVATE_KEY=\$ALIEN_HOME/authen/rpriv.pem
+export SEALED_ENVELOPE_LOCAL_PUBLIC_KEY=\$ALIEN_HOME/authen/lpub.pem
+export SEALED_ENVELOPE_LOCAL_PRIVATE_KEY=\$ALIEN_HOME/authen/lpriv.pem
+export ALIEN_DATABASE_PASSWORD='$mysqlPasswd'\n";;
 my $startFile="$etcAliend/startup.conf";
 
 if (-e  $startFile) {
@@ -263,17 +268,17 @@ if (-e  $startFile) {
   my @file=<FILE>;
   close FILE;
   my $orgs=join ("", grep (/^ALIEN_ORGANISATIONS/, @file));
-  @file= grep (! /^ALIEN_ORGANISATIONS/, @file);
+  @file= grep (! /^(ALIEN_ORGANISATIONS)|(SEALED_ENVELOPE)/, @file);
   $orgs =~ s/$orgName//;
   $orgs =~ s/^([^\"]*)\"([^\"]*)\"/$1\"$2 $orgName\"/;
   rename("$startFile", "$startFile.old");
 
   $content=join("", @file, $orgs);
   $content.="export SEALED_ENVELOPE_REMOTE_PUBLIC_KEY=\$ALIEN_HOME/authen/rpub.pem
-            export SEALED_ENVELOPE_REMOTE_PRIVATE_KEY=\$ALIEN_HOME/authen/rpriv.pem
-            export SEALED_ENVELOPE_LOCAL_PUBLIC_KEY=\$ALIEN_HOME/authen/lpub.pem
-            export SEALED_ENVELOPE_LOCAL_PRIVATE_KEY=\$ALIEN_HOME/authen/lpriv.pem
-            export ALIEN_DATABASE_PASSWORD='$mysqlPasswd'"
+export SEALED_ENVELOPE_REMOTE_PRIVATE_KEY=\$ALIEN_HOME/authen/rpriv.pem
+export SEALED_ENVELOPE_LOCAL_PUBLIC_KEY=\$ALIEN_HOME/authen/lpub.pem
+export SEALED_ENVELOPE_LOCAL_PRIVATE_KEY=\$ALIEN_HOME/authen/lpriv.pem
+export ALIEN_DATABASE_PASSWORD='$mysqlPasswd'\n"
 
 }
 print "ok\nCreating $startFile...\t\t\t\t";
