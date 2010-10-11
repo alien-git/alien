@@ -126,9 +126,9 @@ sub doOperation {
   (my $debug,$params) = $self->getDebugLevelFromParameters(@$params);
   $debug and $self->{LOGGER}->debugOn($debug);
   @_ = @{$params};
+  $self->info("gron: params for call after cleaning are: @_");
   $self->{LOGGER}->keepAllMessages();
   my @info = $self->{UI}->execute($op, split(/\s+/, "@_"));
-
   my $rc = 0;
   @info and $rc=1;
   my @loglist = @{$self->{LOGGER}->getMessages()};
@@ -136,7 +136,8 @@ sub doOperation {
   $debug and $self->{LOGGER}->debugOn($mydebug);
   $self->{LOGGER}->tracelogOff();
   $self->{LOGGER}->displayMessages();
-  $self->info("doOperation DONE: @info, ".scalar(@info));
+  $self->info("$$ doOperation DONE for user $user (and @_), rc = $rc");
+  $self->info("$$ doOperation result: @info".scalar(@info));
   return { rc=>$rc, rcvalues=>\@info, rcmessages=>\@loglist};
 }
 
@@ -159,7 +160,6 @@ sub  consultAuthenService{
   $debug and $self->{LOGGER}->debugOn($debug);
   @_ = @{$params};
   $self->{LOGGER}->keepAllMessages();
-  
   my (@info) =$self->{UI}->execute("authorize", @_);
 
   my $rc = 0;
@@ -169,7 +169,7 @@ sub  consultAuthenService{
   $debug and $self->{LOGGER}->debugOn($mydebug);
   $self->{LOGGER}->tracelogOff();
   $self->{LOGGER}->displayMessages();
-  $self->info("$$ Everything is done for user $user (and @_), rc = $rc");
+  $self->info("$$ consultAuthenService DONE for user $user (and @_), rc = $rc");
   return { rc=>$rc, rcvalues=>\@info, rcmessages=>\@loglist};
 }
 

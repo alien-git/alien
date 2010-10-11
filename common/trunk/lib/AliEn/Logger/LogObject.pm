@@ -22,7 +22,7 @@ sub new {
 
 sub debug{
   my $self=shift;
-  my $level=shift;
+  my $level=(shift || 0);
   my $message=shift;
   $level> $self->{LOGGER}->{LOG_OBJECTS}->{$self->{LOG_REF}} and return 1;
 

@@ -44,12 +44,10 @@ sub authorize{
     $user = shift;
     $user =~ s/^-user=([\w]+)$/$1/;
   }
-  my @parameters = ();
-  $self->{LOGGER}->getDebugLevel() and push @parameters, "-debug=".$self->{LOGGER}->getDebugLevel();
-  $self->{LOGGER}->{TRACELOG} and push @parameters, "-tracelog";
-  push @parameters, @_;
+  $self->{LOGGER}->getDebugLevel() and push @_, "-debug=".$self->{LOGGER}->getDebugLevel();
+  $self->{LOGGER}->getTracelog() and push @_, "-tracelog";
    
-  return $self->{SOAP}->CallAndGetOverSOAP("Authen", "consultAuthenService", $user, @parameters);
+  return $self->{SOAP}->CallAndGetOverSOAP("Authen", "consultAuthenService", $user, @_);
 }
 
 
@@ -62,9 +60,11 @@ sub callAuthen {
     $user =~ s/^-user=([\w]+)$/$1/;
   }
   
-  $self->{LOGGER}->getDebugLevel() and @_ = ("-debug=".$self->{LOGGER}->getDebugLevel(),@_);
-  $self->{LOGGER}->{TRACELOG} and @_ = ("-tracelog", @_);
-  
+  $self->{LOGGER}->getDebugLevel() and push @_, "-debug=".$self->{LOGGER}->getDebugLevel();
+  $self->{LOGGER}->getTracelog() and push @_, "-tracelog";
+
+#  my @rc = $self->{SOAP}->CallAndGetOverSOAP("Authen", "doOperation", $user, @_);
+#  return $rc[0];
 
   return $self->{SOAP}->CallAndGetOverSOAP("Authen", "doOperation", $user, @_);
 }
