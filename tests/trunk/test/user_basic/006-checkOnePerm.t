@@ -1,10 +1,11 @@
 use strict;
 
+eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
 
 use AliEn::Catalogue::Basic;
 
 use AliEn::Catalogue;
-
+setDirectDatabaseConnection();
 my $c=AliEn::Catalogue->new() or exit(-2);
 
 my @list=(['r',0,0,0,0,1,1,1,1],['w',0,0,1,1,0,0,1,1],['x',0,1,0,1,0,1,0,1]);

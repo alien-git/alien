@@ -1,5 +1,23 @@
 use strict;
 
+sub setDirectDatabaseConnection {
+  print "CONECTING TO THE DATABASE DIRECTLY ...\n";
+$ENV{SEALED_ENVELOPE_REMOTE_PUBLIC_KEY}="$ENV{ALIEN_HOME}/authen/rpub.pem";
+$ENV{SEALED_ENVELOPE_REMOTE_PRIVATE_KEY}="$ENV{ALIEN_HOME}/authen/rpriv.pem";
+$ENV{SEALED_ENVELOPE_LOCAL_PUBLIC_KEY}="$ENV{ALIEN_HOME}/authen/lpub.pem";
+$ENV{SEALED_ENVELOPE_LOCAL_PRIVATE_KEY}="$ENV{ALIEN_HOME}/authen/lpriv.pem";
+$ENV{ALIEN_DATABASE_ROLE}='admin';
+$ENV{ALIEN_DATABASE_PASSWORD}='pass';
+}
+sub unsetDirectDatabaseConnection{
+  delete  $ENV{SEALED_ENVELOPE_REMOTE_PUBLIC_KEY};
+  delete  $ENV{SEALED_ENVELOPE_REMOTE_PRIVATE_KEY};
+  delete  $ENV{SEALED_ENVELOPE_LOCAL_PUBLIC_KEY};
+  delete  $ENV{SEALED_ENVELOPE_LOCAL_PRIVATE_KEY};
+  delete  $ENV{ALIEN_DATABASE_PASSWORD};
+  
+  
+}
 sub includeTest {
   my $test=shift;
   my $testdir=($ENV{ALIEN_TESTDIR} or "/home/alienmaster/AliEn/t");
