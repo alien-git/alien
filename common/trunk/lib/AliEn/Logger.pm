@@ -14,6 +14,7 @@ my $self;
 $ERROR_MSG = "";
 $DEBUG_LEVEL=0;
 $ERROR_NO=0;
+my $TRACELOG=0;
 
 my $INFO_LEVELS={debug=>0,info=>1, notice=>2,warning=>3,error=>4,
 		 critical=>5,alert=>6, emergency=>7};
@@ -42,6 +43,9 @@ sub new {
 #to avoid typo warning
   open SAVEOUT,  ">&STDOUT";
   open SAVEOUT2, ">&STDERR";
+
+  $self->{KEEP_MESSAGES}=0;
+  $self->{MESSAGES}=[];
 
   return $self;
 }
@@ -146,8 +150,8 @@ sub keepAllMessages{
 
 sub displayMessages{
   my $self=shift;
-  delete $self->{KEEP_MESSAGES};
-  delete  $self->{MESSAGES};
+  $self->{KEEP_MESSAGES} = 0;
+  $self->{MESSAGES} = [];
 }
 
 sub _initializeAgentRotate{
@@ -241,6 +245,13 @@ my %external=(SSL => '$IO::Socket::SSL::DEBUG',
 #	      'Catalogue'=>'$AliEn::Catalogue::DEBUG'
 );
 
+
+sub getDebugLevel {
+  my $self=shift;
+
+  return $DEBUG_LEVEL;
+}
+
 sub debugOn() {
   my $self = shift;
 
@@ -294,6 +305,27 @@ sub silentOff() {
   my $mode= ($self->{SILENT_PREVIOUS} or "info");
   $self->setMinimum( $mode );
 }
+
+sub tracelogOn{
+  my $self=shift;
+  $TRACELOG=1;
+  return 1;
+}
+
+sub tracelogOff{
+  my $self=shift;
+  $TRACELOG=0;
+  return 1;
+}
+
+sub getTracelog{
+  my $self=shift;
+  return $TRACELOG;
+}
+
+
+
+
 sub debugOff {
   my $self = shift;
 
@@ -364,6 +396,18 @@ sub emergency() {
   return 1;
 }
 
+sub getMessages {
+  my $self=shift;
+  my $dlevel = ($TRACELOG ? "notice" : "error");
+  my $level = (shift || $dlevel);
+  (($DEBUG_LEVEL) or ($level eq "debug")) and return \@{$self->{MESSAGES}};
+
+  $level =~ s/error/(error)/;
+  $level =~ s/notice/(notice)|(error)/;
+  $level =~ s/\(?error\)?/(error)|(critical)/;
+  my @list = grep (/^((\S+\s+){3})$level\s+/, @{$self->{MESSAGES}});
+  return \@list;
+}
 
 sub display {
   my $self=shift;

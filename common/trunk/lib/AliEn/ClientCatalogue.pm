@@ -34,6 +34,25 @@ sub getHost{
    return $self->{CONFIG}->{CATALOG_HOST};
 }
 
+
+sub authorize{
+  my $self = shift;
+  my $user=$self->{CONFIG}->{ROLE};
+  $self->{CATALOG} and $self->{CATALOG}->{ROLE} and $user=$self->{CATALOG}->{ROLE};
+
+  if($_[0] =~ /^-user=([\w]+)$/)  {
+    $user = shift;
+    $user =~ s/^-user=([\w]+)$/$1/;
+  }
+  my @parameters = ();
+  $self->{LOGGER}->getDebugLevel() and push @parameters, "-debug=".$self->{LOGGER}->getDebugLevel();
+  $self->{LOGGER}->{TRACELOG} and push @parameters, "-tracelog";
+  push @parameters, @_;
+   
+  return $self->{SOAP}->CallAndGetOverSOAP("Authen", "consultAuthenService", $user, @parameters);
+}
+
+
 sub callAuthen {
   my $self = shift;
 
@@ -42,6 +61,11 @@ sub callAuthen {
     $user = shift;
     $user =~ s/^-user=([\w]+)$/$1/;
   }
+  
+  $self->{LOGGER}->getDebugLevel() and @_ = ("-debug=".$self->{LOGGER}->getDebugLevel(),@_);
+  $self->{LOGGER}->{TRACELOG} and @_ = ("-tracelog", @_);
+  
+
   return $self->{SOAP}->CallAndGetOverSOAP("Authen", "doOperation", $user, @_);
 }
 
@@ -305,26 +329,6 @@ sub removeExpiredFiles {
   my $self = shift;
   return $self->callAuthen("removeExpiredFiles");
 }
-
-sub authorize{
-  my $self = shift;
-
-  #
-  # Start of the Client side code
-  my $user=$self->{CONFIG}->{ROLE};
-  $self->{CATALOG} and $self->{CATALOG}->{ROLE} and $user=$self->{CATALOG}->{ROLE};
-
-  if($_[0] =~ /^-user=([\w]+)$/)  {
-    $user = shift;
-    $user =~ s/^-user=([\w]+)$/$1/;
-  }
-  #gron: isn't the following working and better:
-  #($_[0] =~ /^-user=([\w]+)$/) and $user=$1 and shift;
-
-
-  return $self->{SOAP}->CallAndGetOverSOAP("Authen", "consultAuthenService", $user, @_);
-}
-
 
 return 1;
 __END__

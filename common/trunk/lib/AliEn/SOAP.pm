@@ -219,17 +219,25 @@ sub CallAndGetOverSOAP{
   my $callsoap;
   
 
-  for (my $tries = 0; $tries < 5; $tries++) { # try five times 
+  my $maxTry = 2;
+  for (my $tries = 0; $tries < $maxTry; $tries++) { # try five times 
     $callsoap=$self->CallSOAP(@signature) and last;
     $self->info("Calling $service over SOAP did not work, trying ".(4 - $tries)." more times till giving up.");
-    sleep((5*$tries));
+    sleep(($maxTry*$tries));
   }
-  my ($rcvals) =$self->GetOutput($callsoap) or $self->info("ERROR: Calling $service over SOAP was not possible",1);
+  my @rcvals =$self->GetOutput($callsoap) or $self->error("ERROR: Getting output of ".$service."::".$function." call over SOAP was not possible");
 
-  $rcvals->{rc} or $self->info("ERROR: Calling $service over SOAP, $function returned and error (see below).", 1); 
-  $rcvals->{rcmessage} and  $self->info("Calling $service over SOAP, $function replied:\n\n".$rcvals->{rcmessage}, !$rcvals->{rc}); # if rc=1 log 0 as info, if rc=0 log 1 as error
-  $rcvals->{rc} or return 0;
-  return ($rcvals->{rcvalues});
+  $rcvals[0]->{rc} 
+    or $self->error("ERROR: Calling ".$service."::".$function." over SOAP returned and error (see below)."); 
+
+  if (defined(@{$rcvals[0]->{rcmessages}})) {
+    my @rcmess = map { $service."::".$function."||".$_ } (@{$rcvals[0]->{rcmessages}});
+    my $message = "Calling ".$service."::".$function." replied: \n".join("", @rcmess);
+    $rcvals[0]->{rc} and $self->notice($message) or $self->error($message);
+  }
+
+  $rcvals[0]->{rc} or $self->error($service."::".$function." replied ERROR (see above).") and return 0;
+  return (@{$rcvals[0]->{rcvalues}});
 }
 
 

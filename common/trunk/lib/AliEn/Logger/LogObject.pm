@@ -36,4 +36,17 @@ sub info{
   return $self->{LOGGER}->display("info", $self->{LOG_REF},@_);
 }
 
+sub error{
+  my $self=shift;
+
+  return $self->{LOGGER}->display("error", $self->{LOG_REF},@_);
+}
+
+sub notice{
+  my $self=shift;
+  return $self->{LOGGER}->display("notice", $self->{LOG_REF},@_);
+}
+
+
+
 return 1;
