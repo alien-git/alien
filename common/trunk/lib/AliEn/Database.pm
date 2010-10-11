@@ -206,12 +206,12 @@ sub new{
   $self->{DBI_OPTIONS} = $attrDBI || { PrintError => 0 };
   $self->{DBH} = undef;
 
-
+  my $proxy="";
+  $self->{PROXY_HOST} and $proxy="\nProxy host: $self->{PROXY_HOST}; Proxy port: $self->{PROXY_PORT}";
 
   $DEBUG and $self->debug(1,"User: $self->{USER}; Role: $self->{ROLE}; Token: $self->{TOKEN}; Password: $self->{PASSWD}
 Database name: $self->{DB}; Host name: $self->{HOST}; Driver: $self->{DRIVER}
-Forced method of authentication: $self->{FORCED_AUTH_METHOD}
-Proxy host: $self->{PROXY_HOST}; Proxy port: $self->{PROXY_PORT}");
+Forced method of authentication: $self->{FORCED_AUTH_METHOD} $proxy");
 
   $self->{USE_CACHE} and $self->_createCacheRoot;
 
