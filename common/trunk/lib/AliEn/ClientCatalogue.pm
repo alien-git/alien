@@ -84,6 +84,13 @@ sub f_ls {
   return  $self->callAuthen("ls", "$path$options");
 }
 
+sub f_whereis {
+  my $self = shift;
+  my @args = @_;
+  $args[1] = $self->GetAbsolutePath($args[1]);
+  return $self->callAuthen("whereis",@_);
+}
+
 sub f_mv {
   my $self = shift;
   my ($options,$source,$target) = @_;
