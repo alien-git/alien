@@ -648,7 +648,8 @@ sub f_mkdir {
     return;
   }
 
-  my $parentdir = $self->f_dirname($path);
+  my $parentdir = "$path";
+  $parentdir =~ s {/([^/]+/?)$}{/};
   $DEBUG and $self->debug( 1, "Checking the parent: $parentdir" );
   if ( $options =~ /p/ and $parentdir ne '/' ) {
     if ( !$self->existsEntry($parentdir) ) {
@@ -664,7 +665,7 @@ sub f_mkdir {
   $self->checkPermissions("w",$path,0, 1) 
     or return;
   
-  my @returnVal = $self->{DATABASE}->createDirectory( "$path/", $self->{UMASK} );
+  my @returnVal = $self->{DATABASE}->createDirectory( "$path", $self->{UMASK} );
 
   #Get directory number
   if ( $options =~ /d/ and $self->existsEntry($path) ) {

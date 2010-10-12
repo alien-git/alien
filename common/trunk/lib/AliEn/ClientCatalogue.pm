@@ -16,8 +16,7 @@ sub new {
   if((defined $options->{user}) and !(defined $options->{role})) {
     $options->{role} = $options->{user};
   }
-  $self->{ROLE}  = $options->{role};
-
+  $self->{ROLE} = $options->{role};
   $self->{LOGGER} = new AliEn::Logger;
   $self->{CONFIG} = new AliEn::Config($options);
   $self->{SOAP} = new AliEn::SOAP

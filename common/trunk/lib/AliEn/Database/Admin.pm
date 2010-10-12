@@ -25,38 +25,38 @@ use vars qw(@ISA);
 
 
 sub new {
-    my $proto  = shift;
-    my $class  = ref($proto) || $proto;
-	my $attr   = shift || {};
+  my $proto  = shift;
+  my $class  = ref($proto) || $proto;
+  my $attr   = shift || {};
 
-	$attr->{CONFIG}
-		or $attr->{CONFIG} = new AliEn::Config();
+  $attr->{CONFIG}
+    or $attr->{CONFIG} = new AliEn::Config();
 
-	$attr->{DB}
-		or $attr->{DB} = $attr->{CONFIG}->getValue('AUTHEN_DATABASE');
+  $attr->{DB}
+    or $attr->{DB} = $attr->{CONFIG}->getValue('AUTHEN_DATABASE');
 
-	$attr->{DRIVER}
-		or $attr->{DRIVER} = $attr->{CONFIG}->getValue('AUTHEN_DRIVER');
+  $attr->{DRIVER}
+    or $attr->{DRIVER} = $attr->{CONFIG}->getValue('AUTHEN_DRIVER');
 
-	$attr->{HOST}
-		or $attr->{HOST} = $attr->{CONFIG}->getValue('AUTHEN_HOST');
+  $attr->{HOST}
+    or $attr->{HOST} = $attr->{CONFIG}->getValue('AUTHEN_HOST');
 
-	$attr->{ROLE}
-		or $attr->{ROLE} = "admin";
+  $attr->{ROLE}
+    or $attr->{ROLE} = "admin";
 
-	my $self = new AliEn::Database($attr,@_);
-    
-    $self
-      or $self->{LOGGER}->error("Admin","Error creating Database instance")
-	and return;
-    
-    #my $passwd = shift or print STDERR "Must be called with admin password as first parameter.\n" and return;
-    
-    $self->{ENCRYPTER} = new AliEn::Authen::IIIkey();
-    bless ($self, $class);
-    
-    $self->{GLOBALKEY} = $self->getDBKey();
-    return $self->checkTables();
+  my $self = new AliEn::Database($attr,@_);
+
+  $self
+    or print STDERR "Error creating Database instance"
+    and return;
+
+  #my $passwd = shift or print STDERR "Must be called with admin password as first parameter.\n" and return;
+
+  $self->{ENCRYPTER} = new AliEn::Authen::IIIkey();
+  bless ($self, $class);
+
+  $self->{GLOBALKEY} = $self->getDBKey();
+  return $self->checkTables();
 }  
 
 sub checkTables{
