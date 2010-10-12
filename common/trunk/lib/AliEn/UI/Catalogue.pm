@@ -176,6 +176,10 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
 	  'expungeTables' => ['$self->{CATALOG}->expungeTables',0],
 	  'filecomplete' =>['file_complete',0],
     'checkPermissionOnDirectory' => ['$self->{CATALOG}->checkPermissionOnDirectory',0],
+    'checkLFNPermissions' => ['$self->{CATALOG}->checkPermissions',0],
+    'checkGUIDPermissions' => ['$self->{CATALOG}->checkPermission',0],
+
+
 
 	    #Triggers
 	     'addTrigger' => ['$self->{CATALOG}->f_addTrigger', 0],
@@ -1078,7 +1082,7 @@ Possible options:
 #    $self->info("Error in addMirror: not enough arguments\n". f_addMirrorHelp());
 #    return;
 #  }
-#  my $entry=$self->{CATALOG}->checkPermissions("w", $file, undef, {RETURN_HASH=>1}) 
+#  my $entry=$self->{CATALOG}->checkPermissions("w", $file, 0, 1) 
 #    or return;
 #  ($self->{CATALOG}->isFile( $file, $entry->{lfn})) or
 #    $self->info( "Entry $file doesn't exist (or is not a file)",11) 

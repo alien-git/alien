@@ -1613,12 +1613,12 @@ sub prepare_File_And_Archives_From_JDL_And_Upload_Files{
 sub putFiles {
   my $self=shift;
   my $fs_table=shift;
-  my $filesUploaded=1;
+  my $filesAdded=1;
   system ("ls -al $self->{WORKDIR}");
   my $oldOrg=$self->{CONFIG}->{ORG_NAME};
   my $jdl;
   my %guids=$self->getUserDefinedGUIDS();
-  my $incompleteUploades=0;
+  my $incompleteAddes=0;
   my $successCounter=0;
   my $failedSEs;
 
@@ -1630,7 +1630,7 @@ sub putFiles {
     $ENV{ALIEN_ORGANISATION}=$org;
     $ENV{ALIEN_CM_AS_LDAP_PROXY}=$cm;
     $self->{CONFIG}=$self->{CONFIG}->Reload({"organisation", $org});
-    my @uploadedFiles=();
+    my @addedFiles=();
     my $remoteDir = "$self->{CONFIG}->{LOG_DIR}/proc$id";
     my $ui=AliEn::UI::Catalogue::LCM->new({no_catalog=>1});
     if (!$ui) {
@@ -1652,51 +1652,29 @@ sub putFiles {
       
       (my $no_links, $fs_table->{$fileOrArch}->{options})  = $self->processJDL_Check_on_Tag($fs_table->{$fileOrArch}->{options}, "no_links_registration");
       
-      my $guid="";
+      my $guid=0;
       if (exists($guids{$fs_table->{$fileOrArch}->{name}})){
-	$guid=" -g $guids{$fs_table->{$fileOrArch}->{name}}";
+	$guid="-g $guids{$fs_table->{$fileOrArch}->{name}}";
 	$self->putJobLog("trace", "The file $fs_table->{$fileOrArch}->{name} has the guid $guids{$fs_table->{$fileOrArch}->{name}}");
       }
       
-      my $uploadStatus = $self->uploadFile($ui, $fs_table->{$fileOrArch}->{name}, "$fs_table->{$fileOrArch}->{options}$guid", $submitted);
+      my $addEnvs = $self->addFile($ui, "$localdir/$fs_table->{$fileOrArch}->{name}", "$fs_table->{$fileOrArch}->{options} $guid");
      
-      $uploadStatus  or ($uploadStatus eq -2) or next;
-      $uploadStatus and  $successCounter++;
-      ($uploadStatus eq -1) and $incompleteUploades=1;
-      ($uploadStatus eq -1) and $incompleteUploades=1;
+      $addEnvs  or ($addEnvs eq -2) or next;
+      $addEnvs and  $successCounter++;
+      ($addEnvs eq -1) and $incompleteAddes=1;
+      ($addEnvs eq -1) and $incompleteAddes=1;
 
       $no_links and next;
 
-      my @list=();
       foreach my $file( keys %{$fs_table->{$fileOrArch}->{entries}}) {  # if it is a file, there are just no entries
-         my $guid=$guids{$file} || "";
-         $self->info("Checking if $file has a guid ($guid)");
-         push @list, join("###", $file, $fs_table->{$fileOrArch}->{entries}->{$file}->{size},
-         $fs_table->{$fileOrArch}->{entries}->{$file}->{md5},$guid );
+         my $registerstatus = $self->registerFile($ui, $file, $fs_table->{$fileOrArch}->{name}, $addEnvs);
       }
-      $submitted->{$fs_table->{$fileOrArch}->{name}}->{links}=\@list;
    
-      ($uploadStatus eq -2) and $incompleteUploades=1 and last; # -2 means access exception, e.g. file quota overflow, we mark 
-                                                                # incompleteUploades and don't try to upload anything more
+      ($addEnvs eq -2) and $incompleteAddes=1 and last; # -2 means access exception, e.g. file quota overflow, we mark 
+                                                                # incompleteAddes and don't try to add anything more
     }
 
-    my @list=();
-    foreach my $key (keys %$submitted){
-      my $links="";
-      $submitted->{$key}->{status} or next;
-      my $entry=$submitted->{$key};
-      if ($entry->{links} ) {
-	$links.=";;".join(";;",@{$entry->{links}});
-      }
-  
-      push @list, "\"".join ("###", $key, $entry->{guid}, $entry->{size}, 
-			     $entry->{md5},  join("###",@{$entry->{PFNS}}), 
-			     $links) ."\"";
-    }
-    if (@list) {
-      $self->{CA}->set_expression("RegisteredOutput", "{".join(",",@list)."}");
-      $self->{JDL_CHANGED}=1;
-    }
     $self->debug(1, "Closing the catalogue");
     $ui->close();
   }
@@ -1708,28 +1686,25 @@ sub putFiles {
      return 0;
   }
 
-  if($incompleteUploades) {
+  if($incompleteAddes) {
      #$self->putJobLog("trace", "WARNING: We had  ".scalar(keys(%$fs_table))
      #        ." files and archives to store.");
      $self->putJobLog("trace", "WARNING: We could store all files at least one time, but not all files were stored as many times as specified.");
      return -1;
   }
 
-  $self->putJobLog("trace","OK. All files and archives for this job where uploaded as specified. Superb!");
+  $self->putJobLog("trace","OK. All files and archives for this job where added as specified. Superb!");
   return 1;
 }
 
 
-sub uploadFile {
+sub addFile {
   my $self=shift;
   my $ui=shift;;
   my $file=shift;
   my $storeTags=shift;
   my $submitted=shift;
-  my $uploadResult;
-  my @pfns = (); 
-  my $silent="-silent";
-  my $jobtracelog="-jobtracelog";
+  my $addResult;
 
   $self->info("Submitting the file $file");
   if (! -f "$self->{WORKDIR}/$file")  {
@@ -1738,120 +1713,54 @@ sub uploadFile {
   }
   $self->putJobLog("trace","Will store $file ...");
 
+  $self->{LOGGER}->{TRACELOG}=1; 
 
-  ($uploadResult)=$ui->execute("upload", "$self->{WORKDIR}/$file", $storeTags, "-user=$self->{JOB_USER}", $silent, $jobtracelog);
-  ($uploadResult eq -1) and
-    $self->putJobLog("error","Error in upload for $self->{WORKDIR}/$file, we have a file quota overflow.")
+
+  ($addResult)=$ui->execute("add", "-user=$self->{JOB_USER}", "-tracelog", "-feedback", "$file", "$file", $storeTags);
+  ($addResult eq -1) and
+    $self->putJobLog("error","Error in add for $file: We have a file quota overflow.")
       and return -2;
 
-   if( (defined $uploadResult->{jobtracelog}) and (scalar(@{$uploadResult->{jobtracelog}}) gt 0) ) {
-         foreach(@{$uploadResult->{jobtracelog}}) { $self->putJobLog($_->{flag}, $_->{text});}
-   }
-
-
-  if ( $uploadResult && (scalar(keys(%$uploadResult)) gt 0) && (scalar(keys %{$uploadResult->{se}}) gt 0) ) {
-     $submitted->{$file}=$uploadResult;
-     foreach my $se (keys(%{$uploadResult->{se}})) {
-       push @{$submitted->{$file}->{PFNS}}, "$se/$uploadResult->{se}->{$se}->{pfn}";
-     }
+  if ( $addResult && (scalar(keys(%$addResult)) gt 0) && (scalar(keys %{$addResult->{se}}) gt 0) ) {
+     $submitted->{$file}=$addResult;
   } else {
-     $self->putJobLog("error","Could not store the file $self->{WORKDIR}/$file on any SE. This file is lost!");
+     $self->putJobLog("error","Could not store the file $file on any SE. This file is lost!");
      return 0;
   }
 
-    
-  if ($uploadResult->{totalCount} eq scalar(keys %{$uploadResult->{se}})) {
-    $self->putJobLog("trace","Successfully stored the file $self->{WORKDIR}/$file on $uploadResult->{totalCount} SEs.");
+  if ($addResult->{totalCount} eq scalar(keys %{$addResult->{se}})) {
+    $self->putJobLog("trace","Successfully stored the file $file on $addResult->{totalCount} SEs.");
     return 1;
   }
-  $self->putJobLog("trace","Could store the file $self->{WORKDIR}/$file only on ".scalar(keys %{$uploadResult->{se}}).
-		     "  of the $uploadResult->{totalCount} wished SEs.");
+  $self->putJobLog("trace","Could store the file $file only on ".scalar(keys %{$addResult->{se}}).
+		     "  of the $addResult->{totalCount} wished SEs.");
   return -1;
 }
 
-#sub copyInMSS {
-#  my $self=shift;
-#  my $catalog=shift;
-#  my $lfn=shift;
-#  my $localfile=shift;
 
-#  my $size=(-s $localfile);
-#  self->info("Trying to save directly in the MSS");
-#  my $name = $self->{CONFIG}->{SE_MSS};
-#  $name
-#    or $self->{LOGGER}->warning( "SE", "Error: no mass storage system" )
-#      and return;
-#  if ($name eq "file"  ) {
-#    if ($self->{HOST} ne  $self->{CONFIG}->{SE_HOST}) {
-#      $self->info("Using the file method, and we are not in the right machine ($self->{CONFIG}->{SE_HOST})... let's exist just in case");
-#      return;
-#    }
-#  }
-#  $name = "AliEn::MSS::$name";
-#  eval "require $name"
-#    or $self->{LOGGER}->warning( "SE", "Error: $name does not exist $! and $@" )
-#      and return;
-#  my $mss = $name->new($self);
+sub registerFile {
+  my $self=shift;
+  my $ui=shift;
+  my $file=shift;
+  my $archive=shift;
+  my $signedEnvelope=shift;
 
-#  $mss or return;
-#  $self->info("Got the mss");
-#  my ($target,$guid)=$mss->newFileName();
-#  $target or return;
-#  $target="$self->{CONFIG}->{SE_SAVEDIR}/$target";
-#  $self->info("Writing to $target");
-#  my $pfn;
-#  eval {
-#    $pfn=$mss->save($localfile,$target);
-#  };
-#  if ($@) {
-#    $self->info("Error copying the file: $@");
-#    return;
-#  }
-#  $pfn or $self->info("The save didn't work :(") and return;
-#  $self->info("The save worked ($pfn)");
-#  return $catalog->execute("register", $lfn, $pfn, $size);
-#}
-#sub submitLocalFile {
-#  my $self            = shift;
-#  my $catalog         = shift;
-#  my $localdirectory  = shift;
-#  my $remotedirectory = shift;
-#  my $filename        = shift;
-#  my $sename          = shift || "";
+  my $env = AliEn::Util::deserializeSignedEnvelope($signedEnvelope);
 
-#  my $id=$ENV{ALIEN_PROC_ID};
-#  my $lfn= AliEn::Util::getProcDir($self->{JOB_USER}, undef, $id) . "/job-output/$filename";
+  (my $addResult)=$ui->execute("add", "-user=$self->{JOB_USER}", "-tracelog", "-register", "-s $env->{size}", "-md5 $env->{md5} ", "file", " guid://$env->{guid}");
 
-#  my $localfile="$localdirectory/$filename";
-#  #Let's see if the file exists...
-#  if (! -f $localfile) {
-#    $self->info("The job was supposed to create $filename, but the file $filename doesn't exist!!",1);
-#    return ;
-#  }
+  ($addResult eq -1) and
+     $self->putJobLog("error","Error while registering file link $file in archive $archive: We have a file quota overflow.")
+     and return -2;
 
-#  #First, let's try to put the file directly in the SE
-#  if (!$catalog->execute("add", $lfn, "file://$self->{HOST}$localdirectory/$filename", $sename)) {  
-#    #Now, let's try registering the file.
-#    if (! $self->copyInMSS($catalog,$lfn,$localfile)) {
-#      $self->info("The registration didn't work...");
-#      $self->submitFileToClusterMonitor($localdirectory, $filename, $lfn, $catalog) or return;
-#    }
-#  }
-#  #Ok The file is registered. Checking if it has to be registered in more than
-#  # one place
-#  if ($self->{OUTPUTDIR} and ($self->{STATUS} eq "DONE") ) {
-#    #copying the output to the right place
-#    $catalog->execute("cp", $lfn, $self->{OUTPUTDIR}) or
-#      $self->putJobLog("error","Error copying $lfn to $self->{OUTPUTDIR}");
-#  }
-#  return $lfn;
-#}
+  $addResult and $self->putJobLog("trace","Successfully registered the file link $file in archive $archive.")
+     and return 1;
 
-=item submitFileToClusterMonitor($localdirectory, $filename)
+  $self->putJobLog("error","Could not register the file link $file in archive $archive.");
+  return 0;
+}
 
-This function uploads a file from the WN into the machine running the clustermonitor
 
-=cut
 
 sub submitFileToClusterMonitor{
   my $self=shift;
@@ -2327,7 +2236,7 @@ CPU Speed                           [MHz] : $ProcCpuspeed
   # put all output files into AliEn
   #	    
 
-  $self->{STATUS}="SAVED";
+  $self->{STATUS}="DONE"; #gron to be checked, used to be SAVED before
 
   if ( $self->{VALIDATIONSCRIPT} ) {
     $self->putJobLog("trace","Validating the output");
@@ -2383,8 +2292,8 @@ CPU Speed                           [MHz] : $ProcCpuspeed
   #$self->putFiles() or $self->{STATUS}="ERROR_SV";  old entry, redirected trough new funtion:
   my $uploadFilesState = $self->prepare_File_And_Archives_From_JDL_And_Upload_Files() ;
 
-  if ($self->{STATUS}=~ /SAVED/){
-    ($uploadFilesState eq -1) and $self->{STATUS}="SAVED_WARN";
+  if ($self->{STATUS}=~ /DONE/){
+    ($uploadFilesState eq -1) and $self->{STATUS}="DONE_WARN";
     ($uploadFilesState eq 0) and $self->{STATUS}="ERROR_SV";
   }
 

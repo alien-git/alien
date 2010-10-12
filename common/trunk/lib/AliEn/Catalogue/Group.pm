@@ -69,7 +69,7 @@ sub f_chmod {
 
   $file = $self->GetAbsolutePath($file, 1);
 
-  my $info=$self->checkPermissions("w",$file, undef , {RETURN_HASH=>1})
+  my $info=$self->checkPermissions("w",$file, 0, 1)
     or return;
   
   my $lfn=$self->{DATABASE}->existsEntry( $file) or

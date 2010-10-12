@@ -445,7 +445,7 @@ sub insertMirrorToGUID {
   my $pfn=shift;
   my $md5=shift;
 
-  my $info=$self->checkPermission("w", $guid,{retrieve=>'md5'}) or return;
+  my $info=$self->checkPermission("w", $guid, 'md5') or return;
 
   my $db=$info->{db};
   if ($md5){
@@ -534,14 +534,15 @@ sub checkPermission{
   my $self=shift;
   my $op=shift;
   my $guid=shift;
-  my $options=shift || {};
+  my $retrievemore=(shift || 0);
+  my $empty=(shift || 0);
 
   my $retrieve='guidId,perm,owner,gowner,size';
-  $options->{retrieve} and $retrieve.=",$options->{retrieve}";
+  $retrieve and $retrieve.=",$retrievemore";
   my $info=$self->getAllInfoFromGUID({retrieve=>$retrieve,
 				     return=>"db"}, $guid);
   if (!($info and $info->{guidId})){
-    $options->{empty} and return $info;
+    $empty and return $info;
     $self->info("Error the guid '$guid' is not in the catalogue");
     return;
   }
@@ -588,7 +589,7 @@ sub updateOrInsertGUID{
     $guid=$newUp->{guid};
   }
 
-  my $info=$self->checkPermission('w', $guid, {empty=>1}) or return;
+  my $info=$self->checkPermission('w', $guid, 0, 1) or return;
   $self->debug(1,"The checkpermission of the guid worked!!!");
 
   if (! $info->{guidId}){

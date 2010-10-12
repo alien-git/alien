@@ -358,8 +358,7 @@ sub OLDcheckPermissionsOnLFN {
   my $perm=shift;
   
   my $filehash = {};
-  ($access =~ /^write[\-a-z]*/) && ($filehash = $self->checkPermissions($perm,$lfn,undef, 
-						    {RETURN_HASH=>1}));
+  ($access =~ /^write[\-a-z]*/) && ($filehash = $self->checkPermissions($perm,$lfn, 0, 1));
   if (!$filehash) {
     $self->info("Authorize: access: access denied to $lfn",1);
     return 0;
@@ -554,7 +553,7 @@ sub access {
       $guid = $lfn;
       $self->debug(1, "We have to translate the guid $1");
       $lfn = "";
-      $filehash=$self->{DATABASE}->{GUID_DB}->checkPermission($perm, $guid, {retrieve=>"size,md5"});
+      $filehash=$self->{DATABASE}->{GUID_DB}->checkPermission($perm, $guid, "size,md5");
       $filehash 
 	or $self->info("Authorize: access: access denied to guid '$guid'")
 	and return access_eof("access: access denied to guid '$guid'");
@@ -860,13 +859,13 @@ sub getBaseEnvelopeForReadAccess {
   my $filehash = {};
   if(AliEn::Util::isValidGUID($lfn)) {
     $self->info("Authorize: gron: recognized lfn/guid as a GUID");
-    $filehash=$self->{DATABASE}->{GUID_DB}->checkPermission("r", $lfn, {retrieve=>"guid,type,size,md5"})
+    $filehash=$self->{DATABASE}->{GUID_DB}->checkPermission("r", $lfn, "guid,type,size,md5")
       or $self->info("Authorize: access denied for $lfn",1) and return 0;
     $filehash->{guid} = $lfn;
     $filehash->{lfn} = $lfn;
   } else {
     $self->info("Authorize: gron: recognized lfn/guid as a LFN");
-    $filehash=$self->checkPermission("r",$lfn,undef, {RETURN_HASH=>1})
+    $filehash=$self->checkPermissions("r",$lfn,0, 1)
      or $self->info("Authorize: access denied for $lfn",1) and return 0;
     ($filehash->{type} eq "f") or $self->info("Authorize: access: $lfn is not a file, so read not possible",1) and return 0;
   }
@@ -966,7 +965,7 @@ sub  getBaseEnvelopeForWriteAccess {
   my $envelope={};
 
   $self->info("Authorize: gron: Doing checkPermissionsOnLFN for $lfn, size: $size, md5: $md5 ");
-  $envelope= $self->checkPermissions("w",$lfn,undef, {RETURN_HASH=>1});
+  $envelope= $self->checkPermissions("w",$lfn,0, 1);
   $envelope or $self->info("Authorize: access: access denied to $lfn",1) and return 0;
 
   #Check parent dir permissions:
@@ -1031,7 +1030,7 @@ sub  getBaseEnvelopeForMirrorAccess {
   my $envelope={};
 
   AliEn::Util::isValidGUID($guid) or $self->info("Authorize: ERROR! $guid is not a valid GUID.",1) and return 0;
-  $envelope=$self->{DATABASE}->{GUID_DB}->checkPermission("w", $guid, {retrieve=>"guid,type,size,md5"})
+  $envelope=$self->{DATABASE}->{GUID_DB}->checkPermission("w", $guid, "guid,type,size,md5")
       or $self->info("Authorize: access denied for $guid",1) and return 0;
   ($envelope->{gowner} eq $user) or $self->info("Authorize: ACCESS DENIED: You are not the owner of the GUID '$guid'.",1) and return 0;
   $envelope->{guid} = $guid;

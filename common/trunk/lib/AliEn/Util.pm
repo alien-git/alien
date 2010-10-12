@@ -71,7 +71,7 @@ sub getJobUserByDB {
 }
 
 sub JobStatus {
-  return ['ASSIGNED','DONE','DONE_WARN','ERROR_A','ERROR_I','ERROR_E','ERROR_IB','ERROR_M','ERROR_R','ERROR_S','ERROR_SPLT', 'ERROR_SV','ERROR_V','ERROR_VN','EXPIRED','FAILED','FORCEMERGE','IDLE','INSERTING','INTERACTIV','KILLED','MERGING','QUEUED','RUNNING','SAVING','SAVED','SAVED_WARN', 'SPLIT','SPLITTING','STARTED','WAITING','ZOMBIE', 'ERROR_VT', 'TO_STAGE', 'STAGING', 'A_STAGED', 'OVER_WAITING'];
+  return ['ASSIGNED','DONE','DONE_WARN','ERROR_A','ERROR_I','ERROR_E','ERROR_IB','ERROR_M','ERROR_R','ERROR_S','ERROR_SPLT', 'ERROR_SV','ERROR_V','ERROR_VN','EXPIRED','FAILED','FORCEMERGE','IDLE','INSERTING','INTERACTIV','KILLED','MERGING','QUEUED','RUNNING','SAVING', 'SPLIT','SPLITTING','STARTED','WAITING','ZOMBIE', 'ERROR_VT', 'TO_STAGE', 'STAGING', 'A_STAGED', 'OVER_WAITING'];
 }
 
 # mapping between job status as text and number
@@ -86,11 +86,10 @@ my $ml_status ={'INSERTING' => 1,
 		'IDLE' => 9,
 		'RUNNING' => 10, 
 		'SAVING' => 11,
-		'SAVED' => 12,
 		'MERGING' => 13, 'FORCEMERGE' => 14,
 		'DONE' => 15,
 		'DONE_WARN' => 16,
-		'TO_STAGE'=>17, 'A_STAGED'=>18,'STAGING'=>19, 'SAVED_WARN'=>20,
+		'TO_STAGE'=>17, 'A_STAGED'=>18,'STAGING'=>19,
 		'OVER_WAITING'=>21,
 		'ERROR_A' => -1, 'ERROR_I' => -2, 'ERROR_E' => -3, 'ERROR_IB' => -4, 
 		'ERROR_M' => -5, 'ERROR_R' => -6, 'ERROR_S' => -7, 'ERROR_SPLT' => -8, 
@@ -506,9 +505,16 @@ sub findAndDropArrayElement{
 }
 
 
-
-
-
+sub deserializeSignedEnvelope{
+  my $self=shift;
+  my $env=(shift || return {});
+  my $envelope = {};
+  foreach ( split(/&/, $env)) {
+     my ($key, $val) = split(/=/,$_);
+     $envelope->{$key} = $val;
+  }
+  return $envelope;
+}
 
 
 
