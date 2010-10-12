@@ -2,8 +2,11 @@ use strict;
 
 use AliEn::Database;
 use Net::Domain qw(hostname hostfqdn hostdomain);
+eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
 
 my $org=Net::Domain::hostname();
+setDirectDatabaseConnection();
+
 my $d=AliEn::Database->new({"HOST", "$org:3307", "DB", "alien_system", "DRIVER", "mysql", });
 
 $d or exit(-2);

@@ -2,6 +2,8 @@ use strict;
 use Test;
 BEGIN { plan tests => 1 }
 
+eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
+setDirectDatabaseConnection();
 use AliEn::Database;
 
 my $c=new AliEn::Config;

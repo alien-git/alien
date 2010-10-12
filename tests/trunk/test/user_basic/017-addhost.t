@@ -77,6 +77,7 @@ $cat->execute("cd") or exit(-2);
 print "Let's try to create a directory in that host\n";
 
 $cat->execute("mkdir", "-p", "/remote/mytest") or exit(-2);
+print "Directory done\n";
 $cat->execute("rmdir", "-rf", "/remote/mytest") or exit(-2);
 
 $cat->close;

@@ -7,6 +7,7 @@ use Net::Domain qw(hostname hostfqdn hostdomain);
 
 BEGIN { plan tests => 1 }
 
+eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
 
 
 {
@@ -29,11 +30,13 @@ uploadKey() or  exit (-2);
 #close FILE;
 #system ("rm", "-rf", "$file");
 #grep (/FAILED/, @FILE)  and print "FAILED!! @FILE" and uploadKey() and exit (-3);
+setDirectDatabaseConnection();
 
 my $cat=AliEn::UI::Catalogue->new({role=>"admin"}) or exit(-1);
 $cat->execute("resyncLDAP") or exit(-2);
 $cat->close();
 
+unsetDirectDatabaseConnection();
 
 
 $cat=AliEn::UI::Catalogue->new({user=>"newuser"}) or exit(-1);

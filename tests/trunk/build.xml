@@ -26,15 +26,15 @@
 			<arg value="--stats"/>
 			<arg value="--del"/>
 			<arg value="."/>
-			<arg value="alientests@aliendb1:alien-tests"/>
+			<arg value="alientests@aliendb06d:alien-tests"/>
 		</exec>
 		
 		<exec executable="ssh">
-		 	<arg value="alientests@aliendb1"/>
+		 	<arg value="alientests@aliendb06d"/>
 			<arg value="cp alien-tests.backup/* alien-tests; cd alien-tests; ./killAll.sh"/>
 		</exec>
 		<exec executable="ssh">
-		 	<arg value="alientests@aliendb1"/>
+		 	<arg value="alientests@aliendb06d"/>
 			<arg value="cd alien-tests;rm -rf /home/alientests/.alien/var/log/ /tmp/aliendb1 /tmp/alien_tests;make test"/>
 		</exec> 
     </target>
