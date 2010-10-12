@@ -1,4 +1,5 @@
 #!/bin/env alien-perl
+eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
 
 use strict;
 use Test;
@@ -38,6 +39,7 @@ my $exists=`grep alien_cat2 $file`;
 system("rm", "-f", "$file");
 open (MYSQL, "| mysql -h $hostName -P $portNumber -u admin --password='$mysqlPasswd'")
     or print "Error connecting to mysql in  $hostName -P $portNumber\n" and exit(-2);
+setDirectDatabaseConnection();
 
 my $cat=AliEn::UI::Catalogue->new({"role", "admin",});
 $cat or exit (-1);

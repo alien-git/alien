@@ -1,5 +1,7 @@
 #!/bin/env alien-perl
 
+eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
+
 use AliEn::UI::Catalogue;
 BEGIN {
   unless(grep /blib/, @INC) {
@@ -54,6 +56,9 @@ open (FILE, "$ENV{ALIEN_ROOT}/bin/alien proxy-destroy|")
 
 @OUTPUT=<FILE>;
 close FILE or print ("Error doing alien proxy-destroy!!") and exit (-1);
+
+setDirectDatabaseConnection();
+
 my $cat=AliEn::UI::Catalogue->new({role=>"admin"}) or exit(-2);
 $cat->execute("resyncLDAP") or exit(-2);
 $cat->close();
