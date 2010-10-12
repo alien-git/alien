@@ -9,9 +9,11 @@ use AliEn::X509;
 use AliEn::UI::Catalogue;
 use Net::Domain qw(hostname hostfqdn hostdomain);
 
+eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
+
 BEGIN { plan tests => 1 }
 
-
+setDirectDatabaseConnection();
 
 {
   my $host=Net::Domain::hostname();
