@@ -201,7 +201,12 @@ AliEnCommand=\"$ENV{ALIEN_ROOT}/bin/alien\"
 #services to start
 #possible: Authen Monitor Logger Server Proxy
 
-AliEnServices=\"$install\"\n";
+AliEnServices=\"$install\"\n
+export SEALED_ENVELOPE_REMOTE_PUBLIC_KEY=\$ALIEN_HOME/authen/rpub.pem
+export SEALED_ENVELOPE_REMOTE_PRIVATE_KEY=\$ALIEN_HOME/authen/rpriv.pem
+export SEALED_ENVELOPE_LOCAL_PUBLIC_KEY=\$ALIEN_HOME/authen/lpub.pem
+export SEALED_ENVELOPE_LOCAL_PRIVATE_KEY=\$ALIEN_HOME/authen/lpriv.pem
+export ALIEN_DATABASE_PASSWORD='$mysqlPasswd'\n";
 
 if ($install=~ /Authen/) {
   $startup.="AliEnLDAPP=\"$aliendir/.startup/.ldap.secret.$orgName\"\n";
@@ -258,7 +263,7 @@ export SEALED_ENVELOPE_REMOTE_PUBLIC_KEY=\$ALIEN_HOME/authen/rpub.pem
 export SEALED_ENVELOPE_REMOTE_PRIVATE_KEY=\$ALIEN_HOME/authen/rpriv.pem
 export SEALED_ENVELOPE_LOCAL_PUBLIC_KEY=\$ALIEN_HOME/authen/lpub.pem
 export SEALED_ENVELOPE_LOCAL_PRIVATE_KEY=\$ALIEN_HOME/authen/lpriv.pem
-export ALIEN_DATABASE_PASSWORD='$mysqlPasswd'\n";;
+export ALIEN_DATABASE_PASSWORD='$mysqlPasswd'\n";
 my $startFile="$etcAliend/startup.conf";
 
 if (-e  $startFile) {
