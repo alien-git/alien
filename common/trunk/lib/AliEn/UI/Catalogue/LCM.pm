@@ -84,7 +84,7 @@ my %LCM_commands;
 		 'head'      => ['$self->head', 0],
 		 'addTag'   => ['$self->addTag', 0],
 		 'access'   => ['$self->{CATALOG}->access', 0],
-		 'authorize'   => ['$self->{CATALOG}->authorize', 0],
+		 'auth'   => ['$self->{CATALOG}->callAuthen', 0],
 		 'resolve'  => ['$self->resolve', 0],
 		 'mssurl'   => ['$self->mssurl', 0],
 		 'df'       => ['$self->df', 0],
@@ -118,7 +118,7 @@ my %LCM_help = (
     'cat'      => "\tDisplay a file on the standard output",
     'addTag'   => "Creates a new tag and asociates it with a directory",
     'add' => "\tCopies a pfn to a SE, and then registers it in the catalogue",
-    'authorize'   => "Submit an file request to Authen",
+    'auth'   => "Submit an file request to Authen",
     'resolve'  => "Resolves the <host:port> address for services given in the <A>::<B>::<C> syntax",
     'mssurl'   => "Resolve the <protocol>://<host>:<port><path> format for the file under <path> in mss <se>",
     'df'       => "\tRetrieve Information about the usage of storage elements",
@@ -301,7 +301,7 @@ sub get {
 
 
    while (!$result) {
-     my  @envelopes = $self->{CATALOG}->authorize("read",$filename,$wishedSE,0,0,(join(";",@excludedAndfailedSEs) || 0),$self->{CONFIG}->{SITE});
+     my  @envelopes = $self->{CATALOG}->callAuthen("authorize","read",$filename,$wishedSE,0,0,(join(";",@excludedAndfailedSEs) || 0),$self->{CONFIG}->{SITE});
      my $envelope = $envelopes[0];
      $envelope->{turl} or 
       $self->error("Getting an envelope was not successfull for file $file.") and return;
@@ -1392,7 +1392,7 @@ sub erase {
 #	my $pfn=$self->getPFNfromGUID($se, $guid);
 #	$pfn or next;
 
-	my @envelope = $self->{CATALOG}->authorize("delete","$lfn",$se);
+	my @envelope = $self->{CATALOG}->callAuthen("authorize","delete","$lfn",$se);
 
 	if ((!defined $envelope[0]) || (!defined $envelope[0]->{envelope})) {
 	    $self->info("Cannot get access to $lfn for deletion $envelope[0]") and return;
@@ -1495,7 +1495,7 @@ sub registerPFN{
   my $silent=(shift || 0);
   my $result = {};
  
-  $self->{CATALOG}->authorize("register", $targetLFN, $sourcePFN, $size, $md5sum, $guid )
+  $self->{CATALOG}->callAuthen("authorize","register", $targetLFN, $sourcePFN, $size, $md5sum, $guid )
     and return 1;
   return;
 }
@@ -1651,7 +1651,7 @@ sub addFileToSEs {
 
   (scalar(@{$result->{usedEnvelopes}}) gt 0) or $self->error("We couldn't upload any copy of the file.") and return;
   
-  my @regSuccessMap = $self->{CATALOG}->authorize("registerenvs", @{$result->{usedEnvelopes}});
+  my @regSuccessMap = $self->{CATALOG}->callAuthen("authorize","registerenvs", @{$result->{usedEnvelopes}});
 
   (scalar(@regSuccessMap) gt 0) or return;
 
@@ -1692,7 +1692,7 @@ sub putOnStaticSESelectionListV2{
      ($selOutOf = scalar(@$ses)) or
      $self->notice("We select out of a supplied static list the SEs to save on: @staticSes, count:".scalar(@staticSes));
 
-     my @envelopes = $self->{CATALOG}->authorize("write", $targetLFN, join(";", @staticSes), $size, $md5, ($result->{guid} || 0));
+     my @envelopes = $self->{CATALOG}->callAuthen("authorize","write", $targetLFN, join(";", @staticSes), $size, $md5, ($result->{guid} || 0));
      
      ((!@envelopes) || (scalar(@envelopes) eq 0)) and
            $self->error("We couldn't get envelopes for any of the SEs, @staticSes .") and return($result, $success);
@@ -1727,7 +1727,7 @@ sub putOnDynamicDiscoveredSEListByQoSV2{
    my @successfulUploads = ();
 
    while($count gt 0) {
-     my @envelopes= $self->{CATALOG}->authorize("write", $targetLFN, 0, $size, $md5, ($result->{guid} || 0), $sitename, $qos, $count, (join(";", @$excludedSes) || 0));
+     my @envelopes= $self->{CATALOG}->callAuthen("authorize","write", $targetLFN, 0, $size, $md5, ($result->{guid} || 0), $sitename, $qos, $count, (join(";", @$excludedSes) || 0));
 
      ((!@envelopes) || (scalar(@envelopes) eq 0)) and
          $self->error("We couldn't get any envelopes (requested were '$count')  with qos flag '$qos'.") and return($result, $success);

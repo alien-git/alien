@@ -35,22 +35,6 @@ sub getHost{
 }
 
 
-sub authorize{
-  my $self = shift;
-  my $user=$self->{CONFIG}->{ROLE};
-  $self->{CATALOG} and $self->{CATALOG}->{ROLE} and $user=$self->{CATALOG}->{ROLE};
-
-  if($_[0] =~ /^-user=([\w]+)$/)  {
-    $user = shift;
-    $user =~ s/^-user=([\w]+)$/$1/;
-  }
-  $self->{LOGGER}->getDebugLevel() and push @_, "-debug=".$self->{LOGGER}->getDebugLevel();
-  $self->{LOGGER}->getTracelog() and push @_, "-tracelog";
-   
-  return $self->{SOAP}->CallAndGetOverSOAP("Authen", "consultAuthenService", $user, @_);
-}
-
-
 sub callAuthen {
   my $self = shift;
 
@@ -62,9 +46,6 @@ sub callAuthen {
   
   $self->{LOGGER}->getDebugLevel() and push @_, "-debug=".$self->{LOGGER}->getDebugLevel();
   $self->{LOGGER}->getTracelog() and push @_, "-tracelog";
-
-#  my @rc = $self->{SOAP}->CallAndGetOverSOAP("Authen", "doOperation", $user, @_);
-#  return $rc[0];
 
   return $self->{SOAP}->CallAndGetOverSOAP("Authen", "doOperation", $user, @_);
 }

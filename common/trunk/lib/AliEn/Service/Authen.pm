@@ -141,39 +141,6 @@ sub doOperation {
   return { rc=>$rc, rcvalues=>\@info, rcmessages=>\@loglist};
 }
 
-#################################################################
-# Create envelope in new fasion, scheduled v2.19+, created Aug 2010
-# 
-################################################################
-
-sub  consultAuthenService{
-  my $other=shift;
-  my $user=shift;
-  $self->info("$$ Ready to create envelopes for user $user (and @_)");
-  $self->{UI}->execute("user","-", $user);
-  my $mydebug=$self->{LOGGER}->getDebugLevel();
-  my $params=[];
-
-  (my $tracelog,$params) = AliEn::Util::findAndDropArrayElement("-tracelog", @_);
-  $tracelog and $self->{LOGGER}->tracelogOn();
-  (my $debug,$params) = $self->getDebugLevelFromParameters(@$params);
-  $debug and $self->{LOGGER}->debugOn($debug);
-  @_ = @{$params};
-  $self->{LOGGER}->keepAllMessages();
-  my (@info) =$self->{UI}->execute("authorize", @_);
-
-  my $rc = 0;
-  @info and $rc=1;
-  my @loglist = @{$self->{LOGGER}->getMessages()};
-
-  $debug and $self->{LOGGER}->debugOn($mydebug);
-  $self->{LOGGER}->tracelogOff();
-  $self->{LOGGER}->displayMessages();
-  $self->info("$$ consultAuthenService DONE for user $user (and @_), rc = $rc");
-  return { rc=>$rc, rcvalues=>\@info, rcmessages=>\@loglist};
-}
-
-
 sub getDebugLevelFromParameters{
   my $self=shift;
   my $back=0;
