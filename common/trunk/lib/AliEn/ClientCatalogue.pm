@@ -82,8 +82,8 @@ sub f_getTabCompletion {
   my $self=shift;
   $self->info("WE ARE CHECKING THE TAB WITHOUT DATABASE");
   my $e=$self->callAuthen("tabCompletion", @_);
-  $self->info("Hello world, we got @$e");
-  return @$e;
+  $self->info("Hello world, we got $e");
+  return $e;
 }
 
 sub f_removeFile {
@@ -108,7 +108,12 @@ sub f_ls {
   my $path    = ( shift or $self->{DISPPATH} ); 
   $options and $options=" -$options";
  
-  return  $self->callAuthen("ls", "$path$options");
+  my @list = $self->callAuthen("ls", "$path$options");
+  if($options =~ /l/) {
+    map { $_ =~ s/###/\t/g} @list;
+  }
+  map {print STDOUT $_."\n"} @list;
+  return @list;
 }
 
 sub f_whereis {
