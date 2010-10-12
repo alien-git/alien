@@ -249,7 +249,7 @@ sub GetAbsolutePath {
 
   # replace ~
   $path =~ s/^~/$self->GetHomeDirectory()/e;
-  $path = $self->{DISPPATH} . $path if (index( $path, '/' ) != 0);
+  $path = $self->{DISPPATH} ."/". $path if (index( $path, '/' ) != 0);
   $DEBUG and $self->debug(4, "Starting with $path");
   while (
 	 $path =~ s{//+}{/}g or
