@@ -364,7 +364,7 @@ sub f_lsInternal {
   $path = $self->GetAbsolutePath($path);
   $DEBUG and $self->debug( 1, "Listing $path with options $options" );
   my $entryInfo =
-    $self->checkPermissions( 'r', $path, undef, { RETURN_HASH => 1 } )
+    $self->checkPermissions( 'r', $path, 0, 1 )
     or return;
   $DEBUG and $self->debug( 1, "Check Permission done $path " );
   my $lfn = $entryInfo->{lfn};
@@ -597,6 +597,7 @@ sub checkPermissionOnDirectory {
   return 1;
 }
 
+
 =item f_mkdir(arguments, lfn)
 
 Creates a new directory. lfn is the directory to create. The possible options are:
@@ -660,7 +661,7 @@ sub f_mkdir {
   $DEBUG and $self->debug( 1, "Creating directory in $path" );
 
   #Check permissions
-  $self->checkPermissions("w",$path,undef,{RETURN_HASH=>1}) 
+  $self->checkPermissions("w",$path,0, 1) 
     or return;
   
   my @returnVal = $self->{DATABASE}->createDirectory( "$path/", $self->{UMASK} );
@@ -1334,7 +1335,7 @@ sub f_stat {
     and return;
   $lfn = $self->GetAbsolutePath($lfn);
   $DEBUG and $self->debug( 1, "Getting the stat of $lfn" );
-  my $info = $self->checkPermissions( "r", $lfn, undef, { RETURN_HASH => 1 } );
+  my $info = $self->checkPermissions( "r", $lfn, 0, 1 );
   $info or return;
   $self->existsEntry( $lfn, $info->{lfn} )
     or $self->info("The entry '$lfn' doesn't exist")
@@ -2053,7 +2054,7 @@ sub f_type {
   my $lfn = shift;
   $lfn = $self->f_complete_path($lfn);
   my $permFile =
-    $self->checkPermissions( 'r', $lfn, undef, { RETURN_HASH => 1 } )
+    $self->checkPermissions( 'r', $lfn, 0, 1 )
     or return;
   my $type;
   if ( $self->isCollection( $lfn, $permFile ) ) {

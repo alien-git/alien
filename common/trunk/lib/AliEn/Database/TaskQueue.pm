@@ -53,8 +53,7 @@ sub initialize {
 		     'QUEUED'      =>30,  'STARTED'     =>40,
 		     'IDLE'        =>50,  'INTERACTIV'  =>50,
 		     'RUNNING'     =>50,  'SAVING'      =>60,
-		     'SAVED'       =>70,  'DONE'        =>980,
-                     'SAVED_WARN'  =>71,  'DONE_WARN'=>981,
+		     'DONE'        =>980,  'DONE_WARN'=>981,
 		     'ERROR_A'     =>990,  'ERROR_I'     =>990,
 		     'ERROR_E'     =>990,  'ERROR_IB'    =>990,
 		     'ERROR_M'     =>990,  'ERROR_R'     =>990,
@@ -255,7 +254,7 @@ sub checkActionTable {
   my %columns= (action=>"char(40) not null primary key",
 		todo=>"int(1) not null default 0");
   $self->checkTable("ACTIONS", "action", \%columns, "action") or return;
-  return $self->do("INSERT IGNORE INTO ACTIONS(action) values  ('INSERTING'), ('MERGING'), ('KILLED'), ('SAVED'), ('SAVED_WARN'),('SPLITTING'), ('STAGING')");
+  return $self->do("INSERT IGNORE INTO ACTIONS(action) values  ('INSERTING'), ('MERGING'), ('KILLED'), ('SPLITTING'), ('STAGING')");
 }
 
 #sub insertValuesIntoQueue {
@@ -506,7 +505,7 @@ sub updateStatus{
       && ($dboldstatus !~ /^((ZOMBIE)|(IDLE)|(INTERACTIV))$/ )
       && (! $masterjob)){
     my $message="The job $id [$dbsite] was in status $dboldstatus [$self->{JOBLEVEL}->{$dboldstatus}] and cannot be changed to $status [$self->{JOBLEVEL}->{$status}]";
-    if ($set->{jdl} and $status =~/^(SAVED)|(SAVED_WARN)|(ERROR_V)$/){
+    if ($set->{jdl} and $status =~/^(DONE)|(DONE_WARN)|(ERROR_V)$/){
       $message.= " (although we update the jdl)";
       $self->updateJob($id, {jdl=>$set->{jdl}});
     }
@@ -547,7 +546,7 @@ sub updateStatus{
       }
     }
 
-    $status =~ /^(KILLED)|(SAVED)|(SAVED_WARN)|(STAGING)$/
+    $status =~ /^(KILLED)|(DONE)|(DONE_WARN)|(STAGING)$/
       and $self->update("ACTIONS", {todo=>1}, "action='$status'");
   }
   if ($status  =~ /^DONE_WARN$/) {

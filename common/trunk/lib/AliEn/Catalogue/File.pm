@@ -23,6 +23,9 @@ use AliEn::MD5;
 use vars qw ($DEBUG);
 
 $DEBUG=0;
+
+
+
 #
 #This function adds an entry to the catalog
 #
@@ -155,7 +158,7 @@ sub f_whereisFile {
 
   $lfn = $self->f_complete_path($lfn);
 
-  my $permFile=$self->checkPermissions( 'r', $lfn, undef, {RETURN_HASH=>1} )  or  return;
+  my $permFile=$self->checkPermissions( 'r', $lfn, 0, 1 )  or  return;
   if (! $self->isFile($lfn, $permFile->{lfn}) ) {
     $self->{LOGGER}->error("File", "file $lfn doesn't exist!!",1);
     return;
@@ -240,7 +243,7 @@ sub f_getGuid {
       and return;
 
   $file = $self->f_complete_path($file);
-  my $info=$self->checkPermissions( 'r', $file,undef, {RETURN_HASH=>1} )
+  my $info=$self->checkPermissions( 'r', $file,0, 1 )
     or return;
   $info->{guid} or $self->info("The file '$file' doesn't exist") and return;
   return $info->{guid};
@@ -260,7 +263,7 @@ sub f_getMD5 {
       and return;
 
   $file = $self->f_complete_path($file);
-  my $permLFN=$self->checkPermissions( 'r', $file, undef, {RETURN_HASH=>1} )
+  my $permLFN=$self->checkPermissions( 'r', $file, 0, 1 )
     or return;
   if (! $self->isFile($file, $permLFN->{lfn}) ) {
     $self->{LOGGER}->error("File", "file $file doesn't exist!!",1);
@@ -564,11 +567,11 @@ sub f_ln {
     and $self->{LOGGER}->error("File", "$target exists!\n") 
     and return;
   #Check permissions
-  my $filehash = $self->checkPermissions("r",$source,undef,{RETURN_HASH=>1});
+  my $filehash = $self->checkPermissions("r",$source,0, 1);
   $filehash 
     or $self->{LOGGER}->error("File", "ERROR: checkPermission failed for $source") 
     and return;
-  $filehash = $self->checkPermissions("w",$target,undef,{RETURN_HASH=>1});
+  $filehash = $self->checkPermissions("w",$target,0, 1);
   $filehash 
     or $self->{LOGGER}->error("File", "ERROR: checkPermission failed for $target")
     and return;
@@ -659,11 +662,11 @@ sub f_mv {
     and $self->{LOGGER}->error("File", "ERROR: <$source> is a directory")
     and return;
   #Check quotas
-  my $filehash = $self->checkPermissions("w",$fullTarget,undef,{RETURN_HASH=>1});
+  my $filehash = $self->checkPermissions("w",$fullTarget,0, 1);
   $filehash 
     or $self->{LOGGER}->error("File", "ERROR: checkPermission failed for $fullTarget")
     and return;
-  $filehash = $self->checkPermissions("w",$fullSource,undef,{RETURN_HASH=>1});
+  $filehash = $self->checkPermissions("w",$fullSource,0, 1);
   $filehash 
     or $self->{LOGGER}->error("File", "ERROR: checkPermission failed for $fullSource")
     and return;
@@ -701,7 +704,7 @@ sub f_removeFile {
     and $self->{LOGGER}->error("File", "ERROR: $fullPath is a directory") 
     and return;
   #Check permissions
-  my $filehash = $self->checkPermissions("w",$fullPath,undef,{RETURN_HASH=>1});
+  my $filehash = $self->checkPermissions("w",$fullPath,0, 1);
   if (!$filehash) {
     $self->{LOGGER}->error("File", "Check permission on $fullPath failed");
     return;
@@ -730,11 +733,11 @@ sub f_rmdir {
   }
   #Check permissions
   my $parentdir = $self->GetParentDir($path);
-  my $filehash = $self->checkPermissions("w",$parentdir,undef,{RETURN_HASH=>1});
+  my $filehash = $self->checkPermissions("w",$parentdir,0, 1);
   $filehash 
     or $self->{LOGGER}->error("File", "ERROR: checkPermissions failed on $parentdir")
     and return;
-  $filehash = $self->checkPermissions("w",$path,undef,{RETURN_HASH=>1});
+  $filehash = $self->checkPermissions("w",$path,0, 1);
   $filehash 
     or $self->{LOGGER}->error("File", "ERROR: checkPermsissions failed on $path")
     and return;

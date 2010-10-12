@@ -84,6 +84,7 @@ my %LCM_commands;
 		 'head'      => ['$self->head', 0],
 		 'addTag'   => ['$self->addTag', 0],
 		 'access'   => ['$self->{CATALOG}->access', 0],
+		 'authorize'   => ['$self->{CATALOG}->authorize', 0],
 		 'auth'   => ['$self->{CATALOG}->callAuthen', 0],
 		 'resolve'  => ['$self->resolve', 0],
 		 'mssurl'   => ['$self->mssurl', 0],
@@ -118,7 +119,7 @@ my %LCM_help = (
     'cat'      => "\tDisplay a file on the standard output",
     'addTag'   => "Creates a new tag and asociates it with a directory",
     'add' => "\tCopies a pfn to a SE, and then registers it in the catalogue",
-    'auth'   => "Submit an file request to Authen",
+    'authorize'   => "Submit an file request to Authen",
     'resolve'  => "Resolves the <host:port> address for services given in the <A>::<B>::<C> syntax",
     'mssurl'   => "Resolve the <protocol>://<host>:<port><path> format for the file under <path> in mss <se>",
     'df'       => "\tRetrieve Information about the usage of storage elements",
@@ -282,33 +283,29 @@ sub get {
      }
    }
 
-   my $filename = $file;
-   my $class = "";
-   $self->{CATALOG} and $class=ref $self->{CATALOG};
    my $filehash = {};
 
-   if(AliEn::Util::isValidGUID($filename)) {
-     $filehash=$self->{CATALOG}->{DATABASE}->{GUID_DB}->checkPermission("r", $filename, {retrieve=>"guid,type,size,md5"});
+   if(AliEn::Util::isValidGUID($file)) {
+     $filehash=$self->{CATALOG}->checkPermission("r", $file, "guid,type,size,md5");
    } else {
-     ($class =~ /^AliEn/ ) and $filename = $self->{CATALOG}->f_complete_path($filename);
-     $filehash=$self->{CATALOG}->checkPermissions("r",$filename,undef, {RETURN_HASH=>1});
+     $filehash=$self->{CATALOG}->checkPermissions("r",$file, 0, 1);
    }
-   $filehash->{guid} or $self->error("Could not retrieve file info for: $file") and return;
+
    ($filehash->{type} eq "c") and  $self->notice("This is in fact a collection!! Let's get all the files")
      and return $self->getCollection($filehash->{guid}, $localFile, \%options);
+
    my $result=$self->{STORAGE}->getLocalCopy($filehash->{guid}, $localFile);
    $self->{STORAGE}->checkDiskSpace($filehash->{size}, $localFile) or return;
 
-
    while (!$result) {
-     my  @envelopes = $self->{CATALOG}->callAuthen("authorize","read",$filename,$wishedSE,0,0,(join(";",@excludedAndfailedSEs) || 0),$self->{CONFIG}->{SITE});
+     my  @envelopes = $self->{CATALOG}->callAuthen("authorize","read",$filehash->{lfn},$wishedSE,0,0,(join(";",@excludedAndfailedSEs) || 0),$self->{CONFIG}->{SITE});
      my $envelope = $envelopes[0];
      $envelope->{turl} or 
       $self->error("Getting an envelope was not successfull for file $file.") and return;
  
  foreach (keys %{$envelope}) { defined($envelope->{$_}) and $self->info("gron: envelopee info, $_: $envelope->{$_}"); }
  
-     $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope;
+     $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope->{envelope};
      $ENV{ALIEN_XRDCP_URL}=$envelope->{turl};
      my $start=time;
      $result = $self->{STORAGE}->getFile( $envelope->{turl}, $envelope->{se}, $localFile, join("",keys %options), $file, $envelope->{guid},$envelope->{md5} );
@@ -982,7 +979,7 @@ sub mirror {
   }else{
     $lfn = $self->{CATALOG}->f_complete_path($lfn);
 
-    my $info=$self->{CATALOG}->checkPermissions( 'w', $lfn, undef, {RETURN_HASH=>1} )  or
+    my $info=$self->{CATALOG}->checkPermissions( 'w', $lfn, 0, 1 )  or
       $self->info("You don't have permission to do that") and return;
     $realLfn=$info->{lfn};
     $guid=$info->{guid};
@@ -1209,8 +1206,7 @@ sub relocate {
       $lfn = "";
       my @alllfns = $self->{CATALOG}->f_guid2lfn("s",$guid);
       foreach (@alllfns) {
-	  my $perms = $self->{CATALOG}->checkPermissions($perm,$_,undef, 
-							 {RETURN_HASH=>1});
+	  my $perms = $self->{CATALOG}->checkPermissions($perm,$_, 0,1 );
 	  if ($perms) {
 	      $lfn = $_;
 	      last;
@@ -1224,8 +1220,7 @@ sub relocate {
   }
 
   
-  my $filehash = $self->{CATALOG}->checkPermissions($perm,$lfn,undef, 
-						   {RETURN_HASH=>1});
+  my $filehash = $self->{CATALOG}->checkPermissions($perm,$lfn, 0,1 );
   if (!$filehash) {
       $self->info("access: access denied to $lfn");
       return;
@@ -1446,14 +1441,14 @@ sub addFile {
   my $lineOptions=join(" ", @_);
   @ARGV=@_;
   Getopt::Long::GetOptions($options, 
-        "silent", "versioning", "user=s", "guid=s", "register", "tracelog") 
+        "silent", "versioning", "user=s", "guid=s", "register", "tracelog", "feedback") 
       or $self->info("Error checking the options of add") and return;
   @_=@ARGV;
   my $targetLFN   = (shift || ($self->info("ERROR, missing paramter: lfn") and return));
   my $sourcePFN   = (shift || ($self->info("ERROR, missing paramter: pfn") and return));
   my @seSpecs=@_;
 
-  $options->{tracelog} and $self->{LOGGER}->{TRACELOG}=1; 
+  $options->{tracelog} and   $self->{LOGGER}->tracelogOn();
 
   my $size = 0;
   my $md5sum = 0;
@@ -1465,8 +1460,6 @@ sub addFile {
  #pre-gridsite workaround
  $options->{user} or $options->{user} = $self->{CONFIG}->{ROLE};
 
- $targetLFN =~ s/$gron/\/$gron/;
-
  if($options->{versioning}) {
      $self->version_LFN($targetLFN) or $self->info("ERROR: Versioning file failed") and return 0;
  }
@@ -1476,11 +1469,11 @@ sub addFile {
     $size = shift @seSpecs;
     $md5sum = shift @seSpecs;
     $self->info("gron: Registering pfn ...");
-    return $self->registerPFN($options->{user}, $targetLFN, $sourcePFN, $options->{guid}, $size, $md5sum, $options->{silent});
+    return $self->registerPFN($options->{user}, $targetLFN, $sourcePFN, $options->{guid}, $size, $md5sum, $options->{feedback},$options->{silent});
   }
 
   $self->info("gron: Adding a file");
-  return $self->addFileToSEs($options->{user}, $targetLFN, $sourcePFN, \@seSpecs, $options->{guid}, $options->{silent});
+  return $self->addFileToSEs($options->{user}, $targetLFN, $sourcePFN, \@seSpecs, $options->{guid}, $options->{feedback},$options->{silent});
 
 }
 
@@ -1492,12 +1485,12 @@ sub registerPFN{
   my $guid=(shift || 0); # gron: guid is to be handeled
   my $size=(shift || 0);
   my $md5sum=(shift || 0);
+  my $feedback=(shift || 0);
   my $silent=(shift || 0);
-  my $result = {};
- 
-  $self->{CATALOG}->callAuthen("authorize","register", $targetLFN, $sourcePFN, $size, $md5sum, $guid )
-    and return 1;
-  return;
+
+  $self->{CATALOG}->callAuthen("authorize","register", $targetLFN, $sourcePFN, $size, $md5sum, $guid ) 
+   and return 1;
+  return 0;
 }
 
 
@@ -1508,7 +1501,7 @@ sub versionLFN {
   my $lfn=shift;
   my $perm="w";
   
-  my $filehash = $self->{CATALOG}->checkPermissions($perm,$lfn,undef, {RETURN_HASH=>1});
+  my $filehash = $self->{CATALOG}->checkPermissions($perm,$lfn,0, 1);
   if (!$filehash) {
     $self->info("access: access denied to $lfn");
     return;
@@ -1563,6 +1556,7 @@ sub addFileToSEs {
   my $sourcePFN   = (shift || return);
   my $SErequirements=(shift || []);
   my $guid=(shift || 0); # gron: guid is to be handeled
+  my $feedback=(shift || 0);
   my $silent=(shift || 0);
 
   my $result = {};
@@ -1668,6 +1662,7 @@ sub addFileToSEs {
   } else {
       $self->error("ERROR: Adding the file $targetLFN failed completely!");
   }
+  $feedback and return $result->{usedEnvelopes};
   # -1 means a access exception, e.g. exceeded quota limit
   # This will trigger the JobAgent to stop trying further write attempts.
   return $success;

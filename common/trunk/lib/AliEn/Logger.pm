@@ -398,12 +398,13 @@ sub emergency() {
 
 sub getMessages {
   my $self=shift;
-  my $dlevel = ($TRACELOG ? "notice" : "error");
+  my $dlevel = ($TRACELOG ? "notice" : "info");
   my $level = (shift || $dlevel);
   (($DEBUG_LEVEL) or ($level eq "debug")) and return \@{$self->{MESSAGES}};
 
   $level =~ s/error/(error)/;
   $level =~ s/notice/(notice)|(error)/;
+  $level =~ s/info/(info)|(notice)|(error)/;
   $level =~ s/\(?error\)?/(error)|(critical)/;
   my @list = grep (/^((\S+\s+){3})$level\s+/, @{$self->{MESSAGES}});
   return \@list;

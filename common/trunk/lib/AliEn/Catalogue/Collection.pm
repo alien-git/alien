@@ -108,7 +108,7 @@ sub updateCollection {
   else{
     $coll = $self->f_complete_path($coll);
 
-    $permColl=$self->checkPermissions( 'w', $coll, undef, {RETURN_HASH=>1} ) 
+    $permColl=$self->checkPermissions( 'w', $coll, 0, 1 ) 
        or  return;
   }
   if (! $self->isCollection($coll, $permColl)){
@@ -171,7 +171,7 @@ sub isCollection{
   my $perm=shift;
   
   if (!$perm){
-    $perm=$self->checkPermissions( 'r', $name, undef, {RETURN_HASH=>1} )  or  return;
+    $perm=$self->checkPermissions( 'r', $name, 0, 1 )  or  return;
   }
   
   $perm and $perm->{type} and $perm->{type} =~ /^c$/ and return 1;
@@ -199,13 +199,13 @@ sub f_listFilesFromCollection{
   my $coll=shift;
   my $guid;
   if ($opt->{g}){
-    my $info=$self->{DATABASE}->{GUID_DB}->checkPermission('r', $coll, {retrieve=>'type'}) 
+    my $info=$self->{DATABASE}->{GUID_DB}->checkPermission('r', $coll, "type") 
       or return;
     $info->{type} eq "c" or $self->info("The guid $coll is not a collection") and return;
     $guid=$coll;
   }else{
     $coll = $self->f_complete_path($coll);
-    my $perm=$self->checkPermissions( 'r', $coll, undef, {RETURN_HASH=>1} )  or  return;
+    my $perm=$self->checkPermissions( 'r', $coll, 0, 1 )  or  return;
     if (! $self->isCollection($coll, $perm)){
       $self->info("'$coll' is not a collection of files");
       return;
@@ -251,7 +251,7 @@ sub _checkFileAndCollection{
       or return;
   }else{
     $lfn = $self->f_complete_path($lfn);
-    $permFile=$self->checkPermissions( 'r', $lfn, undef, {RETURN_HASH=>1} )  or  return;
+    $permFile=$self->checkPermissions( 'r', $lfn, 0, 1 )  or  return;
     if (! $self->isFile($lfn, $permFile->{lfn}) ) {
       $self->info("file $lfn doesn't exist!!",1);
       return;
@@ -261,7 +261,7 @@ sub _checkFileAndCollection{
   $collection = $self->f_complete_path($collection);
 
 
-  my $permColl=$self->checkPermissions( 'w', $collection, undef, {RETURN_HASH=>1} )  or  return;
+  my $permColl=$self->checkPermissions( 'w', $collection, 0, 1 )  or  return;
   if (! $self->isCollection($collection, $permColl)){
     $self->info("$collection is not a collection of files");
     return

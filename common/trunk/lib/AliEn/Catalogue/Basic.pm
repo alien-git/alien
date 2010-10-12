@@ -28,8 +28,10 @@ sub checkPermissions {
   my $self      = shift;
   my $operation = shift;
   my $file      = shift;
-  my $silent    = ( shift or $self->{SILENT} );
-  my $options   =(shift or {});
+  my $silent    = ( shift || $self->{SILENT} );
+  my $return_hash =(shift || 0);
+  my $role = $self->{ROLE};
+
 
   my $mode="info";
   $silent and $mode="debug";
@@ -50,7 +52,7 @@ sub checkPermissions {
   my $parentdir=$self->f_dirname($temp);
   my $dbOptions={retrieve=>"lfn,perm,owner,gowner"};
 
-  $options->{RETURN_HASH} and $dbOptions={};
+  $return_hash and $dbOptions={};
 
   my $entries=$self->{DATABASE}->getAllInfoFromLFN($dbOptions, $temp,
 						   "$temp/", $parentdir)
@@ -69,9 +71,7 @@ sub checkPermissions {
 
   ($perm) or print STDERR "Error selecting permissions of $lfn" and return;
   my $returnValue=$entry;
-  $options->{RETURN_HASH} or  $returnValue=$entry->{lfn};
-
-  my $role= $options->{ROLE} || $self->{ROLE};
+  $return_hash or  $returnValue=$entry->{lfn};
 
   if ( $role =~  /^admin(ssl)?$/ ) {
     #admin has superuseracces.
@@ -247,8 +247,11 @@ sub GetAbsolutePath {
   $DEBUG and $self->debug(3, "Getting the full path of $path");
   (defined $path) or return $self->{DISPPATH};
 
+  $path =~ /^\// and return $path;
+
   # replace ~
   $path =~ s/^~/$self->GetHomeDirectory()/e;
+  $DEBUG and $self->debug(4, "First with $path");
   $path = $self->{DISPPATH} ."/". $path if (index( $path, '/' ) != 0);
   $DEBUG and $self->debug(4, "Starting with $path");
   while (

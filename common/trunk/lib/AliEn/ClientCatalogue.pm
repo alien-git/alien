@@ -101,9 +101,11 @@ sub f_ls {
 
 sub f_whereis {
   my $self = shift;
-  my @args = @_;
-  $args[1] = $self->GetAbsolutePath($args[1]);
-  return $self->callAuthen("whereis",@_);
+  my @args = $self->cleanArguments(@_);
+  $args[0] = $self->GetAbsolutePath($args[0]);
+  my @list = $self->callAuthen("whereis",@args);
+  map {print STDOUT $_."\n"} @list;
+  return @list;
 }
 
 sub f_mv {
@@ -117,10 +119,10 @@ sub f_mv {
 
 sub f_touch {
   my $self = shift;
-  my ($options,$path) = @_;
-  $path = $self->GetAbsolutePath($path);
-  $self->info("Creating file $path");
-  return $self->callAuthen("touch","$options","$path");
+  my @args = $self->cleanArguments(@_);
+  $args[0] = $self->GetAbsolutePath($args[0]);
+  $self->info("Creating file $args[0]");
+  return $self->callAuthen("touch",@args);
 }
 
 sub f_ln {
@@ -317,6 +319,39 @@ sub removeExpiredFiles {
   my $self = shift;
   return $self->callAuthen("removeExpiredFiles");
 }
+
+sub checkPermissions {
+  my $self = shift;
+  my @args = $self->cleanArguments(@_);
+  $args[1] = $self->GetAbsolutePath($args[1]);
+  my @b = $self->callAuthen("checkLFNPermissions",@args);
+  return $b[0];
+}
+
+sub checkPermission {
+  my $self = shift;
+  my @args = $self->cleanArguments(@_);
+  AliEn::Util::isValidGUID($args[0]) or $self->error("Arguement '$args[0]' is not a valid GUID, permission check failed.") and return 0;
+  my @b = $self->callAuthen("checkGUIDPermissions",@args);
+  return $b[0];
+}
+
+
+sub authorize {
+  my $self = shift;
+  my @args = $self->cleanArguments(@_);
+  return $self->callAuthen("authorize",@args);
+}
+
+
+sub cleanArguments {
+  my $self = shift;
+ 
+  my @reply = ();
+  foreach (@_) {$_ ne "" and push @reply, $_ ;}
+  return @reply;
+}
+  
 
 return 1;
 __END__
