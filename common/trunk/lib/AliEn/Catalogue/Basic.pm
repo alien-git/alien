@@ -247,7 +247,7 @@ sub GetAbsolutePath {
   $DEBUG and $self->debug(3, "Getting the full path of $path");
   (defined $path) or return $self->{DISPPATH};
 
-  $path =~ /^\// and return $path;
+#  $path =~ /^\// and return $path;
 
   # replace ~
   $path =~ s/^~/$self->GetHomeDirectory()/e;

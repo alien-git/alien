@@ -27,7 +27,7 @@ sub new {
     or $self->info("Home directory for $self->{CONFIG}->{ROLE} does not exist or you do not have permissions")
     and return;
   $self->{GLOB}=1;
-  $self->{ROLE}=$options->{ROLE} || $self->{CONFIG}->{ROLE};
+  $self->{ROLE}=$options->{role} || $options->{ROLE} || $self->{CONFIG}->{ROLE};
   return $self;
 }
 
@@ -162,7 +162,7 @@ sub f_addTag {
   my $self = shift;
   my @args = @_;
   $args[0] = $self->GetAbsolutePath($args[0]);
-  return $self->callAuthen("removeTag",@args);
+  return $self->callAuthen("addTag",@args);
 }
 
 sub f_addTagValue {
@@ -207,7 +207,7 @@ sub f_cd {
     or ($path = "$self->{CONFIG}->{USER_DIR}/".substr($self->{CONFIG}->{ROLE},0,1)."/$self->{CONFIG}->{ROLE}");
   #$path =~ s/\/$//;
   $path = $self->GetAbsolutePath($path);
-  my $env = $self->callAuthen("checkPermissionOnDirectory",$path);
+  my $env = $self->callAuthen("cd",$path);
   $env 
     or $self->info("You do not have permissions in $path")
     and return;
