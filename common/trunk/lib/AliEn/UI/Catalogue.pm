@@ -525,10 +525,14 @@ sub checkEnvelopeCreation {
   my $self=shift; 
 
   $self->info("Checking if we can create envelopes");
-  defined $ENV{'SEALED_ENVELOPE_LOCAL_PRIVATE_KEY'}  or return;
-  defined $ENV{'SEALED_ENVELOPE_LOCAL_PUBLIC_KEY'} or return;
-  defined $ENV{'SEALED_ENVELOPE_REMOTE_PRIVATE_KEY'}  or return;
-  defined $ENV{'SEALED_ENVELOPE_REMOTE_PUBLIC_KEY'} or return;
+  foreach  my $var ('SEALED_ENVELOPE_LOCAL_PRIVATE_KEY','SEALED_ENVELOPE_LOCAL_PUBLIC_KEY',
+    'SEALED_ENVELOPE_REMOTE_PRIVATE_KEY','SEALED_ENVELOPE_REMOTE_PUBLIC_KEY') {
+    defined $ENV{$var} or return;
+    (-f  $ENV{$var}) or 
+      $self->info("Warning: $var points to $ENV{$var}, but that file does not exist") and return;
+  }
+   
+  
   return 1;
 }
 
