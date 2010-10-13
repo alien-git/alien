@@ -30,7 +30,7 @@ sub checkPermissions {
   my $file      = shift;
   my $silent    = ( shift || $self->{SILENT} );
   my $return_hash =(shift || 0);
-  my $role = $self->{ROLE};
+  my $role = $self->{CONFIG}->{ROLE};
 
 
   my $mode="info";
@@ -199,7 +199,7 @@ sub getVOPath {
 
 sub GetHomeDirectory {
   my $self = shift;
-  return "$self->{CONFIG}->{USER_DIR}/" . substr( $self->{CONFIG}->{ROLE}, 0, 1 ) . "/$self->{CONFIG}->{ROLE}";
+  return "$self->{CONFIG}->{USER_DIR}/" . substr( $self->{CONFIG}->{ROLE}, 0, 1 ) . "/$self->{CONFIG}->{ROLE}/";
 }
 
 #
@@ -253,6 +253,8 @@ sub GetAbsolutePath {
   $path =~ s/^~/$self->GetHomeDirectory()/e;
   $DEBUG and $self->debug(4, "First with $path");
   $path = $self->{DISPPATH} ."/". $path if (index( $path, '/' ) != 0);
+  $path =~ s/[\/]*$//;
+  $path =~ s/$/\//;
   $DEBUG and $self->debug(4, "Starting with $path");
   while (
 	 $path =~ s{//+}{/}g or

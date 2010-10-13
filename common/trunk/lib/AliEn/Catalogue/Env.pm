@@ -16,7 +16,7 @@ sub loadEnvironment {
 #    my %env = split " ", $env;
 #
 #    ( $env{pwd} ) and $self->{DISPPATH} = $env{pwd};
-    $self->{DISPPATH}=$self->GetHomeDirectory()."/";
+    $self->{DISPPATH}=$self->GetHomeDirectory();
 #    ( $self->{DEBUG} > 2 ) and print "In ENVInterface: path $env{pwd}\n";
     return 1;
 }
