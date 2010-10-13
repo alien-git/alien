@@ -496,7 +496,6 @@ getLogDir()
        LOGDIR="/var/log/AliEn/$ALIEN_ORGANISATION"
 	   [ "$USER" = "root" ] || LOGDIR=$ALIEN_HOME$LOGDIR
 	   F="$ALIEN_HOME/etc/aliend/$ALIEN_ORGANISATION/startup.conf"
-	   echo "CHECKING IF THE FILE '$F' EXISTS"
 	   [ -f "$F" ] && source $F
   fi
 }

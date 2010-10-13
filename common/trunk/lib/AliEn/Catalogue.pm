@@ -636,7 +636,9 @@ sub f_mkdir {
     and $self->{LOGGER}->error( "Catalogue", "Error $message\n " . $self->f_mkdir_HELP() )
     and return;
   my $silent = ( $options =~ /s/ ) ? 1 : undef;
+  
   $path = $self->GetAbsolutePath( $path, 1 );
+  
   if ( $self->existsEntry($path) ) {
     ( $options =~ /d/ )
       and return
@@ -665,7 +667,7 @@ sub f_mkdir {
   $self->checkPermissions("w",$path,0, 1) 
     or return;
   
-  my @returnVal = $self->{DATABASE}->createDirectory( "$path", $self->{UMASK} );
+  my @returnVal = $self->{DATABASE}->createDirectory( "$path/", $self->{UMASK} );
 
   #Get directory number
   if ( $options =~ /d/ and $self->existsEntry($path) ) {
