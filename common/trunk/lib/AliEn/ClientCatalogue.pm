@@ -40,7 +40,7 @@ sub getHost{
 sub callAuthen {
   my $self = shift;
 
-  my $user=$self->{CONFIG}->{ROLE};
+  my $user=$self->{ROLE};
   if($_[0] =~ /^-user=([\w]+)$/)  {
     $user = shift;
     $user =~ s/^-user=([\w]+)$/$1/;
@@ -48,7 +48,6 @@ sub callAuthen {
   
   $self->{LOGGER}->getDebugLevel() and push @_, "-debug=".$self->{LOGGER}->getDebugLevel();
   $self->{LOGGER}->getTracelog() and push @_, "-tracelog";
-
   return $self->{SOAP}->CallAndGetOverSOAP("Authen", "doOperation", $user, @_);
 }
 
@@ -59,6 +58,11 @@ sub f_mkdir {
   $path = $self->GetAbsolutePath($path);
   $self->info("Making directory '$path'");
   return $self->callAuthen("mkdir","$path$options" );
+}
+
+sub f_find {
+  my $self = shift;
+  return $self->callAuthen("find",@_);  
 }
 
 sub f_getTabCompletion {
@@ -351,7 +355,11 @@ sub cleanArguments {
   foreach (@_) {$_ ne "" and push @reply, $_ ;}
   return @reply;
 }
-  
+
+sub getLFNlike {
+  my $self = shift;
+  return $self->callAuthen("getLFNlike",@_);
+}
 
 return 1;
 __END__
