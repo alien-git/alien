@@ -243,7 +243,6 @@ sub CallAndGetOverSOAP{
 
   defined(@{$rcvals[0]->{rcvalues}}) and (scalar(@{$rcvals[0]->{rcvalues}}) gt 0 ) or return 0;
   
-
   return @{$rcvals[0]->{rcvalues}};
 }
 

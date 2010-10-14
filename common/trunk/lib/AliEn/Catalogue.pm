@@ -558,13 +558,18 @@ sub ExpandWildcards {
   #  shift @dirs;
   my $lastdir;
   $preservelast = 1 if ( $path =~ m{/$} );
-  my $result = $self->{DATABASE}->getLFNlike($path)
+  my @result = $self->getLFNlike($path)
     or return;
-  my @result = @$result;
   if ( $preservelast == 0 ) {
-    map { s{/$}{} } @result;
+    map { s{/$}{} } @{$result[0]};
   }
-  return @result;
+  return @{$result[0]};
+}
+
+sub getLFNlike {
+  my $self = shift;
+  my $path = $self->GetAbsolutePath(shift);
+  return $self->{DATABASE}->getLFNlike($path);
 }
 
 sub f_cd {

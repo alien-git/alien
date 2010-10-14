@@ -88,7 +88,7 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
     'find'     => ['$self->{CATALOG}->f_find', 0],
     'findEx'   => ['$self->{CATALOG}->findEx', 0],
     'linkfind' => ['$self->{CATALOG}->f_linkfind', 0],
-    'cp'       => ['$self->{CATALOG}->f_cp', 16+64],
+    'cp'       => ['$self->f_cp', 16+64],
     'ln'       => ['$self->{CATALOG}->f_ln', 16+64],
     'tree'     => ['$self->{CATALOG}->f_tree', 0],
     'zoom'     => ['$self->{CATALOG}->f_zoom', 0],
@@ -178,6 +178,7 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
     'checkPermissionOnDirectory' => ['$self->{CATALOG}->checkPermissionOnDirectory',0],
     'checkLFNPermissions' => ['$self->{CATALOG}->checkPermissions',0],
     'checkGUIDPermissions' => ['$self->{CATALOG}->checkPermission',0],
+    'getLFNlike' => ['$self->{CATALOG}->getLFNlike',0],
 
 
 
@@ -1202,6 +1203,95 @@ sub access {
   $ENV{ALIEN_XRDCP_URL}=$newhash[0]->{url}||"";
   return (@newhash);
   
+}
+
+sub f_cp_HELP {
+  return "cp - copy files and directories
+Syntax:
+       cp [OPTION]... SOURCE DEST
+       cp [OPTION]... SOURCE... DIRECTORY
+
+Possible options:
+   -k: do not copy the source directory, but the content of the directory
+   -u <user>: copy with a different user name (only for admin)
+   -m: copy also the metadata
+";
+}
+
+#
+#Copy files from one LFN to another
+#
+sub f_cp {
+  my $self = shift;
+  my $opt = {};
+  @ARGV=@_;
+  Getopt::Long::GetOptions($opt,  "k", "user=s", "m") or 
+      $self->info("Error parsing the ") and return;;
+  @_=@ARGV;
+  my $source = shift;
+  my $target = pop;
+  my @srcFileList=@_;
+  my @returnvals = ();
+
+  ($target)
+    or $self->{LOGGER}->error("File", "Error: not enough arguments in cp!!\nUsage: cp <source> <target>\n")
+       and return;
+
+  #Set user role -- if option is specified
+  #NOT BEING USED
+  my $user = $self->{ROLE};
+  $user = $opt->{'user'} if($opt->{'user'});
+  
+  $target = $self->{CATALOG}->GetAbsolutePath($target, 1);
+  my $targetIsDir=$self->{CATALOG}->isDirectory($target);
+  ( $opt->{'k'} or scalar(@srcFileList)>0 ) and ( !$targetIsDir ) 
+    and $self->{LOGGER}->error("File", "Error: Multiple source files specified but last argument is not a directory\n")
+    and return;
+  my $targetDir=$target;
+  ( $targetIsDir ) or $targetDir=~ s{/[^/]*$}{/};
+
+  #Populate list of source files
+  if($opt->{'k'}) {
+    #Find all files in source directory
+    $source = $self->{CATALOG}->GetAbsolutePath($source,1);
+    my $sourceIsDir = $self->{CATALOG}->isDirectory($source) ;
+    ( $sourceIsDir)
+      or $self->{LOGGER}->error("File", "Error: $source is not a directory")
+      and return;
+    $self->info($source);
+    @srcFileList = $self->{CATALOG}->ExpandWildcards("$source/%");
+  }
+  else {
+    #Append source file to srcFileList
+    push @srcFileList, $source;
+    @srcFileList = map {$_ = $self->{CATALOG}->GetAbsolutePath($_,1)} @srcFileList;
+  }
+
+  #Do copy
+  foreach my $sourceFile (@srcFileList) {
+    my $targetFile;
+    if($targetIsDir) {
+      my $fileName = "$sourceFile";
+      $fileName =~ s!.*/(.*$)!$1!;
+      $targetFile = $targetDir."/".$fileName;
+    }
+    else {
+      $targetFile = $target;
+    }
+    my @pfns = $self->{CATALOG}->f_whereis("sz",$source);
+    foreach my $pfn (@pfns){
+      my $t = $self->execute("add",$targetFile,$pfn->{pfn});
+      push @returnvals, $t;
+      $t and last;
+    }
+    #Manage metadata if option specified
+    if($opt->{'m'})
+    {
+      my $todoMetadata = {};
+      $self->{CATALOG}->getCPMetadata($sourceFile,$targetDir,$targetFile,$todoMetadata);
+    }
+  }
+  return @returnvals;  
 }
 
 return 1;
