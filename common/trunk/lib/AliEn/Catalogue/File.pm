@@ -555,6 +555,7 @@ sub f_mv {
 
   my $fullSource = $self->GetAbsolutePath($source);
   my $fullTarget = $self->GetAbsolutePath($target);
+  $self->info("$fullSource ($source) --> $fullTarget ($target)");
   $self->isDirectory($fullSource)
     and $self->{LOGGER}->error("File", "ERROR: <$source> is a directory")
     and return;
@@ -568,7 +569,7 @@ sub f_mv {
     or $self->{LOGGER}->error("File", "ERROR: checkPermission failed for $fullSource")
     and return;
   #Do move
-  my @returnVal = $self->{DATABASE}->{LFN_DB}->moveFile($source,$target);
+  my @returnVal = $self->{DATABASE}->{LFN_DB}->moveFile($fullSource,$fullTarget);
   #Manage metadata if option specified
   if($options=~/m/)
   {

@@ -799,7 +799,8 @@ sub moveFile {
       and return;
   }
   my $parentdir = "$lfnOnTable_target";
-  $parentdir =~ s{[^/]*$}{}; $parentdir = s/$tablelfn_target//;
+  $parentdir =~ s{[^/]*$}{}; 
+  $parentdir =~ s/^$tablelfn_target//;
   my $entryId = $dbTarget->queryValue("SELECT entryId FROM $tableName_target WHERE lfn=?",undef,{bind_values=>[$parentdir]});
   $dbTarget->do("UPDATE $tableName_target SET dir=? WHERE lfn=?",{bind_values=>[$entryId,$lfnOnTable_target]})
     or $self->{LOGGER}->error("Database::Catalogue::LFN","Error updating database")
