@@ -406,8 +406,9 @@ sub getMessages {
   $level =~ s/notice/(notice)|(error)/;
   $level =~ s/info/(info)|(notice)|(error)/;
   $level =~ s/\(?error\)?/(error)|(critical)/;
-  my @list = grep (/^((\S+\s+){3})$level\s+/, @{$self->{MESSAGES}});
-  return \@list;
+  return $self->{MESSAGES};
+ # my @list = grep (/^((\S+\s+){3})$level\s+/, @{$self->{MESSAGES}});
+ # return \@list;
 }
 
 sub display {

@@ -226,14 +226,11 @@ sub CallAndGetOverSOAP{
     sleep(($maxTry*$tries));
   }
   my @rcvals =$self->GetOutput($callsoap) or $self->error("ERROR: Getting output of ".$service."::".$function." call over SOAP was not possible");
-
   $rcvals[0]->{rc} 
     or $self->error("ERROR: Calling ".$service."::".$function." over SOAP returned and error (check below)."); 
 
-  if (defined(@{$rcvals[0]->{rcmessages}})) {
-    my @rcmess = map { $service."::".$function."||".$_ } (@{$rcvals[0]->{rcmessages}});
-    my $message = "Calling ".$service."::".$function." replied: \n".join("", @rcmess);
-    $rcvals[0]->{rc} and $self->notice($message) or $self->error($message);
+  if (defined($rcvals[0]->{rcmessages})) {
+    $self->info(join ("", @{$rcvals[0]->{rcmessages}} ), undef, 0);
   }
 
   $rcvals[0]->{rc} or $self->error($service."::".$function." replied ERROR (see above).");
