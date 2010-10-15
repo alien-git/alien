@@ -2080,6 +2080,10 @@ sub f_type {
   return $type;
 }
 
+sub isFile {
+  my $self = shift;
+  return $self->{CATALOG}->isFile(@_);
+}
 
 sub checkFileQuota {
 #######

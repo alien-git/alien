@@ -202,6 +202,13 @@ sub f_cleanupTagValue {
   return $self->callAuthen("cleanupTagValue",@args);
 }
 
+sub f_showTags {
+  my $self = shift;
+  my @args = @_;
+  $args[1] = $self->GetAbsolutePath($args[1]);
+  return $self->callAuthen("showTags",@args);
+}
+
 sub f_cd {
   my $self = shift;
   my $path = shift;
@@ -357,6 +364,16 @@ sub cleanArguments {
 sub getLFNlike {
   my $self = shift;
   return $self->callAuthen("getLFNlike",@_);
+}
+
+sub isFile {
+  my $self = shift;
+  return $self->callAuthen("isFile",$self->GetAbsolutePath($_[0]));
+}
+
+sub isDirectory {
+  my $self = shift;
+  return $self->callAuthen("isDirectory",$self->GetAbsolutePath($_[0]));
 }
 
 return 1;
