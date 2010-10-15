@@ -5,6 +5,7 @@ use AliEn::SOAP;
 use AliEn::Util;
 use AliEn::Database::IS;
 
+$ENV{ALIEN_DATABASE_PASSWORD}="pass";
 my $db=AliEn::Database::IS->new({ROLE=>'admin', 'DEBUG'=>5}) or exit(-2);
 
 
@@ -32,6 +33,7 @@ print Dumper($cpuType);
 my $done=$self->{SOAP}->CallSOAP("IS","getCpuSI2k", $cpuType, $self->{CONFIG}->{HOST})
 or exit(-2);
 
+delete $ENV{ALIEN_DATABASE_PASSWORD};
 print "SpecINT2k for this machine is ".$done->result."\n";
 
 
