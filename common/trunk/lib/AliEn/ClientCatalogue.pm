@@ -65,6 +65,11 @@ sub f_find {
   return $self->callAuthen("find",@_);  
 }
 
+sub checkLFN {
+  my $self = shift;
+  return $self->callAuthen("checkLFN",@_);
+}
+
 sub f_getTabCompletion {
   my $self=shift;
   $self->info("WE ARE CHECKING THE TAB WITHOUT DATABASE");
@@ -95,7 +100,7 @@ sub f_ls {
   my $path    = ( shift or $self->{DISPPATH} ); 
   $options and $options=" -$options";
  
-  return $self->callAuthen("ls", "$path$options");
+  return $self->callAuthen("ls", "$path","$options");
 }
 
 sub f_whereis {
