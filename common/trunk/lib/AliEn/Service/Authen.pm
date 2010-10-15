@@ -129,16 +129,15 @@ sub doOperation {
   $self->info("gron: params for call after cleaning are: @_");
   $self->{LOGGER}->keepAllMessages();
   my @info = $self->{UI}->execute($op, split(/\s+/, "@_"));
-  my $rc = 0;
-  @info and $rc=1;
   my @loglist = @{$self->{LOGGER}->getMessages()};
 
   $debug and $self->{LOGGER}->debugOn($mydebug);
   $self->{LOGGER}->tracelogOff();
   $self->{LOGGER}->displayMessages();
-  $self->info("$$ doOperation DONE for user $user (and @_), rc = $rc");
+  $self->info("$$ doOperation DONE for user $user (and @_)");#, rc = $rc");
   $self->info("$$ doOperation result: @info".scalar(@info));
-  return { rc=>$rc, rcvalues=>\@info, rcmessages=>\@loglist};
+  return { #rc=>$rc,
+     rcvalues=>\@info, rcmessages=>\@loglist};
 }
 
 sub getDebugLevelFromParameters{
