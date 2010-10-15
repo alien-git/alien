@@ -95,21 +95,14 @@ sub f_ls {
   my $path    = ( shift or $self->{DISPPATH} ); 
   $options and $options=" -$options";
  
-  my @list = $self->callAuthen("ls", "$path$options");
-  if($options =~ /l/) {
-    map { $_ =~ s/###/\t/g} @list;
-  }
-  map {print STDOUT $_."\n"} @list;
-  return @list;
+  return $self->callAuthen("ls", "$path$options");
 }
 
 sub f_whereis {
   my $self = shift;
   my @args = $self->cleanArguments(@_);
   $args[0] = $self->GetAbsolutePath($args[0]);
-  my @list = $self->callAuthen("whereis",@args);
-  map {print STDOUT $_."\n"} @list;
-  return @list;
+  return $self->callAuthen("whereis",@args);
 }
 
 sub f_mv {
