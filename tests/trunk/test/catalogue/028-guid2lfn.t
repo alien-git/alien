@@ -8,8 +8,9 @@ includeTest("catalogue/003-add") or exit(-2);
 
 my $cat=AliEn::UI::Catalogue::LCM->new({user=>"newuser"}) or exit(-2);
 
-addFile($cat, "lfn2gui","This is just to check the guid...
-") or exit(-2);
+#addFile($cat, "lfn2gui","This is just to check the guid...
+#") or exit(-2);
+$cat->execute("touch","lfn2gui");
 my $cat2=AliEn::UI::Catalogue::LCM->new({role=>'admin'}) or exit(-2);
 $cat2->execute("checkLFN");
 $cat2->close();
@@ -20,5 +21,5 @@ my ($lfn)=$cat->execute("guid2lfn", $guid) or exit(-2);
 
 print "The lfn is $lfn\n";
 
-$lfn =~ /lfn2gui$/ or print "It is not the right lfn!!\n" and exit(-2);
+$lfn =~ /lfn2gui$/ or print "It is not the right lfn $lfn!!\n" and exit(-2);
 print "ok\n";
