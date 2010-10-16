@@ -3,6 +3,8 @@
 use strict;
 use Test;
 
+eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
+
 use AliEn::UI::Catalogue;
 use Net::Domain qw(hostname hostfqdn hostdomain);
 
@@ -28,8 +30,7 @@ BEGIN { plan tests => 1 }
       kill 9, $pid;
       exit;
     }
-$ENV{SEALED_ENVELOPE_LOCAL_PRIVATE_KEY}="$ENV{ALIEN_HOME}/authen/lpriv.pem";
-$ENV{SEALED_ENVELOPE_LOCAL_PUBLIC_KEY}="$ENV{ALIEN_HOME}/authen/lpub.pem";
+    #setDirectDatabaseConnection();
 
     my $cat=AliEn::UI::Catalogue->new({"role", "admin"});
     $cat or exit (-1);

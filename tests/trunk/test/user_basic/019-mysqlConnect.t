@@ -5,6 +5,11 @@ use AliEn::Util;
 use Net::Domain;
 
 use IPC::Open2;
+
+eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
+setDirectDatabaseConnection();
+
+
 my $hostName=Net::Domain::hostfqdn();
 print "Hola $hostName\n";
 my $userName = $ENV{LOGNAME};
@@ -54,9 +59,9 @@ sub stopServices{
   print "Stopping all the services but the proxy";
   system("$ENV{ALIEN_ROOT}/etc/rc.d/init.d/aliend", "stop");
   sleep(10);
-  open (FILE, "| $ENV{ALIEN_ROOT}/bin/alien StartProxy");
-  print FILE "pass\n";
-  close FILE;
+#  open (FILE, "| $ENV{ALIEN_ROOT}/bin/alien StartProxy");
+#  print FILE "pass\n";
+#  close FILE;
 
   return 1;
 }
@@ -83,7 +88,7 @@ for (my $i=0; $i<1; $i++){
 
   my $c=AliEn::UI::Catalogue->new() or last;
 
-  compareNumber($before+2, $proxyBefore+2, "During the connection") or last;
+  compareNumber($before+2, $proxyBefore, "During the connection") or last;
 
   $c->close();
   print "closed!!!\n";
@@ -101,7 +106,7 @@ for (my $i=0; $i<1; $i++){
 
   $c=AliEn::UI::Catalogue->new() or last;
   $c->execute("ls", "/remote/", "-la") or last;
-  compareNumber($before+3, $proxyBefore+3, "During the second connection") or last;
+  compareNumber($before+3, $proxyBefore, "During the second connection") or last;
   $c->close();
   print "closed!!!\n";
   sleep (3);
