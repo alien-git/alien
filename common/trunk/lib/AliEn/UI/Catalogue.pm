@@ -487,7 +487,10 @@ sub new {
           or return;
     } else {
       $self->{CATALOG} = AliEn::ClientCatalogue->new($options)   
-       or return;
+        or return;
+      foreach my $d (keys %commands){
+         ${$commands{$d}}[0]=~ /{CATALOG}/ and  ${$commands{$d}}[1]=0;
+      }
     }
   }
 

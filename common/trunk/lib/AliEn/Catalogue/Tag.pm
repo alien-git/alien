@@ -520,4 +520,30 @@ sub f_cleanupTagValue{
   return $self->{DATABASE}->cleanupTagValue( $directory, $tag );
 }
 
+
+sub createRemoteTable {
+    my $self   = shift;
+    my $host   = shift;
+    my $db     = shift;
+    my $driver = shift;
+    my $user   = shift;
+    my $table  = shift;
+    my $definition=shift;
+
+    $self->info("New table $table created by $user in $db $host and with def");
+
+    $self->{DATABASE}->{LFN_DB}->reconnect( $host, $db, $driver )
+    
+     or $self->info("Problemn reconnecting to $host, $db, $driver") and return;
+    $self->info( "Creating the table $table and we have definition " );
+
+    $self->{DATABASE}->{LFN_DB}->createTable($table, $definition)
+      or $self->{LOGGER}->error( "CatalogDaemon","Error creating table $table" )
+          and return;
+
+    $self->debug(1,"Table $table created" );
+
+    return $table;
+}
+
 return 1;

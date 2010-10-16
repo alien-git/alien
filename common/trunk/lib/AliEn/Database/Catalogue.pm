@@ -937,34 +937,34 @@ sub removeSE {
   return 1;
 }
 
-sub createTable {
-  my $self=shift;
-  my $host       = shift;
-  my $db         = shift;
-  my $driver     = shift;
-  my $user       = shift;
-  my $table      = shift;
-  my $definition = shift;
+#sub createTable {
+#  my $self=shift;
+#  my $host       = shift;
+#  my $db         = shift;
+#  my $driver     = shift;
+#  my $user       = shift;
+#  my $table      = shift;
+#  my $definition = shift;
 
-  $self->info("Creating the table $table" );
-  my $errorMessage="Error creating the new table \n";
-
-  my $index=$self->getHostIndex($host, $db, $driver);
-  $index or $self->info("Error getting the index of '$host', '$db', and '$driver'", 1) and return;
-
-  my ($db2, $extra)=$self->{LFN_DB}->reconnectToIndex($index)
-    or $self->info("Error reconnecting to the index $index", 1) and return;
-
-  $db2->createTable($table, $definition)
-    or $self->info("$errorMessage ($! $@)\n",1)
-      and return;
-
-  $db2->grantAllPrivilegesToUser($user, $db, $table)
-    or $self->info("Error granting privileges on table $table for $user\n($! $@ $DBI::errstr\n",1 )
-      and return;
-  $self->info("Table created!!!!");
-  return 1;
-}
+#  $self->info("Creating the table $table" );
+#  my $errorMessage="Error creating the new table \n";
+#
+#  my $index=$self->getHostIndex($host, $db, $driver);
+#  $index or $self->info("Error getting the index of '$host', '$db', and '$driver'", 1) and return;
+#
+#  my ($db2, $extra)=$self->{LFN_DB}->reconnectToIndex($index)
+#    or $self->info("Error reconnecting to the index $index", 1) and return;
+#
+#  $db2->createTable($table, $definition)
+#    or $self->info("$errorMessage ($! $@)\n",1)
+#      and return;
+#
+#  $db2->grantAllPrivilegesToUser($user, $db, $table)
+#    or $self->info("Error granting privileges on table $table for $user\n($! $@ $DBI::errstr\n",1 )
+#      and return;
+#  $self->info("Table created!!!!");
+#  return 1;
+#}
 
 sub describeTable {
   my $self=shift;
