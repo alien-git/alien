@@ -234,10 +234,6 @@ sub new {
     # Initialize the logger
     $self->{SILENT} = ( $self->{CONFIG}->{silent} or 0 );
 
-#    $self->{DATABASE}=$self->{CONFIG}->{DATABASE};
-#    $self->{DATABASE}
-#      or print STDERR "Error no database specified in LC\n"
-#      and return;
     $self->{X509}=new AliEn::X509;
     my $inittxt = "Initializing Local Cache Manager";
     $self->{DEBUG} = 0;
@@ -247,16 +243,12 @@ sub new {
         $inittxt .= " in debug mode";
     }
 
-    $self->{CONFIG} = new AliEn::Config();
-    $self->{CONFIG} or print STDERR "Error getting the config \n" and return;
-
     $DEBUG and $self->debug(1, $inittxt );
 
     $self->{CACHE_DIR} = $self->{CONFIG}->{CACHE_DIR};
     if ( !( -d $self->{CACHE_DIR} ) ) {
         mkdir $self->{CACHE_DIR}, 0777;
     }
-
     $self->{TXTDB} = AliEn::Database::LCM->new(
         {
             "DEBUG",  $self->{DEBUG}, "CONFIG", $self->{CONFIG},
@@ -266,13 +258,6 @@ sub new {
 
     $self->{TXTDB} or $self->{LOGGER}->error("LCM", "Error getting the text database") and return;
 
-#    if ( $self->{CONFIG}->{SE} ) {
-#        $DEBUG and $self->debug(1,
-#"Contacting the SE at $self->{CONFIG}->{SE_HOST}:$self->{CONFIG}->{SE_PORT}"
-#        );
-#	$self->{SOAP}->checkService("SE") or 
-#	  $self->info( "Error contacting the local SE");
-#    }
     return $self;
 }
 
