@@ -43,7 +43,6 @@ sub new {
 
 sub initialize {
   my $self=shift;
-
   if ( !( -d $self->{DIRECTORY} ) ) {
     $self->debug(1, "Creating directory $self->{DIRECTORY}");
     my $dir = "";
@@ -57,7 +56,6 @@ sub initialize {
     $self->{LOGGER}->info("TXT", "Error connecting to the Database TXT") and
       return;
   map {$self->createTable($_) or return;} keys %{$self->{TABLES}};
-
   return $self->SUPER::initialize();
 
 }
@@ -76,7 +74,7 @@ sub getDatabaseDSN{
 
 sub createTable{
   my $self=shift;
-  my $table=shift;
+  my $table=lc shift;
 
   $self->debug(1, "Checking table $table");
 
@@ -86,7 +84,7 @@ sub createTable{
   if ( !( -e $file ) ) {
 
     # Create the table again.
-    $self->debug(1, "Creating CSV-table $table" );
+    $self->debug(1, "Creating CSV-table $table ($file)" );
     
     $self->{DBH}->do("CREATE TABLE $table ($description)")
       or $self->{LOGGER}->error( "TXT",
