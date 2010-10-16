@@ -48,7 +48,7 @@ sub callAuthen {
   
   $self->{LOGGER}->getDebugLevel() and push @_, "-debug=".$self->{LOGGER}->getDebugLevel();
   $self->{LOGGER}->getTracelog() and push @_, "-tracelog";
-  return $self->{SOAP}->CallAndGetOverSOAP("Authen", "doOperation", $user, @_);
+  return $self->{SOAP}->CallAndGetOverSOAP("Authen", "doOperation", $user, $self->{DISPPATH},  @_);
 }
 
 sub f_mkdir {
@@ -72,18 +72,12 @@ sub checkLFN {
 
 sub f_getTabCompletion {
   my $self=shift;
-  $self->info("WE ARE CHECKING THE TAB WITHOUT DATABASE");
-  my $e=$self->callAuthen("tabCompletion", @_);
-  $self->info("Hello world, we got $e");
-  return $e;
+  return $self->callAuthen("tabCompletion", @_);
 }
 
 sub f_removeFile {
   my $self = shift;
-  my ($options,$path) = @_;
-  $path = $self->GetAbsolutePath($path);
-  $self->info("Removing $path");
-  return $self->callAuthen("rm","$options","$path");
+  return $self->callAuthen("rm",@_);
 }
 
 sub f_rmdir {
@@ -96,18 +90,13 @@ sub f_rmdir {
 
 sub f_ls {
   my $self=shift;
-  my $options = shift;
-  my $path    = ( shift or $self->{DISPPATH} ); 
-  $options and $options=" -$options";
  
-  return $self->callAuthen("ls", "$path","$options");
+  return $self->callAuthen("ls", @_);
 }
 
 sub f_whereis {
   my $self = shift;
-  my @args = $self->cleanArguments(@_);
-  $args[0] = $self->GetAbsolutePath($args[0]);
-  return $self->callAuthen("whereis",@args);
+  return $self->callAuthen("whereis",@_);
 }
 
 sub f_mv {
@@ -179,6 +168,11 @@ sub f_updateTagValue {
   my @args = @_;
   $args[1] = $self->GetAbsolutePath($args[1]);
   return $self->callAuthen("updateTagValue",@args);
+}
+
+sub f_showTagValue{
+  my $self=shift;
+  return  $self->callAuthen("showTagValue",@_);
 }
 
 sub f_removeTag {
