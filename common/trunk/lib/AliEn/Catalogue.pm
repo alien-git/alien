@@ -1866,29 +1866,6 @@ sub f_revalidateToken {
   return 1;
 }
 
-sub createRemoteTable {
-  my $self = shift;
-  ( $self->{DEBUG} > 3 )
-    and print "DEBUG LEVEL 3\tIn UserInterface createRemoteTable @_\n";
-  my $host   = shift;
-  my $db     = shift;
-  my $driver = shift;
-  my $user   = shift;
-  my $table  = shift;
-  my $SQL    = shift;
-  ($table)
-    or print STDERR "Error: in CreateRemoteTable. table not specified\n"
-    and return;
-  my $done =
-    SOAP::Lite->uri('AliEn/Service/Authen')
-    ->proxy("http://$self->{CONFIG}->{AUTH_HOST}:$self->{CONFIG}->{AUTH_PORT}")
-    ->createTable( $host, $db, $driver, $user, $table, $SQL );
-  $self->{SOAP}->checkSOAPreturn($done) or return;
-  $done = $done->result;
-  $DEBUG and $self->debug( 1, "Making the remote table worked, got $done" );   #
-  return $done;
-}
-
 sub printTreeLevel {
   my $self  = shift;
   my $first = shift;
@@ -2078,11 +2055,6 @@ sub f_type {
   $self->info("File '$lfn' is a '$type'");
   $hash and return ( { type => $type } );
   return $type;
-}
-
-sub isFile {
-  my $self = shift;
-  return $self->{CATALOG}->isFile(@_);
 }
 
 sub checkFileQuota {
