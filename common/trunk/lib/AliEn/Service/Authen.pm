@@ -9,14 +9,11 @@ use strict;
 
 use AliEn::Service;
 
-#use AliEn::UI::Catalogue::Server;
-
 use AliEn::Authen::IIIkey;
 use POSIX;
 use Authen::PAM;
 use AliEn::Database::Catalogue;
 use AliEn::Database::Admin;
-use AliEn::Catalogue::Server;
 use Crypt::OpenSSL::RSA;
 use Crypt::OpenSSL::Random;
 use AliEn::Util;
@@ -45,17 +42,6 @@ sub initialize {
 	$options->{role} = 'admin';
 	$options->{ROLE} = 'admin';
 
-#        ! $options->{password} and $ENV{ALIEN_LDAP_PASSWORD} and $options->{password}=$ENV{ALIEN_LDAP_PASSWORD};
-
-#	if ( !( $options->{password} ) ) {
-#		print STDERR "Please enter the password:\n";
-#		chomp( $options->{password} = <STDIN> );
-#	}
-#	$self->{LDAPpassword} = $options->{password};
-
-	#    $ADMINPASSWD = $password;
-
-
 	$self->{PORT}=$self->{CONFIG}->{'AUTH_PORT'};
 	$self->{HOST}=$self->{CONFIG}->{'AUTH_HOST'};
 	$self->{SERVICE}="Authen";
@@ -65,17 +51,8 @@ sub initialize {
 
 	#Delete the password from options. Not needed anymore. (MUST NOT BE SET)
 	$options->{password} = '';
-	# $options->{debug}=5;
-
-	#$self->{cat} = AliEn::Catalogue::Server->new($options);
 
 	$self->{options} = $options;
-#	$self->{cat} or $self->{LOGGER}->error( "CatalogDaemon",
-#					"Could not create instance of ServerInterface. Daemon did not start" )
-#		and return;
-
-	#	$self->{cat}->f_whoami();
-	#	exit;
 	$self->info( "Initializing catalog daemon" );
 
 	$self->{addbh} = new AliEn::Database::Admin();    
@@ -115,8 +92,9 @@ sub  createEnvelope{
 sub doOperation {
   my $other=shift;
   my $user=shift;
+  my $directory=shift;
   my $op=shift;
-  $self->info("$$ Ready to do an operation for $user (and $op '@_')");
+  $self->info("$$ Ready to do an operation for $user in $directory (and $op '@_')");
   $self->{UI}->execute("user","-", $user);
   my $mydebug=$self->{LOGGER}->getDebugLevel();
   my $params=[];
@@ -128,6 +106,7 @@ sub doOperation {
   @_ = @{$params};
   $self->info("gron: params for call after cleaning are: @_");
   $self->{LOGGER}->keepAllMessages();
+  $self->{UI}->{CATALOG}->{DISPPATH}=$directory;
   my @info = $self->{UI}->execute($op, split(/\s+/, "@_"));
   my @loglist = @{$self->{LOGGER}->getMessages()};
 

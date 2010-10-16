@@ -1252,32 +1252,32 @@ sub authorize{
   #
   #
 
-  $self->info("Authorize: gron: user $user");
-  $self->info("Authorize: gron: access $access");
-  $self->info("Authorize: gron: lfn $lfn");
-  $self->info("Authorize: gron: size $size");
-  $self->info("Authorize: gron: guidRequest $guidRequest");
-  $self->info("Authorize: gron: seOrLFNOrEnv $seOrLFNOrEnv");
-  $self->info("Authorize: gron: sitename $sitename");
-  $self->info("Authorize: gron: writeQos $writeQos");
-  $self->info("Authorize: gron: writeQosCount $writeQosCount");
-  $self->info("Authorize: gron: excludedAndfailedSEs @$excludedAndfailedSEs");
+  $self->info("Authorize gron: user $user
+ Authorize: gron: access $access
+Authorize: gron: lfn $lfn
+Authorize: gron: size $size
+Authorize: gron: guidRequest $guidRequest
+Authorize: gron: seOrLFNOrEnv $seOrLFNOrEnv
+Authorize: gron: sitename $sitename
+Authorize: gron: writeQos $writeQos
+Authorize: gron: writeQosCount $writeQosCount
+Authorize: gron: excludedAndfailedSEs @$excludedAndfailedSEs");
 
 
   ($access =~ /^write[\-a-z]*/) and $access = "write-once";
   my $writeReq = ( ($access =~ /^write-once$/) || 0 );
   my $mirrorReq = ( ($access =~ /^mirror$/) || 0 );
   my $readReq = ( ($access =~ /^read$/) || 0 );
-  my $registenvsReq = ( ($access =~/^registerenvs$/) || 0 );
   my $registerReq = ( ($access =~/^register$/) || 0 );
 
 
   my $exceptions = 0;
 
   # the following three return immediately without envelope creation
-  $registenvsReq and return $self->registerFileInCatalogueAccordingToEnvelopes($user,\@registerEnvelopes);
-
-
+  if ($access =~/^registerenvs$/){
+    return $self->registerFileInCatalogueAccordingToEnvelopes($user,\@registerEnvelopes);
+  }
+ 
   my $seList = $self->validateArrayOfSEs(split(/;/, $seOrLFNOrEnv));
   $self->info("Authorize: gron: seList @$seList");
 
