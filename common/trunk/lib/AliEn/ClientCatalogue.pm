@@ -5,7 +5,7 @@ use strict;
 
 use vars qw(@ISA);
 
-@ISA = ('AliEn::Catalogue',@ISA);
+#@ISA = ('AliEn::Catalogue',@ISA);
 
 sub new {
   my $proto   = shift;
@@ -51,165 +51,13 @@ sub callAuthen {
   return $self->{SOAP}->CallAndGetOverSOAP("Authen", "doOperation", $user, $self->{DISPPATH},  @_);
 }
 
-sub f_mkdir {
-  my $self = shift;
-  my ($options,$path) = @_;
-  $options and $options=" -$options";
-  $path = $self->GetAbsolutePath($path);
-  $self->info("Making directory '$path'");
-  return $self->callAuthen("mkdir","$path$options" );
-}
-
-sub f_find {
-  my $self = shift;
-  return $self->callAuthen("find",@_);  
-}
-
-sub checkLFN {
-  my $self = shift;
-  return $self->callAuthen("checkLFN",@_);
-}
-
-sub f_getTabCompletion {
-  my $self=shift;
-  return $self->callAuthen("tabCompletion", @_);
-}
-
-sub f_removeFile {
-  my $self = shift;
-  return $self->callAuthen("rm",@_);
-}
-
-sub f_rmdir {
-  my $self = shift;
-  my ($options,$path) = @_;
-  $path = $self->GetAbsolutePath($path);
-  $self->info("Removing directory $path");
-  return $self->callAuthen("rmdir","$options","$path");
-}
-
-sub f_ls {
-  my $self=shift;
- 
-  return $self->callAuthen("ls", @_);
-}
-
-sub f_whereis {
-  my $self = shift;
-  return $self->callAuthen("whereis",@_);
-}
-
-sub f_mv {
-  my $self = shift;
-  my ($options,$source,$target) = @_;
-  $target = $self->GetAbsolutePath($target);
-  $source = $self->GetAbsolutePath($source);
-  $self->info("Moving $source to $target");
-  return $self->callAuthen("mv","$options","$source","$target");
-}
-
-sub f_touch {
-  my $self = shift;
-  my @args = $self->cleanArguments(@_);
-  $args[0] = $self->GetAbsolutePath($args[0]);
-  $self->info("Creating file $args[0]");
-  return $self->callAuthen("touch",@args);
-}
-
-sub f_ln {
-  my $self = shift;
-  my ($options,$source,$target) = @_;
-  $target = $self->GetAbsolutePath($target);
-  $source = $self->GetAbsolutePath($source);
-  $self->info("Moving $source to $target");
-  return $self->callAuthen("ln","$options","$source","$target");
-}
-
-sub f_groups {
-  my $self = shift;
-  return $self->callAuthen("groups",@_);
-}
-
-sub f_chgroup {
-  my $self = shift;
-  return $self->callAuthen("chgroups",@_);
-}
-
-sub f_chmod {
-  my $self = shift;
-  my @args = @_;
-  $args[1] = $self->GetAbsolutePath($args[1]);
-  return $self->callAuthen("chmod",@args);
-}
-
-sub f_chown {
-  my $self = shift;
-  my @args = @_;
-  $args[2] = $self->GetAbsolutePath($args[2]);
-  return $self->callAuthen("chown",@args);
-}
-
-sub f_addTag {
-  my $self = shift;
-  my @args = @_;
-  $args[0] = $self->GetAbsolutePath($args[0]);
-  return $self->callAuthen("addTag",@args);
-}
-
-sub f_addTagValue {
-  my $self = shift;
-  my @args = @_;
-  $args[1] = $self->GetAbsolutePath($args[1]);
-  return $self->callAuthen("addTagValue",@args);
-}
-
-sub f_updateTagValue {
-  my $self = shift;
-  my @args = @_;
-  $args[1] = $self->GetAbsolutePath($args[1]);
-  return $self->callAuthen("updateTagValue",@args);
-}
-
-sub f_showTagValue{
-  my $self=shift;
-  return  $self->callAuthen("showTagValue",@_);
-}
-
-sub f_removeTag {
-  my $self = shift;
-  my @args = @_;
-  $args[0] = $self->GetAbsolutePath($args[0]);
-  return $self->callAuthen("removeTag",@args);
-}
-
-sub f_removeTagValue {
-  my $self = shift;
-  my @args = @_;
-  $args[0] = $self->GetAbsolutePath($args[0]);
-  return $self->callAuthen("removeTagValue",@args);
-}
-
-sub f_cleanupTagValue {
-  my $self = shift;
-  my @args = @_;
-  $args[0] = $self->GetAbsolutePath($args[0]);
-  return $self->callAuthen("cleanupTagValue",@args);
-}
-
-sub f_showTags {
-  my $self = shift;
-  my @args = @_;
-  $args[1] = $self->GetAbsolutePath($args[1]);
-  return $self->callAuthen("showTags",@args);
-}
-
 sub f_cd {
   my $self = shift;
   my $path = shift;
   (defined $path) 
     or ($path = "$self->{CONFIG}->{USER_DIR}/".substr($self->{CONFIG}->{ROLE},0,1)."/$self->{CONFIG}->{ROLE}");
   #$path =~ s/\/$//;
-  $path = $self->GetAbsolutePath($path);
+  $path = AliEn::Catalogue::Basic::GetAbsolutePath($self, $path);
   my $env = $self->callAuthen("cd",$path);
   $env 
     or $self->info("You do not have permissions in $path")
@@ -217,135 +65,6 @@ sub f_cd {
   $self->{DISPPATH} = "$path";
   return 1;
 }
-
-sub f_mkremdir {
-  my $self = shift;
-  my @args = @_;
-  if(defined $args[3]) {
-    $args[3] = $self->GetAbsolutePath($args[3]);
-  }
-  else {
-    $self->info("File not specified");
-    return;
-  }
-  return $self->callAuthen("mkremdir",@args);
-}
-
-sub f_zoom {
-  my $self = shift;
-  my @args = @_;
-  $args[0] = $self->GetAbsolutePath($args[0]);
-  return $self->callAuthen("zoom",@args);
-}
-
-sub f_tree {
-  my $self = shift;
-  my @args = @_;
-  $args[0] = $self->GetAbsolutePath($args[0]);
-  return $self->callAuthen("tree",@args);
-}
-
-sub f_type {
-  my $self = shift;
-  my @args = @_;
-  $args[0] = $self->GetAbsolutePath($args[0]);
-  return $self->callAuthen("type",@args);
-}
-
-sub f_du {
-  my $self = shift;
-  my @args = @_;
-  $args[1] = $self->GetAbsolutePath($args[1]);
-  return $self->callAuthen("du",@args);
-}
-
-sub f_stat {
-  my $self = shift;
-  my @args = @_;
-  $args[0] = $self->GetAbsolutePath($args[0]);
-  return $self->callAuthen("stat",@args);
-}
-
-sub f_guid2lfn {
-  my $self = shift;
-  return $self->callAuthen("guid2lfn",@_);
-}
-
-sub f_lfn2guid {
-  my $self = shift;
-  my @args = @_;
-  $args[1] = $self->GetAbsolutePath($args[1]);
-  return $self->callAuthen("lfn2guid",@args);
-}
-
-sub expungeTables {
-  my $self = shift;
-  return $self->callAuthen("expungeTables");
-}
-
-sub f_showTrigger {
-  my $self = shift;
-  my @args = @_;
-  $args[1] = $self->GetAbsolutePath($args[1]);
-  return $self->callAuthen("showTrigger",@args);
-}
-
-sub f_removeTrigger {
-  my $self = shift;
-  my @args = @_;
-  $args[0] = $self->GetAbsolutePath($args[1]);
-  return $self->callAuthen("removeTrigger",@args);
-}
-
-sub f_setExpired {
-  my $self = shift;
-  my ($sec,@files) = @_;
-  map{$_ = $self->GetAbsolutePath($_)}@files;
-  return $self->callAuthen("setExpired",$sec,@files);
-}
-
-sub f_showStructure {
-  my $self = shift;
-  my @args = @_;
-  $args[1] = $self->GetAbsolutePath($args[1]);
-  return  $self->callAuthen("showStructure",@args);
-}
-
-sub f_renumber {
-  my $self = shift;
-  my @args = @_;
-  $args[0] = $self->GetAbsolutePath($args[0]);
-  return $self->callAuthen("renumberDirectory",@args);
-}
-
-sub removeExpiredFiles {
-  my $self = shift;
-  return $self->callAuthen("removeExpiredFiles");
-}
-
-sub checkPermissions {
-  my $self = shift;
-  my @args = $self->cleanArguments(@_);
-  $args[1] = $self->GetAbsolutePath($args[1]);
-  my @b = $self->callAuthen("checkLFNPermissions",@args);
-  return $b[0];
-}
-
-sub checkPermission {
-  my $self = shift;
-  my @args = $self->cleanArguments(@_);
-  AliEn::Util::isValidGUID($args[0]) or $self->error("Arguement '$args[0]' is not a valid GUID, permission check failed.") and return 0;
-  my @b = $self->callAuthen("checkGUIDPermissions",@args);
-  return $b[0];
-}
-
-
-sub authorize {
-  my $self = shift;
-  my @args = $self->cleanArguments(@_);
-  return $self->callAuthen("authorize",@args);
-}
-
 
 sub cleanArguments {
   my $self = shift;
@@ -355,19 +74,34 @@ sub cleanArguments {
   return @reply;
 }
 
-sub getLFNlike {
-  my $self = shift;
-  return $self->callAuthen("getLFNlike",@_);
+sub AUTOLOAD {
+  my $name = our $AUTOLOAD;
+  $name =~ s/.*::(f_)?//; 
+   
+  my $ops={"ls"=>"ls","isFile"=>"isFile", "isDirectory"=>"isDirectory", "getLfnlike"=>"getLFNlike",
+  authorize=>"authorize", checkPermission=>"checkGUIDPermissions", checkPermissions=>"checkLFNPermissions",
+  removeExpiredFiles=>"removeExpiredFiles",renumber=>"renumberDirectory",showStructure=>"showStructure",
+  setExpired=>"setExpired",removeTrigger=>"removeTrigger", du=>"du", stat=>"stat", 
+  guid2lfn=>"guid2lfn",lfn2guid=>"lfn2guid",expungeTables=>"expungeTables",showTrigger=>"showTrigger",
+  mkremdir=>"mkremdir",zoom=>"zoom",tree=>"tree",type=>"type",  
+  mkdir=>"mkdir",find=>"find",checkLFN=>"checkLFN",getTabCompletion=>"tabCompletion",
+  removeFile=>"rm", rmdir=>"rmdir", whereis=>"whereis", mv=>"mv", touch=>"touch",
+ln=>"ln", groups=>"groups", chgroup=>"chgroups", chmod=>"chmod",
+chown=>"chown", addTag=>"addTag", addTagValue=>"addTagValue",updateTagValue=>"updateTagValue",
+showTagValue=>"showTagValue", removeTag=>"removeTag", removeTagValue=>"removeTagValue",
+cleanupTagValue=>"cleanupTagValue", showTags=>"showTags",
+  };
+  if ($ops->{$name}){
+    return shift->callAuthen($ops->{$name},@_);
+  } elsif ($name =~/DESTROY/){
+    return;
+  }
+  print STDERR "The function $name is not defined in ClientCatalog!!\n";
 }
 
-sub isFile {
+sub getDispPath {
   my $self = shift;
-  return $self->callAuthen("isFile",$self->GetAbsolutePath($_[0]));
-}
-
-sub isDirectory {
-  my $self = shift;
-  return $self->callAuthen("isDirectory",$self->GetAbsolutePath($_[0]));
+  return $self->{DISPPATH};
 }
 
 return 1;
