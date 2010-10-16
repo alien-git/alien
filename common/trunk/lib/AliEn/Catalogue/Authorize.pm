@@ -1296,7 +1296,7 @@ sub authorize{
     
 
   $readReq and ($packedEnvelope, $seList)=$self->getBaseEnvelopeForReadAccess($user, $lfn, $seList, $excludedAndfailedSEs, $sitename);
-
+  $packedEnvelope or return 0;
   foreach ( keys %{$packedEnvelope}) { $self->info("Authorize: gron: packedEnvelope after init : $_: $packedEnvelope->{$_}"); }
    
 
