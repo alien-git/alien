@@ -462,7 +462,7 @@ sub new {
  
   bless( $self, $class );
   $self->SUPER::new();
-
+  my $client=0;
   if ($options->{gapi_catalog}) {
     eval {
         require gapi::catalogue;
@@ -488,9 +488,7 @@ sub new {
     } else {
       $self->{CATALOG} = AliEn::ClientCatalogue->new($options)   
         or return;
-      foreach my $d (keys %commands){
-         ${$commands{$d}}[0]=~ /{CATALOG}/ and  ${$commands{$d}}[1]=0;
-      }
+      $client=1;
     }
   }
 
@@ -508,7 +506,11 @@ sub new {
     $self->close();
     return;
   }
-
+  if ($client){
+    foreach my $d (keys %commands){
+       ${$commands{$d}}[0]=~ /{CATALOG}/ and  ${$commands{$d}}[1]=0;
+    }
+  } 
   $self->{SOAP}=new AliEn::SOAP;
   $self->{GUID}=AliEn::GUID->new();
   
