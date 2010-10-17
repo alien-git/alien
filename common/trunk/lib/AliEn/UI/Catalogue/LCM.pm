@@ -90,7 +90,7 @@ my %LCM_commands;
 		 'mssurl'   => ['$self->mssurl', 0],
 		 'df'       => ['$self->df', 0],
 		 'services' => ['$self->services', 0],
-		 'preFetch'   => '$self->preFetch',
+		 'preFetch'   =>[ '$self->preFetch',0],
 		 'vi'       => ['$self->vi', 0],
 		 'whereis'  => ['$self->{CATALOG}->f_whereis', 66],
 		 'purge'    => ['$self->purge', 0 ],

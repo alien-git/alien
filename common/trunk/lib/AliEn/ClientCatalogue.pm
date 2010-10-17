@@ -78,7 +78,7 @@ sub AUTOLOAD {
   my $name = our $AUTOLOAD;
   $name =~ s/.*::(f_)?//; 
    
-  my $ops={"ls"=>"ls","isFile"=>"isFile", "isDirectory"=>"isDirectory", "getLfnlike"=>"getLFNlike",
+  my $ops={"ls"=>"ls","isFile"=>"isFile", "isDirectory"=>"isDirectory", "getLFNlike"=>"getLFNlike",
   authorize=>"authorize", checkPermission=>"checkGUIDPermissions", checkPermissions=>"checkLFNPermissions",
   removeExpiredFiles=>"removeExpiredFiles",renumber=>"renumberDirectory",showStructure=>"showStructure",
   setExpired=>"setExpired",removeTrigger=>"removeTrigger", du=>"du", stat=>"stat", 
@@ -93,6 +93,10 @@ cleanupTagValue=>"cleanupTagValue", showTags=>"showTags",
   };
   if ($ops->{$name}){
     return shift->callAuthen($ops->{$name},@_);
+  } elsif ($name =~ /(ExpandWildcards)/){
+    return AliEn::Catalogue::ExpandWildcards(@_);
+  } elsif ($name =~ /(GetAbsolutePath)/){
+    return AliEn::Catalogue::Basic::GetAbsolutePath(@_);
   } elsif ($name =~/DESTROY/){
     return;
   }
