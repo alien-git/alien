@@ -1455,8 +1455,9 @@ sub addFile {
   
   $sourcePFN or $self->info("Error: not enough parameters in add\n".
                     $self->addFile_HELP(),2)  and return;
-  my $gron = $targetLFN;
-  $targetLFN = $self->{CATALOG}->f_complete_path($targetLFN);
+  
+
+  $targetLFN = $self->{CATALOG}->GetAbsolutePath($targetLFN);
  #pre-gridsite workaround
  $options->{user} or $options->{user} = $self->{CONFIG}->{ROLE};
 

@@ -5,7 +5,7 @@ use strict;
 
 use vars qw(@ISA);
 
-#@ISA = ('AliEn::Catalogue',@ISA);
+@ISA = ('AliEn::Logger::LogObject', @ISA);
 
 sub new {
   my $proto   = shift;
@@ -66,6 +66,9 @@ sub f_cd {
   return 1;
 }
 
+sub f_pwd{
+  return AliEn::Catalogue::f_pwd(@_);
+}
 sub cleanArguments {
   my $self = shift;
  
@@ -100,9 +103,11 @@ cleanupTagValue=>"cleanupTagValue", showTags=>"showTags",
   } elsif ($name =~/DESTROY/){
     return;
   }
-  print STDERR "The function $name is not defined in ClientCatalog!!\n";
+  die("The function $AUTOLOAD is not defined in ClientCatalog!!\n");
 }
-
+sub f_disconnect{
+  return;
+}
 sub getDispPath {
   my $self = shift;
   return $self->{DISPPATH};
