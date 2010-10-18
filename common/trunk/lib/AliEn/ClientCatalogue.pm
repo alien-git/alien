@@ -16,6 +16,8 @@ sub new {
   if((defined $options->{user}) and !(defined $options->{role})) {
     $options->{role} = $options->{user};
   }
+  $options->{DEBUG}  = $self->{DEBUG}  = ( $options->{debug}  or 0 );
+  $options->{SILENT} = $self->{SILENT} = ( $options->{silent} or 0 );
   $self->{ROLE} = $options->{role};
   $self->{LOGGER} = new AliEn::Logger;
   $self->{CONFIG} = new AliEn::Config($options);
@@ -93,7 +95,7 @@ sub AUTOLOAD {
     chown=>"chown", addTag=>"addTag", addTagValue=>"addTagValue",updateTagValue=>"updateTagValue",
     showTagValue=>"showTagValue", removeTag=>"removeTag", removeTagValue=>"removeTagValue",
     cleanupTagValue=>"cleanupTagValue", showTags=>"showTags", pwd=>"pwd", refreshSERankCache=>"refreshSERankCache",
-    GetHomeDirectory=>"GetHomeDirectory", resyncLDAP=>"resyncLDAP",
+    resyncLDAP=>"resyncLDAP", 
   };
   if ($ops->{$name}){
     return shift->callAuthen($ops->{$name},@_);
@@ -103,6 +105,8 @@ sub AUTOLOAD {
     return AliEn::Catalogue::f_whoami(@_);
   } elsif ($name =~ /(GetAbsolutePath)/){
     return AliEn::Catalogue::Basic::GetAbsolutePath(@_);
+  } elsif ($name =~ /GetHomeDirectory/) {
+    return AliEn::Catalogue::Basic::GetHomeDirectory(@_);
   } elsif ($name =~/DESTROY/){
     return;
   }
@@ -116,6 +120,12 @@ sub f_disconnect{
 sub getDispPath {
   my $self = shift;
   return $self->{DISPPATH};
+}
+
+sub f_quit {
+  my $self = shift;
+  print("bye now!\n");
+  exit;
 }
 
 return 1;
