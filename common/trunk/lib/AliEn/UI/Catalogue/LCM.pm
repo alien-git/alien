@@ -286,9 +286,9 @@ sub get {
    my $filehash = {};
 
    if(AliEn::Util::isValidGUID($file)) {
-     $filehash=$self->{CATALOG}->checkPermission("r", $file, "guid,type,size,md5");
+     ($filehash)=$self->{CATALOG}->checkPermission("r", $file, "guid,type,size,md5");
    } else {
-     $filehash=$self->{CATALOG}->checkPermissions("r",$file, 0, 1);
+     ($filehash)=$self->{CATALOG}->checkPermissions("r",$file, 0, 1);
    }
 
    ($filehash->{type} eq "c") and  $self->notice("This is in fact a collection!! Let's get all the files")

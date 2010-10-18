@@ -69,13 +69,13 @@ sub f_cd {
 sub f_pwd{
   return AliEn::Catalogue::f_pwd(@_);
 }
-sub cleanArguments {
-  my $self = shift;
- 
-  my @reply = ();
-  foreach (@_) {$_ ne "" and push @reply, $_ ;}
-  return @reply;
-}
+#sub cleanArguments {
+#  my $self = shift;
+# 
+#  my @reply = ();
+#  foreach (@_) {$_ ne "" and push @reply, $_ ;}
+#  return @reply;
+#}
 
 sub AUTOLOAD {
   my $name = our $AUTOLOAD;
