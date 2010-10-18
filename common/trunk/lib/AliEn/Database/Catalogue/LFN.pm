@@ -172,7 +172,7 @@ sub createCatalogueTables {
             user=>"varchar(20)",
             existing=>"smallint(1)",
           },
-            undef, ['PRIMARY KEY(lfn,pfn)','INDEX(pfn)','INDEX(lfn)', 'INDEX(guid)', 'INDEX(expiretime)']
+            undef, ['PRIMARY KEY(lfn,pfn,guid)','INDEX(pfn)','INDEX(lfn)', 'INDEX(guid)','INDEX(expiretime)']
             
         ]                                      
 	         );
