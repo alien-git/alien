@@ -82,17 +82,18 @@ sub AUTOLOAD {
   $name =~ s/.*::(f_)?//; 
    
   my $ops={"ls"=>"ls","isFile"=>"isFile", "isDirectory"=>"isDirectory", "getLFNlike"=>"getLFNlike",
-  authorize=>"authorize", checkPermission=>"checkGUIDPermissions", checkPermissions=>"checkLFNPermissions",
-  removeExpiredFiles=>"removeExpiredFiles",renumber=>"renumberDirectory",showStructure=>"showStructure",
-  setExpired=>"setExpired",removeTrigger=>"removeTrigger", du=>"du", stat=>"stat", 
-  guid2lfn=>"guid2lfn",lfn2guid=>"lfn2guid",expungeTables=>"expungeTables",showTrigger=>"showTrigger",
-  mkremdir=>"mkremdir",zoom=>"zoom",tree=>"tree",type=>"type",  
-  mkdir=>"mkdir",find=>"find",checkLFN=>"checkLFN",getTabCompletion=>"tabCompletion",
-  removeFile=>"rm", rmdir=>"rmdir", whereis=>"whereis", mv=>"mv", touch=>"touch",
-ln=>"ln", groups=>"groups", chgroup=>"chgroups", chmod=>"chmod",
-chown=>"chown", addTag=>"addTag", addTagValue=>"addTagValue",updateTagValue=>"updateTagValue",
-showTagValue=>"showTagValue", removeTag=>"removeTag", removeTagValue=>"removeTagValue",
-cleanupTagValue=>"cleanupTagValue", showTags=>"showTags", pwd=>"pwd", 
+    authorize=>"authorize", checkPermission=>"checkGUIDPermissions", checkPermissions=>"checkLFNPermissions",
+    removeExpiredFiles=>"removeExpiredFiles",renumber=>"renumberDirectory",showStructure=>"showStructure",
+    setExpired=>"setExpired",removeTrigger=>"removeTrigger", du=>"du", stat=>"stat", 
+    guid2lfn=>"guid2lfn",lfn2guid=>"lfn2guid",expungeTables=>"expungeTables",showTrigger=>"showTrigger",
+    mkremdir=>"mkremdir",zoom=>"zoom",tree=>"tree",type=>"type",  
+    mkdir=>"mkdir",find=>"find",checkLFN=>"checkLFN",getTabCompletion=>"tabCompletion",
+    removeFile=>"rm", rmdir=>"rmdir", whereis=>"whereis", mv=>"mv", touch=>"touch",
+    ln=>"ln", groups=>"groups", chgroup=>"chgroups", chmod=>"chmod",
+    chown=>"chown", addTag=>"addTag", addTagValue=>"addTagValue",updateTagValue=>"updateTagValue",
+    showTagValue=>"showTagValue", removeTag=>"removeTag", removeTagValue=>"removeTagValue",
+    cleanupTagValue=>"cleanupTagValue", showTags=>"showTags", pwd=>"pwd", refreshSERankCache=>"refreshSERankCache",
+    GetHomeDirectory=>"GetHomeDirectory", resyncLDAP=>"resyncLDAP",
   };
   if ($ops->{$name}){
     return shift->callAuthen($ops->{$name},@_);
@@ -107,17 +108,14 @@ cleanupTagValue=>"cleanupTagValue", showTags=>"showTags", pwd=>"pwd",
   }
   die("The function $AUTOLOAD is not defined in ClientCatalog!!\n");
 }
+
 sub f_disconnect{
   return;
 }
+
 sub getDispPath {
   my $self = shift;
   return $self->{DISPPATH};
-}
-
-sub refreshSERankCache {
-  my $self = shift;
-  return $self->callAuthen("refreshSERankCache");
 }
 
 return 1;

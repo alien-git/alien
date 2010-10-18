@@ -199,7 +199,7 @@ sub getVOPath {
 
 sub GetHomeDirectory {
   my $self = shift;
-  return "$self->{CONFIG}->{USER_DIR}/" . substr( $self->{CONFIG}->{ROLE}, 0, 1 ) . "/$self->{CONFIG}->{ROLE}/";
+  return "$self->{CONFIG}->{USER_DIR}/" . substr( $self->{ROLE}, 0, 1 ) . "/$self->{ROLE}/";
 }
 
 #
