@@ -488,6 +488,7 @@ sub new {
     } else {
       $self->{CATALOG} = AliEn::ClientCatalogue->new($options)   
         or return;
+      #map {${$commands{$_}}[1] = 0} keys %commands;
       $client=1;
     }
   }
