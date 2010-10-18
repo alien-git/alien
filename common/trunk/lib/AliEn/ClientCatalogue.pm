@@ -98,6 +98,8 @@ cleanupTagValue=>"cleanupTagValue", showTags=>"showTags",
     return shift->callAuthen($ops->{$name},@_);
   } elsif ($name =~ /(ExpandWildcards)/){
     return AliEn::Catalogue::ExpandWildcards(@_);
+  } elsif ($name =~ /(whoami)/){
+    return AliEn::Catalogue::f_whoami(@_);
   } elsif ($name =~ /(GetAbsolutePath)/){
     return AliEn::Catalogue::Basic::GetAbsolutePath(@_);
   } elsif ($name =~/DESTROY/){
