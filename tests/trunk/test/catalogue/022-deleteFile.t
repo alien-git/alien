@@ -24,8 +24,8 @@ my ($se, $pfn)=$cat->execute("whereis", "file_to_delete.txt") or exit(-2);
 
 $pfn =~ s{^file://[^/]*}{};
 (-f $pfn) or print "The file '$pfn' doesn't exist!!\n" and exit(-2);
-$cat->{CATALOG}->{DATABASE}->{LFN_DB}->queryValue("select count(*) from TODELETE where guid=string2binary('$guid')")
-  and print "The file is already in the queue to delete!!!\n" and exit(-2);
+#$cat->{CATALOG}->{DATABASE}->{LFN_DB}->queryValue("select count(*) from TODELETE where guid=string2binary('$guid')")
+#  and print "The file is already in the queue to delete!!!\n" and exit(-2);
 $cat->execute("rm", "file_to_delete.txt") or exit(-2);
 print "OK! the file has been deleted. The second part of the test will
 check if the file is gone from the catalogue
