@@ -309,7 +309,6 @@ sub f_pwd {
   my $short           = grep ( /-1/, @_ );
   $DEBUG and $self->debug( 1, "\n\t\t UserInterface pwd:@_" );
   #$self->checkPermissions( 'x', $self->{DISPPATH}, 1 ) or return;
-  $self->{DISPPATH} = $self->{DISPPATH};
 
   if ( ( !$self->{SILENT} ) and ( !$silent ) ) {
     if ($short) {
@@ -326,7 +325,7 @@ sub f_pwd {
     push @retarray, $newhash;
     return @retarray;
   } else {
-    return $self->{DISPPATH};
+    return "$self->{DISPPATH}";
   }
 }
 

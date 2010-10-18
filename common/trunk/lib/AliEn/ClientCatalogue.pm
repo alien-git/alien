@@ -92,7 +92,7 @@ sub AUTOLOAD {
 ln=>"ln", groups=>"groups", chgroup=>"chgroups", chmod=>"chmod",
 chown=>"chown", addTag=>"addTag", addTagValue=>"addTagValue",updateTagValue=>"updateTagValue",
 showTagValue=>"showTagValue", removeTag=>"removeTag", removeTagValue=>"removeTagValue",
-cleanupTagValue=>"cleanupTagValue", showTags=>"showTags",
+cleanupTagValue=>"cleanupTagValue", showTags=>"showTags", pwd=>"pwd", 
   };
   if ($ops->{$name}){
     return shift->callAuthen($ops->{$name},@_);
@@ -113,6 +113,11 @@ sub f_disconnect{
 sub getDispPath {
   my $self = shift;
   return $self->{DISPPATH};
+}
+
+sub refreshSERankCache {
+  my $self = shift;
+  return $self->callAuthen("refreshSERankCache");
 }
 
 return 1;

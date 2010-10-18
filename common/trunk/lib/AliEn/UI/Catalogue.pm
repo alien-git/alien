@@ -705,8 +705,8 @@ sub execute {
     $cnt++;
     if ($_ =~ /^>/) {
       if (defined $_[$cnt]) {
-	$_ .= $_[$cnt];
-	pop @arg;
+        $_ .= $_[$cnt];
+        pop @arg;
       }
     }
   }
@@ -811,7 +811,7 @@ sub execute {
     if ($@) {
       print STDERR "Error executing the AliEn command:  $command $@\n";   # propagate unexpected errors
       if ($@ =~  /We got a ctrl\+c\.\.\./) {
-	die($@);
+        die($@);
       }
       # timed out
       $silent and $self->restoreSilent();
