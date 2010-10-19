@@ -1226,8 +1226,8 @@ sub getFindConstraints {
     $name  or $error = "Missing the name of the Tag";
     $query or $error = "Missing the condition";
     $error
-      and print STDERR "Error: not enough arguments in find\n(\t\t$error ) \n"
-      . $self->f_find_HELP()
+      and $self->info("Error: not enough arguments in find\n(\t\t$error ) \n"
+      . $self->f_find_HELP())
       and return;
     $self->info("Filtering according to '$union' $name $query");
     $query =~ s/===/ like / and $self->info("This is a like query");
@@ -1638,14 +1638,14 @@ sub f_find {
   $path =~ s/\*/%/g;
   $file =~ s/\*/%/g;
   ($file)
-    or print STDERR"Error: not enough arguments in find\n"
-    . $self->f_find_HELP()
+    or $self->info( "Error: not enough arguments in find\n"
+    . $self->f_find_HELP())
     and return;
   #### -g option
   if ( defined $options{g} ) {
     if ( $file =~ /%/ ) {
-      print STDERR
-"To query filegroups, you need to specify an exact reference file to find a file group - no wildcards are allowd!\n"
+      $self->info(
+"To query filegroups, you need to specify an exact reference file to find a file group - no wildcards are allowd!")
         and return;
     }
   }
@@ -1733,7 +1733,7 @@ sub f_find {
       $self->createFindXML( $file, $cmdline, \%options, \@result, \@filegroup );
   } else {
     if ( !$self->{SILENT} ) {
-      $quiet or (@result) or $verbose and print "No files found!!\n";
+      $quiet or (@result) or $verbose and $self->info("No files found!!",undef,0);
     }
     if ( $options{O} ) {
       map { $_->{turl} = "alien://" . $_->{lfn} . "?$options{O}"; } @result;
@@ -1741,18 +1741,20 @@ sub f_find {
       map { $_->{turl} = "alien://" . $_->{lfn}; } @result;
     }
     if ( !$self->{SILENT} and !$quiet ) {
+      my $msg="";
       map {
-        foreach my $field (@printfields) { print STDOUT "$_->{$field}   "; }
-        print STDOUT "\n";
+        foreach my $field (@printfields) { $msg.= "$_->{$field}   " }
+        $msg.="\n";
       } @result;
-      ($total) and $verbose and print "$total files found\n";
+      ($total) and $verbose and $msg.="$total files found\n";
+      $self->info($msg,undef,0);
     }
     if ( !$options{z} ) {
       my @plainresult;
       map { push @plainresult, $_->{lfn}; } @result;
       return @plainresult;
     }
-    ($total) and print "$total files found\n";
+    ($total) and $self->info("$total files found",undef, 0);
   }
   return @result;
 }

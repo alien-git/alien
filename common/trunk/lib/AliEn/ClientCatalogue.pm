@@ -29,7 +29,9 @@ sub new {
     or $self->info("Home directory for $self->{CONFIG}->{ROLE} does not exist or you do not have permissions")
     and return;
   $self->{GLOB}=1;
-  $self->{ROLE}=$options->{role} || $options->{ROLE} || $self->{CONFIG}->{ROLE};
+  $self->{ROLE}=$options->{role} || $options->{ROLE} || $self->{CONFIG}->{ROLE}; 
+
+  $self->{SILENT} = $options->{silent} || 0;
   return $self;
 }
 
@@ -44,8 +46,8 @@ sub callAuthen {
 
   my $user=$self->{ROLE};
   if($_[0] =~ /^-user=([\w]+)$/)  {
-    $user = shift;
-    $user =~ s/^-user=([\w]+)$/$1/;
+    shift;
+    $user = $1;
   }
   
   $self->{LOGGER}->getDebugLevel() and push @_, "-debug=".$self->{LOGGER}->getDebugLevel();
@@ -78,7 +80,11 @@ sub f_pwd{
 #  foreach (@_) {$_ ne "" and push @reply, $_ ;}
 #  return @reply;
 #}
-
+sub f_quit {
+  my $self=shift;
+  $self->info("bye now");
+  exit;
+} 
 sub AUTOLOAD {
   my $name = our $AUTOLOAD;
   $name =~ s/.*::(f_)?//; 
@@ -112,7 +118,9 @@ sub AUTOLOAD {
   }
   die("The function $AUTOLOAD is not defined in ClientCatalog!!\n");
 }
-
+sub GetHomeDirectory{ 
+  return AliEn::Catalogue::Basic::GetHomeDirectory(@_);
+}
 sub f_disconnect{
   return;
 }
