@@ -95,6 +95,7 @@ sub doOperation {
   my $directory=shift;
   my $op=shift;
   $self->info("$$ Ready to do an operation for $user in $directory (and $op '@_')");
+
   $self->{UI}->execute("user","-", $user);
   my $mydebug=$self->{LOGGER}->getDebugLevel();
   my $params=[];
@@ -103,11 +104,16 @@ sub doOperation {
   $tracelog and $self->{LOGGER}->tracelogOn();
   (my $debug,$params) = $self->getDebugLevelFromParameters(@$params);
   $debug and $self->{LOGGER}->debugOn($debug);
-  @_ = @{$params};
-  $self->info("gron: params for call after cleaning are: @_");
+#  @_ = @{$params};
+#  $self->info("gron: params for call after cleaning are: @_");
   $self->{LOGGER}->keepAllMessages();
   $self->{UI}->{CATALOG}->{DISPPATH}=$directory;
-  my @info = $self->{UI}->execute($op, split(/\s+/, "@_"));
+  my @info;
+  if ($op =~ /authorize/){ 
+    @info = $self->{UI}->{CATALOG}->authorize(@_);
+  } else {
+    @info = $self->{UI}->execute($op, @_);
+  }
   my @loglist = @{$self->{LOGGER}->getMessages()};
 
   $debug and $self->{LOGGER}->debugOn($mydebug);

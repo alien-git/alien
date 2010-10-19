@@ -45,6 +45,7 @@ This object provides the access to the Local Cache Manager (LCM) to the prompt. 
 =cut
 
 use strict;
+use Data::Dumper;
 use AliEn::LCM;
 use List::Util 'shuffle';
 
@@ -786,26 +787,26 @@ sub selectPFNOnClosestRootSEOnRank{
 
    foreach my $tSE (@where) {
      $self->info("Authorize: gron: se $tSE->{se}, pfn $tSE->{pfn}");
-     AliEn::Util::isValidSEName($tSE->{se}) || next;
-     $self->info("Authorize: gron: se $tSE->{se} valid!");
+     #AliEn::Util::isValidSEName($tSE->{se}) || next;
+     #$self->info("Authorize: gron: se $tSE->{se} valid!");
      (grep (/^$tSE->{se}$/i,@$excludeList)) && next;
-     if($tSE->{pfn} =~ /^root/) { 
-        $seList->{$tSE->{se}} = $tSE->{pfn}; 
-        $self->info("Authorize: gron: se $tSE->{se} recognized!");
+     #if($tSE->{pfn} =~ /^root/) { 
+     $seList->{$tSE->{se}} = $tSE->{pfn}; 
+     $self->info("Authorize: gron: se $tSE->{se} recognized!");
     # } elsif ($tSE->{pfn} =~ /^guid/) {
        # $nose=$tSE->{pfn};
-     } else {
-        $nose=$tSE->{pfn};
+     #} else {
+     #   $nose=$tSE->{pfn};
        #$nonRoot->{se} = $tSE->{se};
        #$nonRoot->{pfn} = $tSE->{pfn};
-     }
+     #}
    } 
 
    if(scalar(keys %{$seList}) eq 0) {
      # we don't have any root SE to get it from
-     $nose and return ("no_se",$nose);      
-     $self->info("Authorize: access: no root file or archive to read from.");
-     $nonRoot->{pfn} and return ($nonRoot->{se},$nonRoot->{pfn});
+    # $nose and return ("no_se",$nose);      
+    $self->info("There are no more SE holding that file");
+    # $nonRoot->{pfn} and return ($nonRoot->{se},$nonRoot->{pfn});
      return 0;
    }
 
@@ -829,7 +830,7 @@ sub selectPFNOnClosestRootSEOnRank{
        $query .= " and (seExclusiveRead is NULL or seExclusiveRead = '' or seExclusiveRead  LIKE concat ('%,' , ? , ',%') ) ;";
        push @queryValues, $user;
    }
-   $self->info("Authorize: gron: query: $query, values: @queryValues");
+   $self->debug(1, "Authorize: gron: query: $query, values: @queryValues");
    my $sePriority = $self->resortArrayToPrioElementIfExists($sePrio,$catalogue->queryColumn($query, undef, {bind_values=>\@queryValues}));
    $self->info("Authorize: gron: choosen se: ".$$sePriority[0].", pfn: ".$seList->{$$sePriority[0]}." .");
    return ($$sePriority[0], $seList->{$$sePriority[0]});
@@ -847,39 +848,27 @@ sub getBaseEnvelopeForReadAccess {
 
 
   
-  $self->info("Authorize: gron: getBaseEnvelopeForReadAccess...");
-
-  $self->info("Authorize: gron: user $user");
-  $self->info("Authorize: gron: lfn $lfn");
-  $self->info("Authorize: gron: seList @$seList");
-  $self->info("Authorize: gron: sitename $sitename");
-  $self->info("Authorize: gron: excludedAndfailedSEs @$excludedAndfailedSEs");
-
+  $self->debug(1, "Authorize: gron: getBaseEnvelopeForReadAccess...");
 
   my $filehash = {};
   if(AliEn::Util::isValidGUID($lfn)) {
-    $self->info("Authorize: gron: recognized lfn/guid as a GUID");
     $filehash=$self->{DATABASE}->{GUID_DB}->checkPermission("r", $lfn, "guid,type,size,md5")
       or $self->info("Authorize: access denied for $lfn",1) and return 0;
     $filehash->{guid} = $lfn;
     $filehash->{lfn} = $lfn;
   } else {
-    $self->info("Authorize: gron: recognized lfn/guid as a LFN");
     $filehash=$self->checkPermissions("r",$lfn,0, 1)
      or $self->info("Authorize: access denied for $lfn",1) and return 0;
     ($filehash->{type} eq "f") or $self->info("Authorize: access: $lfn is not a file, so read not possible",1) and return 0;
   }
-  # gron: what about the parent folder and tree checking ?!
-
-  foreach ( keys %{$filehash}) { $self->info("Authorize: gron: after checkPermissions for read, filehash: $_: $filehash->{$_}"); }
-
 
   ($filehash->{size} eq "0") and $filehash->{size} = 1024*1024*1024 ; #gron: does this make any sense ?
 
-  my $packedEnvelope = $self->reduceFileHashAndInitializeEnvelope("read",$filehash,"lfn","guid","size","md5");
-
+  my $packedEnvelope = $self->reduceFileHashAndInitializeEnvelope("read",$filehash);
+  
   ($packedEnvelope->{se}, $packedEnvelope->{pfn})
-    = $self->selectPFNOnClosestRootSEOnRank($sitename, $user, $filehash->{guid}, ($$seList[0] || 0), $excludedAndfailedSEs)
+    = $self->selectPFNOnClosestRootSEOnRank($sitename, $user, $filehash->{guid}, ($$seList[0] || 0), $excludedAndfailedSEs);
+  $packedEnvelope->{se} 
        or $self->info("Authorize: access ERROR within selectPFNOnClosestRootSEOnRank: SE list was empty after checkup. Either problem with the file's info or you don't have access on relevant SEs.",1)
        and return 0;
 
@@ -910,12 +899,12 @@ sub parseAndCheckStorageElementPFN2TURL {
   my $urloptions="";
 
   my $parsedPFN = $self->parsePFN($pfn);
-  $parsedPFN or return (0,$pfn);
+  $parsedPFN or return ($pfn,$pfn);
 
   my @queryValues = ("$se");
   my $seiostring = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow("SELECT seioDaemons FROM SE where seName like ? ;", 
               undef, {bind_values=>\@queryValues});
-  ($seiostring->{seioDaemons} =~ /[a-zA-Z]*:\/\/[0-9a-zA-Z.\-_:]*/) and $turl = $seiostring->{seioDaemons} or return (0,$pfn);
+  ($seiostring->{seioDaemons} =~ /[a-zA-Z]*:\/\/[0-9a-zA-Z.\-_:]*/) and $turl = $seiostring->{seioDaemons} or return ($pfn,$pfn);
 
   $self->info("Authorize: gron: seiostring is : $seiostring->{seioDaemons} ");
   $turl= "$turl/$parsedPFN->{path}";
@@ -950,7 +939,7 @@ sub parsePFN {
   $result->{host}   = $2;
   ($result->{path},$result->{vars}) = split (/\?/,$3);
   $result->{path} =~ s/^(\/*)/\//;
-  $self->info("Authorize: gron: parsing PFN we got: $result->{proto}, $result->{host} , $result->{path}, $result->{vars} ."); 
+  $self->debug(1, "Authorize: gron: parsing PFN we got: $result->{proto}, $result->{host} , $result->{path}, $result->{vars} ."); 
   return $result;
 }
 
@@ -1001,8 +990,8 @@ sub  getBaseEnvelopeForWriteAccess {
 #  ($ok eq -1) and $self->info("Authorize: We gonna throw an access exception: "."[quotaexception]") and $self->info($message."[quotaexception]");
   ($ok eq 0) and $self->info($message,1) and return 0;
   
-  foreach ( keys %{$envelope}) { $self->info("Authorize: gron: filehash for write before cleaning checkPermissions: $_: $envelope->{$_}"); }
-  return $self->reduceFileHashAndInitializeEnvelope("write-once",$envelope,"lfn","guid","size","md5");
+ # foreach ( keys %{$envelope}) { $self->info("Authorize: gron: filehash for write before cleaning checkPermissions: $_: $envelope->{$_}"); }
+  return $self->reduceFileHashAndInitializeEnvelope("write-once",$envelope);
 }
 
 
@@ -1042,7 +1031,7 @@ sub  getBaseEnvelopeForMirrorAccess {
 
   $envelope->{lfn} = $guid;
   $envelope->{access} = "write-once";
-  return $self->reduceFileHashAndInitializeEnvelope("write-once",$envelope,"lfn","guid","size","md5","access");
+  return $self->reduceFileHashAndInitializeEnvelope("write-once",$envelope,"access");
 }
 
 
@@ -1219,15 +1208,15 @@ sub reduceFileHashAndInitializeEnvelope{
   my $self=shift;
   my $access=(shift || return 0);
   my $filehash=(shift || return 0);
-  my @tags=@_;
+  my @tags=("lfn", "guid", "size", "md5", @_);
   my $envelope = {};
   
   $envelope->{access} = $access;
-  foreach my $tag (keys %{$filehash}) {
-     grep(/^$tag$/,@tags) 
-         and $envelope->{$tag} = $filehash->{$tag};
+  foreach my $tag (@tags){
+     $filehash->{$tag} or $self->info("Warning! there was supposed to be a $tag, but it is not there".Dumper($filehash)) and next;
+     $envelope->{$tag} = $filehash->{$tag};
   }
-  foreach ( keys %{$envelope}) { $self->info("Authorize: gron: packedEnvelope during reduction : $_: $envelope->{$_}"); }
+#  foreach ( keys %{$envelope}) { $self->info("Authorize: gron: packedEnvelope during reduction : $_: $envelope->{$_}"); }
 
   return $envelope;
 }
@@ -1237,31 +1226,12 @@ sub authorize{
   my $self = shift;
   my $access = (shift || return),
   my @registerEnvelopes=@_;
-  my $lfn    = (shift || "");
-  my $seOrLFNOrEnv= (shift || "");
-  my $size    = (shift || "0");
-  my $md5 = (shift || 0);
-  my $guidRequest = (shift || 0);
-  my $sitename= (shift || 0);
-  my $writeQos = (shift || 0);
-  my $writeQosCount = (shift || 0);
-  my $excludedAndfailedSEs = $self->validateArrayOfSEs(split(/;/, shift));
+  my $options=shift;
 
   my $user=$self->{CONFIG}->{ROLE};
   $self and $self->{ROLE} and $user=$self->{ROLE};
   #
-  #
-
-  $self->info("Authorize gron: user $user
- Authorize: gron: access $access
-Authorize: gron: lfn $lfn
-Authorize: gron: size $size
-Authorize: gron: guidRequest $guidRequest
-Authorize: gron: seOrLFNOrEnv $seOrLFNOrEnv
-Authorize: gron: sitename $sitename
-Authorize: gron: writeQos $writeQos
-Authorize: gron: writeQosCount $writeQosCount
-Authorize: gron: excludedAndfailedSEs @$excludedAndfailedSEs");
+  $self->debug(1, "In authorize, with". Dumper($options));
 
 
   ($access =~ /^write[\-a-z]*/) and $access = "write-once";
@@ -1273,21 +1243,31 @@ Authorize: gron: excludedAndfailedSEs @$excludedAndfailedSEs");
 
   my $exceptions = 0;
 
-  # the following three return immediately without envelope creation
   if ($access =~/^registerenvs$/){
     return $self->registerFileInCatalogueAccordingToEnvelopes($user,\@registerEnvelopes);
   }
+
+  my $lfn    = ($options->{lfn} || "");
+  my $wishedSE = ($options->{wishedSE} ||"");
+  my $size    = ($options->{size} || "0");
+  my $md5 = ($options->{md5} || 0);
+  my $guidRequest = ($options->{guidRequest} || 0);
+  my $sitename= ($options->{site} || 0);
+  my $writeQos = ($options->{writeQos} || 0);
+  my $writeQosCount = ($options->{writeQosCount} || 0);
+  my $excludedAndfailedSEs = $self->validateArrayOfSEs(split(/;/, $options->{excludeSE}));
+
  
-  my $seList = $self->validateArrayOfSEs(split(/;/, $seOrLFNOrEnv));
-  $self->info("Authorize: gron: seList @$seList");
+  my $seList = $self->validateArrayOfSEs(split(/;/, $wishedSE));
 
 
   my @packedEnvelopeList = ();
   my $packedEnvelope = {};
 
-  ($writeReq or $registerReq) and $packedEnvelope = $self->getBaseEnvelopeForWriteAccess($user,$lfn,$size,$md5,$guidRequest);
+  ($writeReq or $registerReq) and 
+     $packedEnvelope = $self->getBaseEnvelopeForWriteAccess($user,$lfn,$size,$md5,$guidRequest);
 
-  $registerReq and return $self->registerPFNInCatalogue($user,$packedEnvelope,$seOrLFNOrEnv);
+  $registerReq and return $self->registerPFNInCatalogue($user,$packedEnvelope,$wishedSE);
 
   $mirrorReq and $packedEnvelope = $self->getBaseEnvelopeForMirrorAccess($user,$lfn,$guidRequest,$size,$md5);
 
@@ -1297,22 +1277,16 @@ Authorize: gron: excludedAndfailedSEs @$excludedAndfailedSEs");
 
   $readReq and ($packedEnvelope, $seList)=$self->getBaseEnvelopeForReadAccess($user, $lfn, $seList, $excludedAndfailedSEs, $sitename);
   $packedEnvelope or return 0;
-  foreach ( keys %{$packedEnvelope}) { $self->info("Authorize: gron: packedEnvelope after init : $_: $packedEnvelope->{$_}"); }
    
 
   ($seList && (scalar(@$seList) gt 0)) or $self->info("Authorize: access: After checkups there's no SE left to make an envelope for.",1) and return 0;
 
-
-  # $packedEnvelope = $self->initializeEnvelope($access,$lfn,$packedEnvelope);
-  # $packedEnvelope = $self->initializeEnvelope($access,$packedEnvelope);
   (scalar(@$seList) lt 0) and $self->info("Authorize: Authorize: ERROR! There are no SE's after checkups to create an envelope for '$$packedEnvelope->{lfn}/$packedEnvelope->{guid}'",1) and return 0;
-
+  $self->debug (1, "Base envelope ". Dumper($packedEnvelope,));
   while (scalar(@$seList) gt 0) {
- 
        $packedEnvelope->{se} = shift(@$seList);
    
-       $self->info("Authorize: gron: Starting the loop...");
-       foreach ( keys %{$packedEnvelope}) { $self->info("Authorize: gron: packedEnvelope before (write) fill up: $_: $packedEnvelope->{$_}"); }
+       $self->debug(1,"Authorize: gron: Starting the loop...");
    
        if ($writeReq or $mirrorReq) {
          $packedEnvelope = $self->calculateXrootdTURLForWriteEnvelope($packedEnvelope);
@@ -1324,22 +1298,15 @@ Authorize: gron: excludedAndfailedSEs @$excludedAndfailedSEs");
    
        }
    
-  #     $packedEnvelope->{lfn} = $packedEnvelope->{pfn};
        my $encryptedEnvelope = $self->createAndEncryptEnvelopeTicket($access, $packedEnvelope); 
    
-  #     $packedEnvelope->{access} = $access;
        $packedEnvelope = $self->signEnvelope($packedEnvelope);
-   
        $packedEnvelope->{envelope} = $encryptedEnvelope;
-   
-       # patch for dCache
-   #    ( ($se =~ /dcache/i) or ($se =~ /alice::((RAL)|(CNAF))::castor/i)) 
-   #       and  $packedEnvelope->{turl}="root://$pfix/".($packedEnvelope->{lfn} || "/NOLFN");
    
        $self->info("Authorize: gron: finally se is: $packedEnvelope->{se}");  
 
 
-       foreach ( keys %{$packedEnvelope}) { $self->notice("Authorize: gron: final packedEnvelope, $_: $packedEnvelope->{$_}"); }
+  #    foreach ( keys %{$packedEnvelope}) { $self->notice("Authorize: gron: final packedEnvelope, $_: $packedEnvelope->{$_}"); }
          
        push @packedEnvelopeList, $packedEnvelope;
    
@@ -1351,7 +1318,8 @@ Authorize: gron: excludedAndfailedSEs @$excludedAndfailedSEs");
    	$method and
    	$self->{MONITOR}->sendParameters("$self->{CONFIG}->{SITE}_QUOTA","$self->{ROLE}_$method", ("$packedEnvelope->{se}", $packedEnvelope->{size}) ); 		      
        }
-  } 
+  }  
+  $self->info("authorize returns");
   return @packedEnvelopeList;
 }
 
@@ -1383,7 +1351,7 @@ sub createAndEncryptEnvelopeTicket {
     $ticket .= "    <access>$access</access>\n";
     foreach ( keys %{$env}) { ($_ ne "access" && defined $env->{$_}) and $ticket .= "    <${_}>$env->{$_}</${_}>\n"; }
     $ticket .= "  </file>\n</authz>\n";
-    $self->info("Authorize: The ticket is $ticket");
+    $self->debug (1,"Authorize: The ticket is $ticket");
 
     $self->{envelopeCipherEngine}->Reset();
     #    $self->{envelopeCipherEngine}->Verbose();
@@ -1574,7 +1542,7 @@ sub checkSiteSECacheForAccess{
    my $reply = $catalogue->query("SELECT sitename FROM SERanks WHERE sitename LIKE ?;", undef, {bind_values=>[$site]});
 
    (scalar(@$reply) < 1) and $self->info("Authorize: We need to update the SERank Cache for the not listed site: $site")
-            and return $self->execute("refreshSERankCache", $site);
+            and return $self->refreshSERankCache( $site);
 
    return 1;
 }

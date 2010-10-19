@@ -296,23 +296,22 @@ sub get {
 
    my $result=$self->{STORAGE}->getLocalCopy($filehash->{guid}, $localFile);
    $self->{STORAGE}->checkDiskSpace($filehash->{size}, $localFile) or return;
-
    while (!$result) {
-     my  @envelopes = $self->{CATALOG}->callAuthen("authorize","read",$filehash->{lfn},$wishedSE,0,0,(join(";",@excludedAndfailedSEs) || 0),$self->{CONFIG}->{SITE});
+     my  @envelopes = $self->{CATALOG}->callAuthen("authorize","read",{
+      lfn=> $filehash->{lfn},
+      wishedSE=>$wishedSE,excludeSE=>join(";",@excludedAndfailedSEs) ,site=>$self->{CONFIG}->{SITE}});
      my $envelope = $envelopes[0];
-     $envelope->{turl} or 
+     ($envelope and $envelope->{turl}) or 
       $self->error("Getting an envelope was not successfull for file $file.") and return;
  
- foreach (keys %{$envelope}) { defined($envelope->{$_}) and $self->info("gron: envelopee info, $_: $envelope->{$_}"); }
- 
-     $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope->{envelope};
-     $ENV{ALIEN_XRDCP_URL}=$envelope->{turl};
      my $start=time;
      $result = $self->{STORAGE}->getFile( $envelope->{turl}, $envelope->{se}, $localFile, join("",keys %options), $file, $envelope->{guid},$envelope->{md5} );
-     my $time=time-$start; if ($self->{MONITOR}){ $self->sendMonitor('read', $envelope->{se}, $time, $envelope->{size}, $result); }
+     my $time=time-$start; 
+     if ($self->{MONITOR}){ $self->sendMonitor('read', $envelope->{se}, $time, $envelope->{size}, $result); }
      $result and last or $self->error("getFile failed with: ".$self->{LOGGER}->error_msg());
      push @excludedAndfailedSEs, $envelope->{se};
      $wishedSE = 0;
+     
    } 
    $result or $self->info("Error: not possible to get the file $file. Message: ".$self->{LOGGER}->error_msg(), 1) and return;
    $self->info("And the file is $result",0,0);
@@ -1387,7 +1386,7 @@ sub erase {
 #	my $pfn=$self->getPFNfromGUID($se, $guid);
 #	$pfn or next;
 
-	my @envelope = $self->{CATALOG}->callAuthen("authorize","delete","$lfn",$se);
+	my @envelope = $self->{CATALOG}->callAuthen("authorize","delete",{lfn=>$lfn,wishedse=>$se});
 
 	if ((!defined $envelope[0]) || (!defined $envelope[0]->{envelope})) {
 	    $self->info("Cannot get access to $lfn for deletion $envelope[0]") and return;
@@ -1489,7 +1488,8 @@ sub registerPFN{
   my $feedback=(shift || 0);
   my $silent=(shift || 0);
 
-  $self->{CATALOG}->callAuthen("authorize","register", $targetLFN, $sourcePFN, $size, $md5sum, $guid ) 
+  $self->{CATALOG}->callAuthen("authorize","register", {lfn=>$targetLFN, 
+           pfn=>$sourcePFN, size=>$size, md5=>$md5sum, guid=>$guid }) 
    and return 1;
   return 0;
 }
@@ -1688,7 +1688,8 @@ sub putOnStaticSESelectionListV2{
      ($selOutOf = scalar(@$ses)) or
      $self->notice("We select out of a supplied static list the SEs to save on: @staticSes, count:".scalar(@staticSes));
 
-     my @envelopes = $self->{CATALOG}->callAuthen("authorize","write", $targetLFN, join(";", @staticSes), $size, $md5, ($result->{guid} || 0));
+     my @envelopes = $self->{CATALOG}->callAuthen("authorize","write", {lfn=>$targetLFN, 
+    wishedSE=>join(";", @staticSes), size=>$size, md5=>$md5, guidRequest=>($result->{guid} || 0)});
      
      ((!@envelopes) || (scalar(@envelopes) eq 0)) and
            $self->error("We couldn't get envelopes for any of the SEs, @staticSes .") and return($result, $success);
@@ -1723,7 +1724,9 @@ sub putOnDynamicDiscoveredSEListByQoSV2{
    my @successfulUploads = ();
 
    while($count gt 0) {
-     my @envelopes= $self->{CATALOG}->callAuthen("authorize","write", $targetLFN, 0, $size, $md5, ($result->{guid} || 0), $sitename, $qos, $count, (join(";", @$excludedSes) || 0));
+     my @envelopes= $self->{CATALOG}->callAuthen("authorize","write", {lfn=>$targetLFN, 
+       size=> $size, md5=>$md5,  guidRequest=>($result->{guid} || 0), site=>$sitename, 
+          writeQos=>$qos, writeQosCount=>$count, excludeSE=>(join(";", @$excludedSes) || 0)});
 
      ((!@envelopes) || (scalar(@envelopes) eq 0)) and
          $self->error("We couldn't get any envelopes (requested were '$count')  with qos flag '$qos'.") and return($result, $success);
