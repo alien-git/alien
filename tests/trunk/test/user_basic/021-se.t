@@ -36,6 +36,7 @@ setDirectDatabaseConnection();
 		      "savedir", "$config->{LOG_DIR}/SE_DATA",
 		      "port", "8092",
 		      "certsubject",$subject,
+                      "ioDaemons","file:host=$host:port=8092",
 		      "QoS", 'disk',
 		      "ftdprotocol",'cp',
 		     ]) or exit(-2);

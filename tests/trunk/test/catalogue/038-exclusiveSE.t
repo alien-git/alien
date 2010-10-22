@@ -32,6 +32,7 @@ BEGIN { plan tests => 1 }
 		      "savedir", "$config->{LOG_DIR}/exclSE/DATA",
 		      "port", 7097,
 		      "certsubject",$subject,
+                      "ioDaemons","file:host=$config->{HOST},port=7097",
 		      'ftdprotocol','cp',
                       'QoS', 'vip',
 		     ]) or exit(-2);
