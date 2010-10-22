@@ -1256,6 +1256,7 @@ sub authorize{
   my $writeQos = ($options->{writeQos} || 0);
   my $writeQosCount = ($options->{writeQosCount} || 0);
   my $excludedAndfailedSEs = $self->validateArrayOfSEs(split(/;/, $options->{excludeSE}));
+  my $pfn = ($options->{pfn} || "");
 
  
   my $seList = $self->validateArrayOfSEs(split(/;/, $wishedSE));
@@ -1267,7 +1268,7 @@ sub authorize{
   ($writeReq or $registerReq) and 
      $packedEnvelope = $self->getBaseEnvelopeForWriteAccess($user,$lfn,$size,$md5,$guidRequest);
 
-  $registerReq and return $self->registerPFNInCatalogue($user,$packedEnvelope,$wishedSE);
+  $registerReq and return $self->registerPFNInCatalogue($user,$packedEnvelope,$pfn,$wishedSE);
 
   $mirrorReq and $packedEnvelope = $self->getBaseEnvelopeForMirrorAccess($user,$lfn,$guidRequest,$size,$md5);
 

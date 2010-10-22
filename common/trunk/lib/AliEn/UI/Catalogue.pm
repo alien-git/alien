@@ -1250,9 +1250,17 @@ sub f_cp {
   my $user = $self->{ROLE};
   $user = $opt->{'user'} if($opt->{'user'});
   
+  $source = $self->{CATALOG}->GetAbsolutePath($source,1);
   $target = $self->{CATALOG}->GetAbsolutePath($target, 1);
-  my $targetIsDir=$self->{CATALOG}->isDirectory($target);
-  ( $opt->{'k'} or scalar(@srcFileList)>0 ) and ( !$targetIsDir ) 
+  my $targetIsDir = $self->{CATALOG}->isDirectory($target);
+  my $sourceIsDir = $self->{CATALOG}->isDirectory($source);
+
+  if($sourceIsDir and $targetIsDir) {
+    $self->execute("mkdir","-p",$target) or return;
+    return $self->f_cp("-k","$source","$target");
+  }
+  
+  $opt->{'k'} and !$targetIsDir 
     and $self->{LOGGER}->error("File", "Error: Multiple source files specified but last argument is not a directory\n")
     and return;
   my $targetDir=$target;
@@ -1261,9 +1269,7 @@ sub f_cp {
   #Populate list of source files
   if($opt->{'k'}) {
     #Find all files in source directory
-    $source = $self->{CATALOG}->GetAbsolutePath($source,1);
-    my $sourceIsDir = $self->{CATALOG}->isDirectory($source) ;
-    ( $sourceIsDir)
+    ($sourceIsDir)
       or $self->{LOGGER}->error("File", "Error: $source is not a directory")
       and return;
     $self->info($source);
@@ -1286,7 +1292,7 @@ sub f_cp {
     else {
       $targetFile = $target;
     }
-    my @pfns = $self->{CATALOG}->f_whereis("sz",$source);
+    my @pfns = $self->{CATALOG}->f_whereis("-sz",$source);
     foreach my $pfn (@pfns){
       my $t = $self->execute("add",$targetFile,$pfn->{pfn});
       push @returnvals, $t;
