@@ -80,11 +80,13 @@ sub f_pwd{
 #  foreach (@_) {$_ ne "" and push @reply, $_ ;}
 #  return @reply;
 #}
+
 sub f_quit {
   my $self=shift;
   $self->info("bye now");
   exit;
 } 
+
 sub AUTOLOAD {
   my $name = our $AUTOLOAD;
   $name =~ s/.*::(f_)?//; 
@@ -111,6 +113,8 @@ sub AUTOLOAD {
     return AliEn::Catalogue::f_whoami(@_);
   } elsif ($name =~ /(GetAbsolutePath)/){
     return AliEn::Catalogue::Basic::GetAbsolutePath(@_);
+  } elsif ($name =~ /(complete_path)/){
+    return AliEn::Catalogue::Basic::f_complete_path(@_);
   } elsif ($name =~ /GetHomeDirectory/) {
     return AliEn::Catalogue::Basic::GetHomeDirectory(@_);
   } elsif ($name =~/DESTROY/){
@@ -128,12 +132,6 @@ sub f_disconnect{
 sub getDispPath {
   my $self = shift;
   return $self->{DISPPATH};
-}
-
-sub f_quit {
-  my $self = shift;
-  print("bye now!\n");
-  exit;
 }
 
 return 1;

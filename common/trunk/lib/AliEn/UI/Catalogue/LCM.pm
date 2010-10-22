@@ -1440,8 +1440,8 @@ sub addFile {
   my $lineOptions=join(" ", @_);
   @ARGV=@_;
   Getopt::Long::GetOptions($options, 
-        "silent", "versioning", "user=s", "guid=s", "register", "tracelog", "feedback") 
-      or $self->info("Error checking the options of add") and return;
+    "silent", "versioning", "user=s", "guid=s", "register", "tracelog", "feedback") 
+    or $self->info("Error checking the options of add") and return;
   @_=@ARGV;
   my $targetLFN   = (shift || ($self->info("ERROR, missing paramter: lfn") and return));
   my $sourcePFN   = (shift || ($self->info("ERROR, missing paramter: pfn") and return));
@@ -1451,25 +1451,24 @@ sub addFile {
 
   my $size = 0;
   my $md5sum = 0;
-  
+
   $sourcePFN or $self->info("Error: not enough parameters in add\n".
-                    $self->addFile_HELP(),2)  and return;
-  
+    $self->addFile_HELP(),2)  and return;
+
 
   $targetLFN = $self->{CATALOG}->GetAbsolutePath($targetLFN);
- #pre-gridsite workaround
- $options->{user} or $options->{user} = $self->{CONFIG}->{ROLE};
-
- if($options->{versioning}) {
-     $self->version_LFN($targetLFN) or $self->info("ERROR: Versioning file failed") and return 0;
- }
-
+  #pre-gridsite workaround
+  $options->{user} or $options->{user} = $self->{CONFIG}->{ROLE};
 
   if($options->{register}) {
     $size = shift @seSpecs;
     $md5sum = shift @seSpecs;
     $self->info("gron: Registering pfn ...");
     return $self->registerPFN($options->{user}, $targetLFN, $sourcePFN, $options->{guid}, $size, $md5sum, $options->{feedback},$options->{silent});
+  }
+
+  if($options->{versioning}) {
+    $self->version_LFN($targetLFN) or $self->info("ERROR: Versioning file failed") and return 0;
   }
 
   $self->info("gron: Adding a file");
@@ -1488,10 +1487,8 @@ sub registerPFN{
   my $feedback=(shift || 0);
   my $silent=(shift || 0);
 
-  $self->{CATALOG}->callAuthen("authorize","register", {lfn=>$targetLFN, 
-           pfn=>$sourcePFN, size=>$size, md5=>$md5sum, guid=>$guid }) 
-   and return 1;
-  return 0;
+  return $self->{CATALOG}->callAuthen("authorize","register", {lfn=>$targetLFN, 
+           pfn=>$sourcePFN, size=>$size, md5=>$md5sum, guid=>$guid });
 }
 
 

@@ -293,15 +293,16 @@ sub getAllInfoFromLFN{
   ( $opt =~ /h/ ) and  $where .= " and lfn not like '%/.%'";
   ( $opt =~ /d/ ) and $where .= " and type='d'";
   ( $opt =~ /f/ ) and $where .= " and type='f'";
+  ( $opt =~ /l/ ) and $where .= " and type='l'";
 
   my $order=$options->{order};
   $options->{where} and $where.=" $options->{where}";
   $order and $where .= " order by $order";
 
   if( $options->{retrieve}){
-     $options->{retrieve} =~ s{lfn}{concat('$tablePath',lfn) as lfn};
-     $options->{retrieve} =~ s{guid}{$binary2string as guid};
-   }
+    $options->{retrieve} =~ s{lfn}{concat('$tablePath',lfn) as lfn};
+    $options->{retrieve} =~ s{guid}{$binary2string as guid};
+  }
   my $retrieve=($options->{retrieve} or "*,concat('$tablePath',lfn) as lfn, $binary2string as guid,DATE_FORMAT(ctime, '%b %d %H:%i') as ctime");
 
   my $method=($options->{method} or "query");
@@ -684,7 +685,8 @@ sub removeFile {
   #Insert into LFN_BOOKED only when the GUID has to be deleted
   $db->do("INSERT INTO LFN_BOOKED(lfn, owner, expiretime, size, guid, gowner, user, pfn)
     SELECT ?, l.owner, -1, l.size, l.guid, l.gowner, ?,'*' FROM $tableName l WHERE l.lfn=? AND l.type<>'l'", {bind_values=>[$lfn,$user,$lfnOnTable]})
-    or return ("ERROR: Could not add entry $lfn to LFN_BOOKED","[insertIntoDatabase]");
+    or $self->{LOGGER}->error("Database::Catalogue::LFN","Could not insert LFN(s) in the booking pool")
+    and return; 
   
   #Delete from table
   $db->do("DELETE FROM $tableName WHERE lfn=?",{bind_values=>[$lfnOnTable]});

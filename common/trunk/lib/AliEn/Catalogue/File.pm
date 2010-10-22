@@ -783,17 +783,17 @@ sub f_whereis{
   my $guidInfo;
   my $info;
   if ($options =~ /g/){
-      $DEBUG and $self->debug(2, "Let's get the info from the guid");
+    $DEBUG and $self->debug(2, "Let's get the info from the guid");
     $guidInfo=$self->{DATABASE}->getAllInfoFromGUID({pfn=>1},$lfn)
       or $self->info("Error getting the info of the guid '$lfn'") and return;
     $info=$guidInfo;
   }else {
     $lfn = $self->GetAbsolutePath($lfn);
-    my $permFile=$self->checkPermissions( 'r', $lfn,  )  or  return;
+    my $permFile=$self->checkPermissions( 'r', $lfn  )  or  return;
     $info=$self->{DATABASE}->getAllExtendedInfoFromLFN($lfn)
-      or $self->info(" Error getting the info from '$lfn'") and return;
+      or $self->info("Error getting the info from '$lfn'") and return;
     $info->{guidInfo} or 
-      $self->info("That lfn is not associated with a guid") and return;
+    $self->info("That lfn is not associated with a guid") and return;
     $guidInfo=$info->{guidInfo};
   }
 
@@ -812,27 +812,27 @@ sub f_whereis{
     foreach my $entry (@SElist){
       $self->debug(1, "What do we do with $entry  ($entry->{pfn} and $entry->{seName} }??");
       if ($entry->{pfn} =~ m{^guid://[^/]*/([^\?]*)(\?.*)?$} ){
-	my $anchor=$2 || "";
+        my $anchor=$2 || "";
 
-	$DEBUG and $self->debug(2,"We should check the link $1!!");
-	my @done=$self->f_whereis("grs", $1)
-	  or $self->info("Error doing the where is of guid '$1'") and return;
-	while (@done) {
-	  my ($se, $pfn)=(shift @done, shift @done);
-	  grep (/^$se$/, @realSE) or  push @realSE, $se;
-	  $pfn =~ /^auto$/ or push @pfns, "$pfn$anchor";
-	  push @allReal, {seName=>$se, pfn=>"$pfn$anchor"};
-	}
+        $DEBUG and $self->debug(2,"We should check the link $1!!");
+        my @done=$self->f_whereis("grs", $1)
+          or $self->info("Error doing the where is of guid '$1'") and return;
+        while (@done) {
+          my ($se, $pfn)=(shift @done, shift @done);
+          grep (/^$se$/, @realSE) or  push @realSE, $se;
+          $pfn =~ /^auto$/ or push @pfns, "$pfn$anchor";
+          push @allReal, {seName=>$se, pfn=>"$pfn$anchor"};
+        }
       }else {
-	grep (/^$entry->{seName}$/, @realSE) or push @realSE, $entry->{seName};
-	push @allReal, $entry;
+        grep (/^$entry->{seName}$/, @realSE) or push @realSE, $entry->{seName};
+        push @allReal, $entry;
       }
     }
     $info->{REAL_SE}=\@realSE;
     $info->{REAL_PFN}=\@pfns;
     @SElist=@allReal;
     $silent or  
-      $self->info("The file is really in these SE: @{$info->{REAL_SE}}");
+    $self->info("The file is really in these SE: @{$info->{REAL_SE}}");
 
   }
 
@@ -840,13 +840,13 @@ sub f_whereis{
     $DEBUG and $self->debug(2,"Let's take a look at the transfer methods");
     my @newlist;
     foreach my $entry (@SElist){
-	if ($entry->{seName} eq "no_se") {
-	    # zip files have 'no_se' set, so we need to add this 'virtual' SE anyway
-	    push @newlist, $entry;
-	} else {
-	    # non-zip files have to be checked for the required protocols
-	    push @newlist, $self->checkIOmethods($entry, @_);
-	}
+      if ($entry->{seName} eq "no_se") {
+        # zip files have 'no_se' set, so we need to add this 'virtual' SE anyway
+        push @newlist, $entry;
+      } else {
+        # non-zip files have to be checked for the required protocols
+        push @newlist, $self->checkIOmethods($entry, @_);
+      }
     }
     @SElist=@newlist;
   }
@@ -857,15 +857,15 @@ sub f_whereis{
     $silent or $self->info("\t\t SE => $se  pfn =>$pfn\n", undef,0);
     if ($options !~ /l/){
       if ($options=~ /z/){
-	push @return, {se=>$se, guid=>$guidInfo->{guid}, pfn=>$pfn};
+        push @return, {se=>$se, guid=>$guidInfo->{guid}, pfn=>$pfn};
       } else{
-	push @return, $se, $pfn;
+        push @return, $se, $pfn;
       }
     } else {
       if ($options=~ /z/){
-	push @return, {se=>$se};
+        push @return, {se=>$se};
       } else{
-	push @return, $se;
+        push @return, $se;
       }
     }
   }
