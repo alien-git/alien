@@ -2385,7 +2385,7 @@ sub checkWakesUp {
     # send data about current job
     if($self->{STATUS}){
       #$self->info("Sending status info for $self->{CONFIG}->{CE_FULLNAME}_Jobs/$ENV{ALIEN_PROC_ID} = $self->{STATUS}");
-      $self->{MONITOR}->sendParameters($self->{CONFIG}->{CE_FULLNAME}.'_Jobs', $ENV{ALIEN_PROC_ID}, {'status' => AliEn::Util::statusForML($self->{STATUS}), 'host' => $self->{HOST}, 'job_user' => $self->{JOB_USER} });
+      $self->{MONITOR}->sendParameters($self->{CONFIG}->{CE_FULLNAME}.'_Jobs', $ENV{ALIEN_PROC_ID}, {'status' => AliEn::Util::statusForML($self->{STATUS}), 'host' => $self->{HOST}, 'job_user' => $self->{JOB_USER}, 'masterjob_id' => $ENV{ALIEN_MASTERJOBID}, 'host_pid' => $self->{PROCESSID} });
     }else{
       $self->info("Status info not avialble for $self->{CONFIG}->{CE_FULLNAME}_Jobs/$self->{PROCESSID}...");
     }
