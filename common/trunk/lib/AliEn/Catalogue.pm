@@ -1027,6 +1027,7 @@ sub f_user {
   $self->{ROLE} = $user;
   $self->_setUserGroups( $user, $changeUser );
 
+  return 1;
   # Check if a changeUser exists
   #  $self->{PRIORITY_DB}->checkPriorityValue($user);
 }

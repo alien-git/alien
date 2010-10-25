@@ -1273,7 +1273,7 @@ sub f_cp {
       or $self->{LOGGER}->error("File", "Error: $source is not a directory")
       and return;
     $self->info($source);
-    @srcFileList = $self->{CATALOG}->ExpandWildcards("$source/%");
+    @srcFileList = (@srcFileList,$self->{CATALOG}->ExpandWildcards("$source/%"));
   }
   else {
     #Append source file to srcFileList

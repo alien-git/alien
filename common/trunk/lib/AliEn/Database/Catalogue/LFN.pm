@@ -335,7 +335,7 @@ sub existsLFN {
   defined $tableRef or return;
   my $dataFromLFN = $self->getAllInfoFromLFN({method=>"queryValue",retrieve=>"lfn", table=>$tableRef},$entry,"$entry/");
   $dataFromLFN and return $dataFromLFN;
-  my $bookingPool = $self->queryValue("select 1 from LFN_BOOKED where lfn=?",undef,{bind_values=>[$entry]});
+  my $bookingPool = $self->queryValue("select lfn from LFN_BOOKED where lfn=?",undef,{bind_values=>[$entry]});
   defined $bookingPool or return;
   $bookingPool->{fromBookingPool} = 1 if(defined $bookingPool->{lfn});
   return $bookingPool;

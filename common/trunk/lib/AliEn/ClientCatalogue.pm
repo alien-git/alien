@@ -58,9 +58,8 @@ sub callAuthen {
 sub f_cd {
   my $self = shift;
   my $path = shift;
-  (defined $path) 
-    or ($path = "$self->{CONFIG}->{USER_DIR}/".substr($self->{CONFIG}->{ROLE},0,1)."/$self->{CONFIG}->{ROLE}");
-  #$path =~ s/\/$//;
+  (defined $path)
+    or ($path = $self->GetHomeDirectory());
   $path = AliEn::Catalogue::Basic::GetAbsolutePath($self, $path);
   my $env = $self->callAuthen("cd",$path);
   $env 
@@ -107,6 +106,14 @@ sub AUTOLOAD {
   };
   if ($ops->{$name}){
     return shift->callAuthen($ops->{$name},@_);
+  } elsif ($name =~ /(user)/) {
+    my $self = shift;
+    my $tmp = $self->callAuthen("user",@_);
+    $tmp 
+      and $self->{ROLE} = $_[1] 
+      #and $self->_setUserGroups() <<<----- Required on client?
+      and return 1;
+    return 0; 
   } elsif ($name =~ /(ExpandWildcards)/){
     return AliEn::Catalogue::ExpandWildcards(@_);
   } elsif ($name =~ /(whoami)/){
@@ -122,6 +129,7 @@ sub AUTOLOAD {
   }
   die("The function $AUTOLOAD is not defined in ClientCatalog!!\n");
 }
+
 sub GetHomeDirectory{ 
   return AliEn::Catalogue::Basic::GetHomeDirectory(@_);
 }
