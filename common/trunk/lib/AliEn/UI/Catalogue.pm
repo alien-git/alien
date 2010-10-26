@@ -1287,7 +1287,7 @@ sub f_cp {
   #Do copy
   foreach my $sourceFile (@srcFileList) {
     my $targetFile;
-    if($opt->{'k'}) {
+    if($opt->{'k'} or $targetIsDir) {
       my $fileName = "$sourceFile";
       $fileName =~ s!.*/(.*$)!$1!;
       $targetFile = $target."/".$fileName;
