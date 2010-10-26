@@ -670,7 +670,7 @@ sub removeFile {
   my $self = shift;
   my $lfn = shift;
   my $filehash = shift;
-  my $user = $self->{CONFIG}->{ROLE};
+  my $user = $self->{ROLE};
   #Insert into LFN_BOOKED
   my $parent = "$lfn";
   $parent =~ s{([^/]*[\%][^/]*)/?(.*)$}{};
@@ -706,7 +706,7 @@ sub removeDirectory {
   my $self=shift;
   my $path=shift;
   my $parentdir=shift;
-  my $user = $self->{CONFIG}->{ROLE};
+  my $user = $self->{ROLE};
   #Insert into LFN_BOOKED and delete lfns
   my $entries=$self->getHostsForEntry($path) 
     or $self->{LOGGER}->error("Database::Catalogue::LFN","ERROR: Could not get hosts for $path")
