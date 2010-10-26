@@ -1468,7 +1468,7 @@ sub addFile {
   }
 
   if($options->{versioning}) {
-    $self->version_LFN($targetLFN) or $self->info("ERROR: Versioning file failed") and return 0;
+    $self->versionLFN($targetLFN) or $self->info("ERROR: Versioning file failed") and return 0;
   }
 
   $self->info("gron: Adding a file");
@@ -1497,52 +1497,34 @@ sub registerPFN{
 sub versionLFN {
   my $self=shift;
   my $lfn=shift;
-  my $perm="w";
-  
-  my $filehash = $self->{CATALOG}->checkPermissions($perm,$lfn,0, 1);
-  if (!$filehash) {
-    $self->info("access: access denied to $lfn");
-    return;
-  }
 
   my $parentdir = $self->{CATALOG}->f_dirname($lfn);
-  my $result = $self->{CATALOG}->checkPermissions($perm,$parentdir);
-  if (!$result) {
-    $self->info("access: parent dir missing for lfn $lfn");
+  my $filename = $self->{CATALOG}->f_basename($lfn);
+  
+  $self->{CATALOG}->f_mkdir("ps","$parentdir"."/."."$filename/") or
+  $self->info("access: cannot create subversion directory - sorry") and return;
+  
+  my @entries = $self->{CATALOG}->f_ls("s","$parentdir"."/."."$filename/");
+  my $last;
+  foreach (@entries) {
+    $last = $_;
+  }
+  
+  my $version=0;
+  if ($last ne "") {
+    $last =~ /^v(\d)\.(\d)$/;
+    $version = (($1*10) + $2) - 10 +1;
+  }
+  if ($version <0) {
+    $self->info("access: cannot parse the last version number of $lfn");
     return ;
   }
-
-  if (($lfn ne "") && $self->{CATALOG}->existsEntry($lfn, $filehash->{lfn})) {
-	$self->info( "access: lfn <$lfn> exists - creating backup version ....\n");
-	my $filename = $self->{CATALOG}->f_basename($lfn);
-	
-	$self->{CATALOG}->f_mkdir("ps","$parentdir"."/."."$filename/") or
-   	  $self->info("access: cannot create subversion directory - sorry") and return;
-	
-	my @entries = $self->{CATALOG}->f_ls("s","$parentdir"."/."."$filename/");
-	my $last;
-	foreach (@entries) {
-	  $last = $_;
-	}
-	
-	my $version=0;
-	if ($last ne "") {
-	  $last =~ /^v(\d)\.(\d)$/;
-	  $version = (($1*10) + $2) - 10 +1;
-	}
-	if ($version <0) {
-	  $self->info("access: cannot parse the last version number of $lfn");
-	  return ;
-	}
-	my $pversion = sprintf "%.1f", (10.0+($version))/10.0;
-	my $backupfile = "$parentdir"."/."."$filename/v$pversion";
-        $self->info( "access: backup file is $backupfile \n");
-        if (!$self->{CATALOG}->f_mv("",$lfn, $backupfile)) {
-          $self->info("access: cannot move $lfn to the backup file $backupfile");
-          return ;
-        }
-
-        
+  my $pversion = sprintf "%.1f", (10.0+($version))/10.0;
+  my $backupfile = "$parentdir"."/."."$filename/v$pversion";
+  $self->info( "access: backup file is $backupfile \n");
+  if (!$self->{CATALOG}->f_mv("",$lfn, $backupfile)) {
+    $self->info("access: cannot move $lfn to the backup file $backupfile");
+    return ;
   }
   return 1;
 }

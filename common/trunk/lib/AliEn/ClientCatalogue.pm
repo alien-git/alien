@@ -118,6 +118,10 @@ sub AUTOLOAD {
     return AliEn::Catalogue::ExpandWildcards(@_);
   } elsif ($name =~ /(whoami)/){
     return AliEn::Catalogue::f_whoami(@_);
+  } elsif ($name =~ /(dirname)/){
+    return AliEn::Catalogue::f_dirname(@_);
+  } elsif ($name =~ /(basename)/){
+    return AliEn::Catalogue::f_basename(@_);
   } elsif ($name =~ /(GetAbsolutePath)/){
     return AliEn::Catalogue::Basic::GetAbsolutePath(@_);
   } elsif ($name =~ /(complete_path)/){
