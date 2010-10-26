@@ -1242,7 +1242,7 @@ sub f_cp {
   my @returnvals = ();
 
   ($target)
-    or $self->{LOGGER}->error("File", "Error: not enough arguments in cp!!\nUsage: cp <source> <target>\n")
+    or $self->{LOGGER}->error("Catalogue", "Error: not enough arguments in cp!!\nUsage: cp <source> <target>\n")
        and return;
 
   #Set user role -- if option is specified
@@ -1252,28 +1252,31 @@ sub f_cp {
   
   $source = $self->{CATALOG}->GetAbsolutePath($source,1);
   $target = $self->{CATALOG}->GetAbsolutePath($target, 1);
-  my $targetIsDir = $self->{CATALOG}->isDirectory($target);
-  my $sourceIsDir = $self->{CATALOG}->isDirectory($source);
-
-  if($sourceIsDir and $targetIsDir) {
-    $self->execute("mkdir","-p",$target) or return;
-    return $self->f_cp("-k","$source","$target");
-  }
   
-  $opt->{'k'} and !$targetIsDir 
-    and $self->{LOGGER}->error("File", "Error: Multiple source files specified but last argument is not a directory\n")
-    and return;
-  my $targetDir=$target;
-  ( $targetIsDir ) or $targetDir=~ s{/[^/]*$}{/};
+  my $sourceIsDir = $self->{CATALOG}->isDirectory($source);
+  my $targetIsDir = $self->{CATALOG}->isDirectory($target);
+  $sourceIsDir and $opt->{'k'} = 1;
 
+   
   #Populate list of source files
   if($opt->{'k'}) {
     #Find all files in source directory
-    ($sourceIsDir)
-      or $self->{LOGGER}->error("File", "Error: $source is not a directory")
+    $sourceIsDir
+      or $self->{LOGGER}->error("Catalogue", "Error: $source is not a directory")
       and return;
-    $self->info($source);
+    ($target !~ /\/$/) 
+      or $target =~ s!$!/!;
+    $self->execute("mkdir","-p",$target) 
+      or $self->{LOGGER}->error("Catalogue","Could not make directory $target") 
+      and return;
+    if($targetIsDir) {
+      my $srcFil = "$source";
+      $srcFil =~ s!.*/(.*$)!$1!;
+      $self->execute("mkdir","$target/$srcFil");
+      $target .= "/$srcFil";
+    }
     @srcFileList = (@srcFileList,$self->{CATALOG}->ExpandWildcards("$source/%"));
+    #Remove directories from srcFileList
   }
   else {
     #Append source file to srcFileList
@@ -1284,15 +1287,18 @@ sub f_cp {
   #Do copy
   foreach my $sourceFile (@srcFileList) {
     my $targetFile;
-    if($targetIsDir) {
+    if($opt->{'k'}) {
       my $fileName = "$sourceFile";
       $fileName =~ s!.*/(.*$)!$1!;
-      $targetFile = $targetDir."/".$fileName;
-    }
-    else {
+      $targetFile = $target."/".$fileName;
+    } else {
       $targetFile = $target;
     }
-    my @pfns = $self->{CATALOG}->f_whereis("-sz",$source);
+    my @pfns = $self->{CATALOG}->f_whereis("-sz",$sourceFile);
+    if(scalar(@pfns)==0) {
+      my $t = $self->execute("touch",$targetFile);
+      push @returnvals, $t;
+    }
     foreach my $pfn (@pfns){
       my $t = $self->execute("add",$targetFile,$pfn->{pfn});
       push @returnvals, $t;
@@ -1302,7 +1308,7 @@ sub f_cp {
     if($opt->{'m'})
     {
       my $todoMetadata = {};
-      $self->{CATALOG}->getCPMetadata($sourceFile,$targetDir,$targetFile,$todoMetadata);
+      $self->{CATALOG}->getCPMetadata($sourceFile,$self->f_basename($target),$targetFile,$todoMetadata);
     }
   }
   return @returnvals;  
