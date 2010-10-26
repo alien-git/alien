@@ -1501,10 +1501,10 @@ sub versionLFN {
   my $parentdir = $self->{CATALOG}->f_dirname($lfn);
   my $filename = $self->{CATALOG}->f_basename($lfn);
   
-  $self->{CATALOG}->f_mkdir("ps","$parentdir"."/."."$filename/") or
+  $self->{CATALOG}->f_mkdir("-ps","$parentdir"."/."."$filename/") or
   $self->info("access: cannot create subversion directory - sorry") and return;
   
-  my @entries = $self->{CATALOG}->f_ls("s","$parentdir"."/."."$filename/");
+  my @entries = $self->{CATALOG}->f_ls("-s","$parentdir"."/."."$filename/");
   my $last;
   foreach (@entries) {
     $last = $_;
@@ -1522,7 +1522,7 @@ sub versionLFN {
   my $pversion = sprintf "%.1f", (10.0+($version))/10.0;
   my $backupfile = "$parentdir"."/."."$filename/v$pversion";
   $self->info( "access: backup file is $backupfile \n");
-  if (!$self->{CATALOG}->f_mv("",$lfn, $backupfile)) {
+  if (!$self->{CATALOG}->f_mv("-s", $lfn, $backupfile)) {
     $self->info("access: cannot move $lfn to the backup file $backupfile");
     return ;
   }
