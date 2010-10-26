@@ -16,7 +16,6 @@ BEGIN { plan tests => 1 }
 setDirectDatabaseConnection();
 
 {
-  my $host=Net::Domain::hostname();
   my $config=new AliEn::Config;
   $config or print "Error getting the configuration!!\n" and exit(-2);
 
@@ -31,12 +30,12 @@ setDirectDatabaseConnection();
   print "ok\n";
   addLdapEntry($key, ["objectClass",["AliEnSE", "AliEnMSS", "AliEnSOAPServer"],
 		      "name", "testSE",
-		      "host", "$host",
+		      "host", "$config->{HOST}",
 		      "mss", "File",
 		      "savedir", "$config->{LOG_DIR}/SE_DATA",
 		      "port", "8092",
 		      "certsubject",$subject,
-                      "ioDaemons","file:host=$host:port=8092",
+                      "ioDaemons","file:host=$config->{HOST}:port=8092",
 		      "QoS", 'disk',
 		      "ftdprotocol",'cp',
 		     ]) or exit(-2);
@@ -70,12 +69,13 @@ sub removeLdapEntry {
   my $key=shift;
   my $ldap=shift;
   my $disconnect=0;
-  my $host=Net::Domain::hostname();
+
+  my $config=new AliEn::Config;
 
   print "ok\nRemoving $key from ldap...";
   if (! $ldap) {
     $disconnect=1;
-    $ldap = Net::LDAP->new("$host:8389", "onerror" => "warn") 
+    $ldap = Net::LDAP->new("$config->{HOST}:8389", "onerror" => "warn") 
       or print "failed\nError conecting to the ldap server\n $? and $! and  $@\n" 
 	and return;
     my $result=$ldap->bind("cn=manager,dc=cern,dc=ch", "password" => "ldap-pass");
@@ -94,9 +94,10 @@ sub addLdapEntry {
   my $dn=shift;
   my $attributes=shift;
 
+  my $config=new AliEn::Config;
+
   print "Connecting to ldap...";
-  my $host=Net::Domain::hostname();
-  my $ldap = Net::LDAP->new("$host:8389", "onerror" => "warn") 
+  my $ldap = Net::LDAP->new("$config->{HOST}:8389", "onerror" => "warn") 
     or print "failed\nError conecting to the ldap server\n $? and $! and  $@\n" 
       and exit (-3);
   my $result=$ldap->bind("cn=manager,dc=cern,dc=ch", "password" => "ldap-pass");
