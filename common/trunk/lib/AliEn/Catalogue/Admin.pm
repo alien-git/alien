@@ -924,20 +924,20 @@ sub checkIODaemons {
   my $name=shift;
   my $sename=shift;
 
+  $self->info("Doing checkIODaemons for $sename");
+
   my (@io)=$entry->get_value('iodaemons');
-  my $found= join("", grep (/xrootd/, @io)) or return;
-  $self->debug(1, "This se has $found");
+  my ( $proto, $host, $port, $olb_host) = split(/:/, join ("", @io) );
+  #my $host=$entry->get_value('host');
+  $host =~ /host=([^:]+)(:.*)?$/i and $host=$1 or $self->info("Error getting the host name from $sename") and return;
+  $port =~ /port=(\d+)/i or $self->info("Error getting the port for $sename") and return;
+  $port=$1;
+  $self->info("Using proto=$proto host=$host and port=$port for $sename");
 
-  $found =~ /port=(\d+)/i or $self->info("Error getting the port from '$found' for $sename") and return;
-  my $port=$1;
-  my $host=$entry->get_value('host');
-  $found =~ /host=([^:]+)(:.*)?$/i and $host=$1;
-  $self->info("Using host=$host and port=$port for $sename");
-
-  my $path=$entry->get_value('savedir') or return;
+  my $path=$entry->get_value('savedir') or $self->info("Error getting the savedir from $sename") and return;
 
   $path=~ s/,.*$//;
-  my $seioDaemons="root://$host:$port";
+  my $seioDaemons="$proto://$host:$port";
   $self->debug(1, "And the update should $sename be: $seioDaemons, $path");
   my $e=$self->{DATABASE}->{LFN_DB}->query("SELECT sename,seioDaemons,sestoragepath from SE where seName='$sename'");
   my $path2=$path;
@@ -945,7 +945,7 @@ sub checkIODaemons {
   my $total=$self->{DATABASE}->{LFN_DB}->queryValue("SELECT count(*) from SE where seName='$sename' and seioDaemons='$seioDaemons' and ( seStoragePath='$path' or sestoragepath='$path2')");
   
   if ($total<1){
-    $self->info("***Updating the information of $site, $name ($seioDaemons and $path");
+    $self->info("***Updating the information of $site, $name ( $seioDaemons and $path )");
     $self->setSEio($site, $name, $seioDaemons, $path);
   }
   
