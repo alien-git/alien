@@ -102,7 +102,9 @@ sub AUTOLOAD {
     chown=>"chown", addTag=>"addTag", addTagValue=>"addTagValue",updateTagValue=>"updateTagValue",
     showTagValue=>"showTagValue", removeTag=>"removeTag", removeTagValue=>"removeTagValue",
     cleanupTagValue=>"cleanupTagValue", showTags=>"showTags", pwd=>"pwd", refreshSERankCache=>"refreshSERankCache",
-    resyncLDAP=>"resyncLDAP", 
+    resyncLDAP=>"resyncLDAP", addFileToCollection=>"addFileToCollection",listFilesFromCollection=>"listFilesFromCollection",
+    removeFileFromCollection=>"removeFileFromCollection",createCollection=>"createCollection",
+    updateCollection=>"updateCollection", 
   };
   if ($ops->{$name}){
     return shift->callAuthen($ops->{$name},@_);
@@ -126,7 +128,7 @@ sub AUTOLOAD {
     return AliEn::Catalogue::Basic::GetAbsolutePath(@_);
   } elsif ($name =~ /(complete_path)/){
     return AliEn::Catalogue::Basic::f_complete_path(@_);
-  } elsif ($name =~ /GetHomeDirectory/) {
+  } elsif ($name =~ /(GetHomeDirectory)/) {
     return AliEn::Catalogue::Basic::GetHomeDirectory(@_);
   } elsif ($name =~/DESTROY/){
     return;
@@ -134,9 +136,6 @@ sub AUTOLOAD {
   die("The function $AUTOLOAD is not defined in ClientCatalog!!\n");
 }
 
-sub GetHomeDirectory{ 
-  return AliEn::Catalogue::Basic::GetHomeDirectory(@_);
-}
 sub f_disconnect{
   return;
 }
