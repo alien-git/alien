@@ -1295,10 +1295,6 @@ sub f_cp {
       $targetFile = $target;
     }
     my @pfns = $self->{CATALOG}->f_whereis("-sz",$sourceFile);
-    if(scalar(@pfns)==0 and $self->{CATALOG}->isFile($source)) {
-      my $t = $self->execute("touch",$targetFile);
-      push @returnvals, $t;
-    }
     foreach my $pfn (@pfns){
       my $t = $self->execute("add",$targetFile,$pfn->{pfn});
       push @returnvals, $t;
