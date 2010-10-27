@@ -1295,7 +1295,7 @@ sub f_cp {
       $targetFile = $target;
     }
     my @pfns = $self->{CATALOG}->f_whereis("-sz",$sourceFile);
-    if(scalar(@pfns)==0) {
+    if(scalar(@pfns)==0 and $self->{CATALOG}->isFile($source)) {
       my $t = $self->execute("touch",$targetFile);
       push @returnvals, $t;
     }
