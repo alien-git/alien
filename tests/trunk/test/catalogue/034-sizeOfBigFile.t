@@ -11,7 +11,7 @@ my $size=78103968171;
 
 
 $cat->execute("rm", "-rf", $file);
-$cat->execute("add", "-r", $file, "file://localhost/dev/null", $size) or exit(-2);
+$cat->execute("add", "-r", $file, "file://$cat->{CATALOG}->{CONFIG}->{HOST}/dev/null", $size) or exit(-2);
 
 print "The file is registered. Let's check the size\n";
 my ($info)=$cat->execute("ls", "-z", $file, "-la")or exit(-2);
@@ -19,5 +19,5 @@ my ($info)=$cat->execute("ls", "-z", $file, "-la")or exit(-2);
 use Data::Dumper;
 print Dumper($info);
 
-${$info}[0]->{size} eq $size or print "The size is ${$info}[0]->{size}!! (instead of $size)\n" and exit(-2);
+${${$info}[0]}[0]->{size} eq $size or print "The size is ${${$info}[0]}[0]->{size}!! (instead of $size)\n" and exit(-2);
 print "ok\n";
