@@ -7,7 +7,7 @@ eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
 
 includeTest("catalogue/013-cpdir") or exit(-2);
 
-my $c=AliEn::UI::Catalogue->new({user=>"newuser"}) or exit(-2);
+my $c=AliEn::UI::Catalogue::LCM->new({role=>"newuser"}) or exit(-2);
 
 $c->execute("rmdir", "-rf", "cpTarget/");
 
