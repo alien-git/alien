@@ -2056,22 +2056,22 @@ sub createCollection{
     $self->info("And now, let's populate the collection");
     eval {
       my ($localFile)=$self->get($options->{xml}) or 
-	die("Error getting $options->{xml}");
+      die("Error getting $options->{xml}");
       $self->{DATASET} or $self->{DATASET}=AliEn::Dataset->new();
       my $dataset=$self->{DATASET}->readxml($localFile) or 
-	die ("Error creating the dataset from the collection $options->{xml}");
+      die ("Error creating the dataset from the collection $options->{xml}");
       foreach my $entry (keys %{$dataset->{collection}->{event}}) {
-	foreach my $file (keys %{$dataset->{collection}->{event}->{$entry}->{file}}){
-	  my $hash=$dataset->{collection}->{event}->{$entry}->{file}->{$file};
-	  my $lfn=$hash->{lfn};
-	  my $info="";
-	  foreach my $i (keys %{$hash}){
-	    $i =~ /^(turl)|(lfn)$/ and next;
-	    $info.="$i=$hash->{$i} ";
-	  }
-	  $self->{CATALOG}->f_addFileToCollection("-n", $lfn, $collection, $info, )
-	    or die("Error adding $lfn (with info '$info') to the collection\n");
-	}
+        foreach my $file (keys %{$dataset->{collection}->{event}->{$entry}->{file}}){
+          my $hash=$dataset->{collection}->{event}->{$entry}->{file}->{$file};
+          my $lfn=$hash->{lfn};
+          my $info="";
+          foreach my $i (keys %{$hash}){
+            $i =~ /^(turl)|(lfn)$/ and next;
+            $info.="$i=$hash->{$i} ";
+          }
+          $self->{CATALOG}->f_addFileToCollection("-n", $lfn, $collection, $info, )
+            or die("Error adding $lfn (with info '$info') to the collection\n");
+        }
       }
       $self->{CATALOG}->updateCollection("s", $collection);
     }
