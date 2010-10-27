@@ -9,7 +9,7 @@ $c->execute("rmdir", "-rf", "cpDir/");
 $c->execute("mkdir", "-p", "cpDir/source") or exit(-2);
 
 for (my $i=10; $i;$i--) {
-  $c->execute("touch", "cpDir/source/file$i") or exit(-2);
+  $c->execute("add", "cpDir/source/file$i", "$ENV{ALIEN_HOME}/Environment") or exit(-2);
 }
 
 #$c->execute("debug",5);
