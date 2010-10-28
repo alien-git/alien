@@ -236,6 +236,7 @@ sub CallAndGetOverSOAP{
     $self->info(join ("", @{$rcvals->{rcmessages}} ), undef, 0);
   }
  
+  (defined($rcvals->{rcvalues}) and $rcvals->{rcvalues}) or return 0;
   return @{$rcvals->{rcvalues}};
 }
 
