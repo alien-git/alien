@@ -924,7 +924,7 @@ sub getSEforPFN{
   my $sestring = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow("SELECT seName FROM SE where seioDaemons LIKE concat ( ? , '%') ;",
               undef, {bind_values=>\@queryValues});
   $sestring->{seName} or return 0;
-  $self->info("Authorize: gron: seiostring is : $sestring->{seName}");
+  $self->info("Authorize: gron: seName is : $sestring->{seName}");
   return $sestring->{seName};
 }
 

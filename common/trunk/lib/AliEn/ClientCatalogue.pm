@@ -29,7 +29,6 @@ sub new {
     or $self->info("Home directory for $self->{CONFIG}->{ROLE} does not exist or you do not have permissions")
     and return;
   $self->{GLOB}=1;
-  $self->{ROLE}=$options->{role} || $options->{ROLE} || $self->{CONFIG}->{ROLE}; 
 
   $self->{SILENT} = $options->{silent} || 0;
   return $self;
