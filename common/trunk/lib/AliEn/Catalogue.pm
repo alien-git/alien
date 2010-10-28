@@ -799,6 +799,7 @@ between lfn and permLFN
 sub isFile {
   my $self   = shift;
   my $file   = shift;
+  $file = $self->GetAbsolutePath($file);
   my $exists = $self->existsEntry( $file, @_ ) or return;
   $exists =~ /\/$/ and return;
   return $exists;

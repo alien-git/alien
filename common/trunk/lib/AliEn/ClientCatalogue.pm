@@ -18,9 +18,9 @@ sub new {
   }
   $options->{DEBUG}  = $self->{DEBUG}  = ( $options->{debug}  or 0 );
   $options->{SILENT} = $self->{SILENT} = ( $options->{silent} or 0 );
-  $self->{ROLE} = $options->{role};
   $self->{LOGGER} = new AliEn::Logger;
   $self->{CONFIG} = new AliEn::Config($options);
+  $self->{ROLE}=$options->{role} || $options->{ROLE} || $self->{CONFIG}->{ROLE}; 
   $self->{SOAP} = new AliEn::SOAP
     or print "Error creating AliEn::SOAP $! $?" and return;
   $self->{UMASK} = 0755;
