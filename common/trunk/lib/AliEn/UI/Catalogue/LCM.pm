@@ -1109,7 +1109,7 @@ sub addTag {
       and return;
 
     my @tagdirs  = ("\L/$self->{CONFIG}->{ORG_NAME}/tags\E",
-		   $self->{CATALOG}->GetHomeDirectory()."/tags");
+		   $self->{CATALOG}->GetHomeDirectory()."tags");
     my $file="";
     foreach (@tagdirs){
       $self->{CATALOG}->isFile("$_/$tag") or next;
