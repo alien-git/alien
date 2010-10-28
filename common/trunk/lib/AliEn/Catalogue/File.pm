@@ -766,7 +766,6 @@ sub f_whereis{
   my $lfn=shift;
   my @failurereturn;
   my $failure;
-
   my $returnval;
   $failure->{"__result__"} = 0;
 
