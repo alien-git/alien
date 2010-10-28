@@ -24,7 +24,7 @@ sub new {
   $self->{SOAP} = new AliEn::SOAP
     or print "Error creating AliEn::SOAP $! $?" and return;
   $self->{UMASK} = 0755;
-  $self->{DISPPATH} = "$self->{CONFIG}->{USER_DIR}/".substr($self->{CONFIG}->{ROLE},0,1)."/$self->{CONFIG}->{ROLE}/";
+  $self->{DISPPATH} = $self->GetHomeDirectory();
   $self->f_cd("$self->{DISPPATH}")
     or $self->info("Home directory for $self->{CONFIG}->{ROLE} does not exist or you do not have permissions")
     and return;
