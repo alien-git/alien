@@ -1320,7 +1320,6 @@ sub authorize{
    	$self->{MONITOR}->sendParameters("$self->{CONFIG}->{SITE}_QUOTA","$self->{ROLE}_$method", ("$packedEnvelope->{se}", $packedEnvelope->{size}) ); 		      
        }
   }  
-  $self->info("authorize returns");
   return @packedEnvelopeList;
 }
 

@@ -933,6 +933,7 @@ sub checkIODaemons {
   $port =~ /port=(\d+)/i or $self->info("Error getting the port for $sename") and return;
   $port=$1;
   $self->info("Using proto=$proto host=$host and port=$port for $sename");
+  $proto =~ s/xrootd/root/i;
 
   my $path=$entry->get_value('savedir') or $self->info("Error getting the savedir from $sename") and return;
 
