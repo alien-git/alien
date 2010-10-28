@@ -317,8 +317,8 @@ Project Create Name=NONE Active=False Special=True Description="No Project" Crea
 Project Create Name=ADMIN Active=False Special=True Description="Any Project which the User is an admin for" CreateAccount:=False
 Project Create Name=MEMBERS Active=False Special=True Description="Any Project the User is a member of" CreateAccount:=False
 Project Create Name=ANY Active=False Special=True Description="Any Project" CreateAccount:=False
-User Modify Name==hartem Active=True
-User Modify Name!=hartem Active=False
+User Modify Name==subho Active=True
+User Modify Name!=subho Active=False
 User Create Name=MEMBERS Active=False Special=True Description="Any User which is a member of the Project"
 Machine Create Name=NONE Active=False Special=True Description="No Machine"
 Machine Create Name=MEMBERS Active=False Special=True Description="Any Machine which is a member of the Project"

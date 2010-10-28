@@ -5,9 +5,8 @@ use AliEn::UI::Catalogue::LCM;
 use Data::Dumper;
 
 
-my $ui=AliEn::UI::Catalogue::LCM->new(
-#{user=>'newuser'}
-) or exit(-2);
+my $ui=AliEn::UI::Catalogue::LCM->new({role=>'newuser'}) 
+  or exit(-2);
 
 
 my @dirs=('0','1+1', '1%2',  '1@5', 

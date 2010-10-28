@@ -32,7 +32,7 @@ sub checkNoShared {
   my $pid=open(FILE, "tail -n 0 -F $dir/ProxyServer.log  > $file |") 
   or print "Error checking the output of the ProxyServer\n" and return (0,undef);
 
-  my $c=AliEn::UI::Catalogue->new();
+  my $c=AliEn::UI::Catalogue->new({role=>"newuser"});
   sleep 2;
   open (PID, "ps -ef |grep ' $pid '|grep -v grep|");
   my @pid=<PID>;

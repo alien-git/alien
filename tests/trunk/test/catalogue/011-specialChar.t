@@ -19,15 +19,17 @@ foreach my $file (@files) {
   print "Trying $file\n";
 #  my @f=$cat->{CATALOG}->ExpandWildcards("specialChar/$_");
 #  print "AFTER EXPANDING @f\n";
-  $cat->execute("add", "-r", "specialChar/$file", "file://ddd/d", 22) or exit(-2);
-
+$cat->execute("add", "-r", "specialChar/$file", "file://$cat->{CATALOG}->{CONFIG}->{HOST}/ddd/d", 22) or exit(-2);
 }
+
 print "TENGO @files\n";
+
 foreach (@files){
   print "Make sure that all of them exist $_\n";
   $cat->execute("whereis", "specialChar/$_") or 
     print "specialChar/$_ doesn't exist\n" and exit(-2);
 }
+
 print "let's delete f\\*le\n";
 $cat->execute("rm", "specialChar/f\\*le") or exit(-2);
 print "And let's see what we have in the directory...\n";
