@@ -175,7 +175,7 @@ sub updateExpiredTransfers{
   $yesterday -= 86400; #24*60*60
   
   $self->debug(1,"In updateExpiredTransfers updating status of expired transfers");
-  $self->update({status=>'EXPIRED'},"(status = 'ASSIGNED' or status ='TRANSFERING')  and sent<?", {bind_values=>[$yesterday]});
+  $self->update({status=>'EXPIRED'},"(status = 'ASSIGNED' or status ='TRANSFERRING')  and sent<?", {bind_values=>[$yesterday]});
 }
 
 sub updateLocalCopyTransfers{
