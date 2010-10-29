@@ -1633,12 +1633,14 @@ sub putFiles {
     $self->{CONFIG}=$self->{CONFIG}->Reload({"organisation", $org});
     my @addedFiles=();
     my $remoteDir = "$self->{CONFIG}->{LOG_DIR}/proc$id";
-    my $ui=AliEn::UI::Catalogue::LCM->new({no_catalog=>1});
+    my $ui=AliEn::UI::Catalogue::LCM->new({no_catalog=>1,role=>$self->{JOB_USER}});
     if (!$ui) {
       $self->info("Error getting an instance of the catalog");
       $self->putJobLog("error","Could not get an instance of the LCM");
       return;
     }
+    $ui->execute("mkdir ~/alien-job-$ENV{ALIEN_PROC_ID}");
+    $ui->execute("cd ~/alien-job-$ENV{ALIEN_PROC_ID}");
 
     #this hash will contain all the files that have already been submitted,
     #so that we can know if we are registering a new file or a replica
@@ -1715,8 +1717,7 @@ sub addFile {
 
   $self->{LOGGER}->{TRACELOG}=1; 
 
-
-  ($addResult)=$ui->execute("add", "-user=$self->{JOB_USER}", "-tracelog", "-feedback", "$file", "$self->{WORKDIR}/$file", $storeTags);
+  ($addResult)=$ui->execute("add", "-tracelog", "-feedback", "$file", "$self->{WORKDIR}/$file", $storeTags);
   ($addResult eq -1) and
     $self->putJobLog("error","Error in add for $file: We have a file quota overflow.")
       and return -2;

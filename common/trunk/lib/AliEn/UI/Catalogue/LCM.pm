@@ -1533,7 +1533,7 @@ sub versionLFN {
 
 sub addFileToSEs {
   my $self=shift;
-  my $user=(shift || $self->{CATALOG}->{ROLE});
+  my $user=shift;
   my $targetLFN   = (shift || return);
   my $sourcePFN   = (shift || return);
   my $SErequirements=(shift || []);
