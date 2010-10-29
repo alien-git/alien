@@ -15,6 +15,7 @@ use strict;
 use AliEn::Database::Admin;
 
 use AliEn::Database::CE;
+use AliEn::Util;
 
 use vars qw (@ISA);
 
@@ -375,6 +376,57 @@ sub putlog {
   my $message=shift;
   return $self->{LOCALJOBDB}->insertMessage($queueId, $status,$message,0);
 }
+
+
+
+
+sub invoke {
+  my $other=shift;
+  my $op=shift;
+
+
+  if (!$self->{TASK_DB}) {
+
+  $self->{PASSWD} = ( $self->{LOCALJOBDB}->{PASSWD} or "" );
+
+    my ($host, $driver, $db) =
+      split("/", $self->{CONFIG}->{"JOB_DATABASE"});
+
+
+    $self->{TASK_DB}=
+        AliEn::Database::TaskQueue->new({PASSWD=>"$self->{PASSWD}",DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin', SKIP_CHECK_TABLES=> 1});
+    $self->{TASK_DB} or $self->{LOGGER}->error( "CE", "In initialize creating TaskQueue instance failed" )
+      and return;
+
+#    $self->{TASK_DB}->setSiteQueueTable();
+  }
+
+  $self->info("$$ Ready to do a task operation (and $op '@_')");
+
+  my $mydebug=$self->{LOGGER}->getDebugLevel();
+  my $params=[];
+
+  (my $tracelog,$params) = AliEn::Util::findAndDropArrayElement("-tracelog", @_);
+  $tracelog and $self->{LOGGER}->tracelogOn();
+  (my $debug,$params) = AliEn::Util::getDebugLevelFromParameters(@$params);
+  $debug and $self->{LOGGER}->debugOn($debug);
+  $self->{LOGGER}->keepAllMessages();
+#  $op = "$self->{TASK_DB}->".$op;
+  my @info = $self->{TASK_DB}->$op(@_);
+
+  my @loglist = @{$self->{LOGGER}->getMessages()};
+
+  $debug and $self->{LOGGER}->debugOn($mydebug);
+  $self->{LOGGER}->tracelogOff();
+  $self->{LOGGER}->displayMessages();
+  $self->info("$$ invoke DONE with OP: $op (and @_)");#, rc = $rc");
+  $self->info("$$ invoke result: @info".scalar(@info));
+  return { #rc=>$rc,
+     rcvalues=>\@info, rcmessages=>\@loglist};
+}
+
+
+
 
 
 1;

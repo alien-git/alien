@@ -74,11 +74,13 @@ sub getDatabaseDSN{
 
 sub createTable{
   my $self=shift;
-  my $table=lc shift;
+  #my $table=lc shift;
+  my $table= shift;
+
 
   $self->debug(1, "Checking table $table");
 
-  my $file="$self->{DIRECTORY}/$table";
+  my $file="$self->{DIRECTORY}/".lc($table);
   my $description=$self->{TABLES}->{$table};
 
   if ( !( -e $file ) ) {
@@ -88,7 +90,7 @@ sub createTable{
     
     $self->{DBH}->do("CREATE TABLE $table ($description)")
       or $self->{LOGGER}->error( "TXT",
-				 "Cannot create table $table ($description). Error: " . $self->{DBH}->errstr() )
+				 "Cannot create table $table ($description) (in file $file). Error: " . $self->{DBH}->errstr() )
 	and return;
 
     chmod 0770, $file;

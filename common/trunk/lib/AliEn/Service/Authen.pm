@@ -102,7 +102,7 @@ sub doOperation {
 
   (my $tracelog,$params) = AliEn::Util::findAndDropArrayElement("-tracelog", @_);
   $tracelog and $self->{LOGGER}->tracelogOn();
-  (my $debug,$params) = $self->getDebugLevelFromParameters(@$params);
+  (my $debug,$params) = AliEn::Util::getDebugLevelFromParameters(@$params);
   $debug and $self->{LOGGER}->debugOn($debug);
 #  @_ = @{$params};
 #  $self->info("gron: params for call after cleaning are: @_");
@@ -124,18 +124,6 @@ sub doOperation {
   return { #rc=>$rc,
      rcvalues=>\@info, rcmessages=>\@loglist};
 }
-
-sub getDebugLevelFromParameters{
-  my $self=shift;
-  my $back=0;
-  my @rlist=();
-  foreach (@_){
-     ($_ =~ /-debug=([0-9])/) and $back = $1 or push @rlist, $_;
-  }
-  return ($back, \@rlist);
-}
-
-
 
 # ***************************************************************
 # Conversation function for PAM

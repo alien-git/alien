@@ -39,14 +39,14 @@ sub initialize {
 sub getMessages {  
   my $this=shift;
 
-  $self->info("Getting the last messages for @_");
+  $self->info("Getting the last MESSAGES for @_");
 
   my $service=shift;
   my $host=shift;
   my $lastAck=shift;
 
   if ($lastAck){
-    $self->info("Deleting the messages smaller than $lastAck");
+    $self->info("Deleting the MESSAGES smaller than $lastAck");
     $self->{DB}->delete("MESSAGES", "TargetService=? and TargetHost=? and ID<=?", {bind_values=>[$service,$host, $lastAck]});
   }
 
