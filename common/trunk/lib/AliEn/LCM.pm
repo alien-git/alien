@@ -220,7 +220,9 @@ sub bringFileToSE {
 sub new {
     my $proto = shift;
     my $self  = {};
-    $self->{CONFIG}= AliEn::Config->new();
+    $self->{CONFIG}= shift;
+    $self->{CONFIG}->{host} or $self->{CONFIG} = AliEn::Config->new();
+
 
 
     my $class = ref($proto) || $proto;
@@ -284,10 +286,10 @@ sub getFile {
       and return;
   $self->{SILENT} or $self->info( "Getting the file $pfn" );
 
-#  if ( $opt =~ /f/ ) {
-#    $DEBUG and $self->debug(1, "Deleting the local copies of $pfn" );
-#    $self->{TXTDB}->delete("LOCALGUID","guid='$guid'");
-#  }
+  if ( $opt =~ /f/ ) {
+    $DEBUG and $self->debug(1, "Deleting the local copies of $pfn" );
+    $self->{TXTDB}->delete("LOCALGUID","guid='$guid'");
+  }
 
   $DEBUG and $self->debug(1, "Evaluating $pfn" );
 
@@ -318,7 +320,7 @@ sub getFile {
     }
 
     $self->info( "Everything worked and got $result");
-#    $self->{TXTDB}->insertEntry($result, $guid);
+    $self->{TXTDB}->insertEntry($result, $guid);
   } else {
     $self->info("Error getting the file");
   }

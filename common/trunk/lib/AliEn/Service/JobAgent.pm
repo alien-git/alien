@@ -1614,6 +1614,7 @@ sub putFiles {
   my $self=shift;
   my $fs_table=shift;
   my $filesAdded=1;
+  print "gron: Workdir is: $self->{WORKDIR}\n";
   system ("ls -al $self->{WORKDIR}");
   my $oldOrg=$self->{CONFIG}->{ORG_NAME};
   my $jdl;
@@ -1642,7 +1643,6 @@ sub putFiles {
     #this hash will contain all the files that have already been submitted,
     #so that we can know if we are registering a new file or a replica
     my $submitted={};
-    my $localdir= $self->{WORKDIR};
 
     foreach my $fileOrArch (keys(%$fs_table)) {
       
@@ -1658,7 +1658,7 @@ sub putFiles {
 	$self->putJobLog("trace", "The file $fs_table->{$fileOrArch}->{name} has the guid $guids{$fs_table->{$fileOrArch}->{name}}");
       }
       
-      my $addEnvs = $self->addFile($ui, "$localdir/$fs_table->{$fileOrArch}->{name}", "$fs_table->{$fileOrArch}->{options} $guid");
+      my $addEnvs = $self->addFile($ui, "$fs_table->{$fileOrArch}->{name}", "$fs_table->{$fileOrArch}->{options} $guid");
      
       $addEnvs  or ($addEnvs eq -2) or next;
       $addEnvs and  $successCounter++;
@@ -1708,7 +1708,7 @@ sub addFile {
 
   $self->info("Submitting the file $file");
   if (! -f "$self->{WORKDIR}/$file")  {
-    $self->putJobLog("error", "The job didn't create $file");
+    $self->putJobLog("error", "The job didn't create $self->{WORKDIR}/$file");
     return 0; 
   }
   $self->putJobLog("trace","Will store $file ...");
@@ -1716,7 +1716,7 @@ sub addFile {
   $self->{LOGGER}->{TRACELOG}=1; 
 
 
-  ($addResult)=$ui->execute("add", "-user=$self->{JOB_USER}", "-tracelog", "-feedback", "$file", "$file", $storeTags);
+  ($addResult)=$ui->execute("add", "-user=$self->{JOB_USER}", "-tracelog", "-feedback", "$file", "$self->{WORKDIR}/$file", $storeTags);
   ($addResult eq -1) and
     $self->putJobLog("error","Error in add for $file: We have a file quota overflow.")
       and return -2;
@@ -2308,7 +2308,7 @@ CPU Speed                           [MHz] : $ProcCpuspeed
     $self->{MONITOR}->removeJobToMonitor($self->{PROCESSID});
   }
   chdir;
-  system("rm", "-rf", $self->{WORKDIR});
+#gron  system("rm", "-rf", $self->{WORKDIR});
   $self->putJobLog("state", "The job finished on the worker node with status $self->{STATUS}");
   $self->{JOBLOADED}=0;
   $self->{SOAP}->CallSOAP("CLUSTERMONITOR", "jobExits", $ENV{ALIEN_PROC_ID});

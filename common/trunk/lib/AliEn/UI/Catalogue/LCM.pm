@@ -294,9 +294,8 @@ sub get {
    ($filehash->{type} eq "c") and  $self->notice("This is in fact a collection!! Let's get all the files")
      and return $self->getCollection($filehash->{guid}, $localFile, \%options);
 
-   #gron: getLocalCopy needs to be fixed
-   #my $result=$self->{STORAGE}->getLocalCopy($filehash->{guid}, $localFile);
-   my $result = 0;
+
+   my $result=$self->{STORAGE}->getLocalCopy($filehash->{guid}, $localFile);
 
    $self->{STORAGE}->checkDiskSpace($filehash->{size}, $localFile) or return;
    while (!$result) {
@@ -1489,10 +1488,9 @@ sub registerPFN{
   my $md5sum=(shift || 0);
   my $feedback=(shift || 0);
   my $silent=(shift || 0);
-  my $wishedSE=(shift || 0);
 
   return $self->{CATALOG}->callAuthen("authorize","register", {lfn=>$targetLFN, 
-           pfn=>$sourcePFN, size=>$size, md5=>$md5sum, guid=>$guid, wishedSE=>$wishedSE});
+           pfn=>$sourcePFN, size=>$size, md5=>$md5sum, guid=>$guid });
 }
 
 

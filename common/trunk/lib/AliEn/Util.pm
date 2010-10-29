@@ -517,6 +517,16 @@ sub deserializeSignedEnvelope{
 }
 
 
+sub getDebugLevelFromParameters{
+  my $back=0;
+  my @rlist=();
+  foreach (@_){
+     ($_ =~ /-debug=([0-9])/) and $back = $1 or push @rlist, $_;
+  }
+  return ($back, \@rlist);
+}
+
+
 
 
 

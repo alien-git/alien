@@ -21,6 +21,8 @@ use AliEn::Classad::Host;
 use AliEn::X509;
 use Data::Dumper;
 
+require AliEn::SiteTaskQueue;
+
 use Switch;
 
 use vars qw (@ISA $DEBUG);
@@ -44,7 +46,7 @@ sub new {
   $self->SUPER::new() or return;
 
 
-  $self->{PASSWD} = ( $options->{passwd} or "" );
+  $self->{PASSWD} = ( $options->{passwd} or "pass" );
 
   $self->{DEBUG} = ( $options->{debug} or 0 );
   ( $self->{DEBUG} ) and $self->{LOGGER}->debugOn($self->{DEBUG});
@@ -107,16 +109,21 @@ sub new {
     my ($host, $driver, $db) =
       split("/", $self->{CONFIG}->{"JOB_DATABASE"});
 
-    $self->{TASK_DB} or 
-      $self->{TASK_DB}=
-	AliEn::Database::TaskQueue->new({PASSWD=>"$self->{PASSWD}",DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin', SKIP_CHECK_TABLES=> 1});
-    $self->{TASK_DB} or $self->{LOGGER}->error( "CE", "In initialize creating TaskQueue instance failed" )
+#    $self->{TASK_DB} or 
+#      $self->{TASK_DB}=
+#	AliEn::Database::TaskQueue->new({PASSWD=>"$self->{PASSWD}",DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin', SKIP_CHECK_TABLES=> 1});
+
+    $self->{TASK_QUEUE} or 
+      $self->{TASK_QUEUE}  = AliEn::SiteTaskQueue->new($options);
+
+    $self->{TASK_QUEUE} or $self->{LOGGER}->error( "CE", "In initialize creating TaskQueue instance failed" )
       and return;
-    $self->{TASK_DB}->setSiteQueueTable();
+
+    $self->{TASK_QUEUE}->callBroker("setSiteQueueTable");
 
 	# Initialize TaskPriority table
     $self->{PRIORITY_DB}=
-	AliEn::Database::TaskPriority->new({DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin', SKIP_CHECK_TABLES=> 1});
+	AliEn::Database::TaskPriority->new({PASSWD=>"pass",DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin', SKIP_CHECK_TABLES=> 1});
     $self->{PRIORITY_DB} or $self->info( "In initialize creating TaskPriority instance failed" ) and return;
     
   }
@@ -1647,12 +1654,15 @@ sub f_ps2_jdltrace {
     my $command = shift;
     my ($host, $driver, $db) =
 	split ("/", $self->{CONFIG}->{"JOB_DATABASE"});
-    $self->{TASK_DB} or 
-	$self->{TASK_DB}=
-	AliEn::Database::TaskQueue->new({DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin', SKIP_CHECK_TABLES=> 1});
-    $self->{TASK_DB} or $self->{LOGGER}->error( "CE", "In initialize creating TaskQueue instance failed" )
+    $self->{TASK_QUEUE} or 
+	$self->{TASK_QUEUE}=
+      #$self->{TASK_QUEUE}  = AliEn::SiteTaskQueue->new($options);
+      $self->{TASK_QUEUE}  = AliEn::SiteTaskQueue->new();
+
+
+    $self->{TASK_QUEUE} or $self->{LOGGER}->error( "CE", "In initialize creating TaskQueue instance failed" )
 	and return;
-    $self->{TASK_DB}->setSiteQueueTable();
+    $self->{TASK_QUEUE}->callBroker("setSiteQueueTable");
     
     # catch the -trace and -jdl option
     if ($command eq "-trace") {
@@ -1674,7 +1684,7 @@ sub f_ps2_jdltrace {
 	$errorhash->{error}    = "GLITE_ERROR_ILLEGAL_INPUTPARAMETERS";
 	$errorhash->{errortxt} = "ps2 -jdl needs <queueId> as input argument";
 	my $queueid = shift or return $errorhash;
-	my $jdl = $self->{TASK_DB}->getFieldFromQueue($queueid,"jdl");
+	my $jdl = $self->{TASK_QUEUE}->callBroker("getFieldFromQueue",$queueid,"jdl");
 	my @result=();
 	my $rethash={};
 	$rethash->{jdl} = $jdl;
@@ -1914,7 +1924,7 @@ sub f_ps2 {
 	} else {
 	    $where = "$sql";
 	    $DEBUG and $self->debug(1, "In psdirect executing sql statuement:\n $where" );
-	    $rresult = $self->{TASK_DB}->query("$where $limit")
+	    $rresult = $self->{TASK_QUEUE}->callBroker("query",$where,$limit)
 		or $self->{LOGGER}->error( "CE", "In psdirect error getting data from database" )
 		and return ;
 	    
@@ -1922,7 +1932,7 @@ sub f_ps2 {
     } else {
 	$where = "($sqlstatus) and ($sqlusers) and ($sqlsites) and ($sqlnodes) and ($sqlmasterjobs) and ($sqlids) order by $order $limit";
 	$DEBUG and $self->debug(1, "In psdirect executing where:\n $where" );
-	$rresult = $self->{TASK_DB}->getFieldsFromQueueEx("*","where $where")
+	$rresult = $self->{TASK_QUEUE}->callBroker("getFieldsFromQueueEx","*","where",$where )
 	    or $self->{LOGGER}->error( "CE", "In psdirect error getting data from database" )
 	    and return ;
     }
@@ -2534,7 +2544,7 @@ sub f_queue {
     return;
   }
 
-  $self->{TASK_DB} or 
+  $self->{TASK_QUEUE} or 
     $self->info(  "In queue, we can't connect to the database directly")
     and return;
 
@@ -2569,7 +2579,7 @@ sub f_queue_info {
   my $site = (shift or '%') ;
   $jdl and $jdl=",jdl";
   $jdl or $jdl="";
-  my $array = $self->{TASK_DB}->getFieldsFromSiteQueueEx("site,blocked, status, statustime$jdl, ". join(", ", @{AliEn::Util::JobStatus()})," where site like '$site' ORDER by site");
+  my $array = $self->{TASK_QUEUE}->callBroker("getFieldsFromSiteQueueEx","site,blocked, status, statustime$jdl, ". join(", ", @{AliEn::Util::JobStatus()})," where site like '$site' ORDER by site");
   if ($array and @$array) {
     return $self->f_queueprint($array,$site);
   }
@@ -2586,8 +2596,8 @@ sub f_queue_priority {
     my $user = (shift or "%");
     my $limit = (shift or "10000");
     printf "----------------------------------------------------------------------------------------------------\n";
-    #	  my $array = $self->{TASK_DB}->getFieldsFromQueueEx("queueId,SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user,priority","where status='WAITING' and submitHost like '$user\@%' ORDER by priority desc limit $limit");      
-    my $array = $self->{TASK_DB}->getFieldsFromQueueEx("queueId,SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user,priority","where status='WAITING' ORDER by priority desc limit $limit");      
+    #	  my $array = $self->{TASK_QUEUE}->callBroker("getFieldsFromQueueEx("queueId,SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user,priority","where status='WAITING' and submitHost like '$user\@%' ORDER by priority desc limit $limit");      
+    my $array = $self->{TASK_QUEUE}->callBroker("getFieldsFromQueueEx"."queueId,SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user,priority","where status='WAITING' ORDER by priority desc limit $limit");      
     my $cnt=0;
     foreach (@$array) {
       $cnt++;
@@ -2655,7 +2665,7 @@ sub f_queue_ghost{
     my $now = time;
     my $diff = (shift or "600");
     printf "----------------------------------------------------------------------------------------------------\n";
-    my $array = $self->{TASK_DB}->getFieldsFromQueueEx("queueId,SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user, procinfotime,node, site,status","where ( (status like 'ERROR_%' or status='KILLED' or status='FAILED' or status='ZOMBIE' or status='QUEUED' or status='WAITING') and (procinfotime not like 'NULL') and (procinfotime > 1) and ($now-procinfotime)<$diff) ORDER by site");      
+    my $array = $self->{TASK_QUEUE}->callBroker("getFieldsFromQueueEx","queueId,SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user, procinfotime,node, site,status","where ( (status like 'ERROR_%' or status='KILLED' or status='FAILED' or status='ZOMBIE' or status='QUEUED' or status='WAITING') and (procinfotime not like 'NULL') and (procinfotime > 1) and ($now-procinfotime)<$diff) ORDER by site");      
     my $cnt=0;
     foreach (@$array) {
       $cnt++;
@@ -2675,7 +2685,7 @@ sub f_queue_ghost{
     
     AliEn::Util::Confirm("Do you want to update $queueId to status $status?") or return;
     
-    my $done = $self->{TASK_DB}->updateJob($queueId,$set);
+    my $done = $self->{TASK_QUEUE}->callBroker("updateJob",$queueId,$set);
     $done or print STDERR "Could not change job $queueId to status $status!\n" and return;
     return;
   }
@@ -2691,7 +2701,7 @@ sub f_queue_exists {
   defined $expectedValue or $expectedValue=1;
   my $command=(shift or "exists");
   $queue or $self->info( "Not enough arguments in 'queue $command'\nUsage: \t queue $command <queue name>") and return;
-  my $exists=$self->{TASK_DB}->getFieldsFromSiteQueueEx("site","where site='$queue'");
+  my $exists=$self->{TASK_QUEUE}->callBroker("getFieldsFromSiteQueueEx","site","where site='$queue'");
   #If the queue does not exist, but i
   if (@$exists and  ! $expectedValue) {
     $self->info( "Error: the queue $queue already exists!");
@@ -2709,12 +2719,12 @@ sub f_queue_remove {
   $self->f_queue_exists($queue, 1, "remove") or return;
 
   $DEBUG and $self->debug(1, "Let's try to remove the queue $queue");
-  return $self->{TASK_DB}->deleteSiteQueue("site='$queue'");
+  return $self->{TASK_QUEUE}->callBroker("deleteSiteQueue","site='$queue'");
 }
 sub f_queue_list {
   my $self=shift;
   my $site = (shift or '%') ;
-  my $array = $self->{TASK_DB}->getFieldsFromSiteQueueEx("site,blocked,status,maxqueued,maxrunning,queueload,runload,QUEUED, QUEUED  as ALLQUEUED, (RUNNING + STARTED + INTERACTIV + SAVING) as ALLRUNNING","where site like '$site' ORDER by blocked,status,site");
+  my $array = $self->{TASK_QUEUE}->callBroker("getFieldsFromSiteQueueEx","site,blocked,status,maxqueued,maxrunning,queueload,runload,QUEUED, QUEUED  as ALLQUEUED, (RUNNING + STARTED + INTERACTIV + SAVING) as ALLRUNNING","where site like '$site' ORDER by blocked,status,site");
   my $s1 = 0;
   my $s2 = 0;
   my $s3 = 0;
@@ -2762,7 +2772,7 @@ sub f_queue_update {
   $set->{blocked}="open";
   $command =~ /lock/ and $set->{blocked}="locked";
   $self->info( "=> going to $command the queue $queue ...");
-  my $update=$self->{TASK_DB}->updateSiteQueue($set,"site='$queue'") or 
+  my $update=$self->{TASK_QUEUE}->callBroker("updateSiteQueue",$set,"site='$queue'") or 
     print STDERR "Error opening the site $queue";
 
   $self->f_queue("info", $queue);
@@ -2787,14 +2797,14 @@ sub f_queue_add{
   foreach (@{AliEn::Util::JobStatus()}){
     $set->{$_}=0;
   }
-  my $insert=$self->{TASK_DB}->insertSiteQueue($set) or print STDERR "Error adding the site $queue";
+  my $insert=$self->{TASK_QUEUE}->callBroker("insertSiteQueue",$set) or print STDERR "Error adding the site $queue";
   return $insert;
 }
 
 sub f_queue_purge {
   my $self=shift;
   my @killpids=();
-  my $topurge=$self->{TASK_DB}->getFieldsFromQueueEx("queueId","where status=''");
+  my $topurge=$self->{TASK_QUEUE}->callBroker("getFieldsFromQueueEx","queueId","where status=''");
   foreach (@$topurge) {
     print "Job $_->{queueId} has empty status field ... will be killed!\n";
     push @killpids,$_->{queueId};
@@ -2809,7 +2819,7 @@ sub f_queue_tokens{
   if ($subcommand =~ /list/) {
     my $status = (shift or "%");
     printf "Doing listing\n";
-    my $tolist=$self->{TASK_DB}->getFieldsFromQueueEx("queueId","where status='$status'");
+    my $tolist=$self->{TASK_QUEUE}->callBroker("getFieldsFromQueueEx","queueId","where status='$status'");
     $self->{ADMIN_DB} or 
       $self->{ADMIN_DB}=
 	  AliEn::Database::Admin->new({SKIP_CHECK_TABLES=> 1});
@@ -3090,9 +3100,14 @@ sub resubmitCommand {
   my $user = $self->{CATALOG}->{CATALOG}->{ROLE};
 
   my ($host, $driver, $db) = split("/", $self->{CONFIG}->{"JOB_DATABASE"});
-	$self->{TASK_DB} or
-  $self->{TASK_DB}=AliEn::Database::TaskQueue->new({DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin', SKIP_CHECK_TABLES=> 1});
-  $self->{TASK_DB} or $self->{LOGGER}->error( "CE", "In initialize creating TaskQueue instance failed" )
+	$self->{TASK_QUEUE} or
+#  $self->{TASK_QUEUE}=AliEn::Database::TaskQueue->new({DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin', SKIP_CHECK_TABLES=> 1});
+      #$self->{TASK_QUEUE}  = AliEn::SiteTaskQueue->new($options);
+      $self->{TASK_QUEUE}  = AliEn::SiteTaskQueue->new();
+
+
+
+  $self->{TASK_QUEUE} or $self->{LOGGER}->error( "CE", "In initialize creating TaskQueue instance failed" )
   and return;
 
   my @result;
@@ -3114,7 +3129,7 @@ sub DESTROY {
     my $self = shift;
 #    ( $self->{LOGGER} )
 #      and $DEBUG and $self->debug(1, "Destroying remotequeue" );
-    $self->{TASK_DB} and $self->{TASK_DB}->close();
+    $self->{TASK_QUEUE} and $self->{TASK_QUEUE}->callBroker("close");
     ( $self->{CATALOG} ) and $self->{CATALOG}->close();
 }
 
@@ -3616,14 +3631,16 @@ sub resyncJobAgent{
     split ("/", $self->{CONFIG}->{"JOB_DATABASE"});
 
 
-  $self->{TASK_DB} or 
-    $self->{TASK_DB}=
-      AliEn::Database::TaskQueue->new({DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin', SKIP_CHECK_TABLES=> 1});
-  $self->{TASK_DB} or 
+  $self->{TASK_QUEUE} or 
+      #$self->{TASK_QUEUE}  = AliEn::SiteTaskQueue->new($options);
+      $self->{TASK_QUEUE}  = AliEn::SiteTaskQueue->new();
+
+
+  $self->{TASK_QUEUE} or 
     $self->info("In initialize creating TaskQueue instance failed" ) and return;
   $self->info("First, let's take a look at the missing jobagents");
 
-  my $jobs=$self->{TASK_DB}->query("select jdl, agentid from QUEUE q join (select min(queueid) as q from QUEUE left join JOBAGENT on agentid=entryid where entryid is null  and status='WAITING' group by agentid) t  on queueid=q") or $self->info("Error getting the jobs without jobagents") and return;
+  my $jobs=$self->{TASK_QUEUE}->callBroker("query","select jdl, agentid from QUEUE q join (select min(queueid) as q from QUEUE left join JOBAGENT on agentid=entryid where entryid is null  and status='WAITING' group by agentid) t  on queueid=q") or $self->info("Error getting the jobs without jobagents") and return;
   
   foreach my $job (@$jobs){
     $self->info("We have to insert a jobagent for $job->{jdl}");
@@ -3634,7 +3651,7 @@ sub resyncJobAgent{
       $self->info("Error getting the user from $job->{jdl}") and next;
     $req.=";$1;";
 
-    $self->{TASK_DB}->insert("JOBAGENT", {counter=>30, entryid=>$job->{agentid}, 
+    $self->{TASK_QUEUE}->callBroker("insert","JOBAGENT", {counter=>30, entryid=>$job->{agentid}, 
 					 requirements=>$req});
   }
 
@@ -3644,7 +3661,7 @@ sub resyncJobAgent{
 
 
 
-  $self->{TASK_DB}->do("update JOBAGENT j set counter=(select count(*) from QUEUE where status='WAITING' and agentid=entryid)");
+  $self->{TASK_QUEUE}->callBroker("do","update JOBAGENT j set counter=(select count(*) from QUEUE where status='WAITING' and agentid=entryid)");
   $self->info("Resync done");
   return 1;
 }
@@ -3783,23 +3800,23 @@ sub calculateJobQuota {
   $self->$method(@data, "Calculate Job Quota");
 
   $self->$method(@data, "Compute the number of unfinished jobs in last 24 hours per user");
-  $self->{TASK_DB}->do("update PRIORITY pr left join (select SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user, count(1) as unfinishedJobsLast24h from QUEUE q where (status='INSERTING' or status='WAITING' or status='STARTED' or status='RUNNING' or status='SAVING' or status='OVER_WAITING') and (unix_timestamp()>=q.received and unix_timestamp()-q.received<60*60*24) group by submithost) as C on pr.user=C.user collate latin1_general_cs set pr.unfinishedJobsLast24h=IFNULL(C.unfinishedJobsLast24h, 0)") or $self->$method(@data, "Failed");
+  $self->{TASK_QUEUE}->callBroker("do","update PRIORITY pr left join (select SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user, count(1) as unfinishedJobsLast24h from QUEUE q where (status='INSERTING' or status='WAITING' or status='STARTED' or status='RUNNING' or status='SAVING' or status='OVER_WAITING') and (unix_timestamp()>=q.received and unix_timestamp()-q.received<60*60*24) group by submithost) as C on pr.user=C.user collate latin1_general_cs set pr.unfinishedJobsLast24h=IFNULL(C.unfinishedJobsLast24h, 0)") or $self->$method(@data, "Failed");
 
   $self->$method(@data, "Compute the total runnning time of jobs in last 24 hours per user");
-  $self->{TASK_DB}->do("update PRIORITY pr left join (select SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user, sum(p.runtimes) as totalRunningTimeLast24h from QUEUE q join QUEUEPROC p using(queueId) where (unix_timestamp()>=q.received and unix_timestamp()-q.received<60*60*24) group by submithost) as C on pr.user=C.user collate latin1_general_cs set pr.totalRunningTimeLast24h=IFNULL(C.totalRunningTimeLast24h, 0)");
+  $self->{TASK_QUEUE}->callBroker("do","update PRIORITY pr left join (select SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user, sum(p.runtimes) as totalRunningTimeLast24h from QUEUE q join QUEUEPROC p using(queueId) where (unix_timestamp()>=q.received and unix_timestamp()-q.received<60*60*24) group by submithost) as C on pr.user=C.user collate latin1_general_cs set pr.totalRunningTimeLast24h=IFNULL(C.totalRunningTimeLast24h, 0)");
 
   $self->$method(@data, "Compute the total cpu cost of jobs in last 24 hours per user");
-  $self->{TASK_DB}->do("update PRIORITY pr left join (select SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user, sum(p.cost) as totalCpuCostLast24h from QUEUE q join QUEUEPROC p using(queueId) where (unix_timestamp()>=q.received and unix_timestamp()-q.received<60*60*24) group by submithost) as C on pr.user=C.user collate latin1_general_cs set pr.totalCpuCostLast24h=IFNULL(C.totalCpuCostLast24h, 0)") or $self->$method(@data, "Failed");
+  $self->{TASK_QUEUE}->callBroker("do","update PRIORITY pr left join (select SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user, sum(p.cost) as totalCpuCostLast24h from QUEUE q join QUEUEPROC p using(queueId) where (unix_timestamp()>=q.received and unix_timestamp()-q.received<60*60*24) group by submithost) as C on pr.user=C.user collate latin1_general_cs set pr.totalCpuCostLast24h=IFNULL(C.totalCpuCostLast24h, 0)") or $self->$method(@data, "Failed");
 
   $self->$method(@data, "Change job status from OVER_WAITING to WAITING");
-	$self->{TASK_DB}->do("update QUEUE q join PRIORITY pr on pr.user=SUBSTRING( q.submitHost, 1, POSITION('\@' in q.submitHost)-1 ) collate latin1_general_cs set q.status='WAITING' where (pr.totalRunningTimeLast24h<pr.maxTotalRunningTime and pr.totalCpuCostLast24h<pr.maxTotalCpuCost) and q.status='OVER_WAITING'") or $self->$method(@data, "Failed");
+	$self->{TASK_QUEUE}->callBroker("do","update QUEUE q join PRIORITY pr on pr.user=SUBSTRING( q.submitHost, 1, POSITION('\@' in q.submitHost)-1 ) collate latin1_general_cs set q.status='WAITING' where (pr.totalRunningTimeLast24h<pr.maxTotalRunningTime and pr.totalCpuCostLast24h<pr.maxTotalCpuCost) and q.status='OVER_WAITING'") or $self->$method(@data, "Failed");
 
   $self->$method(@data, "Change job status from WAITING to OVER_WAITING");
-	$self->{TASK_DB}->do("update QUEUE q join PRIORITY pr on pr.user=SUBSTRING( q.submitHost, 1, POSITION('\@' in q.submitHost)-1 ) collate latin1_general_cs set q.status='OVER_WAITING' where (pr.totalRunningTimeLast24h>=pr.maxTotalRunningTime or pr.totalCpuCostLast24h>=pr.maxTotalCpuCost) and q.status='WAITING'") or $self->$method(@data, "Failed");
+	$self->{TASK_QUEUE}->callBroker("do","update QUEUE q join PRIORITY pr on pr.user=SUBSTRING( q.submitHost, 1, POSITION('\@' in q.submitHost)-1 ) collate latin1_general_cs set q.status='OVER_WAITING' where (pr.totalRunningTimeLast24h>=pr.maxTotalRunningTime or pr.totalCpuCostLast24h>=pr.maxTotalCpuCost) and q.status='WAITING'") or $self->$method(@data, "Failed");
   $self->$method(@data, "Synchronize with SITEQUEUES");
   foreach (qw(OVER_WAITING WAITING)) {
-    $self->{TASK_DB}->do("update SITEQUEUES s set $_=(select count(1) from QUEUE q where status='$_' and s.site=q.site)") or $self->$method(@data, "$_ Failed");
-    $self->{TASK_DB}->do("update SITEQUEUES s set $_=(select count(1) from QUEUE q where status='$_' and q.site is null) where s.site='UNASSIGNED::SITE'") or $self->$method(@data, "$_ UNASSIGNED::SITE Failed");
+    $self->{TASK_QUEUE}->callBroker("do","update SITEQUEUES s set $_=(select count(1) from QUEUE q where status='$_' and s.site=q.site)") or $self->$method(@data, "$_ Failed");
+    $self->{TASK_QUEUE}->callBroker("do","update SITEQUEUES s set $_=(select count(1) from QUEUE q where status='$_' and q.site is null) where s.site='UNASSIGNED::SITE'") or $self->$method(@data, "$_ UNASSIGNED::SITE Failed");
   }
 
   return;
