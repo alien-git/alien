@@ -64,11 +64,17 @@ use Net::Domain qw(hostname hostfqdn hostdomain);
   close FILE;
   $ui=AliEn::UI::Catalogue::LCM->new({user=>"newuser"}) or $error=1;
   $error or $ui->execute("rm","-rf","seVirtual1","seVirtual2","seVirtual3","seVirtual4");
+  
   $error or $ui->execute("add", "seVirtual1", $localfile) or $error=1;
-  $error or $ui->execute("add", "seVirtual2", $localfile, "${host}::CERN::otherse") or $error=1;
+  $error or $ui->execute("add", "seVirtual2", $localfile, "${host}::CERN::otherSE") or $error=1;
 
-  $error or $ui->execute("add", "-r", "seVirtual3", "file://".$ui->{CATALOG}->{CONFIG}->{HOST}."/".$localfile,"-size 1024") or $error=1;
-  $error or $ui->execute("add", "-r", "seVirtual4", "file://".$ui->{CATALOG}->{CONFIG}->{HOST}."/".$localfile,"-size 1024","${host}::CERN::otherse") or $error=1;
+  my $seVirtual3 = "$config->{LOG_DIR}/OTHER_SE_DATA/seVirtual3";
+#  my $seVirtual4 = "$config->{LOG_DIR}/OTHER_SE_DATA/seVirtual4";
+  system("cp $localfile $seVirtual3");
+#  system("cp $localfile $seVirtual4");
+
+  $error or $ui->execute("add", "-r", "seVirtual3", "file://$config->{HOST}/$seVirtual3",1025, "abc") or $error=1;
+#  $error or $ui->execute("add", "-r", "seVirtual4", "file://$config->{HOST}/$seVirtual4", 1024, "fe43") or $error=1;
 
   unlink $localfile;
   ($error) and exit(-2);
@@ -76,7 +82,7 @@ use Net::Domain qw(hostname hostfqdn hostdomain);
   my @whereis1=$ui->execute("whereis", "seVirtual1") or exit(-2);
   my @whereis2=$ui->execute("whereis", "seVirtual2") or exit(-2);
   my @whereis3=$ui->execute("whereis", "seVirtual3") or exit(-2);
-  my @whereis4=$ui->execute("whereis", "seVirtual4") or exit(-2);
+#  my @whereis4=$ui->execute("whereis", "seVirtual4") or exit(-2);
   $ui->close();
   ($whereis1[1] and $whereis2[1]) or print "One of the lfn doesn't have a pfn!!\n" and exit(-2);
   print "Comparing @whereis1 and @whereis2\n";
@@ -88,7 +94,7 @@ use Net::Domain qw(hostname hostfqdn hostdomain);
   print "the files are in different directories: '$whereis1[1]' and '$whereis2[1]'\n";
 
 
-  $whereis3[0] eq $whereis4[0] and print "The registered files are in the same SE!!\n" and exit(-2);
+#  $whereis3[0] eq $whereis4[0] and print "The registered files are in the same SE!!\n" and exit(-2);
 
   print "YUHUUUU!!!\n";
   ok(1);

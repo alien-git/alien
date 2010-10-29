@@ -38,7 +38,7 @@ InputData={\"lf:$dir/jdl/inputdata2.jdl,nodownload\"};
   my $pfn="guid:///$info->{guid}";
   my $size=$info->{size};
   $cat->execute("rm","-rf", "jdl/inputdata2.jdl.link");
-  $cat->execute("add", "-r", "jdl/inputdata2.jdl.link", $pfn, $size,"no_se", ) or exit(-2);
+  $cat->execute("add", "-r", "jdl/inputdata2.jdl.link", $pfn, $size, "abcedfe" ) or exit(-2);
 
   addFile($cat, "jdl/inputdata3.jdl", "
 Executable=\"inputdata2.sh\";
