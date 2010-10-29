@@ -33,7 +33,9 @@ BEGIN { plan tests => 1 }
     print "Got @tags";
     $cat->execute("removeTag", $targetDir, "person") or exit(-2);
   }
+  $cat->execute("debug","5");
   $cat->execute("addTag", $targetDir, "person") or exit(-2);
+  $cat->execute("debug","0");
   
   $cat->execute("addTagValue", "$targetDir/newuser", "person", "firstname=James",
 		"familyName=Smith", "year=1950") or exit(-2);

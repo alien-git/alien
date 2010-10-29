@@ -14,7 +14,7 @@ print "Ok, let's try as well with something that has to work...\n";
 
 $cat->execute("rm", "-silent", "existantFile");
 my $host=Net::Domain::hostname();
-$cat->execute("add", "-r", "existantFile", "file://$host/etc/passwd",-s "/etc/passwd") or exit(-2);
+$cat->execute("add", "-r", "existantFile", "file://$cat->{CATALOG}->{CONFIG}->{HOST}/etc/passwd",-s "/etc/passwd") or exit(-2);
 
 print "And now, let's try to get the file....\n";
 $cat->execute("get", "-l", "existantFile") or print "I GOT THE FILE!!! :(\n" and exit(-2);

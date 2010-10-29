@@ -64,12 +64,11 @@ use Net::Domain qw(hostname hostfqdn hostdomain);
   close FILE;
   $ui=AliEn::UI::Catalogue::LCM->new({user=>"newuser"}) or $error=1;
   $error or $ui->execute("rm","-rf","seVirtual1","seVirtual2","seVirtual3","seVirtual4");
-  
   $error or $ui->execute("add", "seVirtual1", $localfile) or $error=1;
   $error or $ui->execute("add", "seVirtual2", $localfile, "${host}::CERN::otherse") or $error=1;
 
-  $error or $ui->execute("add", "-r", "seVirtual3", $localfile) or $error=1;
-  $error or $ui->execute("add", "-r", "seVirtual4", $localfile, 1024,"${host}::CERN::otherse") or $error=1;
+  $error or $ui->execute("add", "-r", "seVirtual3", "file://".$ui->{CATALOG}->{CONFIG}->{HOST}."/".$localfile,"-size 1024") or $error=1;
+  $error or $ui->execute("add", "-r", "seVirtual4", "file://".$ui->{CATALOG}->{CONFIG}->{HOST}."/".$localfile,"-size 1024","${host}::CERN::otherse") or $error=1;
 
   unlink $localfile;
   ($error) and exit(-2);

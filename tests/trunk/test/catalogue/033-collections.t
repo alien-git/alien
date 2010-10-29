@@ -66,7 +66,8 @@ BEGIN { plan tests => 1 }
     or print "Error getting the files\n" and return;
   -d $dir or print "$dir is not a directory\n" and return;
   print "Got the files @files\n";
-  system("rm","-rf","$dir")
+  system("rm","-rf","$dir");
+  print "OK!!";
 }
 
 sub getSize{
