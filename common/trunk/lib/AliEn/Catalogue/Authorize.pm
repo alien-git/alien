@@ -919,6 +919,8 @@ sub getSEforPFN{
 
   $pfn = $self->parsePFN($pfn);
   $pfn or return 0;
+  use Data::Dumper;
+  $self->info("DATA:::::".Dumper($pfn));
   my @queryValues = ("$pfn->{proto}://$pfn->{host}");
   $self->info("Authorize: gron: Asking for seName of $pfn->{proto}:$pfn->{host}");
   my $sestring = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow("SELECT seName FROM SE where seioDaemons LIKE concat ( ? , '%') ;",
@@ -933,6 +935,7 @@ sub parsePFN {
   my $self=shift;
   my $pfn=(shift|| return {});
   my $result={};
+  ($pfn=~/^\//) and $pfn="file://".$self->{CONFIG}->{HOST}.$pfn;
   $pfn =~ /^([a-zA-Z]*):\/\/([0-9a-zA-Z.\-_:]*)\/(.*)$/;
   $1 and $2 or return 0;
   $result->{proto}  = $1;
@@ -1267,7 +1270,6 @@ sub authorize{
 
   ($writeReq or $registerReq) and 
      $packedEnvelope = $self->getBaseEnvelopeForWriteAccess($user,$lfn,$size,$md5,$guidRequest);
-
   $registerReq and return $self->registerPFNInCatalogue($user,$packedEnvelope,$pfn,$wishedSE);
 
   $mirrorReq and $packedEnvelope = $self->getBaseEnvelopeForMirrorAccess($user,$lfn,$guidRequest,$size,$md5);
