@@ -1418,7 +1418,7 @@ sub erase {
 
 sub addFile_HELP {
   return "'add' copies a file into the SE, and register an entry in the catalogue that points to the file in the SE\n\t
-Usage: add [-g <guid>] [-s <size>] [-md5 <md5>] <lfn> <pfn> [<se>,!<se>,select=N,<qosflag>=N]\n
+Usage: add [-g <guid>] [-size <size>] [-md5 <md5>] <lfn> <pfn> [<se>,!<se>,select=N,<qosflag>=N]\n
 Possible pfns:\tsrm://<host>/<path>, castor://<host>/<path>, 
 \t\tfile://<host>/<path>
 If the method and host are not specified, the system will try with 'file://<localhost>' \n";
@@ -1443,7 +1443,7 @@ sub addFile {
   my $lineOptions=join(" ", @_);
   @ARGV=@_;
   Getopt::Long::GetOptions($options, 
-    "silent", "versioning", "user=s", "guid=s", "register", "tracelog", "feedback") 
+    "silent", "versioning", "user=s", "guid=s", "register", "tracelog", "feedback", "size=s", "md5=s") 
     or $self->info("Error checking the options of add") and return;
   @_=@ARGV;
   my $targetLFN   = (shift || ($self->info("ERROR, missing paramter: lfn") and return));
@@ -1452,8 +1452,8 @@ sub addFile {
 
   $options->{tracelog} and   $self->{LOGGER}->tracelogOn();
 
-  my $size = 0;
-  my $md5sum = 0;
+  my $size = ($options->{size}||0);
+  my $md5sum = ($options->{md5}||0);
 
   $sourcePFN or $self->info("Error: not enough parameters in add\n".
     $self->addFile_HELP(),2)  and return;
@@ -1464,10 +1464,10 @@ sub addFile {
   $options->{user} or $options->{user} = $self->{CONFIG}->{ROLE};
 
   if($options->{register}) {
-    $size = shift @seSpecs;
-    $md5sum = shift @seSpecs;
+    $size = ($options->{size}||0);
+    $md5sum = ($options->{md5}||0);
     $self->info("gron: Registering pfn ...");
-    return $self->registerPFN($options->{user}, $targetLFN, $sourcePFN, $options->{guid}, $size, $md5sum, $options->{feedback},$options->{silent});
+    return $self->registerPFN($options->{user}, $targetLFN, $sourcePFN, $options->{guid}, $size, $md5sum, $options->{feedback},$options->{silent},$seSpecs[0]);
   }
 
   if($options->{versioning}) {
@@ -1489,9 +1489,10 @@ sub registerPFN{
   my $md5sum=(shift || 0);
   my $feedback=(shift || 0);
   my $silent=(shift || 0);
+  my $wishedSE=(shift || 0);
 
   return $self->{CATALOG}->callAuthen("authorize","register", {lfn=>$targetLFN, 
-           pfn=>$sourcePFN, size=>$size, md5=>$md5sum, guid=>$guid });
+           pfn=>$sourcePFN, size=>$size, md5=>$md5sum, guid=>$guid, wishedSE=>$wishedSE});
 }
 
 

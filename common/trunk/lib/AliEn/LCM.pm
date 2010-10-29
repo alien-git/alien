@@ -220,7 +220,7 @@ sub bringFileToSE {
 sub new {
     my $proto = shift;
     my $self  = {};
-    $self->{CONFIG}= (shift or AliEn::Config->new() );
+    $self->{CONFIG}= AliEn::Config->new();
 
 
     my $class = ref($proto) || $proto;
