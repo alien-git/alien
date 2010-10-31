@@ -355,7 +355,7 @@ sub getAllInfoFromGUID{
     $self->info("Error missing the guid in getAllInfoFromGUID") and return;
 
   
-  my $retrieve=$options->{retrieve} || '*,binary2string(guid) as guid';
+  my $retrieve=$options->{retrieve}.',binary2string(guid) as guid' || '*,binary2string(guid) as guid';
   my $method=$options->{method} || "queryRow";
   
   my ($db, $table)=$self->selectDatabaseFromGUID($guid) or return;
@@ -538,9 +538,10 @@ sub checkPermission{
   my $empty=(shift || 0);
 
   my $retrieve='guidId,perm,owner,gowner,size';
-  $retrieve and $retrieve.=",$retrievemore";
-  my $info=$self->getAllInfoFromGUID({retrieve=>$retrieve,
-				     return=>"db"}, $guid);
+  $retrieve and $retrieve.=",".$retrievemore;
+  #my $info=$self->getAllInfoFromGUID({retrieve=>$retrieve,
+#				     return=>"db"}, $guid);
+  my $info=$self->getAllInfoFromGUID({retrieve=>$retrieve}, $guid);
   if (!($info and $info->{guidId})){
     $empty and return $info;
     $self->info("Error the guid '$guid' is not in the catalogue");
@@ -548,7 +549,7 @@ sub checkPermission{
   }
 
   $self->debug(2, "Checking if the user $self->{VIRTUAL_ROLE} has $op rights to the guid");
-  $self->{VIRTUAL_ROLE} =~ /^admin(ssl)?$/ and return $info;
+  $self->{VIRTUAL_ROLE} =~ /^admin(ssl)?$/ and return ($info);
   my $permInt=2;
   if  ($self->{VIRTUAL_ROLE} eq $info->{owner}){
     $permInt=0;
@@ -561,12 +562,12 @@ sub checkPermission{
   $self->debug(3,"CHECKING $subperm");
   my $action="access";
   if ($op eq 'r'){
-    $subperm>3 and return $info;
+    $subperm>3 and return ($info);
   }elsif ( $op eq 'w' ) {
-    ($subperm%4)>1 and return $info;
+    ($subperm%4)>1 and return ($info);
     $action="modify";
   } elsif ( $op eq 'x' ) {
-    ($subperm%2) and return $info;
+    ($subperm%2) and return ($info);
     $action="execute";
   }
 

@@ -286,15 +286,18 @@ sub get {
    my $filehash = {};
 
    if(AliEn::Util::isValidGUID($file)) {
-     $filehash=$self->{CATALOG}->checkPermission("r", $file, "guid,type,size,md5");
+     ($filehash)=$self->{CATALOG}->checkPermission("r", $file, 'type,size,md5');
    } else {
-     $filehash=$self->{CATALOG}->checkPermissions("r",$file, 0, 1);
+     ($filehash)=$self->{CATALOG}->checkPermissions("r",$file, 0, 1);
    }
    $filehash or return 0;
-   #$filehash = shift @{$filehash};
+#   $filehash = shift @{$filehash};
+ $self->info("Coming back from checkPermission...". Dumper($filehash));
+
+$self->info("GUID: $filehash->{guid}");
 
 
-   ($filehash->{type} eq "c") and  $self->notice("This is in fact a collection!! Let's get all the files")
+   (defined($filehash->{type}) and ($filehash->{type} eq "c")) and  $self->notice("This is in fact a collection!! Let's get all the files")
      and return $self->getCollection($filehash->{guid}, $localFile, \%options);
 
 
