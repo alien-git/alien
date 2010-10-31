@@ -919,8 +919,6 @@ sub getSEforPFN{
 
   $pfn = $self->parsePFN($pfn);
   $pfn or return 0;
-  use Data::Dumper;
-  $self->info("DATA:::::".Dumper($pfn));
   my @queryValues = ("$pfn->{proto}://$pfn->{host}");
   $self->info("Authorize: gron: Asking for seName of $pfn->{proto}:$pfn->{host}");
   my $sestring = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow("SELECT seName FROM SE where seioDaemons LIKE concat ( ? , '%') ;",
@@ -1089,15 +1087,14 @@ sub registerFileInCatalogueAccordingToEnvelopes{
   my $user=(shift || return 0);
   my $signedEnvelopes=(shift || []);
   my $returnMessage= "";
-  my $success=0;
   $self->info("Authorize: gron: the envelopes for registration are: @$signedEnvelopes");
-  my @successMap = ();
+  my @successEnvelopes = ();
 
  
-  foreach my $envelope (@$signedEnvelopes) {
+  foreach my $signedEnvelope (@$signedEnvelopes) {
      my $justRegistered=0;
-     push @successMap,"0";
-     $envelope = $self->verifyAndDeserializeEnvelope($envelope);
+     #push @successEnvelopes,"0";
+     my $envelope = $self->verifyAndDeserializeEnvelope($signedEnvelope);
      $envelope 
             or $self->info("Authorize: An envelope could not be verified.") 
             and $returnMessage .= "An envelope could not be verified.\n" 
@@ -1129,15 +1126,14 @@ sub registerFileInCatalogueAccordingToEnvelopes{
             or $self->info("Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $envelope->{turl} could not be registered properly as a replica (LFN_BOOKED error).")
             and $returnMessage .= "File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $envelope->{turl} could not be registered properly as a replica (LFN_BOOKED error)."
             and next;
-     pop @successMap; push @successMap, 1; 
-     $success++;
+     push @successEnvelopes,$signedEnvelope;
   }
-  ($success eq scalar(@$signedEnvelopes)) and $self->notice("Authorize: EXCELLENT! All of the ".scalar(@$signedEnvelopes)." PFNs where correctly registered.") 
-    and return @successMap;
-  (scalar(@$signedEnvelopes) gt 0) and $self->notice("Authorize: WARNING! Only ".scalar(@$signedEnvelopes)." PFNs could be registered correctly registered.") 
-    and return @successMap;
+  (scalar(@successEnvelopes) eq scalar(@$signedEnvelopes)) and $self->notice("Authorize: EXCELLENT! All of the ".scalar(@$signedEnvelopes)." PFNs where correctly registered.") 
+    and return @successEnvelopes;
+  (scalar(@successEnvelopes) gt 0) and $self->notice("Authorize: WARNING! Only ".scalar(@successEnvelopes)." PFNs could be registered correctly registered.") 
+    and return @successEnvelopes;
    $self->error("Authorize: ERROR! We could not register any of the requested PFNS.",1)
-    and return  @successMap;
+    and return  @successEnvelopes;
 }
 
 
@@ -1297,21 +1293,26 @@ sub authorize{
          and $self->info("Authorize: gron: LFN BOOK ADD OK");
          # or next;
          
-         $self->info("Authorize: gron: LFN_BOOKED DONE");
+         $self->info("Authorize: gron: LFN_BOOKED DONE, envelope looks like: $packedEnvelope");
    
        }
+       my $signedEnvelope = {};
+       foreach (keys %{$packedEnvelope}) { $signedEnvelope->{$_} = $packedEnvelope->{$_}; }
    
-       my $encryptedEnvelope = $self->createAndEncryptEnvelopeTicket($access, $packedEnvelope); 
+       my $encryptedEnvelope = $self->createAndEncryptEnvelopeTicket($access, $signedEnvelope); 
    
-       $packedEnvelope = $self->signEnvelope($packedEnvelope);
-       $packedEnvelope->{envelope} = $encryptedEnvelope;
+       $signedEnvelope = $self->signEnvelope($signedEnvelope);
+
+       $self->info("Authorize: gron: FINAL ENVELOPE LOOKS LIKE: $signedEnvelope");
+
+       $signedEnvelope->{envelope} = $encryptedEnvelope;
    
-       $self->info("Authorize: gron: finally se is: $packedEnvelope->{se}");  
+       $self->info("Authorize: gron: finally se is: $signedEnvelope->{se}");  
 
 
   #    foreach ( keys %{$packedEnvelope}) { $self->notice("Authorize: gron: final packedEnvelope, $_: $packedEnvelope->{$_}"); }
          
-       push @packedEnvelopeList, $packedEnvelope;
+       push @packedEnvelopeList, $signedEnvelope;
    
        if ($self->{MONITOR}) {
    	#my @params= ("$se", $packedEnvelope->{size});
@@ -1319,7 +1320,7 @@ sub authorize{
    	($access =~ /^((read)|(write))/)  and $method="${1}req";
    	$access =~ /^delete/ and $method="delete";
    	$method and
-   	$self->{MONITOR}->sendParameters("$self->{CONFIG}->{SITE}_QUOTA","$self->{ROLE}_$method", ("$packedEnvelope->{se}", $packedEnvelope->{size}) ); 		      
+   	$self->{MONITOR}->sendParameters("$self->{CONFIG}->{SITE}_QUOTA","$self->{ROLE}_$method", ("$signedEnvelope->{se}", $signedEnvelope->{size}) ); 		      
        }
   }  
   return @packedEnvelopeList;
@@ -1353,7 +1354,6 @@ sub createAndEncryptEnvelopeTicket {
     $ticket .= "    <access>$access</access>\n";
     foreach ( keys %{$env}) { ($_ ne "access" && defined $env->{$_}) and $ticket .= "    <${_}>$env->{$_}</${_}>\n"; }
     $ticket .= "  </file>\n</authz>\n";
-    $self->debug (1,"Authorize: The ticket is $ticket");
 
     $self->{envelopeCipherEngine}->Reset();
     #    $self->{envelopeCipherEngine}->Verbose();
@@ -1392,6 +1392,8 @@ sub signEnvelope {
   my @keyVals = keys %{$env};
   $env->{hashOrder} = join ("&",@keyVals);
   my $envelopeString= join("&", map { $_ = "$_=$env->{$_}"} @keyVals);
+
+  $self->info("gron: before signing envelope string is: $envelopeString");
 
   $env->{signature} = encode_base64($self->{signEngine}->sign($envelopeString));
   $env->{signature} =~  s/\n//g;
