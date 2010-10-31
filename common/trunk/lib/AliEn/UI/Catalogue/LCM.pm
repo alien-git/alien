@@ -286,10 +286,13 @@ sub get {
    my $filehash = {};
 
    if(AliEn::Util::isValidGUID($file)) {
-     ($filehash)=$self->{CATALOG}->checkPermission("r", $file, "guid,type,size,md5");
+     $filehash=$self->{CATALOG}->checkPermission("r", $file, "guid,type,size,md5");
    } else {
-     ($filehash)=$self->{CATALOG}->checkPermissions("r",$file, 0, 1);
+     $filehash=$self->{CATALOG}->checkPermissions("r",$file, 0, 1);
    }
+   $filehash or return 0;
+   #$filehash = shift @{$filehash};
+
 
    ($filehash->{type} eq "c") and  $self->notice("This is in fact a collection!! Let's get all the files")
      and return $self->getCollection($filehash->{guid}, $localFile, \%options);
@@ -315,7 +318,7 @@ sub get {
      $wishedSE = 0;
      
    } 
-   $result or $self->info("Error: not possible to get the file $file. Message: ".$self->{LOGGER}->error_msg(), 1) and return;
+   $result or $self->info("Error: not possible to get the file $file. Message: ".$self->{LOGGER}->error_msg(), 1) and return 0;
    $self->info("And the file is $result",0,0);
    return $result;
 }
@@ -1451,9 +1454,6 @@ sub addFile {
 
   $options->{tracelog} and   $self->{LOGGER}->tracelogOn();
 
-  my $size = ($options->{size}||0);
-  my $md5sum = ($options->{md5}||0);
-
   $sourcePFN or $self->info("Error: not enough parameters in add\n".
     $self->addFile_HELP(),2)  and return;
 
@@ -1463,8 +1463,8 @@ sub addFile {
   $options->{user} or $options->{user} = $self->{CONFIG}->{ROLE};
 
   if($options->{register}) {
-    $size = ($options->{size}||0);
-    $md5sum = ($options->{md5}||0);
+    my $size = (shift || $options->{size} || 0);
+    my $md5sum = (shift || $options->{md5} || 0);
     $self->info("gron: Registering pfn ...");
     return $self->registerPFN($options->{user}, $targetLFN, $sourcePFN, $options->{guid}, $size, $md5sum, $options->{feedback},$options->{silent},$seSpecs[0]);
   }
@@ -1626,30 +1626,45 @@ sub addFileToSEs {
   (($success ne -1) && (scalar(@ses) gt 0)) and ($result, $success) = $self->putOnStaticSESelectionListV2($result,$user,$sourcePFN,$targetLFN,$size,$md5,$selOutOf,\@ses);
 
   (scalar(@{$result->{usedEnvelopes}}) gt 0) or $self->error("We couldn't upload any copy of the file.") and return;
+
+  $self->info("gron: scalar of the usedEnvelopes: ".scalar(@{$result->{usedEnvelopes}}));
+  $self->info("gron: the returned usedEnvelopes are: @{$result->{usedEnvelopes}}");
   
-  my @regSuccessMap = $self->{CATALOG}->callAuthen("authorize","registerenvs", @{$result->{usedEnvelopes}});
+  my @successEnvelopes = $self->{CATALOG}->callAuthen("authorize","registerenvs", @{$result->{usedEnvelopes}});
 
-  (scalar(@regSuccessMap) gt 0) or return;
-
-  for (0 .. (scalar(@{$result->{usedEnvelopes}})-1)) {
-    ($regSuccessMap[$_]) and $counter++  and
-         $self->error(getValFromEnvelope($result->{usedEnvelopes}[$_],"pfn")." could not be registered correctly");
+  (scalar(@successEnvelopes) gt 0) or return;
+  if (scalar(@successEnvelopes) ne scalar(@{$result->{usedEnvelopes}})) {
+      foreach my $env (@{$result->{usedEnvelopes}}) {
+         grep {$env} @successEnvelopes or $self->error(getValFromEnvelope($env,"pfn")." on ".getValFromEnvelope($env,"se")." could not be registered correctly");
+      } 
   }
-  
-  if ($totalCount eq $counter){
+
+  if ($totalCount eq scalar(@successEnvelopes)){
       $success=1;
       $self->notice("OK. The file $targetLFN  was added to $totalCount SEs as specified. Superb!");
-  } elsif($counter > 0) {
-      $self->notice("WARNING: The file $targetLFN was added to ".scalar(@{$result->{usedEnvelopes}})." SEs, yet specified were to add it on $totalCount!");
+  } elsif(scalar(@successEnvelopes) gt 0) {
+      $self->notice("WARNING: The file $targetLFN was added to ".scalar(@successEnvelopes)."SEs, yet specified were to add it on $totalCount!");
   } else {
       $self->error("ERROR: Adding the file $targetLFN failed completely!");
   }
-  $feedback and return $result->{usedEnvelopes};
+  $feedback and return \@successEnvelopes ;
   # -1 means a access exception, e.g. exceeded quota limit
   # This will trigger the JobAgent to stop trying further write attempts.
   return $success;
 
 }
+
+sub getValFromEnvelope {
+  my $env=(shift || return 0);
+  my $rKey=(shift || return 0);
+
+  foreach ( split(/&/, $env)) {
+     my ($key, $val) = split(/=/,$_);
+     ($rKey eq $key) and return $val;
+  }
+  return 0;
+}
+
 
 sub putOnStaticSESelectionListV2{
    my $self=shift;
@@ -1680,6 +1695,7 @@ sub putOnStaticSESelectionListV2{
      foreach my $envelope (@envelopes){
        (my $res, $result) = $self->uploadFileAccordingToEnvelope($result, $sourcePFN, $envelope);
        $res && push @{$result->{usedEnvelopes}}, $envelope->{signedEnvelope}; 
+       $self->info("gron: pushed the following envelope to the used ones:  $envelope->{signedEnvelope}");
        $selOutOf = $selOutOf - $success;
      }
 
@@ -1720,7 +1736,13 @@ sub putOnDynamicDiscoveredSEListByQoSV2{
        (my $res, $result) = $self->uploadFileAccordingToEnvelope($result, $sourcePFN, $envelope);
        push @$excludedSes, $envelope->{se};
        $res or next;
+       $self->info("gron: before the following envelope to the used ones:  $envelope->{signedEnvelope}");
+       $self->info("gron: before length of used ones:".scalar(@{$result->{usedEnvelopes}}));
+       $self->info("gron: before the array of used ones:".join(@{$result->{usedEnvelopes}}));
        push @{$result->{usedEnvelopes}}, $envelope->{signedEnvelope}; 
+       $self->info("gron: pushed the following envelope to the used ones:  $envelope->{signedEnvelope}");
+       $self->info("gron: length of used ones:".scalar(@{$result->{usedEnvelopes}}));
+       $self->info("gron: the array of used ones:".join(@{$result->{usedEnvelopes}}));
        $count--;
      }
   }
@@ -1736,7 +1758,7 @@ sub uploadFileAccordingToEnvelope{
   $result->{guid} and $self->info("File has guid: $result->{guid}") or $result->{guid} = "";
   ($sourcePFN) or $self->{LOGGER}->warning( "LCM", "Error no pfn specified" )
     and $self->error("Error: No PFN specified [uploadFileAccordingToEnvelope]")
-    and return ($result,0,[]) ;
+    and return (0,$result) ;
   
      $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope->{envelope};
      $ENV{ALIEN_XRDCP_URL}=$envelope->{turl};
@@ -1755,7 +1777,7 @@ sub uploadFileAccordingToEnvelope{
      my $time=time-$start;
      $self->sendMonitor("write", $envelope->{se}, $time, $envelope->{size}, $res);
 
-     $res and $res->{pfn} and return (1,$res);
+     $res and $res->{pfn} and return (1,$result);
 
      $res or 
        $self->error( "ERROR storing $sourcePFN in $envelope->{se}, Message: ".$self->{LOGGER}->error_msg );
