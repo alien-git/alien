@@ -236,9 +236,13 @@ sub CallAndGetOverSOAP{
     $self->info(join ("", @{$rcvals->{rcmessages}} ), undef, 0);
   }
  
-  defined($rcvals->{rcvalues}) or return;
-  (defined(@{$rcvals->{rcvalues}}) and (scalar(@{$rcvals->{rcvalues}}) gt 0)) and return @{$rcvals->{rcvalues}};
-  return $rcvals->{rcvalues};
+  defined($rcvals->{rcvalues}) and #or return; # and $self->info("gron: SOAP rcvalues defined") or return;
+  (defined(@{$rcvals->{rcvalues}}) and (scalar(@{$rcvals->{rcvalues}}) gt 0)) 
+    #and $self->info("gron: SOAP returning array ...") 
+    and return @{$rcvals->{rcvalues}};
+  #$self->info("gron: SOAP returning plain none") and return ; #return $rcvals->{rcvalues};
+  #return $rcvals->{rcvalues};
+  return;
 
   #if(defined(@{$rcvals->{rcvalues}}) and (scalar(@{$rcvals->{rcvalues}}) gt 0)) {
   #    (scalar(@{$rcvals->{rcvalues}}) gt 1) and return @{$rcvals->{rcvalues}};

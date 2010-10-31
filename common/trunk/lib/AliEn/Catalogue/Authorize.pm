@@ -1097,7 +1097,7 @@ sub registerFileInCatalogueAccordingToEnvelopes{
      my $envelope = $self->verifyAndDeserializeEnvelope($signedEnvelope);
      $envelope 
             or $self->info("Authorize: An envelope could not be verified.") 
-            and $returnMessage .= "An envelope could not be verified.\n" 
+            and $returnMessage .= "An envelope could not be verified: $signedEnvelope\n" 
             and  next; # gron: we have to track this error with "could not verify an envelope"
      $envelope = $self->ValidateRegistrationEnvelopesWithBookingTable($user,$envelope);
      $envelope 
@@ -1297,7 +1297,9 @@ sub authorize{
    
        }
        my $signedEnvelope = {};
-       foreach (keys %{$packedEnvelope}) { $signedEnvelope->{$_} = $packedEnvelope->{$_}; }
+       foreach (keys %{$packedEnvelope}) { $signedEnvelope->{$_} = $packedEnvelope->{$_}; $self->info("gron: $_: ".$packedEnvelope->{$_}); }
+
+       $self->info("gron: access: $access");
    
        my $encryptedEnvelope = $self->createAndEncryptEnvelopeTicket($access, $signedEnvelope); 
    
@@ -1354,6 +1356,8 @@ sub createAndEncryptEnvelopeTicket {
     $ticket .= "    <access>$access</access>\n";
     foreach ( keys %{$env}) { ($_ ne "access" && defined $env->{$_}) and $ticket .= "    <${_}>$env->{$_}</${_}>\n"; }
     $ticket .= "  </file>\n</authz>\n";
+
+    $self->info("gron ticket is finally: $ticket");
 
     $self->{envelopeCipherEngine}->Reset();
     #    $self->{envelopeCipherEngine}->Verbose();
