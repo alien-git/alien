@@ -236,13 +236,15 @@ sub CallAndGetOverSOAP{
     $self->info(join ("", @{$rcvals->{rcmessages}} ), undef, 0);
   }
  
-#  (defined($rcvals->{rcvalues}) and $rcvals->{rcvalues}) or return 0;
-#  return @{$rcvals->{rcvalues}};
-  if(defined(@{$rcvals->{rcvalues}}) and (scalar(@{$rcvals->{rcvalues}}) gt 0)) {
-      (scalar(@{$rcvals->{rcvalues}}) gt 1) and return @{$rcvals->{rcvalues}};
-      return shift @{$rcvals->{rcvalues}};
-  }
+  defined($rcvals->{rcvalues}) or return;
+  (defined(@{$rcvals->{rcvalues}}) and (scalar(@{$rcvals->{rcvalues}}) gt 0)) and return @{$rcvals->{rcvalues}};
   return $rcvals->{rcvalues};
+
+  #if(defined(@{$rcvals->{rcvalues}}) and (scalar(@{$rcvals->{rcvalues}}) gt 0)) {
+  #    (scalar(@{$rcvals->{rcvalues}}) gt 1) and return @{$rcvals->{rcvalues}};
+  #    return shift @{$rcvals->{rcvalues}};
+  #}
+ # return $rcvals->{rcvalues};
 }
 
 
