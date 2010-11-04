@@ -17,7 +17,7 @@ use AliEn::Database::Admin;
 use Crypt::OpenSSL::RSA;
 use Crypt::OpenSSL::Random;
 use AliEn::Util;
-use AliEn::UI::Catalogue::LCM;
+use AliEn::UI::Catalogue::LCM::Computer;
 
 use vars qw (@ISA $DEBUG);
 @ISA=("AliEn::Service");
@@ -62,7 +62,7 @@ sub initialize {
 		  and return;
 
 	$self->_ConnectToLDAP() or return;
-	$self->{UI}=AliEn::UI::Catalogue::LCM->new($options) or $self->info("Error getting the ui") and return;
+	$self->{UI}=AliEn::UI::Catalogue::LCM::Computer->new($options) or $self->info("Error getting the ui") and return;
 	$self->{UI}->{CATALOG}->{envelopeCipherEngine} or $self->info("Error! We can't create the security envelopes!! Please, define the SEALED_ENVELOPE_ environment variables") and return;
 
 	return $self;

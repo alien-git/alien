@@ -1,6 +1,7 @@
 package AliEn::UI::Catalogue::LCM::Computer;
 
 use AliEn::CE;
+use AliEn::ClientCE;
 use AliEn::PackMan;
 
 use AliEn::UI::Catalogue::LCM;
@@ -78,24 +79,29 @@ my %help_list = (
 );
 
 sub initialize {
-    my $self    = shift;
-    my $options = shift;
+  my $self    = shift;
+  my $options = shift;
 
-	$self->SUPER::initialize($options) or return;
+  $self->SUPER::initialize($options) or return;
 
-    $options->{CATALOG} = $self;
+  $options->{CATALOG} = $self;
 
 #    my $packOptions={PACKMAN_METHOD=> $options->{packman_method}|| "",
 #		     CATALOGUE=>$self};
 
 #    $self->{PACKMAN}= AliEn::PackMan->new($packOptions) or return;
 
-    $options->{PACKMAN}=$self->{PACKMAN};
+  $options->{PACKMAN}=$self->{PACKMAN};
 
-    $self->{QUEUE} = AliEn::CE->new($options) or return;;
+  if($self->checkEnvelopeCreation()) {
+    $self->{QUEUE} = AliEn::CE->new($options) or return;
+  }
+  else {
+    $self->{QUEUE} = AliEn::ClientCE->new($options) or return;
+  }
 
-    $self->AddCommands(%command_list);
-    $self->AddHelp(%help_list);
+  $self->AddCommands(%command_list);
+  $self->AddHelp(%help_list);
 }
 
 sub cleanCache {
