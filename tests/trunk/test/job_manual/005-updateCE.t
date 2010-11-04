@@ -2,6 +2,14 @@ use strict;
 use AliEn::Database::TaskQueue;
 use Net::Domain qw(hostname hostfqdn hostdomain);
 
+$ENV{SEALED_ENVELOPE_REMOTE_PUBLIC_KEY}="$ENV{ALIEN_HOME}/authen/rpub.pem";
+$ENV{SEALED_ENVELOPE_REMOTE_PRIVATE_KEY}="$ENV{ALIEN_HOME}/authen/rpriv.pem";
+$ENV{SEALED_ENVELOPE_LOCAL_PUBLIC_KEY}="$ENV{ALIEN_HOME}/authen/lpub.pem";
+$ENV{SEALED_ENVELOPE_LOCAL_PRIVATE_KEY}="$ENV{ALIEN_HOME}/authen/lpriv.pem";
+$ENV{ALIEN_DATABASE_ROLE}='admin';
+$ENV{ALIEN_DATABASE_PASSWORD}='pass';
+
+
 print "Connecting to ldap...";
 my $host=Net::Domain::hostfqdn();
 my $port=$ENV{ALIEN_MYSQL_PORT} ||3307;
@@ -35,6 +43,13 @@ print "\nWE SHOULD HAVE $number (now $newNumber)\n";
 ($number eq $newNumber) or exit(-2);
 $d->close();
 print "DONE\n";
+
+delete  $ENV{SEALED_ENVELOPE_REMOTE_PUBLIC_KEY};
+delete  $ENV{SEALED_ENVELOPE_REMOTE_PRIVATE_KEY};
+delete  $ENV{SEALED_ENVELOPE_LOCAL_PUBLIC_KEY};
+delete  $ENV{SEALED_ENVELOPE_LOCAL_PRIVATE_KEY};
+delete  $ENV{ALIEN_DATABASE_PASSWORD};
+
 sub changeNumberJobs{
   my $number=shift;
   my $ldap = Net::LDAP->new("$host:8389", "onerror" => "warn") 
@@ -55,3 +70,4 @@ sub changeNumberJobs{
   return 1;
 
 }
+
