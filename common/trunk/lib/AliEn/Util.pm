@@ -177,15 +177,15 @@ sub setCacheValue{
   my $value=shift;
   my $date=time;
 
-
   $self->{CACHE} or $self->{CACHE}={BUILT=>$date};
   if (!defined $value){
     delete $self->{CACHE}->{$name};
     return 1;
   }
-  $self->{CACHE}->{$name}={expired=>$date+6000, timeChecked=>$date,
-			   value=>$value};
-  $self->debug(1,"Setting the cache of $name = $value at $date");
+  $self->{CACHE}->{$name}={expired=>$date+6000, 
+                           timeChecked=>$date,
+                           value=>$value};
+# $self->debug(1,"Setting the cache of $name = $value at $date");
   return 1;
 }
 sub returnCacheValue {

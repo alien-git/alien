@@ -725,17 +725,17 @@ sub execute {
   ($silent) and $self->partSilent();
 
   if ($command eq "dump") {
-      # dumps cannot be redirected!
-      $#stdoutredirect =-1;
+    # dumps cannot be redirected!
+    $#stdoutredirect =-1;
   }
 
   if ($#stdoutredirect>-1) {
-      $stdoutredirect[0] =~ s/\>//g;
-      open SAVE_STDOUT,">&STDOUT";
-      open SAVE_STDOUT,">&STDOUT"; #the second is to get rid of the warning
-      $tmpstdout = "/tmp/". time() . $$ . rand();
-      open STDOUT,"> $tmpstdout";
-      open STDOUTTMP,"$tmpstdout";
+    $stdoutredirect[0] =~ s/\>//g;
+    open SAVE_STDOUT,">&STDOUT";
+    open SAVE_STDOUT,">&STDOUT"; #the second is to get rid of the warning
+    $tmpstdout = "/tmp/". time() . $$ . rand();
+    open STDOUT,"> $tmpstdout";
+    open STDOUTTMP,"$tmpstdout";
   }
 
   my @error=();
@@ -757,47 +757,47 @@ sub execute {
       # wildcards!!!
       my $ok=1;
       if ($self->{CATALOG} && $self->{CATALOG}->{GLOB} == 1) {
-	if ($com[1] & 16) {
-	  my $files=$self->expandWildcards($com[1] & 32,@newargs);
-	  if ($files){
-	    @newargs=@$files;
-	  }else{
-	    $ok=0;
-	  }
-	} else {
-	  map  {s/([^\\])\*/$1%/g} @newargs;
-	  map  {s/([^\\])\?/$1_/g} @newargs;
-	}
+        if ($com[1] & 16) {
+          my $files=$self->expandWildcards($com[1] & 32,@newargs);
+          if ($files){
+            @newargs=@$files;
+          }else{
+            $ok=0;
+          }
+        } else {
+          map  {s/([^\\])\*/$1%/g} @newargs;
+          map  {s/([^\\])\?/$1_/g} @newargs;
+        }
 
-	map  {s/\\\?/\?/g} @newargs;
-	map  {s/\\\*/\*/g} @newargs;
+        map  {s/\\\?/\?/g} @newargs;
+        map  {s/\\\*/\*/g} @newargs;
 
       }
       if ($ok) {
-	push @newargs, undef if ($#newargs == -1);
-	
-	my $lcommand = "$com[0](";
-	$lcommand .= "'$options'," if ($com[1] & 2);
-	if ($com[1] & 64 ){
-	  #doing a single call with all the entries
-	  map  {$_= ((defined $_) ? "'$_', " : "")} @newargs;
-	  $command="$lcommand @newargs )";
-	  $DEBUG and $self->debug(1, "Executing the command: $command");
-	  push @error, eval $command;
-	}else {
-	  $lcommand .= "'$firstarg'," if ($com[1] & 4);
-	  my $rcommand = "";
-	  $rcommand .= "'$lastarg'" if ($com[1] & 8);
-	  $rcommand .= ")";
+        push @newargs, undef if ($#newargs == -1);
 
-	  for (@newargs) {
-	    $command = $lcommand . ((defined($_)) ? "'$_'," : "") . $rcommand;
-	    $command =~ s/,\)/\)/;
-	    $command =~ s/\@/\\\@/g;
-	    $DEBUG and $self->debug(1, "Executing  the command: '$command'");
-	    push @error, eval $command;
-	  }
-	}
+        my $lcommand = "$com[0](";
+        $lcommand .= "'$options'," if ($com[1] & 2);
+        if ($com[1] & 64 ){
+          #doing a single call with all the entries
+          map  {$_= ((defined $_) ? "'$_', " : "")} @newargs;
+          $command="$lcommand @newargs )";
+          $DEBUG and $self->debug(1, "Executing the command: $command");
+          push @error, eval $command;
+        }else {
+          $lcommand .= "'$firstarg'," if ($com[1] & 4);
+          my $rcommand = "";
+          $rcommand .= "'$lastarg'" if ($com[1] & 8);
+          $rcommand .= ")";
+
+          for (@newargs) {
+            $command = $lcommand . ((defined($_)) ? "'$_'," : "") . $rcommand;
+            $command =~ s/,\)/\)/;
+            $command =~ s/\@/\\\@/g;
+            $DEBUG and $self->debug(1, "Executing  the command: '$command'");
+            push @error, eval $command;
+          }
+        }
       }
     } else {
       grep s/"/\\"/g, @arg;
@@ -818,9 +818,9 @@ sub execute {
       $silent and $self->restoreSilent();
 
       if ($#stdoutredirect>-1) {
-	unlink $tmpstdout;
-	close STDOUTTMP;
-	open STDOUT, ">& SAVE_STDOUT";
+        unlink $tmpstdout;
+        close STDOUTTMP;
+        open STDOUT, ">& SAVE_STDOUT";
       }
 
       return;

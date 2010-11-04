@@ -21,8 +21,6 @@ use AliEn::Classad::Host;
 use AliEn::X509;
 use Data::Dumper;
 
-require AliEn::SiteTaskQueue;
-
 use Switch;
 
 use vars qw (@ISA $DEBUG);
@@ -46,7 +44,7 @@ sub new {
   $self->SUPER::new() or return;
 
 
-  $self->{PASSWD} = ( $options->{passwd} or "pass" );
+  $self->{PASSWD} = ( $options->{passwd} or "" );
 
   $self->{DEBUG} = ( $options->{debug} or 0 );
   ( $self->{DEBUG} ) and $self->{LOGGER}->debugOn($self->{DEBUG});
@@ -84,7 +82,7 @@ sub new {
   $DEBUG and $self->debug(1, "Batch sytem: $queuename" );
 
   eval "require $queuename"
-    or print STDERR "Error requiring '$queuename': $@\n"
+    or $self->{LOGGER}->error("CE","Error requiring '$queuename': $@")
       and return;
   $options->{DEBUG} = $self->{DEBUG};
   $self->{BATCH}    = $queuename->new($options);
@@ -109,21 +107,16 @@ sub new {
     my ($host, $driver, $db) =
       split("/", $self->{CONFIG}->{"JOB_DATABASE"});
 
-#    $self->{TASK_DB} or 
-#      $self->{TASK_DB}=
-#	AliEn::Database::TaskQueue->new({PASSWD=>"$self->{PASSWD}",DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin', SKIP_CHECK_TABLES=> 1});
-
-    $self->{TASK_QUEUE} or 
-      $self->{TASK_QUEUE}  = AliEn::SiteTaskQueue->new($options);
-
-    $self->{TASK_QUEUE} or $self->{LOGGER}->error( "CE", "In initialize creating TaskQueue instance failed" )
+    $self->{TASK_DB} or 
+      $self->{TASK_DB}=
+	AliEn::Database::TaskQueue->new({PASSWD=>"$self->{PASSWD}",DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin', SKIP_CHECK_TABLES=> 1});
+    $self->{TASK_DB} or $self->{LOGGER}->error( "CE", "In initialize creating TaskQueue instance failed" )
       and return;
-
-    $self->{TASK_QUEUE}->callBroker("setSiteQueueTable");
+    $self->{TASK_DB}->setSiteQueueTable();
 
 	# Initialize TaskPriority table
     $self->{PRIORITY_DB}=
-	AliEn::Database::TaskPriority->new({PASSWD=>"pass",DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin', SKIP_CHECK_TABLES=> 1});
+	AliEn::Database::TaskPriority->new({DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin', SKIP_CHECK_TABLES=> 1});
     $self->{PRIORITY_DB} or $self->info( "In initialize creating TaskPriority instance failed" ) and return;
     
   }
@@ -247,7 +240,7 @@ sub checkType {
     $DEBUG and $self->debug(1, "Checking the type of the job");
     my ( $ok, $type ) = $ca->evaluateAttributeString("Type");
     if ( $ok && lc($type) ne "job" ) {
-        print STDERR "JDL is not of type Job !\n";
+        $self->{LOGGER}->info("CE","JDL is not of type Job !\n");
         return;
     }
     elsif ( !$ok ) {
@@ -345,12 +338,12 @@ sub requirementsFromInput {
     ($i %100) or  $self->info( "Already checked $i files\n",undef,0);
     $DEBUG and $self->debug(1, "Checking the file $file");
     if ($file=~ /^PF:/) {
-      print STDERR "No PF allowed !!! Go to your LF !\n";
+      $self->{LOGGER}->error("CE","No PF allowed !!! Go to your LF !");
       next;
     }
     ($file =~ s/^LF://i) or  
-      print STDERR "Malformed InputData -> $file - File Ignored.\n"
-	and   next;
+      $self->{LOGGER}->error("CE","Malformed InputData -> $file - File Ignored.")
+        and next;
 
     if ( $file !~ m{^/} ) {
       $modified=1;
@@ -617,8 +610,8 @@ sub getJdl {
     my $arg  = join " ", @_;
 
     ($arg)
-      or print STDERR
-"Error: Not enough arguments in submit.\n Usage: submit <jdl file in the catalogue>| < <local jdl file> | <<EOF  job decription EOF\n"
+      or $self->{LOGGER}->error("CE",
+"Error: Not enough arguments in submit.\n Usage: submit <jdl file in the catalogue>| < <local jdl file> | <<EOF  job decription EOF")
       and return;
 
     my $content;
@@ -626,14 +619,14 @@ sub getJdl {
 
       shift =~ /EOF/ or shift;
       #READING FROM THE STDIN
-      print STDOUT "Enter the input for the job (end with EOF)\n";
+      $self->{LOGGER}->error("CE","Enter the input for the job (end with EOF)");
       $content = "";
       my $line = <>;
       while ( $line ne "EOF\n" ) {
 	$line !~ /^\#/ and $content .= $line;
 	$line = <>;
       }
-      print STDOUT "Thanks!!\n";
+      $self->info("Thanks!!",undef,0);
     }
     elsif ( $arg =~ /</ ) {
       
@@ -641,9 +634,9 @@ sub getJdl {
       my $filename;
       $arg =~ /<\s*(\S+)/ and $filename = $1;
       shift =~ /../ or shift;
-      $filename or print STDERR "Error: Filename not defined!!\n" and return;
+      $filename or $self->error("CE","Error: Filename not defined!!") and return;
       open FILE, "<$filename"
-	or print STDERR "ERROR opening local file $filename\n"
+        or $self->{LOGGER}->error("ERROR opening local file $filename")
           and return;
       
       my @content = grep ( !/^\#/, <FILE> );
@@ -656,15 +649,14 @@ sub getJdl {
       $DEBUG and $self->debug(1, "READING A FILE FROM THE CATALOGUE" );
       my $filename = shift;
       my ($file) =
-	$self->{CATALOG}->execute( "get", "-silent", "$filename" );
+      $self->{CATALOG}->execute( "get", "-silent", "$filename" );
       $file
-	or print STDERR
-          "Error getting the file $filename from the catalogue\n"
-          and return;
+        or $self->{LOGGER}->error("CE","Error getting the file $filename from the catalogue")
+        and return;
       $DEBUG and $self->debug(1, "File $file" );
       open FILE, "<$file"
-          or print STDERR "ERROR opening local file $file\n"
-	    and return;
+        or $self->{LOGGER}->error("CE","ERROR opening local file $file")
+        and return;
       my @content = grep ( !/^\#/, <FILE> );
       close FILE;
       $content = join "", @content;
@@ -690,7 +682,7 @@ sub getJdl {
     }
     $content =~ /(\$\d)/ and $self->{LOGGER}->warning("CE", "Warning! Argument $i was not in the template, but there is $1\nTemplate:\n$template");
 
-    $content or print STDERR "Error: no description for the job\n" and return;
+    $content or $self->{LOGGER}->error("Error: no description for the job") and return;
 
     return $content;
 }
@@ -735,7 +727,7 @@ sub submitCommand {
       $i++;
     }
     $content =~ /(\$\d)/ and $self->{LOGGER}->warning("CE", "Warning! Argument $i was not in the template, but there is $1\nTemplate:\n$template");
-    $content or print STDERR "Error: no description for the job\n" and return;
+    $content or $self->{LOGGER}->error("CE","Error: no description for the job") and return;
   }  elsif ($arg[0] eq "=<") {
     shift @arg;
     $content = (join " ",@arg);
@@ -753,10 +745,10 @@ sub submitCommand {
   my $dumper = new Data::Dumper([$dumphash]);
 
   if ( !$job_ca->isOK() ) {
-    print STDERR "=====================================================\n";
-    print STDERR $dumper->Dump();
-    print STDERR "=====================================================\n";
-    print STDERR "Incorrect JDL input\n $content \n";
+    $self->{LOGGER}->error("CE","=====================================================");
+    $self->{LOGGER}->error("CE",$dumper->Dump());
+    $self->{LOGGER}->error("CE","=====================================================");
+    $self->{LOGGER}->error("CE","Incorrect JDL input\n $content");
     return;
     }
   my $jdl=$job_ca->asJDL;
@@ -812,9 +804,9 @@ sub submitCommand {
   my $done =$self->{SOAP}->CallSOAP("Manager/Job", 'enterCommand',
 				 "$user\@$self->{HOST}", $job_ca->asJDL(), $self->{INPUTBOX} );
   if (! $done) {
-      print STDERR "=====================================================\n";
-      print STDERR "Cannot enter your job !\n";
-      print STDERR "=====================================================\n";
+      $self->{LOGGER}->error("CE","=====================================================");
+      $self->{LOGGER}->error("CE","Cannot enter your job !");
+      $self->{LOGGER}->error("CE","=====================================================");
 			return;
   }
   my $jobId=$done->result;
@@ -827,38 +819,23 @@ sub submitCommand {
 
 
 
-
   my ( $okf, @files) = $job_ca->evaluateAttributeVectorString("OutputFile");
   my ( $oka, @archives) = $job_ca->evaluateAttributeVectorString("OutputArchive");
 
   (@files and scalar(@files) > 0)
-    and print STDERR "\n"
-    and print STDERR "    ATTENTION. You just submitted a JDL containing the tag 'OutputFile'. The OutputFile and OutputArchive\n";
+    and $self->{LOGGER}->warning("CE","ATTENTION. You just submitted a JDL containing the tag 'OutputFile'. The OutputFile and OutputArchive");
   
   (@archives and scalar(@archives) > 0)
-    and print STDERR "\n"
-    and print STDERR "    ATTENTION. You just submitted a JDL containing the tag 'OutputArchive'. The OutputFile and OutputArchive\n";
+    and $self->{LOGGER}->warning("CE","ATTENTION. You just submitted a JDL containing the tag 'OutputArchive'. The OutputFile and OutputArchive");
 
   if ((@files and scalar(@files) > 0) or (@archives and scalar(@archives) > 0)) {
-    print STDERR "    tags will be dropped in future versions of AliEn. For the moment the old tags work as usual, but\n";
-    print STDERR "    please update your JDLs in the near future to utilize the 'Output' tag:\n";
-    print STDERR "\n";
-    print STDERR "    The syntax of the actual entries is still the same, but now you can just mixup files\n";
-    print STDERR "    and archives, as e.g.:\n";
-    print STDERR "\n";
-    print STDERR "           Output = { \"fileA,fileB,*.abc\" , \"myArchive:fileC,fileD,*.xyz\" } ;\n";
-    print STDERR "\n";
-    print STDERR "\n";
-    print STDERR "    Thanks a lot!\n";
-    print STDERR "\n";
+    $self->info("tags will be dropped in future versions of AliEn. For the moment the old tags work as usual, but\nplease update your JDLs in the near future to utilize the 'Output' tag:\n\nThe syntax of the actual entries is still the same, but now you can just mixup files and archives, as e.g.:\n           Output = { \"fileA,fileB,*.abc\" , \"myArchive:fileC,fileD,*.xyz\" } ;\n    Thanks a lot!\n",undef,0);
   }
   $self->info("OK, all right!");
 
 
-
-
   $self->info( "Command submitted (job $jobId)!!" );
-  print STDERR "Job ID is $jobId - $zoption\n";
+  $self->info("Job ID is $jobId - $zoption");
   if ($zoption) {
       my @aresult;
       my $hashresult;
@@ -1087,7 +1064,7 @@ sub createAgentStartup {
 
   if ($proxy) {
 
-    open (PROXY, "<$proxyName") or print "Error opening $proxyName\n" and return;
+    open (PROXY, "<$proxyName") or $self->{LOGGER}->error("CE","Error opening $proxyName") and return;
     my @proxy=<PROXY>;
     close PROXY;
     my $jobProxy="$self->{CONFIG}->{TMP_DIR}/proxy.\$\$.`date +\%s`";
@@ -1121,7 +1098,7 @@ $after";
       }
     }
 
-    open (FILE, ">$script") or print "Error opening the file $script\n" and return;
+    open (FILE, ">$script") or $self->{LOGGER}->error("CE","Error opening the file $script") and return;
     print FILE "#!/bin/bash\n$content";
     close FILE;
     chmod 0750, $script;
@@ -1355,48 +1332,47 @@ sub f_queueprint {
 
   my $sum={};
 
-  printf "%-24s%-16s%-18s%-14s", "Site","Blocked","Status","Statustime";
+  my $tmpString = sprintf("%-24s%-16s%-18s%-14s", "Site","Blocked","Status","Statustime");
 
   foreach $k (@{AliEn::Util::JobStatus()}){
     $k=~ s/^ERROR_(..?).*$/ER_$1/ or $k=~ s/^(...).*$/$1/;
-    printf "%-5s ", $k;
+    $tmpString .= sprintf("%-5s ", $k);
   }
+  $self->info($tmpString,undef,0);
 
-  print "\n----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n";
+  $self->info("\n----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n",undef,0);
 
   foreach (@$done) {
-    printf "%-24s%-16s%-18s%-14s", $_->{'site'},($_->{'blocked'} ||"" ), $_->{'status'},$_->{'statustime'};
+    $tmpString = "";
+    $tmpString .= sprintf("%-24s%-16s%-18s%-14s", $_->{'site'},($_->{'blocked'} ||"" ), $_->{'status'},$_->{'statustime'});
 
     foreach $k (@{AliEn::Util::JobStatus()}){
       $_->{$k} or $_->{$k}=0;
-      printf "%-5s ",$_->{$k};
+      $tmpString .= sprintf("%-5s ",$_->{$k});
       ( defined $sum->{$k}) or $sum->{$k} = 0;
 
       ( $_->{$k} ) and  $sum->{$k}+=  int($_->{$k});
     }
-    $_->{jdl} and print "$_->{jdl}\n";
-    print "\n";
+    $_->{jdl} and $tmpString=sprintf("$_->{jdl}\n");
+    $self->info($tmpString,undef,0);
   }
-  print "----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n";
+  $self->info("\n----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n",undef,0);
 
   if ( $site eq '%' ) {
     my $sumsite="Sum of all Sites";
     my $empty="----";
     my $zero="0";
-    printf "%-24s", $sumsite;
-    printf "%-16s", $empty;
-    printf "%-18s", $empty;
-    printf "%-14s", $empty;
+    $tmpString = sprintf("%-24s%-16s%-18s%-14s", $sumsite,$empty,$empty,$empty);
 
     foreach $k (@{AliEn::Util::JobStatus()}){
       if ( defined $sum->{$k} ) {
-	printf "%-5s ",$sum->{$k};
+        $tmpString .= sprintf("%-5s ",$sum->{$k});
       } else {
-	printf "%-5s ",$zero;
+        $tmpString .= sprintf("%-5s ",$zero);
       }
     }
-    printf "\n";
-    print "----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n";
+    $self->info("$tmpString\n",undef,0);
+    $self->info("----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n",undef,0);
   }
   return $done;
 }
@@ -1407,29 +1383,30 @@ sub f_priorityprint() {
     my $lkeys;
     my $firstentry = @$done[0];
     my $out = "user";
-    print "----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n";
-    printf "%-16s", $out;
+    $self->info("\n----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n",undef,0);
+    my $tmpString = sprintf("%-16s", $out);
 
     foreach $lkeys (keys %$firstentry) {
-	if ($lkeys eq "user"){
-	    next;
-	}
-	printf "%-20s", $lkeys;
+      if ($lkeys eq "user"){
+        next;
+      }
+      $tmpString .= sprintf("%-20s", $lkeys);
     }
-    printf "\n";
-    print "==================================================================================================================================================================================\n";
+    $self->info($tmpString."\n",undef,0);
+    $self->info("\n==================================================================================================================================================================================\n",undef,0);
     foreach (@$done) {
-	printf "%-16s",$_->{"user"};
-	foreach $lkeys (keys %$firstentry) {
-	    if ($lkeys eq "user") {
-		next;
-	    }
-	    printf "%-20s",$_->{$lkeys};
-	}
-	printf "\n";
+      $tmpString = sprintf("%-16s",$_->{"user"});
+      foreach $lkeys (keys %$firstentry) {
+        if ($lkeys eq "user") {
+          next;
+        }
+        $tmpString .= sprintf("%-20s",$_->{$lkeys});
+      }
+      $self->info($tmpString,undef,0);
     }
-    print "----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n";
+    $self->info("\n----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n",undef,0);
 }
+
 sub f_spy_HELP{
   return "spy: check the output of a job while it is still running\nUsage:
 \tspy <job id> <filename> [<options>]
@@ -1446,8 +1423,8 @@ Possible options include:
 
 sub f_spy {
   my $self = shift;
-  my $queueId = shift or print STDERR "You have to specify the job id, you want to spy on\n" and return;
-  my $spyfile = shift or print STDERR "You have to specify a filename to spy on, or \n\t'workdir'\t to see the job working directory or\n\t'nodeinfo'\t to see information about the worker node\n" and return;
+  my $queueId = shift or $self->{LOGGER}->error("CE","You have to specify the job id, you want to spy on") and return;
+  my $spyfile = shift or $self->{LOGGER}->error("CE","You have to specify a filename to spy on, or \n\t'workdir'\t to see the job working directory or\n\t'nodeinfo'\t to see information about the worker node") and return;
 
   $queueId =~ /^[0-9]+$/ or $self->info("The id '$queueId' doesn't look like a job id...\n". f_spy_HELP()) and return;
   my $options={grep=>[]};
@@ -1476,7 +1453,7 @@ sub f_spy {
   
   $done or return;
   $done=$done->result;
-  print $done;
+  $self->info($done,undef,0);
   return 1;
 }
 
@@ -1532,16 +1509,16 @@ sub f_jobsystem {
 }
 
 sub f_printjobinfo() {
-    my $self = shift;
-    my $result = shift;
+  my $self = shift;
+  my $result = shift;
 
-    printf STDOUT "==========================================================================\n";
-    foreach (keys %$result) {
-	if (defined $result->{$_}) {
-	    printf STDOUT "  %12s :   %6s\n", $_,, $result->{$_};
-	}
-    } 
-    printf STDOUT "==========================================================================\n";
+  $self->info("==========================================================================\n",undef,0);
+  foreach (keys %$result) {
+    if (defined $result->{$_}) {
+      $self->info(sprintf("  %12s :   %6s", $_,, $result->{$_}),undef,0);
+    }
+  } 
+  $self->info("==========================================================================\n",undef,0);
 }
 
 sub f_printsystem() {
@@ -1550,17 +1527,17 @@ sub f_printsystem() {
 
   my $user=sprintf("%10s", $self->{CATALOG}->{CATALOG}->{ROLE});
 
-  print "==========================================================================
+  $self->info("==========================================================================
 = AliEn Queue                   all          ${user}         [%%]
---------------------------------------------------------------------------\n";
+--------------------------------------------------------------------------",undef,0);
 
   foreach (@{AliEn::Util::JobStatus()}) {
     my $status=lc($_);
-    printf STDOUT "  %12s         %12s      %14s      %6.02f\n","\u$status",($result->{"n$status"} ||0 ), ($result->{"nuser$status"}|| 0), ($result->{"frac$status"} ||0);
+    $self->info(sprintf("  %12s         %12s      %14s      %6.02f","\u$status",($result->{"n$status"} ||0 ), ($result->{"nuser$status"}|| 0), ($result->{"frac$status"} ||0)),undef,0);
   }
-  printf "\n==========================================================================
+  $self->info("\n==========================================================================
 = Job Execution                 all          $user
--------------------------------------------------------------------\n";
+-------------------------------------------------------------------",undef,0);
   my @list=(['Exec. Efficiency '=>""],['Assign.    Ineff.'=>'assignin'],
 	  ['Submission Ineff.','submissionin'],['Execution  Ineff.','executionin'],
 	  ['Validation Ineff.','validationin'],['Expiration Ineff.'=>,'expiredin']);
@@ -1568,29 +1545,28 @@ sub f_printsystem() {
     my ($title, $var)=@{$_};
     my $total="${var}efficiency";
     my $user="user${var}efficiency";
-    printf STDOUT "  $title     %12.02f %%      %12.02f %%\n",$result->{$total},$result->{$user};
+    $self->info("  $title     %12.02f %%      %12.02f %%",$result->{$total},$result->{$user},undef,0);
   }
-  print STDOUT "\n==========================================================================
+  $self->info("\n==========================================================================
 = Present Resource Usage        all          $user
---------------------------------------------------------------------------\n";
-  printf STDOUT "  CPU [GHz]            %12.02f        %12.02f\n",$result->{'totcpu'}/1000.0,$result->{'totusercpu'}/1000.0;
-  printf STDOUT "  RSize [Mb]           %12.02f        %12.02f\n",$result->{'totrmem'}/1000,$result->{'totuserrmem'}/1000;
-  printf STDOUT "  VSize [Mb]           %12.02f        %12.02f\n",$result->{'totvmem'}/1000,$result->{'totuservmem'}/1000;
-  printf STDOUT "\n==========================================================================
+--------------------------------------------------------------------------",undef,0);
+  $self->info("  CPU [GHz]            %12.02f        %12.02f",$result->{'totcpu'}/1000.0,$result->{'totusercpu'}/1000.0,undef,0);
+  $self->info("  RSize [Mb]           %12.02f        %12.02f",$result->{'totrmem'}/1000,$result->{'totuserrmem'}/1000,undef,0);
+  $self->info("  VSize [Mb]           %12.02f        %12.02f",$result->{'totvmem'}/1000,$result->{'totuservmem'}/1000,undef,0);
+  $self->info("==========================================================================
 = Computing Resource Account    all          $user     \n
---------------------------------------------------------------------------\n";
-  printf STDOUT "  CPU Cost [GHz*sec]   %12.02f        %12.02f\n",$result->{'totcost'},$result->{'totusercost'};
-  printf STDOUT "==========================================================================
+--------------------------------------------------------------------------",undef,0);
+  $self->info("  CPU Cost [GHz*sec]   %12.02f        %12.02f\n",$result->{'totcost'},$result->{'totusercost'},undef,0);
+  $self->info("==========================================================================
 = Site Statistic
---------------------------------------------------------------------------\n";
+--------------------------------------------------------------------------",undef,0);
   my (@allsites) = split '####',$result->{'sitestat'};
 
   foreach (@allsites) {
     my (@siteinfo) = split '#',$_;
-    printf STDOUT "  %-30s %-5s %-5s %-5s %-5s %-5s %-5s %-5s %-5s %-5s\n", $siteinfo[0], $siteinfo[1],$siteinfo[2],$siteinfo[3],$siteinfo[4],$siteinfo[5],$siteinfo[6],$siteinfo[7],$siteinfo[8],$siteinfo[9];
+    $self->info(sprintf("  %-30s %-5s %-5s %-5s %-5s %-5s %-5s %-5s %-5s %-5s", $siteinfo[0], $siteinfo[1],$siteinfo[2],$siteinfo[3],$siteinfo[4],$siteinfo[5],$siteinfo[6],$siteinfo[7],$siteinfo[8],$siteinfo[9]),undef,0);
   }
-  printf STDOUT "==========================================================================\n";
-
+  $self->info("==========================================================================\n",undef,0);
 
   return "Done Jobs $result->{'ndone'}";
 }
@@ -1650,56 +1626,53 @@ sub f_ps_trace {
   return \@trace;
 }
 sub f_ps2_jdltrace {
-    my $self = shift;
-    my $command = shift;
-    my ($host, $driver, $db) =
-	split ("/", $self->{CONFIG}->{"JOB_DATABASE"});
-    $self->{TASK_QUEUE} or 
-	$self->{TASK_QUEUE}=
-      #$self->{TASK_QUEUE}  = AliEn::SiteTaskQueue->new($options);
-      $self->{TASK_QUEUE}  = AliEn::SiteTaskQueue->new();
+  my $self = shift;
+  my $command = shift;
+  my ($host, $driver, $db) =
+  split ("/", $self->{CONFIG}->{"JOB_DATABASE"});
+  $self->{TASK_DB} or 
+  $self->{TASK_DB}=
+  AliEn::Database::TaskQueue->new({DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin', SKIP_CHECK_TABLES=> 1});
+  $self->{TASK_DB} or $self->{LOGGER}->error( "CE", "In initialize creating TaskQueue instance failed" )
+    and return;
+  $self->{TASK_DB}->setSiteQueueTable();
 
-
-    $self->{TASK_QUEUE} or $self->{LOGGER}->error( "CE", "In initialize creating TaskQueue instance failed" )
-	and return;
-    $self->{TASK_QUEUE}->callBroker("setSiteQueueTable");
-    
-    # catch the -trace and -jdl option
-    if ($command eq "-trace") {
-	my $errorhash;
-	$errorhash->{error}    = "GLITE_ERROR_ILLEGAL_INPUTPARAMETERS";
-	$errorhash->{errortxt} = "ps2 -trace needs atleast <queueId> as input argument";
-	my $queueid = shift or return $errorhash;
-	my $trace = $self->f_ps_trace($queueid,@_);	
+  # catch the -trace and -jdl option
+  if ($command eq "-trace") {
+    my $errorhash;
+    $errorhash->{error}    = "GLITE_ERROR_ILLEGAL_INPUTPARAMETERS";
+    $errorhash->{errortxt} = "ps2 -trace needs atleast <queueId> as input argument";
+    my $queueid = shift or return $errorhash;
+    my $trace = $self->f_ps_trace($queueid,@_);	
 #	foreach (@$trace) {
 #	    foreach my $lkey (keys %$_) {
 #		print "$lkey : $_->{$lkey}","\n";
 #	    }
 #	}
-	return @$trace;
-    }
+    return @$trace;
+  }
 
-    if ($command eq "-jdl") {
-	my $errorhash;
-	$errorhash->{error}    = "GLITE_ERROR_ILLEGAL_INPUTPARAMETERS";
-	$errorhash->{errortxt} = "ps2 -jdl needs <queueId> as input argument";
-	my $queueid = shift or return $errorhash;
-	my $jdl = $self->{TASK_QUEUE}->callBroker("getFieldFromQueue",$queueid,"jdl");
-	my @result=();
-	my $rethash={};
-	$rethash->{jdl} = $jdl;
-	if (defined $jdl) {
-	    print "$jdl\n";
-	} else {
-	    print "Error: Job $queueid is not (anymore) in the task queue!\n";
-	    my $errorhash;
-	    $errorhash->{error}    = "GLITE_ERROR_ILLEGAL_JOBID";
-	    $errorhash->{errortxt} = "Job $queueid is not (anymore) in the task queue!";
-	    return $errorhash;
-	} 
-	push @result, $rethash;
-	return @result;
-    }
+  if ($command eq "-jdl") {
+    my $errorhash;
+    $errorhash->{error}    = "GLITE_ERROR_ILLEGAL_INPUTPARAMETERS";
+    $errorhash->{errortxt} = "ps2 -jdl needs <queueId> as input argument";
+    my $queueid = shift or return $errorhash;
+    my $jdl = $self->{TASK_DB}->getFieldFromQueue($queueid,"jdl");
+    my @result=();
+    my $rethash={};
+    $rethash->{jdl} = $jdl;
+    if (defined $jdl) {
+      $self->info("$jdl",undef,0);
+    } else {
+      $self->info("CE","Error: Job $queueid is not (anymore) in the task queue!");
+      my $errorhash;
+      $errorhash->{error}    = "GLITE_ERROR_ILLEGAL_JOBID";
+      $errorhash->{errortxt} = "Job $queueid is not (anymore) in the task queue!";
+      return $errorhash;
+    } 
+    push @result, $rethash;
+    return @result;
+  }
 }
 
 
@@ -1707,7 +1680,7 @@ sub f_ps2 {
 
     my $self      = shift;
     ##### usage        #####
-    print STDERR "Arguments: @_\n";
+    $self->{LOGGER}->error("CE","Arguments: @_\n");
     ##### filter -z argument away #####
     my @args;
     foreach (@_) {
@@ -1762,15 +1735,15 @@ sub f_ps2 {
     $errorhash->{error}    = "GLITE_ERROR_ILLEGAL_INPUTPARAMETERS";
     $errorhash->{errortxt} = "Wrong number of input parameters to function ps2";
     ##### input params ##### 
-    my $flags     = shift @args or print STDERR "$usage" and return $errorhash;
-    my $users     = shift @args or print STDERR "$usage" and return $errorhash;
-    my $sites     = shift @args or print STDERR "$usage" and return $errorhash;
-    my $nodes     = shift @args or print STDERR "$usage" and return $errorhash;
-    my $masterjobs = shift @args or print STDERR "$usage" and return $errorhash;
-    my $order     = shift @args or print STDERR "$usage" and return $errorhash;
-    my $ids       = shift @args or print STDERR "$usage" and return $errorhash;
-    my $limit     = shift @args or print STDERR "$usage" and return $errorhash;
-    my $sql       = join " ",@args or print STDERR "$usage" and return $errorhash;
+    my $flags     = shift @args or $self->{LOGGER}->error("CE","$usage") and return $errorhash;
+    my $users     = shift @args or $self->{LOGGER}->error("CE","$usage") and return $errorhash;
+    my $sites     = shift @args or $self->{LOGGER}->error("CE","$usage") and return $errorhash;
+    my $nodes     = shift @args or $self->{LOGGER}->error("CE","$usage") and return $errorhash;
+    my $masterjobs = shift @args or $self->{LOGGER}->error("CE","$usage") and return $errorhash;
+    my $order     = shift @args or $self->{LOGGER}->error("CE","$usage") and return $errorhash;
+    my $ids       = shift @args or $self->{LOGGER}->error("CE","$usage") and return $errorhash;
+    my $limit     = shift @args or $self->{LOGGER}->error("CE","$usage") and return $errorhash;
+    my $sql       = join " ",@args or $self->{LOGGER}->error("CE","$usage") and return $errorhash;
     ########################
     my $date      = time;
 
@@ -1919,12 +1892,12 @@ sub f_ps2 {
 
     if ( ($sql ne "") ) {
 	if ($self->{CATALOG}->{CATALOG}->{ROLE} ne "admin") {
-	    print STDERR "You are not allowed to execute direct SQL queries!\n";
+	    $self->{LOGGER}->error("CE","You are not allowed to execute direct SQL queries!");
 	    return;
 	} else {
 	    $where = "$sql";
 	    $DEBUG and $self->debug(1, "In psdirect executing sql statuement:\n $where" );
-	    $rresult = $self->{TASK_QUEUE}->callBroker("query",$where,$limit)
+	    $rresult = $self->{TASK_DB}->query("$where $limit")
 		or $self->{LOGGER}->error( "CE", "In psdirect error getting data from database" )
 		and return ;
 	    
@@ -1932,7 +1905,7 @@ sub f_ps2 {
     } else {
 	$where = "($sqlstatus) and ($sqlusers) and ($sqlsites) and ($sqlnodes) and ($sqlmasterjobs) and ($sqlids) order by $order $limit";
 	$DEBUG and $self->debug(1, "In psdirect executing where:\n $where" );
-	$rresult = $self->{TASK_QUEUE}->callBroker("getFieldsFromQueueEx","*","where",$where )
+	$rresult = $self->{TASK_DB}->getFieldsFromQueueEx("*","where $where")
 	    or $self->{LOGGER}->error( "CE", "In psdirect error getting data from database" )
 	    and return ;
     }
@@ -1964,9 +1937,9 @@ sub f_ps2 {
 
    if ($self->{DEBUG} ne "0") {
        foreach (@$rresult) {
-           print "---------------------------------\n";
+           $self->info("---------------------------------",undef,0);
            foreach my $lkeys ( keys %$_ ) {
-               printf "%24s = %s\n",$lkeys,$_->{$lkeys};
+               $self->info(sprintf("%24s = %s",$lkeys,$_->{$lkeys}),undef,0);
            }
        }
    }
@@ -2223,7 +2196,7 @@ sub f_ps {
       $output = sprintf "%-10s %s%-6s%s %-2s  %-8s  %-10s", $username, $indentor, $queueId, $exdentor, $status, $runtime, $name;
     }
     push @outputarray,$output;
-    $verbose and printf STDOUT "$output\n";
+    $verbose and $self->info("$output");
   }
 
   if ( $formatFlags=~ s/j//g) {
@@ -2245,7 +2218,7 @@ sub f_kill {
   my $user=$self->{CATALOG}->{CATALOG}->{ROLE};
   foreach my $queueId (@_) {
     my ($result) = $self->{SOAP}->CallSOAP("Manager/Job", "killProcess",$queueId, $user) or return;
-    print "Process $queueId killed!!\n";
+    $self->info("Process $queueId killed!!",undef,0);
   }
   return 1;
 }
@@ -2276,40 +2249,40 @@ sub f_pgroup {
   my $command = (shift or "");
   my $user=$self->{CATALOG}->{CATALOG}->{ROLE};
   my $handeled=0;
-  
+
   if ( $command =~ /^new/ ) {
     # new process group
     my @pgroups = $self->{CATALOG}->execute( "ls","-la", "/proc/groups/$user", "-silent" );
     if (! @pgroups){
-      print STDERR "Error: You don't have process group support enabled.\nAsk the system administrator to create your /proc/groups/$user/ directory!\n";
+      $self->{LOGGER}->error("CE","Error: You don't have process group support enabled.\nAsk the system administrator to create your /proc/groups/$user/ directory!");
       return;
     } else {
       my $highestgroup=0;
       if ( $#pgroups == 1 ) {
-	print "Nothing, but a directory\n";
-	# the new group index will become 1
+        $self->info("Nothing, but a directory",undef,0);
+        # the new group index will become 1
       } else {
-	# OK, let's see, which is the highest group index
-	@pgroups = $self->{CATALOG}->execute( "ls", "/proc/groups/$user", "-silent" );
-	foreach (@pgroups) {
-	  my $singlegroup = $_;
-	  if ( $singlegroup =~ /\d+/ ) {
-	    if ( ($_) > $highestgroup ) {
-	      $highestgroup = $_;
-	    }
-	  }
-	}	  
+        # OK, let's see, which is the highest group index
+        @pgroups = $self->{CATALOG}->execute( "ls", "/proc/groups/$user", "-silent" );
+        foreach (@pgroups) {
+          my $singlegroup = $_;
+          if ( $singlegroup =~ /\d+/ ) {
+            if ( ($_) > $highestgroup ) {
+              $highestgroup = $_;
+            }
+          }
+        }	  
       }
-      
+
       my $newgroup = $highestgroup + 1;
       $self->{CATALOG}->execute( "mkdir", "/proc/groups/$user/$newgroup");
       my @checkgroup = $self->{CATALOG}->execute( "ls","-la", "/proc/groups/$user/1", "-silent" );
       if (! @checkgroup) {
-	print STDERR "Error: Cannot create new process group!\n";
-	return ;
+        $self->{LOGGER}->error("CE","Error: Cannot create new process group!");
+        return ;
       } else {
-	$self->{WORKINGPGROUP} = $newgroup;
-	$self->f_pgroup();
+        $self->{WORKINGPGROUP} = $newgroup;
+        $self->f_pgroup();
       }
     }
     $handeled=1;
@@ -2320,7 +2293,7 @@ sub f_pgroup {
     my $groupid = $command;
     my @pgroups = $self->{CATALOG}->execute( "ls","-la", "/proc/groups/$user/$groupid/", "-silent" );
     if (! @pgroups) {
-      print STDERR "Error: The group $groupid does not exist!\n";
+      $self->{LOGGER}->error("CE","Error: The group $groupid does not exist!");
       $self->f_pgroup();
       return;
     }
@@ -2331,7 +2304,7 @@ sub f_pgroup {
       return $self->f_pgroup(@_);
     }
   } 
-  
+
   if ( $command =~ /^add/ ) {
     # add process to group
     my $take1 = shift;
@@ -2345,40 +2318,40 @@ sub f_pgroup {
     } else {
       if ( (defined $take1) && (!defined $take2) && ($self->{WORKINGPGROUP} != 0) ) {
 
-	$groupid = $self->{WORKINGPGROUP};
-	$procid  = $take1;
+        $groupid = $self->{WORKINGPGROUP};
+        $procid  = $take1;
       } else {
-	printf STDERR "Error: you have to pass correct arguments!\nUsage: pgroup add [process group] <process ID>\n";
-	return;
+        $self->{LOGGER}->error("CE","Error: you have to pass correct arguments!\nUsage: pgroup add [process group] <process ID>");
+        return;
       }
     }
 
     if ( $groupid =~ /\d+/ ) {
       my @pgroups = $self->{CATALOG}->execute( "ls","-la", "/proc/groups/$user/$groupid/", "-silent" );
       if (! @pgroups) {
-	print STDERR "Error: The group $groupid does not exist!\n";
-	return;
+        $self->{LOGGER}->error("CE","Error: The group $groupid does not exist!");
+        return;
       } 
     } else {
-      print STDERR "Error: You have to give a valid process group ID!\n";
+      $self->{LOGGER}->error("CE","Error: You have to give a valid process group ID!");
       return;
     }
 
     if ( $procid =~ /\d+/ ) {
       my @pgroups = $self->{CATALOG}->execute( "ls","-la", "/proc/groups/$user/$groupid/$procid", "-silent" );
       if (@pgroups) {
-	print STDERR "Error: The process $procid already existis in group $groupid!\n";
+        $self->{LOGGER}->error("CE","Error: The process $procid already existis in group $groupid!");
       } else {
-	$self->{CATALOG}->execute("mkdir","/proc/groups/$user/$groupid/$procid" );
-	@pgroups = $self->{CATALOG}->execute( "ls","-la", "/proc/groups/$user/$groupid/$procid", "-silent" );
-	if (!@pgroups) {
-	  print STDERR "Error: Cannot create new process $procid in process group $groupid\n";
-	  return;
-	}
+        $self->{CATALOG}->execute("mkdir","/proc/groups/$user/$groupid/$procid" );
+        @pgroups = $self->{CATALOG}->execute( "ls","-la", "/proc/groups/$user/$groupid/$procid", "-silent" );
+        if (!@pgroups) {
+          $self->{LOGGER}->error("CE","Error: Cannot create new process $procid in process group $groupid");
+          return;
+        }
       }
       $self->f_pgroup("dump");
     } else {
-      print STDERR "Error: You have to give a valid process ID!\n";
+      $self->{LOGGER}->error("CE","Error: You have to give a valid process ID!");
       return;
     }
     $handeled=1;
@@ -2388,31 +2361,31 @@ sub f_pgroup {
     # remove process from group
     my $procid = shift;
     if ($self->{WORKINGPGROUP} == 0 ) {
-      print STDERR "Error: No current working process group selected!\n";
+      $self->{LOGGER}->error("CE","Error: No current working process group selected!");
       return;
     }
 
     my $groupid = $self->{WORKINGPGROUP};
     if ( $procid =~/\d*/ ) {
-      
+
       my @pgroups = $self->{CATALOG}->execute( "ls","-la", "/proc/groups/$user/$groupid/$procid", "-silent" );
       if (@pgroups) {
-	# let's remove it
-	$self->{CATALOG}->execute("rmdir","-rf","/proc/groups/$user/$groupid/$procid" );
-	@pgroups = $self->{CATALOG}->execute( "ls","-la", "/proc/groups/$user/$groupid/$procid", "-silent" );
-	if (@pgroups) {
-	  print STDERR "Error: Could not remove the process $procid from group $groupid!\n";
-	  return;
-	} else {
-	  $self->f_pgroup("ps");
-	}
+        # let's remove it
+        $self->{CATALOG}->execute("rmdir","-rf","/proc/groups/$user/$groupid/$procid" );
+        @pgroups = $self->{CATALOG}->execute( "ls","-la", "/proc/groups/$user/$groupid/$procid", "-silent" );
+        if (@pgroups) {
+          $self->{LOGGER}->error("CE","Error: Could not remove the process $procid from group $groupid!");
+          return;
+        } else {
+          $self->f_pgroup("ps");
+        }
       } else {
-	print STDERR "Error: The process $procid does not exist in group $groupid!\n";
-	return;
+        $self->{LOGGER}->error("CE","Error: The process $procid does not exist in group $groupid!");
+        return;
       }
-      
+
     } else {
-      print STDERR "Error: You have to give a valid process ID!\n";
+      $self->{LOGGER}->error("CE","Error: You have to give a valid process ID!");
       return;
     }
 
@@ -2422,11 +2395,11 @@ sub f_pgroup {
   if ( $command =~ /^ls/ ) {
     # close existing process group
     my @allgroups = $self->pgroups();
-    printf STDOUT "Existing Groups: ";
+    $self->info("Existing Groups: ",undef,0);
     foreach (@allgroups) {
-      printf STDOUT "$_ ";
+      $self->info("$_ ",undef,0);
     }
-    printf STDOUT "\n";
+    $self->info("",undef,0);
     $handeled=1;
   }
 
@@ -2449,14 +2422,14 @@ sub f_pgroup {
     $pgroup = $self->{WORKINGPGROUP};
     @allgprocs = $self->pgroupmember("$pgroup");
     my $procnt=0;
-    printf STDOUT "===================================================================\n";
-    printf STDOUT "Process Group:          $pgroup\n";
-    printf STDOUT "-------------------------------------------------------------------\n";
+    $self->info("===================================================================",undef,0);
+    $self->info("Process Group:          $pgroup",undef,0);
+    $self->info("-------------------------------------------------------------------",undef,0);
     foreach (@allgprocs) {
       $procnt++;
-      printf STDOUT "  |-> PID %4d | \n", $_;
+      $self->info(sprintf("  |-> PID %4d | \n", $_),undef,0);
     }
-    printf STDOUT "-------------------------------------------------------------------\n";
+    $self->info("-------------------------------------------------------------------",undef,0);
     $handeled=1;
   }
 
@@ -2465,7 +2438,7 @@ sub f_pgroup {
     my $pgroup = $self->{WORKINGPGROUP};
     my @allgprocs = $self->pgroupmember("$pgroup");  
     foreach (@allgprocs) {
-	$self->f_kill($_);
+      $self->f_kill($_);
     }
     $handeled=1;
   }
@@ -2476,30 +2449,30 @@ sub f_pgroup {
     my @allgprocs;
     $pgroup = $self->{WORKINGPGROUP};
     @allgprocs = $self->pgroupmember("$pgroup");
-    
-    printf STDOUT "===================================================================\n";
-    printf STDOUT "Process Group:          $pgroup\n";
-    printf STDOUT "-------------------------------------------------------------------\n";
+
+    $self->info("===================================================================",undef,0);
+    $self->info("Process Group:          $pgroup",undef,0);
+    $self->info("-------------------------------------------------------------------",undef,0);
     my $procnt=0;
     foreach (@allgprocs) {
       $procnt++;
-      printf STDOUT "  |-> PID %4d |   %s\n", $_, $self->pgroupprocstatus("$_",@_);
+      $self->info(sprintf("  |-> PID %4d |   %s\n", $_, $self->pgroupprocstatus("$_",@_)),undef,0);
     }
-    printf STDOUT "-------------------------------------------------------------------\n";
+    $self->info("-------------------------------------------------------------------",undef,0);
     $handeled=1;
   }
 
   if ( $command eq "" ) {
     if ($self->{WORKINGPGROUP}!=0) {
-      print STDOUT "Active Process Group: $self->{WORKINGPGROUP}\n";
+      $self->info("Active Process Group: $self->{WORKINGPGROUP}",undef,0);
     } else {
-      print STDOUT "No active Process Group!\n";
+      $self->info("No active Process Group!",undef,0);
     }
     $handeled=1;
   }
 
   if (!$handeled) {
-    print STDERR "Error: Illegal Command $command\n";
+    $self->{LOGGER}->error("CE","Error: Illegal Command $command");
   }
 }
 
@@ -2517,7 +2490,7 @@ sub f_validate {
     my $queueId;
     foreach $queueId (@_) {
       my ($done) = $self->{SOAP}->CallSOAP("Manager/Job", "validateProcess",$queueId) or return;
-      print "Job to validate  $queueId submitted!\n";
+      $self->info("Job to validate  $queueId submitted!\n",undef,0);
     }
     return 1;
 }
@@ -2540,11 +2513,11 @@ sub f_queue {
     split ("/", $self->{CONFIG}->{"JOB_DATABASE"});
 
   if (! defined $command) {
-    print $self->f_queue_HELP();
+    $self->info("$self->f_queue_HELP()",undef,0);
     return;
   }
 
-  $self->{TASK_QUEUE} or 
+  $self->{TASK_DB} or 
     $self->info(  "In queue, we can't connect to the database directly")
     and return;
 
@@ -2579,7 +2552,7 @@ sub f_queue_info {
   my $site = (shift or '%') ;
   $jdl and $jdl=",jdl";
   $jdl or $jdl="";
-  my $array = $self->{TASK_QUEUE}->callBroker("getFieldsFromSiteQueueEx","site,blocked, status, statustime$jdl, ". join(", ", @{AliEn::Util::JobStatus()})," where site like '$site' ORDER by site");
+  my $array = $self->{TASK_DB}->getFieldsFromSiteQueueEx("site,blocked, status, statustime$jdl, ". join(", ", @{AliEn::Util::JobStatus()})," where site like '$site' ORDER by site");
   if ($array and @$array) {
     return $self->f_queueprint($array,$site);
   }
@@ -2588,24 +2561,22 @@ sub f_queue_info {
 
 sub f_queue_priority {
   my $self=shift;
-  my $subcommand = shift or print STDERR "You have to specify a subcommand to command <priority>:\n" 
-    and print " queue priority jobs [user] [max.rows=1000]\t - list the job priority ranking - use <user> = \% to set max. rows for all\n" 
-      and print " queue priority list [user]                 \t - list the user priorities\n" and return;
+  my $subcommand = shift or $self->{LOGGER}->error("CE","You have to specify a subcommand to command <priority>:\n queue priority jobs [user] [max.rows=1000]\t - list the job priority ranking - use <user> = \% to set max. rows for all\n queue priority list [user]                 \t - list the user priorities\n") and return;
 
   if ($subcommand eq "jobs" ) {
     my $user = (shift or "%");
     my $limit = (shift or "10000");
-    printf "----------------------------------------------------------------------------------------------------\n";
-    #	  my $array = $self->{TASK_QUEUE}->callBroker("getFieldsFromQueueEx("queueId,SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user,priority","where status='WAITING' and submitHost like '$user\@%' ORDER by priority desc limit $limit");      
-    my $array = $self->{TASK_QUEUE}->callBroker("getFieldsFromQueueEx"."queueId,SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user,priority","where status='WAITING' ORDER by priority desc limit $limit");      
+    $self->info("----------------------------------------------------------------------------------------------------",undef,0);
+    #	  my $array = $self->{TASK_DB}->getFieldsFromQueueEx("queueId,SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user,priority","where status='WAITING' and submitHost like '$user\@%' ORDER by priority desc limit $limit");      
+    my $array = $self->{TASK_DB}->getFieldsFromQueueEx("queueId,SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user,priority","where status='WAITING' ORDER by priority desc limit $limit");      
     my $cnt=0;
     foreach (@$array) {
       $cnt++;
       if (($_->{'user'} eq $user) || ($user eq "%")) {
-	printf " [%04d. ]      %-8s %12s %-8s\n",$cnt, $_->{'queueId'},$_->{'user'}, $_->{'priority'};
+        $self->info(sprintf(" [%04d. ]      %-8s %12s %-8s",$cnt, $_->{'queueId'},$_->{'user'}, $_->{'priority'}),undef,0);
       }
     }
-    printf "----------------------------------------------------------------------------------------------------\n";
+    $self->info("----------------------------------------------------------------------------------------------------",undef,0);
     return;
   }
   if ($subcommand eq "list" ) {
@@ -2616,36 +2587,36 @@ sub f_queue_priority {
     }
     return;
   }
-  
+
   if ($subcommand eq "add" ) {
-    my $user = shift or print STDERR "You have to specify a username to be added!\n" and return;
+    my $user = shift or $self->{LOGGER}->error("CE","You have to specify a username to be added!") and return;
     $self->{PRIORITY_DB}->checkPriorityValue($user);
     $self->f_queue_priority("list","$user");
     return;
-      }
-  
+  }
+
   if ($subcommand eq "set" ) {
-    my $user = shift or print STDERR "You have to specify a user to modify!\n" and return;
-    my $field = shift or print STDERR "You have to specify a field value to modify!\n" and return;
-    my $value = shift or print STDERR "You have to specify a value to set for field $field!\n" and return;
-    
+    my $user = shift or $self->{LOGGER}->error("CE","You have to specify a user to modify!") and return;
+    my $field = shift or $self->{LOGGER}->error("CE","You have to specify a field value to modify!") and return;
+    my $value = shift or $self->{LOGGER}->error("CE","You have to specify a value to set for field $field!") and return;
+
     my $array = $self->{PRIORITY_DB}->getFieldsFromPriorityEx("*","where user like ? ORDER BY user", {bind_values=>[$user]});
-	  if (! $array) {
-	    print STDERR "User $user does not have an entry yet - use 'queue priority add <user>' first!\n";
-	    return;
-	  }
-    
+    if (! $array) {
+      $self->{LOGGER}->error("CE","User $user does not have an entry yet - use 'queue priority add <user>' first!");
+      return;
+    }
+
     my $lkeys;
     my $reffield = @$array[0];
     my $found = 0;
     foreach $lkeys (%$reffield) {
       if ($lkeys eq "$field") {
-	$found =1;
-	last;
+        $found =1;
+        last;
       }
     }
     if (! $found) {
-      print STDERR "There is no priority field named '$field' !\n";
+      $self->{LOGGER}->error("CE","There is no priority field named '$field' !");
       return;
     }
 
@@ -2664,29 +2635,29 @@ sub f_queue_ghost{
   if ($subcommand =~ /list/) {
     my $now = time;
     my $diff = (shift or "600");
-    printf "----------------------------------------------------------------------------------------------------\n";
-    my $array = $self->{TASK_QUEUE}->callBroker("getFieldsFromQueueEx","queueId,SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user, procinfotime,node, site,status","where ( (status like 'ERROR_%' or status='KILLED' or status='FAILED' or status='ZOMBIE' or status='QUEUED' or status='WAITING') and (procinfotime not like 'NULL') and (procinfotime > 1) and ($now-procinfotime)<$diff) ORDER by site");      
+    $self->info("----------------------------------------------------------------------------------------------------",undef,0);
+    my $array = $self->{TASK_DB}->getFieldsFromQueueEx("queueId,SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user, procinfotime,node, site,status","where ( (status like 'ERROR_%' or status='KILLED' or status='FAILED' or status='ZOMBIE' or status='QUEUED' or status='WAITING') and (procinfotime not like 'NULL') and (procinfotime > 1) and ($now-procinfotime)<$diff) ORDER by site");      
     my $cnt=0;
     foreach (@$array) {
       $cnt++;
-      printf " [%04d. ]      %10s %-24s %24s %12s %-12s %-10s\n",$cnt, $_->{'queueId'},$_->{'site'},$_->{'node'},$_->{'user'}, $_->{'status'}, ($now - $_->{'procinfotime'});
+      $self->info(sprintf(" [%04d. ]      %10s %-24s %24s %12s %-12s %-10s\n",$cnt, $_->{'queueId'},$_->{'site'},$_->{'node'},$_->{'user'}, $_->{'status'}, ($now - $_->{'procinfotime'})),undef,0);
     }
     
-    printf "----------------------------------------------------------------------------------------------------\n";
+    $self->info("----------------------------------------------------------------------------------------------------",undef,0);
     return;
   }
   
   if ($subcommand =~ /change/) {
-    my $queueId = shift or print STDERR "You have to specify a queueId for which you want to change the status!\n" and return;
-    my $status  = shift or print STDERR "You have to specify the status you want to set!\n" and return;
+    my $queueId = shift or $self->{LOGGER}->error("CE","You have to specify a queueId for which you want to change the status!") and return;
+    my $status  = shift or $self->{LOGGER}->error("CE","You have to specify the status you want to set!") and return;
     
     my $set={};
     $set->{status} = $status;
     
     AliEn::Util::Confirm("Do you want to update $queueId to status $status?") or return;
     
-    my $done = $self->{TASK_QUEUE}->callBroker("updateJob",$queueId,$set);
-    $done or print STDERR "Could not change job $queueId to status $status!\n" and return;
+    my $done = $self->{TASK_DB}->updateJob($queueId,$set);
+    $done or $self->{LOGGER}->error("CE","Could not change job $queueId to status $status!") and return;
     return;
   }
 }
@@ -2701,7 +2672,7 @@ sub f_queue_exists {
   defined $expectedValue or $expectedValue=1;
   my $command=(shift or "exists");
   $queue or $self->info( "Not enough arguments in 'queue $command'\nUsage: \t queue $command <queue name>") and return;
-  my $exists=$self->{TASK_QUEUE}->callBroker("getFieldsFromSiteQueueEx","site","where site='$queue'");
+  my $exists=$self->{TASK_DB}->getFieldsFromSiteQueueEx("site","where site='$queue'");
   #If the queue does not exist, but i
   if (@$exists and  ! $expectedValue) {
     $self->info( "Error: the queue $queue already exists!");
@@ -2719,12 +2690,12 @@ sub f_queue_remove {
   $self->f_queue_exists($queue, 1, "remove") or return;
 
   $DEBUG and $self->debug(1, "Let's try to remove the queue $queue");
-  return $self->{TASK_QUEUE}->callBroker("deleteSiteQueue","site='$queue'");
+  return $self->{TASK_DB}->deleteSiteQueue("site='$queue'");
 }
 sub f_queue_list {
   my $self=shift;
   my $site = (shift or '%') ;
-  my $array = $self->{TASK_QUEUE}->callBroker("getFieldsFromSiteQueueEx","site,blocked,status,maxqueued,maxrunning,queueload,runload,QUEUED, QUEUED  as ALLQUEUED, (RUNNING + STARTED + INTERACTIV + SAVING) as ALLRUNNING","where site like '$site' ORDER by blocked,status,site");
+  my $array = $self->{TASK_DB}->getFieldsFromSiteQueueEx("site,blocked,status,maxqueued,maxrunning,queueload,runload,QUEUED, QUEUED  as ALLQUEUED, (RUNNING + STARTED + INTERACTIV + SAVING) as ALLRUNNING","where site like '$site' ORDER by blocked,status,site");
   my $s1 = 0;
   my $s2 = 0;
   my $s3 = 0;
@@ -2732,8 +2703,8 @@ sub f_queue_list {
   my $s5 = 0;
   my $s6 = 0;
   if (@$array) {
-    printf "----------------------------------------------------------------------------------------------------\n";
-    printf "%-32s %-12s %-20s %5s %5s %4s/%-4s %4s/%-4s\n","site","open", "status", "load", "runload", "queued","max", "run", "max";
+    $self->info("----------------------------------------------------------------------------------------------------\n",undef,0);
+    $self->info(sprintf("%-32s %-12s %-20s %5s %5s %4s/%-4s %4s/%-4s\n","site","open", "status", "load", "runload", "queued","max", "run", "max"),undef,0);
     foreach (@$array) {
       my $allqueued=($_->{'ALLQUEUED'} ||0);
       my $maxqueued=($_->{'maxqueued'} ||0);
@@ -2743,7 +2714,7 @@ sub f_queue_list {
       my $queueload=($_->{queueload} ||"undef");
       my $runload=($_->{runload} ||"undef");
 
-      printf "%-32s %-12s %-20s %5s %5s %4s/%-4s %4s/%-4s\n",$_->{'site'},$blocked,$_->{'status'},$queueload,$runload,$allqueued,$maxqueued,$allrunning, $maxrunning;
+      $self->info(sprintf("%-32s %-12s %-20s %5s %5s %4s/%-4s %4s/%-4s\n",$_->{'site'},$blocked,$_->{'status'},$queueload,$runload,$allqueued,$maxqueued,$allrunning, $maxrunning),undef,0);
       $s1+=$allqueued;
       $s2+=$maxqueued;
       $s3+=$allrunning;
@@ -2753,9 +2724,9 @@ sub f_queue_list {
     $s4 and $s6 = sprintf "%3.02f", 100.0*$s3 / $s4;
     my $empty="";
     my $sumsite="All";
-    printf "----------------------------------------------------------------------------------------------------\n";
-    printf "%-32s %-12s %-20s %5s %5s %4s/%-4s %4s/%-4s\n",$sumsite,$empty,$empty,$s5,$s6, $s1,$s2,$s3,$s4;
-    printf "----------------------------------------------------------------------------------------------------\n";
+    $self->info("----------------------------------------------------------------------------------------------------\n",undef,0);
+    $self->info(sprintf("%-32s %-12s %-20s %5s %5s %4s/%-4s %4s/%-4s\n",$sumsite,$empty,$empty,$s5,$s6, $s1,$s2,$s3,$s4),undef,0);
+    $self->info("----------------------------------------------------------------------------------------------------\n",undef,0);
   }
   
   return 1;
@@ -2772,8 +2743,8 @@ sub f_queue_update {
   $set->{blocked}="open";
   $command =~ /lock/ and $set->{blocked}="locked";
   $self->info( "=> going to $command the queue $queue ...");
-  my $update=$self->{TASK_QUEUE}->callBroker("updateSiteQueue",$set,"site='$queue'") or 
-    print STDERR "Error opening the site $queue";
+  my $update=$self->{TASK_DB}->updateSiteQueue($set,"site='$queue'") or 
+    $self->{LOGGER}->error("CE","Error opening the site $queue");
 
   $self->f_queue("info", $queue);
   return 1;
@@ -2797,16 +2768,16 @@ sub f_queue_add{
   foreach (@{AliEn::Util::JobStatus()}){
     $set->{$_}=0;
   }
-  my $insert=$self->{TASK_QUEUE}->callBroker("insertSiteQueue",$set) or print STDERR "Error adding the site $queue";
+  my $insert=$self->{TASK_DB}->insertSiteQueue($set) or $self->{LOGGER}->error("CE","Error adding the site $queue");
   return $insert;
 }
 
 sub f_queue_purge {
   my $self=shift;
   my @killpids=();
-  my $topurge=$self->{TASK_QUEUE}->callBroker("getFieldsFromQueueEx","queueId","where status=''");
+  my $topurge=$self->{TASK_DB}->getFieldsFromQueueEx("queueId","where status=''");
   foreach (@$topurge) {
-    print "Job $_->{queueId} has empty status field ... will be killed!\n";
+    $self->info("Job $_->{queueId} has empty status field ... will be killed!\n",undef,0);
     push @killpids,$_->{queueId};
   }
   $self->f_kill(@killpids);
@@ -2819,7 +2790,7 @@ sub f_queue_tokens{
   if ($subcommand =~ /list/) {
     my $status = (shift or "%");
     printf "Doing listing\n";
-    my $tolist=$self->{TASK_QUEUE}->callBroker("getFieldsFromQueueEx","queueId","where status='$status'");
+    my $tolist=$self->{TASK_DB}->getFieldsFromQueueEx("queueId","where status='$status'");
     $self->{ADMIN_DB} or 
       $self->{ADMIN_DB}=
 	  AliEn::Database::Admin->new({SKIP_CHECK_TABLES=> 1});
@@ -2886,15 +2857,16 @@ sub f_bank {
   my $self=shift;
 
    my $help = join ("", @_);
-   (($help eq "--help") or ($help eq "-h") or ($help eq "-help"))  and ( print $self->getBankHELP() and (return 1));
+   (($help eq "--help") or ($help eq "-h") or ($help eq "-help"))
+     and $self->info($self->getBankHELP(),undef,0) and return 1;
 
 
  ( $self->checkBankConnection() ) or return;
 
     my $done = $self->{SOAP}->CallSOAP($self->{BANK_CONNECTION}, "bank",@_) or return;
-       $done or ((print "Error: SOAP call to $self->{BANK_CONNECTION} 'bank' failed\n") and return);
+       $done or (($self->info("Error: SOAP call to $self->{BANK_CONNECTION} 'bank' failed\n",undef,0)) and return);
     
-  print $done->result(), "\n";
+  $self->info($done->result(),undef,0);
   return 1;
 }
 
@@ -3003,7 +2975,7 @@ sub resubmitCommand {
 
   if ($_[0] eq '-i') {
     if (!defined $_[1]) {
-      print STDERR "Error: no queueId specified to <resubmit -i> \n";
+      $self->{LOGGER}->error("CE","Error: no queueId specified to <resubmit -i> ");
       return;
     }
     
@@ -3021,7 +2993,7 @@ sub resubmitCommand {
 
   if ($_[0] eq '-f') {
     if (!defined $_[1]) {
-      print STDERR "Error: no queueId specified to <resubmit -f> \n";
+      $self->{LOGGER}->error("CE","Error: no queueId specified to <resubmit -f> ");
       return;
     }
     
@@ -3051,7 +3023,7 @@ sub resubmitCommand {
 	  die;
 	  my $id2kill = $id;
 	  $id2kill =~ s/\-//g;
-	  print("Resubmitting process <$id2kill> [ status |$status| ] \n");
+	  $self->info("Resubmitting process <$id2kill> [ status |$status| ] ",undef,0);
 	  # kill first the actual process
 	  $self->f_kill($id2kill);
 	  # resubmit the same
@@ -3073,7 +3045,7 @@ sub resubmitCommand {
 
   if (($_[0] eq '-k') or  ($_[0] eq '-q') ) {
     if (!defined $_[1]) {
-      print STDERR "Error: no queueId specified to <resubmit $_[0]> \n";
+      $self->{LOGGER}->error("CE","Error: no queueId specified to <resubmit $_[0]> ");
       return;
     }
     my @allps = $self->f_ps("-q","-Aafs","-id","$_[1]");
@@ -3100,14 +3072,9 @@ sub resubmitCommand {
   my $user = $self->{CATALOG}->{CATALOG}->{ROLE};
 
   my ($host, $driver, $db) = split("/", $self->{CONFIG}->{"JOB_DATABASE"});
-	$self->{TASK_QUEUE} or
-#  $self->{TASK_QUEUE}=AliEn::Database::TaskQueue->new({DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin', SKIP_CHECK_TABLES=> 1});
-      #$self->{TASK_QUEUE}  = AliEn::SiteTaskQueue->new($options);
-      $self->{TASK_QUEUE}  = AliEn::SiteTaskQueue->new();
-
-
-
-  $self->{TASK_QUEUE} or $self->{LOGGER}->error( "CE", "In initialize creating TaskQueue instance failed" )
+	$self->{TASK_DB} or
+  $self->{TASK_DB}=AliEn::Database::TaskQueue->new({DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin', SKIP_CHECK_TABLES=> 1});
+  $self->{TASK_DB} or $self->{LOGGER}->error( "CE", "In initialize creating TaskQueue instance failed" )
   and return;
 
   my @result;
@@ -3129,7 +3096,7 @@ sub DESTROY {
     my $self = shift;
 #    ( $self->{LOGGER} )
 #      and $DEBUG and $self->debug(1, "Destroying remotequeue" );
-    $self->{TASK_QUEUE} and $self->{TASK_QUEUE}->callBroker("close");
+    $self->{TASK_DB} and $self->{TASK_DB}->close();
     ( $self->{CATALOG} ) and $self->{CATALOG}->close();
 }
 
@@ -3186,25 +3153,25 @@ sub masterJob {
     }else{
       $summary.="The job $queueId is in status: $jobInfo->{status}\nIt has the following subjobs:\n";
       foreach my $subjob (@$info){
-	$subjob or next;
-	my $ids="";
-	my $site=$subjob->{exechost} ||"";
-	$site and $site=" ($site)";
-	($subjob->{ids})
-	  and $ids="(ids: ".join (", ", @{$subjob->{ids}}) .")";
-	$summary.="\t\tSubjobs in $subjob->{status}$site: $subjob->{count} $ids\n";
-	$total+=$subjob->{count};
+        $subjob or next;
+        my $ids="";
+        my $site=$subjob->{exechost} ||"";
+        $site and $site=" ($site)";
+        ($subjob->{ids})
+          and $ids="(ids: ".join (", ", @{$subjob->{ids}}) .")";
+        $summary.="\t\tSubjobs in $subjob->{status}$site: $subjob->{count} $ids\n";
+        $total+=$subjob->{count};
       }
-      
+
       $summary.="\nIn total, there are $total subjobs";
       if ($jobInfo->{merging}) {
-	$summary.="\nThere are some jobs merging the output:";
-	foreach my $merge (@{$jobInfo->{merging}}) {
-	  $summary.="\n\tJob $merge->{queueId} : $merge->{status}";
-	}
+        $summary.="\nThere are some jobs merging the output:";
+        foreach my $merge (@{$jobInfo->{merging}}) {
+          $summary.="\n\tJob $merge->{queueId} : $merge->{status}";
+        }
       }
     }
-    
+
   }else {
     $summary.=join("\n", @$info);
   }
@@ -3223,7 +3190,7 @@ sub checkJobAgents {
   $self->info("According to the db: @inDB. According to the batch system: @inBatch");
   foreach my $job (@inDB) {
     $self->info("Looking for $job");
-    grep (/^$job$/, @inBatch) or print "Agent $job is dead!!\n";
+    grep (/^$job$/, @inBatch) or $self->info("Agent $job is dead!!\n",undef,0);
     @inBatch=grep (! /^$job$/, @inBatch);
   }
   if (@inBatch){
@@ -3631,16 +3598,14 @@ sub resyncJobAgent{
     split ("/", $self->{CONFIG}->{"JOB_DATABASE"});
 
 
-  $self->{TASK_QUEUE} or 
-      #$self->{TASK_QUEUE}  = AliEn::SiteTaskQueue->new($options);
-      $self->{TASK_QUEUE}  = AliEn::SiteTaskQueue->new();
-
-
-  $self->{TASK_QUEUE} or 
+  $self->{TASK_DB} or 
+    $self->{TASK_DB}=
+      AliEn::Database::TaskQueue->new({DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin', SKIP_CHECK_TABLES=> 1});
+  $self->{TASK_DB} or 
     $self->info("In initialize creating TaskQueue instance failed" ) and return;
   $self->info("First, let's take a look at the missing jobagents");
 
-  my $jobs=$self->{TASK_QUEUE}->callBroker("query","select jdl, agentid from QUEUE q join (select min(queueid) as q from QUEUE left join JOBAGENT on agentid=entryid where entryid is null  and status='WAITING' group by agentid) t  on queueid=q") or $self->info("Error getting the jobs without jobagents") and return;
+  my $jobs=$self->{TASK_DB}->query("select jdl, agentid from QUEUE q join (select min(queueid) as q from QUEUE left join JOBAGENT on agentid=entryid where entryid is null  and status='WAITING' group by agentid) t  on queueid=q") or $self->info("Error getting the jobs without jobagents") and return;
   
   foreach my $job (@$jobs){
     $self->info("We have to insert a jobagent for $job->{jdl}");
@@ -3651,7 +3616,7 @@ sub resyncJobAgent{
       $self->info("Error getting the user from $job->{jdl}") and next;
     $req.=";$1;";
 
-    $self->{TASK_QUEUE}->callBroker("insert","JOBAGENT", {counter=>30, entryid=>$job->{agentid}, 
+    $self->{TASK_DB}->insert("JOBAGENT", {counter=>30, entryid=>$job->{agentid}, 
 					 requirements=>$req});
   }
 
@@ -3661,7 +3626,7 @@ sub resyncJobAgent{
 
 
 
-  $self->{TASK_QUEUE}->callBroker("do","update JOBAGENT j set counter=(select count(*) from QUEUE where status='WAITING' and agentid=entryid)");
+  $self->{TASK_DB}->do("update JOBAGENT j set counter=(select count(*) from QUEUE where status='WAITING' and agentid=entryid)");
   $self->info("Resync done");
   return 1;
 }
@@ -3707,7 +3672,7 @@ sub f_jquota {
 
   $DEBUG and $self->debug(1, "Calling f_jquota_$command");
   if (($self->{CATALOG}->{CATALOG}->{ROLE} !~ /^admin(ssl)?$/) && ($command eq "set")) {
-		print STDERR "You are not allowed to execute this command!\n";
+		$self->{LOGGER}->error("CE","You are not allowed to execute this command!");
 		return;
   }
 
@@ -3739,7 +3704,7 @@ sub f_jquota_list {
   }
   
   if (($whoami !~ /^admin(ssl)?$/) and ($user ne $whoami)) {
-    print STDERR "Not allowed to see other users' quota information\n";
+    $self->{LOGGER}->error("CE","Not allowed to see other users' quota information");
     return;
   }
 
@@ -3749,14 +3714,14 @@ sub f_jquota_list {
 
 
   my $cnt = 0;
-  printf "-------------------------------------------------------------------------------------------\n";
-  printf "            %12s        %12s        %12s        %16s\n", "user", "unfinishedJobs", "totalCpuCost", "totalRunningTime";
-  printf "-------------------------------------------------------------------------------------------\n";
+  $self->info("-------------------------------------------------------------------------------------------",undef,0);
+  $self->info(sprintf("            %12s        %12s        %12s        %16s", "user", "unfinishedJobs", "totalCpuCost", "totalRunningTime"),undef,0);
+  $self->info("-------------------------------------------------------------------------------------------",undef,0);
   foreach (@$result) {
     $cnt++;
-    printf " [%04d. ]   %12s           %5s/%5s         %5s/%5s             %5s/%5s\n", $cnt, $_->{'user'}, $_->{'unfinishedJobsLast24h'}, $_->{'maxUnfinishedJobs'},$_->{'totalCpuCostLast24h'}, $_->{'maxTotalCpuCost'}, $_->{'totalRunningTimeLast24h'}, $_->{'maxTotalRunningTime'};
+    $self->info(sprintf(" [%04d. ]   %12s           %5s/%5s         %5s/%5s             %5s/%5s\n", $cnt, $_->{'user'}, $_->{'unfinishedJobsLast24h'}, $_->{'maxUnfinishedJobs'},$_->{'totalCpuCostLast24h'}, $_->{'maxTotalCpuCost'}, $_->{'totalRunningTimeLast24h'}, $_->{'maxTotalRunningTime'}),undef,0);
   }
-  printf "-------------------------------------------------------------------------------------------\n";
+  $self->info("-------------------------------------------------------------------------------------------",undef,0);
 }
 
 sub f_jquota_set_HELP {
@@ -3773,14 +3738,12 @@ sub f_jquota_set {
   my $value = shift;
   (defined $value) or print STDERR $self->f_jquota_set_HELP() and return;
   if ($field !~ /(maxUnfinishedJobs)|(maxTotalRunningTime)|(maxTotalCpuCost)/) {
-    print STDERR "Wrong field name! Choose one of them: maxUnfinishedJobs, maxTotalRunningTime, maxTotalCpuCost\n";
+    $self->{LOGGER}->error("CE","Wrong field name! Choose one of them: maxUnfinishedJobs, maxTotalRunningTime, maxTotalCpuCost\n");
     return;
   }
 
   my $done = $self->{SOAP}->CallSOAP("Manager/Job", 'setJobQuotaInfo', $user, $field, $value);
   $done and $self->f_jquota_list("$user");
-
-
 }
 
 
@@ -3800,23 +3763,23 @@ sub calculateJobQuota {
   $self->$method(@data, "Calculate Job Quota");
 
   $self->$method(@data, "Compute the number of unfinished jobs in last 24 hours per user");
-  $self->{TASK_QUEUE}->callBroker("do","update PRIORITY pr left join (select SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user, count(1) as unfinishedJobsLast24h from QUEUE q where (status='INSERTING' or status='WAITING' or status='STARTED' or status='RUNNING' or status='SAVING' or status='OVER_WAITING') and (unix_timestamp()>=q.received and unix_timestamp()-q.received<60*60*24) group by submithost) as C on pr.user=C.user collate latin1_general_cs set pr.unfinishedJobsLast24h=IFNULL(C.unfinishedJobsLast24h, 0)") or $self->$method(@data, "Failed");
+  $self->{TASK_DB}->do("update PRIORITY pr left join (select SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user, count(1) as unfinishedJobsLast24h from QUEUE q where (status='INSERTING' or status='WAITING' or status='STARTED' or status='RUNNING' or status='SAVING' or status='OVER_WAITING') and (unix_timestamp()>=q.received and unix_timestamp()-q.received<60*60*24) group by submithost) as C on pr.user=C.user collate latin1_general_cs set pr.unfinishedJobsLast24h=IFNULL(C.unfinishedJobsLast24h, 0)") or $self->$method(@data, "Failed");
 
   $self->$method(@data, "Compute the total runnning time of jobs in last 24 hours per user");
-  $self->{TASK_QUEUE}->callBroker("do","update PRIORITY pr left join (select SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user, sum(p.runtimes) as totalRunningTimeLast24h from QUEUE q join QUEUEPROC p using(queueId) where (unix_timestamp()>=q.received and unix_timestamp()-q.received<60*60*24) group by submithost) as C on pr.user=C.user collate latin1_general_cs set pr.totalRunningTimeLast24h=IFNULL(C.totalRunningTimeLast24h, 0)");
+  $self->{TASK_DB}->do("update PRIORITY pr left join (select SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user, sum(p.runtimes) as totalRunningTimeLast24h from QUEUE q join QUEUEPROC p using(queueId) where (unix_timestamp()>=q.received and unix_timestamp()-q.received<60*60*24) group by submithost) as C on pr.user=C.user collate latin1_general_cs set pr.totalRunningTimeLast24h=IFNULL(C.totalRunningTimeLast24h, 0)");
 
   $self->$method(@data, "Compute the total cpu cost of jobs in last 24 hours per user");
-  $self->{TASK_QUEUE}->callBroker("do","update PRIORITY pr left join (select SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user, sum(p.cost) as totalCpuCostLast24h from QUEUE q join QUEUEPROC p using(queueId) where (unix_timestamp()>=q.received and unix_timestamp()-q.received<60*60*24) group by submithost) as C on pr.user=C.user collate latin1_general_cs set pr.totalCpuCostLast24h=IFNULL(C.totalCpuCostLast24h, 0)") or $self->$method(@data, "Failed");
+  $self->{TASK_DB}->do("update PRIORITY pr left join (select SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user, sum(p.cost) as totalCpuCostLast24h from QUEUE q join QUEUEPROC p using(queueId) where (unix_timestamp()>=q.received and unix_timestamp()-q.received<60*60*24) group by submithost) as C on pr.user=C.user collate latin1_general_cs set pr.totalCpuCostLast24h=IFNULL(C.totalCpuCostLast24h, 0)") or $self->$method(@data, "Failed");
 
   $self->$method(@data, "Change job status from OVER_WAITING to WAITING");
-	$self->{TASK_QUEUE}->callBroker("do","update QUEUE q join PRIORITY pr on pr.user=SUBSTRING( q.submitHost, 1, POSITION('\@' in q.submitHost)-1 ) collate latin1_general_cs set q.status='WAITING' where (pr.totalRunningTimeLast24h<pr.maxTotalRunningTime and pr.totalCpuCostLast24h<pr.maxTotalCpuCost) and q.status='OVER_WAITING'") or $self->$method(@data, "Failed");
+	$self->{TASK_DB}->do("update QUEUE q join PRIORITY pr on pr.user=SUBSTRING( q.submitHost, 1, POSITION('\@' in q.submitHost)-1 ) collate latin1_general_cs set q.status='WAITING' where (pr.totalRunningTimeLast24h<pr.maxTotalRunningTime and pr.totalCpuCostLast24h<pr.maxTotalCpuCost) and q.status='OVER_WAITING'") or $self->$method(@data, "Failed");
 
   $self->$method(@data, "Change job status from WAITING to OVER_WAITING");
-	$self->{TASK_QUEUE}->callBroker("do","update QUEUE q join PRIORITY pr on pr.user=SUBSTRING( q.submitHost, 1, POSITION('\@' in q.submitHost)-1 ) collate latin1_general_cs set q.status='OVER_WAITING' where (pr.totalRunningTimeLast24h>=pr.maxTotalRunningTime or pr.totalCpuCostLast24h>=pr.maxTotalCpuCost) and q.status='WAITING'") or $self->$method(@data, "Failed");
+	$self->{TASK_DB}->do("update QUEUE q join PRIORITY pr on pr.user=SUBSTRING( q.submitHost, 1, POSITION('\@' in q.submitHost)-1 ) collate latin1_general_cs set q.status='OVER_WAITING' where (pr.totalRunningTimeLast24h>=pr.maxTotalRunningTime or pr.totalCpuCostLast24h>=pr.maxTotalCpuCost) and q.status='WAITING'") or $self->$method(@data, "Failed");
   $self->$method(@data, "Synchronize with SITEQUEUES");
   foreach (qw(OVER_WAITING WAITING)) {
-    $self->{TASK_QUEUE}->callBroker("do","update SITEQUEUES s set $_=(select count(1) from QUEUE q where status='$_' and s.site=q.site)") or $self->$method(@data, "$_ Failed");
-    $self->{TASK_QUEUE}->callBroker("do","update SITEQUEUES s set $_=(select count(1) from QUEUE q where status='$_' and q.site is null) where s.site='UNASSIGNED::SITE'") or $self->$method(@data, "$_ UNASSIGNED::SITE Failed");
+    $self->{TASK_DB}->do("update SITEQUEUES s set $_=(select count(1) from QUEUE q where status='$_' and s.site=q.site)") or $self->$method(@data, "$_ Failed");
+    $self->{TASK_DB}->do("update SITEQUEUES s set $_=(select count(1) from QUEUE q where status='$_' and q.site is null) where s.site='UNASSIGNED::SITE'") or $self->$method(@data, "$_ UNASSIGNED::SITE Failed");
   }
 
   return;
