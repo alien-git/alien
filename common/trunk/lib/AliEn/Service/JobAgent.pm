@@ -1662,11 +1662,11 @@ sub putFiles {
 	$self->putJobLog("trace", "The file $fs_table->{$fileOrArch}->{name} has the guid $guids{$fs_table->{$fileOrArch}->{name}}");
       }
       
-      my $addEnvs = $self->addFile($ui, "$fs_table->{$fileOrArch}->{name}", "$fs_table->{$fileOrArch}->{options} $guid");
+      my @addEnvs = $self->addFile($ui, "$fs_table->{$fileOrArch}->{name}", "$fs_table->{$fileOrArch}->{options} $guid");
      
-      $addEnvs  or ($addEnvs eq -2) or next;
+      my $success = shift @addEnvs;
+      $addEnvs  or next;
       $addEnvs and  $successCounter++;
-      ($addEnvs eq -1) and $incompleteAddes=1;
       ($addEnvs eq -1) and $incompleteAddes=1;
 
       $no_links and next;
@@ -1675,8 +1675,6 @@ sub putFiles {
          my $registerstatus = $self->registerFile($ui, $file, $fs_table->{$fileOrArch}->{name}, $addEnvs);
       }
    
-      ($addEnvs eq -2) and $incompleteAddes=1 and last; # -2 means access exception, e.g. file quota overflow, we mark 
-                                                                # incompleteAddes and don't try to add anything more
     }
 
     $self->debug(1, "Closing the catalogue");
@@ -1719,26 +1717,22 @@ sub addFile {
 
   $self->{LOGGER}->{TRACELOG}=1; 
 
-  ($addResult)=$ui->execute("add", "-tracelog", "-feedback", "$file", "$self->{WORKDIR}/$file", $storeTags);
+  @addResult=$ui->execute("add", "-tracelog", "-feedback", "$file", "$self->{WORKDIR}/$file", $storeTags);
 
-  ($addResult eq -1) and
-    $self->putJobLog("error","Error in add for $file: We have a file quota overflow.")
-      and return -2;
+  my $sucess = shift @addResult;
 
-  if ( $addResult && (scalar(keys(%$addResult)) gt 0) && (scalar(keys %{$addResult->{se}}) gt 0) ) {
-     $submitted->{$file}=$addResult;
+
+  if($sucess eq 1) {
+     $self->putJobLog("trace","Successfully stored the file $file on $addResult->{totalCount} SEs.");
+  }elsif($sucess eq -1) {
+     $self->putJobLog("trace","Could store the file $file only on ".scalar(keys %{$addResult->{se}}).
+		     "  of the $addResult->{totalCount} wished SEs.");
   } else {
      $self->putJobLog("error","Could not store the file $file on any SE. This file is lost!");
      return 0;
   }
+  return ($sucess, @addResult);
 
-  if ($addResult->{totalCount} eq scalar(keys %{$addResult->{se}})) {
-    $self->putJobLog("trace","Successfully stored the file $file on $addResult->{totalCount} SEs.");
-    return 1;
-  }
-  $self->putJobLog("trace","Could store the file $file only on ".scalar(keys %{$addResult->{se}}).
-		     "  of the $addResult->{totalCount} wished SEs.");
-  return -1;
 }
 
 

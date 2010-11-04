@@ -1647,10 +1647,14 @@ sub addFileToSEs {
       $self->notice("OK. The file $targetLFN  was added to $totalCount SEs as specified. Superb!");
   } elsif(scalar(@successEnvelopes) gt 0) {
       $self->notice("WARNING: The file $targetLFN was added to ".scalar(@successEnvelopes)."SEs, yet specified were to add it on $totalCount!");
+      $success=-1;
   } else {
       $self->error("ERROR: Adding the file $targetLFN failed completely!");
   }
-  $feedback and return \@successEnvelopes ;
+  
+  #$feedback and return {success=>$success,envelopes=>\@successEnvelopes};
+  $feedback and return ($success,@successEnvelopes);
+  # -1 means a access exception, e.g. exceeded quota limit
   # -1 means a access exception, e.g. exceeded quota limit
   # This will trigger the JobAgent to stop trying further write attempts.
   return $success;
