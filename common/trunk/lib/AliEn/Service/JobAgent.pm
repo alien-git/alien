@@ -1639,8 +1639,10 @@ sub putFiles {
       $self->putJobLog("error","Could not get an instance of the LCM");
       return;
     }
-    $ui->execute("mkdir ~/alien-job-$ENV{ALIEN_PROC_ID}");
-    $ui->execute("cd ~/alien-job-$ENV{ALIEN_PROC_ID}");
+    $self->info("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+    $ui->execute("mkdir","~/alien-job-$ENV{ALIEN_PROC_ID}");
+    $ui->execute("cd","~/alien-job-$ENV{ALIEN_PROC_ID}");
+    $self->info("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
 
     #this hash will contain all the files that have already been submitted,
     #so that we can know if we are registering a new file or a replica
@@ -1718,6 +1720,7 @@ sub addFile {
   $self->{LOGGER}->{TRACELOG}=1; 
 
   ($addResult)=$ui->execute("add", "-tracelog", "-feedback", "$file", "$self->{WORKDIR}/$file", $storeTags);
+
   ($addResult eq -1) and
     $self->putJobLog("error","Error in add for $file: We have a file quota overflow.")
       and return -2;
