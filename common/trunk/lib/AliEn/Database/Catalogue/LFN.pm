@@ -715,7 +715,7 @@ sub removeDirectory {
   my $size = 0;
   my $count = 0;          
   foreach my $db (@$entries) {
-    $self->info(1, "Deleting all the entries from $db->{hostIndex} (table $db->{tableName} and lfn=$db->{lfn})");
+    $self->info("Deleting all the entries from $db->{hostIndex} (table $db->{tableName} and lfn=$db->{lfn})");
     my ($db2, $path2)=$self->reconnectToIndex($db->{hostIndex}, $path);
     $db2 
       or $self->{LOGGER}->error("Database::Catalogue::LFN","ERROR: Could not reconnect to host")
@@ -1589,7 +1589,7 @@ sub getFieldsByTagName {
   
   $sql.="  $fields FROM TAG0 WHERE tagName=?";
   if ($directory) {
-     $sql.=" and path like concat(?, '%')";
+     $sql.=" and ? like concat(path, '%')";
      push @bind, $directory;
    }
 

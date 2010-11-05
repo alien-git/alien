@@ -34,7 +34,7 @@ computedpriority=(if(running<maxparallelJobs, if((2-userload)*priority>0,50.0*(2
     $self->{DB}->do($update);
 
     $self->info("Finally, let's update the JOBAGENT table");
-   $update="UPDATE JOBAGENT j set j.priority=(SELECT computedPriority-(min(queueid)/(SELECT ifnull(max(queueid),1) from QUEUE)) from PRIORITY p, QUEUE q where j.entryId=q.agentId and $userColumn=p.user collate latin1_general_cs group by agentId)";
+   $update="UPDATE JOBAGENT j set j.priority=(SELECT computedPriority-(min(queueid)/(SELECT ifnull(max(queueid),1) from QUEUE)) from PRIORITY p, QUEUE q where j.entryId=q.agentId and status='WAITING' and $userColumn=p.user collate latin1_general_cs group by agentId)";
 
     $self->info("Doing $update");
     $self->{DB}->do($update);

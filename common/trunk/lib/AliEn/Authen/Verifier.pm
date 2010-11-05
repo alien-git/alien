@@ -511,7 +511,7 @@ sub createUser{
 
   $self->info("Got $done");
   $done or return;
-  $self->info(1, "The user has just been created!!");
+  $self->info("The user has just been created!!");
   return  $self->{ADMINDBH}->getPassword($role);
 }
 
