@@ -506,7 +506,6 @@ sub findAndDropArrayElement{
 
 
 sub deserializeSignedEnvelope{
-  my $self=shift;
   my $env=(shift || return {});
   my $envelope = {};
   foreach ( split(/&/, $env)) {

@@ -1071,13 +1071,19 @@ sub registerPFNInCatalogue{
   my $se=(shift || 0);
 
   $envelope->{lfn} or $self->info("Authorize: The access to registering a PFN with LFN $envelope->{lfn} could not be granted.",1) and return 0;
+  if($pfn =~ /^guid:\/\//){
+    $se = "link";
+    my $guid = "$pfn";
+    $guid =~ s{^guid://([^/]+)(/[.]*)*}{$1};
+    $self->{DATABASE}->{GUID_DB}->checkPermission("r",$guid) or return 0;
+  }
   $se or $se=$self->getSEforPFN($pfn);
   $se or $self->info("Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $pfn could not be registered. The PFN doesn't correspond to any known SE.",1) and return 0;
  
   $self->f_registerFile( "-f", $envelope->{lfn}, $envelope->{size},
-           $se, $envelope->{guid}, undef,undef, $envelope->{md5},
-                $pfn) 
-     or $self->info("Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $pfn could not be registered.",1) and return 0;
+    $se, $envelope->{guid}, undef,undef, $envelope->{md5},
+    $pfn) 
+    or $self->info("Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $pfn could not be registered.",1) and return 0;
   $self->info( "File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $pfn was successfully registered.",1) and return 0;
 
 }
@@ -1257,7 +1263,6 @@ sub authorize{
   my $excludedAndfailedSEs = $self->validateArrayOfSEs(split(/;/, $options->{excludeSE}));
   my $pfn = ($options->{pfn} || "");
 
- 
   my $seList = $self->validateArrayOfSEs(split(/;/, $wishedSE));
 
 
