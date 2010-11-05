@@ -1639,10 +1639,8 @@ sub putFiles {
       $self->putJobLog("error","Could not get an instance of the LCM");
       return;
     }
-    $self->info("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
     $ui->execute("mkdir","~/alien-job-$ENV{ALIEN_PROC_ID}");
     $ui->execute("cd","~/alien-job-$ENV{ALIEN_PROC_ID}");
-    $self->info("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
 
     #this hash will contain all the files that have already been submitted,
     #so that we can know if we are registering a new file or a replica
@@ -1665,14 +1663,14 @@ sub putFiles {
       my @addEnvs = $self->addFile($ui, "$fs_table->{$fileOrArch}->{name}", "$fs_table->{$fileOrArch}->{options} $guid");
      
       my $success = shift @addEnvs;
-      $addEnvs  or next;
-      $addEnvs and  $successCounter++;
-      ($addEnvs eq -1) and $incompleteAddes=1;
+      $success  or next;
+      $success and  $successCounter++;
+      ($success eq -1) and $incompleteAddes=1;
 
       $no_links and next;
 
       foreach my $file( keys %{$fs_table->{$fileOrArch}->{entries}}) {  # if it is a file, there are just no entries
-         my $registerstatus = $self->registerFile($ui, $file, $fs_table->{$fileOrArch}->{name}, $addEnvs);
+         my $registerstatus = $self->registerFile($ui, $file, $fs_table->{$fileOrArch}->{name}, shift @addEnvs);
       }
    
     }
@@ -1706,7 +1704,7 @@ sub addFile {
   my $file=shift;
   my $storeTags=shift;
   my $submitted=shift;
-  my $addResult;
+  my @addResult;
 
   $self->info("Submitting the file $file");
   if (! -f "$self->{WORKDIR}/$file")  {
@@ -1721,15 +1719,16 @@ sub addFile {
 
   my $sucess = shift @addResult;
 
+  use Data::Dumper;
+  $self->info("~~~~~".Dumper(@addResult));
 
   if($sucess eq 1) {
-     $self->putJobLog("trace","Successfully stored the file $file on $addResult->{totalCount} SEs.");
+     $self->putJobLog("trace","Successfully stored the file $file.");
   }elsif($sucess eq -1) {
-     $self->putJobLog("trace","Could store the file $file only on ".scalar(keys %{$addResult->{se}}).
-		     "  of the $addResult->{totalCount} wished SEs.");
+     $self->putJobLog("trace","Could store the file $file only on ".scalar(@addResult));
   } else {
      $self->putJobLog("error","Could not store the file $file on any SE. This file is lost!");
-     return 0;
+     return (0);
   }
   return ($sucess, @addResult);
 
@@ -1748,8 +1747,8 @@ sub registerFile {
   (my $addResult)=$ui->execute("add", "-user=$self->{JOB_USER}", "-tracelog", "-register", "-s $env->{size}", "-md5 $env->{md5} ", "file", " guid://$env->{guid}");
 
   ($addResult eq -1) and
-     $self->putJobLog("error","Error while registering file link $file in archive $archive: We have a file quota overflow.")
-     and return -2;
+     $self->putJobLog("error","Error while registering file link $file in archive $archive")
+     and return -1;
 
   $addResult and $self->putJobLog("trace","Successfully registered the file link $file in archive $archive.")
      and return 1;
