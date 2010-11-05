@@ -1669,8 +1669,10 @@ sub putFiles {
 
       $no_links and next;
 
+      my $signedEnvs = shift @addEnvs;
+
       foreach my $file( keys %{$fs_table->{$fileOrArch}->{entries}}) {  # if it is a file, there are just no entries
-         my $registerstatus = $self->registerFile($ui, $file, $fs_table->{$fileOrArch}->{name}, shift @addEnvs);
+         my $registerstatus = $self->registerFile($ui, $file, $fs_table->{$fileOrArch}->{name}, $signedEnvs);
       }
    
     }
@@ -1719,9 +1721,6 @@ sub addFile {
 
   my $sucess = shift @addResult;
 
-  use Data::Dumper;
-  $self->info("~~~~~".Dumper(@addResult));
-
   if($sucess eq 1) {
      $self->putJobLog("trace","Successfully stored the file $file.");
   }elsif($sucess eq -1) {
@@ -1741,10 +1740,12 @@ sub registerFile {
   my $file=shift;
   my $archive=shift;
   my $signedEnvelope=shift;
-
+  
   my $env = AliEn::Util::deserializeSignedEnvelope($signedEnvelope);
 
-  (my $addResult)=$ui->execute("add", "-user=$self->{JOB_USER}", "-tracelog", "-register", "-s $env->{size}", "-md5 $env->{md5} ", "file", " guid://$env->{guid}");
+  $self->info("Tryin to register file $file with sourcePFN = guid://$env->{guid}/$file");
+  $self->putJobLog("trace". "Would register file with: add -r -user=$self->{JOB_USER} -tracelog -size $env->{size} -md5 $env->{md5}  $file guid://$env->{guid}/$file");
+  my ($addResult)=$ui->execute("add", "-r", "-user=$self->{JOB_USER}", "-tracelog", "-size $env->{size}", "-md5 $env->{md5} ", "$file", "guid://$env->{guid}/$file");
 
   ($addResult eq -1) and
      $self->putJobLog("error","Error while registering file link $file in archive $archive")
@@ -2305,7 +2306,7 @@ CPU Speed                           [MHz] : $ProcCpuspeed
     $self->{MONITOR}->removeJobToMonitor($self->{PROCESSID});
   }
   chdir;
-#gron  system("rm", "-rf", $self->{WORKDIR});
+  system("rm", "-rf", $self->{WORKDIR});
   $self->putJobLog("state", "The job finished on the worker node with status $self->{STATUS}");
   $self->{JOBLOADED}=0;
   $self->{SOAP}->CallSOAP("CLUSTERMONITOR", "jobExits", $ENV{ALIEN_PROC_ID});

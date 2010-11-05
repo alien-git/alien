@@ -1491,7 +1491,6 @@ sub registerPFN{
   my $md5sum=(shift || 0);
   my $feedback=(shift || 0);
   my $silent=(shift || 0);
-
   return $self->{CATALOG}->callAuthen("authorize","register", {lfn=>$targetLFN, 
            pfn=>$sourcePFN, size=>$size, md5=>$md5sum, guid=>$guid });
 }
