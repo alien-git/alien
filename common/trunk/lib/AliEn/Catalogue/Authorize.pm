@@ -1072,7 +1072,7 @@ sub registerPFNInCatalogue{
 
   $envelope->{lfn} or $self->info("Authorize: The access to registering a PFN with LFN $envelope->{lfn} could not be granted.",1) and return 0;
   if($pfn =~ /^guid:\/\//){
-    $se = "link";
+    $se = "no_se";
     my $guid = "$pfn";
     $guid =~ s{^guid://([^/]+)(/[.]*)*}{$1};
     $self->{DATABASE}->{GUID_DB}->checkPermission("r",$guid) or return 0;

@@ -1720,6 +1720,7 @@ sub addFile {
   @addResult=$ui->execute("add", "-tracelog", "-feedback", "$file", "$self->{WORKDIR}/$file", $storeTags);
 
   my $sucess = shift @addResult;
+  defined($sucess) or $sucess =0;
 
   if($sucess eq 1) {
      $self->putJobLog("trace","Successfully stored the file $file.");
@@ -1744,7 +1745,7 @@ sub registerFile {
   my $env = AliEn::Util::deserializeSignedEnvelope($signedEnvelope);
 
   $self->info("Tryin to register file $file with sourcePFN = guid://$env->{guid}/$file");
-  $self->putJobLog("trace". "Would register file with: add -r -user=$self->{JOB_USER} -tracelog -size $env->{size} -md5 $env->{md5}  $file guid://$env->{guid}/$file");
+  $self->putJobLog("trace". "Would register file with: add -r -user=$self->{JOB_USER} -tracelog -size $env->{size} -md5 $env->{md5}  $file guid://$env->{guid}?ZIP=$file");
   my ($addResult)=$ui->execute("add", "-r", "-user=$self->{JOB_USER}", "-tracelog", "-size $env->{size}", "-md5 $env->{md5} ", "$file", "guid://$env->{guid}/$file");
 
   ($addResult eq -1) and
