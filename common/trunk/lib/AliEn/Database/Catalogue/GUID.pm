@@ -445,7 +445,7 @@ sub insertMirrorToGUID {
   my $pfn=shift;
   my $md5=shift;
 
-  my $info=$self->checkPermission("w", $guid, 'md5') or return;
+  my $info=$self->checkPermission("w", $guid, 'md5,db') or return;
 
   my $db=$info->{db};
   if ($md5){
@@ -551,7 +551,7 @@ sub checkPermission{
     $info=$self->getAllInfoFromGUID({retrieve=>$retrieve,
 				     return=>"db"}, $guid);
   } else {
-    my $info=$self->getAllInfoFromGUID({retrieve=>$retrieve}, $guid);
+    $info=$self->getAllInfoFromGUID({retrieve=>$retrieve}, $guid);
   }
   if (!($info and $info->{guidId})){
     $empty and return $info;
@@ -738,7 +738,7 @@ sub deleteMirrorFromGUID{
   my $se=shift;
   my $pfn=shift ||"";
   $self->debug(1,"Ready to delete the mirror from $se");
-  my $info=$self->checkPermission('w', $guid ) or return;
+  my $info=$self->checkPermission('w', $guid, "db") or return;
   my $seNumber=$self->getSENumber($se) or $self->info("Error getting the se number of '$se'") and return;
   my $column="seAutoStringList";
   if ($pfn){

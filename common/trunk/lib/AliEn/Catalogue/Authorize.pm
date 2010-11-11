@@ -1219,7 +1219,7 @@ sub reduceFileHashAndInitializeEnvelope{
   
   $envelope->{access} = $access;
   foreach my $tag (@tags){
-     $filehash->{$tag} or $self->info("Warning! there was supposed to be a $tag, but it is not there".Dumper($filehash)) and next;
+     defined($filehash->{$tag}) or $self->info("Warning! there was supposed to be a $tag, but it is not there".Dumper($filehash)) and next;
      $envelope->{$tag} = $filehash->{$tag};
   }
 #  foreach ( keys %{$envelope}) { $self->info("Authorize: gron: packedEnvelope during reduction : $_: $envelope->{$_}"); }
