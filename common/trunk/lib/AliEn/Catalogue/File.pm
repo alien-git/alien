@@ -343,7 +343,7 @@ sub f_addMirror {
       $self->info("Error parsing the arguments to addMirror") and return;;
   @_=@ARGV;
 
-  my $md5 =shift;
+ # my $md5 =shift;
   $file or $self->info( "Error not enough arguments in addMirror".$self->f_addMirror_HELP(),1) and return;
   $file = $self->f_complete_path($file);
 
