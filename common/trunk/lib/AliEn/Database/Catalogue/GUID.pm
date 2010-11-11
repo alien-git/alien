@@ -455,13 +455,13 @@ sub insertMirrorToGUID {
     }
   }
   my $seNumber=$db->addSEtoGUID($guid, $se,{table=>$info->{table},pfn=>$pfn}) 
-    or return;
+    or $self->info("Failed to add the SE/PFN ($se/$pfn) to the GUID ($guid) as a mirror.") and return;
 
   if ($pfn) {
     if (! $db->insert("$info->{table}_PFN",{guidId=>$info->{guidId},
 					    pfn=>$pfn, seNumber=>$seNumber})){
-
       $db->removeSEfromGUID($guid, $se, {table=>$info->{table}});
+      $self->info("It wasn't possible to add the SE/PFN ($se/$pfn) to the GUID ($guid) as a mirror.");
       return;
     }
   }
@@ -538,10 +538,21 @@ sub checkPermission{
   my $empty=(shift || 0);
 
   my $retrieve='guidId,perm,owner,gowner,size';
+  my $returndb=0;
+  $retrievemore =~ /db/ 
+    and $returndb=1
+    and $retrievemore =~ s/db//
+    and $retrievemore =~ s/,,/,/;
+  $retrievemore =~ s/^,//;
+  $retrievemore =~ s/,$//;
   $retrievemore and $retrieve.=",".$retrievemore;
-  #my $info=$self->getAllInfoFromGUID({retrieve=>$retrieve,
-#				     return=>"db"}, $guid);
-  my $info=$self->getAllInfoFromGUID({retrieve=>$retrieve}, $guid);
+  my $info=0;
+  if($returndb) {
+    $info=$self->getAllInfoFromGUID({retrieve=>$retrieve,
+				     return=>"db"}, $guid);
+  } else {
+    my $info=$self->getAllInfoFromGUID({retrieve=>$retrieve}, $guid);
+  }
   if (!($info and $info->{guidId})){
     $empty and return $info;
     $self->info("Error the guid '$guid' is not in the catalogue");
