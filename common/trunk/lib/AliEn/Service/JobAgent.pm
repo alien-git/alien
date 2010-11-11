@@ -146,6 +146,10 @@ sub initialize {
 
   $self->{CONFIG} = new AliEn::Config() or return;
 
+  $self->{UI} = 0;
+  $self->{PROCDIR} = 0;
+
+
   $self->{PORT} = $self->getPort();
   $self->{PORT} or return;
 
@@ -1633,16 +1637,9 @@ sub putFiles {
     $self->{CONFIG}=$self->{CONFIG}->Reload({"organisation", $org});
     my @addedFiles=();
     my $remoteDir = "$self->{CONFIG}->{LOG_DIR}/proc$id";
-    my $ui=AliEn::UI::Catalogue::LCM->new({no_catalog=>1,role=>$self->{JOB_USER}});
-    if (!$ui) {
-      $self->info("Error getting an instance of the catalog");
-      $self->putJobLog("error","Could not get an instance of the LCM");
-      return;
-    }
-    $ui->execute("mkdir","~/alien-job-$ENV{ALIEN_PROC_ID}");
-    $ui->execute("cd","~/alien-job-$ENV{ALIEN_PROC_ID}");
 
-    #this hash will contain all the files that have already been submitted,
+    $self->{UI}->execute("cd",$self->{PROCDIR} ."/job-output");
+
     #so that we can know if we are registering a new file or a replica
     my $submitted={};
 
@@ -1660,7 +1657,7 @@ sub putFiles {
 	$self->putJobLog("trace", "The file $fs_table->{$fileOrArch}->{name} has the guid $guids{$fs_table->{$fileOrArch}->{name}}");
       }
       
-      my @addEnvs = $self->addFile($ui, "$fs_table->{$fileOrArch}->{name}", "$fs_table->{$fileOrArch}->{options} $guid");
+      my @addEnvs = $self->addFile($self->{WORKDIR},"$fs_table->{$fileOrArch}->{name}", "$fs_table->{$fileOrArch}->{options}",$guid);
      
       my $success = shift @addEnvs;
       $success  or next;
@@ -1672,13 +1669,11 @@ sub putFiles {
       my $signedEnvs = shift @addEnvs;
 
       foreach my $file( keys %{$fs_table->{$fileOrArch}->{entries}}) {  # if it is a file, there are just no entries
-         my $registerstatus = $self->registerFile($ui, $file, $fs_table->{$fileOrArch}->{name}, $signedEnvs);
+         my $registerstatus = $self->registerFile($file, $fs_table->{$fileOrArch}->{name}, $signedEnvs);
       }
    
     }
 
-    $self->debug(1, "Closing the catalogue");
-    $ui->close();
   }
 
   $self->{CONFIG}=$self->{CONFIG}->Reload({"organisation", $oldOrg});
@@ -1702,22 +1697,27 @@ sub putFiles {
 
 sub addFile {
   my $self=shift;
-  my $ui=shift;;
+  my $workdir=shift;
   my $file=shift;
   my $storeTags=shift;
-  my $submitted=shift;
+  my $guid=shift;
   my @addResult;
 
   $self->info("Submitting the file $file");
-  if (! -f "$self->{WORKDIR}/$file")  {
-    $self->putJobLog("error", "The job didn't create $self->{WORKDIR}/$file");
+  if (! -f "$workdir/$file")  {
+    $self->putJobLog("error", "The job didn't create $workdir/$file");
     return 0; 
   }
   $self->putJobLog("trace","Will store $file ...");
 
   $self->{LOGGER}->{TRACELOG}=1; 
+  my $options = " -tracelog -feedback ";
+  $guid and $options .= " -guid=$guid";
 
-  @addResult=$ui->execute("add", "-tracelog", "-feedback", "$file", "$self->{WORKDIR}/$file", $storeTags);
+  $self->putJobLog("trace","gron: adding file: add, $options, $file, $workdir/$file, $storeTags");
+
+  @addResult=$self->{UI}->execute("add", $options, "$file", "$workdir/$file", $storeTags);
+
 
   my $sucess = shift @addResult;
   defined($sucess) or $sucess =0;
@@ -1737,16 +1737,14 @@ sub addFile {
 
 sub registerFile {
   my $self=shift;
-  my $ui=shift;
   my $file=shift;
   my $archive=shift;
   my $signedEnvelope=shift;
   
   my $env = AliEn::Util::deserializeSignedEnvelope($signedEnvelope);
 
-  $self->info("Tryin to register file $file with sourcePFN = guid://$env->{guid}/$file");
-  $self->putJobLog("trace". "Would register file with: add -r -user=$self->{JOB_USER} -tracelog -size $env->{size} -md5 $env->{md5}  $file guid://$env->{guid}?ZIP=$file");
-  my ($addResult)=$ui->execute("add", "-r", "-user=$self->{JOB_USER}", "-tracelog", "-size $env->{size}", "-md5 $env->{md5} ", "$file", "guid://$env->{guid}/$file");
+  $self->putJobLog("trace". "Trying to register file with: add -r -user=$self->{JOB_USER} -tracelog -size $env->{size} -md5 $env->{md5}  $file guid://$env->{guid}?ZIP=$file");
+  my ($addResult)=$self->{UI}->execute("add", "-r", "-user=$self->{JOB_USER}", "-tracelog", "-size $env->{size}", "-md5 $env->{md5} ", "$file", "guid://$env->{guid}?ZIP=$file");
 
   ($addResult eq -1) and
      $self->putJobLog("error","Error while registering file link $file in archive $archive")
@@ -2289,6 +2287,20 @@ CPU Speed                           [MHz] : $ProcCpuspeed
 
   # store the files
   #$self->putFiles() or $self->{STATUS}="ERROR_SV";  old entry, redirected trough new funtion:
+  $self->{UI} = AliEn::UI::Catalogue::LCM->new({no_catalog=>1,role=>$self->{JOB_USER}});
+  if (!$self->{UI}) {
+      $self->info("Error getting an instance of the catalog");
+      $self->putJobLog("error","Could not get an instance of the LCM");
+#      return;
+  }
+  $self->{PROCDIR} = "~/alien-job-$ENV{ALIEN_PROC_ID}";
+  $self->{UI}->execute("mkdir",$self->{PROCDIR} );
+  $self->{UI}->execute("cd",$self->{PROCDIR} );
+  $self->{UI}->execute("mkdir",$self->{PROCDIR} ."/job-output");
+  $self->{UI}->execute("mkdir",$self->{PROCDIR}."/job-log");
+
+    #this hash will contain all the files that have already been submitted,
+
   my $uploadFilesState = $self->prepare_File_And_Archives_From_JDL_And_Upload_Files() ;
 
   if ($self->{STATUS}=~ /DONE/){
@@ -2297,6 +2309,7 @@ CPU Speed                           [MHz] : $ProcCpuspeed
   }
 
   $self->registerLogs();
+  $self->{UI}->close();
 
   my $jdl;
   $self->{JDL_CHANGED} and $jdl=$self->{CA}->asJDL();
@@ -2483,13 +2496,13 @@ sub registerLogs {
     my $data=$self->submitFileToClusterMonitor($dir,$basename, "execution.out");
     $data or $self->info("Error submitting the log file") and return;
 
-    $self->info("And now, let's update the jdl");
-    $self->{CA}->set_expression("RegisteredLog", "\"execution.out######$data->{size}###$data->{md5}###$data->{se}/$data->{pfn}###\"");
-    $self->{JDL_CHANGED}=1;
+    $self->info("Tryin to register file execution.out with sourcePFN = $data->{pfn}");
+    $self->{UI}->execute("cd",$self->{PROCDIR} ."/job-log");
+    my ($addResult)=$self->{UI}->execute("add", "-r", "-user=$self->{JOB_USER}", "-tracelog", "-size $data->{size}", "-md5 $data->{md5} ", "execution.out", "$data->{pfn}");
+
   };
   $self->doInAllVO({},$func);
   $self->{REGISTER_LOGS_DONE}=1;
-
 
   return 1;
 }
