@@ -1605,7 +1605,8 @@ sub addFileToSEs {
   $sourcePFN=$self->checkLocalPFN($sourcePFN);
   my $size=AliEn::SE::Methods->new($sourcePFN)->getSize();
   my $md5=AliEn::MD5->new($sourcePFN);
-  ((!$size) or ($size eq 0)) and $self->error( "The file $sourcePFN has size 0. We won't upload an empty file.") and return;
+  ((!$size) or ($size eq 0)) and $self->info( "WARNING: The file $sourcePFN has size 0. Let's hope you wanted to upload an emty file !!!");
+
   
   foreach my $qos(keys %$qosTags){
     ($success eq -1) and last;
