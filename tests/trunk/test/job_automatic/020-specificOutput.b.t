@@ -14,7 +14,7 @@ my ($user)=$cat->execute("whoami");
 my $vo=$cat->{CONFIG}->{ORG_NAME};
 my $otherSE="${vo}::cern::testSE2";
 
-my $procDir="/proc/$user/$id";
+my $procDir="~/alien-job-$id";
 print "And the output is in $procDir\n";
 my @where=$cat->execute("whereis", "-lr", "$procDir/job-output/stdout") or exit(-2);
 

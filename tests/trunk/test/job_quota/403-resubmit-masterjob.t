@@ -32,7 +32,7 @@ my $d=AliEn::Database::TaskPriority->new({DRIVER=>"mysql", HOST=>"$host:3307", D
   $cat->execute("cd") or exit(-2);
 
   cleanDir($cat, $pwd);
-  cleanDir($cat, "/proc/$user");
+#  cleanDir($cat, "/proc/$user");
   $cat->execute("mkdir", "-p", "jdl") or exit(-2);
   $cat->execute("mkdir", "-p", "bin") or exit(-2);
   $cat->execute("mkdir", "-p", "split/dir1") or exit(-2);

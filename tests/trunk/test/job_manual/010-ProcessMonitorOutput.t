@@ -147,7 +147,7 @@ sub executeJDLFile{
 
   my ($user)=$cat->execute("whoami") or return;
 
-  $cat->execute("ls","-al", "/proc/$user/$id") or print "The directory /proc/$id does not exist\n" and return;
+  $cat->execute("ls","-al", "~/alien-job-$id") or print "The directory ~/alien-job-$id does not exist\n" and return;
   print "Job executed successfully!!\n";
   if ($status) {
     print "Checking that the status is $status\n";
@@ -155,13 +155,13 @@ sub executeJDLFile{
     $info->{status} eq "$status" or
       print "NOPE!! the status is $info->{status}\n" and  return;
   }
-  return "/proc/$user/$id";
+  return "~/alien-job-$id";
 }
 sub checkOutput{
   my $cat=shift;
   my $id=shift;
   my ($user)=$cat->execute("whoami") or return;
-  my $procDir="/proc/$user/$id";
+  my $procDir="~/alien-job-$id";
   print "Checking if the output of the job is registered... $procDir\n";
   $cat->execute("ls", "$procDir/", "-l") or return;
   $cat->execute("ls", "$procDir/job-output", "-l") or return;

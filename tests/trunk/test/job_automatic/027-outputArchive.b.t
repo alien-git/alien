@@ -10,7 +10,7 @@ my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",})
   or exit (-1);
 my ($user)=$cat->execute("whoami") or exit(-2);
 
-my $procDir="/proc/$user/$id";
+my $procDir="~/alien-job-$id";
 
 $cat->execute("ls", "$procDir/job-output", "-l") or  exit(-2);
 $cat->execute("get", "$procDir/job-output/my_archive") or exit(-2);

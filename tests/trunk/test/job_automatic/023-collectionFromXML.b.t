@@ -21,7 +21,7 @@ BEGIN { plan tests => 1 }
   $subjobs eq "2" or print "The job is not split in 2 subjobs\n" and exit(-2);
 
 
-  my $procDir="/proc/$user/$id";
+  my $procDir="~/alien-job-$id";
   print "\n\nlet's check the output\nWe got back $procDir and $subjobs\n";
   my $subJobDir="$procDir/subjobs";
   my @dirs=$cat->execute("ls", $subJobDir) or exit(-2);

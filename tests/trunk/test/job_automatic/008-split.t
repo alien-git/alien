@@ -87,7 +87,7 @@ sub executeSplitJob{
 
   (@subjobs)=$cat->execute("top", "-split", $id, "-all_status") or return;
   my ($user)=$cat->execute("whoami") or return;
-  my $procDir="/proc/$user/$id";
+  my $procDir="~/alien-job-$id";
 
   if (! $options->{noSubjobs}) {
     foreach my $job (@subjobs) {
@@ -128,5 +128,5 @@ sub checkSubJobs{
     }
   }
 
-  return "/proc/$user/$id";
+  return "~/alien-job-$id";
 }

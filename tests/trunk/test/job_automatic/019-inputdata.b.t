@@ -22,7 +22,7 @@ BEGIN { plan tests => 1 }
   $cat or exit (-1);
   my ($user)=$cat->execute("whoami") or exit(-2);
       
-  my $procDir="/proc/$user/$id";
+  my $procDir="~/alien-job-$id";
 
   my $files={"stdout"=>{}, "file.out"=>{}};
   foreach my $file (keys %$files) {
@@ -41,7 +41,7 @@ BEGIN { plan tests => 1 }
   my @log=grep (/Getting/, <LOG>);
   close LOG;
   print "We got the files @log\n";
-  grep (m{Getting /proc/.*/job-log/execution.out}, @log)
+  grep (m{Getting alien-job-$id/.*/job-log/execution.out}, @log)
     and print "We downloaded the execution log!!!\n" and exit(-2);
   grep (m{Getting .*/bin/}, @log) or
     print "We didn't downloaded any executable!!!\n" and exit(-2);
