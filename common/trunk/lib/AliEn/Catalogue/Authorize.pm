@@ -1072,10 +1072,10 @@ sub registerPFNInCatalogue{
 
   $envelope->{lfn} or $self->info("Authorize: The access to registering a PFN with LFN $envelope->{lfn} could not be granted.",1) and return 0;
   (!($pfn =~ /^file:\/\//) and !($pfn =~ /^root:\/\//)) and $se = "no_se";
-  if($pfn =~ /^guid:\/\//){
+  if($pfn =~ /^guid:\/\/\//){
 #    $se = "no_se";
     my $guid = "$pfn";
-    $guid =~ s{^guid://([^/]+)(/[.]*)*}{$1};
+    $guid =~ s{^guid:///([^/]+)(\?[.]*)*}{$1};
     $self->{DATABASE}->{GUID_DB}->checkPermission("r",$guid) or return 0;
   }
   $se or $se=$self->getSEforPFN($pfn);

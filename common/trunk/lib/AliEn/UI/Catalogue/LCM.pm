@@ -292,9 +292,9 @@ sub get {
    }
    $filehash or return 0;
 #   $filehash = shift @{$filehash};
- $self->info("Coming back from checkPermission...". Dumper($filehash));
+   $self->info("Coming back from checkPermission...". Dumper($filehash));
 
-$self->info("GUID: $filehash->{guid}");
+   $self->info("GUID: $filehash->{guid}");
 
 
    (defined($filehash->{type}) and ($filehash->{type} eq "c")) and  $self->notice("This is in fact a collection!! Let's get all the files")
