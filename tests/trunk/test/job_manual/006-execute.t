@@ -27,13 +27,14 @@ $admincat->execute("queue", "add $cat->{CONFIG}->{ORG_NAME}::CERN::testCE");
 $admincat->execute("queue", "open $cat->{CONFIG}->{ORG_NAME}::CERN::testCE") or exit(-2);
 print "Let's sleep until the job is ready";
 #sleep(20);
+print "\n\n\n\n\n\n\n\n\n\n";
 my (@jobs)=$cat->execute("top", "-status", "WAITING");
 (@jobs) or print "ERROR: THERE ARE NO JOBS WAITING\n" and exit(-2);
 
 
 print "ok\nRequesting a new job\n";
 $cat->execute("request") or exit (-2);
-system ("alien", "proxy-destroy");
+#system ("alien", "proxy-destroy");
 
 waitForStatus($cat, $jobs[0]->{queueId}, "DONE", 5, 6) or exit(-2);
 

@@ -19,7 +19,7 @@ my ($info)=$cat->execute("ls", "-z", $file, "-la")or exit(-2);
 use Data::Dumper;
 print Dumper($info);
 
-${$info}[0]->{size} eq $size or print "The size is ${$info}[0]->{size}!! (instead of $size)\n" and exit(-2);
+${${$info}[0]}[0]->{size} eq $size or print "The size is ${${${$info}[0]}}[0]->{size}!! (instead of $size)\n" and exit(-2);
 print "ok\n";
 
 

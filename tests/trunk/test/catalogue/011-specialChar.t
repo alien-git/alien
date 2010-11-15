@@ -39,8 +39,14 @@ my (@now)=$cat->execute("ls", "specialChar/") or exit(-2);
 print "NOW we have '@now'\n";
 
 foreach my $name("file", "f\\?le"){
-  grep (/^$name$/, @now) or print "Error: $name is not in the list (@now)\n" and exit(-2);
-  @now=grep (! /^$name$/, @now);
+  my $ctr = 0;
+  foreach my $file(@now) {
+    ($file eq $name) and $ctr=1;
+  }
+#grep (/^$name$/, @now) 
+  $ctr or print "Error: $name is not in the list (@now)\n" and exit(-2);
+  @now = grep { $_ ne $name } @now
+#@now=grep (! /^$name$/, @now);
 }
 if ($#now>-1) {
   print "Error there are still items in the list: '@now'\n" and exit(-2);

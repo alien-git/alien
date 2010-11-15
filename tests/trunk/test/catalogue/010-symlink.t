@@ -29,3 +29,5 @@ $cat->execute("add", "-r", "existantFile", $pfn, $size, $md5) or exit(-2);
 print "And now, let's try to get the file....\n";
 $cat->execute("get", "-l", "existantFile") or print "I DIDN't GOT THE FILE!!! :(\n" and exit(-2);
 #system("alien", "proxy-destroy");
+#
+print "ok";
