@@ -103,7 +103,7 @@ sub AUTOLOAD {
     cleanupTagValue=>"cleanupTagValue", showTags=>"showTags", pwd=>"pwd", refreshSERankCache=>"refreshSERankCache",
     resyncLDAP=>"resyncLDAP", addFileToCollection=>"addFileToCollection",listFilesFromCollection=>"listFilesFromCollection",
     removeFileFromCollection=>"removeFileFromCollection",createCollection=>"createCollection",
-    updateCollection=>"updateCollection", 
+    updateCollection=>"updateCollection", df=>"df" 
   };
   if ($ops->{$name}){
     return shift->callAuthen($ops->{$name},@_);
