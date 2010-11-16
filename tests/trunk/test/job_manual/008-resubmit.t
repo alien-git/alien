@@ -21,7 +21,7 @@ my ($jobId)=$cat->execute("resubmit", $jobs[0]->{queueId});
 
 $jobId or exit(-2); 
 print "ok\n Checking that another user can't kill the job...";
-my $cat2=AliEn::UI::Catalogue::LCM::Computer->new();
+my $cat2=AliEn::UI::Catalogue::LCM::Computer->new({user=>"$ENV{USER}"});
 $cat2 or exit(-1);
 $cat2->execute("whoami");
 
@@ -37,6 +37,7 @@ my ($info)=$cat->execute("top", "-id", $jobId);
   or print "Error, the job is still alive!! $info->{status}\n" and exit(-2);
 
 print "ok\n Let's try to resubmit a job with inputdata... ";
+
 ($jobId)=$cat->execute("submit", "jdl/Input.jdl")
   or print "Error submitting a job\n" and exit(-2);
 sleep(20);
@@ -50,6 +51,5 @@ print "GOT $info->{status}\n";
 $info->{status} eq "WAITING"
   or print "THE JOB IS NOT WAITING...\n" and exit(-2);
 $cat->close;
-
 ok(1);
 }

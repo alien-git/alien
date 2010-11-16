@@ -8,7 +8,6 @@ use AliEn::UI::Catalogue::LCM::Computer;
 BEGIN { plan tests => 1 }
 
 
-
 {
   $ENV{ALIEN_TESTDIR} or $ENV{ALIEN_TESTDIR}="/home/alienmaster/AliEn/t";
   eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
@@ -41,7 +40,9 @@ OutputFile={\"file.out\",\"stdout\",\"stderr\",\"resources\"}") or exit(-2);
   my $procDir=executeJDLFile($cat, "jdl/Input.jdl") or exit(-2);
 
   my $files={"stdout"=>{}, "file.out"=>{}};
+  my @tmp = keys %$files;
   foreach my $file (keys %$files) {
+    use Data::Dumper;
     my ($out)=$cat->execute("get","$procDir/job-output/$file") or exit(-2);
     open (FILE, "<$out") or print "Error opening $out" and exit(-2);
     my @data=<FILE>;
@@ -56,14 +57,14 @@ OutputFile={\"file.out\",\"stdout\",\"stderr\",\"resources\"}") or exit(-2);
   my @log=grep (/Getting/, <LOG>);
   close LOG;
   print "We got the files @log\n";
-  grep (m{Getting alien-job-$id/.*/job-log/execution.out}, @log)
+  grep (m{Getting $procDir/job-log/execution.out}, @log)
     and print "We downloaded the execution log!!!\n" and exit(-2);
   grep (m{Getting .*/bin/}, @log) or
     print "We didn't download any executable!!!\n" and exit(-2);
 
   print "Finally, let's take a look at the jdl, and make sure that it wasn't written in the requirements\n";
 
-  $procDir=~ m{/(\d+)$} or print "Error getting the jobid from $procDir!!\n" and return;
+  $procDir=~ m{/alien-job-(\d+)$} or print "Error getting the jobid from $procDir!!\n" and return;
   my $id=$1;  
   my ($jdl)=$cat->execute("ps", "jdl", $id) or exit(-2);
   my $name="member\\(other.CloseSE,\"$cat->{CONFIG}->{SE_FULLNAME}\"\\)";
