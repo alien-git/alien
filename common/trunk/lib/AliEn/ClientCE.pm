@@ -104,4 +104,9 @@ sub resyncJobAgent{
   return $self->{CATALOG}->{CATALOG}->callAuthen("resyncJobAgent",@_);
 }
 
+sub resubmitCommand {
+  my $self = shift;
+  return $self->{CATALOG}->{CATALOG}->callAuthen("resubmit",@_);
+}
+
 __END__

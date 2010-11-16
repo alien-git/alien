@@ -916,21 +916,21 @@ sub executeCommand {
 #      @list=(@list, " --output ". join(",,",@outputFiles) . " ");
 #  }
 
-#  my ( $ok2, @inputData ) =  
-#    $self->{CA}->evaluateAttributeVectorString("InputData");
+  my ( $ok2, @inputData ) =  
+    $self->{CA}->evaluateAttributeVectorString("InputData");
 
-#  if (($ok2) and @inputData) {
-#      $self->{INPUTDATA} = join(" ",@inputData);
-#      @list=(@list, " --inputdata ". join(",,",@inputData) . " " );
-#  }
+  if (($ok2) and @inputData) {
+      $self->{INPUTDATA} = join(" ",@inputData);
+      @list=(@list, " --inputdata ". join(",,",@inputData) . " " );
+  }
 
-#  my ( $ok3, @inputFiles ) =
-#      $self->{CA}->evaluateAttributeVectorString("InputFile");
+  my ( $ok3, @inputFiles ) =
+      $self->{CA}->evaluateAttributeVectorString("InputFile");
 
-#  if (($ok3) and @inputFiles) {
-#      $self->{INPUTFILES} = join(" $self->{WORKDIR}/",@inputFiles);
-#      @list=(@list, " --input ". join(",,",@inputFiles) . " ");
-#  }
+  if (($ok3) and @inputFiles) {
+      $self->{INPUTFILES} = join(" $self->{WORKDIR}/",@inputFiles);
+      @list=(@list, " --input ". join(",,",@inputFiles) . " ");
+  }
   my ($ok,  @packages)=$self->{CA}->evaluateAttributeVectorString("Packages");
   my $user=$self->{CA}->evaluateAttributeString("User");
   if ($ok) {
@@ -1744,7 +1744,8 @@ sub registerFile {
   my $env = AliEn::Util::deserializeSignedEnvelope($signedEnvelope);
 
   $self->putJobLog("trace". "Trying to register file with: add -r -user=$self->{JOB_USER} -tracelog -size $env->{size} -md5 $env->{md5}  $file guid:///$env->{guid}?ZIP=$file");
-  my ($addResult)=$self->{UI}->execute("add", "-r", "-user=$self->{JOB_USER}", "-tracelog", "-size $env->{size}", "-md5 $env->{md5} ", "$file", "guid:///$env->{guid}?ZIP=$file");
+  my ($addResult)=$self->{UI}->execute("add", "-r", "-user=$self->{JOB_USER}", "-tracelog", "-size $env->{size}", "$file", "guid:///$env->{guid}?ZIP=$file");
+  #my ($addResult)=$self->{UI}->execute("add", "-r", "-user=$self->{JOB_USER}", "-tracelog", "-size $env->{size}", "-md5 $env->{md5} ", "$file", "guid:///$env->{guid}?ZIP=$file");
 
   ($addResult eq -1) and
      $self->putJobLog("error","Error while registering file link $file in archive $archive")
