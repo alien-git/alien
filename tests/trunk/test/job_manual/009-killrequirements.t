@@ -31,9 +31,9 @@ my ($jdl)=$cat->execute("ps", "jdl", $newid);
 $cat->execute("kill", $newid);
 
 my $req;
-$jdl=~/\srequirements\s=([^;]*)/i and $req=$1;
+$jdl=~/\srequirements\s=\s([^;]*)/i and $req=$1;
 print "removing the requirement once...";
-unless ($req =~ s/member\(other.CloseSE,//){
+unless ($req =~ s/member\(other.CloseSE,//g){
   print "We can't remove the first requirements!!\n";
   exit(-2);
 }

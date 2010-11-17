@@ -50,7 +50,7 @@ InputFile={\"LF:$dir/jdl/Input.jdl\",\"PF:file://$hostname$inputpfn\"};
   my @log=grep (/Getting/, <LOG>);
   close LOG;
   print "We got the files @log\n";
-  grep (m{Getting alien-job-$id/.*/job-log/execution.out}, @log)
+  grep (m{Getting $procDir/job-log/execution.out}, @log)
     and print "We downloaded the execution log!!!\n" and exit(-2);
   grep (m{Getting .*/bin/}, @log) or
    print "We didn't download any executable!!!\n" and exit(-2);

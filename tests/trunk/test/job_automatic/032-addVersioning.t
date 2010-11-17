@@ -77,6 +77,7 @@ sub addFileForVersioning {
   my $file=shift;
   my $content=shift;
   my $options=(shift or "");
+  $options .= "-versioning";
   print "Registering the file $file...";
 
   my $name="/tmp/test16.$$";
