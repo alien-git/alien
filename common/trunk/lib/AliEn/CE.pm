@@ -457,9 +457,20 @@ sub addPFNtoINPUTBOX {
 
 #  my $se="Alice::CERN::scratch";
   $self->info( "Copying $input " );
-  
-  my ($data) =
-    $self->{CATALOG}->execute("upload", $input);
+ 
+  $self->{CATALOG}->execute("mkdir","-p","~/tmp");
+  my ($success,@env) =
+    $self->{CATALOG}->execute("add","-feedback","~/tmp/tmpFile".time, "$input");
+  #$self->{CATALOG}->execute("upload", $input);
+  $success or return;
+  my $data= { pfn=>"", size=>0 };
+  if($env[0] =~ m{turl\=([^&]+)}) {
+    $self->info("\$1 = ".$1);
+    $data->{pfn} = $1;
+  }
+  if($env[0] =~ m/size\=([\d]+)/) {
+    $data->{size}= $1;
+  }
   $self->info( "Register done and $data->{pfn} and $data->{size}" );
   ($data->{pfn} and $data->{size}) or return;
   $self->{INPUTBOX}->{$name} = "$data->{pfn}###$data->{size}###$name###$self->{CONFIG}->{SE_FULLNAME}";
@@ -3317,13 +3328,13 @@ sub f_jobListMatch {
   
   $done=$done->result or return;
   my $anyMatch=0;
-  
+
   foreach my $site (@$done){
     if (!$site->{jdl}){
       $options=~ /v/ and $self->info("\t Ignoring $site->{site} (the jdl is not right)",undef,0);
       next;
     }
-    $self->debug(2,"Comparing with $site->{site} (and $site->{jdl})");
+    #$self->debug(2,"Comparing with $site->{site} (and $site->{jdl})");
     my $ce_ca= Classad::Classad->new($site->{jdl});
     if (! $ce_ca->isOK()){
       $options=~ /v/ and $self->info("The syntax of the CE jdl is not correct");

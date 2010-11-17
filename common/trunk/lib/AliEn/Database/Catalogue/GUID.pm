@@ -601,7 +601,7 @@ sub updateOrInsertGUID{
     $guid=$newUp->{guid};
   }
 
-  my $info=$self->checkPermission('w', $guid, 0, 1) or return;
+  my $info=$self->checkPermission('w', $guid, "db", 1) or return;
   $self->debug(1,"The checkpermission of the guid worked!!!");
 
   if (! $info->{guidId}){

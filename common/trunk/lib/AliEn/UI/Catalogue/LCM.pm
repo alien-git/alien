@@ -287,12 +287,14 @@ sub get {
 
    if(AliEn::Util::isValidGUID($file)) {
      ($filehash)=$self->{CATALOG}->checkPermission("r", $file, 'type,size,md5');
+     #authorize needs lfn to return envelopes!!
+     ($filehash->{lfn})=$self->{CATALOG}->f_guid2lfn("",$filehash->{guid});
    } else {
      ($filehash)=$self->{CATALOG}->checkPermissions("r",$file, 0, 1);
    }
    $filehash or return 0;
 #   $filehash = shift @{$filehash};
-   $self->info("Coming back from checkPermission...". Dumper($filehash));
+   $self->info("Coming back from checkPermission on $file...". Dumper($filehash));
 
    $self->info("GUID: $filehash->{guid}");
 
@@ -1435,7 +1437,7 @@ sub _canCreateFile{
   my $self=shift;
   my $lfn=shift;
   $self->{CATALOG}->checkPermissions( 'w', $lfn )  or  return;
-  if ($self->{CATALOG}->f_Database_existsEntry( $lfn)) {
+  if ($self->{CATALOG}->existsEntry( $lfn)) {
     $self->info( "file $lfn already exists!!",1);
     return;
   }

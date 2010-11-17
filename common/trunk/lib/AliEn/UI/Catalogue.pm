@@ -181,6 +181,7 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
     'getLFNlike' => ['$self->{CATALOG}->getLFNlike',0],
     'isDirectory' => ['$self->{CATALOG}->isDirectory',0],
     'isFile' => ['$self->{CATALOG}->isFile',0],
+    'existsEntry' => ['$self->{CATALOG}->existsEntry',0],
 
 
 
