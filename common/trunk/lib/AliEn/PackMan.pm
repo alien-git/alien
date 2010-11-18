@@ -520,7 +520,8 @@ sub definePackage{
       return;
     }
   }
-  $self->{CATALOGUE}->{CATALOG}->{DATABASE_FIRST}->do("update ACTIONS set todo=1 where action='PACKAGES'");
+  # $self->{CATALOGUE}->{CATALOG}->{DATABASE_FIRST}->do("update ACTIONS set todo=1 where action='PACKAGES'");
+  $self->f_packman("recompute");
   $self->info( "Package $lfn added!!");
   return 1;
 }

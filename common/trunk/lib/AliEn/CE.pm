@@ -828,8 +828,6 @@ sub submitCommand {
   }
 
 
-
-
   my ( $okf, @files) = $job_ca->evaluateAttributeVectorString("OutputFile");
   my ( $oka, @archives) = $job_ca->evaluateAttributeVectorString("OutputArchive");
 
@@ -3234,7 +3232,7 @@ sub requirementsFromPackages {
   }
 
 
-  $self->debug(1,"Checking if the packages @packages are defined in the system");
+  #$self->debug(1,"Checking if the packages @packages are defined in the system");
   my ($status, @definedPack)=$self->getAllPackages();
 
   $status or
@@ -3244,7 +3242,7 @@ sub requirementsFromPackages {
   foreach my $package (@packages) {
     $package =~ /@/ or $package=".*\@$package";
     $package =~ /::/ or $package="${package}::.*";
-    $self->debug(1,"checking if $package is in @definedPack");
+    #$self->debug(1,"checking if $package is in @definedPack");
     my @name=grep (/^$package$/, @definedPack);
     if (@name) {
       $requirements.=" && (member(other.${installed}Packages, \"$name[0]\"))";
