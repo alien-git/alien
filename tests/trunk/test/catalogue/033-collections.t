@@ -17,7 +17,7 @@ BEGIN { plan tests => 1 }
     exit (-1);
   my ($dir)=$cat->execute("pwd") or exit(-2);
 
-  $cat->execute("rmdir", "-rf", "collections") or exit(-2);
+  $cat->execute("rmdir", "-rf", "collections");
   $cat->execute("mkdir", "-p", "collections") or exit(-2);
 
   $cat->execute("cd", "collections") or exit(-2);
