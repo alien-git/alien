@@ -178,6 +178,7 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
     'checkPermissionOnDirectory' => ['$self->{CATALOG}->checkPermissionOnDirectory',0],
     'checkLFNPermissions' => ['$self->{CATALOG}->checkPermissions',0],
     'checkGUIDPermissions' => ['$self->{CATALOG}->checkPermission',0],
+    'checkFileQuota' => ['$self->{CATALOG}->checkFileQuota',0],
     'getLFNlike' => ['$self->{CATALOG}->getLFNlike',0],
     'isDirectory' => ['$self->{CATALOG}->isDirectory',0],
     'isFile' => ['$self->{CATALOG}->isFile',0],

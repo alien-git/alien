@@ -1517,6 +1517,7 @@ sub versionLFN {
   }
   
   my $version=0;
+  defined $last or $last="";
   if ($last ne "") {
     $last =~ /^v(\d)\.(\d)$/;
     $version = (($1*10) + $2) - 10 +1;

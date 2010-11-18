@@ -718,6 +718,11 @@ sub submitCommand {
   my $noption = grep (/-n/, @_);
   my $user = $self->{CATALOG}->{CATALOG}->{ROLE};
 
+  my @quotas = $self->{CATALOG}->{CATALOG}->checkFileQuota($user,0);
+  if($quotas[2]>=0.9 || $quotas[3]>=0.9){
+    $self->info("WARNING!!!! Your file quotas are 90% full!!!");
+  }
+
   if ($arg[0] eq "==<") {
     # this is the submission via gShell and GCLIENT_EXTRA_ARG
     shift @arg;

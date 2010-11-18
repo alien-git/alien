@@ -103,7 +103,7 @@ sub AUTOLOAD {
     cleanupTagValue=>"cleanupTagValue", showTags=>"showTags", pwd=>"pwd", refreshSERankCache=>"refreshSERankCache",
     resyncLDAP=>"resyncLDAP", addFileToCollection=>"addFileToCollection",listFilesFromCollection=>"listFilesFromCollection",
     removeFileFromCollection=>"removeFileFromCollection",createCollection=>"createCollection",
-    updateCollection=>"updateCollection", df=>"df", "existsEntry"=>"existsEntry", 
+    updateCollection=>"updateCollection", df=>"df", existsEntry=>"existsEntry", checkFileQuota=>"checkFileQuota",
   };
   if ($ops->{$name}){
     return shift->callAuthen($ops->{$name},@_);
@@ -129,6 +129,8 @@ sub AUTOLOAD {
     return AliEn::Catalogue::Basic::f_complete_path(@_);
   } elsif ($name =~ /(GetHomeDirectory)/) {
     return AliEn::Catalogue::Basic::GetHomeDirectory(@_);
+  } elsif ($name =~ /(echo)/) {
+    return AliEn::Catalogue::f_echo(@_);
   } elsif ($name =~/DESTROY/){
     return;
   }
