@@ -809,6 +809,7 @@ sub existsEntry {
   my $self     = shift;
   my $lfn      = shift;
   my $permFile = shift;
+  defined $permFile or $permFile = "";
   while ($permFile =~ /^-/){
     $permFile=shift;
   }
@@ -2123,7 +2124,7 @@ sub checkFileQuota {
   #$self->{PRIORITY_DB}->do("update PRIORITY set tmpIncreasedNbFiles=tmpIncreasedNbFiles+1, tmpIncreasedTotalSize=tmpIncreasedTotalSize+$size where user LIKE  '$user'") or $self->info("failed to increase tmpIncreasedNbFile and tmpIncreasedTotalSize");
 
   $self->info("In checkFileQuota $user: Allowed");
-  return (1,undef);
+  return (1, undef, ($size+$totalSize+$tmpIncreasedTotalSize)/$maxTotalSize, ($nbFiles+$tmpIncreasedNbFiles)/$maxNbFiles);
 }
 
 
