@@ -809,7 +809,10 @@ sub existsEntry {
   my $self     = shift;
   my $lfn      = shift;
   my $permFile = shift;
-  $DEBUG and $self->debug( 1, "Checking if $lfn exists in the catalogue" );
+  while ($permFile =~ /^-/){
+    $permFile=shift;
+  }
+  $DEBUG and $self->debug( 1, "Checking if $lfn exists in the catalogue"); 
   if ( !$permFile ) {
     $self->selectDatabase($lfn) or return;
     return $self->{DATABASE}->existsLFN($lfn);
