@@ -55,6 +55,10 @@ InputFile={\"LF:$dir/jdl/Input.jdl\",\"PF:file://$hostname$inputpfn\"};
   grep (m{Getting .*/bin/}, @log) or
    print "We didn't download any executable!!!\n" and exit(-2);
 
-  my ($newfile)=$cat->execute("get", "$procDir/test.94.inputfile.$$") or print "Error getting the file'$procDir/test.94.inputfile.$$' from the catalogue\n" and exit(-2);
+  my ($output) = $cat->execute("get","$procDir/job-output/stdout") or exit(-2);
+  open (OUT, "<$output");
+  my @output = <OUT>;
+  close OUT;
+  grep(/test.94.inputfile.$$/,@output) or exit(-2);
   ok(1);
 }
