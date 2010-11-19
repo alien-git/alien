@@ -1235,18 +1235,20 @@ sub _getInputFile {
   my $pfn=shift;
 
   $self->putJobLog("trace","Downloading input file: $lfnName");
-  $self->info( "Getting $lfnName");
 
   my $options="-silent";
+  if($lfnName =~ /###/){
+    (my $tt,$lfnName,my @tmp) = split(/###/,$lfnName);
+  }
+  
+  $self->info( "Getting inputfile $lfnName going to $pfn");
+  
   for (my $i=0;$i<2;$i++) {
-    $catalog->execute("get", "-l", $lfnName,$pfn, $options ) and return 1;
-
+    $catalog->execute("get",$lfnName,"$pfn", $options ) and return 1;
     $options="";
     $self->putJobLog("trace","Error downloading input file: $lfnName (trying again). Message: ". $self->{LOGGER}->error_msg());
-
   }
   $self->putJobLog("error","Could not download the input file: $lfnName (into $pfn). Message: ". $self->{LOGGER}->error_msg());
-
 
   return;
 }
@@ -1301,15 +1303,13 @@ sub getFiles {
 sub getListInputFiles {
   my $self=shift;
 
-  
   my $dir = AliEn::Util::getProcDir($self->{JOB_USER}, undef, $self->{QUEUEID}) . "/";
 
   my @files=({cat=>$self->{COMMAND}, real=>"$self->{WORKDIR}/command"});
   if ($self->{VALIDATIONSCRIPT}) {
     my $validation=$self->{VALIDATIONSCRIPT};
     $validation=~ s{^.*/([^/]*)$}{$self->{WORKDIR}/$1};
-    push @files, {cat=>$self->{VALIDATIONSCRIPT}, 
-		  real=>$validation};
+    push @files, {cat=>$self->{VALIDATIONSCRIPT},real=>$validation};
   }else {
     $self->info("There is no validation script");
   }
@@ -1322,12 +1322,10 @@ sub getListInputFiles {
     if ($proc =~ /^($self->{WORKDIR}\/.*\/)[^\/]*$/ ) {
       $self->info("Checking if $1 exists");
       if (! -d $1) {
-	mkdir $1 or print "Error making the directory $1 ($!)\n";
+        mkdir $1 or print "Error making the directory $1 ($!)\n";
       }
     }
-
   }
- 
   return @files
 }
 

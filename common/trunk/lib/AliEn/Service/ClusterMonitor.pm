@@ -935,7 +935,7 @@ sub putFILE {
 
     if (-f "$fileName"){
       $self->info("Trying to overwrite the file $fileName");
-      return (-1, "The file $fileName already exists");
+      #return (-1, "The file $fileName already exists");
     }
 
 
