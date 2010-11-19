@@ -465,15 +465,17 @@ sub addPFNtoINPUTBOX {
   $success or return;
   my $data= { pfn=>"", size=>0 };
   if($env[0] =~ m{turl\=([^&]+)}) {
-    $self->info("\$1 = ".$1);
     $data->{pfn} = $1;
   }
   if($env[0] =~ m/size\=([\d]+)/) {
     $data->{size}= $1;
   }
-  $self->info( "Register done and $data->{pfn} and $data->{size}" );
+  if($env[0] =~ m/guid\=([^&]+)/) {
+    $data->{guid}= $1;
+  }
+  $self->info( "Register done and $data->{pfn} and $data->{size} with $data->{guid}" );
   ($data->{pfn} and $data->{size}) or return;
-  $self->{INPUTBOX}->{$name} = "$data->{pfn}###$data->{size}###$name###$self->{CONFIG}->{SE_FULLNAME}";
+  $self->{INPUTBOX}->{$name} = "$data->{pfn}###$data->{guid}###$data->{size}###$name###$self->{CONFIG}->{SE_FULLNAME}";
 }
 sub addLFNtoINPUTBOX{
   my $self=shift;
@@ -766,7 +768,7 @@ sub submitCommand {
     $self->{LOGGER}->error("CE","=====================================================");
     $self->{LOGGER}->error("CE","Incorrect JDL input\n $content");
     return;
-    }
+  }
   my $jdl=$job_ca->asJDL;
   $DEBUG and $self->debug(1, "Modifying the job description" );
   if ( !$self->modifyJobCA($job_ca) ) {
@@ -780,7 +782,7 @@ sub submitCommand {
   my @filesToDownload;
   if ($self->{INPUTBOX}){
     my $l = $self->{INPUTBOX};
-    
+
     my @list =sort keys %$l;
     my @list2=sort values %$l;
     $self->info( "Input Box: {@list}" );
@@ -790,26 +792,23 @@ sub submitCommand {
       push @filesToDownload, "\"${entry}->$entry2\"";
     }
   }
-
-
+  (@filesToDownload) 
+    and $job_ca->set_expression("InputDownload", "{". join(",", @filesToDownload)."}");
+  
   if ($noption){
     $self->info("Instead of running the job, let's execute it ourselves");
-    (@filesToDownload) and 
-    $job_ca->set_expression("InputDownload", "{". join(",", @filesToDownload)."}");
+    #(@filesToDownload) and 
+    #$job_ca->set_expression("InputDownload", "{". join(",", @filesToDownload)."}");
 
 
     my $agent=AliEn::Service::JobAgent::Local->new({CA=>$job_ca}) or return;
 
     $agent->CreateDirs({remove=>1}) or 
-      $self->info("Error creating the directories for the execution of the job") 
-	and return;
+    $self->info("Error creating the directories for the execution of the job") 
+      and return;
 
     $agent->checkJobJDL() or 
-      $self->info("Error checking the jdl at the startup of the jobagent") and return;
-
-
-
-
+    $self->info("Error checking the jdl at the startup of the jobagent") and return;
 
     $self->info("Ready to run the agent!!!");
     my $d=$agent->executeCommand();
@@ -817,6 +816,7 @@ sub submitCommand {
     
     return 1;
   }
+  
   my $done =$self->{SOAP}->CallSOAP("Manager/Job", 'enterCommand',
 				 "$user\@$self->{HOST}", $job_ca->asJDL(), $self->{INPUTBOX} );
   if (! $done) {
