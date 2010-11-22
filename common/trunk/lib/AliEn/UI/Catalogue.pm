@@ -89,6 +89,7 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
     'findEx'   => ['$self->{CATALOG}->findEx', 0],
     'linkfind' => ['$self->{CATALOG}->f_linkfind', 0],
     'cp'       => ['$self->f_cp', 16+64],
+    'cpMetaData' => ['self->{CATALOG}->getCPMetadata',0],
     'ln'       => ['$self->{CATALOG}->f_ln', 16+64],
     'tree'     => ['$self->{CATALOG}->f_tree', 0],
     'zoom'     => ['$self->{CATALOG}->f_zoom', 0],
@@ -1306,7 +1307,7 @@ sub f_cp {
     if($opt->{'m'})
     {
       my $todoMetadata = {};
-      $self->{CATALOG}->getCPMetadata($sourceFile,$self->f_basename($target),$targetFile,$todoMetadata);
+      $self->{CATALOG}->getCPMetadata($sourceFile,$self->{CATALOG}->f_basename($target),$targetFile,$todoMetadata);
     }
   }
   return @returnvals;  
