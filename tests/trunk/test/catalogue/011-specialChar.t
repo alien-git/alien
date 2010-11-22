@@ -22,7 +22,7 @@ foreach my $file (@files) {
   print "Trying $file\n";
 #  my @f=$cat->{CATALOG}->ExpandWildcards("specialChar/$_");
 #  print "AFTER EXPANDING @f\n";
-  $cat->execute("add", "-r", "specialChar/$file", "file://$config->{HOST}//d", 22,"aeedf") or exit(-2);
+  $cat->execute("add", "-r", "specialChar/$file", "file://$config->{HOST}:8092//d", 22,"aeedf") or exit(-2);
 
 }
 print "TENGO @files\n";

@@ -47,7 +47,7 @@ BEGIN { plan tests => 1 }
 		      "savedir", "$config->{LOG_DIR}/SE2/DATA",
 		      "port", 7093,
 		      "certsubject",$subject,
-                      "ioDaemons","file:host=$config->{HOST},port=7093",
+                      "ioDaemons","file:host=$config->{HOST}:port=7093",
 		      'ftdprotocol','cp',
                       'QoS', 'disk',
 		     ]) or exit(-2);
@@ -57,7 +57,7 @@ BEGIN { plan tests => 1 }
 		      "host", $config->{HOST},
 		      "mss", "File",
 		      "savedir", "$config->{LOG_DIR}/SE3/DATA",
-                      "ioDaemons","file:host=$config->{HOST},port=7094",
+                      "ioDaemons","file:host=$config->{HOST}:port=7094",
 		      "port", 7094,
 		      "certsubject",$subject,
 		      'ftdprotocol','cp',
@@ -73,6 +73,7 @@ BEGIN { plan tests => 1 }
   my $done=0;
   my $ui=AliEn::UI::Catalogue->new({role=>"admin"});
   if ($ui) {
+    $ui->execute("resyncLDAP") and $done=1;
     $ui->execute("resyncLDAP") and $done=1;
     $ui->execute("refreshSERankCache") and $done=1;
     $ui->close();

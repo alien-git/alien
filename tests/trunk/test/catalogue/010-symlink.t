@@ -33,26 +33,3 @@ $cat->execute("get", "-l", "existantFile") or print "I DIDN't GOT THE FILE!!! :(
 print "ok";
 
 
-
-
-
-my $hostName=Net::Domain::hostname();
-my $portNumber= $ENV{ALIEN_MYSQL_PORT} ||"3307";
-my $mysqlPasswd="pass";
-
-open (MYSQL, "| mysql -h $hostName -P $portNumber -u admin --password='$mysqlPasswd'")
-    or print "Error connecting to mysql in  $hostName -P $portNumber\n" and exit(-2);
-
-print "\n\nselect  from from alien_system.SE...";
-print MYSQL "select * from alien_system.SE;\n";
-print "\n\nselect  from from alien_system.SE_VOLUMES...";
-print MYSQL "select * from alien_system.SE_VOLUMES;\n";
-print "\n\nselect  from from alien_cat2.SE...";
-print MYSQL "select * from alien_cat2.SE;\n";
-
-close MYSQL or print "Error closing connection to mysql in  $hostName -P $portNumber\n" and exit(-2);
-
-exit(-2);
-
-
-

@@ -27,12 +27,12 @@ BEGIN { plan tests => 1 }
   print "ok\n";
   addLdapEntry($key, ["objectClass",["AliEnSE", "AliEnMSS", "AliEnSOAPServer"],
 		      "name", "exclusiveSE",
-		      "host", $config->{HOST},
+		      "host", "$config->{HOST}",
 		      "mss", "File",
 		      "savedir", "$config->{LOG_DIR}/exclSE/DATA",
-		      "port", 7097,
+		      "port", "7097",
 		      "certsubject",$subject,
-                      "ioDaemons","file:host=$config->{HOST},port=7097",
+                      "ioDaemons","file:host=$config->{HOST}:port=7097",
 		      'ftdprotocol','cp',
                       'QoS', 'vip',
 		     ]) or exit(-2);
@@ -40,6 +40,7 @@ BEGIN { plan tests => 1 }
   my $done=0;
   my $ui=AliEn::UI::Catalogue->new({role=>"admin"});
   if ($ui) {
+    $ui->execute("resyncLDAP") and $done=1;
     $ui->execute("resyncLDAP") and $done=1;
     $ui->close();
   }
@@ -84,6 +85,7 @@ BEGIN { plan tests => 1 }
 		      "savedir", "$config->{LOG_DIR}/exclSE/DATA",
 		      "port", 7097,
 		      "certsubject",$subject,
+                      "ioDaemons","file:host=$config->{HOST}:port=7097",
 		      'ftdprotocol','cp',
                       'QoS', 'vip',
                       'seExclusiveWrite', 'NOT_U',
@@ -93,6 +95,7 @@ BEGIN { plan tests => 1 }
    $done=0;
   $ui=AliEn::UI::Catalogue->new({role=>"admin"});
   if ($ui) {
+    $ui->execute("resyncLDAP") and $done=1;
     $ui->execute("resyncLDAP") and $done=1;
     $ui->close();
   }

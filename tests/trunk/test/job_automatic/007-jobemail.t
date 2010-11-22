@@ -20,7 +20,7 @@ BEGIN { plan tests => 1 }
   addFile($cat, "jdl/email.jdl", "Executable=\"date\";\nEmail=\"root\@localhost\";\n") or exit(-2);
 
   $cat->execute("whereis", "-silent", "bin/dateWrong") or 
-    $cat->execute("add", "-r", "bin/dateWrong", "file://$cat->{CONFIG}->{HOST}//path/to/not/existant/file",22,"abccdef") 
+    $cat->execute("add", "-r", "bin/dateWrong", "file://$cat->{CONFIG}->{HOST}:8092//path/to/not/existant/file",22,"abccdef") 
       or exit(-2);
   addFile($cat, "jdl/emailWrong.jdl", "Executable=\"dateWrong\";\nEmail=\"root\@localhost\";\n") or exit(-2);
 

@@ -39,7 +39,7 @@ ls -al
 date") or exit(-2);
 
   addFile($cat, "jdl/InputPFN.jdl","Executable=\"CheckPFN.sh\";
-InputFile={\"LF:$dir/jdl/Input.jdl\",\"PF:file://$hostname$inputpfn\"};
+InputFile={\"LF:$dir/jdl/Input.jdl\",\"PF:file://$hostname:8092/$inputpfn\"};
 ","r") or exit(-2);
   
   my $procDir=executeJDLFile($cat, "jdl/InputPFN.jdl");
