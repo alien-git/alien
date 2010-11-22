@@ -19,7 +19,14 @@ BEGIN { plan tests => 1 }
   print "Executing all the jobs waiting in the system";
   my $admincat=AliEn::UI::Catalogue::LCM::Computer->new({"user","$ENV{'USER'}","role","admin"});
   $admincat or exit (-1);
-  my $i=10;
+
+  my (@jobs)=$cat->execute("top", "-all")  or exit(-2);
+  my $waitingJobs = 0;
+  foreach my $job (@jobs) {
+     defined($job) and $job->{status} =~ /^WAITING$/ and $waitingJobs++;
+  }
+  my $i=$waitingJobs;
+
   while($i>0){
     $admincat->execute("queue", "open $cat->{CONFIG}->{ORG_NAME}::CERN::testCE") 
       or print "Error opening the queue\n" and exit(-2);
@@ -39,7 +46,7 @@ BEGIN { plan tests => 1 }
   my $notok=0;
   print "\n";
   print "Getting top -all information from the Catalogue:\n";
-  my (@jobs)=$cat->execute("top", "-all")  or exit(-2);
+  (@jobs)=$cat->execute("top", "-all")  or exit(-2);
   foreach my $job (@jobs) {
         ($job->{status} =~ /^(INSERTED)|(WAITING)|(ASSIGNED)|(STARTED)|(RUNNING)|(SAVING)|(SAVED)$/)
           and print "ATTENTION TO JOB: $job->{queueId} was just now in status: $job->{status}\n"
