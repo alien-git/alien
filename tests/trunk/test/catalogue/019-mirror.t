@@ -30,7 +30,7 @@ It is a nice day
 It is a nice day
 ") or exit(-2);
  
-  $cat->execute("addMirror", "mirror1.txt", $cat->{CONFIG}->{SE_FULLNAME}, "file://$cat->{CONFIG}->{HOST}:7093/$fileName") or exit(-2);
+  $cat->execute("addMirror", "mirror1.txt", $cat->{CONFIG}->{SE_FULLNAME}, "file://localhost/$fileName") or exit(-2);
 
   print "Mirroring a file works!!!!\n\n";
   my @pfns=$cat->execute("whereis", "mirror1.txt") or exit(-2);
@@ -45,7 +45,7 @@ It is not a nice day
   print "This mirror is not supposed to work, since the file has a different md5\n";
 
   sleep(5);
-  $cat->execute("addMirror", "mirror2.txt", $cat->{CONFIG}->{SE_FULLNAME}, "file://$cat->{CONFIG}->{HOST}:7093/$fileName", "-c") and exit(-2);
+  $cat->execute("addMirror", "mirror2.txt", $cat->{CONFIG}->{SE_FULLNAME}, "file://localhost/$fileName", "-c") and exit(-2);
 
   print "YUHUU!!\n";
 

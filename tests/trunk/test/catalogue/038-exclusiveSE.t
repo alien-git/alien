@@ -14,10 +14,14 @@ BEGIN { plan tests => 1 }
   includeTest("user_basic/021-se") or exit(-2);
 
 
+  my $file="exclusiveUserFlagTestOnSE";
+
   my $config=new AliEn::Config;
   $config or print "Error getting the configuration!!\n" and exit(-2);
 
-  my $key="name=exclusiveSE,ou=SE,ou=Services,$config->{FULLLDAPDN}";
+#  my $key="name=exclusiveSE,ou=SE,ou=Services,$config->{FULLLDAPDN}";
+   my $key="name=otherSE,name=testSE,ou=SE,ou=Services,$config->{FULLLDAPDN}";
+
 
   print"ok\nGetting the subject of the certificate...";
 
@@ -25,17 +29,25 @@ BEGIN { plan tests => 1 }
   $c->load("$ENV{ALIEN_HOME}/globus/usercert.pem");
   my $subject=$c->getSubject();
   print "ok\n";
-  addLdapEntry($key, ["objectClass",["AliEnSE", "AliEnMSS", "AliEnSOAPServer"],
-		      "name", "exclusiveSE",
-		      "host", "$config->{HOST}",
-		      "mss", "File",
-		      "savedir", "$config->{LOG_DIR}/exclSE/DATA",
-		      "port", "7097",
-		      "certsubject",$subject,
-                      "ioDaemons","file:host=$config->{HOST}:port=7097",
-		      'ftdprotocol','cp',
-                      'QoS', 'vip',
-		     ]) or exit(-2);
+#  addLdapEntry($key, ["objectClass",["AliEnSE", "AliEnMSS", "AliEnSOAPServer"],
+#		      "name", "exclusiveSE",
+#		      "host", "$config->{HOST}",
+#		      "mss", "File",
+#		      "savedir", "$config->{LOG_DIR}/exclSE/DATA",
+#		      "port", "7097",
+#		      "certsubject",$subject,
+#                      "ioDaemons","file:host=$config->{HOST}:port=7097",
+#		      'ftdprotocol','cp',
+#                      'QoS', 'vip',
+#		     ]) or exit(-2);
+
+  addLdapEntry($key, ["objectClass", ["AliEnMSS"],
+                      "name", "otherSE",
+                      "mss", "File",
+                      "Qos", "tape",
+                      "ioDaemons","file:host=localhost:port=8062",
+                      "savedir", "$config->{LOG_DIR}/OTHER_SE_DATA",
+                     ]) or exit(-2);
 
   my $done=0;
   my $ui=AliEn::UI::Catalogue->new({role=>"admin"});
@@ -60,7 +72,10 @@ BEGIN { plan tests => 1 }
   my $filecat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser"});
   $filecat or exit (-1);
 
-  my $file="exclusiveUserFlagTestOnSE";
+  $filecat->execute("rm", "$file");
+  $filecat->execute("rm", $file."_copy");
+
+
   my $name="/tmp/testexclUser.$$";
   open (FILE, ">$name")
     or print "Error opening the file $name\n" and return;
@@ -69,7 +84,9 @@ BEGIN { plan tests => 1 }
 
    my $vo=Net::Domain::hostname();
    chomp $vo;
-   $done=$filecat->execute("add", "$file", $name , "${vo}::cern::exclusiveSE");
+#  $done=$filecat->execute("add", "$file", $name , "${vo}::cern::exclusiveSE");
+   $done=$filecat->execute("add", "$file", $name , "${vo}::cern::otherSE");
+
 
   $filecat->execute("whereis", "-i", "-silent", $file) 
          or print "ERROR: We could not add a file for the test \n" and exit(-2);
@@ -78,19 +95,32 @@ BEGIN { plan tests => 1 }
 
   print "\nAll right, adding a test file worked, now let's make the SE exclusive.\n\n";
 
-  addLdapEntry($key, ["objectClass",["AliEnSE", "AliEnMSS", "AliEnSOAPServer"],
-		      "name", "exclusiveSE",
-		      "host", $config->{HOST},
-		      "mss", "File",
-		      "savedir", "$config->{LOG_DIR}/exclSE/DATA",
-		      "port", 7097,
-		      "certsubject",$subject,
-                      "ioDaemons","file:host=$config->{HOST}:port=7097",
-		      'ftdprotocol','cp',
-                      'QoS', 'vip',
+#  addLdapEntry($key, ["objectClass",["AliEnSE", "AliEnMSS", "AliEnSOAPServer"],
+#		      "name", "exclusiveSE",
+#		      "host", $config->{HOST},
+#		      "mss", "File",
+#		      "savedir", "$config->{LOG_DIR}/exclSE/DATA",
+#		      "port", 7097,
+#		      "certsubject",$subject,
+#                      "ioDaemons","file:host=$config->{HOST}:port=7097",
+#		      'ftdprotocol','cp',
+#                      'QoS', 'vip',
+#                      'seExclusiveWrite', 'NOT_U',
+#                      'seExclusiveRead', 'NOT_U'
+#		     ]) or exit(-2);
+
+  addLdapEntry($key, ["objectClass", ["AliEnMSS"],
+                      "name", "otherSE",
+                      "mss", "File",
+                      "Qos", "tape",
+                      "ioDaemons","file:host=localhost:port=8062",
+                      "savedir", "$config->{LOG_DIR}/OTHER_SE_DATA",
                       'seExclusiveWrite', 'NOT_U',
                       'seExclusiveRead', 'NOT_U'
-		     ]) or exit(-2);
+
+                     ]) or exit(-2);
+
+
 
    $done=0;
   $ui=AliEn::UI::Catalogue->new({role=>"admin"});
@@ -118,11 +148,15 @@ BEGIN { plan tests => 1 }
   print "Perfect it didn't work. No try to write a new file on the SE...\n";
 
   $file .= "_copy";
-  $filecat->execute("add", "$file", $name , "${vo}::cern::exclusiveSE") and print "ERROR: We are still able to write on the SE.\n" and exit(-2);
+#  $filecat->execute("add", "$file", $name , "${vo}::cern::exclusiveSE") and print "ERROR: We are still able to write on the SE.\n" and exit(-2);
+  $filecat->execute("add", "$file", $name , "${vo}::cern::otherSE") and print "ERROR: We are still able to write on the SE.\n" and exit(-2);
+
 
   $filecat->close();
 
-  print "Perfect, we could neither read nor write on ${vo}::cern::exclusiveSE after making it exclusive.\n";
+#  print "Perfect, we could neither read nor write on ${vo}::cern::exclusiveSE after making it exclusive.\n";
+  print "Perfect, we could neither read nor write on ${vo}::cern::otherSE after making it exclusive.\n";
+
 
 
 

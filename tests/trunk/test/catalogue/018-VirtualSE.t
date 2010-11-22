@@ -28,7 +28,7 @@ use Net::Domain qw(hostname hostfqdn hostdomain);
 		      "name", "otherSE",
 		      "mss", "File", 
 		      "Qos", "tape", 
-                      "ioDaemons","file:host=$config->{HOST}:port=8062",
+                      "ioDaemons","file:host=localhost:port=8062",
 		      "savedir", "$config->{LOG_DIR}/OTHER_SE_DATA",
 		     ]) or exit(-2);
 
@@ -75,7 +75,7 @@ use Net::Domain qw(hostname hostfqdn hostdomain);
   system("cp $localfile $seVirtual3");
 #  system("cp $localfile $seVirtual4");
 
-  $error or $ui->execute("add", "-r", "seVirtual3", "file://$config->{HOST}:8062//$seVirtual3",1025, "abc") or $error=1;
+  $error or $ui->execute("add", "-r", "seVirtual3", "file://localhost//$seVirtual3",1025, "abc") or $error=1;
 
   unlink $localfile;
   ($error) and exit(-2);
