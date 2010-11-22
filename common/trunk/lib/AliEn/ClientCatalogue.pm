@@ -103,7 +103,8 @@ sub AUTOLOAD {
     cleanupTagValue=>"cleanupTagValue", showTags=>"showTags", pwd=>"pwd", refreshSERankCache=>"refreshSERankCache",
     resyncLDAP=>"resyncLDAP", addFileToCollection=>"addFileToCollection",listFilesFromCollection=>"listFilesFromCollection",
     removeFileFromCollection=>"removeFileFromCollection",createCollection=>"createCollection",
-    updateCollection=>"updateCollection", df=>"df", existsEntry=>"existsEntry", checkFileQuota=>"checkFileQuota",
+    updateCollection=>"updateCollection", df=>"df", existsEntry=>"existsEntry", checkFileQuota=>"checkFileQuota", 
+    addMirror=>"addMirror", cpMetaData=>"cpMetaData", getCPMetadata=>"cpMetaData", 
   };
   if ($ops->{$name}){
     return shift->callAuthen($ops->{$name},@_);
