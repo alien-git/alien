@@ -486,7 +486,7 @@ sub getCPMetadata{
   my $todoMetadata=shift;
 
   $targetDir=~ s{/?$}{/};
-  $self->info("We are supposed to copy also the metadata (of $source)");
+  $self->info("We are supposed to copy also the metadata of $source to $targetDir");
   my $sourceDir=$source;
   $sourceDir=~ s{/[^/]*$}{/};
   my $tags=$self->f_showTags("allr", $sourceDir);
@@ -494,36 +494,42 @@ sub getCPMetadata{
   foreach my $tag (@$tags){
     #making sure that the destination has all the tags#
     $self->debug(1, "We should add the tag $tag->{tagName}");
-    $self->f_addTag($targetDir, $tag->{tagName}, $tag->{tagName}, $tag->{path}) or $self->info("Error defining the metadata $tag->{tagName}") and return;
-    my $tableName= $self->{DATABASE}->getTagTableName($targetDir, $tag->{tagName}) or $self->info("Error getting the name of the table") and return;
+    $self->info("Adding tag $tag->{tagName}....");
+    $self->f_addTag($targetDir, $tag->{tagName}, $tag->{tagName}, $tag->{path}) 
+      or $self->info("Error defining the metadata $tag->{tagName}") 
+      and return;
+    my $tableName= $self->{DATABASE}->getTagTableName($targetDir, $tag->{tagName});
+    $tableName  or $self->info("Error getting the name of the table") 
+      and next;
     #let's put the entries 
     my @list=();
     $entries->{$tag->{tagName}} and push @list, @{$entries->{$tag->{tagName}}};
     $self->info( "Getting the metadata for $sourceDir and $tag->{tagName}");
     my ($columns, $info)= $self->f_showTagValue("",$sourceDir, $tag->{tagName});
     $self->info( "Getting the extra metadata for $sourceDir and $tag->{tagName}");
-
     my ($columns2, $info2)= $self->f_showTagValue("r",$sourceDir, $tag->{tagName});
 
+    $self->info("Processing metadata values for $tag");
     foreach my $entry (@$info, @$info2){
-      my $toInsert={file=>"$targetDir$targetName"};
+      my $toInsert={file=>"$targetName"};
       if (! $targetName){
-
-	$toInsert->{file}=$entry->{file};
-	if ($toInsert->{file} =~ s/^$source//) {
-	  $toInsert->{file}="$targetDir$toInsert->{file}";
-	} else {
-	  $self->info("The file doesn't start with $source");
-	  $toInsert->{file}=$targetDir;
-	}
-	$self->info( "Since we are copying a directory, the info is from $toInsert->{file} (from $entry->{file}, $source and $targetDir");
-	my $tempDir=$toInsert->{file};
-	$tempDir =~ s/[^\/]*$//;
-	$self->f_addTag($tempDir, $tag->{tagName}, $tag->{tagName}, $tag->{path}) or $self->info("Error creating the tag $tag->{tagName} in $tempDir") and return;
+        $toInsert->{file}=$entry->{file};
+        if ($toInsert->{file} =~ s/^$source//) {
+          $toInsert->{file}="$targetDir$toInsert->{file}";
+        } else {
+          $self->info("The file doesn't start with $source");
+          $toInsert->{file}=$targetDir;
+        }
+        $self->info( "Since we are copying a directory, the info is from $toInsert->{file} (from $entry->{file}, $source and $targetDir");
+        my $tempDir=$toInsert->{file};
+        $tempDir =~ s/[^\/]*$//;
+        $self->f_addTag($tempDir, $tag->{tagName}, $tag->{tagName}, $tag->{path}) 
+          or $self->info("Error creating the tag $tag->{tagName} in $tempDir") 
+          and return;
       }
       foreach my $key (keys %$entry){
-	$key =~ /^(entryId)|(file)$/ and next;
-	$toInsert->{$key}=$entry->{$key};
+        $key =~ /^(entryId)|(file)$/ and next;
+        $toInsert->{$key}=$entry->{$key};
       }
       push @list, $toInsert;
     }
@@ -531,11 +537,26 @@ sub getCPMetadata{
     $entries->{$tableName}=\@list;
   }
 
+  $self->info("Adding metadata values for $targetName....");
   foreach my $key (keys %$entries){
     my @list=();
     $todoMetadata->{$key} and push @list, @{$todoMetadata->{$key}};
     push @list, @{$entries->{$key}};
     $todoMetadata->{$key}=\@list;
+  }
+
+  foreach my $key (keys %$entries) {
+    #Insert data into table
+    my $tagName = $key;
+    $tagName =~ s/^TadminV//;
+    my @data = ();
+    foreach my $val (keys %{${$entries->{$key}}[0]}) {
+      $val =~ /^(offset)|(file)/ and next;
+      push @data, "$val='${$entries->{$key}}[0]->{$val}'";
+    }
+    $self->info("@data");
+    $self->f_addTagValue($targetName,$tagName,@data) 
+      or $self->{LOGGER}->error("Catalogue::File","Could not add tag value @data for tag $tagName on tag $targetName");
   }
 
   return $entries;

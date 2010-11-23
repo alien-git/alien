@@ -988,7 +988,7 @@ sub mirror {
   }else{
     $lfn = $self->{CATALOG}->f_complete_path($lfn);
 
-    my $info=$self->{CATALOG}->checkPermissions( 'w', $lfn, 0, 1 )  or
+    my ($info)=$self->{CATALOG}->checkPermissions( 'w', $lfn, 0, 1 )  or
       $self->info("You don't have permission to do that") and return;
     $realLfn=$info->{lfn};
     $guid=$info->{guid};

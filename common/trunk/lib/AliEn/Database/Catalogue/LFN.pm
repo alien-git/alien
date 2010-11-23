@@ -1604,8 +1604,9 @@ sub getTagTableName {
   my $options=shift ||{};
   my $query="path=?";
   $options->{parents} and $query="? like concat(path, '%') order by path desc limit 1";
-  $self->queryValue("SELECT tableName from TAG0 where tagName=? and $query",undef, 
-		    {bind_values=>[$tag, $path]});
+  my $tableName = $self->queryValue("SELECT tableName from TAG0 where tagName=? and $query",undef, 
+    {bind_values=>[$tag, $path]});
+  return $tableName;
 }
 
 sub deleteTagTable {
