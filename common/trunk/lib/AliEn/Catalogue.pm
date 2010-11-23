@@ -1737,6 +1737,9 @@ sub f_find {
   if ( defined $options{x} ) {
     @result =
       $self->createFindXML( $file, $cmdline, \%options, \@result, \@filegroup );
+    foreach my $res (@result){
+      $self->info($res->{xml},undef,0);
+    }
   } else {
     if ( !$self->{SILENT} ) {
       $quiet or (@result) or $verbose and $self->info("No files found!!",undef,0);
@@ -1827,7 +1830,7 @@ sub createFindXML {
   my $xml = $dataset->writexml();
   $self->{SILENT} or print $xml;
   $result[0]->{xml} = $xml;
-  return 1;
+  return @result;
 }
 
 sub createFindCollection {
