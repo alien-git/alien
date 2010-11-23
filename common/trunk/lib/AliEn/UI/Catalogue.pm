@@ -89,7 +89,6 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
     'findEx'   => ['$self->{CATALOG}->findEx', 0],
     'linkfind' => ['$self->{CATALOG}->f_linkfind', 0],
     'cp'       => ['$self->f_cp', 16+64],
-    'cpMetaData' => ['self->{CATALOG}->getCPMetadata',0],
     'ln'       => ['$self->{CATALOG}->f_ln', 16+64],
     'tree'     => ['$self->{CATALOG}->f_tree', 0],
     'zoom'     => ['$self->{CATALOG}->f_zoom', 0],
@@ -151,6 +150,7 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
     'removeTagValue' => ['$self->{CATALOG}->f_removeTagValue', 0],
 	  'showTagDescription'=> ['$self->{CATALOG}->f_showTagDescription', 67],
     'cleanupTagValue'=> ['$self->{CATALOG}->f_cleanupTagValue',0],
+    'cpMetaData' => ['$self->{CATALOG}->getCPMetadata',0],
 
     #File Interface
     'register'     => ['$self->f_registerFile', 0],
@@ -1297,6 +1297,7 @@ sub f_cp {
     } else {
       $targetFile = $target;
     }
+    $self->info("Copying $sourceFile -> $targetFile");
     my @pfns = $self->{CATALOG}->f_whereis("-sz",$sourceFile);
     foreach my $pfn (@pfns){
       my $t = $self->execute("add",$targetFile,$pfn->{pfn});
@@ -1307,7 +1308,8 @@ sub f_cp {
     if($opt->{'m'})
     {
       my $todoMetadata = {};
-      $self->{CATALOG}->getCPMetadata($sourceFile,$self->{CATALOG}->f_basename($target),$targetFile,$todoMetadata);
+      ($todoMetadata) = $self->{CATALOG}->getCPMetadata($sourceFile,$target,$targetFile,$todoMetadata);
+      $self->{LOGGER}->debug(1,"Metadata copied ---> ".Dumper($todoMetadata));
     }
   }
   return @returnvals;  

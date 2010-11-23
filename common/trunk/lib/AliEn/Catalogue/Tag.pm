@@ -11,35 +11,32 @@ use strict;
 
 sub f_addTag {
   my $self      = shift;
-
   my $directory = shift;
   my $tagName   = shift;
   my $tagSQL    = shift;
-  my $sourceTable   =(shift or "");
+  my $sourceTable   =(shift || "");
   my $options   =(shift || "");
   ($tagSQL)
-    or print STDERR
-      "Error: not enough arguments in addTag\nUsage: addTag <directory> <tag name> <tag description>\n"
+    or $self->{LOGGER}->error("Catalogue::Tag",
+      "Error: not enough arguments in addTag\nUsage: addTag <directory> <tag name> <tag description>\n")
 	and return;
-
+ 
   $directory = $self->f_complete_path($directory);
 
   $directory =~ s/\/?$/\//;
   ( $self->checkPermissions( 'w', $directory ) ) or return;
   $self->isDirectory($directory) or
-    print STDERR "$directory is not a direcotry!!\n" and return;
-
+    $self->{LOGGER}->error("Catalogue::Tag","$directory is not a direcotry!!\n") and return;
 
   my $parents={all=>1, user=>$self->{CONFIG}->{ROLE}};
   
   ($options =~ /d/) and delete $parents->{all};
   
   $self->existsTag($directory, $tagName, "silent", $parents)
-    and  $self->info("Tag already exists") and return 1;
+    and $self->info("Tag $tagName already exists for $directory") and return 1;
 
   my $create = 1;
   my $fileLength = 255;
-
   $self->debug(1, "Creating only one table for all the metadata");
   my $tableName = "T$self->{DATABASE}->{ROLE}V$tagName";
   if (! $self->{DATABASE}->existsTable($tableName)) {
@@ -47,23 +44,22 @@ sub f_addTag {
     if ($sourceTable){
       $self->info("In fact, we want a table like the one for directory '$sourceTable'");
       $tagSQL=$self->f_showTagDescription("", $sourceTable, $tagName)
-	or $self->info("Error getting the description of the table") and return;
+        or $self->info("Error getting the description of the table") and return;
     }
     $self->selectDatabase($directory);
     my $done = $self->createRemoteTable(
-					$self->{DATABASE}->{LFN_DB}->{HOST},   $self->{DATABASE}->{LFN_DB}->{DB},
-					$self->{DATABASE}->{LFN_DB}->{DRIVER}, $self->{DATABASE}->{LFN_DB}->{USER},
-					$tableName,"(file char($fileLength), offset int, entryId int AUTO_INCREMENT, $tagSQL , KEY (entryId), INDEX (file))"
-				       );
+      $self->{DATABASE}->{LFN_DB}->{HOST},   $self->{DATABASE}->{LFN_DB}->{DB},
+      $self->{DATABASE}->{LFN_DB}->{DRIVER}, $self->{DATABASE}->{LFN_DB}->{USER},
+      $tableName,"(file char($fileLength), offset int, entryId int AUTO_INCREMENT, $tagSQL , KEY (entryId), INDEX (file))"
+    );
 
     $done or return;
   } else {
     $self->info("The table exists");
   }
-
   my $done = $self->{DATABASE}->insertIntoTag0($directory, $tagName, $tableName, $self->{CONFIG}->{ROLE});
   $done or $self->{LOGGER}->error("Tag", "Error inserting the entry!") and return;
-    print "Tag created\n";
+  print "Tag created\n";
 
   return 1;
 }
@@ -184,14 +180,14 @@ sub existsTag {
   my $options   = (shift || {});
 
   ($tag)
-    or print STDERR
-      "Error: not enough arguments in existsTag\nUsage existsTag <dir> <tagName>\n"
-	and return;
+    or $self->{LOGGER}->error("Catalogue::Tag",
+      "Error: not enough arguments in existsTag\nUsage existsTag <dir> <tagName>\n")
+      and return;
 
   $self->debug(1, "Checking if tag $tag exists in $directory");
 
   unless ($self->isDirectory($directory)) {
-    $silent or print STDERR "Error: directory $directory does not exist!\n";
+    $silent or $self->{LOGGER}->error("Catalogue::Tag","Error: directory $directory does not exist!\n");
     return;
   }
  # $self->selectDatabase($directory) or return;
@@ -214,7 +210,7 @@ sub existsTag {
   $self->debug(1, "Got @$rresult");
 
   if (! grep (/^$tag$/, @$rresult)){
-    $silent or print "Tag $tag for $directory does not exist\n";
+    $silent or $self->{LOGGER}->error("Catalogue::Tag","$tag for $directory does not exist\n");
     return;
   }
   return 1;
@@ -273,8 +269,8 @@ sub modifyTagValue {
   my $tag   = shift;
 
   (@_)
-    or print STDERR
-      "Error: not enough arguments in addValueTag\nUsage: addTagValue <file> <tag> <variable>=<value> [<variable>=<value> ...]\n"
+    or $self->{LOGGER}->error("Catalogue::Tag",
+      "Error: not enough arguments in addValueTag\nUsage: addTagValue <file> <tag> <variable>=<value> [<variable>=<value> ...]\n")
 	and return;
   $self->debug(1, "In modifyTagValue, with File=$file, tag=$tag ");
 
@@ -294,10 +290,12 @@ sub modifyTagValue {
   #Here, we should make sure that if the tag is assigned to a directory, the
   #entry finishes with /
   #This is used to speed up the 'find'. 
-  ($self->isDirectory($file)) and $basename.="/";
- ( $self->checkPermissions( 'w', $file ) ) or return;
+  ( $self->isDirectory($file) ) and $basename.="/";
+  ( $self->checkPermissions( 'w', $file ) ) or return;
   my $error = $self->{DATABASE}->insertTagValue($action, $directory, $tag, $basename, $rdata);
-  ($error) or print STDERR "Error inserting the tags\n" and return;
+  ($error) 
+    or $self->{LOGGER}->error("Catalogue::Tag","Error inserting the tags\n") 
+    and return;
 
   return 1;
 }
@@ -312,11 +310,11 @@ Options:
 }
 sub f_showTagValue {
   my $self = shift;
-  my $opts   = shift;
+  my $opts   = shift || "";
   my $path = $self->GetAbsolutePath(shift);
   my $tag = shift;
   my $tagField=shift || "";
-  
+ 
   my $hashtags=();
   ($tag)
     or $self->info("Error: not enough arguments in showTagValue\n". $self->f_showTagValue_HELP()) and return;
@@ -370,7 +368,7 @@ sub f_showTagValue {
   }
 
   my $rcolumns = $self->{DATABASE}->describeTable($tagTableName) 
-    or $self->info("Error getting the description of the metadata") and return;
+    or $self->info("Error getting the description of the metadata for $tagTableName") and return;
 
   my @fields;
   foreach my $rcolumn (@$rcolumns) {

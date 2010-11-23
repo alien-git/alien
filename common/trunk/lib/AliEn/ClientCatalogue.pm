@@ -104,7 +104,7 @@ sub AUTOLOAD {
     resyncLDAP=>"resyncLDAP", addFileToCollection=>"addFileToCollection",listFilesFromCollection=>"listFilesFromCollection",
     removeFileFromCollection=>"removeFileFromCollection",createCollection=>"createCollection",
     updateCollection=>"updateCollection", df=>"df", existsEntry=>"existsEntry", checkFileQuota=>"checkFileQuota", 
-    addMirror=>"addMirror", cpMetaData=>"cpMetaData", getCPMetadata=>"cpMetaData", 
+    addMirror=>"addMirror", cpMetaData=>"cpMetaData", getCPMetadata=>"cpMetaData", showMirror=>"showMirror", 
   };
   if ($ops->{$name}){
     return shift->callAuthen($ops->{$name},@_);
