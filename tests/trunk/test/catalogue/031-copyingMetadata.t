@@ -20,7 +20,7 @@ BEGIN { plan tests => 1 }
   my $source="copyMetadata/source/file1";
   $cat->execute("mkdir", "-p", "copyMetadata/source", "copyMetadata/target", "tags") or exit(-2);
   print"Directory created\n";
-  $cat->execute("touch", $source) or exit(-2);
+  addFile($cat, $source, "test for copying metadata") or exit(-2);
   print "File touched";
   addFile($cat, "tags/AnUserTag","my_value varchar(200)") or exit(-2);
   print "Adding the tag\n";
