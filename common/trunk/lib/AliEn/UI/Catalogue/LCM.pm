@@ -254,6 +254,7 @@ Options:
   -o:
   -g: The file is a guid instead of an lfn
   -s [<se>][,!<se>]* : Retrieve the file from the se <se> and/or don't use the list of !<se>
+  -x Ignore local cached versions of the file and always try to retrieve it from the original storage.
 
 Get can also be used to retrieve collections. In that case, there are some extra options:
   -c: Retrieve all the files with their original lfn name
@@ -265,7 +266,7 @@ sub get {
    my $self = shift;
    my %options=();
    @ARGV=@_;
-   getopts("gonbt:clfs:", \%options) or $self->info("Error parsing the arguments of [get]\n". $self->get_HELP(),1)
+   getopts("gonbt:clfsx:", \%options) or $self->info("Error parsing the arguments of [get]\n". $self->get_HELP(),1)
               and return 0;
    @_=@ARGV;
    my $file      = shift;
@@ -302,7 +303,7 @@ sub get {
    (defined($filehash->{type}) and ($filehash->{type} eq "c")) and  $self->notice("This is in fact a collection!! Let's get all the files")
      and return $self->getCollection($filehash->{guid}, $localFile, \%options);
 
-
+   $options{x} or 
    my $result=$self->{STORAGE}->getLocalCopy($filehash->{guid}, $localFile);
 
    $self->{STORAGE}->checkDiskSpace($filehash->{size}, $localFile) or return;
@@ -980,7 +981,7 @@ sub mirror {
 	my $size;
   if ($opt->{g}){
     $guid=$lfn;
-    my $info=$self->{CATALOG}->{DATABASE}->{GUID_DB}->checkPermission( 'w', $guid )  or
+    my ($info)=$self->{CATALOG}->{DATABASE}->{GUID_DB}->checkPermission( 'w', $guid )  or
       $self->info("You don't have permission to do that") and return;
     $realLfn="";
 		$size=$info->{size};
@@ -1703,7 +1704,8 @@ sub putOnStaticSESelectionListV2{
 
      foreach my $envelope (@envelopes){
        (my $res, $result) = $self->uploadFileAccordingToEnvelope($result, $sourcePFN, $envelope);
-       $res && push @{$result->{usedEnvelopes}}, $envelope->{signedEnvelope}; 
+       $res or next;
+       push @{$result->{usedEnvelopes}}, $envelope->{signedEnvelope}; 
        $self->info("gron: pushed the following envelope to the used ones:  $envelope->{signedEnvelope}");
        $selOutOf = $selOutOf - $success;
      }
