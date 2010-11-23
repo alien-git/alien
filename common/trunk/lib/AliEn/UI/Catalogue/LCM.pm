@@ -904,12 +904,11 @@ Old size: $oldStat[7], new size: $newStat[7]");
     ($oldStat[7] == $newStat[7]) and return 1;
 
   $self->info("File changed, uploading...");
-  my $pfn="file://$self->{CONFIG}->{HOST}$file";
+  my $pfn="file://$self->{CONFIG}->{HOST}/$file";
   $pfn =~ s/\n//gs;
   my $md5=AliEn::MD5->new($file)
     or $self->info("Error calculating the md5") and return;
-
-  return $self->addFile("-md5=$md5", $reallfn, $pfn);
+  return $self->addFile("-v","-md5=$md5", $lfn, $pfn);
 }
 
 

@@ -104,7 +104,7 @@ sub doOperation {
   $tracelog and $self->{LOGGER}->tracelogOn();
   (my $debug,$params) = AliEn::Util::getDebugLevelFromParameters(@$params);
   $debug and $self->{LOGGER}->debugOn($debug);
-#  @_ = @{$params};
+   @_ = @{$params};
 #  $self->info("gron: params for call after cleaning are: @_");
   $self->{LOGGER}->keepAllMessages();
   $self->{UI}->{CATALOG}->{DISPPATH}=$directory;
