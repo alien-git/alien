@@ -143,7 +143,7 @@ BEGIN { plan tests => 1 }
 
   print "Trying to read the file...\n";
 
-  ($fileoutput)=$filecat->execute("get", "$file") and print "ERROR: We were still able to get the file.\n" and exit(-2);
+  ($fileoutput)=$filecat->execute("get", "-x", "$file") and print "ERROR: We were still able to get the file.\n" and exit(-2);
   
   print "Perfect it didn't work. No try to write a new file on the SE...\n";
 

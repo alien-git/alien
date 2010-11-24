@@ -7,6 +7,10 @@ eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
 includeTest("catalogue/003-add") or exit(-2);
 my $cat=AliEn::UI::Catalogue::LCM->new({user=>"newuser"}) or exit(-2);
 
+
+$cat->execute("rm", "editfile.txt");
+
+
  addFile($cat, "editfile.txt","This file is going to be edited with vi
 Will it work??
 ", "r") or exit(-2);
