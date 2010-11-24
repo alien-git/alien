@@ -270,11 +270,13 @@ sub get {
 #              and return 0;
 #   @_=@ARGV;
    @ARGV=@_;
-   Getopt::Long::GetOptions(\%options, ,"g", "o", "n", "b", "t", "c=s", "l=s", "f=s", "s=s", "x=s") or
+   Getopt::Long::GetOptions(\%options, "g", "o", "n", "b", "t", "c=s", "l=s", "f=s", "s=s", "x=s") or
      $self->info("Error parsing the arguments of [get]\n". $self->get_HELP()) and return 0 ;
    @_=@ARGV;
    my $file      = shift;
    my $localFile = shift;
+   defined $options{l} and $file = $options{l};
+   defined $options{f} and $file = $options{f};
    ($file) or print STDERR "Error: not enough arguments in [get]\n". $self->get_HELP() and return;
    my @excludedAndfailedSEs = ();
    my $wishedSE = 0;
