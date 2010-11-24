@@ -265,9 +265,13 @@ Get can also be used to retrieve collections. In that case, there are some extra
 sub get {
    my $self = shift;
    my %options=();
+#   @ARGV=@_;
+#   getopts("gonbt:clfsx:", \%options) or $self->info("Error parsing the arguments of [get]\n". $self->get_HELP(),1)
+#              and return 0;
+#   @_=@ARGV;
    @ARGV=@_;
-   getopts("gonbt:clfsx:", \%options) or $self->info("Error parsing the arguments of [get]\n". $self->get_HELP(),1)
-              and return 0;
+   Getopt::Long::GetOptions(\%options, ,"g", "o", "n", "b", "t", "c=s", "l=s", "f=s", "s=s", "x=s") or
+     $self->info("Error parsing the arguments of [get]\n". $self->get_HELP()) and return 0 ;
    @_=@ARGV;
    my $file      = shift;
    my $localFile = shift;
