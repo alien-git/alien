@@ -245,6 +245,7 @@ sub checkSETable {
 		 seMinSize=>"int default 0",
                  seExclusiveWrite=>"varchar(300)",
                  seExclusiveRead=>"varchar(300)",
+                 seVersion=>"varchar(300)",
 		);
 
   return $self->checkTable("SE", "seNumber", \%columns, 'seNumber', ['UNIQUE INDEX (seName)'], {engine=>"innodb"} ); #or return;

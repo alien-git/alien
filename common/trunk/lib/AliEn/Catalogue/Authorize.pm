@@ -85,10 +85,16 @@ sub initEnvelopeEngine {
   $self->info("Authorize: local public  key          : $ENV{'SEALED_ENVELOPE_LOCAL_PUBLIC_KEY'}");
 
   open(PRIV, $ENV{'SEALED_ENVELOPE_LOCAL_PRIVATE_KEY'}); my @prkey = <PRIV>; close PRIV;
-  my $private_key = join("",@prkey);
-  my $public_key = Crypt::OpenSSL::X509->new_from_file( $ENV{'SEALED_ENVELOPE_LOCAL_PUBLIC_KEY'} )->pubkey();
-  $self->{signEngine} = Crypt::OpenSSL::RSA->new_private_key($private_key);
-  $self->{verifyEngine} = Crypt::OpenSSL::RSA->new_public_key($public_key);
+  my $privateLocalKey = join("",@prkey);
+  my $publicLocalKey = Crypt::OpenSSL::X509->new_from_file( $ENV{'SEALED_ENVELOPE_LOCAL_PUBLIC_KEY'} )->pubkey();
+  my $publicRemoteKey = Crypt::OpenSSL::X509->new_from_file( $ENV{'SEALED_ENVELOPE_REMOTE_PUBLIC_KEY'} )->pubkey();
+
+
+  $self->{signEngine} = Crypt::OpenSSL::RSA->new_private_key($privateLocalKey);
+
+  $self->{verifyLocalEngine} = Crypt::OpenSSL::RSA->new_public_key($publicLocalKey);
+  $self->{verifyRemoteEngine} = Crypt::OpenSSL::RSA->new_public_key($publicRemoteKey);
+
 
 
   # This we can drop as soon as we want to get rid of encrypted envelopes...
@@ -1307,19 +1313,16 @@ sub authorize{
 
        $self->info("gron: access: $access");
    
-       my $encryptedEnvelope = $self->createAndEncryptEnvelopeTicket($access, $signedEnvelope); 
-   
        $signedEnvelope = $self->signEnvelope($signedEnvelope);
 
-       $self->info("Authorize: gron: FINAL ENVELOPE LOOKS LIKE: $signedEnvelope");
 
-       $signedEnvelope->{envelope} = $encryptedEnvelope;
+       $self->isOldEnvelopeStorageElement($signedEnvelope->{se}) and 
+          $signedEnvelope->{envelope} = $self->createAndEncryptEnvelopeTicket($access, $signedEnvelope);
    
-       $self->info("Authorize: gron: finally se is: $signedEnvelope->{se}");  
 
-
-  #    foreach ( keys %{$packedEnvelope}) { $self->notice("Authorize: gron: final packedEnvelope, $_: $packedEnvelope->{$_}"); }
-         
+       $self->info("Authorize: gron: FINAL ENVELOPE LOOKS LIKE:");
+       foreach ( keys %{$signedEnvelope}) {  $self->info("Authorize: gron: ENVELOPE: $_ -> ".$signedEnvelope->{$_}); }
+   
        push @packedEnvelopeList, $signedEnvelope;
    
        if ($self->{MONITOR}) {
@@ -1353,14 +1356,34 @@ sub  initializeEnvelope{
 }
 
 
+sub isOldEnvelopeStorageElement{
+  my $self=shift;
+  my $se=(shift || return 1);
+
+   my @queryValues = ("$se");
+   my $seVersion = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn("SELECT seVersion FROM SE WHERE seName LIKE ? ;", undef, {bind_values=>\@queryValues});
+
+   (defined($seVersion) and (scalar(@$seVersion) > 0)) or return 1;
+  
+   #$seVersion[0] > XXX and return 0;
+   
+   return 1;
+}
+
+
 sub createAndEncryptEnvelopeTicket {
   my $self=shift;
   my $access=(shift || return);
   my $env=(shift || return);
 
+  my @envelopeElements= ("lfn","guid","se","turl","pfn","md5","size");
     my $ticket = "<authz>\n  <file>\n";
     $ticket .= "    <access>$access</access>\n";
-    foreach ( keys %{$env}) { ($_ ne "access" && defined $env->{$_}) and $ticket .= "    <${_}>$env->{$_}</${_}>\n"; }
+    foreach my $key ( keys %{$env}) { 
+      if (grep (/^$key$/i,@envelopeElements) and defined($env->{$key})) {
+          $ticket .= "    <$key>$env->{$key}</$key>\n"; 
+      }
+    }
     $ticket .= "  </file>\n</authz>\n";
 
     $self->info("gron ticket is finally: $ticket");
@@ -1428,8 +1451,12 @@ sub verifyAndDeserializeEnvelope{
      $envelopeString .= $_."&";
   }
   $envelopeString =~ s/&$//;
-
-  $self->{verifyEngine}->verify($envelopeString, $signature)
+  
+  # if we signed the presented returnEnvelope
+  $self->{verifyLocalEngine}->verify($envelopeString, $signature)
+    and return $envelope;
+  # if an SE signed the presented returnEnvelope
+  $self->{verifyRemoteEngine}->verify($envelopeString, $signature)
     and return $envelope;
   return 0;
 } 
