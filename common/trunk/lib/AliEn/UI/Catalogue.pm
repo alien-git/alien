@@ -746,6 +746,10 @@ sub execute {
   if (my $rcom = $commands{$command}) {
     my @com = @{$rcom};
     my $command;
+    
+    #Fix issues with special characters
+    map {s/\\([\*\?])/\\\\$1/} @arg;
+
     if ($com[1] != 0) {
       $DEBUG and $self->debug(1, "Parsing the arguments of the function");
       my $options = "";
@@ -759,6 +763,7 @@ sub execute {
 
       # wildcards!!!
       my $ok=1;
+
       if ($self->{CATALOG} && $self->{CATALOG}->{GLOB} == 1) {
         if ($com[1] & 16) {
           my $files=$self->expandWildcards($com[1] & 32,@newargs);
