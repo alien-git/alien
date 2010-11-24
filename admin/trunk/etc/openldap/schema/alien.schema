@@ -191,6 +191,8 @@ attributetype ( AliEnMSS:13 NAME 'ftdprotocol' SUP name )
 attributetype ( AliEnMSS:14 NAME 'deleteprotocol' SUP name )
 attributetype ( AliEnMSS:15 NAME 'seExclusiveWrite' SUP name )
 attributetype ( AliEnMSS:16 NAME 'seExclusiveRead' SUP name )
+attributetype ( AliEnMSS:17 NAME 'seVersion' SUP name )
+
 
 
 
@@ -198,7 +200,7 @@ objectclass ( AliEnMSS  NAME 'AliEnMSS'
 	SUP ( top ) 
 	MUST ( name $ mss $ savedir )
 	MAY  ( options $ tmpdir $ lvmdatabase $ uploadEndpoint $ ioDaemons
-               $ category $ ioDaemonsConfig $ QoS $ ftdprotocol $ deleteprotocol $ seExclusiveWrite $ seExclusiveRead)
+               $ category $ ioDaemonsConfig $ QoS $ ftdprotocol $ deleteprotocol $ seExclusiveWrite $ seExclusiveRead $ seVersion)
 	      )
 
 #AliEn SE
