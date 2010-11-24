@@ -234,11 +234,8 @@ sub CallAndGetOverSOAP{
   my $rcvals =$callsoap->result;
 
   if (defined($rcvals->{rcmessages})) {
-    #<<<<<<<<<<<<<<<<<<<<<<<<<<TEMP FIX>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    defined $silent 
-      and $silent 
-      or print STDOUT join ("", @{$rcvals->{rcmessages}});
-    #$self->info(join ("", @{$rcvals->{rcmessages}}),undef,0);
+    $silent 
+      or $self->info(join ("", @{$rcvals->{rcmessages}}),undef,0);
   }
  
   defined($rcvals->{rcvalues}) and #or return; # and $self->info("gron: SOAP rcvalues defined") or return;
@@ -253,7 +250,7 @@ sub CallAndGetOverSOAP{
   #    (scalar(@{$rcvals->{rcvalues}}) gt 1) and return @{$rcvals->{rcvalues}};
   #    return shift @{$rcvals->{rcvalues}};
   #}
- # return $rcvals->{rcvalues};
+  #return $rcvals->{rcvalues};
 }
 
 

@@ -739,6 +739,7 @@ sub execute {
     $tmpstdout = "/tmp/". time() . $$ . rand();
     open STDOUT,"> $tmpstdout";
     open STDOUTTMP,"$tmpstdout";
+    $self->{LOGGER}->keepAllMessages();
   }
 
   my @error=();
@@ -841,6 +842,9 @@ sub execute {
   $silent and $self->restoreSilent();
 
   if ($#stdoutredirect>-1) {
+    my @out = @{$self->{LOGGER}->getMessages()};
+    $self->{LOGGER}->displayMessages();
+    print STDOUT join("",@out);
     my @stdoutoutput = <STDOUTTMP>;
     close STDOUTTMP;
     open STDOUT, ">& SAVE_STDOUT";
@@ -852,7 +856,6 @@ sub execute {
     } else {
       $self->addFile("$path","$tmpstdout",$se) and print "Output piped into lfn $path !\n";
       #	  $self->aioput("$tmpstdout","$path","$se") and print "Output piped into lfn $path!\n";
-
       unlink "$tmpstdout";
     }
   }
