@@ -319,8 +319,16 @@ sub get {
       wishedSE=>$wishedSE,excludeSE=>join(";",@excludedAndfailedSEs) ,site=>$self->{CONFIG}->{SITE}});
      my $envelope = $envelopes[0];
      ($envelope and $envelope->{turl}) or 
-      $self->error("Getting an envelope was not successfull for file $file.") and return;
- 
+        $self->error("Getting an envelope was not successfull for file $file.") and return;
+
+     $ENV{ALIEN_XRDCP_URL}=$envelope->{turl};
+     # if we have the old styled envelopes
+     if(defined($envelope->{envelope})) {
+        $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope->{envelope};
+     } else {
+        $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope->{signedEnvelope};
+     }
+
      my $start=time;
      $result = $self->{STORAGE}->getFile( $envelope->{turl}, $envelope->{se}, $localFile, join("",keys %options), $file, $envelope->{guid},$envelope->{md5} );
      my $time=time-$start; 
@@ -1776,9 +1784,15 @@ sub uploadFileAccordingToEnvelope{
   ($sourcePFN) or $self->{LOGGER}->warning( "LCM", "Error no pfn specified" )
     and $self->error("Error: No PFN specified [uploadFileAccordingToEnvelope]")
     and return (0,$result) ;
-  
-     $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope->{envelope};
+
      $ENV{ALIEN_XRDCP_URL}=$envelope->{turl};
+     # if we have the old styled envelopes
+     if(defined($envelope->{envelope})) {
+        $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope->{envelope};
+        $self->info("gron: using OLD SE STYLED ENVELOPE: ".$ENV{ALIEN_XRDCP_ENVELOPE});
+     } else {
+        $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope->{signedEnvelope};
+     }
 
      my $start=time;
      $self->debug(2, "We will upload the file $sourcePFN to $envelope->{se}" );
