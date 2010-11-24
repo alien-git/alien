@@ -312,7 +312,7 @@ sub get {
 
    $self->{STORAGE}->checkDiskSpace($filehash->{size}, $localFile) or return;
    while (!$result) {
-     my  @envelopes = $self->{CATALOG}->callAuthen("authorize","read",{
+     my  @envelopes = $self->{CATALOG}->authorize("read",{
       lfn=> $filehash->{lfn},
       wishedSE=>$wishedSE,excludeSE=>join(";",@excludedAndfailedSEs) ,site=>$self->{CONFIG}->{SITE}});
      my $envelope = $envelopes[0];
@@ -1400,7 +1400,7 @@ sub erase {
 #	my $pfn=$self->getPFNfromGUID($se, $guid);
 #	$pfn or next;
 
-	my @envelope = $self->{CATALOG}->callAuthen("authorize","delete",{lfn=>$lfn,wishedse=>$se});
+	my @envelope = $self->{CATALOG}->authorize("delete",{lfn=>$lfn,wishedse=>$se});
 
 	if ((!defined $envelope[0]) || (!defined $envelope[0]->{envelope})) {
 	    $self->info("Cannot get access to $lfn for deletion $envelope[0]") and return;
@@ -1497,7 +1497,7 @@ sub registerPFN{
   my $md5sum=(shift || 0);
   my $feedback=(shift || 0);
   my $silent=(shift || 0);
-  return $self->{CATALOG}->callAuthen("authorize","register", {lfn=>$targetLFN, 
+  return $self->{CATALOG}->authorize("register", {lfn=>$targetLFN, 
            pfn=>$sourcePFN, size=>$size, md5=>$md5sum, guid=>$guid });
 }
 
@@ -1640,7 +1640,7 @@ sub addFileToSEs {
   $self->info("gron: scalar of the usedEnvelopes: ".scalar(@{$result->{usedEnvelopes}}));
   $self->info("gron: the returned usedEnvelopes are: @{$result->{usedEnvelopes}}");
   
-  my @successEnvelopes = $self->{CATALOG}->callAuthen("authorize","registerenvs", @{$result->{usedEnvelopes}});
+  my @successEnvelopes = $self->{CATALOG}->authorize("registerenvs", @{$result->{usedEnvelopes}});
 
   (scalar(@successEnvelopes) gt 0) or return;
   if (scalar(@successEnvelopes) ne scalar(@{$result->{usedEnvelopes}})) {
@@ -1698,7 +1698,7 @@ sub putOnStaticSESelectionListV2{
      ($selOutOf = scalar(@$ses)) or
      $self->notice("We select out of a supplied static list the SEs to save on: @staticSes, count:".scalar(@staticSes));
 
-     my @envelopes = $self->{CATALOG}->callAuthen("authorize","write", {lfn=>$targetLFN, 
+     my @envelopes = $self->{CATALOG}->authorize("write", {lfn=>$targetLFN, 
     wishedSE=>join(";", @staticSes), size=>$size, md5=>$md5, guidRequest=>($result->{guid} || 0)});
      
      ((!@envelopes) || (scalar(@envelopes) eq 0)) and
@@ -1736,7 +1736,7 @@ sub putOnDynamicDiscoveredSEListByQoSV2{
    my @successfulUploads = ();
 
    while($count gt 0) {
-     my @envelopes= $self->{CATALOG}->callAuthen("authorize","write", {lfn=>$targetLFN, 
+     my @envelopes= $self->{CATALOG}->authorize("write", {lfn=>$targetLFN, 
        size=> $size, md5=>$md5,  guidRequest=>($result->{guid} || 0), site=>$sitename, 
           writeQos=>$qos, writeQosCount=>$count, excludeSE=>(join(";", @$excludedSes) || 0)});
 

@@ -358,10 +358,8 @@ sub InstallPackage {
     $self->_doAction($package, $version, $dir, $info, "pre_install", $depConf);
     $self->_Install($dir, $lfn, $info);
     $self->_doAction($package, $version, $dir, $info, "post_install", $depConf);
-
   };
   my $error=$@;
-
   if ($error) {
     $self->info("Something failed. Removing the directory");
     $self->{LOGGER}->redirect();

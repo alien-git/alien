@@ -235,7 +235,9 @@ sub CallAndGetOverSOAP{
 
   if (defined($rcvals->{rcmessages})) {
     #<<<<<<<<<<<<<<<<<<<<<<<<<<TEMP FIX>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    $silent or print STDOUT join ("", @{$rcvals->{rcmessages}});
+    defined $silent 
+      and $silent 
+      or print STDOUT join ("", @{$rcvals->{rcmessages}});
     #$self->info(join ("", @{$rcvals->{rcmessages}}),undef,0);
   }
  
