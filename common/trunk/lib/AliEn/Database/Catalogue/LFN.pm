@@ -2064,7 +2064,6 @@ sub createCollection {
   my $self=shift;
   my $insert=shift;
   $insert->{type}='c';
-  
   $self->_createEntry($insert,@_) or return;
 
   if (! $self->insert("COLLECTIONS", {collGUID=>$insert->{guid}}, {functions=>{collGUID=>'string2binary'}} )){

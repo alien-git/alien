@@ -56,7 +56,6 @@ sub f_createCollection {
       and return;
 
   $self->info("File $file inserted in the catalog");
-
   return $file;
 }
 
