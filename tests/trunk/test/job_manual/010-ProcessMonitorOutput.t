@@ -160,8 +160,8 @@ sub executeJDLFile{
 sub checkOutput{
   my $cat=shift;
   my $id=shift;
+  my $procDir=shift||"~/alien-job-$id";
   my ($user)=$cat->execute("whoami") or return;
-  my $procDir="~/alien-job-$id";
   print "Checking if the output of the job is registered... $procDir\n";
   $cat->execute("ls", "$procDir/", "-l") or return;
   $cat->execute("ls", "$procDir/job-output", "-l") or return;

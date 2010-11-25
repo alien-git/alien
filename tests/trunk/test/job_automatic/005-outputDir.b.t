@@ -15,11 +15,11 @@ my ($dir)=$cat->execute("pwd") or exit (-2);
 my $id=shift or print "Error getting the job id\n" and exit(-2);
 my $outputDir=shift or print "Error getting the output directory\n" and exit(-2);
 
-my $procDir=checkOutput($cat, $id) or exit(-2);
+my $procDir=checkOutput($cat, $id, $outputDir) or print "Could not check output" and exit(-2);
 
 print "And let's check if the file is in the outputdir\n";
 
-my ($info)=$cat->execute("stat", "$outputDir/stdout") or exit(-2);
+my ($info)=$cat->execute("stat", "$outputDir/job-output/stdout") or exit(-2);
 use Data::Dumper;
 print Dumper($info);
 

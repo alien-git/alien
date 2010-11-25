@@ -18,6 +18,9 @@ open (STDERR, ">&STDOUT") or print "Error redircting to $file\n" and exit(-2);
 
 eval {
   my $cat=AliEn::UI::Catalogue::LCM::Computer->new({user=>'newuser'}) or die("Error creating the UI");
+
+  $cat->execute("rm","bin/echo.sh","jdl/sendTwoJobs1.jdl","jdl/sendTwoJobs2.jdl");
+
   addFile($cat, "bin/echo.sh","#!/bin/bash
 date
 echo 'Hello World'

@@ -16,10 +16,7 @@ $admCat->close();
 
 if (-f $pfn) {
   print "The file is still there :(\n";
-  my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",})
-    or exit (-1);
-
-  print "At least, is in the queue to be deleted\n";
+  exit(-2);
 }
 
 print "ok!\n";

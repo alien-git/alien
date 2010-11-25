@@ -23,6 +23,7 @@ $cat or exit (-1);
 my $admincat=AliEn::UI::Catalogue::LCM::Computer->new({"user","$ENV{'USER'}","role","admin"});
 $admincat or exit (-1);
 $admincat->execute("debug", "CE ProcessMonitor LQ Service") or exit(-2);
+$admincat->execute("queue", "remove $cat->{CONFIG}->{ORG_NAME}::CERN::testCE");
 $admincat->execute("queue", "add $cat->{CONFIG}->{ORG_NAME}::CERN::testCE");
 $admincat->execute("queue", "open $cat->{CONFIG}->{ORG_NAME}::CERN::testCE") or exit(-2);
 print "Let's sleep until the job is ready";
