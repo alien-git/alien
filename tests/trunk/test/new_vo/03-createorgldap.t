@@ -27,10 +27,14 @@ my $mysql_port=$ENV{ALIEN_MYSQL_PORT} || "3307";
 my $services_port=$ENV{ALIEN_SERVICES_PORT} || "7070";
 my $org=Net::Domain::hostname();
 my $fqd=Net::Domain::hostfqdn();
+my $suffix=Net::Domain::hostdomain();
+my $domain=$suffix;
+$suffix=~ s/\./,dc=/g;
+$suffix="dc=$suffix";
 open (FILE, "|$ENV{ALIEN_ROOT}/bin/alien -x $ENV{ALIEN_ROOT}/scripts/CreateOrgLDAP.pl");
 
 print FILE "$user$org
-dc=cern,dc=ch
+$suffix
 
 ldap-pass
 ldap-pass
@@ -39,7 +43,7 @@ ldap-pass
 $services_port
 $fqd:$mysql_port
 
-cern.ch
+$domain
 $subject
 
 R

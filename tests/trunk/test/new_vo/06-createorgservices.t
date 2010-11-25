@@ -25,10 +25,13 @@ open (FILE, "|$ENV{ALIEN_ROOT}/bin/alien -x $ENV{ALIEN_ROOT}/scripts/CreateOrgSe
 my $user="";
 my $secondUser="\n";
 $< and $user="Y\n" and $secondUser="";
+my $suffix=Net::Domain::hostdomain();print "\nthis is the suffix $suffix";
 
+$suffix=~ s/\./,dc=/g;
+$suffix="dc=$suffix";
 my $host=Net::Domain::hostname();
 print FILE "$user$org
-$host:8389/o=$org,dc=cern,dc=ch
+$host:8389/o=$org,$suffix
 Y
 
 AliEn2-TEST-$org

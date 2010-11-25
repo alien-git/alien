@@ -2,7 +2,11 @@ use strict;
 use Net::Domain qw(hostname hostfqdn hostdomain);
 
 my $org=Net::Domain::hostname();
-$ENV{ALIEN_LDAP_DN}="$org.cern.ch:8389/o=$org,dc=cern,dc=ch";
+my $suffix=Net::Domain::hostdomain();
+my $domain=$suffix;
+$suffix=~ s/\./,dc=/g;
+$suffix="dc=$suffix";
+$ENV{ALIEN_LDAP_DN}="$org.$domain:8389/o=$org,$suffix";
 $ENV{ALIEN_ORGANISATION}=$org;
 #First, let's make sure that the CE is not running
 system("$ENV{ALIEN_ROOT}/bin/alien StopCE >/dev/null");
