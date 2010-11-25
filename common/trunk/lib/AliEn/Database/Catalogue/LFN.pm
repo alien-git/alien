@@ -697,6 +697,8 @@ sub removeFile {
       or $self->{LOGGER}->error("Database::Catalogue::LFN","ERROR: Could not update quotas")
       and return;
   }
+
+  $self->info("$lfn was moved to booking table");
   
   return 1;
 }

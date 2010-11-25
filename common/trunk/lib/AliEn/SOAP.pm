@@ -234,6 +234,7 @@ sub CallAndGetOverSOAP{
   my $rcvals =$callsoap->result;
 
   if (defined($rcvals->{rcmessages})) {
+   map {defined $_ or $_=""} @{$rcvals->{rcmessages}};
     $silent 
       or $self->info(join ("", @{$rcvals->{rcmessages}}),undef,0);
   }
