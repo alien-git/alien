@@ -105,6 +105,7 @@ my %LCM_commands;
 		 'getLog' =>['$self->getLog', 0],
 		 'checkSEVolumes' =>['$self->{CATALOG}->checkSEVolumes', 0],
 		 'createCollection' => ['$self->createCollection', 0],
+     'createCollectionCatalogue' => ['$self->{CATALOG}->f_createCollection', 0],
 		 'updateCollection' => ['$self->updateCollection', 2],
 		 'resubmitTransfer'=> ['$self->{STORAGE}->resubmitTransfer', 0],
 		 'getTransferHistory'=> ['$self->{STORAGE}->getTransferHistory', 0],
@@ -2107,7 +2108,7 @@ sub createCollection{
   my $guid=shift;
 
 
-  my $collection=$self->{CATALOG}->f_createCollection($lfn, $guid) or return;
+  my ($collection)=$self->{CATALOG}->f_createCollection($lfn, $guid) or return;
 
   if ($options->{xml}){
     $self->info("And now, let's populate the collection");

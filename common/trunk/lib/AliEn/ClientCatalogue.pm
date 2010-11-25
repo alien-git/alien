@@ -102,7 +102,7 @@ sub AUTOLOAD {
     showTagValue=>"showTagValue", removeTag=>"removeTag", removeTagValue=>"removeTagValue",
     cleanupTagValue=>"cleanupTagValue", showTags=>"showTags", pwd=>"pwd", refreshSERankCache=>"refreshSERankCache",
     resyncLDAP=>"resyncLDAP", addFileToCollection=>"addFileToCollection",listFilesFromCollection=>"listFilesFromCollection",
-    removeFileFromCollection=>"removeFileFromCollection",createCollection=>"createCollection",
+    removeFileFromCollection=>"removeFileFromCollection",createCollection=>"createCollectionCatalogue",
     updateCollection=>"updateCollection", df=>"df", existsEntry=>"existsEntry", checkFileQuota=>"checkFileQuota", showMirror=>"showMirror",
     addMirror=>"addMirror", cpMetaData=>"cpMetaData", getCPMetadata=>"cpMetaData",
   };
