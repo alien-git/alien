@@ -13,10 +13,9 @@ my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",})
   or exit (-1);
 my ($dir)=$cat->execute("pwd") or exit(-2);
 
-
+$cat->execute("rm","inputCollection/SplitInputDataCollection.xml","jdl/SplitInputCollection.jdl");
 
 $cat->execute("find","-x test split/ * ",">inputCollection/SplitInputDataCollection.xml") or exit(-2);
-
 
 addFile($cat, "jdl/SplitInputCollection.jdl","Executable=\"CheckInputOuptut.sh\";
 InputDataCollection=\"LF:inputCollection/SplitInputDataCollection.xml\";

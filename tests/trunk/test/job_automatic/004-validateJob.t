@@ -13,6 +13,7 @@ my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",})
   or exit (-1);
 my ($dir)=$cat->execute("pwd") or exit (-2);
 
+$cat->execute("rm","bin/validate","jdl/validateJob.jdl","jdl/validateJobFailed.jdl");
 
 addFile($cat, "bin/validate","#!/bin/bash
 echo \"Cheking if the script said anything about beautiful days\"
