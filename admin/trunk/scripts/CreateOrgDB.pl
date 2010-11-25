@@ -42,10 +42,13 @@ if ("$passwd" ne "$origPass"){
 }
 
 my $hostName=Net::Domain::hostfqdn();
+my $suffix=Net::Domain::hostdomain();
+$suffix=~ s/\./,dc=/g;
+$suffix="dc=$suffix";
 $hostName=getParam("Host name", $hostName);
 
 my $portNumber=getParam("Port number", getDefaultPort());
-my $ldapDN        = getParam("LDAP host and DN (put -1 if you want to look for it in the alien ldap server)", "$hostName:8389/o=$orgName,dc=cern,dc=ch");
+my $ldapDN        = getParam("LDAP host and DN (put -1 if you want to look for it in the alien ldap server)", "$hostName:8389/o=$orgName,$suffix");
 $ldapDN eq "-1" and $ldapDN="";
 
 print "Creating round with following information
