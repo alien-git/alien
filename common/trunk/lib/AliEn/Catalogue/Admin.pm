@@ -215,8 +215,7 @@ sub f_addUser {
 );
 
   $self->{DATABASE}->grantPrivilegesToUser(\@privileges,$user);
-  my $procdir="/proc/$user/";
-  $self->info( "Creating new homedir for  $user and $procdir");
+  $self->info( "Creating new homedir for  $user");
   $self->f_mkdir( "p", $homedir ) or 
     $self->info( "Error creating $homedir") and return ;
 
@@ -226,14 +225,8 @@ sub f_addUser {
 #  my $table=$self->{DATABASE}->getIndexHost($homedir) or 
 #    $self->info( "Error getting the table of $homedir") and return;
 
-  $self->f_mkdir( "p", $procdir ) or 
-    $self->info( "Error creating $procdir") and return ;
-
-  $self->{DATABASE}->moveEntries($procdir) or 
-    $self->info( "Error moving the directory $procdir ") and return;
   $self->info("Changing privileges for  $user");
   $self->f_chown("", $user, $homedir ) or return;
-  $self->f_chown("", $user, $procdir ) or return;
   $self->info("Adding the quotas");
   $self->{PRIORITY_DB}->checkPriorityValue($user) or return;
   $self->info(  "User $user added");

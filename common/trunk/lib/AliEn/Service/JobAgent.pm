@@ -595,14 +595,14 @@ sub CreateDirs {
   while (<WORKDIRLIST>) {
     chomp($_);
     my   ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
-	  $atime,$mtime,$ctime,$blksize,$blocks)= stat($_);
+      $atime,$mtime,$ctime,$blksize,$blocks)= stat($_);
     if ( (defined $mtime) && ($mtime >0) ) {
       if ( ($now - $mtime) > (60*60*24*7) ) {
-	# these directories are old and can be deleted
-	if ( $_ =~/.*alien\-job\-.*/ ) {
-	  system("rm -rf $_");
-	  $self->info("Removed old AliEn working directory $_");
-	}
+        # these directories are old and can be deleted
+        if ( $_ =~/.*alien\-job\-.*/ ) {
+          system("rm -rf $_");
+          $self->info("Removed old AliEn working directory $_");
+        }
       }
     }
   }

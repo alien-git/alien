@@ -77,12 +77,12 @@ sub archiveJobs{
       print STDERR "Expired: cannot delete entry $job->{queueId} from QUEUE\n"
 	and next;
     
-    # remove /proc entry
-    if ( (defined $job->{queueId}) && ( $job->{queueId} ne "") && ( $job->{queueId} > 0 ) ) {
-      my $procDir = AliEn::Util::getProcDir(undef, $job->{submitHost}, $job->{queueId});
-      $self->info("   Removing $procDir directory");
-      $self->{CATALOGUE}->execute("rmdir",$procDir,"-r") or $self->info("Error deleting the directory $procDir");
-    }
+#    # remove /proc entry
+#    if ( (defined $job->{queueId}) && ( $job->{queueId} ne "") && ( $job->{queueId} > 0 ) ) {
+#      my $procDir = AliEn::Util::getProcDir(undef, $job->{submitHost}, $job->{queueId});
+#      $self->info("   Removing $procDir directory");
+#      $self->{CATALOGUE}->execute("rmdir",$procDir,"-r") or $self->info("Error deleting the directory $procDir");
+#    }
   }
 
 
