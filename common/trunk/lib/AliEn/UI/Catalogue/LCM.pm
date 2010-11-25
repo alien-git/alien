@@ -300,7 +300,7 @@ sub get {
      #authorize needs lfn to return envelopes!!
      ($filehash->{lfn})=$self->{CATALOG}->f_guid2lfn("",$filehash->{guid});
    } else {
-     ($filehash)=$self->{CATALOG}->checkPermissions("r",$file, 0, 1);
+     ($filehash)=$self->{CATALOG}->checkPermissions("r",$file,0,1,1);
    }
    $filehash or return 0;
 #   $filehash = shift @{$filehash};
@@ -2014,7 +2014,7 @@ sub unzip {
   my $lfn=shift;
   my $pwd=shift;
   $self->info("Getting the file $lfn from the catalogue and unziping ");
-  my ($localfile)=$self->execute("get", "-silent", $lfn)
+  my ($localfile)=$self->execute("get",$lfn)
     or $self->info("Error getting the entry $lfn from the catalogue") and return;
   my $zip=Archive::Zip->new($localfile) 
     or $self->info("Error reading the file $localfile (are you sure it is a zip archive? )") and return;
@@ -2025,13 +2025,13 @@ sub unzip {
       $self->info("Creating the directory $pwd");
       my $dir;
       foreach ( split ( "/", $pwd ) ) {
-	$dir .= "/$_";
-	mkdir $dir, 0755;
+        $dir .= "/$_";
+        mkdir $dir, 0755;
       }
     }
     chdir $pwd or $self->info("Error going to $pwd: $!") and return;
   }
-
+  $self->info("WENT TO $localfile");
   $zip->extractTree() == AZ_OK
     or $self->info("Error extrracting the files from the archive") and return;
 

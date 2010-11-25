@@ -141,7 +141,7 @@ sub checkZipArchives {
   foreach my $f (@list){
     $f =~ s{^LF:}{} and $change=1;
     if ($f !~ m{^/}){
-      $f="$pwd$f";
+      $f="$pwd/$f";
       $change=1;
     }
   }

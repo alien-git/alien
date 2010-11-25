@@ -30,6 +30,7 @@ sub checkPermissions {
   my $file      = shift;
   my $silent    = ( shift || $self->{SILENT} );
   my $return_hash =(shift || 0);
+  my $trailingSlash = (shift||2);
   my $role = $self->{ROLE};
 
 
@@ -38,7 +39,7 @@ sub checkPermissions {
 
   $DEBUG and $self->debug(1, "Checking the permission $operation on  $file" );
 
-  $file = $self->GetAbsolutePath($file,2);
+  $file = $self->GetAbsolutePath($file,$trailingSlash);
 
   $self->selectDatabase($file) or return;
 
