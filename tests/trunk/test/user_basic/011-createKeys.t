@@ -52,7 +52,11 @@ sub uploadKey {
   my $ldap = Net::LDAP->new("$host:8389", "onerror" => "warn") 
     or print "failed\nError conecting to the ldap server\n $? and $! and  $@\n" 
       and exit (-3);
-  my $result=$ldap->bind("cn=manager,dc=cern,dc=ch", "password" => "ldap-pass");
+my $suffix=Net::Domain::hostdomain();
+my $domain=$suffix;
+$suffix=~ s/\./,dc=/g;
+$suffix="dc=$suffix";
+  my $result=$ldap->bind("cn=manager,$suffix", "password" => "ldap-pass");
   $result->code && print "failed\nCould not bind to LDAP-Server: ",$result->error 
   and exit (-4);
   my $key="uid=newuser,ou=People,$c->{LDAPDN}";

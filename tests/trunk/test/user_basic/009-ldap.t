@@ -29,10 +29,14 @@ if (! Search()) {
 }
 
 sub Connect(){
+my $suffix=Net::Domain::hostdomain();print "\nthis is the suffix $suffix";
+
+$suffix=~ s/\./,dc=/g;
+$suffix="dc=$suffix";
   print "Connectingto LDAP server .........";
   $LDAP=Net::LDAP->new( $host, "onerror" => "warn",
 			   "debug", $debug) or print "$@" and return;
-  my $result=  $LDAP->bind( "cn=Manager,dc=cern,dc=ch", 
+  my $result=  $LDAP->bind( "cn=Manager,$suffix", 
 			    password => $LDAPpassword );
   $result->code && print "failed\nCould not bind to LDAP-Server: ",$result->error and return;
   print "OK\n";
@@ -41,8 +45,11 @@ sub Connect(){
 }
 sub Search{
 
+my $suffix=Net::Domain::hostdomain();
+$suffix=~ s/\./,dc=/g;
+$suffix="dc=$suffix";
   my $user="newuser";
-  my $mesg = $LDAP->search(base   => "ou=People,o=$h,dc=cern,dc=ch",
+  my $mesg = $LDAP->search(base   => "ou=People,o=$h,$suffix",
 			   filter => "(uid=$user)");
 
 
