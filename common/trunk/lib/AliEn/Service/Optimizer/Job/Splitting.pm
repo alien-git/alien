@@ -448,7 +448,6 @@ sub SubmitSplitJob {
   #$self->{CATALOGUE}->{QUEUE}->checkRequirements($job_ca) or next;
 
   ( $ok, my $origreq ) = $job_ca->evaluateExpression("Requirements");
-  
   $self->info("The requirements are $origreq");
 
   #Now, submit a job for each

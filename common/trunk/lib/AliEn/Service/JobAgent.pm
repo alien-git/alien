@@ -2292,10 +2292,10 @@ CPU Speed                           [MHz] : $ProcCpuspeed
       $self->putJobLog("error","Could not get an instance of the LCM");
 #      return;
   }
-  $self->{PROCDIR} = "~/alien-job-$ENV{ALIEN_PROC_ID}";
-  $self->{UI}->execute("mkdir",$self->{PROCDIR} );
-  $self->{UI}->execute("cd",$self->{PROCDIR} );
-  $self->{UI}->execute("mkdir",$self->{PROCDIR} ."/job-output");
+  $self->{PROCDIR} = $self->{OUTPUTDIR} || "~/alien-job-$ENV{ALIEN_PROC_ID}";
+  $self->{UI}->execute("mkdir","-p",$self->{PROCDIR});
+  $self->{UI}->execute("cd",$self->{PROCDIR});
+  $self->{UI}->execute("mkdir",$self->{PROCDIR}."/job-output");
   $self->{UI}->execute("mkdir",$self->{PROCDIR}."/job-log");
 
     #this hash will contain all the files that have already been submitted,

@@ -36,7 +36,7 @@ sub getProcDir {
 #  print "\tAliEn::Util::getProcDir called from " . join (" ", caller()) . " with $user, $ID\n";
 
   #return "/proc/$ID";
-  return "/proc/$user/$ID";
+  return "~/alien-job-$ID";
 }
 
 sub getJobUserByUI {
