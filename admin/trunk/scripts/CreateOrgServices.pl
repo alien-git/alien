@@ -116,10 +116,14 @@ my ($mysqlPasswd, $ldapPasswd, $rootdn, $shadow);
 #  print "To install the proxy you need the mysql admin password to $config->{AUTHEN_HOST}\n";
   $mysqlPasswd=getParam("Enter admin password for mysql on $config->{AUTHEN_HOST}","", "secret");
 #}
+my $suffix=Net::Domain::hostdomain();
+$suffix=~ s/\./,dc=/g;
+$suffix="dc=$suffix";
+
 if ($install =~ /Authen/) {
   print "To install the authen you need the ldap root password to $config->{LDAPHOST}\n";
   $ldapPasswd=getParam("Enter admin password for $config->{LDAPHOST}", "", "secret");
-  my $managerDN=( $config->{LDAPMANAGER} || "cn=Manager,dc=cern,dc=ch");
+  my $managerDN=( $config->{LDAPMANAGER} || "cn=Manager,$suffix");
   $rootdn=getParam("Enter root dn for $config->{LDAPHOST}",$managerDN);
 	$shadow=getParam("Do you want to run Authen as 'root' (necessary if you use shadow passwords)?[Y/N]","Y");
 }
