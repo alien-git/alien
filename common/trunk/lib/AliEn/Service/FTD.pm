@@ -4,7 +4,7 @@
 
 package AliEn::Service::FTD;
 
-#use AliEn::Database::TXT::FTD;
+use AliEn::Database;
 use LWP::UserAgent;
 
 #use AliEn::SE::Methods;
@@ -25,19 +25,6 @@ use AliEn::Service;
 @ISA=qw(AliEn::Service);
 # Uncomment when module is installed in alice/local...
 use Filesys::DiskFree;
-
-
-my $kid_finished=0;
-sub REAPER {
-	while ((waitpid(-1,WNOHANG)) > 0) {
-     $kid_finished=1;
-    }
-
-    $SIG{CHLD} = \&REAPER;
-};
-
-
-$SIG{CHLD} = \&REAPER;
 
 
 my $MAXIMUM_SIZE = 1024 * 1024
@@ -84,6 +71,7 @@ sub initialize {
   $self->{CONFIG}->{FTD_PROTOCOL_LIST} and 
     @protocols=@{$self->{CONFIG}->{FTD_PROTOCOL_LIST}};
 
+
   #$self->{PROTOCOLS}=\@protocols;
   $self->{PROTOCOLS}=join(",", @protocols);
   foreach my $p (@protocols){
@@ -104,7 +92,8 @@ sub initialize {
 
   $self->{JDL}=$self->createJDL();
   $self->{JDL} or return;
-  
+  $self->info($self->{JDL});
+
   $self->{NAME} = "$self->{CONFIG}->{ORG_NAME}::$self->{CONFIG}->{SITE}";
   $self->{ALIVE_COUNTS} = 0;
 
@@ -158,30 +147,14 @@ sub createJDL {
   $self->{CONFIG}->{FTD_PROTOCOL_LIST} 
     and @protocols=@{$self->{CONFIG}->{FTD_PROTOCOL_LIST}};
 
+
   $exp->{SupportedProtocol}='{"'.join('","',@protocols).'"}';
   $exp->{Requirements}="other.Type==\"transfer\"";
+
   my @list=();
-  push @list, $self->SUPER::createJDL( $exp);
-  
-  $list[0] or return;
 
-  if ($self->{CONFIG}->{FTD_LOCALOPTIONS_LIST} ){
-  	$self->info("In fact, this FTD has some preferences:");
-  	@list=();
-  	foreach my $line (@{$self->{CONFIG}->{FTD_LOCALOPTIONS_LIST}}){
-  	  $exp->{Requirements}="other.Type==\"transfer\" && $line ";
-  	  my $jdl=$self->SUPER::createJDL( $exp);
-  	  $jdl or $self->info("Error creating the jdl with '$line'") and return;
-  	  $self->debug(1, "We got '$jdl' from $line");
-  	  $jdl =~ /$line/ or $self->info("The requirements doesn't seem to be correct: '$line', but got '$jdl'") and return;
-  	  push @list, $jdl;
-  		
-  	}
-	@list or $self->info("Error creating the jdls!") and return;  	
-  	
-  } 
 
-  return \@list;
+  return $self->SUPER::createJDL( $exp);
 }
 
 
@@ -267,6 +240,7 @@ sub checkCurrentTransfers(){
     $self->$method(@methodData, "Already doing maximum number of transfers ($current). Wait" );
     return;
   }
+
   return $slots;
 }
 
@@ -287,52 +261,42 @@ sub checkWakesUp{
   my $method="info";
   my @methodData=();
   $silent and $method="debug" and push @methodData, 1;
-  
-  $kid_finished=0;
-  
-  foreach my $ftdJDL (@{$self->{JDL}}){
-    my $slots=$self->checkCurrentTransfers($silent) or last;
 
-    $self->info("$$ Asking the broker if we can do anything ($slots slots)");
+  my $slots=$self->checkCurrentTransfers($silent) 
+    or return;
+
+  $self->$method(@methodData,"$$ Asking the broker if we can do anything ($slots slots)");
 
 
-    my ($result)=$self->{SOAP}->CallSOAP("Broker/Transfer", "requestTransferType",$ftdJDL, $slots);
+  my ($result)=$self->{SOAP}->CallSOAP("Broker/Transfer", "requestTransferType",$self->{JDL}, $slots);
 
-    $self->$method(@methodData, "$$ Got an answer from the broker");
+  $self->info("$$ Got an answer from the broker");
     
-    (!$result) and next;
-    
-     
-     my @transfers=$self->{SOAP}->GetOutput($result);
-  
-     foreach my $transfer (@transfers){
-      if ($transfer eq "-2"){
-        $self->$method(@methodData, "No transfers for me");
-        next;
-      }
-
-      my $pid=fork();
-      defined $pid or self->info("Error doing the fork");
-      if ($pid){
-        my @list=();
-        $self->{FTD_PIDS} and @list=@{$self->{FTD_PIDS}};
-        push @list, $pid;
-        $self->{FTD_PIDS}=\@list;
-        next;
-      }
-      $self->_forkTransfer($transfer);
-      exit;
-    }
-    
+  if (!$result) {
+    return;
   }
+  
+  my $repeat=1;
+  my @transfers=$self->{SOAP}->GetOutput($result);
+  
+  foreach my $transfer (@transfers){
+    if ($transfer eq "-2"){
+      $self->$method(@methodData, "No transfers for me");
+      undef $repeat;
+      next;
+    }
 
-  my $i=60;
-  while ($i){
-    $i--;
-    sleep (1);
-    $kid_finished or next;
-    $self->info("ONE KID FINISHED!!");  
-    last;
+    my $pid=fork();
+    defined $pid or self->info("Error doing the fork");
+    if ($pid){
+      my @list=();
+      $self->{FTD_PIDS} and @list=@{$self->{FTD_PIDS}};
+      push @list, $pid;
+      $self->{FTD_PIDS}=\@list;
+      next;
+    }
+    $self->_forkTransfer($transfer);
+    exit;
   }
 
   if ($self->{FTD_PIDS}){
@@ -341,19 +305,20 @@ sub checkWakesUp{
     my @list=@{$self->{FTD_PIDS}};
     my @newList;
     foreach (@list){
-     if (CORE::kill 0, $_ and waitpid($_, WNOHANG)<=0){
-	   push @newList, $_
-     }
+      if (CORE::kill 0, $_ and waitpid($_, WNOHANG)<=0){
+	push @newList, $_
+      }
     }
     $self->{FTD_PIDS}=\@newList;
     my $file="$self->{CONFIG}->{LOG_DIR}/FTD_children.pid";
     $self->info("Putting the pids into the file $file ");
     if (open (FILE, ">$file")){
-      print FILE "@{$self->{FTD_PIDS}}";
+      print FILE @{$self->{FTD_PIDS}};
       close FILE;
     }
   }
-  return 1;
+
+  return $repeat;
 
 }
 
@@ -361,7 +326,9 @@ sub checkWakesUp{
   my $self=shift;
   my $transfer=shift;
   my $recover=shift;
-
+  my $output;
+  my $status;
+  
   my $id=$transfer->{id};
   my $n=int($id/1000);
   -d "$self->{CONFIG}->{LOG_DIR}/FTD_transfers" || mkdir "$self->{CONFIG}->{LOG_DIR}/FTD_transfers";
@@ -376,7 +343,7 @@ sub checkWakesUp{
     $self->{LOGGER}->error("FTD", "Error: the transfer does not have an id");
     return;
   }
-
+  $self->{LOGGER}->debug("FTD","In forkTransfers");
   my $ca;
   $transfer->{jdl} and $ca=Classad::Classad->new($transfer->{jdl});
   if (! $ca){
@@ -395,38 +362,63 @@ sub checkWakesUp{
   foreach my $line (@pro){
     my ($protocol, $source, @rest)=split(",", $line);
     if (grep(/^$protocol$/i, @{$self->{CONFIG}->{FTD_PROTOCOL_LIST}})){
-      if ($type =~ /^remove$/i){
-	($ok, $pfn)=$ca->evaluateAttributeString("pfn");
-	$pfn or $self->info("There was no pfn in the CA",1);
-	$self->info("Deleting the file $pfn");
-	eval {
-	  $self->{PLUGINS}->{lc($protocol)}->delete($pfn);
-	};
-	if ($@){
-	  $self->info("Error doing the delete: $@",1);
-	  undef $pfn;
-	}
-	last;
-      }else{
-	$self->info("We can get the file with '$protocol' from '$source'");
-	$pfn=$self->transferFile($id, $ca, $protocol, $source, $line, $recover);
-	$pfn and last;
-      }
+    if ($type =~ /^remove$/i){
+	  ($ok, $pfn)=$ca->evaluateAttributeString("pfn");
+	  $pfn or $self->info("There was no pfn in the CA",1);
+	  $self->info("Deleting the file $pfn");
+	  eval {
+	    $self->{PLUGINS}->{lc($protocol)}->delete($pfn);
+	  };
+	  if ($@){
+	    $self->info("Error doing the delete: $@",1);
+	    undef $pfn;
+	  }
+	  last;
+    }else{
+	  $self->info("We can get the file with '$protocol' from '$source'");
+	  ($pfn,$output)=$self->transferFile($id, $ca, $protocol, $source, $line, $recover);
+	  $pfn and last;
+	  # to debug "no file online"
+	  #$output = 3;
+    }
       $self->info("It didn't work :(");
     }
   }
-  my $status="DONE";
+ 
+#Debug
+#$output = 3;
+my $query = {maxtime=>0};
+ 
   my $extra={pfn=>$pfn};
   if (! $pfn ) {
     $self->info("The transfer failed due to: ".$self->{LOGGER}->error_msg() );
     $status="FAILED_T";
     $extra={"Reason", "$self->{CONFIG}->{FTD_FULLNAME}: ". $self->{LOGGER}->error_msg()};
   }
-  $self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, $status, "ALIEN_SOAP_RETRY",$extra);
+  else{
+        if ($output eq 3){
+          $status="STAGED";
+	  $query->{pfn} = $pfn;
+	  $query->{maxtime} = time() + 65537;
+	  $query->{ctime} = time();
+          #my $query = time()+65537;
+	  $self->{LOGGER}->debug("FTD","There is an error with $pfn, going to checkStaged . Max time ".$query->{maxtime});
+#	  $self->{LOGGER}->debug("FTD","Update Transfer $id with ".$query);
+#	  my $done = $self->{DB}->updateTransfer($id,{status=>'SATGED'} ); 
+        }
+        elsif ($output eq 1){
+          $status = "DONE";
+#   $self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, $status, "ALIEN_SOAP_RETRY",$extra);
+        }     
+        else {$status = "FAILED_T";}
+  }
 
+  #$self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, $status, $query);
+  $self->{LOGGER}->debug("FTD","Update??? Transfer $id with ".$query->{maxtime}." and ".$query->{ctime});
+  $self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, $status,"ALIEN_SOAP_RETRY",$query);
   $self->info("$$ returns!!");
-
   return 1;
+  
 }
 
 
@@ -449,7 +441,7 @@ sub transferFile {
 
   ($ok, my $target)=$ca->evaluateAttributeString("ToSE");
   ($ok, my $guid)=$ca->evaluateAttributeString("GUID");
-  ($ok, my $size)=$ca->evaluateAttributeString("Size");
+  ($ok, my $size)=$ca->evaluateAttributeInt("Size");
   $target or $self->info("Error getting the destination of the transfer")
     and return;
   $self->info("And the second envelope ( $user, mirror, $guid, $target, $size, 0, $guid");
@@ -459,9 +451,10 @@ sub transferFile {
   my $targetEnvelope=$info->result;
   $targetEnvelope and $targetEnvelope->{turl} or
     $self->info("Error getting the envelope to write!", 1) and return;
-  $self->info("Let's start with the transfer!!!");
-  my $done;
-  eval{
+  
+$self->info("Let's start with the transfer!!!");
+  my $done = 0;
+   eval{
     my $prot_id;
     if ($recover){
       $self->info("We don't issue the transfer again (is is $recover)");
@@ -470,6 +463,9 @@ sub transferFile {
     } else{
       ($done, $prot_id)=$self->{PLUGINS}->{lc($protocol)}->copy($sourceEnvelope, $targetEnvelope, $line);
     }
+
+#    $done = $self->test;
+#$self->info("Done = $done"); 
     if ($done) {
       if ($done eq 1){
         $self->info("The transfer worked  Final pfn:'$targetEnvelope->{turl}'!!!");
@@ -478,18 +474,20 @@ sub transferFile {
         $done=0;
         $self->waitForCompleteTransfer($self->{PLUGINS}->{lc($protocol)}, $id, $prot_id)
   	and $done=1;
-      }
-    }
+      } elsif ($done ==3) {
+	$self->info("Transfer must be STAGED, file is not online");}
   };
   if ($@){
     $self->info("Error doing the eval: $@");
   }
+  #$done = 3;
   $done or return;
   my $pfn=$targetEnvelope->{turl};
   $pfn=~ s{/NOLFN}{$targetEnvelope->{pfn}};
 
-  return $pfn;
+  return ($pfn,$done);
 }
+
 
 sub waitForCompleteTransfer{
   my $self=shift;

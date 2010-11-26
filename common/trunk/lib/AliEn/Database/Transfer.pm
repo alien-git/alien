@@ -52,8 +52,10 @@ my $tables={ TRANSFERS_DIRECT=>{columns=>{
 					  size=>"bigint(11)",
 					  status=>"varchar(15)",
 					  attempts=>"int(11)",
-					  
 					  ctime=>"timestamp DEFAULT CURRENT_TIMESTAMP  ON UPDATE CURRENT_TIMESTAMP",
+					  #ctime=>"int(12)",
+					  maxtime=>"int(12)",
+					  retrytime=>"int(12)",
 					  protocols=>"varchar(250)",
 					  pfn=>"varchar(255)",
 					  transferGroup=>"int(11)",
@@ -218,7 +220,10 @@ sub updateTransfer{
       $ok=0;
     }
     $self->info("THE AGENT ID for $id is  $set->{agentid}");
-  }elsif ($set->{status}=~ /^KILLED$/){
+  } elsif ($set->{status}=~ /^WAITING$/){
+      $self->do( "update PROTOCOLS set CURRENT_TRANSFERS=CURRENT_TRANSFERS+1 where SENAME = $id");
+      $self->info("Waiting transfer");
+  } elsif ($set->{status}=~ /^KILLED$/){
     $self->info("Transfer killed. Shall we reduce the agents??");
   }
   my $where="transferid = ?";
