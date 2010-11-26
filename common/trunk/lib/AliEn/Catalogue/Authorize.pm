@@ -980,11 +980,13 @@ sub  getBaseEnvelopeForWriteAccess {
   $reply->{lfn} and $self->info("Authorize: access: the LFN is already in use (reserved in [LFN_BOOKED], not in the catalogue)",1) and return 0;
 
 
-  # gron: guidRequest needs to be checked and accounted
-  if (!$guidRequest) { 
+  $envelope->{guid} = $guidRequest; 
+  if (!$envelope->{guid}) { 
+    $self->info("gron: there was no guid specified by the user");
     $self->{GUID} or $self->{GUID}=AliEn::GUID->new(); 
     $envelope->{guid} = $self->{GUID}->CreateGuid();
   }
+  $self->info("gron: set GUID to $envelope->{guid}");
 
 
 

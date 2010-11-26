@@ -1559,11 +1559,11 @@ sub addFileToSEs {
   my $targetLFN   = (shift || return);
   my $sourcePFN   = (shift || return);
   my $SErequirements=(shift || []);
-  my $guid=(shift || 0); # gron: guid is to be handeled
+  my $result = {};
+  $result->{guid}=(shift || 0); # gron: guid is to be handeled
   my $feedback=(shift || 0);
   my $silent=(shift || 0);
 
-  my $result = {};
   my @ses = ();
   my @excludedSes = ();
   my @qosList;
