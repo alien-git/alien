@@ -1651,8 +1651,8 @@ sub putFiles {
       
       my $guid=0;
       if (exists($guids{$fs_table->{$fileOrArch}->{name}})){
-	$guid="-g $guids{$fs_table->{$fileOrArch}->{name}}";
-	$self->putJobLog("trace", "The file $fs_table->{$fileOrArch}->{name} has the guid $guids{$fs_table->{$fileOrArch}->{name}}");
+        $guid="$guids{$fs_table->{$fileOrArch}->{name}}";
+        $self->putJobLog("trace", "The file $fs_table->{$fileOrArch}->{name} has the guid $guids{$fs_table->{$fileOrArch}->{name}}");
       }
       
       my @addEnvs = $self->addFile($self->{WORKDIR},"$fs_table->{$fileOrArch}->{name}", "$fs_table->{$fileOrArch}->{options}",$guid);
