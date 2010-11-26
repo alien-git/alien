@@ -1442,7 +1442,7 @@ sub erase {
 
 sub addFile_HELP {
   return "'add' copies a file into the SE, and register an entry in the catalogue that points to the file in the SE\n\t
-Usage: add [-g <guid>] [-size <size>] [-md5 <md5>] <lfn> <pfn> [<se>,!<se>,select=N,<qosflag>=N]\n
+Usage: add [-guid <guid>] [-size <size>] [-md5 <md5>] <lfn> <pfn> [<se>,!<se>,select=N,<qosflag>=N]\n
 Possible pfns:\tsrm://<host>/<path>, castor://<host>/<path>, 
 \t\tfile://<host>/<path>
 If the method and host are not specified, the system will try with 'file://<localhost>' \n";

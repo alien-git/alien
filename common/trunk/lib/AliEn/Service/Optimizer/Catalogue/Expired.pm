@@ -80,7 +80,8 @@ sub checkExpired{
       and return;
   my $entryId=0;
   foreach my $entry (@$data){
-    $self->info("We have to do something with the entry $entry");
+    use Data::Dumper;
+    $self->info("We have to do something with the entry".Dumper($entry));
     my $lfn="$dir/$entry->{lfn}";
 
     $self->{CATALOGUE}->execute("mv", $lfn, "$lfn.expired");
