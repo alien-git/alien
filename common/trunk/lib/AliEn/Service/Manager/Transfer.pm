@@ -12,7 +12,7 @@ use AliEn::Service::Manager;
 use AliEn::TRANSFERLOG;
 
 use strict;
-
+use POSIX; 
 use Classad;
 
 use vars qw (@ISA);
@@ -191,7 +191,10 @@ sub changeStatusTransfer {
   ($status eq "DONE" or $status eq "FAILED_T") and $query->{finished} = $date;
   $options->{pfn} and $query->{pfn}=$options->{pfn};
   $options->{ftd} and $query->{ftd}=$options->{ftd};
-
+  $options->{maxtime} and $query->{maxtime} = $options->{maxtime};
+  $options->{ctime} and $query->{ctime} = strftime("%Y-%m-%d %H:%M:%S", localtime($options->{ctime}));  
+  $options->{retrytime} and $query->{retrytime} = $options->{retrytime};
+  
   if ($options->{protocolid}){
     $self->{TRANSFERLOG}->putlog($id, "STATUS", "The transfer has internal id '$options->{protocolid}'");
     $query->{protocolid}=$options->{protocolid};
