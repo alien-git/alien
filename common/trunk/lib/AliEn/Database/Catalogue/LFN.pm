@@ -2373,8 +2373,7 @@ sub fquota_update {
   my $self = shift;
   my $size = shift;
   my $count = shift;
-
-  my $user=$self->{CONFIG}->{ROLE};
+  my $user=(shift || $self->{CONFIG}->{ROLE});
 
   (defined $size) and (defined $count) or $self->info("Update fquota : not enough parameters") and return;
 

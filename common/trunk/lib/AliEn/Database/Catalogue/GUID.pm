@@ -735,30 +735,31 @@ sub moveGUIDs {
 sub deleteMirrorFromGUID{
   my $self=shift;
   my $guid=shift;
+  my $lfn=shift;
   my $se=shift;
-  my $pfn=shift ||"";
-  $self->debug(1,"Ready to delete the mirror from $se");
+  my $pfn=shift;
+
+  $self->debug(1,"Ready to delete the mirror of $lfn from $se");
+
   my $info=$self->checkPermission('w', $guid, "db") or return;
   my $seNumber=$self->getSENumber($se) or $self->info("Error getting the se number of '$se'") and return;
+  $pfn or $pfn = $info->{db}->queryValue("select pfn from $info->{table}_PFN where guidId=? and seNumber=? limit 1",undef,
+    {bind_values=>[$info->{guidId},$seNumber]});
   my $column="seAutoStringList";
+
   if ($pfn){
-    $self->info("First, let's delete the pfn");
-    $info->{db}->do("insert into TODELETE(pfn,senumber,guid) select pfn,senumber,string2binary('$guid') from $info->{table}_PFN where guidId=? and pfn=? and seNumber=?", {bind_values=>[$info->{guidId},$pfn, $seNumber]}  );
-    my $deleted=$info->{db}->delete("$info->{table}_PFN",
-				    "guidId=? and pfn=? and seNumber=?", {bind_values=>[$info->{guidId},$pfn, $seNumber]})
-      or $self->info("Error deleting the entry") and return;
-
-    if ($deleted=~ /^0E0$/){
-      $self->info("The pfn '$pfn' did not exist for that guid");
-      return;
-    }
+    $self->info("First, let's delete the pfn $pfn");
+    $info->{db}->do("insert into LFN_BOOKED(lfn, owner, expiretime, size, guid, gowner, user, pfn, se)
+      select ?,g.owner,-1,g.size,string2binary(?),g.gowner,?,?,s.seName
+      from $info->{table} g, $info->{table}_PFN g_p, SE s
+      where g.guidId=g_p.guidId and g_p.guidId=? and g_p.seNumber=? and g_p.pfn=? and s.seNumber=g_p.seNumber",
+      {bind_values=>[$lfn,$guid,$self->{VIRTUAL_ROLE},$pfn,$info->{guidId},$seNumber,$pfn]});
     $column="seStringList";
-
   }
+
   $self->debug(2,"Finally, let's update the column $column");
 
   return $info->{db}->do("update $info->{table} set $column=replace($column, '$seNumber,','') where guid=string2binary(?)", {bind_values=>[$guid]});
-
 }
 
 sub getNumberOfEntries {

@@ -214,7 +214,7 @@ sub deleteMirrorFromLFN {
   my $lfn=shift;
   my $guid=$self->{LFN_DB}->getGUIDFromLFN($lfn)
     or $self->info("Error getting the guid of $lfn") and return;
-  return $self->{GUID_DB}->deleteMirrorFromGUID($guid, @_);
+  return $self->{GUID_DB}->deleteMirrorFromGUID($guid,$lfn,@_);
 }
 
 =item C<insertMirrorFromFile($lfn, $seName)>
