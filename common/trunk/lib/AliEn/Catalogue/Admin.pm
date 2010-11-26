@@ -985,7 +985,7 @@ sub removeExpiredFiles {
     my $currentTime = time();
     #delete directories
     $db->query("DELETE FROM LFN_BOOKED WHERE lfn LIKE '%/' AND expiretime<?", undef ,{bind_values=>[$currentTime]});
-    my $files = $db->query("SELECT lfn, size, owner, binary2string(guid) as guid, substr(binary2date(guid),1,8) as guidtime, user FROM LFN_BOOKED 
+    my $files = $db->query("SELECT lfn, size, gowner, binary2string(guid) as guid, substr(binary2date(guid),1,8) as guidtime, user FROM LFN_BOOKED 
       WHERE expiretime<?", undef, {bind_values=>[$currentTime]});
     $files or next;
     #Get possible G#L tables
@@ -995,8 +995,9 @@ sub removeExpiredFiles {
       my $size = $file->{size};
       my $count = 0;
       my $guidtime = $file->{guidtime};
-      my $owner = $file->{owner};
+      my $owner = $file->{gowner};
       my $action_user = $file->{user};
+      my $physicalDelete = 0;
       my $possibleGuidTable = $db->query("SELECT h.db AS dbName, gI.tableName AS tableName FROM GUIDINDEX gI, HOSTS h 
         WHERE h.hostIndex=gI.hostIndex AND hex(gI.guidTime)<hex(?) ORDER BY hex(gI.guidTime)",
         undef, {bind_values=>[$guidtime]});
@@ -1032,7 +1033,8 @@ sub removeExpiredFiles {
             $guidId = $data->{guidId};
             my $list=$db->queryColumn("SELECT protocol FROM transfers.PROTOCOLS 
               WHERE sename=? AND deleteprotocol=1",undef ,{bind_values=>[$seName]});
-            my @protocols = @$list;    
+            my @protocols = @$list;
+            my $pD = 0;
             @protocols or push @protocols, "rm";
             foreach my $protocol (@protocols) {
               if (grep(/^$protocol$/i, @{$self->{CONFIG}->{FTD_PROTOCOL_LIST}})){
@@ -1041,7 +1043,9 @@ sub removeExpiredFiles {
                   eval "require $protName";
                   $self->{DELETE}->{lc($protocol)}=$protName->new();
                 }
-                $self->{DELETE}->{lc($protocol)}->delete($pfn) and last;
+                $pD = $self->{DELETE}->{lc($protocol)}->delete($pfn);
+                defined $pD and $physicalDelete+=$pD;
+                $pD and last;
               }
               else {   
                 $self->info("$protocol is not in the FTD_PROTOCOL_LIST - File not being deleted!");
@@ -1049,14 +1053,17 @@ sub removeExpiredFiles {
             }                                     
 
             #CLEAN G#L, G#L_PFN and LFN_BOOKED TABLES
-            $db->do("DELETE FROM $gTableName_PFN WHERE pfn LIKE '$pfn'");
+            $physicalDelete and $db->do("DELETE FROM $gTableName_PFN WHERE pfn LIKE '$pfn'");
           }
-          $deleteGUID and $db->do("DELETE FROM $gTableName WHERE binary2string(guid) LIKE '$guid'");
+          $physicalDelete and $deleteGUID and $db->do("DELETE FROM $gTableName WHERE binary2string(guid) LIKE '$guid'");
         }
       }
-      $db->do("DELETE FROM LFN_BOOKED WHERE lfn LIKE '$lfn'");
-      ($count>0) and $self->{DATABASE}->{LFN_DB}->fquota_update(-1*$size*$count,-1*$count,$owner);
-      $self->info("$lfn($guid) was deleted and quotas were rolled back (".-1*$size*$count.", ".-1*$count.") times for $owner");
+      ($physicalDelete==$count+1) 
+        and $db->do("DELETE FROM LFN_BOOKED WHERE lfn LIKE '$lfn'");
+      ($physicalDelete==$count+1) 
+        and ($count>0) 
+        and $self->{DATABASE}->{LFN_DB}->fquota_update(-1*$size*$count,-1*$count,$owner);
+      $self->info("$lfn($guid) was deleted($physicalDelete physical files) and quotas were rolled back (".-1*$size*$count.", ".-1*$count.") times for $owner");
     }
   }
   $self->{DATABASE}->{GUID_DB}->{VIRTUAL_ROLE} = "admin";
