@@ -454,7 +454,7 @@ sub transferFile {
   
 $self->info("Let's start with the transfer!!!");
   my $done = 0;
-   eval{
+  eval{
     my $prot_id;
     if ($recover){
       $self->info("We don't issue the transfer again (is is $recover)");
@@ -476,6 +476,7 @@ $self->info("Let's start with the transfer!!!");
   	and $done=1;
       } elsif ($done ==3) {
 	$self->info("Transfer must be STAGED, file is not online");}
+    }
   };
   if ($@){
     $self->info("Error doing the eval: $@");
