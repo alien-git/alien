@@ -5,7 +5,23 @@ use AliEn::UI::Catalogue::LCM;
   
 eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
 includeTest("catalogue/003-add") or exit(-2);
-  
+
+
+
+my $father=$$;
+
+my $pid=fork ();
+if (! $pid) {
+   print  "The kid sleeps 3 minutes\n";
+   sleep 180;
+   system("ps");
+
+   print "The kid kills the father $father \n";
+   kill 9, $father; 
+   system("ps");
+   exit(-1);
+
+} 
 my $cat=AliEn::UI::Catalogue::LCM->new({user=>"newuser"}) or exit(-2);
 
 my $lfn="FileToMirror.txt";
@@ -33,4 +49,8 @@ my $target=$newMirror[3];
  map { s{^file://[^/]*/}{/} } ($source, $target);
 print "Comparing the files $source and $target\n";
 system("diff", $source, $target) and print "The files are different!!\n" and exit(-2);
+
+
+print "Killing the kid\n";
+kill 9, $pid;
 print "ok\n";
