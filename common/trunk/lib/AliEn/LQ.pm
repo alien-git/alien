@@ -175,9 +175,9 @@ sub excludeHosts {
 sub getAllBatchIds {
   return;
 }
-sub updateClassAd {
+sub prepareForSubmission {
   my $self=shift;
-  $self->debug(1, "This LQ doesn't modify the classad");
+  $self->debug(1, "This LQ doesn't do anything special to prepare for submission");
   return shift;
 }
 sub getFreeSlots {
