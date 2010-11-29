@@ -9,7 +9,7 @@ use IPC::Open2;
 
 use strict;
 
-sub updateClassAd {
+sub prepareForSubmission {
   my $self=shift;
   my $classad=shift;
 

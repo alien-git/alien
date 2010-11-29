@@ -958,8 +958,8 @@ sub offerAgent {
   if (!$classad){
     my $ca=AliEn::Classad::Host->new({PACKMAN=>$self->{PACKMAN}}) or return;
     $ca->set_expression("LocalDiskSpace", 100000000);
-    $ca=$self->{BATCH}->updateClassAd($ca)
-      or $self->info("Error asking the CE to update the classad")
+    $ca=$self->{BATCH}->prepareForSubmission($ca)
+      or $self->info("Error asking the CE to prepare for submission loop")
 	and return;
     $classad=$ca->asJDL;
 
