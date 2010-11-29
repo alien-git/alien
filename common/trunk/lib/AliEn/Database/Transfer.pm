@@ -414,7 +414,7 @@ sub insertAgent{
   $text=~ s/\s*$//s;
   $text=~ /(ToSE\s*=[^;]*;)/is or $self->info("Error getting the name of the destination") and return;
   my $dest=$1;
-  $text=~ /(Requirements\s*=[^;]*;)/is or $self->info("Error getting the requirements from $text") and return;
+  $text=~ /(Requirements\s*=[^;]*[;\]])/is or $self->info("Error getting the requirements from $text") and return;
   my $req="[ $1 Type = \"transfer\"; $dest ]";
   $self->info( "Inserting a jobagent with '$req'");
   $self->lock("AGENT_DIRECT");
