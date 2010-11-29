@@ -55,22 +55,22 @@ sub checkWakesUp {
 	if ($retryTime < $maxTime && $retryTime<=$actualTime){
 		my $stageQueryOut = system("stager_qry -M ".$pfn) ; # stage-query command here. Binary value
 		$self->$method(@silentData, "retryTime less than Maxtime  $retryTime < $maxTime. StageQueryout stager_qry -M $pfn ".$stageQueryOut);
-		my $stageQueryOut = 0;
-		if ($stageQueryOut) {# stage-query does not succed
-			$retryTime = $actualTime + ($retryTime - $initTime)* 2;
-			$self->$method(@silentData, "retryTime is  $retryTime ");
-			my $query = {ctime=>$actualTime};
-			$query->{retrytime} = $retryTime;
-			$query->{maxtime} = $maxTime;
-		        $self->{LOGGER}->debug("FTD","Update Transfer $id with ".$query->{maxtime}.", retryTime ".$query->{retrytime}." and ".$query->{ctime});
-			$self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, 'STAGED',"ALIEN_SOAP_RETRY",$query);
-			$self->$method(@silentData, "Retrying transfer $id failed. Sleep until $retryTime");
+		#my $stageQueryOut = 0;
+		if (! $stageQueryOut) {# stage-query  succeded
+			$self->$method(@silentData, "Retrying transfer $id done, changing status to WAITING");
+                        $self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, 'WAITING',"ALIEN_SOAP_RETRY");
+                        #$self->{DB}->updateTransfer($id,{status=>"WAITING"});
+                        return 0;		
 		}
 		else {
-			$self->$method(@silentData, "Retrying transfer $id done, changing status to WAITING");
-			$self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, 'WAITING',"ALIEN_SOAP_RETRY");
-			#$self->{DB}->updateTransfer($id,{status=>"WAITING"});
-			return 0;
+			$retryTime = $actualTime + ($retryTime - $initTime)* 2;
+                        $self->$method(@silentData, "retryTime is  $retryTime ");
+                        my $query = {ctime=>$actualTime};
+                        $query->{retrytime} = $retryTime;
+                        $query->{maxtime} = $maxTime;
+                        $self->{LOGGER}->debug("FTD","Update Transfer $id with ".$query->{maxtime}.", retryTime ".$query->{retrytime}." and ".$query->{ctime});
+                        $self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, 'STAGED',"ALIEN_SOAP_RETRY",$query);
+                        $self->$method(@silentData, "Retrying transfer $id failed. Sleep until $retryTime");
 		}
 	}
 	elsif ($retryTime > $maxTime ) {
