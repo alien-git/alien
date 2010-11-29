@@ -56,9 +56,25 @@ sub copy {
      #my $com_exit_value=$? >> 8;
      $logoutput =~ s/\s+$//;
      $self->info("Additional log info from xrd3cp for xferuuid ($xferuuid): $logoutput",1);
+     if ($output =~ /file is not online/) { 
+          $self->info("Error doing the xrd3cp @args. File is not online",1);
+          return 3;
+     }
+
      return;
   }
 
+#  my $cmd = "xrd3cp  @args";
+#  my $output = `$cmd`;
+#  if ($? != 0){
+#	if ($output =~ /file is not online/) {	
+#		$self->info("Error doing the xrd3cp @args. File is not online",1);
+#		return 3;
+#	} else {
+#		$self->info("Error doing the xrd3cp @args",1);
+#		return;
+#	}
+#  }
   $self->info("The transfer worked!!");
   return 1;
 }
