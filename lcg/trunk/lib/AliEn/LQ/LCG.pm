@@ -265,7 +265,7 @@ sub renewProxy {
    return 1;
 }
 
-sub updateClassAd {
+sub prepareForSubmission {
   my $self = shift;
   $self->debug(1,"Updating host classad from IS...");
   my $classad = shift;
