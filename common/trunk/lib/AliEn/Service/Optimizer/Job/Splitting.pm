@@ -129,7 +129,7 @@ sub updateSplitting {
     } else {
       my ($ok, @def)=$job_ca->evaluateAttributeVectorString("SplitDefinitions");
       foreach my $jdl (@def) {
-				$self->_submitJDL($queueid, $submitHost, $jdl) or die("Error submitting one of the splitDefinitions: $jdl\n");
+	$self->_submitJDL($queueid, $submitHost, $jdl) or die("Error submitting one of the splitDefinitions: $jdl\n");
       }
     }
     #    $self->ChangeOriginalJob($job_ca, $queueid, $submitHost);
@@ -406,6 +406,8 @@ sub SubmitSplitJob {
   while(  $text =~ s/;\s*split[^;\]]*;/;/is) {};
   $text=~ s/;\s*inputdatacollection[^;\]]*;/;/i;
   $text =~ s/;\s*email[^;]*;/;/is;
+  $text =~ s/;\s*requirements[^;\]]*;/;/i;
+
   $text =~ s/\[;/\[/;
   $self->debug(1, "Let's start with $text");
   my ($ok, @splitarguments)=$job_ca->evaluateAttributeVectorString("SplitArguments");
