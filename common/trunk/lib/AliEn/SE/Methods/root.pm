@@ -111,24 +111,40 @@ sub put {
   $self->debug(2, "Exit code: $com_exit_value, Returned output: $output");
   if($com_exit_value eq 0) {
       $output=~ /Data Copied \[bytes\]\s*:\s*(\d+)/;
-      $output=~ /Data Copied \[bytes\]\s*:\s*(\d+)/;
       $self->info("Transfered  $1  bytes");
       my $size=-s $self->{LOCALFILE};
       if ($size eq $1){
          $self->info("YUHUUU!! File was properly uploaded, now let's double check destination file size again ...");
-         my $vercommand = "$self->{XRD} $self->{PARSED}->{HOST}:$self->{PARSED}->{PORT} stat $self->{PARSED}->{PATH}";
-         my $doxrcheck = `$vercommand` or $self->info("WARNING: xrd stat to double check file size after successful write was not possible!",1);
-         $doxrcheck =~ /Size:\ (\d+)/;
-         ( ($1 eq $size) and $self->info("EXCELLENT! Double checking file size on destination SE was successfully.") )
-             or $self->info("ERROR: Double checking the file size on the SE with xrd stat showed unequal file sizes!",1);
+         my $xrdstat = $self->xrdstat();
+         ($xrdstat eq $size) or $self->info("WARNING: xrd stat not successful, waiting 6s...") and sleep(6) and $xrdstat = $self->xrdstat();
+         ($xrdstat eq $size) or $self->info("WARNING: xrd stat not successful, waiting 9s...") and sleep(9) and $xrdstat = $self->xrdstat();
+         ($xrdstat eq $size) or $self->info("WARNING: xrd stat not successful, waiting 30s...") and sleep(30) and $xrdstat = $self->xrdstat();
+
+
+         ( ($xrdstat eq $size) and $self->info("EXCELLENT! Double checking file size on destination SE was successfully.") )
+             or $self->info("ERROR: Double checking the file size on the SE with xrd stat showed unequal file sizes!",1) and return;
          $self->debug(2,"Double check file size value from xrd stat: $1");
-         return "root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH}";
+
       }
-      $self->info("The file has not been completely uploaded. Exit code: $com_exit_value, Returned output: $output",1);
-      return;
+      return "root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH}";
   }
   $self->info("Exit code not equal to zero. Something went wrong with xrdcp!! Exit code: $com_exit_value, Returned output: $output",1);
   return;
+}
+
+sub xrdstat {
+  my $self=shift;
+
+   my $xrddebug = "";
+  $self->{DEBUG} and $self->{DEBUG} > 2 and $xrddebug = " -d ".($self->{DEBUG}-2);
+
+
+   my $vercommand = "$self->{XRD} $self->{PARSED}->{HOST}:$self->{PARSED}->{PORT} stat $self->{PARSED}->{PATH}";
+   my $doxrcheck = `$vercommand` or $self->info("WARNING: xrd stat to double check file size after successful write was not possible!",1);
+   $doxrcheck =~ /Size:\ (\d+)/;
+
+  return $1;
+
 }
 
 sub _timeout {
