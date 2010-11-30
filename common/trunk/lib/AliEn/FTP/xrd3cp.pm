@@ -57,7 +57,7 @@ sub copy {
      $logoutput =~ s/\s+$//;
      $self->info("Additional log info from xrd3cp for xferuuid ($xferuuid): $logoutput",1);
      if ($output =~ /file is not online/) { 
-          $self->info("Error doing the xrd3cp @args. File is not online",1);
+          $self->info("Error doing the xrd3cp $args. File is not online",1);
           return 3;
      }
 
