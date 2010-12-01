@@ -354,7 +354,7 @@ sub checkSOAPreturn {
   my $server       = ( shift or "server" );
   my $options      = ( shift or "" );
   my $errorMessage = "";
-  ( defined $done ) or $errorMessage = "Error contacting the $server";
+  ( defined $done ) or $self->info("WARNING!!! SOAP ERROR, while contacting the $server");
   $GLOBALERROR and $errorMessage = $GLOBALERROR;
   my $error = "";
 
