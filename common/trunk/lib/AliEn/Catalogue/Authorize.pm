@@ -91,9 +91,14 @@ sub initEnvelopeEngine {
 
 
   $self->{signEngine} = Crypt::OpenSSL::RSA->new_private_key($privateLocalKey);
+  $self->{signEngine}->use_sha384_hash();
+
 
   $self->{verifyLocalEngine} = Crypt::OpenSSL::RSA->new_public_key($publicLocalKey);
+  $self->{verifyLocalEngine}->use_sha384_hash();
   $self->{verifyRemoteEngine} = Crypt::OpenSSL::RSA->new_public_key($publicRemoteKey);
+  $self->{verifyRemoteEngine}->use_sha384_hash();
+
 
 
 
@@ -1000,7 +1005,7 @@ sub  getBaseEnvelopeForWriteAccess {
   ($ok eq 0) and $self->info($message,1) and return 0;
   
  # foreach ( keys %{$envelope}) { $self->info("Authorize: gron: filehash for write before cleaning checkPermissions: $_: $envelope->{$_}"); }
-  return $self->reduceFileHashAndInitializeEnvelope("write-once",$envelope);
+  return $self->reduceFileHashAndInitializeEnvelope("write",$envelope);
 }
 
 
@@ -1039,8 +1044,8 @@ sub  getBaseEnvelopeForMirrorAccess {
   foreach ( keys %{$envelope}) { $self->info("Authorize: gron: packedEnvelope for write after checkPermissions: $_: $envelope->{$_}"); }
 
   $envelope->{lfn} = $guid;
-  $envelope->{access} = "write-once";
-  return $self->reduceFileHashAndInitializeEnvelope("write-once",$envelope,"access");
+  $envelope->{access} = "write";
+  return $self->reduceFileHashAndInitializeEnvelope("write",$envelope,"access");
 }
 
 
@@ -1248,8 +1253,8 @@ sub authorize{
   $self->debug(1, "In authorize, with". Dumper($options));
 
 
-  ($access =~ /^write[\-a-z]*/) and $access = "write-once";
-  my $writeReq = ( ($access =~ /^write-once$/) || 0 );
+  ($access =~ /^write[\-a-z]*/) and $access = "write";
+  my $writeReq = ( ($access =~ /^write$/) || 0 );
   my $mirrorReq = ( ($access =~ /^mirror$/) || 0 );
   my $readReq = ( ($access =~ /^read$/) || 0 );
   my $registerReq = ( ($access =~/^register$/) || 0 );
@@ -1362,14 +1367,13 @@ sub isOldEnvelopeStorageElement{
   my $self=shift;
   my $se=(shift || return 1);
 
-   my @queryValues = ("$se");
-   my $seVersion = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn("SELECT seVersion FROM SE WHERE seName LIKE ? ;", undef, {bind_values=>\@queryValues});
+  my @queryValues = ("$se");
+  my $seVersion = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn("SELECT seVersion FROM SE WHERE seName LIKE ? ;", undef, {bind_values=>\@queryValues});
 
-   (defined($seVersion) and (scalar(@$seVersion) > 0)) or return 1;
-  
-   #$seVersion[0] > XXX and return 0;
-   
-   return 1;
+  (defined($seVersion)) and (scalar(@$seVersion) > 0) and (int($$seVersion[0]) > 218) and $self->info("gron: returning only the new signed envelope.") and return 0;
+
+  $self->info("gron: returning old versioned envelope.");
+  return 1;
 }
 
 
@@ -1377,6 +1381,7 @@ sub createAndEncryptEnvelopeTicket {
   my $self=shift;
   my $access=(shift || return);
   my $env=(shift || return);
+  $access eq "write" and $access = "write-once";
 
   my @envelopeElements= ("lfn","guid","se","turl","pfn","md5","size");
     my $ticket = "<authz>\n  <file>\n";
@@ -1424,8 +1429,15 @@ sub signEnvelope {
   my $self=shift;
   my $env=(shift || return);
 
+  $env->{created} = time;
+  $env->{expires} = int(time) + 86400; # 24h
+  
+  
   my @keyVals = keys %{$env};
-  $env->{hashOrder} = join ("&",@keyVals);
+  push @keyVals,"hashord";
+  push @keyVals, "creator";
+  $env->{creator} = "Authen.".$self->{CONFIG}->{VERSION} ;
+  $env->{hashord} = join ("-",@keyVals);
   my $envelopeString= join("&", map { $_ = "$_=$env->{$_}"} @keyVals);
 
   $self->info("gron: before signing envelope string is: $envelopeString");
@@ -1434,6 +1446,7 @@ sub signEnvelope {
   $env->{signature} =~  s/\n//g;
 
   $env->{signedEnvelope}= $envelopeString."&signature=$env->{signature}";
+  $env->{signedEnvelope} =~ s/&/\\&/g;
   
   return $env;
 }
@@ -1441,19 +1454,27 @@ sub signEnvelope {
 sub verifyAndDeserializeEnvelope{
   my $self=shift;
   my $env=(shift || return {});
-
   my $signature=0;
   my $envelopeString="";
   my $envelope = {};
+  
+  $env =~ s/\\&/&/g;
 
   foreach ( split(/&/, $env)) {
      my ($key, $val) = split(/=/,$_);
-     ($key =~ /signature/) and $signature = decode_base64($val) and next;
      $envelope->{$key} = $val; 
-     $envelopeString .= $_."&";
   }
+  my @keys = split(/-/, $envelope->{hashord});
+
+  foreach (@keys) {
+    $envelopeString .= $_."=".$envelope->{$_}."&";
+  } 
   $envelopeString =~ s/&$//;
-  
+
+  $signature = decode_base64($envelope->{signature});
+ 
+  $self->info("gron: before verifying envelope string is: $envelopeString");
+ 
   # if we signed the presented returnEnvelope
   $self->{verifyLocalEngine}->verify($envelopeString, $signature)
     and return $envelope;

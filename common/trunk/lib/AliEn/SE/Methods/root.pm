@@ -58,6 +58,13 @@ sub get {
     $command="$self->{XRDCP} $xrddebug -DIFirstConnectMaxCnt 6 $p $self->{LOCALFILE} -OS\\\&authz=\"$ENV{ALIEN_XRDCP_ENVELOPE}\"";
     $self->debug(1, "The envelope is $ENV{ALIEN_XRDCP_ENVELOPE}");
     $self->debug(1,"Trying to get the file $self->{PARSED}->{ORIG_PFN} (to $self->{LOCALFILE})");
+
+  } elsif ($ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}){
+    my $p=$ENV{ALIEN_XRDCP_URL};
+    $p=~ s/#.*$//;
+    $command="$self->{XRDCP} $xrddebug -DIFirstConnectMaxCnt 6 $p $self->{LOCALFILE} -OS\\\&$ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}";
+    $self->debug(1, "The envelope is $ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}");
+    $self->debug(1,"Trying to get the file $self->{PARSED}->{ORIG_PFN} (to $self->{LOCALFILE})");
   # Isn't the following branch old and useless ? Not sure !
   } else {
     $self->{PARSED}->{PATH}=~ s{^//}{/};
@@ -98,7 +105,9 @@ sub put {
     $self->debug(1,"PUTTING THE SECURITY ENVELOPE IN THE XRDCP");
     $command.=" $ENV{ALIEN_XRDCP_URL} -OD\\\&authz=\"$ENV{ALIEN_XRDCP_ENVELOPE}\"";
     $self->debug(1,"The envelope is $ENV{ALIEN_XRDCP_ENVELOPE}");
-
+  } elsif ($ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}){
+    $command.=" $ENV{ALIEN_XRDCP_URL} -OD\\\&$ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}";
+    $self->debug(1,"The envelope is $ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}");
   } else {
     $command.=" root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH}";
   }

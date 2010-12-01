@@ -488,8 +488,8 @@ sub RegisterInRemoteSE {
   my $local_pfn=shift;
   my $envelope=(shift || "");
 
-  $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope->{envelope};
-  $ENV{ALIEN_XRDCP_URL}=$envelope->{turl};
+#  $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope->{envelope};
+#  $ENV{ALIEN_XRDCP_URL}=$envelope->{turl};
 
   my $localfile=$self->checkPFNisLocal($local_pfn);
 
