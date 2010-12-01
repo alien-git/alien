@@ -528,6 +528,14 @@ sub access {
     }
 
     (scalar(@ses) eq 0) or $seList = $self->checkExclWriteUserOnSEsForAccess($user,$size,$seList) and @ses = @$seList;
+    # following is a patch for making the SE discovery on the API services possible. If the static user specs are not leading to a result, we enable SEdiscovery (if not enabled), 
+    # but onlu if it's not a write-version request on an existing file
+    if (($access ne "write-version") and (scalar(@{$seList}) eq 0) and (($writeQos eq 0) or($writeQosCount eq 0))) {
+       ($sitename ne 0) or $sitename="CERN";
+       ($writeQos ne 0) or $writeQos = "disk";
+       ($writeQosCount gt 0) or $writeQosCount = 1;
+    }
+
     if(($sitename ne 0) and ($writeQos ne 0) and ($writeQosCount gt 0)) {
        my $dynamicSElist = $self->getSEListFromSiteSECacheForWriteAccess($user,$size,$writeQos,$writeQosCount,$sitename,$excludedAndfailedSEs);
        push @ses,@$dynamicSElist;
