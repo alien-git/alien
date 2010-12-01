@@ -327,9 +327,11 @@ sub get {
      $ENV{ALIEN_XRDCP_URL}=$envelope->{turl};
      # if we have the old styled envelopes
      if(defined($envelope->{envelope})) {
+        $self->info("gron: we received an old envelope");
         $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope->{envelope};
      } else {
-        $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope->{signedEnvelope};
+        $self->info("gron: we got a new envelope");
+        $ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}=$envelope->{signedEnvelope};
      }
 
      my $start=time;
@@ -1794,7 +1796,8 @@ sub uploadFileAccordingToEnvelope{
         $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope->{envelope};
         $self->info("gron: using OLD SE STYLED ENVELOPE: ".$ENV{ALIEN_XRDCP_ENVELOPE});
      } else {
-        $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope->{signedEnvelope};
+        $ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}=$envelope->{signedEnvelope};
+        $self->info("gron: using A NEW SE STYLED ENVELOPE: ".$ENV{ALIEN_XRDCP_SIGNED_ENVELOPE});
      }
 
      my $start=time;
