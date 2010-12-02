@@ -199,7 +199,7 @@ sub checkRequirements {
       
     } elsif (grep ( /^$split/, ("xml","se", "event", "directory", "file","\-1","\-2","\-5","\-10","\-15","\-20","\-50","\-100", "ce"))){
       $DEBUG and $self->debug(1, "Job is going to be splitted by $split" );
-      $default ="other.SPLIT==1";
+      #$default ="other.SPLIT==1";
     }elsif ( $split =~ /production:(.+)-(.+)/ ) {
       $self->info( "Job is going to be splitted for production, running from $1 to $2" );
     } else {

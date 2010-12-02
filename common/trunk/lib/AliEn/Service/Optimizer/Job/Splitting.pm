@@ -406,7 +406,7 @@ sub SubmitSplitJob {
   while(  $text =~ s/;\s*split[^;\]]*;/;/is) {};
   $text=~ s/;\s*inputdatacollection[^;\]]*;/;/i;
   $text =~ s/;\s*email[^;]*;/;/is;
-  $text =~ s/;\s*requirements[^;\]]*;/;/i;
+  #$text =~ s/;\s*requirements[^;\]]*;/;/i;
 
   $text =~ s/\[;/\[/;
   $self->debug(1, "Let's start with $text");
