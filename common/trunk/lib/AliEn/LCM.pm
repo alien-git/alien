@@ -79,6 +79,7 @@ sub getLocalCopy {
   my $guid       = shift;
   my $localFile = shift;
 
+  $guid or return;
   my ($data) =
     $self->{TXTDB}->queryRow("SELECT localpfn,size,md5sum FROM LOCALGUID where guid='$guid'");
   $DEBUG and $self->debug(1, "Looking for local copies");
