@@ -1360,7 +1360,7 @@ sub  initializeEnvelope{
   my $access=(shift || return {});
   my $lfn=(shift || return "");
   my $preEnvelope=(shift || return {});
-  my @tags = ("guid","size","md5","pfn","turl","se");
+  my @tags = ("guid","size","md5","turl","se");
 
   my $packedEnvelope = {};
   foreach (@tags) { (defined $preEnvelope->{$_}) and ($preEnvelope->{$_} ne "") and $packedEnvelope->{$_} = $preEnvelope->{$_} };
@@ -1391,25 +1391,29 @@ sub createAndEncryptEnvelopeTicket {
   my $env=(shift || return);
   $access eq "write" and $access = "write-once";
 
+
   my @envelopeElements= ("lfn","guid","se","turl","pfn","md5","size");
-    my $ticket = "<authz>\n  <file>\n";
-    $ticket .= "    <access>$access</access>\n";
-    foreach my $key ( keys %{$env}) { 
-      if (grep (/^$key$/i,@envelopeElements) and defined($env->{$key})) {
+  my $ticket = "<authz>\n  <file>\n";
+  $ticket .= "    <access>$access</access>\n";
+  foreach my $key ( keys %{$env}) { 
+     if (grep (/^$key$/i,@envelopeElements) and defined($env->{$key})) {
           $ticket .= "    <$key>$env->{$key}</$key>\n"; 
-      }
-    }
-    $ticket .= "  </file>\n</authz>\n";
+     }
+  }
+  my @pfns = split (/\/\//, $env->{"turl"});
+  $ticket .= "    <pfn>".$pfns[2]."</pfn>\n"; 
+  $ticket .= "  </file>\n</authz>\n";
 
-    $self->info("gron ticket is finally: $ticket");
+  $self->info("gron ticket is finally: $ticket");
 
-    $self->{envelopeCipherEngine}->Reset();
-    #    $self->{envelopeCipherEngine}->Verbose();
-    $self->{envelopeCipherEngine}->encodeEnvelopePerl("$ticket","0","none")
-       or $self->info("Authorize: access: error during envelope encryption",1) and return 0;
+  $self->{envelopeCipherEngine}->Reset();
+  #    $self->{envelopeCipherEngine}->Verbose();
+  $self->{envelopeCipherEngine}->encodeEnvelopePerl("$ticket","0","none")
+     or $self->info("Authorize: access: error during envelope encryption",1) and return 0;
 
-    return $self->{envelopeCipherEngine}->GetEncodedEnvelope();
+  return $self->{envelopeCipherEngine}->GetEncodedEnvelope();
 }
+
 sub decryptEnvelopeTicket {
   my $self=shift;
   my $ticket=(shift || return {});
@@ -1478,7 +1482,6 @@ sub verifyAndDeserializeEnvelope{
     $envelopeString .= $_."=".$envelope->{$_}."&";
   } 
   $envelopeString =~ s/&$//;
-
   $signature = decode_base64($envelope->{signature});
  
   $self->info("gron: before verifying envelope string is: $envelopeString");

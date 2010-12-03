@@ -1721,6 +1721,7 @@ sub putOnStaticSESelectionListV2{
      (scalar(@envelopes) eq scalar(@staticSes)) or
         $self->notice("We couldn't get all envelopes for the SEs, @staticSes .");
 
+     $result->{guid} = $envelopes[0]->{guid};
      foreach my $envelope (@envelopes){
        (my $res, $result) = $self->uploadFileAccordingToEnvelope($result, $sourcePFN, $envelope);
        $res or next;
@@ -1761,7 +1762,7 @@ sub putOnDynamicDiscoveredSEListByQoSV2{
          $self->notice("We could get only scalar(@envelopes) envelopes (requested were '$count') with qos flag '$qos'.");
 
 
-
+     $result->{guid} = $envelopes[0]->{guid};
      foreach my $envelope (@envelopes){
        (my $res, $result) = $self->uploadFileAccordingToEnvelope($result, $sourcePFN, $envelope);
        push @$excludedSes, $envelope->{se};
@@ -1785,7 +1786,7 @@ sub uploadFileAccordingToEnvelope{
   my $sourcePFN   = (shift || 0);
   my $envelope= ( shift || return (0,$result) );
 
-  $result->{guid} and $self->info("File has guid: $result->{guid}") or $result->{guid} = "";
+#  $result->{guid} and $self->info("File has guid: $result->{guid}") or $result->{guid} = "";
   ($sourcePFN) or $self->{LOGGER}->warning( "LCM", "Error no pfn specified" )
     and $self->error("Error: No PFN specified [uploadFileAccordingToEnvelope]")
     and return (0,$result) ;
