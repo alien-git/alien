@@ -504,14 +504,46 @@ sub findAndDropArrayElement{
   return ($back, \@list);
 }
 
+sub getValFromEnvelope {
+  my $env=(shift || return 0);
+  my $rKey=(shift || return 0);
+
+  foreach ( split(/\\&/, $env)) {
+     my ($key, $val) = split(/=/,$_,2);
+     ($rKey eq $key) and return $val;
+  }
+  return 0;
+}
+
+
+
+sub deserializeSignedEnvelopes{
+  (@_) > 0 or return ();
+  my @envelopes = ();
+  foreach (@_) {
+    push @envelopes, deserializeSignedEnvelope($_);
+  }
+  return @envelopes;
+}
 
 sub deserializeSignedEnvelope{
   my $env=(shift || return {});
   my $envelope = {};
-  foreach ( split(/&/, $env)) {
-     my ($key, $val) = split(/=/,$_);
+
+  foreach ( split(/\\&/, $env)) {
+     my ($key, $val) = split(/=/,$_,2);
      $envelope->{$key} = $val;
   }
+  my @signedKeys= split('-', $envelope->{hashord});
+  my @signedElements = ();
+  foreach (@signedKeys) {
+     push @signedElements, $_."=".$envelope->{$_};
+  }
+  push @signedElements, "hashord=".$envelope->{hashord};
+  push @signedElements, "signature=".$envelope->{signature};
+  $envelope->{signedEnvelope} = join('\&',@signedElements);
+
+
   return $envelope;
 }
 
