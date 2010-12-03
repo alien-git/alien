@@ -1625,7 +1625,11 @@ sub addFileToSEs {
   my $success = 0;
   my $counter=0;
   $sourcePFN=$self->checkLocalPFN($sourcePFN);
-  my $size=AliEn::SE::Methods->new($sourcePFN)->getSize();
+  my $size;
+  my $method=AliEn::SE::Methods->new($sourcePFN)
+    or $self->info("Error getting the method of '$sourcePFN'");
+  $method and $size=$method->getSize();
+  
   my $md5=AliEn::MD5->new($sourcePFN);
   ((!$size) or ($size eq 0)) and $self->info( "WARNING: The file $sourcePFN has size 0. Let's hope you wanted to upload an emty file !!!");
 

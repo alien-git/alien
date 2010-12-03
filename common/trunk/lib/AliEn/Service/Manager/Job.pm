@@ -392,7 +392,7 @@ sub SetProcInfoBunch {
       $entry->{tag}="proc";
     }
     if (! $entry->{tag} or $entry->{tag} eq "proc") {
-      $self->SetProcInfo($entry->{jobId}, $entry->{procinfo}, "silent");
+      $self->SetProcInfo($entry->{jobid}, $entry->{procinfo}, "silent");
     } else{
       $self->putJobLog($entry->{jobId}, $entry->{tag}, $entry->{procinfo});
     }

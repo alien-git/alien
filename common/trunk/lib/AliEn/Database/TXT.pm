@@ -23,6 +23,8 @@ use AliEn::Database;
 use LockFile::Simple;
 use vars qw(@ISA);
 
+use DBD::SQLite;
+
 @ISA=('AliEn::Database');
 
 sub new {
@@ -30,14 +32,17 @@ sub new {
   my $self  = (shift or {} );
   $self->{HOST}="localhost";
   $self->{DB}="TXT";
-  $self->{DRIVER}="CSV";
+  $self->{DRIVER}="SQLite333";
   $self->{TABLES}={};
 
   $self->{CONFIG}=new AliEn::Config();
   $self->{DIRECTORY}=$self->{CONFIG}->{TMP_DIR};
 
+  
   $self=AliEn::Database::new($proto, $self, @_);
+  $self or return;
   $self->{DBH}->{'RaiseError'} = 1;
+  
   return $self;
 }
 
@@ -69,7 +74,7 @@ sub describeTable {
 sub getDatabaseDSN{
   my $self=shift;
   $self->debug(1, "Returning the dsn of a text database");
-  return "DBI:CSV:f_dir=$self->{DIRECTORY}";
+  return "DBI:SQLite:dbname=$self->{DIRECTORY}/file.mss";
 }
 
 sub createTable{
@@ -80,21 +85,21 @@ sub createTable{
 
   $self->debug(1, "Checking table $table");
 
-  my $file="$self->{DIRECTORY}/".lc($table);
+  #my $file="$self->{DIRECTORY}/".lc($table);
   my $description=$self->{TABLES}->{$table};
 
-  if ( !( -e $file ) ) {
+#  if ( !( -e $file ) ) {
 
     # Create the table again.
-    $self->debug(1, "Creating CSV-table $table ($file)" );
+    $self->debug(1, "Creating CSV-table $table " );
     
-    $self->{DBH}->do("CREATE TABLE $table ($description)")
+  $self->{DBH}->do("CREATE TABLE if not exists $table ($description)")
       or $self->{LOGGER}->error( "TXT",
-				 "Cannot create table $table ($description) (in file $file). Error: " . $self->{DBH}->errstr() )
+				 "Cannot create table $table ($description). Error: " . $self->{DBH}->errstr() )
 	and return;
 
-    chmod 0770, $file;
-  }
+#    chmod 0770, $file;
+#  }
   return 1;
 
 }

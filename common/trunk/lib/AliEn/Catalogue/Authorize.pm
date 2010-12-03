@@ -1282,7 +1282,7 @@ sub authorize{
   my $sitename= ($options->{site} || 0);
   my $writeQos = ($options->{writeQos} || 0);
   my $writeQosCount = ($options->{writeQosCount} || 0);
-  my $excludedAndfailedSEs = $self->validateArrayOfSEs(split(/;/, $options->{excludeSE}));
+  my $excludedAndfailedSEs = $self->validateArrayOfSEs(split(/;/, $options->{excludeSE} || ""));
   my $pfn = ($options->{pfn} || "");
 
   my $seList = $self->validateArrayOfSEs(split(/;/, $wishedSE));
@@ -1376,9 +1376,9 @@ sub isOldEnvelopeStorageElement{
   my $se=(shift || return 1);
 
   my @queryValues = ("$se");
-  my $seVersion = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn("SELECT seVersion FROM SE WHERE seName LIKE ? ;", undef, {bind_values=>\@queryValues});
+  my $seVersion = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryValue("SELECT seVersion FROM SE WHERE seName LIKE ? ;", undef, {bind_values=>\@queryValues});
 
-  (defined($seVersion)) and (scalar(@$seVersion) > 0) and (int($$seVersion[0]) > 218) and $self->info("gron: returning only the new signed envelope.") and return 0;
+  (defined($seVersion)) and (int($seVersion) > 218) and $self->info("gron: returning only the new signed envelope.") and return 0;
 
   $self->info("gron: returning old versioned envelope.");
   return 1;
