@@ -317,18 +317,18 @@ sub get {
 
    $self->{STORAGE}->checkDiskSpace($filehash->{size}, $localFile) or return;
    while (!$result) {
-     my  @envelopes = $self->{CATALOG}->authorize("read",{
+     my  @envelopes = AliEn::Util::deserializeSignedEnvelopes($self->{CATALOG}->authorize("read",{
       lfn=> $filehash->{lfn},
-      wishedSE=>$wishedSE,excludeSE=>join(";",@excludedAndfailedSEs) ,site=>$self->{CONFIG}->{SITE}});
+      wishedSE=>$wishedSE,excludeSE=>join(";",@excludedAndfailedSEs) ,site=>$self->{CONFIG}->{SITE}}));
      my $envelope = $envelopes[0];
      ($envelope and $envelope->{turl}) or 
         $self->error("Getting an envelope was not successfull for file $file.") and return;
 
      $ENV{ALIEN_XRDCP_URL}=$envelope->{turl};
      # if we have the old styled envelopes
-     if(defined($envelope->{envelope})) {
+     if(defined($envelope->{oldEnvelope})) {
         $self->info("gron: we received an old envelope");
-        $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope->{envelope};
+        $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope->{oldEnvelope};
      } else {
         $self->info("gron: we got a new envelope");
         $ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}=$envelope->{signedEnvelope};
@@ -1415,12 +1415,12 @@ sub erase {
 #	my $pfn=$self->getPFNfromGUID($se, $guid);
 #	$pfn or next;
 
-	my @envelope = $self->{CATALOG}->authorize("delete",{lfn=>$lfn,wishedse=>$se});
+	my @envelope = AliEn::Util::deserializeSignedEnvelopes($self->{CATALOG}->authorize("delete",{lfn=>$lfn,wishedse=>$se}));
 
-	if ((!defined $envelope[0]) || (!defined $envelope[0]->{envelope})) {
+	if ((!defined $envelope[0]) || (!defined $envelope[0]->{oldEnvelope})) {
 	    $self->info("Cannot get access to $lfn for deletion $envelope[0]") and return;
 	}
-	$ENV{'IO_AUTHZ'} = $envelope[0]->{envelope};
+	$ENV{'IO_AUTHZ'} = $envelope[0]->{oldEnvelope};
 
 	if (!$self->{STORAGE}->eraseFile($envelope[0]->{turl})) {
 	    $self->info("Cannot remove $envelope[0]->{turl} from the storage element $se");
@@ -1664,7 +1664,7 @@ sub addFileToSEs {
   (scalar(@successEnvelopes) gt 0) or return;
   if (scalar(@successEnvelopes) ne scalar(@{$result->{usedEnvelopes}})) {
       foreach my $env (@{$result->{usedEnvelopes}}) {
-         grep {$env} @successEnvelopes or $self->error(getValFromEnvelope($env,"pfn")." on ".getValFromEnvelope($env,"se")." could not be registered correctly");
+         grep {$env} @successEnvelopes or $self->error(AliEn::Util::getValFromEnvelope($env,"pfn")." on ".AliEn::Util::getValFromEnvelope($env,"se")." could not be registered correctly");
       } 
   }
 
@@ -1677,7 +1677,7 @@ sub addFileToSEs {
   } else {
       $self->error("ERROR: Adding the file $targetLFN failed completely!");
   }
-  
+
   #$feedback and return {success=>$success,envelopes=>\@successEnvelopes};
   $feedback and return ($success,@successEnvelopes);
   # -1 means a access exception, e.g. exceeded quota limit
@@ -1686,18 +1686,6 @@ sub addFileToSEs {
   return $success;
 
 }
-
-sub getValFromEnvelope {
-  my $env=(shift || return 0);
-  my $rKey=(shift || return 0);
-
-  foreach ( split(/&/, $env)) {
-     my ($key, $val) = split(/=/,$_);
-     ($rKey eq $key) and return $val;
-  }
-  return 0;
-}
-
 
 sub putOnStaticSESelectionListV2{
    my $self=shift;
@@ -1717,9 +1705,9 @@ sub putOnStaticSESelectionListV2{
      ($selOutOf = scalar(@$ses)) or
      $self->notice("We select out of a supplied static list the SEs to save on: @staticSes, count:".scalar(@staticSes));
 
-     my @envelopes = $self->{CATALOG}->authorize("write", {lfn=>$targetLFN, 
-    wishedSE=>join(";", @staticSes), size=>$size, md5=>$md5, guidRequest=>($result->{guid} || 0)});
-     
+     my @envelopes = AliEn::Util::deserializeSignedEnvelopes($self->{CATALOG}->authorize("write", {lfn=>$targetLFN, 
+    wishedSE=>join(";", @staticSes), size=>$size, md5=>$md5, guidRequest=>($result->{guid} || 0)}));
+
      ((!@envelopes) || (scalar(@envelopes) eq 0)) and
            $self->error("We couldn't get envelopes for any of the SEs, @staticSes .") and return($result, $success);
      (scalar(@envelopes) eq scalar(@staticSes)) or
@@ -1756,9 +1744,9 @@ sub putOnDynamicDiscoveredSEListByQoSV2{
    my @successfulUploads = ();
 
    while($count gt 0) {
-     my @envelopes= $self->{CATALOG}->authorize("write", {lfn=>$targetLFN, 
+     my @envelopes= AliEn::Util::deserializeSignedEnvelopes($self->{CATALOG}->authorize("write", {lfn=>$targetLFN, 
        size=> $size, md5=>$md5,  guidRequest=>($result->{guid} || 0), site=>$sitename, 
-          writeQos=>$qos, writeQosCount=>$count, excludeSE=>(join(";", @$excludedSes) || 0)});
+          writeQos=>$qos, writeQosCount=>$count, excludeSE=>(join(";", @$excludedSes) || 0)}));
 
      ((!@envelopes) || (scalar(@envelopes) eq 0)) and
          $self->error("We couldn't get any envelopes (requested were '$count')  with qos flag '$qos'.") and return($result, $success);
@@ -1797,9 +1785,9 @@ sub uploadFileAccordingToEnvelope{
 
      $ENV{ALIEN_XRDCP_URL}=$envelope->{turl};
      # if we have the old styled envelopes
-     if(defined($envelope->{envelope})) {
-        $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope->{envelope};
-        $self->info("gron: using OLD SE STYLED ENVELOPE: ".$ENV{ALIEN_XRDCP_ENVELOPE});
+     if(defined($envelope->{oldEnvelope})) {
+        $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope->{oldEnvelope};
+        $self->info("gron: using OLD SE STYLED ENVELOPE: "); #.$ENV{ALIEN_XRDCP_ENVELOPE});
      } else {
         $ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}=$envelope->{signedEnvelope};
         $self->info("gron: using A NEW SE STYLED ENVELOPE: ".$ENV{ALIEN_XRDCP_SIGNED_ENVELOPE});

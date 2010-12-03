@@ -883,30 +883,30 @@ sub getBaseEnvelopeForReadAccess {
 
   ($filehash->{size} eq "0") and $filehash->{size} = 1024*1024*1024 ; #gron: does this make any sense ?
 
-  my $packedEnvelope = $self->reduceFileHashAndInitializeEnvelope("read",$filehash);
+  my $prepareEnvelope = $self->reduceFileHashAndInitializeEnvelope("read",$filehash);
   
-  ($packedEnvelope->{se}, $packedEnvelope->{pfn})
+  ($prepareEnvelope->{se}, $prepareEnvelope->{pfn})
     = $self->selectPFNOnClosestRootSEOnRank($sitename, $user, $filehash->{guid}, ($$seList[0] || 0), $excludedAndfailedSEs);
-  $packedEnvelope->{se} 
+  $prepareEnvelope->{se} 
        or $self->info("Authorize: access ERROR within selectPFNOnClosestRootSEOnRank: SE list was empty after checkup. Either problem with the file's info or you don't have access on relevant SEs.",1)
        and return 0;
 
-  if ($packedEnvelope->{se} eq "no_se") {
-     ($packedEnvelope->{pfn} =~ /^([a-zA-Z]*):\/\//);
-     if(($1 eq "guid") and ($packedEnvelope->{pfn} =~ s/\?ZIP=(.*)$//)) {
+  if ($prepareEnvelope->{se} eq "no_se") {
+     ($prepareEnvelope->{pfn} =~ /^([a-zA-Z]*):\/\//);
+     if(($1 eq "guid") and ($prepareEnvelope->{pfn} =~ s/\?ZIP=(.*)$//)) {
        my $archiveFile = $1;
        $self->info("Authorize: Getting file out of archive with GUID, $filehash->{guid}...");
-       $packedEnvelope=$self->getBaseEnvelopeForReadAccess($user, $filehash->{guid}, $seList, $excludedAndfailedSEs, $sitename);
-       $packedEnvelope->{pfn} = "?ZIP=".$archiveFile;
-       return $packedEnvelope;
+       $prepareEnvelope=$self->getBaseEnvelopeForReadAccess($user, $filehash->{guid}, $seList, $excludedAndfailedSEs, $sitename);
+       $prepareEnvelope->{pfn} = "?ZIP=".$archiveFile;
+       return $prepareEnvelope;
      }
-     $packedEnvelope->{turl} = $packedEnvelope->{pfn};
+     $prepareEnvelope->{turl} = $prepareEnvelope->{pfn};
   } else {
-    $self->info("Authorize: gron: envelope... se: $packedEnvelope->{se}, pfn: $packedEnvelope->{pfn}");
-    ($packedEnvelope->{turl},$packedEnvelope->{pfn}) = $self->parseAndCheckStorageElementPFN2TURL($packedEnvelope->{se}, $packedEnvelope->{pfn});
+    $self->info("Authorize: gron: envelope... se: $prepareEnvelope->{se}, pfn: $prepareEnvelope->{pfn}");
+    ($prepareEnvelope->{turl},$prepareEnvelope->{pfn}) = $self->parseAndCheckStorageElementPFN2TURL($prepareEnvelope->{se}, $prepareEnvelope->{pfn});
   }
-  my @seList = ("$packedEnvelope->{se}");
-  return ($packedEnvelope, \@seList);
+  my @seList = ("$prepareEnvelope->{se}");
+  return ($prepareEnvelope, \@seList);
 }
 
 
@@ -1003,7 +1003,7 @@ sub  getBaseEnvelopeForWriteAccess {
 
 
 
-#  ($packedEnvelope->{lfn} eq $parent) and $packedEnvelope->{lfn} = $lfn;
+#  ($prepareEnvelope->{lfn} eq $parent) and $prepareEnvelope->{lfn} = $lfn;
   $envelope->{lfn} = $lfn;
   $envelope->{size} = $size;
   $envelope->{md5} = $md5;
@@ -1049,7 +1049,7 @@ sub  getBaseEnvelopeForMirrorAccess {
 
   ( defined($envelope->{size}) && ($envelope->{size} gt 0)) or $self->info("Authorize: ACCESS ERROR: You are trying to mirror a zero sized file '$guid'",1) and return 0;
 
-  foreach ( keys %{$envelope}) { $self->info("Authorize: gron: packedEnvelope for write after checkPermissions: $_: $envelope->{$_}"); }
+  foreach ( keys %{$envelope}) { $self->info("Authorize: gron: prepareEnvelope for write after checkPermissions: $_: $envelope->{$_}"); }
 
   $envelope->{lfn} = $guid;
   $envelope->{access} = "write";
@@ -1243,7 +1243,7 @@ sub reduceFileHashAndInitializeEnvelope{
      defined($filehash->{$tag}) or $self->info("Warning! there was supposed to be a $tag, but it is not there".Dumper($filehash)) and next;
      $envelope->{$tag} = $filehash->{$tag};
   }
-#  foreach ( keys %{$envelope}) { $self->info("Authorize: gron: packedEnvelope during reduction : $_: $envelope->{$_}"); }
+#  foreach ( keys %{$envelope}) { $self->info("Authorize: gron: prepareEnvelope during reduction : $_: $envelope->{$_}"); }
 
   return $envelope;
 }
@@ -1282,66 +1282,64 @@ sub authorize{
   my $sitename= ($options->{site} || 0);
   my $writeQos = ($options->{writeQos} || 0);
   my $writeQosCount = ($options->{writeQosCount} || 0);
-  my $excludedAndfailedSEs = $self->validateArrayOfSEs(split(/;/, $options->{excludeSE} || ""));
+  my $excludedAndfailedSEs = $self->validateArrayOfSEs(split(/;/, $options->{excludeSE}));
   my $pfn = ($options->{pfn} || "");
 
   my $seList = $self->validateArrayOfSEs(split(/;/, $wishedSE));
 
 
-  my @packedEnvelopeList = ();
-  my $packedEnvelope = {};
+  my @returnEnvelopes = ();
+  my $prepareEnvelope = {};
 
   ($writeReq or $registerReq) and 
-     $packedEnvelope = $self->getBaseEnvelopeForWriteAccess($user,$lfn,$size,$md5,$guidRequest);
-  $registerReq and return $self->registerPFNInCatalogue($user,$packedEnvelope,$pfn,$wishedSE);
+     $prepareEnvelope = $self->getBaseEnvelopeForWriteAccess($user,$lfn,$size,$md5,$guidRequest);
+  $registerReq and return $self->registerPFNInCatalogue($user,$prepareEnvelope,$pfn,$wishedSE);
 
-  $mirrorReq and $packedEnvelope = $self->getBaseEnvelopeForMirrorAccess($user,$lfn,$guidRequest,$size,$md5);
+  $mirrorReq and $prepareEnvelope = $self->getBaseEnvelopeForMirrorAccess($user,$lfn,$guidRequest,$size,$md5);
 
   ($writeReq or $mirrorReq )
-       and ($packedEnvelope, $seList) = $self->getSEsAndCheckQuotaForWriteOrMirrorAccess($user,$packedEnvelope,$seList,$sitename,$writeQos,$writeQosCount,$excludedAndfailedSEs);
+       and ($prepareEnvelope, $seList) = $self->getSEsAndCheckQuotaForWriteOrMirrorAccess($user,$prepareEnvelope,$seList,$sitename,$writeQos,$writeQosCount,$excludedAndfailedSEs);
     
 
-  $readReq and ($packedEnvelope, $seList)=$self->getBaseEnvelopeForReadAccess($user, $lfn, $seList, $excludedAndfailedSEs, $sitename);
-  $packedEnvelope or return 0;
+  $readReq and ($prepareEnvelope, $seList)=$self->getBaseEnvelopeForReadAccess($user, $lfn, $seList, $excludedAndfailedSEs, $sitename);
+  $prepareEnvelope or return 0;
    
 
   ($seList && (scalar(@$seList) gt 0)) or $self->info("Authorize: access: After checkups there's no SE left to make an envelope for.",1) and return 0;
 
-  (scalar(@$seList) lt 0) and $self->info("Authorize: Authorize: ERROR! There are no SE's after checkups to create an envelope for '$$packedEnvelope->{lfn}/$packedEnvelope->{guid}'",1) and return 0;
-  $self->debug (1, "Base envelope ". Dumper($packedEnvelope,));
+  (scalar(@$seList) lt 0) and $self->info("Authorize: Authorize: ERROR! There are no SE's after checkups to create an envelope for '$$prepareEnvelope->{lfn}/$prepareEnvelope->{guid}'",1) and return 0;
+  $self->debug (1, "Base envelope ". Dumper($prepareEnvelope,));
   while (scalar(@$seList) gt 0) {
-       $packedEnvelope->{se} = shift(@$seList);
+       $prepareEnvelope->{se} = shift(@$seList);
    
        $self->debug(1,"Authorize: gron: Starting the loop...");
    
        if ($writeReq or $mirrorReq) {
-         $packedEnvelope = $self->calculateXrootdTURLForWriteEnvelope($packedEnvelope);
-         $self->addEntryToBookingTableAndOptionalExistingFlagTrigger($user,$packedEnvelope,$mirrorReq)
+         $prepareEnvelope = $self->calculateXrootdTURLForWriteEnvelope($prepareEnvelope);
+         $self->addEntryToBookingTableAndOptionalExistingFlagTrigger($user,$prepareEnvelope,$mirrorReq)
          and $self->info("Authorize: gron: LFN BOOK ADD OK");
          # or next;
          
-         $self->info("Authorize: gron: LFN_BOOKED DONE, envelope looks like: $packedEnvelope");
+         $self->info("Authorize: gron: LFN_BOOKED DONE, envelope looks like: $prepareEnvelope");
    
        }
-       my $signedEnvelope = {};
-       foreach (keys %{$packedEnvelope}) { $signedEnvelope->{$_} = $packedEnvelope->{$_}; $self->info("gron: $_: ".$packedEnvelope->{$_}); }
+       foreach (keys %{$prepareEnvelope}) { $self->info("gron: $_: ".$prepareEnvelope->{$_}); }
 
        $self->info("gron: access: $access");
    
-       $signedEnvelope = $self->signEnvelope($signedEnvelope);
+       my $signedEnvelope  = $self->signEnvelope($prepareEnvelope);
 
 
-       $self->isOldEnvelopeStorageElement($signedEnvelope->{se}) and 
-          $signedEnvelope->{envelope} = $self->createAndEncryptEnvelopeTicket($access, $signedEnvelope);
+       $self->isOldEnvelopeStorageElement($prepareEnvelope->{se}) and 
+          $signedEnvelope .= '\&oldEnvelope='.$self->createAndEncryptEnvelopeTicket($access, $prepareEnvelope);
    
 
-       $self->info("Authorize: gron: FINAL ENVELOPE LOOKS LIKE:");
-       foreach ( keys %{$signedEnvelope}) {  $self->info("Authorize: gron: ENVELOPE: $_ -> ".$signedEnvelope->{$_}); }
+       $self->info("Authorize: gron: FINAL ENVELOPE LOOKS LIKE: ".$signedEnvelope);
    
-       push @packedEnvelopeList, $signedEnvelope;
+       push @returnEnvelopes, $signedEnvelope;
    
        if ($self->{MONITOR}) {
-   	#my @params= ("$se", $packedEnvelope->{size});
+   	#my @params= ("$se", $prepareEnvelope->{size});
    	my $method;
    	($access =~ /^((read)|(write))/)  and $method="${1}req";
    	$access =~ /^delete/ and $method="delete";
@@ -1349,7 +1347,7 @@ sub authorize{
    	$self->{MONITOR}->sendParameters("$self->{CONFIG}->{SITE}_QUOTA","$self->{ROLE}_$method", ("$signedEnvelope->{se}", $signedEnvelope->{size}) ); 		      
        }
   }  
-  return @packedEnvelopeList;
+  return @returnEnvelopes;
 }
 
 
@@ -1362,12 +1360,12 @@ sub  initializeEnvelope{
   my $preEnvelope=(shift || return {});
   my @tags = ("guid","size","md5","turl","se");
 
-  my $packedEnvelope = {};
-  foreach (@tags) { (defined $preEnvelope->{$_}) and ($preEnvelope->{$_} ne "") and $packedEnvelope->{$_} = $preEnvelope->{$_} };
+  my $prepareEnvelope = {};
+  foreach (@tags) { (defined $preEnvelope->{$_}) and ($preEnvelope->{$_} ne "") and $prepareEnvelope->{$_} = $preEnvelope->{$_} };
   $preEnvelope->{md5} or $preEnvelope->{md5} = "00000000000000000000000000000000";
-  $packedEnvelope->{access}=$access;
-  ($preEnvelope->{lfn} ne "") and $packedEnvelope->{lfn}=$lfn;
-  return $packedEnvelope;
+  $prepareEnvelope->{access}=$access;
+  ($preEnvelope->{lfn} ne "") and $prepareEnvelope->{lfn}=$lfn;
+  return $prepareEnvelope;
 }
 
 
@@ -1376,9 +1374,9 @@ sub isOldEnvelopeStorageElement{
   my $se=(shift || return 1);
 
   my @queryValues = ("$se");
-  my $seVersion = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryValue("SELECT seVersion FROM SE WHERE seName LIKE ? ;", undef, {bind_values=>\@queryValues});
+  my $seVersion = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn("SELECT seVersion FROM SE WHERE seName LIKE ? ;", undef, {bind_values=>\@queryValues});
 
-  (defined($seVersion)) and (int($seVersion) > 218) and $self->info("gron: returning only the new signed envelope.") and return 0;
+  (defined($seVersion)) and (scalar(@$seVersion) > 0) and (int($$seVersion[0]) > 218) and $self->info("gron: returning only the new signed envelope.") and return 0;
 
   $self->info("gron: returning old versioned envelope.");
   return 1;
@@ -1450,17 +1448,15 @@ sub signEnvelope {
   push @keyVals, "creator";
   $env->{creator} = "Authen.".$self->{CONFIG}->{VERSION} ;
   $env->{hashord} = join ("-",@keyVals);
-  my $envelopeString= join("&", map { $_ = "$_=$env->{$_}"} @keyVals);
+  my $envelopeString= join('&', map { $_ = "$_=$env->{$_}"} @keyVals);
 
   $self->info("gron: before signing envelope string is: $envelopeString");
 
-  $env->{signature} = encode_base64($self->{signEngine}->sign($envelopeString));
-  $env->{signature} =~  s/\n//g;
+  my $signature = encode_base64($self->{signEngine}->sign($envelopeString));
+  $signature =~  s/\n//g;
+  $envelopeString =~  s/&/\\&/g;
 
-  $env->{signedEnvelope}= $envelopeString."&signature=$env->{signature}";
-  $env->{signedEnvelope} =~ s/&/\\&/g;
-  
-  return $env;
+  return $envelopeString.'\&signature='.$signature;
 }
 
 sub verifyAndDeserializeEnvelope{
@@ -1470,16 +1466,14 @@ sub verifyAndDeserializeEnvelope{
   my $envelopeString="";
   my $envelope = {};
   
-  $env =~ s/\\&/&/g;
-
-  foreach ( split(/&/, $env)) {
-     my ($key, $val) = split(/=/,$_);
+  foreach ( split(/\\&/, $env)) {
+     my ($key, $val) = split(/=/,$_,2);
      $envelope->{$key} = $val; 
   }
   my @keys = split(/-/, $envelope->{hashord});
 
   foreach (@keys) {
-    $envelopeString .= $_."=".$envelope->{$_}."&";
+    $envelopeString .= $_."=".$envelope->{$_}.'&';
   } 
   $envelopeString =~ s/&$//;
   $signature = decode_base64($envelope->{signature});

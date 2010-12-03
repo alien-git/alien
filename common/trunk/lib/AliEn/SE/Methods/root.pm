@@ -105,12 +105,46 @@ sub put {
     $self->debug(1,"PUTTING THE SECURITY ENVELOPE IN THE XRDCP");
     $command.=" $ENV{ALIEN_XRDCP_URL} -OD\\\&authz=\"$ENV{ALIEN_XRDCP_ENVELOPE}\"";
     $self->debug(1,"The envelope is $ENV{ALIEN_XRDCP_ENVELOPE}");
+  
+    $self->debug(1,"The command is $command");
+    my $output = `$command  2>&1 ; echo "ALIEN_XRD_SUBCALL_RETURN_VALUE=\$?"` or $self->info("Error: xrdcp is not in the path",1) and return;
+    $output =~ s/\s+$//; 
+    $output =~ /ALIEN_XRD_SUBCALL_RETURN_VALUE\=([-]*\d+)$/;
+    my $com_exit_value = $1;
+  
+    $self->debug(2, "Exit code: $com_exit_value, Returned output: $output");
+    if($com_exit_value eq 0) {
+        $output=~ /Data Copied \[bytes\]\s*:\s*(\d+)/;
+        $self->info("Transfered  $1  bytes");
+        my $size=-s $self->{LOCALFILE};
+        if ($size eq $1){
+           $self->info("YUHUUU!! File was properly uploaded, now let's double check destination file size again ...");
+           my $xrdstat = $self->xrdstat();
+           ($xrdstat eq $size) or $self->info("WARNING: xrd stat not successful, waiting 6s...") and sleep(6) and $xrdstat = $self->xrdstat();
+           ($xrdstat eq $size) or $self->info("WARNING: xrd stat not successful, waiting 9s...") and sleep(9) and $xrdstat = $self->xrdstat();
+           ($xrdstat eq $size) or $self->info("WARNING: xrd stat not successful, waiting 30s...") and sleep(30) and $xrdstat = $self->xrdstat();
+  
+  
+           ( ($xrdstat eq $size) and $self->info("EXCELLENT! Double checking file size on destination SE was successfully.") )
+               or $self->info("ERROR: Double checking the file size on the SE with xrd stat showed unequal file sizes!",1) and return;
+           $self->debug(2,"Double check file size value from xrd stat: $1");
+  
+        }
+        return "root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH}";
+    }
+    $self->info("Exit code not equal to zero. Something went wrong with xrdcp!! Exit code: $com_exit_value, Returned output: $output",1);
+    return;
+  
+
+
+
   } elsif ($ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}){
     $command.=" $ENV{ALIEN_XRDCP_URL} -OD\\\&$ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}";
     $self->debug(1,"The envelope is $ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}");
   } else {
     $command.=" root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH}";
   }
+
   $self->debug(1,"The command is $command");
   my $output = `$command  2>&1 ; echo "ALIEN_XRD_SUBCALL_RETURN_VALUE=\$?"` or $self->info("Error: xrdcp is not in the path",1) and return;
   $output =~ s/\s+$//; 
@@ -137,6 +171,7 @@ sub put {
       }
       return "root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH}";
   }
+
   $self->info("Exit code not equal to zero. Something went wrong with xrdcp!! Exit code: $com_exit_value, Returned output: $output",1);
   return;
 }
