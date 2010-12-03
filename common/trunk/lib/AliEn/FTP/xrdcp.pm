@@ -26,39 +26,52 @@ sub copy {
   my $self=shift;
   my $source=shift;
   my $target=shift;
-  $self->info("Ready to copy $source into $target ");
+  my $sEnvelope = {};
+  my $tEnvelope = {};
 
-  $self->{MSS}->{LOCALFILE}.=".$source->{guid}";
-  $ENV{ALIEN_XRDCP_ENVELOPE}=$source->{envelope};
-  $ENV{ALIEN_XRDCP_URL}=$source->{turl};
+  $source and $sEnvelope = AliEn::Util::deserializeSignedEnvelope($source);
+  $target and $tEnvelope = AliEn::Util::deserializeSignedEnvelope($target);
+
+  $self->info("Ready to copy $sEnvelope->{turl} into $tEnvelope->{turl} ");
+
+  $self->{MSS}->{LOCALFILE}.=".$sEnvelope->{guid}";
+  $ENV{ALIEN_XRDCP_URL}=$sEnvelope->{turl};
+  $ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}=$sEnvelope->{signedEnvelope};
+
+  # if we have the old styled envelopes
+  (defined($sEnvelope->{oldEnvelope})) and $ENV{ALIEN_XRDCP_ENVELOPE}=$sEnvelope->{oldEnvelope};
 
   $self->info("Issuing the get");
   my $file=$self->{MSS}->get();
   if (!$file) {
-    $self->info("Error getting the file $source->{turl}", 1);
+    $self->info("Error getting the file $sEnvelope->{turl}", 1);
     return ;
   }
   $self->info("Checking if it has the right size");
 
   my $size=-s $self->{MSS}->{LOCALFILE};
-  if ($size ne $source->{size}){
-    $self->info("Error: the file was supposed to be $source->{size}, but it is only $size",1);
+  if ($size ne $sEnvelope->{size}){
+    $self->info("Error: the file was supposed to be $sEnvelope->{size}, but it is only $size",1);
     unlink $self->{MSS}->{LOCALFILE};    
     return;
   }
   
   $self->info("We got the file $file. Let's put it now in the destination");
-  $ENV{ALIEN_XRDCP_ENVELOPE}=$target->{envelope};
-  $ENV{ALIEN_XRDCP_URL}=$target->{turl};
+  $ENV{ALIEN_XRDCP_URL}=$tEnvelope->{turl};
+  $ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}=$tEnvelope->{signedEnvelope};
+
+  # if we have the old styled envelopes
+  (defined($tEnvelope->{oldEnvelope})) and $ENV{ALIEN_XRDCP_ENVELOPE}=$tEnvelope->{oldEnvelope};
+
   if (!$self->{MSS}->put()){
-    $self->info("Error putting the file $target->{turl}");
+    $self->info("Error putting the file $tEnvelope->{turl}");
     unlink $self->{MSS}->{LOCALFILE};
     return ;
   }
   $self->info("File copied!!");
   unlink $self->{MSS}->{LOCALFILE};
-#  $self->info("Doing the command xrd3cp '$source->{turl}?$source->{envelope}' '$target->{turl}?$target->{envelope}'");
-#  open (FILE, "xrd3cp '$source->{turl}?$source->{envelope}' '$target->{turl}?$target->{envelope}'|") or 
+#  $self->info("Doing the command xrd3cp '$sEnvelope->{turl}?$sEnvelope->{envelope}' '$tEnvelope->{turl}?$tEnvelope->{envelope}'");
+#  open (FILE, "xrd3cp '$sEnvelope->{turl}?$sEnvelope->{envelope}' '$tEnvelope->{turl}?$tEnvelope->{envelope}'|") or 
 #    $self->info("Error doing the xrdc3p call!") and return;
 #  my @info=<FILE>;
 #  close FILE or 

@@ -449,8 +449,9 @@ sub transferFile {
 
   $info or $self->info("Error getting the envelope to write the target") and return;
   my $targetEnvelope=$info->result;
-  $targetEnvelope and $targetEnvelope->{turl} or
-    $self->info("Error getting the envelope to write!", 1) and return;
+  my $turl = 0;
+  $targetEnvelope and $turl = AliEn::Util::getValFromEnvelope($targetEnvelope,"turl");
+  $turl or $self->info("Error getting the envelope to write!", 1) and return;
   
 $self->info("Let's start with the transfer!!!");
   my $done = 0;
@@ -468,7 +469,7 @@ $self->info("Let's start with the transfer!!!");
 #$self->info("Done = $done"); 
     if ($done) {
       if ($done eq 1){
-        $self->info("The transfer worked  Final pfn:'$targetEnvelope->{turl}'!!!");
+        $self->info("The transfer worked  Final pfn:'$turl'!!!");
         $done=1;
       }elsif ($done eq 2){
         $done=0;
@@ -483,9 +484,11 @@ $self->info("Let's start with the transfer!!!");
   }
   #$done = 3;
   $done or return;
-  my $pfn=$targetEnvelope->{turl};
-  $pfn=~ s{/NOLFN}{$targetEnvelope->{pfn}};
-
+  my $pfn=$turl;
+  if($turl =~ /NOLFN/) {
+    my @splitturl = split (/\/\//, $turl,3);
+    $splitturl[2] and $pfn=~ s{/NOLFN}{$splitturl[2]}; # $splitturl[2] is what used to be the envelope pfn part
+  }
   return ($pfn,$done);
 }
 

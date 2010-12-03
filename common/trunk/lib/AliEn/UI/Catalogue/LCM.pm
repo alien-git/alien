@@ -325,14 +325,10 @@ sub get {
         $self->error("Getting an envelope was not successfull for file $file.") and return;
 
      $ENV{ALIEN_XRDCP_URL}=$envelope->{turl};
+     $ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}=$envelope->{signedEnvelope};
+
      # if we have the old styled envelopes
-     if(defined($envelope->{oldEnvelope})) {
-        $self->info("gron: we received an old envelope");
-        $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope->{oldEnvelope};
-     } else {
-        $self->info("gron: we got a new envelope");
-        $ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}=$envelope->{signedEnvelope};
-     }
+     (defined($envelope->{oldEnvelope})) and $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope->{oldEnvelope};
 
      my $start=time;
      $result = $self->{STORAGE}->getFile( $envelope->{turl}, $envelope->{se}, $localFile, join("",keys %options), $file, $envelope->{guid},$envelope->{md5} );
@@ -1415,15 +1411,21 @@ sub erase {
 #	my $pfn=$self->getPFNfromGUID($se, $guid);
 #	$pfn or next;
 
-	my @envelope = AliEn::Util::deserializeSignedEnvelopes($self->{CATALOG}->authorize("delete",{lfn=>$lfn,wishedse=>$se}));
-
-	if ((!defined $envelope[0]) || (!defined $envelope[0]->{oldEnvelope})) {
-	    $self->info("Cannot get access to $lfn for deletion $envelope[0]") and return;
+	my @envelope = $self->{CATALOG}->authorize("delete",{lfn=>$lfn,wishedse=>$se});
+        my $envelope = AliEn::Util::deserializeSignedEnvelope(shift @envelope);
+	if ((!defined $envelope) || (!defined $envelope->{signedEnvelope})) {
+	    $self->info("Cannot get access to $lfn for deletion $envelope->{signedEnvelope}") and return;
 	}
-	$ENV{'IO_AUTHZ'} = $envelope[0]->{oldEnvelope};
 
-	if (!$self->{STORAGE}->eraseFile($envelope[0]->{turl})) {
-	    $self->info("Cannot remove $envelope[0]->{turl} from the storage element $se");
+       $ENV{ALIEN_XRDCP_URL}=$envelope->{turl};
+       $ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}=$envelope->{signedEnvelope};
+
+       # if we have the old styled envelopes
+       (defined($envelope->{oldEnvelope})) and $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope->{oldEnvelope};
+
+
+	if (!$self->{STORAGE}->eraseFile($envelope->{turl})) {
+	    $self->info("Cannot remove $envelope->{turl} from the storage element $se");
 	    $failure=1;
 	    next;
 	}	
@@ -1784,14 +1786,10 @@ sub uploadFileAccordingToEnvelope{
     and return (0,$result) ;
 
      $ENV{ALIEN_XRDCP_URL}=$envelope->{turl};
+     $ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}=$envelope->{signedEnvelope};
+
      # if we have the old styled envelopes
-     if(defined($envelope->{oldEnvelope})) {
-        $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope->{oldEnvelope};
-        $self->info("gron: using OLD SE STYLED ENVELOPE: "); #.$ENV{ALIEN_XRDCP_ENVELOPE});
-     } else {
-        $ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}=$envelope->{signedEnvelope};
-        $self->info("gron: using A NEW SE STYLED ENVELOPE: ".$ENV{ALIEN_XRDCP_SIGNED_ENVELOPE});
-     }
+     (defined($envelope->{oldEnvelope})) and $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope->{oldEnvelope};
 
      my $start=time;
      $self->debug(2, "We will upload the file $sourcePFN to $envelope->{se}" );

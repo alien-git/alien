@@ -200,6 +200,10 @@ sub remove {
   my $self=shift;
   $self->debug(1,"Trying to remove the file $self->{PARSED}->{ORIG_PFN}");
   print "We are in the remove\n";
+
+#  missing utilization of $ENV{ALIEN_XRDCP_TURL}  + $ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}   / $ENV{ALIEN_XRDCP_ENVELOPE} !!!!!!
+
+
 #  open(FILE, "| xrd $self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}
   my $pid = open2(*Reader, *Writer, "xrd $self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}" )
     or $self->info("Error calling xrd!") && return;
