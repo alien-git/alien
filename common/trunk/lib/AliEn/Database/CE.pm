@@ -33,7 +33,7 @@ sub initialize{
                                jobId int,
                                status varchar(15), jdl varchar(1000)";
 
-  $self->{TABLES}->{MESSAGES}="jobId int,
+  $self->{TABLES}->{messages}="jobId int,
                                procinfo varchar(200),
                                tag varchar(40),
                                timestamp int";
@@ -153,7 +153,7 @@ sub insertMessage {
   defined $update or $update=1;
   my $time=time;
   $self->debug(1,"The message is \'$jobId\', \'$message\', \'$tag\', \'$time\'");
-  my $done= $self->insert("MESSAGES", {jobId=>$jobId, procinfo=>$message,
+  my $done= $self->insert("messages", {jobId=>$jobId, procinfo=>$message,
 			     tag=>$tag,  timestamp=>$time});
 
   $done or return;
@@ -164,8 +164,9 @@ sub insertMessage {
 sub retrieveMessages{
   my $self=shift;
   my $time=time;
-  my $info=$self->query("SELECT * from MESSAGES where timestamp < ?", undef, {bind_values=>[$time]});
-  $self->delete("MESSAGES", "timestamp < ?", {bind_values=>[$time]});
+  my $info=$self->query("SELECT * from messages where timestamp < ?", undef, {bind_values=>[$time]});
+  $self->delete("messages", "timestamp < ?", {bind_values=>[$time]});
+  $self->info("Messages older than $time had been deleted");
   return $info;
   
 }

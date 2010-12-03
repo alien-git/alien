@@ -816,6 +816,7 @@ sub forkCheckProcInfo{
   while (1){
     $self->checkProcInfo($silent);
     $silent++;
+    $silent or $self->info("Going to sleep...");
     $silent>5 and $silent=0;
     sleep(60);
   }
@@ -846,7 +847,7 @@ sub checkProcInfo{
     $self->{SOAP}->CallSOAP("Manager/Job", "SetProcInfoBunch", $self->{HOST}, \@temp) or 
       $self->info("ERROR!!! we couldn't send the messages to the job manager");
   }
-
+  $self->info("All messages have been sent!");
 }
 
 sub GetConfiguration {

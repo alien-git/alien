@@ -28,7 +28,7 @@ sub checkWakesUp {
 
   $self->info("There are some jobs to check!!");
 
-    my $jobs=$self->{DB}->query("SELECT queueid, jdl, status from QUEUE q, JOBSTOMERGE j where q.queueid=j.masterid and status='SPLIT' union select queueid,jdl,status from QUEUE where status='FORCEMERGE'");
+  my $jobs=$self->{DB}->query("SELECT queueid, jdl, status from QUEUE q, JOBSTOMERGE j where q.queueid=j.masterid and status='SPLIT' union select queueid,jdl,status from QUEUE where status='FORCEMERGE'");
   foreach my $job (@$jobs){
     $self->{DB}->delete("JOBSTOMERGE", "masterId=?", {bind_values=>[$job->{queueid}]});
     my $job_ca=Classad::Classad->new($job->{jdl});
@@ -257,10 +257,10 @@ sub updateMerging {
 
       my ($info)=$self->{DB}->getFieldsFromQueue($queueid,"merging")
 	or die ("Job $queueid doesn't exist");
-
-      $self->copyOutputDirectories( $queueid, $job_ca, $procDir, $user) 
-	or die ("error copying the output directories");
-      
+      $self->info("Ready to copy the output");
+      #$self->copyOutputDirectories( $queueid, $job_ca, $procDir, $user) 
+	#or die ("error copying the output directories");
+      $self->info("Output copied");
       $self->checkMergingCollection($job_ca, $queueid, $procDir);
       $self->checkMergingSubmission($job_ca, $queueid, $procDir, $user, $set, $info) 
 	or die("Error doing the submission of the merging jobs");
@@ -331,65 +331,65 @@ sub checkMaxFailed{
   return 1;
 }
 
-sub copyOutputDirectories{
-  my $self=shift;
-  my $masterId=shift;
-  my $job_ca=shift;
-  my $procDir=shift;
-  my $user=shift;
-
-
-  my $subJobs = $self->{DB}->getFieldsFromQueueEx("queueId,status,submitHost", "WHERE split=?", {bind_values=>[$masterId]})
-	or die ("Could not get splitted jobs for $masterId");
-
-  # copy all the result files into the master job directory
-  my $cnt=0;
-
-  my $outputdir = "$procDir/subjobs";
-
-  for (@$subJobs) {
-    $_->{status} eq "DONE" or print "Skipping $_->{queueId}\n" and next;
-    $cnt++;
-    my $subId=$_->{queueId};
-    #		    my $newdir = sprintf "%03d",$cnt;
-    my $origdir=AliEn::Util::getProcDir(undef, $_->{submitHost}, $subId);
-#    my $eventdir=$self->getOutputDir($subId, $jdlrun, $jdlevent) or next;
-    my $destdir="$outputdir/$subId";
-    $destdir =~ s{//}{/}g;
-    $self->debug(1,"Copying from $origdir to $destdir");
-    if (! $self->{CATALOGUE}->execute("cd", $origdir, "-silent")){
-      if (! $self->{CATALOGUE}->execute("cd", $destdir)){
-	$self->info("The directory doesn't exist any more (and it has not been copied to $destdir!!)");
-	$self->putJobLog($masterId,"error", "error moving subjob output of $subId to $destdir");
-      }
-      next;
-    }
-
-    if (! $self->{CATALOGUE}->execute("mkdir",$destdir,"-p") ){
-      $self->info("Error creating the destination directory $destdir");
-      $self->putJobLog($masterId, "error", "Error creating the directory $destdir");
-      next;
-    }
-    $self->debug(1, "And now, the cp $origdir/job-output $destdir");
-    if ($self->{CATALOGUE}->execute("cp", "-silent", "$origdir/job-output", $destdir) ) {
-      #Let's put the log files of the subjobs
-      $self->{CATALOGUE}->execute("cp",  "-silent","$origdir/job-log/execution.out", "$procDir/job-log/execution.$subId.out");
-      $self->{CATALOGUE}->execute("cp",  "-silent","$origdir/job-log/execution.err", "$procDir/job-log/execution.$subId.err");
-
-      # delete the proc directory
-      if ($subId > 0) {
-	$self->putJobLog($masterId,"delete", "Deleting subjob directory $origdir ");
-	$self->{CATALOGUE}->execute("rmdir",$origdir,"-r") or $self->info("Error deleting the directory $origdir");
-      }
-      $self->putJobLog($masterId,"move", "Moving subjob output of $subId to $destdir");
-    } else {
-      $self->info("Error copying the file $origdir/job-output to $destdir");	
-      $self->putJobLog($masterId,"error", "error moving subjob output of $subId to $destdir");
-    }
-  }				
-
-  return 1;
-}
+#sub copyOutputDirectories{
+#  my $self=shift;
+#  my $masterId=shift;
+#  my $job_ca=shift;
+#  my $procDir=shift;
+#  my $user=shift;
+#
+#
+#  my $subJobs = $self->{DB}->getFieldsFromQueueEx("queueId,status,submitHost", "WHERE split=?", {bind_values=>[$masterId]})
+#	or die ("Could not get splitted jobs for $masterId");
+#
+#  # copy all the result files into the master job directory
+#  my $cnt=0;
+#
+#  my $outputdir = "$procDir/subjobs";
+#
+#  for (@$subJobs) {
+#    $_->{status} eq "DONE" or print "Skipping $_->{queueId}\n" and next;
+#    $cnt++;
+#    my $subId=$_->{queueId};
+#    #		    my $newdir = sprintf "%03d",$cnt;
+#    my $origdir=AliEn::Util::getProcDir(undef, $_->{submitHost}, $subId);
+##    my $eventdir=$self->getOutputDir($subId, $jdlrun, $jdlevent) or next;
+#    my $destdir="$outputdir/$subId";
+#    $destdir =~ s{//}{/}g;
+#    $self->debug(1,"Copying from $origdir to $destdir");
+#    if (! $self->{CATALOGUE}->execute("cd", $origdir, "-silent")){
+#      if (! $self->{CATALOGUE}->execute("cd", $destdir)){
+#	$self->info("The directory doesn't exist any more (and it has not been copied to $destdir!!)");
+#	$self->putJobLog($masterId,"error", "error moving subjob output of $subId to $destdir");
+#      }
+#      next;
+#    }
+#
+#    if (! $self->{CATALOGUE}->execute("mkdir",$destdir,"-p") ){
+#      $self->info("Error creating the destination directory $destdir");
+#      $self->putJobLog($masterId, "error", "Error creating the directory $destdir");
+#      next;
+#    }
+#    $self->debug(1, "And now, the cp $origdir/job-output $destdir");
+#    if ($self->{CATALOGUE}->execute("cp", "-silent", "$origdir/job-output", $destdir) ) {
+#      #Let's put the log files of the subjobs
+#      $self->{CATALOGUE}->execute("cp",  "-silent","$origdir/job-log/execution.out", "$procDir/job-log/execution.$subId.out");
+#      $self->{CATALOGUE}->execute("cp",  "-silent","$origdir/job-log/execution.err", "$procDir/job-log/execution.$subId.err");
+#
+#      # delete the proc directory
+#      if ($subId > 0) {
+#	$self->putJobLog($masterId,"delete", "Deleting subjob directory $origdir ");
+#	$self->{CATALOGUE}->execute("rmdir",$origdir,"-r") or $self->info("Error deleting the directory $origdir");
+#      }
+#      $self->putJobLog($masterId,"move", "Moving subjob output of $subId to $destdir");
+#    } else {
+#      $self->info("Error copying the file $origdir/job-output to $destdir");	
+#      $self->putJobLog($masterId,"error", "error moving subjob output of $subId to $destdir");
+#    }
+#  }				
+#
+#  return 1;
+#}
 
 
 sub checkMergingSubmission {
