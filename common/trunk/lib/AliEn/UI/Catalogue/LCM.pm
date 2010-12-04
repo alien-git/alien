@@ -1702,16 +1702,17 @@ sub putOnStaticSESelectionListV2{
    my $success=0;
 
    $selOutOf eq 0 and  $selOutOf = scalar(@$ses);
+   ($selOutOf eq scalar(@$ses)) or
+      $self->notice("We select out of a supplied static list the SEs to save on: @$ses, count: $selOutOf");
    while ((scalar(@$ses) gt 0 and $selOutOf gt 0)) {
      (scalar(@$ses) gt 0) and my @staticSes= splice(@$ses, 0, $selOutOf);
-     ($selOutOf = scalar(@$ses)) or
-     $self->notice("We select out of a supplied static list the SEs to save on: @staticSes, count:".scalar(@staticSes));
+     $self->info("gron: trying to get envelopes for: @staticSes");
 
      my @envelopes = AliEn::Util::deserializeSignedEnvelopes($self->{CATALOG}->authorize("write", {lfn=>$targetLFN, 
     wishedSE=>join(";", @staticSes), size=>$size, md5=>$md5, guidRequest=>($result->{guid} || 0)}));
 
-     ((!@envelopes) || (scalar(@envelopes) eq 0)) and
-           $self->error("We couldn't get envelopes for any of the SEs, @staticSes .") and return($result, $success);
+     ((!@envelopes) || (scalar(@envelopes) eq 0) || (not defined($envelopes[0]->{signedEnvelope}))) and
+           $self->error("We couldn't get envelopes for any of the SEs, @staticSes .") and next;
      (scalar(@envelopes) eq scalar(@staticSes)) or
         $self->notice("We couldn't get all envelopes for the SEs, @staticSes .");
 
@@ -1721,9 +1722,8 @@ sub putOnStaticSESelectionListV2{
        $res or next;
        push @{$result->{usedEnvelopes}}, $envelope->{signedEnvelope}; 
        $self->info("gron: pushed the following envelope to the used ones:  $envelope->{signedEnvelope}");
-       $selOutOf = $selOutOf - $success;
+       $selOutOf--;
      }
-
    }
    return ($result, $success);
 }  
@@ -1750,7 +1750,7 @@ sub putOnDynamicDiscoveredSEListByQoSV2{
        size=> $size, md5=>$md5,  guidRequest=>($result->{guid} || 0), site=>$sitename, 
           writeQos=>$qos, writeQosCount=>$count, excludeSE=>(join(";", @$excludedSes) || 0)}));
 
-     ((!@envelopes) || (scalar(@envelopes) eq 0)) and
+     ((!@envelopes) || (scalar(@envelopes) eq 0) || (not defined($envelopes[0]->{signedEnvelope}))) and
          $self->error("We couldn't get any envelopes (requested were '$count')  with qos flag '$qos'.") and return($result, $success);
      (scalar(@envelopes) eq $count) or
          $self->notice("We could get only scalar(@envelopes) envelopes (requested were '$count') with qos flag '$qos'.");
