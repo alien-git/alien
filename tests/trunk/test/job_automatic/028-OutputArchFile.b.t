@@ -78,8 +78,6 @@ BEGIN { plan tests => 1 }
   
   my $TotalTestStatus=1;
   
-  my $defaultCopies=2;
-
   for my $tcase (@testcases) {
     
        my $archiveStatus=0;
@@ -176,15 +174,17 @@ BEGIN { plan tests => 1 }
              }
           }
        } 
-       if(doEqualsOnArray("no_links_registration",\@{$testTable->{$tcase}->{fopt}} )) {
-          my @filefilesCopy = @filefiles;
-          for my $j(0..$#filefilesCopy) {
-             if(doEqualsOnArray($filefilesCopy[$j],\@{$testTable->{$tcase}->{filetag}} )) {
-                        splice(@filefiles,$j-$fileoffset,1);
-                        $fileoffset++;
-             } 
-          }
-       }
+
+
+#       if(doEqualsOnArray("no_links_registration",\@{$testTable->{$tcase}->{fopt}} )) {
+#          my @filefilesCopy = @filefiles;
+#          for my $j(0..$#filefilesCopy) {
+#             if(doEqualsOnArray($filefilesCopy[$j],\@{$testTable->{$tcase}->{filetag}} )) {
+#                        splice(@filefiles,$j-$fileoffset,1);
+#                        $fileoffset++;
+#             } 
+#          }
+#       }
 
   
        ($#archivefiles < 0) and $archiveContentStatus=1;

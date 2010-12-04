@@ -136,26 +136,31 @@ sub submitCopiesOnMultipleSes{
 
   my $jdlstring = "Executable=\"date\";\n";
 
+  $jdlstring .= "Output={";
+
   if ($archivename ne "" ) {
-     $jdlstring .= "OutputArchive = (\"";
+     $jdlstring .= "\"";
      $jdlstring .= $archivename.":";
      for my $file (@$archivecontent) {
 	    $jdlstring .= $file.",";
      }
      $jdlstring =~ s/,$//;
      $jdlstring .= $asestring;
-     $jdlstring .= "\");\n";
+     $jdlstring .= "\",";
   }
 
   if (scalar(@$filetag) > 0) {
-     $jdlstring .= "OutputFile = (\"";
+     $jdlstring .= "\"";
      for my $file (@$filetag) {
             $jdlstring .= $file.",";
      }
      $jdlstring =~ s/,$//;
      $jdlstring .= $fsestring;
-     $jdlstring .= "\");\n";
+     $jdlstring .= "\",";
   }
+  $jdlstring =~ s/,$//;
+  $jdlstring .= "};\n";
+
 
 
 

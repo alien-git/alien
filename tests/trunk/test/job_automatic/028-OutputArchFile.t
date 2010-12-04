@@ -225,7 +225,7 @@ sub fillTestTableWithTests{
   my $fsel2 = 0;
   my $fdisk2 = 2;
   my $ftape2 = 1;
-  my @foptions2 = ("");
+  my @foptions2 = ();
 
   $testTable->{starFilePattern}={archivename=>$archivename2,archivecontent=>\@archivecontent2,ases=>\@ases2,asel=>$asel2,adisk=>$adisk2,atape=>$atape2,aopt=>\@aoptions2,
                          filetag=>\@filetag2,fses=>\@fses2,fsel=>$fsel2,fdisk=>$fdisk2,ftape=>$ftape2,fopt=>\@foptions2,status=>0,id=>0,seres=>0,secres=>0};
@@ -280,7 +280,8 @@ sub fillTestTableWithTests{
   my $fsel5 = 0;
   my $fdisk5 = 0;
   my $ftape5 = 1;
-  my @foptions5 = ("no_links_registration");
+  my @foptions5 = ();
+
 
   $testTable->{fnolink}={archivename=>$archivename5,archivecontent=>\@archivecontent5,ases=>\@ases5,asel=>$asel5,adisk=>$adisk5,atape=>$atape5,aopt=>\@aoptions5,
                          filetag=>\@filetag5,fses=>\@fses5,fsel=>$fsel5,fdisk=>$fdisk5,ftape=>$ftape5,fopt=>\@foptions5,status=>0,id=>0,seres=>0,secres=>0};
@@ -315,7 +316,7 @@ sub fillTestTableWithTests{
   my @filetag7=("stderr");
   my @fses7 = ();
   my $fsel7 = 0;
-  my @foptions7 = ("no_archive");
+  my @foptions7 = ();
   my $fdisk7 = 0;
   my $ftape7 = 0;
   $testTable->{simple}={archivename=>$archivename7,archivecontent=>\@archivecontent7,ases=>\@ases7,asel=>$asel7,adisk=>$adisk7,atape=>$atape7,aopt=>\@aoptions7,
