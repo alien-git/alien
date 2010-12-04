@@ -1106,7 +1106,7 @@ sub registerPFNInCatalogue{
     $se, $envelope->{guid}, undef,undef, $envelope->{md5},
     $pfn) 
     or $self->info("Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $pfn could not be registered.",1) and return 0;
-  $self->info( "File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $pfn was successfully registered.",1) and return 0;
+  $self->info( "File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $pfn was successfully registered.") and return 1;
 
 }
 
