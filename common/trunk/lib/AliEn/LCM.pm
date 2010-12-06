@@ -570,19 +570,23 @@ sub getPFNName{
   my $envelope=shift;
   $self->debug(1, "Can we get the guid and the pfn from the envelope???");
   
-  $envelope or 
+  $envelope and defined($envelope->{turl}) or
     $self->info("There is no envelope to get the filename",1) and return;
+  my @pfnsplit = split(/\/\//, $envelope->{turl}, 3);
+  scalar(@pfnsplit) eq 3 or  $self->info("We couldn't get the PFN from the TURL.",1) and return;
+  my $pfn = $pfnsplit[2];
+  
   $info->{guid}=$envelope->{guid};
   if (! $info->{guid}){
-    $info->{guid}=$envelope->{pfn};
+    $info->{guid}=$pfn;
     $info->{guid} =~ s/^.*\/([^\/]*)$/$1/;
     $info->{guid}=~  /^[\dabcdef-]{36}$/i or $self->info("It doesn't have the right format ($info->{guid})") and return;
 
   }
   $info->{guid} or return;
 
-  $info->{pfn}=$self->rewriteCatalogueRegistrationPFN($envelope->{turl},$envelope->{pfn}) or return;
-  $self->info("According to the envelope: $info->{pfn} and $info->{guid}");
+  $info->{pfn}=$self->rewriteCatalogueRegistrationPFN($envelope->{turl},$pfn) or return;
+  $self->info("According to the envelope: $pfn and $info->{guid}");
   return $info;
 }
 
