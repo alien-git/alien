@@ -71,17 +71,6 @@ sub createTable {
 
   1;
 }
-=item C<preprocess_fields>
-
-  $res = $dbh->preprocess_fields($keys);
-
-=cut
-
-sub preprocess_fields {
-	my $self     = shift;
-	my $new_keys = shift;
-	return $new_keys;
-}
 
 
 
