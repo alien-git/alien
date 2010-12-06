@@ -51,7 +51,7 @@ sub getRequirements{
   
   print "The jdl is '$info'\n";
 
-  $info=~ /Requirements\s*=([^;]*);/i or return;
+  $info=~ /Requirements\s*=([^;\]]*)[;\]]/i or print "Error getting the requirements!!" and return;
   print "The requirements are $1\n";
   $1 =~ /member\(other.CloseSE,"$se"\)/i or print "The requirements don't include restriction on '$se'\n" and return;;
   return 1;
