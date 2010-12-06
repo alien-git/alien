@@ -19,16 +19,12 @@ BEGIN { plan tests => 1 }
   my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",}) or 
     exit (-1);
 
-  my ($procDir)=checkSubJobs($cat, $id, 2) or exit(-2);
-
-  print "\n\nlet's check the output\nWe got back  $procDir\n";
-  my $subJobDir="$procDir/subjobs";
-  my @dirs=$cat->execute("ls", $subJobDir) or exit(-2);
+  my ($procDir, $ids)=checkSubJobs($cat, $id, 2) or exit(-2);
   my $second=0;
-  foreach my $entry (@dirs) {
+  foreach my $entry (@{$ids->{DONE}}) {
     $entry =~ /job-log/ and next;
     print "Checking the output of $entry\n";
-    my ($file)=$cat->execute("get", "$subJobDir/$entry/job-output/stdout") or exit(-2);
+    my ($file)=$cat->execute("get", "~/alien-job-$entry/job-output/stdout") or exit(-2);
     open (FILE, "<$file") or print "Error opening $file\n" and exit(-2);
     my @content=<FILE>;
     close FILE;
