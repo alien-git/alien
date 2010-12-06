@@ -633,6 +633,10 @@ sub f_removeFile {
     $self->{LOGGER}->error("File", "Check permission on $fullPath failed");
     return;
   }
+  $self->existsEntry($fullPath, $filehash->{lfn}) or
+    $self->error("file $fullPath does not exists!!",1)
+      and return;
+
   return $self->{DATABASE}->{LFN_DB}->removeFile($fullPath,$filehash);
 }
 
