@@ -1636,7 +1636,7 @@ sub putFiles {
     my @addedFiles=();
     my $remoteDir = "$self->{CONFIG}->{LOG_DIR}/proc$id";
 
-    $self->{UI}->execute("cd",$self->{PROCDIR} ."/job-output");
+#    $self->{UI}->execute("cd",$self->{PROCDIR} ."/job-output");
 
     #so that we can know if we are registering a new file or a replica
     my $submitted={};
@@ -1655,6 +1655,28 @@ sub putFiles {
         $self->putJobLog("trace", "The file $fs_table->{$fileOrArch}->{name} has the guid $guids{$fs_table->{$fileOrArch}->{name}}");
       }
       
+      if($self->{STATUS} =~ /^ERROR_V/) {
+        # just upload the files ...
+        my @addEnvs = $self->addFile($self->{WORKDIR},"$fs_table->{$fileOrArch}->{name}", "$fs_table->{$fileOrArch}->{options}",$guid,1);
+
+        my @list=();
+        foreach my $file( keys %{$fs_table->{$fileOrArch}->{entries}}) {  # if it is a file, there are just no entries
+          my $guid=$guids{$file} || "";
+          $self->info("Checking if $file has a guid ($guid)");
+          push @list, join("###", $file, $fs_table->{$fileOrArch}->{entries}->{$file}->{size},
+          $fs_table->{$fileOrArch}->{entries}->{$file}->{md5},$guid );
+        }
+        $submitted->{$fs_table->{$fileOrArch}->{name}}->{links}=\@list;
+
+        my $success = shift @addEnvs;
+        $success  or next;
+        $success and  $successCounter++;
+        ($success eq -1) and $incompleteAddes=1;
+
+        next;  
+      }
+
+
       my @addEnvs = $self->addFile($self->{WORKDIR},"$fs_table->{$fileOrArch}->{name}", "$fs_table->{$fileOrArch}->{options}",$guid);
      
       my $success = shift @addEnvs;
@@ -1670,6 +1692,26 @@ sub putFiles {
          my $registerstatus = $self->registerFile($file, $fs_table->{$fileOrArch}->{name}, $signedEnvs);
       }
    
+    }
+
+    if($self->{STATUS} =~ /^ERROR_V/) { # if we just uploaded the files, we'll put the registration infos back to the JDL 
+      my @list=();
+      foreach my $key (keys %$submitted){
+        my $links="";
+        $submitted->{$key}->{status} or next;
+        my $entry=$submitted->{$key};
+        if ($entry->{links} ) {
+          $links.=";;".join(";;",@{$entry->{links}});
+        }
+  
+        push @list, "\"".join ("###", $key, $entry->{guid}, $entry->{size},
+                               $entry->{md5},  join("###",@{$entry->{PFNS}}),
+                               $links) ."\"";
+      }
+      if (@list) {
+        $self->{CA}->set_expression("RegisteredOutput", "{".join(",",@list)."}");
+        $self->{JDL_CHANGED}=1;
+      }
     }
 
   }
@@ -1699,6 +1741,7 @@ sub addFile {
   my $file=shift;
   my $storeTags=shift;
   my $guid=shift;
+  my $uploadOnly=(shift || 0); 
   my @addResult;
 
   $self->info("Submitting the file $file");
@@ -1714,8 +1757,13 @@ sub addFile {
 
   $self->putJobLog("trace","gron: adding file: add, $options, $file, $workdir/$file, $storeTags");
 
-  $self->{UI}->execute("cd",$self->{PROCDIR}."/job-output");
-  @addResult=$self->{UI}->execute("add", $options, "$file", "$workdir/$file", $storeTags);
+#  $self->{UI}->execute("cd",$self->{PROCDIR}."/job-output");
+ 
+  if($uploadOnly) {
+    @addResult=$self->{UI}->execute("add", "-upload", $options, "$file", "$workdir/$file", $storeTags);
+  } else {
+    @addResult=$self->{UI}->execute("add", $options, "$file", "$workdir/$file", $storeTags);
+  }
 
   my $sucess = shift @addResult;
   defined($sucess) or $sucess =0;
@@ -1799,17 +1847,17 @@ sub submitFileToClusterMonitor{
   
   my $return=$lfn;
 
-  if ($catalog){
-#! $options->{no_register}){
-    my $dir= AliEn::Util::getProcDir($self->{JOB_USER}, undef, $ENV{ALIEN_PROC_ID}) . "/job-log";
-    my $host="$ENV{ALIEN_CM_AS_LDAP_PROXY}";
-    $catalog->execute("mkdir", $dir);
-
-    $catalog->execute( "register",  "$dir/$lfn",
-		       "soap://$ENV{ALIEN_CM_AS_LDAP_PROXY}$done?URI=ClusterMonitor",$size, "no_se", "-md5", $md5) 
-      or print STDERR "ERROR Adding the entry $done to the catalog!!\n"
-	and return;
-  }
+#  if ($catalog){
+##! $options->{no_register}){
+#    my $dir= AliEn::Util::getProcDir($self->{JOB_USER}, undef, $ENV{ALIEN_PROC_ID}) . "/job-log";
+#    my $host="$ENV{ALIEN_CM_AS_LDAP_PROXY}";
+#    $catalog->execute("mkdir", $dir);
+#
+#    $catalog->execute( "register",  "$dir/$lfn",
+#		       "soap://$ENV{ALIEN_CM_AS_LDAP_PROXY}$done?URI=ClusterMonitor",$size, "no_se", "-md5", $md5) 
+#      or print STDERR "ERROR Adding the entry $done to the catalog!!\n"
+#	and return;
+#  }
 
   return {size=>$size, md5=>$md5, se=>'no_se', 
 	  pfn=>"soap://$ENV{ALIEN_CM_AS_LDAP_PROXY}$done?URI=ClusterMonitor"};
@@ -2295,8 +2343,8 @@ CPU Speed                           [MHz] : $ProcCpuspeed
   $self->{PROCDIR} = $self->{OUTPUTDIR} || "~/alien-job-$ENV{ALIEN_PROC_ID}";
   $self->{UI}->execute("mkdir","-p",$self->{PROCDIR});
   $self->{UI}->execute("cd",$self->{PROCDIR});
-  $self->{UI}->execute("mkdir",$self->{PROCDIR}."/job-output");
-  $self->{UI}->execute("mkdir",$self->{PROCDIR}."/job-log");
+#  $self->{UI}->execute("mkdir",$self->{PROCDIR}."/job-output");
+#  $self->{UI}->execute("mkdir",$self->{PROCDIR}."/job-log");
 
     #this hash will contain all the files that have already been submitted,
 
@@ -2495,9 +2543,9 @@ sub registerLogs {
     my $data=$self->submitFileToClusterMonitor($dir,$basename, "execution.out");
     $data or $self->info("Error submitting the log file") and return;
 
-    $self->info("Tryin to register file execution.out with sourcePFN = $data->{pfn}");
-    $self->{UI}->execute("cd",$self->{PROCDIR} ."/job-log");
-    my ($addResult)=$self->{UI}->execute("add", "-r", "-user=$self->{JOB_USER}", "-tracelog", "-size $data->{size}", "-md5 $data->{md5} ", "execution.out", "$data->{pfn}");
+    #$self->info("Tryin to register file execution.out with sourcePFN = $data->{pfn}");
+    #$self->{UI}->execute("cd",$self->{PROCDIR} ."/job-log");
+    #my ($addResult)=$self->{UI}->execute("add", "-r", "-user=$self->{JOB_USER}", "-tracelog", "-size $data->{size}", "-md5 $data->{md5} ", "execution.out", "$data->{pfn}");
 
   };
   $self->doInAllVO({},$func);

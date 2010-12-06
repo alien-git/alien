@@ -973,6 +973,10 @@ sub  getBaseEnvelopeForWriteAccess {
   my $guidRequest=(shift || 0); 
   my $envelope={};
 
+  $self->info("gron: getBaseEnvelopeForWriteAccess received info of file size: $size.");
+  $size and ( $size gt 0 ) or $self->info("Authorize: File has zero size and will not be allowed to registered") and return 0;
+
+
   $self->info("Authorize: gron: Doing checkPermissionsOnLFN for $lfn, size: $size, md5: $md5 ");
   $envelope= $self->checkPermissions("w",$lfn,0, 1);
   $envelope or $self->info("Authorize: access: access denied to $lfn",1) and return 0;
@@ -1068,6 +1072,8 @@ sub  getSEsAndCheckQuotaForWriteOrMirrorAccess{
   my $writeQosCount=(shift || 0);
   my $excludedAndfailedSEs=(shift || []);
 
+  $envelope->{size} and ( $envelope->{size} gt 0 ) or $self->info("Authorize: ERROR: File has zero size, we don't allow that.") and return 0;
+ 
   # if nothing is or wrong specified SE info, get default from Config, if there is a sitename
   ( (scalar(@$seList) eq 0) and ($sitename ne 0) and ( ($writeQos eq 0) or ($writeQosCount eq 0) ) and $self->{CONFIG}->{SEDEFAULT_QOSAND_COUNT} ) 
     and ($writeQos, $writeQosCount) =split (/\=/, $self->{CONFIG}->{SEDEFAULT_QOSAND_COUNT},2);
@@ -1092,6 +1098,7 @@ sub registerPFNInCatalogue{
   my $se=(shift || 0);
 
   $envelope->{lfn} or $self->info("Authorize: The access to registering a PFN with LFN $envelope->{lfn} could not be granted.",1) and return 0;
+  $envelope->{size} and ( $envelope->{size} gt 0 ) or $self->info("Authorize: File has zero size and will not be allowed to registered") and return 0;
   (!($pfn =~ /^file:\/\//) and !($pfn =~ /^root:\/\//)) and $se = "no_se";
   if($pfn =~ /^guid:\/\/\//){
 #    $se = "no_se";
@@ -1299,6 +1306,7 @@ sub authorize{
 
   ($writeReq or $mirrorReq )
        and ($prepareEnvelope, $seList) = $self->getSEsAndCheckQuotaForWriteOrMirrorAccess($user,$prepareEnvelope,$seList,$sitename,$writeQos,$writeQosCount,$excludedAndfailedSEs);
+  $prepareEnvelope or return 0;
     
 
   $readReq and ($prepareEnvelope, $seList)=$self->getBaseEnvelopeForReadAccess($user, $lfn, $seList, $excludedAndfailedSEs, $sitename);
