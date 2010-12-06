@@ -435,7 +435,7 @@ sub transferFile {
 
   my ($ok, $user)=$ca->evaluateAttributeString("User");
   ($ok, my $lfn)=$ca->evaluateAttributeString("FromLFN");
-  my $info=$self->{SOAP}->CallSOAP("Authen", "createEnvelope", $user, "read", $lfn, $source);
+  my $info=$self->{SOAP}->CallSOAP("Authen", "doOperation", "authorize", $user, "read", $lfn, $source);
   $info or $self->info("Error getting the envelope to read the source") and return;
   my $sourceEnvelope=$info->result;
 
@@ -445,7 +445,7 @@ sub transferFile {
   $target or $self->info("Error getting the destination of the transfer")
     and return;
   $self->info("And the second envelope ( $user, mirror, $guid, $target, $size, 0, $guid");
-  $info=$self->{SOAP}->CallSOAP("Authen", "createEnvelope", $user, "mirror", $guid, $target, $size, 0, $guid);
+  $info=$self->{SOAP}->CallSOAP("Authen", "doOperation", "authorize", $user, "mirror", $guid, $target, $size, 0, $guid);
 
   $info or $self->info("Error getting the envelope to write the target") and return;
   my $targetEnvelope=$info->result;
