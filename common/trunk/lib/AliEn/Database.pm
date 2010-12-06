@@ -1,4 +1,3 @@
-
 #/**************************************************************************
 # * Copyright(c) 2001-2002, ALICE Experiment at CERN, All rights reserved. *
 # *                                                                        *
@@ -28,9 +27,9 @@ require AliEn::Config;
 require AliEn::SOAP;
 require AliEn::Logger::LogObject;
 
-use vars qw($DEBUG @ISA);
+use vars qw($DEBUG @ISA $INDEX);
 
-$DEBUG=0;
+$DEBUG = 0;
 push @ISA, "AliEn::Logger::LogObject";
 
 =head1 NAME
@@ -132,107 +131,128 @@ to database.
 
 =cut
 
-sub new{
-  my $proto = shift;
+sub new {
+	my $proto = shift;
 
-  my $class = ref($proto) || $proto;
-  my $self  = (shift or {} );
-#  my $attr		= shift;
-  my $attrDBI		= shift;
-   $self=bless( $self, $class );
+	my $class = ref($proto) || $proto;
+	my $self = ( shift or {} );
 
-  $self->SUPER::new() or print "NOPE\n" and return;
-  
+	#  my $attr		= shift;
+	my $attrDBI = shift;
+	$self = bless( $self, $class );
 
-  $self->{TOKEN_MANAGER} = new AliEn::TokenManager();
+	$self->SUPER::new() or print "NOPE\n" and return;
 
-  $self->{CONFIG} or $self->{CONFIG}=new AliEn::Config();
+	$self->{TOKEN_MANAGER} = new AliEn::TokenManager();
 
-  $self->{CONFIG} or $self ->{LOGGER}->error("Database","Initial configuration not found.")
-    and return;
-  bless( $self, $class );
+	$self->{CONFIG} or $self->{CONFIG} = new AliEn::Config();
 
-  $self->preConnect() or return;
+	$self->{CONFIG}
+	  or
+	  $self->{LOGGER}->error( "Database", "Initial configuration not found." )
+	  and return;
+	bless( $self, $class );
 
+	$self->preConnect() or return;
 
-  ( $self->{DB} and $self->{HOST} and $self->{DRIVER} )
-      or $self->{LOGGER}->error("Database","No database specified.")
-	and return;
+	( $self->{DB} and $self->{HOST} and $self->{DRIVER} )
+	  or $self->{LOGGER}->error( "Database", "No database specified." )
+	  and return;
 
+	##we need to map the types for each database.
+	$self->{TYPES} = {};
+	my $driver = $self->{DRIVER};
+	my $name   = "AliEn::Database::";
+	if ( $driver =~ /^Oracle$/i or $driver =~ /^mysql$/i or $driver =~ /^SQLite$/i ) {
+		$name .= $driver;
+		eval "require $name" or print "Could not requiere $name\n" and exit(-2);
+		@ISA = ( $name, @ISA );
+		$self->getTypes;
+	}
 
-  my %defaults =(USE_PROXY=>1,
-		 USER=>$self->{CONFIG}->{LOCAL_USER},
-		 ROLE=>$self->{CONFIG}->{LOCAL_USER},
-		 SILENT=>0,
-		 USE_CACHE=>0,
-		 DEBUG => 0,
-		 DEFAULT_TTL=>"1 hour",
-		 CACHE_SIZE=>"4000000",
-		 CACHE_DIR =>"$self->{CONFIG}->{TMP_DIR}/DBCache",
-		 PASSWD =>($self->{CONFIG}->{PASSWD} || ""),
-		 TOKEN=> ($self->{CONFIG}->{TOKEN} || ""),
-		 FORCED_AUTH_METHOD=>($self->{CONFIG}->{ForcedMethod} || ""),
-		 MAX_WAIT_TIME =>40,
-		 RECONNECT_NUMBER => 100,
+	my %defaults = (
+		USE_PROXY          => 1,
+		USER               => $self->{CONFIG}->{LOCAL_USER},
+		ROLE               => $self->{CONFIG}->{LOCAL_USER},
+		SILENT             => 0,
+		USE_CACHE          => 0,
+		DEBUG              => 0,
+		DEFAULT_TTL        => "1 hour",
+		CACHE_SIZE         => "4000000",
+		CACHE_DIR          => "$self->{CONFIG}->{TMP_DIR}/DBCache",
+		PASSWD             => ( $self->{CONFIG}->{PASSWD} || "" ),
+		TOKEN              => ( $self->{CONFIG}->{TOKEN} || "" ),
+		FORCED_AUTH_METHOD => ( $self->{CONFIG}->{ForcedMethod} || "" ),
+		MAX_WAIT_TIME      => 40,
+		RECONNECT_NUMBER   => 100,
 
-		);
+	);
 
-  foreach my $key (keys %defaults) {
-    defined $self->{$key} or $self->{$key}  =$defaults{$key};
-  }
-  $self->{PROXY_HOST}=$self->{PROXY_PORT}="";
-  if ($self->{USE_PROXY}){
-    $self->{PROXY_HOST} = $self->{CONFIG}->{PROXY_HOST};
-    $self->{PROXY_PORT} = $self->{CONFIG}->{PROXY_PORT};
-  }
+	foreach my $key ( keys %defaults ) {
+		defined $self->{$key} or $self->{$key} = $defaults{$key};
+	}
+	$self->{PROXY_HOST} = $self->{PROXY_PORT} = "";
+	if ( $self->{USE_PROXY} ) {
+		$self->{PROXY_HOST} = $self->{CONFIG}->{PROXY_HOST};
+		$self->{PROXY_PORT} = $self->{CONFIG}->{PROXY_PORT};
+	}
 
-  if ( $self->{DEBUG}){
-    $self->{LOGGER}->debugOn($self->{DEBUG});
-  }
+	if ( $self->{DEBUG} ) {
+		$self->{LOGGER}->debugOn( $self->{DEBUG} );
+	}
 
-  $ENV{ALIEN_USE_CACHE} and $self->{USE_CACHE}=$ENV{ALIEN_USE_CACHE};
-  $ENV{ALIEN_DATABASE_SSL} and $self->{SSL}=1 and $self->{ROLE}=$ENV{ALIEN_DATABASE_SSL};
+	$ENV{ALIEN_USE_CACHE} and $self->{USE_CACHE} = $ENV{ALIEN_USE_CACHE};
+	$ENV{ALIEN_DATABASE_SSL}
+	  and $self->{SSL}  = 1
+	  and $self->{ROLE} = $ENV{ALIEN_DATABASE_SSL};
 
-  if ($ENV{ALIEN_DATABASE_PASSWORD}){
-    $self->debug(1, "CONNECTING TO THE DATABASE DIRECTLY!");
-    $self->{USE_PROXY}=0;
-    $self->{PASSWD}=$ENV{ALIEN_DATABASE_PASSWORD};
-    $ENV{ALIEN_DATABASE_ROLE} and $self->{ROLE}=$ENV{ALIEN_DATABASE_ROLE};
-  }
-  if ($self->{USE_CACHE}){
-    $self->{CACHE_ROOT} = undef;
-  }
+	if ( $ENV{ALIEN_DATABASE_PASSWORD} ) {
+		$self->debug( 1, "CONNECTING TO THE DATABASE DIRECTLY!" );
+		$self->{USE_PROXY} = 0;
+		$self->{PASSWD}    = $ENV{ALIEN_DATABASE_PASSWORD};
+		$ENV{ALIEN_DATABASE_ROLE} and $self->{ROLE} = $ENV{ALIEN_DATABASE_ROLE};
+	}
+	if ( $self->{USE_CACHE} ) {
+		$self->{CACHE_ROOT} = undef;
+	}
 
-  $self->{DBI_OPTIONS} = $attrDBI || { PrintError => 0 };
-  $self->{DBH} = undef;
+	$self->{DBI_OPTIONS} = $attrDBI || { PrintError => 0 };
+	$self->{DBH} = undef;
 
-  my $proxy="";
-  $self->{PROXY_HOST} and $proxy="\nProxy host: $self->{PROXY_HOST}; Proxy port: $self->{PROXY_PORT}";
+	my $proxy = "";
+	$self->{PROXY_HOST}
+	  and $proxy =
+	  "\nProxy host: $self->{PROXY_HOST}; Proxy port: $self->{PROXY_PORT}";
 
-  $DEBUG and $self->debug(1,"User: $self->{USER}; Role: $self->{ROLE}; Token: $self->{TOKEN}; Password: $self->{PASSWD}
+	$DEBUG and $self->debug(
+		1,
+"User: $self->{USER}; Role: $self->{ROLE}; Token: $self->{TOKEN}; Password: $self->{PASSWD}
 Database name: $self->{DB}; Host name: $self->{HOST}; Driver: $self->{DRIVER}
-Forced method of authentication: $self->{FORCED_AUTH_METHOD} $proxy");
+Forced method of authentication: $self->{FORCED_AUTH_METHOD} $proxy"
+	);
 
-  $self->{USE_CACHE} and $self->_createCacheRoot;
+	$self->{USE_CACHE} and $self->_createCacheRoot;
 
-  ($self->{USE_CACHE} ) and $DEBUG and $self->debug(1,"Using cache: $self->{CACHE_ROOT}; Cache size: $self->{CACHE_SIZE}");
+	( $self->{USE_CACHE} )
+	  and $DEBUG
+	  and $self->debug( 1,
+		"Using cache: $self->{CACHE_ROOT}; Cache size: $self->{CACHE_SIZE}" );
 
-  $self->_validate or return;
+	$self->_validate or return;
 
-  $DEBUG and $self->debug(1,"Instance of Database successfully created.");
+	$DEBUG and $self->debug( 1, "Instance of Database successfully created." );
 
-  $self->initialize or return;
+	$self->initialize or return;
 
-  $self;
+	$self;
 }
-
 
 sub preConnect {
-  return 1;
+	return 1;
 }
 
-sub initialize{
-  return 1;
+sub initialize {
+	return 1;
 }
 
 =item C<query>
@@ -257,63 +277,68 @@ valid in cache for stated period of time.
 =cut
 
 sub query {
-  my $self = shift;
-  my $stmt = shift;
-  my $ttl = shift;
-  my $options=shift;
-  my $result;
+	my $self    = shift;
+	my $stmt    = shift;
+	my $ttl     = shift;
+	my $options = shift;
+	my $result;
 
-  $DEBUG and $self->debug(2,"In query executing $stmt");
+	$DEBUG and $self->debug( 2, "In query executing $stmt" );
 
-  if (!$self->{USE_CACHE} || (defined $ttl && $ttl==0))    {
-    $result = $self->_queryDB($stmt, $options);
-  }
-  else    {
-    # finding out table name
-    if ($stmt =~ /from(\s+)(\w+)(\s*)(where|)/i){
-      my $key = lc $2;
+	if ( !$self->{USE_CACHE} || ( defined $ttl && $ttl == 0 ) ) {
+		$result = $self->_queryDB( $stmt, $options );
+	}
+	else {
+
+		# finding out table name
+		if ( $stmt =~ /from(\s+)(\w+)(\s*)(where|)/i ) {
+			my $key = lc $2;
 
 # 			$DEBUG and $self->debug(1,"Database: In query creating instance of cache $self->{CACHE_ROOT}/$key");
-# 
+#
 # 			my $cache = Cache::File->new(
 # 							default_expires=>$self->{DEFAULT_TTL},
 # 							size_limit=>$self->{CACHE_SIZE},
 # 							cache_root=>"$self->{CACHE_ROOT}/$key",
 # 							lock_level=>Cache::File::LOCK_LOCAL
 # 							);
-# 
+#
 # 			$cache
 # 				or print STDERR "Database: Cannot create instance of cache $self->{CACHE_ROOT}/$key\n"
 # 				and return $self->_queryDB($stmt);
-# 
-# 
+#
+#
 # 			my $entry = $cache->entry($stmt);
 # 			if ($entry->exists())
 # 			{
 # 				$DEBUG and $self->debug(1,"Database: In query fetching result of $stmt from cache");
-# 
+#
 # 				$result = $entry->thaw;
 # 			}
 # 			else
 # 			{
 # 				$result = $self->_queryDB($stmt) or return;
-# 
+#
 # 				$DEBUG and $self->debug(1,"Database: In query storing result of $stmt from cache");
-# 
+#
 # 				$entry->freeze($result,$ttl);
 # 			}
-			#temporary solution ... remove later!
-      $result = $self->_queryDB($stmt);
-    }
-    else     {
-      $self->info( "Database warning: In query statement couldn't extract cache name. Fetching data from database");
-      $result = $self->_queryDB($stmt);
-    }
-  }
+#temporary solution ... remove later!
+			$result = $self->_queryDB($stmt);
+		}
+		else {
+			$self->info(
+"Database warning: In query statement couldn't extract cache name. Fetching data from database"
+			);
+			$result = $self->_queryDB($stmt);
+		}
+	}
 
-  $result and $DEBUG and $self->debug(2,"In query returning result of $stmt");
+	$result
+	  and $DEBUG
+	  and $self->debug( 2, "In query returning result of $stmt" );
 
-  $result;
+	$result;
 }
 
 =item C<queryColumn>
@@ -337,15 +362,15 @@ sub queryColumn {
 	my $result = $self->query(@_);
 
 	defined $result
-		or return;
+	  or return;
 
 	@$result
-    	or return [];
+	  or return [];
 
 	my @column;
-    for (@$result) {
-    	push @column, values %{$_};
-    }
+	for (@$result) {
+		push @column, values %{$_};
+	}
 
 	return \@column;
 }
@@ -366,18 +391,18 @@ to empty hash.
 =cut
 
 sub queryRow {
-  my $self = shift;
+	my $self = shift;
 
-  my $result = $self->query(@_);
+	my $result = $self->query(@_);
 
-  defined $result
-    or return;
+	defined $result
+	  or return;
 
-  @$result
-    and $#{$result} > -1
-      and return $result->[0];
+	@$result
+	  and $#{$result} > -1
+	  and return $result->[0];
 
-  return {};
+	return {};
 }
 
 =item C<queryValue>
@@ -395,16 +420,18 @@ If SQL query fails method returns undef. If result is empty set method undef.
 =cut
 
 sub queryValue {
-  my $self = shift;
-  my ($stmt, $ttl, $options)=(shift, shift,shift);
-  $options or $options={};
-  my $result = $self->query($stmt, $ttl, $options,@_);
-  my @tempStorage;
+	my $self = shift;
+	my ( $stmt, $ttl, $options ) = ( shift, shift, shift );
+	$options or $options = {};
+	my $result = $self->query( $stmt, $ttl, $options, @_ );
+	my @tempStorage;
 
-  $result and	$#{$result} != -1 and @tempStorage = each(%{$result->[0]}) and return $tempStorage[1];
+	      $result
+	  and $#{$result} != -1
+	  and @tempStorage = each( %{ $result->[0] } )
+	  and return $tempStorage[1];
 
-
-  undef;
+	undef;
 }
 
 sub do {
@@ -426,44 +453,53 @@ When cache is used all query results stored in cache from table that are modifie
 
 =cut
 
+#
+# Oracle note: we have column names that are reserved words for Oracle. In order to conserve the name
+# This method is adapted for Oracle quoting the names of the columns so that we could still use reserved words as names for the columns.. For example:
+# UPDATE table SET "col_reserved_word" = x WHERE col=y;
+# we have to check if it is Oracle, since quoting column names will
+# not work for the rest. For the sake of performance, we redefine this in the submodules.
+#
+
 sub update {
-  my $self = shift;
-  my $table = shift;
-  my $rfields = shift;
-  my $where = shift || "";
-  my $options= shift || {};
+	my $self    = shift;
+	my $table   = shift;
+	my $rfields = shift;
+	my $where   = shift || "";
+	my $options = shift || {};
 
+	$self->{USE_CACHE} and $self->_clearCache($table);
 
-  $self->{USE_CACHE} and $self->_clearCache($table);
+	my $query = "UPDATE $table SET ";
+	my $quote = "'";
+	$options->{noquotes} and $quote = "";
+	my @bind = ();
+	foreach ( keys %$rfields ) {
+		$query .= $self->reservedWord($_) . "=";
+		if ( defined $rfields->{$_} ) {
+			if ($quote) {
+				$query .= "?,";
+			}
+			else {
+				$rfields->{$_} =~ s/^([^'"]*)['"](.*)['"]([^'"]*)$/$2/;
+				my $function    = "";
+				my $functionend = "";
+				if ( $1 && $3 ) {
+					$function = $1 and $functionend = $3;
+				}
+				$query .= " $function ? $functionend,";
+			}
+			push @bind, $rfields->{$_};
+		}
+		else {
+			$query .= " NULL,";
+		}
+	}
+	chop($query);
 
-  my $query = "UPDATE $table SET ";
-  my $quote="'";
-  $options->{noquotes} and $quote="";
-  my @bind = ();
-  foreach (keys %$rfields) {
-    $query .= " $_ =";
-    if (defined $rfields->{$_}){
-      if ($quote) {
-        $query.="?,";
-      } else {
-        $rfields->{$_} =~ s/^([^'"]*)['"](.*)['"]([^'"]*)$/$2/;
-        my $function="";
-        my $functionend="";
-        if($1 && $3){
-          $function=$1 and $functionend=$3;
-        }
-        $query .= " $function ? $functionend,";
-      }
-      push @bind, $rfields->{$_};
-    }else{
-      $query .= " NULL,";
-    }
-  }
-  chop($query);
-
-  $where and $query .= " WHERE $where";
-  push(@bind, @{$options->{bind_values}}) if($options->{bind_values});
-  $self->_do($query, {bind_values=>\@bind});
+	$where and $query .= " WHERE $where";
+	push( @bind, @{ $options->{bind_values} } ) if ( $options->{bind_values} );
+	$self->_do( $query, { bind_values => \@bind } );
 }
 
 =item C<insert>
@@ -480,91 +516,103 @@ When cache is used all query results stored in cache from table that are modifie
 =cut
 
 sub insert {
-  my $self = shift;
-  my $table = shift;
-  my $rfields = shift;
-  my $options =shift || {};
-  ###	statement checking is a temporary solution ... remove later!!!
-  if ($table =~ /\s/){return $self->do($table);}
+	my $self    = shift;
+	my $table   = shift;
+	my $rfields = shift;
+	my $options = shift || {};
+	###	statement checking is a temporary solution ... remove later!!!
+	if ( $table =~ /\s/ ) { return $self->do($table); }
 
-  $self->{USE_CACHE} and $self->_clearCache($table);
+	$self->{USE_CACHE} and $self->_clearCache($table);
+	my @fields = keys %$rfields;
 
-  my $query = "INSERT INTO $table (" . join(", ", keys %$rfields) . ") VALUES (";
+	my $new_fields = $self->preprocess_fields( \@fields )
+	  ;    #we quote them, because they are now case sensitive for Oracle
 
-  #my @arr = values %$rfields;
-  my @bind_values;
-  foreach (keys %$rfields) {
-    my $value=$rfields->{$_};
-    if (defined $value) {
-      if ($options->{functions} and $options->{functions}->{$_}){
-	$query.="$options->{functions}->{$_}(?),";
-      }else{
-	$query .= "?,";
-      }
-      push @bind_values, $value;
-     } else {
-      $query .= "NULL,";
-    }
-  }
+# my $query = "INSERT INTO $table (" . join(", ", keys %$rfields) . ") VALUES (";
+	my $query =
+	  "INSERT INTO $table (" . join( ", ", @$new_fields ) . ") VALUES (";
 
-  chop($query);
+	#my @arr = values %$rfields;
+	my @bind_values;
+	foreach ( keys %$rfields ) {
+		my $value = $rfields->{$_};
+		if ( defined $value ) {
+			if ( $options->{functions} and $options->{functions}->{$_} ) {
+				$query .= "$options->{functions}->{$_}(?),";
+			}
+			else {
+				$query .= "?,";
+			}
+			push @bind_values, $value;
+		}
+		else {
+			$query .= "NULL,";
+		}
+	}
 
-  $query .= ")";
+	chop($query);
 
-  $self->_do($query, {bind_values=>\@bind_values, silent=>$options->{silent}});
+	$query .= ")";
+
+	$self->_do( $query,
+		{ bind_values => \@bind_values, silent => $options->{silent} } );
 }
 
 sub multiinsert {
-  my $self = shift;
-  my $table = shift;
-  my $rarray = shift;
-  my $options=shift;
-  my $rloop;
-  
-  ###     statement checking is a temporary solution ... remove later!!!
-  if ($table =~ /\s/){return $self->do($table);}
-  
-  my $rfields = @$rarray[0];
-  
-  my $query = "INSERT";
-  $options->{ignore} and $query.=" IGNORE";
-  $query.=" INTO $table (" . join(", ", keys %$rfields) . ") VALUES ";
-  my $quote="'";
-  $options->{noquotes} and $quote="";
-  #my @arr = values %$rfields;
-  my @bind = ();
-  
-  foreach $rloop (@$rarray) {
-    $query .= "(";
-    foreach (keys %$rfields) {
-      if(defined $rloop->{$_}){
-      
-      	if ($quote) {
-	   $query.="?,"; 
-	} else {
-	  $rloop->{$_} =~ s/^([^'"]*)['"](.*)['"]([^'"]*)$/$2/;
-	  my $function="";
-	  my $functionend="";
-	  if($1 && $3){
-	    $function=$1 and $functionend=$3;
-	  }
-          $query .= " $function ? $functionend,";
+	my $self    = shift;
+	my $table   = shift;
+	my $rarray  = shift;
+	my $options = shift;
+	my $rloop;
+
+	###     statement checking is a temporary solution ... remove later!!!
+	if ( $table =~ /\s/ ) { return $self->do($table); }
+
+	my $rfields = @$rarray[0];
+
+	my $query = "INSERT";
+	$options->{ignore} and $query .= " IGNORE";
+	$query .= " INTO $table (" . join( ", ", keys %$rfields ) . ") VALUES ";
+	my $quote = "'";
+	$options->{noquotes} and $quote = "";
+
+	#my @arr = values %$rfields;
+	my @bind = ();
+
+	foreach $rloop (@$rarray) {
+		$query .= "(";
+		foreach ( keys %$rfields ) {
+			if ( defined $rloop->{$_} ) {
+
+				if ($quote) {
+					$query .= "?,";
+				}
+				else {
+					$rloop->{$_} =~ s/^([^'"]*)['"](.*)['"]([^'"]*)$/$2/;
+					my $function    = "";
+					my $functionend = "";
+					if ( $1 && $3 ) {
+						$function = $1 and $functionend = $3;
+					}
+					$query .= " $function ? $functionend,";
+				}
+				push @bind, $rloop->{$_};
+			}
+			else {
+				$query .= "NULL,";
+			}
+		}
+
+		chop($query);
+
+		$query .= "),";
 	}
-	push @bind, $rloop->{$_};
-      }else{
-	$query .= "NULL,";
-      }
-    }
-    
-    chop($query);
-    
-    $query .= "),";
-  }
-  
-  chop($query);
-  my $doOptions={bind_values=>\@bind};
-  $options->{silent} and $doOptions->{silent}=1;
-  $self->_do($query, $doOptions);
+
+	chop($query);
+	my $doOptions = { bind_values => \@bind };
+	$options->{silent} and $doOptions->{silent} = 1;
+	$self->_do( $query, $doOptions );
 }
 
 =item C<delete>
@@ -578,325 +626,224 @@ When cache is used all query results stored in cache from table that are modifie
 =cut
 
 sub delete {
-  my $self = shift;
-  my $table = shift;
-  my $where = shift;
-  
-  $where or $self->{LOGGER}->error("Database","In delete: No WHERE statement. Deleting whole table not permitted.")
-    and return;
-  
-  $self->{USE_CACHE} and $self->_clearCache($table);
-  
-  my $query = "DELETE FROM $table WHERE $where";
-  
-  $self->_do($query, @_);
+	my $self  = shift;
+	my $table = shift;
+	my $where = shift;
+
+	$where
+	  or $self->{LOGGER}->error( "Database",
+		"In delete: No WHERE statement. Deleting whole table not permitted." )
+	  and return;
+
+	$self->{USE_CACHE} and $self->_clearCache($table);
+
+	my $query = "DELETE FROM $table WHERE $where";
+
+	$self->_do( $query, @_ );
 }
 
 sub checkTable {
-  my $self=shift;
-  my $table=shift;
-  my $desc=shift;
-  my $columnsDef=shift;
-  my $primaryKey=shift;
-  my $index=shift;
-  my $options=shift;
-  
+	my $self       = shift;
+	my $table      = shift;
+	my $desc       = shift;
+	my $columnsDef = shift;
+	my $primaryKey = shift;
+	my $index      = shift;
+	my $options    = shift;
 
-  my %columns=%$columnsDef;
-  my $engine="";
-  $options->{engine} and $engine=" engine=$options->{engine} ";
-  $desc="$desc $columns{$desc}";
-  $self->_do("CREATE TABLE IF NOT EXISTS $table ($desc)$engine DEFAULT CHARACTER SET latin1 COLLATE latin1_general_cs")
-    or $self->info("In checkQueueTable creating table $table failed",3) and return;
+	my %columns = %$columnsDef;
+	my $engine  = "";
+	$options->{engine} and $engine = " engine=$options->{engine} ";
+	$desc = "$desc $columns{$desc}";
+	$self->createTable( $table, "($desc) $engine", 1 ) or return;
 
-  my $alter=$self->getNewColumns($table, $columnsDef);
+	my $alter = $self->getNewColumns( $table, $columnsDef );
 
-  if ($alter) {
-    $self->lock($table);
-    #let's get again the description
-    $alter=$self->getNewColumns($table, $columnsDef);
-    my $done=1;
-    if ($alter){
-      chop($alter);
-      $self->info("Updating columns of table $table");
-      $done=$self->alterTable($table,$alter);
-    }
-    $self->unlock($table);
-    $done  or return;
-  }
-  #Ok, now let's take a look at the primary key
-  #$primaryKey or return 1;
+	if ($alter) {
+		$self->lock($table);
 
-  $self->setPrimaryKey($table, $desc, $primaryKey, $index);
+		#let's get again the description
+		$alter = $self->getNewColumns( $table, $columnsDef );
+		my $done = 1;
+		if ($alter) {
+
+			#   chop($alter);
+			$self->info("Updating columns of table $table");
+			$done = $self->alterTable( $table, $alter );
+		}
+		$self->unlock($table);
+		$done or return;
+	}
+
+	#Ok, now let's take a look at the primary key
+	#$primaryKey or return 1;
+
+	$self->setPrimaryKey( $table, $desc, $primaryKey, $index );
+
 #  $desc =~ /not null/i or $self->{LOGGER}->error("Database", "Error: the table $table is supposed to have a primary key, but the index can be null!") and return;
 }
 
-sub getNewColumns {
-  my $self=shift;
-  my $table=shift;
-  my $columnsDef=shift;
-  my %columns=%$columnsDef;
+sub setPrimaryKey {
+	my $self     = shift;
+	my $table    = shift;
+	my $desc     = shift;
+	my $key      = shift;
+	my $indexRef = shift;
+	my $indexes  = $self->getIndexes($table);
 
-  my $queue = $self->describeTable($table);
+	my @indexes = ();
+	$indexRef and @indexes = @$indexRef;
+	my $primary = 0;
+	if ( defined $indexes ) {
+		$DEBUG and $self->debug( 1, "There are some keys for $table" );
+		foreach my $ind (@$indexes) {
+			if ( $ind->{Key_name} eq "PRIMARY" ) {
+				$key and ( $ind->{Column_name} eq $key ) and $primary = 1;
+				next;
+			}
+			my @list = grep ( /\W$ind->{Column_name}\W/i, @indexes );
+			if ( $list[0] ) {
+				$DEBUG and $self->debug( 1, "Checking the column $list[0]" );
+				my $unique = grep ( /unique/i, $list[0] );
 
-  defined $queue
-    or return;
+				if ( $unique eq $ind->{Non_unique} ) {
+					$self->info(
+"The uniqueness of $list[0] in $table is not well defined"
+					);
 
-  foreach (@$queue){
-    delete $columns{$_->{Field}} ;
-    delete $columns{lc($_->{Field})} ;
-    delete $columns{uc($_->{Field})} ;
-  }
-
-  my $alter = "";
-
-  foreach (keys %columns){
-    $alter .= "ADD $_ $columns{$_} ,";
-  }
-
-
-  return (1, $alter);
-}
-
-sub setPrimaryKey{
-  my $self = shift;
-  my $table=shift;
-  my $desc=shift;
-  my $key=shift;
-  my $indexRef=shift;
-  my $indexes=$self->query("SHOW KEYS FROM $table");
-
-  my @indexes=();
-  $indexRef and @indexes=@$indexRef;
-  my $primary=0;
-  if (defined $indexes) {
-    $DEBUG and $self->debug(1, "There are some keys for $table");
-    foreach my $ind (@$indexes) {
-      if ($ind->{Key_name} eq "PRIMARY") {
-	$key and ($ind->{Column_name} eq $key) and $primary=1;
-	next;
-      }
-      my @list=grep (/\W$ind->{Column_name}\W/, @indexes);
-      if ($list[0]){
-	$DEBUG and $self->debug(1, "Checking the column $list[0]");
-	my $unique= grep (/unique/i, $list[0]);
-	
-	if ($unique eq $ind->{Non_unique} ){
-	  $self->info( "The uniqueness of $list[0] in $table is not well defined");
-	  $self->alterTable($table, "drop index $ind->{Key_name}");
-	} else {
-	  @indexes=grep (! /\W$ind->{Column_name}\W/, @indexes);
+					#  $self->alterTable($table, "drop index $ind->{Key_name}");
+					$self->dropIndex( $ind->{Key_name}, $table );
+				}
+				else {
+					@indexes = grep ( !/\W$ind->{Column_name}\W/i, @indexes );
+				}
+			}
+		}
 	}
-      }
-    }
-  }
-  if ((! $primary ) && $key){
-    $self->alterTable($table,"drop primary key");
-    $self->alterTable($table,"ADD PRIMARY KEY ($key)");
-    $self->info( "Altering the primary key of $table");
-  }
-  foreach (@indexes) {
-    $self->info( "Creating the index $_ on the table $table");
-    $self->alterTable($table, "ADD $_");
-  }
-  return 1;
+	if ( ( !$primary ) && $key ) {
+		$self->alterTable( $table, "drop primary key" );
+		$self->alterTable( $table, "ADD PRIMARY KEY ($key)" );
+		$self->info("Altering the primary key of $table");
+	}
+	foreach (@indexes) {
+		$self->info("Creating the index $_ on the table $table");
+
+		#   $self->alterTable($table, "ADD $_");
+		$self->createIndex( $_, $table, $INDEX );
+
+	}
+	return 1;
 }
 
 sub checkColumn {
-  my $self = shift;
-  my $table = shift;
-  my $colName = shift;
-  my $colDesc = shift;
+	my $self    = shift;
+	my $table   = shift;
+	my $colName = shift;
+	my $colDesc = shift;
 
-  $DEBUG and $self->debug(1,"In checkColumn checking if table $table has column $colName");
+	$DEBUG
+	  and $self->debug( 1,
+		"In checkColumn checking if table $table has column $colName" );
 
-  my $columns = $self->describeTable($table);
+	my $columns = $self->describeTable($table);
 
-  foreach(@$columns){
-    $_->{Field}
-      and $_->{Field} eq $colName
-	and $DEBUG and $self->debug(1,"In checkColumn table $table has column $colName")
-	  and return 1;
-  }
+	foreach (@$columns) {
+		my $field = $_->{Field};
+##We consider if the column was a reserved word that was quoted
+		$field
+		  and ( ( $field eq $colName ) or ( "\"$field\"" eq $colName ) )
+		  and $DEBUG
+		  and
+		  $self->debug( 1, "In checkColumn table $table has column $colName" )
+		  and return 1;
+	}
 
-  $DEBUG and $self->debug(1,"In checkColumn altering table $table adding column $colName ($colDesc)");
+	$DEBUG and $self->debug( 1,
+		"In checkColumn altering table $table adding column $colName ($colDesc)"
+	);
 
-  $self->alterTable($table,"ADD COLUMN ($colName $colDesc)")
-    or return;
+	$self->alterTable( $table, "ADD  ($colName $colDesc)" )
+	  or return;
 
-  2;
+	2;
 }
 
-sub createTable {
-  my $self = shift;
-  my $table = shift;
-  my $definition = shift;
-  my $checkExists = shift || "";
-
-  $DEBUG and $self->debug(1,"Database: In createTable creating table $table with definition $definition.");
-
-  my $out;
-
-  $checkExists
-    and $checkExists = "IF NOT EXISTS";
- 
-  $self->_do("CREATE TABLE $checkExists $table $definition DEFAULT CHARACTER SET latin1 COLLATE latin1_general_cs")
-    or $self->{LOGGER}->error("Database","In createTable unable to create table $table with definition $definition")
-      and return;
-
-  1;
+sub describeTable {
+	my $self = shift;
+	return $self->SUPER::describeTable(@_);
 }
 
 sub dropTable {
-	my $self = shift;
+	my $self  = shift;
 	my $table = shift;
 
 	$self->{USE_CACHE} and $self->_destroyCache($table);
 
-	$DEBUG and $self->debug(1,"In dropTable dropping table $table");
+	$DEBUG and $self->debug( 1, "In dropTable dropping table $table" );
 
 	$self->_do("DROP TABLE $table");
 }
 
 sub alterTable {
-  my $self = shift;
-  my $table = shift;
-  my $spec = shift;
+	my $self  = shift;
+	my $table = shift;
+	my $spec  = shift;
 
-  $DEBUG and $self->debug(1,"In alterTable altering table $table with definition $spec");
+	$DEBUG
+	  and $self->debug( 1,
+		"In alterTable altering table $table with definition $spec" );
 
-  $self->{USE_CACHE} and $self->_destroyCache($table);
+	$self->{USE_CACHE} and $self->_destroyCache($table);
 
-  $self->_do("ALTER TABLE $table $spec");
-}
-
-sub describeTable {
-  my $self = shift;
-  my $table = shift;
-
-  $self->_queryDB("DESCRIBE $table");
-}
-
-sub existsTable {
-  my $self = shift;
-  my $table = shift;
-  return $self->queryValue("SHOW TABLES like '$table'");
-}
-
-sub lock {
-  my $self     = shift;
-  my $table    = shift;
-
-  $DEBUG and $self->debug(1,"Database: In lock locking table $table.");
-
-  $self->_do("LOCK TABLE $table WRITE");
-}
-
-sub unlock {
-  my $self     = shift;
-  my $table    = shift;
-  
-  $DEBUG and $self->debug(1,"Database: In lock unlocking tables.");
-
-  $table
-    and $table = " $table"
-      or $table = "S";
-  
-  $self->_do("UNLOCK TABLES");
-}
-
-sub grantAllPrivilegesToUser {
-  my $self = shift;
-  my $user = shift;
-  my $db = shift;
-  my $table = shift;
-
-  $self->grantPrivilegesToUser(["ALL PRIVILEGES ON $db.$table"],$user);
-}
-
-sub grantPrivilegesToUser {
-  my $self = shift;
-  my $rprivs = shift;
-  my $user = shift;
-  my $pass = shift;
-  my $origpass=$pass;
-  $DEBUG and $self->debug(1, "In grantPrivilegesToUser");
-  $pass
-  	and $pass = "$user IDENTIFIED BY '$pass'"
-	or $pass = $user;
-
-  my $success = 1;
-  for (@$rprivs) {
-    $DEBUG and $self->debug (0, "Adding privileges $_ to $user");
-    $self->_do("GRANT $_ TO $pass")
-      or $DEBUG and $self->debug (0, "Error adding privileges $_ to $user")
-      and $success = 0;
-  }
-  return $success;
-}
-
-sub revokeAllPrivilegesFromUser {
-  my $self = shift;
-  my $user = shift;
-  my $db = shift;
-  my $table = shift;
-  $self->revokePrivilegesFromUser(["ALL PRIVILEGES ON $db.$table"], $user);
-}
-
-sub revokePrivilegesFromUser {
-  my $self = shift;
-  my $rprivs = shift;
-  my $user = shift;
-
-  my $success = 1;
-  for (@$rprivs) {
-    $DEBUG and $self->debug(1, "Revoking privileges $_ of $user");
-    $self->_do("REVOKE $_ FROM $user")
-      or $DEBUG and $self->debug (0, "Error revoking privileges $_ of $user")
-      and $success = 0;
-  }
-  return $success;
+	$self->_do("ALTER TABLE $table $spec");
 }
 
 sub reconnect {
-  my $self = shift;
-  my $host   = shift || $self->{HOST};
-  my $db     = shift || $self->{DB};
-  my $driver = shift || $self->{DRIVER};
-  my $attrDBI = shift || $self->{DBI_OPTIONS};
+	my $self    = shift;
+	my $host    = shift || $self->{HOST};
+	my $db      = shift || $self->{DB};
+	my $driver  = shift || $self->{DRIVER};
+	my $attrDBI = shift || $self->{DBI_OPTIONS};
 
-  $DEBUG and $self->debug(1,"Database: In reconnect connecting to database $db on host $host using driver $driver.");
+	$DEBUG and $self->debug( 1,
+"Database: In reconnect connecting to database $db on host $host using driver $driver."
+	);
 
-  AliEn::Database::destroy($self);
+	AliEn::Database::destroy($self);
 
-  unless($host eq $self->{HOST} and
-	 $db eq $self->{DB} and
-	 $driver eq $self->{DRIVER} and
-	 $attrDBI==$self->{DBI_OPTIONS}){
+	unless ($host eq $self->{HOST}
+		and $db     eq $self->{DB}
+		and $driver eq $self->{DRIVER}
+		and $attrDBI == $self->{DBI_OPTIONS} )
+	{
 
-    $self->{DB}     = $db;
-    $self->{HOST}   = $host;
-    $self->{DRIVER} = $driver;
-    $self->{DBI_OPTIONS} = $attrDBI;
+		$self->{DB}          = $db;
+		$self->{HOST}        = $host;
+		$self->{DRIVER}      = $driver;
+		$self->{DBI_OPTIONS} = $attrDBI;
 
-    $self->{USE_CACHE} and $self->_createCacheRoot;
-  }
-  $self->_validate;
+		$self->{USE_CACHE} and $self->_createCacheRoot;
+	}
+	$self->_validate;
 }
 
 sub changeUser {
-    my $self = shift;
+	my $self    = shift;
 	my $newUser = shift;
-	my $passwd = shift || "";
+	my $passwd  = shift || "";
 
-	$newUser or print STDERR "Database: In changeUser new user is not stated.\n" and return;
+	$newUser
+	  or print STDERR "Database: In changeUser new user is not stated.\n"
+	  and return;
 
-	$DEBUG and $self->debug(1,"Database: In changeRole changing user to $newUser.");
+	$DEBUG
+	  and
+	  $self->debug( 1, "Database: In changeRole changing user to $newUser." );
 
-    AliEn::Database::destroy($self);#	$self->destroy;
+	AliEn::Database::destroy($self);    #	$self->destroy;
 
-	$self->{USER} = $newUser;
-	$self->{ROLE} = $newUser;
+	$self->{USER}   = $newUser;
+	$self->{ROLE}   = $newUser;
 	$self->{PASSWD} = $passwd;
 
 	$self->{USE_CACHE} and $self->_createCacheRoot;
@@ -905,17 +852,21 @@ sub changeUser {
 }
 
 sub changeRole {
-    my $self = shift;
+	my $self    = shift;
 	my $newRole = shift;
-	my $passwd = shift || "";
+	my $passwd  = shift || "";
 
-	$newRole or print STDERR "Database: In changeRole new role is not stated.\n" and return;
+	$newRole
+	  or print STDERR "Database: In changeRole new role is not stated.\n"
+	  and return;
 
-	$DEBUG and $self->debug(1,"Database: In changeRole changing role to $newRole.");
+	$DEBUG
+	  and
+	  $self->debug( 1, "Database: In changeRole changing role to $newRole." );
 
-    AliEn::Database::destroy($self);
+	AliEn::Database::destroy($self);
 
-	$self->{ROLE} = $newRole;
+	$self->{ROLE}   = $newRole;
 	$self->{PASSWD} = $passwd;
 
 	$self->{USE_CACHE} and $self->_createCacheRoot;
@@ -923,73 +874,69 @@ sub changeRole {
 	$self->_validate;
 }
 
-## works only with mysql!!
-sub getLastId {
-    my $self = shift;
-    ( $self->{DEBUG} > 2 )
-      and print "DEBUG LEVEL 2\tIn Database: getLastId @_\n";
-    my $id = $self->{DBH}->{'mysql_insertid'};
-
-    return $id;
-}
-
 sub setForcedMethod() {
-    my $self = shift;
-    ( my $FM = shift ) or return;
-    $self->{FORCED_AUTH_METHOD} = $FM;
-	$DEBUG and $self->debug(1,"Database: Forcing $self->{FORCED_AUTH_METHOD} authentication");
+	my $self = shift;
+	( my $FM = shift ) or return;
+	$self->{FORCED_AUTH_METHOD} = $FM;
+	$DEBUG
+	  and $self->debug( 1,
+		"Database: Forcing $self->{FORCED_AUTH_METHOD} authentication" );
 	$self->_validate;
-    return 1;
+	return 1;
 }
 
 sub getForcedMethod() {
-    my $self = shift;
-    $self->{FORCED_AUTH_METHOD};
+	my $self = shift;
+	$self->{FORCED_AUTH_METHOD};
 }
 
 sub getUser() {
-    my $self = shift;
-    $self->{USER};
+	my $self = shift;
+	$self->{USER};
 }
 
+sub destroy {
+	my $self = shift;
+	local $SIG{PIPE} = 'IGNORE';
 
-sub destroy{
-  my $self = shift;
-  local $SIG{PIPE}='IGNORE';
+	local $SIG{ALRM} = sub {
+		print "$$ timeout in the disconnect (and $self->{PID}\n";
+		die("timeout in disconnect");
+	};
+	alarm(5);
+	      $self
+	  and $self->{LOGGER}
+	  and $DEBUG
+	  and $self->debug( 1, "Disconneting" );
+	if ( $self and $self->{PID} and $self->{DBH} ) {
+		if ( $self->{PID} eq $$ ) {
+			if ( !$self->{DBH}->disconnect ) {
+				$self->{DBH}->errstr and warn $self->{DBH}->errstr;
+			}
+		}
+		undef $self->{DBH};
+	}
 
- local $SIG{ALRM} =sub {
-   print "$$ timeout in the disconnect (and $self->{PID}\n";
-    die("timeout in disconnect");
-  };
-  alarm(5);
-  $self and $self->{LOGGER} and
-    $DEBUG and $self->debug(1, "Disconneting");
-  if ($self and $self->{PID} and $self->{DBH}) {
-    if ($self->{PID} eq $$){
-      if (!$self->{DBH}->disconnect){
-	 $self->{DBH}->errstr and warn $self->{DBH}->errstr;
-      }
-    }
-    undef $self->{DBH};
-  }
-  
-  alarm(0);
-  $self and $self->{LOGGER} and
-    $DEBUG and $self->debug(1, "disconnected");
+	alarm(0);
+	      $self
+	  and $self->{LOGGER}
+	  and $DEBUG
+	  and $self->debug( 1, "disconnected" );
 }
 
 sub DESTROY {
-    my $self = shift;
-    ($self) and $self->destroy;
+	my $self = shift;
+	($self) and $self->destroy;
 }
 
-sub disconnect{
-  my $self=shift;
-  $self->destroy;
+sub disconnect {
+	my $self = shift;
+	$self->destroy;
 }
-sub close{
-  my $self=shift;
-  $self->destroy;
+
+sub close {
+	my $self = shift;
+	$self->destroy;
 }
 ####################################################################
 ####################################################################
@@ -999,280 +946,313 @@ sub close{
 ####################################################################
 ####################################################################
 sub getDatabaseDSN {
-  my $self=shift;
-  my $dsn="";
+	my $self = shift;
+	my $dsn  = "";
 
-  if($self->{USE_PROXY} and not $self->{SSL}){
-    $self->{CONFIG} or $self->{CONFIG}= new AliEn::Config();
-    ($self->{CONFIG})
-      or $self->{LOGGER}->error("Database","Initial configuration not found")
-	and return;
-    $self->{PROXY_HOST} = $self->{CONFIG}->{PROXY_HOST};
-    $self->{PROXY_PORT} = $self->{CONFIG}->{PROXY_PORT};
-    if ($self->{CONFIG}->{PROXY_ADDRESS_LIST}){
-      my $number=int(rand($#{$self->{CONFIG}->{PROXY_ADDRESS_LIST}}+1));
-      $self->{PROXY_HOST}=${$self->{CONFIG}->{PROXY_ADDRESS_LIST}}[$number];
-      $self->{PROXY_HOST}=~ s/:(\d+)// and $self->{PROXY_PORT}=$1;
-      $self->debug(1, "There are several proxies (using $self->{PROXY_HOST} $number)");
+	if ( $self->{USE_PROXY} and not $self->{SSL} ) {
+		$self->{CONFIG} or $self->{CONFIG} = new AliEn::Config();
+		( $self->{CONFIG} )
+		  or $self->{LOGGER}
+		  ->error( "Database", "Initial configuration not found" )
+		  and return;
+		$self->{PROXY_HOST} = $self->{CONFIG}->{PROXY_HOST};
+		$self->{PROXY_PORT} = $self->{CONFIG}->{PROXY_PORT};
+		if ( $self->{CONFIG}->{PROXY_ADDRESS_LIST} ) {
+			my $number =
+			  int( rand( $#{ $self->{CONFIG}->{PROXY_ADDRESS_LIST} } + 1 ) );
+			$self->{PROXY_HOST} =
+			  ${ $self->{CONFIG}->{PROXY_ADDRESS_LIST} }[$number];
+			$self->{PROXY_HOST} =~ s/:(\d+)// and $self->{PROXY_PORT} = $1;
+			$self->debug( 1,
+				"There are several proxies (using $self->{PROXY_HOST} $number)"
+			);
 
-    }
-    if ($self->{PROXY_HOST}){
+		}
+		if ( $self->{PROXY_HOST} ) {
 
-    $dsn =
-      "DBI:AliEnProxy:hostname=$self->{PROXY_HOST};port=$self->{PROXY_PORT};local_user=$self->{USER};forced_method=$self->{FORCED_AUTH_METHOD};";
+			$dsn =
+"DBI:AliEnProxy:hostname=$self->{PROXY_HOST};port=$self->{PROXY_PORT};local_user=$self->{USER};forced_method=$self->{FORCED_AUTH_METHOD};";
 
-    ($self->{PASSWD})
-      and $dsn .= "PASSWD=$self->{PASSWD};";
+			( $self->{PASSWD} )
+			  and $dsn .= "PASSWD=$self->{PASSWD};";
 
-    $dsn .= ";dsn=";
-    }
-  }
-
-  $dsn .= "DBI:$self->{DRIVER}:database=$self->{DB};host=$self->{HOST}";
- 
-  ($self->{PASSWD})
-      and $dsn .= ";PASSWD=$self->{PASSWD};";
-
-  if ($self->{SSL}) {
-    my $cert=$ENV{X509_USER_CERT} || "$ENV{ALIEN_HOME}/globus/usercert.pem";
-    my $key=$ENV{X509_USER_KEY} || "$ENV{ALIEN_HOME}/globus/userkey.pem";
-    $DEBUG and $self->debug(1, "Authenticating with the certificate in $cert and $key");
-    $dsn.=";mysql_ssl=1;mysql_ssl_client_key=$key;mysql_ssl_client_cert=$cert";
-  }
-  return $dsn;
+			$dsn .= ";dsn=";
+		}
+	}
+	$dsn .= $self->getConnectionChain(@_);
+	##For oracle, the format in the LDAP should be:
+	#hostname:oracle_port/Oracle/name_of_database:name_of_schema
+	#Where the name of the schema maps to the name of the database in mysql
+	return $dsn;
 
 }
 
-
 #
-#  THIS METHOD IS GOING TO RETRY 
+#  THIS METHOD IS GOING TO RETRY
 #
 #
-sub _connect{
-  my $self = shift;
-  my $pass;
+sub _connect {
+	my $self = shift;
+	my $pass;
+	local $SIG{PIPE} = sub {
+		print STDERR
+		  "Warning!! The connection to the AliEnProxy got lost (in connect)\n";
+		$self->reconnect();
+	};
 
-  local $SIG{PIPE} =sub {
-    print STDERR "Warning!! The connection to the AliEnProxy got lost (in connect)\n";
-    $self->reconnect();
-  };
+	( $self->{FORCED_AUTH_METHOD} eq "TOKEN" ) and $pass = $self->{TOKEN}
+	  or $pass = $self->{PASSWD};
 
+	$DEBUG and $self->debug( 1,
+"Database: In _connect user $self->{ROLE}, $pass is trying to connect to $self->{DRIVER} $self->{DB} in $self->{HOST}."
+	);
 
-  ($self->{FORCED_AUTH_METHOD} eq "TOKEN") and
-    $pass = $self->{TOKEN} or
-      $pass = $self->{PASSWD};
+	my $sleep     = 1;
+	my $max_sleep = 60000;
+	$self->{SCHEMA} = $self->{ROLE};
+	while (1) {
+		my $dsn = $self->getDatabaseDSN();
 
-  $DEBUG and $self->debug(1,"Database: In _connect user $self->{ROLE}, $pass is trying to connect to $self->{DRIVER} $self->{DB} in $self->{HOST}.");
+	#$self->{DBH} = DBI->connect($dsn,$self->{ROLE},$pass,$self->{DBI_OPTIONS});
 
-  my $sleep=1;
-  my $max_sleep=60000;
-  while (1) {
-    my $dsn = $self->getDatabaseDSN();
-    $self->{DBH} = DBI->connect($dsn,$self->{ROLE},$pass,$self->{DBI_OPTIONS});
-    $self->{DBH} and last;
-    my $errStr=$DBI::errstr;
-    if ($errStr) {
-      if ($errStr =~ /please connect later/){
-        $self->info( "The database is down...");
-        $sleep = $sleep*2 + int(rand(2));
-        $sleep>$max_sleep and $sleep=int(rand(4));
-        $self->info( "The connection to the database is not active... let's sleep for $sleep seconds");
-        sleep ($sleep);
-        next;
-      } 
-      $self->info( "Could not connect to database: $DBI::errstr ($DBI::err)",-1);
-      if ($DBI::errstr =~ /Died at .*AliEn\/UI\/Catalogue\.pm line \d+/) {
-	die("We got a ctrl+c... :( ");
-      }
-      return;
-    }
+		$self->{DBH} =
+		  DBI->connect( $dsn, $self->{SCHEMA}, $pass, $self->{DBI_OPTIONS} );
+		$self->{DBH} and last;
+		my $errStr = $DBI::errstr;
+		if ($errStr) {
+			if ( $errStr =~ /please connect later/ ) {
+				$self->info("The database is down...");
+				$sleep = $sleep * 2 + int( rand(2) );
+				$sleep > $max_sleep and $sleep = int( rand(4) );
+				$self->info(
+"The connection to the database is not active... let's sleep for $sleep seconds"
+				);
+				sleep($sleep);
+				next;
+			}
+			$self->info(
+				"Could not connect to database: $DBI::errstr ($DBI::err)", -1 );
+			if ( $DBI::errstr =~ /Died at .*AliEn\/UI\/Catalogue\.pm line \d+/ )
+			{
+				die("We got a ctrl+c... :( ");
+			}
+			return;
+		}
 
-    ($DBI::err and $DBI::err == 1) and
-      $self->info( "Database does not authenticate the user $self->{USER} as $self->{ROLE}") and return;
+		( $DBI::err and $DBI::err == 1 )
+		  and $self->info(
+"Database does not authenticate the user $self->{USER} as $self->{ROLE}"
+		  ) and return;
 
-    $sleep = $sleep*2 + int(rand(2));
-    $sleep>$max_sleep and $sleep=int(rand(4));
-    $self->info("There was an unknown error: ". $DBI::err. " (sleeping $sleep)");
-    sleep ($sleep);
+		$sleep = $sleep * 2 + int( rand(2) );
+		$sleep > $max_sleep and $sleep = int( rand(4) );
+		$self->info(
+			"There was an unknown error: " . $DBI::err . " (sleeping $sleep)" );
+		sleep($sleep);
 
-  }
-  $DEBUG and $self->debug(1,"User $self->{ROLE} connected to database!");
+	}
+	$DEBUG and $self->debug( 1, "User $self->{ROLE} connected to database!" );
 
-  $self->{PID} = $$;
+	$self->{PID} = $$;
 
-  return $self->{ROLE};
+	$self->{DRIVER} =~ /Oracle/ and $self->_connectSchema();
+	return $self->{ROLE};
 }
 
 sub _timeout {
-  my $tmp = new AliEn::Logger();
+	my $tmp = new AliEn::Logger();
 
-  alarm(0);
+	alarm(0);
 
-  $tmp->error("Database", "SQL Statement timed out");
+	$tmp->error( "Database", "SQL Statement timed out" );
 
-  die;
+	die;
 }
 
-sub _queryDB{
-  my ($self,$stmt, $options) = @_;
-  $options or $options={};
-  my $oldAlarmValue = $SIG{ALRM};
-  local $SIG{ALRM} = \&_timeout;
+sub _queryDB {
+	my ( $self, $stmt, $options ) = @_;
+	$options or $options = {};
+	my $oldAlarmValue = $SIG{ALRM};
+	local $SIG{ALRM} = \&_timeout;
 
-  local $SIG{PIPE} =sub {
-    print STDERR "Warning!! The connection to the AliEnProxy got lost\n";
-    $self->reconnect();
-  };
+	local $SIG{PIPE} = sub {
+		print STDERR "Warning!! The connection to the AliEnProxy got lost\n";
+		$self->reconnect();
+	};
 
-  $self->_pingReconnect or return;
+	$self->_pingReconnect or return;
 
-  my $arrRef;
-  my $execute;
-  my @bind;
-  $options->{bind_values} and push @bind, @{$options->{bind_values}};
-  $DEBUG and $self->debug(2,"In _queryDB executing $stmt in database (@bind).");
+	my $arrRef;
+	my $execute;
+	my @bind;
+	$options->{bind_values} and push @bind, @{ $options->{bind_values} };
+	$DEBUG
+	  and $self->debug( 2, "In _queryDB executing $stmt in database (@bind)." );
 
-  while (1) {
-    my $sqlError="";
-    eval {
-      alarm(600);
-      my $sth = $self->{DBH}->prepare_cached($stmt);
-      #      my $sth = $self->{DBH}->prepare($stmt);
-      $DBI::errstr and $sqlError.="In prepare: $DBI::errstr\n";
-      if ($sth){
-	$execute=$sth->execute(@bind);
-	$DBI::errstr and $sqlError.="In execute: $DBI::errstr\n";
-	$arrRef = $sth->fetchall_arrayref({});
-	$DBI::errstr and $sqlError.="In fetch: $DBI::errstr\n";
-	
-#	$sth->finish;
-#	$DBI::errstr and $sqlError.="In finish: $DBI::errstr\n";
-      }
-    };
-    $@ and $sqlError="The command died: $@";
-    alarm(0);
+	while (1) {
+		my $sqlError = "";
+		eval {
+			alarm(600);
+			my $sth = $self->{DBH}->prepare_cached($stmt);
 
-    if ($sqlError) {
-      my $found=0;
-      $sqlError =~ /(Unexpected EOF)|(Lost connection)|(Constructor didn't return a handle)|(No such object)|(Connection reset by peer)|(MySQL server has gone away at)|(_set_fbav\(.*\): not an array ref at)|(Constructor didn't return a handle)/ and $found=1;
+			#      my $sth = $self->{DBH}->prepare($stmt);
+			$DBI::errstr and $sqlError .= "In prepare: $DBI::errstr\n";
+			if ($sth) {
+				$execute = $sth->execute(@bind);
+				$DBI::errstr and $sqlError .= "In execute: $DBI::errstr\n";
+				$arrRef = $sth->fetchall_arrayref( {} );
+				$DBI::errstr and $sqlError .= "In fetch: $DBI::errstr\n";
 
-      if ($sqlError =~ /Died at .*AliEn\/UI\/Catalogue\.pm line \d+/) {
-	die("We got a ctrl+c... :( ");
-      }
-      if ($sqlError =~ /Maximum message size of \d+ exceeded/) {
-	$self->info("ESTAMOS AQUI\n");
-      }
-      $found or $self->info("There was an SQL error: $sqlError",1001) and return;
-    }
-    #If the statment got executed, we can exit the loop
-    $execute and last;
+				#	$sth->finish;
+				#	$DBI::errstr and $sqlError.="In finish: $DBI::errstr\n";
+			}
+		};
+		$@ and $sqlError = "The command died: $@";
+		alarm(0);
 
-    $self->reconnect or $self->info( "The reconnection did not work") and return;
-  }
+		if ($sqlError) {
+			my $found = 0;
+			$sqlError =~
+/(Unexpected EOF)|(Lost connection)|(Constructor didn't return a handle)|(No such object)|(Connection reset by peer)|(MySQL server has gone away at)|(_set_fbav\(.*\): not an array ref at)|(Constructor didn't return a handle)/
+			  and $found = 1;
 
-  $oldAlarmValue
-    and $SIG{ALRM} = $oldAlarmValue
-      or delete $SIG{ALRM};
+			if ( $sqlError =~ /Died at .*AliEn\/UI\/Catalogue\.pm line \d+/ ) {
+				die("We got a ctrl+c... :( ");
+			}
+			if ( $sqlError =~ /Maximum message size of \d+ exceeded/ ) {
+				$self->info("ESTAMOS AQUI\n");
+			}
+			$found
+			  or $self->info( "There was an SQL error: $sqlError", 1001 )
+			  and return;
+		}
 
+		#If the statment got executed, we can exit the loop
+		$execute and last;
 
-  $DEBUG and $self->debug(1,"Query $stmt successfully executed. ($#{$arrRef}+1 entries)");
-  return $arrRef;
+		$self->reconnect
+		  or $self->info("The reconnection did not work")
+		  and return;
+	}
+
+	$oldAlarmValue and $SIG{ALRM} = $oldAlarmValue
+	  or delete $SIG{ALRM};
+
+	$DEBUG
+	  and $self->debug( 1,
+		"Query $stmt successfully executed. ($#{$arrRef}+1 entries)" );
+	return $arrRef;
 }
 
-sub _do{
-  my $self = shift;
-  my $stmt = shift;
-  my $options=(shift or {});
+sub _do {
+	my $self    = shift;
+	my $stmt    = shift;
+	my $options = ( shift or {} );
 
-  my $oldAlarmValue = $SIG{ALRM};
-  local $SIG{ALRM} = \&_timeout;
+	my $oldAlarmValue = $SIG{ALRM};
+	local $SIG{ALRM} = \&_timeout;
 
-  local $SIG{PIPE} =sub {
-    print STDERR "Warning!! The connection to the AliEnProxy got lost while doing an insert\n";
-    $self->reconnect();
-  };
+	local $SIG{PIPE} = sub {
+		print STDERR
+"Warning!! The connection to the AliEnProxy got lost while doing an insert\n";
+		$self->reconnect();
+	};
 
-  $DEBUG and $self->debug(2,"In _do checking is database connection still valid");
+	$DEBUG
+	  and
+	  $self->debug( 2, "In _do checking is database connection still valid" );
 
-  $self->_pingReconnect or return;
-  my @bind_values;
-  $options->{bind_values} and push @bind_values, @{$options->{bind_values}} and $options->{prepare}=1;
-  my $result;
+	$self->_pingReconnect or return;
+	my @bind_values;
+	$options->{bind_values}
+	  and push @bind_values, @{ $options->{bind_values} }
+	  and $options->{prepare} = 1;
+	my $result;
 
-  while (1) {
-    my $sqlError="";
+	while (1) {
+		my $sqlError = "";
 
-    $result = eval {
-      alarm(600);
-      my $tmp;
-      if ($options->{prepare}) {
-	$DEBUG and $self->debug(2,"In _do doing $stmt @bind_values");
-	my $sth = $self->{DBH}->prepare_cached($stmt);
-	$tmp = $sth->execute(@bind_values);
-      }else {
-	$DEBUG and $self->debug(1,"In _do doing $stmt @bind_values");
-	$tmp=$self->{DBH}->do($stmt);
-      }
-      $DBI::errstr and $sqlError.="In do: $DBI::errstr\n";
-      $tmp;
-    };
-    my $error=$@;
-    alarm(0);
-    if ($error) {
-      $sqlError.="There is an error: $@\n";
-      $options->{silent} or $self->info("There was an SQL error  ($stmt): $sqlError",1001);
-      return;
-    }
-    defined($result) and last;
+		$result = eval {
+			alarm(600);
+			my $tmp;
+			if ( $options->{prepare} ) {
+				$DEBUG and $self->debug( 2, "In _do doing $stmt @bind_values" );
+				my $sth = $self->{DBH}->prepare_cached($stmt);
+				$tmp = $sth->execute(@bind_values);
+			}
+			else {
+				$DEBUG and $self->debug( 1, "In _do doing $stmt @bind_values" );
+				$tmp = $self->{DBH}->do($stmt);
+			}
+			$DBI::errstr and $sqlError .= "In do: $DBI::errstr\n";
+			$tmp;
+		};
+		my $error = $@;
+		alarm(0);
+		if ($error) {
+			$sqlError .= "There is an error: $@\n";
+			$options->{silent}
+			  or
+			  $self->info( "There was an SQL error  ($stmt): $sqlError", 1001 );
+			return;
+		}
+		defined($result) and last;
 
-    if ($sqlError) {
-      my $found=0;
-      $sqlError=~ /(Unexpected EOF)|(Lost connection)|(MySQL server has gone away at)|(Connection reset by peer)/ and $found=1;
-      if (!$found) {
-	$oldAlarmValue
-	  and $SIG{ALRM} = $oldAlarmValue
-	    or delete $SIG{ALRM};
-	chomp $sqlError;
-	$options->{silent} or 
-	  $self->info("There was an SQL error  ($stmt): $sqlError",1001);
-	return;
-      }
-    }
+		if ($sqlError) {
+			my $found = 0;
+			$sqlError =~
+/(Unexpected EOF)|(Lost connection)|(MySQL server has gone away at)|(Connection reset by peer)/
+			  and $found = 1;
+			if ( !$found ) {
+				$oldAlarmValue and $SIG{ALRM} = $oldAlarmValue
+				  or delete $SIG{ALRM};
+				chomp $sqlError;
+				$options->{silent}
+				  or $self->info( "There was an SQL error  ($stmt): $sqlError",
+					1001 );
+				return;
+			}
+		}
 
-    $self->reconnect() or return;
-  }
+		$self->reconnect() or return;
+	}
 
-  $oldAlarmValue
-    and $SIG{ALRM} = $oldAlarmValue
-      or delete $SIG{ALRM};
-  
-  $DEBUG and $self->debug(1, "Query $stmt successfully executed with result: $result");
+	$oldAlarmValue and $SIG{ALRM} = $oldAlarmValue
+	  or delete $SIG{ALRM};
 
-  $result;
+	$DEBUG
+	  and $self->debug( 1,
+		"Query $stmt successfully executed with result: $result" );
+
+	$result;
 }
 
+sub _pingReconnect {
+	my $self = shift;
 
-sub _pingReconnect{
-  my $self = shift;
+	$DEBUG and $self->debug( 2,
+		    "In _pingReconnect checking database connection DBH-PID: "
+		  . ( $self->{PID} or "" )
+		  . "; PID: $$." );
 
-  $DEBUG and $self->debug(2,"In _pingReconnect checking database connection DBH-PID: ". ($self->{PID} or "")."; PID: $$.");
-
-  $self->{PID}
-    and ($self->{PID} == $$)
-      and $self->{DBH}
-	and $self->{DBH}->ping
+	$self->{PID}
+	  and ( $self->{PID} == $$ )
+	  and $self->{DBH}
+	  and $self->{DBH}->ping
 	  and return 1;
 
-  $self->reconnect;
+	$self->reconnect;
 }
 
 sub _validate {
-  my $self = shift;
+	my $self = shift;
 
-  my $status;
-  if ( $ENV{ALIEN_PROC_ID} and $ENV{ALIEN_JOB_TOKEN} ) {
+	my $status;
+	if ( $ENV{ALIEN_PROC_ID} and $ENV{ALIEN_JOB_TOKEN} ) {
 
-    $DEBUG and $self->debug(1,"In _validate validating job $ENV{ALIEN_PROC_ID} token: $ENV{ALIEN_JOB_TOKEN}.");
+		$DEBUG and $self->debug( 1,
+"In _validate validating job $ENV{ALIEN_PROC_ID} token: $ENV{ALIEN_JOB_TOKEN}."
+		);
 
 #    $status = $self->{TOKEN_MANAGER}->validateJobToken( $ENV{ALIEN_PROC_ID}, $ENV{ALIEN_JOB_TOKEN} );
 #    if (!$status) {
@@ -1280,89 +1260,117 @@ sub _validate {
 #      return;
 #    }
 #    $self->{USER} =  $ENV{ALIEN_PROC_ID};
-    $self->{ROLE} =  $ENV{ALIEN_PROC_ID};
-    $self->{PASSWD}=$self->{TOKEN} =  $ENV{ALIEN_JOB_TOKEN};
-    $self->{FORCED_AUTH_METHOD}='JOBTOKEN';
-    $self->debug(1,"READY TO AUTHENTICATE WITH THE JOB TOKEN");
-    my $username=$self->_connect();
-    if (!$username){
-      $self->info("Authentication with the jobid $ENV{ALIEN_PROC_ID} (from the environment ALIEN_PROC_ID) failed");
-      return;
-    }
-    $self->{ROLE}=$ENV{ALIEN_JOBTOKEN_USER};
+		$self->{ROLE}               = $ENV{ALIEN_PROC_ID};
+		$self->{PASSWD}             = $self->{TOKEN} = $ENV{ALIEN_JOB_TOKEN};
+		$self->{FORCED_AUTH_METHOD} = 'JOBTOKEN';
+		$self->debug( 1, "READY TO AUTHENTICATE WITH THE JOB TOKEN" );
+		my $username = $self->_connect();
+		if ( !$username ) {
+			$self->info(
+"Authentication with the jobid $ENV{ALIEN_PROC_ID} (from the environment ALIEN_PROC_ID) failed"
+			);
+			return;
+		}
+		$self->{ROLE} = $ENV{ALIEN_JOBTOKEN_USER};
 
-  } elsif ( $self->{TOKEN} ) {
-    $self->{FORCED_AUTH_METHOD}='TOKEN';
+	}
+	elsif ( $self->{TOKEN} ) {
+		$self->{FORCED_AUTH_METHOD} = 'TOKEN';
 
-    $DEBUG and $self->debug(1,"In _validate validating user $self->{USER} (as $self->{ROLE}) using token.");
+		$DEBUG and $self->debug( 1,
+"In _validate validating user $self->{USER} (as $self->{ROLE}) using token."
+		);
 
-    if ($self->{PASSWD}) {
-      $status = $self->{TOKEN_MANAGER}->getUserToken( $self->{USER}, $self->{ROLE},$self->{PASSWD}) or return;
+		if ( $self->{PASSWD} ) {
+			$status =
+			  $self->{TOKEN_MANAGER}
+			  ->getUserToken( $self->{USER}, $self->{ROLE}, $self->{PASSWD} )
+			  or return;
 
-    } else {
-      $status = $self->{TOKEN_MANAGER}->validateUserToken( $self->{USER}, $self->{ROLE},$self->{TOKEN}) or return;
-      $status={token=>$status};
-    }
+		}
+		else {
+			$status =
+			  $self->{TOKEN_MANAGER}
+			  ->validateUserToken( $self->{USER}, $self->{ROLE},
+				$self->{TOKEN} )
+			  or return;
+			$status = { token => $status };
+		}
 
-    $status or
-      print STDERR "Database: In _validate TokenManager reported error. Unable to validate user $self->{USER} (as $self->{ROLE}).\n" and
-	return;
+		$status
+		  or print STDERR
+"Database: In _validate TokenManager reported error. Unable to validate user $self->{USER} (as $self->{ROLE}).\n"
+		  and return;
 
-    $self->{TOKEN} = $status->{token};
-  } else {
-    $DEBUG and $self->debug(1,"Database: In _validate validating user $self->{USER} (as $self->{ROLE}) using password.");
+		$self->{TOKEN} = $status->{token};
+	}
+	else {
+		$DEBUG and $self->debug( 1,
+"Database: In _validate validating user $self->{USER} (as $self->{ROLE}) using password."
+		);
 
-    $status = $self->_validateUser or return;
-  }
+		$status = $self->_validateUser or return;
+	}
 
-  $DEBUG and $self->debug(1,"User $self->{USER} (as $self->{ROLE}) successfully validated.");
+	$DEBUG
+	  and $self->debug( 1,
+		"User $self->{USER} (as $self->{ROLE}) successfully validated." );
 
-  1;
+	1;
 }
-
 
 sub _validateUser {
-  my $self   = shift;
+	my $self = shift;
 
-  $DEBUG and $self->debug(1,"Database: In _validateUser validating $self->{USER} (as $self->{ROLE}).");
+	$DEBUG and $self->debug( 1,
+"Database: In _validateUser validating $self->{USER} (as $self->{ROLE})."
+	);
 
-  if ($self->{USE_CACHE} && (-d $self->{CACHE_ROOT})){
-    $DEBUG and $self->debug(1,"Database: In _validateUser $self->{USER} validated.");
-    return 1;
-  }
+	if ( $self->{USE_CACHE} && ( -d $self->{CACHE_ROOT} ) ) {
+		$DEBUG
+		  and $self->debug( 1,
+			"Database: In _validateUser $self->{USER} validated." );
+		return 1;
+	}
 
-  AliEn::Database::destroy($self);
+	AliEn::Database::destroy($self);
 
-  if (!$self->_connect) {
-    $self->info( "Database: In _validateUser validation of user $self->{USER} (as $self->{ROLE}) failed.",125,0);
-    return;
-  }
-  $DEBUG and $self->debug(1,"Database: In _validateUser $self->{USER} validated.");
+	if ( !$self->_connect ) {
+		$self->info(
+"Database: In _validateUser validation of user $self->{USER} (as $self->{ROLE}) failed.",
+			125, 0
+		);
+		return;
+	}
+	$DEBUG
+	  and
+	  $self->debug( 1, "Database: In _validateUser $self->{USER} validated." );
 
-  1;
+	1;
 }
 
-sub _createCacheRoot{
+sub _createCacheRoot {
 	my $self = shift;
-	my $key = "$self->{DRIVER}#$self->{HOST}#$self->{DB}#$self->{USER}#$self->{ROLE}";
+	my $key =
+	  "$self->{DRIVER}#$self->{HOST}#$self->{DB}#$self->{USER}#$self->{ROLE}";
 
 	my $attrDBI = $self->{DBI_OPTIONS};
 
-	if ($self->{DBI_OPTIONS})
-	{
+	if ( $self->{DBI_OPTIONS} ) {
 		$key .= "#";
-		foreach my $i (keys %$attrDBI){$key .= $i . $attrDBI->{$i};}
+		foreach my $i ( keys %$attrDBI ) { $key .= $i . $attrDBI->{$i}; }
 	}
 
 	$self->{CACHE_ROOT} = "$self->{CACHE_DIR}/DBCache#$key";
 
-	$DEBUG and $self->debug(1,"Database: New cache root created: $self->{CACHE_ROOT}");
+	$DEBUG
+	  and $self->debug( 1,
+		"Database: New cache root created: $self->{CACHE_ROOT}" );
 }
 
-
-sub _clearCache{
+sub _clearCache {
 	my $self = shift;
-	my $key = shift;
+	my $key  = shift;
 
 # 	if (-d "$self->{CACHE_ROOT}/$key"){
 # 		my $cache = Cache::File->new(
@@ -1371,33 +1379,19 @@ sub _clearCache{
 # 				cache_root=>"$self->{CACHE_ROOT}/$key",
 # 				lock_level=>Cache::File::LOCK_LOCAL
 # 				);
-# 
+#
 # 		$DEBUG and $self->debug(1,"In _clearCache removing all objects from cache $self->{CACHE_ROOT}/$key");
-# 
+#
 # 		$cache->clear;
 # 	}
 
 }
 
-sub _destroyCache{
+sub _destroyCache {
 	my $self = shift;
-	my $key = shift;
+	my $key  = shift;
 
-	system ("rm","-r","$self->{CACHE_ROOT}/$key");
-}
-
-
-sub optimizeTable{
-  my $self=shift;
-  my $table=shift;
-  $self->info("Ready to optimize the table $table (from $self->{DB})");
-  if ($self->queryValue("SELECT count(*) FROM information_schema.TABLES where table_schema=? and table_name=? 
-                          and (data_free > 100000000 or data_free/data_length>0.1)",
-                          undef, {bind_values=>[$self->{DB}, $table]})){
-      $self->info("We have to optimize the table");
-      $self->do("optimize table $table");
-  }
-  return 1;
+	system( "rm", "-r", "$self->{CACHE_ROOT}/$key" );
 }
 
 =item C<createTable>
@@ -1592,8 +1586,6 @@ Value of attribute is 1 if cache is used, otherwise 0. Default value is 0.
 DBI, Cache
 
 =cut
-
-
 
 1;
 
