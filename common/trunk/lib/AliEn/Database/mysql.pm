@@ -34,23 +34,7 @@ AliEn::Database::mysql - database interface for mysql driver for AliEn system
 This module implements the database wrapper in case of using the driver mysql. Sytanx and structure are different for each engine. This affects the code. The rest of the modules should finally abstract from SQL code. Therefore, instead we would ideally use calls to functions implemented in this module - case of mysql.
 
 =cut
-#push @ISA='AliEn::Database';
 
-#sub new {
-#  my $proto = shift;
-#  my $self  = (shift or AliEn::Database::new() );
-#  $self->{HOST}="localhost";
-#  $self->{DB}="SQL";
-#  $self->{DRIVER}="mysql";
-#  $self->{TABLES}={};
-
- # $self->{CONFIG}=new AliEn::Config();
- # $self->{LOGGER}=new AliEn::Logger();
-#  $self->{DIRECTORY}=$self->{CONFIG}->{TMP_DIR};
-#  $self->debug(1, "Using the SQLite database in $self->{DIRECTORY}");
-#return (bless($proto,$self));
- # return AliEn::Database::new($proto, $self, @_);
-#}
 
 =item C<reservedWord>
 
@@ -63,7 +47,11 @@ sub reservedWord {
 	my $word = shift;
 	return $word;
 }
+=item C<createTable>
 
+  $res = $dbh->createTable($word);
+
+=cut
 sub createTable {
   my $self = shift;
   my $table = shift;
@@ -223,13 +211,7 @@ sub existsTable {
   my $table = shift;
   return $self->queryValue("SHOW TABLES like '$table'");
 }
-#sub collateCS{
-#return " collate latin1_general_cs";
-#}
 
-#sub collateCI{
-#return " collate latin1_general_ci";
-#}
 sub getTypes {
 	my $self = shift;
 
@@ -249,152 +231,14 @@ sub getTypes {
 	return 1;
 }
 
-#sub setAutoincrement{
-#return " auto_increment ";
-#}
+
 sub resetAutoincrement {
 	my $self  = shift;
 	my $table = shift;
 	$self->do("ALTER TABLE $table auto_increment=1");
 }
 
-sub _queryDB{
-  my ($self,$stmt, $options) = @_;
-  $options or $options={};
-  my $oldAlarmValue = $SIG{ALRM};
-  local $SIG{ALRM} = \&_timeout;
 
-  local $SIG{PIPE} =sub {
-    print STDERR "Warning!! The connection to the AliEnProxy got lost\n";
-    $self->reconnect();
-  };
-
-  $self->_pingReconnect or return;
-
-  my $arrRef;
-  my $execute;
-  my @bind;
-  $options->{bind_values} and push @bind, @{$options->{bind_values}};
-  $DEBUG and $self->debug(2,"In _queryDB executing $stmt in database (@bind).");
-
-  while (1) {
-    my $sqlError="";
-    eval {
-      alarm(600);
-      my $sth = $self->{DBH}->prepare_cached($stmt);
-      #      my $sth = $self->{DBH}->prepare($stmt);
-      $DBI::errstr and $sqlError.="In prepare: $DBI::errstr\n";
-      if ($sth){
-	$execute=$sth->execute(@bind);
-	$DBI::errstr and $sqlError.="In execute: $DBI::errstr\n";
-	$arrRef = $sth->fetchall_arrayref({});
-	$DBI::errstr and $sqlError.="In fetch: $DBI::errstr\n";
-	
-#	$sth->finish;
-#	$DBI::errstr and $sqlError.="In finish: $DBI::errstr\n";
-      }
-    };
-    $@ and $sqlError="The command died: $@";
-    alarm(0);
-
-    if ($sqlError) {
-      my $found=0;
-      $sqlError =~ /(Unexpected EOF)|(Lost connection)|(Constructor didn't return a handle)|(No such object)|(Connection reset by peer)|(MySQL server has gone away at)|(_set_fbav\(.*\): not an array ref at)|(Constructor didn't return a handle)/ and $found=1;
-
-      if ($sqlError =~ /Died at .*AliEn\/UI\/Catalogue\.pm line \d+/) {
-	die("We got a ctrl+c... :( ");
-      }
-      if ($sqlError =~ /Maximum message size of \d+ exceeded/) {
-	$self->info("ESTAMOS AQUI\n");
-      }
-      $found or $self->info("There was an SQL error: $sqlError",1001) and return;
-    }
-    #If the statment got executed, we can exit the loop
-    $execute and last;
-
-    $self->reconnect or $self->info( "The reconnection did not work") and return;
-  }
-
-  $oldAlarmValue
-    and $SIG{ALRM} = $oldAlarmValue
-      or delete $SIG{ALRM};
-
-
-  $DEBUG and $self->debug(1,"Query $stmt successfully executed. ($#{$arrRef}+1 entries)");
-  return $arrRef;
-}
-
-sub _do{
-  my $self = shift;
-  my $stmt = shift;
-  my $options=(shift or {});
-
-  my $oldAlarmValue = $SIG{ALRM};
-  local $SIG{ALRM} = \&_timeout;
-
-  local $SIG{PIPE} =sub {
-    print STDERR "Warning!! The connection to the AliEnProxy got lost while doing an insert\n";
-    $self->reconnect();
-  };
-
-  $DEBUG and $self->debug(2,"In _do checking is database connection still valid");
-
-  $self->_pingReconnect or return;
-  my @bind_values;
-  $options->{bind_values} and push @bind_values, @{$options->{bind_values}} and $options->{prepare}=1;
-  my $result;
-
-  while (1) {
-    my $sqlError="";
-
-    $result = eval {
-      alarm(600);
-      my $tmp;
-      if ($options->{prepare}) {
-	$DEBUG and $self->debug(2,"In _do doing $stmt @bind_values");
-	my $sth = $self->{DBH}->prepare_cached($stmt);
-	$tmp = $sth->execute(@bind_values);
-      }else {
-	$DEBUG and $self->debug(1,"In _do doing $stmt @bind_values");
-	$tmp=$self->{DBH}->do($stmt);
-      }
-      $DBI::errstr and $sqlError.="In do: $DBI::errstr\n";
-      $tmp;
-    };
-    my $error=$@;
-    alarm(0);
-    if ($error) {
-      $sqlError.="There is an error: $@\n";
-      $options->{silent} or $self->info("There was an SQL error  ($stmt): $sqlError",1001);
-      return;
-    }
-    defined($result) and last;
-
-    if ($sqlError) {
-      my $found=0;
-      $sqlError=~ /(Unexpected EOF)|(Lost connection)|(MySQL server has gone away at)|(Connection reset by peer)/ and $found=1;
-      if (!$found) {
-	$oldAlarmValue
-	  and $SIG{ALRM} = $oldAlarmValue
-	    or delete $SIG{ALRM};
-	chomp $sqlError;
-	$options->{silent} or 
-	  $self->info("There was an SQL error  ($stmt): $sqlError",1001);
-	return;
-      }
-    }
-
-    $self->reconnect() or return;
-  }
-
-  $oldAlarmValue
-    and $SIG{ALRM} = $oldAlarmValue
-      or delete $SIG{ALRM};
-  
-  $DEBUG and $self->debug(1, "Query $stmt successfully executed with result: $result");
-
-  $result;
-}
 sub grantAllPrivilegesToUser {
 	my $self  = shift;
 	my $user  = shift;
@@ -454,10 +298,7 @@ sub describeTable {
 
   $self->_queryDB("DESCRIBE $table");
 }
-sub createLFNtables {
-	my $self = shift;
 
-}
 
 sub createGUIDtables {
 	my $self = shift;
@@ -785,8 +626,6 @@ sub _timeUnits {
 	return $s;
 }
 
-#sub defineAutoincrement{
-#return 1;}
 
 sub dateFormat {
 	my $self = shift;
@@ -801,15 +640,7 @@ sub regexp {
 	return "$col rlike '$pattern'";
 }
 
-#sub getIgnore{
-#return " IGNORE ";
-#}
-#sub characterSetCI{
-#return "DEFAULT CHARACTER SET latin1 collate latin1_general_ci";
-#}
-#sub characterSetCS{
-#	return " DEFAULT CHARACTER SET latin1 COLLATE latin1_general_cs";
-#}
+
 
 sub schema {
 	my $self = shift;
