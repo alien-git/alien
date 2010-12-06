@@ -328,7 +328,7 @@ sub get {
      $ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}=$envelope->{signedEnvelope};
 
      # if we have the old styled envelopes
-     (defined($envelope->{oldEnvelope})) and $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope->{oldEnvelope};
+     (defined($envelope->{oldEnvelope})) and $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope->{oldEnvelope} or $ENV{ALIEN_XRDCP_ENVELOPE}=0;
 
      my $start=time;
      $result = $self->{STORAGE}->getFile( $envelope->{turl}, $envelope->{se}, $localFile, join("",keys %options), $file, $envelope->{guid},$envelope->{md5} );
@@ -1421,7 +1421,7 @@ sub erase {
        $ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}=$envelope->{signedEnvelope};
 
        # if we have the old styled envelopes
-       (defined($envelope->{oldEnvelope})) and $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope->{oldEnvelope};
+       (defined($envelope->{oldEnvelope})) and $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope->{oldEnvelope} or $ENV{ALIEN_XRDCP_ENVELOPE}=0;
 
 
 	if (!$self->{STORAGE}->eraseFile($envelope->{turl})) {
@@ -1471,7 +1471,7 @@ sub addFile {
   my $lineOptions=join(" ", @_);
   @ARGV=@_;
   Getopt::Long::GetOptions($options, 
-    "silent", "versioning", "user=s", "guid=s", "register", "tracelog", "feedback", "size=s", "md5=s") 
+    "silent", "versioning", "upload", "user=s", "guid=s", "register", "tracelog", "feedback", "size=s", "md5=s") 
     or $self->info("Error checking the options of add") and return;
   @_=@ARGV;
   my $targetLFN   = (shift || ($self->info("ERROR, missing paramter: lfn") and return));
@@ -1500,7 +1500,7 @@ sub addFile {
   }
 
   $self->info("gron: Adding a file");
-  return $self->addFileToSEs($options->{user}, $targetLFN, $sourcePFN, \@seSpecs, $options->{guid}, $options->{feedback},$options->{silent});
+  return $self->addFileToSEs($options->{user}, $targetLFN, $sourcePFN, \@seSpecs, $options->{guid}, $options->{feedback},$options->{upload},$options->{silent});
 
 }
 
@@ -1566,6 +1566,7 @@ sub addFileToSEs {
   my $result = {};
   $result->{guid}=(shift || 0); # gron: guid is to be handeled
   my $feedback=(shift || 0);
+  my $uploadOnly=(shift || 0);
   my $silent=(shift || 0);
 
   my @ses = ();
@@ -1661,7 +1662,12 @@ sub addFileToSEs {
   $self->info("gron: scalar of the usedEnvelopes: ".scalar(@{$result->{usedEnvelopes}}));
   $self->info("gron: the returned usedEnvelopes are: @{$result->{usedEnvelopes}}");
   
-  my @successEnvelopes = $self->{CATALOG}->authorize("registerenvs", @{$result->{usedEnvelopes}});
+  my @successEnvelopes;
+  if($uploadOnly) {
+   @successEnvelopes = @{$result->{usedEnvelopes}};
+  } else {
+   @successEnvelopes = $self->{CATALOG}->authorize("registerenvs", @{$result->{usedEnvelopes}});
+  }
 
   (scalar(@successEnvelopes) gt 0) or return;
   if (scalar(@successEnvelopes) ne scalar(@{$result->{usedEnvelopes}})) {
@@ -1789,7 +1795,7 @@ sub uploadFileAccordingToEnvelope{
      $ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}=$envelope->{signedEnvelope};
 
      # if we have the old styled envelopes
-     (defined($envelope->{oldEnvelope})) and $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope->{oldEnvelope};
+     (defined($envelope->{oldEnvelope})) and $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope->{oldEnvelope} or $ENV{ALIEN_XRDCP_ENVELOPE}=0;
 
      my $start=time;
      $self->debug(2, "We will upload the file $sourcePFN to $envelope->{se}" );

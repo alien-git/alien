@@ -69,11 +69,16 @@ sub f_registerFile {
   # First, we check that we have permission in that directory
 #  my $tempname = $self->f_dirname($file);
 
-  my $permLFN=$self->checkPermissions( 'w', $file ) or  return;
-  $self->existsEntry($file, $permLFN) and
-    $self->{LOGGER}->error("File", "file $file already exists!!",1) 
-      and return;
-
+  my $permLFN=$self->checkPermissions( 'w', $file,0,1) or  return;
+  if($self->existsEntry($file, $permLFN->{lfn})) {
+    $self->info("gron: File exists and belongs to $permLFN->{owner} and $permLFN->{gowner}.");
+    if(($permLFN->{owner} eq $self->{ROLE}) and ($permLFN->{gowner} eq $self->{MAINGROUP})) {
+       
+    } else {
+      $self->{LOGGER}->error("File", "file $file already exists. Overwrite not allowed, file owner: $permLFN->{owner}, gowner: $permLFN->{gowner}!!",1);
+      return;
+    }
+  }
   # Now, insert it into D0, and in the table
   my $basename   = $self->f_basename($file);
   my $insert={lfn=>$file,  perm=>$perm,  owner=>$self->{ROLE},
