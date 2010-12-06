@@ -81,7 +81,7 @@ sub requestTransferType {
   my $this = shift;
   my $jdl=shift;
   my $slots=shift || 1;
-  $self->info("HELLO WORLD");
+
   $jdl
     or $self->{LOGGER}->warning( "TransferBroker", "In requestTransfer no classad for the host received" )
       and return ( -1, "no classad received" );
@@ -93,7 +93,7 @@ sub requestTransferType {
   my $ca = Classad::Classad->new($jdl);
   $self->debug(1, "Classad created");
   my ($ok, $host)=$ca->evaluateAttributeString("Name");
-
+  $self->info("Output to TransferBroker/$host");
   $self->redirectOutput("TransferBroker/$host");
 
   $self->info("requestTransfer: New transfer requested from $host!!");

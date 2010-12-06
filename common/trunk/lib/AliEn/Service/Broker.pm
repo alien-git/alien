@@ -125,7 +125,7 @@ sub match {
     my $job_ca = Classad::Classad->new($element->{jdl});
     $self->debug(1, "Checking $element->{jdl}");
     if ( !$job_ca->isOK() ) {
-      $self->{LOGGER}->error( "Broker", "Got an incorrect $type ca ($id)");
+      $self->info("Got an incorrect $type ca ($id)");
       $self->{DB}->updateStatus($id,"%", "INCORRECT");
       splice(@$pendingElements, $currentJob,1);
       next;
