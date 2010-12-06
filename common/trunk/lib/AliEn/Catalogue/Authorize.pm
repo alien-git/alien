@@ -1441,12 +1441,10 @@ sub signEnvelope {
 
   $env->{created} = time;
   $env->{expires} = int(time) + 86400; # 24h
-  
-  
-  my @keyVals = keys %{$env};
-  push @keyVals,"hashord";
-  push @keyVals, "creator";
   $env->{creator} = "Authen.".$self->{CONFIG}->{VERSION} ;
+  
+  
+  my @keyVals = ("turl","access","lfn","size","se","guid","md5","creator","created","expires","hashord");
   $env->{hashord} = join ("-",@keyVals);
   my $envelopeString= join('&', map { $_ = "$_=$env->{$_}"} @keyVals);
 
