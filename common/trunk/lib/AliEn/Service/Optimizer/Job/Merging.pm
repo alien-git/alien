@@ -260,7 +260,7 @@ sub updateMerging {
       $self->info("Ready to copy the output");
       #$self->copyOutputDirectories( $queueid, $job_ca, $procDir, $user) 
 	#or die ("error copying the output directories");
-      $self->info("Output copied");
+      #$self->info("Output copied");
       $self->checkMergingCollection($job_ca, $queueid, $procDir);
       $self->checkMergingSubmission($job_ca, $queueid, $procDir, $user, $set, $info) 
 	or die("Error doing the submission of the merging jobs");
@@ -444,6 +444,20 @@ sub checkMergingCollection{
 
   my ($ok, @mergingCollections)=$job_ca->evaluateAttributeVectorString("MergeCollections");
   @mergingCollections or return 1;
+  
+  my $subjobs=$self->{DB}->query("select JDL,queueid from QUEUE where status='DONE' and split=?",
+                                        undef, {bind_values=>[$queueid]});
+                                        
+  my @out=();
+  foreach my $d (@$subjobs){
+    $self->info("Checking the outputdir of $d");
+    my $ca= Classad::Classad->new($d->{JDL});
+    my ($ok, $dir)=$ca->evaluateAttributeString("OutputDir");
+    $ok or $dir="~/alien-job-$d->{queueid}";
+    push @out, $dir;
+  }
+             
+  $self->info("AT THE END, @out");                           
 
   foreach my $entry (@mergingCollections){
     $self->putJobLog($queueid, "info", "Creating the merging collection '$entry'");
@@ -455,10 +469,16 @@ sub checkMergingCollection{
 	or die("error creating the collection: '$collection'");
       my @patterns=split(/,/ , $files);
       foreach my $pattern (@patterns){
-	my @files=$self->{CATALOGUE}->execute("find", "$procDir/subjobs", $pattern);
-	foreach my $file(@files){
-	  $self->{CATALOGUE}->execute("addFileToCollection", "-n", $file, $collection) or die("Error adding the file '$file' to the collection");
-	}
+        #This is not going to work, since the files are in different places...
+	      #my @files=$self->{CATALOGUE}->execute("find", "$procDir/subjobs", $pattern);
+	      
+	      my @files=();
+	      foreach my $dir (@out) {
+	       push @files, $self->{CATALOGUE}->execute("find", $dir, $pattern) 	      
+	      }
+	      foreach my $file(@files){
+	         $self->{CATALOGUE}->execute("addFileToCollection", "-n", $file, $collection) or die("Error adding the file '$file' to the collection");
+       	}
       }
       $self->{CATALOGUE}->execute("updateCollection", $collection)
 	or die("Error updating the collection");
