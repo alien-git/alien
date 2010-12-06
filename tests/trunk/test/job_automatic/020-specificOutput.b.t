@@ -16,7 +16,7 @@ my $otherSE="${vo}::cern::testSE2";
 
 my $procDir="~/alien-job-$id";
 print "And the output is in $procDir\n";
-my @where=$cat->execute("whereis", "-lr", "$procDir/job-output/stdout") or exit(-2);
+my @where=$cat->execute("whereis", "-lr", "$procDir/stdout") or exit(-2);
 
 print "The file is in @where\n";
 grep( /^$otherSE$/i, @where) or print "The file is not in $otherSE!!\n" and exit(-2);

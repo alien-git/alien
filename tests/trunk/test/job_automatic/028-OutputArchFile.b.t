@@ -270,7 +270,7 @@ sub getSEsAndGuidForAJobsOutputFile{
   my $table;
 
   my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",});
-  my(@outputarch)=$cat->execute("whereis","~/alien-job-$id/job-output/$filename") or exit(-2);
+  my(@outputarch)=$cat->execute("whereis","~/alien-job-$id/$filename") or exit(-2);
 
   my @senames=();
   my $guid=0;
@@ -295,7 +295,7 @@ sub getSEsAndGuidForAJobsOutputFile{
              push @senames, $entry;
          }
        }
-       my(@outguid)=$cat->execute("lfn2guid","~/alien-job-$id/job-output/$filename") or exit(-2);
+       my(@outguid)=$cat->execute("lfn2guid","~/alien-job-$id/$filename") or exit(-2);
        $guid=$outguid[0];
    }
 
@@ -354,7 +354,7 @@ sub checkGuidForLFN{
   my $filename=shift;
 
   my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",});
-  my(@outputarch)=$cat->execute("lfn2guid","~/alien-job-$id/job-output/$filename") or exit(-2);
+  my(@outputarch)=$cat->execute("lfn2guid","~/alien-job-$id/$filename") or exit(-2);
   $cat->close();
  
   return \@outputarch;
@@ -365,7 +365,7 @@ sub doLsOnJobsOutputDir{
   my $id=shift;
 
   my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",});
-  my @listing = $cat->execute("ls","~/alien-job-$id/job-output/");
+  my @listing = $cat->execute("ls","~/alien-job-$id/");
   $cat->close();
   return \@listing; 
 }

@@ -26,7 +26,7 @@ InputDataCollection=\"LF:inputCollection/inputDataCollection.xml\";
 
 my $procDir=executeJDLFile($cat, "jdl/InputCollection.jdl") or exit(-2);
 
-my ($output)=$cat->execute("get", "$procDir/job-output/stdout") or exit(-2);
+my ($output)=$cat->execute("get", "$procDir/stdout") or exit(-2);
 
 open (FILE, "<$output") or print "Error opening $output\n" and exit(-2);
 my @content=<FILE>;

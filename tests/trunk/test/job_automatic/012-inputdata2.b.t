@@ -21,7 +21,7 @@ BEGIN { plan tests => 1 }
 
   my $procDir=checkOutput($cat, $id) or exit(-2);
   print "The job executed properly!!\n";
-  my ($out)=$cat->execute("get","$procDir/job-output/stdout") or exit(-2);
+  my ($out)=$cat->execute("get","$procDir/stdout") or exit(-2);
   system("cat", "$out");
   system("grep 'YUHUUUUU' $out") and
   print "The line is not there!!!" and exit(-2);

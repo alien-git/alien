@@ -164,9 +164,9 @@ sub checkOutput{
   my ($user)=$cat->execute("whoami") or return;
   print "Checking if the output of the job is registered... $procDir\n";
   $cat->execute("ls", "$procDir/", "-l") or return;
-  $cat->execute("ls", "$procDir/job-output", "-l") or return;
+  $cat->execute("ls", "$procDir", "-l") or return;
   print "Getting the output\n";
-  $cat->execute("cat", "$procDir/job-output/stdout") or return;
+  $cat->execute("cat", "$procDir/stdout") or return;
   return $procDir;
 
 }

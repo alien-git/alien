@@ -55,7 +55,7 @@ InputFile={\"LF:$dir/jdl/Input.jdl\",\"PF:file://$hostname:8092/$inputpfn\"};
   grep (m{Getting .*/bin/}, @log) or
    print "We didn't download any executable!!!\n" and exit(-2);
 
-  my ($output) = $cat->execute("get","$procDir/job-output/stdout") or exit(-2);
+  my ($output) = $cat->execute("get","$procDir/stdout") or exit(-2);
   open (OUT, "<$output");
   my @output = <OUT>;
   close OUT;

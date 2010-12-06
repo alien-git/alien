@@ -25,7 +25,7 @@ BEGIN { plan tests => 1 }
 
   print "JOB EXECUTED!!\nChecking if the archive is in the right place\n";
 
-  my (@out)=$cat->execute("whereis", "-r", "$procDir/job-output/stdout");
+  my (@out)=$cat->execute("whereis", "-r", "$procDir/stdout");
   
   my $resstatus=0;
 

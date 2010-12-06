@@ -33,7 +33,7 @@ BEGIN { plan tests => 1 }
     print "The file 'my_compiled is not in the installation directory\n"
       and exit(-2);
 
-  my ($output)=$cat->execute("get", "$procDir/job-output/stdout") or exit(-2);
+  my ($output)=$cat->execute("get", "$procDir/stdout") or exit(-2);
 
   open (FILE, "<$output") or print "Error checking the output of the job"
     and exit(-2);

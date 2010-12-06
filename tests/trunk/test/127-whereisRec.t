@@ -25,13 +25,13 @@ BEGIN { plan tests => 1 }
   my $procDir=executeJDLFile($cat, "jdl/date.jdl") or exit(-2);
 
 
-  my (@out)=$cat->execute("whereis","$procDir/job-output/stdout") or exit(-2);
+  my (@out)=$cat->execute("whereis","$procDir/stdout") or exit(-2);
 
   $out[0] =~ /^guid:/ or print "The stdout is not a link!!!\n" and exit(-2);
 
   print "Checking if we can do whereis -r\n";
 
-  (@out)=$cat->execute("whereis","$procDir/job-output/stdout") or exit(-2);
+  (@out)=$cat->execute("whereis","$procDir/stdout") or exit(-2);
 
   $out[0] =~ /^guid:/ and print "The stdout is a link!!!\n" and exit(-2);
 

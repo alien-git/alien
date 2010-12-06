@@ -38,7 +38,7 @@ Memory=200000000;
 #
 #  print "JOB EXECUTED!!\nChecking if the archive is in the right place\n";#
 #
-#  my ($file)=$cat->execute("get", "$procDir/job-output/stdout");
+#  my ($file)=$cat->execute("get", "$procDir/stdout");
   
 #  open (FILE, "<$file") or exit(-2);
 #  my @data=<FILE>;

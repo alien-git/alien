@@ -26,7 +26,7 @@ BEGIN { plan tests => 1 }
 
   my $procDir=checkOutput($cat,$id) or exit(-2);
 
-  my ($out)=$cat->execute("get","$procDir/job-output/stdout") or exit(-2);
+  my ($out)=$cat->execute("get","$procDir/stdout") or exit(-2);
   open (FILE, "<$out") or print "Error opening $out" and exit(-2);
   my @data=<FILE>;
   close FILE;

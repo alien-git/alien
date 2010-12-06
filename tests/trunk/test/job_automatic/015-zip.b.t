@@ -16,7 +16,7 @@ my $procDir=checkOutput($cat, $id)  or exit(-2);
 
 
 print "JOB DONE ($procDir)!!\n\n";
-my ($output)=$cat->execute("get", "$procDir/job-output/stdout", "-silent") or print "Error getting the output\n" and exit(-2);
+my ($output)=$cat->execute("get", "$procDir/stdout", "-silent") or print "Error getting the output\n" and exit(-2);
 
 $cat->close();
 

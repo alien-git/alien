@@ -19,7 +19,7 @@ my $procDir=checkOutput($cat, $id, $outputDir) or print "Could not check output"
 
 print "And let's check if the file is in the outputdir\n";
 
-my ($info)=$cat->execute("stat", "$outputDir/job-output/stdout") or exit(-2);
+my ($info)=$cat->execute("stat", "$outputDir/stdout") or exit(-2);
 use Data::Dumper;
 print Dumper($info);
 

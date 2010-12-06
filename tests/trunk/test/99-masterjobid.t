@@ -40,7 +40,7 @@ InputData=\"LF:${dir}split/*/*\";") or exit(-2);
     $entry =~ /job-log/ and next;
     $done=1;
     print "Checking the output of $entry\n";
-    my ($file)=$cat->execute("get", "-silent", "$procDir/$entry/job-output/stdout") or exit(-2);
+    my ($file)=$cat->execute("get", "-silent", "$procDir/$entry/stdout") or exit(-2);
     open (FILE, "<$file") or print "Error opening $file\n" and exit(-2);
     my @content=<FILE>;
     close FILE;

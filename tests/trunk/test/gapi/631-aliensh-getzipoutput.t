@@ -14,7 +14,7 @@ BEGIN { plan tests => 1;}
   my $stdoutfile3 = "/tmp/.631-aliensh-getzipoutput-bin".rand().rand().rand();
   
   # working commands
-  my @cmd = ("dir=\"\\\`ls /proc/$ENV{'USER'}/ \| tail -1\\\`; cp /proc/$ENV{'USER'}/\\\$dir/job-output/stdout file:$stdoutfile\"");
+  my @cmd = ("dir=\"\\\`ls /proc/$ENV{'USER'}/ \| tail -1\\\`; cp /proc/$ENV{'USER'}/\\\$dir/stdout file:$stdoutfile\"");
   foreach (@cmd) {
       system("echo $_ > $input");
       print $input,"\n";

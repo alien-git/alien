@@ -22,13 +22,13 @@ BEGIN { plan tests => 1 }
 
   my $files={"stdout"=>{}, "file.out"=>{}};
   foreach my $file (keys %$files) {
-    my ($out)=$cat->execute("get","$procDir/job-output/$file") or exit(-2);
+    my ($out)=$cat->execute("get","$procDir/$file") or exit(-2);
     open (FILE, "<$out") or print "Error opening $out" and exit(-2);
     my @data=<FILE>;
     close FILE;
     print "Got @data\n";
     $files->{$file}=join ("",@data);
-    my ($se, @pfn)=$cat->execute("whereis", "$procDir/job-output/$file") or exit(-2);
+    my ($se, @pfn)=$cat->execute("whereis", "$procDir/$file") or exit(-2);
     my $found=0;
     foreach my $pfn (@pfn) {
       $pfn =~ /^guid:/ and $found=1;

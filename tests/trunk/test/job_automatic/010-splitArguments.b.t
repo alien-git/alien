@@ -30,7 +30,7 @@ BEGIN { plan tests => 1 }
   foreach my $id (@{$ids->{DONE}}) {
     my $entry="~/alien-job-$id";
     print "Checking the output of $entry\n";
-    my ($file)=$cat->execute("get", "$entry/job-output/stdout") or exit(-2);
+    my ($file)=$cat->execute("get", "$entry/stdout") or exit(-2);
     open (FILE, "<$file") or print "Error opening $file\n" and exit(-2);
     my @content=<FILE>;
     close FILE;

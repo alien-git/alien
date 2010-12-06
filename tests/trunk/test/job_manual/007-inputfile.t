@@ -43,7 +43,7 @@ OutputFile={\"file.out\",\"stdout\",\"stderr\",\"resources\"}") or exit(-2);
   my @tmp = keys %$files;
   foreach my $file (keys %$files) {
     use Data::Dumper;
-    my ($out)=$cat->execute("get","$procDir/job-output/$file") or exit(-2);
+    my ($out)=$cat->execute("get","$procDir/$file") or exit(-2);
     open (FILE, "<$out") or print "Error opening $out" and exit(-2);
     my @data=<FILE>;
     close FILE;

@@ -19,7 +19,7 @@ my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",})
 my $procDir=checkOutput($cat, $id) or exit(-2);
 
 print "The output is $procDir\n";
-my ($stdout)=$cat->execute('get', "$procDir/job-output/stdout") or print "Error getting the stdout of the job $procDir\n" and exit(-2);
+my ($stdout)=$cat->execute('get', "$procDir/stdout") or print "Error getting the stdout of the job $procDir\n" and exit(-2);
 
 open (FILE, "<$stdout") or print "Error opening the local file $stdout\n" and exit(-2);
 my @content=<FILE>;
