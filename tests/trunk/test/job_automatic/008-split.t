@@ -108,15 +108,19 @@ sub checkSubJobs{
   my $options=shift || {};
   print "Checking if $id was split in $jobs (and all of them finished with DONE\n";
   my ($status)=$cat->execute("top", "-id", $id) or exit(-2);
-  my ($info)=$cat->execute("masterJob", $id) or exit(-2);
+  my ($info)=$cat->execute("masterJob", $id, "-printid") or exit(-2);
   $status->{status} eq "DONE" or print "The job is not done!!\n" and exit(-2);
 
   my ($user)=$cat->execute("whoami");
   my $subjobs=0;
   my $expected={DONE=>$jobs};
   $options->{expected} and $expected=$options->{expected};
+  use Data::Dumper;
+  my $ids={};
   foreach my $s (@$info){
+    print Dumper($s);
     my $status=$s->{status};
+    $ids->{$status}=$s->{ids};
     $subjobs+=$s->{count};
     $expected->{$status} eq $s->{count} or print "There are $s->{count} $status jobs, and we were expecting $expected\n" and exit(-2);
     $expected->{$status}=0;
@@ -128,5 +132,5 @@ sub checkSubJobs{
     }
   }
 
-  return "~/alien-job-$id";
+  return "~/alien-job-$id", $ids;
 }
