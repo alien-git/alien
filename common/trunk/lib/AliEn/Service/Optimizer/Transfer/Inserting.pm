@@ -235,6 +235,8 @@ sub findCommonProtocols {
       my $p=$info->{protocol};
       $pDone->{$p} or push @$protocols, $p;
       $pDone->{$p}=1;
+      $info->{sourceopt} or $info->{sourceopt}="";
+      $info->{targetopt} or $info->{targetopt}="";
       push @fullList, "${p},$source,$info->{sourceopt},$info->{targetopt}";
     }
   }
