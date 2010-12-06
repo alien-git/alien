@@ -1226,6 +1226,70 @@ sub _do {
 
 	$result;
 }
+sub grantAllPrivilegesToUser {
+	my $self  = shift;
+	my $user  = shift;
+	my $db    = shift;
+	my $table = shift;
+	$db =~ s/(.*):(.*)/$2/i;
+	$self->grantPrivilegesToUser( ["ALL PRIVILEGES ON $db.$table"], $user );
+}
+##only works for mysql!!
+sub grantPrivilegesToUser {
+	my $self     = shift;
+	my $rprivs   = shift;
+	my $user     = shift;
+	my $pass     = shift;
+	my $origpass = $pass;
+	$DEBUG and $self->debug( 1, "In grantPrivilegesToUser" );
+	$pass and $pass = "$user IDENTIFIED BY '$pass'"
+	  or $pass = $user;
+
+	my $success = 1;
+	for (@$rprivs) {
+		$DEBUG and $self->debug( 0, "Adding privileges $_ to $user" );
+		$self->_do("GRANT $_ TO $pass")
+		  or $DEBUG
+		  and $self->debug( 0, "Error adding privileges $_ to $user" )
+		  and $success = 0;
+	}
+	return $success;
+}
+
+sub revokeAllPrivilegesFromUser {
+	my $self  = shift;
+	my $user  = shift;
+	my $db    = shift;
+	my $table = shift;
+	$self->revokePrivilegesFromUser( ["ALL PRIVILEGES ON $db.$table"], $user );
+}
+
+sub revokePrivilegesFromUser {
+	my $self   = shift;
+	my $rprivs = shift;
+	my $user   = shift;
+
+	my $success = 1;
+	for (@$rprivs) {
+		$DEBUG and $self->debug( 1, "Revoking privileges $_ of $user" );
+		$self->_do("REVOKE $_ FROM $user")
+		  or $DEBUG
+		  and $self->debug( 0, "Error revoking privileges $_ of $user" )
+		  and $success = 0;
+	}
+	return $success;
+}
+=item C<preprocess_fields>
+
+  $res = $dbh->preprocess_fields($keys);
+
+=cut
+
+sub preprocess_fields {
+	my $self     = shift;
+	my $new_keys = shift;
+	return $new_keys;
+}
 
 sub _pingReconnect {
 	my $self = shift;
