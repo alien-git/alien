@@ -50,19 +50,19 @@ Requirements= other.HOST==other.HOST;
     my ($info)=$cat->execute("top", "-id", $id2);
     $info->{status} eq "WAITING" and $ready=1 and last;
   }
-  $ready or print "The job is not WAITING!!\n" and exit(-2);
-  $cat->execute("request") or exit(-2); 
+  $ready or die("The job is not WAITING!!\n");
+  $cat->execute("request") or die ("Error requesting a job"); 
 
   system ("alien", "proxy-destroy");
   sleep(10);
 
   my ($info)=$cat->execute("top", "-id", $id1);
   $info->{status} eq "DONE" or
-    print "NOPE!! the status is $info->{status}\n" and  exit(-2);
+    die( "NOPE!! the status of $id is $info->{status}\n");
 
   ($info)=$cat->execute("top", "-id", $id2);
   $info->{status} eq "DONE" or
-    print "NOPE!! the status is $info->{status}\n" and  exit(-2);
+    die("NOPE!! the status of $id2 is $info->{status}\n");
 };
 my $error=$@;
 
