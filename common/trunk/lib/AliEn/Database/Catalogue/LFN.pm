@@ -60,7 +60,7 @@ HOSTS,
 
 
 
-my $binary2string="insert(insert(insert(insert(hex(guid),9,0,'-'),14,0,'-'),19,0,'-'),24,0,'-')";
+#my $binary2string="insert(insert(insert(insert(hex(guid),9,0,'-'),14,0,'-'),19,0,'-'),24,0,'-')";
 
 #
 
@@ -77,117 +77,12 @@ sub createCatalogueTables {
       $self->{LOGGER}->error("Catalogue", "Error checking the $_ table") and
 	return;
   }
-
-  my %tables=(HOSTS=>["hostIndex", {hostIndex=>"serial primary key",
-				    address=>"char(50)", 
-				    db=>"char(40)",
-				    driver=>"char(10)", 
-				    organisation=>"char(11)",},"hostIndex"],
-	      TRIGGERS=>["lfn", {lfn=>"varchar(255)", 
-				 triggerName=>"varchar(255)",
-				entryId=>"int auto_increment primary key"}],
-	      TRIGGERS_FAILED=>["lfn", {lfn=>"varchar(255)", 
-				 triggerName=>"varchar(255)",
-				entryId=>"int auto_increment primary key"}],
-	      LFN_UPDATES=>["guid", {guid=>"binary(16)", 
-				     action=>"char(10)",
-				     entryId=>"int auto_increment primary key"},'entryId',['INDEX (guid)']
-			   ],
-	      ACL=>["entryId", 
-		    {entryId=>"int(11) NOT NULL auto_increment primary key", 
-		     owner=>"char(10) NOT NULL",
-		     perm=>"char(4) NOT NULL",
-		     aclId=>"int(11) NOT NULL",}, 'entryId'],
-	      TAG0=>["entryId", 
-		     {entryId=>"int(11) NOT NULL auto_increment primary key", 
-		      path=>"varchar (255)",
-		      tagName=>"varchar (50)",
-		      tableName=>"varchar(50)",
-		      user=>'varchar(20)'}, 'entryId'],
-	      GROUPS=>["Userid", {Userid=>"int not null auto_increment primary key",
-				  Username=>"char(20) NOT NULL", 
-				  Groupname=>"char (85)",
-				  PrimaryGroup=>"int(1)",}, 'Userid'],
-	      INDEXTABLE=>["indexId", {indexId=>"int(11) NOT NULL auto_increment primary key",
-				       lfn=>"varchar(50)", 
-				       hostIndex=>"int(11)",
-				       tableName=>"int(11)",}, 
-			   'indexId', ['UNIQUE INDEX (lfn)']],
-	      ENVIRONMENT=>['userName', {userName=>"char(20) NOT NULL PRIMARY KEY", 
-					env=>"char(255)"}],
-	      ACTIONS=>['action', {action=>"char(40) not null primary key",
-				   todo=>"int(1) not null default 0"},
-		       'action'],
-	      PACKAGES=>['fullPackageName',{'fullPackageName'=> 'varchar(255)',
-					    packageName=>'varchar(255)',
-					    username=>'varchar(20)', 
-					    packageVersion=>'varchar(255)',
-					    platform=>'varchar(255)',
-					    lfn=>'varchar(255)',
-					    size=>'bigint'}, 
-			],
-	      COLLECTIONS=>['collectionId', {'collectionId'=>"int not null auto_increment primary key",
-					     'collGUID'=>'binary(16)'}],
-	      COLLECTIONS_ELEM=>['collectionId', {'collectionId'=>'int not null',
-						  origLFN=>'varchar(255)',
-						  guid=>'binary(16)',
-						  data=>"varchar(255)",
-						 localName=>"varchar(255)"},
-				 
-				 "",['INDEX (collectionId)']],
-
-	      "SE_VOLUMES"=>["volume", {volumeId=>"int(11) NOT NULL auto_increment PRIMARY KEY",
-					seName=>"char(255) collate latin1_general_ci NOT NULL ",
-					volume=>"char(255) NOT NULL",
-					mountpoint=>"char(255)",
-					usedspace=>"bigint",
-					freespace=>"bigint",
-					size=>"bigint",
-					method=>"char(255)",}, 
-			     "volumeId", ['UNIQUE INDEX (volume)', 'INDEX(seName)'],],
-	      "LL_STATS" =>["tableNumber", {
-					    tableNumber=>"int(11) NOT NULL",
-					    min_time=>"char(16) NOT NULL",
-					    max_time=> "char(16) NOT NULL", 
-				    },undef,['UNIQUE INDEX(tableNumber)']],
-	      LL_ACTIONS=>["tableNumber", {tableNumber=>"int(11) NOT NULL",
-					   action=>"char(40) not null", 
-					   time=>"timestamp default current_timestamp",
-					   extra=>"varchar(255)"}, undef, ['UNIQUE INDEX(tableNumber,action)']],
-             SERanks=>["sitename", {sitename=>"varchar(100) collate latin1_general_ci  not null",
-                                    seNumber=>"integer not null",
-                                    rank=>"smallint(7) not null",
-                                    updated=>"smallint(1)"}, 
-                                    undef, ['UNIQUE INDEX(sitename,seNumber), PRIMARY KEY(sitename,seNumber), INDEX(sitename), INDEX(seNumber)']],
-        LFN_BOOKED=>["lfn",{lfn=>"varchar(255)",
-            expiretime=>"int",
-            guid=>"binary(16) ",
-            size=>"bigint",
-            md5sum=>"varchar(32)",
-            owner=>"varchar(20)",
-            gowner=>"varchar(20)",
-            pfn=>"varchar(255)",
-            se=>"varchar(100)",
-            quotaCalculated=>"smallint",
-            user=>"varchar(20)",
-            existing=>"smallint(1)",
-          },
-            undef, ['PRIMARY KEY(lfn,pfn,guid)','INDEX(pfn)','INDEX(lfn)', 'INDEX(guid)','INDEX(expiretime)']
-            
-        ]                                      
-	         );
-  foreach my $table (keys %tables){
-    $self->info("Checking table $table");
-    $self->checkTable($table, @{$tables{$table}}) or return;
-  }
-
+  $self->createLFNTables;
   $self->checkLFNTable("0") or return;
-  $self->do("INSERT IGNORE INTO ACTIONS(action) values  ('PACKAGES')");
+  $self->do("INSERT INTO ACTIONS ( action) SELECT 'PACKAGES' FROM DUAL WHERE NOT  EXISTS 
+(SELECT  * FROM ACTIONS WHERE ACTION = 'PACKAGES') ");
   $self->info("Let's create the functions");
-  $self->do("create function string2binary (my_uuid varchar(36)) returns binary(16) deterministic sql security invoker return unhex(replace(my_uuid, '-', ''))");
-  $self->do("create function binary2string (my_uuid binary(16)) returns varchar(36) deterministic sql security invoker return insert(insert(insert(insert(hex(my_uuid),9,0,'-'),14,0,'-'),19,0,'-'),24,0,'-')");
-  $self->do("create function binary2date (my_uuid binary(16))  returns char(16) deterministic sql security invoker
-return upper(concat(right(left(hex(my_uuid),16),4), right(left(hex(my_uuid),12),4),left(hex(my_uuid),8)))");
+  $self->createLFNfunctions;
   $DEBUG and $self->debug(2,"In createCatalogueTables creation of tables finished.");
   $self->do("alter table TAG0 drop key path");
   $self->do("alter table TAG0 add index path (path)");
@@ -201,52 +96,15 @@ return upper(concat(right(left(hex(my_uuid),16),4), right(left(hex(my_uuid),12),
 sub checkConstantsTable {
   my $self=shift;
   my %columns=(name=> "varchar(100) NOT NULL",
-	       value=> "int",
-	      );
+         value=> $self->{TYPES}->{number},
+        );
   $self->checkTable("CONSTANTS",  "name", \%columns, 'name') or return;
   my $exists=$self->queryValue("SELECT count(*) from CONSTANTS where name='MaxDir'");
   $exists and return 1;
   return $self->do("INSERT INTO CONSTANTS values ('MaxDir', 0)");
 }
 
-sub checkLFNTable {
-  my $self =shift;
-  my $table =shift;
-  defined $table or $self->info( "Error: we didn't get the table number to check") and return;
-  
-  $table =~ /^\d+$/ and $table="L${table}L";
 
-  my $number;
-  $table=~ /^L(\d+)L$/ and $number=$1;
-
-  my %columns = (entryId=>"bigint(11) NOT NULL auto_increment primary key", 
-		 lfn=> "varchar(255) NOT NULL",
-		 type=> "char(1) NOT NULL default 'f'",
-		 ctime=>"timestamp",
-		 expiretime=>"datetime",
-		 size=>"bigint  not null default 0",
-		 aclId=>"mediumint(11)",
-		 perm=>"char(3) not null",
-		 guid=>"binary(16)",
-		 replicated=>"smallint(1) not null default 0",
-		 dir=>"bigint(11)",
-		 owner=>"varchar(20) not null",
-		 gowner=>"varchar(20) not null",
-		 md5=>"varchar(32)",
-		 guidtime=>"varchar(8)",
-		 broken=>'smallint(1) not null default 0',
-		);
-
-  $self->checkTable(${table}, "entryId", \%columns, 'entryId', 
-		    ['UNIQUE INDEX (lfn)',"INDEX(dir)", "INDEX(guid)", "INDEX(type)", "INDEX(ctime)", "INDEX(guidtime)"]) or return;
-  $self->checkTable("${table}_broken", "entryId", {entryId=>"bigint(11) NOT NULL  primary key"}) or return;
-  $self->checkTable("${table}_QUOTA", "user", {user=>"varchar(64) NOT NULL", nbFiles=>"int(11) NOT NULL", totalSize=>"bigint(20) NOT NULL"}, undef, ['INDEX user_ind (user)'],) or return;
-  
-  $self->do("optimize table ${table}");
-#  $self->do("optimize table ${table}_QUOTA");
-  
-  return 1;
-}
 
 ##############################################################################
 ##############################################################################
@@ -300,10 +158,12 @@ sub getAllInfoFromLFN{
   $order and $where .= " order by $order";
 
   if( $options->{retrieve}){
-    $options->{retrieve} =~ s{lfn}{concat('$tablePath',lfn) as lfn};
-    $options->{retrieve} =~ s{guid}{$binary2string as guid};
-  }
-  my $retrieve=($options->{retrieve} or "*,concat('$tablePath',lfn) as lfn, $binary2string as guid,DATE_FORMAT(ctime, '%b %d %H:%i') as ctime");
+     $options->{retrieve} =~ s{lfn}{concat('$tablePath',lfn) as lfn};
+    # $options->{retrieve} =~ s{guid}{$binary2string as guid};
+my $b = $self->binary2string;
+$options->{retrieve} =~ s{guid}{$b as guid};
+   }
+  my $retrieve=($options->{retrieve} or "entryId,owner,replicated,guidtime,aclId,  broken, expiretime, ".$self->reservedWord("size").",dir,  gowner,  ".$self->reservedWord("type")." ,md5,perm,concat('$tablePath',lfn) as lfn, ".$self->binary2string." as guid,".$self->dateFormat("ctime"));
 
   my $method=($options->{method} or "query");
 
@@ -1013,11 +873,11 @@ sub copyDirectory{
   my $beginning=$target;
   $beginning=~ s/^$targetLFN//;
   
-  my $select="insert into $targetTable(lfn,owner,gowner,size,type,guid,guidtime,perm,dir) select distinct concat('$beginning',substring(concat('";
-  my $select2="', t1.lfn), $sourceLength)) as lfn, '$user', '$user',t1.size,t1.type,t1.guid,t1.guidtime,t1.perm,-1 ";
+  my $select="insert into $targetTable(lfn,owner,gowner,".$self->reservedWord("size").",type,guid,guidtime,perm,dir) select distinct concat ('$beginning',substr(concat('";
+  my $select2="', t1.lfn), $sourceLength)) as lfn, '$user', '$user',t1.".$self->reservedWord("size").",t1.type,t1.guid,t1.guidtime,t1.perm,-1 ";
   my @values=();
 
-  my $binary2string=$binary2string;
+  my $binary2string=$self->binary2string;
   $binary2string=~ s/guid/t1.guid/;
   foreach my $entry (@$sourceHosts){
     $DEBUG and $self->debug(1, "Copying from $entry to $targetIndex and $targetTable");
@@ -1028,7 +888,7 @@ sub copyDirectory{
     my $like="t1.replicated=0";
 
     my $table="L$entry->{tableName}L";
-    my $join="$table t1 join $table t2 where t2.type='d' and (t1.dir=t2.entryId or t1.entryId=t2.entryId)  and t2.lfn like '$tsource%'";
+    my $join="$table t1,$table t2 where t2.type='d' and (t1.dir=t2.entryId or t1.entryId=t2.entryId)  and t2.lfn like '$tsource%'";
     if ($targetIndex eq $entry->{hostIndex}){
       $options->{k} and $like.=" and t1.lfn!='$tsource'";
       $DEBUG and $self->debug(1, "This is easy: from the same database");
@@ -1038,7 +898,7 @@ sub copyDirectory{
 
     }else {
       $DEBUG and $self->debug(1, "This is complicated: from another database");
-      my $query="SELECT concat('$beginning', substring(concat('$entry->{lfn}',t1.lfn), $sourceLength )) as lfn, t1.size,t1.type,$binary2string as guid ,t1.perm FROM $join and $like";
+      my $query="SELECT distinct concat('$beginning', substr(concat('$entry->{lfn}',t1.lfn), $sourceLength )) as lfn, t1.".$self->reservedWord("size").",t1.type, $binary2string  as guid ,t1.perm FROM $join and $like";
       $options->{k} and $query="select * from ($query) d where lfn!=concat('$beginning', substring('$entry->{lfn}$tsource', $sourceLength ))";
       my $entries = $db->query($query);
       foreach  my $files (@$entries) {
@@ -1944,7 +1804,7 @@ sub internalQuery {
   $options->{l} and $limit = "limit $options->{l}";
   $options->{o} and $limit .= " offset $options->{o}";
 
-  my $b="$binary2string";
+  my $b = $self->binary2string;  
   $b=~ s/guid/l.guid/;
 
   map {s/^(.*)$/SELECT *,concat('$refTable->{lfn}', lfn) as lfn,
@@ -2134,7 +1994,7 @@ sub  getInfoFromCollection {
   my $self=shift;
   my $collGUID=shift;
   $self->debug(1,"Getting all the info of collection '$collGUID'");
-  return $self->query("SELECT origLFN, $binary2string as guid,data, localName from COLLECTIONS c, COLLECTIONS_ELEM e where c.collectionId=e.collectionId and collGUID=string2binary(?)", undef, {bind_values=>[$collGUID]});
+  return $self->query("SELECT origLFN, ".$self->binary2string." as guid,data, localName from COLLECTIONS c, COLLECTIONS_ELEM e where c.collectionId=e.collectionId and collGUID=string2binary(?)", undef, {bind_values=>[$collGUID]});
 }
 
 sub removeFileFromCollection{
