@@ -658,6 +658,7 @@ sub GetOpts {
   $flags = "";
   @files = ();
   
+  $DEBUG and $self->debug(1, "Before we start, @_");
   foreach $word (@_) {
     if ( $word =~ /^-.*/ ) {
       $flags = substr( $word, 1 ) . $flags;
@@ -734,22 +735,18 @@ sub execute {
 
   if ($#stdoutredirect>-1) {
     $stdoutredirect[0] =~ s/\>//g;
-    open SAVE_STDOUT,">&STDOUT";
-    open SAVE_STDOUT,">&STDOUT"; #the second is to get rid of the warning
-    $tmpstdout = "/tmp/". time() . $$ . rand();
-    open STDOUT,"> $tmpstdout";
-    open STDOUTTMP,"$tmpstdout";
     $self->{LOGGER}->keepAllMessages();
   }
 
   my @error=();
-
+  
   if (my $rcom = $commands{$command}) {
     my @com = @{$rcom};
+    my @commands=();
     my $command;
     
     #Fix issues with special characters
-    map {s/\\([\*\?])/\\\\$1/} @arg;
+    #map {s/\\([\*\?])/\\\\$1/} @arg;
 
     if ($com[1] != 0) {
       $DEBUG and $self->debug(1, "Parsing the arguments of the function");
@@ -764,22 +761,23 @@ sub execute {
 
       # wildcards!!!
       my $ok=1;
-
+      
       if ($self->{CATALOG} && $self->{CATALOG}->{GLOB} == 1) {
         if ($com[1] & 16) {
+          
           my $files=$self->expandWildcards($com[1] & 32,@newargs);
           if ($files){
             @newargs=@$files;
           }else{
             $ok=0;
           }
-        } else {
-          map  {s/([^\\])\*/$1%/g} @newargs;
-          map  {s/([^\\])\?/$1_/g} @newargs;
+      #  } else {
+      #    map  {s/([^\\])\*/$1%/g} @newargs;
+      #    map  {s/([^\\])\?/$1_/g} @newargs;
         }
 
-        map  {s/\\\?/\?/g} @newargs;
-        map  {s/\\\*/\*/g} @newargs;
+       # map  {s/\\\?/\?/g} @newargs;
+       # map  {s/\\\*/\*/g} @newargs;
 
       }
       if ($ok) {
@@ -789,10 +787,8 @@ sub execute {
         $lcommand .= "'$options'," if ($com[1] & 2);
         if ($com[1] & 64 ){
           #doing a single call with all the entries
-          map  {$_= ((defined $_) ? "'$_', " : "")} @newargs;
-          $command="$lcommand @newargs )";
-          $DEBUG and $self->debug(1, "Executing the command: $command");
-          push @error, eval $command;
+          map  {$_= ((defined $_) ? "'$_', " : "")} @newargs;       
+          push @commands, "$lcommand @newargs )";
         }else {
           $lcommand .= "'$firstarg'," if ($com[1] & 4);
           my $rcommand = "";
@@ -803,8 +799,8 @@ sub execute {
             $command = $lcommand . ((defined($_)) ? "'$_'," : "") . $rcommand;
             $command =~ s/,\)/\)/;
             $command =~ s/\@/\\\@/g;
-            $DEBUG and $self->debug(1, "Executing  the command: '$command'");
-            push @error, eval $command;
+            
+            push @commands, $command;
           }
         }
       }
@@ -813,11 +809,14 @@ sub execute {
       $command = "$com[0](split \" \", \"@arg\")";
       $command =~ s/\$\?/\\\$\?/g;
       $command =~ s/\@/\\\@/g;
-      $DEBUG and $self->debug(1, "Executing the command '$command'");
-      push @error, eval $command;
+      $command =~ s/\\/\\\\/g;
+      push @commands, $command;
     }
 
-
+    foreach my $c (@commands){
+      $DEBUG and $self->debug(1, "Executing the command '$command'");
+      push @error, eval $c;
+    }
     if ($@) {
       print STDERR "Error executing the AliEn command:  $command $@\n";   # propagate unexpected errors
       if ($@ =~  /We got a ctrl\+c\.\.\./) {
@@ -825,13 +824,6 @@ sub execute {
       }
       # timed out
       $silent and $self->restoreSilent();
-
-      if ($#stdoutredirect>-1) {
-        unlink $tmpstdout;
-        close STDOUTTMP;
-        open STDOUT, ">& SAVE_STDOUT";
-      }
-
       return;
     }
   }
@@ -844,10 +836,13 @@ sub execute {
   if ($#stdoutredirect>-1) {
     my @out = @{$self->{LOGGER}->getMessages()};
     $self->{LOGGER}->displayMessages();
-    print STDOUT join("",@out);
-    my @stdoutoutput = <STDOUTTMP>;
-    close STDOUTTMP;
-    open STDOUT, ">& SAVE_STDOUT";
+
+    $tmpstdout = "/tmp/". time() . $$ . rand();
+    
+    open TMPFILE,"> $tmpstdout";
+    print TMPFILE join("",@out);
+    close TMPFILE;
+    
     my ($path,$se) = split ('@',$stdoutredirect[0]);
     $se or $se="";
     #print "Path $path Se $se\n";
@@ -855,7 +850,6 @@ sub execute {
       system("mv $tmpstdout $1") or print "Output piped into local file $1 !\n";
     } else {
       $self->addFile("$path","$tmpstdout",$se) and print "Output piped into lfn $path !\n";
-      #	  $self->aioput("$tmpstdout","$path","$se") and print "Output piped into lfn $path!\n";
       unlink "$tmpstdout";
     }
   }
@@ -876,12 +870,16 @@ sub expandWildcards {
   my $options=shift;
   my @newargs=();
   my $foundwildcards;
+  
   for (@_) {
     if (s/([^\\])\*/$1%/g or s/([^\\])\?/$1_/g 
 	or s/^\*/%/  or s/^\?/_/) {
       $foundwildcards = 1;
       push @newargs, $self->{CATALOG}->ExpandWildcards($_, $options);
     } else {
+      $self->debug(1,"$_ doesn't have to be expanded... let's put it directly");
+      s{\\\*}{*}g;
+      s{\\\?}{?}g;
       push @newargs, $_;
     }
   }
