@@ -1047,6 +1047,7 @@ sub  getBaseEnvelopeForMirrorAccess {
   AliEn::Util::isValidGUID($guid) or $self->info("Authorize: ERROR! $guid is not a valid GUID.",1) and return 0;
   $envelope=$self->{DATABASE}->{GUID_DB}->checkPermission("w", $guid, "guid,type,size,md5")
       or $self->info("Authorize: access denied for $guid",1) and return 0;
+  $self->info("gron: owner is $envelope->{owner}, guid owner is: $envelope->{gowner} .");
   ($envelope->{gowner} eq $user) or $self->info("Authorize: ACCESS DENIED: You are not the owner of the GUID '$guid'.",1) and return 0;
   $envelope->{guid} = $guid;
   $envelope->{lfn} = $guid;
