@@ -30,10 +30,10 @@ sub copy {
   my $to=$target->{turl};
 
   my @splitturl = split (/\/\//, $source->{turl},3);
-  $splitturl[2] and  $from=$splitturl[2];
+  $splitturl[2] and  $from="/".$splitturl[2];
 
   @splitturl = split (/\/\//, $target->{turl},3);
-  $splitturl[2] and  $to=$splitturl[2];
+  $splitturl[2] and  $to="/".$splitturl[2];
 
   $self->info("submitting command: cp $from $to ...");
 

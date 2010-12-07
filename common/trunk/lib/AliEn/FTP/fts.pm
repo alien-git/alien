@@ -62,10 +62,10 @@ sub copy {
   my $to=$target->{turl};
 
   my @splitturl = split (/\/\//, $source->{turl},3);
-  $splitturl[2] and  $from=$splitturl[2];
+  $splitturl[2] and  $from="/".$splitturl[2];
 
   @splitturl = split (/\/\//, $target->{turl},3);
-  $splitturl[2] and  $to=$splitturl[2];
+  $splitturl[2] and  $to="/".$splitturl[2];
 
 
   print "READY TO TRANSFER from $sourceHost to $targetHost using $self->{FTS_ENDPOINT}\n";
