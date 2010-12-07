@@ -181,6 +181,7 @@ sub initialize {
   ( defined $ENV{ALIEN_WORKDIR} ) and $self->{WORKDIR} = $ENV{ALIEN_WORKDIR};
   ( defined $ENV{TMPBATCH} ) and $self->{WORKDIR} = $ENV{TMPBATCH};
   $ENV{ALIEN_WORKDIR}=$self->{WORKDIR};
+  $self->{JOBLOGINFO}=0;
 
   return $self;
 }
@@ -1643,6 +1644,13 @@ sub putFiles {
 
     foreach my $fileOrArch (keys(%$fs_table)) {
       
+      my $size=-s $self->{WORKDIR}."/".$fs_table->{$fileOrArch}->{name};
+      ($size gt 0) 
+         or   $self->putJobLog("trace", "WARNING: You specified to add -- $fs_table->{$fileOrArch}->{name} --, yet the FILE HAS SIZE ZERO after sub execution, therefore we will ")
+         and  $self->putJobLog("trace", "WARNING: not add the file. This warning is the only one and simply for you information, the job will proceed without further intervention.")
+         and $successCounter++
+         and next;
+
       $fs_table->{$fileOrArch}->{options} or $fs_table->{$fileOrArch}->{options}="";
       $self->info("Processing  file  ".$fs_table->{$fileOrArch}->{name});
       $self->info("File has options  ".$fs_table->{$fileOrArch}->{options});
@@ -1657,23 +1665,27 @@ sub putFiles {
       
       if($self->{STATUS} =~ /^ERROR_V/) {
         # just upload the files ...
-        my @addEnvs = $self->addFile($self->{WORKDIR},"$fs_table->{$fileOrArch}->{name}", "$fs_table->{$fileOrArch}->{options}",$guid,1);
-
         my @list=();
-        foreach my $file( keys %{$fs_table->{$fileOrArch}->{entries}}) {  # if it is a file, there are just no entries
-          my $guid=$guids{$file} || "";
-          $self->info("Checking if $file has a guid ($guid)");
-          push @list, join("###", $file, $fs_table->{$fileOrArch}->{entries}->{$file}->{size},
-          $fs_table->{$fileOrArch}->{entries}->{$file}->{md5},$guid );
-        }
-        $submitted->{$fs_table->{$fileOrArch}->{name}}->{links}=\@list;
-
-        my $success = shift @addEnvs;
-        $success  or next;
-        $success and  $successCounter++;
-        ($success eq -1) and $incompleteAddes=1;
-
-        next;  
+        my @addEnvs = $self->addFile($self->{WORKDIR},"$fs_table->{$fileOrArch}->{name}", "$fs_table->{$fileOrArch}->{options}",$guid,1);
+#        if(shift @addEnvs) {
+#          $submitted->{$fileOrArch}=1;
+#         foreach my $se (keys(%{$uploadResult->{se}})) {
+#           push @{$submitted->{$file}->{PFNS}}, "$se/$uploadResult->{se}->{$se}->{pfn}";
+#         }
+         foreach my $file( keys %{$fs_table->{$fileOrArch}->{entries}}) {  # if it is a file, there are just no entries
+            my $guid=$guids{$file} || "";
+            $self->info("Checking if $file has a guid ($guid)");
+            push @list, join("###", $file, $fs_table->{$fileOrArch}->{entries}->{$file}->{size},
+            $fs_table->{$fileOrArch}->{entries}->{$file}->{md5},$guid );
+          }
+          $submitted->{$fs_table->{$fileOrArch}->{name}}->{links}=\@list;
+  
+          my $success = shift @addEnvs;
+          $success  or next;
+          $success and  $successCounter++;
+          ($success eq -1) and $incompleteAddes=1;
+  
+          next;  
       }
 
 
@@ -1694,24 +1706,29 @@ sub putFiles {
    
     }
 
-    if($self->{STATUS} =~ /^ERROR_V/) { # if we just uploaded the files, we'll put the registration infos back to the JDL 
-      my @list=();
-      foreach my $key (keys %$submitted){
-        my $links="";
-        $submitted->{$key}->{status} or next;
-        my $entry=$submitted->{$key};
-        if ($entry->{links} ) {
-          $links.=";;".join(";;",@{$entry->{links}});
-        }
-  
-        push @list, "\"".join ("###", $key, $entry->{guid}, $entry->{size},
-                               $entry->{md5},  join("###",@{$entry->{PFNS}}),
-                               $links) ."\"";
+    if($self->{JOBLOGINFO}) {
+      
+#      $submitted->{ $self->{JOBLOGINFO}->{lfn} } = 1;
+      $submitted->{ $self->{JOBLOGINFO}->{lfn} }->{size} = $self->{JOBLOGINFO}->{size};
+      $submitted->{ $self->{JOBLOGINFO}->{lfn} }->{md5} = $self->{JOBLOGINFO}->{md5};
+      push @{$submitted->{ $self->{JOBLOGINFO}->{lfn} }->{PFNS}}, $self->{JOBLOGINFO}->{pfn}
+    }
+
+    my @list=();
+    foreach my $key (keys %$submitted){
+      my $links="";
+      $submitted->{$key}->{status} or next;
+      my $entry=$submitted->{$key};
+      if ($entry->{links} ) {
+        $links.=";;".join(";;",@{$entry->{links}});
       }
-      if (@list) {
-        $self->{CA}->set_expression("RegisteredOutput", "{".join(",",@list)."}");
-        $self->{JDL_CHANGED}=1;
-      }
+      push @list, "\"".join ("###", $key, $entry->{guid}, $entry->{size},
+                             $entry->{md5},  join("###",@{$entry->{PFNS}}),
+                             $links) ."\"";
+    }
+    if (@list) {
+      $self->{CA}->set_expression("RegisteredOutput", "{".join(",",@list)."}");
+      $self->{JDL_CHANGED}=1;
     }
 
   }
@@ -2543,6 +2560,7 @@ sub registerLogs {
     my $data=$self->submitFileToClusterMonitor($dir,$basename, "execution.out");
     $data or $self->info("Error submitting the log file") and return;
 
+    $self->{JOBLOGINFO} = {size=>($data->{size} || 0), md5=>($data->{md5}|| 0), lfn=>"execution.out", pfn=>($data->{pfn}|| 0)};
     #$self->info("Tryin to register file execution.out with sourcePFN = $data->{pfn}");
     #$self->{UI}->execute("cd",$self->{PROCDIR} ."/job-log");
     #my ($addResult)=$self->{UI}->execute("add", "-r", "-user=$self->{JOB_USER}", "-tracelog", "-size $data->{size}", "-md5 $data->{md5} ", "execution.out", "$data->{pfn}");
