@@ -220,7 +220,7 @@ sub fillTestTableWithTests{
   my $adisk2 = 0;
   my $atape2 = 1;
   my @aoptions2 = ();
-  my @filetag2=("std*");
+  my @filetag2=("stdout");
   my @fses2 = ();
   my $fsel2 = 0;
   my $fdisk2 = 2;
@@ -239,7 +239,7 @@ sub fillTestTableWithTests{
   my $adisk3 = 2;
   my $atape3 = 1;
   my @aoptions3 = ();
-  my @filetag3=("stderr","resources","stdout");
+  my @filetag3=("stdout","resources");
   my @fses3 = ("${vo}::CERN::TESTSE","${vo}::CERN::TESTSE2");
   my $fsel3 = 2;
   my $fdisk3 = 0;
@@ -251,7 +251,7 @@ sub fillTestTableWithTests{
 
 
   my $archivename4="AZipArchive.zip";
-  my @archivecontent4=("stderr","stdout","resources");
+  my @archivecontent4=("stdout");
   my @ases4 = ("${vo}::CERN::TESTSE","${vo}::CERN::TESTSE2","${vo}::CERN::TESTSE3");
   my $asel4 = 2;
   my $adisk4 = 0;
@@ -269,7 +269,7 @@ sub fillTestTableWithTests{
 
 
   my $archivename5="someName.zip";
-  my @archivecontent5=("stderr","stdout");
+  my @archivecontent5=("stdout");
   my @ases5 = ("${vo}::CERN::TESTSE","${vo}::CERN::TESTSE2","${vo}::CERN::TESTSE3");
   my $asel5 = 3;
   my $adisk5 = 0;
@@ -288,13 +288,13 @@ sub fillTestTableWithTests{
 
 
   my $archivename6="someOtherName.zip";
-  my @archivecontent6=("stderr","resources");
+  my @archivecontent6=("stdout");
   my @ases6 = ();
   my $asel6 = 0;
   my $adisk6 = 2;
   my $atape6 = 1;
   my @aoptions6 = ();
-  my @filetag6=("stdout");
+  my @filetag6=("resources");
   my @fses6 = ("${vo}::CERN::TESTSE2");
   my $fsel6 = 1;
   my $fdisk6 = 0;
@@ -313,7 +313,7 @@ sub fillTestTableWithTests{
   my $adisk7 = 0;
   my $atape7 = 0;
   my @aoptions7 = ();
-  my @filetag7=("stderr");
+  my @filetag7=("resources");
   my @fses7 = ();
   my $fsel7 = 0;
   my @foptions7 = ();
