@@ -54,21 +54,21 @@ of the possible database schemas in AliEn: Catalogue, IS, TaskQueue, Transfer
   use AliEn::Database;
 
   my $dbh = AliEn::Database->new({
-		USER=>$user,
-		PASSWD=>$pass,
-		HOST=>$host,
-		DB=>$db,
-		DRIVER=>$driver});
+    USER=>$user,
+    PASSWD=>$pass,
+    HOST=>$host,
+    DB=>$db,
+    DRIVER=>$driver});
 
   my $dbh = AliEn::Database->new({
-		USER=>$user,
-		PASSWD=>$pass,
-		HOST=>$host,
-		DB=>$db,
-		DRIVER=>$driver,
-		USE_CACHE=>1,
-		CACHE_DIR=>/tmp/DBCache
-		CACHE_SIZE=>10000} );
+    USER=>$user,
+    PASSWD=>$pass,
+    HOST=>$host,
+    DB=>$db,
+    DRIVER=>$driver,
+    USE_CACHE=>1,
+    CACHE_DIR=>/tmp/DBCache
+    CACHE_SIZE=>10000} );
 
   $arrRef = $dbh->query($statement);
   $hashRef = $dbh->queryRow($statement);
@@ -136,8 +136,8 @@ sub new{
 
   my $class = ref($proto) || $proto;
   my $self  = (shift or {} );
-#  my $attr		= shift;
-  my $attrDBI		= shift;
+#  my $attr    = shift;
+  my $attrDBI    = shift;
    $self=bless( $self, $class );
 
   $self->SUPER::new() or print "NOPE\n" and return;
@@ -156,7 +156,7 @@ sub new{
 
   ( $self->{DB} and $self->{HOST} and $self->{DRIVER} )
       or $self->{LOGGER}->error("Database","No database specified.")
-	and return;
+  and return;
  ##we need to map the types for each database.
   $self->{TYPES} = {};
   my $driver = $self->{DRIVER};
@@ -170,19 +170,19 @@ sub new{
 
 
   my %defaults =(USE_PROXY=>1,
-		 USER=>$self->{CONFIG}->{LOCAL_USER},
-		 ROLE=>$self->{CONFIG}->{LOCAL_USER},
-		 SILENT=>0,
-		 USE_CACHE=>0,
-		 DEBUG => 0,
-		 DEFAULT_TTL=>"1 hour",
-		 CACHE_SIZE=>"4000000",
-		 CACHE_DIR =>"$self->{CONFIG}->{TMP_DIR}/DBCache",
-		 PASSWD =>($self->{CONFIG}->{PASSWD} || ""),
-		 TOKEN=> ($self->{CONFIG}->{TOKEN} || ""),
-		 FORCED_AUTH_METHOD=>($self->{CONFIG}->{ForcedMethod} || ""),
-		 MAX_WAIT_TIME =>40,
-		 RECONNECT_NUMBER => 100,
+     USER=>$self->{CONFIG}->{LOCAL_USER},
+     ROLE=>$self->{CONFIG}->{LOCAL_USER},
+     SILENT=>0,
+     USE_CACHE=>0,
+     DEBUG => 0,
+     DEFAULT_TTL=>"1 hour",
+     CACHE_SIZE=>"4000000",
+     CACHE_DIR =>"$self->{CONFIG}->{TMP_DIR}/DBCache",
+     PASSWD =>($self->{CONFIG}->{PASSWD} || ""),
+     TOKEN=> ($self->{CONFIG}->{TOKEN} || ""),
+     FORCED_AUTH_METHOD=>($self->{CONFIG}->{ForcedMethod} || ""),
+     MAX_WAIT_TIME =>40,
+     RECONNECT_NUMBER => 100,
 );
   foreach my $key ( keys %defaults ) {
     defined $self->{$key} or $self->{$key}  =$defaults{$key};
@@ -280,36 +280,36 @@ sub query {
     if ($stmt =~ /from(\s+)(\w+)(\s*)(where|)/i){
       my $key = lc $2;
 
-# 			$DEBUG and $self->debug(1,"Database: In query creating instance of cache $self->{CACHE_ROOT}/$key");
+#       $DEBUG and $self->debug(1,"Database: In query creating instance of cache $self->{CACHE_ROOT}/$key");
 # 
-# 			my $cache = Cache::File->new(
-# 							default_expires=>$self->{DEFAULT_TTL},
-# 							size_limit=>$self->{CACHE_SIZE},
-# 							cache_root=>"$self->{CACHE_ROOT}/$key",
-# 							lock_level=>Cache::File::LOCK_LOCAL
-# 							);
+#       my $cache = Cache::File->new(
+#               default_expires=>$self->{DEFAULT_TTL},
+#               size_limit=>$self->{CACHE_SIZE},
+#               cache_root=>"$self->{CACHE_ROOT}/$key",
+#               lock_level=>Cache::File::LOCK_LOCAL
+#               );
 # 
-# 			$cache
-# 				or print STDERR "Database: Cannot create instance of cache $self->{CACHE_ROOT}/$key\n"
-# 				and return $self->_queryDB($stmt);
+#       $cache
+#         or print STDERR "Database: Cannot create instance of cache $self->{CACHE_ROOT}/$key\n"
+#         and return $self->_queryDB($stmt);
 # 
 # 
-# 			my $entry = $cache->entry($stmt);
-# 			if ($entry->exists())
-# 			{
-# 				$DEBUG and $self->debug(1,"Database: In query fetching result of $stmt from cache");
+#       my $entry = $cache->entry($stmt);
+#       if ($entry->exists())
+#       {
+#         $DEBUG and $self->debug(1,"Database: In query fetching result of $stmt from cache");
 # 
-# 				$result = $entry->thaw;
-# 			}
-# 			else
-# 			{
-# 				$result = $self->_queryDB($stmt) or return;
+#         $result = $entry->thaw;
+#       }
+#       else
+#       {
+#         $result = $self->_queryDB($stmt) or return;
 # 
-# 				$DEBUG and $self->debug(1,"Database: In query storing result of $stmt from cache");
+#         $DEBUG and $self->debug(1,"Database: In query storing result of $stmt from cache");
 # 
-# 				$entry->freeze($result,$ttl);
-# 			}
-			#temporary solution ... remove later!
+#         $entry->freeze($result,$ttl);
+#       }
+      #temporary solution ... remove later!
       $result = $self->_queryDB($stmt);
     }
   }
@@ -335,22 +335,22 @@ to empty array.
 =cut
 
 sub queryColumn {
-	my $self = shift;
+  my $self = shift;
 
-	my $result = $self->query(@_);
+  my $result = $self->query(@_);
 
-	defined $result
-		or return;
+  defined $result
+    or return;
 
-	@$result
-    	or return [];
+  @$result
+      or return [];
 
-	my @column;
+  my @column;
     for (@$result) {
-    	push @column, values %{$_};
+      push @column, values %{$_};
     }
 
-	return \@column;
+  return \@column;
 }
 
 =item C<queryRow>
@@ -404,16 +404,16 @@ sub queryValue {
   my $result = $self->query($stmt, $ttl, $options,@_);
   my @tempStorage;
 
-  $result and	$#{$result} != -1 and @tempStorage = each(%{$result->[0]}) and return $tempStorage[1];
+  $result and  $#{$result} != -1 and @tempStorage = each(%{$result->[0]}) and return $tempStorage[1];
 
 
   undef;
 }
 
 sub do {
-	my $self = shift;
+  my $self = shift;
 
-	$self->_do(@_);
+  $self->_do(@_);
 }
 
 =item C<update>
@@ -807,41 +807,41 @@ sub reconnect {
 
 sub changeUser {
     my $self = shift;
-	my $newUser = shift;
-	my $passwd = shift || "";
+  my $newUser = shift;
+  my $passwd = shift || "";
 
-	$newUser or print STDERR "Database: In changeUser new user is not stated.\n" and return;
+  $newUser or print STDERR "Database: In changeUser new user is not stated.\n" and return;
 
-	$DEBUG and $self->debug(1,"Database: In changeRole changing user to $newUser.");
+  $DEBUG and $self->debug(1,"Database: In changeRole changing user to $newUser.");
 
-    AliEn::Database::destroy($self);#	$self->destroy;
+    AliEn::Database::destroy($self);#  $self->destroy;
 
-	$self->{USER} = $newUser;
-	$self->{ROLE} = $newUser;
-	$self->{PASSWD} = $passwd;
+  $self->{USER} = $newUser;
+  $self->{ROLE} = $newUser;
+  $self->{PASSWD} = $passwd;
 
-	$self->{USE_CACHE} and $self->_createCacheRoot;
+  $self->{USE_CACHE} and $self->_createCacheRoot;
 
-	$self->_validate;
+  $self->_validate;
 }
 
 sub changeRole {
     my $self = shift;
-	my $newRole = shift;
-	my $passwd = shift || "";
+  my $newRole = shift;
+  my $passwd = shift || "";
 
-	$newRole or print STDERR "Database: In changeRole new role is not stated.\n" and return;
+  $newRole or print STDERR "Database: In changeRole new role is not stated.\n" and return;
 
-	$DEBUG and $self->debug(1,"Database: In changeRole changing role to $newRole.");
+  $DEBUG and $self->debug(1,"Database: In changeRole changing role to $newRole.");
 
     AliEn::Database::destroy($self);
 
-	$self->{ROLE} = $newRole;
-	$self->{PASSWD} = $passwd;
+  $self->{ROLE} = $newRole;
+  $self->{PASSWD} = $passwd;
 
-	$self->{USE_CACHE} and $self->_createCacheRoot;
+  $self->{USE_CACHE} and $self->_createCacheRoot;
 
-	$self->_validate;
+  $self->_validate;
 }
 
 ## works only with mysql!!
@@ -858,8 +858,8 @@ sub setForcedMethod() {
     my $self = shift;
     ( my $FM = shift ) or return;
     $self->{FORCED_AUTH_METHOD} = $FM;
-	$DEBUG and $self->debug(1,"Database: Forcing $self->{FORCED_AUTH_METHOD} authentication");
-	$self->_validate;
+  $DEBUG and $self->debug(1,"Database: Forcing $self->{FORCED_AUTH_METHOD} authentication");
+  $self->_validate;
     return 1;
 }
 
@@ -888,7 +888,7 @@ sub destroy{
   if ($self and $self->{PID} and $self->{DBH}) {
     if ($self->{PID} eq $$){
       if (!$self->{DBH}->disconnect){
-	 $self->{DBH}->errstr and warn $self->{DBH}->errstr;
+   $self->{DBH}->errstr and warn $self->{DBH}->errstr;
       }
     }
     undef $self->{DBH};
@@ -1062,13 +1062,13 @@ sub _queryDB{
       #      my $sth = $self->{DBH}->prepare($stmt);
       $DBI::errstr and $sqlError.="In prepare: $DBI::errstr\n";
       if ($sth){
-	$execute=$sth->execute(@bind);
-	$DBI::errstr and $sqlError.="In execute: $DBI::errstr\n";
-	$arrRef = $sth->fetchall_arrayref({});
-	$DBI::errstr and $sqlError.="In fetch: $DBI::errstr\n";
-	
-#	$sth->finish;
-#	$DBI::errstr and $sqlError.="In finish: $DBI::errstr\n";
+  $execute=$sth->execute(@bind);
+  $DBI::errstr and $sqlError.="In execute: $DBI::errstr\n";
+  $arrRef = $sth->fetchall_arrayref({});
+  $DBI::errstr and $sqlError.="In fetch: $DBI::errstr\n";
+  
+#  $sth->finish;
+#  $DBI::errstr and $sqlError.="In finish: $DBI::errstr\n";
       }
     };
     $@ and $sqlError="The command died: $@";
@@ -1079,10 +1079,10 @@ sub _queryDB{
       $sqlError =~ /(Unexpected EOF)|(Lost connection)|(Constructor didn't return a handle)|(No such object)|(Connection reset by peer)|(MySQL server has gone away at)|(_set_fbav\(.*\): not an array ref at)|(Constructor didn't return a handle)/ and $found=1;
 
       if ($sqlError =~ /Died at .*AliEn\/UI\/Catalogue\.pm line \d+/) {
-	die("We got a ctrl+c... :( ");
+  die("We got a ctrl+c... :( ");
       }
       if ($sqlError =~ /Maximum message size of \d+ exceeded/) {
-	$self->info("ESTAMOS AQUI\n");
+  $self->info("ESTAMOS AQUI\n");
       }
       $found or $self->info("There was an SQL error: $sqlError",1001) and return;
     }
@@ -1128,12 +1128,12 @@ sub _do{
       alarm(600);
       my $tmp;
       if ($options->{prepare}) {
-	$DEBUG and $self->debug(2,"In _do doing $stmt @bind_values");
-	my $sth = $self->{DBH}->prepare_cached($stmt);
-	$tmp = $sth->execute(@bind_values);
+  $DEBUG and $self->debug(2,"In _do doing $stmt @bind_values");
+  my $sth = $self->{DBH}->prepare_cached($stmt);
+  $tmp = $sth->execute(@bind_values);
       }else {
-	$DEBUG and $self->debug(1,"In _do doing $stmt @bind_values");
-	$tmp=$self->{DBH}->do($stmt);
+  $DEBUG and $self->debug(1,"In _do doing $stmt @bind_values");
+  $tmp=$self->{DBH}->do($stmt);
       }
       $DBI::errstr and $sqlError.="In do: $DBI::errstr\n";
       $tmp;
@@ -1151,13 +1151,13 @@ sub _do{
       my $found=0;
       $sqlError=~ /(Unexpected EOF)|(Lost connection)|(MySQL server has gone away at)|(Connection reset by peer)/ and $found=1;
       if (!$found) {
-	$oldAlarmValue
-	  and $SIG{ALRM} = $oldAlarmValue
-	    or delete $SIG{ALRM};
-	chomp $sqlError;
-	$options->{silent} or 
-	  $self->info("There was an SQL error  ($stmt): $sqlError",1001);
-	return;
+  $oldAlarmValue
+    and $SIG{ALRM} = $oldAlarmValue
+      or delete $SIG{ALRM};
+  chomp $sqlError;
+  $options->{silent} or 
+    $self->info("There was an SQL error  ($stmt): $sqlError",1001);
+  return;
       }
     }
 
