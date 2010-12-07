@@ -17,7 +17,7 @@ $cat->execute("mkdir", "-p", "~/specialChar") or exit(-2);
 #$cat->{LOGGER}->debugOn("Catalogue");
 
 print "Let's register several files\n";
-my @files=("file", "f\\*le", "f\\?le");
+my @files=("file", "f\*le", "f\?le");
 foreach my $file (@files) {
   print "Trying $file\n";
 #  my @f=$cat->{CATALOG}->ExpandWildcards("specialChar/$_");
@@ -31,6 +31,7 @@ foreach (@files){
   $cat->execute("whereis", "specialChar/$_") or 
     print "specialChar/$_ doesn't exist\n" and exit(-2);
 }
+#exit(-2);
 print "let's delete f\\*le\n";
 $cat->execute("rm", "specialChar/f\\*le") or exit(-2);
 print "And let's see what we have in the directory...\n";
@@ -38,7 +39,7 @@ my (@now)=$cat->execute("ls", "specialChar/") or exit(-2);
 
 print "NOW we have '@now'\n";
 
-foreach my $name("file", "f\\?le"){
+foreach my $name("file", "f\?le"){
   my $ctr = 0;
   foreach my $file(@now) {
     ($file eq $name) and $ctr=1;
