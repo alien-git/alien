@@ -798,7 +798,7 @@ sub execute {
           for (@newargs) {
             $command = $lcommand . ((defined($_)) ? "'$_'," : "") . $rcommand;
             $command =~ s/,\)/\)/;
-            $command =~ s/\@/\\\@/g;
+            $command =~ s/([^\\])\@/$1\\\@/g;
             
             push @commands, $command;
           }
@@ -807,15 +807,15 @@ sub execute {
     } else {
       grep s/"/\\"/g, @arg;
       $command = "$com[0](split \" \", \"@arg\")";
+      $command =~ s/\\/\\\\/g;
       $command =~ s/\$\?/\\\$\?/g;
       $command =~ s/\@/\\\@/g;
-      $command =~ s/\\/\\\\/g;
       push @commands, $command;
     }
 
-    foreach my $c (@commands){
+    foreach $command (@commands){
       $DEBUG and $self->debug(1, "Executing the command '$command'");
-      push @error, eval $c;
+      push @error, eval $command;
     }
     if ($@) {
       print STDERR "Error executing the AliEn command:  $command $@\n";   # propagate unexpected errors
