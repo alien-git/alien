@@ -24,10 +24,22 @@ sub copy {
   my $target=shift;
   my $line=shift;
 
-  $self->info("Ready to copy $source into $target with cp");
-  my $done=$self->{MSS}->cp($source->{pfn}, $target->{pfn});
+  $self->info("Ready to copy $source->{turl} into $target->{turl} with cp");
+
+  my $from=$source->{turl};
+  my $to=$target->{turl};
+
+  my @splitturl = split (/\/\//, $source->{turl},3);
+  $splitturl[2] and  $from=$splitturl[2];
+
+  @splitturl = split (/\/\//, $target->{turl},3);
+  $splitturl[2] and  $to=$splitturl[2];
+
+  $self->info("submitting command: cp $from $to ...");
+
+  my $done=$self->{MSS}->cp($from,$to);
   $done eq 0 and return 1;
-  $self->info("Error copying $source->{pfn} into $target->{pfn}",1);
+  $self->info("Error copying $source->{turl} into $target->{turl}",1);
   return;
 }
 
