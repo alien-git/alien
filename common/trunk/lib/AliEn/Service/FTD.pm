@@ -96,6 +96,8 @@ sub initialize {
 
   $self->{NAME} = "$self->{CONFIG}->{ORG_NAME}::$self->{CONFIG}->{SITE}";
   $self->{ALIVE_COUNTS} = 0;
+  $self->{AuthenSOAP} = new AliEn::SOAP
+    or print "Error creating AliEn::SOAP $! $?" and return;
 
 
   $self->{SOAP}->checkService("Broker/Transfer", "TRANSFER_BROKER", "-retry", [timeout=>50000]) or return;
@@ -391,9 +393,9 @@ my $query = {maxtime=>0};
  
   my $extra={pfn=>$pfn};
   if (! $pfn ) {
-    $self->info("The transfer failed due to: ".$self->{LOGGER}->error_msg() );
+    $self->info("The transfer failed due to: ".($self->{LOGGER}->error_msg() || "no LOGGER-error_msg()") );
     $status="FAILED_T";
-    $extra={"Reason", "$self->{CONFIG}->{FTD_FULLNAME}: ". $self->{LOGGER}->error_msg()};
+    $extra={"Reason", "$self->{CONFIG}->{FTD_FULLNAME}: ". ($self->{LOGGER}->error_msg() || "no LOGGER-error_msg()")};
   }
   else{
         if ($output eq 3){
@@ -435,23 +437,29 @@ sub transferFile {
 
   my ($ok, $user)=$ca->evaluateAttributeString("User");
   ($ok, my $lfn)=$ca->evaluateAttributeString("FromLFN");
-  my $info=$self->{SOAP}->CallSOAP("Authen", "doOperation", "authorize", $user, "read", $lfn, $source);
-  $info or $self->info("Error getting the envelope to read the source") and return;
-  my $sourceEnvelope=$info->result;
-
   ($ok, my $target)=$ca->evaluateAttributeString("ToSE");
-  ($ok, my $guid)=$ca->evaluateAttributeString("GUID");
-  ($ok, my $size)=$ca->evaluateAttributeInt("Size");
-  $target or $self->info("Error getting the destination of the transfer")
+  $target or $self->{LOGGER}->error("Error getting the destination of the transfer")
     and return;
-  $self->info("And the second envelope ( $user, mirror, $guid, $target, $size, 0, $guid");
-  $info=$self->{SOAP}->CallSOAP("Authen", "doOperation", "authorize", $user, "mirror", $guid, $target, $size, 0, $guid);
+#  my $info=$self->{SOAP}->CallSOAP("Authen", "doOperation", "authorize", $user, "read", $lfn, $source);
+  my @sourceEnvelopes = AliEn::Util::deserializeSignedEnvelopes($self->{AuthenSOAP}->CallAndGetOverSOAP(0,"Authen", "doOperation", $user, "/", "authorize", "read", {lfn=> $lfn, wishedSE=>$source,site=>$self->{CONFIG}->{SITE}} ));
+  
+  my $sourceEnvelope = shift @sourceEnvelopes;
+  $sourceEnvelope or $self->{LOGGER}->error("Error getting the envelope to read the source") and return;
 
-  $info or $self->info("Error getting the envelope to write the target") and return;
-  my $targetEnvelope=$info->result;
-  my $turl = 0;
-  $targetEnvelope and $turl = AliEn::Util::getValFromEnvelope($targetEnvelope,"turl");
-  $turl or $self->info("Error getting the envelope to write!", 1) and return;
+  #($ok, my $guid)=$ca->evaluateAttributeString("GUID");
+  #($ok, my $size)=$ca->evaluateAttributeInt("Size");
+  $self->info("And the second envelope ( $user, mirror, $sourceEnvelope->{guid}, $target, $sourceEnvelope->{size}, 0");
+#  $info=$self->{SOAP}->CallSOAP("Authen", "doOperation", "authorize", $user, "mirror", $guid, $target, $size, 0, $guid);
+  my @targetEnvelopes = AliEn::Util::deserializeSignedEnvelopes($self->{AuthenSOAP}->CallAndGetOverSOAP(0,"Authen", "doOperation", $user, "/", "authorize", "mirror", {guidRequest=>$sourceEnvelope->{guid},wishedSE=>$target,site=>$self->{CONFIG}->{SITE}}));
+  my $targetEnvelope = shift @targetEnvelopes;
+  $targetEnvelope or $self->{LOGGER}->error("Error getting the envelope to mirror to the target") and return; 
+
+
+#  $info or $self->info("Error getting the envelope to write the target") and return;
+#  my $targetEnvelope=$info->result;
+#  my $turl = 0;
+#  $targetEnvelope and $turl = AliEn::Util::getValFromEnvelope($targetEnvelope,"turl");
+  $targetEnvelope->{turl} or $self->{LOGGER}->error("Error getting the turl from the envelope to mirror to the target!") and return;
   
 $self->info("Let's start with the transfer!!!");
   my $done = 0;
@@ -469,7 +477,7 @@ $self->info("Let's start with the transfer!!!");
 #$self->info("Done = $done"); 
     if ($done) {
       if ($done eq 1){
-        $self->info("The transfer worked  Final pfn:'$turl'!!!");
+        $self->info("The transfer worked  Final pfn:'$targetEnvelope->{turl}'!!!");
         $done=1;
       }elsif ($done eq 2){
         $done=0;
@@ -484,9 +492,9 @@ $self->info("Let's start with the transfer!!!");
   }
   #$done = 3;
   $done or return;
-  my $pfn=$turl;
-  if($turl =~ /NOLFN/) {
-    my @splitturl = split (/\/\//, $turl,3);
+  my $pfn=$targetEnvelope->{turl};
+  if($targetEnvelope->{turl} =~ /NOLFN/) {
+    my @splitturl = split (/\/\//, $targetEnvelope->{turl},3);
     $splitturl[2] and $pfn=~ s{/NOLFN}{$splitturl[2]}; # $splitturl[2] is what used to be the envelope pfn part
   }
   return ($pfn,$done);

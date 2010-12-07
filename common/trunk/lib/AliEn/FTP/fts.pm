@@ -47,7 +47,7 @@ sub copy {
   my $target=shift;
   my $line=shift;
 
-  $self->info("Ready to copy $source into $target with fts");
+  $self->info("Ready to copy $source->{turl} into $target->{turl} with fts");
 
   my ($protocol, $se, $sourceHost, $targetHost)=split(',', $line);
 
@@ -56,8 +56,16 @@ sub copy {
 
   $targetHost =~ s/^host=(.*)/$1/i or $self->info("Error getting the target host from $line") and return;
 
-  my $from=$source->{pfn};
-  my $to=$target->{pfn};
+#  my $from=$source->{pfn};
+#  my $to=$target->{pfn};
+  my $from=$source->{turl};
+  my $to=$target->{turl};
+
+  my @splitturl = split (/\/\//, $source->{turl},3);
+  $splitturl[2] and  $from=$splitturl[2];
+
+  @splitturl = split (/\/\//, $target->{turl},3);
+  $splitturl[2] and  $to=$splitturl[2];
 
 
   print "READY TO TRANSFER from $sourceHost to $targetHost using $self->{FTS_ENDPOINT}\n";
