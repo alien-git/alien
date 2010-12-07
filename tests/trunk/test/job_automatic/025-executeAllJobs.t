@@ -54,7 +54,7 @@ BEGIN { plan tests => 1 }
           and $notok=1;
   }
 
-  (@jobs)=$cat->execute("top", "-status SPLIT")  or exit(-2);
+  (@jobs)=$cat->execute("top", "-status SPLIT");
   @jobs  and print "one job is still split... let's wait for the merging" and sleep(60);
   $cat->close();
   $notok and exit(-2);
