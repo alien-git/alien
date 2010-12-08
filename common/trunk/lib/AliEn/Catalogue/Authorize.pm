@@ -983,19 +983,28 @@ sub  getBaseEnvelopeForWriteAccess {
 
   #Check parent dir permissions:
   my $parent = $self->f_dirname($lfn);
-  $self->checkPermissions("w",$parent) 
+  $self->checkPermissions("w",$parent)
      or $self->info("Authorize: access: parent dir missing for lfn $lfn",1) and return 0;
-  # gron: still to be discussed what we do to the tree below ... 
 
-  my $reply = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow(
-      "SELECT lfn FROM LFN_BOOKED WHERE lfn=? ;"
-      , undef, {bind_values=>[$lfn]});
-  $reply->{lfn} and  $reply = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow(
-      "SELECT lfn FROM LFN_BOOKED WHERE lfn=? and owner<>? and gowner<>?;"
-      , undef, {bind_values=>[$lfn,$user,$user]});
+  my $perms = $self->checkPermissions("w",$lfn,0,1);
 
-  $reply->{lfn} and $self->info("Authorize: access: the LFN is already in use (reserved in [LFN_BOOKED], not in the catalogue)",1) and return 0;
-
+  if($self->existsEntry($perms->{lfn})) {
+     $self->debug(1,"Authorize: The entry already exists, so we have to delete it, before we can proceed ...");
+     $self->{DATABASE}->{LFN_DB}->removeFile($lfn,$perms)
+       or $self->info("Authorize: The file is already existing in the catalogue and could not be overwritten, as you don't have the permissions on that file.",1)
+       and return 0;
+  } else {
+  
+    my $reply = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow(
+        "SELECT lfn FROM LFN_BOOKED WHERE lfn=? ;"
+        , undef, {bind_values=>[$lfn]});
+    $reply->{lfn} and  $reply = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow(
+        "SELECT lfn FROM LFN_BOOKED WHERE lfn=? and owner<>? and gowner<>?;"
+        , undef, {bind_values=>[$lfn,$user,$user]});
+  
+    $reply->{lfn} and $self->info("Authorize: access: the LFN is already in use (reserved in [LFN_BOOKED], not in the catalogue)",1) and return 0;
+   
+  }
 
   $envelope->{guid} = $guidRequest; 
   if (!$envelope->{guid}) { 
@@ -1134,12 +1143,13 @@ sub registerFileInCatalogueAccordingToEnvelopes{
      $envelope 
             or $self->info("Authorize: An envelope could not be verified.") 
             and $returnMessage .= "An envelope could not be verified: $signedEnvelope\n" 
-            and  next; # gron: we have to track this error with "could not verify an envelope"
+            and  next; 
+ 
      $envelope = $self->ValidateRegistrationEnvelopesWithBookingTable($user,$envelope);
      $envelope 
             or $self->info("Authorize: An envelope could not be validated based on pretaken booking.") 
             and $returnMessage .=  "An envelope could not be validated based on pretaken booking.\n"
-            and next; # gron: we have to track this error with "could not valdite this register with a pretaken booking"
+            and next; 
 
     $self->info("Authorize: gron: ok, registering the file ...");
     $self->info("Authorize: gron: $envelope->{lfn}, $envelope->{size},$envelope->{se}, $envelope->{guid}, $envelope->{md5}, ... $envelope->{turl}");
@@ -1283,13 +1293,13 @@ sub authorize{
   }
 
   my $lfn    = ($options->{lfn} || "");
-  my $wishedSE = ($options->{wishedSE} ||"");
-  my $size    = ($options->{size} || "0");
+  my $wishedSE = ($options->{wishedSE} || "");
+  my $size    = (int($options->{size}) || 0);
   my $md5 = ($options->{md5} || 0);
   my $guidRequest = ($options->{guidRequest} || 0);
   my $sitename= ($options->{site} || 0);
   my $writeQos = ($options->{writeQos} || 0);
-  my $writeQosCount = ($options->{writeQosCount} || 0);
+  my $writeQosCount = (int($options->{writeQosCount}) || 0);
   my $excludedAndfailedSEs = $self->validateArrayOfSEs(split(/;/, $options->{excludeSE}));
   my $pfn = ($options->{pfn} || "");
 
@@ -1336,7 +1346,7 @@ sub authorize{
 
        $self->info("gron: access: $access");
    
-       my $signedEnvelope  = $self->signEnvelope($prepareEnvelope);
+       my $signedEnvelope  = $self->signEnvelope($prepareEnvelope,$user);
 
 
        $self->isOldEnvelopeStorageElement($prepareEnvelope->{se}) and 
@@ -1447,15 +1457,24 @@ sub decryptEnvelopeTicket {
 sub signEnvelope {
   my $self=shift;
   my $env=(shift || return);
+  my $user=(shift || return);
+
 
   $env->{created} = time;
   $env->{expires} = int(time) + 86400; # 24h
-  $env->{creator} = "Authen.".$self->{CONFIG}->{VERSION} ;
-  
-  
-  my @keyVals = ("turl","access","lfn","size","se","guid","md5","creator","created","expires","hashord");
+  $env->{issuer} = "Authen.".$self->{CONFIG}->{VERSION} ;
+  $env->{user} = $user;
+   
+  my $envelopeString="";
+  my @keyVals = ("turl","access","lfn","size","se","guid","md5","user","issuer","issued","expires","hashord");
   $env->{hashord} = join ("-",@keyVals);
-  my $envelopeString= join('&', map { $_ = "$_=$env->{$_}"} @keyVals);
+  foreach(@keyVals) {
+    ($_ eq "lfn")
+       and ($envelopeString=$envelopeString."$_=".AliEn::Util::escapeSEnvDelimiter($env->{$_})."&") and next;
+    ($envelopeString=$envelopeString."$_=$env->{$_}&");
+  }
+  $envelopeString=~ s/&$//;
+  #my $envelopeString= join('&', map { $_ = "$_=$env->{$_}"} @keyVals);
 
   $self->info("gron: before signing envelope string is: $envelopeString");
 
@@ -1484,9 +1503,10 @@ sub verifyAndDeserializeEnvelope{
   } 
   $envelopeString =~ s/&$//;
   $signature = decode_base64($envelope->{signature});
+  $envelope->{lfn} = AliEn::Util::descapeSEnvDelimiter($envelope->{lfn});
  
   $self->info("gron: before verifying envelope string is: $envelopeString");
- 
+
   # if we signed the presented returnEnvelope
   $self->{verifyLocalEngine}->verify($envelopeString, $signature)
     and return $envelope;

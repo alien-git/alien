@@ -510,7 +510,11 @@ sub getValFromEnvelope {
 
   foreach ( split(/\\&/, $env)) {
      my ($key, $val) = split(/=/,$_,2);
-     ($rKey eq $key) and return $val;
+     if($rKey eq $key) {
+       ($key ne "lfn") and return $val;
+       my $lfn = $val;
+       return descapeSEnvDelimiter($lfn);
+     }
   }
   return 0;
 }
@@ -543,9 +547,25 @@ sub deserializeSignedEnvelope{
   push @signedElements, "signature=".$envelope->{signature};
   $envelope->{signedEnvelope} = join('\&',@signedElements);
 
+  $envelope->{lfn} = descapeSEnvDelimiter($envelope->{lfn});
 
   return $envelope;
 }
+
+sub escapeSEnvDelimiter{
+  my $lfn=shift;
+  $lfn =~ s/&/-~-/g;
+  $lfn =~ s/=/-~~-/g;
+  return $lfn;
+}
+
+sub descapeSEnvDelimiter{
+  my $lfn=shift;
+  $lfn =~ s/-~-/&/g;
+  $lfn =~ s/-~~-/=/g;
+  return $lfn;
+}
+
 
 
 sub getDebugLevelFromParameters{
