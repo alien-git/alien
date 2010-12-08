@@ -299,7 +299,7 @@ sub getUsername {
   my $token = shift
     or $self->{LOGGER}->error("Admin","In getUsername job token is missing")
       and return;
-
+  $token =~ /^-1$/ and $self->{LOGGER}->info("Admin", "The job token is not valid") and return; 
   $self->debug(1,"In getUsername fetching user name for job $id and token $token");	
   return $self->queryValue("SELECT userName FROM jobToken where jobId=? and jobToken= ?", undef, {bind_values=>[$id, $token]});
 }

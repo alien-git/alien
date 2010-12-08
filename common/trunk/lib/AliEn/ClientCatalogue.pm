@@ -24,6 +24,13 @@ sub new {
   $self->{SOAP} = new AliEn::SOAP
     or print "Error creating AliEn::SOAP $! $?" and return;
   $self->{UMASK} = 0755;
+  
+  if ($ENV{ALIEN_PROC_ID} and $ENV{ALIEN_JOB_TOKEN}){
+    $self->info("We are authenticating with the job token...");
+    my ($user)=$self->callAuthen("whoami", "-silent") or return;
+    $self->{ROLE}=$self->{CONFIG}->{ROLE}=$user;
+    $self->info("We are supposed to be $user");
+  }
   $self->{DISPPATH} = $self->GetHomeDirectory();
   $self->f_cd("$self->{DISPPATH}")
     or $self->info("Home directory for $self->{CONFIG}->{ROLE} does not exist or you do not have permissions")
@@ -42,13 +49,16 @@ sub getHost{
 
 sub callAuthen {
   my $self = shift;
-
   my $user=$self->{ROLE};
+      
+  if ($ENV{ALIEN_PROC_ID} and $ENV{ALIEN_JOB_TOKEN}){
+    $user="alienid:$ENV{ALIEN_PROC_ID} $ENV{ALIEN_JOB_TOKEN}";
+  }
+  
   if($_[0] =~ /^-user=([\w]+)$/)  {
     shift;
     $user = $1;
   }
-  
   $self->{LOGGER}->getDebugLevel() and push @_, "-debug=".$self->{LOGGER}->getDebugLevel();
   $self->{LOGGER}->getTracelog() and push @_, "-tracelog";
   return $self->{SOAP}->CallAndGetOverSOAP($self->{SILENT},"Authen", "doOperation", $user, $self->{DISPPATH},  @_);

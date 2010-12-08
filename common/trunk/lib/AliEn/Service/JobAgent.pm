@@ -1789,8 +1789,7 @@ sub registerFile {
   my $env = AliEn::Util::deserializeSignedEnvelope($signedEnvelope);
 
   $self->putJobLog("trace", "Trying to register file with: add -r -user=$self->{JOB_USER} -tracelog -size $env->{size} -md5 $env->{md5}  $file guid:///$env->{guid}?ZIP=$file");
-  my ($addResult)=$self->{UI}->execute("add", "-r", "-user=$self->{JOB_USER}", "-tracelog", "-size $env->{size}", "$file", "guid:///$env->{guid}?ZIP=$file");
-  #my ($addResult)=$self->{UI}->execute("add", "-r", "-user=$self->{JOB_USER}", "-tracelog", "-size $env->{size}", "-md5 $env->{md5} ", "$file", "guid:///$env->{guid}?ZIP=$file");
+  my ($addResult)=$self->{UI}->execute("add", "-r", "-tracelog", "-size $env->{size}", "$file", "guid:///$env->{guid}?ZIP=$file");
 
   ($addResult eq -1) and
      $self->putJobLog("error","Error while registering file link $file in archive $archive")
@@ -2337,25 +2336,23 @@ CPU Speed                           [MHz] : $ProcCpuspeed
   if (!$self->{UI}) {
       $self->info("Error getting an instance of the catalog");
       $self->putJobLog("error","Could not get an instance of the LCM");
-#      return;
-  }
-  $self->{PROCDIR} = $self->{OUTPUTDIR} || "~/alien-job-$ENV{ALIEN_PROC_ID}";
-  $self->{UI}->execute("mkdir","-p",$self->{PROCDIR});
-  $self->{UI}->execute("cd",$self->{PROCDIR});
-#  $self->{UI}->execute("mkdir",$self->{PROCDIR}."/job-output");
-#  $self->{UI}->execute("mkdir",$self->{PROCDIR}."/job-log");
-
+  } else {
+    $self->{PROCDIR} = $self->{OUTPUTDIR} || "~/alien-job-$ENV{ALIEN_PROC_ID}";
+    $self->{UI}->execute("mkdir","-p",$self->{PROCDIR});
+    $self->{UI}->execute("cd",$self->{PROCDIR});
+   
     #this hash will contain all the files that have already been submitted,
 
-  my $uploadFilesState = $self->prepare_File_And_Archives_From_JDL_And_Upload_Files() ;
+    my $uploadFilesState = $self->prepare_File_And_Archives_From_JDL_And_Upload_Files() ;
 
-  if ($self->{STATUS}=~ /DONE/){
-    ($uploadFilesState eq -1) and $self->{STATUS}="DONE_WARN";
-    ($uploadFilesState eq 0) and $self->{STATUS}="ERROR_SV";
+    if ($self->{STATUS}=~ /DONE/){
+      ($uploadFilesState eq -1) and $self->{STATUS}="DONE_WARN";
+      ($uploadFilesState eq 0) and $self->{STATUS}="ERROR_SV";
+    }
+
+    $self->registerLogs();
+    $self->{UI}->close();
   }
-
-  $self->registerLogs();
-  $self->{UI}->close();
 
   my $jdl;
   $self->{JDL_CHANGED} and $jdl=$self->{CA}->asJDL();

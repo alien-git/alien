@@ -95,6 +95,19 @@ sub doOperation {
   my $directory=shift;
   my $op=shift;
   $self->info("$$ Ready to do an operation for $user in $directory (and $op '@_')");
+  
+  
+  if ($user=~ s/^alienid://){
+    $self->info("We are authenticating with a job token");
+    my ($job, $token)=split(/ /, $user, 2);
+    $self->info("ID: $job, TOKEN $token");
+    my $role=$self->{addbh}->getUsername($job,$token);
+    ( $role) or $self->info("The job token is not valid") 
+       and return {rcvalues=>[], rcmessages=>["The job token for job $job is not valid"]};
+    $self->info("Doing the operation as $role");
+    $user=$role;
+  
+  }
 
   $self->{UI}->execute("user","-", $user);
   my $mydebug=$self->{LOGGER}->getDebugLevel();
@@ -119,10 +132,10 @@ sub doOperation {
   $debug and $self->{LOGGER}->debugOn($mydebug);
   $self->{LOGGER}->tracelogOff();
   $self->{LOGGER}->displayMessages();
-  $self->info("$$ doOperation DONE for user $user (and @_)");#, rc = $rc");
-  $self->info("$$ doOperation result: @info".scalar(@info));
-  return { #rc=>$rc,
-     rcvalues=>\@info, rcmessages=>\@loglist};
+  $self->info("$$ doOperation DONE for user $user (and @_) result: @info".scalar(@info));
+    
+  return { rcvalues=>\@info, rcmessages=>\@loglist };
+  
 }
 
 # ***************************************************************
