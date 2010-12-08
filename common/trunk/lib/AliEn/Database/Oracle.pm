@@ -177,7 +177,7 @@ sub createIndex {
   my $self     = shift;
   my $index    = shift;
   my $table    = shift;
-  my $i        = shift;
+  my $i  = shift;
   my $sqlError = "";
   if ( $index =~ /^FOREIGN KEY/i ) {
     $self->do(
@@ -305,19 +305,19 @@ sub _queryDB {
       #      my $sth = $self->{DBH}->prepare($stmt);
       $DBI::errstr and $sqlError .= "In prepare: $DBI::errstr\n";
       if ($sth) {
-        $execute = $sth->execute(@bind);
-        $DBI::errstr and $sqlError .= "In execute: $DBI::errstr\n";
-        $arrRef = $sth->fetchall_arrayref( {} );
-        $DBI::errstr and $sqlError .= "In fetch: $DBI::errstr\n";
-        foreach (@$arrRef) {
-          my %h;
-          tie %h, 'Tie::CPHash';
-          %h = %$_;
-          $_ = \%h;
-        }
+  $execute = $sth->execute(@bind);
+  $DBI::errstr and $sqlError .= "In execute: $DBI::errstr\n";
+  $arrRef = $sth->fetchall_arrayref( {} );
+  $DBI::errstr and $sqlError .= "In fetch: $DBI::errstr\n";
+  foreach (@$arrRef) {
+    my %h;
+    tie %h, 'Tie::CPHash';
+    %h = %$_;
+    $_ = \%h;
+  }
 
-        #  $sth->finish;
-        #  $DBI::errstr and $sqlError.="In finish: $DBI::errstr\n";
+  #  $sth->finish;
+  #  $DBI::errstr and $sqlError.="In finish: $DBI::errstr\n";
       }
     };
     $@ and $sqlError = "The command died: $@";
@@ -327,29 +327,29 @@ sub _queryDB {
       my $found = 0;
       $sqlError =~
 /(Unexpected EOF)|(Lost connection)|(Constructor didn't return a handle)|(No such object)|(Connection reset by peer)|(MySQL server has gone away at)|(_set_fbav\(.*\): not an array ref at)|(Constructor didn't return a handle)/
-        and $found = 1;
+  and $found = 1;
 
       if ( $sqlError =~ /Died at .*AliEn\/UI\/Catalogue\.pm line \d+/ ) {
-        die("We got a ctrl+c... :( ");
+  die("We got a ctrl+c... :( ");
       }
       if ( $sqlError =~ /Maximum message size of \d+ exceeded/ ) {
-        $self->info("ESTAMOS AQUI\n");
+  $self->info("ESTAMOS AQUI\n");
       }
       if ( $sqlError =~ /ORA-/ and !$already_tried ) {
 
 #it could be because we are using a reserved word to select a field. We can quote all the fields in the selection.
-        $stmt = $self->quote_query($stmt);
+  $stmt = $self->quote_query($stmt);
 
-        #retry
-        $already_tried = 1;
-        $stmt
-          and $self->_queryDB( $stmt, $options, $already_tried )
-          and $found = 1;
+  #retry
+  $already_tried = 1;
+  $stmt
+    and $self->_queryDB( $stmt, $options, $already_tried )
+    and $found = 1;
 
       }
       $found
-        or $self->info( "There was an SQL error: $sqlError", 1001 )
-        and return;
+  or $self->info( "There was an SQL error: $sqlError", 1001 )
+  and return;
     }
 
     #If the statment got executed, we can exit the loop
@@ -401,13 +401,13 @@ sub _do {
       alarm(600);
       my $tmp;
       if ( $options->{prepare} ) {
-        $DEBUG and $self->debug( 2, "In _do doing $stmt @bind_values" );
-        my $sth = $self->{DBH}->prepare_cached($stmt);
-        $tmp = $sth->execute(@bind_values);
+  $DEBUG and $self->debug( 2, "In _do doing $stmt @bind_values" );
+  my $sth = $self->{DBH}->prepare_cached($stmt);
+  $tmp = $sth->execute(@bind_values);
       }
       else {
-        $DEBUG and $self->debug( 1, "In _do doing $stmt @bind_values" );
-        $tmp = $self->{DBH}->do($stmt);
+  $DEBUG and $self->debug( 1, "In _do doing $stmt @bind_values" );
+  $tmp = $self->{DBH}->do($stmt);
       }
       $DBI::errstr and $sqlError .= "In do: $DBI::errstr\n";
       $tmp;
@@ -417,8 +417,8 @@ sub _do {
     if ($error) {
       $sqlError .= "There is an error: $@\n";
       $options->{silent}
-        or
-        $self->info( "There was an SQL error  ($stmt): $sqlError", 1001 );
+  or
+  $self->info( "There was an SQL error  ($stmt): $sqlError", 1001 );
       return;
     }
     defined($result) and last;
@@ -434,15 +434,15 @@ sub _do {
       my $found = 0;
       $sqlError =~
 /(Unexpected EOF)|(Lost connection)|(MySQL server has gone away at)|(Connection reset by peer)/
-        and $found = 1;
+  and $found = 1;
       if ( !$found ) {
-        $oldAlarmValue and $SIG{ALRM} = $oldAlarmValue
-          or delete $SIG{ALRM};
-        chomp $sqlError;
-        $options->{silent}
-          or $self->info( "There was an SQL error  ($stmt): $sqlError",
-          1001 );
-        return;
+  $oldAlarmValue and $SIG{ALRM} = $oldAlarmValue
+    or delete $SIG{ALRM};
+  chomp $sqlError;
+  $options->{silent}
+    or $self->info( "There was an SQL error  ($stmt): $sqlError",
+    1001 );
+  return;
       }
     }
 
@@ -494,103 +494,103 @@ sub createLFNTables{
   my %autoincrements= ("HOSTS"=>"hostIndex", "TRIGGERS"=>"entryId", "TRIGGERS_FAILED"=>"entryId",'LFN_UPDATES'=>'entryId','ACL'=>'entryId', 'TAG0'=> 'entryId', 'GROUPS'=>'Userid', 'INDEXTABLE'=>'indexId','COLLECTIONS'=>'collectionId','SE_VOLUMES'=> 'volumeId');
 
   my %tables=(HOSTS=>["hostIndex", {hostIndex=>"number(19) primary key",
-            address=>"varchar(50)", 
-            db=>"varchar(40)",
-            driver=>"varchar(10)", 
-            organisation=>"varchar(11)",},"hostIndex"],
-        TRIGGERS=>["lfn", {lfn=>"varchar(255)", 
-         triggerName=>"varchar(255)",
-        entryId=>"number primary key"}],
-        TRIGGERS_FAILED=>["lfn", {lfn=>"varchar(255)", 
-         triggerName=>"varchar(255)",
-        entryId=>"number primary key"}],
-        LFN_UPDATES=>["guid", {guid=>"raw(16)", 
-             action=>"varchar(10)",
-             entryId=>"number primary key"},'entryId',['INDEX (guid)']
-         ],
-        ACL=>["entryId", 
-        {entryId=>"number(11) NOT NULL primary key", 
-         owner=>"varchar(10) NOT NULL",
-         perm=>"varchar(4) NOT NULL",
-         aclId=>"number(11) NOT NULL",}, 'entryId'],
-        TAG0=>["entryId", 
-         {entryId=>"int(11) NOT NULL primary key", 
-          path=>"varchar (255)",
-          tagName=>"varchar (50)",
-          tableName=>"varchar(50)",
-          user=>'varchar(20)'}, 'entryId'],
-        GROUPS=>["Userid", {Userid=>"number not null primary key",
-          Username=>"varchar(20) NOT NULL", 
-          Groupname=>"varchar (85)",
-          PrimaryGroup=>"number(1)",}, 'Userid'],
-        INDEXTABLE=>["indexId", {indexId=>"number(11) NOT NULL primary key",
-               lfn=>"varchar(50)", 
-               hostIndex=>"int(11)",
-               tableName=>"int(11)",}, 
-         'indexId', ['UNIQUE INDEX (lfn)']],
-        ENVIRONMENT=>['userName', {userName=>"char(20) NOT NULL PRIMARY KEY", 
-          env=>"varchar(255)"}],
-        ACTIONS=>['action', {action=>"varchar(40) not null primary key",
-           todo=>"number(1) default 0 not null"},
-           'action'],
-        PACKAGES=>['fullPackageName',{'fullPackageName'=> 'varchar(255)',
-              packageName=>'varchar(255)',
-              username=>'varchar(20)', 
-              packageVersion=>'varchar(255)',
-              platform=>'varchar(255)',
-              lfn=>'varchar(255)',
-              size=>'number(24,0)'}, 
+  address=>"varchar(50)", 
+  db=>"varchar(40)",
+  driver=>"varchar(10)", 
+  organisation=>"varchar(11)",},"hostIndex"],
+  TRIGGERS=>["lfn", {lfn=>"varchar(255)", 
+   triggerName=>"varchar(255)",
+  entryId=>"number primary key"}],
+  TRIGGERS_FAILED=>["lfn", {lfn=>"varchar(255)", 
+   triggerName=>"varchar(255)",
+  entryId=>"number primary key"}],
+  LFN_UPDATES=>["guid", {guid=>"raw(16)", 
+   action=>"varchar(10)",
+   entryId=>"number primary key"},'entryId',['INDEX (guid)']
+   ],
+  ACL=>["entryId", 
+  {entryId=>"number(11) NOT NULL primary key", 
+   owner=>"varchar(10) NOT NULL",
+   perm=>"varchar(4) NOT NULL",
+   aclId=>"number(11) NOT NULL",}, 'entryId'],
+  TAG0=>["entryId", 
+   {entryId=>"int(11) NOT NULL primary key", 
+    path=>"varchar (255)",
+    tagName=>"varchar (50)",
+    tableName=>"varchar(50)",
+    user=>'varchar(20)'}, 'entryId'],
+  GROUPS=>["Userid", {Userid=>"number not null primary key",
+    Username=>"varchar(20) NOT NULL", 
+    Groupname=>"varchar (85)",
+    PrimaryGroup=>"number(1)",}, 'Userid'],
+  INDEXTABLE=>["indexId", {indexId=>"number(11) NOT NULL primary key",
+     lfn=>"varchar(50)", 
+     hostIndex=>"int(11)",
+     tableName=>"int(11)",}, 
+   'indexId', ['UNIQUE INDEX (lfn)']],
+  ENVIRONMENT=>['userName', {userName=>"char(20) NOT NULL PRIMARY KEY", 
+    env=>"varchar(255)"}],
+  ACTIONS=>['action', {action=>"varchar(40) not null primary key",
+     todo=>"number(1) default 0 not null"},
+     'action'],
+  PACKAGES=>['fullPackageName',{'fullPackageName'=> 'varchar(255)',
+    packageName=>'varchar(255)',
+    username=>'varchar(20)', 
+    packageVersion=>'varchar(255)',
+    platform=>'varchar(255)',
+    lfn=>'varchar(255)',
+    size=>'number(24,0)'}, 
       ],
-        COLLECTIONS=>['collectionId', {'collectionId'=>"number not null  primary key",
-               'collGUID'=>'number(16)'}],
-        COLLECTIONS_ELEM=>['collectionId', {'collectionId'=>'number not null',
-              origLFN=>'varchar(255)',
-              guid=>'raw(16)',
-              data=>"varchar(255)",
-             localName=>"varchar(255)"},
-         
-         "",['INDEX (collectionId)']],
+  COLLECTIONS=>['collectionId', {'collectionId'=>"number not null  primary key",
+     'collGUID'=>'number(16)'}],
+  COLLECTIONS_ELEM=>['collectionId', {'collectionId'=>'number not null',
+    origLFN=>'varchar(255)',
+    guid=>'raw(16)',
+    data=>"varchar(255)",
+   localName=>"varchar(255)"},
+   
+   "",['INDEX (collectionId)']],
 
-        "SE_VOLUMES"=>["volume", {volumeId=>"number(11) NOT NULL  PRIMARY KEY",
-          seName=>"varchar(255)  NOT NULL ",
-          volume=>"varchar(255) NOT NULL",
-          mountpoint=>"varchar(255)",
-          usedspace=>"number(24,0)",
-          freespace=>"number(24,0)",
-          size=>"number(24,0)",
-          method=>"varchar(255)",}, 
-           "volumeId", ['UNIQUE INDEX (volume)', 'INDEX(seName)'],],
-        "LL_STATS" =>["tableNumber", {
-              tableNumber=>"int(11) NOT NULL",
-              min_time=>"char(16) NOT NULL",
-              max_time=> "char(16) NOT NULL", 
-            },undef,['UNIQUE INDEX(tableNumber)']],
-        LL_ACTIONS=>["tableNumber", {tableNumber=>"number(11) NOT NULL",
-             action=>"varchar(40) not null", 
-             time=>"timestamp default current_timestamp",
-             extra=>"varchar(255)"}, undef, ['UNIQUE INDEX(tableNumber,action)']],
-             SERanks=>["sitename", {sitename=>"varchar(100)   not null",
-                                    seNumber=>"integer not null",
-                                    rank=>"number(7) not null",
-                                    updated=>"number(1)"}, 
-                                    undef, ['UNIQUE INDEX(sitename,seNumber), PRIMARY KEY(sitename,seNumber), INDEX(sitename), INDEX(seNumber)']],
-        LFN_BOOKED=>["lfn",{lfn=>"varchar(255)",
-            expiretime=>"int",
-            guid=>"raw(16) ",
-            size=>"number(24,0)",
-            md5sum=>"varchar(32)",
-            owner=>"varchar(20)",
-            gowner=>"varchar(20)",
-            pfn=>"varchar(255)",
-            se=>"varchar(100)",
-            quotaCalculated=>"number",
-            user=>"varchar(20)",
-            existing=>"number(1)",
-          },
-            undef, ['PRIMARY KEY(lfn,pfn,guid)','INDEX(pfn)','INDEX(lfn)', 'INDEX(guid)','INDEX(expiretime)']
-            
-        ]                                      
-           );
+  "SE_VOLUMES"=>["volume", {volumeId=>"number(11) NOT NULL  PRIMARY KEY",
+    seName=>"varchar(255)  NOT NULL ",
+    volume=>"varchar(255) NOT NULL",
+    mountpoint=>"varchar(255)",
+    usedspace=>"number(24,0)",
+    freespace=>"number(24,0)",
+    size=>"number(24,0)",
+    method=>"varchar(255)",}, 
+     "volumeId", ['UNIQUE INDEX (volume)', 'INDEX(seName)'],],
+  "LL_STATS" =>["tableNumber", {
+    tableNumber=>"int(11) NOT NULL",
+    min_time=>"char(16) NOT NULL",
+    max_time=> "char(16) NOT NULL", 
+  },undef,['UNIQUE INDEX(tableNumber)']],
+  LL_ACTIONS=>["tableNumber", {tableNumber=>"number(11) NOT NULL",
+   action=>"varchar(40) not null", 
+   time=>"timestamp default current_timestamp",
+   extra=>"varchar(255)"}, undef, ['UNIQUE INDEX(tableNumber,action)']],
+   SERanks=>["sitename", {sitename=>"varchar(100)   not null",
+      seNumber=>"integer not null",
+      rank=>"number(7) not null",
+      updated=>"number(1)"}, 
+      undef, ['UNIQUE INDEX(sitename,seNumber), PRIMARY KEY(sitename,seNumber), INDEX(sitename), INDEX(seNumber)']],
+  LFN_BOOKED=>["lfn",{lfn=>"varchar(255)",
+  expiretime=>"int",
+  guid=>"raw(16) ",
+  size=>"number(24,0)",
+  md5sum=>"varchar(32)",
+  owner=>"varchar(20)",
+  gowner=>"varchar(20)",
+  pfn=>"varchar(255)",
+  se=>"varchar(100)",
+  quotaCalculated=>"number",
+  user=>"varchar(20)",
+  existing=>"number(1)",
+    },
+  undef, ['PRIMARY KEY(lfn,pfn,guid)','INDEX(pfn)','INDEX(lfn)', 'INDEX(guid)','INDEX(expiretime)']
+  
+  ]  
+     );
   foreach my $table (keys %tables){
     $self->info("Checking table $table");
     $self->checkTable($table, @{$tables{$table}}) or return;
@@ -604,7 +604,54 @@ sub createLFNTables{
  
   1;
 }
+sub createGUIDTables{
+my $self = shift;
+my %autoincrements=( 'HOSTS'=>'hostIndex', 'ACL'=>'entryId','GUIDINDEX'=> 'indexId','TODELETE'=>'entryId');
 
+my %tables=(HOSTS=>["hostIndex", {hostIndex=>"number(19) primary key",
+				    address=>"varchar(50)", 
+				    db=>"varchar(40)",
+				    driver=>"varchar(10)", 
+				    organisation=>"varchar(11)",},"hostIndex"],
+	      ACL=>["entryId", 
+		    {entryId=>"number(11) NOT NULL primary key", 
+		     owner=>"varchar(10) NOT NULL",
+		     perm=>"varchar(4) NOT NULL",
+		     aclId=>"number(11) NOT NULL",}, 'entryId'],
+	      GROUPS=>["Username", {Username=>"varchar(15) NOT NULL", 
+				    Groupname=>"varchar (85)",
+				    PrimaryGroup=>"number(1)",}, 'Username'],
+	      GUIDINDEX=>["indexId", {indexId=>"number(11) NOT NULL primary key",
+				      guidTime=>"varchar(16)", 
+				      hostIndex=>"number(11)",
+				      tableName=>"number(11)",}, 
+			  'indexId', ['UNIQUE INDEX (guidTime)']],
+	      TODELETE=>["entryId",  {entryId=>"number(11) NOT NULL  primary key", 
+				      pfn=>"varchar(255)",
+				      seNumber=>"number(11) not null",
+				      guid=>"number(16)"}],
+	      GL_STATS=>["tableNumber", {
+				     tableNumber=>"number(11) NOT NULL",
+				     seNumber=>"number(11) NOT NULL",
+				     seNumFiles=> "number(20)", 
+				     seUsedSpace=>"number(20)",
+				    },undef,['UNIQUE INDEX(tableNumber,seNumber)']],
+	      GL_ACTIONS=>["tableNumber", {tableNumber=>"number(11) NOT NULL",
+					   action=>"varchar(40) not null", 
+					   time=>"timestamp default current_timestamp",
+					   extra=>"varchar(255)",}
+			   , undef, ['UNIQUE INDEX(tableNumber,action)']],);
+
+	     
+  foreach my $table (keys %tables){
+    $self->info("Checking table $table");
+    $db->checkTable($table, @{$tables{$table}})
+      or return;
+  }
+  foreach my $table(keys %autoincrements){
+	 $db->defineAutoincrement($table,$autoincrements{$table});
+  }
+}
 
 
 sub checkLFNTable {
@@ -618,26 +665,26 @@ sub checkLFNTable {
   $table=~ /^L(\d+)L$/ and $number=$1;
 
   my %columns = (entryId=>"number(11) NOT NULL  primary key", 
-		 lfn=> "varchar(255) NOT NULL",
-		 type=> "char(1) default 'f' NOT NULL",
-		 ctime=>"timestamp",
-		 expiretime=>"date",
-		 size=>"number(24,0) default 0 not null",
-		 aclId=>"number(11)",
-		 perm=>"varchar(3) not null",
-		 guid=>"raw(16)",
-		 replicated=>"smallint(1) not null default 0",
-		 dir=>"bigint(11)",
-		 owner=>"varchar(20) not null",
-		 gowner=>"varchar(20) not null",
-		 md5=>"varchar(32)",
-		 guidtime=>"varchar(8)",
-		 broken=>'smallint(1) not null default 0',
-		);
+     lfn=> "varchar(255) NOT NULL",
+     type=> "char(1) default 'f' NOT NULL",
+     ctime=>"timestamp",
+     expiretime=>"date",
+     size=>"number(24,0) default 0 not null",
+     aclId=>"number(11)",
+     perm=>"varchar(3) not null",
+     guid=>"raw(16)",
+     replicated=>"number(1) not null default 0",
+     dir=>"number(11)",
+     owner=>"varchar(20) not null",
+     gowner=>"varchar(20) not null",
+     md5=>"varchar(32)",
+     guidtime=>"varchar(8)",
+     broken=>'number(1) not null default 0',
+    );
 
   $self->defineAutoincrement($table, "entryId");
   $self->checkTable(${table}, "entryId", \%columns, 'entryId', 
-		    ['UNIQUE INDEX (lfn)',"INDEX(dir)", "INDEX(guid)", "INDEX(type)", "INDEX(ctime)", "INDEX(guidtime)"]) or return;
+  ['UNIQUE INDEX (lfn)',"INDEX(dir)", "INDEX(guid)", "INDEX(type)", "INDEX(ctime)", "INDEX(guidtime)"]) or return;
   $self->checkTable("${table}_broken", "entryId", {entryId=>"number(11) NOT NULL  primary key"}) or return;
   $self->checkTable("${table}_QUOTA", "user", {user=>"varchar(64) NOT NULL", nbFiles=>"number(11) NOT NULL", totalSize=>"number(20) NOT NULL"}, undef, ['INDEX user_ind (user)'],) or return;
   
@@ -646,41 +693,111 @@ sub checkLFNTable {
   
   return 1;
 }
+sub checkGUIDTable {
+  my $self =shift;
+  my $table =shift;
+  defined $table or $self->info( "Error: we didn't get the table number to check") and return;
+  my $db=shift || $self;
+  
+  $table =~ /^\d+$/ and $table="G${table}L";
+  
+  my %columns = (guidId=>"number(11) NOT NULL auto_increment primary key", 
+		 ctime=>"timestamp default current_timestamp" ,
+		 expiretime=>"date",
+		 $self->reservedWord("size")=>"number(24,0) default 0  not null",
+		 seStringlist=>"varchar(255) default ',' not null ",
+		 seAutoStringlist=>"varchar(255)  default ',' not null ",
+		 aclId=>"number(11)",
+		 perm=>"varchar(3)",
+		 guid=>"raw(16)",
+		 md5=>"varchar(32)",
+		 ref=>"number(11) default 0",
+		 owner=>"varchar(20)",
+		 gowner=>"varchar(20)",
+		 type=>"varchar(1)",
+		);
 
+   $db->checkTable(${table}, "guidId", \%columns, 'guidId', ['UNIQUE INDEX (guid)', 'INDEX(seStringlist)', 'INDEX(ctime)'],) or return;
+  
+  %columns= (pfn=>'varchar(255)',
+	     guidId=>"number(11) NOT NULL",
+	     seNumber=>"number(11) NOT NULL",);
+  $db->checkTable("${table}_PFN", "guidId", \%columns, undef, ['INDEX guid_ind (guidId)', "FOREIGN KEY (guidId) REFERENCES $table(guidId) ON DELETE CASCADE","FOREIGN KEY (seNumber) REFERENCES SE(seNumber) on DELETE CASCADE"],) or return;
+
+
+  $db->checkTable("${table}_REF", "guidId", {guidId=>"number(11) NOT NULL",
+					     lfnRef=>"varchar(20) NOT NULL"},
+		  '', ['INDEX guidId(guidId)', 'INDEX lfnRef(lfnRef)', "FOREIGN KEY (guidId) REFERENCES $table(guidId) ON DELETE CASCADE"]) or return;
+
+  $db->checkTable("${table}_QUOTA",  $self->reservedWord("user"), { $self->reservedWord("user")=>"varchar(64) NOT NULL", nbFiles=>"number(11) NOT NULL", totalSize=>"number(20) NOT NULL"}, undef, ['INDEX user_ind (user)'],) or return;
+
+  $db->optimizeTable($table);
+  $db->optimizeTable("${table}_PFN");
+
+  my $index=$table;
+  $index=~ s/^G(.*)L$/$1/;
+  #$db->do("INSERT IGNORE INTO GL_ACTIONS(tableNumber,action)  values  (?,'SE')", {bind_values=>[$index, $index]}); 
+
+
+  return 1;
+
+}
+sub checkSETable {
+  my $self = shift;
+  
+  my %columns = (seName=>"varchar(60) NOT NULL", 
+		 seNumber=>"number(11) NOT NULL primary key",
+		 seQoS=>"varchar(200)",
+		 seioDaemons=>"varchar(255)",
+		 seStoragePath=>"varchar(255)",
+		 seNumFiles=>"number(24,0)",
+		 seUsedSpace=>"number(24,0)",
+		 seType=>"varchar(60)",
+		 seMinSize=>"number default 0",
+                 seExclusiveWrite=>"varchar(300)",
+                 seExclusiveRead=>"varchar(300)",
+                 seVersion=>"varchar(300)",
+		);
+
+  return $self->checkTable("SE", "seNumber", \%columns, 'seNumber', ['UNIQUE INDEX (seName)'], {engine=>"innodb"} ); #or return;
+  $self->defineAutoincrement("SE","seNumber");
+  #This table we want it case insensitive
+#  return $self->do("alter table SE  convert to CHARacter SET latin1");
+}
 sub grantPrivilegesToUser{
 #The privileges are assigned to a unique user on the database. Every user in the application connects through this one.
 return ;}
 sub grantExtendedPrivilegesToUser{return;}
 sub grantPrivilegesToObject{
-my $self = shift;
-my $privs = shift;
-my $schema_from  = shift;
-$schema_from=~s/(.)*:(.)*/$2/i;
-my $object = shift; # if object == * that means all the objects in the schema.
-my $user_to = shift;
-my $pass = shift;
-if($schema_from eq $user_to) {return 1;}
-if($pass){ 
-$self->checkUser($user_to,$pass) ;
-} #the user already exists
- $DEBUG and $self->debug(1, "In grantPrivilegesToObject");
+  my $self = shift;
+  my $privs = shift;
+  my $schema_from  = shift;
+  $schema_from=~s/(.)*:(.)*/$2/i;
+  my $object = shift; # if object == * that means all the objects in the schema.
+  my $user_to = shift;
+  my $pass = shift;
+  if($schema_from eq $user_to) {return 1;}
+  if($pass){ 
+  $self->checkUser($user_to,$pass) ;
+  } #the user already exists
+  $DEBUG and $self->debug(1, "In grantPrivilegesToObject");
 
   my $success = 1;
-if ($object=~ m/(.*)\*(.*)/i ){
+  if ($object=~ m/(.*)\*(.*)/i ){
 
-my $s = $self->{DBH}->prepare("begin grant_whole_schema(\'$privs\',\'$schema_from\',\'$user_to\');end;") ;
-$s->execute; return 1; 
+  my $s = $self->{DBH}->prepare("begin grant_whole_schema(\'$privs\',\'$schema_from\',\'$user_to\');end;") ;
+  $s->execute; return 1; 
   #$self->do("begin grant_whole_schema(\'$privs\',\'$schema_from\',\'$user_to\');end;")  or $DEBUG and $self->debug (0, "Error adding privileges $privs to $user_to")
       #and return 0;
-}else{
-$object = "$schema_from\.$object";  
+  }else{
+  $object = "$schema_from\.$object";  
   $DEBUG and $self->debug (0, "Adding privileges $privs to $user_to");
 
-$self->_do("GRANT $privs ON $object TO $user_to")
+  $self->_do("GRANT $privs ON $object TO $user_to")
      or $DEBUG and $self->debug (0, "Error adding privileges $privs to $user_to")
       and $success = 0;
-}
-return $success;
+  }
+  return $success;
 }
 
 
@@ -712,7 +829,7 @@ sub multiinsert {
     foreach (keys %$rfields) {
       if(defined $rloop->{$_}){
       
-        if ($quote) {
+  if ($quote) {
      $query2.="?,"; 
   } else {
     $rloop->{$_} =~ s/^([^'"]*)['"](.*)['"]([^'"]*)$/$2/;
@@ -721,7 +838,7 @@ sub multiinsert {
     if($1 && $3){
       $function=$1 and $functionend=$3;
     }
-          $query2 .= " $function ? $functionend,";
+    $query2 .= " $function ? $functionend,";
   }
   push @bind, $rloop->{$_};
       }else{
@@ -781,14 +898,14 @@ select TO_CHAR(sum(position_value)) INTO resul from
 
 (
   select power(from_base,position-1) * case when digit between '0' and '9' then to_number(digit)
-                                     else to_base + ascii(digit) - ascii('A')
-                                end
-          as position_value
+       else to_base + ascii(digit) - ascii('A')
+      end
+    as position_value
     from (
-          select substr(input_string,length(input_string)+1-level,1) digit, level position
-            from (select N input_string from dual)
-            connect by level <= length(input_string)
-         )
+    select substr(input_string,length(input_string)+1-level,1) digit, level position
+  from (select N input_string from dual)
+  connect by level <= length(input_string)
+   )
 );
 if(N like 'NULL') then return null;
 else
@@ -884,7 +1001,7 @@ end string2binary;"
   $self->do("grant all privileges on string2binary  to public");
 }
 
-sub createGUIDfunctions {
+sub createGUIDFunctions {
   my $self = shift;
   $self->do(
     "create or replace FUNCTION INSRT
@@ -1061,7 +1178,7 @@ nomaxvalue"
 #}
 
 sub defineAutoincrement {
-  my $self        = shift;
+  my $self  = shift;
   my $tableName   = shift;
   my $field       = shift;
   my $sqName      = $tableName . "_seq";
@@ -1209,27 +1326,27 @@ s/(.*)(\!\=|\<\>|NOT\sLIKE)(\s*\'\' \s*)(.*)$/$1. " IS NOT NULL ". $4/gxei
       my $new_stmt = " ";
       foreach (@bind) {
 
-        #element with string length zero
-        if ( $_ =~ /^$/ ) {
+  #element with string length zero
+  if ( $_ =~ /^$/ ) {
 
 #change the statement to consider if the column is null and remove it from the bind values
-          if ( $left =~
+    if ( $left =~
 s/(.*)(\!\= |\<\>|NOT\sLIKE)(\s*\? )(.*)/$1 . " IS  NOT NULL ".$4 /xei
-            )
-          {
-          }
-          else {
-            $left =~
-              s/(.*)(\=|LIKE)(\s*\? )(.*)/$1 . " IS NULL ".$4 /xei;
-          }
-          $new_stmt = $left;
-        }
-        else {    #case element with string no length zero
-          push( @new_bind, $_ );
-          $left =~ s/(.*)(\s*\? )(.*)/$1  .$2 .$3/xei
-            ;    # $new_stmt=$new_stmt.$left ; $left=$3
-          $new_stmt = $left;
-        }
+  )
+    {
+    }
+    else {
+  $left =~
+    s/(.*)(\=|LIKE)(\s*\? )(.*)/$1 . " IS NULL ".$4 /xei;
+    }
+    $new_stmt = $left;
+  }
+  else {    #case element with string no length zero
+    push( @new_bind, $_ );
+    $left =~ s/(.*)(\s*\? )(.*)/$1  .$2 .$3/xei
+  ;    # $new_stmt=$new_stmt.$left ; $left=$3
+    $new_stmt = $left;
+  }
       }
       @bind = @new_bind;
       $stmt = $new_stmt;
@@ -1429,7 +1546,7 @@ when matched then update set  q.status=\'OVER_WAITING\'"
 
 sub updateFinalPrice {
   my $self     = shift;
-  my $t        = shift;
+  my $t  = shift;
   my $nominalP = shift;
   my $now      = shift;
   my $done     = shift;
@@ -1495,7 +1612,7 @@ sub setUpdateDefault {
   my $col   = shift;
   my $val   = shift;
   return $self->do(
-        "create or replace TRIGGER  " 
+  "create or replace TRIGGER  " 
       . $table
       . "trigger_ctime BEFORE UPDATE ON  "
       . $table
@@ -1518,7 +1635,7 @@ sub refreshSERank {
   my $seName = shift;
   $self->do(
     "insert into SERanks (sitename,seNumber,rank,updated)
-             select ?, seNumber,  ?, 0  from SE where upper( seName) LIKE upper(?)  ",
+   select ?, seNumber,  ?, 0  from SE where upper( seName) LIKE upper(?)  ",
     { bind_values => [ $site, $rank, $seName, $seName, $site ] }
   );
 }
