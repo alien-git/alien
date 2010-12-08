@@ -526,7 +526,8 @@ Type=\"Job\";
     }
   }
 
-  if ($status=~ /^(ERROR.*)|(DONE)(KILLED)|(FAILED)$/){
+
+  if ($status=~ /^(ERROR.*)|(DONE)|(KILLED)|(FAILED)$/){
     $set->{spyurl}="";
     $self->{ADMINDB}->deleteJobToken($queueId);
     $set->{finished}=$date;
