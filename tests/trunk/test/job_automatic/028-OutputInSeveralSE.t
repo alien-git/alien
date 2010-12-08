@@ -290,13 +290,13 @@ sub fillTestTableWithTests{
 
 
   my $archivename6="someOtherName.zip";
-  my @archivecontent6=("resources");
+  my @archivecontent6=("stdout");
   my @ases6 = ();
   my $asel6 = 0;
   my $adisk6 = 2;
   my $atape6 = 1;
   my @aoptions6 = ();
-  my @filetag6=("stdout");
+  my @filetag6=("resources");
   my @fses6 = ("${vo}::CERN::TESTSE2");
   my $fsel6 = 1;
   my $fdisk6 = 0;
