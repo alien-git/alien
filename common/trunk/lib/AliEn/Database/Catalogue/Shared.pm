@@ -23,7 +23,7 @@ sub preConnect{
   }
   $self->{FIRST_DB}=$Connections{$self->{UNIQUE_NM}}->{FIRST_DB};
   $self->{DB} and $self->{HOST} and $self->{DRIVER} and return 1;
-  $self->{CONFIG}->{CATALOGUE_DATABASE} or return;
+#! ($self->{DB} and $self->{HOST} and $self->{DRIVER} ) or (!$self->{CONFIG}->{CATALOGUE_DATABASE}) and  return;
   $self->debug(2, "Using the default $self->{CONFIG}->{CATALOGUE_DATABASE}");
   ($self->{HOST}, $self->{DRIVER}, $self->{DB})
     =split ( m{/}, $self->{CONFIG}->{CATALOGUE_DATABASE});
@@ -37,6 +37,7 @@ sub initialize {
   $self->{CURHOSTID}=$self->queryValue("SELECT hostIndex from HOSTS where address='$self->{HOST}' and driver='$self->{DRIVER}' and db='$self->{DB}'"); 
   $self->{CURHOSTID} or $self->info("Warning this host is not in the HOSTS table!!!") and return $self->SUPER::initialize(@_);
 
+  $self->{binary2string}=$self->binary2string("guid");
   my $dbindex="$self->{CONFIG}->{ORG_NAME}_$self->{CURHOSTID}";
 
   $Connections{$self->{UNIQUE_NM}}->{$dbindex}=$self;
@@ -73,7 +74,7 @@ sub getSENumber{
   $cache and return $cache;
 
   $DEBUG and $self->debug(2, "Getting the numbe from the list");
-  my $senumber=$self->queryValue("SELECT seNumber FROM SE where seName=?", undef,
+  my $senumber=$self->queryValue("SELECT seNumber FROM SE where upper(seName)=upper(?)", undef,
 				 {bind_values=>[$se]});
   if (defined $senumber) {
     AliEn::Util::setCacheValue($self, "seNumber-$se", $senumber);
@@ -231,27 +232,7 @@ sub destroy {
 #  $self->SUPER::destroy();
 }
 
-sub checkSETable {
-  my $self = shift;
-  
-  my %columns = (seName=>"varchar(60) character set latin1 collate latin1_general_ci NOT NULL", 
-		 seNumber=>"int(11) NOT NULL auto_increment primary key",
-		 seQoS=>"varchar(200)",
-		 seioDaemons=>"varchar(255)",
-		 seStoragePath=>"varchar(255)",
-		 seNumFiles=>"bigint",
-		 seUsedSpace=>"bigint",
-		 seType=>"varchar(60)",
-		 seMinSize=>"int default 0",
-                 seExclusiveWrite=>"varchar(300)",
-                 seExclusiveRead=>"varchar(300)",
-                 seVersion=>"varchar(300)",
-		);
 
-  return $self->checkTable("SE", "seNumber", \%columns, 'seNumber', ['UNIQUE INDEX (seName)'], {engine=>"innodb"} ); #or return;
-  #This table we want it case insensitive
-#  return $self->do("alter table SE  convert to CHARacter SET latin1");
-}
 
 sub reconnectToIndex {
   my $self=shift;
@@ -306,7 +287,6 @@ sub reconnectToIndex {
     defined $self->{USE_PROXY} and $DBOptions->{USE_PROXY}=$self->{USE_PROXY};
 
     my $class=ref $self;
-
     my $db=$class->new($DBOptions )
 	or print STDERR "ERROR GETTING THE NEW DATABASE\n" and return;
 

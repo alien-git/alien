@@ -77,116 +77,17 @@ sub createCatalogueTables {
 	return;
   }
 
-  my %tables=(HOSTS=>["hostIndex", {hostIndex=>"serial primary key",
-				    address=>"char(50)", 
-				    db=>"char(40)",
-				    driver=>"char(10)", 
-				    organisation=>"char(11)",},"hostIndex"],
-	      ACL=>["entryId", 
-		    {entryId=>"int(11) NOT NULL auto_increment primary key", 
-		     owner=>"char(10) NOT NULL",
-		     perm=>"char(4) NOT NULL",
-		     aclId=>"int(11) NOT NULL",}, 'entryId'],
-	      GROUPS=>["Username", {Username=>"char(15) NOT NULL", 
-				    Groupname=>"char (85)",
-				    PrimaryGroup=>"int(1)",}, 'Username'],
-	      GUIDINDEX=>["indexId", {indexId=>"int(11) NOT NULL auto_increment primary key",
-				      guidTime=>"char(16)", 
-				      hostIndex=>"int(11)",
-				      tableName=>"int(11)",}, 
-			  'indexId', ['UNIQUE INDEX (guidTime)']],
-	      TODELETE=>["entryId",  {entryId=>"int(11) NOT NULL auto_increment primary key", 
-				      pfn=>"varchar(255)",
-				      seNumber=>"int(11) not null",
-				      guid=>"binary(16)"}],
-	      GL_STATS=>["tableNumber", {
-				     tableNumber=>"int(11) NOT NULL",
-				     seNumber=>"int(11) NOT NULL",
-				     seNumFiles=> "bigint(20)", 
-				     seUsedSpace=>"bigint(20)",
-				    },undef,['UNIQUE INDEX(tableNumber,seNumber)']],
-	      GL_ACTIONS=>["tableNumber", {tableNumber=>"int(11) NOT NULL",
-					   action=>"char(40) not null", 
-					   time=>"timestamp default current_timestamp",
-					   extra=>"varchar(255)",}
-			   , undef, ['UNIQUE INDEX(tableNumber,action)']],);
-
-	     
-  foreach my $table (keys %tables){
-    $self->info("Checking table $table");
-    $db->checkTable($table, @{$tables{$table}})
-      or return;
-  }
-
+  $db->createGUIDTables;
   $self->checkGUIDTable("0", $db) or return;
 
   $self->info("Let's create the functions");
-  $db->do("create function string2binary (my_uuid varchar(36)) returns binary(16) deterministic sql security invoker return unhex(replace(my_uuid, '-', ''))");
-  $db->do("create function binary2string (my_uuid binary(16)) returns varchar(36) deterministic sql security invoker return insert(insert(insert(insert(hex(my_uuid),9,0,'-'),14,0,'-'),19,0,'-'),24,0,'-')");
-
-
-  $db->do("create function string2date (my_uuid varchar(36)) returns char(16) deterministic sql security invoker return upper(concat(right(left(my_uuid,18),4), right(left(my_uuid,13),4),left(my_uuid,8)))");
-
-  $db->do("create function binary2date (my_uuid binary(16))  returns char(16) deterministic sql security invoker
-return upper(concat(right(left(hex(my_uuid),16),4), right(left(hex(my_uuid),12),4),left(hex(my_uuid),8)))");
-
+  $db->createGUIDFunctions;
 
   $DEBUG and $self->debug(2,"In createCatalogueTables creation of tables finished.");
   
 
   1;
 }
-
-sub checkGUIDTable {
-  my $self =shift;
-  my $table =shift;
-  defined $table or $self->info( "Error: we didn't get the table number to check") and return;
-  my $db=shift || $self;
-  
-  $table =~ /^\d+$/ and $table="G${table}L";
-  
-  my %columns = (guidId=>"int(11) NOT NULL auto_increment primary key", 
-		 ctime=>"timestamp" ,
-		 expiretime=>"datetime",
-		 size=>"bigint not null default 0",
-		 seStringlist=>"varchar(255) not null default ','",
-		 seAutoStringlist=>"varchar(255) not null default ','",
-		 aclId=>"int(11)",
-		 perm=>"char(3)",
-		 guid=>"binary(16)",
-		 md5=>"varchar(32)",
-		 ref=>"int(11) default 0",
-		 owner=>"varchar(20)",
-		 gowner=>"varchar(20)",
-		 type=>"char(1)",
-		);
-
-   $db->checkTable(${table}, "guidId", \%columns, 'guidId', ['UNIQUE INDEX (guid)', 'INDEX(seStringlist)', 'INDEX(ctime)'],) or return;
-  
-  %columns= (pfn=>'varchar(255)',
-	     guidId=>"int(11) NOT NULL",
-	     seNumber=>"int(11) NOT NULL",);
-  $db->checkTable("${table}_PFN", "guidId", \%columns, undef, ['INDEX guid_ind (guidId)', "FOREIGN KEY (guidId) REFERENCES $table(guidId) ON DELETE CASCADE","FOREIGN KEY (seNumber) REFERENCES SE(seNumber) on DELETE CASCADE"],) or return;
-
-
-  $db->checkTable("${table}_REF", "guidId", {guidId=>"int(11) NOT NULL",
-					     lfnRef=>"varchar(20) NOT NULL"},
-		  '', ['INDEX guidId(guidId)', 'INDEX lfnRef(lfnRef)', "FOREIGN KEY (guidId) REFERENCES $table(guidId) ON DELETE CASCADE"]) or return;
-
-  $db->checkTable("${table}_QUOTA", "user", {user=>"varchar(64) NOT NULL", nbFiles=>"int(11) NOT NULL", totalSize=>"bigint(20) NOT NULL"}, undef, ['INDEX user_ind (user)'],) or return;
-
-  $db->optimizeTable($table);
-  $db->optimizeTable("${table}_PFN");
-
-  my $index=$table;
-  $index=~ s/^G(.*)L$/$1/;
-  #$db->do("INSERT IGNORE INTO GL_ACTIONS(tableNumber,action)  values  (?,'SE')", {bind_values=>[$index, $index]}); 
-
-
-  return 1;
-
-}
-
 
 ##############################################################################
 ##############################################################################
@@ -209,7 +110,7 @@ sub getSEList{
 					     ) or return;
   }
   $DEBUG and $self->debug(1,"Getting the name of the se $seStringlist");
-  return $self->queryColumn("SELECT seName from SE where '$seStringlist' like concat('%,',seNumber,',%') ");
+  return $self->queryColumn("SELECT seName from SE where '$seStringlist' like concat('%,',concat(seNumber,',%')) ");
 
 }
 
@@ -379,7 +280,7 @@ sub getAllInfoFromGUID{
     $where=" guidId=?";
     @bind=($info->{guidId}, $info->{guidId});
   }
-  my $fullQuery="select seName, pfn from ${table}_PFN p, SE$extraTable $where and p.seNumber=SE.seNumber union select seName, '' as pfn from $table g, SE where $where and seAutoStringlist like concat('%,',senumber , ',%')";
+ my $fullQuery="select seName, pfn from ${table}_PFN p, SE$extraTable $where and p.seNumber=SE.seNumber union select seName, '' as pfn from $table g, SE where $where and seAutoStringlist like concat('%,', concat(seNumber , ',%'))";
   my $pfn=$db->query($fullQuery, undef ,{bind_values=>\@bind})
     or $self->info("Error doing the query '$fullQuery'") and return;
   $info->{pfn}=$pfn;
@@ -401,7 +302,9 @@ sub getIndexHostFromGUID {
   my $self=shift;
   my $guid=shift || "";
   $self->debug(1, "Let's find the database that holds the guid '$guid'");
-  my $entry=$self->queryRow("SELECT hostIndex, tableName from GUIDINDEX where guidTime<string2date(?) order by guidTime desc limit 1", undef, {bind_values=>[$guid]})
+  my $query = "SELECT hostIndex, tableName from GUIDINDEX where guidTime<string2date(?) order by guidTime desc ";
+  $query = $self->paginate($query,1,0);
+  my $entry=$self->queryRow($query, undef, {bind_values=>[$guid]})
     or $self->info("Error doing the query  for the guid '$guid'") and return;
   $entry->{hostIndex} or $self->info("Error getting the index for the guid '$guid'") and return;;
   $self->debug(1, "It should be in $entry->{hostIndex} and $entry->{tableName}");
@@ -537,7 +440,7 @@ sub checkPermission{
   my $retrievemore=(shift || 0);
   my $empty=(shift || 0);
 
-  my $retrieve='guidId,perm,owner,gowner,size';
+  my $retrieve='guidId,perm,owner,gowner,'.$self->reservedWord("size");
   my $returndb=0;
   $retrievemore =~ /db/ 
     and $returndb=1
@@ -662,7 +565,7 @@ sub moveGUIDs {
   $self->checkGUIDTable($tableName) or return;
 
 
-  my $info=$self->query("describe G${tableName}L");
+  my $info=$self->describeTable("G${tableName}L");
   my $columns="";
   foreach my $c (@$info){
     $columns.="$c->{Field},";
@@ -789,7 +692,7 @@ sub updateStatistics {
 	    {bind_values=>[$index]});
 
   $self->do("delete from GL_STATS where tableNumber=?", {bind_values=>[$index]});
-  $self->do("insert into GL_STATS(tableNumber, seNumber, seNumFiles, seUsedSpace) select ?, s.seNumber, count(*), sum(size) from SE s, $table g ,${table}_PFN p where g.guidid=p.guidid and s.senumber=p.senumber group by s.senumber", {bind_values=>[$index]});
+  $self->do("insert into GL_STATS(tableNumber, seNumber, seNumFiles, seUsedSpace) select ?, s.seNumber, count(*), sum(".$self->reservedWord("size").") from SE s, $table g ,${table}_PFN p where g.guidid=p.guidid and s.senumber=p.senumber group by s.senumber", {bind_values=>[$index]});
   return 1;
 }
 
