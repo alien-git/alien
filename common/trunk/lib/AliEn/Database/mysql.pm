@@ -444,9 +444,9 @@ sub checkLFNTable {
 }
 
 
-sub createGUIDtables {
+sub createGUIDTables {
   my $self = shift;
-  my $db = shift || $self;
+
 
   my %tables = (
     HOSTS => [
@@ -618,30 +618,27 @@ sub checkGUIDTable {
 
 }
 
+
 sub checkSETable {
   my $self = shift;
+  
+  my %columns = (seName=>"varchar(60) character set latin1 collate latin1_general_ci NOT NULL", 
+		 seNumber=>"int(11) NOT NULL auto_increment primary key",
+		 seQoS=>"varchar(200)",
+		 seioDaemons=>"varchar(255)",
+		 seStoragePath=>"varchar(255)",
+		 seNumFiles=>"bigint",
+		 seUsedSpace=>"bigint",
+		 seType=>"varchar(60)",
+		 seMinSize=>"int default 0",
+                 seExclusiveWrite=>"varchar(300)",
+                 seExclusiveRead=>"varchar(300)",
+                 seVersion=>"varchar(300)",
+		);
 
-  my %columns = (
-    seName =>
-      "varchar(60) character set latin1 collate latin1_general_ci NOT NULL",
-    seNumber         => "int(11) NOT NULL auto_increment primary key",
-    seQoS            => "varchar(200)",
-    seioDaemons      => "varchar(255)",
-    seStoragePath    => "varchar(255)",
-    seNumFiles       => "bigint",
-    seUsedSpace      => "bigint",
-    seType           => "varchar(60)",
-    seMinSize        => "int default 0",
-    seExclusiveWrite => "varchar(300)",
-    seExclusiveRead  => "varchar(300)",
-    seVersion        => "varchar(300)",
-  );
-
-  return $self->checkTable( "SE", "seNumber", \%columns, 'seNumber',
-    ['UNIQUE INDEX (seName)'], { engine => "innodb" } );    #or return;
+  return $self->checkTable("SE", "seNumber", \%columns, 'seNumber', ['UNIQUE INDEX (seName)'], {engine=>"innodb"} ); #or return;
 
 }
-
 sub renameField {
   my $self  = shift;
   my $table = shift;
@@ -670,7 +667,7 @@ return upper(concat(right(left(hex(my_uuid),16),4), right(left(hex(my_uuid),12),
 
 }
 
-sub createGUIDfunctions {
+sub createGUIDFunctions {
   my $self = shift;
   $self->do(
 "create function string2binary (my_uuid varchar(36)) returns binary(16) deterministic sql security invoker return unhex(replace(my_uuid, '-', ''))"
@@ -758,7 +755,7 @@ sub paginate {
   my $limit  = shift;
   my $offset = shift;
   $limit  and $sql .= " limit $limit";
-  $offset and $sql .= "offset $offset";
+  $offset and $sql .= " offset $offset";
   return $sql;
 }
 
