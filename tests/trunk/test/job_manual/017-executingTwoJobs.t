@@ -58,7 +58,7 @@ Requirements= other.HOST==other.HOST;
 
   my ($info)=$cat->execute("top", "-id", $id1);
   $info->{status} eq "DONE" or
-    die( "NOPE!! the status of $id is $info->{status}\n");
+    die( "NOPE!! the status of $id1 is $info->{status}\n");
 
   ($info)=$cat->execute("top", "-id", $id2);
   $info->{status} eq "DONE" or
