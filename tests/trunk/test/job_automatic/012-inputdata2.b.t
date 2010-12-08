@@ -26,8 +26,8 @@ BEGIN { plan tests => 1 }
   system("grep 'YUHUUUUU' $out") and
   print "The line is not there!!!" and exit(-2);
 
- print "Let's check the log file to see if the file was staged\n";
-  my ($log)=$cat->execute("get", "$procDir/job-log/execution.out") or exit(-2);
+  print "Let's check the log file to see if the file was staged\n";
+  my ($log)=getJobAgentLog($cat, $procDir) or exit(-2);
   open (FILE, "<$log") or print "Error opening the file $log\n" and exit(-2);
   my @content=<FILE>;
   close FILE;

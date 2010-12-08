@@ -171,3 +171,18 @@ sub checkOutput{
 
 }
 
+sub getJobAgentLog{
+  my $cat=shift;
+  my $procDir=shift;
+
+  my $id=$procDir;
+  $id=~ s/^.*\-//;
+  print "Registering the output of the job $id ($cat and $procDir)\n";
+  $cat->execute("registerOutput", $id) or return;
+  
+  my ($file)=$cat->execute("get", "~/recycle/alien-job-$id/execution.out");
+  $file or print "Error getting the execution log of job $id";
+  return $file;  
+
+ 
+}

@@ -37,7 +37,7 @@ BEGIN { plan tests => 1 }
   }
   $files->{stdout}=~ /Input\.jdl/ or print "Error the input data is not there!!!\n" and exit(-2);
 
-  my ($log)=$cat->execute("get","$procDir/job-log/execution.out") or exit(-2);
+  my $log=getJobAgentLog($cat, $procDir) or exit(-2);
   open (LOG, "<$log" ) or exit(-2);
   my @log=grep (/Getting/, <LOG>);
   close LOG;

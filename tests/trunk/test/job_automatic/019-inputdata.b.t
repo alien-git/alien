@@ -36,7 +36,7 @@ BEGIN { plan tests => 1 }
   $files->{stdout}=~ /Input\.jdl/ or print "Error the input data is not there!!!\n" and exit(-2);
 
   ($files->{"file.out"} eq "$content\n") or print "ERROR the content of the file '".$files->{"file.out"} ."' does not match with the original '$content\n'\n" and exit(-2);
-  my ($log)=$cat->execute("get","-f", "$procDir/job-log/execution.out") or exit(-2);
+  my ($log)=getJobAgentLog($cat, $procDir) or exit(-2);
   open (LOG, "<$log" ) or exit(-2);
   my @log=grep (/Getting/, <LOG>);
   close LOG;
