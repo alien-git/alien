@@ -191,7 +191,10 @@ sub existsLFN {
 
   $entry=~ s{/?$}{};
   my $options={bind_values=>["$entry/"]};
-  my $tableRef=$self->queryRow("SELECT tableName,lfn from INDEXTABLE where lfn= left( ?, length(lfn)) order by length(lfn) desc limit 1",undef, $options);
+my $query = "SELECT tableName,lfn from INDEXTABLE where lfn= substr(?,1, length(lfn))  order by length(lfn) desc";
+$query = $self->paginate($query, 1,0);
+  my $tableRef=$self->queryRow($query,undef, $options);
+
   defined $tableRef or return;
   my $dataFromLFN = $self->getAllInfoFromLFN({method=>"queryValue",retrieve=>"lfn", table=>$tableRef},$entry,"$entry/");
   $dataFromLFN and return $dataFromLFN;
@@ -213,7 +216,9 @@ sub getHostsForEntry{
 
   $lfn =~ s{/?$}{};
   #First, let's take the entry that has the directory
-  my $entry=$self->query("SELECT tableName,hostIndex,lfn from INDEXTABLE where lfn=left('$lfn/',length(lfn)) order by length(lfn) desc limit 1");
+  my $query = "SELECT tableName,hostIndex,lfn from INDEXTABLE where lfn=substr('$lfn/',1,length(lfn))  order by length(lfn) desc ";
+  $query = $self->paginate($query,1,0);
+  my $entry=$self->query ($query);
   $entry or return;
   #Now, let's get all the possibles expansions (but the expansions at least as
   #long as the first index
@@ -446,7 +451,7 @@ sub listDirectory {
     my $GUIDList=$self->getPossibleGuidTables( $self->{INDEX_TABLENAME}->{name});
 
     my $content=$self->getAllInfoFromLFN({table=>$self->{INDEX_TABLENAME}, 
-					  where=>"dir=? and right(lfn,1)='/' $sort",
+					  where=>"dir=? and substr(lfn,length(lfn))='/' $sort",
 					  bind_values=>[$entry->{entryId}]});
     
     $content and push @all, @$content;
@@ -461,7 +466,7 @@ sub listDirectory {
 						    lfn=>$self->{INDEX_TABLENAME}->{lfn}}, 
 					    where=>"dir=? and l.guid=g.guid and p.guidid=g.guidid and p.seNumber=? $sort",
 					    bind_values=>[$entry->{entryId}, $selimit],
-					   retrieve=>"distinct l.*,lfn, insert(insert(insert(insert(hex(l.Guid),9,0,'-'),14,0,'-'),19,0,'-'),24,0,'-') as Guid,DATE_FORMAT(l.ctime, '%b %d %H:%i') as ctime"});
+				        retrieve=>"distinct l.entryId,l.owner,l.replicated,l.guidtime,l.aclId,l.lfn,  l.broken, l.expiretime, l.".$self->reservedWord("size").",l.dir,  l.gowner,  l.".$self->reservedWord("type")." ,l.md5,l.perm, l.guid,l.".$self->binary2string("l.Guid")." as Guid,".$self->dateFormat("ctime")});
       
       $content and push @all, @$content;
     }
@@ -543,8 +548,8 @@ sub removeFile {
   $lfnOnTable =~ s/$tablelfn//;
   my $guid = $db->queryValue("SELECT binary2string(l.guid) as guid FROM $tableName l WHERE l.lfn=?", undef, {bind_values=>[$lfnOnTable]}) || 0;
   #Insert into LFN_BOOKED only when the GUID has to be deleted
-  $db->do("INSERT INTO LFN_BOOKED(lfn, owner, expiretime, size, guid, gowner, user, pfn)
-    SELECT ?, l.owner, -1, l.size, l.guid, l.gowner, ?,'*' FROM $tableName l WHERE l.lfn=? AND l.type<>'l'", {bind_values=>[$lfn,$user,$lfnOnTable]})
+  $db->do("INSERT INTO LFN_BOOKED(lfn, owner, expiretime, ".$self->reservedWord("size").", guid, gowner, user, pfn)
+    SELECT ?, l.owner, -1, l.".$self->reservedWord("size").", l.guid, l.gowner, ?,'*' FROM $tableName l WHERE l.lfn=? AND l.type<>'l'", {bind_values=>[$lfn,$user,$lfnOnTable]})
     or $self->{LOGGER}->error("Database::Catalogue::LFN","Could not insert LFN(s) in the booking pool")
     and return; 
   
@@ -734,7 +739,7 @@ sub getSENumber{
   $DEBUG and $self->debug(2, "Checking the senumber");
   defined $se or return 0;
   $DEBUG and $self->debug(2, "Getting the numbe from the list");
-  my $senumber=$self->queryValue("SELECT seNumber FROM SE where seName=?", undef, 
+  my $senumber=$self->queryValue("SELECT seNumber FROM SE where upper(seName)=upper(?)", undef, 
 				 {bind_values=>[$se]});
   defined $senumber and return $senumber;
   $DEBUG and $self->debug(2, "The entry did not exist");
@@ -769,7 +774,7 @@ sub tabCompletion {
   my $dir=$self->queryValue("SELECT entryId from $tableName where lfn=?",undef,
 			    {bind_values=>[$dirName]});
   $dir or return;
-  my $rfiles = $self->queryColumn("SELECT concat('$lfn',lfn) from $tableName where dir=$dir and lfn rlike '^$entryName\[^/]*\/?\$'");
+  my $rfiles = $self->queryColumn("SELECT concat('$lfn',lfn) from $tableName where dir=$dir and ".$self->regexp("lfn", "^$entryName\[^/]*\/?\$"));
   return @$rfiles;
 
 }
@@ -899,7 +904,7 @@ sub copyDirectory{
     }else {
       $DEBUG and $self->debug(1, "This is complicated: from another database");
       my $query="SELECT distinct concat('$beginning', substr(concat('$entry->{lfn}',t1.lfn), $sourceLength )) as lfn, t1.".$self->reservedWord("size").",t1.type, $binary2string  as guid ,t1.perm FROM $join and $like";
-      $options->{k} and $query="select * from ($query) d where lfn!=concat('$beginning', substring('$entry->{lfn}$tsource', $sourceLength ))";
+      $options->{k} and $query="select * from ($query) d where lfn!=concat('$beginning', substr('$entry->{lfn}$tsource', $sourceLength ))";
       my $entries = $db->query($query);
       foreach  my $files (@$entries) {
 	my $guid="NULL";
@@ -930,7 +935,7 @@ sub copyDirectory{
   my $entries=$targetDB->query("select * from (SELECT lfn, entryId from $targetTable where dir=-1 or lfn='$target' or lfn='$targetParent') dd where lfn like '$target\%/' or lfn='$target' or lfn='$targetParent'");
   foreach my $entry (@$entries) {
     $DEBUG and $self->debug(1, "Updating tbe entry $entry->{lfn}");
-    my $update="update $targetTable set dir=$entry->{entryId} where dir=-1 and lfn rlike '^$entry->{lfn}\[^/]+/?\$'";
+    my $update="update $targetTable set dir=$entry->{entryId} where dir=-1 and ".$self->regexp("lfn", "^$entry->{lfn}\[^/]+/?\$");
     $targetDB->do($update);
     
   }
@@ -1021,12 +1026,12 @@ sub moveLFNs {
   $self->renumberLFNtable($fromTable, {'locked',1, 'min',$min});
 
   #ok, this is the easy case, we just copy into the new table
-  my $columns="entryId,md5,owner,gowner,replicated,aclId,expiretime,size,dir,type,guid,perm";
+  my $columns="entryId,md5,owner,gowner,replicated,aclId,expiretime,".$self->reservedWord("size").",dir,".$self->reservedWord("type").",guid,perm";
   my $tempLfn=$lfn;
   $tempLfn=~ s{$fromLFN}{};
 
   #First, let's insert the entries in the new table
-  if (!$self->do("INSERT into $toTable($columns,lfn) select $columns,substring(concat('$fromLFN', lfn), length('$toLFN')+1) from $fromTable where lfn like '${tempLfn}%' and lfn not like ''")){
+  if (!$self->do("INSERT into $toTable($columns,lfn) select $columns,substr(concat('$fromLFN', lfn), length('$toLFN')+1) from $fromTable where lfn like '${tempLfn}%' and lfn not like ''")){
     $self->unlock();
     return;
   }
@@ -1207,8 +1212,11 @@ sub getIndexHost {
   my $self=shift;
   my $lfn=shift;
   $lfn=~ s{/?$}{/};
-  my $options={bind_values=>[$lfn]};
-  return $self->queryRow("SELECT hostIndex, tableName,lfn FROM INDEXTABLE where lfn=left(?,length(lfn))  order by length(lfn) desc limit 1", undef, $options);
+  #my $options={bind_values=>[$lfn]};
+  my $query = "SELECT hostIndex, tableName,lfn FROM INDEXTABLE where lfn=substr('$lfn',1, length(lfn))  order by length(lfn) desc ";
+  $query = $self->paginate($query, 1,0);
+  # return $self->queryRow($query, undef, $options);
+  return $self->queryRow($query, undef, undef);
 }
 
 sub getMaxHostIndex {
@@ -1283,7 +1291,9 @@ sub insertIntoGroups {
   my $var = shift;
   
   $DEBUG and $self->debug(2,"In insertIntoGroups inserting new data");
-  $self->_do("INSERT IGNORE INTO GROUPS (Username, Groupname, PrimaryGroup) values ('$user','$group','$var')");
+$self->_do("INSERT INTO GROUPS ( Username, Groupname, PrimaryGroup) SELECT '$user','$group','$var' FROM DUAL WHERE NOT  EXISTS 
+(SELECT  * FROM GROUPS WHERE Username = '$user' AND Groupname = '$group' AND PrimaryGroup = '$var')");
+#  $self->_do("INSERT IGNORE INTO GROUPS (Username, Groupname, PrimaryGroup) values ('$user','$group','$var')");
 }
 
 sub deleteUser {
@@ -1358,13 +1368,13 @@ sub insertTagValue {
   $self->debug(1,"Ready to insert in the table $tableName and $fileName");
   if ($action eq "update") {
     $self->info( "We want to update the latest entry (if it exists)");
-    my $maxEntryId = $self->queryValue("SELECT MAX(entryId) FROM $tableName where file=?", 
-				       undef, {bind_values=>[$fileName]});
+  my $maxEntryId = $self->queryValue("SELECT MAX(entryId) FROM $tableName where ".$self->reservedWord("file")."=?", 
+	       undef, {bind_values=>[$fileName]});
     $DEBUG and $self->debug(2, "Got $maxEntryId");
     
     if ($maxEntryId) {
       $DEBUG and $self->debug(2, "WE ARE SUPPOSED TO ALTER THE ENTRY $maxEntryId");
-      $result = $self->update($tableName, $rdata, "file='$fileName' and entryId=$maxEntryId");
+      $result = $self->update($tableName, $rdata, $self->reservedWord("file")."='$fileName' and entryId=$maxEntryId");
       $finished = 1;
     }
   }
@@ -1379,7 +1389,8 @@ sub insertTagValue {
     $result = $self->insert($tableName, $rdata);
     if ($result) {
       $self->info( "Let's make sure that we only have one entry");
-      $self->delete($tableName, "file='$fileName' and entryId<".$self->getLastId());
+      #$self->delete($tableName, "file='$fileName' and entryId<".$self->getLastId());
+      $self->delete($tableName, $self->reservedWord("file")."='$fileName' and entryId<".$self->getLastId($tableName));
     }
   }
 
@@ -1398,7 +1409,7 @@ sub getTags {
   my $columns = shift || "*";
   my $where = shift || "";
   my $options=shift || {};
-  my $query="SELECT $columns from $tableName t where t.entryId=(select max(entryId) from $tableName t2 where t.file=t2.file) and $where";
+  my $query="SELECT $columns from $tableName t where t.entryId=(select max(entryId) from $tableName t2 where t.".$self->reservedWord("file")."=t2.".$self->reservedWord("file").") and $where";
   if ($options->{filename}){
 #    $query.=" and entryId=(select max(entryId) from $tableName where file=?)";
     $query.=" and file=? ";
@@ -1423,20 +1434,7 @@ sub getAllTagNamesByPath {
   my $path = shift;
   my $options=shift || {};
 
-  my $rec="";
-  my $rec2="";
-  my @bind=($path);
-  if ($options->{r}){
-    $rec=" or path like concat(?, '%') ";
-    push @bind, $path;
-  }
-  if ($options->{user}){
-    $self->debug(1, "Only for the user $options->{user}");
-    $rec2=" and user=?";
-    push @bind, $options->{user};
-  }
-      
-  $self->query("SELECT tagName,path from TAG0 where (? like concat(path,'%') $rec) $rec2 group by tagName", undef, {bind_values=>\@bind});
+return  $self->dbGetAllTagNamesByPath($path,$options);
 }
 
 sub getFieldsByTagName {
@@ -1451,8 +1449,9 @@ sub getFieldsByTagName {
   
   $sql.="  $fields FROM TAG0 WHERE tagName=?";
   if ($directory) {
-     $sql.=" and ? like concat(path, '%')";
-     push @bind, $directory;
+ #    $sql.=" and path like concat(?, '%')";
+     $sql.=" and ? like concat(path, '%')";  
+   push @bind, $directory;
    }
 
   $self->query($sql, undef, {bind_values=>\@bind});
@@ -1464,11 +1463,21 @@ sub getTagTableName {
   my $path=shift;
   my $tag=shift;
   my $options=shift ||{};
-  my $query="path=?";
-  $options->{parents} and $query="? like concat(path, '%') order by path desc limit 1";
-  my $tableName = $self->queryValue("SELECT tableName from TAG0 where tagName=? and $query",undef, 
-    {bind_values=>[$tag, $path]});
-  return $tableName;
+  my $query="path=?";my $whole_query ="";
+  if ($options->{parents}) { 
+	$query=" ? like concat(path, '%') order by path desc";
+
+ $whole_query = $self->paginate("SELECT tableName from TAG0 where tagName=? and $query",1,0); #limit and offset
+
+  }else{ $whole_query = "SELECT tableName from TAG0 where tagName=? and $query";}
+  my $res =  $self->queryValue($whole_query,undef, 
+		    {bind_values=>[$tag, $path]});
+  return $res;
+  #my $query="path=?";
+  #$options->{parents} and $query="? like concat(path, '%') order by path desc limit 1";
+  #my $tableName = $self->queryValue("SELECT tableName from TAG0 where tagName=? and $query",undef, 
+  #  {bind_values=>[$tag, $path]});
+  #return $tableName;
 }
 
 sub deleteTagTable {
@@ -1482,7 +1491,7 @@ sub deleteTagTable {
   $tagTableName or $self->info( "Error trying to delete the tag table of $path and $tag") and return 1;
   my $user=$self->{USER};
   $DEBUG and $self->debug(2, "Deleting entries from T${user}V$tag");
-  my $query="DELETE FROM $tagTableName WHERE file like '$path%' and file not like '$path/%/%'";
+  my $query="DELETE FROM $tagTableName WHERE ". $self->reservedWord("file")." like '$path%' and ". $self->reservedWord("file") ." not like '$path/%/%'";
   
   $self->_do($query);
 
@@ -1529,7 +1538,7 @@ sub getDiskUsage {
       my $where="where lfn like '$pattern%'";
       $entry->{lfn}=~ m{^$lfn} and $where="where 1";
       $options =~ /f/ and $where.= " and type='f'" ;
-      my $partialSize=$self->queryValue ("SELECT sum(size) from L$entry->{tableName}L $where");
+      my $partialSize=$self->queryValue ("SELECT sum(".$self->reservedWord("size").") from L$entry->{tableName}L $where");
       $DEBUG and $self->debug(1, "Got size $partialSize");
       $size+=$partialSize;
     }
@@ -1539,7 +1548,7 @@ sub getDiskUsage {
   } else {
     my $table="D$self->{INDEX_TABLENAME}->{name}L";
     $DEBUG and $self->debug(1, "Checking the diskusage of file $lfn");
-    $size=$self->queryValue("SELECT size from $table where lfn='$lfn'");
+    $size=$self->queryValue("SELECT ".$self->reservedWord("size")." from $table where lfn='$lfn'");
   }
   
   return $size;
@@ -1738,7 +1747,8 @@ sub internalQuery {
       my $concat="concat('$refTable->{lfn}', lfn)";
       $searchP =~ s/^$refTable->{lfn}// and $concat="lfn";
       my $d = ("WHERE $concat LIKE '$searchP%$f%' and replicated=0");
-      $options->{d} or $d.=" and right(lfn,1) != '/' and lfn!= \"\"";
+     # $options->{d} or $d.=" and right(lfn,1) != '/' and lfn!= \"\"";
+      $options->{d} or $d.=" and SUBSTR(lfn,-1) != '/' and ( lfn !=\'\' or lfn is null)";
       push @joinQueries, $d;
     } else {
       # query an exact file name
@@ -1783,14 +1793,16 @@ sub internalQuery {
 	  if ($options->{'m'}){
 	    $self->info("WE WANT EXACT FILES!!");
 	    my $l=length($refTable->{lfn});
-	    push @newQueries, " JOIN $table $oldQuery $union $table.$query and substring($table.file,$l+1)=l.lfn  and left($table.file,$l)='$refTable->{lfn}'";
-
+	  #  push @newQueries, " JOIN $table $oldQuery $union $table.$query and substring($table.file,$l+1)=l.lfn  and left($table.file,$l)='$refTable->{lfn}'";
+         push @newQueries, " , $table $oldQuery $union $table.$query and substr($table.".$self->reservedWord("file").",$l+1)=l.lfn  and substr($table.".$self->reservedWord("file").",1,$l) ='$refTable->{lfn}'";
 	  } else{
-	    push @newQueries, " JOIN $table $oldQuery $union $table.$query and $table.file like '%/' and concat('$refTable->{lfn}', l.lfn) like concat( $table.file,'%') ";
-	    
+	#    push @newQueries, " JOIN $table $oldQuery $union $table.$query and $table.file like '%/' and concat('$refTable->{lfn}', l.lfn) like concat( $table.file,'%') ";
+	    push @newQueries, " , $table $oldQuery $union $table.$query and $table.".$self->reservedWord("file")."  like '%/' and concat('$refTable->{lfn}', l.lfn) like concat( $table.".$self->reservedWord("file").",'%') ";
 	    my $length=length($refTable->{lfn})+1;
-	    push @newQueries, " JOIN $table $oldQuery $union $table.$query and l.lfn=substring($table.file, $length) and left($table.file, $length-1)='$refTable->{lfn}'";
-	  }
+	#    push @newQueries, " JOIN $table $oldQuery $union $table.$query and l.lfn=substring($table.file, $length) and left($table.file, $length-1)='$refTable->{lfn}'";
+	    push @newQueries, " , $table $oldQuery $union $table.$query and l.lfn=substr($table.".$self->reservedWord("file").", $length) and substr($table.".$self->reservedWord("file").",1, $length-1)  ='$refTable->{lfn}'";
+
+      }
 	}
       }
     }
