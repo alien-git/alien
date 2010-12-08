@@ -119,11 +119,7 @@ Usage:
 sub registerOutput{
   my $self=shift;
   my $jobid=shift;
-  eval "require AliEn::Service::Optimizer::Job::Saved";
-  if ($@){
-    $self->info("Error requiring the Optimizer::Saved: $@");
-    return;
-  }
+
   my ($jdl)=$self->execute("ps", "jdl", $jobid, "-silent") or 
     $self->info("Error getting the jdl of the job",2) and return;
 
@@ -142,19 +138,21 @@ sub registerOutput{
   $ok or $self->info("This job didn't register any output") and return;
   my $files={};
   my %filesToRegister;
-  my ($pwd)=$self->execute("pwd");
-  $pwd=~ s{/$}{};
+
+  my $dir="~/recycle/alien-job-$jobid";
+  $self->execute("mkdir", "-p", $dir) or $self->info("Error creating $dir") and return; 
   
-  $self->{CATALOGUE}=$self;
   foreach my $line (@info){
-    AliEn::Service::Optimizer::Job::Saved::registerLine($self,$pwd,$line, \%filesToRegister) or $self->info("Error registering the entry '$line'");
+    my ($file, @links)=split (/;;/, $line);
+    my ($lfn, $guid, $size, $md5, $pfn)=split (/###/, $file); 
+    $guid or $guid=AliEn::GUID->new()->CreateGuid();
+
+    #my $info={lfn=>$lfn, md5=>$md5, size=>$size,    guid=>$guid};
+    $self->execute("add", "-r", "-size $size", "$dir/$lfn", "-md5", $md5, $pfn, "-silent")
+     and $self->info("File $dir/$lfn registered in the catalogue");
+    
   }
-  delete $self->{CATALOGUE};
-  my @filesToRegister=values %filesToRegister;
-  if (@filesToRegister){
-    $self->debug(1, "Doing the multiinsert now");
-    $self->{CATALOG}->f_bulkRegisterFile("",$pwd, \@filesToRegister);
-  }
+  
   return 1;
 }
 
