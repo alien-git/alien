@@ -389,7 +389,7 @@ sub checkWakesUp{
  
 #Debug
 #$output = 3;
-my $query = {maxtime=>0};
+my $query = {maxtime=>0,ctime=>0,pfn=>""};
  
   my $extra={pfn=>$pfn};
   if (! $pfn ) {
@@ -410,13 +410,14 @@ my $query = {maxtime=>0};
         }
         elsif ($output eq 1){
           $status = "DONE";
+          $query->{pfn} = $pfn;
 #   $self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, $status, "ALIEN_SOAP_RETRY",$extra);
         }     
         else {$status = "FAILED_T";}
   }
 
   #$self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, $status, $query);
-  $self->{LOGGER}->debug("FTD","Update??? Transfer $id with ".$query->{maxtime}." and ".$query->{ctime});
+  $self->{LOGGER}->debug("FTD","Update??? Transfer $id with ".$query->{maxtime}." and ".$query->{ctime}." and pfn: ".$query->{pfn});
   $self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, $status,"ALIEN_SOAP_RETRY",$query);
   $self->info("$$ returns!!");
   return 1;
