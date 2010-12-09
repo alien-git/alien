@@ -147,8 +147,6 @@ sub initialize {
   $self->{CONFIG} = new AliEn::Config() or return;
 
   $self->{UI} = 0;
-  $self->{PROCDIR} = 0;
-
 
   $self->{PORT} = $self->getPort();
   $self->{PORT} or return;
@@ -1641,7 +1639,8 @@ sub putFiles {
     #so that we can know if we are registering a new file or a replica
     my @registerInJDL=();
 
-
+    $self->{PROCDIR} = $self->{OUTPUTDIR} || "~/alien-job-$ENV{ALIEN_PROC_ID}";
+    print "Ready to do $self->{PROCDIR}\n";
     ($self->{STATUS} =~ /^ERROR_V/)
        or $self->{UI}->execute("mkdir","-p",$self->{PROCDIR});
 
@@ -1761,12 +1760,10 @@ sub addFile {
 
   $self->putJobLog("trace","gron: adding file: add, $options, $file, $workdir/$file, $storeTags");
 
-#  $self->{UI}->execute("cd",$self->{PROCDIR}."/job-output");
- 
   if($uploadOnly) {
-    @addResult=$self->{UI}->execute("add", "-upload", $options, "$file", "$workdir/$file", $storeTags);
+    @addResult=$self->{UI}->execute("add", "-upload", $options, "$self->{PROCDIR}/$file", "$workdir/$file", $storeTags);
   } else {
-    @addResult=$self->{UI}->execute("add", $options, "$file", "$workdir/$file", $storeTags);
+    @addResult=$self->{UI}->execute("add", $options, "$self->{PROCDIR}/$file", "$workdir/$file", $storeTags);
   }
 
   my $sucess = shift @addResult;
@@ -1794,7 +1791,7 @@ sub registerFile {
   my $env = AliEn::Util::deserializeSignedEnvelope($signedEnvelope);
 
   $self->putJobLog("trace", "Trying to register file with: add -r -user=$self->{JOB_USER} -tracelog -size $env->{size} -md5 $env->{md5}  $file guid:///$env->{guid}?ZIP=$file");
-  my ($addResult)=$self->{UI}->execute("add", "-r", "-tracelog", "-size $env->{size}", "$file", "guid:///$env->{guid}?ZIP=$file");
+  my ($addResult)=$self->{UI}->execute("add", "-r", "-tracelog", "-size $env->{size}", "$self->{PROCDIR}/$file", "guid:///$env->{guid}?ZIP=$file");
 
   ($addResult eq -1) and
      $self->putJobLog("error","Error while registering file link $file in archive $archive")
@@ -2342,10 +2339,7 @@ CPU Speed                           [MHz] : $ProcCpuspeed
       $self->info("Error getting an instance of the catalog");
       $self->putJobLog("error","Could not get an instance of the LCM");
   } else {
-    $self->{PROCDIR} = $self->{OUTPUTDIR} || "~/alien-job-$ENV{ALIEN_PROC_ID}";
-   
     #this hash will contain all the files that have already been submitted,
-
     my $uploadFilesState = $self->prepare_File_And_Archives_From_JDL_And_Upload_Files() ;
 
     if ($self->{STATUS}=~ /DONE/){

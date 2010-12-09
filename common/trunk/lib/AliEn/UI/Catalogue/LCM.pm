@@ -301,8 +301,9 @@ sub get {
      ($filehash->{lfn})=$self->{CATALOG}->f_guid2lfn("",$filehash->{guid});
    } else {
      ($filehash)=$self->{CATALOG}->checkPermissions("r",$file,0,1,1);
+      $self->{CATALOG}->isFile($file, $filehash->{lfn}) or $self->info("File $file does not exist") and return;
    }
-   $filehash or return 0;
+   $filehash or return;
 #   $filehash = shift @{$filehash};
    $self->info("Coming back from checkPermission on $file...". Dumper($filehash));
 
