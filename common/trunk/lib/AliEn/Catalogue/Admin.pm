@@ -976,7 +976,6 @@ sub removeExpiredFiles {
   ( $self->{ROLE} =~ /^admin(ssl)?$/ )
     or $self->info("Error: Only the administrator can remove entries from LFN_BOOKED") and return;
   $self->info("Removing expired entries from LFN_BOOKED");
-
   my $hosts = $self->{DATABASE}->getAllHosts();
   foreach my $host (@$hosts) {
     my ($db, $extra) = $self->{DATABASE}->{LFN_DB}->reconnectToIndex($host->{hostIndex});
@@ -984,90 +983,102 @@ sub removeExpiredFiles {
     use Time::HiRes qw (time); 
     my $currentTime = time();
     #delete directories
-    $db->query("DELETE FROM LFN_BOOKED WHERE lfn LIKE '%/' AND expiretime<?", undef ,{bind_values=>[$currentTime]});
-    my $files = $db->query("SELECT lfn, size, gowner, binary2string(guid) as guid, substr(binary2date(guid),1,8) as guidtime, user FROM LFN_BOOKED 
+    $db->do("DELETE FROM LFN_BOOKED WHERE lfn LIKE '%/' ");
+    my $files = $db->query("SELECT expiretime, lfn, size, gowner, binary2string(guid) as guid,pfn,  user FROM LFN_BOOKED 
       WHERE expiretime<?", undef, {bind_values=>[$currentTime]});
     $files or next;
     #Get possible G#L tables
     foreach my $file (@$files) {
-      my $lfn = $file->{lfn};
-      my $guid = $file->{guid};
-      my $size = $file->{size};
-      my $count = 0;
-      my $guidtime = $file->{guidtime};
-      my $owner = $file->{gowner};
-      my $action_user = $file->{user};
-      my $physicalDelete = 0;
-      my $possibleGuidTable = $db->query("SELECT h.db AS dbName, gI.tableName AS tableName FROM GUIDINDEX gI, HOSTS h 
-        WHERE h.hostIndex=gI.hostIndex AND hex(gI.guidTime)<hex(?) ORDER BY hex(gI.guidTime)",
-        undef, {bind_values=>[$guidtime]});
-      $self->{DATABASE}->{GUID_DB}->{VIRTUAL_ROLE} = "$action_user";
-      $self->info("Deleting $lfn as $self->{DATABASE}->{GUID_DB}->{VIRTUAL_ROLE}");
-      if($self->{DATABASE}->{GUID_DB}->checkPermission("w",$guid)) {
-        $self->info("Have Permission on GUID");
-        #Delete file
-        foreach my $guidtable (@$possibleGuidTable) {
-          my $gTableName = "$guidtable->{dbName}.G$guidtable->{tableName}L";
-          my $gTableName_PFN = $gTableName."_PFN";
-          my $guidId;
-          #Get file storage data
-          #These come from rm/rmdir commands
-          my $fileData_delete_all_pfn = $db->query("SELECT g_p.pfn, g_p.seNumber, g.guidId, s.seName
-            FROM $gTableName_PFN g_p, $gTableName g, SE s, LFN_BOOKED l
-            WHERE g_p.guidId=g.guidId AND s.seNumber=g_p.seNumber AND g.guid=l.guid AND l.lfn LIKE ? AND l.pfn='*'",
-            undef, {bind_values=>[$lfn]});
-          #These come from deleteMirror
-          my $fileData_delete_single_pfn = $db->query("SELECT l.pfn, g_p.seNumber, g.guidId, l.se as seName, 0 as deleteGUID
-            FROM $gTableName_PFN g_p, $gTableName g, LFN_BOOKED l
-            WHERE g_p.guidId=g.guidId AND g.guid=l.guid AND l.lfn LIKE ? AND g_p.pfn=l.pfn",
-            undef, {bind_values=>[$lfn]});
-          my $deleteGUID = scalar @$fileData_delete_all_pfn>0 ? 1:0;
-          my @fileData = (@$fileData_delete_all_pfn,@$fileData_delete_single_pfn);
-          $count = scalar @fileData - 1;
-
-          #Delete from SE
-          foreach my $data (@fileData) {
-            my $pfn = $data->{pfn};
-            my $seNumber = $data->{seNumber};
-            my $seName = $data->{seName};
-            $guidId = $data->{guidId};
-            my $list=$db->queryColumn("SELECT protocol FROM transfers.PROTOCOLS 
-              WHERE sename=? AND deleteprotocol=1",undef ,{bind_values=>[$seName]});
-            my @protocols = @$list;
-            my $pD = 0;
-            @protocols or push @protocols, "rm";
-            foreach my $protocol (@protocols) {
-              if (grep(/^$protocol$/i, @{$self->{CONFIG}->{FTD_PROTOCOL_LIST}})){
-                my $protName = "AliEn::FTP::".lc($protocol);
-                unless($self->{DELETE}->{lc($protocol)}){
-                  eval "require $protName";
-                  $self->{DELETE}->{lc($protocol)}=$protName->new();
-                }
-                $pD = $self->{DELETE}->{lc($protocol)}->delete($pfn);
-                defined $pD and $physicalDelete+=$pD;
-                $pD and last;
-              }
-              else {   
-                $self->info("$protocol is not in the FTD_PROTOCOL_LIST - File not being deleted!");
-              }
-            }                                     
-
-            #CLEAN G#L, G#L_PFN and LFN_BOOKED TABLES
-            $physicalDelete and $db->do("DELETE FROM $gTableName_PFN WHERE pfn LIKE '$pfn'");
-          }
-          $physicalDelete and $deleteGUID and $db->do("DELETE FROM $gTableName WHERE binary2string(guid) LIKE '$guid'");
-        }
-      }
-      ($physicalDelete==$count+1) 
-        and $db->do("DELETE FROM LFN_BOOKED WHERE lfn LIKE '$lfn'");
+      
+      my @pfns=$self->cleanupGUIDCatalogue($db, $file);
+     
+      my $count=$#pfns;
+      
+      my $physicalDelete = $self->physicalDeleteEntries($db, @pfns);
+      #($physicalDelete==$count+1) 
+      # and 
+      $db->do("DELETE FROM LFN_BOOKED WHERE lfn=? and expiretime=?", {bind_values=>[$file->{lfn}, $file->{expiretime}]});
       ($physicalDelete==$count+1) 
         and ($count>0) 
-        and $self->{DATABASE}->{LFN_DB}->fquota_update(-1*$size*$count,-1*$count,$owner);
-      $self->info("$lfn($guid) was deleted($physicalDelete physical files) and quotas were rolled back (".-1*$size*$count.", ".-1*$count.") times for $owner");
+        and $self->{DATABASE}->{LFN_DB}->fquota_update(-1*$file->{size}*$count,-1*$count,$file->{owner});
+      $self->info("$file->{lfn}($file->{guid}) was deleted($physicalDelete physical files) and quotas were rolled back (".-1*$file->{size}*$count.", ".-1*$count.") times for $file->{user}");
     }
   }
   $self->{DATABASE}->{GUID_DB}->{VIRTUAL_ROLE} = "admin";
 }
+
+sub physicalDeleteEntries {
+  my $self=shift;
+  my $db=shift;
+
+  foreach my $data (@_){
+    my $pfn = $data->{pfn};
+    my $seNumber = $data->{seNumber};
+    my $seName = $data->{seName};
+    my $list=$db->queryColumn("SELECT protocol FROM transfers.PROTOCOLS
+              WHERE sename=? AND deleteprotocol=1",undef ,{bind_values=>[$seName]});
+    my @protocols = @$list;
+    my $pD = 0;
+    @protocols or push @protocols, "rm";
+    foreach my $protocol (@protocols) {
+      my $protName = "AliEn::FTP::".lc($protocol);
+      unless($self->{DELETE}->{lc($protocol)}){
+        eval "require $protName";
+        $self->{DELETE}->{lc($protocol)}=$protName->new();
+      }
+      if ( $self->{DELETE}->{lc($protocol)}->delete($pfn)){
+        $self->info("File $pfn deleted!!");
+        $pD=1;
+        last;
+      }
+    }
+    if (! $pD){
+      $self->info("The file ouldn't be deleted");
+      $db->do("insert into DELETE_FAILED (pfn) values (?)", {bind_values=>[$pfn]}) 
+   }
+  }  
+  return 1;
+}
+sub cleanupGUIDCatalogue{
+  my $self=shift;
+  my $db=shift;   
+  my $file=shift;
+  my $count=0;
+  my @pfns=();
+  my $physicalDelete=0;
+
+  my $dbinfo= $self->{DATABASE}->{GUID_DB}->getIndexHostFromGUID($file->{guid});
+  $dbinfo or return;
+  my ($guiddb, $path)=$self->{DATABASE}->{GUID_DB}->reconnectToIndex( $dbinfo->{hostIndex});
+
+  $guiddb or $self->info("Error reconnecting") and  return ;
+  $self->{DATABASE}->{GUID_DB}->{VIRTUAL_ROLE} = "$file->{user}";
+  $self->info("Deleting $file->{lfn} as $self->{DATABASE}->{GUID_DB}->{VIRTUAL_ROLE}");
+  if($self->{DATABASE}->{GUID_DB}->checkPermission("w",$file->{guid})) {
+    $self->info("Have Permission on GUID");
+        #Delete file
+    #foreach my $guidtable (@$possibleGuidTable) {
+    my $table = $dbinfo->{tableName};
+    if ($file->{pfn}=~ m{^\*$}){
+      #Delete all the pfns of that file
+      my $ref= $guiddb->query("SELECT pfn, senumber
+            FROM ${table}_PFN  join  $table g using (guidId)
+            WHERE guid=string2binary(?)",
+            undef, {bind_values=>[$file->{guid}]});
+      $ref and @pfns=@$ref;
+      $guiddb->do("delete from g using ${table}_PFN g join $table using (guidid) where guid=?", {bind_values=>[$file->{guid}]});
+      $guiddb->do("delete from $table  where guid=?", {bind_values=>[$file->{guid}]});
+
+    } else {
+      #Just delete the entry...
+      @pfns={pfn=>$file->{pfn}, senumber=>$file->{senumber}};
+      $guiddb->do("delete from g using $table join ${table}_PFN g using (guidid ) where guid=string2binary(?) and pfn=?", {bind_values=>[$file->{guid}, $file->{pfn}]});
+    }
+  }
+  return @pfns;
+}
+
+
 
 sub checkOrphanGUID{
   my $self=shift;

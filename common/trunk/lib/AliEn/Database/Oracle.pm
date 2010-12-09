@@ -18,7 +18,7 @@ use strict;
 use DBI;
 use AliEn::Database;
 
-use Tie::CPHash;
+#use Tie::CPHash;
 
 use AliEn::SOAP;
 use AliEn::Logger::LogObject;
