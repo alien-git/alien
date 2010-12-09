@@ -35,7 +35,6 @@ This module implements the database wrapper in case of using the driver mysql. S
 
 =cut
 
-
 =item C<reservedWord>
 
   $res = $dbh->reservedWord($word);
@@ -47,6 +46,19 @@ sub reservedWord {
   my $word = shift;
   return $word;
 }
+
+=item C<preprocessFields>
+
+$res = $dbh->preprocessFields($keys);
+
+=cut
+
+sub preprocessFields {
+  my $self  = shift;
+  my $new_keys = shift;
+ return $new_keys;
+}
+
 =item C<createTable>
 
   $res = $dbh->createTable($word);
