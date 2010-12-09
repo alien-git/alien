@@ -61,31 +61,7 @@ sub new {
 
 sub checkTables{
   my $self=shift;
-  $self->checkTable("USERS_LDAP", "user",{user=>"varchar(15) not null",
-					  dn=>"varchar(255)",
-					  up=>"smallint"}) or return;
-  
-  
-  $self->checkTable("USERS_LDAP_ROLE", "user",{user=>"varchar(15) not null",
-					       role=>"varchar(15)",
-					       up=>"smallint"}) or return;
-  $self->checkTable("TOKENS", "ID", {ID=>"int(11) not null auto_increment primary key",
-				     "Username","varchar(16)",
-				     "Expires","datetime",
-				     "Token"=>"varchar(32)",
-				     "password"=>"varchar(16)",
-				     "SSHKey"=>"text",
-				     "dn"=>"varchar(255)",
-				    }) or return;
-  $self->checkTable("DBKEYS", "Name", {"Name"=> "varchar(20) NOT NULL DEFAULT ''",
-				       "DBKey"=>"blob",
-				       "LastChanges"=>"datetime NOT NULL DEFAULT '0000-00-00 00:00:00'"
-				      }) or return;
-  $self->checkTable("jobToken", "jobId", { "jobId"=>"int(11) NOT NULL DEFAULT '0' PRIMARY KEY",
-					   "userName"=>"char(20) DEFAULT NULL",
-					   "jobToken"=>"char(255) DEFAULT NULL",
-					 }) or return;
-  
+  $self->createAdminTables;
   return $self;
 }
 
@@ -151,23 +127,20 @@ sub setPassword {
 
 sub getAllFromTokens {
     my $self = shift;
-    my $attr = shift || "*";
+    my $attr = shift || " ID,Username,Expires,Token,SSHKey,password,dn ";
 
     $self->query("SELECT $attr from TOKENS");
 }
 
 sub insertToken {
-	my $self = shift;
-	my $set;
-
-	$set->{ID} = shift;
-	$set->{Username} = shift;
-	$set->{Expires} = "Now()";
-	$set->{Token} = shift;
-	$set->{password} = shift;
-	$set->{SSHKey} = shift;
-
-	return $self->insert("TOKENS",$set);
+  my $self = shift;
+  #we need to do it calling directly to do because in Oracle the bind value "now()" is understood as a string.
+  my $id = shift;
+  my $username = shift; 
+  my $token = shift; 
+  my $pass = shift; 
+  my $sshkey = shift || "null"; 
+  return $self->do("INSERT INTO TOKENS ( username, expires, token, password, sshkey) VALUES ('$username', ".$self->currentDate.", '$token','$pass', $sshkey)");	
 }
 
 sub updateToken {
@@ -211,15 +184,17 @@ sub addTime {
       and return;
   
   $self->debug(1,"In addTime increasing expiration period for user's $user token");
-  return $self->do("UPDATE TOKENS SET Expires=(DATE_ADD(now() ,INTERVAL ? HOUR)) WHERE Username= ?", {bind_values=>[$hours, $user]});
+#  return $self->do("UPDATE TOKENS SET Expires=(DATE_ADD(now() ,INTERVAL ? HOUR)) WHERE Username= ?", {bind_values=>[$hours, $user]});
+  return $self->addTimeToToken($user,$hours);
 }
+
 
 sub getFieldsFromTokens {
   my $self = shift;
   my $username = shift
     or $self->{LOGGER}->error("Admin","In getFieldsFromTokens user name is missing")
       and return;
-  my $attr = shift || "*";
+  my $attr = shift || " ID,Username,Expires,Token,SSHKey,password,dn ";
   
   $self->debug(1,"In getFieldsFromTokens fetching attributes $attr for user name $username from table TOKENS");
   $self->queryRow("SELECT $attr from TOKENS where Username= ?", undef, {bind_values=>[$username]});
@@ -230,7 +205,7 @@ sub getFieldFromTokens {
   my $username = shift
     or $self->{LOGGER}->error("Admin","In getFieldFromTokens user name is missing")
       and return;
-  my $attr = shift || "*";
+  my $attr = shift || "ID,Username,Expires,Token,SSHKey,password,dn";
 
   $self->debug(1,"In getFieldFromTokens fetching attribute $attr for user name $username from table TOKENS");
   $self->queryValue("SELECT $attr from TOKENS where Username= ?", undef, {bind_values=>[$username]});
@@ -253,7 +228,7 @@ sub getFieldFromJobToken {
   my $id = shift
     or $self->{LOGGER}->error("Admin","In getFieldFromJobToken job id is missing")
       and return;
-  my $attr = shift || "*";
+  my $attr = shift || "jobId,userName,jobToken";
   
   $self->debug(1,"In getFieldFromJobToken fetching attribute $attr for job id $id from table jobToken");
   return $self->queryValue("SELECT $attr FROM jobToken WHERE jobId= ?", undef, {bind_values=>[$id]});
@@ -264,7 +239,7 @@ sub getFieldsFromJobToken {
   my $id = shift
     or $self->{LOGGER}->error("Admin","In getFieldsFromJobToken job id is missing")
       and return;
-  my $attr = shift || "*";
+  my $attr = shift || "jobId,userName,jobToken";
   
   $self->debug(1,"In getFieldsFromJobToken fetching attributes $attr for job id $id from table jobToken");
   return $self->queryRow("SELECT $attr FROM jobToken WHERE jobId= ?", undef, {bind_values=>[$id]});
