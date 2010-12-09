@@ -1270,12 +1270,6 @@ sub getFiles {
 
   my $procDir = AliEn::Util::getProcDir($self->{JOB_USER}, undef, $self->{QUEUEID});
 
-#  if (!( $catalog->execute("mkdir","$procDir/job-output","-ps"))) {
-#    print STDERR "ERROR Creating the job-output directory!\n";
-#    $self->putJobLog("error","Could not create the output directory in the catalogue: $procDir/job-output");
-#    return;
-#  }
-
   $self->info("Let's check if there are any files to stage");
   
   my ($ok, @stage)=$self->{CA}->evaluateAttributeVectorString("InputData");
@@ -1614,7 +1608,6 @@ sub putFiles {
   my $self=shift;
   my $fs_table=shift;
   my $filesAdded=1;
-  print "gron: Workdir is: $self->{WORKDIR}\n";
   system ("ls -al $self->{WORKDIR}");
   my $oldOrg=$self->{CONFIG}->{ORG_NAME};
   my $jdl;
@@ -1634,13 +1627,10 @@ sub putFiles {
     my @addedFiles=();
     my $remoteDir = "$self->{CONFIG}->{LOG_DIR}/proc$id";
 
-#    $self->{UI}->execute("cd",$self->{PROCDIR} ."/job-output");
-
     #so that we can know if we are registering a new file or a replica
     my @registerInJDL=();
 
     $self->{PROCDIR} = $self->{OUTPUTDIR} || "~/alien-job-$ENV{ALIEN_PROC_ID}";
-    print "Ready to do $self->{PROCDIR}\n";
     ($self->{STATUS} =~ /^ERROR_V/)
        or $self->{UI}->execute("mkdir","-p",$self->{PROCDIR});
 
@@ -1714,7 +1704,6 @@ sub putFiles {
 
     if ($self->{STATUS} =~ /^ERROR_V/) {
       $self->{JDL_REGISTERFILES} = join(",",@registerInJDL);
-      $self->info("gron: WE HAVE AN ERROR_V AND ADDED FOR THE JDL: $self->{JDL_REGISTERFILES}");
     } 
 
   }
@@ -1758,7 +1747,7 @@ sub addFile {
   my $options = " -tracelog -feedback ";
   $guid and $options .= " -guid=$guid";
 
-  $self->putJobLog("trace","gron: adding file: add, $options, $file, $workdir/$file, $storeTags");
+  $self->putJobLog("trace","adding file: add, $options, $file, $workdir/$file, $storeTags");
 
   if($uploadOnly) {
     @addResult=$self->{UI}->execute("add", "-upload", $options, "$self->{PROCDIR}/$file", "$workdir/$file", $storeTags);
@@ -2536,7 +2525,6 @@ sub registerLogs {
     my $data=$self->submitFileToClusterMonitor($dir,$basename, "execution.out");
     $data or $self->info("Error submitting the log file") and return;
 
-    $self->info("gron: I WILL REGISTER THE JOBLOG: execution.out, $data->{size}, $data->{md5}, $data->{pfn}");
 
     my $registerLogString = "\"".join ("###", "execution.out", 0, ($data->{size} || 0), ($data->{md5}|| 0),  $data->{pfn}) ."\"";
 

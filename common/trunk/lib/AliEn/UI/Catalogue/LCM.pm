@@ -804,13 +804,11 @@ sub resortArrayToPrioElementIfExists {
    my $list=shift;
    my @newlist=();
    my $exists=0;
-   $self->info("gron: prio: $prio, list: @$list");
    foreach (@$list) {
      (lc($prio) eq lc($_)) and $exists=1 
       or push @newlist, $_;
    }
    $exists and  @newlist = ($prio,@newlist);
-    $self->info("gron: resorted SE list: @newlist");
    return \@newlist;
 }
 
@@ -1492,7 +1490,6 @@ sub addFile {
   if($options->{register}) {
     my $size = (shift || $options->{size} || 0);
     my $md5sum = (shift || $options->{md5} || 0);
-    $self->info("gron: Registering pfn ...");
     return $self->registerPFN($options->{user}, $targetLFN, $sourcePFN, $options->{guid}, $size, $md5sum, $options->{feedback},$options->{silent},$seSpecs[0]);
   }
 
@@ -1500,7 +1497,6 @@ sub addFile {
     $self->versionLFN($targetLFN) or $self->info("ERROR: Versioning file failed") and return 0;
   }
 
-  $self->info("gron: Adding a file");
   return $self->addFileToSEs($options->{user}, $targetLFN, $sourcePFN, \@seSpecs, $options->{guid}, $options->{feedback},$options->{upload},$options->{silent});
 
 }
@@ -1660,9 +1656,6 @@ sub addFileToSEs {
 
   (scalar(@{$result->{usedEnvelopes}}) gt 0) or $self->error("We couldn't upload any copy of the file.") and return;
 
-  $self->info("gron: scalar of the usedEnvelopes: ".scalar(@{$result->{usedEnvelopes}}));
-  $self->info("gron: the returned usedEnvelopes are: @{$result->{usedEnvelopes}}");
-  
   my @successEnvelopes;
   if($uploadOnly) {
    @successEnvelopes = @{$result->{usedEnvelopes}};
@@ -1713,7 +1706,7 @@ sub putOnStaticSESelectionListV2{
       $self->notice("We select out of a supplied static list the SEs to save on: @$ses, count: $selOutOf");
    while ((scalar(@$ses) gt 0 and $selOutOf gt 0)) {
      (scalar(@$ses) gt 0) and my @staticSes= splice(@$ses, 0, $selOutOf);
-     $self->info("gron: trying to get envelopes for: @staticSes");
+     $self->info("trying to get envelopes for: @staticSes");
 
      my @envelopes = AliEn::Util::deserializeSignedEnvelopes($self->{CATALOG}->authorize("write", {lfn=>$targetLFN, 
     wishedSE=>join(";", @staticSes), size=>$size, md5=>$md5, guidRequest=>($result->{guid} || 0)}));
@@ -1728,7 +1721,6 @@ sub putOnStaticSESelectionListV2{
        (my $res, $result) = $self->uploadFileAccordingToEnvelope($result, $sourcePFN, $envelope);
        $res or next;
        push @{$result->{usedEnvelopes}}, $envelope->{signedEnvelope}; 
-       $self->info("gron: pushed the following envelope to the used ones:  $envelope->{signedEnvelope}");
        $selOutOf--;
      }
    }
@@ -1768,13 +1760,7 @@ sub putOnDynamicDiscoveredSEListByQoSV2{
        (my $res, $result) = $self->uploadFileAccordingToEnvelope($result, $sourcePFN, $envelope);
        push @$excludedSes, $envelope->{se};
        $res or next;
-       $self->info("gron: before the following envelope to the used ones:  $envelope->{signedEnvelope}");
-       $self->info("gron: before length of used ones:".scalar(@{$result->{usedEnvelopes}}));
-       $self->info("gron: before the array of used ones:".join(@{$result->{usedEnvelopes}}));
        push @{$result->{usedEnvelopes}}, $envelope->{signedEnvelope}; 
-       $self->info("gron: pushed the following envelope to the used ones:  $envelope->{signedEnvelope}");
-       $self->info("gron: length of used ones:".scalar(@{$result->{usedEnvelopes}}));
-       $self->info("gron: the array of used ones:".join(@{$result->{usedEnvelopes}}));
        $count--;
      }
   }
