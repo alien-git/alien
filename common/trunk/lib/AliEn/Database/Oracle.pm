@@ -18,9 +18,7 @@ use strict;
 use DBI;
 use AliEn::Database;
 
-#use AliEn::TokenManager;
-
-#use AliEn::Config;
+use Tie::CPHash;
 
 use AliEn::SOAP;
 use AliEn::Logger::LogObject;
@@ -645,11 +643,11 @@ my %tables=(HOSTS=>["hostIndex", {hostIndex=>"number(19) primary key",
 	     
   foreach my $table (keys %tables){
     $self->info("Checking table $table");
-    $db->checkTable($table, @{$tables{$table}})
+    $self->checkTable($table, @{$tables{$table}})
       or return;
   }
   foreach my $table(keys %autoincrements){
-	 $db->defineAutoincrement($table,$autoincrements{$table});
+	 $self->defineAutoincrement($table,$autoincrements{$table});
   }
 }
 
@@ -764,10 +762,46 @@ sub checkSETable {
   #This table we want it case insensitive
 #  return $self->do("alter table SE  convert to CHARacter SET latin1");
 }
+sub createAdminTables{
+  my $self = shift;
+
+  my %autoincrements=("TOKENS"=>"ID",);
+  $self->checkTable("USERS_LDAP",$self->reservedWord("user"),{$self->reservedWord("user")=>"varchar(15) not null",
+					  dn=>"varchar(255)",
+					  up=>"number"}) or return;
+  
+  
+  $self->checkTable("USERS_LDAP_ROLE", $self->reservedWord("user"),{$self->reservedWord("user")=>"varchar(15) not null",
+					       role=>"varchar(15)",
+					       up=>"number"}) or return;
+  $self->checkTable("TOKENS", "ID", {ID=>"number(11) NOT NULL primary key",
+				     "Username","varchar(20)",
+				     "Expires","date",
+				     "Token"=>"varchar(32)",
+				     "password"=>"varchar(16)",
+				     "SSHKey"=>"blob",
+				     "dn"=>"varchar(255)",
+				    }) or return;
+  $self->checkTable("DBKEYS", "Name", {"Name"=> "varchar(20) DEFAULT '' NOT NULL",
+				       "DBKey"=>"blob",
+				       "LastChanges"=>"date"
+				      }) or return;
+  $self->checkTable("jobToken", "jobId", { "jobId"=>"number(11)  DEFAULT '0' NOT NULL PRIMARY KEY",
+					   "userName"=>"varchar(20) DEFAULT NULL",
+					   "jobToken"=>"varchar(255) DEFAULT NULL",
+					 }) or return;
+	  foreach my $table(keys %autoincrements){
+		$self->defineAutoincrement($table,$autoincrements{$table}) or return;
+	}
+  return 1;
+}
+
+
+
 sub grantPrivilegesToUser{
 #The privileges are assigned to a unique user on the database. Every user in the application connects through this one.
-return ;}
-sub grantExtendedPrivilegesToUser{return;}
+return 1;}
+sub grantExtendedPrivilegesToUser{return 1;}
 sub grantPrivilegesToObject{
   my $self = shift;
   my $privs = shift;
