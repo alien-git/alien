@@ -45,13 +45,13 @@ while ($i<10){
 
   my $wait=1;
   my $pid;
-  use AliEn::Authen::ClientVerifier;
+#  use AliEn::Authen::ClientVerifier;
   local $SIG{ALRM} =sub {
     print localtime() . " One of the processes ($wait of @processes) does not finish (let's kill them):(\n";
     system("ps -Ao command -w -w |grep Proxy |grep -v grep");
     system("ps -A --forest -f -w -w");
-    my $mpid=($AliEn::Authen::ClientVerifier::SERVERPID || "");
-    print "PLEASE, CHECK $processes[$wait-1] (server $mpid)\n";
+ #   my $mpid=($AliEn::Authen::ClientVerifier::SERVERPID || "");
+    print "PLEASE, CHECK $processes[$wait-1] \n";
     sleep 40;
     kill 9, @processes;
     die("nope  ");
