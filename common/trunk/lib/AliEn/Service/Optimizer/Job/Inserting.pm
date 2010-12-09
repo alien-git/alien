@@ -91,6 +91,8 @@ sub updateInserting {
   if ($@) {
     $self->info( "Error inserting the job: $@");
     $status="ERROR_I";
+    $self->{ADMINDB}->deleteJobToken($queueId);
+
     undef $return;
   }
   if (! $self->{DB}->updateStatus($queueid,"INSERTING", $status, $set)) {

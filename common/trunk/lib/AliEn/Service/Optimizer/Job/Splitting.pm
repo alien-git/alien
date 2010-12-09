@@ -119,6 +119,9 @@ sub updateSplitting {
       or $self->{LOGGER}->warning("Splitting", "in SubmitSplitJob setting status to 'SPLITTING' failed") 
 				and die ("Error setting the job to SPLITTING\n");
 
+    $self->{ADMINDB}->deleteJobToken($queueid);
+
+
     ($job == -1) and $self->info("The job was not waiting any more...") and die ("The job was not waiting any more\n");
 
     $self->putJobLog($queueid,"state", "Job state transition to SPLITTING");
