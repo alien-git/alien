@@ -1641,6 +1641,11 @@ sub putFiles {
     #so that we can know if we are registering a new file or a replica
     my @registerInJDL=();
 
+
+    ($self->{STATUS} =~ /^ERROR_V/)
+       or $self->{UI}->execute("mkdir","-p",$self->{PROCDIR});
+
+
     foreach my $fileOrArch (keys(%$fs_table)) {
       
       my $size=-s $self->{WORKDIR}."/".$fs_table->{$fileOrArch}->{name};
@@ -2338,8 +2343,6 @@ CPU Speed                           [MHz] : $ProcCpuspeed
       $self->putJobLog("error","Could not get an instance of the LCM");
   } else {
     $self->{PROCDIR} = $self->{OUTPUTDIR} || "~/alien-job-$ENV{ALIEN_PROC_ID}";
-    $self->{UI}->execute("mkdir","-p",$self->{PROCDIR});
-    $self->{UI}->execute("cd",$self->{PROCDIR});
    
     #this hash will contain all the files that have already been submitted,
 
