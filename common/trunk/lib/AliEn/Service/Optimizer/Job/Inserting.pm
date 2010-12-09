@@ -91,7 +91,7 @@ sub updateInserting {
   if ($@) {
     $self->info( "Error inserting the job: $@");
     $status="ERROR_I";
-    $self->{ADMINDB}->deleteJobToken($queueId);
+    $self->{ADMINDB}->deleteJobToken($queueid);
 
     undef $return;
   }
