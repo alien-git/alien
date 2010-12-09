@@ -10,6 +10,7 @@ use AliEn::Service::Optimizer;
 use AliEn::Catalogue;
 use AliEn::UI::Catalogue::LCM::Computer;
 use AliEn::Dataset;
+use AliEn::Database::Admin;
 
 use AliEn::Util;
 
@@ -55,6 +56,8 @@ sub initialize {
     $self->info("Error creating the dataset") and return;; 
 #  $self->{JOBLOG} = new AliEn::JOBLOG();
 
+  $self->{ADMINDB}= new AliEn::Database::Admin()
+    or $self->info("Error getting the Admin" ) and return;
 
   my @optimizers=("Merging", "Inserting", "Splitting", "Zombies", "Hosts", "Expired", "HeartBeat", "Priority", "Resubmit", "Killed", "Staging", "Quota");#,"ResolveReq");
 
