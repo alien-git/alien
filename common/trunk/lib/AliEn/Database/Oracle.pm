@@ -175,7 +175,7 @@ sub createIndex {
   my $self     = shift;
   my $index    = shift;
   my $table    = shift;
-  my $i  = shift;
+  my $i  = shift || $INDEX;
   my $sqlError = "";
   if ( $index =~ /^FOREIGN KEY/i ) {
     $self->do(
@@ -512,19 +512,19 @@ sub createLFNTables{
    perm=>"varchar(4) NOT NULL",
    aclId=>"number(11) NOT NULL",}, 'entryId'],
   TAG0=>["entryId", 
-   {entryId=>"int(11) NOT NULL primary key", 
+   {entryId=>"number(11) NOT NULL primary key", 
     path=>"varchar (255)",
     tagName=>"varchar (50)",
     tableName=>"varchar(50)",
-    user=>'varchar(20)'}, 'entryId'],
+    $self->reservedWord("user")=>'varchar(20)'}, 'entryId'],
   GROUPS=>["Userid", {Userid=>"number not null primary key",
     Username=>"varchar(20) NOT NULL", 
     Groupname=>"varchar (85)",
     PrimaryGroup=>"number(1)",}, 'Userid'],
   INDEXTABLE=>["indexId", {indexId=>"number(11) NOT NULL primary key",
      lfn=>"varchar(50)", 
-     hostIndex=>"int(11)",
-     tableName=>"int(11)",}, 
+     hostIndex=>"number(11)",
+     tableName=>"number(11)",}, 
    'indexId', ['UNIQUE INDEX (lfn)']],
   ENVIRONMENT=>['userName', {userName=>"char(20) NOT NULL PRIMARY KEY", 
     env=>"varchar(255)"}],
@@ -537,7 +537,7 @@ sub createLFNTables{
     packageVersion=>'varchar(255)',
     platform=>'varchar(255)',
     lfn=>'varchar(255)',
-    size=>'number(24,0)'}, 
+    $self->reservedWord("size")=>'number(24,0)'}, 
       ],
   COLLECTIONS=>['collectionId', {'collectionId'=>"number not null  primary key",
      'collGUID'=>'number(16)'}],
@@ -555,11 +555,11 @@ sub createLFNTables{
     mountpoint=>"varchar(255)",
     usedspace=>"number(24,0)",
     freespace=>"number(24,0)",
-    size=>"number(24,0)",
+    $self->reservedWord("size")=>"number(24,0)",
     method=>"varchar(255)",}, 
      "volumeId", ['UNIQUE INDEX (volume)', 'INDEX(seName)'],],
   "LL_STATS" =>["tableNumber", {
-    tableNumber=>"int(11) NOT NULL",
+    tableNumber=>"number(11) NOT NULL",
     min_time=>"char(16) NOT NULL",
     max_time=> "char(16) NOT NULL", 
   },undef,['UNIQUE INDEX(tableNumber)']],
@@ -573,16 +573,16 @@ sub createLFNTables{
       updated=>"number(1)"}, 
       undef, ['UNIQUE INDEX(sitename,seNumber), PRIMARY KEY(sitename,seNumber), INDEX(sitename), INDEX(seNumber)']],
   LFN_BOOKED=>["lfn",{lfn=>"varchar(255)",
-  expiretime=>"int",
+  expiretime=>"number",
   guid=>"raw(16) ",
-  size=>"number(24,0)",
+  $self->reservedWord("size")=>"number(24,0)",
   md5sum=>"varchar(32)",
   owner=>"varchar(20)",
   gowner=>"varchar(20)",
   pfn=>"varchar(255)",
   se=>"varchar(100)",
   quotaCalculated=>"number",
-  user=>"varchar(20)",
+  $self->reservedWord("user")=>"varchar(20)",
   existing=>"number(1)",
     },
   undef, ['PRIMARY KEY(lfn,pfn,guid)','INDEX(pfn)','INDEX(lfn)', 'INDEX(guid)','INDEX(expiretime)']
@@ -667,24 +667,25 @@ sub checkLFNTable {
      type=> "char(1) default 'f' NOT NULL",
      ctime=>"timestamp",
      expiretime=>"date",
-     size=>"number(24,0) default 0 not null",
+     $self->reservedWord("size")=>"number(24,0) default 0 not null",
      aclId=>"number(11)",
      perm=>"varchar(3) not null",
      guid=>"raw(16)",
-     replicated=>"number(1) not null default 0",
+     replicated=>"number(1)  default 0 not null",
      dir=>"number(11)",
      owner=>"varchar(20) not null",
      gowner=>"varchar(20) not null",
      md5=>"varchar(32)",
      guidtime=>"varchar(8)",
-     broken=>'number(1) not null default 0',
+     broken=>'number(1)  default 0 not null',
     );
 
-  $self->defineAutoincrement($table, "entryId");
   $self->checkTable(${table}, "entryId", \%columns, 'entryId', 
   ['UNIQUE INDEX (lfn)',"INDEX(dir)", "INDEX(guid)", "INDEX(type)", "INDEX(ctime)", "INDEX(guidtime)"]) or return;
+
+  $self->defineAutoincrement($table, "entryId");
   $self->checkTable("${table}_broken", "entryId", {entryId=>"number(11) NOT NULL  primary key"}) or return;
-  $self->checkTable("${table}_QUOTA", "user", {user=>"varchar(64) NOT NULL", nbFiles=>"number(11) NOT NULL", totalSize=>"number(20) NOT NULL"}, undef, ['INDEX user_ind (user)'],) or return;
+  $self->checkTable("${table}_QUOTA", $self->reservedWord("user"), {$self->reservedWord("user")=>"varchar(64) NOT NULL", nbFiles=>"number(11) NOT NULL", totalSize=>"number(20) NOT NULL"}, undef, ['INDEX user_ind ('.$self->reservedWord("user").')'],) or return;
   
   $self->do("optimize table ${table}");
 #  $self->do("optimize table ${table}_QUOTA");
@@ -699,7 +700,7 @@ sub checkGUIDTable {
   
   $table =~ /^\d+$/ and $table="G${table}L";
   
-  my %columns = (guidId=>"number(11) NOT NULL auto_increment primary key", 
+  my %columns = (guidId=>"number(11) NOT NULL primary key", 
 		 ctime=>"timestamp default current_timestamp" ,
 		 expiretime=>"date",
 		 $self->reservedWord("size")=>"number(24,0) default 0  not null",
@@ -715,8 +716,8 @@ sub checkGUIDTable {
 		 type=>"varchar(1)",
 		);
 
-   $db->checkTable(${table}, "guidId", \%columns, 'guidId', ['UNIQUE INDEX (guid)', 'INDEX(seStringlist)', 'INDEX(ctime)'],) or return;
-  
+  $db->checkTable(${table}, "guidId", \%columns, 'guidId', ['UNIQUE INDEX (guid)', 'INDEX(seStringlist)', 'INDEX(ctime)'],) or return;
+  $db->defineAutoincrement($table, 'guidId');
   %columns= (pfn=>'varchar(255)',
 	     guidId=>"number(11) NOT NULL",
 	     seNumber=>"number(11) NOT NULL",);
@@ -727,7 +728,7 @@ sub checkGUIDTable {
 					     lfnRef=>"varchar(20) NOT NULL"},
 		  '', ['INDEX guidId(guidId)', 'INDEX lfnRef(lfnRef)', "FOREIGN KEY (guidId) REFERENCES $table(guidId) ON DELETE CASCADE"]) or return;
 
-  $db->checkTable("${table}_QUOTA",  $self->reservedWord("user"), { $self->reservedWord("user")=>"varchar(64) NOT NULL", nbFiles=>"number(11) NOT NULL", totalSize=>"number(20) NOT NULL"}, undef, ['INDEX user_ind (user)'],) or return;
+  $db->checkTable("${table}_QUOTA",  $self->reservedWord("user"), { $self->reservedWord("user")=>"varchar(64) NOT NULL", nbFiles=>"number(11) NOT NULL", totalSize=>"number(20) NOT NULL"}, undef, ['INDEX user_ind ('. $self->reservedWord("user").')'],) or return;
 
   $db->optimizeTable($table);
   $db->optimizeTable("${table}_PFN");
@@ -757,7 +758,7 @@ sub checkSETable {
                  seVersion=>"varchar(300)",
 		);
 
-  return $self->checkTable("SE", "seNumber", \%columns, 'seNumber', ['UNIQUE INDEX (seName)'], {engine=>"innodb"} ); #or return;
+  return $self->checkTable("SE", "seNumber", \%columns, 'seNumber', ['UNIQUE INDEX (seName)']); #or return;
   $self->defineAutoincrement("SE","seNumber");
   #This table we want it case insensitive
 #  return $self->do("alter table SE  convert to CHARacter SET latin1");
@@ -779,7 +780,7 @@ sub createAdminTables{
 				     "Expires","date",
 				     "Token"=>"varchar(32)",
 				     "password"=>"varchar(16)",
-				     "SSHKey"=>"blob",
+				     "SSHKey"=>"varchar(4000)",
 				     "dn"=>"varchar(255)",
 				    }) or return;
   $self->checkTable("DBKEYS", "Name", {"Name"=> "varchar(20) DEFAULT '' NOT NULL",
@@ -1115,7 +1116,197 @@ end string2date;
   );
   $self->do("grant all privileges on string2date to public");
 }
+sub createTaskQueueTables{
+  my $self=shift;
+  my $queueColumns={columns=>{queueId=>"number(11) not null primary key",
+			      execHost=>"varchar(64)",
+			      submitHost=>"varchar(64)",
+			      priority =>"number(4)",
+			      status  =>"varchar(12)",
+			      command =>"varchar(255)",
+			      commandArg =>"varchar(255)",
+			      name =>"varchar(255)",
+			      path =>"varchar(255)",
+			      $self->reservedWord("current") =>"varchar(255)",
+			      received =>"number(20)",
+			      started =>"number(20)",
+			      finished =>"number(20)",
+			      expires =>"number(10)",
+			      error =>"number(11)",
+			      $self->reservedWord("validate") =>"number(1)",
+			      sent =>"number(20)",
+			      jdl =>"varchar(512)",
+			      site=> "varchar(40)",
+			      node=>"varchar(64)",
+			      spyurl=>"varchar(64)",
+			      split=>"number",
+			      splitting=>"number",
+			      merging=>"varchar(64)",
+			      masterjob=>"number(1) default 0",
+			      price=>"float",
+			      chargeStatus=>"varchar(20)",
+			      optimized=>"number(1) default 0",
+			      finalPrice=>"float",
+			      notify=>"varchar(255)",
+			      agentid=>'number(11)',
+			      mtime=>'timestamp',
+            },
+		    id=>"queueId",
+		    index=>"queueId",
+		    extra_index=>["INDEX (split)", "INDEX (status)", "INDEX(agentid)", "UNIQUE INDEX (submitHost,queueId)","INDEX(priority)",
+				  "INDEX (site,status)",
+				  "INDEX (sent)",
+				  "INDEX (status,submitHost)",
+				  "INDEX (status,agentid)",
+				  "UNIQUE INDEX (status,queueId)"
+				 ]
+		   };
+  my $queueColumnsProc={columns=>{queueId=>"number(11) not null primary key",
+				  runtime =>"varchar(20)",
+				  runtimes =>"number",
+				  cpu =>"float",
+				  mem =>"float",
+				  cputime =>"number",
+				  rsize =>"number",
+				  vsize =>"number",
+				  ncpu =>"number",
+				  cpufamily =>"number",
+				  cpuspeed =>"number",
+				  cost =>"float",
+				  maxrsize =>"float",
+				  maxvsize =>"float",
+				  procinfotime =>"number(20)",
+				  si2k=>"float",
+				  lastupdate=>"timestamp",
+				  batchid=>"varchar(255)",
+				 },
+			id=>"queueId",
+			index=>"queueId"};
+  my $tables={ QUEUE=>$queueColumns,
+	       QUEUEPROC=>$queueColumnsProc,
+	       QUEUEEXPIRED=>$queueColumns,
+	       QUEUEEXPIREDPROC=>$queueColumnsProc,
 
+	       $self->{QUEUEARCHIVE}=>$queueColumns,
+	       $self->{QUEUEARCHIVEPROC}=>$queueColumnsProc,
+
+	       JOBAGENT=>{columns=>{entryId=>"number(11) not null  primary key",
+				    requirements=>"varchar(512) not null",
+				    counter=>"number(11)  default 0 not null ",
+				    afterTime=>"timestamp",
+				    beforeTime=>"timestamp",
+				    priority=>"number(11)",
+				   },
+			  id=>"entryId",
+			  index=>"entryId",
+			  extra_index=>["INDEX(priority)"],
+			 },
+	       SITES=>{columns=>{siteName=>"varchar(255)",
+				 siteId =>"number(11) not null  primary key",
+				 masterHostId=>"number(11)",
+				 adminName=>"varchar(100)",
+				 location=>"varchar(255)",
+				 domain=>"varchar(30)",
+				 longitude=>"float",
+				 latitude=>"float",
+				 record=>"varchar(255)",
+				 url=>"varchar(255)",},
+		       id=>"siteId",
+		       index=>"siteId",
+		       },
+	       HOSTS=>{columns=>{commandName=>"varchar(255)",
+				 hostName=>"varchar(255)",
+				 hostPort=>"number(11) not null ",
+				 hostId =>"number(11) not null  primary key",
+				 siteId =>"number(11) not null",
+				 adminName=>"char(100) not null",
+				 maxJobs=>"number(11) not null",
+				 status=>"varchar(10) not null",
+				 $self->reservedWord("date")=>"number(11)",
+				 rating=>"float not null",
+				 Version=>"varchar(10)",
+				 queues=>"varchar(50)",
+				 connected=>"number(1)",
+				 maxqueued=>"number(11)",
+				},
+		       id=>"hostId",
+		       index=>"hostId"
+		      },
+	       MESSAGES=>{columns=>{ ID            =>" number(11) not null primary key",
+				     TargetHost    =>" varchar(100)",
+				     TargetService =>" varchar(100)",
+				     Message       =>" varchar(100)",
+				     MessageArgs   =>" varchar(100)",
+				     Expires       =>" number(11)",
+				     Ack=>         =>'varchar(255)'},
+			  id=>"ID",
+			  index=>"ID",},
+	       JOBMESSAGES=>{columns=> {entryId=>" number(11) not null primary key",
+					jobId =>"number", 
+					procinfo=>"varchar(200)",
+					tag=>"varchar(40)", 
+					timestamp=>"number", },
+			     id=>"entryId", 
+			    },
+
+	       JOBSTOMERGE=>{columns=>{masterId=>"number(11) not null primary key"},
+			     id=>"masterId"},
+	       STAGING=>{columns=>{queueid=>"number(11) not null primary key",
+				  staging_time=>"timestamp"},
+			 id=>"queueid"},
+			
+	     };
+  my %autoincrements=(QUEUE=>"queueId",QUEUEEXPIRED=>"queueId",$self->{QUEUEARCHIVE}=>"queueId",JOBAGENT=>"entryId",SITES=>"siteId",HOSTS=>"hostId",MESSAGES=>"ID",JOBMESSAGES=>"entryId");
+
+  foreach my $table  (keys %$tables) {
+    $self->checkTable($table, $tables->{$table}->{id}, $tables->{$table}->{columns}, $tables->{$table}->{index}, $tables->{$table}->{extra_index})
+      or $self->{LOGGER}->error("TaskQueue", "Error checking the table $table") and return;
+  }
+  foreach my $table(keys %autoincrements){
+	$self->defineAutoincrement($table,$autoincrements{$table}) or return;
+  }
+
+}
+sub checkSiteQueueTable{
+  my $self = shift;
+  $self->{SITEQUEUETABLE} = (shift or "SITEQUEUES");
+
+  my %columns = (		
+		 site=> "varchar(40) not null",
+		 cost=>"float",
+		 status=>"varchar(20)",
+		 statustime=>"number(20)",
+		 blocked =>"varchar(10)",
+		 maxqueued=>"int",
+		 maxrunning=>"int",
+		 queueload=>"float",
+		 runload=>"float",
+		 jdl => "varchar(512)",
+                 jdlAgent => 'varchar(512)',
+		 timeblocked=>"date", 
+		);
+
+  foreach (@{AliEn::Util::JobStatus()}) {
+    $columns{$_}="int";
+  }
+  $self->checkTable($self->{SITEQUEUETABLE}, "site", \%columns, "site");
+}
+
+sub checkActionTable {
+  my $self=shift;
+
+  my %columns= (action=>"varchar(40) not null primary key",
+		todo=>" number(1) default 0 not null ");
+  $self->checkTable("ACTIONS", "action", \%columns, "action") or return;
+$self->do("INSERT  INTO ACTIONS(action)  (SELECT 'INSERTING' from dual where not exists (select action from ACTIONS where action like 'INSERTING'))") and
+$self->do("INSERT  INTO ACTIONS(action)  (SELECT 'MERGING' from dual where not exists (select action from ACTIONS where action like 'MERGING'))") and
+$self->do("INSERT  INTO ACTIONS(action)  (SELECT 'KILLED' from dual where not exists (select action from ACTIONS where action like 'KILLED'))") and
+$self->do("INSERT  INTO ACTIONS(action)  (SELECT 'SAVED' from dual where not exists (select action from ACTIONS where action like 'SAVED'))") and
+$self->do("INSERT  INTO ACTIONS(action)  (SELECT 'SAVED_WARN' from dual where not exists (select action from ACTIONS where action like 'SAVED_WARN'))") and
+$self->do("INSERT  INTO ACTIONS(action)  (SELECT 'SPLITTING' from dual where not exists (select action from ACTIONS where action like 'SPLITTING'))") and
+$self->do("INSERT  INTO ACTIONS(action)  (SELECT 'STAGING' from dual where not exists (select action from ACTIONS where action like 'STAGING'))") and return 1;
+ 
+}
 sub _createPrivilegesProcedure {
   my $self = shift;
   $self->do(
