@@ -401,7 +401,8 @@ sub createLFNTables{
             user=>"varchar(20)",
             existing=>"smallint(1)",
           },
-            undef, ['PRIMARY KEY(lfn,pfn,guid)','INDEX(pfn)','INDEX(lfn)', 'INDEX(guid)','INDEX(expiretime)']
+            undef, ['PRIMARY KEY(lfn,pfn,guid)','INDEX(pfn)','INDEX(lfn)', 'INDEX(guid)','INDEX(expiretime)'],
+        PFN_TODELETE=>[ "pfn", {pfn=>"varchar(255)", retry=>"integer not null"}, undef, ['UNIQUE INDEX(pfn)']]
             
         ]                                      
            );
