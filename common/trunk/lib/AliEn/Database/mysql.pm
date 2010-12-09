@@ -707,6 +707,214 @@ sub lock {
   $self->_do("LOCK TABLE $table WRITE");
 }
 
+sub createAdminTables{
+  my $self = shift;
+  $self->checkTable("USERS_LDAP", "user",{user=>"varchar(15) not null",
+					  dn=>"varchar(255)",
+					  up=>"smallint"}) or return;
+  
+  
+  $self->checkTable("USERS_LDAP_ROLE", "user",{user=>"varchar(15) not null",
+					       role=>"varchar(15)",
+					       up=>"smallint"}) or return;
+  $self->checkTable("TOKENS", "ID", {ID=>"int(11) not null auto_increment primary key",
+				     "Username","varchar(16)",
+				     "Expires","datetime",
+				     "Token"=>"varchar(32)",
+				     "password"=>"varchar(16)",
+				     "SSHKey"=>"text",
+				     "dn"=>"varchar(255)",
+				    }) or return;
+  $self->checkTable("DBKEYS", "Name", {"Name"=> "varchar(20) NOT NULL DEFAULT ''",
+				       "DBKey"=>"blob",
+				       "LastChanges"=>"datetime NOT NULL DEFAULT '0000-00-00 00:00:00'"
+				      }) or return;
+  $self->checkTable("jobToken", "jobId", { "jobId"=>"int(11) NOT NULL DEFAULT '0' PRIMARY KEY",
+					   "userName"=>"char(20) DEFAULT NULL",
+					   "jobToken"=>"char(255) DEFAULT NULL",
+					 }) or return;
+  return 1;
+}
+
+sub createTaskQueueTables{
+  my $self = shift;
+  my $queueColumns={columns=>{queueId=>"int(11) not null auto_increment primary key",
+			      execHost=>"varchar(64)",
+			      submitHost=>"varchar(64)",
+			      priority =>"tinyint(4)",
+			      status  =>"varchar(12)",
+			      command =>"varchar(255)",
+			      commandArg =>"varchar(255)",
+			      name =>"varchar(255)",
+			      path =>"varchar(255)",
+			      current =>"varchar(255)",
+			      received =>"int(20)",
+			      started =>"int(20)",
+			      finished =>"int(20)",
+			      expires =>"int(10)",
+			      error =>"int(11)",
+			      validate =>"int(1)",
+			      sent =>"int(20)",
+			      jdl =>"text collate latin1_general_ci",
+			      site=> "varchar(40)",
+			      node=>"varchar(64)",
+			      spyurl=>"varchar(64)",
+			      split=>"int",
+			      splitting=>"int",
+			      merging=>"varchar(64)",
+			      masterjob=>"int(1) default 0",
+			      price=>"float",
+			      chargeStatus=>"varchar(20)",
+			      optimized=>"int(1) default 0",
+			      finalPrice=>"float",
+			      notify=>"varchar(255)",
+			      agentid=>'int(11)',
+			      mtime=>'timestamp',
+            },
+		    id=>"queueId",
+		    index=>"queueId",
+		    extra_index=>["INDEX (split)", "INDEX (status)", "INDEX(agentid)", "UNIQUE INDEX (submitHost,queueId)","INDEX(priority)",
+				  "INDEX (site,status)",
+				  "INDEX (sent)",
+				  "INDEX (status,submitHost)",
+				  "INDEX (status,agentid)",
+				  "UNIQUE INDEX (status,queueId)"
+				 ]
+		   };
+  my $queueColumnsProc={columns=>{queueId=>"int(11) not null auto_increment primary key",
+				  runtime =>"varchar(20)",
+				  runtimes =>"int",
+				  cpu =>"float",
+				  mem =>"float",
+				  cputime =>"int",
+				  rsize =>"int",
+				  vsize =>"int",
+				  ncpu =>"int",
+				  cpufamily =>"int",
+				  cpuspeed =>"int",
+				  cost =>"float",
+				  maxrsize =>"float",
+				  maxvsize =>"float",
+				  procinfotime =>"int(20)",
+				  si2k=>"float",
+				  lastupdate=>"timestamp",
+				  batchid=>"varchar(255)",
+				 },
+			id=>"queueId",
+			index=>"queueId"};
+  my $tables={ QUEUE=>$queueColumns,
+	       QUEUEPROC=>$queueColumnsProc,
+	       QUEUEEXPIRED=>$queueColumns,
+	       QUEUEEXPIREDPROC=>$queueColumnsProc,
+
+	       $self->{QUEUEARCHIVE}=>$queueColumns,
+	       $self->{QUEUEARCHIVEPROC}=>$queueColumnsProc,
+
+	       JOBAGENT=>{columns=>{entryId=>"int(11) not null auto_increment primary key",
+				    requirements=>"text not null",
+				    counter=>"int(11) not null default 0",
+				    afterTime=>"time",
+				    beforeTime=>"time",
+				    priority=>"int(11)",
+				   },
+			  id=>"entryId",
+			  index=>"entryId",
+			  extra_index=>["INDEX(priority)"],
+			 },
+	       SITES=>{columns=>{siteName=>"char(255)",
+				 siteId =>"int(11) not null auto_increment primary key",
+				 masterHostId=>"int(11)",
+				 adminName=>"char(100)",
+				 location=>"char(255)",
+				 domain=>"char(30)",
+				 longitude=>"float",
+				 latitude=>"float",
+				 record=>"char(255)",
+				 url=>"char(255)",},
+		       id=>"siteId",
+		       index=>"siteId",
+		       },
+	       HOSTS=>{columns=>{commandName=>"char(255)",
+				 hostName=>"char(255)",
+				 hostPort=>"int(11) not null ",
+				 hostId =>"int(11) not null auto_increment primary key",
+				 siteId =>"int(11) not null",
+				 adminName=>"char(100) not null",
+				 maxJobs=>"int(11) not null",
+				 status=>"char(10) not null",
+				 date=>"int(11)",
+				 rating=>"float not null",
+				 Version=>"char(10)",
+				 queues=>"char(50)",
+				 connected=>"int(1)",
+				 maxqueued=>"int(11)",
+				},
+		       id=>"hostId",
+		       index=>"hostId"
+		      },
+	       MESSAGES=>{columns=>{ ID            =>" int(11) not null  auto_increment primary key",
+				     TargetHost    =>" varchar(100)",
+				     TargetService =>" varchar(100)",
+				     Message       =>" varchar(100)",
+				     MessageArgs   =>" varchar(100)",
+				     Expires       =>" int(11)",
+				     Ack=>         =>'varchar(255)'},
+			  id=>"ID",
+			  index=>"ID",},
+	       JOBMESSAGES=>{columns=> {entryId=>" int(11) not null  auto_increment primary key",
+					jobId =>"int", 
+					procinfo=>"varchar(200)",
+					tag=>"varchar(40)", 
+					timestamp=>"int", },
+			     id=>"entryId", 
+			    },
+
+	       JOBSTOMERGE=>{columns=>{masterId=>"int(11) not null primary key"},
+			     id=>"masterId"},
+	       STAGING=>{columns=>{queueid=>"int(11) not null primary key",
+				  staging_time=>"timestamp"},
+			 id=>"queueid"},
+			
+	     };
+  foreach my $table  (keys %$tables) {
+    $self->checkTable($table, $tables->{$table}->{id}, $tables->{$table}->{columns}, $tables->{$table}->{index}, $tables->{$table}->{extra_index})
+      or $self->{LOGGER}->error("TaskQueue", "Error checking the table $table") and return;
+  }
+
+}
+sub checkSiteQueueTable{
+  my $self = shift;
+  $self->{SITEQUEUETABLE} = (shift or "SITEQUEUES");
+
+  my %columns = (		
+		 site=> "varchar(40) not null",
+		 cost=>"float",
+		 status=>"varchar(20)",
+		 statustime=>"int(20)",
+		 blocked =>"varchar(10)",
+		 maxqueued=>"int",
+		 maxrunning=>"int",
+		 queueload=>"float",
+		 runload=>"float",
+		 jdl => "text",
+                 jdlAgent => 'text',
+		 timeblocked=>"datetime", 
+		);
+
+  foreach (@{AliEn::Util::JobStatus()}) {
+    $columns{$_}="int";
+  }
+  $self->checkTable($self->{SITEQUEUETABLE}, "site", \%columns, "site");
+}
+sub checkActionTable {
+  my $self=shift;
+
+  my %columns= (action=>"char(40) not null primary key",
+		todo=>"int(1) not null default 0");
+  $self->checkTable("ACTIONS", "action", \%columns, "action") or return;
+  return $self->do("INSERT IGNORE INTO ACTIONS(action) values  ('INSERTING'), ('MERGING'), ('KILLED'), ('SPLITTING'), ('STAGING')");
+}
+
 sub unlock {
   my $self  = shift;
   my $table = shift;
