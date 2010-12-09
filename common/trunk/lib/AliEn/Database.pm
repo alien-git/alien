@@ -538,6 +538,7 @@ sub insert {
 
 sub multiinsert {
   my $self = shift;
+  if ($self->{DRIVER}=~/Oracle/){return $self->SUPER::multiinsert(@_);}
   my $table = shift;
   my $rarray = shift;
   my $options=shift;
@@ -844,15 +845,6 @@ sub changeRole {
   $self->_validate;
 }
 
-## works only with mysql!!
-sub getLastId {
-    my $self = shift;
-    ( $self->{DEBUG} > 2 )
-      and print "DEBUG LEVEL 2\tIn Database: getLastId @_\n";
-    my $id = $self->{DBH}->{'mysql_insertid'};
-
-    return $id;
-}
 
 sub setForcedMethod() {
     my $self = shift;
@@ -1037,6 +1029,7 @@ sub _timeout {
 
 sub _queryDB{
   my ($self,$stmt, $options) = @_;
+  if ($self->{DRIVER}=~/Oracle/){ return $self->SUPER::_queryDB(@_);}
   $options or $options={};
   my $oldAlarmValue = $SIG{ALRM};
   local $SIG{ALRM} = \&_timeout;
@@ -1103,6 +1096,7 @@ sub _queryDB{
 
 sub _do{
   my $self = shift;
+  if ($self->{DRIVER}=~/Oracle/i){ return $self->SUPER::_do(@_);}
   my $stmt = shift;
   my $options=(shift or {});
 
@@ -1183,8 +1177,10 @@ $res = $dbh->preprocessFields($keys);
 
 sub preprocessFields {
   my $self  = shift;
-  my $new_keys = shift;
-  return $new_keys;
+  my $fields = shift;
+  if ($self->{DRIVER}=~ /Oracle/i){
+  return $self->SUPER::preprocessFields($fields); 
+  }else{ return $fields;}
 }
 
 sub _pingReconnect {
