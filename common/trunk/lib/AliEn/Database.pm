@@ -1028,8 +1028,10 @@ sub _timeout {
 }
 
 sub _queryDB{
-  my ($self,$stmt, $options) = @_;
+  my $self=shift;
   if ($self->{DRIVER}=~/Oracle/){ return $self->SUPER::_queryDB(@_);}
+  my $stmt=shift;
+  my $options=shift;
   $options or $options={};
   my $oldAlarmValue = $SIG{ALRM};
   local $SIG{ALRM} = \&_timeout;
