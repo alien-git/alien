@@ -204,38 +204,5 @@ sub startService {
     return;
   }
 
-  print "ok\nChecking if the service is listening...\t";
-  open (FILE, "<$logFile") or print "Error opening the log file $logFile" and return;
-  my @file=<FILE>;
-  close FILE;
-  print "Before doing the grep\n$file[0]\n";
-  
-  grep (/connection\s+successful/i, @file) or print "The gapi service is not listening:\n@file\n" and return;
-
-
-  return 1;
-  print "ok\nAdding it to the startup services\n";
-
-  my $vo=Net::Domain::hostname();
-  my $file="/etc/aliend/$vo/startup.conf";
-  $< and $file="$ENV{ALIEN_HOME}$file";
-  open (FILE, "<$file") or print "Error reading the file $file\n" and return;
-  my @FILE=<FILE>;
-  close FILE;
-  my @line=grep (/^AliEnServices=/, @FILE);
-  $line[0] =~ /[\" ]$service[ \"]/ and print "done\n" and return 1;
-
-  print "\nAdding the entry";
-
-  $line[0]=~ s/([^=])\"/$1 $service\"/;
-
-  @FILE= (grep (!/^AliEnServices=/, @FILE), $line[0]);
-
-  open (FILE, ">$file") or print "Error opening the file $file\n" and exit(-2);
-
-  print FILE @FILE;
-  close FILE;
-  print "...ok\n";
-
   return 1;
 }
