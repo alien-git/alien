@@ -63,7 +63,7 @@ Requirements= other.HOST==other.HOST;
     $info2->{status} eq "DONE" or next;
     print "Both jobs are done\n" and  last;
   }
-   $i>4 and   die("NOPE!! the status of $id2 is $info2->{status}\n");
+   $i>4 and   die("NOPE!! the jobs are not done yet\n");
 };
 my $error=$@;
 
