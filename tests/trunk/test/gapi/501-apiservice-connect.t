@@ -10,7 +10,7 @@ BEGIN { plan tests => 1;}
 {
     $ENV{"X509_CERT_DIR"}="$ENV{'GLOBUS_LOCATION'}/share/certificates";
     $ENV{"GCLIENT_NOPROMPT"}="1";
-    print "Connecting to API service ...";
+    print "Connecting to API service( $ENV{X509_CERT_DIR} ...";
     my $host=Net::Domain::hostname();
     my $gapi = new gapi({host=>"$host",port=>"10000",user=>"$ENV{'USER'}"});
     if (!defined $gapi) {

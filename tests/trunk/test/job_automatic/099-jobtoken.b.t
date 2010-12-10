@@ -23,8 +23,7 @@ BEGIN { plan tests => 1 }
     print "Let's count again\n";
     $total=$db->queryValue("select count(*) from jobToken ");
     print "There are $total entries there.... there should be zero!!!\n"; 
-    
-    exit(-2);
+    $total and exit(-2);  
   } 
   ok(1);
 }

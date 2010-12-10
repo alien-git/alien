@@ -47,22 +47,23 @@ Requirements= other.HOST==other.HOST;
   my $ready=0;
   for (my $i=0; $i<4; $i++) {
     sleep(5);
-    my ($info)=$cat->execute("top", "-id", $id2);
-    $info->{status} eq "WAITING" and $ready=1 and last;
+    my ($info, $info2)=$cat->execute("top", "-id", $id2, "-id", $id1);
+    $info->{status} eq "WAITING" and $info2->{status} eq "WAITING"  and $ready=1 and last;
   }
-  $ready or die("The job is not WAITING!!\n");
+  $ready or die("The jobs are not WAITING!!\n");
   $cat->execute("request") or die ("Error requesting a job"); 
 
-  system ("alien", "proxy-destroy");
-  sleep(10);
-
-  my ($info)=$cat->execute("top", "-id", $id1);
-  $info->{status} eq "DONE" or
-    die( "NOPE!! the status of $id1 is $info->{status}\n");
-
-  ($info)=$cat->execute("top", "-id", $id2);
-  $info->{status} eq "DONE" or
-    die("NOPE!! the status of $id2 is $info->{status}\n");
+  my $i;
+  for ($i=0; $i<4; $i++) {
+    print "Sleeping before checking the status of the jobs\n";
+    sleep(10);
+    my ($info, $info2)=$cat->execute("top", "-id", $id1, "-id" , $id2);
+  
+    $info->{status} eq "DONE" or next;
+    $info2->{status} eq "DONE" or next;
+    print "Both jobs are done\n" and  last;
+  }
+   $i>4 and   die("NOPE!! the status of $id2 is $info2->{status}\n");
 };
 my $error=$@;
 
