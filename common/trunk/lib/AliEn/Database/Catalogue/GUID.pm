@@ -77,7 +77,47 @@ sub createCatalogueTables {
 	return;
   }
 
-  $db->createGUIDTables;
+  my %tables=(HOSTS=>["hostIndex", {hostIndex=>"serial primary key",
+				    address=>"char(50)", 
+				    db=>"char(40)",
+				    driver=>"char(10)", 
+				    organisation=>"char(11)",},"hostIndex"],
+	      ACL=>["entryId", 
+		    {entryId=>"int(11) NOT NULL auto_increment primary key", 
+		     owner=>"char(10) NOT NULL",
+		     perm=>"char(4) NOT NULL",
+		     aclId=>"int(11) NOT NULL",}, 'entryId'],
+	      GROUPS=>["Username", {Username=>"char(15) NOT NULL", 
+				    Groupname=>"char (85)",
+				    PrimaryGroup=>"int(1)",}, 'Username'],
+	      GUIDINDEX=>["indexId", {indexId=>"int(11) NOT NULL auto_increment primary key",
+				      guidTime=>"char(16)", 
+				      hostIndex=>"int(11)",
+				      tableName=>"int(11)",}, 
+			  'indexId', ['UNIQUE INDEX (guidTime)']],
+	      TODELETE=>["entryId",  {entryId=>"int(11) NOT NULL auto_increment primary key", 
+				      pfn=>"varchar(255)",
+				      seNumber=>"int(11) not null",
+				      guid=>"binary(16)"}],
+	      GL_STATS=>["tableNumber", {
+				     tableNumber=>"int(11) NOT NULL",
+				     seNumber=>"int(11) NOT NULL",
+				     seNumFiles=> "bigint(20)", 
+				     seUsedSpace=>"bigint(20)",
+				    },undef,['UNIQUE INDEX(tableNumber,seNumber)']],
+	      GL_ACTIONS=>["tableNumber", {tableNumber=>"int(11) NOT NULL",
+					   action=>"char(40) not null", 
+					   time=>"timestamp default current_timestamp",
+					   extra=>"varchar(255)",}
+			   , undef, ['UNIQUE INDEX(tableNumber,action)']],);
+
+	     
+  foreach my $table (keys %tables){
+    $self->info("Checking table $table");
+    $db->checkTable($table, @{$tables{$table}})
+      or return;
+  }
+
   $self->checkGUIDTable("0", $db) or return;
 
   $self->info("Let's create the functions");
@@ -88,7 +128,55 @@ sub createCatalogueTables {
 
   1;
 }
+sub checkGUIDTable {
+  my $self =shift;
+  my $table =shift;
+  defined $table or $self->info( "Error: we didn't get the table number to check") and return;
+  my $db=shift || $self;
+  
+  $table =~ /^\d+$/ and $table="G${table}L";
+  
+  my %columns = (guidId=>"int(11) NOT NULL auto_increment primary key", 
+		 ctime=>"timestamp" ,
+		 expiretime=>"datetime",
+		 size=>"bigint default 0 not null ",
+		 seStringlist=>"varchar(255) default ',' not null ",
+		 seAutoStringlist=>"varchar(255) default ',' not null ",
+		 aclId=>"int(11)",
+		 perm=>"char(3)",
+		 guid=>"binary(16)",
+		 md5=>"varchar(32)",
+		 ref=>"int(11) default 0",
+		 owner=>"varchar(20)",
+		 gowner=>"varchar(20)",
+		 type=>"char(1)",
+		);
 
+   $db->checkTable(${table}, "guidId", \%columns, 'guidId', ['UNIQUE INDEX (guid)', 'INDEX(seStringlist)', 'INDEX(ctime)'],) or return;
+  
+  %columns= (pfn=>'varchar(255)',
+	     guidId=>"int(11) NOT NULL",
+	     seNumber=>"int(11) NOT NULL",);
+  $db->checkTable("${table}_PFN", "guidId", \%columns, undef, ['INDEX guid_ind (guidId)', "FOREIGN KEY (guidId) REFERENCES $table(guidId) ON DELETE CASCADE","FOREIGN KEY (seNumber) REFERENCES SE(seNumber) on DELETE CASCADE"],) or return;
+
+
+  $db->checkTable("${table}_REF", "guidId", {guidId=>"int(11) NOT NULL",
+					     lfnRef=>"varchar(20) NOT NULL"},
+		  '', ['INDEX guidId(guidId)', 'INDEX lfnRef(lfnRef)', "FOREIGN KEY (guidId) REFERENCES $table(guidId) ON DELETE CASCADE"]) or return;
+
+  $db->checkTable("${table}_QUOTA", "user", {user=>"varchar(64) NOT NULL", nbFiles=>"int(11) NOT NULL", totalSize=>"bigint(20) NOT NULL"}, undef, ['INDEX user_ind (user)'],) or return;
+
+  $db->optimizeTable($table);
+  $db->optimizeTable("${table}_PFN");
+
+  my $index=$table;
+  $index=~ s/^G(.*)L$/$1/;
+  #$db->do("INSERT IGNORE INTO GL_ACTIONS(tableNumber,action)  values  (?,'SE')", {bind_values=>[$index, $index]}); 
+
+
+  return 1;
+
+}
 ##############################################################################
 ##############################################################################
 

@@ -85,6 +85,47 @@ sub createTable {
 }
 
 
+sub checkTable {
+  my $self=shift;
+  my $table=shift;
+  my $desc=shift;
+  my $columnsDef=shift;
+  my $primaryKey=shift;
+  my $index=shift;
+  my $options=shift;
+  
+
+  my %columns=%$columnsDef;
+  my $engine="";
+  $options->{engine} and $engine = " engine=$options->{engine} ";
+  $desc = "$desc $columns{$desc}";
+  $self->createTable( $table, "($desc) $engine", 1 ) or return;
+
+  my $alter=$self->getNewColumns($table, $columnsDef);
+
+  if ($alter) {
+  $self->lock($table);
+
+  #let's get again the description
+  $alter = $self->getNewColumns( $table, $columnsDef );
+  my $done = 1;
+  if ($alter) {
+
+  #  chop($alter);
+  $self->info("Updating columns of table $table");
+  $done = $self->alterTable( $table, $alter );
+  }
+  $self->unlock($table);
+  $done or return;
+  }
+
+  #Ok, now let's take a look at the primary key
+  #$primaryKey or return 1;
+
+  $self->setPrimaryKey( $table, $desc, $primaryKey, $index );
+
+#  $desc =~ /not null/i or $self->{LOGGER}->error("Database", "Error: the table $table is supposed to have a primary key, but the index can be null!") and return;
+}
 
 =item C<getNewColumns>
 
@@ -213,25 +254,6 @@ sub existsTable {
   return $self->queryValue("SHOW TABLES like '$table'");
 }
 
-sub getTypes {
-  my $self = shift;
-
-  $self->{TYPES} = {
-    'serial'    => 'serial',
-    'char'      => 'char',
-    'binary'    => 'binary',
-    'number'    => 'int',
-    'tinyint'   => 'tinyint',
-    'text'      => 'text',
-    'bigint'    => 'bigint',
-    'mediumint' => 'mediumint',
-    'smallint'  => 'smallint',
-    'date'      => 'datetime',
-    'text'      => 'text'
-  };
-  return 1;
-}
-
 
 sub resetAutoincrement {
   my $self  = shift;
@@ -300,356 +322,6 @@ sub revokePrivilegesFromUser {
   return $success;
 }
 
-sub createLFNTables{
-  my $self = shift;
-
-
-  $DEBUG and $self->debug(2,"In createCatalogueTables creating all tables...");
-
-
-  my %tables=(HOSTS=>["hostIndex", {hostIndex=>"serial primary key",
-            address=>"char(50)", 
-            db=>"char(40)",
-            driver=>"char(10)", 
-            organisation=>"char(11)",},"hostIndex"],
-        TRIGGERS=>["lfn", {lfn=>"varchar(255)", 
-         triggerName=>"varchar(255)",
-        entryId=>"int auto_increment primary key"}],
-        TRIGGERS_FAILED=>["lfn", {lfn=>"varchar(255)", 
-         triggerName=>"varchar(255)",
-        entryId=>"int auto_increment primary key"}],
-        LFN_UPDATES=>["guid", {guid=>"binary(16)", 
-             action=>"char(10)",
-             entryId=>"int auto_increment primary key"},'entryId',['INDEX (guid)']
-         ],
-        ACL=>["entryId", 
-        {entryId=>"int(11) NOT NULL auto_increment primary key", 
-         owner=>"char(10) NOT NULL",
-         perm=>"char(4) NOT NULL",
-         aclId=>"int(11) NOT NULL",}, 'entryId'],
-        TAG0=>["entryId", 
-         {entryId=>"int(11) NOT NULL auto_increment primary key", 
-          path=>"varchar (255)",
-          tagName=>"varchar (50)",
-          tableName=>"varchar(50)",
-          user=>'varchar(20)'}, 'entryId'],
-        GROUPS=>["Userid", {Userid=>"int not null auto_increment primary key",
-          Username=>"char(20) NOT NULL", 
-          Groupname=>"char (85)",
-          PrimaryGroup=>"int(1)",}, 'Userid'],
-        INDEXTABLE=>["indexId", {indexId=>"int(11) NOT NULL auto_increment primary key",
-               lfn=>"varchar(50)", 
-               hostIndex=>"int(11)",
-               tableName=>"int(11)",}, 
-         'indexId', ['UNIQUE INDEX (lfn)']],
-        ENVIRONMENT=>['userName', {userName=>"char(20) NOT NULL PRIMARY KEY", 
-          env=>"char(255)"}],
-        ACTIONS=>['action', {action=>"char(40) not null primary key",
-           todo=>"int(1) not null default 0"},
-           'action'],
-        PACKAGES=>['fullPackageName',{'fullPackageName'=> 'varchar(255)',
-              packageName=>'varchar(255)',
-              username=>'varchar(20)', 
-              packageVersion=>'varchar(255)',
-              platform=>'varchar(255)',
-              lfn=>'varchar(255)',
-              size=>'bigint'}, 
-      ],
-        COLLECTIONS=>['collectionId', {'collectionId'=>"int not null auto_increment primary key",
-               'collGUID'=>'binary(16)'}],
-        COLLECTIONS_ELEM=>['collectionId', {'collectionId'=>'int not null',
-              origLFN=>'varchar(255)',
-              guid=>'binary(16)',
-              data=>"varchar(255)",
-             localName=>"varchar(255)"},
-         
-         "",['INDEX (collectionId)']],
-
-        "SE_VOLUMES"=>["volume", {volumeId=>"int(11) NOT NULL auto_increment PRIMARY KEY",
-          seName=>"char(255) collate latin1_general_ci NOT NULL ",
-          volume=>"char(255) NOT NULL",
-          mountpoint=>"char(255)",
-          usedspace=>"bigint",
-          freespace=>"bigint",
-          size=>"bigint",
-          method=>"char(255)",}, 
-           "volumeId", ['UNIQUE INDEX (volume)', 'INDEX(seName)'],],
-        "LL_STATS" =>["tableNumber", {
-              tableNumber=>"int(11) NOT NULL",
-              min_time=>"char(16) NOT NULL",
-              max_time=> "char(16) NOT NULL", 
-            },undef,['UNIQUE INDEX(tableNumber)']],
-        LL_ACTIONS=>["tableNumber", {tableNumber=>"int(11) NOT NULL",
-             action=>"char(40) not null", 
-             time=>"timestamp default current_timestamp",
-             extra=>"varchar(255)"}, undef, ['UNIQUE INDEX(tableNumber,action)']],
-             SERanks=>["sitename", {sitename=>"varchar(100) collate latin1_general_ci  not null",
-                                    seNumber=>"integer not null",
-                                    rank=>"smallint(7) not null",
-                                    updated=>"smallint(1)"}, 
-                                    undef, ['UNIQUE INDEX(sitename,seNumber), PRIMARY KEY(sitename,seNumber), INDEX(sitename), INDEX(seNumber)']],
-        LFN_BOOKED=>["lfn",{lfn=>"varchar(255)",
-            expiretime=>"int",
-            guid=>"binary(16) ",
-            size=>"bigint",
-            md5sum=>"varchar(32)",
-            owner=>"varchar(20)",
-            gowner=>"varchar(20)",
-            pfn=>"varchar(255)",
-            se=>"varchar(100)",
-            quotaCalculated=>"smallint",
-            user=>"varchar(20)",
-            existing=>"smallint(1)",
-          },
-            undef, ['PRIMARY KEY(lfn,pfn,guid)','INDEX(pfn)','INDEX(lfn)', 'INDEX(guid)','INDEX(expiretime)']],
-        PFN_TODELETE=>[ "pfn", {pfn=>"varchar(255)", retry=>"integer not null"}, undef, ['UNIQUE INDEX(pfn)']]
-           );
-  foreach my $table (keys %tables){
-    $self->info("Checking table $table");
-    $self->checkTable($table, @{$tables{$table}}) or return;
-  }
-
-  $self->checkLFNTable("0") or return;
-  $self->do("INSERT IGNORE INTO ACTIONS(action) values  ('PACKAGES')");
- 
-  1;
-}
-
-sub checkLFNTable {
-  my $self =shift;
-  my $table =shift;
-  defined $table or $self->info( "Error: we didn't get the table number to check") and return;
-  
-  $table =~ /^\d+$/ and $table="L${table}L";
-
-  my $number;
-  $table=~ /^L(\d+)L$/ and $number=$1;
-
-  my %columns = (entryId=>"bigint(11) NOT NULL auto_increment primary key", 
-		 lfn=> "varchar(255) NOT NULL",
-		 type=> "char(1) NOT NULL default 'f'",
-		 ctime=>"timestamp",
-		 expiretime=>"datetime",
-		 size=>"bigint  not null default 0",
-		 aclId=>"mediumint(11)",
-		 perm=>"char(3) not null",
-		 guid=>"binary(16)",
-		 replicated=>"smallint(1) not null default 0",
-		 dir=>"bigint(11)",
-		 owner=>"varchar(20) not null",
-		 gowner=>"varchar(20) not null",
-		 md5=>"varchar(32)",
-		 guidtime=>"varchar(8)",
-		 broken=>'smallint(1) not null default 0',
-		);
-
-  $self->checkTable(${table}, "entryId", \%columns, 'entryId', 
-		    ['UNIQUE INDEX (lfn)',"INDEX(dir)", "INDEX(guid)", "INDEX(type)", "INDEX(ctime)", "INDEX(guidtime)"]) or return;
-  $self->checkTable("${table}_broken", "entryId", {entryId=>"bigint(11) NOT NULL  primary key"}) or return;
-  $self->checkTable("${table}_QUOTA", "user", {user=>"varchar(64) NOT NULL", nbFiles=>"int(11) NOT NULL", totalSize=>"bigint(20) NOT NULL"}, undef, ['INDEX user_ind (user)'],) or return;
-  
-  $self->do("optimize table ${table}");
-#  $self->do("optimize table ${table}_QUOTA");
-  
-  return 1;
-}
-
-
-sub createGUIDTables {
-  my $self = shift;
-
-
-  my %tables = (
-    HOSTS => [
-      "hostIndex",
-      {
-        hostIndex    => "serial primary key",
-        address      => "char(50)",
-        db           => "char(40)",
-        driver       => "char(10)",
-        organisation => "char(11)",
-      },
-      "hostIndex"
-    ],
-    ACL => [
-      "entryId",
-      {
-        entryId => "int(11) NOT NULL auto_increment primary key",
-        owner   => "char(10) NOT NULL",
-        perm    => "char(4) NOT NULL",
-        aclId   => "int(11) NOT NULL",
-      },
-      'entryId'
-    ],
-    GROUPS => [
-      "Username",
-      {
-        Username     => "char(15) NOT NULL",
-        Groupname    => "char (85)",
-        PrimaryGroup => "int(1)",
-      },
-      'Username'
-    ],
-    GUIDINDEX => [
-      "indexId",
-      {
-        indexId   => "int(11) NOT NULL auto_increment primary key",
-        guidTime  => "char(16)",
-        hostIndex => "int(11)",
-        tableName => "int(11)",
-      },
-      'indexId',
-      ['UNIQUE INDEX (guidTime)']
-    ],
-    TODELETE => [
-      "entryId",
-      {
-        entryId  => "int(11) NOT NULL auto_increment primary key",
-        pfn      => "varchar(255)",
-        seNumber => "int(11) not null",
-        guid     => "binary(16)"
-      }
-    ],
-    GL_STATS => [
-      "tableNumber",
-      {
-        tableNumber => "int(11) NOT NULL",
-        seNumber    => "int(11) NOT NULL",
-        seNumFiles  => "bigint(20)",
-        seUsedSpace => "bigint(20)",
-      },
-      undef,
-      ['UNIQUE INDEX(tableNumber,seNumber)']
-    ],
-    GL_ACTIONS => [
-      "tableNumber",
-      {
-        tableNumber => "int(11) NOT NULL",
-        action      => "char(40) not null",
-        time        => "timestamp default current_timestamp",
-        extra       => "varchar(255)",
-      },
-      undef,
-      ['UNIQUE INDEX(tableNumber,action)']
-    ],
-  );
-
-  foreach my $table ( keys %tables ) {
-    $self->info("Checking table $table");
-    $self->checkTable( $table, @{ $tables{$table} } )
-      or return;
-  }
-
-}
-
-sub checkGUIDTable {
-  my $self  = shift;
-  my $table = shift;
-  defined $table
-    or $self->info("Error: we didn't get the table number to check")
-    and return;
-  my $db = shift || $self;
-
-  $table =~ /^\d+$/ and $table = "G${table}L";
-
-  my %columns = (
-    guidId           => "int(11) NOT NULL auto_increment primary key",
-    ctime            => "timestamp",
-    expiretime       => "datetime",
-    size             => "bigint not null default 0",
-    seStringlist     => "varchar(255) not null default ','",
-    seAutoStringlist => "varchar(255) not null default ','",
-    aclId            => "int(11)",
-    perm             => "char(3)",
-    guid             => "binary(16)",
-    md5              => "varchar(32)",
-    ref              => "int(11) default 0",
-    owner            => "varchar(20)",
-    gowner           => "varchar(20)",
-    type             => "char(1)",
-  );
-
-  $db->checkTable( ${table}, "guidId", \%columns, 'guidId',
-    [ 'UNIQUE INDEX (guid)', 'INDEX(seStringlist)', 'INDEX(ctime)' ],
-  ) or return;
-
-  %columns = (
-    pfn      => 'varchar(255)',
-    guidId   => "int(11) NOT NULL",
-    seNumber => "int(11) NOT NULL",
-  );
-  $db->checkTable(
-    "${table}_PFN",
-    "guidId",
-    \%columns,
-    undef,
-    [
-      'INDEX guid_ind (guidId)',
-      "FOREIGN KEY (guidId) REFERENCES $table(guidId) ON DELETE CASCADE",
-      "FOREIGN KEY (seNumber) REFERENCES SE(seNumber) on DELETE CASCADE"
-    ],
-  ) or return;
-
-  $db->checkTable(
-    "${table}_REF",
-    "guidId",
-    {
-      guidId => "int(11) NOT NULL",
-      lfnRef => "varchar(20) NOT NULL"
-    },
-    '',
-    [
-      'INDEX guidId(guidId)',
-      'INDEX lfnRef(lfnRef)',
-      "FOREIGN KEY (guidId) REFERENCES $table(guidId) ON DELETE CASCADE"
-    ]
-  ) or return;
-
-  $db->checkTable(
-    "${table}_QUOTA",
-    "user",
-    {
-      user      => "varchar(64) NOT NULL",
-      nbFiles   => "int(11) NOT NULL",
-      totalSize => "bigint(20) NOT NULL"
-    },
-    undef,
-    ['INDEX user_ind (user)'],
-  ) or return;
-
-  $db->optimizeTable($table);
-  $db->optimizeTable("${table}_PFN");
-
-  my $index = $table;
-  $index =~ s/^G(.*)L$/$1/;
-
-#$db->do("INSERT IGNORE INTO GL_ACTIONS(tableNumber,action)  values  (?,'SE')", {bind_values=>[$index, $index]});
-
-  return 1;
-
-}
-
-
-sub checkSETable {
-  my $self = shift;
-  
-  my %columns = (seName=>"varchar(60) character set latin1 collate latin1_general_ci NOT NULL", 
-		 seNumber=>"int(11) NOT NULL auto_increment primary key",
-		 seQoS=>"varchar(200)",
-		 seioDaemons=>"varchar(255)",
-		 seStoragePath=>"varchar(255)",
-		 seNumFiles=>"bigint",
-		 seUsedSpace=>"bigint",
-		 seType=>"varchar(60)",
-		 seMinSize=>"int default 0",
-                 seExclusiveWrite=>"varchar(300)",
-                 seExclusiveRead=>"varchar(300)",
-                 seVersion=>"varchar(300)",
-		);
-
-  return $self->checkTable("SE", "seNumber", \%columns, 'seNumber', ['UNIQUE INDEX (seName)'], {engine=>"innodb"} ); #or return;
-
-}
 sub renameField {
   my $self  = shift;
   my $table = shift;
@@ -706,213 +378,6 @@ sub lock {
   $self->_do("LOCK TABLE $table WRITE");
 }
 
-sub createAdminTables{
-  my $self = shift;
-  $self->checkTable("USERS_LDAP", "user",{user=>"varchar(15) not null",
-					  dn=>"varchar(255)",
-					  up=>"smallint"}) or return;
-  
-  
-  $self->checkTable("USERS_LDAP_ROLE", "user",{user=>"varchar(15) not null",
-					       role=>"varchar(15)",
-					       up=>"smallint"}) or return;
-  $self->checkTable("TOKENS", "ID", {ID=>"int(11) not null auto_increment primary key",
-				     "Username","varchar(16)",
-				     "Expires","datetime",
-				     "Token"=>"varchar(32)",
-				     "password"=>"varchar(16)",
-				     "SSHKey"=>"text",
-				     "dn"=>"varchar(255)",
-				    }) or return;
-  $self->checkTable("DBKEYS", "Name", {"Name"=> "varchar(20) NOT NULL DEFAULT ''",
-				       "DBKey"=>"blob",
-				       "LastChanges"=>"datetime NOT NULL DEFAULT '0000-00-00 00:00:00'"
-				      }) or return;
-  $self->checkTable("jobToken", "jobId", { "jobId"=>"int(11) NOT NULL DEFAULT '0' PRIMARY KEY",
-					   "userName"=>"char(20) DEFAULT NULL",
-					   "jobToken"=>"char(255) DEFAULT NULL",
-					 }) or return;
-  return 1;
-}
-
-sub createTaskQueueTables{
-  my $self = shift;
-  my $queueColumns={columns=>{queueId=>"int(11) not null auto_increment primary key",
-			      execHost=>"varchar(64)",
-			      submitHost=>"varchar(64)",
-			      priority =>"tinyint(4)",
-			      status  =>"varchar(12)",
-			      command =>"varchar(255)",
-			      commandArg =>"varchar(255)",
-			      name =>"varchar(255)",
-			      path =>"varchar(255)",
-			      current =>"varchar(255)",
-			      received =>"int(20)",
-			      started =>"int(20)",
-			      finished =>"int(20)",
-			      expires =>"int(10)",
-			      error =>"int(11)",
-			      validate =>"int(1)",
-			      sent =>"int(20)",
-			      jdl =>"text collate latin1_general_ci",
-			      site=> "varchar(40)",
-			      node=>"varchar(64)",
-			      spyurl=>"varchar(64)",
-			      split=>"int",
-			      splitting=>"int",
-			      merging=>"varchar(64)",
-			      masterjob=>"int(1) default 0",
-			      price=>"float",
-			      chargeStatus=>"varchar(20)",
-			      optimized=>"int(1) default 0",
-			      finalPrice=>"float",
-			      notify=>"varchar(255)",
-			      agentid=>'int(11)',
-			      mtime=>'timestamp',
-            },
-		    id=>"queueId",
-		    index=>"queueId",
-		    extra_index=>["INDEX (split)", "INDEX (status)", "INDEX(agentid)", "UNIQUE INDEX (submitHost,queueId)","INDEX(priority)",
-				  "INDEX (site,status)",
-				  "INDEX (sent)",
-				  "INDEX (status,submitHost)",
-				  "INDEX (status,agentid)",
-				  "UNIQUE INDEX (status,queueId)"
-				 ]
-		   };
-  my $queueColumnsProc={columns=>{queueId=>"int(11) not null auto_increment primary key",
-				  runtime =>"varchar(20)",
-				  runtimes =>"int",
-				  cpu =>"float",
-				  mem =>"float",
-				  cputime =>"int",
-				  rsize =>"int",
-				  vsize =>"int",
-				  ncpu =>"int",
-				  cpufamily =>"int",
-				  cpuspeed =>"int",
-				  cost =>"float",
-				  maxrsize =>"float",
-				  maxvsize =>"float",
-				  procinfotime =>"int(20)",
-				  si2k=>"float",
-				  lastupdate=>"timestamp",
-				  batchid=>"varchar(255)",
-				 },
-			id=>"queueId",
-			index=>"queueId"};
-  my $tables={ QUEUE=>$queueColumns,
-	       QUEUEPROC=>$queueColumnsProc,
-	       QUEUEEXPIRED=>$queueColumns,
-	       QUEUEEXPIREDPROC=>$queueColumnsProc,
-
-	       $self->{QUEUEARCHIVE}=>$queueColumns,
-	       $self->{QUEUEARCHIVEPROC}=>$queueColumnsProc,
-
-	       JOBAGENT=>{columns=>{entryId=>"int(11) not null auto_increment primary key",
-				    requirements=>"text not null",
-				    counter=>"int(11) not null default 0",
-				    afterTime=>"time",
-				    beforeTime=>"time",
-				    priority=>"int(11)",
-				   },
-			  id=>"entryId",
-			  index=>"entryId",
-			  extra_index=>["INDEX(priority)"],
-			 },
-	       SITES=>{columns=>{siteName=>"char(255)",
-				 siteId =>"int(11) not null auto_increment primary key",
-				 masterHostId=>"int(11)",
-				 adminName=>"char(100)",
-				 location=>"char(255)",
-				 domain=>"char(30)",
-				 longitude=>"float",
-				 latitude=>"float",
-				 record=>"char(255)",
-				 url=>"char(255)",},
-		       id=>"siteId",
-		       index=>"siteId",
-		       },
-	       HOSTS=>{columns=>{commandName=>"char(255)",
-				 hostName=>"char(255)",
-				 hostPort=>"int(11) not null ",
-				 hostId =>"int(11) not null auto_increment primary key",
-				 siteId =>"int(11) not null",
-				 adminName=>"char(100) not null",
-				 maxJobs=>"int(11) not null",
-				 status=>"char(10) not null",
-				 date=>"int(11)",
-				 rating=>"float not null",
-				 Version=>"char(10)",
-				 queues=>"char(50)",
-				 connected=>"int(1)",
-				 maxqueued=>"int(11)",
-				},
-		       id=>"hostId",
-		       index=>"hostId"
-		      },
-	       MESSAGES=>{columns=>{ ID            =>" int(11) not null  auto_increment primary key",
-				     TargetHost    =>" varchar(100)",
-				     TargetService =>" varchar(100)",
-				     Message       =>" varchar(100)",
-				     MessageArgs   =>" varchar(100)",
-				     Expires       =>" int(11)",
-				     Ack=>         =>'varchar(255)'},
-			  id=>"ID",
-			  index=>"ID",},
-	       JOBMESSAGES=>{columns=> {entryId=>" int(11) not null  auto_increment primary key",
-					jobId =>"int", 
-					procinfo=>"varchar(200)",
-					tag=>"varchar(40)", 
-					timestamp=>"int", },
-			     id=>"entryId", 
-			    },
-
-	       JOBSTOMERGE=>{columns=>{masterId=>"int(11) not null primary key"},
-			     id=>"masterId"},
-	       STAGING=>{columns=>{queueid=>"int(11) not null primary key",
-				  staging_time=>"timestamp"},
-			 id=>"queueid"},
-			
-	     };
-  foreach my $table  (keys %$tables) {
-    $self->checkTable($table, $tables->{$table}->{id}, $tables->{$table}->{columns}, $tables->{$table}->{index}, $tables->{$table}->{extra_index})
-      or $self->{LOGGER}->error("TaskQueue", "Error checking the table $table") and return;
-  }
-
-}
-sub checkSiteQueueTable{
-  my $self = shift;
-  $self->{SITEQUEUETABLE} = (shift or "SITEQUEUES");
-
-  my %columns = (		
-		 site=> "varchar(40) not null",
-		 cost=>"float",
-		 status=>"varchar(20)",
-		 statustime=>"int(20)",
-		 blocked =>"varchar(10)",
-		 maxqueued=>"int",
-		 maxrunning=>"int",
-		 queueload=>"float",
-		 runload=>"float",
-		 jdl => "text",
-                 jdlAgent => 'text',
-		 timeblocked=>"datetime", 
-		);
-
-  foreach (@{AliEn::Util::JobStatus()}) {
-    $columns{$_}="int";
-  }
-  $self->checkTable($self->{SITEQUEUETABLE}, "site", \%columns, "site");
-}
-sub checkActionTable {
-  my $self=shift;
-
-  my %columns= (action=>"char(40) not null primary key",
-		todo=>"int(1) not null default 0");
-  $self->checkTable("ACTIONS", "action", \%columns, "action") or return;
-  return $self->do("INSERT IGNORE INTO ACTIONS(action) values  ('INSERTING'), ('MERGING'), ('KILLED'), ('SPLITTING'), ('STAGING')");
-}
 
 sub unlock {
   my $self  = shift;

@@ -232,7 +232,27 @@ sub destroy {
 #  $self->SUPER::destroy();
 }
 
+sub checkSETable {
+  my $self = shift;
+  
+  my %columns = (seName=>"varchar(60) character set latin1 collate latin1_general_ci NOT NULL", 
+		 seNumber=>"int(11) NOT NULL auto_increment primary key",
+		 seQoS=>"varchar(200)",
+		 seioDaemons=>"varchar(255)",
+		 seStoragePath=>"varchar(255)",
+		 seNumFiles=>"bigint",
+		 seUsedSpace=>"bigint",
+		 seType=>"varchar(60)",
+		 seMinSize=>"int default 0",
+                 seExclusiveWrite=>"varchar(300)",
+                 seExclusiveRead=>"varchar(300)",
+                 seVersion=>"varchar(300)",
+		);
 
+  return $self->checkTable("SE", "seNumber", \%columns, 'seNumber', ['UNIQUE INDEX (seName)'], {engine=>"innodb"} ); #or return;
+  #This table we want it case insensitive
+#  return $self->do("alter table SE  convert to CHARacter SET latin1");
+}
 
 sub reconnectToIndex {
   my $self=shift;
