@@ -77,7 +77,109 @@ sub createCatalogueTables {
       $self->{LOGGER}->error("Catalogue", "Error checking the $_ table") and
 	return;
   }
-  $self->createLFNTables;
+  my %tables=(HOSTS=>["hostIndex", {hostIndex=>"serial primary key",
+				    address=>"char(50)", 
+				    db=>"char(40)",
+				    driver=>"char(10)", 
+				    organisation=>"char(11)",},"hostIndex"],
+	      TRIGGERS=>["lfn", {lfn=>"varchar(255)", 
+				 triggerName=>"varchar(255)",
+				entryId=>"int auto_increment primary key"}],
+	      TRIGGERS_FAILED=>["lfn", {lfn=>"varchar(255)", 
+				 triggerName=>"varchar(255)",
+				entryId=>"int auto_increment primary key"}],
+	      LFN_UPDATES=>["guid", {guid=>"binary(16)", 
+				     action=>"char(10)",
+				     entryId=>"int auto_increment primary key"},'entryId',['INDEX (guid)']
+			   ],
+	      ACL=>["entryId", 
+		    {entryId=>"int(11) NOT NULL auto_increment primary key", 
+		     owner=>"char(10) NOT NULL",
+		     perm=>"char(4) NOT NULL",
+		     aclId=>"int(11) NOT NULL",}, 'entryId'],
+	      TAG0=>["entryId", 
+		     {entryId=>"int(11) NOT NULL auto_increment primary key", 
+		      path=>"varchar (255)",
+		      tagName=>"varchar (50)",
+		      tableName=>"varchar(50)",
+		      user=>'varchar(20)'}, 'entryId'],
+	      GROUPS=>["Userid", {Userid=>"int not null auto_increment primary key",
+				  Username=>"char(20) NOT NULL", 
+				  Groupname=>"char (85)",
+				  PrimaryGroup=>"int(1)",}, 'Userid'],
+	      INDEXTABLE=>["indexId", {indexId=>"int(11) NOT NULL auto_increment primary key",
+				       lfn=>"varchar(50)", 
+				       hostIndex=>"int(11)",
+				       tableName=>"int(11)",}, 
+			   'indexId', ['UNIQUE INDEX (lfn)']],
+	      ENVIRONMENT=>['userName', {userName=>"char(20) NOT NULL PRIMARY KEY", 
+					env=>"char(255)"}],
+	      ACTIONS=>['action', {action=>"char(40) not null primary key",
+				   todo=>"int(1) default 0 not null "},
+		       'action'],
+	      PACKAGES=>['fullPackageName',{'fullPackageName'=> 'varchar(255)',
+					    packageName=>'varchar(255)',
+					    username=>'varchar(20)', 
+					    packageVersion=>'varchar(255)',
+					    platform=>'varchar(255)',
+					    lfn=>'varchar(255)',
+					    size=>'bigint'}, 
+			],
+	      COLLECTIONS=>['collectionId', {'collectionId'=>"int not null auto_increment primary key",
+					     'collGUID'=>'binary(16)'}],
+	      COLLECTIONS_ELEM=>['collectionId', {'collectionId'=>'int not null',
+						  origLFN=>'varchar(255)',
+						  guid=>'binary(16)',
+						  data=>"varchar(255)",
+						 localName=>"varchar(255)"},
+				 
+				 "",['INDEX (collectionId)']],
+
+	      "SE_VOLUMES"=>["volume", {volumeId=>"int(11) NOT NULL auto_increment PRIMARY KEY",
+					seName=>"char(255) collate latin1_general_ci NOT NULL ",
+					volume=>"char(255) NOT NULL",
+					mountpoint=>"char(255)",
+					usedspace=>"bigint",
+					freespace=>"bigint",
+					size=>"bigint",
+					method=>"char(255)",}, 
+			     "volumeId", ['UNIQUE INDEX (volume)', 'INDEX(seName)'],],
+	      "LL_STATS" =>["tableNumber", {
+					    tableNumber=>"int(11) NOT NULL",
+					    min_time=>"char(16) NOT NULL",
+					    max_time=> "char(16) NOT NULL", 
+				    },undef,['UNIQUE INDEX(tableNumber)']],
+	      LL_ACTIONS=>["tableNumber", {tableNumber=>"int(11) NOT NULL",
+					   action=>"char(40) not null", 
+					   time=>"timestamp default current_timestamp",
+					   extra=>"varchar(255)"}, undef, ['UNIQUE INDEX(tableNumber,action)']],
+             SERanks=>["sitename", {sitename=>"varchar(100) collate latin1_general_ci  not null",
+                                    seNumber=>"integer not null",
+                                    rank=>"smallint(7) not null",
+                                    updated=>"smallint(1)"}, 
+                                    undef, ['UNIQUE INDEX(sitename,seNumber), PRIMARY KEY(sitename,seNumber), INDEX(sitename), INDEX(seNumber)']],
+        LFN_BOOKED=>["lfn",{lfn=>"varchar(255)",
+            expiretime=>"int",
+            guid=>"binary(16) ",
+            size=>"bigint",
+            md5sum=>"varchar(32)",
+            owner=>"varchar(20)",
+            gowner=>"varchar(20)",
+            pfn=>"varchar(255)",
+            se=>"varchar(100)",
+            quotaCalculated=>"smallint",
+            user=>"varchar(20)",
+            existing=>"smallint(1)",
+          },
+            undef, ['PRIMARY KEY(lfn,pfn,guid)','INDEX(pfn)','INDEX(lfn)', 'INDEX(guid)','INDEX(expiretime)']] ,
+          PFN_TODELETE=>[ "pfn", {pfn=>"varchar(255)", retry=>"integer not null"}, undef, ['UNIQUE INDEX(pfn)']]
+	  	                                   
+	         );
+  foreach my $table (keys %tables){
+    $self->info("Checking table $table");
+    $self->checkTable($table, @{$tables{$table}}) or return;
+  }
+
   $self->checkLFNTable("0") or return;
   $self->do("INSERT INTO ACTIONS ( action) SELECT 'PACKAGES' FROM DUAL WHERE NOT  EXISTS 
 (SELECT  * FROM ACTIONS WHERE ACTION = 'PACKAGES') ");
@@ -96,12 +198,51 @@ sub createCatalogueTables {
 sub checkConstantsTable {
   my $self=shift;
   my %columns=(name=> "varchar(100) NOT NULL",
-         value=> $self->{TYPES}->{number},
-        );
+	       value=> "int",
+	      );
   $self->checkTable("CONSTANTS",  "name", \%columns, 'name') or return;
   my $exists=$self->queryValue("SELECT count(*) from CONSTANTS where name='MaxDir'");
   $exists and return 1;
   return $self->do("INSERT INTO CONSTANTS values ('MaxDir', 0)");
+}
+
+sub checkLFNTable {
+  my $self =shift;
+  my $table =shift;
+  defined $table or $self->info( "Error: we didn't get the table number to check") and return;
+  
+  $table =~ /^\d+$/ and $table="L${table}L";
+
+  my $number;
+  $table=~ /^L(\d+)L$/ and $number=$1;
+
+  my %columns = (entryId=>"bigint(11) NOT NULL auto_increment primary key", 
+		 lfn=> "varchar(255) NOT NULL",
+		 type=> "char(1)  default 'f' NOT NULL",
+		 ctime=>"timestamp",
+		 expiretime=>"datetime",
+		 size=>"bigint  default 0 not null ",
+		 aclId=>"mediumint(11)",
+		 perm=>"char(3) not null",
+		 guid=>"binary(16)",
+		 replicated=>"smallint(1) default 0 not null",
+		 dir=>"bigint(11)",
+		 owner=>"varchar(20) not null",
+		 gowner=>"varchar(20) not null",
+		 md5=>"varchar(32)",
+		 guidtime=>"varchar(8)",
+		 broken=>'smallint(1) default 0 not null ',
+		);
+
+  $self->checkTable(${table}, "entryId", \%columns, 'entryId', 
+		    ['UNIQUE INDEX (lfn)',"INDEX(dir)", "INDEX(guid)", "INDEX(type)", "INDEX(ctime)", "INDEX(guidtime)"]) or return;
+  $self->checkTable("${table}_broken", "entryId", {entryId=>"bigint(11) NOT NULL  primary key"}) or return;
+  $self->checkTable("${table}_QUOTA", "user", {user=>"varchar(64) NOT NULL", nbFiles=>"int(11) NOT NULL", totalSize=>"bigint(20) NOT NULL"}, undef, ['INDEX user_ind (user)'],) or return;
+  
+  $self->do("optimize table ${table}");
+#  $self->do("optimize table ${table}_QUOTA");
+  
+  return 1;
 }
 
 
