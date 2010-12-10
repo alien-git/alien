@@ -165,7 +165,6 @@ sub new{
   $name .= $driver;
   eval "require $name" or print "Could not requiere $name\n" and exit(-2);
   @ISA = ( $name, @ISA );
-  $self->getTypes;
   }
 
 
@@ -620,47 +619,7 @@ sub delete {
   $self->_do($query, @_);
 }
 
-sub checkTable {
-  my $self=shift;
-  my $table=shift;
-  my $desc=shift;
-  my $columnsDef=shift;
-  my $primaryKey=shift;
-  my $index=shift;
-  my $options=shift;
-  
 
-  my %columns=%$columnsDef;
-  my $engine="";
-  $options->{engine} and $engine = " engine=$options->{engine} ";
-  $desc = "$desc $columns{$desc}";
-  $self->createTable( $table, "($desc) $engine", 1 ) or return;
-
-  my $alter=$self->getNewColumns($table, $columnsDef);
-
-  if ($alter) {
-  $self->lock($table);
-
-  #let's get again the description
-  $alter = $self->getNewColumns( $table, $columnsDef );
-  my $done = 1;
-  if ($alter) {
-
-  #  chop($alter);
-  $self->info("Updating columns of table $table");
-  $done = $self->alterTable( $table, $alter );
-  }
-  $self->unlock($table);
-  $done or return;
-  }
-
-  #Ok, now let's take a look at the primary key
-  #$primaryKey or return 1;
-
-  $self->setPrimaryKey( $table, $desc, $primaryKey, $index );
-
-#  $desc =~ /not null/i or $self->{LOGGER}->error("Database", "Error: the table $table is supposed to have a primary key, but the index can be null!") and return;
-}
 
 sub setPrimaryKey {
   my $self  = shift;
