@@ -158,13 +158,13 @@ sub new{
       or $self->{LOGGER}->error("Database","No database specified.")
   and return;
  ##we need to map the types for each database.
-  $self->{TYPES} = {};
+ 
   my $driver = $self->{DRIVER};
   my $name  = "AliEn::Database::";
   if ( $driver =~ /^Oracle$/i or $driver =~ /^mysql$/i or $driver =~ /^SQLite$/i ) {
   $name .= $driver;
   eval "require $name" or print "Could not requiere $name\n" and exit(-2);
-  @ISA = ( $name, @ISA );
+  @ISA = ( $name, @ISA );if ($driver =~ /^Oracle$/i){$self->SUPER::getTypes;}
   }
 
 
