@@ -73,7 +73,7 @@ my $tables={ TRANSFERS_DIRECT=>{columns=>{
 				extra_index=>["INDEX (agentid)", "INDEX(status)", "INDEX(lfn)","INDEX(ftd)" ]},
 
 	     ACTIONS=>{columns=>{action=>"char(40) not null primary key",
-				 todo=>"int(1) not null default 0",
+				 todo=>"int(1) default 0 not null ",
 				 extra=>"varchar(255) default ''",},
 		       id=>"action",
 		      },
@@ -83,14 +83,14 @@ my $tables={ TRANSFERS_DIRECT=>{columns=>{
 				   max_transfers=>'int(11) default 5',
 				   current_transfers=>'int(11) default 0',
 				   updated=>'tinyint default 1',
-				   deleteprotocol=>'tinyint not null default 0', 
+				   deleteprotocol=>'tinyint default 0 not null ', 
 				  },
 			 id=>"sename"},
 	     AGENT_DIRECT=>{columns=>{entryId=>"int(11) not null auto_increment primary key",
 				      requirements=>"text not null",
-				      counter=>"int(11) not null default 0",
+				      counter=>"int(11) default 0 not null ",
 				      priority=>"tinyint(4) default 0",
-				      currentTransfers=>"int(11) not null default 0",
+				      currentTransfers=>"int(11) default 0 not null",
 				     },
 			    id=>"entryId",},
 
@@ -114,8 +114,11 @@ sub initialize {
   }
   AliEn::Util::setupApMon($self);
   
-
-  return $self->do("INSERT IGNORE INTO ACTIONS(action) values  ('INSERTING'),('MERGING'), ('FAILED_T')");
+$self->do("INSERT  INTO ACTIONS(action)  (SELECT 'INSERTING' from dual where not exists (select action from ACTIONS where action like 'INSERTING'))") and
+  $self->do("INSERT  INTO ACTIONS(action)  (SELECT 'MERGING' from dual where not exists (select action from ACTIONS where action like 'MERGING'))") and
+  $self->do("INSERT  INTO ACTIONS(action)  (SELECT 'FAILED_T' from dual where not exists (select action from ACTIONS where action like 'FAILED_T'))") and return 1;
+ 
+  #return $self->do("INSERT IGNORE INTO ACTIONS(action) values  ('INSERTING'),('MERGING'), ('FAILED_T')");
 }
 
 sub getArchiveTable {

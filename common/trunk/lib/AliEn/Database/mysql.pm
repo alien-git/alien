@@ -126,7 +126,7 @@ sub checkTable {
 
 #  $desc =~ /not null/i or $self->{LOGGER}->error("Database", "Error: the table $table is supposed to have a primary key, but the index can be null!") and return;
 }
-
+sub gestTypes{return 1;}
 =item C<getNewColumns>
 
   $res = $dbh->getNewColumns($table,$columnsDef);
@@ -699,15 +699,6 @@ sub currentDate {
   return " now() ";
 }
 
-sub setUpdateDefault {
-  my $self  = shift;
-  my $table = shift;
-  my $col   = shift;
-  my $val   = shift;
-  my $desc  = shift;
-  return $self->do(
-    "ALTER TABLE $table MODIFY $col $desc ON UPDATE  " . $val );
-}
 
 ###########################
 #Functions specific for AliEn/Catalogue/Admin

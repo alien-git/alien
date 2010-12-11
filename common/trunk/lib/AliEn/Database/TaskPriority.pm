@@ -60,30 +60,30 @@ sub checkPriorityTable{
 
   my %columns = (	
 		 user=>"varchar(64) CHARACTER SET latin1 not null",
-		 priority=>"float not null default 0",
-		 maxparallelJobs=>"int not null default 0 ",
-		 nominalparallelJobs=>"int not null default 0",
-		 computedpriority=>"float not null default 0",
-		 waiting=>"int not null default 0",
-		 running=>"int not null default 0",
-		 userload=>"float not null default 0",
+		 priority=>"float default 0 not null ",
+		 maxparallelJobs=>"int default 0 not null  ",
+		 nominalparallelJobs=>"int default 0 not null ",
+		 computedpriority=>"float default 0 not null ",
+		 waiting=>"int default 0 not null ",
+		 running=>"int default 0 not null ",
+		 userload=>"float default 0 not null ",
 		#Job Quota
-		 unfinishedJobsLast24h=>"int not null default 0",
-		 totalRunningTimeLast24h=>"bigint not null default 0",
-		 totalCpuCostLast24h=>"float not null default 0",
-		 maxUnfinishedJobs=>"int not null default 0",
-		 maxTotalRunningTime=>"bigint not null default 0",
-		 maxTotalCpuCost=>"float not null default 0",
+		 unfinishedJobsLast24h=>"int default 0 not null ",
+		 totalRunningTimeLast24h=>"bigint default 0 not null ",
+		 totalCpuCostLast24h=>"float default 0 not null ",
+		 maxUnfinishedJobs=>"int default 0 not null ",
+		 maxTotalRunningTime=>"bigint default 0 not null ",
+		 maxTotalCpuCost=>"float default 0  not null ",
 		 #File Quota
-		 nbFiles=>"int not null default 0",
-		 totalSize=>"bigint not null default 0",
-		 maxNbFiles=>"int not null default 0",
-		 maxTotalSize=>"bigint not null default 0",
-		 tmpIncreasedNbFiles=>"int not null default 0",
-		 tmpIncreasedTotalSize=>"bigint not null default 0",
+		 nbFiles=>"int default 0 not null ",
+		 totalSize=>"bigint  default 0 not null",
+		 maxNbFiles=>"int default 0 not null ",
+		 maxTotalSize=>"bigint default 0  not null ",
+		 tmpIncreasedNbFiles=>"int default 0 not null ",
+		 tmpIncreasedTotalSize=>"bigint  default 0 not null ",
 		);
 
-  $self->checkTable($self->{PRIORITYTABLE}, "user", \%columns, 'user');
+  $self->checkTable($self->{PRIORITYTABLE}, "user", \%columns, $self->reservedWord('user'));
   
 }
 

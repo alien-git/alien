@@ -18,7 +18,7 @@ use strict;
 use DBI;
 use AliEn::Database;
 
-#use Tie::CPHash;
+use Tie::CPHash;
 
 use AliEn::SOAP;
 use AliEn::Logger::LogObject;
@@ -35,12 +35,6 @@ AliEn::Database::Oracle - database interface for Oracle driver for AliEn system
 This module implements the database wrapper in case of using the driver Oracle. Sytanx and structure are different for each engine. This affects the code. The rest of the modules should finally abstract from SQL code. Therefore, instead we would ideally use calls to functions implemented in this module - case of Oracle. 
 
 =cut
-
-sub initialize{
-  my $self = shift;
-  $self->getTypes;
-  defined $self->{ORACLE_USER} or $self->{ORACLE_USER}="ALIENSTANDARD";
-}
 
 =item C<reservedWord>
 
@@ -78,14 +72,18 @@ sub checkTable {
   my %autoincrements= ();
   my %columns=%$columnsDef;
   my $desc2=$desc;
-  $desc2 =~ s/^size$|^user$|^time$/"\"$desc2\""/ie; 
-  $columns{$desc} =~ s/DEFAULT CHARACTER SET latin1|COLLATE latin1_general_cs|COLLATE latin1_general_ci//ig;
-  $columns{$desc} =~ s/(\s*)([a-zA-Z]*)(\(|\s+|$)(.*)/$self->{TYPES}->{$2}$3$4/i;
+  $desc2 =~ s/^size$|^user$|^time$|^current$|^validate$|^date$/"\"".uc($desc2)."\""/ie; 
+ #print "\nEsta es la primera columna : $desc2 y despues $columns{$desc} y estos son los componentes 1 $1 2$2 3$3 4$4";
+  $columns{$desc} =~ s/(DEFAULT )?CHARACTER SET latin1|COLLATE latin1_general_cs|COLLATE latin1_general_ci//ig;
+  $columns{$desc} =~ s/\'0000-00-00\s00:00:00\'/sysdate/;
+  if ($columns{$desc} =~ /serial/){ $autoincrements{$table}=$desc;}
+  $columns{$desc} =~ s/(\s*)([a-zA-Z]+)(\(|\s+|$)(.*)/$self->{TYPES}->{$2}$3$4/i;
   if ($columns{$desc} =~ s/auto_increment//){ $autoincrements{$table}=$desc;}
- # print "\nEsta es la primera columna : $desc y despues $columns{$desc} y estos son los componentes 1 $1 2$2 3$3 4$4";
+  
+#  print "\nEsta es la primera columna : $desc2 y despues $columns{$desc} y estos son los componentes 1 $1 2$2 3$3 4$4";
   $desc = "$desc2 $columns{$desc}";
   $self->createTable( $table, "($desc) ", 1 ) or return;use Data::Dumper;
-  print "\n\nThese are the autoincrements ".Dumper(%autoincrements);
+ # print "\n\nThese are the autoincrements ".Dumper(%autoincrements);
  if(%autoincrements){foreach my $t(keys %autoincrements){
     $self->defineAutoincrement($t,$autoincrements{$t}) or return;
   }}
@@ -171,11 +169,13 @@ sub getNewColumns {
   my %autoincrements= (); 
   foreach my $desc( keys %columns ) {  
     my $desc2=$desc;
-    $desc2 =~ s/^size$|^user$|^time$/"\"$desc2\""/ie; 
+    $desc2 =~ s/^size$|^user$|^time$|^current$|^validate$|^date$/"\"".uc($desc2)."\""/ie; 
     $columns{$desc} =~ s/(DEFAULT)? CHARACTER SET latin1|COLLATE latin1_general_cs|COLLATE latin1_general_ci//ig;
+    if ($columns{$desc} =~ /serial/){ $autoincrements{$table}=$desc;}
     $columns{$desc} =~ s/(\s*)([a-zA-Z]*)(\(|\s+|$)(.*)/$self->{TYPES}->{$2}$3$4/i;
+    $columns{$desc} =~ s/\'0000-00-00\s00:00:00\'/sysdate/;
     if ($columns{$desc} =~ s/auto_increment//){ $autoincrements{$table}=$desc;}
-   
+    if ($columns{$desc} =~ s/ON UPDATE CURRENT_TIMESTAMP// ){}#$self->setUpdateDefault($table,$desc2,"CURRENT_TIMESTAMP");}
     $alter .= " $desc2 $columns{$desc} ,";  
   }
   if(%autoincrements){foreach my $t(keys %autoincrements){
@@ -530,10 +530,14 @@ sub getTypes {
     'bigint'    => 'number',
     'smallint'  => 'number',
     'mediumint' => 'number',
+    'float' => 'float',
     'datetime'      => 'date',
     'varchar'	=> 'varchar2',
     'timestamp' => 'timestamp', 
-    'integer' => 'integer'
+    'time' => 'timestamp', 
+    'integer' => 'integer',
+    'blob' => 'blob',
+    'timestamp' => 'timestamp'
   };
   return 1;
 }
@@ -1388,7 +1392,7 @@ sub setUpdateDefault {
   my $table = shift;
   my $col   = shift;
   my $val   = shift;
-  return $self->do(
+   $self->do(
   "create or replace TRIGGER  " 
       . $table
       . "trigger_ctime BEFORE UPDATE ON  "
@@ -1399,7 +1403,7 @@ sub setUpdateDefault {
       . " into :new."
       . $col
       . " from dual; END TRANSFERS_DIRECT_trigger_ctime;"
-  );
+  );return 1;
 }
 
 ###########################
