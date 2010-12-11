@@ -43,7 +43,7 @@ sub initialize {
 		status=>"char(15)",
 		lastchecked =>"int(11)",
 		version=>"char(10)",
-		name=>"varchar(200) collate latin1_general_ci NOT NULL default ''",
+		name=>"varchar(200) collate latin1_general_ci default '' NOT NULL ",
 		defaultSE=>"int(1)",
 		URI=>"char(50)",
 		protocols=>"char(255)",
@@ -178,7 +178,7 @@ sub createCLCCERTTable{
   my $self = shift;
 
   $self->debug(1,"In createCLCCERTTable creating CLCCERT table");
-  $self->createTable("CLCCERT","(user char(200), name char(200), certificate blob)",1);
+  $self->createTable("CLCCERT","(".$self->reservedWord("user")." varchar(200), name varchar(200), certificate blob)",1);
 }
 
 sub insertCertificate{

@@ -157,7 +157,7 @@ sub initialize {
 
 	       JOBAGENT=>{columns=>{entryId=>"int(11) not null auto_increment primary key",
 				    requirements=>"text not null",
-				    counter=>"int(11) not null default 0",
+				    counter=>"int(11)   default 0 not null ",
 				    afterTime=>"time",
 				    beforeTime=>"time",
 				    priority=>"int(11)",
@@ -252,9 +252,14 @@ sub checkActionTable {
   my $self=shift;
 
   my %columns= (action=>"char(40) not null primary key",
-		todo=>"int(1) not null default 0");
+		todo=>"int(1)  default 0 not null ");
   $self->checkTable("ACTIONS", "action", \%columns, "action") or return;
-  return $self->do("INSERT IGNORE INTO ACTIONS(action) values  ('INSERTING'), ('MERGING'), ('KILLED'), ('SPLITTING'), ('STAGING')");
+  $self->do("INSERT  INTO ACTIONS(action)  (SELECT 'INSERTING' from dual where not exists (select action from ACTIONS where action like 'INSERTING'))") and
+  $self->do("INSERT  INTO ACTIONS(action)  (SELECT 'MERGING' from dual where not exists (select action from ACTIONS where action like 'MERGING'))") and
+  $self->do("INSERT  INTO ACTIONS(action)  (SELECT 'KILLED' from dual where not exists (select action from ACTIONS where action like 'KILLED'))") and
+  $self->do("INSERT  INTO ACTIONS(action)  (SELECT 'SPLITTING' from dual where not exists (select action from ACTIONS where action like 'SPLITTING'))") and
+  $self->do("INSERT  INTO ACTIONS(action)  (SELECT 'STAGING' from dual where not exists (select action from ACTIONS where action like 'STAGING'))") and return 1;
+ 
 }
 
 #sub insertValuesIntoQueue {

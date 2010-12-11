@@ -71,18 +71,18 @@ sub checkTables{
 					       role=>"varchar(15)",
 					       up=>"smallint"}) or return;
   $self->checkTable("TOKENS", "ID", {ID=>"int(11) not null auto_increment primary key",
-				     "Username","varchar(16)",
+				     "Username","varchar(20)",
 				     "Expires","datetime",
 				     "Token"=>"varchar(32)",
 				     "password"=>"varchar(16)",
 				     "SSHKey"=>"text",
 				     "dn"=>"varchar(255)",
 				    }) or return;
-  $self->checkTable("DBKEYS", "Name", {"Name"=> "varchar(20) NOT NULL DEFAULT ''",
+  $self->checkTable("DBKEYS", "Name", {"Name"=> "varchar(20)  DEFAULT '' NOT NULL",
 				       "DBKey"=>"blob",
-				       "LastChanges"=>"datetime NOT NULL DEFAULT '0000-00-00 00:00:00'"
+				       "LastChanges"=>"datetime  DEFAULT '0000-00-00 00:00:00' NOT NULL"
 				      }) or return;
-  $self->checkTable("jobToken", "jobId", { "jobId"=>"int(11) NOT NULL DEFAULT '0' PRIMARY KEY",
+  $self->checkTable("jobToken", "jobId", { "jobId"=>"int(11)  DEFAULT '0' NOT NULL  PRIMARY KEY",
 					   "userName"=>"char(20) DEFAULT NULL",
 					   "jobToken"=>"char(255) DEFAULT NULL",
 					 }) or return;
