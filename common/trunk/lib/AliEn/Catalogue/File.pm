@@ -71,7 +71,6 @@ sub f_registerFile {
 
   my $permLFN=$self->checkPermissions( 'w', $file,0,1) or  return;
   if($self->existsEntry($file, $permLFN->{lfn})) {
-    $self->info("gron: File exists and belongs to $permLFN->{owner} and $permLFN->{gowner}.");
     if(($permLFN->{owner} eq $self->{ROLE}) and ($permLFN->{gowner} eq $self->{MAINGROUP})) {
        
     } else {

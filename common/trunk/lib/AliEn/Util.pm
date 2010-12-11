@@ -493,6 +493,14 @@ sub isValidGUID{
      return 0;
 }
 
+sub isValidPFN{
+   my $pfn=shift;
+
+   $pfn =~ /^[a-zA-Z]+\:\/\/[a-zA-Z0-9\-\.]+(\:[a-zA-Z0-9]*)?\/\// and return 1;
+
+   return 0; 
+}
+
   
 sub findAndDropArrayElement{
   my $tag=(shift || return (0,[]));

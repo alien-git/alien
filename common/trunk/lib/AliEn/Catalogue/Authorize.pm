@@ -60,7 +60,7 @@ use Archive::Zip qw( :ERROR_CODES :CONSTANTS );
 use Data::Dumper;
 use AliEn::Util;
 use POSIX "isdigit";
-use MIME::Base64; # not needed after signed envelopes are in place
+use MIME::Base64; 
 use vars qw($DEBUG @ISA);
 require Crypt::OpenSSL::RSA;
 require Crypt::OpenSSL::X509;
@@ -199,18 +199,18 @@ sub OLDselectClosestRealSEOnRank {
       $self->checkSiteSECacheForAccess($sitename) or return 0;
       push @queryValues, $sitename;
    
-      $query="SELECT DISTINCT b.seName FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename LIKE ?) WHERE ";
+      $query="SELECT DISTINCT b.seName FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE ";
       $query .= " (b.$exclusiveUserCheck is NULL or b.$exclusiveUserCheck = '' or b.$exclusiveUserCheck  LIKE concat ('%,' , ? , ',%') ) ";
       push @queryValues, $user;
-      if(scalar(@{$seList}) > 0)  { $query .= " and ( "; foreach (@{$seList}){ $query .= " b.seName LIKE ? or"; push @queryValues, $_;  } 
+      if(scalar(@{$seList}) > 0)  { $query .= " and ( "; foreach (@{$seList}){ $query .= " b.seName=? or"; push @queryValues, $_;  } 
            $query =~ s/or$/)/;}
-      foreach (@{$excludeList}) {   $query .= " and b.seName NOT LIKE ? ";   push @queryValues, $_; };
+      foreach (@{$excludeList}) {   $query .= " and b.seName<>? ";   push @queryValues, $_; };
       $query .= " ORDER BY if(a.rank is null, 1000, a.rank) ASC ;";
    } else { # sitename not given, so we just delete the excluded SEs and check for exclusive Users
        $query="SELECT seName FROM SE WHERE ";
-       foreach(@$seList){   $query .= " seName LIKE ? or"; push @queryValues, $_;  };
+       foreach(@$seList){   $query .= " seName=? or"; push @queryValues, $_;  };
        $query =~ s/or$//;
-       foreach(@$excludeList){   $query .= " and seName NOT LIKE ? "; push @queryValues, $_;  }
+       foreach(@$excludeList){   $query .= " and seName<>? "; push @queryValues, $_;  }
        $query .= " and ($exclusiveUserCheck is NULL or $exclusiveUserCheck = '' or $exclusiveUserCheck  LIKE concat ('%,' , ? , ',%') ) ;";
        push @queryValues, $user;
    }
@@ -805,13 +805,10 @@ sub selectPFNOnClosestRootSEOnRank{
      and @where=$self->f_whereis("sgzr","$guid");
 
    foreach my $tSE (@where) {
-     $self->info("Authorize: gron: se $tSE->{se}, pfn $tSE->{pfn}");
      #AliEn::Util::isValidSEName($tSE->{se}) || next;
-     #$self->info("Authorize: gron: se $tSE->{se} valid!");
      (grep (/^$tSE->{se}$/i,@$excludeList)) && next;
      #if($tSE->{pfn} =~ /^root/) { 
      $seList->{$tSE->{se}} = $tSE->{pfn}; 
-     $self->info("Authorize: gron: se $tSE->{se} recognized!");
     # } elsif ($tSE->{pfn} =~ /^guid/) {
        # $nose=$tSE->{pfn};
      #} else {
@@ -836,22 +833,20 @@ sub selectPFNOnClosestRootSEOnRank{
       $self->checkSiteSECacheForAccess($sitename) || return 0;
       push @queryValues, $sitename;
    
-      $query="SELECT DISTINCT b.seName FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename LIKE ?) WHERE ";
+      $query="SELECT DISTINCT b.seName FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE ";
       $query .= " (b.seExclusiveRead is NULL or b.seExclusiveRead = '' or b.seExclusiveRead  LIKE concat ('%,' , ? , ',%') ) and ";
       push @queryValues, $user;
-      foreach (keys %{$seList}){ $query .= " b.seName LIKE ? or"; push @queryValues, $_;  } 
+      foreach (keys %{$seList}){ $query .= " b.seName=? or"; push @queryValues, $_;  } 
       $query =~ s/or$//;
       $query .= " ORDER BY if(a.rank is null, 1000, a.rank) ASC ;";
    } else { # sitename not given, so we just delete the excluded SEs and check for exclusive Users
        $query="SELECT seName FROM SE WHERE ";
-       foreach(keys %{$seList}){   $query .= " seName LIKE ? or"; push @queryValues, $_;  }
+       foreach(keys %{$seList}){   $query .= " seName=? or"; push @queryValues, $_;  }
        $query =~ s/or$//;
        $query .= " and (seExclusiveRead is NULL or seExclusiveRead = '' or seExclusiveRead  LIKE concat ('%,' , ? , ',%') ) ;";
        push @queryValues, $user;
    }
-   $self->debug(1, "Authorize: gron: query: $query, values: @queryValues");
    my $sePriority = $self->resortArrayToPrioElementIfExists($sePrio,$catalogue->queryColumn($query, undef, {bind_values=>\@queryValues}));
-   $self->info("Authorize: gron: choosen se: ".$$sePriority[0].", pfn: ".$seList->{$$sePriority[0]}." .");
    return ($$sePriority[0], $seList->{$$sePriority[0]});
 }
 
@@ -866,8 +861,6 @@ sub getBaseEnvelopeForReadAccess {
   my $sitename=(shift || 0);
 
 
-  
-  $self->debug(1, "Authorize: gron: getBaseEnvelopeForReadAccess...");
 
   my $filehash = {};
   if(AliEn::Util::isValidGUID($lfn)) {
@@ -881,7 +874,7 @@ sub getBaseEnvelopeForReadAccess {
     ($filehash->{type} eq "f") or $self->info("Authorize: access: $lfn is not a file, so read not possible",1) and return 0;
   }
 
-  ($filehash->{size} eq "0") and $filehash->{size} = 1024*1024*1024 ; #gron: does this make any sense ?
+  ($filehash->{size} eq "0") and $filehash->{size} = 1024*1024*1024 ;
 
   my $prepareEnvelope = $self->reduceFileHashAndInitializeEnvelope("read",$filehash);
   
@@ -902,7 +895,6 @@ sub getBaseEnvelopeForReadAccess {
      }
      $prepareEnvelope->{turl} = $prepareEnvelope->{pfn};
   } else {
-    $self->info("Authorize: gron: envelope... se: $prepareEnvelope->{se}, pfn: $prepareEnvelope->{pfn}");
     ($prepareEnvelope->{turl},$prepareEnvelope->{pfn}) = $self->parseAndCheckStorageElementPFN2TURL($prepareEnvelope->{se}, $prepareEnvelope->{pfn});
   }
   my @seList = ("$prepareEnvelope->{se}");
@@ -921,14 +913,12 @@ sub parseAndCheckStorageElementPFN2TURL {
   $parsedPFN or return ($pfn,$pfn);
 
   my @queryValues = ("$se");
-  my $seiostring = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow("SELECT seioDaemons FROM SE where seName like ? ;", 
+  my $seiostring = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow("SELECT seioDaemons FROM SE where seName = ? ;", 
               undef, {bind_values=>\@queryValues});
   ($seiostring->{seioDaemons} =~ /[a-zA-Z]*:\/\/[0-9a-zA-Z.\-_:]*/) and $turl = $seiostring->{seioDaemons} or return ($pfn,$pfn);
 
-  $self->info("Authorize: gron: seiostring is : $seiostring->{seioDaemons} ");
   $turl= "$turl/$parsedPFN->{path}";
   $parsedPFN->{vars} and $turl= $turl."?$parsedPFN->{vars}";
-  $self->info("Authorize: gron: turl: $turl");
   return ($turl,$parsedPFN->{path});
 }
 
@@ -939,11 +929,9 @@ sub getSEforPFN{
   $pfn = $self->parsePFN($pfn);
   $pfn or return 0;
   my @queryValues = ("$pfn->{proto}://$pfn->{host}");
-  $self->info("Authorize: gron: Asking for seName of $pfn->{proto}:$pfn->{host}");
   my $sestring = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow("SELECT seName FROM SE where seioDaemons LIKE concat ( ? , '%') ;",
               undef, {bind_values=>\@queryValues});
   $sestring->{seName} or return 0;
-  $self->info("Authorize: gron: seName is : $sestring->{seName}");
   return $sestring->{seName};
 }
 
@@ -959,8 +947,29 @@ sub parsePFN {
   $result->{host}   = $2;
   ($result->{path},$result->{vars}) = split (/\?/,$3);
   $result->{path} =~ s/^(\/*)/\//;
-  $self->debug(1, "Authorize: gron: parsing PFN we got: $result->{proto}, $result->{host} , $result->{path}, $result->{vars} ."); 
   return $result;
+}
+
+
+sub getBaseEnvelopeForDeleteAccess { 
+ my $self=shift;
+  my $user=(shift || return 0);
+  ($user eq "admin") or return 0;
+  my $lfnORGUIDORpfn=(shift || return 0);
+
+  my $query = "SELECT lfn,binary2string(guid) as guid, pfn as turl, se, size, md5sum as md5 FROM LFN_BOOKED WHERE ";
+
+  if(AliEn::Util::isValidGUID($lfnORGUIDORpfn)) {
+     $query .= " guid=string2binary(?) ;";
+  } elsif (AliEn::Util::isValidPFN($lfnORGUIDORpfn)) {
+     $query .= " pfn=? ;";
+  } else {
+     $query .= " lfn=? ;";
+  }  
+
+  my $envelope = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow($query, undef, {bind_values=>[$lfnORGUIDORpfn]});
+
+  return ($self->reduceFileHashAndInitializeEnvelope("delete",$envelope),[$envelope->{se}]);
 }
 
 
@@ -973,11 +982,10 @@ sub  getBaseEnvelopeForWriteAccess {
   my $guidRequest=(shift || 0); 
   my $envelope={};
 
-  $self->info("gron: getBaseEnvelopeForWriteAccess received info of file size: $size.");
   $size and ( $size gt 0 ) or $self->info("Authorize: File has zero size and will not be allowed to registered") and return 0;
 
+  ####
 
-  $self->info("Authorize: gron: Doing checkPermissionsOnLFN for $lfn, size: $size, md5: $md5 ");
   $envelope= $self->checkPermissions("w",$lfn,0, 1);
   $envelope or $self->info("Authorize: access: access denied to $lfn",1) and return 0;
 
@@ -999,7 +1007,7 @@ sub  getBaseEnvelopeForWriteAccess {
         "SELECT lfn FROM LFN_BOOKED WHERE lfn=? ;"
         , undef, {bind_values=>[$lfn]});
     $reply->{lfn} and  $reply = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow(
-        "SELECT lfn FROM LFN_BOOKED WHERE lfn=? and owner<>? and gowner<>?;"
+        "SELECT lfn FROM LFN_BOOKED WHERE lfn=? and (owner<>? or gowner<>? );"
         , undef, {bind_values=>[$lfn,$user,$user]});
   
     $reply->{lfn} and $self->info("Authorize: access: the LFN is already in use (reserved in [LFN_BOOKED], not in the catalogue)",1) and return 0;
@@ -1008,24 +1016,16 @@ sub  getBaseEnvelopeForWriteAccess {
 
   $envelope->{guid} = $guidRequest; 
   if (!$envelope->{guid}) { 
-    $self->info("gron: there was no guid specified by the user");
     $self->{GUID} or $self->{GUID}=AliEn::GUID->new(); 
     $envelope->{guid} = $self->{GUID}->CreateGuid();
   }
-  $self->info("gron: set GUID to $envelope->{guid}");
 
-
-
-#  ($prepareEnvelope->{lfn} eq $parent) and $prepareEnvelope->{lfn} = $lfn;
   $envelope->{lfn} = $lfn;
   $envelope->{size} = $size;
   $envelope->{md5} = $md5;
 
   my ($ok, $message) = $self->checkFileQuota($user, $envelope->{size});
-#  ($ok eq -1) and $self->info("Authorize: We gonna throw an access exception: "."[quotaexception]") and $self->info($message."[quotaexception]");
   ($ok eq 0) and $self->info($message,1) and return 0;
-  
- # foreach ( keys %{$envelope}) { $self->info("Authorize: gron: filehash for write before cleaning checkPermissions: $_: $envelope->{$_}"); }
   return $self->reduceFileHashAndInitializeEnvelope("write",$envelope);
 }
 
@@ -1056,18 +1056,16 @@ sub  getBaseEnvelopeForMirrorAccess {
   AliEn::Util::isValidGUID($guid) or $self->info("Authorize: ERROR! $guid is not a valid GUID.",1) and return 0;
   $envelope=$self->{DATABASE}->{GUID_DB}->checkPermission("w", $guid, "guid,type,size,md5")
       or $self->info("Authorize: access denied for $guid",1) and return 0;
-  $self->info("gron: owner is $envelope->{owner}, guid owner is: $envelope->{gowner} .");
-  ($envelope->{gowner} eq $user) or $self->info("Authorize: ACCESS DENIED: You are not the owner of the GUID '$guid'.",1) and return 0;
-  $envelope->{guid} = $guid;
-  $envelope->{lfn} = $guid;
+  $envelope->{guid}
+      or $self->info("Authorize: ACCESS DENIED: You are not allowed to write on GUID '$guid'.",1) and return 0;
+  $guid = $envelope->{guid};
+  $envelope->{lfn} = $envelope->{guid};
 
   ( defined($envelope->{size}) && ($envelope->{size} gt 0)) or $self->info("Authorize: ACCESS ERROR: You are trying to mirror a zero sized file '$guid'",1) and return 0;
 
-  foreach ( keys %{$envelope}) { $self->info("Authorize: gron: prepareEnvelope for write after checkPermissions: $_: $envelope->{$_}"); }
-
   $envelope->{lfn} = $guid;
   $envelope->{access} = "write";
-  return $self->reduceFileHashAndInitializeEnvelope("write",$envelope,"access");
+  return $self->reduceFileHashAndInitializeEnvelope("write",$envelope);
 }
 
 
@@ -1093,7 +1091,6 @@ sub  getSEsAndCheckQuotaForWriteOrMirrorAccess{
      my $dynamicSElist = $self->getSEListFromSiteSECacheForWriteAccess($user,$envelope->{size},$writeQos,$writeQosCount,$sitename,$excludedAndfailedSEs);
      push @$seList,@$dynamicSElist;
   }
-  # gron: make entry in te /getSEsAndCheckQuotaForWriteOrMirrorAccess
 
 
   return ($envelope, $seList);
@@ -1132,7 +1129,6 @@ sub registerFileInCatalogueAccordingToEnvelopes{
   my $user=(shift || return 0);
   my $signedEnvelopes=(shift || []);
   my $returnMessage= "";
-  $self->info("Authorize: gron: the envelopes for registration are: @$signedEnvelopes");
   my @successEnvelopes = ();
 
  
@@ -1151,10 +1147,7 @@ sub registerFileInCatalogueAccordingToEnvelopes{
             and $returnMessage .=  "An envelope could not be validated based on pretaken booking.\n"
             and next; 
 
-    $self->info("Authorize: gron: ok, registering the file ...");
-    $self->info("Authorize: gron: $envelope->{lfn}, $envelope->{size},$envelope->{se}, $envelope->{guid}, $envelope->{md5}, ... $envelope->{turl}");
     if(!$envelope->{existing}) {
-      $self->info("Authorize: gron: file is not yet existing");
       $self->f_registerFile( "-f", $envelope->{lfn}, $envelope->{size},
                $envelope->{se}, $envelope->{guid}, undef,undef, $envelope->{md5}, 
                 $envelope->{turl}) and $justRegistered=1 
@@ -1167,7 +1160,6 @@ sub registerFileInCatalogueAccordingToEnvelopes{
           and $returnMessage .= "File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $envelope->{turl} could not be registered as a replica."
         and next;
      }
-     $self->info("Authorize: gron: deleting entry from booking table");
      $self->deleteEntryFromBookingTableAndOptionalExistingFlagTrigger($user, $envelope, $justRegistered) 
             or $self->info("Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $envelope->{turl} could not be registered properly as a replica (LFN_BOOKED error).")
             and $returnMessage .= "File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $envelope->{turl} could not be registered properly as a replica (LFN_BOOKED error)."
@@ -1189,19 +1181,13 @@ sub ValidateRegistrationEnvelopesWithBookingTable{
   my $envelope=(shift || return 0);
   my @verifiedEnvelopes= ();
 
-  $self->info("Authorize: gron: validate check BOOKING output: values: $envelope->{guid},$envelope->{turl},$envelope->{se},$envelope->{size},$envelope->{md5},$user,$user");
-
   my $reply = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow(
-      "SELECT lfn,binary2string(guid) as guid,existing FROM LFN_BOOKED WHERE guid=string2binary(?) and pfn=? and se like ? and size=? and md5sum=? and owner like ? and gowner like ? ;"
+      "SELECT lfn,binary2string(guid) as guid,existing FROM LFN_BOOKED WHERE guid=string2binary(?) and pfn=? and se=? and size=? and md5sum=? and owner=? and gowner=? ;"
       , undef, {bind_values=>[$envelope->{guid},$envelope->{turl},$envelope->{se},$envelope->{size},$envelope->{md5},$user,$user]});
-  $self->info("Authorize: gron: verification output is: $envelope->{guid}");
-  $self->info("Authorize: gron: control verification output is: $reply->{guid}");
-  
+
   lc $envelope->{guid} eq lc $reply->{guid} or return 0;
   $envelope->{lfn} = $reply->{lfn};
   $envelope->{existing} = $reply->{existing};
-
-  $self->info("Authorize: gron: validate sign of env down... ");
 
   return $envelope;
 }
@@ -1212,20 +1198,16 @@ sub deleteEntryFromBookingTableAndOptionalExistingFlagTrigger{
   my $user=(shift || return 0);
   my $envelope=(shift || return 0);
   my $trigger=(shift || 0);
-  $self->info("Authorize: gron: delete Entry check BOOKING output: values: $envelope->{lfn},$envelope->{guid},$envelope->{size},$envelope->{md5},$user,$user");
 
 
   my $triggerstat=1;
   $trigger 
     and $triggerstat = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do(
-    "UPDATE LFN_BOOKED SET existing=1 WHERE lfn=? and binary2string(guid) LIKE ? and size=? and md5sum=? and owner=? and gowner=? ;",
+    "UPDATE LFN_BOOKED SET existing=1 WHERE lfn=? and guid=string2binary(?) and size=? and md5sum=? and owner=? and gowner=? ;",
     {bind_values=>[$envelope->{lfn},$envelope->{guid},$envelope->{size},$envelope->{md5},$user,$user]});
 
-
-  $self->info("Authorize: gron: UPDATE LFN_BOOKED done.");
-
   return ($self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do(
-    "DELETE FROM LFN_BOOKED WHERE lfn=? and binary2string(guid) LIKE ? and pfn=? and se LIKE ? and size=? and md5sum=? and owner=? and gowner=? ;",
+    "DELETE FROM LFN_BOOKED WHERE lfn=? and guid=string2binary(?) and pfn=? and se=? and size=? and md5sum=? and owner=? and gowner=? ;",
     {bind_values=>[$envelope->{lfn},$envelope->{guid},$envelope->{turl},$envelope->{se},$envelope->{size},$envelope->{md5},$user,$user]})
     && $triggerstat);
 }
@@ -1239,9 +1221,6 @@ sub addEntryToBookingTableAndOptionalExistingFlagTrigger{
 
   use Time::HiRes qw (time); 
   my $lifetime= time() + 60;
-
-  $self->info("Authorize: gron: adding Entry check BOOKING output: values: $envelope->{lfn},$user,1 ,$envelope->{md5},200,$envelope->{size},$envelope->{turl},$envelope->{se},$user,$envelope->{guid},$trigger");
-
 
   return $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do(
     "INSERT INTO LFN_BOOKED (lfn, owner, quotaCalculated, md5sum, expiretime, size, pfn, se, gowner, guid, existing) VALUES (?,?,?,?,?,?,?,?,?,string2binary(?),?);"
@@ -1261,7 +1240,6 @@ sub reduceFileHashAndInitializeEnvelope{
      defined($filehash->{$tag}) or $self->info("Warning! there was supposed to be a $tag, but it is not there".Dumper($filehash)) and next;
      $envelope->{$tag} = $filehash->{$tag};
   }
-#  foreach ( keys %{$envelope}) { $self->info("Authorize: gron: prepareEnvelope during reduction : $_: $envelope->{$_}"); }
 
   return $envelope;
 }
@@ -1284,6 +1262,8 @@ sub authorize{
   my $mirrorReq = ( ($access =~ /^mirror$/) || 0 );
   my $readReq = ( ($access =~ /^read$/) || 0 );
   my $registerReq = ( ($access =~/^register$/) || 0 );
+  my $deleteReq = ( ($access =~/^delete$/) || 0 );
+
 
 
   my $exceptions = 0;
@@ -1311,17 +1291,19 @@ sub authorize{
 
   ($writeReq or $registerReq) and 
      $prepareEnvelope = $self->getBaseEnvelopeForWriteAccess($user,$lfn,$size,$md5,$guidRequest);
+
+  $deleteReq and 
+     ($prepareEnvelope,$seList) = $self->getBaseEnvelopeForDeleteAccess($user,$lfn);
+
   $registerReq and return $self->registerPFNInCatalogue($user,$prepareEnvelope,$pfn,$wishedSE);
 
   $mirrorReq and $prepareEnvelope = $self->getBaseEnvelopeForMirrorAccess($user,$guidRequest);
 
   ($writeReq or $mirrorReq )
        and ($prepareEnvelope, $seList) = $self->getSEsAndCheckQuotaForWriteOrMirrorAccess($user,$prepareEnvelope,$seList,$sitename,$writeQos,$writeQosCount,$excludedAndfailedSEs);
-  $prepareEnvelope or return 0;
-    
 
   $readReq and ($prepareEnvelope, $seList)=$self->getBaseEnvelopeForReadAccess($user, $lfn, $seList, $excludedAndfailedSEs, $sitename);
-  $prepareEnvelope or return 0;
+  $prepareEnvelope or $self->info("Authorize: We couldn't create any envelope.") and return 0;
    
 
   ($seList && (scalar(@$seList) gt 0)) or $self->info("Authorize: access: After checkups there's no SE left to make an envelope for.",1) and return 0;
@@ -1331,29 +1313,16 @@ sub authorize{
   while (scalar(@$seList) gt 0) {
        $prepareEnvelope->{se} = shift(@$seList);
    
-       $self->debug(1,"Authorize: gron: Starting the loop...");
-   
        if ($writeReq or $mirrorReq) {
          $prepareEnvelope = $self->calculateXrootdTURLForWriteEnvelope($prepareEnvelope);
          $self->addEntryToBookingTableAndOptionalExistingFlagTrigger($user,$prepareEnvelope,$mirrorReq)
-         and $self->info("Authorize: gron: LFN BOOK ADD OK");
          # or next;
-         
-         $self->info("Authorize: gron: LFN_BOOKED DONE, envelope looks like: $prepareEnvelope");
-   
        }
-       foreach (keys %{$prepareEnvelope}) { $self->info("gron: $_: ".$prepareEnvelope->{$_}); }
-
-       $self->info("gron: access: $access");
    
        my $signedEnvelope  = $self->signEnvelope($prepareEnvelope,$user);
 
-
        $self->isOldEnvelopeStorageElement($prepareEnvelope->{se}) and 
           $signedEnvelope .= '\&oldEnvelope='.$self->createAndEncryptEnvelopeTicket($access, $prepareEnvelope);
-   
-
-       $self->info("Authorize: gron: FINAL ENVELOPE LOOKS LIKE: ".$signedEnvelope);
    
        push @returnEnvelopes, $signedEnvelope;
    
@@ -1393,11 +1362,9 @@ sub isOldEnvelopeStorageElement{
   my $se=(shift || return 1);
 
   my @queryValues = ("$se");
-  my $seVersion = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn("SELECT seVersion FROM SE WHERE seName LIKE ? ;", undef, {bind_values=>\@queryValues});
+  my $seVersion = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn("SELECT seVersion FROM SE WHERE seName=? ;", undef, {bind_values=>\@queryValues});
 
-  (defined($seVersion)) and (scalar(@$seVersion) > 0) and (int($$seVersion[0]) > 218) and $self->info("gron: returning only the new signed envelope.") and return 0;
-
-  $self->info("gron: returning old versioned envelope.");
+  (defined($seVersion)) and (scalar(@$seVersion) > 0) and (int($$seVersion[0]) > 218) and return 0;
   return 1;
 }
 
@@ -1420,8 +1387,6 @@ sub createAndEncryptEnvelopeTicket {
   my @pfns = split (/\/\//, $env->{"turl"});
   $ticket .= "    <pfn>".$pfns[2]."</pfn>\n"; 
   $ticket .= "  </file>\n</authz>\n";
-
-  $self->info("gron ticket is finally: $ticket");
 
   $self->{envelopeCipherEngine}->Reset();
   #    $self->{envelopeCipherEngine}->Verbose();
@@ -1460,8 +1425,8 @@ sub signEnvelope {
   my $user=(shift || return);
 
 
-  $env->{created} = time;
-  $env->{expires} = int(time) + 86400; # 24h
+  $env->{issued} = int(time);
+  $env->{expires} = int($env->{issued}) + 86400; # 24h
   $env->{issuer} = "Authen.".$self->{CONFIG}->{VERSION} ;
   $env->{user} = $user;
    
@@ -1474,9 +1439,6 @@ sub signEnvelope {
     ($envelopeString=$envelopeString."$_=$env->{$_}&");
   }
   $envelopeString=~ s/&$//;
-  #my $envelopeString= join('&', map { $_ = "$_=$env->{$_}"} @keyVals);
-
-  $self->info("gron: before signing envelope string is: $envelopeString");
 
   my $signature = encode_base64($self->{signEngine}->sign($envelopeString));
   $signature =~  s/\n//g;
@@ -1504,8 +1466,6 @@ sub verifyAndDeserializeEnvelope{
   $envelopeString =~ s/&$//;
   $signature = decode_base64($envelope->{signature});
   $envelope->{lfn} = AliEn::Util::descapeSEnvDelimiter($envelope->{lfn});
- 
-  $self->info("gron: before verifying envelope string is: $envelopeString");
 
   # if we signed the presented returnEnvelope
   $self->{verifyLocalEngine}->verify($envelopeString, $signature)
@@ -1528,7 +1488,7 @@ sub checkExclWriteUserOnSEsForAccess{
    my $catalogue = $self->{DATABASE}->{LFN_DB}->{FIRST_DB};
    my @queryValues = ();
    my $query="SELECT seName FROM SE WHERE (";
-   foreach(@$seList){   $query .= " seName LIKE ? or";   push @queryValues, $_; }
+   foreach(@$seList){   $query .= " seName=? or";   push @queryValues, $_; }
    $query =~ s/or$/);/;
    my $seList2 = $catalogue->queryColumn($query, undef, {bind_values=>\@queryValues});
    if(scalar(@$seList) ne scalar(@$seList2)){
@@ -1545,7 +1505,7 @@ sub checkExclWriteUserOnSEsForAccess{
 
    @queryValues = ();
    $query="SELECT seName FROM SE WHERE (";
-   foreach(@$seList){   $query .= " seName LIKE ? or";   push @queryValues, $_; }
+   foreach(@$seList){   $query .= " seName=? or";   push @queryValues, $_; }
    $query =~ s/or$//;
    $query  .= ") and seMinSize <= ? ;";
    push @queryValues, $fileSize;
@@ -1565,7 +1525,7 @@ sub checkExclWriteUserOnSEsForAccess{
 
    @queryValues = ();
    $query="SELECT seName FROM SE WHERE (";
-   foreach(@$seList){   $query .= " seName LIKE ? or";   push @queryValues, $_; }
+   foreach(@$seList){   $query .= " seName=? or";   push @queryValues, $_; }
    $query =~ s/or$//;
    $query  .= ") and ( seExclusiveWrite is NULL or seExclusiveWrite = '' or seExclusiveWrite  LIKE concat ('%,' , ? , ',%') );";
    push @queryValues, $user;
@@ -1609,12 +1569,12 @@ sub getSEListFromSiteSECacheForWriteAccess{
    $self->checkSiteSECacheForAccess($sitename) or return 0;
 
    my $query="SELECT DISTINCT SE.seName FROM SERanks,SE WHERE "
-       ." sitename LIKE ? and SERanks.seNumber = SE.seNumber ";
+       ." sitename=? and SERanks.seNumber = SE.seNumber ";
 
    my @queryValues = ();
    push @queryValues, $sitename;
 
-   foreach(@$excludeList){   $query .= "and SE.seName NOT LIKE ? "; push @queryValues, $_;  }
+   foreach(@$excludeList){   $query .= "and SE.seName<>? "; push @queryValues, $_;  }
    
    $query .=" and SE.seMinSize <= ? and SE.seQoS  LIKE concat('%,' , ? , ',%' ) "
     ." and (SE.seExclusiveWrite is NULL or SE.seExclusiveWrite = '' or SE.seExclusiveWrite  LIKE concat ('%,' , ? , ',%') )"
@@ -1635,7 +1595,7 @@ sub checkSiteSECacheForAccess{
    my $site=shift;
    my $catalogue = $self->{DATABASE}->{LFN_DB}->{FIRST_DB};
 
-   my $reply = $catalogue->query("SELECT sitename FROM SERanks WHERE sitename LIKE ?;", undef, {bind_values=>[$site]});
+   my $reply = $catalogue->query("SELECT sitename FROM SERanks WHERE sitename=?;", undef, {bind_values=>[$site]});
 
    (scalar(@$reply) < 1) and $self->info("Authorize: We need to update the SERank Cache for the not listed site: $site")
             and return $self->refreshSERankCache( $site);
