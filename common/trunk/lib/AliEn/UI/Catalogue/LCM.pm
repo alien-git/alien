@@ -303,7 +303,7 @@ sub get {
      ($filehash)=$self->{CATALOG}->checkPermissions("r",$file,0,1,1);
       $self->{CATALOG}->isFile($file, $filehash->{lfn}) or $self->info("File $file does not exist") and return;
    }
-   $filehash or return;
+   $filehash or return 0;
 #   $filehash = shift @{$filehash};
    $self->info("Coming back from checkPermission on $file...". Dumper($filehash));
 
@@ -844,18 +844,18 @@ sub OLDselectClosestRealSEOnRank {
       $self->checkSiteSECacheForAccess($sitename) or return 0;
       push @queryValues, $sitename;
    
-      $query="SELECT DISTINCT b.seName FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename LIKE ?) WHERE ";
+      $query="SELECT DISTINCT b.seName FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE ";
       $query .= " (b.$exclusiveUserCheck is NULL or b.$exclusiveUserCheck = '' or b.$exclusiveUserCheck  LIKE concat ('%,' , ? , ',%') ) ";
       push @queryValues, $user;
-      if(scalar(@{$seList}) > 0)  { $query .= " and ( "; foreach (@{$seList}){ $query .= " b.seName LIKE ? or"; push @queryValues, $_;  } 
+      if(scalar(@{$seList}) > 0)  { $query .= " and ( "; foreach (@{$seList}){ $query .= " b.seName=? or"; push @queryValues, $_;  } 
            $query =~ s/or$/)/;}
-      foreach (@{$excludeList}) {   $query .= " and b.seName NOT LIKE ? ";   push @queryValues, $_; };
+      foreach (@{$excludeList}) {   $query .= " and b.seName<>? ";   push @queryValues, $_; };
       $query .= " ORDER BY if(a.rank is null, 1000, a.rank) ASC ;";
    } else { # sitename not given, so we just delete the excluded SEs and check for exclusive Users
        $query="SELECT seName FROM SE WHERE ";
-       foreach(@$seList){   $query .= " seName LIKE ? or"; push @queryValues, $_;  };
+       foreach(@$seList){   $query .= " seName=? or"; push @queryValues, $_;  };
        $query =~ s/or$//;
-       foreach(@$excludeList){   $query .= " and seName NOT LIKE ? "; push @queryValues, $_;  }
+       foreach(@$excludeList){   $query .= " and seName<>? "; push @queryValues, $_;  }
        $query .= " and ($exclusiveUserCheck is NULL or $exclusiveUserCheck = '' or $exclusiveUserCheck  LIKE concat ('%,' , ? , ',%') ) ;";
        push @queryValues, $user;
    }
@@ -1391,29 +1391,29 @@ sub erase {
 	return;
     }
 
-    $lfn=$self->{CATALOG}->f_complete_path($lfn);
-    my $parentdir = $self->{CATALOG}->f_dirname($lfn);
+#    $lfn=$self->{CATALOG}->f_complete_path($lfn);
+#    my $parentdir = $self->{CATALOG}->f_dirname($lfn);
 
-    my $seRef = $self->{CATALOG}->f_whereisFile("s", $lfn);
+#    my $seRef = $self->{CATALOG}->f_whereisFile("s", $lfn);
 
     #Get the file from the LCM
-    $seRef or $self->info($self->{LOGGER}->error_msg())
-      and return;
+#    $seRef or $self->info($self->{LOGGER}->error_msg())
+#      and return;
 
-    my $guid=$self->{CATALOG}->f_lfn2guid("s",$lfn)
-	or $self->info("Error getting the guid of $lfn",11) and return;
+#    my $guid=$self->{CATALOG}->f_lfn2guid("s",$lfn)
+#	or $self->info("Error getting the guid of $lfn",11) and return;
         
-    my (@seList ) = $self->selectClosestSE({}, @$seRef);
+#    my (@seList ) = $self->selectClosestSE({}, @$seRef);
 
     my $failure=0;
-    while (my $se=shift @seList) {
+    #while (my $se=shift @seList) {
 #	my $pfn=$self->getPFNfromGUID($se, $guid);
 #	$pfn or next;
 
-	my @envelope = $self->{CATALOG}->authorize("delete",{lfn=>$lfn,wishedse=>$se});
+	my @envelope = $self->{CATALOG}->authorize("delete",{lfn=>$lfn}); # ,wishedse=>$se});
         my $envelope = AliEn::Util::deserializeSignedEnvelope(shift @envelope);
 	if ((!defined $envelope) || (!defined $envelope->{signedEnvelope})) {
-	    $self->info("Cannot get access to $lfn for deletion $envelope->{signedEnvelope}") and return;
+	    $self->info("Cannot get access to $lfn for deletion") and return;
 	}
 
        $ENV{ALIEN_XRDCP_URL}=$envelope->{turl};
@@ -1424,11 +1424,11 @@ sub erase {
 
 
 	if (!$self->{STORAGE}->eraseFile($envelope->{turl})) {
-	    $self->info("Cannot remove $envelope->{turl} from the storage element $se");
+	    $self->info("Cannot remove $envelope->{turl}"); #from the storage element $se");
 	    $failure=1;
 	    next;
 	}	
-    }
+    #}
 
     if (!$failure) {
 	if (!$self->{CATALOG}->f_removeFile("-s",$lfn)) {
@@ -1506,7 +1506,7 @@ sub registerPFN{
   my $user=(shift || $self->{CATALOG}->{ROLE});
   my $targetLFN   = (shift || return);
   my $sourcePFN   = (shift || return);
-  my $guid=(shift || 0); # gron: guid is to be handeled
+  my $guid=(shift || 0); 
   my $size=(shift || 0);
   my $md5sum=(shift || 0);
   my $feedback=(shift || 0);
@@ -1561,7 +1561,7 @@ sub addFileToSEs {
   my $sourcePFN   = (shift || return);
   my $SErequirements=(shift || []);
   my $result = {};
-  $result->{guid}=(shift || 0); # gron: guid is to be handeled
+  $result->{guid}=(shift || 0); 
   my $feedback=(shift || 0);
   my $uploadOnly=(shift || 0);
   my $silent=(shift || 0);
@@ -1706,7 +1706,6 @@ sub putOnStaticSESelectionListV2{
       $self->notice("We select out of a supplied static list the SEs to save on: @$ses, count: $selOutOf");
    while ((scalar(@$ses) gt 0 and $selOutOf gt 0)) {
      (scalar(@$ses) gt 0) and my @staticSes= splice(@$ses, 0, $selOutOf);
-     $self->info("trying to get envelopes for: @staticSes");
 
      my @envelopes = AliEn::Util::deserializeSignedEnvelopes($self->{CATALOG}->authorize("write", {lfn=>$targetLFN, 
     wishedSE=>join(";", @staticSes), size=>$size, md5=>$md5, guidRequest=>($result->{guid} || 0)}));

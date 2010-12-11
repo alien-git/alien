@@ -2269,7 +2269,7 @@ CPU Speed                           [MHz] : $ProcCpuspeed
   # put all output files into AliEn
   #	    
 
-  $self->{STATUS}="DONE"; #gron to be checked, used to be SAVED before
+  $self->{STATUS}="DONE";
 
   if ( $self->{VALIDATIONSCRIPT} ) {
     $self->putJobLog("trace","Validating the output");
@@ -2525,12 +2525,10 @@ sub registerLogs {
     my $data=$self->submitFileToClusterMonitor($dir,$basename, "execution.out");
     $data or $self->info("Error submitting the log file") and return;
 
-
     my $registerLogString = "\"".join ("###", "execution.out", 0, ($data->{size} || 0), ($data->{md5}|| 0),  $data->{pfn}) ."\"";
 
     ($self->{STATUS} =~ /^ERROR_V/)  and
        $registerLogString = join(",", $self->{JDL_REGISTERFILES}, $registerLogString);
-   $self->{JDL_REGISTERFILES} and $self->info("gron: we have JDL_REGISTERFILES: $self->{JDL_REGISTERFILES}");
     
     $self->{CA}->set_expression("RegisteredOutput", "{".$registerLogString."}");
     $self->info("We set the RegisteredOutput in the JDL");

@@ -74,7 +74,7 @@ sub getSENumber{
   $cache and return $cache;
 
   $DEBUG and $self->debug(2, "Getting the numbe from the list");
-  my $senumber=$self->queryValue("SELECT seNumber FROM SE where upper(seName)=upper(?)", undef,
+  my $senumber=$self->queryValue("SELECT seNumber FROM SE where seName=?", undef,
 				 {bind_values=>[$se]});
   if (defined $senumber) {
     AliEn::Util::setCacheValue($self, "seNumber-$se", $senumber);
@@ -237,15 +237,15 @@ sub checkSETable {
   
   my %columns = (seName=>"varchar(60) character set latin1 collate latin1_general_ci NOT NULL", 
 		 seNumber=>"int(11) NOT NULL auto_increment primary key",
-		 seQoS=>"varchar(200)",
+		 seQoS=>"varchar(200) latin1_general_ci",
 		 seioDaemons=>"varchar(255)",
 		 seStoragePath=>"varchar(255)",
 		 seNumFiles=>"bigint",
 		 seUsedSpace=>"bigint",
 		 seType=>"varchar(60)",
 		 seMinSize=>"int default 0",
-                 seExclusiveWrite=>"varchar(300)",
-                 seExclusiveRead=>"varchar(300)",
+                 seExclusiveWrite=>"varchar(300) latin1_general_ci",
+                 seExclusiveRead=>"varchar(300) latin1_general_ci",
                  seVersion=>"varchar(300)",
 		);
 
