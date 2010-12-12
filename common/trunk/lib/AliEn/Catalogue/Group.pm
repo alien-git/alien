@@ -143,6 +143,7 @@ sub f_chown {
     or print STDERR "Error in selectDatabase" and return;
   my $table=$db->getIndexTable();
   my $dbName=$db->{DB};
+ $dbName=~s/(.+):(.+)/$2/i;
   my $lfn  =$db->existsLFN( $file) or 
     $self->info("chown $file: No such file or directory")
       and return;
@@ -152,6 +153,10 @@ sub f_chown {
   $options =~ /f/ and return 1;
   #Finally, we have to grant privileges to the user
   #Since we are admin, we can do it directly:
-  return $db->do("GRANT ALL on $dbName.$table->{name} to $user");
+  my $db_user = $user; 
+  $db->{DRIVER} =~ /Oracle/ and
+  $db_user = $db->{ORACLE_USER};
+
+  return $db->do("GRANT ALL on $dbName.$table->{name} to $db_user");
 }
 return 1;

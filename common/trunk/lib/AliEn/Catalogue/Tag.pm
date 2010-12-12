@@ -50,7 +50,7 @@ sub f_addTag {
     my $done = $self->createRemoteTable(
       $self->{DATABASE}->{LFN_DB}->{HOST},   $self->{DATABASE}->{LFN_DB}->{DB},
       $self->{DATABASE}->{LFN_DB}->{DRIVER}, $self->{DATABASE}->{LFN_DB}->{USER},
-      $tableName,"(file char($fileLength), offset int, entryId int AUTO_INCREMENT, $tagSQL , KEY (entryId), INDEX (file))"
+      $tableName,"(file varchar($fileLength), offset int, entryId int AUTO_INCREMENT, $tagSQL , KEY (entryId), INDEX (file))"
     );
 
     $done or return;
@@ -80,10 +80,11 @@ sub f_showTagDescription{
   my $table=$self->{DATABASE}->{LFN_DB}->getTagTableName($directory, $tag)
     or $self->info("Error getting the name of the table") and return;
   $self->info("Getting the description");
-  my $rows=$self->{DATABASE}->{LFN_DB}->query("describe $table") or $self->info("Error describing the table") and return;
+  # my $rows=$self->{DATABASE}->{LFN_DB}->query("describe $table") or $self->info("Error describing the table") and return;
+  my $rows=$self->{DATABASE}->{LFN_DB}->describeTable($table) or $self->info("Error describing the table") and return;
   my $sql="";
   foreach my $row (@$rows){
-    $row->{Field} =~ /^(file)|(offset)|(entryId)$/  and next;
+    $row->{Field} =~ /^(file)|(offset)|(entryId)$/i  and next;
     $sql.="$row->{Field} $row->{Type} ,";
   }
   chop $sql;
