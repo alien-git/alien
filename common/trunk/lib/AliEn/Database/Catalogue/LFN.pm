@@ -217,7 +217,7 @@ sub checkLFNTable {
   $table=~ /^L(\d+)L$/ and $number=$1;
 
   my %columns = (entryId=>"bigint(11) NOT NULL auto_increment primary key", 
-		 lfn=> "varchar(255) NOT NULL",
+		 lfn=> "varchar(255)", #in Oracle the empty string is null, so we have to allow this column to be null
 		 type=> "char(1)  default 'f' NOT NULL",
 		 ctime=>"timestamp",
 		 expiretime=>"datetime",
@@ -2225,7 +2225,8 @@ sub renumberLFNtable {
       $bind=[$entry->{reduce}, $entry->{min}, $entry->{max}];
     }
     my $done=$self->do("update $table set dir=dir-? where dir>=? $max1", {bind_values=>$bind});
-    my $done2=$self->do("update $table set entryId=entryId-? where entryId>=? $max2 order by entryId", {bind_values=>$bind});
+    #my $done2=$self->do("update $table set entryId=entryId-? where entryId>=? $max2 order by entryId", {bind_values=>$bind});
+    my $done2=$self->do("update $table set entryId=entryId-? where entryId>=? $max2 ", {bind_values=>$bind});
     ($done and $done2) or 
       $self->info("ERROR !!") and last;
     $changes=1;
