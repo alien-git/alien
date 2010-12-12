@@ -237,15 +237,15 @@ sub checkSETable {
   
   my %columns = (seName=>"varchar(60) character set latin1 collate latin1_general_ci NOT NULL", 
 		 seNumber=>"int(11) NOT NULL auto_increment primary key",
-		 seQoS=>"varchar(200) latin1_general_ci",
+		 seQoS=>"varchar(200) character set latin1 collate latin1_general_ci",
 		 seioDaemons=>"varchar(255)",
 		 seStoragePath=>"varchar(255)",
 		 seNumFiles=>"bigint",
 		 seUsedSpace=>"bigint",
 		 seType=>"varchar(60)",
 		 seMinSize=>"int default 0",
-                 seExclusiveWrite=>"varchar(300) latin1_general_ci",
-                 seExclusiveRead=>"varchar(300) latin1_general_ci",
+                 seExclusiveWrite=>"varchar(300) character set latin1 collate latin1_general_ci",
+                 seExclusiveRead=>"varchar(300) character set latin1 collate latin1_general_ci",
                  seVersion=>"varchar(300)",
 		);
 
