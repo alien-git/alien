@@ -176,7 +176,14 @@ sub f_addUser {
     $self->{PRIORITY_DB} = AliEn::Database::TaskPriority->new({ROLE=>'admin',SKIP_CHECK_TABLES=> 1});
   $self->{PRIORITY_DB} or $self->info("Error getting the instance of the priorityDB!!") and return;
 
-  my $passwd =  $createPasswd->();
+my $passwd ; 
+####If the database is Oracle, we do not want a new password, we want the password of the generic user 
+if ($self->{DATABASE}->{DRIVER} =~ /Oracle/){
+  my  $addbh = new AliEn::Database::Admin({SKIP_CHECK_TABLES=> 1});
+$passwd = $addbh->getFieldFromTokens($addbh->{ORACLE_USER},'password');
+ $addbh->destroy();
+}
+  else{ $passwd =  $createPasswd->();}
   
   my $homedir ="$self->{CONFIG}->{USER_DIR}/" . substr( $user, 0, 1 ) . "/$user/";
   $homedir =~ s{//}{/};
@@ -593,7 +600,7 @@ sub resyncLDAP {
       my $user=$entry->get_value('uid');
       my @dn=$entry->get_value('subject');
       foreach my $dn (@dn){
-	$addbh->do("insert into USERS_LDAP(user,dn, up)  values (?,?,1)", {bind_values=>[$user, $dn]});
+	$addbh->do("insert into USERS_LDAP(". $addbh->reservedWord("user")." ,dn, up)  values (?,?,1)", {bind_values=>[$user, $dn]});
       }
       my $ssh=$entry->get_value('sshkey');
       $addbh->do("update TOKENS set SSHkey=? where username=?", {bind_values=>[$ssh, $user]});
@@ -610,11 +617,12 @@ sub resyncLDAP {
       my @dn=$entry->get_value('users');
       $self->debug(1,"user: $user => @dn");
       foreach my $dn (@dn){
-	$addbh->do("insert into USERS_LDAP_ROLE(user,role, up)  values (?,?,1)", {bind_values=>[$dn, $user]});
+	$addbh->do("insert into USERS_LDAP_ROLE (". $addbh->reservedWord("user").",role, up)  values (?,?,1)", {bind_values=>[$dn, $user]});
       }
     }
     $self->info("And let's add the new users");
-    my $newUsers=$addbh->queryColumn("select a.user from USERS_LDAP a left join USERS_LDAP b on b.up=0 and a.user=b.user where a.up=1 and b.user is null");
+    my $newUsers=$addbh->queryColumn("select a.". $addbh->reservedWord("user")." from USERS_LDAP a left join USERS_LDAP b on b.up=0 and
+ a.". $addbh->reservedWord("user")."=b.". $addbh->reservedWord("user")." where a.up=1 and b.". $addbh->reservedWord("user")." is null");
     foreach my $u (@$newUsers){
       $self->info("Adding the user $u");
       $self->f_addUser($u);
@@ -686,8 +694,12 @@ sub refreshSERankCacheSite{
   $db->lock("SE read, SERanks");
   $db->do("delete from SERanks where sitename=?", {bind_values=>[$site]});
   for my $rank(0..$#selist) {
+#	$db->do("insert into SERanks (sitename,seNumber,rank,updated) 
+#		select ?, seNumber ,  ?, 0  from SE where  upper(seName) LIKE upper(?) and
+ #             not exists ( select * from SE, SERanks where upper(sename) like  upper(?)  and SE.senumber= SERanks.senumber and sitename = ? ) ",
+ #{bind_values=>[$site,$rank, $selist[$rank], $selist[$rank] , $site]});
     $db->do("insert into SERanks (sitename,seNumber,rank,updated)
-              select ?, seNumber,  ?, 0  from SE where seName LIKE ?", 
+              select ?, seNumber,  ?, 0  from SE where upper( seName) LIKE upper(?)  ", 
               {bind_values=>[$site,$rank, $selist[$rank]]});
   }
   $db->unlock();
@@ -795,7 +807,7 @@ sub resyncLDAPSE {
     $self->checkFTDProtocol($entry,$sename, $transfers);
     my @paths=$entry->get_value('savedir');
 
-    my $info=  $db->query("select * from SE_VOLUMES where sename=?",
+    my $info=  $db->query("select * from SE_VOLUMES where upper(sename)=upper(?)",
 			 undef, {bind_values=>[$sename]});
 
     my @existingPath=@$info;
@@ -814,7 +826,7 @@ sub resyncLDAPSE {
 	$new_SEs->{$sename}=1;
         ( $size eq $e->{size}) and next;
         $self->info("**THE SIZE IS DIFFERENT ($size and $e->{size})");
-        $db->do("update SE_VOLUMES set size=? where mountpoint=? and sename=?", {bind_values=>[$size, $e->{mountpoint}, $sename]});
+        $db->do("update SE_VOLUMES set ".$self->{DATABASE}->reservedWord("size")."=? where mountpoint=? and sename=?", {bind_values=>[$size, $e->{mountpoint}, $sename]});
       }
       $found and next;
       $self->info("**WE HAVE TO ADD THE SE '$path'");
@@ -832,13 +844,13 @@ sub resyncLDAPSE {
       }
       my $method= lc($t)."://$host";
 
-      $db->do("insert into SE_VOLUMES(sename, volume,method, mountpoint,size) values (?,?,?,?,?)", {bind_values=>[$sename, $path, $method, $path, $size]});
+      $db->do("insert into SE_VOLUMES(sename, volume,method, mountpoint, ".$db->reservedWord("size").") values (?,?,?,?,?)", {bind_values=>[$sename, $path, $method, $path, $size]});
       $new_SEs->{$sename} or  $new_SEs->{$sename}=0;
     }
     foreach my $oldEntry (@existingPath){
       $oldEntry->{FOUND} and next;
       $self->info("**The path $oldEntry->{mountpoint} is not used anymore");
-      $db->do("update SE_VOLUMES set size=usedspace where mountpoint=? and sename=?", {bind_values=>[$oldEntry->{mountpoint}, $sename]});
+      $db->do("update SE_VOLUMES set " .$self->{DATABASE}->reservedWord("size") ."=usedspace where mountpoint=? and upper(sename)=upper(?)", {bind_values=>[$oldEntry->{mountpoint}, $sename]});
       $new_SEs->{$sename}=1;
     }
   }
@@ -851,8 +863,8 @@ sub resyncLDAPSE {
   }
   $db->do("update SE_VOLUMES set usedspace=0 where usedspace is null");
 
-  $db->do("update SE_VOLUMES set freespace=size-usedspace where size!= -1");
-  $db->do("update SE_VOLUMES set freespace=2000000000 where size=-1");
+$db->do("update SE_VOLUMES set freespace='size-usedspace' where ".$db->reservedWord("size") ."<> -1");
+  $db->do("update SE_VOLUMES set freespace=2000000000 where ".$db->reservedWord("size") ."=-1");
 
   $transfers->do("delete from PROTOCOLS where updated=0");
   $transfers->do("insert into PROTOCOLS(sename,max_transfers) values ('no_se',10)");
@@ -902,7 +914,7 @@ sub checkSEDescription {
 
   $self->info("The se $sename has $min_size and $type and $qos and ex-write: $seExclusiveWrite and  ex-read: $seExclusiveRead");
 
-  my $exists=$db->queryValue("select count(*) from SE where sename=? and seminsize=? and setype=? and seqos=? and seExclusiveWrite=? and seExclusiveRead=? and seVersion=?", undef, {bind_values=>[$sename, $min_size, $type, $qos, $seExclusiveWrite, $seExclusiveRead, $seVersion]});
+  my $exists=$db->queryValue("select count(*) from SE where upper(sename)=upper(?) and seminsize=? and setype=? and seqos=? and seExclusiveWrite=? and seExclusiveRead=? and seVersion=?", undef, {bind_values=>[$sename, $min_size, $type, $qos, $seExclusiveWrite, $seExclusiveRead, $seVersion]});
   if (not $exists){
     $self->info("We have to update the entry!!!");
     $db->do("update SE set seminsize=?, setype=?, seqos=?, seExclusiveWrite=?, seExclusiveRead=? , seVersion=? where sename=?", {bind_values=>[$min_size,$type, $qos,  $seExclusiveWrite, $seExclusiveRead, $seVersion, $sename]});
@@ -935,10 +947,10 @@ sub checkIODaemons {
   $path=~ s/,.*$//;
   my $seioDaemons="$proto://$host:$port";
   $self->debug(1, "And the update should $sename be: $seioDaemons, $path");
-  my $e=$self->{DATABASE}->{LFN_DB}->query("SELECT sename,seioDaemons,sestoragepath from SE where seName='$sename'");
+  my $e=$self->{DATABASE}->{LFN_DB}->query("SELECT sename,seioDaemons,sestoragepath from SE where upper(seName)=upper('$sename')");
   my $path2=$path;
   $path2 =~ s/\/$// or $path2.="/";
-  my $total=$self->{DATABASE}->{LFN_DB}->queryValue("SELECT count(*) from SE where seName='$sename' and seioDaemons='$seioDaemons' and ( seStoragePath='$path' or sestoragepath='$path2')");
+  my $total=$self->{DATABASE}->{LFN_DB}->queryValue("SELECT count(*) from SE where upper(seName)=upper('$sename') and seioDaemons='$seioDaemons' and ( seStoragePath='$path' or sestoragepath='$path2')");
   
   if ($total<1){
     $self->info("***Updating the information of $site, $name ( $seioDaemons and $path )");
