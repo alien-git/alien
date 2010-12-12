@@ -162,9 +162,12 @@ sub new{
   my $driver = $self->{DRIVER};
   my $name  = "AliEn::Database::";
   if ( $driver =~ /^Oracle$/i or $driver =~ /^mysql$/i or $driver =~ /^SQLite$/i ) {
-  $name .= $driver;
+  $name .= $driver; 
   eval "require $name" or print "Could not requiere $name\n" and exit(-2);
-  @ISA = ( $name, @ISA );if ($driver =~ /^Oracle$/i){$self->SUPER::getTypes;}
+  @ISA = ( $name, @ISA );
+  if ($driver =~ /Oracle/){
+    $self->SUPER::getTypes;
+    defined $self->{ORACLE_USER} or $self->{ORACLE_USER}="ALIENSTANDARD";}
   }
 
 
@@ -238,7 +241,7 @@ sub preConnect {
 }
 
 sub initialize{
-  return 1;
+ return 1;
 }
 
 =item C<query>
