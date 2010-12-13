@@ -50,7 +50,13 @@ Requirements= other.HOST==other.HOST;
     my ($info, $info2)=$cat->execute("top", "-id", $id2, "-id", $id1);
     $info->{status} eq "WAITING" and $info2->{status} eq "WAITING"  and $ready=1 and last;
   }
-  $ready or die("The jobs are not WAITING!!\n");
+  if (not   $ready ){
+    print "THE JOBS WERE NOT WAITING\n";
+    system("ps -ef ");
+    print "AND ONLY MY USER\n";
+    system("ps -f -u $<");
+    die("The jobs are not WAITING!!\n");
+  }
   $cat->execute("request") or die ("Error requesting a job"); 
 
   my $i;
