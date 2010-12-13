@@ -1039,6 +1039,7 @@ sub physicalDeleteEntries {
         eval "require $protName";
         $self->{DELETE}->{lc($protocol)}=$protName->new();
       }
+      $self->{DELETE} or $self->info("Error creating the interface to $protocol") and last;
       if ( $self->{DELETE}->{lc($protocol)}->delete($pfn)){
         $self->info("File $pfn deleted!!");
         $pD=1;
