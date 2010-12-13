@@ -1376,7 +1376,7 @@ sub createAndEncryptEnvelopeTicket {
   $access eq "write" and $access = "write-once";
 
 
-  my @envelopeElements= ("lfn","guid","se","turl","pfn","md5","size");
+  my @envelopeElements= ("lfn","guid","se","turl","md5","size");
   my $ticket = "<authz>\n  <file>\n";
   $ticket .= "    <access>$access</access>\n";
   foreach my $key ( keys %{$env}) { 
@@ -1385,7 +1385,7 @@ sub createAndEncryptEnvelopeTicket {
      }
   }
   my @pfns = split (/\/\//, $env->{"turl"});
-  $ticket .= "    <pfn>".$pfns[2]."</pfn>\n"; 
+  $ticket .= "    <pfn>/".$pfns[2]."</pfn>\n"; 
   $ticket .= "  </file>\n</authz>\n";
 
   $self->{envelopeCipherEngine}->Reset();
