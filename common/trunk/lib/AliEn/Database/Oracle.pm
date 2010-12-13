@@ -351,9 +351,10 @@ sub _queryDB {
   $options->{bind_values} and push @bind, @{ $options->{bind_values} };
   $DEBUG
     and $self->debug( 2, "In _queryDB executing $stmt in database (@bind)." );
-
-  ( $stmt, $b ) = $self->process_zero_length( $stmt, \@bind );
-  @bind = @{$b};
+#my $b;
+  #( $stmt, @bind ) = 
+ $self->process_zero_length( $stmt, \@bind );
+ # @bind = @{$b};
   while (1) {
     my $sqlError = "";
     eval {
@@ -1086,22 +1087,19 @@ sub checkUser {
 sub process_zero_length {
   my $self = shift;
   my $stmt = shift;
-  my $b    = shift;
+  my $bind    = shift;
 
   #case without binding values
-  while ( $stmt =~
-s/(.*)(\!\=|\<\>|NOT\sLIKE)(\s*\'\' \s*)(.*)$/$1. " IS NOT NULL ". $4/gxei
-    )
-  {
-  }
-  while ( $stmt =~ s/(.*)(\=|LIKE)(\s*\'\' \s*)(.*)$/$1. " IS NULL ".$4/gxei )
-  {
-  }
-  if ($b) {
-    my @bind = @{$b};
+  $stmt =~ s/(.*)(\!\=|\<\>|NOT\sLIKE)(\s*(\'\s?\') \s*)(.*)$/$1. " IS NOT NULL ". $4/gxei;
+  
+  $stmt =~ s/(.*)(\=|LIKE)(\s*\'\s?\' \s*)(.*)$/$1. " IS NULL ".$4/gxei ;
+  
+   my @bind = @{$bind};
+  if ($bind) {
+  #  my @bind = @{$bind_values};
 
     #case binding values
-    if ( grep { /^$/ } @bind ) {
+    if (  grep { /^$/ } @bind ) {
       my @new_bind = ();
       my $left     = $stmt;
       my $new_stmt = " ";
@@ -1111,9 +1109,7 @@ s/(.*)(\!\=|\<\>|NOT\sLIKE)(\s*\'\' \s*)(.*)$/$1. " IS NOT NULL ". $4/gxei
   if ( $_ =~ /^$/ ) {
 
 #change the statement to consider if the column is null and remove it from the bind values
-    if ( $left =~
-s/(.*)(\!\= |\<\>|NOT\sLIKE)(\s*\? )(.*)/$1 . " IS  NOT NULL ".$4 /xei
-  )
+    if ( $left =~ s/(.*)(\!\= |\<\>|NOT\sLIKE)(\s*\? )(.*)/$1 . " IS  NOT NULL ".$4 /xei  )
     {
     }
     else {
