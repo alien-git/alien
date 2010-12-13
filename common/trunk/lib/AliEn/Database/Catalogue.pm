@@ -12,59 +12,37 @@
 # * about the suitability of this software for any purpose. It is          *
 # * provided "as is" without express or implied warranty.                  *
 # **************************************************************************/
-package AliEn::Catalogue;
+package AliEn::Database::Catalogue;
+
+use AliEn::Database;
+use AliEn::Database::Catalogue::LFN;
+use AliEn::Database::Catalogue::GUID;
+
+use strict;
+use AliEn::SOAP;
+use AliEn::GUID;
 
 =head1 NAME
 
-AliEn::Catalogue
-
-=head1 SYNOPSIS
-
-=over 4
-
-=item new
-
-=item f_pwd
-
-=item f_ls
-
-=item f_cd
-
-=item f_mkdir
-
-=item f_quit
-
-=item f_disconnect
-
-=item f_user
-
-=item f_find
-
-=item f_tree
-
-=item f_zoom
-
-
-=back
+AliEn::Database::Catalogue - database wrapper for AliEn catalogue
 
 =head1 DESCRIPTION
 
-For how tho use this, please see the USAGE section
+This module interacts with a database of the AliEn Catalogue. The AliEn Catalogue can be distributed among several databases, each one with a different layout. In this basic layout, there can be several tables containing the entries of the catalogue. 
 
-This is the main package for the alien Catalog. It defines functions to browse the catalog, create directories and remove them. It inherits the rest of the functions from other packages (see also FileInterface, AdminInterface, GroupInterface, TagInterface and ENVInterface).
+=cut
 
-The alien Catalog will contact to a database belonging to the system. The name of the first database will be obtained through the Config package. Once it is connected to a database, it will reconnect to the other databases of the system as the user changes directories.
-
-The structure of the catalog is like a normal UNIX file system. Each directory and file has privileges for the user, the group and the rest of the universe. Each user has a home directory, where (s)he can put the files that (s)he wants. 
-
-Each entry in the catalog is a Logical File Name (LFN). Each LFN points to a Physical File Name (PFN), that is a real file in a computer. To be able to access that file, we use Transport File Names (TFN), or a way to access files from other machines.
+use vars qw(@ISA $DEBUG);
 
 
+push @ISA, qw(AliEn::Database);
+$DEBUG=0;
 
+=head1 SYNOPSIS
 
-=head1 USAGE
+  use AliEn::Database::Catalogue;
 
-To access the Catalog, type the command "alien". First, you have to authenticate (see Authen package for more details). After that, you can browse the directories like in a normal file system.
+  my $catalogue=AliEn::Database::Catalogue->new() or exit;
 
 
 =head1 METHODS
@@ -72,2069 +50,1406 @@ To access the Catalog, type the command "alien". First, you have to authenticate
 =over
 
 =cut
-use DBI;
-use File::Basename;
-use AliEn::Catalogue::File;
-require AliEn::Catalogue::Admin;
-require AliEn::Catalogue::Authorize;
-use AliEn::Catalogue::Group;
-use AliEn::Catalogue::Tag;
-use AliEn::Catalogue::GUID;
-use AliEn::Catalogue::Trigger;
-use AliEn::Catalogue::Env;
-use AliEn::Catalogue::Basic;
-use AliEn::Catalogue::Collection;
-use AliEn::Dataset;
-use AliEn::Logger::LogObject;
-use AliEn::Util;
-use AliEn::GUID;
-use Data::Dumper;
-use strict;
-use vars qw($DEBUG @ISA);
-$DEBUG = 0;
-@ISA = (
-         'AliEn::Catalogue::File',       'AliEn::Catalogue::Admin',
-         'AliEn::Catalogue::Group',      'AliEn::Catalogue::Tag',
-         'AliEn::Catalogue::Env',        'AliEn::Catalogue::Basic',
-         'AliEn::Catalogue::Trigger',    'AliEn::Catalogue::GUID',
-         'AliEn::Catalogue::Collection', 'AliEn::Logger::LogObject',
-         'AliEn::Catalogue::Authorize',
-         @ISA
-);
-use AliEn::Database::Catalogue;
-use AliEn::Database::TaskPriority;
-use AliEn::Database::TaskQueue;
 
-#use AliEn::Utilities;
-require AliEn::Config;
-require AliEn::SOAP;
-use Getopt::Std;
 
-# OBJECTS VARIABLES:
-# $curpath, $curdir, $remotepath, $localpath, $disppath
-# $curDB, $curHostID, $debug, $firstHost
-#BASIC USER FUNCIONS FOR BROWSING A DATABASE
+sub preConnect {
+  my $self=shift;
+  foreach ('HOST', 'DRIVER', 'DB'){
+    $self->{$_} or $self->{$_}=1;
+  }
+
+  $self->debug(1,"We don't really need the preconnect...");
+  return 1;
+}
+
+sub _connect{
+  my $self=shift;
+  $self->debug(1, "The catalogue itself doesn't have to connect....");
+  return 1;
+}
+
+sub initialize {
+  my $self=shift;
+  my $opt1={};
+  my $opt2={};
+  foreach (keys  %{$self}){
+    $opt2->{$_}=$opt1->{$_}=$self->{$_};
+  }
+  foreach ('HOST', 'DRIVER', 'DB'){
+    if ($self->{$_} eq "1"){
+      delete $opt1->{$_};
+      delete $opt2->{$_};
+    }
+  }
+
+  $self->{LFN_DB}=AliEn::Database::Catalogue::LFN->new($opt1, @_) or return;
+  $self->{GUID_DB}=AliEn::Database::Catalogue::GUID->new($opt2,@_) or return;
+
+  return 1;
+}
+
+
+=item C<createCatalogueTables>
+
+This methods creates the database schema in an empty database. The tables that this implemetation have are:
+HOSTS, 
+
+=cut
+
+
 #
-# help
-# ls
-# cd
-# rmdir
-# mkdir
-# quit$localdir
-sub getDispPath {
+# Checking the consistency of the database structure
+sub createCatalogueTables {
   my $self = shift;
-  return $self->{DISPPATH};
+
+  my $options=shift || {};
+  $self->{LFN_DB}->createCatalogueTables() or return;
+  my @args;
+  $options->{reconnected} and push @args, $self->{LFN_DB};
+  $self->{GUID_DB}->createCatalogueTables(@args) or return;
+  
+  return 1;
 }
 
-sub f_getTabCompletion {
+sub getAllInfoFromLFN{
   my $self=shift;
-  my $word=shift;
-  my $path = $self->f_complete_path($word);
-  $path or return;
-
-  my ($dirname) = $self->f_dirname($path);
-
-  $self->selectDatabase($dirname) or return;
-  my @result=$self->{DATABASE}->tabCompletion ($dirname);
-  @result = grep (s/^$path/$word/, @result);
-  return @result;
+  return $self->{LFN_DB}->getAllInfoFromLFN(@_);
 }
 
-sub getHost{
+sub getAllInfoFromGUID{
   my $self=shift;
-  return $self->f_Database_getVar("HOST");
+  return $self->{GUID_DB}->getAllInfoFromGUID(@_);
 }
+sub getAllExtendedInfoFromLFN{
+  my $self=shift;
 
-sub new {
-  my $proto   = shift;
-  my $class   = ref($proto) || $proto;
-  my $self    = {};
-  my $options = shift;
-  $options->{DEBUG}  = $self->{DEBUG}  = ( $options->{debug}  or 0 );
-  $options->{SILENT} = $self->{SILENT} = ( $options->{silent} or 0 );
-  $self->{GLOB}      = 1;
-  $self->{CONFIG} = new AliEn::Config($options);
-  ( $self->{CONFIG} )
-    or print STDERR "Error: Initial configuration not found!!\n" and return;
-  my $user = ( $options->{user} or $self->{CONFIG}->{LOCAL_USER} );
-  $self->{ROLE} = ( $options->{role} or $user );
-  my $token    = ( $options->{token}    or "" );
-  my $password = ( $options->{password} or "" );
-  $self->{LOGGER} = new AliEn::Logger;
-  $self->{DEBUG} and $self->{LOGGER}->debugOn( $self->{DEBUG} );
-  bless( $self, $class );
-  $self->SUPER::new();
-  $DEBUG and $self->debug(
-    1, "\tLocaluser: $user
-\t Role     : $self->{ROLE}
-In UserInterface:new with $user ($self->{ROLE}) $self->{DEBUG} $self->{SILENT}
-Site name:$self->{CONFIG}->{SITE}"
-  );
-  $self->{SOAP} = new AliEn::SOAP
-    or print "Error creating AliEn::SOAP $! $?" and return;
-  $DEBUG
-    and $self->{CONFIG}->{SITE_HOST}
-    and $self->debug( 1, "\tHost name:$self->{CONFIG}->{SITE_HOST}" );
-  $self->{CURDIR}     = 1000;
-  $self->{LOCALDIR}   = 1000;
-  $self->{REMOTEPATH} = "/";
-  $self->{LOCALHOST}  = $ENV{'ALIEN_HOSTNAME'} . "." . $ENV{'ALIEN_DOMAIN'};
-  chomp( $self->{LOCALHOST} );
-  $self->{UMASK}       = 755;
-  $self->{FIRSTORG}    = $self->{CONFIG}->{ORG_NAME};
-  $self->{FIRSTHOST}   = $self->{CONFIG}->{CATALOG_HOST};
-  $self->{FIRSTDRIVER} = $self->{CONFIG}->{'CATALOG_DRIVER'};
-  $self->{FIRSTDB}     = $self->{CONFIG}->{'CATALOG_DATABASE'};
-  $DEBUG and $self->debug( 1, "Creating the database" );
-
-  #    $self->{SQLAPI} = AliEn::Database::SQLInterface->new(
-  my $DBoptions = {
-                    "DB"                 => $self->{FIRSTDB},
-                    "HOST"               => $self->{FIRSTHOST},
-                    "DRIVER"             => $self->{FIRSTDRIVER},
-                    "DEBUG"              => $self->{DEBUG},
-                    "USER"               => $user,
-                    "SILENT"             => $self->{SILENT},
-                    "TOKEN"              => $token,
-                    "LOGGER"             => $self->{LOGGER},
-                    "ROLE"               => $self->{ROLE},
-                    "FORCED_AUTH_METHOD" => $options->{FORCED_AUTH_METHOD},
-  };
-  defined $options->{USE_PROXY}
-    and $DBoptions->{USE_PROXY} = $options->{USE_PROXY};
-  defined $options->{passwd} and $DBoptions->{PASSWD} = $options->{passwd};
-  $self->{FORCED_AUTH_METHOD} = $options->{FORCED_AUTH_METHOD};
-  $self->{DATABASE}           = AliEn::Database::Catalogue->new($DBoptions)
+  my $info=$self->{LFN_DB}->getAllInfoFromLFN({method=>"queryRow"}, @_)
     or return;
 
-#  my ($host, $driver, $db) = split("/", $self->{CONFIG}->{"JOB_DATABASE"});
-#  $self->{TASK_DB} = AliEn::Database::TaskQueue->new({DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin', SKIP_CHECK_TABLES=> 1}) or return;
-#  $self->{PRIORITY_DB} = AliEn::Database::TaskPriority->new({DB=>$db,HOST=>$host,DRIVER=>$driver,ROLE=>'admin',SKIP_CHECK_TABLES=> 1}) or return;
-  $self->{ROLE} = $self->{DATABASE}->{LFN_DB}->{ROLE};
+  $info or $self->info("The entry doesn't exist") and return;
 
-  # check if an entry exists in PRIORITY table
-  #$self->{PRIORITY_DB}->checkPriorityValue($self->{ROLE});
-  $self->_setUserGroups( $self->{ROLE} );
-  ( $self->{CURHOSTID} ) =
-    $self->{DATABASE}->getHostIndex( $self->{FIRSTHOST}, $self->{FIRSTDB} );
-  $self->{"DATABASE_$self->{CONFIG}->{ORG_NAME}_$self->{CURHOSTID}"} =
-    $self->{DATABASE};
-  $self->{"DATABASE_FIRST"} = $self->{DATABASE};
-  $self->{MOUNT}            = "";
-  $self->{GUID}             = new AliEn::GUID();
-  if ( !$self->{GUID} ) {
-    $self->f_disconnect();
-    return;
-  }
-  $self->loadEnvironment();
-  my $oldSilent = $self->{SILENT};
-  $self->{SILENT} = 1;
-  $self->f_pwd();
-  $self->{SILENT}   = $oldSilent;
-  $self->{LIMIT_SE} = "";
-  $self->initEnvelopeEngine();
-  return $self;
+  my $info2=$self->{GUID_DB}->getAllInfoFromGUID({pfn=>1},$info->{guid})
+    or return;
+  $info->{guidInfo}=$info2;
+  return $info;
 }
 
 
 
-sub setSElimit {
-  my $self = shift;
-  my $se   = shift;
-  if ($se) {
-    my $number = $self->{DATABASE}->getSENumber($se);
-    if ( !$number ) {
-      $self->info("Error getting the se number of '$se'");
-      return;
-    }
-    $self->{LIMIT_SE} = $number;
-    $self->info("Displaying only the files in the se '$se'");
-  } else {
-    $self->info("Displaying all the files");
-    $self->{LIMIT_SE} = "";
+=item c<existsEntry($lfn)>
+
+This function receives an lfn, and checks if it exists in the catalogue. It checks for lfns like '$lfn' and '$lfn/', and, in case the entry exists, it returns the name (the name has a '/' at the end if the entry is a directory)
+
+=cut
+
+
+sub existsEntry{
+  return existsLFN(@_);
+}
+sub existsLFN{
+  my $self=shift;
+  return $self->{LFN_DB}->existsLFN(@_);
+}
+
+
+=item C<getHostsForEntry($lfn)>
+
+This function returns a list of all the possible hosts and tables that might contain entries of a directory
+
+=cut
+
+sub getHostsForLFN{
+  my $self=shift;
+  return $self->{LFN_DB}->getHostsForEntry(@_);
+}
+
+=item C<getSEListFromFile($lfn)>
+
+Retrieves the list of SE that have a copy of the lfn 
+
+=cut
+
+sub renumberLFNtable{
+  my $self=shift;
+  return $self->{LFN_DB}->renumberLFNtable(@_)
+}
+
+sub renumberGUIDtable{
+  my $self=shift;
+
+  return $self->{GUID_DB}->renumberGUIDtable(@_);
+}
+
+
+sub getSEListFromFile{
+  return getSEListFromLFN(@_);
+}
+
+sub getSEListFromLFN {
+  my $self=shift;
+  my $lfn=shift;
+  my $guid=$self->{LFN_DB}->getGUIDFromLFN($lfn) or return;
+  return $self->getSEListFromGUID($guid, @_);
+}
+
+sub getSEListFromGUID{
+  my $self=shift;
+  return $self->{GUID_DB}->getSEList(@_);
+}
+
+
+=item C<deleteMirrorFromFile($lfn, $seName)>
+
+Deletes a mirror from a file
+
+=cut
+
+sub deleteMirrorFromGUID {
+  my $self=shift;
+  return $self->{GUID_DB}->deleteMirrorFromGUID(@_);
+}
+
+sub deleteMirrorFromLFN {
+  my $self=shift;
+  my $lfn=shift;
+  my $guid=$self->{LFN_DB}->getGUIDFromLFN($lfn)
+    or $self->info("Error getting the guid of $lfn") and return;
+  return $self->{GUID_DB}->deleteMirrorFromGUID($guid,$lfn,@_);
+}
+
+=item C<insertMirrorFromFile($lfn, $seName)>
+
+Inserts mirror of a file
+
+=cut
+
+sub insertMirrorToGUID{
+  my $self=shift;
+  return $self->{GUID_DB}->insertMirrorToGUID(@_);
+}
+
+sub insertMirrorFromFile{
+  return insertMirrorToLFN(@_);
+}
+sub insertMirrorToLFN {
+  my $self=shift;
+  my $lfn=shift;
+  my $guid=$self->{LFN_DB}->getGUIDFromLFN($lfn);
+  return $self->{GUID_DB}->insertMirrorToGUID($guid, @_);
+}
+
+
+
+sub do{
+  my $self=shift;
+  return $self->{LFN_DB}->do(@_);
+}
+
+sub query{
+  my $self=shift;
+  return $self->{LFN_DB}->do(@_);
+}
+
+sub existsTable{
+  my $self=shift;
+  return $self->{LFN_DB}->existsTable(@_);
+}
+
+sub createCollection{
+  my $self=shift;
+  $self->{GUID_DB}->insertGUID("", @_) or return;
+  return $self->{LFN_DB}->createCollection(@_);
+}
+
+sub addFileToCollection{
+  my $self=shift;
+  return $self->{LFN_DB}->addFileToCollection(@_);
+}
+
+sub getInfoFromCollection{
+  my $self=shift;
+  return $self->{LFN_DB}->getInfoFromCollection(@_);
+}
+
+sub removeFileFromCollection{
+  my $self=shift;
+  return $self->{LFN_DB}->removeFileFromCollection(@_);
+}
+
+
+=item C<createFile($hash)>
+
+Adds a new file to the database. It receives a hash with the following information:
+
+
+
+=cut
+
+sub createFile {
+  my $self=shift;
+  my $options=shift || "";
+  $self->debug(2, "In catalogue, createFile");
+  if ($options =~ /k/){
+    $self->debug(4, "The GUID is supposed to be registered");
+    $self->{GUID_DB}->increaseReferences($options, @_) or return;
+  } else{
+    $self->{GUID_DB}->insertGUID($options, @_) or return;
+  }
+  my $done=$self->{LFN_DB}->createFile($options, @_) or return;
+  $self->info("File(s) inserted");
+  return $done;
+}
+
+sub getParentDir {
+  my $self=shift;
+  return $self->{LFN_DB}->getParentDir(@_);
+}
+
+sub updateFile {
+  return updateLFN(@_);
+}
+
+sub updateLFN{
+  my $self=shift;
+  my $lfn=shift;
+  my $update=shift;
+  if ($update->{size} or $update->{md5} or $update->{se} ){
+    my $guid=$self->{LFN_DB}->getGUIDFromLFN($lfn) or return;
+    
+    #First, let's update the information of the guid
+    $self->{GUID_DB}->updateOrInsertGUID($guid,$update, @_) or 
+      $self->info("Error updating the guid") and return;
+  }
+  if (!$self->{LFN_DB}->updateLFN($lfn,$update, )){
+    $self->info("We should undo the change");
+    return;
   }
   return 1;
 }
 
-# sub validateDatabase {
-#     my $self = shift;
-#     return $self->{DATABASE}->validate();
-# }
-sub findEx {
-  my $self      = shift;
-  my $silent    = 0;
-  my $oldSilent = $self->{SILENT};
-  $self->{SILENT} = 1;
-  my @files = $self->f_find(@_);
-  $oldSilent and $self->{SILENT} = $oldSilent
-    or delete $self->{SILENT};
-  my @result;
-  for (@files) {
-    my %info;
-    $info{lfn} = $_;
-    my @pfns;
-    my @pfnsRaw = $self->f_getFile( "s", $_ );
-    while ( $#pfnsRaw > -1 ) {
-      my %pfn;
-      $pfn{se}  = shift @pfnsRaw;
-      $pfn{pfn} = shift @pfnsRaw;
-      push @pfns, \%pfn;
-    }
-    $info{pfns} = \@pfns;
-    push @result, \%info;
-  }
-  unless ($silent) {
-    for (@result) {
-      print STDOUT "LFN:    $_->{lfn}\n";
-      my $first = 1;
-      for ( @{ $_->{pfns} } ) {
-        if ($first) {
-          print STDOUT "PFN:    ";
-          undef $first;
-        } else {
-          print STDOUT "MIRROR: ";
-        }
-        print "$_->{pfn} $_->{se}\n";
-      }
-      print "\n";
-    }
-  }
-  return \@result;
+sub deleteFile {
+  my $self=shift;
+  return $self->{LFN_DB}->deleteFile(@_);
 }
-
-sub f_pwd {
-  my $self            = shift;
-  my $returnarrayhash = grep ( /-z/, @_ );
-  my $silent          = grep ( /-s/, @_ );
-  my $short           = grep ( /-1/, @_ );
-  $DEBUG and $self->debug( 1, "\n\t\t UserInterface pwd:@_" );
-  #$self->checkPermissions( 'x', $self->{DISPPATH}, 1 ) or return;
-
-  if ( ( !$self->{SILENT} ) and ( !$silent ) ) {
-    if ($short) {
-      print STDOUT "$self->{DISPPATH}\n";
-    } else {
-      $self->info( "Current path is: $self->{DISPPATH}", undef, 0 );
-    }
-  }
-  $DEBUG and $self->debug( 4, "Done UserInterface pwd:" );
-  if ($returnarrayhash) {
-    my @retarray = ();
-    my $newhash  = {};
-    $newhash->{'cwd'} = $self->{DISPPATH};
-    push @retarray, $newhash;
-    return @retarray;
-  } else {
-    return "$self->{DISPPATH}";
-  }
-}
-
-sub f_getLinkPath {
-  my $self     = shift;
-  my $pathIdx  = shift;
-  my $filename = shift;
-  my $newfilename;
-  if ( $filename =~ /(.*)\/$/ ) {
-    $newfilename = $1;
-  } else {
-    $newfilename = $filename;
-  }
-  my $pfntype = $self->getPfnType( $pathIdx, $newfilename );
-  if ( ($pfntype) and defined( $pfntype->{type} ) ) {
-    my $type = substr( $pfntype->{type}, 0, 1 );
-    if ( $type eq 'l' ) {
-      if ( $pfntype->{pfn} =~ /^lfn\:\/\/(.*)/ ) {
-        my $resolvedpath = $self->f_complete_path($1);
-        return $resolvedpath;
-      } else {
-        return;
-      }
-    }
-  } else {
-    $DEBUG and $self->debug( 1, "Cannot find $filename - does it exist?" );
-    return;
-  }
-}
-
-sub f_lsInternal {
-  my $self    = shift;
-  my $options = shift;
-  my $path    = ( shift or "" );
-  $path = $self->GetAbsolutePath($path);
-  $DEBUG and $self->debug( 1, "Listing $path with options $options" );
-  my $entryInfo =
-    $self->checkPermissions( 'r', $path, 0, 1 )
-    or return;
-  $DEBUG and $self->debug( 1, "Check Permission done $path " );
-  my $lfn = $entryInfo->{lfn};
-  $self->existsEntry( $path, $lfn )
-    or $self->info( "$path no such file or directory", 1 )
-    and return;
-  my @all;
-
-  if ( ( $lfn =~ m{/$} ) && ( $options !~ /t/ ) ) {
-    $DEBUG
-      and $self->debug( 1, "Listing a directory $lfn (se $self->{LIMIT_SE})" );
-    push @all, $self->{DATABASE}
-      ->listDirectory( $entryInfo, $options, $self->{LIMIT_SE} );
-  } else {
-
-   #in case we are listing a directory with -t, the path is the parent directory
-    $path = $lfn;
-    $path =~ s{/[^/]*/$}{/};
-    $DEBUG and $self->debug( 1, "Listing an entry" );
-    push @all, $entryInfo;
-
-#    push @all, $self->{DATABASE}->getAllInfoFromLFN ({method=>"queryRow"}, $entry);
-  }
-  my $dir = $lfn;
-  $dir =~ s{[^/]*$}{};
-
-  #Finally, if we have -a, we have to look also for the parent of this directory
-  if ( ( $path ne "/" ) and ( $options =~ /a/ ) and ( $lfn =~ m{/$} ) ) {
-    my $parentpath = $path;
-    $parentpath =~ s{[^/]*/?$}{};
-    $DEBUG
-      and
-      $self->debug( 1, "Getting the info of the parent ($parentpath of $path)"
-      );
-    ( $self->checkPermissions( 'r', $parentpath ) ) or return;
-    my $entry =
-      $self->{DATABASE}
-      ->getAllInfoFromLFN( { method => "queryRow" }, $parentpath );
-    if ($entry) {
-      $entry->{lfn} = "..";
-      @all = ( shift @all, $entry, @all );
-    }
-  }
-  return ( $dir, \@all );
-}
-
-sub getPfnType {
-  my $self     = shift;
-  my $pathIdx  = shift;
-  my $filename = shift;
-  $DEBUG and $self->debug( 1, "Get PfnType for $pathIdx $filename" );
-  my $result = $self->{DATABASE}->getPfnType( $pathIdx, $filename );
-  return $result;
-}
-
-sub getDirList {
-  my $self     = shift;
-  my $pathIdx  = shift;
-  my $filename = shift;
-  my $options  = shift;
-  my $result   = $self->{DATABASE}->getDirList( $pathIdx, $filename, $options );
-  return $self->prependMountPoint($result);
-}
-
-sub prependMountPoint {
-  my $self = shift;
-  my $list = shift;
-  $DEBUG and $self->debug( 1, "Checking the mount point" );
-  $self->{MOUNT} or return $list;
-  $DEBUG and $self->debug( 1, "Prepending $self->{MOUNT}" );
-  my @list = @{$list};
-  $DEBUG and $self->debug( 1, "Got @list" );
-  foreach my $d (@list) {
-    $DEBUG and $self->debug( 1, "Doing $d" );
-    $d->{name} =~ s/^\//$self->{MOUNT}\//;
-  }
-  return $list;
-}
-
-sub f_ls_HELP {
-  return "Usage: ls [-laFn|b|h] [<directory>]
-\t-l : long format
-\t-a : show hidden .* files
-\t-F : add trailing / to directory names
-\t-n: switch off the colour output
-\t-b : print in guid format
-\t-h : print the help text
-\t-e : display also the expire date";
-}
-
-sub f_ls {
-  my $self    = shift;
-  my $options = shift;
-  my $path    = ( shift or "" );
-  if ( $options =~ /h/ ) {
-    $self->info( $self->f_ls_HELP() );
-    return;
-  }
-  my ( $retrievedpath, $rlist ) = $self->f_lsInternal( $options, $path );
-  my @result;
-  $DEBUG and $self->debug( 1, "The ls found $#$rlist +1 entries" );
-  if ( $options =~ /z/ ) {
-    if ( ( !defined $retrievedpath ) || ( $retrievedpath eq "" ) ) {
-      my $errorresult;
-      $errorresult->{"__result__"} = 0;
-      push @result, $errorresult;
-      return @result;
-    }
-  }
-  for (@$rlist) {
-    $DEBUG and $self->debug( 1, "Printing " . Dumper($_) );
-    push @result, $self->f_print( $retrievedpath, $options, $_ );
-  }
-  return @result;
-}
-
-sub f_guid2lfn_HELP {
-  return "guid2lfn: look for the LFNs pointing to a guid. Usage
-
-guid2lfn [-a] [-s] <guid>
-
-Options: 
-   -s: silent
-   -a: all tables. Do a deep search in all the possible tables of the catalogue
-";
-}
-
-sub f_guid2lfn {
-  my $self    = shift;
-  my $options = shift;
-  my $guid    = shift
-    or print STDERR "Error: you have to specify a guid to translate!"
-    and return;
-  my @lfns = $self->{DATABASE}->getLFNfromGUID( $options, $guid );
-  if ( $options !~ /s/ ) {
-
-    # be silent
-    my $format = "";
-    foreach (@lfns) {
-      $format = sprintf "$format%-64s %-40s\n", $_, $guid;
-    }
-    $self->info( $format, 0, 0 );
-  }
-  return @lfns;
-}
-
-sub f_lfn2guid {
-  my $self    = shift;
-  my $options = shift;
-  my $lfn     = shift
-    or print STDERR "Error: you have to specify a lfn to translate!" and return;
-  my $guid = $self->f_getGuid( $options, $lfn );
-  $guid or return;
-  $DEBUG and $self->debug( 1, "The guid is $guid" );
-  if ( $options !~ /s/ ) {
-    my $format = sprintf "%-64s %-40s\n", $lfn, $guid;
-    $self->info( $format, 0, 0 );
-  }
-  return $guid;
-}
-
-sub f_glob {
-  my $self    = shift;
-  my $options = shift;
-  my $state   = shift;
-  if ( !defined($state) ) {
-    print( "Glob state is: " . $self->{GLOB} . "\n" );
-    return;
-  }
-  if ( $state != 0 and $state != 1 ) {
-    print STDERR "Wrong arguments to glob\n0 = on, 1 = off\n";
-    return;
-  }
-  $self->{GLOB} = $state;
-  return;
-}
-
-# Gets all the files that match a certain pattern
-# The pattern can contain:  * match any name until
-#                           ? match any character
-sub ExpandWildcards {
-  my $self         = shift;
-  my $path         = shift;
-  my $preservelast = ( shift or 0 );
-  $DEBUG and $self->debug( 1, "ExpandWildcards: S $path" );
-  $path = $self->GetAbsolutePath($path);
-  $DEBUG and $self->debug( 1, "ExpandWildcards: S $path" );
-
-  #  my @dirs = split "/", $path;
-  #delete trailing empty dir
-  #  shift @dirs;
-  my $lastdir;
-  $preservelast = 1 if ( $path =~ m{/$} );
-  my @result = $self->getLFNlike($path)
-    or return;
-  if ( $preservelast == 0 ) {
-    map { s{/$}{} } @{$result[0]};
-  }
-  return @{$result[0]};
-}
-
 sub getLFNlike {
-  my $self = shift;
-  my $path = $self->GetAbsolutePath(shift);
-  return $self->{DATABASE}->getLFNlike($path);
+  my $self=shift;
+  return $self->{LFN_DB}->getLFNlike(@_);
 }
+##############################################################################
+##############################################################################
+#
+# Lists a directory: WARNING: it doesn't return '..'
+#
 
-sub f_cd {
-  my $self    = shift;
-  my $path    = shift;
-  my $pathIdx = "";
-  ( defined $path ) or ( $path = $self->GetHomeDirectory() );
-  $path = $self->GetAbsolutePath( $path, 2 );
-  my $targetPerm = $self->checkPermissions( "x", $path )
-    or $self->info( "cd $path: Not a directory", 3, 0 )
-    and return;
-  $self->isDirectory( $path, $targetPerm )
-    or $self->info( "cd $path: Not a directory", 3, 0 )
-    and return;
-  $self->{DISPPATH} = $path;
-  $self->f_pwd("-s");
-  return 1;
-}
+=item C<listDirectory($entry, $options)>
 
-sub checkPermissionOnDirectory {
-  my $self = shift;
-  my $path = shift;
-  (defined $path) or return;
-  my $targetPerm = $self->checkPermissions( "x", $path )
-    or $self->{LOGGER}->error("Check permissions failed for $path")
-    and return;
-  $self->isDirectory( $path, $targetPerm )
-    or $self->{LOGGER}->error("$path is not a directory")
-    and return;
-  return 1;
-}
+Returns all the entries of a directory. '$entry' can be either an lfn (in which case listDirectory will retrieve the rest of the info from the database), or a hash containing the info of that directory. 
 
+Possible options:
 
-=item f_mkdir(arguments, lfn)
+=over
 
-Creates a new directory. lfn is the directory to create. The possible options are:
+=item a
 
-=over 
+list also the current directory
 
-=item p 
+=item f
 
-create all the parents directories if needed. Does not return error if the directory exists
+Do not sort the output
 
-=item s
+=item F
 
-silent mode. Does not put anything in the output
+put a '/' at the end of directories
+
 
 =back
 
+
 =cut
 
-sub f_mkdir_HELP {
-  return "Usage: mkdir [-ps] <directory>
-Options: 
-\t-s silent
-\t-p create parents as needed
-\t-d return the directory number";
+sub listDirectory {
+  my $self=shift;
+  return $self->{LFN_DB}->listDirectory(@_);
 }
 
-sub f_mkdir {
-  my $self = shift;
-  my ($options,$path) = @_;
-  $DEBUG and $self->debug( 1, "In UserInterface f_mkdir @_" );
-  my $message;
-  ( defined $path ) or $message = "not enough arguments";
-  $path =~ s{\\@}{@}g;
-  ( $options =~ /^[s|p|d]*$/ ) or $message = "unknown option '$options'";
-  $message 
-    and $self->{LOGGER}->error( "Catalogue", "Error $message\n " . $self->f_mkdir_HELP() )
-    and return;
-  my $silent = ( $options =~ /s/ ) ? 1 : undef;
-  
-  $path = $self->GetAbsolutePath( $path, 1 );
-  
-  if ( $self->existsEntry($path) ) {
-    ( $options =~ /d/ )
-      and return
-      $self->{DATABASE}->getAllInfoFromLFN({options  => 'd',
-                                            retrieve => 'entryId',
-                                            method   => 'queryValue'},"$path/");
-    $options =~ /p/ and return 1;
-    $self->info("Directory $path already exists.\n");
-    return;
+#
+# createDirectory ($lfn, [$gowner, [$perm, [$replicated, [$table]]]])
+#
+sub createDirectory {
+  my $self=shift;
+  return $self->{LFN_DB}->createDirectory(@_);
+}
+sub createRemoteDirectory {
+  my $self=shift;
+  return $self->{LFN_DB}->createRemoteDirectory(@_);
+}
+
+sub removeDirectory {
+  my $self=shift;
+  return $self->{LFN_DB}->removeDirectory(@_);
+}
+
+sub tabCompletion {
+  my $self=shift;
+  $self->{LFN_DB}->tabCompletion(@_);
+}
+
+=item C<copyDirectory($source, $target)>
+
+This subroutine copies a whole directory. It checks if part of the directory is in a different database
+
+=cut
+
+sub copyDirectory{
+  my $self=shift;
+  return $self->{LFN_DB}->copyDirectory(@_);
+}
+
+=item C<moveEntries($lfn, $toTable)>
+
+This function moves all the entries under a directory to a new table
+A new table is always created.
+
+Before calling this function, you have to be already in the right database!!!
+You can make sure that you are in the right database with a call to checkPermission
+
+=cut
+
+sub moveEntries {
+  moveLFNs(@_);
+}
+sub moveLFNs {
+  my $self=shift;
+  return $self->{LFN_DB}->moveLFNs(@_);
+}  
+
+sub moveGUIDs {
+  my $self=shift;
+  return $self->{GUID_DB}->moveGUIDs(@_);
+}
+##############################################################################
+##############################################################################
+sub addUser {
+  my $self=shift;
+  my $user=shift;
+  my $group=shift;
+  my $passwd=shift;
+  my $db_user = $user;
+
+  my $rhosts = $self->{LFN_DB}->getAllHosts();
+  my $guidtables=$self->{GUID_DB}->query("SELECT distinct hostIndex, tableName from GUIDINDEX");
+  my $guidOrdered={};
+  foreach (@$guidtables){
+    my @list=$_->{tableName};
+    $guidOrdered->{$_->{hostIndex}} and push @list, @{$guidOrdered->{$_->{hostIndex}}};
+    $guidOrdered->{$_->{hostIndex}}=\@list;
   }
 
-  my $parentdir = "$path";
-  $parentdir =~ s {/([^/]+/?)$}{/};
-  $DEBUG and $self->debug( 1, "Checking the parent: $parentdir" );
-  if ( $options =~ /p/ and $parentdir ne '/' ) {
-    if ( !$self->existsEntry($parentdir) ) {
-      $self->f_mkdir( $options . "s", $parentdir ) or 
-        $self->{LOGGER}->error("Catalogue", "Error building $parentdir") and 
-        return;
+  my $error=0;
+  if ($self->{LFN_DB}->{DRIVER} =~ /Oracle/){
+    $db_user = $self->{LFN_DB}->{ORACLE_USER};
+  }
+  foreach my $rtempHost (@$rhosts) {
+    print "Granting privileges for $user in $rtempHost->{db} (so far $error)\n";
+    my ($db, $extra)=$self->{LFN_DB}->reconnectToIndex( $rtempHost->{hostIndex}, "", $rtempHost );
+    
+    my $sch = $db->{DB};	$sch=~  s/(.+)\:(\w+)(\s*)/$2/; 
+    ($self->{SCHEMA} and $self->{SCHEMA} eq $sch) or $self->reconnect;
+    $db or $self->info("Error reconnecting to $rtempHost->{hostIndex}") and $error=1 and next; 
+    $db->grantExtendedPrivilegesToUser($db->{DB}, $user, $passwd);
+
+    $db->insertIntoGroups($user, $group, 1);
+
+    foreach my $table (@{$guidOrdered->{$rtempHost->{hostIndex}}}){
+      $self->info("WE HAVE TO GIVE ACCESS TO $table");
+      $db->grantPrivilegesToUser(["INSERT,DELETE,UPDATE on G${table}L",
+				  "INSERT,DELETE,UPDATE on G${table}L_PFN"], $user, $passwd) or $error=1;
     }
   }
-  
-  $DEBUG and $self->debug( 1, "Creating directory in $path" );
+  $error and return;
 
-  #Check permissions
-  $self->checkPermissions("w",$path,0, 1) 
+  return 1;
+}
+
+sub grantPrivilegesToUser{
+  my $self=shift;
+  return $self->{LFN_DB}->grantPrivilegesToUser(@_);
+}
+
+sub grantBasicPrivilegesToUser {
+  my $self = shift;
+  my $db = shift
+    or $self->{LOGGER}->error("Catalogue","In grantBasicPrivilegesToUser database name is missing")
+      and return;
+  my $user = shift
+    or $self->{LOGGER}->error("Catalogue","In grantBasicPrivilegesToUser user is missing")
+      and return;
+  my $passwd = shift;
+
+  $self->grantPrivilegesToUser(["EXECUTE ON *"], $user, $passwd)
     or return;
+
+  my $rprivileges = ["SELECT ON $db.*",
+		     "INSERT, DELETE ON $db.TAG0"];
+
+
+  $DEBUG and $self->debug(2,"In grantBasicPrivilegesToUser granting privileges to user $user"); 
+  $self->grantPrivilegesToUser($rprivileges, $user);
+}
+
+sub grantExtendedPrivilegesToUser {
+  my $self = shift;
+  my $db = shift
+    or $self->{LOGGER}->error("Catalogue","In grantExtendedPrivilegesToUser database name is missing")
+	and return;
+  my $user = shift
+    or $self->{LOGGER}->error("Catalogue","In grantExtendedPrivilegesToUser user is missing")
+	and return;
+  my $passwd = shift;
+
+  $self->grantPrivilegesToUser(["SELECT ON $db.*"], $user, $passwd)
+  	or return;
+
+  my $rprivileges = [
+		     "INSERT, DELETE  ON $db.TAG0",
+#		     "INSERT, DELETE ON $db.FILES",
+		     "INSERT, DELETE ON $db.ENVIRONMENT", 
+		     "INSERT ON $db.TODELETE",
+		     "EXECUTE ON *",
+		     "INSERT, DELETE ON $db.G0L",
+];
+
+  $DEBUG and $self->debug(2,"In grantExtendedPrivilegesToUser granting privileges to user $user"); 
+  $self->grantPrivilegesToUser($rprivileges, $user);
+}
+
+
+sub getNewDirIndex {
+  my $self=shift;
+
+  $self->lock("CONSTANTS");
+
+  my ($dir) = $self->queryValue("SELECT value from CONSTANTS where name='MaxDir'");
+  $dir++;
   
-  my @returnVal = $self->{DATABASE}->createDirectory( "$path/", $self->{UMASK} );
+  $self->update("CONSTANTS", {value => $dir}, "name='MaxDir'");
+  $self->unlock();
 
-  #Get directory number
-  if ( $options =~ /d/ and $self->existsEntry($path) ) {
-      return ($self->{DATABASE}->getAllInfoFromLFN({
-                                              options  => 'd',
-                                              retrieve => 'entryId',
-                                              method   => 'queryValue'},"$path/"));
-  }
-  return @returnVal;
+  $self->info( "New table number: $dir");
+
+  $self->{LFN_DB}->checkLFNTable($dir) or 
+    $self->info( "Error checking the tables $dir") and return;
+
+  return $dir;
 }
 
-sub f_quit {
-  my $self = shift;
-  $self->saveEnvironment();
-  $self->f_disconnect();
-  print("bye now!\n");
-  exit;
-}
-
-sub f_disconnect {
-  my $d = shift;
-  $d and $d->{DATABASE} and $d->{DATABASE}->destroy();
-
-  #  shift->_executeInAllDatabases("destroy",@_);
-}
-
-sub f_mkremdir {
-  my $self = shift;
-  $DEBUG and $self->debug( 1, "In UserInterdace mkremdir @_" );
-  my $host   = shift;
-  my $driver = shift;
-  my $DB     = shift;
-  my $lfn    = shift;
-  if ( !$lfn ) {
-    $self->info(
-"ERROR: wrong arguments in mkremdir.\n Usage: mkremdir <host> <driver> <database> <lfn>"
-    );
-    return;
-  }
-  $lfn =~ s/\/$//;
-  $lfn = $self->f_complete_path($lfn);
-  my $permLFN = $self->checkPermissions( "w", $lfn ) or return;
-  $self->existsEntry( $lfn, $permLFN )
-    and $self->info( "That file or directory already exists", 1 )
-    and return;
-
-  #pratik
-  my ($hostIndex) = $self->{DATABASE}->getHostIndex( $host, $DB, $driver );
-  if ( !$hostIndex ) {
-    print STDERR
-"Error: $DB in $host (driver $driver) is not in the current list of remote hosts. Add it first with 'addHost'\n";
-    return;
-  }
-  return $self->{DATABASE}->createRemoteDirectory( $hostIndex, $host, $DB, $driver, $lfn );
-}
-
-#sub f_rmlink {
-#    my $self = shift;
-#    my $link = shift;
-#
-#    if ( !$link ) {
-#        print STDERR (
-#            "ERROR: wrong arguments in rmlink.\n Usage: rmlink <link>\n");
-#        return;
-#    }
-#
-#    $link =~ s/\/$//;
-#    my $newpath = $self->f_complete_path( $link . "/" );
-#    if ( !$self->f_dir($newpath) ) {
-#        print STDERR "Error: directory $newpath does not exist!\n";
-#        return;
-#    }
-#    my $parent   = $self->f_parent_dir($link);
-#    my $basename = $self->f_basename($link);
-#    my ($out) = $self->{DATABASE}->getFieldsFromDir($parent, $basename,"type,owner");
-#    defined $out
-#    	or return;
-#	my $type = $out->{"type"}; my $owner = $out->{"owner"};
-#    if ( $type ne "l" ) {
-#        print STDERR "Error: $link is not a link!!\n";
-#        return;
-#    }
-#    if ( $owner ne $self->{ROLE} ) {
-#        print STDERR "Error: You do not have permission to delete the link!!\n";
-#        return;
-#    }
-#    #now, delete the entry from the father and D0
-#	#$self->{DATABASE}->deleteDirFromParent($parent, $newpath);
-#    $self->{DATABASE}->deleteLink($parent, $basename, $newpath);
-#}
-sub f_Database_existsEntry {
-  my $self = shift;
-  return $self->{DATABASE}->existsEntry(@_);
-}
-
-sub f_Database_do {
-  my $self = shift;
-  return $self->{DATABASE}->do(@_);
-}
-
-sub f_Database_getVar {
-  my $self = shift;
-  my $var = ( shift or return );
-  return $self->{DATABASE}->{$var};
-}
-
-sub isDirectory {
-  my $self   = shift;
-  my $file   = shift;
-  my $exists = $self->existsEntry( $file, @_ ) or return;
-  ( $exists =~ m{/$} ) and return $exists;
-  return;
-}
-
-=item isFile($lfn, [$permLFN])
-
-This subroutine checks if the entry $lfn exists in the catalogue, and 
-is a file. If it doesn't receive $permLFN, it will check the database
-If it does receive $permLFN (which is supposed to be the string return
-by the function checkPermission), it will do a pattern matching
-between lfn and permLFN
-
-=cut
-
-sub isFile {
-  my $self   = shift;
-  my $file   = shift;
-  $file = $self->GetAbsolutePath($file);
-  my $exists = $self->existsEntry( $file, @_ ) or return;
-  $exists =~ /\/$/ and return;
-  return $exists;
-}
-
-sub existsEntry {
-  my $self     = shift;
-  my $lfn      = shift;
-  my $permFile = shift;
-  defined $permFile or $permFile = "";
-  while ($permFile =~ /^-/){
-    $permFile=shift;
-  }
-  $DEBUG and $self->debug( 1, "Checking if $lfn exists in the catalogue"); 
-  if ( !$permFile ) {
-    $self->selectDatabase($lfn) or return;
-    return $self->{DATABASE}->existsLFN($lfn);
-  }
-  $lfn =~ s/\*/\\\*/g;
-  $lfn =~ s/\?/\\\?/g;
-  $lfn =~ s{\+}{\\+}g;
-  $lfn =~ s{\$}{\\\$}g;
-  $DEBUG and $self->debug( 1, "Comparing '$lfn' and '$permFile'" );
-  
-  $lfn =~ s{/$}{};
-  ( $permFile =~ /^$lfn\/?$/ ) or return;
-  $DEBUG and $self->debug( 1, "The entry exists ($permFile)" );
-  return $permFile;
-}
 
 #
 #Returns the name of the file of a path
 #
-sub f_basename {
-  my $self = shift;
-  my $arg  = shift;
-  $arg =~ s{^.*/([^/]*)$}{$1};
-  return $arg;
-}
-
-#
-#Returns the table of the father
-#
-#sub f_parent_dir {
-#  my ( $self, $path ) = @_;
-#
-#  $path = $self->f_complete_path($path);
-#  $path = $self->f_dirname($path);
-#  if ( $path eq "" ) {
-#    return ( $self->{CURDIR} );
-#  }
-#  else {
-#    return $self->{DATABASE}->getFieldFromD0($path,"dir");;
-#  }
-#}
-#
-#Returns the directory of a path
-#
-sub f_dirname {
+sub _basename {
   my $self = shift;
   my ($arg) = @_;
-  $arg or return;
-  $arg =~ s{[^/]*$}{};
-  return $arg;
+  my $pos = rindex( $arg, "/" );
+
+  ( $pos < 0 ) and    return ($arg);
+
+  return ( substr( $arg, $pos + 1 ) );
 }
 
-sub GetParentDir {
-  return shift->f_dirname(@_);
+sub deleteLink {
+    my $self = shift;
+    my $parent = shift;
+    my $basename = shift;
+    my $newpath = shift;
+
+    $self->deleteDirEntry($parent, $basename);
+    $self->deleteFromD0Like($newpath);
 }
 
-sub f_print {
-  my ( $self, $path, $opt, $rentry ) = @_;
-  my $t = "";
-  my ( $type, $perm, $name, $user, $date, $group, $size, $md5, $expire ) = (
-      $rentry->{type},  $rentry->{perm},
-      $rentry->{lfn},   $rentry->{owner} || "unknown",
-      $rentry->{ctime}, $rentry->{gowner} || "unknown",
-      $rentry->{size} || 0, $rentry->{md5},
-      $rentry->{expiretime} || ""
-  );
-  $opt =~ /e/ or $expire = "";
-  $name =~ s{^$path}{};
-  defined $name or $name = ".";
-  my $permstring = $rentry->{type};
-  my $colorterm  = 0;
+### Hosts functions
 
-  if ( $ENV{ALIEN_COLORTERMINAL} and $opt !~ /n/ ) {
-    $colorterm = 1;
-  }
-  my $textcolour  = "";
-  my $textneutral = "";
-  if ($colorterm) {
-    $textneutral = AliEn::Util::textneutral();
-    if ( $permstring =~ /^d/ ) {
-      $textcolour = AliEn::Util::textgreen();
-    } else {
-      $textcolour = AliEn::Util::textblue();
-    }
-    if ( $name =~ /^\./ ) {
-      $textcolour = AliEn::Util::textred();
-    }
-    if ( $name =~ /jdl$/ ) {
-      $textcolour = AliEn::Util::textred();
-    }
-  }
-  if ( $opt =~ /l/ ) {
-    $permstring =~ /f/ and $permstring = "-";
-    $permstring eq "d" and $t = "/";
-    for ( my $i = 0 ; $i < 3 ; $i++ ) {
-      my $oneperm = substr( $perm, $i, 1 );
-    SWITCH: for ($oneperm) {
-        /0/ && do { $permstring .= "---"; last; };
-        /1/ && do { $permstring .= "--x"; last; };
-        /2/ && do { $permstring .= "-w-"; last; };
-        /3/ && do { $permstring .= "-wx"; last; };
-        /4/ && do { $permstring .= "r--"; last; };
-        /5/ && do { $permstring .= "r-x"; last; };
-        /6/ && do { $permstring .= "rw-"; last; };
-        /7/ && do { $permstring .= "rwx"; last; };
-      }
-    }
-    $self->{SILENT}
-      or ( $opt =~ /s/ )
-      or $self->info(sprintf ("%s   %-8s %-8s %12s %s%12s%s      %-10s %-20s\n", $permstring,
-      $user, $group, $size, $date, $textcolour, $name, $textneutral, $expire), undef, 0);
-    if ( $opt =~ /z/ ) {
-      my $rethash = {};
-      $rethash->{permissions} = $permstring;
-      $rethash->{user}        = $user;
-      $rethash->{group}       = $group;
-      $rethash->{size}        = $size;
-      $rethash->{date}        = $date;
-      $rethash->{name}        = $name;
-      $rethash->{path}        = $path;
-      $rethash->{md5}         = $md5;
-      return $rethash;
-    }
-    return "$permstring###$user###$group###$size###$date###$name";
-  }
-  if ( $opt =~ /m/ ) {
-    if ( ( !defined $md5 ) || ( $md5 eq "" ) ) {
-      $md5 = "00000000000000000000000000000000";
-    }
-    if (! $self->{SILENT} and $opt !~ /s/ ) {
-      $self->info(sprintf( "%s   %s\n", $md5, $path . $name), undef, 0);
-    }
-    if ( $opt =~ /z/ ) {
-      my $rethash = {};
-      $rethash->{path} = $path . $name;
-      $rethash->{md5}  = $md5;
-      return $rethash;
-    }
-    return "$md5###$path";
-  }
-  if ( $opt =~ /b/ ) {
+sub getFieldsFromHosts{
+	my $self = shift;
+	my $host = shift
+		or $self->{LOGGER}->error("Catalogue","In getFieldsFromHosts host index is missing")
+		and return;
+	my $attr = shift || "*";
 
-    # retrieve the GUID from D0
-    if ( $permstring eq "d" ) {
-      return;
-    }
-    $path .= $name;
-    my $guid  = $rentry->{guid};
-    my $pguid = "";
-    my $rguid = "";
-    if ($guid) {
-      $pguid = $guid;
-      if ( $guid eq "" ) {
-        $pguid = "           -- undef --             ";
-      }
-      $rguid = $pguid;
-      $self->{SILENT} or $self->info(sprintf( "%36s   %s\n", $pguid, $path), undef, 0);
-    } else {
-      $pguid = "------------------------------------";
-      $rguid = "";
-      $self->{SILENT} or $self->info(sprintf( "%36s   %s\n", $pguid, $path),undef, 0);
-    }
-    if ( $opt =~ /z/ ) {
-      my $rethash = {};
-      $rethash->{guid} = $rguid;
-      $rethash->{path} = $path;
-      return $rethash;
-    }
-    return "$rguid###$path";
-  }
-  $self->{SILENT} or ( $opt =~ /s/ ) or $self->info(sprintf( "%s%s\n", $name, $t),undef, 0);
-  if ( $opt =~ /z/ ) {
-    my $rethash = {};
-    $rethash->{path} = $path;
-    $rethash->{name} = $name;
-    return $rethash;
-  }
-  return $name;
+	$DEBUG and $self->debug(2,"In getFieldFromHosts fetching value of attributes $attr for host index $host");
+	$self->queryRow("SELECT $attr FROM HOSTS WHERE hostIndex = '$host'");
 }
 
-sub f_whoami {
+sub getFieldFromHosts{
   my $self = shift;
-  $self->{SILENT} or $self->info( " $self->{ROLE}", undef, 0 );
-  return $self->{ROLE};
-}
-
-sub f_user {
-  my $self = shift;
-  my $user = shift;
-  if ( !$user ) {
-    print "Enter user name:";
-    chomp( $user = <> );
-  }
-  my $changeUser = 1;
-  if ( $user ne "-" ) {
-    if ( !$self->_executeInAllDatabases( "changeRole", $user ) ) {
-      print STDERR "Password incorrect or user does not exist\n";
-      return;
-    }
-  } else {
-    $changeUser = 0;
-    $user       = shift;
-    $self->info(
-"Executing super user code [change $self->{DATABASE}->{ROLE}/$self->{ROLE} to $user]",
-      undef, 0
-    );
-    if ( !( $self->{DATABASE}->{ROLE} =~ /^admin(ssl)?$/ ) ) {
-      print STDERR "You have to be admin to use the super user functionality";
-      return;
-    }
-    if ( ( !defined $user ) || ( $user eq "" ) ) {
-      print STDERR "You have to specify the user identity you want to become";
-      return;
-    }
-  }
-  $self->{ROLE} = $user;
-  $self->_setUserGroups( $user, $changeUser );
-
-  return 1;
-  # Check if a changeUser exists
-  #  $self->{PRIORITY_DB}->checkPriorityValue($user);
-}
-
-sub _executeInAllDatabases {
-  my $self   = shift;
-  my $call   = shift;
-  my $result = 1;
-  my $name   = "DATABASE_";
-  $self->{CONFIG}
-    and $self->{CONFIG}->{ORG_NAME}
-    and $name .= "$self->{CONFIG}->{ORG_NAME}_";
-  my @allDatabases = grep ( /^$name\d+/, keys %{$self} );
-  if ( !@allDatabases ) {
-    $self->{LOGGER}
-      and $self->{LOGGER}->error( "Catalogue", "No databases found" );
-    return;
-  }
-  foreach (@allDatabases) {
-    if ( $self->{$_} ) {
-      $self->{LOGGER} and $DEBUG
-        and $self->debug( 1,
-          "Executing $call(" . ( join( " ", @_ ) or "" ) . ") in database $_" );
-      $self->{$_} and $self->{$_}->$call(@_)
-        or undef $result;
-    }
-  }
-  $result;
-}
-
-#sub f_mvdir
-#{
-#    my ($this, $dbh, $source, $target, @rest, $oldParent, $newParent, $sth);
-#    my (@list,  $oldName);
-#
-#    ($source, $target, @rest)=split(/ /, @_[0]);
-#
-#    if (($source eq "") || ($target eq ""))
-#    {
-#	print ("Usage: mv <source> <target>\n");
-#	return;
-#    }
-#    $source= f_complete_path($this, $source);
-#    $target= f_complete_path($this, $target);
-#    print ("MOVING $source to $target\n");
-#    $oldParent= f_parent_dir($source);
-#    $newParent= f_parent_dir($target);
-#    print ("OLD PARENT $oldParent New $newParent\n");
-#    #if any of the directories do not exist, return error
-#    if (($newParent eq "") || ($oldParent eq ""))
-#    {
-#	print ("Error: that directory does not exist\n");
-#	return -1;
-#    }
-#    #if the father is not the same, delete the entry in the old father,
-#    #and put it in the new
-#    $oldName= baseName($source);
-#    $sth = $dbh->prepare("SELECT * from T$oldParent where name = '$oldName'");
-#    $sth->execute or print "$DBI::errstr\n";
-#    @list=$sth->fetchrow();
-#    "INSERT INTO T$newParent"
-#	"DELETE FROM T$oldParent"
-#}
-sub f_passwd {
-  my $self = shift;
-  my ( $oldpasswd, $passwd, $passwd2 );
-  system("stty -echo");
-  print STDERR "Enter old password:";
-  chomp( $oldpasswd = <STDIN> );
-  print STDERR "\nEnter new password:";
-  chomp( $passwd = <STDIN> );
-  print STDERR "\nReenter new password:";
-  chomp( $passwd2 = <STDIN> );
-  system("stty echo");
-
-  if ( $passwd ne $passwd2 ) {
-    print STDERR "\nError: passwords do not match!! Password not changed.\n";
-    return;
-  }
-  my $done =
-    SOAP::Lite->uri('AliEn/Service/Authen')
-    ->proxy(
-           "http://$self->{CONFIG}->{PROXY_HOST}:$self->{CONFIG}->{PROXY_PORT}")
-    ->passwd( $self->{DATABASE}->{HOST},
-              $self->{DATABASE}->{DB},
-              $self->{ROLE}, $oldpasswd, $passwd )->result;
-  if ( !$done ) {
-    print STDERR "\nError: password not changed!!\n";
-  } else {
-    print "\nPassword changed!!\n";
-  }
-}
-
-sub f_verifyToken {
-  my $self  = shift;
-  my @arg   = grep ( !/-z/, @_ );
-  my $jobId = shift @arg
-    or print STDERR "You have to provide a job identifier" and return;
-  my $token = shift @arg
-    or print STDERR "You have to provide a job token" and return;
-  my @results;
-  $#results = -1;
-  my $rethash =
-    $self->{DATABASE}->{TOKEN_MANAGER}->validateJobToken( $jobId, $token );
-  if ( ( defined $rethash ) && ( $rethash->{'user'} ) ) {
-    push @results, "$rethash->{'user'}";
-  }
-  return @results;
-}
-
-sub f_verifySubjectRole {
-  my $self = shift;
-  my @arg  = grep ( !/-z/, @_ );
-  my $role = shift @arg
-    or print STDERR "You have to specify a role or <default> !\n" and return;
-  my $subject;
-  my @results;
-  $#results = -1;
-  my $rethash = ();
-  $subject = join " ", @arg;
-  $subject or print STDERR "You have to specify a subject!\n" and return;
-  print "Verifying subject $subject\n";
-  my $done =
-    $self->{SOAP}
-    ->CallSOAP( "Authen", "verifyRoleFromSubject", $subject, $role )
-    or return;
-  $done = $done->result;
-  $DEBUG
-    and $self->debug(
-     1,
-     "The Subject $subject requested as role $role will be mapped to role $done"
-    );
-
-  if ($done) {
-    $rethash->{subject}     = $subject;
-    $rethash->{desiredrole} = $role;
-    $rethash->{role}        = $done;
-    push @results, $rethash;
-  }
-  return @results;
-}
-
-sub f_find_HELP {
-  return
-"Usage: find [-<flags>] <path> <fileName> [-name <fileName>]* [[<tagname>:<condition>] [ [and|or] [<tagname>:<condition>]]*]\nPossible flags are:
-   z => return array of hash
-   v => switch on verbose mode (write files found etc.)
-   p => set the printout format
-   l => limit number of returned files per database host
-   o => offset for the limit per database host
-   x => write xml - 2nd arg is collection name
-   r => resolve all file information (should be used together with -x -z)
-   g => file group query (has to be used together with -x -z)
-   s => no sorting
-   d => return also the directories
-   c => put the output in a collection - 2nd arg is the collection name
-   m => metadata on file level 
-   y => (FOR THE OCDB) return only the biggest version of each file
-";
-}
-
-# Internal subroutine. Called from find, to get all the constraint
-# Input: Constraints as received from the command line (<tagName>:<tagCond> [and|or [<tagName>:<tagCond]]+
-#
-# Ouput status (1 or undef if error)
-#       queries reference to a list of queries
-#       paths   reference to a list of paths with the tags
-#       unions  reference to a list of unions between the queries
-sub getFindConstraints {
-  my $self = shift;
-  my ( @unions, @tagNames, @tagQueries ) = ( (), (), () );
-  my @constraints = ();
-  @_ and @constraints = ( "and", @_ );
-  while (@constraints) {
-    my $union = shift @constraints;
-    my $tempName = ( shift @constraints or ":" );
-    my ( $name, $query ) = split ":", $tempName, 2;
-    $query or $query = "";
-    $DEBUG
-      and $self->debug( 1, "There is a constraint  $union, $name, $query" );
-    my @total = $query =~ /[\'\"]/g;
-    my $error = "";
-    while ( ( $#total + 1 ) % 2 ) {
-      $DEBUG
-        and $self->debug( 1, "So far There are an odd number of brackets" );
-      if ( !@constraints ) {
-        $error = "unbalanced number of parentheses";
-        last;
-      }
-      $query .= " " . shift @constraints;
-      $DEBUG and $self->debug( 1, "Appending to the query $query" );
-      @total = $query =~ /[\'\"]/g;
-    }
-    ( $union      eq "and" )
-      or ( $union eq "or" )
-      or $error = "I don't understnad union '$union'";
-    $name  or $error = "Missing the name of the Tag";
-    $query or $error = "Missing the condition";
-    $error
-      and $self->info("Error: not enough arguments in find\n(\t\t$error ) \n"
-      . $self->f_find_HELP())
+  my $host = shift
+    or $self->{LOGGER}->error("Catalogue","In getFieldFromHosts host index is missing")
       and return;
-    $self->info("Filtering according to '$union' $name $query");
-    $query =~ s/===/ like / and $self->info("This is a like query");
-    push @unions,     $union;
-    push @tagNames,   $name;
-    push @tagQueries, $query;
-  }
-  shift @unions;
-  return ( 1, \@tagQueries, \@tagNames, \@unions );
+  my $attr = shift || "*";
+  
+  $DEBUG and $self->debug(2,"In getFieldFromHosts fetching value of attribute $attr for host index $host");
+  $self->queryValue("SELECT $attr FROM HOSTS WHERE hostIndex = ?", undef, 
+		    {bind_values=>[$host]});
 }
 
-sub f_linkfind {
-  my $self          = shift;
-  my @arg           = grep ( !/-\w+/, @_ );
-  my $path          = ( $self->f_complete_path( $arg[0] ) or "" );
-  my @searchdirs    = ();
-  my $checkonlylast = grep ( /-1/, @_ );
-  my $recursive     = grep ( /-r/, @_ );
-  my $replace       = grep ( /-e/, @_ );
-
-  #   print "Path is $path\n";
-  my @rpath = split '\/', $path;
-  my $newpath = "/";
-  if ($checkonlylast) {
-
-    # list the links in this directory
-    my $oldsilent = $self->{SILENT};
-    $self->{SILENT} = 1;
-    my @links = $self->f_ls( "-s", $path );
-    foreach my $link (@links) {
-      $newpath = "$path" . '/' . $link . '/';
-      $newpath =~ s/\/\//\//g;
-      my $newnewpath;
-      if ($replace) {
-        $newnewpath = $self->GetAbsolutePath( $newpath, 1 );
-      } else {
-        $newnewpath = $path;
-      }
-
-      #	   print "Found link $newpath -> $newnewpath\n";
-      push @searchdirs, $newnewpath;
-    }
-    $self->{SILENT} = $oldsilent;
-  } else {
-    foreach (@rpath) {
-      if ( $_ eq "" ) {
-        next;
-      }
-      $newpath = $newpath . $_;
-      if ( $self->isDirectory($newpath) ) {
-        $newpath = $newpath . '/';
-      }
-      $self->info("linkfind: Checking $newpath");
-
-      # list the links in this directory
-      my $oldsilent = $self->{SILENT};
-      $self->{SILENT} = 1;
-      my @links = $self->f_ls( "-s", $newpath );
-      foreach my $link (@links) {
-        $DEBUG and $self->debug( 1, "linkfind: Found link $link" );
-        ### resolve the link
-        $newpath = $newpath . $link . '/';
-        my $newnewpath = $self->GetAbsolutePath($newpath);
-
-        #	       print "Found $link => $newnewpath\n";
-        push @searchdirs, $newnewpath;
-      }
-      $self->{SILENT} = $oldsilent;
-    }
-  }
-  if ($recursive) {
-    foreach (@searchdirs) {
-      my @newsearchdirs = $self->f_linkfind( $_, "-1" );
-      push @searchdirs, @newsearchdirs;
-    }
-  }
-  return @searchdirs;
-}
-
-sub f_lsguid {
-  my $self    = shift;
-  my $path    = shift;
-  my @results = ();
-  if ( !( $path =~ /\/$/ ) ) {
-    $path .= "/";
-  }
-  ( $self->checkPermissions( "r", $path ) ) or return;
-  my $pathIdx = $self->GetDirIdx($path);
-  $DEBUG
-    and $self->debug( 1,
-                  "f_lsguid: Listing guids in dirIdx $pathIdx and path $path" );
-  if ($pathIdx) {
-    return $self->{DATABASE}
-      ->getFieldsFromD0Ex( "path, guid ", "WHERE dir=$pathIdx" );
-  }
-  return;
-}
-
-sub f_outputformat {
+sub getFieldsFromHostsEx {
   my $self = shift;
-  my ( $a, $v ) = @_;
-  my $r = $a->get_value($v);
-  $r = "" unless defined $r;
-  $r =~ s/\s*$//o;
-  return $r;
+  my $attr = shift || "*";
+  my $where = shift || "";
+
+  $self->query("SELECT $attr FROM HOSTS $where");
 }
 
-sub f_stat {
+sub getFieldFromHostsEx {
   my $self = shift;
-  my $lfn  = shift
-    or $self->info("Error: missing path in stat")
-    and return;
-  $lfn = $self->GetAbsolutePath($lfn);
-  $DEBUG and $self->debug( 1, "Getting the stat of $lfn" );
-  my $info = $self->checkPermissions( "r", $lfn, 0, 1 );
-  $info or return;
-  $self->existsEntry( $lfn, $info->{lfn} )
-    or $self->info("The entry '$lfn' doesn't exist")
-    and return;
-  $self->info(
-"File $info->{lfn} Type: $info->{type}  Perm: $info->{perm} Size: $info->{size}",
-    undef, 0
-  );
+  my $attr = shift || "*";
+  my $where = shift || "";
+  
+  $self->queryColumn("SELECT $attr FROM HOSTS $where");
+}
+
+sub getHostIndex {
+    my $self = shift;
+    return $self->{LFN_DB}->getHostIndex(@_);
+}
+sub getIndexTable{
+  my $self=shift;
+  return $self->{LFN_DB}->getIndexTable(@_);
+}
+sub getIndexHost {
+  my $self=shift;
+  $self->{LFN_DB}->getIndexHost(@_);
+}
+sub getAllHosts {
+  my $self = shift;
+  return $self->{LFN_DB}->getAllHosts(@_);
+}
+
+
+sub updateHost {
+  my $self = shift;
+  return $self->{LFN_DB}->updateHost(@_);
+}
+
+sub deleteHost {
+  my $self = shift;
+  return $self->{LFN_DB}->deleteHost(@_);
+}
+
+### Groups functions
+
+sub getUserid{
+  my $self=shift;
+  return $self->{LFN_DB}->getUserid(@_);
+}
+
+sub getUserGroups {
+  my $self=shift;
+  return $self->{LFN_DB}->getUserGroups(@_);
+}
+
+sub checkUserGroup{
+  my $self = shift;
+  return $self->{LFN_DB}->checkUserGroup(@_);
+}
+
+sub getAllFromGroups {
+  my $self=shift;
+  return $self->{LFN_DB}->getAllFromGroups(@_);
+}
+
+sub insertIntoGroups {
+  my $self = shift;
+  return $self->{LFN_DB}->insertIntoGroups(@_);
+}
+
+sub deleteUser {
+  my $self = shift;
+  my $user = shift
+    or $self->{LOGGER}->error("Catalogue","In deleteUser user is missing")
+      and return;
+  
+  $DEBUG and $self->debug(2,"In deleteUser deleting entries with user $user from GROUPS table");
+  $self->delete("GROUPS","Username='$user'");
+}
+
+
+
+###	Environment functions
+
+sub insertEnv {
+  my $self = shift;
+  my $user = shift
+    or $self->{LOGGER}->error("Catalogue","In insertEnv user is missing")
+      and return;
+  my $curpath = shift
+    or $self->{LOGGER}->error("Catalogue","In insertEnv current path is missing")
+      and return;
+  
+  $DEBUG and $self->debug(2,"In insertEnv deleting old environment");
+  $self->delete("ENVIRONMENT","userName='$user'") 
+    or $self->{LOGGER}->error("Catalogue", "Cannot delete old environment")
+      and return;
+  
+  $DEBUG and $self->debug(2,"In insertEnv inserting new environment");
+  $self->insert("ENVIRONMENT",{userName=>$user,env=>"pwd $curpath"})
+    or $self->{LOGGER}->error("Catalogue", "Cannot insert new environment")
+      and return;
+
+  1;
+}
+
+sub getEnv {
+  my $self = shift;
+  my $user = shift
+    or $self->{LOGGER}->error("Catalogue","In getEnv user is missing")
+      and return;
+
+  $DEBUG and $self->debug(2,"In insertEnv fetching environment for user $user");
+  $self->queryValue("SELECT env FROM ENVIRONMENT WHERE userName='$user'");
+}
+
+#	TAG functions
+
+# quite complicated manoeuvers in Catalogue/Tag.pm - f_addTagValue
+# difficult to merge with the others
+#sub insertDirtagVarsFileValuesNew {
+sub insertTagValue {
+  my $self = shift;
+  return $self->{LFN_DB}->insertTagValue(@_);
+}
+
+sub getTags {
+  my $self = shift;
+  return $self->{LFN_DB}->getTags(@_);
+}
+
+sub cleanupTagValue{
+  my $self=shift;
+  return $self->{LFN_DB}->cleanupTagValue(@_);
+}
+
+sub getFieldsFromTagEx {
+  my $self = shift;
+  return $self->{LFN_DB}->getFieldsFromTagEx(@_);
+}
+
+sub getTagNamesByPath {
+  my $self = shift;
+  return $self->{LFN_DB}->getTagNamesByPath(@_);
+}
+
+sub getAllTagNamesByPath {
+  my $self = shift;
+  return $self->{LFN_DB}->getAllTagNamesByPath(@_);
+}
+
+sub getFieldsByTagName {
+  my $self = shift;
+  return $self->{LFN_DB}->getFieldsByTagName(@_);
+}
+
+
+sub getTagTableName {
+  my $self=shift;
+  return $self->{LFN_DB}->getTagTableName(@_);
+}
+
+sub deleteTagTable {
+  my $self=shift;
+  return $self->{LFN_DB}->deleteTagTable(@_);
+}
+
+sub insertIntoTag0 {
+  my $self = shift;
+  return $self->{LFN_DB}->insertIntoTag0(@_);
+}
+
+=item getDiskUsage($lfn)
+
+Gets the disk usage of an entry (either file or directory)
+
+=cut
+
+sub getDiskUsage {
+  my $self=shift;
+  $self->{LFN_DB}->getDiskUsage(@_);
+}
+
+sub selectDatabase{
+  return selectLFNDatabase(@_);
+}
+
+sub selectLFNDatabase {
+  my $self=shift;
+
+  my $db=$self->{LFN_DB}->selectDatabase(@_) or return;
+  $self->{LFN_DB}=$db;
+  return $db;
+}
+
+sub getLFNfromGUID {
+  my $self=shift;
+  return $self->{GUID_DB}->getLFNfromGUID(@_);
+}
+
+sub getPathPrefix{
+  my $self=shift;
+  $self->{LFN_DB}->getPatchPrefix(@_);
+}
+
+sub findLFN() {
+  my $self=shift;
+  return $self->{LFN_DB}->findLFN(@_);
+}
+
+sub setExpire{
+  my $self=shift;
+  return $self->{LFN_DB}->setExpire(@_);
+}
+
+sub close{
+  my $self=shift;
+  $self->{LFN_DB}->close();
+  $self->{GUID_DB}->close();
+
+}
+
+sub destroy {
+  my $self=shift or return;
+
+  $self->{LFN_DB} and $self->{LFN_DB}->destroy();
+  $self->{GUID_DB} and $self->{GUID_DB}->destroy();
+#  $self->SUPER::destroy();
+}
+
+sub getAllReplicatedData{
+  my $self=shift;
+  my $info=$self->{LFN_DB}->getAllReplicatedData() 
+    or return;
+  my $info2=$self->{GUID_DB}->getAllReplicatedData()
+    or return;
+  foreach (keys %$info2){
+    $info->{$_}=$info2->{$_};
+  }
+
   return $info;
 }
 
-sub f_showcertificates {
-  my $self                = shift;
-  my $returnarrayhash     = grep ( /-z/, @_ );
-  my $silent              = grep ( /-s/, @_ );
-  my $allcertificatehash  = {};
-  my @allcertificatearray = ();
-  local $, = "\n", $\ = "\n";
-  my $ldap = $self->{CONFIG}->GetLDAPDN();
-  my $msg = $ldap->search( base   => "ou=People,$self->{CONFIG}{LDAPDN}",
-                           filter => "(objectClass=AliEnUser)" );
-  my $num = $msg->count;
-
-  for ( my $i = 0 ; $i < $num ; ++$i ) {
-    my $a       = $msg->entry($i);
-    my $newhash = {};
-    $newhash->{"subject"} = $self->f_outputformat( $a, 'subject' );
-    $newhash->{"uid"}     = $self->f_outputformat( $a, 'uid' );
-    $allcertificatehash->{ $newhash->{"uid"} } = $newhash;
-    push @allcertificatearray, $newhash;
-    if ( !$silent ) {
-      printf "%-32s \t Certificate: %-24s\n", $newhash->{"uid"},
-        $newhash->{"subject"};
-    }
-  }
-  if ( !$returnarrayhash ) {
-    return $allcertificatehash;
-  } else {
-    return @allcertificatearray;
-  }
-}
-
-sub f_partitions {
-  my $self            = shift;
-  my $returnarrayhash = grep ( /-z/, @_ );
-  my $silent          = grep ( /-s/, @_ );
-  if ($returnarrayhash) { shift; }
-  if ($silent)          { shift; }
-  my $ldap   = $self->{CONFIG}->GetLDAPDN();
-  my $config = {};
-  my $mesg;
-  my $total   = 0;
-  my $verbose = 0;
-  $mesg = $ldap->search( base   => "ou=Partitions,$self->{CONFIG}{LDAPDN}",
-                         filter => "(&(objectClass=top))" );
-  $total = $mesg->count;
-  my @result;
-
-  for ( my $i = 0 ; $i < $total ; $i++ ) {
-    my $entry     = $mesg->entry($i);
-    my $partition = $entry->get_value('name');
-    if ( !defined $partition or $partition eq "" ) {
-      next;
-    }
-    $silent or print "Partition:=>  $partition\n";
-    if ($returnarrayhash) {
-      my $newhash;
-      $newhash->{partition} = $partition;
-      push @result, $newhash;
-    } else {
-      push @result, $partition;
-    }
-  }
-  return @result;
-}
-
-sub f_getsite {
-  my $self = shift;
-  my $returnarrayhash = grep ( /-z/, @_ );
-  if ($returnarrayhash) { shift; }
-  my $host = shift
-    or print STDERR "ERROR: you have to give a hostname as argument!\n"
-    and return;
-  my $domain = $1 if $host =~ /[^\.]+\.(.*)$/;
-  my $ldap   = $self->{CONFIG}->GetLDAPDN();
-  my $config = {};
-  my $mesg;
-  my $total;
-  my $verbose = 0;
-  my $se;
-
-  if ($domain) {
-    $mesg = $ldap->search(base   => "ou=Sites,$self->{CONFIG}{LDAPDN}",
-                          filter => "(&(domain=$domain)(objectClass=AliEnSite))"
-    );
-    $total = $mesg->count;
-  }
-  if ( !$total ) {
-    $verbose
-      and print STDERR
-"ERROR: There is no site in $self->{CONFIG}->{ORGANISATION} for your domain ($domain)\n";
-    if ($returnarrayhash) {
-      my @result;
-      my $newhash;
-      $newhash->{site} = "none";
-      $newhash->{se}   = "none";
-      push @result, $newhash;
-      return @result;
-    }
-    return "";
-  }
-  my $entry = $mesg->entry(0);
-  my $site  = $entry->get_value('ou');
-  print "You are om site $site\n";
-  my $fullLDAPdn = "ou=$site,ou=Sites,$self->{CONFIG}{LDAPDN}";
-  my $service    = "SE";
-  $mesg = $ldap->search( base   => "ou=$service,ou=services,$fullLDAPdn",
-                         filter => "(objectClass=AliEn$service)" );
-  $total = $mesg->count;
-
-  if ( !$total ) {
-    $se = "none";
-    print STDERR
-      "ERROR: Service $service is not configured for your site ($site)\n";
-  } else {
-    $entry = $mesg->entry(0);
-    $se    = $entry->get_value('name');
-    print "You have $self->{CONFIG}->{ORG_NAME}::${site}::${se} as site SE\n";
-  }
-  if ($returnarrayhash) {
-    my @result;
-    my $newhash;
-    $newhash->{site} = $site;
-    $newhash->{se}   = "$self->{CONFIG}->{ORG_NAME}::${site}::${se}";
-    push @result, $newhash;
-    return @result;
-  }
-  return "$site/$se";
-}
-
-sub f_mlconfig {
-  my $self                 = shift;
-  my $host                 = shift;
-  my $DEFAULT_APMON_CONFIG = "aliendb5.cern.ch";
-  my $domain               = $1 if $host =~ /[^\.]+\.(.*)$/;
-  my $ldap                 = $self->{CONFIG}->GetLDAPDN();
-  my $config               = {};
-  my $mesg;
-  my $total;
-  my $verbose = 0;
-
-  if ($domain) {
-    $mesg = $ldap->search(base   => "ou=Sites,$self->{CONFIG}{LDAPDN}",
-                          filter => "(&(domain=$domain)(objectClass=AliEnSite))"
-    );
-    $total = $mesg->count;
-  }
-  if ( !$total ) {
-    $verbose
-      and print STDERR
-"ERROR: There is no site in $self->{CONFIG}->{ORGANISATION} for your domain ($domain)\n";
-    $config = $DEFAULT_APMON_CONFIG;
-    printf "APMON_CONFIG=$DEFAULT_APMON_CONFIG\n";
-    return "$DEFAULT_APMON_CONFIG";
-  }
-  my $entry      = $mesg->entry(0);
-  my $site       = $entry->get_value('ou');
-  my $fullLDAPdn = "ou=$site,ou=Sites,$self->{CONFIG}{LDAPDN}";
-  my $service    = "MonaLisa";
-  $mesg = $ldap->search( base   => "ou=$service,ou=services,$fullLDAPdn",
-                         filter => "(objectClass=AliEn$service)" );
-  $total = $mesg->count;
-  if ( !$total ) {
-    $verbose
-      and print STDERR
-      "ERROR: Service $service is not configured for your site ($site)\n";
-  } else {
-    $entry = $mesg->entry(0);
-    for my $attr ( $entry->attributes ) {
-      $config->{ uc("$service\_$attr") } = $entry->get_value($attr)
-        if $attr ne "objectClass";
-    }
-    for my $key ( keys %$config ) {
-      print "$key=\"$config->{$key}\"\n";
-    }
-  }
-  my $apmonConfig = $DEFAULT_APMON_CONFIG;
-  if ( $config->{MONALISA_APMONCONFIG} ) {
-    my $cfg = eval( $config->{MONALISA_APMONCONFIG} );
-    if ($cfg) {
-      if ( ref($cfg) eq "HASH" ) {
-        my @k = keys(%$cfg);
-        $cfg = $k[0];
-      } elsif ( ref($cfg) eq "ARRAY" ) {
-        $cfg = $$cfg[0];
-      }
-      $apmonConfig = $cfg;
-    }
-  } elsif ( $config->{MONALISA_HOST} ) {
-    $apmonConfig = $config->{MONALISA_HOST};
-  }
-  print "APMON_CONFIG=$apmonConfig\n";
-  return "$apmonConfig";
-}
-
-sub f_locatesites {
-  my $self            = shift;
-  my $seIndex         = $self->{DATABASE}->query("SELECT * from SE");
-  my $returnarrayhash = grep ( /-z/, @_ );
-  my $silent          = grep ( /-s/, @_ );
-  my $allsitehash     = {};
-  my @allsitearray    = ();
-  local $, = "\n", $\ = "\n";
-  my $ldap = $self->{CONFIG}->GetLDAPDN();
-  my $msg = $ldap->search( base   => "ou=Sites,$self->{CONFIG}{LDAPDN}",
-                           filter => "(objectClass=AliEnSite)" );
-  my $num = $msg->count;
-
-  for ( my $i = 0 ; $i < $num ; ++$i ) {
-    my $a       = $msg->entry($i);
-    my $newhash = {};
-    $newhash->{"site"}      = $self->f_outputformat( $a, 'ou' );
-    $newhash->{"location"}  = $self->f_outputformat( $a, 'location' );
-    $newhash->{"domain"}    = $self->f_outputformat( $a, 'domain' );
-    $newhash->{"latitude"}  = $self->f_outputformat( $a, 'latitude' );
-    $newhash->{"longitude"} = $self->f_outputformat( $a, 'longitude' );
-    $newhash->{"seIndex"}   = ",";
-
-    # look for the se indices
-    foreach (@$seIndex) {
-      my ( $vo, $d1, $site, $d2, $unit ) = split ':', $_->{seName};
-      if ( ( uc $site ) eq ( uc $newhash->{"site"} ) ) {
-        $newhash->{seIndex} .= $_->{seNumber} . ",";
-      }
-    }
-    $allsitehash->{ $newhash->{"site"} } = $newhash;
-    if ( $newhash->{"latitude"}  eq "" ) { $newhash->{"latitude"}  = 0; }
-    if ( $newhash->{"longitude"} eq "" ) { $newhash->{"longitude"} = 0; }
-    push @allsitearray, $newhash;
-    if ( !$silent ) {
-      printf
-"%-32s \t Location: %-20s Domain: %-24s Lat: %04.2f Lon: %04.2f SeIndx: %s\n",
-        $newhash->{"site"},     $newhash->{"location"},  $newhash->{"domain"},
-        $newhash->{"latitude"}, $newhash->{"longitude"}, $newhash->{"seIndex"};
-    }
-  }
-  if ( !$returnarrayhash ) {
-    return $allsitehash;
-  } else {
-    return @allsitearray;
-  }
-}
-
-sub f_find {
-  my $self = shift;
-  my $cmdline = "find " . join( ' ', @_ );
-  #### standard to retrieve options with and without parameters
-  my %options = ();
-  @ARGV = @_;
-  getopts( "mvzrpO:o:l:x:g:sO:q:dc:y", \%options );
-  @_ = @ARGV;
-
-  # option v => verbose
-  # option z => return array of hash
-  # option p => set the printout format
-  # option l => limit in query per host
-  # option x => write xml - 2nd arg is collection name
-  # option g => file group query
-  # option r => resolve all
-  # option s => no sorting
-  # option O => add opaque information to the results
-  # option q => quiet mode
-  # option d => return directories
-  # option m => metadata on file level
-  my $quiet   = $options{'q'};
-  my $verbose = $options{v};
-  #### -p option
-  my @printfields = ("lfn");
-  if ( defined $options{p} ) {
-    @printfields = ();
-    map { push @printfields, $_; } ( split( ",", $options{p} ) );
-  }
-  $DEBUG and $self->debug( 1, "printfields are: @printfields" );
-  #### -g option
-  my @filegroup = ();
-  if ( defined $options{g} ) {
-    map { push @filegroup, $_; } ( split( ",", $options{g} ) );
-    $DEBUG
-      and $self->debug( 1, "Setting file group queries for files @filegroup" );
-  }
-  my $path = ( $self->f_complete_path(shift) or "" );
-  my $file = ( shift or "" );
-  $path =~ s/\*/%/g;
-  $file =~ s/\*/%/g;
-  ($file)
-    or $self->info( "Error: not enough arguments in find\n"
-    . $self->f_find_HELP())
-    and return;
-  #### -g option
-  if ( defined $options{g} ) {
-    if ( $file =~ /%/ ) {
-      $self->info(
-"To query filegroups, you need to specify an exact reference file to find a file group - no wildcards are allowd!")
-        and return;
-    }
-  }
-  ( $self->checkPermissions( "r", $path ) ) or return;
-  if ( !defined $options{x} ) {
-    $quiet
-      or $verbose
-      and $self->info(
-                 "Doing a find in directory $path for files with name '$file'");
-  }
-  $file =~ s{'}{\\'};
-  #### -r option
-  if ( defined $options{r} ) {
-    $DEBUG and $self->debug( 1, "Setting resolve all tag to $options{r}" );
-
-    #      $sitelocationhash = $self->f_locatesites("-s");
-    if ( !defined $self->{sitelocationarray}
-         or ( ( time - $self->{sitelocationtime} ) > 600 ) )
-    {
-      my @allsites = $self->f_locatesites("-z");
-      $self->{sitelocationarray} = \@allsites;
-      $self->{sitelocationtime}  = time;
-    }
-  }
-  $file = [$file];
-  while ( $_[0] and $_[0] =~ /^-name$/i ) {
-    $self->info("The option is -name!!");
-    shift;
-    push @$file, shift;
-  }
-  my ( $status, $refQueries, $refNames, $refUnions ) =
-    $self->getFindConstraints(@_);
-  $status or return;
-  my $pattern = join( "* or $path*", @$file );
-  $DEBUG and $self->debug( 1, "Searching for files like $path*$pattern* ..." );
-  $options{selimit} = $self->{LIMIT_SE};
-  my $entriesRef =
-    $self->{DATABASE}
-    ->findLFN( $path, $file, $refNames, $refQueries, $refUnions, %options )
-    or return;
-  my @result = @$entriesRef;
-  my $total  = @result;
-
-  if ( defined $options{r} ) {
-
-    # add the additional information like longitude, latitude, MSD
-    foreach (@result) {
-      $_->{msd}       = ",";
-      $_->{longitude} = ",";
-      $_->{latitude}  = ",";
-      $_->{location}  = ",";
-      $_->{domain}    = ",";
-      my @indices = split ',', $_->{seStringlist};
-      foreach my $index (@indices) {
-        if ( $index eq "" ) {
-          next;
-        }
-
-        # lookup this index in the site location hash
-        foreach my $site ( @{ $self->{sitelocationarray} } ) {
-          if ( $site->{seIndex} =~ /,$index,/ ) {
-            $_->{msd}       .= $site->{site} . ",";
-            $_->{location}  .= $site->{location} . ",";
-            $_->{longitude} .= $site->{longitude} . ",";
-            $_->{latitude}  .= $site->{latitude} . ",";
-            $_->{domain} = $site->{domain};
-            last;
-          }
-        }
-        if ( $_->{msd} eq "," ) {
-          $_->{msd}       = ",none,";
-          $_->{longitude} = ",0,";
-          $_->{latitude}  = ",0,";
-          $_->{domain}    = ",no-domain,";
-          $_->{location}  = ",unknown,";
-        }
-      }
-    }
-  }
-  if ( defined $options{c} ) {
-    $self->createFindCollection( $options{c}, \@result );
-  }
-  if ( defined $options{x} ) {
-    @result =
-      $self->createFindXML( $file, $cmdline, \%options, \@result, \@filegroup );
-    foreach my $res (@result){
-      $self->info($res->{xml},undef,0);
-    }
-  } else {
-    if ( !$self->{SILENT} ) {
-      $quiet or (@result) or $verbose and $self->info("No files found!!",undef,0);
-    }
-    if ( $options{O} ) {
-      map { $_->{turl} = "alien://" . $_->{lfn} . "?$options{O}"; } @result;
-    } else {
-      map { $_->{turl} = "alien://" . $_->{lfn}; } @result;
-    }
-    if ( !$self->{SILENT} and !$quiet ) {
-      my $msg="";
-      map {
-        foreach my $field (@printfields) { $msg.= "$_->{$field}   " }
-        $msg.="\n";
-      } @result;
-      ($total) and $verbose and $msg.="$total files found\n";
-      $self->info($msg,undef,0);
-    }
-    if ( !$options{z} ) {
-      my @plainresult;
-      map { push @plainresult, $_->{lfn}; } @result;
-      return @plainresult;
-    }
-    ($total) and $self->info("$total files found",undef, 0);
-  }
-  return @result;
-}
-
-sub createFindXML {
-  my $self      = shift;
-  my $file      = shift;
-  my $cmdline   = shift;
-  my $ref       = shift;
-  my $ref2      = shift;
-  my $ref3      = shift;
-  my %options   = %$ref;
-  my @result    = @$ref2;
-  my @filegroup = @$ref3;
-  $DEBUG
-    and $self->debug( 1, "Setting xml dump collection name to $options{x}" );
-  my $dumpxml = $options{x};
-
-  if ( $options{O} ) {
-    map { $_->{turl} = "alien://" . $_->{lfn} . "?$options{O}"; } @result;
-  } else {
-    map { $_->{turl} = "alien://" . $_->{lfn}; } @result;
-  }
-  map {
-    foreach my $lkey ( keys %{$_} ) {
-      if ( !defined $_->{$lkey} ) { $_->{$lkey} = ""; }
-    }
-  } @result;
-  my @newresult;
-  map {
-    my $bname   = $self->f_basename( $_->{lfn} );
-    my $dname   = $self->f_dirname( $_->{lfn} );
-    my $newhash = {};
-    $newhash->{$bname} = $_;
-    if ( $options{g} ) {
-      if ( grep ( /$bname/, @$file ) ) {
-        push @newresult, $newhash;
-      }
-    } else {
-      push @newresult, $newhash;
-    }
-  } @result;
-  foreach (@newresult) {
-    my $filename;
-    for my $lkeys ( keys %{$_} ) {
-      $filename = $lkeys;
-    }
-    my $bname = $self->f_basename( $_->{$filename}->{lfn} );
-    my $dname = $self->f_dirname( $_->{$filename}->{lfn} );
-    if ( $options{g} ) {
-      for my $lfile (@filegroup) {
-        if ( !defined $_->{$lfile} ) {
-          $_->{$lfile}->{lfn}  = $dname . "/" . $lfile;
-          $_->{$lfile}->{turl} = "alien://" . $dname . "/" . $lfile;
-        }
-      }
-    }
-  }
-  $dumpxml =~ s/\"//g;
-  my $dataset = new AliEn::Dataset;
-  $dataset->setarray( \@newresult, "$dumpxml", "[$self->{DISPPATH}]: $cmdline",
-                      "", "", "$self->{CONFIG}->{ROLE}" );
-  $self->{DEBUG} and $dataset->print();
-  my $xml = $dataset->writexml();
-  $self->{SILENT} or print $xml;
-  $result[0]->{xml} = $xml;
-  return @result;
-}
-
-sub createFindCollection {
-  my $self     = shift;
-  my $collec   = shift;
-  my $filesRef = shift;
-  $self->f_createCollection($collec) or return;
-  foreach my $file (@$filesRef) {
-    $file->{type} =~ /f/
-      or $self->info("Skipping $file->{lfn} (not a file)")
-      and next;
-    $self->info("And now we have to add $file to the collection");
-    $self->f_addFileToCollection( $file->{lfn}, $collec, "-n" );
-  }
-  $self->updateCollection( "", $collec );
+sub setAllReplicatedData{
+  my $self=shift;
+  $self->{LFN_DB}->setAllReplicatedData(@_) or return;
+  $self->{GUID_DB}->setAllReplicatedData(@_) or return;
   return 1;
 }
 
-sub f_revalidateToken {
-  my $self  = shift;
-  my $hours = shift;
-  if ($hours) {
-    if ( $self->{ROLE} ne "admin" ) {
-      print STDERR
-        "Only the administrator can specify length for token update.\n";
-      $hours = 24;
+sub reconnect{
+  my $self=shift;
+  $self->{LFN_DB}->reconnect(@_);
+}
+
+
+sub setSEio {
+    my $self=shift;
+    my $options=shift;
+    my $site=shift;
+    my $name=shift;
+    my $seioDaemons=shift;
+    my $seStoragePath=shift;
+    my $SEName="$self->{CONFIG}->{ORG_NAME}::${site}::$name";
+    my $SEnumber=$self->{LFN_DB}->queryValue("SELECT seNumber from SE where upper(seName)=upper('$SEName')");
+
+    #Check that the SE exists;
+    if (!$SEnumber){
+	$self->info("The se $SEName does not exist!", 1);
+	return;
     }
-  } else {
-    $hours = 24;
-  }
-  my $done =
-    SOAP::Lite->uri('AliEn/Service/Authen')
-    ->proxy(
-           "http://$self->{CONFIG}->{PROXY_HOST}:$self->{CONFIG}->{PROXY_PORT}")
-    ->addTimeToToken( $self->{ROLE}, $hours )->result;
-  if ($done) {
-    print STDERR "Your token has been revalidated for $hours hours\n";
+
+    if (!$self->{LFN_DB}->executeInAllDB("update", "SE", {seName=>$SEName, seStoragePath=>$seStoragePath,seioDaemons=>$seioDaemons},"upper(seName)=upper('$SEName')")) {
+	$self->info("Error updating $SEName with seStoragePath $seStoragePath & seioDaemons $seioDaemons");	
+	return;
+    }
     return 1;
-  } else {
-    print STDERR "Error while trying to request token update\n";
-    return;
-  }
-  return 1;
 }
 
-sub printTreeLevel {
-  my $self  = shift;
-  my $first = shift;
-  $DEBUG and $self->debug( 1, "UserInterface::printreeLevel $first" );
-  my @files = grep( /^[^\/]*\/?$/i, @_ );
-  $DEBUG and $self->debug( 1, "There are $#files in @_" );
-  my $file;
-  my $sec = 0;
-  if ( (@_) and ( !@files ) ) { push @files, "/"; }
+sub getSENumber {
+  my $self=shift;
+  my $se=shift;
+  return $self->{LFN_DB}->queryValue("SELECT seNumber from SE where upper(seName)=upper(?)", undef, {bind_values=>[$se]});
+}
+	
+sub getSEio {
+    my $self=shift;
+    my $options=shift;
+    my $site=shift;
+    my $name=shift;
+    my $SEName="$self->{CONFIG}->{ORG_NAME}::${site}::$name";
+    my $SEio=$self->{LFN_DB}->queryRow("SELECT * from SE where upper(seName)=upper('$SEName')");
+    return $SEio;
+}
+sub getSENameFromNumber{
+  my $self=shift;
+  my $number=shift;
+  return $self->{LFN_DB}->queryValue("SELECT seName from SE where seNumber=?", undef , {bind_values=>[$number]});
+}
 
-  foreach $file (@files) {
-    if ( $file =~ /\/$/ ) {
-      ($sec) and print STDOUT "$first\n";
-      $sec = 1;
-      print STDOUT "$first--$file\n";
-      $file =~ s/\+/\\\+/g;
-      my @dir = grep( s/^$file(.)/$1/i, @_ );
-      $self->printTreeLevel( "$first  |", @dir );
+sub addSE{
+  my $self=shift;
+  my $options=shift;
+  my $site=shift;
+  my $name=shift;
+
+  my $addToTables=1;
+  my $SEName="$self->{CONFIG}->{ORG_NAME}::${site}::$name";
+  my $SEnumber=$self->{LFN_DB}->queryValue("SELECT seNumber from SE where seName='$SEName'");
+
+  #Check that the SE doesn't exist;
+  if ($SEnumber){
+    if ($options =~ /p/) {
+      $addToTables=0;
     } else {
-      print STDOUT "$first--$file\n";
+      $self->info("The se $SEName already exists!!", 1);
+      return;
     }
   }
+
+  if ($addToTables) {
+    #First, let's create the database
+    $SEnumber=1;
+    my $max=$self->{LFN_DB}->queryValue("SELECT max(seNumber)+1 FROM SE");
+    ($max) and $SEnumber=$max;
+    
+    $self->info("Adding the new SE $SEName with $SEnumber");
+    
+    if (!$self->{LFN_DB}->executeInAllDB("insert", "SE", {seName=>$SEName, seNumber=>$SEnumber})) {
+      $self->info("Error adding the entry");
+      $self->{LFN_DB}->executeInAllDB("delete", "SE", "upper(seName)=upper('$SEName') and seNumber=$SEnumber");
+      return;
+    }
+  }
+
+  
+  $self->info("Entry Added!!!");
+  
+  return  $SEnumber;
+}
+
+
+sub removeSE {
+  my $self=shift;
+  my $sename=shift;
+  $self->info("Removing the se $sename from the database");
+  
+  $self->{LFN_DB}->executeInAllDB("delete", "SE", "UPPER(seName)=UPPER('$sename')");
   return 1;
 }
 
-sub f_tree {
-  my $self = shift;
-  my $dir = ( shift or $self->{DISPPATH} );
-  $dir = $self->GetAbsolutePath($dir);
-  $DEBUG and $self->debug( 1, "In UserInterface::f_tree $dir" );
-  $dir =~ s{/?$}{/};
-  my $ref = $self->{DATABASE}->findLFN( $dir, [], [], [], [], 'd', 1 )
-    or return;
-  my @entries    = @$ref;
-  my @entriesLFN = ();
+#sub createTable {
+#  my $self=shift;
+#  my $host       = shift;
+#  my $db         = shift;
+#  my $driver     = shift;
+#  my $user       = shift;
+#  my $table      = shift;
+#  my $definition = shift;
 
-  foreach my $entry (@entries) {
-    push @entriesLFN, $entry->{lfn};
-  }
-  $DEBUG and $self->debug( 1, "There are " . ( $#entries + 1 ) . " entries" );
-  map { $_ =~ s/$dir/.\//i } @entriesLFN;
-  $self->printTreeLevel( "|", @entriesLFN );
-  print STDOUT "\n";
-  return 1;
-}
-
-sub f_zoom {
-  my $self       = shift;
-  my $likestring = shift;
-  if(defined $likestring) {
-    $likestring = $self->GetAbsolutePath($likestring) . "%";
-  }
-  else {
-    $likestring = $self->{DISPPATH} . "%";
-  }
-  my $rdirs      = $self->{DATABASE}->getFieldFromD0Ex( "path",
-                      "where path like '$likestring' order by path limit 100" );
-  defined $rdirs
-    or $self->{LOGGER}
-    ->error( "Catalogue", "Error in database while fetching path" )
-    and return;
-  my @files = grep ( !/\/$/, @$rdirs );
-  ( $files[0] )
-    or print STDERR "No files under the current directory!!\n" and return;
-  $files[0] =~ /^(.*\/)[^\/]*$/;
-  $self->{DISPPATH} = "$1";
-  $self->f_pwd();
-  return 1;
-}
-
-#sub filterFiles {
-#  my $self = shift;
-#  my $rfiles = shift;
+#  $self->info("Creating the table $table" );
+#  my $errorMessage="Error creating the new table \n";
 #
-#  ( $self->{DEBUG} > 2 )
-#    and print "DEBUG LEVEL 2\tIn UserInterface: filterFiles @$rfiles\n";
+#  my $index=$self->getHostIndex($host, $db, $driver);
+#  $index or $self->info("Error getting the index of '$host', '$db', and '$driver'", 1) and return;
 #
-#  my @visibles;
-#  for my $rfile (@$rfiles) {
-#    my $push = 1;
-#    ($rfile->{comment} =~ /AlienOnlyGroup/) and $push = 0;
-#    ($rfile->{comment} =~ /AlienOnlyGroup="(.*)"/)
-#      and ((" $self->{MAINGROUP} $self->{GROUPS} ") =~ / $1 /)
-#	and $push = 1;
+#  my ($db2, $extra)=$self->{LFN_DB}->reconnectToIndex($index)
+#    or $self->info("Error reconnecting to the index $index", 1) and return;
 #
-#    $push and push @visibles, $rfile;
-#  }
+#  $db2->createTable($table, $definition)
+#    or $self->info("$errorMessage ($! $@)\n",1)
+#      and return;
 #
-#  return \@visibles;
+#  $db2->grantAllPrivilegesToUser($user, $db, $table)
+#    or $self->info("Error granting privileges on table $table for $user\n($! $@ $DBI::errstr\n",1 )
+#      and return;
+#  $self->info("Table created!!!!");
+#  return 1;
 #}
-sub f_echo {
-  my $self  = shift;
-  my $var   = ( shift or "" );
-  my $value = ( $self->{CONFIG}->{$var} or "" );
-  if ($var) {
-    $var eq '$?' and return $self->displayLastError();
-    my $print = "'$value'";
-    if ( $var =~ /^((LOGGER)|(DATABASE)|(G_CONTAINER))/ ) {
 
-      #we just skip the logger
-    } elsif ( UNIVERSAL::isa( $value, "ARRAY" ) ) {
-
-      #	  print "CHANGING $value\n";
-      map { s/^(.*)$/'$1'/ } @{$value};
-      $print = join( ", ", @{$value} );
-    } elsif ( UNIVERSAL::isa( $value, "HASH" ) ) {
-      $print = Dumper($value);
-      $print =~ s/^\$VAR1 =//;
-    }
-    $self->{SILENT} or print "Configuration: $var = $print\n";
-  } else {
-    my @total = sort keys %{ $self->{CONFIG} };
-    foreach (@total) {
-      ($_) and $self->f_echo($_);
-    }
-  }
-  return $value;
+sub describeTable {
+  my $self=shift;
+  $self->{LFN_DB}->describeTable(@_);
 }
 
-sub DESTROY {
-  my $self = shift;
-  ($self) and ( $self->{DATABASE} ) and $self->f_disconnect;
+sub setUserGroup{
+  my $self=shift;
+  $self->debug(1,"Let's change the userid ");
+  $self->{LFN_DB}->setUserGroup(@_);
+  $self->{GUID_DB}->setUserGroup(@_);
+  return 1;
 }
 
-sub _setUserGroups {
-  my $self       = shift;
-  my $user       = shift;
-  my $changeUser = shift;
-  my $result     = $self->{DATABASE}->getUserGroups($user);
-  $result
-    or $self->{LOGGER}
-    ->error( "Catalogue", "Error during database query execution" )
-    and return;
-  ( $self->{MAINGROUP} ) = $result->[0];
-  $result = $self->{DATABASE}->getUserGroups( $user, 0 );
-  $self->{DATABASE}->setUserGroup( $user, $self->{MAINGROUP}, $changeUser );
-  $result
-    or $self->{LOGGER}
-    ->error( "Catalogue", "Error during database query execution" )
-    and return;
-  ( $self->{GROUPS} ) = join " ", @$result;
-}
 
-sub displayLastError {
-  my $self     = shift;
-  my $str      = $self->{LOGGER}->error_msg();
-  my $error_no = $self->{LOGGER}->error_no();
-  $self->info("Last error message: '$str' (error code $error_no)");
-  return $str, $error_no;
-}
-
-sub f_type_HELP {
-  return
-"type: returns the type of entry an lfn is. Possibilities are: file, directory, collection
- Usage: type [-z] lfn
-
- Options:
-   -z return an array of hash
-";
-}
-
-sub f_df {
-  my $self = shift;
-  return $self->{DATABASE}->getDF(@_);
-}
-
-sub f_type {
-  my $self = shift;
-  my $hash = grep ( /^-z$/, @_ );
-  @_ = grep( !/^-z$/, @_ );
-  my $lfn = shift;
-  $lfn = $self->f_complete_path($lfn);
-  my $permFile =
-    $self->checkPermissions( 'r', $lfn, 0, 1 )
-    or return;
-  my $type;
-  if ( $self->isCollection( $lfn, $permFile ) ) {
-    $type = 'collection';
-  } elsif ( $self->isFile( $lfn, $permFile->{lfn} ) ) {
-    $type = 'file';
-  } elsif ( $self->isDirectory( $lfn, $permFile->{lfn} ) ) {
-    $type = 'directory';
-  } else {
-    $self->info("I don't know the type of the file $lfn");
+sub addHost {
+  my $self=shift;
+  my $host   = shift;
+  my $driver = shift;
+  my $db     = shift;
+  my $org    =(shift or "");
+  my $hostIndex = $self->getHostIndex ($host, $db, $driver);
+  
+  if ($hostIndex) {
+    print STDERR "Error: $db in $host already exists!!\n";
     return;
   }
-  $self->info("File '$lfn' is a '$type'");
-  $hash and return ( { type => $type } );
-  return $type;
-}
 
-sub checkFileQuota {
-#######
-## return (0,message) for normal error
-## return (-1,message) for error that should throw access exception. Consequence is all 
-##                     remaining write accesses will be dropped, as they will fail anyway.
-##
-  my $self= shift;
-  my $user = shift
-    or $self->{LOGGER}->error("In checkFileQuota user is not specified.\n")
-    and return (-1, "user is not specified.");
-  my $size = shift;
-        (defined $size) and ($size ge 0)
-            or $self->{LOGGER}->error("In checkFileQuota invalid file size (undefined or negative).\n")
-            and return (-1, "size is not specified.");
+  $hostIndex = $self->{LFN_DB}->getMaxHostIndex + 1;
 
-  $self->info("In checkFileQuota for user: $user, request file size:$size");
+  $self->info( "Trying to connect to $db in $host...");
+  my ( $oldHost, $oldDB, $oldDriver ) = (
+					 $self->{HOST},
+					 $self->{DB},
+					 $self->{DRIVER}
+					);
+  
+  my $replicatedInfo=$self->getAllReplicatedData()
+    or $self->info("Error getting the info from the database") and return;
 
-  my $array = $self->{DATABASE}->{LFN_DB}->queryRow("SELECT nbFiles, totalSize, maxNbFiles, maxTotalSize, tmpIncreasedNbFiles, tmpIncreasedTotalSize FROM processes.PRIORITY WHERE user='$user'")
-    or $self->{LOGGER}->error("Failed to get data from the PRIORITY quota table.")
-    and return (0, "Failed to get data from the PRIORITY quota table. ");
-  $array or $self->{LOGGER}->error("There's no entry for user $user in the PRIORITY quota table.")
-    and return (-1, "There's no entry for user $user in the PRIORITY quota table.");
 
-  my $nbFiles = $array->{'nbFiles'};
-  my $maxNbFiles = $array->{'maxNbFiles'};
-  my $tmpIncreasedNbFiles = $array->{'tmpIncreasedNbFiles'};
-  my $totalSize = $array->{'totalSize'};
-  my $maxTotalSize = $array->{'maxTotalSize'};
-  my $tmpIncreasedTotalSize = $array->{'tmpIncreasedTotalSize'};
- 
-  $DEBUG and $self->debug(1, "size: $size");
-  $DEBUG and $self->debug(1, "nbFile: $nbFiles/$tmpIncreasedNbFiles/$maxNbFiles");
-  $DEBUG and $self->debug(1, "totalSize: $totalSize/$tmpIncreasedTotalSize/$maxTotalSize");
-  $self->info("nbFile: $nbFiles/$tmpIncreasedNbFiles/$maxNbFiles");
-  $self->info("totalSize: $totalSize/$tmpIncreasedTotalSize/$maxTotalSize");
+  $self->debug(1, "Connecting to new database ($host $db $driver)");
+  my $oldConfig=$self->{CONFIG};
+  my $newConfig;
+  if ($org) {
+    $newConfig=$self->{CONFIG}->Reload({"organisation", $org});
+    $newConfig or $self->info( "Error gettting the new configuration") and return;
 
-  #Unlimited number of files
-  if($maxNbFiles==-1){
-    $self->info("Unlimited number of files allowed for user ($user)");
+    $self->{CONFIG}=$newConfig;
   }
-  else{
-    if ($nbFiles + $tmpIncreasedNbFiles + 1 > $maxNbFiles) {
-      $self->info("Uploading file for user ($user) is denied - number of files quota exceeded.");
-      return (-1, "Uploading file for user ($user) is denied - number of files quota exceeded." );
+
+  if ( !$self->reconnect( $host, $db, $driver ) ) {
+    $self->info("Error: not possible to connect to $driver $db in $host");
+    $self->reconnect( $oldHost, $oldDB, $oldDriver );
+    $newConfig and $self->{CONFIG}=$oldConfig;
+    return;
+  }
+  $self->{SCHEMA}= $db;
+  $self->{SCHEMA}=~s/(.+):(.+)/$2/i;
+  if (!$org) {
+    $self->createCatalogueTables({reconnected=>1});
+    my  $addbh = new AliEn::Database::Admin();
+    ($addbh)
+      or $self->info("Error getting the Admin" ) and return;
+
+    my $rusertokens = $addbh->getAllFromTokens("Username, password");
+    $addbh->destroy();
+
+    #also, grant the privileges for all the users
+    foreach my $rtempUser (@$rusertokens) {
+      $self->grantBasicPrivilegesToUser($db, $rtempUser->{Username}, $rtempUser->{password});
     }
-  }
-  #Unlimited size for files
-  if($maxTotalSize==-1){
-    $self->info("Unlimited file size allowed for user ($user)");
-  }
-  else{
-    if ($size + $totalSize + $tmpIncreasedTotalSize > $maxTotalSize) {
-      $self->info("Uploading file for user ($user) is denied, file size ($size) - total file size quota exceeded." );
-      return (-1, "Uploading file for user ($user) is denied, file size ($size) - total file size quota exceeded." );
-    }
+    #Now, we have to fill in the tables
+    $self->setAllReplicatedData($replicatedInfo) or return;
+
+    $self->{LFN_DB}->insertHost($hostIndex, $host, $db, $driver);
+    
   }
   
-  #$self->{PRIORITY_DB}->do("update PRIORITY set tmpIncreasedNbFiles=tmpIncreasedNbFiles+1, tmpIncreasedTotalSize=tmpIncreasedTotalSize+$size where user LIKE  '$user'") or $self->info("failed to increase tmpIncreasedNbFile and tmpIncreasedTotalSize");
+  #in the old nodes, add the new link
+  foreach my $rtempHost (@{$replicatedInfo->{hosts}}) {
+    $self->debug(1, "Connecting to database ($rtempHost->{address} $rtempHost->{db} $rtempHost->{driver})");
+    $self->reconnect( $rtempHost->{address}, $rtempHost->{db}, $rtempHost->{driver} );
+    $self->{LFN_DB}->insertHost($hostIndex, $host, $db, $driver, $org);
+  }
 
-  $self->info("In checkFileQuota $user: Allowed");
-  return (1, undef, ($size+$totalSize+$tmpIncreasedTotalSize)/$maxTotalSize, ($nbFiles+$tmpIncreasedNbFiles)/$maxNbFiles);
+  $self->debug(1, "Connecting to old database ($oldHost $oldDB $oldDriver)");
+  $self->reconnect( $oldHost, $oldDB, $oldDriver );
+  $self->info( "Host added!!");
+  return 1;
+}
+
+sub getNumberOfEntries{
+  my $self=shift;
+  my $entry=shift;
+  if (defined $entry->{guidTime}){
+    $self->debug(1,"Getting the number of guids");
+    return $self->{GUID_DB}->getNumberOfEntries($entry, @_);
+  }
+  return $self->{LFN_DB}->getNumberOfEntries($entry, @_);
+}
+
+sub getIndexHostFromGUID{
+  my $self=shift;
+  return $self->{GUID_DB}->getIndexHostFromGUID(@_);
+}
+
+sub checkLFN {
+  my $self=shift;
+  my $dbname=shift;
+  my $ctable=shift;
+  my $rhosts = $self->{LFN_DB}->getAllHosts();
+  
+  foreach my $rtempHost (@$rhosts) {
+    $dbname and $dbname!~ /^$rtempHost->{db}$/ and 
+      $self->info("Skipping db $rtempHost->{db}") and next;
+    $self->info("Checking the tables in $rtempHost->{db}");
+
+    my ($db, $extra)=$self->{LFN_DB}->reconnectToIndex( $rtempHost->{hostIndex}, "", $rtempHost );
+    $db or $self->info("Error connecting to $db") and next;
+    
+    my $tables=$db->queryColumn('select tablename from INDEXTABLE where hostindex=? order by 1', undef, {bind_values=>[$rtempHost->{hostIndex}]});
+    foreach my $t (@$tables){
+      $ctable and $ctable!~/^L${t}L$/ and
+	$self->info("Skipping table L${t}L") and next;
+      if ($db->queryValue("select 1 from (select max(ctime) ctime, count(*) counter from L${t}L) a left join  LL_ACTIONS on tablenumber=? and action='STATS' where extra is null or extra<>counter or time is null or time<ctime", undef, {bind_values=>[$t]})){
+	$self->info("We have to update the table $t");
+	$db->updateStats($t);
+      }
+    }
+  }
+  return 1;
 }
 
 
+sub checkOrphanGUID{
+  my $self=shift;
+  $self->debug(1, "Checking orphanguids in the database");
+  my $hosts=$self->getAllHosts();
 
-return 1;
-__END__
+  foreach my $host (@$hosts){
+    my ($db, $extra)=$self->{GUID_DB}->reconnectToIndex($host->{hostIndex})
+      or $self->info("Error reconnecting to the index $host->{hostIndex}", 1) and return;
+    my $tables=$db->query("select * from GL_ACTIONS where action='TODELETE'");
+    foreach my $table (@$tables){
+      $self->info("Doing the table $table->{tableNumber}");
+      $db->checkOrphanGUID($table->{tableNumber}, @_);
+    }
+    $db->do("delete from TODELETE  using TODELETE join SE s on TODELETE.senumber=s.senumber where sename='no_se' and pfn like 'guid://%'");
+  }
+
+  return 1;
+}
 
 
+sub optimizeGUIDtables{
+  my $self=shift;
+  
+  $self->info("Let's optimize the guid tables");
+
+  my $hosts=$self->getAllHosts();
+
+  foreach my $host (@$hosts){
+    $self->info("Doing the database $host->{db}");
+    my ($db, $extra)=$self->{GUID_DB}->reconnectToIndex($host->{hostIndex}) 
+      or next;
+    
+    my $tables=$db->query("SELECT tableName, guidTime from GUIDINDEX where hostIndex=?", undef,{bind_values=>[$host->{hostIndex}]});
+    foreach my $info (@$tables){
+      my $table="G$info->{tableName}L";
+      $self->info("  Checking the table $table");
+      my $number=$db->queryValue("select count(*) from $table");
+      $self->info("There are $number entries");
+      my $done=0;
+      while ($number > 3000000){
+	$self->info("There are more than 3M ($number) ! Splitting the table");
+	my $guid=$db->queryRow("select guidid, binary2string(guid) guid from $table order by 1 desc limit 1 offset 2000000");
+	$guid->{guid} or next;
+	$self->info("We have to split according to $guid->{guid}");
+	$db->moveGUIDs($guid->{guid}, "f") or last;
+	$self->info("Let's count again");
+	$number=$db->queryValue("select count(*) from $table");
+	$done=1;
+      }
+      $done and $db->checkGUIDTable($table);
+      if ($number <1000000) {
+	$self->info("There are less than 1M. Let's merge with the previous (before $info->{guidTime})");
+	$self->optimizeGUIDtables_removeTable($info, $db, $host, $table);
+      }
+    }
+
+  }
+  return 1;
+}
+
+sub optimizeGUIDtables_removeTable {
+  my $self=shift;
+  my $info=shift;
+  my $db=shift;
+  my $host=shift;
+  my $table=shift;
+
+  defined $info->{guidTime} or return 1;
+
+
+
+  my $previousGUID=$info->{guidTime};
+  $previousGUID=~ s/.........$//;
+  $previousGUID= sprintf("%s%09X", $previousGUID, hex(substr($info->{guidTime},-9)) -1);
+  
+  ($previousGUID eq "FFFFFFFF")
+    and $self->info("This is the first table") and return 1;
+  my $t=$db->queryRow("select * from GUIDINDEX where guidTime<? order by guidTime desc limit 1", undef, {bind_values=>[$previousGUID]});
+  
+
+  ($t->{hostIndex} ne $host->{hostIndex})
+   and $self->info("Different hosts :( ") and return;
+   
+  ($table eq "G$t->{tableName}L") and $self->info("Same table?? :(")
+    and return;
+ 
+  my $info2=$db->query("describe $table");
+  my $columns="";
+  foreach my $c (@$info2){
+    $columns.="$c->{Field},";
+  }
+  $columns =~ s/guidid,//i;
+  $columns =~ s/,$//;
+  my $entries=$db->queryValue("select count(*) from  G$t->{tableName}L");
+  if ($entries>2000000){
+    $self->info("The previous table has too many entries");
+    return;
+  }
+  
+  $self->info("This is in the same database. Tables $table and G$t->{tableName}L");
+  $db->renumberGUIDtable("",$table);
+  $db->renumberGUIDtable("", "G$t->{tableName}L");
+  $db->lock("$table write, G$t->{tableName}L write, ${table}_PFN write, ${table}_REF write, G$t->{tableName}L_PFN write, G$t->{tableName}L_REF");
+  my $add=$db->queryValue("select max(guidid) from G$t->{tableName}L") || 0;
+  $db->do("insert into G$t->{tableName}L_PFN  ( pfn,seNumber,guidId ) select  pfn,seNumber, guidId+$add from ${table}_PFN");  
+  $db->do("insert into G$t->{tableName}L_REF  (lfnRef,guidId ) select  lfnRef, guidId+$add from ${table}_REF");  
+  
+  $db->do("insert into G$t->{tableName}L  ($columns, guidId ) select  $columns, guidId+$add from ${table}");
+  $self->info("And now, the index  $info->{guidTime}");
+  $db->unlock();
+  $db->deleteFromIndex("guid", $info->{guidTime});
+
+  return 1;
+}
+
+sub getDF {
+  my $self=shift;
+  my $sename=shift;
+  my $opt=shift;
+
+
+  my $query="select *, if(size>0,if(usedSpace/size<0, 0, floor(100* usedSpace/size)),0) used  from SE a join SE_VOLUMES b  on a.seName=b.seName";
+  my $bind=[];
+  if ($sename){
+    $query.=" where a.seName=?";
+    push @$bind, $sename;
+  }
+  my $info=$self->{LFN_DB}->{FIRST_DB}->query($query,undef, {bind_values=>$bind});
+  return $info;
+
+
+}
+
+
+sub masterSE_list {
+  my $self=shift;
+  my $sename=shift;
+  #If this option is given, give back all the guids
+  $self->info("The options are @_");
+  my $guids= grep (/^-guid$/, @_);
+  my $senumber=$self->getSENumber($sename)
+    or $self->info("Error getting the se number of $sename")
+      and return;
+
+  my $info={referenced=>0,
+	    replicated=>0,
+	    broken=>0};
+
+  $guids and $info->{guids}={referenced=>[], replicated=>[], broken=>[]};
+  my $rhosts = $self->{LFN_DB}->getAllHosts();
+
+  my $method="queryValue";
+  my $select="count(*)";
+  if ($guids){
+    $method="queryColumn";
+    $select="binary2string(guid)";
+  }
+  foreach my $h (@$rhosts){
+    my ($db, $extra)=$self->{GUID_DB}->reconnectToIndex($h->{hostIndex}) 
+      or next;
+
+    my $tables=$db->queryColumn("SELECT tableName from GUIDINDEX where hostIndex=?", undef,{bind_values=>[$h->{hostIndex}]});
+    foreach my $table (@$tables){
+
+      $table ="G${table}L" or next;
+      my $referenced=$db->$method("select $select from $table join 
+${table}_PFN p  using (guidid) join ${table}_REF r using (guidid)
+where  p.senumber=? ",    undef, {bind_values=>[$senumber]} );
+
+      my $broken=$db->$method("select $select from $table join 
+${table}_PFN p  using (guidid) left join ${table}_REF r using (guidid)
+where  p.senumber=? and r.guidid is null", 
+				   undef, {bind_values=>[$senumber]} );
+      my $replicated=$db->$method("select $select from (select guid from $table join
+${table}_PFN p using (guidid) join ${table}_PFN p2 using (guidid) 
+where p.senumber=? and p2.senumber!= p.senumber group by guidid) a",undef, {bind_values=>[$senumber]} );
+      if ($guids){
+	$info->{broken}+=$#$broken+1;
+	$info->{replicated}+=$#$replicated+1;
+	$info->{referenced}+=$#$referenced+1;
+	$info->{guids}->{broken}=[@$broken, @{$info->{guids}->{broken}}];
+      } else {
+	$info->{broken}+=$broken;
+	$info->{replicated}+=$replicated;
+	$info->{referenced}+=$referenced;
+      }
+      $self->info("After $table, $info->{referenced},  $info->{broken} and $info->{replicated}");
+
+    }
+  }
+
+  return $info;
+}
+
+sub masterSE_getFiles{
+  my $self=shift;
+  my $sename=shift;
+  my $previous_table=shift ||"";
+  my $limit=shift;
+  my $options=shift || {};
+
+  my $previous_host;
+  $previous_table =~ s/^(\d+)_// and $previous_host=$1;
+  my $senumber=$self->getSENumber($sename)
+    or $self->info("Error getting the se number of $sename")
+      and return;
+
+  my $return=[];
+  my $rhosts = $self->{LFN_DB}->getAllHosts();
+
+  my $query="select binary2string(g.guid)guid,p.pfn  ";
+  $options->{md5} and $query.=", g.md5 ";
+  foreach my $h (@$rhosts){
+    #Let's skip all the hosts that we have already seen
+    $previous_host and $previous_host!=$h->{hostIndex} and next;
+    $previous_host="";
+    my ($db, $extra)=$self->{LFN_DB}->reconnectToIndex($h->{hostIndex}) 
+      or next;
+    my $tables=$db->queryColumn("SELECT tableName from GUIDINDEX where hostIndex=? order by 1", undef,{bind_values=>[$h->{hostIndex}]});
+    foreach my $table (@$tables){
+      $table ="G${table}L";
+      $previous_table and $previous_table!~ /^$table$/ and next;
+#      $table =~ /G46L/ or next;
+      if ($previous_table){
+	$previous_table="";
+	next;
+      }
+      my $endquery="";
+
+      if ($options->{unique}){
+        $self->info("Checking that the file is not replicated");
+        $endquery="and not exists (select 1 from ${table}_PFN p2 where p2.senumber!=p.senumber and p2.guidid=p.guidid) group by guid";
+      }
+      if ($options->{replicated}){
+	$endquery="and exists (select 1 from ${table}_PFN p2 where p2.senumber!=p.senumber and p2.guidid=p.guidid) group by guid";
+      }
+      my $entries=[];
+      if ($options->{lfn}){
+	$self->debug(1,"Getting the lfn of the files");
+	my $ref=$db->query("select lfnRef, db, a.lfn  from (select  distinct lfnRef  from  ${table}_REF join  ${table}_PFN p using (guidid) where p.senumber=?) a join  HOSTS h join INDEXTABLE a using (hostindex)   where lfnRef like concat(h.hostindex, '_%') and lfnRef=concat(a.hostIndex,'_', a.tableName) ",  undef, {bind_values=>[$senumber]});
+	foreach my $entry (@$ref){
+	  my ($host, $lfnTable)=split(/_/, $entry->{lfnRef});
+	  my $dd=$db->query("$query, concat(?,lfn) lfn  from $table g join  ${table}_PFN p  using (guidid) join $entry->{db}.L${lfnTable}L l using (guid) where p.senumber=? $endquery",undef, {bind_values=>[$entry->{lfn},$senumber]} );
+	  print "    doing $table and $entry->{lfnRef} $#$dd\n";
+#	  my $dd=[];
+	  $entries=[@$entries, @$dd];
+	}
+      }else{
+	$entries=$db->query("$query from  $table g join  ${table}_PFN p  using (guidid) where p.senumber=? $endquery",undef, {bind_values=>[$senumber]} );
+      }
+      $return=[@$return, @$entries];
+      if ($#$return >$limit){
+	$self->info("Let's return now before putting more entries");
+	return ($return, "$h->{hostIndex}_$table");
+      }
+
+    }
+  }
+  $self->info("We have seen all the entries");
+  return ($return,"");
+}
+  
+sub calculateBrokenLFN{
+  my $self=shift;
+  my $table=shift;
+  my $db=shift;
+  my $options=shift;
+
+  my $extratable="";
+  $self->info("Calculating all the broken links in $table->{lfn}");
+
+
+
+  my $GUIDList=$db->getPossibleGuidTables( $table->{tableName});
+  my $t= "L$table->{tableName}L";
+  $db->checkLFNTable($table->{tableName});
+  $db->do("truncate table ${t}_broken");
+  $db->do("insert into ${t}_broken  select entryId from  $t where type='f'");
+  foreach my $entry (@$GUIDList) {
+    $options->{nopfn} and $extratable="join  $entry->{db}.G$entry->{tableName}L_PFN using (guidid)";
+    $db->do("delete from  ${t}_broken using  ${t}_broken join $t using (entryId) join $entry->{db}.G$entry->{tableName}L using (guid) $extratable");
+
+
+  }
+  return 1;
+}
+
+sub getBrokenLFN{
+  my $self=shift;
+  my $options=shift;
+  $self->info("Getting all the broken lfn @_");
+
+  my $dir=shift || "";
+
+  my $rhosts = $self->{LFN_DB}->getAllHosts();
+
+  my $all=[];
+  my $allEntries;
+  if ($dir){
+    $self->info("Doing only $dir");
+    $allEntries=$self->{LFN_DB}->getHostsForEntry($dir);
+  }
+  foreach my $h (@$rhosts){
+    my ($db, $extra)=$self->{LFN_DB}->reconnectToIndex($h->{hostIndex})
+      or next;
+
+    my $tables;
+    if ($allEntries){
+      foreach my $c (@$allEntries){
+        $c->{hostIndex} eq $h->{hostIndex} or next;
+        push @$tables, $c;
+      }
+    } else {
+      $tables=$db->query("SELECT tableName,lfn from INDEXTABLE where hostindex=?",
+                        undef, {bind_values=>[$h->{hostIndex}]});
+     }
+     for my $t (@$tables){
+      $db->checkLFNTable($t->{tableName});
+      $self->info("Checking the table $t->{tableName}");
+      $options->{calculate} and  $self->calculateBrokenLFN($t, $db, $options);
+      my $like="";
+      my $bind=[$t->{lfn}];
+      if ($dir){
+        $like="where concat('$t->{lfn}',lfn) like concat(?,'%')";
+        push @$bind, $dir;
+      }
+      my $entries=$db->queryColumn("SELECT concat(?,lfn) from L$t->{tableName}L join  L$t->{tableName}L_broken using (entryId) $like ", undef,{ bind_values=>$bind });
+      foreach my $e (@$entries){
+        $self->info($e,0,0);
+      }
+      push @$all, @$entries;
+    }
+  }
+  return $all;
+}
+
+
+=head1 SEE ALSO
+
+AliEn::Database
+
+=cut
+
+1;
 
 
