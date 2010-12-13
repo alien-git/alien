@@ -96,8 +96,8 @@ sub waitForStatus{
 sub killAllWaitingJobs {
   my $cat=shift;
   print "Killing all the waiting jobs...\n";
-  my @jobs=$cat->execute("top", "-status INSERTING", "-silent");
-  @jobs=(@jobs, $cat->execute("top", "-status WAITING", "-silent"));
+  my @jobs=$cat->execute("top", "-status INSERTING", "-status WAITING", "-status RUNNING",  "-silent");
+#  @jobs=(@jobs, $cat->execute("top", "-status WAITING", "-status RUNNING", "-silent"));
   foreach my $job (@jobs) {
     print "KILLING jobs $job->{queueId}\n";
     $cat->execute("kill", $job->{queueId});
