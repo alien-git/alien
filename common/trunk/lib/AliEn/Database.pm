@@ -167,6 +167,7 @@ sub new{
   @ISA = ( $name, @ISA );
   if ($driver =~ /Oracle/){
     $self->SUPER::getTypes;
+    $INDEX=0;
     defined $self->{ORACLE_USER} or $self->{ORACLE_USER}="ALIENSTANDARD";}
   }
 
