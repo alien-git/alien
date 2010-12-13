@@ -691,8 +691,8 @@ sub removeFile {
   $lfnOnTable =~ s/$tablelfn//;
   my $guid = $db->queryValue("SELECT binary2string(l.guid) as guid FROM $tableName l WHERE l.lfn=?", undef, {bind_values=>[$lfnOnTable]}) || 0;
   #Insert into LFN_BOOKED only when the GUID has to be deleted
-  $db->do("INSERT INTO LFN_BOOKED(lfn, owner, expiretime, ".$self->reservedWord("size").", guid, gowner, user, pfn)
-    SELECT ?, l.owner, -1, l.".$self->reservedWord("size").", l.guid, l.gowner, ?,'*' FROM $tableName l WHERE l.lfn=? AND l.type<>'l'", {bind_values=>[$lfn,$user,$lfnOnTable]})
+  $db->do("INSERT INTO LFN_BOOKED(lfn, owner, expiretime, size, guid, gowner, user, pfn)
+    SELECT ?, l.owner, -1, l.size, l.guid, l.gowner, ?,'*' FROM $tableName l WHERE l.lfn=? AND l.type<>'l'", {bind_values=>[$lfn,$user,$lfnOnTable]})
     or $self->{LOGGER}->error("Database::Catalogue::LFN","Could not insert LFN(s) in the booking pool")
     and return; 
   
@@ -734,10 +734,10 @@ sub removeDirectory {
     $tmpPath=~ s{^$db->{lfn}}{};
     $count += ($db2->queryValue("SELECT count(*) FROM L$db->{tableName}L l WHERE l.type='f' AND l.lfn LIKE concat(?,'%')",
         undef, {bind_values=>[$tmpPath]})||0);
-    $size += ($db2->queryValue("SELECT SUM(l.size) FROM L$db->{tableName}L l WHERE l.lfn LIKE concat(?,'%') AND l.type='f'",
+    $size += ($db2->queryValue("SELECT SUM(l.".$db2->reservedWord("size").") FROM L$db->{tableName}L l WHERE l.lfn LIKE concat(?,'%') AND l.type='f'",
         undef, {bind_values=>[$tmpPath]})||0);
-    $db2->do("INSERT INTO LFN_BOOKED(lfn, owner, expiretime, size, guid, gowner, user, pfn)
-      SELECT l.lfn, l.owner, -1, l.size, l.guid, l.gowner, ?,'*' FROM L$db->{tableName}L l WHERE l.type='f' AND l.lfn LIKE concat(?,'%')",
+    $db2->do("INSERT INTO LFN_BOOKED(lfn, owner, expiretime, ".$db2->reservedWord("size").", guid, gowner, ".$db2->reservedWord("user").", pfn)
+      SELECT l.lfn, l.owner, -1, l.".$db2->reservedWord("size").", l.guid, l.gowner, ?,'*' FROM L$db->{tableName}L l WHERE l.type='f' AND l.lfn LIKE concat(?,'%')",
       {bind_values=>[$user,$tmpPath]})
       or $self->{LOGGER}->error("Database::Catalogue::LFN","ERROR: Could not add entries $tmpPath to LFN_BOOKED")
       and return;
@@ -805,8 +805,8 @@ sub moveFile {
       or $self->{LOGGER}->error("Database::Catalogue::LFN","Error updating database")
       and return;
     my $db = $schema->{db};
-    $dbTarget->do("INSERT INTO $tableName_target(owner, replicated, ctime, guidtime, aclId, lfn, broken, expiretime, size, dir, gowner, type, guid, md5, perm) 
-      SELECT owner, replicated, ctime, guidtime, aclId, ?, broken, expiretime, size, dir, gowner, type, guid, md5, perm FROM $db.$tableName_source WHERE lfn=?",{bind_values=>[$lfnOnTable_target,$lfnOnTable_source]})
+    $dbTarget->do("INSERT INTO $tableName_target(owner, replicated, ctime, guidtime, aclId, lfn, broken, expiretime, ".$dbTarget->reservedWord("size").", dir, gowner, type, guid, md5, perm) 
+      SELECT owner, replicated, ctime, guidtime, aclId, ?, broken, expiretime, ".$dbTarget->reservedWord("size").", dir, gowner, type, guid, md5, perm FROM $db.$tableName_source WHERE lfn=?",{bind_values=>[$lfnOnTable_target,$lfnOnTable_source]})
       or $self->{LOGGER}->error("Database::Catalogue::LFN","Error updating database")
       and return;
   }
@@ -848,8 +848,8 @@ sub softLink {
   
   if($tablelfn_source eq $tablelfn_target) {
     #If source and target are in same L#L table then just edit the names
-    $dbTarget->do("INSERT INTO $tableName_target(owner, replicated, ctime, guidtime, aclId, lfn, broken, expiretime, size, dir, gowner, type, guid, md5, perm) 
-      SELECT owner, replicated, ctime, guidtime, aclId, ?, broken, expiretime, size, dir, gowner, 'l', guid, md5, perm FROM $tableName_source WHERE lfn=?",{bind_values=>[$lfnOnTable_target,$lfnOnTable_source]})
+    $dbTarget->do("INSERT INTO $tableName_target(owner, replicated, ctime, guidtime, aclId, lfn, broken, expiretime, ".$dbTarget->reservedWord("size").", dir, gowner, type, guid, md5, perm) 
+      SELECT owner, replicated, ctime, guidtime, aclId, ?, broken, expiretime, ".$dbTarget->reservedWord("size").", dir, gowner, 'l', guid, md5, perm FROM $tableName_source WHERE lfn=?",{bind_values=>[$lfnOnTable_target,$lfnOnTable_source]})
       or $self->{LOGGER}->error("Database::Catalogue::LFN","Error updating database","[updateDatabse]")
       and return;
   }
@@ -860,8 +860,8 @@ sub softLink {
       or $self->{LOGGER}->error("Database::Catalogue::LFN","Error updating database")
       and return;
     my $db = $schema->{db};
-    $dbTarget->do("INSERT INTO $tableName_target(owner, replicated, ctime, guidtime, aclId, lfn, broken, expiretime, size, dir, gowner, type, guid, md5, perm) 
-      SELECT owner, replicated, ctime, guidtime, aclId, ?, broken, expiretime, size, dir, gowner, 'l', guid, md5, perm FROM $db.$tableName_source WHERE lfn=?",{bind_values=>[$lfnOnTable_target,$lfnOnTable_source]})
+    $dbTarget->do("INSERT INTO $tableName_target(owner, replicated, ctime, guidtime, aclId, lfn, broken, expiretime, ".$dbTarget->reservedWord("size").", dir, gowner, type, guid, md5, perm) 
+      SELECT owner, replicated, ctime, guidtime, aclId, ?, broken, expiretime, ".$dbTarget->reservedWord("size").", dir, gowner, 'l', guid, md5, perm FROM $db.$tableName_source WHERE lfn=?",{bind_values=>[$lfnOnTable_target,$lfnOnTable_source]})
       or $self->{LOGGER}->error("Database::Catalogue::LFN","Error updating database")
       and return;
   }
@@ -1062,7 +1062,7 @@ sub copyDirectory{
 
   }
   if ($#values>-1) {
-    my $insert="INSERT into $targetTable(lfn,owner,gowner,size,type,guid,guidtime,perm,dir) values ";
+    my $insert="INSERT into $targetTable(lfn,owner,gowner,".$targetDB->reservedWord("size").",type,guid,guidtime,perm,dir) values ";
 
     $insert .= join (",", @values);
     $targetDB->do($insert);
@@ -1555,7 +1555,7 @@ sub getTags {
   my $query="SELECT $columns from $tableName t where t.entryId=(select max(entryId) from $tableName t2 where t.".$self->reservedWord("file")."=t2.".$self->reservedWord("file").") and $where";
   if ($options->{filename}){
 #    $query.=" and entryId=(select max(entryId) from $tableName where file=?)";
-    $query.=" and file=? ";
+    $query.=" and ".$self->reservedWord("file")."=? ";
     my @list=();
     $options->{bind_values} and @list=@{$options->{bind_values}};
     push @list, $options->{filename};
@@ -2013,7 +2013,8 @@ sub setExpire{
   my $table=$self->{INDEX_TABLENAME}->{name};
   $lfn=~ s{^$self->{INDEX_TABLENAME}->{lfn}}{};
 
-  my $expire="now()+$seconds";
+  my $seconds2 = $self->_timeUnits($seconds);
+  my $expire="now()+ $seconds2";
   if ($seconds =~ /^-1$/){
     $expire="null";
   }else {
@@ -2021,7 +2022,7 @@ sub setExpire{
       $self->info("The number of seconds ('$seconds') is not a number") 
 	and return;
   }
-  return $self->update($table, {expiretime=>$expire}, "lfn='$lfn'", {noquotes=>1});
+  return $self->_do("UPDATE $table SET expiretime=$expire WHERE lfn='$lfn'");
 }
 
 
@@ -2238,12 +2239,13 @@ sub renumberLFNtable {
   }
   if ($options->{min} and $options->{min}>1){
     $self->info("And now, updating the minimun (to $options->{min}");
-    $self->do("update $table set entryId=entryId+$options->{min}-1, dir=dir+$options->{min}-1 order by entryId");
+    $self->do("update $table set entryId=entryId+$options->{min}-1, dir=dir+$options->{min}-1 ");
     $changes=1;
   }
 #  $self->do("alter table $table modify entryId bigint(11) auto_increment primary key");
   if ($changes){
-    $self->do("alter table $table auto_increment=1");
+    #$self->do("alter table $table auto_increment=1");
+    $self->resetAutoincrement($table);
     $self->do("optimize table $table");
   }
   defined $options->{locked} or $self->unlock($table);
@@ -2297,7 +2299,7 @@ sub getNumberOfEntries {
   my $options=shift;
   my ($db, $path2)=$self->reconnectToIndex( $entry->{hostIndex}) or return -1;
   my $query="SELECT COUNT(*) from L$entry->{tableName}L";
-  $options =~ /f/ and $query.=" where right(lfn,1) != '/'";
+  $options =~ /f/ and $query.=" where SUBSTR(lfn,-1) != '/'";
   return $db->queryValue($query);
 }
 
