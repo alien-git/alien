@@ -102,6 +102,19 @@ sub killAllWaitingJobs {
     print "KILLING jobs $job->{queueId}\n";
     $cat->execute("kill", $job->{queueId});
   }
+
+  print "Let's kill also all the running jobagents $$\n";
+  open (FILE, "ps -f -u $< |grep -i jobagent | grep perl |awk '{print \$2 }' |");
+  my @pids=<FILE>;
+  close FILE;
+
+  foreach my $pid (@pids){
+    chomp $pid;
+    $pid =~ /^${$}$/ and next;
+    print "We have to kill the processes '$pid'\n";
+    kill 9, $pid;
+  } 
+
   return 1;
 
 }

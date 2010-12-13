@@ -13,6 +13,10 @@ eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
 
 includeTest("catalogue/003-add") or exit(-2);
 
+print "Let's restart the Catalogue Optimizer\n";
+
+system("alien", "StartCatalogueOptimizer");
+
 my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",})
   or exit (-1);
 addFile($cat, "file_to_delete.txt","
