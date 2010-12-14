@@ -442,6 +442,7 @@ When cache is used all query results stored in cache from table that are modifie
 
 sub update {
   my $self = shift;
+  $self->{DRIVER}=~/Oracle/ and return $self->SUPER::update(@_);
   my $table = shift;
   my $rfields = shift;
   my $where = shift || "";

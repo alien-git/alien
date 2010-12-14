@@ -331,6 +331,46 @@ sub getConnectionChain {
   return "DBI:Oracle:sid=$db;host=$host;port=$port";
   }
 }
+sub update {
+  my $self = shift;
+  my $table = shift;
+  my $rfields = shift;
+  my $where = shift || "";
+  my $options= shift || {};
+
+
+  $self->{USE_CACHE} and $self->_clearCache($table);
+
+  my $query = "UPDATE $table SET ";
+  my $quote="'";
+  $options->{noquotes} and $quote="";
+  my @bind = ();
+  foreach ( keys %$rfields ) {
+  $query .= $self->reservedWord($_) . "=";
+  if ( defined $rfields->{$_}  ) {
+    if ($quote) {
+      $query .= "?,";
+    }else {
+      $rfields->{$_} =~ s/^([^'"]*)['"](.*)['"]([^'"]*)$/$2/;
+      my $function  = "";
+      my $functionend = "";
+      if ( $1 && $3 ) {
+        $function = $1 and $functionend = $3;
+      }
+      $query .= " $function ? $functionend,";
+    }
+  push @bind, $rfields->{$_};
+  }else{
+      chop($query);
+      $query .= "is NULL,";
+    }
+  }
+  chop($query);
+  $where =~ s/\=\s*\'\'/ IS NULL/g;
+  $where and $query .= " WHERE $where"; 
+  push( @bind, @{ $options->{bind_values} } ) if ( $options->{bind_values} );
+  $self->_do( $query, { bind_values => \@bind } );
+}
 
 sub _queryDB {
   my ( $self, $stmt, $options, $already_tried ) = @_;
