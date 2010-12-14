@@ -48,17 +48,9 @@ Memorysize=\{\"0.1GB\"\};
 #
 
 my ($jobid)=$cat->execute("submit","jdl/largeMemJob_kill.jdl") or exit(-2);
+my ($jobid2)=$cat->execute("submit","jdl/largeMemJob_run.jdl") or exit(-2);
 
-my $status;
-my $i=12;
-while($i) {
-   my ($info)=$cat->execute("top","-id",$jobid);
-   $info and $status=$info->{status};
-   $status=~ /ERROR_E/ and ok(1);
-   sleep 5;
-   $i--;
-}
-
-exit(-2);
-
+print "We have submitted both jobs
+\#ALIEN_OUTPUT $jobid $jobid2\n";
+ok(1);
 }
