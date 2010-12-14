@@ -461,9 +461,18 @@ sub mkdir{
 }
 
 sub find_memory_consumption {
+  my $apmon=shift; 
   my $id=shift;
-  return 0;
-
+  my @requestSet=("virtualmem");
+  
+  my @resultSet=$apmon->{BG_MONITOR}->{PROC_INFO}->getJobData($id,\@requestSet); 
+  my $totalMem=0;
+  if(@resultSet){
+     if($resultSet[0] eq $requestSet[0] ){
+      $totalMem=$resultSet[1];
+     }
+  }
+  return $totalMem;
 }
 
 
