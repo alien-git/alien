@@ -501,6 +501,20 @@ sub checkJobJDL {
   ($ok, $self->{VOs} ) = $self->{CA}->evaluateAttributeString("AliEn_Master_VO");
   ($ok, my $jobttl) =$self->{CA}->evaluateExpression("TTL");
   $self->info("The job needs $jobttl seconds to execute");
+
+#--- memory requirement
+  ($ok, my @memrequest) = $self->{CA}->evaluateAttributeVectorString("Memorysize");
+  if($ok){
+      if (defined $memrequest[0]) {
+	  my $munit = 1024; # default user input is in MB, mem query yields it in KB
+         ($memrequest[0] =~ s/KB//g) and $munit = 1;
+         ($memrequest[0] =~ s/MB//g) and $munit = 1024;
+         ($memrequest[0] =~ s/GB//g) and $munit = 1024*1024;          
+         $self->{MEMORY} = $memrequest[0] * $munit;
+         $self->info("The job needs a maximum of $self->{MEMORY} KB of memory");
+      }
+  }
+
   ($ok, my $masterid) =$self->{CA}->evaluateAttributeString("MasterJobId");
   if ($ok) {
     $self->info("Setting the MasterJobId to $masterid");
@@ -2184,9 +2198,14 @@ sub checkProcess{
   }
   if ($self->{MEMORY}){
     $self->info("Checking the memory requirements");
-    my $memory=AliEn::Util::find_memory_consumption($self->{PROCESSID});
-    $memory > $self->{MEMORY}
-      and $killMessage="using more than $self->{MEMORY} memory (right now, $memory)";
+    my $memory=AliEn::Util::find_memory_consumption($self->{MONITOR},$self->{PROCESSID});
+    if($memory){
+      $self->info("Process Memory measured at = $memory");
+      $memory > $self->{MEMORY}
+        and $killMessage="using more than $self->{MEMORY} memory (right now, $memory)";
+    } else {
+      $self->info("Failed to read process memory from monitor");
+    }
   }
   if ($killMessage){
     AliEn::Util::kill_really_all($self->{PROCESSID});
