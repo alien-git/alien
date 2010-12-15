@@ -1190,11 +1190,11 @@ sub calculateFileQuota {
 #  $self->{PRIORITY_DB}
 #    or return;
 
-  $self->$method(@data, "Updating FQUOTA table");
-  $self->{DATABASE}->{LFN_DB}->{FIRST}->lock("FQUOTA ");
-  $self->{DATABASE}->{LFN_DB}->{FIRST}->do("update FQUOTA set nbFiles=0, totalSize=0, tmpIncreasedNbFiles=0, tmpIncreasedTotalSize=0") or $self->$method(@data, "initialization failure for all users");
+  $self->$method(@data, "Updating FQUOTAS table");
+  $self->{DATABASE}->{LFN_DB}->{FIRST}->lock("FQUOTAS");
+  $self->{DATABASE}->{LFN_DB}->{FIRST}->do("update FQUOTAS set nbFiles=0, totalSize=0, tmpIncreasedNbFiles=0, tmpIncreasedTotalSize=0") or $self->$method(@data, "initialization failure for all users");
   foreach my $user (keys %infoLFN) {
-    $self->{DATABASE}->{LFN_DB}->{FIRST}->do("update FQUOTA set nbFiles=$infoLFN{$user}{nbfiles}, totalSize=$infoLFN{$user}{totalsize} where user='$user'") or $self->$method(@data, "update failure for user $user");
+    $self->{DATABASE}->{LFN_DB}->{FIRST}->do("update FQUOTAS set nbFiles=$infoLFN{$user}{nbfiles}, totalSize=$infoLFN{$user}{totalsize} where user='$user'") or $self->$method(@data, "update failure for user $user");
   }
   $self->{DATABASE}->{LFN_DB}->{FIRST}->unlock();
 }
