@@ -1738,54 +1738,54 @@ sub calculateJobQuota {
 	return 1;
 }
 
-
-sub getFileQuotaList {
-  my $this = shift;
-  my $user = shift
-    or $self->{LOGGER}->error("In getFileQuotaList user is missing\n")
-    and return (-1, "user is missing");
-
-  my $array = $self->{PRIORITY_DB}->getFieldsFromPriorityEx("user, nbFiles, maxNbFiles, totalSize, maxTotalSize, tmpIncreasedNbFiles, tmpIncreasedTotalSize", "where user like '$user'")
-    or $self->{LOGGER}->error("Failed to getting data from PRIORITY table")
-    and return (-1, "Failed to getting data from PRIORITY table");
-  $array->[0] or $self->{LOGGER}->error("User $user not exist")
-    and return (-1, "User $user not exist in PRIORITY table");
-
-  return $array;
-}
-
-sub setFileQuotaInfo {
-  my $this = shift;
-  my $user = shift
-    or $self->{LOGGER}->error("In setFileQuotaInfo user is missing\n")
-    and return (-1, "user is missing");
-  my $field = shift
-    or $self->{LOGGER}->error("In setFileQuotaInfo field is missing\n")
-    and return (-1, "field is missing");
-  my $value = shift;
-  (defined $value) or $self->{LOGGER}->error("In setFileQuotaInfo value is missing\n")
-    and return (-1, "value is missing");
-
-  my $set = {};
-  $set->{$field} = $value;
-  my $done = $self->{PRIORITY_DB}->updatePrioritySet($user, $set);
-  $done or return (-1, "Failed to set the value in PRIORITY table");
-
-  if ($done eq '0E0') {
-    ($user ne "%") and return (-1, "User '$user' not exist.");
-  }
-
-  return 1;
-}
-
-sub calculateFileQuota {
-  my $this = shift;
-  my $silent = shift;
-  $self->{CATALOGUE}->execute("calculateFileQuota", $silent);
-
-  return 1;
-}
-
+#
+#sub getFileQuotaList {
+#  my $this = shift;
+#  my $user = shift
+#    or $self->{LOGGER}->error("In getFileQuotaList user is missing\n")
+#    and return (-1, "user is missing");
+#
+#  my $array = $self->{PRIORITY_DB}->getFieldsFromPriorityEx("user, nbFiles, maxNbFiles, totalSize, maxTotalSize, tmpIncreasedNbFiles, tmpIncreasedTotalSize", "where user like '$user'")
+#    or $self->{LOGGER}->error("Failed to getting data from PRIORITY table")
+#    and return (-1, "Failed to getting data from PRIORITY table");
+#  $array->[0] or $self->{LOGGER}->error("User $user not exist")
+#    and return (-1, "User $user not exist in PRIORITY table");
+#
+#  return $array;
+#}
+#
+#sub setFileQuotaInfo {
+#  my $this = shift;
+#  my $user = shift
+#    or $self->{LOGGER}->error("In setFileQuotaInfo user is missing\n")
+#    and return (-1, "user is missing");
+#  my $field = shift
+#    or $self->{LOGGER}->error("In setFileQuotaInfo field is missing\n")
+#    and return (-1, "field is missing");
+#  my $value = shift;
+#  (defined $value) or $self->{LOGGER}->error("In setFileQuotaInfo value is missing\n")
+#    and return (-1, "value is missing");
+#
+#  my $set = {};
+#  $set->{$field} = $value;
+#  my $done = $self->{PRIORITY_DB}->updatePrioritySet($user, $set);
+#  $done or return (-1, "Failed to set the value in PRIORITY table");
+#
+#  if ($done eq '0E0') {
+#    ($user ne "%") and return (-1, "User '$user' not exist.");
+#  }
+#
+#  return 1;
+#}
+#
+#sub calculateFileQuota {
+#  my $this = shift;
+#  my $silent = shift;
+#  $self->{CATALOGUE}->execute("calculateFileQuota", $silent);
+#
+#  return 1;
+#}
+#
 
 #_______________________________________________________________________________________________________________________
 
