@@ -160,13 +160,11 @@ sub createCatalogueTables {
                                     undef, ['UNIQUE INDEX(sitename,seNumber), PRIMARY KEY(sitename,seNumber), INDEX(sitename), INDEX(seNumber)']],
 
         FQUOTAS=>["user",{user=>"varchar(64) NOT NULL",
-            totalSize=>"bigint(20) NOT NULL DEFAULT '0'",
+            totalSize=>"bigint(20) collate latin1_general_ci NOT NULL DEFAULT '0'",
             maxNbFiles=>"int(11) NOT NULL DEFAULT '0'",
             nbFiles=>"int(11) NOT NULL DEFAULT '0'",
             tmpIncreasedTotalSize=>"bigint(20) NOT NULL DEFAULT '0'",
-            totalCpuCostLast24h=>"float NOT NULL DEFAULT '0'",
             maxTotalSize=>"bigint(20) NOT NULL DEFAULT '0'",
-            maxTotalRunningTime=>"bigint(20) DEFAULT NULL",
             tmpIncreasedNbFiles=>"int(11) NOT NULL DEFAULT '0'"},
          undef, ['PRIMARY KEY(user)']],
 

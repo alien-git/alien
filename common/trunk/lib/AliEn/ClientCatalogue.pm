@@ -50,7 +50,6 @@ sub getHost{
 sub callAuthen {
   my $self = shift;
   my $user=$self->{ROLE};
-      
   if ($ENV{ALIEN_PROC_ID} and $ENV{ALIEN_JOB_TOKEN}){
     $user="alienid:$ENV{ALIEN_PROC_ID} $ENV{ALIEN_JOB_TOKEN}";
   }
@@ -114,7 +113,8 @@ sub AUTOLOAD {
     resyncLDAP=>"resyncLDAP", addFileToCollection=>"addFileToCollection",listFilesFromCollection=>"listFilesFromCollection",
     removeFileFromCollection=>"removeFileFromCollection",createCollection=>"createCollectionCatalogue",
     updateCollection=>"updateCollection", df=>"df", existsEntry=>"existsEntry", checkFileQuota=>"checkFileQuota", showMirror=>"showMirror",
-    addMirror=>"addMirror", cpMetaData=>"cpMetaData", getCPMetadata=>"cpMetaData", deleteMirror=>"deleteMirror", 
+    addMirror=>"addMirror", cpMetaData=>"cpMetaData", getCPMetadata=>"cpMetaData", deleteMirror=>"deleteMirror", fquota_list=>"fquota_list",
+    fquota_set=>"fquota_set"
   };
   if ($ops->{$name}){
     return shift->callAuthen($ops->{$name},@_);

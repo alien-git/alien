@@ -128,6 +128,8 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
     'optimizeGUIDtables'   => ['$self->{CATALOG}->optimizeGUIDtables',0],
 	     'setSElimit'=>['$self->{CATALOG}->setSElimit',0],
 	     'refreshSERankCache'=> ['$self->{CATALOG}->refreshSERankCache',0],
+     'fquota_set'=> ['$self->{CATALOG}->fquota_set',0],
+       
        
     
     
@@ -184,6 +186,8 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
     'isDirectory' => ['$self->{CATALOG}->isDirectory',0],
     'isFile' => ['$self->{CATALOG}->isFile',0],
     'existsEntry' => ['$self->{CATALOG}->existsEntry',0],
+    'fquota_list' => ['$self->{CATALOG}->fquota_list',0],
+
 
 
 

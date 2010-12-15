@@ -48,8 +48,7 @@ sub f_registerFile {
 
 
   if (! defined $size ) {
-    print STDERR
-      "Error in add: not possible to register the file in the catalogue. Not enough arguments. \nUsage register <lfn> <size> <storage element>\n";
+    $self->info("Error in add: not possible to register the file in the catalogue. Not enough arguments. \nUsage register <lfn> <size> <storage element>",1);
     return;
   }
 
@@ -1106,6 +1105,98 @@ sub checkFileQuota {
   return (1, undef, ($size+$totalSize+$tmpIncreasedTotalSize)/$maxTotalSize, ($nbFiles+$tmpIncreasedNbFiles)/$maxNbFiles);
 }
 
+
+sub fquota_list {
+  my $self = shift;
+  my $options={};
+  @ARGV=@_;
+  Getopt::Long::GetOptions($options, "silent", "unit=s") 
+		or $self->info("Error checking the options of fquota list",1) and return;
+  @_=@ARGV;
+
+  #Default unit - Megabyte
+	my $unit="M";
+	my $unitV=1024*1024;
+
+	$options->{unit} and $unit=$options->{unit};
+	($unit !~ /[BKMG]/) and $self->info("unknown unit. use default unit: Mega Byte")
+		and $unit="M";
+	($unit eq "B") and $unitV=1;
+	($unit eq "K") and $unitV=1024;
+	($unit eq "M") and $unitV=1024*1024;
+	($unit eq "G") and $unitV=1024*1024*1024;
+
+  my $user = (shift || "%");
+  my $whoami = $self->{ROLE};
+ 
+  my $usersuffix = " user = '$user'; ";
+
+  # normal users can see their own information 
+  if (($whoami !~ /^admin(ssl)?$/) and ($user eq '%')) {
+    $user = $whoami;
+  } 
+
+  ($user eq '%') and $usersuffix = " user like '%';";
+
+  if (($whoami !~ /^admin(ssl)?$/) and ($user ne $whoami)) {
+    $self->info("Not allowed to see other users' quota information",1);
+    return;
+  }
+
+  my $result = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->query("SELECT user, nbFiles, maxNbFiles, totalSize, maxTotalSize, tmpIncreasedNbFiles, tmpIncreasedTotalSize FROM FQUOTAS where $usersuffix")
+    or $self->info("Failed to getting data from FQUOTAS table",1)
+    and return -1;
+  $result->[0] or $self->info("User $user does not exist in the FQQUOTA table",1)
+    and return -1;
+
+  my $cnt = 0;
+  $self->info("------------------------------------------------------------------------------------------");
+   $self->info("            %12s    %12s    %42s, user, nbFiles, totalSize($unit)");
+   $self->info("------------------------------------------------------------------------------------------");
+  foreach (@$result) {
+    $cnt++;
+		my $totalSize = ($_->{'totalSize'} + $_->{'tmpIncreasedTotalSize'}) / $unitV;
+		my $maxTotalSize = $_->{'maxTotalSize'} / $unitV;;
+		##Changes for unlimited file size
+		if($_->{'maxTotalSize'}==-1){
+		    $maxTotalSize = -1;
+		}
+		 $self->info(" [%04d. ]   %12s     %5s/%5s           \t %.4f/%.4f , $cnt, $_->{'user'}, ($_->{'nbFiles'} + $_->{'tmpIncreasedNbFiles'}), $_->{'maxNbFiles'}, $totalSize, $maxTotalSize");
+  }
+   $self->info("------------------------------------------------------------------------------------------");
+}
+
+sub fquota_set_HELP {
+  return "Usage:
+  fquota set <user> <field> <value> - set the user quota
+                                      (maxNbFiles, maxTotalSize(Byte))
+                                      use <user>=% for all users\n";
+}
+
+sub fquota_set {
+  my $self = shift;
+  my $user = shift or  $self->info($self->fquota_set_HELP(),1) and return;
+  my $field = shift or  $self->info($self->fquota_set_HELP(),1) and return;
+  my $value = shift;
+  (defined $value) or  $self->info($self->fquota_set_HELP(),1) and return;
+
+  if ($field !~ /(maxNbFiles)|(maxTotalSize)/) {
+    $self->info("Wrong field name! Choose one of them: maxNbFiles, maxTotalSize",1);
+    return;
+  }
+
+  my $set = {};
+  $set->{$field} = $value;
+  my $done =  $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->update("FQUOTAS",$set, "user = ?", {bind_values=>[$user]});
+
+  $done or $self->info("Failed to set the value in the FQUOTAS table",1) and return -1;
+
+  if ($done eq '0E0') {
+    ($user ne "%") and $self->info("User '$user' not exist.",1) and return -1;
+  }
+
+  $done and $self->fquota_list("$user");
+}
 
 
 
