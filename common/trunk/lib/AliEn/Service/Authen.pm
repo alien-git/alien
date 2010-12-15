@@ -96,7 +96,6 @@ sub doOperation {
   my $op=shift;
   $self->info("$$ Ready to do an operation for $user in $directory (and $op '@_')");
   
-  
   if ($user=~ s/^alienid://){
     $self->info("We are authenticating with a job token");
     my ($job, $token)=split(/ /, $user, 2);
@@ -107,7 +106,13 @@ sub doOperation {
     $self->info("Doing the operation as $role");
     $user=$role;
   
+  } elsif ($self->{HOST} =~ /^https/) {
+    $self->info("Checking the authentication");
+    $self->checkAuthentication($user) or
+          return {  #rc=>1,
+         rcvalues=>[],rcmessages=>["You are not authenticated as $user"]};
   }
+
 
   $self->{UI}->execute("user","-", $user);
   my $mydebug=$self->{LOGGER}->getDebugLevel();
