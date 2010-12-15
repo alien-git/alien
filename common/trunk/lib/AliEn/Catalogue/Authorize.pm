@@ -1280,7 +1280,7 @@ sub authorize{
   my $sitename= ($options->{site} || 0);
   my $writeQos = ($options->{writeQos} || 0);
   my $writeQosCount = (($options->{writeQosCount} and int($options->{writeQosCount})) || 0);
-  my $excludedAndfailedSEs = $self->validateArrayOfSEs(split(/;/, $options->{excludeSE}));
+  my $excludedAndfailedSEs = $self->validateArrayOfSEs(split(/;/, ($options->{excludeSE} || "" )));
   my $pfn = ($options->{pfn} || "");
 
   my $seList = $self->validateArrayOfSEs(split(/;/, $wishedSE));
