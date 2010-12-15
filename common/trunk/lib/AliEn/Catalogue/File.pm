@@ -1043,4 +1043,70 @@ sub checkIOmethods {
   return @list;
 }
 
+sub checkFileQuota {
+#######
+## return (0,message) for normal error
+## return (-1,message) for error that should throw access exception. Consequence is all 
+##                     remaining write accesses will be dropped, as they will fail anyway.
+##
+  my $self= shift;
+  my $user = shift
+    or $self->{LOGGER}->error("In checkFileQuota user is not specified.\n")
+    and return (-1, "user is not specified.");
+  my $size = shift;
+        (defined $size) and ($size ge 0)
+            or $self->{LOGGER}->error("In checkFileQuota invalid file size (undefined or negative).\n")
+            and return (-1, "size is not specified.");
+
+  $self->info("In checkFileQuota for user: $user, request file size:$size");
+
+  my $array = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow("SELECT nbFiles, totalSize, maxNbFiles, maxTotalSize, tmpIncreasedNbFiles, tmpIncreasedTotalSize FROM FQUOTAS WHERE user='$user'")
+    or $self->{LOGGER}->error("Failed to get data from the FQUOTAS quota table.")
+    and return (0, "Failed to get data from the FQUOTAS quota table. ");
+  $array or $self->{LOGGER}->error("There's no entry for user $user in the FQUOTAS quota table.")
+    and return (-1, "There's no entry for user $user in the FQUOTAS quota table.");
+
+  my $nbFiles = $array->{'nbFiles'};
+  my $maxNbFiles = $array->{'maxNbFiles'};
+  my $tmpIncreasedNbFiles = $array->{'tmpIncreasedNbFiles'};
+  my $totalSize = $array->{'totalSize'};
+  my $maxTotalSize = $array->{'maxTotalSize'};
+  my $tmpIncreasedTotalSize = $array->{'tmpIncreasedTotalSize'};
+ 
+  $DEBUG and $self->debug(1, "size: $size");
+  $DEBUG and $self->debug(1, "nbFile: $nbFiles/$tmpIncreasedNbFiles/$maxNbFiles");
+  $DEBUG and $self->debug(1, "totalSize: $totalSize/$tmpIncreasedTotalSize/$maxTotalSize");
+  $self->info("nbFile: $nbFiles/$tmpIncreasedNbFiles/$maxNbFiles");
+  $self->info("totalSize: $totalSize/$tmpIncreasedTotalSize/$maxTotalSize");
+
+  #Unlimited number of files
+  if($maxNbFiles==-1){
+    $self->info("Unlimited number of files allowed for user ($user)");
+  }
+  else{
+    if ($nbFiles + $tmpIncreasedNbFiles + 1 > $maxNbFiles) {
+      $self->info("Uploading file for user ($user) is denied - number of files quota exceeded.");
+      return (-1, "Uploading file for user ($user) is denied - number of files quota exceeded." );
+    }
+  }
+  #Unlimited size for files
+  if($maxTotalSize==-1){
+    $self->info("Unlimited file size allowed for user ($user)");
+  }
+  else{
+    if ($size + $totalSize + $tmpIncreasedTotalSize > $maxTotalSize) {
+      $self->info("Uploading file for user ($user) is denied, file size ($size) - total file size quota exceeded." );
+      return (-1, "Uploading file for user ($user) is denied, file size ($size) - total file size quota exceeded." );
+    }
+  }
+  
+  #$self->{PRIORITY_DB}->do("update PRIORITY set tmpIncreasedNbFiles=tmpIncreasedNbFiles+1, tmpIncreasedTotalSize=tmpIncreasedTotalSize+$size where user LIKE  '$user'") or $self->info("failed to increase tmpIncreasedNbFile and tmpIncreasedTotalSize");
+
+  $self->info("In checkFileQuota $user: Allowed");
+  return (1, undef, ($size+$totalSize+$tmpIncreasedTotalSize)/$maxTotalSize, ($nbFiles+$tmpIncreasedNbFiles)/$maxNbFiles);
+}
+
+
+
+
 return 1;

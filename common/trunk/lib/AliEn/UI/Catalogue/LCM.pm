@@ -2522,11 +2522,11 @@ her users' quota information\n";
     return;
   }
 
-  my $result = $self->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB}->query("SELECT user, nbFiles, maxNbFiles, totalSize, maxTotalSize, tmpIncreasedNbFiles, tmpIncreasedTotalSize FROM FQUOTA where user like '$user'" )
-    or $self->{LOGGER}->error("Failed to getting data from FQUOTA table")
-    and return (-1, "Failed to getting data from FQUOTA table");
+  my $result = $self->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB}->query("SELECT user, nbFiles, maxNbFiles, totalSize, maxTotalSize, tmpIncreasedNbFiles, tmpIncreasedTotalSize FROM FQUOTAS where user like '$user'" )
+    or $self->{LOGGER}->error("Failed to getting data from FQUOTAS table")
+    and return (-1, "Failed to getting data from FQUOTAS table");
   $result->[0] or $self->{LOGGER}->error("User $user not exist in FQQUOTA table")
-    and return (-1, "User $user not exist in FQUOTA table");
+    and return (-1, "User $user not exist in FQUOTAS table");
 
   my $cnt = 0;
   printf "------------------------------------------------------------------------------------------\n";
@@ -2566,9 +2566,9 @@ sub fquota_set {
 
   my $set = {};
   $set->{$field} = $value;
-  my $done =  $self->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB}->update("FQUOTA",$set, "user LIKE ?", {bind_values=>[$user]});
+  my $done =  $self->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB}->update("FQUOTAS",$set, "user LIKE ?", {bind_values=>[$user]});
 
-  $done or return (-1, "Failed to set the value in FQUOTA table");
+  $done or return (-1, "Failed to set the value in FQUOTAS table");
 
   if ($done eq '0E0') {
     ($user ne "%") and return (-1, "User '$user' not exist.");
