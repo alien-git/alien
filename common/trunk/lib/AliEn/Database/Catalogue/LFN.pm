@@ -1152,8 +1152,6 @@ sub moveLFNs {
     my $parent=$lfn;
     $parent =~ s{/[^/]*/?$}{/};
     my $entryP=$self->getIndexHost($parent);
-    print "And the father is\n";
-    print Dumper($entryP);
     $toTable=$entryP->{tableName};
     ($entryP->{hostIndex} eq $entry->{hostIndex})
       or $self->info("We can only move back if the entries are in the same database...")
@@ -2195,12 +2193,10 @@ sub renumberLFNtable {
   
   my $info=$self->query("select ${table}d.entryId as t from $table ${table}d left join $table ${table}r on ${table}d.entryId-1=${table}r.entryId where ${table}r.entryId is null order by t asc");
 
-#  print Dumper($info);
   #Let's do this part before dropping the index
   my @newlist;
   my $reduce=0;
 
-  print Dumper(@newlist);
   while (@$info){
     my $entry=shift @$info;
     my $r=$self->queryValue("select max(entryId) from $table where entryId<?", undef, {bind_values=>[$entry->{t}]});

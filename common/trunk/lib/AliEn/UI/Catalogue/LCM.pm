@@ -305,7 +305,7 @@ sub get {
    }
    $filehash or return 0;
 #   $filehash = shift @{$filehash};
-   $self->info("Coming back from checkPermission on $file...". Dumper($filehash));
+   $self->debug(1, "Coming back from checkPermission on $file...". Dumper($filehash));
 
    $self->info("GUID: $filehash->{guid}");
 
