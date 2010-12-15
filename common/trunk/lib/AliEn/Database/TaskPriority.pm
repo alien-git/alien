@@ -74,13 +74,13 @@ sub checkPriorityTable{
 		 maxUnfinishedJobs=>"int default 0 not null ",
 		 maxTotalRunningTime=>"bigint default 0 not null ",
 		 maxTotalCpuCost=>"float default 0  not null ",
-		 #File Quota
-		 nbFiles=>"int default 0 not null ",
-		 totalSize=>"bigint  default 0 not null",
-		 maxNbFiles=>"int default 0 not null ",
-		 maxTotalSize=>"bigint default 0  not null ",
-		 tmpIncreasedNbFiles=>"int default 0 not null ",
-		 tmpIncreasedTotalSize=>"bigint  default 0 not null ",
+		 ##File Quota
+		 #nbFiles=>"int default 0 not null ",
+		 #totalSize=>"bigint  default 0 not null",
+		 #maxNbFiles=>"int default 0 not null ",
+		 #maxTotalSize=>"bigint default 0  not null ",
+		 #tmpIncreasedNbFiles=>"int default 0 not null ",
+		 #tmpIncreasedTotalSize=>"bigint  default 0 not null ",
 		);
 
   $self->checkTable($self->{PRIORITYTABLE}, "user", \%columns, $self->reservedWord('user'));
@@ -110,13 +110,13 @@ sub checkPriorityValue() {
     $set->{'maxTotalRunningTime'} = 1000000;
     $set->{'totalCpuCostLast24h'} = 0;
     $set->{'maxTotalCpuCost'} = 2000000;
-    #File Quota
-    $set->{'nbFiles'} = 0;
-    $set->{'totalSize'} = 0;
-    $set->{'tmpIncreasedNbFiles'} = 0;
-    $set->{'tmpIncreasedTotalSize'} = 0;
-    $set->{'maxNbFiles'}=10000;
-    $set->{'maxTotalSize'}=10000000000;
+    ##File Quota
+    #$set->{'nbFiles'} = 0;
+    #$set->{'totalSize'} = 0;
+    #$set->{'tmpIncreasedNbFiles'} = 0;
+    #$set->{'tmpIncreasedTotalSize'} = 0;
+    #$set->{'maxNbFiles'}=10000;
+    #$set->{'maxTotalSize'}=10000000000;
     $self->insertPrioritySet($user,$set);
   }
 }

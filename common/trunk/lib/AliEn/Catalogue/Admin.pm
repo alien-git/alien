@@ -1013,7 +1013,7 @@ sub removeExpiredFiles {
       $db->do("DELETE FROM LFN_BOOKED WHERE lfn=? and expiretime=?", {bind_values=>[$file->{lfn}, $file->{expiretime}]});
       ($physicalDelete==$count+1) 
         and ($count>0) 
-        and $self->{DATABASE}->{LFN_DB}->fquota_update(-1*$file->{size}*$count,-1*$count,$file->{owner});
+        and $self->{DATABASE}->{LFN_DB}->{FIRSTDB}->fquota_update(-1*$file->{size}*$count,-1*$count,$file->{owner});
       $self->info("$file->{lfn}($file->{guid}) was deleted($physicalDelete physical files) and quotas were rolled back (".-1*$file->{size}*$count.", ".-1*$count.") times for $file->{user}");
     }
   }
@@ -1185,18 +1185,18 @@ sub calculateFileQuota {
 
   # tmp solution
 
-  $self->{PRIORITY_DB} or 
-    $self->{PRIORITY_DB}=AliEn::Database::TaskPriority->new({ROLE=>'admin',SKIP_CHECK_TABLES=> 1});
-  $self->{PRIORITY_DB}
-    or return;
+#  $self->{PRIORITY_DB} or 
+#    $self->{PRIORITY_DB}=AliEn::Database::TaskPriority->new({ROLE=>'admin',SKIP_CHECK_TABLES=> 1});
+#  $self->{PRIORITY_DB}
+#    or return;
 
-  $self->$method(@data, "Updating PRIORITY table");
-  $self->{PRIORITY_DB}->lock("PRIORITY");
-  $self->{PRIORITY_DB}->do("update PRIORITY set nbFiles=0, totalSize=0, tmpIncreasedNbFiles=0, tmpIncreasedTotalSize=0") or $self->$method(@data, "initialization failure for all users");
+  $self->$method(@data, "Updating FQUOTA table");
+  $self->{DATABASE}->{LFN_DB}->{FIRST}->lock("FQUOTA ");
+  $self->{DATABASE}->{LFN_DB}->{FIRST}->do("update FQUOTA set nbFiles=0, totalSize=0, tmpIncreasedNbFiles=0, tmpIncreasedTotalSize=0") or $self->$method(@data, "initialization failure for all users");
   foreach my $user (keys %infoLFN) {
-    $self->{PRIORITY_DB}->do("update PRIORITY set nbFiles=$infoLFN{$user}{nbfiles}, totalSize=$infoLFN{$user}{totalsize} where user='$user'") or $self->$method(@data, "update failure for user $user");
+    $self->{DATABASE}->{LFN_DB}->{FIRST}->do("update FQUOTA set nbFiles=$infoLFN{$user}{nbfiles}, totalSize=$infoLFN{$user}{totalsize} where user='$user'") or $self->$method(@data, "update failure for user $user");
   }
-  $self->{PRIORITY_DB}->unlock();
+  $self->{DATABASE}->{LFN_DB}->{FIRST}->unlock();
 }
 
 

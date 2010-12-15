@@ -158,6 +158,18 @@ sub createCatalogueTables {
                                     rank=>"smallint(7) not null",
                                     updated=>"smallint(1)"}, 
                                     undef, ['UNIQUE INDEX(sitename,seNumber), PRIMARY KEY(sitename,seNumber), INDEX(sitename), INDEX(seNumber)']],
+
+        FQUOTAS=>["user",{user=>"varchar(64) NOT NULL",
+            totalSize=>"bigint(20) NOT NULL DEFAULT '0'",
+            maxNbFiles=>"int(11) NOT NULL DEFAULT '0'",
+            nbFiles=>"int(11) NOT NULL DEFAULT '0'",
+            tmpIncreasedTotalSize=>"bigint(20) NOT NULL DEFAULT '0'",
+            totalCpuCostLast24h=>"float NOT NULL DEFAULT '0'",
+            maxTotalSize=>"bigint(20) NOT NULL DEFAULT '0'",
+            maxTotalRunningTime=>"bigint(20) DEFAULT NULL",
+            tmpIncreasedNbFiles=>"int(11) NOT NULL DEFAULT '0'"},
+         undef, ['PRIMARY KEY(user)']],
+
         LFN_BOOKED=>["lfn",{lfn=>"varchar(255)",
             expiretime=>"int",
             guid=>"binary(16) ",
@@ -2398,9 +2410,9 @@ sub fquota_update {
 
   (defined $size) and (defined $count) or $self->info("Update fquota : not enough parameters") and return;
 
-  $self->{PRIORITY_DB} or $self->{PRIORITY_DB}=AliEn::Database::TaskPriority->new({ROLE=>'admin',SKIP_CHECK_TABLES=> 1});
-  $self->{PRIORITY_DB} or return;
-  $self->{PRIORITY_DB}->do("UPDATE PRIORITY SET nbFiles=nbFiles+tmpIncreasedNbFiles+?, totalSize=totalSize+tmpIncreasedTotalSize+?, tmpIncreasedNbFiles=0, tmpIncreasedTotalSize=0 WHERE user=?", {bind_values=>[$count,$size,$user]}) or return;
+#  $self->{PRIORITY_DB} or $self->{PRIORITY_DB}=AliEn::Database::TaskPriority->new({ROLE=>'admin',SKIP_CHECK_TABLES=> 1});
+#  $self->{PRIORITY_DB} or return;
+  $self->do("UPDATE FQUOTA SET nbFiles=nbFiles+tmpIncreasedNbFiles+?, totalSize=totalSize+tmpIncreasedTotalSize+?, tmpIncreasedNbFiles=0, tmpIncreasedTotalSize=0 WHERE user=?", {bind_values=>[$count,$size,$user]}) or return;
 
   return 1;
 }

@@ -2522,9 +2522,11 @@ her users' quota information\n";
     return;
   }
 
-  my $done = $self->{SOAP}->CallSOAP("Manager/Job", 'getFileQuotaList', $user);
-  $done or return;
-  my $result = $done->result;
+  my $result = $self->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB}->query("SELECT user, nbFiles, maxNbFiles, totalSize, maxTotalSize, tmpIncreasedNbFiles, tmpIncreasedTotalSize FROM FQUOTA where user like '$user'" )
+    or $self->{LOGGER}->error("Failed to getting data from FQUOTA table")
+    and return (-1, "Failed to getting data from FQUOTA table");
+  $result->[0] or $self->{LOGGER}->error("User $user not exist in FQQUOTA table")
+    and return (-1, "User $user not exist in FQUOTA table");
 
   my $cnt = 0;
   printf "------------------------------------------------------------------------------------------\n";
@@ -2562,7 +2564,16 @@ sub fquota_set {
     return;
   }
 
-  my $done = $self->{SOAP}->CallSOAP("Manager/Job", 'setFileQuotaInfo', $user, $field, $value);
+  my $set = {};
+  $set->{$field} = $value;
+  my $done =  $self->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB}->update("FQUOTA",$set, "user LIKE ?", {bind_values=>[$user]});
+
+  $done or return (-1, "Failed to set the value in FQUOTA table");
+
+  if ($done eq '0E0') {
+    ($user ne "%") and return (-1, "User '$user' not exist.");
+  }
+
   $done and $self->fquota_list("$user");
 }
 

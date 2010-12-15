@@ -2084,11 +2084,11 @@ sub checkFileQuota {
 
   $self->info("In checkFileQuota for user: $user, request file size:$size");
 
-  my $array = $self->{DATABASE}->{LFN_DB}->queryRow("SELECT nbFiles, totalSize, maxNbFiles, maxTotalSize, tmpIncreasedNbFiles, tmpIncreasedTotalSize FROM processes.PRIORITY WHERE user='$user'")
-    or $self->{LOGGER}->error("Failed to get data from the PRIORITY quota table.")
-    and return (0, "Failed to get data from the PRIORITY quota table. ");
-  $array or $self->{LOGGER}->error("There's no entry for user $user in the PRIORITY quota table.")
-    and return (-1, "There's no entry for user $user in the PRIORITY quota table.");
+  my $array = $self->{FIRSTDB}->queryRow("SELECT nbFiles, totalSize, maxNbFiles, maxTotalSize, tmpIncreasedNbFiles, tmpIncreasedTotalSize FROM FQUOTA WHERE user='$user'")
+    or $self->{LOGGER}->error("Failed to get data from the FQUOTA quota table.")
+    and return (0, "Failed to get data from the FQUOTA quota table. ");
+  $array or $self->{LOGGER}->error("There's no entry for user $user in the FQUOTA quota table.")
+    and return (-1, "There's no entry for user $user in the FQUOTA quota table.");
 
   my $nbFiles = $array->{'nbFiles'};
   my $maxNbFiles = $array->{'maxNbFiles'};
