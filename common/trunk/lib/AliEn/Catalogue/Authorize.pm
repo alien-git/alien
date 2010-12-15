@@ -1274,7 +1274,7 @@ sub authorize{
 
   my $lfn    = ($options->{lfn} || "");
   my $wishedSE = ($options->{wishedSE} || "");
-  my $size    = ((int($options->{size}) and int($options->{size})) || 0);
+  my $size    = (($options->{size} and int($options->{size})) || 0);
   my $md5 = ($options->{md5} || 0);
   my $guidRequest = ($options->{guidRequest} || 0);
   my $sitename= ($options->{site} || 0);
