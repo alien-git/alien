@@ -1082,9 +1082,11 @@ sub createAgentStartup {
     my @proxy=<PROXY>;
     close PROXY;
     my $jobProxy="$self->{CONFIG}->{TMP_DIR}/proxy.\$\$.`date +\%s`";
+    $self->{USER} or ($self->{USER})=$self->{CATALOG}->execute("whoami");
     my $debugTag = $self->{DEBUG} ? "--debug $self->{DEBUG}" : "";
     $before.= "echo 'Using the proxy'
 mkdir -p $self->{CONFIG}->{TMP_DIR}
+export ALIEN_USER=$self->{USER}
 file=$jobProxy
 cat >\$file <<EOF\n". join("", @proxy)."
 EOF
