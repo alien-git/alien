@@ -2212,7 +2212,7 @@ sub f_ps {
       $output = sprintf "%-10s %s%-6s%s %-2s  %-8s  %-10s", $username, $indentor, $queueId, $exdentor, $status, $runtime, $name;
     }
     push @outputarray,$output;
-    $verbose and $self->info("$output");
+    $verbose and $self->info($output, undef, 0);
   }
 
   if ( $formatFlags=~ s/j//g) {

@@ -883,7 +883,7 @@ sub getSubjectFromSSL{
 
     my $subject = $ENV{SSL_CLIENT_S_DN};
 
-    $subject=~ s/(\/CN=((proxy)|(\d+)))+$//;
+    $subject=~ s/(\/CN=(((limited )?proxy)|(\d+)))+$//;
     $self->debug(1,"The DN from subject is : $subject");
 
 
