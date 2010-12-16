@@ -22,6 +22,7 @@ use Classad;
 #use AliEn::MSS::file;
 
 use AliEn::Service;
+use AliEn::UI::Catalogue::LCM;
 @ISA=qw(AliEn::Service);
 # Uncomment when module is installed in alice/local...
 use Filesys::DiskFree;
@@ -63,7 +64,7 @@ sub initialize {
   $self->{SERVICENAME}=$self->{CONFIG}->{FTD_FULLNAME};
   $self->{LISTEN}=1;
   $self->{PREFORK}=1;
-
+  $self->{CATALOG}=AliEn::Catalogue->new() or $self->info("We can't get a copy of the catalogue") and return;
 #  $self->{PROTOCOLS}=$self->{CONFIG}->{FTD_PROTOCOL};
   # the default protocol is "bbftp"
 #  $self->{PROTOCOLS} or $self->{PROTOCOLS} ="bbftp";
@@ -439,28 +440,31 @@ sub transferFile {
   my ($ok, $user)=$ca->evaluateAttributeString("User");
   ($ok, my $lfn)=$ca->evaluateAttributeString("FromLFN");
   ($ok, my $target)=$ca->evaluateAttributeString("ToSE");
-  $target or $self->{LOGGER}->error("Error getting the destination of the transfer")
+  $target or $self->info("Error getting the destination of the transfer")
     and return;
 #  my $info=$self->{SOAP}->CallSOAP("Authen", "doOperation", "authorize", $user, "read", $lfn, $source);
-  my @sourceEnvelopes = AliEn::Util::deserializeSignedEnvelopes($self->{AuthenSOAP}->CallAndGetOverSOAP(0,"Authen", "doOperation", $user, "/", "authorize", "read", {lfn=> $lfn, wishedSE=>$source,site=>$self->{CONFIG}->{SITE}} ));
-  
+  $self->{CATALOG}->f_user( "-", $user) or $self->info("Error becoming the user $user") and return;
+  my @sourceEnvelopes = AliEn::Util::deserializeSignedEnvelopes($self->{CATALOG}->authorize("read", {lfn=> $lfn, wishedSE=>$source,site=>$self->{CONFIG}->{SITE}} ));
+
+  use Data::Dumper;
+  print Dumper(@sourceEnvelopes); 
   my $sourceEnvelope = shift @sourceEnvelopes;
-  $sourceEnvelope or $self->{LOGGER}->error("Error getting the envelope to read the source") and return;
+  $sourceEnvelope or $self->info("Error getting the envelope to read the source") and return;
 
   #($ok, my $guid)=$ca->evaluateAttributeString("GUID");
   #($ok, my $size)=$ca->evaluateAttributeInt("Size");
   $self->info("And the second envelope ( $user, mirror, $sourceEnvelope->{guid}, $target, $sourceEnvelope->{size}, 0");
 #  $info=$self->{SOAP}->CallSOAP("Authen", "doOperation", "authorize", $user, "mirror", $guid, $target, $size, 0, $guid);
-  my @targetEnvelopes = AliEn::Util::deserializeSignedEnvelopes($self->{AuthenSOAP}->CallAndGetOverSOAP(0,"Authen", "doOperation", $user, "/", "authorize", "mirror", {guidRequest=>$sourceEnvelope->{guid},wishedSE=>$target,site=>$self->{CONFIG}->{SITE}}));
+  my @targetEnvelopes = AliEn::Util::deserializeSignedEnvelopes($self->{CATALOG}->authorize("mirror", {guidRequest=>$sourceEnvelope->{guid},wishedSE=>$target,site=>$self->{CONFIG}->{SITE}}));
   my $targetEnvelope = shift @targetEnvelopes;
-  $targetEnvelope or $self->{LOGGER}->error("Error getting the envelope to mirror to the target") and return; 
+  $targetEnvelope or $self->info("Error getting the envelope to mirror to the target") and return; 
 
 
 #  $info or $self->info("Error getting the envelope to write the target") and return;
 #  my $targetEnvelope=$info->result;
 #  my $turl = 0;
 #  $targetEnvelope and $turl = AliEn::Util::getValFromEnvelope($targetEnvelope,"turl");
-  $targetEnvelope->{turl} or $self->{LOGGER}->error("Error getting the turl from the envelope to mirror to the target!") and return;
+  $targetEnvelope->{turl} or $self->info("Error getting the turl from the envelope to mirror to the target!") and return;
   
 $self->info("Let's start with the transfer!!!");
   my $done = 0;

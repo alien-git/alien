@@ -29,23 +29,23 @@ sub copy {
   my $self=shift;
   my $source=shift;
   my $target=shift;
-  my $sEnvelope = {};
-  my $tEnvelope = {};
+#  my $sEnvelope = {};
+#  my $tEnvelope = {};
 
-  $source and $sEnvelope = AliEn::Util::deserializeSignedEnvelope($source);
-  $target and $tEnvelope = AliEn::Util::deserializeSignedEnvelope($target);
+#  $source and $sEnvelope = AliEn::Util::deserializeSignedEnvelope($source);
+#  $target and $tEnvelope = AliEn::Util::deserializeSignedEnvelope($target);
 
 
 
-  my $sourceEnvelope = $sEnvelope->{signedEnvelope};
-  my $targetEnvelope = $tEnvelope->{signedEnvelope};
+  my $sourceEnvelope = $source->{signedEnvelope};
+  my $targetEnvelope = $target->{signedEnvelope};
 
   # if we have the old styled envelopes
-  (defined($sEnvelope->{oldEnvelope})) and $sourceEnvelope = $sEnvelope->{oldEnvelope};
-  (defined($tEnvelope->{oldEnvelope})) and $targetEnvelope = $tEnvelope->{oldEnvelope};
+  (defined($source->{oldEnvelope})) and $sourceEnvelope = $source->{oldEnvelope};
+  (defined($target->{oldEnvelope})) and $targetEnvelope = $target->{oldEnvelope};
 
-  $self->info("Ready to copy $sEnvelope->{turl} into $tEnvelope->{turl}");
-  my $args="-m -S $sEnvelope->{turl} $tEnvelope->{turl}  \"authz=$sourceEnvelope\" \"authz=$targetEnvelope\" ";
+  $self->info("Ready to copy $source->{turl} into $target->{turl}");
+  my $args="-m -S $source->{turl} $target->{turl}  \"authz=$sourceEnvelope\" \"authz=$targetEnvelope\" ";
   $DEBUG and $args = " -d ".$args;
   my $output = `xrd3cp  $args  2>&1 ; echo "ALIEN_XRD_SUBCALL_RETURN_VALUE=\$?"` or $self->info("Error: Error doing the xrd3cp $args",1) and return;
   $output =~ s/\s+$//;
@@ -65,7 +65,7 @@ sub copy {
      (AliEn::Util::isValidGUID($xferuuid))
        or $self->info("Error doing the xrd3cp $args. Not possible to retrieve additional log info due to invalid xferuuid",1) and return;
 
-     my @logargs= ("-l $xferuuid $sEnvelope->{turl} $tEnvelope->{turl}  \"authz=$sourceEnvelope\" \"authz=$targetEnvelope\" ");  
+     my @logargs= ("-l $xferuuid $source->{turl} $target->{turl}  \"authz=$sourceEnvelope\" \"authz=$targetEnvelope\" ");  
      my $logoutput = `xrd3cp $args  2>&1 ` or $self->info("Error: Error doing the xrd3cp $args",1) and return;
      #my $com_exit_value=$? >> 8;
      $logoutput =~ s/\s+$//;
@@ -78,17 +78,6 @@ sub copy {
      return;
   }
 
-#  my $cmd = "xrd3cp  @args";
-#  my $output = `$cmd`;
-#  if ($? != 0){
-#	if ($output =~ /file is not online/) {	
-#		$self->info("Error doing the xrd3cp @args. File is not online",1);
-#		return 3;
-#	} else {
-#		$self->info("Error doing the xrd3cp @args",1);
-#		return;
-#	}
-#  }
   $self->info("The transfer worked!!");
   return 1;
 }
