@@ -162,7 +162,7 @@ sub generateJDL {
   StdError = \"std.err\";
   InputSandbox = {\"$exeFile\"};
   #OutputSandbox = { \"std.err\" , \"std.out\" };
-  #Outputsandboxbasedesturi = \"gsiftp://$host_name:2811/$tmpDir\";
+  #Outputsandboxbasedesturi = \"gsiftp://localhost\";
   Environment = {\"ALIEN_CM_AS_LDAP_PROXY=$self->{CONFIG}->{VOBOX}\",\"ALIEN_JOBAGENT_ID=$ENV{ALIEN_JOBAGENT_ID}\", \"ALIEN_USER=$ENV{ALIEN_USER}\"};
   ";
 
