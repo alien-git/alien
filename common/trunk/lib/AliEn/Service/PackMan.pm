@@ -242,7 +242,9 @@ sub initialize {
   $self->{CACHE}={};
   #Remove all the possible locks;
   $self->info( "$$ Removing old lock files");
-  $self->{PACKMAN}=AliEn::PackMan->new({PACKMAN_METHOD=>"Local", 
+  my $method= $self->{CONFIG}->{PACKMAN_METHOD} || "Local";
+
+  $self->{PACKMAN}=AliEn::PackMan->new({PACKMAN_METHOD=>$method, 
 					LIST_FILE_TTL=>600,
 					LIST_FILE_CREATION=> 1,
 					SOAP_SERVER=>"PackManMaster"}) or return;
