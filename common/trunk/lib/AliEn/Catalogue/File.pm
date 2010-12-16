@@ -1059,7 +1059,8 @@ sub checkFileQuota {
 
   $self->info("In checkFileQuota for user: $user, request file size:$size");
 
-  my $array = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow("SELECT nbFiles, totalSize, maxNbFiles, maxTotalSize, tmpIncreasedNbFiles, tmpIncreasedTotalSize FROM FQUOTAS WHERE user='$user'")
+  my $array = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow("SELECT nbFiles, totalSize, maxNbFiles, maxTotalSize, tmpIncreasedNbFiles, tmpIncreasedTotalSize FROM FQUOTAS WHERE user=?", undef,
+           {bind_values=>[$user]})
     or $self->{LOGGER}->error("Failed to get data from the FQUOTAS quota table.")
     and return (0, "Failed to get data from the FQUOTAS quota table. ");
   $array or $self->{LOGGER}->error("There's no entry for user $user in the FQUOTAS quota table.")
@@ -1129,13 +1130,13 @@ sub fquota_list {
   my $user = (shift || "%");
   my $whoami = $self->{ROLE};
  
-  my $usersuffix = " user = '$user'; ";
 
   # normal users can see their own information 
   if (($whoami !~ /^admin(ssl)?$/) and ($user eq '%')) {
     $user = $whoami;
   } 
 
+  my $usersuffix = " user = '$user'; ";
   ($user eq '%') and $usersuffix = " user like '%';";
 
   if (($whoami !~ /^admin(ssl)?$/) and ($user ne $whoami)) {
@@ -1146,13 +1147,13 @@ sub fquota_list {
   my $result = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->query("SELECT user, nbFiles, maxNbFiles, totalSize, maxTotalSize, tmpIncreasedNbFiles, tmpIncreasedTotalSize FROM FQUOTAS where $usersuffix")
     or $self->info("Failed to getting data from FQUOTAS table",1)
     and return -1;
-  $result->[0] or $self->info("User $user does not exist in the FQQUOTA table",1)
+  $result->[0] or $self->info("User $user does not exist in the FQQUOTAS table",1)
     and return -1;
 
   my $cnt = 0;
-  $self->info("------------------------------------------------------------------------------------------");
-   $self->info("            %12s    %12s    %42s, user, nbFiles, totalSize($unit)");
-   $self->info("------------------------------------------------------------------------------------------");
+  my $printout = sprintf "\n------------------------------------------------------------------------------------------\n";
+  $printout .= sprintf "            %12s    %12s    %42s\n", "user", "nbFiles", "totalSize($unit)";
+  $printout .= sprintf "------------------------------------------------------------------------------------------\n";
   foreach (@$result) {
     $cnt++;
 		my $totalSize = ($_->{'totalSize'} + $_->{'tmpIncreasedTotalSize'}) / $unitV;
@@ -1161,10 +1162,12 @@ sub fquota_list {
 		if($_->{'maxTotalSize'}==-1){
 		    $maxTotalSize = -1;
 		}
-		 $self->info(" [%04d. ]   %12s     %5s/%5s           \t %.4f/%.4f , $cnt, $_->{'user'}, ($_->{'nbFiles'} + $_->{'tmpIncreasedNbFiles'}), $_->{'maxNbFiles'}, $totalSize, $maxTotalSize");
+		$printout .= sprintf " [%04d. ]   %12s     %5s/%5s           \t %.4f/%.4f\n", $cnt, $_->{'user'}, ($_->{'nbFiles'} + $_->{'tmpIncreasedNbFiles'}), $_->{'maxNbFiles'}, $totalSize, $maxTotalSize;
   }
-   $self->info("------------------------------------------------------------------------------------------");
+  $printout .= sprintf "------------------------------------------------------------------------------------------\n";
+  $self->info($printout);
 }
+
 
 sub fquota_set_HELP {
   return "Usage:
