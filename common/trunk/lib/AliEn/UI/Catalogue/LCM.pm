@@ -305,7 +305,7 @@ sub get {
    }
    $filehash or return 0;
 #   $filehash = shift @{$filehash};
-   $self->debug(1, "Coming back from checkPermission on $file...". Dumper($filehash));
+   $self->info("Coming back from checkPermission on $file...". Dumper($filehash));
 
    $self->info("GUID: $filehash->{guid}");
 
@@ -451,26 +451,18 @@ sub df {
   }
 
   my $service="SE";
-  my $function="getDF";
-  if ($opt=~ /c/ ){
-    $service="CLC";$function="getCacheDF";
-    $self->info("Cachename               1k-blocks         Used(KB)  Available Use\%    Range \  #Files",0,0);
-  } else {
-    $self->info("Storagename             1k-blocks         Used(KB)  Available Use\%    \#Files Type   min_size",0,0);
-  }
 
+   my (@response)=$self->{CATALOG}->f_df($se, $opt);
 
+  $self->debug(1, "Got @response");
 
-  my $response=$self->{CATALOG}->f_df($se, $opt);
-  $self->debug(1, "Got $response");
-  foreach my $line (@$response){
+  foreach my $line (@response){
     my $details = {};
     ($details->{name}, $details->{size}, $details->{used}, $details->{available}, $details->{usage}, $details->{files}, $details->{type}, $details->{min_size}) 
       =($line->{seName}, $line->{size},$line->{usedspace},$line->{freespace},$line->{used},$line->{seNumFiles},$line->{seType}, $line->{seMinSize});
     push(@results, $details);
     ( $line eq "-1") and next;
-
-    my $buffer  = sprintf " %-19s %+12s %+12s %+12s %+3s%% %+9s %-10s %s",$line->{seName}, $line->{size},$line->{usedspace},$line->{freespace},$line->{used},$line->{seNumFiles},$line->{seType}, $line->{seMinSize};
+    my $buffer  = sprintf  "%-19s %+12s %+12s %+12s %+3s%% %+9s %-10s %s\n",$line->{seName}||"", $line->{size}||0,$line->{usedspace}||0,$line->{freespace}||0,$line->{used}||0,$line->{seNumFiles}||0,$line->{seType}||"", $line->{seMinSize}||0;
     $self->info($buffer,0,0);
   }
 #  }
@@ -1028,8 +1020,8 @@ sub mirror {
   if ($opt->{u}){
     $self->info("Making sure that the file is not in that SE");
     my $nopt="";
-    $opt->{r} and $nopt.="-r";
-    my @info=$self->execute("whereis", $nopt, $realLfn)
+    $opt->{r} and $nopt.="r";
+    my @info=$self->{CATALOG}->f_whereis($nopt, $realLfn)
       or $self->info("Error getting the info from $realLfn") and return;
     if (grep (/^$se$/i, @info)){
       $self->info("The file is already in $se!") and return;
@@ -2438,17 +2430,17 @@ sub executeInAllPFNEntries{
 }
 
 sub fquota_HELP {
-        my $self=shift;
+	my $self=shift;
   my $whoami=$self->{CATALOG}->{ROLE};
   if (($whoami !~ /^admin(ssl)?$/)) {
-          return "fquota: Displays information about File Quotas.
+	  return "fquota: Displays information about File Quotas.
 Usage: 
   fquota list [-<options>]        - show the user quota for file catalogue
 Options:
   -unit = B|K|M|G: unit of file size\n";
-        }
+	}
 
-        return "fquota: Displays and modifies information about File Quotas.
+	return "fquota: Displays and modifies information about File Quotas.
 Usage:
   fquota list [-<options>] <user>   - list the user quota for file catalogue
                                       use just 'fquota list' for all users
@@ -2460,27 +2452,27 @@ Options:
                                       use <user>=% for all users\n";
 }
 
-sub fquota { 
+sub fquota {
   my $self = shift;
-  my $command = shift or  $self->info($self->fquota_HELP()) and return;
-  
+  my $command = shift or print $self->fquota_HELP() and return;
+
   $DEBUG and $self->debug(1, "Calling fquota_$command");
   if (($self->{CATALOG}->{ROLE} !~ /^admin(ssl)?$/) && ($command eq "set")) {
-     $self->info("You are not allowed to execute this command!",1);
+    print STDERR "You are not allowed to execute this command!\n";
     return;
   }
-  
+
   my @return;
   my $func = "fquota_$command";
   eval {
-    @return = $self->{CATALOG}->$func(@_);
+    @return = $self->$func(@_);
   };
   if ($@) {
     #If the command is not defined, just print the error message
     if ($@ =~ /Can\'t locate object method \"$func\"/) {
       $self->info( "fquota doesn't understand '$command'", 111);
       #this is just to print the error message"
-      return $self->{CATALOG}->fquota();
+      return $self->fquota();
     }
     $self->info("Error executing fquota $command: $@");
     return;
@@ -2488,7 +2480,83 @@ sub fquota {
   return @return;
 }
 
+sub fquota_list {
+  my $self = shift;
+  my $options={};
+  @ARGV=@_;
+  Getopt::Long::GetOptions($options, "silent", "unit=s") 
+		or $self->info("Error checking the options of fquota list") and return;
+  @_=@ARGV;
 
+  #Default unit - Megabyte
+	my $unit="M";
+	my $unitV=1024*1024;
+
+	$options->{unit} and $unit=$options->{unit};
+	($unit !~ /[BKMG]/) and $self->info("unknown unit. use default unit: Mega Byte")
+		and $unit="M";
+	($unit eq "B") and $unitV=1;
+	($unit eq "K") and $unitV=1024;
+	($unit eq "M") and $unitV=1024*1024;
+	($unit eq "G") and $unitV=1024*1024*1024;
+
+  my $user = shift || "%";
+  my $whoami = $self->{CATALOG}->{ROLE};
+
+  # normal users can see their own information 
+  if (($whoami !~ /^admin(ssl)?$/) and ($user eq "%")) {
+    $user = $whoami;
+  }
+
+  if (($whoami !~ /^admin(ssl)?$/) and ($user ne $whoami)) {
+    print STDERR "Not allowed to see ot
+her users' quota information\n";
+    return;
+  }
+
+  my $done = $self->{SOAP}->CallSOAP("Manager/Job", 'getFileQuotaList', $user);
+  $done or return;
+  my $result = $done->result;
+
+  my $cnt = 0;
+  printf "------------------------------------------------------------------------------------------\n";
+  printf "            %12s    %12s    %42s\n", "user", "nbFiles", "totalSize($unit)";
+  printf "------------------------------------------------------------------------------------------\n";
+  foreach (@$result) {
+    $cnt++;
+		my $totalSize = ($_->{'totalSize'} + $_->{'tmpIncreasedTotalSize'}) / $unitV;
+		my $maxTotalSize = $_->{'maxTotalSize'} / $unitV;;
+		##Changes for unlimited file size
+		if($_->{'maxTotalSize'}==-1){
+		    $maxTotalSize = -1;
+		}
+		printf " [%04d. ]   %12s     %5s/%5s           \t %.4f/%.4f\n", $cnt, $_->{'user'}, ($_->{'nbFiles'} + $_->{'tmpIncreasedNbFiles'}), $_->{'maxNbFiles'}, $totalSize, $maxTotalSize;
+  }
+  printf "------------------------------------------------------------------------------------------\n";
+}
+
+sub fquota_set_HELP {
+  return "Usage:
+  fquota set <user> <field> <value> - set the user quota
+                                      (maxNbFiles, maxTotalSize(Byte))
+                                      use <user>=% for all users\n";
+}
+
+sub fquota_set {
+  my $self = shift;
+  my $user = shift or print STDERR $self->fquota_set_HELP() and return;
+  my $field = shift or print STDERR $self->fquota_set_HELP() and return;
+  my $value = shift;
+  (defined $value) or print STDERR $self->fquota_set_HELP() and return;
+
+  if ($field !~ /(maxNbFiles)|(maxTotalSize)/) {
+    print STDERR "Wrong field name! Choose one of them: maxNbFiles, maxTotalSize\n";
+    return;
+  }
+
+  my $done = $self->{SOAP}->CallSOAP("Manager/Job", 'setFileQuotaInfo', $user, $field, $value);
+  $done and $self->fquota_list("$user");
+}
 
 
 return 1;
