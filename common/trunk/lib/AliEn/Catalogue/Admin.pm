@@ -234,7 +234,26 @@ $passwd = $addbh->getFieldFromTokens($addbh->{ORACLE_USER},'password');
 
   $self->info("Changing privileges for  $user");
   $self->f_chown("", $user, $homedir ) or return;
-  $self->info("Adding the quotas");
+  $self->info("Adding the FQUOTAS");
+  my $exists =$self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryValue("select user from FQUOTAS where user = ? ;", undef, {bind_values=>[$user]});
+
+  if (defined($exists) and $exists eq $user) {
+    $self->debug(1, "$user entry for FQUOTAS exists!" );
+  } else {
+    $self->debug(1, "$user entry for FQUOTAS does not exist!" );
+    ##File Quota
+    my $nbFiles = 0;
+    my $totalSize = 0;
+    my $tmpIncreasedNbFiles = 0;
+    my $tmpIncreasedTotalSize = 0;
+    my $maxNbFiles=10000;
+    my $maxTotalSize=10000000000;
+    $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do("insert into FQUOTAS set user=?, nbFiles=?, totalSize=?, tmpIncreasedNbFiles=?, tmpIncreasedTotalSize=?, maxNbFiles=?, maxTotalSize=? ; ", 
+          {bind_values=>[$user,$nbFiles, $totalSize, $tmpIncreasedNbFiles, $tmpIncreasedTotalSize, $maxNbFiles, $maxTotalSize]});
+   $self->info(  "User $user added"); 
+  }
+
+  $self->info("Adding the jobquotas");
   $self->{PRIORITY_DB}->checkPriorityValue($user) or return;
   $self->info(  "User $user added");
   
@@ -1013,7 +1032,7 @@ sub removeExpiredFiles {
       $db->do("DELETE FROM LFN_BOOKED WHERE lfn=? and expiretime=?", {bind_values=>[$file->{lfn}, $file->{expiretime}]});
       ($physicalDelete==$count+1) 
         and ($count>0) 
-        and $self->{DATABASE}->{LFN_DB}->{FIRSTDB}->fquota_update(-1*$file->{size}*$count,-1*$count,$file->{owner});
+        and $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->fquota_update(-1*$file->{size}*$count,-1*$count,$file->{owner});
       $self->info("$file->{lfn}($file->{guid}) was deleted($physicalDelete physical files) and quotas were rolled back (".-1*$file->{size}*$count.", ".-1*$count.") times for $file->{user}");
     }
   }
@@ -1191,12 +1210,12 @@ sub calculateFileQuota {
 #    or return;
 
   $self->$method(@data, "Updating FQUOTAS table");
-  $self->{DATABASE}->{LFN_DB}->{FIRST}->lock("FQUOTAS");
-  $self->{DATABASE}->{LFN_DB}->{FIRST}->do("update FQUOTAS set nbFiles=0, totalSize=0, tmpIncreasedNbFiles=0, tmpIncreasedTotalSize=0") or $self->$method(@data, "initialization failure for all users");
+  $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->lock("FQUOTAS");
+  $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do("update FQUOTAS set nbFiles=0, totalSize=0, tmpIncreasedNbFiles=0, tmpIncreasedTotalSize=0") or $self->$method(@data, "initialization failure for all users");
   foreach my $user (keys %infoLFN) {
-    $self->{DATABASE}->{LFN_DB}->{FIRST}->do("update FQUOTAS set nbFiles=$infoLFN{$user}{nbfiles}, totalSize=$infoLFN{$user}{totalsize} where user='$user'") or $self->$method(@data, "update failure for user $user");
+    $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do("update FQUOTAS set nbFiles=$infoLFN{$user}{nbfiles}, totalSize=$infoLFN{$user}{totalsize} where user='$user'") or $self->$method(@data, "update failure for user $user");
   }
-  $self->{DATABASE}->{LFN_DB}->{FIRST}->unlock();
+  $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->unlock();
 }
 
 
