@@ -32,7 +32,7 @@ sub initialize {
 
   $self->{JOBLOG} = new AliEn::JOBLOG();
 
-  $self->{DB_I}=AliEn::Database::IS->new() or return;
+  $self->{DB_I}=AliEn::Database::IS->new({ROLE=>'admin'}) or return;
   
   return $self;
 }
