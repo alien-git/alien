@@ -81,7 +81,7 @@ EOF|"
   ( $ENV{X509_USER_CERT}, $ENV{X509_USER_KEY} ) = ( $oldCert, $oldKey );
   $d or print "Error doing proxy-init: $!\n" and return;
   my @d = <FILE>;
-  close FILE or print "NOPE" and return;
+  close FILE or print STDERR "NOPE" and return;
   @d = grep ( !/^Your identity/, @d );
   $self->info( "@d", undef, 0 );
   return $passphrase;
