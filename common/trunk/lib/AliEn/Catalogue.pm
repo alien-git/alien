@@ -2040,11 +2040,38 @@ sub f_type_HELP {
 sub f_df {
   my $self = shift;
   
-    $self->info("Storagename             1k-blocks         Used(KB)  Available Use\%    \#Files Type  min_size\n",undef,0);
+    
+  my $opt;
+  ( $opt, @_ ) = $self->Getopts(@_);
+  my $se   = (shift or $self->{CONFIG}->{SE_FULLNAME});
+  my $oldsilent = $self->{SILENT};
+#  my @hostportsName;
+  my @results = ();
+  if ($opt =~/a/) {
+      $se = "";
+  }
 
+  my $service="SE";
+  $self->info("Storagename             1k-blocks         Used(KB)  Available Use\%    \#Files Type  min_size\n",undef,0);
+  my ($response)= $self->{DATABASE}->getDF($se, @_);
+   
+  $self->debug(1, "Got $response");
 
-return $self->{DATABASE}->getDF(@_);
+  foreach my $line (@$response){
+    my $details = {};
+    ($details->{name}, $details->{size}, $details->{used}, $details->{available}, $details->{usage}, $details->{files}, $details->{type}, $details->{min_size}) 
+      =($line->{seName}, $line->{size},$line->{usedspace},$line->{freespace},$line->{used},$line->{seNumFiles},$line->{seType}, $line->{seMinSize});
+    push(@results, $details);
+    ( $line eq "-1") and next;
+    my $buffer  = sprintf  "%-19s %+12s %+12s %+12s %+3s%% %+9s %-10s %s\n",$line->{seName}||"", $line->{size}||0,$line->{usedspace}||0,$line->{freespace}||0,$line->{used}||0,$line->{seNumFiles}||0,$line->{seType}||"", $line->{seMinSize}||0;
+    $self->info($buffer,0,0);
+  }
+#  }
+  return @results;
 }
+
+
+
 
 sub f_type {
   my $self = shift;

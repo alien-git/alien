@@ -88,7 +88,7 @@ my %LCM_commands;
 		 'auth'   => ['$self->{CATALOG}->callAuthen', 0],
 		 'resolve'  => ['$self->resolve', 0],
 		 'mssurl'   => ['$self->mssurl', 0],
-		 'df'       => ['$self->df', 0],
+		 'df'       => ['$self->{CATALOG}->f_df', 0],
 		 'services' => ['$self->services', 0],
 		 'preFetch'   =>[ '$self->preFetch',0],
 		 'vi'       => ['$self->vi', 0],
@@ -438,37 +438,6 @@ Options:
   -f:  force Refresh the information
 "
 }
-sub df {
-  my $self = shift;
-  my $opt;
-    ( $opt, @_ ) = $self->Getopts(@_);
-  my $se   = (shift or $self->{CONFIG}->{SE_FULLNAME});
-  my $oldsilent = $self->{CATALOG}->{SILENT};
-#  my @hostportsName;
-  my @results = ();
-  if ($opt =~/a/) {
-      $se = "";
-  }
-
-  my $service="SE";
-
-   my (@response)=$self->{CATALOG}->f_df($se, $opt);
-
-  $self->debug(1, "Got @response");
-
-  foreach my $line (@response){
-    my $details = {};
-    ($details->{name}, $details->{size}, $details->{used}, $details->{available}, $details->{usage}, $details->{files}, $details->{type}, $details->{min_size}) 
-      =($line->{seName}, $line->{size},$line->{usedspace},$line->{freespace},$line->{used},$line->{seNumFiles},$line->{seType}, $line->{seMinSize});
-    push(@results, $details);
-    ( $line eq "-1") and next;
-    my $buffer  = sprintf  "%-19s %+12s %+12s %+12s %+3s%% %+9s %-10s %s\n",$line->{seName}||"", $line->{size}||0,$line->{usedspace}||0,$line->{freespace}||0,$line->{used}||0,$line->{seNumFiles}||0,$line->{seType}||"", $line->{seMinSize}||0;
-    $self->info($buffer,0,0);
-  }
-#  }
-  return @results;
-}
-
 
 =item C<services(@args)>
 
