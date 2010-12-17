@@ -24,13 +24,8 @@ sub initialize {
 
 sub copy {
   my $self=shift;
-  my $source=shift;
-  my $target=shift;
-  my $sEnvelope = {};
-  my $tEnvelope = {};
-
-  $source and $sEnvelope = AliEn::Util::deserializeSignedEnvelope($source);
-  $target and $tEnvelope = AliEn::Util::deserializeSignedEnvelope($target);
+  my $sEnvelope = shift;
+  my $tEnvelope = shift
 
   $self->info("Ready to copy $sEnvelope->{turl} into $tEnvelope->{turl} ");
 
