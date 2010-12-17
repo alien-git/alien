@@ -1713,7 +1713,7 @@ sub putFiles {
       my $signedEnvs = shift @addEnvs;
 
       foreach my $file( keys %{$fs_table->{$fileOrArch}->{entries}}) {  # if it is a file, there are just no entries
-         my $registerstatus = $self->registerFile($file, $fs_table->{$fileOrArch}->{name}, $signedEnvs);
+         my $registerstatus = $self->registerFile($file, $fs_table->{$fileOrArch}->{name}, $signedEnvs, $fs_table->{$fileOrArch}->{entries}->{$file}->{size},$fs_table->{$fileOrArch}->{entries}->{$file}->{md5});
       }
    
     }
@@ -1792,11 +1792,17 @@ sub registerFile {
   my $file=shift;
   my $archive=shift;
   my $signedEnvelope=shift;
+  my $size=shift;
+  my $md5=shift;
+
+  $size or $size = $env->{size};
+  $md5 or $md5 = $env->{md5};
+  
   
   my $env = AliEn::Util::deserializeSignedEnvelope($signedEnvelope);
 
-  $self->putJobLog("trace", "Trying to register file with: add -r -user=$self->{JOB_USER} -tracelog -size $env->{size} -md5 $env->{md5}  $file guid:///$env->{guid}?ZIP=$file");
-  my ($addResult)=$self->{UI}->execute("add", "-r", "-tracelog", "-size $env->{size}", "$self->{PROCDIR}/$file", "guid:///$env->{guid}?ZIP=$file");
+  $self->putJobLog("trace", "Trying to register file with: add -r -user=$self->{JOB_USER} -tracelog -size $size -md5 $md5  $file guid:///$env->{guid}?ZIP=$file");
+  my ($addResult)=$self->{UI}->execute("add", "-r", "-tracelog", "-size $size", "$self->{PROCDIR}/$file", "guid:///$env->{guid}?ZIP=$file");
 
   ($addResult eq -1) and
      $self->putJobLog("error","Error while registering file link $file in archive $archive")
