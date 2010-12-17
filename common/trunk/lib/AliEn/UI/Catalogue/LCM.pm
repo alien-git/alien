@@ -1434,6 +1434,7 @@ sub addFile {
     "silent", "versioning", "upload", "user=s", "guid=s", "register", "tracelog", "feedback", "size=s", "md5=s") 
     or $self->info("Error checking the options of add") and return;
   @_=@ARGV;
+ 
   my $targetLFN   = (shift || ($self->info("ERROR, missing paramter: lfn") and return));
   my $sourcePFN   = (shift || ($self->info("ERROR, missing paramter: pfn") and return));
   my @seSpecs=@_;
@@ -1451,7 +1452,9 @@ sub addFile {
   if($options->{register}) {
     my $size = (shift || $options->{size} || 0);
     my $md5sum = (shift || $options->{md5} || 0);
-    return $self->registerPFN($options->{user}, $targetLFN, $sourcePFN, $options->{guid}, $size, $md5sum, $options->{feedback},$options->{silent},$seSpecs[0]);
+    $options->{guid} or $options->{guid} ="";
+    $self->info("LFN: $targetLFN, pfn: $sourcePFN, guid: $options->{guid}");
+    return $self->{CATALOG}->authorize("register", {lfn=>$targetLFN, pfn=>$sourcePFN, size=>$size, md5=>$md5sum, guid=>$options->{guid} });
   }
 
   if($options->{versioning}) {
@@ -1461,23 +1464,6 @@ sub addFile {
   return $self->addFileToSEs($options->{user}, $targetLFN, $sourcePFN, \@seSpecs, $options->{guid}, $options->{feedback},$options->{upload},$options->{silent});
 
 }
-
-sub registerPFN{
-  my $self  = shift;
-  my $user=(shift || $self->{CATALOG}->{ROLE});
-  my $targetLFN   = (shift || return);
-  my $sourcePFN   = (shift || return);
-  my $guid=(shift || 0); 
-  my $size=(shift || 0);
-  my $md5sum=(shift || 0);
-  my $feedback=(shift || 0);
-  my $silent=(shift || 0);
-  return $self->{CATALOG}->authorize("register", {lfn=>$targetLFN, 
-           pfn=>$sourcePFN, size=>$size, md5=>$md5sum, guid=>$guid });
-}
-
-
-
 
 sub versionLFN {
   my $self=shift;
