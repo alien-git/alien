@@ -13,6 +13,7 @@ use AliEn::JOBLOG;
 use AliEn::Util;
 use Classad;
 use AliEn::Database::Admin;
+use AliEn::Database::IS;
 
 use vars qw (@ISA $DEBUG);
 @ISA=("AliEn::Service::Manager");
@@ -31,6 +32,8 @@ sub initialize {
 
   $self->{JOBLOG} = new AliEn::JOBLOG();
 
+  $self->{DB_I}=AliEn::Database::IS->new() or return;
+  
   return $self;
 }
 
@@ -729,25 +732,20 @@ sub spy {
 
     $self->info("In spy contacting the IS at http://$self->{CONFIG}->{IS_HOST}:$self->{CONFIG}->{IS_PORT} for $queueId at $site->{'site'}...");
 
-    my $result =$self->{SOAP}->CallSOAP("IS", "getService",
-					$site->{'site'},"ClusterMonitor") 
-      or $self->{LOGGER}->error("JobManager","In spy error contacting the information service") and return (-1, "Error contacting the IS");
 
-    $result = $result->result;
+    my $result = $self->{DB_I}->getActiveServices("ClusterMonitor","host,port,protocols,certificate,uri",$self->{site});
+    
+    $self->info(Dumper($result));
 
 
     $self->info("In spy got http://$result->{'HOST'}:$result->{'PORT'}  ...");
 
     my $url=$self->getSpyUrl($queueId);
     $url or return (-1,"The job $queueId is no longer in the queue");
+    $self->info("Telling the user to try with $url");
+    return $url;
 
-    my $result2 = SOAP::Lite->uri('AliEn/Service/ClusterMonitor')
-      ->proxy("http://$result->{'HOST'}:$result->{'PORT'}")
-	->getSpyFile($queueId,$file, $url, @_);
-
-    $result2 or $self->info("In spy could not contact the clustermonitor at http://$result->{'HOST'}:$result->{'PORT'}") and return (-1,"Error contacting the clustermonitor at http://$result->{'HOST'}:$result->{'PORT'}");
-
-    return $result2->result;
+#    return $result2->result;
 }
 
 
