@@ -1105,13 +1105,13 @@ sub registerPFNInCatalogue{
   my $se=(shift || 0);
 
   $envelope->{lfn} or $self->info("Authorize: The access to registering a PFN with LFN $envelope->{lfn} could not be granted.",1) and return 0;
-  $envelope->{size} and ( $envelope->{size} gt 0 ) or $self->info("Authorize: File has zero size and will not be allowed to registered") and return 0;
+  $envelope->{size} and ( $envelope->{size} gt 0 ) or $self->info("Authorize: File has zero size and will not be allowed to registered",1) and return 0;
   (!($pfn =~ /^file:\/\//) and !($pfn =~ /^root:\/\//)) and $se = "no_se";
   if($pfn =~ /^guid:\/\/\//){
 #    $se = "no_se";
     my $guid = "$pfn";
     $guid =~ s{^guid:///([^/]+)(\?[.]*)*}{$1};
-    $self->{DATABASE}->{GUID_DB}->checkPermission("r",$guid) or return 0;
+    $self->{DATABASE}->{GUID_DB}->checkPermission("r",$guid) or $self->info("Authorize: Could not get read permissions on GUID $guid .",1) and return 0;
   }
   $se or $se=$self->getSEforPFN($pfn);
   $se or $self->info("Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $pfn could not be registered. The PFN doesn't correspond to any known SE.",1) and return 0;
