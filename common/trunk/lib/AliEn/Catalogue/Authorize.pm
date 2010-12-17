@@ -926,6 +926,7 @@ sub getSEforPFN{
   my $self=shift;
   my $pfn=(shift || return);
 
+  $pfn =~ /^guid:/ and return "no_se";
   $pfn = $self->parsePFN($pfn);
   $pfn or return 0;
   my @queryValues = ("$pfn->{proto}://$pfn->{host}");
@@ -1111,7 +1112,7 @@ sub registerPFNInCatalogue{
 #    $se = "no_se";
 #    my $guid = "$pfn";
 #    $guid =~ s{^guid:///([^/]+)(\?[.]*)*}{$1};
-    $self->{DATABASE}->{GUID_DB}->checkPermission("r",$envelope->{guid}) or $self->info("Authorize: Could not get read permissions on GUID $envelope->{guid} .",1) and return 0;
+#    $self->{DATABASE}->{GUID_DB}->checkPermission("r",$envelope->{guid}) or $self->info("Authorize: Could not get read permissions on GUID $envelope->{guid} .",1) and return 0;
 #  }
   $se or $se=$self->getSEforPFN($pfn);
   $se or $self->info("Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $pfn could not be registered. The PFN doesn't correspond to any known SE.",1) and return 0;
@@ -1289,13 +1290,13 @@ sub authorize{
   my @returnEnvelopes = ();
   my $prepareEnvelope = {};
 
-  ($writeReq or $registerReq) and 
-     $prepareEnvelope = $self->getBaseEnvelopeForWriteAccess($user,$lfn,$size,$md5,$guidRequest);
+  if ($writeReq or $registerReq) {
+    $prepareEnvelope = $self->getBaseEnvelopeForWriteAccess($user,$lfn,$size,$md5,$guidRequest);
+    $registerReq and return $self->registerPFNInCatalogue($user,$prepareEnvelope,$pfn,$wishedSE);
 
+  } 
   $deleteReq and 
      ($prepareEnvelope,$seList) = $self->getBaseEnvelopeForDeleteAccess($user,$lfn);
-
-  $registerReq and return $self->registerPFNInCatalogue($user,$prepareEnvelope,$pfn,$wishedSE);
 
   $mirrorReq and $prepareEnvelope = $self->getBaseEnvelopeForMirrorAccess($user,$guidRequest);
 

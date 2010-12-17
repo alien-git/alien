@@ -734,11 +734,11 @@ sub spy {
 
 
     my $result = $self->{DB_I}->getActiveServices("ClusterMonitor","host,port,protocols,certificate,uri",$self->{site});
-    
+   use Data::Dumper;
     $self->info(Dumper($result));
 
 
-    $self->info("In spy got http://$result->{'HOST'}:$result->{'PORT'}  ...");
+    #$self->info("In spy got http://$result->{'HOST'}:$result->{'PORT'}  ...");
 
     my $url=$self->getSpyUrl($queueId);
     $url or return (-1,"The job $queueId is no longer in the queue");

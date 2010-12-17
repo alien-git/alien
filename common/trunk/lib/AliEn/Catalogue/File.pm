@@ -1073,11 +1073,11 @@ sub checkFileQuota {
   my $maxTotalSize = $array->{'maxTotalSize'};
   my $tmpIncreasedTotalSize = $array->{'tmpIncreasedTotalSize'};
  
-  $DEBUG and $self->debug(1, "size: $size");
-  $DEBUG and $self->debug(1, "nbFile: $nbFiles/$tmpIncreasedNbFiles/$maxNbFiles");
-  $DEBUG and $self->debug(1, "totalSize: $totalSize/$tmpIncreasedTotalSize/$maxTotalSize");
-  $self->info("nbFile: $nbFiles/$tmpIncreasedNbFiles/$maxNbFiles");
-  $self->info("totalSize: $totalSize/$tmpIncreasedTotalSize/$maxTotalSize");
+  $DEBUG and $self->debug(1, "size: $size
+nbFile: $nbFiles/$tmpIncreasedNbFiles/$maxNbFiles
+totalSize: $totalSize/$tmpIncreasedTotalSize/$maxTotalSize");
+  $self->info("nbFile: $nbFiles/$tmpIncreasedNbFiles/$maxNbFiles
+totalSize: $totalSize/$tmpIncreasedTotalSize/$maxTotalSize");
 
   #Unlimited number of files
   if($maxNbFiles==-1){
