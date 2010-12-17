@@ -1364,7 +1364,10 @@ sub isOldEnvelopeStorageElement{
   my @queryValues = ("$se");
   my $seVersion = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryValue("SELECT seVersion FROM SE WHERE seName=? ;", undef, {bind_values=>\@queryValues});
 
-  (defined($seVersion)) and  (int($seVersion) > 218) and return 0;
+  eval {
+    (defined($seVersion)) and ($seVersion =~ m/^\d+$/) and (int($seVersion) > 218) and return 0;
+  };
+
   return 1;
 }
 
