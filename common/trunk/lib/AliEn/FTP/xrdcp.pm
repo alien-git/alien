@@ -25,7 +25,7 @@ sub initialize {
 sub copy {
   my $self=shift;
   my $sEnvelope = shift;
-  my $tEnvelope = shift
+  my $tEnvelope = shift;
 
   $self->info("Ready to copy $sEnvelope->{turl} into $tEnvelope->{turl} ");
 
