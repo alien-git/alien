@@ -1466,6 +1466,16 @@ sub f_spy {
   }
 
   my $done =$self->{SOAP}->CallSOAP("Manager/JobInfo","spy",$queueId,$spyfile, $options);
+  $done or return;
+  my $result=$done->result;
+  $self->info("We are supposed to contact the cluster at $result");
+  
+  my $result2 = SOAP::Lite->uri('AliEn/Service/ClusterMonitor')
+      ->proxy("http://$result->{'HOST'}:$result->{'PORT'}")
+	->getSpyFile($queueId,$spyfile );
+
+    $result2 or $self->info("In spy could not contact the clustermonitor at http://$result->{'HOST'}:$result->{'PORT'}") and return (-1,"Error contacting the clustermonitor at http://$result->{'HOST'}:$result->{'PORT'}");
+  
   
   $done or return;
   $done=$done->result;
