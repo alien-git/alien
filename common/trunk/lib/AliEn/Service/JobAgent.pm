@@ -1795,11 +1795,10 @@ sub registerFile {
   my $size=shift;
   my $md5=shift;
 
+  my $env = AliEn::Util::deserializeSignedEnvelope($signedEnvelope);
+
   $size or $size = $env->{size};
   $md5 or $md5 = $env->{md5};
-  
-  
-  my $env = AliEn::Util::deserializeSignedEnvelope($signedEnvelope);
 
   $self->putJobLog("trace", "Trying to register file with: add -r -user=$self->{JOB_USER} -tracelog -size $size -md5 $md5  $file guid:///$env->{guid}?ZIP=$file");
   my ($addResult)=$self->{UI}->execute("add", "-r", "-tracelog", "-size $size", "$self->{PROCDIR}/$file", "guid:///$env->{guid}?ZIP=$file");
