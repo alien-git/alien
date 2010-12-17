@@ -1672,7 +1672,9 @@ sub putFiles {
       
       if($self->{STATUS} =~ /^ERROR_V/) {
         # just upload the files ...
-        my @addEnvs = $self->addFile($self->{WORKDIR},"$fs_table->{$fileOrArch}->{name}", "$fs_table->{$fileOrArch}->{options}",$guid,1);
+        my $recyclebin = "~/recycle/alien-job-$ENV{ALIEN_PROC_ID}"; 
+        $self->{UI}->execute("mkdir","-p","$recyclebin");
+        my @addEnvs = $self->addFile("$self->{WORKDIR}/$fs_table->{$fileOrArch}->{name}","$recyclebin/$fs_table->{$fileOrArch}->{name}", "$fs_table->{$fileOrArch}->{options}",$guid,1);
         my $success = shift @addEnvs;
         $success or $self->putJobLog("error","The job went to ERROR_V, but we can't upload the output files for later registration") and next;
         my $env1 = AliEn::Util::deserializeSignedEnvelope(shift @addEnvs);
@@ -1699,7 +1701,7 @@ sub putFiles {
       }
 
 
-      my @addEnvs = $self->addFile($self->{WORKDIR},"$fs_table->{$fileOrArch}->{name}", "$fs_table->{$fileOrArch}->{options}",$guid);
+      my @addEnvs = $self->addFile("$self->{WORKDIR}/$fs_table->{$fileOrArch}->{name}","$self->{PROCDIR}/$fs_table->{$fileOrArch}->{name}", "$fs_table->{$fileOrArch}->{options}",$guid);
      
       my $success = shift @addEnvs;
       $success  or next;
@@ -1743,41 +1745,41 @@ sub putFiles {
 
 sub addFile {
   my $self=shift;
-  my $workdir=shift;
-  my $file=shift;
+  my $pfn=shift;
+  my $lfn=shift;
   my $storeTags=shift;
   my $guid=shift;
   my $uploadOnly=(shift || 0); 
   my @addResult;
 
-  $self->info("Submitting the file $file");
-  if (! -f "$workdir/$file")  {
-    $self->putJobLog("error", "The job didn't create $workdir/$file");
+  $self->info("Submitting the file $pfn");
+  if (! -f "$pfn")  {
+    $self->putJobLog("error", "The job didn't create $pfn");
     return 0; 
   }
-  $self->putJobLog("trace","Will store $file ...");
+  $self->putJobLog("trace","Will store $pfn...");
 
   $self->{LOGGER}->{TRACELOG}=1; 
   my $options = " -tracelog -feedback ";
   $guid and $options .= " -guid=$guid";
 
-  $self->putJobLog("trace","adding file: add, $options, $file, $workdir/$file, $storeTags");
+  $self->putJobLog("trace","adding file: add, $options, $lfn, $pfn, $storeTags");
 
   if($uploadOnly) {
-    @addResult=$self->{UI}->execute("add", "-upload", $options, "$self->{PROCDIR}/$file", "$workdir/$file", $storeTags);
+    @addResult=$self->{UI}->execute("add", "-upload", $options, "$lfn", "$pfn", $storeTags);
   } else {
-    @addResult=$self->{UI}->execute("add", $options, "$self->{PROCDIR}/$file", "$workdir/$file", $storeTags);
+    @addResult=$self->{UI}->execute("add", $options, "$lfn", "$pfn", $storeTags);
   }
 
   my $sucess = shift @addResult;
   defined($sucess) or $sucess =0;
 
   if($sucess eq 1) {
-     $self->putJobLog("trace","Successfully stored the file $file.");
+     $self->putJobLog("trace","Successfully stored the file $lfn.");
   }elsif($sucess eq -1) {
-     $self->putJobLog("trace","Could store the file $file only on ".scalar(@addResult));
+     $self->putJobLog("trace","Could store the file $lfn only on ".scalar(@addResult));
   } else {
-     $self->putJobLog("error","Could not store the file $file on any SE. This file is lost!");
+     $self->putJobLog("error","Could not store the file $lfn on any SE. This file is lost!");
      return (0);
   }
   return ($sucess, @addResult);
