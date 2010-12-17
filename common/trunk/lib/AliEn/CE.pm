@@ -1470,12 +1470,21 @@ sub f_spy {
   my $result=$done->result;
   $self->info("We are supposed to contact the cluster at $result");
   
-  my $result2 = SOAP::Lite->uri('AliEn/Service/ClusterMonitor')
-      ->proxy("http://$result->{'HOST'}:$result->{'PORT'}")
-	->getSpyFile($queueId,$spyfile );
+  my $result2 = SOAP::Lite->uri('AliEn/Service/JobAgent')
+      ->proxy("http://$result",
+            options => {compress_threshold => 10000})
+      ->getFile($spyfile, $options);
 
-    $result2 or $self->info("In spy could not contact the clustermonitor at http://$result->{'HOST'}:$result->{'PORT'}") and return (-1,"Error contacting the clustermonitor at http://$result->{'HOST'}:$result->{'PORT'}");
-  
+  $self->info("Finished Contacting the jobagent at $result"); ###############
+  my $data=$result2->result;
+
+  if(!$data) {
+      $self->info("Could not get file via SOAP, trying to get it via LRMS");
+      $data = $self->{BATCH}->getOutputFile($queueId,$spyfile);
+      $data or $data = "";
+  }
+
+  $self->info("Got $data" );
   
   $done or return;
   $done=$done->result;
