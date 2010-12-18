@@ -1431,7 +1431,7 @@ sub addFile {
   my $lineOptions=join(" ", @_);
   @ARGV=@_;
   Getopt::Long::GetOptions($options, 
-    "silent", "versioning", "upload", "user=s", "guid=s", "register", "tracelog", "feedback", "size=s", "md5=s") 
+    "silent", "versioning", "upload", "guid=s", "register", "feedback", "size=s", "md5=s") 
     or $self->info("Error checking the options of add") and return;
   @_=@ARGV;
  
@@ -1439,15 +1439,11 @@ sub addFile {
   my $sourcePFN   = (shift || ($self->info("ERROR, missing paramter: pfn") and return));
   my @seSpecs=@_;
 
-  $options->{tracelog} and   $self->{LOGGER}->tracelogOn();
-
   $sourcePFN or $self->info("Error: not enough parameters in add\n".
     $self->addFile_HELP(),2)  and return;
 
 
   $targetLFN = $self->{CATALOG}->GetAbsolutePath($targetLFN);
-  #pre-gridsite workaround
-  $options->{user} or $options->{user} = $self->{CONFIG}->{ROLE};
 
   if($options->{register}) {
     my $size = (shift || $options->{size} || 0);
@@ -1461,9 +1457,11 @@ sub addFile {
     $self->versionLFN($targetLFN) or $self->info("ERROR: Versioning file failed") and return 0;
   }
 
-  return $self->addFileToSEs($options->{user}, $targetLFN, $sourcePFN, \@seSpecs, $options->{guid}, $options->{feedback},$options->{upload},$options->{silent});
+  return $self->addFileToSEs($targetLFN, $sourcePFN, \@seSpecs, $options->{guid}, $options->{feedback},$options->{upload},$options->{silent});
 
 }
+
+
 
 sub versionLFN {
   my $self=shift;
@@ -1503,7 +1501,6 @@ sub versionLFN {
 
 sub addFileToSEs {
   my $self=shift;
-  my $user=shift;
   my $targetLFN   = (shift || return);
   my $sourcePFN   = (shift || return);
   my $SErequirements=(shift || []);
@@ -1585,7 +1582,7 @@ sub addFileToSEs {
     ($success eq -1) and last;
     $self->notice("Uploading file based on Storage Discovery, requesting QoS=$qos, count=$qosTags->{$qos}");
 
-    ($result, $success) = $self->putOnDynamicDiscoveredSEListByQoSV2($result,$user,$sourcePFN,$targetLFN,$size,$md5,$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes);
+    ($result, $success) = $self->putOnDynamicDiscoveredSEListByQoSV2($result,$sourcePFN,$targetLFN,$size,$md5,$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes);
   }
   
   if (($success ne -1) and (scalar(@{$result->{usedEnvelopes}}) le 0) and (scalar(@ses) eq 0) and ($selOutOf le 0)){ 
@@ -1599,7 +1596,7 @@ sub addFileToSEs {
   ($selOutOf ne scalar(@ses)) and $staticmessage = "Uploading file to @ses, with select $selOutOf out of ".scalar(@ses)." (based on static SE specification).";
   (scalar(@ses) gt 0) and $self->notice($staticmessage);
 
-  (($success ne -1) && (scalar(@ses) gt 0)) and ($result, $success) = $self->putOnStaticSESelectionListV2($result,$user,$sourcePFN,$targetLFN,$size,$md5,$selOutOf,\@ses);
+  (($success ne -1) && (scalar(@ses) gt 0)) and ($result, $success) = $self->putOnStaticSESelectionListV2($result,$sourcePFN,$targetLFN,$size,$md5,$selOutOf,\@ses);
 
   (scalar(@{$result->{usedEnvelopes}}) gt 0) or $self->error("We couldn't upload any copy of the file.") and return;
 
@@ -1639,7 +1636,6 @@ sub addFileToSEs {
 sub putOnStaticSESelectionListV2{
    my $self=shift;
    my $result=(shift || {});
-   my $user=(shift || 0);
    my $sourcePFN=(shift || "");
    my $targetLFN=(shift || "");
    my $size=(shift || 0);
@@ -1678,7 +1674,6 @@ sub putOnStaticSESelectionListV2{
 sub putOnDynamicDiscoveredSEListByQoSV2{
    my $self=shift;
    my $result=(shift || {});
-   my $user=(shift || 0);
    my $sourcePFN=(shift || "");
    my $targetLFN=(shift || "");
    my $size=(shift || 0);

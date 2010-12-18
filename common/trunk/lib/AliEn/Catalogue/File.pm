@@ -1066,12 +1066,12 @@ sub checkFileQuota {
   $array or $self->{LOGGER}->error("There's no entry for user $user in the FQUOTAS quota table.")
     and return (-1, "There's no entry for user $user in the FQUOTAS quota table.");
 
-  my $nbFiles = $array->{'nbFiles'};
-  my $maxNbFiles = $array->{'maxNbFiles'};
-  my $tmpIncreasedNbFiles = $array->{'tmpIncreasedNbFiles'};
-  my $totalSize = $array->{'totalSize'};
-  my $maxTotalSize = $array->{'maxTotalSize'};
-  my $tmpIncreasedTotalSize = $array->{'tmpIncreasedTotalSize'};
+  my $nbFiles = ($array->{'nbFiles'} || 0);
+  my $maxNbFiles = ($array->{'maxNbFiles'} || 0);
+  my $tmpIncreasedNbFiles = ($array->{'tmpIncreasedNbFiles'} || 0);
+  my $totalSize = ($array->{'totalSize'} || 0);
+  my $maxTotalSize = ($array->{'maxTotalSize'} || 0);
+  my $tmpIncreasedTotalSize = ($array->{'tmpIncreasedTotalSize'} || 0);
  
   $DEBUG and $self->debug(1, "size: $size
 nbFile: $nbFiles/$tmpIncreasedNbFiles/$maxNbFiles

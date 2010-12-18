@@ -1713,7 +1713,8 @@ sub putFiles {
       my $signedEnvs = shift @addEnvs;
 
       foreach my $file( keys %{$fs_table->{$fileOrArch}->{entries}}) {  # if it is a file, there are just no entries
-         my $registerstatus = $self->registerFile($file, $fs_table->{$fileOrArch}->{name}, $signedEnvs, $fs_table->{$fileOrArch}->{entries}->{$file}->{size},$fs_table->{$fileOrArch}->{entries}->{$file}->{md5});
+         $self->registerFile($file, $fs_table->{$fileOrArch}->{name}, $signedEnvs, $fs_table->{$fileOrArch}->{entries}->{$file}->{size},$fs_table->{$fileOrArch}->{entries}->{$file}->{md5})
+          or $incompleteAddes=1;
       }
    
     }
@@ -1743,6 +1744,7 @@ sub putFiles {
 }
 
 
+
 sub addFile {
   my $self=shift;
   my $pfn=shift;
@@ -1759,11 +1761,15 @@ sub addFile {
   }
   $self->putJobLog("trace","Will store $pfn...");
 
-  $self->{LOGGER}->{TRACELOG}=1; 
-  my $options = " -tracelog -feedback ";
+  my $options = " -feedback ";
   $guid and $options .= " -guid=$guid";
 
   $self->putJobLog("trace","adding file: add, $options, $lfn, $pfn, $storeTags");
+
+  my $mydebug = $self->{LOGGER}->getDebugLevel();
+  $self->{LOGGER}->debugOn(5);
+  $self->{LOGGER}->keepAllMessages();
+
 
   if($uploadOnly) {
     @addResult=$self->{UI}->execute("add", "-upload", $options, "$lfn", "$pfn", $storeTags);
@@ -1771,18 +1777,25 @@ sub addFile {
     @addResult=$self->{UI}->execute("add", $options, "$lfn", "$pfn", $storeTags);
   }
 
-  my $sucess = shift @addResult;
-  defined($sucess) or $sucess =0;
+  my $success = shift @addResult;
+  defined($success) or $success =0;
 
-  if($sucess eq 1) {
+  ($success ne 1)
+    and  $self->highVerboseTransactionLog(@{$self->{LOGGER}->getMessages()});
+
+  $self->{LOGGER}->debugOn($mydebug);
+  $self->{LOGGER}->displayMessages();
+
+
+  if($success eq 1) {
      $self->putJobLog("trace","Successfully stored the file $lfn.");
-  }elsif($sucess eq -1) {
+  }elsif($success eq -1) {
      $self->putJobLog("trace","Could store the file $lfn only on ".scalar(@addResult));
   } else {
      $self->putJobLog("error","Could not store the file $lfn on any SE. This file is lost!");
      return (0);
   }
-  return ($sucess, @addResult);
+  return ($success, @addResult);
 
 }
 
@@ -1800,21 +1813,47 @@ sub registerFile {
   $size or $size = $env->{size};
   $md5 or $md5 = $env->{md5};
 
-  $self->putJobLog("trace", "Trying to register file with: add -r -user=$self->{JOB_USER} -tracelog -size $size -md5 $md5  $file guid:///$env->{guid}?ZIP=$file");
-  my ($addResult)=$self->{UI}->execute("add", "-r", "-tracelog", "-size $size", "$self->{PROCDIR}/$file", "guid:///$env->{guid}?ZIP=$file");
+  my $mydebug = $self->{LOGGER}->getDebugLevel();
+  $self->{LOGGER}->debugOn(5);
+  $self->{LOGGER}->keepAllMessages();
 
-  ($addResult eq -1) and
-     $self->putJobLog("error","Error while registering file link $file in archive $archive")
-     and return -1;
+  $self->putJobLog("trace", "Trying to register file with: add -r -size $size -md5 $md5  $file guid:///$env->{guid}?ZIP=$file");
+  my ($addResult)=$self->{UI}->execute("add", "-r", "-feedback", "-size $size", "-md5 $md5", "$self->{PROCDIR}/$file", "guid:///$env->{guid}?ZIP=$file");
 
-  $addResult and $self->putJobLog("trace","Successfully registered the file link $file in archive $archive.")
-     and return 1;
 
-  $self->putJobLog("error","Could not register the file link $file in archive $archive.");
+  ($addResult ne 1) 
+    and  $self->highVerboseTransactionLog(@{$self->{LOGGER}->getMessages()});
+  
+  $self->{LOGGER}->debugOn($mydebug);
+  $self->{LOGGER}->displayMessages();
+
+  if($addResult eq 1) { 
+     $self->putJobLog("trace","Successfully registered the file link $file in archive $archive.");
+     return 1;
+  } 
+  $self->putJobLog("error","Error while registering file link $file in archive $archive");
   return 0;
 }
 
+sub highVerboseTransactionLog {
+  my $self=shift;
+  my $prefix = "Error in add / add -r, printing --------- HIGH VERBOSITY IO TRANSACTION LOG ---------:";
+  my $suffix = "--------- END OF HIGH VERBOSITY IO TRANSACTION LOG ---------.";
+  print "$prefix \n @_ \n $suffix \n";
+  
+  my @loglines = ();
 
+  foreach my $line (@_) {
+    ($line =~ /\n/) 
+      and push  @loglines , split(/\n/, $line)
+      and next;
+    push @loglines , $line;
+  }
+
+  $self->putJobLog("trace", $prefix );
+  foreach (@loglines) { $self->putJobLog("trace", $_ ); }
+  $self->putJobLog("trace", $suffix );
+}
 
 sub submitFileToClusterMonitor{
   my $self=shift;
@@ -2559,10 +2598,6 @@ sub registerLogs {
     $self->{CA}->set_expression("RegisteredOutput", "{".$registerLogString."}");
     $self->info("We set the RegisteredOutput in the JDL");
     $self->{JDL_CHANGED}=1;
-
-    #$self->info("Tryin to register file execution.out with sourcePFN = $data->{pfn}");
-    #$self->{UI}->execute("cd",$self->{PROCDIR} ."/job-log");
-    #my ($addResult)=$self->{UI}->execute("add", "-r", "-user=$self->{JOB_USER}", "-tracelog", "-size $data->{size}", "-md5 $data->{md5} ", "execution.out", "$data->{pfn}");
 
   };
   $self->doInAllVO({},$func);
