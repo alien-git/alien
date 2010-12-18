@@ -32,7 +32,7 @@ sub copy {
   $self->{MSS}->{LOCALFILE}.=".$sEnvelope->{guid}";
   $ENV{ALIEN_XRDCP_URL}=$sEnvelope->{turl};
   $ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}=$sEnvelope->{signedEnvelope};
-
+  $ENV{ALIEN_XRDCP_ENVELOPE}="";
   # if we have the old styled envelopes
   (defined($sEnvelope->{oldEnvelope})) and $ENV{ALIEN_XRDCP_ENVELOPE}=$sEnvelope->{oldEnvelope};
 
@@ -54,6 +54,7 @@ sub copy {
   $self->info("We got the file $file. Let's put it now in the destination");
   $ENV{ALIEN_XRDCP_URL}=$tEnvelope->{turl};
   $ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}=$tEnvelope->{signedEnvelope};
+  $ENV{ALIEN_XRDCP_ENVELOPE}="";
 
   # if we have the old styled envelopes
   (defined($tEnvelope->{oldEnvelope})) and $ENV{ALIEN_XRDCP_ENVELOPE}=$tEnvelope->{oldEnvelope};
