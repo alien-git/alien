@@ -1754,27 +1754,24 @@ sub addFile {
   my $uploadOnly=(shift || 0); 
   my @addResult;
 
-  $self->info("Submitting the file $pfn");
-  if (! -f "$pfn")  {
-    $self->putJobLog("error", "The job didn't create $pfn");
-    return 0; 
-  }
-  $self->putJobLog("trace","Will store $pfn...");
+  (! -f "$pfn") and $self->putJobLog("error", "The job didn't create $pfn") and return 0; 
+  my $size=-s $pfn;
+  $size or $self->putJobLog("error", "The file $pfn has size 0.") and return 0;
+  my $md5 = AliEn::MD5->new($pfn);
 
   my $options = " -feedback ";
   $guid and $options .= " -guid=$guid";
 
-  $self->putJobLog("trace","adding file: add, $options, $lfn, $pfn, $storeTags");
+  $self->putJobLog("trace","adding file: size $size md5 $md5, options: $options, lfn: $lfn, local file: $pfn, storage tags: $storeTags");
 
   my $mydebug = $self->{LOGGER}->getDebugLevel();
   $self->{LOGGER}->debugOn(5);
   $self->{LOGGER}->keepAllMessages();
 
-
   if($uploadOnly) {
-    @addResult=$self->{UI}->execute("add", "-upload", $options, "$lfn", "$pfn", $storeTags);
+    @addResult=$self->{UI}->execute("add", "-upload -size $size -md5 $md5 ", $options, "$lfn", "$pfn", $storeTags);
   } else {
-    @addResult=$self->{UI}->execute("add", $options, "$lfn", "$pfn", $storeTags);
+    @addResult=$self->{UI}->execute("add", " -size $size -md5 $md5 ", $options, "$lfn", "$pfn", $storeTags);
   }
 
   my $success = shift @addResult;
@@ -1786,7 +1783,6 @@ sub addFile {
   $self->{LOGGER}->debugOn($mydebug);
   $self->{LOGGER}->displayMessages();
 
-
   if($success eq 1) {
      $self->putJobLog("trace","Successfully stored the file $lfn.");
   }elsif($success eq -1) {
@@ -1796,7 +1792,6 @@ sub addFile {
      return (0);
   }
   return ($success, @addResult);
-
 }
 
 
