@@ -289,7 +289,12 @@ sub createFile {
   my $self=shift;
   my $options=shift || "";
   $self->debug(2, "In catalogue, createFile");
-  if ($options =~ /k/){
+  if ($options =~ /m/){
+    $self->debug(1, "The guid might be there");
+    if (!$self->{GUID_DB}->increaseReferences($options, @_) ){
+      $self->{GUID_DB}->insertGUID($options, @_) or return;
+    }
+  } elsif ($options =~ /k/){
     $self->debug(4, "The GUID is supposed to be registered");
     $self->{GUID_DB}->increaseReferences($options, @_) or return;
   } else{

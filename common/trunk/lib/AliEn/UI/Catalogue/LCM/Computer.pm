@@ -149,12 +149,16 @@ sub registerOutput{
     my $fullpath=$lfn;
     $fullpath=~ /^\// or $fullpath="$dir/$lfn";
     #my $info={lfn=>$lfn, md5=>$md5, size=>$size,    guid=>$guid};
-    $self->execute("add", "-r", "-size $size", "$fullpath", "-md5", $md5, $pfn, "-silent")
-     and $self->info("File $fullpath registered in the catalogue");
+    if ($self->execute("add", "-r -size $size $fullpath -md5 $md5 $pfn -guid $guid")){
+      $self->info("File $fullpath registered in the catalogue");
+    } else{
+      $self->info("Error doing ' add -r -size $size $fullpath -md5 $md5 $pfn -silent -guid $guid");
+    #  $self->execute("add", "-r -size $size $fullpath -md5 $md5 $pfn -guid $guid");
+    }
     foreach my $link (@links){
       my ($l, $s, $m, $g)=split (/###/, $link);
       $self->info("Doing add -r -size $s $dir/$l -md5 $m guid:///$guid?ZIP=$l");
-      $self->execute("add", "-r", "-size $s", "$dir/$l", "-md5", $m, "guid:///$guid?ZIP=$l", )
+      $self->execute("add", "-r -size $s $dir/$l -md5 $m guid:///$guid?ZIP=$l", )
          and $self->info("File $dir/$l registered in the catalogue");
 
     }
