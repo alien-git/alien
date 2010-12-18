@@ -956,7 +956,7 @@ sub mirror {
 	my $size;
   if ($opt->{g}){
     $guid=$lfn;
-    my ($info)=$self->{CATALOG}->{DATABASE}->{GUID_DB}->checkPermission( 'w', $guid ,'type,size,md5')  or
+    my ($info)=$self->{CATALOG}->checkPermission( 'w', $guid ,'type,size,md5')  or
       $self->info("You don't have permission to do that") and return;
     $realLfn="";
 		$size=$info->{size};
