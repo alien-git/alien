@@ -1052,6 +1052,7 @@ sub  getBaseEnvelopeForMirrorAccess {
   my $self=shift;
   my $user=(shift || return 0);
   my $guid=(shift || return 0);
+  my $lfn=(shift || return "/NOLFN");
   my $envelope={};
 
   AliEn::Util::isValidGUID($guid) or $self->info("Authorize: ERROR! $guid is not a valid GUID.",1) and return 0;
@@ -1059,12 +1060,10 @@ sub  getBaseEnvelopeForMirrorAccess {
       or $self->info("Authorize: access denied for $guid",1) and return 0;
   $envelope->{guid}
       or $self->info("Authorize: ACCESS DENIED: You are not allowed to write on GUID '$guid'.",1) and return 0;
-  $guid = $envelope->{guid};
-  $envelope->{lfn} = $envelope->{guid};
 
   ( defined($envelope->{size}) && ($envelope->{size} gt 0)) or $self->info("Authorize: ACCESS ERROR: You are trying to mirror a zero sized file '$guid'",1) and return 0;
 
-  $envelope->{lfn} = $guid;
+  $envelope->{lfn} = $lfn;
   $envelope->{access} = "write";
   return $self->reduceFileHashAndInitializeEnvelope("write",$envelope);
 }
@@ -1255,8 +1254,6 @@ sub authorize{
   my $user=$self->{CONFIG}->{ROLE};
   $self and $self->{ROLE} and $user=$self->{ROLE};
   #
-  $self->debug(1, "In authorize, with". Dumper($options));
-
 
   ($access =~ /^write[\-a-z]*/) and $access = "write";
   my $writeReq = ( ($access =~ /^write$/) || 0 );
@@ -1298,7 +1295,7 @@ sub authorize{
   $deleteReq and 
      ($prepareEnvelope,$seList) = $self->getBaseEnvelopeForDeleteAccess($user,$lfn);
 
-  $mirrorReq and $prepareEnvelope = $self->getBaseEnvelopeForMirrorAccess($user,$guidRequest);
+  $mirrorReq and $prepareEnvelope = $self->getBaseEnvelopeForMirrorAccess($user,$guidRequest,$lfn);
 
   ($writeReq or $mirrorReq )
        and ($prepareEnvelope, $seList) = $self->getSEsAndCheckQuotaForWriteOrMirrorAccess($user,$prepareEnvelope,$seList,$sitename,$writeQos,$writeQosCount,$excludedAndfailedSEs);
@@ -1310,8 +1307,8 @@ sub authorize{
   ($seList && (scalar(@$seList) gt 0)) or $self->info("Authorize: access: After checkups there's no SE left to make an envelope for.",1) and return 0;
 
   (scalar(@$seList) lt 0) and $self->info("Authorize: Authorize: ERROR! There are no SE's after checkups to create an envelope for '$$prepareEnvelope->{lfn}/$prepareEnvelope->{guid}'",1) and return 0;
-  $self->debug (1, "Base envelope ". Dumper($prepareEnvelope,));
-  while (scalar(@$seList) gt 0) {
+
+   while (scalar(@$seList) gt 0) {
        $prepareEnvelope->{se} = shift(@$seList);
    
        if ($writeReq or $mirrorReq) {
@@ -1336,6 +1333,8 @@ sub authorize{
    	$self->{MONITOR}->sendParameters("$self->{CONFIG}->{SITE}_QUOTA","$self->{ROLE}_$method", ("$signedEnvelope->{se}", $signedEnvelope->{size}) ); 		      
        }
   }  
+
+
   return @returnEnvelopes;
 }
 
@@ -1377,7 +1376,7 @@ sub createAndEncryptEnvelopeTicket {
   my $self=shift;
   my $access=(shift || return);
   my $env=(shift || return);
-  $access eq "write" and $access = "write-once";
+  $access =~ /^(mirror|write)$/ and $access = "write-once";
 
 
   my @envelopeElements= ("lfn","guid","se","turl","md5","size");
