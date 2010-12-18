@@ -59,7 +59,6 @@ sub callAuthen {
     $user = $1;
   }
   $self->{LOGGER}->getDebugLevel() and push @_, "-debug=".$self->{LOGGER}->getDebugLevel();
-  $self->{LOGGER}->getTracelog() and push @_, "-tracelog";
   return $self->{SOAP}->CallAndGetOverSOAP($self->{SILENT},"Authen", "doOperation", $user, $self->{DISPPATH},  @_);
 }
 

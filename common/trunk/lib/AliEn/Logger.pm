@@ -14,7 +14,6 @@ my $self;
 $ERROR_MSG = "";
 $DEBUG_LEVEL=0;
 $ERROR_NO=0;
-my $TRACELOG=0;
 
 my $INFO_LEVELS={debug=>0,info=>1, notice=>2,warning=>3,error=>4,
 		 critical=>5,alert=>6, emergency=>7};
@@ -306,26 +305,6 @@ sub silentOff() {
   $self->setMinimum( $mode );
 }
 
-sub tracelogOn{
-  my $self=shift;
-  $TRACELOG=1;
-  return 1;
-}
-
-sub tracelogOff{
-  my $self=shift;
-  $TRACELOG=0;
-  return 1;
-}
-
-sub getTracelog{
-  my $self=shift;
-  return $TRACELOG;
-}
-
-
-
-
 sub debugOff {
   my $self = shift;
 
@@ -398,8 +377,7 @@ sub emergency() {
 
 sub getMessages {
   my $self=shift;
-  my $dlevel = ($TRACELOG ? "notice" : "info");
-  my $level = (shift || $dlevel);
+  my $level = (shift || "info");
   (($DEBUG_LEVEL) or ($level eq "debug")) and return \@{$self->{MESSAGES}};
 
   $level =~ s/error/(error)/;

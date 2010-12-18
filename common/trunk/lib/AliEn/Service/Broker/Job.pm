@@ -406,9 +406,7 @@ sub invoke {
   my $mydebug=$self->{LOGGER}->getDebugLevel();
   my $params=[];
 
-  (my $tracelog,$params) = AliEn::Util::findAndDropArrayElement("-tracelog", @_);
-  $tracelog and $self->{LOGGER}->tracelogOn();
-  (my $debug,$params) = AliEn::Util::getDebugLevelFromParameters(@$params);
+  (my $debug,my $params) = AliEn::Util::getDebugLevelFromParameters(@_);
   $debug and $self->{LOGGER}->debugOn($debug);
   $self->{LOGGER}->keepAllMessages();
 #  $op = "$self->{TASK_DB}->".$op;
@@ -417,7 +415,6 @@ sub invoke {
   my @loglist = @{$self->{LOGGER}->getMessages()};
 
   $debug and $self->{LOGGER}->debugOn($mydebug);
-  $self->{LOGGER}->tracelogOff();
   $self->{LOGGER}->displayMessages();
   $self->info("$$ invoke DONE with OP: $op (and @_)");#, rc = $rc");
   $self->info("$$ invoke result: @info".scalar(@info));

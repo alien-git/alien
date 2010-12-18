@@ -33,7 +33,6 @@ sub callBroker {
   my $self = shift;
 
   $self->{LOGGER}->getDebugLevel() and push @_, "-debug=".$self->{LOGGER}->getDebugLevel();
-  $self->{LOGGER}->getTracelog() and push @_, "-tracelog";
   return $self->{SOAP}->CallAndGetOverSOAP("Broker/Job", "invoke", @_);
 }
 

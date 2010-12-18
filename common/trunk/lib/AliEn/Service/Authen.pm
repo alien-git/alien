@@ -118,9 +118,7 @@ sub doOperation {
   my $mydebug=$self->{LOGGER}->getDebugLevel();
   my $params=[];
 
-  (my $tracelog,$params) = AliEn::Util::findAndDropArrayElement("-tracelog", @_);
-  $tracelog and $self->{LOGGER}->tracelogOn();
-  (my $debug,$params) = AliEn::Util::getDebugLevelFromParameters(@$params);
+  (my $debug,my $params) = AliEn::Util::getDebugLevelFromParameters(@_);
   $debug and $self->{LOGGER}->debugOn($debug);
    @_ = @{$params};
   $self->{LOGGER}->keepAllMessages();
@@ -134,7 +132,6 @@ sub doOperation {
   my @loglist = @{$self->{LOGGER}->getMessages()};
 
   $debug and $self->{LOGGER}->debugOn($mydebug);
-  $self->{LOGGER}->tracelogOff();
   $self->{LOGGER}->displayMessages();
   $self->info("$$ doOperation DONE for user $user (and @_) result: @info".scalar(@info));
     
