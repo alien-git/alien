@@ -406,7 +406,7 @@ sub invoke {
   my $mydebug=$self->{LOGGER}->getDebugLevel();
   my $params=[];
 
-  (my $debug,my $params) = AliEn::Util::getDebugLevelFromParameters(@_);
+  (my $debug,$params) = AliEn::Util::getDebugLevelFromParameters(@_);
   $debug and $self->{LOGGER}->debugOn($debug);
   $self->{LOGGER}->keepAllMessages();
 #  $op = "$self->{TASK_DB}->".$op;

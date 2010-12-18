@@ -118,7 +118,7 @@ sub doOperation {
   my $mydebug=$self->{LOGGER}->getDebugLevel();
   my $params=[];
 
-  (my $debug,my $params) = AliEn::Util::getDebugLevelFromParameters(@_);
+  (my $debug, $params) = AliEn::Util::getDebugLevelFromParameters(@_);
   $debug and $self->{LOGGER}->debugOn($debug);
    @_ = @{$params};
   $self->{LOGGER}->keepAllMessages();
