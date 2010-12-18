@@ -455,7 +455,7 @@ sub transferFile {
   #($ok, my $size)=$ca->evaluateAttributeInt("Size");
   $self->info("And the second envelope ( $user, mirror, $sourceEnvelope->{guid}, $target, $sourceEnvelope->{size}, 0");
 #  $info=$self->{SOAP}->CallSOAP("Authen", "doOperation", "authorize", $user, "mirror", $guid, $target, $size, 0, $guid);
-  my @targetEnvelopes = AliEn::Util::deserializeSignedEnvelopes($self->{CATALOG}->authorize("mirror", {guidRequest=>$sourceEnvelope->{guid},wishedSE=>$target,site=>$self->{CONFIG}->{SITE}}));
+  my @targetEnvelopes = AliEn::Util::deserializeSignedEnvelopes($self->{CATALOG}->authorize("mirror", {lfn=>$lfn,guidRequest=>$sourceEnvelope->{guid},wishedSE=>$target,site=>$self->{CONFIG}->{SITE}}));
   my $targetEnvelope = shift @targetEnvelopes;
   $targetEnvelope or $self->info("Error getting the envelope to mirror to the target") and return; 
 
