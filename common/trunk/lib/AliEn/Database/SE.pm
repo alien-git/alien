@@ -32,7 +32,7 @@ sub preConnect {
 sub initialize{
   my $self=shift;
 
-  return $self->checkTable("SE_VOLUMES", "volume", {volumeId=>"int(11) NOT NULL auto_increment PRIMARY KEY",
+  return $self->checkTable("SE_VOLUMES", "volumeId", {volumeId=>"int(11) NOT NULL auto_increment PRIMARY KEY",
 						    seName=>"char(255) collate latin1_general_ci NOT NULL",
 						 volume=>"char(255) NOT NULL",
 						 mountpoint=>"char(255)",
@@ -40,7 +40,7 @@ sub initialize{
 						 freespace=>"bigint",
 						 size=>"bigint",
 						 method=>"char(255)",}, 
-			   "volumeId", ['UNIQUE INDEX (volume)', 'INDEX(seName)']);
+			   "volumeId", ['INDEX (volume)', 'INDEX(seName)']);
 }
 
 
