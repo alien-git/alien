@@ -746,8 +746,8 @@ sub removeDirectory {
         undef, {bind_values=>[$tmpPath]})||0);
     $size += ($db2->queryValue("SELECT SUM(l.".$db2->reservedWord("size").") FROM L$db->{tableName}L l WHERE l.lfn LIKE concat(?,'%') AND l.type='f'",
         undef, {bind_values=>[$tmpPath]})||0);
-    $db2->do("INSERT INTO LFN_BOOKED(lfn, owner, expiretime, ".$db2->reservedWord("size").", guid, gowner, ".$db2->reservedWord("user").", pfn)
-      SELECT l.lfn, l.owner, -1, l.".$db2->reservedWord("size").", l.guid, l.gowner, ?,'*' FROM L$db->{tableName}L l WHERE l.type='f' AND l.lfn LIKE concat(?,'%')",
+    $db2->do("INSERT IGNORE INTO LFN_BOOKED(lfn, owner, expiretime, ".$db2->reservedWord("size").", guid, gowner, ".$db2->reservedWord("user").", pfn)
+      SELECT concat('$db->{lfn}' , l.lfn), l.owner, -1, l.".$db2->reservedWord("size").", l.guid, l.gowner, ?,'*' FROM L$db->{tableName}L l WHERE l.type='f' AND l.lfn LIKE concat(?,'%')",
       {bind_values=>[$user,$tmpPath]})
       or $self->{LOGGER}->error("Database::Catalogue::LFN","ERROR: Could not add entries $tmpPath to LFN_BOOKED")
       and return;

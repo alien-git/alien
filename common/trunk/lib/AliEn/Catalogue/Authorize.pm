@@ -926,7 +926,7 @@ sub getSEforPFN{
   my $self=shift;
   my $pfn=(shift || return);
 
-  $pfn =~ /^guid:/ and return "no_se";
+  $pfn =~ /^((guid)|(soap)):/ and return "no_se";
   $pfn = $self->parsePFN($pfn);
   $pfn or return 0;
   my @queryValues = ("$pfn->{proto}://$pfn->{host}");
@@ -1116,7 +1116,7 @@ sub registerPFNInCatalogue{
   $se or $se=$self->getSEforPFN($pfn);
   $se or $self->info("Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $pfn could not be registered. The PFN doesn't correspond to any known SE.",1) and return 0;
  
-  $self->f_registerFile( "-f", $envelope->{lfn}, $envelope->{size},
+  $self->f_registerFile( "-fm", $envelope->{lfn}, $envelope->{size},
     $se, $envelope->{guid}, undef,undef, $envelope->{md5},
     $pfn) 
     or $self->info("Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $pfn could not be registered.",1) and return 0;
@@ -1275,6 +1275,7 @@ sub authorize{
   my $size    = (($options->{size} and int($options->{size})) || 0);
   my $md5 = ($options->{md5} || 0);
   my $guidRequest = ($options->{guidRequest} || 0);
+  $options->{guid} and $guidRequest=$options->{guid};
   my $sitename= ($options->{site} || 0);
   my $writeQos = ($options->{writeQos} || 0);
   my $writeQosCount = (($options->{writeQosCount} and int($options->{writeQosCount})) || 0);
