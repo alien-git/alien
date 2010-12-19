@@ -219,7 +219,6 @@ sub CallAndGetOverSOAP{
   my $function = shift;
   my $callsoap;
   
-
   my $maxTry = 2;
   my $tries;
   for ($tries = 0; $tries < $maxTry; $tries++) { # try five times 
@@ -236,7 +235,7 @@ sub CallAndGetOverSOAP{
   if (defined($rcvals->{rcmessages})) {
    map {defined $_ or $_=""} @{$rcvals->{rcmessages}};
     $silent 
-      or $self->info(join ("", @{$rcvals->{rcmessages}}),undef,0);
+      or $self->raw(join ("", @{$rcvals->{rcmessages}}),undef,0);
   }
  
   defined($rcvals->{rcvalues}) and 
