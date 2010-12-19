@@ -429,11 +429,132 @@ sub OLDcheckPermissionsOnLFN {
   return $filehash;
 }
 
+sub access {
+   my $self=shift;
+   #
+   # Start of the Server/Authen side code
+   $self->info("Authorize: STARTING envelope creation: @_ ");
+   my $options = shift;
+   my $maybeoption = ( shift or 0 );
+   my $access;
+   if ( $maybeoption =~ /^-/ ) {
+     $options .= $maybeoption;
+     $access = (shift or 0),
+   } else {
+     $access = ( $maybeoption or 0);
+   }
+   my $lfn    = (shift || 0);
+   my $se      = (shift || "");
+   my $size    = (shift || 0 );
+   my $sesel   = (shift || 0);
+   my @accessOptions = @_;
+   my $extguid = (shift || 0);
+   my $user=$self->{CONFIG}->{ROLE};
+   $self->{ROLE} and $user=$self->{ROLE};
+ 
+   my @ses = ();
+   my @tempSE= split(/;/, $se);
+   foreach (@tempSE) { AliEn::Util::isValidSEName($_) and push @ses, $_; }
+ 
+   my @exxSEs = ();
+   @tempSE= split(/;/, $sesel);
+   foreach (@tempSE) { AliEn::Util::isValidSEName($_) and push @exxSEs, $_; }
+   ($sesel =~ /^[0-9]+$/) or $sesel = 0;
+ 
+   my $sitename= (shift || 0);
+   ($sitename eq "") and $sitename=0;
+   my $writeQos = (shift || 0);
+   ($writeQos eq "") and $writeQos=0;
+   my $writeQosCount = (shift || 0);
+
+   my @envelopes = ();
+my $nSEs = 0; 
+ 
+  if($access eq "read" ) {
+ 
+     if ($sesel gt 0 ) {
+    
+        my $guidorNot = "";
+        if(AliEn::Util::isValidGUID($lfn)) { $guidorNot = "g"; }
+       
+        my @where=$self->f_whereis("s".$guidorNot."ztr","$lfn");
+       
+        if (! @where){
+           $self->info("Authorize: There were no transfer methods....");
+           @where=$self->f_whereis("s".$guidorNot."zr","$lfn");
+        } 
+        $nSEs = scalar(@where);
+        @ses = ("$where[$sesel]"); 
+     } 
+    
+     @envelopes = AliEn::Util::deserializeSignedEnvelopes($self->authorize("read",{lfn=>$lfn,
+          wishedSE=>join(";",@ses),excludeSE=>join(";",@exxSEs) ,site=>$self->{CONFIG}->{SITE}}));
+    
+    
+ 
+  } elsif ($access =~ /^write/ ) {
+ 
+    if ( (scalar(@ses) eq 0) and ($sitename ne 0) and ( ($writeQos eq 0) or ($writeQosCount eq 0) ) and $self->{CONFIG}->{SEDEFAULT_QOSAND_COUNT} ) {
+      my ($repltag, $copies)=split (/\=/, $self->{CONFIG}->{SEDEFAULT_QOSAND_COUNT},2);
+      $writeQos = $repltag;
+      $writeQosCount = $copies;
+    }
+    ($size > 0) or $size = 1024*1024;
+
+
+    if(scalar(@ses) gt 0 ) {
+
+      my @envelopes = AliEn::Util::deserializeSignedEnvelopes($self->authorize("write", {lfn=>$lfn, 
+     wishedSE=>join(";", @ses), size=>$size, md5=>0, guidRequest=>$extguid}));
+
+    } else {
+ 
+      $self->info("gron: access: $access, lfn: $lfn, size: $size, guid: $extguid, site: $sitename, qos: $writeQos, count: $writeQosCount, exlcude: @exxSEs");
+      @envelopes= AliEn::Util::deserializeSignedEnvelopes($self->authorize("write", {lfn=>$lfn, 
+        size=> $size, md5=>0,  guidRequest=>$extguid, site=>$sitename, 
+           writeQos=>$writeQos, writeQosCount=>$writeQosCount, excludeSE=>join(";", @exxSEs)}));
+    }
+
+    $nSEs = scalar(@envelopes);
+ 
+  }
+    #  return $self->{CATALOG}->authorize("register", {lfn=>$targetLFN, 
+    #           pfn=>$sourcePFN, size=>$size, md5=>$md5sum, guid=>$guid });
+    
+    #   @successEnvelopes = $self->{CATALOG}->authorize("registerenvs", @{$result->{usedEnvelopes}});
+   
+  my @returnEnvelopes = ();
+
+  foreach my $env (@envelopes) { 
+    my $renv = {};
+    my $xtrdcpenvelope = 0;
+    foreach my $key (keys(%$env)) { 
+      ($key eq "turl") and  $renv->{url}=$env->{turl} and next;
+      ($key eq "oldEnvelope") and  $xtrdcpenvelope=$env->{oldEnvelope} and next;
+      $xtrdcpenvelope ||  (($key eq "signedEnvelope") and  $xtrdcpenvelope=$env->{signedEnvelope} and next);
+      $renv->{$key}=$env->{$key};
+    }
+    $renv->{envelope} = $xtrdcpenvelope;
+    my @pfn = split(/\/\//, $renv->{url},3);
+    $renv->{pfn} = "/".$pfn[2];
+    $renv->{nSEs} = $nSEs;
+    push @returnEnvelopes, $renv;  
+  }
+
+  return @returnEnvelopes;
+
+}
+
+
+
+
+
+
 #################################################################
 # Create envelope, only for backward compability on < v2.19
 # replaced by authorize/consultAuthenService below
 ################################################################
-sub access {
+sub OLDaccess {
     # access <access> <lfn> 
     # -p create public url in case of read access 
   my $self = shift;
@@ -1103,6 +1224,9 @@ sub registerPFNInCatalogue{
   my $envelope=(shift || return 0);
   my $pfn=(shift || return 0);
   my $se=(shift || 0);
+  my $perm=shift;
+ 
+  $perm or $perm = undef;
 
   $envelope->{lfn} or $self->info("Authorize: The access to registering a PFN with LFN $envelope->{lfn} could not be granted.",1) and return 0;
   $envelope->{size} and ( $envelope->{size} gt 0 ) or $self->info("Authorize: File has zero size and will not be allowed to registered",1) and return 0;
@@ -1117,7 +1241,7 @@ sub registerPFNInCatalogue{
   $se or $self->info("Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $pfn could not be registered. The PFN doesn't correspond to any known SE.",1) and return 0;
  
   $self->f_registerFile( "-fm", $envelope->{lfn}, $envelope->{size},
-    $se, $envelope->{guid}, undef,undef, $envelope->{md5},
+    $se, $envelope->{guid}, $perm,undef, $envelope->{md5},
     $pfn) 
     or $self->info("Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $pfn could not be registered.",1) and return 0;
   $self->info( "File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $pfn was successfully registered.") and return 1;
@@ -1281,6 +1405,8 @@ sub authorize{
   my $writeQosCount = (($options->{writeQosCount} and int($options->{writeQosCount})) || 0);
   my $excludedAndfailedSEs = $self->validateArrayOfSEs(split(/;/, ($options->{excludeSE} || "" )));
   my $pfn = ($options->{pfn} || "");
+  my $perm = ($options->{perm} || 0);
+
 
   my $seList = $self->validateArrayOfSEs(split(/;/, $wishedSE));
 
@@ -1290,7 +1416,7 @@ sub authorize{
 
   if ($writeReq or $registerReq) {
     $prepareEnvelope = $self->getBaseEnvelopeForWriteAccess($user,$lfn,$size,$md5,$guidRequest);
-    $registerReq and return $self->registerPFNInCatalogue($user,$prepareEnvelope,$pfn,$wishedSE);
+    $registerReq and return $self->registerPFNInCatalogue($user,$prepareEnvelope,$pfn,$wishedSE,$perm);
 
   } 
   $deleteReq and 
