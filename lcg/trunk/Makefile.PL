@@ -6,7 +6,7 @@ WriteMakefile(
     'NAME'		=> 'AliEn::LCG',
     'VERSION_FROM'	=> 'lib/AliEn/LCG.pm', # finds $VERSION
     'PREREQ_PM'		=> {}, # e.g., Module::Name => 1.1
-    'INSTALLSCRIPT'     => "$Config{prefix}/scripts/lcg",
+    'INSTALLSITESCRIPT'     => "$Config{prefix}/scripts/lcg",
     'INST_SCRIPT'       => "$Config{prefix}/scripts/lcg",
     'EXE_FILES'         => ['scripts/lcgAlien.sh', 'scripts/failoverSubmit.pl', 'scripts/checkJAStatus.pl'],
     'PERL'              =>"$Config{prefix}/bin/alien-perl",
