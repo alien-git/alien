@@ -5,8 +5,16 @@ use Test;
 use AliEn::Service::FTD;
 use AliEn::X509;
 use AliEn::UI::Catalogue;
-BEGIN { plan tests => 1 }
 
+$ENV{SEALED_ENVELOPE_REMOTE_PUBLIC_KEY}="$ENV{ALIEN_HOME}/authen/rpub.pem";
+$ENV{SEALED_ENVELOPE_REMOTE_PRIVATE_KEY}="$ENV{ALIEN_HOME}/authen/rpriv.pem";
+$ENV{SEALED_ENVELOPE_LOCAL_PUBLIC_KEY}="$ENV{ALIEN_HOME}/authen/lpub.pem";
+$ENV{SEALED_ENVELOPE_LOCAL_PRIVATE_KEY}="$ENV{ALIEN_HOME}/authen/lpriv.pem";
+$ENV{ALIEN_DATABASE_ROLE}='admin';
+$ENV{ALIEN_DATABASE_PASSWORD}='pass';
+
+
+BEGIN { plan tests => 1 }
 {
   eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
   includeTest("user_basic/021-se") or exit(-2);
