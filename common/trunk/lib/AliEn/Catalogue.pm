@@ -923,7 +923,7 @@ sub f_print {
     }
     $self->{SILENT}
       or ( $opt =~ /s/ )
-      or $self->info(sprintf ("%s   %-8s %-8s %12s %s%12s%s      %-10s %-20s\n", $permstring,
+      or $self->raw(sprintf ("%s   %-8s %-8s %12s %s%12s%s      %-10s %-20s\n", $permstring,
       $user, $group, $size, $date, $textcolour, $name, $textneutral, $expire), undef, 0);
     if ( $opt =~ /z/ ) {
       my $rethash = {};
@@ -944,7 +944,7 @@ sub f_print {
       $md5 = "00000000000000000000000000000000";
     }
     if (! $self->{SILENT} and $opt !~ /s/ ) {
-      $self->info(sprintf( "%s   %s\n", $md5, $path . $name), undef, 0);
+      $self->raw(sprintf( "%s   %s\n", $md5, $path . $name), undef, 0);
     }
     if ( $opt =~ /z/ ) {
       my $rethash = {};
@@ -970,11 +970,11 @@ sub f_print {
         $pguid = "           -- undef --             ";
       }
       $rguid = $pguid;
-      $self->{SILENT} or $self->info(sprintf( "%36s   %s\n", $pguid, $path), undef, 0);
+      $self->{SILENT} or $self->raw(sprintf( "%36s   %s\n", $pguid, $path), undef, 0);
     } else {
       $pguid = "------------------------------------";
       $rguid = "";
-      $self->{SILENT} or $self->info(sprintf( "%36s   %s\n", $pguid, $path),undef, 0);
+      $self->{SILENT} or $self->raw(sprintf( "%36s   %s\n", $pguid, $path),undef, 0);
     }
     if ( $opt =~ /z/ ) {
       my $rethash = {};
@@ -984,7 +984,7 @@ sub f_print {
     }
     return "$rguid###$path";
   }
-  $self->{SILENT} or ( $opt =~ /s/ ) or $self->info(sprintf( "%s%s\n", $name, $t),undef, 0);
+  $self->{SILENT} or ( $opt =~ /s/ ) or $self->raw(sprintf( "%s%s\n", $name, $t),undef, 0);
   if ( $opt =~ /z/ ) {
     my $rethash = {};
     $rethash->{path} = $path;
@@ -2052,7 +2052,7 @@ sub f_df {
   }
 
   my $service="SE";
-  $self->info("Storagename             1k-blocks         Used(KB)  Available Use\%    \#Files Type  min_size\n",undef,0);
+  $self->info("Storagename             1k-blocks         Used(KB)  Available Use\%    \#Files Type  min_size",undef,0);
   my ($response)= $self->{DATABASE}->getDF($se, @_);
    
   $self->debug(1, "Got $response");
@@ -2063,7 +2063,7 @@ sub f_df {
       =($line->{seName}, $line->{size},$line->{usedspace},$line->{freespace},$line->{used},$line->{seNumFiles},$line->{seType}, $line->{seMinSize});
     push(@results, $details);
     ( $line eq "-1") and next;
-    my $buffer  = sprintf  "%-19s %+12s %+12s %+12s %+3s%% %+9s %-10s %s\n",$line->{seName}||"", $line->{size}||0,$line->{usedspace}||0,$line->{freespace}||0,$line->{used}||0,$line->{seNumFiles}||0,$line->{seType}||"", $line->{seMinSize}||0;
+    my $buffer  = sprintf  "%-19s %+12s %+12s %+12s %+3s%% %+9s %-10s %s",$line->{seName}||"", $line->{size}||0,$line->{usedspace}||0,$line->{freespace}||0,$line->{used}||0,$line->{seNumFiles}||0,$line->{seType}||"", $line->{seMinSize}||0;
     $self->info($buffer,0,0);
   }
 #  }

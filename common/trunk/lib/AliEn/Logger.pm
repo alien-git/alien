@@ -16,7 +16,7 @@ $DEBUG_LEVEL=0;
 $ERROR_NO=0;
 
 my $INFO_LEVELS={debug=>0,info=>1, notice=>2,warning=>3,error=>4,
-		 critical=>5,alert=>6, emergency=>7};
+		 critical=>5,alert=>6, emergency=>7,raw=>8};
 sub new {
   my $proto = shift;
   ($self) and return $self;
@@ -51,7 +51,10 @@ sub new {
 sub _initializeAgent{
   my $proto=shift;
   $self=shift;
-  require Log::Agent;
+  use Log::Agent;
+  require AliEn::Logger::LogAgentDriverAliEn; 
+  logconfig(-driver => AliEn::Logger::LogAgentDriverAliEn->make());  # simplest, uses default driver bless($self, (ref($proto) || $proto));
+
   bless($self, (ref($proto) || $proto));
   return 1;
 }
@@ -66,7 +69,8 @@ sub _initializeDispatch{
   require AliEn::Logger::Local;
   require AliEn::Logger::Error;
   @ISA=qw(Log::Dispatch);
-  $self = $proto->SUPER::new;
+  $self = $proto->SUPER::new();
+
   foreach (keys %$options){
     $self->{$_}=$options->{$_};
   }
@@ -321,6 +325,12 @@ sub debugOff {
 
   $self->setMinimum( "info");
 }
+sub raw() {
+  my $self=shift;
+  $self->display("raw", @_);
+  return 1;
+}
+
 sub debug() {
   my $self=shift;
   $self->display("debug", @_);
@@ -422,9 +432,14 @@ sub display {
   }
   if ($self->{logagent}){
     $msg=~ s{\%}{\%\%}g;
-    Log::Agent::logsay(  $msg);
-    ($INFO_LEVELS->{$level}>$INFO_LEVELS->{notice})
-      and Log::Agent::logwarn($msg);
+    if ($INFO_LEVELS->{$level} eq $INFO_LEVELS->{raw}) {
+      Log::Agent::logwrite('raw', 'notice',$msg);
+    } elsif ($INFO_LEVELS->{$level}>$INFO_LEVELS->{notice}){
+      Log::Agent::logerr($msg);
+#      and Log::Agent::logwarn($msg);
+    } else {
+      Log::Agent::logsay(  $msg);
+    }
   }else {
 
     my $d="SUPER::$level";

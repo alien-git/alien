@@ -29,6 +29,13 @@ sub debug{
   return $self->{LOGGER}->display("debug", $self->{LOG_REF},"$level $self->{LOG_REF} -> $message", @_);
 }
 
+sub raw{
+  my $self=shift;
+
+  ($self->{LOGGER}->{LEVEL}>1 and $#_<1) and return 1;
+  return $self->{LOGGER}->display("raw", $self->{LOG_REF},@_);
+}
+
 sub info{
   my $self=shift;
 
