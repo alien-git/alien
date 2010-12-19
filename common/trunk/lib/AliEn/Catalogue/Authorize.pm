@@ -1224,9 +1224,6 @@ sub registerPFNInCatalogue{
   my $envelope=(shift || return 0);
   my $pfn=(shift || return 0);
   my $se=(shift || 0);
-  my $perm=shift;
- 
-  $perm or $perm = undef;
 
   $envelope->{lfn} or $self->info("Authorize: The access to registering a PFN with LFN $envelope->{lfn} could not be granted.",1) and return 0;
   $envelope->{size} and ( $envelope->{size} gt 0 ) or $self->info("Authorize: File has zero size and will not be allowed to registered",1) and return 0;
@@ -1241,7 +1238,7 @@ sub registerPFNInCatalogue{
   $se or $self->info("Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $pfn could not be registered. The PFN doesn't correspond to any known SE.",1) and return 0;
  
   $self->f_registerFile( "-fm", $envelope->{lfn}, $envelope->{size},
-    $se, $envelope->{guid}, $perm,undef, $envelope->{md5},
+    $se, $envelope->{guid}, undef ,undef, $envelope->{md5},
     $pfn) 
     or $self->info("Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $pfn could not be registered.",1) and return 0;
   $self->info( "File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $pfn was successfully registered.") and return 1;
@@ -1299,6 +1296,104 @@ sub registerFileInCatalogueAccordingToEnvelopes{
 }
 
 
+
+sub commitRegistrationFromAPIServices{
+  my $self = shift;
+  my $user = (shift || return );
+  my $RAWenvelope     = (shift or "0");
+  my $lfn          = (shift or 0);
+  my $pfn          = (shift or 0);
+  my $se           = (shift or 0);
+  my $guid         = (shift or 0);
+  my $size         = (shift or "0");
+  my $md5          = (shift or 0);
+
+  my $newresult = [];
+  my $newhash = {};
+  $newhash->{lfn}  = $lfn;
+  push @$newresult,$newhash;
+
+
+  if(grep(/signature=/, $RAWenvelope)) {
+
+     my @successEnvelopes = $self->{CATALOG}->authorize("registerenvs", ("$RAWenvelope") );
+     $$newresult[0]->{$lfn} = 0;
+     if(scalar(@successEnvelopes == 1)) {
+        $$newresult[0]->{$lfn} = 1;
+     }
+     return $newresult;
+
+  } else {
+
+     $$newresult[0]->{$lfn} = 0;
+
+     $self->{envelopeCipherEngine}->Reset();
+     #    $self->{envelopeCipherEngine}->Verbose();
+     $self->{envelopeCipherEngine}->IsInitialized();
+     print STDERR "Decoding Envelope: \n $RAWenvelope \n";
+   
+       my $coded = $self->{envelopeCipherEngine}->decodeEnvelopePerl($RAWenvelope);
+     if (!$coded) {
+         $self->info("commit: error during envelope decryption");
+         return;
+     } else {
+         my $authz = $self->{envelopeCipherEngine}->GetDecodedEnvelope();
+         my $xsimple = XML::Simple->new();
+         my $XMLauthz = $xsimple->XMLin($authz,
+   					  KeyAttr => {lfn=> 'name'},
+   					  ForceArray => [ 'file' ],
+   					  ContentKey => '-content');
+         foreach my $envelope (@{$XMLauthz->{file}}) {
+             $lfn and ($lfn eq "$envelope->{lfn}") or next;
+             ($envelope->{access} =~ /^write[\-a-z]*/) or next;
+
+             $size and $envelope->{size} = $size ;
+             $pfn and $envelope->{turl} = $pfn ;
+             $md5 and $envelope->{md5} = $md5 ;
+             $se and $envelope->{se} = $se ;
+             $guid and $envelope->{guid} = $guid ;
+             $size and $envelope->{size} = $size ;
+ 
+             my $justRegistered=0;
+             $envelope = $self->ValidateRegistrationEnvelopesWithBookingTable($user,$envelope);
+             $envelope 
+                    or $self->info("Authorize: An envelope could not be validated based on pretaken booking.",1) 
+                    and next; 
+            
+            if(!$envelope->{existing}) {
+              $self->f_registerFile( "-f", $envelope->{lfn}, $envelope->{size},
+                       $envelope->{se}, $envelope->{guid}, undef,undef, $envelope->{md5}, 
+                        $envelope->{turl}) and $justRegistered=1 
+               or $self->info("Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $envelope->{turl} could not be registered.",1)
+               and next;
+             } else {
+                $self->f_addMirror( $envelope->{lfn}, $envelope->{se}, $envelope->{turl}, "-c","-md5=".$envelope->{md5})
+                  or $self->info("Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $envelope->{turl} could not be registered as a replica.",1)
+                and next;
+             }
+             $self->deleteEntryFromBookingTableAndOptionalExistingFlagTrigger($user, $envelope, $justRegistered) 
+                    or $self->info("Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $envelope->{turl} could not be registered properly as a replica (LFN_BOOKED error).",1)
+                    and next;
+
+             $$newresult[0]->{$lfn} = 1;
+           
+             # send write-commit info
+             if ($self->{MONITOR}) {
+               my @params;
+               push @params,"$se";
+               push @params,"$size";
+               $self->{MONITOR}->sendParameters("$self->{CONFIG}->{SITE}_QUOTA","$self->{CATALOG}->{ROLE}_written", @params);
+             }
+         }
+     }
+     return $newresult;
+   }
+}
+
+
+
+
+
 sub ValidateRegistrationEnvelopesWithBookingTable{
   my $self=shift;
   my $user=(shift || return 0);
@@ -1306,7 +1401,7 @@ sub ValidateRegistrationEnvelopesWithBookingTable{
   my @verifiedEnvelopes= ();
 
   my $reply = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow(
-      "SELECT lfn,binary2string(guid) as guid,existing FROM LFN_BOOKED WHERE guid=string2binary(?) and pfn=? and se=? and size=? and md5sum=? and owner=? and gowner=? ;"
+      "SELECT lfn,binary2string(guid) as guid,existing FROM LFN_BOOKED WHERE guid=string2binary(?) and pfn=? and se=? and and owner=? and gowner=? ;"
       , undef, {bind_values=>[$envelope->{guid},$envelope->{turl},$envelope->{se},$envelope->{size},$envelope->{md5},$user,$user]});
 
   lc $envelope->{guid} eq lc $reply->{guid} or return 0;
@@ -1347,7 +1442,7 @@ sub addEntryToBookingTableAndOptionalExistingFlagTrigger{
   my $lifetime= time() + 60;
 
   return $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do(
-    "INSERT INTO LFN_BOOKED (lfn, owner, quotaCalculated, md5sum, expiretime, size, pfn, se, gowner, guid, existing) VALUES (?,?,?,?,?,?,?,?,?,string2binary(?),?);"
+    "INSERT IGNORE INTO LFN_BOOKED (lfn, owner, quotaCalculated, md5sum, expiretime, size, pfn, se, gowner, guid, existing) VALUES (?,?,?,?,?,?,?,?,?,string2binary(?),?);"
     ,{bind_values=>[$envelope->{lfn},$user, "1" ,$envelope->{md5},$lifetime,$envelope->{size},$envelope->{turl},$envelope->{se},$user,$envelope->{guid},$trigger]});
 }
 
@@ -1405,7 +1500,11 @@ sub authorize{
   my $writeQosCount = (($options->{writeQosCount} and int($options->{writeQosCount})) || 0);
   my $excludedAndfailedSEs = $self->validateArrayOfSEs(split(/;/, ($options->{excludeSE} || "" )));
   my $pfn = ($options->{pfn} || "");
-  my $perm = ($options->{perm} || 0);
+  my $envelope = ($options->{envelope} || 0);
+
+  if ($access =~/^commit/){
+    return $self->commitRegistrationFromAPIServices($user,$envelope,$lfn,$pfn,$wishedSE,$guidRequest,$size,$md5);
+  }
 
 
   my $seList = $self->validateArrayOfSEs(split(/;/, $wishedSE));
@@ -1416,7 +1515,7 @@ sub authorize{
 
   if ($writeReq or $registerReq) {
     $prepareEnvelope = $self->getBaseEnvelopeForWriteAccess($user,$lfn,$size,$md5,$guidRequest);
-    $registerReq and return $self->registerPFNInCatalogue($user,$prepareEnvelope,$pfn,$wishedSE,$perm);
+    $registerReq and return $self->registerPFNInCatalogue($user,$prepareEnvelope,$pfn,$wishedSE);
 
   } 
   $deleteReq and 
