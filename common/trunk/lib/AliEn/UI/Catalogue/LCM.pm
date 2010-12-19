@@ -1237,59 +1237,76 @@ sub commit {
 
   push @$newresult,$newhash;
 
-  $self->{envelopeCipherEngine}->Reset();
-#    $self->{envelopeCipherEngine}->Verbose();
-  $self->{envelopeCipherEngine}->IsInitialized();
-  print STDERR "Decoding Envelope: \n $envelope \n";
+  if(grep(/signature=/, $envelope)) {
 
-    my $coded = $self->{envelopeCipherEngine}->decodeEnvelopePerl($envelope);
-  if (!$coded) {
-      $self->info("commit: error during envelope decryption");
-      return;
+     my @successEnvelopes = $self->{CATALOG}->authorize("registerenvs", ("$envelope") );
+     $$newresult[0]->{$lfn} = 0;
+     if(scalar(@successEnvelopes == 1)) {
+        $$newresult[0]->{$lfn} = 1;
+     }
+     return $newresult;
+
   } else {
-      $$newresult[0]->{authz} = $self->{envelopeCipherEngine}->GetDecodedEnvelope();
-      my $xsimple = XML::Simple->new();
-      $self->{XMLauthz} = $xsimple->XMLin($$newresult[0]->{authz},
-					  KeyAttr => {lfn=> 'name'},
-					  ForceArray => [ 'file' ],
-					  ContentKey => '-content');
-      foreach (@{$self->{XMLauthz}->{file}}) {
-	  if ( ($lfn eq "$_->{lfn}") or (!$lfn)) {
-	      if ($size eq "0") {
-		  $size = $_->{size};
-	      } 
-	      if (!$lfn) {
-		  $lfn = $_->{lfn};
-	      }
-	      if (!$CatRegPFN) {
-	        #	  $CatRegPFN = $_->{CatRegPFN};
-                $CatRegPFN = ($_->{turl} or "");
-	      }
-             
-	      if (!$se) {
-		  $se = $_->{se};
-	      }
-	      if (!$guid) {
-		  $guid = $_->{guid};
-	      }
-	      if ($_->{access} =~ /^write[\-a-z]*/) {
-		  $$newresult[0]->{$lfn} = 0;
-		  $self->debug("commit: Registering file lfn=$lfn CatRegPFN=$CatRegPFN size=$size se=$se guid=$guid md5=$md5");
-		  my $result = $self->f_registerFile("-md5=$md5",$lfn,$CatRegPFN, $size , $se, $guid, $perm);
-		  if (!$result) {
-		      $self->info("commit: Cannot register file lfn=$lfn CatRegPFN=$CatRegPFN size=$size se=$se guid=$guid md5=$md5");
-		  }
-		  $$newresult[0]->{$lfn} = 1;
-		  # send write-commit info
-		  if ($self->{MONITOR}) {
-		      my @params;
-		      push @params,"$se";
-		      push @params,"$size";
-		      $self->{MONITOR}->sendParameters("$self->{CONFIG}->{SITE}_QUOTA","$self->{CATALOG}->{ROLE}_written", @params);
-		  }
-	      }
-	  }
-      }
+   
+     $self->{envelopeCipherEngine}->Reset();
+     #    $self->{envelopeCipherEngine}->Verbose();
+     $self->{envelopeCipherEngine}->IsInitialized();
+     print STDERR "Decoding Envelope: \n $envelope \n";
+   
+       my $coded = $self->{envelopeCipherEngine}->decodeEnvelopePerl($envelope);
+     if (!$coded) {
+         $self->info("commit: error during envelope decryption");
+         return;
+     } else {
+         $$newresult[0]->{authz} = $self->{envelopeCipherEngine}->GetDecodedEnvelope();
+         my $xsimple = XML::Simple->new();
+         $self->{XMLauthz} = $xsimple->XMLin($$newresult[0]->{authz},
+   					  KeyAttr => {lfn=> 'name'},
+   					  ForceArray => [ 'file' ],
+   					  ContentKey => '-content');
+         foreach (@{$self->{XMLauthz}->{file}}) {
+   	  if ( ($lfn eq "$_->{lfn}") or (!$lfn)) {
+   	      if ($size eq "0") {
+   		  $size = $_->{size};
+   	      } 
+   	      if (!$lfn) {
+   		  $lfn = $_->{lfn};
+   	      }
+   	      if (!$CatRegPFN) {
+   	        #	  $CatRegPFN = $_->{CatRegPFN};
+                   $CatRegPFN = ($_->{turl} or "");
+   	      }
+                
+   	      if (!$se) {
+   		  $se = $_->{se};
+   	      }
+   	      if (!$guid) {
+   		  $guid = $_->{guid};
+   	      }
+   	      if ($_->{access} =~ /^write[\-a-z]*/) {
+   		  $$newresult[0]->{$lfn} = 0;
+   		  $self->debug("commit: Registering file lfn=$lfn CatRegPFN=$CatRegPFN size=$size se=$se guid=$guid md5=$md5");
+   		  #my $result = $self->f_registerFile("-md5=$md5",$lfn,$CatRegPFN, $size , $se, $guid, $perm);
+            my $result = $self->{CATALOG}->authorize("register", {lfn=>$lfn, pfn=>$CatRegPFN, size=>$size, md5=>$md5, guid=>$guid, perm=>$perm, wishedSE=>$se});
+   		  if (!$result) {
+   		      $self->info("commit: Cannot register file lfn=$lfn CatRegPFN=$CatRegPFN size=$size se=$se guid=$guid md5=$md5");
+   		  }
+   		  $$newresult[0]->{$lfn} = 1;
+   		  # send write-commit info
+   		  if ($self->{MONITOR}) {
+   		      my @params;
+   		      push @params,"$se";
+   		      push @params,"$size";
+   		      $self->{MONITOR}->sendParameters("$self->{CONFIG}->{SITE}_QUOTA","$self->{CATALOG}->{ROLE}_written", @params);
+   		  }
+   	      }
+   	  }
+         }
+     }
+   
+     #remove the authz information, don't send this to the client
+     delete $$newresult[0]->{authz};
+     return $newresult;
   }
 
   #remove the authz information, don't send this to the client
