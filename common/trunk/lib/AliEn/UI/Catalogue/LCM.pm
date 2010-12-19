@@ -2404,110 +2404,31 @@ Options:
 
 sub fquota {
   my $self = shift;
-  my $command = shift or print $self->fquota_HELP() and return;
+  my $command = shift or $self->info($self->fquota_HELP()) and return;
 
   $DEBUG and $self->debug(1, "Calling fquota_$command");
   if (($self->{CATALOG}->{ROLE} !~ /^admin(ssl)?$/) && ($command eq "set")) {
-    print STDERR "You are not allowed to execute this command!\n";
+    $self->info("You are not allowed to execute this command!",1);
     return;
   }
 
   my @return;
   my $func = "fquota_$command";
   eval {
-    @return = $self->$func(@_);
+    @return = $self->{CATALOG}->$func(@_);
   };
   if ($@) {
     #If the command is not defined, just print the error message
     if ($@ =~ /Can\'t locate object method \"$func\"/) {
       $self->info( "fquota doesn't understand '$command'", 111);
       #this is just to print the error message"
-      return $self->fquota();
+      return $self->{CATALOG}->fquota();
     }
     $self->info("Error executing fquota $command: $@");
     return;
   }
   return @return;
 }
-
-sub fquota_list {
-  my $self = shift;
-  my $options={};
-  @ARGV=@_;
-  Getopt::Long::GetOptions($options, "silent", "unit=s") 
-		or $self->info("Error checking the options of fquota list") and return;
-  @_=@ARGV;
-
-  #Default unit - Megabyte
-	my $unit="M";
-	my $unitV=1024*1024;
-
-	$options->{unit} and $unit=$options->{unit};
-	($unit !~ /[BKMG]/) and $self->info("unknown unit. use default unit: Mega Byte")
-		and $unit="M";
-	($unit eq "B") and $unitV=1;
-	($unit eq "K") and $unitV=1024;
-	($unit eq "M") and $unitV=1024*1024;
-	($unit eq "G") and $unitV=1024*1024*1024;
-
-  my $user = shift || "%";
-  my $whoami = $self->{CATALOG}->{ROLE};
-
-  # normal users can see their own information 
-  if (($whoami !~ /^admin(ssl)?$/) and ($user eq "%")) {
-    $user = $whoami;
-  }
-
-  if (($whoami !~ /^admin(ssl)?$/) and ($user ne $whoami)) {
-    print STDERR "Not allowed to see ot
-her users' quota information\n";
-    return;
-  }
-
-  my $done = $self->{SOAP}->CallSOAP("Manager/Job", 'getFileQuotaList', $user);
-  $done or return;
-  my $result = $done->result;
-
-  my $cnt = 0;
-  printf "------------------------------------------------------------------------------------------\n";
-  printf "            %12s    %12s    %42s\n", "user", "nbFiles", "totalSize($unit)";
-  printf "------------------------------------------------------------------------------------------\n";
-  foreach (@$result) {
-    $cnt++;
-		my $totalSize = ($_->{'totalSize'} + $_->{'tmpIncreasedTotalSize'}) / $unitV;
-		my $maxTotalSize = $_->{'maxTotalSize'} / $unitV;;
-		##Changes for unlimited file size
-		if($_->{'maxTotalSize'}==-1){
-		    $maxTotalSize = -1;
-		}
-		printf " [%04d. ]   %12s     %5s/%5s           \t %.4f/%.4f\n", $cnt, $_->{'user'}, ($_->{'nbFiles'} + $_->{'tmpIncreasedNbFiles'}), $_->{'maxNbFiles'}, $totalSize, $maxTotalSize;
-  }
-  printf "------------------------------------------------------------------------------------------\n";
-}
-
-sub fquota_set_HELP {
-  return "Usage:
-  fquota set <user> <field> <value> - set the user quota
-                                      (maxNbFiles, maxTotalSize(Byte))
-                                      use <user>=% for all users\n";
-}
-
-sub fquota_set {
-  my $self = shift;
-  my $user = shift or print STDERR $self->fquota_set_HELP() and return;
-  my $field = shift or print STDERR $self->fquota_set_HELP() and return;
-  my $value = shift;
-  (defined $value) or print STDERR $self->fquota_set_HELP() and return;
-
-  if ($field !~ /(maxNbFiles)|(maxTotalSize)/) {
-    print STDERR "Wrong field name! Choose one of them: maxNbFiles, maxTotalSize\n";
-    return;
-  }
-
-  my $done = $self->{SOAP}->CallSOAP("Manager/Job", 'setFileQuotaInfo', $user, $field, $value);
-  $done and $self->fquota_list("$user");
-}
-
 
 return 1;
 
