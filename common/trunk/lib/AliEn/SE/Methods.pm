@@ -154,9 +154,11 @@ sub string {
   return  $self->{ORIG_PFN};
 }
 
-sub get {
+
+sub realGet {
   my $self=shift;
-  my $tempFile=$self->{LOCALFILE};
+  my $tempFile=shift;
+  
   if ($self->{MSS})   {
     $DEBUG and $self->debug(1, "Getting the file through MSS");
     $self->{MSS}->setEnvironment($self->{PARSED});
@@ -176,22 +178,41 @@ sub get {
     $DEBUG and $self->debug(1, "Getting the file through SE/Methods");
     $tempFile=$self->SUPER::get(@_) or return;
   }
-  $DEBUG and $self->debug(1, "Checking if this is a link");
+  return 1;
+  
+}
+sub get {
+  my $self=shift;
+  my $tempFile=$self->{LOCALFILE};
+  
+  my $zipGUID="";
+  my $zipArchive="";
+
+  if ($self->{ENVELOPE}) {
+    $zipGUID=AliEn::Util::getValFromEnvelope($self->{ENVELOPE},'zguid');
+    if ($zipGUID){
+      $self->info("We are in fact extracting a file from the archive $zipArchive");
+      $zipArchive="$self->{CONFIG}->{CACHE_DIR}/$zipGUID";  
+    } 
+  }
+  
+  if ($zipGUID and -f $zipArchive ) {
+    $self->info("We already have the archive locally") 
+  } else { 
+    $self->realGet($tempFile) or return;
+  } 
+  
   my $zip=$self->{PARSED}->{VARS_ZIP};
-  if ($zip) {
-    $self->info("This is in fact a zip file. Extracting $zip");
-    my $zipFileName=$tempFile;
-    if ($zipFileName =~ /^$self->{LOCALFILE}$/) {
-      $self->debug(1,"Moving $zipFileName to $self->{LOCALFILE}.zip");
-      $zipFileName="$self->{LOCALFILE}.zip";
-      rename $self->{LOCALFILE}, $zipFileName;
-    }
-    eval "require Archive::Zip"
-      or $self->info("ERROR REQUIRING Archive::Zip $@") and return;
-    my $zipFile = Archive::Zip->new( $zipFileName )
-      or  $self->info("Error opening  $zipFileName") and return;
-    $zipFile->extractMember($zip, $self->{LOCALFILE}) and
-       $self->info("Error extracting $zip  from $zipFileName") and return;
+  if ($zip and $zipArchive ) {
+    $self->info("This is in fact a zip file. Extracting $zip from $zipArchive");
+    (-f $zipArchive) or $self->info("Moving $tempFile to $zipArchive") and rename $tempFile, $zipArchive;
+
+     eval "require Archive::Zip"
+       or $self->info("ERROR REQUIRING Archive::Zip $@") and return;
+     my $zipFile = Archive::Zip->new( $zipArchive )
+       or  $self->info("Error opening  $zipArchive") and return;
+     $zipFile->extractMember($zip, $self->{LOCALFILE}) and
+      $self->info("Error extracting $zip  from $zipArchive") and return;
   }
 
   return $self->{LOCALFILE};

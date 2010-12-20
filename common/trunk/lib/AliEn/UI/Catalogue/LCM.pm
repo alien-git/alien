@@ -111,6 +111,7 @@ my %LCM_commands;
 		 'getTransferHistory'=> ['$self->{STORAGE}->getTransferHistory', 0],
 		 'packman'  => ['$self->{PACKMAN}->f_packman',0],
 		 'masterSE' => ['$self->masterSE',0],
+		 'cp'       => ['$self->f_cp', 16+64],
 );
 
 my %LCM_help = (
@@ -309,7 +310,6 @@ sub get {
 
    $self->info("GUID: $filehash->{guid}");
 
-
    (defined($filehash->{type}) and ($filehash->{type} eq "c")) and  $self->notice("This is in fact a collection!! Let's get all the files")
      and return $self->getCollection($filehash->{guid}, $localFile, \%options);
 
@@ -326,14 +326,15 @@ sub get {
      ($envelope and $envelope->{turl}) or 
         $self->error("Getting an envelope was not successfull for file $file.") and return;
 
-     $ENV{ALIEN_XRDCP_URL}=$envelope->{turl};
-     $ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}=$envelope->{signedEnvelope};
+     #$ENV{ALIEN_XRDCP_URL}=$envelope->{turl};
+     #$ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}=$envelope->{signedEnvelope};
 
      # if we have the old styled envelopes
-     (defined($envelope->{oldEnvelope})) and $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope->{oldEnvelope} or $ENV{ALIEN_XRDCP_ENVELOPE}=0;
+     #(defined($envelope->{oldEnvelope})) and $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope->{oldEnvelope} or $ENV{ALIEN_XRDCP_ENVELOPE}=0;
 
      my $start=time;
-     $result = $self->{STORAGE}->getFile( $envelope->{turl}, $envelope->{se}, $localFile, join("",keys %options), $file, $envelope->{guid},$envelope->{md5} );
+     $result = $self->{STORAGE}->getFile( $envelope->{turl}, $envelope->{se}, $localFile, join("",keys %options), $file, $envelope->{guid},$envelope->{md5},
+        $envelope->{signedEnvelope}, $envelope->{oldEnvelope} );
      my $time=time-$start; 
      if ($self->{MONITOR}){ $self->sendMonitor('read', $envelope->{se}, $time, $envelope->{size}, $result); }
      $result and last or $self->error("getFile failed with: ".$self->{LOGGER}->error_msg());
@@ -2351,6 +2352,106 @@ sub fquota {
   }
   return @return;
 }
+
+sub f_cp_HELP {
+  return "cp - copy files and directories
+Syntax:
+       cp [OPTION]... SOURCE DEST
+       cp [OPTION]... SOURCE... DIRECTORY
+
+Possible options:
+   -k: do not copy the source directory, but the content of the directory
+   -m: copy also the metadata
+";
+}
+
+#
+#Copy files from one LFN to another
+#
+sub f_cp {
+  my $self = shift;
+  my $opt = {};
+  @ARGV=@_;
+  Getopt::Long::GetOptions($opt,  "k",  "m") or 
+      $self->info("Error parsing the ") and return;;
+  @_=@ARGV;
+  my $source = shift;
+  my $target = pop;
+  my @srcFileList=@_;
+  my @returnvals = ();
+
+  ($target)
+    or $self->{LOGGER}->error("Catalogue", "Error: not enough arguments in cp!!\nUsage: cp <source> <target>\n")
+       and return;
+
+  #Set user role -- if option is specified
+  #NOT BEING USED
+  my $user = $self->{ROLE};
+  
+  
+  $source = $self->{CATALOG}->GetAbsolutePath($source,1);
+  $target = $self->{CATALOG}->GetAbsolutePath($target, 1);
+  
+  my $sourceIsDir = $self->{CATALOG}->isDirectory($source);
+  my $targetIsDir = $self->{CATALOG}->isDirectory($target);
+  $sourceIsDir and $opt->{'k'} = 1;
+
+   
+  #Populate list of source files
+  if($opt->{'k'}) {
+    #Find all files in source directory
+    $sourceIsDir
+      or $self->{LOGGER}->error("Catalogue", "Error: $source is not a directory")
+      and return;
+    ($target !~ /\/$/) 
+      or $target =~ s!$!/!;
+    $self->execute("mkdir","-p",$target) 
+      or $self->{LOGGER}->error("Catalogue","Could not make directory $target") 
+      and return;
+    if($targetIsDir) {
+      my $srcFil = "$source";
+      $srcFil =~ s!.*/(.*$)!$1!;
+      $self->execute("mkdir","$target/$srcFil");
+      $target .= "/$srcFil";
+    }
+    @srcFileList = (@srcFileList,$self->{CATALOG}->ExpandWildcards("$source/%"));
+    #Remove directories from srcFileList
+  }
+  else {
+    #Append source file to srcFileList
+    push @srcFileList, $source;
+    @srcFileList = map {$_ = $self->{CATALOG}->GetAbsolutePath($_,1)} @srcFileList;
+  }
+
+  #Do copy
+  foreach my $sourceFile (@srcFileList) {
+    my $targetFile;
+    if($opt->{'k'} or $targetIsDir) {
+      my $fileName = "$sourceFile";
+      $fileName =~ s!.*/(.*$)!$1!;
+      $targetFile = $target."/".$fileName;
+    } else {
+      $targetFile = $target;
+    }
+    $self->info("Copying $sourceFile -> $targetFile");
+    my ($localfile) = $self->get($sourceFile);
+    if ($localfile) {
+      my $t = $self->execute("add",$targetFile,$localfile);
+      push @returnvals, $t;
+      $t and last;
+    }
+    #Manage metadata if option specified
+    if($opt->{'m'})
+    {
+      my $todoMetadata = {};
+      ($todoMetadata) = $self->{CATALOG}->getCPMetadata($sourceFile,$target,$targetFile,$todoMetadata);
+      $self->{LOGGER}->debug(1,"Metadata copied ---> ".Dumper($todoMetadata));
+    }
+  }
+  return @returnvals;  
+}
+
+
 
 return 1;
 

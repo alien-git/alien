@@ -88,7 +88,6 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
     'find'     => ['$self->{CATALOG}->f_find', 0],
     'findEx'   => ['$self->{CATALOG}->findEx', 0],
     'linkfind' => ['$self->{CATALOG}->f_linkfind', 0],
-    'cp'       => ['$self->f_cp', 16+64],
     'ln'       => ['$self->{CATALOG}->f_ln', 16+64],
     'tree'     => ['$self->{CATALOG}->f_tree', 0],
     'zoom'     => ['$self->{CATALOG}->f_zoom', 0],
@@ -1224,105 +1223,6 @@ sub access {
   $ENV{ALIEN_XRDCP_URL}=$newhash[0]->{url}||"";
   return (@newhash);
   
-}
-
-sub f_cp_HELP {
-  return "cp - copy files and directories
-Syntax:
-       cp [OPTION]... SOURCE DEST
-       cp [OPTION]... SOURCE... DIRECTORY
-
-Possible options:
-   -k: do not copy the source directory, but the content of the directory
-   -u <user>: copy with a different user name (only for admin)
-   -m: copy also the metadata
-";
-}
-
-#
-#Copy files from one LFN to another
-#
-sub f_cp {
-  my $self = shift;
-  my $opt = {};
-  @ARGV=@_;
-  Getopt::Long::GetOptions($opt,  "k", "user=s", "m") or 
-      $self->info("Error parsing the ") and return;;
-  @_=@ARGV;
-  my $source = shift;
-  my $target = pop;
-  my @srcFileList=@_;
-  my @returnvals = ();
-
-  ($target)
-    or $self->{LOGGER}->error("Catalogue", "Error: not enough arguments in cp!!\nUsage: cp <source> <target>\n")
-       and return;
-
-  #Set user role -- if option is specified
-  #NOT BEING USED
-  my $user = $self->{ROLE};
-  $user = $opt->{'user'} if($opt->{'user'});
-  
-  $source = $self->{CATALOG}->GetAbsolutePath($source,1);
-  $target = $self->{CATALOG}->GetAbsolutePath($target, 1);
-  
-  my $sourceIsDir = $self->{CATALOG}->isDirectory($source);
-  my $targetIsDir = $self->{CATALOG}->isDirectory($target);
-  $sourceIsDir and $opt->{'k'} = 1;
-
-   
-  #Populate list of source files
-  if($opt->{'k'}) {
-    #Find all files in source directory
-    $sourceIsDir
-      or $self->{LOGGER}->error("Catalogue", "Error: $source is not a directory")
-      and return;
-    ($target !~ /\/$/) 
-      or $target =~ s!$!/!;
-    $self->execute("mkdir","-p",$target) 
-      or $self->{LOGGER}->error("Catalogue","Could not make directory $target") 
-      and return;
-    if($targetIsDir) {
-      my $srcFil = "$source";
-      $srcFil =~ s!.*/(.*$)!$1!;
-      $self->execute("mkdir","$target/$srcFil");
-      $target .= "/$srcFil";
-    }
-    @srcFileList = (@srcFileList,$self->{CATALOG}->ExpandWildcards("$source/%"));
-    #Remove directories from srcFileList
-  }
-  else {
-    #Append source file to srcFileList
-    push @srcFileList, $source;
-    @srcFileList = map {$_ = $self->{CATALOG}->GetAbsolutePath($_,1)} @srcFileList;
-  }
-
-  #Do copy
-  foreach my $sourceFile (@srcFileList) {
-    my $targetFile;
-    if($opt->{'k'} or $targetIsDir) {
-      my $fileName = "$sourceFile";
-      $fileName =~ s!.*/(.*$)!$1!;
-      $targetFile = $target."/".$fileName;
-    } else {
-      $targetFile = $target;
-    }
-    $self->info("Copying $sourceFile -> $targetFile");
-    my @pfns = $self->{CATALOG}->f_whereis("-sz",$sourceFile);
-    foreach my $pfn (@pfns){
-      my $t = $self->execute("add",$targetFile,$pfn->{pfn});
-      push @returnvals, $t;
-      $t and last;
-    }
-    #Manage metadata if option specified
-    if($opt->{'m'})
-    {
-      my $todoMetadata = {};
-      ($todoMetadata) = $self->{CATALOG}->getCPMetadata($sourceFile,$target,$targetFile,$todoMetadata);
-      $self->{LOGGER}->debug(1,"Metadata copied ---> ".Dumper($todoMetadata));
-    }
-  }
-  return @returnvals;  
 }
 
 return 1;
