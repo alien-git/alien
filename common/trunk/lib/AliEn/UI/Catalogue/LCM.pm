@@ -76,7 +76,7 @@ my %LCM_commands;
 		 'fquota' => ['$self->fquota', 0],
 		 'add' => ['$self->addFile', 0],
 		 'get'      => ['$self->get', 0],
-		 'commit'   => ['$self->commit', 0],
+		 'commit'   => ['$self->{CATALOG}->commit', 0],
 		 'relocate' => ['$self->relocate', 2+4+8],
 		 'mirror'   => ['$self->mirror', 0],
 		 'cat'      => ['$self->cat', 0],
@@ -1217,23 +1217,6 @@ sub relocate {
 }
 
 
-
-sub commit {
-  my $self = shift;
-  my $envelope     = (shift or 0);
-  my $size         = (shift or "0");
-  my $lfn          = (shift or 0);
-  my $perm         = shift;
-  my $expire       = shift;
-  my $pfn          = (shift or 0);
-  my $se           = (shift or 0);
-  my $guid         = (shift or 0);
-  my $md5          = (shift or 0);
-
-
-  return $self->{CATALOG}->authorize("commit", {envelope=>"$envelope",lfn=>$lfn,pfn=>$pfn,wishedSE=>$se,guidRequest=>$guid,size=>$size,md5=>$md5} );
-   
-}
 
 sub purge {
   my $self = shift;

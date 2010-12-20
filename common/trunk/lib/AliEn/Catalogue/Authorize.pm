@@ -83,6 +83,8 @@ sub initEnvelopeEngine {
   $self->info("Authorize: Checking if we can create envelopes...");
   $self->info("Authorize: local private key          : $ENV{'SEALED_ENVELOPE_LOCAL_PRIVATE_KEY'}");
   $self->info("Authorize: local public  key          : $ENV{'SEALED_ENVELOPE_LOCAL_PUBLIC_KEY'}");
+  $self->info("Authorize: remote private key          : $ENV{'SEALED_ENVELOPE_REMOTE_PRIVATE_KEY'}");
+  $self->info("Authorize: remote public  key          : $ENV{'SEALED_ENVELOPE_REMOTE_PUBLIC_KEY'}");
 
   open(PRIV, $ENV{'SEALED_ENVELOPE_LOCAL_PRIVATE_KEY'}); my @prkey = <PRIV>; close PRIV;
   my $privateLocalKey = join("",@prkey);
@@ -449,8 +451,6 @@ sub access {
    my $sesel   = (shift || 0);
    my @accessOptions = @_;
    my $extguid = (shift || 0);
-   my $user=$self->{CONFIG}->{ROLE};
-   $self->{ROLE} and $user=$self->{ROLE};
  
    my @ses = ();
    my @tempSE= split(/;/, $se);
@@ -509,7 +509,6 @@ my $nSEs = 0;
 
     } else {
  
-      $self->info("gron: access: $access, lfn: $lfn, size: $size, guid: $extguid, site: $sitename, qos: $writeQos, count: $writeQosCount, exlcude: @exxSEs");
       @envelopes= AliEn::Util::deserializeSignedEnvelopes($self->authorize("write", {lfn=>$lfn, 
         size=> $size, md5=>0,  guidRequest=>$extguid, site=>$sitename, 
            writeQos=>$writeQos, writeQosCount=>$writeQosCount, excludeSE=>join(";", @exxSEs)}));
@@ -1297,15 +1296,18 @@ sub registerFileInCatalogueAccordingToEnvelopes{
 
 
 
-sub commitRegistrationFromAPIServices{
+sub commit{
   my $self = shift;
-  my $user = (shift || return );
+  my $user=$self->{CONFIG}->{ROLE};
+  $self->{ROLE} and $user=$self->{ROLE};
   my $RAWenvelope     = (shift or "0");
+  my $size         = (shift or "0");
   my $lfn          = (shift or 0);
+  my $perm         = shift;
+  my $expire       = shift;
   my $pfn          = (shift or 0);
   my $se           = (shift or 0);
   my $guid         = (shift or 0);
-  my $size         = (shift or "0");
   my $md5          = (shift or 0);
 
   my $newresult = [];
@@ -1326,54 +1328,41 @@ sub commitRegistrationFromAPIServices{
   } else {
 
      $$newresult[0]->{$lfn} = 0;
+           
+         $self->debug(2,"Decrypting envelope for commit ...\n$RAWenvelope");
+      
+         my $envelope  = $self->decryptEnvelopeTicket($RAWenvelope);
+         
+         defined($envelope) and defined($envelope->{turl})  or return $newresult;
 
-     $self->{envelopeCipherEngine}->Reset();
-     #    $self->{envelopeCipherEngine}->Verbose();
-     $self->{envelopeCipherEngine}->IsInitialized();
-     print STDERR "Decoding Envelope: \n $RAWenvelope \n";
-   
-       my $coded = $self->{envelopeCipherEngine}->decodeEnvelopePerl($RAWenvelope);
-     if (!$coded) {
-         $self->info("commit: error during envelope decryption");
-         return;
-     } else {
-         my $authz = $self->{envelopeCipherEngine}->GetDecodedEnvelope();
-         my $xsimple = XML::Simple->new();
-         my $XMLauthz = $xsimple->XMLin($authz,
-   					  KeyAttr => {lfn=> 'name'},
-   					  ForceArray => [ 'file' ],
-   					  ContentKey => '-content');
-         foreach my $envelope (@{$XMLauthz->{file}}) {
-             $lfn and ($lfn eq "$envelope->{lfn}") or next;
-             ($envelope->{access} =~ /^write[\-a-z]*/) or next;
-
+             $lfn and (($lfn eq "$envelope->{lfn}") or return $newresult);
+             ($envelope->{access} =~ /^write[\-a-z]*/) or return $newresult;
              $size and $envelope->{size} = $size ;
              $pfn and $envelope->{turl} = $pfn ;
              $md5 and $envelope->{md5} = $md5 ;
              $se and $envelope->{se} = $se ;
              $guid and $envelope->{guid} = $guid ;
              $size and $envelope->{size} = $size ;
- 
              my $justRegistered=0;
              $envelope = $self->ValidateRegistrationEnvelopesWithBookingTable($user,$envelope);
              $envelope 
                     or $self->info("Authorize: An envelope could not be validated based on pretaken booking.",1) 
-                    and next; 
+                    and return $newresult;
             
             if(!$envelope->{existing}) {
               $self->f_registerFile( "-f", $envelope->{lfn}, $envelope->{size},
                        $envelope->{se}, $envelope->{guid}, undef,undef, $envelope->{md5}, 
                         $envelope->{turl}) and $justRegistered=1 
                or $self->info("Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $envelope->{turl} could not be registered.",1)
-               and next;
+               and return $newresult;
              } else {
                 $self->f_addMirror( $envelope->{lfn}, $envelope->{se}, $envelope->{turl}, "-c","-md5=".$envelope->{md5})
                   or $self->info("Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $envelope->{turl} could not be registered as a replica.",1)
-                and next;
+                and return $newresult;
              }
              $self->deleteEntryFromBookingTableAndOptionalExistingFlagTrigger($user, $envelope, $justRegistered) 
                     or $self->info("Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $envelope->{turl} could not be registered properly as a replica (LFN_BOOKED error).",1)
-                    and next;
+                    and return $newresult;
 
              $$newresult[0]->{$lfn} = 1;
            
@@ -1384,8 +1373,6 @@ sub commitRegistrationFromAPIServices{
                push @params,"$size";
                $self->{MONITOR}->sendParameters("$self->{CONFIG}->{SITE}_QUOTA","$self->{CATALOG}->{ROLE}_written", @params);
              }
-         }
-     }
      return $newresult;
    }
 }
@@ -1401,8 +1388,8 @@ sub ValidateRegistrationEnvelopesWithBookingTable{
   my @verifiedEnvelopes= ();
 
   my $reply = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow(
-      "SELECT lfn,binary2string(guid) as guid,existing FROM LFN_BOOKED WHERE guid=string2binary(?) and pfn=? and se=? and and owner=? and gowner=? ;"
-      , undef, {bind_values=>[$envelope->{guid},$envelope->{turl},$envelope->{se},$envelope->{size},$envelope->{md5},$user,$user]});
+      "SELECT lfn,binary2string(guid) as guid,existing FROM LFN_BOOKED WHERE guid=string2binary(?) and pfn=? and se=? and owner=? and gowner=? ;"
+      , undef, {bind_values=>[$envelope->{guid},$envelope->{turl},$envelope->{se},$user,$user]});
 
   lc $envelope->{guid} eq lc $reply->{guid} or return 0;
   $envelope->{lfn} = $reply->{lfn};
@@ -1426,8 +1413,8 @@ sub deleteEntryFromBookingTableAndOptionalExistingFlagTrigger{
     {bind_values=>[$envelope->{lfn},$envelope->{guid},$envelope->{size},$envelope->{md5},$user,$user]});
 
   return ($self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do(
-    "DELETE FROM LFN_BOOKED WHERE lfn=? and guid=string2binary(?) and pfn=? and se=? and size=? and md5sum=? and owner=? and gowner=? ;",
-    {bind_values=>[$envelope->{lfn},$envelope->{guid},$envelope->{turl},$envelope->{se},$envelope->{size},$envelope->{md5},$user,$user]})
+    "DELETE FROM LFN_BOOKED WHERE lfn=? and guid=string2binary(?) and pfn=? and se=? and owner=? and gowner=? ;",
+    {bind_values=>[$envelope->{lfn},$envelope->{guid},$envelope->{turl},$envelope->{se},$user,$user]})
     && $triggerstat);
 }
 
@@ -1471,7 +1458,7 @@ sub authorize{
   my $options=shift;
 
   my $user=$self->{CONFIG}->{ROLE};
-  $self and $self->{ROLE} and $user=$self->{ROLE};
+  $self->{ROLE} and $user=$self->{ROLE};
   #
 
   ($access =~ /^write[\-a-z]*/) and $access = "write";
@@ -1500,11 +1487,6 @@ sub authorize{
   my $writeQosCount = (($options->{writeQosCount} and int($options->{writeQosCount})) || 0);
   my $excludedAndfailedSEs = $self->validateArrayOfSEs(split(/;/, ($options->{excludeSE} || "" )));
   my $pfn = ($options->{pfn} || "");
-  my $envelope = ($options->{envelope} || 0);
-
-  if ($access =~/^commit/){
-    return $self->commitRegistrationFromAPIServices($user,$envelope,$lfn,$pfn,$wishedSE,$guidRequest,$size,$md5);
-  }
 
 
   my $seList = $self->validateArrayOfSEs(split(/;/, $wishedSE));
@@ -1632,18 +1614,20 @@ sub decryptEnvelopeTicket {
   $self->{envelopeCipherEngine}->Reset();
 #    $self->{envelopeCipherEngine}->Verbose();
   $self->{envelopeCipherEngine}->IsInitialized();
-  print STDERR "Decoding Envelope: \n $ticket\n";
 
   my $decoded = $self->{envelopeCipherEngine}->decodeEnvelopePerl($ticket);
-  $decoded or $self->info("Authorize: error during envelope decryption",1) and return {};
+  $decoded or $self->info("Authorize: error during envelope decryption",1) and return 0;
 
   $decoded = $self->{envelopeCipherEngine}->GetDecodedEnvelope();
+  
+  $self->debug(2,"Decoded envelope: $decoded");  
+
   my $xsimple = XML::Simple->new();
   my $filehash = $xsimple->XMLin($decoded,
                                         KeyAttr => {lfn=> 'name'},
                                         ForceArray => [ 'file' ],
                                         ContentKey => '-content');
-  return @{$filehash->{file}}[0];
+  return shift @{$filehash->{file}};
 } 
 
 
