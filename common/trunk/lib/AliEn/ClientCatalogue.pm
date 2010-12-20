@@ -113,7 +113,7 @@ sub AUTOLOAD {
     removeFileFromCollection=>"removeFileFromCollection",createCollection=>"createCollectionCatalogue",
     updateCollection=>"updateCollection", df=>"df", existsEntry=>"existsEntry", checkFileQuota=>"checkFileQuota", showMirror=>"showMirror",
     addMirror=>"addMirror", cpMetaData=>"cpMetaData", getCPMetadata=>"cpMetaData", deleteMirror=>"deleteMirror", fquota_list=>"fquota_list",
-    fquota_set=>"fquota_set",f_addUser=>"f_addUser", "verifyToken"=>"verifyToken",
+    fquota_set=>"fquota_set",f_addUser=>"f_addUser", "verifyToken"=>"verifyToken",moveDirectory=>'moveDirectory',
   };
   if ($ops->{$name}){
     return shift->callAuthen($ops->{$name},@_);
