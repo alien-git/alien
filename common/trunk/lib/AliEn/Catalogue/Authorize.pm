@@ -460,35 +460,50 @@ sub access {
    @tempSE= split(/;/, $sesel);
    foreach (@tempSE) { AliEn::Util::isValidSEName($_) and push @exxSEs, $_; }
    ($sesel =~ /^[0-9]+$/) or $sesel = 0;
- 
    my $sitename= (shift || 0);
-   ($sitename eq "") and $sitename=0;
+   (($sitename eq 0) or ($sitename eq "")) and $sitename=$self->{CONFIG}->{SITE};
    my $writeQos = (shift || 0);
    ($writeQos eq "") and $writeQos=0;
    my $writeQosCount = (shift || 0);
 
    my @envelopes = ();
-my $nSEs = 0; 
+   my $nSEs = 0; 
  
   if($access eq "read" ) {
  
-     if ($sesel gt 0 ) {
-    
-        my $guidorNot = "";
-        if(AliEn::Util::isValidGUID($lfn)) { $guidorNot = "g"; }
-       
-        my @where=$self->f_whereis("s".$guidorNot."ztr","$lfn");
-       
-        if (! @where){
-           $self->info("Authorize: There were no transfer methods....");
-           @where=$self->f_whereis("s".$guidorNot."zr","$lfn");
-        } 
-        $nSEs = scalar(@where);
-        @ses = ("$where[$sesel]"); 
+    if(scalar(@ses) eq 0) {
+      my $guidorNot = "";
+      if(AliEn::Util::isValidGUID($lfn)) { $guidorNot = "g"; }
+     
+      my @where=$self->f_whereis("s".$guidorNot."ztr","$lfn");
+     
+      if (! @where){
+         $self->info("Authorize: There were no transfer methods....");
+         @where=$self->f_whereis("s".$guidorNot."zr","$lfn");
+      } 
+      my @whereSEs = map { $_->{se} } @where;
+
+      my @queryValues = ();
+      my $query = "";
+      $self->checkSiteSECacheForAccess($sitename) || return 0;
+      push @queryValues, $sitename;
+
+      $query="SELECT DISTINCT b.seName FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE ";
+      $query .= " (b.seExclusiveRead is NULL or b.seExclusiveRead = '' or b.seExclusiveRead  LIKE concat ('%,' , ? , ',%') ) and ";
+      push @queryValues, ($self->{ROLE} || $self->{CONFIG}->{ROLE});
+      foreach (@whereSEs){ $query .= " b.seName=? or"; push @queryValues, $_;  }
+      $query =~ s/or$//;
+      $query .= " ORDER BY if(a.rank is null, 1000, a.rank) ASC ;";
+
+      my $sorted =  $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn($query, undef, {bind_values=>\@queryValues});
+
+      $nSEs = scalar(@$sorted);
+      ($sesel > $nSEs-1) and $sesel = $nSEs -1;
+      @ses = ($$sorted[$sesel]);
      } 
-    
+  
      @envelopes = AliEn::Util::deserializeSignedEnvelopes($self->authorize("read",{lfn=>$lfn,
-          wishedSE=>join(";",@ses),excludeSE=>join(";",@exxSEs) ,site=>$self->{CONFIG}->{SITE}}));
+          wishedSE=>join(";",@ses),excludeSE=>join(";",@exxSEs) ,site=>$sitename}));
     
     
  
@@ -952,7 +967,7 @@ sub selectPFNOnClosestRootSEOnRank{
    if($sitename) {
       $self->checkSiteSECacheForAccess($sitename) || return 0;
       push @queryValues, $sitename;
-   
+
       $query="SELECT DISTINCT b.seName FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE ";
       $query .= " (b.seExclusiveRead is NULL or b.seExclusiveRead = '' or b.seExclusiveRead  LIKE concat ('%,' , ? , ',%') ) and ";
       push @queryValues, $user;
