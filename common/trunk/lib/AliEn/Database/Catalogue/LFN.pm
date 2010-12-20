@@ -1153,7 +1153,7 @@ sub moveLFNs {
     $toTable=$entryP->{tableName};
     ($entryP->{hostIndex} eq $entry->{hostIndex})
       or $self->info("We can only move back if the entries are in the same database...")
-	and return;
+	      and return;
 
     $toLFN=$entryP->{lfn};
 
@@ -1169,7 +1169,8 @@ sub moveLFNs {
 
   defined $sourceHostIndex or $self->info( "Error getting the hostindex of the table $toTable") and return;
 
- $self->{DRIVER} !~ /Oracle/ and $self->lock("$toTable WRITE, $toTable as ${toTable}d READ,  $toTable as ${toTable}r READ, $fromTable as ${fromTable}d READ, $fromTable as ${fromTable}r READ, $fromTable");
+  
+ $self->lock("$toTable WRITE, $toTable as ${toTable}d READ,  $toTable as ${toTable}r READ, $fromTable as ${fromTable}d READ, $fromTable as ${fromTable}r READ, $fromTable");
   $self->renumberLFNtable($toTable, {'locked',1});
   my $min=$self->queryValue("select max(entryId)+1 from $toTable");
   $min or $min=1;
@@ -1182,7 +1183,7 @@ sub moveLFNs {
   $tempLfn=~ s{$fromLFN}{};
 
   #First, let's insert the entries in the new table
-  if (!$self->do("INSERT into $toTable($columns,lfn) select $columns,substr(concat('$fromLFN', lfn), length('$toLFN')+1) from $fromTable where lfn like '${tempLfn}%' and (lfn not like '' or lfn is not null)")){
+  if (!$self->do("INSERT into $toTable($columns,lfn) select $columns,substr(concat('$fromLFN', lfn), length('$toLFN')+1) from $fromTable where lfn like '${tempLfn}%' and (lfn not like '' and lfn is not null)")){
     $self->unlock();
     return;
   }
@@ -1214,7 +1215,7 @@ sub moveLFNs {
     my $user=$self->queryValue("select owner from $toTable where lfn=''");
     $self->info("And now, let's give access to $user to '$toTable");
     
-    $self->{DRIVER} !~/Oracle/ and $self->do("GRANT ALL on $toTable to $user");
+    $self->grant("ALL on $toTable to $user");
   }
 
   return 1;

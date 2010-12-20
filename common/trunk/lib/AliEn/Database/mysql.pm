@@ -378,7 +378,6 @@ sub lock {
   $self->_do("LOCK TABLE $table WRITE");
 }
 
-
 sub unlock {
   my $self  = shift;
   my $table = shift;
@@ -499,6 +498,12 @@ sub _getAllObjects {
   my $self   = shift;
   my $schema = shift;
   return "$schema\.\*";
+}
+sub grant {
+  my $self=shift;
+  my $grant=shift;
+  
+  return $self->do("grant $grant");
 }
 
 sub grantPrivilegesToObject {
