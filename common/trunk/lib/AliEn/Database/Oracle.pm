@@ -591,6 +591,11 @@ sub binary2string {
 }
 
 
+sub grant {
+  my $self=shift;
+  $self->info("In oracle, we don't grant anything");
+  return 1;  
+}
 
 sub grantPrivilegesToUser{
 #The privileges are assigned to a unique user on the database. Every user in the application connects through this one.
@@ -931,8 +936,9 @@ sub lock {
   my $lock = shift;
 
   # $DEBUG and $self->debug(1,"Database: In lock locking table $table.");
+  $lock =~ /, / and $self->info("Oracle doesn't know how to lock multiple tables");
 
-  $self->_do("LOCK TABLE $lock  IN ROW EXCLUSIVE MODE");
+  $self->_do("LOCK TABLE $lock IN ROW EXCLUSIVE MODE");
 }
 
 sub unlock {
