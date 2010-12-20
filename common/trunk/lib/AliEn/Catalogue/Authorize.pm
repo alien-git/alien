@@ -1024,8 +1024,7 @@ sub getBaseEnvelopeForReadAccess {
      if(($prepareEnvelope->{pfn} =~ s/^guid:\/\/\///i) and ($prepareEnvelope->{pfn} =~ s/\?ZIP=(.*)$//)) {
        my $archiveFile = $1;
        $self->info("Authorize: Getting file out of archive with GUID, $filehash->{guid}...");
-       my $prepareArchiveEnvelope = $self->getBaseEnvelopeForReadAccess($user, $prepareEnvelope->{pfn}, [], $excludedAndfailedSEs, $sitename);
-       defined($prepareArchiveEnvelope) and defined($prepareArchiveEnvelope->{turl}) or return 0;
+       my $prepareArchiveEnvelope = $self->getBaseEnvelopeForReadAccess($user, $prepareEnvelope->{pfn}, [], $excludedAndfailedSEs, $sitename) or return 0;
        $prepareEnvelope->{turl} = $prepareArchiveEnvelope->{turl}."#".$archiveFile;
        $prepareEnvelope->{pfn} = $prepareArchiveEnvelope->{pfn};
        $prepareEnvelope->{se} = $prepareArchiveEnvelope->{se};
