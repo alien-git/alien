@@ -2,7 +2,7 @@ use strict;
 
 use AliEn::UI::Catalogue;
 
-my $c=AliEn::UI::Catalogue->new({ROLE=>"admin"
+my $c=AliEn::UI::Catalogue->new({role=>"admin"
                                 }) or exit (-2);
 
 my $lfn="~/pathToMove/";
