@@ -934,10 +934,10 @@ sub selectPFNOnClosestRootSEOnRank{
    my $seList={};
    my $nonRoot={};
 
-   my @where=$self->f_whereis("sgztr","$guid");
+   my @where=$self->f_whereis("sgzt","$guid");
    @where 
      or $self->debug(1,"There were no transfer methods....")
-     and @where=$self->f_whereis("sgzr","$guid");
+     and @where=$self->f_whereis("sgz","$guid");
 
    foreach my $tSE (@where) {
      #AliEn::Util::isValidSEName($tSE->{se}) || next;
@@ -1019,21 +1019,21 @@ sub getBaseEnvelopeForReadAccess {
        or $self->info("Authorize: access ERROR within selectPFNOnClosestRootSEOnRank: SE list was empty after checkup. Either problem with the file's info or you don't have access on relevant SEs.",1)
        and return 0;
 
+ 
   if ($prepareEnvelope->{se} eq "no_se") {
-     ($prepareEnvelope->{pfn} =~ /^([a-zA-Z]*):\/\//);
-     if(($1 eq "guid") and ($prepareEnvelope->{pfn} =~ s/\?ZIP=(.*)$//)) {
+     if(($prepareEnvelope->{pfn} =~ s/^guid:\/\/\///i) and ($prepareEnvelope->{pfn} =~ s/\?ZIP=(.*)$//)) {
        my $archiveFile = $1;
        $self->info("Authorize: Getting file out of archive with GUID, $filehash->{guid}...");
-       $prepareEnvelope=$self->getBaseEnvelopeForReadAccess($user, $filehash->{guid}, $seList, $excludedAndfailedSEs, $sitename);
-       $prepareEnvelope->{pfn} = "?ZIP=".$archiveFile;
+       my $prepareArchiveEnvelope = $self->getBaseEnvelopeForReadAccess($user, $prepareEnvelope->{pfn}, [], $excludedAndfailedSEs, $sitename);
+       $prepareEnvelope->{turl} = $prepareArchiveEnvelope->{turl}."#".$archiveFile;
+       $prepareEnvelope->{pfn} = $prepareArchiveEnvelope->{pfn};
        return $prepareEnvelope;
      }
      $prepareEnvelope->{turl} = $prepareEnvelope->{pfn};
   } else {
     ($prepareEnvelope->{turl},$prepareEnvelope->{pfn}) = $self->parseAndCheckStorageElementPFN2TURL($prepareEnvelope->{se}, $prepareEnvelope->{pfn});
   }
-  my @seList = ("$prepareEnvelope->{se}");
-  return ($prepareEnvelope, \@seList);
+  return $prepareEnvelope;
 }
 
 
@@ -1523,7 +1523,7 @@ sub authorize{
   ($writeReq or $mirrorReq )
        and ($prepareEnvelope, $seList) = $self->getSEsAndCheckQuotaForWriteOrMirrorAccess($user,$prepareEnvelope,$seList,$sitename,$writeQos,$writeQosCount,$excludedAndfailedSEs);
 
-  $readReq and ($prepareEnvelope, $seList)=$self->getBaseEnvelopeForReadAccess($user, $lfn, $seList, $excludedAndfailedSEs, $sitename);
+  $readReq and $prepareEnvelope=$self->getBaseEnvelopeForReadAccess($user, $lfn, $seList, $excludedAndfailedSEs, $sitename) and @$seList = ($prepareEnvelope->{se});
   $prepareEnvelope or $self->info("Authorize: We couldn't create any envelope.") and return 0;
    
 
@@ -1611,6 +1611,7 @@ sub createAndEncryptEnvelopeTicket {
      }
   }
   my @pfns = split (/\/\//, $env->{"turl"});
+  $pfns[2] =~ s/#(.*)$//;
   $ticket .= "    <pfn>/".$pfns[2]."</pfn>\n"; 
   $ticket .= "  </file>\n</authz>\n";
 
@@ -1663,8 +1664,11 @@ sub signEnvelope {
   $env->{hashord} = join ("-",@keyVals);
   foreach(@keyVals) {
     ($_ eq "lfn")
-       and ($envelopeString=$envelopeString."$_=".AliEn::Util::escapeSEnvDelimiter($env->{$_})."&") and next;
-    ($envelopeString=$envelopeString."$_=$env->{$_}&");
+        and $envelopeString=$envelopeString."$_=".AliEn::Util::escapeSEnvDelimiter($env->{$_})."&" and next;
+    ($_ eq "user")
+        and $envelopeString=$envelopeString."user=$user&" and next;
+    $envelopeString=$envelopeString."$_=".($env->{$_} || 0)."&";
+    
   }
   $envelopeString=~ s/&$//;
 
