@@ -305,7 +305,7 @@ sub get {
    }
    $filehash or return 0;
 #   $filehash = shift @{$filehash};
-   $self->info("Coming back from checkPermission on $file...". Dumper($filehash));
+   $self->debug(1,"Coming back from checkPermission on $file...". Dumper($filehash));
 
    $self->info("GUID: $filehash->{guid}");
 
@@ -314,14 +314,11 @@ sub get {
      and return $self->getCollection($filehash->{guid}, $localFile, \%options);
 
    my $result = 0;
-   if(!$options{x}) { 
-      my $checkGUID = ($filehash->{zguid} || $filehash->{guid} );
-      $result=$self->{STORAGE}->getLocalCopy($checkGUID, $localFile);
-   }
-
+   $options{x} or
+      $result=$self->{STORAGE}->getLocalCopy($filehash->{guid}, $localFile);
 
    while (!$result) {
-   $self->{STORAGE}->checkDiskSpace($filehash->{size}, $localFile) or return;
+     $self->{STORAGE}->checkDiskSpace($filehash->{size}, $localFile) or return;
      my  @envelopes = AliEn::Util::deserializeSignedEnvelopes($self->{CATALOG}->authorize("read",{
       lfn=> $filehash->{lfn},
       wishedSE=>$wishedSE,excludeSE=>join(";",@excludedAndfailedSEs) ,site=>$self->{CONFIG}->{SITE}}));
