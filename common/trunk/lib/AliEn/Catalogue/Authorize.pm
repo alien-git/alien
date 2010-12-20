@@ -1025,6 +1025,7 @@ sub getBaseEnvelopeForReadAccess {
        my $archiveFile = $1;
        $self->info("Authorize: Getting file out of archive with GUID, $filehash->{guid}...");
        my $prepareArchiveEnvelope = $self->getBaseEnvelopeForReadAccess($user, $prepareEnvelope->{pfn}, [], $excludedAndfailedSEs, $sitename);
+       defined($prepareArchiveEnvelope) and defined($prepareArchiveEnvelope->{turl}) or return 0;
        $prepareEnvelope->{turl} = $prepareArchiveEnvelope->{turl}."#".$archiveFile;
        $prepareEnvelope->{pfn} = $prepareArchiveEnvelope->{pfn};
        $prepareEnvelope->{se} = $prepareArchiveEnvelope->{se};
@@ -1457,6 +1458,7 @@ sub reduceFileHashAndInitializeEnvelope{
   my $filehash=(shift || return 0);
   my @tags=("lfn", "guid", "size", "md5", @_);
   my $envelope = {};
+  $envelope->{zguid} and push @tags, "zguid";
   
   $envelope->{access} = $access;
   foreach my $tag (@tags){
@@ -1559,6 +1561,7 @@ sub authorize{
        }
   }  
 
+  $self->debug(2,"End of authorize, giving back ENVELOPES: ".Dumper(@returnEnvelopes));
 
   return @returnEnvelopes;
 }
@@ -1663,6 +1666,7 @@ sub signEnvelope {
    
   my $envelopeString="";
   my @keyVals = ("turl","access","lfn","size","se","guid","md5","user","issuer","issued","expires","hashord");
+  $env->{zguid} and push @keyVals, "zguid";
   $env->{hashord} = join ("-",@keyVals);
   foreach(@keyVals) {
     ($_ eq "lfn")
