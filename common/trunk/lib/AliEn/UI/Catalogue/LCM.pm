@@ -991,7 +991,7 @@ sub mirror {
   if ($opt->{u}){
     $self->info("Making sure that the file is not in that SE");
     my $nopt="";
-    $opt->{r} and $nopt.="r";
+    $opt->{r} and $nopt.="-r";
     my @info=$self->{CATALOG}->f_whereis($nopt, $realLfn)
       or $self->info("Error getting the info from $realLfn") and return;
     if (grep (/^$se$/i, @info)){
