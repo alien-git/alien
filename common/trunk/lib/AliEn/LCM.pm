@@ -316,7 +316,8 @@ sub getFile {
       $self->debug(1,"The copy worked! Let's check if the md5 is right");
       my $newMd5=AliEn::MD5->new($result);
       $newMd5 eq $md5
-	or $self->info("Error: The md5sum of the file doesn't match what it is supposed to be (it is $newMd5 instead of $md5)") and return;
+	or $self->info("WARNING: The md5sum of the file doesn't match what it is supposed to be (it is $newMd5 instead of $md5)") 
+        and $self->info("WARNING: Please verify yourself manually that the file contains what you wanted, I can't do that any further here.");
 
     }
 
