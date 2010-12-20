@@ -350,8 +350,9 @@ sub f_addMirror {
   $file or $self->info( "Error not enough arguments in addMirror".$self->f_addMirror_HELP(),1) and return;
   $file = $self->f_complete_path($file);
 
-  my $permLFN=$self->checkPermissions( 'w', $file )  or return;
-  if (! $self->isFile($file, $permLFN) ) {
+  my $permLFN=$self->checkPermissions( 'w', $file,0,1)  or return;
+
+  if (! $self->isFile($file, $permLFN->{lfn}) ) {
     $self->{LOGGER}->error("File", "file $file doesn't exist!!",1);
     return;
   }
@@ -360,6 +361,7 @@ sub f_addMirror {
     $opt->{md5} or $self->info("Error getting the md5sum of '$pfn'") and return;
   }
   $self->{DATABASE}->insertMirrorFromFile($file, $se, $pfn, $opt->{md5}) or return;
+  $self->deleteEntryFromBookingTableAndOptionalExistingFlagTrigger(($self->{ROLE} || $self->{CONFIG}->{ROLE}), {lfn=>$file,turl=>$pfn,se=>$se,guid=>$permLFN->{guid}},0 );
 
   $self->info("File '$file' has a mirror in '${se}'");
   return 1;
