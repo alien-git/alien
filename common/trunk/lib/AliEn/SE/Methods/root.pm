@@ -3,6 +3,7 @@ package AliEn::SE::Methods::root;
 use AliEn::SE::Methods::Basic;
 use AliEn::Logger::LogObject;
 
+use AliEn::Util;
 use strict;
 use vars qw( @ISA $DEBUG);
 @ISA = ("AliEn::SE::Methods::Basic");
@@ -51,29 +52,25 @@ sub get {
   $self->{DEBUG} and $self->{DEBUG} > 2 and $xrddebug = " -d ".($self->{DEBUG}-2);
 
   my $command;
+  
+  my $pfn="";
+  $self->{ENVELOPE} and $pfn=AliEn::Util::getValFromEnvelope($self->{ENVELOPE},'turl');
+  $pfn=~ s/#.*$//;
 
-  if ($ENV{ALIEN_XRDCP_ENVELOPE}){
-    my $p=$ENV{ALIEN_XRDCP_URL};
-    $p=~ s/#.*$//;
-    $command="$self->{XRDCP} $xrddebug -DIFirstConnectMaxCnt 6 $p $self->{LOCALFILE} -OS\\\&authz=\"$ENV{ALIEN_XRDCP_ENVELOPE}\"";
-    $self->debug(1, "The envelope is $ENV{ALIEN_XRDCP_ENVELOPE}");
-    $self->debug(1,"Trying to get the file $self->{PARSED}->{ORIG_PFN} (to $self->{LOCALFILE})");
-
-  } elsif ($ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}){
-    my $p=$ENV{ALIEN_XRDCP_URL};
-    $p=~ s/#.*$//;
-    $command="$self->{XRDCP} $xrddebug -DIFirstConnectMaxCnt 6 $p $self->{LOCALFILE} -OS\\\&authz=\"$ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}\"";
-    $self->debug(1, "The envelope is $ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}");
-    $self->debug(1,"Trying to get the file $self->{PARSED}->{ORIG_PFN} (to $self->{LOCALFILE})");
-  # Isn't the following branch old and useless ? Not sure !
+  if ($self->{OLDENVELOPE}){
+    $command="$self->{XRDCP} $xrddebug -DIFirstConnectMaxCnt 6 $pfn $self->{LOCALFILE} -OS\\\&authz=\"$self->{OLDENVELOPE}\"";
+    
+  } elsif ($self->{ENVELOPE}){
+    $command="$self->{XRDCP} $xrddebug -DIFirstConnectMaxCnt 6 $pfn $self->{LOCALFILE} -OS\\\&authz=\"$self->{ENVELOPE}\"";
+      # Isn't the following branch old and useless ? Not sure !
   } else {
     $self->{PARSED}->{PATH}=~ s{^//}{/};
     my $p= $self->{PARSED}->{PATH};
     $p =~ s/#.*$//;
-    $command="$self->{XRDCP} -d 3 -DIFirstConnectMaxCnt 6 root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$p $self->{LOCALFILE} ";
-    $self->debug(1,"Trying to get the file $self->{PARSED}->{ORIG_PFN} (to $self->{LOCALFILE})");
+    $command="$self->{XRDCP} -d 3 -DIFirstConnectMaxCnt 6 root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$p $self->{LOCALFILE} ";  
   }
   
+  $self->debug(1,"Trying to get the file $self->{PARSED}->{ORIG_PFN} (to $self->{LOCALFILE})");
   my $output = `$command 2>&1 ; echo "ALIEN_XRD_SUBCALL_RETURN_VALUE=\$?"` or $self->info("ERROR: Not possible to call $self->{XRDCP}!",1) and return;
   $output =~ s/\s+$//;
   $output =~ /ALIEN_XRD_SUBCALL_RETURN_VALUE\=([-]*\d+)$/;
@@ -115,17 +112,17 @@ sub put {
     $self->debug(2, "Exit code: $com_exit_value, Returned output: $output");
     if($com_exit_value eq 0) {
         $output=~ /Data Copied \[bytes\]\s*:\s*(\d+)/;
-        $self->info("Transfered  $1  bytes");
+        $self->debug(1, "Transfered  $1  bytes");
         my $size=-s $self->{LOCALFILE};
         if ($size eq $1){
-           $self->info("YUHUUU!! File was properly uploaded, now let's double check destination file size again ...");
+           $self->debug(2, "YUHUUU!! File was properly uploaded, now let's double check destination file size again ...");
            my $xrdstat = $self->xrdstat();
            ($xrdstat eq $size) or $self->info("WARNING: xrd stat not successful, waiting 6s...") and sleep(6) and $xrdstat = $self->xrdstat();
            ($xrdstat eq $size) or $self->info("WARNING: xrd stat not successful, waiting 9s...") and sleep(9) and $xrdstat = $self->xrdstat();
            ($xrdstat eq $size) or $self->info("WARNING: xrd stat not successful, waiting 30s...") and sleep(30) and $xrdstat = $self->xrdstat();
   
   
-           ( ($xrdstat eq $size) and $self->info("EXCELLENT! Double checking file size on destination SE was successfully.") )
+           ( ($xrdstat eq $size) and $self->debug(1, "EXCELLENT! Double checking file size on destination SE was successfully.") )
                or $self->info("ERROR: Double checking the file size on the SE with xrd stat showed unequal file sizes!",1) and return;
            $self->debug(2,"Double check file size value from xrd stat: $1");
   
@@ -154,17 +151,17 @@ sub put {
   $self->debug(2, "Exit code: $com_exit_value, Returned output: $output");
   if($com_exit_value eq 0) {
       $output=~ /Data Copied \[bytes\]\s*:\s*(\d+)/;
-      $self->info("Transfered  $1  bytes");
+      $self->debug(1, "Transfered  $1  bytes");
       my $size=-s $self->{LOCALFILE};
       if ($size eq $1){
-         $self->info("YUHUUU!! File was properly uploaded, now let's double check destination file size again ...");
+         $self->debug(1, "YUHUUU!! File was properly uploaded, now let's double check destination file size again ...");
          my $xrdstat = $self->xrdstat();
          ($xrdstat eq $size) or $self->info("WARNING: xrd stat not successful, waiting 6s...") and sleep(6) and $xrdstat = $self->xrdstat();
          ($xrdstat eq $size) or $self->info("WARNING: xrd stat not successful, waiting 9s...") and sleep(9) and $xrdstat = $self->xrdstat();
          ($xrdstat eq $size) or $self->info("WARNING: xrd stat not successful, waiting 30s...") and sleep(30) and $xrdstat = $self->xrdstat();
 
 
-         ( ($xrdstat eq $size) and $self->info("EXCELLENT! Double checking file size on destination SE was successfully.") )
+         ( ($xrdstat eq $size) and $self->debug(1, "EXCELLENT! Double checking file size on destination SE was successfully.") )
              or $self->info("ERROR: Double checking the file size on the SE with xrd stat showed unequal file sizes!",1) and return;
          $self->debug(2,"Double check file size value from xrd stat: $1");
 

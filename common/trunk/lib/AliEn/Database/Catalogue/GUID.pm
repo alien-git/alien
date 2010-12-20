@@ -301,7 +301,7 @@ sub insertGUID {
       my @entries=@{$entries->{$db}->{tables}->{$table}};
       my ($pfnRef, $guidRef)=$self->_prepareEntries(@entries)
 	or return;
-      $self->info("Ready to insert the info");
+      $self->debug(1, "Ready to insert the info");
 
       if (! $obj->multiinsert($table, $guidRef,$multiInsertOpt)){
 	$error=1;
@@ -311,7 +311,7 @@ sub insertGUID {
 	push @done, {db=>$obj, table=>$table, entries=>\@entries};
       }
       if ($pfnRef and @$pfnRef){
-	$self->info("And now insert the pfn");
+	$self->debug(1, "And now insert the pfn");
 	foreach (@$pfnRef) {
 	  if (!$obj->do("insert into ${table}_PFN (seNumber,guidId,pfn) select ?, guidId, ? from $table where guid=string2binary(?)",
 			{bind_values=>[$_->{se}, $_->{pfn}, $_->{guid}]} )){

@@ -30,11 +30,10 @@ sub copy {
   $self->info("Ready to copy $sEnvelope->{turl} into $tEnvelope->{turl} ");
 
   $self->{MSS}->{LOCALFILE}.=".$sEnvelope->{guid}";
-  $ENV{ALIEN_XRDCP_URL}=$sEnvelope->{turl};
-  $ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}=$sEnvelope->{signedEnvelope};
-  $ENV{ALIEN_XRDCP_ENVELOPE}="";
-  # if we have the old styled envelopes
-  (defined($sEnvelope->{oldEnvelope})) and $ENV{ALIEN_XRDCP_ENVELOPE}=$sEnvelope->{oldEnvelope};
+
+  $self->{MSS}->{ENVELOPE}=$sEnvelope->{signedEnvelope};
+  $self->{MSS}->{OLDENVELOPE}=$sEnvelope->{oldEnvelope};
+
 
   $self->info("Issuing the get");
   my $file=$self->{MSS}->get();

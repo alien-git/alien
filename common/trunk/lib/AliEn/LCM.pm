@@ -279,6 +279,8 @@ sub getFile {
   my $lfn       = ( shift or "" );
   my $guid      = ( shift or "" );
   my $md5       = (shift or "");
+  my $envelope  = (shift or "");
+  my $oldEnvelope  = (shift or 0);
 
   $self->info( "In getfile, with $SE ");
 
@@ -298,7 +300,9 @@ sub getFile {
   eval {
     my $file = AliEn::SE::Methods->new({DEBUG=>$self->{DEBUG},PFN=> $pfn,
 					DATABASE=> $self->{DATABASE}, 
-					LOCALFILE=> $localFile });
+					LOCALFILE=> $localFile,
+					ENVELOPE=>$envelope, OLDENVELOPE=>$oldEnvelope
+					 });
     ($file) or die ("We are not able to parse the pfn $pfn\n");
     if ( $opt =~ /l/ ) {
       $result = $file->getLink("-s");
@@ -316,9 +320,8 @@ sub getFile {
       $self->debug(1,"The copy worked! Let's check if the md5 is right");
       my $newMd5=AliEn::MD5->new($result);
       $newMd5 eq $md5
-	or $self->info("WARNING: The md5sum of the file doesn't match what it is supposed to be (it is $newMd5 instead of $md5)") 
-        and $self->info("WARNING: Please verify yourself manually that the file contains what you wanted, I can't do that any further here.");
-
+      	or $self->info("WARNING: The md5sum of the file doesn't match what it is supposed to be (it is $newMd5 instead of $md5)",1)
+	        and return; 
     }
 
     $self->info( "Everything worked and got $result");
@@ -587,7 +590,7 @@ sub getPFNName{
   $info->{guid} or return;
 
   $info->{pfn}=$self->rewriteCatalogueRegistrationPFN($envelope->{turl},$pfn) or return;
-  $self->info("According to the envelope: $pfn and $info->{guid}");
+  $self->debug(1, "According to the envelope: $pfn and $info->{guid}");
   return $info;
 }
 
