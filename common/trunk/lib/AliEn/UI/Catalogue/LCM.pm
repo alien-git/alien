@@ -313,11 +313,15 @@ sub get {
    (defined($filehash->{type}) and ($filehash->{type} eq "c")) and  $self->notice("This is in fact a collection!! Let's get all the files")
      and return $self->getCollection($filehash->{guid}, $localFile, \%options);
 
-   $options{x} or 
-   my $result=$self->{STORAGE}->getLocalCopy($filehash->{guid}, $localFile);
+   my result = 0;
+   if(!$options{x}) { 
+      my $checkGUID = ($filehash->{zguid} || $filehash->{guid} );
+      $result=$self->{STORAGE}->getLocalCopy($checkGUID, $localFile);
+   }
 
-   $self->{STORAGE}->checkDiskSpace($filehash->{size}, $localFile) or return;
+
    while (!$result) {
+   $self->{STORAGE}->checkDiskSpace($filehash->{size}, $localFile) or return;
      my  @envelopes = AliEn::Util::deserializeSignedEnvelopes($self->{CATALOG}->authorize("read",{
       lfn=> $filehash->{lfn},
       wishedSE=>$wishedSE,excludeSE=>join(";",@excludedAndfailedSEs) ,site=>$self->{CONFIG}->{SITE}}));
