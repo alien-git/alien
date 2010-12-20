@@ -313,7 +313,7 @@ sub get {
    (defined($filehash->{type}) and ($filehash->{type} eq "c")) and  $self->notice("This is in fact a collection!! Let's get all the files")
      and return $self->getCollection($filehash->{guid}, $localFile, \%options);
 
-   my result = 0;
+   my $result = 0;
    if(!$options{x}) { 
       my $checkGUID = ($filehash->{zguid} || $filehash->{guid} );
       $result=$self->{STORAGE}->getLocalCopy($checkGUID, $localFile);
