@@ -1027,6 +1027,8 @@ sub getBaseEnvelopeForReadAccess {
        my $prepareArchiveEnvelope = $self->getBaseEnvelopeForReadAccess($user, $prepareEnvelope->{pfn}, [], $excludedAndfailedSEs, $sitename);
        $prepareEnvelope->{turl} = $prepareArchiveEnvelope->{turl}."#".$archiveFile;
        $prepareEnvelope->{pfn} = $prepareArchiveEnvelope->{pfn};
+       $prepareEnvelope->{se} = $prepareArchiveEnvelope->{se};
+       $prepareEnvelope->{zguid} = $prepareArchiveEnvelope->{guid};
        return $prepareEnvelope;
      }
      $prepareEnvelope->{turl} = $prepareEnvelope->{pfn};
