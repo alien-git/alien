@@ -51,7 +51,7 @@ sub copy {
   }
   
   $self->info("We got the file $file. Let's put it now in the destination");
-  $ENV{ALIEN_XRDCP_URL}=$tEnvelope->{turl};
+  $ENV{ALIEN_XRDCP_URL}=($tEnvelope->{xurl} || $tEnvelope->{turl});
   $ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}=$tEnvelope->{signedEnvelope};
   $ENV{ALIEN_XRDCP_ENVELOPE}="";
 

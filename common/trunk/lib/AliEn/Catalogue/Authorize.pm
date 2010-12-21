@@ -956,7 +956,7 @@ sub selectPFNOnClosestRootSEOnRank{
    if(scalar(keys %{$seList}) eq 0) {
      # we don't have any root SE to get it from
     # $nose and return ("no_se",$nose);      
-    $self->info("There are no more SE holding that file");
+    $self->info("There are no more SE holding that file",1);
     # $nonRoot->{pfn} and return ($nonRoot->{se},$nonRoot->{pfn});
      return 0;
    }
@@ -1016,7 +1016,7 @@ sub getBaseEnvelopeForReadAccess {
   ($prepareEnvelope->{se}, $prepareEnvelope->{pfn})
     = $self->selectPFNOnClosestRootSEOnRank($sitename, $user, $filehash->{guid}, ($$seList[0] || 0), $excludedAndfailedSEs);
   $prepareEnvelope->{se} 
-       or $self->info("Authorize: access ERROR within selectPFNOnClosestRootSEOnRank: SE list was empty after checkup. Either problem with the file's info or you don't have access on relevant SEs.",1)
+       or $self->info("Authorize: access ERROR within selectPFNOnClosestRootSEOnRank: SE list was empty after checkup. Either no more replicas, a problem with the file's info,\nor you don't have access on relevant SEs.",1)
        and return 0;
 
  
@@ -1189,7 +1189,7 @@ sub  getBaseEnvelopeForMirrorAccess {
   my $self=shift;
   my $user=(shift || return 0);
   my $guid=(shift || return 0);
-  my $lfn=(shift || return "/NOLFN");
+  my $lfn=(shift || "/NOLFN");
   my $envelope={};
 
   AliEn::Util::isValidGUID($guid) or $self->info("Authorize: ERROR! $guid is not a valid GUID.",1) and return 0;
@@ -1542,6 +1542,15 @@ sub authorize{
          $self->addEntryToBookingTableAndOptionalExistingFlagTrigger($user,$prepareEnvelope,$mirrorReq)
          # or next;
        }
+
+       $prepareEnvelope->{xurl} = 0;
+
+       if ( ($prepareEnvelope->{se} =~ /dcache/i) 
+          or ($prepareEnvelope->{se} =~ /alice::((RAL)|(CNAF))::castor/i) and !($prepareEnvelope->{se}=~ /alice::RAL::castor2_test/i)  ) {
+              $prepareEnvelope->{turl}=~ m{^((root)|(file))://([^/]*)/(.*)};
+              $prepareEnvelope->{xurl} ="root://$4/$prepareEnvelope->{lfn}";
+       }
+
    
        my $signedEnvelope  = $self->signEnvelope($prepareEnvelope,$user);
 
@@ -1664,6 +1673,7 @@ sub signEnvelope {
   $env->{user} = $user;
    
   my $envelopeString="";
+  # turl is the transaction URL that becomes later the PFN in the catalogue, xurl below is the connection URL (overwrite for dcache etc. above)
   my @keyVals = ("turl","access","lfn","size","se","guid","md5","user","issuer","issued","expires","hashord");
   $env->{zguid} and push @keyVals, "zguid";
   $env->{hashord} = join ("-",@keyVals);
@@ -1680,6 +1690,8 @@ sub signEnvelope {
   my $signature = encode_base64($self->{signEngine}->sign($envelopeString));
   $signature =~  s/\n//g;
   $envelopeString =~  s/&/\\&/g;
+  
+  $env->{"xurl"} and $signature .= '\&xurl='.$env->{"xurl"};
 
   return $envelopeString.'\&signature='.$signature;
 }
