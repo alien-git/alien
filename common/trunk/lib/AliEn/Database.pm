@@ -219,10 +219,6 @@ sub new{
   my $proxy="";
   $self->{PROXY_HOST} and $proxy="\nProxy host: $self->{PROXY_HOST}; Proxy port: $self->{PROXY_PORT}";
 
-  $DEBUG and $self->debug(1,"User: $self->{USER}; Role: $self->{ROLE}; Token: $self->{TOKEN}; Password: $self->{PASSWD}
-Database name: $self->{DB}; Host name: $self->{HOST}; Driver: $self->{DRIVER}
-Forced method of authentication: $self->{FORCED_AUTH_METHOD} $proxy");
-
   $self->{USE_CACHE} and $self->_createCacheRoot;
 
   ($self->{USE_CACHE} ) and $DEBUG and $self->debug(1,"Using cache: $self->{CACHE_ROOT}; Cache size: $self->{CACHE_SIZE}");
@@ -930,7 +926,7 @@ sub _connect {
   ( $self->{FORCED_AUTH_METHOD} eq "TOKEN" ) and $pass = $self->{TOKEN}
   or $pass = $self->{PASSWD};
 
-  $DEBUG and $self->debug( 1,"Database: In _connect user $self->{ROLE}, $pass is trying to connect to $self->{DRIVER} $self->{DB} in $self->{HOST}."
+  $DEBUG and $self->debug( 1,"Database: In _connect user is trying to connect to $self->{DRIVER} $self->{DB} in $self->{HOST}."
   );
 
   my $sleep  = 1;
