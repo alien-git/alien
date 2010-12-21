@@ -33,12 +33,15 @@ sub copy {
   my $sourceEnvelope = $sEnvelope->{signedEnvelope};
   my $targetEnvelope = $tEnvelope->{signedEnvelope};
 
+  my $sxurl = (AliEn::Util::getValFromEnvelope($sourceEnvelope,'xurl') || AliEn::Util::getValFromEnvelope($sourceEnvelope,'turl'));
+  my $txurl = (AliEn::Util::getValFromEnvelope($targetEnvelope,'xurl') || AliEn::Util::getValFromEnvelope($targetEnvelope,'turl'));
+
   # if we have the old styled envelopes
   (defined($sEnvelope->{oldEnvelope})) and $sourceEnvelope = $sEnvelope->{oldEnvelope};
   (defined($tEnvelope->{oldEnvelope})) and $targetEnvelope = $tEnvelope->{oldEnvelope};
 
   $self->info("Ready to copy $sEnvelope->{turl} into $tEnvelope->{turl}");
-  my $args="-m -S $sEnvelope->{turl} $tEnvelope->{turl}  \"authz=$sourceEnvelope\" \"authz=$targetEnvelope\" ";
+  my $args="-m -S $sxurl $txurl  \"authz=$sourceEnvelope\" \"authz=$targetEnvelope\" ";
   $DEBUG and $args = " -d ".$args;
   my $output = `xrd3cp  $args  2>&1 ; echo "ALIEN_XRD_SUBCALL_RETURN_VALUE=\$?"` or $self->info("Error: Error doing the xrd3cp $args",1) and return;
   $output =~ s/\s+$//;

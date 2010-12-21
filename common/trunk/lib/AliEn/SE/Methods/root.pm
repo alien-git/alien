@@ -53,8 +53,7 @@ sub get {
 
   my $command;
   
-  my $pfn="";
-  $self->{ENVELOPE} and $pfn=AliEn::Util::getValFromEnvelope($self->{ENVELOPE},'turl');
+  my $pfn=($self->{XURL} || $self->{PFN});
   $pfn=~ s/#.*$//;
 
   if ($self->{OLDENVELOPE}){
@@ -71,6 +70,7 @@ sub get {
   }
   
   $self->debug(1,"Trying to get the file $self->{PARSED}->{ORIG_PFN} (to $self->{LOCALFILE})");
+  $self->debug(4,"CALLING WITH: $command");
   my $output = `$command 2>&1 ; echo "ALIEN_XRD_SUBCALL_RETURN_VALUE=\$?"` or $self->info("ERROR: Not possible to call $self->{XRDCP}!",1) and return;
   $output =~ s/\s+$//;
   $output =~ /ALIEN_XRD_SUBCALL_RETURN_VALUE\=([-]*\d+)$/;
@@ -103,7 +103,7 @@ sub put {
     $command.=" $ENV{ALIEN_XRDCP_URL} -OD\\\&authz=\"$ENV{ALIEN_XRDCP_ENVELOPE}\"";
     $self->debug(1,"The envelope is $ENV{ALIEN_XRDCP_ENVELOPE}");
   
-    $self->debug(1,"The command is $command");
+    $self->debug(4,"The command is $command");
     my $output = `$command  2>&1 ; echo "ALIEN_XRD_SUBCALL_RETURN_VALUE=\$?"` or $self->info("Error: xrdcp is not in the path",1) and return;
     $output =~ s/\s+$//; 
     $output =~ /ALIEN_XRD_SUBCALL_RETURN_VALUE\=([-]*\d+)$/;
@@ -142,7 +142,7 @@ sub put {
     $command.=" root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH}";
   }
 
-  $self->debug(1,"The command is $command");
+  $self->debug(4,"The command is $command");
   my $output = `$command  2>&1 ; echo "ALIEN_XRD_SUBCALL_RETURN_VALUE=\$?"` or $self->info("Error: xrdcp is not in the path",1) and return;
   $output =~ s/\s+$//; 
   $output =~ /ALIEN_XRD_SUBCALL_RETURN_VALUE\=([-]*\d+)$/;

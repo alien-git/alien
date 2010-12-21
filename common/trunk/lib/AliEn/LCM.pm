@@ -279,6 +279,7 @@ sub getFile {
   my $lfn       = ( shift or "" );
   my $guid      = ( shift or "" );
   my $md5       = (shift or "");
+  my $xurl = (shift or "");
   my $envelope  = (shift or "");
   my $oldEnvelope  = (shift or 0);
 
@@ -298,9 +299,9 @@ sub getFile {
 
   my ($result, $size);
   eval {
-    my $file = AliEn::SE::Methods->new({DEBUG=>$self->{DEBUG},PFN=> $pfn,
+    my $file = AliEn::SE::Methods->new({DEBUG=>($DEBUG || $self->{DEBUG}),PFN=> $pfn,
 					DATABASE=> $self->{DATABASE}, 
-					LOCALFILE=> $localFile,
+					LOCALFILE=> $localFile,XURL=>$xurl,
 					ENVELOPE=>$envelope, OLDENVELOPE=>$oldEnvelope
 					 });
     ($file) or die ("We are not able to parse the pfn $pfn\n");

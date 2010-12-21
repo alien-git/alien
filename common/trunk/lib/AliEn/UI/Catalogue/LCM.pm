@@ -334,7 +334,7 @@ sub get {
 
      my $start=time;
      $result = $self->{STORAGE}->getFile( $envelope->{turl}, $envelope->{se}, $localFile, join("",keys %options), $file, $envelope->{guid},$envelope->{md5},
-        $envelope->{signedEnvelope}, $envelope->{oldEnvelope} );
+        $envelope->{xurl}, $envelope->{signedEnvelope}, $envelope->{oldEnvelope} );
      my $time=time-$start; 
      if ($self->{MONITOR}){ $self->sendMonitor('read', $envelope->{se}, $time, $envelope->{size}, $result); }
      $result and last or $self->error("getFile failed with: ".$self->{LOGGER}->error_msg());
@@ -1300,7 +1300,8 @@ sub erase {
 	    $self->info("Cannot get access to $lfn for deletion") and return;
 	}
 
-       $ENV{ALIEN_XRDCP_URL}=$envelope->{turl};
+       $ENV{ALIEN_XRDCP_URL}=($envelope->{xurl} || $envelope->{turl});
+
        $ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}=$envelope->{signedEnvelope};
 
        # if we have the old styled envelopes
@@ -1642,7 +1643,7 @@ sub uploadFileAccordingToEnvelope{
     and $self->error("Error: No PFN specified [uploadFileAccordingToEnvelope]")
     and return (0,$result) ;
 
-     $ENV{ALIEN_XRDCP_URL}=$envelope->{turl};
+     $ENV{ALIEN_XRDCP_URL}=($envelope->{xurl} || $envelope->{turl});
      $ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}=$envelope->{signedEnvelope};
 
      # if we have the old styled envelopes
