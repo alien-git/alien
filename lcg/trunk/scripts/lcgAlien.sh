@@ -3,7 +3,7 @@
 AliEnCommand=$VO_ALICE_SW_DIR/alien/bin/alien
 
 uid=`$AliEnCommand --printenv | grep ALIEN_USER | cut --d='='  -f2`
-host=`$AliEnCommand -user aliprod --exec echo LDAPHOST | cut -d\' -f2`
+host=`$AliEnCommand -user aliprod --exec echo LDAPHOST | grep -v Checking |cut -d\' -f2` 
 dns=`ldapsearch -x -LLL -H ldap://$host -b uid=$uid,ou=people,o=alice,dc=cern,dc=ch subject| perl -p -00 -e 's/\n\n/\n/g;s/^dn:.*\n//g;s/\n //g;s/subject: //g;s/ /\#\#\#/g'`
 for line in $dns
 do
