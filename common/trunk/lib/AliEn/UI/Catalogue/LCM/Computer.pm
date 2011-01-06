@@ -141,6 +141,7 @@ sub registerOutput{
 
   my $dir="~/recycle/alien-job-$jobid";
   $self->execute("mkdir", "-p", $dir) or $self->info("Error creating $dir") and return; 
+  $self->info("The output files will be registered in: $dir");
   
   foreach my $line (@info){
     my ($file, @links)=split (/;;/, $line);
