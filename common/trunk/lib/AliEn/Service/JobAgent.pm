@@ -1672,9 +1672,9 @@ sub putFiles {
       
       if($self->{STATUS} =~ /^ERROR_V/) {
         # just upload the files ...
-        my $recyclebin = "~/recycle/alien-job-$ENV{ALIEN_PROC_ID}"; 
-        $self->{UI}->execute("mkdir","-p","$recyclebin");
-        my @addEnvs = $self->addFile("$self->{WORKDIR}/$fs_table->{$fileOrArch}->{name}","$recyclebin/$fs_table->{$fileOrArch}->{name}", "$fs_table->{$fileOrArch}->{options}",$guid,1);
+        #my $recyclebin = "~/recycle/alien-job-$ENV{ALIEN_PROC_ID}"; 
+        #$self->{UI}->execute("mkdir","-p","$recyclebin");
+        my @addEnvs = $self->addFile("$self->{WORKDIR}/$fs_table->{$fileOrArch}->{name}","~/recycle/alien-job-$ENV{ALIEN_PROC_ID}/$fs_table->{$fileOrArch}->{name}", "$fs_table->{$fileOrArch}->{options}",$guid,1);
         my $success = shift @addEnvs;
         $success or $self->putJobLog("error","The job went to ERROR_V, but we can't upload the output files for later registration") and next;
         my $env1 = AliEn::Util::deserializeSignedEnvelope(shift @addEnvs);
