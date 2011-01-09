@@ -38,7 +38,9 @@ sub installPackage{
     
 #    my @cmd = ("arc","-h afsdb1 -n jobexit alicesgm");
 
-    system ("arc -h afsdb1 -n jobexit alicesgm");
+     system ("unset LD_LIBRARY_PATH; arc -h afsdb1 -n jobexit alicesgm");    
+
+#    system ("arc -h afsdb1 -n jobexit alicesgm");
 #    if (system(@cmd)) {
      if ($?){
 	$self->info ("The synchronization of the AFS volumes has not worked! ");
