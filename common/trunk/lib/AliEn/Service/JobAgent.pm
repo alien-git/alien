@@ -1627,6 +1627,7 @@ sub putFiles {
   my $jdl;
   my %guids=$self->getUserDefinedGUIDS();
   my $incompleteAddes=0;
+  my $fileRegError=0;
   my $successCounter=0;
   my $failedSEs;
 
@@ -1714,7 +1715,7 @@ sub putFiles {
 
       foreach my $file( keys %{$fs_table->{$fileOrArch}->{entries}}) {  # if it is a file, there are just no entries
          $self->registerFile($file, $fs_table->{$fileOrArch}->{name}, $signedEnvs, $fs_table->{$fileOrArch}->{entries}->{$file}->{size},$fs_table->{$fileOrArch}->{entries}->{$file}->{md5})
-          or $incompleteAddes=1;
+          or $fileRegError=1;
       }
    
     }
@@ -1731,6 +1732,11 @@ sub putFiles {
      $self->putJobLog("error","THERE WAS AT LEAST ONE FILE, THAT WE COULDN'T STORE ON ANY SE.");
      return 0;
   }
+  if ($fileRegError) {
+     $self->putJobLog("error","THERE WAS AT LEAST ONE FILE LINK REGISTRATION THAT WAS NOT SUCCESSFULL.");
+     return 0;
+  }
+
 
   if($incompleteAddes) {
      #$self->putJobLog("trace", "WARNING: We had  ".scalar(keys(%$fs_table))
@@ -1812,9 +1818,13 @@ sub registerFile {
   $self->{LOGGER}->debugOn(5);
   $self->{LOGGER}->keepAllMessages();
 
+  my $addResult=0;
+  my $maxTry= 3;
   $self->putJobLog("trace", "Trying to register file with: add -r -size $size -md5 $md5  $file guid:///$env->{guid}?ZIP=$file");
-  my ($addResult)=$self->{UI}->execute("add", "-r", "-feedback", "-size $size", "-md5 $md5", "$self->{PROCDIR}/$file", "guid:///$env->{guid}?ZIP=$file");
-
+  for (my $tries = 0; $tries < $maxTry; $tries++) { 
+    ($addResult)=$self->{UI}->execute("add", "-r", "-feedback", "-size $size", "-md5 $md5", "$self->{PROCDIR}/$file", "guid:///$env->{guid}?ZIP=$file");
+    $addResult and last;
+  }
 
   ($addResult ne 1) 
     and  $self->highVerboseTransactionLog(@{$self->{LOGGER}->getMessages()});
