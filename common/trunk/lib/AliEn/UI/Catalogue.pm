@@ -1000,7 +1000,7 @@ Possible pfns:\tsrm://<host>/<path>, castor://<host>/<path>,
 
   #return $self->{CATALOG}->f_registerFile( $opt, $file, $size, $destSE, $guid, $type, undef,$options->{md5}, $pfn);
   return $self->{CATALOG}->authorize("register", {lfn=>$self->{CATALOG}->GetAbsolutePath($file), 
-             pfn=>$pfn, size=>$size, md5=>$options->{md5}, guid=>$guid });
+             pfn=>$pfn, size=>$size, md5=>$options->{md5}, guid=>$guid, wishedSE=>$destSE });
 }
 
 
