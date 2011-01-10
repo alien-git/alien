@@ -998,7 +998,9 @@ Possible pfns:\tsrm://<host>/<path>, castor://<host>/<path>,
 
   $DEBUG and $self->debug(1, "We added the file to the SE ($guid and $destSE)");
 
-  return $self->{CATALOG}->f_registerFile( $opt, $file, $size, $destSE, $guid, $type, undef,$options->{md5}, $pfn);
+  #return $self->{CATALOG}->f_registerFile( $opt, $file, $size, $destSE, $guid, $type, undef,$options->{md5}, $pfn);
+  return $self->{CATALOG}->authorize("register", {lfn=>$self->{CATALOG}->GetAbsolutePath($file), 
+             pfn=>$pfn, size=>$size, md5=>$options->{md5}, guid=>$guid });
 }
 
 
