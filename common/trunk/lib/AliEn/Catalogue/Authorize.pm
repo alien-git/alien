@@ -1066,8 +1066,8 @@ sub getSEforPFN{
   $pfn =~ /^((guid)|(soap)):/ and return "no_se";
   $pfn = $self->parsePFN($pfn);
   $pfn or return 0;
-  my @queryValues = ("$pfn->{proto}://$pfn->{host}");
-  my $sestring = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow("SELECT seName FROM SE where seioDaemons LIKE concat ( ? , '%') ;",
+  my @queryValues = ("$pfn->{proto}://$pfn->{host}","$pfn->{path}");
+  my $sestring = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow("SELECT seName FROM SE WHERE seioDaemons LIKE concat ( ? , '%') AND ? LIKE CONCAT(seStoragePath, '%')  ORDER BY length(seStoragePath) DESC LIMIT 1 ;",
               undef, {bind_values=>\@queryValues});
   $sestring->{seName} or return 0;
   return $sestring->{seName};
