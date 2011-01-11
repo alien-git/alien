@@ -966,13 +966,16 @@ sub offerAgent {
     AliEn::Util::setCacheValue($self, "classad", $classad);
 
   }
-  $done = $self->{SOAP}->CallSOAP("ClusterMonitor", "offerAgent",
-				  $user,
-				  $self->{CONFIG}->{CLUSTERMONITOR_PORT},
-				  $self->{CONFIG}->{CE_FULLNAME},
-				  $silent, $classad, 
-				  $free_slots,
-				 );
+#  $done = $self->{SOAP}->CallSOAP("ClusterMonitor", "offerAgent",
+#				  $user,
+#				  $self->{CONFIG}->{CLUSTERMONITOR_PORT},
+#				  $self->{CONFIG}->{CE_FULLNAME},
+#				  $silent, $classad, 
+#				  $free_slots,
+#				 );
+  my $done =$self->{SOAP}->CallSOAP("Broker/Job", "offerAgent",  $user,
+                                    $self->{CONFIG}->{HOST}, $classad, $free_slots);
+
   $done or return;
   $DEBUG and $self->debug(1, "Got back that we have to start  agents");
   my $message;
