@@ -973,7 +973,7 @@ sub offerAgent {
 #				  $silent, $classad, 
 #				  $free_slots,
 #				 );
-  my $done =$self->{SOAP}->CallSOAP("Broker/Job", "offerAgent",  $user,
+  $done =$self->{SOAP}->CallSOAP("Broker/Job", "offerAgent",  $user,
                                     $self->{CONFIG}->{HOST}, $classad, $free_slots);
 
   $done or return;
