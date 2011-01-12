@@ -146,6 +146,9 @@ sub registerOutput{
   foreach my $line (@info){
     my ($file, @links)=split (/;;/, $line);
     my ($lfn, $guid, $size, $md5, $pfn)=split (/###/, $file); 
+
+    (my $se, $pfn)=split(/\//, $pfn,2);
+
     $guid or $guid=AliEn::GUID->new()->CreateGuid();
     my $fullpath=$lfn;
     $fullpath=~ /^\// or $fullpath="$dir/$lfn";

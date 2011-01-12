@@ -1680,7 +1680,7 @@ sub putFiles {
         my $success = shift @addEnvs;
         $success or $self->putJobLog("error","The job went to ERROR_V, but we can't upload the output files for later registration") and next;
         my $env1 = AliEn::Util::deserializeSignedEnvelope(shift @addEnvs);
-        my @pfns = ($env1->{turl});
+        my @pfns = ("$env1->{se}/$env1->{turl}");
         foreach my $env (@addEnvs) {
            push @pfns, AliEn::Util::getValFromEnvelope($env,"turl");
         }
