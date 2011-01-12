@@ -136,10 +136,12 @@ sub registerOutput{
   }
   my ($ok, @info)=$ca->evaluateAttributeVectorString("RegisteredOutput");
   $ok or $self->info("This job didn't register any output") and return;
+  ($ok, my @user)=$ca->evaluateAttributeVectorString("User");
   my $files={};
   my %filesToRegister;
 
-  my $dir="~/recycle/alien-job-$jobid";
+  my $dir ="~/../../".substr($user[0], 0, 1)."/".$user[0]."/recycle/alien-job-$jobid";
+  
   $self->execute("mkdir", "-p", $dir) or $self->info("Error creating $dir") and return; 
   $self->info("The output files will be registered in: $dir");
   
@@ -147,19 +149,19 @@ sub registerOutput{
     my ($file, @links)=split (/;;/, $line);
     my ($lfn, $guid, $size, $md5, $pfn)=split (/###/, $file); 
 
-    (my $se, $pfn)=split(/\//, $pfn,2);
-    ($pfn and $pfn ne "") or $pfn=$se;
+    my ($se, $pfn2)=split(/\//, $pfn,2);
+    AliEn::Util::isValidSEName($se) and $pfn=$pfn2;
 
     $guid or $guid=AliEn::GUID->new()->CreateGuid();
     my $fullpath=$lfn;
     $fullpath=~ /^\// or $fullpath="$dir/$lfn";
     #my $info={lfn=>$lfn, md5=>$md5, size=>$size,    guid=>$guid};
-    if ($self->execute("add", "-r -size $size $fullpath -md5 $md5 $pfn -guid $guid")){
-      $self->info("File $fullpath registered in the catalogue");
-    } else{
-      $self->info("Error doing ' add -r -size $size $fullpath -md5 $md5 $pfn -silent -guid $guid");
+    $self->info("Doing add -r -size $size $fullpath -md5 $md5 $pfn -guid $guid");
+    $self->execute("add", "-r -size $size $fullpath -md5 $md5 $pfn -guid $guid") 
+      and $self->info("File $fullpath registered in the catalogue")
+      or  $self->info("Error doing ' add -r -size $size $fullpath -md5 $md5 $pfn -guid $guid");
     #  $self->execute("add", "-r -size $size $fullpath -md5 $md5 $pfn -guid $guid");
-    }
+    
     foreach my $link (@links){
       my ($l, $s, $m, $g)=split (/###/, $link);
       $self->info("Doing add -r -size $s $dir/$l -md5 $m guid:///$guid?ZIP=$l");

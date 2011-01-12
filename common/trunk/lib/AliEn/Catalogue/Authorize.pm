@@ -1125,7 +1125,7 @@ sub  getBaseEnvelopeForWriteAccess {
   ####
 
   $envelope= $self->checkPermissions("w",$lfn,0, 1);
-  $envelope or $self->info("Authorize: access: access denied to $lfn",1) and return 0;
+  $envelope or $self->info("Authorize: access denied to $lfn",1) and return 0;
 
   #Check parent dir permissions:
   my $parent = $self->f_dirname($lfn);
@@ -1142,14 +1142,16 @@ sub  getBaseEnvelopeForWriteAccess {
      #  and return 0;
   } else {
   
-    my $reply = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow(
+    if($user ne "admin") {
+      my $reply = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow(
         "SELECT lfn FROM LFN_BOOKED WHERE lfn=? ;"
         , undef, {bind_values=>[$lfn]});
-    $reply->{lfn} and  $reply = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow(
-        "SELECT lfn FROM LFN_BOOKED WHERE lfn=? and (owner<>? or gowner<>? );"
-        , undef, {bind_values=>[$lfn,$user,$user]});
+      $reply->{lfn} and  $reply = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow(
+          "SELECT lfn FROM LFN_BOOKED WHERE lfn=? and (owner<>? or gowner<>? );"
+          , undef, {bind_values=>[$lfn,$user,$user]});
   
-    $reply->{lfn} and $self->info("Authorize: access: the LFN is already in use (reserved in [LFN_BOOKED], not in the catalogue)",1) and return 0;
+      $reply->{lfn} and $self->info("Authorize: access: the LFN is already in use (reserved in [LFN_BOOKED], not in the catalogue)",1) and return 0;
+    }
    
   }
 
@@ -1254,7 +1256,7 @@ sub registerPFNInCatalogue{
   $se or $se=$self->getSEforPFN($pfn);
   $se or $self->info("Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $pfn could not be registered. The PFN doesn't correspond to any known SE.",1) and return 0;
  
-  $self->f_registerFile( "-fm", $envelope->{lfn}, $envelope->{size},
+  $self->f_registerFile( "-f", $envelope->{lfn}, $envelope->{size},
     $se, $envelope->{guid}, undef ,undef, $envelope->{md5},
     $pfn) 
     or $self->info("Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $pfn could not be registered.",1) and return 0;
@@ -1425,15 +1427,28 @@ sub deleteEntryFromBookingTableAndOptionalExistingFlagTrigger{
 
 
   my $triggerstat=1;
-  $trigger 
-    and $triggerstat = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do(
-    "UPDATE LFN_BOOKED SET existing=1 WHERE lfn=? and guid=string2binary(?) and size=? and md5sum=? and owner=? and gowner=? ;",
-    {bind_values=>[$envelope->{lfn},$envelope->{guid},$envelope->{size},$envelope->{md5},$user,$user]});
 
-  return ($self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do(
-    "DELETE FROM LFN_BOOKED WHERE lfn=? and guid=string2binary(?) and pfn=? and se=? and owner=? and gowner=? ;",
-    {bind_values=>[$envelope->{lfn},$envelope->{guid},$envelope->{turl},$envelope->{se},$user,$user]})
-    && $triggerstat);
+  if($user ne "admin") {
+    $trigger 
+      and $triggerstat = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do(
+      "UPDATE LFN_BOOKED SET existing=1 WHERE lfn=? and guid=string2binary(?) and size=? and md5sum=? and owner=? and gowner=? ;",
+      {bind_values=>[$envelope->{lfn},$envelope->{guid},$envelope->{size},$envelope->{md5},$user,$user]});
+
+      return ($self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do(
+        "DELETE FROM LFN_BOOKED WHERE lfn=? and guid=string2binary(?) and pfn=? and se=? and owner=? and gowner=? ;",
+        {bind_values=>[$envelope->{lfn},$envelope->{guid},$envelope->{turl},$envelope->{se},$user,$user]})
+        && $triggerstat);
+  } else {
+    $trigger 
+      and $triggerstat = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do(
+      "UPDATE LFN_BOOKED SET existing=1 WHERE lfn=? and guid=string2binary(?) and size=? and md5sum=? ;",
+      {bind_values=>[$envelope->{lfn},$envelope->{guid},$envelope->{size},$envelope->{md5}]});
+
+    return ($self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do(
+      "DELETE FROM LFN_BOOKED WHERE lfn=? and guid=string2binary(?) and pfn=? and se=? ;",
+      {bind_values=>[$envelope->{lfn},$envelope->{guid},$envelope->{turl},$envelope->{se}]})
+      && $triggerstat);
+  }
 }
 
 
@@ -1516,8 +1531,10 @@ sub authorize{
 
   if ($writeReq or $registerReq) {
     $prepareEnvelope = $self->getBaseEnvelopeForWriteAccess($user,$lfn,$size,$md5,$guidRequest);
-    $registerReq and return $self->registerPFNInCatalogue($user,$prepareEnvelope,$pfn,$wishedSE);
-
+    if($registerReq) {
+      $prepareEnvelope or $self->info("Authorize: Permission denied. Could not register $lfn.",1) and return 0;
+      return $self->registerPFNInCatalogue($user,$prepareEnvelope,$pfn,$wishedSE);
+    }
   } 
   $deleteReq and 
      ($prepareEnvelope,$seList) = $self->getBaseEnvelopeForDeleteAccess($user,$lfn);
@@ -1528,7 +1545,7 @@ sub authorize{
        and ($prepareEnvelope, $seList) = $self->getSEsAndCheckQuotaForWriteOrMirrorAccess($user,$prepareEnvelope,$seList,$sitename,$writeQos,$writeQosCount,$excludedAndfailedSEs);
 
   $readReq and $prepareEnvelope=$self->getBaseEnvelopeForReadAccess($user, $lfn, $seList, $excludedAndfailedSEs, $sitename) and @$seList = ($prepareEnvelope->{se});
-  $prepareEnvelope or $self->info("Authorize: We couldn't create any envelope.") and return 0;
+  $prepareEnvelope or $self->info("Authorize: We couldn't create any envelope.",1) and return 0;
    
 
   ($seList && (scalar(@$seList) gt 0)) or $self->info("Authorize: access: After checkups there's no SE left to make an envelope for.",1) and return 0;
@@ -1598,6 +1615,8 @@ sub isOldEnvelopeStorageElement{
   my $self=shift;
   my $se=(shift || return 1);
 
+  ($se eq "no_se") and return 0;
+  
   my @queryValues = ("$se");
   my $seVersion = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryValue("SELECT seVersion FROM SE WHERE seName=? ;", undef, {bind_values=>\@queryValues});
 
