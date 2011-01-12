@@ -148,6 +148,7 @@ sub registerOutput{
     my ($lfn, $guid, $size, $md5, $pfn)=split (/###/, $file); 
 
     (my $se, $pfn)=split(/\//, $pfn,2);
+    ($pfn and $pfn ne "") or $pfn=$se;
 
     $guid or $guid=AliEn::GUID->new()->CreateGuid();
     my $fullpath=$lfn;

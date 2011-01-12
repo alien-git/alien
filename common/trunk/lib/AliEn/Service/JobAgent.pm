@@ -1631,6 +1631,7 @@ sub putFiles {
   my $fileRegError=0;
   my $successCounter=0;
   my $failedSEs;
+  my @lfnTracker = ();
 
   foreach my $data (split (/\s+/, $self->{VOs})){
     my ($org, $cm,$id, $token)=split ("#", $data);
@@ -1645,13 +1646,12 @@ sub putFiles {
 
     #so that we can know if we are registering a new file or a replica
     my @registerInJDL=();
-
+    
     $self->{PROCDIR} = $self->{OUTPUTDIR} || "~/alien-job-$ENV{ALIEN_PROC_ID}";
     my $recyclebin = "~/recycle/alien-job-$ENV{ALIEN_PROC_ID}"; 
     if ($self->{STATUS} =~ /^ERROR_V/) {
        $self->{UI}->execute("mkdir","-p","$recyclebin");
     } else {
-       $self->{UI}->execute("rmdir",$self->{PROCDIR});
        $self->{UI}->execute("mkdir","-p",$self->{PROCDIR});
     }
 
@@ -1709,7 +1709,10 @@ sub putFiles {
      
       my $success = shift @addEnvs;
       $success  or next;
-      $success and  $successCounter++;
+      if($success){
+        $successCounter++;
+        push @lfnTracker, "$self->{PROCDIR}/$fs_table->{$fileOrArch}->{name}";
+      }
       ($success eq -1) and $incompleteAddes=1;
 
       $no_links and next;
@@ -1718,7 +1721,8 @@ sub putFiles {
 
       foreach my $file( keys %{$fs_table->{$fileOrArch}->{entries}}) {  # if it is a file, there are just no entries
          $self->registerFile($file, $fs_table->{$fileOrArch}->{name}, $signedEnvs, $fs_table->{$fileOrArch}->{entries}->{$file}->{size},$fs_table->{$fileOrArch}->{entries}->{$file}->{md5})
-          or $fileRegError=1;
+          and (push @lfnTracker, "$self->{PROCDIR}/$file") or $fileRegError=1;
+          
       }
    
     }
@@ -1734,10 +1738,14 @@ sub putFiles {
 
   if (scalar(keys(%$fs_table)) ne $successCounter) {
      $self->putJobLog("error","THERE WAS AT LEAST ONE FILE, THAT WE COULDN'T STORE ON ANY SE.");
+     $self->putJobLog("error","JOB WILL GO TO ERROR STATE. ROLLING BACK AND DELETING ALL OUTPUT FILES.");
+     $self->deleteFilesOnErrorSaving(@lfnTracker);
      return 0;
   }
   if ($fileRegError) {
      $self->putJobLog("error","THERE WAS AT LEAST ONE FILE LINK REGISTRATION THAT WAS NOT SUCCESSFULL.");
+     $self->putJobLog("error","JOB WILL GO TO ERROR STATE. ROLLING BACK AND DELETING ALL OUTPUT FILES.");
+     $self->deleteFilesOnErrorSaving(@lfnTracker);
      return 0;
   }
 
@@ -1843,6 +1851,15 @@ sub registerFile {
   $self->putJobLog("error","Error while registering file link $file in archive $archive");
   return 0;
 }
+
+sub deleteFilesOnErrorSaving{
+  my $self=shift;
+  $self->putJobLog("trace","We are called to delete - @_ -");
+  foreach(@_) { 
+     $self->{UI}->execute("rm", "$_") ;
+  }
+}
+
 
 sub highVerboseTransactionLog {
   my $self=shift;

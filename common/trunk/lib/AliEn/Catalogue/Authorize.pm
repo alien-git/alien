@@ -1134,11 +1134,12 @@ sub  getBaseEnvelopeForWriteAccess {
 
   my $perms = $self->checkPermissions("w",$lfn,0,1);
 
-  if($self->existsEntry($perms->{lfn})) {
-     $self->debug(1,"Authorize: The entry already exists, so we have to delete it, before we can proceed ...");
-     $self->{DATABASE}->{LFN_DB}->removeFile($lfn,$perms)
-       or $self->info("Authorize: The file is already existing in the catalogue and could not be overwritten, as you don't have the permissions on that file.",1)
-       and return 0;
+  if($self->existsEntry($self->GetAbsolutePath($lfn))) {
+     $self->info("Authorize: The file is already existing in the catalogue, you need to delete it first manually.",1) and return 0;
+     #$self->debug(1,"Authorize: The entry already exists, so we have to delete it, before we can proceed ...");
+     #$self->{DATABASE}->{LFN_DB}->removeFile($lfn,$perms)
+     #  or $self->info("Authorize: The file is already existing in the catalogue and could not be overwritten, as you don't have the permissions on that file.",1)
+     #  and return 0;
   } else {
   
     my $reply = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow(
