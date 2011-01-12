@@ -399,7 +399,8 @@ sub GetJDL {
 
     $self->sendJAStatus(undef, {TTL=>$self->{TTL}});
 
-    my $done = $self->{SOAP}->CallSOAP("CLUSTERMONITOR","getJobAgent", $ENV{ALIEN_JOBAGENT_ID}, "$self->{HOST}:$self->{PORT}", $self->{CONFIG}->{ROLE}, $hostca, $hostca_stage);
+    #my $done = $self->{SOAP}->CallSOAP("CLUSTERMONITOR","getJobAgent", $ENV{ALIEN_JOBAGENT_ID}, "$self->{HOST}:$self->{PORT}", $self->{CONFIG}->{ROLE}, $hostca, $hostca_stage);
+    my $done = $self->{SOAP}->CallSOAP("Broker/Job", "getJobAgent", $self->{CONFIG}->{ROLE}, $self->{CONFIG}->{HOST}, $hostca, $hostca_stage);
     my $info;
     $done and $info=$done->result;
     if ($info){
