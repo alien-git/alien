@@ -1651,6 +1651,7 @@ sub putFiles {
     if ($self->{STATUS} =~ /^ERROR_V/) {
        $self->{UI}->execute("mkdir","-p","$recyclebin");
     } else {
+       $self->{UI}->execute("rmdir",$self->{PROCDIR});
        $self->{UI}->execute("mkdir","-p",$self->{PROCDIR});
     }
 
