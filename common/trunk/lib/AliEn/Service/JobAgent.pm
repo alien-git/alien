@@ -387,27 +387,25 @@ sub GetJDL {
     my $hostca=$self->getHostClassad();
     if (!$hostca){
       $self->sendJAStatus('ERROR_HC');
-#      $catalog and  $catalog->close();
       return;
     }
     my $hostca_stage;
- #   if ($catalog){
- #     $self->info("We have a catalog (we can stage)");
- #     $hostca_stage=$hostca;
- #     $hostca_stage=~ s/\[/\[TO_STAGE=1;/;
- #   }
 
     $self->sendJAStatus(undef, {TTL=>$self->{TTL}});
 
     #my $done = $self->{SOAP}->CallSOAP("CLUSTERMONITOR","getJobAgent", $ENV{ALIEN_JOBAGENT_ID}, "$self->{HOST}:$self->{PORT}", $self->{CONFIG}->{ROLE}, $hostca, $hostca_stage);
-    my $done = $self->{SOAP}->CallSOAP("Broker/Job", "getJobAgent", $self->{CONFIG}->{ROLE}, $self->{CONFIG}->{HOST}, $hostca, $hostca_stage);
+    
+    my $host=$self->{CONFIG}->{HOST};
+    if ($ENV{ALIEN_CM_AS_LDAP_PROXY}){
+       $host=$ENV{ALIEN_CM_AS_LDAP_PROXY};
+       $host=~ s/^(https?:\/\/)?([^:]*)(:\d+)?/$2/;
+       $self->info("The host is $host");
+    }
+    my $done = $self->{SOAP}->CallSOAP("Broker/Job", "getJobAgent", $self->{CONFIG}->{ROLE}, $host, $hostca, $hostca_stage);
     my $info;
     $done and $info=$done->result;
     if ($info){
       $self->info("Got something from the ClusterMonitor");
-#      use Data::Dumper;
-#      print Dumper($info);
-#      $self->checkStageJob($info, $catalog);
       if (!$info->{execute}){
 	$self->info("We didn't get anything to execute");
       }	else{
