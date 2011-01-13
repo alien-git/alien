@@ -1031,7 +1031,7 @@ sub _queryDB{
 
     if ($sqlError) {
       my $found=0;
-      $sqlError =~ /(Unexpected EOF)|(Lost connection)|(Constructor didn't return a handle)|(No such object)|(Connection reset by peer)|(MySQL server has gone away at)|(_set_fbav\(.*\): not an array ref at)|(Constructor didn't return a handle)/ and $found=1;
+      $sqlError =~ /(Unexpected EOF)|(Lost connection)|(Constructor didn't return a handle)|(No such object)|(Connection reset by peer)|(MySQL server has gone away)|(_set_fbav\(.*\): not an array ref at)|(Constructor didn't return a handle)/ and $found=1;
 
       if ($sqlError =~ /Died at .*AliEn\/UI\/Catalogue\.pm line \d+/) {
   die("We got a ctrl+c... :( ");
@@ -1156,7 +1156,7 @@ sub _pingReconnect {
   $self->{PID}
   and ( $self->{PID} == $$ )
   and $self->{DBH}
-  and $self->{DBH}->ping
+ # and $self->{DBH}->ping
   and return 1;
 
   $self->reconnect;
