@@ -539,7 +539,7 @@ sub new {
 sub checkEnvelopeCreation {
   my $self=shift; 
 
-  $self->info("Checking if we can create envelopes");
+  $self->debug(1, "Checking if we can create envelopes");
   foreach  my $var ('SEALED_ENVELOPE_LOCAL_PRIVATE_KEY','SEALED_ENVELOPE_LOCAL_PUBLIC_KEY',
     'SEALED_ENVELOPE_REMOTE_PRIVATE_KEY','SEALED_ENVELOPE_REMOTE_PUBLIC_KEY') {
     defined $ENV{$var} or return;
