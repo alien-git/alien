@@ -1725,12 +1725,15 @@ sub putFiles {
    
     }
 
-    if ($self->{STATUS} =~ /^ERROR_V/) {
-      $self->{JDL_REGISTERFILES} = join(",",@registerInJDL);
-      $self->{UI}->execute("rmdir","$recyclebin");
-    } 
-
   }
+
+  if ($self->{STATUS} =~ /^ERROR_V/) {
+     $self->{UI}->execute("rmdir","$recyclebin");
+     $self->{JDL_REGISTERFILES} = join(",",@registerInJDL);
+  } else {
+     $self->registerLogs(0);
+  }
+ 
 
   $self->{CONFIG}=$self->{CONFIG}->Reload({"organisation", $oldOrg});
 
@@ -2612,9 +2615,12 @@ sub registerLogs {
     $dir=~ s{/([^/]*)$}{/};
     my $basename=$1;
     my $data=$self->submitFileToClusterMonitor($dir,$basename, "execution.out");
-    $data or $self->info("Error submitting the log file") and return;
-
-    my $registerLogString = "\"".join ("###", "execution.out", 0, ($data->{size} || 0), ($data->{md5}|| 0),  $data->{pfn}) ."\"";
+    my $registerLogString;
+    if($data) {
+      $registerLogString = "\"".join ("###", "execution.out", 0, ($data->{size} || 0), ($data->{md5}|| 0),  $data->{pfn}) ."\"";
+    } else {
+      $self->putJobLog("error", "Error submitting the execution.out log file. The file will not be there!");
+    }
 
     ($self->{STATUS} =~ /^ERROR_V/)  and
        $registerLogString = join(",", $self->{JDL_REGISTERFILES}, $registerLogString);
@@ -2622,6 +2628,8 @@ sub registerLogs {
     $self->{CA}->set_expression("RegisteredOutput", "{".$registerLogString."}");
     $self->info("We set the RegisteredOutput in the JDL");
     $self->{JDL_CHANGED}=1;
+    $self->{CONFIG}=$self->{CONFIG}->Reload({"organisation", $oldOrg});
+
 
   };
   $self->doInAllVO({},$func);
