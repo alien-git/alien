@@ -1689,7 +1689,7 @@ sub putFiles {
         my @list = ();
         foreach my $file( keys %{$fs_table->{$fileOrArch}->{entries}}) {  # if it is a file, there are just no entries
             push @list, join("###", $file, $fs_table->{$fileOrArch}->{entries}->{$file}->{size},
-            $fs_table->{$fileOrArch}->{entries}->{$file}->{md5},$env1->{guid});
+            $fs_table->{$fileOrArch}->{entries}->{$file}->{md5});
         }
          my $links="";
         (scalar(@list) gt 0) and $links.=";;".join(";;",@list);
