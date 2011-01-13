@@ -372,6 +372,7 @@ sub f_showTagValue {
     or $self->info("Error getting the description of the metadata for $tagTableName") and return;
 
   my @fields;
+  my $line="";
   foreach my $rcolumn (@$rcolumns) {
     my ($name, $type) = ($rcolumn->{Field}, $rcolumn->{Type});
 
@@ -380,14 +381,14 @@ sub f_showTagValue {
     $l>200 and $l=60;
     if ((!$self->{SILENT}) && ($opts !~ /z/)) {
       if (not $tagField or $name=~/^(file)|($tagField)$/){
-	printf "%-${l}s", "$name($type)  ";
+	$line= sprintf "$line%-${l}s", "$name($type)  ";
       }
     }
     push @fields, [$name, $l];
   }
 
   if ( !$self->{SILENT} ) {
-    ($opts =~ /z/) || print STDOUT "\n";
+    ($opts =~ /z/) || $line.= "\n";
     foreach my $line (@$rTags) {
       foreach my $rfield (@fields) {
 	if ($tagField){
@@ -397,10 +398,11 @@ sub f_showTagValue {
 	defined $line->{$rfield->[0]} and $value=$line->{$rfield->[0]};
 	my $l= $rfield->[1];
 	$l >200 and $l=60;
-	($opts =~ /z/) || printf( "%-${l}s", $value );
+	($opts =~ /z/) || $line=sprintf( "$line%-${l}s", $value );
       }
-      print STDOUT "\n";
+      $line.="\n";
     }
+    $self->info($line,0,0);
   }
 
   if ($opts =~ /z/) {
