@@ -1725,17 +1725,16 @@ sub putFiles {
    
     }
 
-  }
 
-  if ($self->{STATUS} =~ /^ERROR_V/) {
+   if ($self->{STATUS} =~ /^ERROR_V/) {
      $self->{UI}->execute("rmdir","$recyclebin");
      $self->{JDL_REGISTERFILES} = join(",",@registerInJDL);
-  } else {
+   } else {
      $self->registerLogs(0);
+   }
+
   }
  
-
-  $self->{CONFIG}=$self->{CONFIG}->Reload({"organisation", $oldOrg});
 
   if (scalar(keys(%$fs_table)) ne $successCounter) {
      $self->putJobLog("error","THERE WAS AT LEAST ONE FILE, THAT WE COULDN'T STORE ON ANY SE.");
