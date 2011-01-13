@@ -388,7 +388,7 @@ sub f_showTagValue {
   }
 
   if ( !$self->{SILENT} ) {
-    ($opts =~ /z/) || $line.= "\n";
+    ($opts =~ /z/) or $line.= "\n";
     foreach my $line (@$rTags) {
       foreach my $rfield (@fields) {
 	if ($tagField){
@@ -398,7 +398,7 @@ sub f_showTagValue {
 	defined $line->{$rfield->[0]} and $value=$line->{$rfield->[0]};
 	my $l= $rfield->[1];
 	$l >200 and $l=60;
-	($opts =~ /z/) || $line=sprintf( "$line%-${l}s", $value );
+	($opts =~ /z/) or  $line=sprintf( "$line%-${l}s", $value );
       }
       $line.="\n";
     }
