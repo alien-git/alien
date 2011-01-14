@@ -33,7 +33,7 @@ sub checkTransition{
 
   my $now = time;
 
-  my $zombiewaittime = 12000;
+  my $zombiewaittime = 3600;
 
   my $pct = $self->{DB}->getFieldsFromQueueEx("p.procinfotime,status,p.queueId,site, now()-lastupdate as lastupdate","q, QUEUEPROC p where $status and p.queueId=q.queueId and DATE_ADD(now(),INTERVAL -$zombiewaittime SECOND)>lastupdate");
 
