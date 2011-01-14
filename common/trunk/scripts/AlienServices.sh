@@ -508,6 +508,7 @@ ALIEN_IsHttps ( )
    [ $serviceName == "Logger" ] && configName="LOG_HOST"
    
    [ $serviceName == "Broker" ] && configName="JOB_BROKER_ADDRESS" && packageName="AliEn::Service::Broker::Job"
+   [ $serviceName == "JobBroker" ] && configName="JOB_BROKER_ADDRESS" && packageName="AliEn::Service::Broker::Job"
    
    [ $serviceName == "TransferManager" ] && configName="TRANSFER_MANAGER_ADDRESS" && packageName="AliEn::Service::Manager::Transfer"
    [ $serviceName == "TransferBroker" ] && configName="TRANSFER_BROKER_ADDRESS" && packageName="AliEn::Service::Broker::Transfer"
