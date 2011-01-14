@@ -2627,8 +2627,6 @@ sub registerLogs {
     $self->{CA}->set_expression("RegisteredOutput", "{".$registerLogString."}");
     $self->info("We set the RegisteredOutput in the JDL");
     $self->{JDL_CHANGED}=1;
-    $self->{CONFIG}=$self->{CONFIG}->Reload({"organisation", $oldOrg});
-
 
   };
   $self->doInAllVO({},$func);
