@@ -2439,7 +2439,7 @@ sub f_cp {
     if ($localfile) {
       my $t = $self->execute("add",$targetFile,$localfile);
       push @returnvals, $t;
-      $t and last;
+      #$t and last;
     }
     #Manage metadata if option specified
     if($opt->{'m'})
