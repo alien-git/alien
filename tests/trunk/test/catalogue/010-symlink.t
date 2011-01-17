@@ -19,7 +19,10 @@ print "Ok, let's try as well with something that has to work...\n";
 $cat->execute("rm", "-silent", "existantFile");
 my $host=Net::Domain::hostname();
 
-my  $pfn = "file://$config->{HOST}//tmp/pcepalice11/log/SE_DATA/12/19431/../../../../../../etc/passwd";
+system("cp","/etc/passwd","$config->{LOG_DIR}/SE_DATA/");
+
+my  $pfn = "file://$config->{HOST}/$config->{LOG_DIR}/SE_DATA/passwd";
+
 
 my $size=AliEn::SE::Methods->new($pfn)->getSize();
 my $md5=AliEn::MD5->new($pfn);
