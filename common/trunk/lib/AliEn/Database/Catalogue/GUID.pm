@@ -740,7 +740,7 @@ sub deleteMirrorFromGUID{
 
   if ($pfn){
     $self->info("First, let's delete the pfn $pfn");
-    $info->{db}->do("insert into LFN_BOOKED(lfn, owner, expiretime, size, guid, gowner, user, pfn, se)
+    $info->{db}->do("INSERT IGNORE INTO LFN_BOOKED(lfn, owner, expiretime, size, guid, gowner, user, pfn, se)
       select ?,g.owner,-1,g.size,string2binary(?),g.gowner,?,?,s.seName
       from $info->{table} g, $info->{table}_PFN g_p, SE s
       where g.guidId=g_p.guidId and g_p.guidId=? and g_p.seNumber=? and g_p.pfn=? and s.seNumber=g_p.seNumber",
