@@ -124,8 +124,14 @@ sub parsePFN {
     $DEBUG and $self->debug(2, "Putting variable VARS_$key as $value");
     $self->{PARSED}->{"VARS_$key"}=$value;
   }
+  
   $self->{ORIG_PFN}=~ m{^root://.*\#(.*)$} and $self->{PARSED}->{VARS_ZIP}=$1;
+  
+  $self->{PARSED}->{METHOD} =~ /^file$/ and $self->{PARSED}->{PATH}=~ s{^(.*)\#(.*)$}{$1} and $self->{PARSED}->{VARS_ZIP}=$2;
+  
   $DEBUG and $self->debug(1, "Parsed info: ".$self->method." ".$self->host." ".$self->port." ".$self->path." $self->{PARSED}->{VARS}");
+  
+ 
 
 }
 
