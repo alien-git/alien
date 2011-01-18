@@ -198,7 +198,7 @@ sub copyInput {
     
     # change to the correct owner
     #      $self->{CATALOGUE}->execute("chown","$user","$procDir/", "-f");
-    $self->{CATALOGUE}->execute("chmod","700","$procDir/");
+    #$self->{CATALOGUE}->execute("chmod","700","$procDir/");
   };
   my $error=$@;
   $self->{CATALOGUE}->execute("user","-", $olduser);

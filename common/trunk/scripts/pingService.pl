@@ -41,7 +41,7 @@ my $configPort = exists($serviceConfigMap{$serviceName}) ? $serviceConfigMap{$se
 
 my $host = (defined($configHost) ? $config->{$configHost} : $crtHost);
 print $host;
-my $HostHttps;
+my $HostHttps="";
 $host =~ /^https/ and $HostHttps = $host ;
 $host =~ s/^http:\/\///;
 $host =~ s/^https:\/\///;
