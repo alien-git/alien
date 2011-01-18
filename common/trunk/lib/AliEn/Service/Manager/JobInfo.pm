@@ -512,11 +512,20 @@ returns the jdl of the job received as input
 sub GetJobJDL {
   my $this=shift;
   my $id=shift;
+ 
+ 
+  my $columns="jdl";
+  my $method="queryValue"; 
+  foreach my $o (@_) {
+    $o=~ /-dir/ and $columns.=",path" and $method="queryRow";
+    $o=~ /-status/ and $columns.=",status" and $method="queryRow";
+
+  }
 
   $self->debug(1, "Asking for the jdl of $id");
   $id or $self->info( "No id to check in GetJOBJDL",11) and return (-1, "No id to check");
-  my $rc=$self->{DB}->queryValue("select jdl from QUEUE where queueId=$id");
-  $self->info( "Giving back the jdl of $id\n");
+  my $rc=$self->{DB}->$method("select $columns from QUEUE where queueId=?", undef, {bind_values=>[$id]});
+  $self->info( "Giving back the $columns of $id\n");
   return $rc; 
 
 }
