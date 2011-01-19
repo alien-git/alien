@@ -195,7 +195,7 @@ BEGIN { plan tests => 1 }
 
        if(scalar(@{$fileTable->{$tcase}->{listing}}) < 1){
           print "#########################################\n";
-          print "FATAL ERROR: ls on $testTable->{$tcase}->{id}/job-out was empty, job didn't store any files.\n";
+          print "FATAL ERROR: ls on $testTable->{$tcase}->{id} was empty, job didn't store any files.\n";
           print "#########################################\n";
 
           $archiveContentStatus=0;
