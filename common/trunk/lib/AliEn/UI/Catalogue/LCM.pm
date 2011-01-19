@@ -1355,7 +1355,7 @@ sub addFile {
   my $lineOptions=join(" ", @_);
   @ARGV=@_;
   Getopt::Long::GetOptions($options, 
-    "silent", "versioning", "upload", "guid=s", "register", "feedback", "size=s", "md5=s") 
+    "silent", "versioning", "upload", "guid=s", "register", "feedback", "size=s", "md5=s","links=s") 
     or $self->info("Error checking the options of add") and return;
   @_=@ARGV;
  
@@ -1381,7 +1381,7 @@ sub addFile {
     $self->versionLFN($targetLFN) or $self->info("ERROR: Versioning file failed") and return 0;
   }
 
-  return $self->addFileToSEs($targetLFN, $sourcePFN, \@seSpecs, $options->{guid}, $options->{feedback},$options->{upload},$options->{silent});
+  return $self->addFileToSEs($targetLFN, $sourcePFN, \@seSpecs, $options->{guid}, $options->{feedback},$options->{upload}, $options->{links}, $options->{silent});
 
 }
 
@@ -1432,6 +1432,7 @@ sub addFileToSEs {
   $result->{guid}=(shift || 0); 
   my $feedback=(shift || 0);
   my $uploadOnly=(shift || 0);
+  my $links=(shift || 0);
   my $silent=(shift || 0);
 
   my @ses = ();
@@ -1506,7 +1507,7 @@ sub addFileToSEs {
     ($success eq -1) and last;
     $self->notice("Uploading file based on Storage Discovery, requesting QoS=$qos, count=$qosTags->{$qos}");
 
-    ($result, $success) = $self->putOnDynamicDiscoveredSEListByQoSV2($result,$sourcePFN,$targetLFN,$size,$md5,$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes);
+    ($result, $success) = $self->putOnDynamicDiscoveredSEListByQoSV2($result,$sourcePFN,$targetLFN,$size,$md5,$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes,$links);
   }
   
   if (($success ne -1) and (scalar(@{$result->{usedEnvelopes}}) le 0) and (scalar(@ses) eq 0) and ($selOutOf le 0)){ 
@@ -1520,7 +1521,7 @@ sub addFileToSEs {
   ($selOutOf ne scalar(@ses)) and $staticmessage = "Uploading file to @ses, with select $selOutOf out of ".scalar(@ses)." (based on static SE specification).";
   (scalar(@ses) gt 0) and $self->notice($staticmessage);
 
-  (($success ne -1) && (scalar(@ses) gt 0)) and ($result, $success) = $self->putOnStaticSESelectionListV2($result,$sourcePFN,$targetLFN,$size,$md5,$selOutOf,\@ses);
+  (($success ne -1) && (scalar(@ses) gt 0)) and ($result, $success) = $self->putOnStaticSESelectionListV2($result,$sourcePFN,$targetLFN,$size,$md5,$selOutOf,\@ses,$links);
 
   (scalar(@{$result->{usedEnvelopes}}) gt 0) or $self->error("We couldn't upload any copy of the file.") and return;
 
@@ -1566,6 +1567,7 @@ sub putOnStaticSESelectionListV2{
    my $md5=(shift || 0);
    my $selOutOf=(shift || 0);
    my $ses=(shift || "");
+   my $links=(shift || "");
    my $success=0;
 
    $selOutOf eq 0 and  $selOutOf = scalar(@$ses);
@@ -1575,7 +1577,7 @@ sub putOnStaticSESelectionListV2{
      (scalar(@$ses) gt 0) and my @staticSes= splice(@$ses, 0, $selOutOf);
 
      my @envelopes = AliEn::Util::deserializeSignedEnvelopes($self->{CATALOG}->authorize("write", {lfn=>$targetLFN, 
-    wishedSE=>join(";", @staticSes), size=>$size, md5=>$md5, guidRequest=>($result->{guid} || 0)}));
+    wishedSE=>join(";", @staticSes), size=>$size, md5=>$md5, guidRequest=>($result->{guid} || 0), links=>$links}));
 
      ((!@envelopes) || (scalar(@envelopes) eq 0) || (not defined($envelopes[0]->{signedEnvelope}))) and
            $self->error("We couldn't get envelopes for any of the SEs, @staticSes .") and next;
@@ -1606,13 +1608,14 @@ sub putOnDynamicDiscoveredSEListByQoSV2{
    my $qos=(shift || "");
    my $sitename=(shift || "");
    my $excludedSes=(shift || []);
+   my $links=(shift || "");
    my $success=0;
    my @successfulUploads = ();
 
    while($count gt 0) {
      my @envelopes= AliEn::Util::deserializeSignedEnvelopes($self->{CATALOG}->authorize("write", {lfn=>$targetLFN, 
        size=> $size, md5=>$md5,  guidRequest=>($result->{guid} || 0), site=>$sitename, 
-          writeQos=>$qos, writeQosCount=>$count, excludeSE=>(join(";", @$excludedSes) || 0)}));
+          writeQos=>$qos, writeQosCount=>$count, excludeSE=>(join(";", @$excludedSes) || 0), links=>$links}));
 
      ((!@envelopes) || (scalar(@envelopes) eq 0) || (not defined($envelopes[0]->{signedEnvelope}))) and
          $self->error("We couldn't get any envelopes (requested were '$count')  with qos flag '$qos'.") and return($result, $success);
@@ -2451,7 +2454,6 @@ sub f_cp {
   }
   return @returnvals;  
 }
-
 
 
 return 1;

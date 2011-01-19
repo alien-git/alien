@@ -59,7 +59,7 @@ sub initialize {
   $self->{ADMINDB}= new AliEn::Database::Admin()
     or $self->info("Error getting the Admin" ) and return;
 
-  my @optimizers=("Merging", "Inserting", "Splitting", "Zombies", "Hosts", "Expired", "HeartBeat", "Priority", "Resubmit", "Killed", "Staging", "Quota");#,"ResolveReq");
+  my @optimizers=("Merging", "Inserting", "Splitting", "Zombies", "Hosts", "Expired", "HeartBeat", "Priority", "Resubmit", "Killed", "Saved", "Staging", "Quota");#,"ResolveReq");
 
   my $mlEnabled = ($self->{CONFIG}->{MONALISA_HOST} || $self->{CONFIG}->{MONALISA_APMONCONFIG});
   $mlEnabled and push @optimizers, "MonALISA";

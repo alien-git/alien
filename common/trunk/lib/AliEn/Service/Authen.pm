@@ -95,11 +95,13 @@ sub doOperation {
   my $directory=shift;
   my $op=shift;
   $self->info("$$ Ready to do an operation for $user in $directory (and $op '@_')");
+  my $jobID="0";
   
   if ($user=~ s/^alienid://){
     $self->info("We are authenticating with a job token");
     my ($job, $token)=split(/ /, $user, 2);
     $self->info("ID: $job, TOKEN $token");
+    $jobID=$job;
     my $role=$self->{addbh}->getUsername($job,$token);
     ( $role) or $self->info("The job token is not valid") 
        and return {rcvalues=>[], rcmessages=>["The job token for job $job is not valid"]};
@@ -125,7 +127,7 @@ sub doOperation {
   $self->{UI}->{CATALOG}->{DISPPATH}=$directory;
   my @info;
   if ($op =~ /authorize/){ 
-    @info = $self->{UI}->{CATALOG}->authorize(@_);
+    @info = $self->{UI}->{CATALOG}->authorize(@_,$jobID);
   } else {
     @info = $self->{UI}->execute($op, @_);
   }
@@ -133,7 +135,7 @@ sub doOperation {
 
   $debug and $self->{LOGGER}->debugOn($mydebug);
   $self->{LOGGER}->displayMessages();
-  $self->info("$$ doOperation DONE for user $user (and @_) result: @info".scalar(@info));
+  $self->info("$$ doOperation DONE for user $user (and @_) result: @info, length:".scalar(@info));
     
   return { rcvalues=>\@info, rcmessages=>\@loglist };
   

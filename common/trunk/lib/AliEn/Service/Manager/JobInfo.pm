@@ -519,7 +519,6 @@ sub GetJobJDL {
   foreach my $o (@_) {
     $o=~ /-dir/ and $columns.=",path" and $method="queryRow";
     $o=~ /-status/ and $columns.=",status" and $method="queryRow";
-
   }
 
   $self->debug(1, "Asking for the jdl of $id");

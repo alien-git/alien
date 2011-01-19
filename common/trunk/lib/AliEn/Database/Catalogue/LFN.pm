@@ -180,6 +180,7 @@ sub createCatalogueTables {
             quotaCalculated=>"smallint",
             user=>"varchar(20)  collate latin1_general_ci ",
             existing=>"smallint(1)",
+            jobid=>"int(11)",
           },
             undef, ['PRIMARY KEY(lfn,pfn,guid)','INDEX(pfn)','INDEX(lfn)', 'INDEX(guid)','INDEX(expiretime)']] ,
           PFN_TODELETE=>[ "pfn", {pfn=>"varchar(255)", retry=>"integer not null"}, undef, ['UNIQUE INDEX(pfn)']]
@@ -242,6 +243,7 @@ sub checkLFNTable {
 		 md5=>"varchar(32)",
 		 guidtime=>"varchar(8)",
 		 broken=>'smallint(1) default 0 not null ',
+                 jobid=>"int(11)",
 		);
 
   $self->checkTable(${table}, "entryId", \%columns, 'entryId', 
