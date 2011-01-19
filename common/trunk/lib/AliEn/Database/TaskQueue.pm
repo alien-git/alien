@@ -514,7 +514,7 @@ sub updateStatus{
   if (($self->{JOBLEVEL}->{$status} <= $self->{JOBLEVEL}->{$dboldstatus} )
       && ($dboldstatus !~ /^((ZOMBIE)|(IDLE)|(INTERACTIV))$/ )
       && (! $masterjob)){
-    if($set->{path} and ($status eq "ERROR_V")) {
+    if($set->{path}) {
       return $self->updateJob($id, {path=>$set->{path}});
     }
     my $message="The job $id [$dbsite] was in status $dboldstatus [$self->{JOBLEVEL}->{$dboldstatus}] and cannot be changed to $status [$self->{JOBLEVEL}->{$status}]";

@@ -125,19 +125,13 @@ sub registerOutput{
   my $cmlog=(shift || 0);
   ($cmlog eq "-c") or $cmlog=0;
   my $noerrorjobs=(shift || 0);
+  my $onlycmlog=0;
 
   (my $jobinfo) = $self->execute("ps", "jdl", $jobid, "-dir","-status","-silent") or 
     $self->info("Error getting the jdl of the job",2) and return;
   
   $jobinfo->{jdl} or $self->info("Error the jdl is empty",2) and return;
 
-  $jobinfo->{path} and $self->info("The files for this job where already registered in $jobinfo->{path}.",2) and return 1;
-
-  $jobinfo->{status} or $self->info("Error getting the status of the job",2) and return;
-
-  if($noerrorjobs) {
-    (($jobinfo->{status} =~ /^ERROR/) and return 1);
-  }
 
   my $ca;
   eval {$ca=
@@ -147,7 +141,23 @@ sub registerOutput{
     $self->info("Error creating the classad $@",2);
     return;
   }
+  my $outputdir= $jobinfo->{path};
 
+  if($jobinfo->{path}){
+    if($cmlog) {
+       (my $cmlogexists) = $self->{CATALOG}->existsEntry("$jobinfo->{path}/execution.out");
+       $cmlogexists and $self->info("The files for this job where already registered in $jobinfo->{path}",2) and return 1;
+       $onlycmlog=1; 
+    } else {
+       $self->info("The files for this job where already registered in $jobinfo->{path}",2) and return 1;
+    }
+  }
+
+  $jobinfo->{status} or $self->info("Error getting the status of the job",2) and return;
+
+  if($noerrorjobs) {
+    (($jobinfo->{status} =~ /^ERROR/) and return 1);
+  }
   my ($ok, @pfns)=$ca->evaluateAttributeVectorString("SuccessfullyBookedPFNS");
   $ok or $self->info("This job didn't register any output",2) and return;
 
@@ -158,9 +168,10 @@ sub registerOutput{
         or $self->info("Error, you are not the user the job belongs to. registerOutput can be only called by the job owner '$user' and you are not allowed to become '$user'.",2) and return;
   }
 
-  (my $outputdir) = $self->{CATALOG}->registerOutputForJobPFNS($user,$jobid, @pfns);
-#  ($outputdir) = $self->{CATALOG}->authorize("registeroutputforjobpfns",$jobid, @pfns);
-  $outputdir and $self->info("The output files were registered in $outputdir") or $self->info("Error during output file registration.") and return;
+  if(!$onlycmlog) {
+    ($outputdir) = $self->{CATALOG}->registerOutputForJobPFNS($user,$jobid, @pfns);
+    $outputdir and $self->info("The output files were registered in $outputdir") or $self->info("Error during output file registration.") and return;
+  }
   if($cmlog) {
      ($ok, my @cmlogs)=$ca->evaluateAttributeVectorString("JobLogOnClusterMonitor");
      foreach my $log (@cmlogs) {
@@ -172,25 +183,26 @@ sub registerOutput{
   }
 
   ($user ne $currentuser) and $self->execute("user","-", $currentuser);
-
-  my ($host, $driver, $db) = split("/", $self->{CONFIG}->{"JOB_DATABASE"});
-#  $self->{TASK_DB} or
-  my $pass=($self->{PASSWD} || "");
-  $self->{TASK_DB} = AliEn::Database::TaskQueue->new({PASSWD=>"$pass",DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin', SKIP_CHECK_TABLES=> 1});
-  $self->{TASK_DB} or $self->info("Error CE: In initialize creating TaskQueue instance failed",2)
-      and return;
-
-  my $newstatus = "DONE_WARN";
-  ($jobinfo->{status} eq "SAVED") and $newstatus = "DONE";
-  ($jobinfo->{status} =~ /^ERROR/) and $newstatus = $jobinfo->{status} ;
-
-  $self->{TASK_DB}->updateStatus($jobid,$jobinfo->{status}, $newstatus, {path=>$outputdir}, $self);
-  if(!($jobinfo->{status} =~ /^ERROR/)) {
-    $self->info("Status updated");
-    $self->info("Job state transition from $jobinfo->{status} to $newstatus");
+  
+  if(!$onlycmlog) {
+    my ($host, $driver, $db) = split("/", $self->{CONFIG}->{"JOB_DATABASE"});
+    my $pass=($self->{PASSWD} || "");
+    $self->{TASK_DB} = AliEn::Database::TaskQueue->new({PASSWD=>"$pass",DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin', SKIP_CHECK_TABLES=> 1});
+    $self->{TASK_DB} or $self->info("Error CE: In initialize creating TaskQueue instance failed",2)
+        and return;
+  
+    my $newstatus = "DONE_WARN";
+    ($jobinfo->{status} eq "SAVED") and $newstatus = "DONE";
+    ($jobinfo->{status} eq "DONE") and $newstatus = "DONE";
+    ($jobinfo->{status} =~ /^ERROR/) and $newstatus = $jobinfo->{status} ;
+  
+    $self->{TASK_DB}->updateStatus($jobid,$jobinfo->{status}, $newstatus, {path=>$outputdir}, $self);
+    if(!($jobinfo->{status} =~ /^ERROR/)) {
+      $self->info("Status updated");
+      $self->info("Job state transition from $jobinfo->{status} to $newstatus");
+    }
+    $self->info("Registered the output files in: $outputdir");
   }
-  $self->info("Registered the output files in: $outputdir");
-
   
   return 1;
 }
