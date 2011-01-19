@@ -1647,13 +1647,11 @@ sub putFiles {
     $self->{PROCDIR} = $self->{OUTPUTDIR} || "~/alien-job-$ENV{ALIEN_PROC_ID}";
     my $user=$self->{CA}->evaluateAttributeString("User");
 
-    my $recyclebin = "$self->{CONFIG}->{USER_DIR}/".substr($user, 0, 1)."/$user/recycle/alien-job-$ENV{ALIEN_PROC_ID}"; 
+    ($self->{STATUS} =~ /^ERROR_V/)
+        and  $self->{PROCDIR} = "$self->{CONFIG}->{USER_DIR}/".substr($user, 0, 1)."/$user/recycle/alien-job-$ENV{ALIEN_PROC_ID}"; 
 
-    if ($self->{STATUS} =~ /^ERROR_V/) {
-       $self->{UI}->execute("mkdir","-p","$recyclebin");
-    } else {
-       $self->{UI}->execute("mkdir","-p",$self->{PROCDIR});
-    }
+    $self->{UI}->execute("mkdir","-p",$self->{PROCDIR});
+    
 
     foreach my $fileOrArch (keys(%$fs_table)) {
       
@@ -1739,7 +1737,7 @@ sub putFiles {
     }
     
 
-    ($self->{STATUS} =~ /^ERROR_V/) and $self->{UI}->execute("rmdir","$recyclebin");
+    ($self->{STATUS} =~ /^ERROR_V/) and $self->{UI}->execute("rmdir","$self->{PROCDIR}");
     my $regPFNS = join("\",\"",@addedFiles);
     $self->{CA}->set_expression("SuccessfullyBookedPFNS", "{\"".$regPFNS."\"}");
     $self->{JDL_CHANGED}=1;

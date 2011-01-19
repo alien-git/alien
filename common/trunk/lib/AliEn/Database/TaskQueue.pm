@@ -514,6 +514,9 @@ sub updateStatus{
   if (($self->{JOBLEVEL}->{$status} <= $self->{JOBLEVEL}->{$dboldstatus} )
       && ($dboldstatus !~ /^((ZOMBIE)|(IDLE)|(INTERACTIV))$/ )
       && (! $masterjob)){
+    if($set->{path} and ($status eq "ERROR_V")) {
+      return $self->updateJob($id, {path=>$set->{path}});
+    }
     my $message="The job $id [$dbsite] was in status $dboldstatus [$self->{JOBLEVEL}->{$dboldstatus}] and cannot be changed to $status [$self->{JOBLEVEL}->{$status}]";
     if ($set->{jdl} and $status =~/^(SAVED)|(SAVED_WARN)|(ERROR_V)$/){
       $message.= " (although we update the jdl)";
@@ -560,9 +563,7 @@ sub updateStatus{
       and $self->update("ACTIONS", {todo=>1}, "action='$status'");
   }
   if ($status  =~ /^DONE_WARN$/) {
-       
     $self->sendJobStatus($id, "DONE", $execHost, "");
-
   }
 
   $DEBUG and $self->debug(1, "In updateStatus table $self->{QUEUETABLE} successfully unlocked");
