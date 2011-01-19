@@ -150,6 +150,7 @@ sub checkGUIDTable {
 		 owner=>"varchar(20)",
 		 gowner=>"varchar(20)",
 		 type=>"char(1)",
+                 jobid=>"int(11)",
 		);
 
    $db->checkTable(${table}, "guidId", \%columns, 'guidId', ['UNIQUE INDEX (guid)', 'INDEX(seStringlist)', 'INDEX(ctime)'],) or return;

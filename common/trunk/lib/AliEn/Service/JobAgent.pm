@@ -1629,7 +1629,6 @@ sub putFiles {
   my $fileRegError=0;
   my $successCounter=0;
   my $failedSEs;
-  my @lfnTracker = ();
 
   foreach my $data (split (/\s+/, $self->{VOs})){
     my ($org, $cm,$id, $token)=split ("#", $data);
@@ -1646,7 +1645,10 @@ sub putFiles {
     my @registerInJDL=();
     
     $self->{PROCDIR} = $self->{OUTPUTDIR} || "~/alien-job-$ENV{ALIEN_PROC_ID}";
-    my $recyclebin = "~/recycle/alien-job-$ENV{ALIEN_PROC_ID}"; 
+    my $user=$self->{CA}->evaluateAttributeString("User");
+
+    my $recyclebin = "$self->{CONFIG}->{USER_DIR}/".substr($user, 0, 1)."/$user/recycle/alien-job-$ENV{ALIEN_PROC_ID}"; 
+
     if ($self->{STATUS} =~ /^ERROR_V/) {
        $self->{UI}->execute("mkdir","-p","$recyclebin");
     } else {
@@ -1657,8 +1659,8 @@ sub putFiles {
       
       my $size=-s $self->{WORKDIR}."/".$fs_table->{$fileOrArch}->{name};
       ($size gt 0) 
-         or   $self->putJobLog("trace", "WARNING: You specified to add -- $fs_table->{$fileOrArch}->{name} --, yet the FILE HAS SIZE ZERO after sub execution, therefore we will ")
-         and  $self->putJobLog("trace", "WARNING: not add the file. This warning is the only one and simply for you information, the job will proceed without further intervention.")
+         or   $self->putJobLog("trace", "WARNING: You specified to add -- $fs_table->{$fileOrArch}->{name} --, yet the FILE HAS SIZE ZERO after job execution, therefore we will ")
+         and  $self->putJobLog("trace", "WARNING: not add the file. This warning is the only one and simply for your information, the job will proceed without further intervention.")
          and $successCounter++
          and next;
 
@@ -1674,80 +1676,86 @@ sub putFiles {
         $self->putJobLog("trace", "The file $fs_table->{$fileOrArch}->{name} has the guid $guids{$fs_table->{$fileOrArch}->{name}}");
       }
       
-      if($self->{STATUS} =~ /^ERROR_V/) {
-        # just upload the files ...
-        my @addEnvs = $self->addFile("$self->{WORKDIR}/$fs_table->{$fileOrArch}->{name}","$recyclebin/$fs_table->{$fileOrArch}->{name}", "$fs_table->{$fileOrArch}->{options}",$guid,1);
-        my $success = shift @addEnvs;
-        $success or $self->putJobLog("error","The job went to ERROR_V, but we can't upload the output files for later registration") and next;
-        my $env1 = AliEn::Util::deserializeSignedEnvelope(shift @addEnvs);
-        my @pfns = ("$env1->{se}/$env1->{turl}");
-        foreach my $env (@addEnvs) {
-           push @pfns, AliEn::Util::getValFromEnvelope($env,"turl");
-        }
-        my @list = ();
-        foreach my $file( keys %{$fs_table->{$fileOrArch}->{entries}}) {  # if it is a file, there are just no entries
-            push @list, join("###", $file, $fs_table->{$fileOrArch}->{entries}->{$file}->{size},
-            $fs_table->{$fileOrArch}->{entries}->{$file}->{md5});
-        }
-         my $links="";
-        (scalar(@list) gt 0) and $links.=";;".join(";;",@list);
-        
-        push @registerInJDL, "\"".join ("###", $env1->{lfn}, $env1->{guid}, $env1->{size},
-                               $env1->{md5},  join("###",@pfns),
-                               $links) ."\"";
-  
-        $success and  $successCounter++;
-        ($success eq -1) and $incompleteAddes=1;
-  
-        next;  
+#      if($self->{STATUS} =~ /^ERROR_V/) {
+#        # just upload the files ...
+#        my @addEnvs = $self->addFile("$self->{WORKDIR}/$fs_table->{$fileOrArch}->{name}","$recyclebin/$fs_table->{$fileOrArch}->{name}", "$fs_table->{$fileOrArch}->{options}",$guid,1);
+#        my $success = shift @addEnvs;
+#        $success or $self->putJobLog("error","The job went to ERROR_V, but we can't upload the output files for later registration") and next;
+#        my $env1 = AliEn::Util::deserializeSignedEnvelope(shift @addEnvs);
+#        my @pfns = ("$env1->{se}/$env1->{turl}");
+#        foreach my $env (@addEnvs) {
+#           push @pfns, AliEn::Util::getValFromEnvelope($env,"turl");
+#        }
+#        my @list = ();
+#        foreach my $file( keys %{$fs_table->{$fileOrArch}->{entries}}) {  # if it is a file, there are just no entries
+#            push @list, join("###", $file, $fs_table->{$fileOrArch}->{entries}->{$file}->{size},
+#            $fs_table->{$fileOrArch}->{entries}->{$file}->{md5});
+#        }
+#         my $links="";
+#        (scalar(@list) gt 0) and $links.=";;".join(";;",@list);
+#        
+#        push @registerInJDL, "\"".join ("###", $env1->{lfn}, $env1->{guid}, $env1->{size},
+#                               $env1->{md5},  join("###",@pfns),
+#                               $links) ."\"";
+#  
+#        $success and  $successCounter++;
+#        ($success eq -1) and $incompleteAddes=1;
+#  
+#        next;  
+#      }
+
+      my @list = ();
+      foreach my $file( keys %{$fs_table->{$fileOrArch}->{entries}}) {  # if it is a file, there are just no entries
+          ($fs_table->{$fileOrArch}->{entries}->{$file}->{size} gt 0)
+            or   $self->putJobLog("trace", "WARNING: You specified to add -- $file --, yet the FILE HAS SIZE ZERO after job execution, therefore we will ")
+            and  $self->putJobLog("trace", "WARNING: not add the file. This warning is the only one and simply for your information, the job will proceed without further intervention.")
+            and next;
+          push @list, join("###", "$self->{PROCDIR}/$file", $fs_table->{$fileOrArch}->{entries}->{$file}->{size},
+          $fs_table->{$fileOrArch}->{entries}->{$file}->{md5});
       }
+      my $links="";
+      (scalar(@list) gt 0) and $links= join(";;",@list);
 
-
-      my @addEnvs = $self->addFile("$self->{WORKDIR}/$fs_table->{$fileOrArch}->{name}","$self->{PROCDIR}/$fs_table->{$fileOrArch}->{name}", "$fs_table->{$fileOrArch}->{options}",$guid);
+      my @addEnvs = $self->addFile("$self->{WORKDIR}/$fs_table->{$fileOrArch}->{name}","$self->{PROCDIR}/$fs_table->{$fileOrArch}->{name}", "$fs_table->{$fileOrArch}->{options}",$guid,1,$links);
      
       my $success = shift @addEnvs;
       $success  or next;
-      if($success){
-        $successCounter++;
-        push @lfnTracker, "$self->{PROCDIR}/$fs_table->{$fileOrArch}->{name}";
-      }
+      $success and $successCounter++;
       ($success eq -1) and $incompleteAddes=1;
-
-      $no_links and next;
-
-      my $signedEnvs = shift @addEnvs;
-
-      foreach my $file( keys %{$fs_table->{$fileOrArch}->{entries}}) {  # if it is a file, there are just no entries
-         $self->registerFile($file, $fs_table->{$fileOrArch}->{name}, $signedEnvs, $fs_table->{$fileOrArch}->{entries}->{$file}->{size},$fs_table->{$fileOrArch}->{entries}->{$file}->{md5})
-          and (push @lfnTracker, "$self->{PROCDIR}/$file") or $fileRegError=1;
-          
+      my @pfns=();
+      foreach my $env (@addEnvs) {
+        push @pfns, AliEn::Util::getValFromEnvelope($env,"turl");
       }
+      push @addedFiles, join("\",\"",@pfns);
+
+      #$no_links and next;
+      #my $signedEnvs = shift @addEnvs;
+      #foreach my $file( keys %{$fs_table->{$fileOrArch}->{entries}}) {  # if it is a file, there are just no entries
+      #   $self->registerFile($file, $fs_table->{$fileOrArch}->{name}, $signedEnvs, $fs_table->{$fileOrArch}->{entries}->{$file}->{size},$fs_table->{$fileOrArch}->{entries}->{$file}->{md5})
+      #    and (push @lfnTracker, "$self->{PROCDIR}/$file") or $fileRegError=1;
+      #    
+      #}
    
     }
+    
 
-
-   if ($self->{STATUS} =~ /^ERROR_V/) {
-     $self->{UI}->execute("rmdir","$recyclebin");
-     $self->{JDL_REGISTERFILES} = join(",",@registerInJDL);
-   } else {
-     $self->registerLogs(0);
-   }
-
+    ($self->{STATUS} =~ /^ERROR_V/) and $self->{UI}->execute("rmdir","$recyclebin");
+    my $regPFNS = join("\",\"",@addedFiles);
+    $self->{CA}->set_expression("SuccessfullyBookedPFNS", "{\"".$regPFNS."\"}");
+    $self->{JDL_CHANGED}=1;
+    $self->registerLogs(0);
   }
- 
+
+  $self->{CONFIG}=$self->{CONFIG}->Reload({"organisation", $oldOrg});
 
   if (scalar(keys(%$fs_table)) ne $successCounter) {
      $self->putJobLog("error","THERE WAS AT LEAST ONE FILE, THAT WE COULDN'T STORE ON ANY SE.");
-     $self->putJobLog("error","JOB WILL GO TO ERROR STATE. ROLLING BACK AND DELETING ALL OUTPUT FILES.");
-     $self->deleteFilesOnErrorSaving(@lfnTracker);
      return 0;
   }
-  if ($fileRegError) {
-     $self->putJobLog("error","THERE WAS AT LEAST ONE FILE LINK REGISTRATION THAT WAS NOT SUCCESSFULL.");
-     $self->putJobLog("error","JOB WILL GO TO ERROR STATE. ROLLING BACK AND DELETING ALL OUTPUT FILES.");
-     $self->deleteFilesOnErrorSaving(@lfnTracker);
-     return 0;
-  }
+  #if ($fileRegError) {
+  #   $self->putJobLog("error","THERE WAS AT LEAST ONE FILE LINK REGISTRATION THAT WAS NOT SUCCESSFULL.");
+  #   return 0;
+  #}
 
 
   if($incompleteAddes) {
@@ -1770,6 +1778,7 @@ sub addFile {
   my $storeTags=shift;
   my $guid=shift;
   my $uploadOnly=(shift || 0); 
+  my $links=(shift || 0); 
   my @addResult;
 
   (! -f "$pfn") and $self->putJobLog("error", "The job didn't create $pfn") and return 0; 
@@ -1780,14 +1789,17 @@ sub addFile {
   my $options = " -feedback ";
   $guid and $options .= " -guid=$guid";
 
-  $self->putJobLog("trace","adding file: size $size md5 $md5, options: $options, lfn: $lfn, local file: $pfn, storage tags: $storeTags");
+  if($links){ $links = " -links=".$links } else { $links = ""; } 
+
+  $self->putJobLog("trace","adding file: size $size md5 $md5, links: $links, options: $options, lfn: $lfn, local file: $pfn, storage tags: $storeTags");
 
   my $mydebug = $self->{LOGGER}->getDebugLevel();
-  $self->{LOGGER}->debugOn(5);
+  $self->{LOGGER}->debugOn(2);
   $self->{LOGGER}->keepAllMessages();
 
+
   if($uploadOnly) {
-    @addResult=$self->{UI}->execute("add", "-upload -size $size -md5 $md5 ", $options, "$lfn", "$pfn", $storeTags);
+    @addResult=$self->{UI}->execute("add", "-upload -size=$size -md5=$md5 $links", $options, "$lfn", "$pfn", $storeTags);
   } else {
     @addResult=$self->{UI}->execute("add", " -size $size -md5 $md5 ", $options, "$lfn", "$pfn", $storeTags);
   }
@@ -1850,14 +1862,6 @@ sub registerFile {
   } 
   $self->putJobLog("error","Error while registering file link $file in archive $archive");
   return 0;
-}
-
-sub deleteFilesOnErrorSaving{
-  my $self=shift;
-  $self->putJobLog("trace","We are called to delete - @_ -");
-  foreach(@_) { 
-     $self->{UI}->execute("rm", "$_") ;
-  }
 }
 
 
@@ -2360,7 +2364,7 @@ CPU Speed                           [MHz] : $ProcCpuspeed
   # put all output files into AliEn
   #	    
 
-  $self->{STATUS}="DONE";
+  $self->{STATUS}="SAVED";
 
   if ( $self->{VALIDATIONSCRIPT} ) {
     $self->putJobLog("trace","Validating the output");
@@ -2399,7 +2403,7 @@ CPU Speed                           [MHz] : $ProcCpuspeed
 	$waitstop = time;
       }
       if ( ($waitstop-300) > ($waitstart) ) {
-	$self->putJobLog("trace","The validation script din't finish");
+	$self->putJobLog("trace","The validation script didn't finish");
 	$self->{STATUS} = "ERROR_VT";
       } else {
 	( -e "$self->{WORKDIR}/.validated" ) or  $self->{STATUS} = "ERROR_V";
@@ -2422,8 +2426,8 @@ CPU Speed                           [MHz] : $ProcCpuspeed
     #this hash will contain all the files that have already been submitted,
     my $uploadFilesState = $self->prepare_File_And_Archives_From_JDL_And_Upload_Files() ;
 
-    if ($self->{STATUS}=~ /DONE/){
-      ($uploadFilesState eq -1) and $self->{STATUS}="DONE_WARN";
+    if ($self->{STATUS}=~ /SAVED/){
+      ($uploadFilesState eq -1) and $self->{STATUS}="SAVED_WARN";
       ($uploadFilesState eq 0) and $self->{STATUS}="ERROR_SV";
     }
 
@@ -2433,7 +2437,6 @@ CPU Speed                           [MHz] : $ProcCpuspeed
 
   my $jdl;
   $self->{JDL_CHANGED} and $jdl=$self->{CA}->asJDL();
-  
   my $success=$self->changeStatus("%",$self->{STATUS}, $jdl);
   # don't send data about this job anymore
   if($self->{MONITOR}){
@@ -2595,6 +2598,7 @@ sub alive{
 
   return 1;
 }
+
 sub registerLogs {
   my $this=shift;
   my $skip_register=shift;
@@ -2621,11 +2625,11 @@ sub registerLogs {
       $self->putJobLog("error", "Error submitting the execution.out log file. The file will not be there!");
     }
 
-    ($self->{STATUS} =~ /^ERROR_V/)  and
-       $registerLogString = join(",", $self->{JDL_REGISTERFILES}, $registerLogString);
+#    ($self->{STATUS} =~ /^ERROR_V/)  and
+#       $registerLogString = join(",", $self->{JDL_REGISTERFILES}, $registerLogString);
     
-    $self->{CA}->set_expression("RegisteredOutput", "{".$registerLogString."}");
-    $self->info("We set the RegisteredOutput in the JDL");
+    $self->{CA}->set_expression("JobLogOnClusterMonitor", "{".$registerLogString."}");
+    $self->info("We set the JobLogOnClusterMonitor in the JDL");
     $self->{JDL_CHANGED}=1;
 
   };

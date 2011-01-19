@@ -485,7 +485,7 @@ sub changeStatusCommand {
   } elsif ( $status eq "SAVING" ) {
     $self->info("Setting the return code of the job as $error");
     $set->{error} = $error;
-  } elsif (( $status =~ /DONE.*/ && $error)||
+  } elsif (( $status =~ /SAVED.*/ && $error)||
 	   ($status =~ /(ERROR_V)|(STAGING)/)) {
     $self->info("Updating the jdl of the job");
     $set->{jdl} = $error;
@@ -527,7 +527,7 @@ Type=\"Job\";
   }
 
 
-  if ($status=~ /^(ERROR.*)|(DONE)|(KILLED)|(FAILED)|(EXPIRED)$/){
+  if ($status=~ /^(ERROR.*)|(SAVED_WARN)|(SAVED)|(KILLED)|(FAILED)|(EXPIRED)$/){
     $set->{spyurl}="";
     $self->{ADMINDB}->deleteJobToken($queueId);
     $set->{finished}=$date;
@@ -675,7 +675,7 @@ sub getTop {
     $data->{$column->{name}} or next;
     $where .= " and (".join (" or ", @{$data->{$column->{name}}} ).")";
   }
-  $all_status or $data->{status} or $data->{id} or $where.=" and ( status='RUNNING' or status='WAITING' or status='OVER_WAITING' or status='ASSIGNED' or status='QUEUED' or status='INSERTING' or status='STARTED' or status='SAVING' or status='TO_STAGE' or status='STAGGING' or status='A_STAGED' or status='STAGING')";
+  $all_status or $data->{status} or $data->{id} or $where.=" and ( status='RUNNING' or status='WAITING' or status='OVER_WAITING' or status='ASSIGNED' or status='QUEUED' or status='INSERTING' or status='STARTED' or status='SAVING' or status='SAVED' or status='SAVED_WARN' or status='TO_STAGE' or status='STAGGING' or status='A_STAGED' or status='STAGING')";
 
   $where.=" ORDER by queueId";
 
@@ -1350,9 +1350,11 @@ sub resubmitCommand {
     or $self->{LOGGER}->error( "JobManager", "In resubmitCommand process $queueId does not belong to '$user'" )
       and return ( -1, "process $queueId does not belong to $user" );
 
-  $self->info("Removing the 'registeredoutput'  field");
+  $self->info("Removing the 'registeredoutput', 'registeredlog', 'joblogonclustermonitor', and 'successfullybookedpfns'  field");
   $data->{jdl}=~ s/registeredlog\s*=\s*"[^"]*"\s*;\s*//im;
   $data->{jdl}=~ s/registeredoutput\s*=\s*{[^}]*}\s*;\s*//im;
+  $data->{jdl}=~ s/joblogonclustermonitor\s*=\s*{[^}]*}\s*;\s*//im;
+  $data->{jdl}=~ s/successfullybookedpfns\s*=\s*{[^}]*}\s*;\s*//im;
 
   #my $defaultReq=" (other.Type==\"machine\") ";
   #$data->{jdl}=~ s/origrequirements\s*=([^;]*\s*);\s*//im and $defaultReq.=" && $1";

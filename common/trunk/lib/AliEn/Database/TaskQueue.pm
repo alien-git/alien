@@ -53,7 +53,8 @@ sub initialize {
 		     'QUEUED'      =>30,  'STARTED'     =>40,
 		     'IDLE'        =>50,  'INTERACTIV'  =>50,
 		     'RUNNING'     =>50,  'SAVING'      =>60,
-		     'DONE'        =>980,  'DONE_WARN'=>981,
+		     'SAVED'       =>70,  'DONE'        =>980,
+                     'SAVED_WARN'  =>71,  'DONE_WARN'=>981,
 		     'ERROR_A'     =>990,  'ERROR_I'     =>990,
 		     'ERROR_E'     =>990,  'ERROR_IB'    =>990,
 		     'ERROR_M'     =>990,  'ERROR_R'     =>990,
@@ -259,6 +260,10 @@ sub checkActionTable {
   $self->do("INSERT  INTO ACTIONS(action)  (SELECT 'KILLED' from dual where not exists (select action from ACTIONS where action like 'KILLED'))") and
   $self->do("INSERT  INTO ACTIONS(action)  (SELECT 'SPLITTING' from dual where not exists (select action from ACTIONS where action like 'SPLITTING'))") and
   $self->do("INSERT  INTO ACTIONS(action)  (SELECT 'STAGING' from dual where not exists (select action from ACTIONS where action like 'STAGING'))") and return 1;
+  $self->do("INSERT  INTO ACTIONS(action)  (SELECT 'SAVED' from dual where not exists (select action from ACTIONS where action like 'SAVED'))") and return 1;
+  $self->do("INSERT  INTO ACTIONS(action)  (SELECT 'SAVED_WARN' from dual where not exists (select action from ACTIONS where action like 'SAVED_WARN'))") and return 1;
+ 
+ 
  
 }
 
@@ -510,7 +515,7 @@ sub updateStatus{
       && ($dboldstatus !~ /^((ZOMBIE)|(IDLE)|(INTERACTIV))$/ )
       && (! $masterjob)){
     my $message="The job $id [$dbsite] was in status $dboldstatus [$self->{JOBLEVEL}->{$dboldstatus}] and cannot be changed to $status [$self->{JOBLEVEL}->{$status}]";
-    if ($set->{jdl} and $status =~/^(DONE)|(DONE_WARN)|(ERROR_V)$/){
+    if ($set->{jdl} and $status =~/^(SAVED)|(SAVED_WARN)|(ERROR_V)$/){
       $message.= " (although we update the jdl)";
       $self->updateJob($id, {jdl=>$set->{jdl}});
     }
@@ -551,7 +556,7 @@ sub updateStatus{
       }
     }
 
-    $status =~ /^(KILLED)|(DONE)|(DONE_WARN)|(STAGING)$/
+    $status =~ /^(KILLED)|(SAVED)|(SAVED_WARN)|(STAGING)$/
       and $self->update("ACTIONS", {todo=>1}, "action='$status'");
   }
   if ($status  =~ /^DONE_WARN$/) {

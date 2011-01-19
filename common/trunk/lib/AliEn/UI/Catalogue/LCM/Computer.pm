@@ -113,64 +113,80 @@ sub cleanCache {
 sub registerOutput_HELP{
   return "Registers in the catalogue the output of a job (if the job saved anything in the SE)
 Usage:
-\t\tregisterOutput <jobId>
+\t\tregisterOutput <jobId> [-c]
+   -c registers also the execution.out ClusterMonitor log over SOAP
 ";
 }
+
 sub registerOutput{
   my $self=shift;
-  my $jobid=shift;
+  $self->checkEnvelopeCreation() or return $self->{CATALOG}->callAuthen("registerOutput",@_);
+  my $jobid=(shift || return 0);
+  my $cmlog=(shift || 0);
+  ($cmlog eq "-c") or $cmlog=0;
 
-  my ($jdl)=$self->execute("ps", "jdl", $jobid, "-silent") or 
+  (my $jobinfo) = $self->execute("ps", "jdl", $jobid, "-dir","-status","-silent") or 
     $self->info("Error getting the jdl of the job",2) and return;
+  
+  $jobinfo->{jdl} or $self->info("Error the jdl is empty",2) and return;
 
-  $jdl or $self->info("Error the jdl is empty") and return;
+  $jobinfo->{path} and $self->info("The files for this job where already registered in $jobinfo->{path}.",2) and return 1;
+
+  $jobinfo->{status} or $self->info("Error getting the status of the job",2) and return;
+
 
   my $ca;
   eval {$ca=
-    Classad::Classad->new($jdl) or $self->info("Error parsing the jdl") and return;
+    Classad::Classad->new($jobinfo->{jdl}) or $self->info("Error parsing the jdl",2) and return;
   };
-  
   if ($@){
-    $self->info("Error creating the classad $@");
+    $self->info("Error creating the classad $@",2);
     return;
   }
-  my ($ok, @info)=$ca->evaluateAttributeVectorString("RegisteredOutput");
-  $ok or $self->info("This job didn't register any output") and return;
-  ($ok, my @user)=$ca->evaluateAttributeVectorString("User");
-  my $files={};
-  my %filesToRegister;
 
-  my $dir ="~/../../".substr($user[0], 0, 1)."/".$user[0]."/recycle/alien-job-$jobid";
-  
-  $self->execute("mkdir", "-p", $dir) or $self->info("Error creating $dir") and return; 
-  $self->info("The output files will be registered in: $dir");
-  
-  foreach my $line (@info){
-    my ($file, @links)=split (/;;/, $line);
-    my ($lfn, $guid, $size, $md5, $pfn)=split (/###/, $file); 
+  my ($ok, @pfns)=$ca->evaluateAttributeVectorString("SuccessfullyBookedPFNS");
+  $ok or $self->info("This job didn't register any output",2) and return;
 
-    my ($se, $pfn2)=split(/\//, $pfn,2);
-    AliEn::Util::isValidSEName($se) and $pfn=$pfn2;
-
-    $guid or $guid=AliEn::GUID->new()->CreateGuid();
-    my $fullpath=$lfn;
-    $fullpath=~ /^\// or $fullpath="$dir/$lfn";
-    #my $info={lfn=>$lfn, md5=>$md5, size=>$size,    guid=>$guid};
-    $self->info("Doing add -r -size $size $fullpath -md5 $md5 $pfn -guid $guid");
-    $self->execute("add", "-r -size $size $fullpath -md5 $md5 $pfn -guid $guid") 
-      and $self->info("File $fullpath registered in the catalogue")
-      or  $self->info("Error doing ' add -r -size $size $fullpath -md5 $md5 $pfn -guid $guid");
-    #  $self->execute("add", "-r -size $size $fullpath -md5 $md5 $pfn -guid $guid");
-    
-    foreach my $link (@links){
-      my ($l, $s, $m, $g)=split (/###/, $link);
-      $self->info("Doing add -r -size $s $dir/$l -md5 $m guid:///$guid?ZIP=$l");
-      $self->execute("add", "-r -size $s $dir/$l -md5 $m guid:///$guid?ZIP=$l", )
-         and $self->info("File $dir/$l registered in the catalogue");
-
-    }
-    
+  ($ok, my $user)=$ca->evaluateAttributeVectorString("User");
+  (my $currentuser)=$self->execute("whoami", "-silent");
+  if($user ne $currentuser) {
+      $self->execute("user","-", $user)
+        or $self->info("Error, you are not the user the job belongs to. registerOutput can be only called by the job owner '$user' and you are not allowed to become '$user'.",2) and return;
   }
+
+  (my $outputdir) = $self->{CATALOG}->registerOutputForJobPFNS($user,$jobid, @pfns);
+#  ($outputdir) = $self->{CATALOG}->authorize("registeroutputforjobpfns",$jobid, @pfns);
+  $outputdir and $self->info("The output files were registered in $outputdir") or $self->info("Error during output file registration.") and return;
+  if($cmlog) {
+     ($ok, my @cmlogs)=$ca->evaluateAttributeVectorString("JobLogOnClusterMonitor");
+     foreach my $log (@cmlogs) {
+       my ($lfn, $guid, $size, $md5, $pfn)=split (/###/, $log);
+       $guid or $guid=AliEn::GUID->new()->CreateGuid();
+       my $env={lfn=>"$outputdir/$lfn", md5=>$md5, size=>$size, guid=>$guid};
+       $self->{CATALOG}->registerPFNInCatalogue($user,$env,$pfn,"no_se");
+     }
+  }
+
+  ($user ne $currentuser) and $self->execute("user","-", $currentuser);
+
+  my ($host, $driver, $db) = split("/", $self->{CONFIG}->{"JOB_DATABASE"});
+#  $self->{TASK_DB} or
+  my $pass=($self->{PASSWD} || "");
+  $self->{TASK_DB} = AliEn::Database::TaskQueue->new({PASSWD=>"$pass",DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin', SKIP_CHECK_TABLES=> 1});
+  $self->{TASK_DB} or $self->info("Error CE: In initialize creating TaskQueue instance failed",2)
+      and return;
+
+  my $newstatus = "DONE_WARN";
+  ($jobinfo->{status} eq "SAVED") and $newstatus = "DONE";
+  ($jobinfo->{status} =~ /^ERROR/) and $newstatus = $jobinfo->{status} ;
+
+  $self->{TASK_DB}->updateStatus($jobid,$jobinfo->{status}, $newstatus, {path=>$outputdir}, $self);
+  if(!($jobinfo->{status} =~ /^ERROR/)) {
+    $self->info("Status updated");
+    $self->info("Job state transition from $jobinfo->{status} to $newstatus");
+  }
+  $self->info("Registered the output files in: $outputdir");
+
   
   return 1;
 }

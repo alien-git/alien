@@ -44,6 +44,8 @@ sub f_registerFile {
   my $selist= shift || 0;
   my $md5  = shift;
   my $pfn =shift ||"";
+  my $jobid =shift || 0;
+
 
 
 
@@ -80,7 +82,7 @@ sub f_registerFile {
   # Now, insert it into D0, and in the table
   my $basename   = $self->f_basename($file);
   my $insert={lfn=>$file,  perm=>$perm,  owner=>$self->{ROLE},
-	      gowner=>$self->{MAINGROUP}, size =>$size,guid=>$guid,  };
+	      gowner=>$self->{MAINGROUP}, size =>$size,guid=>$guid, jobid=>$jobid };
   $se and $insert->{se}=$se;
   $md5 and $insert->{md5}=$md5;
   $pfn and $insert->{pfn}=$pfn;

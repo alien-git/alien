@@ -1171,6 +1171,27 @@ sub  getBaseEnvelopeForWriteAccess {
 }
 
 
+sub prepookArchiveLinksInBookingTable{
+  my $self=shift;
+  my $user=(shift || return 0);
+  my $jobID=(shift || 0);
+  my $line=(shift || return 0);
+  my $archGUID=(shift || return 0);
+
+  $self->debug(3,"Preparing booking of archive entries: user: $user, jobid: $jobID, registrationString: $line, archive GUID: $archGUID .");
+
+  my @links=split (/;;/, $line);
+  foreach my $link (@links){
+      my ($l, $s, $m, $g)=split (/###/, $link);
+      my $env = $self->getBaseEnvelopeForWriteAccess($user,$l,$s,$m,$g) or $self->info("Authrorize: The requested link $l could not been booked or had permission denied") and return 0;
+      $env->{turl} = "guid:///$archGUID?ZIP=".$self->f_basename($env->{lfn});
+      $env->{se} = "no_se";
+      $self->addEntryToBookingTableAndOptionalExistingFlagTrigger($user,$env,$jobID,0);
+  }
+  return 1;
+}
+
+
 sub calculateXrootdTURLForWriteEnvelope{
   my $self=shift;
   my $envelope=(shift || return {});
@@ -1264,11 +1285,10 @@ sub registerPFNInCatalogue{
 
 }
 
-sub registerFileInCatalogueAccordingToEnvelopes{
+sub validateSignedEnvAndRegisterAccordingly{
   my $self=shift;
   my $user=(shift || return 0);
   my $signedEnvelopes=(shift || []);
-  my $returnMessage= "";
   my @successEnvelopes = ();
 
  
@@ -1278,34 +1298,16 @@ sub registerFileInCatalogueAccordingToEnvelopes{
      my $envelope = $self->verifyAndDeserializeEnvelope($signedEnvelope);
      $envelope 
             or $self->info("Authorize: An envelope could not be verified.") 
-            and $returnMessage .= "An envelope could not be verified: $signedEnvelope\n" 
             and  next; 
  
      $envelope = $self->ValidateRegistrationEnvelopesWithBookingTable($user,$envelope);
      $envelope 
             or $self->info("Authorize: An envelope could not be validated based on pretaken booking.") 
-            and $returnMessage .=  "An envelope could not be validated based on pretaken booking.\n"
             and next; 
-
-    if(!$envelope->{existing}) {
-      $self->f_registerFile( "-f", $envelope->{lfn}, $envelope->{size},
-               $envelope->{se}, $envelope->{guid}, undef,undef, $envelope->{md5}, 
-                $envelope->{turl}) and $justRegistered=1 
-       or $self->info("Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $envelope->{turl} could not be registered.")
-       and $returnMessage .= "File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $envelope->{turl} could not be registered."
-       and next;
-     } else {
-        $self->f_addMirror( $envelope->{lfn}, $envelope->{se}, $envelope->{turl}, "-c","-md5=".$envelope->{md5})
-          or $self->info("Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $envelope->{turl} could not be registered as a replica.")
-          and $returnMessage .= "File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $envelope->{turl} could not be registered as a replica."
-        and next;
-     }
-     $self->deleteEntryFromBookingTableAndOptionalExistingFlagTrigger($user, $envelope, $justRegistered) 
-            or $self->info("Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $envelope->{turl} could not be registered properly as a replica (LFN_BOOKED error).")
-            and $returnMessage .= "File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $envelope->{turl} could not be registered properly as a replica (LFN_BOOKED error)."
-            and next;
-     push @successEnvelopes,$signedEnvelope;
+     $self->registerFileInCatalogueAccordingToEnvelope($user, $envelope)
+         and push @successEnvelopes,$signedEnvelope;
   }
+
   (scalar(@successEnvelopes) eq scalar(@$signedEnvelopes)) and $self->notice("Authorize: EXCELLENT! All of the ".scalar(@$signedEnvelopes)." PFNs where correctly registered.") 
     and return @successEnvelopes;
   (scalar(@successEnvelopes) gt 0) and $self->notice("Authorize: WARNING! Only ".scalar(@successEnvelopes)." PFNs could be registered correctly registered.") 
@@ -1314,6 +1316,63 @@ sub registerFileInCatalogueAccordingToEnvelopes{
     and return  @successEnvelopes;
 }
 
+sub registerFileInCatalogueAccordingToEnvelope{
+  my $self=shift;
+  my $user=(shift || return 0);
+  my $envelope=(shift || return 0);
+  my $links=(shift || 0);
+  my $justRegistered=0;
+  my @successEnvelopes = ();
+
+  if(!$envelope->{existing}) {
+      $self->f_registerFile( "-f", $envelope->{lfn}, $envelope->{size},
+               $envelope->{se}, $envelope->{guid}, undef,undef, $envelope->{md5}, 
+                $envelope->{turl}, $envelope->{jobid}) and $justRegistered=1 
+       or $self->info("Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $envelope->{turl} could not be registered.")
+       and return 0;
+  } else {
+        $self->f_addMirror( $envelope->{lfn}, $envelope->{se}, $envelope->{turl}, "-c","-md5=".$envelope->{md5})
+          or $self->info("Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $envelope->{turl} could not be registered as a replica.")
+        and return 0;
+  }
+  $self->deleteEntryFromBookingTableAndOptionalExistingFlagTrigger($user, $envelope, $justRegistered) 
+       or $self->info("Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $envelope->{turl} could not be registered properly as a replica (LFN_BOOKED error).")
+       and return 0;
+  return 1;
+}
+
+
+sub registerOutputForJobPFNS{
+  my $self=shift;
+  my $user=(shift || return 0);
+  my $jobid=(shift || return 0);
+  my @successEnvelopes=();
+  my $outputdir=0;
+
+  foreach my $pfn (@_) {
+     my $reply = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow(
+      "SELECT lfn,binary2string(guid) as guid,existing,pfn as turl, se, size, md5sum as md5 FROM LFN_BOOKED WHERE jobid=? and pfn=? and owner=? and gowner=? ;"
+      , undef, {bind_values=>[$jobid,$pfn,$user,$user]});
+     $reply->{lfn} or $self->info("Error getting entries from LFN_BOOKED for PFN: $pfn",2) and next;
+     $reply->{jobid} = $jobid;
+     if(!$outputdir) {
+        $outputdir = $self->f_dirname($reply->{lfn});
+        $self->info("Creating the output directory: $outputdir");
+        $self->f_mkdir("ps", "$outputdir");
+     }
+     $self->registerFileInCatalogueAccordingToEnvelope($user, $reply) or $self->info("Error: The entry $pfn could not been registered.",2);
+     my $links = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->query(
+      "SELECT lfn,binary2string(guid) as guid,existing,pfn as turl, se, size, md5sum as md5 FROM LFN_BOOKED WHERE jobid=? and upper(pfn) LIKE concat ('GUID:///' , ? , '?ZIP=%' ) and owner=? and gowner=? ;"
+      , undef, {bind_values=>[$jobid,uc($reply->{guid}),$user,$user]});
+     foreach my $link (@$links) {
+        $link->{lfn} or $self->info("Error getting link entries from LFN_BOOKED for PFN: $pfn",2) and next;
+        $link->{jobid} = $jobid;
+        $self->registerFileInCatalogueAccordingToEnvelope($user, $link) or $self->info("Error: The link entry $link->{lfn} for $pfn could not been registered.",2);
+     }
+  }
+  $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do("UPDATE LFN_BOOKED set expiretime=-1 where jobid=? and owner=? and gowner=? ;",{bind_values=>[$jobid,$user,$user]});
+  return $outputdir;
+}
 
 
 sub commit{
@@ -1456,14 +1515,14 @@ sub addEntryToBookingTableAndOptionalExistingFlagTrigger{
   my $self=shift;
   my $user=(shift || return 0);
   my $envelope=(shift || return 0);
+  my $jobid=(shift || 0);
   my $trigger=(shift || 0);
 
   use Time::HiRes qw (time); 
   my $lifetime= time() + 60;
-
   return $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do(
-    "INSERT IGNORE INTO LFN_BOOKED (lfn, owner, quotaCalculated, md5sum, expiretime, size, pfn, se, gowner, guid, existing) VALUES (?,?,?,?,?,?,?,?,?,string2binary(?),?);"
-    ,{bind_values=>[$envelope->{lfn},$user, "1" ,$envelope->{md5},$lifetime,$envelope->{size},$envelope->{turl},$envelope->{se},$user,$envelope->{guid},$trigger]});
+    "INSERT IGNORE INTO LFN_BOOKED (lfn, owner, quotaCalculated, md5sum, expiretime, size, pfn, se, gowner, guid, existing, jobid) VALUES (?,?,?,?,?,?,?,?,?,string2binary(?),?,?);"
+    ,{bind_values=>[$envelope->{lfn},$user, "1" ,$envelope->{md5},$lifetime,$envelope->{size},$envelope->{turl},$envelope->{se},$user,$envelope->{guid},$trigger,$jobid]});
 }
 
 
@@ -1502,14 +1561,12 @@ sub authorize{
   my $registerReq = ( ($access =~/^register$/) || 0 );
   my $deleteReq = ( ($access =~/^delete$/) || 0 );
 
-
-
   my $exceptions = 0;
 
-  if ($access =~/^registerenvs$/){
-    return $self->registerFileInCatalogueAccordingToEnvelopes($user,\@registerEnvelopes);
-  }
-
+  ($access =~/^registerenvs$/) and 
+    return $self->validateSignedEnvAndRegisterAccordingly($user,\@registerEnvelopes);
+  
+  
   my $lfn    = ($options->{lfn} || "");
   my $wishedSE = ($options->{wishedSE} || "");
   my $size    = (($options->{size} and int($options->{size})) || 0);
@@ -1521,6 +1578,8 @@ sub authorize{
   my $writeQosCount = (($options->{writeQosCount} and int($options->{writeQosCount})) || 0);
   my $excludedAndfailedSEs = $self->validateArrayOfSEs(split(/;/, ($options->{excludeSE} || "" )));
   my $pfn = ($options->{pfn} || "");
+  my $links = ($options->{links} || 0);
+  my $jobID = (shift || 0);
 
 
   my $seList = $self->validateArrayOfSEs(split(/;/, $wishedSE));
@@ -1534,6 +1593,8 @@ sub authorize{
     if($registerReq) {
       $prepareEnvelope or $self->info("Authorize: Permission denied. Could not register $lfn.",1) and return 0;
       return $self->registerPFNInCatalogue($user,$prepareEnvelope,$pfn,$wishedSE);
+    } elsif ($links) {
+      $self->prepookArchiveLinksInBookingTable($user,$jobID,$links,$prepareEnvelope->{guid}) or return $self->info("Authorize: The requested links of the archive could not been booked") and return 0;
     }
   } 
   $deleteReq and 
@@ -1557,7 +1618,7 @@ sub authorize{
    
        if ($writeReq or $mirrorReq) {
          $prepareEnvelope = $self->calculateXrootdTURLForWriteEnvelope($prepareEnvelope);
-         $self->addEntryToBookingTableAndOptionalExistingFlagTrigger($user,$prepareEnvelope,$mirrorReq)
+         $self->addEntryToBookingTableAndOptionalExistingFlagTrigger($user,$prepareEnvelope,$jobID,$mirrorReq)
          # or next;
        }
 
