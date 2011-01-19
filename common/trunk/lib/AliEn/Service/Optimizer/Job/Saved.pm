@@ -54,7 +54,7 @@ sub checkSavedJob{
   #my ($ok, $user)=$job_ca->evaluateAttributeString("user");
   #$ok or return 0;
   #$self->{CATALOGUE}->execute("user","-",  $user) or return 0;
-  my $success = $self->{CATALOGUE}->registerOutput($queueid);
+  my $success = $self->{CATALOGUE}->registerOutput($queueid,0,1); # 0=don't register execution.out and the 1=only register SAVED* jobs
 
   $success and return 1;
 

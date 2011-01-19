@@ -124,6 +124,7 @@ sub registerOutput{
   my $jobid=(shift || return 0);
   my $cmlog=(shift || 0);
   ($cmlog eq "-c") or $cmlog=0;
+  my $noerrorjobs=(shift || 0);
 
   (my $jobinfo) = $self->execute("ps", "jdl", $jobid, "-dir","-status","-silent") or 
     $self->info("Error getting the jdl of the job",2) and return;
@@ -134,6 +135,9 @@ sub registerOutput{
 
   $jobinfo->{status} or $self->info("Error getting the status of the job",2) and return;
 
+  if($noerrorjobs) {
+    (($jobinfo->{status} =~ /^ERROR/) and return 1);
+  }
 
   my $ca;
   eval {$ca=

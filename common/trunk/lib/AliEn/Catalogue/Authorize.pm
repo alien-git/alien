@@ -1519,7 +1519,7 @@ sub addEntryToBookingTableAndOptionalExistingFlagTrigger{
   my $trigger=(shift || 0);
 
   use Time::HiRes qw (time); 
-  my $lifetime= time() + 60;
+  my $lifetime= time() + 604800; # one week to prevent data loss
   return $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do(
     "INSERT IGNORE INTO LFN_BOOKED (lfn, owner, quotaCalculated, md5sum, expiretime, size, pfn, se, gowner, guid, existing, jobid) VALUES (?,?,?,?,?,?,?,?,?,string2binary(?),?,?);"
     ,{bind_values=>[$envelope->{lfn},$user, "1" ,$envelope->{md5},$lifetime,$envelope->{size},$envelope->{turl},$envelope->{se},$user,$envelope->{guid},$trigger,$jobid]});
