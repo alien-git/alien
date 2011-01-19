@@ -1702,17 +1702,19 @@ sub putFiles {
 #        next;  
 #      }
 
-      my @list = ();
-      foreach my $file( keys %{$fs_table->{$fileOrArch}->{entries}}) {  # if it is a file, there are just no entries
-          ($fs_table->{$fileOrArch}->{entries}->{$file}->{size} gt 0)
-            or   $self->putJobLog("trace", "WARNING: You specified to add -- $file --, yet the FILE HAS SIZE ZERO after job execution, therefore we will ")
-            and  $self->putJobLog("trace", "WARNING: not add the file. This warning is the only one and simply for your information, the job will proceed without further intervention.")
-            and next;
-          push @list, join("###", "$self->{PROCDIR}/$file", $fs_table->{$fileOrArch}->{entries}->{$file}->{size},
-          $fs_table->{$fileOrArch}->{entries}->{$file}->{md5});
-      }
       my $links="";
+      if(!$no_links) {
+      my @list = ();
+        foreach my $file( keys %{$fs_table->{$fileOrArch}->{entries}}) {  # if it is a file, there are just no entries
+            ($fs_table->{$fileOrArch}->{entries}->{$file}->{size} gt 0)
+              or   $self->putJobLog("trace", "WARNING: You specified to add -- $file --, yet the FILE HAS SIZE ZERO after job execution, therefore we will ")
+              and  $self->putJobLog("trace", "WARNING: not add the file. This warning is the only one and simply for your information, the job will proceed without further intervention.")
+              and next;
+            push @list, join("###", "$self->{PROCDIR}/$file", $fs_table->{$fileOrArch}->{entries}->{$file}->{size},
+            $fs_table->{$fileOrArch}->{entries}->{$file}->{md5});
+        }
       (scalar(@list) gt 0) and $links= join(";;",@list);
+      }
 
       my @addEnvs = $self->addFile("$self->{WORKDIR}/$fs_table->{$fileOrArch}->{name}","$self->{PROCDIR}/$fs_table->{$fileOrArch}->{name}", "$fs_table->{$fileOrArch}->{options}",$guid,1,$links);
      
