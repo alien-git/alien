@@ -121,10 +121,16 @@ Usage:
 sub registerOutput{
   my $self=shift;
   $self->checkEnvelopeCreation() or return $self->{CATALOG}->callAuthen("registerOutput",@_);
+  my $options={};
+  @ARGV=@_;
+  Getopt::Long::GetOptions($options, 
+    "cluster") 
+    or $self->info("Error checking the options of add") and return;
+  @_=@ARGV;
+
   my $jobid=(shift || return 0);
-  my $cmlog=(shift || 0);
-  ($cmlog eq "-c") or $cmlog=0;
   my $noerrorjobs=(shift || 0);
+  my $service=(shift || 0);
   my $onlycmlog=0;
 
   (my $jobinfo) = $self->execute("ps", "jdl", $jobid, "-dir","-status","-silent") or 
@@ -144,20 +150,18 @@ sub registerOutput{
   my $outputdir= $jobinfo->{path};
 
   if($jobinfo->{path}){
-    if($cmlog) {
-       (my $cmlogexists) = $self->{CATALOG}->existsEntry("$jobinfo->{path}/execution.out");
-       $cmlogexists and $self->info("The files for this job where already registered in $jobinfo->{path}",2) and return 1;
+    if($options->{cluster}) {
+       (my $cmlogexists) = $self->{CATALOG}->existsEntry("$jobinfo->{path}execution.out");
+       $cmlogexists and $self->info("The files for this job where already registered in $jobinfo->{path}",2) and return $jobinfo->{path};
        $onlycmlog=1; 
+       
     } else {
-       $self->info("The files for this job where already registered in $jobinfo->{path}",2) and return 1;
+       $self->info("The files for this job where already registered in $jobinfo->{path}",2) and return $jobinfo->{path};
     }
   }
 
   $jobinfo->{status} or $self->info("Error getting the status of the job",2) and return;
 
-  if($noerrorjobs) {
-    (($jobinfo->{status} =~ /^ERROR/) and return 1);
-  }
   my ($ok, @pfns)=$ca->evaluateAttributeVectorString("SuccessfullyBookedPFNS");
   $ok or $self->info("This job didn't register any output",2) and return;
 
@@ -172,7 +176,7 @@ sub registerOutput{
     ($outputdir) = $self->{CATALOG}->registerOutputForJobPFNS($user,$jobid, @pfns);
     $outputdir and $self->info("The output files were registered in $outputdir") or $self->info("Error during output file registration.") and return;
   }
-  if($cmlog) {
+  if($options->{cluster}) {
      ($ok, my @cmlogs)=$ca->evaluateAttributeVectorString("JobLogOnClusterMonitor");
      foreach my $log (@cmlogs) {
        my ($lfn, $guid, $size, $md5, $pfn)=split (/###/, $log);
@@ -186,8 +190,9 @@ sub registerOutput{
   
   if(!$onlycmlog) {
     my ($host, $driver, $db) = split("/", $self->{CONFIG}->{"JOB_DATABASE"});
-    my $pass=($self->{PASSWD} || "");
-    $self->{TASK_DB} = AliEn::Database::TaskQueue->new({PASSWD=>"$pass",DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin', SKIP_CHECK_TABLES=> 1});
+    $self->{TASK_DB} or 
+      $self->{TASK_DB} = AliEn::Database::TaskQueue->new({DB=>$db,HOST=> $host,DRIVER => $driver,
+                                                         ROLE=>'admin', SKIP_CHECK_TABLES=> 1});
     $self->{TASK_DB} or $self->info("Error CE: In initialize creating TaskQueue instance failed",2)
         and return;
   
@@ -196,15 +201,14 @@ sub registerOutput{
     ($jobinfo->{status} eq "DONE") and $newstatus = "DONE";
     ($jobinfo->{status} =~ /^ERROR/) and $newstatus = $jobinfo->{status} ;
   
-    $self->{TASK_DB}->updateStatus($jobid,$jobinfo->{status}, $newstatus, {path=>$outputdir}, $self);
+    $self->{TASK_DB}->updateStatus($jobid,$jobinfo->{status}, $newstatus, {path=>$outputdir}, $service);
     if(!($jobinfo->{status} =~ /^ERROR/)) {
-      $self->info("Status updated");
       $self->info("Job state transition from $jobinfo->{status} to $newstatus");
     }
     $self->info("Registered the output files in: $outputdir");
   }
   
-  return 1;
+  return $outputdir;
 }
 
 return 1;

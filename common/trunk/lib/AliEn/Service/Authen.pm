@@ -86,6 +86,7 @@ sub  createEnvelope{
   $options.= "v";
   my (@info)=$self->{UI}->execute("access", $options, @_);
   $self->info("$$ Everything is done for user $user (and @_)");
+  grep(/^-debug(=\d+)?/, @_) and $self->info("Removing the debug sign") and $self->{UI}->execute("debug");
   return @info;
 }
 

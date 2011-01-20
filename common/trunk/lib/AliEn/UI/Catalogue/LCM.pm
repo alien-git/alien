@@ -267,10 +267,7 @@ Get can also be used to retrieve collections. In that case, there are some extra
 sub get {
    my $self = shift;
    my %options=();
-#   @ARGV=@_;
-#   getopts("gonbt:clfsx:", \%options) or $self->info("Error parsing the arguments of [get]\n". $self->get_HELP(),1)
-#              and return 0;
-#   @_=@ARGV;
+
    @ARGV=@_;
    Getopt::Long::GetOptions(\%options, "g", "o", "n", "b", "t", "c", "l=s", "f=s", "s=s", "x") or
      $self->info("Error parsing the arguments of [get]\n". $self->get_HELP()) and return 0 ;
@@ -294,38 +291,39 @@ sub get {
      }
    }
 
-   my $filehash = {};
-
-   if(AliEn::Util::isValidGUID($file)) {
-     ($filehash)=$self->{CATALOG}->checkPermission("r", $file, 'type,size,md5');
-     #authorize needs lfn to return envelopes!!
-     ($filehash->{lfn})=$self->{CATALOG}->f_guid2lfn("",$filehash->{guid});
-   } else {
-     ($filehash)=$self->{CATALOG}->checkPermissions("r",$file,0,1,1);
-      $self->{CATALOG}->isFile($file, $filehash->{lfn}) or $self->info("File $file does not exist") and return;
-   }
-   $filehash or return 0;
-#   $filehash = shift @{$filehash};
-   $self->debug(1,"Coming back from checkPermission on $file...". Dumper($filehash));
-
-   $self->info("GUID: $filehash->{guid}");
-
-   (defined($filehash->{type}) and ($filehash->{type} eq "c")) and  $self->notice("This is in fact a collection!! Let's get all the files")
-     and return $self->getCollection($filehash->{guid}, $localFile, \%options);
-
    my $result = 0;
-   $options{x} or
-      $result=$self->{STORAGE}->getLocalCopy($filehash->{guid}, $localFile);
-
+   my $first=1;
    while (!$result) {
-     $self->{STORAGE}->checkDiskSpace($filehash->{size}, $localFile) or return;
+     $self->{LOGGER}->keepAllMessages();
      my  @envelopes = AliEn::Util::deserializeSignedEnvelopes($self->{CATALOG}->authorize("read",{
-      lfn=> $filehash->{lfn},
+      lfn=> $file,
       wishedSE=>$wishedSE,excludeSE=>join(";",@excludedAndfailedSEs) ,site=>$self->{CONFIG}->{SITE}}));
      my $envelope = $envelopes[0];
-     ($envelope and $envelope->{turl}) or 
-        $self->error("Getting an envelope was not successfull for file $file.") and return;
-
+     
+     my @loglist = @{$self->{LOGGER}->getMessages()};
+     
+     $self->{LOGGER}->displayMessages();
+     
+     if (not $envelope or not $envelope->{turl}) {
+       grep (/is a collection/, @loglist)  and 
+          $self->info("This is in fact a collection!! Let's get all the files")
+            and return $self->getCollection($file, $localFile, \%options);
+       $self->info(@loglist,0,0);
+       $self->error("Getting an envelope was not successfull for file $file .");
+       return;
+        
+     }
+     $self->info(@loglist,0,0);
+     if ($first){
+       $self->debug(1,"Checking if we have enough disk space");
+       $self->{STORAGE}->checkDiskSpace($envelope->{size}, $localFile) or return;
+       $first=0;
+       $options{x} or
+        $result=$self->{STORAGE}->getLocalCopy($envelope->{guid}, $localFile);
+       $result and last;
+       $self->info("The local copy didn't work");
+       
+     }
      #$ENV{ALIEN_XRDCP_URL}=$envelope->{turl};
      #$ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}=$envelope->{signedEnvelope};
 
@@ -350,12 +348,12 @@ sub get {
 
 sub getCollection{
   my $self=shift;
-  my $guid=shift;
+  my $file=shift;
   my $localFile=shift || "";
   my $options=shift || {};
 
-  $self->debug(1, "We have to get all the files from $guid");
-  my ($files)=$self->execute("listFilesFromCollection", "-silent", "-g", $guid)
+  $self->debug(1, "We have to get all the files from $file");
+  my ($files)=$self->execute("listFilesFromCollection", "-silent", $file)
     or $self->info("Error getting the list of files from the collection") and return;
   my @return;
   if ($localFile){
@@ -1554,6 +1552,7 @@ sub addFileToSEs {
   # -1 means a access exception, e.g. exceeded quota limit
   # -1 means a access exception, e.g. exceeded quota limit
   # This will trigger the JobAgent to stop trying further write attempts.
+
   return $success;
 
 }

@@ -1006,7 +1006,13 @@ sub getBaseEnvelopeForReadAccess {
   } else {
     $filehash=$self->checkPermissions("r",$lfn,0, 1)
      or $self->info("Authorize: access denied for $lfn",1) and return 0;
-    ($filehash->{type} eq "f") or $self->info("Authorize: access: $lfn is not a file, so read not possible",1) and return 0;
+     
+    if ($filehash->{type} ne "f") {
+      my $error="entry doesn't exist";
+      $filehash->{type} eq "c" and $error="it is a collection"; 
+      $self->info("Authorize: access: $lfn is not a file ($error), so read not possible",1);
+      return 0;
+    }
   }
 
   ($filehash->{size} eq "0") and $filehash->{size} = 1024*1024*1024 ;
@@ -1300,21 +1306,23 @@ sub validateSignedEnvAndRegisterAccordingly{
 
  
   foreach my $signedEnvelope (@$signedEnvelopes) {
-     my $justRegistered=0;
-     #push @successEnvelopes,"0";
-     my $envelope = $self->verifyAndDeserializeEnvelope($signedEnvelope);
-     $envelope 
-            or $self->info("Authorize: An envelope could not be verified.") 
-            and  next; 
+    my $justRegistered=0;
+    #push @successEnvelopes,"0";
+    $signedEnvelope or next;
+    my $envelope = $self->verifyAndDeserializeEnvelope($signedEnvelope);
+     
+    $envelope 
+      or $self->info("Authorize: An envelope could not be verified.") 
+        and  next; 
  
      $envelope = $self->ValidateRegistrationEnvelopesWithBookingTable($user,$envelope);
      $envelope 
-            or $self->info("Authorize: An envelope could not be validated based on pretaken booking.") 
-            and next; 
+       or $self->info("Authorize: An envelope could not be validated based on pretaken booking.") 
+         and next; 
      $self->registerFileInCatalogueAccordingToEnvelope($user, $envelope)
-         and push @successEnvelopes,$signedEnvelope;
+       and push @successEnvelopes,$signedEnvelope;
   }
-
+  
   (scalar(@successEnvelopes) eq scalar(@$signedEnvelopes)) and $self->notice("Authorize: EXCELLENT! All of the ".scalar(@$signedEnvelopes)." PFNs where correctly registered.") 
     and return @successEnvelopes;
   (scalar(@successEnvelopes) gt 0) and $self->notice("Authorize: WARNING! Only ".scalar(@successEnvelopes)." PFNs could be registered correctly registered.") 
