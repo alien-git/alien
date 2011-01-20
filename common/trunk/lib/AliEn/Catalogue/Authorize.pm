@@ -1477,6 +1477,7 @@ sub ValidateRegistrationEnvelopesWithBookingTable{
       "SELECT lfn,binary2string(guid) as guid,existing FROM LFN_BOOKED WHERE guid=string2binary(?) and pfn=? and se=? and owner=? and gowner=? ;"
       , undef, {bind_values=>[$envelope->{guid},$envelope->{turl},$envelope->{se},$user,$user]});
 
+  $envelope->{guid} or return 0;
   lc $envelope->{guid} eq lc $reply->{guid} or return 0;
   $envelope->{lfn} = $reply->{lfn};
   $envelope->{existing} = $reply->{existing};
@@ -1555,6 +1556,7 @@ sub authorize{
   my $self = shift;
   my $access = (shift || return),
   my @registerEnvelopes=@_;
+  pop(@registerEnvelopes); # remove the added jobID from Service/Authen
   my $options=shift;
 
   my $user=$self->{CONFIG}->{ROLE};
@@ -1786,7 +1788,7 @@ sub signEnvelope {
 
 sub verifyAndDeserializeEnvelope{
   my $self=shift;
-  my $env=(shift || return {});
+  my $env=(shift || return 0);
   my $signature=0;
   my $envelopeString="";
   my $envelope = {};
