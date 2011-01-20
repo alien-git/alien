@@ -1071,12 +1071,12 @@ sub getSEforPFN{
 
   #$pfn =~ /^((guid)|(soap)):/ and return "no_se";
   $pfn = $self->parsePFN($pfn);
-  $pfn or return 0;
+  $pfn or $self->info("Error parsing the pfn '$pfn'") and return 0;
   my @queryValues = ("$pfn->{proto}://$pfn->{host}","$pfn->{path}");
-  my $sestring = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow("SELECT seName FROM SE WHERE seioDaemons LIKE concat ( ? , '%') AND ? LIKE CONCAT(seStoragePath, '%')  ORDER BY length(seStoragePath) DESC LIMIT 1 ;",
+  my $sestring = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryValue("SELECT seName FROM SE WHERE seioDaemons LIKE concat ( ? , '%') AND ? LIKE CONCAT(seStoragePath, '%')  ORDER BY length(seStoragePath) DESC LIMIT 1 ;",
               undef, {bind_values=>\@queryValues});
-  $sestring->{seName} or return "no_se";
-  return $sestring->{seName};
+  $sestring or return "no_se";
+  return $sestring;
 }
 
 
@@ -1086,7 +1086,7 @@ sub parsePFN {
   my $result={};
   ($pfn=~/^\//) and $pfn="file://".$self->{CONFIG}->{HOST}.$pfn;
   $pfn =~ /^([a-zA-Z]*):\/\/([0-9a-zA-Z.\-_:]*)\/(.*)$/;
-  $1 and $2 or return 0;
+  $1 or $2 or return 0;
   $result->{proto}  = $1;
   $result->{host}   = $2;
   ($result->{path},$result->{vars}) = split (/\?/,$3);
@@ -1607,11 +1607,13 @@ sub authorize{
 
   if ($writeReq or $registerReq) {
     $prepareEnvelope = $self->getBaseEnvelopeForWriteAccess($user,$lfn,$size,$md5,$guidRequest);
+    $prepareEnvelope or $self->info("Authorize: Error preparing the envelope for $user and $lfn",1) and return 0;
     if($registerReq) {
       $prepareEnvelope or $self->info("Authorize: Permission denied. Could not register $lfn.",1) and return 0;
       return $self->registerPFNInCatalogue($user,$prepareEnvelope,$pfn,$wishedSE);
     } elsif ($links) {
-      $self->prepookArchiveLinksInBookingTable($user,$jobID,$links,$prepareEnvelope->{guid}) or return $self->info("Authorize: The requested links of the archive could not been booked") and return 0;
+      $self->prepookArchiveLinksInBookingTable($user,$jobID,$links,$prepareEnvelope->{guid}) 
+        or return $self->info("Authorize: The requested links of the archive could not been booked") and return 0;
     }
   } 
   $deleteReq and 
