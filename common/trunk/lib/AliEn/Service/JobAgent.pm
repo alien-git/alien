@@ -1794,7 +1794,7 @@ sub addFile {
   $self->putJobLog("trace","adding file: size $size md5 $md5, links: $links, options: $options, lfn: $lfn, local file: $pfn, storage tags: $storeTags");
 
   my $mydebug = $self->{LOGGER}->getDebugLevel();
-  $self->{LOGGER}->debugOn(2);
+  $self->{LOGGER}->debugOn(1);
   $self->{LOGGER}->keepAllMessages();
 
 

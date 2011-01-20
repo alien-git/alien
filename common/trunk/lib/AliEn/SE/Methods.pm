@@ -35,7 +35,7 @@ sub new {
       and return;
 
   $self->{LOGGER} or $self->{LOGGER}= new AliEn::Logger;
-  $self->{DEBUG} and $self->{LOGGER}->debugOn();
+  $self->{DEBUG} and $self->{LOGGER}->debugOn($self->{DEBUG});
 
   $self->parsePFN();
 
