@@ -53,11 +53,15 @@ sub checkSavedJob{
 
   my $success = $self->{CATALOGUE}->registerOutput($queueid, $self); 
 
-  $success and return 1;
+  my $newStatus="DONE";
+  if (! $success){
+    $self->{DB}->updateStatus($queueid,$status, "ERROR_R");
+    $newStatus="ERROR_R";
+  }
 
-  $self->{DB}->updateStatus($queueid,$status, "ERROR_R");
+  $self->putJobLog($queueid,"state", "Job state transition from $status to $newStatus");
 
-  return 0;
+  return $success;
 }
 
 1

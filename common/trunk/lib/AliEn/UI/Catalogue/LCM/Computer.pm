@@ -129,10 +129,8 @@ sub registerOutput{
   @_=@ARGV;
 
   my $jobid=(shift || return 0);
-  my $noerrorjobs=(shift || 0);
   my $service=(shift || 0);
   my $onlycmlog=0;
-
   (my $jobinfo) = $self->execute("ps", "jdl", $jobid, "-dir","-status","-silent") or 
     $self->info("Error getting the jdl of the job",2) and return;
   
@@ -200,7 +198,6 @@ sub registerOutput{
     ($jobinfo->{status} eq "SAVED") and $newstatus = "DONE";
     ($jobinfo->{status} eq "DONE") and $newstatus = "DONE";
     ($jobinfo->{status} =~ /^ERROR/) and $newstatus = $jobinfo->{status} ;
-  
     $self->{TASK_DB}->updateStatus($jobid,$jobinfo->{status}, $newstatus, {path=>$outputdir}, $service);
     if(!($jobinfo->{status} =~ /^ERROR/)) {
       $self->info("Job state transition from $jobinfo->{status} to $newstatus");
