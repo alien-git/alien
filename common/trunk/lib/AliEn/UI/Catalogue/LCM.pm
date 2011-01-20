@@ -1372,11 +1372,13 @@ sub addFile {
     my $md5sum = (shift || $options->{md5} || 0);
     $options->{guid} or $options->{guid} ="";
     $self->info("LFN: $targetLFN, pfn: $sourcePFN, guid: $options->{guid}");
-    return $self->{CATALOG}->authorize("register", {lfn=>$targetLFN, pfn=>$sourcePFN, size=>$size, md5=>$md5sum, guid=>$options->{guid} });
+    my ($info)=$self->{CATALOG}->authorize("register", {lfn=>$targetLFN, pfn=>$sourcePFN, size=>$size, md5=>$md5sum, guid=>$options->{guid} });
+    $info or return;
+    return $info;
   }
 
   if($options->{versioning}) {
-    $self->versionLFN($targetLFN) or $self->info("ERROR: Versioning file failed") and return 0;
+    $self->versionLFN($targetLFN) or $self->info("ERROR: Versioning file failed") and return;
   }
 
   return $self->addFileToSEs($targetLFN, $sourcePFN, \@seSpecs, $options->{guid}, $options->{feedback},$options->{upload}, $options->{links}, $options->{silent});
