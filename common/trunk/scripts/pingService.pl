@@ -109,7 +109,7 @@ while ($count++ < 3)
  
   if ( $serviceName =~ /^ClusterMonitor/ )
    {
- 		if( $config->{CLUSTERMONITOR_HOST} =~ /^https/ )
+ 		if( $config->{CLUSTERMONITOR_ADDRESS} =~ /^https/ )
 		{
 			 my $soap= new AliEn::SOAP;
                   $soap->Connect({uri=>"AliEn/Service/$uri",address=>"https://$host:$port",name=>"$uri"});
