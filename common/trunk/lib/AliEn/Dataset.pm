@@ -54,7 +54,7 @@ sub setarray {
 sub print {
     my $self = shift;
     my $dumper = new Data::Dumper([$self->{XMLhash}]);
-    print $dumper->Dump();
+    print STDERR $dumper->Dump();
 }
 
 sub getarray {
