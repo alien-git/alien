@@ -125,10 +125,10 @@ sub updateSplitting {
     ($job == -1) and $self->info("The job was not waiting any more...") and die ("The job was not waiting any more\n");
 
     $self->putJobLog($queueid,"state", "Job state transition to SPLITTING");
-
+    my $numSubjobs=0;
     if ($strategy !~ /^userDefined/) {
-      $self->SubmitSplitJob($job_ca, $queueid, $submitHost, $jobs) or
-				die ("Error submitting the subjobs\n");
+      $numSubjobs=$self->SubmitSplitJob($job_ca, $queueid, $submitHost, $jobs);
+      defined $numSubjobs  or  die ("Error submitting the subjobs\n");
     } else {
       my ($ok, @def)=$job_ca->evaluateAttributeVectorString("SplitDefinitions");
       foreach my $jdl (@def) {
@@ -136,7 +136,7 @@ sub updateSplitting {
       }
     }
     #    $self->ChangeOriginalJob($job_ca, $queueid, $submitHost);
-    $self->info( "Putting the status of $queueid to 'SPLIT'");
+    $self->info( "Putting the status of $queueid to 'SPLIT' (there were $numSubjobs)");
     my $set={masterjob=>1};
     my ($ok, $email)=$job_ca->evaluateAttributeString("Email");
     if ($email){
@@ -453,6 +453,8 @@ sub SubmitSplitJob {
   #$self->{CATALOGUE}->{QUEUE}->checkRequirements($job_ca) or next;
 
   ( $ok, my $origreq ) = $job_ca->evaluateExpression("Requirements");
+
+  $origreq=~ s/other.SPLIT == 1 &&//; 
   $self->info("The requirements are $origreq");
 
   #Now, submit a job for each
@@ -547,6 +549,10 @@ sub _submitJDL {
   my $newqueueid=$self->enterCommand($user, $jdlText, undef, undef, $queueid, undef, 
     {silent=>0,direct=>$direct});
   pop @ISA;
+  if ($newqueueid =~ /DENIED:/){
+    $self->putJobLog($queueid, "error", "The submission of the subjob failed: $newqueueid");
+    return;
+  } 
   $newqueueid or return;
   $self->debug(1, "Command submitted!! (jobid $newqueueid)" );
   $self->putJobLog($queueid,"submit","Subjob submitted: $newqueueid");
