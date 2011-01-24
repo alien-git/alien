@@ -285,18 +285,18 @@ sub findEx {
   }
   unless ($silent) {
     for (@result) {
-      print STDOUT "LFN:    $_->{lfn}\n";
+      print STDERR "LFN:    $_->{lfn}\n";
       my $first = 1;
       for ( @{ $_->{pfns} } ) {
         if ($first) {
-          print STDOUT "PFN:    ";
+          print STDERR "PFN:    ";
           undef $first;
         } else {
-          print STDOUT "MIRROR: ";
+          print STDERR "MIRROR: ";
         }
-        print "$_->{pfn} $_->{se}\n";
+        print STDERR "$_->{pfn} $_->{se}\n";
       }
-      print "\n";
+      print STDERR "\n";
     }
   }
   return \@result;
@@ -312,7 +312,7 @@ sub f_pwd {
 
   if ( ( !$self->{SILENT} ) and ( !$silent ) ) {
     if ($short) {
-      print STDOUT "$self->{DISPPATH}\n";
+      print STDERR "$self->{DISPPATH}\n";
     } else {
       $self->info( "Current path is: $self->{DISPPATH}", undef, 0 );
     }
@@ -1004,7 +1004,7 @@ sub f_user {
   my $self = shift;
   my $user = shift;
   if ( !$user ) {
-    print "Enter user name:";
+    print STDERR "Enter user name:";
     chomp( $user = <> );
   }
   my $changeUser = 1;
@@ -1122,7 +1122,7 @@ sub f_passwd {
   if ( !$done ) {
     print STDERR "\nError: password not changed!!\n";
   } else {
-    print "\nPassword changed!!\n";
+    print STDERR "\nPassword changed!!\n";
   }
 }
 
@@ -1413,7 +1413,7 @@ sub f_partitions {
     if ( !defined $partition or $partition eq "" ) {
       next;
     }
-    $silent or print "Partition:=>  $partition\n";
+    $silent or print STDERR "Partition:=>  $partition\n";
     if ($returnarrayhash) {
       my $newhash;
       $newhash->{partition} = $partition;
@@ -1462,7 +1462,7 @@ sub f_getsite {
   }
   my $entry = $mesg->entry(0);
   my $site  = $entry->get_value('ou');
-  print "You are om site $site\n";
+  print STDERR "You are om site $site\n";
   my $fullLDAPdn = "ou=$site,ou=Sites,$self->{CONFIG}{LDAPDN}";
   my $service    = "SE";
   $mesg = $ldap->search( base   => "ou=$service,ou=services,$fullLDAPdn",
@@ -1476,7 +1476,7 @@ sub f_getsite {
   } else {
     $entry = $mesg->entry(0);
     $se    = $entry->get_value('name');
-    print "You have $self->{CONFIG}->{ORG_NAME}::${site}::${se} as site SE\n";
+    print STDERR "You have $self->{CONFIG}->{ORG_NAME}::${site}::${se} as site SE\n";
   }
   if ($returnarrayhash) {
     my @result;
@@ -1532,7 +1532,7 @@ sub f_mlconfig {
         if $attr ne "objectClass";
     }
     for my $key ( keys %$config ) {
-      print "$key=\"$config->{$key}\"\n";
+      print STDERR "$key=\"$config->{$key}\"\n";
     }
   }
   my $apmonConfig = $DEFAULT_APMON_CONFIG;
@@ -1550,7 +1550,7 @@ sub f_mlconfig {
   } elsif ( $config->{MONALISA_HOST} ) {
     $apmonConfig = $config->{MONALISA_HOST};
   }
-  print "APMON_CONFIG=$apmonConfig\n";
+  print STDERR "APMON_CONFIG=$apmonConfig\n";
   return "$apmonConfig";
 }
 
@@ -1828,7 +1828,7 @@ sub createFindXML {
                       "", "", "$self->{CONFIG}->{ROLE}" );
   $self->{DEBUG} and $dataset->print();
   my $xml = $dataset->writexml();
-  $self->{SILENT} or print $xml;
+  $self->{SILENT} or print STDERR $xml;
   $result[0]->{xml} = $xml;
   return @result;
 }
@@ -1888,14 +1888,14 @@ sub printTreeLevel {
 
   foreach $file (@files) {
     if ( $file =~ /\/$/ ) {
-      ($sec) and print STDOUT "$first\n";
+      ($sec) and print STDERR "$first\n";
       $sec = 1;
-      print STDOUT "$first--$file\n";
+      print STDERR "$first--$file\n";
       $file =~ s/\+/\\\+/g;
       my @dir = grep( s/^$file(.)/$1/i, @_ );
       $self->printTreeLevel( "$first  |", @dir );
     } else {
-      print STDOUT "$first--$file\n";
+      print STDERR "$first--$file\n";
     }
   }
   return 1;
@@ -1918,7 +1918,7 @@ sub f_tree {
   $DEBUG and $self->debug( 1, "There are " . ( $#entries + 1 ) . " entries" );
   map { $_ =~ s/$dir/.\//i } @entriesLFN;
   $self->printTreeLevel( "|", @entriesLFN );
-  print STDOUT "\n";
+  print STDERR "\n";
   return 1;
 }
 
@@ -1985,7 +1985,7 @@ sub f_echo {
       $print = Dumper($value);
       $print =~ s/^\$VAR1 =//;
     }
-    $self->{SILENT} or print "Configuration: $var = $print\n";
+    $self->{SILENT} or print STDERR "Configuration: $var = $print\n";
   } else {
     my @total = sort keys %{ $self->{CONFIG} };
     foreach (@total) {
@@ -2052,7 +2052,7 @@ sub f_df {
   }
 
   my $service="SE";
-  $self->info("Storagename             1k-blocks         Used(KB)  Available Use\%    \#Files Type  min_size",undef,0);
+  $self->info("Storagename             1k-blocks         Used(KB)  Available Use\%    \#Files Type  min_size\n",undef,0);
   my ($response)= $self->{DATABASE}->getDF($se, @_);
    
   $self->debug(1, "Got $response");
@@ -2063,7 +2063,7 @@ sub f_df {
       =($line->{seName}, $line->{size},$line->{usedspace},$line->{freespace},$line->{used},$line->{seNumFiles},$line->{seType}, $line->{seMinSize});
     push(@results, $details);
     ( $line eq "-1") and next;
-    my $buffer  = sprintf  "%-19s %+12s %+12s %+12s %+3s%% %+9s %-10s %s",$line->{seName}||"", $line->{size}||0,$line->{usedspace}||0,$line->{freespace}||0,$line->{used}||0,$line->{seNumFiles}||0,$line->{seType}||"", $line->{seMinSize}||0;
+    my $buffer  = sprintf  "%-19s %+12s %+12s %+12s %+3s%% %+9s %-10s %s\n",$line->{seName}||"", $line->{size}||0,$line->{usedspace}||0,$line->{freespace}||0,$line->{used}||0,$line->{seNumFiles}||0,$line->{seType}||"", $line->{seMinSize}||0;
     $self->info($buffer,0,0);
   }
 #  }
