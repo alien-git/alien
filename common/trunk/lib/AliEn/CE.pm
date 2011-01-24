@@ -3715,13 +3715,13 @@ Usage:
 
 sub f_jquota {
   my $self = shift;
-  my $command = shift or print $self->f_jquota_HELP() and return;
+  my $command = shift or $self->info($self->f_jquota_HELP()) and return;
 
 
   $DEBUG and $self->debug(1, "Calling f_jquota_$command");
   if (($self->{CATALOG}->{CATALOG}->{ROLE} !~ /^admin(ssl)?$/) && ($command eq "set")) {
-		$self->{LOGGER}->error("CE","You are not allowed to execute this command!");
-		return;
+    $self->{LOGGER}->error("CE","You are not allowed to execute this command!");
+    return;
   }
 
   my @return;
@@ -3756,20 +3756,24 @@ sub f_jquota_list {
     return;
   }
 
-  my $done = $self->{SOAP}->CallSOAP("Manager/Job", 'getJobQuotaList', $user);
-  $done or return;
-  my $result = $done->result;
-
+#  my $done = $self->{SOAP}->CallSOAP("Manager/Job", 'getJobQuotaList', $user);
+#  $done or return;
+#  my $result = $done->result;
+   my $result = $self->{PRIORITY_DB}->getFieldsFromPriorityEx("user, unfinishedJobsLast24h, maxUnfinishedJobs, totalRunningTimeLast24h, maxTotalRunningTime, totalCpuCostLast24h, maxTotalCpuCost", "where user like '$user'")
+    or $self->info("Failed to getting data from PRIORITY table",1)
+    and return;
+  $result->[0] or $self->{LOGGER}->error("User $user not exist",1)
+    and return;
 
   my $cnt = 0;
-  $self->info("-------------------------------------------------------------------------------------------",undef,0);
-  $self->info(sprintf("            %12s        %12s        %12s        %16s", "user", "unfinishedJobs", "totalCpuCost", "totalRunningTime"),undef,0);
-  $self->info("-------------------------------------------------------------------------------------------",undef,0);
+  $self->info("-------------------------------------------------------------------------------------------\n",undef,0);
+  $self->info(sprintf("            %12s        %12s        %12s        %16s", "user", "unfinishedJobs", "totalCpuCost", "totalRunningTime\n"),undef,0);
+  $self->info("------------------------------------------------------------------------------------------\n",undef,0);
   foreach (@$result) {
     $cnt++;
     $self->info(sprintf(" [%04d. ]   %12s           %5s/%5s         %5s/%5s             %5s/%5s\n", $cnt, $_->{'user'}, $_->{'unfinishedJobsLast24h'}, $_->{'maxUnfinishedJobs'},$_->{'totalCpuCostLast24h'}, $_->{'maxTotalCpuCost'}, $_->{'totalRunningTimeLast24h'}, $_->{'maxTotalRunningTime'}),undef,0);
   }
-  $self->info("-------------------------------------------------------------------------------------------",undef,0);
+  $self->info("-------------------------------------------------------------------------------------------\n",undef,0);
 }
 
 sub f_jquota_set_HELP {
@@ -3781,17 +3785,26 @@ sub f_jquota_set_HELP {
 
 sub f_jquota_set {
   my $self = shift;
-  my $user = shift or print STDERR $self->f_jquota_set_HELP() and return;
-  my $field = shift or print STDERR $self->f_jquota_set_HELP() and return;
+  my $user = shift or $self->info( $self->f_jquota_set_HELP()) and return;
+  my $field = shift or $self->info( $self->f_jquota_set_HELP()) and return;
   my $value = shift;
-  (defined $value) or print STDERR $self->f_jquota_set_HELP() and return;
+  (defined $value) or $self->info( $self->f_jquota_set_HELP()) and return;
   if ($field !~ /(maxUnfinishedJobs)|(maxTotalRunningTime)|(maxTotalCpuCost)/) {
     $self->{LOGGER}->error("CE","Wrong field name! Choose one of them: maxUnfinishedJobs, maxTotalRunningTime, maxTotalCpuCost\n");
     return;
   }
 
-  my $done = $self->{SOAP}->CallSOAP("Manager/Job", 'setJobQuotaInfo', $user, $field, $value);
-  $done and $self->f_jquota_list("$user");
+  #my $done = $self->{SOAP}->CallSOAP("Manager/Job", 'setJobQuotaInfo', $user, $field, $value);
+  my $set = {$field=> $value};
+  my $done = $self->{PRIORITY_DB}->updatePrioritySet($user, $set);
+  $done or $self->info("Failed to set the value in PRIORITY table") and return;;
+
+  if ($done eq '0E0') {
+    ($user ne "%") and $self->info( "User '$user' not exist.") and return;
+  }
+
+
+  $done and $self->f_jquota_list($user);
 }
 
 
