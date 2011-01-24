@@ -25,8 +25,8 @@ sub checkWakesUp {
 
     $self->info("Now, compute the number of jobs waiting and priority per user");
     my $update="update PRIORITY p  set 
-waiting=(select count(*) from QUEUE where status='WAITING' and p.user=$userColumn collate latin1_general_cs),
-running=(select count(*) from QUEUE where (status='RUNNING' or status='STARTED' or status='SAVING') and p.user= $userColumn  collate latin1_general_cs),
+waiting=(select count(*) from QUEUE where status='WAITING' and p.user=$userColumn ),
+running=(select count(*) from QUEUE where (status='RUNNING' or status='STARTED' or status='SAVING') and p.user= $userColumn  ),
 userload=(running/maxparallelJobs),
 computedpriority=(if(running<maxparallelJobs, if((2-userload)*priority>0,50.0*(2-userload)*priority,1),1))";
 
@@ -34,7 +34,7 @@ computedpriority=(if(running<maxparallelJobs, if((2-userload)*priority>0,50.0*(2
     $self->{DB}->do($update);
 
     $self->info("Finally, let's update the JOBAGENT table");
-   $update="UPDATE JOBAGENT j set j.priority=(SELECT computedPriority-(min(queueid)/(SELECT ifnull(max(queueid),1) from QUEUE)) from PRIORITY p, QUEUE q where j.entryId=q.agentId and status='WAITING' and $userColumn=p.user collate latin1_general_cs group by agentId)";
+   $update="UPDATE JOBAGENT j set j.priority=(SELECT computedPriority-(min(queueid)/(SELECT ifnull(max(queueid),1) from QUEUE)) from PRIORITY p, QUEUE q where j.entryId=q.agentId and status='WAITING' and $userColumn=p.user group by agentId)";
 
     $self->info("Doing $update");
     $self->{DB}->do($update);
