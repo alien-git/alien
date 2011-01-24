@@ -16,9 +16,8 @@ sub initialize {
    my $self=shift;
    $self->{DB}=AliEn::Database::CE->new();
    $ENV{X509_CERT_DIR} and $self->{LOGGER}->debug("LCG","X509: $ENV{X509_CERT_DIR}");
-   my $host= `/bin/hostname` || $self->{CONFIG}->{HOST};
-   chomp $host;
-   $self->{CONFIG}->{VOBOX} = $host.':8084';
+   
+   $self->{CONFIG}->{VOBOX} = "$self->{CONFIG}->{HOST}:8084";
    $ENV{ALIEN_CM_AS_LDAP_PROXY} and $self->{CONFIG}->{VOBOX} = $ENV{ALIEN_CM_AS_LDAP_PROXY};
    $self->info("This VO-Box is $self->{CONFIG}->{VOBOX}, site is \'$ENV{SITE_NAME}\'");
    $self->{CONFIG}->{LCGVO} = $ENV{ALIEN_VOBOX_ORG}|| $self->{CONFIG}->{ORG_NAME};
