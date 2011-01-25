@@ -469,7 +469,7 @@ sub _system {
   eval {
     alarm(300);
     $self->setEnvironmentForLCG();
-    $self->info("Doing '$command'");
+    $self->debug(1, "Doing '$command'");
     $pid=open(FILE, "$command |") or
       die("Error doing '$command'!!\n$!");
     @output=<FILE>;
@@ -500,7 +500,7 @@ sub _system {
 sub setEnvironmentForLCG{
   my $self=shift;
 
-  $self->info("Setting the environment for an LCG call");
+  $self->debug(1,"Setting the environment for an LCG call");
   $self->{LCG_ENV}={};
   foreach  my $v ("GLOBUS_LOCATION", "X509_CERT_DIR", "MYPROXY_LOCATION"){
     $self->{LCG_ENV}->{$v}=$ENV{$v};
@@ -518,7 +518,7 @@ sub setEnvironmentForLCG{
 }
 sub unsetEnvironmentForLCG{
   my $self=shift;
-  $self->info("Back to the normal environment");
+  $self->debug(1,"Back to the normal environment");
   foreach my $v (keys %{$self->{LCG_ENV}}){
     $ENV{$v}=$self->{LCG_ENV}->{$v};
   }
