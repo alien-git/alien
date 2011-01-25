@@ -1322,7 +1322,7 @@ sub getListInputFiles {
   foreach (@inputFiles){
     my ($proc, $lfn)=split /->/;
     $self->debug(1, "Adding '$lfn' (dir '$dir')");
-    $proc =~ s{^$dir}{$self->{WORKDIR}/};
+    $proc =~ s{^$dir}{$self->{WORKDIR}/} or $proc="$self->{WORKDIR}/$proc";
     push @files, {cat=> $lfn, real=>$proc};
     if ($proc =~ /^($self->{WORKDIR}\/.*\/)[^\/]*$/ ) {
       $self->info("Checking if $1 exists");
