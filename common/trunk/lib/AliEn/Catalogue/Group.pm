@@ -123,7 +123,7 @@ sub f_chown {
     return;
   }
 
-  if ($self->{DATABASE}->{ROLE} !~  /^admin(ssl)?$/) {
+  if ($self->{ROLE} !~  /^admin(ssl)?$/) {
     print STDERR "Error: only superuser can chown\n";
     return;
   }
