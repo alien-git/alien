@@ -34,7 +34,7 @@ sub initialize{
   my $self=shift;
 
   $self->{SOAP_SERVER} or $self->{SOAP_SERVER}="PackMan";
-  $self->info("We will talk to the $self->{SOAP_SERVER}");
+  $self->debug(1,"We will talk to the $self->{SOAP_SERVER}");
 
   return $self;
 }
