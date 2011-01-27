@@ -350,10 +350,11 @@ $query = $self->paginate($query, 1,0);
   defined $tableRef or return;
   my $dataFromLFN = $self->getAllInfoFromLFN({method=>"queryValue",retrieve=>"lfn", table=>$tableRef},$entry,"$entry/");
   $dataFromLFN and return $dataFromLFN;
-  my $bookingPool = $self->queryValue("select lfn from LFN_BOOKED where lfn=?",undef,{bind_values=>[$entry]});
-  defined $bookingPool or return;
-  $bookingPool->{fromBookingPool} = 1 if(defined $bookingPool->{lfn});
-  return $bookingPool;
+  return;
+  #my $bookingPool = $self->queryValue("select lfn from LFN_BOOKED where lfn=?",undef,{bind_values=>[$entry]});
+  #defined $bookingPool or return;
+  #$bookingPool->{fromBookingPool} = 1 if(defined $bookingPool->{lfn});
+  #return $bookingPool;
 }
 
 =item C<getHostsForEntry($lfn)>
