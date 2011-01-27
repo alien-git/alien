@@ -1838,8 +1838,8 @@ sub registerFile {
   $size or $size = $env->{size};
   $md5 or $md5 = $env->{md5};
 
-  my $mydebug = $self->{LOGGER}->getDebugLevel();
-  $self->{LOGGER}->debugOn(5);
+  #my $mydebug = $self->{LOGGER}->getDebugLevel();
+  #$self->{LOGGER}->debugOn(5);
   $self->{LOGGER}->keepAllMessages();
 
   my $addResult=0;
@@ -1853,7 +1853,7 @@ sub registerFile {
   ($addResult ne 1) 
     and  $self->highVerboseTransactionLog(@{$self->{LOGGER}->getMessages()});
   
-  $self->{LOGGER}->debugOn($mydebug);
+  #$self->{LOGGER}->debugOn($mydebug);
   $self->{LOGGER}->displayMessages();
 
   if($addResult eq 1) { 

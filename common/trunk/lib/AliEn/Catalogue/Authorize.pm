@@ -437,14 +437,7 @@ sub access {
    # Start of the Server/Authen side code
    $self->info("Authorize: STARTING envelope creation: @_ ");
    my $options = shift;
-   my $maybeoption = ( shift or 0 );
-   my $access;
-   if ( $maybeoption =~ /^-/ ) {
-     $options .= $maybeoption;
-     $access = (shift or 0),
-   } else {
-     $access = ( $maybeoption or 0);
-   }
+   my $access = (shift || 0);
    my $lfn    = (shift || 0);
    my $se      = (shift || "");
    my $size    = (shift || 0 );
@@ -468,7 +461,7 @@ sub access {
 
    my @envelopes = ();
    my $nSEs = 0; 
- 
+
   if($access eq "read" ) {
  
     if(scalar(@ses) eq 0) {
@@ -497,7 +490,7 @@ sub access {
 
       my $sorted =  $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn($query, undef, {bind_values=>\@queryValues});
 
-      $nSEs = scalar(@$sorted);
+      $sorted and defined(@$sorted) and $nSEs = scalar(@$sorted);
       ($sesel > $nSEs-1) and $sesel = $nSEs -1;
       @ses = ($$sorted[$sesel]);
      } 
@@ -519,11 +512,11 @@ sub access {
 
     if(scalar(@ses) gt 0 ) {
 
-      my @envelopes = AliEn::Util::deserializeSignedEnvelopes($self->authorize("write", {lfn=>$lfn, 
+      @envelopes = AliEn::Util::deserializeSignedEnvelopes($self->authorize("write", {lfn=>$lfn, 
      wishedSE=>join(";", @ses), size=>$size, md5=>0, guidRequest=>$extguid}));
 
     } else {
- 
+
       @envelopes= AliEn::Util::deserializeSignedEnvelopes($self->authorize("write", {lfn=>$lfn, 
         size=> $size, md5=>0,  guidRequest=>$extguid, site=>$sitename, 
            writeQos=>$writeQos, writeQosCount=>$writeQosCount, excludeSE=>join(";", @exxSEs)}));
@@ -1138,9 +1131,9 @@ sub  getBaseEnvelopeForWriteAccess {
   $self->checkPermissions("w",$parent)
      or $self->info("Authorize: access: parent dir missing for lfn $lfn",1) and return 0;
 
-  my $perms = $self->checkPermissions("w",$lfn,0,1);
+  $envelope->{lfn} = $self->GetAbsolutePath($lfn);
 
-  if($self->existsEntry($self->GetAbsolutePath($lfn))) {
+  if($self->existsEntry($envelope->{lfn})) {
      $self->info("Authorize: The file is already existing in the catalogue, you need to delete it first manually.",1) and return 0;
      #$self->debug(1,"Authorize: The entry already exists, so we have to delete it, before we can proceed ...");
      #$self->{DATABASE}->{LFN_DB}->removeFile($lfn,$perms)
@@ -1151,10 +1144,10 @@ sub  getBaseEnvelopeForWriteAccess {
     if($user ne "admin") {
       my $reply = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow(
         "SELECT lfn FROM LFN_BOOKED WHERE lfn=? ;"
-        , undef, {bind_values=>[$lfn]});
+        , undef, {bind_values=>[$envelope->{lfn}]});
       $reply->{lfn} and  $reply = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow(
           "SELECT lfn FROM LFN_BOOKED WHERE lfn=? and (owner<>? or gowner<>? );"
-          , undef, {bind_values=>[$lfn,$user,$user]});
+          , undef, {bind_values=>[$envelope->{lfn},$user,$user]});
   
       $reply->{lfn} and $self->info("Authorize: access: the LFN is already in use (reserved in [LFN_BOOKED], not in the catalogue)",1) and return 0;
     }
@@ -1168,13 +1161,12 @@ sub  getBaseEnvelopeForWriteAccess {
   } else {
       my $collision = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow(
         "SELECT guid FROM LFN_BOOKED WHERE guid=string2binary(?) and (lfn<>? or gowner<> ?);"
-        , undef, {bind_values=>[$envelope->{guid}],$lfn,$user});
+        , undef, {bind_values=>[$envelope->{guid}],$envelope->{lfn},$user});
       $collision->{guid} and $self->info("Authorize: access: the requested GUID is already in use (reserved in [LFN_BOOKED], not in the catalogue)",1) and return 0;
       $collision = $self->{DATABASE}->getAllInfoFromGUID({retrieve=>"guid"}, $envelope->{guid});
       $collision->{guid} and $self->info("Authorize: access: the requested GUID is already in use",1) and return 0;
   }
 
-  $envelope->{lfn} = $lfn;
   $envelope->{size} = $size;
   $envelope->{md5} = $md5;
 
@@ -1307,7 +1299,6 @@ sub validateSignedEnvAndRegisterAccordingly{
  
   foreach my $signedEnvelope (@$signedEnvelopes) {
     my $justRegistered=0;
-    #push @successEnvelopes,"0";
     $signedEnvelope or next;
     my $envelope = $self->verifyAndDeserializeEnvelope($signedEnvelope);
      
@@ -1536,9 +1527,15 @@ sub addEntryToBookingTableAndOptionalExistingFlagTrigger{
 
   use Time::HiRes qw (time); 
   my $lifetime= time() + 604800; # one week to prevent data loss
-  return $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do(
-    "INSERT IGNORE INTO LFN_BOOKED (lfn, owner, quotaCalculated, md5sum, expiretime, size, pfn, se, gowner, guid, existing, jobid) VALUES (?,?,?,?,?,?,?,?,?,string2binary(?),?,?);"
-    ,{bind_values=>[$envelope->{lfn},$user, "1" ,$envelope->{md5},$lifetime,$envelope->{size},$envelope->{turl},$envelope->{se},$user,$envelope->{guid},$trigger,$jobid]});
+  $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do(
+    "REPLACE INTO LFN_BOOKED (lfn, owner, quotaCalculated, md5sum, expiretime, size, pfn, se, gowner, guid, existing, jobid) VALUES (?,?,?,?,?,?,?,?,?,string2binary(?),?,?);"
+    ,{bind_values=>[$envelope->{lfn},$user, "1" ,$envelope->{md5},$lifetime,$envelope->{size},$envelope->{turl},$envelope->{se},$user,$envelope->{guid},$trigger,$jobid]})
+     or return 0;
+ 
+  my $negexpire= -$lifetime ;
+  $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do(
+     "UPDATE LFN_BOOKED SET expiretime=? WHERE lfn=? and guid<>? ; ",{bind_values=>[$negexpire,$envelope->{lfn},$envelope->{guid}]}) or return 0;
+  return 1;
 }
 
 
@@ -1564,7 +1561,8 @@ sub authorize{
   my $self = shift;
   my $access = (shift || return),
   my @registerEnvelopes=@_;
-  pop(@registerEnvelopes); # remove the added jobID from Service/Authen
+  my $jid = pop(@registerEnvelopes); # remove the added jobID from Service/Authen
+  ($jid =~ m/^\d+$/) or push @registerEnvelopes, $jid;
   my $options=shift;
 
   my $user=$self->{CONFIG}->{ROLE};
