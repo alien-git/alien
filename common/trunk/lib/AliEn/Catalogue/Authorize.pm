@@ -1167,8 +1167,8 @@ sub  getBaseEnvelopeForWriteAccess {
     $envelope->{guid} = $self->{GUID}->CreateGuid();
   } else {
       my $collision = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow(
-        "SELECT guid FROM LFN_BOOKED WHERE guid=string2binary(?) ;"
-        , undef, {bind_values=>[$envelope->{guid}]});
+        "SELECT guid FROM LFN_BOOKED WHERE guid=string2binary(?) and (lfn<>? or gowner<> ?);"
+        , undef, {bind_values=>[$envelope->{guid}],$lfn,$user});
       $collision->{guid} and $self->info("Authorize: access: the requested GUID is already in use (reserved in [LFN_BOOKED], not in the catalogue)",1) and return 0;
       $collision = $self->{DATABASE}->getAllInfoFromGUID({retrieve=>"guid"}, $envelope->{guid});
       $collision->{guid} and $self->info("Authorize: access: the requested GUID is already in use",1) and return 0;
