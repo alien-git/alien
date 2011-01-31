@@ -67,6 +67,10 @@ sub archiveJobs{
   $c2=~ s/, $//;
     
   my $done=$self->{DB}->do("insert into ${table}PROC select p.* from QUEUEPROC p join TMPID using (queueid)");
+
+  $self->{DB}->do("insert into JOBMESSAGES (timestamp, jobId, procinfo, tag, time) select 
+               unix_timestamp(), queueid, 'Job moved to the archived table', 'state', unix_timestamp() from TMPID");
+
   my $done2=$self->{DB}->do("insert into ${table} ($c) select $c2 from QUEUE q join TMPID using (queueid)");
   my $done3=$self->{DB}->do("delete from p using  TMPID  join QUEUEPROC p using (queueid)");
   my $done4=$self->{DB}->do("delete from q using QUEUE q join TMPID using (queueid)");
