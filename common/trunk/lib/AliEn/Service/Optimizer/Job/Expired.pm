@@ -48,12 +48,16 @@ sub archiveJobs{
 
   
   $self->info("Archiving the jobs older than $time");
-
-  my $done=$self->{DB}->do("insert into ${table}PROC select p.* from QUEUE q join QUEUEPROC p using (queueid) $query");
-  my $done2=$self->{DB}->do("insert into ${table} select q.* from QUEUE q $query");
-  my $done3=$self->{DB}->do("delete from p using  QUEUE q join QUEUEPROC p using (queueid) $query");
-  my $done4=$self->{DB}->do("delete from q using QUEUE q $query");
-
+  $self->{DB}->do("truncate TMPID");
+  my $jobs=$self->{DB}->do("insert into TMPID select q.queueid from QUEUE q $query ");
+  $self->info("There are $jobs expired jobs");
+  ( $jobs and $jobs !~ /0E0/ ) or return 1;
+    
+  my $done=$self->{DB}->do("insert into ${table}PROC select p.* from QUEUEPROC p join TMPID using (queueid)");
+  my $done2=$self->{DB}->do("insert into ${table} select q.* from QUEUE q join TMPID using (queueid)");
+  my $done3=$self->{DB}->do("delete from p using  TMPID  join QUEUEPROC p using (queueid)");
+  my $done4=$self->{DB}->do("delete from q using QUEUE q join TMPID using (queueid)");
+  
   $self->info("AT THE END, WE HAVE $done and $done2 and $done3 and $done4");
   return 1;
 }

@@ -207,6 +207,9 @@ sub initialize {
 				     Ack=>         =>'varchar(255)'},
 			  id=>"ID",
 			  index=>"ID",},
+			  TMPID=>{columns=>{queueid=>"int(11) not null primary key"},
+			    id=>"queueid"
+			  },
 	       JOBMESSAGES=>{columns=> {entryId=>" int(11) not null  auto_increment primary key",
 					jobId =>"int", 
 					procinfo=>"varchar(200)",
