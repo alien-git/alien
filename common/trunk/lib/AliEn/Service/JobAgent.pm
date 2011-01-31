@@ -1869,20 +1869,7 @@ sub highVerboseTransactionLog {
   my $self=shift;
   my $prefix = "Error in add / add -r, printing --------- HIGH VERBOSITY IO TRANSACTION LOG ---------:";
   my $suffix = "--------- END OF HIGH VERBOSITY IO TRANSACTION LOG ---------.";
-  print "$prefix \n @_ \n $suffix \n";
-  
-  my @loglines = ();
-
-  foreach my $line (@_) {
-    ($line =~ /\n/) 
-      and push  @loglines , split(/\n/, $line)
-      and next;
-    push @loglines , $line;
-  }
-
-  $self->putJobLog("trace", $prefix );
-  foreach (@loglines) { $self->putJobLog("trace", $_ ); }
-  $self->putJobLog("trace", $suffix );
+  $self->putJobLog("trace", "$prefix \n @_ $suffix");
 }
 
 sub submitFileToClusterMonitor{
