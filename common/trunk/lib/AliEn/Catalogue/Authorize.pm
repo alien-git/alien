@@ -162,7 +162,7 @@ sub resortArrayToPrioElementIfExists {
    my @newlist=();
    my $exists=0;
    foreach (@$list) {
-     (lc($prio) eq lc($_)) and $exists=1 
+     (lc($prio) eq lc($_)) and $exists=1 and $prio=$_
       or push @newlist, $_;
    }
    $exists and  @newlist = ($prio,@newlist);
@@ -936,7 +936,7 @@ sub selectPFNOnClosestRootSEOnRank{
      #AliEn::Util::isValidSEName($tSE->{se}) || next;
      (grep (/^$tSE->{se}$/i,@$excludeList)) && next;
      #if($tSE->{pfn} =~ /^root/) { 
-     $seList->{$tSE->{se}} = $tSE->{pfn}; 
+     $seList->{lc($tSE->{se})} = $tSE->{pfn}; 
     # } elsif ($tSE->{pfn} =~ /^guid/) {
        # $nose=$tSE->{pfn};
      #} else {
@@ -975,7 +975,7 @@ sub selectPFNOnClosestRootSEOnRank{
        push @queryValues, $user;
    }
    my $sePriority = $self->resortArrayToPrioElementIfExists($sePrio,$catalogue->queryColumn($query, undef, {bind_values=>\@queryValues}));
-   return ($$sePriority[0], $seList->{$$sePriority[0]});
+   return ($$sePriority[0], $seList->{lc($$sePriority[0])});
 }
 
 
