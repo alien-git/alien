@@ -37,6 +37,7 @@ use vars qw (@ISA);
 push @ISA, 'AliEn::Logger::LogObject';
 
 Log::TraceMessages::check_argv();
+use AliEn::Database::Admin;
 
 sub new{
   my $proto = shift;
@@ -54,6 +55,7 @@ sub new{
 
   bless( $self, $class );
   $self->SUPER::new() or return;
+
   $self;
 }
 
@@ -139,21 +141,13 @@ sub validateJobToken {
 
   my $job      = shift;
   my $jobToken = shift;
-  
-  my $done =
-    SOAP::Lite->uri('AliEn/Service/Authen')
-	->proxy("http://$self->{AUTH_HOST}:$self->{AUTH_PORT}")
-	  ->checkJobToken( $job, $jobToken );
-  
-  ($done) and ( $done = $done->result ) or $self->{LOGGER}->error("TokenManager", "The token has not been validated!") and return;
-  
-  $done
-    and $self->debug(1, "Job validated. ")
-      and return $done;
-  
-  $self->{LOGGER}->error("TokenManager", "Error contacting the authentication server in $self->{AUTH_HOST}:$self->{AUTH_PORT}");
+  $self->{addbh} or 
+     $self->{addbh} = new AliEn::Database::Admin();
+  $self->info("Database created");
+  my ($user) = $self->{addbh}->getUsername($job,$jobToken);
 
-	undef;
+  $self->info("We have the user $user");
+  return { "user"=>$user}; 
 }
 
 sub getJobToken{
