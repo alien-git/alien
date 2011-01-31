@@ -188,9 +188,12 @@ sub registerOutput{
   
   if(!$onlycmlog) {
     my ($host, $driver, $db) = split("/", $self->{CONFIG}->{"JOB_DATABASE"});
-    $self->{TASK_DB} or 
-      $self->{TASK_DB} = AliEn::Database::TaskQueue->new({DB=>$db,HOST=> $host,DRIVER => $driver,
-                                                         ROLE=>'admin', SKIP_CHECK_TABLES=> 1});
+    if (! $self->{TASK_DB}){ 
+       $self->{TASK_DB} = AliEn::Database::TaskQueue->new({DB=>$db,HOST=> $host,DRIVER => $driver,
+                                                          ROLE=>'admin', SKIP_CHECK_TABLES=> 1});
+        AliEn::Util::setupApMon( $self->{TASK_DB});
+   }
+
     $self->{TASK_DB} or $self->info("Error CE: In initialize creating TaskQueue instance failed",2)
         and return;
   
