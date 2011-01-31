@@ -2605,7 +2605,7 @@ sub registerLogs {
     $dir=~ s{/([^/]*)$}{/};
     my $basename=$1;
     my $data=$self->submitFileToClusterMonitor($dir,$basename, "execution.out");
-    my $registerLogString;
+    my $registerLogString="";
     if($data) {
       $registerLogString = "\"".join ("###", "execution.out", 0, ($data->{size} || 0), ($data->{md5}|| 0),  $data->{pfn}) ."\"";
     } else {
