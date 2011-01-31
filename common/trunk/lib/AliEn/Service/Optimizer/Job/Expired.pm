@@ -63,6 +63,8 @@ sub archiveJobs{
     $c2.="q.$column->{Field}, ";
   }
   
+  $c=~ s/, $//;
+  $c2=~ s/, $//;
     
   my $done=$self->{DB}->do("insert into ${table}PROC select p.* from QUEUEPROC p join TMPID using (queueid)");
   my $done2=$self->{DB}->do("insert into ${table} ($c) select $c2 from QUEUE q join TMPID using (queueid)");
