@@ -573,10 +573,11 @@ echo --- env ---------------------------------------
 echo \$PATH
 echo \$LD_LIBRARY_PATH
 
+export ALIEN_USER=$ENV{ALIEN_USER}
 echo --- alien --printenv --------------------------
-$exec -printenv
+\$ALIEN_ROOT/bin/$exec -printenv
 echo --- alien proxy-info ---------------------------
-$exec proxy-info
+\$ALIEN_ROOT/bin/$exec proxy-info
 echo --- Run ---------------------------------------
 ls -lart
 ";
