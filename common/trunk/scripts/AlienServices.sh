@@ -132,7 +132,8 @@ ALIEN_StartMonitor()
   done
 
   export ALIEN_PROCESSNAME=Monitor
-  ALIEN_CheckSoapType ClusterMonitor
+ #echo "in ALIEN_StartMonitor"
+  ALIEN_IsHttps ClusterMonitor
 
   startService LOGDIR ClusterMonitor  "cluster monitor" NO_PASSWORD $arg
 
@@ -198,7 +199,7 @@ ALIEN_OneHttpdService()
 
 
   export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$ALIEN_ROOT/api/lib:$ALIEN_ROOT/httpd/lib
-  export PERL5LIB=$PERL5LIB:$ALIEN_ROOT/lib/perl5/site_perl/5.8.8:$ALIEN_ROOT/lib/perl5/5.8.8
+  export PERL5LIB=$PERL5LIB:$ALIEN_ROOT/lib/perl5/site_perl/5.10.1:$ALIEN_ROOT/lib/perl5/5.10.1
 
   ######### 
   # globus 
@@ -357,7 +358,7 @@ ALIEN_HttpdStart()
 
 
   export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$ALIEN_ROOT/api/lib:$ALIEN_ROOT/httpd/lib
-  export PERL5LIB=$PERL5LIB:$ALIEN_ROOT/lib/perl5/site_perl/5.8.8:$ALIEN_ROOT/lib/perl5/5.8.8
+  export PERL5LIB=$PERL5LIB:$ALIEN_ROOT/lib/perl5/site_perl/5.10.1:$ALIEN_ROOT/lib/perl5/5.10.1
 
   ######### 
   # globus 
@@ -432,7 +433,7 @@ export ALIEN_HOME=$HOME/.alien
         elif [ $tmpN == "PackMan" ]
            then
              portNum=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl PACKMAN_PORT 2> /dev/null`
-        elif [ $tmpN == "Monitor" ]
+        elif [ $tmpN == "ClusterMonitor" ]
            then
              portNum=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl CLUSTERMONITOR_PORT 2> /dev/null`
         fi
@@ -466,6 +467,10 @@ export ALIEN_HOME=$HOME/.alien
          sed -e "s#my @services=.*#my @services=qw( $startupFormat ) ;#" $ALIEN_HOME/httpd/conf."$portNum"/startup.pl > /tmp/startup.$$
          cp /tmp/startup.$$ $ALIEN_HOME/httpd/conf."$portNum"/startup.pl
          
+         # to enable the mod_ssl function
+       #  sed -e "s%^\#\(SSL.*\)%\\1%"  $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
+       #  cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+         
          if [ $tmpN == "JobBroker" ] || [ $tmpN == "Broker" ]
          then
          	sed -e "s#my @services=.*#my @services=qw( Broker::Job ) ;#" $ALIEN_HOME/httpd/conf."$portNum"/startup.pl > /tmp/startup.$$
@@ -488,7 +493,94 @@ export ALIEN_HOME=$HOME/.alien
 
         
 
+}     
+
+
+
+###########################################################################
+ALIEN_HttpdSoapTypeConfig()
+###########################################################################
+{
+export ALIEN_HOME=$HOME/.alien
+        tmpN=$1
+        hostAddress=$2
+        httpdFormat=$3
+        startupFormat=`echo $httpdFormat | sed 's/AliEn::Service:://'`
+    #    echo "tmpname is $tmpN, httpd format is $httpdFormat,startFormat is $startupFormat"
+        
+        portNum=`echo ${hostAddress##*:}`
+        if [ $tmpN == "Authen" ]
+           then
+             portNum=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl AUTH_PORT 2> /dev/null`
+        elif [ $tmpN == "IS" ]
+           then
+             portNum=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl IS_PORT 2> /dev/null`
+        elif [ $tmpN == "Logger" ]
+           then
+             portNum=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl LOG_PORT 2> /dev/null`
+        elif [ $tmpN == "PackMan" ]
+           then
+             portNum=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl PACKMAN_PORT 2> /dev/null`
+        elif [ $tmpN == "ClusterMonitor" ]
+           then
+             portNum=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl CLUSTERMONITOR_PORT 2> /dev/null`
+        fi
+       # echo $portNum
+        
+        
+         if [ ! -f $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf ] || [ ! -f $ALIEN_HOME/httpd/conf."$portNum"/startup.pl ]
+        then
+               if [ -d $ALIEN_HOME/httpd/conf."$portNum" ]
+               then
+                        rm -rf $ALIEN_HOME/httpd/conf."$portNum"
+               fi
+         mkdir -p ${ALIEN_HOME}/httpd/conf."$portNum"/
+         cp $ALIEN_ROOT/httpd/conf/httpd.conf $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+         cp $ALIEN_ROOT/httpd/conf/startup.pl $ALIEN_HOME/httpd/conf."$portNum"/startup.pl
+        fi
+
+
+         sed -e "s#PerlConfigRequire .*#PerlConfigRequire $ALIEN_HOME/httpd/conf."$portNum"/startup.pl#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
+         cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+
+         sed -e "s#Listen .*#Listen $portNum#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
+         cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+         
+         sed -e "s#^PidFile .*#PidFile logs/httpd"$tmpN".pid#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
+         cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+         
+         sed -e "s#PerlSetVar dispatch_to.*#PerlSetVar dispatch_to \"$ALIEN_ROOT/lib/perl5/site_perl/5.10.1 $httpdFormat \"#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf> /tmp/httpd.$$
+         cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+
+         sed -e "s#my @services=.*#my @services=qw( $startupFormat ) ;#" $ALIEN_HOME/httpd/conf."$portNum"/startup.pl > /tmp/startup.$$
+         cp /tmp/startup.$$ $ALIEN_HOME/httpd/conf."$portNum"/startup.pl
+         
+         # to disble the mod_ssl function
+         sed -e "s%^\( .*SSL.*\)%\#\\1%" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
+         cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+         
+         if [ $tmpN == "JobBroker" ] || [ $tmpN == "Broker" ]
+         then
+         	sed -e "s#my @services=.*#my @services=qw( Broker::Job ) ;#" $ALIEN_HOME/httpd/conf."$portNum"/startup.pl > /tmp/startup.$$
+         	cp /tmp/startup.$$ $ALIEN_HOME/httpd/conf."$portNum"/startup.pl
+         fi
+
+
+          rm /tmp/httpd.$$
+          rm /tmp/startup.$$
+
+        
+        if [ -f $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf ] && [ -f $ALIEN_HOME/httpd/conf."$portNum"/startup.pl ]
+        then
+              ALIEN_HttpdStart $tmpN $portNum
+
+        else
+              echo "$ALIEN_HOME/httpd/conf.$portNum/ don't have httpd.conf and startup.pl"
+              exit 1
+         fi            
+
 }                                                         
+                                                    
 
 ###########################################################################
 ALIEN_IsHttps ( )
@@ -528,18 +620,28 @@ ALIEN_IsHttps ( )
    
    [ $serviceName == "PackMan" ] && configName="PACKMAN_HOST" && packageName="AliEn::Service::PackMan"
     
-   [ $serviceName == "Monitor" ] && configName="CLUSTERMONITOR_ADDRESS" && packageName="AliEn::Service::ClusterMonitor"
+   [ $serviceName == "ClusterMonitor" ] && configName="CLUSTERMONITOR_ADDRESS" && packageName="AliEn::Service::ClusterMonitor" && soapName="CLUSTERMONITOR_SOAPTYPE"
    
   # [ $serviceName == "CE" ] && configName="CE_HOST" && packageName="AliEn::Service::CE" 
    
     hostName=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl $configName 2> /dev/null `
+    HttpdType=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl $soapName 2> /dev/null `
+    
     # echo $serviceName
-    echo $hostName
+    #echo $hostName
    	if [[ $hostName == https* ]]
           	  then
           	 		 echo "$serviceName  wants to be started as a httpd "
           	 	 	 ALIEN_HttpsConfig $serviceName $hostName $packageName
              		 exit 0
+              elif [[ $HttpdType == "httpd" ]]
+              then
+                     echo "$serviceName  wants to be started as a http (soapType is httpd)"  
+                     echo "serviceName is $serviceName, hostname is $hostName,packageName is $packageName"
+                     ALIEN_HttpdSoapTypeConfig $serviceName $hostName $packageName
+                     exit 0
+              else
+                     echo "$serviceName  wants to be started with SOAP::Lite "
        fi
           	  
     return 0 	  
@@ -607,7 +709,7 @@ ALIEN_Starthttpd()
 ###########################################################################
 {
   export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$ALIEN_ROOT/api/lib:$ALIEN_ROOT/httpd/lib
-  export PERL5LIB=$PERL5LIB:$ALIEN_ROOT/lib/perl5/site_perl/5.8.8:$ALIEN_ROOT/lib/perl5/5.8.8
+  export PERL5LIB=$PERL5LIB:$ALIEN_ROOT/lib/perl5/site_perl/5.10.1:$ALIEN_ROOT/lib/perl5/5.10.1
   export GLOBUS_LOCATION=$ALIEN_ROOT/globus
   logDir=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl LOG_DIR`
  # echo $logDir
@@ -640,7 +742,7 @@ ALIEN_Stophttpd()
 ###########################################################################
 {
   export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$ALIEN_ROOT/api/lib:$ALIEN_ROOT/httpd/lib
-  export PERL5LIB=$PERL5LIB:$ALIEN_ROOT/lib/perl5/site_perl/5.8.8:$ALIEN_ROOT/lib/perl5/5.8.8
+  export PERL5LIB=$PERL5LIB:$ALIEN_ROOT/lib/perl5/site_perl/5.10.1:$ALIEN_ROOT/lib/perl5/5.10.1
   logDir=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl LOG_DIR`
   # echo $logDir
   for file in `find  $HOME/.alien/httpd -name httpd.conf` ;
@@ -951,10 +1053,10 @@ ALIEN_DoService ()
     
 
 
-    if [ $pattern = "Start" ]
+    if [ $pattern = "Start" ] && [ $service != "Monitor" ]
     then
         #  ALIEN_CheckSoapType $service
-
+       # echo "in ALIEN_DoService"
          ALIEN_IsHttps $service 
     fi
 
