@@ -67,11 +67,13 @@ sub get {
     my $p= $self->{PARSED}->{PATH};
     $p =~ s/#.*$//;
     $command="$self->{XRDCP} -d 3 -DIFirstConnectMaxCnt 6 root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$p $self->{LOCALFILE} ";  
+    $self->info("WARNING: AliEn root.pm did receive neither an old nor a new envelope for this call! Trying call: $command "); 
   }
   
-  $self->debug(1,"Trying to get the file $self->{PARSED}->{ORIG_PFN} (to $self->{LOCALFILE})");
   $self->debug(4,"CALLING WITH: $command");
-  my $output = `$command 2>&1 ; echo "ALIEN_XRD_SUBCALL_RETURN_VALUE=\$?"` or $self->info("ERROR: Not possible to call $self->{XRDCP}!",1) and return;
+  my $output = `$command 2>&1 ; echo "ALIEN_XRD_SUBCALL_RETURN_VALUE=\$? "`;
+  $output or $self->info("ERROR Calling -- $command -- There was no returned output or it could not been captured.",1) and return;
+
   $output =~ s/\s+$//;
   $output =~ /ALIEN_XRD_SUBCALL_RETURN_VALUE\=([-]*\d+)$/;
   my $com_exit_value = $1;
@@ -79,7 +81,7 @@ sub get {
   $self->debug(2, "Exit code: $com_exit_value, Returned output: $output");
 
   ( ($com_exit_value eq 0) and (-f $self->{LOCALFILE}) ) 
-      or $self->info("ERROR: Getting the file with xrdcp didn't work! Exit code: $com_exit_value, Returned output: $output",1) and return;
+      or $self->info("ERROR: Getting the file with -- $command -- \n didn't work! Exit code: $com_exit_value, Returned output: $output",1) and return;
 
   $self->debug(1,"YUUHUUUUU!!\n");
   return $self->{LOCALFILE};
@@ -104,7 +106,9 @@ sub put {
     $self->debug(1,"The envelope is $ENV{ALIEN_XRDCP_ENVELOPE}");
   
     $self->debug(4,"The command is $command");
-    my $output = `$command  2>&1 ; echo "ALIEN_XRD_SUBCALL_RETURN_VALUE=\$?"` or $self->info("Error: xrdcp is not in the path",1) and return;
+    my $output = `$command  2>&1 ; echo "ALIEN_XRD_SUBCALL_RETURN_VALUE=\$?"`;
+    $output or $self->info("ERROR Calling -- $command -- There was no returned output or it could not been captured.",1) and return;
+
     $output =~ s/\s+$//; 
     $output =~ /ALIEN_XRD_SUBCALL_RETURN_VALUE\=([-]*\d+)$/;
     my $com_exit_value = $1;
@@ -129,7 +133,7 @@ sub put {
         }
         return "root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH}";
     }
-    $self->info("Exit code not equal to zero. Something went wrong with xrdcp!! Exit code: $com_exit_value, Returned output: $output",1);
+    $self->info("Exit code not equal to zero. Something went wrong with xrdcp!! \n We called: $command \n Exit code: $com_exit_value, Returned output: $output",1);
     return;
   
 
@@ -140,10 +144,12 @@ sub put {
     $self->debug(1,"The envelope is $ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}");
   } else {
     $command.=" root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH}";
+    $self->info("WARNING: AliEn root.pm did receive neither an old nor a new envelope for this call! Trying call: $command "); 
   }
 
   $self->debug(4,"The command is $command");
-  my $output = `$command  2>&1 ; echo "ALIEN_XRD_SUBCALL_RETURN_VALUE=\$?"` or $self->info("Error: xrdcp is not in the path",1) and return;
+  my $output = `$command  2>&1 ; echo "ALIEN_XRD_SUBCALL_RETURN_VALUE=\$?"`;
+  $output or $self->info("ERROR Calling -- $command -- There was no returned output or it could not been captured.",1) and return;
   $output =~ s/\s+$//; 
   $output =~ /ALIEN_XRD_SUBCALL_RETURN_VALUE\=([-]*\d+)$/;
   my $com_exit_value = $1;
@@ -169,7 +175,7 @@ sub put {
       return "root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH}";
   }
 
-  $self->info("Exit code not equal to zero. Something went wrong with xrdcp!! Exit code: $com_exit_value, Returned output: $output",1);
+  $self->info("Exit code not equal to zero. Something went wrong with xrdcp!! \n We called: $command \n Exit code: $com_exit_value, Returned output: $output",1);
   return;
 }
 
