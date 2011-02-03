@@ -1586,6 +1586,7 @@ sub putOnStaticSESelectionListV2{
         $self->notice("We couldn't get all envelopes for the SEs, @staticSes .");
 
      $result->{guid} = $envelopes[0]->{guid};
+     $links=""; 
      foreach my $envelope (@envelopes){
        (my $res, $result) = $self->uploadFileAccordingToEnvelope($result, $sourcePFN, $envelope);
        $res or next;
@@ -1625,6 +1626,7 @@ sub putOnDynamicDiscoveredSEListByQoSV2{
 
 
      $result->{guid} = $envelopes[0]->{guid};
+     $links="";
      foreach my $envelope (@envelopes){
        (my $res, $result) = $self->uploadFileAccordingToEnvelope($result, $sourcePFN, $envelope);
        push @$excludedSes, $envelope->{se};

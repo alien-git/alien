@@ -1594,6 +1594,7 @@ sub authorize{
   my $excludedAndfailedSEs = $self->validateArrayOfSEs(split(/;/, ($options->{excludeSE} || "" )));
   my $pfn = ($options->{pfn} || "");
   my $links = ($options->{links} || 0);
+  my $linksToBeBooked=1;
   my $jobID = (shift || 0);
 
 
@@ -1609,9 +1610,6 @@ sub authorize{
     if($registerReq) {
       $prepareEnvelope or $self->info("Authorize: Permission denied. Could not register $lfn.",1) and return 0;
       return $self->registerPFNInCatalogue($user,$prepareEnvelope,$pfn,$wishedSE);
-    } elsif ($links) {
-      $self->prepookArchiveLinksInBookingTable($user,$jobID,$links,$prepareEnvelope->{guid}) 
-        or return $self->info("Authorize: The requested links of the archive could not been booked") and return 0;
     }
   } 
   $deleteReq and 
@@ -1635,7 +1633,12 @@ sub authorize{
    
        if ($writeReq or $mirrorReq) {
          $prepareEnvelope = $self->calculateXrootdTURLForWriteEnvelope($prepareEnvelope);
-         $self->addEntryToBookingTableAndOptionalExistingFlagTrigger($user,$prepareEnvelope,$jobID,$mirrorReq)
+         $self->addEntryToBookingTableAndOptionalExistingFlagTrigger($user,$prepareEnvelope,$jobID,$mirrorReq) or next;
+         if($links and $linksToBeBooked) {
+           $self->prepookArchiveLinksInBookingTable($user,$jobID,$links,$prepareEnvelope->{guid})
+               or $self->info("Authorize: The requested links of the archive could not been booked",1) and return 0;;
+           $linksToBeBooked=0;
+         }
          # or next;
        }
 
