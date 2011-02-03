@@ -543,7 +543,9 @@ sub deserializeSignedEnvelopes{
   (@_) > 0 or return ();
   my @envelopes = ();
   foreach (@_) {
-    push @envelopes, deserializeSignedEnvelope($_);
+    my $env = deserializeSignedEnvelope($_);
+    (scalar(keys(%$env)) > 0) or next;
+    push @envelopes, $env;
   }
   return @envelopes;
 }
@@ -556,16 +558,17 @@ sub deserializeSignedEnvelope{
      my ($key, $val) = split(/=/,$_,2);
      $envelope->{$key} = $val;
   }
+  $envelope->{hashord} and $envelope->{signature} or return {};
   my @signedKeys= split('-', $envelope->{hashord});
   my @signedElements = ();
   foreach (@signedKeys) {
-     push @signedElements, $_."=".$envelope->{$_};
+     push @signedElements, $_."=".($envelope->{$_} || 0);
   }
   push @signedElements, "hashord=".$envelope->{hashord};
-  push @signedElements, "signature=".$envelope->{signature};
+  push @signedElements, "signature=".($envelope->{signature} || 0);
   $envelope->{signedEnvelope} = join('\&',@signedElements);
 
-  $envelope->{lfn} = descapeSEnvDelimiter($envelope->{lfn});
+  $envelope->{lfn} = descapeSEnvDelimiter(($envelope->{lfn}|| 0));
 
   return $envelope;
 }
