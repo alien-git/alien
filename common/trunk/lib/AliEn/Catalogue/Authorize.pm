@@ -1534,7 +1534,7 @@ sub addEntryToBookingTableAndOptionalExistingFlagTrigger{
  
   my $negexpire= -$lifetime ;
   $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do(
-     "UPDATE LFN_BOOKED SET expiretime=? WHERE lfn=? and guid<>? ; ",{bind_values=>[$negexpire,$envelope->{lfn},$envelope->{guid}]}) or return 0;
+     "UPDATE LFN_BOOKED SET expiretime=? WHERE lfn=? and guid<>string2binary(?) ; ",{bind_values=>[$negexpire,$envelope->{lfn},$envelope->{guid}]}) or return 0;
   return 1;
 }
 
