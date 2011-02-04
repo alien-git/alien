@@ -31,6 +31,8 @@ sub initialize{
   $self->{CATALOGUE}=AliEn::UI::Catalogue::LCM->new({no_catalog=>1})  or return;
   $self->SUPER::initialize() or return;
 
+  $self->{REALLY_INST_DIR} or $self->{REALLY_INST_DIR}=$self->{INST_DIR};
+
   $self->createListFiles() or
     $self->info("WARNING! We couldn't create the list of packages")
       and return
@@ -56,7 +58,7 @@ sub createListFiles {
   $options->{only_installed} and @list=$list[2];                    
   
   foreach my $e (@list){
-    my $file="$self->{INST_DIR}/alien_list_$e->{function}packages_$e->{arguments}";
+    my $file="$self->{REALLY_INST_DIR}/alien_list_$e->{function}packages_$e->{arguments}";
    
     $self->info("Making the list of all the $e->{function} packages in $file");
     
@@ -75,7 +77,7 @@ sub createListFiles {
 
 sub removeLocks{
   my $self=shift;
-  open (FILE, "ls $self->{INST_DIR}/*.InstallLock 2>/dev/null |") or
+  open (FILE, "ls $self->{REALLY_INST_DIR}/*.InstallLock 2>/dev/null |") or
     $self->info("Error removing the locks");
   while (<FILE>){
     my $lock=$_;
@@ -134,7 +136,7 @@ sub createLock{
   my ($user, $package, $version)=(shift, shift, shift);
 
   my $dir="$self->{INST_DIR}/$user/$package/$version";
-  my $lock="$self->{INST_DIR}/$user.$package.$version.InstallLock";
+  my $lock="$self->{REALLY_INST_DIR}/$user.$package.$version.InstallLock";
   (-f $lock) 
     and return 0;
 
@@ -153,7 +155,7 @@ sub removeLock {
   my $self=shift;
   my ($user, $package, $version)=(shift, shift, shift);
 
-  my $lock="$self->{INST_DIR}/$user.$package.$version.InstallLock";
+  my $lock="$self->{REALLY_INST_DIR}/$user.$package.$version.InstallLock";
   system ("rm", "-rf", $lock);
 }
 
@@ -316,9 +318,9 @@ sub InstallPackage {
   my ($user, $package, $version, $info,$depConf)=(shift, shift, shift,shift,shift);
   my $options=shift || {};
 
-  my $dir="$self->{INST_DIR}/$user/$package/$version";
+  my $dir="$self->{REALLY_INST_DIR}/$user/$package/$version";
 
-  my $logFile="$self->{INST_DIR}/$user.$package.$version.InstallLog";
+  my $logFile="$self->{REALLY_INST_DIR}/$user.$package.$version.InstallLog";
 
 
   $self->existsPackage($user, $package, $version,$info) and return 1;
@@ -333,9 +335,9 @@ sub InstallPackage {
 	    die("Error creating $dir\n");
       chdir $dir or die ("Error changing to $dir $!\n");
     } else {
-      my $shared="$self->{INST_DIR}/$user/alien_shared";
+      my $shared="$self->{REALLY_INST_DIR}/$user/alien_shared";
       $self->info( "$$ This package has to be installed in a shared directory");
-      AliEn::MSS::file::mkdir($self,$shared,"$self->{INST_DIR}/$user/$package/") and 
+      AliEn::MSS::file::mkdir($self,$shared,"$self->{REALLY_INST_DIR}/$user/$package/") and 
 	  $self->info( "$$ Error creating the directory $shared") and die ("Error creating the directory $shared $!");
       system ("ln -s $shared $dir") and $self->info( "$$ Error creating the link") and die ("Error creating the link\n");
     }
@@ -402,7 +404,8 @@ sub ConfigurePackage{
   $info->{path} and $dir.="/$info->{path}";
 
   my $source="";
-  system("touch $dir/.alien_last_used");
+  my $dirw="$self->{REALLY_INST_DIR}/$user/$package/$version";
+  system("touch $dirw/.alien_last_used");
   if (-f "$dir/$sourceFile"){
     $self->{LOGGER}->info( "$$ PacKMan","Testing if $dir/$sourceFile is executable");
     if (! -x "$dir/$sourceFile") {
@@ -424,13 +427,15 @@ sub existsPackage{
 
   my $dir="$self->{INST_DIR}/$user/$package/$version";
   (-d $dir) or return;
-  my $lock="$self->{INST_DIR}/$user.$package.$version.InstallLock";
+
+  my $lock="$self->{REALLY_INST_DIR}/$user.$package.$version.InstallLock";
   (-f $lock) and $self->info("The lock exists. Someone is installing the package") and return  ;
   #  if (!-d $dir) {
   #    $self->debug("Checking among the VO packages");
   #    $dir="$self->{INST_DIR}/VO_\U$self->{CONFIG}->{ORG_NAME}\E/$package/$version";
   #
   #  } 
+  my $dirw="$self->{INST_DIR}/$user/$package/$version";
 
   $self->debug(2,  "$$ Checking the size of $dir");
 
@@ -449,7 +454,7 @@ sub existsPackage{
       $self->info("The size of the package is $size bytes");
       if ( $size eq "0") {
 	$self->info( "$$ The size of the package is 0");
-	system("rm -rf $dir");
+	system("rm -rf $dirw");
 	return;
       }
     }
@@ -459,14 +464,14 @@ sub existsPackage{
     $self->debug(2,  "$$ Size $size (has to be $info->{size})");
     if (  $info->{size} and ($size ne $info->{size}) ){
       $self->info( "$$ The size of the package does not correspond (has to be $info->{size} and is $size)");
-      system("rm -rf $dir");
+      system("rm -rf $dirw");
       return;
     }
     if ($info->{min_size}){
       $self->info("Checking the minimum size of the package");
       if ($info->{min_size}>$size){
 	$self->info("$$ The package is too small!! It is only $size, and it should be at least $info->{min_size}");
-	system("rm -rf $dir");
+	system("rm -rf $dirw");
 	return;
       }
     }
@@ -480,7 +485,7 @@ sub existsPackage{
 	and return;
   }
   $self->info( "The package is already installed (in $dir)!!");
-  system("touch", "$dir/.alien_last_checked");
+  system("touch", "$dirw/.alien_last_checked");
   return $dir;
 }
 
@@ -499,22 +504,6 @@ sub _doAction {
     or die("Error getting the file $script for the $action\n");
   chmod(0750, $file);
 
-#  open SAVEOUT,  ">&STDOUT";
-#  open SAVEOUT2, ">&STDERR";
-
-#  open SAVEOUT,  ">&STDOUT";
-#  open SAVEOUT2, ">&STDERR";
-#  my $log="$self->{CONFIG}->{LOG_DIR}/packman/$package.$version.$action.$self->{CONFIG}->{HOST}";
-#  $self->{LOGGER}->redirect($log);
-  
-
-#  require AliEn::MSS::File;
-#  AliEn::MSS::file::mkdir($self, "$self->{CONFIG}->{LOG_DIR}/packman");
-#  if ( !open STDOUT, ">$log" ) {
-#    open STDOUT, ">&SAVEOUT";
-#    die "stdout not opened!!";
-#  }
-#  open( STDERR, ">&STDOUT" ) or die ("Error opening STDERR");
   my @todo=($file, $dir);
   $depConf =~ s{^\s*}{};
   $depConf =~ s{\s*$}{};
@@ -523,12 +512,6 @@ sub _doAction {
   $self->info( "$$ Calling '@todo'");
 
   my $error=system(@todo);
-#  close STDOUT;
-
-#  open STDOUT, ">&SAVEOUT";
-#  open STDERR, ">&SAVEOUT2";
-
-#  $self->{LOGGER}->redirect();
   $self->info( "$$ $action done with $error!!");
   $error and die("Error doing the $action!!\n");
   return 1;
@@ -622,7 +605,7 @@ sub findOldPackages {
     
     
     if  ($info[9]+3600*24*7 <$now) {
-      print "The file $file hasn't been accessed in one week\n";
+      $self->info( "The file $file hasn't been accessed in one week");
       $file =~ m{/([^/]*)/([^/]*)/([^/]*)/\.alien_last_used$} or 
 	         print "Error getting the information out of the link\n" and next;
       my ($user, $package, $version)=($1,$2,$3);
@@ -645,7 +628,7 @@ sub removePackage{
   
   $done or return (-1, "Package is not installed");
 
-  my $dir="$self->{INST_DIR}/$user/$package/$version";
+  my $dir="$self->{REALLY_INST_DIR}/$user/$package/$version";
   if (($dir=~ /\.\./) or ($dir=~ /\s/)) {
     $self->info( "$$ Error: someone is trying to delete another directory '$dir'");
     die("Error trying to delete $dir: this is not the directory where the package is installed\n");
