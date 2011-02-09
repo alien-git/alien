@@ -55,8 +55,8 @@ sub checkSavedJob{
 
   my $newStatus="DONE";
   if (! $success){
-    $self->{DB}->updateStatus($queueid,$status, "ERROR_R");
-    $newStatus="ERROR_R";
+    $self->{DB}->updateStatus($queueid,$status, "ERROR_RE");
+    $newStatus="ERROR_RE";
   }
 
   $self->putJobLog($queueid,"state", "Job state transition from $status to $newStatus");
