@@ -2196,7 +2196,7 @@ sub f_ps {
     $status =~ s/ERROR_S/ES/;
     $status =~ s/ERROR_E/EE/;
     $status =~ s/ERROR_IB/EIB/;
-    $status =~ s/ERROR_R/ER/;
+    $status =~ s/ERROR_RE/ER/;
     $status =~ s/ERROR_V/EV/;
     $status =~ s/ERROR_VT/EVT/;
     $status =~ s/ERROR_VN/EVN/;
@@ -3826,11 +3826,8 @@ sub calculateJobQuota {
   $self->$method(@data, "Compute the number of unfinished jobs in last 24 hours per user");
   $self->{TASK_DB}->do("update PRIORITY pr left join (select SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user, count(1) as unfinishedJobsLast24h from QUEUE q where (status='INSERTING' or status='WAITING' or status='STARTED' or status='RUNNING' or status='SAVING' or status='OVER_WAITING') and (unix_timestamp()>=q.received and unix_timestamp()-q.received<60*60*24) group by submithost) as C on pr.user=C.user set pr.unfinishedJobsLast24h=IFNULL(C.unfinishedJobsLast24h, 0)") or $self->$method(@data, "Failed");
 
-  $self->$method(@data, "Compute the total runnning time of jobs in last 24 hours per user");
-  $self->{TASK_DB}->do("update PRIORITY pr left join (select SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user, sum(p.runtimes) as totalRunningTimeLast24h from QUEUE q join QUEUEPROC p using(queueId) where (unix_timestamp()>=q.received and unix_timestamp()-q.received<60*60*24) group by submithost) as C on pr.user=C.user set pr.totalRunningTimeLast24h=IFNULL(C.totalRunningTimeLast24h, 0)");
-
-  $self->$method(@data, "Compute the total cpu cost of jobs in last 24 hours per user");
-  $self->{TASK_DB}->do("update PRIORITY pr left join (select SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user, sum(p.cost) as totalCpuCostLast24h from QUEUE q join QUEUEPROC p using(queueId) where (unix_timestamp()>=q.received and unix_timestamp()-q.received<60*60*24) group by submithost) as C on pr.user=C.user set pr.totalCpuCostLast24h=IFNULL(C.totalCpuCostLast24h, 0)") or $self->$method(@data, "Failed");
+  $self->$method(@data, "Compute the total runnning time of jobs  and cpu in last 24 hours per user");
+  $self->{TASK_DB}->do("update PRIORITY pr left join (select SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user, sum(p.cost) as totalCpuCostLast24h , sum(p.runtimes) as totalRunningTimeLast24h from QUEUE q join QUEUEPROC p using(queueId) where (unix_timestamp()>=q.received and unix_timestamp()-q.received<60*60*24) and status='DONE' group by submithost) as C on pr.user=C.user set pr.totalRunningTimeLast24h=IFNULL(C.totalRunningTimeLast24h, 0), pr.totalCpuCostLast24h=IFNULL(C.totalCpuCostLast24h, 0)");
 
   $self->$method(@data, "Change job status from OVER_WAITING to WAITING");
 	$self->{TASK_DB}->do("update QUEUE q join PRIORITY pr on pr.user=SUBSTRING( q.submitHost, 1, POSITION('\@' in q.submitHost)-1 ) set q.status='WAITING' where (pr.totalRunningTimeLast24h<pr.maxTotalRunningTime and pr.totalCpuCostLast24h<pr.maxTotalCpuCost) and q.status='OVER_WAITING'") or $self->$method(@data, "Failed");

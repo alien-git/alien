@@ -57,7 +57,7 @@ sub initialize {
                      'SAVED_WARN'  =>71,  'DONE_WARN'=>981,
 		     'ERROR_A'     =>990,  'ERROR_I'     =>990,
 		     'ERROR_E'     =>990,  'ERROR_IB'    =>990,
-		     'ERROR_M'     =>990,  'ERROR_R'     =>990,
+		     'ERROR_M'     =>990,  'ERROR_RE'     =>990,
 		     'ERROR_S'     =>990,  'ERROR_SV'    =>990,
 		     'ERROR_V'     =>990,  'ERROR_VN'    =>990,
 		     'ERROR_VT'    =>990,  'ERROR_SPLT'  =>990,
