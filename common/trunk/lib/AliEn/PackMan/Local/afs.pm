@@ -35,7 +35,7 @@ sub installPackage{
   my @info= $self->SUPER::installPackage(@_) or return;
   ($info[0] == '-1') and  return @info;
     
-  $self->synchronizeAFS();
+  # $self->synchronizeAFS();
   return @info;
 
 }
