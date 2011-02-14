@@ -118,7 +118,7 @@ sub initialize {
   $options->{"CM_HOST"} = $self->{HOST};
   $options->{"CM_PORT"} = $self->{PORT};
 
-  $self->{BATCH} = $batch->new($options);
+  #$self->{BATCH} = $batch->new($options);
   my @list = ();
   $self->{CONFIG}->{CEs} and @list = @{ $self->{CONFIG}->{CEs} };
   $self->info( "Batch systems: @list" );
@@ -586,9 +586,9 @@ sub killZombie {
       return "No batch system";
     }
 
-    my $status = $self->{BATCH}->kill($queueId);
+    #my $status = $self->{BATCH}->kill($queueId);
 
-    return $status;
+    #return $status;
 }
 
 sub getStatus {
@@ -601,9 +601,9 @@ sub getStatus {
 
       return "No batch system";
     }
-    my $status = $self->{BATCH}->getStatus($queueId);
+    #my $status = $self->{BATCH}->getStatus($queueId);
 
-    return $status;
+    #return $status;
 }
 
 sub getQueueStatus {
@@ -617,8 +617,8 @@ sub getQueueStatus {
     my $queue;
     my $message;
 
-    my @m = $self->{BATCH}->getQueueStatus();
-    $message .= join "", @m;
+#    my @m = $self->{BATCH}->getQueueStatus();
+#    $message .= join "", @m;
 
     return $message;
 }
@@ -786,7 +786,7 @@ sub getOutput {
 
   if(!$done) {
       $self->info("Could not get file via SOAP, trying to get it via LRMS");
-      $data = $self->{BATCH}->getOutputFile($queueId,$output);
+      #$data = $self->{BATCH}->getOutputFile($queueId,$output);
       $data or $data = "";
   }  
   else {
@@ -848,9 +848,9 @@ sub KillProcessBatch {
   $self->{SOAP}->CallSOAP($data->{workernode}, "dieGracefully", $queueId)
     or $self->info( "The job didn't want to die")
       and return;
-  $self->{BATCH}->kill($data->{batchId})
-    or $self->info( "Error killing $data->{batchId}" )
-      and return;
+#  $self->{BATCH}->kill($data->{batchId})
+#    or $self->info( "Error killing $data->{batchId}" )
+#      and return;
 
   $self->info( "Process removed" );
 
@@ -1087,11 +1087,11 @@ sub checkQueuedJobs {
      if ($_->{queueId} > 0) {
        if ($self->{CONFIG}->{CE_TYPE} eq "LCG" ) {
 	 
-	 if ( $self->{BATCH}->getStatus($_->{queueId}) eq "DEQUEUED" ) {
+#	 if ( $self->{BATCH}->getStatus($_->{queueId}) eq "DEQUEUED" ) {
 	   # change the status to ERROR_E
-	   $self->info( "Job Id $_->{queueId} is not queued anymore! Changing to ERROR_E");
-	   $self->changeStatusCommand($_->{queueId},"QUEUED", "ERROR_E","","");
-	 }
+#	   $self->info( "Job Id $_->{queueId} is not queued anymore! Changing to ERROR_E");
+#	   $self->changeStatusCommand($_->{queueId},"QUEUED", "ERROR_E","","");
+#	 }
        }
      }
    }
@@ -1116,7 +1116,7 @@ sub checkWakesUp {
   $self->checkMessages($silent);
 #  $self->checkExpired($silent);
   $self->checkJobAgents($silent);
-  $self->{BATCH}->cleanUp();
+#  $self->{BATCH}->cleanUp();
 #  $self->checkZombies($silent);
   return; 
 }
@@ -1183,7 +1183,7 @@ sub checkJobAgents {
   $silent  and $method="debug" and push @data, 1;
 
   $self->$method(@data, "Checking the queued agents");
-  my @inBatch=$self->{BATCH}->getAllBatchIds();
+  my @inBatch=();#$self->{BATCH}->getAllBatchIds();
   my $before=time();
   $before=$before-900;
   my $info=$self->{LOCALJOBDB}->query("SELECT * from JOBAGENT where timestamp < ?", undef, {bind_values=>[$before]});
@@ -1192,7 +1192,7 @@ sub checkJobAgents {
     $self->$method(@data, "Checking if the agent $job->{batchId} is still there...");
     if (!grep (/^$job->{batchId}$/, @inBatch)) {
       $self->info("Agent $job->{batchId} is dead!!\n");
-      $self->{LOCALJOBDB}->removeJobAgent( $self->{BATCH}->needsCleaningUp(), { batchId => $job->{batchId} });
+      #$self->{LOCALJOBDB}->removeJobAgent( $self->{BATCH}->needsCleaningUp(), { batchId => $job->{batchId} });
     }
     @inBatch=grep (! /^$job$/, @inBatch);    
   }
@@ -1271,7 +1271,7 @@ sub agentExits{
   my $agentId=shift;
 
   $self->info("The jobAgent $agentId has finished");
-  $self->{LOCALJOBDB}->removeJobAgent($self->{BATCH}->needsCleaningUp(), { agentId => $agentId });
+#  $self->{LOCALJOBDB}->removeJobAgent($self->{BATCH}->needsCleaningUp(), { agentId => $agentId });
   return 1;
 }
 
@@ -1290,7 +1290,7 @@ sub jobExits{
   my $jobId=shift;
 
   $self->info("The job $jobId has finished");
-  $self->{LOCALJOBDB}->removeJobAgent($self->{BATCH}->needsCleaningUp(), { jobId => $jobId });  
+  #$self->{LOCALJOBDB}->removeJobAgent($self->{BATCH}->needsCleaningUp(), { jobId => $jobId });  
   return 1;
 }
 
