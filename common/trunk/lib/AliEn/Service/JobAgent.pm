@@ -118,6 +118,7 @@ sub initialize {
   $self->{LISTEN}=1;
   $self->{PREFORK}=1;
 
+  $self->{TOTALJOBS}=0;
   $self->{PROCESSID} = 0;
   $self->{STARTTIME} = '0';
   $self->{STOPTIME} = '0';
@@ -192,7 +193,7 @@ sub requestJob {
 
   $self->GetJDL() or return;
   $self->info("Got the jdl");
-
+  $self->{TOTALJOBS}=$self->{TOTALJOBS}+1;
 
 
   $self->{SOAP}->CallSOAP("CLUSTERMONITOR","jobStarts", $ENV{ALIEN_PROC_ID}, $ENV{ALIEN_JOBAGENT_ID});
@@ -208,7 +209,7 @@ sub requestJob {
     $self->info("We couldn't redirect the output...");
   }
   $self->checkJobJDL() or $self->sendJAStatus('ERROR_JDL') and return;
-
+  
   $self->info("Contacting VO: $self->{VOs}");
 
   $self->CreateDirs or $self->sendJAStatus('ERROR_DIRS') and return;
@@ -2466,9 +2467,11 @@ sub checkWakesUp {
     $self->info("Asking for a new job");
     if (! $self->requestJob()) {
       $self->sendJAStatus('DONE');
-      $self->info("There are no jobs to execute");
+      $self->info("There are no jobs to execute. We have executed $self->{TOTALJOBS}");
       #Tell the CM that we are done"
-
+      $self->{MONITOR} and 
+        $self->{MONITOR}->sendParameters("$self->{CONFIG}->{SITE}_".$self->{SERVICENAME}, "$self->{HOST}:$self->{PORT}", 
+                                           { 'numjobs' => $self->{TOTALJOBS} });
       $self->{SOAP}->CallSOAP("CLUSTERMONITOR", "agentExits", $ENV{ALIEN_JOBAGENT_ID});
       # killeverything connected
       $self->info("We have to  kill $self->{SERVICEPID} or ".getppid());
