@@ -387,31 +387,18 @@ ALIEN_HttpdStart()
 
   fi
    sleep 5
- # if [ -f $ALIEN_ROOT/httpd/logs/httpd"$serviceName".pid ]
- # then
- #      ps -ef | grep httpd | grep $portNum | awk '{if ($3==1) print $2}' > $ALIEN_ROOT/httpd/logs/httpd"$serviceName".pid
- #       cp $ALIEN_ROOT/httpd/logs/httpd"$serviceName".pid $logDir/"$serviceName".pid
-   
-    #    if [ $tmpN == "JobBroker" ] || [ $tmpN == "Broker" ]
-    #        then
-    #       ps -ef | grep httpd | grep $portNum | awk '{if ($3==1) print $2}' > $ALIEN_ROOT/httpd/logs/httpdBroker.pid
-    #       cp $ALIEN_ROOT/httpd/logs/httpdBroker.pid $ALIEN_ROOT/httpd/logs/httpdJobBroker.pid
-    #        cp $ALIEN_ROOT/httpd/logs/httpdBroker.pid $logDir/"Broker::Job".pid
-    #        cp $ALIEN_ROOT/httpd/logs/httpdBroker.pid $logDir/JobBroker.pid
-    #    fi   
-#  fi
 
   
-     if [ -f $logDir/httpd"$serviceName".pid ]
-     then
+  #   if [ -f $logDir/httpd"$serviceName".pid ]
+  #   then
         ps -ef | grep httpd | grep $portNum | awk '{if ($3==1) print $2}' > $logDir/httpd"$serviceName".pid      
         cp $logDir/httpd"$serviceName".pid  $logDir/"$serviceName".pid 
         
-     elif [ -f $ALIEN_ROOT/httpd/logs/httpd"$serviceName".pid ]
-     then
-       ps -ef | grep httpd | grep $portNum | awk '{if ($3==1) print $2}' > $ALIEN_ROOT/httpd/logs/httpd"$serviceName".pid      
-       cp $ALIEN_ROOT/httpd/logs/httpd"$serviceName".pid $logDir/"$serviceName".pid  
-     fi 
+  #   elif [ -f $ALIEN_ROOT/httpd/logs/httpd"$serviceName".pid ]
+  #   then
+   #    ps -ef | grep httpd | grep $portNum | awk '{if ($3==1) print $2}' > $ALIEN_ROOT/httpd/logs/httpd"$serviceName".pid      
+   #    cp $ALIEN_ROOT/httpd/logs/httpd"$serviceName".pid $logDir/"$serviceName".pid  
+   #  fi 
      
   
 
@@ -465,7 +452,8 @@ export ALIEN_HOME=$HOME/.alien
          cp $ALIEN_ROOT/httpd/conf/httpd.conf $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
          cp $ALIEN_ROOT/httpd/conf/startup.pl $ALIEN_HOME/httpd/conf."$portNum"/startup.pl
         
-
+         sed -e "s#ServerRoot .*#ServerRoot $ALIEN_ROOT/httpd#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
+         cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
 
          sed -e "s#PerlConfigRequire .*#PerlConfigRequire $ALIEN_HOME/httpd/conf."$portNum"/startup.pl#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
          cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
@@ -488,6 +476,9 @@ export ALIEN_HOME=$HOME/.alien
          sed -e "s#PerlSetVar dispatch_to.*#PerlSetVar dispatch_to \"$ALIEN_ROOT/lib/perl5/site_perl/5.10.1 $httpdFormat \"#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf> /tmp/httpd.$$
          cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
 
+         sed -e "s#PerlSwitches .*#PerlSwitches -I$ALIEN_ROOT/lib/perl5 -I$ALIEN_ROOT/lib/perl5/site_perl#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf> /tmp/httpd.$$
+         cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+         
          sed -e "s#my @services=.*#my @services=qw( $startupFormat ) ;#" $ALIEN_HOME/httpd/conf."$portNum"/startup.pl > /tmp/startup.$$
          cp /tmp/startup.$$ $ALIEN_HOME/httpd/conf."$portNum"/startup.pl
          
@@ -567,7 +558,8 @@ export ALIEN_HOME=$HOME/.alien
          cp $ALIEN_ROOT/httpd/conf/httpd.conf $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
          cp $ALIEN_ROOT/httpd/conf/startup.pl $ALIEN_HOME/httpd/conf."$portNum"/startup.pl
         
-
+         sed -e "s#ServerRoot .*#ServerRoot $ALIEN_ROOT/httpd#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
+         cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
 
          sed -e "s#PerlConfigRequire .*#PerlConfigRequire $ALIEN_HOME/httpd/conf."$portNum"/startup.pl#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
          cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
@@ -586,7 +578,10 @@ export ALIEN_HOME=$HOME/.alien
          
          sed -e "s#PerlSetVar dispatch_to.*#PerlSetVar dispatch_to \"$ALIEN_ROOT/lib/perl5/site_perl/5.10.1 $httpdFormat \"#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf> /tmp/httpd.$$
          cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
-
+                  
+         sed -e "s#PerlSwitches .*#PerlSwitches -I$ALIEN_ROOT/lib/perl5 -I$ALIEN_ROOT/lib/perl5/site_perl#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf> /tmp/httpd.$$
+         cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+         
          sed -e "s#my @services=.*#my @services=qw( $startupFormat ) ;#" $ALIEN_HOME/httpd/conf."$portNum"/startup.pl > /tmp/startup.$$
          cp /tmp/startup.$$ $ALIEN_HOME/httpd/conf."$portNum"/startup.pl
          
