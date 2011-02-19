@@ -1354,30 +1354,33 @@ sub registerOutputForJobPFNS{
   my $jobid=(shift || return 0);
   my @successEnvelopes=();
   my $outputdir=0;
+  my $regok=1;
 
   foreach my $pfn (@_) {
      my $reply = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow(
       "SELECT lfn,binary2string(guid) as guid,existing,pfn as turl, se, size, md5sum as md5 FROM LFN_BOOKED WHERE jobid=? and pfn=? and owner=? and gowner=? ;"
       , undef, {bind_values=>[$jobid,$pfn,$user,$user]});
-     $reply->{lfn} or $self->info("Error getting entries from LFN_BOOKED for PFN: $pfn",2) and next;
+     $reply->{lfn} or $self->info("Error getting entries from LFN_BOOKED for PFN: $pfn",2) and $regok=0 and next;
      $reply->{jobid} = $jobid;
      if(!$outputdir) {
         $outputdir = $self->f_dirname($reply->{lfn});
         $self->info("Creating the output directory: $outputdir");
         $self->f_mkdir("ps", "$outputdir");
      }
-     $self->registerFileInCatalogueAccordingToEnvelope($user, $reply) or $self->info("Error: The entry $pfn could not been registered.",2);
+     $self->registerFileInCatalogueAccordingToEnvelope($user, $reply)
+         or $self->info("Error: The entry $pfn could not been registered.",2) and $regok=0 and next;
      my $links = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->query(
       "SELECT lfn,binary2string(guid) as guid,existing,pfn as turl, se, size, md5sum as md5 FROM LFN_BOOKED WHERE jobid=? and upper(pfn) LIKE concat ('GUID:///' , ? , '?ZIP=%' ) and owner=? and gowner=? ;"
       , undef, {bind_values=>[$jobid,uc($reply->{guid}),$user,$user]});
      foreach my $link (@$links) {
-        $link->{lfn} or $self->info("Error getting link entries from LFN_BOOKED for PFN: $pfn",2) and next;
+        $link->{lfn} or $self->info("Error getting link entries from LFN_BOOKED for PFN: $pfn",2) and $regok=0 and next;
         $link->{jobid} = $jobid;
-        $self->registerFileInCatalogueAccordingToEnvelope($user, $link) or $self->info("Error: The link entry $link->{lfn} for $pfn could not been registered.",2);
+        $self->registerFileInCatalogueAccordingToEnvelope($user, $link) 
+             or $self->info("Error: The link entry $link->{lfn} for $pfn could not been registered.",2) and $regok=0;
      }
   }
   $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do("UPDATE LFN_BOOKED set expiretime=-1 where jobid=? and owner=? and gowner=? ;",{bind_values=>[$jobid,$user,$user]});
-  return $outputdir;
+  return ($regok,($outputdir || 0));
 }
 
 
