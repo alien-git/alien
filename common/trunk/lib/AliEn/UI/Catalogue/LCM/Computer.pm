@@ -131,6 +131,8 @@ sub registerOutput{
   my $jobid=(shift || return 0);
   my $service=(shift || 0);
   my $onlycmlog=0;
+  my $regok=0;
+
   (my $jobinfo) = $self->execute("ps", "jdl", $jobid, "-dir","-status","-silent") or 
     $self->info("Error getting the jdl of the job",2) and return;
   
@@ -171,7 +173,7 @@ sub registerOutput{
   }
 
   if(!$onlycmlog) {
-    ($outputdir) = $self->{CATALOG}->registerOutputForJobPFNS($user,$jobid, @pfns);
+    ($regok, $outputdir) = $self->{CATALOG}->registerOutputForJobPFNS($user,$jobid, @pfns);
     $outputdir and $self->info("The output files were registered in $outputdir") or $self->info("Error during output file registration.") and return;
   }
   if($options->{cluster}) {
@@ -197,13 +199,22 @@ sub registerOutput{
     $self->{TASK_DB} or $self->info("Error CE: In initialize creating TaskQueue instance failed",2)
         and return;
   
-    my $newstatus = "DONE_WARN";
-    ($jobinfo->{status} eq "SAVED") and $newstatus = "DONE";
-    ($jobinfo->{status} eq "DONE") and $newstatus = "DONE";
-    ($jobinfo->{status} =~ /^ERROR/) and $newstatus = $jobinfo->{status} ;
-    $self->{TASK_DB}->updateStatus($jobid,$jobinfo->{status}, $newstatus, {path=>$outputdir}, $service);
-    if(!($jobinfo->{status} =~ /^ERROR/)) {
-      $self->info("Job state transition from $jobinfo->{status} to $newstatus");
+    my $newstatus = 0;
+    if($jobinfo->{status} =~ /^SAVED/){ 
+       if($regok eq 1) {
+           $newstatus = "DONE_WARN";
+           ($jobinfo->{status} eq "SAVED") and $newstatus = "DONE";
+       } else {
+	   $self->info("At least one file could not been registered, setting to job #$jobid to ERROR_RE.");
+           $newstatus = "ERROR_RE";
+       }
+    }
+    #($jobinfo->{status} =~ /^ERROR/) and $newstatus = $jobinfo->{status} ;
+    if($newstatus) {
+      $self->{TASK_DB}->updateStatus($jobid,$jobinfo->{status}, $newstatus, {path=>$outputdir}, $service);
+      if(!($jobinfo->{status} =~ /^ERROR/)) {
+        $self->info("Job state transition from $jobinfo->{status} to $newstatus");
+      }
     }
     $self->info("Registered the output files in: $outputdir");
   }
