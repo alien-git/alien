@@ -1133,38 +1133,31 @@ sub  getBaseEnvelopeForWriteAccess {
 
   $envelope->{lfn} = $self->GetAbsolutePath($lfn);
 
-  if($self->existsEntry($envelope->{lfn})) {
+  $self->existsEntry($envelope->{lfn}) and 
      $self->info("Authorize: The file is already existing in the catalogue, you need to delete it first manually.",1) and return 0;
-     #$self->debug(1,"Authorize: The entry already exists, so we have to delete it, before we can proceed ...");
-     #$self->{DATABASE}->{LFN_DB}->removeFile($lfn,$perms)
-     #  or $self->info("Authorize: The file is already existing in the catalogue and could not be overwritten, as you don't have the permissions on that file.",1)
-     #  and return 0;
-  } else {
   
     if($user ne "admin") {
       my $reply = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow(
-        "SELECT lfn FROM LFN_BOOKED WHERE lfn=? ;"
-        , undef, {bind_values=>[$envelope->{lfn}]});
-      $reply->{lfn} and  $reply = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow(
-          "SELECT lfn FROM LFN_BOOKED WHERE lfn=? and (owner<>? or gowner<>? );"
+          "SELECT lfn FROM LFN_BOOKED WHERE lfn=? and (owner<>? or gowner<>? ) and expiretime > 0;"
           , undef, {bind_values=>[$envelope->{lfn},$user,$user]});
-  
       $reply->{lfn} and $self->info("Authorize: access: the LFN is already in use (reserved in [LFN_BOOKED], not in the catalogue)",1) and return 0;
     }
-   
-  }
 
   $envelope->{guid} = $guidRequest; 
   if (!$envelope->{guid} or !AliEn::Util::isValidGUID($envelope->{guid})) { 
     $self->{GUID} or $self->{GUID}=AliEn::GUID->new(); 
     $envelope->{guid} = $self->{GUID}->CreateGuid();
   } else {
-      my $collision = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow(
-        "SELECT guid FROM LFN_BOOKED WHERE guid=string2binary(?) and (lfn<>? or gowner<> ?);"
-        , undef, {bind_values=>[$envelope->{guid}],$envelope->{lfn},$user});
-      $collision->{guid} and $self->info("Authorize: access: the requested GUID is already in use (reserved in [LFN_BOOKED], not in the catalogue)",1) and return 0;
-      $collision = $self->{DATABASE}->getAllInfoFromGUID({retrieve=>"guid"}, $envelope->{guid});
+
+      my $collision = $self->{DATABASE}->getAllInfoFromGUID({retrieve=>""}, $envelope->{guid});
       $collision->{guid} and $self->info("Authorize: access: the requested GUID is already in use",1) and return 0;
+      if($user ne "admin") {
+         my $collision = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow(
+           "SELECT guid FROM LFN_BOOKED WHERE guid=string2binary(?) and (lfn<>? or gowner<> ?) and expiretime > 0 ;"
+           , undef, {bind_values=>[$envelope->{guid}],$envelope->{lfn},$user});
+         $collision->{guid} 
+         and $self->info("Authorize: access: the requested GUID is already in use (reserved in [LFN_BOOKED], not in the catalogue)",1) and return 0;
+      }
   }
 
   $envelope->{size} = $size;
