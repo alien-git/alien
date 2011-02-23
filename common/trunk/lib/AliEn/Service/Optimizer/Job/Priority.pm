@@ -24,11 +24,12 @@ sub checkWakesUp {
     $self->{DB}->do("INSERT IGNORE INTO PRIORITY(user, priority, maxparallelJobs, nominalparallelJobs) SELECT distinct $userColumn, 1,200, 100 from QUEUE");
 
     $self->info("Now, compute the number of jobs waiting and priority per user");
-    my $update="update PRIORITY p  set 
-waiting=(select count(*) from QUEUE where status='WAITING' and p.user=$userColumn ),
-running=(select count(*) from QUEUE where (status='RUNNING' or status='STARTED' or status='SAVING') and p.user= $userColumn  ),
-userload=(running/maxparallelJobs),
-computedpriority=(if(running<maxparallelJobs, if((2-userload)*priority>0,50.0*(2-userload)*priority,1),1))";
+    my $update="update PRIORITY p left join 
+(select SUBSTRING( submitHost, 1, POSITION('@' in submitHost)-1 ) user ,count(*) w from QUEUE where status='WAITING' group by SUBSTRING( submitHost, 1, POSITION('@' in submitHost)-1 ) )  b using (user)
+ left join (select SUBSTRING( submitHost, 1, POSITION('@' in submitHost)-1 ) user,count(*) r from QUEUE where (status='RUNNING' or status='STARTED' or status='SAVING') group by SUBSTRING( submitHost, 1, POSITION('@' in submitHost)-1 ) ) b2 using (user) 
+ set waiting=coalesce(w,0), running=COALESCe(r,0) , 
+userload=(running/maxparallelJobs), 
+computedpriority=(if(running<maxparallelJobs, if((2-userload)*priority>0,50.0*(2-userload)*priority,1),1))" ;
 
     $self->info("Doing $update");
     $self->{DB}->do($update);
