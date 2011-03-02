@@ -745,8 +745,14 @@ sub deleteMirrorFromGUID{
       select ?,g.owner,-1,g.size,string2binary(?),g.gowner,?,?,s.seName
       from $info->{table} g, $info->{table}_PFN g_p, SE s
       where g.guidId=g_p.guidId and g_p.guidId=? and g_p.seNumber=? and g_p.pfn=? and s.seNumber=g_p.seNumber",
-      {bind_values=>[$lfn,$guid,$self->{VIRTUAL_ROLE},$pfn,$info->{guidId},$seNumber,$pfn]});
+      {bind_values=>[$lfn,$guid,$self->{VIRTUAL_ROLE},$pfn,$info->{guidId},$seNumber,$pfn]}) 
+       or $self->info("Error creating a deletion entry in the booking table.") and return;
+
     $column="seStringList";
+
+     my $deleted=$info->{db}->delete("$info->{table}_PFN",
+     "guidId=? and pfn=? and seNumber=?", {bind_values=>[$info->{guidId},$pfn, $seNumber]})
+       or $self->info("Error deleting the entry") and return;
   }
 
   $self->debug(2,"Finally, let's update the column $column");
