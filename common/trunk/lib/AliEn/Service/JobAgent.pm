@@ -1605,22 +1605,26 @@ sub prepare_File_And_Archives_From_JDL_And_Upload_Files{
   (scalar(@$files) > 0) and
                  $fileTable = $self->processJDL_split_Output_Filenames_From_Options_And_Initialize_fileTable($files);
 
-  my $overallFileTable;
-  %$overallFileTable= (%$archiveTable, %$fileTable);
+  my @overallFileTable;
+  #%$overallFileTable= (%$archiveTable, %$fileTable);
+  @overallFileTable= ($fileTable, $archiveTable);
   
-  (scalar(@$archives)> 0 ) and $self->putJobLog("trace", "We marked the following archives to be uploaded: @$archives");
-  (scalar(@$files)> 0 ) and $self->putJobLog("trace", "We marked the following files to be uploaded: @$files");
+  
+  if ( (scalar(@$archives)> 0 ) or (scalar(@$files)> 0 ) ) {
+    (scalar(@$archives)> 0 ) and $self->putJobLog("trace", "We marked the following archives to be uploaded: @$archives");
+    (scalar(@$files)> 0 ) and $self->putJobLog("trace", "We marked the following files to be uploaded: @$files");
 
-  (scalar(keys(%$overallFileTable)) > 0) and
-      return $self->putFiles($overallFileTable);
- 
+    #(scalar(keys(%$overallFileTable)) > 0) and
+      return $self->putFiles(@overallFileTable);
+  } 
   return 0;
 }
 
 
 sub putFiles {
   my $self=shift;
-  my $fs_table=shift;
+  #my $fs_table=shift;
+  my @filesAndArchives=@_;
   my $filesAdded=1;
   system ("ls -al $self->{WORKDIR}");
   my $oldOrg=$self->{CONFIG}->{ORG_NAME};
@@ -1630,6 +1634,7 @@ sub putFiles {
   my $fileRegError=0;
   my $successCounter=0;
   my $failedSEs;
+  my $JDLOutputCount=0;
 
   foreach my $data (split (/\s+/, $self->{VOs})){
     my ($org, $cm,$id, $token)=split ("#", $data);
@@ -1653,7 +1658,8 @@ sub putFiles {
 
     $self->{UI}->execute("mkdir","-p",$self->{PROCDIR});
     
-
+    foreach my $fs_table (@filesAndArchives) {
+      $JDLOutputCount += scalar(keys(%$fs_table)); 
     foreach my $fileOrArch (keys(%$fs_table)) {
       
       my $size=-s $self->{WORKDIR}."/".$fs_table->{$fileOrArch}->{name};
@@ -1712,7 +1718,7 @@ sub putFiles {
               and  $self->putJobLog("trace", "WARNING: not add the file. This warning is the only one and simply for your information, the job will proceed without further intervention.")
               and next;
             push @list, join("###", "$self->{PROCDIR}/$file", $fs_table->{$fileOrArch}->{entries}->{$file}->{size},
-            $fs_table->{$fileOrArch}->{entries}->{$file}->{md5});
+            $fs_table->{$fileOrArch}->{entries}->{$file}->{md5},($guids{$file} || 0));
         }
       (scalar(@list) gt 0) and $links= join(";;",@list);
       }
@@ -1726,6 +1732,7 @@ sub putFiles {
       my @pfns=();
       foreach my $env (@addEnvs) {
         push @pfns, AliEn::Util::getValFromEnvelope($env,"turl");
+        $guids{$fs_table->{$fileOrArch}->{name}} = AliEn::Util::getValFromEnvelope($env,"guid");
       }
       push @addedFiles, join("\",\"",@pfns);
 
@@ -1738,6 +1745,7 @@ sub putFiles {
       #}
    
     }
+    }
     
 
     ($self->{STATUS} =~ /^ERROR_V/) and $self->{UI}->execute("rmdir","$self->{PROCDIR}");
@@ -1749,7 +1757,8 @@ sub putFiles {
 
   $self->{CONFIG}=$self->{CONFIG}->Reload({"organisation", $oldOrg});
 
-  if (scalar(keys(%$fs_table)) ne $successCounter) {
+#  if (scalar(keys(%$fs_table)) ne $successCounter) {
+  if ($JDLOutputCount ne $successCounter) {
      $self->putJobLog("error","THERE WAS AT LEAST ONE FILE, THAT WE COULDN'T STORE ON ANY SE.");
      return 0;
   }
@@ -1758,6 +1767,8 @@ sub putFiles {
   #   return 0;
   #}
 
+
+  #sleep (20);
 
   if($incompleteAddes) {
      #$self->putJobLog("trace", "WARNING: We had  ".scalar(keys(%$fs_table))
@@ -1801,8 +1812,8 @@ sub addFile {
 
   if($uploadOnly) {
     @addResult=$self->{UI}->execute("add", "-upload -size=$size -md5=$md5 $links", $options, "$lfn", "$pfn", $storeTags);
-  } else {
-    @addResult=$self->{UI}->execute("add", " -size $size -md5 $md5 ", $options, "$lfn", "$pfn", $storeTags);
+  #} else {
+  #  @addResult=$self->{UI}->execute("add", " -size $size -md5 $md5 ", $options, "$lfn", "$pfn", $storeTags);
   }
 
   my $success = shift @addResult;

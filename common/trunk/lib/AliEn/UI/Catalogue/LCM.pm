@@ -1504,13 +1504,10 @@ sub addFileToSEs {
 
   
   foreach my $qos(keys %$qosTags){
-    ($success eq -1) and last;
     $self->notice("Uploading file based on Storage Discovery, requesting QoS=$qos, count=$qosTags->{$qos}");
-
-    ($result, $success) = $self->putOnDynamicDiscoveredSEListByQoSV2($result,$sourcePFN,$targetLFN,$size,$md5,$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes,$links);
+    ($result, $links) = $self->putOnDynamicDiscoveredSEListByQoSV2($result,$sourcePFN,$targetLFN,$size,$md5,$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes,$links);
   }
-  
-  if (($success ne -1) and (scalar(@{$result->{usedEnvelopes}}) le 0) and (scalar(@ses) eq 0) and ($selOutOf le 0)){ 
+  if ((scalar(@{$result->{usedEnvelopes}}) le 0) and (scalar(@ses) eq 0) and ($selOutOf le 0)){ 
     # if dynamic was either not specified or not successfull (not even one time, thats the @{$result->{usedEnvelopes}}
     $selOutOf= 1;
     push @ses, $self->{CONFIG}->{SE_FULLNAME};   # and there were not SEs specified in a static list, THEN push in at least the local static LDAP entry not to loose data
@@ -1521,7 +1518,7 @@ sub addFileToSEs {
   ($selOutOf ne scalar(@ses)) and $staticmessage = "Uploading file to @ses, with select $selOutOf out of ".scalar(@ses)." (based on static SE specification).";
   (scalar(@ses) gt 0) and $self->notice($staticmessage);
 
-  (($success ne -1) && (scalar(@ses) gt 0)) and ($result, $success) = $self->putOnStaticSESelectionListV2($result,$sourcePFN,$targetLFN,$size,$md5,$selOutOf,\@ses,$links);
+  (scalar(@ses) gt 0) and ($result, $links) = $self->putOnStaticSESelectionListV2($result,$sourcePFN,$targetLFN,$size,$md5,$selOutOf,\@ses,$links);
 
   (scalar(@{$result->{usedEnvelopes}}) gt 0) or $self->error("We couldn't upload any copy of the file.") and return;
 
@@ -1568,8 +1565,8 @@ sub putOnStaticSESelectionListV2{
    my $md5=(shift || 0);
    my $selOutOf=(shift || 0);
    my $ses=(shift || "");
-   my $links=(shift || "");
-   my $success=0;
+   my $links=(shift || 0);
+#   my $success=0;
 
    $selOutOf eq 0 and  $selOutOf = scalar(@$ses);
    ($selOutOf eq scalar(@$ses)) or
@@ -1582,6 +1579,7 @@ sub putOnStaticSESelectionListV2{
 
      ((!@envelopes) || (scalar(@envelopes) eq 0) || (not defined($envelopes[0]->{signedEnvelope}))) and
            $self->error("We couldn't get envelopes for any of the SEs, @staticSes .") and next;
+     $links=0;
      (scalar(@envelopes) eq scalar(@staticSes)) or
         $self->notice("We couldn't get all envelopes for the SEs, @staticSes .");
 
@@ -1594,7 +1592,7 @@ sub putOnStaticSESelectionListV2{
        $selOutOf--;
      }
    }
-   return ($result, $success);
+   return ($result, $links);
 }  
 
 
@@ -1610,8 +1608,8 @@ sub putOnDynamicDiscoveredSEListByQoSV2{
    my $qos=(shift || "");
    my $sitename=(shift || "");
    my $excludedSes=(shift || []);
-   my $links=(shift || "");
-   my $success=0;
+   my $links=(shift || 0);
+#   my $success=0;
    my @successfulUploads = ();
 
    while($count gt 0) {
@@ -1620,7 +1618,8 @@ sub putOnDynamicDiscoveredSEListByQoSV2{
           writeQos=>$qos, writeQosCount=>$count, excludeSE=>(join(";", @$excludedSes) || 0), links=>$links}));
 
      ((!@envelopes) || (scalar(@envelopes) eq 0) || (not defined($envelopes[0]->{signedEnvelope}))) and
-         $self->error("We couldn't get any envelopes (requested were '$count')  with qos flag '$qos'.") and return($result, $success);
+         $self->error("We couldn't get any envelopes (requested were '$count')  with qos flag '$qos'.") and return($result, $links);
+     $links=0;
      (scalar(@envelopes) eq $count) or
          $self->notice("We could get only scalar(@envelopes) envelopes (requested were '$count') with qos flag '$qos'.");
 
@@ -1635,7 +1634,7 @@ sub putOnDynamicDiscoveredSEListByQoSV2{
        $count--;
      }
   }
-  return ($result, $success);   
+  return ($result, $links);   
 }
 
 sub uploadFileAccordingToEnvelope{
