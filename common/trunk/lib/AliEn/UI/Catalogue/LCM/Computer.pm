@@ -132,6 +132,7 @@ sub registerOutput{
   my $service=(shift || 0);
   my $onlycmlog=0;
   my $regok=0;
+  my @failedFiles;
 
   (my $jobinfo) = $self->execute("ps", "jdl", $jobid, "-dir","-status","-silent") or 
     $self->info("Error getting the jdl of the job",2) and return;
@@ -173,7 +174,9 @@ sub registerOutput{
   }
 
   if(!$onlycmlog) {
-    ($regok, $outputdir) = $self->{CATALOG}->registerOutputForJobPFNS($user,$jobid, @pfns);
+    @failedFiles = $self->{CATALOG}->registerOutputForJobPFNS($user,$jobid, @pfns);
+    $regok = shift @failedFiles;
+    $outputdir = shift @failedFiles;
     $outputdir and $self->info("The output files were registered in $outputdir") or $self->info("Error during output file registration.") and return;
   }
   if($options->{cluster}) {
@@ -216,10 +219,11 @@ sub registerOutput{
         $self->info("Job state transition from $jobinfo->{status} to $newstatus");
       }
     }
-    $self->info("Registered the output files in: $outputdir");
+    $outputdir and $self->info("Registered output files in: $outputdir");
+    foreach (@failedFiles) { $self->info("Error registering $_ "); }
   }
   
-  return $outputdir;
+  return ($outputdir,@failedFiles);
 }
 
 return 1;

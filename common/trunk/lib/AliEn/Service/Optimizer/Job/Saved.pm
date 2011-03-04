@@ -51,14 +51,19 @@ sub checkSavedJob{
 
   $self->info("********************************\n\tWe should do something with job $queueid");
 
-  my $success = $self->{CATALOGUE}->registerOutput($queueid, $self); 
+  my @fails = $self->{CATALOGUE}->registerOutput($queueid, $self); 
+  my $success = shift @fails;
 
-  if (! $success){
+
+  if ($success and scalar(@fails) eq 0){
+    $self->putJobLog($queueid,"trace", "Output files registered successfully in $success");
+    $self->putJobLog($queueid,"state", "Job state transition from $status to DONE");
+  } else {
     $self->{DB}->updateStatus($queueid,$status, "ERROR_RE");
+    foreach (@fails) { $self->putJobLog($queueid,"error", "Error registering: $_"); }
     $self->putJobLog($queueid,"state", "Job state transition from $status to ERROR_RE");
   }
-
-
+ 
   return $success;
 }
 

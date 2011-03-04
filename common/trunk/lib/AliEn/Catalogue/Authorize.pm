@@ -1154,7 +1154,7 @@ sub  getBaseEnvelopeForWriteAccess {
       if($user ne "admin") {
          my $collision = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow(
            "SELECT guid FROM LFN_BOOKED WHERE guid=string2binary(?) and (lfn<>? or gowner<> ?) and expiretime > 0 ;"
-           , undef, {bind_values=>[$envelope->{guid}],$envelope->{lfn},$user});
+           , undef, {bind_values=>[$envelope->{guid},$envelope->{lfn},$user]});
          $collision->{guid} 
          and $self->info("Authorize: access: the requested GUID is already in use (reserved in [LFN_BOOKED], not in the catalogue)",1) and return 0;
       }
@@ -1181,6 +1181,11 @@ sub prepookArchiveLinksInBookingTable{
   my @links=split (/;;/, $line);
   foreach my $link (@links){
       my ($l, $s, $m, $g)=split (/###/, $link);
+      #my $collisionCheck = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow(
+      #     "SELECT lfn FROM LFN_BOOKED WHERE lfn=? and size=? and owner=? and gowner=? and jobid=?;"
+      #     , undef, {bind_values=>[$l,$s,$user,$user,$jobID]});
+      #$collisionCheck->{lfn} and next; #already booked
+
       my $env = $self->getBaseEnvelopeForWriteAccess($user,$l,$s,$m,$g) or $self->info("Authrorize: The requested link $l could not been booked or had permission denied") and return 0;
       $env->{turl} = "guid:///$archGUID?ZIP=".$self->f_basename($env->{lfn});
       $env->{se} = "no_se";
@@ -1348,6 +1353,9 @@ sub registerOutputForJobPFNS{
   my @successEnvelopes=();
   my $outputdir=0;
   my $regok=1;
+  my @failedFiles=();
+
+#  @_ = (shift @_);
 
   foreach my $pfn (@_) {
      my $reply = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow(
@@ -1360,20 +1368,28 @@ sub registerOutputForJobPFNS{
         $self->info("Creating the output directory: $outputdir");
         $self->f_mkdir("ps", "$outputdir");
      }
-     $self->registerFileInCatalogueAccordingToEnvelope($user, $reply)
-         or $self->info("Error: The entry $pfn could not been registered.",2) and $regok=0 and next;
+     if(!$self->registerFileInCatalogueAccordingToEnvelope($user, $reply)) {
+         $self->info("Error: The entry $reply->{lfn} -> $reply->{turl} could not been registered.",2);
+         $regok=0; 
+         push @failedFiles,$reply->{lfn}."\-\-\>".$reply->{turl};
+         next;
+     }
      my $links = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->query(
       "SELECT lfn,binary2string(guid) as guid,existing,pfn as turl, se, size, md5sum as md5 FROM LFN_BOOKED WHERE jobid=? and upper(pfn) LIKE concat ('GUID:///' , ? , '?ZIP=%' ) and owner=? and gowner=? ;"
       , undef, {bind_values=>[$jobid,uc($reply->{guid}),$user,$user]});
      foreach my $link (@$links) {
         $link->{lfn} or $self->info("Error getting link entries from LFN_BOOKED for PFN: $pfn",2) and $regok=0 and next;
         $link->{jobid} = $jobid;
-        $self->registerFileInCatalogueAccordingToEnvelope($user, $link) 
-             or $self->info("Error: The link entry $link->{lfn} for $pfn could not been registered.",2) and $regok=0;
+        if(!$self->registerFileInCatalogueAccordingToEnvelope($user, $link)) {
+             $self->info("Error: The link entry $link->{lfn} -> $link->{turl} could not been registered.",2);
+             $regok=0;
+             push @failedFiles, $link->{lfn}."\-\-\>".$link->{turl};
+        }
      }
+     #sleep (20);
   }
   $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do("UPDATE LFN_BOOKED set expiretime=-1 where jobid=? and owner=? and gowner=? ;",{bind_values=>[$jobid,$user,$user]});
-  return ($regok,($outputdir || 0));
+  return ($regok,($outputdir || 0),@failedFiles);
 }
 
 
@@ -1493,8 +1509,8 @@ sub deleteEntryFromBookingTableAndOptionalExistingFlagTrigger{
   if($user ne "admin") {
     $trigger 
       and $triggerstat = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do(
-      "UPDATE LFN_BOOKED SET existing=1 WHERE lfn=? and guid=string2binary(?) and size=? and md5sum=? and owner=? and gowner=? ;",
-      {bind_values=>[$envelope->{lfn},$envelope->{guid},$envelope->{size},$envelope->{md5},$user,$user]});
+      "UPDATE LFN_BOOKED SET existing=1 WHERE lfn=? and guid=string2binary(?) and size=? and owner=? and gowner=? ;",
+      {bind_values=>[$envelope->{lfn},$envelope->{guid},$envelope->{size},$user,$user]});
 
       return ($self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do(
         "DELETE FROM LFN_BOOKED WHERE lfn=? and guid=string2binary(?) and pfn=? and se=? and owner=? and gowner=? ;",
@@ -1503,8 +1519,8 @@ sub deleteEntryFromBookingTableAndOptionalExistingFlagTrigger{
   } else {
     $trigger 
       and $triggerstat = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do(
-      "UPDATE LFN_BOOKED SET existing=1 WHERE lfn=? and guid=string2binary(?) and size=? and md5sum=? ;",
-      {bind_values=>[$envelope->{lfn},$envelope->{guid},$envelope->{size},$envelope->{md5}]});
+      "UPDATE LFN_BOOKED SET existing=1 WHERE lfn=? and guid=string2binary(?) and size=? ;",
+      {bind_values=>[$envelope->{lfn},$envelope->{guid},$envelope->{size}]});
 
     return ($self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do(
       "DELETE FROM LFN_BOOKED WHERE lfn=? and guid=string2binary(?) and pfn=? and se=? ;",
