@@ -1819,8 +1819,8 @@ sub addFile {
   my $success = shift @addResult;
   defined($success) or $success =0;
 
-  ($success ne 1)
-    and  $self->highVerboseTransactionLog(@{$self->{LOGGER}->getMessages()});
+  ($success ne 1) 
+     and $self->highVerboseTransactionLog(@{$self->{LOGGER}->getMessages()});
 
   #$self->{LOGGER}->debugOn($mydebug);
   $self->{LOGGER}->displayMessages();
@@ -1837,51 +1837,53 @@ sub addFile {
 }
 
 
-sub registerFile {
-  my $self=shift;
-  my $file=shift;
-  my $archive=shift;
-  my $signedEnvelope=shift;
-  my $size=shift;
-  my $md5=shift;
-
-  my $env = AliEn::Util::deserializeSignedEnvelope($signedEnvelope);
-
-  $size or $size = $env->{size};
-  $md5 or $md5 = $env->{md5};
-
-  #my $mydebug = $self->{LOGGER}->getDebugLevel();
-  #$self->{LOGGER}->debugOn(5);
-  $self->{LOGGER}->keepAllMessages();
-
-  my $addResult=0;
-  my $maxTry= 3;
-  $self->putJobLog("trace", "Trying to register file with: add -r -size $size -md5 $md5  $file guid:///$env->{guid}?ZIP=$file");
-  for (my $tries = 0; $tries < $maxTry; $tries++) { 
-    ($addResult)=$self->{UI}->execute("add", "-r", "-feedback", "-size $size", "-md5 $md5", "$self->{PROCDIR}/$file", "guid:///$env->{guid}?ZIP=$file");
-    $addResult and last;
-  }
-
-  ($addResult ne 1) 
-    and  $self->highVerboseTransactionLog(@{$self->{LOGGER}->getMessages()});
-  
-  #$self->{LOGGER}->debugOn($mydebug);
-  $self->{LOGGER}->displayMessages();
-
-  if($addResult eq 1) { 
-     $self->putJobLog("trace","Successfully registered the file link $file in archive $archive.");
-     return 1;
-  } 
-  $self->putJobLog("error","Error while registering file link $file in archive $archive");
-  return 0;
-}
+#sub registerFile {
+#  my $self=shift;
+#  my $file=shift;
+#  my $archive=shift;
+#  my $signedEnvelope=shift;
+#  my $size=shift;
+#  my $md5=shift;
+#
+#  my $env = AliEn::Util::deserializeSignedEnvelope($signedEnvelope);
+#
+#  $size or $size = $env->{size};
+#  $md5 or $md5 = $env->{md5};
+#
+#  #my $mydebug = $self->{LOGGER}->getDebugLevel();
+#  #$self->{LOGGER}->debugOn(5);
+#  $self->{LOGGER}->keepAllMessages();
+#
+#  my $addResult=0;
+#  my $maxTry= 3;
+#  $self->putJobLog("trace", "Trying to register file with: add -r -size $size -md5 $md5  $file guid:///$env->{guid}?ZIP=$file");
+#  for (my $tries = 0; $tries < $maxTry; $tries++) { 
+#    ($addResult)=$self->{UI}->execute("add", "-r", "-feedback", "-size $size", "-md5 $md5", "$self->{PROCDIR}/$file", "guid:///$env->{guid}?ZIP=$file");
+#    $addResult and last;
+#  }
+#
+#  ($addResult ne 1) 
+#    and $self->highVerboseTransactionLog(@{$self->{LOGGER}->getMessages()});
+#  
+#  #$self->{LOGGER}->debugOn($mydebug);
+#  $self->{LOGGER}->displayMessages();
+#
+#  if($addResult eq 1) { 
+#     $self->putJobLog("trace","Successfully registered the file link $file in archive $archive.");
+#     return 1;
+#  } 
+#  $self->putJobLog("error","Error while registering file link $file in archive $archive");
+#  return 0;
+#}
 
 
 sub highVerboseTransactionLog {
   my $self=shift;
-  my $prefix = "Error in add / add -r, printing --------- HIGH VERBOSITY IO TRANSACTION LOG ---------:";
-  my $suffix = "--------- END OF HIGH VERBOSITY IO TRANSACTION LOG ---------.";
-  $self->putJobLog("trace", "$prefix \n @_ $suffix");
+  my $logit = join("####",@_);
+  $logit =~ s/\n//g;
+  $self->putJobLog("trace", "--------- Error in file upload: HIGH VERBOSITY IO TRANSACTION LOG ---------:");
+  $self->putJobLog("trace", "$logit");
+  $self->putJobLog("trace", "--------- END OF HIGH VERBOSITY IO TRANSACTION LOG ---------.");
 }
 
 sub submitFileToClusterMonitor{
