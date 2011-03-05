@@ -1386,7 +1386,6 @@ sub registerOutputForJobPFNS{
              push @failedFiles, $link->{lfn}."\-\-\>".$link->{turl};
         }
      }
-     #sleep (20);
   }
   $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do("UPDATE LFN_BOOKED set expiretime=-1 where jobid=? and owner=? and gowner=? ;",{bind_values=>[$jobid,$user,$user]});
   return ($regok,($outputdir || 0),@failedFiles);
