@@ -1768,8 +1768,6 @@ sub putFiles {
   #}
 
 
-  #sleep (20);
-
   if($incompleteAddes) {
      #$self->putJobLog("trace", "WARNING: We had  ".scalar(keys(%$fs_table))
      #        ." files and archives to store.");
