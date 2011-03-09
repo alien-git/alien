@@ -19,7 +19,7 @@ sub checkWakesUp {
    
   my $time = strftime "%Y-%m-%d %H:%M:%S",  localtime(time - 240*3600 );
   #Completed master Jobs older than 10 days are moved to the archive
-  $self->archiveJobs("where (( status in ('DONE','FAILED','EXPIRED') || status like 'ERROR%'  ) 
+  $self->archiveJobs("where (( status in ('DONE','FAILED','EXPIRED') or status like 'ERROR%'  ) 
                       and ( mtime < '$time')  and split=0) ", "10 days in final state" ,$self->{DB}->{QUEUEARCHIVE});
 
 
@@ -55,25 +55,32 @@ sub archiveJobs{
   $self->info("There are $jobs expired jobs");
   ( $jobs and $jobs !~ /0E0/ ) or return 1;
   
-  my $columns=$self->{DB}->query("describe $table");
+  my $columns=$self->{DB}->describe("$table");
+  my $colQ=$self->{DB}->describe("QUEUEPROC");
   my $c="";
   my $c2="";
+  my $c3="";
   foreach my $column (@$columns){
     $c.="$column->{Field}, ";
     $c2.="q.$column->{Field}, ";
   }
-  
+  foreach my $column (@$colQ){
+    $c3.="p.$column->{Field}, "; 
+  }
   $c=~ s/, $//;
   $c2=~ s/, $//;
-    
-  my $done=$self->{DB}->do("insert into ${table}PROC select p.* from QUEUEPROC p join TMPID using (queueid)");
-
-  $self->{DB}->do("insert into JOBMESSAGES (timestamp, jobId, procinfo, tag, time) select 
-               unix_timestamp(), queueid, 'Job moved to the archived table', 'state', unix_timestamp() from TMPID");
+  $c3=~ s/, $//;
+  
+  my $done=$self->{DB}->do("insert into ${table}PROC select $c3 from QUEUEPROC p join TMPID using (queueid)");
+  
+  $self->{DB}->do("insert into JOBMESSAGES (timestamp, jobId, procinfo, tag) select 
+               unix_timestamp(), queueid, 'Job moved to the archived table', 'state' from TMPID");
 
   my $done2=$self->{DB}->do("insert into ${table} ($c) select $c2 from QUEUE q join TMPID using (queueid)");
-  my $done3=$self->{DB}->do("delete from p using  TMPID  join QUEUEPROC p using (queueid)");
-  my $done4=$self->{DB}->do("delete from q using QUEUE q join TMPID using (queueid)");
+  #my $done3=$self->{DB}->do("delete from p using  TMPID  join QUEUEPROC p using (queueid)");
+  my $done3=$self->{DB}->do("delete from QUEUEPROC where queueid in (SELECT p.queueid from TMPID  join QUEUEPROC p )");
+ # my $done4=$self->{DB}->do("delete from q using QUEUE q join TMPID using (queueid)");
+   my $done4=$self->{DB}->do("delete from QUEUE WHERE queueid in (SELECT q.queueid FROM TMPID,QUEUE q) ");
   
   $self->info("AT THE END, WE HAVE $done and $done2 and $done3 and $done4");
   return 1;
