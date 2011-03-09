@@ -493,7 +493,7 @@ sub grantBasicPrivilegesToUser {
 
   $self->grantPrivilegesToUser(["EXECUTE ON *"], $user, $passwd)
     or return;
-
+$db=~ s/(.)*\://;
   my $rprivileges = ["SELECT ON $db.*",
 		     "INSERT, DELETE ON $db.TAG0"];
 
@@ -514,7 +514,7 @@ sub grantExtendedPrivilegesToUser {
 
   $self->grantPrivilegesToUser(["SELECT ON $db.*"], $user, $passwd)
   	or return;
-
+$db=~ s/(.)*\://;
   my $rprivileges = [
 		     "INSERT, DELETE  ON $db.TAG0",
 #		     "INSERT, DELETE ON $db.FILES",
