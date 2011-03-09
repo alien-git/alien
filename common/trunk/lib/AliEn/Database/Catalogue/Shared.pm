@@ -74,7 +74,7 @@ sub getSENumber{
   $cache and return $cache;
 
   $DEBUG and $self->debug(2, "Getting the numbe from the list");
-  my $senumber=$self->queryValue("SELECT seNumber FROM SE where seName=?", undef,
+  my $senumber=$self->queryValue("SELECT seNumber FROM SE where upper(seName)=upper(?)", undef,
 				 {bind_values=>[$se]});
   if (defined $senumber) {
     AliEn::Util::setCacheValue($self, "seNumber-$se", $senumber);
