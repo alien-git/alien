@@ -1986,7 +1986,7 @@ sub dbGetSEListFromSiteSECacheForWriteAccess{
 
    my @column; 
    my $in= 0;
-   my $result = $catalogue->queryColumn($query, undef, {bind_values=>\@queryValues});
+   my $result = $self->queryColumn($query, undef, {bind_values=>\@queryValues});
    while($in<$count){
     push @column,$result->[$in];
     $in++;
