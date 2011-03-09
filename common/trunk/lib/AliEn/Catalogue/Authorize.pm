@@ -202,18 +202,19 @@ sub OLDselectClosestRealSEOnRank {
       push @queryValues, $sitename;
    
       $query="SELECT DISTINCT b.seName FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE ";
-      $query .= " (b.$exclusiveUserCheck is NULL or b.$exclusiveUserCheck = '' or b.$exclusiveUserCheck  LIKE concat ('%,' , ? , ',%') ) ";
+      $query .= " (b.$exclusiveUserCheck is NULL or b.$exclusiveUserCheck = '' or b.$exclusiveUserCheck  LIKE concat ('%,' , concat(? , ',%')) ) ";
       push @queryValues, $user;
-      if(scalar(@{$seList}) > 0)  { $query .= " and ( "; foreach (@{$seList}){ $query .= " b.seName=? or"; push @queryValues, $_;  } 
+      if(scalar(@{$seList}) > 0)  { $query .= " and ( "; foreach (@{$seList}){ $query .= "upper( b.seName)=upper(?) or"; push @queryValues, $_;  } 
            $query =~ s/or$/)/;}
-      foreach (@{$excludeList}) {   $query .= " and b.seName<>? ";   push @queryValues, $_; };
-      $query .= " ORDER BY if(a.rank is null, 1000, a.rank) ASC ;";
+      foreach (@{$excludeList}) {   $query .= " and upper(b.seName)<>upper(?) ";   push @queryValues, $_; };
+  #    $query .= " ORDER BY if(a.rank is null, 1000, a.rank) ASC ;";
+    $query .= " ORDER BY coalesce(a.rank,1000)  ASC ;";
    } else { # sitename not given, so we just delete the excluded SEs and check for exclusive Users
        $query="SELECT seName FROM SE WHERE ";
-       foreach(@$seList){   $query .= " seName=? or"; push @queryValues, $_;  };
+       foreach(@$seList){   $query .= " upper(seName)=upper(?) or"; push @queryValues, $_;  };
        $query =~ s/or$//;
-       foreach(@$excludeList){   $query .= " and seName<>? "; push @queryValues, $_;  }
-       $query .= " and ($exclusiveUserCheck is NULL or $exclusiveUserCheck = '' or $exclusiveUserCheck  LIKE concat ('%,' , ? , ',%') ) ;";
+       foreach(@$excludeList){   $query .= " and upper(seName)<>upper(?) "; push @queryValues, $_;  }
+       $query .= " and ($exclusiveUserCheck is NULL or $exclusiveUserCheck = '' or $exclusiveUserCheck  LIKE concat ('%,' , concat(? , ',%')) ) ;";
        push @queryValues, $user;
    }
    $result = $self->resortArrayToPrioElementIfExists($sePrio,$catalogue->queryColumn($query, undef, {bind_values=>\@queryValues}));
@@ -482,11 +483,12 @@ sub access {
       push @queryValues, $sitename;
 
       $query="SELECT DISTINCT b.seName FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE ";
-      $query .= " (b.seExclusiveRead is NULL or b.seExclusiveRead = '' or b.seExclusiveRead  LIKE concat ('%,' , ? , ',%') ) and ";
+      $query .= " (b.seExclusiveRead is NULL or b.seExclusiveRead = '' or b.seExclusiveRead  LIKE concat ('%,' , concat(? , ',%')) ) and ";
       push @queryValues, ($self->{ROLE} || $self->{CONFIG}->{ROLE});
-      foreach (@whereSEs){ $query .= " b.seName=? or"; push @queryValues, $_;  }
+      foreach (@whereSEs){ $query .= " upper(b.seName)=upper(?) or"; push @queryValues, $_;  }
       $query =~ s/or$//;
-      $query .= " ORDER BY if(a.rank is null, 1000, a.rank) ASC ;";
+    #  $query .= " ORDER BY if(a.rank is null, 1000, a.rank) ASC ;";
+      $query .= " ORDER BY coalesce(a.rank,1000) ASC ;";
 
       my $sorted =  $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn($query, undef, {bind_values=>\@queryValues});
 
@@ -701,7 +703,7 @@ sub OLDaccess {
       $guid = $lfn;
       $self->debug(1, "We have to translate the guid $1");
       $lfn = "";
-      $filehash=$self->{DATABASE}->{GUID_DB}->checkPermission($perm, $guid, "size,md5");
+      $filehash=$self->{DATABASE}->{GUID_DB}->checkPermission($perm, $guid, $self->{DATABASE}->{GUID_DB}->reservedWord("size").",md5");
       $filehash 
 	or $self->info("Authorize: access: access denied to guid '$guid'")
 	and return access_eof("access: access denied to guid '$guid'");
@@ -962,16 +964,17 @@ sub selectPFNOnClosestRootSEOnRank{
       push @queryValues, $sitename;
 
       $query="SELECT DISTINCT b.seName FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE ";
-      $query .= " (b.seExclusiveRead is NULL or b.seExclusiveRead = '' or b.seExclusiveRead  LIKE concat ('%,' , ? , ',%') ) and ";
+      $query .= " (b.seExclusiveRead is NULL or b.seExclusiveRead = '' or b.seExclusiveRead  LIKE concat ('%,' , concat(? , ',%')) ) and ";
       push @queryValues, $user;
-      foreach (keys %{$seList}){ $query .= " b.seName=? or"; push @queryValues, $_;  } 
+      foreach (keys %{$seList}){ $query .= "lower(b.seName)=? or"; push @queryValues, $_;  } 
       $query =~ s/or$//;
-      $query .= " ORDER BY if(a.rank is null, 1000, a.rank) ASC ;";
+     # $query .= " ORDER BY if(a.rank is null, 1000, a.rank) ASC ;";
+      $query .= " ORDER BY coalesce(a.rank,1000)  ASC ;";
    } else { # sitename not given, so we just delete the excluded SEs and check for exclusive Users
        $query="SELECT seName FROM SE WHERE ";
-       foreach(keys %{$seList}){   $query .= " seName=? or"; push @queryValues, $_;  }
+       foreach(keys %{$seList}){   $query .= " lower(seName)=? or"; push @queryValues, $_;  }
        $query =~ s/or$//;
-       $query .= " and (seExclusiveRead is NULL or seExclusiveRead = '' or seExclusiveRead  LIKE concat ('%,' , ? , ',%') ) ;";
+       $query .= " and (seExclusiveRead is NULL or seExclusiveRead = '' or seExclusiveRead  LIKE concat ('%,' , concat(? , ',%')) ) ;";
        push @queryValues, $user;
    }
    my $sePriority = $self->resortArrayToPrioElementIfExists($sePrio,$catalogue->queryColumn($query, undef, {bind_values=>\@queryValues}));
@@ -992,7 +995,7 @@ sub getBaseEnvelopeForReadAccess {
 
   my $filehash = {};
   if(AliEn::Util::isValidGUID($lfn)) {
-    $filehash=$self->{DATABASE}->{GUID_DB}->checkPermission("r", $lfn, "guid,type,size,md5")
+    $filehash=$self->{DATABASE}->{GUID_DB}->checkPermission("r", $lfn, "guid,type,".$self->{DATABASE}->{GUID_DB}->reservedWord("size").",md5")
       or $self->info("Authorize: access denied for $lfn",1) and return 0;
     $filehash->{guid} = $lfn;
     $filehash->{lfn} = $lfn;
@@ -1066,7 +1069,8 @@ sub getSEforPFN{
   $pfn = $self->parsePFN($pfn);
   $pfn or $self->info("Error parsing the pfn '$pfn'") and return 0;
   my @queryValues = ("$pfn->{proto}://$pfn->{host}","$pfn->{path}");
-  my $sestring = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryValue("SELECT seName FROM SE WHERE seioDaemons LIKE concat ( ? , '%') AND ? LIKE CONCAT(seStoragePath, '%')  ORDER BY length(seStoragePath) DESC LIMIT 1 ;",
+  my $query= $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->paginate("SELECT seName FROM SE WHERE seioDaemons LIKE concat ( ? , '%') AND ? LIKE CONCAT(seStoragePath, '%')  ORDER BY length(seStoragePath) DESC ",1,0);
+  my $sestring = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryValue($query,
               undef, {bind_values=>\@queryValues});
   $sestring or return "no_se";
   return $sestring;
@@ -1094,7 +1098,7 @@ sub getBaseEnvelopeForDeleteAccess {
   ($user eq "admin") or return 0;
   my $lfnORGUIDORpfn=(shift || return 0);
 
-  my $query = "SELECT lfn,binary2string(guid) as guid, pfn as turl, se, size, md5sum as md5 FROM LFN_BOOKED WHERE ";
+  my $query = "SELECT lfn,binary2string(guid) as guid, pfn as turl, se, ".$self->{DATABASE}->{GUID_DB}->reservedWord("size").", md5sum as md5 FROM LFN_BOOKED WHERE ";
 
   if(AliEn::Util::isValidGUID($lfnORGUIDORpfn)) {
      $query .= " guid=string2binary(?) ;";
@@ -1220,7 +1224,7 @@ sub  getBaseEnvelopeForMirrorAccess {
   my $envelope={};
 
   AliEn::Util::isValidGUID($guid) or $self->info("Authorize: ERROR! $guid is not a valid GUID.",1) and return 0;
-  $envelope=$self->{DATABASE}->{GUID_DB}->checkPermission("w", $guid, "guid,type,size,md5")
+  $envelope=$self->{DATABASE}->{GUID_DB}->checkPermission("w", $guid, $self->{DATABASE}->{GUID_DB}->reservedWord("size").",guid,type,md5")
       or $self->info("Authorize: access denied for $guid",1) and return 0;
   $envelope->{guid}
       or $self->info("Authorize: ACCESS DENIED: You are not allowed to write on GUID '$guid'.",1) and return 0;
@@ -1355,11 +1359,9 @@ sub registerOutputForJobPFNS{
   my $regok=1;
   my @failedFiles=();
 
-#  @_ = (shift @_);
-
   foreach my $pfn (@_) {
      my $reply = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow(
-      "SELECT lfn,binary2string(guid) as guid,existing,pfn as turl, se, size, md5sum as md5 FROM LFN_BOOKED WHERE jobid=? and pfn=? and owner=? and gowner=? ;"
+      "SELECT lfn,binary2string(guid) as guid,existing,pfn as turl, se, ".$self->{DATABASE}->{LFN_DB}->{FIRST_DB}->reservedWord("size").", md5sum as md5 FROM LFN_BOOKED WHERE jobid=? and pfn=? and owner=? and gowner=? ;"
       , undef, {bind_values=>[$jobid,$pfn,$user,$user]});
      $reply->{lfn} or $self->info("Error getting entries from LFN_BOOKED for PFN: $pfn",2) and $regok=0 and next;
      $reply->{jobid} = $jobid;
@@ -1375,7 +1377,7 @@ sub registerOutputForJobPFNS{
          next;
      }
      my $links = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->query(
-      "SELECT lfn,binary2string(guid) as guid,existing,pfn as turl, se, size, md5sum as md5 FROM LFN_BOOKED WHERE jobid=? and upper(pfn) LIKE concat ('GUID:///' , ? , '?ZIP=%' ) and owner=? and gowner=? ;"
+      "SELECT lfn,binary2string(guid) as guid,existing,pfn as turl, se,  ".$self->{DATABASE}->{LFN_DB}->{FIRST_DB}->reservedWord("size").", md5sum as md5 FROM LFN_BOOKED WHERE jobid=? and upper(pfn) LIKE concat ('GUID:///' , concat(? , '?ZIP=%' ) ) and owner=? and gowner=? ;"
       , undef, {bind_values=>[$jobid,uc($reply->{guid}),$user,$user]});
      foreach my $link (@$links) {
         $link->{lfn} or $self->info("Error getting link entries from LFN_BOOKED for PFN: $pfn",2) and $regok=0 and next;
@@ -1484,8 +1486,8 @@ sub ValidateRegistrationEnvelopesWithBookingTable{
   my @verifiedEnvelopes= ();
 
   my $reply = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow(
-      "SELECT lfn,binary2string(guid) as guid,existing FROM LFN_BOOKED WHERE guid=string2binary(?) and pfn=? and se=? and owner=? and gowner=? ;"
-      , undef, {bind_values=>[$envelope->{guid},$envelope->{turl},$envelope->{se},$user,$user]});
+      "SELECT lfn,binary2string(guid) as guid,existing FROM LFN_BOOKED WHERE guid=string2binary(?) and pfn=? and se=? and owner=? and gowner=? "
+      , undef, {bind_values=>[$envelope->{guid},$envelope->{turl},$envelope->{se},$user,$user]});  
 
   $envelope->{guid} or return 0;
   lc $envelope->{guid} eq lc $reply->{guid} or return 0;
@@ -1508,21 +1510,21 @@ sub deleteEntryFromBookingTableAndOptionalExistingFlagTrigger{
   if($user ne "admin") {
     $trigger 
       and $triggerstat = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do(
-      "UPDATE LFN_BOOKED SET existing=1 WHERE lfn=? and guid=string2binary(?) and size=? and owner=? and gowner=? ;",
+      "UPDATE LFN_BOOKED SET existing=1 WHERE lfn=? and guid=string2binary(?) and ".$self->{DATABASE}->{LFN_DB}->{FIRST_DB}->reservedWord("size")."=? and owner=? and gowner=? ;",
       {bind_values=>[$envelope->{lfn},$envelope->{guid},$envelope->{size},$user,$user]});
 
       return ($self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do(
-        "DELETE FROM LFN_BOOKED WHERE lfn=? and guid=string2binary(?) and pfn=? and se=? and owner=? and gowner=? ;",
+        "DELETE FROM LFN_BOOKED WHERE lfn=? and guid=string2binary(?) and pfn=? and upper(se)=upper(?) and owner=? and gowner=? ;",
         {bind_values=>[$envelope->{lfn},$envelope->{guid},$envelope->{turl},$envelope->{se},$user,$user]})
         && $triggerstat);
   } else {
     $trigger 
       and $triggerstat = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do(
-      "UPDATE LFN_BOOKED SET existing=1 WHERE lfn=? and guid=string2binary(?) and size=? ;",
+      "UPDATE LFN_BOOKED SET existing=1 WHERE lfn=? and guid=string2binary(?) and ".$self->{DATABASE}->{LFN_DB}->{FIRST_DB}->reservedWord("size")."=?  ;",
       {bind_values=>[$envelope->{lfn},$envelope->{guid},$envelope->{size}]});
 
     return ($self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do(
-      "DELETE FROM LFN_BOOKED WHERE lfn=? and guid=string2binary(?) and pfn=? and se=? ;",
+      "DELETE FROM LFN_BOOKED WHERE lfn=? and guid=string2binary(?) and pfn=? and upper(se)=upper(?) ;",
       {bind_values=>[$envelope->{lfn},$envelope->{guid},$envelope->{turl},$envelope->{se}]})
       && $triggerstat);
   }
@@ -1538,14 +1540,10 @@ sub addEntryToBookingTableAndOptionalExistingFlagTrigger{
 
   use Time::HiRes qw (time); 
   my $lifetime= time() + 604800; # one week to prevent data loss
-  $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do(
-    "REPLACE INTO LFN_BOOKED (lfn, owner, quotaCalculated, md5sum, expiretime, size, pfn, se, gowner, guid, existing, jobid) VALUES (?,?,?,?,?,?,?,?,?,string2binary(?),?,?);"
-    ,{bind_values=>[$envelope->{lfn},$user, "1" ,$envelope->{md5},$lifetime,$envelope->{size},$envelope->{turl},$envelope->{se},$user,$envelope->{guid},$trigger,$jobid]})
-     or return 0;
- 
+  $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->insertLFNBookedAndOptionalExistingFlagTrigger($envelope->{lfn},$user, "1" ,$envelope->{md5},$lifetime,$envelope->{size},$envelope->{turl},$envelope->{se},$envelope->{guid},$trigger,$jobid) or return 0;
   my $negexpire= -$lifetime ;
   $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do(
-     "UPDATE LFN_BOOKED SET expiretime=? WHERE lfn=? and guid<>string2binary(?) ; ",{bind_values=>[$negexpire,$envelope->{lfn},$envelope->{guid}]}) or return 0;
+     "UPDATE LFN_BOOKED SET expiretime=? WHERE lfn=? and guid<>string2binary(?)  ",{bind_values=>[$negexpire,$envelope->{lfn},$envelope->{guid}]}) or return 0;
   return 1;
 }
 
@@ -1710,7 +1708,7 @@ sub isOldEnvelopeStorageElement{
   ($se eq "no_se") and return 0;
   
   my @queryValues = ("$se");
-  my $seVersion = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryValue("SELECT seVersion FROM SE WHERE seName=? ;", undef, {bind_values=>\@queryValues});
+  my $seVersion = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryValue("SELECT seVersion FROM SE WHERE upper(seName)=upper(?) ;", undef, {bind_values=>\@queryValues});
 
   eval {
     (defined($seVersion)) and ($seVersion =~ m/^\d+$/) and (int($seVersion) > 218) and return 0;
@@ -1849,7 +1847,7 @@ sub checkExclWriteUserOnSEsForAccess{
    my $catalogue = $self->{DATABASE}->{LFN_DB}->{FIRST_DB};
    my @queryValues = ();
    my $query="SELECT seName FROM SE WHERE (";
-   foreach(@$seList){   $query .= " seName=? or";   push @queryValues, $_; }
+   foreach(@$seList){   $query .= " upper(seName)=upper(?) or";   push @queryValues, $_; }
    $query =~ s/or$/);/;
    my $seList2 = $catalogue->queryColumn($query, undef, {bind_values=>\@queryValues});
    if(scalar(@$seList) ne scalar(@$seList2)){
@@ -1866,9 +1864,9 @@ sub checkExclWriteUserOnSEsForAccess{
 
    @queryValues = ();
    $query="SELECT seName FROM SE WHERE (";
-   foreach(@$seList){   $query .= " seName=? or";   push @queryValues, $_; }
+   foreach(@$seList){   $query .= " upper(seName)=upper(?) or";   push @queryValues, $_; }
    $query =~ s/or$//;
-   $query  .= ") and seMinSize <= ? ;";
+   $query  .= ") and seMinSize <= ? ";
    push @queryValues, $fileSize;
    $seList2 = $catalogue->queryColumn($query, undef, {bind_values=>\@queryValues});
    if(scalar(@$seList) ne scalar(@$seList2)){
@@ -1886,9 +1884,9 @@ sub checkExclWriteUserOnSEsForAccess{
 
    @queryValues = ();
    $query="SELECT seName FROM SE WHERE (";
-   foreach(@$seList){   $query .= " seName=? or";   push @queryValues, $_; }
+   foreach(@$seList){   $query .= " upper(seName)=upper(?) or";   push @queryValues, $_; }
    $query =~ s/or$//;
-   $query  .= ") and ( seExclusiveWrite is NULL or seExclusiveWrite = '' or seExclusiveWrite  LIKE concat ('%,' , ? , ',%') );";
+   $query  .= ") and ( seExclusiveWrite is NULL or seExclusiveWrite = '' or seExclusiveWrite  LIKE concat ('%,' , concat(? , ',%')) )";
    push @queryValues, $user;
    $seList2 = $catalogue->queryColumn($query, undef, {bind_values=>\@queryValues});
    if(scalar(@$seList) ne scalar(@$seList2)){
@@ -1914,8 +1912,6 @@ sub validateArrayOfSEs {
 
 
 
-
-
 sub getSEListFromSiteSECacheForWriteAccess{
    my $self=shift;
    my $user=(shift || return 0);
@@ -1928,26 +1924,8 @@ sub getSEListFromSiteSECacheForWriteAccess{
    my $catalogue = $self->{DATABASE}->{LFN_DB}->{FIRST_DB};
 
    $self->checkSiteSECacheForAccess($sitename) or return 0;
-
-   my $query="SELECT DISTINCT SE.seName FROM SERanks,SE WHERE "
-       ." sitename=? and SERanks.seNumber = SE.seNumber ";
-
-   my @queryValues = ();
-   push @queryValues, $sitename;
-
-   foreach(@$excludeList){   $query .= "and SE.seName<>? "; push @queryValues, $_;  }
+   return $catalogue->dbGetSEListFromSiteSECacheForWriteAccess($user,$fileSize,$type,$count,$sitename,$excludeList);
    
-   $query .=" and SE.seMinSize <= ? and SE.seQoS  LIKE concat('%,' , ? , ',%' ) "
-    ." and (SE.seExclusiveWrite is NULL or SE.seExclusiveWrite = '' or SE.seExclusiveWrite  LIKE concat ('%,' , ? , ',%') )"
-    ." ORDER BY rank ASC limit ? ;";
- 
-   push @queryValues, $fileSize;
-   push @queryValues, $type;
-   push @queryValues, $user;
-   push @queryValues, $count;
-
-   return $catalogue->queryColumn($query, undef, {bind_values=>\@queryValues});
-
 }
 
 

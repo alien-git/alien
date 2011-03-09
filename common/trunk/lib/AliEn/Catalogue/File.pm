@@ -855,7 +855,8 @@ sub f_whereis{
           push @allReal, {seName=>$se, pfn=>"$pfn$anchor"};
         }
       }else {
-        grep (/^$entry->{seName}$/, @realSE) or push @realSE, $entry->{seName};
+      	my $seName = $entry->{seName} || $entry->{sename};
+        grep (/^$seName$/, @realSE) or push @realSE, $seName;
         push @allReal, $entry;
       }
     }
@@ -871,7 +872,8 @@ sub f_whereis{
     $DEBUG and $self->debug(2,"Let's take a look at the transfer methods");
     my @newlist;
     foreach my $entry (@SElist){
-      if ($entry->{seName} eq "no_se") {
+      my $seName = $entry->{seName} || $entry->{sename};
+      if ($seName eq "no_se") {
         # zip files have 'no_se' set, so we need to add this 'virtual' SE anyway
         push @newlist, $entry;
       } else {
@@ -884,7 +886,8 @@ sub f_whereis{
 
   my @return=();
   foreach my $entry (@SElist){
-    my ($se, $pfn)=($entry->{seName}, $entry->{pfn} || "auto");
+  	 my $seName = $entry->{seName} || $entry->{sename};
+    my ($se, $pfn)=($seName, $entry->{pfn} || "auto");
     $silent or $self->info("\t\t SE => $se  pfn =>$pfn\n", undef,0);
     if ($options !~ /l/){
       if ($options=~ /z/){
@@ -914,7 +917,7 @@ sub getIOProtocols{
     $DEBUG and $self->debug(2, "$$ Returning the value from the cache (@$cache)");
     return $cache;
   }
-  my $protocols=$self->{DATABASE}->{LFN_DB}->queryValue("select seiodaemons from SE where seName=?", undef, {bind_values=>[$seName]});
+  my $protocols=$self->{DATABASE}->{LFN_DB}->queryValue("select seiodaemons from SE where upper(seName)=upper(?)", undef, {bind_values=>[$seName]});
   my @protocols=split(/,/, $protocols);
   AliEn::Util::setCacheValue($self, "io-$seName", [@protocols]);
   $DEBUG and $self->debug(2, "Giving back the protocols supported by $seName (@protocols)");
@@ -977,7 +980,7 @@ sub createDefaultUrl {
   my $se=shift;
   my $guid=shift;
   my $size=shift;
-  my $prefix=$self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryValue('select concat(method,"/",mountpoint) from SE_VOLUMES where freespace>? and upper(sename)=upper(?)', undef, {bind_values=>[$size, $se]});
+  my $prefix=$self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryValue('select concat(method,concat(\'/\',mountpoint)) from SE_VOLUMES where freespace>? and upper(sename)=upper(?)', undef, {bind_values=>[$size, $se]});
   if (!$prefix){
     $self->info("There is no space in '$se' to put that file (size $size)!!",1);
     return;
@@ -1062,8 +1065,8 @@ sub checkFileQuota {
             and return (-1, "size is not specified.");
 
   $self->info("In checkFileQuota for user: $user, request file size:$size");
-
-  my $array = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow("SELECT nbFiles, totalSize, maxNbFiles, maxTotalSize, tmpIncreasedNbFiles, tmpIncreasedTotalSize FROM FQUOTAS WHERE user=?", undef,
+  my $db = $self->{DATABASE}->{LFN_DB}->{FIRST_DB};
+  my $array = $db->queryRow("SELECT nbFiles, totalSize, maxNbFiles, maxTotalSize, tmpIncreasedNbFiles, tmpIncreasedTotalSize FROM FQUOTAS WHERE ".$db->reservedWord("user")."=?", undef,
            {bind_values=>[$user]})
     or $self->{LOGGER}->error("Failed to get data from the FQUOTAS quota table.")
     and return (0, "Failed to get data from the FQUOTAS quota table. ");
@@ -1139,15 +1142,15 @@ sub fquota_list {
     $user = $whoami;
   } 
 
-  my $usersuffix = " user = '$user'; ";
-  ($user eq '%') and $usersuffix = " user like '%';";
+  my $usersuffix =$self->{DATABASE}->{LFN_DB}->{FIRST_DB}->reservedWord("user")." = '$user' ";
+  ($user eq '%') and $usersuffix = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->reservedWord("user")." like '%'";
 
   if (($whoami !~ /^admin(ssl)?$/) and ($user ne $whoami)) {
     $self->info("Not allowed to see other users' quota information",1);
     return;
   }
 
-  my $result = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->query("SELECT user, nbFiles, maxNbFiles, totalSize, maxTotalSize, tmpIncreasedNbFiles, tmpIncreasedTotalSize FROM FQUOTAS where $usersuffix")
+  my $result = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->query("SELECT ".$self->{DATABASE}->{LFN_DB}->{FIRST_DB}->reservedWord("user").", nbFiles, maxNbFiles, totalSize, maxTotalSize, tmpIncreasedNbFiles, tmpIncreasedTotalSize FROM FQUOTAS where $usersuffix")
     or $self->info("Failed to getting data from FQUOTAS table",1)
     and return -1;
   $result->[0] or $self->info("User $user does not exist in the FQQUOTAS table",1)
@@ -1193,7 +1196,8 @@ sub fquota_set {
 
   my $set = {};
   $set->{$field} = $value;
-  my $done =  $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->update("FQUOTAS",$set, "user = ?", {bind_values=>[$user]});
+  my $db = $self->{DATABASE}->{LFN_DB}->{FIRST_DB};
+  my $done =  $db->update("FQUOTAS",$set, $db->reservedWord("user")."= ?", {bind_values=>[$user]});
 
   $done or $self->info("Failed to set the value in the FQUOTAS table",1) and return -1;
 
