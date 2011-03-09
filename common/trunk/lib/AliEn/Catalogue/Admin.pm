@@ -215,9 +215,15 @@ $passwd = $addbh->getFieldFromTokens($addbh->{ORACLE_USER},'password');
 
   #We have to grant select privileges on the transfer and IS databases
   my @transfers=split('/', $self->{CONFIG}->{TRANSFER_DATABASE});
-  my @privileges = ("SELECT ON $self->{CONFIG}->{QUEUE_DATABASE}.*",
-		    "SELECT ON $transfers[2].*",
-		    "SELECT ON $self->{CONFIG}->{IS_DATABASE}.*", 
+  my $queueDB = $self->{CONFIG}->{QUEUE_DATABASE}; 
+  $queueDB =~ s/(.*)\://;
+  my $transfDB = $transfers[2];
+  $transfDB =~ s/(.*)\://;
+  my $isDB = $self->{CONFIG}->{IS_DATABASE}; 
+  $isDB =~ s/(.*)\://;
+  my @privileges = ("SELECT ON $queueDB.*",
+		    "SELECT ON $transfDB.*",
+		    "SELECT ON $isDB.*", 
 
 );
 
@@ -248,7 +254,8 @@ $passwd = $addbh->getFieldFromTokens($addbh->{ORACLE_USER},'password');
     my $tmpIncreasedTotalSize = 0;
     my $maxNbFiles=10000;
     my $maxTotalSize=10000000000;
-    $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do("insert into FQUOTAS set user=?, nbFiles=?, totalSize=?, tmpIncreasedNbFiles=?, tmpIncreasedTotalSize=?, maxNbFiles=?, maxTotalSize=? ; ", 
+    my $db = $self->{DATABASE}->{LFN_DB}->{FIRST_DB};
+    $db->do("insert into FQUOTAS ( ".$db->reservedWord("user").", nbFiles, totalSize, tmpIncreasedNbFiles, tmpIncreasedTotalSize, maxNbFiles, maxTotalSize ) VALUES (?,?,?,?,?,?,?) ", 
           {bind_values=>[$user,$nbFiles, $totalSize, $tmpIncreasedNbFiles, $tmpIncreasedTotalSize, $maxNbFiles, $maxTotalSize]});
    $self->info(  "User $user added"); 
   }
@@ -1016,7 +1023,7 @@ sub removeExpiredFiles {
     my $currentTime = time();
     #delete directories
     $db->do("DELETE FROM LFN_BOOKED WHERE lfn LIKE '%/' ");
-    my $files = $db->query("SELECT expiretime, lfn, size, gowner, binary2string(guid) as guid,pfn,  user FROM LFN_BOOKED 
+    my $files = $db->query("SELECT expiretime, lfn, ".$db->reservedWord("size").", gowner, binary2string(guid) as guid,pfn,  ".$db->reservedWord("user")." FROM LFN_BOOKED 
       WHERE expiretime<?", undef, {bind_values=>[$currentTime]});
     $files or next;
     #Get possible G#L tables
@@ -1047,8 +1054,10 @@ sub physicalDeleteEntries {
     my $pfn = $data->{pfn};
     my $seNumber = $data->{seNumber};
     my $seName = $data->{seName};
-    my $list=$db->queryColumn("SELECT protocol FROM transfers.PROTOCOLS
-              WHERE sename=? AND deleteprotocol=1",undef ,{bind_values=>[$seName]});
+    my @transfers=split('/', $self->{CONFIG}->{TRANSFER_DATABASE});
+    my $transferName = $transfers[2]; $transferName =~ s/(.)*://i;
+    my $list=$db->queryColumn("SELECT protocol FROM $transferName.PROTOCOLS
+              WHERE upper(sename)=upper(?) AND deleteprotocol=1",undef ,{bind_values=>[$seName]});
     my @protocols = @$list;
     my $pD = 0;
     @protocols or push @protocols, "rm";
@@ -1175,7 +1184,7 @@ sub calculateFileQuota {
   	
     my %sizeInfo;
     $db->do("delete from ${LTableName}_QUOTA");
-    $db->do("insert into ${LTableName}_QUOTA (user, nbFiles, totalSize) select l.owner as user, count(l.lfn) as nbFiles, sum(l.size) as totSize from ${LTableName} l where l.type='f' group by l.owner order by l.owner");
+    $db->do("insert into ${LTableName}_QUOTA (".$db->reservedWord("user").", nbFiles, totalSize) select l.owner as \"user\", count(l.lfn) as nbFiles, sum(l.".$db->reservedWord("size").") as totSize from ${LTableName} l where l.type='f' group by l.owner order by l.owner");
     $calculate=1;
   }
   $calculate or $self->$method(@data, "No need to calculate") and return;
