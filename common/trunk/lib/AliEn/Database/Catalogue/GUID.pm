@@ -391,7 +391,7 @@ sub getIndexHostFromGUID {
   my $self=shift;
   my $guid=shift || "";
   $self->debug(1, "Let's find the database that holds the guid '$guid'");
-  my $query = "SELECT hostIndex, tableName from GUIDINDEX where guidTime<string2date(?) order by guidTime desc ";
+  my $query = "SELECT hostIndex, tableName from GUIDINDEX where guidTime<string2date(?) or guidTime is null order by guidTime desc ";
   $query = $self->paginate($query,1,0);
   my $entry=$self->queryRow($query, undef, {bind_values=>[$guid]})
     or $self->info("Error doing the query  for the guid '$guid'") and return;
