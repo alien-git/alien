@@ -38,7 +38,7 @@ sub checkWakesUp {
   $self->$method(@data, "And now, let's check the jobs that were waiting to be staged");
 
   
-  my $info=$self->{DB}->query("select s.queueid, jdl from STAGING s, QUEUE q where s.queueid=q.queueid and timestampadd(MINUTE, 5, staging_time)<now()");
+  my $info=$self->{DB}->getToStage;
   foreach my $entry (@$info){
     $self->checkAlreadyStaged($entry->{queueid}, $entry->{jdl});
   }
