@@ -146,8 +146,8 @@ sub createCatalogueTables {
 			     "volumeId", ['UNIQUE INDEX (volume)', 'INDEX(seName)'],],
 	      "LL_STATS" =>["tableNumber", {
 					    tableNumber=>"int(11) NOT NULL",
-					    min_time=>"char(16) NOT NULL",
-					    max_time=> "char(16) NOT NULL", 
+					    min_time=>"char(20) NOT NULL",
+					    max_time=> "char(20) NOT NULL", 
 				    },undef,['UNIQUE INDEX(tableNumber)']],
 	      LL_ACTIONS=>["tableNumber", {tableNumber=>"int(11) NOT NULL",
 					   action=>"char(40) not null", 
@@ -160,12 +160,12 @@ sub createCatalogueTables {
                                     undef, ['UNIQUE INDEX(sitename,seNumber), PRIMARY KEY(sitename,seNumber), INDEX(sitename), INDEX(seNumber)']],
 
         FQUOTAS=>["user",{user=>"varchar(64) NOT NULL",
-            totalSize=>"bigint(20) collate latin1_general_ci NOT NULL DEFAULT '0'",
-            maxNbFiles=>"int(11) NOT NULL DEFAULT '0'",
-            nbFiles=>"int(11) NOT NULL DEFAULT '0'",
-            tmpIncreasedTotalSize=>"bigint(20) NOT NULL DEFAULT '0'",
-            maxTotalSize=>"bigint(20) NOT NULL DEFAULT '0'",
-            tmpIncreasedNbFiles=>"int(11) NOT NULL DEFAULT '0'"},
+            totalSize=>"bigint(20) collate latin1_general_ci DEFAULT '0' NOT NULL ",
+            maxNbFiles=>"int(11) DEFAULT '0' NOT NULL ",
+            nbFiles=>"int(11) DEFAULT '0' NOT NULL ",
+            tmpIncreasedTotalSize=>"bigint(20) DEFAULT '0' NOT NULL ",
+            maxTotalSize=>"bigint(20) DEFAULT '0' NOT NULL ",
+            tmpIncreasedNbFiles=>"int(11) DEFAULT '0' NOT NULL "},
          undef, ['PRIMARY KEY(user)']],
 
         LFN_BOOKED=>["lfn",{lfn=>"varchar(255)",
@@ -197,9 +197,9 @@ sub createCatalogueTables {
   $self->info("Let's create the functions");
   $self->createLFNfunctions;
   $DEBUG and $self->debug(2,"In createCatalogueTables creation of tables finished.");
-  $self->do("alter table TAG0 drop key path");
-  $self->do("alter table TAG0 add index path (path)");
-
+  $self->do("alter table TAG0 drop index path");
+#  $self->do("alter table TAG0 add index path (path)");
+  $self->createIndex("TAG0","index path (path)");
   1;
 }
 
@@ -230,7 +230,7 @@ sub checkLFNTable {
   my %columns = (entryId=>"bigint(11) NOT NULL auto_increment primary key", 
 		 lfn=> "varchar(255)", #in Oracle the empty string is null, so we have to allow this column to be null
 		 type=> "char(1)  default 'f' NOT NULL",
-		 ctime=>"timestamp",
+		 ctime=>"timestamp  DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
 		 expiretime=>"datetime",
 		 size=>"bigint  default 0 not null ",
 		 aclId=>"mediumint(11)",
@@ -351,10 +351,6 @@ $query = $self->paginate($query, 1,0);
   my $dataFromLFN = $self->getAllInfoFromLFN({method=>"queryValue",retrieve=>"lfn", table=>$tableRef},$entry,"$entry/");
   $dataFromLFN and return $dataFromLFN;
   return;
-  #my $bookingPool = $self->queryValue("select lfn from LFN_BOOKED where lfn=?",undef,{bind_values=>[$entry]});
-  #defined $bookingPool or return;
-  #$bookingPool->{fromBookingPool} = 1 if(defined $bookingPool->{lfn});
-  #return $bookingPool;
 }
 
 =item C<getHostsForEntry($lfn)>
@@ -481,10 +477,10 @@ sub updateLFN {
 
   my $db=$self->selectDatabase($parentpath);
   $lfn=~ s{^$db->{INDEX_TABLENAME}->{lfn}}{};
-  my $new_lfn = $lfn;$new_lfn and $new_lfn="='$lfn'" or $new_lfn=" is null";
-  return $db->update($db->{INDEX_TABLENAME}->{name}, $lfnUpdate, "lfn $new_lfn ", {noquotes=>1});
+ # my $new_lfn = $lfn;$new_lfn and $new_lfn="='$lfn'" or $new_lfn=" is null";
+ # return $db->update($db->{INDEX_TABLENAME}->{name}, $lfnUpdate, "lfn $new_lfn ", {noquotes=>1});
 
-  #return $db->update($db->{INDEX_TABLENAME}->{name}, $lfnUpdate, "lfn='$lfn'", {noquotes=>1});
+  return $db->update($db->{INDEX_TABLENAME}->{name}, $lfnUpdate, "lfn='$lfn'", {noquotes=>1});
 }
 
 sub deleteFile {
@@ -704,8 +700,8 @@ sub removeFile {
   $lfnOnTable =~ s/$tablelfn//;
   my $guid = $db->queryValue("SELECT binary2string(l.guid) as guid FROM $tableName l WHERE l.lfn=?", undef, {bind_values=>[$lfnOnTable]}) || 0;
   #Insert into LFN_BOOKED only when the GUID has to be deleted
-  $db->do("INSERT INTO LFN_BOOKED(lfn, owner, expiretime, size, guid, gowner, user, pfn)
-    SELECT ?, l.owner, -1, l.size, l.guid, l.gowner, ?,'*' FROM $tableName l WHERE l.lfn=? AND l.type<>'l'", {bind_values=>[$lfn,$user,$lfnOnTable]})
+  $db->do("INSERT INTO LFN_BOOKED(lfn, owner, expiretime, ".$db->reservedWord("size").", guid, gowner, ".$db->reservedWord("user").", pfn)
+    SELECT ?, l.owner, -1, l.".$db->reservedWord("size").", l.guid, l.gowner, ?,'*' FROM $tableName l WHERE l.lfn=? AND l.type<>'l'", {bind_values=>[$lfn,$user,$lfnOnTable]})
     or $self->{LOGGER}->error("Database::Catalogue::LFN","Could not insert LFN(s) in the booking pool")
     and return; 
   
@@ -749,9 +745,7 @@ sub removeDirectory {
         undef, {bind_values=>[$tmpPath]})||0);
     $size += ($db2->queryValue("SELECT SUM(l.".$db2->reservedWord("size").") FROM L$db->{tableName}L l WHERE l.lfn LIKE concat(?,'%') AND l.type='f'",
         undef, {bind_values=>[$tmpPath]})||0);
-    $db2->do("INSERT IGNORE INTO LFN_BOOKED(lfn, owner, expiretime, ".$db2->reservedWord("size").", guid, gowner, ".$db2->reservedWord("user").", pfn)
-      SELECT concat('$db->{lfn}' , l.lfn), l.owner, -1, l.".$db2->reservedWord("size").", l.guid, l.gowner, ?,'*' FROM L$db->{tableName}L l WHERE l.type='f' AND l.lfn LIKE concat(?,'%')",
-      {bind_values=>[$user,$tmpPath]})
+    $db2->insertLFNBookedRemoveDirectory($db->{lfn},'L'.$db->{tableName}.'L',$user,$tmpPath) 
       or $self->{LOGGER}->error("Database::Catalogue::LFN","ERROR: Could not add entries $tmpPath to LFN_BOOKED")
       and return;
     $db2->delete("L$db->{tableName}L", "lfn like '$tmpPath%'");
@@ -1077,8 +1071,11 @@ sub copyDirectory{
   if ($#values>-1) {
     my $insert="INSERT into $targetTable(lfn,owner,gowner,".$targetDB->reservedWord("size").",type,guid,guidtime,perm,dir) values ";
 
-    $insert .= join (",", @values);
-    $targetDB->do($insert);
+    #$insert .= join (",", @values);
+    #$targetDB->do($insert);
+    foreach  (@values){
+      $targetDB->do($insert." ".$_);
+    }
   }
 
   $target=~ s{^$targetLFN}{};
@@ -1186,7 +1183,7 @@ sub moveLFNs {
   $tempLfn=~ s{$fromLFN}{};
 
   #First, let's insert the entries in the new table
-  if (!$self->do("INSERT into $toTable($columns,lfn) select $columns,substr(concat('$fromLFN', lfn), length('$toLFN')+1) from $fromTable where lfn like '${tempLfn}%' and (lfn not like '' and lfn is not null)")){
+  if (!$self->do("INSERT into $toTable($columns,lfn) select $columns,substr(concat('$fromLFN', lfn), length('$toLFN')+1) from $fromTable where lfn like '${tempLfn}%' and lfn not like '' ")){
     $self->unlock();
     return;
   }
@@ -1238,7 +1235,7 @@ sub grantBasicPrivilegesToUser {
 
   $self->grantPrivilegesToUser(["EXECUTE ON *"], $user, $passwd)
     or return;
-
+  $db=~ s/(.)*\://;
   my $rprivileges = ["SELECT ON $db.*",
 		     "INSERT, DELETE ON $db.TAG0", 
 		    ];
@@ -1607,8 +1604,8 @@ sub getFieldsByTagName {
   
   $sql.="  $fields FROM TAG0 WHERE tagName=?";
   if ($directory) {
- #    $sql.=" and path like concat(?, '%')";
-     $sql.=" and ? like concat(path, '%')";  
+    if( $self->{DRIVER}=~/Oracle/i){$sql.=" and path like concat(?, '%')";
+   }else{ $sql.=" and ? like concat(path, '%')";  }
    push @bind, $directory;
    }
 
@@ -1967,18 +1964,18 @@ sub internalQuery {
     @joinQueries=@newQueries;
     $tagsDone->{$tagName}=1;
   }
-  my $order=" ORDER BY lfn";
-  my $limit="";
+  my $order=" ORDER BY l.lfn";
+  my $limit=""; my $offset = "";
   $options->{'s'} and $order="";
   $options->{'y'} and $order="";
-  $options->{l} and $limit = "limit $options->{l}";
-  $options->{o} and $limit .= " offset $options->{o}";
+  $options->{l} and $limit = " $options->{l}";
+  $options->{o} and $offset= "  $options->{o}";
 
   my $b = $self->binary2string;  
   $b=~ s/guid/l.guid/;
 
-  map {s/^(.*)$/SELECT *,concat('$refTable->{lfn}', lfn) as lfn,
-$b as guid from $indexTable l $1 $order $limit/} @joinQueries;
+  map {s/^(.*)$/$self->paginate("SELECT l.entryId,ctime,owner,replicated,guidtime,aclId, jobId, broken, expiretime,dir, ".$self->reservedWord("size").", gowner,  ".$self->reservedWord("type")." ,md5,perm,concat('$refTable->{lfn}', lfn) as lfn,
+$b as guid from $indexTable l $1 $order", $limit, $offset)/e} @joinQueries;
 
   $self->debug(1,"We have to do $#joinQueries +1 to find out all the entries");
   if ($options->{selimit}) {
@@ -2281,21 +2278,22 @@ sub cleanupTagValue{
   foreach my $tag (@$tags){
     $self->info("First, let's delete duplicate entries");
     $self->lock($tag->{tableName});
-    $self->do("create temporary table $tag->{tableName}temp select file as f, max(entryId) as e from $tag->{tableName} group by file");
-    $self->do("delete from  $tag->{tableName} using  $tag->{tableName},  $tag->{tableName}temp where file=f and entryId<e");
+    $self->{DRIVER}=~/Oracle/ and my $global="global";
+      $self->do("create $global temporary table $tag->{tableName}temp as select ".$self->reservedWord("file")." as f, max(entryId) as e from $tag->{tableName} group by ".$self->reservedWord("file"));
+    $self->do("delete from  $tag->{tableName} using  $tag->{tableName},  $tag->{tableName}temp where ".$self->reservedWord("file")."=f and entryId<e");
     $self->do("drop temporary table  $tag->{tableName}temp");
     $self->unlock($tag->{tableName});
     foreach my $host (@$dirs){
       $self->info("Deleting the entries from $tag->{tableName} that are not in $host->{tableName} (like $host->{lfn})");
       my @bind=($host->{lfn},$host->{lfn});
-      my $where=" and file like concat(?,'%') ";
+      my $where=" and ".$self->reservedWord("file")." like concat(?,'%') ";
       foreach my $entry (@$dirs){
-	$entry->{lfn} =~ /^$host->{lfn}./ or next;
-	$self->info("$entry->{lfn} is a subdirectory!!");
-	$where.=" and file not like concat(?,'%') ";
-	push @bind, $entry->{lfn};
+    $entry->{lfn} =~ /^$host->{lfn}./ or next;
+    $self->info("$entry->{lfn} is a subdirectory!!");
+    $where.=" and ".$self->reservedWord("file")." not like concat(?,'%') ";
+    push @bind, $entry->{lfn};
       }
-      $self->do("delete from $tag->{tableName} using $tag->{tableName} left join L$host->{tableName}L on file=concat(?, lfn) where lfn is null $where", {bind_values=>\@bind});
+       $self->do("delete from $tag->{tableName} using $tag->{tableName} left join L$host->{tableName}L on ".$self->reservedWord("file")."=concat(?, lfn) where lfn is null $where", {bind_values=>\@bind});
     }
 
   }
@@ -2342,14 +2340,15 @@ sub updateStats {
     $done->{$elem->{indexId}}=1;
     $values.=" (?, 'TODELETE'), ";
     push @bind, $elem->{tableName};
+   push @bind, $elem->{tableName};
     $self->info("Doing $elem->{tableName}");
     my $gtable="$elem->{db}.G$elem->{tableName}L";
 
     if ($elem->{address} eq $self->{HOST}){
       $self->debug(1, "This is the same host. It is easy");
 
-      my $maxGuidTime=$self->queryValue("select left(min(guidTime),8) from GUIDINDEX where guidTime> (select guidTime from GUIDINDEX where tableName=?  and hostindex=?)", undef, {bind_values=>[ $elem->{tableName}, $elem->{hostIndex}]});
-      my $query="insert into ${gtable}_REF(guidid,lfnRef) select g.guidid, ? from $gtable g join $table l using (guid) left join ${gtable}_REF r on g.guidid=r.guidid and lfnref=? where r.guidid is null and l.guidtime>=(select left(guidtime,8) from GUIDINDEX where tablename=? and hostIndex=? )";
+      my $maxGuidTime=$self->queryValue("select substr(min(guidTime),1,8) from GUIDINDEX where guidTime> (select guidTime from GUIDINDEX where tableName=?  and hostindex=?)", undef, {bind_values=>[ $elem->{tableName}, $elem->{hostIndex}]});
+      my $query="insert into ${gtable}_REF(guidid,lfnRef) select g.guidid, ? from $gtable g join $table l using (guid) left join ${gtable}_REF r on g.guidid=r.guidid and lfnref=? where r.guidid is null and l.guidtime>=(select substr(guidtime,1,8) from GUIDINDEX where tablename=? and hostIndex=? )";
       my $bind=[$lfnRef, $lfnRef, $elem->{tableName}, $elem->{hostIndex}];
       if ($maxGuidTime){
 	$self->info("The next guid is $maxGuidTime");
@@ -2361,13 +2360,13 @@ sub updateStats {
     }else {
       $self->info("This is in another host. We can't do it easily :( 'orphan guids won't be detected'");
       my ($db, $path2)=$self->reconnectToIndex( $elem->{hostIndex}) or next;
-      $db->do("update  $gtable g, $table l set lfnRef=concat(lfnRef,  ?, ',') where g.guid=l.guid and g.lfnRef not like concat(',',?,',')", {bind_values=>[$number,$number]});
+      $db->do("update  $gtable g, $table l set lfnRef=concat(lfnRef, concat( ?, ',')) where g.guid=l.guid and g.lfnRef not like concat(',',concact(?,','))", {bind_values=>[$number,$number]});
     }
   }
   if ($values){
     $self->info("And now, let's put the guid tables in the list of tables that have to be checked");
     $values=~ s/, $//;
-    $self->do("insert ignore into GL_ACTIONS(tableNumber, action) values $values", {bind_values=>[@bind]});
+    $self->do("insert  into GL_ACTIONS(tableNumber, action)  select $values from DUAL where not exists (select * from GL_ACTIONS where tableNumber=? and action='TODELETE')", {bind_values=>[@bind]});
   }
   return 1;
 
@@ -2410,7 +2409,7 @@ sub fquota_update {
 
 #  $self->{PRIORITY_DB} or $self->{PRIORITY_DB}=AliEn::Database::TaskPriority->new({ROLE=>'admin',SKIP_CHECK_TABLES=> 1});
 #  $self->{PRIORITY_DB} or return;
-  $self->do("UPDATE FQUOTAS SET nbFiles=nbFiles+tmpIncreasedNbFiles+?, totalSize=totalSize+tmpIncreasedTotalSize+?, tmpIncreasedNbFiles=0, tmpIncreasedTotalSize=0 WHERE user=?", {bind_values=>[$count,$size,$user]}) or return;
+  $self->do("UPDATE FQUOTAS SET nbFiles=nbFiles+tmpIncreasedNbFiles+?, totalSize=totalSize+tmpIncreasedTotalSize+?, tmpIncreasedNbFiles=0, tmpIncreasedTotalSize=0 WHERE ".$self->reservedWord("user")."=?", {bind_values=>[$count,$size,$user]}) or return;
 
   return 1;
 }

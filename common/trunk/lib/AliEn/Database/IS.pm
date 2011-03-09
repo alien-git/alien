@@ -178,7 +178,7 @@ sub createCLCCERTTable{
   my $self = shift;
 
   $self->debug(1,"In createCLCCERTTable creating CLCCERT table");
-  $self->createTable("CLCCERT","(".$self->reservedWord("user")." varchar(200), name varchar(200), certificate blob)",1);
+  $self->createTable("CLCCERT","(user varchar(200), name varchar(200), certificate blob)",1,1);
 }
 
 sub insertCertificate{
@@ -188,7 +188,7 @@ sub insertCertificate{
   my $cert = shift;
   
   $self->debug(1,"In insertCertificate inserting certificate");
-  $self->insert("CLCCERT",{user=>$user,name=>$name,certificate=>$cert});
+  $self->insert("CLCCERT",{$self->reservedWord("user")=>$user,name=>$name,certificate=>$cert});
 }
 
 sub deleteCertificate{
@@ -230,7 +230,9 @@ sub getCpuSI2k {
   my $min_cpu_mhz = $cpu_type->{cpu_MHz} - $cpu_type->{cpu_MHz} * 0.02; # allow 2% deviation
   my $max_cpu_mhz = $cpu_type->{cpu_MHz} + $cpu_type->{cpu_MHz} * 0.02;
   # try querying the database for exactly this configuration
-  my $result = $self->queryValue("SELECT si2k FROM cpu_si2k WHERE ? LIKE cpu_model_name AND ? LIKE cpu_cache AND cpu_MHz >= ? AND cpu_MHz <= ? ORDER BY length(cpu_model_name) DESC LIMIT 1", undef, {bind_values=>[$cpu_type->{cpu_model_name}, $cpu_type->{cpu_cache}, $min_cpu_mhz, $max_cpu_mhz]});
+  my $query = "SELECT si2k FROM cpu_si2k WHERE ? LIKE cpu_model_name AND ? LIKE cpu_cache AND cpu_MHz >= ? AND cpu_MHz <= ? ORDER BY length(cpu_model_name) DESC ";
+  $query = $self->paginate($query,1,0);
+  my $result = $self->queryValue($query, undef, {bind_values=>[$cpu_type->{cpu_model_name}, $cpu_type->{cpu_cache}, $min_cpu_mhz, $max_cpu_mhz]});
   
   
   if(! defined($result)){
