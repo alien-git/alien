@@ -48,7 +48,7 @@ sub unblockQueue {
   $self->{DB}->do("UPDATE SITEQUEUES set timeblocked=now() where timeblocked is null and blocked='locked-err'") or $self->info("Error setting the time when the queue was blocked") and return;
 
   $self->info("Opening the queues that have been closed for more than 15 minutes");
-  $self->{DB}->do("UPDATE SITEQUEUES set blocked='open', timeblocked=null where blocked='locked-err' and adddate(timeblocked,interval 15 minute)<now()");
+  $self->{DB}->do("UPDATE SITEQUEUES set blocked='open', timeblocked=null where blocked='locked-err' and  timeblocked+interval '15' minute<now()");
   
   
   return 1;
