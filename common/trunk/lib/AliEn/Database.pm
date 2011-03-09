@@ -168,7 +168,8 @@ sub new{
   if ($driver =~ /Oracle/){
     $self->SUPER::getTypes;
     $INDEX=0;
-    defined $self->{ORACLE_USER} or $self->{ORACLE_USER}="ALIENSTANDARD";}
+  
+    defined $self->{ORACLE_USER} or $self->{ORACLE_USER}="ALIEN";}
   }
 
 
@@ -533,7 +534,7 @@ sub insert {
   $query .= ")";
 
   $self->_do( $query,
-  { bind_values => \@bind_values, silent => $options->{silent} } );
+  { bind_values => \@bind_values, silent => $options->{silent}, zero_length=>0 } );
 }
 
 sub multiinsert {
@@ -636,11 +637,13 @@ sub setPrimaryKey {
   if ( defined $indexes ) {
   $DEBUG and $self->debug( 1, "There are some keys for $table" );
   foreach my $ind (@$indexes) {
-  if ( $ind->{Key_name} eq "PRIMARY" ) {
-  $key and ( $ind->{Column_name} eq $key ) and $primary = 1;
+  	my $key_name = $ind->{Key_name}||$ind->{key_name};
+  	my $col_name=$ind->{Column_name}|| $ind->{column_name};
+  if ( $key_name eq "PRIMARY" ) {
+  $key and ( $col_name eq $key ) and $primary = 1;
   next;
   }
-  my @list = grep ( /\W$ind->{Column_name}\W/i, @indexes );
+  my @list = grep ( /\W$col_name\W/i, @indexes );
   if ( $list[0] ) {
   $DEBUG and $self->debug( 1, "Checking the column $list[0]" );
   my $unique = grep ( /unique/i, $list[0] );
@@ -651,10 +654,10 @@ sub setPrimaryKey {
   );
 
   #  $self->alterTable($table, "drop index $ind->{Key_name}");
-  $self->dropIndex( $ind->{Key_name}, $table );
+  $self->dropIndex( $key_name, $table );
   }
   else {
-  @indexes = grep ( !/\W$ind->{Column_name}\W/i, @indexes );
+  @indexes = grep ( !/\W$col_name\W/i, @indexes );
   }
   }
   }
@@ -687,7 +690,7 @@ sub checkColumn {
   my $columns = $self->describeTable($table);
 
   foreach (@$columns) {
-  my $field = $_->{Field};
+  my $field = $_->{Field}||$_->{field};
 ##We consider if the column was a reserved word that was quoted
   $field
   and ( ( $field eq $colName ) or ( "\"$field\"" eq $colName ) )
@@ -935,7 +938,7 @@ sub _connect {
   while (1) {
   my $dsn = $self->getDatabaseDSN();
 
-  #$self->{DBH} = DBI->connect($dsn,$self->{ROLE},$pass,$self->{DBI_OPTIONS});
+  $self->{DRIVER} =~/Oracle/i and $self->{DBI_OPTIONS}->{FetchHashKeyName}= "NAME_lc";
 
   $self->{DBH} =  DBI->connect( $dsn, $self->{SCHEMA}, $pass, $self->{DBI_OPTIONS} );
   $self->{DBH} and last;
