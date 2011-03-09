@@ -667,7 +667,7 @@ sub optimizerJobPriority {
 
 sub userColumn {
   return
-"SUBSTR( submitHost, 1, POSITION('\@' in submitHost)-1  )   collate latin1_general_cs";
+"SUBSTR( submitHost, 1, POSITION('\@' in submitHost)-1  )";
 }
 
 sub getMessages {
