@@ -28,7 +28,7 @@ sub checkWakesUp {
   $todo or return;
   $self->{DB}->update("ACTIONS", {todo=>0}, "action='INSERTING'");
 
-  my $done=$self->checkJobs($silent, "INSERTING' and jdl not like '\% Split = \"\%", "updateInserting");
+  my $done=$self->checkJobs($silent, "INSERTING' and upper(jdl) not like '\% SPLIT = \"\%", "updateInserting");
 
   $self->$method(@data, "The inserting optimizer finished");
   return;
