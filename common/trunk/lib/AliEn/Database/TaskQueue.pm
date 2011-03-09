@@ -115,7 +115,7 @@ sub initialize {
 			      finalPrice=>"float",
 			      notify=>"varchar(255)",
 			      agentid=>'int(11)',
-			      mtime=>'timestamp',
+			      mtime=>'timestamp  DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
             },
 		    id=>"queueId",
 		    index=>"queueId",
@@ -143,7 +143,7 @@ sub initialize {
 				  maxvsize =>"float",
 				  procinfotime =>"int(20)",
 				  si2k=>"float",
-				  lastupdate=>"timestamp",
+				  lastupdate=>"timestamp  DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
 				  batchid=>"varchar(255)",
 				 },
 			id=>"queueId",
@@ -180,16 +180,18 @@ sub initialize {
 		       id=>"siteId",
 		       index=>"siteId",
 		       },
+		       ##this table used to have several columns that could not be null. This fails when starting the 
+		       ##cluster monitor. Indeed, null values are inserted. So we allow these columns to be nullable.
 	       HOSTS=>{columns=>{commandName=>"char(255)",
 				 hostName=>"char(255)",
-				 hostPort=>"int(11) not null ",
+				 hostPort=>"int(11) ",
 				 hostId =>"int(11) not null auto_increment primary key",
 				 siteId =>"int(11) not null",
-				 adminName=>"char(100) not null",
-				 maxJobs=>"int(11) not null",
-				 status=>"char(10) not null",
+				 adminName=>"char(100)",
+				 maxJobs=>"int(11)",
+				 status=>"char(10) ",
 				 date=>"int(11)",
-				 rating=>"float not null",
+				 rating=>"float", 
 				 Version=>"char(10)",
 				 queues=>"char(50)",
 				 connected=>"int(1)",
@@ -221,7 +223,7 @@ sub initialize {
 	       JOBSTOMERGE=>{columns=>{masterId=>"int(11) not null primary key"},
 			     id=>"masterId"},
 	       STAGING=>{columns=>{queueid=>"int(11) not null primary key",
-				  staging_time=>"timestamp"},
+				  staging_time=>"timestamp  DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"},
 			 id=>"queueid"},
 			
 	     };
@@ -296,7 +298,7 @@ sub insertJobLocked {
   
   my $procid="";
   ($out)
-      and $procid = $self->getLastId();
+      and $procid = $self->getLastId($self->{QUEUETABLE});
   $self->unlock();
 
   
@@ -394,7 +396,7 @@ sub getWaitingJobAgents{
   #  my $list=AliEn::Util::returnCacheValue($self, "listWaitingJA");
   #  $list and return $list;
   #}
-  my $list=$self->query("select entryId as agentId,concat('[',requirements,'Type=\"Job\";TTL=999;]') as jdl, counter from JOBAGENT order by priority desc");
+  my $list=$self->query("select entryId as agentId,concat('[',concat(requirements,'Type=\"Job\";TTL=999;]') ) as jdl, counter from JOBAGENT order by priority desc");
 
   #if ($#$list >100){
   #  $nocache or AliEn::Util::setCacheValue($self, "listWaitingJA", $list);
@@ -584,7 +586,8 @@ sub checkFinalAction{
   $self->info("Checking if we have to merge the master");
   if ($info->{split}){
     $self->info("We have to check if all the subjobs of $info->{split} have finished");
-    $self->do("insert ignore into JOBSTOMERGE values (?)", {bind_values=>[$info->{split}]});
+    $self->do("insert  into JOBSTOMERGE (masterId) select ? from DUAL  where not exists (select masterid from JOBSTOMERGE where masterid = ?)", 
+{bind_values=>[$info->{split},$info->{split}]});
     $self->do("update ACTIONS set todo=1 where action='MERGING'");
   }
   return 1;
@@ -737,12 +740,16 @@ sub getJobsByStatus {
   my $status = shift
     or $self->{LOGGER}->error("TaskQueue","In getJobsByStatus status is missing")
       and return;
-  my $order = shift || "";
-  
+  my $order = shift || ""; 
+  my $f = shift;
+  my $limit = shift ;
+  #We never want to get more tahn 15 jobs at the same time, just in case the jdls are too long
   $order and $order = " ORDER BY $order";
-  
+  my $query = "SELECT queueid,jdl from $self->{QUEUETABLE} where status='$status' $order";
+  $query = $self->paginate($query,$limit,0);
+
   $DEBUG and $self->debug(1,"In getJobsByStatus fetching jobs with status $status");     
-  $self->query("SELECT queueid,jdl from $self->{QUEUETABLE} where status='$status' $order");
+  $self->query($query);
 }
 
 #sub setStatusSplitting {
@@ -992,7 +999,7 @@ sub checkSiteQueueTable{
 		 cost=>"float",
 		 status=>"varchar(20)",
 		 statustime=>"int(20)",
-		 blocked =>"varchar(10)",
+		 blocked =>"varchar(20)",
 		 maxqueued=>"int",
 		 maxrunning=>"int",
 		 queueload=>"float",
@@ -1239,7 +1246,7 @@ sub insertJobAgent {
       $self->unlock();
       return;
     }
-    $id=$self->getLastId();
+    $id=$self->getLastId("JOBAGENT");
   }else{
     $self->do("UPDATE JOBAGENT set counter=counter+1 where entryId=?", {bind_values=>[$id]});
   }
