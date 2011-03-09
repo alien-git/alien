@@ -56,11 +56,11 @@ sub checkWakesUp {
 
 #      my $seRef=$self->{DB}->queryColumn("select seName from SE");
 #      foreach my $se (@$seRef){
-#	$self->info("Looking for $se");
-#	my $QoS=$IS->queryValue("SELECT protocols from SE where name='$se'");
-#	$QoS or next;
-#	$self->info("Setting the QoS of $se to $QoS");
-#	$self->{DB}->update("SE", {seQoS=>$QoS}, "seName='$se'");
+#   $self->info("Looking for $se");
+#   my $QoS=$IS->queryValue("SELECT protocols from SE where name='$se'");
+#   $QoS or next;
+#   $self->info("Setting the QoS of $se to $QoS");
+#   $self->{DB}->update("SE", {seQoS=>$QoS}, "seName='$se'");
 #      }
 #    }
 #  }
@@ -83,10 +83,12 @@ sub checkExpired{
     use Data::Dumper;
     $self->info("We have to do something with the entry".Dumper($entry));
     my $lfn="$dir/$entry->{lfn}";
-
-    $self->{CATALOGUE}->execute("mv", $lfn, "$lfn.expired");
-
-    $self->{CATALOGUE}->execute("chown", "$entry->{owner}.$entry->{gowner}", "$lfn.expired");
+    my $expiredLfn= $lfn.".expired";
+    
+    $self->{CATALOGUE}->execute("mv", $lfn, $expiredLfn);
+    $self->{CATALOGUE}->execute("chown", "$entry->{owner}.$entry->{gowner}", $expiredLfn);
+    $db->do("UPDATE $table set expiretime=NULL where lfn like ?", {bind_values=>[$entry->{lfn}.".expired"], zero_lengt=>0});
+  
   }
 
   return 1;
