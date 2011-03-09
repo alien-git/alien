@@ -71,7 +71,7 @@ sub checkTables{
 					       role=>"varchar(15)",
 					       up=>"smallint"}) or return;
   $self->checkTable("TOKENS", "ID", {ID=>"int(11) not null auto_increment primary key",
-				     "Username","varchar(20)",
+				     "Username","varchar(32)",
 				     "Expires","datetime",
 				     "Token"=>"varchar(32)",
 				     "password"=>"varchar(16)",
