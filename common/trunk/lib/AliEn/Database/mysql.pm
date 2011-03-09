@@ -255,11 +255,6 @@ sub existsTable {
 }
 
 
-sub resetAutoincrement {
-  my $self  = shift;
-  my $table = shift;
-  $self->do("ALTER TABLE $table auto_increment=1");
-}
 
 
 
