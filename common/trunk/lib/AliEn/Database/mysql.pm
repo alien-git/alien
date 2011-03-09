@@ -614,17 +614,11 @@ sub unfinishedJobs24PerUser {
   );
 }
 
-sub totalRunninTimeJobs24PerUser {
-  my $self = shift;
-  return $self->do(
-"update PRIORITY pr left join (select SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user, sum(p.runtimes) as totalRunningTimeLast24h from QUEUE q join QUEUEPROC p using(queueId) where (unix_timestamp()>=q.received and unix_timestamp()-q.received<60*60*24) group by submithost) as C on pr.user=C.user collate latin1_general_cs set pr.totalRunningTimeLast24h=IFNULL(C.totalRunningTimeLast24h, 0)"
-  );
-}
 
 sub cpuCost24PerUser {
   my $self = shift;
   return $self->do(
-"update PRIORITY pr left join (select SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user, sum(p.cost) as totalCpuCostLast24h from QUEUE q join QUEUEPROC p using(queueId) where (unix_timestamp()>=q.received and unix_timestamp()-q.received<60*60*24) group by submithost) as C on pr.user=C.user collate latin1_general_cs set pr.totalCpuCostLast24h=IFNULL(C.totalCpuCostLast24h, 0)"
+"update PRIORITY pr left join (select SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user, sum(p.cost) as totalCpuCostLast24h , sum(p.runtimes) as totalRunningTimeLast24h  from QUEUE q join QUEUEPROC p using(queueId) where (unix_timestamp()>=q.received and unix_timestamp()-q.received<60*60*24) group by submithost) as C on pr.user=C.user collate latin1_general_cs set pr.totalCpuCostLast24h=IFNULL(C.totalCpuCostLast24h, 0)"
   );
 }
 
@@ -665,8 +659,7 @@ sub optimizerJobExpired {
 
 sub optimizerJobPriority {
   my $self = shift;
-  my $userColumn =
-    "SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 )";
+  my $userColumn = shift;
   return $self->do(
 "INSERT IGNORE INTO PRIORITY(user, priority, maxparallelJobs, nominalparallelJobs) SELECT distinct $userColumn, 1,200, 100 from QUEUE"
   );
@@ -683,7 +676,7 @@ sub getMessages {
   my $host    = shift;
   my $time    = shift;
   return $self->query(
-"SELECT ID,TargetHost,Message,MessageArgs from MESSAGES WHERE TargetService = ? AND  ? like TargetHost AND (Expires > ? or Expires = 0) order by ID",
+"SELECT ID,TargetHost,Message,MessageArgs from MESSAGES WHERE TargetService = ? AND  ? like TargetHost AND (Expires > ? or Expires = 0) order by ID limit 300",
     undef,
     { bind_values => [ $service, $host, $time ] }
   );
@@ -704,6 +697,12 @@ sub currentDate {
   return " now() ";
 }
 
+sub resetAutoincrement{
+ my $self = shift;
+ my $table = shift;
+ return $self->do("alter table $table auto_increment=1");
+ 
+}
 
 ###########################
 #Functions specific for AliEn/Catalogue/Admin
@@ -719,6 +718,178 @@ sub refreshSERank {
     { bind_values => [ $site, $rank, $seName ] }
   );
 
+}
+#####
+###Specific for Database/Catalogue/GUID
+###
+
+sub insertLFNBookedDeleteMirrorFromGUID{
+  my $self = shift; 
+  my $table = shift;
+  my $lfn = shift; 
+  my $guid = shift;
+  my $role = shift;
+  my $pfn = shift;
+  my $guidId= shift;
+  my $seNumber = shift;
+  return $self->do("INSERT IGNORE INTO LFN_BOOKED(lfn, owner, expiretime, size, guid, gowner, user, pfn, se)
+      select ?,g.owner,-1,g.size,string2binary(?),g.gowner,?,?,s.seName
+      from ".$table." g, ".$table."_PFN g_p, SE s
+      where g.guidId=g_p.guidId and g_p.guidId=? and g_p.seNumber=? and g_p.pfn=? and s.seNumber=g_p.seNumber",
+      {bind_values=>[$lfn,$guid,$role,$pfn,$guidId,$seNumber,$pfn]});
+    
+}
+####
+# Specific for Database/IS
+##
+sub insertLFNBookedRemoveDirectory{
+  my $self=shift;
+  my $lfn = shift;
+  my $tableName = shift,
+  my $user = shift;
+  my $tmpPath = shift;
+
+ return $self->do("INSERT IGNORE INTO LFN_BOOKED(lfn, owner, expiretime, size, guid, gowner, user, pfn)
+     SELECT concat('$lfn' , l.lfn), l.owner, -1, l.size, l.guid, l.gowner, ?,'*' FROM $tableName l WHERE l.type='f' AND l.lfn LIKE concat (?,'%')",    {bind_values=>[$user,$tmpPath]}) ;
+
+}
+
+###
+##Specific for Catalogue/Authorize
+###
+sub insertLFNBookedAndOptionalExistingFlagTrigger{
+  my $self=shift;
+  my $lfn = shift;#$envelope->{lfn};
+  my $user = shift;#$user;
+  my $quota = shift;#, "1" 
+  my $md5sum=shift;#,$envelope->{md5}
+  my $expiretime = shift; #$lifetime,
+  my $size = shift;#$envelope->{size},
+  my $pfn = shift;#$envelope->{turl},
+  my $se = shift;#$envelope->{se},$user,
+  my $guid = shift;# $envelope->{guid},
+  my $existing = shift; #$trigger,
+  my $jobid = shift; #$jobid;
+
+ 
+  return $self->do(
+    "REPLACE INTO LFN_BOOKED (lfn, owner, quotaCalculated, md5sum, expiretime, size, pfn, se, gowner, guid, existing, jobid) VALUES (?,?,?,?,?,?,?,?,?,string2binary(?),?,?);"
+    ,{bind_values=>[$lfn,$user, $quota ,$md5sum,$expiretime,$size,$pfn,$se,$user,$guid,$existing,$jobid]});
+}
+
+sub dbGetSEListFromSiteSECacheForWriteAccess{
+ 
+   my $self=shift;
+   my $user=shift ;
+   my $fileSize=shift;
+   my $type=shift;
+   my $count=shift ;
+   my $sitename=shift ;
+   my $excludeList=(shift || "");
+   
+   my $query="SELECT DISTINCT SE.seName FROM SERanks,SE WHERE "
+       ." sitename=? and SERanks.seNumber = SE.seNumber ";
+
+   my @queryValues = ();
+   push @queryValues, $sitename;
+
+   foreach(@$excludeList){   $query .= "and SE.seName<>? "; push @queryValues, $_;  }
+   
+   $query .=" and SE.seMinSize <= ? and SE.seQoS  LIKE concat('%,' , ? , ',%' ) "
+    ." and (SE.seExclusiveWrite is NULL or SE.seExclusiveWrite = '' or SE.seExclusiveWrite  LIKE concat ('%,' , ? , ',%') )"
+    ." ORDER BY rank ASC limit ? ;";
+ 
+   push @queryValues, $fileSize;
+   push @queryValues, $type;
+   push @queryValues, $user;
+   push @queryValues, $count;
+
+   return $self->queryColumn($query, undef, {bind_values=>\@queryValues});
+   
+}
+
+
+
+##############
+###optimizer Catalogue /SeSize
+#############
+sub updateVolumesInSESize{
+  my $self = shift;
+
+   $self->do("update SE, SE_VOLUMES set usedspace=seusedspace/1024, freespace=size-usedspace where  SE.sename=SE_VOLUMES.sename and size!= -1");
+  return;
+}
+sub showLDLTables{
+  my $self = shift;
+  return $self->queryColum("show tables like 'L\%L'");
+}
+sub updateSESize{
+ my $self = shift;
+ return $self->do("update SE, SE_VOLUMES set usedspace=seusedspace/1024, freespace=size-usedspace where  SE.sename=SE_VOLUMES.sename and size!= -1"); 
+ 
+}
+
+
+#######
+## optimizer Job/priority
+#####
+sub getPriorityUpdate{
+my $self = shift;
+my $userColumn = shift;
+return "update PRIORITY p  set 
+waiting=(select count(*) from QUEUE where status='WAITING' and p.user=$userColumn),
+running=(select count(*) from QUEUE where (status='RUNNING' or status='STARTED' or status='SAVING') and p.user= $userColumn),
+userload=(running/maxparallelJobs),
+computedpriority=(if(running<maxparallelJobs, if((2-userload)*priority>0,50.0*(2-userload)*priority,1),1))";
+ }
+sub getJobAgentUpdate{
+my $self = shift;
+my $userColumn = shift;
+return "UPDATE JOBAGENT j set j.priority=(SELECT computedPriority-(min(queueid)/(SELECT ifnull(max(queueid),1) from QUEUE)) from PRIORITY p, QUEUE q where j.entryId=q.agentId and status='WAITING' and $userColumn=p.user group by agentId)";
+}
+
+########
+## optimizer Job/Expired
+####
+
+#sub getJobOptimizerExpiredQ1{
+#  my $self = shift;
+# return "where  (status in ('DONE','FAILED','EXPIRED') or status like 'ERROR%'  ) and ( mtime < addtime(now(), '-10 00:00:00')  and split=0) )";
+#}
+
+sub getJobOptimizerExpiredQ2{
+  my $self = shift;
+ return " left join QUEUE q2 on q.split=q2.queueid where q.split!=0 and q2.queueid is null and q.mtime<addtime(now(), '-10 00:00:00')";
+}
+sub getJobOptimizerExpiredQ3{
+  my $self = shift;
+ return "where mtime < addtime(now(), '-10 00:00:00') and split=0";
+}
+
+########
+### optimizer Job/Zombies
+####
+
+sub getJobOptimizerZombies{
+  my $self = shift;
+  my $status = shift; 
+ return "q, QUEUEPROC p where $status and p.queueId=q.queueId and DATE_ADD(now(),INTERVAL -3600 SECOND)>lastupdate";
+}
+
+########
+### optimizer Job/Charge
+####
+
+sub getJobOptimizerCharge{
+  my $self = shift;
+  my $queueTable = shift;
+  my $nominalPrice = shift; 
+  my $chargingNow=shift;
+  my $chargingDone=shift;
+  my $chargingFailed = shift;
+  my $update = " UPDATE $queueTable q, QUEUEPROC p SET finalPrice = round(p.si2k * $nominalPrice * price),chargeStatus=\'$chargingNow\'";
+  my $where  = " WHERE (status='DONE' AND p.si2k>0 AND chargeStatus!=\'$chargingDone\' AND chargeStatus!=\'$chargingFailed\') and p.queueid=q.queueid";
+  return $update.$where;
 }
 1;
 
