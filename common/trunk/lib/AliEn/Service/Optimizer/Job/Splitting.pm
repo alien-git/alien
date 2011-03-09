@@ -74,7 +74,7 @@ sub checkWakesUp {
   $self->{DB}->update("ACTIONS", {todo=>0}, "action='SPLITTING'");
   $self->info("There are some jobs to split!!");
 
-  my $done2=$self->checkJobs($silent, "INSERTING' and jdl like '\% split =\%", "updateSplitting");
+  my $done2=$self->checkJobs($silent, "INSERTING' and upper(jdl) like '\% SPLIT =\%", "updateSplitting");
 
   $self->info("Caculate Job Quota");
 	$self->{CATALOGUE}->execute("calculateJobQuota", "1");
