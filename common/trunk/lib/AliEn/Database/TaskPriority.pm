@@ -156,7 +156,7 @@ sub updatePrioritySet{
 	my $set =shift;
 	
 	$self->debug(1,"In updatePrioritySet user is NOT missing");
-	$self->update("$self->{PRIORITYTABLE}", $set, "user LIKE ?", {bind_values=>[$user]});
+	$self->update("$self->{PRIORITYTABLE}", $set, $self->reservedWord("user") ." LIKE ?", {bind_values=>[$user]});
 }
 
 #sub deletePrioritySet{

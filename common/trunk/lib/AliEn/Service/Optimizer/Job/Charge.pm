@@ -61,10 +61,10 @@ sub checkWakesUp
  		      
     # 'mark' job entries for current session and   
 	# update finalPrice in $queueTable
-    my $update = " UPDATE $queueTable q, QUEUEPROC p SET finalPrice = round(p.si2k * $nominalPrice * price),chargeStatus=\'$self->{CHARGING_NOW}\'";
-	my $where  = " WHERE (status='DONE' AND p.si2k>0 AND chargeStatus!=\'$self->{CHARGING_DONE}\' AND chargeStatus!=\'$self->{CHARGING_FAILED}\') and p.queueid=q.queueid";
+    #my $update = " UPDATE $queueTable q, QUEUEPROC p SET finalPrice = round(p.si2k * $nominalPrice * price),chargeStatus=\'$self->{CHARGING_NOW}\'";
+	#my $where  = " WHERE (status='DONE' AND p.si2k>0 AND chargeStatus!=\'$self->{CHARGING_DONE}\' AND chargeStatus!=\'$self->{CHARGING_FAILED}\') and p.queueid=q.queueid";
   
-    my $updateStmt = $update.$where;	
+    my $updateStmt = $self->{DB}->getJobOptimizerCharge($queueTable,$nominalPrice,$self->{CHARGING_NOW},$self->{CHARGING_DONE},$self->{CHARGING_FAILED});
   
     $self->{DB}->do($updateStmt);
 

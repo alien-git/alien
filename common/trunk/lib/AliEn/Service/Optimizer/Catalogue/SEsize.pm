@@ -65,7 +65,7 @@ sub checkSESize{
       or $self->info("Error reconnecting") and next;
 
     
-    my $info=$db2->queryRow("select sum(seNumFiles) total, sum(seUsedSpace) size from GL_STATS where seNumber=? group by seNumber", undef, {bind_values=>[$index]}) 
+    my $info=$db2->queryRow("select sum(seNumFiles) total, sum(seUsedSpace) as \"size\"  from GL_STATS where seNumber=? group by seNumber", undef, {bind_values=>[$index]}) 
       or $self->info("Error doing the query") and next;
     
     $info->{size} and $size+=$info->{size};
@@ -74,7 +74,8 @@ sub checkSESize{
   }
   $self->info("The SE has $counter files and $size bytes");
   $guiddb->update("SE", {seNumFiles=>$counter, seUsedSpace=>$size}, "seNumber = ? ", {bind_values=>[$index]});
-  $guiddb->do("update SE, SE_VOLUMES set usedspace=seusedspace/1024, freespace=size-usedspace where  SE.sename=SE_VOLUMES.sename and size!= -1"); 
+  #$guiddb->do("update SE, SE_VOLUMES set usedspace=seusedspace/1024, freespace=size-usedspace where  SE.sename=SE_VOLUMES.sename and size!= -1"); 
+  $guiddb->updateSESize;
   return 1;
 }
 

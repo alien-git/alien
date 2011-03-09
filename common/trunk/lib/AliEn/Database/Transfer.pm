@@ -140,7 +140,7 @@ sub insertTransferLocked {
   my $lastID=0;
   if ($self->insert("TRANSFERS_DIRECT",$info)){
     $self->debug(1,"In insertTransferLocked fetching transferId");
-    $lastID = $self->getLastId();
+    $lastID = $self->getLastId("TRANSFERS_DIRECT");
     ($lastID) or  $self->{LOGGER}->error("Transfer","In insertTransferLocked unable to fetch transferId. Unlocking table TRANSFER");
   } else{
     $self->{LOGGER}->error("Transfer","In insertTransferLocked error inserting data. Unlocking table TRANSFER.");
@@ -150,7 +150,7 @@ sub insertTransferLocked {
   $self->debug(1,"In insertTransferLocked transfer $lastID successfully inserted");
 
 
-  $self->sendTransferStatus($lastID, $info->{status}, {destination=>$info->{destination}, user=>$info->{user}, received=>$info->{received}});
+  $self->sendTransferStatus($lastID, $info->{status}, {destination=>$info->{destination}, $self->reservedWord("user")=>$info->{user}, received=>$info->{received}});
 
   $self->updateActions({todo=>1}, "action='$info->{status}'");
 
@@ -168,7 +168,9 @@ sub assignWaiting{
   $done or return;
 
   #And now, let's reduce the number of agents
-  $self->do("UPDATE AGENT_DIRECT, TRANSFERS_DIRECT set currentTransfers=ccurrentTransfers+1, ounter=counter-1 where agentid=entryId and transferid=?", {bind_values=>[$elementId]});
+  $self->do("UPDATE AGENT_DIRECT set currentTransfers=currentTransfers+1, counter=counter-1 where entryId in (select agentId from TRANSFERS_DIRECT where transferid=?);
+
+", {bind_values=>[$elementId]});
   $self->do("delete from AGENT_DIRECT where counter<1");
   return $done;
 }
@@ -231,7 +233,7 @@ sub updateTransfer{
     }
     $self->info("THE AGENT ID for $id is  $set->{agentid}");
   } elsif ($set->{status}=~ /^WAITING$/){
-      $self->do( "update PROTOCOLS set CURRENT_TRANSFERS=CURRENT_TRANSFERS+1 where SENAME = $id");
+      $self->do( "update PROTOCOLS set CURRENT_TRANSFERS=CURRENT_TRANSFERS+1 where upper(SENAME) = upper($id)");
       $self->info("Waiting transfer");
   } elsif ($set->{status}=~ /^KILLED$/){
     $self->info("Transfer killed. Shall we reduce the agents??");
@@ -317,7 +319,7 @@ sub isScheduled{
       and return;
 
   $self->debug(1,"In isScheduled checking if transfer of file $lfn to destination $destination is scheduled");
-  $self->queryValue("SELECT transferId FROM TRANSFERS_DIRECT WHERE lfn=? AND destination=? AND ".$self->_transferActiveReq(), undef, {bind_values=>[$lfn, $destination]});
+  $self->queryValue("SELECT transferId FROM TRANSFERS_DIRECT WHERE lfn=? AND upper(destination)=upper(?) AND ".$self->_transferActiveReq(), undef, {bind_values=>[$lfn, $destination]});
 }
 
 #sub isWaiting{
@@ -375,7 +377,7 @@ sub getNewTransfers{
   my $self = shift;
 
   $self->debug(1,"In getNewTransfers fetching attributes transferid,lfn, pfn, destination of transfers in INSERTING state");
-  $self->query("SELECT transferid,lfn, destination,options,user FROM TRANSFERS_DIRECT WHERE STATUS='INSERTING'");
+  $self->query("SELECT transferid,lfn, destination,options,".$self->reservedWord("user")." FROM TRANSFERS_DIRECT WHERE STATUS='INSERTING'");
 }
 
 
@@ -435,7 +437,7 @@ sub insertAgent{
       $self->unlock();
       return;
     }
-    $id=$self->getLastId();
+    $id=$self->getLastId("AGENT_DIRECT");
   }else{
     $self->do("UPDATE AGENT_DIRECT set counter=counter+1 where entryId=?", {bind_values=>[$id]});
   }
@@ -458,7 +460,7 @@ sub findCommonProtocols {
   my  $self=shift;
   my $source=shift;
   my $dest=shift;
-  my $p=$self->query("select protocol, A.options sourceopt, B.options targetopt from PROTOCOLS A join PROTOCOLS B using (protocol) where A.sename=? and B.sename=? and A.deleteprotocol=0 and B.deleteprotocol=0", undef, {bind_values=>[$source,$dest]});
+  my $p=$self->query("select protocol, A.options sourceopt, B.options targetopt from PROTOCOLS A join PROTOCOLS B using (protocol) where upper(A.sename)=upper(?) and upper(B.sename)=upper(?) and A.deleteprotocol=0 and B.deleteprotocol=0", undef, {bind_values=>[$source,$dest]});
   $self->info("Common protocols between $source and $dest: @$p");
   return @$p;
 }
