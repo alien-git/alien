@@ -619,7 +619,7 @@ sub getTop {
     $self->info("Returning the help message of top");
     return ("Top: Gets the list of jobs from the queue$usage");
   }
-  my $where=" WHERE 1";
+  my $where=" WHERE 1=1";
   my $columns="queueId, status, name, execHost, submitHost ";
   my $all_status=0;
   my $error="";
@@ -999,7 +999,7 @@ sub getPs {
     $args =~ s/-?-i(d)?=?\s*(\S+)// and $where .=" and ( p.queueid='$2' or split='$2')";
 
   if ($flags =~ s/s//) {
-    $where .=" and (jdl like '\%Split\%' or split>0 ) ";
+    $where .=" and (upper(jdl) like '\%SPLIT\%' or split>0 ) ";
   } elsif ($flags !~ s/S//) {
     $where .=" and ((split is NULL) or (split=0))";
   }
@@ -1190,12 +1190,13 @@ sub killProcessInt {
 	and return (-1, "unable to fetch hostport for host $data->{exechost}");
 
     $DEBUG and $self->debug(1,"Sending a signal to $data->{exechost} $port to kill the process... ");
-
+    my $current = time() + 300;
     ($ok) = $self->{DB}->insertMessage({TargetHost=>$data->{exechost}, 
 					TargetService=>'ClusterMonitor', 
 					Message=>'killProcess', 
 					MessageArgs=>$queueId, 
-					Expires=>'UNIX_TIMESTAMP(Now())+300'});
+				#	Expires=>'UNIX_TIMESTAMP(Now())+300'});
+                                        Expires=>$current});
 
     ($ok)
       or $self->{LOGGER}->error( "JobManager", "In killProcess error inserting the message" )
@@ -1657,7 +1658,7 @@ sub checkJobQuota {
 
   $DEBUG and $self->debug(1, "In checkJobQuota user:$user, nbJobs:$nbJobsToSubmit");
 
-  my $array = $self->{PRIORITY_DB}->getFieldsFromPriorityEx("unfinishedJobsLast24h, maxUnfinishedJobs, totalRunningTimeLast24h, maxTotalRunningTime, totalCpuCostLast24h, maxTotalCpuCost", "where user like '$user'")
+  my $array = $self->{PRIORITY_DB}->getFieldsFromPriorityEx("unfinishedJobsLast24h, maxUnfinishedJobs, totalRunningTimeLast24h, maxTotalRunningTime, totalCpuCostLast24h, maxTotalCpuCost", "where ".$self->{PRIORITY_DB}->reservedWord("user")." like '$user'")
     or $self->info("Failed to getting data from PRIORITY table")
       and return (-1, "Failed to getting data from PRIORITY table");
   $array->[0] or $self->{LOGGER}->error("User $user not exist")

@@ -64,9 +64,9 @@ sub getTransferFromAgentId {
   if (!$cache){
     $self->info("Getting the jobids for jobagent '$agentId'");
     my $data=AliEn::Util::returnCacheValue($self, "WaitingTransfersFor$agentId");
-    $self->{DB}->do("update PROTOCOLS a  set current_transfers= (select count(*) from  TRANSFERS_DIRECT b where status='TRANSFERRING' and a.sename=b.destination)");
+    $self->{DB}->do("update PROTOCOLS a  set current_transfers= (select count(*) from  TRANSFERS_DIRECT b where status='TRANSFERRING' and UPPER(a.sename)=UPPER(b.destination))");
     if (! $data){
-      $data=$self->{DB}->query("select transferid as id, jdl, size from TRANSFERS_DIRECT join PROTOCOLS on sename=destination where agentid=? and STATUS='WAITING' and max_transfers>current_transfers order by transferid", undef, {bind_values=>[$agentId]});
+      $data=$self->{DB}->query("select transferid as id, jdl, ".$self->{DB}->reservedWord("size")." from TRANSFERS_DIRECT join PROTOCOLS on upper(sename)=upper(destination) where agentid=? and STATUS='WAITING' and max_transfers>current_transfers order by transferid", undef, {bind_values=>[$agentId]});
     }
     $self->info("There are $#$data entries for that jobagent");
     return @$data;

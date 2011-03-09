@@ -242,7 +242,7 @@ sub getTop {
     $self->info("Returning the help message of top");
     return ("Top: Gets the list of jobs from the queue$usage");
   }
-  my $where=" WHERE 1";
+  my $where=" WHERE 1=1";
   my $columns="queueId, status, name, execHost, submitHost ";
   my $all_status=0;
   my $error="";
@@ -630,7 +630,7 @@ sub getPs {
     $args =~ s/-?-i(d)?=?\s*(\S+)// and $where .=" and ( p.queueid='$2' or split='$2')";
 
   if ($flags =~ s/s//) {
-    $where .=" and (jdl like '\%Split\%' or split>0 ) ";
+    $where .=" and (upper(jdl) like '\%SPLIT\%' or split>0 ) ";
   } elsif ($flags !~ s/S//) {
     $where .=" and ((split is NULL) or (split=0))";
   }
