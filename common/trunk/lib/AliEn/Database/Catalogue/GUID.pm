@@ -91,7 +91,7 @@ sub createCatalogueTables {
 				    Groupname=>"char (85)",
 				    PrimaryGroup=>"int(1)",}, 'Username'],
 	      GUIDINDEX=>["indexId", {indexId=>"int(11) NOT NULL auto_increment primary key",
-				      guidTime=>"char(16)", 
+				      guidTime=>"varchar(16) default 0", 
 				      hostIndex=>"int(11)",
 				      tableName=>"int(11)",}, 
 			  'indexId', ['UNIQUE INDEX (guidTime)']],
@@ -345,7 +345,7 @@ sub getAllInfoFromGUID{
     $self->info("Error missing the guid in getAllInfoFromGUID") and return;
 
   $options->{retrieve} and $options->{retrieve} = $options->{retrieve}.',binary2string(guid) as guid'; 
-  my $retrieve=$options->{retrieve} || '*,binary2string(guid) as guid';
+  my $retrieve=$options->{retrieve} || 'guidId,seAutoStringList,owner,aclId, expiretime,'.$self->reservedWord("size").',ref,  gowner,  '.$self->reservedWord("type").' ,md5,perm, seStringList,'.$self->dateFormat("ctime").',binary2string(guid) as guid';
   my $method=$options->{method} || "queryRow";
   
   my ($db, $table)=$self->selectDatabaseFromGUID($guid) or return;
@@ -741,13 +741,7 @@ sub deleteMirrorFromGUID{
 
   if ($pfn){
     $self->info("First, let's delete the pfn $pfn");
-    $info->{db}->do("INSERT IGNORE INTO LFN_BOOKED(lfn, owner, expiretime, size, guid, gowner, user, pfn, se)
-      select ?,g.owner,-1,g.size,string2binary(?),g.gowner,?,?,s.seName
-      from $info->{table} g, $info->{table}_PFN g_p, SE s
-      where g.guidId=g_p.guidId and g_p.guidId=? and g_p.seNumber=? and g_p.pfn=? and s.seNumber=g_p.seNumber",
-      {bind_values=>[$lfn,$guid,$self->{VIRTUAL_ROLE},$pfn,$info->{guidId},$seNumber,$pfn]}) 
-       or $self->info("Error creating a deletion entry in the booking table.") and return;
-
+    $info->{db}->insertLFNBookedDeleteMirrorFromGUID($info->{table},$lfn,$guid,$self->{VIRTUAL_ROLE},$pfn,$info->{guidId},$seNumber,$pfn);
     $column="seStringList";
 
      my $deleted=$info->{db}->delete("$info->{table}_PFN",
@@ -777,7 +771,7 @@ sub updateStatistics {
   my $index=shift;
   my $table="G${index}L";
   $self->info("Checking if the table is up to date");
-  $self->queryValue("select 1 from (select max(ctime) ctime, count(*) counter from $table) a left join  GL_ACTIONS on tablenumber=? and action='STATS' where extra is null or extra<>counter or time is null or time<ctime",undef, {bind_values=>[$index]}) 
+  $self->queryValue("select 1 from (select max(ctime) ctime, count(*) counter from $table) a left join  GL_ACTIONS on tablenumber=? and action='STATS' where extra is null or extra<>counter or ".$self->reservedWord("time")." is null or ".$self->reservedWord("time") ."<ctime",undef, {bind_values=>[$index]}) 
     or return;
 
   $self->info("Updating the table");
@@ -844,14 +838,15 @@ sub getLFNfromGUID {
  where guid=string2binary(?)", undef, {bind_values=>[$guid]});
   if ($options =~ /a/){
     $self->info("Looking in all possible tables");
-    $ref=$self->queryColumn("select concat(hostIndex,'_',tableName) from INDEXTABLE");
+    $ref=$self->queryColumn("select concat(hostIndex,concat('_',tableName)) from INDEXTABLE");
   }
   foreach my $entry (@$ref){
     $self->info("We have to check $entry");
     my ($host, $lfnTable)=split(/_/, $entry);
 #    $DEBUG and $self->debug(1, "Checking in the table $entry->{hostIndex}");
     my ($db2, $path2)=$self->reconnectToIndex( $host) or next;
-    my $prefix=$db2->queryValue("SELECT lfn from INDEXTABLE where hostIndex=? and tableName=?", undef, {bind_values=>[$host, $lfnTable]});
+    my $prefix= "";
+    $prefix= $db2->queryValue("SELECT lfn from INDEXTABLE where hostIndex=? and tableName=?", undef, {bind_values=>[$host, $lfnTable]});
     my $paths = $db2->queryColumn("SELECT concat('$prefix', lfn) FROM L${lfnTable}L WHERE guid=string2binary(?) ", undef, {bind_values=>[$guid]});
     $paths and push @lfns, @$paths;
   }
