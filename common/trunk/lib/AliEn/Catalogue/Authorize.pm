@@ -200,16 +200,15 @@ sub OLDselectClosestRealSEOnRank {
    if($sitename) {
       $self->checkSiteSECacheForAccess($sitename) or return 0;
       push @queryValues, $sitename;
-      my $colum = "b.seName"; 
-      $self->{DRIVER}=~/Oracle/ and $colum.="a.rank";
-      $query="SELECT DISTINCT $colum  FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE ";
+
+      $query="SELECT seName from ( SELECT DISTINCT b.seName as seName,a.rank  FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE ";
       $query .= " (b.$exclusiveUserCheck is NULL or b.$exclusiveUserCheck = '' or b.$exclusiveUserCheck  LIKE concat ('%,' , concat(? , ',%')) ) ";
       push @queryValues, $user;
       if(scalar(@{$seList}) > 0)  { $query .= " and ( "; foreach (@{$seList}){ $query .= "upper( b.seName)=upper(?) or"; push @queryValues, $_;  } 
            $query =~ s/or$/)/;}
       foreach (@{$excludeList}) {   $query .= " and upper(b.seName)<>upper(?) ";   push @queryValues, $_; };
   #    $query .= " ORDER BY if(a.rank is null, 1000, a.rank) ASC ;";
-    $query .= " ORDER BY coalesce(a.rank,1000)  ASC ;";
+    $query .= " ORDER BY coalesce(a.rank,1000)  ASC )d;";
    } else { # sitename not given, so we just delete the excluded SEs and check for exclusive Users
        $query="SELECT seName FROM SE WHERE ";
        foreach(@$seList){   $query .= " upper(seName)=upper(?) or"; push @queryValues, $_;  };
@@ -482,15 +481,13 @@ sub access {
       my $query = "";
       $self->checkSiteSECacheForAccess($sitename) || return 0;
       push @queryValues, $sitename;
-      my $colum = "b.seName";
-      $self->{DRIVER}=~/Oracle/ and $colum.="a.rank";
-      $query="SELECT DISTINCT $colum FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE ";
+      $query="SELECT seName from (SELECT DISTINCT b.seName as seName, a.rank FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE ";
       $query .= " (b.seExclusiveRead is NULL or b.seExclusiveRead = '' or b.seExclusiveRead  LIKE concat ('%,' , concat(? , ',%')) ) and ";
       push @queryValues, ($self->{ROLE} || $self->{CONFIG}->{ROLE});
       foreach (@whereSEs){ $query .= " upper(b.seName)=upper(?) or"; push @queryValues, $_;  }
       $query =~ s/or$//;
     #  $query .= " ORDER BY if(a.rank is null, 1000, a.rank) ASC ;";
-      $query .= " ORDER BY coalesce(a.rank,1000) ASC ;";
+      $query .= " ORDER BY coalesce(a.rank,1000) ASC ) d;";
 
       my $sorted =  $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn($query, undef, {bind_values=>\@queryValues});
 
@@ -964,15 +961,15 @@ sub selectPFNOnClosestRootSEOnRank{
    if($sitename) {
       $self->checkSiteSECacheForAccess($sitename) || return 0;
       push @queryValues, $sitename;
-      my $colum = "b.seName";
-      $self->{DRIVER}=~/Oracle/ and $colum.="a.rank";
-      $query="SELECT DISTINCT $colum FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE ";
+     
+      
+      $query="SELECT seName from (SELECT DISTINCT b.seName as seName , a.rank FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE ";
       $query .= " (b.seExclusiveRead is NULL or b.seExclusiveRead = '' or b.seExclusiveRead  LIKE concat ('%,' , concat(? , ',%')) ) and ";
       push @queryValues, $user;
       foreach (keys %{$seList}){ $query .= "lower(b.seName)=? or"; push @queryValues, $_;  } 
       $query =~ s/or$//;
      # $query .= " ORDER BY if(a.rank is null, 1000, a.rank) ASC ;";
-      $query .= " ORDER BY coalesce(a.rank,1000)  ASC ;";
+      $query .= " ORDER BY coalesce(a.rank,1000)  ASC )d;";
    } else { # sitename not given, so we just delete the excluded SEs and check for exclusive Users
        $query="SELECT seName FROM SE WHERE ";
        foreach(keys %{$seList}){   $query .= " lower(seName)=? or"; push @queryValues, $_;  }
