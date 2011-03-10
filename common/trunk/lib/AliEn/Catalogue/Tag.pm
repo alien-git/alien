@@ -50,7 +50,7 @@ sub f_addTag {
     my $done = $self->createRemoteTable(
       $self->{DATABASE}->{LFN_DB}->{HOST},   $self->{DATABASE}->{LFN_DB}->{DB},
       $self->{DATABASE}->{LFN_DB}->{DRIVER}, $self->{DATABASE}->{LFN_DB}->{USER},
-      $tableName,"(file varchar($fileLength), offset int, entryId int AUTO_INCREMENT, $tagSQL , KEY (entryId), INDEX (file))"
+      $tableName,"(file varchar($fileLength), offset int, entryId int AUTO_INCREMENT, $tagSQL , primary KEY (entryId), INDEX (file))"
     );
 
     $done or return;
@@ -335,7 +335,7 @@ sub f_showTagValue {
       $self->info("Let's get the information from $entry->{tableName}");
       $tagTableName=$entry->{tableName};
       my $info= $self->{DATABASE}->{LFN_DB}->query(
-        "SELECT * from $entry->{tableName} where file like concat(?, '%')",
+        "SELECT * from $entry->{tableName} where ".$self->{DATABASE}->reservedWord("file")."  like concat(?, '%')",
          undef, {bind_values=>[$path]});
       push @$rTags, @$info;
     }
@@ -362,9 +362,9 @@ sub f_showTagValue {
     $tagTableName = $self->{DATABASE}->getTagTableName($path2, $tag, {parents=>1});
     $tagTableName or $self->info("There are no directories with the tag '$tag' under $path2") and return;
     
-    my $where = "? like concat(file,'\%') order by file desc limit 1";
-    my $options={bind_values=>[$path2]};
-
+    my $where = "? like concat(".$self->{DATABASE}->reservedWord("file").",'\%') order by ".$self->{DATABASE}->reservedWord("file")." desc";
+    my $options={bind_values=>[$path2], limit=>1};
+  
     $self->debug(1, "Checking the tags of $path2 and $where");
     $rTags = $self->{DATABASE}->getTags($path2, $tag, undef, $where, $options);
   }
@@ -540,7 +540,7 @@ sub createRemoteTable {
      or $self->info("Problemn reconnecting to $host, $db, $driver") and return;
     $self->info( "Creating the table $table and we have definition " );
 
-    $self->{DATABASE}->{LFN_DB}->createTable($table, $definition)
+    $self->{DATABASE}->{LFN_DB}->createTable($table, $definition,0,1)
       or $self->{LOGGER}->error( "CatalogDaemon","Error creating table $table" )
           and return;
 
