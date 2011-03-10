@@ -281,7 +281,7 @@ sub checkJobs {
   my $continue=1;
   #We never want to get more tahn 15 jobs at the same time, just in case the jdls are too long
   while ($continue) {
-    my $jobs=$self->{DB}->getJobsByStatus($status,"queueid limit $limit", "queueid");
+    my $jobs=$self->{DB}->getJobsByStatus($status,"queueid", "queueid", $limit);
 
     defined $jobs
       or $self->{LOGGER}->warning( "JobOptimizer", "In checkJobs error during execution of database query" )
