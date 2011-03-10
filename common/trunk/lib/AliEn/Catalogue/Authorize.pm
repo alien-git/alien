@@ -201,7 +201,7 @@ sub OLDselectClosestRealSEOnRank {
       $self->checkSiteSECacheForAccess($sitename) or return 0;
       push @queryValues, $sitename;
    
-      $query="SELECT DISTINCT b.seName FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE ";
+      $query="SELECT DISTINCT b.seName, a.rank FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE ";
       $query .= " (b.$exclusiveUserCheck is NULL or b.$exclusiveUserCheck = '' or b.$exclusiveUserCheck  LIKE concat ('%,' , concat(? , ',%')) ) ";
       push @queryValues, $user;
       if(scalar(@{$seList}) > 0)  { $query .= " and ( "; foreach (@{$seList}){ $query .= "upper( b.seName)=upper(?) or"; push @queryValues, $_;  } 
@@ -482,7 +482,7 @@ sub access {
       $self->checkSiteSECacheForAccess($sitename) || return 0;
       push @queryValues, $sitename;
 
-      $query="SELECT DISTINCT b.seName FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE ";
+      $query="SELECT DISTINCT b.seName, a.rank FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE ";
       $query .= " (b.seExclusiveRead is NULL or b.seExclusiveRead = '' or b.seExclusiveRead  LIKE concat ('%,' , concat(? , ',%')) ) and ";
       push @queryValues, ($self->{ROLE} || $self->{CONFIG}->{ROLE});
       foreach (@whereSEs){ $query .= " upper(b.seName)=upper(?) or"; push @queryValues, $_;  }
@@ -963,7 +963,7 @@ sub selectPFNOnClosestRootSEOnRank{
       $self->checkSiteSECacheForAccess($sitename) || return 0;
       push @queryValues, $sitename;
 
-      $query="SELECT DISTINCT b.seName FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE ";
+      $query="SELECT DISTINCT b.seName, a.rank FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE ";
       $query .= " (b.seExclusiveRead is NULL or b.seExclusiveRead = '' or b.seExclusiveRead  LIKE concat ('%,' , concat(? , ',%')) ) and ";
       push @queryValues, $user;
       foreach (keys %{$seList}){ $query .= "lower(b.seName)=? or"; push @queryValues, $_;  } 
