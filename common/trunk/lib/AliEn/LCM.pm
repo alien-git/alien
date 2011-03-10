@@ -709,8 +709,8 @@ sub listTransfer {
 #  $self->info("Transfers = ".$#transfers);
   foreach my $transfer (@transfers) {
 #    $DEBUG and $self->debug(3, Data::Dumper($transfer));
-    $transferNum++; 
-    my (@data ) = ($transfer->{transferId},
+    $transferNum++; my $tId = $transfer->{transferId} || $transfer->{transferid};
+    my (@data ) = ($tId,
 		   $transfer->{status},
 		   $transfer->{user},
 		   $transfer->{destination} || "",
