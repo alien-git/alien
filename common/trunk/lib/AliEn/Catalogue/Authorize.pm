@@ -966,7 +966,7 @@ sub selectPFNOnClosestRootSEOnRank{
       $query="SELECT seName from (SELECT DISTINCT b.seName as seName , a.rank FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE ";
       $query .= " (b.seExclusiveRead is NULL or b.seExclusiveRead = '' or b.seExclusiveRead  LIKE concat ('%,' , concat(? , ',%')) ) and ";
       push @queryValues, $user;
-      foreach (keys %{$seList}){ $query .= "b.seName=? or"; push @queryValues, $_;  } 
+      foreach (keys %{$seList}){ $query .= " b.seName=? or"; push @queryValues, $_;  } 
       $query =~ s/or$//;
      # $query .= " ORDER BY if(a.rank is null, 1000, a.rank) ASC ;";
       $query .= " ORDER BY coalesce(a.rank,1000)  ASC )d;";
