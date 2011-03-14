@@ -1254,6 +1254,7 @@ sub grantExtendedPrivilegesToUser {
     or $self->{LOGGER}->error("Catalogue","In grantExtendedPrivilegesToUser user is missing")
 	and return;
   my $passwd = shift;
+  $db=~ s/(.)*\://;
 
   $self->grantPrivilegesToUser(["SELECT ON $db.*"], $user, $passwd)
   	or return;
