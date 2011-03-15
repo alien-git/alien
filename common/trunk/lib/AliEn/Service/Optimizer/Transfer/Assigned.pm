@@ -19,7 +19,9 @@ sub checkWakesUp {
   $self->$method(@silentData,"In checkTransferRequirements checking if we can archive some of the old transfers");
 
   #Updating the transfers with status 'WAITING' and only one PFN
-  my $transfers=$self->{DB}->query("SELECT transferid FROM TRANSFERS_DIRECT where (status='ASSIGNED' and  ctime<SUBTIME(now(), SEC_TO_TIME(1800))) or (status='TRANSFERRING' and from_unixtime(started)<SUBTIME(now(), SEC_TO_TIME(14400)))");
+  my $transfers=$self->{DB}->getTransfersForOptimizer();
+
+ # my $transfers=$self->{DB}->query("SELECT transferid FROM TRANSFERS_DIRECT where (status='ASSIGNED' and  ctime<SUBTIME(now(), SEC_TO_TIME(1800))) or (status='TRANSFERRING' and from_unixtime(started)<SUBTIME(now(), SEC_TO_TIME(14400)))");
 
   defined $transfers
     or $self->{LOGGER}->warning( "TransferOptimizer", "In checkTransferRequirements error during execution of database query" )
