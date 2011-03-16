@@ -62,22 +62,16 @@ sub archiveJobs{
   my $colQ=$self->{DB}->describeTable("QUEUEPROC");
   my $c="";
   my $c2="";
-  my $c3="";
   foreach my $column (@$columns){
     $c.="$column->{Field}, ";
     $c2.="q.$column->{Field}, ";
   }
-  foreach my $column (@$colQ){
-    $c3.="p.$column->{Field}, "; 
-  }
   $c=~ s/, $//;
   $c2=~ s/, $//;
-  $c3=~ s/, $//;
   
-  my $done=$self->{DB}->do("insert into ${table}PROC select $c3 from QUEUEPROC p join TMPID using (queueid)");
+  my $done=$self->{DB}->do("insert into ${table}PROC select * from QUEUEPROC p join TMPID using (queueid)");
   
-  $self->{DB}->do("insert into JOBMESSAGES (timestamp, jobId, procinfo, tag) select 
-               unix_timestamp(), queueid, 'Job moved to the archived table', 'state' from TMPID");
+  $self->{DB}->do("insert into JOBMESSAGES (timestamp, jobId, procinfo, tag) select unix_timestamp(), queueid, 'Job moved to the archived table', 'state' from TMPID");
 
   my $done2=$self->{DB}->do("insert into ${table} ($c) select $c2 from QUEUE q join TMPID using (queueid)");
   #my $done3=$self->{DB}->do("delete from p using  TMPID  join QUEUEPROC p using (queueid)");
