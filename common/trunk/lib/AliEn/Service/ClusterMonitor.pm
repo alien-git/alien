@@ -130,7 +130,7 @@ sub initialize {
   #############################################################################
   $self->{LOCALJOBDB}=new AliEn::Database::CE or return;
 
-  $self->forkCheckProcInfo() or return;
+#  $self->forkCheckProcInfo() or return;
   return $self;
 }
 
