@@ -1111,6 +1111,11 @@ ALIEN_DoService ()
 	    args="LOGDIR $file \"CE\"  NO_PASSWORD"
 	    ALIEN_START="$ALIEN_ROOT/scripts/CE.pl"
 	    ;;
+        CMreport)
+            file="CMreport"
+            args="LOGDIR $file \"CMreport\"  NO_PASSWORD"
+            ALIEN_START="$ALIEN_ROOT/scripts/CMreport.pl"
+            ;;
 	SE)
 	    args='LOGDIR SE  "Storage_element" NO_PASSWORD'
 	    ;;
