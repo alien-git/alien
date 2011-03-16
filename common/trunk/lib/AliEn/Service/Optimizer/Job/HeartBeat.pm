@@ -20,7 +20,7 @@ sub checkWakesUp {
 
   $self->{LOGGER}->$method("HeartBeat", "In checkWakesUp .... checking site connectivity ...");
 
-  my $allsites = $self->{DB}->getFieldsFromSiteQueueEx("site,status,statustime","group by site");
+  my $allsites = $self->{DB}->getFieldsFromSiteQueueEx("site,status,statustime");
   if (@$allsites) {
     foreach (@$allsites) {
       if ( ($now - $_->{statustime}) > 120 ) {
