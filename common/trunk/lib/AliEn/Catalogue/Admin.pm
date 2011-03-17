@@ -1108,7 +1108,8 @@ sub cleanupGUIDCatalogue{
             WHERE guid=string2binary(?)",
             undef, {bind_values=>[$file->{guid}]});
       $ref and @pfns=@$ref;
-      $guiddb->do("delete from g using ${table}_PFN g join $table using (guidid) where guid=?", {bind_values=>[$file->{guid}]});
+      #$guiddb->do("delete from g using ${table}_PFN g join $table using (guidid) where guid=?", {bind_values=>[$file->{guid}]});
+      $guiddb->do("delete from  ${table}_PFN where guidid in (select guidid from  $table where guid=?)", {bind_values=>[$file->{guid}]});
       $guiddb->do("delete from $table  where guid=?", {bind_values=>[$file->{guid}]});
 
     } else {
