@@ -19,7 +19,7 @@ sub checkWakesUp {
   my $method="info";
   $silent and $method="debug" and  @info=1;
   $self->$method(@info, "The SE Rank optimizer starts");
-  $self->{SLEEP_PERIOD}=7200;
+  $self->{SLEEP_PERIOD}=1800;
   my $catalogue=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
   
   $self->{CATALOGUE}->execute("refreshSERankCache");
