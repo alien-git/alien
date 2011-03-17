@@ -22,7 +22,7 @@ use Tie::CPHash;
 
 use AliEn::SOAP;
 use AliEn::Logger::LogObject;
-use vars qw($DEBUG @ISA $INDEX);
+use vars qw($DEBUG @ISA);
 
 $DEBUG = 0;
 
@@ -192,9 +192,7 @@ s/primary key \((\w+)\)/"constraint ".$table."_pk primary key (".$1.")" /ie;
     );
     $definition =~ s/\'/\'\'/g;
     $self->_do(
-      "begin
-    exec_stmt(\'CREATE TABLE  $table  $definition \') ;
-    end;"
+      "begin    exec_stmt(\'CREATE TABLE  $table  $definition \') ;    end;"
       )
       or $self->info("In checkQueueTable creating table $table failed", 3)
       and return;
@@ -205,10 +203,7 @@ s/primary key \((\w+)\)/"constraint ".$table."_pk primary key (".$1.")" /ie;
       if (%indexes) {
         foreach my $t (values %autoincrements) {
           $self->do(
-            "begin
-        exec_stmt(\'CREATE INDEX " . $table . "_INDEX" . $t
-              . " ON $table ($t) \') ;
-       end;", { zero_lengt => 0 }
+            "begin exec_stmt(\'CREATE INDEX " . $table . "_INDEX" . $t. " ON $table ($t) \') ; end;", { zero_lengt => 0 }
           );
         }
       }
@@ -221,11 +216,7 @@ s/primary key \((\w+)\)/"constraint ".$table."_pk primary key (".$1.")" /ie;
     );
     $definition =~ s/\'/\'\'/g;
     $self->_do(
-      "begin 
-  exec_stmt(\'CREATE TABLE  $table  $definition\');
-  end;
-  "
-      )
+      "begin   exec_stmt(\'CREATE TABLE  $table  $definition\');end;  ")
       or $self->info("In checkQueueTable creating table $table failed", 3)
       and return;
   }
@@ -324,12 +315,14 @@ Returns the keys of the table $table
 =cut
 
 sub getIndexes {
+
   my $self  = shift;
-  my $table = uc shift
-    ; # It is returned exactly in the same format as mysql, since this result is processed in the datbase interface
-  return $self->query(
-"SELECT DISTINCT MOD (INSTR(a1.uniqueness,'UNIQUE')+1, 2) AS \"Non_unique\" ,   a2.column_name as \"Column_name\", a1.index_name as \"Key_name\" FROM all_indexes A1 , all_ind_columns A2 WHERE (a1.index_name = a2.index_name)  and (a1.table_name=a2.table_name) and A1.table_name LIKE \'$table\'"
-  );
+
+  my $table = uc shift;
+return $self->query(
+
+"SELECT DISTINCT MOD (INSTR(a1.uniqueness,'UNIQUE')+1, 2) AS \"Non_unique\" ,    a2.column_name as \"Column_name\", \'PRIMARY\' as \"Key_name\" FROM all_indexes A1 , all_ind_columns A2 , all_constraints  A3 where a1.index_name = a2.index_name and a1.table_name=a2.table_name and a3.constraint_name = a1.index_name   and A1.table_name LIKE ? AND a3.constraint_type='P'  union  SELECT DISTINCT MOD (INSTR(a1.uniqueness,'UNIQUE')+1, 2) AS \"Non_unique\" ,   a2.column_name as \"Column_name\", a1.index_name as \"Key_name\" FROM all_indexes A1 , all_ind_columns A2   where a1.index_name = a2.index_name and a1.table_name=a2.table_name   and A1.table_name LIKE ? minus  SELECT DISTINCT MOD (INSTR(a1.uniqueness,'UNIQUE')+1, 2) AS \"Non_unique\" ,    a2.column_name as \"Column_name\", a1.index_name as \"Key_name\" FROM all_indexes A1 , all_ind_columns A2 , all_constraints  A3 where a1.index_name = a2.index_name and a1.table_name=a2.table_name and a3.constraint_name = a1.index_name   and A1.table_name LIKE ? AND a3.constraint_type=\'P\'  ",undef, {bind_values=>[$table, $table, $table] , zero_length=>0});
+
 }
 
 =item C<dropIndex>
@@ -345,15 +338,10 @@ sub dropIndex {
   my $index = shift;
   my $table = shift;
   $self->do(
-    "begin
-exec_stmt(\'drop index $index\');
-end;"
+    "begin exec_stmt(\'drop index $index\');end;"
   );
   $self->do(
-    "begin 
-exec_stmt(\'ALTER TABLE $table DROP INDEX $index\');
-end;"
-  );
+    "begin exec_stmt(\'ALTER TABLE $table DROP INDEX $index\');end;");
 }
 
 =item C<createIndex>
@@ -368,39 +356,34 @@ sub createIndex {
   my $self     = shift;
   my $index    = shift;
   my $table    = shift;
-  my $i        = shift || $INDEX || 0;
+  my $i        = shift ||  0;
   my $sqlError = "";
   if ($index =~ /^FOREIGN KEY/i) {
+    $i = $index; 
+    $i =~ s/(.*)REFERENCES (.*)\((.*)\)/$3/;
+    $i =~ s/([a-zA-Z][a-zA-Z][a-zA-Z])(.)*(,)?/$1/g; 
     $self->do(
-      "begin
-       exec_stmt(\'ALTER TABLE $table ADD CONSTRAINT FK_" . $table
-        . "_$i $index\');
-       end;"
+      "begin exec_stmt(\'ALTER TABLE $table ADD CONSTRAINT FK_" . $table . "_$i $index\');   end;"
     );
   } elsif ($index =~ /^PRIMARY KEY/i) {
     $self->do(
-      "begin
-       exec_stmt(\'ALTER TABLE $table ADD CONSTRAINT  " . $table
-        . "_pk $index\');
-       end ; "
+      "begin exec_stmt(\'ALTER TABLE $table ADD CONSTRAINT  " . $table . "_pk $index\'); end ; "
     );
   } elsif ($index =~ /^(.*)\((.*)\)/i) {
     my $name   = $1;
     my $index  = "";
     my $fields = $2;
     if (!($name =~ /(\w*)\s* INDEX\s+ (\w+)/xi)) {
-      $name  = "IDX_" . $table . "_$i";
-      $index = $1;
+      $index = $1;   
+      $i=$fields;$i =~ s/([a-zA-Z])(.)*(,)?/$1/g; 
+      $name  = "I_" . $table . "_$i";  
     }
     $fields =~
 s/^size$|^user$|^time$|^current$|^validate$|^date$/"\"".uc($fields)."\""/ie;
     $self->do(
-      "begin 
-     exec_stmt(\'CREATE $index " . $name . " ON " . $table . "  ( $fields )\');
-     end ;"
+      "begin exec_stmt(\'CREATE $index " . $name . " ON " . $table . "  ( $fields )\');  end ;", {zero_length=>0}
     );
   }
-  $INDEX++;
   $DBI::errstr and $sqlError .= "In fetch: $DBI::errstr\n";
 }
 
@@ -626,14 +609,16 @@ s/\W(\s+)(size|user|time|current|validate|date|file)(\s+)/$1."\"".uc($2)."\"".$3
 sub _rebuildIndexes {
   my $self    = shift;
   my $table   = shift;
-  my $indexes = $self->query(
-    "select index_name from all_indexes where upper(table_name) like upper(?)",
-    { bind_values => [$table], zero_length => 0 }
-  );
-  if ($indexes) {
-    foreach (@$indexes) {
-      $self->do("ALTER INDEX ? REBUILD",
-        { bind_values => [$_], zero_length => 0 });
+  if  ($table){
+    my $indexes = $self->query(
+    "select index_name from all_indexes where upper(table_name) like upper(\'?\')",
+    { bind_values=>[$table], zero_length=>0 }
+   );
+    if ($indexes) {
+      foreach (@$indexes) {
+        $self->do("ALTER INDEX $_->{index_name} REBUILD",
+          {zero_length=>0 });
+      }
     }
   }
   return;
@@ -679,9 +664,7 @@ s/\W(\s)(size|user|time|current|validate|date|file)(\s)/$1."\"".uc($2)."\"".$3/i
   if ($check) {
     my $b = \@bind_values;
     ($stmt, $b) = $self->process_zero_length($stmt, $b);
-    ##$self->process_zero_length( $stmt,\@bind_values);
-    #print "the statement after process_zero_length  \n$stmt";use Data::Dumper;
-    # print Dumper(@bind_values);
+   
     @bind_values = @{$b};
     if (scalar @bind_values == 0) { $options->{prepare} = 0; }
   }
@@ -1210,8 +1193,8 @@ sub lock {
   my $lock = shift;
 
   # $DEBUG and $self->debug(1,"Database: In lock locking table $table.");
-  $lock =~ /, /
-    and $self->info("Oracle doesn't know how to lock multiple tables");
+  $lock =~ /,/
+    and $self->info("Oracle doesn't know how to lock multiple tables") and return 1;
 
   $self->_do("LOCK TABLE $lock IN ROW EXCLUSIVE MODE");
 }
@@ -1257,10 +1240,7 @@ sub optimizeTable {
   );
   foreach my $ind (@$indexes) {
     $self->do(
-      "begin
-exec_stmt(\'alter index $ind->{INDEX_NAME} rebuild\');
-end;"
-    );
+      "begin exec_stmt(\'alter index $ind->{INDEX_NAME} rebuild\'); end;"    );
   }
 }
 
@@ -1304,21 +1284,7 @@ sub defineAutoincrement {
   );
 
   if (!$exists) {
-
-#	my $sth = $self->{DBH}->prepare(  "create sequence $sqName start with 1  increment by 1 nomaxvalue");
-#$sth->execute;
-#$sth = $self->{DBH}->prepare ("grant select on ? to public");my @bind = ($sqName);
-#	$sth->execute(@bind);
-#	$sth= $self->{DBH}->prepare("create or replace trigger ? before insert on ? for each row begin select ?.nextval into :new.? from dual; 	end; ");
-#   @bind = ($triggerName,$tableName,$sqName,$field);
-#   $sth->execute(@bind);
-    $self->do("
-begin
-exec_stmt(\'create sequence $sqName start with 1  increment by 1 nomaxvalue\');
---exec_stmt(\'grant select on $sqName to public\');
-exec_stmt(\'create or replace trigger $triggerName before insert on $tableName for each row begin select $sqName.nextval into :new.$field from dual;
-    end;\');
-end; ;");
+    $self->do(" begin exec_stmt(\'create sequence $sqName start with 1  increment by 1 nomaxvalue\'); exec_stmt(\'create or replace trigger $triggerName before insert on $tableName for each row begin select $sqName.nextval into :new.$field from dual; end;\');end; ;");
 
   }
   return 1;
@@ -1342,11 +1308,7 @@ sub renameField {
   my $old   = shift;
   my $new   = shift;
   $self->do(
-    "begin
-exec_stmt(\'ALTER TABLE $table rename COLUMN  $old to  $new\');
-end;
-"
-  );
+    "begin exec_stmt(\'ALTER TABLE $table rename COLUMN  $old to  $new\'); end;"  );
 }
 
 sub quote_query {
@@ -1755,7 +1717,7 @@ and To_Char( To_Date( '01.01.1970 06:00:00','DD.MM.YYYY HH24:Mi:Ss') + received/
 
 sub optimizerJobPriority {
   my $self       = shift;
-  my $userColumn = shift;
+  my $userColumn = "SUBSTR( submitHost, 1, instr (submitHost,\'@\' )-1 )";
   return $self->do(
 "INSERT  INTO PRIORITY(\"USER\", priority, maxparallelJobs, nominalparallelJobs) SELECT distinct $userColumn, 1,200, 100 from QUEUE q where not exists (select * from priority where \"USER\"= $userColumn)"
   );
