@@ -337,11 +337,8 @@ sub dropIndex {
   my $self  = shift;
   my $index = shift;
   my $table = shift;
-  $self->do(
-    "begin exec_stmt(\'drop index $index\');end;"
+  $self->do(    "begin exec_stmt(\'drop index $index\');end;"
   );
-  $self->do(
-    "begin exec_stmt(\'ALTER TABLE $table DROP INDEX $index\');end;");
 }
 
 =item C<createIndex>
@@ -1033,6 +1030,9 @@ end if;
 end;;"
   );
   $self->do("grant all privileges on conv to public");
+  $self->do ("create or replace FUNCTION unix_timestamp return number deterministic  AUTHID current_user is begin return to_number(sysdate - to_date('01-JAN-1970','DD-MON-YYYY')) * (86400); END ;"); 
+  $self->do("grant all privileges on unix_timestamp to public");
+  $self->do("create synonym unix_timestamp for alien_system.unix_timestamp");
   $self->do(
     "create or replace FUNCTION INSRT
 (str1 in VARCHAR2, num1 in NUMBER, num2 in NUMBER, str2 in VARCHAR2)
