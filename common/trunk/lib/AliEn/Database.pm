@@ -640,7 +640,7 @@ sub setPrimaryKey {
   	my $key_name = $ind->{Key_name}||$ind->{key_name};
   	my $col_name=$ind->{Column_name}|| $ind->{column_name};
   if ( $key_name eq "PRIMARY" ) {
-  $key and ( $col_name eq $key ) and $primary = 1;
+  $key and ( $col_name =~ /$key/i ) and $primary = 1;
   next;
   }
   my @list = grep ( /\W$col_name\W/i, @indexes );
