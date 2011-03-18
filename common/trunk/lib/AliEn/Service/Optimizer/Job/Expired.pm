@@ -58,13 +58,25 @@ sub archiveJobs{
   $self->info("There are $jobs expired jobs");
   ( $jobs and $jobs !~ /0E0/ ) or return 1;
   
+  my $columns=$self->{DB}->query("describe $table");
+  my $c="";
+  my $c2="";
+  foreach my $column (@$columns){
+    $c.="$column->{Field}, ";
+    $c2.="q.$column->{Field}, ";
+  }
   
+  $c=~ s/, $//;
+  $c2=~ s/, $//;
+    
   my $done=$self->{DB}->do("insert into ${table}PROC select * from QUEUEPROC p join TMPID using (queueid)");
-  
-  $self->{DB}->do("insert into JOBMESSAGES (timestamp, jobId, procinfo, tag) select unix_timestamp(), queueid, 'Job moved to the archived table', 'state' from TMPID");
 
-  my $done2=$self->{DB}->do("insert into ${table}  select * from QUEUE q join TMPID using (queueid)");
-  #my $done3=$self->{DB}->do("delete from p using  TMPID  join QUEUEPROC p using (queueid)");
+  $self->{DB}->do("insert into JOBMESSAGES (timestamp, jobId, procinfo, tag, time) select 
+               unix_timestamp(), queueid, 'Job moved to the archived table', 'state', unix_timestamp() from TMPID");
+
+  my $done2=$self->{DB}->do("insert into ${table} ($c) select $c2 from QUEUE q join TMPID using (queueid)");
+
+ #my $done3=$self->{DB}->do("delete from p using  TMPID  join QUEUEPROC p using (queueid)");
   my $done3=$self->{DB}->do("delete from QUEUEPROC where queueid in (SELECT p.queueid from TMPID  join QUEUEPROC p )");
  # my $done4=$self->{DB}->do("delete from q using QUEUE q join TMPID using (queueid)");
    my $done4=$self->{DB}->do("delete from QUEUE WHERE queueid in (SELECT q.queueid FROM TMPID,QUEUE q) ");
