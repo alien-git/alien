@@ -808,7 +808,7 @@ sub forkCheckProcInfo{
   defined $id or $self->info("Error forking a process") and return;
   if( $id){
     $self->info("The father has started the messages thread ($id)");
-    return 1;
+    return $id;
   }
   $self->info( "Putting the output in $dir/ProcInfo.log");
   $self->{LOGGER}->redirect("$dir/ProcInfo.log");
@@ -820,7 +820,7 @@ sub forkCheckProcInfo{
     $silent>5 and $silent=0;
     sleep(60);
   }
-  return 1;
+  exit(0);
 }
 sub checkProcInfo{
   my $self=shift;
