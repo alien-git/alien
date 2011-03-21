@@ -41,7 +41,9 @@ sub copy {
   (defined($tEnvelope->{oldEnvelope})) and $targetEnvelope = $tEnvelope->{oldEnvelope};
 
   $self->info("Ready to copy $sEnvelope->{turl} into $tEnvelope->{turl}");
-  my $args="-m -S $sxurl $txurl  \"authz=$sourceEnvelope\" \"authz=$targetEnvelope\" ";
+  
+  my $args="-m -S $sxurl $txurl  authz=\"\\\"$sourceEnvelope\\\"\" authz=\"\\\"$targetEnvelope\\\"\" ";
+  
   $DEBUG and $args = " -d ".$args;
   my $output = `xrd3cp  $args  2>&1 ; echo "ALIEN_XRD_SUBCALL_RETURN_VALUE=\$?"` or $self->info("Error: Error doing the xrd3cp $args",1) and return;
   $output =~ s/\s+$//;
