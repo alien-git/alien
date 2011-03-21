@@ -40,11 +40,13 @@ my $configPort = exists($serviceConfigMap{$serviceName}) ? $serviceConfigMap{$se
 
 
 my $host = (defined($configHost) ? $config->{$configHost} : $crtHost);
-print $host;
+#print $host;
 my $HostHttps="";
-$host =~ /^https/ and $HostHttps = $host ;
-$host =~ s/^http:\/\///;
-$host =~ s/^https:\/\///;
+if ($host) {
+  $host =~ /^https/ and $HostHttps = $host ;
+  $host =~ s/^http:\/\///;
+  $host =~ s/^https:\/\///;
+} 
 my $port;
 if ($host && $host =~ /^(.*):(\d+)$/){
   $host = $1;
@@ -64,7 +66,7 @@ if ($host && $host =~ /^(.*):(\d+)$/){
 
 # This script cannot check the ProxyServer and MonaLisa because they do not inherit from AliEn::Service
 #if ($serviceName =~ /^(ProxyServer)|(MonaLisa)|(CE.*)|(FTD)|(Optimizer.*)$/)
-if ($serviceName =~ /^(ProxyServer)|(MonaLisa)|(CE.*)|(FTD)$/)
+if ($serviceName =~ /^(ProxyServer)|(MonaLisa)|(CE.*)|(FTD)|(CMreport)$/)
 {
   print "Doing PID-only check for $serviceName...\n";
   check_pid($logDir, $serviceName);

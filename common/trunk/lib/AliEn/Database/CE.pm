@@ -152,24 +152,43 @@ sub insertMessage {
   my $update=shift;
   defined $update or $update=1;
   my $time=time;
-  $self->debug(1,"The message is \'$jobId\', \'$message\', \'$tag\', \'$time\'");
-  my $done= $self->insert("messages", {jobId=>$jobId, procinfo=>$message,
-			     tag=>$tag,  timestamp=>$time});
+  open (FILE, ">> $self->{CONFIG}->{LOG_DIR}/CE.db/messages.$$") or $self->info("Error opening the file") and return ;
+  $message=~ s/\n/\\n/g;
+  print FILE "$jobId\t$tag\t$time\t$message\n";
+  close FILE;
 
-  $done or return;
-  $update or return 1;
-  $self->updateJobAgent({jobId=>$jobId},"jobId= ?", {bind_values=>[$jobId]});
+  return 1;
+#  $done or return;
+#  $update or return 1;
+#  $self->updateJobAgent({jobId=>$jobId},"jobId= ?", {bind_values=>[$jobId]});
 }
 
 sub retrieveMessages{
   my $self=shift;
   my $time=time;
-  my $info=$self->query("SELECT * from messages where timestamp < ?", undef, {bind_values=>[$time]});
-  $self->delete("messages", "timestamp < ?", {bind_values=>[$time]});
-  $self->info("Messages older than $time had been deleted");
-  return $info;
-  
+  my $dir="$self->{CONFIG}->{LOG_DIR}/CE.db/todo/";
+  (-d $dir) or mkdir $dir;
+  system("mv $self->{CONFIG}->{LOG_DIR}/CE.db/messages.* $dir");
+  $self->info("Reading the files from $dir");
+  opendir(IMD, $dir) or  $self->info("Cannot open directory $dir") and return;
+  my $result=[];
+  foreach my $file (readdir(IMD)) {
+    $file =~ /^messages./ or next;
+    open (FILE, "<$dir/$file") or $self->info("Error opening $file") and next;
+    my $lines=0;
+    foreach my $l (<FILE>){
+      $lines++;
+      my ($id, $tag, $time, $message)=split(/\t/, $l, 4);
+      push @$result, {jobId=>$id, tag=>$tag ,time=>$time, procinfo=>$message};
+    }
+    close FILE;
+    unlink "$dir/$file";
+    $self->info("Read $lines from $file");
+  }
+  closedir(IMD);
+  return $result;
 }
+ 
 ##############################################################################
 ##############################################################################
 
