@@ -39,8 +39,8 @@ sub new {
 sub initialize {
   my $self=shift;
   my %columns= (host=>"varchar(100) not null",
-		port=>"int(5)",
-		status=>"char(15)",
+		port=>"varchar(20)",
+        status=>"char(15)",
 		lastchecked =>"int(11)",
 		version=>"char(10)",
 		name=>"varchar(200) collate latin1_general_ci default '' NOT NULL ",
