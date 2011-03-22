@@ -1233,10 +1233,10 @@ sub paginate {
 
 sub optimizeTable {
   my $self  = shift;
-  my $table = shift;
+  my $table = uc shift;
   $self->do("alter table $table move");
   my $indexes = $self->query(
-"select INDEX_NAME from all_indexes where OWNER = \'$self->{SCHEMA}\' and TABLE_NAME LIKE \'$table\'"
+"select INDEX_NAME from all_indexes where OWNER = upper(\'$self->{SCHEMA}\') and TABLE_NAME LIKE \'$table\'"
   );
   foreach my $ind (@$indexes) {
     $self->do(
@@ -1277,10 +1277,10 @@ sub defineAutoincrement {
   my $sqName      = $tableName . "_seq";
   my $triggerName = $tableName . "_trigger";
   my $exists      = $self->queryValue(
-" SELECT count(1) FROM all_sequences where upper(sequence_name)=upper('$sqName')  and sequence_owner like '$self->{SCHEMA}'"
+" SELECT count(1) FROM all_sequences where upper(sequence_name)=upper('$sqName')  and sequence_owner like upper('$self->{SCHEMA}')"
   );
   $exists &= $self->queryValue(
-" SELECT count(1) FROM all_triggers where upper(trigger_name)=upper('$triggerName')  and owner like '$self->{SCHEMA}'"
+" SELECT count(1) FROM all_triggers where upper(trigger_name)=upper('$triggerName')  and owner like upper('$self->{SCHEMA}')"
   );
 
   if (!$exists) {
@@ -1295,7 +1295,7 @@ sub existsTable {
   my $table = shift;
   $table = uc($table);
   my $ref = $self->queryColumn(
-"SELECT COUNT(*) FROM all_TABLES WHERE OWNER = upper(\'$self->{SCHEMA}\') and table_name like  upper('$table')"
+"SELECT COUNT(*) FROM all_TABLES WHERE OWNER = upper(\'$self->{SCHEMA}\') and upper(table_name) like (?)", undef, {bind_values=>[$table]}
   );
   return $$ref[0];
 
@@ -2066,10 +2066,9 @@ sub getJobOptimizerCharge {
   my $chargingNow    = shift;
   my $chargingDone   = shift;
   my $chargingFailed = shift;
-  my $update =
-" UPDATE $queueTable q, QUEUEPROC p SET finalPrice = round(p.si2k * $nominalPrice * price),chargeStatus=\'$chargingNow\'";
-  my $where =
-" WHERE (status='DONE' AND p.si2k>0 AND chargeStatus!=\'$chargingDone\' AND chargeStatus!=\'$chargingFailed\') and p.queueid=q.queueid";
+  my $update = "UPDATE $queueTable q SET finalPrice =  ( select round(si2k*price*$nominalPrice ) from QUEUEPROC p where p.queueid=q.queueid and p.si2k >0 ) , chargeStatus=\'$chargingNow\'";
+
+  my $where =" WHERE (status='DONE' AND chargeStatus!=\'$chargingDone\' AND chargeStatus!=\'$chargingFailed\') ";
   return $update . $where;
 }
 1;
