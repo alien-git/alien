@@ -2421,6 +2421,8 @@ CPU Speed                           [MHz] : $ProcCpuspeed
   if (!$self->{UI}) {
       $self->info("Error getting an instance of the catalog");
       $self->putJobLog("error","Could not get an instance of the LCM");
+      $self->registerLogs();
+      $self->putJobLog("trace","Registered the JobLogOnClusterMonitor.");
   } else {
     #this hash will contain all the files that have already been submitted,
     my $uploadFilesState = $self->prepare_File_And_Archives_From_JDL_And_Upload_Files() ;
