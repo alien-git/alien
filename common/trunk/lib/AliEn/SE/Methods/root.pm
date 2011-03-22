@@ -30,7 +30,7 @@ sub initialize {
   }
 
   $self->{XRD}         = "xrd";
-  $self->{XRD_OPTIONS} = "-DITransactionTimeout 600 -DIFirstConnectMaxCnt 6 ";
+  $self->{XRD_OPTIONS} = "-DITransactionTimeout 300 -DIFirstConnectMaxCnt 3 ";
   return $self;
 }
 
