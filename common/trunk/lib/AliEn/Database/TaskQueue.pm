@@ -997,7 +997,7 @@ sub checkSiteQueueTable{
   my %columns = (		
 		 site=> "varchar(40) not null",
 		 cost=>"float",
-		 status=>"varchar(20)",
+		 status=>"varchar(25)",
 		 statustime=>"int(20)",
 		 blocked =>"varchar(20)",
 		 maxqueued=>"int",
