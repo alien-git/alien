@@ -12,6 +12,7 @@ my $my_faultSub = sub {
   my $soap    = shift;
   my $message = shift;
   $message =~ /Can't connect/s and $GLOBALERROR = $message;
+  $message =~ /SSL negotiation failed/s and $GLOBALERROR = $message;
   $self->debug( 1, "Got the error $message" );
   return;
 };
@@ -344,6 +345,9 @@ sub checkSOAPreturn {
   my $server       = ( shift or "server" );
   my $options      = ( shift or "" );
   my $errorMessage = "";
+  $GLOBALERROR
+	and ($GLOBALERROR =~ /SSL negotiation failed/s)
+	and $self->info("Error reason: SSL negotiation failed!");
   ( defined $done ) or $self->info("WARNING!!! SOAP ERROR, while contacting the $server") and return;
   $GLOBALERROR and $errorMessage = $GLOBALERROR;
   my $error = "";
