@@ -1658,12 +1658,7 @@ sub uploadFileAccordingToEnvelope{
      $self->debug(2, "We will upload the file $sourcePFN to $envelope->{se}" );
      $self->notice( "We will upload the file $sourcePFN to $envelope->{se}");
 
-     my $res;
-     my $z = 0;
-     while ($z < 5 ) {   # try five times in case of error
-          $res= $self->{STORAGE}->RegisterInRemoteSE($sourcePFN, $envelope);
-          $res and $z = 6 or $z++;
-     }
+     my $res= $self->{STORAGE}->RegisterInRemoteSE($sourcePFN, $envelope);
 
      my $time=time-$start;
      $self->sendMonitor("write", $envelope->{se}, $time, $envelope->{size}, $res);
