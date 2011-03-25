@@ -94,6 +94,7 @@ sub StartChildren{
     $self->{$d} and next;
 
     $self->info( "Putting the output in $dir/$_.log");
+    $self->{LOGFILE}="$dir/$_.log";
     $self->{LOGGER}->redirect("$dir/$_.log");
     #The children should just initialize and start checking;
     #	@ISA=($name,@ISA);
