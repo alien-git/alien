@@ -492,7 +492,7 @@ cd $D
 DIRS=`find .  -maxdepth 1 -type d | grep -v CVS | grep -v ".svn" |grep ./ | awk -F / '{print $2}'`
 for DIR in $DIRS; do
   var=`echo $DIR | tr '[:lower:]' '[:upper:]'`_TESTS_LIST 
-  value=`find $DIR -type f -not -name "*.b.t" |grep -v CVS | sort `
+  value=`find $DIR -type f -not -name "*.b.t" |grep -v CVS | grep -v ".svn" | sort `
   export $var="$value"
 done;
 echo "VAMOS BIEN"
