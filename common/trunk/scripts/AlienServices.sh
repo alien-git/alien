@@ -133,7 +133,8 @@ ALIEN_StartMonitor()
 
   export ALIEN_PROCESSNAME=Monitor
  #echo "in ALIEN_StartMonitor"
-  ALIEN_IsHttps ClusterMonitor
+ #ALIEN_IsHttps ClusterMonitor
+ ALIEN_CMIsHttps ClusterMonitor
 
   startService LOGDIR ClusterMonitor  "cluster monitor" NO_PASSWORD $arg
 
@@ -413,8 +414,9 @@ ALIEN_HttpsConfig()
 {
 export ALIEN_HOME=$HOME/.alien
         tmpN=$1
-        hostAddress=$2
-        httpdFormat=$3
+        httpdFormat=$2
+        hostAddress=$3
+        
         startupFormat=`echo $httpdFormat | sed 's/AliEn::Service:://'`
         
         
@@ -521,8 +523,9 @@ ALIEN_HttpdSoapTypeConfig()
 {
 export ALIEN_HOME=$HOME/.alien
         tmpN=$1
-        hostAddress=$2
-        httpdFormat=$3
+        httpdFormat=$2
+        hostAddress=$3
+        
         startupFormat=`echo $httpdFormat | sed 's/AliEn::Service:://'`
     #    echo "tmpname is $tmpN, httpd format is $httpdFormat,startFormat is $startupFormat"
         
@@ -665,14 +668,14 @@ ALIEN_IsHttps ( )
     #echo $hostName
    	if [[ $hostName == https* ]]
           	  then
-          	 		 echo "$serviceName  wants to be started as a httpd "
-          	 	 	 ALIEN_HttpsConfig $serviceName $hostName $packageName
+          	 		 echo "$serviceName  wants to be started as a https "
+          	 	 	 ALIEN_HttpsConfig $serviceName $packageName $hostName 
              		 exit 0
               elif [[ $HttpdType == "httpd" ]]
               then
                      echo "$serviceName  wants to be started as a http (soapType is httpd)"  
                      echo "serviceName is $serviceName, hostname is $hostName,packageName is $packageName"
-                     ALIEN_HttpdSoapTypeConfig $serviceName $hostName $packageName
+                     ALIEN_HttpdSoapTypeConfig $serviceName $packageName $hostName 
                      exit 0
               else
                      echo "$serviceName  wants to be started with SOAP::Lite "
@@ -682,6 +685,41 @@ ALIEN_IsHttps ( )
     
 }
 
+ ###########################################################################
+ ALIEN_CMIsHttps ( )
+###########################################################################
+ {  
+    
+   serviceName=$1
+   configName=$(echo $ServiceName | tr [a-z] [A-Z])
+   packageName="AliEn::Service::""$serviceName"
+ 
+   [ $serviceName == "ClusterMonitor" ] && configName="CLUSTERMONITOR_ADDRESS" && packageName="AliEn::Service::ClusterMonitor" && soapName="CLUSTERMONIT     OR_SOAPTYPE"
+    
+     hostName=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl $configName 2> /dev/null `
+     HttpdType=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl $soapName 2> /dev/null `
+ 
+     #echo $serviceName
+     #echo $hostName
+         if [[ $hostName == https* ]]
+                   then
+                                  echo "$serviceName  wants to be started as a https "
+                                  ALIEN_HttpsConfig $serviceName $hostName $packageName
+                          exit 0
+               elif [[ $HttpdType == "soap" ]]
+               then
+                      echo "$serviceName  wants to be started with SOAP::Lite "
+                      return 0
+               else
+ 
+                      echo "$serviceName  wants to be started as a http (soapType is httpd)"  
+                      echo "serviceName is $serviceName, packageName is $packageName, hostname is $hostName"
+                      ALIEN_HttpdSoapTypeConfig $serviceName $packageName $hostName
+                      exit 0
+        fi
+ 
+     return 0 
+}
 
 
 
