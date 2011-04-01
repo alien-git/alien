@@ -97,6 +97,7 @@ sub new {
 
   AliEn::Util::setupApMon($self);
   AliEn::Util::setupApMonService($self);
+  $self->dumpEnvironment();
 
   return $self;
 }
