@@ -1,3 +1,4 @@
+
 =head1 NAME
 
 AliEn::TokenManager
@@ -39,21 +40,23 @@ push @ISA, 'AliEn::Logger::LogObject';
 Log::TraceMessages::check_argv();
 use AliEn::Database::Admin;
 
-sub new{
+sub new {
   my $proto = shift;
   my $class = ref($proto) || $proto;
   my $self  = {};
+
   #my $attr  = shift;
 
   my $ini = shift || new AliEn::Config();
 
-  ($ini) or $self->{LOGGER}->error("DBCache","Error: Initial configuration not found.")
-      and return;
+  ($ini)
+    or $self->{LOGGER}->error("DBCache", "Error: Initial configuration not found.")
+    and return;
 
   $self->{AUTH_HOST} = $ini->{'AUTH_HOST'};
   $self->{AUTH_PORT} = $ini->{'AUTH_PORT'};
 
-  bless( $self, $class );
+  bless($self, $class);
   $self->SUPER::new() or return;
 
   $self;
@@ -71,24 +74,24 @@ sub validateUserToken {
 
   $self->debug(1, "In validateUserToken checking @_");
 
-  my $user   = shift;
-  my $role   = shift;
-  my $TOKEN  = shift;
+  my $user  = shift;
+  my $role  = shift;
+  my $TOKEN = shift;
   my $done;
 
   $done =
-    SOAP::Lite->uri('AliEn/Service/Authen')
-	->proxy("http://$self->{AUTH_HOST}:$self->{AUTH_PORT}")
-	  ->verifyToken( $user, $role, $TOKEN );
-  
-  ($done) and ( $done = $done->result );
-  
+    SOAP::Lite->uri('AliEn/Service/Authen')->proxy("http://$self->{AUTH_HOST}:$self->{AUTH_PORT}")
+    ->verifyToken($user, $role, $TOKEN);
+
+  ($done) and ($done = $done->result);
+
   $done
     and $self->debug(1, "User $user validated .")
-      and return $done;
-  
-  $self->{LOGGER}->error("TokenManager", "Error contacting the authentication server in $self->{AUTH_HOST}:$self->{AUTH_PORT}");
-  
+    and return $done;
+
+  $self->{LOGGER}
+    ->error("TokenManager", "Error contacting the authentication server in $self->{AUTH_HOST}:$self->{AUTH_PORT}");
+
   undef;
 }
 
@@ -99,7 +102,7 @@ sub validateUserToken {
 #	3. password
 # return value:
 #	reference to hash with user and token
-sub getUserToken{
+sub getUserToken {
   my $self = shift;
 
   $self->debug(1, "In getUserToken checking @_");
@@ -110,21 +113,21 @@ sub getUserToken{
   my $KEY    = "AliGatorMasterKey";
   my $done;
 
-  my $y               = new AliEn::Authen::IIIkey();
-  my $encryptedpasswd = $y->crypt( $passwd, $KEY );
-  $done            =
-    SOAP::Lite->uri('AliEn/Service/Authen')
-	->proxy("http://$self->{AUTH_HOST}:$self->{AUTH_PORT}")
-	  ->verify( $user, $role, $encryptedpasswd );
-  
-  ($done) and ( $done = $done->result );
-  
+  my $y = new AliEn::Authen::IIIkey();
+  my $encryptedpasswd = $y->crypt($passwd, $KEY);
+  $done =
+    SOAP::Lite->uri('AliEn/Service/Authen')->proxy("http://$self->{AUTH_HOST}:$self->{AUTH_PORT}")
+    ->verify($user, $role, $encryptedpasswd);
+
+  ($done) and ($done = $done->result);
+
   $done
     and $self->debug(1, "Password for user $user validated .")
-      and return {token=>$done};
-  
-  $self->{LOGGER}->error("TokenManager", "Error contacting the authentication server in $self->{AUTH_HOST}:$self->{AUTH_PORT}");
-  
+    and return {token => $done};
+
+  $self->{LOGGER}
+    ->error("TokenManager", "Error contacting the authentication server in $self->{AUTH_HOST}:$self->{AUTH_PORT}");
+
   undef;
 }
 
@@ -141,100 +144,96 @@ sub validateJobToken {
 
   my $job      = shift;
   my $jobToken = shift;
-  $self->{addbh} or 
-     $self->{addbh} = new AliEn::Database::Admin();
+  $self->{addbh}
+    or $self->{addbh} = new AliEn::Database::Admin();
   $self->info("Database created");
-  my ($user) = $self->{addbh}->getUsername($job,$jobToken);
+  my ($user) = $self->{addbh}->getUsername($job, $jobToken);
 
   $self->info("We have the user $user");
-  return { "user"=>$user}; 
+  return {"user" => $user};
 }
 
-sub getJobToken{
+sub getJobToken {
   my $self = shift;
-  
+
   my $jobID = shift;
-  
+
   my $done =
-    SOAP::Lite->uri('AliEn/Service/Authen')
-	->proxy("http://$self->{AUTH_HOST}:$self->{AUTH_PORT}")
-	  ->getJobToken($jobID);
-  
-  ($done) and ( $done = $done->result );
-  
+    SOAP::Lite->uri('AliEn/Service/Authen')->proxy("http://$self->{AUTH_HOST}:$self->{AUTH_PORT}")->getJobToken($jobID);
+
+  ($done) and ($done = $done->result);
+
   $done
     and $self->debug(1, "Job token retrieved.")
-      and return $done;
-  
-  $self->{LOGGER}->error("TokenManager", "Error contacting the authentication server in $self->{AUTH_HOST}:$self->{AUTH_PORT}");
-  
+    and return $done;
+
+  $self->{LOGGER}
+    ->error("TokenManager", "Error contacting the authentication server in $self->{AUTH_HOST}:$self->{AUTH_PORT}");
+
   undef;
 }
 
-
 sub updateToken {
-    my $self = shift;
-    my $user = shift;
-    my $passwd;
-    my $KEY;
+  my $self = shift;
+  my $user = shift;
+  my $passwd;
+  my $KEY;
 
-	$self->debug(1, "In updateToken updating token for $user");
+  $self->debug(1, "In updateToken updating token for $user");
 
-	my $tokenfile = $ENV{HOME} . "/.alien/identities/token.$user";
-    if ( open( TOKEN, "$tokenfile" ) ) {
-        my @lines = <TOKEN>;
-        close(TOKEN);
-        $KEY = $lines[0];
-    }
-    else {
-        #This is the overall hardcoded KEY, should be hidden a little better.
-        $KEY = "AliGatorMasterKey";
-    }
-    print "User: $user\n";
-    print "Enter password:";
-    system("stty -echo");
-    chomp( $passwd = <STDIN> );
-    system("stty echo");
-    print("\n");
-    my $y               = new AliEn::Authen::IIIkey();
-    my $encryptedpasswd = $y->crypt( $passwd, $KEY );
+  my $tokenfile = $ENV{HOME} . "/.alien/identities/token.$user";
+  if (open(TOKEN, "$tokenfile")) {
+    my @lines = <TOKEN>;
+    close(TOKEN);
+    $KEY = $lines[0];
+  } else {
 
-    my $done =
-      SOAP::Lite->uri('AliEn/Service/Authen')
-      ->proxy("http://$self->{AUTH_HOST}:$self->{AUTH_PORT}")
-      ->verify( $user, $encryptedpasswd );
+    #This is the overall hardcoded KEY, should be hidden a little better.
+    $KEY = "AliGatorMasterKey";
+  }
+  print "User: $user\n";
+  print "Enter password:";
+  system("stty -echo");
+  chomp($passwd = <STDIN>);
+  system("stty echo");
+  print("\n");
+  my $y = new AliEn::Authen::IIIkey();
+  my $encryptedpasswd = $y->crypt($passwd, $KEY);
 
-    if ( ( !$done ) or ( !$done->result ) ) {
+  my $done =
+    SOAP::Lite->uri('AliEn/Service/Authen')->proxy("http://$self->{AUTH_HOST}:$self->{AUTH_PORT}")
+    ->verify($user, $encryptedpasswd);
 
-		#Okay verification was not correct, so either the passowrd really is worng, or the secure serverkley has changed (ProxyServer restart).
-        $KEY = "AliGatorMasterKey";
-        my $encryptedpasswd = $y->crypt( $passwd, $KEY );
-        $done =
-          SOAP::Lite->uri('AliEn/Service/Authen')
-          ->proxy("http://$self->{AUTH_HOST}:$self->{AUTH_PORT}")
-          ->verify( $user, $encryptedpasswd );
-    }
-    ($done)
-      or $self->{LOGGER}->error("TokenManager", "Error contacting the authentication server in $self->{AUTH_HOST}:$self->{AUTH_PORT}")
-      and return;
+  if ((!$done) or (!$done->result)) {
 
-    my $TOKEN = $done->result;
+#Okay verification was not correct, so either the passowrd really is worng, or the secure serverkley has changed (ProxyServer restart).
+    $KEY = "AliGatorMasterKey";
+    my $encryptedpasswd = $y->crypt($passwd, $KEY);
+    $done =
+      SOAP::Lite->uri('AliEn/Service/Authen')->proxy("http://$self->{AUTH_HOST}:$self->{AUTH_PORT}")
+      ->verify($user, $encryptedpasswd);
+  }
+  ($done)
+    or $self->{LOGGER}
+    ->error("TokenManager", "Error contacting the authentication server in $self->{AUTH_HOST}:$self->{AUTH_PORT}")
+    and return;
 
-    if ( !$TOKEN ) {
-        print STDERR "TokenManager: Your password was wrong, or account non-existent.\n";
-    }
-    else {
-        ( -d "$ENV{HOME}/.alien.identities" )
-          or mkdir "$ENV{HOME}/.alien.identities", 0700;
-        open( TOKEN, ">$tokenfile" );
-        print TOKEN $TOKEN;
-        close(TOKEN);
-        print STDERR "Your AliEn token has been updated.\n";
+  my $TOKEN = $done->result;
 
-		$self->debug(1, "Token $TOKEN for $user updated.");
-    }
+  if (!$TOKEN) {
+    print STDERR "TokenManager: Your password was wrong, or account non-existent.\n";
+  } else {
+    (-d "$ENV{HOME}/.alien.identities")
+      or mkdir "$ENV{HOME}/.alien.identities", 0700;
+    open(TOKEN, ">$tokenfile");
+    print TOKEN $TOKEN;
+    close(TOKEN);
+    print STDERR "Your AliEn token has been updated.\n";
 
-    return $TOKEN;
+    $self->debug(1, "Token $TOKEN for $user updated.");
+  }
+
+  return $TOKEN;
 }
 
 =head1 METHODS

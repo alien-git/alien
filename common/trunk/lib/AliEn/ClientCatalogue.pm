@@ -12,54 +12,53 @@ sub new {
   my $class   = ref($proto) || $proto;
   my $self    = {};
   my $options = shift;
-  bless( $self, $class );
-  if((defined $options->{user}) and !(defined $options->{role})) {
+  bless($self, $class);
+  if ((defined $options->{user}) and !(defined $options->{role})) {
     $options->{role} = $options->{user};
   }
-  $options->{DEBUG}  = $self->{DEBUG}  = ( $options->{debug}  or 0 );
-  $options->{SILENT} = $self->{SILENT} = ( $options->{silent} or 0 );
-  $self->{LOGGER} = new AliEn::Logger;
-  $self->{CONFIG} = new AliEn::Config($options);
-  $self->{ROLE}=$options->{role} || $options->{ROLE} || $self->{CONFIG}->{ROLE}; 
+  $options->{DEBUG}  = $self->{DEBUG}  = ($options->{debug}  or 0);
+  $options->{SILENT} = $self->{SILENT} = ($options->{silent} or 0);
+  $self->{LOGGER}    = new AliEn::Logger;
+  $self->{CONFIG}    = new AliEn::Config($options);
+  $self->{ROLE} = $options->{role} || $options->{ROLE} || $self->{CONFIG}->{ROLE};
   $self->{SOAP} = new AliEn::SOAP
     or print "Error creating AliEn::SOAP $! $?" and return;
   $self->{UMASK} = 0755;
-  
-  if ($ENV{ALIEN_PROC_ID} and $ENV{ALIEN_JOB_TOKEN}){
+
+  if ($ENV{ALIEN_PROC_ID} and $ENV{ALIEN_JOB_TOKEN}) {
     $self->info("We are authenticating with the job token...");
-    my ($user)=$self->callAuthen("whoami", "-silent") or return;
-    $self->{ROLE}=$self->{CONFIG}->{ROLE}=$user;
+    my ($user) = $self->callAuthen("whoami", "-silent") or return;
+    $self->{ROLE} = $self->{CONFIG}->{ROLE} = $user;
     $self->info("We are supposed to be $user");
   }
   $self->{DISPPATH} = $self->GetHomeDirectory();
   $self->f_cd("$self->{DISPPATH}")
     or $self->info("Home directory for $self->{CONFIG}->{ROLE} does not exist or you do not have permissions")
     and return;
-  $self->{GLOB}=1;
+  $self->{GLOB} = 1;
 
   $self->{SILENT} = $options->{silent} || 0;
   return $self;
 }
 
-sub getHost{
-   my $self=shift;
-   return $self->{CONFIG}->{CATALOG_HOST};
+sub getHost {
+  my $self = shift;
+  return $self->{CONFIG}->{CATALOG_HOST};
 }
-
 
 sub callAuthen {
   my $self = shift;
-  my $user=$self->{ROLE};
-  if ($ENV{ALIEN_PROC_ID} and $ENV{ALIEN_JOB_TOKEN}){
-    $user="alienid:$ENV{ALIEN_PROC_ID} $ENV{ALIEN_JOB_TOKEN}";
+  my $user = $self->{ROLE};
+  if ($ENV{ALIEN_PROC_ID} and $ENV{ALIEN_JOB_TOKEN}) {
+    $user = "alienid:$ENV{ALIEN_PROC_ID} $ENV{ALIEN_JOB_TOKEN}";
   }
-  
-  if($_[0] =~ /^-user=([\w]+)$/)  {
+
+  if ($_[0] =~ /^-user=([\w]+)$/) {
     shift;
     $user = $1;
   }
-  $self->{LOGGER}->getDebugLevel() and push @_, "-debug=".$self->{LOGGER}->getDebugLevel();
-  return $self->{SOAP}->CallAndGetOverSOAP($self->{SILENT},"Authen", "doOperation", $user, $self->{DISPPATH},  @_);
+  $self->{LOGGER}->getDebugLevel() and push @_, "-debug=" . $self->{LOGGER}->getDebugLevel();
+  return $self->{SOAP}->CallAndGetOverSOAP($self->{SILENT}, "Authen", "doOperation", $user, $self->{DISPPATH}, @_);
 }
 
 sub f_cd {
@@ -68,88 +67,140 @@ sub f_cd {
   (defined $path)
     or ($path = $self->GetHomeDirectory());
   $path = AliEn::Catalogue::Basic::GetAbsolutePath($self, $path);
-  my $env = $self->callAuthen("cd",$path);
-  $env 
+  my $env = $self->callAuthen("cd", $path);
+  $env
     or $self->info("You do not have permissions in $path")
     and return;
   $self->{DISPPATH} = "$path";
   return 1;
 }
 
-sub f_pwd{
+sub f_pwd {
   return AliEn::Catalogue::f_pwd(@_);
 }
+
 #sub cleanArguments {
 #  my $self = shift;
-# 
+#
 #  my @reply = ();
 #  foreach (@_) {$_ ne "" and push @reply, $_ ;}
 #  return @reply;
 #}
 
 sub f_quit {
-  my $self=shift;
+  my $self = shift;
   $self->info("bye now");
   exit;
-} 
+}
 
 sub AUTOLOAD {
   my $name = our $AUTOLOAD;
-  $name =~ s/.*::(f_)?//; 
-   
-  my $ops={"ls"=>"ls","isFile"=>"isFile", "isDirectory"=>"isDirectory", "getLFNlike"=>"getLFNlike",
-    authorize=>"authorize", checkPermission=>"checkGUIDPermissions", checkPermissions=>"checkLFNPermissions",
-    removeExpiredFiles=>"removeExpiredFiles",renumber=>"renumberDirectory",showStructure=>"showStructure",
-    setExpired=>"setExpired",removeTrigger=>"removeTrigger", du=>"du", stat=>"stat", 
-    guid2lfn=>"guid2lfn",lfn2guid=>"lfn2guid",expungeTables=>"expungeTables",showTrigger=>"showTrigger",
-    mkremdir=>"mkremdir",zoom=>"zoom",tree=>"tree",type=>"type",  
-    mkdir=>"mkdir",find=>"find",checkLFN=>"checkLFN",getTabCompletion=>"tabCompletion",
-    removeFile=>"rm", rmdir=>"rmdir", whereis=>"whereis", mv=>"mv", touch=>"touch",
-    ln=>"ln", groups=>"groups", chgroup=>"chgroups", chmod=>"chmod",
-    chown=>"chown", addTag=>"addTag", addTagValue=>"addTagValue",updateTagValue=>"updateTagValue",
-    showTagValue=>"showTagValue", removeTag=>"removeTag", removeTagValue=>"removeTagValue",
-    cleanupTagValue=>"cleanupTagValue", showTags=>"showTags", pwd=>"pwd", refreshSERankCache=>"refreshSERankCache",
-    resyncLDAP=>"resyncLDAP", addFileToCollection=>"addFileToCollection",listFilesFromCollection=>"listFilesFromCollection",
-    removeFileFromCollection=>"removeFileFromCollection",createCollection=>"createCollectionCatalogue",
-    updateCollection=>"updateCollection", df=>"df", existsEntry=>"existsEntry", checkFileQuota=>"checkFileQuota", showMirror=>"showMirror",
-    addMirror=>"addMirror", cpMetaData=>"cpMetaData", getCPMetadata=>"cpMetaData", deleteMirror=>"deleteMirror", fquota_list=>"fquota_list",
-    fquota_set=>"fquota_set",f_addUser=>"f_addUser", "verifyToken"=>"verifyToken",moveDirectory=>'moveDirectory',
-    registerFile=>'register'
+  $name =~ s/.*::(f_)?//;
+
+  my $ops = {
+    "ls"                     => "ls",
+    "isFile"                 => "isFile",
+    "isDirectory"            => "isDirectory",
+    "getLFNlike"             => "getLFNlike",
+    authorize                => "authorize",
+    checkPermission          => "checkGUIDPermissions",
+    checkPermissions         => "checkLFNPermissions",
+    removeExpiredFiles       => "removeExpiredFiles",
+    renumber                 => "renumberDirectory",
+    showStructure            => "showStructure",
+    setExpired               => "setExpired",
+    removeTrigger            => "removeTrigger",
+    du                       => "du",
+    stat                     => "stat",
+    guid2lfn                 => "guid2lfn",
+    lfn2guid                 => "lfn2guid",
+    expungeTables            => "expungeTables",
+    showTrigger              => "showTrigger",
+    mkremdir                 => "mkremdir",
+    zoom                     => "zoom",
+    tree                     => "tree",
+    type                     => "type",
+    mkdir                    => "mkdir",
+    find                     => "find",
+    checkLFN                 => "checkLFN",
+    getTabCompletion         => "tabCompletion",
+    removeFile               => "rm",
+    rmdir                    => "rmdir",
+    whereis                  => "whereis",
+    mv                       => "mv",
+    touch                    => "touch",
+    ln                       => "ln",
+    groups                   => "groups",
+    chgroup                  => "chgroups",
+    chmod                    => "chmod",
+    chown                    => "chown",
+    addTag                   => "addTag",
+    addTagValue              => "addTagValue",
+    updateTagValue           => "updateTagValue",
+    showTagValue             => "showTagValue",
+    removeTag                => "removeTag",
+    removeTagValue           => "removeTagValue",
+    cleanupTagValue          => "cleanupTagValue",
+    showTags                 => "showTags",
+    pwd                      => "pwd",
+    refreshSERankCache       => "refreshSERankCache",
+    resyncLDAP               => "resyncLDAP",
+    addFileToCollection      => "addFileToCollection",
+    listFilesFromCollection  => "listFilesFromCollection",
+    removeFileFromCollection => "removeFileFromCollection",
+    createCollection         => "createCollectionCatalogue",
+    updateCollection         => "updateCollection",
+    df                       => "df",
+    existsEntry              => "existsEntry",
+    checkFileQuota           => "checkFileQuota",
+    showMirror               => "showMirror",
+    addMirror                => "addMirror",
+    cpMetaData               => "cpMetaData",
+    getCPMetadata            => "cpMetaData",
+    deleteMirror             => "deleteMirror",
+    fquota_list              => "fquota_list",
+    fquota_set               => "fquota_set",
+    f_addUser                => "f_addUser",
+    "verifyToken"            => "verifyToken",
+    moveDirectory            => 'moveDirectory',
+    registerFile             => 'register'
 
   };
-  if ($ops->{$name}){
-    return shift->callAuthen($ops->{$name},@_);
+  if ($ops->{$name}) {
+    return shift->callAuthen($ops->{$name}, @_);
   } elsif ($name =~ /(user)/) {
     my $self = shift;
-    my $tmp = $self->callAuthen("user",@_);
-    $tmp 
-      and $self->{ROLE} = $_[1] 
+    my $tmp = $self->callAuthen("user", @_);
+    $tmp
+      and $self->{ROLE} =
+      $_[1]
+
       #and $self->_setUserGroups() <<<----- Required on client?
       and return 1;
-    return 0; 
-  } elsif ($name =~ /(ExpandWildcards)/){
+    return 0;
+  } elsif ($name =~ /(ExpandWildcards)/) {
     return AliEn::Catalogue::ExpandWildcards(@_);
-  } elsif ($name =~ /(whoami)/){
+  } elsif ($name =~ /(whoami)/) {
     return AliEn::Catalogue::f_whoami(@_);
-  } elsif ($name =~ /(dirname)/){
+  } elsif ($name =~ /(dirname)/) {
     return AliEn::Catalogue::f_dirname(@_);
-  } elsif ($name =~ /(basename)/){
+  } elsif ($name =~ /(basename)/) {
     return AliEn::Catalogue::f_basename(@_);
-  } elsif ($name =~ /(GetAbsolutePath)/){
+  } elsif ($name =~ /(GetAbsolutePath)/) {
     return AliEn::Catalogue::Basic::GetAbsolutePath(@_);
-  } elsif ($name =~ /(complete_path)/){
+  } elsif ($name =~ /(complete_path)/) {
     return AliEn::Catalogue::Basic::f_complete_path(@_);
   } elsif ($name =~ /(GetHomeDirectory)/) {
     return AliEn::Catalogue::Basic::GetHomeDirectory(@_);
   } elsif ($name =~ /(echo)/) {
     return AliEn::Catalogue::f_echo(@_);
-  } elsif ($name =~/DESTROY/){
+  } elsif ($name =~ /DESTROY/) {
     return;
   }
   die("The function $AUTOLOAD is not defined in ClientCatalog!!\n");
 }
 
-sub f_disconnect{
+sub f_disconnect {
   return;
 }
 

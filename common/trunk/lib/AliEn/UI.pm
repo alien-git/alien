@@ -1,8 +1,8 @@
 package AliEn::UI;
 
 use vars qw($catalog $logger);
-my $SIGCount = 0;					# counts number of pressed CTRL C, to prevent blocking application if f_quit fails
-$SIG{INT} = \&catch_zap;            # best strategy
+my $SIGCount = 0;    # counts number of pressed CTRL C, to prevent blocking application if f_quit fails
+$SIG{INT} = \&catch_zap;    # best strategy
 
 sub catch_zap {
   my $signame = shift;
