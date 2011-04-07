@@ -434,8 +434,6 @@ get the combination for connecting through DBI
 sub getConnectionChain {
   my $self = shift;
 
-# defined $ENV{'ORACLE_SID'} or $self->info( "The Oracle SID is not defined in your system. Normally it should be. We take 'alien' as ORACLE_SID by convention" );
-# my $db = $ENV{ORACLE_SID} || "db-alice-test";
 
   (my $db, $self->{SCHEMA}) = split(":", $self->{DB});
   if (uc($self->{SCHEMA}) ne uc($self->{ROLE})) {
@@ -748,8 +746,8 @@ sub getTypes {
   $self->{TYPES} = {
     'serial'    => 'number(19) ',
     'SERIAL'    => 'number(19) ',
-    'text'      => 'varchar2(4000)',
-    'TEXT'      => 'varchar2(4000)',
+    'text'      => 'clob',
+    'TEXT'      => 'clob',
     'char'      => 'varchar2',
     'CHAR'      => 'varchar2',
     'binary'    => 'raw',
@@ -1067,19 +1065,21 @@ end;;"
   $self->do(
     "create or replace
 function binary2string 
-(my_uuid in raw) 
+(my_uuid in varchar2) 
 return VARCHAR2
 deterministic 
 AUTHID current_user
-is
+is  
+my_guid varchar2(36):= rtrim(concat(UTL_RAW.CAST_TO_RAW(my_uuid),''));
+
 begin
 return 
  concat (
  concat(
- concat(concat (concat(substr(my_uuid, 0, 8),'-'),
-CONCAt(substr(my_uuid,9,4),'-')) , 
-concat(substr(my_uuid, 13,4),'-')) ,
-concat (substr(my_uuid,17,4), '-')), substr(my_uuid, 21))
+ concat(concat (concat(substr(my_guid, 0, 8),'-'),
+ CONCAt(substr(my_guid,9,4),'-')) , 
+ concat(substr(my_guid, 13,4),'-')) ,
+ concat (substr(my_guid,17,4), '-')), substr(my_guid, 21))
 ; 
 end binary2string;;"
   );
@@ -1088,36 +1088,27 @@ end binary2string;;"
   $self->do(
     "create or replace
 function binary2date 
-(my_uuid in raw)  
+(my_uuid in varchar2)  
 return varchar2
 deterministic 
 AUTHID current_user
-as
+is
+my_guid varchar2(36):= rtrim(concat(UTL_RAW.CAST_TO_RAW(my_uuid),''));
 begin
 return 
-substr(
-upper(concat(concat(substr(substr
-    (rawtohex(my_uuid),1,16),16-4+1),
+upper(
+concat(
+concat(
+  substr(substr    (my_guid,1,16),-4),
 substr
-  (substr(rawtohex(my_uuid),1,12),12+4-1)),
-  substr(rawtohex(my_uuid),1,8))), 1, 8);
+ (substr(my_guid,1,12),-4)),
+  substr(my_guid,1,8)));
 end binary2date;;"
   );
   $self->do("grant execute on binary2date  to public");
 
   $self->do(
-    "create or replace function string2binary
-(my_uuid in varchar2)  
-return raw
-deterministic 
-AUTHID current_user
-as
-begin
-if(my_uuid like 'NULL')then return null;else 
-return 
-hextoraw(replace(my_uuid,'-',''));end if;
-end string2binary;;"
-  );
+    "create or replace function string2binary (my_uuid in varchar2) return varchar2 deterministic  AUTHID current_user as begin if(my_uuid like 'NULL')then return null;else  return  utl_raw.cast_to_varchar2( replace(my_uuid,'-',''));end if; end string2binary;;"  );
   $self->do("grant execute on string2binary  to public");
 }
 
@@ -1142,21 +1133,21 @@ END INSRT;;"
   $self->do(
     "create or replace
 function binary2string 
-(my_uuid in raw) 
+(my_uuid in varchar2) 
 return VARCHAR2
 deterministic 
 AUTHID current_user
-is
-begin
---return insrt(insrt(insrt(insrt(rawtohex(my_uuid),9,0,'-'),14,0,'-'),19,0,'-'),24,0,'-');
+is  
+my_guid varchar2(36):= rtrim(concat(UTL_RAW.CAST_TO_RAW(my_uuid),''));
 
+begin
 return 
  concat (
  concat(
- concat(concat (concat(substr(my_uuid, 0, 8),'-'),
-CONCAt(substr(my_uuid,9,4),'-')) , 
-concat(substr(my_uuid, 13,4),'-')) ,
-concat (substr(my_uuid,17,4), '-')), substr(my_uuid, 21))
+ concat(concat (concat(substr(my_guid, 0, 8),'-'),
+ CONCAt(substr(my_guid,9,4),'-')) , 
+ concat(substr(my_guid, 13,4),'-')) ,
+ concat (substr(my_guid,17,4), '-')), substr(my_guid, 21))
 ; 
 end binary2string;;"
   );
@@ -1165,24 +1156,34 @@ end binary2string;;"
   $self->do(
     "create or replace
 function binary2date 
-(my_uuid in raw)  
+(my_uuid in varchar2)  
 return varchar
 deterministic 
 AUTHID current_user
-as
+is
+my_guid varchar2(36):= rtrim(concat(UTL_RAW.CAST_TO_RAW(my_uuid),''));
 begin
 return 
-upper(concat(concat(substr(substr
-    (rawtohex(my_uuid),1,16),16-4+1),
+upper(
+concat(
+concat(
+  substr(substr    (my_guid,1,16),-4),
 substr
-  (substr(rawtohex(my_uuid),1,12),12+4-1)),
-  substr(rawtohex(my_uuid),1,8)));
+ (substr(my_guid,1,12),-4)),
+  substr(my_guid,1,8)));
 end binary2date;;"
   );
   $self->do("grant execute on binary2date to public");
 
   $self->do(
-"create or replace function string2date (my_uuid in varchar2)   return varchar deterministic  AUTHID current_user as begin if(my_uuid like 'NULL')then return null;else  return  substr( upper(   concat(  concat(substr(substr(my_uuid,1,18),18-4+1), substr(substr(my_uuid,1,13),13-4+1)),substr(my_uuid,1,8))),1,8);end if; end string2date;;
+"create or replace
+function string2date (my_uuid in varchar2)  
+return varchar deterministic  AUTHID current_user as
+begin if(my_uuid like 'NULL')then return null;
+else  return  
+upper(   concat(  concat(substr(substr(my_uuid,1,18),-4), 
+substr(substr(my_uuid,1,13),-4)),
+substr(my_uuid,1,8)));end if; end string2date;;
 "
   );
   $self->do("grant execute on string2date to public");
@@ -1274,8 +1275,8 @@ sub defineAutoincrement {
   my $self        = shift;
   my $tableName   = shift;
   my $field       = shift;
-  my $sqName      = $tableName . "_seq";
-  my $triggerName = $tableName . "_trigger";
+  my $sqName      = $tableName . "_ID_SEQ";
+  my $triggerName = $tableName . "_ID_TRG";
   my $exists      = $self->queryValue(
 " SELECT count(1) FROM all_sequences where upper(sequence_name)=upper('$sqName')  and sequence_owner like upper('$self->{SCHEMA}')"
   );
