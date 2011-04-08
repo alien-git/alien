@@ -797,19 +797,6 @@ sub moveGUIDs {
     $self->info("WE SHOULD REMOVE THE INDEX\n");
     return;
   }
-
-  #Finally, let's delete it from the old table
-  #  $db->do("DELETE FROM $table where guid>string2date(?)", undef, {bind_values=>[$guid]}) or return;
-  $self->info("Now we have to grant privileges to the different users");
-  my $users = $self->queryColumn("select Username from ADMIN.TOKENS")
-    or $self->info("Error getting the users")
-    and return;
-  foreach my $info (@$users) {
-    my $user = $info;
-    $self->debug(1, "User $user");
-    $db->do("GRANT insert,update,delete on $self->{DB}.G${tableName}L to $user");
-    $db->do("GRANT insert,update,delete on $self->{DB}.G${tableName}L_PFN to $user");
-  }
   $self->info("YUHUUU!!!");
   return 1;
 }

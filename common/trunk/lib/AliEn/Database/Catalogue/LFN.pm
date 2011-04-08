@@ -1524,72 +1524,20 @@ sub moveLFNs {
     }
     my $user = $self->queryValue("select owner from $toTable where lfn=''");
     $self->info("And now, let's give access to $user to '$toTable");
-
-    $self->grant("ALL on $toTable to $user");
+    
   }
 
   return 1;
 }
-##############################################################################
-##############################################################################
 
-sub grantBasicPrivilegesToUser {
-  my $self = shift;
-  my $db   = shift
-    or $self->{LOGGER}->error("Catalogue", "In grantBasicPrivilegesToUser database name is missing")
-    and return;
-  my $user = shift
-    or $self->{LOGGER}->error("Catalogue", "In grantBasicPrivilegesToUser user is missing")
-    and return;
-  my $passwd = shift;
-
-  $self->grantPrivilegesToUser(["EXECUTE ON *"], $user, $passwd)
-    or return;
-  $db =~ s/(.)*\://;
-  my $rprivileges = [ "SELECT ON $db.*", "INSERT, DELETE ON $db.TAG0", ];
-
-  $DEBUG and $self->debug(2, "In grantBasicPrivilegesToUser granting privileges to user $user");
-  $self->grantPrivilegesToUser($rprivileges, $user);
-}
-
-sub grantExtendedPrivilegesToUser {
-  my $self = shift;
-  my $db   = shift
-    or $self->{LOGGER}->error("Catalogue", "In grantExtendedPrivilegesToUser database name is missing")
-    and return;
-  my $user = shift
-    or $self->{LOGGER}->error("Catalogue", "In grantExtendedPrivilegesToUser user is missing")
-    and return;
-  my $passwd = shift;
-  $db =~ s/(.)*\://;
-
-  $self->grantPrivilegesToUser(["SELECT ON $db.*"], $user, $passwd)
-    or return;
-
-  my $rprivileges = [
-    "INSERT, DELETE  ON $db.TAG0",
-
-    #		     "INSERT, DELETE ON $db.FILES",
-    "INSERT, DELETE ON $db.ENVIRONMENT",
-
-    #		     "INSERT ON $db.SE"
-    "EXECUTE ON *",
-    "UPDATE ON $db.ACTIONS",
-    "INSERT, DELETE, UPDATE on $db.COLLECTIONS",
-    "INSERT, DELETE, UPDATE on $db.COLLECTIONS_ELEM",
-
-  ];
-
-  $DEBUG and $self->debug(2, "In grantExtendedPrivilegesToUser granting privileges to user $user");
-  $self->grantPrivilegesToUser($rprivileges, $user);
-}
 
 sub getNewDirIndex {
   my $self = shift;
 
   $self->lock("CONSTANTS");
 
-  my ($dir) = $self->queryValue("SELECT value from CONSTANTS where name='MaxDir'");
+  my ($dir) =
+    $self->queryValue("SELECT value from CONSTANTS where name='MaxDir'");
   $dir++;
 
   $self->update("CONSTANTS", {value => $dir}, "name='MaxDir'");
@@ -2267,7 +2215,8 @@ sub internalQuery {
       $DEBUG and $self->debug(1, "Selecting directories with tag $tagName");
 
       #Checking which directories have that tag defined
-      my $tables = $self->getFieldsByTagName($tagName, "tableName", 1, $refTable->{lfn});
+      my $tables =
+        $self->getFieldsByTagName($tagName, "tableName", 1, $refTable->{lfn});
       $tables and $#{$tables} != -1
         or $self->info("Error: there are no directories with tag $tagName in $self->{DATABASE}->{DB}")
         and return;
@@ -2442,7 +2391,8 @@ sub setAllReplicatedData {
   #Also, GROUPS table;
   foreach my $ruser (@{$info->{users}}) {
     $self->debug(1, "Adding a new user");
-    $self->insertIntoGroups($ruser->{Username}, $ruser->{Groupname}, $ruser->{PrimaryGroup});
+    $self->insertIntoGroups($ruser->{Username}, $ruser->{Groupname},
+      $ruser->{PrimaryGroup});
   }
 
   #and finally, the SE
@@ -2798,7 +2748,8 @@ AliEn::Database
 sub getAllHostAndTable {
   my $self = shift;
 
-  my $result = $self->query("SELECT distinct hostIndex, tableName from INDEXTABLE");
+  my $result =
+    $self->query("SELECT distinct hostIndex, tableName from INDEXTABLE");
   defined $result
     or $self->info("Error: not possible to get all the pair of host and table")
     and return;
@@ -2812,7 +2763,9 @@ sub fquota_update {
   my $count = shift;
   my $user  = (shift || $self->{CONFIG}->{ROLE});
 
-  (defined $size) and (defined $count) or $self->info("Update fquota : not enough parameters") and return;
+  (defined $size) and (defined $count)
+    or $self->info("Update fquota : not enough parameters")
+    and return;
 
 #  $self->{PRIORITY_DB} or $self->{PRIORITY_DB}=AliEn::Database::TaskPriority->new({ROLE=>'admin',SKIP_CHECK_TABLES=> 1});
 #  $self->{PRIORITY_DB} or return;
