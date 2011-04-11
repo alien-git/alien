@@ -21,6 +21,7 @@ WriteMakefile(
 				      'scripts/Authen.pl',
 				      'scripts/CreateMan.sh',
 				      'scripts/Prompt.pl',
+				      'scripts/CMreport.pl',
 				      'scripts/ProxyServer.pl',
 				      'scripts/Command.pl',
 				      'scripts/GetConfigVar.pl',
