@@ -2,7 +2,7 @@ package AliEn::Catalogue::Admin;
 
 use strict;
 use Data::Dumper;
-
+  
 use AliEn::Database::Admin;
 use AliEn::Database::Transfer;
 
@@ -30,6 +30,7 @@ my $createToken = sub {
     $token .= $Array[ rand(@Array) ];
   }
   return $token;
+
 };
 
 # ***************************************************************
@@ -48,6 +49,7 @@ my $createPasswd = sub {
     $passwd .= $Array[ rand(@Array) ];
   }
   return $passwd;
+
 };
 
 sub f_mount {
@@ -73,8 +75,6 @@ sub f_mount {
   my $org = $self->{CONFIG}->{ORG_NAME};
   my $t = $self->{CONFIG}->Reload({organisation => $organisation});
   if (!$t) {
-
-    #		$self->{CONFIG}=$self->{CONFIG}->Reload({organisation=>$org});
     $self->info("Error: not possible to get the configuration of $organisation");
     return 0;
   }
@@ -117,12 +117,9 @@ sub f_mount {
   my $newVOPath = $VOpath;
   $newVOPath =~ s/\/?$/\//;
 
-  #my $done = $self->{DATABASE}->insert("UPDATE D0 set hostIndex=$hostIndex, path='$newVOPath' where path='$VOpath'");
   $self->{DATABASE}->updateD0Entry($VOpath, {hostIndex => $hostIndex, path => $newVOPath})
     or $self->{LOGGER}->error("Error setting new path and hostIndex for path $VOpath")
     and return;
-
-  #$done = $self->{DATABASE}->insert("UPDATE T$dir set dir=1000, type='d7555' where name='$basename'");
   $self->{DATABASE}->updateDirEntry($dir, $basename, {dir => 1000, type => 'd7555'})
     or $self->{LOGGER}->error("Error setting new dir and type for name $basename")
     and return;
@@ -180,57 +177,22 @@ sub f_addUser {
   }
 
   my $homedir = "$self->{CONFIG}->{USER_DIR}/" . substr($user, 0, 1) . "/$user/";
+
   $homedir =~ s{//}{/};
-  $self->debug(1, "Creating a password");
-
-  #If called with option $noHomedir the homedir is not created
-
-  #	if ( !$noHomedir ) {
-  #	}
 
   my $group = $self->getUserGroup($user);
 
-  $self->{DATABASE}->addUser($user, $group, $passwd)
+  $self->{DATABASE}->addUser($user, $group )
     or return;
 
-  my $token = $createToken->();
-  $self->debug(1, "Deleting user from token");
 
-  my $addbh = new AliEn::Database::Admin();
-
-  $addbh or $self->debug(1, "Error creating Admin instance") and return;
-
-  $addbh->deleteToken($user);
-
-  $self->debug(1, "Inserting values into token");
-  $addbh->insertToken("", $user, $token, $passwd, "");
-  $addbh->destroy();
-
-  #We have to grant select privileges on the transfer and IS databases
-  my @transfers = split('/', $self->{CONFIG}->{TRANSFER_DATABASE});
-  my $queueDB = $self->{CONFIG}->{QUEUE_DATABASE};
-  $queueDB =~ s/(.*)\://;
-  my $transfDB = $transfers[2];
-  $transfDB =~ s/(.*)\://;
-  my $isDB = $self->{CONFIG}->{IS_DATABASE};
-  $isDB =~ s/(.*)\://;
-  my @privileges = (
-    "SELECT ON $queueDB.*",
-    "SELECT ON $transfDB.*",
-    "SELECT ON $isDB.*",
-
-  );
-
-  $self->{DATABASE}->grantPrivilegesToUser(\@privileges, $user);
   $self->info("Creating new homedir for  $user");
   $self->f_mkdir("p", $homedir)
     or $self->info("Error creating $homedir")
     and return;
-
   $self->{DATABASE}->moveEntries($homedir)
     or $self->info("Error moving the directory $homedir", 1100)
     and return;
-
   #  my $table=$self->{DATABASE}->getIndexHost($homedir) or
   #    $self->info( "Error getting the table of $homedir") and return;
 
@@ -473,7 +435,8 @@ sub getSEio {
 }
 
 sub addSE_HELP {
-  return "addSE: creates a new database for an SE, and inserts it in the table of all the catalogues
+  return
+"addSE: creates a new database for an SE, and inserts it in the table of all the catalogues
 \tUsage:
 \t\taddSE [-p] <site_name> <se_name>
 \tOptions:
@@ -614,7 +577,7 @@ sub f_renumber {
 sub resyncLDAP {
   my $self = shift;
 
-  $self->info("Let's syncrhonize the DB users with ldap");
+  $self->info("Let's synchronize the DB users with ldap");
   eval {
     my $addbh = new AliEn::Database::Admin()
       or die("Error getting the admin database");
@@ -661,8 +624,7 @@ sub resyncLDAP {
     my $newUsers = $addbh->queryColumn(
           "select a."
         . $addbh->reservedWord("user")
-        . " from USERS_LDAP a left join USERS_LDAP b on b.up=0 and
- a."
+        . " from USERS_LDAP a left join USERS_LDAP b on b.up=0 and a."
         . $addbh->reservedWord("user") . "=b."
         . $addbh->reservedWord("user")
         . " where a.up=1 and b."
@@ -692,9 +654,6 @@ sub refreshSERankCache {
   my $self = shift;
 
   $self->info("Let's force a refresh on the SE Rank Cache based on MonALISA info!");
-
-  #( $self->{ROLE}  =~ /^admin(ssl)?$/ ) or
-  # $self->info("Error: only the administrator can check the database") and return;
 
   my $sitename = (shift || "");
   my $db = $self->{DATABASE}->{LFN_DB}->{FIRST_DB};
@@ -732,18 +691,13 @@ sub refreshSERankCacheSite {
 
   if (!@selist) {
     $self->info("We couldn't get the info from ML. Putting all the ses");
-    @selist = @{$db->queryColumn("select distinct seName from SE")};
+    @selist = @{ $db->queryColumn("select distinct seName from SE") };
   }
   $site and (scalar(@selist) gt 0) or return 0;
-
   $db->lock("SE read, SERanks");
   $db->do("delete from SERanks where sitename=?", {bind_values => [$site]});
   for my $rank (0 .. $#selist) {
 
-#	$db->do("insert into SERanks (sitename,seNumber,rank,updated)
-#		select ?, seNumber ,  ?, 0  from SE where  upper(seName) LIKE upper(?) and
-#             not exists ( select * from SE, SERanks where upper(sename) like  upper(?)  and SE.senumber= SERanks.senumber and sitename = ? ) ",
-#{bind_values=>[$site,$rank, $selist[$rank], $selist[$rank] , $site]});
     $db->do(
       "insert into SERanks (sitename,seNumber,rank,updated)
               select ?, seNumber,  ?, 0  from SE where upper( seName) LIKE upper(?)  ",
@@ -937,7 +891,8 @@ sub resyncLDAPSE {
   $db->do("update SE_VOLUMES set freespace=2000000000 where " . $db->reservedWord("size") . "=-1");
 
   $transfers->do("delete from PROTOCOLS where updated=0");
-  $transfers->do("insert into PROTOCOLS(sename,max_transfers) values ('no_se',10)");
+  $transfers->do(
+    "insert into PROTOCOLS(sename,max_transfers) values ('no_se',10)");
 
   $ldap->unbind();
   $transfers->close();
@@ -976,7 +931,6 @@ sub checkSEDescription {
   scalar(@seExclusiveWrite) > 0 and $seExclusiveWrite = "," . join(",", @seExclusiveWrite) . ",";
   my $seExclusiveRead = "";
   scalar(@seExclusiveRead) > 0 and $seExclusiveRead = "," . join(",", @seExclusiveRead) . ",";
-
   $self->info(
     "The se $sename has $min_size and $type and $qos and ex-write: $seExclusiveWrite and  ex-read: $seExclusiveRead");
 
@@ -1009,7 +963,6 @@ sub checkIODaemons {
   my (@io) = $entry->get_value('iodaemons');
   my ($proto, $host, $port, $olb_host) = split(/:/, join("", @io));
 
-  #my $host=$entry->get_value('host');
   $host =~ /host=([^:]+)(:.*)?$/i and $host = $1 or $self->info("Error getting the host name from $sename") and return;
   $port =~ /port=(\d+)/i or $self->info("Error getting the port for $sename") and return;
   $port = $1;
@@ -1069,7 +1022,9 @@ sub removeExpiredFiles {
   $self->info("Removing expired entries from LFN_BOOKED");
   my $hosts = $self->{DATABASE}->getAllHosts();
   foreach my $host (@$hosts) {
-    my ($db, $extra) = $self->{DATABASE}->{LFN_DB}->reconnectToIndex($host->{hostIndex});
+    my ($db, $extra) =
+      $self->{DATABASE}->{LFN_DB}->reconnectToIndex($host->{hostIndex});
+
 
     #Get files
     use Time::HiRes qw (time);
