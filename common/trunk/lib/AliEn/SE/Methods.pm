@@ -226,13 +226,25 @@ sub get {
 
 sub put {
   my $self=shift;
+  
+  local $SIG{ALRM} =sub {
+    $self->info("The operation to put a file timedout! ",1);
+    die("timeout while putting a file");
+  };
   if ($self->{MSS}) {
-    $self->debug(1, "Putting the file through MSS");
-    if ($self->{MSS}->put($self->{LOCALFILE}, $self->path)) {
-      $self->{SILENT} or 
-	$self->info("Error: not possible to copy file to $self->{PARSED}->{PATH}!! ($!)");
-      return;
+    $self->debug(1, "Putting the file through MSS ($@)");
+    eval {
+      alarm(3000);
+      $self->{MSS}->put($self->{LOCALFILE}, $self->path)
+       and die("Error in the put ($!)\n");       
+    };
+    if ($@){
+      $self->info("Error getting the file to $self->{PARSED}->{PATH}: $@", 1);
+      alarm(0);
+      return;    
     }
+    alarm(0);
+    
     $self->debug(1, "The call to MSS finished");
     ( -f $self->{LOCALFILE} )
       or $self->info("Error: file not copied!!")
@@ -241,8 +253,17 @@ sub put {
   }
 
   $self->debug(1, "Putting the file through SE/Methods");
-  return $self->SUPER::put(@_);
-
+  alarm(3000);
+  my $info;
+  eval {
+    $info=$self->SUPER::put(@_);
+  };
+  if ($@){
+    $self->info("The put operation timed out!", 1);
+    alarm(0); 
+  }
+  alarm(0);
+  return $info
 }
 sub getSize {
   my $self=shift;
