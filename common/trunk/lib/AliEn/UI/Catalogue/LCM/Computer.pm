@@ -164,7 +164,10 @@ sub registerOutput{
   $jobinfo->{status} or $self->info("Error getting the status of the job",2) and return;
 
   my ($ok, @pfns)=$ca->evaluateAttributeVectorString("SuccessfullyBookedPFNS");
-  $ok or $self->info("This job didn't register any output",2) and return;
+  if(!$ok) {
+    $options->{cluster}  or $self->info("This job didn't register any output",2) and return;
+    $onlycmlog=1;
+  }
 
   ($ok, my $user)=$ca->evaluateAttributeVectorString("User");
   (my $currentuser)=$self->execute("whoami", "-silent");
@@ -179,11 +182,17 @@ sub registerOutput{
     $outputdir = shift @failedFiles;
     $outputdir and $self->info("The output files were registered in $outputdir") or $self->info("Error during output file registration.") and return;
   }
+
+
   if($options->{cluster}) {
      ($ok, my @cmlogs)=$ca->evaluateAttributeVectorString("JobLogOnClusterMonitor");
      foreach my $log (@cmlogs) {
        my ($lfn, $guid, $size, $md5, $pfn)=split (/###/, $log);
        $guid or $guid=AliEn::GUID->new()->CreateGuid();
+       if(!$outputdir) {
+	  $outputdir="~/alien-job-".$jobid;
+	  $self->execute("mkdir","-p",$outputdir);
+       }
        my $env={lfn=>"$outputdir/$lfn", md5=>$md5, size=>$size, guid=>$guid};
        $self->{CATALOG}->registerPFNInCatalogue($user,$env,$pfn,"no_se");
      }
