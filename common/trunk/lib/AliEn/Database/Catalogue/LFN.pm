@@ -261,7 +261,7 @@ sub createCatalogueTables {
         jobid           => "int(11)",
       },
       undef,
-      [ 'PRIMARY KEY(lfn,pfn,guid)', 'INDEX(pfn)', 'INDEX(lfn)', 'INDEX(guid)', 'INDEX(expiretime)' ]
+      [ 'PRIMARY KEY(lfn,pfn,guid)', 'INDEX(pfn)', 'INDEX(guid)', 'INDEX(jobid)' ]
     ],
     PFN_TODELETE => [ "pfn", {pfn => "varchar(255)", retry => "integer not null"}, undef, ['UNIQUE INDEX(pfn)'] ]
 
