@@ -303,7 +303,8 @@ sub OLDgetPFNforReadOrDeleteAccess {
     and $self->info(
 "Authorize: ERROR within getPFNforReadOrDeleteAccess: SE list was empty after checkup. Either problem with the file's info or you don't have access on relevant SEs.",
     1
-    ) and return 0;
+    )
+    and return 0;
 
 # if excludedAndfailedSEs is an int, we have the old <= AliEn v2-17 version of the envelope request, to select the n-th element
   $se = @{$closeList}[$sesel];
@@ -743,7 +744,7 @@ sub OLDaccess {
       $self->info("Authorize: Getting the permissions from the guid");
       $guid = $lfn;
       $self->debug(1, "We have to translate the guid $1");
-      $lfn = "";
+      $lfn      = "";
       $filehash =
         $self->{DATABASE}->{GUID_DB}
         ->checkPermission($perm, $guid, $self->{DATABASE}->{GUID_DB}->reservedWord("size") . ",md5");
@@ -1079,7 +1080,8 @@ sub getBaseEnvelopeForReadAccess {
     or $self->info(
 "Authorize: access ERROR within selectPFNOnClosestRootSEOnRank: SE list was empty after checkup. Either no more replicas, a problem with the file's info,\nor you don't have access on relevant SEs.",
     1
-    ) and return 0;
+    )
+    and return 0;
 
   if ($prepareEnvelope->{se} eq "no_se") {
     if (($prepareEnvelope->{pfn} =~ s/^guid:\/\/\///i) and ($prepareEnvelope->{pfn} =~ s/\?ZIP=(.*)$//)) {
@@ -1112,10 +1114,13 @@ sub parseAndCheckStorageElementPFN2TURL {
   my $parsedPFN = $self->parsePFN($pfn);
   $parsedPFN or return ($pfn, $pfn);
 
-  my @queryValues = ("$se");
-  my $seiostring =
-    $self->{DATABASE}->{LFN_DB}->{FIRST_DB}
-    ->queryRow("SELECT seioDaemons FROM SE where seName = ? ;", undef, {bind_values => \@queryValues});
+  my $seiostring = AliEn::Util::returnCacheValue($self, "seiodaemons-$se");
+  if (not $seiostring) {
+    $seiostring =
+      $self->{DATABASE}->{LFN_DB}->{FIRST_DB}
+      ->queryRow("SELECT seioDaemons FROM SE where seName = ? ;", undef, {bind_values => [$se]});
+    AliEn::Util::setCacheValue($self, "seiodaemons-$se", $seiostring);
+  }
   ($seiostring->{seioDaemons} =~ /[a-zA-Z]*:\/\/[0-9a-zA-Z.\-_:]*/) and $turl = $seiostring->{seioDaemons}
     or return ($pfn, $pfn);
 
@@ -1126,7 +1131,7 @@ sub parseAndCheckStorageElementPFN2TURL {
 
 sub getSEforPFN {
   my $self = shift;
-  my $pfn = (shift || return);
+  my $pfn  = (shift || return);
 
   #$pfn =~ /^((guid)|(soap)):/ and return "no_se";
   $pfn = $self->parsePFN($pfn);
@@ -1280,7 +1285,7 @@ sub prepookArchiveLinksInBookingTable {
 }
 
 sub calculateXrootdTURLForWriteEnvelope {
-  my $self = shift;
+  my $self     = shift;
   my $envelope = (shift || return {});
 
   ($envelope->{turl}, my $guid, my $se) = $self->createFileUrl($envelope->{se}, "root", $envelope->{guid});
@@ -1379,7 +1384,8 @@ sub registerPFNInCatalogue {
     or $self->info(
 "Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $pfn could not be registered. The PFN doesn't correspond to any known SE.",
     1
-    ) and return 0;
+    )
+    and return 0;
 
   $self->f_registerFile("-f", $envelope->{lfn}, $envelope->{size}, $se, $envelope->{guid}, undef, undef,
     $envelope->{md5}, $pfn)
@@ -1448,12 +1454,14 @@ sub registerFileInCatalogueAccordingToEnvelope {
     $self->f_addMirror($envelope->{lfn}, $envelope->{se}, $envelope->{turl}, "-c", "-md5=" . $envelope->{md5})
       or $self->info(
 "Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $envelope->{turl} could not be registered as a replica."
-      ) and return 0;
+      )
+      and return 0;
   }
   $self->deleteEntryFromBookingTableAndOptionalExistingFlagTrigger($user, $envelope, $justRegistered)
     or $self->info(
 "Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $envelope->{turl} could not be registered properly as a replica (LFN_BOOKED error)."
-    ) and return 0;
+    )
+    and return 0;
   return 1;
 }
 
@@ -1574,19 +1582,22 @@ sub commit {
         or $self->info(
 "Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $envelope->{turl} could not be registered.",
         1
-        ) and return $newresult;
+        )
+        and return $newresult;
     } else {
       $self->f_addMirror($envelope->{lfn}, $envelope->{se}, $envelope->{turl}, "-c", "-md5=" . $envelope->{md5})
         or $self->info(
 "Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $envelope->{turl} could not be registered as a replica.",
         1
-        ) and return $newresult;
+        )
+        and return $newresult;
     }
     $self->deleteEntryFromBookingTableAndOptionalExistingFlagTrigger($user, $envelope, $justRegistered)
       or $self->info(
 "Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $envelope->{turl} could not be registered properly as a replica (LFN_BOOKED error).",
       1
-      ) and return $newresult;
+      )
+      and return $newresult;
 
     $$newresult[0]->{$lfn} = 1;
 
@@ -1675,12 +1686,14 @@ sub addEntryToBookingTableAndOptionalExistingFlagTrigger {
   $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->insertLFNBookedAndOptionalExistingFlagTrigger(
     $envelope->{lfn},  $user,           "1",               $envelope->{md5}, $lifetime, $envelope->{size},
     $envelope->{turl}, $envelope->{se}, $envelope->{guid}, $trigger,         $jobid
-  ) or return 0;
+    )
+    or return 0;
   my $negexpire = -$lifetime;
   $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do(
     "UPDATE LFN_BOOKED SET expiretime=? WHERE lfn=? and guid<>string2binary(?)  ",
     {bind_values => [ $negexpire, $envelope->{lfn}, $envelope->{guid} ]}
-  ) or return 0;
+    )
+    or return 0;
   return 1;
 }
 
@@ -1740,7 +1753,7 @@ sub authorize {
   my $pfn   = ($options->{pfn}   || "");
   my $links = ($options->{links} || 0);
   my $linksToBeBooked = 1;
-  my $jobID = (shift || 0);
+  my $jobID           = (shift || 0);
 
   my $seList = $self->validateArrayOfSEs(split(/;/, $wishedSE));
 
@@ -1777,7 +1790,8 @@ sub authorize {
   (scalar(@$seList) lt 0) and $self->info(
 "Authorize: Authorize: ERROR! There are no SE's after checkups to create an envelope for '$$prepareEnvelope->{lfn}/$prepareEnvelope->{guid}'",
     1
-  ) and return 0;
+    )
+    and return 0;
 
   while (scalar(@$seList) gt 0) {
     $prepareEnvelope->{se} = shift(@$seList);
@@ -1798,7 +1812,7 @@ sub authorize {
     $prepareEnvelope->{xurl} = 0;
 
     if ( ($prepareEnvelope->{se} =~ /dcache/i)
-      or ($prepareEnvelope->{se}   =~ /alice::((RAL)|(CNAF))::castor/i)
+      or ($prepareEnvelope->{se} =~ /alice::((RAL)|(CNAF))::castor/i)
       and !($prepareEnvelope->{se} =~ /alice::RAL::castor2_test/i)) {
       $prepareEnvelope->{turl} =~ m{^((root)|(file))://([^/]*)/(.*)};
       $prepareEnvelope->{xurl} = "root://$4/$prepareEnvelope->{lfn}";
@@ -1847,18 +1861,26 @@ sub initializeEnvelope {
 
 sub isOldEnvelopeStorageElement {
   my $self = shift;
-  my $se = (shift || return 1);
+  my $se   = (shift || return 1);
 
   ($se eq "no_se") and return 0;
 
+  my $cache = AliEn::Util::returnCacheValue($self, "oldse-$se");
+  if (defined $cache) {
+
+    $DEBUG and $self->debug(2, "$$ Returning the value from the cache ($cache)");
+    return $cache;
+  }
   my @queryValues = ("$se");
-  my $seVersion =
+  my $seVersion   =
     $self->{DATABASE}->{LFN_DB}->{FIRST_DB}
     ->queryValue("SELECT seVersion FROM SE WHERE upper(seName)=upper(?) ;", undef, {bind_values => \@queryValues});
+  my $value = 1;
+  eval { (defined($seVersion)) and ($seVersion =~ m/^\d+$/) and (int($seVersion) > 218) and $value = 0; };
 
-  eval { (defined($seVersion)) and ($seVersion =~ m/^\d+$/) and (int($seVersion) > 218) and return 0; };
+  AliEn::Util::setCacheValue($self, "oldse-$se", $value);
 
-  return 1;
+  return $value;
 }
 
 sub createAndEncryptEnvelopeTicket {
@@ -1891,7 +1913,7 @@ sub createAndEncryptEnvelopeTicket {
 }
 
 sub decryptEnvelopeTicket {
-  my $self = shift;
+  my $self   = shift;
   my $ticket = (shift || return {});
 
   $self->{envelopeCipherEngine}->Reset();
@@ -2083,11 +2105,15 @@ sub checkSiteSECacheForAccess {
   my $site      = shift;
   my $catalogue = $self->{DATABASE}->{LFN_DB}->{FIRST_DB};
 
-  my $reply = $catalogue->query("SELECT sitename FROM SERanks WHERE sitename=?;", undef, {bind_values => [$site]});
+  AliEn::Util::returnCacheValue($self, "seranks-$site") and return 1;
 
-  (scalar(@$reply) < 1)
-    and $self->info("Authorize: We need to update the SERank Cache for the not listed site: $site")
-    and return $self->refreshSERankCache($site);
+  my $reply = $catalogue->queryValue("SELECT count(1) FROM SERanks WHERE sitename=?;", undef, {bind_values => [$site]});
+
+  if (not $reply) {
+    $self->info("Authorize: We need to update the SERank Cache for the not listed site: $site");
+    return $self->refreshSERankCache($site);
+  }
+  AliEn::Util::setCacheValue($self, "seranks-$site", 1);
 
   return 1;
 }

@@ -383,7 +383,7 @@ sub getAllInfoFromLFN {
   #  @_ or $self->info( "Warning! missing arguments in internal function getAllInfoFromLFN") and return;
   $tableName =~ /^\d+$/ and $tableName = "L${tableName}L";
   my @entries = grep (s{^$tablePath}{}, @_);
-  my @list = @entries;
+  my @list    = @entries;
 
   $DEBUG and $self->debug(2, "Checking for @entries in $tableName");
   my $op = '=';
@@ -400,7 +400,7 @@ sub getAllInfoFromLFN {
 
   my $order = $options->{order};
   $options->{where} and $where .= " $options->{where}";
-  $order and $where .= " order by $order";
+  $order            and $where .= " order by $order";
 
   if ($options->{retrieve}) {
     $options->{retrieve} =~ s{lfn}{concat('$tablePath',lfn) as lfn};
@@ -479,7 +479,8 @@ sub getHostsForEntry {
   #Now, let's get all the possibles expansions (but the expansions at least as
   #long as the first index
   my $length     = length(${$entry}[0]->{lfn});
-  my $expansions = $self->query(
+  my $expansions =
+    $self->query(
     "SELECT distinct tableName, hostIndex,lfn from INDEXTABLE where lfn like '$lfn/%' and length(lfn)>$length");
   my @all = (@$entry, @$expansions);
   return \@all;
@@ -848,8 +849,7 @@ sub removeFile {
       . ", guid, gowner, "
       . $db->reservedWord("user") . ", pfn)
     SELECT ?, l.owner, -1, l."
-      . $db->reservedWord("size") 
-      . ", l.guid, l.gowner, ?,'*' FROM $tableName l WHERE l.lfn=? AND l.type<>'l'",
+      . $db->reservedWord("size") . ", l.guid, l.gowner, ?,'*' FROM $tableName l WHERE l.lfn=? AND l.type<>'l'",
     {bind_values => [ $lfn, $user, $lfnOnTable ]}
     )
     or $self->{LOGGER}->error("Database::Catalogue::LFN", "Could not insert LFN(s) in the booking pool")
@@ -1123,8 +1123,7 @@ sub softLink {
         . $dbTarget->reservedWord("size")
         . ", dir, gowner, type, guid, md5, perm) 
       SELECT owner, replicated, ctime, guidtime, aclId, ?, broken, expiretime, "
-        . $dbTarget->reservedWord("size") 
-        . ", dir, gowner, 'l', guid, md5, perm FROM $tableName_source WHERE lfn=?",
+        . $dbTarget->reservedWord("size") . ", dir, gowner, 'l', guid, md5, perm FROM $tableName_source WHERE lfn=?",
       {bind_values => [ $lfnOnTable_target, $lfnOnTable_source ]}
       )
       or $self->{LOGGER}->error("Database::Catalogue::LFN", "Error updating database", "[updateDatabse]")
@@ -1202,7 +1201,8 @@ sub tabCompletion {
   $entryName =~ s{^$lfn}{};
   my $dir = $self->queryValue("SELECT entryId from $tableName where lfn=?", undef, {bind_values => [$dirName]});
   $dir or return;
-  my $rfiles = $self->queryColumn(
+  my $rfiles =
+    $self->queryColumn(
     "SELECT concat('$lfn',lfn) from $tableName where dir=$dir and " . $self->regexp("lfn", "^$entryName\[^/]*\/?\$"));
   return @$rfiles;
 
@@ -1225,7 +1225,7 @@ sub actionInIndex {
     #my ( $ind, $ho, $d, $driv ) = split "###", $tempHost;
     $self->info("Updating the INDEX table of  $tempHost->{db}");
     my ($db, $Path2) = $self->reconnectToIndex($tempHost->{hostIndex}, "", $tempHost);
-    $db or next;
+    $db              or next;
     $db->do($action) or print STDERR "Warning: Error doing $action";
   }
   $self->reconnect($oldHost, $oldDB, $oldDriver) or return;
@@ -1332,7 +1332,7 @@ sub copyDirectory {
     my $like = "t1.replicated=0";
 
     my $table = "L$entry->{tableName}L";
-    my $join =
+    my $join  =
 "$table t1,$table t2 where t2.type='d' and (t1.dir=t2.entryId or t1.entryId=t2.entryId)  and t2.lfn like '$tsource%'";
     if ($targetIndex eq $entry->{hostIndex}) {
       $options->{k} and $like .= " and t1.lfn!='$tsource'";
@@ -1384,12 +1384,14 @@ sub copyDirectory {
 
   #and now, we should update the entryId of all the new entries
   #This query is divided in a subquery to profit from the index with the column dir
-  my $entries = $targetDB->query(
+  my $entries =
+    $targetDB->query(
 "select * from (SELECT lfn, entryId from $targetTable where dir=-1 or lfn='$target' or lfn='$targetParent') dd where lfn like '$target\%/' or lfn='$target' or lfn='$targetParent'"
-  );
+    );
   foreach my $entry (@$entries) {
     $DEBUG and $self->debug(1, "Updating tbe entry $entry->{lfn}");
-    my $update = "update $targetTable set dir=$entry->{entryId} where dir=-1 and "
+    my $update =
+      "update $targetTable set dir=$entry->{entryId} where dir=-1 and "
       . $self->regexp("lfn", "^$entry->{lfn}\[^/]+/?\$");
     $targetDB->do($update);
 
@@ -1524,20 +1526,18 @@ sub moveLFNs {
     }
     my $user = $self->queryValue("select owner from $toTable where lfn=''");
     $self->info("And now, let's give access to $user to '$toTable");
-    
+
   }
 
   return 1;
 }
-
 
 sub getNewDirIndex {
   my $self = shift;
 
   $self->lock("CONSTANTS");
 
-  my ($dir) =
-    $self->queryValue("SELECT value from CONSTANTS where name='MaxDir'");
+  my ($dir) = $self->queryValue("SELECT value from CONSTANTS where name='MaxDir'");
   $dir++;
 
   $self->update("CONSTANTS", {value => $dir}, "name='MaxDir'");
@@ -1682,8 +1682,15 @@ sub getUserGroups {
   my $prim = shift;
   defined $prim or $prim = 1;
 
+  my $cache = AliEn::Util::returnCacheValue($self, "groups-$user-$prim");
+  if (defined $cache) {
+    $DEBUG and $self->debug(2, "$$ Returning the value from the cache ($cache)");
+    return $cache;
+  }
   $DEBUG and $self->debug(2, "In getUserGroups fetching groups for user $user");
-  $self->queryColumn("SELECT groupname,userId from GROUPS where Username='$user' and PrimaryGroup = $prim");
+  my $data = $self->queryColumn("SELECT groupname,userId from GROUPS where Username='$user' and PrimaryGroup = $prim ");
+  AliEn::Util::setCacheValue($self, "groups-$user-$prim", $data);
+  return $data;
 }
 
 sub getAllFromGroups {
@@ -1822,7 +1829,7 @@ sub getTags {
   my $columns = shift || "*";
   my $where   = shift || "";
   my $options = shift || {};
-  my $query =
+  my $query   =
       "SELECT $columns from $tableName t where t.entryId=(select max(entryId) from $tableName t2 where t."
     . $self->reservedWord("file") . "=t2."
     . $self->reservedWord("file")
@@ -2016,7 +2023,8 @@ sub DropEmptyDLTables {
     $self = $db;
 
     my $tables = $self->queryColumn("show tables like 'D\%L'")
-      or print STDERR "Warning: error connecting to $tempHost->{hostIndex}" and next;
+      or print STDERR "Warning: error connecting to $tempHost->{hostIndex}"
+      and next;
     foreach my $t (@$tables) {
 
       $self->info("Checking $t");
@@ -2215,8 +2223,7 @@ sub internalQuery {
       $DEBUG and $self->debug(1, "Selecting directories with tag $tagName");
 
       #Checking which directories have that tag defined
-      my $tables =
-        $self->getFieldsByTagName($tagName, "tableName", 1, $refTable->{lfn});
+      my $tables = $self->getFieldsByTagName($tagName, "tableName", 1, $refTable->{lfn});
       $tables and $#{$tables} != -1
         or $self->info("Error: there are no directories with tag $tagName in $self->{DATABASE}->{DB}")
         and return;
@@ -2239,7 +2246,7 @@ sub internalQuery {
 
 #  push @newQueries, " JOIN $table $oldQuery $union $table.$query and substring($table.file,$l+1)=l.lfn  and left($table.file,$l)='$refTable->{lfn}'";
             push @newQueries,
-                " , $table $oldQuery $union $table.$query and substr($table."
+              " , $table $oldQuery $union $table.$query and substr($table."
               . $self->reservedWord("file")
               . ",$l+1)=l.lfn  and substr($table."
               . $self->reservedWord("file")
@@ -2248,7 +2255,7 @@ sub internalQuery {
 
 #    push @newQueries, " JOIN $table $oldQuery $union $table.$query and $table.file like '%/' and concat('$refTable->{lfn}', l.lfn) like concat( $table.file,'%') ";
             push @newQueries,
-                " , $table $oldQuery $union $table.$query and $table."
+              " , $table $oldQuery $union $table.$query and $table."
               . $self->reservedWord("file")
               . "  like '%/' and concat('$refTable->{lfn}', l.lfn) like concat( $table."
               . $self->reservedWord("file")
@@ -2257,7 +2264,7 @@ sub internalQuery {
 
 #    push @newQueries, " JOIN $table $oldQuery $union $table.$query and l.lfn=substring($table.file, $length) and left($table.file, $length-1)='$refTable->{lfn}'";
             push @newQueries,
-                " , $table $oldQuery $union $table.$query and l.lfn=substr($table."
+              " , $table $oldQuery $union $table.$query and l.lfn=substr($table."
               . $self->reservedWord("file")
               . ", $length) and substr($table."
               . $self->reservedWord("file")
@@ -2391,8 +2398,7 @@ sub setAllReplicatedData {
   #Also, GROUPS table;
   foreach my $ruser (@{$info->{users}}) {
     $self->debug(1, "Adding a new user");
-    $self->insertIntoGroups($ruser->{Username}, $ruser->{Groupname},
-      $ruser->{PrimaryGroup});
+    $self->insertIntoGroups($ruser->{Username}, $ruser->{Groupname}, $ruser->{PrimaryGroup});
   }
 
   #and finally, the SE
@@ -2508,9 +2514,10 @@ sub renumberLFNtable {
   my $options = shift || {};
   $self->info("How do we renumber '$table'??");
 
-  my $info = $self->query(
+  my $info =
+    $self->query(
 "select ${table}d.entryId as t from $table ${table}d left join $table ${table}r on ${table}d.entryId-1=${table}r.entryId where ${table}r.entryId is null order by t asc"
-  );
+    );
 
   #Let's do this part before dropping the index
   my @newlist;
@@ -2518,7 +2525,7 @@ sub renumberLFNtable {
 
   while (@$info) {
     my $entry = shift @$info;
-    my $r =
+    my $r     =
       $self->queryValue("select max(entryId) from $table where entryId<?", undef, {bind_values => [ $entry->{t} ]});
     if (!$r) {
 
@@ -2748,8 +2755,7 @@ AliEn::Database
 sub getAllHostAndTable {
   my $self = shift;
 
-  my $result =
-    $self->query("SELECT distinct hostIndex, tableName from INDEXTABLE");
+  my $result = $self->query("SELECT distinct hostIndex, tableName from INDEXTABLE");
   defined $result
     or $self->info("Error: not possible to get all the pair of host and table")
     and return;
@@ -2773,7 +2779,8 @@ sub fquota_update {
 "UPDATE FQUOTAS SET nbFiles=nbFiles+tmpIncreasedNbFiles+?, totalSize=totalSize+tmpIncreasedTotalSize+?, tmpIncreasedNbFiles=0, tmpIncreasedTotalSize=0 WHERE "
       . $self->reservedWord("user") . "=?",
     {bind_values => [ $count, $size, $user ]}
-  ) or return;
+    )
+    or return;
 
   return 1;
 }

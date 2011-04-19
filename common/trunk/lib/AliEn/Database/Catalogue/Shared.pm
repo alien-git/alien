@@ -35,7 +35,8 @@ sub preConnect {
 sub initialize {
   my $self = shift;
 
-  $self->{CURHOSTID} = $self->queryValue(
+  $self->{CURHOSTID} =
+    $self->queryValue(
     "SELECT hostIndex from HOSTS where address='$self->{HOST}' and driver='$self->{DRIVER}' and db='$self->{DB}'");
   $self->{CURHOSTID}
     or $self->info("Warning this host is not in the HOSTS table!!!")
@@ -221,7 +222,7 @@ sub destroy {
 
   use Data::Dumper;
   my $number = $self->{UNIQUE_NM};
-  $number or return;
+  $number               or return;
   $Connections{$number} or return;
   my @databases = keys %{$Connections{$number}};
 
@@ -319,7 +320,8 @@ sub reconnectToIndex {
 
     my $class = ref $self;
     my $db    = $class->new($DBOptions)
-      or print STDERR "ERROR GETTING THE NEW DATABASE\n" and return;
+      or print STDERR "ERROR GETTING THE NEW DATABASE\n"
+      and return;
 
     $Connections{$self->{UNIQUE_NM}}->{$dbindex} = $db;
     if ($changeOrg) {
@@ -345,7 +347,12 @@ sub checkUserGroup {
     and return;
 
   $DEBUG and $self->debug(2, "In checkUserGroup checking if user $user is member of group $group");
-  $self->queryValue("SELECT count(*) from GROUPS where Username='$user' and Groupname = '$group'");
+  my $v = AliEn::Util::returnCacheValue($self, "usergroup-$user-$group");
+  defined $v and return $v;
+  $v = $self->queryValue("SELECT count(*) from GROUPS where Username='$user' and Groupname = '$group'");
+  AliEn::Util::setCacheValue($self, "usergroup-$user-$group", $v);
+
+  return $v;
 }
 
 sub getAllHosts {
@@ -402,7 +409,7 @@ sub setUserGroup {
 sub printConnections {
   my $self = shift;
   print "DE MOMENTO TENEMOS " . join(" ", keys(%Connections)) . "\n\n";
-  print "Y BASES " . join(" ", keys(%{$Connections{$self->{UNIQUE_NM}}})) . "\n\n";
+  print "Y BASES " . join(" ",            keys(%{$Connections{$self->{UNIQUE_NM}}})) . "\n\n";
 }
 
 sub renumberTable {
@@ -426,7 +433,8 @@ sub renumberTable {
   my $ok = 1;
   $self->do(
 "alter table $table modify $index int(11), drop primary key,  auto_increment=1, add new_index int(11) auto_increment primary key, add unique index (guidid)"
-  ) or $ok = 0;
+    )
+    or $ok = 0;
   if ($ok) {
     foreach my $t (@{$options->{update}}) {
       $self->debug(1, "Updating $t");
