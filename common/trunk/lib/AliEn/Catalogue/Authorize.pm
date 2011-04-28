@@ -471,51 +471,67 @@ sub access {
   my $nSEs      = 0;
 
   if ($access eq "read") {
+    my $readCache = "";
+    if ($self->{CONFIG}->{CACHE_SERVICE_ADDRESS}) {
+      $self->debug(1, "This is a read request... we might use the cache");
+      $readCache =
+        "$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}?ns=access&key="
+        . join("_", $lfn, $sitename, join(";", @ses), join(";", @exxSEs));
 
-    if (scalar(@ses) eq 0) {
-      my $guidorNot = "";
-      if (AliEn::Util::isValidGUID($lfn)) { $guidorNot = "g"; }
-
-      my @where = $self->f_whereis("s" . $guidorNot . "ztr", "$lfn");
-
-      if (!@where) {
-        $self->info("Authorize: There were no transfer methods....");
-        @where = $self->f_whereis("s" . $guidorNot . "zr", "$lfn");
-      }
-      my @whereSEs = map { $_->{se} } @where;
-
-      my @queryValues = ();
-      my $query       = "";
-      $self->checkSiteSECacheForAccess($sitename) || return 0;
-      push @queryValues, $sitename;
-      $query =
-"SELECT seName from (SELECT DISTINCT b.seName as seName, a.rank FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE ";
-      $query .=
-" (b.seExclusiveRead is NULL or b.seExclusiveRead = '' or b.seExclusiveRead  LIKE concat ('%,' , concat(? , ',%')) ) and ";
-      push @queryValues, ($self->{ROLE} || $self->{CONFIG}->{ROLE});
-      foreach (@whereSEs) { $query .= " upper(b.seName)=upper(?) or"; push @queryValues, $_; }
-      $query =~ s/or$//;
-
-      #  $query .= " ORDER BY if(a.rank is null, 1000, a.rank) ASC ;";
-      $query .= " ORDER BY coalesce(a.rank,1000) ASC ) d;";
-
-      my $sorted = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn($query, undef, {bind_values => \@queryValues});
-
-      $sorted and defined(@$sorted) and $nSEs = scalar(@$sorted);
-      ($sesel > $nSEs - 1) and $sesel = $nSEs - 1;
-      @ses = ($$sorted[$sesel]);
+      (my $ok, @envelopes) = AliEn::Util::getURLandEvaluate($readCache, 1);
+      $ok or @envelopes = ();
     }
+    if (!@envelopes) {
+      if (scalar(@ses) eq 0) {
+        my $guidorNot = "";
+        if (AliEn::Util::isValidGUID($lfn)) { $guidorNot = "g"; }
 
-    @envelopes = AliEn::Util::deserializeSignedEnvelopes(
-      $self->authorize(
-        "read",
-        { lfn       => $lfn,
-          wishedSE  => join(";", @ses),
-          excludeSE => join(";", @exxSEs),
-          site      => $sitename
+        my @where = $self->f_whereis("s" . $guidorNot . "ztr", "$lfn");
+
+        if (!@where) {
+          $self->info("Authorize: There were no transfer methods....");
+          @where = $self->f_whereis("s" . $guidorNot . "zr", "$lfn");
         }
-      )
-    );
+        my @whereSEs = map { $_->{se} } @where;
+
+        my @queryValues = ();
+        my $query       = "";
+        $self->checkSiteSECacheForAccess($sitename) || return 0;
+        push @queryValues, $sitename;
+        $query =
+"SELECT seName from (SELECT DISTINCT b.seName as seName, a.rank FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE ";
+        $query .=
+" (b.seExclusiveRead is NULL or b.seExclusiveRead = '' or b.seExclusiveRead  LIKE concat ('%,' , concat(? , ',%')) ) and ";
+        push @queryValues, ($self->{ROLE} || $self->{CONFIG}->{ROLE});
+        foreach (@whereSEs) { $query .= " upper(b.seName)=upper(?) or"; push @queryValues, $_; }
+        $query =~ s/or$//;
+
+        #  $query .= " ORDER BY if(a.rank is null, 1000, a.rank) ASC ;";
+        $query .= " ORDER BY coalesce(a.rank,1000) ASC ) d;";
+
+        my $sorted =
+          $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn($query, undef, {bind_values => \@queryValues});
+
+        $sorted and defined(@$sorted) and $nSEs = scalar(@$sorted);
+        ($sesel > $nSEs - 1) and $sesel = $nSEs - 1;
+        @ses = ($$sorted[$sesel]);
+
+      }
+      @envelopes = AliEn::Util::deserializeSignedEnvelopes(
+        $self->authorize(
+          "read",
+          { lfn       => $lfn,
+            wishedSE  => join(";", @ses),
+            excludeSE => join(";", @exxSEs),
+            site      => $sitename
+          }
+        )
+      );
+      if ($readCache) {
+        my $info = uri_escape(Dumper([@envelopes]));
+        AliEn::Util::getURLandEvaluate("$readCache&value=$info");
+      }
+    }
 
   } elsif ($access =~ /^write/) {
 
@@ -1719,7 +1735,7 @@ sub reduceFileHashAndInitializeEnvelope {
 
 sub authorize {
   my $self = shift;
-  
+
   my $access            = (shift || return);
   my @registerEnvelopes = @_;
   my $jid               = pop(@registerEnvelopes);    # remove the added jobID from Service/Authen
@@ -1758,10 +1774,11 @@ sub authorize {
 
   my $readCache;
   if ($access =~ /read/ and $self->{CONFIG}->{CACHE_SERVICE_ADDRESS}) {
-    $self->debug(1, "This is a read request... we might use the cache");
+    $self->debug(1, "This is a read request... we might use the cache ");
     $readCache =
       "$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}?ns=envelope&key="
       . join("_", $user, $options->{lfn}, $options->{site}, $options->{wishedSE}, $options->{excludeSE});
+
     my ($ok, @value) = AliEn::Util::getURLandEvaluate($readCache, 1);
     if ($ok) {
       $self->debug(1, "Returning the value from the cache '@value'");
@@ -1857,7 +1874,7 @@ sub authorize {
 
   if ($readCache) {
     $self->info("And now, we should write this into the cache $readCache : " . uri_escape(Dumper([@returnEnvelopes])));
-    AliEn::Util::getURLandEvaluate("$readCache&value=" . Dumper([@returnEnvelopes]));
+    AliEn::Util::getURLandEvaluate("$readCache&value=" . uri_escape(Dumper([@returnEnvelopes])));
   }
 
   return @returnEnvelopes;
