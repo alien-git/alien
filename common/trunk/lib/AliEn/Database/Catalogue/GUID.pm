@@ -440,10 +440,10 @@ sub getAllInfoFromGUID {
   if ($info->{guidId}) {
     $extraTable = " where ";
     $where      = " guidId=?";
-    @bind       = ($info->{guidId}, $info->{guidId});
+    @bind       = ($info->{guidId});
   }
   my $fullQuery =
-"select seName, pfn from ${table}_PFN p, SE$extraTable $where and p.seNumber=SE.seNumber union select seName, '' as pfn from $table g, SE where $where and seAutoStringlist like concat('%,', concat(seNumber , ',%'))";
+"select seName, pfn from ${table}_PFN p, SE$extraTable $where and p.seNumber=SE.seNumber";# union select seName, '' as pfn from $table g, SE where $where and seAutoStringlist like concat('%,', concat(seNumber , ',%'))";
   my $pfn = $db->query($fullQuery, undef, {bind_values => \@bind})
     or $self->info("Error doing the query '$fullQuery'")
     and return;
