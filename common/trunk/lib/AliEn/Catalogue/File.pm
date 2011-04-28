@@ -20,6 +20,7 @@ use AliEn::SE::Methods;
 use AliEn::URL;
 use AliEn::SOAP;
 use AliEn::MD5;
+use Data::Dumper;
 use vars qw ($DEBUG);
 
 $DEBUG = 0;
@@ -166,7 +167,8 @@ sub f_bulkRegisterFile {
     push @insert, $insert;
   }
   $self->{DATABASE}->createFile($options, @insert)
-    or print STDERR "Error inserting entry into directory\n" and return;
+    or print STDERR "Error inserting entry into directory\n"
+    and return;
 
   $self->info("Files $list inserted in the catalog");
   return 1;
@@ -177,27 +179,30 @@ sub f_bulkRegisterFile {
 #                     -g return also the file info
 #
 #
-sub f_whereisFile {
-  my $self    = shift;
-  my $options = shift;
-  my $lfn     = shift;
-
-  $lfn = $self->f_complete_path($lfn);
-
-  my $permFile = $self->checkPermissions('r', $lfn, 0, 1) or return;
-  if (!$self->isFile($lfn, $permFile->{lfn})) {
-    $self->{LOGGER}->error("File", "file $lfn doesn't exist!!", 1);
-    return;
-  }
-  if ($options =~ /g/) {
-    my $ret = {};
-    $ret->{selist} = $self->{DATABASE}->getSEListFromFile($lfn, $permFile->{seStringlist});
-    $ret->{fileinfo} = $permFile;
-    return $ret;
-  } else {
-    return $self->{DATABASE}->getSEListFromFile($lfn, $permFile->{seStringlist});
-  }
-}
+#sub f_whereisFile {
+#  my $self    = shift;
+#  my $options = shift;
+#  my $lfn     = shift;
+#
+#  $lfn = $self->f_complete_path($lfn);
+#
+#  my $permFile = $self->checkPermissions('r', $lfn, 0, 1) or return;
+#  if (!$self->isFile($lfn, $permFile->{lfn})) {
+#    $self->{LOGGER}->error("File", "file $lfn doesn't exist!!", 1);
+#    return;
+#  }
+#  if ($options =~ /g/) {
+#    my $ret = {};
+#    $ret->{selist} = $self->{DATABASE}->getSEListFromFile($lfn, $permFile->{seStringlist});
+#    $ret->{fileinfo} = $permFile;
+#
+#    return $ret;
+#  } else {
+#    my $ret=$self->{DATABASE}->getSEListFromFile($lfn, $permFile->{seStringlist});
+#
+#    return $ret;
+#  }
+#}
 
 #
 #
@@ -264,10 +269,11 @@ sub f_getGuid {
   my $self = shift;
   $DEBUG and $self->debug(2, "In FileInterface getGuid @_");
   my $options = shift || "";
-  my $file = shift;
+  my $file    = shift;
 
   ($file)
-    or print STDERR "Error: not enough arguments in f_getGuid!\n" and return;
+    or print STDERR "Error: not enough arguments in f_getGuid!\n"
+    and return;
 
   $file = $self->f_complete_path($file);
   my $info = $self->checkPermissions('r', $file, 0, 1)
@@ -283,10 +289,11 @@ sub f_getMD5 {
   my $self = shift;
   $DEBUG and $self->debug(2, "In FileInterface getMD5 @_");
   my $options = shift || "";
-  my $file = shift;
+  my $file    = shift;
 
   ($file)
-    or print STDERR "Error: not enough arguments in f_getGuid!\n" and return;
+    or print STDERR "Error: not enough arguments in f_getGuid!\n"
+    and return;
 
   $file = $self->f_complete_path($file);
   my $permLFN = $self->checkPermissions('r', $file, 0, 1)
@@ -315,7 +322,7 @@ sub f_showMirror {
   my $self = shift;
   $DEBUG and $self->debug(2, "In FileInterface getFile @_");
   my $options = shift || "";
-  my $file = shift;
+  my $file    = shift;
 
   my $silent   = $options =~ /s/;
   my $original = $options =~ /o/;
@@ -325,7 +332,8 @@ sub f_showMirror {
   $silent and $logger = "debug";
 
   ($file)
-    or print STDERR "Error: not enough arguments in whereis\nUsage: whereis [-o] <file>\n" and return;
+    or print STDERR "Error: not enough arguments in whereis\nUsage: whereis [-o] <file>\n"
+    and return;
 
   $file = $self->f_complete_path($file);
 
@@ -825,6 +833,40 @@ Possible options:
 
 =cut
 
+sub f_whereisReadCache {
+  my $self    = shift;
+  my $options = shift;
+  my $lfn     = shift;
+
+  my $cache;
+
+  if ($options =~ /c/) {
+    if (!$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}) {
+      $self->info("Warning: we want to ask the cache service, but we don't know its address...");
+      return;
+    }
+    $cache = "$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}?ns=whereis&key=${options}_$lfn";
+    my ($ok, @value) = AliEn::Util::getURLandEvaluate($cache, 1);
+    if ($ok) {
+      $self->info("Returning the value from the cache '@value'");
+      return 1, @value;
+    }
+    $self->info("The cache didn't have the value");
+  }
+  return $cache;
+}
+
+sub f_whereisWriteCache {
+  my $self  = shift;
+  my $cache = shift;
+
+  if ($cache) {
+    $self->info("Setting the cache for $cache");
+    my ($ok, $value) = AliEn::Util::getURLandEvaluate("$cache&value=" . Dumper([@_]));
+  }
+  return 1;
+}
+
 sub f_whereis_HELP {
   return "whereis: gives the PFN of a LFN or GUID.
 Usage:
@@ -835,6 +877,7 @@ Options:
 \t-g: Use the lfn as guid
 \t-r: Resolve links (do not give back pointers to zip archives)
 \t-s: Silent
+\t-c: Keep it in the cache
 "
 }
 
@@ -853,12 +896,16 @@ sub f_whereis {
 
   if (!$lfn) {
     $self->info("Error not enough arguments in whereis. " . $self->f_whereis_HELP());
-    if   ($options =~ /z/) { return @failurereturn; }
-    else                   { return }
+    if ($options =~ /z/) { return @failurereturn; }
+    else { return }
   }
+
+  my ($cache, @rest) = $self->f_whereisReadCache($options, $lfn);
+  @rest and return @rest;
 
   my $guidInfo;
   my $info;
+
   if ($options =~ /g/) {
     $DEBUG and $self->debug(2, "Let's get the info from the guid");
     $guidInfo = $self->{DATABASE}->getAllInfoFromGUID({pfn => 1}, $lfn)
@@ -955,8 +1002,9 @@ sub f_whereis {
       }
     }
   }
+  $options =~ /i/ and @return = $info;
+  $self->f_whereisWriteCache($cache, @return);
 
-  $options =~ /i/ and return $info;
   return @return;
 }
 
@@ -1032,10 +1080,10 @@ sub createTURLforSE {
 }
 
 sub createDefaultUrl {
-  my $self = shift;
-  my $se   = shift;
-  my $guid = shift;
-  my $size = shift;
+  my $self   = shift;
+  my $se     = shift;
+  my $guid   = shift;
+  my $size   = shift;
   my $prefix =
     $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryValue(
     'select concat(method,concat(\'/\',mountpoint)) from SE_VOLUMES where freespace>? and upper(sename)=upper(?)',
@@ -1209,7 +1257,7 @@ sub fquota_list {
   ($unit eq "M") and $unitV = 1024 * 1024;
   ($unit eq "G") and $unitV = 1024 * 1024 * 1024;
 
-  my $user = (shift || "%");
+  my $user   = (shift || "%");
   my $whoami = $self->{ROLE};
 
   # normal users can see their own information
@@ -1236,7 +1284,7 @@ sub fquota_list {
     or $self->info("User $user does not exist in the FQQUOTAS table", 1)
     and return -1;
 
-  my $cnt = 0;
+  my $cnt      = 0;
   my $printout =
     sprintf "\n------------------------------------------------------------------------------------------\n";
   $printout .= sprintf "            %12s    %12s    %42s\n", "user", "nbFiles", "totalSize($unit)";
@@ -1277,7 +1325,7 @@ sub fquota_set {
 
   my $set = {};
   $set->{$field} = $value;
-  my $db = $self->{DATABASE}->{LFN_DB}->{FIRST_DB};
+  my $db   = $self->{DATABASE}->{LFN_DB}->{FIRST_DB};
   my $done = $db->update("FQUOTAS", $set, $db->reservedWord("user") . "= ?", {bind_values => [$user]});
 
   $done or $self->info("Failed to set the value in the FQUOTAS table", 1) and return -1;
