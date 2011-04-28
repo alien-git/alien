@@ -14,6 +14,7 @@
 # **************************************************************************/
 
 package AliEn::Catalogue::Authorize;
+use URI::Escape;
 
 =head1 NAME AliEn::UI::Catalogue::LCM
 
@@ -1717,16 +1718,16 @@ sub reduceFileHashAndInitializeEnvelope {
 }
 
 sub authorize {
-  my $self   = shift;
-  my $access = (shift || return), my @registerEnvelopes = @_;
-  my $jid    = pop(@registerEnvelopes);                         # remove the added jobID from Service/Authen
+  my $self = shift;
+  
+  my $access            = (shift || return);
+  my @registerEnvelopes = @_;
+  my $jid               = pop(@registerEnvelopes);    # remove the added jobID from Service/Authen
   ($jid =~ m/^\d+$/) or push @registerEnvelopes, $jid;
   my $options = shift;
 
   my $user = $self->{CONFIG}->{ROLE};
   $self->{ROLE} and $user = $self->{ROLE};
-
-  #
 
   ($access =~ /^write[\-a-z]*/) and $access = "write";
   my $writeReq    = (($access =~ /^write$/)    || 0);
@@ -1754,6 +1755,20 @@ sub authorize {
   my $links = ($options->{links} || 0);
   my $linksToBeBooked = 1;
   my $jobID           = (shift || 0);
+
+  my $readCache;
+  if ($access =~ /read/ and $self->{CONFIG}->{CACHE_SERVICE_ADDRESS}) {
+    $self->debug(1, "This is a read request... we might use the cache");
+    $readCache =
+      "$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}?ns=envelope&key="
+      . join("_", $user, $options->{lfn}, $options->{site}, $options->{wishedSE}, $options->{excludeSE});
+    my ($ok, @value) = AliEn::Util::getURLandEvaluate($readCache, 1);
+    if ($ok) {
+      $self->debug(1, "Returning the value from the cache '@value'");
+      return 1, @value;
+    }
+    $self->info("The cache didn't return anything");
+  }
 
   my $seList = $self->validateArrayOfSEs(split(/;/, $wishedSE));
 
@@ -1787,7 +1802,8 @@ sub authorize {
     or $self->info("Authorize: access: After checkups there's no SE left to make an envelope for.", 1)
     and return 0;
 
-  (scalar(@$seList) lt 0) and $self->info(
+  (scalar(@$seList) lt 0)
+    and $self->info(
 "Authorize: Authorize: ERROR! There are no SE's after checkups to create an envelope for '$$prepareEnvelope->{lfn}/$prepareEnvelope->{guid}'",
     1
     )
@@ -1838,6 +1854,11 @@ sub authorize {
   }
 
   $self->debug(2, "End of authorize, giving back ENVELOPES: " . Dumper(@returnEnvelopes));
+
+  if ($readCache) {
+    $self->info("And now, we should write this into the cache $readCache : " . uri_escape(Dumper([@returnEnvelopes])));
+    AliEn::Util::getURLandEvaluate("$readCache&value=" . Dumper([@returnEnvelopes]));
+  }
 
   return @returnEnvelopes;
 }
