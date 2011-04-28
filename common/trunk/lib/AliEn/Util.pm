@@ -618,4 +618,26 @@ sub getDebugLevelFromParameters {
   return ($back, \@rlist);
 }
 
+sub getURLandEvaluate{
+  my $url=shift;
+  my $evaluate=shift || 0;
+
+  my $agent = LWP::UserAgent->new();
+  $agent->timeout(120);
+  $agent->agent("AgentName/0.1 " . $agent->agent);
+  my $req = HTTP::Request->new("GET" => $url);
+  $req->header("Accept" => "text/html");
+  my $res    = $agent->request($req);
+  my $output = $res->content;
+  $res->is_success() or return 0, "Error getting $url\n";
+  
+  $evaluate or return 1;
+  
+  my $VAR1;  
+  eval "$output";
+  ($@) and  return 0, "Error evaluating $output: $@\n";
+  return 1, @$VAR1;
+
+}
+
 return 1;
