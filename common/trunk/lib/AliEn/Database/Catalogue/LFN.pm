@@ -1878,11 +1878,7 @@ sub getFieldsByTagName {
 
   $sql .= "  $fields FROM TAG0 WHERE tagName=?";
   if ($directory) {
-    if ($self->{DRIVER} =~ /Oracle/i) {
-      $sql .= " and path like concat(?, '%')";
-    } else {
-      $sql .= " and ? like concat(path, '%')";
-    }
+    $sql .= " and path like concat(?, '%')";
     push @bind, $directory;
   }
 
