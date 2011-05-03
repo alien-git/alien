@@ -1731,10 +1731,10 @@ sub f_find {
     }
     if (!$self->{SILENT} and !$quiet) {
       my $msg = "";
-      map {
-        foreach my $field (@printfields) { $msg .= "$_->{$field}   " }
+      foreach my $line (@result) {
+        foreach my $field (@printfields) { $msg .= "$line->{$field}   " }
         $msg .= "\n";
-      } @result;
+      };
       ($total) and $verbose and $msg .= "$total files found\n";
       $self->info($msg, undef, 0);
     }
