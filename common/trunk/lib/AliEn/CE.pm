@@ -1391,16 +1391,14 @@ sub f_queueprint {
     $k =~ s/^ERROR_(..?).*$/ER_$1/ or $k =~ s/^(...).*$/$1/;
     $tmpString .= sprintf("%-5s ", $k);
   }
-  $self->info($tmpString, undef, 0);
-
-  $self->info(
-"----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------",
+  $self->info("$tmpString
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n",
     undef, 0
   );
 
   foreach (@$done) {
-    $tmpString = "";
-    $tmpString .=
+    
+    $tmpString =
       sprintf("%-24s%-16s%-18s%-14s", $_->{'site'}, ($_->{'blocked'} || ""), $_->{'status'}, $_->{'statustime'});
 
     foreach $k (@{AliEn::Util::JobStatus()}) {
@@ -1410,11 +1408,11 @@ sub f_queueprint {
 
       ($_->{$k}) and $sum->{$k} += int($_->{$k});
     }
-    $_->{jdl} and $tmpString = sprintf("$_->{jdl}\n");
-    $self->info($tmpString, undef, 0);
+    $_->{jdl} and $tmpString = sprintf("$_->{jdl}");
+    $self->info("$tmpString\n", undef, 0);
   }
   $self->info(
-"----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------",
+"----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n",
     undef, 0
   );
 
@@ -1431,9 +1429,8 @@ sub f_queueprint {
         $tmpString .= sprintf("%-5s ", $zero);
       }
     }
-    $self->info($tmpString, undef, 0);
-    $self->info(
-"----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------",
+    $self->info("$tmpString
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n",
       undef, 0
     );
   }
@@ -2996,7 +2993,7 @@ sub f_queue_update {
   $command =~ /lock/ and $set->{blocked} = "locked";
   $self->info("=> going to $command the queue $queue ...");
   my $update = $self->{TASK_DB}->updateSiteQueue($set, "site='$queue'")
-    or $self->{LOGGER}->error("CE", "Error opening the site $queue");
+    or $self->{LOGGER}->error("CE", "Error opening the site $queue") and return;
 
   $self->f_queue("info", $queue);
   return 1;
@@ -3921,12 +3918,21 @@ sub resyncJobAgent {
       or $self->info("Error getting the user from $job->{jdl}")
       and next;
     $req .= ";$1;";
-
+    my $site="";
+    my $temp=$req;
+    while ($temp =~ s/member\(other.CloseSE,"[^:]*::([^:]*)::[^:]*"\)//si ){      
+      $site=~ /,$1/ or  $site.=",$1";
+    }
+    $site and $site.=",";
+    my $ttl=84000;
+    $req =~ /other.TTL\s*>\s*(\d+)/i and $ttl=$1;
     $self->{TASK_DB}->insert(
       "JOBAGENT",
       { counter      => 30,
         entryid      => $job->{agentid},
-        requirements => $req
+        requirements => $req,
+        ttl          => $ttl,
+        site         => $site,
       }
     );
   }
