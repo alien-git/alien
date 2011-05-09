@@ -449,7 +449,7 @@ sub access {
   my $lfn           = (shift || 0);
   my $se            = (shift || "");
   my $size          = (shift || 0);
-  my $sesel         = (shift || 0);
+  my $sesel         = (shift || 1);
   my @accessOptions = @_;
   my $extguid       = (shift || 0);
 
@@ -460,7 +460,7 @@ sub access {
   my @exxSEs = ();
   @tempSE = split(/;/, $sesel);
   foreach (@tempSE) { AliEn::Util::isValidSEName($_) and push @exxSEs, $_; }
-  ($sesel =~ /^[0-9]+$/) or $sesel = 0;
+  ($sesel =~ /^[0-9]+$/) or $sesel = 1;
   my $sitename = (shift || 0);
   (($sitename eq 0) or ($sitename eq "")) and $sitename = $self->{CONFIG}->{SITE};
   my $writeQos = (shift || 0);
@@ -476,13 +476,13 @@ sub access {
       $self->debug(1, "This is a read request... we might use the cache");
       $readCache =
         "$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}?ns=access&key="
-        . join("_", $lfn, $sitename, join(";", @ses), join(";", @exxSEs));
-
+        . join("_", $lfn, $sitename, join(";", @ses), join(";", @exxSEs), $sesel);
+      $self->debug(1,"Our read cache key is : $readCache -- ");
       (my $ok, @envelopes) = AliEn::Util::getURLandEvaluate($readCache, 1);
       $ok or @envelopes = ();
     }
     if (!@envelopes) {
-      if (scalar(@ses) eq 0) {
+      if ((scalar(@ses) eq 0) or ($sesel>1)) {
         my $guidorNot = "";
         if (AliEn::Util::isValidGUID($lfn)) { $guidorNot = "g"; }
 
@@ -499,10 +499,11 @@ sub access {
         $self->checkSiteSECacheForAccess($sitename) || return 0;
         push @queryValues, $sitename;
         $query =
-"SELECT seName from (SELECT DISTINCT b.seName as seName, a.rank FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE ";
+               "SELECT seName from (SELECT DISTINCT b.seName as seName, a.rank FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE ";
         $query .=
-" (b.seExclusiveRead is NULL or b.seExclusiveRead = '' or b.seExclusiveRead  LIKE concat ('%,' , concat(? , ',%')) ) and ";
+               " (b.seExclusiveRead is NULL or b.seExclusiveRead = '' or b.seExclusiveRead  LIKE concat ('%,' , concat(? , ',%')) ) and ";
         push @queryValues, ($self->{ROLE} || $self->{CONFIG}->{ROLE});
+        foreach (@ses) { $query .= " upper(b.seName)<>upper(?) and "; push @queryValues, $_; }
         foreach (@whereSEs) { $query .= " upper(b.seName)=upper(?) or"; push @queryValues, $_; }
         $query =~ s/or$//;
 
@@ -512,9 +513,16 @@ sub access {
         my $sorted =
           $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn($query, undef, {bind_values => \@queryValues});
 
-        $sorted and defined(@$sorted) and $nSEs = scalar(@$sorted);
-        ($sesel > $nSEs - 1) and $sesel = $nSEs - 1;
-        @ses = ($$sorted[$sesel]);
+        if($sorted and defined(@$sorted)) {
+          (scalar(@ses) eq 0) or @$sorted = (@ses,@$sorted); 
+          $nSEs = scalar(@$sorted);
+        }
+
+        if ($sesel > $nSEs || $sesel<=0) {
+           return ({eof=>1});
+        }
+
+        @ses = ($$sorted[$sesel-1]);
 
       }
       @envelopes = AliEn::Util::deserializeSignedEnvelopes(
@@ -592,18 +600,23 @@ sub access {
     my $renv           = {};
     my $xtrdcpenvelope = 0;
     foreach my $key (keys(%$env)) {
-      ($key eq "turl") and $renv->{url} = $env->{turl} and next;
+      ($key eq "xurl") and next;
+      ($key eq "turl") and $renv->{url} = ($env->{xurl} || $env->{turl}) and next;
       ($key eq "oldEnvelope") and $xtrdcpenvelope = $env->{oldEnvelope} and next;
       $xtrdcpenvelope || (($key eq "signedEnvelope") and $xtrdcpenvelope = $env->{signedEnvelope} and next);
       $renv->{$key} = $env->{$key};
     }
     $renv->{envelope} = $xtrdcpenvelope;
-    my @pfn = split(/\/\//, $renv->{url}, 3);
+    my @pfn = split(/\/\//, $env->{turl}, 3);
     $renv->{pfn}  = "/" . $pfn[2];
     $renv->{nSEs} = $nSEs;
     push @returnEnvelopes, $renv;
   }
 
+  if(scalar(@returnEnvelopes) eq 0) {
+     return ({eof=>1});
+  }
+ 
   return @returnEnvelopes;
 
 }
@@ -1105,7 +1118,7 @@ sub getBaseEnvelopeForReadAccess {
       my $archiveFile = $1;
       $self->info("Authorize: Getting file out of archive with GUID, $filehash->{guid}...");
       my $prepareArchiveEnvelope =
-        $self->getBaseEnvelopeForReadAccess($user, $prepareEnvelope->{pfn}, [], $excludedAndfailedSEs, $sitename)
+        $self->getBaseEnvelopeForReadAccess($user, $prepareEnvelope->{pfn}, $seList, $excludedAndfailedSEs, $sitename)
         or return 0;
       $prepareEnvelope->{turl}  = $prepareArchiveEnvelope->{turl} . "#" . $archiveFile;
       $prepareEnvelope->{pfn}   = $prepareArchiveEnvelope->{pfn};
