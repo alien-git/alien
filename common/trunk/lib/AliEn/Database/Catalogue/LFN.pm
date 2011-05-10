@@ -2310,7 +2310,7 @@ $b as guid from $indexTable l $1 $order", $limit, $offset)/e
   foreach my $q (@joinQueries) {
     if ($options->{'y'}) {
       my $t = "";
-      $q =~ /JOIN (\S+VCDB) /m and $t = $1;
+      $q =~ /((JOIN)|,) (\S+VCDB) /m and $t = $3;
       if ($t) {
         $self->info("WE ARE RETRIEVING ONLY THE BIGGEST METADADATA from $t");
         $q =~ s/select .*? from /select substr(max(version_path),10) lfn from (SELECT version_path,dir_number from /si;
