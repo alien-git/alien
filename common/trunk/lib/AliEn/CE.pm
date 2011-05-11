@@ -3909,12 +3909,12 @@ sub resyncJobAgent {
     and return;
 
   foreach my $job (@$jobs) {
-    $self->info("We have to insert a jobagent for $job->{jdl}");
-    $job->{jdl} =~ /(requirements[^;]*)/i
+    $self->info("We have to insert a jobagent for $job->{agentid}");
+    $job->{jdl} =~ /[\s;](requirements[^;]*).*\]/im
       or $self->info("Error getting the requirements from $job->{jdl}")
       and next;
     my $req = $1;
-    $job->{jdl} =~ / (user\s*=[^;]*)/i
+    $job->{jdl} =~ /\s(user\s*=[^;]*)/im
       or $self->info("Error getting the user from $job->{jdl}")
       and next;
     $req .= ";$1;";
@@ -3926,6 +3926,7 @@ sub resyncJobAgent {
     $site and $site.=",";
     my $ttl=84000;
     $req =~ /other.TTL\s*>\s*(\d+)/i and $ttl=$1;
+    $self->info("This agent is for the site '$site' (from '$req')");
     $self->{TASK_DB}->insert(
       "JOBAGENT",
       { counter      => 30,
