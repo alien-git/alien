@@ -1861,7 +1861,9 @@ sub authorize {
       or ($prepareEnvelope->{se} =~ /alice::((RAL)|(CNAF))::castor/i)
       and !($prepareEnvelope->{se} =~ /alice::RAL::castor2_test/i)) {
       $prepareEnvelope->{turl} =~ m{^((root)|(file))://([^/]*)/(.*)};
-      $prepareEnvelope->{xurl} = "root://$4/$prepareEnvelope->{lfn}";
+      my @link = split(/\#/, $prepareEnvelope->{turl});
+      $link[1] or $link[1]="";
+      $prepareEnvelope->{xurl} = "root://$4/$prepareEnvelope->{lfn}#$link[1]";
     }
 
     my $signedEnvelope = $self->signEnvelope($prepareEnvelope, $user);
