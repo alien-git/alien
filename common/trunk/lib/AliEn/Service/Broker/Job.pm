@@ -50,25 +50,20 @@ sub getJobIdFromAgentId {
   my $agentId=shift;
   my $cache=shift;
 
-  if (!$cache){
-    $self->info("Getting the jobids for jobagent '$agentId'");
-    my $data=AliEn::Util::returnCacheValue($self, "WaitingJobsFor$agentId");
-    if (! $data){
-      $data=$self->{DB}->query("select queueid as id, jdl from QUEUE where agentid=? and (STATUS='WAITING' or STATUS='TO_STAGE') order by queueid", undef, {bind_values=>[$agentId]});
-    }
-    $self->info("There are $#$data entries for that jobagent");
-    return @$data;
-  }
-  $self->info("For the next time that this thing is called, putting the info in the cache");
-  ( $#$cache>100) or $cache=undef;
-  AliEn::Util::setCacheValue($self, "WaitingJobsFor$agentId", $cache);
-  return 1;
+  $self->info("Getting the jobids for jobagent '$agentId'");
+
+
+  my $data=$self->{DB}->query("select queueid as id, jdl from 
+  QUEUE 
+  where agentid=? and (STATUS='WAITING' or STATUS='TO_STAGE') order by queueid", undef, {bind_values=>[$agentId]});
+
+  $self->info("There are $#$data entries for that jobagent");
+  return @$data;
 }
+
 #
 # This function is called when a jobAgent starts, and tries to get a task
 #
-
-
 
 sub getJobAgent {
   my $this    = shift;
@@ -84,12 +79,25 @@ sub getJobAgent {
   $self->redirectOutput("JobBroker/$host");
   $self->info( "In findjob finding a job for $host");
 
+  my $site_ca = Classad::Classad->new($site_jdl);
+  $self->{SITE_CA}=$site_ca;
+  my ($ok, $msg)=$self->checkQueueOpen($site_ca);
+  if (!$ok){
+    $self->info("The site is blocked! '$msg'");
+    return {execute=>[-1, $msg]};
+  }
+  ($ok, my $wn)= $site_ca->evaluateAttributeString("WNHost");
+  $self->info("The worker node is $wn");
+
+  my $ttl=84000;
+  $site_jdl =~ /other.TTL\s*>\s*(\d+)/i and $ttl=$1;
+  
   $self->{DB}->updateHost($host,{status=>'ACTIVE', date=>$date})
     or $self->{LOGGER}->error("JobBroker", "In findjob error updating status of host $host")
       and return;
 
-  $self->info( "Getting the list of jobs");
-  my $list= $self->{DB}->getWaitingJobAgents();
+  $self->info( "Getting the list of jobs (ttl bigger than $ttl)");
+  my $list= $self->{DB}->getWaitingJobAgents($ttl);
 
   defined $list                              
     or $self->{LOGGER}->warning( "JobBroker", "In findjob error during execution of database query" )
@@ -106,15 +114,6 @@ sub getJobAgent {
   }
   $self->info( "Starting the match, with $number elements");
   
-  my $site_ca = Classad::Classad->new($site_jdl);
-  $self->{SITE_CA}=$site_ca;
-  my ($ok, $msg)=$self->checkQueueOpen($site_ca);
-  if (!$ok){
-    $self->info("The site is blocked! '$msg'");
-    return {execute=>[-1, $msg]};
-  }
-  ($ok, my $wn)= $site_ca->evaluateAttributeString("WNHost");
-  $self->info("The worker node is $wn");
   my ($queueId, $job_ca, $jdl)=$self->match( "agent", $site_ca, $list, $user, $host , "checkPackagesToInstall", 0,"getJobIdFromAgentId");
 
   my $to_stage;
@@ -317,12 +316,13 @@ sub offerAgent {
   my $site_ca = Classad::Classad->new($ca_text);
   $self->debug(1, "Classad created");
   my ($ok,$queueName)=$site_ca->evaluateAttributeString("CE");
+  ($ok, my $ttl)=$site_ca->evaluateAttributeString("TTL");
   my @jobAgents;
   ($ok, my $msg)=$self->checkQueueOpen($site_ca, $queueName);
   $ok or return (-1, $msg);
 
 
-  my ($dbAgents)=$self->{DB}->getWaitingJobAgents();
+  my ($dbAgents)=$self->{DB}->getWaitingJobAgents($ttl);
 
   if (!$dbAgents  ){
     $self->info( "Error getting the entries from the queue");
