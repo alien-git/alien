@@ -1653,14 +1653,6 @@ sub getMasterJob {
     foreach my $subjob (@$jobIds) {
       my $message = "Removing job $subjob";
       $self->{DB}->delete("QUEUE", "queueId=$subjob");
-      my $procDir = AliEn::Util::getProcDir($user, undef, $subjob);
-      if ($self->{CATALOGUE}->execute("cd",)) {
-        $self->{CATALOGUE}->execute("rmdir", "-rf", $procDir);
-      } else {
-        my $procDir2 = AliEn::Util::getProcDir($user, undef, $id) . "/subjobs/$subjob";
-        $self->info("The directory $procDir didn't exist any more. Let's delete $procDir2");
-
-        $self->{CATALOGUE}->execute("rmdir", "-rf", $procDir2);
       }
 
       push @$info, $message;
@@ -1696,7 +1688,7 @@ sub getMasterJob {
       and push @extra, @{$commands->{$data->{command}}->{extra}};
     my $masterWaiting = 0;
 
-    $self->{DB}->do("update QUEUE set mtime=now() where queueid=?'", {bind_values => [$id]});
+    $self->{DB}->do("update QUEUE set mtime=now() where queueid=?", {bind_values => [$id]});
     foreach my $subjob (@$ids) {
       my (@done) = $self->$subroutine($subjob, $user, @extra);
       if ($done[0] eq "-1") {
