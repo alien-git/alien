@@ -462,15 +462,22 @@ sub deleteFromQueue {
 sub getWaitingJobAgents {
   my $self = shift;
   my $ttl  = shift || 0;
+  my $site = shift || 0;
+  
   my ($where, $bind)=("", []);
   if ($ttl) {
-    $where="where ttl<?";
-    $bind=[$ttl];
+    $where = " and (ttl<? or ttl is null )";
+    $bind  = [$ttl];
+  }
+  if ($site) {
+    $where .= " and ( site is null or site='' or site like ?) ";
+    $bind = [ @$bind, "%,${site},%" ];
   }
 
   my $list = $self->query(
-    "select entryId as agentId,concat('[',concat(requirements,'Type=\"Job\";TTL=999;]') ) as jdl, counter 
-from JOBAGENT $where order by priority desc", undef, {bind_values => $bind}
+"select entryId as agentId,concat('[',requirements,'Type=\"Job\";TTL=999;]') as jdl, counter from JOBAGENT where counter>0 $where order by priority desc",
+    undef,
+    {bind_values => $bind}
   );
 
   return $list;

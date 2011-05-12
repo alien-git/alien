@@ -48,15 +48,11 @@ sub initialize {
 sub getJobIdFromAgentId {
   my $self=shift;
   my $agentId=shift;
-  my $cache=shift;
 
   $self->info("Getting the jobids for jobagent '$agentId'");
-
-
-  my $data=$self->{DB}->query("select queueid as id, jdl from 
-  QUEUE 
-  where agentid=? and (STATUS='WAITING' or STATUS='TO_STAGE') order by queueid", undef, {bind_values=>[$agentId]});
-
+  my $data=$self->{DB}->query("select queueid as id, jdl from
+   QUEUE 
+   where agentid=? and (STATUS='WAITING' or STATUS='TO_STAGE') order by queueid", undef, {bind_values=>[$agentId]});
   $self->info("There are $#$data entries for that jobagent");
   return @$data;
 }
@@ -64,6 +60,8 @@ sub getJobIdFromAgentId {
 #
 # This function is called when a jobAgent starts, and tries to get a task
 #
+
+
 
 sub getJobAgent {
   my $this    = shift;
@@ -79,25 +77,19 @@ sub getJobAgent {
   $self->redirectOutput("JobBroker/$host");
   $self->info( "In findjob finding a job for $host");
 
-  my $site_ca = Classad::Classad->new($site_jdl);
-  $self->{SITE_CA}=$site_ca;
-  my ($ok, $msg)=$self->checkQueueOpen($site_ca);
-  if (!$ok){
-    $self->info("The site is blocked! '$msg'");
-    return {execute=>[-1, $msg]};
-  }
-  ($ok, my $wn)= $site_ca->evaluateAttributeString("WNHost");
-  $self->info("The worker node is $wn");
-
-  my $ttl=84000;
-  $site_jdl =~ /other.TTL\s*>\s*(\d+)/i and $ttl=$1;
-  
   $self->{DB}->updateHost($host,{status=>'ACTIVE', date=>$date})
     or $self->{LOGGER}->error("JobBroker", "In findjob error updating status of host $host")
       and return;
 
-  $self->info( "Getting the list of jobs (ttl bigger than $ttl)");
-  my $list= $self->{DB}->getWaitingJobAgents($ttl);
+  my $ttl=84000;
+  $site_jdl =~ /TTL\s*=\s*(\d+)/i and $ttl=$1;
+  my $site="";
+  my $site_ca = Classad::Classad->new($site_jdl);
+  my ($ok, $ce)= $site_ca->evaluateAttributeString("CE");
+  $ce =~ /::(.*)::/ and $site=$1;
+  
+  $self->info( "Getting the list of jobs (the ttl is $ttl and site $site)");
+  my $list= $self->{DB}->getWaitingJobAgents($ttl, $site );
 
   defined $list                              
     or $self->{LOGGER}->warning( "JobBroker", "In findjob error during execution of database query" )
@@ -114,6 +106,14 @@ sub getJobAgent {
   }
   $self->info( "Starting the match, with $number elements");
   
+  $self->{SITE_CA}=$site_ca;
+  ($ok, my $msg)=$self->checkQueueOpen($site_ca);
+  if (!$ok){
+    $self->info("The site is blocked! '$msg'");
+    return {execute=>[-1, $msg]};
+  }
+  ($ok, my $wn)= $site_ca->evaluateAttributeString("WNHost");
+  $self->info("$$ The worker node is $wn");
   my ($queueId, $job_ca, $jdl)=$self->match( "agent", $site_ca, $list, $user, $host , "checkPackagesToInstall", 0,"getJobIdFromAgentId");
 
   my $to_stage;
@@ -137,6 +137,7 @@ sub getJobAgent {
   eval {
     if (!$queueId){
       push @return,-2, "No jobs waiting in the queue";
+      $self->info("No job matches '$site_jdl'\n");
       die("No job matches '$site_jdl'\n");
     }
     if ($queueId eq "-3"){
@@ -166,7 +167,7 @@ sub getJobAgent {
     push @return, {queueid=>$queueId, token=>$token, jdl=>$jdl, user=>$jobUser};
   };
 
-  $self->info("Returning the new format");
+  $self->info("$$ Returning the new format");
   return {execute=>\@return,stage=>$to_stage};
 }
 
@@ -316,13 +317,18 @@ sub offerAgent {
   my $site_ca = Classad::Classad->new($ca_text);
   $self->debug(1, "Classad created");
   my ($ok,$queueName)=$site_ca->evaluateAttributeString("CE");
-  ($ok, my $ttl)=$site_ca->evaluateAttributeString("TTL");
   my @jobAgents;
   ($ok, my $msg)=$self->checkQueueOpen($site_ca, $queueName);
   $ok or return (-1, $msg);
 
-
-  my ($dbAgents)=$self->{DB}->getWaitingJobAgents($ttl);
+  my $site="";
+  ($ok, my $ce)= $site_ca->evaluateAttributeString("CE");
+  $ce =~ /::(.*)::/ and $site=$1;
+  ($ok, my $ttl)=$site_ca->evalutateAttributeString("TTL");
+  $ttl or $ttl=84000;
+  
+  
+  my ($dbAgents)=$self->{DB}->getWaitingJobAgents($ttl, $site);
 
   if (!$dbAgents  ){
     $self->info( "Error getting the entries from the queue");
