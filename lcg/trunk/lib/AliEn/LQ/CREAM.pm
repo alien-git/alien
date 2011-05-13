@@ -24,7 +24,9 @@ sub initialize {
    $self->{CONFIG}->{VOBOXDIR} = "/opt/vobox/\L$self->{CONFIG}->{LCGVO}";
    $self->{UPDATECLASSAD} = 0;
    
-   my $cmds = {  SUBMIT_CMD     => 'glite-ce-job-submit',
+   my $fix_env ='LD_LIBRARY_PATH=$GLITE_LOCATION${LD_LIBRARY_PATH#*$GLITE_LOCATION}:/opt/c-ares/lib'; 
+   
+   my $cmds = {  SUBMIT_CMD     => "$fix_env glite-ce-job-submit",
                  STATUS_CMD     => 'glite-ce-job-status',
 		 KILL_CMD       => 'glite-ce-job-cancel',
 		 CLEANUP_CMD    => '',
