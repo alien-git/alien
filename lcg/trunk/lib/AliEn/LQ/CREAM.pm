@@ -23,7 +23,9 @@ sub initialize {
    $self->{CONFIG}->{LCGVO} = $ENV{ALIEN_VOBOX_ORG}|| $self->{CONFIG}->{ORG_NAME};
    $self->{CONFIG}->{VOBOXDIR} = "/opt/vobox/\L$self->{CONFIG}->{LCGVO}";
    $self->{UPDATECLASSAD} = 0;
-   
+   my @newCEList;
+   my $queue;
+
    my $fix_env ='LD_LIBRARY_PATH=$GLITE_LOCATION${LD_LIBRARY_PATH#*$GLITE_LOCATION}:/opt/c-ares/lib'; 
    
    my $cmds = {  SUBMIT_CMD     => "$fix_env glite-ce-job-submit",
@@ -35,7 +37,7 @@ sub initialize {
    $self->{$_} = $cmds->{$_} || $self->{CONFIG}->{$_} || '' foreach (keys %$cmds);
    unless ($self->readCEList()) {
       $self->{LOGGER}->error("LCG","Error reading CE list");
-      return;
+      #return;
    } 
    # Some optionally configurable values
    $ENV{CE_PROXYDURATION} and $self->{CONFIG}->{CE_PROXYDURATION} = $ENV{CE_PROXYDURATION};
@@ -50,19 +52,25 @@ sub initialize {
    $self->renewProxy($self->{CONFIG}->{CE_PROXYDURATION});
    $self->{CONFIG}->{DELEGATION_ID} = "$self->{CONFIG}->{CE_FULLNAME}:".time();
    $self->info("Delegation ID is  $self->{CONFIG}->{DELEGATION_ID}");
+   
    foreach ( @{$self->{CONFIG}->{CE_LCGCE_FLAT_LIST}} ) {
-     (my $CE, undef) = split /\//;
+     (my $CE, my $queue) = split /\//;
      my @command = ($self->{DELEGATION_CMD},"-e",$CE,
-                                            "-d","$self->{CONFIG}->{DELEGATION_ID}");   
+                                            "-d","$self->{CONFIG}->{DELEGATION_ID}");
      my @output = $self->_system(@command);
      my $error = $?;
      if ($error) {
        $self->{LOGGER}->error("LCG","Error $error delegating the proxy to $CE");
-       return;
+     } else {
+       push(@newCEList,$CE."/".$queue);
      }
      $self->{DELEGATIONTIME} = time;
    }
+   @{$self->{CONFIG}->{CE_LCGCE_FLAT_LIST}} = @newCEList;
+   $ENV{CE_LIST} = join(",",@newCEList);
+
    return 1;
+
 }
 
 sub submit {
