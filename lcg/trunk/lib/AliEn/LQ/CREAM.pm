@@ -12,6 +12,8 @@ use AliEn::TMPFile;
 use POSIX ":sys_wait_h";
 use Sys::Hostname;
 
+my @CEBlackList;
+
 sub initialize {
    my $self=shift;
    $self->{DB}=AliEn::Database::CE->new();
@@ -60,19 +62,26 @@ sub initialize {
      my @output = $self->_system(@command);
      my $error = $?;
      if ($error) {
+        $self->info(" CE $CE to the black list");
+       push(@CEBlackList,$CE."/".$queue);
        $self->{LOGGER}->error("LCG","Error $error delegating the proxy to $CE");
      } else {
        push(@newCEList,$CE."/".$queue);
      }
      $self->{DELEGATIONTIME} = time;
    }
-   @{$self->{CONFIG}->{CE_LCGCE_FLAT_LIST}} = @newCEList;
+   $self->{CONFIG}->{CE_LCGCE_FLAT_LIST} = \@newCEList;
+
+   #use Data::Dumper;
+   #print Dumper( $self->{CONFIG}->{CE_LCGCE_FLAT_LIST});
+
    $ENV{CE_LIST} = join(",",@newCEList);
 
    return 1;
-
 }
 
+   
+   
 sub submit {
   my $self = shift;
   my $jdl = shift;
@@ -259,30 +268,90 @@ sub getCREAMStatus {
   return @allJobs;
 }
 
+
+
 sub renewDelegation {
   my $self = shift;
   my $interval = shift;
-  $interval or $interval = 2*60*60; #2 hours 
+  $interval or $interval = 2*60*60; #2 hours
+  my @newBlackCEList;
+  my @newCEList;
+
+  foreach ( @CEBlackList ) {
+     (my $CE, my $queue) = split /\//;
+     my @command = ("glite-ce-delegate-proxy","-e",$CE,
+                                            "-d","$self->{CONFIG}->{DELEGATION_ID}");
+     my @output = $self->_system(@command);
+     my $error = $?;
+     if ($error) {
+       $self->info("CE $CE still in the blacklist ");
+       $self->{LOGGER}->error("LCG","Error $error delegating the proxy to $CE. The CE is still not working");
+       push(@newBlackCEList,$CE."/".$queue);
+     } else {
+       $self->info("CE $CE out of the blacklist");
+       push(@{$self->{CONFIG}->{CE_LCGCE_FLAT_LIST}},$CE."/".$queue);
+     }
+#     $i = $i+1;
+     $self->{DELEGATIONTIME} = time;
+   }
+   @CEBlackList = @newBlackCEList;
+
   my $still = $interval-(time-$self->{DELEGATIONTIME});
+
   if ( $still<=0 ) {
     $self->info("Renewing proxy delegation for all CEs");
+
     foreach ( @{$self->{CONFIG}->{CE_LCGCE_FLAT_LIST}} ) {
-      (my $CE, undef) = split /\//;
+      (my $CE, my $queue) = split /\//;
       my @command = ("glite-ce-proxy-renew","-e",$CE,
-                                            "-d","$self->{CONFIG}->{DELEGATION_ID}");   
+                                            "-d","$self->{CONFIG}->{DELEGATION_ID}");
+      $self->info("CE is $CE");
       my @output = $self->_system(@command);
       my $error = $?;
       if ($error) {
         $self->{LOGGER}->error("LCG","Error $error renewing the delegation to $CE");
-      return;
-     }
+        push(@CEBlackList,$CE."/".$queue);
+      } else {
+        push(@newCEList,$CE."/".$queue);
+      }
+
    }
+    $self->{CONFIG}->{CE_LCGCE_FLAT_LIST} = \@newCEList;
+    $ENV{CE_LIST} = join(",",@newCEList);
     $self->{DELEGATIONTIME} = time;
   } else {
     $self->debug(1,"No need to renew the delegation yet, still $still seconds to go (requested interval is $interval)");
   }
+  #$ENV{CE_LIST} = join(",",@newCEList);
+
   return 1;
 }
+
+#sub OLDrenewDelegation {
+#  my $self = shift;
+#  my $interval = shift;
+#  $interval or $interval = 2*60*60; #2 hours
+#  my $still = $interval-(time-$self->{DELEGATIONTIME});
+#  if ( $still<=0 ) {
+#    $self->info("Renewing proxy delegation for all CEs");
+#    foreach ( @{$self->{CONFIG}->{CE_LCGCE_FLAT_LIST}} ) {
+#      (my $CE, undef) = split /\//;
+#      my @command = ("glite-ce-proxy-renew","-e",$CE,
+#                                            "-d","$self->{CONFIG}->{DELEGATION_ID}");
+#      my @output = $self->_system(@command);
+#      my $error = $?;
+#      if ($error) {
+#        $self->{LOGGER}->error("LCG","Error $error renewing the delegation to $CE");
+#      return;
+#     }
+#   }
+#    $self->{DELEGATIONTIME} = time;
+#  } else {
+#    $self->debug(1,"No need to renew the delegation yet, still $still seconds to go (requested interval is $interval)");
+#  }
+#  return 1;
+#}
+
 
 return 1;
 
