@@ -52,7 +52,7 @@ sub getJobIdFromAgentId {
   $self->info("Getting the jobids for jobagent '$agentId'");
   my $data=$self->{DB}->query("select queueid as id, jdl from
    QUEUE 
-   where agentid=? and (STATUS='WAITING' or STATUS='TO_STAGE') order by queueid", undef, {bind_values=>[$agentId]});
+   where agentid=? and (STATUS='WAITING' or STATUS='TO_STAGE') order by queueid limit 1", undef, {bind_values=>[$agentId]});
   $self->info("There are $#$data entries for that jobagent");
   return @$data;
 }

@@ -138,12 +138,15 @@ sub match {
     if($type eq "queue"){
       $possibleIds[0]->{jdl}=$element->{jdl};
       $possibleIds[0]->{jdl}=~ s/\s+/ /g;
+      $self->{DB}->lock("QUEUE write, QUEUEPROC");
+
     }
-    $self->info("WE HAVE A MATCH WITH $id!!!");
+    $self->info("WE HAVE A MATCH WITH $id!!! and locking the table");
+
     if ($findIdFunction){
       @possibleIds=$self->$findIdFunction($id);
     }
-    $self->info("Checking all the possible Ids");
+    $self->info("Checking all the possible Ids and locking the table");
     while (@possibleIds){
       my $item=shift @possibleIds;
       if ($findIdFunction){
@@ -156,7 +159,7 @@ sub match {
 	$self->debug(1, "Creating the classad of $item->{jdl}");
 	$ret1=$item->{classad}= Classad::Classad->new($item->{jdl});
 	($ret1 and $ret1->isOK())
-	  or $self->info("Error creating the jdl") and next;
+	  or $self->info("Error creating the jdl of $item->{jdl}") and next;
       }
       $self->debug(1, "Got returning arguments for  $realId: $ret1");
       if ($function) {
@@ -164,6 +167,7 @@ sub match {
 	my @return=$self->$function($ret1);
 	if ($return[0] ne "1"){
 	  $self->info("$function didn't return 1. We don't assign the task");
+          $self->{DB}->unlock("QUEUE");
 	  return @return;
 	}
       }
@@ -174,13 +178,19 @@ sub match {
 	$self->debug(1, "$realId successfully assigned");
 	push @toReturn, ($realId, $ret1, $ret2);
 	$counter--;
-	$counter>0 or return @toReturn;
+	if ( $counter<=0 ){
+          $self->info("FOUND ALL OF THEM, and unlocking");
+          $self->{DB}->unlock("QUEUE");
+          return @toReturn;
+        }
 	$self->info("We found one match, but we are still looking for other $counter");
 	
       } else {
 	$self->debug(1, "$type has already been given");
       }
     }
+    $self->{DB}->unlock("QUEUE");
+    $self->info("TABLE UNLOCKED");
   }
 
   $self->info("Returning  $#toReturn +1 entries that match" );
