@@ -53,8 +53,9 @@ sub copy {
 
   $self->debug(2, "Exit code: $com_exit_value, Returned output: $output");
 
+  if($com_exit_value ne 0) {
+
 #### Disabled per Andreas' request since retrieving the logs crashes the source
-#  if($com_exit_value ne 0) {
 #     # &xferuuid=2d20aade-5859-11df-9e4b-001e0bd3f44c&xfercmd=preparetoput located at 128.142.216.111:1094
 #
 #     $self->info("Error doing the xrd3cp $args. Trying to retrieve additional log info.",1);
@@ -74,8 +75,9 @@ sub copy {
 #          return 3;
 #     }
 #
-#     return;
-#  }
+
+     return;
+  }
 
   $self->info("The transfer worked!!");
   return 1;
