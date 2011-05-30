@@ -1655,10 +1655,9 @@ sub getMasterJob {
       $self->{DB}->delete("QUEUE", "queueId=$subjob");
       }
 
-      push @$info, $message;
-      $self->putJobLog($id, "state", "Removed all the subjobs ($cond): $message");
-
-    }
+    push @$info, $message;
+    $self->putJobLog($id, "state", "Removed all the subjobs ($cond): $message");
+    
   } elsif ($data->{command} eq "merge") {
 
     $self->info("Merging the jobs that have finnished");
