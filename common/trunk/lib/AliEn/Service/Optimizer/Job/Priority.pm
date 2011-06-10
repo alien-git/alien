@@ -33,7 +33,7 @@ $self->{DB}->optimizerJobPriority($userColumn);
     $self->info("Doing $update");
     $self->{DB}->do($update);
 
-    $update = "UPDATE JOBAGENT j set j.priority=j.priority * (SELECT max(price) FROM QUEUE q WHERE q.agentId=j.entryId)";
+    $update = "UPDATE JOBAGENT j set j.priority=j.priority * (SELECT ifnull(max(price),1) FROM QUEUE q WHERE q.agentId=j.entryId)";
     $self->info("Doing $update");
     $self->{DB}->do($update);
 
