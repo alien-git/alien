@@ -444,6 +444,7 @@ sub ChangeCacheDir {
   my $cachedir = shift;
   $cachedir or return;
   $DEBUG and $self->debug(2, "Using $cachedir as Cache from the LDAP");
+  $self->{CACHE_DIR_ORIG}="$cachedir";
   while ($cachedir =~ s{\$([^/]*)}{$ENV{$1}}) {
     $self->debug(1, "Replacing $1 by  $ENV{$1}");
   }
