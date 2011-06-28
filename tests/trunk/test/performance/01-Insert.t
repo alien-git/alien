@@ -3,7 +3,6 @@ use Time::HiRes qw (time);
 use AliEn::UI::Catalogue;
 
 my $c=AliEn::UI::Catalogue->new({USER=>"admin", role=>"admin",
-				 USE_PROXY=>0, passwd=>"pass",
 #				 debug=>4
 				}) or exit(-2);
 use Data::Dumper;

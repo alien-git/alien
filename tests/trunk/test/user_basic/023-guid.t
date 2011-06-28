@@ -38,14 +38,14 @@ print "GOT FILE $file\n$lines\n$diflines";
 $lines eq $diflines or print "Error there were some repeated guids!!\n" and exit(-2);
 
 print "Ok, let's put two entries in the catalogue\n";
-my $cat=AliEn::UI::Catalogue->new({user=>"newuser"}) or exit(-2);
+my $cat=AliEn::UI::Catalogue->new({user=>"admin"}) or exit(-2);
 
 my $binDir="$ENV{ALIEN_ROOT}/bin";
 #system("su - alienmaster -c '$binDir/alien StopCatalogueOptimizer'"); 
 
 $cat->execute("rmdir", "-rf","guid");
 $cat->execute("mkdir", "-p", "guid") or exit (-2);
-#$cat->execute("debug", "GUID,Catalogue");
+$cat->execute("debug", "GUID,Catalogue");
 my $total=30;
 my $j=$total;
 #First, let's check that the guids are generated automatically
