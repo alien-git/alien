@@ -242,6 +242,7 @@ $ENV{'SEALED_ENVELOPE_LOCAL_PRIVATE_KEY'} = "$ENV{ALIEN_HOME}/authen/lpriv.pem";
 $ENV{'SEALED_ENVELOPE_LOCAL_PUBLIC_KEY'} = "$ENV{ALIEN_HOME}/authen/lpub.pem";
 $ENV{'SEALED_ENVELOPE_REMOTE_PRIVATE_KEY'} = "$ENV{ALIEN_HOME}/authen/rpriv.pem";
 $ENV{'SEALED_ENVELOPE_REMOTE_PUBLIC_KEY'} = "$ENV{ALIEN_HOME}/authen/rpub.pem";
+
 my $cat=AliEn::UI::Catalogue->new({role=>'admin'}) or exit(-2);
 $cat->execute("addUser", $userName) or exit (-2);
 $cat->execute("mkdir", "-p", "/\L$orgName\E/user/a/admin") or exit(-2);
