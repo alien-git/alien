@@ -72,16 +72,6 @@ sub createCatalogueTables {
       and return;
   }
   my %tables = (
-    HOSTS => [
-      "hostIndex",
-      { hostIndex    => "serial primary key",
-        address      => "char(50)",
-        db           => "char(40)",
-        driver       => "char(10)",
-        organisation => "char(11)",
-      },
-      "hostIndex"
-    ],
     TRIGGERS => [
       "lfn",
       { lfn         => "varchar(255)",
@@ -137,7 +127,6 @@ sub createCatalogueTables {
       "indexId",
       { indexId   => "int(11) NOT NULL auto_increment primary key",
         lfn       => "varchar(50)",
-        hostIndex => "int(11)",
         tableName => "int(11)",
       },
       'indexId',
@@ -361,11 +350,6 @@ sub setIndexTable {
   return 1;
 }
 
-sub getIndexTable {
-  my $self = shift;
-  return $self->{INDEX_TABLENAME};
-}
-
 sub getAllInfoFromLFN {
   my $self    = shift;
   my $options = shift;
@@ -471,7 +455,7 @@ sub getHostsForEntry {
 
   #First, let's take the entry that has the directory
   my $query =
-"SELECT tableName,hostIndex,lfn from INDEXTABLE where lfn=substr('$lfn/',1,length(lfn))  order by length(lfn) desc ";
+"SELECT tableName,lfn from INDEXTABLE where lfn=substr('$lfn/',1,length(lfn))  order by length(lfn) desc ";
   $query = $self->paginate($query, 1, 0);
   my $entry = $self->query($query);
   $entry or return;
@@ -481,7 +465,7 @@ sub getHostsForEntry {
   my $length     = length(${$entry}[0]->{lfn});
   my $expansions =
     $self->query(
-    "SELECT distinct tableName, hostIndex,lfn from INDEXTABLE where lfn like '$lfn/%' and length(lfn)>$length");
+    "SELECT distinct tableName,lfn from INDEXTABLE where lfn like '$lfn/%' and length(lfn)>$length");
   my @all = (@$entry, @$expansions);
   return \@all;
 }
@@ -1213,21 +1197,18 @@ sub actionInIndex {
   my $self   = shift;
   my $action = shift;
 
-  #updating the D0 of all the databases
-  my ($hosts) = $self->getAllHosts;
-
-  defined $hosts
-    or return;
   my ($oldHost, $oldDB, $oldDriver) = ($self->{HOST}, $self->{DB}, $self->{DRIVER});
-  my $tempHost;
-  foreach $tempHost (@$hosts) {
-
-    #my ( $ind, $ho, $d, $driv ) = split "###", $tempHost;
-    $self->info("Updating the INDEX table of  $tempHost->{db}");
-    my ($db, $Path2) = $self->reconnectToIndex($tempHost->{hostIndex}, "", $tempHost);
-    $db              or next;
-    $db->do($action) or print STDERR "Warning: Error doing $action";
-  }
+  my $tempHost= {
+      'organisation' => undef,
+      'db' => $self->{DB},
+      'address' => $self->{HOST},
+      'driver' => $self->{DRIVER}
+          };
+  #my ( $ind, $ho, $d, $driv ) = split "###", $tempHost;
+  $self->info("Updating the INDEX table of  $tempHost->{db}");
+  my ($db, $Path2) = $self->reconnectToIndex($tempHost->{hostIndex}, "", $tempHost);
+  $db              or next;
+  $db->do($action) or print STDERR "Warning: Error doing $action";
   $self->reconnect($oldHost, $oldDB, $oldDriver) or return;
 
   $DEBUG and $self->debug(2, "Everything is done!!");
@@ -1242,7 +1223,7 @@ sub insertInIndex {
   my $lfn       = shift;
 
   $table =~ s/^L(\d+)L$/$1/;
-  my $action = "INSERT INTO INDEXTABLE (hostIndex, tableName, lfn) values('$hostIndex', '$table', '$lfn')";
+  my $action = "INSERT INTO INDEXTABLE (tableName, lfn) values('$table', '$lfn')";
   return $self->actionInIndex($action);
 }
 
@@ -1439,7 +1420,6 @@ sub moveLFNs {
   my $isIndex = $self->queryValue("SELECT 1 from INDEXTABLE where lfn=?", undef, {bind_values => [$lfn]});
 
   my $entry           = $self->getIndexHost($lfn) or $self->info("Error getting the info of $lfn") and return;
-  my $sourceHostIndex = $entry->{hostIndex};
   my $fromTable       = $entry->{tableName};
   my $fromLFN         = $entry->{lfn};
   my $toLFN           = $lfn;
@@ -1468,8 +1448,6 @@ sub moveLFNs {
 
   $toTable   =~ /^(\d+)*$/ and $toTable   = "L${toTable}L";
   $fromTable =~ /^(\d+)*$/ and $fromTable = "L${fromTable}L";
-
-  defined $sourceHostIndex or $self->info("Error getting the hostindex of the table $toTable") and return;
 
   $self->lock(
 "$toTable WRITE, $toTable as ${toTable}d READ,  $toTable as ${toTable}r READ, $fromTable as ${fromTable}d READ, $fromTable as ${fromTable}r READ, $fromTable"
@@ -1511,9 +1489,8 @@ sub moveLFNs {
     $self->do("update $toTable set dir=? where dir=?", {bind_values => [ $newDir, $oldDir ]});
     $self->do("drop table $fromTable");
   } else {
-    if (!$self->insertInIndex($sourceHostIndex, $toTable, $lfn)) {
+  if (!$self->insertInIndex("", $toTable, $lfn)) {
       $self->delete($toTable, "lfn like '${tempLfn}%'");
-
       return;
     }
     if (!$isIndex) {
@@ -1526,7 +1503,6 @@ sub moveLFNs {
     }
     my $user = $self->queryValue("select owner from $toTable where lfn=''");
     $self->info("And now, let's give access to $user to '$toTable");
-
   }
 
   return 1;
@@ -1575,46 +1551,7 @@ sub deleteLink {
   $self->deleteFromD0Like($newpath);
 }
 
-### Hosts functions
-
-sub getFieldFromHosts {
-  my $self = shift;
-  my $host = shift
-    or $self->{LOGGER}->error("Catalogue", "In getFieldFromHosts host index is missing")
-    and return;
-  my $attr = shift || "*";
-
-  $DEBUG and $self->debug(2, "In getFieldFromHosts fetching value of attribute $attr for host index $host");
-  $self->queryValue("SELECT $attr FROM HOSTS WHERE hostIndex = ?", undef, {bind_values => [$host]});
-}
-
-sub getFieldsFromHostsEx {
-  my $self  = shift;
-  my $attr  = shift || "*";
-  my $where = shift || "";
-
-  $self->query("SELECT $attr FROM HOSTS $where");
-}
-
-sub getFieldFromHostsEx {
-  my $self  = shift;
-  my $attr  = shift || "*";
-  my $where = shift || "";
-
-  $self->queryColumn("SELECT $attr FROM HOSTS $where");
-}
-
-sub getHostIndex {
-  my $self   = shift;
-  my $host   = shift;
-  my $DB     = shift;
-  my $driver = shift;
-
-  $driver and $driver = " AND driver='$driver'"
-    or $driver = "";
-
-  $self->queryValue("SELECT hostIndex from HOSTS where address LIKE '$host%' AND db ='$DB'$driver");
-}
+### Host functions 
 
 sub getIndexHost {
   my $self = shift;
@@ -1623,53 +1560,11 @@ sub getIndexHost {
 
   #my $options={bind_values=>[$lfn]};
   my $query =
-"SELECT hostIndex, tableName,lfn FROM INDEXTABLE where lfn=substr('$lfn',1, length(lfn))  order by length(lfn) desc ";
+"SELECT tableName,lfn FROM INDEXTABLE where lfn=substr('$lfn',1, length(lfn))  order by length(lfn) desc ";
   $query = $self->paginate($query, 1, 0);
 
   # return $self->queryRow($query, undef, $options);
   return $self->queryRow($query, undef, undef);
-}
-
-sub getMaxHostIndex {
-  my $self = shift;
-
-  $self->queryValue("SELECT MAX(hostIndex) from HOSTS");
-}
-
-sub insertHost {
-  my $self         = shift;
-  my $ind          = shift;
-  my $ho           = shift;
-  my $d            = shift;
-  my $driv         = shift;
-  my $organisation = shift;
-
-  my $data = {hostIndex => $ind, address => $ho, db => $d, driver => $driv};
-  $organisation and $data->{organisation} = $organisation;
-
-  $DEBUG and $self->debug(2, "In insertHost inserting new data");
-  $self->insert("HOSTS", $data);
-}
-
-sub updateHost {
-  my $self = shift;
-  my $ind  = shift
-    or $self->{LOGGER}->error("Catalogue", "In updateHost host index is missing")
-    and return;
-  my $set = shift;
-
-  $DEBUG and $self->debug(2, "In updateHost updating host $ind");
-  $self->update("HOSTS", $set, "hostIndex='$ind'");
-}
-
-sub deleteHost {
-  my $self = shift;
-  my $ind  = shift
-    or $self->{LOGGER}->error("Catalogue", "In deleteHost host index is missing")
-    and return;
-
-  $DEBUG and $self->debug(2, "In deleteHost deleting host $ind");
-  $self->delete("HOSTS", "hostIndex='$ind'");
 }
 
 ### Groups functions
@@ -2062,26 +1957,17 @@ sub executeInAllDB {
   my $method = shift;
 
   $DEBUG and $self->debug(1, "Executing $method (@_) in all the databases");
-  my $hosts = $self->getAllHosts("hostIndex");
+  #my $hosts = $self->getAllHosts("hostIndex");
   my ($oldHost, $oldDB, $oldDriver) = ($self->{HOST}, $self->{DB}, $self->{DRIVER});
 
   my $error = 0;
   my @return;
-  foreach my $entry (@$hosts) {
-    $DEBUG and $self->debug(1, "Checking in the table $entry->{hostIndex}");
-    my ($db, $path2) = $self->reconnectToIndex($entry->{hostIndex});
-    if (!$db) {
-      $error = 1;
-      last;
-    }
-
-    my $info = $db->$method(@_);
-    if (!$info) {
-      $error = 1;
-      last;
-    }
-    push @return, $info;
+  my $info = $self->$method(@_);
+  if (!$info) {
+    $error = 1;
+    last;
   }
+  push @return, $info;
 
   $error and return;
   $DEBUG and $self->debug(1, "Executing in all databases worked!! :) ");
@@ -2097,15 +1983,11 @@ sub selectDatabase {
   my $entry = $self->getIndexHost($path);
   $entry or $self->info("The path $path is not in the catalogue ") and return;
 
-  my $index     = $entry->{hostIndex};
   my $tableName = "L$entry->{tableName}L";
-  if (!$index) {
-    $DEBUG and $self->debug(1, "Error no index!! SELECT hostIndex from D0 where path='$path'");
-    return;
-  }
-  $DEBUG and $self->debug(1, "We want to contact $index  and we are  $self->{CURHOSTID}");
+  $DEBUG and $self->debug(1, "We want to connect to $tableName");
 
-  my ($db, $path2) = $self->reconnectToIndex($index, $path) or return;
+  #index being pased as 0 to reconnect to index ---- FIX THIS
+  my ($db, $path2) = $self->reconnectToIndex(0, $path) or return;
 
   $db->setIndexTable($tableName, $entry->{lfn});
   return $db;

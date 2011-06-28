@@ -97,7 +97,6 @@ sub AUTOLOAD {
   my $name = our $AUTOLOAD;
   $name =~ s/.*::(f_)?//;
 
-
   my $ops = {
     addFileToCollection      => "addFileToCollection",
     addMirror                => "addMirror",
@@ -165,7 +164,6 @@ sub AUTOLOAD {
     verifyToken              => "verifyToken",
     whereis                  => "whereis",
     zoom                     => "zoom",
-
 
   };
   if ($ops->{$name}) {

@@ -186,7 +186,7 @@ sub OLDselectClosestRealSEOnRank {
   }
   $seList = \@cleanList;
 
-  my $catalogue   = $self->{DATABASE}->{LFN_DB}->{FIRST_DB};
+  my $catalogue   = $self->{DATABASE}->{LFN_DB};
   my @queryValues = ();
   my $query       = "";
   if ($sitename) {
@@ -511,7 +511,7 @@ sub access {
         $query .= " ORDER BY coalesce(a.rank,1000) ASC ) d;";
 
         my $sorted =
-          $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn($query, undef, {bind_values => \@queryValues});
+          $self->{DATABASE}->{LFN_DB}->queryColumn($query, undef, {bind_values => \@queryValues});
 
         if($sorted and defined(@$sorted)) {
           (scalar(@ses) eq 0) or @$sorted = (@ses,@$sorted); 
@@ -1038,7 +1038,7 @@ sub selectPFNOnClosestRootSEOnRank {
     return 0;
   }
 
-  my $catalogue   = $self->{DATABASE}->{LFN_DB}->{FIRST_DB};
+  my $catalogue   = $self->{DATABASE}->{LFN_DB};
   my @queryValues = ();
   my $query       = "";
   if ($sitename) {
@@ -1147,7 +1147,7 @@ sub parseAndCheckStorageElementPFN2TURL {
   my $seiostring = AliEn::Util::returnCacheValue($self, "seiodaemons-$se");
   if (not $seiostring) {
     $seiostring =
-      $self->{DATABASE}->{LFN_DB}->{FIRST_DB}
+      $self->{DATABASE}->{LFN_DB}
       ->queryRow("SELECT seioDaemons FROM SE where seName = ? ;", undef, {bind_values => [$se]});
     AliEn::Util::setCacheValue($self, "seiodaemons-$se", $seiostring);
   }
@@ -1167,11 +1167,11 @@ sub getSEforPFN {
   $pfn = $self->parsePFN($pfn);
   $pfn or $self->info("Error parsing the pfn '$pfn'") and return 0;
   my @queryValues = ("$pfn->{proto}://$pfn->{host}", "$pfn->{path}");
-  my $query = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->paginate(
+  my $query = $self->{DATABASE}->{LFN_DB}->paginate(
 "SELECT seName FROM SE WHERE seioDaemons LIKE concat ( ? , '%') AND ? LIKE CONCAT(seStoragePath, '%')  ORDER BY length(seStoragePath) DESC ",
     1, 0
   );
-  my $sestring = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryValue($query, undef, {bind_values => \@queryValues});
+  my $sestring = $self->{DATABASE}->{LFN_DB}->queryValue($query, undef, {bind_values => \@queryValues});
   $sestring or return "no_se";
   return $sestring;
 }
@@ -1209,7 +1209,7 @@ sub getBaseEnvelopeForDeleteAccess {
     $query .= " lfn=? ;";
   }
 
-  my $envelope = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow($query, undef, {bind_values => [$lfnORGUIDORpfn]});
+  my $envelope = $self->{DATABASE}->{LFN_DB}->queryRow($query, undef, {bind_values => [$lfnORGUIDORpfn]});
 
   return ($self->reduceFileHashAndInitializeEnvelope("delete", $envelope), [ $envelope->{se} ]);
 }
@@ -1247,7 +1247,7 @@ sub getBaseEnvelopeForWriteAccess {
 
   if ($user ne "admin") {
     my $reply =
-      $self->{DATABASE}->{LFN_DB}->{FIRST_DB}
+      $self->{DATABASE}->{LFN_DB}
       ->queryRow("SELECT lfn FROM LFN_BOOKED WHERE lfn=? and (owner<>? or gowner<>? ) and expiretime > 0;",
       undef, {bind_values => [ $envelope->{lfn}, $user, $user ]});
     $reply->{lfn}
@@ -1266,7 +1266,7 @@ sub getBaseEnvelopeForWriteAccess {
     $collision->{guid} and $self->info("Authorize: access: the requested GUID is already in use", 1) and return 0;
     if ($user ne "admin") {
       my $collision =
-        $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow(
+        $self->{DATABASE}->{LFN_DB}->queryRow(
         "SELECT guid FROM LFN_BOOKED WHERE guid=string2binary(?) and (lfn<>? or gowner<> ?) and expiretime > 0 ;",
         undef, {bind_values => [ $envelope->{guid}, $envelope->{lfn}, $user ]});
       $collision->{guid}
@@ -1299,7 +1299,7 @@ sub prepookArchiveLinksInBookingTable {
   foreach my $link (@links) {
     my ($l, $s, $m, $g) = split(/###/, $link);
 
-    #my $collisionCheck = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow(
+    #my $collisionCheck = $self->{DATABASE}->{LFN_DB}->queryRow(
     #     "SELECT lfn FROM LFN_BOOKED WHERE lfn=? and size=? and owner=? and gowner=? and jobid=?;"
     #     , undef, {bind_values=>[$l,$s,$user,$user,$jobID]});
     #$collisionCheck->{lfn} and next; #already booked
@@ -1505,9 +1505,9 @@ sub registerOutputForJobPFNS {
   my @failedFiles      = ();
 
   foreach my $pfn (@_) {
-    my $reply = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow(
+    my $reply = $self->{DATABASE}->{LFN_DB}->queryRow(
       "SELECT lfn,binary2string(guid) as guid,existing,pfn as turl, se, "
-        . $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->reservedWord("size")
+        . $self->{DATABASE}->{LFN_DB}->reservedWord("size")
         . ", md5sum as md5 FROM LFN_BOOKED WHERE jobid=? and pfn=? and owner=? and gowner=? ;",
       undef,
       {bind_values => [ $jobid, $pfn, $user, $user ]}
@@ -1525,9 +1525,9 @@ sub registerOutputForJobPFNS {
       push @failedFiles, $reply->{lfn} . "\-\-\>" . $reply->{turl};
       next;
     }
-    my $links = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->query(
+    my $links = $self->{DATABASE}->{LFN_DB}->query(
       "SELECT lfn,binary2string(guid) as guid,existing,pfn as turl, se,  "
-        . $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->reservedWord("size")
+        . $self->{DATABASE}->{LFN_DB}->reservedWord("size")
         . ", md5sum as md5 FROM LFN_BOOKED WHERE jobid=? and upper(pfn) LIKE concat ('GUID:///' , concat(? , '?ZIP=%' ) ) and owner=? and gowner=? ;",
       undef,
       {bind_values => [ $jobid, uc($reply->{guid}), $user, $user ]}
@@ -1545,7 +1545,7 @@ sub registerOutputForJobPFNS {
       }
     }
   }
-  $self->{DATABASE}->{LFN_DB}->{FIRST_DB}
+  $self->{DATABASE}->{LFN_DB}
     ->do("UPDATE LFN_BOOKED set expiretime=-1 where jobid=? and owner=? and gowner=? ;",
     {bind_values => [ $jobid, $user, $user ]});
   return ($regok, ($outputdir || 0), @failedFiles);
@@ -1648,7 +1648,7 @@ sub ValidateRegistrationEnvelopesWithBookingTable {
   my $envelope          = (shift || return 0);
   my @verifiedEnvelopes = ();
 
-  my $reply = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow(
+  my $reply = $self->{DATABASE}->{LFN_DB}->queryRow(
 "SELECT lfn,binary2string(guid) as guid,existing FROM LFN_BOOKED WHERE guid=string2binary(?) and pfn=? and se=? and owner=? and gowner=? ",
     undef,
     {bind_values => [ $envelope->{guid}, $envelope->{turl}, $envelope->{se}, $user, $user ]}
@@ -1672,15 +1672,15 @@ sub deleteEntryFromBookingTableAndOptionalExistingFlagTrigger {
 
   if ($user ne "admin") {
     $trigger
-      and $triggerstat = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do(
+      and $triggerstat = $self->{DATABASE}->{LFN_DB}->do(
       "UPDATE LFN_BOOKED SET existing=1 WHERE lfn=? and guid=string2binary(?) and "
-        . $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->reservedWord("size")
+        . $self->{DATABASE}->{LFN_DB}->reservedWord("size")
         . "=? and owner=? and gowner=? ;",
       {bind_values => [ $envelope->{lfn}, $envelope->{guid}, $envelope->{size}, $user, $user ]}
       );
 
     return (
-      $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do(
+      $self->{DATABASE}->{LFN_DB}->do(
 "DELETE FROM LFN_BOOKED WHERE lfn=? and guid=string2binary(?) and pfn=? and upper(se)=upper(?) and owner=? and gowner=? ;",
         {bind_values => [ $envelope->{lfn}, $envelope->{guid}, $envelope->{turl}, $envelope->{se}, $user, $user ]}
         )
@@ -1688,14 +1688,14 @@ sub deleteEntryFromBookingTableAndOptionalExistingFlagTrigger {
     );
   } else {
     $trigger
-      and $triggerstat = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do(
+      and $triggerstat = $self->{DATABASE}->{LFN_DB}->do(
       "UPDATE LFN_BOOKED SET existing=1 WHERE lfn=? and guid=string2binary(?) and "
-        . $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->reservedWord("size") . "=?  ;",
+        . $self->{DATABASE}->{LFN_DB}->reservedWord("size") . "=?  ;",
       {bind_values => [ $envelope->{lfn}, $envelope->{guid}, $envelope->{size} ]}
       );
 
     return (
-      $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do(
+      $self->{DATABASE}->{LFN_DB}->do(
         "DELETE FROM LFN_BOOKED WHERE lfn=? and guid=string2binary(?) and pfn=? and upper(se)=upper(?) ;",
         {bind_values => [ $envelope->{lfn}, $envelope->{guid}, $envelope->{turl}, $envelope->{se} ]}
         )
@@ -1713,13 +1713,13 @@ sub addEntryToBookingTableAndOptionalExistingFlagTrigger {
 
   use Time::HiRes qw (time);
   my $lifetime = time() + 604800;    # one week to prevent data loss
-  $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->insertLFNBookedAndOptionalExistingFlagTrigger(
+  $self->{DATABASE}->{LFN_DB}->insertLFNBookedAndOptionalExistingFlagTrigger(
     $envelope->{lfn},  $user,           "1",               $envelope->{md5}, $lifetime, $envelope->{size},
     $envelope->{turl}, $envelope->{se}, $envelope->{guid}, $trigger,         $jobid
     )
     or return 0;
   my $negexpire = -$lifetime;
-  $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do(
+  $self->{DATABASE}->{LFN_DB}->do(
     "UPDATE LFN_BOOKED SET expiretime=? WHERE lfn=? and guid<>string2binary(?)  ",
     {bind_values => [ $negexpire, $envelope->{lfn}, $envelope->{guid} ]}
     )
@@ -1926,7 +1926,7 @@ sub isOldEnvelopeStorageElement {
   }
   my @queryValues = ("$se");
   my $seVersion   =
-    $self->{DATABASE}->{LFN_DB}->{FIRST_DB}
+    $self->{DATABASE}->{LFN_DB}
     ->queryValue("SELECT seVersion FROM SE WHERE upper(seName)=upper(?) ;", undef, {bind_values => \@queryValues});
   my $value = 1;
   eval { (defined($seVersion)) and ($seVersion =~ m/^\d+$/) and (int($seVersion) > 218) and $value = 0; };
@@ -2066,7 +2066,7 @@ sub checkExclWriteUserOnSEsForAccess {
   my $seList   = (shift || return 0);
   (scalar(@$seList) gt 0) or return [];
 
-  my $catalogue   = $self->{DATABASE}->{LFN_DB}->{FIRST_DB};
+  my $catalogue   = $self->{DATABASE}->{LFN_DB};
   my @queryValues = ();
   my $query       = "SELECT seName FROM SE WHERE (";
   foreach (@$seList) { $query .= " upper(seName)=upper(?) or"; push @queryValues, $_; }
@@ -2146,7 +2146,7 @@ sub getSEListFromSiteSECacheForWriteAccess {
   my $sitename    = (shift || return 0);
   my $excludeList = (shift || "");
 
-  my $catalogue = $self->{DATABASE}->{LFN_DB}->{FIRST_DB};
+  my $catalogue = $self->{DATABASE}->{LFN_DB};
 
   $self->checkSiteSECacheForAccess($sitename) or return 0;
   return $catalogue->dbGetSEListFromSiteSECacheForWriteAccess($user, $fileSize, $type, $count, $sitename, $excludeList);
@@ -2156,7 +2156,7 @@ sub getSEListFromSiteSECacheForWriteAccess {
 sub checkSiteSECacheForAccess {
   my $self      = shift;
   my $site      = shift;
-  my $catalogue = $self->{DATABASE}->{LFN_DB}->{FIRST_DB};
+  my $catalogue = $self->{DATABASE}->{LFN_DB};
 
   AliEn::Util::returnCacheValue($self, "seranks-$site") and return 1;
 

@@ -76,16 +76,6 @@ sub createCatalogueTables {
   }
 
   my %tables = (
-    HOSTS => [
-      "hostIndex",
-      { hostIndex    => "serial primary key",
-        address      => "char(50)",
-        db           => "char(40)",
-        driver       => "char(10)",
-        organisation => "char(11)",
-      },
-      "hostIndex"
-    ],
     ACL => [
       "entryId",
       { entryId => "int(11) NOT NULL auto_increment primary key",
@@ -107,7 +97,6 @@ sub createCatalogueTables {
       "indexId",
       { indexId   => "int(11) NOT NULL auto_increment primary key",
         guidTime  => "varchar(16) default 0",
-        hostIndex => "int(11)",
         tableName => "int(11)",
       },
       'indexId',
@@ -465,13 +454,11 @@ sub getIndexHostFromGUID {
   my $guid = shift || "";
   $self->debug(1, "Let's find the database that holds the guid '$guid'");
   my $query =
-"SELECT hostIndex, tableName from GUIDINDEX where guidTime<string2date(?) or guidTime is null order by guidTime desc ";
+"SELECT tableName from GUIDINDEX where guidTime<string2date(?) or guidTime is null order by guidTime desc ";
   $query = $self->paginate($query, 1, 0);
   my $entry = $self->queryRow($query, undef, {bind_values => [$guid]})
     or $self->info("Error doing the query  for the guid '$guid'")
     and return;
-  $entry->{hostIndex} or $self->info("Error getting the index for the guid '$guid'") and return;
-  $self->debug(1, "It should be in $entry->{hostIndex} and $entry->{tableName}");
   defined $entry->{tableName} and $entry->{tableName} = "G$entry->{tableName}L";
   return $entry;
 }
@@ -938,18 +925,15 @@ sub getLFNfromGUID {
   );
   if ($options =~ /a/) {
     $self->info("Looking in all possible tables");
-    $ref = $self->queryColumn("select concat(hostIndex,concat('_',tableName)) from INDEXTABLE");
+    $ref = $self->queryColumn("select tableName from INDEXTABLE");
   }
+
   foreach my $entry (@$ref) {
     $self->info("We have to check $entry");
-    my ($host, $lfnTable) = split(/_/, $entry);
-
-    #    $DEBUG and $self->debug(1, "Checking in the table $entry->{hostIndex}");
-    my ($db2, $path2) = $self->reconnectToIndex($host) or next;
     my $prefix = "";
-    $prefix = $db2->queryValue("SELECT lfn from INDEXTABLE where hostIndex=? and tableName=?",
-      undef, {bind_values => [ $host, $lfnTable ]});
-    my $paths = $db2->queryColumn("SELECT concat('$prefix', lfn) FROM L${lfnTable}L WHERE guid=string2binary(?) ",
+    $prefix = $db->queryValue("SELECT lfn from INDEXTABLE where tableName=?",
+      undef, {bind_values => [ $entry ]});
+    my $paths = $db->queryColumn("SELECT concat('$prefix', lfn) FROM L${entry}L WHERE guid=string2binary(?) ",
       undef, {bind_values => [$guid]});
     $paths and push @lfns, @$paths;
   }

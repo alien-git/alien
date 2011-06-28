@@ -4,7 +4,6 @@
 
 package AliEn::Util;
 
-
 use strict;
 use POSIX ":sys_wait_h";
 require AliEn::Database::Util;
@@ -619,9 +618,9 @@ sub getDebugLevelFromParameters {
   return ($back, \@rlist);
 }
 
-sub getURLandEvaluate{
-  my $url=shift;
-  my $evaluate=shift || 0;
+sub getURLandEvaluate {
+  my $url = shift;
+  my $evaluate = shift || 0;
 
   my $agent = LWP::UserAgent->new();
   $agent->timeout(120);
@@ -631,12 +630,12 @@ sub getURLandEvaluate{
   my $res    = $agent->request($req);
   my $output = $res->content;
   $res->is_success() or return 0, "Error getting $url\n";
-  
+
   $evaluate or return 1;
-  
-  my $VAR1;  
+
+  my $VAR1;
   eval "$output";
-  ($@) and  return 0, "Error evaluating $output: $@\n";
+  ($@) and return 0, "Error evaluating $output: $@\n";
   return 1, @$VAR1;
 
 }

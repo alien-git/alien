@@ -440,23 +440,13 @@ sub addUser {
   my $group=shift;
   my $db_user = $user;
 
-  my $rhosts = $self->{LFN_DB}->getAllHosts();
-
-  my $error=0;
   if ($self->{LFN_DB}->{DRIVER} =~ /Oracle/){
     $db_user = $self->{LFN_DB}->{ORACLE_USER};
   }
-  foreach my $rtempHost (@$rhosts) {
-    $self->info("Adding the $user in $rtempHost->{db} (so far $error)");
-    my ($db, $extra)=$self->{LFN_DB}->reconnectToIndex( $rtempHost->{hostIndex}, "", $rtempHost );
-    
-    my $sch = $db->{DB};	$sch=~  s/(.+)\:(\w+)(\s*)/$2/; 
-    ($self->{SCHEMA} and $self->{SCHEMA} eq $sch) or $self->reconnect;
-    $db or $self->info("Error reconnecting to $rtempHost->{hostIndex}") and $error=1 and next; 
+  
+  $self->{LFN_DB} or $self->info("Not connected to the database") and return; 
 
-    $db->insertIntoGroups($user, $group, 1);
-  }
-  $error and return;
+  $self->{LFN_DB}->insertIntoGroups($user, $group, 1);
 
   return 1;
 }
@@ -504,75 +494,6 @@ sub deleteLink {
 
     $self->deleteDirEntry($parent, $basename);
     $self->deleteFromD0Like($newpath);
-}
-
-### Hosts functions
-
-sub getFieldsFromHosts{
-	my $self = shift;
-	my $host = shift
-		or $self->{LOGGER}->error("Catalogue","In getFieldsFromHosts host index is missing")
-		and return;
-	my $attr = shift || "*";
-
-	$DEBUG and $self->debug(2,"In getFieldFromHosts fetching value of attributes $attr for host index $host");
-	$self->queryRow("SELECT $attr FROM HOSTS WHERE hostIndex = '$host'");
-}
-
-sub getFieldFromHosts{
-  my $self = shift;
-  my $host = shift
-    or $self->{LOGGER}->error("Catalogue","In getFieldFromHosts host index is missing")
-      and return;
-  my $attr = shift || "*";
-  
-  $DEBUG and $self->debug(2,"In getFieldFromHosts fetching value of attribute $attr for host index $host");
-  $self->queryValue("SELECT $attr FROM HOSTS WHERE hostIndex = ?", undef, 
-		    {bind_values=>[$host]});
-}
-
-sub getFieldsFromHostsEx {
-  my $self = shift;
-  my $attr = shift || "*";
-  my $where = shift || "";
-
-  $self->query("SELECT $attr FROM HOSTS $where");
-}
-
-sub getFieldFromHostsEx {
-  my $self = shift;
-  my $attr = shift || "*";
-  my $where = shift || "";
-  
-  $self->queryColumn("SELECT $attr FROM HOSTS $where");
-}
-
-sub getHostIndex {
-    my $self = shift;
-    return $self->{LFN_DB}->getHostIndex(@_);
-}
-sub getIndexTable{
-  my $self=shift;
-  return $self->{LFN_DB}->getIndexTable(@_);
-}
-sub getIndexHost {
-  my $self=shift;
-  $self->{LFN_DB}->getIndexHost(@_);
-}
-sub getAllHosts {
-  my $self = shift;
-  return $self->{LFN_DB}->getAllHosts(@_);
-}
-
-
-sub updateHost {
-  my $self = shift;
-  return $self->{LFN_DB}->updateHost(@_);
-}
-
-sub deleteHost {
-  my $self = shift;
-  return $self->{LFN_DB}->deleteHost(@_);
 }
 
 ### Groups functions

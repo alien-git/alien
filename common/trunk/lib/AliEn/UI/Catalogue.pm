@@ -462,8 +462,6 @@ sub new {
   my $silent = 0;
   ($sentence) and ( $silent = 1 );
 
-
-
   bless( $self, $class );
  
   bless( $self, $class );
@@ -488,6 +486,7 @@ sub new {
         or return;
     $self->{CATALOG}->{GLOB} = 1;
   } else {
+
     if ($self->checkEnvelopeCreation()) {
       $self->{CATALOG} =AliEn::Catalogue->new($options)
           or return;
@@ -498,7 +497,6 @@ sub new {
       $client=1;
     }
   }
-
   $self->SUPER::new();
 
   if ($self->{CATALOG}) {

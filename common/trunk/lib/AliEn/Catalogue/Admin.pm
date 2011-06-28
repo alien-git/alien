@@ -185,7 +185,6 @@ sub f_addUser {
   $self->{DATABASE}->addUser($user, $group )
     or return;
 
-
   $self->info("Creating new homedir for  $user");
   $self->f_mkdir("p", $homedir)
     or $self->info("Error creating $homedir")
@@ -200,7 +199,7 @@ sub f_addUser {
   $self->f_chown("", $user, $homedir) or return;
   $self->info("Adding the FQUOTAS");
   my $exists =
-    $self->{DATABASE}->{LFN_DB}->{FIRST_DB}
+    $self->{DATABASE}->{LFN_DB}
     ->queryValue("select user from FQUOTAS where user = ? ;", undef, {bind_values => [$user]});
 
   if (defined($exists) and $exists eq $user) {
@@ -214,7 +213,7 @@ sub f_addUser {
     my $tmpIncreasedTotalSize = 0;
     my $maxNbFiles            = 10000;
     my $maxTotalSize          = 10000000000;
-    my $db                    = $self->{DATABASE}->{LFN_DB}->{FIRST_DB};
+    my $db                    = $self->{DATABASE}->{LFN_DB};
     $db->do(
       "insert into FQUOTAS ( "
         . $db->reservedWord("user")
@@ -656,7 +655,7 @@ sub refreshSERankCache {
   $self->info("Let's force a refresh on the SE Rank Cache based on MonALISA info!");
 
   my $sitename = (shift || "");
-  my $db = $self->{DATABASE}->{LFN_DB}->{FIRST_DB};
+  my $db = $self->{DATABASE}->{LFN_DB};
 
   $self->info("Going to update the ranks.");
   my $where = "";
@@ -797,7 +796,7 @@ sub resyncLDAPSE {
   my $total = $mesg->count;
   $self->info("There are $total entries under AliEnMSS");
 
-  my $db = $self->{DATABASE}->{LFN_DB}->{FIRST_DB};
+  my $db = $self->{DATABASE}->{LFN_DB};
 
   my $new_SEs = {};
 
@@ -911,7 +910,7 @@ sub checkSEDescription {
   my $name   = shift;
   my $sename = shift;
 
-  my $db = $self->{DATABASE}->{LFN_DB}->{FIRST_DB};
+  my $db = $self->{DATABASE}->{LFN_DB};
 
   my $min_size = 0;
   foreach my $d ($entry->get_value('options')) {

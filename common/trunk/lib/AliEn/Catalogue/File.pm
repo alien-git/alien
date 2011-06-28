@@ -1085,7 +1085,7 @@ sub createDefaultUrl {
   my $guid   = shift;
   my $size   = shift;
   my $prefix =
-    $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryValue(
+    $self->{DATABASE}->{LFN_DB}->queryValue(
     'select concat(method,concat(\'/\',mountpoint)) from SE_VOLUMES where freespace>? and upper(sename)=upper(?)',
     undef, {bind_values => [ $size, $se ]});
   if (!$prefix) {
@@ -1178,7 +1178,7 @@ sub checkFileQuota {
     and return (-1, "size is not specified.");
 
   $self->info("In checkFileQuota for user: $user, request file size:$size");
-  my $db    = $self->{DATABASE}->{LFN_DB}->{FIRST_DB};
+  my $db    = $self->{DATABASE}->{LFN_DB};
   my $array = $db->queryRow(
 "SELECT nbFiles, totalSize, maxNbFiles, maxTotalSize, tmpIncreasedNbFiles, tmpIncreasedTotalSize FROM FQUOTAS WHERE "
       . $db->reservedWord("user") . "=?",

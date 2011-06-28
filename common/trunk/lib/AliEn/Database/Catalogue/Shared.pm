@@ -3,8 +3,6 @@ use strict;
 
 use vars qw(@ISA $DEBUG);
 
-#This array is going to contain all the connections of a given catalogue
-my %Connections;
 push @ISA, qw(AliEn::Database);
 
 # This function is inherited by the children
@@ -12,19 +10,7 @@ push @ISA, qw(AliEn::Database);
 #
 sub preConnect {
   my $self = shift;
-
-  if (!$self->{UNIQUE_NM}) {
-    $self->{UNIQUE_NM} = time;
-
-    #make sure that the number is unique
-    while ($Connections{$self->{UNIQUE_NM}}) {
-      $self->{UNIQUE_NM} .= "-1";
-    }
-    $Connections{$self->{UNIQUE_NM}} = {FIRST_DB => $self};
-  }
-  $self->{FIRST_DB} = $Connections{$self->{UNIQUE_NM}}->{FIRST_DB};
   $self->{DB} and $self->{HOST} and $self->{DRIVER} and return 1;
-
   #! ($self->{DB} and $self->{HOST} and $self->{DRIVER} ) or (!$self->{CONFIG}->{CATALOGUE_DATABASE}) and  return;
   $self->debug(2, "Using the default $self->{CONFIG}->{CATALOGUE_DATABASE}");
   ($self->{HOST}, $self->{DRIVER}, $self->{DB}) = split(m{/}, $self->{CONFIG}->{CATALOGUE_DATABASE});
@@ -34,18 +20,7 @@ sub preConnect {
 
 sub initialize {
   my $self = shift;
-
-  $self->{CURHOSTID} =
-    $self->queryValue(
-    "SELECT hostIndex from HOSTS where address='$self->{HOST}' and driver='$self->{DRIVER}' and db='$self->{DB}'");
-  $self->{CURHOSTID}
-    or $self->info("Warning this host is not in the HOSTS table!!!")
-    and return $self->SUPER::initialize(@_);
-
   $self->{binary2string} = $self->binary2string("guid");
-  my $dbindex = "$self->{CONFIG}->{ORG_NAME}_$self->{CURHOSTID}";
-
-  $Connections{$self->{UNIQUE_NM}}->{$dbindex} = $self;
   $self->{VIRTUAL_ROLE} or $self->{VIRTUAL_ROLE} = $self->{ROLE};
   return $self->SUPER::initialize(@_);
 }
@@ -219,24 +194,24 @@ sub executeInAllDB {
 
 sub destroy {
   my $self = shift;
-
-  use Data::Dumper;
-  my $number = $self->{UNIQUE_NM};
-  $number               or return;
-  $Connections{$number} or return;
-  my @databases = keys %{$Connections{$number}};
-
-  foreach my $database (@databases) {
-    $database =~ /^FIRST_DB$/ and next;
-
-    $Connections{$number}->{$database} and $Connections{$number}->{$database}->SUPER::destroy();
-    delete $Connections{$number}->{$database};
-  }
-
-  #  delete $Connections{$number};
-  keys %Connections or undef %Connections;
-
-  #  $self->SUPER::destroy();
+#
+#  use Data::Dumper;
+#  my $number = $self->{UNIQUE_NM};
+#  $number               or return;
+#  $Connections{$number} or return;
+#  my @databases = keys %{$Connections{$number}};
+#
+#  foreach my $database (@databases) {
+#    $database =~ /^FIRST_DB$/ and next;
+#
+#    $Connections{$number}->{$database} and $Connections{$number}->{$database}->SUPER::destroy();
+#    delete $Connections{$number}->{$database};
+#  }
+#
+#  #  delete $Connections{$number};
+#  keys %Connections or undef %Connections;
+#
+#  #  $self->SUPER::destroy();
 }
 
 sub checkSETable {
@@ -269,72 +244,7 @@ sub reconnectToIndex {
   my $index     = shift;
   my $tableName = shift;
   my $data      = shift;
-  ($index eq $self->{CURHOSTID}) and return ($self, $tableName);
-  $self->debug(2, "We have to reconnect to $index, and we are $self->{CURHOSTID}");
-
-  $data
-    or $data = $self->getFieldsFromHosts($index, "organisation,address,db,driver");
-  ## add db error message
-  defined $data
-    or $self->info("Can't get the info of '$index'")
-    and return;
-
-  $data->{organisation} or $data->{organisation} = $self->{CONFIG}->{ORG_NAME};
-  my $dbindex   = "$self->{CONFIG}->{ORG_NAME}_$index";
-  my $changeOrg = 0;
-  $DEBUG and $self->debug(1, "We are in org $self->{CONFIG}->{ORG_NAME} and want to contact $data->{organisation}");
-  if ($tableName and ($data->{organisation} ne $self->{CONFIG}->{ORG_NAME})) {
-    $self->info("We are connecting to a different organisation");
-    $self->{CONFIG} = $self->{CONFIG}->Reload({organisation => $data->{organisation}});
-    $self->{CONFIG} or $self->info("Error getting the new configuration") and return;
-    $tableName =~ s/\/$//;
-    $self->{"MOUNT_$data->{organisation}"} = $tableName;
-
-    $self->{MOUNT} .= $self->{"MOUNT_$data->{organisation}"};
-    $self->info("Mount point:$self->{MOUNT}");
-    $changeOrg = 1;
-  }
-
-  if (!$Connections{$self->{UNIQUE_NM}}->{$dbindex}) {
-
-    #    if ( !$self->{"DATABASE_$index"} ) {
-    $DEBUG and $self->debug(1, "Connecting for the first time to $data->{address} $data->{db}");
-
-    # CHECK LOGGER!!
-    my $DBOptions = {
-      "DB"                 => $data->{db},
-      "HOST"               => $data->{address},
-      "DRIVER"             => $data->{driver},
-      "DEBUG"              => $self->{DEBUG},
-      "USER"               => $self->{USER},
-      "SILENT"             => 1,
-      "TOKEN"              => $self->{TOKEN},
-      "LOGGER"             => $self->{LOGGER},
-      "ROLE"               => $self->{ROLE},
-      "VIRTUAL_ROLE"       => $self->{VIRTUAL_ROLE},
-      "FORCED_AUTH_METHOD" => $self->{FORCED_AUTH_METHOD},
-      "UNIQUE_NM"          => $self->{UNIQUE_NM},
-    };
-    $self->{PASSWD}            and $DBOptions->{PASSWD}    = $self->{PASSWD};
-    defined $self->{USE_PROXY} and $DBOptions->{USE_PROXY} = $self->{USE_PROXY};
-
-    my $class = ref $self;
-    my $db    = $class->new($DBOptions)
-      or print STDERR "ERROR GETTING THE NEW DATABASE\n"
-      and return;
-
-    $Connections{$self->{UNIQUE_NM}}->{$dbindex} = $db;
-    if ($changeOrg) {
-
-      #In the new organisation, the index is different
-      my ($newIndex) = $Connections{$self->{UNIQUE_NM}}->{$dbindex}->getHostIndex($data->{address}, $data->{db});
-      $DEBUG and $self->debug(1, "Setting the new index to $newIndex");
-      $self->{"DATABASE_$data->{organisation}_$newIndex"} = $self->{DATABASE};
-      $DEBUG and $self->debug(1, "We should do selectDatabase again");
-    }
-
-  }
-  return ($Connections{$self->{UNIQUE_NM}}->{$dbindex}, $tableName);
+  return ($self, $tableName);
 }
 
 sub checkUserGroup {
@@ -353,27 +263,6 @@ sub checkUserGroup {
   AliEn::Util::setCacheValue($self, "usergroup-$user-$group", $v);
 
   return $v;
-}
-
-sub getAllHosts {
-  my $self    = shift;
-  my $attr    = shift || "*";
-  my $allOrgs = shift;
-  my $query   = "SELECT $attr FROM HOSTS";
-  $allOrgs or $query .= " WHERE organisation is null";
-
-  $self->query($query);
-}
-
-sub getFieldsFromHosts {
-  my $self = shift;
-  my $host = shift
-    or $self->{LOGGER}->error("Catalogue", "In getFieldsFromHosts host index is missing")
-    and return;
-  my $attr = shift || "*";
-
-  $DEBUG and $self->debug(2, "In getFieldFromHosts fetching value of attributes $attr for host index $host");
-  $self->queryRow("SELECT $attr FROM HOSTS WHERE hostIndex = '$host'");
 }
 
 # Gives the userid of a user and group. If the group is not specified, it
@@ -399,17 +288,7 @@ sub setUserGroup {
   $self->debug(1, "Setting the userid to $user ($group)");
   $self->{$field} = $user;
   $self->{MAINGROP} = $group;
-  foreach my $index (keys %{$Connections{$self->{UNIQUE_NM}}}) {
-    $Connections{$self->{UNIQUE_NM}}->{$index}->{$field} = $user;
-    $Connections{$self->{UNIQUE_NM}}->{$index}->{MAINGROUP} = $group;
-  }
   return 1;
-}
-
-sub printConnections {
-  my $self = shift;
-  print "DE MOMENTO TENEMOS " . join(" ", keys(%Connections)) . "\n\n";
-  print "Y BASES " . join(" ",            keys(%{$Connections{$self->{UNIQUE_NM}}})) . "\n\n";
 }
 
 sub renumberTable {
