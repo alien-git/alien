@@ -10,15 +10,15 @@ BEGIN { plan tests => 1 }
 
   print "Getting an instance of the catalogue";
 
-  my $cat =AliEn::UI::Catalogue::LCM->new({"role", "admin"});
+  my $cat =AliEn::UI::Catalogue::LCM->new({"role", "newuser"});
   $cat or exit(-2);
 
-  my $lfn="/remote/test.jdl";
+  my $lfn="test.jdl";
   addFile($cat, $lfn,"Executable=\"date\";\n") or exit(-2);
 
   print "Doing the find";
-  my @files=$cat->execute("find", "/", "jdl") or exit(-2);
-  grep (/^$lfn$/, @files) or print "The file is not there!!\n" and exit(-2);
+  my @files=$cat->execute("find", ".", "*.jdl") or exit(-2);
+  grep (/$lfn$/, @files) or print "The file is not there!!\n" and exit(-2);
   $cat->close;
   ok(1);
 

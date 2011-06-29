@@ -29,13 +29,6 @@ compareDirectory($c,"cpDir/target/", "source","file1","file2", "file3", "file4",
 
 compareDirectory($c,"cpDir/target/source", "file1","file2", "file3", "file4", "file5", "file6","file7", "file8","file9", "file10") or exit(-2);
 
-#print "\n\n\nThis also works!!! let's go now to copy a directory from another database...";
-#$c->execute("debug",5);
-#$c->execute("cp", "/remote", "cpDir/") or exit(-2);
-#$c->execute("debug",0);
-#compareDirectory($c, "cpDir", "source", "target", "remote") or exit(-2);
-#compareDirectory($c, "cpDir/remote", "test.jdl") or exit(-2);
-
 print "ho gaya----ok\n";
 
 

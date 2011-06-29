@@ -53,6 +53,7 @@ BEGIN { plan tests => 1 }
   foreach (@queries) {
 #    my @list=
     print "Searching for ".join(" ", @{$_->{query}}) ."\n";
+    #$cat->execute("debug", 5);
     my $match=$cat->execute("find", $targetDir, @{$_->{query}});
 
     print "Got $match, and I should have got $_->{result}\n";

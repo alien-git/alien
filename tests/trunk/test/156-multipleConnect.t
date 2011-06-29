@@ -40,7 +40,6 @@ my ($before, $proxyBefore) = countInstances("Before connecting");
 
 
 my $c=AliEn::UI::Catalogue->new() or exit(-2);
-$c->execute("ls", "/remote");
 #
 # This test is not reliable - some other services can create new connection
 # while we are trying to connect - disabling it temorary
