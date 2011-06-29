@@ -79,8 +79,6 @@ BEGIN { plan tests => 1 }
 
   $cat->close();
 
-  exit;
-
   ok(1);
 }
 
@@ -88,7 +86,7 @@ sub checkMetadata{
   my $cat=shift;
   my $lfn=shift;
   my $metadata=shift;
-  print "In checkMetadata\n";
+  print "\n\n\n\nIn checkMetadata\n";
   my ($def, $data)=$cat->execute("showTagValue", $lfn, "person") or return;
   print "AFTER showTagValue\n";
   my $entry=shift @$data;

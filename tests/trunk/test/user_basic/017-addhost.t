@@ -8,7 +8,7 @@ use Test;
 #use Net::Domain qw(hostname hostfqdn hostdomain);
 #use DBI;
 #
-#BEGIN { plan tests => 2 }
+BEGIN { plan tests => 2 }
 #
 #
 #
