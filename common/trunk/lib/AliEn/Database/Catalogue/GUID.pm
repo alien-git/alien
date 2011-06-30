@@ -446,7 +446,7 @@ sub selectDatabaseFromGUID {
   my $guid = shift;
   my $info = $self->getIndexHostFromGUID($guid)
     or return;
-  return $self->reconnectToIndex($info->{hostIndex}, $info->{tableName});
+  return ($self, $info->{tableName});
 }
 
 sub getIndexHostFromGUID {
@@ -831,9 +831,7 @@ sub getNumberOfEntries {
   my $self  = shift;
   my $entry = shift;
 
-  my ($db, $path2) = $self->reconnectToIndex($entry->{hostIndex}) or return -1;
-
-  return $db->queryValue("SELECT COUNT(*) from G$entry->{tableName}L");
+  return $self->queryValue("SELECT COUNT(*) from G$entry->{tableName}L");
 }
 
 sub updateStatistics {
@@ -971,10 +969,10 @@ AliEn::Database
 
 =cut
 
-sub getAllHostAndTable {
+sub getAllTables {
   my $self = shift;
 
-  my $result = $self->query("SELECT distinct hostIndex, tableName from GUIDINDEX");
+  my $result = $self->query("SELECT tableName from GUIDINDEX");
   defined $result
     or $self->info("Error: not possible to get all the pair of host and table")
     and return;

@@ -904,24 +904,21 @@ sub checkLFN {
   my $self=shift;
   my $dbname=shift;
   my $ctable=shift;
-  my $rhosts = $self->{LFN_DB}->getAllHosts();
   
-  foreach my $rtempHost (@$rhosts) {
-    $dbname and $dbname!~ /^$rtempHost->{db}$/ and 
-      $self->info("Skipping db $rtempHost->{db}") and next;
-    $self->info("Checking the tables in $rtempHost->{db}");
+  $dbname and $dbname!~ /^$self->{DB}$/
+    and return;
+  $self->info("Checking the tables in $self->{DB}");
 
-    my ($db, $extra)=$self->{LFN_DB}->reconnectToIndex( $rtempHost->{hostIndex}, "", $rtempHost );
-    $db or $self->info("Error connecting to $db") and next;
+  my $db = $self->{LFN_DB};
+  $db or $self->info("Error connecting to $db") and next;
     
-    my $tables=$db->queryColumn('select tablename from INDEXTABLE where hostindex=? order by 1', undef, {bind_values=>[$rtempHost->{hostIndex}]});
-    foreach my $t (@$tables){
-      $ctable and $ctable!~/^L${t}L$/ and
-	$self->info("Skipping table L${t}L") and next;
-      if ($db->queryValue("select 1 from (select max(ctime) ctime, count(*) counter from L${t}L) a left join  LL_ACTIONS on tablenumber=? and action='STATS' where extra is null or extra<>counter or time is null or time<ctime", undef, {bind_values=>[$t]})){
-	$self->info("We have to update the table $t");
-	$db->updateStats($t);
-      }
+  my $tables=$db->queryColumn('select tablename from INDEXTABLE order by 1', undef, undef);
+  foreach my $t (@$tables){
+    $ctable and $ctable!~/^L${t}L$/ and
+    $self->info("Skipping table L${t}L") and next;
+    if ($db->queryValue("select 1 from (select max(ctime) ctime, count(*) counter from L${t}L) a left join  LL_ACTIONS on tablenumber=? and action='STATS' where extra is null or extra<>counter or time is null or time<ctime", undef, {bind_values=>[$t]})){
+      $self->info("We have to update the table $t");
+      $db->updateStats($t);
     }
   }
   return 1;
@@ -931,18 +928,15 @@ sub checkLFN {
 sub checkOrphanGUID{
   my $self=shift;
   $self->debug(1, "Checking orphanguids in the database");
-  my $hosts=$self->getAllHosts();
 
-  foreach my $host (@$hosts){
-    my ($db, $extra)=$self->{GUID_DB}->reconnectToIndex($host->{hostIndex})
-      or $self->info("Error reconnecting to the index $host->{hostIndex}", 1) and return;
-    my $tables=$db->query("select * from GL_ACTIONS where action='TODELETE'");
-    foreach my $table (@$tables){
-      $self->info("Doing the table $table->{tableNumber}");
-      $db->checkOrphanGUID($table->{tableNumber}, @_);
-    }
-    $db->do("delete from TODELETE  using TODELETE join SE s on TODELETE.senumber=s.senumber where sename='no_se' and pfn like 'guid://%'");
+  my $db = $self->{GUID_DB}
+    or return;
+  my $tables=$db->query("select * from GL_ACTIONS where action='TODELETE'");
+  foreach my $table (@$tables){
+    $self->info("Doing the table $table->{tableNumber}");
+    $db->checkOrphanGUID($table->{tableNumber}, @_);
   }
+  $db->do("delete from TODELETE  using TODELETE join SE s on TODELETE.senumber=s.senumber where sename='no_se' and pfn like 'guid://%'");
 
   return 1;
 }
@@ -953,37 +947,30 @@ sub optimizeGUIDtables{
   
   $self->info("Let's optimize the guid tables");
 
-  my $hosts=$self->getAllHosts();
-
-  foreach my $host (@$hosts){
-    $self->info("Doing the database $host->{db}");
-    my ($db, $extra)=$self->{GUID_DB}->reconnectToIndex($host->{hostIndex}) 
-      or next;
-    
-    my $tables=$db->query("SELECT tableName, guidTime from GUIDINDEX where hostIndex=?", undef,{bind_values=>[$host->{hostIndex}]});
-    foreach my $info (@$tables){
-      my $table="G$info->{tableName}L";
-      $self->info("  Checking the table $table");
-      my $number=$db->queryValue("select count(*) from $table");
-      $self->info("There are $number entries");
-      my $done=0;
-      while ($number > 3000000){
-	$self->info("There are more than 3M ($number) ! Splitting the table");
-	my $guid=$db->queryRow("select guidid, binary2string(guid) guid from $table order by 1 desc limit 1 offset 2000000");
-	$guid->{guid} or next;
-	$self->info("We have to split according to $guid->{guid}");
-	$db->moveGUIDs($guid->{guid}, "f") or last;
-	$self->info("Let's count again");
-	$number=$db->queryValue("select count(*) from $table");
-	$done=1;
-      }
-      $done and $db->checkGUIDTable($table);
-      if ($number <1000000) {
-	$self->info("There are less than 1M. Let's merge with the previous (before $info->{guidTime})");
-	$self->optimizeGUIDtables_removeTable($info, $db, $host, $table);
-      }
+  my $db = $self->{GUID_DB} or return; 
+  
+  my $tables=$db->query("SELECT tableName, guidTime from GUIDINDEX", undef, undef);
+  foreach my $info (@$tables){
+    my $table="G$info->{tableName}L";
+    $self->info("  Checking the table $table");
+    my $number=$db->queryValue("select count(*) from $table");
+    $self->info("There are $number entries");
+    my $done=0;
+    while ($number > 3000000){
+      $self->info("There are more than 3M ($number) ! Splitting the table");
+      my $guid=$db->queryRow("select guidid, binary2string(guid) guid from $table order by 1 desc limit 1 offset 2000000");
+      $guid->{guid} or next;
+      $self->info("We have to split according to $guid->{guid}");
+      $db->moveGUIDs($guid->{guid}, "f") or last;
+      $self->info("Let's count again");
+      $number=$db->queryValue("select count(*) from $table");
+      $done=1;
     }
-
+    $done and $db->checkGUIDTable($table);
+    if ($number <1000000) {
+      $self->info("There are less than 1M. Let's merge with the previous (before $info->{guidTime})");
+      $self->optimizeGUIDtables_removeTable($info, $db, $table);
+    }
   }
   return 1;
 }
@@ -992,12 +979,9 @@ sub optimizeGUIDtables_removeTable {
   my $self=shift;
   my $info=shift;
   my $db=shift;
-  my $host=shift;
   my $table=shift;
 
   defined $info->{guidTime} or return 1;
-
-
 
   my $previousGUID=$info->{guidTime};
   $previousGUID=~ s/.........$//;
@@ -1008,9 +992,6 @@ sub optimizeGUIDtables_removeTable {
   my $t=$db->queryRow("select * from GUIDINDEX where guidTime<? order by guidTime desc limit 1", undef, {bind_values=>[$previousGUID]});
   
 
-  ($t->{hostIndex} ne $host->{hostIndex})
-   and $self->info("Different hosts :( ") and return;
-   
   ($table eq "G$t->{tableName}L") and $self->info("Same table?? :(")
     and return;
  
@@ -1077,7 +1058,6 @@ sub masterSE_list {
 	    broken=>0};
 
   $guids and $info->{guids}={referenced=>[], replicated=>[], broken=>[]};
-  my $rhosts = $self->{LFN_DB}->getAllHosts();
 
   my $method="queryValue";
   my $select="count(*)";
@@ -1085,40 +1065,34 @@ sub masterSE_list {
     $method="queryColumn";
     $select="binary2string(guid)";
   }
-  foreach my $h (@$rhosts){
-    my ($db, $extra)=$self->{GUID_DB}->reconnectToIndex($h->{hostIndex}) 
-      or next;
-
-    my $tables=$db->queryColumn("SELECT tableName from GUIDINDEX where hostIndex=?", undef,{bind_values=>[$h->{hostIndex}]});
-    foreach my $table (@$tables){
-
-      $table ="G${table}L" or next;
-      my $referenced=$db->$method("select $select from $table join 
-${table}_PFN p  using (guidid) join ${table}_REF r using (guidid)
-where  p.senumber=? ",    undef, {bind_values=>[$senumber]} );
-
-      my $broken=$db->$method("select $select from $table join 
-${table}_PFN p  using (guidid) left join ${table}_REF r using (guidid)
-where  p.senumber=? and r.guidid is null", 
-				   undef, {bind_values=>[$senumber]} );
-      my $replicated=$db->$method("select $select from (select guid from $table join
-${table}_PFN p using (guidid) join ${table}_PFN p2 using (guidid) 
-where p.senumber=? and p2.senumber!= p.senumber group by guidid) a",undef, {bind_values=>[$senumber]} );
-      if ($guids){
-	$info->{broken}+=$#$broken+1;
-	$info->{replicated}+=$#$replicated+1;
-	$info->{referenced}+=$#$referenced+1;
-	$info->{guids}->{broken}=[@$broken, @{$info->{guids}->{broken}}];
-      } else {
-	$info->{broken}+=$broken;
-	$info->{replicated}+=$replicated;
-	$info->{referenced}+=$referenced;
-      }
-      $self->info("After $table, $info->{referenced},  $info->{broken} and $info->{replicated}");
-
+  my $db = $self->{GUID_DB} or return;
+  
+  my $tables=$db->queryColumn("SELECT tableName from GUIDINDEX", undef, undef);
+  foreach my $table (@$tables){
+    $table ="G${table}L" or return;
+    my $referenced=$db->$method("select $select from $table join 
+      ${table}_PFN p  using (guidid) join ${table}_REF r using (guidid)
+      where  p.senumber=? ",    undef, {bind_values=>[$senumber]} );
+    
+    my $broken=$db->$method("select $select from $table join 
+      ${table}_PFN p  using (guidid) left join ${table}_REF r using (guidid)
+      where  p.senumber=? and r.guidid is null", 
+      undef, {bind_values=>[$senumber]} );
+    my $replicated=$db->$method("select $select from (select guid from $table join
+      ${table}_PFN p using (guidid) join ${table}_PFN p2 using (guidid)
+      where p.senumber=? and p2.senumber!= p.senumber group by guidid) a",undef, {bind_values=>[$senumber]} );
+    if ($guids){
+      $info->{broken}+=$#$broken+1;
+      $info->{replicated}+=$#$replicated+1;
+      $info->{referenced}+=$#$referenced+1;
+      $info->{guids}->{broken}=[@$broken, @{$info->{guids}->{broken}}];
+    } else {
+      $info->{broken}+=$broken;
+      $info->{replicated}+=$replicated;
+      $info->{referenced}+=$referenced;
     }
+    $self->info("After $table, $info->{referenced},  $info->{broken} and $info->{replicated}"); 
   }
-
   return $info;
 }
 
@@ -1136,54 +1110,45 @@ sub masterSE_getFiles{
       and return;
 
   my $return=[];
-  my $rhosts = $self->{LFN_DB}->getAllHosts();
 
   my $query="select binary2string(g.guid)guid,p.pfn  ";
   $options->{md5} and $query.=", g.md5 ";
-  foreach my $h (@$rhosts){
-    #Let's skip all the hosts that we have already seen
-    $previous_host and $previous_host!=$h->{hostIndex} and next;
-    $previous_host="";
-    my ($db, $extra)=$self->{LFN_DB}->reconnectToIndex($h->{hostIndex}) 
-      or next;
-    my $tables=$db->queryColumn("SELECT tableName from GUIDINDEX where hostIndex=? order by 1", undef,{bind_values=>[$h->{hostIndex}]});
+  #Let's skip all the hosts that we have already seen
+    my $db = $self->{LFN_DB};
+    my $tables=$db->queryColumn("SELECT tableName from GUIDINDEX order by 1", undef,undef);
     foreach my $table (@$tables){
       $table ="G${table}L";
       $previous_table and $previous_table!~ /^$table$/ and next;
 #      $table =~ /G46L/ or next;
       if ($previous_table){
-	$previous_table="";
-	next;
+        $previous_table="";
       }
       my $endquery="";
-
       if ($options->{unique}){
         $self->info("Checking that the file is not replicated");
         $endquery="and not exists (select 1 from ${table}_PFN p2 where p2.senumber!=p.senumber and p2.guidid=p.guidid) group by guid";
       }
       if ($options->{replicated}){
-	$endquery="and exists (select 1 from ${table}_PFN p2 where p2.senumber!=p.senumber and p2.guidid=p.guidid) group by guid";
+        $endquery="and exists (select 1 from ${table}_PFN p2 where p2.senumber!=p.senumber and p2.guidid=p.guidid) group by guid";
       }
       my $entries=[];
       if ($options->{lfn}){
-	$self->debug(1,"Getting the lfn of the files");
-	my $ref=$db->query("select lfnRef, db, a.lfn  from (select  distinct lfnRef  from  ${table}_REF join  ${table}_PFN p using (guidid) where p.senumber=?) a join  HOSTS h join INDEXTABLE a using (hostindex)   where lfnRef like concat(h.hostindex, '_%') and lfnRef=concat(a.hostIndex,'_', a.tableName) ",  undef, {bind_values=>[$senumber]});
-	foreach my $entry (@$ref){
-	  my ($host, $lfnTable)=split(/_/, $entry->{lfnRef});
-	  my $dd=$db->query("$query, concat(?,lfn) lfn  from $table g join  ${table}_PFN p  using (guidid) join $entry->{db}.L${lfnTable}L l using (guid) where p.senumber=? $endquery",undef, {bind_values=>[$entry->{lfn},$senumber]} );
-	  print "    doing $table and $entry->{lfnRef} $#$dd\n";
+        $self->debug(1,"Getting the lfn of the files");
+        my $ref=$db->query("select lfnRef, db, a.lfn  from (select  distinct lfnRef  from  ${table}_REF join  ${table}_PFN p using (guidid) where p.senumber=?) a join  HOSTS h join INDEXTABLE a using (hostindex)   where lfnRef like concat(h.hostindex, '_%') and lfnRef=concat(a.hostIndex,'_', a.tableName) ",  undef, {bind_values=>[$senumber]});
+       foreach my $entry (@$ref){
+         my ($host, $lfnTable)=split(/_/, $entry->{lfnRef});
+         my $dd=$db->query("$query, concat(?,lfn) lfn  from $table g join  ${table}_PFN p  using (guidid) join $entry->{db}.L${lfnTable}L l using (guid) where p.senumber=? $endquery",undef, {bind_values=>[$entry->{lfn},$senumber]} );
+         print "    doing $table and $entry->{lfnRef} $#$dd\n";
 #	  my $dd=[];
-	  $entries=[@$entries, @$dd];
-	}
-      }else{
-	$entries=$db->query("$query from  $table g join  ${table}_PFN p  using (guidid) where p.senumber=? $endquery",undef, {bind_values=>[$senumber]} );
+	  	  $entries=[@$entries, @$dd];
       }
-      $return=[@$return, @$entries];
-      if ($#$return >$limit){
-	$self->info("Let's return now before putting more entries");
-	return ($return, "$h->{hostIndex}_$table");
-      }
-
+    }else{
+      $entries=$db->query("$query from  $table g join  ${table}_PFN p  using (guidid) where p.senumber=? $endquery",undef, {bind_values=>[$senumber]} );
+    }
+    $return=[@$return, @$entries];
+    if ($#$return >$limit){
+      $self->info("Let's return now before putting more entries");
+      return ($return, "_$table");
     }
   }
   $self->info("We have seen all the entries");
@@ -1222,44 +1187,38 @@ sub getBrokenLFN{
 
   my $dir=shift || "";
 
-  my $rhosts = $self->{LFN_DB}->getAllHosts();
-
   my $all=[];
   my $allEntries;
   if ($dir){
     $self->info("Doing only $dir");
     $allEntries=$self->{LFN_DB}->getHostsForEntry($dir);
   }
-  foreach my $h (@$rhosts){
-    my ($db, $extra)=$self->{LFN_DB}->reconnectToIndex($h->{hostIndex})
-      or next;
+  my $db=$self->{LFN_DB} or return;
 
-    my $tables;
-    if ($allEntries){
-      foreach my $c (@$allEntries){
-        $c->{hostIndex} eq $h->{hostIndex} or next;
-        push @$tables, $c;
-      }
-    } else {
-      $tables=$db->query("SELECT tableName,lfn from INDEXTABLE where hostindex=?",
-                        undef, {bind_values=>[$h->{hostIndex}]});
-     }
-     for my $t (@$tables){
-      $db->checkLFNTable($t->{tableName});
-      $self->info("Checking the table $t->{tableName}");
-      $options->{calculate} and  $self->calculateBrokenLFN($t, $db, $options);
-      my $like="";
-      my $bind=[$t->{lfn}];
-      if ($dir){
-        $like="where concat('$t->{lfn}',lfn) like concat(?,'%')";
-        push @$bind, $dir;
-      }
-      my $entries=$db->queryColumn("SELECT concat(?,lfn) from L$t->{tableName}L join  L$t->{tableName}L_broken using (entryId) $like ", undef,{ bind_values=>$bind });
-      foreach my $e (@$entries){
-        $self->info($e,0,0);
-      }
-      push @$all, @$entries;
+  my $tables;
+  if ($allEntries){ 
+    foreach my $c (@$allEntries){
+      push @$tables, $c;
     }
+  } else {
+    $tables=$db->query("SELECT tableName,lfn from INDEXTABLE",
+      undef, undef);
+  }
+  for my $t (@$tables){
+    $db->checkLFNTable($t->{tableName});
+    $self->info("Checking the table $t->{tableName}");
+    $options->{calculate} and  $self->calculateBrokenLFN($t, $db, $options);
+    my $like="";
+    my $bind=[$t->{lfn}];
+    if ($dir){
+      $like="where concat('$t->{lfn}',lfn) like concat(?,'%')";
+      push @$bind, $dir;
+    }
+    my $entries=$db->queryColumn("SELECT concat(?,lfn) from L$t->{tableName}L join  L$t->{tableName}L_broken using (entryId) $like ", undef,{ bind_values=>$bind });
+    foreach my $e (@$entries){
+      $self->info($e,0,0);
+    }
+    push @$all, @$entries;
   }
   return $all;
 }

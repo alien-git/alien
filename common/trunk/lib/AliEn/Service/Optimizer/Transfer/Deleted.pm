@@ -16,45 +16,39 @@ sub checkWakesUp {
   $self->{SLEEP_PERIOD}=10;
   $self->$method(@silentData, "Checking if there is anything to do");
 
-  my $rhosts = $self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->getAllHosts();
+  my $db2=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB};
+  $db2 or return;
+  my $query = "select entryId,pfn,sename from TODELETE join SE using (senumber) order by entryId";
+  $query = $db2->paginate($query,100,0);
+  my $d=$db2->query($query);
+  #my $d=$db2->query("select entryId,pfn,sename from TODELETE join SE using (senumber) order by entryId limit 100");
+  my $max=0;
+  foreach my $entry (@$d){
+    $self->info("Inserting a new request to delete");
+    $entry->{entryId}> $max and $max=$entry->{entryId};
+    my @protocols=$self->findDeleteProtocol($entry->{sename});
+    my $fullProt='"'.join('","', @protocols).'"';
+    map {$_=~ s/^(.*)$/member\(other\.SupportedProtocol, "$1" \)/ } @protocols;
+    
+    my $value=join("||",@protocols);
+    my $jdl=$self->createJDL({Type=>'"transfer"', pfn=>"\"$entry->{pfn}\"", 
+        destination=>"\"$entry->{sename}\"",
+        Requirements=>"(other.type==\"FTD\")&&($value)",
+        FullProtocolList=>"{$fullProt}",
+        Action=>'"remove"'}) 
+      or $self->info("Error creating the jdl") and return;
+    my $id=$self->{DB}->insertTransferLocked({status=>'TODELETE', 
+        destination=>$entry->{sename},
+        pfn=>$entry->{pfn},user=>'admin',
+        lfn=>'',attempts=>'0'});
 
-  foreach my $rtempHost (@$rhosts) {
-    my ($db2, $extra)=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->reconnectToIndex( $rtempHost->{hostIndex}, "", $rtempHost );
-    $db2 or $self->info("Error reconecting to $rtempHost->{hostIndex}") and next;
-    my $query = "select entryId,pfn,sename from TODELETE join SE using (senumber) order by entryId";
-    $query = $db2->paginate($query,100,0);
-    my $d=$db2->query($query);
-    #my $d=$db2->query("select entryId,pfn,sename from TODELETE join SE using (senumber) order by entryId limit 100");
-    my $max=0;
-    foreach my $entry (@$d){
-      $self->info("Inserting a new request to delete");
-      $entry->{entryId}> $max and $max=$entry->{entryId};
-      my @protocols=$self->findDeleteProtocol($entry->{sename});
-      my $fullProt='"'.join('","', @protocols).'"';
-      map {$_=~ s/^(.*)$/member\(other\.SupportedProtocol, "$1" \)/ } @protocols;
-      
-      my $value=join("||",@protocols);
-      my $jdl=$self->createJDL({Type=>'"transfer"', pfn=>"\"$entry->{pfn}\"", 
-				destination=>"\"$entry->{sename}\"",
-				Requirements=>"(other.type==\"FTD\")&&($value)",
-				FullProtocolList=>"{$fullProt}",
-				Action=>'"remove"',
-			       }) 
-	or $self->info("Error creating the jdl") and next;
-      my $id=$self->{DB}->insertTransferLocked({status=>'TODELETE', 
-						destination=>$entry->{sename},
-						pfn=>$entry->{pfn},user=>'admin',
-						lfn=>'',attempts=>'0'
-					       }
-					      );
-      $id or $self->info("Error inserting the transfer") and next;
-      #We do it in two steps to have the jobagent as well
-      $self->{DB}->updateTransfer($id, {status=>'WAITING', jdl=>$jdl});
-      $self->{TRANSFERLOG}->putlog($id,"STATUS", "Request to delete the pfn $entry->{pfn}");
-    }
-    if ($max){
-      $db2->do ("DELETE FROM TODELETE where entryId<=?", {bind_values=>[$max]});
-    }
+    $id or $self->info("Error inserting the transfer") and return;
+    #We do it in two steps to have the jobagent as well
+    $self->{DB}->updateTransfer($id, {status=>'WAITING', jdl=>$jdl});
+    $self->{TRANSFERLOG}->putlog($id,"STATUS", "Request to delete the pfn $entry->{pfn}");
+  }
+  if ($max){
+    $db2->do ("DELETE FROM TODELETE where entryId<=?", {bind_values=>[$max]});
   }
   return;
 }

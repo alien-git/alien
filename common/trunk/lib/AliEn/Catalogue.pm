@@ -186,7 +186,6 @@ Site name:$self->{CONFIG}->{SITE}"
   $self->{FIRSTDRIVER} = $self->{CONFIG}->{'CATALOG_DRIVER'};
   $self->{FIRSTDB}     = $self->{CONFIG}->{'CATALOG_DATABASE'};
   $DEBUG and $self->debug(1, "Creating the database");
-
   #    $self->{SQLAPI} = AliEn::Database::SQLInterface->new(
   my $DBoptions = {
     "DB"                 => $self->{FIRSTDB},
@@ -215,12 +214,11 @@ Site name:$self->{CONFIG}->{SITE}"
   # check if an entry exists in PRIORITY table
   #$self->{PRIORITY_DB}->checkPriorityValue($self->{ROLE});
   $self->_setUserGroups($self->{ROLE});
-
   #($self->{CURHOSTID}) = $self->{DATABASE}->getHostIndex($self->{FIRSTHOST}, $self->{FIRSTDB});
   $self->{"DATABASE_$self->{CONFIG}->{ORG_NAME}"} = $self->{DATABASE};
-  $self->{"DATABASE_FIRST"}                       = $self->{DATABASE};
-  $self->{MOUNT}                                  = "";
-  $self->{GUID}                                   = new AliEn::GUID();
+  $self->{"DATABASE_FIRST"}                                          = $self->{DATABASE};
+  $self->{MOUNT}                                                     = "";
+  $self->{GUID}                                                      = new AliEn::GUID();
   if (!$self->{GUID}) {
     $self->f_disconnect();
     return;
@@ -633,6 +631,7 @@ sub f_mkdir {
 
   $path = $self->GetAbsolutePath($path, 1);
 
+
   if ($self->existsEntry($path)) {
     ($options =~ /d/)
       and return $self->{DATABASE}->getAllInfoFromLFN(
@@ -658,7 +657,6 @@ sub f_mkdir {
     }
   }
 
-  $self->info("SUBHO__DEBUG ____ ");
   $DEBUG and $self->debug(1, "Creating directory in $path");
 
   #Check permissions
@@ -666,8 +664,6 @@ sub f_mkdir {
     or return;
 
   my @returnVal = $self->{DATABASE}->createDirectory("$path/", $self->{UMASK});
-
-  $self->info("SUBHO__DEBUG ____ ");
 
   #Get directory number
   if ($options =~ /d/ and $self->existsEntry($path)) {
@@ -1602,7 +1598,6 @@ sub f_find {
   @ARGV = @_;
   getopts("mvzrpO:o:l:x:g:sO:q:dc:y", \%options);
   @_ = @ARGV;
-
   # option v => verbose
   # option z => return array of hash
   # option p => set the printout format
@@ -1738,7 +1733,7 @@ sub f_find {
       foreach my $line (@result) {
         foreach my $field (@printfields) { $msg .= "$line->{$field}   " }
         $msg .= "\n";
-      }
+      };
       ($total) and $verbose and $msg .= "$total files found\n";
       $self->info($msg, undef, 0);
     }

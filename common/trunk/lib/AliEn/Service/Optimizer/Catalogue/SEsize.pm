@@ -25,12 +25,11 @@ sub checkWakesUp {
 
   $self->checkSplitGUID($guiddb);
   
-  my $guids=$guiddb->query("select * froM GUIDINDEX");
+  my $guids=$guiddb->query("select * from GUIDINDEX");
   foreach my $f (@$guids){
     $self->info("Checking the table $f->{tableName}");
-    my ($db2, $path2)=$guiddb->reconnectToIndex( $f->{hostIndex}) or next; 
-    $db2->checkGUIDTable($f->{tableName});
-    $db2->updateStatistics($f->{tableName});
+    $self->{CATALOGUE}->{CATALOG}->{DATABASE}{GUID_DB}->checkGUIDTable($f->{tableName});
+    $self->{CATALOGUE}->{CATALOG}->{DATABASE}{GUID_DB}->updateStatistics($f->{tableName});
   }
 
   $self->info("All the GUID tables have been accounted");
@@ -61,11 +60,8 @@ sub checkSESize{
   my $counter=0;
 
   foreach my $guid (@$guids){
-    my ($db2, $path2)=$guiddb->reconnectToIndex( $guid->{hostIndex}) 
-      or $self->info("Error reconnecting") and next;
-
     
-    my $info=$db2->queryRow("select sum(seNumFiles) total, sum(seUsedSpace) as \"size\"  from GL_STATS where seNumber=? group by seNumber", undef, {bind_values=>[$index]}) 
+    my $info=$guiddb->queryRow("select sum(seNumFiles) total, sum(seUsedSpace) as \"size\"  from GL_STATS where seNumber=? group by seNumber", undef, {bind_values=>[$index]}) 
       or $self->info("Error doing the query") and next;
     
     $info->{size} and $size+=$info->{size};

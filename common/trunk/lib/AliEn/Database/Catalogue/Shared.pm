@@ -82,22 +82,10 @@ sub actionInIndex {
   my $action = shift;
 
   #updating the D0 of all the databases
-  my ($hosts) = $self->getAllHosts;
-  print "GOT the hosts\n";
-  defined $hosts
-    or return;
   my ($oldHost, $oldDB, $oldDriver) = ($self->{HOST}, $self->{DB}, $self->{DRIVER});
   my $tempHost;
-  foreach $tempHost (@$hosts) {
-
-    #my ( $ind, $ho, $d, $driv ) = split "###", $tempHost;
-    $self->info("Updating the INDEX table of  $tempHost->{db}");
-    my ($db, $table) = $self->reconnectToIndex($tempHost->{hostIndex}, "", $tempHost);
-    $db or print "Error reconecting\n" and return;
-    $db->do($action) or print STDERR "Warning: Error doing $action";
-  }
-  $self->reconnect($oldHost, $oldDB, $oldDriver) or return;
-
+  $self->info("Updating the INDEX table of");
+  $self->do($action) or print STDERR "Warning: Error doing $action";
   $DEBUG and $self->debug(2, "Everything is done!!");
 
   return 1;
@@ -165,26 +153,15 @@ sub executeInAllDB {
   my $method = shift;
 
   $DEBUG and $self->debug(1, "Executing $method (@_) in all the databases");
-  my $hosts = $self->getAllHosts("hostIndex");
-  my ($oldHost, $oldDB, $oldDriver) = ($self->{HOST}, $self->{DB}, $self->{DRIVER});
 
   my $error = 0;
   my @return;
-  foreach my $entry (@$hosts) {
-    $DEBUG and $self->debug(1, "Checking in the table $entry->{hostIndex}");
-    my ($db, $path2) = $self->reconnectToIndex($entry->{hostIndex});
-    if (!$db) {
+  my $info = $self->$method(@_);
+  if (!$info) {
       $error = 1;
-      last;
-    }
-
-    my $info = $db->$method(@_);
-    if (!$info) {
-      $error = 1;
-      last;
-    }
-    push @return, $info;
+      return;
   }
+  push @return, $info;
 
   $error and return;
   $DEBUG and $self->debug(1, "Executing in all databases worked!! :) ");

@@ -18,12 +18,7 @@ sub checkWakesUp {
 
   $self->$method(@info, "The trigger optimizer starts");
 
-  my ($hosts) = $self->{DB}->getAllHosts();
-  foreach my $tempHost (@$hosts) {
-    my ($db, $path2)=$self->{DB}->{LFN_DB}->reconnectToIndex( $tempHost->{hostIndex},"",$tempHost) or $self->info("Error doing $tempHost->{db}") and next;;
-    $self->$method(@info, "Doing $tempHost->{db}");
-    $self->checkTriggers($silent, $db);
-  }
+  $self->checkTriggers($silent, $self->{DB}->{LFN_DB});
 
   return;
 

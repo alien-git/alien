@@ -443,7 +443,7 @@ sub existsLFN {
 
 =item C<getHostsForEntry($lfn)>
 
-This function returns a list of all the possible hosts and tables that might contain entries of a directory
+This function returns a list of all the possible tables that might contain entries of a directory
 
 =cut
 
@@ -776,25 +776,19 @@ sub createRemoteDirectory {
   my ($hostIndex, $host, $DB, $driver, $lfn) = @_;
   my $oldtable = $self->{INDEX_TABLENAME};
 
-  my ($oldHost, $oldDB, $oldDriver) = ($self->{HOST}, $self->{DB}, $self->{DRIVER});
-
   #Now, in the new database
-  $self->info("Before reconnecttoindex\n");
-  my ($db, $path2) = $self->reconnectToIndex($hostIndex)
-    or $self->info("Error: the reconnect to index $hostIndex failed")
-    and return;
-  my $newTable = $db->getNewDirIndex() or $self->info("Error getting the new dirindex") and return;
+  my $newTable = $self->getNewDirIndex() or $self->info("Error getting the new dirindex") and return;
   $newTable = "L${newTable}L";
 
   #ok, let's insert the entry in $table
   $self->info("Before callting createDirectory");
-  my $done = $db->createDirectory("$lfn/", $self->{UMASK}, 0, {name => $newTable, lfn => "$lfn/"});
+  my $done = $self->createDirectory("$lfn/", $self->{UMASK}, 0, {name => $newTable, lfn => "$lfn/"});
 
   $done or $self->info("Error creating the directory $lfn") and return;
   $self->info("Directory $lfn/ created");
   $self->info("Now, let's try to do insert the entry in the INDEXTABLE");
   if (!$self->insertInIndex($hostIndex, $newTable, "$lfn/")) {
-    $db->delete($newTable, "lfn='$lfn/'");
+    $self->delete($newTable, "lfn='$lfn/'");
     return;
   }
   $self->info("Almost everything worked!!");
@@ -1197,20 +1191,14 @@ sub actionInIndex {
   my $self   = shift;
   my $action = shift;
 
-  my ($oldHost, $oldDB, $oldDriver) = ($self->{HOST}, $self->{DB}, $self->{DRIVER});
   my $tempHost= {
       'organisation' => undef,
       'db' => $self->{DB},
       'address' => $self->{HOST},
       'driver' => $self->{DRIVER}
-          };
-  #my ( $ind, $ho, $d, $driv ) = split "###", $tempHost;
+  };
   $self->info("Updating the INDEX table of  $tempHost->{db}");
-  my ($db, $Path2) = $self->reconnectToIndex($tempHost->{hostIndex}, "", $tempHost);
-  $db              or next;
-  $db->do($action) or print STDERR "Warning: Error doing $action";
-  $self->reconnect($oldHost, $oldDB, $oldDriver) or return;
-
+  $self->do($action) or $self->debug(2,"Warning: Error doing $action");
   $DEBUG and $self->debug(2, "Everything is done!!");
 
   return 1;
@@ -1260,7 +1248,6 @@ sub copyDirectory {
   $target =~ s{/?$}{/};
   $DEBUG and $self->debug(1, "Copying a directory ($source to $target)");
 
-  # Let's check where the source is:
   my $sourceHosts = $self->getHostsForEntry($source);
 
   my $sourceInfo = $self->getIndexHost($source);
@@ -1377,9 +1364,6 @@ sub copyDirectory {
     $targetDB->do($update);
 
   }
-
-  #  $db2=$self->reconnectToIndex($sourceInfo->{hostIndex});
-  #  $self=$db;
 
   $DEBUG and $self->debug(1, "Directory copied!!");
   return 1;
@@ -1773,8 +1757,8 @@ sub getFieldsByTagName {
 
   $sql .= "  $fields FROM TAG0 WHERE tagName=?";
   if ($directory) {
-    $sql .= " and path like concat(?, '%')";
-    push @bind, $directory;
+    $sql .= " and (path like concat(?, '%') or ? like concat(path,'%')) ";
+    push @bind, $directory, $directory;
   }
 
   $self->query($sql, undef, {bind_values => \@bind});
@@ -1861,26 +1845,15 @@ sub getDiskUsage {
   my $size = 0;
   if ($lfn =~ m{/$}) {
     $DEBUG and $self->debug(1, "Checking the diskusage of directory $lfn");
-    my $hosts      = $self->getHostsForEntry($lfn);
-    my $sourceInfo = $self->getIndexHost($lfn);
-
-    foreach my $entry (@$hosts) {
-      $DEBUG and $self->debug(1, "Checking in the table $entry->{hostIndex}");
-      my ($db, $path2) = $self->reconnectToIndex($entry->{hostIndex});
-      $self = $db;
-      my $pattern = $lfn;
-      $pattern =~ s{^$entry->{lfn}}{};
-      my $where = "where lfn like '$pattern%'";
-      $entry->{lfn} =~ m{^$lfn} and $where = "where 1";
-      $options =~ /f/ and $where .= " and type='f'";
-      my $partialSize =
-        $self->queryValue("SELECT sum(" . $self->reservedWord("size") . ") from L$entry->{tableName}L $where");
-      $DEBUG and $self->debug(1, "Got size $partialSize");
-      $size += $partialSize;
-    }
-    my ($db, $Path2) = $self->reconnectToIndex($sourceInfo->{hostIndex});
-    $self = $db;
-
+    my $pattern = $lfn;
+    $pattern =~ s{^$self->{INDEX_TABLENAME}->{lfn}}{};
+    my $where = "where lfn like '$pattern%'";
+    $self->{INDEX_TABLENAME}->{lfn} =~ m{^$lfn} and $where = "where 1";
+    $options =~ /f/ and $where .= " and type='f'";
+    my $partialSize =
+      $self->queryValue("SELECT sum(" . $self->reservedWord("size") . ") from L$self->{INDEX_TABLENAME}->{tableName}L $where");
+    $DEBUG and $self->debug(1, "Got size $partialSize");
+    $size += $partialSize;
   } else {
     my $table = "D$self->{INDEX_TABLENAME}->{name}L";
     $DEBUG and $self->debug(1, "Checking the diskusage of file $lfn");
@@ -1901,46 +1874,29 @@ sub DropEmptyDLTables {
   $self->info("Deleting the tables that are not being used");
 
   #updating the D0 of all the databases
-  my ($hosts) = $self->getAllHosts("hostIndex");
-
-  defined $hosts
+  
+  my $tables = $self->queryColumn("show tables like 'D\%L'")
     or return;
-  my ($oldHost, $oldDB, $oldDriver) = ($self->{HOST}, $self->{DB}, $self->{DRIVER});
-  my $tempHost;
-  foreach $tempHost (@$hosts) {
-
-    #my ( $ind, $ho, $d, $driv ) = split "###", $tempHost;
-    my ($db, $path2) = $self->reconnectToIndex($tempHost->{hostIndex});
-    $self = $db;
-
-    my $tables = $self->queryColumn("show tables like 'D\%L'")
-      or print STDERR "Warning: error connecting to $tempHost->{hostIndex}"
-      and next;
-    foreach my $t (@$tables) {
-
-      $self->info("Checking $t");
-      $t =~ /^D(\d+)L$/ or $self->info("skipping...") and next;
-      my $number = $1;
-      my $n = $self->queryValue("select count(*) from $t") and next;
-      $self->info("We have to drop $t!! (there are $n in $t)");
-      my $indexes =
-        $self->queryColumn("SELECT lfn from INDEXTABLE where tableName=$number and hostIndex=$tempHost->{hostIndex}");
-      if ($indexes) {
-        foreach my $i (@$indexes) {
-          $self->info("Deleting index $i");
-          $self->deleteFromIndex($i);
-        }
+  foreach my $t (@$tables) {
+    $self->info("Checking $t");
+    $t =~ /^D(\d+)L$/ or $self->info("skipping...") and next;
+    my $number = $1;
+    my $n = $self->queryValue("select count(*) from $t") and next;
+    $self->info("We have to drop $t!! (there are $n in $t)");
+    my $indexes =
+    $self->queryColumn("SELECT lfn from INDEXTABLE where tableName=$number");
+    if ($indexes) {
+      foreach my $i (@$indexes) {
+        $self->info("Deleting index $i");
+        $self->deleteFromIndex($i);
       }
-      $self->do("DROP TABLE $t");
-
     }
-
+    $self->do("DROP TABLE $t");
   }
-
+  
   $DEBUG and $self->debug(2, "Everything is done!!");
 
   return 1;
-
 }
 
 =item executeInAllDB ($method, @args)
@@ -1976,6 +1932,11 @@ sub executeInAllDB {
 }
 
 sub selectDatabase {
+  
+  #
+  # SUBHO:::DEBUG ---- FIX THIS 
+  #
+  
   my $self = shift;
   my $path = shift;
 
@@ -1987,10 +1948,8 @@ sub selectDatabase {
   $DEBUG and $self->debug(1, "We want to connect to $tableName");
 
   #index being pased as 0 to reconnect to index ---- FIX THIS
-  my ($db, $path2) = $self->reconnectToIndex(0, $path) or return;
-
-  $db->setIndexTable($tableName, $entry->{lfn});
-  return $db;
+  $self->setIndexTable($tableName, $entry->{lfn});
+  return $self;
 }
 
 sub getPathPrefix {
@@ -2021,11 +1980,9 @@ sub findLFN {
 
     $DEBUG and $self->debug(1, "Looking in database $id (path $path)");
 
-    my ($db, $path2) = $self->reconnectToIndex($rhost->{hostIndex}, "",);
-    $db or $self->info("Error connecting to $id ($path)") and next;
     $DEBUG and $self->debug(1, "Doing the query");
 
-    push @result, $db->internalQuery($rhost, $path, $file, $refNames, $refQueries, $refUnions, \%options);
+    push @result, $self->internalQuery($rhost, $path, $file, $refNames, $refQueries, $refUnions, \%options);
   }
   return \@result;
 }
@@ -2526,10 +2483,9 @@ sub getNumberOfEntries {
   my $self    = shift;
   my $entry   = shift;
   my $options = shift;
-  my ($db, $path2) = $self->reconnectToIndex($entry->{hostIndex}) or return -1;
   my $query = "SELECT COUNT(*) from L$entry->{tableName}L";
   $options =~ /f/ and $query .= " where SUBSTR(lfn,-1) != '/'";
-  return $db->queryValue($query);
+  return $self->queryValue($query);
 }
 
 sub updateStats {
@@ -2592,8 +2548,7 @@ sub updateStats {
       $self->do($query, {bind_values => $bind});
     } else {
       $self->info("This is in another host. We can't do it easily :( 'orphan guids won't be detected'");
-      my ($db, $path2) = $self->reconnectToIndex($elem->{hostIndex}) or next;
-      $db->do(
+      $self->do(
 "update  $gtable g, $table l set lfnRef=concat(lfnRef, concat( ?, ',')) where g.guid=l.guid and g.lfnRef not like concat(',',concact(?,','))",
         {bind_values => [ $number, $number ]}
       );
@@ -2630,10 +2585,10 @@ AliEn::Database
 
 =cut
 
-sub getAllHostAndTable {
+sub getAllTables {
   my $self = shift;
 
-  my $result = $self->query("SELECT distinct hostIndex, tableName from INDEXTABLE");
+  my $result = $self->query("SELECT tableName from INDEXTABLE");
   defined $result
     or $self->info("Error: not possible to get all the pair of host and table")
     and return;

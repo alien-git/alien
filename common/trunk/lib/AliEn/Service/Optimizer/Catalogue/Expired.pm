@@ -20,16 +20,11 @@ sub checkWakesUp {
   $self->$method(@info, "The expired optimizer starts");
 #  $self->updateQoS($silent) or return;
 
-  my ($hosts) = $self->{DB}->getAllHosts();
-  foreach my $tempHost (@$hosts) {
-    my ($db, $path2)=$self->{DB}->{LFN_DB}->reconnectToIndex( $tempHost->{hostIndex},"",$tempHost) or $self->info("Error doing $tempHost->{db}") and next;;
-    $self->$method(@info, "Doing $tempHost->{db}");
-    my $tables=$db->query("select tableName, lfn from INDEXTABLE where hostIndex=?", undef, {bind_values=>[$tempHost->{hostIndex}]});
-    foreach my $table (@$tables){
-      $self->$method(@info,"Doing the table $table->{tableName} and $table->{lfn}");
-      
-      $self->checkExpired($silent, $db, "L$table->{tableName}L", $table->{lfn});
-    }
+  my $db=$self->{DB}->{LFN_DB} or return;
+  my $tables=$db->query("select tableName, lfn from INDEXTABLE", undef, undef);
+  foreach my $table (@$tables){
+    $self->$method(@info,"Doing the table $table->{tableName} and $table->{lfn}");
+    $self->checkExpired($silent, $db, "L$table->{tableName}L", $table->{lfn});
   }
 
   return;

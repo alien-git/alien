@@ -1019,53 +1019,44 @@ sub removeExpiredFiles {
     or $self->info("Error: Only the administrator can remove entries from LFN_BOOKED")
     and return;
   $self->info("Removing expired entries from LFN_BOOKED");
-  my $hosts = $self->{DATABASE}->getAllHosts();
-  foreach my $host (@$hosts) {
-    my ($db, $extra) =
-      $self->{DATABASE}->{LFN_DB}->reconnectToIndex($host->{hostIndex});
-
-
-    #Get files
-    use Time::HiRes qw (time);
-    my $currentTime = time();
-
-    #delete directories
-    $db->do("DELETE FROM LFN_BOOKED WHERE lfn LIKE '%/' ");
-    my $files = $db->query(
-          "SELECT expiretime, lfn, "
-        . $db->reservedWord("size")
-        . ", gowner, binary2string(guid) as guid,pfn,  "
-        . $db->reservedWord("user")
-        . " FROM LFN_BOOKED 
-      WHERE expiretime<?", undef, {bind_values => [$currentTime]}
+  
+  my $db = $self->{DATABASE}->{LFN_DB};
+  #Get files
+  use Time::HiRes qw (time);
+  my $currentTime = time();
+  
+  #delete directories
+  $db->do("DELETE FROM LFN_BOOKED WHERE lfn LIKE '%/' ");
+  my $files = $db->query(
+    "SELECT expiretime, lfn, "
+    . $db->reservedWord("size")
+    . ", gowner, binary2string(guid) as guid,pfn,  "
+    . $db->reservedWord("user")
+    . " FROM LFN_BOOKED 
+    WHERE expiretime<?", undef, {bind_values => [$currentTime]}
+  );
+  $files or next;
+  
+  #Get possible G#L tables
+  foreach my $file (@$files) {
+    my @pfns = $self->cleanupGUIDCatalogue($db, $file);
+    my $count = $#pfns;
+    my $physicalDelete = $self->physicalDeleteEntries($db, @pfns);
+    #($physicalDelete==$count+1)
+    # and
+    $db->do(
+      "DELETE FROM LFN_BOOKED WHERE lfn=? and expiretime=?",
+      {bind_values => [ $file->{lfn}, $file->{expiretime} ]}
     );
-    $files or next;
-
-    #Get possible G#L tables
-    foreach my $file (@$files) {
-
-      my @pfns = $self->cleanupGUIDCatalogue($db, $file);
-
-      my $count = $#pfns;
-
-      my $physicalDelete = $self->physicalDeleteEntries($db, @pfns);
-
-      #($physicalDelete==$count+1)
-      # and
-      $db->do(
-        "DELETE FROM LFN_BOOKED WHERE lfn=? and expiretime=?",
-        {bind_values => [ $file->{lfn}, $file->{expiretime} ]}
-      );
-      ($physicalDelete == $count + 1)
-        and ($count > 0)
-        and $self->{DATABASE}->{LFN_DB}->{FIRST_DB}
-        ->fquota_update(-1 * $file->{size} * $count, -1 * $count, $file->{owner});
-      $self->info(
-            "$file->{lfn}($file->{guid}) was deleted($physicalDelete physical files) and quotas were rolled back ("
-          . -1 * $file->{size} * $count . ", "
-          . -1 * $count
-          . ") times for $file->{user}");
-    }
+    ($physicalDelete == $count + 1)
+      and ($count > 0)
+      and $self->{DATABASE}->{LFN_DB}
+    ->fquota_update(-1 * $file->{size} * $count, -1 * $count, $file->{owner});
+    $self->info(
+      "$file->{lfn}($file->{guid}) was deleted($physicalDelete physical files) and quotas were rolled back ("
+      . -1 * $file->{size} * $count . ", "
+      . -1 * $count
+      . ") times for $file->{user}");
   }
   $self->{DATABASE}->{GUID_DB}->{VIRTUAL_ROLE} = "admin";
 }
@@ -1117,9 +1108,9 @@ sub cleanupGUIDCatalogue {
   my @pfns           = ();
   my $physicalDelete = 0;
 
+  my $guiddb = $self->{DATABASE}->{GUID_DB};
   my $dbinfo = $self->{DATABASE}->{GUID_DB}->getIndexHostFromGUID($file->{guid});
   $dbinfo or return;
-  my ($guiddb, $path) = $self->{DATABASE}->{GUID_DB}->reconnectToIndex($dbinfo->{hostIndex});
 
   $guiddb or $self->info("Error reconnecting") and return;
   $self->{DATABASE}->{GUID_DB}->{VIRTUAL_ROLE} = "$file->{user}";
@@ -1204,46 +1195,49 @@ sub calculateFileQuota {
   my $lfndb = $self->{DATABASE}->{LFN_DB};
 
   my $calculate = 0;
-  my $rhosts    = $lfndb->getAllHostAndTable();
+  my $rtables    = $lfndb->getAllTables();
 
-  foreach my $h (@$rhosts) {
-    my ($db, $LTableIdx) = $lfndb->reconnectToIndex($h->{hostIndex}, $h->{tableName}) or next;
+  foreach my $h (@$rtables) {
+    my $LTableIdx = $h->{tableName} or next;
     my $LTableName = "L${LTableIdx}L";
 
     #check if all tables exist for $LTableIdx
-    $db->checkLFNTable("${LTableIdx}");
+    $lfndb->checkLFNTable("${LTableIdx}");
 
     $self->$method(@data, "Checking if the table ${LTableName} is up to date");
-    $db->queryValue(
+    $lfndb->queryValue(
 "select 1 from (select max(ctime) ctime, count(1) counter from $LTableName) a left join LL_ACTIONS on tablenumber=? and action='QUOTA' where extra is null or extra<>counter or time is null or time<ctime",
       undef,
       {bind_values => [$LTableIdx]}
     ) or next;
 
     $self->$method(@data, "Updating the table ${LTableName}");
-    $db->do("delete from LL_ACTIONS where action='QUOTA' and tableNumber=?", {bind_values => [$LTableIdx]});
-    $db->do(
+    $lfndb->do("delete from LL_ACTIONS where action='QUOTA' and tableNumber=?", {bind_values => [$LTableIdx]});
+    $lfndb->do(
 "insert into LL_ACTIONS(tablenumber, time, action, extra) select ?, max(ctime), 'QUOTA', count(1) from $LTableName",
       {bind_values => [$LTableIdx]}
     );
 
     my %sizeInfo;
-    $db->do("delete from ${LTableName}_QUOTA");
-    $db->do("insert into ${LTableName}_QUOTA ("
-        . $db->reservedWord("user")
+    $lfndb->do("delete from ${LTableName}_QUOTA");
+    $lfndb->do("insert into ${LTableName}_QUOTA ("
+        . $lfndb->reservedWord("user")
         . ", nbFiles, totalSize) select l.owner as \"user\", count(l.lfn) as nbFiles, sum(l."
-        . $db->reservedWord("size")
+        . $lfndb->reservedWord("size")
         . ") as totSize from ${LTableName} l where l.type='f' group by l.owner order by l.owner");
     $calculate = 1;
   }
+  
+  
   $calculate or $self->$method(@data, "No need to calculate") and return;
 
   my %infoLFN;
-  foreach my $h (@$rhosts) {
-    my ($db, $tableIdx) = $lfndb->reconnectToIndex($h->{hostIndex}, $h->{tableName}) or next;
+  my $tables = $self->getAllTables();
+  foreach my $h (@$tables) {
+    my $tableIdx = $h->{tableName} or next;
     my $tableName = "L${tableIdx}L";
-    $self->$method(@data, "Getting from Table ${tableName}_QUOTA in Host $h->{hostIndex}");
-    my $userinfo = $db->query("select user, nbFiles, totalSize from ${tableName}_QUOTA");
+    $self->$method(@data, "Getting from Table ${tableName}_QUOTA ");
+    my $userinfo = $lfndb->query("select user, nbFiles, totalSize from ${tableName}_QUOTA");
     foreach my $u (@$userinfo) {
       my $user = $u->{user};
       if (exists $infoLFN{$user}) {
@@ -1260,24 +1254,17 @@ sub calculateFileQuota {
     }
   }
 
-  # tmp solution
-
-  #  $self->{PRIORITY_DB} or
-  #    $self->{PRIORITY_DB}=AliEn::Database::TaskPriority->new({ROLE=>'admin',SKIP_CHECK_TABLES=> 1});
-  #  $self->{PRIORITY_DB}
-  #    or return;
-
   $self->$method(@data, "Updating FQUOTAS table");
-  $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->lock("FQUOTAS");
-  $self->{DATABASE}->{LFN_DB}->{FIRST_DB}
+  $self->{DATABASE}->{LFN_DB}->lock("FQUOTAS");
+  $self->{DATABASE}->{LFN_DB}
     ->do("update FQUOTAS set nbFiles=0, totalSize=0, tmpIncreasedNbFiles=0, tmpIncreasedTotalSize=0")
     or $self->$method(@data, "initialization failure for all users");
   foreach my $user (keys %infoLFN) {
-    $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->do(
+    $self->{DATABASE}->{LFN_DB}->do(
       "update FQUOTAS set nbFiles=$infoLFN{$user}{nbfiles}, totalSize=$infoLFN{$user}{totalsize} where user='$user'")
       or $self->$method(@data, "update failure for user $user");
   }
-  $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->unlock();
+  $self->{DATABASE}->{LFN_DB}->unlock();
 }
 
 return 1;
