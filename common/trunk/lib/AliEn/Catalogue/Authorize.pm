@@ -304,8 +304,7 @@ sub OLDgetPFNforReadOrDeleteAccess {
     and $self->info(
 "Authorize: ERROR within getPFNforReadOrDeleteAccess: SE list was empty after checkup. Either problem with the file's info or you don't have access on relevant SEs.",
     1
-    )
-    and return 0;
+    ) and return 0;
 
 # if excludedAndfailedSEs is an int, we have the old <= AliEn v2-17 version of the envelope request, to select the n-th element
   $se = @{$closeList}[$sesel];
@@ -474,15 +473,14 @@ sub access {
     my $readCache = "";
     if ($self->{CONFIG}->{CACHE_SERVICE_ADDRESS}) {
       $self->debug(1, "This is a read request... we might use the cache");
-      $readCache =
-        "$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}?ns=access&key="
+      $readCache = "$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}?ns=access&key="
         . join("_", $lfn, $sitename, join(";", @ses), join(";", @exxSEs), $sesel);
-      $self->debug(1,"Our read cache key is : $readCache -- ");
+      $self->debug(1, "Our read cache key is : $readCache -- ");
       (my $ok, @envelopes) = AliEn::Util::getURLandEvaluate($readCache, 1);
       $ok or @envelopes = ();
     }
     if (!@envelopes) {
-      if ((scalar(@ses) eq 0) or ($sesel>1)) {
+      if ((scalar(@ses) eq 0) or ($sesel > 1)) {
         my $guidorNot = "";
         if (AliEn::Util::isValidGUID($lfn)) { $guidorNot = "g"; }
 
@@ -499,30 +497,29 @@ sub access {
         $self->checkSiteSECacheForAccess($sitename) || return 0;
         push @queryValues, $sitename;
         $query =
-               "SELECT seName from (SELECT DISTINCT b.seName as seName, a.rank FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE ";
+"SELECT seName from (SELECT DISTINCT b.seName as seName, a.rank FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE ";
         $query .=
-               " (b.seExclusiveRead is NULL or b.seExclusiveRead = '' or b.seExclusiveRead  LIKE concat ('%,' , concat(? , ',%')) ) and ";
+" (b.seExclusiveRead is NULL or b.seExclusiveRead = '' or b.seExclusiveRead  LIKE concat ('%,' , concat(? , ',%')) ) and ";
         push @queryValues, ($self->{ROLE} || $self->{CONFIG}->{ROLE});
-        foreach (@ses) { $query .= " upper(b.seName)<>upper(?) and "; push @queryValues, $_; }
-        foreach (@whereSEs) { $query .= " upper(b.seName)=upper(?) or"; push @queryValues, $_; }
+        foreach (@ses)      { $query .= " upper(b.seName)<>upper(?) and "; push @queryValues, $_; }
+        foreach (@whereSEs) { $query .= " upper(b.seName)=upper(?) or";    push @queryValues, $_; }
         $query =~ s/or$//;
 
         #  $query .= " ORDER BY if(a.rank is null, 1000, a.rank) ASC ;";
         $query .= " ORDER BY coalesce(a.rank,1000) ASC ) d;";
 
-        my $sorted =
-          $self->{DATABASE}->{LFN_DB}->queryColumn($query, undef, {bind_values => \@queryValues});
+        my $sorted = $self->{DATABASE}->{LFN_DB}->queryColumn($query, undef, {bind_values => \@queryValues});
 
-        if($sorted and defined(@$sorted)) {
-          (scalar(@ses) eq 0) or @$sorted = (@ses,@$sorted); 
+        if ($sorted and defined(@$sorted)) {
+          (scalar(@ses) eq 0) or @$sorted = (@ses, @$sorted);
           $nSEs = scalar(@$sorted);
         }
 
-        if ($sesel > $nSEs || $sesel<=0) {
-           return ({eof=>1});
+        if ($sesel > $nSEs || $sesel <= 0) {
+          return ({eof => 1});
         }
 
-        @ses = ($$sorted[$sesel-1]);
+        @ses = ($$sorted[ $sesel - 1 ]);
 
       }
       @envelopes = AliEn::Util::deserializeSignedEnvelopes(
@@ -613,10 +610,10 @@ sub access {
     push @returnEnvelopes, $renv;
   }
 
-  if(scalar(@returnEnvelopes) eq 0) {
-     return ({eof=>1});
+  if (scalar(@returnEnvelopes) eq 0) {
+    return ({eof => 1});
   }
- 
+
   return @returnEnvelopes;
 
 }
@@ -774,7 +771,7 @@ sub OLDaccess {
       $self->info("Authorize: Getting the permissions from the guid");
       $guid = $lfn;
       $self->debug(1, "We have to translate the guid $1");
-      $lfn      = "";
+      $lfn = "";
       $filehash =
         $self->{DATABASE}->{GUID_DB}
         ->checkPermission($perm, $guid, $self->{DATABASE}->{GUID_DB}->reservedWord("size") . ",md5");
@@ -1110,8 +1107,7 @@ sub getBaseEnvelopeForReadAccess {
     or $self->info(
 "Authorize: access ERROR within selectPFNOnClosestRootSEOnRank: SE list was empty after checkup. Either no more replicas, a problem with the file's info,\nor you don't have access on relevant SEs.",
     1
-    )
-    and return 0;
+    ) and return 0;
 
   if ($prepareEnvelope->{se} eq "no_se") {
     if (($prepareEnvelope->{pfn} =~ s/^guid:\/\/\///i) and ($prepareEnvelope->{pfn} =~ s/\?ZIP=(.*)$//)) {
@@ -1161,7 +1157,7 @@ sub parseAndCheckStorageElementPFN2TURL {
 
 sub getSEforPFN {
   my $self = shift;
-  my $pfn  = (shift || return);
+  my $pfn = (shift || return);
 
   #$pfn =~ /^((guid)|(soap)):/ and return "no_se";
   $pfn = $self->parsePFN($pfn);
@@ -1315,7 +1311,7 @@ sub prepookArchiveLinksInBookingTable {
 }
 
 sub calculateXrootdTURLForWriteEnvelope {
-  my $self     = shift;
+  my $self = shift;
   my $envelope = (shift || return {});
 
   ($envelope->{turl}, my $guid, my $se) = $self->createFileUrl($envelope->{se}, "root", $envelope->{guid});
@@ -1414,8 +1410,7 @@ sub registerPFNInCatalogue {
     or $self->info(
 "Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $pfn could not be registered. The PFN doesn't correspond to any known SE.",
     1
-    )
-    and return 0;
+    ) and return 0;
 
   $self->f_registerFile("-f", $envelope->{lfn}, $envelope->{size}, $se, $envelope->{guid}, undef, undef,
     $envelope->{md5}, $pfn)
@@ -1484,14 +1479,12 @@ sub registerFileInCatalogueAccordingToEnvelope {
     $self->f_addMirror($envelope->{lfn}, $envelope->{se}, $envelope->{turl}, "-c", "-md5=" . $envelope->{md5})
       or $self->info(
 "Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $envelope->{turl} could not be registered as a replica."
-      )
-      and return 0;
+      ) and return 0;
   }
   $self->deleteEntryFromBookingTableAndOptionalExistingFlagTrigger($user, $envelope, $justRegistered)
     or $self->info(
 "Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $envelope->{turl} could not be registered properly as a replica (LFN_BOOKED error)."
-    )
-    and return 0;
+    ) and return 0;
   return 1;
 }
 
@@ -1545,8 +1538,7 @@ sub registerOutputForJobPFNS {
       }
     }
   }
-  $self->{DATABASE}->{LFN_DB}
-    ->do("UPDATE LFN_BOOKED set expiretime=-1 where jobid=? and owner=? and gowner=? ;",
+  $self->{DATABASE}->{LFN_DB}->do("UPDATE LFN_BOOKED set expiretime=-1 where jobid=? and owner=? and gowner=? ;",
     {bind_values => [ $jobid, $user, $user ]});
   return ($regok, ($outputdir || 0), @failedFiles);
 }
@@ -1612,22 +1604,19 @@ sub commit {
         or $self->info(
 "Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $envelope->{turl} could not be registered.",
         1
-        )
-        and return $newresult;
+        ) and return $newresult;
     } else {
       $self->f_addMirror($envelope->{lfn}, $envelope->{se}, $envelope->{turl}, "-c", "-md5=" . $envelope->{md5})
         or $self->info(
 "Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $envelope->{turl} could not be registered as a replica.",
         1
-        )
-        and return $newresult;
+        ) and return $newresult;
     }
     $self->deleteEntryFromBookingTableAndOptionalExistingFlagTrigger($user, $envelope, $justRegistered)
       or $self->info(
 "Authorize: File LFN: $envelope->{lfn}, GUID: $envelope->{guid}, PFN: $envelope->{turl} could not be registered properly as a replica (LFN_BOOKED error).",
       1
-      )
-      and return $newresult;
+      ) and return $newresult;
 
     $$newresult[0]->{$lfn} = 1;
 
@@ -1716,14 +1705,12 @@ sub addEntryToBookingTableAndOptionalExistingFlagTrigger {
   $self->{DATABASE}->{LFN_DB}->insertLFNBookedAndOptionalExistingFlagTrigger(
     $envelope->{lfn},  $user,           "1",               $envelope->{md5}, $lifetime, $envelope->{size},
     $envelope->{turl}, $envelope->{se}, $envelope->{guid}, $trigger,         $jobid
-    )
-    or return 0;
+  ) or return 0;
   my $negexpire = -$lifetime;
   $self->{DATABASE}->{LFN_DB}->do(
     "UPDATE LFN_BOOKED SET expiretime=? WHERE lfn=? and guid<>string2binary(?)  ",
     {bind_values => [ $negexpire, $envelope->{lfn}, $envelope->{guid} ]}
-    )
-    or return 0;
+  ) or return 0;
   return 1;
 }
 
@@ -1783,13 +1770,12 @@ sub authorize {
   my $pfn   = ($options->{pfn}   || "");
   my $links = ($options->{links} || 0);
   my $linksToBeBooked = 1;
-  my $jobID           = (shift || 0);
+  my $jobID = (shift || 0);
 
   my $readCache;
   if ($access =~ /read/ and $self->{CONFIG}->{CACHE_SERVICE_ADDRESS}) {
     $self->debug(1, "This is a read request... we might use the cache ");
-    $readCache =
-      "$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}?ns=envelope&key="
+    $readCache = "$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}?ns=envelope&key="
       . join("_", $user, $options->{lfn}, $options->{site}, $options->{wishedSE}, $options->{excludeSE});
 
     my ($ok, @value) = AliEn::Util::getURLandEvaluate($readCache, 1);
@@ -1836,8 +1822,7 @@ sub authorize {
     and $self->info(
 "Authorize: Authorize: ERROR! There are no SE's after checkups to create an envelope for '$$prepareEnvelope->{lfn}/$prepareEnvelope->{guid}'",
     1
-    )
-    and return 0;
+    ) and return 0;
 
   while (scalar(@$seList) gt 0) {
     $prepareEnvelope->{se} = shift(@$seList);
@@ -1858,11 +1843,11 @@ sub authorize {
     $prepareEnvelope->{xurl} = 0;
 
     if ( ($prepareEnvelope->{se} =~ /dcache/i)
-      or ($prepareEnvelope->{se} =~ /alice::((RAL)|(CNAF))::castor/i)
+      or ($prepareEnvelope->{se}   =~ /alice::((RAL)|(CNAF))::castor/i)
       and !($prepareEnvelope->{se} =~ /alice::RAL::castor2_test/i)) {
       $prepareEnvelope->{turl} =~ m{^((root)|(file))://([^/]*)/(.*)};
       my @link = split(/\#/, $prepareEnvelope->{turl});
-      $link[1] or $link[1]="";
+      $link[1] or $link[1] = "";
       $prepareEnvelope->{xurl} = "root://$4/$prepareEnvelope->{lfn}#$link[1]";
     }
 
@@ -1914,7 +1899,7 @@ sub initializeEnvelope {
 
 sub isOldEnvelopeStorageElement {
   my $self = shift;
-  my $se   = (shift || return 1);
+  my $se = (shift || return 1);
 
   ($se eq "no_se") and return 0;
 
@@ -1925,7 +1910,7 @@ sub isOldEnvelopeStorageElement {
     return $cache;
   }
   my @queryValues = ("$se");
-  my $seVersion   =
+  my $seVersion =
     $self->{DATABASE}->{LFN_DB}
     ->queryValue("SELECT seVersion FROM SE WHERE upper(seName)=upper(?) ;", undef, {bind_values => \@queryValues});
   my $value = 1;
@@ -1966,7 +1951,7 @@ sub createAndEncryptEnvelopeTicket {
 }
 
 sub decryptEnvelopeTicket {
-  my $self   = shift;
+  my $self = shift;
   my $ticket = (shift || return {});
 
   $self->{envelopeCipherEngine}->Reset();

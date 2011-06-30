@@ -21,23 +21,23 @@ use AliEn::Config;
 use strict;
 
 use vars qw(@ISA);
-@ISA=("AliEn::Database");
+@ISA = ("AliEn::Database");
 
 sub new {
   my $proto = shift;
-  my $self  = (shift or {});
+  my $self = (shift or {});
 
   my $class = ref($proto) || $proto;
-  bless ($self, $class);
+  bless($self, $class);
 
   $self->{CONFIG} = new AliEn::Config();
   $self->{CONFIG}
     or return;
 
   $self->{CONFIG}->{G_CONTAINER}->{GEO_I_P_DATABASE} =~ /^(.+)\/(\w+)\/(\w+)$/;
-  $self->{HOST} = $1;
+  $self->{HOST}   = $1;
   $self->{DRIVER} = $2;
-  $self->{DB} = $3;
+  $self->{DB}     = $3;
 
   return $self->SUPER::new($self);
 }
@@ -50,5 +50,7 @@ sub recreateTables {
       or return;
   }
 
-  return $self->createTable("GeoIP", "(startip CHAR(15), endip CHAR(15), startnumber BIGINT, endnumber BIGINT, country char(2), latitude DOUBLE, longitude DOUBLE, INDEX(startnumber, endnumber))");
+  return $self->createTable("GeoIP",
+"(startip CHAR(15), endip CHAR(15), startnumber BIGINT, endnumber BIGINT, country char(2), latitude DOUBLE, longitude DOUBLE, INDEX(startnumber, endnumber))"
+  );
 }

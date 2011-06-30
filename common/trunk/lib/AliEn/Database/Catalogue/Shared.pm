@@ -11,6 +11,7 @@ push @ISA, qw(AliEn::Database);
 sub preConnect {
   my $self = shift;
   $self->{DB} and $self->{HOST} and $self->{DRIVER} and return 1;
+
   #! ($self->{DB} and $self->{HOST} and $self->{DRIVER} ) or (!$self->{CONFIG}->{CATALOGUE_DATABASE}) and  return;
   $self->debug(2, "Using the default $self->{CONFIG}->{CATALOGUE_DATABASE}");
   ($self->{HOST}, $self->{DRIVER}, $self->{DB}) = split(m{/}, $self->{CONFIG}->{CATALOGUE_DATABASE});
@@ -158,8 +159,8 @@ sub executeInAllDB {
   my @return;
   my $info = $self->$method(@_);
   if (!$info) {
-      $error = 1;
-      return;
+    $error = 1;
+    return;
   }
   push @return, $info;
 
@@ -171,24 +172,25 @@ sub executeInAllDB {
 
 sub destroy {
   my $self = shift;
-#
-#  use Data::Dumper;
-#  my $number = $self->{UNIQUE_NM};
-#  $number               or return;
-#  $Connections{$number} or return;
-#  my @databases = keys %{$Connections{$number}};
-#
-#  foreach my $database (@databases) {
-#    $database =~ /^FIRST_DB$/ and next;
-#
-#    $Connections{$number}->{$database} and $Connections{$number}->{$database}->SUPER::destroy();
-#    delete $Connections{$number}->{$database};
-#  }
-#
-#  #  delete $Connections{$number};
-#  keys %Connections or undef %Connections;
-#
-#  #  $self->SUPER::destroy();
+
+  #
+  #  use Data::Dumper;
+  #  my $number = $self->{UNIQUE_NM};
+  #  $number               or return;
+  #  $Connections{$number} or return;
+  #  my @databases = keys %{$Connections{$number}};
+  #
+  #  foreach my $database (@databases) {
+  #    $database =~ /^FIRST_DB$/ and next;
+  #
+  #    $Connections{$number}->{$database} and $Connections{$number}->{$database}->SUPER::destroy();
+  #    delete $Connections{$number}->{$database};
+  #  }
+  #
+  #  #  delete $Connections{$number};
+  #  keys %Connections or undef %Connections;
+  #
+  #  #  $self->SUPER::destroy();
 }
 
 sub checkSETable {
@@ -289,8 +291,7 @@ sub renumberTable {
   my $ok = 1;
   $self->do(
 "alter table $table modify $index int(11), drop primary key,  auto_increment=1, add new_index int(11) auto_increment primary key, add unique index (guidid)"
-    )
-    or $ok = 0;
+  ) or $ok = 0;
   if ($ok) {
     foreach my $t (@{$options->{update}}) {
       $self->debug(1, "Updating $t");

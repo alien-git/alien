@@ -20,224 +20,227 @@ use AliEn::Database;
 use strict;
 
 use vars qw(@ISA);
-@ISA=("AliEn::Database");
+@ISA = ("AliEn::Database");
 
 ###		sessions
 
-sub createSessionsTable{
-    my $self = shift;
+sub createSessionsTable {
+  my $self = shift;
 
-	$self->debug(1,"In createSessionsTable creating table sessions");
+  $self->debug(1, "In createSessionsTable creating table sessions");
 
-	$self->createTable("sessions","(sessionId INT, muxPid INT, user varchar(255), muxPort INT, assigntime INT, validitytime INT, expired int)",1);
+  $self->createTable("sessions",
+    "(sessionId INT, muxPid INT, user varchar(255), muxPort INT, assigntime INT, validitytime INT, expired int)", 1);
 }
 
-sub getLastSessionId{
-	my $self = shift;
+sub getLastSessionId {
+  my $self = shift;
 
-	$self->debug(1,"In getLastSessionId fetching get last session ID from sessions");
+  $self->debug(1, "In getLastSessionId fetching get last session ID from sessions");
 
-	$self->queryValue("SELECT MAX(sessionId) from sessions");
+  $self->queryValue("SELECT MAX(sessionId) from sessions");
 }
 
-sub insertIntoSessions{
-        my $self = shift;
-	$self->insert("sessions",@_);
+sub insertIntoSessions {
+  my $self = shift;
+  $self->insert("sessions", @_);
 }
 
-sub updateSessions{
-        my $self = shift;
-	$self->update("sessions",@_);
+sub updateSessions {
+  my $self = shift;
+  $self->update("sessions", @_);
 }
 
-sub getFieldsFromSessionsEx{
-	my $self = shift;
-	my $attr = shift || "*";
-	my $where = shift || "";
+sub getFieldsFromSessionsEx {
+  my $self  = shift;
+  my $attr  = shift || "*";
+  my $where = shift || "";
 
-	$self->debug(1,"In getFieldsFromSessionsEx fetching attributes $attr with condition $where");
+  $self->debug(1, "In getFieldsFromSessionsEx fetching attributes $attr with condition $where");
 
-	$self->query("SELECT $attr FROM sessions $where", @_);
+  $self->query("SELECT $attr FROM sessions $where", @_);
 }
 
-sub getFieldFromSessionsEx{
-	my $self = shift;
-	my $attr = shift || "*";
-	my $where = shift || "";
+sub getFieldFromSessionsEx {
+  my $self  = shift;
+  my $attr  = shift || "*";
+  my $where = shift || "";
 
-	$self->debug(1,"In getFieldFromSessionsEx fetching attributes $attr with condition $where");
+  $self->debug(1, "In getFieldFromSessionsEx fetching attributes $attr with condition $where");
 
-	$self->queryColumn("SELECT $attr FROM sessions $where", @_);
+  $self->queryColumn("SELECT $attr FROM sessions $where", @_);
 }
-
 
 ###		reserved
 
-sub createReservedTable{
-	my $self = shift;
+sub createReservedTable {
+  my $self = shift;
 
-	$self->debug(1,"In createReservedTable creating table reserved");
+  $self->debug(1, "In createReservedTable creating table reserved");
 
-	$self->createTable("reserved","(sessionId INT, site varchar(255), nassigned INT,  assigntime INT, validitytime INT, expired int)",1);
+  $self->createTable("reserved",
+    "(sessionId INT, site varchar(255), nassigned INT,  assigntime INT, validitytime INT, expired int)", 1);
 }
 
-sub insertIntoReserved{
-	my $self = shift;
-	$self->insert("reserved",@_);
+sub insertIntoReserved {
+  my $self = shift;
+  $self->insert("reserved", @_);
 }
 
-sub updateReserved{
-        my $self = shift;
-	$self->update("reserved",@_);
+sub updateReserved {
+  my $self = shift;
+  $self->update("reserved", @_);
 }
 
-sub getFieldsFromReservedEx{
-	my $self = shift;
-	my $attr = shift || "*";
-	my $where = shift || "";
+sub getFieldsFromReservedEx {
+  my $self  = shift;
+  my $attr  = shift || "*";
+  my $where = shift || "";
 
-	$self->debug(1,"In getFieldsFromReservedEx fetching attributes $attr with condition $where");
+  $self->debug(1, "In getFieldsFromReservedEx fetching attributes $attr with condition $where");
 
-	$self->query("SELECT $attr FROM reserved $where");
+  $self->query("SELECT $attr FROM reserved $where");
 }
 
-sub getFieldFromReservedEx{
-	my $self = shift;
-	my $attr = shift || "*";
-	my $where = shift || "";
+sub getFieldFromReservedEx {
+  my $self  = shift;
+  my $attr  = shift || "*";
+  my $where = shift || "";
 
-	$self->debug(1,"In getFieldFromReservedEx fetching attributes $attr with condition $where");
+  $self->debug(1, "In getFieldFromReservedEx fetching attributes $attr with condition $where");
 
-	$self->queryColumn("SELECT $attr FROM reserved $where");;
+  $self->queryColumn("SELECT $attr FROM reserved $where");
 }
 
-sub getNumberPrebookedProofs{
-	my $self = shift;
-	my $site = shift
-		or $self->{LOGGER}->error("Proof","In getNumberPrebookedProofs site is missing")
-		and return;
+sub getNumberPrebookedProofs {
+  my $self = shift;
+  my $site = shift
+    or $self->{LOGGER}->error("Proof", "In getNumberPrebookedProofs site is missing")
+    and return;
 
-	$self->debug(1,"In getNumberPrebookedPfs fetching number of prebooked proofs for site $site");
+  $self->debug(1, "In getNumberPrebookedPfs fetching number of prebooked proofs for site $site");
 
-	$self->queryValue("SELECT SUM(nassigned) FROM reserved WHERE site='$site' and expired='0' and nassigned>0");
+  $self->queryValue("SELECT SUM(nassigned) FROM reserved WHERE site='$site' and expired='0' and nassigned>0");
 }
 
 ###		p tables
 
-sub createProofTable{
-	my $self = shift;
-	my $sessionId = shift
-		or $self->{LOGGER}->error("Proof","In createProofTable proof table id is missing")
-		and return;
+sub createProofTable {
+  my $self      = shift;
+  my $sessionId = shift
+    or $self->{LOGGER}->error("Proof", "In createProofTable proof table id is missing")
+    and return;
 
-	$self->debug(1,"In createProofTable creating table reserved");
+  $self->debug(1, "In createProofTable creating table reserved");
 
-	$self->createTable("P$sessionId","(site varchar(255), mss varchar(255), muxhost varchar(255), muxport varchar(255), nrequested INT, nassigned INT)",1);
+  $self->createTable(
+    "P$sessionId",
+    "(site varchar(255), mss varchar(255), muxhost varchar(255), muxport varchar(255), nrequested INT, nassigned INT)",
+    1
+  );
 }
 
-sub getAllFromProof{
-	my $self = shift;
-	my $id = shift
-		or $self->{LOGGER}->error("Proof","In getAllFromProof proof table id is missing")
-		and return;
-	my $attr = shift || "*";
+sub getAllFromProof {
+  my $self = shift;
+  my $id   = shift
+    or $self->{LOGGER}->error("Proof", "In getAllFromProof proof table id is missing")
+    and return;
+  my $attr = shift || "*";
 
-	$self->debug(1,"In getAllFromProof fetching attributes $attr of all entries");
+  $self->debug(1, "In getAllFromProof fetching attributes $attr of all entries");
 
-	$self->getFieldsFromProofEx($id, $attr);
+  $self->getFieldsFromProofEx($id, $attr);
 }
 
-sub getFieldsFromProofBySite{
-	my $self = shift;
-	my $id = shift
-		or $self->{LOGGER}->error("Proof","In getFieldsFromProofBySite proof table id is missing")
-		and return;
-	my $site = shift
-		or $self->{LOGGER}->error("Proof","In getFieldsFromProofBySite site is missing")
-		and return;
-	my $attr = shift || "*";
+sub getFieldsFromProofBySite {
+  my $self = shift;
+  my $id   = shift
+    or $self->{LOGGER}->error("Proof", "In getFieldsFromProofBySite proof table id is missing")
+    and return;
+  my $site = shift
+    or $self->{LOGGER}->error("Proof", "In getFieldsFromProofBySite site is missing")
+    and return;
+  my $attr = shift || "*";
 
-	$self->debug(1,"In getFieldsFromProofBySite fetching attributes $attr of entries by site $site");
+  $self->debug(1, "In getFieldsFromProofBySite fetching attributes $attr of entries by site $site");
 
-	$self->query("SELECT $attr FROM P$id WHERE site = '$site'");
+  $self->query("SELECT $attr FROM P$id WHERE site = '$site'");
 }
 
-sub getFieldsFromProofByMss{
-	my $self = shift;
-	my $id = shift
-		or $self->{LOGGER}->error("Proof","In getFieldsFromProofByMss proof table id is missing")
-		and return;
-	my $mss = shift
-		or $self->{LOGGER}->error("Proof","In getFieldsFromProofByMss mss is missing")
-		and return;
-	my $attr = shift || "*";
+sub getFieldsFromProofByMss {
+  my $self = shift;
+  my $id   = shift
+    or $self->{LOGGER}->error("Proof", "In getFieldsFromProofByMss proof table id is missing")
+    and return;
+  my $mss = shift
+    or $self->{LOGGER}->error("Proof", "In getFieldsFromProofByMss mss is missing")
+    and return;
+  my $attr = shift || "*";
 
-	$self->debug(1,"In getFieldsFromProofByMss fetching attributes $attr of entries by mss $mss");
+  $self->debug(1, "In getFieldsFromProofByMss fetching attributes $attr of entries by mss $mss");
 
-	$self->query("SELECT $attr FROM P$id WHERE mss = '$mss'");
+  $self->query("SELECT $attr FROM P$id WHERE mss = '$mss'");
 }
 
-sub getFieldsFromProofEx{
-	my $self = shift;
-	my $id = shift
-		or $self->{LOGGER}->error("Proof","In getFieldsFromProofEx proof table id is missing")
-		and return;
-	my $attr = shift || "*";
-	my $where = shift || "";
+sub getFieldsFromProofEx {
+  my $self = shift;
+  my $id   = shift
+    or $self->{LOGGER}->error("Proof", "In getFieldsFromProofEx proof table id is missing")
+    and return;
+  my $attr  = shift || "*";
+  my $where = shift || "";
 
-	$self->debug(1,"In getFieldsFromProofEx fetching attributes $attr with condition $where");
+  $self->debug(1, "In getFieldsFromProofEx fetching attributes $attr with condition $where");
 
-	$self->query("SELECT $attr FROM P$id $where");
+  $self->query("SELECT $attr FROM P$id $where");
 }
 
-sub getFieldFromProofEx{
-	my $self = shift;
-	my $id = shift
-		or $self->{LOGGER}->error("Proof","In getFieldFromProofEx proof table id is missing")
-		and return;
-	my $attr = shift || "*";
-	my $where = shift || "";
+sub getFieldFromProofEx {
+  my $self = shift;
+  my $id   = shift
+    or $self->{LOGGER}->error("Proof", "In getFieldFromProofEx proof table id is missing")
+    and return;
+  my $attr  = shift || "*";
+  my $where = shift || "";
 
-	$self->debug(1,"In getFieldFromProofEx fetching attributes $attr with condition $where");
+  $self->debug(1, "In getFieldFromProofEx fetching attributes $attr with condition $where");
 
-	$self->queryColumn("SELECT $attr FROM P$id $where");
+  $self->queryColumn("SELECT $attr FROM P$id $where");
 }
 
-sub insertIntoProof{
-	my $self = shift;
-	my $id = shift
-		or $self->{LOGGER}->error("Proof","In insertIntoProof proof table id is missing")
-		and return;
-	$self->insert("P$id",@_);
+sub insertIntoProof {
+  my $self = shift;
+  my $id   = shift
+    or $self->{LOGGER}->error("Proof", "In insertIntoProof proof table id is missing")
+    and return;
+  $self->insert("P$id", @_);
 }
 
-sub updateProof{
-	my $self = shift;
-	my $id = shift
-		or $self->{LOGGER}->error("Proof","In updateProof proof table id is missing")
-		and return;
+sub updateProof {
+  my $self = shift;
+  my $id   = shift
+    or $self->{LOGGER}->error("Proof", "In updateProof proof table id is missing")
+    and return;
 
-	$self->update("P$id",@_);
+  $self->update("P$id", @_);
 }
 
-sub checkProofTable{
-	my $self = shift;
-	my $id = shift
-		or $self->{LOGGER}->error("Proof","In checkProofTable proof table id is missing")
-		and return;
+sub checkProofTable {
+  my $self = shift;
+  my $id   = shift
+    or $self->{LOGGER}->error("Proof", "In checkProofTable proof table id is missing")
+    and return;
 
-	$self->debug(1,"In checkProofTable checking if table P$id already exists");
+  $self->debug(1, "In checkProofTable checking if table P$id already exists");
 
-	if ($self->existsTable("P$id")){
-		$self->{LOGGER}->warning("Proof","Proof table P$id already exists. Cleaning table P$id...");
-		$self->delete("P$id","1");
-	}else{
-		$self->debug(1,"In checkProofTable table P$id doesnt exist. Creating table P$id...");
-		$self->createProofTable($id);
-	}
+  if ($self->existsTable("P$id")) {
+    $self->{LOGGER}->warning("Proof", "Proof table P$id already exists. Cleaning table P$id...");
+    $self->delete("P$id", "1");
+  } else {
+    $self->debug(1, "In checkProofTable table P$id doesnt exist. Creating table P$id...");
+    $self->createProofTable($id);
+  }
 }
-
-
 
 =head1 NAME
 

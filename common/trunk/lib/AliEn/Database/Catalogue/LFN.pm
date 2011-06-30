@@ -367,7 +367,7 @@ sub getAllInfoFromLFN {
   #  @_ or $self->info( "Warning! missing arguments in internal function getAllInfoFromLFN") and return;
   $tableName =~ /^\d+$/ and $tableName = "L${tableName}L";
   my @entries = grep (s{^$tablePath}{}, @_);
-  my @list    = @entries;
+  my @list = @entries;
 
   $DEBUG and $self->debug(2, "Checking for @entries in $tableName");
   my $op = '=';
@@ -384,7 +384,7 @@ sub getAllInfoFromLFN {
 
   my $order = $options->{order};
   $options->{where} and $where .= " $options->{where}";
-  $order            and $where .= " order by $order";
+  $order and $where .= " order by $order";
 
   if ($options->{retrieve}) {
     $options->{retrieve} =~ s{lfn}{concat('$tablePath',lfn) as lfn};
@@ -455,17 +455,16 @@ sub getHostsForEntry {
 
   #First, let's take the entry that has the directory
   my $query =
-"SELECT tableName,lfn from INDEXTABLE where lfn=substr('$lfn/',1,length(lfn))  order by length(lfn) desc ";
+    "SELECT tableName,lfn from INDEXTABLE where lfn=substr('$lfn/',1,length(lfn))  order by length(lfn) desc ";
   $query = $self->paginate($query, 1, 0);
   my $entry = $self->query($query);
   $entry or return;
 
   #Now, let's get all the possibles expansions (but the expansions at least as
   #long as the first index
-  my $length     = length(${$entry}[0]->{lfn});
+  my $length = length(${$entry}[0]->{lfn});
   my $expansions =
-    $self->query(
-    "SELECT distinct tableName,lfn from INDEXTABLE where lfn like '$lfn/%' and length(lfn)>$length");
+    $self->query("SELECT distinct tableName,lfn from INDEXTABLE where lfn like '$lfn/%' and length(lfn)>$length");
   my @all = (@$entry, @$expansions);
   return \@all;
 }
@@ -827,7 +826,8 @@ sub removeFile {
       . ", guid, gowner, "
       . $db->reservedWord("user") . ", pfn)
     SELECT ?, l.owner, -1, l."
-      . $db->reservedWord("size") . ", l.guid, l.gowner, ?,'*' FROM $tableName l WHERE l.lfn=? AND l.type<>'l'",
+      . $db->reservedWord("size") 
+      . ", l.guid, l.gowner, ?,'*' FROM $tableName l WHERE l.lfn=? AND l.type<>'l'",
     {bind_values => [ $lfn, $user, $lfnOnTable ]}
     )
     or $self->{LOGGER}->error("Database::Catalogue::LFN", "Could not insert LFN(s) in the booking pool")
@@ -1101,7 +1101,8 @@ sub softLink {
         . $dbTarget->reservedWord("size")
         . ", dir, gowner, type, guid, md5, perm) 
       SELECT owner, replicated, ctime, guidtime, aclId, ?, broken, expiretime, "
-        . $dbTarget->reservedWord("size") . ", dir, gowner, 'l', guid, md5, perm FROM $tableName_source WHERE lfn=?",
+        . $dbTarget->reservedWord("size") 
+        . ", dir, gowner, 'l', guid, md5, perm FROM $tableName_source WHERE lfn=?",
       {bind_values => [ $lfnOnTable_target, $lfnOnTable_source ]}
       )
       or $self->{LOGGER}->error("Database::Catalogue::LFN", "Error updating database", "[updateDatabse]")
@@ -1179,8 +1180,7 @@ sub tabCompletion {
   $entryName =~ s{^$lfn}{};
   my $dir = $self->queryValue("SELECT entryId from $tableName where lfn=?", undef, {bind_values => [$dirName]});
   $dir or return;
-  my $rfiles =
-    $self->queryColumn(
+  my $rfiles = $self->queryColumn(
     "SELECT concat('$lfn',lfn) from $tableName where dir=$dir and " . $self->regexp("lfn", "^$entryName\[^/]*\/?\$"));
   return @$rfiles;
 
@@ -1191,14 +1191,14 @@ sub actionInIndex {
   my $self   = shift;
   my $action = shift;
 
-  my $tempHost= {
-      'organisation' => undef,
-      'db' => $self->{DB},
-      'address' => $self->{HOST},
-      'driver' => $self->{DRIVER}
+  my $tempHost = {
+    'organisation' => undef,
+    'db'           => $self->{DB},
+    'address'      => $self->{HOST},
+    'driver'       => $self->{DRIVER}
   };
   $self->info("Updating the INDEX table of  $tempHost->{db}");
-  $self->do($action) or $self->debug(2,"Warning: Error doing $action");
+  $self->do($action) or $self->debug(2, "Warning: Error doing $action");
   $DEBUG and $self->debug(2, "Everything is done!!");
 
   return 1;
@@ -1300,7 +1300,7 @@ sub copyDirectory {
     my $like = "t1.replicated=0";
 
     my $table = "L$entry->{tableName}L";
-    my $join  =
+    my $join =
 "$table t1,$table t2 where t2.type='d' and (t1.dir=t2.entryId or t1.entryId=t2.entryId)  and t2.lfn like '$tsource%'";
     if ($targetIndex eq $entry->{hostIndex}) {
       $options->{k} and $like .= " and t1.lfn!='$tsource'";
@@ -1352,14 +1352,12 @@ sub copyDirectory {
 
   #and now, we should update the entryId of all the new entries
   #This query is divided in a subquery to profit from the index with the column dir
-  my $entries =
-    $targetDB->query(
+  my $entries = $targetDB->query(
 "select * from (SELECT lfn, entryId from $targetTable where dir=-1 or lfn='$target' or lfn='$targetParent') dd where lfn like '$target\%/' or lfn='$target' or lfn='$targetParent'"
-    );
+  );
   foreach my $entry (@$entries) {
     $DEBUG and $self->debug(1, "Updating tbe entry $entry->{lfn}");
-    my $update =
-      "update $targetTable set dir=$entry->{entryId} where dir=-1 and "
+    my $update = "update $targetTable set dir=$entry->{entryId} where dir=-1 and "
       . $self->regexp("lfn", "^$entry->{lfn}\[^/]+/?\$");
     $targetDB->do($update);
 
@@ -1403,10 +1401,10 @@ sub moveLFNs {
 
   my $isIndex = $self->queryValue("SELECT 1 from INDEXTABLE where lfn=?", undef, {bind_values => [$lfn]});
 
-  my $entry           = $self->getIndexHost($lfn) or $self->info("Error getting the info of $lfn") and return;
-  my $fromTable       = $entry->{tableName};
-  my $fromLFN         = $entry->{lfn};
-  my $toLFN           = $lfn;
+  my $entry     = $self->getIndexHost($lfn) or $self->info("Error getting the info of $lfn") and return;
+  my $fromTable = $entry->{tableName};
+  my $fromLFN   = $entry->{lfn};
+  my $toLFN     = $lfn;
 
   if ($options->{b}) {
     $isIndex
@@ -1473,7 +1471,7 @@ sub moveLFNs {
     $self->do("update $toTable set dir=? where dir=?", {bind_values => [ $newDir, $oldDir ]});
     $self->do("drop table $fromTable");
   } else {
-  if (!$self->insertInIndex("", $toTable, $lfn)) {
+    if (!$self->insertInIndex("", $toTable, $lfn)) {
       $self->delete($toTable, "lfn like '${tempLfn}%'");
       return;
     }
@@ -1535,7 +1533,7 @@ sub deleteLink {
   $self->deleteFromD0Like($newpath);
 }
 
-### Host functions 
+### Host functions
 
 sub getIndexHost {
   my $self = shift;
@@ -1544,7 +1542,7 @@ sub getIndexHost {
 
   #my $options={bind_values=>[$lfn]};
   my $query =
-"SELECT tableName,lfn FROM INDEXTABLE where lfn=substr('$lfn',1, length(lfn))  order by length(lfn) desc ";
+    "SELECT tableName,lfn FROM INDEXTABLE where lfn=substr('$lfn',1, length(lfn))  order by length(lfn) desc ";
   $query = $self->paginate($query, 1, 0);
 
   # return $self->queryRow($query, undef, $options);
@@ -1708,7 +1706,7 @@ sub getTags {
   my $columns = shift || "*";
   my $where   = shift || "";
   my $options = shift || {};
-  my $query   =
+  my $query =
       "SELECT $columns from $tableName t where t.entryId=(select max(entryId) from $tableName t2 where t."
     . $self->reservedWord("file") . "=t2."
     . $self->reservedWord("file")
@@ -1850,8 +1848,8 @@ sub getDiskUsage {
     my $where = "where lfn like '$pattern%'";
     $self->{INDEX_TABLENAME}->{lfn} =~ m{^$lfn} and $where = "where 1";
     $options =~ /f/ and $where .= " and type='f'";
-    my $partialSize =
-      $self->queryValue("SELECT sum(" . $self->reservedWord("size") . ") from L$self->{INDEX_TABLENAME}->{tableName}L $where");
+    my $partialSize = $self->queryValue(
+      "SELECT sum(" . $self->reservedWord("size") . ") from L$self->{INDEX_TABLENAME}->{tableName}L $where");
     $DEBUG and $self->debug(1, "Got size $partialSize");
     $size += $partialSize;
   } else {
@@ -1874,7 +1872,7 @@ sub DropEmptyDLTables {
   $self->info("Deleting the tables that are not being used");
 
   #updating the D0 of all the databases
-  
+
   my $tables = $self->queryColumn("show tables like 'D\%L'")
     or return;
   foreach my $t (@$tables) {
@@ -1883,8 +1881,7 @@ sub DropEmptyDLTables {
     my $number = $1;
     my $n = $self->queryValue("select count(*) from $t") and next;
     $self->info("We have to drop $t!! (there are $n in $t)");
-    my $indexes =
-    $self->queryColumn("SELECT lfn from INDEXTABLE where tableName=$number");
+    my $indexes = $self->queryColumn("SELECT lfn from INDEXTABLE where tableName=$number");
     if ($indexes) {
       foreach my $i (@$indexes) {
         $self->info("Deleting index $i");
@@ -1893,7 +1890,7 @@ sub DropEmptyDLTables {
     }
     $self->do("DROP TABLE $t");
   }
-  
+
   $DEBUG and $self->debug(2, "Everything is done!!");
 
   return 1;
@@ -1913,6 +1910,7 @@ sub executeInAllDB {
   my $method = shift;
 
   $DEBUG and $self->debug(1, "Executing $method (@_) in all the databases");
+
   #my $hosts = $self->getAllHosts("hostIndex");
   my ($oldHost, $oldDB, $oldDriver) = ($self->{HOST}, $self->{DB}, $self->{DRIVER});
 
@@ -1932,11 +1930,11 @@ sub executeInAllDB {
 }
 
 sub selectDatabase {
-  
+
   #
-  # SUBHO:::DEBUG ---- FIX THIS 
+  # SUBHO:::DEBUG ---- FIX THIS
   #
-  
+
   my $self = shift;
   my $path = shift;
 
@@ -2081,7 +2079,7 @@ sub internalQuery {
 
 #  push @newQueries, " JOIN $table $oldQuery $union $table.$query and substring($table.file,$l+1)=l.lfn  and left($table.file,$l)='$refTable->{lfn}'";
             push @newQueries,
-              " , $table $oldQuery $union $table.$query and substr($table."
+                " , $table $oldQuery $union $table.$query and substr($table."
               . $self->reservedWord("file")
               . ",$l+1)=l.lfn  and substr($table."
               . $self->reservedWord("file")
@@ -2090,7 +2088,7 @@ sub internalQuery {
 
 #    push @newQueries, " JOIN $table $oldQuery $union $table.$query and $table.file like '%/' and concat('$refTable->{lfn}', l.lfn) like concat( $table.file,'%') ";
             push @newQueries,
-              " , $table $oldQuery $union $table.$query and $table."
+                " , $table $oldQuery $union $table.$query and $table."
               . $self->reservedWord("file")
               . "  like '%/' and concat('$refTable->{lfn}', l.lfn) like concat( $table."
               . $self->reservedWord("file")
@@ -2099,7 +2097,7 @@ sub internalQuery {
 
 #    push @newQueries, " JOIN $table $oldQuery $union $table.$query and l.lfn=substring($table.file, $length) and left($table.file, $length-1)='$refTable->{lfn}'";
             push @newQueries,
-              " , $table $oldQuery $union $table.$query and l.lfn=substr($table."
+                " , $table $oldQuery $union $table.$query and l.lfn=substr($table."
               . $self->reservedWord("file")
               . ", $length) and substr($table."
               . $self->reservedWord("file")
@@ -2349,10 +2347,9 @@ sub renumberLFNtable {
   my $options = shift || {};
   $self->info("How do we renumber '$table'??");
 
-  my $info =
-    $self->query(
+  my $info = $self->query(
 "select ${table}d.entryId as t from $table ${table}d left join $table ${table}r on ${table}d.entryId-1=${table}r.entryId where ${table}r.entryId is null order by t asc"
-    );
+  );
 
   #Let's do this part before dropping the index
   my @newlist;
@@ -2360,7 +2357,7 @@ sub renumberLFNtable {
 
   while (@$info) {
     my $entry = shift @$info;
-    my $r     =
+    my $r =
       $self->queryValue("select max(entryId) from $table where entryId<?", undef, {bind_values => [ $entry->{t} ]});
     if (!$r) {
 
@@ -2483,7 +2480,7 @@ sub getNumberOfEntries {
   my $self    = shift;
   my $entry   = shift;
   my $options = shift;
-  my $query = "SELECT COUNT(*) from L$entry->{tableName}L";
+  my $query   = "SELECT COUNT(*) from L$entry->{tableName}L";
   $options =~ /f/ and $query .= " where SUBSTR(lfn,-1) != '/'";
   return $self->queryValue($query);
 }
@@ -2612,8 +2609,7 @@ sub fquota_update {
 "UPDATE FQUOTAS SET nbFiles=nbFiles+tmpIncreasedNbFiles+?, totalSize=totalSize+tmpIncreasedTotalSize+?, tmpIncreasedNbFiles=0, tmpIncreasedTotalSize=0 WHERE "
       . $self->reservedWord("user") . "=?",
     {bind_values => [ $count, $size, $user ]}
-    )
-    or return;
+  ) or return;
 
   return 1;
 }

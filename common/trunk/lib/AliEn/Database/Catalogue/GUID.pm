@@ -431,8 +431,8 @@ sub getAllInfoFromGUID {
     $where      = " guidId=?";
     @bind       = ($info->{guidId});
   }
-  my $fullQuery =
-"select seName, pfn from ${table}_PFN p, SE$extraTable $where and p.seNumber=SE.seNumber";# union select seName, '' as pfn from $table g, SE where $where and seAutoStringlist like concat('%,', concat(seNumber , ',%'))";
+  my $fullQuery = "select seName, pfn from ${table}_PFN p, SE$extraTable $where and p.seNumber=SE.seNumber"
+    ; # union select seName, '' as pfn from $table g, SE where $where and seAutoStringlist like concat('%,', concat(seNumber , ',%'))";
   my $pfn = $db->query($fullQuery, undef, {bind_values => \@bind})
     or $self->info("Error doing the query '$fullQuery'")
     and return;
@@ -454,7 +454,7 @@ sub getIndexHostFromGUID {
   my $guid = shift || "";
   $self->debug(1, "Let's find the database that holds the guid '$guid'");
   my $query =
-"SELECT tableName from GUIDINDEX where guidTime<string2date(?) or guidTime is null order by guidTime desc ";
+    "SELECT tableName from GUIDINDEX where guidTime<string2date(?) or guidTime is null order by guidTime desc ";
   $query = $self->paginate($query, 1, 0);
   my $entry = $self->queryRow($query, undef, {bind_values => [$guid]})
     or $self->info("Error doing the query  for the guid '$guid'")
@@ -929,8 +929,7 @@ sub getLFNfromGUID {
   foreach my $entry (@$ref) {
     $self->info("We have to check $entry");
     my $prefix = "";
-    $prefix = $db->queryValue("SELECT lfn from INDEXTABLE where tableName=?",
-      undef, {bind_values => [ $entry ]});
+    $prefix = $db->queryValue("SELECT lfn from INDEXTABLE where tableName=?", undef, {bind_values => [$entry]});
     my $paths = $db->queryColumn("SELECT concat('$prefix', lfn) FROM L${entry}L WHERE guid=string2binary(?) ",
       undef, {bind_values => [$guid]});
     $paths and push @lfns, @$paths;

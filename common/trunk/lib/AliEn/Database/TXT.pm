@@ -25,88 +25,87 @@ use vars qw(@ISA);
 
 use DBD::SQLite;
 
-@ISA=('AliEn::Database');
+@ISA = ('AliEn::Database');
 
 sub new {
   my $proto = shift;
-  my $self  = (shift or {} );
-  $self->{HOST}="localhost";
-  $self->{DB}="TXT";
-  $self->{DRIVER}="SQLite333";
-  $self->{TABLES}={};
+  my $self = (shift or {});
+  $self->{HOST}   = "localhost";
+  $self->{DB}     = "TXT";
+  $self->{DRIVER} = "SQLite333";
+  $self->{TABLES} = {};
 
-  $self->{CONFIG}=new AliEn::Config();
-  $self->{DIRECTORY}=$self->{CONFIG}->{TMP_DIR};
+  $self->{CONFIG}    = new AliEn::Config();
+  $self->{DIRECTORY} = $self->{CONFIG}->{TMP_DIR};
 
-  
-  $self=AliEn::Database::new($proto, $self, @_);
+  $self = AliEn::Database::new($proto, $self, @_);
   $self or return;
   $self->{DBH}->{'RaiseError'} = 1;
-  
+
   return $self;
 }
 
 sub initialize {
-  my $self=shift;
-  if ( !( -d $self->{DIRECTORY} ) ) {
+  my $self = shift;
+  if (!(-d $self->{DIRECTORY})) {
     $self->debug(1, "Creating directory $self->{DIRECTORY}");
     my $dir = "";
-    foreach ( split ( "/", $self->{DIRECTORY} ) ) {
+    foreach (split("/", $self->{DIRECTORY})) {
       $dir .= "/$_";
       mkdir $dir, 0777;
-      }
+    }
   }
 
-  $self->reconnect() or 
-    $self->{LOGGER}->info("TXT", "Error connecting to the Database TXT") and
-      return;
-  map {$self->createTable($_) or return;} keys %{$self->{TABLES}};
+  $self->reconnect()
+    or $self->{LOGGER}->info("TXT", "Error connecting to the Database TXT")
+    and return;
+  map { $self->createTable($_) or return; } keys %{$self->{TABLES}};
   return $self->SUPER::initialize();
 
 }
+
 sub describeTable {
-  my $self = shift;
+  my $self  = shift;
   my $table = shift;
 
   undef;
 }
 
-sub getDatabaseDSN{
-  my $self=shift;
+sub getDatabaseDSN {
+  my $self = shift;
   $self->debug(1, "Returning the dsn of a text database");
   return "DBI:SQLite:dbname=$self->{DIRECTORY}/file.mss";
 }
 
-sub createTable{
-  my $self=shift;
-  #my $table=lc shift;
-  my $table= shift;
+sub createTable {
+  my $self = shift;
 
+  #my $table=lc shift;
+  my $table = shift;
 
   $self->debug(1, "Checking table $table");
 
   #my $file="$self->{DIRECTORY}/".lc($table);
-  my $description=$self->{TABLES}->{$table};
+  my $description = $self->{TABLES}->{$table};
 
-#  if ( !( -e $file ) ) {
+  #  if ( !( -e $file ) ) {
 
-    # Create the table again.
-    $self->debug(1, "Creating CSV-table $table " );
-    
+  # Create the table again.
+  $self->debug(1, "Creating CSV-table $table ");
+
   $self->{DBH}->do("CREATE TABLE if not exists $table ($description)")
-      or $self->{LOGGER}->error( "TXT",
-				 "Cannot create table $table ($description). Error: " . $self->{DBH}->errstr() )
-	and return;
+    or $self->{LOGGER}->error("TXT", "Cannot create table $table ($description). Error: " . $self->{DBH}->errstr())
+    and return;
 
-#    chmod 0770, $file;
-#  }
+  #    chmod 0770, $file;
+  #  }
   return 1;
 
 }
 
 sub lock {
-  my $self=shift;
-  my $table=shift;
+  my $self  = shift;
+  my $table = shift;
   $self->info("Ready to lock $table");
   LockFile::Simple::lock("$self->{DIRECTORY}/$table.lck");
 
@@ -114,8 +113,8 @@ sub lock {
 }
 
 sub unlock {
-  my $self=shift;
-  my $table=shift;
+  my $self  = shift;
+  my $table = shift;
   LockFile::Simple::unlock("$self->{DIRECTORY}/$table.lck");
 
   return 1;

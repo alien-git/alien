@@ -19,30 +19,35 @@ use strict;
 
 use vars qw(@ISA);
 
-@ISA=("AliEn::Database");
+@ISA = ("AliEn::Database");
 
 sub preConnect {
-  my $self=shift;
+  my $self = shift;
 
-  ($self->{HOST}, $self->{DRIVER}, $self->{DB})
-    =split ( m{/}, $self->{CONFIG}->{SEMASTER_DATABASE} );
+  ($self->{HOST}, $self->{DRIVER}, $self->{DB}) = split(m{/}, $self->{CONFIG}->{SEMASTER_DATABASE});
 
   return 1;
 }
-sub initialize{
-  my $self=shift;
 
-  return $self->checkTable("SE_VOLUMES", "volumeId", {volumeId=>"int(11) NOT NULL auto_increment PRIMARY KEY",
-						    seName=>"char(255) collate latin1_general_ci NOT NULL",
-						 volume=>"char(255) NOT NULL",
-						 mountpoint=>"char(255)",
-						 usedspace=>"bigint",
-						 freespace=>"bigint",
-						 size=>"bigint",
-						 method=>"char(255)",}, 
-			   "volumeId", ['INDEX (volume)', 'INDEX(seName)']);
+sub initialize {
+  my $self = shift;
+
+  return $self->checkTable(
+    "SE_VOLUMES",
+    "volumeId",
+    { volumeId   => "int(11) NOT NULL auto_increment PRIMARY KEY",
+      seName     => "char(255) collate latin1_general_ci NOT NULL",
+      volume     => "char(255) NOT NULL",
+      mountpoint => "char(255)",
+      usedspace  => "bigint",
+      freespace  => "bigint",
+      size       => "bigint",
+      method     => "char(255)",
+    },
+    "volumeId",
+    [ 'INDEX (volume)', 'INDEX(seName)' ]
+  );
 }
-
 
 1;
 

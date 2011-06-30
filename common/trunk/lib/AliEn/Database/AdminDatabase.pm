@@ -25,145 +25,138 @@ use strict;
 my $dbh;
 
 sub new {
-    my $proto  = shift;
-    my $class  = ref($proto) || $proto;
-    my $self   = {};
-    my $passwd = shift;
-    if ( !$passwd ) {
-        print STDERR "Must be called with admin password as first parameter.\n";
-        return;
-    }
-    if ($dbh) {
-        $dbh->disconnect();
-    }
+  my $proto  = shift;
+  my $class  = ref($proto) || $proto;
+  my $self   = {};
+  my $passwd = shift;
+  if (!$passwd) {
+    print STDERR "Must be called with admin password as first parameter.\n";
+    return;
+  }
+  if ($dbh) {
+    $dbh->disconnect();
+  }
 
-    my $ini = AliEn::Config->new();
-    ($ini)
-      or print STDERR "Error: Initial configuration not found!!\n"
-      and return;
+  my $ini = AliEn::Config->new();
+  ($ini)
+    or print STDERR "Error: Initial configuration not found!!\n" and return;
 
-    $self->{CENTRALSERVER}   = $ini->getValue('AUTHEN_HOST');
-    $self->{CENTRALDATABASE} = $ini->getValue('AUTHEN_DATABASE');
-    $self->{CENTRALDRIVER}   = $ini->getValue('AUTHEN_DRIVER');
+  $self->{CENTRALSERVER}   = $ini->getValue('AUTHEN_HOST');
+  $self->{CENTRALDATABASE} = $ini->getValue('AUTHEN_DATABASE');
+  $self->{CENTRALDRIVER}   = $ini->getValue('AUTHEN_DRIVER');
 
-    my $dsn =
-"DBI:$self->{CENTRALDRIVER}:database=$self->{CENTRALDATABASE};host=$self->{CENTRALSERVER};";
+  my $dsn = "DBI:$self->{CENTRALDRIVER}:database=$self->{CENTRALDATABASE};host=$self->{CENTRALSERVER};";
 
-    $dbh = DBI->connect( $dsn, 'admin', "$passwd", {} );
-    if ( !$dbh ) {
-        print STDERR "Error connecting to ADMIN database\n";
-        return;
-    }
-    my $sth = $dbh->prepare("SELECT DBKey from DBKEYS where Name='GlobalKey'");
-    $sth->execute();
-    my @rows = $sth->fetchrow();
-    $sth->finish();
-    $self->{GLOBALKEY} = $rows[0];
-    $self->{encrypter} = new AliEn::Authen::IIIkey();
-    bless( $self, $class );
-    return $self;
+  $dbh = DBI->connect($dsn, 'admin', "$passwd", {});
+  if (!$dbh) {
+    print STDERR "Error connecting to ADMIN database\n";
+    return;
+  }
+  my $sth = $dbh->prepare("SELECT DBKey from DBKEYS where Name='GlobalKey'");
+  $sth->execute();
+  my @rows = $sth->fetchrow();
+  $sth->finish();
+  $self->{GLOBALKEY} = $rows[0];
+  $self->{encrypter} = new AliEn::Authen::IIIkey();
+  bless($self, $class);
+  return $self;
 }
 
 sub close {
-    my $self = shift;
-    $dbh->disconnect();
+  my $self = shift;
+  $dbh->disconnect();
 }
 
 sub getServerKey {
-    my $self = shift;
-    return $self->{GLOBALKEY};
+  my $self = shift;
+  return $self->{GLOBALKEY};
 }
 
 sub getEncToken {
-    my $self     = shift;
-    my $username = shift || return;
-    my $token    = $self->getToken($username);
-    return $self->{encrypter}->crypt( $token, $self->{GLOBALKEY} );
+  my $self     = shift;
+  my $username = shift || return;
+  my $token    = $self->getToken($username);
+  return $self->{encrypter}->crypt($token, $self->{GLOBALKEY});
 }
 
 sub getSSHKey {
-    my $self     = shift;
-    my $username = shift;
-    my $sth      =
-      $dbh->prepare("SELECT SSHKey from TOKENS where Username='$username'");
-    $sth->execute();
-    my @rows = $sth->fetchrow();
-    $sth->finish();
-    return $rows[0];
+  my $self     = shift;
+  my $username = shift;
+  my $sth      = $dbh->prepare("SELECT SSHKey from TOKENS where Username='$username'");
+  $sth->execute();
+  my @rows = $sth->fetchrow();
+  $sth->finish();
+  return $rows[0];
 }
 
 sub getPasswd {
-    my $self     = shift;
-    my $username = shift;
-    my $sth      =
-      $dbh->prepare("SELECT password from TOKENS where Username='$username'");
-    $sth->execute();
-    my @rows = $sth->fetchrow();
-    $sth->finish();
-    return $rows[0];
+  my $self     = shift;
+  my $username = shift;
+  my $sth      = $dbh->prepare("SELECT password from TOKENS where Username='$username'");
+  $sth->execute();
+  my @rows = $sth->fetchrow();
+  $sth->finish();
+  return $rows[0];
 }
 
 sub getToken {
-    my $self     = shift;
-    my $username = shift;
-    my $sth      =
-      $dbh->prepare("SELECT token from TOKENS where Username='$username'");
-    $sth->execute();
-    my @rows = $sth->fetchrow();
-    $sth->finish();
-    return $rows[0];
+  my $self     = shift;
+  my $username = shift;
+  my $sth      = $dbh->prepare("SELECT token from TOKENS where Username='$username'");
+  $sth->execute();
+  my @rows = $sth->fetchrow();
+  $sth->finish();
+  return $rows[0];
 }
 
 sub addTimeToToken {
-    my $self  = shift;
-    my $user  = shift;
-    my $hours = shift;
+  my $self  = shift;
+  my $user  = shift;
+  my $hours = shift;
 
-    $dbh->do(
-"update TOKENS set Expires=(DATE_ADD(now() ,INTERVAL $hours HOUR)) where Username='$user'"
-    );
-    return 1;
+  $dbh->do("update TOKENS set Expires=(DATE_ADD(now() ,INTERVAL $hours HOUR)) where Username='$user'");
+  return 1;
 }
 
 sub insert {
-    my $self    = shift;
-    my $command = shift;
-    $dbh->do($command);
-    return 1;
+  my $self    = shift;
+  my $command = shift;
+  $dbh->do($command);
+  return 1;
 }
 
 sub query {
-    my $self     = shift;
-    my $sentence = shift;
-    my ( @result, @name, $i );
-    $i = 0;
+  my $self     = shift;
+  my $sentence = shift;
+  my (@result, @name, $i);
+  $i = 0;
 
-    my $sth = $dbh->prepare($sentence);
-    $sth->execute or return;
+  my $sth = $dbh->prepare($sentence);
+  $sth->execute or return;
 
-    while ( @name = $sth->fetchrow() ) {
-        $result[ $i++ ] = join "###", @name;
-    }
-    $sth->finish();
+  while (@name = $sth->fetchrow()) {
+    $result[ $i++ ] = join "###", @name;
+  }
+  $sth->finish();
 
-    return @result;
+  return @result;
 }
 
 sub insertSSHKey() {
-    my $self = shift;
-    my $user = shift;
-    my $key  = shift;
-    $self->insert("UPDATE TOKENS set SSHKey='$key' where Username = '$user'");
-    return 1;
+  my $self = shift;
+  my $user = shift;
+  my $key  = shift;
+  $self->insert("UPDATE TOKENS set SSHKey='$key' where Username = '$user'");
+  return 1;
 }
 
-sub getTokenValidPeriod{
-    my $self     = shift;
-    my $username = shift;
+sub getTokenValidPeriod {
+  my $self     = shift;
+  my $username = shift;
 
-	my @rows      = $dbh->query("SELECT Token,(Expires-Now()) from TOKENS where Username='$username'");
+  my @rows = $dbh->query("SELECT Token,(Expires-Now()) from TOKENS where Username='$username'");
 
-	return $rows[0];
+  return $rows[0];
 }
 
 return 1;

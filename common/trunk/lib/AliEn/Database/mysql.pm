@@ -71,22 +71,16 @@ sub createTable {
   my $definition  = shift;
   my $checkExists = shift || "";
 
-  $DEBUG and $self->debug(1,
-"Database: In createTable creating table $table with definition $definition."
-  );
+  $DEBUG and $self->debug(1, "Database: In createTable creating table $table with definition $definition.");
 
   my $out;
 
   $checkExists
     and $checkExists = "IF NOT EXISTS";
 
-  $self->_do(
-"CREATE TABLE $checkExists $table $definition DEFAULT CHARACTER SET latin1 COLLATE latin1_general_cs"
-    )
-    or $self->{LOGGER}->error(
-    "Database",
-    "In createTable unable to create table $table with definition $definition"
-    ) and return;
+  $self->_do("CREATE TABLE $checkExists $table $definition DEFAULT CHARACTER SET latin1 COLLATE latin1_general_cs")
+    or $self->{LOGGER}->error("Database", "In createTable unable to create table $table with definition $definition")
+    and return;
 
   1;
 }
@@ -244,10 +238,8 @@ sub getConnectionChain {
       || "$ENV{ALIEN_HOME}/globus/usercert.pem";
     my $key = $ENV{X509_USER_KEY} || "$ENV{ALIEN_HOME}/globus/userkey.pem";
     $DEBUG
-      and
-      $self->debug(1, "Authenticating with the certificate in $cert and $key");
-    $dsn .=
-      ";mysql_ssl=1;mysql_ssl_client_key=$key;mysql_ssl_client_cert=$cert";
+      and $self->debug(1, "Authenticating with the certificate in $cert and $key");
+    $dsn .= ";mysql_ssl=1;mysql_ssl_client_key=$key;mysql_ssl_client_cert=$cert";
   }
   return $dsn;
 }
@@ -265,7 +257,6 @@ sub describeTable {
   $self->_queryDB("DESCRIBE $table");
 }
 
-
 sub renameField {
   my $self  = shift;
   my $table = shift;
@@ -278,8 +269,7 @@ sub renameField {
 sub binary2string {
   my $self = shift;
   my $column = shift || "guid";
-  return
-"insert(insert(insert(insert(hex($column),9,0,'-'),14,0,'-'),19,0,'-'),24,0,'-')";
+  return "insert(insert(insert(insert(hex($column),9,0,'-'),14,0,'-'),19,0,'-'),24,0,'-')";
 }
 
 sub createLFNfunctions {
@@ -291,12 +281,11 @@ sub createLFNfunctions {
 "create function binary2string (my_uuid binary(16)) returns varchar(36) deterministic sql security invoker return insert(insert(insert(insert(hex(my_uuid),9,0,'-'),14,0,'-'),19,0,'-'),24,0,'-')"
   );
   $self->do(
-"create function binary2date (my_uuid binary(16))  returns char(16) deterministic sql security invoker
+    "create function binary2date (my_uuid binary(16))  returns char(16) deterministic sql security invoker
 return upper(concat(right(left(hex(my_uuid),16),4), right(left(hex(my_uuid),12),4),left(hex(my_uuid),8)))"
   );
   $DEBUG
-    and
-    $self->debug(2, "In createCatalogueTables creation of tables finished.");
+    and $self->debug(2, "In createCatalogueTables creation of tables finished.");
   $self->do("alter table TAG0 drop key path");
   $self->do("alter table TAG0 add index path (path)");
 
@@ -316,7 +305,7 @@ sub createGUIDFunctions {
   );
 
   $self->do(
-"create function binary2date (my_uuid binary(16))  returns char(16) deterministic sql security invoker
+    "create function binary2date (my_uuid binary(16))  returns char(16) deterministic sql security invoker
 return upper(concat(right(left(hex(my_uuid),16),4), right(left(hex(my_uuid),12),4),left(hex(my_uuid),8)))"
   );
 }
@@ -348,7 +337,7 @@ sub optimizeTable {
   $self->info("Ready to optimize the table $table (from $self->{DB})");
   if (
     $self->queryValue(
-"SELECT count(*) FROM information_schema.TABLES where table_schema=? and table_name=? 
+      "SELECT count(*) FROM information_schema.TABLES where table_schema=? and table_name=? 
                           and (data_free > 100000000 or data_free/data_length>0.1)",
       undef, {bind_values => [ $self->{DB}, $table ]}
     )
@@ -376,11 +365,8 @@ sub dbGetAllTagNamesByPath {
     $rec2 = " and user=?";
     push @bind, $options->{user};
   }
-  $self->query(
-"SELECT tagName,path from TAG0 where (? like concat(path,'%') $rec) $rec2 group by tagName",
-    undef,
-    {bind_values => \@bind}
-  );
+  $self->query("SELECT tagName,path from TAG0 where (? like concat(path,'%') $rec) $rec2 group by tagName",
+    undef, {bind_values => \@bind});
 }
 
 sub paginate {
@@ -430,9 +416,7 @@ sub addTimeToToken {
   my $self  = shift;
   my $user  = shift;
   my $hours = shift;
-  return $self->do(
-"update TOKENS set Expires=(DATE_ADD(now() ,INTERVAL $hours HOUR)) where Username='$user'"
-  );
+  return $self->do("update TOKENS set Expires=(DATE_ADD(now() ,INTERVAL $hours HOUR)) where Username='$user'");
 
 }
 
@@ -473,9 +457,7 @@ sub renumberTable {
   if ($ok) {
     foreach my $t (@{$options->{update}}) {
       $self->debug(1, "Updating $t");
-      $self->do(
-"update $t set $index= (select new_index from $table where $index=$t.$index)"
-      ) and next;
+      $self->do("update $t set $index= (select new_index from $table where $index=$t.$index)") and next;
       $self->info("Error updating the table!!");
       $ok = 0;
       last;
@@ -483,14 +465,10 @@ sub renumberTable {
   }
   if ($ok) {
     $self->info("All the renumbering  worked! :)");
-    $self->do(
-"alter table $table drop column $index, change new_index $index int(11) auto_increment"
-    );
+    $self->do("alter table $table drop column $index, change new_index $index int(11) auto_increment");
   } else {
     $self->info("The update didn't work. Rolling back");
-    $self->do(
-"alter table $table drop new_index, modify $index int(11) auto_increment primary key"
-    );
+    $self->do("alter table $table drop new_index, modify $index int(11) auto_increment primary key");
   }
 
   $self->unlock($table);
@@ -557,8 +535,7 @@ sub updateFinalPrice {
   my $now      = shift;
   my $done     = shift;
   my $failed   = shift;
-  my $update =
-" UPDATE $t q, QUEUEPROC p SET finalPrice = round(p.si2k * $nominalP * price),chargeStatus=\'$now\'";
+  my $update   = " UPDATE $t q, QUEUEPROC p SET finalPrice = round(p.si2k * $nominalP * price),chargeStatus=\'$now\'";
   my $where =
 " WHERE (status='DONE' AND p.si2k>0 AND chargeStatus!=\'$done\' AND chargeStatus!=\'$failed\') and p.queueid=q.queueid";
   my $updateStmt = $update . $where;
@@ -646,7 +623,7 @@ sub insertLFNBookedDeleteMirrorFromGUID {
   my $guidId   = shift;
   my $seNumber = shift;
   return $self->do(
-"INSERT IGNORE INTO LFN_BOOKED(lfn, owner, expiretime, size, guid, gowner, user, pfn, se)
+    "INSERT IGNORE INTO LFN_BOOKED(lfn, owner, expiretime, size, guid, gowner, user, pfn, se)
       select ?,g.owner,-1,g.size,string2binary(?),g.gowner,?,?,s.seName
       from " . $table . " g, " . $table . "_PFN g_p, SE s
       where g.guidId=g_p.guidId and g_p.guidId=? and g_p.seNumber=? and g_p.pfn=? and s.seNumber=g_p.seNumber",
@@ -664,7 +641,7 @@ sub insertLFNBookedRemoveDirectory {
   my $tmpPath   = shift;
 
   return $self->do(
-"INSERT IGNORE INTO LFN_BOOKED(lfn, owner, expiretime, size, guid, gowner, user, pfn)
+    "INSERT IGNORE INTO LFN_BOOKED(lfn, owner, expiretime, size, guid, gowner, user, pfn)
      SELECT concat('$lfn' , l.lfn), l.owner, -1, l.size, l.guid, l.gowner, ?,'*' FROM $tableName l WHERE l.type='f' AND l.lfn LIKE concat (?,'%')",
     {bind_values => [ $user, $tmpPath ]}
   );
@@ -690,11 +667,7 @@ sub insertLFNBookedAndOptionalExistingFlagTrigger {
 
   return $self->do(
 "REPLACE INTO LFN_BOOKED (lfn, owner, quotaCalculated, md5sum, expiretime, size, pfn, se, gowner, guid, existing, jobid) VALUES (?,?,?,?,?,?,?,?,?,string2binary(?),?,?);",
-    { bind_values => [
-        $lfn, $user, $quota, $md5sum, $expiretime, $size,
-        $pfn, $se,   $user,  $guid,   $existing,   $jobid
-      ]
-    }
+    {bind_values => [ $lfn, $user, $quota, $md5sum, $expiretime, $size, $pfn, $se, $user, $guid, $existing, $jobid ]}
   );
 }
 
@@ -708,8 +681,7 @@ sub dbGetSEListFromSiteSECacheForWriteAccess {
   my $sitename    = shift;
   my $excludeList = (shift || "");
 
-  my $query = "SELECT DISTINCT SE.seName FROM SERanks,SE WHERE "
-    . " sitename=? and SERanks.seNumber = SE.seNumber ";
+  my $query = "SELECT DISTINCT SE.seName FROM SERanks,SE WHERE " . " sitename=? and SERanks.seNumber = SE.seNumber ";
 
   my @queryValues = ();
   push @queryValues, $sitename;
@@ -808,8 +780,7 @@ sub getJobOptimizerExpiredQ3 {
 sub getJobOptimizerZombies {
   my $self   = shift;
   my $status = shift;
-  return
-"q, QUEUEPROC p where $status and p.queueId=q.queueId and DATE_ADD(now(),INTERVAL -3600 SECOND)>lastupdate";
+  return "q, QUEUEPROC p where $status and p.queueId=q.queueId and DATE_ADD(now(),INTERVAL -3600 SECOND)>lastupdate";
 }
 
 ########

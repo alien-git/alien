@@ -89,6 +89,7 @@ sub f_addFileToCollection {
   @_ = @ARGV;
   my $options = join("", keys %$opt);
 
+
   my ($permFile, $permColl) = $self->_checkFileAndCollection(shift, shift, $options) or return;
   my $extra = join(" ", @_);
 
@@ -111,6 +112,8 @@ sub updateCollection {
   my $options = shift;
   my $coll    = shift;
   my $permColl;
+ 
+ 
   if (UNIVERSAL::isa($coll, "HASH")) {
     $permColl = $coll;
     $coll     = $coll->{lfn};
@@ -137,7 +140,7 @@ sub updateCollection {
   my $summary = {total => 0, collection => $coll};
   foreach my $file (@$info) {
     $summary->{total}++;
-    my $info = $self->f_whereis("slrgi", $file->{guid});
+    my ($info) = $self->f_whereis("slrgi", $file->{guid});
     my @tempSe;
     map { push @tempSe, $_->{seName} } @{$info->{pfn}};
     $size += $info->{size};

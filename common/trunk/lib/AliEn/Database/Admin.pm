@@ -21,13 +21,12 @@ use AliEn::Database;
 use strict;
 
 use vars qw(@ISA);
-@ISA=("AliEn::Database");
-
+@ISA = ("AliEn::Database");
 
 sub new {
-  my $proto  = shift;
-  my $class  = ref($proto) || $proto;
-  my $attr   = shift || {};
+  my $proto = shift;
+  my $class = ref($proto) || $proto;
+  my $attr  = shift || {};
 
   $attr->{CONFIG}
     or $attr->{CONFIG} = new AliEn::Config();
@@ -44,85 +43,100 @@ sub new {
   $attr->{ROLE}
     or $attr->{ROLE} = "admin";
 
-  my $self = new AliEn::Database($attr,@_);
+  my $self = new AliEn::Database($attr, @_);
 
   $self
-    or print STDERR "Error creating Database instance"
-    and return;
+    or print STDERR "Error creating Database instance" and return;
 
   #my $passwd = shift or print STDERR "Must be called with admin password as first parameter.\n" and return;
 
   $self->{ENCRYPTER} = new AliEn::Authen::IIIkey();
-  bless ($self, $class);
+  bless($self, $class);
 
   $self->{GLOBALKEY} = $self->getDBKey();
   return $self->checkTables();
-}  
+}
 
-sub checkTables{
-  my $self=shift;
+sub checkTables {
+  my $self = shift;
 
-  $self->checkTable("USERS_LDAP", "user",{user=>"varchar(15) not null",
-					  dn=>"varchar(255)",
-					  up=>"smallint"}) or return;
-  
-  
-  $self->checkTable("USERS_LDAP_ROLE", "user",{user=>"varchar(15) not null",
-					       role=>"varchar(15)",
-					       up=>"smallint"}) or return;
-  $self->checkTable("TOKENS", "ID", {ID=>"int(11) not null auto_increment primary key",
-				     "Username","varchar(32)",
-				     "Expires","datetime",
-				     "Token"=>"varchar(32)",
-				     "password"=>"varchar(16)",
-				     "SSHKey"=>"text",
-				     "dn"=>"varchar(255)",
-				    }) or return;
-  $self->checkTable("DBKEYS", "Name", {"Name"=> "varchar(20)  DEFAULT '' NOT NULL",
-				       "DBKey"=>"blob",
-				       "LastChanges"=>"datetime  DEFAULT '0000-00-00 00:00:00' NOT NULL"
-				      }) or return;
-  $self->checkTable("jobToken", "jobId", { "jobId"=>"int(11)  DEFAULT '0' NOT NULL  PRIMARY KEY",
-					   "userName"=>"char(20) DEFAULT NULL",
-					   "jobToken"=>"char(255) DEFAULT NULL",
-					 }) or return;
-  
+  $self->checkTable(
+    "USERS_LDAP",
+    "user",
+    { user => "varchar(15) not null",
+      dn   => "varchar(255)",
+      up   => "smallint"
+    }
+  ) or return;
+
+  $self->checkTable(
+    "USERS_LDAP_ROLE",
+    "user",
+    { user => "varchar(15) not null",
+      role => "varchar(15)",
+      up   => "smallint"
+    }
+  ) or return;
+  $self->checkTable(
+    "TOKENS", "ID",
+    { ID => "int(11) not null auto_increment primary key",
+      "Username", "varchar(32)",
+      "Expires",  "datetime",
+      "Token"    => "varchar(32)",
+      "password" => "varchar(16)",
+      "SSHKey"   => "text",
+      "dn"       => "varchar(255)",
+    }
+  ) or return;
+  $self->checkTable(
+    "DBKEYS", "Name",
+    { "Name"        => "varchar(20)  DEFAULT '' NOT NULL",
+      "DBKey"       => "blob",
+      "LastChanges" => "datetime  DEFAULT '0000-00-00 00:00:00' NOT NULL"
+    }
+  ) or return;
+  $self->checkTable(
+    "jobToken",
+    "jobId",
+    { "jobId"    => "int(11)  DEFAULT '0' NOT NULL  PRIMARY KEY",
+      "userName" => "char(20) DEFAULT NULL",
+      "jobToken" => "char(255) DEFAULT NULL",
+    }
+  ) or return;
+
   return $self;
 }
 
-
-
-
 sub getServerKey {
-    my $self = shift;
-    return $self->{GLOBALKEY};
+  my $self = shift;
+  return $self->{GLOBALKEY};
 }
 
 sub getDBKey {
-	my $self = shift;
-	my $username = shift;
-	my $string;
-	if (!defined($username)) {
-		$string = "GlobalKey";
-	} else {
-		$string = $username . "PrivateKey";
-	}
-	$self->queryValue("SELECT DBKey FROM DBKEYS WHERE Name = '$string'");
+  my $self     = shift;
+  my $username = shift;
+  my $string;
+  if (!defined($username)) {
+    $string = "GlobalKey";
+  } else {
+    $string = $username . "PrivateKey";
+  }
+  $self->queryValue("SELECT DBKey FROM DBKEYS WHERE Name = '$string'");
 }
 
 sub getEncToken {
-    my $self     = shift;
-    my $username = shift;
-    my $token    = $self->getToken($username) or return;
-    return $self->{ENCRYPTER}->crypt( $token, $self->{GLOBALKEY} );
+  my $self     = shift;
+  my $username = shift;
+  my $token    = $self->getToken($username) or return;
+  return $self->{ENCRYPTER}->crypt($token, $self->{GLOBALKEY});
 }
 
 sub getToken {
-  return shift->getFieldFromTokens(shift,"Token");
+  return shift->getFieldFromTokens(shift, "Token");
 }
 
 sub getSSHKey {
-  return shift->getFieldFromTokens(shift,"SSHKey");
+  return shift->getFieldFromTokens(shift, "SSHKey");
 }
 
 sub getPassword {
@@ -131,177 +145,181 @@ sub getPassword {
 
 sub setToken {
   my $self = shift;
-	
-  $self->debug(1,"In setToken updating user's token");
-  $self->updateToken(shift, {Token=>shift});
+
+  $self->debug(1, "In setToken updating user's token");
+  $self->updateToken(shift, {Token => shift});
 }
 
 sub setSSHKey {
   my $self = shift;
 
-  $self->debug(1,"In setSSHKey updating user's SSHKey");
-  $self->updateToken(shift, {SSHKey=>shift});
+  $self->debug(1, "In setSSHKey updating user's SSHKey");
+  $self->updateToken(shift, {SSHKey => shift});
 }
 
 sub setPassword {
   my $self = shift;
 
-  $self->debug(1,"In setPassword updating user's password");
-  $self->updateToken(shift, {password=>shift});
+  $self->debug(1, "In setPassword updating user's password");
+  $self->updateToken(shift, {password => shift});
 }
 
 sub getAllFromTokens {
-    my $self = shift;
-    my $attr = shift || " ID,Username,Expires,Token,SSHKey,password,dn ";
+  my $self = shift;
+  my $attr = shift || " ID,Username,Expires,Token,SSHKey,password,dn ";
 
-    $self->query("SELECT $attr from TOKENS");
+  $self->query("SELECT $attr from TOKENS");
 }
 
 sub insertToken {
   my $self = shift;
+
   #we need to do it calling directly to do because in Oracle the bind value "now()" is understood as a string.
-  my $id = shift;
-  my $username = shift; 
-  my $token = shift; 
-  my $pass = shift; 
-  my $sshkey = shift || "null"; 
-  return $self->do("INSERT INTO TOKENS ( username, expires, token, password, sshkey) VALUES ('$username', ".$self->currentDate.", '$token','$pass', $sshkey)");	
+  my $id       = shift;
+  my $username = shift;
+  my $token    = shift;
+  my $pass     = shift;
+  my $sshkey   = shift || "null";
+  return $self->do("INSERT INTO TOKENS ( username, expires, token, password, sshkey) VALUES ('$username', "
+      . $self->currentDate
+      . ", '$token','$pass', $sshkey)");
 }
 
 sub updateToken {
   my $self = shift;
   my $user = shift
-    or $self->{LOGGER}->error("Admin","In updateToken user name is missing")
-      and return;
+    or $self->{LOGGER}->error("Admin", "In updateToken user name is missing")
+    and return;
   my $set = shift;
 
-  $self->debug(1,"In updateToken updating token for user $user");
-  return $self->update("TOKENS", $set, "Username = ?", {bind_values=>[$user]});
+  $self->debug(1, "In updateToken updating token for user $user");
+  return $self->update("TOKENS", $set, "Username = ?", {bind_values => [$user]});
 }
 
 sub deleteToken {
   my $self = shift;
   my $user = shift
-    or $self->{LOGGER}->error("Admin","In deleteToken user name is missing")
-      and return;
-  
-  $self->debug(1,"In deleteToken deleting token for user $user");
-  return $self->delete("TOKENS","Username = ?", {bind_values=>[$user]});
+    or $self->{LOGGER}->error("Admin", "In deleteToken user name is missing")
+    and return;
+
+  $self->debug(1, "In deleteToken deleting token for user $user");
+  return $self->delete("TOKENS", "Username = ?", {bind_values => [$user]});
 }
 
 sub existsToken {
-  my $self  = shift;
+  my $self = shift;
   my $user = shift
-    or $self->{LOGGER}->error("Admin","In existsToken user name is missing")
-      and return;
-		
-  $self->debug(1,"In existsToken checking if user $user have token");
-  return $self->queryValue("SELECT COUNT(*) FROM TOKENS WHERE Username= ?", undef, {bind_values=>[$user]});
+    or $self->{LOGGER}->error("Admin", "In existsToken user name is missing")
+    and return;
+
+  $self->debug(1, "In existsToken checking if user $user have token");
+  return $self->queryValue("SELECT COUNT(*) FROM TOKENS WHERE Username= ?", undef, {bind_values => [$user]});
 }
 
 sub addTime {
-  my $self  = shift;
+  my $self = shift;
   my $user = shift
-    or $self->{LOGGER}->error("Admin","In addTime user name is missing")
-      and return;
+    or $self->{LOGGER}->error("Admin", "In addTime user name is missing")
+    and return;
   my $hours = shift
-    or $self->{LOGGER}->error("Admin","In addTime time interval is missing")
-      and return;
-  
-  $self->debug(1,"In addTime increasing expiration period for user's $user token");
+    or $self->{LOGGER}->error("Admin", "In addTime time interval is missing")
+    and return;
+
+  $self->debug(1, "In addTime increasing expiration period for user's $user token");
+
 #  return $self->do("UPDATE TOKENS SET Expires=(DATE_ADD(now() ,INTERVAL ? HOUR)) WHERE Username= ?", {bind_values=>[$hours, $user]});
-  return $self->addTimeToToken($user,$hours);
+  return $self->addTimeToToken($user, $hours);
 }
 
-
 sub getFieldsFromTokens {
-  my $self = shift;
+  my $self     = shift;
   my $username = shift
-    or $self->{LOGGER}->error("Admin","In getFieldsFromTokens user name is missing")
-      and return;
+    or $self->{LOGGER}->error("Admin", "In getFieldsFromTokens user name is missing")
+    and return;
   my $attr = shift || " ID,Username,Expires,Token,SSHKey,password,dn ";
-  
-  $self->debug(1,"In getFieldsFromTokens fetching attributes $attr for user name $username from table TOKENS");
-  $self->queryRow("SELECT $attr from TOKENS where Username= ?", undef, {bind_values=>[$username]});
+
+  $self->debug(1, "In getFieldsFromTokens fetching attributes $attr for user name $username from table TOKENS");
+  $self->queryRow("SELECT $attr from TOKENS where Username= ?", undef, {bind_values => [$username]});
 }
 
 sub getFieldFromTokens {
-  my $self = shift;
+  my $self     = shift;
   my $username = shift
-    or $self->{LOGGER}->error("Admin","In getFieldFromTokens user name is missing")
-      and return;
+    or $self->{LOGGER}->error("Admin", "In getFieldFromTokens user name is missing")
+    and return;
   my $attr = shift || "ID,Username,Expires,Token,SSHKey,password,dn";
 
-  $self->debug(1,"In getFieldFromTokens fetching attribute $attr for user name $username from table TOKENS");
-  $self->queryValue("SELECT $attr from TOKENS where Username= ?", undef, {bind_values=>[$username]});
+  $self->debug(1, "In getFieldFromTokens fetching attribute $attr for user name $username from table TOKENS");
+  $self->queryValue("SELECT $attr from TOKENS where Username= ?", undef, {bind_values => [$username]});
 }
 
 ###		jobToken
 
 sub insertJobToken {
-  my $self = shift;
-  my $id = shift;
-  my $user = shift;
+  my $self  = shift;
+  my $id    = shift;
+  my $user  = shift;
   my $token = shift;
 
-  $self->debug(1,"In insertJobToken inserting new data into table jobToken");
-  return $self->insert("jobToken",{jobId=>$id, userName=>$user, jobToken=>$token});
+  $self->debug(1, "In insertJobToken inserting new data into table jobToken");
+  return $self->insert("jobToken", {jobId => $id, userName => $user, jobToken => $token});
 }
 
 sub getFieldFromJobToken {
   my $self = shift;
-  my $id = shift
-    or $self->{LOGGER}->error("Admin","In getFieldFromJobToken job id is missing")
-      and return;
+  my $id   = shift
+    or $self->{LOGGER}->error("Admin", "In getFieldFromJobToken job id is missing")
+    and return;
   my $attr = shift || "jobId,userName,jobToken";
-  
-  $self->debug(1,"In getFieldFromJobToken fetching attribute $attr for job id $id from table jobToken");
-  return $self->queryValue("SELECT $attr FROM jobToken WHERE jobId= ?", undef, {bind_values=>[$id]});
+
+  $self->debug(1, "In getFieldFromJobToken fetching attribute $attr for job id $id from table jobToken");
+  return $self->queryValue("SELECT $attr FROM jobToken WHERE jobId= ?", undef, {bind_values => [$id]});
 }
 
 sub getFieldsFromJobToken {
   my $self = shift;
-  my $id = shift
-    or $self->{LOGGER}->error("Admin","In getFieldsFromJobToken job id is missing")
-      and return;
+  my $id   = shift
+    or $self->{LOGGER}->error("Admin", "In getFieldsFromJobToken job id is missing")
+    and return;
   my $attr = shift || "jobId,userName,jobToken";
-  
-  $self->debug(1,"In getFieldsFromJobToken fetching attributes $attr for job id $id from table jobToken");
-  return $self->queryRow("SELECT $attr FROM jobToken WHERE jobId= ?", undef, {bind_values=>[$id]});
+
+  $self->debug(1, "In getFieldsFromJobToken fetching attributes $attr for job id $id from table jobToken");
+  return $self->queryRow("SELECT $attr FROM jobToken WHERE jobId= ?", undef, {bind_values => [$id]});
 }
 
 sub setJobToken {
   my $self = shift;
-  my $id = shift
-    or $self->{LOGGER}->error("Admin","In setJobToken job id is missing")
-      and return;
+  my $id   = shift
+    or $self->{LOGGER}->error("Admin", "In setJobToken job id is missing")
+    and return;
   my $token = shift;
-  
-  $self->debug(1,"In setJobToken updating token for job $id");
-  return $self->update("jobToken",{jobToken=>$token},"jobId= ?", {bind_values=>[$id]});
+
+  $self->debug(1, "In setJobToken updating token for job $id");
+  return $self->update("jobToken", {jobToken => $token}, "jobId= ?", {bind_values => [$id]});
 }
 
 sub deleteJobToken {
   my $self = shift;
-  my $id = shift
-    or $self->{LOGGER}->error("Admin","In deleteJobToken job id is missing")
-      and return;
+  my $id   = shift
+    or $self->{LOGGER}->error("Admin", "In deleteJobToken job id is missing")
+    and return;
 
-  $self->debug(1,"In deleteJobToken deleting token for job $id");
-  return $self->delete("jobToken","jobId= ?", {bind_values=>[$id]});
+  $self->debug(1, "In deleteJobToken deleting token for job $id");
+  return $self->delete("jobToken", "jobId= ?", {bind_values => [$id]});
 }
 
 sub getUsername {
   my $self = shift;
-  my $id = shift
-    or $self->{LOGGER}->error("Admin","In getUsername job id is missing")
-      and return;
+  my $id   = shift
+    or $self->{LOGGER}->error("Admin", "In getUsername job id is missing")
+    and return;
   my $token = shift
-    or $self->{LOGGER}->error("Admin","In getUsername job token is missing")
-      and return;
-  $token =~ /^-1$/ and $self->{LOGGER}->info("Admin", "The job token is not valid") and return; 
-  $self->debug(1,"In getUsername fetching user name for job $id and token $token");	
-  return $self->queryValue("SELECT userName FROM jobToken where jobId=? and jobToken= ?", undef, {bind_values=>[$id, $token]});
+    or $self->{LOGGER}->error("Admin", "In getUsername job token is missing")
+    and return;
+  $token =~ /^-1$/ and $self->{LOGGER}->info("Admin", "The job token is not valid") and return;
+  $self->debug(1, "In getUsername fetching user name for job $id and token $token");
+  return $self->queryValue("SELECT userName FROM jobToken where jobId=? and jobToken= ?",
+    undef, {bind_values => [ $id, $token ]});
 }
 
 =head1 NAME
@@ -536,6 +554,4 @@ AliEn::Database, AliEn::Authen::IIIkey, AliEn::Config
 =cut
 
 1;
-
-
 

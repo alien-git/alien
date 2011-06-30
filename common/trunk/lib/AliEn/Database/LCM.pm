@@ -21,28 +21,34 @@ use vars qw(@ISA);
 @ISA = qw( AliEn::Database::TXT );
 
 sub initialize {
-    my $self = shift;
-    $self->{HOST} = $ENV{'ALIEN_HOSTNAME'}.".".$ENV{'ALIEN_DOMAIN'};
-    chomp $self->{HOST};
+  my $self = shift;
+  $self->{HOST} = $ENV{'ALIEN_HOSTNAME'} . "." . $ENV{'ALIEN_DOMAIN'};
+  chomp $self->{HOST};
 
-    $self->{DIRECTORY}="$self->{CONFIG}->{CACHE_DIR}/LCM.db";
+  $self->{DIRECTORY} = "$self->{CONFIG}->{CACHE_DIR}/LCM.db";
 
-    $self->{TABLES}->{LOCALGUID}="guid char(50), localpfn char(200),size int(11), md5sum char(32)";
+  $self->{TABLES}->{LOCALGUID} = "guid char(50), localpfn char(200),size int(11), md5sum char(32)";
 
-    return $self->SUPER::initialize();
+  return $self->SUPER::initialize();
 
 }
 
 sub insertEntry {
-  my $self=shift;
-  
-  my $file=shift;
-  my $guid=shift;
+  my $self = shift;
+
+  my $file = shift;
+  my $guid = shift;
   $self->debug(2, "Adding the entry $file and $guid to the localcopies");
-  my $size= -s $file;
-  my $md5sum=AliEn::MD5->new($file);
-  return $self->insert("LOCALGUID", {guid=>$guid, localpfn=>$file, size=>$size ,
-				     md5sum=>$md5sum});
+  my $size   = -s $file;
+  my $md5sum = AliEn::MD5->new($file);
+  return $self->insert(
+    "LOCALGUID",
+    { guid     => $guid,
+      localpfn => $file,
+      size     => $size,
+      md5sum   => $md5sum
+    }
+  );
 
 }
 

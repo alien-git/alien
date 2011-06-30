@@ -2,7 +2,7 @@ package AliEn::Catalogue::Admin;
 
 use strict;
 use Data::Dumper;
-  
+
 use AliEn::Database::Admin;
 use AliEn::Database::Transfer;
 
@@ -182,7 +182,7 @@ sub f_addUser {
 
   my $group = $self->getUserGroup($user);
 
-  $self->{DATABASE}->addUser($user, $group )
+  $self->{DATABASE}->addUser($user, $group)
     or return;
 
   $self->info("Creating new homedir for  $user");
@@ -192,6 +192,7 @@ sub f_addUser {
   $self->{DATABASE}->moveEntries($homedir)
     or $self->info("Error moving the directory $homedir", 1100)
     and return;
+
   #  my $table=$self->{DATABASE}->getIndexHost($homedir) or
   #    $self->info( "Error getting the table of $homedir") and return;
 
@@ -434,8 +435,7 @@ sub getSEio {
 }
 
 sub addSE_HELP {
-  return
-"addSE: creates a new database for an SE, and inserts it in the table of all the catalogues
+  return "addSE: creates a new database for an SE, and inserts it in the table of all the catalogues
 \tUsage:
 \t\taddSE [-p] <site_name> <se_name>
 \tOptions:
@@ -620,16 +620,15 @@ sub resyncLDAP {
       }
     }
     $self->info("And let's add the new users");
-    my $newUsers = $addbh->queryColumn(
-          "select a."
+    my $newUsers =
+      $addbh->queryColumn("select a."
         . $addbh->reservedWord("user")
         . " from USERS_LDAP a left join USERS_LDAP b on b.up=0 and a."
         . $addbh->reservedWord("user") . "=b."
         . $addbh->reservedWord("user")
         . " where a.up=1 and b."
         . $addbh->reservedWord("user")
-        . " is null"
-    );
+        . " is null");
     foreach my $u (@$newUsers) {
       $self->info("Adding the user $u");
       $self->f_addUser($u);
@@ -690,7 +689,7 @@ sub refreshSERankCacheSite {
 
   if (!@selist) {
     $self->info("We couldn't get the info from ML. Putting all the ses");
-    @selist = @{ $db->queryColumn("select distinct seName from SE") };
+    @selist = @{$db->queryColumn("select distinct seName from SE")};
   }
   $site and (scalar(@selist) gt 0) or return 0;
   $db->lock("SE read, SERanks");
@@ -890,8 +889,7 @@ sub resyncLDAPSE {
   $db->do("update SE_VOLUMES set freespace=2000000000 where " . $db->reservedWord("size") . "=-1");
 
   $transfers->do("delete from PROTOCOLS where updated=0");
-  $transfers->do(
-    "insert into PROTOCOLS(sename,max_transfers) values ('no_se',10)");
+  $transfers->do("insert into PROTOCOLS(sename,max_transfers) values ('no_se',10)");
 
   $ldap->unbind();
   $transfers->close();
@@ -1019,44 +1017,42 @@ sub removeExpiredFiles {
     or $self->info("Error: Only the administrator can remove entries from LFN_BOOKED")
     and return;
   $self->info("Removing expired entries from LFN_BOOKED");
-  
+
   my $db = $self->{DATABASE}->{LFN_DB};
+
   #Get files
   use Time::HiRes qw (time);
   my $currentTime = time();
-  
+
   #delete directories
   $db->do("DELETE FROM LFN_BOOKED WHERE lfn LIKE '%/' ");
   my $files = $db->query(
-    "SELECT expiretime, lfn, "
-    . $db->reservedWord("size")
-    . ", gowner, binary2string(guid) as guid,pfn,  "
-    . $db->reservedWord("user")
-    . " FROM LFN_BOOKED 
+        "SELECT expiretime, lfn, "
+      . $db->reservedWord("size")
+      . ", gowner, binary2string(guid) as guid,pfn,  "
+      . $db->reservedWord("user")
+      . " FROM LFN_BOOKED 
     WHERE expiretime<?", undef, {bind_values => [$currentTime]}
   );
   $files or next;
-  
+
   #Get possible G#L tables
   foreach my $file (@$files) {
-    my @pfns = $self->cleanupGUIDCatalogue($db, $file);
-    my $count = $#pfns;
+    my @pfns           = $self->cleanupGUIDCatalogue($db, $file);
+    my $count          = $#pfns;
     my $physicalDelete = $self->physicalDeleteEntries($db, @pfns);
+
     #($physicalDelete==$count+1)
     # and
-    $db->do(
-      "DELETE FROM LFN_BOOKED WHERE lfn=? and expiretime=?",
-      {bind_values => [ $file->{lfn}, $file->{expiretime} ]}
-    );
+    $db->do("DELETE FROM LFN_BOOKED WHERE lfn=? and expiretime=?",
+      {bind_values => [ $file->{lfn}, $file->{expiretime} ]});
     ($physicalDelete == $count + 1)
       and ($count > 0)
-      and $self->{DATABASE}->{LFN_DB}
-    ->fquota_update(-1 * $file->{size} * $count, -1 * $count, $file->{owner});
-    $self->info(
-      "$file->{lfn}($file->{guid}) was deleted($physicalDelete physical files) and quotas were rolled back ("
-      . -1 * $file->{size} * $count . ", "
-      . -1 * $count
-      . ") times for $file->{user}");
+      and $self->{DATABASE}->{LFN_DB}->fquota_update(-1 * $file->{size} * $count, -1 * $count, $file->{owner});
+    $self->info("$file->{lfn}($file->{guid}) was deleted($physicalDelete physical files) and quotas were rolled back ("
+        . -1 * $file->{size} * $count . ", "
+        . -1 * $count
+        . ") times for $file->{user}");
   }
   $self->{DATABASE}->{GUID_DB}->{VIRTUAL_ROLE} = "admin";
 }
@@ -1195,7 +1191,7 @@ sub calculateFileQuota {
   my $lfndb = $self->{DATABASE}->{LFN_DB};
 
   my $calculate = 0;
-  my $rtables    = $lfndb->getAllTables();
+  my $rtables   = $lfndb->getAllTables();
 
   foreach my $h (@$rtables) {
     my $LTableIdx = $h->{tableName} or next;
@@ -1227,8 +1223,7 @@ sub calculateFileQuota {
         . ") as totSize from ${LTableName} l where l.type='f' group by l.owner order by l.owner");
     $calculate = 1;
   }
-  
-  
+
   $calculate or $self->$method(@data, "No need to calculate") and return;
 
   my %infoLFN;

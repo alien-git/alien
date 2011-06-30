@@ -60,37 +60,34 @@ sub preprocessFields {
   map { $_ = "\"" . uc $_ . "\"" } @$new_keys;
   return $new_keys;
 }
+
 sub checkTable {
-  my $self=shift;
-  my $table=shift;
-  my $desc=shift;
-  my $columnsDef=shift;
-  my $primaryKey=shift;
-  my $index=shift;
-  my $options=shift;
+  my $self       = shift;
+  my $table      = shift;
+  my $desc       = shift;
+  my $columnsDef = shift;
+  my $primaryKey = shift;
+  my $index      = shift;
+  my $options    = shift;
   if ($index) {
 
     foreach (@$index) {
-      $_ =~
-s/(\s|\()(size|user|time|current|validate|date|file)(\s|\))/$1."\"".uc($2)."\"".$3/ieg;
+      $_ =~ s/(\s|\()(size|user|time|current|validate|date|file)(\s|\))/$1."\"".uc($2)."\"".$3/ieg;
     }
   }
   my %autoincrements = ();
   my %update         = ();
   my %columns        = %$columnsDef;
   my $desc2          = $desc;
-  $desc2 =~
-s/^size$|^user$|^time$|^current$|^validate$|^date$|^file$/"\"".uc($desc2)."\""/ie;
-  $columns{$desc} =~
-s/(DEFAULT )?CHARACTER SET latin1|COLLATE latin1_general_cs|COLLATE latin1_general_ci//ig;
+  $desc2          =~ s/^size$|^user$|^time$|^current$|^validate$|^date$|^file$/"\"".uc($desc2)."\""/ie;
+  $columns{$desc} =~ s/(DEFAULT )?CHARACTER SET latin1|COLLATE latin1_general_cs|COLLATE latin1_general_ci//ig;
   $columns{$desc} =~ s/\'0000-00-00\s00:00:00\'/sysdate/;
 
   if ($columns{$desc} =~ s/ON\s+UPDATE\s+CURRENT_TIMESTAMP//xi) {
     $update{$table} = $desc2;
   }
   if ($columns{$desc} =~ /serial/) { $autoincrements{$table} = $desc2; }
-  $columns{$desc} =~
-    s/(\s*)([a-zA-Z]+)(\(|\s+|$)(.*)/$self->{TYPES}->{$2}$3$4/i;
+  $columns{$desc} =~ s/(\s*)([a-zA-Z]+)(\(|\s+|$)(.*)/$self->{TYPES}->{$2}$3$4/i;
   $columns{$desc} =~ s/int\(/number\(/;
   if ($columns{$desc} =~ s/auto_increment//) {
     $autoincrements{$table} = $desc2;
@@ -134,10 +131,10 @@ s/(DEFAULT )?CHARACTER SET latin1|COLLATE latin1_general_cs|COLLATE latin1_gener
 
   #Ok, now let's take a look at the primary key
   #$primaryKey or return 1;
-  
 
 #  $desc =~ /not null/i or $self->{LOGGER}->error("Database", "Error: the table $table is supposed to have a primary key, but the index can be null!") and return;
 }
+
 =item C<createTable>
 
   $res = $dbh->createTable($table,$definition);
@@ -154,22 +151,17 @@ sub createTable {
   if ($checkExists) {
     if ($self->existsTable($table) != 0) { return 1; }
   }
-  $DEBUG and $self->debug(1,
-"Database: In createTable creating table $table with definition $definition."
-  );
+  $DEBUG and $self->debug(1, "Database: In createTable creating table $table with definition $definition.");
   my %autoincrements = ();
   my %indexes        = ();
   my $cont           = 0;
 
   #  my $desc2=$desc;
   if ($check) {
-    $definition =~
-      s/(size|user|time|current|validate|date|file)/"\"".uc($1)."\""/ieg;
-    $definition =~
-s/(DEFAULT)? CHARACTER SET latin1|COLLATE latin1_general_cs|COLLATE latin1_general_ci//ig;
+    $definition =~ s/(size|user|time|current|validate|date|file)/"\"".uc($1)."\""/ieg;
+    $definition =~ s/(DEFAULT)? CHARACTER SET latin1|COLLATE latin1_general_cs|COLLATE latin1_general_ci//ig;
 
-    $definition =~
-s/(\"\w+\"|\w+)(\s+)(\w+)(\(|\s+|\,|$)(.*)?/$1.$2.$self->{TYPES}->{$3}.$4.$5/ieg;
+    $definition =~ s/(\"\w+\"|\w+)(\s+)(\w+)(\(|\s+|\,|$)(.*)?/$1.$2.$self->{TYPES}->{$3}.$4.$5/ieg;
     $definition =~ s/int\(/number\(/;
     $definition =~ s/\'0000-00-00\s00:00:00\'/sysdate/;
     while ($definition =~ s/(,?)\s*index \((\"?[a-zA-Z]*\"?)\)//i) {
@@ -178,8 +170,7 @@ s/(\"\w+\"|\w+)(\s+)(\w+)(\(|\s+|\,|$)(.*)?/$1.$2.$self->{TYPES}->{$3}.$4.$5/ieg
     }
     $cont = 0;
     $self->debug(1, "The definition before PK $definition");
-    $definition =~
-s/primary key \((\w+)\)/"constraint ".$table."_pk primary key (".$1.")" /ie;
+    $definition =~ s/primary key \((\w+)\)/"constraint ".$table."_pk primary key (".$1.")" /ie;
     if ($definition =~ s/(\w+)(\s+)(\w+)\s+AUTO_INCREMENT/$1$2$3/ig) {
       $autoincrements{$table} = $1;
       $self->debug(1, "Creating autoincrement $definition");
@@ -187,13 +178,9 @@ s/primary key \((\w+)\)/"constraint ".$table."_pk primary key (".$1.")" /ie;
 
 #if ($columns{$desc} =~ s/ON UPDATE CURRENT_TIMESTAMP// ){}#$self->setUpdateDefault($table,$desc2,"CURRENT_TIMESTAMP");}
 # $alter .= " $desc2 $columns{$desc} ,";
-    $DEBUG and $self->debug(1,
-"Database: In createTable creating table $table with definition $definition."
-    );
+    $DEBUG and $self->debug(1, "Database: In createTable creating table $table with definition $definition.");
     $definition =~ s/\'/\'\'/g;
-    $self->_do(
-      "begin    exec_stmt(\'CREATE TABLE  $table  $definition \') ;    end;"
-      )
+    $self->_do("begin    exec_stmt(\'CREATE TABLE  $table  $definition \') ;    end;")
       or $self->info("In checkQueueTable creating table $table failed", 3)
       and return;
     if (%autoincrements) {
@@ -202,21 +189,17 @@ s/primary key \((\w+)\)/"constraint ".$table."_pk primary key (".$1.")" /ie;
       }
       if (%indexes) {
         foreach my $t (values %autoincrements) {
-          $self->do(
-            "begin exec_stmt(\'CREATE INDEX " . $table . "_INDEX" . $t. " ON $table ($t) \') ; end;", { zero_lengt => 0 }
-          );
+          $self->do("begin exec_stmt(\'CREATE INDEX " . $table . "_INDEX" . $t . " ON $table ($t) \') ; end;",
+            {zero_lengt => 0});
         }
       }
       $cont = 0;
 
     }
   } else {
-    $DEBUG and $self->debug(1,
-"Database: In createTable creating table $table with definition $definition."
-    );
+    $DEBUG and $self->debug(1, "Database: In createTable creating table $table with definition $definition.");
     $definition =~ s/\'/\'\'/g;
-    $self->_do(
-      "begin   exec_stmt(\'CREATE TABLE  $table  $definition\');end;  ")
+    $self->_do("begin   exec_stmt(\'CREATE TABLE  $table  $definition\');end;  ")
       or $self->info("In checkQueueTable creating table $table failed", 3)
       and return;
   }
@@ -224,13 +207,10 @@ s/primary key \((\w+)\)/"constraint ".$table."_pk primary key (".$1.")" /ie;
   my $grantedUser = $self->{CONFIG}->{ROLE};
   if ($grantedUser !~ /admin(ssl)/i) { $grantedUser = $self->{ORACLE_USER}; }
   else                               { return 1; }
-  $self->do(
-    "BEGIN EXEC_STMT(\'GRANT SELECT ON $table TO $grantedUser\');END;;");
+  $self->do("BEGIN EXEC_STMT(\'GRANT SELECT ON $table TO $grantedUser\');END;;");
   if ($table =~ m/T$self->{CONFIG}->{ROLE}V/i) {
     $self->debug(1, "GRANT INSERT,UPDATE,DELETE ON $table to $grantedUser");
-    $self->do(
-"BEGIN EXEC_STMT(\'GRANT INSERT, UPDATE,DELETE ON $table to $grantedUser\');END;;"
-    );
+    $self->do("BEGIN EXEC_STMT(\'GRANT INSERT, UPDATE,DELETE ON $table to $grantedUser\');END;;");
     my $f = uc($self->{SCHEMA});
     $self->do("BEGIN GRANTSTAR('SELECT','$f', '$grantedUser');END;;");
   }
@@ -258,11 +238,11 @@ sub getNewColumns {
   foreach (@$queue) {
 
     #we need to consider reserved words (quoted)
-    delete $columns{ $_->{Field} };
+    delete $columns{$_->{Field}};
     delete $columns{"\"$_->{Field}\""};
-    delete $columns{ lc( $_->{Field} ) };
+    delete $columns{lc($_->{Field})};
     delete $columns{"\"lc($_->{Field})\""};
-    delete $columns{ uc( $_->{Field} ) };
+    delete $columns{uc($_->{Field})};
     delete $columns{"\"uc($_->{Field})\""};
   }
 
@@ -272,13 +252,10 @@ sub getNewColumns {
   my %update         = ();
   foreach my $desc (keys %columns) {
     my $desc2 = $desc;
-    $desc2 =~
-s/^size$|^user$|^time$|^current$|^validate$|^date$|^file$/"\"".uc($desc2)."\""/ie;
-    $columns{$desc} =~
-s/(DEFAULT)? CHARACTER SET latin1|COLLATE latin1_general_cs|COLLATE latin1_general_ci//ig;
+    $desc2 =~ s/^size$|^user$|^time$|^current$|^validate$|^date$|^file$/"\"".uc($desc2)."\""/ie;
+    $columns{$desc} =~ s/(DEFAULT)? CHARACTER SET latin1|COLLATE latin1_general_cs|COLLATE latin1_general_ci//ig;
     if ($columns{$desc} =~ /serial/) { $autoincrements{$table} = $desc2; }
-    $columns{$desc} =~
-      s/(\s*)([a-zA-Z]*)(\(|\s+|$)(.*)/$self->{TYPES}->{$2}$3$4/i;
+    $columns{$desc} =~ s/(\s*)([a-zA-Z]*)(\(|\s+|$)(.*)/$self->{TYPES}->{$2}$3$4/i;
     $columns{$desc} =~ s/int\(/number\(/;
     $columns{$desc} =~ s/\'0000-00-00\s00:00:00\'/sysdate/;
     if ($columns{$desc} =~ s/auto_increment//) {
@@ -316,12 +293,14 @@ Returns the keys of the table $table
 
 sub getIndexes {
 
-  my $self  = shift;
+  my $self = shift;
 
   my $table = uc shift;
-return $self->query(
+  return $self->query(
 
-"SELECT DISTINCT MOD (INSTR(a1.uniqueness,'UNIQUE')+1, 2) AS \"Non_unique\" ,    a2.column_name as \"Column_name\", \'PRIMARY\' as \"Key_name\" FROM all_indexes A1 , all_ind_columns A2 , all_constraints  A3 where a1.index_name = a2.index_name and a1.table_name=a2.table_name and a3.constraint_name = a1.index_name   and A1.table_name LIKE ? AND a3.constraint_type='P'  union  SELECT DISTINCT MOD (INSTR(a1.uniqueness,'UNIQUE')+1, 2) AS \"Non_unique\" ,   a2.column_name as \"Column_name\", a1.index_name as \"Key_name\" FROM all_indexes A1 , all_ind_columns A2   where a1.index_name = a2.index_name and a1.table_name=a2.table_name   and A1.table_name LIKE ? minus  SELECT DISTINCT MOD (INSTR(a1.uniqueness,'UNIQUE')+1, 2) AS \"Non_unique\" ,    a2.column_name as \"Column_name\", a1.index_name as \"Key_name\" FROM all_indexes A1 , all_ind_columns A2 , all_constraints  A3 where a1.index_name = a2.index_name and a1.table_name=a2.table_name and a3.constraint_name = a1.index_name   and A1.table_name LIKE ? AND a3.constraint_type=\'P\'  ",undef, {bind_values=>[$table, $table, $table] , zero_length=>0});
+"SELECT DISTINCT MOD (INSTR(a1.uniqueness,'UNIQUE')+1, 2) AS \"Non_unique\" ,    a2.column_name as \"Column_name\", \'PRIMARY\' as \"Key_name\" FROM all_indexes A1 , all_ind_columns A2 , all_constraints  A3 where a1.index_name = a2.index_name and a1.table_name=a2.table_name and a3.constraint_name = a1.index_name   and A1.table_name LIKE ? AND a3.constraint_type='P'  union  SELECT DISTINCT MOD (INSTR(a1.uniqueness,'UNIQUE')+1, 2) AS \"Non_unique\" ,   a2.column_name as \"Column_name\", a1.index_name as \"Key_name\" FROM all_indexes A1 , all_ind_columns A2   where a1.index_name = a2.index_name and a1.table_name=a2.table_name   and A1.table_name LIKE ? minus  SELECT DISTINCT MOD (INSTR(a1.uniqueness,'UNIQUE')+1, 2) AS \"Non_unique\" ,    a2.column_name as \"Column_name\", a1.index_name as \"Key_name\" FROM all_indexes A1 , all_ind_columns A2 , all_constraints  A3 where a1.index_name = a2.index_name and a1.table_name=a2.table_name and a3.constraint_name = a1.index_name   and A1.table_name LIKE ? AND a3.constraint_type=\'P\'  ",
+    undef, {bind_values => [ $table, $table, $table ], zero_length => 0}
+  );
 
 }
 
@@ -337,8 +316,7 @@ sub dropIndex {
   my $self  = shift;
   my $index = shift;
   my $table = shift;
-  $self->do(    "begin exec_stmt(\'drop index $index\');end;"
-  );
+  $self->do("begin exec_stmt(\'drop index $index\');end;");
 }
 
 =item C<createIndex>
@@ -353,33 +331,28 @@ sub createIndex {
   my $self     = shift;
   my $index    = shift;
   my $table    = shift;
-  my $i        = shift ||  0;
+  my $i        = shift || 0;
   my $sqlError = "";
   if ($index =~ /^FOREIGN KEY/i) {
-    $i = $index; 
+    $i = $index;
     $i =~ s/(.*)REFERENCES (.*)\((.*)\)/$3/;
-    $i =~ s/([a-zA-Z][a-zA-Z][a-zA-Z])(.)*(,)?/$1/g; 
-    $self->do(
-      "begin exec_stmt(\'ALTER TABLE $table ADD CONSTRAINT FK_" . $table . "_$i $index\');   end;"
-    );
+    $i =~ s/([a-zA-Z][a-zA-Z][a-zA-Z])(.)*(,)?/$1/g;
+    $self->do("begin exec_stmt(\'ALTER TABLE $table ADD CONSTRAINT FK_" . $table . "_$i $index\');   end;");
   } elsif ($index =~ /^PRIMARY KEY/i) {
-    $self->do(
-      "begin exec_stmt(\'ALTER TABLE $table ADD CONSTRAINT  " . $table . "_pk $index\'); end ; "
-    );
+    $self->do("begin exec_stmt(\'ALTER TABLE $table ADD CONSTRAINT  " . $table . "_pk $index\'); end ; ");
   } elsif ($index =~ /^(.*)\((.*)\)/i) {
     my $name   = $1;
     my $index  = "";
     my $fields = $2;
     if (!($name =~ /(\w*)\s* INDEX\s+ (\w+)/xi)) {
-      $index = $1;   
-      $i=$fields;$i =~ s/([a-zA-Z])(.)*(,)?/$1/g; 
-      $name  = "I_" . $table . "_$i";  
+      $index = $1;
+      $i     = $fields;
+      $i =~ s/([a-zA-Z])(.)*(,)?/$1/g;
+      $name = "I_" . $table . "_$i";
     }
-    $fields =~
-s/^size$|^user$|^time$|^current$|^validate$|^date$/"\"".uc($fields)."\""/ie;
-    $self->do(
-      "begin exec_stmt(\'CREATE $index " . $name . " ON " . $table . "  ( $fields )\');  end ;", {zero_length=>0}
-    );
+    $fields =~ s/^size$|^user$|^time$|^current$|^validate$|^date$/"\"".uc($fields)."\""/ie;
+    $self->do("begin exec_stmt(\'CREATE $index " . $name . " ON " . $table . "  ( $fields )\');  end ;",
+      {zero_length => 0});
   }
   $DBI::errstr and $sqlError .= "In fetch: $DBI::errstr\n";
 }
@@ -433,7 +406,6 @@ get the combination for connecting through DBI
 
 sub getConnectionChain {
   my $self = shift;
-
 
   (my $db, $self->{SCHEMA}) = split(":", $self->{DB});
   if (uc($self->{SCHEMA}) ne uc($self->{ROLE})) {
@@ -490,8 +462,8 @@ sub update {
   chop($query);
   $where =~ s/\=\s*\'\'/ IS NULL/g;
   $where and $query .= " WHERE $where";
-  push(@bind, @{ $options->{bind_values} }) if ($options->{bind_values});
-  $self->_do($query, { bind_values => \@bind, zero_length => 0 });
+  push(@bind, @{$options->{bind_values}}) if ($options->{bind_values});
+  $self->_do($query, {bind_values => \@bind, zero_length => 0});
 }
 
 sub _queryDB {
@@ -506,17 +478,14 @@ sub _queryDB {
   };
 
   $self->_pingReconnect or return;
-  $stmt =~
-s/(\,)(size|user|time|current|validate|date|file)(\,)/$1."\"".uc($2)."\"".$3/ieg;
-  $stmt =~
-s/(\()(size|user|time|current|validate|date|file)(\))/$1."\"".uc($2)."\"".$3/ieg;
-  $stmt =~
-s/\W(\s+)(size|user|time|current|validate|date|file)(\s+)/$1."\"".uc($2)."\"".$3/ieg;
+  $stmt =~ s/(\,)(size|user|time|current|validate|date|file)(\,)/$1."\"".uc($2)."\"".$3/ieg;
+  $stmt =~ s/(\()(size|user|time|current|validate|date|file)(\))/$1."\"".uc($2)."\"".$3/ieg;
+  $stmt =~ s/\W(\s+)(size|user|time|current|validate|date|file)(\s+)/$1."\"".uc($2)."\"".$3/ieg;
   my $arrRef;
   my $execute;
   my @bind;
   my $b;
-  $options->{bind_values} and push @bind, @{ $options->{bind_values} };
+  $options->{bind_values} and push @bind, @{$options->{bind_values}};
   $DEBUG
     and $self->debug(2, "In _queryDB executing $stmt in database (@bind).");
 
@@ -569,7 +538,7 @@ s/\W(\s+)(size|user|time|current|validate|date|file)(\s+)/$1."\"".uc($2)."\"".$3
       }
       if ($sqlError =~ /ORA-/ and !$already_tried) {
 
-#it could be because we are using a reserved word to select a field. We can quote all the fields in the selection.
+      #it could be because we are using a reserved word to select a field. We can quote all the fields in the selection.
         $stmt = $self->quote_query($stmt);
 
         #retry
@@ -596,23 +565,19 @@ s/\W(\s+)(size|user|time|current|validate|date|file)(\s+)/$1."\"".uc($2)."\"".$3
     or delete $SIG{ALRM};
 
   $DEBUG
-    and $self->debug(1,
-    "Query $stmt successfully executed. ($#{$arrRef}+1 entries)");
+    and $self->debug(1, "Query $stmt successfully executed. ($#{$arrRef}+1 entries)");
   return $arrRef;
 }
 
 sub _rebuildIndexes {
-  my $self    = shift;
-  my $table   = shift;
-  if  ($table){
-    my $indexes = $self->query(
-    "select index_name from all_indexes where upper(table_name) like upper(\'?\')",
-    { bind_values=>[$table], zero_length=>0 }
-   );
+  my $self  = shift;
+  my $table = shift;
+  if ($table) {
+    my $indexes = $self->query("select index_name from all_indexes where upper(table_name) like upper(\'?\')",
+      {bind_values => [$table], zero_length => 0});
     if ($indexes) {
       foreach (@$indexes) {
-        $self->do("ALTER INDEX $_->{index_name} REBUILD",
-          {zero_length=>0 });
+        $self->do("ALTER INDEX $_->{index_name} REBUILD", {zero_length => 0});
       }
     }
   }
@@ -630,20 +595,16 @@ sub _do {
   }
 
   # if($stmt =~ m/^insert/i ){ $options->{zero_length}=0;}
-  $stmt =~
-s/(\,)(size|user|time|current|validate|date|file)(\,)/$1."\"".uc($2)."\"".$3/ieg;
-  $stmt =~
-s/(\()(size|user|time|current|validate|date|file)(\))/$1."\"".uc($2)."\"".$3/ieg;
-  $stmt =~
-s/\W(\s)(size|user|time|current|validate|date|file)(\s)/$1."\"".uc($2)."\"".$3/ieg;
+  $stmt =~ s/(\,)(size|user|time|current|validate|date|file)(\,)/$1."\"".uc($2)."\"".$3/ieg;
+  $stmt =~ s/(\()(size|user|time|current|validate|date|file)(\))/$1."\"".uc($2)."\"".$3/ieg;
+  $stmt =~ s/\W(\s)(size|user|time|current|validate|date|file)(\s)/$1."\"".uc($2)."\"".$3/ieg;
   my $oldAlarmValue = $SIG{ALRM};
   local $SIG{ALRM} = \&_timeout;
   my $check = $options->{zero_length};
   defined($check) or $check = 1;
 
   local $SIG{PIPE} = sub {
-    print STDERR
-"Warning!! The connection to the AliEnProxy got lost while doing an insert\n";
+    print STDERR "Warning!! The connection to the AliEnProxy got lost while doing an insert\n";
     $self->reconnect();
   };
 
@@ -653,13 +614,13 @@ s/\W(\s)(size|user|time|current|validate|date|file)(\s)/$1."\"".uc($2)."\"".$3/i
   $self->_pingReconnect or return;
   my @bind_values;
   $options->{bind_values}
-    and push @bind_values, @{ $options->{bind_values} }
+    and push @bind_values, @{$options->{bind_values}}
     and $options->{prepare} = 1;
   my $result;
   if ($check) {
     my $b = \@bind_values;
     ($stmt, $b) = $self->process_zero_length($stmt, $b);
-   
+
     @bind_values = @{$b};
     if (scalar @bind_values == 0) { $options->{prepare} = 0; }
   }
@@ -709,13 +670,11 @@ s/\W(\s)(size|user|time|current|validate|date|file)(\s)/$1."\"".uc($2)."\"".$3/i
 
     if ( $sqlError =~ /ORA-00955:/i
       or $sqlError =~ /already exists/i
-      or $sqlError =~ /mit diesem Namen/i)
-    {
+      or $sqlError =~ /mit diesem Namen/i) {
       return 1;
     } else {
       my $found = 0;
-      $sqlError =~
-/(Unexpected EOF)|(Lost connection)|(MySQL server has gone away at)|(Connection reset by peer)/
+      $sqlError =~ /(Unexpected EOF)|(Lost connection)|(MySQL server has gone away at)|(Connection reset by peer)/
         and $found = 1;
       if (!$found) {
         $oldAlarmValue and $SIG{ALRM} = $oldAlarmValue
@@ -734,8 +693,7 @@ s/\W(\s)(size|user|time|current|validate|date|file)(\s)/$1."\"".uc($2)."\"".$3/i
     or delete $SIG{ALRM};
 
   $DEBUG
-    and
-    $self->debug(1, "Query $stmt successfully executed with result: $result");
+    and $self->debug(1, "Query $stmt successfully executed with result: $result");
 
   $result;
 }
@@ -789,9 +747,8 @@ sub binary2string {
   my $column = shift || "guid";
   return " binary2string($column) ";
 
-#return "insrt(insrt(insrt(insrt(rawtohex($column),9,0,'-'),14,0,'-'),19,0,'-'),24,0,'-')";
+  #return "insrt(insrt(insrt(insrt(rawtohex($column),9,0,'-'),14,0,'-'),19,0,'-'),24,0,'-')";
 }
-
 
 sub multiinsert {
   my $self    = shift;
@@ -842,7 +799,7 @@ sub multiinsert {
     chop($query2);
 
     $query2 .= ")";
-    my $doOptions = { bind_values => \@bind };
+    my $doOptions = {bind_values => \@bind};
 
     # $doOptions->{zero_length}=0;
     $options->{silent} and $doOptions->{silent} = 1;
@@ -856,7 +813,7 @@ sub multiinsert {
       }
       $delete =~ s/(.*)AND $/$1/;
 
-      $self->_do($delete, { zero_length => 0 });
+      $self->_do($delete, {zero_length => 0});
       $self->_do($query . $query2, $doOptions);
     }
   }
@@ -900,7 +857,9 @@ end if;
 end;;"
   );
   $self->do("grant all privileges on conv to public");
-  $self->do ("create or replace FUNCTION unix_timestamp return number deterministic  AUTHID current_user is begin return to_number(sysdate - to_date('01-JAN-1970','DD-MON-YYYY')) * (86400); END ;"); 
+  $self->do(
+"create or replace FUNCTION unix_timestamp return number deterministic  AUTHID current_user is begin return to_number(sysdate - to_date('01-JAN-1970','DD-MON-YYYY')) * (86400); END ;"
+  );
   $self->do("grant all privileges on unix_timestamp to public");
   $self->do("create synonym unix_timestamp for alien_system.unix_timestamp");
   $self->do(
@@ -933,7 +892,7 @@ end;;"
   $self->do("grant execute on insrt to public");
   $self->do("create synonym insrt for alien_system.insrt");
 
-#-return insrt(insrt(insrt(insrt(rawtohex(my_uuid),9,0,'-'),14,0,'-'),19,0,'-'),24,0,'-');
+  #-return insrt(insrt(insrt(insrt(rawtohex(my_uuid),9,0,'-'),14,0,'-'),19,0,'-'),24,0,'-');
   $self->do(
     "create or replace
 function binary2string 
@@ -980,7 +939,8 @@ end binary2date;;"
   $self->do("grant execute on binary2date  to public");
 
   $self->do(
-    "create or replace function string2binary (my_uuid in varchar2) return varchar2 deterministic  AUTHID current_user as begin if(my_uuid like 'NULL')then return null;else  return  utl_raw.cast_to_varchar2( replace(my_uuid,'-',''));end if; end string2binary;;"  );
+"create or replace function string2binary (my_uuid in varchar2) return varchar2 deterministic  AUTHID current_user as begin if(my_uuid like 'NULL')then return null;else  return  utl_raw.cast_to_varchar2( replace(my_uuid,'-',''));end if; end string2binary;;"
+  );
   $self->do("grant execute on string2binary  to public");
 }
 
@@ -1048,7 +1008,7 @@ end binary2date;;"
   $self->do("grant execute on binary2date to public");
 
   $self->do(
-"create or replace
+    "create or replace
 function string2date (my_uuid in varchar2)  
 return varchar deterministic  AUTHID current_user as
 begin if(my_uuid like 'NULL')then return null;
@@ -1067,7 +1027,8 @@ sub lock {
 
   # $DEBUG and $self->debug(1,"Database: In lock locking table $table.");
   $lock =~ /,/
-    and $self->info("Oracle doesn't know how to lock multiple tables") and return 1;
+    and $self->info("Oracle doesn't know how to lock multiple tables")
+    and return 1;
 
   $self->_do("LOCK TABLE $lock IN ROW EXCLUSIVE MODE");
 }
@@ -1097,8 +1058,7 @@ sub paginate {
   if ($limit and $limit >= 0) {
 
 #return "select query.* from (select P.* ,rownum R from ($sql ) P ) query where R between $offset and $limit+$offset-1 ";
-    return
-"SELECT P.* FROM ($sql) P WHERE rownum BETWEEN $offset and $limit + $offset -1";
+    return "SELECT P.* FROM ($sql) P WHERE rownum BETWEEN $offset and $limit + $offset -1";
   } else {
     return $sql;
   }
@@ -1109,11 +1069,9 @@ sub optimizeTable {
   my $table = uc shift;
   $self->do("alter table $table move");
   my $indexes = $self->query(
-"select INDEX_NAME from all_indexes where OWNER = upper(\'$self->{SCHEMA}\') and TABLE_NAME LIKE \'$table\'"
-  );
+    "select INDEX_NAME from all_indexes where OWNER = upper(\'$self->{SCHEMA}\') and TABLE_NAME LIKE \'$table\'");
   foreach my $ind (@$indexes) {
-    $self->do(
-      "begin exec_stmt(\'alter index $ind->{INDEX_NAME} rebuild\'); end;"    );
+    $self->do("begin exec_stmt(\'alter index $ind->{INDEX_NAME} rebuild\'); end;");
   }
 }
 
@@ -1122,9 +1080,10 @@ sub schema {
   return $self->{SCHEMA};
 }
 
-sub resetAutoincrement{
- return 1;
+sub resetAutoincrement {
+  return 1;
 }
+
 sub resetAutoincrement2 {
   my $self   = shift;
   my $table  = shift;
@@ -1157,7 +1116,9 @@ sub defineAutoincrement {
   );
 
   if (!$exists) {
-    $self->do(" begin exec_stmt(\'create sequence $sqName start with 1  increment by 1 nomaxvalue\'); exec_stmt(\'create or replace trigger $triggerName before insert on $tableName for each row begin select $sqName.nextval into :new.$field from dual; end;\');end; ;");
+    $self->do(
+" begin exec_stmt(\'create sequence $sqName start with 1  increment by 1 nomaxvalue\'); exec_stmt(\'create or replace trigger $triggerName before insert on $tableName for each row begin select $sqName.nextval into :new.$field from dual; end;\');end; ;"
+    );
 
   }
   return 1;
@@ -1168,8 +1129,8 @@ sub existsTable {
   my $table = shift;
   $table = uc($table);
   my $ref = $self->queryColumn(
-"SELECT COUNT(*) FROM all_TABLES WHERE OWNER = upper(\'$self->{SCHEMA}\') and upper(table_name) like (?)", undef, {bind_values=>[$table]}
-  );
+    "SELECT COUNT(*) FROM all_TABLES WHERE OWNER = upper(\'$self->{SCHEMA}\') and upper(table_name) like (?)",
+    undef, {bind_values => [$table]});
   return $$ref[0];
 
   #return 0;
@@ -1180,8 +1141,7 @@ sub renameField {
   my $table = shift;
   my $old   = shift;
   my $new   = shift;
-  $self->do(
-    "begin exec_stmt(\'ALTER TABLE $table rename COLUMN  $old to  $new\'); end;"  );
+  $self->do("begin exec_stmt(\'ALTER TABLE $table rename COLUMN  $old to  $new\'); end;");
 }
 
 sub quote_query {
@@ -1247,9 +1207,8 @@ sub checkUser {
   my $pass     = shift;
   my $sqlError = "";
   $user = uc $user;
-  my $res = $self->_queryDB(
-    "SELECT USERNAME FROM ALL_USERS WHERE USERNAME LIKE upper(?)",
-    undef, { bind_variables => [$user] });
+  my $res =
+    $self->_queryDB("SELECT USERNAME FROM ALL_USERS WHERE USERNAME LIKE upper(?)", undef, {bind_variables => [$user]});
 
   if ($res) {
     $self->do("ALTER USER $user IDENTIFIED BY \"$pass\"");
@@ -1279,8 +1238,7 @@ sub process_zero_length_old {
   my $bind = shift;
 
   #case without binding values
-  $stmt =~
-s/(.*)(\!\=|\<\>|NOT\sLIKE)(\s*(\'\s?\') \s*)(.*)$/$1. " IS NOT NULL ". $4/gxei;
+  $stmt =~ s/(.*)(\!\=|\<\>|NOT\sLIKE)(\s*(\'\s?\') \s*)(.*)$/$1. " IS NOT NULL ". $4/gxei;
 
   $stmt =~ s/(.*)(\=|LIKE)(\s*\'\s?\' \s*)(.*)$/$1. " IS NULL ".$4/gxei;
 
@@ -1299,19 +1257,15 @@ s/(.*)(\!\=|\<\>|NOT\sLIKE)(\s*(\'\s?\') \s*)(.*)$/$1. " IS NOT NULL ". $4/gxei;
         #element with string length zero
         if ($_ =~ /^$/) {
 
-#change the statement to consider if the column is null and remove it from the bind values
-          if ($left =~
-s/(.*)(\!\= |\<\>|NOT\sLIKE)(\s*\? )(.*)/$1 . " IS  NOT NULL ".$4 /xei
-            )
-          {
+          #change the statement to consider if the column is null and remove it from the bind values
+          if ($left =~ s/(.*)(\!\= |\<\>|NOT\sLIKE)(\s*\? )(.*)/$1 . " IS  NOT NULL ".$4 /xei) {
           } else {
             $left =~ s/(.*)(\=|LIKE)(\s*\? )(.*)/$1 . " IS NULL ".$4 /xei;
           }
           $new_stmt = $left;
         } else {    #case element with string no length zero
           push(@new_bind, $_);
-          $left =~ s/(.*)(\s*\? )(.*)/$1  .$2 .$3/xei
-            ;       # $new_stmt=$new_stmt.$left ; $left=$3
+          $left =~ s/(.*)(\s*\? )(.*)/$1  .$2 .$3/xei;    # $new_stmt=$new_stmt.$left ; $left=$3
           $new_stmt = $left;
         }
       }
@@ -1352,14 +1306,10 @@ sub process_zero_length {
         #element with string length zero
         if ($_ =~ /^$/) {
 
-#change the statement to consider if the column is null and remove it from the bind values
-          if ($left =~
-s/(.*)(\!\=|\<\>|NOT\s+LIKE)(\s*\? )(.*) /$1 . " IS NOT NULL ".$4 /xei
-            )
-          {
+          #change the statement to consider if the column is null and remove it from the bind values
+          if ($left =~ s/(.*)(\!\=|\<\>|NOT\s+LIKE)(\s*\? )(.*) /$1 . " IS NOT NULL ".$4 /xei) {
           } else {
-            if ($left =~ m/WHERE(.*)(\=|LIKE)\s*\?/ix)
-            {    #(\s*(or|and)\s*\w\s*(\=|LIKE)\s*\?)?/i){
+            if ($left =~ m/WHERE(.*)(\=|LIKE)\s*\?/ix) {    #(\s*(or|and)\s*\w\s*(\=|LIKE)\s*\?)?/i){
               $left =~ s/(.*)(\=|LIKE)(\s*\? )(.*) /$1." is NULL ".$4 /xei;
             } elsif ($left =~ m/WHERE(.*)\(\s*\?\)/ix) {
               $left =~ s/(.*)(\(\s*\?\)) (.*)/$1 . " \( NULL\) ".$3 /xei;
@@ -1422,7 +1372,7 @@ sub dbGetAllTagNamesByPath {
   return $self->query(
 "select tagname , path from ( select distinct tagname,path, length(path) LEN from tag0 where ?  like concat(path,'%')   $rec  $rec2 order by LEN desc )  where rownum <= 1",
     undef,
-    { bind_values => \@bind }
+    {bind_values => \@bind}
   );
 }
 
@@ -1453,11 +1403,9 @@ sub renumberTable {
     or $ok = 0;
 
   if ($ok) {
-    foreach my $t (@{ $options->{update} }) {
+    foreach my $t (@{$options->{update}}) {
       $self->debug(1, "Updating $t");
-      $self->do(
-"update $t set $index= (select new_index from $table where $index=$t.$index)"
-      ) and next;
+      $self->do("update $t set $index= (select new_index from $table where $index=$t.$index)") and next;
       $self->info("Error updating the table!!");
       $ok = 0;
       last;
@@ -1485,9 +1433,7 @@ sub addTimeToToken {
   my $self  = shift;
   my $user  = shift;
   my $hours = shift;
-  return $self->do(
-"update TOKENS set Expires=(sysdate +INTERVAL '$hours' hour) where Username='$user'"
-  );
+  return $self->do("update TOKENS set Expires=(sysdate +INTERVAL '$hours' hour) where Username='$user'");
 
 }
 
@@ -1509,8 +1455,7 @@ sub getTransfersForOptimizer {
 sub getToStage {
   my $self = shift;
   return $self->query(
-"select s.queueid, jdl from STAGING s, QUEUE q where s.queueid=q.queueid and (staging_time+5/1440)<now()"
-  );
+    "select s.queueid, jdl from STAGING s, QUEUE q where s.queueid=q.queueid and (staging_time+5/1440)<now()");
 
 }
 
@@ -1521,8 +1466,6 @@ sub unfinishedJobs24PerUser {
 "merge  into PRIORITY p using (select SUBSTR( submitHost, 1, instr(submitHost,'\@') -1)  \"USER\", count(1)  unfinishedJobsLast24h from queue q where (status='INSERTING' or status='WAITING' or status='STARTED' or status='RUNNING' or status='SAVING' or status='OVER_WAITING') and ( (to_char(sysdate, 'DD.MM.YYYY HH24:Mi:ss')   >=  To_Char( To_Date( '01.01.1970 06:00:00','DD.MM.YYYY HH24:Mi:Ss') + received / 86400,'DD.MM.YYYY HH24:Mi:ss')) and (to_char(sysdate, 'DD.MM.YYYY HH24:Mi:ss')  <=  To_Char( To_Date( '01.01.1970 06:00:00','DD.MM.YYYY HH24:Mi:Ss') + received / 86400 + 60*60*24,'DD.MM.YYYY HH24:Mi:ss'))) GROUP BY submithost ) c on (upper(p.\"USER\")=upper(c.\"USER\")) when matched then update set p.unfinishedjobslast24h=c.unfinishedjobslast24h"
   );
 }
-
-
 
 sub cpuCost24PerUser {
   my $self = shift;
@@ -1583,8 +1526,7 @@ on (q.queueId=c.queueId) when matched then update  set   q.finalPrice= c.si2k * 
 }
 
 sub optimizerJobExpired {
-  return
-"((status='DONE') or (status='FAILED') or (status='EXPIRED') or (status like 'ERROR%')  )
+  return "((status='DONE') or (status='FAILED') or (status='EXPIRED') or (status like 'ERROR%')  )
 and To_Char( To_Date( '01.01.1970 06:00:00','DD.MM.YYYY HH24:Mi:Ss') + received/86540 +7*85540) < (now()) ";
 }
 
@@ -1597,7 +1539,8 @@ sub optimizerJobPriority {
 }
 
 sub userColumn {
-#return "SUBSTR( submitHost, 1, instr (submitHost,\'@\' )-1 )";
+
+  #return "SUBSTR( submitHost, 1, instr (submitHost,\'@\' )-1 )";
   return "SUBSTR( submitHost, 1, instr (\'@\' , submitHost)-1 )";
 }
 
@@ -1609,7 +1552,7 @@ sub getMessages {
   return $self->query(
 "SELECT ID,TargetHost,Message,MessageArgs from MESSAGES WHERE TargetService = ? AND  ? like TargetHost AND (Expires > ? or Expires = 0) AND rownum <300 order by ID",
     undef,
-    { bind_values => [ $service, $host, $time ] }
+    {bind_values => [ $service, $host, $time ]}
   );
 
 }
@@ -1619,7 +1562,7 @@ sub createUser {
   my $user = shift;
   my $pwd  = shift;
   $self->do(
-"create user $user IDENTIFIED BY \"$pwd\" DEFAULT TABLESPACE ALIEN_TABLESPACE  quota unlimited on alien_tablespace"
+    "create user $user IDENTIFIED BY \"$pwd\" DEFAULT TABLESPACE ALIEN_TABLESPACE  quota unlimited on alien_tablespace"
   );
   $self->do("ALTER USER $user ACCOUNT UNLOCK");
   $self->do("GRANT ALIEN_OPER TO $user");
@@ -1668,7 +1611,7 @@ sub refreshSERank {
   $self->do(
     "insert into SERanks (sitename,seNumber,rank,updated)
    select ?, seNumber,  ?, 0  from SE where upper( seName) LIKE upper(?)  ",
-    { bind_values => [ $site, $rank, $seName, $seName, $site ] }
+    {bind_values => [ $site, $rank, $seName, $seName, $site ]}
   );
 }
 #####
@@ -1688,14 +1631,12 @@ sub insertLFNBookedDeleteMirrorFromGUID {
 "The query is SELECT COUNT(*) FROM LFN_BOOKED WHERE lfn LIKE ?  AND guid = string2binary(?) AND pfn LIKE ? and the values $lfn $guid $pfn"
   );
 
-  my $exists = $self->queryValue(
-"SELECT COUNT(*) FROM LFN_BOOKED WHERE lfn LIKE ?  AND guid = string2binary(?) AND pfn LIKE ?",
-    undef,
-    { bind_values => [ $lfn, $guid, $pfn ], }
-  );
+  my $exists =
+    $self->queryValue("SELECT COUNT(*) FROM LFN_BOOKED WHERE lfn LIKE ?  AND guid = string2binary(?) AND pfn LIKE ?",
+    undef, {bind_values => [ $lfn, $guid, $pfn ],});
   if (!$exists || $exists == 0) {
     return $self->do(
-"INSERT INTO LFN_BOOKED(lfn, owner, expiretime, \"SIZE\", guid, gowner, user, pfn, se)
+      "INSERT INTO LFN_BOOKED(lfn, owner, expiretime, \"SIZE\", guid, gowner, user, pfn, se)
       select ?,g.owner,-1,g.\"SIZE\",string2binary(?),g.gowner,?,?,s.seName
       from " . $table . " g, " . $table . "_PFN g_p, SE s
       where g.guidId=g_p.guidId and g_p.guidId=? and g_p.seNumber=? and g_p.pfn=? and s.seNumber=g_p.seNumber",
@@ -1706,7 +1647,7 @@ sub insertLFNBookedDeleteMirrorFromGUID {
     );
   } else {
     return $self->do(
-"UPDATE LFN_BOOKED SET (lfn, owner, expiretime, \"SIZE\", guid, gowner, user, pfn, se) = 
+      "UPDATE LFN_BOOKED SET (lfn, owner, expiretime, \"SIZE\", guid, gowner, user, pfn, se) = 
       (select ?,g.owner,-1,g.\"SIZE\",string2binary(?),g.gowner,?,?,s.seName
        from " . $table . " g, " . $table . "_PFN g_p, SE s
       where g.guidId=g_p.guidId and g_p.guidId=? and g_p.seNumber=? and g_p.pfn=? and s.seNumber=g_p.seNumber)",
@@ -1730,9 +1671,9 @@ sub insertLFNBookedRemoveDirectory {
 
   # if (!$exists || $exists == 0){
   return $self->do(
-"INSERT INTO LFN_BOOKED(lfn, owner, expiretime,\"SIZE\", guid, gowner, \"USER\", pfn)
+    "INSERT INTO LFN_BOOKED(lfn, owner, expiretime,\"SIZE\", guid, gowner, \"USER\", pfn)
      SELECT concat('$lfn' , l.lfn), l.owner, -1, l.\"SIZE\", l.guid, l.gowner, ? , '*' FROM $tableName l WHERE l.type='f' AND l.lfn LIKE concat (?,'%')",
-    { bind_values => [ $user, $tmpPath ], zero_length => 0 }
+    {bind_values => [ $user, $tmpPath ], zero_length => 0}
   );
 
 #}else{
@@ -1760,31 +1701,21 @@ sub insertLFNBookedAndOptionalExistingFlagTrigger {
   $self->debug(3,
 "The query is SELECT COUNT(*) FROM LFN_BOOKED WHERE lfn LIKE ?  AND guid = string2binary(?) AND pfn LIKE ? and the values $lfn $guid $pfn"
   );
-  my $exists = $self->queryValue(
-"SELECT COUNT(*) FROM LFN_BOOKED WHERE lfn LIKE ?  AND guid = string2binary(?) AND pfn LIKE ?",
-    undef,
-    { bind_values => [ $lfn, $guid, $pfn ] }
-  );
+  my $exists =
+    $self->queryValue("SELECT COUNT(*) FROM LFN_BOOKED WHERE lfn LIKE ?  AND guid = string2binary(?) AND pfn LIKE ?",
+    undef, {bind_values => [ $lfn, $guid, $pfn ]});
 
   if (!$exists || $exists == 0) {
     return $self->do(
 "INSERT INTO LFN_BOOKED (lfn, owner, quotaCalculated, md5sum, expiretime, \"SIZE\", pfn, se, gowner, guid, existing, jobid) VALUES (?,?,?,?,?,?,?,?,?,string2binary(?),?,?)",
-      {
-        bind_values => [
-          $lfn, $user, $quota, $md5sum, $expiretime, $size,
-          $pfn, $se,   $user,  $guid,   $existing,   $jobid
-        ],
+      { bind_values => [ $lfn, $user, $quota, $md5sum, $expiretime, $size, $pfn, $se, $user, $guid, $existing, $jobid ],
         zero_length => 0
       }
     );
   } else {
     return $self->do(
 "UPDATE LFN_BOOKED SET (lfn, owner, quotaCalculated, md5sum, expiretime, \"SIZE\", pfn, se, gowner, guid, existing, jobid) VALUES (?,?,?,?,?,?,?,?,?,string2binary(?),?,?)",
-      {
-        bind_values => [
-          $lfn, $user, $quota, $md5sum, $expiretime, $size,
-          $pfn, $se,   $user,  $guid,   $existing,   $jobid
-        ],
+      { bind_values => [ $lfn, $user, $quota, $md5sum, $expiretime, $size, $pfn, $se, $user, $guid, $existing, $jobid ],
         zero_length => 0
       }
     );
@@ -1792,45 +1723,44 @@ sub insertLFNBookedAndOptionalExistingFlagTrigger {
   }
 }
 
-sub dbGetSEListFromSiteSECacheForWriteAccess{
- 
-   my $self=shift;
-   my $user=shift ;
-   my $fileSize=shift;
-   my $type=shift;
-   my $count=shift ;
-   my $sitename=shift ;
-   my $excludeList=(shift || "");
-   
-  my $query="SELECT DISTINCT SE.seName, rank FROM SERanks,SE WHERE "
-       ." sitename=? and SERanks.seNumber = SE.seNumber ";
+sub dbGetSEListFromSiteSECacheForWriteAccess {
 
-   my @queryValues = ();
-   push @queryValues, $sitename;
+  my $self        = shift;
+  my $user        = shift;
+  my $fileSize    = shift;
+  my $type        = shift;
+  my $count       = shift;
+  my $sitename    = shift;
+  my $excludeList = (shift || "");
 
-   foreach(@$excludeList){   $query .= "and upper(SE.seName)<>upper(?) "; push @queryValues, $_;  }
-   
-   $query .=" and SE.seMinSize <= ? and SE.seQoS  LIKE concat('%,' , concat(? , ',%' )) "
-    ." and (SE.seExclusiveWrite is NULL or SE.seExclusiveWrite  LIKE concat ('%,' , concat(? , ',%') ))"
-    ." order by rank ASC  ";
+  my $query =
+    "SELECT DISTINCT SE.seName, rank FROM SERanks,SE WHERE " . " sitename=? and SERanks.seNumber = SE.seNumber ";
 
-     
-   push @queryValues, $fileSize;
-   push @queryValues, $type;
-   push @queryValues, $user;
+  my @queryValues = ();
+  push @queryValues, $sitename;
 
-   my @column; 
-   my $in= 0;
-   my $result = $self->queryColumn($query, undef, {bind_values=>\@queryValues});
-   while($in<$count){
-    push @column,$result->[$in];
+  foreach (@$excludeList) { $query .= "and upper(SE.seName)<>upper(?) "; push @queryValues, $_; }
+
+  $query .=
+      " and SE.seMinSize <= ? and SE.seQoS  LIKE concat('%,' , concat(? , ',%' )) "
+    . " and (SE.seExclusiveWrite is NULL or SE.seExclusiveWrite  LIKE concat ('%,' , concat(? , ',%') ))"
+    . " order by rank ASC  ";
+
+  push @queryValues, $fileSize;
+  push @queryValues, $type;
+  push @queryValues, $user;
+
+  my @column;
+  my $in = 0;
+  my $result = $self->queryColumn($query, undef, {bind_values => \@queryValues});
+  while ($in < $count) {
+    push @column, $result->[$in];
     $in++;
   }
 
- 
-   @$result = @$result[0..$count];
+  @$result = @$result[ 0 .. $count ];
   return $result;
-   
+
 }
 ##############
 ###optimizer /SeSize
@@ -1848,8 +1778,7 @@ sub updateVolumesInSESize {
 
 sub showLDLTables {
   my $self = shift;
-  return $self->queryColum(
-    "select table_name from all_tables where table_name like 'L%L'");
+  return $self->queryColum("select table_name from all_tables where table_name like 'L%L'");
 }
 
 sub updateSESize {
@@ -1925,8 +1854,7 @@ sub getJobOptimizerExpiredQ3 {
 sub getJobOptimizerZombies {
   my $self   = shift;
   my $status = shift;
-  return
-" q, QUEUEPROC p where $status and p.queueId=q.queueId and (sysdate +INTERVAL '-3600' SECOND)>lastupdate";
+  return " q, QUEUEPROC p where $status and p.queueId=q.queueId and (sysdate +INTERVAL '-3600' SECOND)>lastupdate";
 }
 ########
 ### optimizer Job/Charge
@@ -1939,9 +1867,10 @@ sub getJobOptimizerCharge {
   my $chargingNow    = shift;
   my $chargingDone   = shift;
   my $chargingFailed = shift;
-  my $update = "UPDATE $queueTable q SET finalPrice =  ( select round(si2k*price*$nominalPrice ) from QUEUEPROC p where p.queueid=q.queueid and p.si2k >0 ) , chargeStatus=\'$chargingNow\'";
+  my $update =
+"UPDATE $queueTable q SET finalPrice =  ( select round(si2k*price*$nominalPrice ) from QUEUEPROC p where p.queueid=q.queueid and p.si2k >0 ) , chargeStatus=\'$chargingNow\'";
 
-  my $where =" WHERE (status='DONE' AND chargeStatus!=\'$chargingDone\' AND chargeStatus!=\'$chargingFailed\') ";
+  my $where = " WHERE (status='DONE' AND chargeStatus!=\'$chargingDone\' AND chargeStatus!=\'$chargingFailed\') ";
   return $update . $where;
 }
 1;

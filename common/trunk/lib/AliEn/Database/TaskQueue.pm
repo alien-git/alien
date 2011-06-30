@@ -195,11 +195,11 @@ sub initialize {
         beforeTime   => "time",
         priority     => "int(11)",
         ttl          => "int(11)",
-        site        => "varchar(255) COLLATE latin1_general_ci",
+        site         => "varchar(255) COLLATE latin1_general_ci",
       },
       id          => "entryId",
       index       => "entryId",
-      extra_index => ["INDEX(priority)", "INDEX(ttl)"],
+      extra_index => [ "INDEX(priority)", "INDEX(ttl)" ],
     },
     SITES => {
       columns => {
@@ -221,19 +221,19 @@ sub initialize {
     ##cluster monitor. Indeed, null values are inserted. So we allow these columns to be nullable.
     HOSTS => {
       columns => {
-        hostName    => "char(255)",
-        hostPort    => "int(11) ",
-        hostId      => "int(11) not null auto_increment primary key",
-        siteId      => "int(11) not null",
-        maxJobs     => "int(11)",
-        status      => "char(10) ",
-        date        => "int(11)",
-        rating      => "float",
-        Version     => "char(10)",
-        queues      => "char(50)",
-        connected   => "int(1)",
-        maxqueued   => "int(11)",
-        cename      => "varchar(255)",
+        hostName  => "char(255)",
+        hostPort  => "int(11) ",
+        hostId    => "int(11) not null auto_increment primary key",
+        siteId    => "int(11) not null",
+        maxJobs   => "int(11)",
+        status    => "char(10) ",
+        date      => "int(11)",
+        rating    => "float",
+        Version   => "char(10)",
+        queues    => "char(50)",
+        connected => "int(1)",
+        maxqueued => "int(11)",
+        cename    => "varchar(255)",
       },
       id    => "hostId",
       index => "hostId"
@@ -341,8 +341,7 @@ sub checkActionTable {
     )
     and $self->do(
 "INSERT  INTO ACTIONS(action)  (SELECT 'SAVED_WARN' from dual where not exists (select action from ACTIONS where action like 'SAVED_WARN'))"
-    )
-    and return 1;
+    ) and return 1;
 
 }
 
@@ -463,8 +462,8 @@ sub getWaitingJobAgents {
   my $self = shift;
   my $ttl  = shift || 0;
   my $site = shift || 0;
-  
-  my ($where, $bind)=("", []);
+
+  my ($where, $bind) = ("", []);
   if ($ttl) {
     $where = " and (ttl<? or ttl is null )";
     $bind  = [$ttl];
@@ -574,7 +573,7 @@ sub updateStatus {
     or $self->{LOGGER}->error("TaskQueue", "In updateStatus old status is missing")
     and return;
   my $status = shift;
-  my $set    = shift || {};
+  my $set = shift || {};
 
   #This is the service that will update the log of the job
   my $service = shift;
@@ -1379,12 +1378,12 @@ sub insertJobAgent {
   $self->info("Inserting a jobagent with '$text' yuhuu");
   my $id = $self->queryValue("SELECT entryId from JOBAGENT where requirements=?", undef, {bind_values => [$text]});
   if (!$id) {
-    my $site="";
-    my $temp=$text;
-    while ($temp =~ s/member\(other.CloseSE,"[^:]*::([^:]*)::[^:]*"\)//si ){      
-      $site =~ /,$1/ or $site.=",$1";
+    my $site = "";
+    my $temp = $text;
+    while ($temp =~ s/member\(other.CloseSE,"[^:]*::([^:]*)::[^:]*"\)//si) {
+      $site =~ /,$1/ or $site .= ",$1";
     }
-    $site and $site.=",";
+    $site and $site .= ",";
     $self->lock("JOBAGENT");
     my $ttl = 84000;
     $text =~ /other.TTL\s*>\s*(\d+)/i and $ttl = $1;
