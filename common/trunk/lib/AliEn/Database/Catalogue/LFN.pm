@@ -1848,12 +1848,14 @@ sub getDiskUsage {
     my $where = "where lfn like '$pattern%'";
     $self->{INDEX_TABLENAME}->{lfn} =~ m{^$lfn} and $where = "where 1";
     $options =~ /f/ and $where .= " and type='f'";
+    my $table = $self->{INDEX_TABLENAME}->{name};
     my $partialSize = $self->queryValue(
-      "SELECT sum(" . $self->reservedWord("size") . ") from L$self->{INDEX_TABLENAME}->{tableName}L $where");
+      "SELECT sum(" . $self->reservedWord("size") . ") from $table $where");
     $DEBUG and $self->debug(1, "Got size $partialSize");
     $size += $partialSize;
   } else {
-    my $table = "D$self->{INDEX_TABLENAME}->{name}L";
+    my $table = "$self->{INDEX_TABLENAME}->{name}";
+    $lfn =~ s{^$self->{INDEX_TABLENAME}->{lfn}}{};
     $DEBUG and $self->debug(1, "Checking the diskusage of file $lfn");
     $size = $self->queryValue("SELECT " . $self->reservedWord("size") . " from $table where lfn='$lfn'");
   }
