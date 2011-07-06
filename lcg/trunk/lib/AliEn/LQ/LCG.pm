@@ -13,6 +13,8 @@ use Net::LDAP;
 use AliEn::TMPFile;
 use POSIX ":sys_wait_h";
 use Time::Local;
+use Switch;
+use List::Util qw( max min sum );
 
 sub getQueueStatus { ##Still return values from the local DB
   my $self = shift;
@@ -120,54 +122,53 @@ sub getCEStatus {
 
 sub getCEInfo {
   my $self = shift;
+  my $mode = shift;
   my @items = @_;
   my %results = ();
   my $someAnswer = 0;
-  $self->debug(1,"Querying all CEs, requested info: @items");
+  $self->info("Querying CEs, mode: $mode, requested info: @items");
   my @list = @{$self->{CONFIG}->{CE_LCGCE_LIST}};
-  foreach my $CE ( @list ) {
-    $self->info("Querying for $CE");
-    if (  $CE =~ m/\(.*\)/ ) { #It's a sublist, get the max value for each value
-      $CE =~ s/\s*//g; $CE =~ s/\(//; $CE =~ s/\)//;
-      my @sublist = split /,/, $CE;
-      my %max = ();
-      foreach my $subCE (@sublist) {
-        $self->info("In the sublist, querying for $subCE");
-        my $res = $self->queryBDII($subCE,'',"GlueVOViewLocalID=\L$self->{CONFIG}->{LCGVO}\E,GlueCEUniqueID=$subCE",@_);
-        if ( $res ) {
-          foreach (@items) {
-            if ($res->{$_} =~ m/44444/) {
-              $self->{LOGGER}->warning("LCG","Query for $subCE gave 44444.");
-              next;
-            }
-            $max{$_} = $res->{$_} if (!defined  $max{$_} || $res->{$_}>$max{$_});
-          }
-        } else { 
-          $self->{LOGGER}->warning("LCG","Query for $CE failed.");
-          next;
-        }   
-      }   
-      foreach (@items) {
-        $results{$_} += $max{$_} if defined $max{$_};
-      }
-    } else {
-      (my $host,undef) = split (/:/,$CE);    
-      my $res = $self->queryBDII($CE,'',"GlueVOViewLocalID=\L$self->{CONFIG}->{LCGVO}\E,GlueCEUniqueID=$CE",@_);
-      if ( $res ) {
-        $results{$_} += $res->{$_} foreach (@items);
-      } else { 
-        $self->{LOGGER}->warning("LCG","Query for $CE failed.");
-        next;
-      }   
-    }
-   }    
-  my @values = ();
-  foreach (@items) {
-    $results{$_} = 44444 unless defined $results{$_};
-    push (@values,$results{$_});
+  my $values = ();
+  foreach ( @items ) {
+     $values->{$_} = [];
   }
-  $self->debug(1,"Returning: ".Dumper(@values));
-  return @values;
+  foreach ( @list ) {
+    $self->debug(1,"Querying for $_");
+    my $CE = $_;
+    if (  m/\(.*\)/ ) { #It's a sublist, all values should be identical
+      s/\s*//g; s/\(//; s/\)//;
+      my @sublist = split /,/, $_;
+      $CE = $sublist[0]; #Pick the first one
+    } 
+    my $res = $self->queryBDII($CE,'',"GlueVOViewLocalID=\L$self->{CONFIG}->{LCGVO}\E,GlueCEUniqueID=$CE",@_);
+    if ( $res ) {
+      foreach (@items) {
+        if ($res->{$_} =~ m/44444/) {
+          $self->{LOGGER}->warning("LCG","Query for $CE gave 44444.");
+          next;
+        }
+        push @{$values->{$_}}, $res->{$_};         
+
+        }
+    } else { 
+      $self->{LOGGER}->warning("LCG","Query for $CE failed.");
+      next;
+    }   
+  }
+
+  my @return;
+  foreach (@items) {
+    my $val = '';
+    switch ($mode) {
+      case "SUM" { $val = sum @{$values->{$_}}; }
+      case "MIN" { $val = min @{$values->{$_}}; }
+      case "MAX" { $val = max @{$values->{$_}}; }
+      else  { $self->{LOGGER}->error('LCG',"mode $mode not supported in querying CE"); }
+    }  
+      push @return, $val;
+  }
+  $self->debug(1,"Returning: ".Dumper(@return));
+  return @return;
 }
 
 sub getJobStatus {
@@ -267,13 +268,20 @@ sub renewProxy {
 
 sub prepareForSubmission {
   my $self = shift;
-  $self->debug(1,"Updating host classad from IS...");
+  $self->debug(1,"Preparing for submission...");
   my $classad = shift;
   $classad or return;
   my ($maxRAMSize, $maxSwapSize) = (0,0);
+  $self->{CE_AVAILABLESLOTS} = {};
+  
   foreach my $CE (@{$self->{CONFIG}->{CE_LCGCE_FLAT_LIST}}) {
+    $self->debug(1,"Getting queued jobs for $CE");
+    $self->info("Getting queued jobs for $CE");
+    my $res = $self->queryBDII($CE,'',"GlueVOViewLocalID=\L$self->{CONFIG}->{LCGVO}\E,GlueCEUniqueID=$CE","GlueCEStateWaitingJobs");
+    ($self->{CE_AVAILABLESLOTS})->{$CE} = $self->{CONFIG}->{CE_MAXQUEUEDJOBS} - $res->{"GlueCEStateWaitingJobs"};
+    $res = '';
     $self->debug(1,"Getting RAM and swap info for $CE");
-    my $res = $self->queryBDII($CE,'',"GlueCEUniqueID=$CE",'GlueForeignKey');
+    $res = $self->queryBDII($CE,'',"GlueCEUniqueID=$CE",'GlueForeignKey');
     $res or return $classad;
     my $cluster = $res->{'GlueForeignKey'};
     $cluster =~ s/^GlueClusterUniqueID=//;
@@ -283,6 +291,7 @@ sub prepareForSubmission {
     $maxRAMSize  = $res->{'GlueHostMainMemoryRAMSize'}  if ($res->{'GlueHostMainMemoryRAMSize'}>$maxRAMSize );
     $maxSwapSize = $res->{'GlueHostMainMemoryVirtualSize'} if ($res->{'GlueHostMainMemoryVirtualSize'}>$maxSwapSize );
   }  
+  $self->info("Available slots in the queues:".values %{$self->{CE_AVAILABLESLOTS}});
   $self->{UPDATECLASSAD} = time();    
   $self->info("Updating host ClassAd from IS (RAM,Swap) = ($maxRAMSize,$maxSwapSize)" );
   $classad->set_expression("Memory",$maxRAMSize*1024);

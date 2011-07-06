@@ -94,7 +94,13 @@ sub submit {
   $jdlfile or return;
   
   #pick a random CE from the list
-  my $theCE = $self->{CONFIG}->{CE_LCGCE_FLAT_LIST}->[int(rand(@{$self->{CONFIG}->{CE_LCGCE_FLAT_LIST}}))];
+  my $theCE = '';
+  my $ctr = 0;
+  do {
+       $theCE = $self->{CONFIG}->{CE_LCGCE_FLAT_LIST}->[int(rand(@{$self->{CONFIG}->{CE_LCGCE_FLAT_LIST}}))];
+       $ctr++;
+     } until ($self->{CE_AVAILABLESLOTS}->{$theCE} > 0 || $ctr >= @{$self->{CONFIG}->{CE_LCGCE_FLAT_LIST}});
+
   push @args, ("-r", $theCE);
   push @args, ("-D", "$self->{CONFIG}->{DELEGATION_ID}");
 
@@ -108,7 +114,7 @@ sub submit {
   $self->renewProxy($self->{CONFIG}->{CE_PROXYDURATION},$self->{CONFIG}->{CE_PROXYTHRESHOLD});
   $self->renewDelegation($self->{CONFIG}->{CE_DELEGATIONINTERVAL}); 
 
-  $self->info("Submitting to LCG with \'@args\'.");
+  $self->info("Submitting to CREAM with \'@args\'.");
   my $now = time;
   my $logFile = AliEn::TMPFile->new({filename=>"job-submit.$now.log"}) or return;
 
@@ -116,6 +122,7 @@ sub submit {
   $contact = $self->wrapSubmit($logFile, $jdlfile, @args);
   $self->{LAST_JOB_ID} = $contact;
   return unless $contact;
+  $self->{CE_AVAILABLESLOTS}->{$theCE}--;
   $self->info("LCG JobID is $contact");
   open JOBIDS, ">>$self->{CONFIG}->{LOG_DIR}/CE.db/JOBIDS";
   print JOBIDS "$now,$contact\n";
@@ -205,31 +212,21 @@ sub needsCleaningUp {
 
 sub getNumberRunning() {
   my $self = shift;
-  my ($run,$wait) = $self->getCEInfo(qw(GlueCEStateRunningJobs GlueCEStateWaitingJobs ));
+  my ($run,$wait) = $self->getCEInfo('SUM',qw(GlueCEStateRunningJobs GlueCEStateWaitingJobs ));
   $run or $run=0;
   $wait or $wait=0;
   $self->info("JobAgents running, waiting: $run,$wait");
-  if ($ENV{CE_USE_BDII} ) {
-     $self->info("(Returning value from BDII)");
-     return $run+$wait;    
-  } else {
-    $self->{LOGGER}->error("CREAM","Only info from BDII available in this release");
-    return;
-  }   
+  $self->debug(1,"(Returning value from BDII)");
+  return $run+$wait;       
 }
 
 sub getNumberQueued() {
   my $self = shift;
-  (my $wait) = $self->getCEInfo(qw(GlueCEStateWaitingJobs));
+  (my $wait) = $self->getCEInfo('MIN',qw(GlueCEStateWaitingJobs));
   $wait or $wait=0;
   $self->info("JobAgents waiting: $wait");
-  if ($ENV{CE_USE_BDII} ) {
-    $self->info("(Returning value from BDII)");
-    return $wait;
-  } else {
-    $self->{LOGGER}->error("CREAM","Only info from BDII available in this release");
-    return;
-  }   
+  $self->debug(1,"(Returning value from BDII)");
+  return $wait;
 }
 
 #
