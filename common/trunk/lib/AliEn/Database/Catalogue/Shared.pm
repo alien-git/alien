@@ -8,14 +8,19 @@ push @ISA, qw(AliEn::Database);
 # This function is inherited by the children
 #
 #
-sub preConnect {
-  my $self = shift;
-  $self->{DB} and $self->{HOST} and $self->{DRIVER} and return 1;
+sub _connect {
+  return 1;
+}
 
-  #! ($self->{DB} and $self->{HOST} and $self->{DRIVER} ) or (!$self->{CONFIG}->{CATALOGUE_DATABASE}) and  return;
-  $self->debug(2, "Using the default $self->{CONFIG}->{CATALOGUE_DATABASE}");
-  ($self->{HOST}, $self->{DRIVER}, $self->{DB}) = split(m{/}, $self->{CONFIG}->{CATALOGUE_DATABASE});
+sub _validate {
+  return 1;
+}
 
+sub _pingReconnect {
+  return 1;
+}
+
+sub reconnect {
   return 1;
 }
 
@@ -24,6 +29,12 @@ sub initialize {
   $self->{binary2string} = $self->binary2string("guid");
   $self->{VIRTUAL_ROLE} or $self->{VIRTUAL_ROLE} = $self->{ROLE};
   return $self->SUPER::initialize(@_);
+}
+
+sub setConnections {
+  my $self = shift;
+  my $parent = shift;
+  map{ $self->{$_} = $parent->{$_} } (keys %$parent);
 }
 
 ##############################################################################

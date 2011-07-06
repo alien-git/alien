@@ -49,7 +49,7 @@ sub f_addTag {
         or $self->info("Error getting the description of the table")
         and return;
     }
-    $self->selectDatabase($directory);
+    $self->selectTable($directory);
     my $done = $self->createRemoteTable(
       $self->{DATABASE}->{LFN_DB}->{HOST},
       $self->{DATABASE}->{LFN_DB}->{DB},

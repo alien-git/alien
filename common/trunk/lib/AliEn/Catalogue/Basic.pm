@@ -41,7 +41,7 @@ sub checkPermissions {
 
   $file = $self->GetAbsolutePath($file, $trailingSlash);
 
-  $self->selectDatabase($file) or return;
+  $self->selectTable($file) or return;
 
   my $realfile = $self->getVOPath($file);
 
@@ -117,14 +117,14 @@ sub checkOnePerm {
 #This subroutine receives a directory, and connects to the
 #database that has that directory.
 #
-sub selectDatabase {
+sub selectTable {
   my $self = shift;
-  $DEBUG and $self->debug(1, "SelectDatabase start @_");
+  $DEBUG and $self->debug(1, "SelectTable start @_");
 
   my $path = shift;
 
   if (!$path) {
-    print STDERR "Error in selectDatabase: Not enough arguments\n";
+    print STDERR "Error in selectTable: Not enough arguments\n";
     return;
   }
 
@@ -135,11 +135,11 @@ sub selectDatabase {
     $self->{CONFIG}   = $self->{CONFIG}->Reload({organisation => $self->{FIRSTORG}});
     $self->{CONFIG} or $self->info("Error getting the new configuration") and return;
 
-    return $self->selectDatabase($path);
+    return $self->selectTable($path);
   }
 
   my $real_path = $self->getVOPath($path);
-  return $self->{DATABASE}->selectDatabase($real_path);
+  return $self->{DATABASE}->selectTable($real_path);
 }
 
 #

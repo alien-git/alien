@@ -134,7 +134,7 @@ sub f_getTabCompletion {
 
   my ($dirname) = $self->f_dirname($path);
 
-  $self->selectDatabase($dirname) or return;
+  $self->selectTable($dirname) or return;
   my @result = $self->{DATABASE}->tabCompletion($dirname);
   @result = grep (s/^$path/$word/, @result);
   return @result;
@@ -811,7 +811,7 @@ sub existsEntry {
   }
   $DEBUG and $self->debug(1, "Checking if $lfn exists in the catalogue");
   if (!$permFile) {
-    $self->selectDatabase($lfn) or return;
+    $self->selectTable($lfn) or return;
     return $self->{DATABASE}->existsLFN($lfn);
   }
   $lfn =~ s/\*/\\\*/g;

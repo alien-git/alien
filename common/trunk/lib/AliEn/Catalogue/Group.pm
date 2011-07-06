@@ -136,8 +136,8 @@ sub f_chown {
 
   $file = $self->GetAbsolutePath($file, 1);
 
-  my $db = $self->selectDatabase($file)
-    or print STDERR "Error in selectDatabase" and return;
+  my $db = $self->selectTable($file)
+    or print STDERR "Error in selectTable" and return;
   my $table  = $db->getIndexTable();
   my $dbName = $db->{DB};
   $dbName =~ s/(.+):(.+)/$2/i;

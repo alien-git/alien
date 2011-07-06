@@ -52,17 +52,13 @@ $DEBUG = 0;
 
 sub preConnect {
   my $self = shift;
-  foreach ('HOST', 'DRIVER', 'DB') {
-    $self->{$_} or $self->{$_} = 1;
-  }
+  
+  $self->{DB} and $self->{HOST} and $self->{DRIVER} and return 1;
 
-  $self->debug(1, "We don't really need the preconnect...");
-  return 1;
-}
+  #! ($self->{DB} and $self->{HOST} and $self->{DRIVER} ) or (!$self->{CONFIG}->{CATALOGUE_DATABASE}) and  return;
+  $self->debug(2, "Using the default $self->{CONFIG}->{CATALOGUE_DATABASE}");
+  ($self->{HOST}, $self->{DRIVER}, $self->{DB}) = split(m{/}, $self->{CONFIG}->{CATALOGUE_DATABASE});
 
-sub _connect {
-  my $self = shift;
-  $self->debug(1, "The catalogue itself doesn't have to connect....");
   return 1;
 }
 
@@ -82,6 +78,9 @@ sub initialize {
 
   $self->{LFN_DB} = AliEn::Database::Catalogue::LFN->new($opt1, @_) or return;
   $self->{GUID_DB} = AliEn::Database::Catalogue::GUID->new($opt2, @_) or return;
+
+  $self->{LFN_DB}->setConnections($self);
+  $self->{GUID_DB}->setConnections($self);
 
   return 1;
 }
@@ -626,14 +625,14 @@ sub getDiskUsage {
   $self->{LFN_DB}->getDiskUsage(@_);
 }
 
-sub selectDatabase {
+sub selectTable {
   return selectLFNDatabase(@_);
 }
 
 sub selectLFNDatabase {
   my $self = shift;
 
-  my $db = $self->{LFN_DB}->selectDatabase(@_) or return;
+  my $db = $self->{LFN_DB}->selectTable(@_) or return;
   $self->{LFN_DB} = $db;
   return $db;
 }

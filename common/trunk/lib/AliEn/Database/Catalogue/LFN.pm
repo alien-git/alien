@@ -568,7 +568,7 @@ sub updateLFN {
 
   $self->info("HERE WE SHOULD UPDATE ALSO THE FATHER");
 
-  my $db = $self->selectDatabase($parentpath);
+  my $db = $self->selectTable($parentpath);
   $lfn =~ s{^$db->{INDEX_TABLENAME}->{lfn}}{};
 
   # my $new_lfn = $lfn;$new_lfn and $new_lfn="='$lfn'" or $new_lfn=" is null";
@@ -607,7 +607,7 @@ sub getLFNlike {
       $self->debug(1, "Looking in $parent for $1 (still to do $2)");
       my ($pattern, $todo) = ($1, $2);
 
-      my $db = $self->selectDatabase($parent)
+      my $db = $self->selectTable($parent)
         or $self->info("Error selecting the database of $parent")
         and next;
       my $parentdir = $db->getAllInfoFromLFN({retrieve => 'entryId', method => 'queryValue'}, $parent);
@@ -631,7 +631,7 @@ sub getLFNlike {
         }
       }
     } else {
-      my $db = $self->selectDatabase($parent)
+      my $db = $self->selectTable($parent)
         or $self->info("Error selecting the database of $parent")
         and next;
       my $parentdir = $db->getAllInfoFromLFN({retrieve => 'entryId', method => 'queryValue'}, $parent, "$parent/")
@@ -808,7 +808,7 @@ sub removeFile {
   #Insert into LFN_BOOKED
   my $parent = "$lfn";
   $parent =~ s{([^/]*[\%][^/]*)/?(.*)$}{};
-  my $db = $self->selectDatabase($parent)
+  my $db = $self->selectTable($parent)
     or $self->{LOGGER}->error("Database::Catalogue::LFN", "Error selecting the database of $parent")
     and return;
   my $tableName  = "$db->{INDEX_TABLENAME}->{name}";
@@ -932,13 +932,13 @@ sub moveFolder {
 
   my $parent = "$source";
   $parent =~ s{([^/]*[\%][^/]*)/?(.*)$}{};
-  my $dbSource = $self->selectDatabase($parent)
+  my $dbSource = $self->selectTable($parent)
     or $self->{LOGGER}->error("Database::Catalogue::LFN", "Error selecting the database of $parent")
     and return;
   my $tableName_source = "$dbSource->{INDEX_TABLENAME}->{name}";
   my $tablelfn_source  = "$dbSource->{INDEX_TABLENAME}->{lfn}";
   $parent = "$target";
-  my $dbTarget = $self->selectDatabase($parent)
+  my $dbTarget = $self->selectTable($parent)
     or $self->{LOGGER}->error("Database::Catalogue::LFN", "Error selecting the database of $parent")
     and return;
   my $tableName_target = "$dbTarget->{INDEX_TABLENAME}->{name}";
@@ -1012,13 +1012,13 @@ sub moveFile {
   my $user   = $self->{CONFIG}->{ROLE};
   my $parent = "$source";
   $parent =~ s{([^/]*[\%][^/]*)/?(.*)$}{};
-  my $dbSource = $self->selectDatabase($parent)
+  my $dbSource = $self->selectTable($parent)
     or $self->{LOGGER}->error("Database::Catalogue::LFN", "Error selecting the database of $parent")
     and return;
   my $tableName_source = "$dbSource->{INDEX_TABLENAME}->{name}";
   my $tablelfn_source  = "$dbSource->{INDEX_TABLENAME}->{lfn}";
   $parent = "$target";
-  my $dbTarget = $self->selectDatabase($parent)
+  my $dbTarget = $self->selectTable($parent)
     or $self->{LOGGER}->error("Database::Catalogue::LFN", "Error selecting the database of $parent")
     and return;
   my $tableName_target = "$dbTarget->{INDEX_TABLENAME}->{name}";
@@ -1077,13 +1077,13 @@ sub softLink {
   my $target = shift;
   my $parent = "$source";
   $parent =~ s{([^/]*[\%][^/]*)/?(.*)$}{};
-  my $dbSource = $self->selectDatabase($parent)
+  my $dbSource = $self->selectTable($parent)
     or $self->{LOGGER}->error("Database::Catalogue::LFN", "Error selecting the database of $parent")
     and return;
   my $tableName_source = "$dbSource->{INDEX_TABLENAME}->{name}";
   my $tablelfn_source  = "$dbSource->{INDEX_TABLENAME}->{lfn}";
   $parent = "$target";
-  my $dbTarget = $self->selectDatabase($parent)
+  my $dbTarget = $self->selectTable($parent)
     or $self->{LOGGER}->error("Database::Catalogue::LFN", "Error selecting the database of $parent")
     and return;
   my $tableName_target  = "$dbTarget->{INDEX_TABLENAME}->{name}";
@@ -1931,24 +1931,20 @@ sub executeInAllDB {
 
 }
 
-sub selectDatabase {
-
-  #
-  # SUBHO:::DEBUG ---- FIX THIS
-  #
-
+sub selectTable {
   my $self = shift;
   my $path = shift;
 
-  #First, let's check the length of the lfn that matches
+  #get table for the lfn entry from indextable
   my $entry = $self->getIndexHost($path);
   $entry or $self->info("The path $path is not in the catalogue ") and return;
 
   my $tableName = "L$entry->{tableName}L";
   $DEBUG and $self->debug(1, "We want to connect to $tableName");
 
-  #index being pased as 0 to reconnect to index ---- FIX THIS
+  #set INDEXTBLENAME to that of the file in question
   $self->setIndexTable($tableName, $entry->{lfn});
+  
   return $self;
 }
 
