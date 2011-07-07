@@ -670,7 +670,7 @@ sub destroy {
   $self->{LFN_DB}  and $self->{LFN_DB}->destroy();
   $self->{GUID_DB} and $self->{GUID_DB}->destroy();
 
-  #  $self->SUPER::destroy();
+  $self->SUPER::destroy();
 }
 
 sub getAllReplicatedData {
