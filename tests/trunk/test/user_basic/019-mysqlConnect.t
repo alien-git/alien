@@ -88,12 +88,12 @@ for (my $i=0; $i<1; $i++){
 
   my $c=AliEn::UI::Catalogue->new() or last;
 
-  compareNumber($before+2, $proxyBefore, "During the connection") or last;
+  compareNumber($before+1, $proxyBefore, "During the connection") or last;
 
   $c->close();
   print "closed!!!\n";
   sleep (3);
-  if (! compareNumber($before, $proxyBefore, "After login out")) {
+  if (!compareNumber($before, $proxyBefore, "After login out")) {
     print "Let's try sleeping again...\n";
     sleep (10);
     compareNumber($before, $proxyBefore, "After 10 sec")  or last;
@@ -105,12 +105,12 @@ for (my $i=0; $i<1; $i++){
   print "Let's try again with another catalogue\n";
 
   $c=AliEn::UI::Catalogue->new() or last;
-  $c->execute("ls", "/remote/", "-la") or last;
-  compareNumber($before+3, $proxyBefore, "During the second connection") or last;
+  $c->execute("ls", "/", "-la") or last;
+  compareNumber($before+1, $proxyBefore, "During the second connection") or last;
   $c->close();
   print "closed!!!\n";
   sleep (3);
-  if (! compareNumber($before, $proxyBefore, "After login out")) {
+  if (!compareNumber($before, $proxyBefore, "After logout")) {
     print "Let's try sleeping again...\n";
     sleep (10);
     compareNumber($before, $proxyBefore, "After 10 sec")  or last;
@@ -122,4 +122,4 @@ for (my $i=0; $i<1; $i++){
 startServices();
 $ok or exit(-2);
 print "OK!!!\n";
-exit(0);
+exit(1);
