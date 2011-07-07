@@ -122,4 +122,4 @@ for (my $i=0; $i<1; $i++){
 startServices();
 $ok or exit(-2);
 print "OK!!!\n";
-exit(1);
+exit(0);
