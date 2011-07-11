@@ -6,7 +6,7 @@ use AliEn::MSS;
 
 use strict;
 
-sub mkdir {
+sub mkdir { 
   my $self   = shift;
   my (@args) = @_;
   my @cmd    = ("mkdir", "-p", @args);

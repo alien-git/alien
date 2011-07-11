@@ -1,6 +1,8 @@
 package AliEn::X509;
 
 use strict;
+use warnings;
+use AliEn::Config;
 use AliEn::Logger::LogObject;
 use vars qw (@ISA $DEBUG);
 
@@ -45,14 +47,14 @@ sub getSubject {
     return;
   }
 
-  my $pid = open(TEMP, "openssl x509 -noout -in $self->{FILENAME} -subject|");
+  my $pid = open(my $TEMP, "-|", "openssl x509 -noout -in $self->{FILENAME} -subject");
 
   if ($pid < 1) {
     print "Could not execute openssl command\n";
   }
   my $temp;
-  $temp = <TEMP>;
-  close(TEMP);
+  $temp = <$TEMP>;
+  close($TEMP);
   !$temp and return;
   chop($temp);
   $temp =~ s/^subject=\s*//;
@@ -78,11 +80,11 @@ sub getRemainingProxyTime {
 
   $self->debug(1, "getRemainingProxyTime called");
 
-  open(FILE, "$ENV{GLOBUS_LOCATION}/bin/grid-proxy-info 2>&1|")
+  open(my $FILE, "-|", "$ENV{GLOBUS_LOCATION}/bin/grid-proxy-info 2>&1")
     or $self->debug(1, "Error doing $ENV{GLOBUS_LOCATION}/bin/proxy-info")
     and return 0;
-  my @data = <FILE>;
-  close FILE;
+  my @data = <$FILE>;
+  close $FILE;
 
   $self->debug(1, join " ", @data);
   @data = grep (s/^timeleft\s*:\s*(\S+)\s+.*$/$1/s, @data);
@@ -124,11 +126,11 @@ sub createGridmap {
   my $gridmap = "$dir/gridmap";
   $self->debug(1, "Creating the gridmap file $gridmap with \n\t\"$subject\" " . getpwuid($<));
 
-  open(FILE, ">$gridmap")
+  open(my $FILE, ">","$gridmap")
     or $self->info("Error opening $gridmap")
     and return;
-  print FILE "\"$subject\" " . getpwuid($<) . "\n";
-  close FILE;
+  print $FILE "\"$subject\" " . getpwuid($<) . "\n";
+  close $FILE;
   return $gridmap;
 }
 

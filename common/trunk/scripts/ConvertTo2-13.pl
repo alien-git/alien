@@ -43,13 +43,13 @@ sub populatePFNS {
     $s =~ s/^se_// or next;
     $s =~ s/_/::/ or next;
 
-    my $seNumber=$self->{LFN_DB}->queryColumn("select seNumber from SE where se='$s'");
-    print "Doing the database $s ($seNUmber)\n";
+    my $seNumber=$db->{LFN_DB}->queryColumn("select seNumber from SE where se='$s'");
+    print "Doing the database $s ($seNumber)\n";
     for (my $guid=0; $guid<=$maxguid; $guid++){
       my $g="alien_system.G${guid}";
 
-      $lfndb->do("insert into ${g}_PFN g (pfn, guidId, seNumber) select pfn,guidId, $seNumber from $g g, $dbName.FILES f where f.guid=g.guid");
-      $lfndb->do("update $g g set seStringList=concat(seStringList,'$seNumber,')");
+      $seNumber->do("insert into ${g}_PFN g (pfn, guidId, seNumber) select pfn,guidId, $seNumber from $g g, $dbName.FILES f where f.guid=g.guid");
+      $seNumber->do("update $g g set seStringList=concat(seStringList,'$seNumber,')");
     }
 
   }
@@ -166,7 +166,7 @@ sub splitGUIDTable {
 }
 
 sub grantPersmissions{
-  my $db=shicft;
+  my $db=shift;
   my $users=$db->{LFN_DB}->queryColumn("select username from ADMIN.TOKENS");
 
   foreach my $user (@$users){

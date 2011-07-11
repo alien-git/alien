@@ -6,7 +6,7 @@ $| = 1;
 select(STDOUT);
 $| = 1;
 use vars qw(@ISA $ERROR_NO $ERROR_MSG $DEBUG_LEVEL);
-use AliEn::MSS::file;
+
 
 use Fcntl;
 
@@ -39,12 +39,12 @@ sub new {
 
   # Let's initialize
   if ($self->{logagent}) {
-    $proto->_initializeAgent($self) or return;
+	$proto->_initializeAgent($self) or return;
   } else {
-    $proto->_initializeDispatch($self) or return;
+	$proto->_initializeDispatch($self) or return;
   }
   if ($self->{logfile}) {
-    $self->redirect($self->{logfile}) or return;
+	$self->redirect($self->{logfile}) or return;
   }
   open SAVEOUT,  ">&STDOUT";
   open SAVEOUT2, ">&STDERR";
@@ -65,7 +65,7 @@ sub _initializeAgent {
   use Log::Agent;
   require AliEn::Logger::LogAgentDriverAliEn;
   logconfig(-driver => AliEn::Logger::LogAgentDriverAliEn->make())
-    ;    # simplest, uses default driver bless($self, (ref($proto) || $proto));
+	;    # simplest, uses default driver bless($self, (ref($proto) || $proto));
 
   bless($self, (ref($proto) || $proto));
   return 1;
@@ -79,29 +79,23 @@ sub _initializeDispatch {
   require Log::Dispatch::Screen;
 
   #  require Log::Dispatch::File;
-  require AliEn::Logger::SoapLog;
+
   require AliEn::Logger::Local;
   require AliEn::Logger::Error;
   @ISA  = qw(Log::Dispatch);
   $self = $proto->SUPER::new();
 
   foreach (keys %$options) {
-    $self->{$_} = $options->{$_};
+	$self->{$_} = $options->{$_};
   }
 
-  #  my $soapObj = AliEn::Logger::SoapLog->new(
-  #					    name      => 'Remote',
-  #					    min_level => 'critical'
-  #					   );
-  #  ($soapObj) or return;
-  #
-  #  $self->add($soapObj);
   $self->add(
-    AliEn::Logger::Local->new(
-      name      => 'Local',
-      min_level => 'debug'
-    )
-  ) or return;
+	AliEn::Logger::Local->new(
+	  name      => 'Local',
+	  min_level => 'debug'
+	)
+	)
+	or return;
 
   return 1;
 }
@@ -115,55 +109,55 @@ sub redirect {
   my $file = shift;
   if ($file) {
 
-    #Redirecting to a file
-    my $dir = $self->{logfile} = $file;
-    $dir =~ s/\/[^\/]*$//;
-    if (!-d $dir) {
-      AliEn::MSS::file::mkdir($self, $dir)
-        and print "Error creating the directory $dir\n"
-        and return;
-    }
-    if ($self->{logagent}) {
-      $self->_initializeAgentRotate() or return;
-    } else {
-      $self->_initializeDispatchRotate() or return;
-    }
-    if (!sysopen STDOUT, "$self->{logfile}", O_SYNC | O_APPEND | O_WRONLY | O_NONBLOCK | O_CREAT) {
+	#Redirecting to a file
+	my $dir = $self->{logfile} = $file;
+	$dir =~ s/\/[^\/]*$//;
+	if (!-d $dir) {
+	  system("mkdir", "-p", $dir)
+		and print "Error creating the directory $dir\n"
+		and return;
+	}
+	if ($self->{logagent}) {
+	  $self->_initializeAgentRotate() or return;
+	} else {
+	  $self->_initializeDispatchRotate() or return;
+	}
+	if (!sysopen STDOUT, "$self->{logfile}", O_SYNC | O_APPEND | O_WRONLY | O_NONBLOCK | O_CREAT) {
 
-      #      open STDOUT, ">&SAVEOUT";
-      die "stdout $self->{logfile} not opened!!";
-    }
-    if (!open(STDERR, ">&STDOUT")) {
+	  #      open STDOUT, ">&SAVEOUT";
+	  die "stdout $self->{logfile} not opened!!";
+	}
+	if (!open(STDERR, ">&STDOUT")) {
 
-      #      open STDOUT, ">&SAVEOUT";
-      #      open STDERR, ">&SAVEOUT2";
-      print STDERR "Could not open stderr file\n";
-      die;
-    }
-    $self->{logfile_size} = -1;
+	  #      open STDOUT, ">&SAVEOUT";
+	  #      open STDERR, ">&SAVEOUT2";
+	  print STDERR "Could not open stderr file\n";
+	  die;
+	}
+	$self->{logfile_size} = -1;
   } else {
-    $self->{logfile} = "";
+	$self->{logfile} = "";
 
-    #Redirecting to the original STDOUT
-    open STDOUT, ">&SAVEOUT";
-    open STDERR, ">&SAVEOUT2";
-    if ($self->{logagent}) {
-      require Log::Agent::Rotate;
-      require Log::Agent::Driver::File;
-      require Log::Agent::Driver::Default;
+	#Redirecting to the original STDOUT
+	open STDOUT, ">&SAVEOUT";
+	open STDERR, ">&SAVEOUT2";
+	if ($self->{logagent}) {
+	  require Log::Agent::Rotate;
+	  require Log::Agent::Driver::File;
+	  require Log::Agent::Driver::Default;
 
-      my $driver = Log::Agent::Driver::Default->make();
-      Log::Agent::logconfig(-driver => $driver);
+	  my $driver = Log::Agent::Driver::Default->make();
+	  Log::Agent::logconfig(-driver => $driver);
 
-    } else {
-      $self->remove('Local');
-      $self->add(
-        AliEn::Logger::Local->new(
-          name      => 'Local',
-          min_level => 'debug'
-        )
-      );
-    }
+	} else {
+	  $self->remove('Local');
+	  $self->add(
+		AliEn::Logger::Local->new(
+		  name      => 'Local',
+		  min_level => 'debug'
+		)
+	  );
+	}
   }
   return 1;
 }
@@ -186,18 +180,18 @@ sub _initializeAgentRotate {
   require Log::Agent::Driver::File;
 
   my $rotate_dflt = Log::Agent::Rotate->make(
-    -backlog  => 7,
-    -unzipped => 2,
-    -is_alone => 0,
-    -max_size => 1000000,
+	-backlog  => 7,
+	-unzipped => 2,
+	-is_alone => 0,
+	-max_size => 1000000,
   );
 
   my $driver = Log::Agent::Driver::File->make(
-    -channels => {
-      'error'  => "$self->{logfile}_err",
-      'output' => [ "$self->{logfile}", $rotate_dflt ],
-    },
-    -stampfmt => "none",
+	-channels => {
+	  'error'  => "$self->{logfile}_err",
+	  'output' => [ "$self->{logfile}", $rotate_dflt ],
+	},
+	-stampfmt => "none",
   );
   Log::Agent::logconfig(-driver => $driver);
   return 1;
@@ -208,22 +202,16 @@ sub _initializeDispatchRotate {
   require Log::Dispatch::FileRotate;
   $self->remove('Local');
   $self->add(
-    Log::Dispatch::FileRotate->new(
-      name      => 'Local',
-      min_level => 'debug',
-      filename  => $self->{logfile},
-      mode      => 'append',
-      size      => 1000000,
-      max       => 6,
-    )
+	Log::Dispatch::FileRotate->new(
+	  name      => 'Local',
+	  min_level => 'debug',
+	  filename  => $self->{logfile},
+	  mode      => 'append',
+	  size      => 1000000,
+	  max       => 6,
+	)
   );
   return 1;
-}
-
-sub removeSOAPLogger {
-  my $self = shift;
-
-  #  $self->remove('Remote');
 }
 
 sub setMinimum {
@@ -231,8 +219,8 @@ sub setMinimum {
   my $level = shift;
 
   if ($level and defined $INFO_LEVELS->{$level}) {
-    $self->{LEVEL}     = $INFO_LEVELS->{$level};
-    $self->{LEVELNAME} = $level;
+	$self->{LEVEL}     = $INFO_LEVELS->{$level};
+	$self->{LEVELNAME} = $level;
   }
 
   return 1;
@@ -246,8 +234,8 @@ sub infoToSTDERR {
   $self->remove('Error');
 
   my $soapObj = AliEn::Logger::Error->new(
-    name      => 'Error',
-    min_level => 'info'
+	name      => 'Error',
+	min_level => 'info'
   );
   ($soapObj) or return;
 
@@ -263,8 +251,8 @@ sub debugToSTDERR {
   $self->remove('Error');
 
   my $soapObj = AliEn::Logger::Error->new(
-    name      => 'Error',
-    min_level => 'debug'
+	name      => 'Error',
+	min_level => 'debug'
   );
   ($soapObj) or return;
 
@@ -299,33 +287,31 @@ sub debugOn() {
   $modules[0] and $modules[0] =~ /,/ and @modules = split(",", $modules[0]);
   $DEBUG_LEVEL = $level;
   foreach my $m (@modules) {
-    foreach my $object (grep (/^AliEn::${m}(::)?/, keys %{$self->{LOG_OBJECTS}})) {
-      $self->{LOG_OBJECTS}->{$object} = $level;
-      eval "\$$object\::DEBUG=$level";
-      $@ and print "ERROR $@\n";
-    }
+	foreach my $object (grep (/^AliEn::${m}(::)?/, keys %{$self->{LOG_OBJECTS}})) {
+	  $self->{LOG_OBJECTS}->{$object} = $level;
+	  eval "\$$object\::DEBUG=$level";
+	  $@ and print "ERROR $@\n";
+	}
   }
   if (!@modules) {
-    foreach my $object (keys %{$self->{LOG_OBJECTS}}) {
-      $self->{LOG_OBJECTS}->{$object} = $level;
-      eval "\$$object\::DEBUG=$level";
-    }
+	foreach my $object (keys %{$self->{LOG_OBJECTS}}) {
+	  $self->{LOG_OBJECTS}->{$object} = $level;
+	  eval "\$$object\::DEBUG=$level";
+	}
   }
   foreach my $key (keys %external) {
-    if (grep (/^$key$/, @modules)) {
-      $self->info("Logger", "Debugging $key");
-      my $module = $external{$key};
-      $module =~ s/^\$(.*)::[^:]*$/$1/;
-      eval "require $module";
-      if ($@) {
-        $self->info("Logger", "Error requiring $module: $@");
-      } else {
-        eval "$external{$key}=4";
-      }
-    }
+	if (grep (/^$key$/, @modules)) {
+	  $self->info("Logger", "Debugging $key");
+	  my $module = $external{$key};
+	  $module =~ s/^\$(.*)::[^:]*$/$1/;
+	  eval "require $module";
+	  if ($@) {
+		$self->info("Logger", "Error requiring $module: $@");
+	  } else {
+		eval "$external{$key}=4";
+	  }
+	}
   }
-
-  grep (/^SOAP::Lite$/, @modules) and SOAP::Lite->import('trace');
 
   $self->setMinimum("debug");
 }
@@ -349,12 +335,12 @@ sub debugOff {
   $DEBUG_LEVEL = 0;
 
   foreach (keys %external) {
-    eval "$external{$_}=0";
+	eval "$external{$_}=0";
   }
 
   foreach my $object (keys %{$self->{LOG_OBJECTS}}) {
-    $self->{LOG_OBJECTS}->{$object} = 0;
-    eval "\$$object\::DEBUG=0";
+	$self->{LOG_OBJECTS}->{$object} = 0;
+	eval "\$$object\::DEBUG=0";
   }
 
   $self->setMinimum("info");
@@ -453,59 +439,59 @@ sub display {
 
   if ($errno) {
 
-    #    $self->set_error_msg( $msg);
-    $ERROR_NO  = $errno;
-    $ERROR_MSG = $msg;
-    $ERROR_MSG =~ s/^\s*error\s*:?//i;
-    chomp($ERROR_MSG);
+	#    $self->set_error_msg( $msg);
+	$ERROR_NO  = $errno;
+	$ERROR_MSG = $msg;
+	$ERROR_MSG =~ s/^\s*error\s*:?//i;
+	chomp($ERROR_MSG);
   }
 
   $INFO_LEVELS->{$level} < $self->{LEVEL} and return 1;
 
   if ($format) {
-    my $date = localtime;
-    $date =~ s/^\S+\s((\S+\s+){3}).*$/$1/;
-    $msg = "$date $level\t$msg";
+	my $date = localtime;
+	$date =~ s/^\S+\s((\S+\s+){3}).*$/$1/;
+	$msg = "$date $level\t$msg";
   }
   if ($self->{KEEP_MESSAGES}) {
-    $format and $msg .= "\n";
-    push @{$self->{MESSAGES}}, $msg;
-    return 1;
+	$format and $msg .= "\n";
+	push @{$self->{MESSAGES}}, $msg;
+	return 1;
   }
   if ($self->{logagent}) {
-    $msg =~ s{\%}{\%\%}g;
-    if ($INFO_LEVELS->{$level} eq $INFO_LEVELS->{raw}) {
-      Log::Agent::logwrite('raw', 'notice', $msg);
-    } elsif ($INFO_LEVELS->{$level} > $INFO_LEVELS->{notice}) {
-      Log::Agent::logerr($msg);
+	$msg =~ s{\%}{\%\%}g;
+	if ($INFO_LEVELS->{$level} eq $INFO_LEVELS->{raw}) {
+	  Log::Agent::logwrite('raw', 'notice', $msg);
+	} elsif ($INFO_LEVELS->{$level} > $INFO_LEVELS->{notice}) {
+	  Log::Agent::logerr($msg);
 
-      #      and Log::Agent::logwarn($msg);
-    } else {
-      Log::Agent::logsay($msg);
-    }
+	  #      and Log::Agent::logwarn($msg);
+	} else {
+	  Log::Agent::logsay($msg);
+	}
   } else {
 
-    my $d = "SUPER::$level";
-    $self->$d("$msg\n");
+	my $d = "SUPER::$level";
+	$self->$d("$msg\n");
   }
   if ($self->{logfile}) {
-    my $size = -s $self->{logfile};
-    if ($size < $self->{logfile_size}) {
-      if (!sysopen STDOUT, "$self->{logfile}", O_SYNC | O_APPEND | O_WRONLY | O_NONBLOCK | O_CREAT) {
+	my $size = -s $self->{logfile};
+	if ($size < $self->{logfile_size}) {
+	  if (!sysopen STDOUT, "$self->{logfile}", O_SYNC | O_APPEND | O_WRONLY | O_NONBLOCK | O_CREAT) {
 
-        #	open STDOUT, ">&SAVEOUT";
-        die "stdout in $self->{logfile} not opened!!";
-      }
+		#	open STDOUT, ">&SAVEOUT";
+		die "stdout in $self->{logfile} not opened!!";
+	  }
 
-      if (!open(STDERR, ">&STDOUT")) {
+	  if (!open(STDERR, ">&STDOUT")) {
 
-        #	open STDOUT, ">&SAVEOUT";
-        #	open STDERR, ">&SAVEOUT2";
-        #	print STDERR "Could not open stderr file\n";
-        die "Could not open stderr file";
-      }
-    }
-    $self->{logfile_size} = $size;
+		#	open STDOUT, ">&SAVEOUT";
+		#	open STDERR, ">&SAVEOUT2";
+		#	print STDERR "Could not open stderr file\n";
+		die "Could not open stderr file";
+	  }
+	}
+	$self->{logfile_size} = $size;
   }
   return 1;
 }

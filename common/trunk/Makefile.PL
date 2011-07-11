@@ -18,15 +18,12 @@ WriteMakefile(
 				      'scripts/Alien.sh',
 				      'scripts/ApiConfig.pl',
 				      'scripts/AlienServices.sh',
-				      'scripts/Authen.pl',
 				      'scripts/CreateMan.sh',
 				      'scripts/Prompt.pl',
 				      'scripts/CMreport.pl',
-				      'scripts/ProxyServer.pl',
 				      'scripts/Command.pl',
 				      'scripts/GetConfigVar.pl',
 				      'scripts/CE.pl',
-				      'scripts/ProcessMonitor.pl',
 				      'scripts/Service.pl',
 				      'scripts/Update.pl',
 				      'scripts/alien',
@@ -45,7 +42,6 @@ WriteMakefile(
 				      'scripts/makewhatis',
 				      'scripts/rotatelog.pl',
 				      'scripts/Validate.pl',
-				      'scripts/gContainer.pl',
                                       'scripts/pingService.pl',
                                       'scripts/ServiceStatus.sh']
 	     );

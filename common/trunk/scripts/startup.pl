@@ -1,9 +1,9 @@
 use strict;
-use Apache::SOAP;
+
 use AliEn::Logger;
 use AliEn::Database::TaskQueue;
 #use Test::ServerDemo;
-use Test::World;
+
 
 #my @services=("Broker::Job","Broker::Transfer",
 #);
