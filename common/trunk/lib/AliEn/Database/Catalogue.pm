@@ -693,10 +693,6 @@ sub setAllReplicatedData {
   return 1;
 }
 
-sub reconnect {
-  my $self = shift;
-  $self->{LFN_DB}->reconnect(@_);
-}
 
 sub setSEio {
   my $self          = shift;

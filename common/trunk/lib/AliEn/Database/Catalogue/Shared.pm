@@ -20,10 +20,6 @@ sub _pingReconnect {
   return 1;
 }
 
-sub reconnect {
-  return 1;
-}
-
 sub initialize {
   my $self = shift;
   $self->{binary2string} = $self->binary2string("guid");
