@@ -430,7 +430,7 @@ sub f_showStructure {
   my $info;
   if ($options =~ /g/) {
     if ($dir) {
-      my $table = $self->{DATABASE}->getIndexHostFromGUID($dir);
+      my $table = $self->{DATABASE}->getIndexTableFromGUID($dir);
       if ($info) {
         $info->{guidTime} =
           $self->{DATABASE}->queryValue("select string2date(?)", undef, {bind_values => [$dir]});
@@ -1011,7 +1011,7 @@ sub cleanupGUIDCatalogue {
   my $physicalDelete = 0;
 
   my $guiddb = $self->{DATABASE};
-  my $dbinfo = $self->{DATABASE}->getIndexHostFromGUID($file->{guid});
+  my $dbinfo = $self->{DATABASE}->getIndexTableFromGUID($file->{guid});
   $dbinfo or return;
 
   $guiddb or $self->info("Error reconnecting") and return;

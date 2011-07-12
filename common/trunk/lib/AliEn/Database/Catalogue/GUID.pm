@@ -257,9 +257,7 @@ sub _sortGUIDbyTable {
     my $guid = $entry->{guid};
     $guid or $self->info("Error missing guid in insertGUID") and return;
     $self->debug(2, "Inserting a new guid in the catalogue");
-    my $table = $self->getIndexHostFromGUID($guid);
-    
-    defined $table or return;
+    my $table = $self->getIndexTableFromGUID($guid)  or return;
     
     my @list = $entry;
     $entries->{$table}
@@ -338,6 +336,7 @@ sub insertGUID {
   my $options = shift;
   @_ or $self->info("Error not enough arguments in insertGUID") and return;
   
+
   #First let's split the entries according to where they are supposed to be
   my $entries = $self->_sortGUIDbyTable(@_) or return;
   
@@ -349,7 +348,8 @@ sub insertGUID {
   $self->debug(1, "Ready to do the inserts");
   my $multiInsertOpt = {noquotes => 1};
   $options =~ /i/ and $multiInsertOpt->{ignore} = 1;
-  foreach my $table (keys %{$entries->{tables}}) {
+  foreach my $table (keys %{$entries}) {
+  	
     my @entries = @{$entries->{$table}};
       my ($pfnRef, $guidRef) = $self->_prepareEntries(@entries)
         or return;
@@ -409,7 +409,7 @@ sub getAllInfoFromGUID {
     . ',binary2string(guid) as guid';
   my $method = $options->{method} || "queryRow";
 
-  my $table= $self->getIndexHostFromGUID($guid) or return;
+  my $table= $self->getIndexTableFromGUID($guid) or return;
   
 
   $self->debug(2, "Looking into the table  $table");
@@ -424,7 +424,7 @@ sub getAllInfoFromGUID {
   $DEBUG and $self->debug(1, "Let's get also the pfn");
   my $extraTable = ", $table g where p.guidId=g.guidId and ";
   my $where      = "guid=string2binary(?)";
-  my @bind       = ($guid, $guid);
+  my @bind       = ($guid);
   if ($info->{guidId}) {
     $extraTable = " where ";
     $where      = " guidId=?";
@@ -440,19 +440,21 @@ sub getAllInfoFromGUID {
   return $info;
 }
 
-sub getIndexHostFromGUID {
+sub getIndexTableFromGUID {
   my $self = shift;
   my $guid = shift || "";
   $self->debug(1, "Let's find the database that holds the guid '$guid'");
   my $query =
     "SELECT tableName from GUIDINDEX where guidTime<string2date(?) or guidTime is null order by guidTime desc ";
   $query = $self->paginate($query, 1, 0);
+  
+  
   my $entry = $self->queryValue($query, undef, {bind_values => [$guid]});
   defined $entry
     or $self->info("Error doing the query for the guid '$guid'")
     and return;
   
-  return $entry;
+  return "G${entry}L";
 }
 
 sub addSEtoGUID {
@@ -472,7 +474,7 @@ sub addSEtoGUID {
   my $table = $options->{table};
   my $db    = $self;
   if (!$table) {
-    $table= $self->getIndexHostFromGUID($guid) or return;
+    $table= $self->getIndexTableFromGUID($guid) or return;
     
   }
   my $update = "concat($column, '$seNumber,')";
@@ -534,7 +536,7 @@ sub removeSEfromGUID {
 sub getListPFN {
   my $self = shift;
   my $guid = shift;
-  my $table = $self->getIndexHostFromGUID($guid) or return;
+  my $table = $self->getIndexTableFromGUID($guid) or return;
   
   
 
@@ -697,7 +699,7 @@ sub moveGUIDs {
   my $options = shift || "";
   $DEBUG and $self->debug(1, "Starting  moveGUIDs, with $guid ");
 
-  my $table = $self->getIndexHostFromGUID($guid) or return;
+  my $table = $self->getIndexTableFromGUID($guid) or return;
   
 
   #Create the new guid table
@@ -887,7 +889,7 @@ sub getLFNfromGUID {
   my $guid    = shift;
   my @lfns;
 
-  my $table=  $self->getIndexHostFromGUID($guid) or return;
+  my $table=  $self->getIndexTableFromGUID($guid) or return;
   
 
   $self->info("And now, let's check which lfn tables we are supposed to use ($table)");
@@ -924,7 +926,7 @@ sub renumberGUIDtable {
 
   
   if (!$table) {
-    $table= $self->getIndexHostFromGUID($guid) or return;
+    $table= $self->getIndexTableFromGUID($guid) or return;
     
   }
   $self->debug(1, "We have to renumber the table $table");

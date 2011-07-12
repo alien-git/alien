@@ -84,14 +84,15 @@ sub createCatalogueTables {
 
 sub getAllExtendedInfoFromLFN {
   my $self = shift;
-
-  my $info = $self->getAllInfoFromLFN({method => "queryRow"}, @_)
-    or return;
+  
+  my $info = $self->getAllInfoFromLFN({method => "queryRow"}, @_);
+  
 
   $info or $self->info("The entry doesn't exist") and return;
-
+  
   my $info2 = $self->getAllInfoFromGUID({pfn => 1}, $info->{guid})
     or return;
+    
   $info->{guidInfo} = $info2;
   return $info;
 }
