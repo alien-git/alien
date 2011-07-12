@@ -37,8 +37,6 @@ attributetype ( AliEnVOConfig:13 NAME 'queueHost' SUP name )
 attributetype ( AliEnVOConfig:14 NAME 'queueDatabase' SUP name )
 attributetype ( AliEnVOConfig:15 NAME 'queueDriver' SUP name )
 attributetype ( AliEnVOConfig:16 NAME 'queueDbHost' SUP name )
-attributetype ( AliEnVOConfig:17 NAME 'logPort' SUP name )
-attributetype ( AliEnVOConfig:18 NAME 'logHost' SUP name )
 attributetype ( AliEnVOConfig:19 NAME 'userDir' SUP name )
 attributetype ( AliEnVOConfig:20 NAME 'clusterMonitorUser' SUP name )
 attributetype ( AliEnVOConfig:21 NAME 'isPort' SUP name )
@@ -114,7 +112,7 @@ objectclass ( AliEnVOConfig  NAME 'AliEnVOConfig'
 	       authenHost $ authenDriver $ authHost $ catalogHost $
 	       catalogPort $ catalogDatabase $ catalogDriver $
 	       queuePort $ queueHost $ queueDatabase $queueDriver $
-	       queueDbHost $ logPort $ logHost $ userDir $ 
+	       queueDbHost $ userDir $ 
 	       isPort $ isDatabase $ isDriver $ isDbHost $ isHost $
 	       clusterMonitorUser $ clustermonitorPort $ 
       	       brokerHost $ brokerPort $ transferManagerAddress $ 

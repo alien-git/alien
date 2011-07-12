@@ -106,12 +106,13 @@ if (! $<) {
 }
 
 print "Creating my.cnf\n";
-open (FILE, "> mysql/my.cnf") or print "Error opening my.cnf\n" and exit(-2);
-print FILE "
+my $FILE;
+open ($FILE, ">","mysql/my.cnf") or print "Error opening my.cnf\n" and exit(-2);
+print $FILE "
 [mysqld]
 set-variable    = max_connections=2000
 ";
-close FILE;
+close $FILE;
 my $configDir="/etc/aliend";
 ($<) and $configDir="$ENV{ALIEN_HOME}/etc/aliend";
 
@@ -127,10 +128,10 @@ if (-e "$configDir/mysqld.conf") {
     or print "failed\nError renaming the file\n$?  $?\n" and exit(-2);
 
   print "ok\nReading old $configDir/mysqld.conf...\t\t\t\t";
-  open (FILE, "<$configDir/mysqld.conf.old") 
+  open ($FILE, "<","$configDir/mysqld.conf.old") 
     or print "failed\nError opening the file $? $!\n" and exit(-2);
-  my @file=<FILE>;
-  close FILE;
+  my @file=<$FILE>;
+  close $FILE;
   my @orgs=grep (/ALIEN_ORGANISATIONS=/, @file);
   my $newline=join("", @orgs);
   @file = grep (! /ALIEN_ORGANISATIONS=/, @file);
@@ -138,19 +139,19 @@ if (-e "$configDir/mysqld.conf") {
   $newline=~ s/([^=])\"/$1 $orgName:$portNumber\"/;
   
   print "ok\nWriting the new configuration...\t\t\t\t";
-  open (FILE, ">$configDir/mysqld.conf") 
+  open ($FILE, ">","$configDir/mysqld.conf") 
     or print "Error opening the file $? $!\n" and exit(-2);
-  print FILE "@file\n$newline";
-  close FILE;
+  print $FILE "@file\n$newline";
+  close $FILE;
   
 } else {
   print "ok\nCreating the file $configDir/mysqld.conf...\t\t\t";
-  open (FILE, ">$configDir/mysqld.conf") 
+  open ($FILE, ">","$configDir/mysqld.conf") 
     or print "Error opening the file $? $!\n" and exit(-2);
 
-  print FILE "#AliEn Organisations\n
+  print $FILE "#AliEn Organisations\n
 ALIEN_ORGANISATIONS=\"$orgName:$portNumber\"\n";
-  close FILE;
+  close $FILE;
 }
 
 print "ok\nStarting the daemon...\n";
@@ -209,8 +210,8 @@ sleep(10);
 
 print "update mysql.user set password=PASSWORD('$passwd') where User='root'\n\n";
 
-open(FILE, "| $ENV{ALIEN_ROOT}/bin/mysql  -u root -S $socket") or print "Error conecting to mysql \n" and exit(-2);
-print FILE "update mysql.user set password=PASSWORD('$passwd') where User='root';
+open($FILE, "| $ENV{ALIEN_ROOT}/bin/mysql  -u root -S $socket") or print "Error conecting to mysql \n" and exit(-2);
+print $FILE "update mysql.user set password=PASSWORD('$passwd') where User='root';
 delete from mysql.user where user !='root';
 GRANT ALL PRIVILEGES ON *.* TO admin IDENTIFIED BY '$passwd' WITH GRANT OPTION;
 GRANT ALL PRIVILEGES ON *.* TO admin\@localhost IDENTIFIED BY '$passwd' WITH GRANT OPTION;
@@ -220,7 +221,7 @@ create database if not exists processes;
 create database if not exists transfers;
 create database if not exists INFORMATIONSERVICE;
 create database if not exists ADMIN;";
-close FILE or print "Error updating the password!\n" and exit(-2);
+close $FILE or print "Error updating the password!\n" and exit(-2);
 print "DONE!!\n";
 
 print "Connecting to mysql on $hostName:$portNumber...\t\t";
@@ -240,9 +241,9 @@ my $db=AliEn::Database::Catalogue->new({USE_PROXY=>0,
 if (! $db) {
   print "We couldn't connect to the database\n";
   print "Let's try as root\n";
-  open (FILE, "| $ENV{ALIEN_ROOT}/bin/mysql  -p$passwd -u root -S $socket") or print "Error conecting to mysql \n" and exit(-2);
-  print FILE "select * from mysql.user;";
-  close FILE;
+  open ($FILE, "| $ENV{ALIEN_ROOT}/bin/mysql  -p$passwd -u root -S $socket") or print "Error conecting to mysql \n" and exit(-2);
+  print $FILE "select * from mysql.user;";
+  close $FILE;
   exit(-2);
 }
 
@@ -282,11 +283,11 @@ my @q=(
 my $subject="";
   my $file="$ENV{ALIEN_HOME}/globus/usercert.pem";
   if (-f $file) {
-    if (open( TEMP, "openssl x509 -noout -in $file -subject|")){
-      $subject=<TEMP>;
+    if (open(my  $TEMP, "openssl x509 -noout -in $file -subject|")){
+      $subject=<$TEMP>;
       $subject=~ s/^subject=\s+//;
       chomp $subject;
-      close(TEMP);
+      close($TEMP);
     }
   }
 
@@ -373,9 +374,9 @@ sub getDefaultPort{
   my $confFile="/etc/aliend/mysqld.conf";
   ($<) and $confFile="$ENV{ALIEN_HOME}$confFile";
   ( -e "$confFile") or  return $default;
-  open (FILE, "<$confFile") or return $default;
-  my @list=<FILE>;
-  close (FILE);
+  open (my $FILE, "<", "$confFile") or return $default;
+  my @list=<$FILE>;
+  close ($FILE);
   @list=grep (/ALIEN_ORGANISATIONS/, @list);
 
   my $line=join ("", @list);
