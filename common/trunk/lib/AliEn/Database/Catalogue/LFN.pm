@@ -981,14 +981,11 @@ sub moveFolder {
   my $targetParent = $target;
   $targetParent =~ s{/[^/]+/?$}{/} or $targetParent = "";
   my $entries = $dbTarget->query(
-    "select * from 
-                               (SELECT lfn, entryId from $tableName_target where dir=-1 or lfn='$target' or lfn='$targetParent') dd 
-                               where lfn like '$target\%/' or lfn='$target' or lfn='$targetParent'", undef,
-    {bind_values => []}
-  );
+    "select * from
+    (SELECT lfn, entryId, dir from $tableName_target where dir=-1 or lfn='$target' or lfn='$targetParent') dd 
+    where lfn like '$target\%/' or lfn='$target' or lfn='$targetParent' order by length(lfn) asc", undef,{bind_values => []});
   foreach my $entry (@$entries) {
-    my $update = "update $tableName_target set dir=$entry->{entryId} 
-                where dir=-1 and " . $self->regexp("lfn", "^$entry->{lfn}\[^/]+/?\$");
+    my $update = "update $tableName_target set dir=$entry->{entryId} where " . $self->regexp("lfn", "^$entry->{lfn}\[^/]+/?\$");
     $dbTarget->do($update);
   }
   $dbSource->do("DELETE FROM $tableName_source WHERE lfn REGEXP ?", {bind_values => [ "^" . $lfnOnTable_source ]})
