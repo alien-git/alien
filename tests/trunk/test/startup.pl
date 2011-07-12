@@ -1,5 +1,5 @@
 use strict;
-use Apache::SOAP;
+
 use AliEn::Logger;
 use AliEn::Database::TaskQueue;
 

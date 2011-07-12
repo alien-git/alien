@@ -45,7 +45,7 @@ system("rm", "$prepend/etc/aliend/mysqld.conf");
 sleep 3;
 
 
-open (FILE, "|$ENV{ALIEN_ROOT}/bin/alien -x $ENV{ALIEN_ROOT}/scripts/CreateOrgDB.pl");
+open (FILE, "|-","$ENV{ALIEN_ROOT}/bin/alien -x $ENV{ALIEN_ROOT}/scripts/CreateOrgDB.pl");
 
 my $exp = Expect->exp_init(\*FILE);
 $exp->raw_pty(1); 
@@ -73,20 +73,20 @@ my $portNumber=$ENV{ALIEN_MYSQL_PORT} || "3307";
 my $mysqlPasswd="pass";
 
 my $mysql="mysql";
-open SAVEOUT,  ">&STDOUT";
+open my $SAVEOUT,  ">&", STDOUT;
 my $file="/tmp/$$";
-open STDOUT, ">$file" or print "Error opening $file\n" and exit (-1);
+open STDOUT, ">", "$file" or print "Error opening $file\n" and exit (-1);
 
-open (MYSQL, "| $mysql -h $hostName -P $portNumber -u admin --password='$mysqlPasswd'") 
+open (my $MYSQL, "|-", "$mysql -h $hostName -P $portNumber -u admin --password='$mysqlPasswd'") 
     or print "Error connecting to mysql in  $hostName -P $portNumber\n" and exit(-2);
 
-print MYSQL "show databases;\n";
+print $MYSQL "show databases;\n";
 
 close STDOUT;
-open STDOUT, ">&SAVEOUT";
+open STDOUT, ">&", $SAVEOUT;
 
 
-close MYSQL or print "Error closing connection to mysql in  $hostName -P $portNumber\n" and exit(-2);
+close $MYSQL or print "Error closing connection to mysql in  $hostName -P $portNumber\n" and exit(-2);
 
 
 $exists=`grep alien_system $file`;

@@ -235,6 +235,7 @@ RUN_TEST()
     printf "(%-4s seconds)" $TIME
     grep "Use of uninitialized value" $OUTPUT  && DONE=22
     grep "masks earlier declaration in same scope" $OUTPUT  && DONE=22
+    grep "used only once: possible typo " $OUTPUT && DONE=22
     grep "Useless use of " $OUTPUT  && DONE=22
     grep "not ok " $OUTPUT && DONE=22
             

@@ -2,7 +2,7 @@
 
 use strict;
 use Test;
-use AliEn::EGEE::WSRF;
+
 use AliEn::SOAP::WSRF;
 use XML::Simple;
 

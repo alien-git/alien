@@ -5,8 +5,9 @@ my $file="/tmp/unini.$$";
 my $d;
 
 print "Redirecting the output to $file\n";
-open SAVEOUT,  ">&STDOUT";
-open SAVEERR, ">&STDERR";
+
+open my $SAVEOUT,  ">&", STDOUT;
+open my $SAVEERR, ">&", STDERR;
 
 open (STDOUT, ">$file") or print "Error opening $file\n" and exit(-2);
 open STDERR, ">&STDOUT";
@@ -15,8 +16,8 @@ print "Checking if there are messages\n";
 print $d;
 print "DONE\n";
 
-open STDOUT, ">&SAVEOUT";
-open STDERR, ">&SAVEERR";
+open STDOUT, ">&", $SAVEOUT;
+open STDERR, ">&", $SAVEERR;
 
 print "done\n";
 
