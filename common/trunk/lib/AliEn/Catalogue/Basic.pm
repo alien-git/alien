@@ -43,11 +43,10 @@ sub checkPermissions {
 
   $self->selectTable($file) or return;
 
-  my $realfile = $self->getVOPath($file);
-
+  
   my $isfile   = 0;
   my $basename = ".";
-  my $temp     = $realfile;
+  my $temp     = $file;
   $temp =~ s{(.)/$}{$1};
 
   my $parentdir = $self->f_dirname($temp);
@@ -56,12 +55,12 @@ sub checkPermissions {
   $return_hash and $dbOptions = {};
 
   my $entries = $self->{DATABASE}->getAllInfoFromLFN($dbOptions, $temp, "$temp/", $parentdir)
-    or $self->{LOGGER}->info("Basic", "Error looking for $realfile")
+    or $self->{LOGGER}->info("Basic", "Error looking for $file")
     and return;
   my @entries = @{$entries};
   $DEBUG and $self->debug(1, "There are $#entries +1 with that pattern");
   my $entry = shift @entries;
-  $entry or $self->{LOGGER}->info("Basic", "Entry $realfile does not exist in the catalogue") and return;
+  $entry or $self->{LOGGER}->info("Basic", "Entry $file does not exist in the catalogue") and return;
 
   foreach my $test (@entries) {
     length($test->{lfn}) > length($entry->{lfn}) and $entry = $test;
@@ -138,60 +137,13 @@ sub selectTable {
     return $self->selectTable($path);
   }
 
-  my $real_path = $self->getVOPath($path);
-  return $self->{DATABASE}->selectTable($real_path);
+  
+  return $self->{DATABASE}->selectTable($path);
 }
 
-#
-# Given the path, returns the index of the table
-#
-#sub GetDirIdx {
-#  my $self = shift;
-#  my $path = shift;
-#  $path or return;
-#  if (@_) {
-#    printf STDERR "Too many arguments in f_dir!!\n";
-#    return;
-#  }
-#
-#  $path = $self->getVOPath($path);
-#
-#  return $self->{DATABASE}->getFieldFromD0($path,"dir");
-#}
-
-#sub f_dir {
-#  return shift->GetDirIdx(@_);
-#}
-
-#sub f_dirs {
-# # my $self=shift;
-#  @_ or return;
-#  $DEBUG and $self->debug(1, "Getting the paths of @_");#
-#
-#  my @list=();
-#  foreach my $e (@_) {
-#    push @list, "path='$e'";#".$self->getVOPath($e)."'";
-#  }
-#  my $query="SELECT dir,path from D0 where ". join(" or ", @list);
-#
-#  $DEBUG and $self->debug(1, "Doing query $query");
-#  return $self->{DATABASE}->query($query);
-#}
 
 sub f_complete_path {
   return shift->GetAbsolutePath(@_);
-}
-
-sub getVOPath {
-  my ($self, $path) = @_;
-
-  $path = $self->f_complete_path($path);
-
-  $DEBUG and $self->debug(3, "Checking if we have something mounted ($self->{MOUNT} and $path");
-  $self->{MOUNT} and $path =~ s/^$self->{MOUNT}//;
-  $DEBUG and $self->debug(1, "VOPath is $path");
-
-  return $path;
 }
 
 sub GetHomeDirectory {

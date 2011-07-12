@@ -703,13 +703,13 @@ sub f_rmdir {
   ($path and $path eq ".")  and $message = "Cannot remove current directory";
   ($path and $path eq "..") and $message = "Cannot remove parent directory.";
   $message
-    and $self->{LOGGER}->error("File", "Catalogue", "Error $message\nUsage: rmdir [-r] <directory>")
+    and $self->info("Error $message\nUsage: rmdir [-r] <directory>", 1)
     and return;
 
   #Check if path specifed is a file
   $path = $self->GetAbsolutePath($path, 1);
   unless ($self->isDirectory($path)) {
-    $self->{LOGGER}->error("File", "ERROR: $path is not a directory");
+    $self->info("ERROR: $path is not a directory", 1);
     return;
   }
 
@@ -717,11 +717,11 @@ sub f_rmdir {
   my $parentdir = $self->GetParentDir($path);
   my $filehash = $self->checkPermissions("w", $parentdir, 0, 1);
   $filehash
-    or $self->{LOGGER}->error("File", "ERROR: checkPermissions failed on $parentdir")
+    or $self->info("ERROR: checkPermissions failed on $parentdir", 1)
     and return;
   $filehash = $self->checkPermissions("w", $path, 0, 1);
   $filehash
-    or $self->{LOGGER}->error("File", "ERROR: checkPermsissions failed on $path")
+    or $self->info("ERROR: checkPermsissions failed on $path", 1)
     and return;
   return $self->{DATABASE}->removeDirectory($path, $parentdir);
 }
