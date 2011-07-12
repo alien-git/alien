@@ -31,31 +31,31 @@ grep (/Your proxy is valid until/i,  @OUTPUT)
 
 print "ok\nUploading the certificate";
 ok(1);
-open SAVEOUT,  ">&STDOUT";
+open my $SAVEOUT,  ">&", STDOUT;
 my $file="/tmp/$$";
-open STDOUT, ">$file" or print "Error opening $file\n" and exit (-1);
-open (FILE, "|$ENV{ALIEN_ROOT}/bin/alien register-cert --user newuser");
+open STDOUT, ">" ,$file or print "Error opening $file\n" and exit (-1);
+open (my $FILE, "|-","$ENV{ALIEN_ROOT}/bin/alien register-cert --user newuser");
 
-print FILE "testPass
+print $FILE "testPass
 ";
 
-my $done=close FILE;
+my $done=close $FILE;
 close STDOUT;
-open STDOUT, ">&SAVEOUT";
+open STDOUT, ">&" ,$SAVEOUT;
 $done  or print "ERROR Doing the command!!" and exit (-2);
 
-open (FILE, "<$file");
-my @FILE=<FILE>;
-close FILE;
+open ($FILE, "<" ,"$file");
+my @FILE=<$FILE>;
+close $FILE;
 system ("rm", "-rf", "$file");
 grep (/FAIL/, @FILE) and print "Error uploading te certificate\n@FILE\n" and exit(-2);
 print "Certificate uploaded and @FILE\n";
 
-open (FILE, "$ENV{ALIEN_ROOT}/bin/alien proxy-destroy|") 
+open ($FILE,"-|", "$ENV{ALIEN_ROOT}/bin/alien proxy-destroy") 
   or print "ERROR OPENING alien proxy-destroy\n" and exit(-1);
 
-@OUTPUT=<FILE>;
-close FILE or print ("Error doing alien proxy-destroy!!") and exit (-1);
+@OUTPUT=<$FILE>;
+close $FILE or print ("Error doing alien proxy-destroy!!") and exit (-1);
 
 setDirectDatabaseConnection();
 

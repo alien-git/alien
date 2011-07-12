@@ -11,17 +11,17 @@ eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
 
 
 {
-open SAVEOUT,  ">&STDOUT";
+open my $SAVEOUT,  ">&", STDOUT;
 my $file="/tmp/$$";
-open STDOUT, ">$file" or print "Error opening $file\n" and exit (-1);
-open (FILE, "|$ENV{ALIEN_ROOT}/bin/alien create-keys --user newuser");
+open STDOUT, ">","$file" or print "Error opening $file\n" and exit (-1);
+open (my $FILE, "|-", "$ENV{ALIEN_ROOT}/bin/alien create-keys --user newuser");
 
-print FILE "testPass
+print $FILE "testPass
 ";
 
-my $done=close FILE;
+my $done=close $FILE;
 close STDOUT;
-open STDOUT, ">&SAVEOUT";
+open STDOUT, ">&", $SAVEOUT;
 $done  or print "ERROR Doing the command!!" ;
 uploadKey() or  exit (-2);
 

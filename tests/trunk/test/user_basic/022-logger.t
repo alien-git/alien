@@ -26,17 +26,17 @@ BEGIN { plan tests => 1 }
 
   my $i=0;
   while ($i<20) {
-    open SAVEOUT,  ">&STDOUT";
-    open SAVEOUT2, ">&STDERR";
+    open my $SAVEOUT,  ">&", STDOUT;
+    open my $SAVEOUT2, ">&", STDERR;
 
     if ( !open STDOUT, ">$file" ) {
-      open STDOUT, ">&SAVEOUT";
+      open STDOUT, ">&", $SAVEOUT;
       print "Error opening the file $file\n$!\n";
       exit(-2);
     }
     if ( !open( STDERR, ">&STDOUT" ) ) {
-      open STDOUT, ">&SAVEOUT";
-      open STDERR, ">&SAVEOUT2";
+      open STDOUT, ">&", $SAVEOUT;
+      open STDERR, ">&", $SAVEOUT2;
       print STDERR "Could not open stderr file\n";
       die;
     }
@@ -48,19 +48,20 @@ BEGIN { plan tests => 1 }
     close STDOUT;
     close STDERR;
 
-    open STDERR, ">&SAVEOUT2";
-    open STDOUT, ">&SAVEOUT";
+    open STDERR, ">&", $SAVEOUT2;
+    open STDOUT, ">&", $SAVEOUT;
     print "It took  $diff seconds to do the call\n";
     if ($diff>60)  {
       print "The call took more than one minute!!\n";
       exit (-2);
     }
-    if ( !open FILE, "<$file" ) {
+    my $FILE;
+    if ( !open $FILE, "<", "$file" ) {
       print "Error reading $file\n$!\n";
       exit (-2);
     } 
-    my @content=<FILE>;
-    close FILE;
+    my @content=<$FILE>;
+    close $FILE;
 #    print "GOT @content\n";
 
     if (grep (/^Error contacting Logger/, @content) ) {
