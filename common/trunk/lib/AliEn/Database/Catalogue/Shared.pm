@@ -23,23 +23,6 @@ sub reconnectToIndex {
   return ($self, $tableName);
 }
 
-sub checkUserGroup {
-  my $self = shift;
-  my $user = shift
-    or $self->debug(2, "In checkUserGroup user is missing")
-    and return;
-  my $group = shift
-    or $self->debug(2, "In checkUserGroup group is missing")
-    and return;
-
-  $DEBUG and $self->debug(2, "In checkUserGroup checking if user $user is member of group $group");
-  my $v = AliEn::Util::returnCacheValue($self, "usergroup-$user-$group");
-  defined $v and return $v;
-  $v = $self->queryValue("SELECT count(*) from GROUPS where Username='$user' and Groupname = '$group'");
-  AliEn::Util::setCacheValue($self, "usergroup-$user-$group", $v);
-
-  return $v;
-}
 
 # Gives the userid of a user and group. If the group is not specified, it
 # gives the primary group

@@ -567,6 +567,8 @@ sub f_cd {
   my $path    = shift;
   my $pathIdx = "";
   (defined $path) or ($path = $self->GetHomeDirectory());
+  
+  print "AT THE BEGINING OF CD\n";
   $path = $self->GetAbsolutePath($path, 2);
   my $targetPerm = $self->checkPermissions("x", $path)
     or $self->info("cd $path: Not a directory", 3, 0)
@@ -575,6 +577,7 @@ sub f_cd {
     or $self->info("cd $path: Not a directory", 3, 0)
     and return;
   $self->{DISPPATH} = $path;
+  print "CD WORDKED!!\n";
   $self->f_pwd("-s");
   return 1;
 }
