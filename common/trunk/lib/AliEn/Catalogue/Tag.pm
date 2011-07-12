@@ -51,10 +51,10 @@ sub f_addTag {
     }
     $self->selectTable($directory);
     my $done = $self->createRemoteTable(
-      $self->{DATABASE}->{LFN_DB}->{HOST},
-      $self->{DATABASE}->{LFN_DB}->{DB},
-      $self->{DATABASE}->{LFN_DB}->{DRIVER},
-      $self->{DATABASE}->{LFN_DB}->{USER},
+      $self->{DATABASE}->{HOST},
+      $self->{DATABASE}->{DB},
+      $self->{DATABASE}->{DRIVER},
+      $self->{DATABASE}->{USER},
       $tableName,
 "(file varchar($fileLength), offset int, entryId int AUTO_INCREMENT, $tagSQL , primary KEY (entryId), INDEX (file))"
     );
@@ -85,13 +85,13 @@ sub f_showTagDescription {
   $directory and $tag or $self->info("Error: not enough arguments\n" . $self->f_showTagDescription_HELP()) and return;
   $self->info("Getting the description of $tag and $directory");
   $self->checkPermissions("r", $directory) or $self->info("Error: you can't read the directory $directory") and return;
-  my $table = $self->{DATABASE}->{LFN_DB}->getTagTableName($directory, $tag)
+  my $table = $self->{DATABASE}->getTagTableName($directory, $tag)
     or $self->info("Error getting the name of the table")
     and return;
   $self->info("Getting the description");
 
-# my $rows=$self->{DATABASE}->{LFN_DB}->query("describe $table") or $self->info("Error describing the table") and return;
-  my $rows = $self->{DATABASE}->{LFN_DB}->describeTable($table) or $self->info("Error describing the table") and return;
+# my $rows=$self->{DATABASE}->query("describe $table") or $self->info("Error describing the table") and return;
+  my $rows = $self->{DATABASE}->describeTable($table) or $self->info("Error describing the table") and return;
   my $sql = "";
   foreach my $row (@$rows) {
     $row->{Field} =~ /^(file)|(offset)|(entryId)$/i and next;
@@ -348,7 +348,7 @@ sub f_showTagValue {
     foreach my $entry (@$tags) {
       $self->info("Let's get the information from $entry->{tableName}");
       $tagTableName = $entry->{tableName};
-      my $info = $self->{DATABASE}->{LFN_DB}->query(
+      my $info = $self->{DATABASE}->query(
         "SELECT * from $entry->{tableName} where " . $self->{DATABASE}->reservedWord("file") . "  like concat(?, '%')",
         undef,
         {bind_values => [$path]}
@@ -462,11 +462,11 @@ sub f_removeTagValue {
   my $error;
   if ($attribute) {
     $error =
-      $self->{DATABASE}->{LFN_DB}->update($tagTableName, {$attribute => undef}, "file = ?", {bind_values => [$file]});
+      $self->{DATABASE}->update($tagTableName, {$attribute => undef}, "file = ?", {bind_values => [$file]});
   } else {
     ($self->isDirectory($file)) and $file .= "/";
 
-    $error = $self->{DATABASE}->{LFN_DB}->delete($tagTableName, "file = '$file'");
+    $error = $self->{DATABASE}->delete($tagTableName, "file = '$file'");
   }
   ($error) or print STDERR "Error doing the update\n" and return;
 
@@ -558,12 +558,12 @@ sub createRemoteTable {
 
   $self->info("New table $table created by $user in $db $host and with def");
 
-  $self->{DATABASE}->{LFN_DB}->reconnect($host, $db, $driver)
+  $self->{DATABASE}->reconnect($host, $db, $driver)
 
     or $self->info("Problemn reconnecting to $host, $db, $driver") and return;
   $self->info("Creating the table $table and we have definition ");
 
-  $self->{DATABASE}->{LFN_DB}->createTable($table, $definition, 0, 1)
+  $self->{DATABASE}->createTable($table, $definition, 0, 1)
     or $self->{LOGGER}->error("CatalogDaemon", "Error creating table $table")
     and return;
 

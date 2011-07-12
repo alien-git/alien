@@ -18,7 +18,7 @@ sub checkWakesUp {
 
   $self->$method(@info, "The trigger optimizer starts");
 
-  $self->checkTriggers($silent, $self->{DB}->{LFN_DB});
+  $self->checkTriggers($silent, $self->{DB});
 
   return;
 

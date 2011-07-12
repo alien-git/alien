@@ -20,7 +20,7 @@ sub checkWakesUp {
   $self->$method(@info, "The expired optimizer starts");
 #  $self->updateQoS($silent) or return;
 
-  my $db=$self->{DB}->{LFN_DB} or return;
+  my $db=$self->{DB} or return;
   my $tables=$db->query("select tableName, lfn from INDEXTABLE", undef, undef);
   foreach my $table (@$tables){
     $self->$method(@info,"Doing the table $table->{tableName} and $table->{lfn}");

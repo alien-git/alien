@@ -510,7 +510,7 @@ sub f_ln {
   $filehash
     or $self->{LOGGER}->error("File", "ERROR: checkPermission failed for $target")
     and return;
-  return $self->{DATABASE}->{LFN_DB}->softLink($source, $target);
+  return $self->{DATABASE}->softLink($source, $target);
 }
 
 # This subroutine is used to find all the metadata of a file that is going
@@ -636,14 +636,14 @@ sub f_mv {
   #Do move
   my @returnVal = ();
   if ($self->isDirectory($fullSource)) {
-    @returnVal = $self->{DATABASE}->{LFN_DB}->moveFolder($fullSource, $fullTarget);
+    @returnVal = $self->{DATABASE}->moveFolder($fullSource, $fullTarget);
   } else {
     if ($self->isDirectory($fullTarget)) {
       my $file = "";
       $fullSource =~ m{([^/]*)/?$} and $file = $1;
       $fullTarget .= $file;
     }
-    @returnVal = $self->{DATABASE}->{LFN_DB}->moveFile($fullSource, $fullTarget);
+    @returnVal = $self->{DATABASE}->moveFile($fullSource, $fullTarget);
   }
 
   #Manage metadata if option specified
@@ -688,7 +688,7 @@ sub f_removeFile {
     or $self->error("file $fullPath does not exists!!", 1)
     and return;
 
-  return $self->{DATABASE}->{LFN_DB}->removeFile($fullPath, $filehash);
+  return $self->{DATABASE}->removeFile($fullPath, $filehash);
 }
 
 #
@@ -723,7 +723,7 @@ sub f_rmdir {
   $filehash
     or $self->{LOGGER}->error("File", "ERROR: checkPermsissions failed on $path")
     and return;
-  return $self->{DATABASE}->{LFN_DB}->removeDirectory($path, $parentdir);
+  return $self->{DATABASE}->removeDirectory($path, $parentdir);
 }
 
 #
@@ -1015,7 +1015,7 @@ sub getIOProtocols {
     return $cache;
   }
   my $protocols =
-    $self->{DATABASE}->{LFN_DB}
+    $self->{DATABASE}
     ->queryValue("select seiodaemons from SE where upper(seName)=upper(?)", undef, {bind_values => [$seName]});
   my @protocols = split(/,/, $protocols);
   AliEn::Util::setCacheValue($self, "io-$seName", [@protocols]);
@@ -1033,7 +1033,7 @@ sub getStoragePath {
     return $cache;
   }
   my $storagepath =
-    $self->{DATABASE}->{LFN_DB}
+    $self->{DATABASE}
     ->queryValue("select seStoragePath from SE where seName=?", undef, {bind_values => [$seName]});
   if ((!defined $storagepath) || ($storagepath eq "")) {
     $storagepath = "/";
@@ -1082,7 +1082,7 @@ sub createDefaultUrl {
   my $guid = shift;
   my $size = shift;
   my $prefix =
-    $self->{DATABASE}->{LFN_DB}->queryValue(
+    $self->{DATABASE}->queryValue(
     'select concat(method,concat(\'/\',mountpoint)) from SE_VOLUMES where freespace>? and upper(sename)=upper(?)',
     undef, {bind_values => [ $size, $se ]});
   if (!$prefix) {
@@ -1175,7 +1175,7 @@ sub checkFileQuota {
     and return (-1, "size is not specified.");
 
   $self->info("In checkFileQuota for user: $user, request file size:$size");
-  my $db    = $self->{DATABASE}->{LFN_DB};
+  my $db    = $self->{DATABASE};
   my $array = $db->queryRow(
 "SELECT nbFiles, totalSize, maxNbFiles, maxTotalSize, tmpIncreasedNbFiles, tmpIncreasedTotalSize FROM FQUOTAS WHERE "
       . $db->reservedWord("user") . "=?",
@@ -1262,8 +1262,8 @@ sub fquota_list {
     $user = $whoami;
   }
 
-  my $usersuffix = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->reservedWord("user") . " = '$user' ";
-  ($user eq '%') and $usersuffix = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->reservedWord("user") . " like '%'";
+  my $usersuffix = $self->{DATABASE}->{FIRST_DB}->reservedWord("user") . " = '$user' ";
+  ($user eq '%') and $usersuffix = $self->{DATABASE}->{FIRST_DB}->reservedWord("user") . " like '%'";
 
   if (($whoami !~ /^admin(ssl)?$/) and ($user ne $whoami)) {
     $self->info("Not allowed to see other users' quota information", 1);
@@ -1271,8 +1271,8 @@ sub fquota_list {
   }
 
   my $result =
-    $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->query("SELECT "
-      . $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->reservedWord("user")
+    $self->{DATABASE}->{FIRST_DB}->query("SELECT "
+      . $self->{DATABASE}->{FIRST_DB}->reservedWord("user")
       . ", nbFiles, maxNbFiles, totalSize, maxTotalSize, tmpIncreasedNbFiles, tmpIncreasedTotalSize FROM FQUOTAS where $usersuffix"
     )
     or $self->info("Failed to getting data from FQUOTAS table", 1)
@@ -1322,7 +1322,7 @@ sub fquota_set {
 
   my $set = {};
   $set->{$field} = $value;
-  my $db = $self->{DATABASE}->{LFN_DB}->{FIRST_DB};
+  my $db = $self->{DATABASE};
   my $done = $db->update("FQUOTAS", $set, $db->reservedWord("user") . "= ?", {bind_values => [$user]});
 
   $done or $self->info("Failed to set the value in the FQUOTAS table", 1) and return -1;

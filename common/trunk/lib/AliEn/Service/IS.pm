@@ -733,7 +733,7 @@ sub checkExclusiveUserOnSEs{
 
    push @queryValues, $role;
 
-   my $catalogue=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
+   my $catalogue=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{FIRST_DB};
 
    return $catalogue->queryColumn($query, undef, {bind_values=>\@queryValues});
 }
@@ -745,7 +745,7 @@ sub sortSEListBasedOnSiteSECache{
    my $seList=(shift || 0);
    my $excludeList=(shift || 0);
  
-   my $catalogue=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
+   my $catalogue=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{FIRST_DB};
 
    $self->checkSiteSECache($sitename) or return 0;
 
@@ -775,7 +775,7 @@ sub getSEListFromSiteSECache{
   my $role=(shift || "");
 
 
-  my $catalogue=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
+  my $catalogue=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{FIRST_DB};
 
   $self->checkSiteSECache($sitename);# or return 0;
 
@@ -803,7 +803,7 @@ sub checkSiteSECache{
    my $this=shift;
    my $site=shift;
 
-   my $catalogue=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
+   my $catalogue=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{FIRST_DB};
 
    my $reply = $catalogue->query("SELECT sitename FROM SERanks WHERE sitename LIKE ?", undef, {bind_values=>[$site]});
 

@@ -29,10 +29,10 @@ This module interacts with a database of the AliEn Catalogue. The AliEn Catalogu
 
 =cut
 
-use vars qw(@ISA $DEBUG);
+use vars qw( $DEBUG);
 
 #This array is going to contain all the connections of a given catalogue
-push @ISA, qw(AliEn::Database::Catalogue::Shared);
+
 $DEBUG = 0;
 
 =head1 SYNOPSIS
@@ -51,7 +51,7 @@ $DEBUG = 0;
 =item C<createCatalogueTables>
 
 This methods creates the database schema in an empty database. The tables that this implemetation have are:
-HOSTS, 
+ 
 
 =cut
 
@@ -60,7 +60,7 @@ HOSTS,
 #
 
 # Checking the consistency of the database structure
-sub createCatalogueTables {
+sub LFN_createCatalogueTables {
   my $self = shift;
 
   $DEBUG and $self->debug(2, "In createCatalogueTables creating all tables...");
@@ -441,13 +441,13 @@ sub existsLFN {
   return;
 }
 
-=item C<getHostsForEntry($lfn)>
+=item C<getTablesForEntry($lfn)>
 
 This function returns a list of all the possible tables that might contain entries of a directory
 
 =cut
 
-sub getHostsForEntry {
+sub getTablesForEntry {
   my $self = shift;
   my $lfn  = shift;
 
@@ -477,7 +477,7 @@ Adds a new file to the database. It receives a hash with the following informati
 
 =cut
 
-sub createFile {
+sub LFN_createFile {
   my $self      = shift;
   my $options   = shift || "";
   my $tableName = $self->{INDEX_TABLENAME}->{name};
@@ -534,7 +534,7 @@ sub getParentDir {
   return $self->queryValue("select entryId from $tableName where lfn=?", undef, {bind_values => [$lfn]});
 }
 
-sub updateLFN {
+sub LFN_updateEntry {
   my $self = shift;
   $self->debug(2, "In updateFile with @_");
   my $file   = shift;
@@ -772,7 +772,7 @@ sub createDirectory {
 
 sub createRemoteDirectory {
   my $self = shift;
-  my ($hostIndex, $host, $DB, $driver, $lfn) = @_;
+  my ($lfn) = @_;
   my $oldtable = $self->{INDEX_TABLENAME};
 
   #Now, in the new database
@@ -786,7 +786,7 @@ sub createRemoteDirectory {
   $done or $self->info("Error creating the directory $lfn") and return;
   $self->info("Directory $lfn/ created");
   $self->info("Now, let's try to do insert the entry in the INDEXTABLE");
-  if (!$self->insertInIndex($hostIndex, $newTable, "$lfn/")) {
+  if (!$self->insertInIndex( $newTable, "$lfn/")) {
     $self->delete($newTable, "lfn='$lfn/'");
     return;
   }
@@ -856,8 +856,8 @@ sub removeDirectory {
   my $user      = $self->{ROLE};
 
   #Insert into LFN_BOOKED and delete lfns
-  my $entries = $self->getHostsForEntry($path)
-    or $self->{LOGGER}->error("Database::Catalogue::LFN", "ERROR: Could not get hosts for $path")
+  my $entries = $self->getTablesForEntry($path)
+    or $self->{LOGGER}->error("Database::Catalogue::LFN", "ERROR: Could not get tables for $path")
     and return;
   my @index = ();
   my $size  = 0;
@@ -896,8 +896,8 @@ sub removeDirectory {
   if ($#index > -1) {
     $self->deleteFromIndex(@index);
     if (grep(m{^$path/?\%$}, @index)) {
-      my $entries = $self->getHostsForEntry($parentdir)
-        or $self->{LOGGER}->error("Database::Catalogue::LFN", "Error getting the hosts for '$path'")
+      my $entries = $self->getTablesForEntry($parentdir)
+        or $self->{LOGGER}->error("Database::Catalogue::LFN", "Error getting the tables for '$path'")
         and return;
       my $db = ${$entries}[0];
       my ($newdb, $path2) = $self->reconnectToIndex($db->{hostIndex}, $parentdir);
@@ -1138,37 +1138,6 @@ sub softLink {
   return 1;
 }
 
-sub getSENumber {
-  my $self    = shift;
-  my $se      = shift;
-  my $options = shift || {};
-  $DEBUG and $self->debug(2, "Checking the senumber");
-  defined $se or return 0;
-  $DEBUG and $self->debug(2, "Getting the numbe from the list");
-  my $senumber =
-    $self->queryValue("SELECT seNumber FROM SE where upper(seName)=upper(?)", undef, {bind_values => [$se]});
-  defined $senumber and return $senumber;
-  $DEBUG and $self->debug(2, "The entry did not exist");
-  $options->{existing} and return;
-  $self->{SOAP}
-    or $self->{SOAP} = new AliEn::SOAP
-    or return;
-
-  my $result = $self->{SOAP}->CallSOAP("Authen", "addSE", $se) or return;
-  my $seNumber = $result->result;
-  $DEBUG and $self->debug(1, "Got a new number $seNumber");
-  return $seNumber;
-
-  my $newnumber = 1;
-
-  my $max = $self->queryValue("SELECT max(seNumber) FROM SE");
-  if ($max) {
-    $newnumber = $max * 2;
-  }
-  $self->insert("SE", {seName => $se, seNumber => $newnumber}) or return;
-  return $newnumber;
-}
-
 sub tabCompletion {
   my $self      = shift;
   my $entryName = shift;
@@ -1204,25 +1173,6 @@ sub actionInIndex {
   return 1;
 }
 
-sub insertInIndex {
-  my $self      = shift;
-  my $hostIndex = shift;
-  my $table     = shift;
-  my $lfn       = shift;
-
-  $table =~ s/^L(\d+)L$/$1/;
-  my $action = "INSERT INTO INDEXTABLE (tableName, lfn) values('$table', '$lfn')";
-  return $self->actionInIndex($action);
-}
-
-sub deleteFromIndex {
-  my $self    = shift;
-  my @entries = @_;
-  map { $_ = "lfn like '$_'" } @entries;
-  my $action = "DELETE FROM INDEXTABLE WHERE " . join(" or ", @entries);
-  return $self->actionInIndex($action);
-
-}
 
 sub getAllIndexes {
   my $self = shift;
@@ -1248,7 +1198,7 @@ sub copyDirectory {
   $target =~ s{/?$}{/};
   $DEBUG and $self->debug(1, "Copying a directory ($source to $target)");
 
-  my $sourceHosts = $self->getHostsForEntry($source);
+  my $sourceHosts = $self->getTablesForEntry($source);
 
   my $sourceInfo = $self->getIndexHost($source);
 
@@ -1471,7 +1421,7 @@ sub moveLFNs {
     $self->do("update $toTable set dir=? where dir=?", {bind_values => [ $newDir, $oldDir ]});
     $self->do("drop table $fromTable");
   } else {
-    if (!$self->insertInIndex("", $toTable, $lfn)) {
+    if (!$self->insertInIndex($toTable, $lfn)) {
       $self->delete($toTable, "lfn like '${tempLfn}%'");
       return;
     }
@@ -1490,48 +1440,6 @@ sub moveLFNs {
   return 1;
 }
 
-sub getNewDirIndex {
-  my $self = shift;
-
-  $self->lock("CONSTANTS");
-
-  my ($dir) = $self->queryValue("SELECT value from CONSTANTS where name='MaxDir'");
-  $dir++;
-
-  $self->update("CONSTANTS", {value => $dir}, "name='MaxDir'");
-  $self->unlock();
-
-  $self->info("New table number: $dir");
-
-  $self->checkLFNTable($dir)
-    or $self->info("Error checking the tables $dir")
-    and return;
-
-  return $dir;
-}
-
-#
-#Returns the name of the file of a path
-#
-sub _basename {
-  my $self  = shift;
-  my ($arg) = @_;
-  my $pos   = rindex($arg, "/");
-
-  ($pos < 0) and return ($arg);
-
-  return (substr($arg, $pos + 1));
-}
-
-sub deleteLink {
-  my $self     = shift;
-  my $parent   = shift;
-  my $basename = shift;
-  my $newpath  = shift;
-
-  $self->deleteDirEntry($parent, $basename);
-  $self->deleteFromD0Like($newpath);
-}
 
 ### Host functions
 
@@ -1593,50 +1501,7 @@ sub insertIntoGroups {
   #  $self->_do("INSERT IGNORE INTO GROUPS (Username, Groupname, PrimaryGroup) values ('$user','$group','$var')");
 }
 
-sub deleteUser {
-  my $self = shift;
-  my $user = shift
-    or $self->{LOGGER}->error("Catalogue", "In deleteUser user is missing")
-    and return;
-
-  $DEBUG and $self->debug(2, "In deleteUser deleting entries with user $user from GROUPS table");
-  $self->delete("GROUPS", "Username='$user'");
-}
-
 ###	Environment functions
-
-sub insertEnv {
-  my $self = shift;
-  my $user = shift
-    or $self->{LOGGER}->error("Catalogue", "In insertEnv user is missing")
-    and return;
-  my $curpath = shift
-    or $self->{LOGGER}->error("Catalogue", "In insertEnv current path is missing")
-    and return;
-
-  $DEBUG and $self->debug(2, "In insertEnv deleting old environment");
-  $self->delete("ENVIRONMENT", "userName='$user'")
-    or $self->{LOGGER}->error("Catalogue", "Cannot delete old environment")
-    and return;
-
-  $DEBUG and $self->debug(2, "In insertEnv inserting new environment");
-  $self->insert("ENVIRONMENT", {userName => $user, env => "pwd $curpath"})
-    or $self->{LOGGER}->error("Catalogue", "Cannot insert new environment")
-    and return;
-
-  1;
-}
-
-sub getEnv {
-  my $self = shift;
-  my $user = shift
-    or $self->{LOGGER}->error("Catalogue", "In getEnv user is missing")
-    and return;
-
-  $DEBUG and $self->debug(2, "In insertEnv fetching environment for user $user");
-  $self->queryValue("SELECT env FROM ENVIRONMENT WHERE userName='$user'");
-}
-
 #	TAG functions
 
 # quite complicated manoeuvers in Catalogue/Tag.pm - f_addTagValue
@@ -1898,38 +1763,6 @@ sub DropEmptyDLTables {
   return 1;
 }
 
-=item executeInAllDB ($method, @args)
-
-This subroutine calls $method in all the databases that belong to the catalogue
-If any of the calls fail, it returns udnef. Otherwise, it returns 1, and a list of the return of all the statements. 
-
-At the end, it reconnects to the initial database
-
-=cut
-
-sub executeInAllDB {
-  my $self   = shift;
-  my $method = shift;
-
-  $DEBUG and $self->debug(1, "Executing $method (@_) in all the databases");
-
-  #my $hosts = $self->getAllHosts("hostIndex");
-  my ($oldHost, $oldDB, $oldDriver) = ($self->{HOST}, $self->{DB}, $self->{DRIVER});
-
-  my $error = 0;
-  my @return;
-  my $info = $self->$method(@_);
-  if (!$info) {
-    $error = 1;
-    last;
-  }
-  push @return, $info;
-
-  $error and return;
-  $DEBUG and $self->debug(1, "Executing in all databases worked!! :) ");
-  return 1, @return;
-
-}
 
 sub selectTable {
   my $self = shift;
@@ -1962,23 +1795,21 @@ sub findLFN {
 
   #first, let's take a look at the host that we want
 
-  my $rhosts = $self->getHostsForEntry($path)
-    or $self->info("Error getting the hosts for '$path'")
+  my $rtables = $self->getTablesForEntry($path)
+    or $self->info("Error getting the tables for '$path'")
     and return;
 
   my @result = ();
   my @done   = ();
-  foreach my $rhost (@$rhosts) {
-    my $id = "$rhost->{hostIndex}:$rhost->{tableName}";
-    grep (/^$id$/, @done) and next;
-    push @done, $id;
-    my $localpath = $rhost->{lfn};
+  foreach my $table (@$rtables) {
+    
+    grep (/^$table->{tableName}$/, @done) and next;
+    push @done, $table->{tableName};
+    my $localpath = $table->{lfn};
 
-    $DEBUG and $self->debug(1, "Looking in database $id (path $path)");
+    $DEBUG and $self->debug(1, "Looking in table $table->{tableName} (path $path)");
 
-    $DEBUG and $self->debug(1, "Doing the query");
-
-    push @result, $self->internalQuery($rhost, $path, $file, $refNames, $refQueries, $refUnions, \%options);
+    push @result, $self->internalQuery($table, $path, $file, $refNames, $refQueries, $refUnions, \%options);
   }
   return \@result;
 }
@@ -2182,65 +2013,8 @@ sub setExpire {
   return $self->_do("UPDATE $table SET expiretime=$expire WHERE lfn='$lfn'");
 }
 
-sub getAllReplicatedData {
-  my $self = shift;
 
-  my $rusers = $self->getAllFromGroups("Username,Groupname,PrimaryGroup");
-  defined $rusers
-    or $self->info("Error: not possible to get all users")
-    and return;
-
-  my $rindexes = $self->getAllIndexes()
-    or $self->info("Error: not possible to get mount points")
-    and return;
-
-  my $rses = $self->query("SELECT * from SE") or return;
-
-  my $rhosts = $self->getAllHosts();
-  defined $rhosts
-    or $self->info("Error: not possible to get all hosts")
-    and return;
-
-  return {hosts => $rhosts, users => $rusers, indexes => $rindexes, se => $rses};
-}
-
-sub setAllReplicatedData {
-  my $self = shift;
-  my $info = shift;
-
-  $info->{hosts}   or $self->info("Error missing the hosts") and return;
-  $info->{indexes} or $self->info("Error missing the hosts") and return;
-  $info->{users}   or $self->info("Error missing the hosts") and return;
-  $info->{se}      or $self->info("Error missing the hosts") and return;
-
-  #First, all the hosts in HOSTS
-  foreach my $rtempHost (@{$info->{hosts}}) {
-    $self->insertHost($rtempHost->{hostIndex}, $rtempHost->{address}, $rtempHost->{db}, $rtempHost->{driver});
-  }
-
-  #Now, we should enter the data of D0
-  foreach my $rdir (@{$info->{indexes}}) {
-    $self->debug(1, "Inserting an entry in INDEXES");
-    $self->do(
-"INSERT INTO INDEXTABLE (hostIndex, tableName, lfn) values('$rdir->{hostIndex}', '$rdir->{tableName}', '$rdir->{lfn}')"
-    );
-  }
-
-  #Also, GROUPS table;
-  foreach my $ruser (@{$info->{users}}) {
-    $self->debug(1, "Adding a new user");
-    $self->insertIntoGroups($ruser->{Username}, $ruser->{Groupname}, $ruser->{PrimaryGroup});
-  }
-
-  #and finally, the SE
-  foreach my $se (@{$info->{se}}) {
-    $self->debug(1, "Adding a new user");
-    $self->insert("SE", $se);
-  }
-  return 1;
-}
-
-sub createCollection {
+sub LFN_createCollection {
   my $self   = shift;
   my $insert = shift;
   $insert->{type} = 'c';
@@ -2434,8 +2208,8 @@ sub cleanupTagValue {
     or $self->info("Error getting the directories for $tag and $directory")
     and return;
 
-  my $dirs = $self->getHostsForEntry($directory)
-    or $self->info("Error getting the hosts of $directory")
+  my $dirs = $self->getTablesForEntry($directory)
+    or $self->info("Error getting the tables of $directory")
     and return;
 
   foreach my $tag (@$tags) {
@@ -2474,7 +2248,7 @@ sub cleanupTagValue {
   return 1;
 }
 
-sub getNumberOfEntries {
+sub LFN_getNumberOfEntries {
   my $self    = shift;
   my $entry   = shift;
   my $options = shift;
@@ -2483,7 +2257,7 @@ sub getNumberOfEntries {
   return $self->queryValue($query);
 }
 
-sub updateStats {
+sub updateLFNStats {
   my $self  = shift;
   my $table = shift;
   $self->info("Let's update the statistics of the table $table");
@@ -2567,7 +2341,12 @@ sub getPossibleGuidTables {
   $number =~ s/L//g;
 
   return $self->query(
-"select * from (select * from GUIDINDEX where guidTime< (select max_time from  LL_STATS where tableNumber=?)  and  guidTime>(select min_time from LL_STATS where tableNumber=?)  union select * from GUIDINDEX where guidTime= (select max(guidTime) from GUIDINDEX where guidTime< (select min_time from LL_STATS where tableNumber=?))) g, HOSTS h where g.hostIndex=h.hostIndex",
+"select * from (select * from GUIDINDEX where 
+     guidTime<(select max_time from  LL_STATS where tableNumber=?)  
+    and  guidTime>(select min_time from LL_STATS where tableNumber=?)
+      union
+       select * from GUIDINDEX where guidTime= (select max(guidTime) from GUIDINDEX where guidTime< (select min_time from LL_STATS where tableNumber=?))) g
+      ",
     undef,
     {bind_values => [ $number, $number, $number ]}
   );
@@ -2580,7 +2359,7 @@ AliEn::Database
 
 =cut
 
-sub getAllTables {
+sub getAllLFNTables {
   my $self = shift;
 
   my $result = $self->query("SELECT tableName from INDEXTABLE");

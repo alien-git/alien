@@ -217,7 +217,7 @@ sub f_listFilesFromCollection {
   my $coll = shift;
   my $guid;
   if ($opt->{g}) {
-    my $info = $self->{DATABASE}->{GUID_DB}->checkPermission('r', $coll, "type")
+    my $info = $self->{DATABASE}->checkPermission('r', $coll, "type")
       or return;
     $info->{type} eq "c" or $self->info("The guid $coll is not a collection") and return;
     $guid = $coll;

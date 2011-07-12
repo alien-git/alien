@@ -20,7 +20,7 @@ sub checkWakesUp {
 
   $self->$method(@info, "The SE optimizer starts");
   (-f "$self->{CONFIG}->{TMP_DIR}/AliEn_TEST_SYSTEM")  or $self->{SLEEP_PERIOD}=3600;
-  my $guiddb=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{GUID_DB};
+  my $guiddb=$self->{CATALOGUE}->{CATALOG}->{DATABASE};
 
 
   $self->checkSplitGUID($guiddb);
@@ -28,14 +28,14 @@ sub checkWakesUp {
   my $guids=$guiddb->query("select * from GUIDINDEX");
   foreach my $f (@$guids){
     $self->info("Checking the table $f->{tableName}");
-    $self->{CATALOGUE}->{CATALOG}->{DATABASE}{GUID_DB}->checkGUIDTable($f->{tableName});
-    $self->{CATALOGUE}->{CATALOG}->{DATABASE}{GUID_DB}->updateStatistics($f->{tableName});
+    $guiddb->checkGUIDTable($f->{tableName});
+    $guiddb->updateStatistics($f->{tableName});
   }
 
   $self->info("All the GUID tables have been accounted");
   my $hosts=$guiddb->query("select distinct hostIndex from  GUIDINDEX");
 
-  my $ses=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->queryColumn("select distinct sename from SE");
+  my $ses=$guiddb->queryColumn("select distinct sename from SE");
 
   foreach my $se (@$ses){
     $self->info("Calculating the size of $se");
@@ -52,7 +52,7 @@ sub checkSESize{
   my $guids=shift;
 
   
-  my $guiddb=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{GUID_DB};
+  my $guiddb=$self->{CATALOGUE}->{CATALOG}->{DATABASE};
   my $index=$guiddb->getSENumber($dbName, {existing=>1});
   $index or $self->info("Error getting the index number of $dbName") and return;
   $self->debug(1, "Hello $dbName and $index");
@@ -84,12 +84,12 @@ sub checkSplitGUID{
   my $g=$self->{GUID}->CreateGuid();
   $g=~ s/^.{8}/00000000/;
   $self->info("The guid is '$g'");
-  my $exists=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{GUID_DB}->
+  my $exists=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->
      queryValue("SELECT count(*) from GUIDINDEX where guidTime=string2date(?)",
                 undef, {bind_values=>[$g]});
   $exists and $self->info("The entry is already an index") and return 1;
   
-  my ($db, $table)=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{GUID_DB}->selectDatabaseFromGUID($g) or return;
+  my ($db, $table)=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->selectDatabaseFromGUID($g) or return;
   
   my $entries=$db->queryValue("SELECT count(*) from $table");
   $self->info("AND THERE ARE $entries in $table");

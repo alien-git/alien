@@ -16,7 +16,7 @@ sub checkWakesUp {
   $self->{SLEEP_PERIOD}=10;
   $self->$method(@silentData, "Checking if there is anything to do");
 
-  my $db2=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB};
+  my $db2=$self->{CATALOGUE}->{CATALOG}->{DATABASE};
   $db2 or return;
   my $query = "select entryId,pfn,sename from TODELETE join SE using (senumber) order by entryId";
   $query = $db2->paginate($query,100,0);

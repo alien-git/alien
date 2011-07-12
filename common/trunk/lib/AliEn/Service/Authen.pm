@@ -563,7 +563,7 @@ sub reconnect {
   $db2 or print STDERR "Error reconnecting\n" and return;
   print STDERR "THE reconnection worked $db2!!\n";
 
-  #  $self->{cat}->{DATABASE}->{LFN_DB}=$db2;
+  #  $self->{cat}->{DATABASE}=$db2;
   return 1;
 }
 
@@ -910,30 +910,6 @@ sub addUser {
   my $token = $self->{addbh}->getToken($user);
   $self->{addbh}->addTime($user, 24);
   return $token;
-}
-
-=item addSE (seName)
-
-This function adds a new SE to the SE table of all the databases of the 
-catalogue
-
-=cut
-
-sub addSE {
-  my $this   = shift;
-  my $seName = shift;
-
-  my $newnumber = 1;
-  $self->info("Trying to add a new se ( $seName)");
-  my ($vo, $site, $se) = split(/::/, $seName);
-  my $done = $self->{cat}->addSE($site, $se);
-  $self->info("Adding the SE finished with $done");
-  $done or return (-1, "Error inserting the entry in the database");
-
-  my $seNumber = $self->{cat}->{DATABASE}->queryValue("SELECT seNumber from SE where seName='$seName'");
-
-  return $seNumber;
-
 }
 
 sub requestCert {

@@ -34,7 +34,7 @@ This module interacts with a database of the AliEn Catalogue. The AliEn Catalogu
 
 use vars qw(@ISA $DEBUG);
 
-push @ISA, qw(AliEn::Database);
+push @ISA, qw(AliEn::Database AliEn::Database::Catalogue::LFN AliEn::Database::Catalogue::GUID );
 $DEBUG = 0;
 
 =head1 SYNOPSIS
@@ -62,29 +62,6 @@ sub preConnect {
   return 1;
 }
 
-sub initialize {
-  my $self = shift;
-  my $opt1 = {};
-  my $opt2 = {};
-  foreach (keys %{$self}) {
-    $opt2->{$_} = $opt1->{$_} = $self->{$_};
-  }
-  foreach ('HOST', 'DRIVER', 'DB') {
-    if ($self->{$_} eq "1") {
-      delete $opt1->{$_};
-      delete $opt2->{$_};
-    }
-  }
-
-  $self->{LFN_DB} = AliEn::Database::Catalogue::LFN->new($opt1, @_) or return;
-  $self->{GUID_DB} = AliEn::Database::Catalogue::GUID->new($opt2, @_) or return;
-
-  $self->{LFN_DB}->setConnections($self);
-  $self->{GUID_DB}->setConnections($self);
-
-  return 1;
-}
-
 =item C<createCatalogueTables>
 
 This methods creates the database schema in an empty database. The tables that this implemetation have are:
@@ -98,33 +75,22 @@ sub createCatalogueTables {
   my $self = shift;
 
   my $options = shift || {};
-  $self->{LFN_DB}->createCatalogueTables() or return;
-  my @args;
-  $options->{reconnected} and push @args, $self->{LFN_DB};
-  $self->{GUID_DB}->createCatalogueTables(@args) or return;
+  $self->LFN_createCatalogueTables() or return;
+  $self->GUID_createCatalogueTables() or return;
 
   return 1;
 }
 
-sub getAllInfoFromLFN {
-  my $self = shift;
-  return $self->{LFN_DB}->getAllInfoFromLFN(@_);
-}
-
-sub getAllInfoFromGUID {
-  my $self = shift;
-  return $self->{GUID_DB}->getAllInfoFromGUID(@_);
-}
 
 sub getAllExtendedInfoFromLFN {
   my $self = shift;
 
-  my $info = $self->{LFN_DB}->getAllInfoFromLFN({method => "queryRow"}, @_)
+  my $info = $self->getAllInfoFromLFN({method => "queryRow"}, @_)
     or return;
 
   $info or $self->info("The entry doesn't exist") and return;
 
-  my $info2 = $self->{GUID_DB}->getAllInfoFromGUID({pfn => 1}, $info->{guid})
+  my $info2 = $self->getAllInfoFromGUID({pfn => 1}, $info->{guid})
     or return;
   $info->{guidInfo} = $info2;
   return $info;
@@ -140,12 +106,7 @@ sub existsEntry {
   return existsLFN(@_);
 }
 
-sub existsLFN {
-  my $self = shift;
-  return $self->{LFN_DB}->existsLFN(@_);
-}
-
-=item C<getHostsForEntry($lfn)>
+=item C<getTablesForEntry($lfn)>
 
 This function returns a list of all the possible hosts and tables that might contain entries of a directory
 
@@ -153,7 +114,7 @@ This function returns a list of all the possible hosts and tables that might con
 
 sub getHostsForLFN {
   my $self = shift;
-  return $self->{LFN_DB}->getHostsForEntry(@_);
+  return $self->getTablesForEntry(@_);
 }
 
 =item C<getSEListFromFile($lfn)>
@@ -162,17 +123,6 @@ Retrieves the list of SE that have a copy of the lfn
 
 =cut
 
-sub renumberLFNtable {
-  my $self = shift;
-  return $self->{LFN_DB}->renumberLFNtable(@_);
-}
-
-sub renumberGUIDtable {
-  my $self = shift;
-
-  return $self->{GUID_DB}->renumberGUIDtable(@_);
-}
-
 sub getSEListFromFile {
   return getSEListFromLFN(@_);
 }
@@ -180,13 +130,13 @@ sub getSEListFromFile {
 sub getSEListFromLFN {
   my $self = shift;
   my $lfn  = shift;
-  my $guid = $self->{LFN_DB}->getGUIDFromLFN($lfn) or return;
+  my $guid = $self->getGUIDFromLFN($lfn) or return;
   return $self->getSEListFromGUID($guid, @_);
 }
 
 sub getSEListFromGUID {
   my $self = shift;
-  return $self->{GUID_DB}->getSEList(@_);
+  return $self->getSEList(@_);
 }
 
 =item C<deleteMirrorFromFile($lfn, $seName)>
@@ -195,18 +145,13 @@ Deletes a mirror from a file
 
 =cut
 
-sub deleteMirrorFromGUID {
-  my $self = shift;
-  return $self->{GUID_DB}->deleteMirrorFromGUID(@_);
-}
-
 sub deleteMirrorFromLFN {
   my $self = shift;
   my $lfn  = shift;
-  my $guid = $self->{LFN_DB}->getGUIDFromLFN($lfn)
+  my $guid = $self->getGUIDFromLFN($lfn)
     or $self->info("Error getting the guid of $lfn")
     and return;
-  return $self->{GUID_DB}->deleteMirrorFromGUID($guid, $lfn, @_);
+  return $self->deleteMirrorFromGUID($guid, $lfn, @_);
 }
 
 =item C<insertMirrorFromFile($lfn, $seName)>
@@ -215,11 +160,6 @@ Inserts mirror of a file
 
 =cut
 
-sub insertMirrorToGUID {
-  my $self = shift;
-  return $self->{GUID_DB}->insertMirrorToGUID(@_);
-}
-
 sub insertMirrorFromFile {
   return insertMirrorToLFN(@_);
 }
@@ -227,44 +167,15 @@ sub insertMirrorFromFile {
 sub insertMirrorToLFN {
   my $self = shift;
   my $lfn  = shift;
-  my $guid = $self->{LFN_DB}->getGUIDFromLFN($lfn);
-  return $self->{GUID_DB}->insertMirrorToGUID($guid, @_);
+  my $guid = $self->getGUIDFromLFN($lfn);
+  return $self->insertMirrorToGUID($guid, @_);
 }
 
-sub do {
-  my $self = shift;
-  return $self->{LFN_DB}->do(@_);
-}
-
-sub query {
-  my $self = shift;
-  return $self->{LFN_DB}->do(@_);
-}
-
-sub existsTable {
-  my $self = shift;
-  return $self->{LFN_DB}->existsTable(@_);
-}
 
 sub createCollection {
   my $self = shift;
-  $self->{GUID_DB}->insertGUID("", @_) or return;
-  return $self->{LFN_DB}->createCollection(@_);
-}
-
-sub addFileToCollection {
-  my $self = shift;
-  return $self->{LFN_DB}->addFileToCollection(@_);
-}
-
-sub getInfoFromCollection {
-  my $self = shift;
-  return $self->{LFN_DB}->getInfoFromCollection(@_);
-}
-
-sub removeFileFromCollection {
-  my $self = shift;
-  return $self->{LFN_DB}->removeFileFromCollection(@_);
+  $self->insertGUID("", @_) or return;
+  return $self->LFN_createCollection(@_);
 }
 
 =item C<createFile($hash)>
@@ -281,23 +192,18 @@ sub createFile {
   $self->debug(2, "In catalogue, createFile");
   if ($options =~ /m/) {
     $self->debug(1, "The guid might be there");
-    if (!$self->{GUID_DB}->increaseReferences($options, @_)) {
-      $self->{GUID_DB}->insertGUID($options, @_) or return;
+    if (!$self->GUID_increaseReferences($options, @_)) {
+      $self->insertGUID($options, @_) or return;
     }
   } elsif ($options =~ /k/) {
     $self->debug(4, "The GUID is supposed to be registered");
-    $self->{GUID_DB}->increaseReferences($options, @_) or return;
+    $self->GUID_increaseReferences($options, @_) or return;
   } else {
-    $self->{GUID_DB}->insertGUID($options, @_) or return;
+    $self->insertGUID($options, @_) or return;
   }
-  my $done = $self->{LFN_DB}->createFile($options, @_) or return;
+  my $done = $self->LFN_createFile($options, @_) or return;
   $self->info("File(s) inserted");
   return $done;
-}
-
-sub getParentDir {
-  my $self = shift;
-  return $self->{LFN_DB}->getParentDir(@_);
 }
 
 sub updateFile {
@@ -309,99 +215,28 @@ sub updateLFN {
   my $lfn    = shift;
   my $update = shift;
   if ($update->{size} or $update->{md5} or $update->{se}) {
-    my $guid = $self->{LFN_DB}->getGUIDFromLFN($lfn) or return;
+    my $guid = $self->getGUIDFromLFN($lfn) or return;
 
     #First, let's update the information of the guid
-    $self->{GUID_DB}->updateOrInsertGUID($guid, $update, @_)
+    $self->updateOrInsertGUID($guid, $update, @_)
       or $self->info("Error updating the guid")
       and return;
   }
-  if (!$self->{LFN_DB}->updateLFN($lfn, $update,)) {
+  if (!$self->LFN_updateEntry($lfn, $update,)) {
     $self->info("We should undo the change");
     return;
   }
   return 1;
 }
 
-sub deleteFile {
-  my $self = shift;
-  return $self->{LFN_DB}->deleteFile(@_);
-}
-
-sub getLFNlike {
-  my $self = shift;
-  return $self->{LFN_DB}->getLFNlike(@_);
-}
 ##############################################################################
 ##############################################################################
 #
 # Lists a directory: WARNING: it doesn't return '..'
 #
 
-=item C<listDirectory($entry, $options)>
-
-Returns all the entries of a directory. '$entry' can be either an lfn (in which case listDirectory will retrieve the rest of the info from the database), or a hash containing the info of that directory. 
-
-Possible options:
-
-=over
-
-=item a
-
-list also the current directory
-
-=item f
-
-Do not sort the output
-
-=item F
-
-put a '/' at the end of directories
-
-
-=back
-
-
-=cut
-
-sub listDirectory {
-  my $self = shift;
-  return $self->{LFN_DB}->listDirectory(@_);
-}
 
 #
-# createDirectory ($lfn, [$gowner, [$perm, [$replicated, [$table]]]])
-#
-sub createDirectory {
-  my $self = shift;
-  return $self->{LFN_DB}->createDirectory(@_);
-}
-
-sub createRemoteDirectory {
-  my $self = shift;
-  return $self->{LFN_DB}->createRemoteDirectory(@_);
-}
-
-sub removeDirectory {
-  my $self = shift;
-  return $self->{LFN_DB}->removeDirectory(@_);
-}
-
-sub tabCompletion {
-  my $self = shift;
-  $self->{LFN_DB}->tabCompletion(@_);
-}
-
-=item C<copyDirectory($source, $target)>
-
-This subroutine copies a whole directory. It checks if part of the directory is in a different database
-
-=cut
-
-sub copyDirectory {
-  my $self = shift;
-  return $self->{LFN_DB}->copyDirectory(@_);
-}
 
 =item C<moveEntries($lfn, $toTable)>
 
@@ -414,35 +249,19 @@ You can make sure that you are in the right database with a call to checkPermiss
 =cut
 
 sub moveEntries {
-  moveLFNs(@_);
+  my $self=shift;
+  $self->moveLFNs(@_);
 }
 
-sub moveLFNs {
-  my $self = shift;
-  return $self->{LFN_DB}->moveLFNs(@_);
-}
-
-sub moveGUIDs {
-  my $self = shift;
-  return $self->{GUID_DB}->moveGUIDs(@_);
-}
 ##############################################################################
 ##############################################################################
 sub addUser {
   my $self    = shift;
   my $user    = shift;
   my $group   = shift;
-  my $db_user = $user;
 
-  if ($self->{LFN_DB}->{DRIVER} =~ /Oracle/) {
-    $db_user = $self->{LFN_DB}->{ORACLE_USER};
-  }
 
-  $self->{LFN_DB} or $self->info("Not connected to the database") and return;
-
-  $self->{LFN_DB}->insertIntoGroups($user, $group, 1);
-
-  return 1;
+  return $self->insertIntoGroups($user, $group, 1);
 }
 
 sub getNewDirIndex {
@@ -458,7 +277,7 @@ sub getNewDirIndex {
 
   $self->info("New table number: $dir");
 
-  $self->{LFN_DB}->checkLFNTable($dir)
+  $self->checkLFNTable($dir)
     or $self->info("Error checking the tables $dir")
     and return;
 
@@ -478,47 +297,10 @@ sub _basename {
   return (substr($arg, $pos + 1));
 }
 
-sub deleteLink {
-  my $self     = shift;
-  my $parent   = shift;
-  my $basename = shift;
-  my $newpath  = shift;
-
-  $self->deleteDirEntry($parent, $basename);
-  $self->deleteFromD0Like($newpath);
-}
-
-### Groups functions
-
-sub getUserid {
-  my $self = shift;
-  return $self->{LFN_DB}->getUserid(@_);
-}
-
-sub getUserGroups {
-  my $self = shift;
-  return $self->{LFN_DB}->getUserGroups(@_);
-}
-
-sub checkUserGroup {
-  my $self = shift;
-  return $self->{LFN_DB}->checkUserGroup(@_);
-}
-
-sub getAllFromGroups {
-  my $self = shift;
-  return $self->{LFN_DB}->getAllFromGroups(@_);
-}
-
-sub insertIntoGroups {
-  my $self = shift;
-  return $self->{LFN_DB}->insertIntoGroups(@_);
-}
-
 sub deleteUser {
   my $self = shift;
   my $user = shift
-    or $self->{LOGGER}->error("Catalogue", "In deleteUser user is missing")
+    or $self->info("In deleteUser user is missing", 1)
     and return;
 
   $DEBUG and $self->debug(2, "In deleteUser deleting entries with user $user from GROUPS table");
@@ -530,7 +312,7 @@ sub deleteUser {
 sub insertEnv {
   my $self = shift;
   my $user = shift
-    or $self->{LOGGER}->error("Catalogue", "In insertEnv user is missing")
+    or $self->info( "In insertEnv user is missing", 1)
     and return;
   my $curpath = shift
     or $self->{LOGGER}->error("Catalogue", "In insertEnv current path is missing")
@@ -559,139 +341,12 @@ sub getEnv {
   $self->queryValue("SELECT env FROM ENVIRONMENT WHERE userName='$user'");
 }
 
-#	TAG functions
-
-# quite complicated manoeuvers in Catalogue/Tag.pm - f_addTagValue
-# difficult to merge with the others
-#sub insertDirtagVarsFileValuesNew {
-sub insertTagValue {
-  my $self = shift;
-  return $self->{LFN_DB}->insertTagValue(@_);
-}
-
-sub getTags {
-  my $self = shift;
-  return $self->{LFN_DB}->getTags(@_);
-}
-
-sub cleanupTagValue {
-  my $self = shift;
-  return $self->{LFN_DB}->cleanupTagValue(@_);
-}
-
-sub getFieldsFromTagEx {
-  my $self = shift;
-  return $self->{LFN_DB}->getFieldsFromTagEx(@_);
-}
-
-sub getTagNamesByPath {
-  my $self = shift;
-  return $self->{LFN_DB}->getTagNamesByPath(@_);
-}
-
-sub getAllTagNamesByPath {
-  my $self = shift;
-  return $self->{LFN_DB}->getAllTagNamesByPath(@_);
-}
-
-sub getFieldsByTagName {
-  my $self = shift;
-  return $self->{LFN_DB}->getFieldsByTagName(@_);
-}
-
-sub getTagTableName {
-  my $self = shift;
-  return $self->{LFN_DB}->getTagTableName(@_);
-}
-
-sub deleteTagTable {
-  my $self = shift;
-  return $self->{LFN_DB}->deleteTagTable(@_);
-}
-
-sub insertIntoTag0 {
-  my $self = shift;
-  return $self->{LFN_DB}->insertIntoTag0(@_);
-}
 
 =item getDiskUsage($lfn)
 
 Gets the disk usage of an entry (either file or directory)
 
 =cut
-
-sub getDiskUsage {
-  my $self = shift;
-  $self->{LFN_DB}->getDiskUsage(@_);
-}
-
-sub selectTable {
-  return selectLFNDatabase(@_);
-}
-
-sub selectLFNDatabase {
-  my $self = shift;
-
-  my $db = $self->{LFN_DB}->selectTable(@_) or return;
-  $self->{LFN_DB} = $db;
-  return $db;
-}
-
-sub getLFNfromGUID {
-  my $self = shift;
-  return $self->{GUID_DB}->getLFNfromGUID(@_);
-}
-
-sub getPathPrefix {
-  my $self = shift;
-  $self->{LFN_DB}->getPatchPrefix(@_);
-}
-
-sub findLFN() {
-  my $self = shift;
-  return $self->{LFN_DB}->findLFN(@_);
-}
-
-sub setExpire {
-  my $self = shift;
-  return $self->{LFN_DB}->setExpire(@_);
-}
-
-sub close {
-  my $self = shift;
-  $self->{LFN_DB}->close();
-  $self->{GUID_DB}->close();
-
-}
-
-sub destroy {
-  my $self = shift or return;
-
-  $self->{LFN_DB}  and $self->{LFN_DB}->destroy();
-  $self->{GUID_DB} and $self->{GUID_DB}->destroy();
-
-  $self->SUPER::destroy();
-}
-
-sub getAllReplicatedData {
-  my $self = shift;
-  my $info = $self->{LFN_DB}->getAllReplicatedData()
-    or return;
-  my $info2 = $self->{GUID_DB}->getAllReplicatedData()
-    or return;
-  foreach (keys %$info2) {
-    $info->{$_} = $info2->{$_};
-  }
-
-  return $info;
-}
-
-sub setAllReplicatedData {
-  my $self = shift;
-  $self->{LFN_DB}->setAllReplicatedData(@_)  or return;
-  $self->{GUID_DB}->setAllReplicatedData(@_) or return;
-  return 1;
-}
 
 
 sub setSEio {
@@ -702,7 +357,7 @@ sub setSEio {
   my $seioDaemons   = shift;
   my $seStoragePath = shift;
   my $SEName        = "$self->{CONFIG}->{ORG_NAME}::${site}::$name";
-  my $SEnumber      = $self->{LFN_DB}->queryValue("SELECT seNumber from SE where upper(seName)=upper('$SEName')");
+  my $SEnumber      = $self->queryValue("SELECT seNumber from SE where upper(seName)=upper('$SEName')");
 
   #Check that the SE exists;
   if (!$SEnumber) {
@@ -711,8 +366,7 @@ sub setSEio {
   }
 
   if (
-    !$self->{LFN_DB}->executeInAllDB(
-      "update", "SE",
+    !$self->update("SE",
       {seName => $SEName, seStoragePath => $seStoragePath, seioDaemons => $seioDaemons},
       "upper(seName)=upper('$SEName')"
     )
@@ -726,8 +380,19 @@ sub setSEio {
 sub getSENumber {
   my $self = shift;
   my $se   = shift;
-  return $self->{LFN_DB}
-    ->queryValue("SELECT seNumber from SE where upper(seName)=upper(?)", undef, {bind_values => [$se]});
+  my $options =shift || {};
+  
+  defined $se or return 0;
+  $options->{force} and AliEn::Util::deleteCache($self);
+  my $cache = AliEn::Util::returnCacheValue($self, "seNumber-$se");
+  $cache and return $cache;
+  my $senumber =
+    $self->queryValue("SELECT seNumber FROM SE where upper(seName)=upper(?)", undef, {bind_values => [$se]});
+  if (defined $senumber) {
+    AliEn::Util::setCacheValue($self, "seNumber-$se", $senumber);
+   
+  }
+  return $senumber;
 }
 
 sub getSEio {
@@ -736,14 +401,14 @@ sub getSEio {
   my $site    = shift;
   my $name    = shift;
   my $SEName  = "$self->{CONFIG}->{ORG_NAME}::${site}::$name";
-  my $SEio    = $self->{LFN_DB}->queryRow("SELECT * from SE where upper(seName)=upper('$SEName')");
+  my $SEio    = $self->queryRow("SELECT * from SE where upper(seName)=upper('$SEName')");
   return $SEio;
 }
 
 sub getSENameFromNumber {
   my $self   = shift;
   my $number = shift;
-  return $self->{LFN_DB}->queryValue("SELECT seName from SE where seNumber=?", undef, {bind_values => [$number]});
+  return $self->queryValue("SELECT seName from SE where seNumber=?", undef, {bind_values => [$number]});
 }
 
 sub addSE {
@@ -754,7 +419,7 @@ sub addSE {
 
   my $addToTables = 1;
   my $SEName      = "$self->{CONFIG}->{ORG_NAME}::${site}::$name";
-  my $SEnumber    = $self->{LFN_DB}->queryValue("SELECT seNumber from SE where seName='$SEName'");
+  my $SEnumber    = $self->queryValue("SELECT seNumber from SE where seName='$SEName'");
 
   #Check that the SE doesn't exist;
   if ($SEnumber) {
@@ -770,14 +435,14 @@ sub addSE {
 
     #First, let's create the database
     $SEnumber = 1;
-    my $max = $self->{LFN_DB}->queryValue("SELECT max(seNumber)+1 FROM SE");
+    my $max = $self->queryValue("SELECT max(seNumber)+1 FROM SE");
     ($max) and $SEnumber = $max;
 
     $self->info("Adding the new SE $SEName with $SEnumber");
 
-    if (!$self->{LFN_DB}->executeInAllDB("insert", "SE", {seName => $SEName, seNumber => $SEnumber})) {
+    if (!$self->insert("SE", {seName => $SEName, seNumber => $SEnumber})) {
       $self->info("Error adding the entry");
-      $self->{LFN_DB}->executeInAllDB("delete", "SE", "upper(seName)=upper('$SEName') and seNumber=$SEnumber");
+
       return;
     }
   }
@@ -792,100 +457,37 @@ sub removeSE {
   my $sename = shift;
   $self->info("Removing the se $sename from the database");
 
-  $self->{LFN_DB}->executeInAllDB("delete", "SE", "UPPER(seName)=UPPER('$sename')");
+  $self->delete("SE", "UPPER(seName)=UPPER('$sename')");
   return 1;
-}
-
-sub describeTable {
-  my $self = shift;
-  $self->{LFN_DB}->describeTable(@_);
 }
 
 sub setUserGroup {
   my $self = shift;
-  $self->debug(1, "Let's change the userid ");
-  $self->{LFN_DB}->setUserGroup(@_);
-  $self->{GUID_DB}->setUserGroup(@_);
+  my $user       = shift;
+  my $group      = shift;
+  my $changeUser = shift;
+
+  my $field = "ROLE";
+  $changeUser or $field = "VIRTUAL_ROLE";
+
+  $self->debug(1, "Setting the userid to $user ($group)");
+  $self->{$field} = $user;
+  $self->{MAINGROP} = $group;
+ 
   return 1;
 }
 
-sub addHost {
-  my $self      = shift;
-  my $host      = shift;
-  my $driver    = shift;
-  my $db        = shift;
-  my $org       = (shift or "");
-  my $hostIndex = $self->getHostIndex($host, $db, $driver);
-
-  if ($hostIndex) {
-    print STDERR "Error: $db in $host already exists!!\n";
-    return;
-  }
-
-  $hostIndex = $self->{LFN_DB}->getMaxHostIndex + 1;
-
-  $self->info("Trying to connect to $db in $host...");
-  my ($oldHost, $oldDB, $oldDriver) = ($self->{HOST}, $self->{DB}, $self->{DRIVER});
-
-  my $replicatedInfo = $self->getAllReplicatedData()
-    or $self->info("Error getting the info from the database")
-    and return;
-
-  $self->debug(1, "Connecting to new database ($host $db $driver)");
-  my $oldConfig = $self->{CONFIG};
-  my $newConfig;
-  if ($org) {
-    $newConfig = $self->{CONFIG}->Reload({"organisation", $org});
-    $newConfig or $self->info("Error gettting the new configuration") and return;
-
-    $self->{CONFIG} = $newConfig;
-  }
-
-  if (!$self->reconnect($host, $db, $driver)) {
-    $self->info("Error: not possible to connect to $driver $db in $host");
-    $self->reconnect($oldHost, $oldDB, $oldDriver);
-    $newConfig and $self->{CONFIG} = $oldConfig;
-    return;
-  }
-  $self->{SCHEMA} = $db;
-  $self->{SCHEMA} =~ s/(.+):(.+)/$2/i;
-  if (!$org) {
-    $self->createCatalogueTables({reconnected => 1});
-
-    #Now, we have to fill in the tables
-    $self->setAllReplicatedData($replicatedInfo) or return;
-
-    $self->{LFN_DB}->insertHost($hostIndex, $host, $db, $driver);
-
-  }
-
-  #in the old nodes, add the new link
-  foreach my $rtempHost (@{$replicatedInfo->{hosts}}) {
-    $self->debug(1, "Connecting to database ($rtempHost->{address} $rtempHost->{db} $rtempHost->{driver})");
-    $self->reconnect($rtempHost->{address}, $rtempHost->{db}, $rtempHost->{driver});
-    $self->{LFN_DB}->insertHost($hostIndex, $host, $db, $driver, $org);
-  }
-
-  $self->debug(1, "Connecting to old database ($oldHost $oldDB $oldDriver)");
-  $self->reconnect($oldHost, $oldDB, $oldDriver);
-  $self->info("Host added!!");
-  return 1;
-}
 
 sub getNumberOfEntries {
   my $self  = shift;
   my $entry = shift;
   if (defined $entry->{guidTime}) {
     $self->debug(1, "Getting the number of guids");
-    return $self->{GUID_DB}->getNumberOfEntries($entry, @_);
+    return $self->GUID_getNumberOfEntries($entry, @_);
   }
-  return $self->{LFN_DB}->getNumberOfEntries($entry, @_);
+  return $self->LFN_getNumberOfEntries($entry, @_);
 }
 
-sub getIndexHostFromGUID {
-  my $self = shift;
-  return $self->{GUID_DB}->getIndexHostFromGUID(@_);
-}
 
 sub checkLFN {
   my $self   = shift;
@@ -897,24 +499,22 @@ sub checkLFN {
     and return;
   $self->info("Checking the tables in $self->{DB}");
 
-  my $db = $self->{LFN_DB};
-  $db or $self->info("Error connecting to $db") and next;
 
-  my $tables = $db->queryColumn('select tablename from INDEXTABLE order by 1', undef, undef);
+  my $tables = $self->queryColumn('select tablename from INDEXTABLE order by 1', undef, undef);
   foreach my $t (@$tables) {
           $ctable
       and $ctable !~ /^L${t}L$/
       and $self->info("Skipping table L${t}L")
       and next;
     if (
-      $db->queryValue(
+      $self->queryValue(
 "select 1 from (select max(ctime) ctime, count(*) counter from L${t}L) a left join  LL_ACTIONS on tablenumber=? and action='STATS' where extra is null or extra<>counter or time is null or time<ctime",
         undef,
         {bind_values => [$t]}
       )
       ) {
       $self->info("We have to update the table $t");
-      $db->updateStats($t);
+      $self->updateLFNStats($t);
     }
   }
   return 1;
@@ -924,14 +524,12 @@ sub checkOrphanGUID {
   my $self = shift;
   $self->debug(1, "Checking orphanguids in the database");
 
-  my $db = $self->{GUID_DB}
-    or return;
-  my $tables = $db->query("select * from GL_ACTIONS where action='TODELETE'");
+  my $tables = $self->query("select * from GL_ACTIONS where action='TODELETE'");
   foreach my $table (@$tables) {
     $self->info("Doing the table $table->{tableNumber}");
-    $db->checkOrphanGUID($table->{tableNumber}, @_);
+    $self->GUID_checkOrphanGUID($table->{tableNumber}, @_);
   }
-  $db->do(
+  $self->do(
 "delete from TODELETE  using TODELETE join SE s on TODELETE.senumber=s.senumber where sename='no_se' and pfn like 'guid://%'"
   );
 
@@ -943,30 +541,28 @@ sub optimizeGUIDtables {
 
   $self->info("Let's optimize the guid tables");
 
-  my $db = $self->{GUID_DB} or return;
-
-  my $tables = $db->query("SELECT tableName, guidTime from GUIDINDEX", undef, undef);
+  my $tables = $self->query("SELECT tableName, guidTime from GUIDINDEX", undef, undef);
   foreach my $info (@$tables) {
     my $table = "G$info->{tableName}L";
     $self->info("  Checking the table $table");
-    my $number = $db->queryValue("select count(*) from $table");
+    my $number = $self->queryValue("select count(*) from $table");
     $self->info("There are $number entries");
     my $done = 0;
     while ($number > 3000000) {
       $self->info("There are more than 3M ($number) ! Splitting the table");
       my $guid =
-        $db->queryRow("select guidid, binary2string(guid) guid from $table order by 1 desc limit 1 offset 2000000");
+        $self->queryRow("select guidid, binary2string(guid) guid from $table order by 1 desc limit 1 offset 2000000");
       $guid->{guid} or next;
       $self->info("We have to split according to $guid->{guid}");
-      $db->moveGUIDs($guid->{guid}, "f") or last;
+      $self->moveGUIDs($guid->{guid}, "f") or last;
       $self->info("Let's count again");
-      $number = $db->queryValue("select count(*) from $table");
+      $number = $self->queryValue("select count(*) from $table");
       $done   = 1;
     }
-    $done and $db->checkGUIDTable($table);
+    $done and $self->checkGUIDTable($table);
     if ($number < 1000000) {
       $self->info("There are less than 1M. Let's merge with the previous (before $info->{guidTime})");
-      $self->optimizeGUIDtables_removeTable($info, $db, $table);
+      $self->optimizeGUIDtables_removeTable($info, $table);
     }
   }
   return 1;
@@ -975,7 +571,6 @@ sub optimizeGUIDtables {
 sub optimizeGUIDtables_removeTable {
   my $self  = shift;
   my $info  = shift;
-  my $db    = shift;
   my $table = shift;
 
   defined $info->{guidTime} or return 1;
@@ -987,41 +582,41 @@ sub optimizeGUIDtables_removeTable {
   ($previousGUID eq "FFFFFFFF")
     and $self->info("This is the first table")
     and return 1;
-  my $t = $db->queryRow("select * from GUIDINDEX where guidTime<? order by guidTime desc limit 1",
+  my $t = $self->queryRow("select * from GUIDINDEX where guidTime<? order by guidTime desc limit 1",
     undef, {bind_values => [$previousGUID]});
 
   ($table eq "G$t->{tableName}L")
     and $self->info("Same table?? :(")
     and return;
 
-  my $info2   = $db->query("describe $table");
+  my $info2   = $self->query("describe $table");
   my $columns = "";
   foreach my $c (@$info2) {
     $columns .= "$c->{Field},";
   }
   $columns =~ s/guidid,//i;
   $columns =~ s/,$//;
-  my $entries = $db->queryValue("select count(*) from  G$t->{tableName}L");
+  my $entries = $self->queryValue("select count(*) from  G$t->{tableName}L");
   if ($entries > 2000000) {
     $self->info("The previous table has too many entries");
     return;
   }
 
   $self->info("This is in the same database. Tables $table and G$t->{tableName}L");
-  $db->renumberGUIDtable("", $table);
-  $db->renumberGUIDtable("", "G$t->{tableName}L");
-  $db->lock(
+  $self->renumberGUIDtable("", $table);
+  $self->renumberGUIDtable("", "G$t->{tableName}L");
+  $self->lock(
 "$table write, G$t->{tableName}L write, ${table}_PFN write, ${table}_REF write, G$t->{tableName}L_PFN write, G$t->{tableName}L_REF"
   );
-  my $add = $db->queryValue("select max(guidid) from G$t->{tableName}L") || 0;
-  $db->do(
+  my $add = $self->queryValue("select max(guidid) from G$t->{tableName}L") || 0;
+  $self->do(
     "insert into G$t->{tableName}L_PFN  ( pfn,seNumber,guidId ) select  pfn,seNumber, guidId+$add from ${table}_PFN");
-  $db->do("insert into G$t->{tableName}L_REF  (lfnRef,guidId ) select  lfnRef, guidId+$add from ${table}_REF");
+  $self->do("insert into G$t->{tableName}L_REF  (lfnRef,guidId ) select  lfnRef, guidId+$add from ${table}_REF");
 
-  $db->do("insert into G$t->{tableName}L  ($columns, guidId ) select  $columns, guidId+$add from ${table}");
+  $self->do("insert into G$t->{tableName}L  ($columns, guidId ) select  $columns, guidId+$add from ${table}");
   $self->info("And now, the index  $info->{guidTime}");
-  $db->unlock();
-  $db->deleteFromIndex("guid", $info->{guidTime});
+  $self->unlock();
+  $self->deleteFromIndex("guid", $info->{guidTime});
 
   return 1;
 }
@@ -1038,7 +633,7 @@ sub getDF {
     $query .= " where a.seName=?";
     push @$bind, $sename;
   }
-  my $info = $self->{LFN_DB}->{FIRST_DB}->query($query, undef, {bind_values => $bind});
+  my $info = $self->query($query, undef, {bind_values => $bind});
   return $info;
 
 }
@@ -1068,24 +663,24 @@ sub masterSE_list {
     $method = "queryColumn";
     $select = "binary2string(guid)";
   }
-  my $db = $self->{GUID_DB} or return;
 
-  my $tables = $db->queryColumn("SELECT tableName from GUIDINDEX", undef, undef);
+
+  my $tables = $self->queryColumn("SELECT tableName from GUIDINDEX", undef, undef);
   foreach my $table (@$tables) {
     $table = "G${table}L" or return;
-    my $referenced = $db->$method(
+    my $referenced = $self->$method(
       "select $select from $table join 
       ${table}_PFN p  using (guidid) join ${table}_REF r using (guidid)
       where  p.senumber=? ", undef, {bind_values => [$senumber]}
     );
 
-    my $broken = $db->$method(
+    my $broken = $self->$method(
       "select $select from $table join 
       ${table}_PFN p  using (guidid) left join ${table}_REF r using (guidid)
       where  p.senumber=? and r.guidid is null",
       undef, {bind_values => [$senumber]}
     );
-    my $replicated = $db->$method(
+    my $replicated = $self->$method(
       "select $select from (select guid from $table join
       ${table}_PFN p using (guidid) join ${table}_PFN p2 using (guidid)
       where p.senumber=? and p2.senumber!= p.senumber group by guidid) a", undef, {bind_values => [$senumber]}
@@ -1124,8 +719,8 @@ sub masterSE_getFiles {
   $options->{md5} and $query .= ", g.md5 ";
 
   #Let's skip all the hosts that we have already seen
-  my $db = $self->{LFN_DB};
-  my $tables = $db->queryColumn("SELECT tableName from GUIDINDEX order by 1", undef, undef);
+  
+  my $tables = $self->queryColumn("SELECT tableName from GUIDINDEX order by 1", undef, undef);
   foreach my $table (@$tables) {
     $table = "G${table}L";
     $previous_table and $previous_table !~ /^$table$/ and next;
@@ -1147,14 +742,14 @@ sub masterSE_getFiles {
     my $entries = [];
     if ($options->{lfn}) {
       $self->debug(1, "Getting the lfn of the files");
-      my $ref = $db->query(
+      my $ref = $self->query(
 "select lfnRef, db, a.lfn  from (select  distinct lfnRef  from  ${table}_REF join  ${table}_PFN p using (guidid) where p.senumber=?) a join  HOSTS h join INDEXTABLE a using (hostindex)   where lfnRef like concat(h.hostindex, '_%') and lfnRef=concat(a.hostIndex,'_', a.tableName) ",
         undef,
         {bind_values => [$senumber]}
       );
       foreach my $entry (@$ref) {
         my ($host, $lfnTable) = split(/_/, $entry->{lfnRef});
-        my $dd = $db->query(
+        my $dd = $self->query(
 "$query, concat(?,lfn) lfn  from $table g join  ${table}_PFN p  using (guidid) join $entry->{db}.L${lfnTable}L l using (guid) where p.senumber=? $endquery",
           undef,
           {bind_values => [ $entry->{lfn}, $senumber ]}
@@ -1165,7 +760,7 @@ sub masterSE_getFiles {
         $entries = [ @$entries, @$dd ];
       }
     } else {
-      $entries = $db->query("$query from  $table g join  ${table}_PFN p  using (guidid) where p.senumber=? $endquery",
+      $entries = $self->query("$query from  $table g join  ${table}_PFN p  using (guidid) where p.senumber=? $endquery",
         undef, {bind_values => [$senumber]});
     }
     $return = [ @$return, @$entries ];
@@ -1181,20 +776,19 @@ sub masterSE_getFiles {
 sub calculateBrokenLFN {
   my $self    = shift;
   my $table   = shift;
-  my $db      = shift;
   my $options = shift;
 
   my $extratable = "";
   $self->info("Calculating all the broken links in $table->{lfn}");
 
-  my $GUIDList = $db->getPossibleGuidTables($table->{tableName});
+  my $GUIDList = $self->getPossibleGuidTables($table->{tableName});
   my $t        = "L$table->{tableName}L";
-  $db->checkLFNTable($table->{tableName});
-  $db->do("truncate table ${t}_broken");
-  $db->do("insert into ${t}_broken  select entryId from  $t where type='f'");
+  $self->checkLFNTable($table->{tableName});
+  $self->do("truncate table ${t}_broken");
+  $self->do("insert into ${t}_broken  select entryId from  $t where type='f'");
   foreach my $entry (@$GUIDList) {
     $options->{nopfn} and $extratable = "join  $entry->{db}.G$entry->{tableName}L_PFN using (guidid)";
-    $db->do(
+    $self->do(
 "delete from  ${t}_broken using  ${t}_broken join $t using (entryId) join $entry->{db}.G$entry->{tableName}L using (guid) $extratable"
     );
 
@@ -1213,9 +807,9 @@ sub getBrokenLFN {
   my $allEntries;
   if ($dir) {
     $self->info("Doing only $dir");
-    $allEntries = $self->{LFN_DB}->getHostsForEntry($dir);
+    $allEntries = $self->getTablesForEntry($dir);
   }
-  my $db = $self->{LFN_DB} or return;
+  
 
   my $tables;
   if ($allEntries) {
@@ -1223,19 +817,19 @@ sub getBrokenLFN {
       push @$tables, $c;
     }
   } else {
-    $tables = $db->query("SELECT tableName,lfn from INDEXTABLE", undef, undef);
+    $tables = $self->query("SELECT tableName,lfn from INDEXTABLE", undef, undef);
   }
   for my $t (@$tables) {
-    $db->checkLFNTable($t->{tableName});
+    $self->checkLFNTable($t->{tableName});
     $self->info("Checking the table $t->{tableName}");
-    $options->{calculate} and $self->calculateBrokenLFN($t, $db, $options);
+    $options->{calculate} and $self->calculateBrokenLFN($t, $options);
     my $like = "";
     my $bind = [ $t->{lfn} ];
     if ($dir) {
       $like = "where concat('$t->{lfn}',lfn) like concat(?,'%')";
       push @$bind, $dir;
     }
-    my $entries = $db->queryColumn(
+    my $entries = $self->queryColumn(
       "SELECT concat(?,lfn) from L$t->{tableName}L join  L$t->{tableName}L_broken using (entryId) $like ",
       undef, {bind_values => $bind});
     foreach my $e (@$entries) {
@@ -1246,11 +840,86 @@ sub getBrokenLFN {
   return $all;
 }
 
-=head1 SEE ALSO
 
-AliEn::Database
+sub checkSETable {
+  my $self = shift;
 
-=cut
+  my %columns = (
+    seName           => "varchar(60) character set latin1 collate latin1_general_ci NOT NULL",
+    seNumber         => "int(11) NOT NULL auto_increment primary key",
+    seQoS            => "varchar(200) character set latin1 collate latin1_general_ci",
+    seioDaemons      => "varchar(255)",
+    seStoragePath    => "varchar(255)",
+    seNumFiles       => "bigint",
+    seUsedSpace      => "bigint",
+    seType           => "varchar(60)",
+    seMinSize        => "int default 0",
+    seExclusiveWrite => "varchar(300) character set latin1 collate latin1_general_ci",
+    seExclusiveRead  => "varchar(300) character set latin1 collate latin1_general_ci",
+    seVersion        => "varchar(300)",
+  );
+
+  return $self->checkTable("SE", "seNumber", \%columns, 'seNumber', ['UNIQUE INDEX (seName)'], {engine => "innodb"})
+    ;    #or return;
+         #This table we want it case insensitive
+
+  #  return $self->do("alter table SE  convert to CHARacter SET latin1");
+}
+sub getUserid {
+  my $self  = shift;
+  my $user  = shift;
+  my $group = shift;
+  my $where = "primarygroup=1";
+  $group and $where = "groupname='$group'";
+  return $self->queryValue("SELECT userid from GROUPS where Username='$user' and $where");
+}
+
+
+sub deleteFromIndex {
+  my $self    = shift;
+  my @entries = @_;
+
+  map { $_ = "lfn like '$_'" } @entries;
+  my $indexTable = "INDEXTABLE";
+  $self->info("Ready to delete the index for @_");
+  if ($_[0] =~ /^guid$/) {
+    $self->info("Deleting from the guidindex");
+    $indexTable = "GUIDINDEX";
+    shift;
+    @entries = @_;
+    @entries = map { $_ = "guidTime = '$_'" } @entries;
+  }
+
+  my $action = "DELETE FROM $indexTable WHERE " . join(" or ", @entries);
+  return $self->do($action);
+
+}
+
+sub insertInIndex {
+  my $self      = shift;
+  my $table     = shift;
+  my $lfn       = shift;
+  my $options   = shift;
+
+  $table =~ s/^D(\d+)L$/$1/;
+  my $indexTable = "INDEXTABLE";
+  my $column     = "lfn";
+  my $value      = "'$lfn'";
+  if ($options->{guid}) {
+    $table =~ s/^G(\d+)L$/$1/;
+    $column     = "guidTime";
+    $indexTable = "GUIDINDEX";
+    $value      = "string2date('$lfn')";
+  }
+  $indexTable =~ /GUIDINDEX/ and $column = 'guidTime';
+  my $action = "INSERT INTO $indexTable ( tableName, $column) values( '$table', $value)";
+  return $self->do($action);
+}
+
+sub getIndexTable {
+  my $self = shift;
+  return $self->{INDEX_TABLENAME};
+}
+
 
 1;
-

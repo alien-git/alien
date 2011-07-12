@@ -52,100 +52,6 @@ my $createPasswd = sub {
 
 };
 
-sub f_mount {
-  my $self         = shift;
-  my $mountpoint   = shift;
-  my $organisation = shift;
-
-  if ($self->{ROLE} !~ /^admin(ssl)?$/) {
-    $self->info("Error: only the administrator can add new hosts");
-    return;
-  }
-  $self->info("Mounting another VO");
-
-  my $message = "";
-
-  $mountpoint or $message = "missing mount point";
-  $organisation or $message .= " missing organisation name";
-
-  $message and $self->info("Error: $message\nUsage: mount <mountdir> <V.O name>") and return;
-
-  $mountpoint = $self->GetAbsolutePath($mountpoint);
-
-  my $org = $self->{CONFIG}->{ORG_NAME};
-  my $t = $self->{CONFIG}->Reload({organisation => $organisation});
-  if (!$t) {
-    $self->info("Error: not possible to get the configuration of $organisation");
-    return 0;
-  }
-
-  #	$self->{CONFIG}=$t;
-  my $address = $t->{CATALOGUE_DATABASE};
-  if (!$address) {
-    $self->info("Error getting the address of the catalogue of $organisation");
-    return 0;
-  }
-  $self->debug(1, "In Admin Interface, ready to mount");
-  $self->f_touch($mountpoint) or return 0;
-
-  $self->debug(1, "File inserted");
-
-  my ($host, $driver, $db) = split("/", $address);
-  $self->info("Adding the host to the hosts table ($address)");
-
-  if (!$self->f_addHost($host, $driver, $db, $organisation)) {
-    $self->info("Error adding the new host");
-    unless ($self->{UI}) {
-      my $options = {};
-      $options->{role} = "$self->{ROLE}";
-      $self->{UI}
-        or $self->{UI} = AliEn::UI::Catalogue::LCM->new($options)
-        or $self->info("Could not get UI")
-        and return -2;
-    }
-    $self->{UI}->f_removeFile("s", $mountpoint);
-    return 0;
-  }
-  my ($hostIndex) = $self->{DATABASE}->getHostIndex($host, $db, $driver);
-
-  $self->debug(1, "Now we just have to modify D0");
-  my $dir      = $self->f_dir($mountpoint);
-  my $basename = $self->f_basename($mountpoint);
-  $self->debug(1, "We have to change the entry $basename in $dir");
-  my $VOpath = $self->getVOPath($mountpoint);
-
-  my $newVOPath = $VOpath;
-  $newVOPath =~ s/\/?$/\//;
-
-  $self->{DATABASE}->updateD0Entry($VOpath, {hostIndex => $hostIndex, path => $newVOPath})
-    or $self->{LOGGER}->error("Error setting new path and hostIndex for path $VOpath")
-    and return;
-  $self->{DATABASE}->updateDirEntry($dir, $basename, {dir => 1000, type => 'd7555'})
-    or $self->{LOGGER}->error("Error setting new dir and type for name $basename")
-    and return;
-
-  $self->debug(1, "Organisation $organisation mounted under $mountpoint");
-  return 1;
-}
-
-sub f_addHost {
-  my $self   = shift;
-  my $host   = shift;
-  my $driver = shift;
-  my $db     = shift;
-  my $org    = (shift or "");
-
-  if (!$db) {
-    print STDERR "Error: not enough arguments in addHost\nUsage addHost <host> <driver> <database> [<organisation>]\n";
-    return;
-  }
-
-  if ($self->{ROLE} !~ /^admin(ssl)?/) {
-    print STDERR "Error: only the administrator can add new hosts\n";
-    return;
-  }
-  return $self->{DATABASE}->addHost($host, $driver, $db, $org);
-}
 
 sub f_addUser {
   my $self = shift;
@@ -200,7 +106,7 @@ sub f_addUser {
   $self->f_chown("", $user, $homedir) or return;
   $self->info("Adding the FQUOTAS");
   my $exists =
-    $self->{DATABASE}->{LFN_DB}
+    $self->{DATABASE}
     ->queryValue("select user from FQUOTAS where user = ? ;", undef, {bind_values => [$user]});
 
   if (defined($exists) and $exists eq $user) {
@@ -214,7 +120,7 @@ sub f_addUser {
     my $tmpIncreasedTotalSize = 0;
     my $maxNbFiles            = 10000;
     my $maxTotalSize          = 10000000000;
-    my $db                    = $self->{DATABASE}->{LFN_DB};
+    my $db                    = $self->{DATABASE};
     $db->do(
       "insert into FQUOTAS ( "
         . $db->reservedWord("user")
@@ -524,15 +430,15 @@ sub f_showStructure {
   my $info;
   if ($options =~ /g/) {
     if ($dir) {
-      $info = $self->{DATABASE}->getIndexHostFromGUID($dir);
+      my $table = $self->{DATABASE}->getIndexHostFromGUID($dir);
       if ($info) {
         $info->{guidTime} =
-          $self->{DATABASE}->{GUID_DB}->queryValue("select string2date(?)", undef, {bind_values => [$dir]});
+          $self->{DATABASE}->queryValue("select string2date(?)", undef, {bind_values => [$dir]});
         $info->{tableName} =~ s/^G(.*)L$/$1/;
         $info = [$info];
       }
     } else {
-      $info = $self->{DATABASE}->{GUID_DB}->query("SELECT * FROM GUIDINDEX order by guidTime");
+      $info = $self->{DATABASE}->query("SELECT * FROM GUIDINDEX order by guidTime");
     }
   } else {
     $lfn = $self->GetAbsolutePath($dir);
@@ -654,7 +560,7 @@ sub refreshSERankCache {
   $self->info("Let's force a refresh on the SE Rank Cache based on MonALISA info!");
 
   my $sitename = (shift || "");
-  my $db = $self->{DATABASE}->{LFN_DB};
+  my $db = $self->{DATABASE};
 
   $self->info("Going to update the ranks.");
   my $where = "";
@@ -795,7 +701,7 @@ sub resyncLDAPSE {
   my $total = $mesg->count;
   $self->info("There are $total entries under AliEnMSS");
 
-  my $db = $self->{DATABASE}->{LFN_DB};
+  my $db = $self->{DATABASE};
 
   my $new_SEs = {};
 
@@ -908,7 +814,7 @@ sub checkSEDescription {
   my $name   = shift;
   my $sename = shift;
 
-  my $db = $self->{DATABASE}->{LFN_DB};
+  my $db = $self->{DATABASE};
 
   my $min_size = 0;
   foreach my $d ($entry->get_value('options')) {
@@ -972,12 +878,12 @@ sub checkIODaemons {
   my $seioDaemons = "$proto://$host:$port";
   $self->debug(1, "And the update should $sename be: $seioDaemons, $path");
   my $e =
-    $self->{DATABASE}->{LFN_DB}
+    $self->{DATABASE}
     ->query("SELECT sename,seioDaemons,sestoragepath from SE where upper(seName)=upper('$sename')");
   my $path2 = $path;
   $path2 =~ s/\/$// or $path2 .= "/";
   my $total =
-    $self->{DATABASE}->{LFN_DB}->queryValue(
+    $self->{DATABASE}->queryValue(
 "SELECT count(*) from SE where upper(seName)=upper('$sename') and seioDaemons='$seioDaemons' and ( seStoragePath='$path' or sestoragepath='$path2')"
     );
 
@@ -1018,7 +924,7 @@ sub removeExpiredFiles {
     and return;
   $self->info("Removing expired entries from LFN_BOOKED");
 
-  my $db = $self->{DATABASE}->{LFN_DB};
+  my $db = $self->{DATABASE};
 
   #Get files
   use Time::HiRes qw (time);
@@ -1048,13 +954,13 @@ sub removeExpiredFiles {
       {bind_values => [ $file->{lfn}, $file->{expiretime} ]});
     ($physicalDelete == $count + 1)
       and ($count > 0)
-      and $self->{DATABASE}->{LFN_DB}->fquota_update(-1 * $file->{size} * $count, -1 * $count, $file->{owner});
+      and $self->{DATABASE}->fquota_update(-1 * $file->{size} * $count, -1 * $count, $file->{owner});
     $self->info("$file->{lfn}($file->{guid}) was deleted($physicalDelete physical files) and quotas were rolled back ("
         . -1 * $file->{size} * $count . ", "
         . -1 * $count
         . ") times for $file->{user}");
   }
-  $self->{DATABASE}->{GUID_DB}->{VIRTUAL_ROLE} = "admin";
+  $self->{DATABASE}->{VIRTUAL_ROLE} = "admin";
 }
 
 sub physicalDeleteEntries {
@@ -1104,14 +1010,14 @@ sub cleanupGUIDCatalogue {
   my @pfns           = ();
   my $physicalDelete = 0;
 
-  my $guiddb = $self->{DATABASE}->{GUID_DB};
-  my $dbinfo = $self->{DATABASE}->{GUID_DB}->getIndexHostFromGUID($file->{guid});
+  my $guiddb = $self->{DATABASE};
+  my $dbinfo = $self->{DATABASE}->getIndexHostFromGUID($file->{guid});
   $dbinfo or return;
 
   $guiddb or $self->info("Error reconnecting") and return;
-  $self->{DATABASE}->{GUID_DB}->{VIRTUAL_ROLE} = "$file->{user}";
-  $self->info("Deleting $file->{lfn} as $self->{DATABASE}->{GUID_DB}->{VIRTUAL_ROLE}");
-  if ($self->{DATABASE}->{GUID_DB}->checkPermission("w", $file->{guid})) {
+  $self->{DATABASE}->{VIRTUAL_ROLE} = "$file->{user}";
+  $self->info("Deleting $file->{lfn} as $self->{DATABASE}->{VIRTUAL_ROLE}");
+  if ($self->{DATABASE}->checkPermission("w", $file->{guid})) {
     $self->info("Have Permission on GUID");
 
     #Delete file
@@ -1188,10 +1094,10 @@ sub calculateFileQuota {
   $silent and $method = "debug" and push @data, 1;
 
   $self->$method(@data, "Calculate File Quota");
-  my $lfndb = $self->{DATABASE}->{LFN_DB};
+  my $lfndb = $self->{DATABASE};
 
   my $calculate = 0;
-  my $rtables   = $lfndb->getAllTables();
+  my $rtables   = $lfndb->getAllLFNTables();
 
   foreach my $h (@$rtables) {
     my $LTableIdx = $h->{tableName} or next;
@@ -1227,7 +1133,7 @@ sub calculateFileQuota {
   $calculate or $self->$method(@data, "No need to calculate") and return;
 
   my %infoLFN;
-  my $tables = $self->getAllTables();
+  my $tables = $self->getAllLFNTables();
   foreach my $h (@$tables) {
     my $tableIdx = $h->{tableName} or next;
     my $tableName = "L${tableIdx}L";
@@ -1250,16 +1156,16 @@ sub calculateFileQuota {
   }
 
   $self->$method(@data, "Updating FQUOTAS table");
-  $self->{DATABASE}->{LFN_DB}->lock("FQUOTAS");
-  $self->{DATABASE}->{LFN_DB}
+  $self->{DATABASE}->lock("FQUOTAS");
+  $self->{DATABASE}
     ->do("update FQUOTAS set nbFiles=0, totalSize=0, tmpIncreasedNbFiles=0, tmpIncreasedTotalSize=0")
     or $self->$method(@data, "initialization failure for all users");
   foreach my $user (keys %infoLFN) {
-    $self->{DATABASE}->{LFN_DB}->do(
+    $self->{DATABASE}->do(
       "update FQUOTAS set nbFiles=$infoLFN{$user}{nbfiles}, totalSize=$infoLFN{$user}{totalsize} where user='$user'")
       or $self->$method(@data, "update failure for user $user");
   }
-  $self->{DATABASE}->{LFN_DB}->unlock();
+  $self->{DATABASE}->unlock();
 }
 
 return 1;

@@ -210,7 +210,7 @@ Site name:$self->{CONFIG}->{SITE}"
 #  my ($host, $driver, $db) = split("/", $self->{CONFIG}->{"JOB_DATABASE"});
 #  $self->{TASK_DB} = AliEn::Database::TaskQueue->new({DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin', SKIP_CHECK_TABLES=> 1}) or return;
 #  $self->{PRIORITY_DB} = AliEn::Database::TaskPriority->new({DB=>$db,HOST=>$host,DRIVER=>$driver,ROLE=>'admin',SKIP_CHECK_TABLES=> 1}) or return;
-  $self->{ROLE} = $self->{DATABASE}->{LFN_DB}->{ROLE};
+  $self->{ROLE} = $self->{DATABASE}->{ROLE};
 
   # check if an entry exists in PRIORITY table
   #$self->{PRIORITY_DB}->checkPriorityValue($self->{ROLE});
@@ -699,9 +699,6 @@ sub f_disconnect {
 sub f_mkremdir {
   my $self = shift;
   $DEBUG and $self->debug(1, "In UserInterdace mkremdir @_");
-  my $host   = shift;
-  my $driver = shift;
-  my $DB     = shift;
   my $lfn    = shift;
   if (!$lfn) {
     $self->info("ERROR: wrong arguments in mkremdir.\n Usage: mkremdir <host> <driver> <database> <lfn>");
@@ -715,13 +712,7 @@ sub f_mkremdir {
     and return;
 
   #pratik
-  my ($hostIndex) = $self->{DATABASE}->getHostIndex($host, $DB, $driver);
-  if (!$hostIndex) {
-    print STDERR
-      "Error: $DB in $host (driver $driver) is not in the current list of remote hosts. Add it first with 'addHost'\n";
-    return;
-  }
-  return $self->{DATABASE}->createRemoteDirectory($hostIndex, $host, $DB, $driver, $lfn);
+  return $self->{DATABASE}->createRemoteDirectory( $lfn);
 }
 
 #sub f_rmlink {
@@ -2091,7 +2082,7 @@ sub f_type {
 #
 #  $self->info("In checkFileQuota for user: $user, request file size:$size");
 #
-#  my $array = $self->{DATABASE}->{LFN_DB}->queryRow("SELECT nbFiles, totalSize, maxNbFiles, maxTotalSize, tmpIncreasedNbFiles, tmpIncreasedTotalSize FROM processes.PRIORITY WHERE user='$user'")
+#  my $array = $self->{DATABASE}->queryRow("SELECT nbFiles, totalSize, maxNbFiles, maxTotalSize, tmpIncreasedNbFiles, tmpIncreasedTotalSize FROM processes.PRIORITY WHERE user='$user'")
 #    or $self->{LOGGER}->error("Failed to get data from the PRIORITY quota table.")
 #    and return (0, "Failed to get data from the PRIORITY quota table. ");
 #  $array or $self->{LOGGER}->error("There's no entry for user $user in the PRIORITY quota table.")

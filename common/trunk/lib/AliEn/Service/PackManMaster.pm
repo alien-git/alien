@@ -44,7 +44,7 @@ sub initialize {
 
   $self->{UI}=AliEn::UI::Catalogue->new({role=>'admin'}) or return;
 
-  $self->{DB}=$self->{UI}->{CATALOG}->{DATABASE}->{LFN_DB};
+  $self->{DB}=$self->{UI}->{CATALOG}->{DATABASE};
   $self->{DB} or $self->info("Error getting the database") and return;
   ($self->{HOST}, $self->{PORT})=
     split (":", $self->{CONFIG}->{"PACKMANMASTER_ADDRESS"});

@@ -814,7 +814,7 @@ sub OLDselectClosestRealSEOnRank {
   }
   $seList = \@cleanList;
 
-  my $catalogue   = $self->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB};
+  my $catalogue   = $self->{CATALOG}->{DATABASE};
   my @queryValues = ();
   my $query       = "";
   if ($sitename) {
@@ -2295,7 +2295,7 @@ sub masterSERecover {
   $self->{GUID} or $self->{GUID} = AliEn::GUID->new();
 
   my $seprefix =
-    $self->{CATALOG}->{DATABASE}->{LFN_DB}->{FIRST_DB}
+    $self->{CATALOG}->{DATABASE}
     ->queryValue('select concat(seioDaemons,"/",seStoragePath) from SE where sename=?',
     undef, {bind_values => [$sename]});
 

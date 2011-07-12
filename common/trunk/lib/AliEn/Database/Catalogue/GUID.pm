@@ -29,10 +29,10 @@ This module interacts with a database of the AliEn Catalogue. The AliEn Catalogu
 
 =cut
 
-use vars qw(@ISA $DEBUG);
+use vars qw( $DEBUG);
 
 #This array is going to contain all the connections of a given catalogue
-push @ISA, qw(AliEn::Database::Catalogue::Shared);
+
 $DEBUG = 0;
 
 =head1 SYNOPSIS
@@ -57,7 +57,7 @@ HOSTS,
 
 #
 # Checking the consistency of the database structure
-sub createCatalogueTables {
+sub GUID_createCatalogueTables {
   my $self = shift;
   my $db   = shift;
   if ($db) {
@@ -250,19 +250,19 @@ sub getSEList {
 
 }
 
-sub _sortGUIDbyDB {
+sub _sortGUIDbyTable {
   my $self    = shift;
   my $entries = {};
   foreach my $entry (@_) {
     my $guid = $entry->{guid};
     $guid or $self->info("Error missing guid in insertGUID") and return;
     $self->debug(2, "Inserting a new guid in the catalogue");
-    my ($db, $table) = $self->selectDatabaseFromGUID($guid) or return;
-    $entries->{$db} or $entries->{$db} = {tables => {}, db => $db};
+    my $table = $self->getIndexHostFromGUID($guid) or return;
+    
     my @list = $entry;
-    $entries->{$db}->{tables}->{$table}
-      and push @list, @{$entries->{$db}->{tables}->{$table}};
-    $entries->{$db}->{tables}->{$table} = \@list;
+    $entries->{$table}
+      and push @list, @{$entries->{$table}};
+    $entries->{$table} = \@list;
   }
   return $entries;
 }
@@ -337,7 +337,7 @@ sub insertGUID {
   @_ or $self->info("Error not enough arguments in insertGUID") and return;
 
   #First let's split the entries according to where they are supposed to be
-  my $entries = $self->_sortGUIDbyDB(@_) or return;
+  my $entries = $self->_sortGUIDbyTable(@_) or return;
   my $error = 0;
 
   #Ok, let's go and insert the things
@@ -346,39 +346,35 @@ sub insertGUID {
   $self->debug(1, "Ready to do the inserts");
   my $multiInsertOpt = {noquotes => 1};
   $options =~ /i/ and $multiInsertOpt->{ignore} = 1;
-  foreach my $db (keys %$entries) {
-    my $obj = $entries->{$db}->{db};
-    foreach my $table (keys %{$entries->{$db}->{tables}}) {
-      my @entries = @{$entries->{$db}->{tables}->{$table}};
+  foreach my $table (keys %{$entries->{tables}}) {
+    my @entries = @{$entries->{$table}};
       my ($pfnRef, $guidRef) = $self->_prepareEntries(@entries)
         or return;
       $self->debug(1, "Ready to insert the info");
 
-      if (!$obj->multiinsert($table, $guidRef, $multiInsertOpt)) {
+   	if (!$self->multiinsert($table, $guidRef, $multiInsertOpt)) {
         $error = 1;
         $self->info("There was a problem with @entries");
         last;
       } else {
-        push @done, {db => $obj, table => $table, entries => \@entries};
-      }
-      if ($pfnRef and @$pfnRef) {
-        $self->debug(1, "And now insert the pfn");
-        foreach (@$pfnRef) {
-          if (
-            !$obj->do(
-"insert into ${table}_PFN (seNumber,guidId,pfn) select ?, guidId, ? from $table where guid=string2binary(?)",
-              {bind_values => [ $_->{se}, $_->{pfn}, $_->{guid} ]}
-            )
-            ) {
-            $self->info("Error inserting the pfns $_!!");
-            $error = 1;
-            last;
-          }
-        }
-        $error and last;
-      }
+    push @done, {table => $table, entries => \@entries};
     }
-    $error and last;
+    if ($pfnRef and @$pfnRef) {
+    $self->debug(1, "And now insert the pfn");
+    foreach (@$pfnRef) {
+      if (
+          !$self->do(
+"insert into ${table}_PFN (seNumber,guidId,pfn) select ?, guidId, ? from $table where guid=string2binary(?)",
+            {bind_values => [ $_->{se}, $_->{pfn}, $_->{guid} ]}
+          )
+          ) {
+          $self->info("Error inserting the pfns $_!!");
+          $error = 1;
+          last;
+        }
+      }
+      $error and last;
+    }
   }
   if ($error) {
     $self->info("Let's undo everything that we have done");
@@ -410,14 +406,14 @@ sub getAllInfoFromGUID {
     . ',binary2string(guid) as guid';
   my $method = $options->{method} || "queryRow";
 
-  my ($db, $table) = $self->selectDatabaseFromGUID($guid) or return;
+  my $table= $self->getIndexHostFromGUID($guid) or return;
+  
 
   $self->debug(2, "Looking into the table  $table");
 
-  my $info = $db->$method("select $retrieve from $table where guid=string2binary(?)", undef, {bind_values => [$guid]});
+  my $info = $self->$method("select $retrieve from $table where guid=string2binary(?)", undef, {bind_values => [$guid]});
 
   if ($options->{return}) {
-    $info->{db}    = $db;
     $info->{table} = $table;
   }
 
@@ -433,20 +429,12 @@ sub getAllInfoFromGUID {
   }
   my $fullQuery = "select seName, pfn from ${table}_PFN p, SE$extraTable $where and p.seNumber=SE.seNumber"
     ; # union select seName, '' as pfn from $table g, SE where $where and seAutoStringlist like concat('%,', concat(seNumber , ',%'))";
-  my $pfn = $db->query($fullQuery, undef, {bind_values => \@bind})
+  my $pfn = $self->query($fullQuery, undef, {bind_values => \@bind})
     or $self->info("Error doing the query '$fullQuery'")
     and return;
   $info->{pfn} = $pfn;
 
   return $info;
-}
-
-sub selectDatabaseFromGUID {
-  my $self = shift;
-  my $guid = shift;
-  my $info = $self->getIndexHostFromGUID($guid)
-    or return;
-  return ($self, $info->{tableName});
 }
 
 sub getIndexHostFromGUID {
@@ -456,10 +444,10 @@ sub getIndexHostFromGUID {
   my $query =
     "SELECT tableName from GUIDINDEX where guidTime<string2date(?) or guidTime is null order by guidTime desc ";
   $query = $self->paginate($query, 1, 0);
-  my $entry = $self->queryRow($query, undef, {bind_values => [$guid]})
-    or $self->info("Error doing the query  for the guid '$guid'")
+  my $entry = $self->queryValue($query, undef, {bind_values => [$guid]})
+    or $self->info("Error doing the query for the guid '$guid'")
     and return;
-  defined $entry->{tableName} and $entry->{tableName} = "G$entry->{tableName}L";
+  
   return $entry;
 }
 
@@ -480,7 +468,8 @@ sub addSEtoGUID {
   my $table = $options->{table};
   my $db    = $self;
   if (!$table) {
-    ($db, $table) = $self->selectDatabaseFromGUID($guid) or return;
+    $table= $self->getIndexHostFromGUID($guid) or return;
+    
   }
   my $update = "concat($column, '$seNumber,')";
   $options->{remove} and $update = "replace($column, ',$seNumber,',',')";
@@ -541,12 +530,14 @@ sub removeSEfromGUID {
 sub getListPFN {
   my $self = shift;
   my $guid = shift;
-  my ($db, $table) = $self->selectDatabaseFromGUID($guid) or return;
+  my $table = $self->getIndexHostFromGUID($guid) or return;
+  
+  
 
-  my $guidId = $db->queryValue("SELECT guidId from $table where guid=string2binary(?)", undef, {bind_values => [$guid]})
+  my $guidId = $self->queryValue("SELECT guidId from $table where guid=string2binary(?)", undef, {bind_values => [$guid]})
     or $self->info("Error getting the guidId from '$guid'")
     and return;
-  my $done = $db->query("SELECT * from ${table}_PFN where guidId=?", undef, {bind_values => [$guidId]})
+  my $done = $self->query("SELECT * from ${table}_PFN where guidId=?", undef, {bind_values => [$guidId]})
     or $self->info("Error doing the query")
     and return;
 
@@ -554,22 +545,6 @@ sub getListPFN {
 
 }
 
-sub getAllReplicatedData {
-  my $self = shift;
-
-  my $guid = $self->query("SELECT * from GUIDINDEX");
-  defined $guid
-    or $self->info("Error: not possible to get all the guid indexes")
-    and return;
-
-  return {guidindex => $guid};
-}
-
-sub setAllReplicatedData {
-  my $self = shift;
-
-  return 1;
-}
 
 sub increaseReferences {
   my $self    = shift;
@@ -718,7 +693,8 @@ sub moveGUIDs {
   my $options = shift || "";
   $DEBUG and $self->debug(1, "Starting  moveGUIDs, with $guid ");
 
-  my ($db, $table) = $self->selectDatabaseFromGUID($guid) or return;
+  my $table = $self->getIndexHostFromGUID($guid) or return;
+  
 
   #Create the new guid table
   my $tableName = $self->queryValue("SELECT max(tableName)+1 from GUIDINDEX");
@@ -732,10 +708,8 @@ sub moveGUIDs {
   }
   $columns =~ s/,$//;
 
-  my $hostId = $self->{CURHOSTID};
-
   #insert it into the index
-  if (!$self->insertInIndex($hostId, $tableName, $guid, {guid => 1})) {
+  if (!$self->insertInIndex($tableName, $guid, {guid => 1})) {
     $self->info("Error creating the index");
     return;
   }
@@ -743,39 +717,35 @@ sub moveGUIDs {
 
   #move the entries from the old table to the new one
   my $error = 1;
-  if ($self->{HOST} eq $db->{HOST} and $self->{DRIVER} eq $db->{DRIVER}) {
+
 
     #at least is in the same host, and driver
-    my @queries = (
+  my @queries = (
 "INSERT INTO $self->{DB}.G${tableName}L ($columns) select $columns from $table where  binary2date(guid)>string2date('$guid')",
 "INSERT INTO $self->{DB}.G${tableName}L_PFN (guidid, pfn,seNumber) select p.guidid, p.pfn, p.seNumber from ${table}_PFN p, $self->{DB}.G${tableName}L g where p.guidId=g.guidId",
       "DELETE FROM $table where binary2date(guid)>string2date('$guid')",
       "delete from p using ${table}_PFN p left join $table g on p.guidId=g.guidId where g.guidId is null"
     );
 
-    my $counter = $#queries;
-    foreach my $q (@queries) {
-      $db->do($q) or last;
-      $counter--;
-    }
-    if ($options !~ /f/) {
-      $db->checkGUIDTable($table);
-    }
-
-    $self->info("From $#queries, $counter left");
-    if ($counter < 0) {
-      $self->info("We have done all the queries");
-      $error = 0;
-    }
-
-  } else {
-
-    #from a different database
+  my $counter = $#queries;
+  foreach my $q (@queries) {
+    $self->do($q) or last;
+    $counter--;
   }
+  if ($options !~ /f/) {
+    $self->checkGUIDTable($table);
+  }
+
+  $self->info("From $#queries, $counter left");
+  if ($counter < 0) {
+    $self->info("We have done all the queries");
+    $error = 0;
+   }
+
 
   #let's check the table again
   #  if ($options !~ /f/){
-  $self->checkGUIDTable($tableName, $db) or return;
+  $self->checkGUIDTable($tableName) or return;
 
   #  } else {
   #    $self->info("Skipping the index creation");
@@ -827,7 +797,7 @@ sub deleteMirrorFromGUID {
     {bind_values => [$guid]});
 }
 
-sub getNumberOfEntries {
+sub GUID_getNumberOfEntries {
   my $self  = shift;
   my $entry = shift;
 
@@ -867,7 +837,7 @@ sub updateStatistics {
   return 1;
 }
 
-sub checkOrphanGUID {
+sub GUID_checkOrphanGUID {
   my $self    = shift;
   my $number  = shift;
   my $options = shift || "";
@@ -913,10 +883,11 @@ sub getLFNfromGUID {
   my $guid    = shift;
   my @lfns;
 
-  my ($db, $table) = $self->selectDatabaseFromGUID($guid) or return;
+  my $table=  $self->getIndexHostFromGUID($guid) or return;
+  
 
   $self->info("And now, let's check which lfn tables we are supposed to use ($table)");
-  my $ref = $db->queryColumn(
+  my $ref = $self->queryColumn(
     "select lfnRef from 
   ${table}_REF join $table using (guidid)
  where guid=string2binary(?)", undef, {bind_values => [$guid]}
@@ -929,8 +900,8 @@ sub getLFNfromGUID {
   foreach my $entry (@$ref) {
     $self->info("We have to check $entry");
     my $prefix = "";
-    $prefix = $db->queryValue("SELECT lfn from INDEXTABLE where tableName=?", undef, {bind_values => [$entry]});
-    my $paths = $db->queryColumn("SELECT concat('$prefix', lfn) FROM L${entry}L WHERE guid=string2binary(?) ",
+    $prefix = $self->queryValue("SELECT lfn from INDEXTABLE where tableName=?", undef, {bind_values => [$entry]});
+    my $paths = $self->queryColumn("SELECT concat('$prefix', lfn) FROM L${entry}L WHERE guid=string2binary(?) ",
       undef, {bind_values => [$guid]});
     $paths and push @lfns, @$paths;
   }
@@ -947,13 +918,14 @@ sub renumberGUIDtable {
   my $guid  = shift;
   my $table = shift;
 
-  my $db = $self;
+  
   if (!$table) {
-    ($db, $table) = $self->selectDatabaseFromGUID($guid) or return;
+    $table= $self->getIndexHostFromGUID($guid) or return;
+    
   }
   $self->debug(1, "We have to renumber the table $table");
 
-  $db->renumberTable(
+  $self->renumberTable(
     $table, "guidId",
     { lock   => "${table}_PFN write, ${table}_REF write, ",
       update => [ "${table}_PFN", "${table}_REF" ]
@@ -968,7 +940,7 @@ AliEn::Database
 
 =cut
 
-sub getAllTables {
+sub getAllGUIDTables {
   my $self = shift;
 
   my $result = $self->query("SELECT tableName from GUIDINDEX");

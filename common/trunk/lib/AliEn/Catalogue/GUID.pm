@@ -11,7 +11,7 @@ sub getInfoFromGUID {
 
 sub checkPermission {
   my $self = shift;
-  return $self->{DATABASE}->{GUID_DB}->checkPermission(@_);
+  return $self->{DATABASE}->checkPermission(@_);
 }
 
 return 1;

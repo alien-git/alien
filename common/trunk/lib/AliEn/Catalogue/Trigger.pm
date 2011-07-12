@@ -61,7 +61,7 @@ sub f_addTrigger {
   ($self->checkPermissions('w', $directory)) or return;
 
   my $done =
-    $self->{DATABASE}->{LFN_DB}->do(
+    $self->{DATABASE}->do(
 "create trigger $triggerName after $action on $table for each row insert into TRIGGERS(lfn, triggerName) select * from (select concat('$prefix', NEW.lfn) as l, '$triggerAction' ) s  where l like '$fileName'"
     );
   $done or $self->{LOGGER}->error("Tag", "Error inserting the entry!") and return;
@@ -139,7 +139,7 @@ sub f_showTrigger {
   my $index = $self->{DATABASE}->getIndexTable();
   my $table = $index->{name};
 
-  my ($trigger) = $self->{DATABASE}->{LFN_DB}->query("show triggers like '$table'");
+  my ($trigger) = $self->{DATABASE}->query("show triggers like '$table'");
   $self->info("\tTrigger\t\t\taction\t\tFile name", undef, 0);
   my @triggers;
   foreach my $t (@$trigger) {
@@ -173,7 +173,7 @@ sub existsTrigger {
   my $index = $self->{DATABASE}->getIndexTable();
   my $table = $index->{name};
 
-  my ($rresult) = $self->{DATABASE}->{LFN_DB}->query("show triggers like '$table'")
+  my ($rresult) = $self->{DATABASE}->query("show triggers like '$table'")
     or return;
   use Data::Dumper;
   print Dumper($rresult);
