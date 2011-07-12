@@ -106,29 +106,30 @@ if ( $username eq $ini->{CLUSTER_MONITOR_USER} ) {
     $passwd or $passwd = $KEY;
     my $decrypt = $y->decrypt( $key, $passwd );
     print "Writing the ssh key in the file...............";
-    if ( !open( PRIVKEY, ">$filenamePRIV" ) ) {
+    my $PRIVKEY;
+    if ( !open(  $PRIVKEY, ">","$filenamePRIV" ) ) {
         print "FAILED\n";
         exit;
     }
     $decrypt =~ s/ /\n/g;
     $decrypt =~ s/BEGIN\nRSA\nPRIVATE\nKEY/BEGIN RSA PRIVATE KEY/;
     $decrypt =~ s/END\nRSA\nPRIVATE\nKEY/END RSA PRIVATE KEY/;
-    print PRIVKEY "$decrypt";
-    close PRIVKEY;
+    print $PRIVKEY "$decrypt";
+    close $PRIVKEY;
     chmod 0600, $filenamePRIV;
     my $public = $return[1];
     $decrypt = $y->decrypt( $public, $passwd );
     print "OK\nWriting the public key in the file............";
-
-    if ( !open( PUBKEY, ">$filenamePUB" ) ) {
+	my $PUBKEY;
+    if ( !open( $PUBKEY, ">","$filenamePUB" ) ) {
         print "FAILED\n";
         exit;
     }
     $decrypt =~ s/ /\n/g;
     $decrypt =~ s/BEGIN\nRSA\nPUBLIC\nKEY/BEGIN RSA PUBLIC KEY/;
     $decrypt =~ s/END\nRSA\nPUBLIC\nKEY/END RSA PUBLIC KEY/;
-    print PUBKEY "$decrypt";
-    close PUBVKEY;
+    print $PUBKEY "$decrypt";
+    close $PUBKEY;
     chmod 0644, $filenamePUB;
     print "OK\n";
 }

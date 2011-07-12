@@ -199,6 +199,7 @@ sub createFile {
     $self->debug(4, "The GUID is supposed to be registered");
     $self->GUID_increaseReferences($options, @_) or return;
   } else {
+  	$self->info("Let's insert the guid");
     $self->insertGUID($options, @_) or return;
   }
   my $done = $self->LFN_createFile($options, @_) or return;

@@ -257,7 +257,9 @@ sub _sortGUIDbyTable {
     my $guid = $entry->{guid};
     $guid or $self->info("Error missing guid in insertGUID") and return;
     $self->debug(2, "Inserting a new guid in the catalogue");
-    my $table = $self->getIndexHostFromGUID($guid) or return;
+    my $table = $self->getIndexHostFromGUID($guid);
+    
+    defined $table or return;
     
     my @list = $entry;
     $entries->{$table}
@@ -335,9 +337,10 @@ sub insertGUID {
   my $self    = shift;
   my $options = shift;
   @_ or $self->info("Error not enough arguments in insertGUID") and return;
-
+  
   #First let's split the entries according to where they are supposed to be
   my $entries = $self->_sortGUIDbyTable(@_) or return;
+  
   my $error = 0;
 
   #Ok, let's go and insert the things
@@ -444,7 +447,8 @@ sub getIndexHostFromGUID {
   my $query =
     "SELECT tableName from GUIDINDEX where guidTime<string2date(?) or guidTime is null order by guidTime desc ";
   $query = $self->paginate($query, 1, 0);
-  my $entry = $self->queryValue($query, undef, {bind_values => [$guid]})
+  my $entry = $self->queryValue($query, undef, {bind_values => [$guid]});
+  defined $entry
     or $self->info("Error doing the query for the guid '$guid'")
     and return;
   

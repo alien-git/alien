@@ -11,7 +11,7 @@
 
 package AliEn::GUID;
 use AliEn::Logger;
-
+use AliEn::Logger::LogObject;
 use vars qw (@ISA $DEBUG);
 push @ISA, 'AliEn::Logger::LogObject';
 

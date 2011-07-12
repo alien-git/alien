@@ -75,8 +75,7 @@ sub f_registerFile {
     if (($permLFN->{owner} eq $self->{ROLE}) and ($permLFN->{gowner} eq $self->{MAINGROUP})) {
 
     } else {
-      $self->{LOGGER}->error(
-        "File",
+      $self->info(
         "file $file already exists. Overwrite not allowed, file owner: $permLFN->{owner}, gowner: $permLFN->{gowner}!!",
         1
       );
@@ -753,19 +752,19 @@ sub f_touch {
   my $self    = shift;
   my $options = shift;
   my $lfn     = shift
-    or $self->{LOGGER}->error("Catalogue::File", "Error missing the name of the file to touch")
+    or $self->info( "Error missing the name of the file to touch", 1)
     and return;
   $lfn = $self->GetAbsolutePath($lfn);
   my ($ok, $message) = $self->checkFileQuota($self->{CONFIG}->{ROLE}, 0);
   if ($ok eq -1) {
-    $self->{LOGGER}->error($message)
+    $self->info($message,1)
       or return;
   }
 
   #Insert file in catalogue
   $self->info("Inserting file $lfn");
   $self->f_registerFile($options, $lfn, 0)
-    or $self->{LOGGER}->error("Catalogue::File", "Could not touch file")
+    or $self->info( "Could not touch file", 1)
     and return;
   $self->info("$lfn successfully created")
     and return 1;
@@ -1207,8 +1206,8 @@ sub checkFileQuota {
     $self->info("Unlimited number of files allowed for user ($user)");
   } else {
     if ($nbFiles + $tmpIncreasedNbFiles + 1 > $maxNbFiles) {
-      $self->info("Uploading file for user ($user) is denied - number of files quota exceeded.");
-      return (-1, "Uploading file for user ($user) is denied - number of files quota exceeded.");
+      $self->info("Uploading file for user ($user) is denied - number of files quota exceeded ($maxNbFiles).");
+      return (-1, "Uploading file for user ($user) is denied - number of files quota exceeded ($maxNbFiles).");
     }
   }
 
