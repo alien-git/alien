@@ -962,18 +962,13 @@ sub moveFolder {
   } else {
 
     #If the source and target are in different L#L tables then add in new table and delete from old table
-    my $schema = $dbSource->queryRow("SELECT h.db FROM HOSTS h, INDEXTABLE i WHERE i.hostIndex=h.hostIndex AND i.lfn=?",
-      undef, {bind_values => [$tablelfn_source]})
-      or $self->info( "Could not update Catalogue")
-      and return;
-    my $db = $schema->{db};
     $dbTarget->do(
           "INSERT INTO $tableName_target(owner, replicated, ctime, guidtime, aclId, lfn, broken, expiretime, "
         . $dbTarget->reservedWord("size")
         . ", dir, gowner, type, guid, md5, perm) 
                   SELECT owner, replicated, ctime, guidtime, aclId, REPLACE(lfn,?,?) as lfn, broken, expiretime, "
         . $dbTarget->reservedWord("size") . ", -1 as dir, gowner, type, guid, md5, perm 
-                  FROM $db.$tableName_source
+                  FROM $tableName_source
                   WHERE lfn REGEXP ?",
       {bind_values => [ $lfnOnTable_source, $lfnOnTable_target, "^" . $lfnOnTable_source ]}
       )
@@ -1039,18 +1034,13 @@ sub moveFile {
   } else {
 
     #If the source and target are in different L#L tables then add in new table and delete from old table
-    my $schema = $dbSource->queryRow("SELECT h.db FROM HOSTS h, INDEXTABLE i WHERE i.hostIndex=h.hostIndex AND i.lfn=?",
-      undef, {bind_values => [$tablelfn_source]})
-      or $self->info( "Error updating database")
-      and return;
-    my $db = $schema->{db};
     $dbTarget->do(
           "INSERT INTO $tableName_target(owner, replicated, ctime, guidtime, aclId, lfn, broken, expiretime, "
         . $dbTarget->reservedWord("size")
         . ", dir, gowner, type, guid, md5, perm) 
       SELECT owner, replicated, ctime, guidtime, aclId, ?, broken, expiretime, "
         . $dbTarget->reservedWord("size")
-        . ", dir, gowner, type, guid, md5, perm FROM $db.$tableName_source WHERE lfn=?",
+        . ", dir, gowner, type, guid, md5, perm FROM $tableName_source WHERE lfn=?",
       {bind_values => [ $lfnOnTable_target, $lfnOnTable_source ]}
       )
       or $self->info( "Error updating database")
@@ -1110,18 +1100,13 @@ sub softLink {
   } else {
 
     #If the source and target are in different L#L tables then add in new table and delete from old table
-    my $schema = $dbSource->queryRow("SELECT h.db FROM HOSTS h, INDEXTABLE i WHERE i.hostIndex=h.hostIndex AND i.lfn=?",
-      undef, {bind_values => [$tablelfn_source]})
-      or $self->info( "Error updating database")
-      and return;
-    my $db = $schema->{db};
     $dbTarget->do(
           "INSERT INTO $tableName_target(owner, replicated, ctime, guidtime, aclId, lfn, broken, expiretime, "
         . $dbTarget->reservedWord("size")
         . ", dir, gowner, type, guid, md5, perm) 
       SELECT owner, replicated, ctime, guidtime, aclId, ?, broken, expiretime, "
         . $dbTarget->reservedWord("size")
-        . ", dir, gowner, 'l', guid, md5, perm FROM $db.$tableName_source WHERE lfn=?",
+        . ", dir, gowner, 'l', guid, md5, perm FROM $tableName_source WHERE lfn=?",
       {bind_values => [ $lfnOnTable_target, $lfnOnTable_source ]}
       )
       or $self->info( "Error updating database")
@@ -1316,19 +1301,6 @@ sub copyDirectory {
   $DEBUG and $self->debug(1, "Directory copied!!");
   return 1;
 }
-
-#sub reconnectToIndex{
-#  my $self=shift;
-#  my $hostIndex=shift;
-#  my $info=$self->queryRow("SELECT address, db,driver from HOSTS where hostIndex=$hostIndex") or $self->info( "Error getting the info of the host $hostIndex") and return;
-#  my ($db, $host, $driver)=($info->{db}, $info->{address}, $info->{driver});#
-#
-#  ($db eq $self->{DB}) and ($host eq $self->{HOST}) and
-#    ($driver  eq $self->{DRIVER}) and return 1;
-#  $DEBUG and $self->debug(1, "Reconecting to the database $db,$host, $driver");
-#  return $self->reconnect($host, $db, $driver);
-#
-#}
 
 =item C<moveLFNs($lfn, $toTable)>
 
