@@ -495,7 +495,7 @@ sub insertMirrorToGUID {
   my $pfn  = shift;
   my $md5  = shift;
 
-  my $info = $self->checkPermission("w", $guid, 'md5') or return;
+  my $info = $self->checkPermission("w", $guid, 'md5,table') or return;
 
   
   if ($md5) {
@@ -581,12 +581,13 @@ sub checkPermission {
 
   my $retrieve = 'guidId,perm,owner,gowner,' . $self->reservedWord("size");
   
+  $retrievemore =~ s/,?table// and 
   $retrievemore =~ s/^,//;
   $retrievemore =~ s/,$//;
   $retrievemore and $retrieve .= "," . $retrievemore;
   my $info = 0;
 
-  $info = $self->getAllInfoFromGUID({retrieve => $retrieve}, $guid);
+  $info = $self->getAllInfoFromGUID({retrieve => $retrieve, return=>'table'}, $guid);
   
   if (!($info and $info->{guidId})) {
     $empty and return $info;
