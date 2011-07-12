@@ -495,22 +495,22 @@ sub insertMirrorToGUID {
   my $pfn  = shift;
   my $md5  = shift;
 
-  my $info = $self->checkPermission("w", $guid, 'md5,db') or return;
+  my $info = $self->checkPermission("w", $guid, 'md5') or return;
 
-  my $db = $info->{db};
+  
   if ($md5) {
     if ($info->{md5} ne $md5) {
       $self->info("The md5 of the file in the database ('$info->{md5}') does not match the one of the file ('$md5')");
       return;
     }
   }
-  my $seNumber = $db->addSEtoGUID($guid, $se, {table => $info->{table}, pfn => $pfn})
+  my $seNumber = $self->addSEtoGUID($guid, $se, {table => $info->{table}, pfn => $pfn})
     or $self->info("Failed to add the SE/PFN ($se/$pfn) to the GUID ($guid) as a mirror.")
     and return;
 
   if ($pfn) {
     if (
-      !$db->insert(
+      !$self->insert(
         "$info->{table}_PFN",
         { guidId   => $info->{guidId},
           pfn      => $pfn,
@@ -518,7 +518,7 @@ sub insertMirrorToGUID {
         }
       )
       ) {
-      $db->removeSEfromGUID($guid, $se, {table => $info->{table}});
+      $self->removeSEfromGUID($guid, $se, {table => $info->{table}});
       $self->info("It wasn't possible to add the SE/PFN ($se/$pfn) to the GUID ($guid) as a mirror.");
       return;
     }
@@ -580,26 +580,14 @@ sub checkPermission {
   my $empty        = (shift || 0);
 
   my $retrieve = 'guidId,perm,owner,gowner,' . $self->reservedWord("size");
-  my $returndb = 0;
-        $retrievemore =~ /db/
-    and $returndb = 1
-    and $retrievemore =~ s/db//
-    and $retrievemore =~ s/,,/,/;
+  
   $retrievemore =~ s/^,//;
   $retrievemore =~ s/,$//;
   $retrievemore and $retrieve .= "," . $retrievemore;
   my $info = 0;
 
-  if ($returndb) {
-    $info = $self->getAllInfoFromGUID(
-      { retrieve => $retrieve,
-        return   => "db"
-      },
-      $guid
-    );
-  } else {
-    $info = $self->getAllInfoFromGUID({retrieve => $retrieve}, $guid);
-  }
+  $info = $self->getAllInfoFromGUID({retrieve => $retrieve}, $guid);
+  
   if (!($info and $info->{guidId})) {
     $empty and return $info;
     $self->info("Error the guid '$guid' is not in the catalogue");
@@ -648,7 +636,7 @@ sub updateOrInsertGUID {
     $guid = $newUp->{guid};
   }
 
-  my $info = $self->checkPermission('w', $guid, "db", 1) or return;
+  my $info = $self->checkPermission('w', $guid, "", 1) or return;
   $self->debug(1, "The checkpermission of the guid worked!!!");
 
   if (!$info->{guidId}) {
@@ -682,7 +670,7 @@ sub updateOrInsertGUID {
   delete $newUp->{guid};
   keys %$newUp or $self->debug(2, 'No fields to update') and return 1;
   $self->debug(1, "We should just update the info of the guid");
-  return $info->{db}->update($info->{table}, $newUp, "guidId=$info->{guidId}");
+  return $self->update($info->{table}, $newUp, "guidId=$info->{guidId}");
 }
 
 =item C<moveGUIDs($guid>
@@ -773,21 +761,21 @@ sub deleteMirrorFromGUID {
 
   $self->debug(1, "Ready to delete the mirror of $lfn from $se");
 
-  my $info = $self->checkPermission('w', $guid, "db") or return;
+  my $info = $self->checkPermission('w', $guid) or return;
   my $seNumber = $self->getSENumber($se) or $self->info("Error getting the se number of '$se'") and return;
   $pfn
-    or $pfn = $info->{db}->queryValue("select pfn from $info->{table}_PFN where guidId=? and seNumber=? limit 1",
+    or $pfn = $self->queryValue("select pfn from $info->{table}_PFN where guidId=? and seNumber=? limit 1",
     undef, {bind_values => [ $info->{guidId}, $seNumber ]});
   my $column = "seAutoStringList";
 
   if ($pfn) {
     $self->info("First, let's delete the pfn $pfn");
-    $info->{db}
+    $self
       ->insertLFNBookedDeleteMirrorFromGUID($info->{table}, $lfn, $guid, $self->{VIRTUAL_ROLE}, $pfn, $info->{guidId},
       $seNumber, $pfn);
     $column = "seStringList";
 
-    my $deleted = $info->{db}->delete(
+    my $deleted = $self->delete(
       "$info->{table}_PFN",
       "guidId=? and pfn=? and seNumber=?",
       {bind_values => [ $info->{guidId}, $pfn, $seNumber ]}
@@ -798,7 +786,7 @@ sub deleteMirrorFromGUID {
 
   $self->debug(2, "Finally, let's update the column $column");
 
-  return $info->{db}
+  return $self
     ->do("update $info->{table} set $column=replace($column, '$seNumber,','') where guid=string2binary(?)",
     {bind_values => [$guid]});
 }
