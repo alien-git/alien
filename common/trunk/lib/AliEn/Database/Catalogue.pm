@@ -903,7 +903,7 @@ sub insertInIndex {
   my $lfn       = shift;
   my $options   = shift;
 
-  $table =~ s/^D(\d+)L$/$1/;
+  $table =~ s/^L(\d+)L$/$1/;
   my $indexTable = "INDEXTABLE";
   my $column     = "lfn";
   my $value      = "'$lfn'";
