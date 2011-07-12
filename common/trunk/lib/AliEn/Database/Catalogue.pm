@@ -104,7 +104,8 @@ This function receives an lfn, and checks if it exists in the catalogue. It chec
 =cut
 
 sub existsEntry {
-  return existsLFN(@_);
+  my $self=shift;
+  return $self->existsLFN(@_);
 }
 
 =item C<getTablesForEntry($lfn)>
