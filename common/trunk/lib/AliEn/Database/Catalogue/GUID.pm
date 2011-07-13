@@ -453,7 +453,6 @@ sub getIndexTableFromGUID {
   defined $entry
     or $self->info("Error doing the query for the guid '$guid'")
     and return;
-  
   return "G${entry}L";
 }
 

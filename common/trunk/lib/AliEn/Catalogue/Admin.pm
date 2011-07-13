@@ -940,16 +940,13 @@ sub removeExpiredFiles {
       . " FROM LFN_BOOKED 
     WHERE expiretime<?", undef, {bind_values => [$currentTime]}
   );
-  $files or next;
+  $files or return;
 
-  #Get possible G#L tables
   foreach my $file (@$files) {
     my @pfns           = $self->cleanupGUIDCatalogue($db, $file);
     my $count          = $#pfns;
     my $physicalDelete = $self->physicalDeleteEntries($db, @pfns);
 
-    #($physicalDelete==$count+1)
-    # and
     $db->do("DELETE FROM LFN_BOOKED WHERE lfn=? and expiretime=?",
       {bind_values => [ $file->{lfn}, $file->{expiretime} ]});
     ($physicalDelete == $count + 1)
@@ -1014,17 +1011,15 @@ sub cleanupGUIDCatalogue {
   my $dbinfo = $self->{DATABASE}->getIndexTableFromGUID($file->{guid});
   $dbinfo or return;
 
-  $guiddb or $self->info("Error reconnecting") and return;
+  $guiddb or $self->info("Error connecting to the database") and return;
   $self->{DATABASE}->{VIRTUAL_ROLE} = "$file->{user}";
   $self->info("Deleting $file->{lfn} as $self->{DATABASE}->{VIRTUAL_ROLE}");
   if ($self->{DATABASE}->checkPermission("w", $file->{guid})) {
     $self->info("Have Permission on GUID");
 
     #Delete file
-    #foreach my $guidtable (@$possibleGuidTable) {
-    my $table = $dbinfo->{tableName};
-    if ($file->{pfn} =~ m{^\*$}) {
-
+    my $table = $dbinfo;
+    if ($file->{pfn} =~ m{\*}) {
       #Delete all the pfns of that file
       my $ref = $guiddb->query(
         "SELECT pfn, senumber
@@ -1034,13 +1029,11 @@ sub cleanupGUIDCatalogue {
       );
       $ref and @pfns = @$ref;
 
-#$guiddb->do("delete from g using ${table}_PFN g join $table using (guidid) where guid=?", {bind_values=>[$file->{guid}]});
       $guiddb->do("delete from  ${table}_PFN where guidid in (select guidid from  $table where guid=?)",
         {bind_values => [ $file->{guid} ]});
       $guiddb->do("delete from $table  where guid=?", {bind_values => [ $file->{guid} ]});
 
     } else {
-
       #Just delete the entry...
       @pfns = {pfn => $file->{pfn}, senumber => $file->{senumber}};
       $guiddb->do(
