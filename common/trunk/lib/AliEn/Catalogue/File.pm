@@ -634,15 +634,15 @@ sub f_mv {
 
   #Do move
   my @returnVal = ();
-  if ($self->isDirectory($fullSource)) {
-    if($self->isDirectory($fullTarget)) {
-      my $tmp = 0;
-      $fullSource =~ m{/$} and $tmp = 1;
-      if($fullSource =~ m{([^/]+)/?$}) {
-        $tmp or $fullTarget.="/".$1;
-        $tmp and $fullTarget.=$1;
-      }
+  if($self->isDirectory($fullTarget)) {
+    my $tmp = 0;
+    $fullTarget =~ m{/$} and $tmp = 1;
+    if($fullSource =~ m{([^/]+)/?$}) {
+      $tmp or $fullTarget.="/".$1;
+      $tmp and $fullTarget.=$1;
     }
+  }
+  if ($self->isDirectory($fullSource)) {
     @returnVal = $self->{DATABASE}->moveFolder($fullSource, $fullTarget);
   } else {
     if ($self->isDirectory($fullTarget)) {
