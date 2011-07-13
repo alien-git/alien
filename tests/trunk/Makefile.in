@@ -32,7 +32,7 @@ test-new_vo:
 
 test-user_tests:
 	@echo "Running user tests"
-	[ -d test ] && cd test ; ./Install.sh -user_tests -no_break -expected 20,142,user_basic/015,job_automatic/024
+	[ -d test ] && cd test ; ./Install.sh -user_tests -no_break -expected user_basic/015,job_automatic/024
 
 test-performance:
 	@echo "Running the performance tests"
@@ -40,5 +40,5 @@ test-performance:
 
 test-gapi:
 	@echo "Testing gapi"
-	[ -d test ] && cd test ; ./Install.sh -gapi_tests -no_break -expected gapi/500,gapi/632,gapi/633,gapi/631,gapi/501,gapi/502,gapi/600,gapi/601,gapi/602,gapi/603,gapi/620,gapi/621,gapi/622,gapi/623,gapi/624,gapi/630
+	[ -d test ] && cd test ; ./Install.sh -gapi_tests -no_break -expected gapi/632,gapi/633,gapi/631,gapi/501,gapi/502,gapi/600,gapi/601,gapi/602,gapi/603,gapi/620,gapi/621,gapi/622,gapi/623,gapi/624,gapi/630
 

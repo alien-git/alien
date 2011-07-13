@@ -87,7 +87,7 @@ sub checkMetadata{
   my $cat=shift;
   my $lfn=shift;
   my $metadata=shift;
-  print "\n\n\n\nIn checkMetadata\n";
+  print "\n\n\n\nIn checkMetadata of $lfn\n";
   my ($def, $data)=$cat->execute("showTagValue", $lfn, "person") or return;
   print "AFTER showTagValue\n";
   my $entry=shift @$data;
