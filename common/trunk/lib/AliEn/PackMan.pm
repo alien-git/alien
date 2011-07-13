@@ -303,6 +303,10 @@ sub f_packman {
     $requiresPackage = 1;
   } elsif ($operation =~ /^recompute?$/) {
     $soapCall = "recomputeListPackages";
+    $self->info("And deleting any local caches");
+    my $dir = ($self->{CONFIG}->{PACKMAN_INSTALLDIR} || '$ALIEN_HOME/packages');
+    
+    system("rm -f $dir/alien_list_*");
   } elsif ($operation =~ /^synchronize$/) {
     return $self->synchronizePackages(@_);
   } else {
