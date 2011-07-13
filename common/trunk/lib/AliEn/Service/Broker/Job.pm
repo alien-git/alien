@@ -324,7 +324,7 @@ sub offerAgent {
   my $site="";
   ($ok, my $ce)= $site_ca->evaluateAttributeString("CE");
   $ce =~ /::(.*)::/ and $site=$1;
-  ($ok, my $ttl)=$site_ca->evalutateAttributeString("TTL");
+  ($ok, my $ttl)=$site_ca->evaluateAttributeString("TTL");
   $ttl or $ttl=84000;
   
   
