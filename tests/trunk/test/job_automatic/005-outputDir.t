@@ -8,7 +8,7 @@ includeTest("catalogue/003-add") or exit(-2);
 includeTest("job_manual/010-ProcessMonitorOutput") or exit(-2);
 
 
-my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",})
+my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser","debug",5})
   or exit (-1);
 my ($dir)=$cat->execute("pwd") or exit (-2);
 
