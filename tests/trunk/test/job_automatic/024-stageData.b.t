@@ -7,13 +7,15 @@ BEGIN { plan tests => 1 }
 
 {
 
-  $ENV{ALIEN_TESTDIR} or $ENV{ALIEN_TESTDIR}="/home/alienmaster/AliEn/t";
-  eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
+  $ENV{ALIEN_TESTDIR} or $ENV{ALIEN_TESTDIR} = "/home/alienmaster/AliEn/t";
+  push @INC, $ENV{ALIEN_TESTDIR};
+  require functions;
+
   includeTest("job_manual/010-ProcessMonitorOutput") or exit(-2);
-  my $id=shift;
+  my $id = shift;
   $id or print "Error getting the job id!\n" and exit(-2);
-  my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",}) or 
-    exit (-1);
+  my $cat = AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",})
+	or exit(-1);
   checkOutput($cat, $id) or exit(-2);
   $cat->close();
 

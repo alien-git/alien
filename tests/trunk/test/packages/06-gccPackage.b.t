@@ -14,8 +14,9 @@ BEGIN { plan tests => 1 }
 
 {
   $ENV{ALIEN_TESTDIR} or $ENV{ALIEN_TESTDIR}="/home/alienmaster/AliEn/t";
-  eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
-
+  
+  push @INC, $ENV{ALIEN_TESTDIR};
+  require functions;
   includeTest("job_manual/010-ProcessMonitorOutput") or exit(-2);
 
   my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",});
@@ -35,10 +36,10 @@ BEGIN { plan tests => 1 }
 
   my ($output)=$cat->execute("get", "$procDir/stdout") or exit(-2);
 
-  open (FILE, "<$output") or print "Error checking the output of the job"
+  open (my $FILE, "<", $output) or print "Error checking the output of the job"
     and exit(-2);
-  grep (/YUHUUU/, <FILE>) or print "The command didn't say YUHUUU\n" and exit(-2);
-  close FILE;
+  grep (/YUHUUU/, <$FILE>) or print "The command didn't say YUHUUU\n" and exit(-2);
+  close $FILE;
   $cat->close();
 
 

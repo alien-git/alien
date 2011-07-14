@@ -9,8 +9,9 @@ use AliEn::X509;
 use AliEn::UI::Catalogue;
 use Net::Domain qw(hostname hostfqdn hostdomain);
 
-eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
 
+push @INC, $ENV{ALIEN_TESTDIR};
+require functions;
 BEGIN { plan tests => 1 }
 
 setDirectDatabaseConnection();
@@ -173,9 +174,9 @@ sub startService {
   }
   $options->{nolisten} and print "ok\nSkipping the check if the service is listening\n" and return 1;
   print "ok\nChecking if the service is listening...\t";
-  open (FILE, "<$logFile") or print "Error opening the log file $logFile" and return;
-  my @file=<FILE>;
-  close FILE;
+  open (my $FILE, "<", $logFile) or print "Error opening the log file $logFile" and return;
+  my @file=<$FILE>;
+  close $FILE;
   grep (/info\s+Starting \S+ on /i, @file) or print "The service is not listening:\n@file\n" and return;
 
 
@@ -185,9 +186,9 @@ sub startService {
   my $vo=Net::Domain::hostname();
   my $file="/etc/aliend/$vo/startup.conf";
   $< and $file="$ENV{ALIEN_HOME}$file";
-  open (FILE, "<$file") or print "Error reading the file $file\n" and return;
-  my @FILE=<FILE>;
-  close FILE;
+  open ($FILE, "<", $file) or print "Error reading the file $file\n" and return;
+  my @FILE=<$FILE>;
+  close $FILE;
   my @line=grep (/^AliEnServices=/, @FILE);
   $line[0] =~ /[\" ]$service[ \"]/ and print "done\n" and return 1;
 
@@ -197,10 +198,10 @@ sub startService {
 
   @FILE= (grep (!/^AliEnServices=/, @FILE), $line[0]);
 
-  open (FILE, ">$file") or print "Error opening the file $file\n" and exit(-2);
+  open ($FILE, ">",$file) or print "Error opening the file $file\n" and exit(-2);
 
-  print FILE @FILE;
-  close FILE;
+  print $FILE @FILE;
+  close $FILE;
   print "...ok\n";
 
   return 1;

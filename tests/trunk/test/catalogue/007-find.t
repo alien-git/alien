@@ -5,7 +5,9 @@ use AliEn::UI::Catalogue::LCM;
 BEGIN { plan tests => 1 }
 {
   $ENV{ALIEN_TESTDIR} or $ENV{ALIEN_TESTDIR}="/home/alienmaster/AliEn/t";
-  eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
+ 
+  push @INC, $ENV{ALIEN_TESTDIR};
+  require functions;
   includeTest("catalogue/003-add") or exit(-2);
 
   print "Getting an instance of the catalogue";

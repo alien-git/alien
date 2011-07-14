@@ -8,7 +8,8 @@ use AliEn::UI::Catalogue;
 BEGIN { plan tests => 1 }
 
 {
-  eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
+  push @INC, $ENV{ALIEN_TESTDIR};
+  require functions;
   includeTest("user_basic/021-se") or exit(-2);
   
 

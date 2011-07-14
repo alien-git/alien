@@ -1,30 +1,34 @@
 #!/bin/env alien-perl
 
-eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
-
-use AliEn::UI::Catalogue;
-BEGIN {
-  unless(grep /blib/, @INC) {
-    chdir 't' if -d 't';
-    unshift @INC, '../lib' if -d '../lib';
-  }
-}
-
+#BEGIN {
+#  unless(grep /blib/, @INC) {
+##    chdir 't' if -d 't';
+#    unshift @INC, '../lib' if -d '../lib';
+#  }
+#}
 use strict;
 use Test;
+use AliEn::UI::Catalogue;
 
 BEGIN { plan tests => 3 }
+
+
+
+
+push @INC, $ENV{ALIEN_TESTDIR};
+require functions;
+
 
 
 {
 my $h=$ENV{ALIEN_NTP_HOST} || "pool.ntp.org";
 print "Synchronizing with $h\n"; 
 print "Creating a new proxy...";
-open (FILE, "$ENV{ALIEN_ROOT}/bin/alien proxy-init|") 
+open (my $FILE, "-|","$ENV{ALIEN_ROOT}/bin/alien proxy-init") 
   or print "ERROR OPENING alien proxy-init\n" and exit(-1);
 
-my @OUTPUT=<FILE>;
-close FILE or print ("Error doing alien proxy-init!!\n output: @OUTPUT") and exit (-1);
+my @OUTPUT=<$FILE>;
+close $FILE or print ("Error doing alien proxy-init!!\n output: @OUTPUT") and exit (-1);
 
 grep (/Your proxy is valid until/i,  @OUTPUT)
   or print "Alien proxy-init did not create a proxy" and exit(-1);

@@ -3,8 +3,9 @@ use strict;
 use AliEn::UI::Catalogue;
 
 $ENV{ALIEN_TESTDIR} or $ENV{ALIEN_TESTDIR}="/home/alienmaster/AliEn/t";
-eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
 
+push @INC, $ENV{ALIEN_TESTDIR};
+require functions;
 includeTest("catalogue/013-cpdir") or exit(-2);
 
 my $c=AliEn::UI::Catalogue::LCM->new({role=>"newuser"}) or exit(-2);

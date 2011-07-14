@@ -29,7 +29,7 @@ BEGIN { plan tests => 1 }
     open my $SAVEOUT,  ">&", STDOUT;
     open my $SAVEOUT2, ">&", STDERR;
 
-    if ( !open STDOUT, ">$file" ) {
+    if ( !open STDOUT, ">", $file ) {
       open STDOUT, ">&", $SAVEOUT;
       print "Error opening the file $file\n$!\n";
       exit(-2);

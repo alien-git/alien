@@ -7,7 +7,7 @@ my $gen=new AliEn::GUID or exit(-2);
 
 my $file="/tmp/alien.test.81.$$";
 
-open (FILE, ">$file");
+open (my $FILE, ">", $file);
 my $list={};
 my $clients=20;
 my @processes;
@@ -17,9 +17,9 @@ for (my $j=$clients;$j;$j--){
   my $pid=fork();
   if (!$pid) {
     for (my $i=$times;$i;$i--) {
-      flock(FILE,LOCK_EX) or print "ERROR BLOCKING\n";
-      print FILE  $gen->CreateGuid()."\n";
-      flock(FILE,LOCK_UN) or print "ERROR UNLOCKING\n";
+      flock($FILE,LOCK_EX) or print "ERROR BLOCKING\n";
+      print $FILE  $gen->CreateGuid()."\n";
+      flock($FILE,LOCK_UN) or print "ERROR UNLOCKING\n";
     }
     exit;
   }
@@ -30,7 +30,7 @@ foreach (@processes){
 }
 
 
-close FILE;
+close $FILE;
 my $lines=`cat $file |wc -l`;
 my $diflines=`cat $file |sort -u |wc -l`;
 unlink $file;

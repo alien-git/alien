@@ -14,8 +14,9 @@ BEGIN { plan tests => 1 }
 
 {
   $ENV{ALIEN_TESTDIR} or $ENV{ALIEN_TESTDIR}="/home/alienmaster/AliEn/t";
-  eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
-
+  
+  push @INC, $ENV{ALIEN_TESTDIR};
+  require functions;
   includeTest("catalogue/003-add") or exit(-2);
   includeTest("job_manual/010-ProcessMonitorOutput") or exit(-2);
   includeTest("packages/02-jobWithPackage") or exit(-2);
@@ -37,13 +38,13 @@ BEGIN { plan tests => 1 }
   eval {
     mkdir $dir or die("Error creating $dir\n");
     chdir $dir or die("Error creating $dir\n");
-    open (FILE, ">$dir/pre_install") or die ("Error opening the pre_install");
-    print FILE "#!/bin/bash
+    open (my $FILE, ">", "$dir/pre_install") or die ("Error opening the pre_install");
+    print $FILE "#!/bin/bash
 echo 'HELLO WORLD'
 echo \"I've been called as \$0\"
 echo \"Have a nice day\"
 ";
-    close FILE;
+    close $FILE;
 
   };
   ($@) and print "ERROR $@ \n" and exit -2;

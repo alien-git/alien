@@ -3,7 +3,8 @@ use Test;
 
 use AliEn::UI::Catalogue::LCM;
   
-eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
+push @INC, $ENV{ALIEN_TESTDIR};
+require functions;
 includeTest("catalogue/003-add") or exit(-2);
 
 

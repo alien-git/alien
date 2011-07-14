@@ -9,7 +9,8 @@ BEGIN { plan tests => 1 }
 
 {
   $ENV{ALIEN_TESTDIR} or $ENV{ALIEN_TESTDIR}="/home/alienmaster/AliEn/t";
-  eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
+  push @INC, $ENV{ALIEN_TESTDIR};
+  require functions;
   includeTest("job_automatic/008-split") or exit(-2);
 
   my $id=shift or print "No job to analyze!!\n" and exit(-2);

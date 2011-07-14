@@ -21,9 +21,9 @@ $l->redirect()or print "Error going back to the normal file\n" and exit(-2);
 print "We are supposed to be back\n";
 $l->info("TEST", "Info back from the file");
 
-open (FILE, "<$file") or print "Error opening $file\n" and exit(-2);
-my @file=<FILE>;
-close FILE;
+open (my $FILE, "<", $file) or print "Error opening $file\n" and exit(-2);
+my @file=<$FILE>;
+close $FILE;
 unlink $file;
 
 print "GOT

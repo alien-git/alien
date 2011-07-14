@@ -8,7 +8,10 @@ $| = 1;
 select(STDOUT);
 $| = 1;
 $ENV{ALIEN_TESTDIR} or $ENV{ALIEN_TESTDIR}="/home/alienmaster/AliEn/t";
-do "$ENV{ALIEN_TESTDIR}/functions.pl" or exit(-2);
+
+push @INC, $ENV{ALIEN_TESTDIR};
+require functions;
+
 includeTest("user_basic/021-se") or exit(-2);
 includeTest("catalogue/003-add") or exit(-2);
 

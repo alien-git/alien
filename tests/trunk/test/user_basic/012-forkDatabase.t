@@ -2,7 +2,8 @@ use strict;
 
 use AliEn::Database;
 use Net::Domain qw(hostname hostfqdn hostdomain);
-eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
+push @INC, $ENV{ALIEN_TESTDIR};
+require functions;
 
 my $org=Net::Domain::hostname();
 setDirectDatabaseConnection();

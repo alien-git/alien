@@ -7,51 +7,52 @@ use AliEn::UI::Catalogue::LCM::Computer;
 
 BEGIN { plan tests => 1 }
 
-
-
 {
-$ENV{ALIEN_JOBAGENT_RETRY}=1;
+  $ENV{ALIEN_JOBAGENT_RETRY} = 1;
 
-$ENV{ALIEN_TESTDIR} or $ENV{ALIEN_TESTDIR}="/home/alienmaster/AliEn/t";
-eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
+  $ENV{ALIEN_TESTDIR} or $ENV{ALIEN_TESTDIR} = "/home/alienmaster/AliEn/t";
+  push @INC, $ENV{ALIEN_TESTDIR};
+  require functions;
+  includeTest("job_manual/010-ProcessMonitorOutput") or exit(-2);
 
-includeTest("job_manual/010-ProcessMonitorOutput") or exit(-2);
+  my $cat = AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser"});
+  $cat or exit(-1);
 
-my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser"});
-$cat or exit (-1);
-# only the user with role admin can open and add queues
-my $admincat=AliEn::UI::Catalogue::LCM::Computer->new({"user","$ENV{'USER'}","role","admin"});
-$admincat or exit (-1);
-$admincat->execute("debug", "CE ProcessMonitor LQ Service") or exit(-2);
-$admincat->execute("queue", "remove $cat->{CONFIG}->{ORG_NAME}::CERN::testCE");
-$admincat->execute("queue", "add $cat->{CONFIG}->{ORG_NAME}::CERN::testCE");
-$admincat->execute("queue", "open $cat->{CONFIG}->{ORG_NAME}::CERN::testCE") or exit(-2);
-print "Let's sleep until the job is ready";
-#sleep(20);
-my (@jobs)=$cat->execute("top", "-status", "WAITING");
-(@jobs) or print "ERROR: THERE ARE NO JOBS WAITING\n" and exit(-2);
+  # only the user with role admin can open and add queues
+  my $admincat = AliEn::UI::Catalogue::LCM::Computer->new({"user", "$ENV{'USER'}", "role", "admin"});
+  $admincat or exit(-1);
+  $admincat->execute("debug", "CE ProcessMonitor LQ Service")                  or exit(-2);
+  $admincat->execute("queue", "remove $cat->{CONFIG}->{ORG_NAME}::CERN::testCE");
+  $admincat->execute("queue", "add $cat->{CONFIG}->{ORG_NAME}::CERN::testCE");
+  $admincat->execute("queue", "open $cat->{CONFIG}->{ORG_NAME}::CERN::testCE") or exit(-2);
+  print "Let's sleep until the job is ready";
 
-print "ok\nRequesting a new job\n";
-$cat->execute("request") or exit (-2);
-#system ("alien", "proxy-destroy");
+  #sleep(20);
+  my (@jobs) = $cat->execute("top", "-status", "WAITING");
+  (@jobs) or print "ERROR: THERE ARE NO JOBS WAITING\n" and exit(-2);
 
-waitForStatus($cat, $jobs[0]->{queueId}, "DONE", 5, 6) or exit(-2);
+  print "ok\nRequesting a new job\n";
+  $cat->execute("request") or exit(-2);
 
-foreach my $job (@jobs) {
-  print "Status of $job->{queueId}\n";
+  #system ("alien", "proxy-destroy");
 
-  my ($newJobRef)=$cat->execute("top", "-id", $job->{queueId}, );
-  print "TENGO $newJobRef\n";
+  waitForStatus($cat, $jobs[0]->{queueId}, "DONE", 5, 6) or exit(-2);
 
-  my $status=$newJobRef->{status};
-  $status or print "The job $job is not there!!!\n" and exit(-2);
-  print "Status of the job... '$status'\n";
-  ($status eq "DONE") or print "Error the job is not DONE !!\n" and exit(-2);
-  checkOutput($cat, $job->{queueId}) or exit(-2);
+  foreach my $job (@jobs) {
+	print "Status of $job->{queueId}\n";
 
-}
-$cat->close;
+	my ($newJobRef) = $cat->execute("top", "-id", $job->{queueId},);
+	print "TENGO $newJobRef\n";
 
-ok(1);
+	my $status = $newJobRef->{status};
+	$status or print "The job $job is not there!!!\n" and exit(-2);
+	print "Status of the job... '$status'\n";
+	($status eq "DONE") or print "Error the job is not DONE !!\n" and exit(-2);
+	checkOutput($cat, $job->{queueId}) or exit(-2);
+
+  }
+  $cat->close;
+
+  ok(1);
 }
 

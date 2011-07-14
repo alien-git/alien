@@ -6,7 +6,9 @@ use Net::Domain;
 
 use IPC::Open2;
 
-eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
+push @INC, $ENV{ALIEN_TESTDIR};
+require functions;
+
 setDirectDatabaseConnection();
 
 

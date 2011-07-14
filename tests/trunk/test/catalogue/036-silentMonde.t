@@ -23,9 +23,9 @@ $ui->{LOGGER}->redirect();
 
 print "Let's read the output\n";
 
-open (FILE, "<$file") or print "Error reading $file\n" and exit(-2);
-my $c=join("", <FILE>);
-close FILE;
+open (my $FILE, "<", $file) or print "Error reading $file\n" and exit(-2);
+my $c=join("", <$FILE>);
+close $FILE;
 unlink $file;
 print "GOT $c\n";
 ($done and $done2 and $done3 ) or print "One of the commands failed!!!\n" and exit(-2);

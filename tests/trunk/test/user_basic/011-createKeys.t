@@ -7,9 +7,8 @@ use Net::Domain qw(hostname hostfqdn hostdomain);
 
 BEGIN { plan tests => 1 }
 
-eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
-
-
+push @INC, $ENV{ALIEN_TESTDIR};
+require functions;
 {
 open my $SAVEOUT,  ">&", STDOUT;
 my $file="/tmp/$$";
@@ -61,9 +60,9 @@ $suffix="dc=$suffix";
   and exit (-4);
   my $key="uid=newuser,ou=People,$c->{LDAPDN}";
   my $file="$ENV{ALIEN_HOME}/identities.\L$c->{ORG_NAME}\E/sshkey.newuser.public";
-  open (FILE , "<$file") or print "Error opening $file\n" and exit(-2);
-  my $sshkey=join("", <FILE>);
-  close FILE;
+  open (my $FILE , "<", $file) or print "Error opening $file\n" and exit(-2);
+  my $sshkey=join("", <$FILE>);
+  close $FILE;
   my $mesg=$ldap->modify( $key, replace=>{"sshkey", $sshkey});
   $mesg->code && print "failed\nCould not modify  $key: ",$result->error and exit (-5);
   $ldap->unbind;

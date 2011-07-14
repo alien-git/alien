@@ -29,27 +29,27 @@ if (grep (/no shared cipher/, @content)){
 exit(-2);
 
 sub checkNoShared {
-  my $pid=open(FILE, "tail -n 0 -F $dir/ProxyServer.log  > $file |") 
+  my $pid=open(my $FILE, "-|", "tail -n 0 -F $dir/ProxyServer.log  > $file ") 
   or print "Error checking the output of the ProxyServer\n" and return (0,undef);
 
   my $c=AliEn::UI::Catalogue->new({role=>"newuser"});
   sleep 2;
-  open (PID, "ps -ef |grep ' $pid '|grep -v grep|");
-  my @pid=<PID>;
+  open (my $PID, "-|", "ps -ef |grep ' $pid '|grep -v grep");
+  my @pid=<$PID>;
   map { s/^\s*\S+\s*(\S+)\s.*$/$1/} @pid;
 
-  close PID;
+  close $PID;
   kill 9, $pid, @pid;
-  close FILE;
+  close $FILE;
 
   if ($c) {
     print "We got the catalogue! :)\n";
     unlink $file;
     return 1;
   }
-  open (FILE, "<$file") or print "Error opening the file $file\n";
-  my @content=<FILE>;
-  close FILE;
+  open ($FILE, "<", $file) or print "Error opening the file $file\n";
+  my @content=<$FILE>;
+  close $FILE;
   unlink $file;
   return (0, @content);
 }

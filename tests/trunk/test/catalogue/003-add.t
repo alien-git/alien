@@ -71,10 +71,10 @@ sub addFile {
 		and return 1;
 
   my $name="/tmp/test16.$$";
-  open (FILE, ">$name") 
+  open (my $FILE, ">", "$name") 
     or print "Error opening the file $name\n" and return;
-  print FILE $content;
-  close FILE;
+  print $FILE $content;
+  close $FILE;
 
   my $arguments=$extra->{options} || "";
   my $done=$cat->execute("add", "$file", $name, $arguments);

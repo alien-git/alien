@@ -17,7 +17,9 @@ my $d=AliEn::Database::TaskPriority->new({DRIVER=>"mysql", HOST=>"$host:3307", D
 
 {
   $ENV{ALIEN_TESTDIR} or $ENV{ALIEN_TESTDIR}="/home/alienmaster/AliEn/t";
-  eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
+  push @INC, $ENV{ALIEN_TESTDIR};
+  require functions;
+
   includeTest("catalogue/003-add") or exit(-2);
   includeTest("job_quota/400-submit") or exit(-2);
   includeTest("file_quota/01-calculateFileQuota") or exit(-2);

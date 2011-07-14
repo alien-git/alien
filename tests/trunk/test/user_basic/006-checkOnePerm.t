@@ -1,6 +1,8 @@
 use strict;
 
-eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
+
+push @INC, $ENV{ALIEN_TESTDIR};
+require functions;
 
 use AliEn::Catalogue::Basic;
 

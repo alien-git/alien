@@ -7,13 +7,13 @@ my $vo=$config->{ORG_NAME};
 my $host=$config->{HOST};
 
 
-open(FILE, ">$ENV{ALIEN_HOME}/$vo.conf") or print "Error opening the file\n" and exit(-2);
-print FILE "<PACKMAN test>
+open(my $FILE, ">" ,"$ENV{ALIEN_HOME}/$vo.conf") or print "Error opening the file\n" and exit(-2);
+print $FILE "<PACKMAN test>
 INSTALLDIR /tmp/my_packman/packages
 </PACKMAN>
 OTHER_VARIABLE sipe
 ";
-close FILE or exit(-2);
+close $FILE or exit(-2);
 eval {
   defineLocal("overwrite");
   $config=$config->Reload({force=>1}) or die("no catalogue");
