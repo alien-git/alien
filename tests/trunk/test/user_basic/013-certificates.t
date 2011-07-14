@@ -38,7 +38,7 @@ ok(1);
 open my $SAVEOUT,  ">&", STDOUT;
 my $file="/tmp/$$";
 open STDOUT, ">" ,$file or print "Error opening $file\n" and exit (-1);
-open (my $FILE, "|-","$ENV{ALIEN_ROOT}/bin/alien register-cert --user newuser");
+open ($FILE, "|-","$ENV{ALIEN_ROOT}/bin/alien register-cert --user newuser");
 
 print $FILE "testPass
 ";
