@@ -32,7 +32,7 @@ test-new_vo:
 
 test-user_tests:
 	@echo "Running user tests"
-	[ -d test ] && cd test ; ./Install.sh -user_tests -no_break -expected user_basic/015,job_automatic/024
+	[ -d test ] && cd test ; ./Install.sh -user_tests -no_break -expected job_automatic/024
 
 test-performance:
 	@echo "Running the performance tests"

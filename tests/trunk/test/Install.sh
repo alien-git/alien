@@ -535,7 +535,9 @@ GET_ARGUMENTS()
 	    -NEW_VO|-new_vo)
 		mv  $HOME/.alien/Environment $HOME/.alien/Environment_test
 		echo export ALIEN_IGNORE_BLOCK=1>  $HOME/.alien/Environment
-	        NEW_VO=1
+	    NEW_VO=1
+	    rm -rf /tmp/`hostname`.old
+	    mv /tmp/`hostname` /tmp/`hostname`.old
 		;;
 	    -CATALOGUE_TESTS|-catalogue_tests)
 	        CATALOGUE_TESTS=1
