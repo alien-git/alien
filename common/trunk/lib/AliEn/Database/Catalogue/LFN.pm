@@ -2351,7 +2351,7 @@ sub fquota_update {
   #$size *= $count;
   #($size ge 0) and ($count le 0) and $size = -1*$size;
 
-  $self->info("Updating Quotas for user=$user with (count=$count and Size=$size(".$size/$count."))");
+  $self->info("Updating Quotas for user=$user with (count=$count and Size=$size)");
 
   $self->do(
 "UPDATE FQUOTAS SET nbFiles=nbFiles+tmpIncreasedNbFiles+?, totalSize=totalSize+tmpIncreasedTotalSize+?, tmpIncreasedNbFiles=0, tmpIncreasedTotalSize=0 WHERE "

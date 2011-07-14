@@ -121,6 +121,10 @@ sub f_addUser {
     my $maxNbFiles            = 10000;
     my $maxTotalSize          = 10000000000;
     my $db                    = $self->{DATABASE};
+    if($user =~ /^admin$/) {
+      $maxNbFiles = -1;
+      $maxTotalSize = -1;
+    }
     $db->do(
       "insert into FQUOTAS ( "
         . $db->reservedWord("user")
@@ -949,9 +953,7 @@ sub removeExpiredFiles {
 
     $db->do("DELETE FROM LFN_BOOKED WHERE lfn=? and expiretime=?",
       {bind_values => [ $file->{lfn}, $file->{expiretime} ]});
-    ($physicalDelete == $count + 1)
-      and ($count > 0)
-      and $self->{DATABASE}->fquota_update(-1 * $file->{size} * $count, -1 * $count, $file->{owner});
+    $self->{DATABASE}->fquota_update(-1 * $file->{size} * $count, -1 * $count, $file->{user});
     $self->info("$file->{lfn}($file->{guid}) was deleted($physicalDelete physical files) and quotas were rolled back ("
         . -1 * $file->{size} * $count . ", "
         . -1 * $count

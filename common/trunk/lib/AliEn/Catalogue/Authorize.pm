@@ -715,7 +715,7 @@ sub OLDaccess {
     ($writeQosCount         and $copyMultiplyer = $writeQosCount)
       or (scalar(@ses) gt 1 and $copyMultiplyer = scalar(@ses));
 
-    my ($ok, $message) = $self->checkFileQuota($user, $size * $copyMultiplyer);
+    my ($ok, $message) = $self->checkFileQuota($user, $size * $copyMultiplyer, $copyMultiplyer);
     if ($ok eq -1) {
       $self->info("Authorize: We gonna throw an access exception: " . "[quotaexception]")
         and return access_eof($message, "[quotaexception]");
@@ -1274,9 +1274,9 @@ sub getBaseEnvelopeForWriteAccess {
 
   $envelope->{size} = $size;
   $envelope->{md5}  = $md5;
-
+    
   my ($ok, $message) = $self->checkFileQuota($user, $envelope->{size});
-  ($ok eq 0) and $self->info($message, 1) and return 0;
+  ($ok eq -1) and $self->info($message, 1) and return 0;
   return $self->reduceFileHashAndInitializeEnvelope("write", $envelope);
 }
 
@@ -1381,6 +1381,9 @@ sub getSEsAndCheckQuotaForWriteOrMirrorAccess {
     push @$seList, @$dynamicSElist;
   }
 
+  my ($ok, $message) = $self->checkFileQuota($user, $envelope->{size});
+  ($ok eq -1) and $self->info($message, 1) and return 0;
+  
   return ($envelope, $seList);
 }
 

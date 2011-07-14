@@ -1180,8 +1180,8 @@ sub checkFileQuota {
   (defined $size) and ($size ge 0)
     or $self->{LOGGER}->error("In checkFileQuota invalid file size (undefined or negative).\n")
     and return (-1, "size is not specified.");
+  my $count = shift || 1;
 
-  $self->info("In checkFileQuota for user: $user, request file size:$size");
   my $db    = $self->{DATABASE};
   my $array = $db->queryRow(
 "SELECT nbFiles, totalSize, maxNbFiles, maxTotalSize, tmpIncreasedNbFiles, tmpIncreasedTotalSize FROM FQUOTAS WHERE "
@@ -1200,6 +1200,8 @@ sub checkFileQuota {
   my $totalSize             = ($array->{'totalSize'}             || 0);
   my $maxTotalSize          = ($array->{'maxTotalSize'}          || 0);
   my $tmpIncreasedTotalSize = ($array->{'tmpIncreasedTotalSize'} || 0);
+  
+  $self->info("In checkFileQuota for user: $user, request file size:$size request file count:$count -- (nF = $nbFiles/$maxNbFiles and nS = $totalSize/$maxTotalSize)");
 
   $DEBUG
     and $self->debug(
@@ -1212,7 +1214,7 @@ sub checkFileQuota {
   if ($maxNbFiles == -1) {
     $self->info("Unlimited number of files allowed for user ($user)");
   } else {
-    if ($nbFiles + $tmpIncreasedNbFiles + 1 > $maxNbFiles) {
+    if ($nbFiles + $tmpIncreasedNbFiles + $count > $maxNbFiles) {
       $self->info("Uploading file for user ($user) is denied - number of files quota exceeded ($maxNbFiles).");
       return (-1, "Uploading file for user ($user) is denied - number of files quota exceeded ($maxNbFiles).");
     }
