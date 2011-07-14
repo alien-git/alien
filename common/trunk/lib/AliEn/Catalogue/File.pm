@@ -695,7 +695,7 @@ sub f_removeFile {
     or $self->error("file $fullPath does not exists!!", 1)
     and return;
 
-  return $self->{DATABASE}->removeFile($fullPath, $filehash);
+  return $self->{DATABASE}->removeFile($fullPath, $filehash, $self->{ROLE});
 }
 
 #
@@ -730,7 +730,7 @@ sub f_rmdir {
   $filehash
     or $self->info("ERROR: checkPermsissions failed on $path", 1)
     and return;
-  return $self->{DATABASE}->removeDirectory($path, $parentdir);
+  return $self->{DATABASE}->removeDirectory($path, $parentdir,$self->{ROLE});
 }
 
 #
@@ -1187,8 +1187,7 @@ sub checkFileQuota {
 "SELECT nbFiles, totalSize, maxNbFiles, maxTotalSize, tmpIncreasedNbFiles, tmpIncreasedTotalSize FROM FQUOTAS WHERE "
       . $db->reservedWord("user") . "=?",
     undef,
-    {bind_values => [$user]}
-    )
+    {bind_values => [$user]})
     or $self->{LOGGER}->error("Failed to get data from the FQUOTAS quota table.")
     and return (0, "Failed to get data from the FQUOTAS quota table. ");
   $array
@@ -1269,8 +1268,8 @@ sub fquota_list {
     $user = $whoami;
   }
 
-  my $usersuffix = $self->{DATABASE}->{FIRST_DB}->reservedWord("user") . " = '$user' ";
-  ($user eq '%') and $usersuffix = $self->{DATABASE}->{FIRST_DB}->reservedWord("user") . " like '%'";
+  my $usersuffix = $self->{DATABASE}->reservedWord("user") . " = '$user' ";
+  ($user eq '%') and $usersuffix = $self->{DATABASE}->reservedWord("user") . " like '%'";
 
   if (($whoami !~ /^admin(ssl)?$/) and ($user ne $whoami)) {
     $self->info("Not allowed to see other users' quota information", 1);
@@ -1278,8 +1277,8 @@ sub fquota_list {
   }
 
   my $result =
-    $self->{DATABASE}->{FIRST_DB}->query("SELECT "
-      . $self->{DATABASE}->{FIRST_DB}->reservedWord("user")
+    $self->{DATABASE}->query("SELECT "
+      . $self->{DATABASE}->reservedWord("user")
       . ", nbFiles, maxNbFiles, totalSize, maxTotalSize, tmpIncreasedNbFiles, tmpIncreasedTotalSize FROM FQUOTAS where $usersuffix"
     )
     or $self->info("Failed to getting data from FQUOTAS table", 1)

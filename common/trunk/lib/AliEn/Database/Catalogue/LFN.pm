@@ -509,8 +509,6 @@ sub LFN_createFile {
     $self->info("The entry '$tableLFN$1' already exists");
   }
 
-  #Update quota
-  $self->fquota_update(0, scalar(@inserts));
   return $done;
 }
 
@@ -803,7 +801,7 @@ sub removeFile {
   my $self     = shift;
   my $lfn      = shift;
   my $filehash = shift;
-  my $user     = $self->{ROLE};
+  my $user     = shift || $self->{ROLE};
 
   #Insert into LFN_BOOKED
   my $parent = "$lfn";
@@ -838,7 +836,7 @@ sub removeFile {
 
   #Update Quotas
   if ($filehash->{type} eq "f") {
-    $self->fquota_update(-1 * $filehash->{size}, -1)
+    $self->fquota_update(-1 * $filehash->{size}, -1, $user)
       or $self->info( "ERROR: Could not update quotas")
       and return;
   }
@@ -853,7 +851,7 @@ sub removeDirectory {
   my $self      = shift;
   my $path      = shift;
   my $parentdir = shift;
-  my $user      = $self->{ROLE};
+  my $user      = shift || $self->{ROLE};
 
   #Insert into LFN_BOOKED and delete lfns
   my $entries = $self->getTablesForEntry($path)
@@ -909,7 +907,8 @@ sub removeDirectory {
       $newdb->delete("L$db->{tableName}L", "lfn='$tmpPath'");
     }
   }
-  $self->fquota_update(-$size, -$count)
+
+  $self->fquota_update(-$size, -$count, $user)
     or $self->info( "ERROR: Could not update quotas")
     and return;
   return 1;
@@ -2349,14 +2348,17 @@ sub fquota_update {
     or $self->info("Update fquota : not enough parameters")
     and return;
 
-#  $self->{PRIORITY_DB} or $self->{PRIORITY_DB}=AliEn::Database::TaskPriority->new({ROLE=>'admin',SKIP_CHECK_TABLES=> 1});
-#  $self->{PRIORITY_DB} or return;
+  #$size *= $count;
+  #($size ge 0) and ($count le 0) and $size = -1*$size;
+
+  $self->info("Updating Quotas for user=$user with (count=$count and Size=$size(".$size/$count."))");
+
   $self->do(
 "UPDATE FQUOTAS SET nbFiles=nbFiles+tmpIncreasedNbFiles+?, totalSize=totalSize+tmpIncreasedTotalSize+?, tmpIncreasedNbFiles=0, tmpIncreasedTotalSize=0 WHERE "
       . $self->reservedWord("user") . "=?",
     {bind_values => [ $count, $size, $user ]}
   ) or return;
-
+  
   return 1;
 }
 

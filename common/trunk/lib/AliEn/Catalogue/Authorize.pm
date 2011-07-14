@@ -1711,6 +1711,7 @@ sub addEntryToBookingTableAndOptionalExistingFlagTrigger {
     "UPDATE LFN_BOOKED SET expiretime=? WHERE lfn=? and guid<>string2binary(?)  ",
     {bind_values => [ $negexpire, $envelope->{lfn}, $envelope->{guid} ]}
   ) or return 0;
+  $self->{DATABASE}->fquota_update($envelope->{size},1,$user) or return;
   return 1;
 }
 
