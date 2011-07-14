@@ -56,10 +56,12 @@ Memory=200000000;
   }
   $ready or print "The job is not WAITING!!\n" and exit(-2);
   print "Let's try to execute the job...\n";
-  system("alien", "proxy-destroy");
   my ($got)=$cat->execute("request") or exit(-2);
-  system ("alien", "proxy-destroy");
-  ($got eq "-2") or print "There was something to execute!\n" and exit(-2);
+  if ($got ne "-2") {
+    print "There was something to execute!\n";
+    $cat->execute("top");
+    exit(-2);
+  }
   print "Yuhuu!!\n";
   
 }
