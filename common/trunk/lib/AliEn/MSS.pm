@@ -88,8 +88,8 @@ sub new {
   }
 
   (defined $savedir)
-    or $self->{LOGGER}->warning("MSS", "Error setting the MSS: no SAVEDIR specified")
-    and return;
+    or $self->{LOGGER}->warning("MSS", "Error setting the MSS: no SAVEDIR specified");
+  #and return;
 
   if ($savedir) {
     my ($mountpoint, $name, $size) = split(",", $savedir);

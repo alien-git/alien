@@ -35,6 +35,7 @@ sub delete {
   $pfn=~ s{^file://[^/]*}{};
   $self->info("Ready to delete $pfn with rm");
   my $done=$self->{MSS}->rm($pfn);
+  $self->info("Tried delete and got $done");
   $done eq 0 and return 1;
   $self->info("Error deleting $pfn",1);
   return;

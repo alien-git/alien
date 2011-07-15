@@ -1275,8 +1275,6 @@ sub getBaseEnvelopeForWriteAccess {
   $envelope->{size} = $size;
   $envelope->{md5}  = $md5;
     
-  my ($ok, $message) = $self->checkFileQuota($user, $envelope->{size});
-  ($ok eq -1) and $self->info($message, 1) and return 0;
   return $self->reduceFileHashAndInitializeEnvelope("write", $envelope);
 }
 
