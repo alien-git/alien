@@ -26,7 +26,7 @@ my $d=AliEn::Database->new({DRIVER=>"mysql", HOST=>"$host:3307", DB=>"alien_syst
 
   my $user="FQUser";
   my $cat_ad=AliEn::UI::Catalogue::LCM::Computer->new({"role", "admin"});
-  $cat-ad or exit(-1);
+  $cat_ad or exit(-1);
   my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", $user});
   $cat or exit(-1);
 
