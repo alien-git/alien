@@ -66,18 +66,6 @@ OutputFile={\"file.out\"}
 
   print "4. Submit a job\n";
   my ($id1)=$cat->execute("submit", "dir1/saveoutput.jdl") or exit(-2);
-  waitForStatus($cat, $id1, "ERROR_SV") or exit(-2);	
-	print "Waiting for job log... for 100 seconds\n";
-	sleep(100);
-	my ($log)=$cat->execute("ps", "trace", $id1);
-	my $found=0;
-	foreach my $entry (@$log){
-		if ($entry->{trace}=~ /because of quota overflow/) {
-			$found=1;
-			last;
-		}
-	};
-	$found or print "There is nothing in the log about quota overflow\n" and exit(-2);
-	print "4. PASSED\n\n";
-
+  print "\#ALIEN_OUTPUT  $id1\n";
 }
+
