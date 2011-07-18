@@ -39,17 +39,6 @@ Memory=200000000;
 "
   ) or exit(-2);
 
-  #  my $procDir=executeJDLFile($cat, "jdl/checkMemory.jdl") or exit(-2);#
-  #
-  #  print "JOB EXECUTED!!\nChecking if the archive is in the right place\n";#
-  #
-  #  my ($file)=$cat->execute("get", "$procDir/stdout");
-
-  #  open (FILE, "<$file") or exit(-2);
-  #  my @data=<FILE>;
-  #  close FILE;
-  #  print "The file contains \n @data\n";
-
   print "Let's submit a file that requests too much memory\n";
   my ($id) = $cat->execute("submit", "jdl/checkTooMuchMemory.jdl") or exit(-2);
 
@@ -60,10 +49,23 @@ Memory=200000000;
 	$info->{status} eq "WAITING" and $ready = 1 and last;
   }
   $ready or print "The job is not WAITING!!\n" and exit(-2);
-  print "Let's try to execute the job...\n";
-  my ($got) = $cat->execute("request") or exit(-2);
-  if ($got ne "-2") {
-	print "There was something to execute!\n";
+  my $fileName="/tmp/alien_output.$$";
+  print "Let's try to execute the job... output in $fileName\n";
+  open my $SAVEOUT, ">&", STDOUT;
+  open my $SAVEERR, ">&", STDERR;
+  
+  open STDOUT, ">", $fileName;
+  open STDERR, ">", $fileName;
+  my ($got) = $cat->execute("jobListMatch", $id) or exit(-2);
+  open STDOUT, ">&", $SAVEOUT;
+  open STDERR, ">&", $SAVEERR;
+  open my $FILE2, "<", $fileName;
+  my $content=join("", <$FILE2>);
+  close $FILE2;
+  print "We got $content\n";
+  #unlink $fileName;
+  if ($content !~ /In total, there are 0 sites that match/) {
+	print "There are some sites that match!!\n";
 	$cat->execute("top");
 	exit(-2);
   }
