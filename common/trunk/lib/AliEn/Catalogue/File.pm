@@ -763,6 +763,10 @@ sub f_touch {
     or $self->info( "Error missing the name of the file to touch", 1)
     and return;
   $lfn = $self->GetAbsolutePath($lfn);
+  if($self->existsEntry($lfn)) {
+    $self->info("The  lfn $lfn already exists in the file catalogue");
+    return;
+  }
   my ($ok, $message) = $self->checkFileQuota($self->{CONFIG}->{ROLE}, 0);
   if ($ok eq -1) {
     $self->info($message,1)
