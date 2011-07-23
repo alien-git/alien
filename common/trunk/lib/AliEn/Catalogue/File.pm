@@ -815,6 +815,132 @@ sub f_du {
   return $space;
 }
 
+sub f_populate_HELP {
+  return "Populates a given directory with sub-directories and finally with files
+Usage:
+\t populate <dir> num_subdirs1 num_subdirs2 ..... num_files <dir>
+";
+}
+
+sub f_populate {
+  my $self    = shift;
+  my $path    = $self->GetAbsolutePath($_[0]);
+  $self->info("PATH::: `$path'");
+  my $entry   = $self->{DATABASE}->existsEntry($path);
+  $entry or $self->info("Directory doesnt exist .. Creating One .. !! '@_' \n". $self->f_populate_HELP()) 
+         and $self->f_mkdir("sp", $path);
+  my @stack_list= ();
+  my $len = 0;
+  my $num_files = 0;
+  my $total_files = 0;
+  my $num_dirs = 0;
+  my $base = 0;
+  push @stack_list, [@_];
+
+  while(@stack_list) {
+    my $temp_ref = shift @stack_list;
+    my @temp = @$temp_ref;
+    $self->{LOGGER}->silentOn();
+    $self->info(Dumper(@temp));
+    $self->info("Extracting the elements from stack :: @temp");
+    $self->info("Some values :: @temp");
+    $len = scalar(@temp); 
+    
+    if($len ==2) {
+      #touch files
+      $base = $temp[0];
+      $num_files = $temp[1];
+      if ($num_files =~ s/^\+//) {
+          $num_files = int(rand($num_files))+1;
+      }
+      for(my $i=0; $i < $num_files; $i++)
+      {
+          my $fn = $base."/File".$i; 
+          $self->f_touch(-1,$fn);
+          $self->info("Touched File:: $fn");
+          $total_files++;
+	    }
+    } elsif ($len>2) {
+      #make directories 
+      my $dir_name = "A";
+      $base = shift @temp;
+      $num_dirs = shift @temp;
+      if ($num_dirs =~ s/^\+//) {
+          $num_dirs = int(rand($num_dirs))+1;
+      }
+      for(my $i=0; $i < $num_dirs; $i++)
+      {
+          my @temp1=@temp;
+          my $base_dir = $base."/".$dir_name; 
+          $self->f_mkdir("", $base_dir);
+          $self->info("Directory created :: $base_dir");
+          $dir_name++;
+          unshift @temp1,$base_dir;
+          push @stack_list, [ @temp1 ];
+	    }
+      #Recurse through the directories
+    } else {
+      $self->info("Warning ... length=1..Not possible");
+      }
+      
+    $self->{LOGGER}->silentOff();
+  }
+  $self->info("Summary ::");
+  $self->info("Populating in the directory :: $path");
+  $self->info("Total number of files populated. :: $total_files");
+  return 1;
+}
+
+=usingRecursion
+sub f_populate {
+  my $self    = shift;
+  my $path    = $self->GetAbsolutePath(shift);
+  $self->info("I! ::: @_ ");
+  my @param=@_;
+  my $nparam=@_;
+  $self->info("PATH::: `$path'");
+  my $entry   = $self->{DATABASE}->existsEntry($path);
+  $entry or $self->info("Error: unknown options: '@_' \n". $self->f_populate_HELP()) 
+         and return;
+  my $base = $path;
+  my $num_dirs = $param[0];
+  my $num_files = $param[$nparam-1];
+  my $depth = $nparam-1;
+  my $depth_fix = $depth;
+  sub rmkdir()
+  {
+    my($base, $num_dirs, $depth,$num_files,$depth_fix) = @_;
+    $self->f_mkdir("", $base);
+    #if depth = 0, no more subdirectories need to be created
+    if($depth == 0)
+    {
+        for(my $i=0; $i < $num_files; $i++)
+        {
+          my $fn = $base."/File".$i; 
+          $self->f_touch(-1,$fn);
+          $self->info("Touched File:: $fn");
+	      }
+        return 0;
+    }
+    #Recurse through the directories
+    my $dir_name = "A";
+    for(my $i = 0; $i < int(rand($num_dirs))+1; $i++)
+    {
+        &rmkdir("$base/$dir_name", $param[$depth_fix - $depth +1], $depth - 1,$num_files,$depth_fix);
+        $dir_name++;
+    }
+  }
+  &rmkdir( $path , $param[0], $depth, $num_files, $depth_fix );
+  $self->info("Populating in the directory of $path");
+  return 1;
+}
+=cut
+
+
+
+
+
+
 =item C<whereis($options, $lfn)>
 
 This subroutine returns the list of SE that have a copy of an lfn

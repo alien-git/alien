@@ -115,6 +115,7 @@ sub AUTOLOAD {
     createCollection         => "createCollectionCatalogue",
     cleanupTagValue          => "cleanupTagValue",
     du                       => "du",
+    populate                 => "populate",
     deleteMirror             => "deleteMirror",
     df                       => "df",
     existsEntry              => "existsEntry",
