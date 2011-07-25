@@ -126,7 +126,7 @@ sub LFN_createCatalogueTables {
     INDEXTABLE => [
       "indexId",
       { indexId   => "int(11) NOT NULL auto_increment primary key",
-        lfn       => "varchar(50)",
+        lfn       => "varchar(255)",
         tableName => "int(11)",
       },
       'indexId',
