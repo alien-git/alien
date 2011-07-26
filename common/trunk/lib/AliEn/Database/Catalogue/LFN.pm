@@ -1161,6 +1161,35 @@ sub getAllIndexes {
 
 }
 
+sub getNumEntryIndexes {
+  #edited by dushyant
+  my $self = shift;
+  my $q = $self->query("SELECT tableName FROM INDEXTABLE");
+  #my $lol = scalar @$q;
+  #$self->info("Checking scalar value :: $lol");
+  #use Data::Dumper;
+  #$self->info(Dumper(@$q));
+  #$self->info(Dumper($self->query("SELECT tableName FROM INDEXTABLE")));
+  my @tnames = ();
+  my @result = ();
+  foreach my $row(@$q)
+  {
+        my $tn = $row->{tableName};
+        push(@tnames,$tn);
+        my $newT = 'L'.$tn.'L';
+        my $q1 = "SELECT COUNT(*) from ".$newT." ";
+        my $temp = $self->queryValue($q1);
+        push(@result,$temp);
+  }
+  #return (@tnames,@result) ;
+  #use Data::Dumper;
+  #$self->info(Dumper(@tnames));
+  #$self->info(Dumper(@result));
+  return (@tnames,@result) ;
+  #return %res ;
+}
+
+
 =item C<copyDirectory($source, $target)>
 
 This subroutine copies a whole directory. It checks if part of the directory is in a different database

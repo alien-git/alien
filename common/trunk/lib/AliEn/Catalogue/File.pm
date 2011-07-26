@@ -815,6 +815,237 @@ sub f_du {
   return $space;
 }
 
+
+sub f_di_HELP {
+  return "Gives the number of entries in the L#L tables and optimizes them
+Usage:
+\tdi <options> <max_lim> <min_lim> <dir>
+
+Options:
+\t\t
+\t\toptimize: Optimizes the the L#L LFN tables wrt number of entries in the table (all the L#L tables)
+\t\toptimize_dir: Optimizes the the L#L LFN tables wrt number of entries in the table in the path specified (current directory by default)
+\t\tmax_lim: Maximum limit of number of entries to be present in a table
+\t\tmin_lim: Maximum limit of number of entries to be present in a table
+";
+}
+
+sub f_di {
+  my $self    = shift;
+  my $options = shift;
+# $self->moveDirectory("ZX","-b");
+# $self->info("Did it work");
+# my $c = $self->{DATABASE}->query("SELECT * FROM G0L");
+# foreach my $row(@$c) {
+#       $self->info("====>>>> $row->{owner}");
+#       #map { $self->info("$_ ====>>>> $row->{$_}") } keys %$row;
+#       $self->info("\n\n\n\n");
+# }
+# return 1;
+  if ($options eq "optimize") {
+     
+      my $max_lim = shift;
+      my $min_lim = shift;
+      $self->info("Trying to optimiz...");
+      $self->info("maxLim:: $max_lim");
+      $self->info("minLim:: $min_lim");
+
+      my @stack_final = ();
+      my (@LFN) = $self->{DATABASE}->getNumEntryIndexes();
+      
+      my $num_tables = @LFN/2;
+      for (my $i=0; $i<$num_tables; $i++)
+      {
+         $self->info("L$LFN[$i]L has $LFN[$i+$num_tables] number of entries.");
+         my $table_name = "L".$LFN[$i]."L";
+         my $tq = "SELECT lfn FROM INDEXTABLE WHERE tableName=$LFN[$i]";
+         my $base = $self->{DATABASE}->queryValue($tq);
+         if ($LFN[$i+$num_tables] > $max_lim)
+         {
+            #getting the depth of the directory tree 
+            #following the bottom -> top approach
+            my $qt = "SELECT MAX( LENGTH(lfn) - LENGTH(REPLACE(lfn,'/','')) ) AS depth FROM ".$table_name."";
+            my $depth = $self->{DATABASE}->queryValue($qt);
+            $self->info("depth ::: $depth");
+            #here optimization loop will be written
+            my @stack_dir=();  #stack of directories which will be moved usinf moveDirectory() 
+            for(my $j=$depth; $j>0 ;$j--) 
+            {
+                my $q1 = "SUBSTRING_INDEX(lfn,'/',".$j.")";
+                my $q2 = "SELECT ".$q1." AS DIR , COUNT( ".$q1.") AS CNT FROM ".$table_name." WHERE ".$q1." IN ";
+                my $q3 = $q2." ( SELECT DISTINCT ".$q1." FROM ".$table_name." WHERE type LIKE \"d\") GROUP BY ".$q1."";
+                $self->info("Here in Optimize");
+                my $q = $self->{DATABASE}->query($q3);
+                foreach my $row(@$q)
+                {
+                    my $dir = $row->{DIR};
+                    my $cnt = $row->{CNT};
+                    #optimization part 
+                    if($cnt >$max_lim) 
+                    {
+                        $self->info("Inside condition ... => exceeding");
+                        #pushing the directory to be removed into the stack
+                        #the actual removal of the directories will take place in the calling function
+                        push @stack_dir,$dir;
+                        $dir = $base.$dir;
+                        $self->moveDirectory($dir);
+                        $self->info("Dir moved n pushed :: $dir ");
+                    }
+                }
+            }
+            #my @stack_temp = $self->{DATABASE}->optimizeTables($max_lim,$min_lim,$table_name);
+            my @stack_temp = @stack_dir;
+            push @stack_final,@stack_temp;
+            use Data::Dumper;
+            $self->info(Dumper(@stack_final));
+	       }
+         if ($LFN[$i+$num_tables] < $min_lim)
+         {
+           my $q1 = "SELECT lfn FROM INDEXTABLE WHERE tableName=".$LFN[$i]."";
+           $self->info("Query::::: $q1");
+           my $q = $self->{DATABASE}->queryValue($q1);
+           $self->info(": $q");
+           if($q =~ m/\// and length($q)==1 ) 
+           {
+             $self->info("Warning:: Can't move moveDirectory -b ROOT /  directory");
+           } 
+           else 
+           {
+            my $q2="SELECT tableName FROM INDEXTABLE WHERE \"".$q."\" RLIKE CONCAT(\"^\",lfn) AND lfn NOT LIKE \"".$q."\" ORDER BY LENGTH(lfn) DESC limit 1"; 
+            $self->info("Query2 :: $q2");
+            my $tname = $self->{DATABASE}->queryValue($q2); 
+            my $q3 = "SELECT COUNT(*) FROM L".$tname."L ";
+            $self->info("Query3 :: $q3");
+            my $IsFull = $self->{DATABASE}->queryValue($q3);
+            if($IsFull+$LFN[$i+$num_tables] >$max_lim )
+            {
+              $self->info("Warning:: Trying to moveDirectory -b into L".$tname."L ");
+              $self->info("Warning:: Can't move back i.e. it will possibly exceede max_lim=$max_lim");
+            }
+            else
+            {
+              $self->moveDirectory($q,"-b");
+              $self->info("Dir moved back :: $q ");
+            }
+           }
+         }
+      }
+      return @LFN;
+  }
+  elsif ($options eq "optimize_dir") {
+      #optimizes the directory specified otherwise the current directory
+      my $max_lim = shift;
+      my $min_lim = shift;
+      my $path    = $self->GetAbsolutePath(shift);
+      my $entry   = $self->{DATABASE}->existsEntry($path);
+      $entry or $self->info("di: optimize_dir `$path': No such file or directory", 11, 1) and return;
+      $self->info("Trying to optimiz the dir :: $path");
+      $self->info("maxLim:: $max_lim");
+      $self->info("minLim:: $min_lim");
+      my @stack_final = ();
+      my $rtables = $self->{DATABASE}->getTablesForEntry($path)
+        or $self->info("Error getting the tables for '$path'")
+        and return;
+      use Data::Dumper;  $self->info(Dumper($rtables)); $self->info("CHK :: 1");
+      foreach my $rtable (@$rtables)
+      {
+        $self->info("CHK :: 2 :: inside::: ");
+        my $table_name = "L".$rtable->{tableName}."L";
+        my $base = $rtable->{lfn};
+        my $q1 = "SELECT COUNT(*) FROM ".$table_name.""; 
+        my $num_entries = $self->{DATABASE}->queryValue($q1);
+        if ($num_entries > $max_lim)
+        {
+            #getting the depth of the directory tree 
+            #following the bottom -> top approach
+            my $qt = "SELECT MAX(LENGTH(lfn) - LENGTH(REPLACE(lfn,'/','')) ) AS depth FROM ".$table_name."";
+            my $depth = $self->{DATABASE}->queryValue($qt);
+            $self->info("depth ::: $depth");
+            #here optimization loop will be written
+            my @stack_dir=();  #stack of directories which will be moved usinf moveDirectory() 
+            for(my $j=$depth; $j>0 ;$j--) 
+            {
+                my $q1 = "SUBSTRING_INDEX(lfn,'/',".$j.")";
+                my $q2 = "SELECT ".$q1." AS DIR , COUNT( ".$q1.") AS CNT FROM ".$table_name." WHERE ".$q1." IN ";
+                my $q3 = $q2." ( SELECT DISTINCT ".$q1." FROM ".$table_name." WHERE type LIKE \"d\") GROUP BY ".$q1."";
+                $self->info("Here in Optimize");
+                my $q = $self->{DATABASE}->query($q3);
+                foreach my $row(@$q)
+                {
+                    my $dir = $row->{DIR};
+                    my $cnt = $row->{CNT};
+                    #optimization part 
+                    if($cnt >$max_lim) 
+                    {
+                        $self->info("Inside condition ... => exceeding");
+                        #pushing the directory to be removed into the stack
+                        #the actual removal of the directories will take place in the calling function
+                        push @stack_dir,$dir;
+                        $dir = $base.$dir;
+                        if ($dir =~ m/^$path/)
+                        {
+                           $self->moveDirectory($dir);
+                           $self->info("Dir moved n pushed :: $dir ");
+                        }
+                    }
+                }
+            }
+            #my @stack_temp = $self->{DATABASE}->optimizeTables($max_lim,$min_lim,$table_name);
+            my @stack_temp = @stack_dir;
+            push @stack_final,@stack_temp;
+            use Data::Dumper;
+            $self->info(Dumper(@stack_final));
+	      }
+        if ($num_entries < $min_lim)
+        {
+           my $q1 = "SELECT lfn FROM INDEXTABLE WHERE tableName=".$rtable->{tableName}."";
+           $self->info("Query::::: $q1");
+           my $q = $self->{DATABASE}->queryValue($q1);
+           $self->info(": $q");
+           if($q =~ m/\// and length($q)==1 ) 
+           {
+             $self->info("Warning:: Can't move moveDirectory -b ROOT /  directory");
+           } 
+           else 
+           {
+            my $q2="SELECT tableName FROM INDEXTABLE WHERE \"".$q."\" RLIKE CONCAT(\"^\",lfn) AND lfn NOT LIKE \"".$q."\" ORDER BY LENGTH(lfn) DESC limit 1"; 
+            $self->info("Query2 :: $q2");
+            my $tname = $self->{DATABASE}->queryValue($q2); 
+            my $q3 = "SELECT COUNT(*) FROM L".$tname."L ";
+            $self->info("Query3 :: $q3");
+            my $IsFull = $self->{DATABASE}->queryValue($q3);
+            if($IsFull+$num_entries >$max_lim )
+            {
+              $self->info("Warning:: Trying to moveDirectory -b into L".$tname."L ");
+              $self->info("Warning:: Can't move back i.e. it will possibly exceede max_lim=$max_lim");
+            }
+            else
+            {
+              $self->moveDirectory($q,"-b");
+              $self->info("Dir moved back :: $q ");
+            }
+           }
+         }
+      }
+      #return @LFN;
+  }
+  else {
+    #my $path    = $self->GetAbsolutePath(shift);
+    #my $entry   = $self->{DATABASE}->existsEntry($path);
+    #$entry or $self->info("di: `$path': No such file or directory", 11, 1) and return;
+    #$self->info("It works from the TRUNK also .. yipeeeee!!!! ");
+    #$self->info("Checking the number of entries of $path");
+    my (@LFN) = $self->{DATABASE}->getNumEntryIndexes();
+    my $num_tables = @LFN/2;
+    for (my $i=0; $i<$num_tables; $i++)
+    {
+      $self->info("L$LFN[$i]L has $LFN[$i+$num_tables] number of entries.");
+    }
+    return @LFN;
+  }
+}
+
+
 sub f_populate_HELP {
   return "Populates a given directory with sub-directories and finally with files
 Usage:
@@ -936,8 +1167,33 @@ sub f_populate {
 }
 =cut
 
+sub f_nEntries_HELP {
+  return "Gives the number of entries in the current directory (total no. of files + directories)
+Usage:
+\tnEntries <dir>
+";
+}
 
-
+sub f_nEntries {
+  my $self    = shift;
+  my $path    = $self->GetAbsolutePath(shift);
+  my $entry   = $self->{DATABASE}->existsEntry($path);
+  $self->info("nEntries");
+  $entry or $self->info("nEntries: `$path': No such file or directory", 11, 1) and return;
+  my $rtables = $self->{DATABASE}->getTablesForEntry($path)
+     or $self->info("Error getting the tables for '$path'")
+     and return;
+  my $num_entries =0;
+  foreach my $rtable (@$rtables)
+  {
+        my $table_name = "L".$rtable->{tableName}."L";
+        my $base = $rtable->{lfn};
+        my $q1 = "SELECT COUNT(*) FROM ".$table_name.""; 
+        $num_entries = $num_entries + $self->{DATABASE}->queryValue($q1);
+  }
+  $self->info("Total number of Entries in $path : $num_entries");
+  return $num_entries;
+}
 
 
 

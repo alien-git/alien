@@ -102,7 +102,9 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
   '$?'               => [ '$self->{CATALOG}->displayLastError',   0 ],
   'history'          => [ '$self->history',                       0 ],
   'du'               => [ '$self->{CATALOG}->f_du',               3 ],
+  'di'               => [ '$self->{CATALOG}->f_di',              64 ],
   'populate'         => [ '$self->{CATALOG}->f_populate',        64 ],
+  'nEntries'         => [ '$self->{CATALOG}->f_nEntries',         1 ],
   'md5sum'           => [ '$self->{CATALOG}->f_getMD5',           3 + 16 + 32 ],
   'phone'            => [ '$self->phone',                         0 ],
 

@@ -116,6 +116,8 @@ sub AUTOLOAD {
     cleanupTagValue          => "cleanupTagValue",
     du                       => "du",
     populate                 => "populate",
+    di                       => "di",
+    nEntries                 => "nEntries",
     deleteMirror             => "deleteMirror",
     df                       => "df",
     existsEntry              => "existsEntry",
