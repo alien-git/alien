@@ -834,7 +834,6 @@ sub f_di {
   my $self    = shift;
   my $options = shift;
 # $self->moveDirectory("ZX","-b");
-# $self->info("Did it work");
 # my $c = $self->{DATABASE}->query("SELECT * FROM G0L");
 # foreach my $row(@$c) {
 #       $self->info("====>>>> $row->{owner}");
@@ -874,7 +873,7 @@ sub f_di {
                 my $q1 = "SUBSTRING_INDEX(lfn,'/',".$j.")";
                 my $q2 = "SELECT ".$q1." AS DIR , COUNT( ".$q1.") AS CNT FROM ".$table_name." WHERE ".$q1." IN ";
                 my $q3 = $q2." ( SELECT DISTINCT ".$q1." FROM ".$table_name." WHERE type LIKE \"d\") GROUP BY ".$q1."";
-                $self->info("Here in Optimize");
+                $DEBUG and $self->debug("Here in Optimize");
                 my $q = $self->{DATABASE}->query($q3);
                 foreach my $row(@$q)
                 {
@@ -883,13 +882,15 @@ sub f_di {
                     #optimization part 
                     if($cnt >$max_lim) 
                     {
-                        $self->info("Inside condition ... => exceeding");
+                        $DEBUG and $self->debug(1,"Inside condition ... => exceeding");
                         #pushing the directory to be removed into the stack
                         #the actual removal of the directories will take place in the calling function
                         push @stack_dir,$dir;
                         $dir = $base.$dir;
+                        $self->{LOGGER}->silentOn();
                         $self->moveDirectory($dir);
-                        $self->info("Dir moved n pushed :: $dir ");
+                        $self->{LOGGER}->silentOff();
+                        $DEBUG and $self->debug(1,"Dir moved n pushed :: $dir ");
                     }
                 }
             }
@@ -897,7 +898,7 @@ sub f_di {
             my @stack_temp = @stack_dir;
             push @stack_final,@stack_temp;
             use Data::Dumper;
-            $self->info(Dumper(@stack_final));
+            $DEBUG and $self->debug(1,Dumper(@stack_final));
 	       }
          if ($LFN[$i+$num_tables] < $min_lim)
          {
@@ -912,10 +913,10 @@ sub f_di {
            else 
            {
             my $q2="SELECT tableName FROM INDEXTABLE WHERE \"".$q."\" RLIKE CONCAT(\"^\",lfn) AND lfn NOT LIKE \"".$q."\" ORDER BY LENGTH(lfn) DESC limit 1"; 
-            $self->info("Query2 :: $q2");
+            $DEBUG and $self->debug(1,"Query2 :: $q2");
             my $tname = $self->{DATABASE}->queryValue($q2); 
             my $q3 = "SELECT COUNT(*) FROM L".$tname."L ";
-            $self->info("Query3 :: $q3");
+            $DEBUG and $self->debug(1,"Query3 :: $q3");
             my $IsFull = $self->{DATABASE}->queryValue($q3);
             if($IsFull+$LFN[$i+$num_tables] >$max_lim )
             {
@@ -930,6 +931,7 @@ sub f_di {
            }
          }
       }
+      $self->info("Done the desired Optimization :)");
       return @LFN;
   }
   elsif ($options eq "optimize_dir") {
@@ -946,10 +948,9 @@ sub f_di {
       my $rtables = $self->{DATABASE}->getTablesForEntry($path)
         or $self->info("Error getting the tables for '$path'")
         and return;
-      use Data::Dumper;  $self->info(Dumper($rtables)); $self->info("CHK :: 1");
+      use Data::Dumper;  $DEBUG and $self->debug(1,Dumper($rtables)); 
       foreach my $rtable (@$rtables)
       {
-        $self->info("CHK :: 2 :: inside::: ");
         my $table_name = "L".$rtable->{tableName}."L";
         my $base = $rtable->{lfn};
         my $q1 = "SELECT COUNT(*) FROM ".$table_name.""; 
@@ -960,7 +961,7 @@ sub f_di {
             #following the bottom -> top approach
             my $qt = "SELECT MAX(LENGTH(lfn) - LENGTH(REPLACE(lfn,'/','')) ) AS depth FROM ".$table_name."";
             my $depth = $self->{DATABASE}->queryValue($qt);
-            $self->info("depth ::: $depth");
+            $DEBUG and $self->debug(1,"depth ::: $depth");
             #here optimization loop will be written
             my @stack_dir=();  #stack of directories which will be moved usinf moveDirectory() 
             for(my $j=$depth; $j>0 ;$j--) 
@@ -968,7 +969,7 @@ sub f_di {
                 my $q1 = "SUBSTRING_INDEX(lfn,'/',".$j.")";
                 my $q2 = "SELECT ".$q1." AS DIR , COUNT( ".$q1.") AS CNT FROM ".$table_name." WHERE ".$q1." IN ";
                 my $q3 = $q2." ( SELECT DISTINCT ".$q1." FROM ".$table_name." WHERE type LIKE \"d\") GROUP BY ".$q1."";
-                $self->info("Here in Optimize");
+                $DEBUG and $self->debug(1,"Here in Optimize");
                 my $q = $self->{DATABASE}->query($q3);
                 foreach my $row(@$q)
                 {
@@ -977,14 +978,16 @@ sub f_di {
                     #optimization part 
                     if($cnt >$max_lim) 
                     {
-                        $self->info("Inside condition ... => exceeding");
+                        $DEBUG and $self->debug(1,"Inside condition ... => exceeding");
                         #pushing the directory to be removed into the stack
                         #the actual removal of the directories will take place in the calling function
                         push @stack_dir,$dir;
                         $dir = $base.$dir;
                         if ($dir =~ m/^$path/)
                         {
+                           $self->{LOGGER}->silentOn();
                            $self->moveDirectory($dir);
+                           $self->{LOGGER}->silentOff();
                            $self->info("Dir moved n pushed :: $dir ");
                         }
                     }
@@ -994,14 +997,14 @@ sub f_di {
             my @stack_temp = @stack_dir;
             push @stack_final,@stack_temp;
             use Data::Dumper;
-            $self->info(Dumper(@stack_final));
+            $DEBUG and $self->debug(1,Dumper(@stack_final));
 	      }
         if ($num_entries < $min_lim)
         {
            my $q1 = "SELECT lfn FROM INDEXTABLE WHERE tableName=".$rtable->{tableName}."";
-           $self->info("Query::::: $q1");
+           $DEBUG and $self->debug(1, "Query::::: $q1");
            my $q = $self->{DATABASE}->queryValue($q1);
-           $self->info(": $q");
+           $DEBUG and $self->debug(1,": $q");
            if($q =~ m/\// and length($q)==1 ) 
            {
              $self->info("Warning:: Can't move moveDirectory -b ROOT /  directory");
@@ -1009,10 +1012,8 @@ sub f_di {
            else 
            {
             my $q2="SELECT tableName FROM INDEXTABLE WHERE \"".$q."\" RLIKE CONCAT(\"^\",lfn) AND lfn NOT LIKE \"".$q."\" ORDER BY LENGTH(lfn) DESC limit 1"; 
-            $self->info("Query2 :: $q2");
             my $tname = $self->{DATABASE}->queryValue($q2); 
             my $q3 = "SELECT COUNT(*) FROM L".$tname."L ";
-            $self->info("Query3 :: $q3");
             my $IsFull = $self->{DATABASE}->queryValue($q3);
             if($IsFull+$num_entries >$max_lim )
             {
@@ -1027,14 +1028,13 @@ sub f_di {
            }
          }
       }
+      $self->info("Done the desired Optimization :)");
       #return @LFN;
   }
   else {
     #my $path    = $self->GetAbsolutePath(shift);
     #my $entry   = $self->{DATABASE}->existsEntry($path);
     #$entry or $self->info("di: `$path': No such file or directory", 11, 1) and return;
-    #$self->info("It works from the TRUNK also .. yipeeeee!!!! ");
-    #$self->info("Checking the number of entries of $path");
     my (@LFN) = $self->{DATABASE}->getNumEntryIndexes();
     my $num_tables = @LFN/2;
     for (my $i=0; $i<$num_tables; $i++)
@@ -1073,7 +1073,7 @@ sub f_populate {
     my @temp = @$temp_ref;
     $self->{LOGGER}->silentOn();
     $self->info(Dumper(@temp));
-    $self->info("Extracting the elements from stack :: @temp");
+    $DEBUG and $self->debug(1,"Extracting the elements from stack :: @temp");
     $self->info("Some values :: @temp");
     $len = scalar(@temp); 
     
@@ -1088,7 +1088,7 @@ sub f_populate {
       {
           my $fn = $base."/File".$i; 
           $self->f_touch(-1,$fn);
-          $self->info("Touched File:: $fn");
+          $DEBUG and $self->debug(1,"Touched File:: $fn");
           $total_files++;
 	    }
     } elsif ($len>2) {
@@ -1104,7 +1104,7 @@ sub f_populate {
           my @temp1=@temp;
           my $base_dir = $base."/".$dir_name; 
           $self->f_mkdir("", $base_dir);
-          $self->info("Directory created :: $base_dir");
+          $DEBUG and $self->debug(1,"Directory created :: $base_dir");
           $dir_name++;
           unshift @temp1,$base_dir;
           push @stack_list, [ @temp1 ];
