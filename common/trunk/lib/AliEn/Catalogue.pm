@@ -40,8 +40,6 @@ AliEn::Catalogue
 
 =item f_find
 
-=item f_tree
-
 =item f_zoom
 
 
@@ -1852,21 +1850,25 @@ sub printTreeLevel {
   my $first = shift;
   $DEBUG and $self->debug(1, "UserInterface::printreeLevel $first");
   my @files = grep(/^[^\/]*\/?$/i, @_);
+  
   $DEBUG and $self->debug(1, "There are $#files in @_");
   my $file;
   my $sec = 0;
   if ((@_) and (!@files)) { push @files, "/"; }
-
+  
   foreach $file (@files) {
     if ($file =~ /\/$/) {
-      ($sec) and print STDERR "$first\n";
+      #($sec) and print STDERR "$first\n";
+      ($sec) and $self->raw(sprintf("%s\n", $first), undef, 0);
       $sec = 1;
-      print STDERR "$first--$file\n";
+      #print STDERR "$first--$file\n";
+      $self->raw(sprintf("%s--%s\n", $first,$file), undef, 0);
       $file =~ s/\+/\\\+/g;
       my @dir = grep(s/^$file(.)/$1/i, @_);
       $self->printTreeLevel("$first  |", @dir);
     } else {
-      print STDERR "$first--$file\n";
+      #print STDERR "$first--$file\n";
+      $self->raw(sprintf("%s--%s\n", $first,$file), undef, 0);
     }
   }
   return 1;
@@ -1878,7 +1880,9 @@ sub f_tree {
   $dir = $self->GetAbsolutePath($dir);
   $DEBUG and $self->debug(1, "In UserInterface::f_tree $dir");
   $dir =~ s{/?$}{/};
-  my $ref = $self->{DATABASE}->findLFN($dir, [], [], [], [], 'd', 1)
+  my $file = ['%'];
+  my %options = ('d' => 'd');
+  my $ref = $self->{DATABASE}->findLFN($dir, $file , [], [], [], %options)
     or return;
   my @entries    = @$ref;
   my @entriesLFN = ();
@@ -1889,7 +1893,9 @@ sub f_tree {
   $DEBUG and $self->debug(1, "There are " . ($#entries + 1) . " entries");
   map { $_ =~ s/$dir/.\//i } @entriesLFN;
   $self->printTreeLevel("|", @entriesLFN);
-  print STDERR "\n";
+
+  $self->raw(sprintf("\n"), undef, 0);
+  #print STDERR "\n";
   return 1;
 }
 
