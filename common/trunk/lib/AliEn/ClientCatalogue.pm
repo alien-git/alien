@@ -137,6 +137,7 @@ sub AUTOLOAD {
     ln                       => "ln",
     listFilesFromCollection  => "listFilesFromCollection",
     moveDirectory            => 'moveDirectory',
+    moveGUID                 => 'moveGUID',
     mkdir                    => "mkdir",
     mkremdir                 => "mkremdir",
     mv                       => "mv",

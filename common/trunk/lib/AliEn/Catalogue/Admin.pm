@@ -247,7 +247,7 @@ sub moveDirectory {
 
 }
 
-sub moveGUIDToIndex_HELP {
+sub moveGUID_HELP {
   return "moveGUID: moves all the GUID to a different table in the catalogue
 This command can only be executed by admin
 
@@ -258,7 +258,7 @@ If the guid is not specified, a new one will be created
 ";
 }
 
-sub moveGUIDToIndex {
+sub moveGUID {
   my $self = shift;
   my $guid = shift;
 
