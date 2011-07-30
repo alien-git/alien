@@ -94,12 +94,12 @@ sub GUID_createCatalogueTables {
       'Username'
     ],
     GUIDINDEX => [
-      "indexId",
-      { indexId   => "int(11) NOT NULL auto_increment primary key",
+      "tableName",
+      { 
         guidTime  => "varchar(16) default 0",
-        tableName => "int(11)",
+        tableName => "int(11) NOT NULL primary key",
       },
-      'indexId',
+      'tableName',
       ['UNIQUE INDEX (guidTime)']
     ],
     TODELETE => [

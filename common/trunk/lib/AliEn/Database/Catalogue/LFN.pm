@@ -124,12 +124,12 @@ sub LFN_createCatalogueTables {
       'Userid'
     ],
     INDEXTABLE => [
-      "indexId",
-      { indexId   => "int(11) NOT NULL auto_increment primary key",
+      "tableName",
+      { 
         lfn       => "varchar(255)",
-        tableName => "int(11)",
+        tableName => "int(11) NOT NULL primary key",
       },
-      'indexId',
+      'tableName',
       ['UNIQUE INDEX (lfn)']
     ],
     ENVIRONMENT => [
@@ -2283,8 +2283,6 @@ sub updateLFNStats {
   $self->info("In total, there are $total guid tables affected");
   my $lfnRef = "$self->{CURHOSTID}_$number";
   foreach my $elem (@$oldGUIDList, @$newGUIDList) {
-    $done->{$elem->{indexId}} and next;
-    $done->{$elem->{indexId}} = 1;
     $values .= " (?, 'TODELETE'), ";
     push @bind, $elem->{tableName};
     push @bind, $elem->{tableName};

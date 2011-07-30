@@ -138,7 +138,6 @@ sub AUTOLOAD {
     listFilesFromCollection  => "listFilesFromCollection",
     moveDirectory            => 'moveDirectory',
     moveGUID                 => 'moveGUID',
-    moveGUID                 => 'moveGUID',
     optimizeGUIDtables       => 'optimizeGUIDtables',
     mkdir                    => "mkdir",
     mkremdir                 => "mkremdir",
