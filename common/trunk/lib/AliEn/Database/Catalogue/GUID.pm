@@ -684,10 +684,11 @@ A new table is always created.
 sub moveGUIDs {
   my $self    = shift;
   my $guid    = shift;
+  my $table   = shift; 
   my $options = shift || "";
   $DEBUG and $self->debug(1, "Starting  moveGUIDs, with $guid ");
 
-  my $table = $self->getIndexTableFromGUID($guid) or return;
+  #my $table = $self->getIndexTableFromGUID($guid) or return;
   
 
   #Create the new guid table
@@ -712,8 +713,7 @@ sub moveGUIDs {
   #move the entries from the old table to the new one
   my $error = 1;
 
-
-    #at least is in the same host, and driver
+  #at le  ast is in the same host, and driver
   my @queries = (
 "INSERT INTO $self->{DB}.G${tableName}L ($columns) select $columns from $table where  binary2date(guid)>string2date('$guid')",
 "INSERT INTO $self->{DB}.G${tableName}L_PFN (guidid, pfn,seNumber) select p.guidid, p.pfn, p.seNumber from ${table}_PFN p, $self->{DB}.G${tableName}L g where p.guidId=g.guidId",
@@ -729,14 +729,12 @@ sub moveGUIDs {
   if ($options !~ /f/) {
     $self->checkGUIDTable($table);
   }
-
   $self->info("From $#queries, $counter left");
   if ($counter < 0) {
     $self->info("We have done all the queries");
     $error = 0;
    }
-
-
+ 
   #let's check the table again
   #  if ($options !~ /f/){
   $self->checkGUIDTable($tableName) or return;

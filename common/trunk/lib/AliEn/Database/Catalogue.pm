@@ -541,6 +541,8 @@ sub checkOrphanGUID {
 
 sub optimizeGUIDtables {
   my $self = shift;
+  my $max_lim = shift;
+  my $min_lim = shift;
 
   $self->info("Let's optimize the guid tables");
 
@@ -551,21 +553,21 @@ sub optimizeGUIDtables {
     my $number = $self->queryValue("select count(*) from $table");
     $self->info("There are $number entries");
     my $done = 0;
-    while ($number > 3000000) {
-      $self->info("There are more than 3M ($number) ! Splitting the table");
-      my $guid =
-        $self->queryRow("select guidid, binary2string(guid) guid from $table order by 1 desc limit 1 offset 2000000");
+    while ($number > $max_lim) {
+      $self->info("There are more than $max_lim ($number) ! Splitting the table");
+      my $guid =  $self->queryRow("select guidid, binary2string(guid) guid from $table order by 1 desc limit 1 offset $max_lim");
+      #my $guid =  $self->queryRow("select guidid, binary2string(guid) guid from $table order by 2 desc limit 1 offset $max_lim");
       $guid->{guid} or next;
       $self->info("We have to split according to $guid->{guid}");
-      $self->moveGUIDs($guid->{guid}, "f") or last;
+      $self->moveGUIDs($guid->{guid},$table, "f") or last;
       $self->info("Let's count again");
       $number = $self->queryValue("select count(*) from $table");
       $done   = 1;
     }
     $done and $self->checkGUIDTable($table);
-    if ($number < 1000000) {
-      $self->info("There are less than 1M. Let's merge with the previous (before $info->{guidTime})");
-      $self->optimizeGUIDtables_removeTable($info, $table);
+    if ($number < $min_lim) {
+      $self->info("There are less than $min_lim. Let's merge with the previous (before $info->{guidTime})");
+      $self->optimizeGUIDtables_removeTable($info, $table,$max_lim,$min_lim,$number);
     }
   }
   return 1;
@@ -575,17 +577,24 @@ sub optimizeGUIDtables_removeTable {
   my $self  = shift;
   my $info  = shift;
   my $table = shift;
+  my $max_lim = shift;
+  my $min_lim = shift;
+  my $number = shift;
 
   defined $info->{guidTime} or return 1;
 
   my $previousGUID = $info->{guidTime};
-  $previousGUID =~ s/.........$//;
-  $previousGUID = sprintf("%s%09X", $previousGUID, hex(substr($info->{guidTime}, -9)) - 1);
+  my $prevGUID = $info->{guidTime};
+  #$previousGUID =~ s/.........$//;
+  #$previousGUID = sprintf("%s%09X", $previousGUID, hex(substr($info->{guidTime}, -9)) - 1);
 
-  ($previousGUID eq "FFFFFFFF")
+  #($previousGUID eq "FFFFFFFF")
+  ($prevGUID eq "")
     and $self->info("This is the first table")
     and return 1;
-  my $t = $self->queryRow("select * from GUIDINDEX where guidTime<? order by guidTime desc limit 1",
+  #my $t = $self->queryRow("select * from GUIDINDEX where guidTime<? order by guidTime desc limit 1",
+  #  undef, {bind_values => [$previousGUID]});
+  my $t = $self->queryRow("select * from GUIDINDEX where guidTime<string2date(?) order by guidTime desc limit 1",
     undef, {bind_values => [$previousGUID]});
 
   ($table eq "G$t->{tableName}L")
@@ -600,8 +609,8 @@ sub optimizeGUIDtables_removeTable {
   $columns =~ s/guidid,//i;
   $columns =~ s/,$//;
   my $entries = $self->queryValue("select count(*) from  G$t->{tableName}L");
-  if ($entries > 2000000) {
-    $self->info("The previous table has too many entries");
+  if ($entries + $number > $max_lim) {
+    $self->info("The previous table will have too many entries");
     return;
   }
 
@@ -617,6 +626,10 @@ sub optimizeGUIDtables_removeTable {
   $self->do("insert into G$t->{tableName}L_REF  (lfnRef,guidId ) select  lfnRef, guidId+$add from ${table}_REF");
 
   $self->do("insert into G$t->{tableName}L  ($columns, guidId ) select  $columns, guidId+$add from ${table}");
+  $self->do("DROP TABLE $table");
+  $self->do("DROP TABLE $table"."_PFN");
+  $self->do("DROP TABLE $table"."_QUOTA");
+  $self->do("DROP TABLE $table"."_REF");
   $self->info("And now, the index  $info->{guidTime}");
   $self->unlock();
   $self->deleteFromIndex("guid", $info->{guidTime});

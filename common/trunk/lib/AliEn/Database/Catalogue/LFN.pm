@@ -1189,6 +1189,43 @@ sub getNumEntryIndexes {
   #return %res ;
 }
 
+sub getNumEntryGUIDINDEX {
+  #edited by dushyant
+  my $self = shift;
+  my $q = $self->query("SELECT tableName FROM GUIDINDEX");
+  my @tnames = ();
+  my @result = ();
+  foreach my $row(@$q)
+  {
+        my $tn = $row->{tableName};
+        push(@tnames,$tn);
+        my $newT = 'G'.$tn.'L';
+        my $q1 = "SELECT COUNT(*) from ".$newT." ";
+        my $temp = $self->queryValue($q1);
+        push(@result,$temp);
+  }
+  return (@tnames,@result) ;
+  #return %res ;
+}
+
+sub getNumEntryGUIDINDEX_PFN {
+  my $self = shift;
+  my $q = $self->query("SELECT tableName FROM GUIDINDEX");
+  my @tnames = ();
+  my @result = ();
+  foreach my $row(@$q)
+  {
+        my $tn = $row->{tableName};
+        push(@tnames,$tn);
+        my $newT = 'G'.$tn.'L_PFN';
+        my $q1 = "SELECT COUNT(*) from ".$newT." ";
+        my $temp = $self->queryValue($q1);
+        push(@result,$temp);
+  }
+  return (@tnames,@result) ;
+  #return %res ;
+}
+
 
 =item C<copyDirectory($source, $target)>
 

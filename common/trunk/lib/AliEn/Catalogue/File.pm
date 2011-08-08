@@ -817,9 +817,10 @@ sub f_du {
 
 
 sub f_di_HELP {
-  return "Gives the number of entries in the L#L tables and optimizes them
+  return "Gives the number of entries in the Catalogue tables i.e. L#L, G#L, G#L_PFN tables and optimizes them
 Usage:
-\tdi <options> <max_lim> <min_lim> <dir>
+\tdi <options_1> <max_lim> <min_lim> <dir>
+\tdi <options_2>  
 
 Options:
 \t\t
@@ -827,6 +828,9 @@ Options:
 \t\toptimize_dir: Optimizes the the L#L LFN tables wrt number of entries in the table in the path specified (current directory by default)
 \t\tmax_lim: Maximum limit of number of entries to be present in a table
 \t\tmin_lim: Maximum limit of number of entries to be present in a table
+\t\toptions_2: l  => L#L,
+\t\toptions_2: g  => G#L,
+\t\toptions_2: gp => G#L_PFN,
 ";
 }
 
@@ -838,11 +842,9 @@ sub f_di {
 # foreach my $row(@$c) {
 #       $self->info("====>>>> $row->{owner}");
 #       #map { $self->info("$_ ====>>>> $row->{$_}") } keys %$row;
-#       $self->info("\n\n\n\n");
 # }
 # return 1;
   if ($options eq "optimize") {
-     
       my $max_lim = shift;
       my $min_lim = shift;
       $self->info("Trying to optimiz...");
@@ -1031,10 +1033,16 @@ sub f_di {
       $self->info("Done the desired Optimization :)");
       #return @LFN;
   }
-  else {
-    #my $path    = $self->GetAbsolutePath(shift);
-    #my $entry   = $self->{DATABASE}->existsEntry($path);
-    #$entry or $self->info("di: `$path': No such file or directory", 11, 1) and return;
+  elsif ($options eq "optimize_guid") {
+      my $max_lim = shift;
+      my $min_lim = shift;
+      $self->info("Optimization of GUID tables.");
+      $self->info("maxLim:: $max_lim");
+      $self->info("minLim:: $min_lim");
+      my $done = $self->{DATABASE}->optimizeGUIDtables($max_lim, $min_lim);
+      return 1;
+  }
+  elsif ($options eq "l") {
     my (@LFN) = $self->{DATABASE}->getNumEntryIndexes();
     my $num_tables = @LFN/2;
     for (my $i=0; $i<$num_tables; $i++)
@@ -1043,8 +1051,25 @@ sub f_di {
     }
     return @LFN;
   }
+  elsif ($options eq "g") {
+    my (@G) = $self->{DATABASE}->getNumEntryGUIDINDEX();
+    my $num_tables = @G/2;
+    for (my $i=0; $i<$num_tables; $i++)
+    {
+      $self->info("G$G[$i]L has $G[$i+$num_tables] number of entries.");
+    }
+    return @G;
+  }
+  elsif ($options eq "gp") {
+    my (@G) = $self->{DATABASE}->getNumEntryGUIDINDEX_PFN();
+    my $num_tables = @G/2;
+    for (my $i=0; $i<$num_tables; $i++)
+    {
+      $self->info("G$G[$i]L_PFN has $G[$i+$num_tables] number of entries.");
+    }
+    return @G;
+  }
 }
-
 
 sub f_populate_HELP {
   return "Populates a given directory with sub-directories and finally with files
