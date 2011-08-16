@@ -28,13 +28,14 @@ sub initialize {
    $self->{CONFIG}->{LCGVO} = $ENV{ALIEN_VOBOX_ORG}|| $self->{CONFIG}->{ORG_NAME};
    $self->{CONFIG}->{VOBOXDIR} = "/opt/vobox/\L$self->{CONFIG}->{LCGVO}";
    $self->{UPDATECLASSAD} = 0;
-   
-   my $cmds = {  SUBMIT_CMD  => 'glite-wms-job-submit',
-                 STATUS_CMD  => 'glite-wms-job-status',
-		 KILL_CMD    => 'glite-wms-job-cancel',
-		 CLEANUP_CMD => 'glite-wms-job-output',
-                 DELEGATION_CMD => 'glite-wms-job-delegate-proxy',
-		 MATCH_CMD   => 'glite-wms-job-list-match' };
+
+   my $fix_env ='LD_LIBRARY_PATH=$GLITE_LOCATION${LD_LIBRARY_PATH#*$GLITE_LOCATION}:/opt/c-ares/lib'; 
+   my $cmds = {  SUBMIT_CMD  => "$fix_env glite-wms-job-submit",
+                 STATUS_CMD  => "$fix_env glite-wms-job-status",
+		 KILL_CMD    => "$fix_env glite-wms-job-cancel",
+		 CLEANUP_CMD => "$fix_env glite-wms-job-output",
+                 DELEGATION_CMD => "$fix_env glite-wms-job-delegate-proxy",
+		 MATCH_CMD   => "$fix_env glite-wms-job-list-match" };
 			 
    $self->{$_} = $cmds->{$_} || $self->{CONFIG}->{$_} || '' foreach (keys %$cmds);
    
