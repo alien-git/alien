@@ -1167,10 +1167,12 @@ date
 cd \$DIR
 wget http://alien.cern.ch/alien-installer -O alien-auto-installer
 chmod +x alien-auto-installer
-./alien-auto-installer -type workernode -batch -torrent -install-dir $self->{CONFIG}->{WORK_DIR}/alien
+./alien-auto-installer -type workernode -batch -torrent -install-dir \$DIR/alien
+
 echo \"Installation completed!!\"
 
 ", "rm -rf \$DIR";
+#./alien-auto-installer -type workernode -batch -torrent -install-dir $self->{CONFIG}->{WORK_DIR}/alien
 }
 
 sub installWithTorrentPerHost {
