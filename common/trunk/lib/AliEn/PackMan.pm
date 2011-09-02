@@ -4,7 +4,9 @@ use AliEn::Config;
 use strict;
 use vars qw(@ISA);
 use Data::Dumper;
-
+use AliEn::Util;
+#use AliEn::PackMan::Local;
+use Time::HiRes;
 push @ISA, 'AliEn::Logger::LogObject';
 
 sub new {
@@ -17,6 +19,7 @@ sub new {
   if ($self->{PACKMAN_METHOD}) {
     $self->info("This packman uses the method $self->{PACKMAN_METHOD}");
     my $name = "AliEn::PackMan::$self->{PACKMAN_METHOD}";
+    
     eval "require $name";
     if ($@) {
       $self->info("Error requiring $name: $@");
@@ -27,120 +30,156 @@ sub new {
   $self->{SOAP} = AliEn::SOAP->new() or return;
   $self->{LIST_FILE_TTL} or $self->{LIST_FILE_TTL} = 7200;
   $self->initialize(@_) or return;
+  
   return $self;
 }
 
 sub initialize {
+  
   my $self = shift;
-
   $self->{SOAP_SERVER} or $self->{SOAP_SERVER} = "PackMan";
+  
   $self->debug(1, "We will talk to the $self->{SOAP_SERVER}");
-
+  
   return $self;
 }
 
+
+############GetlisInstalledPackages_ 
+
+sub getListInstalledPackages_ {
+
+  my $self=shift;
+  my $before = Time::HiRes::time();
+  
+  $self->info("Checking the packages that we have installed locally");
+  my @allPackages=();
+  eval {
+    my $dir = "$ENV{'ALIEN_HOME'}/packages";
+    $self->debug(1, "Checking $dir");
+    foreach my $user ($self->getSubDir($dir)) {
+      $self->debug(1, "Checking $dir/$user");
+      foreach my $package ($self->getSubDir("$dir/$user")){
+       $self->debug(1, "Checking $dir/$user/$package");
+        foreach my $version ($self->getSubDir("$dir/$user/$package")){
+         $self->debug(1, "Checking $dir/$user/$package/$version");
+          (-f "$dir/$user.$package.$version.InstallLock") and
+           $self->debug(1, "The package is being installed") and next;
+          push @allPackages, "${user}\@${package}::$version";
+        }
+      }
+    }
+
+  };
+  if ($@) {
+    $self->info( "$$ We couldn't find the packages ");
+
+
+   die ($@);
+  }
+  my $time = Time::HiRes::time() - $before;
+  print "The Time is $time\n";
+  return  1, @allPackages;
+
+}
+
+sub getSubDir{
+  my $self=shift;
+  my $dir=shift;
+  opendir (DIR, $dir) or $self->info( "$$ Error reading $dir\n")
+    and die("Error reading $dir");
+  my @entries = grep { ( ! /^\./ ) && -d "$dir/$_" } readdir(DIR);
+  closedir DIR;
+  return @entries;
+}
+
+
+############################
 sub getListInstalledPackages {
   my $self = shift;
-
+  
   my @packages = $self->getListInstalled_Internal(@_) or return;
+  
   grep (/^-s(ilent)?$/, @_)
     or $self->printPackages({input => \@_, text => " installed"}, @packages);
+  
   return @packages;
 }
 
 #This is the method that has to be overwritten in other implemetations
 sub getListInstalled_Internal {
   my $self = shift;
+   
   my ($status, @list) = (0, undef);
   if (!grep (/-force/, @_)) {
-    ($status, @list) = $self->readPackagesFromFile("alien_list_installed");
+#    ($status, @list) = $self->readPackagesFromFile("alien_list_installed");
+  ($status, @list) = $self->readPackagesFromFile("alien_list_Installedpackages_");
+  
   }
   $self->debug(1, "Asking the PackMan for the packages that it has installed");
 
   if ($status != 1) {
-    my ($done) = $self->{SOAP}->CallSOAP("PackMan", "getListInstalledPackages", "ALIEN_SOAP_SILENT", @_) or return;
-    if ($done->result) {
-      $status = $done->result;
-      @list   = $done->paramsout;
+#   my ($done) = $self->{SOAP}->CallSOAP("PackMan", "getListInstalledPackages", "ALIEN_SOAP_SILENT", @_) or return;
+     AliEn::Util::deleteCache($self);
+     my $cache=AliEn::Util::returnCacheValue($self, "installedPackages");
+     if ($cache){
+    $self->info("This is for test the returned cache (@$cache)");
+    return (1, @$cache);
+    }
+     ($status, @list) = $self->getListInstalledPackages_() or return;
+     AliEn::Util::setCacheValue($self, "installedPackages", \@list);    
+   } elsif ($status < 0) {
+      $self->info("Well, the info is old, but it is better than nothing");
+      $status = 1;
+    }
+
+  $self->debug(2, "The list of installed is @list");
+  return $status, @list;
+
+}
+
+sub getListPackages {
+  my $self = shift;
+
+  my $platform = AliEn::Util::getPlatform($self);
+  grep (/^-all/, @_) and $platform = "all";
+
+  my ($status, @packages) = (0, undef);
+  if (!grep (/-force/, @_)) {
+    ($status, @packages) = $self->readPackagesFromFile("alien_list_packages_$platform");
+  }
+
+  if ($status != 1) {
+    $self->info("Asking the $self->{SOAP_SERVER} for the packages that it knows");
+    my ($done, @pack);
+    eval {
+      ($done) = $self->{SOAP}->CallSOAP($self->{SOAP_SERVER}, "getListPackages", @_) or return;
+      ($done, @pack) = ($done->result, $done->paramsout);
+    };
+    if ($@) {
+      $self->info("Error contacting the packman: $@");
+    }
+
+    if ($done and $done == 1) {
+      ($status, @packages) = ($done, @pack);
     } elsif ($status < 0) {
       $self->info("Well, the info is old, but it is better than nothing");
       $status = 1;
     }
   }
-  $self->debug(2, "The list of installed is @list");
-  return $status, @list;
-}
-
-sub getListPackages {
-  my $self = shift;
-  my $platform = AliEn::Util::getPlatform($self);
-  grep (/^-all/, @_) and $platform = "all";
-  my $maxRetry = 25;
-  my $retry = 1 ;
-  my ($index) = 0 ;
-
-  ($index) = grep $_[$_] eq "-retry" , 0 .. $#_;
-  if ($index) {
-    if ($_[$index+1] and $_[$index+1] =~ /^\d+$/){
-      if ($_[$index+1] <= $maxRetry){
-        $retry = $_[$index +1]
-      }
-      else{
-        $self->info("The number of maximum retries is $maxRetry ");
-        $retry = $maxRetry;
-      }
-    }
-    else{
-      $self->info("\n === Option \"-retry\" requires an integer number as an argument ===\n");
-      $self->info($self->f_packman_HELP(), 0, 0) and return;
-    }
-  }
-  my ($status, @packages) = (0, undef);
-
-  if (!grep (/-force/, @_)) {
-    ($status, @packages) = $self->readPackagesFromFile("alien_list_packages_$platform");
-  }
-
-  if ($status != 1 or $#packages == 0)
-  {
-    while (1)
-      {
-        $self->info("Asking for the list of all the packages defined in the system");
-        $self->info("Asking the $self->{SOAP_SERVER} for the packages that it knows");
-        my ($done, @pack);
-        ($done) = $self->{SOAP}->CallSOAP($self->{SOAP_SERVER}, "getListPackages", @_);
-	($done, @pack) = ($done->result, $done->paramsout) if ($done) ;
-        if ($done and $done == 1 and $#pack > 0 ){
-          ($status, @packages) = ($done, @pack);
-          last;
-        }
-        elsif ($status < 0 and $#pack > 0) {
-          $self->info("Well, the info is old, but it is better than nothing");
-          $status = 1;
-          last;
-        }
-        elsif (!$done or $#pack == 0) {
-          $retry--;
-          $retry or $self->info("Can't get the list of packages!!!\n") and return;
-          $self->info("Can't get the list of packages. Let's sleep for some time and try again");
-          sleep(2*$retry);
-        }
-        else{
-          $self->info("Can't get the list of packages!!!\n") and return;
-        }
-      }
-  }
-  grep (/^-s(ilent)?$/, @_) or $self->printPackages({input => \@_}, @packages);
+  grep (/^-s(ilent)?$/, @_)
+    or $self->printPackages({input => \@_}, @packages);
   return $status, @packages;
 }
-
 
 sub readPackagesFromFile {
   my $self = shift;
   my $file = shift;
+  
 
   my $dir = ($self->{CONFIG}->{PACKMAN_INSTALLDIR} || '$ALIEN_HOME/packages');
   $dir =~ s{\$([^/]*)}{$ENV{$1}}g;
+  
   $file = "$dir/$file";
 
   $self->debug(1, "Checking if the file $file exists...");
@@ -152,6 +191,7 @@ sub readPackagesFromFile {
   my @packages = <FILE>;
   close FILE;
   chomp @packages;
+  
   $self->info("File '$file' read");
   my $return = 1;
 
@@ -163,6 +203,7 @@ sub readPackagesFromFile {
 
   }
   return $return, @packages;
+#  return @packages;
 }
 
 sub installPackage {
@@ -207,7 +248,7 @@ Global options:
      -name <PackManName>' to talk to a specific instance. By default, it will talk to the closest 
 
 Possible commands:
-\tpackman list [-retry number]:\treturns all the packages defined in the system
+\tpackman list:\treturns all the packages defined in the system
 \tpackman listInstalled:\treturns all the packages that the service has installed
 \tpackman test <package>: tries to configure a package. Returns the metainformation associated with the package, a view of the directory where the package is installed, and an environment that the package would set
 \tpackman install <package>: install a package (and all its dependencies) in the local cache of the PackMan
@@ -217,12 +258,10 @@ Possible commands:
 \tpackman define <name> <version> <tar file> [<package options>]
 \tpackman undefine <name> <version>
 \tpackman recompute: (only for admin) recompute the list of packages.
-\tpackman synchronize [-retry number]:\tinstalls all the existing packages, and removes the packages locally installed that do not exist anymore.
+\tpackman synchronize:\tinstalls all the existing packages, and removes the packages locally installed that do not exist anymore
 
 Package options: -platform source, else the default for the local system is used
-		 -retry number specifies a number of retries if the command cannot get the list of packages
-                 post_install <script> where the script should be given with the full catalogue path
-
+                  post_install <script> where the script should be given with the full catalogue path
 The format of the string <package> is:
     [<user>\@]<PackageName>[::PackageVersion}
 For instance, 'ROOT', 'ROOT::4.1.3', 'psaiz\@ROOT', 'psaiz\@ROOT::4.1.2' comply with the format of <package>
@@ -232,6 +271,7 @@ For instance, 'ROOT', 'ROOT::4.1.3', 'psaiz\@ROOT', 'psaiz\@ROOT::4.1.2' comply 
 sub f_packman {
   my $self = shift;
   $self->debug(1, "Talking to the PackMan: @_");
+  
   my $silent     = grep (/^-s$/,           @_);
   my $returnhash = grep (/^-z$/,           @_);
   my $allPackMan = grep (/^-everywhere$/i, @_);
@@ -240,6 +280,8 @@ sub f_packman {
   @arg = grep (!/^-everywhere$/, @arg);
 
   my $string = join(" ", @arg);
+  
+  
   my $serviceName = "PackMan";
 
   #FIXME: TEST
@@ -248,7 +290,8 @@ sub f_packman {
   if ($allPackMan) {
     $self->info("We are going to call all the packman");
     my $response = $self->{SOAP}->CallSOAP("IS", "getAllServices", "PackMan")
-      or return;
+    or return;
+    
     $response = $response->result;
 
     #    print Dumper($response);
@@ -266,6 +309,7 @@ sub f_packman {
   $string =~ s{-?-silent\s+}{} and $silent = 1;
   if ($string =~ s{-?-n(ame)?\s+(\S+)}{}) {
     my $name = $2;
+    
     $self->info("Talking to the packman $name");
 
     my $done = $self->{CONFIG}->CheckServiceCache("PACKMAN", $name)
@@ -279,6 +323,7 @@ sub f_packman {
       }
     ) or return;
     $serviceName = "PackMan_$name";
+    
     @arg = split(" ", $string);
   }
 
@@ -379,6 +424,7 @@ sub f_packman {
   } elsif ($direct) {
     $self->info("Calling directly $soapCall (@_)");
     return $self->$soapCall(@_);
+    
   } else {
     $silent or $self->info("Let's do $operation (@arg)");
     my $result = $self->{SOAP}->CallSOAP($serviceName, $soapCall, @arg);
@@ -458,19 +504,6 @@ $done
 
 sub synchronizePackages {
   my $self = shift;
-  my $retry = 1;
-  my ($index) = 0 ;
-  ($index) = grep $_[$_] eq "-retry" , 0 .. $#_;
-  if ($index) {
-    if ($_[$index+1] and $_[$index+1] =~ /^\d+$/){
-      $retry = $_[$index +1];
-    }
-    else{
-      $self->info("\n === Option \"-retry\" requires an integer number as an argument ===\n");
-      $self->info($self->f_packman_HELP(), 0, 0) and return;
-    }
-  }
-
   my $cmd  = shift;
   $self->info("Ready to synchronize the packages with the catalogue (@_)");
   my @arg             = @_;
@@ -481,36 +514,33 @@ sub synchronizePackages {
   Getopt::Long::GetOptions($optionsPackages, "packages=s");
   Getopt::Long::Configure("default");
 
+  #      or $self->info("Error checking the options of packman synchronize") and return;
   @arg = @ARGV;
   $optionsPackages->{packages} and $self->info("Doing only the packages '$optionsPackages->{packages}'");
   my $pattern = "(" . join(")|(", split(/,/, $optionsPackages->{packages} || "")) . ")";
 
-  my ($ok1, @packages) = $self->getListPackages("-s", "-retry", "$retry");
-  $ok1 or $self->info("Error getting the list of packages") and return;
-
+  my ($ok1, @packages) = $self->getListPackages("-s");
+  $ok1 or self->info("Error getting the list of packages") and return;
   my ($ok, @installed) = $self->f_packman("listInstalled", "-s", @arg);
-  $ok1 or $self->info("Error getting the list of packages") and return;
+  $ok or self->info("Error getting the list of packages") and return;
 
-  if (@packages != 0){
-    foreach my $p (@packages) {
-      if (!grep (/^$p$/, @installed)) {
-        if (grep(/^$pattern/, $p)) {
-          $self->info("  We have to install $p");
-          $self->f_packman("install", "-s", $p, @arg);
-        }
+  foreach my $p (@packages) {
+    if (!grep (/^$p$/, @installed)) {
+      if (grep(/^$pattern/, $p)) {
+        $self->info("  We have to install $p");
+        $self->f_packman("install", "-s", $p, @arg);
       }
-      @installed = grep (!/^$p$/, @installed);
     }
-    foreach my $p (@installed) {
-      grep(/^$pattern/, $p) or next;
-      $self->info("  And we have to delete $p");
-      $self->f_packman("remove", "-s", $p, @arg);
-    }
+    @installed = grep (!/^$p$/, @installed);
   }
-  else{
-    $self->info("\n=== The list of defined packages is empty ===\n");
+  foreach my $p (@installed) {
+    grep(/^$pattern/, $p) or next;
+    $self->info("  And we have to delete $p");
+    $self->f_packman("remove", "-s", $p, @arg);
   }
+
   return 1;
+
 }
 
 sub definePackage {
@@ -619,7 +649,8 @@ sub undefinePackage {
     or $self->info("Error removing $lfn")
     and return;
 
-  $self->{CATALOGUE}->{CATALOG}->{DATABASE_FIRST}->do("update ACTIONS set todo=1 where action='PACKAGES'");
+  #$self->{CATALOGUE}->{CATALOG}->{DATABASE_FIRST}->do("update ACTIONS set todo=1 where action='PACKAGES'");
+  $self->f_packman("recompute");
   $self->info("Package $lfn undefined!!");
   return 1;
 }
@@ -658,3 +689,5 @@ sub printPackages {
 }
 
 return 1;
+
+

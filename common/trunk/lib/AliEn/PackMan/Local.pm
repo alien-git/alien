@@ -30,7 +30,6 @@ sub initialize{
   $self->info("CREATING THE CATALOGUE");
   $self->{CATALOGUE}=AliEn::UI::Catalogue::LCM->new({no_catalog=>1})  or return;
   $self->SUPER::initialize() or return;
-
   $self->{REALLY_INST_DIR} or $self->{REALLY_INST_DIR}=$self->{INST_DIR};
 
   $self->createListFiles() or
@@ -91,46 +90,6 @@ sub removeLocks{
   close FILE;
 
 }
-sub getListInstalled_Internal {
-  my $self=shift;
-  $self->info("Checking the packages that we have installed locally");
-  my @allPackages=();
-  eval {
-    my $dir="$self->{INST_DIR}";
-    $self->debug(1, "Checking $dir");
-    foreach my $user ($self->getSubDir($dir)) {
-      $self->debug(1, "Checking $dir/$user");
-      foreach my $package ($self->getSubDir("$dir/$user")){
-	$self->debug(1, "Checking $dir/$user/$package");
-	foreach my $version ($self->getSubDir("$dir/$user/$package")){
-	  $self->debug(1, "Checking $dir/$user/$package/$version");
-	  (-f "$dir/$user.$package.$version.InstallLock") and
-	    $self->debug(1, "The package is being installed") and next;
-	  push @allPackages, "${user}\@${package}::$version";
-	}
-      }
-    }
-    
-  };
-  if ($@) {
-    $self->info( "$$ We couldn't find the packages ");
-    die ($@);
-  }
-
-  return  1, @allPackages;
-
-}
-
-sub getSubDir{
-  my $self=shift;
-  my $dir=shift;
-  opendir (DIR, $dir) or $self->info( "$$ Error reading $dir\n")
-    and die("Error reading $dir");
-  my @entries = grep { ( ! /^\./ ) && -d "$dir/$_" } readdir(DIR);
-  closedir DIR;
-  return @entries;
-}
-
 sub createLock{
   my $self=shift;
   my ($user, $package, $version)=(shift, shift, shift);
@@ -256,7 +215,6 @@ sub findPackageLFN{
     $self->info("Returning from the cache $cacheName (@$cache)");
     return @$cache ;
   }
-
   my $result=$self->{SOAP}->CallSOAP("PackManMaster", "findPackageLFN", $user, $package, $version, $platform)
     or return undef, "Error talking to the PackManMaster";
 
@@ -274,6 +232,7 @@ sub findPackageLFN{
   AliEn::Util::setCacheValue($self, $cacheName, \@info);
 
   return @info;
+
 }
 
 
