@@ -461,26 +461,39 @@ sub access {
   foreach (@tempSE) { AliEn::Util::isValidSEName($_) and push @exxSEs, $_; }
   ($sesel =~ /^[0-9]+$/) or $sesel = 1;
   my $sitename = (shift || 0);
-  (($sitename eq 0) or ($sitename eq "")) and $sitename = $self->{CONFIG}->{SITE};
   my $writeQos = (shift || 0);
   ($writeQos eq "") and $writeQos = 0;
   my $writeQosCount = (shift || 0);
+
+  my $fromROOT=0;
+  if(($sitename eq 0) or ($sitename eq "")){
+   $sitename = $self->{CONFIG}->{SITE};
+   ($sesel>0) and $fromROOT=1; 
+  }
 
   my @envelopes = ();
   my $nSEs      = 0;
 
   if ($access eq "read") {
+
+    if($fromROOT && $ses[0]){
+        my @guess = split(/::/,$ses[0]);
+        (scalar(@guess)> 1) and $sitename = $guess[1];
+    }
+
     my $readCache = "";
     if ($self->{CONFIG}->{CACHE_SERVICE_ADDRESS}) {
       $self->debug(1, "This is a read request... we might use the cache");
-      $readCache = "$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}?ns=access&key="
+      $readCache =
+        "$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}?ns=access&key="
         . join("_", $lfn, $sitename, join(";", @ses), join(";", @exxSEs), $sesel);
-      $self->debug(1, "Our read cache key is : $readCache -- ");
+      $self->debug(1,"Our read cache key is : $readCache -- ");
       (my $ok, @envelopes) = AliEn::Util::getURLandEvaluate($readCache, 1);
       $ok or @envelopes = ();
     }
     if (!@envelopes) {
-      if ((scalar(@ses) eq 0) or ($sesel > 1)) {
+      
+     if($fromROOT){
         my $guidorNot = "";
         if (AliEn::Util::isValidGUID($lfn)) { $guidorNot = "g"; }
 
@@ -497,29 +510,28 @@ sub access {
         $self->checkSiteSECacheForAccess($sitename) || return 0;
         push @queryValues, $sitename;
         $query =
-"SELECT seName from (SELECT DISTINCT b.seName as seName, a.rank FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE ";
+               "SELECT seName from (SELECT DISTINCT b.seName as seName, a.rank FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE ";
         $query .=
-" (b.seExclusiveRead is NULL or b.seExclusiveRead = '' or b.seExclusiveRead  LIKE concat ('%,' , concat(? , ',%')) ) and ";
+               " (b.seExclusiveRead is NULL or b.seExclusiveRead = '' or b.seExclusiveRead  LIKE concat ('%,' , concat(? , ',%')) ) and ";
         push @queryValues, ($self->{ROLE} || $self->{CONFIG}->{ROLE});
-        foreach (@ses)      { $query .= " upper(b.seName)<>upper(?) and "; push @queryValues, $_; }
-        foreach (@whereSEs) { $query .= " upper(b.seName)=upper(?) or";    push @queryValues, $_; }
+        foreach (@whereSEs) { $query .= " upper(b.seName)=upper(?) or"; push @queryValues, $_; }
         $query =~ s/or$//;
 
         #  $query .= " ORDER BY if(a.rank is null, 1000, a.rank) ASC ;";
         $query .= " ORDER BY coalesce(a.rank,1000) ASC ) d;";
 
-        my $sorted = $self->{DATABASE}->queryColumn($query, undef, {bind_values => \@queryValues});
+        my $sorted =
+          $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn($query, undef, {bind_values => \@queryValues});
 
-        if ($sorted and defined(@$sorted)) {
-          (scalar(@ses) eq 0) or @$sorted = (@ses, @$sorted);
+        if($sorted and defined(@$sorted)) {
           $nSEs = scalar(@$sorted);
         }
 
-        if ($sesel > $nSEs || $sesel <= 0) {
-          return ({eof => 1});
+        if ($sesel > $nSEs || $sesel<=0) {
+           return ({eof=>1});
         }
 
-        @ses = ($$sorted[ $sesel - 1 ]);
+        @ses = ($$sorted[$sesel-1]);
 
       }
       @envelopes = AliEn::Util::deserializeSignedEnvelopes(
