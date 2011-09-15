@@ -446,6 +446,7 @@ sub ChangeCacheDir {
   my $self     = shift;
   my $cachedir = shift;
   $cachedir or return;
+  my $orig = $cachedir;
   $DEBUG and $self->debug(2, "Using $cachedir as Cache from the LDAP");
   $self->{CACHE_DIR_ORIG} = "$cachedir";
   while ($cachedir =~ s{\$([^/]*)}{$ENV{$1}}) {
@@ -467,6 +468,7 @@ sub ChangeCacheDir {
   close(FILE);
   $exists or unlink "$dbPath/LOCALFILES";
   $self->{CACHE_DIR} = $cachedir;
+  $self->{CACHE_DIR_ORIG} = $orig;
   return 1;
 }
 
