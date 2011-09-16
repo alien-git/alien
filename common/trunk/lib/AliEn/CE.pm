@@ -995,14 +995,6 @@ sub offerAgent {
     AliEn::Util::setCacheValue($self, "classad", $classad);
 
   }
-
-  #  $done = $self->{SOAP}->CallSOAP("ClusterMonitor", "offerAgent",
-  #				  $user,
-  #				  $self->{CONFIG}->{CLUSTERMONITOR_PORT},
-  #				  $self->{CONFIG}->{CE_FULLNAME},
-  #				  $silent, $classad,
-  #				  $free_slots,
-  #				 );
   $done = $self->{SOAP}->CallSOAP("Broker/Job", "offerAgent", $user, $self->{CONFIG}->{HOST}, $classad, $free_slots);
 
   $done or return;
@@ -1156,13 +1148,13 @@ $after";
   return $content;
 }
 
-sub installWithTorrent {
-  my $self = shift;
-  $self->info("The worker node will install with the torrent method!!!");
 
-  return "./alien/bin/alien", "DIR=\`pwd\`/alien_installation.\$\$
+sub torrentScript {
+  my $self = shift;
+  my $path = shift;
+  return "DIR=$path 
 mkdir -p \$DIR
-echo \"Ready to install alien\"
+echo \"Ready to install alien in \$DIR\"
 date
 cd \$DIR
 wget http://alien.cern.ch/alien-installer -O alien-auto-installer
@@ -1171,28 +1163,22 @@ chmod +x alien-auto-installer
 
 echo \"Installation completed!!\"
 
-", "rm -rf \$DIR";
-#./alien-auto-installer -type workernode -batch -torrent -install-dir $self->{CONFIG}->{WORK_DIR}/alien
+"
+}
+
+sub installWithTorrent {
+  my $self = shift;
+  $self->info("The worker node will install with the torrent method!!!");
+
+  return "./alien/bin/alien", $self->torrentScript("\`pwd\`/alien_installation.\$\$"),
+ "rm -rf \$DIR";
 }
 
 sub installWithTorrentPerHost {
   my $self = shift;
   $self->info("The worker node will install with the torrent  method!!!");
 
-  return "../alien/bin/alien", "DIR=$self->{CONFIG}->{WORK_DIR}/alien_process.\$\$
-
- mkdir -p \$DIR
- echo \"Ready to install alien in  $self->{CONFIG}->{WORK_DIR}/alien \"
-
- date
- cd \$DIR
- wget http://alien.cern.ch/alien-installer -O alien-installer
- export ALIEN_INSTALLER_PREFIX=\$DIR/alien
- chmod +x alien-installer
- ./alien-installer -skip_rc  -type workernode -batch -torrent  -install-dir $self->{CONFIG}->{WORK_DIR}/alien
- echo \"Installation completed!!\"
-
- ", "rm -rf \$DIR";
+  return "../alien/bin/alien", $self->torrentScript("$self->{CONFIG}->{WORK_DIR}/alien_torrent"),"";
 }
 
 sub checkQueueStatus() {
@@ -3575,6 +3561,7 @@ If the site is specified, it will only compare the jdl with that CE
 
 Options:
   -v: verbose mode: display also the name of the sites that do not match
+  -n: number: print the number of jobs with a higher priority per site that matches
 ";
 
 }
@@ -3597,6 +3584,11 @@ sub f_jobListMatch {
 
   $done = $done->result or return;
   my $anyMatch = 0;
+  my $jobPriority;
+  if ($self->{TASK_DB}){
+    $jobPriority=$self->{TASK_DB}->queryValue("select  if(j.priority, j.priority, 0) from QUEUE join JOBAGENT j on (entryid=agentid) where queueid=?", undef, {bind_values=>[$jobid]})     ;
+    $self->info("The priority of the job is $jobPriority", undef, 0);
+  }
 
   foreach my $site (@$done) {
     if (!$site->{jdl}) {
@@ -3616,6 +3608,20 @@ sub f_jobListMatch {
     if ($options =~ /v/ or $status =~ /MATCHED!!! :\)/) {
       $self->info("\tComparing the jdl of the job with $site->{site}... $status", undef, 0);
     }
+
+    if ($options=~ /n/){
+      if ($self->{TASK_DB}){
+        $site->{site} =~ /::(.*)::/;
+        my $sitePattern="\%,$1,\%";
+        my $number=$self->{TASK_DB}->queryValue("select sum(counter) from JOBAGENT
+         where priority>= ? and (site is null or site like ? or site = '')" , undef, {bind_values=>[$jobPriority, $sitePattern]});
+        $number or $number=0;
+        $self->info("\t\tJobs for $site->{site} with higher priority: $number", undef, 0);
+      } else {
+        $self->info("Sorry, we can't connect to the database");
+      }
+    }
+
 
 #     ($options=~ /v/ or  $status=~ /MATCHED!!! :\)/  ) and $self->info("\tComparing the jdl of the job with $site->{site}... $status",undef,0);
   }
@@ -3915,7 +3921,8 @@ sub resyncJobAgent {
 
   foreach my $job (@$jobs) {
     $self->info("We have to insert a jobagent for $job->{agentid}");
-    $job->{jdl} =~ /[\s;](requirements[^;]*).*\]/im
+   
+    $job->{jdl} =~ /[\s;](requirements[^;]*).*\]/ims
       or $self->info("Error getting the requirements from $job->{jdl}")
       and next;
     my $req = $1;
@@ -3948,6 +3955,33 @@ sub resyncJobAgent {
   $self->{TASK_DB}
     ->do("update JOBAGENT j set counter=(select count(*) from QUEUE where status='WAITING' and agentid=entryid)");
   $self->info("Resync done");
+  $self->f_resyncPriorities();
+  return 1;
+}
+
+
+sub f_resyncPriorities {
+  my $self=shift;
+  
+  $self->{TASK_DB} or return 0;
+  $self->info("Updating the priorities");
+  my $userColumn=$self->{TASK_DB}->userColumn;
+  $self->{TASK_DB}->optimizerJobPriority($userColumn);
+  $self->info("Now, compute the number of jobs waiting and priority per user");
+  my $update = $self->{TASK_DB}->getPriorityUpdate($userColumn);
+  $self->info("Doing $update");
+  $self->{TASK_DB}->do($update);
+
+  $self->info("Finally, let's update the JOBAGENT table");
+  # $update="UPDATE JOBAGENT j set j.priority=(SELECT computedPriority-(min(queueid)/(SELECT ifnull(max(queueid),1) from QUEUE)) from PRIORITY p, QUEUE q where j.entryId=q.agentId and status='WAITING' and $userColumn=p.".$self->{DB}->reservedWord("user")." group by agentId)";
+  $update = $self->{TASK_DB}->getJobAgentUpdate($userColumn);
+  $self->info("Doing $update");
+  $self->{TASK_DB}->do($update);
+
+  $update = "UPDATE JOBAGENT j set j.priority=j.priority * (SELECT ifnull(max(price),1) FROM QUEUE q WHERE q.agentId=j.entryId)";
+  $self->info("Doing $update");
+  $self->{TASK_DB}->do($update);
+  
   return 1;
 }
 
