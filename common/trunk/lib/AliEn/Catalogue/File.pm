@@ -104,6 +104,11 @@ sub f_registerFile {
     and return;
 
   $self->info("File $file inserted in the catalog");
+  #Update Quotas
+  #$self->{DATABASE}->fquota_update($size, 1, $self->{ROLE})
+  #    or $self->info( "ERROR: Could not update quotas")
+  #    and return;
+
   return 1;
 }
 
@@ -767,17 +772,21 @@ sub f_touch {
     $self->info("The  lfn $lfn already exists in the file catalogue");
     return;
   }
-  my ($ok, $message) = $self->checkFileQuota($self->{CONFIG}->{ROLE}, 0);
+  my ($ok, $message) = $self->checkFileQuota($self->{ROLE}, 0);
   if ($ok eq -1) {
     $self->info($message,1)
-      or return;
+      and return;
   }
 
   #Insert file in catalogue
-  $self->info("Inserting file $lfn");
+  $self->info("Inserting file $lfn ");
   $self->f_registerFile($options, $lfn, 0)
     or $self->info( "Could not touch file", 1)
     and return;
+  #Update Quotas
+  $self->{DATABASE}->fquota_update(0, 1, $self->{ROLE})
+      or $self->info( "ERROR: Could not update quotas")
+      and return;
   $self->info("$lfn successfully created")
     and return 1;
 }
@@ -826,6 +835,7 @@ Options:
 \t\t
 \t\toptimize: Optimizes the the L#L LFN tables wrt number of entries in the table (all the L#L tables)
 \t\toptimize_dir: Optimizes the the L#L LFN tables wrt number of entries in the table in the path specified (current directory by default)
+\t\toptimize_guid: Optimizes the G#L and corresponding G#L_PFN tables wrt number of entries in the table 
 \t\tmax_lim: Maximum limit of number of entries to be present in a table
 \t\tmin_lim: Maximum limit of number of entries to be present in a table
 \t\toptions_2: l  => L#L,
@@ -967,7 +977,7 @@ sub f_di {
             #here optimization loop will be written
             my @stack_dir=();  #stack of directories which will be moved usinf moveDirectory() 
             for(my $j=$depth; $j>0 ;$j--) 
-            {
+            {     
                 my $q1 = "SUBSTRING_INDEX(lfn,'/',".$j.")";
                 my $q2 = "SELECT ".$q1." AS DIR , COUNT( ".$q1.") AS CNT FROM ".$table_name." WHERE ".$q1." IN ";
                 my $q3 = $q2." ( SELECT DISTINCT ".$q1." FROM ".$table_name." WHERE type LIKE \"d\") GROUP BY ".$q1."";
@@ -1039,7 +1049,40 @@ sub f_di {
       $self->info("Optimization of GUID tables.");
       $self->info("maxLim:: $max_lim");
       $self->info("minLim:: $min_lim");
-      my $done = $self->{DATABASE}->optimizeGUIDtables($max_lim, $min_lim);
+      my $change=1;
+      my $count=0;
+      my $brk=0;
+      my (@G) = $self->{DATABASE}->getNumEntryGUIDINDEX();
+      while($change==1)
+      {
+        my $done = $self->{DATABASE}->optimizeGUIDtables($max_lim, $min_lim);
+        $done or return;
+        $change=0;
+        $brk=0;
+        $count++;
+        my (@G1) = $self->{DATABASE}->getNumEntryGUIDINDEX();
+        if(@G==@G1)
+        {
+         my $num_tables = @G/2;
+         for(my $it=0; $it<$num_tables; $it++)
+         {
+              #if($G[$it+$num_tables]>$max_lim or $G[$it+$num_tables]<$min_lim  )
+              #{  $change=1;}
+              if($G[2*$it]!=$G1[2*$it] or $G[$it*2+1]!=$G1[$it*2+1] )
+              {  $change=1;}
+              #{  $brk=1;}
+         } 
+        }
+        else
+        {
+          $change=1;
+          #$brk=1;
+        }
+        @G=@G1;
+        #if($brk==0)
+        #{return 1;} 
+      }
+      $self->info($count );
       return 1;
   }
   elsif ($options eq "l") {

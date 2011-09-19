@@ -2217,7 +2217,10 @@ sub renumberLFNtable {
   }
   if ($options->{min} and $options->{min} > 1) {
     $self->info("And now, updating the minimun (to $options->{min}");
-    $self->do("update $table set entryId=entryId+$options->{min}-1, dir=dir+$options->{min}-1 ");
+    my $max_entryId = $self->queryValue("SELECT MAX(entryId) from $table");
+    my $max_dir = $self->queryValue("SELECT MAX(entryId) from $table");
+    $self->do("update $table set entryId=entryId+$options->{min}-1+$max_entryId, dir=dir+$options->{min}-1+$max_dir ");
+    $self->do("update $table set entryId=entryId-$max_entryId, dir=dir-$max_dir ");
     $changes = 1;
   }
 
