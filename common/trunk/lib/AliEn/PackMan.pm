@@ -56,6 +56,7 @@ sub getListInstalledPackages_ {
   my @allPackages=();
   eval {
     my $dir = "$ENV{'ALIEN_HOME'}/packages";
+    $self->{CONFIG}->{PACKMAN_INSTALLDIR}  and $dir="$self->{CONFIG}->{PACKMAN_INSTALLDIR}";
     $self->debug(1, "Checking $dir");
     foreach my $user ($self->getSubDir($dir)) {
       $self->debug(1, "Checking $dir/$user");
