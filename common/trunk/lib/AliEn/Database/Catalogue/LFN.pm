@@ -2208,8 +2208,8 @@ sub renumberLFNtable {
     }
     my $done = $self->do("update $table set dir=dir-? where dir>=? $max1", {bind_values => $bind});
 
-#my $done2=$self->do("update $table set entryId=entryId-? where entryId>=? $max2 order by entryId", {bind_values=>$bind});
-    my $done2 = $self->do("update $table set entryId=entryId-? where entryId>=? $max2 ", {bind_values => $bind});
+    my $done2=$self->do("update $table set entryId=entryId-? where entryId>=? $max2 order by entryId", {bind_values=>$bind});
+    #my $done2 = $self->do("update $table set entryId=entryId-? where entryId>=? $max2 ", {bind_values => $bind});
     ($done and $done2)
       or $self->info("ERROR !!")
       and last;
@@ -2224,7 +2224,7 @@ sub renumberLFNtable {
     $changes = 1;
   }
 
-  #  $self->do("alter table $table modify entryId bigint(11) auto_increment primary key");
+  # $self->do("alter table $table modify entryId bigint(11) auto_increment primary key");
   if ($changes) {
 
     #$self->do("alter table $table auto_increment=1");
