@@ -1143,6 +1143,13 @@ sub setSiteQueueStatus {
   my $jdl    = shift || "";
   my $set    = {};
   $set->{site}       = $site;
+  $self->info("IN SETSITEQUEUESTATUS with $site\n");
+  if ("$site" =~ /HASH/){
+    $self->info("THE NAME THAT WE GOT IS AHASHS\n");
+    use Data::Dumper;
+    $self->info(Dumper($site));
+    
+  }
   $set->{status}     = "$status";
   $set->{statustime} = time;
   if ($jdl) {
@@ -1497,8 +1504,7 @@ sub getWaitingJobForAgentId{
   my $agentid=shift;
   $self->info("Getting a waiting job for $agentid");
 
-  my $done=$self->do("UPDATE QUEUE q set status='ASSIGNED', b.queueid=q.queueid where status='WAITING' and agentid=? and \@assigned_job:=queueid", 
-    {bind_values=>[$agentid]});
+  my $done=$self->do("UPDATE QUEUE set status='ASSIGNED' where status='WAITING' and \@assigned_job:=queueid limit 1");
   
   if ($done>0){
   	$self->info("There is a job!");
@@ -1509,7 +1515,7 @@ sub getWaitingJobForAgentId{
   	return ($info->{queueid}, $info->{jdl});
   }
   $self->info("There were no jobs waiting for agent $agentid");
-  $self->do("DELETE FROM JOBAGENT where agentid=?", {bind_values=>[$agentid]}); 
+  $self->do("DELETE FROM JOBAGENT where entryid=?", {bind_values=>[$agentid]}); 
   return;
   	
 	

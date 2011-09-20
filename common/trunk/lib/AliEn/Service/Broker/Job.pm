@@ -205,7 +205,7 @@ sub extractClassadParams{
   ($ok, @pack)=$classad->evaluateAttributeVectorString("Partition");
   $params->{partition}=",". join(",", sort @pack ) .",";
 
-  return $params;
+  return ($queueName, $params);
 }
 
 sub offerAgent {

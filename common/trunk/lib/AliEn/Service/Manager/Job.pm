@@ -1605,7 +1605,7 @@ sub getMasterJob {
   my $cond = "where split=$id";
   $data->{status}  and $cond .= " and (" . join(" or ", @{$data->{status}}) . ")";
   $data->{queueId} and $cond .= " and (" . join(" or ", @{$data->{queueId}}) . ")";
-  my $exechost = "substring(exechost,POSITION('\\\@' in exechost)+1)";
+  my $exechost = "ifnull(substring(exechost,POSITION('\\\@' in exechost)+1),'')";
   if ($data->{site}) {
     map { s/^site='/$exechost='/ } @{$data->{site}};
     $cond .= " and (" . join(" or ", @{$data->{site}}) . ")";
