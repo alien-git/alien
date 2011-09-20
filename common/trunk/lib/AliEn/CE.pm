@@ -516,7 +516,7 @@ sub modifyJobCA {
     return;
   }
   my $homedir = $self->{CATALOG}->{CATALOG}->GetHomeDirectory();
-
+  $homedir =~ s/\/$//;
   if ($command =~ /\//) {
     $DEBUG and $self->debug(1, "Checking if '$command' exists");
     $self->{CATALOG}->execute("ls", "-silent", "$command")
@@ -3926,34 +3926,20 @@ sub resyncJobAgent {
       or $self->info("Error getting the requirements from $job->{jdl}")
       and next;
     my $req = $1;
-    $job->{jdl} =~ /\s(user\s*=[^;]*)/im
-      or $self->info("Error getting the user from $job->{jdl}")
-      and next;
-    $req .= ";$1;";
-    my $site = "";
-    my $temp = $req;
-    while ($temp =~ s/member\(other.CloseSE,"[^:]*::([^:]*)::[^:]*"\)//si) {
-      $site =~ /,$1/ or $site .= ",$1";
-    }
-    $site and $site .= ",";
-    my $ttl = 84000;
-    $req =~ /other.TTL\s*>\s*(\d+)/i and $ttl = $1;
-    $self->info("This agent is for the site '$site' (from '$req')");
-    $self->{TASK_DB}->insert(
-      "JOBAGENT",
-      { counter      => 30,
-        entryid      => $job->{agentid},
-        requirements => $req,
-        ttl          => $ttl,
-        site         => $site,
-      }
-    );
+    $job->{jdl} =~ /(\suser\s*=\s*"([^"]*)")/si or $self->info("Error getting the user from '$job->{jdl}'") and next;
+    $req.="; $1 ";
+    my $params=$self->{TASK_DB}->extractFieldsFromReq($req);
+    use Data::Dumper;
+    print Dumper($params);
+    $params->{entryId}= $job->{agentid};
+    $self->{TASK_DB}->insert("JOBAGENT",$params);
   }
 
   $self->info("Now, update the jobagent numbers");
 
   $self->{TASK_DB}
     ->do("update JOBAGENT j set counter=(select count(*) from QUEUE where status='WAITING' and agentid=entryid)");
+  $self->{TASK_DB}->do("delete from JOBAGENT where counter<1");
   $self->info("Resync done");
   $self->f_resyncPriorities();
   return 1;

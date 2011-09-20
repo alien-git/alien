@@ -185,17 +185,25 @@ sub initialize {
 
     $self->{QUEUEARCHIVE}     => $queueColumns,
     $self->{QUEUEARCHIVEPROC} => $queueColumnsProc,
+    BROKER =>{
+    	columns=>{brokerId =>"int(11) not null primary key",
+    			  queueid=>"int(11)",
+    		
+    	}, id=>"brokerId"
+    	
+    },
 
     JOBAGENT => {
       columns => {
         entryId      => "int(11) not null auto_increment primary key",
-        requirements => "text not null",
         counter      => "int(11)   default 0 not null ",
-        afterTime    => "time",
-        beforeTime   => "time",
         priority     => "int(11)",
         ttl          => "int(11)",
         site         => "varchar(255) COLLATE latin1_general_ci",
+        packages     => "varchar(255) COLLATE latin1_general_ci",
+        disk         => "int(11)",
+        partition    => "varchar(255) COLLATE latin1_general_ci",
+        user         => "varchar(12)",
       },
       id          => "entryId",
       index       => "entryId",
@@ -458,29 +466,6 @@ sub deleteFromQueue {
 }
 
 #
-sub getWaitingJobAgents {
-  my $self = shift;
-  my $ttl  = shift || 0;
-  my $site = shift || 0;
-
-  my ($where, $bind) = ("", []);
-  if ($ttl) {
-    $where = " and (ttl<? or ttl is null )";
-    $bind  = [$ttl];
-  }
-  if ($site) {
-    $where .= " and ( site is null or site='' or site like ?) ";
-    $bind = [ @$bind, "%,${site},%" ];
-  }
-
-  my $list = $self->query(
-"select entryId as agentId,concat('[',requirements,'Type=\"Job\";TTL=999;]') as jdl, counter from JOBAGENT where counter>0 $where order by priority desc",
-    undef,
-    {bind_values => $bind}
-  );
-
-  return $list;
-}
 
 sub updateJob {
   my $self = shift;
@@ -1370,32 +1355,68 @@ sub insertEntry {
 }
 
 #### JobAgent
+
+sub extractFieldsFromReq {
+  my $self= shift;
+  my $text =shift;
+  my $params= {counter=> 1, ttl=>84000, disk=>0, packages=>'%', partition=>'%'};
+
+  my $site = "";
+  my $temp = $text;
+  while ($temp =~ s/member\(other.CloseSE,"[^:]*::([^:]*)::[^:]*"\)//si) {
+    $site =~ /,$1/ or $site .= ",$1";
+  }
+  $site and $site .= ",";
+  $params->{site} = $site;
+  
+  $temp=$text;
+  my @packages;
+  while ($temp =~ s/member\(other.Packages,"([^"]*)"\)//si ) {
+    grep /^$1$/, @packages or 
+      push @packages, $1;
+  }
+  if (@packages) {
+    @packages=sort @packages;
+    $params->{packages}= '%,' . join (',%,', sort @packages) .',%';
+  }
+  
+  $text =~ /other.TTL\s*>\s*(\d+)/i and $params->{ttl} = $1;
+  $text =~ /\suser\s*=\s*"([^"]*)"/i and $params->{user} = $1;
+  $text =~ /other.LocalDiskSpace\s*>\s*(\d*)/ and $params->{disk}=$1; 
+  $text =~ /other.GridPartitions,"([^"]*)"/i and $params->{partition}=$1; 
+  
+  $self->info("The ttl is $params->{ttl} and the site is in fact '$site'");
+  return $params;
+}
 sub insertJobAgent {
   my $self = shift;
   my $text = shift;
+  
+ 
+  $self->info("Inserting a jobagent with '$text'");
+  my $params=$self->extractFieldsFromReq($text);
+    $params or
+      $self->info("Error getting the fields from '$text'") and return;
+  
+  my $req="1 ";
+  my @bind=();
 
-  $text =~ s/\s*$//s;
-  $self->info("Inserting a jobagent with '$text' yuhuu");
-  my $id = $self->queryValue("SELECT entryId from JOBAGENT where requirements=?", undef, {bind_values => [$text]});
+  foreach my $key (keys %$params) {
+  	$key eq "counter" and next;
+  	$req .= " and $key = ?"; 
+  	push @bind, $params->{$key};  	
+  }
+  
+  my $id = $self->queryValue("SELECT entryId from JOBAGENT where $req", undef, {bind_values => [@bind]});
+  
   if (!$id) {
-    my $site = "";
-    my $temp = $text;
-    while ($temp =~ s/member\(other.CloseSE,"[^:]*::([^:]*)::[^:]*"\)//si) {
-      $site =~ /,$1/ or $site .= ",$1";
-    }
-    $site and $site .= ",";
-    $self->lock("JOBAGENT");
-    my $ttl = 84000;
-    $text =~ /other.TTL\s*>\s*(\d+)/i and $ttl = $1;
-    $self->info("The ttl is $ttl and the site is in fact '$site'");
-    if (!$self->insert("JOBAGENT", {counter => "1", requirements => $text, ttl => $ttl, site => $site})) {
+  	use Data::Dumper;
+  	$self->info("We don't have anything that matches". Dumper($req, @bind));
+    if (!$self->insert("JOBAGENT", $params )) {
       $self->info("Error inserting the new jobagent");
-      $self->unlock();
       return;
     }
-    $self->info("The insert worked");
     $id = $self->getLastId("JOBAGENT");
-    $self->unlock();
     $self->info("And we have the id JOBAGENT");
   } else {
     $self->do("UPDATE JOBAGENT set counter=counter+1 where entryId=?", {bind_values => [$id]});
@@ -1450,6 +1471,48 @@ sub insertJobMessage {
     }
   );
 
+}
+
+sub getNumberWaitingForSite{
+  my  $self=shift;
+  my $options=shift;
+  my @bind=();
+  my $where="";
+  my $return= "sum(counter)";
+  
+  $options->{ttl} and $where.="and ttl < ?  " and push @bind, $options->{ttl};
+  $options->{disk} and $where.="and disk < ?  " and push @bind, $options->{disk};
+  $options->{site} and $where.="and (site='' or site like concat('%,',?,',%') )" and push @bind, $options->{site};   
+  defined $options->{packages} and $where .="and ? like packages " and push @bind, $options->{packages};
+  $options->{partition} and $where .="and ? like partition " and push @bind, $options->{partition};
+  $options->{returnPackages} and $return="packages";
+  $options->{returnId} and $return="entryId";
+  
+  return $self->queryValue("select $return from JOBAGENT where 1 $where  limit 1", undef, {bind_values=>\@bind});
+  
+}
+
+sub getWaitingJobForAgentId{ 
+  my $self=shift;
+  my $agentid=shift;
+  $self->info("Getting a waiting job for $agentid");
+
+  my $done=$self->do("UPDATE QUEUE q set status='ASSIGNED', b.queueid=q.queueid where status='WAITING' and agentid=? and \@assigned_job:=queueid", 
+    {bind_values=>[$agentid]});
+  
+  if ($done>0){
+  	$self->info("There is a job!");
+  	my $info=$self->queryRow("select queueid, jdl from QUEUE where queueid=\@assigned_job");
+  	$info or $self->info("Error checking what we selected") and return;
+  	$self->deleteJobAgent($agentid);
+  	
+  	return ($info->{queueid}, $info->{jdl});
+  }
+  $self->info("There were no jobs waiting for agent $agentid");
+  $self->do("DELETE FROM JOBAGENT where agentid=?", {bind_values=>[$agentid]}); 
+  return;
+  	
+	
 }
 
 =head1 NAME

@@ -2274,7 +2274,7 @@ sub checkProcess{
   if ($self->{MEMORY}){
     $self->info("Checking the memory requirements");
     my $memory=AliEn::Util::find_memory_consumption($self->{MONITOR},$self->{PROCESSID});
-    if($memory){
+    if(defined $memory){
       $self->info("Process Memory measured at = $memory");
       $memory > $self->{MEMORY}
         and $killMessage="using more than $self->{MEMORY} memory (right now, $memory)";
