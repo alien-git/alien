@@ -36,21 +36,12 @@ ALIEN_Usage()
    printf "             [-printenv]                      \n" 
    printf "             [-platform]                      \n" 
    printf "             [login]                          \n" 
-   printf "             [gas]                            \n" 
    printf "             [proof]                          \n"
    printf "             [virtual]                        \n"
-   printf "             [xfiles]                         \n" 
-   printf "             [create-keys]                    \n"
-   printf "             [update-token]                   \n" 
-   printf "             [myproxy-*]                      \n"
    printf "             [proxy-*]                        \n"
    printf "             [cert-request]                   \n" 
-   printf "             [register-cert]                  \n" 
-   printf "             [job-submit]                     \n"
-   printf "             [install]                        \n" 
-   printf "             [update]                         \n" 
+   printf "             [register-cert]                  \n"
    printf "             [man]                            \n"
-   printf "             [gq]                             \n"
    printf "             [configure] [options]            \n"
    exit
 }
@@ -78,22 +69,6 @@ ALIEN_Proof()
 {
  exec $ALIEN_PERL  $ALIEN_DEBUG $ALIEN_ROOT/scripts/Prompt.pl "::LCM::Proof" $*
 }
-
-###########################################################################
-ALIEN_GUI()
-###########################################################################
-{
-  SCRIPT=$1
-
-  shift 1
-  if [ -x $ALIEN_ROOT/scripts/GUI/$SCRIPT.pl ]
-  then
-    exec $ALIEN_PERL  $ALIEN_DEBUG $ALIEN_ROOT/scripts/GUI/$SCRIPT.pl $*
-  else
-    echo "ERROR: Please install Alien-GUI module."
-  fi
-  exit 
-}
 ###########################################################################
 ALIEN_Browser()
 ###########################################################################
@@ -108,15 +83,6 @@ ALIEN_Virtual()
 }
 
 ###########################################################################
-ALIEN_RunJob()
-###########################################################################
-{
-  export ALIEN_PROCESSNAME=JOB
-
-  exec $ALIEN_PERL $ALIEN_DEBUG $ALIEN_ROOT/scripts/Service.pl ProcessMonitor -queueId $*
-  exit
-}
-###########################################################################
 ALIEN_RunAgent()
 ###########################################################################
 {
@@ -124,28 +90,6 @@ ALIEN_RunAgent()
 
   exec $ALIEN_PERL $ALIEN_DEBUG $ALIEN_ROOT/scripts/Service.pl JobAgent $*
   exit
-}
-
-##########################################################################
-ALIEN_Install()
-###########################################################################
-{
-  $ALIEN_ROOT/scripts/Monitor/Update.sh Kill
-  $ALIEN_PERL $ALIEN_DEBUG $ALIEN_ROOT/scripts/Monitor/Install.pl $*
-  if [ -f $ALIEN_ROOT/java/MonaLisa/AliEn/startMonaLisa.pl ]
-  then  
-    $ALIEN_PERL $ALIEN_ROOT/java/MonaLisa/AliEn/startMonaLisa.pl
-  fi
-  if [ -f $ALIEN_ROOT/webmin/miniserv.pl ]
-  then  
-    trap '' 1
-    LANG=
-    export LANG
-    unset PERLIO
-    export PERLIO
-    mkdir -p /tmp/.webmin/
-    exec $ALIEN_PERL $ALIEN_ROOT/webmin/miniserv.pl $ALIEN_ROOT/etc/webmin/miniserv.conf
-  fi
 }
 
 ###########################################################################
@@ -209,16 +153,6 @@ ALIEN_Package_download()
 }
 
 ###########################################################################
-ALIEN_Update()
-###########################################################################
-{
-  cp $ALIEN_ROOT/scripts/Monitor/Update.sh /tmp/Update.sh.$$
-  cd $HOME
-  /tmp/Update.sh.$$ $* &
-  exit 0
-}
-
-###########################################################################
 ALIEN_Monitor()
 ###########################################################################
 {
@@ -243,18 +177,6 @@ ReadPassword()
   echo $p
 }
 ###########################################################################
-ALIEN_CreateKeys()
-###########################################################################
-{
-  exec $ALIEN_PERL $ALIEN_DEBUG $ALIEN_ROOT/scripts/createKeys.pl $*
-}
-###########################################################################
-ALIEN_UpdateToken()
-###########################################################################
-{
-  exec $ALIEN_PERL $ALIEN_DEBUG $ALIEN_ROOT/scripts/updateToken.pl $*
-}
-###########################################################################
 SetupCertEnvVars()
 ###########################################################################
 {
@@ -272,36 +194,6 @@ SetupCertEnvVars()
        export X509_USER_KEY=$dir/userkey.pem
     fi
   done
-}
-###########################################################################
-ALIEN_MyProxy()
-###########################################################################
-{
-  SetupCertEnvVars
-  if [ -z "$MYPROXY_LOCATION" -o -z "$GLOBUS_LOCATION" ]
-  then
-    printf "Error: MYPROXY_LOCATION and/or GLOBUS_LOCATION not set.\n"  
-    printf "Please (re)run 'alien config' command.\n\n"
-    exit 1
-  fi
-  command=$1
-  shift 1
-  export MYPROXY_SERVER_PORT=8512
-  export MYPROXY_SERVER=alien.cern.ch
-  export MYPROXY_SERVER_DN=/DC=ch/DC=cern/OU=computers/CN=alien.cern.ch
-
-  case $command in
-      myproxy-info|myproxy-destroy)
-       exec $MYPROXY_LOCATION/bin/$command -l $ALIEN_USER $*
-        ;;
-      myproxy-init)
-        exec $MYPROXY_LOCATION/bin/$command -l $ALIEN_USER $* 
-        ;;
-      *)
-        printf "%s: No such file or directory.\n" $command
-        exit 1
-        ;;    
-   esac
 }
 ###########################################################################
 ALIEN_Grid()
@@ -765,11 +657,6 @@ ALIEN_GetArg()
 	    export ALIEN_PROCESSNAME="Prompt::Login"
 	    ALIEN_UI="::LCM::Computer"
             ;;
-	gas)
-	    shift 1
-	    export ALIEN_PROCESSNAME="Prompt::GAS"
-	    ALIEN_UI="AliEn::EGEE::UI"
-	    ;;
 	proof)
 	    shift 1
 	    export ALIEN_PROCESSNAME="Prompt::Proof"
@@ -779,17 +666,6 @@ ALIEN_GetArg()
 	    shift 1
 	    ALIEN_UI="virtual"
 	    ;;
-        xfiles|xjobs)
-	    ALIEN_GUI $*
-	    ;;
-        create-keys)
-            shift 1
-            ALIEN_CreateKeys $*
-            ;;
-        update-token)
-            shift 1
-            ALIEN_UpdateToken $*
-            ;;
 	cert-request)
 	    shift 1
             ALIEN_CertRequest $*
@@ -800,17 +676,6 @@ ALIEN_GetArg()
 	    ;;
         proxy-*|cert-*)
             ALIEN_Grid $*
-            ;;
-        myproxy-*)
-            ALIEN_MyProxy $*
-            ;;
-        install)
-            shift 1
-            ALIEN_Install $*
-            ;;
-        update)
-            shift 1
-            ALIEN_Update $*
             ;;
         man)
             shift 1
@@ -823,12 +688,6 @@ ALIEN_GetArg()
             export PERL5LIB=$ALIEN_ROOT/lib/perl5/site_perl:$ALIEN_ROOT/lib/perl5
             ALIEN_FS $*
             ;;
-        gq)
-            shift 1
-            [ -x $ALIEN_ROOT/bin/gq ] && exec $ALIEN_ROOT/bin/gq $*
-	    echo "$ALIEN_ROOT/bin/gq does not exist"
-	    exit -1
-            ;;
         register-cert)
             shift 1
             ALIEN_RegisterCert $*
@@ -836,10 +695,6 @@ ALIEN_GetArg()
         config|configure)
             shift 1
             ALIEN_Config $*
-            ;;
-        job-submit)
-            shift 1
-            ALIEN_RunJob $*
             ;;
         *)
 	    ALIEN_ARG="$ALIEN_ARG$1 "
