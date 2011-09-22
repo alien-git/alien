@@ -1,4 +1,27 @@
-#/**************************************************************************
+head	1.1;
+access;
+symbols;
+locks; strict;
+comment	@# @;
+
+
+1.1
+date	2011.09.22.14.07.29;	author alienmaster;	state Exp;
+branches;
+next	;
+
+
+desc
+@changed function string2date to return chain of length 8
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@#/**************************************************************************
 # * Copyright(c) 2001-2002, ALICE Experiment at CERN, All rights reserved. *
 # *                                                                        *
 # * Author: The ALICE Off-line Project / AliEn Team                        *
@@ -22,7 +45,7 @@ use Tie::CPHash;
 
 use AliEn::SOAP;
 use AliEn::Logger::LogObject;
-use vars qw($DEBUG @ISA);
+use vars qw($DEBUG @@ISA);
 
 $DEBUG = 0;
 
@@ -57,7 +80,7 @@ sub reservedWord {
 sub preprocessFields {
   my $self     = shift;
   my $new_keys = shift;
-  map { $_ = "\"" . uc $_ . "\"" } @$new_keys;
+  map { $_ = "\"" . uc $_ . "\"" } @@$new_keys;
   return $new_keys;
 }
 
@@ -71,7 +94,7 @@ sub checkTable {
   my $options    = shift;
   if ($index) {
 
-    foreach (@$index) {
+    foreach (@@$index) {
       $_ =~ s/(\s|\()(size|user|time|current|validate|date|file)(\s|\))/$1."\"".uc($2)."\"".$3/ieg;
     }
   }
@@ -235,7 +258,7 @@ sub getNewColumns {
   defined $queue
     or return;
 
-  foreach (@$queue) {
+  foreach (@@$queue) {
 
     #we need to consider reserved words (quoted)
     delete $columns{$_->{Field}};
@@ -438,7 +461,7 @@ sub update {
   my $query = "UPDATE $table SET ";
   my $quote = "'";
   $options->{noquotes} and $quote = "";
-  my @bind = ();
+  my @@bind = ();
   foreach (keys %$rfields) {
     $query .= $self->reservedWord($_) . "=";
     if (defined $rfields->{$_}) {
@@ -453,7 +476,7 @@ sub update {
         }
         $query .= " $function ? $functionend,";
       }
-      push @bind, $rfields->{$_};
+      push @@bind, $rfields->{$_};
     } else {
       chop($query);
       $query .= "= NULL,";
@@ -462,12 +485,12 @@ sub update {
   chop($query);
   $where =~ s/\=\s*\'\'/ IS NULL/g;
   $where and $query .= " WHERE $where";
-  push(@bind, @{$options->{bind_values}}) if ($options->{bind_values});
-  $self->_do($query, {bind_values => \@bind, zero_length => 0});
+  push(@@bind, @@{$options->{bind_values}}) if ($options->{bind_values});
+  $self->_do($query, {bind_values => \@@bind, zero_length => 0});
 }
 
 sub _queryDB {
-  my ($self, $stmt, $options, $already_tried) = @_;
+  my ($self, $stmt, $options, $already_tried) = @@_;
   $options or $options = {};
   my $oldAlarmValue = $SIG{ALRM};
   local $SIG{ALRM} = \&_timeout;
@@ -483,19 +506,19 @@ sub _queryDB {
   $stmt =~ s/\W(\s+)(size|user|time|current|validate|date|file)(\s+)/$1."\"".uc($2)."\"".$3/ieg;
   my $arrRef;
   my $execute;
-  my @bind;
+  my @@bind;
   my $b;
-  $options->{bind_values} and push @bind, @{$options->{bind_values}};
+  $options->{bind_values} and push @@bind, @@{$options->{bind_values}};
   $DEBUG
-    and $self->debug(2, "In _queryDB executing $stmt in database (@bind).");
+    and $self->debug(2, "In _queryDB executing $stmt in database (@@bind).");
 
-  ($stmt, $b) = $self->process_zero_length($stmt, \@bind);
+  ($stmt, $b) = $self->process_zero_length($stmt, \@@bind);
 
-  @bind = @{$b};
+  @@bind = @@{$b};
 
-  if (!@bind) { undef @bind; }
+  if (!@@bind) { undef @@bind; }
 
-  # $self->process_zero_length( $stmt, \@bind );
+  # $self->process_zero_length( $stmt, \@@bind );
   while (1) {
     my $sqlError = "";
     eval {
@@ -506,11 +529,11 @@ sub _queryDB {
       $DBI::errstr and $sqlError .= "In prepare: $DBI::errstr\n";
       if ($sth) {
 
-        $execute = $sth->execute(@bind);
+        $execute = $sth->execute(@@bind);
         $DBI::errstr and $sqlError .= "In execute: $DBI::errstr\n";
         $arrRef = $sth->fetchall_arrayref({});
         $DBI::errstr and $sqlError .= "In fetch: $DBI::errstr\n";
-        foreach (@$arrRef) {
+        foreach (@@$arrRef) {
           my %h;
           tie %h, 'Tie::CPHash';
           %h = %$_;
@@ -521,7 +544,7 @@ sub _queryDB {
         ### $DBI::errstr and $sqlError.="In finish: $DBI::errstr\n";
       }
     };
-    $@ and $sqlError = "The command died: $@";
+    $@@ and $sqlError = "The command died: $@@";
     alarm(0);
 
     if ($sqlError) {
@@ -576,7 +599,7 @@ sub _rebuildIndexes {
     my $indexes = $self->query("select index_name from all_indexes where upper(table_name) like upper(\'?\')",
       {bind_values => [$table], zero_length => 0});
     if ($indexes) {
-      foreach (@$indexes) {
+      foreach (@@$indexes) {
         $self->do("ALTER INDEX $_->{index_name} REBUILD", {zero_length => 0});
       }
     }
@@ -612,17 +635,17 @@ sub _do {
     and $self->debug(2, "In _do checking is database connection still valid");
 
   $self->_pingReconnect or return;
-  my @bind_values;
+  my @@bind_values;
   $options->{bind_values}
-    and push @bind_values, @{$options->{bind_values}}
+    and push @@bind_values, @@{$options->{bind_values}}
     and $options->{prepare} = 1;
   my $result;
   if ($check) {
-    my $b = \@bind_values;
+    my $b = \@@bind_values;
     ($stmt, $b) = $self->process_zero_length($stmt, $b);
 
-    @bind_values = @{$b};
-    if (scalar @bind_values == 0) { $options->{prepare} = 0; }
+    @@bind_values = @@{$b};
+    if (scalar @@bind_values == 0) { $options->{prepare} = 0; }
   }
 
   while (1) {
@@ -632,13 +655,13 @@ sub _do {
       alarm(600);
       my $tmp;
       if ($options->{prepare}) {
-        $DEBUG and $self->debug(2, "In _do doing $stmt @bind_values");
+        $DEBUG and $self->debug(2, "In _do doing $stmt @@bind_values");
 
         my $sth = $self->{DBH}->prepare($stmt);
-        $self->debug(2, "After  preparing the cached $stmt @bind_values");
-        $tmp = $sth->execute(@bind_values);    # $tmp and $sth->finish;
+        $self->debug(2, "After  preparing the cached $stmt @@bind_values");
+        $tmp = $sth->execute(@@bind_values);    # $tmp and $sth->finish;
       } else {
-        $DEBUG and $self->debug(1, "In _do doing $stmt @bind_values");
+        $DEBUG and $self->debug(1, "In _do doing $stmt @@bind_values");
         $tmp = $self->{DBH}->do($stmt);
 
       }
@@ -646,7 +669,7 @@ sub _do {
       $DBI::errstr and $sqlError .= "In do: $DBI::errstr\n";
       $tmp;
     };
-    my $error = $@;
+    my $error = $@@;
     alarm(0);
     if ($sqlError =~ m/ORA-01003/) {
       $self->reconnect();
@@ -661,7 +684,7 @@ sub _do {
       $self->_do($stmt, $options);
     }
     if ($error) {
-      $sqlError .= "There is an error: $@\n";
+      $sqlError .= "There is an error: $@@\n";
       $options->{silent}
         or $self->info("There was an SQL error  ($stmt): $sqlError", 1001);
       return;
@@ -760,23 +783,23 @@ sub multiinsert {
   ###     statement checking is a temporary solution ... remove later!!!
   if ($table =~ /\s/) { return $self->do($table); }
 
-  my $rfields = @$rarray[0];
+  my $rfields = @@$rarray[0];
 
   my $query = "INSERT";
 
-  my @fields     = keys %$rfields;
-  my $new_fields = $self->preprocessFields(\@fields);    #for the reserved words
-  my @new_f      = @$new_fields;
-  $query .= " INTO $table (" . join(", ", @new_f) . ") VALUES ";
+  my @@fields     = keys %$rfields;
+  my $new_fields = $self->preprocessFields(\@@fields);    #for the reserved words
+  my @@new_f      = @@$new_fields;
+  $query .= " INTO $table (" . join(", ", @@new_f) . ") VALUES ";
   my $quote = "'";
   $options->{noquotes} and $quote = "";
 
-  #my @arr = values %$rfields;
-  my @bind = ();
+  #my @@arr = values %$rfields;
+  my @@bind = ();
 
-  foreach $rloop (@$rarray) {
+  foreach $rloop (@@$rarray) {
     my $query2 = "(";
-    @bind = ();
+    @@bind = ();
     foreach (keys %$rfields) {
       if (defined $rloop->{$_}) {
 
@@ -791,7 +814,7 @@ sub multiinsert {
           }
           $query2 .= " $function ? $functionend,";
         }
-        push @bind, $rloop->{$_};
+        push @@bind, $rloop->{$_};
       } else {
         $query2 .= "NULL,";
       }
@@ -799,11 +822,11 @@ sub multiinsert {
     chop($query2);
 
     $query2 .= ")";
-    my $doOptions = {bind_values => \@bind};
+    my $doOptions = {bind_values => \@@bind};
 
     # $doOptions->{zero_length}=0;
     $options->{silent} and $doOptions->{silent} = 1;
-    $self->info("Estamos en multiinsert oracle con @bind");
+    $self->info("Estamos en multiinsert oracle con @@bind");
     $self->_do($query . $query2, $doOptions);
     if ($options->{ignore} && $DBI::errstr =~ /ORA-00001: unique constraint/) {
       my $delete = "delete from $table where ";
@@ -820,7 +843,7 @@ sub multiinsert {
   return 1;
 
   # chop($query);
-  # my $doOptions={bind_values=>\@bind};
+  # my $doOptions={bind_values=>\@@bind};
   #$options->{silent} and $doOptions->{silent}=1;
   #use Data::Dumper;
   #print "\n\n\n_do  $query and ".Dumper($doOptions);
@@ -1013,9 +1036,9 @@ function string2date (my_uuid in varchar2)
 return varchar deterministic  AUTHID current_user as
 begin if(my_uuid like 'NULL')then return null;
 else  return  
-upper(   concat(  concat(substr(substr(my_uuid,1,18),-4), 
-substr(substr(my_uuid,1,13),-4)),
-substr(my_uuid,1,8)));end if; end string2date;;
+upper(     concat(substr(substr(my_uuid,1,18),-4), 
+substr(substr(my_uuid,1,13),-4))
+);end if; end string2date;;
 "
   );
   $self->do("grant execute on string2date to public");
@@ -1070,7 +1093,7 @@ sub optimizeTable {
   $self->do("alter table $table move");
   my $indexes = $self->query(
     "select INDEX_NAME from all_indexes where OWNER = upper(\'$self->{SCHEMA}\') and TABLE_NAME LIKE \'$table\'");
-  foreach my $ind (@$indexes) {
+  foreach my $ind (@@$indexes) {
     $self->do("begin exec_stmt(\'alter index $ind->{INDEX_NAME} rebuild\'); end;");
   }
 }
@@ -1178,12 +1201,12 @@ sub preprocess_where_delete {
   my $self  = shift;
   my $where = shift;
 
-  my @new_where = split(/AND/i, $where);
-  foreach (@new_where) {
+  my @@new_where = split(/AND/i, $where);
+  foreach (@@new_where) {
     $_ =~ s/(\w+)(\s*)=(\s*)(\w+)/"\"". uc($1) . "\"=".$4/mexgi;
   }
 
-  return join(" AND ", @new_where);
+  return join(" AND ", @@new_where);
 }
 
 sub _connectSchema {
@@ -1223,8 +1246,8 @@ sub checkUser {
     $self->do("GRANT ALIEN_OPER TO $user");
     return 1;
   }
-  $@ and $sqlError = "The command died: $@";
-  if ($@ =~ /ORA-01920/i) {
+  $@@ and $sqlError = "The command died: $@@";
+  if ($@@ =~ /ORA-01920/i) {
     $DEBUG
       and $self->info("This user already exists", 1)
       and return 1;    #if the user already exists , this is correct (?)
@@ -1242,17 +1265,17 @@ sub process_zero_length_old {
 
   $stmt =~ s/(.*)(\=|LIKE)(\s*\'\s?\' \s*)(.*)$/$1. " IS NULL ".$4/gxei;
 
-  my @bind = @{$bind};
+  my @@bind = @@{$bind};
   if ($bind) {
 
-    #  my @bind = @{$bind_values};
+    #  my @@bind = @@{$bind_values};
 
     #case binding values
-    if (grep { /^$/ } @bind) {
-      my @new_bind = ();
+    if (grep { /^$/ } @@bind) {
+      my @@new_bind = ();
       my $left     = $stmt;
       my $new_stmt = " ";
-      foreach (@bind) {
+      foreach (@@bind) {
 
         #element with string length zero
         if ($_ =~ /^$/) {
@@ -1264,18 +1287,18 @@ sub process_zero_length_old {
           }
           $new_stmt = $left;
         } else {    #case element with string no length zero
-          push(@new_bind, $_);
+          push(@@new_bind, $_);
           $left =~ s/(.*)(\s*\? )(.*)/$1  .$2 .$3/xei;    # $new_stmt=$new_stmt.$left ; $left=$3
           $new_stmt = $left;
         }
       }
-      @bind = @new_bind;
+      @@bind = @@new_bind;
       $stmt = $new_stmt;
-      return ($new_stmt, \@new_bind);
+      return ($new_stmt, \@@new_bind);
     } else {
 
       #case the binding values have not got zero length,do nothing}
-      return ($stmt, \@bind);
+      return ($stmt, \@@bind);
     }
   }
   return ($stmt);
@@ -1291,17 +1314,17 @@ sub process_zero_length {
   }
   while ($stmt =~ s/(\=|LIKE)(\s*\'\s?\' \s*)/" IS NULL "/gxei) {
   }
-  my @bind = @{$b};
+  my @@bind = @@{$b};
 
   if ($b) {
 
     #case binding values
-    if (grep { /^$/ } @bind) {
-      my @new_bind = ();
+    if (grep { /^$/ } @@bind) {
+      my @@new_bind = ();
       my $left     = $stmt;
       my $append   = " ";
       my $new_stmt = " ";
-      foreach (reverse(@bind)) {
+      foreach (reverse(@@bind)) {
 
         #element with string length zero
         if ($_ =~ /^$/) {
@@ -1320,7 +1343,7 @@ sub process_zero_length {
           $new_stmt = $left;
 
         } else {    #case element with string no length zero
-          push(@new_bind, $_);
+          push(@@new_bind, $_);
           $new_stmt = $left =~ s/(.*)(\s*\? )(.*)/$1/xei;
           $append = $2 . $3 . $append;    # $new_stmt=$new_stmt.$left ; $left=$3
 
@@ -1328,13 +1351,13 @@ sub process_zero_length {
         }
 
       }
-      @new_bind and @bind = reverse(@new_bind) or @bind = ();
+      @@new_bind and @@bind = reverse(@@new_bind) or @@bind = ();
       $stmt = $left . $append;
-      return ($stmt, \@bind);
+      return ($stmt, \@@bind);
     } else {
 
       #case the binding values have not got zero length,do nothing}
-      return ($stmt, \@bind);
+      return ($stmt, \@@bind);
     }
   }
   return ($stmt);
@@ -1353,26 +1376,26 @@ sub dbGetAllTagNamesByPath {
 
   my $rec  = "";
   my $rec2 = "";
-  my @bind = ($path);
+  my @@bind = ($path);
   if ($options->{r}) {
     $rec = " or path like concat(?, '%') ";
-    push @bind, $path;
+    push @@bind, $path;
   }
   if ($options->{user}) {
     $self->debug(1, "Only for the user $options->{user}");
     $rec2 = " and user=?";
-    push @bind, $options->{user};
+    push @@bind, $options->{user};
   }
 
-#return $self->query("SELECT DISTINCT TAGNAME,PATH FROM (SELECT TAGNAME,PATH,ENTRYID FROM TAG0 where  ? like concat(path,'%')   $rec  $rec2) where ENTRYID in((select min(ENTRYID) from TAG0 group by tagName) union (select max(ENTRYID) from TAG0 group by tagName)) ", undef, {bind_values=>\@bind});
+#return $self->query("SELECT DISTINCT TAGNAME,PATH FROM (SELECT TAGNAME,PATH,ENTRYID FROM TAG0 where  ? like concat(path,'%')   $rec  $rec2) where ENTRYID in((select min(ENTRYID) from TAG0 group by tagName) union (select max(ENTRYID) from TAG0 group by tagName)) ", undef, {bind_values=>\@@bind});
 
-#return $self->query("SELECT distinct TAGNAME,PATH from (select tagname,path, entryid  FROM TAG0 where (? like path) or  ( ? like concat(path,'%')  )  $rec  $rec2 and rownum <=1 order by entryId desc )", undef, {bind_values=>\@bind});
-#return $self->query("SELECT distinct TAGNAME,PATH,entryid from (select tagname,path, entryid  FROM TAG0 where  ( ? like concat(path,'%')  )  $rec  $rec2 and rownum <=1 order by entryId desc )", undef, {bind_values=>\@bind});
+#return $self->query("SELECT distinct TAGNAME,PATH from (select tagname,path, entryid  FROM TAG0 where (? like path) or  ( ? like concat(path,'%')  )  $rec  $rec2 and rownum <=1 order by entryId desc )", undef, {bind_values=>\@@bind});
+#return $self->query("SELECT distinct TAGNAME,PATH,entryid from (select tagname,path, entryid  FROM TAG0 where  ( ? like concat(path,'%')  )  $rec  $rec2 and rownum <=1 order by entryId desc )", undef, {bind_values=>\@@bind});
 
   return $self->query(
 "select tagname , path from ( select distinct tagname,path, length(path) LEN from tag0 where ?  like concat(path,'%')   $rec  $rec2 order by LEN desc )  where rownum <= 1",
     undef,
-    {bind_values => \@bind}
+    {bind_values => \@@bind}
   );
 }
 
@@ -1403,7 +1426,7 @@ sub renumberTable {
     or $ok = 0;
 
   if ($ok) {
-    foreach my $t (@{$options->{update}}) {
+    foreach my $t (@@{$options->{update}}) {
       $self->debug(1, "Updating $t");
       $self->do("update $t set $index= (select new_index from $table where $index=$t.$index)") and next;
       $self->info("Error updating the table!!");
@@ -1463,7 +1486,7 @@ sub unfinishedJobs24PerUser {
   my $self = shift;
 
   return $self->do(
-"merge  into PRIORITY p using (select SUBSTR( submitHost, 1, instr(submitHost,'\@') -1)  \"USER\", count(1)  unfinishedJobsLast24h from queue q where (status='INSERTING' or status='WAITING' or status='STARTED' or status='RUNNING' or status='SAVING' or status='OVER_WAITING') and ( (to_char(sysdate, 'DD.MM.YYYY HH24:Mi:ss')   >=  To_Char( To_Date( '01.01.1970 06:00:00','DD.MM.YYYY HH24:Mi:Ss') + received / 86400,'DD.MM.YYYY HH24:Mi:ss')) and (to_char(sysdate, 'DD.MM.YYYY HH24:Mi:ss')  <=  To_Char( To_Date( '01.01.1970 06:00:00','DD.MM.YYYY HH24:Mi:Ss') + received / 86400 + 60*60*24,'DD.MM.YYYY HH24:Mi:ss'))) GROUP BY submithost ) c on (upper(p.\"USER\")=upper(c.\"USER\")) when matched then update set p.unfinishedjobslast24h=c.unfinishedjobslast24h"
+"merge  into PRIORITY p using (select SUBSTR( submitHost, 1, instr(submitHost,'\@@') -1)  \"USER\", count(1)  unfinishedJobsLast24h from queue q where (status='INSERTING' or status='WAITING' or status='STARTED' or status='RUNNING' or status='SAVING' or status='OVER_WAITING') and ( (to_char(sysdate, 'DD.MM.YYYY HH24:Mi:ss')   >=  To_Char( To_Date( '01.01.1970 06:00:00','DD.MM.YYYY HH24:Mi:Ss') + received / 86400,'DD.MM.YYYY HH24:Mi:ss')) and (to_char(sysdate, 'DD.MM.YYYY HH24:Mi:ss')  <=  To_Char( To_Date( '01.01.1970 06:00:00','DD.MM.YYYY HH24:Mi:Ss') + received / 86400 + 60*60*24,'DD.MM.YYYY HH24:Mi:ss'))) GROUP BY submithost ) c on (upper(p.\"USER\")=upper(c.\"USER\")) when matched then update set p.unfinishedjobslast24h=c.unfinishedjobslast24h"
   );
 }
 
@@ -1471,7 +1494,7 @@ sub cpuCost24PerUser {
   my $self = shift;
   return $self->do(
     "merge  into PRIORITY pr using 
-(select SUBSTR( submitHost, 1, instr(submitHost,'\@') -1)  \"USER\",sum(p.cost)  totalCpuCostLast24h, sum(p.runtimes) as totalRunningTimeLast24h 
+(select SUBSTR( submitHost, 1, instr(submitHost,'\@@') -1)  \"USER\",sum(p.cost)  totalCpuCostLast24h, sum(p.runtimes) as totalRunningTimeLast24h 
 from queue q , QUEUEPROC p where ( (to_char(sysdate, 'DD.MM.YYYY HH24:Mi:ss')   >=  
 To_Char( To_Date( '01.01.1970 06:00:00','DD.MM.YYYY HH24:Mi:Ss') + q.received / 86400,'DD.MM.YYYY HH24:Mi:ss'))  
 and (to_char(sysdate, 'DD.MM.YYYY HH24:Mi:ss')  <=   
@@ -1482,7 +1505,7 @@ when matched then update set  pr.totalCpuCostLast24h=c.pr.totalCpuCostLast24h"
 }
 
 sub execHost {
-  return "SUBSTR( execHost, instr(execHost,'\\\@') + 1)";
+  return "SUBSTR( execHost, instr(execHost,'\\\@@') + 1)";
 }
 
 sub changeOWtoW {
@@ -1490,7 +1513,7 @@ sub changeOWtoW {
   return $self->do(
     "merge  into QUEUE q using 
 (select queueId
-from queue qu join PRIORITY pr on ( pr.\"USER\" = SUBSTR( submitHost, 1, instr(submitHost,'\@') -1) )
+from queue qu join PRIORITY pr on ( pr.\"USER\" = SUBSTR( submitHost, 1, instr(submitHost,'\@@') -1) )
 where (pr.totalRunningTimeLast24h<pr.maxTotalRunningTime 
 and pr.totalCpuCostLast24h<pr.maxTotalCpuCost) and qu.status=\'OVER_WAITING\' ) c 
 on (q.queueId=c.queueId)
@@ -1503,7 +1526,7 @@ sub changeWtoOW {
   return $self->do(
     "merge  into QUEUE q using 
 (select queueId
-from queue qu join PRIORITY pr on ( pr.\"USER\" = SUBSTR( submitHost, 1, instr(submitHost,'\@') -1) )
+from queue qu join PRIORITY pr on ( pr.\"USER\" = SUBSTR( submitHost, 1, instr(submitHost,'\@@') -1) )
 where (pr.totalRunningTimeLast24h>=pr.maxTotalRunningTime 
 and pr.totalCpuCostLast24h>=pr.maxTotalCpuCost) and qu.status='WAITING' ) c 
 on (q.queueId=c.queueId)
@@ -1532,7 +1555,7 @@ and To_Char( To_Date( '01.01.1970 06:00:00','DD.MM.YYYY HH24:Mi:Ss') + received/
 
 sub optimizerJobPriority {
   my $self       = shift;
-  my $userColumn = "SUBSTR( submitHost, 1, instr (submitHost,\'@\' )-1 )";
+  my $userColumn = "SUBSTR( submitHost, 1, instr (submitHost,\'@@\' )-1 )";
   return $self->do(
 "INSERT  INTO PRIORITY(\"USER\", priority, maxparallelJobs, nominalparallelJobs) SELECT distinct $userColumn, 1,200, 100 from QUEUE q where not exists (select * from priority where \"USER\"= $userColumn)"
   );
@@ -1540,8 +1563,8 @@ sub optimizerJobPriority {
 
 sub userColumn {
 
-  #return "SUBSTR( submitHost, 1, instr (submitHost,\'@\' )-1 )";
-  return "SUBSTR( submitHost, 1, instr (\'@\' , submitHost)-1 )";
+  #return "SUBSTR( submitHost, 1, instr (submitHost,\'@@\' )-1 )";
+  return "SUBSTR( submitHost, 1, instr (\'@@\' , submitHost)-1 )";
 }
 
 sub getMessages {
@@ -1736,29 +1759,29 @@ sub dbGetSEListFromSiteSECacheForWriteAccess {
   my $query =
     "SELECT DISTINCT SE.seName, rank FROM SERanks,SE WHERE " . " sitename=? and SERanks.seNumber = SE.seNumber ";
 
-  my @queryValues = ();
-  push @queryValues, $sitename;
+  my @@queryValues = ();
+  push @@queryValues, $sitename;
 
-  foreach (@$excludeList) { $query .= "and upper(SE.seName)<>upper(?) "; push @queryValues, $_; }
+  foreach (@@$excludeList) { $query .= "and upper(SE.seName)<>upper(?) "; push @@queryValues, $_; }
 
   $query .=
       " and SE.seMinSize <= ? and SE.seQoS  LIKE concat('%,' , concat(? , ',%' )) "
     . " and (SE.seExclusiveWrite is NULL or SE.seExclusiveWrite  LIKE concat ('%,' , concat(? , ',%') ))"
     . " order by rank ASC  ";
 
-  push @queryValues, $fileSize;
-  push @queryValues, $type;
-  push @queryValues, $user;
+  push @@queryValues, $fileSize;
+  push @@queryValues, $type;
+  push @@queryValues, $user;
 
-  my @column;
+  my @@column;
   my $in = 0;
-  my $result = $self->queryColumn($query, undef, {bind_values => \@queryValues});
+  my $result = $self->queryColumn($query, undef, {bind_values => \@@queryValues});
   while ($in < $count) {
-    push @column, $result->[$in];
+    push @@column, $result->[$in];
     $in++;
   }
 
-  @$result = @$result[ 0 .. $count ];
+  @@$result = @@$result[ 0 .. $count ];
   return $result;
 
 }
@@ -1875,3 +1898,4 @@ sub getJobOptimizerCharge {
 }
 1;
 
+@
