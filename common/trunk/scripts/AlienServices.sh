@@ -33,7 +33,9 @@ ALIEN_StopAllServices()
   ( ALIEN_DoService StopSE )
   ( ALIEN_DoService StopMonitor )
   ( ALIEN_DoService StopCE )
-  
+  ( ALIEN_DoService StopFTD )
+#  ( ALIEN_DoService StopTcpRouter )
+#  ( ALIEN_DoService StopCLC )
   ( ALIEN_DoService StopMonaLisa )
 }
 
@@ -130,8 +132,9 @@ ALIEN_StartMonitor()
   done
 
   export ALIEN_PROCESSNAME=Monitor
-
-  ALIEN_CMIsHttps ClusterMonitor
+ #echo "in ALIEN_StartMonitor"
+ #ALIEN_IsHttps ClusterMonitor
+ ALIEN_CMIsHttps ClusterMonitor
 
   startService LOGDIR ClusterMonitor  "cluster monitor" NO_PASSWORD $arg
 
@@ -230,11 +233,10 @@ ALIEN_OneHttpdService()
               portNum=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl BROKER_PORT 2> /dev/null `
        fi
        
-       
- if [ -f $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf ]
+ CONF="$ALIEN_HOME/httpd/conf.$portNum/httpd.conf.`hostname -f`"
+ if [ -f $CONF ]
   then
-        file=$ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
-        $ALIEN_ROOT/httpd/bin/httpd -k start -f $file  # >/dev/null 2>&1
+        $ALIEN_ROOT/httpd/bin/httpd -k start -f $CONF  # >/dev/null 2>&1
 
   fi
    sleep 5
@@ -296,30 +298,30 @@ ALIEN_HttpdConfig()
               portNum=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl BROKER_PORT 2> /dev/null `
               
        fi
-
-        if [ ! -f $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf ] || [ ! -f $ALIEN_HOME/httpd/conf."$portNum"/startup.pl ]
+        CONF="$ALIEN_HOME/httpd/conf.$portNum/httpd.conf.`hostname -f`"
+        if [ ! -f $CONF ] || [ ! -f $ALIEN_HOME/httpd/conf."$portNum"/startup.pl ]
         then
                if [ -d $ALIEN_HOME/httpd/conf."$portNum" ]
                then
                         rm -rf $ALIEN_RHOME/httpd/conf."$portNum"
                fi
          mkdir -p ${ALIEN_HOME}/httpd/conf."$portNum"/
-         cp $ALIEN_ROOT/httpd/conf/httpd.conf $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+         cp $ALIEN_ROOT/httpd/conf/httpd.conf $CONF
          cp $ALIEN_ROOT/httpd/conf/startup.pl $ALIEN_HOME/httpd/conf."$portNum"/startup.pl
        
 
 
-         sed -e "s#PerlConfigRequire .*#PerlConfigRequire $ALIEN_HOME/httpd/conf."$portNum"/startup.pl#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
-         cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+         sed -e "s#PerlConfigRequire .*#PerlConfigRequire $ALIEN_HOME/httpd/conf."$portNum"/startup.pl#" $CONF > /tmp/httpd.$$
+         cp /tmp/httpd.$$ $CONF
 
-         sed -e "s#Listen .*#Listen $portNum#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
-         cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+         sed -e "s#Listen .*#Listen $portNum#" $CONF > /tmp/httpd.$$
+         cp /tmp/httpd.$$ $CONF
          
-         sed -e "s#^PidFile .*#PidFile logs/httpd"$tmpN".pid#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
-         cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+         sed -e "s#^PidFile .*#PidFile logs/httpd"$tmpN".pid#" $CONF > /tmp/httpd.$$
+         cp /tmp/httpd.$$ $CONF
          
-         sed -e "s#PerlSetVar dispatch_to.*#PerlSetVar dispatch_to \"$ALIEN_ROOT/lib/perl5/site_perl/5.10.1 $httpdFormat \"#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf> /tmp/httpd.$$
-         cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+         sed -e "s#PerlSetVar dispatch_to.*#PerlSetVar dispatch_to \"$ALIEN_ROOT/lib/perl5/site_perl/5.10.1 $httpdFormat \"#" $CONF > /tmp/httpd.$$
+         cp /tmp/httpd.$$ $CONF
 
          sed -e "s#my @services=.*#my @services=qw( $startupFormat ) ;#" $ALIEN_HOME/httpd/conf."$portNum"/startup.pl > /tmp/startup.$$
          cp /tmp/startup.$$ $ALIEN_HOME/httpd/conf."$portNum"/startup.pl
@@ -336,7 +338,7 @@ ALIEN_HttpdConfig()
 
           fi
         
-        if [ -f $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf ] && [ -f $ALIEN_HOME/httpd/conf."$portNum"/startup.pl ]
+        if [ -f $CONF ] && [ -f $ALIEN_HOME/httpd/conf."$portNum"/startup.pl ]
         then
               ALIEN_OneHttpdService $startupFormat
 
@@ -354,7 +356,7 @@ ALIEN_HttpdStart()
 {
   serviceName=$1
   portNum=$2
-
+  hostAddress=$3
 
   export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$ALIEN_ROOT/api/lib:$ALIEN_ROOT/httpd/lib
   export PERL5LIB=$PERL5LIB:$ALIEN_ROOT/lib/perl5/site_perl/5.10.1:$ALIEN_ROOT/lib/perl5/5.10.1
@@ -373,23 +375,34 @@ ALIEN_HttpdStart()
 
 
   logDir=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl LOG_DIR`
-  #echo "THE LOGDIR IS $logDir and $serviceName"
+  # echo $logDir
   tmpN=$serviceName
   tmpName=$(echo $tmpN | tr [a-z] [A-Z])
- [ -f "$logDir/$tmpN.log" ] && mv $logDir/$tmpN.log $logDir/$tmpN.log.back
-       
- if [ -f $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf ]
+ 
+  CONF="$ALIEN_HOME/httpd/conf.$portNum/httpd.conf.$hostAddress" 
+ if [ -f $CONF ]
   then
-        file=$ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
-        $ALIEN_ROOT/httpd/bin/httpd -k start -f $file > $logDir/$tmpN.log  2>&1
-
+        $ALIEN_ROOT/httpd/bin/httpd -k start -f $CONF  # >/dev/null 2>&1 
+  else
+      echo "THE FILE $CONF does not exist"
+      exit -2
   fi
    sleep 5
-  echo "Log created in $logDir/$tmpN.log "
+
   
-  ps -ef | grep httpd | grep $portNum | awk '{if ($3==1) print $2}' > $logDir/httpd"$serviceName".pid      
-  cp $logDir/httpd"$serviceName".pid  $logDir/"$serviceName".pid 
+  #   if [ -f $logDir/httpd"$serviceName".pid ]
+  #   then
+        ps -ef | grep httpd | grep $portNum | awk '{if ($3==1) print $2}' > $logDir/httpd"$serviceName".pid      
+        cp $logDir/httpd"$serviceName".pid  $logDir/"$serviceName".pid 
         
+  #   elif [ -f $ALIEN_ROOT/httpd/logs/httpd"$serviceName".pid ]
+  #   then
+   #    ps -ef | grep httpd | grep $portNum | awk '{if ($3==1) print $2}' > $ALIEN_ROOT/httpd/logs/httpd"$serviceName".pid      
+   #    cp $ALIEN_ROOT/httpd/logs/httpd"$serviceName".pid $logDir/"$serviceName".pid  
+   #  fi 
+     
+  
+
   exit $?
 }
 
@@ -431,52 +444,52 @@ export ALIEN_HOME=$HOME/.alien
      #   echo $logPath
         
         
-         if [ ! -d $ALIEN_HOME/httpd/conf."$portNum" ] || [ ! -f $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf ] || [ ! -f $ALIEN_HOME/httpd/conf."$portNum"/startup.pl ]
+         if [ ! -d $ALIEN_HOME/httpd/conf."$portNum" ] || [ ! -f $CONF ] || [ ! -f $ALIEN_HOME/httpd/conf."$portNum"/startup.pl ]
         then
                if [ -d $ALIEN_HOME/httpd/conf."$portNum" ]
                then
                         rm -rf $ALIEN_RHOME/httpd/conf."$portNum"
                fi
          mkdir -p ${ALIEN_HOME}/httpd/conf."$portNum"/
-         cp $ALIEN_ROOT/httpd/conf/httpd.conf $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+         cp $ALIEN_ROOT/httpd/conf/httpd.conf $CONF
          cp $ALIEN_ROOT/httpd/conf/startup.pl $ALIEN_HOME/httpd/conf."$portNum"/startup.pl
         
-         sed -e "s#ServerRoot .*#ServerRoot $ALIEN_ROOT/httpd#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
-         cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+         sed -e "s#ServerRoot .*#ServerRoot $ALIEN_ROOT/httpd#" $CONF > /tmp/httpd.$$
+         cp /tmp/httpd.$$ $CONF
 
-         sed -e "s#PerlConfigRequire .*#PerlConfigRequire $ALIEN_HOME/httpd/conf."$portNum"/startup.pl#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
-         cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+         sed -e "s#PerlConfigRequire .*#PerlConfigRequire $ALIEN_HOME/httpd/conf."$portNum"/startup.pl#" $CONF > /tmp/httpd.$$
+         cp /tmp/httpd.$$ $CONF
 
-         sed -e "s#Listen .*#Listen $portNum#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
-         cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+         sed -e "s#Listen .*#Listen $portNum#" $CONF > /tmp/httpd.$$
+         cp /tmp/httpd.$$ $CONF
          
-       #  sed -e "s#^PidFile .*#PidFile logs/httpd"$tmpN".pid#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
-       #  cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+       #  sed -e "s#^PidFile .*#PidFile logs/httpd"$tmpN".pid#" $CONF > /tmp/httpd.$$
+       #  cp /tmp/httpd.$$ $CONF
        
-         sed -e "s#PidFile .*#PidFile $logPath/httpd"$tmpN".pid#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
-         cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+         sed -e "s#PidFile .*#PidFile $logPath/httpd"$tmpN".pid#" $CONF > /tmp/httpd.$$
+         cp /tmp/httpd.$$ $CONF
          
-         sed -e "s#ErrorLog .*#ErrorLog $logPath/error_log#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
-         cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+         sed -e "s#ErrorLog .*#ErrorLog $logPath/error_log#" $CONF > /tmp/httpd.$$
+         cp /tmp/httpd.$$ $CONF
          
-         sed -e "s#CustomLog .*#CustomLog $logPath/access_log common#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
-         cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+         sed -e "s#CustomLog .*#CustomLog $logPath/access_log common#" $CONF > /tmp/httpd.$$
+         cp /tmp/httpd.$$ $CONF
          
-         sed -e "s#PerlSetVar dispatch_to.*#PerlSetVar dispatch_to \"$ALIEN_ROOT/lib/perl5/site_perl/5.10.1 $httpdFormat \"#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf> /tmp/httpd.$$
-         cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+         sed -e "s#PerlSetVar dispatch_to.*#PerlSetVar dispatch_to \"$ALIEN_ROOT/lib/perl5/site_perl/5.10.1 $httpdFormat \"#" $CONF> /tmp/httpd.$$
+         cp /tmp/httpd.$$ $CONF
 
-         sed -e "s#PerlSwitches .*#PerlSwitches -I$ALIEN_ROOT/lib/perl5 -I$ALIEN_ROOT/lib/perl5/site_perl#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf> /tmp/httpd.$$
-         cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+         sed -e "s#PerlSwitches .*#PerlSwitches -I$ALIEN_ROOT/lib/perl5 -I$ALIEN_ROOT/lib/perl5/site_perl#" $CONF> /tmp/httpd.$$
+         cp /tmp/httpd.$$ $CONF
          
          sed -e "s#my @services=.*#my @services=qw( $startupFormat ) ;#" $ALIEN_HOME/httpd/conf."$portNum"/startup.pl > /tmp/startup.$$
          cp /tmp/startup.$$ $ALIEN_HOME/httpd/conf."$portNum"/startup.pl
          
            
-         sed -e "s%\(DocumentRoot .*\)%\#\\1%" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
-         cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+         sed -e "s%\(DocumentRoot .*\)%\#\\1%" $CONF > /tmp/httpd.$$
+         cp /tmp/httpd.$$ $CONF
          
-         sed -e "s%SSLSessionCache.*%SSLSessionCache dbm:$logPath/ssl_gcache_data %"  $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
-         cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+         sed -e "s%SSLSessionCache.*%SSLSessionCache dbm:$logPath/ssl_gcache_data %"  $CONF > /tmp/httpd.$$
+         cp /tmp/httpd.$$ $CONF
          
          if [ $tmpN == "JobBroker" ] || [ $tmpN == "Broker" ]
          then
@@ -489,7 +502,7 @@ export ALIEN_HOME=$HOME/.alien
 
 		fi
         
-        if [ -f $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf ] && [ -f $ALIEN_HOME/httpd/conf."$portNum"/startup.pl ]
+        if [ -f $CONF ] && [ -f $ALIEN_HOME/httpd/conf."$portNum"/startup.pl ]
         then
               ALIEN_HttpdStart $tmpN $portNum
 
@@ -508,15 +521,15 @@ export ALIEN_HOME=$HOME/.alien
 ALIEN_HttpdSoapTypeConfig()
 ###########################################################################
 {
-  export ALIEN_HOME=$HOME/.alien
-  tmpN=$1
-  httpdFormat=$2
-  hostAddress=$3
+export ALIEN_HOME=$HOME/.alien
+        tmpN=$1
+        httpdFormat=$2
+        hostAddress=$3
         
-  startupFormat=`echo $httpdFormat | sed 's/AliEn::Service:://'`
+        startupFormat=`echo $httpdFormat | sed 's/AliEn::Service:://'`
     #    echo "tmpname is $tmpN, httpd format is $httpdFormat,startFormat is $startupFormat"
         
-  portNum=`echo ${hostAddress##*:}`
+        portNum=`echo ${hostAddress##*:}`
         if [ $tmpN == "Authen" ]
            then
              portNum=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl AUTH_PORT 2> /dev/null`
@@ -537,51 +550,50 @@ ALIEN_HttpdSoapTypeConfig()
         
         logPath=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl LOG_DIR 2> /dev/null`
       #  echo $logPath
-        
-        if [ ! -d $ALIEN_HOME/httpd/conf."$portNum" ] || [ ! -f $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf ] || [ ! -f $ALIEN_HOME/httpd/conf."$portNum"/startup.pl ]
+        CONF="$ALIEN_HOME/httpd/conf.$portNum/httpd.conf.$hostAddress"
+         if [ ! -d $ALIEN_HOME/httpd/conf."$portNum" ] || [ ! -f $CONF ] || [ ! -f $ALIEN_HOME/httpd/conf."$portNum"/startup.pl ]
         then
-  
-               if [ -d $ALIEN_HOME/httpd/conf."$portNum" ]
+               if [ -f $CONF ]
                then
-                        rm -rf $ALIEN_HOME/httpd/conf."$portNum"
+                        rm -f $CONF
                fi
          mkdir -p ${ALIEN_HOME}/httpd/conf."$portNum"/
-         cp $ALIEN_ROOT/httpd/conf/httpd.conf $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+         cp $ALIEN_ROOT/httpd/conf/httpd.conf  $CONF
          cp $ALIEN_ROOT/httpd/conf/startup.pl $ALIEN_HOME/httpd/conf."$portNum"/startup.pl
         
-         sed -e "s#ServerRoot .*#ServerRoot $ALIEN_ROOT/httpd#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
-         cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+         sed -e "s#ServerRoot .*#ServerRoot $ALIEN_ROOT/httpd#" $CONF > /tmp/httpd.$$
+         cp /tmp/httpd.$$ $CONF
 
-         sed -e "s#PerlConfigRequire .*#PerlConfigRequire $ALIEN_HOME/httpd/conf."$portNum"/startup.pl#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
-         cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+         sed -e "s#PerlConfigRequire .*#PerlConfigRequire $ALIEN_HOME/httpd/conf."$portNum"/startup.pl#" $CONF > /tmp/httpd.$$
+         cp /tmp/httpd.$$ $CONF
 
-         sed -e "s#Listen .*#Listen $portNum#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
-         cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+         sed -e "s#Listen .*#Listen $portNum#" $CONF > /tmp/httpd.$$
+         cp /tmp/httpd.$$ $CONF
          
-         sed -e "s#PidFile .*#PidFile $logPath/httpd"$tmpN".pid#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
-         cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+         sed -e "s#PidFile .*#PidFile $logPath/httpd"$tmpN".pid#" $CONF > /tmp/httpd.$$
+         cp /tmp/httpd.$$ $CONF
          
-         sed -e "s#ErrorLog .*#ErrorLog $logPath/error_log#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
-         cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+         sed -e "s#ErrorLog .*#ErrorLog $logPath/error_log#" $CONF > /tmp/httpd.$$
+         cp /tmp/httpd.$$ $CONF
          
-         sed -e "s#CustomLog .*#CustomLog $logPath/access_log common#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
-         cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+         sed -e "s#CustomLog .*#CustomLog $logPath/access_log common#" $CONF > /tmp/httpd.$$
+         cp /tmp/httpd.$$ $CONF
          
-         sed -e "s#PerlSetVar dispatch_to.*#PerlSetVar dispatch_to \"$ALIEN_ROOT/lib/perl5/site_perl/5.10.1 $httpdFormat \"#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf> /tmp/httpd.$$
-         cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+         sed -e "s#PerlSetVar dispatch_to.*#PerlSetVar dispatch_to \"$ALIEN_ROOT/lib/perl5/site_perl/5.10.1 $httpdFormat \"#" $CONF> /tmp/httpd.$$
+         cp /tmp/httpd.$$ $CONF
                   
-         sed -e "s#PerlSwitches .*#PerlSwitches -I$ALIEN_ROOT/lib/perl5 -I$ALIEN_ROOT/lib/perl5/site_perl#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf> /tmp/httpd.$$
-         cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+         sed -e "s#PerlSwitches .*#PerlSwitches -I$ALIEN_ROOT/lib/perl5 -I$ALIEN_ROOT/lib/perl5/site_perl#" $CONF> /tmp/httpd.$$
+         cp /tmp/httpd.$$ $CONF
          
          sed -e "s#my @services=.*#my @services=qw( $startupFormat ) ;#" $ALIEN_HOME/httpd/conf."$portNum"/startup.pl > /tmp/startup.$$
          cp /tmp/startup.$$ $ALIEN_HOME/httpd/conf."$portNum"/startup.pl
          
          # to disble the mod_ssl function
-         sed -e "s%\(SSL.*\)%\#\\1%" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
-         cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+         sed -e "s%\(SSL.*\)%\#\\1%" $CONF > /tmp/httpd.$$
+         cp /tmp/httpd.$$ $CONF
          
-         sed -e "s%\(DocumentRoot .*\)%\#\\1%" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
-         cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+         sed -e "s%\(DocumentRoot .*\)%\#\\1%" $CONF > /tmp/httpd.$$
+         cp /tmp/httpd.$$ $CONF
          
          if [ $tmpN == "JobBroker" ] || [ $tmpN == "Broker" ]
          then
@@ -593,15 +605,15 @@ ALIEN_HttpdSoapTypeConfig()
           rm /tmp/httpd.$$
           rm /tmp/startup.$$
 
-   fi
-        
-   if [ -f $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf ] && [ -f $ALIEN_HOME/httpd/conf."$portNum"/startup.pl ]
-     then
-       ALIEN_HttpdStart $tmpN $portNum
-   else
-       echo "$ALIEN_HOME/httpd/conf.$portNum/ don't have httpd.conf and startup.pl"
-       exit 1
-   fi            
+		fi
+        if [ -f $CONF ] && [ -f $ALIEN_HOME/httpd/conf."$portNum"/startup.pl ]
+        then
+              ALIEN_HttpdStart $tmpN $portNum $hostAddress
+
+        else
+              echo "$ALIEN_HOME/httpd/conf.$portNum/ don't have httpd.conf and startup.pl"
+              exit 1
+         fi            
 
 }                                                         
                                                     
@@ -655,9 +667,8 @@ ALIEN_IsHttps ( )
     #echo $hostName
    	if [[ $hostName == https* ]]
           	  then
-          	 		 echo "$serviceName  wants to be started as a https "
-          	 	 	 ALIEN_HttpsConfig $serviceName $packageName $hostName 
-             		 exit 0
+ 	 ALIEN_HttpsConfig $serviceName $packageName $hostName 
+         exit 0
               elif [[ $HttpdType == "httpd" ]]
               then
                      echo "$serviceName  wants to be started as a http (soapType is httpd)"  
@@ -683,24 +694,28 @@ ALIEN_IsHttps ( )
  
    [ $serviceName == "ClusterMonitor" ] && configName="CLUSTERMONITOR_ADDRESS" && packageName="AliEn::Service::ClusterMonitor" && soapName="CLUSTERMONIT     OR_SOAPTYPE"
     
-   hostName=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl $configName 2> /dev/null `
-   HttpdType=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl $soapName 2> /dev/null `
+     #hostName=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl $configName 2> /dev/null `
+     hostName=`alien -exec echo HOST 2>&1 | awk -F \' {'print $2'}`
+     HttpdType=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl $soapName 2> /dev/null `
  
-   if [[ $hostName == https* ]]
-    then
-       echo "$serviceName  wants to be started as a https "
-       ALIEN_HttpsConfig $serviceName $hostName $packageName
-       exit 0
-   elif [[ $HttpdType == "soap" ]]
-    then
-       echo "$serviceName  wants to be started with SOAP::Lite "
-       return 0
-   else
-       echo "$serviceName  wants to be started as a http (soapType is httpd)"  
-       echo "serviceName is $serviceName, packageName is $packageName, hostname is $hostName"
-       ALIEN_HttpdSoapTypeConfig $serviceName $packageName $hostName
-       exit 0
-   fi
+     #echo $serviceName
+     #echo $hostName
+         if [[ $hostName == https* ]]
+                   then
+                                  echo "$serviceName  wants to be started as a https "
+                                  ALIEN_HttpsConfig $serviceName $hostName $packageName
+                          exit 0
+               elif [[ $HttpdType == "soap" ]]
+               then
+                      echo "$serviceName  wants to be started with SOAP::Lite "
+                      return 0
+               else
+ 
+                      echo "$serviceName  wants to be started as a http (soapType is httpd)"  
+                      echo "serviceName is $serviceName, packageName is $packageName, hostname is $hostName"
+                      ALIEN_HttpdSoapTypeConfig $serviceName $packageName $hostName
+                      exit 0
+        fi
  
      return 0 
 }
