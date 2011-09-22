@@ -41,14 +41,12 @@ sub initialize {
   $self->{SOAP_SERVER} or $self->{SOAP_SERVER} = "PackMan";
   
   $self->debug(1, "We will talk to the $self->{SOAP_SERVER}");
-  $self->{INSTALLDIR}=$self->{CONFIG}->{PACKMAN_INSTALLDIR};
-  if (! -d $self->{INSTALLDIR}) {
-    mkdir $self->{INSTALLDIR};
-    if (! -d $self->{INSTALLDIR}){
-      $self->{INSTALLDIR}="$ENV{ALIEN_HOME}/packages"; 
-      -d $self->{INSTALLDIR} or mkdir $self->{INSTALLDIR};
-      -d $self->{INSTALLDIR} or return;
-    }
+  $self->{INSTALLDIR}=$self->{CONFIG}->{PACKMAN_INSTALLDIR} || "$ENV{ALIEN_HOME}/packages";
+   -d $self->{INSTALLDIR} or mkdir $self->{INSTALLDIR};
+  if (not -d $self->{INSTALLDIR})  {
+    $self->{INSTALLDIR}="$ENV{ALIEN_HOME}/packages"; 
+    -d $self->{INSTALLDIR} or mkdir $self->{INSTALLDIR};
+    -d $self->{INSTALLDIR} or return;
   }
   return $self;
 }
