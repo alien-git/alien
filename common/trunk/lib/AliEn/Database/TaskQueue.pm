@@ -199,10 +199,11 @@ sub initialize {
         counter      => "int(11)   default 0 not null ",
         priority     => "int(11)",
         ttl          => "int(11)",
-        site         => "varchar(255) COLLATE latin1_general_ci",
+        site         => "varchar(50) COLLATE latin1_general_ci",
         packages     => "varchar(255) COLLATE latin1_general_ci",
         disk         => "int(11)",
-        partition    => "varchar(255) COLLATE latin1_general_ci",
+        partition    => "varchar(50) COLLATE latin1_general_ci",
+        ce           => "varchar(50) COLLATE latin1_general_ci",
         user         => "varchar(12)",
       },
       id          => "entryId",
@@ -1369,16 +1370,14 @@ sub extractFieldsFromReq {
   my $params= {counter=> 1, ttl=>84000, disk=>0, packages=>'%', partition=>'%'};
 
   my $site = "";
-  my $temp = $text;
-  while ($temp =~ s/member\(other.CloseSE,"[^:]*::([^:]*)::[^:]*"\)//si) {
+  while ($text =~ s/member\(other.CloseSE,"[^:]*::([^:]*)::[^:]*"\)//si) {
     $site =~ /,$1/ or $site .= ",$1";
   }
   $site and $site .= ",";
   $params->{site} = $site;
   
-  $temp=$text;
   my @packages;
-  while ($temp =~ s/member\(other.Packages,"([^"]*)"\)//si ) {
+  while ($text =~ s/member\(other.Packages,"([^"]*)"\)//si ) {
     grep /^$1$/, @packages or 
       push @packages, $1;
   }
@@ -1387,12 +1386,13 @@ sub extractFieldsFromReq {
     $params->{packages}= '%,' . join (',%,', sort @packages) .',%';
   }
   
-  $text =~ /other.TTL\s*>\s*(\d+)/i and $params->{ttl} = $1;
-  $text =~ /\suser\s*=\s*"([^"]*)"/i and $params->{user} = $1;
-  $text =~ /other.LocalDiskSpace\s*>\s*(\d*)/ and $params->{disk}=$1; 
-  $text =~ /other.GridPartitions,"([^"]*)"/i and $params->{partition}=$1; 
-  
-  $self->info("The ttl is $params->{ttl} and the site is in fact '$site'");
+  $text =~ s/other.TTL\s*>\s*(\d+)//i and $params->{ttl} = $1;
+  $text =~ s/\suser\s*=\s*"([^"]*)"//i and $params->{user} = $1;
+  $text =~ s/other.LocalDiskSpace\s*>\s*(\d*)// and $params->{disk}=$1; 
+  $text =~ s/other.GridPartitions,"([^"]*)"//i and $params->{partition}=$1; 
+  $text =~ s/other.ce\s*==\s*"([^"]*)"//i and $params->{ce}=$1;
+ 
+  $self->info("The ttl is $params->{ttl} and the site is in fact '$site'. Left  '$text' ");
   return $params;
 }
 sub insertJobAgent {
@@ -1409,16 +1409,16 @@ sub insertJobAgent {
   my @bind=();
 
   foreach my $key (keys %$params) {
-  	$key eq "counter" and next;
-  	$req .= " and $key = ?"; 
-  	push @bind, $params->{$key};  	
+    $key eq "counter" and next;
+    $req .= " and $key = ?"; 
+    push @bind, $params->{$key};  	
   }
   
   my $id = $self->queryValue("SELECT entryId from JOBAGENT where $req", undef, {bind_values => [@bind]});
   
   if (!$id) {
-  	use Data::Dumper;
-  	$self->info("We don't have anything that matches". Dumper($req, @bind));
+    use Data::Dumper;
+    $self->info("We don't have anything that matches". Dumper($req, @bind));
     if (!$self->insert("JOBAGENT", $params )) {
       $self->info("Error inserting the new jobagent");
       return;
@@ -1492,6 +1492,7 @@ sub getNumberWaitingForSite{
   $options->{site} and $where.="and (site='' or site like concat('%,',?,',%') )" and push @bind, $options->{site};   
   defined $options->{packages} and $where .="and ? like packages " and push @bind, $options->{packages};
   $options->{partition} and $where .="and ? like partition " and push @bind, $options->{partition};
+  $options->{ce} and $where.=" and (ce is null or ce=?)" and push @bind,$options->{ce};
   $options->{returnPackages} and $return="packages";
   $options->{returnId} and $return="entryId";
   
@@ -1502,9 +1503,11 @@ sub getNumberWaitingForSite{
 sub getWaitingJobForAgentId{ 
   my $self=shift;
   my $agentid=shift;
+  my $exechost=shift || "no_user\@no_site";
   $self->info("Getting a waiting job for $agentid");
 
-  my $done=$self->do("UPDATE QUEUE set status='ASSIGNED' where status='WAITING' and \@assigned_job:=queueid limit 1");
+  my $done=$self->do("UPDATE QUEUE set status='ASSIGNED',exechost=? where status='WAITING' and \@assigned_job:=queueid limit 1",
+                     {bind_values=>[$exechost]});
   
   if ($done>0){
   	$self->info("There is a job!");

@@ -41,7 +41,15 @@ sub initialize {
   $self->{SOAP_SERVER} or $self->{SOAP_SERVER} = "PackMan";
   
   $self->debug(1, "We will talk to the $self->{SOAP_SERVER}");
-  
+  $self->{INSTALLDIR}=$self->{CONFIG}->{PACKMAN_INSTALLDIR};
+  if (! -d $self->{INSTALLDIR}) {
+    mkdir $self->{INSTALLDIR};
+    if (! -d $self->{INSTALLDIR}){
+      $self->{INSTALLDIR}="$ENV{ALIEN_HOME}/packages"; 
+      -d $self->{INSTALLDIR} or mkdir $self->{INSTALLDIR};
+      -d $self->{INSTALLDIR} or return;
+    }
+  }
   return $self;
 }
 
@@ -56,8 +64,7 @@ sub getListInstalledPackages_ {
   $self->info("Checking the packages that we have installed locally");
   my @allPackages=();
   eval {
-    my $dir = "$ENV{'ALIEN_HOME'}/packages";
-    $self->{CONFIG}->{PACKMAN_INSTALLDIR}  and $dir="$self->{CONFIG}->{PACKMAN_INSTALLDIR}";
+    my $dir = $self->{INSTALLDIR};
     $self->debug(1, "Checking $dir");
     foreach my $user ($self->getSubDir($dir)) {
       $self->debug(1, "Checking $dir/$user");
@@ -203,8 +210,7 @@ sub readPackagesFromFile {
   my $file = shift;
   
 
-  my $dir = ($self->{CONFIG}->{PACKMAN_INSTALLDIR} || '$ALIEN_HOME/packages');
-  $dir =~ s{\$([^/]*)}{$ENV{$1}}g;
+  my $dir = $self->{INSTALLDIR} ;
   
   $file = "$dir/$file";
 
@@ -407,7 +413,7 @@ sub f_packman {
   } elsif ($operation =~ /^recompute?$/) {
     $soapCall = "recomputeListPackages";
     $self->info("And deleting any local caches");
-    my $dir = ($self->{CONFIG}->{PACKMAN_INSTALLDIR} || '$ALIEN_HOME/packages');
+    my $dir = $self->{INSTALLDIR};
     
     system("rm -f $dir/alien_list_*");
   } elsif ($operation =~ /^synchronize$/) {

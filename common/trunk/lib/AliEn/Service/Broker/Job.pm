@@ -85,7 +85,7 @@ sub getJobAgent {
       return {execute=> [-3, split(",",$packages )]};
     }
   }
-  my ($queueid, $jdl)=$self->{DB}->getWaitingJobForAgentId($agentid);
+  my ($queueid, $jdl)=$self->{DB}->getWaitingJobForAgentId($agentid, "alien_user\@$queueName");
   $queueid or $self->info("There were no jobs waiting for agentid!") and return {execute=> [-2, "No jobs waiting in the queue"]};
   
   $self->putlog($queueid,"state","Job state transition from WAITING to ASSIGNED ");
@@ -204,6 +204,7 @@ sub extractClassadParams{
   $params->{packages}=",". join(",", sort @pack ) .",";
   ($ok, @pack)=$classad->evaluateAttributeVectorString("Partition");
   $params->{partition}=",". join(",", sort @pack ) .",";
+  $params->{ce}=$queueName;
 
   return ($queueName, $params);
 }
