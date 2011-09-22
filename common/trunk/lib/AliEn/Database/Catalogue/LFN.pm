@@ -1454,6 +1454,8 @@ sub moveLFNs {
     $self->do("update $toTable set replicated=0 where replicated=1 and lfn=?", {bind_values => [$newLfn]});
     $self->do("update $toTable set dir=? where dir=?", {bind_values => [ $newDir, $oldDir ]});
     $self->do("drop table $fromTable");
+    $self->do("drop table ${fromTable}_QUOTA");
+    $self->do("drop table ${fromTable}_broken");
   } else {
     if (!$self->insertInIndex($toTable, $lfn)) {
       $self->delete($toTable, "lfn like '${tempLfn}%'");

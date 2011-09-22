@@ -826,18 +826,20 @@ sub f_du {
 
 
 sub f_di_HELP {
-  return "Gives the number of entries in the Catalogue tables i.e. L#L, G#L, G#L_PFN tables and optimizes them
+  return "\nGives the number of entries in the Catalogue tables i.e. L#L, G#L, G#L_PFN tables and optimizes them
 Usage:
 \tdi <options_1> <max_lim> <min_lim> <dir>
 \tdi <options_2>  
 
 Options:
-\t\t
+\t
+\tOnly 'admin' is allowed to excecute di with optimize as it changes the structure of the database ie. <options_1> 
 \t\toptimize: Optimizes the the L#L LFN tables wrt number of entries in the table (all the L#L tables)
 \t\toptimize_dir: Optimizes the the L#L LFN tables wrt number of entries in the table in the path specified (current directory by default)
 \t\toptimize_guid: Optimizes the G#L and corresponding G#L_PFN tables wrt number of entries in the table 
 \t\tmax_lim: Maximum limit of number of entries to be present in a table
 \t\tmin_lim: Maximum limit of number of entries to be present in a table
+\t
 \t\toptions_2: l  => L#L,
 \t\toptions_2: g  => G#L,
 \t\toptions_2: gp => G#L_PFN,
@@ -847,14 +849,12 @@ Options:
 sub f_di {
   my $self    = shift;
   my $options = shift;
-# $self->moveDirectory("ZX","-b");
-# my $c = $self->{DATABASE}->query("SELECT * FROM G0L");
-# foreach my $row(@$c) {
-#       $self->info("====>>>> $row->{owner}");
-#       #map { $self->info("$_ ====>>>> $row->{$_}") } keys %$row;
-# }
-# return 1;
   if ($options eq "optimize") {
+      
+      if ($self->{ROLE} !~ /^admin(ssl)?$/) {
+        $self->info("Error: only the administrator can add new table (you are '$self->{ROLE}')");
+        return;
+      }
       my $max_lim = shift;
       my $min_lim = shift;
       $self->info("Trying to optimiz...");
@@ -937,7 +937,9 @@ sub f_di {
             }
             else
             {
+              $self->{LOGGER}->silentOn();
               $self->moveDirectory($q,"-b");
+              $self->{LOGGER}->silentOff();
               $self->info("Dir moved back :: $q ");
             }
            }
@@ -948,6 +950,10 @@ sub f_di {
   }
   elsif ($options eq "optimize_dir") {
       #optimizes the directory specified otherwise the current directory
+      if ($self->{ROLE} !~ /^admin(ssl)?$/) {
+        $self->info("Error: only the administrator can add new table (you are '$self->{ROLE}')");
+        return;
+      }
       my $max_lim = shift;
       my $min_lim = shift;
       my $path    = $self->GetAbsolutePath(shift);
@@ -1034,7 +1040,9 @@ sub f_di {
             }
             else
             {
+              $self->{LOGGER}->silentOn();
               $self->moveDirectory($q,"-b");
+              $self->{LOGGER}->silentOff();
               $self->info("Dir moved back :: $q ");
             }
            }
@@ -1044,6 +1052,10 @@ sub f_di {
       #return @LFN;
   }
   elsif ($options eq "optimize_guid") {
+      if ($self->{ROLE} !~ /^admin(ssl)?$/) {
+        $self->info("Error: only the administrator can add new table (you are '$self->{ROLE}')");
+        return;
+      }
       my $max_lim = shift;
       my $min_lim = shift;
       $self->info("Optimization of GUID tables.");
@@ -1051,14 +1063,12 @@ sub f_di {
       $self->info("minLim:: $min_lim");
       my $change=1;
       my $count=0;
-      my $brk=0;
       my (@G) = $self->{DATABASE}->getNumEntryGUIDINDEX();
       while($change==1)
       {
         my $done = $self->{DATABASE}->optimizeGUIDtables($max_lim, $min_lim);
         $done or return;
         $change=0;
-        $brk=0;
         $count++;
         my (@G1) = $self->{DATABASE}->getNumEntryGUIDINDEX();
         if(@G==@G1)
@@ -1066,41 +1076,59 @@ sub f_di {
          my $num_tables = @G/2;
          for(my $it=0; $it<$num_tables; $it++)
          {
-              #if($G[$it+$num_tables]>$max_lim or $G[$it+$num_tables]<$min_lim  )
-              #{  $change=1;}
               if($G[2*$it]!=$G1[2*$it] or $G[$it*2+1]!=$G1[$it*2+1] )
               {  $change=1;}
-              #{  $brk=1;}
          } 
         }
         else
         {
           $change=1;
-          #$brk=1;
         }
         @G=@G1;
-        #if($brk==0)
-        #{return 1;} 
       }
       $self->info($count );
       return 1;
   }
   elsif ($options eq "l") {
     my (@LFN) = $self->{DATABASE}->getNumEntryIndexes();
+    my $lfns = $self->{DATABASE}->queryColumn("SELECT lfn from INDEXTABLE order by tableName");
     my $num_tables = @LFN/2;
+    my $totalEntries = 0;
+    my $printout =
+      sprintf "\n-------------------------------------------------------------------------------------------------\n";
+    $printout .= sprintf "            %7s    %7s    %55s\n", "tableName", "nEntries", "lfn";
+    $printout .= sprintf "-------------------------------------------------------------------------------------------------\n";
     for (my $i=0; $i<$num_tables; $i++)
     {
-      $self->info("L$LFN[$i]L has $LFN[$i+$num_tables] number of entries.");
+      $totalEntries=$totalEntries+ $LFN[$i+$num_tables];
+      $printout .= sprintf "            %7s     %7s           %55s\n", "L$LFN[$i]L", $LFN[$i+$num_tables] , $lfns->[$i];
     }
-    return @LFN;
+    $printout .= sprintf "-------------------------------------------------------------------------------------------------\n";
+    $printout .= sprintf "            %7s     %7s   \n", "Total No of Entries", $totalEntries;
+    $printout .= sprintf "-------------------------------------------------------------------------------------------------\n";
+    $self->info($printout);
+
+    return @LFN;  
   }
   elsif ($options eq "g") {
     my (@G) = $self->{DATABASE}->getNumEntryGUIDINDEX();
     my $num_tables = @G/2;
+    my $guidT = $self->{DATABASE}->queryColumn("SELECT guidTime from GUIDINDEX order by tableName");
+    my $totalEntries = 0;
+    my $printout =
+      sprintf "\n-------------------------------------------------------------------------------------------------\n";
+    $printout .= sprintf "            %7s    %7s    %25s\n", "tableName", "nEntries", "guidTime";
+    $printout .= sprintf "-------------------------------------------------------------------------------------------------\n";
     for (my $i=0; $i<$num_tables; $i++)
     {
-      $self->info("G$G[$i]L has $G[$i+$num_tables] number of entries.");
+      $totalEntries=$totalEntries+ $G[$i+$num_tables];
+      $printout .= sprintf "            %7s     %7s           %25s\n", "G$G[$i]L", $G[$i+$num_tables] , $guidT->[$i];
     }
+    $printout .= sprintf "-------------------------------------------------------------------------------------------------\n";
+    $printout .= sprintf "            %7s     %7s   \n", "Total No of Entries", $totalEntries;
+    $printout .= sprintf "-------------------------------------------------------------------------------------------------\n";
+    $self->info($printout);
+  
     return @G;
   }
   elsif ($options eq "gp") {
@@ -1112,6 +1140,11 @@ sub f_di {
     }
     return @G;
   }
+  else {
+    #$self->info("Error:: Please try again with appropriate parameters.");
+    $self->info($self->f_di_HELP());
+  }
+
 }
 
 sub f_populate_HELP {

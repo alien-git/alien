@@ -555,7 +555,7 @@ sub optimizeGUIDtables {
     my $done = 0;
     while ($number > $max_lim) {
       $self->info("There are more than $max_lim ($number) ! Splitting the table");
-      my $guid =  $self->queryRow("select guidid, binary2string(guid) guid from $table order by 1 desc limit 1 offset $max_lim");
+      my $guid =  $self->queryRow("select binary2date(guid) guidD, binary2string(guid) guid from $table order by 1 desc limit 1 offset $max_lim");
       #my $guid =  $self->queryRow("select guidid, binary2string(guid) guid from $table order by 2 desc limit 1 offset $max_lim");
       $guid->{guid} or next;
       $self->info("We have to split according to $guid->{guid}");
@@ -570,6 +570,9 @@ sub optimizeGUIDtables {
       $self->optimizeGUIDtables_removeTable($info, $table,$max_lim,$min_lim,$number);
     }
   }
+  
+  $self->info("Finally updating the GUIDINDEX");
+  $self->updateGUIDINDEX() or $self->info("Error: Updating the GUIDINDEX guidTime attribute");# and return;
   return 1;
 }
 

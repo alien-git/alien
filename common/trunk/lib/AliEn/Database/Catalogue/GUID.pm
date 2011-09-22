@@ -689,7 +689,6 @@ sub moveGUIDs {
   $DEBUG and $self->debug(1, "Starting  moveGUIDs, with $guid ");
 
   #my $table = $self->getIndexTableFromGUID($guid) or return;
-  
 
   #Create the new guid table
   my $tableName = $self->queryValue("SELECT max(tableName)+1 from GUIDINDEX");
@@ -942,5 +941,24 @@ sub getAllGUIDTables {
 
   return $result;
 }
+
+=item C<updateGUIDINDEX()>
+
+This function checks if the guidTime of a particular tableName is minimum of that particular table G#L 
+If not it updates it.
+
+=cut
+
+sub updateGUIDINDEX {
+  my $self    = shift;
+  my $tables = $self->query("SELECT tableName, guidTime from GUIDINDEX", undef, undef);
+  foreach my $info (@$tables) {
+    my $table = "G$info->{tableName}L";
+    my $number = $self->queryValue("select MIN(binary2date(guid)) from $table");
+    my $done = $self->do("UPDATE GUIDINDEX set guidTime=\"$number\" where tableName=$info->{tableName} AND guidTime NOT LIKE \"\"") or return;
+  }
+  return 1;
+}
+
 
 1;

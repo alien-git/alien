@@ -994,7 +994,7 @@ sub physicalDeleteEntries {
       }
     }
     if (!$pD) {
-      $self->info("The file ouldn't be deleted");
+      $self->info("The file couldn't be deleted");
       $db->do("insert into DELETE_FAILED (pfn) values (?)", {bind_values => [$pfn]});
     }
   }
@@ -1031,13 +1031,17 @@ sub cleanupGUIDCatalogue {
       );
       $ref and @pfns = @$ref;
 
-      $guiddb->do("delete from  ${table}_PFN where guidid in (select guidid from  $table where guid=?)",
+      $self->info("Removing expired entries from $table _PFN");
+      $self->info($file->{guid});
+      $guiddb->do("delete from  ${table}_PFN where guidid in (select guidid from  $table where guid=string2binary(?))",
         {bind_values => [ $file->{guid} ]});
-      $guiddb->do("delete from $table  where guid=?", {bind_values => [ $file->{guid} ]});
+      $self->info("Removing expired entries from $table ");
+      $guiddb->do("delete from $table  where guid=string2binary(?)", {bind_values => [ $file->{guid} ]});
 
     } else {
       #Just delete the entry...
       @pfns = {pfn => $file->{pfn}, senumber => $file->{senumber}};
+      $self->info("Just delete the entry...");
       $guiddb->do(
         "delete from g using $table join ${table}_PFN g using (guidid ) where guid=string2binary(?) and pfn=?",
         {bind_values => [ $file->{guid}, $file->{pfn} ]});
