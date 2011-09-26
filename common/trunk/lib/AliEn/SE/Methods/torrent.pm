@@ -36,7 +36,7 @@ sub get {
   }
   $self->info("Getting the file $link, using the IP $IP");
   
-  my $args="-V --bt-external-ip=$IP --follow-torrent=mem --timeout=300 --bt-stop-timeout=300 --file-allocation=none --no-conf";
+  my $args="-V --bt-external-ip=$IP --follow-torrent=mem --timeout=300 --bt-stop-timeout=300 --file-allocation=none --no-conf --enable-dht=true --bt-request-peer-speed-limit=1M --bt-max-peers=100 --bt-enable-lpd=true";
 
   open (CMD, "aria2c $args --seed-time=0 $link -d $self->{LOCALFILE}_dir|") or
     $self->info("Error getting the torrent file!!")  and return;
