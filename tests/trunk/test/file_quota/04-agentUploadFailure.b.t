@@ -14,7 +14,8 @@ my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", $user});
 my ($log)=$cat->execute("ps", "trace", $id1);
 my $found=0;
 foreach my $entry (@$log){
-	if ($entry->{trace}=~ /THERE WAS AT LEAST ONE FILE, THAT WE COULDN'T STORE ON ANY SE/) {
+  #dushyant if ($entry->{trace}=~ /THERE WAS AT LEAST ONE FILE, THAT WE COULDN'T STORE ON ANY SE/) {
+  if ($entry->{trace}=~ /Job state transition to ERROR_SV/) {
 		$found=1;
 		last;
 	}

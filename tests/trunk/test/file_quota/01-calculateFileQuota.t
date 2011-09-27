@@ -34,7 +34,7 @@ my $d = AliEn::Database->new({DRIVER => "mysql", HOST => "$host:3307", DB => "al
   $cat->execute("cd") or exit(-2);
 
   cleanDir($cat, $pwd);
-  $cat_ad->execute("removeExpuiredFiles");
+  $cat_ad->execute("removeExpiredFiles");
   $cat->execute("mkdir", "-p", "dir1") or exit(-2);
 
   my $seName = "$cat->{CONFIG}->{SE_FULLNAME}2";
