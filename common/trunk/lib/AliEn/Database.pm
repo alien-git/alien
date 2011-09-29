@@ -915,7 +915,7 @@ sub _connect {
   while (1) {
     my $dsn = $self->getDatabaseDSN();
 
-    $self->{DRIVER} =~ /Oracle/i and $self->{DBI_OPTIONS}->{FetchHashKeyName} = "NAME_lc";
+    $self->{DRIVER} =~ /Oracle/i and $self->{DBI_OPTIONS}->{FetchHashKeyName} = "NAME_lc" and $self->{DBI_OPTIONS}->{LongReadLen}= 1024*1024;
 
     $self->{DBH} = DBI->connect($dsn, $self->{SCHEMA}, $pass, $self->{DBI_OPTIONS});
     $self->{DBH} and last;
