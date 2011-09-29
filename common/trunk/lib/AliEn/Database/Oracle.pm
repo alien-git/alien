@@ -755,8 +755,8 @@ sub getTypes {
   $self->{TYPES} = {
     'serial'    => 'number(19) ',
     'SERIAL'    => 'number(19) ',
-    'text'      => 'varchar2(1500)',
-    'TEXT'      => 'varchar2(1500)',
+    'text'      => 'varchar2(2000)',
+    'TEXT'      => 'varchar2(2000)',
     'char'      => 'varchar2',
     'CHAR'      => 'varchar2',
     'binary'    => 'varchar2',
