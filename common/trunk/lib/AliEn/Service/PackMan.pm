@@ -102,26 +102,28 @@ Returns a list of all the packages installed in the machine
 Each entry is in the format "<user>::<package>::<version>"
 
 =cut
-=start
-#sub getListInstalledPackages {
-#  shift;
 
-#  grep (/^-?-force$/, @_)
-#    and  AliEn::Util::deleteCache($self);
 
-#  $self->info( "$$ Giving back the list of packages that have been installed");
-#  my $cache=AliEn::Util::returnCacheValue($self, "installedPackages");
-#  if ($cache) {
-#    $self->info( "$$ $$ Returning the value from the cache (@$cache)");
-#    return (1, @$cache);
-#  }
+sub getListInstalledPackages {
+  shift;
 
-#  my ($status, @allPackages)=$self->{PACKMAN}->getListInstalledPackages();
-#  $self->info( "$$ Returning @allPackages");
-#  AliEn::Util::setCacheValue($self, "installedPackages", \@allPackages);
-#  return ($status, @allPackages);
-#}
-=cut
+  grep (/^-?-force$/, @_)
+    and  AliEn::Util::deleteCache($self);
+
+  $self->info( "$$ Giving back the list of packages that have been installed");
+  my $cache=AliEn::Util::returnCacheValue($self, "installedPackages");
+  if ($cache) {
+    $self->info( "$$ $$ Returning the value from the cache (@$cache)");
+    return (1, @$cache);
+  }
+
+  my ($status, @allPackages)=$self->{PACKMAN}->getListInstalledPackages();
+  $self->info( "$$ Returning @allPackages");
+  AliEn::Util::setCacheValue($self, "installedPackages", \@allPackages);
+  return ($status, @allPackages);
+}
+
+
 =item C<testPackage($user,$package,$version)>
 
 Checks if a package is installed, and the environment that it would produce.
