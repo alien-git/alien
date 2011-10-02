@@ -952,7 +952,7 @@ return VARCHAR2
 deterministic 
 AUTHID current_user
 is  
-my_guid varchar2(36):= rtrim(concat(UTL_RAW.CAST_TO_RAW(my_uuid),''));
+my_guid varchar2(36):= substr(rtrim(concat(UTL_RAW.CAST_TO_RAW(my_uuid),'')),1,36);
 
 begin
 return 
