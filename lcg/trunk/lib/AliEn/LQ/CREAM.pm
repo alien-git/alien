@@ -140,9 +140,6 @@ sub submit {
      $self->info("No more slots in the queues?");
      return;
   }
-  print "********************************************************************\n";
-  print Dumper  $self->{CE_CLUSTERSTATUS};
-  print "********************************************************************\n";
   push @args, ("-r", $theCE);
   push @args, ("-D", "$self->{CONFIG}->{DELEGATION_ID}");
 
