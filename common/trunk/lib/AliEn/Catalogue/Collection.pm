@@ -140,7 +140,15 @@ sub updateCollection {
   my $summary = {total => 0, collection => $coll};
   foreach my $file (@$info) {
     $summary->{total}++;
-    my ($info) = $self->f_whereis("slrgi", $file->{guid});
+    #my ($info) = $self->f_whereis("slrgi", $file->{guid});
+    my $info;
+    if( $self->{DATABASE}->{DRIVER}=~ /Oracle/i) {
+      my @info=$self->f_whereis("slrgi", $file->{guid});
+      $info = $info[0];
+    }else{
+      $info = $self->f_whereis("slrgi", $file->{guid});
+    }
+
     my @tempSe;
     map { push @tempSe, $_->{seName} } @{$info->{pfn}};
     $size += $info->{size};
