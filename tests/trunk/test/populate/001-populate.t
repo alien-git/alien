@@ -49,6 +49,7 @@ use AliEn::UI::Catalogue::LCM;
     ##########################################################################################
 		print "ok\n";
     ($done)=$cat->execute("rmdir", "-r", "myDir2");
+    ($done)=$cat->execute("rmdir", "-r", "myDir1");
     $done or print "Error removing the directory myDir2\n" and exit(-2);
 
 		$cat->close();

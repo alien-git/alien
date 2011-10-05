@@ -13,6 +13,11 @@ use AliEn::UI::Catalogue;
     $cat or exit(-2);
     my $done;
 
+
+    print "\n1. First things first .. Remove all expired entries from the G#L and G#L_PFN tables using removeExpiredFiles command\n ";
+    $done=$cat->execute("removeExpiredFiles");
+    $done or print "Error doing removeExpiredFiles\n" and exit(-2);
+    print "\n1. Done";
     ##########################################################################################
     print "\n2. Now, lets first check the status of the G#L tables using the di <g> command\n ";
     $done=$cat->execute("di","g");
@@ -27,6 +32,9 @@ use AliEn::UI::Catalogue;
     print "\n\tdi optimize_guid $max_lim $min_lim \n ";
     $done=$cat->execute("di","optimize_guid",$max_lim,$min_lim);
 #here the code for checking the tables will appear
+    my @done1=$cat->execute("di","g");
+    my @expected = ('22','196','200','200');
+    $done = checkINDEX($cat,\@done1,\@expected );
     $done or print "Error trying to optimize using the given parameters... :( :( \n" and exit(-2);
     ($done)=$cat->execute("silent", 0);
     print "\n3. Done";
@@ -38,11 +46,14 @@ use AliEn::UI::Catalogue;
     ##############################################################################################
     ($done)=$cat->execute("silent", 1);
     $max_lim=10000;
-    $min_lim=10000;
+    $min_lim=5000;
     print "\n5. Now, optimize the tables with different <max_lim> <min_lim> \n ";
     print "\n\tdi optimize_guid $max_lim $min_lim \n ";
     $done=$cat->execute("di","optimize_guid",$max_lim,$min_lim);
 #here the code for checking the tables will appear
+    @done1=$cat->execute("di","g");
+    @expected = ('22','596');
+    $done = checkINDEX($cat,\@done1,\@expected );
     $done or print "Error trying to optimize using the given parameters... :( :( \n" and exit(-2);
     ($done)=$cat->execute("silent", 0);
     print "\n5. Done";
@@ -59,6 +70,9 @@ use AliEn::UI::Catalogue;
     print "\n\tdi optimize_guid $max_lim $min_lim \n ";
     $done=$cat->execute("di","optimize_guid",$max_lim,$min_lim);
 #here the code for checking the tables will appear
+    @done1=$cat->execute("di","g");
+    @expected = {22,296,300};
+    $done = checkINDEX($cat,\@done1,\@expected );
     $done or print "Error trying to optimize using the given parameters... :( :( \n" and exit(-2);
     ($done)=$cat->execute("silent", 0);
     print "\n7. Done";
@@ -80,13 +94,14 @@ use AliEn::UI::Catalogue;
 
 sub checkINDEX {
   my $d     = shift;
-  my $user  = shift;
-  my $field = shift;
-  my $value = shift;
+  my $values1 = shift;
+  my @values = @$values1;
+  my $expected1 = shift;
+  my @expected = @$expected1;
 
-  my $result = 0;
-  $result = $d->queryValue("SELECT $field FROM FQUOTAS WHERE user='$user'");
-  (defined $result) or print "Error checking the $field of the user\n" and exit(-2);
-  ($result eq $value) or print "FAILED: $field expected:<$value> but was: $result\n";
-  return ($result eq $value);
+  for(my $i=0;$i<@values/2; $i++)
+  {
+    ($expected[$i] eq $values[$i+(@values/2)]) or print "FAILED\n" and return;
+  }
+  return 1;
 }

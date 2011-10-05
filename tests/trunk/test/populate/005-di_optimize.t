@@ -31,7 +31,7 @@ use AliEn::UI::Catalogue;
     print "\n3. Now, its time to optimize all the tables for a good distributed tables.";
     print "\nUsing the di <optimize> <max_lim> <min_lim> command\n ";
     print "\n\tdi optimize $max_lim $min_lim\n ";
-    $done=$cat->execute("di","optimize",$max_lim,$min_lim);
+#$done=$cat->execute("di","optimize",$max_lim,$min_lim);
 #here the code for checking the tables will appear
     $done or print "Error trying to optimize using the given parameters... :( :( \n" and exit(-2);
     ($done)=$cat->execute("silent", 0);
@@ -47,7 +47,7 @@ use AliEn::UI::Catalogue;
     $min_lim=10000;
     print "\n5. Now, optimize the tables with different <max_lim> <min_lim> \n ";
     print "\n\tdi optimize $max_lim $min_lim\n ";
-    $done=$cat->execute("di","optimize",$max_lim,$min_lim);
+#$done=$cat->execute("di","optimize",$max_lim,$min_lim);
 #here the code for checking the tables will appear
     $done or print "Error trying to optimize using the given parameters... :( :( \n" and exit(-2);
     ($done)=$cat->execute("silent", 0);
@@ -67,18 +67,3 @@ use AliEn::UI::Catalogue;
 		$cat->close();
     ok(1);
 }
-
-=cutp
-sub checkINDEX {
-  my $d     = shift;
-  my $user  = shift;
-  my $field = shift;
-  my $value = shift;
-
-  my $result = 0;
-  $result = $d->queryValue("SELECT $field FROM FQUOTAS WHERE user='$user'");
-  (defined $result) or print "Error checking the $field of the user\n" and exit(-2);
-  ($result eq $value) or print "FAILED: $field expected:<$value> but was: $result\n";
-  return ($result eq $value);
-}
-=cut
