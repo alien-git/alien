@@ -139,10 +139,9 @@ sub createIndexTable {
   $dbObj->do("DROP TABLE IF EXISTS INDEXTABLE");
   $dbObj->do("
     CREATE  TABLE IF NOT EXISTS INDEXTABLE (
-      `indexId` INT(11) NOT NULL AUTO_INCREMENT ,
       `lfn` VARCHAR(255) CHARACTER SET 'latin1' COLLATE 'latin1_general_cs' NULL DEFAULT NULL ,
-      `tableName` INT(11) NULL DEFAULT NULL ,
-  PRIMARY KEY (`indexId`) )
+      `tableName` INT(11) NOT NULL ,
+  PRIMARY KEY (`tableName`) )
   ENGINE = MyISAM
   AUTO_INCREMENT = 4
   DEFAULT CHARACTER SET = latin1
@@ -155,10 +154,9 @@ sub createGuidIndex {
   $dbObj->do("DROP TABLE IF EXISTS GUIDINDEX");
   $dbObj->do("
   CREATE  TABLE IF NOT EXISTS GUIDINDEX (
-    `indexId` INT(11) NOT NULL AUTO_INCREMENT ,
-    `tableName` INT(11) NULL DEFAULT NULL ,
+    `tableName` INT(11) NOT NULL ,
     `guidTime` VARCHAR(16) CHARACTER SET 'latin1' COLLATE 'latin1_general_cs' NULL DEFAULT '0' ,
-  PRIMARY KEY (`indexId`) )
+  PRIMARY KEY (`tableName`) )
   ENGINE = MyISAM
   AUTO_INCREMENT = 2
   DEFAULT CHARACTER SET = latin1
