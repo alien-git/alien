@@ -146,7 +146,7 @@ sub updateCollection {
       my @info=$self->f_whereis("slrgi", $file->{guid});
       $info = $info[0];
     }else{
-      $info = $self->f_whereis("slrgi", $file->{guid});
+      ($info) = $self->f_whereis("slrgi", $file->{guid});
     }
 
     my @tempSe;
