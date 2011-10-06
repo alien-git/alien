@@ -849,6 +849,8 @@ sub checkSEDescription {
 
   if (not $exists) {
     $self->info("We have to update the entry!!!");
+    $db->{DRIVER}=~/Oracle/i and $db->do("insert into SE  (sename,seminsize,setype,seqos) values (?,?,?,?)", {bind_values => [ $sename,$min_size, 
+$type, $qos]});
     $db->do(
 "update SE set seminsize=?, setype=?, seqos=?, seExclusiveWrite=?, seExclusiveRead=? , seVersion=? where sename=?",
       {bind_values => [ $min_size, $type, $qos, $seExclusiveWrite, $seExclusiveRead, $seVersion, $sename ]}
