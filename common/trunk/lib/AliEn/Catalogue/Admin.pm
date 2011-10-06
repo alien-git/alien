@@ -510,7 +510,12 @@ sub resyncLDAP {
           {bind_values => [ $user, $dn ]});
       }
       my $ssh = $entry->get_value('sshkey');
-      $addbh->do("update TOKENS set SSHkey=? where username=?", {bind_values => [ $ssh, $user ]});
+      # $addbh->do("update TOKENS set SSHkey=? where username=?", {bind_values => [ $ssh, $user ]});
+       if ($ssh){
+        $addbh->do("update TOKENS set SSHkey=? where username=?", {bind_values => [ $ssh, $user ]});
+      }else{
+        $addbh->do("update TOKENS set SSHkey=NULL  where username=?", {bind_values => [ $user ]});
+      }
 
     }
     $self->info("And now, the roles");
