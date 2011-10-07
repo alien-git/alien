@@ -276,6 +276,7 @@ sub getFieldFromJobToken {
   return $self->queryValue("SELECT $attr FROM jobToken WHERE jobId= ?", undef, {bind_values => [$id]});
 }
 
+
 sub getFieldsFromJobToken {
   my $self = shift;
   my $id   = shift
@@ -286,7 +287,6 @@ sub getFieldsFromJobToken {
   $self->debug(1, "In getFieldsFromJobToken fetching attributes $attr for job id $id from table jobToken");
   return $self->queryRow("SELECT $attr FROM jobToken WHERE jobId= ?", undef, {bind_values => [$id]});
 }
-
 sub setJobToken {
   my $self = shift;
   my $id   = shift

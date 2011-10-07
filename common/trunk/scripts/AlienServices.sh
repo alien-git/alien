@@ -379,16 +379,17 @@ ALIEN_HttpdStart()
   tmpN=$serviceName
   tmpName=$(echo $tmpN | tr [a-z] [A-Z])
  
-  CONF="$ALIEN_HOME/httpd/conf.$portNum/httpd.conf.$hostAddress" 
- if [ -f $CONF ]
-  then
-        $ALIEN_ROOT/httpd/bin/httpd -k start -f $CONF  # >/dev/null 2>&1 
-  else
+  CONF="$ALIEN_HOME/httpd/conf.$portNum/httpd.conf.$hostAddress"
+   
+  if [ -f $CONF ]
+    then
+        $ALIEN_ROOT/httpd/bin/httpd -k start -f $CONF 2>&1  | tee  $logDir/$serviceName.log   
+    else
       echo "THE FILE $CONF does not exist"
       exit -2
   fi
-   sleep 5
-
+  sleep 5
+  echo "Log file: $logDir/$serviceName.log"
   
   #   if [ -f $logDir/httpd"$serviceName".pid ]
   #   then
@@ -407,152 +408,72 @@ ALIEN_HttpdStart()
 }
 
       
+##########################################################################
+ALIEN_GetPortNumber()
+{
+  local  __resultvar=$1
+  local tmpN=$2
+  local hostAddress=$3
+  
 
+  local portNum2=`echo ${hostAddress##*:}`
+  if [ $tmpN == "Authen" ]
+     then
+      portNum2=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl AUTH_PORT 2> /dev/null`
+  elif [ $tmpN == "IS" ]
+     then
+      portNum2=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl IS_PORT 2> /dev/null`
+  elif [ $tmpN == "Logger" ]
+    then
+      portNum2=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl LOG_PORT 2> /dev/null`
+  elif [ $tmpN == "PackMan" ]
+    then
+      portNum2=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl PACKMAN_PORT 2> /dev/null`
+  elif [ $tmpN == "ClusterMonitor" ]
+    then
+      portNum2=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl CLUSTERMONITOR_PORT 2> /dev/null`
+  fi
+
+  eval $__resultvar=$portNum2
+  
+}
 ###########################################################################
 ALIEN_HttpsConfig()
 ###########################################################################
 {
-export ALIEN_HOME=$HOME/.alien
-        tmpN=$1
-        httpdFormat=$2
-        hostAddress=$3
+    
+    tmpN=$1
+    httpdFormat=$2
+    hostAddress=$3
         
         startupFormat=`echo $httpdFormat | sed 's/AliEn::Service:://'`
         
-        
-        portNum=`echo ${hostAddress##*:}`
-        if [ $tmpN == "Authen" ]
-           then
-             portNum=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl AUTH_PORT 2> /dev/null`
-        elif [ $tmpN == "IS" ]
-           then
-             portNum=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl IS_PORT 2> /dev/null`
-        elif [ $tmpN == "Logger" ]
-           then
-             portNum=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl LOG_PORT 2> /dev/null`
-        elif [ $tmpN == "PackMan" ]
-           then
-             portNum=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl PACKMAN_PORT 2> /dev/null`
-        elif [ $tmpN == "ClusterMonitor" ]
-           then
-             portNum=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl CLUSTERMONITOR_PORT 2> /dev/null`
-        fi
-       # echo $portNum
-        
+	ALIEN_GetPortNumber portNum $tpmN $hostAddress        
+		
+    ALIEN_CreateHTTPDConfiguration $portNum $hostAddress $startupFormat 1
         
         logPath=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl LOG_DIR 2> /dev/null`
      #   echo $logPath
-        
-        
-         if [ ! -d $ALIEN_HOME/httpd/conf."$portNum" ] || [ ! -f $CONF ] || [ ! -f $ALIEN_HOME/httpd/conf."$portNum"/startup.pl ]
-        then
-               if [ -d $ALIEN_HOME/httpd/conf."$portNum" ]
-               then
-                        rm -rf $ALIEN_RHOME/httpd/conf."$portNum"
-               fi
-         mkdir -p ${ALIEN_HOME}/httpd/conf."$portNum"/
-         cp $ALIEN_ROOT/httpd/conf/httpd.conf $CONF
-         cp $ALIEN_ROOT/httpd/conf/startup.pl $ALIEN_HOME/httpd/conf."$portNum"/startup.pl
-        
-         sed -e "s#ServerRoot .*#ServerRoot $ALIEN_ROOT/httpd#" $CONF > /tmp/httpd.$$
-         cp /tmp/httpd.$$ $CONF
-
-         sed -e "s#PerlConfigRequire .*#PerlConfigRequire $ALIEN_HOME/httpd/conf."$portNum"/startup.pl#" $CONF > /tmp/httpd.$$
-         cp /tmp/httpd.$$ $CONF
-
-         sed -e "s#Listen .*#Listen $portNum#" $CONF > /tmp/httpd.$$
-         cp /tmp/httpd.$$ $CONF
-         
-       #  sed -e "s#^PidFile .*#PidFile logs/httpd"$tmpN".pid#" $CONF > /tmp/httpd.$$
-       #  cp /tmp/httpd.$$ $CONF
-       
-         sed -e "s#PidFile .*#PidFile $logPath/httpd"$tmpN".pid#" $CONF > /tmp/httpd.$$
-         cp /tmp/httpd.$$ $CONF
-         
-         sed -e "s#ErrorLog .*#ErrorLog $logPath/error_log#" $CONF > /tmp/httpd.$$
-         cp /tmp/httpd.$$ $CONF
-         
-         sed -e "s#CustomLog .*#CustomLog $logPath/access_log common#" $CONF > /tmp/httpd.$$
-         cp /tmp/httpd.$$ $CONF
-         
-         sed -e "s#PerlSetVar dispatch_to.*#PerlSetVar dispatch_to \"$ALIEN_ROOT/lib/perl5/site_perl/5.10.1 $httpdFormat \"#" $CONF> /tmp/httpd.$$
-         cp /tmp/httpd.$$ $CONF
-
-         sed -e "s#PerlSwitches .*#PerlSwitches -I$ALIEN_ROOT/lib/perl5 -I$ALIEN_ROOT/lib/perl5/site_perl#" $CONF> /tmp/httpd.$$
-         cp /tmp/httpd.$$ $CONF
-         
-         sed -e "s#my @services=.*#my @services=qw( $startupFormat ) ;#" $ALIEN_HOME/httpd/conf."$portNum"/startup.pl > /tmp/startup.$$
-         cp /tmp/startup.$$ $ALIEN_HOME/httpd/conf."$portNum"/startup.pl
-         
-           
-         sed -e "s%\(DocumentRoot .*\)%\#\\1%" $CONF > /tmp/httpd.$$
-         cp /tmp/httpd.$$ $CONF
-         
-         sed -e "s%SSLSessionCache.*%SSLSessionCache dbm:$logPath/ssl_gcache_data %"  $CONF > /tmp/httpd.$$
-         cp /tmp/httpd.$$ $CONF
-         
-         if [ $tmpN == "JobBroker" ] || [ $tmpN == "Broker" ]
-         then
-         	sed -e "s#my @services=.*#my @services=qw( Broker::Job ) ;#" $ALIEN_HOME/httpd/conf."$portNum"/startup.pl > /tmp/startup.$$
-         	cp /tmp/startup.$$ $ALIEN_HOME/httpd/conf."$portNum"/startup.pl
-         fi
-         
-          rm /tmp/httpd.$$
-          rm /tmp/startup.$$
-
-		fi
-        
-        if [ -f $CONF ] && [ -f $ALIEN_HOME/httpd/conf."$portNum"/startup.pl ]
-        then
-              ALIEN_HttpdStart $tmpN $portNum
-
-        else
-              echo "$ALIEN_HOME/httpd/conf.$portNum/ don't have httpd.conf and startup.pl"
-              exit 1
-         fi     
-
-        
-
+     ALIEN_HttpdStart $tmpN $portNum
 }     
 
-
-
 ###########################################################################
-ALIEN_HttpdSoapTypeConfig()
+ALIEN_CreateHTTPDConfiguration()
 ###########################################################################
 {
-export ALIEN_HOME=$HOME/.alien
-        tmpN=$1
-        httpdFormat=$2
-        hostAddress=$3
-        
-        startupFormat=`echo $httpdFormat | sed 's/AliEn::Service:://'`
-    #    echo "tmpname is $tmpN, httpd format is $httpdFormat,startFormat is $startupFormat"
-        
-        portNum=`echo ${hostAddress##*:}`
-        if [ $tmpN == "Authen" ]
-           then
-             portNum=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl AUTH_PORT 2> /dev/null`
-        elif [ $tmpN == "IS" ]
-           then
-             portNum=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl IS_PORT 2> /dev/null`
-        elif [ $tmpN == "Logger" ]
-           then
-             portNum=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl LOG_PORT 2> /dev/null`
-        elif [ $tmpN == "PackMan" ]
-           then
-             portNum=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl PACKMAN_PORT 2> /dev/null`
-        elif [ $tmpN == "ClusterMonitor" ]
-           then
-             portNum=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl CLUSTERMONITOR_PORT 2> /dev/null`
-        fi
-       # echo $portNum
-        
-        logPath=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl LOG_DIR 2> /dev/null`
-      #  echo $logPath
-        CONF="$ALIEN_HOME/httpd/conf.$portNum/httpd.conf.$hostAddress"
-         if [ ! -d $ALIEN_HOME/httpd/conf."$portNum" ] || [ ! -f $CONF ] || [ ! -f $ALIEN_HOME/httpd/conf."$portNum"/startup.pl ]
-        then
+  local portNum=$1
+  local hostAddress=$2
+  local startupFormat=$3
+  local HTTPS=$4
+  
+  local CONF="$ALIEN_HOME/httpd/conf.$portNum/httpd.conf.$hostAddress"
+  
+  local logPath=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl LOG_DIR 2> /dev/null`
+  
+  export ALIEN_HOME=$HOME/.alien
+  
+  if [ ! -d $ALIEN_HOME/httpd/conf."$portNum" ] || [ ! -f $CONF ] || [ ! -f $ALIEN_HOME/httpd/conf."$portNum"/startup.pl ]
+   then
                if [ -f $CONF ]
                then
                         rm -f $CONF
@@ -588,9 +509,17 @@ export ALIEN_HOME=$HOME/.alien
          sed -e "s#my @services=.*#my @services=qw( $startupFormat ) ;#" $ALIEN_HOME/httpd/conf."$portNum"/startup.pl > /tmp/startup.$$
          cp /tmp/startup.$$ $ALIEN_HOME/httpd/conf."$portNum"/startup.pl
          
-         # to disble the mod_ssl function
-         sed -e "s%\(SSL.*\)%\#\\1%" $CONF > /tmp/httpd.$$
-         cp /tmp/httpd.$$ $CONF
+         if  [ "$SSL" == "1" ]
+         then
+            sed -e "s%SSLSessionCache.*%SSLSessionCache dbm:$logPath/ssl_gcache_data %"  $CONF > /tmp/httpd.$$
+            cp /tmp/httpd.$$ $CONF      	
+         else
+           # to disble the mod_ssl function
+           sed -e "s%\(SSL.*\)%\#\\1%" $CONF > /tmp/httpd.$$
+           cp /tmp/httpd.$$ $CONF
+         fi
+         
+         
          
          sed -e "s%\(DocumentRoot .*\)%\#\\1%" $CONF > /tmp/httpd.$$
          cp /tmp/httpd.$$ $CONF
@@ -606,15 +535,33 @@ export ALIEN_HOME=$HOME/.alien
           rm /tmp/startup.$$
 
 		fi
-        if [ -f $CONF ] && [ -f $ALIEN_HOME/httpd/conf."$portNum"/startup.pl ]
-        then
-              ALIEN_HttpdStart $tmpN $portNum $hostAddress
 
-        else
-              echo "$ALIEN_HOME/httpd/conf.$portNum/ don't have httpd.conf and startup.pl"
-              exit 1
-         fi            
+   if [ ! -f $CONF ] || [ ! -f $ALIEN_HOME/httpd/conf."$portNum"/startup.pl ]
+     then
+      echo "$ALIEN_HOME/httpd/conf.$portNum/ don't have httpd.conf and startup.pl"
+      exit 1
+   fi            
+  
+}
 
+
+###########################################################################
+ALIEN_HttpdSoapTypeConfig()
+###########################################################################
+{
+    
+    tmpN=$1
+    httpdFormat=$2
+    hostAddress=$3
+        
+    startupFormat=`echo $httpdFormat | sed 's/AliEn::Service:://'`
+        
+
+    ALIEN_GetPortNumber portNum $tmpN $hostAddress
+            
+    ALIEN_CreateHTTPDConfiguration $portNum $hostAddress $startupFormat 0
+        
+    ALIEN_HttpdStart $tmpN $portNum $hostAddress
 }                                                         
                                                     
 

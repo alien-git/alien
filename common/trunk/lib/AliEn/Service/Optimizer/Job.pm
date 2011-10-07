@@ -160,111 +160,68 @@ sub copyInput {
     and return
     {};
 
-  ($ok, my @inputFile) = $job_ca->evaluateAttributeVectorString("InputBox");
-  my @origFile = @inputFile;
-
   $self->debug(1, "Already evaluated the inputbox");
   ($ok, my @inputData) = $job_ca->evaluateAttributeVectorString("InputData");
   $self->debug(1, "Before the copy of the inputcollection");
   $self->copyInputCollection($job_ca, $procid, \@inputData)
     or $self->info("Error checking the input collection")
     and return;
-
-  my $procDir = AliEn::Util::getProcDir($user, undef, $procid);
-
-  my @filesToDownload = ();
   my $file;
 
   my $size = 0;
 
   my $done = {};
-  my ($olduser) = $self->{CATALOGUE}->execute("whoami", "-silent");
+
   my @allreq;
   my @allreqPattern;
   $self->debug(1, "And the new eval");
   eval {
-    foreach $file (@inputFile, @inputData) {
-      my ($pfn, $pfnSize, $pfnName, $pfnSE) = split "###", $file;
+    foreach $file ( @inputData) {
       my $nodownload = 0;
       $file =~ s/,nodownload$// and $nodownload = 1;
-      $pfnName and $file = $pfnName;
-      $self->debug(1,
-        "In copyInput adding file $file (from the InputBox $pfn)");
+
+      $self->debug(1, "In copyInput adding file $file");
 
       #    my $procname=$self->findProcName($procid, $file, $done, $user);
-      if (defined $pfnSize) {
-        my $procname = $self->findProcName($procDir, $file, $done);
-        $self->debug(1, "Adding $procname with $pfn and $pfnSize");
-        $size += $pfnSize;
-        if (!$self->{CATALOGUE}
-          ->execute("register", $procname, $pfn, $pfnSize, $pfnSE)) {
-          print
-"The registration failed ($AliEn::Logger::ERROR_MSG) let's try again...\n";
-          $self->{CATALOGUE}->execute("register", $procname, $pfn, $pfnSize)
-            or print STDERR
-            "ERROR Adding the entry $pfn to the catalog as $procname!!\n"
-            and return;
-        }
-        push @filesToDownload, "\"${procname}->$procname\"";
-      } else {
-        $file =~ s/^LF://i;
-        $self->debug(1, "Adding file $file (from the InputBox)");
-        my ($fileInfo) =
-          $self->{CATALOGUE}->execute("whereis", "-ri", $file, "-silent");
-        if (!$fileInfo) {
-          $self->putJobLog($procid, "error", "Error checking the file $file");
-          die("The file $file doesn't exist");
-        }
+      $file =~ s/^LF://i;
+      $self->debug(1, "Adding file $file (from the InputBox)");
+      my ($fileInfo) =
+        $self->{CATALOGUE}->execute("whereis", "-ri", $file, "-silent");
+      if (!$fileInfo) {
+        $self->putJobLog($procid, "error", "Error checking the file $file");
+        die("The file $file doesn't exist");
+      }
 
-        my @sites = sort @{ $fileInfo->{REAL_SE} };
-        if (!@sites) {
-          $self->putJobLog($procid, "error", "Error checking the file $file");
-          die("The file $file isn't in any SE");
-        }
+      my @sites = sort @{ $fileInfo->{REAL_SE} };
+      if (!@sites) {
+        $self->putJobLog($procid, "error", "Error checking the file $file");
+        die("The file $file isn't in any SE");
+      }
         
-        my $sePattern = join("_", @sites);
+      my $sePattern = join("_", @sites);
 
         #This has to be done only for the input data"
-        if (!grep (/$file/, @origFile)) {
-          if (!grep (/^$sePattern$/, @allreqPattern)) {
-            $self->putJobLog($procid, "trace",
-              "Adding the requirement to '@sites' due to $file");
+      if (!grep (/^$sePattern$/, @allreqPattern)) {
+        $self->putJobLog($procid, "trace",
+          "Adding the requirement to '@sites' due to $file");
 
-            map { $_ = " member(other.CloseSE,\"$_\") " } @sites;
-            my $sereq = "(" . join(" || ", @sites) . ")";
-            $self->info(
-"Putting the requirement $sereq ($sePattern is not in @allreqPattern)"
-            );
-            push @allreq,        $sereq;
-            push @allreqPattern, $sePattern;
-          }
-        } else {
-          $self->debug(1, "The file $file doesn't count for the requirements");
-        }
-        $nodownload
-          and $self->debug(1,
-          "Skipping file $file (from the InputBox) - nodownload option")
-          and next;
-        $size += $fileInfo->{size};
-
-        my $procname = $self->findProcName($procDir, $file, $done);
-
-        push @filesToDownload, "\"${procname}->$file\"";
+        map { $_ = " member(other.CloseSE,\"$_\") " } @sites;
+        my $sereq = "(" . join(" || ", @sites) . ")";
+        $self->info(
+"Putting the requirement $sereq ($sePattern is not in @allreqPattern)" );
+        push @allreq,        $sereq;
+        push @allreqPattern, $sePattern;
       }
-    }
-    if (@filesToDownload) {
-      $self->info(
-        "Putting in the jdl the list of files that have to be downloaded");
-      $job_ca->set_expression("InputDownload",
-        "{" . join(",", @filesToDownload) . "}");
-    }
+      $nodownload
+        and $self->debug(1,
+        "Skipping file $file (from the InputBox) - nodownload option")
+        and next;
+      $size += $fileInfo->{size};
 
-    # change to the correct owner
-    #      $self->{CATALOGUE}->execute("chown","$user","$procDir/", "-f");
-    #$self->{CATALOGUE}->execute("chmod","700","$procDir/");
+    }
   };
   my $error = $@;
-  $self->{CATALOGUE}->execute("user", "-", $olduser);
+
   if ($error) {
     $self->info("Something went wrong while copying the input: $@");
     return;
@@ -290,36 +247,6 @@ sub copyInput {
   my $req = join(" && ", "( other.LocalDiskSpace > $size )", @allreq);
   $self->info("The requirements from input are $req");
   return { requirements => "$req" };
-}
-
-# This subroutine finds the name in the proc directory where the file should
-# be inserted
-#
-
-sub findProcName {
-  my $self     = shift;
-  my $procDir  = shift;
-  my $origname = shift;
-  my $done     = (shift or {});
-
-  $done->{files}
-    or $done->{files} = { stdout => 0, resources => 0, stderr => 0 };
-  $done->{dir} or $done->{dir} = -1;
-  $self->debug(1, "In findProcName finding a procname for $origname");
-
-  $origname =~ /\/([^\/]*)$/ and $origname = $1;
-  $self->debug(1, "In findProcName finding a name for $origname");
-  my $i = $done->{files}->{$origname};
-  my $name;
-  if (!defined $i) {
-    $done->{files}->{$origname} = 1;
-    $name = "$procDir/$origname";
-  } else {
-    $name = "/$procDir/$i/$origname";
-    $done->{files}->{$origname}++;
-  }
-  return $name;
-
 }
 
 sub updateWaiting {
@@ -348,6 +275,7 @@ sub checkJobs {
 
 #We never want to get more tahn 15 jobs at the same time, just in case the jdls are too long
   while ($continue) {
+  	$self->info("Checking the jobs in a particular status");
     my $jobs =
       $self->{DB}->getJobsByStatus($status, "queueid", "queueid", $limit);
 

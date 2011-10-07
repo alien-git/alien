@@ -85,24 +85,22 @@ sub getJobAgent {
       return {execute=> [-3, split(",",$packages )]};
     }
   }
-  my ($queueid, $jdl)=$self->{DB}->getWaitingJobForAgentId($agentid, "alien_user\@$queueName");
+  my ($queueid, $jdl,$jobUser)=$self->{DB}->getWaitingJobForAgentId($agentid, $queueName);
   $queueid or $self->info("There were no jobs waiting for agentid!") and return {execute=> [-2, "No jobs waiting in the queue"]};
   
   $self->putlog($queueid,"state","Job state transition from WAITING to ASSIGNED ");
 
   $self->info("Getting the token");
-  my $result=$self->getJobToken($queueid);
+  my $token=$self->getJobToken($queueid, $jobUser);
   
-  $self->info("I got as token $result"); 
-  if ((! $result) || ($result eq "-1")) {
+  $self->info("I got as token $token"); 
+  if ((! $token) || ($token eq "-1")) {
       $self->{DB}->updateStatus($queueid, "%", "ERROR_A");
       $self->putlog($queueid,"state","Job state transition from ASSIGNED to ERRROR_A");
       $self->info("In requestCommand error getting the token" );
       return -1, "getting the token of the job $queueid" ;    
     }
-  my $token   = $result->{token};
-  my $jobUser = $result->{user};
-  $self->debug(1, "In requestCommand $jobUser token is $token" );
+  
   $self->info(  "Command $queueid sent !" );
   return {execute=> [{queueid=>$queueid, token=>$token, jdl=>$jdl, user=>$jobUser}]};
 }
@@ -146,35 +144,28 @@ my $createToken = sub {
 };
 
 sub getJobToken {
-  my $self=shift;
+  my $self   = shift;
   my $procid = shift;
+  my $user   = shift;
   
-  $self->info("Getting  job $procid" );
+  $self->info("Getting  job $procid (and $user)" );
   
   ($procid)
     or $self->info("Error: In getJobToken not enough arguments" )
       and return;
   
-  my ($data) = $self->{addbh}->getFieldsFromJobToken($procid,"jobToken, userName");
-
-  ($data)
-    or $self->{LOGGER}->error( "CatalogDaemon", "Database error fetching fields for $procid" )
+  $self->{addbh}->queryValue("select count(*) from jobToken where jobId=?", undef, {bind_values=>[$procid]})
+    and $self->info("Job $procid already given.." )
       and return;
 
-  my ( $token, $user ) = ( $data->{jobToken}, $data->{userName});
+  my $token = $createToken->();
 
-  ( $token eq '-1' )
-    or $self->info("Job $procid already given.." )
-      and return;
-
-  $token = $createToken->();
-
-  $self->{addbh}->setJobToken($procid,$token)
+  $self->{addbh}->insertJobToken($procid,$user, $token)
     or $self->{LOGGER}->warning( "CatalogDaemon","Error updating jobToken for user $user" ) 
       and return (-1, "error setting the job token");
 
   $self->info("Sending job $procid to $user" );
-  return { "token" => $token, "user" => $user };
+  return $token;
 }
 
 # Checks if there are any agents needed that fulfill the requirements

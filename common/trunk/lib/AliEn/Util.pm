@@ -125,7 +125,7 @@ my $ml_status = {
 sub statusForML {
   my $stat = shift;
 
-  #print "statusForML ($stat) => $status->{$stat}\n";
+  #print "statusForML ($stat) => $ml_status->{$stat}\n";
   return $ml_status->{$stat} || 0;
 }
 

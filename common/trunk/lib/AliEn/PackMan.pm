@@ -154,11 +154,13 @@ sub getListPackages {
   my $retry = 1;
   my $maxRetry = 25;
   my $options={retry=>1};
+  my @old=@ARGV;
   @ARGV  = @_;
   Getopt::Long::Configure("pass_through");
   Getopt::Long::GetOptions($options, "retry=i");
   Getopt::Long::Configure("default");
   @_=@ARGV;
+  @ARGV=@old;
   if($options->{retry} <= $maxRetry){
     $retry = $options->{retry} if ($options->{retry} > 0);
   }else{
@@ -368,6 +370,7 @@ sub f_packman {
   my $optionsLocal = {PACKMAN_METHOD => "Local"};
   if (grep (/^-local$/i, @arg)) {
     $local = 1;
+    my @old=@ARGV;
     @ARGV  = @arg;
     Getopt::Long::Configure("pass_through");
     Getopt::Long::GetOptions($optionsLocal, "local", "dir=s");
@@ -376,6 +379,7 @@ sub f_packman {
     #      or $self->info("Error checking the options of packman -local") and return;
     $optionsLocal->{dir} and $optionsLocal->{INST_DIR} = $optionsLocal->{dir};
     @arg = @ARGV;
+    @ARGV=@old;
   }
   if ($operation =~ /^l(ist)?$/) {
     $soapCall  = "getListPackages";
@@ -541,7 +545,7 @@ sub synchronizePackages {
   my $options={retry=>1};
   my @arg             = @_;
   my $optionsPackages = {};
-  
+  my @old=@ARGV;
   @ARGV = @arg;
   Getopt::Long::Configure("pass_through");
   Getopt::Long::GetOptions($options, "retry=i");
@@ -550,6 +554,7 @@ sub synchronizePackages {
 
   #      or $self->info("Error checking the options of packman synchronize") and return;
   @arg = @ARGV;
+  @ARGV=@old;
   $retry = $options->{retry} if ($options->{retry} > 0);
   $optionsPackages->{packages} and $self->info("Doing only the packages '$optionsPackages->{packages}'");
   my $pattern = "(" . join(")|(", split(/,/, $optionsPackages->{packages} || "")) . ")";

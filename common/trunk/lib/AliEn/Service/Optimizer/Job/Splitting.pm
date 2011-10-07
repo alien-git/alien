@@ -5,7 +5,7 @@ use strict;
 use AliEn::Service::Optimizer::Job;
 use AliEn::Service::Manager::Job;
 use Data::Dumper;
-use AliEn::Database::Admin;
+
 use vars qw(@ISA);
 push (@ISA, "AliEn::Service::Optimizer::Job");
 
@@ -61,8 +61,7 @@ sub checkWakesUp {
 
   $self->{PRIORITY_DB} or $self->info("Error getting the priority table!!")
     and exit(-2);
-  $self->{ADMINDB} or $self->{ADMINDB}= new AliEn::Database::Admin();
-  $self->{ADMINDB} or $self->info("Error getting the connection to the admindb") and return;
+
   my $silent=shift;
 
   my $method="info";
@@ -74,7 +73,7 @@ sub checkWakesUp {
   $self->{DB}->update("ACTIONS", {todo=>0}, "action='SPLITTING'");
   $self->info("There are some jobs to split!!");
 
-  my $done2=$self->checkJobs($silent, "INSERTING' and upper(jdl) like '\% SPLIT =\%", "updateSplitting");
+  my $done2=$self->checkJobs($silent, "INSERTING' and upper(origjdl) like '\% SPLIT =\%", "updateSplitting");
 
   $self->info("Caculate Job Quota");
 	$self->{CATALOGUE}->execute("calculateJobQuota", "1");
@@ -118,9 +117,6 @@ sub updateSplitting {
     my $job = $self->{DB}->updateStatus($queueid, "INSERTING", "SPLITTING")
       or $self->{LOGGER}->warning("Splitting", "in SubmitSplitJob setting status to 'SPLITTING' failed") 
 				and die ("Error setting the job to SPLITTING\n");
-
-    $self->{ADMINDB}->deleteJobToken($queueid);
-
 
     ($job == -1) and $self->info("The job was not waiting any more...") and die ("The job was not waiting any more\n");
 
@@ -461,7 +457,7 @@ sub SubmitSplitJob {
 
   foreach my $pos (sort keys %{$jobs}) {
     $i++;
-    $self->info("HOLA Submitting job $i $pos $counter");
+    $self->info("Submitting job $i $pos $counter");
 
     $self->debug(1,"Setting Requ. $origreq");
 
@@ -479,9 +475,6 @@ sub SubmitSplitJob {
     }
 
     foreach my $splitargs (@splitarguments){
-#      my $newargs=$self->_checkArgumentsPatterns($splitargs, $jobs->{$pos}, $counter);
-#
-#      $job_ca->set_expression("Arguments", "\"$origarg $newargs\"");
       #check also the outputDir
       $self->_checkEntryPattern("OutputDir", "String", $origOutputDir, $job_ca,$jobs->{$pos}, $counter);
       $self->_checkEntryPattern("OutputFile", "Vector", $origOutputFile, $job_ca,$jobs->{$pos}, $counter);
@@ -546,7 +539,7 @@ sub _submitJDL {
   $self->debug(1, "JDL $jdlText");
   push @ISA, "AliEn::Service::Manager::Job";
   
-  my $newqueueid=$self->enterCommand($user, $jdlText, undef, undef, $queueid, undef, 
+  my $newqueueid=$self->enterCommand($user, $jdlText, undef, $queueid, undef, 
     {silent=>0,direct=>$direct});
   pop @ISA;
   if ($newqueueid =~ /DENIED:/){

@@ -15,17 +15,6 @@ sub checkWakesUp {
   $silent and $method="debug";
   my @data=();
   $silent and push @data, "1";
-  $self->{DBIS} or 
-    $self->{DBIS}=new AliEn::Database::IS(
-					  {
-					   DB=>$self->{CONFIG}->{IS_DATABASE},
-					   HOST=>$self->{CONFIG}->{IS_DB_HOST},
-					   DRIVER=>$self->{CONFIG}->{IS_DRIVER},
-					   DEBUG  => $self->{DEBUG},
-					   ROLE => "admin"
-					  }
-					 );
-  $self->{DBIS} or $self->{LOGGER}->info("Hosts", "Error getting the database");
 
   $self->$method(@data, "The hosts optimizer starts");
   my $done5=$self->checkHosts($silent);
@@ -79,12 +68,7 @@ sub  checkHosts {
 
 
   foreach my $data (@$hosts) {
-    $self->$method(@data,"====> $data->{hostname}");
-    # translate the hostname into service name
-    my $serviceblock= $self->{DBIS}->getServiceNameByHost("ClusterMonitor",$data->{hostname});
-    my $site = $serviceblock->[0]->{name} or
-      $self->info("Failed to resolve CM service name of host $data->{hostname}") and next;
-    $self->$method(@data,"Getting the maxjobs of $data->{hostname}");
+    $self->$method(@data,"====> $data->{hostname}, $data->{cename}");
 
     my ($newJobs, $newQueued)=$self->{CONFIG}->GetMaxJobs($data->{hostname});
     $newJobs or next;
@@ -93,7 +77,7 @@ sub  checkHosts {
       $self->$method(@data, "Still the same number ($data->{maxjobs} and $data->{maxqueued})");
     } else {
 
-      $self->info("In checkHosts updating maxjobs and maxqueued in database (to $newJobs and $newQueued)");
+      $self->info("In checkHosts updating maxjobs and maxqueued for $data->{cename} (to $newJobs and $newQueued)");
 
       $self->{DB}->updateHost($data->{hostname},{maxjobs=>$newJobs, maxqueued=>$newQueued})
 	or $self->{LOGGER}->warning( "Hosts", "In checkHosts error updating maxjobs and maxqueued for host $data->{hostname}" );
@@ -104,22 +88,22 @@ sub  checkHosts {
 
     $set->{'maxqueued'}  = $newQueued;
     $set->{'maxrunning'} = $newJobs;
-    my $queueload = $self->{DB}->getFieldFromSiteQueue("$site","( RUNNING + QUEUED + ASSIGNED + STARTED + IDLE + INTERACTIV + SAVING ) as LOADALL");
-    my $runload = $self->{DB}->getFieldFromSiteQueue("$site","( RUNNING + STARTED + INTERACTIV + SAVING ) as LOADALL");
+    my $queueload = $self->{DB}->getFieldFromSiteQueue($data->{cename},"( RUNNING + QUEUED + ASSIGNED + STARTED + IDLE + INTERACTIV + SAVING ) as LOADALL");
+    my $runload = $self->{DB}->getFieldFromSiteQueue($data->{cename},"( RUNNING + STARTED + INTERACTIV + SAVING ) as LOADALL");
     defined $queueload or 
-      $self->info("No info of the queued/running processes for site $site of SITEQUEUES table");
+      $self->info("No info of the queued/running processes for site $data->{cename} of SITEQUEUES table");
     defined $runload or
-      $self->info("No info of the running processes for site $site of SITEQUEUES table ");
+      $self->info("No info of the running processes for site $data->{cename} of SITEQUEUES table ");
     $set->{'queueload'} = "-0.0";
     $set->{'runload'}   = "-0.0";
     $queueload and $newJobs and $set->{'queueload'} = sprintf "%3.02f", 100.0 * $queueload / $newJobs;
     $runload and $newJobs and $set->{'runload'} = sprintf "%3.02f", 100.0 * $runload / $newJobs;
-    $self->$method(@data,"Updating site $site with QL $set->{'queueload'} and RL $set->{'runload'}");
-    my $done=$self->{DB}->updateSiteQueue($set,"site='$site'") or
-      $self->{LOGGER}->warning( "Hosts","In checkHosts error updating maxjobs and maxqueued for host $data->{hostname} in site $site in SITEQUEUETABLE");
+    $self->$method(@data,"Updating site $data->{cename} with QL $set->{'queueload'} and RL $set->{'runload'}");
+    my $done=$self->{DB}->updateSiteQueue($set,"site=?", {bind_values=>[$data->{cename}]}) or
+      $self->{LOGGER}->warning( "Hosts","In checkHosts error updating maxjobs and maxqueued for host $data->{hostname} and $data->{cename} in SITEQUEUETABLE");
     if ($done eq "") {
       $self->info("The site didn't exist... Let's insert it");
-      $set->{'site'} = "$site";
+      $set->{'site'} = $data->{cename};
       $set->{'blocked'} = "open";
       $self->{DB}->insertSiteQueue($set);
     }

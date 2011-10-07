@@ -26,17 +26,15 @@ sub checkWakesUp {
   $self->{LOGGER}->$method("Zombies", "The saved optimizer starts");
 
   my $dosth=0; 
-
-  my $todoone = $self->{DB}->queryValue("SELECT todo from ACTIONS where action='SAVED'");
-  $todoone and $self->{DB}->update("ACTIONS", {todo=>0}, "action='SAVED'");
-
-  my $todotwo = $self->{DB}->queryValue("SELECT todo from ACTIONS where action='SAVED_WARN'");
-  $todotwo and $self->{DB}->update("ACTIONS", {todo=>0}, "action='SAVED_WARN'");
  
-  ($todoone or $todotwo) or return; 
-
-  my $done=$self->checkJobs($silent, "SAVED", "checkSavedJob");
-  $self->checkJobs($silent, "SAVED_WARN", "checkSavedJob");
+  if ($self->{DB}->queryValue("SELECT todo from ACTIONS where action='SAVED'")) {
+  	$self->{DB}->update("ACTIONS", {todo=>0}, "action='SAVED'");
+    $self->checkJobs($silent, "SAVED", "checkSavedJob");
+  }
+  if ($self->{DB}->queryValue("SELECT todo from ACTIONS where action='SAVED_WARN'")){
+    $self->{DB}->update("ACTIONS", {todo=>0}, "action='SAVED_WARN'");
+    $self->checkJobs($silent, "SAVED_WARN", "checkSavedJob");
+  }
 
   return;
 

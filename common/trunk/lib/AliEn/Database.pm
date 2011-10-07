@@ -20,8 +20,6 @@ use DBI;
 
 use strict;
 
-require AliEn::TokenManager;
-
 require AliEn::Config;
 
 require AliEn::SOAP;
@@ -142,8 +140,6 @@ sub new {
   $self = bless($self, $class);
 
   $self->SUPER::new() or print "NOPE\n" and return;
-
-  $self->{TOKEN_MANAGER} = new AliEn::TokenManager();
 
   $self->{CONFIG} or $self->{CONFIG} = new AliEn::Config();
 
@@ -1146,12 +1142,6 @@ sub _validate {
 
     $DEBUG and $self->debug(1, "In _validate validating job $ENV{ALIEN_PROC_ID} token: $ENV{ALIEN_JOB_TOKEN}.");
 
-#  $status = $self->{TOKEN_MANAGER}->validateJobToken( $ENV{ALIEN_PROC_ID}, $ENV{ALIEN_JOB_TOKEN} );
-#  if (!$status) {
-#  $self->info( "Database: In _validate TokenManager reported error. Unable to validate user $self->{USER} (as $self->{ROLE}).");
-#  return;
-#  }
-#  $self->{USER} =  $ENV{ALIEN_PROC_ID};
     $self->{ROLE}               = $ENV{ALIEN_PROC_ID};
     $self->{PASSWD}             = $self->{TOKEN} = $ENV{ALIEN_JOB_TOKEN};
     $self->{FORCED_AUTH_METHOD} = 'JOBTOKEN';
@@ -1163,27 +1153,6 @@ sub _validate {
     }
     $self->{ROLE} = $ENV{ALIEN_JOBTOKEN_USER};
 
-  } elsif ($self->{TOKEN}) {
-    $self->{FORCED_AUTH_METHOD} = 'TOKEN';
-
-    $DEBUG and $self->debug(1, "In _validate validating user $self->{USER} (as $self->{ROLE}) using token.");
-
-    if ($self->{PASSWD}) {
-      $status = $self->{TOKEN_MANAGER}->getUserToken($self->{USER}, $self->{ROLE}, $self->{PASSWD})
-        or return;
-
-    } else {
-      $status = $self->{TOKEN_MANAGER}->validateUserToken($self->{USER}, $self->{ROLE}, $self->{TOKEN})
-        or return;
-      $status = {token => $status};
-    }
-
-    $status
-      or print STDERR
-      "Database: In _validate TokenManager reported error. Unable to validate user $self->{USER} (as $self->{ROLE}).\n"
-      and return;
-
-    $self->{TOKEN} = $status->{token};
   } else {
     $DEBUG
       and $self->debug(1, "Database: In _validate validating user $self->{USER} (as $self->{ROLE}) using password.");

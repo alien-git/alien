@@ -55,7 +55,8 @@ sub new {
 
   $self->{BATCH} or $self->info("Error getting an instance of $queuename") and return;
 
-  $self->{LOGGER}->notice("ClientCE", "Starting remotequeue...");
+  $self->info( "Starting remotequeue...");
+
 
   my $pOptions = {};
 

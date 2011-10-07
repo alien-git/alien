@@ -34,7 +34,10 @@ sub new {
  ( $ca and $ca->isOK()) 
    or $self->info("Error creating the Classads.Check if the requirements ($otherReq) have the right format") and return;
   $self->setCloseSE($ca) or return;
+    
   $self->setPackages($ca) or return;
+  
+  
   $self->setCE($ca) or return;
   $self->setGridPartitions($ca) or return;
   $self->setLocalInfo($ca) or return;

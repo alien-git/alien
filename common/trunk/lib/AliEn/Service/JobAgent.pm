@@ -259,34 +259,41 @@ sub requestJob {
 
 sub changeStatus {
   my $self=shift;
+  my $oldstatus=shift;
+  my $status=shift;
   my @print=@_;
   map {defined $_ or $_=""} @print;
   $self->debug(1, "We have to contact $self->{VOs}");
+  
   my $done;
   foreach my $data (split (/\s+/, $self->{VOs})) {
     my ($org, $cm, $id, $token)=split("#", $data);
-    $self->info("Contacting $org");
-
-    $self->info("Putting the status of $id to @print");
-    $done = $self->{SOAP}->CallSOAP("CLUSTERMONITOR_$org", "changeStatusCommand", $id, @_ );
+    $self->info("Contacting $org to change to $status");
+    my $counter=0;
+    while(!$done  and $counter<10 ) {
+      $done =    $self->{SOAP}->CallSOAP("Manager_Job_$org", "changeStatusCommand",  $id, $token, $oldstatus, $status, $self->{CONFIG}->{CE_FULLNAME}, @_ );
+    
+      if ($done){
+      	$self->{STATUS}=$status;
+      	last;
+      }
+      sleep(5);
+      $self->info("Error changing the status. Let's sleep and try again");
+      $counter ++;
+    }
+    
+    $self->info("Putting the status of $id to $status (@print)");
     if ($self->{MONITOR}) {
       #$self->info("Writting status to parent process $id=$_[1]");
-      $self->writePipeMessage($self->{JOB_STATUS_WTR}, "$id=$_[1]\n");
-      $self->{MONITOR}->sendParameters($self->{CONFIG}->{CE_FULLNAME}.'_Jobs', $id, { 'status' => AliEn::Util::statusForML($_[1]), 'host' => $self->{HOST} });
+      $self->writePipeMessage($self->{JOB_STATUS_WTR}, "$id=$status\n");
+      $self->{MONITOR}->sendParameters($self->{CONFIG}->{CE_FULLNAME}.'_Jobs', $id, { 'status' => AliEn::Util::statusForML($status), 'host' => $self->{HOST} });
       #$self->info("Finished writting status.");
     }
 
-    $done and $done=$done ->result;
-    if (!$done){
-      print STDERR "Error contacting the ClusterMonitor\nGoing to the Manager/Job";
-      my @arguments=@_;
-      $done =    $self->{SOAP}->CallSOAP("Manager_Job_$org", "changeStatusCommand",  $id, shift @arguments, shift @arguments, $self->{CONFIG}->{CE_FULLNAME}, @arguments );
-    }
-    $done and $self->{STATUS}=$_[1];
 
   }
-  $self->info("Status changed to @print");
-
+  $self->info("Status changed to $status");
+  
   return $done;
 }
 
@@ -805,10 +812,7 @@ sub startMonitor {
   }
   AliEn::Util::kill_really_all($$);
   
-  $self->info("Command executed, with status $self->{STATUS}");
-  my $status=$self->{STATUS};
-  ($status eq "SAVING") and $status="DONE";
-
+  $self->info("Command executed");
   exit;
 }
 
@@ -890,7 +894,7 @@ sub executeCommand {
   
   
   my $batchid=$self->getBatchId();
-  $self->changeStatus("%",  "STARTED", $batchid,$self->{HOST}, $self->{PROCESSPORT} );
+  $self->changeStatus("%",  "STARTED", $batchid,$self->{HOST}, "$self->{HOST}:$self->{PORT}" );
 
   $ENV{ALIEN_PROC_ID} = $self->{QUEUEID};
   my $catalog=$self->getCatalogue() or return;
@@ -966,7 +970,7 @@ sub executeCommand {
   $self->{STATUS}="RUNNING";
   ($self->{INTERACTIVE}) and  $self->{STATUS}="IDLE";
 
-  $self->changeStatus("STARTED",$self->{STATUS},0,$self->{HOST},$self->{PORT});
+  $self->changeStatus("STARTED",$self->{STATUS},0,$self->{HOST},"$self->{HOST}:$self->{PORT}");
 
   $s=~ s/^\s*//;
   $self->info("Ready to do the system call '$s'");
@@ -1276,13 +1280,12 @@ sub getFiles {
 
   $self->getInputZip($catalog) or return;
 
-  my @files=$self->getListInputFiles();
+  my @files=$self->getListInputFiles($catalog);
 
   foreach my $file (@files) {
     $self->_getInputFile($catalog, $file->{cat},$file->{real}) or return;
   }
 
-  my $procDir = AliEn::Util::getProcDir($self->{JOB_USER}, undef, $self->{QUEUEID});
 
   $self->info("Let's check if there are any files to stage");
   
@@ -1306,10 +1309,56 @@ sub getFiles {
 
 }
 
+sub getFilesFromInputCollection{
+  my $self = shift;
+  my $job_ca = shift;
+  my $catalogue=shift;
+  
+  my @files;
+  my ($ok, @inputData) =
+    $job_ca->evaluateAttributeVectorString("InputDataCollection");
+
+	foreach my $file (@inputData) {
+    $self->putJobLog("trace", "Using the inputcollection $file");
+
+    my ($file2, $options) = split(',', $file, 2);
+    $options and $options = ",$options";
+    $options or $options = "";
+    $file2 =~ s/^LF://;
+    my ($type) = $catalogue->execute("type", $file2);
+    $self->info("IT IS A $type");
+    if ($type =~ /^collection$/) {
+    	my ($files)=$catalogue->execute("listFilesFromCollection", $file2);
+    	if ($files) {
+    	  foreach my $entry (@$files) {
+          if ($entry->{origLFN}) {
+            push @files, "LF:$entry->{origLFN}$options";
+          } else {
+            push @files, "GUID:$entry->{guid}";
+          }
+    	  }
+    	}
+    }  else {
+    	my ($localFile) = $catalogue->execute("get", $file2);
+    	$localFile or $self->info("Error getting $file2") and return;
+    	my $ds=AliEn::Dataset->new(); 
+    	my $dataset = $ds->readxml($localFile);
+    	my $lfnRef = $ds->getAllLFN()
+       or $self->info("Error getting the LFNS from the dataset")
+        and return;
+
+      map { $_ = "LF:$_$options" } @{ $lfnRef->{lfns} };
+      $self->info("Adding the files " . @{ $lfnRef->{lfns} });
+      push @files, @{ $lfnRef->{lfns} };
+    	
+    } 
+	}
+  return 1, @files;
+}
+
 sub getListInputFiles {
   my $self=shift;
-
-  my $dir = AliEn::Util::getProcDir($self->{JOB_USER}, undef, $self->{QUEUEID}) . "/";
+  my $catalogue=shift;
 
   my @files=({cat=>$self->{COMMAND}, real=>"$self->{WORKDIR}/command"});
   if ($self->{VALIDATIONSCRIPT}) {
@@ -1319,21 +1368,57 @@ sub getListInputFiles {
   }else {
     $self->info("There is no validation script");
   }
-  my ( $ok,  @inputFiles)=$self->{CA}->evaluateAttributeVectorString("InputDownload");
-  foreach (@inputFiles){
-    my ($proc, $lfn)=split /->/;
-    $self->debug(1, "Adding '$lfn' (dir '$dir')");
-    $proc =~ s{^$dir}{$self->{WORKDIR}/} or $proc="$self->{WORKDIR}/$proc";
-    push @files, {cat=> $lfn, real=>$proc};
-    if ($proc =~ /^($self->{WORKDIR}\/.*\/)[^\/]*$/ ) {
-      $self->info("Checking if $1 exists");
-      if (! -d $1) {
-        mkdir $1 or print "Error making the directory $1 ($!)\n";
+  my ( $ok,  @inputFiles)=$self->{CA}->evaluateAttributeVectorString("InputFile");
+  ($ok, my @inputData)=$self->{CA}->evaluateAttributeVectorString("InputData");
+  
+   ($ok, my @moreFiles)=$self->getFilesFromInputCollection($self->{CA}, $catalogue);
+  
+  my $done={};
+  foreach my $lfn (@inputFiles, @inputData, @moreFiles){
+  	$lfn=~ s/^LF://;
+  	$lfn =~ /,nodownload/ and $self->info("Ignoring $lfn") and next;    
+    $self->debug(1, "Adding '$lfn' ");
+    my $real= $self->findProcName($lfn, $done);
+    if ($real =~ /^(.*\/)[^\/]*$/ ) {
+      $self->info("Checking if $self->{WORKDIR}/$1 exists");
+      if (! -d "$self->{WORKDIR}/$1") {
+        mkdir "$self->{WORKDIR}/$1" or print "Error making the directory $self->{WORKDIR}/$1 ($!)\n";
       }
     }
+    push @files, {cat=> $lfn, real=>"$self->{WORKDIR}/$real"};
   }
   return @files
 }
+
+# This subroutine finds the name in the proc directory where the file should
+# be inserted
+#
+
+sub findProcName {
+  my $self     = shift;
+  my $origname = shift;
+  my $done     = (shift or {});
+
+  $done->{files}
+    or $done->{files} = { stdout => 0, resources => 0, stderr => 0 };
+  $done->{dir} or $done->{dir} = -1;
+  $self->debug(1, "In findProcName finding a procname for $origname");
+
+  $origname =~ /\/([^\/]*)$/ and $origname = $1;
+  $self->debug(1, "In findProcName finding a name for $origname");
+  my $i = $done->{files}->{$origname};
+  my $name;
+  if (!defined $i) {
+    $done->{files}->{$origname} = 1;
+    $name = $origname;
+  } else {
+    $name = "$i/$origname";
+    $done->{files}->{$origname}++;
+  }
+  return $name;
+
+}
+
 
 sub getUserDefinedGUIDS{
   my $self=shift;
@@ -1670,8 +1755,8 @@ sub putFiles {
          and next;
 
       $fs_table->{$fileOrArch}->{options} or $fs_table->{$fileOrArch}->{options}="";
-      $self->info("Processing  file  ".$fs_table->{$fileOrArch}->{name});
-      $self->info("File has options  ".$fs_table->{$fileOrArch}->{options});
+      $self->info("Processing  file  ".$fs_table->{$fileOrArch}->{name}.  
+                   "\n\tFile has options  ".$fs_table->{$fileOrArch}->{options});
       
       (my $no_links, $fs_table->{$fileOrArch}->{options})  = $self->processJDL_Check_on_Tag($fs_table->{$fileOrArch}->{options}, "no_links_registration");
       
@@ -1681,34 +1766,6 @@ sub putFiles {
         $self->putJobLog("trace", "The file $fs_table->{$fileOrArch}->{name} has the guid $guids{$fs_table->{$fileOrArch}->{name}}");
       }
       
-#      if($self->{STATUS} =~ /^ERROR_V/) {
-#        # just upload the files ...
-#        my @addEnvs = $self->addFile("$self->{WORKDIR}/$fs_table->{$fileOrArch}->{name}","$recyclebin/$fs_table->{$fileOrArch}->{name}", "$fs_table->{$fileOrArch}->{options}",$guid,1);
-#        my $success = shift @addEnvs;
-#        $success or $self->putJobLog("error","The job went to ERROR_V, but we can't upload the output files for later registration") and next;
-#        my $env1 = AliEn::Util::deserializeSignedEnvelope(shift @addEnvs);
-#        my @pfns = ("$env1->{se}/$env1->{turl}");
-#        foreach my $env (@addEnvs) {
-#           push @pfns, AliEn::Util::getValFromEnvelope($env,"turl");
-#        }
-#        my @list = ();
-#        foreach my $file( keys %{$fs_table->{$fileOrArch}->{entries}}) {  # if it is a file, there are just no entries
-#            push @list, join("###", $file, $fs_table->{$fileOrArch}->{entries}->{$file}->{size},
-#            $fs_table->{$fileOrArch}->{entries}->{$file}->{md5});
-#        }
-#         my $links="";
-#        (scalar(@list) gt 0) and $links.=";;".join(";;",@list);
-#        
-#        push @registerInJDL, "\"".join ("###", $env1->{lfn}, $env1->{guid}, $env1->{size},
-#                               $env1->{md5},  join("###",@pfns),
-#                               $links) ."\"";
-#  
-#        $success and  $successCounter++;
-#        ($success eq -1) and $incompleteAddes=1;
-#  
-#        next;  
-#      }
-
       my $links="";
       if(!$no_links) {
       my @list = ();
@@ -1726,7 +1783,8 @@ sub putFiles {
       my @addEnvs = $self->addFile("$self->{WORKDIR}/$fs_table->{$fileOrArch}->{name}","$self->{PROCDIR}/$fs_table->{$fileOrArch}->{name}", "$fs_table->{$fileOrArch}->{options}",$guid,1,$links);
      
       my $success = shift @addEnvs;
-      $success  or next;
+      $success or next;
+      
       $success and $successCounter++;
       ($success eq -1) and $incompleteAddes=1;
       my @pfns=();
@@ -1810,8 +1868,6 @@ sub addFile {
 
   if($uploadOnly) {
     @addResult=$self->{UI}->execute("add", "-upload -size=$size -md5=$md5 $links", $options, "$lfn", "$pfn", $storeTags);
-  #} else {
-  #  @addResult=$self->{UI}->execute("add", " -size $size -md5 $md5 ", $options, "$lfn", "$pfn", $storeTags);
   }
 
   my $success = shift @addResult;
@@ -2292,6 +2348,59 @@ sub checkProcess{
 
   return 1 ;
 }
+
+sub validateJob{
+	my $self=shift;
+
+  $self->putJobLog("trace","Validating the output");
+  my $validation=$self->{VALIDATIONSCRIPT};
+  $validation=~ s{^.*/([^/]*)$}{$self->{WORKDIR}/$1};
+
+  if ( -r $validation ) {	
+    chmod 0750, $validation;
+    my $validatepid = fork();
+    if (! $validatepid ) {
+    	# execute the validation script
+      $self->info("Executing the validation script: $validation");
+	    unlink "$self->{WORKDIR}/.validated";
+	    if (! system($validation) ){
+	      $self->info("The validation finished successfully!!");
+	      system("touch $self->{WORKDIR}/.validated" ) ;
+	    }
+	    $self->info("Validation finished!!");
+      exit 0;
+    }
+    my $waitstart = time;
+    my $waitstop  = time;
+    while ( ($waitstop-300) < ($waitstart) ) {
+	    sleep 5;
+	    $self->info("Checking $validatepid");
+	    kill (0,$validatepid) or last;
+
+	    my @defunct = `ps -p $validatepid -o state`;
+	    $self->debug(1, "Defunct check. Got: " . join(" ", @defunct));
+	    shift @defunct; # remove header
+	    $defunct[0]
+	    and ($defunct[0] =~ /Z/)
+	    and $self->info("The process is defunct")
+	    and last;
+
+	    $waitstop = time;
+    }
+    if ( ($waitstop-300) > ($waitstart) ) {
+	    $self->putJobLog("trace","The validation script didn't finish");
+	    $self->{STATUS} = "ERROR_VT";
+    } else {
+	  ( -e "$self->{WORKDIR}/.validated" ) or  $self->{STATUS} = "ERROR_V";
+    }
+  } else {
+  $self->putJobLog("error","The validation script '$validation' didn't exist");
+    $self->{STATUS} = "ERROR_VN";
+  }
+    # following out, since STATUS is not always true as SAVED, see above.
+    #$self->putJobLog("trace","After the validation preliminary Job status: $self->{STATUS}");
+}
+ 
 sub lastExecution {
   my $self=shift;
 
@@ -2365,56 +2474,8 @@ CPU Speed                           [MHz] : $ProcCpuspeed
 
   $self->{STATUS}="SAVED";
 
-  if ( $self->{VALIDATIONSCRIPT} ) {
-    $self->putJobLog("trace","Validating the output");
-    my $validation=$self->{VALIDATIONSCRIPT};
-    $validation=~ s{^.*/([^/]*)$}{$self->{WORKDIR}/$1};
-
-    if ( -r $validation ) {	
-      chmod 0750, $validation;
-      my $validatepid = fork();
-      if (! $validatepid ) {
-	# execute the validation script
-	$self->info("Executing the validation script: $validation");
-	unlink "$self->{WORKDIR}/.validated";
-	if (! system($validation) ){
-	  $self->info("The validation finished successfully!!");
-	  system("touch $self->{WORKDIR}/.validated" ) ;
-	}
-	$self->info("Validation finished!!");
-	exit 0;
-      }
-      my $waitstart = time;
-      my $waitstop  = time;
-      while ( ($waitstop-300) < ($waitstart) ) {
-	sleep 5;
-	$self->info("Checking $validatepid");
-	kill (0,$validatepid) or last;
-
-	my @defunct = `ps -p $validatepid -o state`;
-	$self->debug(1, "Defunct check. Got: " . join(" ", @defunct));
-	shift @defunct; # remove header
-	$defunct[0]
-	    and ($defunct[0] =~ /Z/)
-	    and $self->info("The process is defunct")
-	    and last;
-
-	$waitstop = time;
-      }
-      if ( ($waitstop-300) > ($waitstart) ) {
-	$self->putJobLog("trace","The validation script didn't finish");
-	$self->{STATUS} = "ERROR_VT";
-      } else {
-	( -e "$self->{WORKDIR}/.validated" ) or  $self->{STATUS} = "ERROR_V";
-      }
-    } else {
-      $self->putJobLog("error","The validation script '$validation' didn't exist");
-      $self->{STATUS} = "ERROR_VN";
-    }
-    # following out, since STATUS is not always true as SAVED, see above.
-    #$self->putJobLog("trace","After the validation preliminary Job status: $self->{STATUS}");
-  }
-
+  $self->{VALIDATIONSCRIPT} and $self->validateJob();
+  
   # store the files
   #$self->putFiles() or $self->{STATUS}="ERROR_SV";  old entry, redirected trough new funtion:
   $self->{UI} = AliEn::UI::Catalogue::LCM->new({no_catalog=>1,role=>$self->{JOB_USER}});
@@ -2438,11 +2499,14 @@ CPU Speed                           [MHz] : $ProcCpuspeed
 
   my $jdl;
   $self->{JDL_CHANGED} and $jdl=$self->{CA}->asJDL();
+  
   my $success=$self->changeStatus("%",$self->{STATUS}, $jdl);
+  
   # don't send data about this job anymore
   if($self->{MONITOR}){
     $self->{MONITOR}->removeJobToMonitor($self->{PROCESSID});
   }
+  
   chdir;
   system("rm", "-rf", $self->{WORKDIR});
   $self->putJobLog("state", "The job finished on the worker node with status $self->{STATUS}");
@@ -2516,9 +2580,11 @@ sub checkWakesUp {
           ($jid, $stat) = ($1, $2);
         }
       }
+      print "NOW THE STATUS IS $stat ($jid and $ENV{ALIEN_PROC_ID}\n";
       # update the status for the current job
       #$self->info("Updating status for ALIEN_PROC_ID=$ENV{ALIEN_PROC_ID}, jid=$jid, stat=$stat");
       $self->{STATUS} = $stat if($jid && $stat && ($ENV{ALIEN_PROC_ID} eq $jid));
+      print "$$ HAS $self->{STATUS}\n";
     }
     # send data about current job
     if($self->{STATUS}){
@@ -2671,6 +2737,7 @@ sub readPipeMessage {
   if($nfound){
     sysread($PIPE, $retMsg, 1024);
   }
+  
   return $retMsg;
 }
 
@@ -2680,6 +2747,7 @@ sub writePipeMessage {
   my ($PIPE, $msg) = @_;
 
   if(defined $PIPE){
+
     syswrite($PIPE, $msg, length($msg));
   }
 }

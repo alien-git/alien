@@ -405,94 +405,27 @@ sub checkInputFiles {
   my $input;
   my $name;
 
-  $self->{INPUTBOX} = {};
-
   foreach $input (@input) {
     $DEBUG and $self->debug(1, "Checking input $input");
     $name = shift @inputName;
     $name or ($input =~ /([^\/]*)$/ and $name = $1);
     if ($input =~ s/^PF://) {
-      $self->addPFNtoINPUTBOX($input, $name) or return;
+    	$self->info("You have to specify an lfn (instead of PF:$input). Please, register the file ");
+    	return;
+  
     } elsif ($input =~ s/^LF://) {
-      $self->addLFNtoINPUTBOX($input, $name) or return;
+    	 $self->{CATALOG}->execute("ls", "-silent", "$input")
+	      or $self->info("Error InputFile $input does not exist in the catalogue", 1)
+           and return;
     } else {
-      $self->{LOGGER}->warning("CE", "Error with InputFile $input (it's nor LF: neither PF:");
+      $self->info("Error with InputFile $input (it's nor LF: neither PF:", 1);
       return;
     }
   }
-
   $DEBUG and $self->debug(1, "INPUTFILES ARE OK!!");
-
-  #  ( $ok, @input )     = $job_ca->evaluateAttributeVectorString("InputData");#
-  #
-  #  @input or $self->info( "Three is no input data") and return 1;
-  #  my @newlist=();
-  #  foreach my $file (@input){
-  #    $self->info( "Checking $file");
-  #    if ($file =~ /\*/) {
-  #     $self->info( "THIS CORRESPONDS TO SEVERAL FILES!!");
-  #     my ($dir, $name);
-  #     if ($file=~ /^([^\*]*)\*(.*)$/) { $dir=$1; $name=$2};
-  #     $dir=~ s/^LF://;
-  #     $DEBUG and $self->debug(1, "Looking in $dir for files like $name");
-  #     my @list=$self->{CATALOG}->execute( "find", "-silent", "$dir", "$name" );
-  #     @list or $self->info( "Error: there are no files that match $file") and return;
-  #     map {$_="LF:$_"} @list;
-  #     push @newlist, @list;
-  #   }else {
-  #     push @newlist, $file;
-  #   }
-  # }
-  # map {$_="\"$_\""} @newlist;#
-
-  #  my $list="{". join (",", @newlist)."}";
-  #  $DEBUG and $self->debug(1, "New list of files: $list");
-  #  $job_ca->set_expression("InputData", $list );
-  #  print "TENEMOS ".$job_ca->asJDL;
-  #  $DEBUG and $self->debug(1, "There are ". ($#newlist +1)." input files");
   return 1;
 }
 
-sub addPFNtoINPUTBOX {
-  my $self  = shift;
-  my $input = shift;
-  my $name  = shift;
-
-  #  my $se="Alice::CERN::scratch";
-  $self->info("Copying $input ");
-
-  $self->{CATALOG}->execute("mkdir", "-p", "~/tmp");
-  my ($success, @env) = $self->{CATALOG}->execute("add", "-feedback", "~/tmp/tmpFile" . time, "$input");
-
-  #$self->{CATALOG}->execute("upload", $input);
-  $success or return;
-  my $data = {pfn => "", size => 0};
-  if ($env[0] =~ m{turl\=([^&]+)}) {
-    $data->{pfn} = $1;
-  }
-  if ($env[0] =~ m/size\=([\d]+)/) {
-    $data->{size} = $1;
-  }
-  if ($env[0] =~ m/guid\=([^&]+)/) {
-    $data->{guid} = $1;
-  }
-  $self->info("Register done and $data->{pfn} and $data->{size} with $data->{guid}");
-  ($data->{pfn} and $data->{size}) or return;
-  $self->{INPUTBOX}->{$name} = "$data->{pfn}###$data->{guid}###$data->{size}###$name###$self->{CONFIG}->{SE_FULLNAME}";
-}
-
-sub addLFNtoINPUTBOX {
-  my $self  = shift;
-  my $input = shift;
-  my $name  = shift;
-
-  $DEBUG and $self->debug(1, "Using LFN $input");
-
-  $self->{CATALOG}->execute("ls", "-silent", "$input")
-    or $self->{LOGGER}->warning("CE", "Error InputFile $input does not exist in the catalogue")
-    and return;
-  $self->{INPUTBOX}->{$name} = $input;
-}
 
 sub modifyJobCA {
 
@@ -796,21 +729,21 @@ sub submitCommand {
   }
   $DEBUG and $self->debug(1, "Job description" . $job_ca->asJDL());
 
-  my @filesToDownload;
-  if ($self->{INPUTBOX}) {
-    my $l = $self->{INPUTBOX};
+#  my @filesToDownload;
+#  if ($self->{INPUTBOX}) {
+#    my $l = $self->{INPUTBOX};
 
-    my @list  = sort keys %$l;
-    my @list2 = sort values %$l;
-    $self->info("Input Box: {@list}");
-    $DEBUG and $self->debug(1, "Input Box: {@list2}");
-    foreach my $entry (@list) {
-      my $entry2 = shift @list2;
-      push @filesToDownload, "\"${entry}->$entry2\"";
-    }
-  }
-  (@filesToDownload)
-    and $job_ca->set_expression("InputDownload", "{" . join(",", @filesToDownload) . "}");
+#    my @list  = sort keys %$l;
+#    my @list2 = sort values %$l;
+#    $self->info("Input Box: {@list}");
+#    $DEBUG and $self->debug(1, "Input Box: {@list2}");
+#    foreach my $entry (@list) {
+#      my $entry2 = shift @list2;
+#      push @filesToDownload, "\"${entry}->$entry2\"";
+#    }
+#  }
+#  (@filesToDownload)
+#    and $job_ca->set_expression("InputDownload", "{" . join(",", @filesToDownload) . "}");
 
   if ($noption) {
     $self->info("Instead of running the job, let's execute it ourselves");
@@ -838,7 +771,7 @@ sub submitCommand {
   }
 
   my $done =
-    $self->{SOAP}->CallSOAP("Manager/Job", 'enterCommand', "$user\@$self->{HOST}", $job_ca->asJDL(), $self->{INPUTBOX});
+    $self->{SOAP}->CallSOAP("Manager/Job", 'enterCommand', "$user\@$self->{HOST}", $job_ca->asJDL());
   if (!$done) {
     $self->{LOGGER}->error("CE", "=====================================================");
     $self->{LOGGER}->error("CE", "Cannot enter your job !");
@@ -3914,7 +3847,9 @@ sub resyncJobAgent {
 
   my $jobs =
     $self->{TASK_DB}->query(
-"select jdl, agentid from QUEUE q join (select min(queueid) as q from QUEUE left join JOBAGENT on agentid=entryid where entryid is null  and status='WAITING' group by agentid) t  on queueid=q"
+"select origjdl jdl, agentid from QUEUE q join 
+(select min(queueid) as q from QUEUE left join JOBAGENT on agentid=entryid where entryid is null  and status='WAITING' group by agentid) t  on queueid=q
+join QUEUEJDL using (queueid)"
     )
     or $self->info("Error getting the jobs without jobagents")
     and return;

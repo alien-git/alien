@@ -242,7 +242,6 @@ sub enterCommand {
   $DEBUG and $self->debug(1, "In enterCommand with @_");
   my $host       = shift;
   my $jobca_text = shift;
-  my $inputBox   = shift;
 
   my $priority = (shift or 0);
   my $splitjob = (shift or "0");
@@ -267,16 +266,6 @@ sub enterCommand {
     return (-1, "incorrect JDL input");
   }
 
-  if ($inputBox) {
-    my @list = sort values %$inputBox;
-    if (@list) {
-      $self->info("Adding the inputbox");
-      map { $_ = "\"$_\"" } @list;
-      my $input = "{" . join(", ", @list) . '}';
-      $self->info("Putting $input");
-      $job_ca->set_expression("InputBox", $input);
-    }
-  }
   $jobca_text = $job_ca->asJDL;
 
   my ($ok,  @inputdata)       = $job_ca->evaluateAttributeVectorString("InputData");
@@ -331,9 +320,7 @@ sub enterCommand {
   my $procid = $self->{DB}->insertJobLocked($set, $oldjob)
     or $self->{LOGGER}->alert("JobManager", "In enterCommand error inserting job")
     and return (-1, "inserting job");
-  $self->{ADMINDB}->insertJobToken($procid, $user, -1)
-    or $self->info("Error creating the token")
-    and return;
+
   $email and $self->putJobLog($procid, "trace", "The job will send an email to '$email'");
 
   my $msg = "Job $procid inserted from $host ($set->{status})";
@@ -415,7 +402,7 @@ sub SetProcInfo {
     if ($status->{status} eq "ZOMBIE") {
 
       # in case a zombie comes back ....
-      $self->changeStatusCommand($queueId, $status->{status}, "RUNNING")
+      $self->changeStatusCommand($queueId, 'token', $status->{status}, "RUNNING")
         or $self->{LOGGER}
         ->error("JobManager", "In SetProcInfo could not change job $queueId from $status->{status} to RUNNING");
       $updateRef->{status} = "RUNNING";
@@ -458,16 +445,10 @@ sub SetProcInfo {
 sub changeStatusCommand {
   my $this      = shift;
   my $queueId   = shift;
+  my $token     = shift ||"";
   my $oldStatus = shift;
   my $status    = shift;
   my $site      = (shift or "");
-
-  if ($site =~ /requirements/i) {
-    $self->info("Warning!! got a message directly from a JobAgent");
-    unshift @_, $site;
-    $site = "";
-  }
-
   my $error  = (shift or "");
   my $node   = (shift or "");
   my $spyurl = (shift or "");
@@ -477,8 +458,11 @@ sub changeStatusCommand {
     and return (-1, " queueId not specified");
   my $date = time;
 
-  $self->info("Command $queueId [$site/$node/$spyurl] changed to $status");
-
+  $self->info("Command $queueId [$site/$node/$spyurl] changed to $status from $oldStatus");
+  if ($status!= /KILLED/){
+    $self->{ADMINDB}->getUsername($queueId, $token) or
+      return (-1, "Error validating the token of job $queueId");
+  }
   my $set = {};
 
   ($spyurl) and $set->{spyurl} = $spyurl;
@@ -500,7 +484,7 @@ sub changeStatusCommand {
   } elsif (($status =~ /SAVED.*/ && $error)
     || ($status =~ /(ERROR_V)|(STAGING)/)) {
     $self->info("Updating the jdl of the job");
-    $set->{jdl} = $error;
+    $set->{resultsjdl} = $error;
     } elsif ($status eq "DONE") {
     $set->{finished} = $date;
 
@@ -1204,13 +1188,6 @@ sub killProcess {
 
   for my $j (@$rresult) {
     @retvalue = $self->killProcessInt($j->{queueId}, $user);
-    if ($j->{queueId} != $queueId) {
-
-      # remove the proc entries
-      my $procDir = AliEn::Util::getProcDir(undef, $j->{submitHost}, $j->{queueId});
-      $self->{CATALOGUE}->execute("rmdir", $procDir, "-r")
-        or $self->{LOGGER}->error("JobManager", "In killProcess error deleting $procDir");
-    }
   }
   return @retvalue;
 }
@@ -1246,7 +1223,7 @@ sub killProcessInt {
     return (-1, "process does not belong to '$user'");
   }
 
-  my ($ok, $message) = $self->changeStatusCommand($queueId, '%', 'KILLED');
+  my ($ok, $message) = $self->changeStatusCommand($queueId, 'token', '%', 'KILLED');
   ($ok eq '-1') and return (-1, $message);
 
   if ($data->{exechost}) {
@@ -1321,104 +1298,104 @@ sub validateProcess {
   Type=\"Job\";
 ]\n";
 
-  $self->enterCommand($data->{submithost}, $jdl, {}, 0);
+  $self->enterCommand($data->{submithost}, $jdl,0);
 
   $self->info("Validation done");
   return 1;
 }
 
-sub reInsertCommand {
-  my $this    = shift;
-  my $queueId = shift;
-  my $user    = shift;
-
-  $self->info("In Resubmit Command");
-  ($user) and ($queueId)
-    or $self->{LOGGER}->error("JobManager", "In reInsertCommand queueId not specified")
-    and return (-1, "QueueId not specified");
-
-  my $date = time;
-
-  $self->info("Reinserting command $queueId");
-
-  my ($data) = $self->{DB}->getFieldsFromQueue($queueId, "priority, status, submitHost");
-
-  defined $data
-    or $self->{LOGGER}->error("JobManager", "In reInsertCommand error during execution of database query")
-    and return (-1, "during execution of database query");
-
-  %$data
-    or $self->{LOGGER}->error("JobManager", "In reInsertCommand process $queueId does not exist")
-    and return (-1, "process $queueId does not exist");
-
-  ($data->{submitHost} =~ /^$user\@/)
-    or ($user eq "admin")
-    or $self->{LOGGER}->error("JobManager", "In reInsertCommand process $queueId does not belong to '$user'")
-    and return (-1, "process $queueId does not belong to $user");
-
-  if ( (($data->{status} ne "ERROR_I") && ($data->{status} =~ /^ERROR_/))
-    || ($data->{status} =~ /KILLED/)
-    || ($data->{status} =~ /FAILED/)) {
-
-    if (($data->{status} eq "ERROR_A") || ($data->{status} eq "FAILED")) {
-
-      # we have first to remove the old token
-      $self->{ADMINDB}->deleteJobToken($queueId)
-        or $self->{LOGGER}->error("JobManager", "In reInsertCommand: cannot remove the old Token for job $queueId")
-        and ($data->{status} eq "ERROR_A")
-        and return (-1, "Cannot remove the old Token for job $queueId which was in status ERROR_A");
-    }
-
-    $self->{ADMINDB}->insertJobToken($queueId, $user, -1)
-      or $self->{LOGGER}->error("JobManager", "In reInsertCommand: cannot insert new Token for job $queueId")
-      and return (-1, "Cannot insert new Token for this job");
-
-    my ($ok) = $self->{DB}->updateJob(
-      $queueId,
-      { runtime      => "",
-        runtimes     => "",
-        cpu          => "",
-        mem          => "",
-        cputime      => "",
-        rsize        => "",
-        vsize        => "",
-        ncpu         => "",
-        cpufamily    => "",
-        cpuspeed     => "",
-        cost         => "",
-        maxrsize     => "",
-        maxvsize     => "",
-        procinfotime => "",
-        status       => "WAITING",
-        execHost     => "",
-        priority     => "-1",
-        started      => "",
-        finished     => "",
-        spyurl       => "",
-        site         => "",
-        node         => ""
-      }
-    );
-    $ok
-      or $self->{LOGGER}
-      ->error("JobManager", "Reinserting command for job $queueId couldn't change the QUEUE table entry properly!")
-      and return;
-    $self->putJobLog($queueId, "state", "Job $queueId resubmitted");
-
-    my $procDir = AliEn::Util::getProcDir($user, undef, $queueId);
-
-    $self->{CATALOGUE}->execute("rmdir", "$procDir/job-log", "$procDir/job-output", "-r")
-      or $self->info("Couldn't delete the old output box");
-
-    ##### in principle we have to check if job-output exists and delete in this case ....
-    ##### and return (-1,"Cannot remove the old job-output directory");
-    return $queueId;
-    } else {
-    $self->{LOGGER}->error("JobManager",
-      "Reinserting command for job $queueId was reject because job is in status $data->{status} !");
-    return (-1, "Job $queueId rejected => status= $data->{status} !");
-  }
-}
+#sub reInsertCommand {
+#  my $this    = shift;
+#  my $queueId = shift;
+#  my $user    = shift;
+#
+#  $self->info("In Resubmit Command");
+#  ($user) and ($queueId)
+#    or $self->{LOGGER}->error("JobManager", "In reInsertCommand queueId not specified")
+#    and return (-1, "QueueId not specified");
+#
+#  my $date = time;
+#
+#  $self->info("Reinserting command $queueId");
+#
+#  my ($data) = $self->{DB}->getFieldsFromQueue($queueId, "priority, status, submitHost");
+#
+#  defined $data
+#    or $self->{LOGGER}->error("JobManager", "In reInsertCommand error during execution of database query")
+#    and return (-1, "during execution of database query");
+#
+#  %$data
+#    or $self->{LOGGER}->error("JobManager", "In reInsertCommand process $queueId does not exist")
+#    and return (-1, "process $queueId does not exist");
+#
+#  ($data->{submitHost} =~ /^$user\@/)
+#    or ($user eq "admin")
+#    or $self->{LOGGER}->error("JobManager", "In reInsertCommand process $queueId does not belong to '$user'")
+#    and return (-1, "process $queueId does not belong to $user");
+#
+#  if ( (($data->{status} ne "ERROR_I") && ($data->{status} =~ /^ERROR_/))
+#    || ($data->{status} =~ /KILLED/)
+#    || ($data->{status} =~ /FAILED/)) {
+#
+#    if (($data->{status} eq "ERROR_A") || ($data->{status} eq "FAILED")) {
+#
+#      # we have first to remove the old token
+#      $self->{ADMINDB}->deleteJobToken($queueId)
+#        or $self->{LOGGER}->error("JobManager", "In reInsertCommand: cannot remove the old Token for job $queueId")
+#        and ($data->{status} eq "ERROR_A")
+#        and return (-1, "Cannot remove the old Token for job $queueId which was in status ERROR_A");
+#    }
+#
+#    $self->{ADMINDB}->insertJobToken($queueId, $user, -1)
+#      or $self->{LOGGER}->error("JobManager", "In reInsertCommand: cannot insert new Token for job $queueId")
+#      and return (-1, "Cannot insert new Token for this job");
+#
+#    my ($ok) = $self->{DB}->updateJob(
+#      $queueId,
+#      { runtime      => "",
+#        runtimes     => "",
+#        cpu          => "",
+#        mem          => "",
+#        cputime      => "",
+#        rsize        => "",
+#        vsize        => "",
+#        ncpu         => "",
+#        cpufamily    => "",
+#        cpuspeed     => "",
+#        cost         => "",
+#        maxrsize     => "",
+#        maxvsize     => "",
+#        procinfotime => "",
+#        status       => "WAITING",
+#        execHost     => "",
+#        priority     => "-1",
+#        started      => "",
+#        finished     => "",
+#        spyurl       => "",
+#        site         => "",
+#        node         => ""
+#      }
+#    );
+#    $ok
+#      or $self->{LOGGER}
+#      ->error("JobManager", "Reinserting command for job $queueId couldn't change the QUEUE table entry properly!")
+#      and return;
+#    $self->putJobLog($queueId, "state", "Job $queueId resubmitted");
+#
+#    my $procDir = AliEn::Util::getProcDir($user, undef, $queueId);
+#
+#    $self->{CATALOGUE}->execute("rmdir", "$procDir/job-log", "$procDir/job-output", "-r")
+#      or $self->info("Couldn't delete the old output box");
+#
+#    ##### in principle we have to check if job-output exists and delete in this case ....
+#    ##### and return (-1,"Cannot remove the old job-output directory");
+#    return $queueId;
+#    } else {
+#    $self->{LOGGER}->error("JobManager",
+#      "Reinserting command for job $queueId was reject because job is in status $data->{status} !");
+#    return (-1, "Job $queueId rejected => status= $data->{status} !");
+#  }
+#}
 
 sub resubmitCommand {
   my $this       = shift;
@@ -1436,7 +1413,7 @@ sub resubmitCommand {
 
   $self->info("Resubmitting command $queueId");
 
-  my ($data) = $self->{DB}->getFieldsFromQueue($queueId, "priority, status, jdl, submitHost");
+  my ($data) = $self->{DB}->getFieldsFromQueue($queueId, "submitHost");
 
   defined $data
     or $self->{LOGGER}->error("JobManager", "In resubmitCommand error during execution of database query")
@@ -1451,51 +1428,14 @@ sub resubmitCommand {
     or $self->{LOGGER}->error("JobManager", "In resubmitCommand process $queueId does not belong to '$user'")
     and return (-1, "process $queueId does not belong to $user");
 
-  $self->info(
-    "Removing the 'registeredoutput', 'registeredlog', 'joblogonclustermonitor', and 'successfullybookedpfns'  field");
-  $data->{jdl} =~ s/registeredlog\s*=\s*"[^"]*"\s*;\s*//im;
-  $data->{jdl} =~ s/registeredoutput\s*=\s*{[^}]*}\s*;\s*//im;
-  $data->{jdl} =~ s/joblogonclustermonitor\s*=\s*{[^}]*}\s*;\s*//im;
-  $data->{jdl} =~ s/successfullybookedpfns\s*=\s*{[^}]*}\s*;\s*//im;
-
-  my $newStatus = 'WAITING';
-  $data->{status} =~ /INSERTING/ and $newStatus = "INSERTING";
-
-  my $jobId = $self->{DB}->do(
-    'insert into QUEUE(priority, masterjob, status, splitting, notify, agentid, 
-  command, validate, split, merging, submitHost, name, path, jdl) 
-  select priority, masterjob, ?, splitting, notify, agentid, 
-  command, validate, split, merging, submitHost, name, path, jdl from QUEUE where queueid=?',
-    {bind_values => [ $newStatus, $queueId ]}
-  );
-  if ($jobId) {
-    $jobId = $self->{DB}->getLastId('QUEUE');
-    my ($user) = split '@', $data->{submitHost};
-    $self->putJobLog($jobId, "state", "New job (resubmission from $queueId)");
-    $self->{ADMINDB}->insertJobToken($jobId, $user, -1)
-      or $self->info("Error creating the token")
-      and return;
-    my $job_ca = Classad::Classad->new($data->{jdl});
-    my ($ok, $req) = $job_ca->evaluateExpression("Requirements");
-    my $agentReq = $self->getJobAgentRequirements($req, $job_ca);
-    $self->{DB}->insertJobAgent($agentReq);
-
-  }
-
-  #  my $jobId =$self->enterCommand( $data->{submitHost}, $data->{jdl}, "",
-  #				  $data->{priority} ,$masterId, $replacedId);
-
-  ($jobId)
-    or $self->{LOGGER}->error("JobManager", "In resubmitCommand error inserting the command")
-    and return (-1, "inserting the new command");
-
-  my $error = $self->killProcess($queueId, "admin");
-  ($error)
-    or $self->{LOGGER}->error("JobManager", "In resubmitCommand error killing the old process")
-    and return (-1, "killing the old process");
-
-  $self->info("Command $queueId updated!");
-  return $jobId;
+  $self->info("Removing the 'registeredoutput', 'registeredlog', 'joblogonclustermonitor', and 'successfullybookedpfns'  field");
+  $self->{ADMINDB}->deleteJobToken($queueId)
+   or $self->info("Error changing the token of $queueId") and return (-1, "Error changing the token of the job");
+  $self->{DB}->resubmitJob($queueId)
+    or $self->info("Error resubmitting the job $queueId") and return (-1, "Error resubmitting the job");
+  $self->putJobLog($queueId, "status", "The job has been resubmited");
+  
+  return $queueId;
 }
 
 sub _getSiteQueueBlocked {
@@ -1669,7 +1609,7 @@ sub getMasterJob {
     }
     $subjobs->[0]->{submitHost} =~ /^$user\@/
       or return (-1, "the job doesn't belong to $user");
-    $self->changeStatusCommand($id, "%", 'FORCEMERGE')
+    $self->changeStatusCommand($id, 'token', "%", 'FORCEMERGE')
       or return (-1, "error putting the status to 'FORCEMERGE'");
     $self->{DB}->update("ACTIONS", {todo => 1}, "action='MERGING'");
 

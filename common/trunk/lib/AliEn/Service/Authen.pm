@@ -149,7 +149,6 @@ sub doOperation {
   $debug and $self->{LOGGER}->debugOn($mydebug);
   $self->{LOGGER}->displayMessages();
   $self->info("$$ doOperation DONE for user $user (and @_) result: @info, length:" . scalar(@info));
-
   my $time = Time::HiRes::time() - $before;
   $self->logEntry("$user $op", $time);
   return {rcvalues => \@info, rcmessages => \@loglist};

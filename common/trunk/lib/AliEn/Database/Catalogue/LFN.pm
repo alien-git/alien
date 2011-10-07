@@ -95,15 +95,6 @@ sub LFN_createCatalogueTables {
       'entryId',
       ['INDEX (guid)']
     ],
-    ACL => [
-      "entryId",
-      { entryId => "int(11) NOT NULL auto_increment primary key",
-        owner   => "char(10) NOT NULL",
-        perm    => "char(4) NOT NULL",
-        aclId   => "int(11) NOT NULL",
-      },
-      'entryId'
-    ],
     TAG0 => [
       "entryId",
       { entryId   => "int(11) NOT NULL auto_increment primary key",
@@ -301,21 +292,20 @@ sub checkLFNTable {
   $table =~ /^L(\d+)L$/ and $number = $1;
 
   my %columns = (
-    entryId => "bigint(11) NOT NULL auto_increment primary key",
+    entryId => "int unsigned NOT NULL auto_increment primary key",
     lfn => "varchar(255)",    #in Oracle the empty string is null, so we have to allow this column to be null
     type       => "char(1)  default 'f' NOT NULL",
     ctime      => "timestamp  DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
     expiretime => "datetime",
     size       => "bigint  default 0 not null ",
-    aclId      => "mediumint(11)",
     perm       => "char(3) not null",
     guid       => "binary(16)",
     replicated => "smallint(1) default 0 not null",
-    dir        => "bigint(11)",
+    dir        => "int unsigned not null",
     owner      => "varchar(20) not null",
     gowner     => "varchar(20) not null",
-    md5        => "varchar(32)",
-    guidtime   => "varchar(8)",
+    md5        => "char(32)",
+    guidtime   => "char(8)",
     broken     => 'smallint(1) default 0 not null ',
     jobid      => "int(11)",
   );
@@ -329,7 +319,7 @@ sub checkLFNTable {
     undef, ['INDEX user_ind (user)'],)
     or return;
 
-  $self->do("optimize table ${table}");
+  $self->optimizeTable(${table});
 
   #  $self->do("optimize table ${table}_QUOTA");
 
@@ -395,7 +385,7 @@ sub getAllInfoFromLFN {
   }
   my $retrieve = (
     $options->{retrieve}
-      or "entryId,owner,replicated,guidtime,aclId,  broken, expiretime, "
+      or "entryId,owner,replicated,guidtime,  broken, expiretime, "
       . $self->reservedWord("size")
       . ",dir,  gowner,  "
       . $self->reservedWord("type")
@@ -725,7 +715,7 @@ sub listDirectory {
           },
           where       => "dir=? and l.guid=g.guid and p.guidid=g.guidid and p.seNumber=? $sort",
           bind_values => [ $entry->{entryId}, $selimit ],
-          retrieve    => "distinct l.entryId,l.owner,l.replicated,l.guidtime,l.aclId,l.lfn,  l.broken, l.expiretime, l."
+          retrieve    => "distinct l.entryId,l.owner,l.replicated,l.guidtime,l.lfn,  l.broken, l.expiretime, l."
             . $self->reservedWord("size")
             . ",l.dir,  l.gowner,  l."
             . $self->reservedWord("type")
@@ -962,10 +952,10 @@ sub moveFolder {
 
     #If the source and target are in different L#L tables then add in new table and delete from old table
     $dbTarget->do(
-          "INSERT INTO $tableName_target(owner, replicated, ctime, guidtime, aclId, lfn, broken, expiretime, "
+          "INSERT INTO $tableName_target(owner, replicated, ctime, guidtime, lfn, broken, expiretime, "
         . $dbTarget->reservedWord("size")
         . ", dir, gowner, type, guid, md5, perm) 
-                  SELECT owner, replicated, ctime, guidtime, aclId, REPLACE(lfn,?,?) as lfn, broken, expiretime, "
+                  SELECT owner, replicated, ctime, guidtime, REPLACE(lfn,?,?) as lfn, broken, expiretime, "
         . $dbTarget->reservedWord("size") . ", -1 as dir, gowner, type, guid, md5, perm 
                   FROM $tableName_source
                   WHERE lfn REGEXP ?",
@@ -1031,10 +1021,10 @@ sub moveFile {
 
     #If the source and target are in different L#L tables then add in new table and delete from old table
     $dbTarget->do(
-          "INSERT INTO $tableName_target(owner, replicated, ctime, guidtime, aclId, lfn, broken, expiretime, "
+          "INSERT INTO $tableName_target(owner, replicated, ctime, guidtime, lfn, broken, expiretime, "
         . $dbTarget->reservedWord("size")
         . ", dir, gowner, type, guid, md5, perm) 
-      SELECT owner, replicated, ctime, guidtime, aclId, ?, broken, expiretime, "
+      SELECT owner, replicated, ctime, guidtime, ?, broken, expiretime, "
         . $dbTarget->reservedWord("size")
         . ", dir, gowner, type, guid, md5, perm FROM $tableName_source WHERE lfn=?",
       {bind_values => [ $lfnOnTable_target, $lfnOnTable_source ]}
@@ -1083,10 +1073,10 @@ sub softLink {
 
     #If source and target are in same L#L table then just edit the names
     $dbTarget->do(
-          "INSERT INTO $tableName_target(owner, replicated, ctime, guidtime, aclId, lfn, broken, expiretime, "
+          "INSERT INTO $tableName_target(owner, replicated, ctime, guidtime, lfn, broken, expiretime, "
         . $dbTarget->reservedWord("size")
         . ", dir, gowner, type, guid, md5, perm) 
-      SELECT owner, replicated, ctime, guidtime, aclId, ?, broken, expiretime, "
+      SELECT owner, replicated, ctime, guidtime, ?, broken, expiretime, "
         . $dbTarget->reservedWord("size") 
         . ", dir, gowner, 'l', guid, md5, perm FROM $tableName_source WHERE lfn=?",
       {bind_values => [ $lfnOnTable_target, $lfnOnTable_source ]}
@@ -1097,10 +1087,10 @@ sub softLink {
 
     #If the source and target are in different L#L tables then add in new table and delete from old table
     $dbTarget->do(
-          "INSERT INTO $tableName_target(owner, replicated, ctime, guidtime, aclId, lfn, broken, expiretime, "
+          "INSERT INTO $tableName_target(owner, replicated, ctime, guidtime, lfn, broken, expiretime, "
         . $dbTarget->reservedWord("size")
         . ", dir, gowner, type, guid, md5, perm) 
-      SELECT owner, replicated, ctime, guidtime, aclId, ?, broken, expiretime, "
+      SELECT owner, replicated, ctime, guidtime, ?, broken, expiretime, "
         . $dbTarget->reservedWord("size")
         . ", dir, gowner, 'l', guid, md5, perm FROM $tableName_source WHERE lfn=?",
       {bind_values => [ $lfnOnTable_target, $lfnOnTable_source ]}
@@ -1426,7 +1416,7 @@ sub moveLFNs {
 
   #ok, this is the easy case, we just copy into the new table
   my $columns =
-      "entryId,md5,owner,gowner,replicated,aclId,expiretime,"
+      "entryId,md5,owner,gowner,replicated,expiretime,"
     . $self->reservedWord("size") . ",dir,"
     . $self->reservedWord("type")
     . ",guid,perm";
@@ -1987,7 +1977,7 @@ sub internalQuery {
   $b =~ s/guid/l.guid/;
 
   map {
-s/^(.*)$/$self->paginate("SELECT l.entryId,ctime,owner,replicated,guidtime,aclId, jobId, broken, expiretime,dir, ".$self->reservedWord("size").", gowner,  ".$self->reservedWord("type")." ,md5,perm,concat('$refTable->{lfn}', lfn) as lfn,
+s/^(.*)$/$self->paginate("SELECT l.entryId,ctime,owner,replicated,guidtime, jobId, broken, expiretime,dir, ".$self->reservedWord("size").", gowner,  ".$self->reservedWord("type")." ,md5,perm,concat('$refTable->{lfn}', lfn) as lfn,
 $b as guid from $indexTable l $1 $order", $limit, $offset)/e
   } @joinQueries;
 

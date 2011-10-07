@@ -194,55 +194,6 @@ sub getQueueInfo {
     return $returninfo;
 }
 
-## this command is called by the CE to match the queued jobs in the central queue with the queued jobs in the
-## local queue
-
-#sub checkQueueStatus() {
-#  my $this = shift;
-#  my $ce   = shift;
-#  my @jobs = @_;
-
-#  # for LCG, we do the check for the moment in the old ClusterMonitor way ....
-#  if ( $ce=~ /LCG/ ) {
-#    return 1;
-#  }
-
-#  $self->info( "In checkQueuedStatus .... for $ce");
-  
-#  $ce or return;
-
-#  $self->info( "Verifying the queue $ce with Job-Ids  @_");
-##  }
-  
-#  $self->info( "Calling SOAP");
-#  my $done =$self->{SOAP}->CallSOAP("Manager/Job", "jobinfo",$ce,"QUEUED","600");
-#  $done or return;
-#  my $returninfo="";
-
-#  $self->info( "Calling SOAP successful!");
-#  $done=$done->result;
-#  my $refqueueid;
-#  my $consistent = 1;
-#  foreach  (@$done) {
-#    $self->info( "Checking Job Id $_->{queueId} ");
-#    if ($_->{queueId} > 0) {
-#      # compare if we find this job in the list from the CE
-#      my $found = grep (/^$_->{queueId}$/, @_);
-#      if (!$found) {
-#	# this job is not in our queue!
-#	$self->{LOGGER}->error("ClusterMonitor","Job $refqueueid is not queued anymore in $ce - moving to ERROR_E!");
-#	$self->changeStatusCommand($_->{queueId},"QUEUED", "ERROR_E","","");
-#	$consistent = 0;
-#      } else {
-#	$self->info("Verified that job $refqueueid is still queued ....!");
-#      }
-#    }
-#  }
-#  $self->info("Finished checkQueueStatus");
-#  return $consistent;
-
-#}
-
 sub getExcludedHosts {
     my $now   = time;
 #    my @hosts =
@@ -516,65 +467,6 @@ sub getIdleProcess() {
     return;
 }
 
-sub changeStatusCommand {
-  my ( $this, $queueId, $oldstatus, $status, $error, $node, $port ) = @_;
-
-  my $date = time;
-
-  $self->info( "Command $queueId changed to $status (and $error)" );
-
-  ( $self->checkConnection() ) or return;
-
-  my $nodeport;
-
-  if (((! defined $node) || (! defined $port) ) || ($node eq "") && ($port eq "")) {
-    $nodeport="";
-  } else {
-    $nodeport="$node:$port";
-  }
-
-  my $done =$self->{SOAP}->CallSOAP("Manager/Job", "changeStatusCommand",  $queueId, $oldstatus, $status, $self->{CONFIG}->{CE_FULLNAME}, $error, $node,"$nodeport");
-
-  if (!$done) {
-      # emergency blocking
-    $self->info( "Emergency Blocking - Manager/job cannot change the status correctly" );
-    $self->{SOAP}->CallSOAP("Manager/Job", "setSiteQueueBlocked",$self->{CONFIG}->{CE_FULLNAME});
-    return (-1, $self->{LOGGER}->error_msg); 
-  }
-#  my $set = "";
-#
-#  ($status) and ( $set .= "status='$status', " );
-#
-#  ( ( $status eq 'DONE' ) or ( $status eq 'ERROR_E' ) )
-#    and ( $set .= "port=0, finished=$date, " );
-#
-#  ( $status eq 'RUNNING' )
-#    and ( $set .= "port='$port', nodeName='$node', started=$date, " );#
-#
-#  ( $status eq 'IDLE' ) 
-#    and $node and ( $set .= "port='$port', nodeName='$node', started=$date, " );
-
-  if ( ( $status eq 'VALIDATED' ) or ( $status eq 'FAILED' ) ) {
-    my $dir="$self->{CONFIG}->{LOG_DIR}/proc/$queueId";
-    $self->info( "Deleting directory $dir" );
-	
-    system ("rm","-rf","$dir");
-  }
-#  $self->{BATCH}->statusChange($status,$queueId);
-
-  $self->info( "Updating done!!" );
-  return $done->result;
-}
-
-sub resubmitCommand {
-  my $this=shift;
-  return $self->_CallManager("resubmitCommand", @_);
-}
-
-sub getJobInfo {
-  my $this=shift;
-  return $self->_CallManager("getJobInfo", @_);
-}
 
 sub killZombie {
     my $this = shift;
@@ -623,61 +515,6 @@ sub getQueueStatus {
     return $message;
 }
 
-sub enterCommand {
-    my ( $this, $user, $jobca_text, $inputBox ) = @_;
-
-    $self->info( "Submitting command $jobca_text" );
-
-    if (! $self->checkConnection() ) {
-
-      return;
-    }
-    $self->debug(1, "Connection is up" );
-    my $done =$self->{SOAP}->CallSOAP("Manager/Job","enterCommand", 
-			      $user, $jobca_text, $inputBox );
-
-    if (! $done) {
-
-      return (-1, $self->{LOGGER}->error_msg);
-    }
-
-    $self->info( "Command submitted!!" );
-
-    return $done->result;
-}
-
-sub getTop {
-  my $this=shift;
-  return $self->_CallManager("getTop", @_);
-}
-
-sub getMasterJob {
-  my $this=shift;
-  return $self->_CallManager("getMasterJob", @_);
-}
-
-sub getTrace {
-  my $this=shift;
-  return $self->_CallManager("getTrace", @_);
-}
-sub getJobRC {
-  my $this=shift;
-  return $self->_CallManager("getJobRc", @_);
-}
-sub getPs {
-  my $this=shift;
-  return $self->_CallManager("getPs", @_);
-}
-
-sub getSystem {
-  my $this=shift;
-  return $self->_CallManager("getSystem", @_);
-}
-
-sub queueinfo {
-  my $this=shift;
-  return $self->_CallManager("queueinfo", @_);
-}
 
 sub putJobLog {
   my $this=shift;
@@ -685,42 +522,6 @@ sub putJobLog {
   return $self->{LOCALJOBDB}->insertMessage($queueId, $tag,$message,0);
 }
 
-
-sub jobinfo {
-  my $this=shift;
-  return $self->_CallManager("jobinfo", @_);
-}
-sub killProcess {
-  my $this=shift;
-  return $self->_CallManager("killProcess", @_);
-}
-sub validateProcess {
-  my $this=shift;
-  return $self->_CallManager("validateProcess", @_);
-}
-
-sub GetJobJDL {
-  my $this=shift;
-  return $self->_CallManager("GetJobJDL", @_);
-}
-
-sub _CallManager {
-  my $self=shift;
-  my $function=shift;
-
-  $self->info( "Getting $function (@_) from the Manager/Job ");
-
-  ( $self->checkConnection() ) or return;
-
-  my $done = $self->{SOAP}->CallSOAP("Manager/Job",$function, @_);
-
-  ($done) or  return (-1, $self->{LOGGER}->error_msg);
-
-  $self->info( "Done $function" );
-
-  return $done->result;
-
-}
 ###################################################
 #
 #  Bank functions  
@@ -1121,48 +922,6 @@ sub checkWakesUp {
   return; 
 }
 
-# This method sends all the information collected from the jobagents to the
-# central service
-#
-#
-sub checkZombies {
-  my $self=shift;
-  my $silent =(shift || 0);
-  my $method ="info";
-  my @data; 
-  $silent  and $method="debug" and push @data, 1;
-
-  $self->$method(@data, "Checking the jobs that are running");
-
-  my $done=$self->getTop("-host", $self->{HOST});
-
-  $done or $self->info("Error getting the jobs that are running") and return;
-
-  foreach my $job (@$done){
-    $self->info("Checking if the job $job->{queueId} is still running");
-    my $data=$self->{LOCALJOBDB}->queryValue("select count(*) from JOBAGENT where jobId = ?", undef, {bind_values=>[$job->{queueId}]});
-    $data and next;
-    $self->info("According to the local database, the job is no longer there..");
-    $data=$self->getTrace("trace", $job->{queueId}, "all");
-    if ($data) {
-      my @lines=split (/\n/, $data);
-      my $lastLine=pop @lines;
-      $self->info("The last line is $lastLine");
-      $lastLine =~ s/^\s*(\d+)\s+.*$/$1/;
-      my $time=time - $lastLine;
-      $self->info("The last message was $time seconds ago");
-      $time>900 or next;
-      
-    }
-
-    $self->info("This job should be put to ZOMBIE!!");
-    $self->changeStatusCommand($job->{queueId},"%", "ZOMBIE","","");
-  }
-
-
-
-  return 1;
-}
 
 # Forward the call from JobAgent to AliEn::Service::IS in central services
 sub getCpuSI2k {

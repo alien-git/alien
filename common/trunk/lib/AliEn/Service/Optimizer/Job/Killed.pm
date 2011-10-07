@@ -25,37 +25,17 @@ sub checkWakesUp {
   my $todo=$self->{DB}->queryValue("SELECT todo from ACTIONS where action='KILLED'");
   $todo or return;
   $self->{DB}->update("ACTIONS", {todo=>0}, "action='KILLED'");
+  $self->{DB}->lock("QUEUEJDL write, QUEUEPROC write, QUEUE write, SITEQUEUES");
 
+  $self->{DB}->do("delete from QUEUEJDL using QUEUEJDL join QUEUE using (queueid) where status='KILLED'");
+  $self->{DB}->do("delete from QUEUEPROC using QUEUEPROC join QUEUE using (queueid) where status='KILLED'");
+  $self->{DB}->do("delete from QUEUE where status='KILLED'");
+  $self->{DB}->do("update SITEQUEUES set killed=0");
+  $self->{DB}->unlock();
   my $done=$self->checkJobs($silent, "KILLED", "updateKilled");
 
   $self->info( "The inserting optimizer finished");
   return;
-}
-
-sub updateKilled {
-  my $self=shift;
-  my $queueid=shift;
-  my $job_ca=shift;
-
-  my $status="WAITING";
-  print "\n";
-  $self->info( "Job $queueid has been killed. Removing it from the queue" );
-  
-  my $info=$self->{DB}->getFieldsFromQueue($queueid,"submitHost,site") 
-    or $self->info("Error getting the info of that job") and return; 
-  my $submitHost=$info->{submitHost}
-    or $self->info("Error getting the owner of that job") and return; 
-  my $site=$info->{site} || "";
-
-  $self->{DB}->delete("QUEUE", "queueId=$queueid");
-  $self->{DB}->delete("QUEUEPROC", "queueId=$queueid");
-  $self->info("Reducing the number of jobs in $site");
-  $self->{DB}->do("UPDATE SITEQUEUES set KILLED=KILLED-1 where site='$site'");
-  my $procDir=AliEn::Util::getProcDir(undef,$submitHost,  $queueid);
-  $procDir or $self->info("Error getting the directory") and return;
-
-  $self->{CATALOGUE}->execute("rmdir", "-rf", $procDir);
-  return 1;
 }
 
 

@@ -28,7 +28,7 @@ sub checkWakesUp {
   $todo or return;
   $self->{DB}->update("ACTIONS", {todo=>0}, "action='INSERTING'");
 
-  my $done=$self->checkJobs($silent, "INSERTING' and upper(jdl) not like '\% SPLIT = \"\%", "updateInserting");
+  my $done=$self->checkJobs($silent, "INSERTING' and upper(origjdl) not like '\% SPLIT = \"\%", "updateInserting");
 
   $self->$method(@data, "The inserting optimizer finished");
   return;
@@ -71,7 +71,7 @@ sub updateInserting {
 
     $ok=$job_ca->set_expression("Requirements", $req) or 
       die("ERROR SETTING THE REQUIREMENTS TO $req");
-    $set->{jdl}=$job_ca->asJDL();
+    $set->{origjdl}=$job_ca->asJDL();
 #    print "The jdl is $set->{jdl}\n";
 
     ($ok, my $stage)=$job_ca->evaluateExpression("Prestage");

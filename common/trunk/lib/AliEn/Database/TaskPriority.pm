@@ -58,7 +58,7 @@ sub checkPriorityTable {
   $self->{PRIORITYTABLE} = (shift or "PRIORITY");
 
   my %columns = (
-    user                => "varchar(64) CHARACTER SET latin1 not null",
+    user                => "varchar(64) CHARACTER SET latin1 COLLATE latin1_general_cs not null",
     priority            => "float default 0 not null ",
     maxparallelJobs     => "int default 0 not null  ",
     nominalparallelJobs => "int default 0 not null ",

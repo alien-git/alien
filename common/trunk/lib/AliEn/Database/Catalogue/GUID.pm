@@ -76,15 +76,6 @@ sub GUID_createCatalogueTables {
   }
 
   my %tables = (
-    ACL => [
-      "entryId",
-      { entryId => "int(11) NOT NULL auto_increment primary key",
-        owner   => "char(10) NOT NULL",
-        perm    => "char(4) NOT NULL",
-        aclId   => "int(11) NOT NULL",
-      },
-      'entryId'
-    ],
     GROUPS => [
       "Username",
       { Username     => "char(15) NOT NULL",
@@ -163,7 +154,6 @@ sub checkGUIDTable {
     size             => "bigint default 0 not null ",
     seStringlist     => "varchar(255) default ',' not null ",
     seAutoStringlist => "varchar(255) default ',' not null ",
-    aclId            => "int(11)",
     perm             => "char(3)",
     guid             => "binary(16)",
     md5              => "varchar(32)",
@@ -400,7 +390,7 @@ sub getAllInfoFromGUID {
 
   $options->{retrieve} and $options->{retrieve} = $options->{retrieve} . ',binary2string(guid) as guid';
   my $retrieve = $options->{retrieve}
-    || 'guidId,seAutoStringList,owner,aclId, expiretime,'
+    || 'guidId,seAutoStringList,owner,expiretime,'
     . $self->reservedWord("size")
     . ',ref,  gowner,  '
     . $self->reservedWord("type")

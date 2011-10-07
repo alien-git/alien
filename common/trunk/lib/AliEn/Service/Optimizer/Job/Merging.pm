@@ -28,17 +28,24 @@ sub checkWakesUp {
 
   $self->info("There are some jobs to check!!");
 
-  my $jobs=$self->{DB}->query("SELECT queueid, jdl, status from QUEUE q, JOBSTOMERGE j where q.queueid=j.masterid and status='SPLIT' union select queueid,jdl,status from QUEUE where status='FORCEMERGE'");
+  my $jobs=$self->{DB}->query("select queueid, status, origjdl jdl from ( 
+     SELECT queueid, status from QUEUE q, JOBSTOMERGE j where q.queueid=j.masterid and status='SPLIT'
+     union select queueid,status from QUEUE where status='FORCEMERGE')d 
+  join QUEUEJDL using (queueid)");
   foreach my $job (@$jobs){
     $self->{DB}->delete("JOBSTOMERGE", "masterId=?", {bind_values=>[$job->{queueid}]});
-    my $job_ca=Classad::Classad->new($job->{jdl});
-    if ( !$job_ca->isOK() ) {
+    
+    if ($job->{jdl}){
+      my $job_ca=Classad::Classad->new($job->{jdl});	
+      if ( $job_ca->isOK() ) {
+      	$self->updateMerging($job->{queueid}, $job_ca, $job->{status});
+      	next;
+      }
       $self->info("JobOptimizer: in checkJobs incorrect JDL input\n" . $job->{jdl} );
-      $self->{DB}->updateStatus($job->{queueid},"%","ERROR_I");
-      
-      next;
+    } else {
+      $self->info("Error getting jdl of the job '$job->{queueid}'");
     }
-    $self->updateMerging($job->{queueid}, $job_ca, $job->{status});
+    $self->{DB}->updateStatus($job->{queueid},"%","ERROR_M");        
 
   }
 
@@ -58,8 +65,6 @@ sub checkMerging {
 
   my $newStatus="DONE";
   $self->info("Checking if the merging jobs of $queueid have finished");
-
-  my ($olduser)=$self->{CATALOGUE}->execute("whoami");
 
   eval {
     my $info=$self->{DB}->getFieldsFromQueue($queueid, "merging,submitHost")
@@ -125,7 +130,6 @@ sub checkMerging {
     $self->info("Something failed: $@");
     $newStatus="ERROR_M";
   }
-  $self->{CATALOGUE}->execute("user","-", $olduser);
 
   $newStatus or return;
   my $message="Job state transition from $status to $newStatus";
@@ -445,7 +449,7 @@ sub checkMergingCollection{
   my ($ok, @mergingCollections)=$job_ca->evaluateAttributeVectorString("MergeCollections");
   @mergingCollections or return 1;
   
-  my $subjobs=$self->{DB}->query("select JDL,queueid from QUEUE where status='DONE' and split=?",
+  my $subjobs=$self->{DB}->query("select resultsjdl JDL,queueid from QUEUE join QUEUEJDL using (queueid) where status='DONE' and split=?",
                                         undef, {bind_values=>[$queueid]});
                                         
   my @out=();

@@ -514,16 +514,17 @@ sub GetJobJDL {
   my $id=shift;
  
  
-  my $columns="jdl";
+  my $columns="ifnull(resultsjdl, origjdl) jdl";
+  my $join="";
   my $method="queryValue"; 
   foreach my $o (@_) {
-    $o=~ /-dir/ and $columns.=",path" and $method="queryRow";
-    $o=~ /-status/ and $columns.=",status" and $method="queryRow";
+    $o=~ /-dir/ and $columns.=",path" and $method="queryRow" and $join="join QUEUE using (queueid)";
+    $o=~ /-status/ and $columns.=",status" and $method="queryRow" and $join="join QUEUE using (queueid)";
   }
 
   $self->debug(1, "Asking for the jdl of $id");
   $id or $self->info( "No id to check in GetJOBJDL",11) and return (-1, "No id to check");
-  my $rc=$self->{DB}->$method("select $columns from QUEUE where queueId=?", undef, {bind_values=>[$id]});
+  my $rc=$self->{DB}->$method("select $columns from QUEUEJDL $join where queueId=?", undef, {bind_values=>[$id]});
   $self->info( "Giving back the $columns of $id\n");
   return $rc; 
 
@@ -660,7 +661,7 @@ sub getPs {
 
 
 	#my (@ok) = $self->{DB}->query($query);
-  my $rresult = $self->{DB}->getFieldsFromQueueEx("q.queueId, status, jdl, execHost, submitHost, runtime, cpu, mem, cputime, rsize, vsize, ncpu, cpufamily, cpuspeed, cost, maxrsize, maxvsize, site, node, split, procinfotime,received,started,finished",
+  my $rresult = $self->{DB}->getFieldsFromQueueEx("q.queueId, status, name, execHost, submitHost, runtime, cpu, mem, cputime, rsize, vsize, ncpu, cpufamily, cpuspeed, cost, maxrsize, maxvsize, site, node, split, procinfotime,received,started,finished",
 						  "q, QUEUEPROC p $where")
     or $self->{LOGGER}->error( "JobManager", "In getPs error getting data from database" )
       and return (-1, "error getting data from database");
@@ -670,12 +671,11 @@ sub getPs {
   my @jobs;
   for (@$rresult) {
     $DEBUG and $self->debug(1, "Found jobid $_->{queueId}");
-    my ($executable) = $_->{jdl} =~ /.*Executable\s*=\s*"([^"]*)"/i;
-    my ($split)      = $_->{jdl} =~ /.*Split\s*=.*"(.*)".*/i;
+
     $_->{cost} = int ($_->{cost});
-    push @jobs, join ("###", $_->{queueId}, $_->{status}, $executable, $_->{execHost}, $_->{submitHost},
+    push @jobs, join ("###", $_->{queueId}, $_->{status}, $_->{name}, $_->{execHost}, $_->{submitHost},
 		      $_->{runtime}, $_->{cpu}, $_->{mem}, $_->{cputime}, $_->{rsize}, $_->{vsize},
-		      $_->{ncpu}, $_->{cpufamily}, $_->{cpuspeed}, $_->{cost}, $_->{maxrsize}, $_->{maxvsize}, $_->{site},$_->{node},$split,$_->{split},$_->{procinfotime},$_->{received},$_->{started},$_->{finished});
+		      $_->{ncpu}, $_->{cpufamily}, $_->{cpuspeed}, $_->{cost}, $_->{maxrsize}, $_->{maxvsize}, $_->{site},$_->{node},1,$_->{split},$_->{procinfotime},$_->{received},$_->{started},$_->{finished});
   }
 
   (@jobs) or (push @jobs, "\n");
