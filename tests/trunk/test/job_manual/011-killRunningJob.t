@@ -19,7 +19,6 @@ BEGIN { plan tests => 1 }
   my $cat = AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",});
   $cat or exit(-1);
   my ($jobId) = $cat->execute("submit", "jdl/date.slow.jdl") or exit(-2);
-  sleep(15);
 
   my $id = fork();
   defined $id or print "ERROR DOING THE FORK\n" and exit(-2);
@@ -35,12 +34,21 @@ BEGIN { plan tests => 1 }
   sleep 25;
   print "The father kills the job:\n";
 
-  #$cat->execute("kill", $jobId) or exit(-2);
+  $cat->execute("kill", $jobId) or exit(-2);
   sleep 20;
   print "Checking if the child ($id) is still there:\n";
   kill 0, $id and print "THE CHILD IS THERE\n";
   system("ps -Ao command |grep $id");
-  system("alien", "proxy-destroy");
+  print "And let's check the status of the job\n";
+  my ($done)=$cat->execute("top", "-id", $jobId);
+  use Data::Dumper;
+  if ($done){
+  	print "The job is still there..\n";
+  	print Dumper($done);
+  	$done->{status} eq 'KILLED' or print 'AND IT IS NOT DEAD!!\n' and exit(-2);
+  }
+  
+  
   ok(1);
 }
 

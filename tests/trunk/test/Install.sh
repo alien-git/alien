@@ -227,6 +227,7 @@ RUN_TEST()
     #cat $OUTPUT
     DONE=$?
     grep '^#ALIEN_OUTPUT' $OUTPUT >$DIR/${TEST/\//.}.b.input
+    [ -s $DIR/${TEST/\//.}.b.input ]  || rm $DIR/${TEST/\//.}.b.input
     END=`date +"%s"`
     let TIME=$END-$START
 

@@ -45,7 +45,6 @@ my ($resubmitId)=$cat->execute("resubmit", $jobId)
   or print "Error resubmitting the job $jobId\n" and exit(-2);
 
 print "ok\nThe job has been resubmitted. Let's see if $resubmitId gets to 'WAITING'...";
-sleep(20);
 ($info)=$cat->execute("top", "-id", $resubmitId) or print "Error doing top\n" and exit(-2);
 print "GOT $info->{status}\n";
 $info->{status} eq "WAITING"

@@ -83,9 +83,9 @@ open(STDERR, ">&SAVEOUT");
 
 print "Let's take a look at what happened $error\n";
 
-open(FILE, "<$file") or print "Error looking at the output\n" and exit(-2);
-my @output = <FILE>;
-close FILE;
+open(my $fileContent, "<", $file) or print "Error looking at the output\n" and exit(-2);
+my @output = <$fileContent>;
+close $fileContent;
 unlink $file;
 print "GOT @output\n";
 
@@ -96,8 +96,10 @@ if ($error) {
 
 print "Making sure that we started two agents\n";
 
-my @agents = grep (/Starting 1 agent\(s\) for /, @output);
+if (! grep(/Starting 2 agent\(s\) for /, @output)){
+  my @agents = grep (/Starting 1 agent\(s\) for /, @output);
 
-$#agents > 0 or print "We only started $#agents !!\n" and exit(-2);
+  $#agents > 0 or print "We only started $#agents !!\n" and exit(-2);
+}
 
 print "ok!\n";

@@ -26,6 +26,7 @@ use AliEn::Config;
   ) or exit(-2);
 
   startService("Monitor") or exit(-2);
+  startService("CMreport", {nolisten=>1}) or exit(-2);
   print "YUHUUU\n";
 
   ok(1);
