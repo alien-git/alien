@@ -1832,7 +1832,7 @@ sub dbGetSEListFromSiteSECacheForWriteAccess {
   my $sitename    = shift;
   my $excludeList = (shift || "");
 
-  my $query = "SELECT DISTINCT SE.seName, rank FROM SERanks,SE WHERE "
+  my $query = "SELECT seName from (SELECT DISTINCT SE.seName,rank FROM SERanks,SE WHERE "
     . " sitename=? and SERanks.seNumber = SE.seNumber ";
 
   my @queryValues = ();
@@ -1846,7 +1846,7 @@ sub dbGetSEListFromSiteSECacheForWriteAccess {
   $query .=
 " and SE.seMinSize <= ? and SE.seQoS  LIKE concat('%,' , concat(? , ',%' )) "
     . " and (SE.seExclusiveWrite is NULL or SE.seExclusiveWrite  LIKE concat ('%,' , concat(? , ',%') ))"
-    . " order by rank ASC  ";
+    . " order by rank ASC ) ";
 
   push @queryValues, $fileSize;
   push @queryValues, $type;
