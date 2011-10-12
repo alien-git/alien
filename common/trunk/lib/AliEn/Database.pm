@@ -165,7 +165,7 @@ sub new {
       $self->SUPER::getTypes;
       $INDEX = 0;
 
-      defined $self->{ORACLE_USER} or $self->{ORACLE_USER} = "ALIEN";
+      defined $self->{ORACLE_USER} or  $self->{ORACLE_USER} = $ENV{ORACLE_USER} or $self->{ORACLE_USER} ="ALIEN";
     }
   }
 
