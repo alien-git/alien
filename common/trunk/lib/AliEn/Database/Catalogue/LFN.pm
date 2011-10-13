@@ -2199,9 +2199,10 @@ sub renumberLFNtable {
       $bind = [ $entry->{reduce}, $entry->{min}, $entry->{max} ];
     }
     my $done = $self->do("update $table set dir=dir-? where dir>=? $max1", {bind_values => $bind});
-
-    my $done2=$self->do("update $table set entryId=entryId-? where entryId>=? $max2 order by entryId", {bind_values=>$bind});
-    #my $done2 = $self->do("update $table set entryId=entryId-? where entryId>=? $max2 ", {bind_values => $bind});
+    
+    my $q = "update $table set entryId=entryId-? where entryId>=? $max2 order by entryId";
+    $self->{DRIVER}=~/Oracle/i and $q = "update $table set entryId=entryId-? where entryId>=? $max2";
+    my $done2=$self->do($q, {bind_values=>$bind});
     ($done and $done2)
       or $self->info("ERROR !!")
       and last;
