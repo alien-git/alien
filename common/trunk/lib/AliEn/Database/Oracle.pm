@@ -524,7 +524,7 @@ s/(\,)(size|user|time|current|validate|date|file)(\,)/$1."\"".uc($2)."\"".$3/ieg
   $stmt =~
 s/(\()(size|user|time|current|validate|date|file)(\))/$1."\"".uc($2)."\"".$3/ieg;
   $stmt =~
-s/\W(\s+)(size|user|time|current|validate|date|file)(\s+)/$1."\"".uc($2)."\"".$3/ieg;
+s/(\s+)(size|user|time|current|validate|date|file)(\s+|\=)/$1."\"".uc($2)."\"".$3/ieg;
   my $arrRef;
   my $execute;
   my @bind;
@@ -647,7 +647,7 @@ s/(\,)(size|user|time|current|validate|date|file)(\,)/$1."\"".uc($2)."\"".$3/ieg
   $stmt =~
 s/(\()(size|user|time|current|validate|date|file)(\))/$1."\"".uc($2)."\"".$3/ieg;
   $stmt =~
-s/\W(\s)(size|user|time|current|validate|date|file)(\s)/$1."\"".uc($2)."\"".$3/ieg;
+s/\W(\s)(size|user|time|current|validate|date|file)(\s|\=)/$1."\"".uc($2)."\"".$3/ieg;
   my $oldAlarmValue = $SIG{ALRM};
   local $SIG{ALRM} = \&_timeout;
   my $check = $options->{zero_length};
