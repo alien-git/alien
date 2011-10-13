@@ -140,6 +140,9 @@ sub submit {
      $self->info("No more slots in the queues?");
      return;
   }
+  print "********************************************************************\n";
+  print Dumper  $self->{CE_CLUSTERSTATUS};
+  print "********************************************************************\n";
   push @args, ("-r", $theCE);
   push @args, ("-D", "$self->{CONFIG}->{DELEGATION_ID}");
 
@@ -428,7 +431,7 @@ sub getCEInfo {
   }
   foreach my $cluster ( @{$self->{CE_CLUSTERSTATUS}} ) {
     foreach my $CE ( keys %{$cluster} ) {
-      next if ($cluster->{$CE}<0);
+      # next if ($cluster->{$CE}<0);
       $self->debug(1,"Querying for $CE");
       my $res = $self->queryBDII($CE,'',"GlueVOViewLocalID=\L$self->{CONFIG}->{LCGVO}\E,GlueCEUniqueID=$CE",@_);
       $self->debug(1,"getCEInfo() got: ".Dumper($res));
