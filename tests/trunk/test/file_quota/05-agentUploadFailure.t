@@ -35,6 +35,7 @@ my $d=AliEn::Database->new({DRIVER=>"mysql", HOST=>"$host:3307", DB=>"alien_syst
 
   cleanDir($cat, $pwd);
   $cat_ad->execute("removeExpiredFiles");
+	$d->update("FQUOTAS", {nbFiles=>0, totalSize=>0}, "user='$user'");
 #  cleanDir($cat, "/proc/$user");
   $cat->execute("mkdir", "-p", "dir1") or exit(-2);
   $cat->execute("mkdir", "-p", "bin") or exit(-2);
