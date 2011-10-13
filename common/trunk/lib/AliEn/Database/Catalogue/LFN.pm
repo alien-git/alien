@@ -1737,7 +1737,7 @@ sub getDiskUsage {
     my $pattern = $lfn;
     $pattern =~ s{^$self->{INDEX_TABLENAME}->{lfn}}{};
     my $where = "where lfn like '$pattern%'";
-    $self->{INDEX_TABLENAME}->{lfn} =~ m{^$lfn} and $where = "where 1";
+    $self->{INDEX_TABLENAME}->{lfn} =~ m{^$lfn} and $where = "where 1=1";
     $options =~ /f/ and $where .= " and type='f'";
     my $table = $self->{INDEX_TABLENAME}->{name};
     my $partialSize = $self->queryValue(

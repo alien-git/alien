@@ -778,7 +778,8 @@ sub getJobsByStatus {
     push @$bind, $minid;
   }
   my $query = "SELECT queueid,ifnull(resultsjdl, origjdl) jdl from $self->{QUEUETABLE} join QUEUEJDL using (queueid) where status='$status' $order";
-
+  $self->{DRIVER}=~/Oracle/ and $query = "SELECT queueid,nvl(resultsjdl, origjdl) jdl from $self->{QUEUETABLE} join QUEUEJDL using (queueid) where 
+status='$status' $order";
   $query = $self->paginate($query, $limit, 0);
 
   $DEBUG
@@ -1187,7 +1188,7 @@ sub insertJobAgent {
     $params or
       $self->info("Error getting the fields from '$text'") and return;
   
-  my $req="1 ";
+  my $req="1=1 ";
   my @bind=();
 
   foreach my $key (keys %$params) {
@@ -1278,7 +1279,7 @@ sub getNumberWaitingForSite{
   $options->{returnPackages} and $return="packages";
   $options->{returnId} and $return="entryId";
   
-  return $self->queryValue("select $return from JOBAGENT where 1 $where  limit 1", undef, {bind_values=>\@bind});
+  return $self->queryValue("select $return from JOBAGENT where 1=1 $where  limit 1", undef, {bind_values=>\@bind});
   
 }
 

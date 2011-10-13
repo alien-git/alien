@@ -1566,7 +1566,7 @@ To_Char( To_Date( '01.01.1970 06:00:00','DD.MM.YYYY HH24:Mi:Ss') + q.received / 
 and (to_char(sysdate, 'DD.MM.YYYY HH24:Mi:ss')  <=   
 To_Char( To_Date( '01.01.1970 06:00:00','DD.MM.YYYY HH24:Mi:Ss') + q.received / 86400 + 60*60*24,'DD.MM.YYYY HH24:Mi:ss'))) 
 GROUP BY submithost ) c on (pr.\"USER\"=c.\"USER\") 
-when matched then update set  pr.totalCpuCostLast24h=c.pr.totalCpuCostLast24h"
+when matched then update set  pr.totalCpuCostLast24h=c.totalCpuCostLast24h"
   );
 }
 

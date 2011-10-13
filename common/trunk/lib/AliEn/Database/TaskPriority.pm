@@ -177,7 +177,7 @@ sub getFieldFromPriority {
   my $attr = shift || "*";
 
   $self->debug(1, "In getFieldFromPriority fetching attribute $attr of user $user");
-  $self->queryValue("SELECT $attr FROM $self->{PRIORITYTABLE} WHERE user=?", undef, {bind_values => [$user]});
+  $self->queryValue("SELECT $attr FROM $self->{PRIORITYTABLE} WHERE user =?", undef, {bind_values => [$user]});
 }
 
 sub getFieldsFromPriority {
