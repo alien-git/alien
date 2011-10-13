@@ -93,6 +93,7 @@ s/(DEFAULT )?CHARACTER SET latin1|COLLATE latin1_general_cs|COLLATE latin1_gener
   $columns{$desc} =~
     s/(\s*)([a-zA-Z]+)(\(|\s+|$)(.*)/$self->{TYPES}->{$2}$3$4/i;
   $columns{$desc} =~ s/int\(/number\(/;
+  $columns{$desc} =~ s/int unsigned/number/i;
   if ($columns{$desc} =~ s/auto_increment//) {
     $autoincrements{$table} = $desc2;
   }
@@ -172,6 +173,7 @@ s/(DEFAULT)? CHARACTER SET latin1|COLLATE latin1_general_cs|COLLATE latin1_gener
     $definition =~
 s/(\"\w+\"|\w+)(\s+)(\w+)(\(|\s+|\,|$)(.*)?/$1.$2.$self->{TYPES}->{$3}.$4.$5/ieg;
     $definition =~ s/int\(/number\(/;
+    $definition =~ s/int unsigned/number/i;
     $definition =~ s/\'0000-00-00\s00:00:00\'/sysdate/;
     while ($definition =~ s/(,?)\s*index \((\"?[a-zA-Z]*\"?)\)//i) {
       $indexes{$cont} = $1;
@@ -285,6 +287,7 @@ s/(DEFAULT)? CHARACTER SET latin1|COLLATE latin1_general_cs|COLLATE latin1_gener
     $columns{$desc} =~
       s/(\s*)([a-zA-Z]*)(\(|\s+|$)(.*)/$self->{TYPES}->{$2}$3$4/i;
     $columns{$desc} =~ s/int\(/number\(/;
+    $columns{$desc} =~ s/int unsigned/number/i;
     $columns{$desc} =~ s/\'0000-00-00\s00:00:00\'/sysdate/;
     if ($columns{$desc} =~ s/auto_increment//) {
       $autoincrements{$table} = $desc2;
