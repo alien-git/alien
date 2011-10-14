@@ -57,9 +57,9 @@ foreach my $service ("Job", "Catalogue"){
   }
 }
 
-if ($config->{PACKMANMASTER_ADDRESS} =~ /^$hostname:/) {
-  $install.="PackManMaster ";
-}
+#if ($config->{PACKMANMASTER_ADDRESS} =~ /^$hostname:/) {
+#  $install.="PackManMaster ";
+#}
 
 if ($config->{MESSAGESMASTER_ADDRESS} =~ /^$hostname:/) {
   $install.="MessagesMaster ";
