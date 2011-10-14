@@ -59,43 +59,6 @@ sub recomputeListPackages {
   return $done;
 }
 
-=item C<getListPackages()>
-
-Returns a list of all the packages defined in the system
-
-=cut
-
-
-sub getListPackages{
-  shift;
-
-  $self->info( "$$ Giving back all the packages defined (options @_)");
-
-  grep (/^-?-force$/, @_)
-    and  AliEn::Util::deleteCache($self);
-
-  my $platform=AliEn::Util::getPlatform($self);
-
-  if(  grep (/^-?-all$/, @_)) {
-    $self->info("Returning the info of all platforms");
-    $platform="all";
-  }
-
-  my $cache=AliEn::Util::returnCacheValue($self, "listPackages-$platform");
-  if ($cache) {
-    $self->info( "$$ $$ Returning the value from the cache (@$cache)");
-    return (1, @$cache);
-  }
-
-  my ($status, @packages)=$self->{PACKMAN}->getListPackages($platform, @_);
-
-  $self->info( "$$ $$ RETURNING @packages");
-  AliEn::Util::setCacheValue($self, "listPackages-$platform", \@packages);
-
-  return ($status,@packages);
-}
-
-
 =item C<getListInstalledPackages()>
 
 Returns a list of all the packages installed in the machine
@@ -123,100 +86,6 @@ sub getListInstalledPackages {
   return ($status, @allPackages);
 }
 
-
-=item C<testPackage($user,$package,$version)>
-
-Checks if a package is installed, and the environment that it would produce.
-It returns: $version=> $version of the package installed
-            $info  => dependencies and information of the package
-            $list  => The directory where the package is installed
-            $environment => environment that will result after configuring the package
-
-=cut
-
-sub testPackage{
-  shift;
-  $self->info( "$$ Checking if the package is installed: @_");
-  my @all=$self->{PACKMAN}->testPackage(@_);
-  $self->info("The PackMan returns @all");
-  return @all;
-
-}
-
-=item C<installPackage($user,$package,$version,[$dependencies])>
-
- This method is going to install a package
-
-=cut
-
-sub installPackage{
-  shift;
-  my $user=shift;
-  my $package=shift;
-  my $version=shift;
-
-  $self->info( "$$ Checking package $package for $user and $version");
-  my $cacheName="package_${package}_${version}_${user}";
-  my $cache=AliEn::Util::returnCacheValue($self, $cacheName);
-  if ($cache) {
-    $self->info( "$$ Returning the value from the cache (@$cache)");
-    return (@$cache);
-  }
-  my ($done2,@rest )=$self->{PACKMAN}->isPackageInstalled($user, $package, $version);
-  my $exit=0;
-  if (! $done2){
-    if (-f "$self->{PACKMAN}->{INST_DIR}/$user.$package.$version.InstallLock"){
-      $self->info("Someone is already installing the package");
-      return (-1, "Package is being installed");
-    }
-    $self->info("The package is not installed. Forking and installing it");
-    fork() and return (-1, "Package is being installed");
-    $exit=1;
-  }
-
-  my ($done, $psource, $dir)=$self->{PACKMAN}->installPackage($user, $package, $version);
-
-
-  my @list= ($done, $psource, $dir);
-  AliEn::Util::setCacheValue($self, $cacheName, \@list);
-  $self->info("The PackMan service returns @list (and we exit $exit)");
-  $exit and    exit(0);
-
-  return ($done, $psource, $dir);
-}
-
-
-=item C<getInstallLog($user,$package, $version,)>
-
-Gets the installation log of the package
-
-=cut
-
-sub getInstallLog{
-  shift;
-  my $user=shift;
-  my $package=shift;
-  my $version=shift;
-  my $options=shift;
-  $self->info( "$$ Getting the installation log of $package, $user and $version");
-  my ($lfn, $info)=$self->{PACKMAN}->findPackageLFN($user, $package, $version);
-
-  $version or $lfn =~ /\/([^\/]*)\/[^\/]*$/
-    and ($version)=($1);
-  my $logFile="$self->{INST_DIR}/$user.$package.$version.InstallLog";
-
-  if ($options){
-    $logFile= "$self->{CONFIG}->{LOG_DIR}/packman/$package.$version.$options.$self->{CONFIG}->{HOST}";
-    $self->info("$$ Getting the log with option $options and $logFile");
-
-  }
-
-  open (FILE, "<$logFile" ) or die ("Error opening $logFile\n");
-  my @content=<FILE>;
-  close FILE;
-  $self->{LOGGER}->info( "$$ $$ Returning the file");
-  return join("", @content);
-}
 
 #
 ##
@@ -257,54 +126,6 @@ sub initialize {
 
   return $self;
 
-}
-
-
-#sub findPackageLFN{
-#  my $self=shift;
-#  my $user=shift;
-#  my $package=shift;
-#  my $version=shift;
-  
-#  my $platform=AliEn::Util::getPlatform($self);
-#  $self->info("$$ Looking for the lfn of $package ($version) for the user $user");
-
-#  my $result=$self->{SOAP}->CallSOAP("PackManMaster", "findPackageLFN", $user, $package, $version, $platform)
-#    or $self->info("Error talking to the PackManMaster") and return;
-
-#  my @info=$self->{SOAP}->GetOutput($result);
-#  if (  $info[0]=-2){
-#    my $message="The package $package (v $version) does not exist for $platform \n";
-#    $self->info($message);
-#    die $message;
-#  }
-#  use Data::Dumper;
-#  print Dumper(@info);
-#  return @info;
-#}
-
-
-sub getDependencies {
-  my $this=shift;
-  my $user=shift;
-  my $package=shift;
-  my $version=shift;
-
-
-  my $cacheName="dep_package_${package}_${version}_${user}";
-
-  my $cache=AliEn::Util::returnCacheValue($self, $cacheName);
-  if ($cache) {
-    $self->info( "$$ Returning the value from the cache $cacheName (@$cache)");
-    return (@$cache);
-  }
-
-  my ($lfn, $info)=$self->{PACKMAN}->findPackageLFN($user, $package, $version);
-  
-  AliEn::Util::setCacheValue($self, $cacheName, [1,$info]);
-  $self->info("Giving back the dependencies of $package");
-
-  return (1, $info);
 }
 
 return 1;

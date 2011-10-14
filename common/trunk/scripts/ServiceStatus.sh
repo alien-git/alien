@@ -26,7 +26,8 @@ for ALIEN_ORGANISATION in $ALL_ORG ; do
 	if [ -r $ETCDIR/$ALIEN_ORGANISATION/startup.conf ] ; then
 		. $ETCDIR/$ALIEN_ORGANISATION/startup.conf
 	else
-		MonitorServices="Monitor CE SE PackMan MonaLisa"
+#		MonitorServices="Monitor CE SE PackMan MonaLisa"
+		MonitorServices="Monitor CE SE MonaLisa"
 		ERRCODE=2
 		ERRMSG="$ERRMSG Cannot read $ETCDIR/$ALIEN_ORGANISATION/startup.conf, assuming default services."
 	fi

@@ -59,6 +59,7 @@ use Archive::Zip qw( :ERROR_CODES :CONSTANTS );
 use Data::Dumper;
 use AliEn::Util;
 use AliEn::PackMan;
+use AliEn::ClientPackMan;
 use POSIX "isdigit";
 use MIME::Base64;    # not needed after signed envelopes are in place
 
@@ -152,11 +153,21 @@ sub initialize {
   AliEn::Util::setupApMon($self);
 
   my $packOptions = {
-    PACKMAN_METHOD => $options->{packman_method} || "",
-    CATALOGUE => $self
+    CATALOGUE => $self,
+    DEBUG => $options->{DEBUG},
+    SILENT => $options->{SILENT},
+    LOGGER => $options->{LOGGER},
+    user => $options->{user},
+    role => $options->{role}
   };
 
-  $self->{PACKMAN} = AliEn::PackMan->new($packOptions) or return;
+
+   if ($self->checkEnvelopeCreation()) {
+     $self->{PACKMAN} = AliEn::PackMan->new($packOptions) or $self->info("We could not create PackMan") and  return;
+   }
+   else {
+     $self->{PACKMAN} = AliEn::ClientPackMan->new ($packOptions) or $self->info("We could not create ClientPackMan") and  return;
+   }
 
   return 1;
 }
@@ -470,7 +481,8 @@ sub services {
   my @returnarray;
   $#returnarray = -1;
   @ARGV         = @_;
-  Getopt::Long::GetOptions($opt, "verbose", "z", "n", "core", "se", "ce", "domain=s", "clc", "ftd", "packman")
+#  Getopt::Long::GetOptions($opt, "verbose", "z", "n", "core", "se", "ce", "domain=s", "clc", "ftd", "packman")
+  Getopt::Long::GetOptions($opt, "verbose", "z", "n", "core", "se", "ce", "domain=s", "clc", "ftd")
     or $self->info("Error parsing the options")
     and return;
   @_ = @ARGV;
@@ -485,7 +497,7 @@ sub services {
     ($item =~ /^-?ce/i)         and $opt->{ce}      = 1 and next;
     ($item =~ /^-?cl(c)?/i)     and $opt->{clc}     = 1 and next;
     ($item =~ /^-?f(td)?/i)     and $opt->{ftd}     = 1 and next;
-    ($item =~ /^-?p(ackman)?/i) and $opt->{packman} = 1 and next;
+#    ($item =~ /^-?p(ackman)?/i) and $opt->{packman} = 1 and next;
 
     if ($item !~ s/-?-h(elp)?//i) {
       print STDERR "Error: Don't know service flag \"$item\"\n";
@@ -501,7 +513,7 @@ sub services {
   $opt->{ce}      and push @checkservices, "ClusterMonitor";
   $opt->{clc}     and push @checkservices, "CLC", "CLCAIO";
   $opt->{ftd}     and push @checkservices, "FTD";
-  $opt->{packman} and push @checkservices, "PackMan";
+#  $opt->{packman} and push @checkservices, "PackMan";
 
   @checkservices
     or push @checkservices, "SE", "CLC", "CLCAIO", "ClusterMonitor", "FTD", "TcpRouter", "Services";
@@ -1865,6 +1877,7 @@ sub find {
   }
   return @result;
 }
+
 use Getopt::Std;
 
 sub zip_HELP {

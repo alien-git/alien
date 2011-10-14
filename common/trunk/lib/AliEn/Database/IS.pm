@@ -21,7 +21,8 @@ use strict;
 
 use vars qw(@ISA);
 @ISA = ("AliEn::Database");
-my @services = ("SE", "CLC", "CLCAIO", "ClusterMonitor", "FTD", "TcpRouter", "PackMan");
+#my @services = ("SE", "CLC", "CLCAIO", "ClusterMonitor", "FTD", "TcpRouter", "PackMan");
+my @services = ("SE", "CLC", "CLCAIO", "ClusterMonitor", "FTD", "TcpRouter");
 
 sub new {
   my $self    = shift;

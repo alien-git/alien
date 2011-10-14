@@ -53,51 +53,6 @@ sub initialize {
   return $self;
 }
 
-sub findPackageLFN {
-  my $this=shift;
-  my $user=shift;
-  my $package=shift;
-  my $version=shift;
-  my $platform=shift;
-  $self->info("We should check in the database for the package");
-
-  my $vo_user=uc("VO_$self->{CONFIG}->{ORG_NAME}");
-  my $query="SELECT lfn from PACKAGES where packageName=? and (platform=? or platform='source') and (username=? or username=?)";
-  my @bind=($package, $platform, $user, $vo_user);
-  my @bind_source=($package, $platform, $user, $vo_user);
-
-  if ($version) {
-    $query.=" and packageVersion=? ";
-    push @bind, $version;
-    push @bind_source, $version
-  }
-  my $result=$self->{DB}->queryColumn($query, undef, {bind_values=>\@bind})
-    or die ("Error doing the query $query");
-
-
-  if (! @$result){
-    $self->info("The package doesn't exist for that platform. Let's look for source");
-    $result=$self->{DB}->queryColumn($query, undef, {bind_values=>\@bind_source})
-      or die ("Error doing the query $query");
-  }
-  $self->info("We got $#$result and @$result");
-  if ($#$result <0 ){
-    $self->info("The package $user, $package, $version, $platform doesn't exist");
-    return -2;
-  }
-
-  my $lfn=$$result[0];
-  $self->info("The package '$lfn' exists!!!");
-
-  my (@dependencies)=$self->{UI}->execute("showTagValue", "-silent",$lfn, "PackageDef");
-  my $item={};
-  @dependencies and $dependencies[1]  and $item=shift @{$dependencies[1]};
-
-  $self->info( "$$ Metadata of this item");
-  return ($lfn, $item);
-}
-
-
 sub recomputeListPackages {
   my $this=shift;
   $self->info("Recomputing the list of packages");
@@ -107,33 +62,4 @@ sub recomputeListPackages {
   return 1;
 }
 
-
-sub getListPackages{
-  my $this=shift;
-  $self->info("Retrieving the list of Packages (@_)");
-  my @args= grep (! /^-/, @_);
-  my $platform=shift @args;
-
-  my $silent="";
-  $self->{DEBUG} or $silent="-silent";
-
-  my $query="SELECT distinct fullPackageName from PACKAGES";
-  my $bind=[];
-
-  if( $platform ne  "all") {
-    $self->info("Returning the info of the platform $platform");
-    $query.=" where  (platform=?  or platform='source')";
-    $bind=[$platform];
-  }
-  $self->info("Let's do $query");
-  my $packages=$self->{DB}->queryColumn($query,undef, {bind_values=>$bind}) 
-    or $self->info("Error doing the query") and return;
-
-#  use Data::Dumper;
-#  print Dumper($packages);
-  return (1, @$packages);
-
-}
 return 1;
-
-

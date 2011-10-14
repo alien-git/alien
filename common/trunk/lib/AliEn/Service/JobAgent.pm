@@ -166,7 +166,8 @@ sub initialize {
 
   $self->{JOBLOADED}=0;
   $self->{X509}= new AliEn::X509 or return;
-  $self->{PACKMAN}=AliEn::PackMan->new({PACKMAN_METHOD=>"Local"}) or 
+#  $self->{PACKMAN}=AliEn::PackMan->new({PACKMAN_METHOD=>"Local"}) or 
+  $self->{PACKMAN}=AliEn::PackMan->new() or 
     $self->info("Error getting the packman") and return ;
 
 
@@ -845,7 +846,7 @@ sub getCatalogue {
 
   eval{ 
     $options->{silent} or $options->{silent}=0;
-    $options->{packman_method} or $options->{packman_method}="Local";
+#    $options->{packman_method} or $options->{packman_method}="Local";
     $options->{role} or $options->{role}=$self->{CONFIG}->{CLUSTER_MONITOR_USER};
 #    my $options={silent=>0, packman_method=>'Local', 'role'=>$self->{CONFIG}->{CLUSTER_MONITOR_USER}};
     $self->{CONFIG}->{AGENT_API_PROXY} and 
@@ -1096,6 +1097,7 @@ sub installPackage {
       $ok=-1;
       die("This site doesn't allow installation of software in the worker node");
     }
+
     ($ok, $source)=$self->{PACKMAN}->installPackage($user, $package, $version, undef, {NO_FORK=>1});
     
   };

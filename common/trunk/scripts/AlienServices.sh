@@ -426,9 +426,9 @@ ALIEN_GetPortNumber()
   elif [ $tmpN == "Logger" ]
     then
       portNum2=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl LOG_PORT 2> /dev/null`
-  elif [ $tmpN == "PackMan" ]
-    then
-      portNum2=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl PACKMAN_PORT 2> /dev/null`
+#  elif [ $tmpN == "PackMan" ]
+#    then
+#      portNum2=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl PACKMAN_PORT 2> /dev/null`
   elif [ $tmpN == "ClusterMonitor" ]
     then
       portNum2=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl CLUSTERMONITOR_PORT 2> /dev/null`
@@ -593,7 +593,8 @@ ALIEN_IsHttps ( )
    
    [ $serviceName == "CatalogueOptimizer" ] && configName="CATALOGUE_OPTIMIZER_ADDRESS" && packageName="AliEn::Service::Optimizer::Catalogue"
    
-   [ $serviceName == "PackManMaster" ] && configName="PACKMANMASTER_ADDRESS" 
+#   [ $serviceName == "PackManMaster" ] && configName="PACKMANMASTER_ADDRESS" 
+
    [ $serviceName == "MessagesMaster" ] && configName="MESSAGESMASTER_ADDRESS"
    
    
@@ -601,7 +602,7 @@ ALIEN_IsHttps ( )
    
    [ $serviceName == "JobInfoManager" ] && configName="JOBINFO_MANAGER_ADDRESS" && packageName="AliEn::Service::Manager::JobInfo"
    
-   [ $serviceName == "PackMan" ] && configName="PACKMAN_HOST" && packageName="AliEn::Service::PackMan" && soapName="PACKMAN_SOAPTYPE"
+#   [ $serviceName == "PackMan" ] && configName="PACKMAN_HOST" && packageName="AliEn::Service::PackMan" && soapName="PACKMAN_SOAPTYPE"
     
    [ $serviceName == "ClusterMonitor" ] && configName="CLUSTERMONITOR_ADDRESS" && packageName="AliEn::Service::ClusterMonitor" && soapName="CLUSTERMONITOR_SOAPTYPE"
    
@@ -952,7 +953,8 @@ stopService()
    
    [ $NAME == "Optimizer::Catalogue" ] && configName="CATALOGUE_OPTIMIZER_ADDRESS" 
    
-   [ $NAME == "PackManMaster" ] && configName="PACKMANMASTER_ADDRESS" 
+#  [ $NAME == "PackManMaster" ] && configName="PACKMANMASTER_ADDRESS" 
+
    [ $NAME == "MessagesMaster" ] && configName="MESSAGESMASTER_ADDRESS"
    
    
@@ -960,7 +962,7 @@ stopService()
    
    [ $NAME == "Manager::JobInfo" ] && configName="JOBINFO_MANAGER_ADDRESS" 
    
-   [ $NAME == "PackMan" ] && configName="PACKMAN_HOST" 
+#   [ $NAME == "PackMan" ] && configName="PACKMAN_HOST" 
     
    [ $NAME == "ClusterMonitor" ] && configName="CLUSTERMONITOR_ADDRESS" 
   
@@ -1157,9 +1159,9 @@ ALIEN_DoService ()
 	  SEManager)
 	    args='VARDIR Manager::SEMaster "SE_Manager" NO_PASSWORD'
 	    ;;
-	  PackManMaster)
-	    args='VARDIR PackManMaster "PackManMaster"  NO_PASSWORD'
-	    ;;
+#	  PackManMaster)
+#	    args='VARDIR PackManMaster "PackManMaster"  NO_PASSWORD'
+#	    ;;
 	  MessagesMaster)
 	    args='VARDIR MessagesMaster "MessagesMaster"  NO_PASSWORD'
 	    ;;
@@ -1191,9 +1193,9 @@ ALIEN_DoService ()
 	    ALIEN_START="${ALIEN_ROOT}/AliEn/Portal/scripts/Container.pl"
 	    args="VARDIR  Container Container NO_PASSWORD"
 	    ;;
- 	  PackMan)
-	    args='LOGDIR PackMan PackMan NO_PASSWORD'
-	    ;;
+# 	  PackMan)
+#	    args='LOGDIR PackMan PackMan NO_PASSWORD'
+#	    ;;
 	  FC)
 	    args="VARDIR FC FC NO_PASSWORD"
 	    ;;
