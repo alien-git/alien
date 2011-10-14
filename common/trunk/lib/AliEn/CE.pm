@@ -3900,8 +3900,6 @@ sub f_resyncPriorities {
   $self->{TASK_DB}->do($update);
 
   $update = "UPDATE JOBAGENT j set j.priority=j.priority * (SELECT ifnull(max(price),1) FROM QUEUE q WHERE q.agentId=j.entryId)";
-  $self->{TASK_DB}->{DRIVER}=~ /Oracle/ and $update = "UPDATE JOBAGENT j set j.priority=j.priority * (SELECT nvl(max(price),1) FROM QUEUE q WHERE 
-q.agentId=j.entryId)";
   $self->info("Doing $update");
   $self->{TASK_DB}->do($update);
   
