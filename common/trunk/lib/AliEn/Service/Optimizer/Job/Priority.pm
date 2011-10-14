@@ -34,9 +34,7 @@ $self->{DB}->optimizerJobPriority($userColumn);
     $self->{DB}->do($update);
 
     $update = "UPDATE JOBAGENT j set j.priority=j.priority * (SELECT ifnull(max(price),1) FROM QUEUE q WHERE q.agentId=j.entryId)";
-    $self->{DB}->{DRIVER}=~/Oracle/i and $update =  "UPDATE JOBAGENT j set j.priority=j.priority * (SELECT nvl(max(price),1) FROM QUEUE q WHERE 
-q.agentId=j.entryId)";
-
+   
     $self->info("Doing $update");
     $self->{DB}->do($update);
 
