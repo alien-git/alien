@@ -15,7 +15,8 @@ my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",});
 $cat or exit (-1);
 print "Finding a job that was executed properly\n";
 my @jobs=$cat->execute("top", "-status", "DONE");
-@jobs or return;
+#@jobs or return;
+@jobs or exit 0;
 print "Resubmitting job $jobs[0]->{queueId}...";
 my ($jobId)=$cat->execute("resubmit", $jobs[0]->{queueId});
 

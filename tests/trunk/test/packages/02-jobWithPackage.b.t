@@ -5,7 +5,8 @@ use Test;
 
 use AliEn::UI::Catalogue::LCM::Computer;
 use Net::Domain qw(hostname hostfqdn hostdomain);
-use AliEn::Service::PackMan;
+#use AliEn::Service::PackMan;
+use AliEn::PackMan;
 use Cwd;
 use AliEn::Util;
 

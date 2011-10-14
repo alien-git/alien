@@ -1,5 +1,6 @@
 use strict;
-use AliEn::Service::PackMan;
+#use AliEn::Service::PackMan;
+use AliEn::ClientPackMan;
 use AliEn::UI::Catalogue::LCM;
 use Net::Domain qw(hostname hostfqdn hostdomain);
 
@@ -17,16 +18,16 @@ includeTest("catalogue/003-add") or exit(-2);
 
 my $config=new AliEn::Config;
 
-my $key="name=testP,ou=PackMan,ou=Services,$config->{FULLLDAPDN}";
-my $host=Net::Domain::hostfqdn();
-chomp $host;
+#my $key="name=testP,ou=PackMan,ou=Services,$config->{FULLLDAPDN}";
+#my $host=Net::Domain::hostfqdn();
+#chomp $host;
 
-print "Putting host to '$host'\n";
-addLdapEntry($key, ["objectClass", ["AliEnPackMan"],
-		    "name", "testP",
-		    "host", $host,
-		    "port", 9991,
-		   ]) or exit(-2);
+#print "Putting host to '$host'\n";
+#addLdapEntry($key, ["objectClass", ["AliEnPackMan"],
+#		    "name", "testP",
+#		    "host", $host,
+#		    "port", 9991,
+#		   ]) or exit(-2);
 
 
 $config=$config->Reload({force=>1});
@@ -35,9 +36,10 @@ $config=$config->Reload({force=>1});
 system("rm -rf $ENV{ALIEN_HOME}/packages");
 
 
+###WE DON'T NEED TO START PACKMAN
+#startService("PackMan") or exit(-2);
+#print "YUHUUU\n";
 
-startService("PackMan") or exit(-2);
-print "YUHUUU\n";
 my $vo=Net::Domain::hostname();
 chomp $vo;
 my $cat=AliEn::UI::Catalogue::LCM->new({"role", "admin",});

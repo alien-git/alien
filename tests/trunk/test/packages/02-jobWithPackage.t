@@ -5,7 +5,8 @@ use Test;
 
 use AliEn::UI::Catalogue::LCM::Computer;
 use Net::Domain qw(hostname hostfqdn hostdomain);
-use AliEn::Service::PackMan;
+#use AliEn::Service::PackMan;
+use AliEn::ClientPackMan;
 use Cwd;
 use AliEn::Util;
 
@@ -17,9 +18,8 @@ BEGIN { plan tests => 1 }
   require functions;
   includeTest("catalogue/003-add") or exit(-2);
 
-  my $cat = AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",});
+  our $cat = AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",});
   $cat or exit(-1);
-
   $cat->execute("mkdir", "-p", "bin", "jdl") or exit(-2);
 
   addFile(
@@ -40,9 +40,10 @@ Packages=\"MyPS::1.0\"\n"
 
   print "The package has been addedd!!!\n\n\n";
 
-  my ($ok, $source) = installPackage("MyPS");
+#  my ($ok, $source) = installPackage("MyPS");
+  my $ok = installPackage("MyPS");
   $ok     or print "Error installing the package!!\n"       and exit(-2);
-  $source or print "Error: don't have anything to source\n" and exit(-2);
+#  $source or print "Error: don't have anything to source\n" and exit(-2);
   print "\n\nLet's submit the job\n";
 
   my ($id) = $cat->execute("submit", "jdl/package.jdl") or exit(-2);
@@ -54,25 +55,35 @@ Packages=\"MyPS::1.0\"\n"
 }
 
 sub installPackage {
-  use AliEn::SOAP;
   my $package = shift;
-  my $soap    = new AliEn::SOAP;
+  my $packman = $main::cat->{PACKMAN};
+  if (!$packman){
+    my $cat = AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",});
+    $packman = $cat->{PACKMAN};
+  }  
+
+  # use AliEn::SOAP;
+  # my $soap    = new AliEn::SOAP;
+  # my $result;
+
   print "Installing the package $package\n";
-  my $result;
+
+  my $ok;
+
   while (1) {
-	$result = $soap->CallSOAP("PACKMAN", "installPackage", "newuser", $package, "1.0") and last;
-	my $message = $AliEn::Logger::ERROR_MSG;
-	$soap->{LOGGER}->info("PackMan", "The reason it wasn't installed was $message");
-	$message =~ /Package is being installed/ or last;
+     #	$result = $soap->CallSOAP("PACKMAN", "installPackage", "newuser", $package, "1.0") and last;
+
+	$ok = $packman->f_packman ("install", "newuser@".$package."::1.0") and last;
 	sleep(30);
   }
-  $result or return;
-  my ($ok, $source) = $soap->GetOutput($result);
 
-  print "Got $ok and $source\n";
+#  my ($ok, $source) = $soap->GetOutput($result);
+
+#  print "Got $ok and $source\n";
+
   $ok or return;
   print "This is ok!!\n";
-  return ($ok, $source);
+  return 1;
 }
 
 sub addPackage {

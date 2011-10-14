@@ -4,7 +4,8 @@ use strict;
 use Test;
 
 use AliEn::UI::Catalogue::LCM::Computer;
-use AliEn::Service::PackMan; # needed for includeTest 76
+#use AliEn::Service::PackMan; # needed for includeTest 76
+use AliEn::PackMan; # needed for includeTest 76
 use Cwd; # needed for includeTest 76
 
 BEGIN { plan tests => 1 }
@@ -36,7 +37,9 @@ Packages={\"MyTCSH::1.0\", \"MyPS::1.0\"}") or exit(-2);
   addPackage($cat, "MyTCSH", "/bin/ls") or exit(-2);
 
   print "\n\nLet's see if the package gets installed\n";
-  my ($ok, $source)=installPackage("MyTCSH") or exit(-2);
+#  my ($ok, $source)=installPackage("MyTCSH") or exit(-2);
+
+  my $ok = installPackage("MyTCSH") or exit(-2);
 
   print "Let's submit the job\n";
   my ($id)=$cat->execute("submit", "jdl/packageTCSH.jdl") or exit(-2);

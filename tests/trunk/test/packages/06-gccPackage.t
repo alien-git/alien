@@ -5,7 +5,8 @@ use Test;
 
 use AliEn::UI::Catalogue::LCM::Computer;
 use Net::Domain qw(hostname hostfqdn hostdomain);
-use AliEn::Service::PackMan; # needed for includeTest 76
+#use AliEn::Service::PackMan; # needed for includeTest 76
+use AliEn::PackMan; # needed for includeTest 76
 use Cwd;
 
 BEGIN { plan tests => 1 }

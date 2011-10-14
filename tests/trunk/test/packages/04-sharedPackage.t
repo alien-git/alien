@@ -4,7 +4,8 @@ use strict;
 use Test;
 
 use AliEn::UI::Catalogue::LCM::Computer;
-use AliEn::Service::PackMan; # needed for includeTest 76
+#use AliEn::Service::PackMan; # needed for includeTest 76
+use AliEn::PackMan; # needed for includeTest 76
 use Cwd; # needed for includeTest 76
 
 BEGIN { plan tests => 1 }
