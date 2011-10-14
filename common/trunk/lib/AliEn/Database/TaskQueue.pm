@@ -778,8 +778,6 @@ sub getJobsByStatus {
     push @$bind, $minid;
   }
   my $query = "SELECT queueid,ifnull(resultsjdl, origjdl) jdl from $self->{QUEUETABLE} join QUEUEJDL using (queueid) where status='$status' $order";
-  $self->{DRIVER}=~/Oracle/ and $query = "SELECT queueid,nvl(resultsjdl, origjdl) jdl from $self->{QUEUETABLE} join QUEUEJDL using (queueid) where 
-status='$status' $order";
   $query = $self->paginate($query, $limit, 0);
 
   $DEBUG
