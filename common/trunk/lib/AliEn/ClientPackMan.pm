@@ -4,6 +4,7 @@ use AliEn::PackMan;
 use AliEn::ClientCatalogue;
 use AliEn::Config;
 use strict;
+use AliEn::Util;
 use vars qw(@ISA);
 
 @ISA = ('AliEn::Logger::LogObject', @ISA);
@@ -38,6 +39,7 @@ sub new {
     -d $self->{INSTALLDIR} or return;
   }
   $self->{LIST_FILE_TTL} or $self->{LIST_FILE_TTL} = 7200;
+  $self->{REALLY_INST_DIR} or $self->{REALLY_INST_DIR}=$self->{INSTALLDIR};
 
   return $self;
 }
@@ -64,12 +66,12 @@ sub f_packman {
   elsif ($operation =~ /^t(est)?$/) {
      return $self->testPackage(@_);
   }
- # elsif ($operation =~ /^d(efine)?$/) {
- #   return $self->definePackage($self, @_);
- # }
- # elsif ($operation =~ /^u(ndefine)?$/) {
- #   return  $self->undefinePackage(@_);
- # }
+  elsif ($operation =~ /^d(efine)?$/) {
+    return $self->definePackage(@_);
+  }
+  elsif ($operation =~ /^u(ndefine)?$/) {
+    return  $self->undefinePackage(@_);
+  }
   elsif ($operation =~ /^r(emove|m)?$/) {
     return $self->removePackage( @_);
   }
@@ -124,12 +126,17 @@ sub testPackage {
 
 
 sub definePackage{
-  return AliEn::PackMan::definePackage(@_); 
+  my $self = shift;
+  return $self->{CATALOGUE}->{CATALOG}->callAuthen("packman", @_);
+
 }
 
 sub undefinePackage{
-  return AliEn::PackMan::undefinePackage(@_);
+ my $self = shift;
+  return $self->{CATALOGUE}->{CATALOG}->callAuthen("packman", @_);
+
 }
+  
 
 sub synchronizePackages{
   return AliEn::PackMan::synchronizePackages(@_);
@@ -141,11 +148,15 @@ sub removePackage{
 # return AliEn::PackMan::removePackage(@_);
 }
 
-sub recomputeListPackages{
-  return AliEn::PackMan::recomputeListPackages(@_);
-}
+#sub recomputeListPackages{
+#  return AliEn::PackMan::recomputeListPackages(@_);
+#}
 
 #############################
+sub createListFiles{
+  my $self=shift;
+  return  AliEn::PackMan::createListFiles($self);
+}
 
 sub printPackages {
   return AliEn::PackMan::printPackages(@_);
@@ -164,7 +175,7 @@ sub getListInstalledPackages_ {
 }
 
 sub getSubDir {
-  return AliEn::PackMan::getSubDir (@_);
+  return AliEn::PackMan::getSubDir(@_);
 } 
 
 sub readPackagesFromFile {
