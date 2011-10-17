@@ -491,7 +491,7 @@ sub readPackagesFromFile {
   use File::stat;
   my $st = stat($file) ;
    if (!$st  or -z $file){
-    return $self->createListFiles() ;
+  $self->createListFiles() or return;
   }
 
   $DEBUG and $self->debug(2, "Reading from the file $file!");
