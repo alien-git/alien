@@ -69,11 +69,13 @@ sub installPackage {
   print "Installing the package $package\n";
 
   my $ok;
+   my $retry = 5;
 
   while (1) {
      #	$result = $soap->CallSOAP("PACKMAN", "installPackage", "newuser", $package, "1.0") and last;
 
 	$ok = $packman->f_packman ("install", "newuser@".$package."::1.0") and last;
+        $retry-- and return;
 	sleep(30);
   }
 
@@ -90,6 +92,12 @@ sub addPackage {
   my $cat     = shift;
   my $package = shift;
   my $file    = shift;
+ 
+  my $packman = $main::cat->{PACKMAN};
+  if (!$packman){
+    my $cat = AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",});
+    $packman = $cat->{PACKMAN};
+  }
 
   $cat->execute("mkdir", "-p", "packages/$package/1.0") or return;
   $cat->execute("addTag", "packages/$package/", "PackageDef") or return;
@@ -124,7 +132,7 @@ echo \"Executing \$*\"
   chmod 0755, "$dir/.alienEnvironment";
   system("tar zcvf MyTar.tar .alienEnvironment $package") and print "Error doing the tar file " and return;
   my $host = Net::Domain::hostfqdn();
-  my $done = $cat->execute("packman", "define", $package, "1.0", "$dir/MyTar.tar");
+  my $done = $packman->f_packman("define", $package, "1.0", "$dir/MyTar.tar");
   system("rm", "-rf", $dir);
   chdir($preserveDir) or die("Error returning to preserved dir");
   $done or return;
@@ -134,7 +142,7 @@ echo \"Executing \$*\"
   $cat->execute("cleanCache");
 
   sleep(20);
-  $cat->execute("packman", "list", "-force");
+  $packman->f_packman("list", "-force");
   return 1;
 
 }
