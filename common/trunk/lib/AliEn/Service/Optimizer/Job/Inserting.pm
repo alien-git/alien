@@ -27,8 +27,9 @@ sub checkWakesUp {
   my $todo=$self->{DB}->queryValue("SELECT todo from ACTIONS where action='INSERTING'");
   $todo or return;
   $self->{DB}->update("ACTIONS", {todo=>0}, "action='INSERTING'");
-
-  my $done=$self->checkJobs($silent, "INSERTING' and upper(origjdl) not like '\% SPLIT = \"\%", "updateInserting");
+  my $q = "INSERTING' and upper(origjdl) not like '\% SPLIT = \"\%";
+  $self->{DB}->{DRIVER}=~/Oracle/i and $q = "INSERTING' and REGEXP_REPLACE(upper(origjdl), '\s*', '') not like '\%SPLIT=\"\%";
+  my $done=$self->checkJobs($silent,$q, "updateInserting");
 
   $self->$method(@data, "The inserting optimizer finished");
   return;
