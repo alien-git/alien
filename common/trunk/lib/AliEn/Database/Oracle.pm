@@ -73,7 +73,7 @@ sub checkTable {
 
     foreach (@$index) {
       $_ =~
-s/(\s|\()(size|user|time|current|validate|date|file)(\s|\))/$1."\"".uc($2)."\"".$3/ieg;
+s/(\s|\()\s*(size|user|time|current|validate|date|file)\s*(\s|\))/$1."\"".uc($2)."\"".$3/ieg;
     }
   }
   my %autoincrements = ();
@@ -520,9 +520,9 @@ sub _queryDB {
 
   $self->_pingReconnect or return;
   $stmt =~
-s/(\,)(size|user|time|current|validate|date|file)(\,)/$1."\"".uc($2)."\"".$3/ieg;
+s/(\,)\s*(size|user|time|current|validate|date|file)\s*(\,)/$1."\"".uc($2)."\"".$3/ieg;
   $stmt =~
-s/(\()(size|user|time|current|validate|date|file)(\))/$1."\"".uc($2)."\"".$3/ieg;
+s/(\()\s*(size|user|time|current|validate|date|file)\s*(\))/$1."\"".uc($2)."\"".$3/ieg;
   $stmt =~
 s/(\s+)(size|user|time|current|validate|date|file)(\s+|\=)/$1."\"".uc($2)."\"".$3/ieg;
   my $arrRef;
@@ -643,11 +643,11 @@ sub _do {
 
   # if($stmt =~ m/^insert/i ){ $options->{zero_length}=0;}
   $stmt =~
-s/(\,)(size|user|time|current|validate|date|file)(\,)/$1."\"".uc($2)."\"".$3/ieg;
+s/(\,)\s*(size|user|time|current|validate|date|file)\s*(\,)/$1."\"".uc($2)."\"".$3/ieg;
   $stmt =~
-s/(\()(size|user|time|current|validate|date|file)(\))/$1."\"".uc($2)."\"".$3/ieg;
+s/(\()\s*(size|user|time|current|validate|date|file)\s*(\))/$1."\"".uc($2)."\"".$3/ieg;
   $stmt =~
-s/\W(\s)(size|user|time|current|validate|date|file)(\s|\=)/$1."\"".uc($2)."\"".$3/ieg;
+s/\W(\s+)(size|user|time|current|validate|date|file)(\s+|\=)/$1."\"".uc($2)."\"".$3/ieg;
   my $oldAlarmValue = $SIG{ALRM};
   local $SIG{ALRM} = \&_timeout;
   my $check = $options->{zero_length};
