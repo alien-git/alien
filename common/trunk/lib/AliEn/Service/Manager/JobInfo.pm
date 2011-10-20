@@ -622,7 +622,8 @@ sub getPs {
 
 #    }
     #my $query="SELECT queueId, status, jdl, execHost, submitHost, runtime, cpu, mem, cputime, rsize, vsize, ncpu, cpufamily, cpuspeed, cost, maxrsize, maxvsize,received,started,finished  FROM QUEUE WHERE ( status=$status ) ";
-  my $where = "WHERE ( $status ) $site ";
+  if($status=~/[0-9]/){ $status = "$status = $status";}  
+my $where = "WHERE ( $status ) $site ";
 
 
   $args =~ s/-?-u(ser)?=?\s+(\S+)// and $where.=" and submithost like '$2\@\%'";
