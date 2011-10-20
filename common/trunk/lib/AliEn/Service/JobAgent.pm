@@ -2636,7 +2636,8 @@ sub checkWakesUp {
   #we are going to send the procinfo only one every ten times
   $self->{ALIEN_PROC_INFO} or  $self->{ALIEN_PROC_INFO}=0;
   $self->{ALIEN_PROC_INFO}++;
-  if ($self->{ALIEN_PROC_INFO} eq "10") {
+  if (($self->{ALIEN_PROC_INFO} eq "10") or (-f "$self->{CONFIG}->{TMP_DIR}/AliEn_TEST_SYSTEM" )) {
+    $self->info("checkWakesUp: $self->{PROCINFO}");
     $self->{SOAP}->CallSOAP("CLUSTERMONITOR","SetProcInfo",
 			    $self->{QUEUEID}, $self->{PROCINFO});
     $self->{ALIEN_PROC_INFO}=0;
