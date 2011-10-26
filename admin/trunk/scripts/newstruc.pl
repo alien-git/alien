@@ -17,7 +17,7 @@ $ENV{ALIEN_DATABASE_PASSWORD}='pass';
 ### Get connections and DB objects
 my $db = AliEn::Database->new({DRIVER => "mysql",
                                HOST   => Net::Domain::hostfqdn().":3307",
-                               DB     => "al_syst",
+                               DB     => "alice_users",
                                ROLE   => "admin"});
 my $cat = AliEn::UI::Catalogue::LCM->new({ROLE => "admin"});
 
@@ -53,8 +53,8 @@ foreach my $row (@$indexTable) {
   if($status==0)
   { $db->do("ALTER TABLE $table COLLATE latin1_general_cs");}
 
-  $db->do("UPDATE $table JOIN USERS ON $table.owner=USERS.user SET $table.ownerId=USERS.uId");
-  $db->do("UPDATE $table JOIN GROUPS1 ON $table.gowner=GROUPS1.user SET $table.gownerId=GROUPS1.gId");
+  $db->do("UPDATE $table JOIN USERS ON $table.owner=USERS.user SET $table.ownerId=USERS.uId") or $db->do("UPDATE $table JOIN USERS ON BINARY $table.owner=USERS.user SET $table.ownerId=USERS.uId") ;
+  $db->do("UPDATE $table JOIN GROUPS1 ON $table.gowner=GROUPS1.user SET $table.gownerId=GROUPS1.gId") or $db->do("UPDATE $table JOIN GROUPS1 ON BINARY $table.gowner=GROUPS1.user SET $table.gownerId=GROUPS1.gId");
   $db->do("ALTER TABLE $table DROP COLUMN owner, DROP COLUMN gowner");
 }
 print "New Changes made successfully !!!\n";

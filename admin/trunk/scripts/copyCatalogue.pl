@@ -78,7 +78,8 @@ foreach my $row (@$guidIndex) {
   $db->do("ALTER TABLE $row->{db}.G$row->{tableName}L_REF RENAME alice_temp.G$row->{new_tableName}L_REF");
 }
 print "Now moving the G#L back to alice _users\n";
-my $entries = $db->query("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='alice_temp'");
+#my $entries = $db->query("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='alice_temp'");
+my $entries = $db->query("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='alice_temp'");
 map { $db->do("ALTER TABLE alice_temp.$_->{TABLE_NAME} RENAME alice_users.$_->{TABLE_NAME}") } @$entries;
 $db->do("DROP SCHEMA IF EXISTS alice_temp");
 
