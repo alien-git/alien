@@ -9,7 +9,9 @@ use Getopt::Long;
 use Time::HiRes;
 use AliEn::UI::Catalogue;
 use AliEn::Database::Catalogue;
+
 use vars qw (@ISA $DEBUG);
+
 push @ISA, 'AliEn::Logger::LogObject';
 $DEBUG = 0;
 
@@ -37,6 +39,7 @@ sub new {
   }
 
   $self->{LIST_FILE_TTL} or $self->{LIST_FILE_TTL} = 7200;
+
   $self->initialize(@_) or return;
   
   return $self;
@@ -54,6 +57,9 @@ sub initialize {
     -d $self->{INSTALLDIR} or return;
   }
   $self->{REALLY_INST_DIR} or $self->{REALLY_INST_DIR}=$self->{INSTALLDIR};
+
+
+
 
   return $self;
 }
@@ -102,7 +108,7 @@ sub f_packman {
 
   my $string = join(" ", @arg);
 
-  my $serviceName = "PackMan";
+
   
   $self->info("*** calling PackMan with arguments $string");
 
@@ -145,7 +151,7 @@ sub f_packman {
 
     @arg = split(" ", $string);
   }
-
+#########################################################################
   my $operation = shift @arg;
   $operation
     or $self->info($self->f_packman_HELP(), 0, 0)
@@ -303,7 +309,7 @@ sub getListInstalledPackages_ {
 
   my $self=shift;
   my @allPackages=();
-  eval {
+#  eval {
     my $dir = $self->{INSTALLDIR};
     $DEBUG and $self->debug(1, "Checking $dir");
     foreach my $user ($self->getSubDir($dir)) {
@@ -319,16 +325,13 @@ sub getListInstalledPackages_ {
       }
     }
 
-  };
-  if ($@) {
-    $self->info( "$$ We couldn't find the packages ");
-
-
-   die ($@);
-  }
- 
+ # };
+  if (!@allPackages) {
+    $self->info( "$$ We couldn't find the packages ") and return;
+   }
   
-  return  1, @allPackages;
+   $self->info( "$$ We could find the packages ");
+   return  1, @allPackages;
 
 }
 
@@ -367,9 +370,8 @@ sub getListInstalled_Internal {
   }
   $DEBUG and $self->debug(1, "Asking the PackMan for the packages that it has installed");
 
-  if ($status != 1) {
-
-     AliEn::Util::deleteCache($self);
+  if (!$status or $status != 1) {
+  AliEn::Util::deleteCache($self);
      my $cache=AliEn::Util::returnCacheValue($self, "installedPackages");
      if ($cache and $cache->[0]){
     $self->info("This is for test the returned cache (@$cache)");
@@ -453,16 +455,16 @@ sub getListPackages {
        my ($done, @pack) = ( 1, @$packages);
 
        AliEn::Util::setCacheValue($self, "listPackages-$platform", \@pack);
-       if ($done and $done == 1 and $#pack > 0 ){
+       if ($done and $done == 1 and $#pack >= 0 ){
           ($status, @packages) = ($done, @pack);
           last;
        }
-       elsif ($status < 0 and $#pack > 0) {
+       elsif ($status < 0 and $#pack >= 0) {
           $self->info("Well, the info is old, but it is better than nothing");
           $status = 1;
           last;
       }
-       elsif (!$done or $#pack == 0) {
+       elsif (!$done or !$pack[0]) {
           $retry--;
           $retry or $self->info("Can't get the list of packages!!!\n") and return;
           $self->info("Can't get the list of packages. Let's sleep for some time and try again");
@@ -489,10 +491,12 @@ sub readPackagesFromFile {
 
   $DEBUG and $self->debug(1, "Checking if the file $file exists...");
   use File::stat;
-  my $st = stat($file) ;
-   if (!$st  or -z $file){
-  $self->createListFiles() or return;
+  my $st = stat($file);
+
+  if (!$st  or -z $file){
+  $self->createListFiles() or return 0; 
   }
+  if ($st){
 
   $DEBUG and $self->debug(2, "Reading from the file $file!");
 
@@ -512,6 +516,7 @@ sub readPackagesFromFile {
 
   }
   return $return, @packages;
+}
 #  return @packages;
 }
 
@@ -806,6 +811,7 @@ sub definePackage {
   my $sys2 = `uname -m`;
   chomp $sys2;
   my $platform = "$sys1-$sys2";
+  
   while (my $arg = shift) {
 
     if ($arg =~ /^-?-se$/) {
@@ -850,6 +856,7 @@ sub definePackage {
     }
   }
     $lfn =~ s{//+}{/}g;;
+     
   
 #####################################################################
 
@@ -863,6 +870,7 @@ sub definePackage {
                      packageVersion=>$3,
                       platform=>$4,
                       lfn=>$lfn};
+     
     }elsif ($lfn =~ m{^/$org/packages/([^/]*)/([^/]*)/([^/]*)$}) {
       push @packages,{'fullPackageName'=> "VO_\U$org\E\@${1}::$2",
                      packageName=>$1,
@@ -870,14 +878,14 @@ sub definePackage {
                       packageVersion=>$2,
                       platform=>$3,
                       lfn=>$lfn};
-    }else {
+     }else {
       $self->info("Don't know what to do with $lfn");
     }
 
 
   $self->info("PackMan === READY TO INSERT @packages DB = $self->{DB} ===\n");
 #####################################################################
-  $self->{DB}->insert('PACKAGES', @packages);
+  $self->{DB}->insert('PACKAGES', @packages) or return;
 
   $self->info("Package $lfn added!!");
 
@@ -887,7 +895,6 @@ sub definePackage {
  system("rm -f $file");
   # $self->{CATALOGUE}->{CATALOG}->{DATABASE_FIRST}->do("update ACTIONS set todo=1 where action='PACKAGES'");
   #$self->f_packman("recompute");
-  $self->info("Package $lfn added!!");
   return 1;
 }
 
@@ -933,8 +940,7 @@ sub undefinePackage {
     $self->info("After undefine removing the $file");
     system("rm -f $file");
 
-  $self->info("Package $lfn undefined!!");
-  return 1;
+ return 1;
 }
 
 #in
@@ -1173,9 +1179,9 @@ sub createListFiles {
   my $platform=AliEn::Util::getPlatform($self);
   $self->{PACKMAN_PLATFORM} and $platform=$self->{PACKMAN_PLATFORM};
 
-  my @list=({function=>"listInstalled", arguments=>""},
-                    {function=>"list", arguments=>$platform},
-                    {function=>"list", arguments=>"all"});
+  my @list=( {function=>"list", arguments=>$platform},
+             {function=>"list", arguments=>"all"},
+             {function=>"listInstalled", arguments=>""});
 
   $options->{only_installed} and @list=$list[2];
 
@@ -1183,17 +1189,16 @@ sub createListFiles {
  #   my $file="$self->{REALLY_INST_DIR}/alien_list_$e->{function}packages_$e->{arguments}";
      my $file="$self->{REALLY_INST_DIR}/alien_$e->{function}_packages_$e->{arguments}";
 
-    $self->info("Making the list of all the $e->{function} packages in $file");
     if (!-e $file or -z $file){
+    $self->info("Making the list of all the $e->{function} packages in $file");
 
     open (FILE, ">$file")
       or $self->info("Error creating the file $file}") and return;
     #my $fun="getList$e->{function}Packages";
     #my ($ok,@list)=$self->$fun($e->{arguments}, "-force");
-    my ($ok,@list)=$self->f_packman($e->{function}, $e->{arguments}, "-force");
-
-    $ok or $self->info("Error getting the list of  packages") and return;
-    print FILE join ("\n", @list);
+    my ($ok,@packages)=$self->f_packman($e->{function}, $e->{arguments}, "-force");
+    @packages or $self->info("Error getting the list of  packages") and return;
+    print FILE join ("\n", @packages);
     close FILE;
     }
 }
