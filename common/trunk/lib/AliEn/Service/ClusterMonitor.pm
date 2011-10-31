@@ -71,6 +71,8 @@ sub initialize {
   $self->{PREFORK}=5;
   $self->{FORKCHECKPROCESS}=1;
   $self->{CONFIG} = $self->{CONFIG}->Reload($options);
+#  $self->{CATALOGUE}= AliEn::UI::Catalogue::LCM->new();
+  
 
   ( $self->{CONFIG} )
     or print STDERR "Error: Initial configuration not found!!\n"
@@ -1043,6 +1045,15 @@ sub jobStarts{
   $self->{LOCALJOBDB}->insertJob( $jobId, $agentId);  
   return 1;
 }
+
+###############
+sub packmanOperations {
+ my $this=shift;
+ use AliEn::UI::Catalogue::LCM;  
+ my $catalogue= new AliEn::UI::Catalogue::LCM;
+ $catalogue->{PACKMAN}->f_packman(@_);
+}
+################
 
 sub jobExits{
   my $this=shift;

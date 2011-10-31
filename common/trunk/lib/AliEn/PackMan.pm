@@ -107,50 +107,52 @@ sub f_packman {
   @arg = grep (!/^-everywhere$/, @arg);
 
   my $string = join(" ", @arg);
-
-
-  
   $self->info("*** calling PackMan with arguments $string");
 
-  if ($allPackMan) {
-    $self->info("We are going to call all the packman");
-    my $response = $self->{SOAP}->CallSOAP("IS", "getAllServices", "PackMan")
-    or return;
+#############################
+ if ($allPackMan) {
+    $self->info("We are going to call all the ClusterMonitors");
 
+    my $response = $self->{SOAP}->CallSOAP("IS", "getAllServices", "ClusterMonitor") or return;
     $response = $response->result;
-
-    #    print Dumper($response);
+     # print Dumper($response);
     my @n = split(/###/, $response->{NAMES});
     $silent and $string .= " -s";
     foreach my $n (@n) {
       $self->info("Checking $n");
+     $self->f_packman("-name $n $string");
+}
+return 1;
+}
 
-      $self->f_packman("-name $n $string");
-    }
-    return 1;
-  }
-
+############################
   my $direct = 0;
   $string =~ s{-?-silent\s+}{} and $silent = 1;
+
+################################################
   if ($string =~ s{-?-n(ame)?\s+(\S+)}{}) {
     my $name = $2;
 
-    $self->info("Talking to the packman $name");
-
-    my $done = $self->{CONFIG}->CheckServiceCache("PACKMAN", $name)
-      or $self->info("Error looking for the packman $name")
-      and return;
-#    $self->{SOAP}->Connect(
-#      { address => "http://$done->{HOST}:$done->{PORT}",
-#        uri     => "AliEn/Service/PackMan",
-#        name    => "PackMan_$name",
-#        options => [ timeout => 5000 ]
-#      }
-#    ) or return;
-#    $serviceName = "PackMan_$name";
-
+    my $response = $self->{SOAP}->CallSOAP("IS", "getService", $name , "ClusterMonitor") or return;
+    $response = $response->result;
     @arg = split(" ", $string);
-  }
+   
+    my $result2 =
+    SOAP::Lite->uri('AliEn/Service/ClusterMonitor')->proxy("http://$response->{HOST}:$response->{PORT}")
+    ->packmanOperations(@arg);
+    $result2
+    or $self->info("In packmanOperations could not contact the clustermonitor at http://$response->{HOST}:$response->{PORT}")
+    and return (-1, "Error contacting the clustermonitor at http://$response->{HOST}:$response->{PORT}");
+
+    my $result_result = $result2->result;
+    my @result_param = $result2->paramsout;
+  
+    foreach my $list (@result_param) {
+     print "\t$list\n";
+     }
+  return 1;
+}
+
 #########################################################################
   my $operation = shift @arg;
   $operation
