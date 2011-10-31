@@ -637,7 +637,7 @@ sub _do {
   my $options = (shift or {});
   ($stmt !~ /^begin/) and $stmt =~ s/\;$//;
   if ($stmt =~ m/optimize table (.*)/) {
-    $self->_rebuildIndexes($1);
+    #$self->_rebuildIndexes($1);
     return;
   }
 
@@ -663,11 +663,13 @@ s/\W(\s+)(size|user|time|current|validate|date|file)(\s+|\=|\))/$1."\"".uc($2)."
     and $self->debug(2, "In _do checking is database connection still valid");
 
   $self->_pingReconnect or return;
+
   my @bind_values;
   $options->{bind_values}
     and push @bind_values, @{ $options->{bind_values} }
     and $options->{prepare} = 1;
   my $result;
+  
   if ($check) {
     my $b = \@bind_values;
     ($stmt, $b) = $self->process_zero_length($stmt, $b);
@@ -675,7 +677,7 @@ s/\W(\s+)(size|user|time|current|validate|date|file)(\s+|\=|\))/$1."\"".uc($2)."
     @bind_values = @{$b};
     if (scalar @bind_values == 0) { $options->{prepare} = 0; }
   }
-
+  my @bind_inout;
   while (1) {
     my $sqlError = "";
 
@@ -686,8 +688,14 @@ s/\W(\s+)(size|user|time|current|validate|date|file)(\s+|\=|\))/$1."\"".uc($2)."
         $DEBUG and $self->debug(2, "In _do doing $stmt @bind_values");
 
         my $sth = $self->{DBH}->prepare($stmt);
+        $sth->bind_param($_, $bind_values[$_-1]) for (1..@bind_values);
+        if($options->{bind_inout}){ 
+          push @bind_inout,@bind_values+1;
+          push @bind_inout, @{ $options->{bind_inout} };
+           $sth->bind_param_inout(@bind_inout);
+        }
         $self->debug(2, "After  preparing the cached $stmt @bind_values");
-        $tmp = $sth->execute(@bind_values);    # $tmp and $sth->finish;
+        $tmp = $sth->execute();    # $tmp and $sth->finish;
       } else {
         $DEBUG and $self->debug(1, "In _do doing $stmt @bind_values");
         $tmp = $self->{DBH}->do($stmt);
