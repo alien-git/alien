@@ -861,7 +861,6 @@ sub f_di {
       $self->info("maxLim:: $max_lim");
       $self->info("minLim:: $min_lim");
 
-      my @stack_final = ();
       my (@LFN) = $self->{DATABASE}->getNumEntryIndexes();
       
       my $num_tables = @LFN/2;
@@ -873,44 +872,40 @@ sub f_di {
          my $base = $self->{DATABASE}->queryValue($tq);
          if ($LFN[$i+$num_tables] > $max_lim)
          {
-            #getting the depth of the directory tree 
-            #following the bottom -> top approach
+           #getting the depth of the directory tree 
             my $qt = "SELECT MAX( LENGTH(lfn) - LENGTH(REPLACE(lfn,'/','')) ) AS depth FROM ".$table_name."";
             my $depth = $self->{DATABASE}->queryValue($qt);
             $self->info("depth ::: $depth");
             #here optimization loop will be written
-            my @stack_dir=();  #stack of directories which will be moved usinf moveDirectory() 
-            for(my $j=$depth; $j>0 ;$j--) 
+            my $status=1;
+            for(my $j=1; $j<$depth ;$j++)
             {
-                my $q1 = "SUBSTRING_INDEX(lfn,'/',".$j.")";
-                my $q2 = "SELECT ".$q1." AS DIR , COUNT( ".$q1.") AS CNT FROM ".$table_name." WHERE ".$q1." IN ";
-                my $q3 = $q2." ( SELECT DISTINCT ".$q1." FROM ".$table_name." WHERE type LIKE \"d\") GROUP BY ".$q1."";
-                $DEBUG and $self->debug("Here in Optimize");
-                my $q = $self->{DATABASE}->query($q3);
-                foreach my $row(@$q)
-                {
+              my $q1 = "SUBSTRING_INDEX(lfn,'/',".$j.")";
+              my $q4 = "SELECT ".$q1." AS DIR , COUNT(DIR) AS CNT FROM ".$table_name." GROUP BY ".$q1." HAVING CNT<$max_lim AND CNT>$min_lim order by CNT DESC";
+              $self->info($q4);                                                                                                                                  
+              $DEBUG and $self->debug(1,"Here in Optimize");
+              my $q = $self->{DATABASE}->query($q4);
+              foreach my $row(@$q)
+              {
                     my $dir = $row->{DIR};
                     my $cnt = $row->{CNT};
                     #optimization part 
-                    if($cnt >$max_lim) 
+                    $DEBUG and $self->debug(1,"Inside condition ... => exceeding");
+                    $dir = $base.$dir;
+                    $self->{LOGGER}->silentOn();
+                    $self->moveDirectory($dir);
+                    $self->{LOGGER}->silentOff();
+                    $self->info("Dir moved n pushed :: $dir ");
+                    my $q1_again = "SELECT COUNT(*) FROM ".$table_name.""; 
+                    my $num_entries_again = $self->{DATABASE}->queryValue($q1_again);
+                    if($num_entries_again<$max_lim)                                                                                                             
                     {
-                        $DEBUG and $self->debug(1,"Inside condition ... => exceeding");
-                        #pushing the directory to be removed into the stack
-                        #the actual removal of the directories will take place in the calling function
-                        push @stack_dir,$dir;
-                        $dir = $base.$dir;
-                        $self->{LOGGER}->silentOn();
-                        $self->moveDirectory($dir);
-                        $self->{LOGGER}->silentOff();
-                        $DEBUG and $self->debug(1,"Dir moved n pushed :: $dir ");
+                      $status=0;
+                      ($status) or last;
                     }
-                }
+              }
+              ($status) or last;
             }
-            #my @stack_temp = $self->{DATABASE}->optimizeTables($max_lim,$min_lim,$table_name);
-            my @stack_temp = @stack_dir;
-            push @stack_final,@stack_temp;
-            use Data::Dumper;
-            $DEBUG and $self->debug(1,Dumper(@stack_final));
 	       }
          if ($LFN[$i+$num_tables] < $min_lim)
          {
@@ -962,7 +957,6 @@ sub f_di {
       $self->info("Trying to optimiz the dir :: $path");
       $self->info("maxLim:: $max_lim");
       $self->info("minLim:: $min_lim");
-      my @stack_final = ();
       my $rtables = $self->{DATABASE}->getTablesForEntry($path)
         or $self->info("Error getting the tables for '$path'")
         and return;
@@ -976,46 +970,41 @@ sub f_di {
         if ($num_entries > $max_lim)
         {
             #getting the depth of the directory tree 
-            #following the bottom -> top approach
             my $qt = "SELECT MAX(LENGTH(lfn) - LENGTH(REPLACE(lfn,'/','')) ) AS depth FROM ".$table_name."";
             my $depth = $self->{DATABASE}->queryValue($qt);
             $DEBUG and $self->debug(1,"depth ::: $depth");
-            #here optimization loop will be written
-            my @stack_dir=();  #stack of directories which will be moved usinf moveDirectory() 
-            for(my $j=$depth; $j>0 ;$j--) 
+            my $status=1;
+            for(my $j=1; $j<$depth ;$j++) 
             {     
                 my $q1 = "SUBSTRING_INDEX(lfn,'/',".$j.")";
-                my $q2 = "SELECT ".$q1." AS DIR , COUNT( ".$q1.") AS CNT FROM ".$table_name." WHERE ".$q1." IN ";
-                my $q3 = $q2." ( SELECT DISTINCT ".$q1." FROM ".$table_name." WHERE type LIKE \"d\") GROUP BY ".$q1."";
+                my $q4 = "SELECT ".$q1." AS DIR , COUNT(DIR) AS CNT FROM ".$table_name." GROUP BY ".$q1." HAVING CNT<$max_lim AND CNT>$min_lim order by CNT DESC";
+                $self->info($q4);
                 $DEBUG and $self->debug(1,"Here in Optimize");
-                my $q = $self->{DATABASE}->query($q3);
+                my $q = $self->{DATABASE}->query($q4);
                 foreach my $row(@$q)
                 {
                     my $dir = $row->{DIR};
                     my $cnt = $row->{CNT};
-                    #optimization part 
-                    if($cnt >$max_lim) 
+                    $DEBUG and $self->debug(1,"Inside condition ... => exceeding");
+                    #the actual removal of the directories will take place in the calling function
+                    $dir = $base.$dir;
+                    if ($dir =~ m/^$path/)
                     {
-                        $DEBUG and $self->debug(1,"Inside condition ... => exceeding");
-                        #pushing the directory to be removed into the stack
-                        #the actual removal of the directories will take place in the calling function
-                        push @stack_dir,$dir;
-                        $dir = $base.$dir;
-                        if ($dir =~ m/^$path/)
-                        {
-                           $self->{LOGGER}->silentOn();
-                           $self->moveDirectory($dir);
-                           $self->{LOGGER}->silentOff();
-                           $self->info("Dir moved n pushed :: $dir ");
-                        }
+                       $self->{LOGGER}->silentOn();
+                       $self->moveDirectory($dir);
+                       $self->{LOGGER}->silentOff();
+                       $self->info("Dir moved n pushed :: $dir ");
+                       my $q1_again = "SELECT COUNT(*) FROM ".$table_name.""; 
+                       my $num_entries_again = $self->{DATABASE}->queryValue($q1_again);
+                       if($num_entries_again<$max_lim)
+                       {
+                              $status=0;
+                              ($status) or last;
+                       }
                     }
                 }
+                ($status) or last;
             }
-            #my @stack_temp = $self->{DATABASE}->optimizeTables($max_lim,$min_lim,$table_name);
-            my @stack_temp = @stack_dir;
-            push @stack_final,@stack_temp;
-            use Data::Dumper;
-            $DEBUG and $self->debug(1,Dumper(@stack_final));
 	      }
         if ($num_entries < $min_lim)
         {
@@ -1146,6 +1135,7 @@ sub f_di {
   }
 
 }
+
 
 sub f_populate_HELP {
   return "Populates a given directory with sub-directories and finally with files
