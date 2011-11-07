@@ -145,7 +145,11 @@ sub f_chown {
     or $self->info("chown $file: No such file or directory")
     and return;
   print "The entry exists and it is called $lfn (in $table->{name})\n";
-  $db->updateLFN($lfn, {owner => $user, gowner => $group})
+
+  my $ownerId = $self->{DATABASE}->getOwnerId($user);
+  my $gownerId = $self->{DATABASE}->getGownerId($group);
+
+  $db->updateLFN($lfn, {ownerId => $ownerId, gownerId => $gownerId})
     or $self->info("Error updating the file")
     and return;
   $options =~ /f/ and return 1;

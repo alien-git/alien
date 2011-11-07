@@ -50,7 +50,7 @@ sub checkPermissions {
   $temp =~ s{(.)/$}{$1};
 
   my $parentdir = $self->f_dirname($temp);
-  my $dbOptions = {retrieve => "lfn,perm,owner,gowner"};
+  my $dbOptions = {retrieve => "lfn,perm,ownerId,gownerId"};
 
   $return_hash and $dbOptions = {};
 
@@ -66,7 +66,10 @@ sub checkPermissions {
     length($test->{lfn}) > length($entry->{lfn}) and $entry = $test;
   }
 
-  my ($lfn, $perm, $owner, $gowner) = ($entry->{lfn}, $entry->{perm}, $entry->{owner}, $entry->{gowner});
+  #my ($lfn, $perm, $owner, $gowner) = ($entry->{lfn}, $entry->{perm}, $entry->{owner}, $entry->{gowner});
+  my ($lfn, $perm, $ownerId, $gownerId) = ($entry->{lfn}, $entry->{perm}, $entry->{ownerId}, $entry->{gownerId});
+  my $owner = $self->{DATABASE}->getOwner($ownerId);
+  my $gowner = $self->{DATABASE}->getGowner($gownerId);
 
   ($perm) or print STDERR "Error selecting permissions of $lfn" and return;
   my $returnValue = $entry;

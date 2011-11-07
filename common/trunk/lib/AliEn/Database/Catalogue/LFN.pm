@@ -105,14 +105,26 @@ sub LFN_createCatalogueTables {
       },
       'entryId'
     ],
-    GROUPS => [
+    UGMAP => [
       "Userid",
-      { Userid       => "int not null auto_increment primary key",
-        Username     => "char(20) NOT NULL",
-        Groupname    => "char (85)",
+      { Userid       => "int not null",
+        Groupid      => "int not null",
         PrimaryGroup => "int(1)",
+      }
+    ],
+    USERS => [
+      "uId",
+      { uId          => "mediumint not null auto_increment primary key",
+        Username     => "char(20) UNIQUE NOT NULL",
       },
-      'Userid'
+      'uId'
+    ],
+    GRPS => [
+      "gId",
+      { gId          => "mediumint not null auto_increment primary key",
+        Groupname     => "char(20) UNIQUE NOT NULL",
+      },
+      'gId'
     ],
     INDEXTABLE => [
       "tableName",
@@ -302,8 +314,8 @@ sub checkLFNTable {
     guid       => "binary(16)",
     replicated => "smallint(1) default 0 not null",
     dir        => "int unsigned not null",
-    owner      => "varchar(20) not null",
-    gowner     => "varchar(20) not null",
+    ownerId    => "mediumint",
+    gownerId   => "mediumint",
     md5        => "char(32)",
     guidtime   => "char(8)",
     broken     => 'smallint(1) default 0 not null ',
@@ -385,9 +397,9 @@ sub getAllInfoFromLFN {
   }
   my $retrieve = (
     $options->{retrieve}
-      or "entryId,owner,replicated,guidtime,  broken, expiretime, "
+      or "entryId,ownerId ,replicated,guidtime,  broken, expiretime, "
       . $self->reservedWord("size")
-      . ",dir,  gowner,  "
+      . ",dir,  gownerId ,  "
       . $self->reservedWord("type")
       . " ,md5,perm,concat('$tablePath',lfn) as lfn, "
       . $self->binary2string
@@ -405,7 +417,7 @@ sub getAllInfoFromLFN {
   $options->{bind_values} and push @list, @{$options->{bind_values}};
 
   my $DBoptions = {bind_values => \@list};
-  return $self->$method("SELECT $retrieve FROM $tableName $where", undef, $DBoptions);
+  return $self->$method("SELECT $retrieve FROM $tableName JOIN USERS ON ownerId=uId JOIN GRPS ON gownerId=gId $where", undef, $DBoptions);
 }
 
 =item c<existsLFN($lfn)>
@@ -534,8 +546,8 @@ sub LFN_updateEntry {
 
   $update->{size}   and $lfnUpdate->{size}   = $update->{size};
   $update->{guid}   and $lfnUpdate->{guid}   = "string2binary(\"$update->{guid}\")";
-  $update->{owner}  and $lfnUpdate->{owner}  = "\"$update->{owner}\"";
-  $update->{gowner} and $lfnUpdate->{gowner} = "\"$update->{gowner}\"";
+  $update->{ownerId}  and $lfnUpdate->{ownerId}  = "\"$update->{ownerId}\"";
+  $update->{gownerId} and $lfnUpdate->{gownerId} = "\"$update->{gownerId}\"";
 
   #maybe all the information to update was only on the guid side
   (keys %$lfnUpdate) or return 1;
@@ -715,9 +727,9 @@ sub listDirectory {
           },
           where       => "dir=? and l.guid=g.guid and p.guidid=g.guidid and p.seNumber=? $sort",
           bind_values => [ $entry->{entryId}, $selimit ],
-          retrieve    => "distinct l.entryId,l.owner,l.replicated,l.guidtime,l.lfn,  l.broken, l.expiretime, l."
+          retrieve    => "distinct l.entryId,l.ownerId,l.replicated,l.guidtime,l.lfn,  l.broken, l.expiretime, l."
             . $self->reservedWord("size")
-            . ",l.dir,  l.gowner,  l."
+            . ",l.dir,  l.gownerId,  l."
             . $self->reservedWord("type")
             . " ,l.md5,l.perm, l.guid,l."
             . $self->binary2string("l.Guid")
@@ -747,12 +759,14 @@ sub listDirectory {
 #
 sub createDirectory {
   my $self   = shift;
+  my $ownerId = $self->getOwnerId($self->{VIRTUAL_ROLE});
+  my $gownerId = $self->getGownerId($self->{VIRTUAL_ROLE});
   my $insert = {
     lfn        => shift,
     perm       => (shift or "755"),
     replicated => (shift or 0),
-    owner      => $self->{VIRTUAL_ROLE},
-    gowner     => $self->{VIRTUAL_ROLE},
+    ownerId    => $ownerId,
+    gownerId   => $gownerId,
     type       => 'd'
   };
   return $self->_createEntry($insert, @_);
@@ -813,9 +827,9 @@ sub removeFile {
       . $db->reservedWord("size")
       . ", guid, gowner, "
       . $db->reservedWord("user") . ", pfn)
-    SELECT ?, l.owner, -1, l."
+    SELECT ?, USERS.Username, -1, l."
       . $db->reservedWord("size") 
-      . ", l.guid, l.gowner, ?,'*' FROM $tableName l WHERE l.lfn=? AND l.type<>'l'",
+      . ", l.guid, GRPS.Groupname, ?,'*' FROM $tableName l JOIN USERS ON l.ownerId=uId JOIN GRPS ON l.gownerId=gId WHERE l.lfn=? AND l.type<>'l'",
     {bind_values => [ $lfn, $user, $lfnOnTable ]}
     )
     or $self->info( "Could not insert LFN(s) in the booking pool")
@@ -952,11 +966,11 @@ sub moveFolder {
 
     #If the source and target are in different L#L tables then add in new table and delete from old table
     $dbTarget->do(
-          "INSERT INTO $tableName_target(owner, replicated, ctime, guidtime, lfn, broken, expiretime, "
+          "INSERT INTO $tableName_target(ownerId, replicated, ctime, guidtime, lfn, broken, expiretime, "
         . $dbTarget->reservedWord("size")
-        . ", dir, gowner, type, guid, md5, perm) 
-                  SELECT owner, replicated, ctime, guidtime, REPLACE(lfn,?,?) as lfn, broken, expiretime, "
-        . $dbTarget->reservedWord("size") . ", -1 as dir, gowner, type, guid, md5, perm 
+        . ", dir, gownerId, type, guid, md5, perm) 
+                  SELECT ownerId, replicated, ctime, guidtime, REPLACE(lfn,?,?) as lfn, broken, expiretime, "
+        . $dbTarget->reservedWord("size") . ", -1 as dir, gownerId, type, guid, md5, perm 
                   FROM $tableName_source
                   WHERE lfn REGEXP ?",
       {bind_values => [ $lfnOnTable_source, $lfnOnTable_target, "^" . $lfnOnTable_source ]}
@@ -1021,12 +1035,12 @@ sub moveFile {
 
     #If the source and target are in different L#L tables then add in new table and delete from old table
     $dbTarget->do(
-          "INSERT INTO $tableName_target(owner, replicated, ctime, guidtime, lfn, broken, expiretime, "
+          "INSERT INTO $tableName_target(ownerId, replicated, ctime, guidtime, lfn, broken, expiretime, "
         . $dbTarget->reservedWord("size")
-        . ", dir, gowner, type, guid, md5, perm) 
-      SELECT owner, replicated, ctime, guidtime, ?, broken, expiretime, "
+        . ", dir, gownerId, type, guid, md5, perm) 
+      SELECT ownerId, replicated, ctime, guidtime, ?, broken, expiretime, "
         . $dbTarget->reservedWord("size")
-        . ", dir, gowner, type, guid, md5, perm FROM $tableName_source WHERE lfn=?",
+        . ", dir, gownerId, type, guid, md5, perm FROM $tableName_source WHERE lfn=?",
       {bind_values => [ $lfnOnTable_target, $lfnOnTable_source ]}
       )
       or $self->info( "Error updating database")
@@ -1073,12 +1087,12 @@ sub softLink {
 
     #If source and target are in same L#L table then just edit the names
     $dbTarget->do(
-          "INSERT INTO $tableName_target(owner, replicated, ctime, guidtime, lfn, broken, expiretime, "
+          "INSERT INTO $tableName_target(ownerId, replicated, ctime, guidtime, lfn, broken, expiretime, "
         . $dbTarget->reservedWord("size")
-        . ", dir, gowner, type, guid, md5, perm) 
-      SELECT owner, replicated, ctime, guidtime, ?, broken, expiretime, "
+        . ", dir, gownerId, type, guid, md5, perm) 
+      SELECT ownerId, replicated, ctime, guidtime, ?, broken, expiretime, "
         . $dbTarget->reservedWord("size") 
-        . ", dir, gowner, 'l', guid, md5, perm FROM $tableName_source WHERE lfn=?",
+        . ", dir, gownerId, 'l', guid, md5, perm FROM $tableName_source WHERE lfn=?",
       {bind_values => [ $lfnOnTable_target, $lfnOnTable_source ]}
       )
       or $self->info( "Error updating database", "[updateDatabse]")
@@ -1087,12 +1101,12 @@ sub softLink {
 
     #If the source and target are in different L#L tables then add in new table and delete from old table
     $dbTarget->do(
-          "INSERT INTO $tableName_target(owner, replicated, ctime, guidtime, lfn, broken, expiretime, "
+          "INSERT INTO $tableName_target(ownerId, replicated, ctime, guidtime, lfn, broken, expiretime, "
         . $dbTarget->reservedWord("size")
-        . ", dir, gowner, type, guid, md5, perm) 
-      SELECT owner, replicated, ctime, guidtime, ?, broken, expiretime, "
+        . ", dir, gownerId, type, guid, md5, perm) 
+      SELECT ownerId, replicated, ctime, guidtime, ?, broken, expiretime, "
         . $dbTarget->reservedWord("size")
-        . ", dir, gowner, 'l', guid, md5, perm FROM $tableName_source WHERE lfn=?",
+        . ", dir, gownerId, 'l', guid, md5, perm FROM $tableName_source WHERE lfn=?",
       {bind_values => [ $lfnOnTable_target, $lfnOnTable_source ]}
       )
       or $self->info( "Error updating database")
@@ -1267,7 +1281,7 @@ sub copyDirectory {
   $beginning =~ s/^$targetLFN//;
 
   my $select =
-      "insert into $targetTable(lfn,owner,gowner,"
+      "insert into $targetTable(lfn,ownerId,gownerId,"
     . $self->reservedWord("size")
     . ",type,guid,guidtime,perm,dir) select distinct concat ('$beginning',substr(concat('";
   my $select2 =
@@ -1321,7 +1335,7 @@ sub copyDirectory {
 
   if ($#values > -1) {
     my $insert =
-        "INSERT into $targetTable(lfn,owner,gowner,"
+        "INSERT into $targetTable(lfn,ownerId,gownerId,"
       . $targetDB->reservedWord("size")
       . ",type,guid,guidtime,perm,dir) values ";
 
@@ -1416,7 +1430,7 @@ sub moveLFNs {
 
   #ok, this is the easy case, we just copy into the new table
   my $columns =
-      "entryId,md5,owner,gowner,replicated,expiretime,"
+      "entryId,md5,ownerId,gownerId,replicated,expiretime,"
     . $self->reservedWord("size") . ",dir,"
     . $self->reservedWord("type")
     . ",guid,perm";
@@ -1459,10 +1473,9 @@ sub moveLFNs {
     } else {
       $self->delete($fromTable, "lfn like '${tempLfn}%'");
     }
-    my $user = $self->queryValue("select owner from $toTable where lfn=''");
+    my $user = $self->queryValue("select Username from $toTable JOIN USERS ON ownerId=uId where lfn=''");
     $self->info("And now, let's give access to $user to '$toTable");
   }
-
   return 1;
 }
 
@@ -1499,7 +1512,8 @@ sub getUserGroups {
     return $cache;
   }
   $DEBUG and $self->debug(2, "In getUserGroups fetching groups for user $user");
-  my $data = $self->queryColumn("SELECT groupname,userId from GROUPS where Username='$user' and PrimaryGroup = $prim ");
+  my $data = $self->queryColumn("SELECT Groupname from UGMAP JOIN USERS ON uId=Userid JOIN GRPS ON gId=Groupid where Username='$user' and PrimaryGroup = $prim ");
+  #my $data = $self->queryColumn("SELECT Groupname ,Userid from UGMAP JOIN USERS ON uId=Userid JOIN GRPS ON gId=Groupid where Username='$user' and PrimaryGroup = $prim ");
   AliEn::Util::setCacheValue($self, "groups-$user-$prim", $data);
   return $data;
 }
@@ -1508,8 +1522,8 @@ sub getAllFromGroups {
   my $self = shift;
   my $attr = shift || "*";
 
-  $DEBUG and $self->debug(2, "In getAllFromGroups fetching attributes $attr for all tuples from GROUPS table");
-  $self->query("SELECT $attr FROM GROUPS");
+  $DEBUG and $self->debug(2, "In getAllFromGroups fetching attributes $attr for all tuples from UGMAP table");
+  $self->query("SELECT $attr FROM UGMAP");
 }
 
 sub insertIntoGroups {
@@ -1518,13 +1532,18 @@ sub insertIntoGroups {
   my $group = shift;
   my $var   = shift;
 
+  $self->_do("INSERT INTO USERS (Username) SELECT '$user' FROM DUAL WHERE NOT EXISTS (SELECT * FROM USERS WHERE Username='$user')");
+  $self->_do("INSERT INTO GRPS (Groupname) SELECT '$group' FROM DUAL WHERE NOT EXISTS (SELECT * FROM GRPS WHERE Groupname='$group')");
+  my $userid = $self->getOwnerId($user);
+  my $groupid = $self->getGownerId($group);
   $DEBUG and $self->debug(2, "In insertIntoGroups inserting new data");
   $self->_do(
-    "INSERT INTO GROUPS ( Username, Groupname, PrimaryGroup) SELECT '$user','$group','$var' FROM DUAL WHERE NOT  EXISTS 
-(SELECT  * FROM GROUPS WHERE Username = '$user' AND Groupname = '$group' AND PrimaryGroup = '$var')"
-  );
-
-  #  $self->_do("INSERT IGNORE INTO GROUPS (Username, Groupname, PrimaryGroup) values ('$user','$group','$var')");
+    "INSERT INTO UGMAP ( Userid, Groupid, PrimaryGroup) SELECT '$userid','$groupid','$var' FROM DUAL WHERE NOT  EXISTS 
+    (SELECT  * FROM UGMAP WHERE Userid = '$userid' AND Groupid = '$groupid' AND PrimaryGroup = '$var')" );
+ 
+  #$self->_do("INSERT IGNORE INTO USERS (Username)  VALUES ('$user') "); 
+  #$self->_do("INSERT IGNORE INTO GRPS (Groupname)  VALUES ('$group') "); 
+  #$self->_do("INSERT IGNORE INTO GROUPS (Username, Groupname, PrimaryGroup) values ('$user','$group','$var')");
 }
 
 ###	Environment functions
@@ -1977,7 +1996,7 @@ sub internalQuery {
   $b =~ s/guid/l.guid/;
 
   map {
-s/^(.*)$/$self->paginate("SELECT l.entryId,ctime,owner,replicated,guidtime, jobId, broken, expiretime,dir, ".$self->reservedWord("size").", gowner,  ".$self->reservedWord("type")." ,md5,perm,concat('$refTable->{lfn}', lfn) as lfn,
+s/^(.*)$/$self->paginate("SELECT l.entryId,ctime,ownerId,replicated,guidtime, jobId, broken, expiretime,dir, ".$self->reservedWord("size").", gownerId,  ".$self->reservedWord("type")." ,md5,perm,concat('$refTable->{lfn}', lfn) as lfn,
 $b as guid from $indexTable l $1 $order", $limit, $offset)/e
   } @joinQueries;
 

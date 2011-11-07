@@ -305,9 +305,13 @@ sub deleteUser {
   my $user = shift
     or $self->info("In deleteUser user is missing", 1)
     and return;
-
-  $DEBUG and $self->debug(2, "In deleteUser deleting entries with user $user from GROUPS table");
-  $self->delete("GROUPS", "Username='$user'");
+  my $userId = $self->getOwnerId($user);
+  $DEBUG and $self->debug(2, "In deleteUser deleting entries with user $user from UGMAP table");
+  $self->delete("UGMAP", "Userid='$userId'");
+  $DEBUG and $self->debug(2, "In deleteUser deleting entries with user $user from USERS table");
+  $self->delete("USERS", "Username='$user'");
+  $DEBUG and $self->debug(2, "In deleteUser deleting entries with user $user from GRPS table");
+  $self->delete("GRPS", "Groupname='$user'");
 }
 
 ###	Environment functions
@@ -475,7 +479,7 @@ sub setUserGroup {
 
   $self->debug(1, "Setting the userid to $user ($group)");
   $self->{$field} = $user;
-  $self->{MAINGROP} = $group;
+  $self->{MAINGROUP} = $group;
  
   return 1;
 }
@@ -889,8 +893,8 @@ sub getUserid {
   my $user  = shift;
   my $group = shift;
   my $where = "primarygroup=1";
-  $group and $where = "groupname='$group'";
-  return $self->queryValue("SELECT userid from GROUPS where Username='$user' and $where");
+  $group and $where = "Groupname='$group'";
+  return $self->queryValue("SELECT Userid from UGMAP JOIN USERS ON Userid=uId JOIN GRPS ON Groupid=gId where Username='$user' and $where"); 
 }
 
 
@@ -952,11 +956,40 @@ sub checkUserGroup {
   $DEBUG and $self->debug(2, "In checkUserGroup checking if user $user is member of group $group");
   my $v = AliEn::Util::returnCacheValue($self, "usergroup-$user-$group");
   defined $v and return $v;
-  $v = $self->queryValue("SELECT count(*) from GROUPS where Username='$user' and Groupname = '$group'");
+  $v = $self->queryValue("SELECT count(*) from UGMAP JOIN USERS ON Userid=uId JOIN GRPS ON Groupid=gId where Username='$user' and Groupname = '$group'");
   AliEn::Util::setCacheValue($self, "usergroup-$user-$group", $v);
 
   return $v;
 }
+
+sub getOwnerId {
+  my $self  = shift;
+  my $user  = shift;
+  $user or return;
+  return $self->queryValue("SELECT uId from USERS where Username='$user'");
+}
+
+sub getGownerId {
+  my $self  = shift;
+  my $user  = shift;
+  $user or return;
+  return $self->queryValue("SELECT gId from GRPS where Groupname='$user'");
+}
+
+sub getOwner {
+  my $self  = shift;
+  my $uId  = shift;
+  $uId or return;
+  return $self->queryValue("SELECT Username from USERS where uId=$uId");
+}
+
+sub getGowner {
+  my $self  = shift;
+  my $gId  = shift;
+  $gId or return;
+  return $self->queryValue("SELECT Groupname from GRPS where gId=$gId");
+}
+
 
 
 1;

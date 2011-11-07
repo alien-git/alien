@@ -1737,8 +1737,10 @@ sub insertLFNBookedDeleteMirrorFromGUID {
   if (!$exists || $exists == 0) {
     return $self->do(
 "INSERT INTO LFN_BOOKED(lfn, owner, expiretime, \"SIZE\", guid, gowner, user, pfn, se)
-      select ?,g.owner,-1,g.\"SIZE\",string2binary(?),g.gowner,?,?,s.seName
+      select ?,USERS.Username,-1,g.\"SIZE\",string2binary(?),GRPS.Groupname,?,?,s.seName
       from " . $table . " g, " . $table . "_PFN g_p, SE s
+      JOIN USERS ON g.ownerId=USERS.uId
+      JOIN GRPS ON g.gownerId=GRPS.gId
       where g.guidId=g_p.guidId and g_p.guidId=? and g_p.seNumber=? and g_p.pfn=? and s.seNumber=g_p.seNumber",
       undef,
       { bind_values => [ $lfn, $guid, $role, $pfn, $guidId, $seNumber, $pfn ],
@@ -1748,8 +1750,10 @@ sub insertLFNBookedDeleteMirrorFromGUID {
   } else {
     return $self->do(
 "UPDATE LFN_BOOKED SET (lfn, owner, expiretime, \"SIZE\", guid, gowner, user, pfn, se) = 
-      (select ?,g.owner,-1,g.\"SIZE\",string2binary(?),g.gowner,?,?,s.seName
+      (select ?, USERS.Username,-1,g.\"SIZE\",string2binary(?), GRPS.Groupname,?,?,s.seName
        from " . $table . " g, " . $table . "_PFN g_p, SE s
+      JOIN USERS ON g.ownerId=USERS.uId
+      JOIN GRPS ON g.gownerId=GRPS.gId
       where g.guidId=g_p.guidId and g_p.guidId=? and g_p.seNumber=? and g_p.pfn=? and s.seNumber=g_p.seNumber)",
       { bind_values => [ $lfn, $guid, $role, $pfn, $guidId, $seNumber, $pfn ],
         zero_length => 0
@@ -1772,7 +1776,10 @@ sub insertLFNBookedRemoveDirectory {
   # if (!$exists || $exists == 0){
   return $self->do(
 "INSERT INTO LFN_BOOKED(lfn, owner, expiretime,\"SIZE\", guid, gowner, \"USER\", pfn)
-     SELECT concat('$lfn' , l.lfn), l.owner, -1, l.\"SIZE\", l.guid, l.gowner, ? , '*' FROM $tableName l WHERE l.type='f' AND l.lfn LIKE concat (?,'%')",
+     SELECT concat('$lfn' , l.lfn), USERS.Username, -1, l.\"SIZE\", l.guid, GRPS.Groupname, ? , '*' FROM $tableName l 
+     JOIN USERS ON l.ownerId=USERS.uId 
+     JOIN GRPS ON l.gownerId=GRPS.gId
+     WHERE l.type='f' AND l.lfn LIKE concat (?,'%')",
     { bind_values => [ $user, $tmpPath ], zero_length => 0 }
   );
 

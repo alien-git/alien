@@ -48,15 +48,17 @@ sub f_createCollection {
     and $self->{LOGGER}->error("File", "file $file already exists!!", 1)
     and return;
 
+  my $ownerId = $self->{DATABASE}->getOwnerId($self->{ROLE});
+  my $gownerId = $self->{DATABASE}->getGownerId($self->{MAINGROUP});
   # Now, insert it into D0, and in the table
   my $basename = $self->f_basename($file);
   my $insert   = {
-    lfn    => $file,
-    perm   => $self->{UMASK},
-    owner  => $self->{ROLE},
-    gowner => $self->{MAINGROUP},
-    guid   => $guid,
-    type   => 'c'
+    lfn      => $file,
+    perm     => $self->{UMASK},
+    ownerId  => $ownerId,
+    gownerId => $gownerId,
+    guid     => $guid,
+    type     => 'c'
   };
 
   $self->{DATABASE}->createCollection($insert)

@@ -76,13 +76,12 @@ sub GUID_createCatalogueTables {
   }
 
   my %tables = (
-    GROUPS => [
-      "Username",
-      { Username     => "char(15) NOT NULL",
-        Groupname    => "char (85)",
+    UGMAP => [
+      "Userid",
+      { Userid       => "int not null",
+        Groupid      => "int not null",
         PrimaryGroup => "int(1)",
-      },
-      'Username'
+      }
     ],
     GUIDINDEX => [
       "tableName",
@@ -158,8 +157,8 @@ sub checkGUIDTable {
     guid             => "binary(16)",
     md5              => "varchar(32)",
     ref              => "int(11) default 0",
-    owner            => "varchar(20)",
-    gowner           => "varchar(20)",
+    ownerId          => "mediumint",
+    gownerId         => "mediumint",
     type             => "char(1)",
     jobid            => "int(11)",
   );
@@ -313,9 +312,10 @@ sub _prepareEntries {
     }
 
     #And now, let's set the defaults
+    my $ownerId = $self->getOwnerId($self->{VIRTUAL_ROLE}); 
     $entry->{perm}   or $entry->{perm}   = "755";
-    $entry->{owner}  or $entry->{owner}  = $self->{VIRTUAL_ROLE};
-    $entry->{gowner} or $entry->{gowner} = $self->{VIRTUAL_ROLE};
+    $entry->{ownerId}  or $entry->{ownerId}  = $ownerId;
+    $entry->{gownerId} or $entry->{gownerId} = $ownerId;
     push @new, $entry;
   }
   return \@pfns, \@new;
@@ -390,9 +390,9 @@ sub getAllInfoFromGUID {
 
   $options->{retrieve} and $options->{retrieve} = $options->{retrieve} . ',binary2string(guid) as guid';
   my $retrieve = $options->{retrieve}
-    || 'guidId,seAutoStringList,owner,expiretime,'
+    || 'guidId,seAutoStringList,Username,expiretime,'
     . $self->reservedWord("size")
-    . ',ref,  gowner,  '
+    . ',ref,  Groupname,  '
     . $self->reservedWord("type")
     . ' ,md5,perm, seStringList,'
     . $self->dateFormat("ctime")
@@ -404,7 +404,7 @@ sub getAllInfoFromGUID {
 
   $self->debug(2, "Looking into the table  $table");
 
-  my $info = $self->$method("select $retrieve from $table where guid=string2binary(?)", undef, {bind_values => [$guid]});
+  my $info = $self->$method("select $retrieve from $table JOIN USERS ON ownerId=uId JOIN GRPS ON gownerId=gId where guid=string2binary(?)", undef, {bind_values => [$guid]});
 
   if ($options->{return}) {
     $info->{table} = $table;
@@ -568,7 +568,7 @@ sub checkPermission {
   my $retrievemore = (shift || 0);
   my $empty        = (shift || 0);
 
-  my $retrieve = 'guidId,perm,owner,gowner,' . $self->reservedWord("size");
+  my $retrieve = 'guidId,perm,ownerId,gownerId,' . $self->reservedWord("size");
   
   $retrievemore =~ s/,?table// and 
   $retrievemore =~ s/^,//;
@@ -577,6 +577,8 @@ sub checkPermission {
   my $info = 0;
 
   $info = $self->getAllInfoFromGUID({retrieve => $retrieve, return=>'table'}, $guid);
+  my $owner= $self->getOwner($info->{ownerId});
+  my $gowner= $self->getGowner($info->{gownerId});
   
   if (!($info and $info->{guidId})) {
     $empty and return $info;
@@ -587,10 +589,12 @@ sub checkPermission {
   $self->debug(2, "Checking if the user $self->{VIRTUAL_ROLE} has $op rights to the guid");
   $self->{VIRTUAL_ROLE} =~ /^admin(ssl)?$/ and return $info;
   my $permInt = 2;
-  if ($self->{VIRTUAL_ROLE} eq $info->{owner}) {
+  #if ($self->{VIRTUAL_ROLE} eq $info->{owner}) {
+  if ($self->{VIRTUAL_ROLE} eq $owner) {
     $permInt = 0;
   } else {
-    ($self->checkUserGroup($self->{VIRTUAL_ROLE}, $info->{gowner})) and $permInt = 1;
+    #($self->checkUserGroup($self->{VIRTUAL_ROLE}, $info->{gowner})) and $permInt = 1;
+    ($self->checkUserGroup($self->{VIRTUAL_ROLE}, $gowner)) and $permInt = 1;
   }
 
   my $subperm = substr($info->{perm}, $permInt, 1);

@@ -71,8 +71,11 @@ sub f_registerFile {
   #  my $tempname = $self->f_dirname($file);
 
   my $permLFN = $self->checkPermissions('w', $file, 0, 1) or return;
+  my $owner  = $self->{DATABASE}->getOwner($permLFN->{ownerId});
+  my $gowner  = $self->{DATABASE}->getGowner($permLFN->{gownerId});
+  
   if ($self->existsEntry($file, $permLFN->{lfn})) {
-    if (($permLFN->{owner} eq $self->{ROLE}) and ($permLFN->{gowner} eq $self->{MAINGROUP})) {
+    if (($owner eq $self->{ROLE}) and ($gowner eq $self->{MAINGROUP})) {
 
     } else {
       $self->info(
@@ -84,15 +87,20 @@ sub f_registerFile {
   }
 
   # Now, insert it into D0, and in the table
+  #my $ownerId  = $self->{DATABASE}->getOwnerId($self->{ROLE});
+  #my $gownerId  = $self->{DATABASE}->getGownerId($self->{MAINGROUP});
+
   my $basename = $self->f_basename($file);
   my $insert   = {
-    lfn    => $file,
-    perm   => $perm,
-    owner  => $self->{ROLE},
-    gowner => $self->{MAINGROUP},
-    size   => $size,
-    guid   => $guid,
-    jobid  => $jobid
+    lfn      => $file,
+    perm     => $perm,
+    #ownerId  => $ownerId,
+    #gownerId => $gownerId,
+    ownerId  => $permLFN->{ownerId},
+    gownerId => $permLFN->{gownerId},
+    size     => $size,
+    guid     => $guid,
+    jobid    => $jobid
   };
   $se     and $insert->{se}           = $se;
   $md5    and $insert->{md5}          = $md5;
@@ -1820,3 +1828,4 @@ sub fquota_set {
 }
 
 return 1;
+

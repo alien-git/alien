@@ -861,10 +861,12 @@ sub GetParentDir {
 sub f_print {
   my ($self, $path, $opt, $rentry) = @_;
   my $t = "";
+  my $owner = $self->{DATABASE}->getOwner($rentry->{ownerId});
+  my $gowner = $self->{DATABASE}->getGowner($rentry->{gownerId});
   my ($type, $perm, $name, $user, $date, $group, $size, $md5, $expire) = (
     $rentry->{type},  $rentry->{perm},
-    $rentry->{lfn},   $rentry->{owner} || "unknown",
-    $rentry->{ctime}, $rentry->{gowner} || "unknown",
+    $rentry->{lfn},   $owner || "unknown",
+    $rentry->{ctime}, $gowner || "unknown",
     $rentry->{size} || 0, $rentry->{md5},
     $rentry->{expiretime} || ""
   );
@@ -1988,7 +1990,7 @@ sub _setUserGroups {
   $result
     or $self->{LOGGER}->error("Catalogue", "Error during database query execution")
     and return;
-  ($self->{GROUPS}) = join " ", @$result;
+  ($self->{UGMAP}) = join " ", @$result;
 }
 
 sub displayLastError {

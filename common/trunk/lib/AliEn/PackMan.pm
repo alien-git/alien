@@ -368,7 +368,7 @@ sub getListInstalled_Internal {
   if (!grep (/-force/, @_)) {
 #    ($status, @list) = $self->readPackagesFromFile("alien_list_installed");
   ($status, @list) = $self->readPackagesFromFile("alien_listInstalled_packages_");
-  
+  $status or $status=0; 
   }
   $DEBUG and $self->debug(1, "Asking the PackMan for the packages that it has installed");
 

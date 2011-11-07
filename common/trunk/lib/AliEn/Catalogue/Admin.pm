@@ -106,8 +106,7 @@ sub f_addUser {
   $self->f_chown("", $user, $homedir) or return;
   $self->info("Adding the FQUOTAS");
   my $exists =
-    $self->{DATABASE}
-    ->queryValue("select user from FQUOTAS where user = ? ;", undef, {bind_values => [$user]});
+    $self->{DATABASE}->queryValue("select user from FQUOTAS where user = ? ;", undef, {bind_values => [$user]});
 
   if (defined($exists) and $exists eq $user) {
     $self->debug(1, "$user entry for FQUOTAS exists!");
@@ -1135,9 +1134,11 @@ sub calculateFileQuota {
     $lfndb->do("delete from ${LTableName}_QUOTA");
     $lfndb->do("insert into ${LTableName}_QUOTA ("
         . $lfndb->reservedWord("user")
-        . ", nbFiles, totalSize) select l.owner as \"user\", count(l.lfn) as nbFiles, sum(l."
+        . ", nbFiles, totalSize) select USERS.Username as \"user\", count(l.lfn) as nbFiles, sum(l."
         . $lfndb->reservedWord("size")
-        . ") as totSize from ${LTableName} l where l.type='f' group by l.owner order by l.owner");
+        . ") as totSize from ${LTableName} l 
+        JOIN USERS ON l.ownerId=USERS.uId 
+        where l.type='f' group by l.ownerId order by l.ownerId");
     $calculate = 1;
   }
 
