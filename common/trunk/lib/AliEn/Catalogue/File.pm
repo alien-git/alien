@@ -869,7 +869,8 @@ sub f_di {
       $self->info("maxLim:: $max_lim");
       $self->info("minLim:: $min_lim");
 
-      my (@LFN) = $self->{DATABASE}->getNumEntryIndexes();
+      my $opt =1;
+      my (@LFN) = $self->{DATABASE}->getNumEntryIndexes($opt);
       
       my $num_tables = @LFN/2;
       for (my $i=0; $i<$num_tables; $i++)

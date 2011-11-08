@@ -708,10 +708,14 @@ sub moveGUIDs {
 
   #at le  ast is in the same host, and driver
   my @queries = (
-"INSERT INTO $self->{DB}.G${tableName}L ($columns) select $columns from $table where  binary2date(guid)>string2date('$guid')",
+    "CREATE TABLE temp_GL (tempguidid int(11) primary key, tm varchar(16)) ",
+"INSERT INTO temp_GL (select guidid,binary2date(guid) from $table )",
+#"INSERT INTO $self->{DB}.G${tableName}L ($columns) select $columns from $table where  binary2date(guid)>string2date('$guid')",
+"INSERT INTO $self->{DB}.G${tableName}L ($columns) select $columns from $table JOIN temp_GL ON tempguidid=guidid where tm>string2date('$guid')",
 "INSERT INTO $self->{DB}.G${tableName}L_PFN (guidid, pfn,seNumber) select p.guidid, p.pfn, p.seNumber from ${table}_PFN p, $self->{DB}.G${tableName}L g where p.guidId=g.guidId",
       "DELETE FROM $table where binary2date(guid)>string2date('$guid')",
-      "delete from p using ${table}_PFN p left join $table g on p.guidId=g.guidId where g.guidId is null"
+      "delete from p using ${table}_PFN p left join $table g on p.guidId=g.guidId where g.guidId is null",
+    "DROP TABLE temp_GL "
     );
 
   my $counter = $#queries;

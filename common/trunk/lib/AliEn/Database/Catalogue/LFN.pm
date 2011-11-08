@@ -1168,6 +1168,13 @@ sub getAllIndexes {
 sub getNumEntryIndexes {
   #edited by dushyant
   my $self = shift;
+  my $option = shift;
+  ($option) or $option=0;
+
+  if($option==1){
+    $self->do("CREATE TABLE temp_LL (tn int unique, num int)");
+  }
+  
   my $q = $self->query("SELECT tableName FROM INDEXTABLE");
   #my $lol = scalar @$q;
   #$self->info("Checking scalar value :: $lol");
@@ -1182,13 +1189,23 @@ sub getNumEntryIndexes {
         push(@tnames,$tn);
         my $newT = 'L'.$tn.'L';
         my $q1 = "SELECT COUNT(*) from ".$newT." ";
-        my $temp = $self->queryValue($q1);
-        push(@result,$temp);
+        my $num = $self->queryValue($q1);
+        if($option ==1 ){
+          $self->do("INSERT INTO temp_LL VALUES ($tn,$num)");
+        }
+        push(@result,$num);
   }
-  #return (@tnames,@result) ;
-  #use Data::Dumper;
-  #$self->info(Dumper(@tnames));
-  #$self->info(Dumper(@result));
+  if($option == 1){
+      my $qu=$self->query("SELECT * from temp_LL ORDER BY num ASC ");
+      my @tnames1 = ();
+      my @result1 = ();
+      foreach my $row(@$qu){
+        push(@tnames1,$row->{tn});
+        push(@result1,$row->{num});
+      }
+      $self->do("DROP TABLE if exists temp_LL");
+      return (@tnames1,@result1) ;
+  }
   return (@tnames,@result) ;
   #return %res ;
 }
