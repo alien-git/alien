@@ -1,7 +1,7 @@
 
 \section{Summary and Outlook}
 
-This article is meant to be a short overview of the facts concerning
+This chapter  is meant to be a short overview of the facts concerning
 the Grid computing for HEP experiments, in particular for the
 experiments at the CERN LHC. The experience gained during the LHC
 operations in 2009-2011 has proven that for this community, the
@@ -21,7 +21,7 @@ Managing the real data taking and processing in
 developments. The excellent performance of the network which was by
 far not anticipated in the time of writing the WLCG (C)TDR shifted
 the original concept of computing models based on hierarchical
-architecture to a more symmetrical mesh-like scenario. In original
+architecture to a more symmetrical mesh-like scenario. In the original
 design, the jobs are sent to sites holding the required data sets
 and there are multiple copies of data spread over the system due to
 anticipation that network will be unreliable or insufficient. It
@@ -103,6 +103,15 @@ on the way of building the WLCG is of enormous value, not only to
 WLCG community but to e-science in general. It allows people to
 collaborate across the infrastructures.
 
+%fig26
+\begin{figure}[htb] % h-here, t-top, b-bottom
+\centering
+\includegraphics[width=13cm]{fig26.eps} %    ** if .eps don't need extension
+\caption{Schema of StratusLab IaaS Cloud interoperability with a
+Grid}\label{fig26}
+\end{figure}
+
+
 The basic operations like distributed data management, the high data
 throughput and the remote job submission can probably be more
 cloud-like. There is a great interest among people to use commercial
@@ -110,7 +119,7 @@ Clouds resources, especially when the experiments see their
 resources becoming full.
 
 So, can we use Amazon or Google to do processing of data from LHC?
-The point is, one can not be sure what the level of services will be
+The point is, one cannot be sure what the level of services will be
 and what the IN/OUT bandwidth will be. This can in principle be
 negotiated with these companies and may bring some level of
 agreement. That in principle is doable.
@@ -118,7 +127,7 @@ agreement. That in principle is doable.
 
 \subsection{Grids and Clouds}
 
-As argued in [67], "Cloud Computing not only overlaps with Grid
+As argued in \cite{Cloud}, "Cloud Computing not only overlaps with Grid
 Computing, it is indeed evolved out of Grid Computing and relies on
 Grid Computing as its backbone and infrastructure support. The
 evolution has been a result of a shift in focus from an
@@ -132,7 +141,7 @@ centralized facilities.
 There exist a number of projects looking into and developing Cloud
 to Grid interfaces with the idea that Grid and Cloud Computing serve
 different use cases and can work together improving Distributed
-Computing Infrastructures (see e.g. [68, 70]). Also CERN is involved
+Computing Infrastructures (see e.g. \cite{Cloud,  Cloud2}). Also CERN is involved
 in this activity together with other international laboratories in
 Europe.
 
@@ -159,7 +168,7 @@ or to access other public or commercial Clouds. This is happening
 with no change to any of the existing Grid services. Another
 interesting example is the development of a comprehensive OpenSource
 IaaS (Infrastructure as a Service) Cloud distribution within the
-StratusLab project [68], see Figure 26. Anyone can take the code and
+StratusLab project, see Figure 26. Anyone can take the code and
 deploy it on his site and have IaaS Cloud running on his site. The
 project is focused on deploying Grid services on top of this Cloud,
 1) to be a service to existing European Grid infrastructures and to
@@ -180,7 +189,8 @@ Physics phenomena in the energy regime never explored before, there
 have been new findings concerning some of the major issues addressed
 by the LHC research.
 
-- ATLAS and CMS experiments have been delivering results concerning
+\begin{itemize}
+\item ATLAS and CMS experiments have been delivering results concerning
 the energy regions excluding the mass of the Higgs boson. The latest
 results on the topic of Higgs boson searches exclude a wide region
 of Higgs boson masses: ATLAS excludes Higgs boson masses above 145
@@ -188,7 +198,7 @@ GeV, and out to 466 GeV (apart from a couple of points in-between,
 which are however excluded by CMS studies). For some of the latest
 references see \cite{higgs}, \cite{higgs2}, \cite{higgs3}.
 
-- To contribute new results on the topic of the dominance of matter
+\item To contribute new results on the topic of the dominance of matter
 over antimatter in the present Universe, the LHCb experiment has
 been pursuing studies of phenomena demonstrating the so-called
 CP-symmetry violation. Violation of this symmetry plays an
@@ -197,7 +207,7 @@ of matter over antimatter in our world. The latest LHCb results
 concerning the demonstration of the existence of the CP-violation
 can be found e.g. in \cite{cpvio}.
 
-- The study of properties of the Quark Gluon Plasma (QGP), the phase
+\item The study of properties of the Quark Gluon Plasma (QGP), the phase
 of matter which existed in a fraction of a second after the Big
 Bang, is the mission of the ALICE experiment. During the lead-lead
 collisions at the LHC energies, the individual collisions can be
@@ -209,7 +219,7 @@ in the core of the Sun. ALICE has confirmed the previous findings of
 the STAR experiment at the Relativistic Heavy Ion Collider (RHIC) at
 Brookhaven that this QGP behaves like an ideal liquid \cite{alice_pbpb} even
 at the LHC energies.
-
+\end{itemize}
 
 \subsection{Concluding remarks}
 
