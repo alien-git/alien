@@ -6,28 +6,28 @@
 
 \section{Introduction}
 
-The High Energy Physics (HEP) [1] -- often called Particle
+The High Energy Physics (HEP) \citep{HEP} -- often called Particle
 Physics -- is one of the research areas where the accomplishment of
 scientific results is  inconceivable without the infrastructure for
 distributed computing, the Computing Grid. The HEP is a branch of
 Physics that studies properties of elementary subatomic constituents
 of matter. It goes beyond protons and neutrons to study particles
 which existed only a fraction of a second after the Big Bang and
-quarks and gluons in the so-called Quark Gluon Plasma (QGP) [2].
+quarks and gluons in the so-called Quark Gluon Plasma (QGP) \cite{QGP}.
 These studies are based on experiments with particles colliding at
 very high energies, at speeds almost equal to the speed of light.
 
 The world's leading Particle Physics research laboratory is CERN
-[3], the European Center for Nuclear and Particle Physics near
+\cite{CERN}, the European Center for Nuclear and Particle Physics near
 Geneva, Switzerland. The CERN latest particle accelerator, the Large
-Hadron Collider (LHC) [4], Figure~\ref{fig01}, installed in a 27~km
+Hadron Collider (LHC) \cite{LHC}, Figure 1, installed in a 27~km
 long tunnel located about 100~m underground and crossing the Swiss -
 French border, uses counter-rotating beams of protons or lead ions (Pb)
 to collide at 4 points, inside large particle detectors: ALICE
-[5], ATLAS [6], CMS [7] and LHCb [8]. There are also another two smaller
- experiments,  TOTEM and LHCf. They are much smaller in size and they are designed
- to focus on ‘forward particles’ . These are particles that just brush past each other 
-as the beams collide, rather than meeting head-on.
+\cite{ALICE}, ATLAS \cite{ATLAS}, CMS \cite{CMS} and LHCb \cite{LHCb}. There are also another two smaller
+ experiments,  TOTEM \cite{TOTEM} and LHCf \cite{LHCf}. The later two are much smaller in size and they are designed
+ to focus on forward particles, (particles that just brush past each other 
+as the beams collide, rather than meeting head-on).
 
 The energy of the protons is
 currently 3.5~TeV (1 Tera eV= 1 million MeV) and that of the Pb ions is
@@ -54,14 +54,14 @@ in a sense a huge extremely complicated microscope enabling the
 study of the most basic elements of matter.
 
 There are several major questions which scientists hope to
-get answered with the help of the LHC.
+get answered with the help of the LHC:
 
 \begin{itemize}
-\item What is the origin of mass, why do elementary particles have
+\item What is the origin of mass? Why do elementary particles have
 some weight? And why do some particles have no mass at all? At
 present, we have no established answers to these questions. The
 theory offering a widely accepted explanation, the Standard Model
-[9], assumes the existence of a so-called Higgs boson, a key particle
+\cite{Standard}, assumes the existence of a so-called Higgs boson, a key particle
 undiscovered so far, although it was first hypothesized in 1964. One
 of the basic tasks of the LHC is to bring an established statement
 concerning the existence of the Higgs boson.
@@ -78,11 +78,11 @@ is left.
 state of the matter existing for a tiny period of time after the Big
 Bang? Originally, we thought it would behave like a plasma, but the
 latest scientific results including those delivered by the LHC
-suggest that it behaves like a perfect liquid [2],
+suggest that it behaves like a perfect liquid,
 which is somewhat surprising for us.
 
 \item What is the universe made of? At the moment, the particles that we understand 
-create only 4% of the universe. The rest is believed to be made out of dark matter
+create only 4\% of the universe. The rest is believed to be made out of dark matter
 and dark energy. The LHC experiments will look for supersymmetric particles, which
  would confirm a likely hypothesis for the creation of dark matter.
 \end{itemize}
@@ -130,17 +130,17 @@ reach about 130~MJ which is an equivalent of 80~kg of TNT.
 In any case, the volume of data necessary to analyze to discover New
 Physics was already in the original proposal estimated to be about
 15 PetaBytes (PB, 1PB=1 million GB) per data taking year. The number 
-of the processor cores, CPUs, needed to process this
+of the processor cores needed to process this
 amount of data was estimated to be about 200 thousands. And here,
 the concept of a distributed data management infrastructure comes
 into the scenario, because there is no single computing
 center within the LHC community/collaboration to offer such  massive
 computing resources, even not CERN. Therefore in 2002, the concept
-of the Worldwide LHC Computing Grid (WLCG) [10] was launched to
+of the Worldwide LHC Computing Grid (WLCG) \cite{WLCG} was launched to
 build a distributed computing infrastructure to provide the
 production and analysis environments for the LHC experiments.
 
-In the present article, we give a short overview of the Grid
+In the present chapter, we give a short overview of the Grid
 computing for the experiments at the LHC and the basics of the
 mission of the WLCG.  Since we are members of the ALICE
 collaboration, we will also describe some specific features of the
@@ -160,7 +160,7 @@ applications that solve particular problems. In section 4, the
 Computing model of the ALICE experiment will be briefly described.
 It provides guide lines for the implementation and deployment of the
 ALICE software and computing infrastructure over the resources
-within the ALICE Grid and includes planning/estimates of the amount
+within the ALICE Grid and includes estimates of the amount
 of needed computing resources. Section 5
 will be devoted to the ALICE-specific Grid services and the ALICE
 Grid middleware AliEn. It is a set of tools and services which
@@ -178,7 +178,7 @@ are doing analysis on the Grid, all the resources are being used up
 to the limits and the scientific papers are produced with an
 unprecedented speed within weeks after the data was recorded.
 
-Section 7 contains a short summary and an outlook. This article is
+Section 7 contains a short summary and an outlook. This chapter is
 meant to be a short overview of the facts concerning the Grid
 computing for HEP experiments, in particular for the experiments at
 the CERN LHC. The first one and half a year of the LHC operations

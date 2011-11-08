@@ -1,16 +1,16 @@
 \section{ALICE Computing model}
 
 In this section, we will briefly describe the computing model of the
-ALICE experiment [38].
+ALICE experiment \cite{ALICETDR}.
 
-ALICE (A Large Ion Collider Experiment) [5] is a dedicated heavy-ion
+ALICE (A Large Ion Collider Experiment) is a dedicated heavy-ion
 (HI) experiment at the CERN LHC which apart from the HI mission has
 also its proton-proton (pp) Physics program. Together with the other
 LHC experiments, ALICE has been successfully taking and processing
 pp and HI data since the LHC startup in November 2009. During the pp
 running, the data taking rate has been up to 500 MB/s while during
 the HI running the data was taken with the rate up to 2.5 GB/s. As
-was already mentioned, during 2010 the total volume of data taken by
+already mentioned, during 2010 the total volume of data taken by
 all the LHC experiments reached 15~PB, which corresponds to 7~months
 of the pp running and 1 month of the HI running (together with
 4~months of an LHC technical stop for maintenance and upgrades this
@@ -28,12 +28,12 @@ and will be described in the next section.
 \subsection{Raw data taking, transfer and registration}
 %
 The ALICE detector consists of 18~subdetectors that interact with
-5~online systems [5]. During data taking, the data is read out by
+5~online systems. During data taking, the data is read out by
 the Data Acquisition (DAQ) system as raw data streams produced by
 the subdetectors, and is moved and stored over several media. On
 this way, the raw data is formatted, the events (data sets
 containing information about individual pp or Pb-Pb collisions) are
-built, the data is objectified in the ROOT [36] format and then
+built, the data is objectified in the ROOT format and then
 recorded on a local disk. During the intervals of continuous data
 taking called runs, different types of data sets can be collected of
 which the so-called PHYSICS runs are those substantial for Physics
@@ -43,7 +43,7 @@ operation.
 
 ALICE experimental area (called Point2 (P2)) serves as an
 intermediate storage: the final destination of the collected raw
-data is the CERN Advanced STORage system (CASTOR) [39], the permanent
+data is the CERN Advanced STORage system (CASTOR) , the permanent
 data storage (PDS) at the CERN Computing center. From Point2, the
 raw data is transferred to the disk buffer adjacent to CASTOR at
 CERN (see Figure~\ref{fig11}). As mentioned before, the transfer
@@ -75,9 +75,9 @@ the involved services are continuously controlled by automatic
 procedures, reducing to a minimum the human interaction. The Grid
 monitoring environment adopted and developed by ALICE, the
 Java-based MonALISA (MONitoring Agents using Large Integrated
-Services Architecture) [40], uses decision-taking automated agents
+Services Architecture) \cite{MonALISA}, uses decision-taking automated agents
 for management and control of the Grid services. For monitoring of
-raw data reconstruction passes see [41].
+raw data reconstruction passes see \cite{ALICE_PROD}.
 
 The automatic reconstruction is typically completed within a couple
 of hours after the end of the run. The output files from the
@@ -87,17 +87,17 @@ for further processing.
 
 \subsection{AliRoot}
 %
-AliRoot [45] is the ALICE software framework for reconstruction, simulation and
+AliRoot \cite{AliRoot} is the ALICE software framework for reconstruction, simulation and
 analysis of the data. It has been under a steady
 development since 1998. Typical use cases include detector
 description, events generation, particle transport, generation of
 ``summable digits'', event merging, reconstruction, particle
 identification and all kinds of analysis tasks. AliRoot uses the
-ROOT [36] system as a foundation on which the framework is built. The Geant3 [46] or
-FLUKA [47] packages perform the transport of particles through the
+ROOT system as a foundation on which the framework is built. The Geant3 \cite{GEANT3} or
+FLUKA \cite{FLUKA} packages perform the transport of particles through the
 detector and simulate the energy deposition from which the detector
 response can be simulated. Except for large existing libraries, such
-as Pythia6 [48] and HIJING [49], and some remaining legacy code,
+as Pythia6 \cite{pythia} and HIJING \cite{hijing}, and some remaining legacy code,
 this framework is based on the Object Oriented programming paradigm
 and is written in C++.
 
@@ -105,7 +105,7 @@ AliRoot is constituted by a large amount of files, sources,
 binaries, data and related documentation. Clear and efficient
 management guidelines are vital if this corpus of software should
 serve its purpose along the lifetime of the ALICE experiment. The
-corresponding policies are described in [50].  For understanding and
+corresponding policies are described in \cite{ALICE_POLICY}.  For understanding and
 improvement of the AliRoot performance, as well as for understanding
 the behavior of the ALICE detectors, the fast feedback given by the
 offline reconstruction is essential.
@@ -150,7 +150,7 @@ centrally and then the end-user, so-called chaotic analysis. Since
 processing of the end-user analysis jobs often brings some problems
 like a high memory consumption (see Figure~\ref{fig12}) or unstable
 code, the scheduled analysis is organized in the form of so called
-analysis trains (see [42]). The trains absorb up to 30 different
+analysis trains \cite{trains}. The trains absorb up to 30 different
 analysis tasks running in succession with one data set read and with
 a very well controlled environment. This helps to consolidate the
 end-user analysis.
@@ -179,14 +179,14 @@ As already mentioned, ever since the start of building the ALICE
 distributed computing infrastructure, the system was tested and
 validated with increasingly massive productions  of Monte Carlo (MC)
 simulated events of the LHC collisions in the ALICE detector. The
-simulation framework [43] covers the simulation of primary collisions
+simulation framework \cite{simulation} covers the simulation of primary collisions
 and generation of the emerging particles, the transport of particles
 through the detector, the simulation of energy depositions (hits) in
 the detector components, their response in form of so called
 summable digits, the generation of digits from summable digits with
 the optional merging of underlying events and the creation of raw
 data. Each raw data production cycle triggers a series of
-corresponding MC productions (see [44]). As a result, the volume of
+corresponding MC productions \cite{mc}. As a result, the volume of
 data produced during the MC cycles is usually in excess of the
 volume of the corresponding raw data.
 
@@ -228,7 +228,7 @@ set of about 20 computing sites into a global world-wide system of
 distributed resources for data storage and processing. As of today,
 this project is made of over 80 sites spanning 5 continents (Africa,
 Asia, Europe, North and South America), involving 6 Tier-1 centers
-and more than 70 Tier-2 centers [51], see also Figure~\ref{fig13}.
+and more than 70 Tier-2 centers \cite{sites}, see also Figure~\ref{fig14}.
 Altogether, the resources provided by the ALICE sites represent in
 excess of 20 thousands of CPUs, 12~PB of distributed disk storage
 and 30~PB of distributed tape storage, and the gradual upscale of
@@ -236,7 +236,7 @@ this capacity is ongoing.  Similar to other LHC experiments, about
 half of the CPU and disk resources is provided by the Tier-2
 centers. For the year 2012, ALICE plans/requirements for computing
 resources within WLCG represent 211.7 of kHEP-SPEC06 CPU capacity,
-38.8~PB of disk storage and 36.6~PB of tapes [52].
+38.8~PB of disk storage and 36.6~PB of tapes\cite{resources}.
 
 %fig14
 \begin{figure}[htb] % h-here, t-top, b-bottom

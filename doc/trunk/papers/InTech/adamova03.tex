@@ -4,7 +4,7 @@ As we already mentioned, the Worldwide LHC Computing Grid is a
 distributed computing infrastructure that spans over five continents
 managing resources distributed across the world (due to  funding,
 operability and access reasons). The resources operated by the WLCG
-belong either to the two main global grids, EGI [14] and OSG [15], or
+belong either to the two main global grids, EGI \cite{EGI} and OSG \cite{OSG}, or
 to other collaborating regional or national grids. To make this
 diverse variety of resources globally available for all the WLCG
 users, the WLCG has been developing its own middleware, a software
@@ -43,7 +43,7 @@ The WLCG middleware is a complex suite of packages which includes
 %
 \begin{itemize}
 \item Certificate Management Service
-\item Virtual Organization [21] Management Registration Service (VOMRS)
+\item Virtual Organization \cite{VO} Management Registration Service (VOMRS)
 \item Authentication and Authorization Service (the X509 infrastructure)
 \end{itemize}
 %
@@ -79,11 +79,11 @@ The WLCG middleware has been built and further developed using and
 developing some packages produced by other projects including, e.g.:
 %
 \begin{itemize}
-\item EMI (European Middleware Initiative) [22], combining the key
+\item EMI (European Middleware Initiative)\cite{EMI}, combining the key
 middleware providers of ARC, gLite, UNICORE and dCache
-\item Globus Toolkit [23] developed by the Globus Alliance
-\item OMII from the Open Middleware Infrastructure Institute [24]
-\item Virtual Data Toolkit [25]
+\item Globus Toolkit \cite{globus} developed by the Globus Alliance
+\item OMII from the Open Middleware Infrastructure Institute \cite{OMII}
+\item Virtual Data Toolkit \cite{VDT}
 \end{itemize}
 
 \subsection{Experiments' specific developments}
@@ -96,7 +96,7 @@ some specific components tailored to better comply with their
 Computing models.
 
 For example, the ALICE experiment has developed a grid middleware
-suite AliEn  (AliCE Environment [26]), which provides a single
+suite AliEn  (AliCE Environment \cite{AliEn}), which provides a single
 interface for a transparent access to computing resources for the
 ALICE community. AliEn consists of a collection of components and
 services which will be described in the next section. AliEn, together
@@ -119,7 +119,7 @@ this model include the Computing Element (CE), the Storage Element
 
 \subsubsection{Computing Element}
 %
-The Computing Element (CE) [27] is a middleware component/grid
+The Computing Element (CE) \cite{CE} is a middleware component/grid
 service providing an entry point to a grid site. It authenticates
 users and submits jobs to Worker Nodes (WN), aggregates and
 publishes information from the nodes. It includes a generic
@@ -127,12 +127,12 @@ interface to the local cluster called Grid Gate (GG), Local Resource
 Management System (LRMS) and the collection of Worker Nodes.
 
 Originally, the submission of jobs to CEs was performed by the Workload
-Management System (WMS) [28], a middleware component/grid service,
+Management System (WMS) \cite{WMS}, a middleware component/grid service,
 that also monitors jobs status and retrieves their output. WLCG
 (gLite) CE is a computing resource access service using standard
 grid protocols. To improve the performance, the CREAM (Computing
-Resource Execution And Management) Computing Element [29] has
-replaced the gLite-CE in production since about 2009. It is a
+Resource Execution And Management) Computing Element \cite{CREAMCE} has
+replaced the gLite-CE in production since 2009. It is a
 simple, lightweight service for job management operation at the
 Computing Element level. CREAM-CE accepts job submission requests
 (described with the same files as used for the Workload Management
@@ -142,18 +142,18 @@ to directly submit jobs to a CREAM-CE, without the WMS component.
 
 \subsubsection{Storage Element (XRootD)}
 %
-The Storage Element (SE) [30] provides storage place and access for
+The Storage Element (SE) \cite{SE} provides storage place and access for
 data. Important variables apart from available storage space,
 read/write speeds and bandwidth concern reliability against
 overload, percentage of failed transfers from/to SE and percentage
 of lost/corrupted files.
 
-WLCG (gLite) provides dCache [31] and DPM [32] storage management
+WLCG (gLite) provides dCache \cite{dcache} and DPM \cite{dpm} storage management
 tools used by the LHC experiments. However within the ALICE
 infrastructure, the preferred storage manager is the Scalla/XRootD
-package [33] developed within a SLAC [34] - CERN collaboration
-(originally, it was a common project of SLAC and INFN [35]). After
-CERN got involved, the XRootD was bundled in ROOT [36] as a generic
+package \cite{xrootd} developed within a SLAC \cite{slac} - CERN collaboration
+(originally, it was a common project of SLAC and INFN \cite{INFN}). After
+CERN got involved, the XRootD was bundled in ROOT \cite{ROOT} as a generic
 platform for distributed data access, very well suited for the LHC
 data analysis.
 
@@ -208,12 +208,9 @@ clients from a small number of servers
 modern WANs for direct data access, and for copying files as well)
 \end{itemize}
 
-\subsubsection{VOMS}
-Small description of voms...
-
 \subsubsection{VOBOX}
 %
-The VOBOX [37] is a standard WLCG service developed in 2006 in order
+The VOBOX \cite{VOBOX} is a standard WLCG service developed in 2006 in order
 to provide the LHC experiments with a place where they can run their
 own specific agents and services. In addition, it
 provides the file system access to the experiment software area.
