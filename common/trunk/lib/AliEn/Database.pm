@@ -982,10 +982,13 @@ sub _queryDB {
   $options->{bind_values} and push @bind, @{$options->{bind_values}};
   $DEBUG and $self->debug(2, "In _queryDB executing $stmt in database (@bind).");
 
+  my $timeout=$options->{timeout};
+  ($timeout) or $timeout=600;
+
   while (1) {
     my $sqlError = "";
     eval {
-      alarm(600);
+      alarm($timeout);
       my $sth = $self->{DBH}->prepare_cached($stmt);
 
       #      my $sth = $self->{DBH}->prepare($stmt);
@@ -1050,13 +1053,17 @@ sub _do {
   $self->_pingReconnect or return;
   my @bind_values;
   $options->{bind_values} and push @bind_values, @{$options->{bind_values}} and $options->{prepare} = 1;
+  
+  my $timeout=$options->{timeout};
+  ($timeout) or $timeout=600;
+  
   my $result;
 
   while (1) {
     my $sqlError = "";
 
     $result = eval {
-      alarm(600);
+      alarm($timeout);
       my $tmp;
       if ($options->{prepare}) {
         $DEBUG and $self->debug(2, "In _do doing $stmt @bind_values");

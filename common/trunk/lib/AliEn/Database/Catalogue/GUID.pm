@@ -720,7 +720,7 @@ sub moveGUIDs {
 
   my $counter = $#queries;
   foreach my $q (@queries) {
-    $self->do($q) or last;
+    $self->do($q,{timeout=>[60000]}) or last;
     $counter--;
   }
   if ($options !~ /f/) {
