@@ -475,12 +475,6 @@ sub access {
   my $nSEs      = 0;
 
   if ($access eq "read") {
-
-    if($fromROOT && $ses[0]){
-        my @guess = split(/::/,$ses[0]);
-        (scalar(@guess)> 1) and $sitename = $guess[1];
-    }
-
     my $readCache = "";
     if ($self->{CONFIG}->{CACHE_SERVICE_ADDRESS}) {
       $self->debug(1, "This is a read request... we might use the cache");
@@ -491,9 +485,19 @@ sub access {
       (my $ok, @envelopes) = AliEn::Util::getURLandEvaluate($readCache, 1);
       $ok or @envelopes = ();
     }
+
+    #@envelopes=(); # the cache does not yet work for the API, fails for retries on failover
+
     if (!@envelopes) {
+
+	$self->info("Nothing from cache, going in: sesel=$sesel,ses=".join(",",@ses));
+
+      if($ses[0]){
+        my @guess = split(/::/,$ses[0]);
+        (scalar(@guess)> 1) and $sitename = $guess[1];
+        $self->info("Second guessed site from SE entry: site=$sitename");
+      }
       
-     if($fromROOT){
         my $guidorNot = "";
         if (AliEn::Util::isValidGUID($lfn)) { $guidorNot = "g"; }
 
@@ -505,6 +509,12 @@ sub access {
         }
         my @whereSEs = map { $_->{se} } @where;
 
+        $self->info("whereis said: @whereSEs");
+
+        $nSEs = scalar(@whereSEs);
+
+     if($fromROOT){
+
         my @queryValues = ();
         my $query       = "";
         $self->checkSiteSECacheForAccess($sitename) || return 0;
@@ -512,7 +522,7 @@ sub access {
         $query =
                "SELECT seName from (SELECT DISTINCT b.seName as seName, a.rank FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE ";
         $query .=
-               " (b.seExclusiveRead is NULL or b.seExclusiveRead = '' or b.seExclusiveRead  LIKE concat ('%,' , concat(? , ',%')) ) and ";
+               " a.operation=1 and (b.seExclusiveRead is NULL or b.seExclusiveRead = '' or b.seExclusiveRead  LIKE concat ('%,' , concat(? , ',%')) ) and ";
         push @queryValues, ($self->{ROLE} || $self->{CONFIG}->{ROLE});
         foreach (@whereSEs) { $query .= " upper(b.seName)=upper(?) or"; push @queryValues, $_; }
         $query =~ s/or$//;
@@ -1055,7 +1065,7 @@ sub selectPFNOnClosestRootSEOnRank {
     push @queryValues, $sitename;
 
     $query =
-"SELECT seName from (SELECT DISTINCT b.seName as seName , a.rank FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE ";
+"SELECT seName from (SELECT DISTINCT b.seName as seName , a.rank FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE a.operation=1 and ";
     $query .=
 " (b.seExclusiveRead is NULL or b.seExclusiveRead = '' or b.seExclusiveRead  LIKE concat ('%,' , concat(? , ',%')) ) and ";
     push @queryValues, $user;
