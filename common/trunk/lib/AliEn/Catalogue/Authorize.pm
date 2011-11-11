@@ -522,7 +522,7 @@ sub access {
         $query =
                "SELECT seName from (SELECT DISTINCT b.seName as seName, a.rank FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE ";
         $query .=
-               " a.operation=1 and (b.seExclusiveRead is NULL or b.seExclusiveRead = '' or b.seExclusiveRead  LIKE concat ('%,' , concat(? , ',%')) ) and ";
+        " (b.seExclusiveRead is NULL or b.seExclusiveRead = '' or b.seExclusiveRead  LIKE concat ('%,' , concat(? , ',%')) ) and ";
         push @queryValues, ($self->{ROLE} || $self->{CONFIG}->{ROLE});
         foreach (@whereSEs) { $query .= " upper(b.seName)=upper(?) or"; push @queryValues, $_; }
         $query =~ s/or$//;
@@ -1065,7 +1065,7 @@ sub selectPFNOnClosestRootSEOnRank {
     push @queryValues, $sitename;
 
     $query =
-"SELECT seName from (SELECT DISTINCT b.seName as seName , a.rank FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE a.operation=1 and ";
+"SELECT seName from (SELECT DISTINCT b.seName as seName , a.rank FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE ";
     $query .=
 " (b.seExclusiveRead is NULL or b.seExclusiveRead = '' or b.seExclusiveRead  LIKE concat ('%,' , concat(? , ',%')) ) and ";
     push @queryValues, $user;
