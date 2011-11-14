@@ -89,6 +89,7 @@ use AliEn::Util;
 use AliEn::GUID;
 use Data::Dumper;
 use strict;
+use URI::Escape;
 use vars qw($DEBUG @ISA);
 $DEBUG = 0;
 @ISA   = (
@@ -1158,6 +1159,7 @@ sub f_verifySubjectRole {
   return @results;
 }
 
+
 sub f_find_HELP {
   return
 "Usage: find [-<flags>] <path> <fileName> [-name <fileName>]* [[<tagname>:<condition>] [ [and|or] [<tagname>:<condition>]]*]\nPossible flags are:
@@ -1585,58 +1587,15 @@ sub f_locatesites {
   }
 }
 
-sub f_find {
-  my $self = shift;
-  my $cmdline = "find " . join(' ', @_);
-  #### standard to retrieve options with and without parameters
-  my %options = ();
-  @ARGV = @_;
-  getopts("mvzrpO:o:l:x:g:sO:q:dc:y", \%options);
-  @_ = @ARGV;
-
-  # option v => verbose
-  # option z => return array of hash
-  # option p => set the printout format
-  # option l => limit in query per host
-  # option x => write xml - 2nd arg is collection name
-  # option g => file group query
-  # option r => resolve all
-  # option s => no sorting
-  # option O => add opaque information to the results
-  # option q => quiet mode
-  # option d => return directories
-  # option m => metadata on file level
-  my $quiet   = $options{'q'};
-  my $verbose = $options{v};
-  #### -p option
-  my @printfields = ("lfn");
-  if (defined $options{p}) {
-    @printfields = ();
-    map { push @printfields, $_; } (split(",", $options{p}));
-  }
-  $DEBUG and $self->debug(1, "printfields are: @printfields");
-  #### -g option
-  my @filegroup = ();
-  if (defined $options{g}) {
-    map { push @filegroup, $_; } (split(",", $options{g}));
-    $DEBUG
-      and $self->debug(1, "Setting file group queries for files @filegroup");
-  }
-  my $path = ($self->f_complete_path(shift) or "");
-  my $file = (shift or "");
-  $path =~ s/\*/%/g;
-  $file =~ s/\*/%/g;
-  ($file)
-    or $self->info("Error: not enough arguments in find\n" . $self->f_find_HELP())
-    and return;
-  #### -g option
-  if (defined $options{g}) {
-    if ($file =~ /%/) {
-      $self->info(
-"To query filegroups, you need to specify an exact reference file to find a file group - no wildcards are allowd!"
-      ) and return;
-    }
-  }
+sub f_findNoCache{
+  my $self=shift;  
+  my $path=shift;
+  my $file=shift;
+  my $quiet=shift;
+  my $verbose=shift;
+  my $optRef=shift;
+  my %options=%$optRef;
+  
   ($self->checkPermissions("r", $path)) or return;
   if (!defined $options{x}) {
     $quiet
@@ -1668,8 +1627,89 @@ sub f_find {
   $options{selimit} = $self->{LIMIT_SE};
   my $entriesRef = $self->{DATABASE}->findLFN($path, $file, $refNames, $refQueries, $refUnions, %options)
     or return;
-  my @result = @$entriesRef;
+  return $entriesRef;
+}
+
+sub f_find {
+  my $self = shift;
+  my $cmdline = "find " . join(' ', @_);
+  #### standard to retrieve options with and without parameters
+  my %options = ();
+  @ARGV = @_;
+  getopts("mvzrpO:o:l:x:g:sO:q:dc:yf", \%options);
+  @_ = @ARGV;
+
+  # option v => verbose
+  # option z => return array of hash
+  # option p => set the printout format
+  # option l => limit in query per host
+  # option x => write xml - 2nd arg is collection name
+  # option g => file group query
+  # option r => resolve all
+  # option s => no sorting
+  # option O => add opaque information to the results
+  # option q => quiet mode
+  # option d => return directories
+  # option m => metadata on file level
+  # option f => force the query (no cache)
+  my $quiet   = $options{'q'};
+  my $verbose = $options{v};
+  #### -p option
+  my @printfields = ("lfn");
+  if (defined $options{p}) {
+    @printfields = ();
+    map { push @printfields, $_; } (split(",", $options{p}));
+  }
+  $DEBUG and $self->debug(1, "printfields are: @printfields");
+  #### -g option
+  my @filegroup = ();
+  if (defined $options{g}) {
+    map { push @filegroup, $_; } (split(",", $options{g}));
+    $DEBUG
+      and $self->debug(1, "Setting file group queries for files @filegroup");
+  }
+  my $path = ($self->f_complete_path(shift) or "");
+  my $file = (shift or "");
+  $path =~ s/\*/%/g;
+  $file =~ s/\*/%/g;
+  ($file)
+    or $self->info("Error: not enough arguments in find\n" . $self->f_find_HELP())
+    and return;
+  #### -g option
+  if (defined $options{g}) {
+    if ($file =~ /%/) {
+      $self->info(
+"To query filegroups, you need to specify an exact reference file to find a file group - no wildcards are allowd!"
+      ) and return;
+    }
+  }
+  my $keyCache="";
+  my @result;
+  if ($self->{CONFIG}->{CACHE_SERVICE_ADDRESS} and $options{f}) {
+      $self->info( "Checking if we can get it from the cache");
+      $keyCache ="$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}?ns=find&key="
+        . uri_escape(join("_", $path, $file, @_));
+      $self->info("Our read cache key is : $keyCache -- ");
+      (my $ok, @result) = AliEn::Util::getURLandEvaluate($keyCache, 1);
+      if ($ok){
+          $keyCache="";
+      } else{
+        $self->info("The cache didn't work: we got @result");
+        @result=();
+      }
+  }
+  if (!@result){
+    my $ref=$self->f_findNoCache($path, $file, $quiet, $verbose, \%options, @_);
+    $ref or return;
+    @result=@$ref;
+    if ($keyCache){
+      $self->info("And now, we should write this into the cache $keyCache : " . uri_escape(Dumper([@result])));
+      AliEn::Util::getURLandEvaluate("$keyCache&value=" . uri_escape(Dumper([@result])));
+    }
+  }  
+
   my $total  = @result;
+
 
   if (defined $options{r}) {
 
