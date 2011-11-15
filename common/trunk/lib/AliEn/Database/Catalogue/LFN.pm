@@ -114,14 +114,14 @@ sub LFN_createCatalogueTables {
     ],
     USERS => [
       "uId",
-      { uId          => "mediumint not null auto_increment primary key",
+      { uId          => "mediumint unsigned not null auto_increment primary key",
         Username     => "char(20) UNIQUE NOT NULL",
       },
       'uId'
     ],
     GRPS => [
       "gId",
-      { gId          => "mediumint not null auto_increment primary key",
+      { gId          => "mediumint unsigned not null auto_increment primary key",
         Groupname     => "char(20) UNIQUE NOT NULL",
       },
       'gId'
@@ -314,8 +314,8 @@ sub checkLFNTable {
     guid       => "binary(16)",
     replicated => "smallint(1) default 0 not null",
     dir        => "int unsigned not null",
-    ownerId    => "mediumint",
-    gownerId   => "mediumint",
+    ownerId    => "mediumint unsigned",
+    gownerId   => "mediumint unsigned",
     md5        => "char(32)",
     guidtime   => "char(8)",
     broken     => 'smallint(1) default 0 not null ',

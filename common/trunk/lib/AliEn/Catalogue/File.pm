@@ -883,7 +883,7 @@ sub f_di {
          {
            #getting the depth of the directory tree 
             my $qt = "SELECT MAX( LENGTH(lfn) - LENGTH(REPLACE(lfn,'/','')) ) AS depth FROM ".$table_name."";
-            my $depth = $self->{DATABASE}->queryValue($qt);
+            my $depth = $self->{DATABASE}->queryValue($qt, undef, {timeout=>[60000]});
             $self->info("depth ::: $depth");
             #here optimization loop will be written
             my $status=1;
@@ -893,7 +893,7 @@ sub f_di {
               my $q4 = "SELECT ".$q1." AS DIR , COUNT(DIR) AS CNT FROM ".$table_name." GROUP BY ".$q1." HAVING CNT<$max_lim AND CNT>$min_lim order by CNT DESC";
               $self->info($q4);                                                                                                                                  
               $DEBUG and $self->debug(1,"Here in Optimize");
-              my $q = $self->{DATABASE}->query($q4);
+              my $q = $self->{DATABASE}->query($q4, undef, {timeout=>[60000]});
               foreach my $row(@$q)
               {
                     my $dir = $row->{DIR};
@@ -980,7 +980,7 @@ sub f_di {
         {
             #getting the depth of the directory tree 
             my $qt = "SELECT MAX(LENGTH(lfn) - LENGTH(REPLACE(lfn,'/','')) ) AS depth FROM ".$table_name."";
-            my $depth = $self->{DATABASE}->queryValue($qt);
+            my $depth = $self->{DATABASE}->queryValue($qt, undef, {timeout=>[60000]});
             $DEBUG and $self->debug(1,"depth ::: $depth");
             my $status=1;
             for(my $j=1; $j<$depth ;$j++) 
@@ -989,7 +989,7 @@ sub f_di {
                 my $q4 = "SELECT ".$q1." AS DIR , COUNT(DIR) AS CNT FROM ".$table_name." GROUP BY ".$q1." HAVING CNT<$max_lim AND CNT>$min_lim order by CNT DESC";
                 $self->info($q4);
                 $DEBUG and $self->debug(1,"Here in Optimize");
-                my $q = $self->{DATABASE}->query($q4);
+                my $q = $self->{DATABASE}->query($q4,undef, {timeout=>[60000]});
                 foreach my $row(@$q)
                 {
                     my $dir = $row->{DIR};

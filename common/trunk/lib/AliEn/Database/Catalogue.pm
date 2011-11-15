@@ -550,7 +550,7 @@ sub optimizeGUIDtables {
 
   $self->info("Let's optimize the guid tables");
 
-  my $tables = $self->query("SELECT tableName, guidTime from GUIDINDEX", undef, undef);
+  my $tables = $self->query("SELECT tableName, guidTime from GUIDINDEX", undef, {timeout=>[60000]});
   foreach my $info (@$tables) {
     my $table = "G$info->{tableName}L";
     $self->info("  Checking the table $table");
@@ -559,7 +559,8 @@ sub optimizeGUIDtables {
     my $done = 0;
     while ($number > $max_lim) {
       $self->info("There are more than $max_lim ($number) ! Splitting the table");
-      my $guid =  $self->queryRow("select binary2date(guid) guidD, binary2string(guid) guid from $table order by 1 desc limit 1 offset $max_lim");
+      my $guid =  $self->queryRow("select binary2date(guid) guidD, binary2string(guid) guid from $table order by 1 desc limit 1 offset $max_lim",
+        undef, {timeout=>[60000]});
       #my $guid =  $self->queryRow("select guidid, binary2string(guid) guid from $table order by 2 desc limit 1 offset $max_lim");
       $guid->{guid} or next;
       $self->info("We have to split according to $guid->{guid}");

@@ -78,8 +78,8 @@ sub GUID_createCatalogueTables {
   my %tables = (
     UGMAP => [
       "Userid",
-      { Userid       => "int not null",
-        Groupid      => "int not null",
+      { Userid       => "mediumint unsigned not null",
+        Groupid      => "mediumint unsigned not null",
         PrimaryGroup => "int(1)",
       }
     ],
@@ -157,8 +157,8 @@ sub checkGUIDTable {
     guid             => "binary(16)",
     md5              => "varchar(32)",
     ref              => "int(11) default 0",
-    ownerId          => "mediumint",
-    gownerId         => "mediumint",
+    ownerId          => "mediumint unsigned",
+    gownerId         => "mediumint unsigned",
     type             => "char(1)",
     jobid            => "int(11)",
   );
