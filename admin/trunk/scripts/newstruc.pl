@@ -101,6 +101,7 @@ print "\n".scalar(localtime(time))."\n";
 
 
 print "Updating the GROUPS table to UGMAP with uId and gId & DROP columns Username and Groupname\n";
+$db->do("ALTER TABLE GROUPS DROP COLUMN Userid");
 $db->do("ALTER TABLE GROUPS ADD (Userid MEDIUMINT ,Groupid MEDIUMINT)");
 $db->do("UPDATE GROUPS join USERS ON USERS.user=GROUPS.Username SET GROUPS.Userid=USERS.uId ");
 $db->do("UPDATE GROUPS join GRPS ON GRPS.user=GROUPS.Groupname SET GROUPS.Groupid=GRPS.gId ");
