@@ -474,6 +474,9 @@ sub access {
   my @envelopes = ();
   my $nSEs      = 0;
 
+  # the cache does not yet work for the API, stringfails for retries on failover
+  $self->{CONFIG}->{CACHE_SERVICE_ADDRESS}="";
+
   if ($access eq "read") {
     my $readCache = "";
     if ($self->{CONFIG}->{CACHE_SERVICE_ADDRESS}) {
@@ -486,7 +489,6 @@ sub access {
       $ok or @envelopes = ();
     }
 
-    #@envelopes=(); # the cache does not yet work for the API, fails for retries on failover
 
     if (!@envelopes) {
 
@@ -561,6 +563,24 @@ sub access {
     }
 
   } elsif ($access =~ /^write/) {
+
+    if($access =~ /^write-version$/){
+
+       if($self->existsEntry($lfn)) {
+          my $path = substr $lfn, 0, rindex($lfn, '/')+1;
+          my $filename=  substr $lfn, rindex($lfn, '/')+1;
+          my $newlfn = "$path.$filename~";
+          if($self->existsEntry($newlfn)) {
+             $self->f_removeFile("-s",$newlfn);
+          }
+          if(!$self->f_mv("",$lfn,$newlfn)){
+		$self->info("Authorize: Error versioning - not able to move $lfn to $newlfn .", 1);
+                return 0;
+          }
+       }
+       $access = "write-once";
+    }
+
 
     if (  (scalar(@ses) eq 0)
       and ($sitename ne 0)
@@ -1602,7 +1622,7 @@ sub commit {
 
     my $envelope = $self->decryptEnvelopeTicket($RAWenvelope);
 
-    defined($envelope) and defined($envelope->{turl}) or return $newresult;
+    (defined($envelope) and $envelope!=0 and defined($envelope->{turl})) or return $newresult;
 
     $lfn and (($lfn eq "$envelope->{lfn}") or return $newresult);
     ($envelope->{access} =~ /^write[\-a-z]*/) or return $newresult;
