@@ -12,7 +12,7 @@ BEGIN { plan tests => 1 }
 print "Connecting to database...";
 my $host = Net::Domain::hostfqdn();
 my $d =
-  AliEn::Database::TaskPriority->new({DRIVER => "mysql", HOST => "$host:3307", DB => "processes", "ROLE", "admin"})
+   AliEn::Database::TaskPriority->new({DRIVER => "mysql", HOST => "$host:3307", PASSWD=> "pass" , DB => "processes", "ROLE", "admin", })
   or print "Error connecting to the database\n" and exit(-2);
 
 {
@@ -39,12 +39,25 @@ my $d =
   $cat->execute("mkdir", "-p", "split/dir1") or exit(-2);
   $cat->execute("mkdir", "-p", "split/dir2") or exit(-2);
 
-  refreshLFNandGUIDtable($cat_adm);
+  print "Connecting to Database alien_system... Need to update the quota tables .. :P  \n";
+  my $d = AliEn::Database->new({DRIVER => "mysql", HOST => "$host:3307", PASSWD=> "pass" , DB => "alien_system", "ROLE", "admin" })
+    or print "Error connecting to the database\n" and exit(-2);
+  #refreshLFNandGUIDtable($cat_adm);
+  print "-1. Set the file quota (maxNbFiles 10000, maxTotalSize 10000000)\n";
+  $d->update("FQUOTAS", {maxNbFiles => 10000, maxTotalSize => 10000000}, "user='$user'");
+  assertEqual($d, $user, "maxTotalSize", 10000000) or exit(-2);
+  assertEqual($d, $user, "maxNbFiles",   10000)    or exit(-2);
+  print "-1. DONE\n\n";
 
-  print "0. Set the file quota (maxNbFiles 100, maxTotalSize 100000)\n";
-  $d->update("PRIORITY", {maxNbFiles => 100, maxTotalSize => 100000}, "user='$user'");
-  assertEqual($d, $user, "maxTotalSize", 100000) or exit(-2);
-  assertEqual($d, $user, "maxNbFiles",   100)    or exit(-2);
+  print "Reconnecting to Database processes \n";
+  $d = AliEn::Database::TaskPriority->new({DRIVER => "mysql", HOST => "$host:3307", PASSWD=> "pass" , DB => "processes", "ROLE", "admin", })
+    or print "Error connecting to the database\n" and exit(-2);
+  
+  print "0. Set the job quotas (maxTotalRunningTime, 2000, maxUnfinishedJobs, 2000, maxparallelJobs, 2000)\n";
+  $d->update("PRIORITY", {maxTotalRunningTime => 2000, maxUnfinishedJobs => 2000, maxparallelJobs=> 2000}, "user='$user'");
+  assertEqualJobs($d, $user, "maxTotalRunningTime", 2000) or exit(-2);
+  assertEqualJobs($d, $user, "maxUnfinishedJobs",   2000)    or exit(-2);
+  assertEqualJobs($d, $user, "maxparallelJobs",   2000)    or exit(-2);
   print "0. DONE\n\n";
 
   addFile($cat, "split/dir1/file1", "This is a test") or exit(-2);
@@ -90,12 +103,12 @@ InputData=\"LF:${dir}split/*/*\";", "r"
   waitForNoJobs($cat, $user);
   $cat_adm->execute("calculateJobQuota", "1");    # 1 for silent
   $cat->execute("jquota", "list", "$user");
-  assertEqual($d, $user, "unfinishedJobsLast24h",   0)    or exit(-2);
-  assertEqual($d, $user, "totalRunningTimeLast24h", 0)    or exit(-2);
-  assertEqual($d, $user, "totalCpuCostLast24h",     0)    or exit(-2);
-  assertEqual($d, $user, "maxUnfinishedJobs",       1000) or exit(-2);
-  assertEqual($d, $user, "maxTotalRunningTime",     1000) or exit(-2);
-  assertEqual($d, $user, "maxTotalCpuCost",         1000) or exit(-2);
+  assertEqualJobs($d, $user, "unfinishedJobsLast24h",   0)    or exit(-2);
+  assertEqualJobs($d, $user, "totalRunningTimeLast24h", 0)    or exit(-2);
+  assertEqualJobs($d, $user, "totalCpuCostLast24h",     0)    or exit(-2);
+  assertEqualJobs($d, $user, "maxUnfinishedJobs",       1000) or exit(-2);
+  assertEqualJobs($d, $user, "maxTotalRunningTime",     1000) or exit(-2);
+  assertEqualJobs($d, $user, "maxTotalCpuCost",         1000) or exit(-2);
   print "2. DONE\n\n";
 
   print "3. Submit 1 job\n";
@@ -103,7 +116,8 @@ InputData=\"LF:${dir}split/*/*\";", "r"
   waitForStatus($cat, $id1, "WAITING", 10) or exit(-2);
   $cat_adm->execute("calculateJobQuota", "1");
   $cat->execute("jquota", "list", "$user");
-  assertEqual($d, $user, "unfinishedJobsLast24h", 1) or exit(-2);
+  assertEqualJobs($d, $user, "unfinishedJobsLast24h", 1) or exit(-2);
+  $cat->execute("request") or exit(-2);
   waitForStatus($cat, $id1, "DONE", 60) or exit(-2);
   waitForProcInfo($d, $id1) or exit(-2);
   $cat_adm->execute("calculateJobQuota", "1");
@@ -122,7 +136,12 @@ InputData=\"LF:${dir}split/*/*\";", "r"
   waitForStatus($cat, $id2, "SPLIT", 10) or exit(-2);
   $cat_adm->execute("calculateJobQuota", "1");
   $cat->execute("jquota", "list", "$user");
-  assertEqual($d, $user, "unfinishedJobsLast24h", 2) or exit(-2);
+  assertEqualJobs($d, $user, "unfinishedJobsLast24h", 2) or exit(-2);
+  $cat->execute("top") or exit(-2);
+  sleep(30);
+  $cat->execute("top") or exit(-2);
+  $cat->execute("request") or exit(-2);
+  $cat->execute("top","-id",$id2) or exit(-2);
   waitForStatus($cat, $id2, "DONE", 60) or exit(-2);
   waitForSubjobsProcInfo($d, $cat, $id2) or exit(-2);
   $cat_adm->execute("calculateJobQuota", "1");
@@ -139,7 +158,7 @@ InputData=\"LF:${dir}split/*/*\";", "r"
   print "5. Modify the maxTotalRunningTime as $rtime2\n";
   $d->update("PRIORITY", {maxTotalRunningTime => $rtime2}, "user='$user'");
   $cat->execute("jquota", "list", "$user");
-  assertEqual($d, $user, "maxTotalRunningTime", $rtime2) or exit(-2);
+  assertEqualJobs($d, $user, "maxTotalRunningTime", $rtime2) or exit(-2);
   print "5. DONE\n\n";
 
   print "6. Submit 1 job and 2 jobs\n";
@@ -150,8 +169,8 @@ InputData=\"LF:${dir}split/*/*\";", "r"
   print "7. Modify the maxTotalCpuCost as $cpucost2 and the maxTotalRunningTime as 1000 back \n";
   $d->update("PRIORITY", {maxTotalCpuCost => $cpucost2, maxTotalRunningTime => 1000}, "user='$user'");
   $cat->execute("jquota", "list", "$user");
-  assertEqual($d, $user, "maxTotalCpuCost",     $cpucost2) or exit(-2);
-  assertEqual($d, $user, "maxTotalRunningTime", 1000)      or exit(-2);
+  assertEqualJobs($d, $user, "maxTotalCpuCost",     $cpucost2) or exit(-2);
+  assertEqualJobs($d, $user, "maxTotalRunningTime", 1000)      or exit(-2);
   print "7. DONE\n\n";
 
   print "8. Submit 1 job and 2 jobs\n";
@@ -162,8 +181,8 @@ InputData=\"LF:${dir}split/*/*\";", "r"
   print "9. Modify the maxUnfinishedJobs as 0 and the maxTotalCpuCost as 1000 back \n";
   $d->update("PRIORITY", {maxUnfinishedJobs => 0, maxTotalCpuCost => 1000}, "user='$user'");
   $cat->execute("jquota", "list", "$user");
-  assertEqual($d, $user, "maxUnfinishedJobs", 0)    or exit(-2);
-  assertEqual($d, $user, "maxTotalCpuCost",   1000) or exit(-2);
+  assertEqualJobs($d, $user, "maxUnfinishedJobs", 0)    or exit(-2);
+  assertEqualJobs($d, $user, "maxTotalCpuCost",   1000) or exit(-2);
   print "9. DONE\n\n";
 
   print "10. Submit 1 job and 2 jobs\n";
@@ -228,28 +247,29 @@ sub waitForStatus {
 
   my $counter = 0;
   while (1) {
-	my ($status) = $cat->execute("top", "-id", $id);
-	$status or print "Error checking the status of the job\n" and return;
-	$status = $status->{status};
-	$status eq $Wstatus and return 1;
-	my $statusNb = $list->{$status};
-	(defined $statusNb) or $statusNb = 13;
-	print "Status -> $status($statusNb)\n";
-	if ($statusNb > $WstatusNb) {
-	  print "already passed\n";
-	  $strict and return 0;
-	  return 1;
-	}
+	  print "Inside WaittForStatus .. :P\n";
+  	my ($status) = $cat->execute("top", "-id", $id);
+	  $status or print "Error checking the status of the job\n" and return;
+	  $status = $status->{status};
+	  $status eq $Wstatus and return 1;
+	  my $statusNb = $list->{$status};
+	  (defined $statusNb) or $statusNb = 13;
+	  print "Status -> $status($statusNb)\n";
+	  if ($statusNb > $WstatusNb) {
+	    print "already passed\n";
+	    $strict and return 0;
+	    return 1;
+	  }
 
-	$status =~ /((ERROR_)|(FAILED)|(DONE_WARN)|(DONE))/
-	  and print "THE job finished with $1!!\n"
-	  and return;
-	($counter > $times)
-	  and print "We have been waiting for more than $counter *$sleep seconds.... let's quit"
-	  and return;
-	print "The father sleeps (waiting for $Wstatus($WstatusNb))\n";
-	sleep $sleep;
-	$counter++;
+	  $status =~ /((ERROR_)|(FAILED)|(DONE_WARN)|(DONE))/
+	    and print "THE job finished with $1!!\n"
+	    and return;
+	  ($counter > $times)
+	    and print "We have been waiting for more than $counter *$sleep seconds.... let's quit"
+	    and return;
+	  print "The father sleeps (waiting for $Wstatus($WstatusNb))\n";
+	  sleep $sleep;
+	  $counter++;
   }
 
   return;
@@ -298,7 +318,7 @@ sub waitForSubjobsProcInfo {
   return;
 }
 
-sub assertEqual {
+sub assertEqualJobs {
   my $d     = shift;
   my $user  = shift;
   my $field = shift;

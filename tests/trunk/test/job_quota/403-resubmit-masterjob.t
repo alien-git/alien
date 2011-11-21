@@ -12,8 +12,7 @@ BEGIN { plan tests => 1 }
 
 print "Connecting to database...";
 my $host = Net::Domain::hostfqdn();
-my $d =
-  AliEn::Database::TaskPriority->new({DRIVER => "mysql", HOST => "$host:3307", DB => "processes", "ROLE", "admin"})
+my $d = AliEn::Database::TaskPriority->new({DRIVER => "mysql", HOST => "$host:3307", PASSWD=> "pass" , DB => "processes", "ROLE", "admin", })
   or print "Error connecting to the database\n" and exit(-2);
 
 {
@@ -42,13 +41,18 @@ my $d =
   $cat->execute("mkdir", "-p", "split/dir1") or exit(-2);
   $cat->execute("mkdir", "-p", "split/dir2") or exit(-2);
 
-  refreshLFNandGUIDtable($cat_adm);
-
-  print "0. Set the file quota (maxNbFiles 100, maxTotalSize 100000)\n";
-  $d->update("PRIORITY", {maxNbFiles => 100, maxTotalSize => 100000}, "user='$user'");
-  assertEqual($d, $user, "maxTotalSize", 100000) or exit(-2);
-  assertEqual($d, $user, "maxNbFiles",   100)    or exit(-2);
+  print "Connecting to Database alien_system... Need to update the quota tables .. :P  \n";
+  my $d = AliEn::Database->new({DRIVER => "mysql", HOST => "$host:3307", PASSWD=> "pass" , DB => "alien_system", "ROLE", "admin" })
+    or print "Error connecting to the database\n" and exit(-2);
+  #refreshLFNandGUIDtable($cat_adm);
+  print "0. Set the file quota (maxNbFiles 1000, maxTotalSize 1000000)\n";
+  $d->update("FQUOTAS", {maxNbFiles => 1000, maxTotalSize => 1000000}, "user='$user'");
+  assertEqual($d, $user, "maxTotalSize", 1000000) or exit(-2);
+  assertEqual($d, $user, "maxNbFiles",   1000)    or exit(-2);
   print "0. DONE\n\n";
+  print "Reconnecting to Database processes \n";
+  $d = AliEn::Database::TaskPriority->new({DRIVER => "mysql", HOST => "$host:3307", PASSWD=> "pass" , DB => "processes", "ROLE", "admin", })
+    or print "Error connecting to the database\n" and exit(-2);
 
   addFile($cat, "split/dir1/file1", "This is a test") or exit(-2);
   $cat->execute("cp", "split/dir1/file1", "split/dir1/file2") or exit(-2);
@@ -93,12 +97,12 @@ InputData=\"LF:${dir}split/*/*\";", "r"
   waitForNoJobs($cat, $user);
   $cat_adm->execute("calculateJobQuota", "1");    # 1 for silent
   $cat->execute("jquota", "list", "$user");
-  assertEqual($d, $user, "unfinishedJobsLast24h",   0)    or exit(-2);
-  assertEqual($d, $user, "totalRunningTimeLast24h", 0)    or exit(-2);
-  assertEqual($d, $user, "totalCpuCostLast24h",     0)    or exit(-2);
-  assertEqual($d, $user, "maxUnfinishedJobs",       1000) or exit(-2);
-  assertEqual($d, $user, "maxTotalRunningTime",     1000) or exit(-2);
-  assertEqual($d, $user, "maxTotalCpuCost",         1000) or exit(-2);
+  assertEqualJobs($d, $user, "unfinishedJobsLast24h",   0)    or exit(-2);
+  assertEqualJobs($d, $user, "totalRunningTimeLast24h", 0)    or exit(-2);
+  assertEqualJobs($d, $user, "totalCpuCostLast24h",     0)    or exit(-2);
+  assertEqualJobs($d, $user, "maxUnfinishedJobs",       1000) or exit(-2);
+  assertEqualJobs($d, $user, "maxTotalRunningTime",     1000) or exit(-2);
+  assertEqualJobs($d, $user, "maxTotalCpuCost",         1000) or exit(-2);
   print "2. DONE\n\n";
 
   my ($id1, $rid1);
@@ -109,7 +113,10 @@ InputData=\"LF:${dir}split/*/*\";", "r"
   waitForStatus($cat, $id1, "SPLIT", 10) or exit(-2);
   $cat_adm->execute("calculateJobQuota", "1");
   $cat->execute("jquota", "list", "$user");
-  assertEqual($d, $user, "unfinishedJobsLast24h", 2) or exit(-2);
+  assertEqualJobs($d, $user, "unfinishedJobsLast24h", 2) or exit(-2);
+  $cat->execute("top") or exit(-2);
+  sleep(20);
+  $cat->execute("request") or exit(-2);
   waitForStatus($cat, $id1, "DONE", 60) or exit(-2);
   waitForSubjobsProcInfo($d, $cat, $id1) or exit(-2);
   $cat_adm->execute("calculateJobQuota", "1");

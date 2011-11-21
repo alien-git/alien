@@ -11,8 +11,7 @@ BEGIN { plan tests => 1 }
 
 print "Connecting to database...";
 my $host = Net::Domain::hostfqdn();
-my $d =
-  AliEn::Database::TaskPriority->new({DRIVER => "mysql", HOST => "$host:3307", DB => "processes", "ROLE", "admin"})
+my $d = AliEn::Database::TaskPriority->new({DRIVER => "mysql", HOST => "$host:3307", PASSWD=> "pass" , DB => "processes", "ROLE", "admin", })
   or print "Error connecting to the database\n" and exit(-2);
 
 {
@@ -38,13 +37,19 @@ my $d =
   $cat->execute("mkdir", "-p", "jdl") or exit(-2);
   $cat->execute("mkdir", "-p", "bin") or exit(-2);
 
-  refreshLFNandGUIDtable($cat_adm);
-
-  print "0. Set the file quota (maxNbFiles 100, maxTotalSize 100000)\n";
-  $d->update("PRIORITY", {maxNbFiles => 100, maxTotalSize => 100000}, "user='$user'");
-  assertEqual($d, $user, "maxTotalSize", 100000) or exit(-2);
-  assertEqual($d, $user, "maxNbFiles",   100)    or exit(-2);
+  print "Connecting to Database alien_system... Need to update the quota tables .. :P  \n";
+  my $d = AliEn::Database->new({DRIVER => "mysql", HOST => "$host:3307", PASSWD=> "pass" , DB => "alien_system", "ROLE", "admin" })
+    or print "Error connecting to the database\n" and exit(-2);
+  #refreshLFNandGUIDtable($cat_adm);
+  print "0. Set the file quota (maxNbFiles 10000, maxTotalSize 1000000)\n";
+  $d->update("FQUOTAS", {maxNbFiles => 10000, maxTotalSize => 1000000}, "user='$user'");
+  assertEqual($d, $user, "maxTotalSize", 1000000) or exit(-2);
+  assertEqual($d, $user, "maxNbFiles",   10000)    or exit(-2);
   print "0. DONE\n\n";
+
+  print "Reconnecting to Database processes \n";
+  $d = AliEn::Database::TaskPriority->new({DRIVER => "mysql", HOST => "$host:3307", PASSWD=> "pass" , DB => "processes", "ROLE", "admin", })
+    or print "Error connecting to the database\n" and exit(-2);
 
   addFile(
 	$cat, "bin/sum", "#!/bin/sh
@@ -73,18 +78,21 @@ echo \"sum: \$sum\"
   waitForNoJobs($cat, $user);
   $cat_adm->execute("calculateJobQuota", "1");    # 1 for silent
   $cat->execute("jquota", "list", "$user");
-  assertEqual($d, $user, "unfinishedJobsLast24h",   0)    or exit(-2);
-  assertEqual($d, $user, "totalRunningTimeLast24h", 0)    or exit(-2);
-  assertEqual($d, $user, "totalCpuCostLast24h",     0)    or exit(-2);
-  assertEqual($d, $user, "maxUnfinishedJobs",       1000) or exit(-2);
-  assertEqual($d, $user, "maxTotalRunningTime",     1000) or exit(-2);
-  assertEqual($d, $user, "maxTotalCpuCost",         1000) or exit(-2);
+  assertEqualJobs($d, $user, "unfinishedJobsLast24h",   0)    or exit(-2);
+  assertEqualJobs($d, $user, "totalRunningTimeLast24h", 0)    or exit(-2);
+  assertEqualJobs($d, $user, "totalCpuCostLast24h",     0)    or exit(-2);
+  assertEqualJobs($d, $user, "maxUnfinishedJobs",       1000) or exit(-2);
+  assertEqualJobs($d, $user, "maxTotalRunningTime",     1000) or exit(-2);
+  assertEqualJobs($d, $user, "maxTotalCpuCost",         1000) or exit(-2);
   print "2. DONE\n\n";
 
   my ($id1, $id2, $rid1, $rid2);
 
   print "3. Submit 1 job\n";
   ($id1) = $cat->execute("submit", "jdl/sum.jdl") or exit(-2);
+  $cat->execute("top") or exit(-2);
+  sleep(30);
+  $cat->execute("request") or exit(-2);
   waitForStatus($cat, $id1, "DONE", 60) or exit(-2);
   waitForProcInfo($d, $id1) or exit(-2);
   $cat_adm->execute("calculateJobQuota", "1");
@@ -101,6 +109,9 @@ echo \"sum: \$sum\"
 
   print "4. Submit 1 job\n";
   ($id2) = $cat->execute("submit", "jdl/sum.jdl") or exit(-2);
+  $cat->execute("top") or exit(-2);
+  sleep(30);
+  $cat->execute("request") or exit(-2);
   waitForStatus($cat, $id2, "DONE", 60) or exit(-2);
   waitForProcInfo($d, $id2) or exit(-2);
   $cat_adm->execute("calculateJobQuota", "1");
@@ -123,7 +134,7 @@ echo \"sum: \$sum\"
   print "6. Modify the maxUnfinishedJobs as 0\n";
   $d->update("PRIORITY", {maxUnfinishedJobs => 0}, "user='$user'");
   $cat->execute("jquota", "list", "$user");
-  assertEqual($d, $user, "maxUnfinishedJobs", 0) or exit(-2);
+  assertEqualJobs($d, $user, "maxUnfinishedJobs", 0) or exit(-2);
   print "6. DONE\n\n";
 
   print "7. Resubmit job $id1 (no option) and job $id2 (-i option)\n";
@@ -134,8 +145,8 @@ echo \"sum: \$sum\"
   print "8. Modify the maxTotalCpuCost as $cpucost2 and the maxUnfinishedJobs as 1000 back\n";
   $d->update("PRIORITY", {maxUnfinishedJobs => 1000, maxTotalCpuCost => $cpucost2}, "user='$user'");
   $cat->execute("jquota", "list", "$user");
-  assertEqual($d, $user, "maxTotalCpuCost",   $cpucost2) or exit(-2);
-  assertEqual($d, $user, "maxUnfinishedJobs", 1000)      or exit(-2);
+  assertEqualJobs($d, $user, "maxTotalCpuCost",   $cpucost2) or exit(-2);
+  assertEqualJobs($d, $user, "maxUnfinishedJobs", 1000)      or exit(-2);
   print "8. DONE\n\n";
 
   print "9. Resubmit job $id1 (no option) and job $id2 (-i option)\n";
@@ -146,8 +157,8 @@ echo \"sum: \$sum\"
   print "10. Modify the maxTotalRunningTime as $rtime2 and the maxCpuCost as 1000 back\n";
   $d->update("PRIORITY", {maxTotalCpuCost => 1000, maxTotalRunningTime => $rtime2}, "user='$user'");
   $cat->execute("jquota", "list", "$user");
-  assertEqual($d, $user, "maxTotalRunningTime", $rtime2) or exit(-2);
-  assertEqual($d, $user, "maxTotalCpuCost",     1000)    or exit(-2);
+  assertEqualJobs($d, $user, "maxTotalRunningTime", $rtime2) or exit(-2);
+  assertEqualJobs($d, $user, "maxTotalCpuCost",     1000)    or exit(-2);
   print "10. DONE\n\n";
 
   print "11. Resubmit job $id1 (no option) and job $id2 (-i option)\n";
@@ -159,9 +170,9 @@ echo \"sum: \$sum\"
   $d->update("PRIORITY", {maxUnfinishedJobs => 1000, maxTotalCpuCost => 1000, maxTotalRunningTime => 1000},
 	"user='$user'");
   $cat->execute("jquota", "list", "$user");
-  assertEqual($d, $user, "maxUnfinishedJobs",   1000) or exit(-2);
-  assertEqual($d, $user, "maxTotalRunningTime", 1000) or exit(-2);
-  assertEqual($d, $user, "maxTotalCpuCost",     1000) or exit(-2);
+  assertEqualJobs($d, $user, "maxUnfinishedJobs",   1000) or exit(-2);
+  assertEqualJobs($d, $user, "maxTotalRunningTime", 1000) or exit(-2);
+  assertEqualJobs($d, $user, "maxTotalCpuCost",     1000) or exit(-2);
   print "12. DONE\n\n";
 
   print "13. Resubmit job $id1\n";
