@@ -901,9 +901,9 @@ sub f_di {
                     #optimization part 
                     $DEBUG and $self->debug(1,"Inside condition ... => exceeding");
                     $dir = $base.$dir;
-                    $self->{LOGGER}->silentOn();
+                    #$self->{LOGGER}->silentOn();
                     $self->moveDirectory($dir);
-                    $self->{LOGGER}->silentOff();
+                    #$self->{LOGGER}->silentOff();
                     $self->info("Dir moved n pushed :: $dir ");
                     my $q1_again = "SELECT COUNT(*) FROM ".$table_name.""; 
                     my $num_entries_again = $self->{DATABASE}->queryValue($q1_again);
@@ -941,15 +941,86 @@ sub f_di {
             }
             else
             {
-              $self->{LOGGER}->silentOn();
+              #$self->{LOGGER}->silentOn();
               $self->moveDirectory($q,"-b");
-              $self->{LOGGER}->silentOff();
+              #$self->{LOGGER}->silentOff();
               $self->info("Dir moved back :: $q ");
             }
            }
          }
       }
+
+#cut1
+      #Optimization for remaining entries
+      $self->info("ReOptimizing");
+      my (@LFN1) = $self->{DATABASE}->getNumEntryIndexes($opt);
+      my $r = $self->{DATABASE}->query("SELECT tn,num,lfn from temp_LL where num<$min_lim");
+      use Data::Dumper;
+      $self->info(Dumper($r));
+
+      foreach my $rw(@$r)
+      {
+        my $tn = $rw->{tn};
+        my $num = $rw->{num};
+        my $lfn1 = $rw->{lfn};
+        my @depth1 = split('/', $lfn1);
+        $self->info("RE:: $tn, $num, $lfn1, @depth1");
+        #for(my $jj=2; $jj<@depth1 ;$jj++)
+        for(my $jj=@depth1-1; $jj>1 ;$jj--)
+        {
+           my $q41 = "SELECT  SUBSTRING_INDEX(lfn,'/',$jj) FROM INDEXTABLE where tableName=$tn";
+           my $rr = $self->{DATABASE}->queryValue($q41);
+           $rr = "".$rr."/";
+           my $chklfn = $self->{DATABASE}->queryValue("SELECT tableName FROM INDEXTABLE where lfn='$rr' ");
+           $self->info("Lets do something :: $rr, $chklfn, $lfn1, $jj");
+           (defined $chklfn) or $chklfn=-1;
+           if($chklfn!=-1)
+           {
+             my $relfn = "L".$chklfn."L";
+             my $recnt=$self->{DATABASE}->queryValue("SELECT count(*) from $relfn ");
+             if($recnt + $num > $max_lim){
+              $self->info("Next");
+              next;
+             }
+             else{
+              $self->info("chup chap move back");
+              $self->{LOGGER}->silentOn();
+              $self->moveDirectory($lfn1,"-b");
+              $self->{LOGGER}->silentOff();
+              $self->info("RE: Dir moved back :: $lfn1 ");
+              last;
+             }
+           }
+           else
+           {
+              $self->info("Otherwise1");
+              my $frmTable = $self->{DATABASE}->queryRow("SELECT tableName,lfn FROM INDEXTABLE where lfn=substr('$lfn1',1, length(lfn))  order by length(lfn) desc limit 1");
+              my $frmTablename = "L".$frmTable->{'tableName'}."L";
+              my $frmTablelfn = $frmTable->{'lfn'};
+              my $tmplfn1 = $lfn1;
+              $tmplfn1 =~ s/$frmTablelfn//g;
+              my $frmTablecnt = $self->{DATABASE}->queryValue("SELECT count(*) from $frmTablename where lfn LIKE '$tmplfn1' ") or $self->info("Error");
+              my $frmTablecntTotal = $self->{DATABASE}->queryValue("SELECT count(*) from $frmTablename ");
+
+              if($frmTablecntTotal - $frmTablecnt < $min_lim  or $frmTablecnt+$num>$max_lim)
+              {
+                $self->info("NOTHING IS POSSIBLE");
+                next;
+              }
+              $self->{LOGGER}->silentOn();
+              $self->moveDirectory($rr);
+              $self->moveDirectory($lfn1,"-b");
+              $self->{LOGGER}->silentOff();
+              $self->info("RE: Dir moved back :: $lfn1 ");
+              $self->info("RE: Dir moved :: $rr");
+              last;
+           }
+         }
+         #next table
+      }
+#cut
       $self->info("Done the desired Optimization :)");
+      $self->{DATABASE}->do("DROP table temp_LL");
       return @LFN;
   }
   elsif ($options eq "optimize_dir") {
@@ -1105,7 +1176,6 @@ sub f_di {
     $printout .= sprintf "            %7s     %7s   \n", "Total No of Entries", $totalEntries;
     $printout .= sprintf "-------------------------------------------------------------------------------------------------\n";
     $self->info($printout);
-
     return @LFN;  
   }
   elsif ($options eq "g") {
