@@ -632,7 +632,7 @@ my $where = "WHERE ( $status ) $site ";
     $args =~ s/-?-i(d)?=?\s*(\S+)// and $where .=" and ( p.queueid='$2' or split='$2')";
 
   if ($flags =~ s/s//) {
-    $where .=" and (upper(jdl) like '\%SPLIT\%' or split>0 ) ";
+    $where .=" and (upper(origJdl) like '\%SPLIT\%' or split>0 ) ";
   } elsif ($flags !~ s/S//) {
     $where .=" and ((split is NULL) or (split=0))";
   }
@@ -663,7 +663,7 @@ my $where = "WHERE ( $status ) $site ";
 
 	#my (@ok) = $self->{DB}->query($query);
   my $rresult = $self->{DB}->getFieldsFromQueueEx("q.queueId, status, name, execHost, submitHost, runtime, cpu, mem, cputime, rsize, vsize, ncpu, cpufamily, cpuspeed, cost, maxrsize, maxvsize, site, node, split, procinfotime,received,started,finished",
-						  "q, QUEUEPROC p $where")
+						  "q, QUEUEPROC p,QUEUEJDL qj $where")
     or $self->{LOGGER}->error( "JobManager", "In getPs error getting data from database" )
       and return (-1, "error getting data from database");
 

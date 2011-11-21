@@ -1172,26 +1172,28 @@ sub getNumEntryIndexes {
   ($option) or $option=0;
 
   if($option==1){
-    $self->do("CREATE TABLE temp_LL (tn int unique, num int)");
+    $self->do("DROP TABLE if exists temp_LL");
+    $self->do("CREATE TABLE temp_LL (tn int unique, num int, lfn varchar(255))");
   }
   
-  my $q = $self->query("SELECT tableName FROM INDEXTABLE");
+  my $q = $self->query("SELECT tableName,lfn FROM INDEXTABLE");
   #my $lol = scalar @$q;
   #$self->info("Checking scalar value :: $lol");
   #use Data::Dumper;
   #$self->info(Dumper(@$q));
-  #$self->info(Dumper($self->query("SELECT tableName FROM INDEXTABLE")));
+  #$self->info(Dumper($self->query("SELECT tableName,lfn FROM INDEXTABLE")));
   my @tnames = ();
   my @result = ();
   foreach my $row(@$q)
   {
         my $tn = $row->{tableName};
+        my $lfn = "$row->{lfn}";
         push(@tnames,$tn);
         my $newT = 'L'.$tn.'L';
         my $q1 = "SELECT COUNT(*) from ".$newT." ";
         my $num = $self->queryValue($q1);
         if($option ==1 ){
-          $self->do("INSERT INTO temp_LL VALUES ($tn,$num)");
+          $self->do("INSERT INTO temp_LL VALUES ($tn,$num,'$lfn')");
         }
         push(@result,$num);
   }
@@ -1203,7 +1205,7 @@ sub getNumEntryIndexes {
         push(@tnames1,$row->{tn});
         push(@result1,$row->{num});
       }
-      $self->do("DROP TABLE if exists temp_LL");
+      #$self->do("DROP TABLE if exists temp_LL");
       return (@tnames1,@result1) ;
   }
   return (@tnames,@result) ;

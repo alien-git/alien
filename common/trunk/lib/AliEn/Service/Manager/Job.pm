@@ -274,6 +274,7 @@ sub enterCommand {
   my $direct = 1;
   ($ok  && $inputdata[0])       and $direct = 0;
   ($ok2 && $inputcollection[0]) and $direct = 0;
+  $direct = 0;
 
   my $nbJobsToSubmit = 1;
   if ($jobca_text =~ / split =/i) {
@@ -357,7 +358,7 @@ sub SetProcInfoBunch {
       $entry->{tag}      = "proc";
     }
     if (!$entry->{tag} or $entry->{tag} eq "proc") {
-      $self->SetProcInfo($entry->{jobid}, $entry->{procinfo}, "silent");
+      $self->SetProcInfo($entry->{jobId}, $entry->{procinfo}, "silent");
     } else {
       $self->putJobLog($entry->{jobId}, $entry->{tag}, $entry->{procinfo});
     }
@@ -1038,7 +1039,7 @@ sub getPs {
   $args =~ s/-?-i(d)?=?\s*(\S+)// and $where .= " and ( p.queueid='$2' or split='$2')";
 
   if ($flags =~ s/s//) {
-    $where .= " and (upper(jdl) like '\%SPLIT\%' or split>0 ) ";
+    $where .= " and (upper(origJdl) like '\%SPLIT\%' or split>0 ) ";
   } elsif ($flags !~ s/S//) {
     $where .= " and ((split is NULL) or (split=0))";
   }
@@ -1067,8 +1068,8 @@ sub getPs {
 
   #my (@ok) = $self->{DB}->query($query);
   my $rresult = $self->{DB}->getFieldsFromQueueEx(
-"q.queueId, status, jdl, execHost, submitHost, runtime, cpu, mem, cputime, rsize, vsize, ncpu, cpufamily, cpuspeed, cost, maxrsize, maxvsize, site, node, split, procinfotime,received,started,finished",
-    "q, QUEUEPROC p $where"
+"q.queueId, status, origJdl as jdl, execHost, submitHost, runtime, cpu, mem, cputime, rsize, vsize, ncpu, cpufamily, cpuspeed, cost, maxrsize, maxvsize, site, node, split, procinfotime,received,started,finished",
+    "q, QUEUEPROC p,QUEUEJDL pq $where"
     )
     or $self->{LOGGER}->error("JobManager", "In getPs error getting data from database")
     and return (-1, "error getting data from database");
@@ -1409,6 +1410,14 @@ sub resubmitCommand {
     or $self->{LOGGER}->error("JobManager", "In resubmitCommand queueId not specified")
     and return (-1, "QueueId not specified");
 
+  my $chkJQ = 1;
+  if($chkJQ==1){
+    $self->info("Checking your job quota... For Resubmission");
+    my ($ok, $error) = $self->checkJobQuota($user, 1);
+    ($ok > 0) or return (-1, $error);
+    $self->info("OK. resubmit");
+  }
+  
   my $date = time;
 
   $self->info("Resubmitting command $queueId");

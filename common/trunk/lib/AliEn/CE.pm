@@ -805,6 +805,8 @@ sub submitCommand {
   $self->info("OK, all right!");
 
   $self->info("Command submitted (job $jobId)!!");
+  #$self->info("Updating the jobQuotas as well!!");
+  #$self->calculateJobQuota(1) or return;
   $self->info("Job ID is $jobId - $zoption");
   if ($zoption) {
     my @aresult;
@@ -3276,6 +3278,8 @@ sub resubmitCommand {
       and return @result;
     push @result, $done->result;
     $self->info("Process $queueId resubmitted!! (new jobid is " . $done->result . ")");
+    #$self->info("Updating the jobQuotas as well!!");
+    #$self->calculateJobQuota(0,1); #or return;
 
   }
 
@@ -4062,7 +4066,7 @@ sub calculateJobQuota {
   $silent and $method = "debug" and push @data, 1;
 
   my $user = $self->{CATALOG}->{CATALOG}->{ROLE};
-
+  
   ($user =~ /^admin(ssl)?$/)
     or $self->info("Error: only the administrator can check the databse")
     and return;
