@@ -1176,7 +1176,7 @@ sub getNumEntryIndexes {
     $self->do("CREATE TABLE temp_LL (tn int unique, num int, lfn varchar(255))");
   }
   
-  my $q = $self->query("SELECT tableName,lfn FROM INDEXTABLE");
+  my $q = $self->query("SELECT tableName,lfn FROM INDEXTABLE order by tableName");
   #my $lol = scalar @$q;
   #$self->info("Checking scalar value :: $lol");
   #use Data::Dumper;
@@ -1215,7 +1215,7 @@ sub getNumEntryIndexes {
 sub getNumEntryGUIDINDEX {
   #edited by dushyant
   my $self = shift;
-  my $q = $self->query("SELECT tableName FROM GUIDINDEX");
+  my $q = $self->query("SELECT tableName FROM GUIDINDEX order by tableName");
   my @tnames = ();
   my @result = ();
   foreach my $row(@$q)
@@ -1233,7 +1233,7 @@ sub getNumEntryGUIDINDEX {
 
 sub getNumEntryGUIDINDEX_PFN {
   my $self = shift;
-  my $q = $self->query("SELECT tableName FROM GUIDINDEX");
+  my $q = $self->query("SELECT tableName FROM GUIDINDEX order by tableName");
   my @tnames = ();
   my @result = ();
   foreach my $row(@$q)
