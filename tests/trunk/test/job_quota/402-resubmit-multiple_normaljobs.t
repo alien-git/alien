@@ -24,13 +24,13 @@ my $d = AliEn::Database::TaskPriority->new({DRIVER => "mysql", HOST => "$host:33
   includeTest("job_quota/400-submit") or exit(-2);
   includeTest("file_quota/01-calculateFileQuota") or exit(-2);
 
-  my $user="newuser";
-  my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", $user});
-  $cat or exit(-1);
-  my $cat_adm=AliEn::UI::Catalogue::LCM::Computer->new({"user", "admin"});
+  my $user = "JQUser";
+  my $cat_adm = AliEn::UI::Catalogue::LCM::Computer->new({"role", "admin"});
   $cat_adm or exit(-1);
-
-  my ($pwd)=$cat->execute("pwd") or exit(-2);
+  #$cat_adm->execute("addUser", $user);
+  my $cat = AliEn::UI::Catalogue::LCM::Computer->new({"user", $user});
+  $cat or exit(-1);
+  my ($pwd) = $cat->execute("pwd") or exit(-2);
   $cat->execute("cd") or exit(-2);
 
   cleanDir($cat, $pwd);
@@ -116,13 +116,14 @@ echo \"sum: \$sum\"
   assertEqualJobs($d, $user, "maxUnfinishedJobs", 1) or exit(-2);
   print "6. DONE\n\n";
 
+#=cut1
 	print "7. Resubmit job $id1 and $id2 - Only job $id2 MUST BE DENIED\n";
 	($rid1, $rid2)=$cat->execute("resubmit", $id1, $id2);
-  #((defined $rid1) and !(defined $rid2)) or print "FAILED: Only job $id2 MUST BE DENIED\n" and exit(-2);
-  #$cat->execute("top") or exit(-2);
-  #sleep(20);
-  #$cat->execute("request") or exit(-2);
-  #waitForStatus($cat, $rid1, "DONE", 60) or exit(-2);
+  ((defined $rid1) and !(defined $rid2)) or print "FAILED: Only job $id2 MUST BE DENIED\n" and exit(-2);
+  $cat->execute("top") or exit(-2);
+  sleep(20);
+  $cat->execute("request") or exit(-2);
+  waitForStatus($cat, $rid1, "DONE", 60) or exit(-2);
 	print "7. PASSED\n\n";
 
   print "8. Modify the maxUnfinishedJobs as 2\n";	
@@ -178,5 +179,6 @@ echo \"sum: \$sum\"
 	$cat->execute("resubmit", $id1, $id2) and print "FAILED: Both of them MUST BE DENIED\n" and exit(-2);
 	print "13. PASSED\n\n";
 
+#cut
   ok(1);
 }

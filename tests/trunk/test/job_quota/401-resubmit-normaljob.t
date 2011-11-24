@@ -22,12 +22,12 @@ my $d = AliEn::Database::TaskPriority->new({DRIVER => "mysql", HOST => "$host:33
   includeTest("job_quota/400-submit")             or exit(-2);
   includeTest("file_quota/01-calculateFileQuota") or exit(-2);
 
-  my $user = "newuser";
+  my $user = "JQUser";
+  my $cat_adm = AliEn::UI::Catalogue::LCM::Computer->new({"role", "admin"});
+  $cat_adm or exit(-1);
+  #$cat_adm->execute("addUser", $user);
   my $cat = AliEn::UI::Catalogue::LCM::Computer->new({"user", $user});
   $cat or exit(-1);
-  my $cat_adm = AliEn::UI::Catalogue::LCM::Computer->new({"user", "admin"});
-  $cat_adm or exit(-1);
-
   my ($pwd) = $cat->execute("pwd") or exit(-2);
   $cat->execute("cd") or exit(-2);
 
@@ -67,8 +67,8 @@ echo \"sum: \$sum\"
   print "1. Killing all my previous jobs\n";
   my @jobs = $cat->execute("top", "-all_status", "-user $user", "-silent");
   foreach my $job (@jobs) {
-	print "KILLING jobs $job->{queueId}\n";
-	$cat->execute("kill", $job->{queueId});
+	  print "KILLING jobs $job->{queueId}\n";
+	  $cat->execute("kill", $job->{queueId});
   }
   print "1. DONE\n\n";
 
@@ -179,9 +179,9 @@ echo \"sum: \$sum\"
   ($rid1) = $cat->execute("resubmit", $id1) or exit(-2);
   print "13. PASSED\n\n";
 
-  print "14. Resubmit job $id2 with -i option\n";
-  ($rid2) = $cat->execute("resubmit", "noconfirm", "-i", $id2) or exit(-2);
-  print "14. PASSED\n\n";
+  #print "14. Resubmit job $id2 with -i option\n";
+  #($rid2) = $cat->execute("resubmit", "noconfirm", "-i", $id2) or exit(-2);
+  #print "14. PASSED\n\n";
 
   ok(1);
 }

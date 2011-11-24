@@ -23,12 +23,12 @@ my $d = AliEn::Database::TaskPriority->new({DRIVER => "mysql", HOST => "$host:33
   includeTest("job_quota/400-submit")             or exit(-2);
   includeTest("file_quota/01-calculateFileQuota") or exit(-2);
 
-  my $user = "newuser";
+  my $user = "JQUser";
+  my $cat_adm = AliEn::UI::Catalogue::LCM::Computer->new({"role", "admin"});
+  $cat_adm or exit(-1);
+  #$cat_adm->execute("addUser", $user);
   my $cat = AliEn::UI::Catalogue::LCM::Computer->new({"user", $user});
   $cat or exit(-1);
-  my $cat_adm = AliEn::UI::Catalogue::LCM::Computer->new({"user", "admin"});
-  $cat_adm or exit(-1);
-
   my ($pwd) = $cat->execute("pwd") or exit(-2);
   $cat->execute("cd") or exit(-2);
 
