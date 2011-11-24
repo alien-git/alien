@@ -28,6 +28,16 @@ my $db = AliEn::Database->new({DRIVER => "mysql",
                                ROLE   => "admin"});
 my $cat = AliEn::UI::Catalogue::LCM->new({ROLE => "admin"});
 
+print "\n".scalar(localtime(time))."\n";
+print "Dropping tables from $db_old not in $db_new \n";
+my $oldTables = $db->query("select table_name from information_schema.tables where table_schema='$db_old'
+    and table_name NOT LIKE 'USERS' and table_name NOT LIKE 'GRPS' and table_name NOT like 'UGMAP'");
+foreach my $row (@$oldTables) {
+  print "$row->{table_name}\n" ;
+  my $ifTableExists = $db->queryValue("select 1 from information_schema.tables where table_schema='$db_new' and table_name='$row->{table_name}'");
+  ($ifTableExists) or $db->do("DROP table $db_old.$row->{table_name}") and print "$db_old.$row->{table_name} Dropped\n";
+}
+
 ### Get index table values for GUID and LFN
 my $indexTable = $db->query("SELECT tableName FROM INDEXTABLE");
 my $guidIndex  = $db->query("SELECT tableName FROM GUIDINDEX");
@@ -197,5 +207,22 @@ $db->do("ALTER TABLE UGMAP DROP COLUMN Username, DROP COLUMN Groupname");
 $db->do("DROP TABLE IF EXISTS $db_old.UGMAP ");
 $db->do("ALTER TABLE $db_new.UGMAP RENAME $db_old.UGMAP");
 
+
 print "\n".scalar(localtime(time))."\n";
+print "Renaming tables from $db_new to $db_old\n";
+my $newTables = $db->query("select table_name from information_schema.tables where table_schema='$db_new'
+    and table_name NOT regexp 'L\$' and table_name NOT regexp '^[GL]' and table_name NOT LIKE 'USERS' and 
+    table_name NOT LIKE 'GRPS' and table_name NOT like 'UGMAP' and table_name NOT like 'GROUPS' and 
+    table_name NOT like 'INDEXTABLE' and table_name NOT like 'GUIDINDEX'");
+foreach my $row (@$newTables) {
+  print "$row->{table_name}\n" ;
+  my $ifTableExists = $db->queryValue("select 1 from information_schema.tables where table_schema='$db_old' and table_name='$row->{table_name}'");
+  ($ifTableExists) or $db->do("ALTER TABLE $db_new.$row->{table_name} RENAME $db_old.$row->{table_name}" ) 
+    and print "Just $db_new.$row->{table_name} Renamed \n" and next;
+
+  $db->do("DROP TABLE $db_old.$row->{table_name}");
+  $db->do("ALTER TABLE $db_new.$row->{table_name} RENAME $db_old.$row->{table_name}" ); 
+  print "$db_old.$row->{table_name} Dropped & $db_new.$row->{table_name} Renamed \n" and next;
+
+}
 
