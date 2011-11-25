@@ -907,7 +907,7 @@ sub f_di {
                     $self->info("Dir moved n pushed :: $dir ");
                     my $q1_again = "SELECT COUNT(*) FROM ".$table_name.""; 
                     my $num_entries_again = $self->{DATABASE}->queryValue($q1_again);
-                    if($num_entries_again<$max_lim)                                                                                                             
+                    if($num_entries_again<$max_lim)                                                                                                     
                     {
                       $status=0;
                       ($status) or last;
@@ -950,27 +950,27 @@ sub f_di {
          }
       }
 
-#cut1
       #Optimization for remaining entries
       $self->info("ReOptimizing");
       my (@LFN1) = $self->{DATABASE}->getNumEntryIndexes($opt);
       my $r = $self->{DATABASE}->query("SELECT tn,num,lfn from temp_LL where num<$min_lim");
       use Data::Dumper;
       $self->info(Dumper($r));
-
       foreach my $rw(@$r)
       {
         my $tn = $rw->{tn};
         my $num = $rw->{num};
         my $lfn1 = $rw->{lfn};
         my @depth1 = split('/', $lfn1);
-        $self->info("RE:: $tn, $num, $lfn1, @depth1");
+        $self->info("RE || $tn, $num, $lfn1, @depth1");
         #for(my $jj=2; $jj<@depth1 ;$jj++)
-        for(my $jj=@depth1-1; $jj>1 ;$jj--)
+        for(my $jj=@depth1-1; $jj>=1 ;$jj--)
         {
            my $q41 = "SELECT  SUBSTRING_INDEX(lfn,'/',$jj) FROM INDEXTABLE where tableName=$tn";
            my $rr = $self->{DATABASE}->queryValue($q41);
            $rr = "".$rr."/";
+           if($jj==1)
+           { $rr = "/";}
            my $chklfn = $self->{DATABASE}->queryValue("SELECT tableName FROM INDEXTABLE where lfn='$rr' ");
            $self->info("Lets do something :: $rr, $chklfn, $lfn1, $jj");
            (defined $chklfn) or $chklfn=-1;
@@ -983,7 +983,7 @@ sub f_di {
               next;
              }
              else{
-              $self->info("chup chap move back");
+              $self->info("Wow .... we can move back now!!");
               $self->{LOGGER}->silentOn();
               $self->moveDirectory($lfn1,"-b");
               $self->{LOGGER}->silentOff();
@@ -993,32 +993,47 @@ sub f_di {
            }
            else
            {
-              $self->info("Otherwise1");
-              my $frmTable = $self->{DATABASE}->queryRow("SELECT tableName,lfn FROM INDEXTABLE where lfn=substr('$lfn1',1, length(lfn))  order by length(lfn) desc limit 1");
-              my $frmTablename = "L".$frmTable->{'tableName'}."L";
-              my $frmTablelfn = $frmTable->{'lfn'};
-              my $tmplfn1 = $lfn1;
-              $tmplfn1 =~ s/$frmTablelfn//g;
-              my $frmTablecnt = $self->{DATABASE}->queryValue("SELECT count(*) from $frmTablename where lfn LIKE '$tmplfn1' ") or $self->info("Error");
-              my $frmTablecntTotal = $self->{DATABASE}->queryValue("SELECT count(*) from $frmTablename ");
-
+              $self->info("Otherwise $rr must not be in different table. Lets search table for it");
+=cut2
+              my $ref = $self->{DATABASE}->findLFN($rr,['%'],[], [], [], []);
+              my @entries = @$ref;
+              my $toTablecnt = @entries;
               if($frmTablecntTotal - $frmTablecnt < $min_lim  or $frmTablecnt+$num>$max_lim)
               {
                 $self->info("NOTHING IS POSSIBLE");
+                $self->info("BECAUSE $frmTablecntTotal-$frmTablecnt<$min_lim OR $frmTablecnt+$num>$max_lim");
                 next;
               }
+=cut
+              my $frmTable = $self->{DATABASE}->queryRow("SELECT tableName,lfn FROM INDEXTABLE where lfn=substr('$rr',1, length(lfn))
+                order by length(lfn) desc limit 1");
+              my $frmTablename = "L".$frmTable->{'tableName'}."L";
+              my $frmTablelfn = $frmTable->{'lfn'};
+              #my $tmplfn1 = $lfn1;
+              my $tmplfn1 = $rr;
+              $tmplfn1 =~ s/^$frmTablelfn//g;
+              my $frmTablecnt = $self->{DATABASE}->queryValue("SELECT count(*) from $frmTablename where lfn regexp '^$tmplfn1' "); 
+              my $frmTablecntTotal = $self->{DATABASE}->queryValue("SELECT count(*) from $frmTablename ");
+
+              $self->info("RE || $frmTablename, $frmTablelfn, $frmTablecnt, $frmTablecntTotal, TEMPLFN:$tmplfn1");
+              $self->info("RE || Lets check this: $frmTablecntTotal-$frmTablecnt<$min_lim OR $frmTablecnt+$num>$max_lim");
+              if($frmTablecntTotal - $frmTablecnt < $min_lim  or $frmTablecnt+$num>$max_lim)
+              {
+                $self->info("NOTHING IS POSSIBLE");
+                $self->info("BECAUSE $frmTablecntTotal-$frmTablecnt<$min_lim OR $frmTablecnt+$num>$max_lim");
+                next;
+              }
+              $self->info("Success !! we can try to moveback");
               $self->{LOGGER}->silentOn();
               $self->moveDirectory($rr);
               $self->moveDirectory($lfn1,"-b");
               $self->{LOGGER}->silentOff();
-              $self->info("RE: Dir moved back :: $lfn1 ");
-              $self->info("RE: Dir moved :: $rr");
+              $self->info("RE || Dir moved back :: $lfn1 || Dir moved :: $rr");
               last;
            }
          }
          #next table
       }
-#cut
       $self->info("Done the desired Optimization :)");
       $self->{DATABASE}->do("DROP table temp_LL");
       return @LFN;
