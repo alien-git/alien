@@ -901,9 +901,9 @@ sub f_di {
                     #optimization part 
                     $DEBUG and $self->debug(1,"Inside condition ... => exceeding");
                     $dir = $base.$dir;
-                    #$self->{LOGGER}->silentOn();
+                    $self->{LOGGER}->silentOn();
                     $self->moveDirectory($dir);
-                    #$self->{LOGGER}->silentOff();
+                    $self->{LOGGER}->silentOff();
                     $self->info("Dir moved n pushed :: $dir ");
                     my $q1_again = "SELECT COUNT(*) FROM ".$table_name.""; 
                     my $num_entries_again = $self->{DATABASE}->queryValue($q1_again);
@@ -941,9 +941,9 @@ sub f_di {
             }
             else
             {
-              #$self->{LOGGER}->silentOn();
+              $self->{LOGGER}->silentOn();
               $self->moveDirectory($q,"-b");
-              #$self->{LOGGER}->silentOff();
+              $self->{LOGGER}->silentOff();
               $self->info("Dir moved back :: $q ");
             }
            }
