@@ -602,7 +602,9 @@ sub optimizeGUIDtables_removeTable {
     and return 1;
   #my $t = $self->queryRow("select * from GUIDINDEX where guidTime<? order by guidTime desc limit 1",
   #  undef, {bind_values => [$previousGUID]});
-  my $t = $self->queryRow("select * from GUIDINDEX where guidTime<string2date(?) order by guidTime desc limit 1",
+  #my $t = $self->queryRow("select * from GUIDINDEX where guidTime<string2date(?) order by guidTime desc limit 1",
+  #  undef, {bind_values => [$previousGUID]});
+  my $t = $self->queryRow("select * from GUIDINDEX where guidTime<? order by guidTime desc limit 1",
     undef, {bind_values => [$previousGUID]});
 
   ($table eq "G$t->{tableName}L")
