@@ -18,6 +18,7 @@ use Data::Dumper;
 
 sub initialize {
    my $self=shift;
+   $self->{LOGGER}->warning("CREAM","CE restarted.");
    $self->{DB}=AliEn::Database::CE->new();
    $ENV{X509_CERT_DIR} and $self->{LOGGER}->debug("LCG","X509: $ENV{X509_CERT_DIR}");
    
@@ -26,21 +27,20 @@ sub initialize {
    $self->info("This VO-Box is $self->{CONFIG}->{VOBOX}, site is \'$ENV{SITE_NAME}\'");
    $self->{CONFIG}->{LCGVO} = $ENV{ALIEN_VOBOX_ORG}|| $self->{CONFIG}->{ORG_NAME};
    $self->{CONFIG}->{VOBOXDIR} = "/opt/vobox/\L$self->{CONFIG}->{LCGVO}";
+   $self->info("Running as \'$ENV{ALIEN_USER}\' using $ENV{X509_USER_PROXY}");
    $self->{UPDATECLASSAD} = 0;
-   my @newCEList;
 
    my $fix_env ='LD_LIBRARY_PATH=$GLITE_LOCATION${LD_LIBRARY_PATH#*$GLITE_LOCATION}:/opt/c-ares/lib'; 
-   
+
    my $cmds = {  SUBMIT_CMD     => "$fix_env glite-ce-job-submit",
                  STATUS_CMD     => 'glite-ce-job-status',
 		 KILL_CMD       => 'glite-ce-job-cancel',
-		 CLEANUP_CMD    => '',
                  DELEGATION_CMD => 'glite-ce-delegate-proxy'};
 			 
    $self->{$_} = $cmds->{$_} || $self->{CONFIG}->{$_} || '' foreach (keys %$cmds);
    unless ($self->readCEList()) {
       $self->{LOGGER}->error("LCG","Error reading CE list");
-      #return;
+      return;
    } 
    # Some optionally configurable values
    $ENV{CE_PROXYDURATION} and $self->{CONFIG}->{CE_PROXYDURATION} = $ENV{CE_PROXYDURATION};
@@ -124,7 +124,7 @@ sub submit {
   #pick a random CE from the list
   my $theCE = '';
   my @CEList = $self->getCEList();
-  $self->debug(1,Dumper $self->{CE_CLUSTERSTATUS}."\n");
+  $self->debug(1,"Cluster status:\n".Dumper $self->{CE_CLUSTERSTATUS});
 
   until ($theCE || !@CEList) {
     my $i = int(rand(@CEList));
@@ -140,9 +140,6 @@ sub submit {
      $self->info("No more slots in the queues?");
      return;
   }
-  print "********************************************************************\n";
-  print Dumper  $self->{CE_CLUSTERSTATUS};
-  print "********************************************************************\n";
   push @args, ("-r", $theCE);
   push @args, ("-D", "$self->{CONFIG}->{DELEGATION_ID}");
 
@@ -203,8 +200,10 @@ sub getAllBatchIds {
 sub getNumberRunning() {
   my $self = shift;
   my ($run,$wait) = $self->getCEInfo('SUM',qw(GlueCEStateRunningJobs GlueCEStateWaitingJobs ));
-  defined $run  or $run=9090909;
-  defined $wait or $wait=909090;
+  unless (defined $run && defined $wait) {
+     $self->info("Could not get number of running/waiting jobs");
+     return undef;
+  }
   $self->info("JobAgents running, waiting: $run,$wait");
   $self->debug(1,"(Returning value from BDII)");
   return $run+$wait;       
@@ -213,7 +212,10 @@ sub getNumberRunning() {
 sub getNumberQueued() {
   my $self = shift;
   (my $wait) = $self->getCEInfo('MIN',qw(GlueCEStateWaitingJobs));
-  defined $wait or $wait=9999999;
+  unless (defined $wait) {
+     $self->info("Could not get number of waiting jobs");
+     return undef;
+  }
   $self->info("JobAgents waiting: $wait");
   $self->debug(1,"(Returning value from BDII)");
   return $wait;
@@ -323,6 +325,7 @@ sub readCEList {
      push @$clusters,$hash;
    }
    $self->{CE_CLUSTERSTATUS} = $clusters;
+   $self->info("Clusters configuration:\n".Dumper $self->{CE_CLUSTERSTATUS});
    return 1;
 }
 
@@ -445,7 +448,6 @@ sub getCEInfo {
           }
           push @{$values->{$_}}, $res->{$_} if (defined $res->{$_});  
         }
-	last;
       } else { 
         $self->{LOGGER}->warning("LCG","Query for $CE failed, blacklisting.");
         $self->info("Query for $CE failed, blacklisting.");
