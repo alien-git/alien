@@ -708,7 +708,7 @@ sub moveGUIDs {
 
   #at le  ast is in the same host, and driver
   my @queries = (
-    "DROP TABLE if exists temp_GL "
+    "DROP TABLE if exists temp_GL ",
     "CREATE TABLE temp_GL (tempguidid int(11) primary key, tm varchar(16)) ",
 "INSERT INTO temp_GL (select guidid,binary2date(guid) from $table )",
 #"INSERT INTO $self->{DB}.G${tableName}L ($columns) select $columns from $table where  binary2date(guid)>string2date('$guid')",
