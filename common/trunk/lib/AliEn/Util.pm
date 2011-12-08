@@ -490,17 +490,21 @@ sub mkdir {
 sub find_memory_consumption {
   my $apmon      = shift;
   my $id         = shift;
-  my @requestSet = ("virtualmem");
+  my $checked    = shift;
+  my @retVal=(0,0);
+  my @requestSet = ("rss","virtualmem");
 
+  $checked or $apmon->{BG_MONITOR}->{PROC_INFO}->update();
   my @resultSet = $apmon->{BG_MONITOR}->{PROC_INFO}->getJobData($id, \@requestSet);
-  my $totalMem = 0;
-  if (@resultSet) {
-    if ($resultSet[0] eq $requestSet[0]) {
-      $totalMem = $resultSet[1];
-    }
+
+  if(@resultSet){
+   $requestSet[0] eq $resultSet[0] and $retVal[0]=$resultSet[1];
+   $requestSet[1] eq $resultSet[2] and $retVal[1]=$resultSet[3];
   }
-  return $totalMem;
+
+  return @retVal;
 }
+
 
 sub isValidSEName {
   my $se = shift;

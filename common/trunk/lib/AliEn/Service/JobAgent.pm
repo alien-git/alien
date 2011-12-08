@@ -494,6 +494,25 @@ sub GetJDL {
   return;
 }
 
+sub loadMemoryLimit{
+
+   my $qString=shift;
+   my $iString=shift;
+   (my $ok, my @memrequest) = $self->{CA}->evaluateAttributeVectorString($qString);
+   if($ok){
+      if (defined $memrequest[0]) {
+          my $munit = 1024; # default user input is in MB, mem query yields it in KB
+         ($memrequest[0] =~ s/KB//g) and $munit = 1;
+         ($memrequest[0] =~ s/MB//g) and $munit = 1024;
+         ($memrequest[0] =~ s/GB//g) and $munit = 1024*1024;
+         $self->{$iString} = int($memrequest[0] * $munit);
+         $self->info("The job is limited to a maximum of $self->{$iString} KB of $qString memory");
+      }
+   }
+
+}
+
+
 sub checkJobJDL {
   my $self=shift;
   my $ok;
@@ -511,17 +530,14 @@ sub checkJobJDL {
   $self->info("The job needs $jobttl seconds to execute");
 
 #--- memory requirement
-  ($ok, my @memrequest) = $self->{CA}->evaluateAttributeVectorString("Memorysize");
-  if($ok){
-      if (defined $memrequest[0]) {
-	  my $munit = 1024; # default user input is in MB, mem query yields it in KB
-         ($memrequest[0] =~ s/KB//g) and $munit = 1;
-         ($memrequest[0] =~ s/MB//g) and $munit = 1024;
-         ($memrequest[0] =~ s/GB//g) and $munit = 1024*1024;          
-         $self->{MEMORY} = $memrequest[0] * $munit;
-         $self->info("The job needs a maximum of $self->{MEMORY} KB of memory");
-      }
-  }
+
+  loadMemoryLimit("ResidentMemorysize","MEMORY");
+  loadMemoryLimit("Memorysize","VIRT_MEMORY");  # original jdl name kept for consistency
+  loadMemoryLimit("VirtualMemorysize","VIRT_MEMORY");
+  loadMemoryLimit("VirtualMemoryMax","FASTKILL_MEMORY");
+
+  defined $self->{FASTKILL_MEMORY} or $self->{FASTKILL_MEMORY} = "unlimited";
+#---   
 
   ($ok, my $masterid) =$self->{CA}->evaluateAttributeString("MasterJobId");
   if ($ok) {
@@ -1001,6 +1017,7 @@ sub executeCommand {
   print "Execution machine:  $self->{HOST}\n";
 
   chdir $self->{WORKDIR};
+  $s="ulimit -S -v ".$self->{FASTKILL_MEMORY}." -c 0\;".$s;
   my $error = system($s);
   $ENV{LD_LIBRARY_PATH} =~ s{^/lib:/usr/lib:}{};
  $ENV{ALIEN_CM_AS_LDAP_PROXY}=$oldEnv;
@@ -1056,7 +1073,7 @@ Minor page faults                   [#  ] : $tags[9]\n";
   $error=$error/256;
   $self->changeStatus($self->{STATUS}, "SAVING",$error);	
 
-  $self->info("Command executed with $error.");
+  $self->info("Command executed, returned with exit-status/256 = $error.");
 
   return 1;
 }
@@ -2329,17 +2346,22 @@ sub checkProcess{
     $space <$self->{WORKSPACE} or 
       $killMessage="using more than $self->{WORKSPACE} MB of diskspace (right now we were using $space MB)";
   }
-  if ($self->{MEMORY}){
-    $self->info("Checking the memory requirements");
-    my $memory=AliEn::Util::find_memory_consumption($self->{MONITOR},$self->{PROCESSID});
-    if(defined $memory){
-      $self->info("Process Memory measured at = $memory");
-      $memory > $self->{MEMORY}
-        and $killMessage="using more than $self->{MEMORY} memory (right now, $memory)";
+
+  if (defined $self->{MEMORY} or defined $self->{VIRT_MEMORY}){
+    $self->info("Checking the memory requirements for process $self->{PROCESSID} and all children");
+    my @memory=AliEn::Util::find_memory_consumption($self->{MONITOR},$self->{PROCESSID},$self->{MEMORY_CHECKED});
+    if($memory[0]>0 and $memory[1]>0){
+      $self->{MEMORY_CHECKED}=1;
+      $self->info("Process Memory measured: Resident = $memory[0] KB, Virtual = $memory[1] KB");
+      $self->{MEMORY} and $memory[0] > $self->{MEMORY}
+        and $killMessage="Resident memory $memory[0] KB greater than $self->{MEMORY} KB limit";
+      $self->{VIRT_MEMORY} and $memory[1] > $self->{VIRT_MEMORY}
+        and $killMessage="Virtual memory $memory[1] KB greater than $self->{VIRT_MEMORY} KB limit";
     } else {
       $self->info("Failed to read process memory from monitor");
     }
   }
+
   if ($killMessage){
     AliEn::Util::kill_really_all($self->{PROCESSID});
     $self->info("Killing the job ($killMessage)");
