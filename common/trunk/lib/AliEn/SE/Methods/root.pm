@@ -80,6 +80,9 @@ sub get {
   }
 
   $self->debug(4, "CALLING WITH: $command");
+
+  (-f $self->{LOCALFILE}) and $self->info("DELETING THE LOCALFILE") and unlink $self->{LOCALFILE};
+ 
   my $output = `$command 2>&1 ; echo "ALIEN_XRD_SUBCALL_RETURN_VALUE=\$? "`;
   $output
     or $self->info(
