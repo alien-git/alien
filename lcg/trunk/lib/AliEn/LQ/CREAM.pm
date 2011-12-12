@@ -453,7 +453,8 @@ sub getCEInfo {
         $self->info("Query for $CE failed, blacklisting.");
 	$self->setCESlots($CE,-1);
         next;
-      }   
+      }
+      last;   
     }
   }  
   my @return;
