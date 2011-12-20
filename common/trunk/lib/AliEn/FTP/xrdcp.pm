@@ -33,6 +33,10 @@ sub copy {
 
   $self->{MSS}->{ENVELOPE}=$sEnvelope->{signedEnvelope};
   $self->{MSS}->{OLDENVELOPE}=$sEnvelope->{oldEnvelope};
+  
+  #Fix from Almudena
+  $self->{MSS}->{PFN}=$sEnvelope->{turl}; #this is the only line added
+
 
 
   $self->info("Issuing the get");
