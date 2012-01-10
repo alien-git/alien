@@ -18,7 +18,9 @@ use Data::Dumper;
 
 sub initialize {
    my $self=shift;
-   $self->{LOGGER}->warning("CREAM","CE restarted.");
+   $self->{LOGGER}->warning("CREAM","******************************");
+   $self->{LOGGER}->warning("CREAM","***      CE restarted.     ***");
+   $self->{LOGGER}->warning("CREAM","******************************");
    $self->{DB}=AliEn::Database::CE->new();
    $ENV{X509_CERT_DIR} and $self->{LOGGER}->debug("LCG","X509: $ENV{X509_CERT_DIR}");
    
@@ -429,6 +431,7 @@ sub getCEInfo {
   $self->info("Querying CEs, mode: $mode, requested info: @items");
   my @list  = $self->getCEList();
   my $values = ();
+  my $gotResult = 0;
   foreach ( @items ) {
      $values->{$_} = [];
   }
@@ -446,7 +449,10 @@ sub getCEInfo {
 	    $self->setCESlots($CE,-1);
             next;
           }
-          push @{$values->{$_}}, $res->{$_} if (defined $res->{$_});  
+	  if (defined $res->{$_}) {
+            push @{$values->{$_}}, $res->{$_};  
+	    $gotResult = 1;
+	  }
         }
       } else { 
         $self->{LOGGER}->warning("LCG","Query for $CE failed, blacklisting.");
@@ -457,6 +463,11 @@ sub getCEInfo {
       last;   
     }
   }  
+  unless ($gotResult) {
+    $self->{LOGGER}->error('LCG',"getCEInfo() got no valid answer from any CE");
+    $self->debug(1,"getCEInfo() got no valid answer from any CE");
+    return;
+  }
   my @return;
   foreach (@items) {
     my $val = '';
