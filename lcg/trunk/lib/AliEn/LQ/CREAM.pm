@@ -664,8 +664,6 @@ sub setEnvironmentForLCG{
   $ENV{PATH} =~ s/$alienpath[^:]*://g;            #Remove any hint of AliEn from environment
   $ENV{LD_LIBRARY_PATH} = $ENV{LD_LIBRARY_PATH}.":/opt/c-ares/lib" unless $ENV{LD_LIBRARY_PATH} =~ m/\/opt\/c-ares\/lib/;
   $ENV{GLOBUS_LOCATION} = "/opt/globus";
-  $self->info("After: ".$ENV{LD_LIBRARY_PATH});
-  $self->info("After: ".$ENV{PATH});
 }
 
 sub unsetEnvironmentForLCG{
