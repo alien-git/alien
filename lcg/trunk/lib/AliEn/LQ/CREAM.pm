@@ -32,9 +32,7 @@ sub initialize {
    $self->info("Running as \'$ENV{ALIEN_USER}\' using $ENV{X509_USER_PROXY}");
    $self->{UPDATECLASSAD} = 0;
 
-   my $fix_env ='LD_LIBRARY_PATH=$GLITE_LOCATION${LD_LIBRARY_PATH#*$GLITE_LOCATION}:/opt/c-ares/lib'; 
-
-   my $cmds = {  SUBMIT_CMD     => "$fix_env glite-ce-job-submit",
+   my $cmds = {  SUBMIT_CMD     => "glite-ce-job-submit",
                  STATUS_CMD     => 'glite-ce-job-status',
 		 KILL_CMD       => 'glite-ce-job-cancel',
                  DELEGATION_CMD => 'glite-ce-delegate-proxy'};
@@ -655,16 +653,19 @@ sub _system {
 sub setEnvironmentForLCG{
   my $self=shift;
   $self->debug(1,"Setting the environment for an LCG call");
-  $self->{LCG_ENV}={};
-  foreach  my $v ("GLOBUS_LOCATION", "X509_CERT_DIR", "MYPROXY_LOCATION"){
-    $self->{LCG_ENV}->{$v}=$ENV{$v};
-    delete $ENV{$v};
+  $self->{LCG_ENV} = {};
+  foreach  my $v ("GLOBUS_LOCATION", "X509_CERT_DIR", "MYPROXY_LOCATION", "LD_LIBRARY_PATH") {
+    $self->{LCG_ENV}->{$v} = $ENV{$v};
   }
   $self->{LCG_ENV}->{PATH}=$ENV{PATH};
-  $ENV{PATH}=~ s/$ENV{ALIEN_PATH}//;
-  $self->{LCG_ENV}->{LD_LIBRARY_PATH}=$ENV{LD_LIBRARY_PATH};
-  $ENV{LD_LIBRARY_PATH}=~ s/$ENV{ALIEN_LD_LIBRARY_PATH}//;
-  $ENV{GLOBUS_LOCATION}="/opt/globus";
+  $self->{LCG_ENV}->{LD_LIBRARY_PATH} = $ENV{LD_LIBRARY_PATH};
+  my $alienpath = $ENV{ALIEN_ROOT};
+  $ENV{LD_LIBRARY_PATH} =~ s/$alienpath[^:]*://g; #Remove any hint of AliEn from environment
+  $ENV{PATH} =~ s/$alienpath[^:]*://g;            #Remove any hint of AliEn from environment
+  $ENV{LD_LIBRARY_PATH} = $ENV{LD_LIBRARY_PATH}.":/opt/c-ares/lib" unless $ENV{LD_LIBRARY_PATH} =~ m/\/opt\/c-ares\/lib/;
+  $ENV{GLOBUS_LOCATION} = "/opt/globus";
+  $self->info("After: ".$ENV{LD_LIBRARY_PATH});
+  $self->info("After: ".$ENV{PATH});
 }
 
 sub unsetEnvironmentForLCG{
