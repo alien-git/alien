@@ -32,7 +32,7 @@ sub initialize {
    $self->info("Running as \'$ENV{ALIEN_USER}\' using $ENV{X509_USER_PROXY}");
    $self->{UPDATECLASSAD} = 0;
 
-   my $cmds = {  SUBMIT_CMD     => "glite-ce-job-submit",
+   my $cmds = {  SUBMIT_CMD     => 'glite-ce-job-submit',
                  STATUS_CMD     => 'glite-ce-job-status',
 		 KILL_CMD       => 'glite-ce-job-cancel',
                  DELEGATION_CMD => 'glite-ce-delegate-proxy'};
@@ -287,7 +287,6 @@ sub renewDelegation {
           next;
          } else {
            my @command = ($self->{DELEGATION_CMD},"-e",$CE,$dbg,"$self->{CONFIG}->{DELEGATION_ID}");
- #          my @command = ("glite-ce-proxy-renew","-e",$CE,$dbg,"$self->{CONFIG}->{DELEGATION_ID}");
            my @output = $self->_system(@command);
            my $error = $?;
 	   if ($error) {
@@ -629,6 +628,7 @@ sub _system {
     if (! close FILE){
       #We have to check that the proces do^?^?
       $self->{LOGGER}->error("LCG","The system call failed  PID $pid");
+      $self->{LOGGER}->error("LCG","Command was \'$command\'");
       if (CORE::kill 0,$pid) {
         my $kid;
         do {
