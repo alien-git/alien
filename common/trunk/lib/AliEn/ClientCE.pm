@@ -108,4 +108,10 @@ sub resubmitCommand {
   return $self->{CATALOG}->{CATALOG}->callAuthen("resubmit", @_);
 }
 
+sub masterJob {
+	my $self = shift;
+	return $self->{CATALOG}->{CATALOG}->callAuthen("masterJob", @_);
+	
+}
+
 __END__

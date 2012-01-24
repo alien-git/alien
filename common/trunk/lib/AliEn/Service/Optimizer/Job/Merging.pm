@@ -188,15 +188,15 @@ sub checkMasterResubmition {
   }
   $self->putJobLog($queueid, "info", "Automatic resubmition of jobs in $type (there were $failed)");
   eval {
-    $self->info("At the moment, @ISA");
-    push @ISA, "AliEn::Service::Manager::Job";
-    my ($status, $error)=$self->getMasterJob($user, $queueid, "resubmit", @newstatus);
-    $status eq "-1" and die("resubmition failed: $error\n");
+    
+    
+    my $status=$self->{CATALOGUE}->execute("masterJob", $queueid, "resubmit", @newstatus);
+    $status eq "-1" and die("resubmition failed: \n");
   };
   if ($@){
     $self->info("The resubmition didn't work : $@");
   }
-  @ISA=grep ( ! /AliEn::Service::Manager::Job/, @ISA);
+  
   $self->info("Back to @ISA");
   return 1;
 }
@@ -210,27 +210,22 @@ sub updateMerging {
 
   my $newStatus="DONE";
   my $set={};
-  my ($olduser)=$self->{CATALOGUE}->execute("whoami");
 
   eval {
     #my @part_jobs=$self->{DB}->query("SELECT count(*),status from QUEUE where split=$queueid group by status");
-    my $rparts = $self->{DB}->getFieldsFromQueueEx("count(*) as count, status", "WHERE split=? GROUP BY status", {bind_values=>[$queueid]})
+    my $rparts = $self->{DB}->getFieldsFromQueueEx("count(*) as count, status", 
+    "WHERE split=? GROUP BY status", {bind_values=>[$queueid]})
       or die("Could not get splitted jobs for $queueid");
 
     my $user = AliEn::Util::getJobUserByDB($self->{DB}, $queueid);
     $self->{CATALOGUE}->execute("user", "-", "$user")
       or die("Error changing to user $user");
-    my $procDir = AliEn::Util::getProcDir($user, undef, $queueid);
-    $self->{CATALOGUE}->execute("mkdir","-p", "$procDir/job-log");
+    #my $procDir = AliEn::Util::getProcDir($user, undef, $queueid);
+    #$self->{CATALOGUE}->execute("mkdir","-p", "$procDir/job-log");
 
     if (! $self->checkMaxFailed($job_ca, $rparts)){
       $self->putJobLog($queueid, "error","There were too many subjobs failing");
-      $self->info("At the moment, @ISA");
-      push @ISA, "AliEn::Service::Manager::Job";
-      my ($status, $error)=$self->getMasterJob($user, $queueid, "kill", "-status", "WAITING", "-status", "INSERTING");
-
-      @ISA=grep ( ! /AliEn::Service::Manager::Job/, @ISA);
-      $self->info("Back to @ISA");
+      my ($status, $error)=$self->{CATALOGUE}->execute("masterJob", $queueid, "kill", "-status", "WAITING", "-status", "INSERTING");
       return;
     }
 
@@ -265,9 +260,10 @@ sub updateMerging {
       #$self->copyOutputDirectories( $queueid, $job_ca, $procDir, $user) 
 	#or die ("error copying the output directories");
       #$self->info("Output copied");
-      $self->checkMergingCollection($job_ca, $queueid, $procDir);
-      $self->checkMergingSubmission($job_ca, $queueid, $procDir, $user, $set, $info) 
+      $self->checkMergingCollection($job_ca, $queueid);
+      $self->checkMergingSubmission($job_ca, $queueid, $user, $set, $info) 
 	or die("Error doing the submission of the merging jobs");
+	    $self->checkFileBroker($queueid);
       if ($set->{newStatus}){
 	$status=$newStatus;
 	delete $set->{newStatus};
@@ -278,7 +274,6 @@ sub updateMerging {
     $newStatus="ERROR_M";
     $self->info("Error updating the job $queueid: $@");
   }
-  $self->{CATALOGUE}->execute("user","-", $olduser);
 
   if ($newStatus) {
     my $message="Job state transition from $status to $newStatus";
@@ -288,6 +283,13 @@ sub updateMerging {
     $self->putJobLog($queueid,"state", $message);
   }
   return 1;
+}
+
+sub checkFileBroker {
+	my $self=shift;
+	my $split=shift;
+	$self->info("DELETING FROM FILES_BROKER");
+	$self->{DB}->do("DELETE from FILES_BROKER where split=?", {bind_values=>[$split]});
 }
 
 
@@ -400,7 +402,6 @@ sub checkMergingSubmission {
   my $self=shift;
   my $job_ca=shift;
   my $queueid=shift;
-  my $procDir=shift;
   my $user=shift;
   my $set=shift;
   my $info=shift;
@@ -409,7 +410,7 @@ sub checkMergingSubmission {
 
   my ($ok,  @merge)=$job_ca->evaluateAttributeVectorString("Merge");
   
-  my $outputD="$procDir/merge";
+  my $outputD="~/alien-job-$queueid/merge";
   ($ok, my $t)=$job_ca->evaluateAttributeString("OutputDir");
   $t =~ s/\#.*$//;
   $ok and $outputD=$t;
@@ -425,7 +426,7 @@ sub checkMergingSubmission {
     my ($file, $jdl, $output)=split(":", $merge);
     
     $self->{CATALOGUE}->{CATALOG}->{ROLE}=$user;
-    my ($id)=$self->{CATALOGUE}->execute("submit","$jdl $queueid $file $output $user $procDir $outputD");
+    my ($id)=$self->{CATALOGUE}->execute("submit","$jdl $queueid $file $output $user $outputD");
     $self->{CATALOGUE}->{CATALOG}->{ROLE}="admin";
     
     $id or $self->info("Error submitting the job $jdl") and return;
@@ -442,7 +443,7 @@ sub checkMergingCollection{
   my $self=shift;
   my $job_ca=shift;
   my $queueid=shift;
-  my $procDir=shift;
+  
 
   $self->info("***Let's check if there are any collections");
 

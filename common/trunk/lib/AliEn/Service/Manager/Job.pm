@@ -278,16 +278,19 @@ sub enterCommand {
 
   my $nbJobsToSubmit = 1;
   if ($jobca_text =~ / split =/i) {
-    $DEBUG and $self->debug(1, "Master Job! Compute the number of sub-jobs");
-    $self->{DATASET} or $self->{DATASET} = AliEn::Dataset->new();
-    $self->{DATASET} or $self->info("Error creating the dataset parser") and return;
-    push @ISA, "AliEn::Service::Optimizer::Job::Splitting";
-    require AliEn::Service::Optimizer::Job::Splitting;
-    $nbJobsToSubmit = $self->_getNbSubJobs($job_ca);
-    pop @ISA;
-    $nbJobsToSubmit
-      or $self->info("Error getting the number of subjobs")
-      and return (-1, "Error getting the number of subjobs");
+  	#
+  	$self->info("Let's assume that we can submit at least 10 subjobs");
+  	$nbJobsToSubmit =10;
+    #$DEBUG and $self->debug(1, "Master Job! Compute the number of sub-jobs");
+    #$self->{DATASET} or $self->{DATASET} = AliEn::Dataset->new();
+    #$self->{DATASET} or $self->info("Error creating the dataset parser") and return;
+    #push @ISA, "AliEn::Service::Optimizer::Job::Splitting";
+    #require AliEn::Service::Optimizer::Job::Splitting;
+    #$nbJobsToSubmit = $self->_getNbSubJobs($job_ca);
+    #pop @ISA;
+    ##$nbJobsToSubmit
+    #  or $self->info("Error getting the number of subjobs")
+    #  and return (-1, "Error getting the number of subjobs");
     $direct = 0;
   }
 
@@ -1496,168 +1499,6 @@ sub putJobLog {
   my $tag     = shift or return (-1, "no tag specified");
   my $message = shift or return (-1, "no message specified");
   $self->{JOBLOG}->putlog($procid, $tag, "$message", @_);
-}
-
-=item C<getMasterJob>
-
-Displaies information about a masterjob and all of its children
-
-=cut
-
-sub getMasterJob {
-  my $this = shift;
-  $self->{LOGGER} or $this->info("We are entering the command directly") and $self = $this;
-  my $user = shift;
-  my $id   = shift;
-
-  defined $id or $self->info("No id in getMasterjob!!") and return (-1, "No id in getmasterjob!!");
-  $id =~ m{^\d+$} or $self->info(" $id doesn't look like a job id") and return (-1, "'$id' doesn't look like a job id");
-
-  my $error;
-
-  my $data = {command => "info"};
-
-  while (@_) {
-    my $argv = shift;
-    my $type;
-    $self->info("Checking $argv");
-    ($argv =~ /^-?-printid$/) and $data->{printId} = 1 and next;
-    ($argv =~ /^((kill)|(resubmit)|(expunge)|(merge))$/)
-      and $data->{command} = $1
-      and next;
-    ($argv =~ /^-?-printsite?/i) and $data->{printsite} = 1 and next;
-    if ($argv =~ /^-?-s(tatus)?$/i) {
-      $type = "status";
-      if ($_[0] =~ /^ERROR_ALL$/i) {
-        shift;
-        $data->{status} or $data->{status} = [];
-        push @{$data->{status}}, "status='EXPIRED'", "status='ERROR_IB'", "status='ERROR_V'", "status='ERROR_E'",
-          "status='FAILED'", "status='ERROR_SV'", "status='ERROR_A'", "status='ERROR_VN'";
-        next;
-      }
-    }
-    ($argv =~ /^-?-i(d)?$/i) and $type = "queueId";
-    ($argv =~ /^-?-site$/i)  and $type = "site";
-    $type or $error = "argument '$argv' not understood" and last;
-
-    my $value = shift or $error = "--$type requires a value" and last;
-    $data->{$type} or $data->{$type} = [];
-
-    push @{$data->{$type}}, "$type='$value'";
-
-  }
-  if ($error) {
-    my $message = "Error in masterJob: $error\n";
-    $self->{LOGGER}->error("JobManager", $message);
-    return (-1, $message);
-  }
-  my $cond = "where split=$id";
-  $data->{status}  and $cond .= " and (" . join(" or ", @{$data->{status}}) . ")";
-  $data->{queueId} and $cond .= " and (" . join(" or ", @{$data->{queueId}}) . ")";
-  my $exechost = "ifnull(substring(exechost,POSITION('\\\@' in exechost)+1),'')";
-  if ($data->{site}) {
-    map { s/^site='/$exechost='/ } @{$data->{site}};
-    $cond .= " and (" . join(" or ", @{$data->{site}}) . ")";
-  }
-  my $info = [];
-  if ($data->{command} eq "info") {
-    my $group = "status";
-    $data->{printsite} and $group = "concat(status,$exechost)";
-    my $columns = "status,count(*) as count";
-    $data->{printsite} and $columns .= ",$exechost as exechost";
-    my $query = "select $columns from QUEUE $cond group by $group";
-    $self->info("Doing the query $query");
-    $info = $self->{DB}->query($query)
-      or $self->{LOGGER}->error("JobManager", "In getTop error getting data from database")
-      and return (-1, "error getting data from database");
-
-    if ($data->{printId}) {
-      $self->info("Getting the ids under each status");
-      foreach my $job (@$info) {
-        my $extra = "";
-        $job->{exechost} and $extra = " and $exechost='$job->{exechost}'";
-        my $subId =
-          $self->{DB}->queryColumn("select queueId from QUEUE where split=$id and status='$job->{status}'$extra");
-
-        $job->{ids} = $subId;
-      }
-    }
-    my $jobInfo = $self->{DB}->queryRow("SELECT status,merging FROM QUEUE where queueid=$id");
-    $jobInfo or die("Error getting the information of job $id");
-    if ($jobInfo->{merging}) {
-      $self->info("The job is being merged. Let's see how is that going");
-      my @ids = split(",", $jobInfo->{merging});
-      map { $_ = "queueid=$_" } @ids;
-      my $merging = $self->{DB}->query("SELECT status, queueId FROM QUEUE where " . join(" or ", @ids));
-      $jobInfo->{merging} = $merging;
-
-    }
-    unshift @$info, $jobInfo;
-  } elsif ($data->{command} eq "expunge") {
-    $self->info("Removing the jobs ");
-    my $message = "Jobs expunged!!!";
-
-    my $jobIds = $self->{DB}->queryColumn("SELECT queueId from QUEUE $cond")
-      or return (-1, "Error getting the subjobs with $cond");
-    foreach my $subjob (@$jobIds) {
-      my $message = "Removing job $subjob";
-      $self->{DB}->delete("QUEUE", "queueId=$subjob");
-      }
-
-    push @$info, $message;
-    $self->putJobLog($id, "state", "Removed all the subjobs ($cond): $message");
-    
-  } elsif ($data->{command} eq "merge") {
-
-    $self->info("Merging the jobs that have finnished");
-    my $subjobs = $self->{DB}->query("SELECT queueId,submitHost FROM QUEUE $cond and STATUS='DONE'")
-      or return (-1, "Error getting the subjobs of $id");
-    if (!@$subjobs) {
-      $self->info("The job $id doesn't have any subjobs that have finished");
-      return (-1, "there are no finished subjobs of job $id");
-    }
-    $subjobs->[0]->{submitHost} =~ /^$user\@/
-      or return (-1, "the job doesn't belong to $user");
-    $self->changeStatusCommand($id, 'token', "%", 'FORCEMERGE')
-      or return (-1, "error putting the status to 'FORCEMERGE'");
-    $self->{DB}->update("ACTIONS", {todo => 1}, "action='MERGING'");
-
-    push @$info, "Forcing the merge of the output (this can take some time)";
-  } else {
-    my $commands = {
-      kill     => {sub => "killProcess"},
-      resubmit => {sub => "resubmitCommand", extra => [$id]}
-    };
-    my $subroutine = $commands->{$data->{command}}->{sub};
-    $self->info("We have to $data->{command} the subjobs of $id");
-    my $ids = $self->{DB}->queryColumn("select queueid from QUEUE $cond");
-    my @extra;
-    $commands->{$data->{command}}->{extra}
-      and push @extra, @{$commands->{$data->{command}}->{extra}};
-    my $masterWaiting = 0;
-
-    $self->{DB}->do("update QUEUE set mtime=now() where queueid=?", {bind_values => [$id]});
-    foreach my $subjob (@$ids) {
-      my (@done) = $self->$subroutine($subjob, $user, @extra);
-      if ($done[0] eq "-1") {
-        shift @done;
-        $self->putJobLog($id, "error", "Error $data->{command}ing  subjob $subjob: @done");
-        return [ $data->{command}, @$info, @done ];
-      }
-      $data->{command} =~ /resubmit/ and $masterWaiting = 1;
-      push @$info, "$data->{command}ing subjob $subjob ($done[0])";
-      $self->putJobLog($id, "state", "$data->{command}ing subjob $subjob ($done[0])");
-
-    }
-    if ($masterWaiting) {
-      $self->info("And we should put the masterJob to SPLIT");
-      $self->{DB}->updateStatus($id, 'DONE', 'SPLIT');
-    }
-  }
-  unshift @$info, $data->{command};
-  $self->info("getMasterJob done for $id");
-  return $info;
-
 }
 
 #_______________________________________________________________________________________________________________________

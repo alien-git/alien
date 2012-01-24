@@ -5,7 +5,7 @@ use strict;
 use AliEn::Service::Optimizer::Job;
 use AliEn::Service::Manager::Job;
 use Data::Dumper;
-
+use POSIX qw(ceil);
 use vars qw(@ISA);
 push (@ISA, "AliEn::Service::Optimizer::Job");
 
@@ -21,6 +21,21 @@ my $splitPerDirectory =sub  {
 
     return $file, $arg;
 };
+
+my $splitPerParentDirectory =sub  {
+    my $file=shift;
+    $file=~ s/\/[^\/]*\/?[^\/]*$//;
+    $file=~ s/^lf://i;
+    my $arg=$file;
+
+    $arg=~ s/^.*\/([^\/]*)$/-event $1/;
+
+    return $file, $arg;
+};
+my $splitPerEntries=sub  {
+    return 1, "";
+};
+
 my $splitPerFile =sub  {
     my $file=shift;
 
@@ -157,6 +172,59 @@ sub updateSplitting {
   return 1 ;
 }
 
+sub _splitSEAdvanced {
+	my $self=shift;
+	my $job_ca=shift;
+	my $queueId=shift;
+	my $findset=shift;
+	
+	my @files=$self->_getInputFiles($job_ca, $findset, $queueId) or return;
+	my $LIMIT=10;
+	if ($#files > $LIMIT ) {
+		$self->putJobLog($queueId, "error", "There are $#files. The limit for brokering per file is $LIMIT");
+	  $self->{DB}->updateStatus($queueId,"%","ERROR_SPLT")
+      or $self->info("Error updating status for job $queueId" );
+    $self->putJobLog($queueId,"state","Job state transition to ERROR_SPLT");
+	}
+	my $ses={};
+	foreach my $file (@files) {
+		$self->info("Checking the file $file");
+		$file=~ s/^LF://i;
+    $file =~ s/,nodownload$//;
+    my @se=$self->{CATALOGUE}->execute("whereis", "-lr", "-silent",$file);
+    my $done={};
+    foreach my $se (@se){
+    	
+    	$self->info("In $se");
+    	$done->{$se} and next;
+    	$done->{$se}=1;
+    	$ses->{$se} or $ses->{$se}=0;
+    	$ses->{$se}++;
+    }
+		$self->{DB}->insertFileBroker($queueId, $file, join(',', @se));
+		
+	}
+	my ($oknumber, $maxInputFileNumber) = $job_ca->evaluateAttributeString("SplitMaxInputFileNumber");
+	$maxInputFileNumber or $maxInputFileNumber=@files;
+	$self->info("We don't want more than $maxInputFileNumber files per job");
+
+	my $jobs;	
+	my ( $ok, $origreq ) = $job_ca->evaluateExpression("Requirements");
+	foreach my $se (keys %$ses){
+		my $number=ceil($ses->{$se}*1.0/$maxInputFileNumber);
+		$self->info("For the se $se, submit $number agents");
+		for (my $i=0; $i<$number; $i++){
+		 $jobs->{"${se}$i"}={fileBroker=>1,
+		 		requirements=> "$origreq && member(other.CloseSE,\"$se\") && this.filebroker==1  ",
+		 		 files=>[]};
+		}	
+	
+	}
+
+	$self->info("The se_automatic finished");
+	return "se_automatic", $jobs;	
+}
+
 
 sub SplitJob{
   my $self=shift;
@@ -189,6 +257,8 @@ sub SplitJob{
   my $eventstop =0;
 
   ($split =~ /^directory$/i) and $sort= $splitPerDirectory;
+  ($split =~ /^parentdirectory$/i) and $sort= $splitPerParentDirectory;
+  ($split =~ /^entries$/i) and $sort= $splitPerEntries;
   ($split =~ /^file$/i) and $sort=$splitPerFile;
   ($split =~ /^event$/i) and $sort=$splitPerEvent;
   ($split =~ /^se$/i) and $sort=$splitPerSE;
@@ -201,6 +271,11 @@ sub SplitJob{
     my ($ok, @jdls)=$job_ca->evaluateAttributeVectorString("SplitDefinitions");
     @jdls or $self->info("There are no splitdefinitions") and return;
     return ("userdefined");
+  }
+  
+  if ($split =~ /^se_advanced$/i){
+  	$self->info("Splitting by SE, and letting each subjob select files");
+  	return $self->_splitSEAdvanced($job_ca, $queueid, $findset);  	
   }
 
   $sort or
@@ -403,8 +478,9 @@ sub SubmitSplitJob {
   #this matching can't be done with global in case there are two 
   #consecutive entries that have to be removed
   while(  $text =~ s/;\s*split[^;\]]*;/;/is) {};
-  $text=~ s/;\s*inputdatacollection[^;\]]*;/;/i;
-  $text =~ s/;\s*email[^;]*;/;/is;
+  $text=~ s/;\s*inputdatacollection\s*=[^;\]]*;/;/i;
+  $text=~ s/;\s*inputdata\s*=[^;\]]*;/;/i;
+  $text =~ s/;\s*email\s*=[^;]*;/;/is;
   #$text =~ s/;\s*requirements[^;\]]*;/;/i;
 
   $text =~ s/\[;/\[/;
@@ -463,7 +539,7 @@ sub SubmitSplitJob {
 
     my $new_req=$origreq;
     if ($jobs->{$pos}->{requirements}){
-      $self->info("This subjob has some requirements!!");
+      $self->info("This subjob has some requirements!! $jobs->{$pos}->{requirements}");
       $new_req=$jobs->{$pos}->{requirements};
     }
     $job_ca->set_expression("Requirements", $new_req);
@@ -472,6 +548,9 @@ sub SubmitSplitJob {
     if ($input) {
       $job_ca->set_expression("InputData", $input);
       $self->{CATALOGUE}->{QUEUE}->checkRequirements($job_ca) or next;
+    } elsif($jobs->{$pos}->{fileBroker}){
+    	$job_ca->set_expression("FileBroker", 1);
+       	    	
     }
 
     foreach my $splitargs (@splitarguments){
@@ -661,7 +740,9 @@ sub _setInputData {
     $input .= "$file, ";
     #			$input = "{". join (", ", @{$jobs->{$pos}->{files}}) . "}";
 
-    if ($file=~ /^([^\*]*)\/(.*)\/(.*)\/(.*)$/) { $path=$1; $run=$2; if ($first){$eventstart=$3;$first=0;};$eventstop=$3;};
+    if ($file=~ /^([^\*]*)\/(.*)\/(.*)\/(.*)$/) { 
+    	 $path=$1; $run=$2; if ($first){$eventstart=$3;$first=0;};$eventstop=$3;
+    }
     if (@inputdataset) {
       my $dir;
       my $name;
