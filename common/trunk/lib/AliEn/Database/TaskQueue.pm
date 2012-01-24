@@ -133,6 +133,7 @@ sub initialize {
       notify       => "varchar(255)",
       agentid      => 'int(11)',
       mtime        => 'timestamp  DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
+      resubmission => 'int(11) not null default 0',
     },
     id          => "queueId",
     index       => "queueId",
@@ -204,6 +205,7 @@ sub initialize {
         partition    => "varchar(50) COLLATE latin1_general_ci",
         ce           => "varchar(50) COLLATE latin1_general_ci",
         user         => "varchar(12)",
+        fileBroker    => "tinyint(1) default 0 not null",
       },
       id          => "entryId",
       index       => "entryId",
@@ -281,6 +283,17 @@ sub initialize {
       },
       id => "queueid"
     },
+    FILES_BROKER=> {
+    	columns=>{"lfn"=> "varchar(255) not null",
+    			"split" =>"int(11) not null ",
+    			"sites"=>"varchar(255) not null",
+    			"queueid" => "int(11) default null",
+    	},
+
+    	extra_index=>['split', "unique index(split,lfn)"],
+    	id=>"lfn"
+    	
+    }
 
   };
   foreach my $table (keys %$tables) {
@@ -1172,6 +1185,7 @@ sub extractFieldsFromReq {
   $text =~ s/other.LocalDiskSpace\s*>\s*(\d*)// and $params->{disk}=$1; 
   $text =~ s/other.GridPartitions,"([^"]*)"//i and $params->{partition}=$1; 
   $text =~ s/other.ce\s*==\s*"([^"]*)"//i and $params->{ce}=$1;
+  $text =~ s/this.filebroker\s*==\s*1//i and $params->{fileBroker}=1;
  
   $self->info("The ttl is $params->{ttl} and the site is in fact '$site'. Left  '$text' ");
   return $params;
@@ -1275,9 +1289,15 @@ sub getNumberWaitingForSite{
   $options->{partition} and $where .="and ? like partition " and push @bind, $options->{partition};
   $options->{ce} and $where.=" and (ce is null or ce=?)" and push @bind,$options->{ce};
   $options->{returnPackages} and $return="packages";
-  $options->{returnId} and $return="entryId";
+  my $method="queryValue";
+  if ($options->{returnId}){
+    $return="entryId,fileBroker";
+    $method="queryRow";
+	}
   
-  return $self->queryValue("select $return from JOBAGENT where 1=1 $where  limit 1", undef, {bind_values=>\@bind});
+
+  
+  return $self->$method("select $return from JOBAGENT where 1=1 $where  limit 1", undef, {bind_values=>\@bind});
   
 }
 
@@ -1315,7 +1335,10 @@ sub resubmitJob{
 	
 	$self->queryValue("select 1 from QUEUE where queueid=? and masterjob=1", undef, {bind_values=>[$queueid]})
 	  and $status="INSERTING";
-	$self->update("QUEUE", {status=>$status, exechost=>'', started=>'', finished=>''}, "queueid=?",{bind_values=>[$queueid]} );
+	$self->update("QUEUE", {status=>$status, exechost=>'""', started=>'""', finished=>'""',
+		                      resubmission=>'resubmission+1'}, "queueid=?",
+	{bind_values=>[$queueid],noquotes=>1,
+	} );
 	#Should we delete the QUEUEPROC???
 	
 	#Finally, udpate the JOBAGENT
@@ -1343,6 +1366,20 @@ sub resubmitJob{
 
 	
 	return $queueid
+}
+
+sub insertFileBroker{
+	my $self=shift;
+	my $masterId=shift;
+	my $lfn=shift;
+	my @ses=@_;
+	
+	my $sites=",";
+	foreach my $se (@ses){
+		$se=~ /::(.*)::/ and $sites.=lc($1) .",";
+	}
+	
+	$self->insert("FILES_BROKER", {split=>$masterId, lfn=>$lfn, sites=>$sites})
 }
 
 =head1 NAME
