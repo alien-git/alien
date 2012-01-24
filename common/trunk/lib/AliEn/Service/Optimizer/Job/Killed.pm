@@ -25,14 +25,20 @@ sub checkWakesUp {
   my $todo=$self->{DB}->queryValue("SELECT todo from ACTIONS where action='KILLED'");
   $todo or return;
   $self->{DB}->update("ACTIONS", {todo=>0}, "action='KILLED'");
-  $self->{DB}->lock("QUEUEJDL write, QUEUEPROC write, QUEUE write, SITEQUEUES");
-
-  $self->{DB}->do("delete from QUEUEJDL using QUEUEJDL join QUEUE using (queueid) where status='KILLED'");
-  $self->{DB}->do("delete from QUEUEPROC using QUEUEPROC join QUEUE using (queueid) where status='KILLED'");
-  $self->{DB}->do("delete from QUEUE where status='KILLED'");
+ 
+  #We take the max timestamp to make sure that jobs killed while we are doing this are processed in 
+  #the next iteration 
+	my $time=$self->{DB}->queryValues("select max(timestamp) from QUEUE where status='KILLED'");
+  $self->{DB}->do("delete from a using QUEUEJDL a join QUEUE using (queueid) where status='KILLED' and mtime<=?",
+                  {bind_values=>[$time]});
+  $self->{DB}->do("delete from a using QUEUEPROC a join QUEUE using (queueid) where status='KILLED' and mtime<=?",
+                  {bind_values=>[$time]});
+  $self->{DB}->do("delete from a using FILES_BROKER a join QUEUE q on (a.split=q.queueid) where status='KILLED' and mtime<=?",
+                  {bind_values=>[$time]});
+  $self->{DB}->do("delete from QUEUE where status='KILLED' and mtime<=?",
+                  {bind_values=>[$time]});
   $self->{DB}->do("update SITEQUEUES set killed=0");
-  $self->{DB}->unlock();
-  my $done=$self->checkJobs($silent, "KILLED", "updateKilled");
+  
 
   $self->info( "The inserting optimizer finished");
   return;
