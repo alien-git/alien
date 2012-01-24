@@ -2352,44 +2352,39 @@ sub updateLFNStats {
   my $values = "";
   my $total  = $#$oldGUIDList + $#$newGUIDList + 2;
   $self->info("In total, there are $total guid tables affected");
-  my $lfnRef = "$self->{CURHOSTID}_$number";
+  my $lfnRef = "$number";
   foreach my $elem (@$oldGUIDList, @$newGUIDList) {
+    $done->{$elem->{tableName}} and next;
+    $done->{$elem->{tableName}}=1;
     $values .= " (?, 'TODELETE'), ";
     push @bind, $elem->{tableName};
     push @bind, $elem->{tableName};
     $self->info("Doing $elem->{tableName}");
-    my $gtable = "$elem->{db}.G$elem->{tableName}L";
+    my $gtable = "G$elem->{tableName}L";
 
-    if ($elem->{address} eq $self->{HOST}) {
-      $self->debug(1, "This is the same host. It is easy");
+    $self->debug(1, "This is the same host. It is easy");
 
-      my $maxGuidTime = $self->queryValue(
-"select substr(min(guidTime),1,8) from GUIDINDEX where guidTime> (select guidTime from GUIDINDEX where tableName=?  and hostindex=?)",
-        undef,
-        {bind_values => [ $elem->{tableName}, $elem->{hostIndex} ]}
-      );
-      my $query =
-"insert into ${gtable}_REF(guidid,lfnRef) select g.guidid, ? from $gtable g join $table l using (guid) left join ${gtable}_REF r on g.guidid=r.guidid and lfnref=? where r.guidid is null and l.guidtime>=(select substr(guidtime,1,8) from GUIDINDEX where tablename=? and hostIndex=? )";
-      my $bind = [ $lfnRef, $lfnRef, $elem->{tableName}, $elem->{hostIndex} ];
-      if ($maxGuidTime) {
-        $self->info("The next guid is $maxGuidTime");
-        $query .= " and l.guidTime<?";
-        push @$bind, $maxGuidTime;
-      }
-      $self->do(
+    my $maxGuidTime = $self->queryValue(
+"select substr(min(guidTime),1,8) from GUIDINDEX where guidTime> (select guidTime from GUIDINDEX where tableName=? )",
+      undef,
+      {bind_values => [ $elem->{tableName} ]}
+    );
+    my $query =
+"insert into ${gtable}_REF(guidid,lfnRef) select g.guidid, ? from $gtable g join $table l using (guid) left join ${gtable}_REF r on g.guidid=r.guidid and lfnref=? where r.guidid is null and l.guidtime>=(select substr(guidtime,1,8) from GUIDINDEX where tablename=?  )";
+    my $bind = [ $lfnRef, $lfnRef, $elem->{tableName} ];
+    if ($maxGuidTime) {
+      $self->info("The next guid is $maxGuidTime");
+      $query .= " and l.guidTime<?";
+      push @$bind, $maxGuidTime;
+    }
+    $self->do(
 "delete from ${gtable}_REF using ${gtable}_REF left join $gtable using (guidid) left join $table l using (guid) where l.guid is null and lfnRef=?",
         {bind_values => [$lfnRef]}
-      );
-      $self->do($query, {bind_values => $bind});
-    } else {
-      $self->info("This is in another host. We can't do it easily :( 'orphan guids won't be detected'");
-      $self->do(
-"update  $gtable g, $table l set lfnRef=concat(lfnRef, concat( ?, ',')) where g.guid=l.guid and g.lfnRef not like concat(',',concact(?,','))",
-        {bind_values => [ $number, $number ]}
-      );
-    }
+    );
+    $self->do($query, {bind_values => $bind});
   }
-  if ($values) {
+  if (0){
+ # if ($values) {
     $self->info("And now, let's put the guid tables in the list of tables that have to be checked");
     $values =~ s/, $//;
     $self->do(

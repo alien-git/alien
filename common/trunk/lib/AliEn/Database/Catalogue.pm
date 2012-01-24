@@ -504,25 +504,14 @@ sub checkLFN {
   $dbname
     and $dbname !~ /^$self->{DB}$/
     and return;
-  $self->info("Checking the tables in $self->{DB}");
+  $self->info("YUHUU Checking the tables in $self->{DB}");
+  
 
-
-  my $tables = $self->queryColumn('select tablename from INDEXTABLE order by 1', undef, undef);
+  #my $tables = $self->queryColumn('select tablename from INDEXTABLE order by 1', undef, undef);
+  my $tables= $self->queryColumn('select table_name from (select table_rows, table_name, update_time, extra, time  from information_schema.TABLES left join LL_ACTIONS on (action="STATS" and table_name=concat("L", tableNumber,"L"))  where table_name like "L%L" and table_schema="alien_system") d  where extra is null or table_rows != extra or time>update_time');
   foreach my $t (@$tables) {
-          $ctable
-      and $ctable !~ /^L${t}L$/
-      and $self->info("Skipping table L${t}L")
-      and next;
-    if (
-      $self->queryValue(
-"select 1 from (select max(ctime) ctime, count(*) counter from L${t}L) a left join  LL_ACTIONS on tablenumber=? and action='STATS' where extra is null or extra<>counter or time is null or time<ctime",
-        undef,
-        {bind_values => [$t]}
-      )
-      ) {
       $self->info("We have to update the table $t");
       $self->updateLFNStats($t);
-    }
   }
   return 1;
 }
