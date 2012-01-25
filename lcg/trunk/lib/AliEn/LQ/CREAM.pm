@@ -432,8 +432,8 @@ sub getCEInfo {
   foreach ( @items ) {
      $values->{$_} = [];
   }
-  foreach my $cluster ( @{$self->{CE_CLUSTERSTATUS}} ) {
-    foreach my $CE ( keys %{$cluster} ) {
+  CLUSTERLOOP: foreach my $cluster ( @{$self->{CE_CLUSTERSTATUS}} ) {
+    CELOOP: foreach my $CE ( keys %{$cluster} ) {
       # next if ($cluster->{$CE}<0);
       $self->debug(1,"Querying for $CE");
       my $res = $self->queryBDII($CE,'',"GlueVOViewLocalID=\L$self->{CONFIG}->{LCGVO}\E,GlueCEUniqueID=$CE",@_);
@@ -444,7 +444,7 @@ sub getCEInfo {
             $self->{LOGGER}->warning("LCG","Query for $CE gave $_=444444.");
             $self->info("Query for $CE gave $_=444444, blacklisting.");
 	    $self->setCESlots($CE,-1);
-            next;
+            next CELOOP;
           }
 	  if (defined $res->{$_}) {
             push @{$values->{$_}}, $res->{$_};  
@@ -455,7 +455,7 @@ sub getCEInfo {
         $self->{LOGGER}->warning("LCG","Query for $CE failed, blacklisting.");
         $self->info("Query for $CE failed, blacklisting.");
 	$self->setCESlots($CE,-1);
-        next;
+        next CELOOP;
       }
       last;   
     }
