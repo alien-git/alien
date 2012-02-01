@@ -7,7 +7,7 @@ use strict;
 use AliEn::Util;
 use vars qw(@ISA);
 
-@ISA = ('AliEn::Logger::LogObject', @ISA);
+@ISA = ('AliEn::Logger::LogObject','AliEn::PackMan',  @ISA);
 
 sub new {
   my $proto   = shift;
@@ -40,159 +40,38 @@ sub new {
   }
   $self->{LIST_FILE_TTL} or $self->{LIST_FILE_TTL} = 7200;
   $self->{REALLY_INST_DIR} or $self->{REALLY_INST_DIR}=$self->{INSTALLDIR};
-
+  $self->info("WE HAVE A CLIENTPACKMAN INSTANCE");
   return $self;
 }
-
-sub f_packman_HELP{
-  return AliEn::PackMan::f_packman_HELP(@_);
+sub registerPackageInDB{
+  my $self=shift;
+  $self->info("THIS SHOULD BE DONE OVER AUTHEN");
+  return $self->{CATALOGUE}->{CATALOG}->callAuthen("packman", 'registerPackageInDB', @_);
 }
 
-sub f_packman {
-  my $self = shift;
-  my @arg = @_;
-  my $operation = shift @arg;
-  $operation or $self->info("The operation is not specified!") and return;
-
-  if ($operation =~ /^l(ist)?$/) {
-     return $self->getListPackages(@_);
-  }
-  elsif ($operation =~ /^listI(nstalled)?$/) {
-     return $self->getListInstalledPackages($self, @_);
-  }
-  elsif ($operation =~ /^i(nstall)?$/) {
-     return $self->installPackage(@_);
-  }
-  elsif ($operation =~ /^t(est)?$/) {
-     return $self->testPackage(@_);
-  }
-  elsif ($operation =~ /^d(efine)?$/) {
-    return $self->definePackage(@_);
-  }
-  elsif ($operation =~ /^u(ndefine)?$/) {
-    return  $self->undefinePackage(@_);
-  }
-  elsif ($operation =~ /^r(emove|m)?$/) {
-    return $self->removePackage( @_);
-  }
-  elsif ($operation =~ /^synchronize$/) {
-    return $self->synchronizePackages($self, @_);
-  }
-  elsif ($operation =~ /^dependencies$/) {
-    return $self->getDependencies( @_);
-  }
-  elsif ($operation =~ /^installLog?$/) {
-    return $self->getInstallLog(@_);
-  }
-#  elsif ($operation =~ /^recompute?$/) {
-#    $self->info("And deleting any local caches");
-#    my $dir = ($self->{CONFIG}->{PACKMAN_INSTALLDIR} || '$ALIEN_HOME/packages');
-#    system("rm -f $dir/alien_list_*");
-#    return $self->recomputeListPackages($self, @_);
-#    return $self->recomputeListPackages( @_);
-#  }
-  else {
-   return AliEn::PackMan::f_packman($self, @_);
-  }
-return 1;
+sub getListPackagesFromDB {
+  my $self=shift;
+  $self->info("WE HAVE TO ASK THE SERVER");
+  my @d=$self->{CATALOGUE}->{CATALOG}->callAuthen("packman", 'getListPackagesFromDB', @_);
+  return $d[0];
 }
-
+sub recomputePackages {
+  my $self=shift;
+  $self->info("Ready to call the packman");
+  return $self->{CATALOGUE}->{CATALOG}->callAuthen("packman", "recompute",@_);
+}
+sub findPackageLFN{
+  my $self=shift;
+  $self->info("FINDING THE LFN IN THE SERVER");
+  my @s=$self->{CATALOGUE}->{CATALOG}->callAuthen("packman", "findPackageLFN", @_);
+  print Dumper($s[0]);
+  print "THAT' ALL\n";
+  use Data::Dumper;
+  return $s[0];
+}
 ### BASIC COMMANDS ###
 
-sub getListPackages{
-  my $self = shift;
-  return $self->{CATALOGUE}->{CATALOG}->callAuthen("packman", @_);
-}
 
-sub installPackage{
-  my $self = shift;
-  return $self->{CATALOGUE}->{CATALOG}->callAuthen("packman", @_);
-}
-
-sub getDependencies {
-  my $self = shift;
-  return $self->{CATALOGUE}->{CATALOG}->callAuthen("packman", @_);
-}
-
-sub getInstallLog {
-  my $self = shift;
-  return $self->{CATALOGUE}->{CATALOG}->callAuthen("packman", @_);
-}
-
-sub testPackage {
-  my $self = shift;
-  return $self->{CATALOGUE}->{CATALOG}->callAuthen("packman", @_);
-}
-
-
-sub definePackage{
-  my $self = shift;
-  return $self->{CATALOGUE}->{CATALOG}->callAuthen("packman", @_);
-
-}
-
-sub undefinePackage{
- my $self = shift;
-  return $self->{CATALOGUE}->{CATALOG}->callAuthen("packman", @_);
-
-}
-  
-
-sub synchronizePackages{
-  return AliEn::PackMan::synchronizePackages(@_);
-}
-
-sub removePackage{
-  my $self = shift;
-  return $self->{CATALOGUE}->{CATALOG}->callAuthen("packman", @_);
-# return AliEn::PackMan::removePackage(@_);
-}
-
-#sub recomputeListPackages{
-#  return AliEn::PackMan::recomputeListPackages(@_);
-#}
-
-#############################
-sub createListFiles{
-  my $self=shift;
-  return  AliEn::PackMan::createListFiles($self);
-}
-
-sub printPackages {
-  return AliEn::PackMan::printPackages(@_);
-}
-
-sub getListInstalled_Internal {
-  return  AliEn::PackMan::getListInstalled_Internal(@_);
-} 
-
-sub getListInstalledPackages{
-  return  AliEn::PackMan::getListInstalledPackages(@_);
-} 
-
-sub getListInstalledPackages_ {
-  return  AliEn::PackMan::getListInstalledPackages_(@_);
-}
-
-sub getSubDir {
-  return AliEn::PackMan::getSubDir(@_);
-} 
-
-sub readPackagesFromFile {
-  return AliEn::PackMan::readPackagesFromFile(@_);
-}
-
-sub isPackageInstalled{
-  return AliEn::PackMan::isPackageInstalled(@_);
-}
-
-sub existsPackage{
-  return AliEn::PackMan::existsPackage(@_);
-}
-
-sub findPackageLFN{
-  return AliEn::PackMan::findPackageLFN(@_);
-}
 
 return 1;
 __END__

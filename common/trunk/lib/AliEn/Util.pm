@@ -238,7 +238,8 @@ sub returnCacheValue {
       return;
     }
   }
-  $self->debug(1, "Returning the value from the cache ($self->{CACHE}->{$name}->{value})");
+  $self->debug(1, "Returning the value from the cache $self->{CACHE}->{$name}->{value}");
+
   return $self->{CACHE}->{$name}->{value};
 
 }

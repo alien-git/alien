@@ -11,7 +11,7 @@ use AliEn::UI::Catalogue;
 use AliEn::Database::Catalogue;
 
 use vars qw (@ISA $DEBUG);
-
+use Filesys::DiskFree;
 push @ISA, 'AliEn::Logger::LogObject';
 $DEBUG = 0;
 
@@ -41,7 +41,7 @@ sub new {
   $self->{LIST_FILE_TTL} or $self->{LIST_FILE_TTL} = 7200;
 
   $self->initialize(@_) or return;
-  
+  $self->info("WE HAVE A REAL PACKMAN INSTANCE!!!");  
   return $self;
 }
 
@@ -84,7 +84,7 @@ Possible commands:
 \tpackman remove  <package>: removes a package from the local cache
 \tpackman define <name> <version> <tar file> [<package options>]
 \tpackman undefine <name> <version>
-#\tpackman recompute: (only for admin) recompute the list of packages.
+\tpackman recompute: (only for admin) recompute the list of packages.
 \tpackman synchronize [-retry number]:\tinstalls all the existing packages, and removes the packages locally installed that do not exist anymore.
 Package options: -platform source, else the default for the local system is used
 		 -retry number specifies a number of retries if the command cannot get the list of packages
@@ -126,7 +126,6 @@ return 1;
 }
 
 ############################
-  my $direct = 0;
   $string =~ s{-?-silent\s+}{} and $silent = 1;
 
 ################################################
@@ -161,14 +160,22 @@ return 1;
   my $callfunction;
   my $requiresPackage = 0;
 
-  if ($operation =~ /^l(ist)?$/) {
-    $callfunction  = "getListPackages";
-    $operation = "list";
-    $direct = 1;
-  } elsif ($operation =~ /^listI(nstalled)?$/) {
+
+  my $normalOp= {'l'=>'getListPackages','list'=>'getListPackages',
+                 'd'=>'definePackage', 'define'=>'definePackage',
+		'getListPackagesFromDB'=>'getListPackagesFromDB',
+                  'registerPackageInDB' =>'registerPackageInDB',
+		'recompute'=>"recomputePackages",
+		"findPackageLFN"=>"findPackageLFN"
+};
+  if ($normalOp->{$operation}){
+    my $op=$normalOp->{$operation};
+    return $self->$op(@arg);
+  }
+
+  if ($operation =~ /^listI(nstalled)?$/) {
     $callfunction  = "getListInstalledPackages";
     $operation = "listInstalled";
-    $direct = 1;
   } elsif ($operation =~ /^t(est)?$/) {
     $requiresPackage = 1;
     $callfunction        = "testPackage";
@@ -181,8 +188,6 @@ return 1;
     $requiresPackage = 1;
     $callfunction        = "removePackage";
     $operation       = "remove";
-  } elsif ($operation =~ /^d(efine)?$/) {
-    return $self->definePackage(@arg);
   } elsif ($operation =~ /^u(ndefine)?$/) {
     return $self->undefinePackage(@arg);
   } elsif ($operation =~ /^dependencies$/) {
@@ -192,13 +197,6 @@ return 1;
     $callfunction        = "getInstallLog";
     $requiresPackage = 1;
   } 
-  #elsif ($operation =~ /^recompute?$/) {
-  #  $callfunction = "recomputeListPackages";
-  #  $self->info("And deleting any local caches");
-  #  my $dir = $self->{INSTALLDIR};
-    
-    #system("rm -f $dir/alien_list_*");
-  #}
     elsif ($operation =~ /^synchronize$/) {
     return $self->synchronizePackages(@_);
   } else {
@@ -220,88 +218,9 @@ return 1;
     @arg = ($user, $package, $version, @arg);
   }
 
-  my (@result, $done);
+  $silent or $self->info("Let's do $operation (@arg)");
 
-  if ($direct) {
-    $self->info("Calling directly $callfunction (@_)");
-    return $self->$callfunction(@_);
-    
-  }
-  else {
-    $silent or $self->info("Let's do $operation (@arg)");
-
-    ($done, @result) = $self->$callfunction( @arg);
-    if (!$done or $done < 0) {
-      my $print = 0;
-      my $error =  shift @result;
-      $error or $error = "Error talking to the PackMan";
-      $error =~ /Package is being installed/ or $print = 1 + $print;
-  
-      ($callfunction eq "installPackage")
-      and $error =~ /Package is being installed/
-      and $error = "Don't PANIC!! The previous message is not a real error. The package is being installed.\n\t\tYou can use \"installLog\" to check the status of the 
-installation";
-      #If the error message is that the package is being installed, do not print an error
-      $self->info($error);
-      return;
-    }
-
-    $done or $self->info("Error asking for the packages") and return;
-
-  }
-
-  my $return = 1;
-
-
- if ($operation =~ /^list(installed)?/i) {
-    my $message = "The PackMan has the following packages";
-    $1 and $message .= " $1";
-    $silent or $self->info(join("\n\t", "$message:", @result));
-
-    if ($returnhash) {
-      my @hashresult;
-      map {
-        my $newhash = {};
-        my ($user, $package) = split '@', $_;
-        $newhash->{user}    = $user;
-        $newhash->{package} = $package;
-        push @hashresult, $newhash;
-      } @result;
-      return @hashresult;
-    }
-   $return = \@result; 
-}  elsif ($operation =~ /^t(est)?$/) {
-    $silent
-      or $self->info(
-      "The package (version $done) has been installed properly\nThe package has the following metainformation\n"
-        . Dumper(shift @result));
-    my $list = shift @result;
-    $silent or $self->info("This is how the directory of the package looks like:\n $list");
-    my $env = shift @result;
-    $env and $self->info("The package will configure the environment to something similar to:\n$env");
-  }
-  elsif ($operation =~ /^r(emove|m)$/) {
-    $self->info("Package removed!!\n");
-  }
-  elsif ($operation =~ /^dependencies$/) {
-    my $info = shift @result;
-    $info or $self->info("The package doesn't have any dependencies\n") and return;
-    $self->info("The information of the package is:");
-    foreach (keys %$info) {
-      /entryId/ and next;
-      $info->{$_} and $self->info("\t$_:\t\t$info->{$_}", 0, 0);
-    }
-  } elsif ($operation =~ /^installLog$/) {
-      $self->info(
-      "The installation log is\n
-=========================================================
-$done
-=========================================================
-\n"
-    );
-  }
-
-  return $return;
+  return  $self->$callfunction( @arg);
 }
 
 ############GetlisInstalledPackages_ 
@@ -352,39 +271,27 @@ sub getSubDir{
 sub getListInstalledPackages {
   my $self = shift;
   
-  my @packages = $self->getListInstalled_Internal(@_) or return;
+  my ($status, @packages) = $self->getListInstalled_Internal(@_) or return;
   
   grep (/^-s(ilent)?$/, @_)
     or $self->printPackages({input => \@_, text => " installed"}, @packages);
   
-  return @packages;
+  return ($status, @packages);
 }
 
 #This is the method that has to be overwritten in other implemetations
 sub getListInstalled_Internal {
   my $self = shift;
    
-  my ($status, @list) = (0, undef);
-  if (!grep (/-force/, @_)) {
-#    ($status, @list) = $self->readPackagesFromFile("alien_list_installed");
-  ($status, @list) = $self->readPackagesFromFile("alien_listInstalled_packages_");
-  $status or $status=0; 
-  }
   $DEBUG and $self->debug(1, "Asking the PackMan for the packages that it has installed");
 
-  if (!$status or $status != 1) {
-  AliEn::Util::deleteCache($self);
-     my $cache=AliEn::Util::returnCacheValue($self, "installedPackages");
-     if ($cache and $cache->[0]){
+  my $cache=AliEn::Util::returnCacheValue($self, "installedPackages");
+  if ($cache and $cache->[0]){
     $self->info("This is for test the returned cache (@$cache)");
     return (1, @$cache);
-    }
-     ($status, @list) = $self->getListInstalledPackages_() or return;
-     AliEn::Util::setCacheValue($self, "installedPackages", \@list);    
-   } elsif ($status < 0) {
-      $self->info("Well, the info is old, but it is better than nothing");
-      $status = 1;
-    }
+  }
+  my ($status, @list) = $self->getListInstalledPackages_() or return;
+   AliEn::Util::setCacheValue($self, "installedPackages", \@list);    
 
   $DEBUG and $self->debug(2, "The list of installed is @list");
   return $status, @list;
@@ -398,129 +305,72 @@ Returns a list of all the packages defined in the system
 
 sub getListPackages {
   my $self = shift;
-  my $platform = AliEn::Util::getPlatform($self);
-  grep (/^-all/, @_) and $platform = "all";
-
+  my $platform ;
   my $retry = 1;
   my $maxRetry = 25;
   my $options={retry=>1};
   my @old=@ARGV;
   @ARGV  = @_;
   Getopt::Long::Configure("pass_through");
-  Getopt::Long::GetOptions($options, "retry=i");
+  Getopt::Long::GetOptions($options, "retry=i", "platform=s");
   Getopt::Long::Configure("default");
   @_=@ARGV;
   @ARGV=@old;
+  if ($options->{platform}){
+    $platform=$options->{platform};
+  } elsif( grep (/^-all/, @_)){
+    $platform="all";
+  } else{
+    $platform = AliEn::Util::getPlatform($self);
+  }
   if($options->{retry} <= $maxRetry){
     $retry = $options->{retry} if ($options->{retry} > 0);
   }else{
     $retry = $maxRetry;
   }
 
-  my ($status, @packages) = (0, undef);
-  if (!grep (/-force/, @_)) {
-    ($status, @packages) = $self->readPackagesFromFile("alien_list_packages_$platform");
+  $self->info("Asking for the list of all the packages defined in the system");
+
+  grep (/^-?-force$/, @_)
+      and  AliEn::Util::deleteCache($self);
+
+  my $packages=AliEn::Util::returnCacheValue($self, "listPackages-$platform");
+  if (defined $packages ) {
+     $self->debug(1, "Returning the value from the cache (@$packages)");
+  } else{
+    $self->debug(1, "Retrieving the list of Packages (@_)");
+    $packages=$self->getListPackagesFromDB($platform);
+    defined $packages or return;
+    AliEn::Util::setCacheValue($self, "listPackages-$platform", $packages);
+
   }
-  if ($status != 1 or $#packages == 0)
-  {
-    while (1)
-      {
-        $self->info("Asking for the list of all the packages defined in the system");
+  grep (/^-s(ilent)?$/, @_) or $self->printPackages({input => \@_}, @$packages);
+  return 1, @$packages;
+}
 
-        grep (/^-?-force$/, @_)
-        and  AliEn::Util::deleteCache($self);
 
-        my $platform=AliEn::Util::getPlatform($self);
+sub getListPackagesFromDB {
+  my $self=shift;
+  my $platform=shift;
+  my $query="SELECT distinct fullPackageName from PACKAGES";
+  my $bind=[];
 
-        if (grep (/^-?-all$/, @_)) {
-            $self->info("Returning the info of all platforms");
-            $platform="all";
-        }
-        my $cache=AliEn::Util::returnCacheValue($self, "listPackages-$platform");
-        if ($cache and $cache->[0]) {
-           $self->info( "Returning the value from the cache (@$cache)");
-           return (1, @$cache);
-        }
-
-        $self->info("Retrieving the list of Packages (@_)");
-        my $query="SELECT distinct fullPackageName from PACKAGES";
-        my $bind=[];
-
-       if( $platform ne  "all") {
-         $self->info("Returning the info of the platform $platform");
-         $query.=" where  (platform=?  or platform='source')";
-         $bind=[$platform];
-       }
-       $self->info("Let's do query $query");
-       my $packages=$self->{DB}->queryColumn($query,undef, {bind_values=>$bind})
-         or $self->info("Error doing the query") and return;
-       my ($done, @pack) = ( 1, @$packages);
-
-       AliEn::Util::setCacheValue($self, "listPackages-$platform", \@pack);
-       if ($done and $done == 1 and $#pack >= 0 ){
-          ($status, @packages) = ($done, @pack);
-          last;
-       }
-       elsif ($status < 0 and $#pack >= 0) {
-          $self->info("Well, the info is old, but it is better than nothing");
-          $status = 1;
-          last;
-      }
-       elsif (!$done or !$pack[0]) {
-          $retry--;
-          $retry or $self->info("Can't get the list of packages!!!\n") and return;
-          $self->info("Can't get the list of packages. Let's sleep for some time and try again");
-          sleep(2*$retry);
-       }
-       else{
-         $self->info("Can't get the list of packages!!!\n") and return;
-       }
-     }
+  if( $platform ne  "all") {
+    $self->info("Returning the info of the platform $platform");
+    $query.=" where  (platform=?  or platform='source')";
+    $bind=[$platform];
   }
-  grep (/^-s(ilent)?$/, @_) or $self->printPackages({input => \@_}, $status, @packages);
-  return $status, @packages;
+  $self->info("Let's do query $query with $bind");
+  my $packages=$self->{DB}->queryColumn($query,undef, {bind_values=>$bind});
+  $self->info("And we got ");
+  $self->info(Dumper($packages));
+  use Data::Dumper;
+  defined $packages or  
+     $self->info("Error doing the query") and return;
+  return $packages;
 }
 
 ####### ^^^^^^^^^^^^^^^^^ getListPackages ^^^^^^^^^^^^^^^^^^^^^^^ #######
-
-sub readPackagesFromFile {
-  my $self = shift;
-  my $file = shift;
-
-  my $dir = $self->{INSTALLDIR} ;
-  
-  $file = "$dir/$file";
-
-  $DEBUG and $self->debug(1, "Checking if the file $file exists...");
-  use File::stat;
-  my $st = stat($file);
-
-  if (!$st  or -z $file){
-  $self->createListFiles() or return 0; 
-  }
-  if ($st){
-
-  $DEBUG and $self->debug(2, "Reading from the file $file!");
-
-  open(FILE, "<$file") or $self->info("Error opening the file $file") and return 0;
-  my @packages = <FILE>;
-  close FILE;
-  chomp @packages;
-  
-  $self->info("File '$file' read");
-  my $return = 1;
-
-  my $time = time;
-
-  if ($time - $st->mtime > $self->{LIST_FILE_TTL}) {
-    $self->info("The file is older than $self->{LIST_FILE_TTL} seconds... use at your own risk");
-    $return = -2;
-
-  }
-  return $return, @packages;
-}
-#  return @packages;
-}
 
 #################################################################
 =item C<installPackage($user,$package,$version,[$dependencies])>
@@ -537,51 +387,32 @@ sub installPackage {
   $self->info("Asking the PackMan to install");
 
   my ($done, $psource, $dir);
-  my $retry = 5;
-  while (1) {
-    $self->info("Asking the package manager to install $package as $user");
 
-    my $cacheName="package_${package}_${version}_${user}";
-    my $cache=AliEn::Util::returnCacheValue($self, $cacheName);
-    if ($cache and $cache->[0]) {
-      $self->info( "Returning the value from the cache (@$cache)");
-      return (@$cache);
+  my $cacheName="package_${package}_${version}_${user}";
+  my $cache=AliEn::Util::returnCacheValue($self, $cacheName);
+  if ($cache and $cache->[0]) {
+    $self->info( "Returning the value from the cache (@$cache)");
+    return (@$cache);
+  }
+
+
+  $self->info("Asking the package manager to install $package as $user");
+
+  my ($done2,@rest )=$self->isPackageInstalled ($user, $package, $version);
+  my $exit=0;
+  if (! $done2){
+    if (-f "$self->{INSTALLDIR}/$user.$package.$version.InstallLock"){
+      $self->info("Someone is already installing the package");
+      return (-1, "Package is being installed");
     }
-    my ($done2,@rest )=$self->isPackageInstalled ($user, $package, $version);
-    my $exit=0;
-    if (! $done2){
-      if (-f "$self->{INSTALLDIR}/$user.$package.$version.InstallLock"){
-        $self->info("Someone is already installing the package");
-        return (-1, "Package is being installed");
-      }
-      $self->info("Forking to install the package");
-      fork() and return (-1, "Package is being installed");
-      $exit=1;
+    $self->info("Forking to install the package");
   }
 
   my @list = ($done, $psource, $dir) = $self->PackageInstaller($user, $package, $version);
 
-    AliEn::Util::setCacheValue($self, $cacheName, \@list);
-   if ($done){
-   my $dir3 =  ($self->{INSTALLDIR} ||  "$ENV{ALIEN_HOME}/packages");
+  AliEn::Util::setCacheValue($self, $cacheName, \@list);
 
-   my $file = "$dir3/alien_listInstalled_packages_";
-   $self->info("==After install removing $file===");
-   system("rm -f $file");
-   }
-
-    $self->info("The PackMan returns @list (and we exit $exit)");
-    $exit and exit(0);
-
-    $done and last;
-
-    my $message = $AliEn::Logger::ERROR_MSG;
-    $self->info("The reason it wasn't installed was $message");
-    $message =~ /Package is being installed/ or $retry--;
-    $retry or last;
-    $self->info("Let's sleep for some time and try again");
-    sleep(30);
-  }
+  $self->info("The PackMan returns @list (and we exit $exit)");
 
   if (!$done) {
     $self->info("The package has not been instaled!!");
@@ -603,7 +434,8 @@ sub PackageInstaller{
   $self->debug (2,"checking if we have to install the package");
   my $source="";
   my ($lfn, $info)=$self->findPackageLFN($user, $package, $version);
-  if (!$lfn or $lfn < 0) {
+  print "HERE I HAVE $lfn and $info\n";
+  if (!$lfn ) {
     $self->info("Error installing $package: $info");
     return (0, "Error finding the lfn for $package");
   }
@@ -653,7 +485,8 @@ sub PackageInstaller{
 
   $self->debug(2,  "Ready to do the installPackage $package for $user");
   #Let's put the files public
-
+  print Dumper($lfn, $user, $package, $version, $info, $source, $options);
+  use Data::Dumper;
   umask 0022;
   my ($done2, $error)=$self->InstallPackage($lfn, $user, $package, $version,$info, $source, $options);
   umask 0027;
@@ -859,13 +692,18 @@ sub definePackage {
   }
     $lfn =~ s{//+}{/}g;;
      
-  
+  return  $self->registerPackageInDB( $lfn);
+}
+
+sub registerPackageInDB{
+  my $self=shift; 
+  my $lfn=shift;
 #####################################################################
 
- my @packages;
- my $org="$self->{CONFIG}->{ORG_NAME}";
+  my @packages;
+  my $org="$self->{CONFIG}->{ORG_NAME}";
 
-    if ($lfn =~ m{^$self->{CONFIG}->{USER_DIR}/?./([^/]*)/packages/([^/]*)/([^/]*)/([^/]*)$}) {
+  if ($lfn =~ m{^$self->{CONFIG}->{USER_DIR}/?./([^/]*)/packages/([^/]*)/([^/]*)/([^/]*)$}) {
       push @packages,{'fullPackageName'=> "$1\@${2}::$3",
                       packageName=>$2,
                       username=>$1,
@@ -873,7 +711,7 @@ sub definePackage {
                       platform=>$4,
                       lfn=>$lfn};
      
-    }elsif ($lfn =~ m{^/$org/packages/([^/]*)/([^/]*)/([^/]*)$}) {
+  }elsif ($lfn =~ m{^/$org/packages/([^/]*)/([^/]*)/([^/]*)$}) {
       push @packages,{'fullPackageName'=> "VO_\U$org\E\@${1}::$2",
                      packageName=>$1,
                       username=>"VO_\U$org\E",
@@ -891,12 +729,6 @@ sub definePackage {
 
   $self->info("Package $lfn added!!");
 
- my $dir3 = ($self->{CONFIG}->{PACKMAN_INSTALLDIR} ||  "$ENV{ALIEN_HOME}/packages");
- my $file = "$dir3/alien_list_packages_*";
- $self->info("After define removing the $file==");
- system("rm -f $file");
-  # $self->{CATALOGUE}->{CATALOG}->{DATABASE_FIRST}->do("update ACTIONS set todo=1 where action='PACKAGES'");
-  #$self->f_packman("recompute");
   return 1;
 }
 
@@ -950,32 +782,15 @@ sub printPackages {
   my $self       = shift;
   my $options    = shift || {};
   my @packages   = @_;
+
   my $silent     = 0;
-  my $returnhash = 0;
   if ($options->{input}) {
     grep (/-s/, @{$options->{input}}) and $silent     = 1;
-    grep (/-z/, @{$options->{input}}) and $returnhash = 1;
   }
-
-  #remove the status
-  my $status  = shift @packages;
   my $message = "The PackMan has the following packages";
   $options->{text} and $message .= "$options->{text}";
-  $silent or $self->info(join("\n\t", "$message:", @packages));
-
-  if ($returnhash) {
-    my @hashresult;
-    map {
-      my $newhash = {};
-      my ($user, $package) = split '@', $_;
-      $newhash->{user}    = $user;
-      $newhash->{package} = $package;
-      push @hashresult, $newhash;
-    } @packages;
-    return @hashresult;
-  }
-
-  return $status, @packages;
+  $silent or $self->info(join("\n\t", "$message:", @packages,""));
+  return 1;
 }
 
 sub getDependencies {
@@ -1171,42 +986,6 @@ sub ConfigurePackage{
   return (1,$source);
 }
 
-sub createListFiles {
-  my $self=shift;
- # $self->{LIST_FILE_CREATION}
-  #  or $self->debug(1, "In fact, we don't do any lists")
-  #    and return 1;
-  my $options=shift || {};
-
-  my $platform=AliEn::Util::getPlatform($self);
-  $self->{PACKMAN_PLATFORM} and $platform=$self->{PACKMAN_PLATFORM};
-
-  my @list=( {function=>"list", arguments=>$platform},
-             {function=>"list", arguments=>"all"},
-             {function=>"listInstalled", arguments=>""});
-
-  $options->{only_installed} and @list=$list[2];
-
-  foreach my $e (@list){
- #   my $file="$self->{REALLY_INST_DIR}/alien_list_$e->{function}packages_$e->{arguments}";
-     my $file="$self->{REALLY_INST_DIR}/alien_$e->{function}_packages_$e->{arguments}";
-
-    if (!-e $file or -z $file){
-    $self->info("Making the list of all the $e->{function} packages in $file");
-
-    open (FILE, ">$file")
-      or $self->info("Error creating the file $file}") and return;
-    #my $fun="getList$e->{function}Packages";
-    #my ($ok,@list)=$self->$fun($e->{arguments}, "-force");
-    my ($ok,@packages)=$self->f_packman($e->{function}, $e->{arguments}, "-force");
-    @packages or $self->info("Error getting the list of  packages") and return;
-    print FILE join ("\n", @packages);
-    close FILE;
-    }
-}
-  return 1;
-}
-
 sub removeLocks{
   my $self=shift;
   open (FILE, "ls $self->{REALLY_INST_DIR}/*.InstallLock 2>/dev/null |") or
@@ -1347,6 +1126,9 @@ sub findPackageLFN{
   }
 
   AliEn::Util::setCacheValue($self, $cacheName, \@info);
+  $self->info("ON THE SERVER SIDE");
+  $self->info(Dumper(@info));
+
   return @info;
 }
 
@@ -1491,6 +1273,50 @@ that calls the rest of the arguments (something like \$*).";
   $self->info("The PackMan returns @all");
   return @all;
 
+}
+
+sub recomputePackages {
+  my $self=shift;
+  my $Fsilent="";
+  my @userPackages=$self->{CATALOGUE}->execute("find", $Fsilent, $self->{CONFIG}->{USER_DIR}, "/packages/*");
+  my @voPackages=$self->{CATALOGUE}->execute("find", $Fsilent, "\L/$self->{CONFIG}->{ORG_NAME}/packages", "*");
+  my @packages;
+  my $org="\L$self->{CONFIG}->{ORG_NAME}\E";
+  foreach my $pack (@userPackages, @voPackages) {
+    $self->info(  "FOUND $pack");
+    if ($pack =~ m{^$self->{CONFIG}->{USER_DIR}/?./([^/]*)/packages/([^/]*)/([^/]*)/([^/]*)$}) {
+      push @packages,{'fullPackageName'=> "$1\@${2}::$3",
+                      packageName=>$2,
+                      username=>$1,
+                      packageVersion=>$3,
+                      platform=>$4,
+                      lfn=>$pack};
+    }elsif ($pack =~ m{^/$org/packages/([^/]*)/([^/]*)/([^/]*)$}) {
+      push @packages,{'fullPackageName'=> "VO_\U$org\E\@${1}::$2",
+                      packageName=>$1,
+                      username=>"VO_\U$org\E",
+                      packageVersion=>$2,
+                      platform=>$3,
+                      lfn=>$pack};
+    }else {
+      $self->info("Don't know what to do with $pack");
+    }
+
+  }
+  $self->info("READY TO INSERT @packages\n");
+  return $self->recomputePackagesInsert(@packages);
+}
+sub recomputePackagesInsert {
+  my $self=shift;
+  my @packages=@_;
+  $self->{DB}->lock('PACKAGES');
+  $self->{DB}->delete('PACKAGES', "1=1");
+  @packages and
+  $self->{DB}->multiinsert('PACKAGES', \@packages,);
+  $self->{DB}->unlock();
+
+
+  return 1;
 }
 
 ####### ^^^^^^^^^^^^^^^^^ testPackage ^^^^^^^^^^^^^^^^^^^^^^^ #######

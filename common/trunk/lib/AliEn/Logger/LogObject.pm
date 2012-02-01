@@ -24,6 +24,12 @@ sub debug{
   my $self=shift;
   my $level=(shift || 0);
   my $message=shift;
+
+  if (not $self->{LOG_REF} ) {
+    $self->{LOG_REF}=ref $self;
+  }
+  $self->{LOGGER}->{LOG_OBJECTS}->{$self->{LOG_REF}} or return 1;
+
   $level> $self->{LOGGER}->{LOG_OBJECTS}->{$self->{LOG_REF}} and return 1;
 
   return $self->{LOGGER}->display("debug", $self->{LOG_REF},"$level $self->{LOG_REF} -> $message", @_);
