@@ -35,7 +35,7 @@ date
 	$cat, "jdl/package.jdl", "Executable=\"JobWithPackage.sh\";
 Packages=\"MyPS::1.0\"\n"
   ) or exit(-2);
-
+  print "READY TO ADD THE PACKAGE\n";
   addPackage($cat, "MyPS", "/bin/ps") or exit(-2);
 
   print "The package has been addedd!!!\n\n\n";
@@ -76,6 +76,7 @@ sub installPackage {
 
 	$ok = $packman->f_packman ("install", "newuser@".$package."::1.0") and last;
         $retry-- and return;
+         print "THe insert didn't work. Sleep and retry\n";
 	sleep(30);
   }
 
@@ -93,11 +94,11 @@ sub addPackage {
   my $package = shift;
   my $file    = shift;
  
-  my $packman = $main::cat->{PACKMAN};
-  if (!$packman){
-    my $cat = AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",});
-    $packman = $cat->{PACKMAN};
-  }
+#  my $packman = $main::cat->{PACKMAN};
+#  if (!$packman){
+#    my $cat = AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",});
+#    $packman = $cat->{PACKMAN};
+#  }
 
   $cat->execute("mkdir", "-p", "packages/$package/1.0") or return;
   $cat->execute("addTag", "packages/$package/", "PackageDef") or return;
@@ -132,17 +133,13 @@ echo \"Executing \$*\"
   chmod 0755, "$dir/.alienEnvironment";
   system("tar zcvf MyTar.tar .alienEnvironment $package") and print "Error doing the tar file " and return;
   my $host = Net::Domain::hostfqdn();
-  my $done = $packman->f_packman("define", $package, "1.0", "$dir/MyTar.tar");
-  system("rm", "-rf", $dir);
+  print "Doing packman define $package 1.0  $dir/MyTar.tar\n";
+  my $done = $cat->execute("packman","define", $package, "1.0", "$dir/MyTar.tar");
   chdir($preserveDir) or die("Error returning to preserved dir");
-  $done or return;
+  $done or print "The define did not work\n" and  return;
 
-  #we delete the cache, so that the CE knows the new packages that have
-  #been defined
-  $cat->execute("cleanCache");
 
-  sleep(20);
-  $packman->f_packman("list", "-force");
+  $cat->execute("packman", "list", "-force");
   return 1;
 
 }
