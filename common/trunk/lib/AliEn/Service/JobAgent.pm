@@ -44,7 +44,7 @@ use AliEn::Util;
 use AliEn::X509;
 use AliEn::MD5;
 use Filesys::DiskFree;
-use AliEn::PackMan;
+use AliEn::ClientPackMan;
 use AliEn::TMPFile;
 
 
@@ -167,7 +167,7 @@ sub initialize {
   $self->{JOBLOADED}=0;
   $self->{X509}= new AliEn::X509 or return;
 #  $self->{PACKMAN}=AliEn::PackMan->new({PACKMAN_METHOD=>"Local"}) or 
-  $self->{PACKMAN}=AliEn::PackMan->new() or 
+  $self->{PACKMAN}=AliEn::ClientPackMan->new() or 
     $self->info("Error getting the packman") and return ;
 
 

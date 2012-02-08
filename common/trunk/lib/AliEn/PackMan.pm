@@ -7,7 +7,7 @@ use Data::Dumper;
 use AliEn::Util;
 use Getopt::Long;
 use Time::HiRes;
-use AliEn::UI::Catalogue;
+use AliEn::UI::Catalogue::LCM;
 use AliEn::Database::Catalogue;
 
 use vars qw (@ISA $DEBUG);
@@ -19,6 +19,7 @@ sub new {
   my $proto = shift;
   my $class = ref($proto) || $proto;
   my $self  = (shift or {});
+ 
   bless($self, $class);
   $self->SUPER::new();
  
@@ -26,28 +27,12 @@ sub new {
   my $role = ($self->{role} or $self->{ROLE} or $self->{user} );
   
   $self->{SOAP} = new AliEn::SOAP or print "Error creating AliEn::SOAP $! $?" and return;
-
-  if (! $self->{DB}){
-    if ($role eq 'admin'){
-#      $self->info("= $proto =====WE ARE CREATING DATABASE CONNECTION");
-      $self->{UI}=AliEn::UI::Catalogue->new({role=>$role}) or return;
-      $self->{DB}=$self->{UI}->{CATALOG}->{DATABASE} or $self->info("Error getting the database") and return;
-    }
-    else{
-      $self->{DB}=AliEn::Database::Catalogue->new() or return;
-    }
-  }
-
-  $self->{LIST_FILE_TTL} or $self->{LIST_FILE_TTL} = 7200;
-
-  $self->initialize(@_) or return;
-  $self->info("WE HAVE A REAL PACKMAN INSTANCE!!!");  
-  return $self;
-}
-
-sub initialize {
   
-  my $self = shift;
+	if (!$self->{CATALOGUE} ){
+		$self->info("Creating the catalogue");
+		$self->{CATALOGUE}=AliEn::UI::Catalogue::LCM->new({role=>$role, PACKMAN=>$self});
+		$self->{CATALOGUE} or $self->info("Error creating an instance of the catalogue") and return;
+	}
 
   $self->{INSTALLDIR} = $self->{CONFIG}->{PACKMAN_INSTALLDIR} || "$ENV{ALIEN_HOME}/packages";
    -d $self->{INSTALLDIR} or mkdir $self->{INSTALLDIR};
@@ -60,6 +45,21 @@ sub initialize {
 
 
 
+  $self->initialize(@_) or return;
+    
+  return $self;
+}
+
+sub initialize {
+  
+  my $self = shift;
+  $self->info("WE HAVE A REAL PACKMAN INSTANCE!!!");
+
+  if (! $self->{DB}){
+  		$self->info("And creating the connection to the database");
+  		$self->{DB}=$self->{CATALOGUE}->{CATALOG}->{DATABASE};
+      $self->{DB} or $self->info("We don't have a database handle") and return;
+  }
 
   return $self;
 }
@@ -396,7 +396,7 @@ sub installPackage {
   }
 
 
-  $self->info("Asking the package manager to install $package as $user");
+  $self->info("Let's see if we can install $package as $user");
 
   my ($done2,@rest )=$self->isPackageInstalled ($user, $package, $version);
   my $exit=0;
@@ -408,11 +408,11 @@ sub installPackage {
     $self->info("Forking to install the package");
   }
 
-  my @list = ($done, $psource, $dir) = $self->PackageInstaller($user, $package, $version);
+  ($done, $psource, $dir) = $self->PackageInstaller($user, $package, $version);
 
-  AliEn::Util::setCacheValue($self, $cacheName, \@list);
+  AliEn::Util::setCacheValue($self, $cacheName, [$done, $psource, $dir]);
 
-  $self->info("The PackMan returns @list (and we exit $exit)");
+  $self->info("The PackMan returns $done, $psource and $dir ");
 
   if (!$done) {
     $self->info("The package has not been instaled!!");
@@ -434,10 +434,10 @@ sub PackageInstaller{
   $self->debug (2,"checking if we have to install the package");
   my $source="";
   my ($lfn, $info)=$self->findPackageLFN($user, $package, $version);
-  print "HERE I HAVE $lfn and $info\n";
+  $self->info("HERE I HAVE $lfn and $info");
   if (!$lfn ) {
     $self->info("Error installing $package: $info");
-    return (0, "Error finding the lfn for $package");
+    return (0, "Error finding the lfn for $package","");
   }
 
   $version or $lfn =~ /\/([^\/]*)\/[^\/]*$/
@@ -454,7 +454,7 @@ sub PackageInstaller{
     my $done=$self->createLock($user, $package, $version);
     $done and last;
     defined ($done) or $self->info("Error creating the lock")
-      and return (0, "Error creating the lock");
+      and return (0, "Error creating the lock", "");
     $self->info("Sleeping for a while");
     sleep(20);
   }
@@ -477,7 +477,7 @@ sub PackageInstaller{
       my ($ok, $depsource, $dir)=$self->PackageInstaller($user, $pack, $ver, $dependencies, $options);
       if (! $ok or $ok eq '-1'){
           $self->removeLock($user, $package, $version);
-          return (-1, $depsource);
+          return (-1, $depsource, "");
       }
       $depsource and $source="$source $depsource";
     }
@@ -485,14 +485,13 @@ sub PackageInstaller{
 
   $self->debug(2,  "Ready to do the installPackage $package for $user");
   #Let's put the files public
-  print Dumper($lfn, $user, $package, $version, $info, $source, $options);
-  use Data::Dumper;
+
   umask 0022;
   my ($done2, $error)=$self->InstallPackage($lfn, $user, $package, $version,$info, $source, $options);
   umask 0027;
 
   $self->removeLock($user, $package, $version);
- 
+ 	defined $error or $error="";
   $self->info("The installation of $user, $package, $version finished with $done2 and $error");
   $done2 or return (-1, $error);
   $done2 eq '-1' and return (-1, $error);
@@ -983,7 +982,7 @@ sub ConfigurePackage{
     }
     $source="$dir/$sourceFile $dir ";
   }
-  return (1,$source);
+  return (1,$source, $dir);
 }
 
 sub removeLocks{
@@ -1066,14 +1065,14 @@ sub removePackage{
 
 ### This is from AliEn::PackMan::Local ###
 
+
+
 sub findPackageLFN{
   my $self=shift;
   my $user=shift;
   my $package=shift;
   my $version=shift;
 
-  my $platform=AliEn::Util::getPlatform($self);
-  $self->info("Looking for the lfn of $package ($version) for the user $user");
 
   my $cacheName="lfn_${user}_${package}_${version}";
   my $cache=AliEn::Util::returnCacheValue($self, $cacheName);
@@ -1081,26 +1080,33 @@ sub findPackageLFN{
     $self->info("Returning from the cache $cacheName (@$cache)");
     return @$cache ;
   }
+	my @info=$self->findPackageLFNInternal($user, $package, $version);
+
+  AliEn::Util::setCacheValue($self, $cacheName, \@info);
+  return @info;
+}
+
+sub findPackageLFNInternal{
+	my $self=shift;
+	my $user=shift;
+	my $package=shift;
+	my $version=shift;
+
+  my $platform=AliEn::Util::getPlatform($self);
+  $self->info("Looking for the lfn of $package ($version) for the user $user");
 
   my $vo_user=uc("VO_$self->{CONFIG}->{ORG_NAME}");
   my $query="SELECT lfn from PACKAGES where packageName=? and (platform=? or platform='source') and (username=? or username=?)";
   my @bind=($package, $platform, $user, $vo_user);
-  my @bind_source=($package, $platform, $user, $vo_user);
 
   if ($version) {
     $query.=" and packageVersion=? ";
     push @bind, $version;
-    push @bind_source, $version
   }
 
   my $result=$self->{DB}->queryColumn($query, undef, {bind_values=>\@bind})
     or die ("Error doing the query $query");
 
-  if (! @$result){
-    $self->info("The package doesn't exist for that platform. Let's look for source");
-    $result=$self->{DB}->queryColumn($query, undef, {bind_values=>\@bind_source})
-      or die ("Error doing the query $query");
-  }
   $self->info("We got $#$result and @$result");
 
   if ($#$result <0 ){
@@ -1110,26 +1116,9 @@ sub findPackageLFN{
  
   my (@dependencies)=$self->{CATALOGUE}->execute("showTagValue", "-silent",$lfn, "PackageDef");
   my $item={};
-
-  @dependencies and $dependencies[1] and $item = shift @{$dependencies[1]};
-
-  my @info = ($lfn, $item);
-
-  if (  $info[0] eq /^-2$/ ){
-    return undef,"The package $package (v $version) does not exist for $platform \n";
-  }
-
-  $self->info(Dumper(@info));
-  if ( $info[1] =~ /^$/) {
-    $self->info("The metadata is empty????");
-    $info[1]={};
-  }
-
-  AliEn::Util::setCacheValue($self, $cacheName, \@info);
-  $self->info("ON THE SERVER SIDE");
-  $self->info(Dumper(@info));
-
-  return @info;
+  @dependencies and $dependencies[1] and  $item = shift @{$dependencies[1]};
+  defined $item or $item={};
+  return ($lfn, $item);
 }
 
 sub existsPackage{

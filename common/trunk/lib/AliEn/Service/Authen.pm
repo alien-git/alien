@@ -99,7 +99,32 @@ sub createEnvelope {
 
   return @info;
 }
-
+sub doPackMan {
+	my $other=shift;
+	my $user = shift;
+	my $func = shift;
+	$self->info("Authen is going to do a packman operation : $func");
+	my $op={ 'getListPackagesFromDB'=>1,
+		'findPackageLFNInternal'=>1,
+		'registerPackageInDB'=>1,
+		'recomputePackages'=>1,
+	};
+	
+	if (not $op->{$func}){
+		$self->info("Trying to do an invalid operation: '$func'");
+		return (-1, "'$func' is no a valid operation");
+	}
+	$self->info("Ready to do a packman operation: $func");
+	$self->{LOGGER}->keepAllMessages();
+	
+	my @result=$self->{UI}->{PACKMAN}->$func(@_);
+	my @messages = @{$self->{LOGGER}->getMessages()};
+	$self->{LOGGER}->displayMessages();
+	$self->info("DONE!");
+	return {rcvalues=>\@result, rcmessages=>\@messages};
+	
+	
+}
 sub doOperation {
   my $other     = shift;
   my $user      = shift;

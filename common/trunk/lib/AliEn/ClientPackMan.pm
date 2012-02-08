@@ -7,69 +7,56 @@ use strict;
 use AliEn::Util;
 use vars qw(@ISA);
 
-@ISA = ('AliEn::Logger::LogObject','AliEn::PackMan',  @ISA);
+@ISA = ('AliEn::PackMan',  @ISA);
 
-sub new {
-  my $proto   = shift;
-  my $class   = ref($proto) || $proto;
-  my $self    = {};
-  my $options = shift;
-  bless($self, $class);
-
-  if ((defined $options->{user}) and !(defined $options->{role})) {
-    $options->{role} = $options->{user};
-  }
-
-  $self->{CATALOGUE} = $options->{CATALOGUE} or return ;
-  $options->{DEBUG}  = $self->{DEBUG}  = ($options->{debug}  or 0);
-  $options->{SILENT} = $self->{SILENT} = ($options->{silent} or 0);
-  $self->{LOGGER} or $self->{LOGGER} = $options->{LOGGER} || new AliEn::Logger;
-
-  $self->{CONFIG} or $self->{CONFIG} = new AliEn::Config() or return;
-
-  $self->{SOAP} = new AliEn::SOAP or print "Error creating AliEn::SOAP $! $?" and return;
-
-  $self->{ROLE} = $options->{role} || $options->{ROLE} || $self->{CONFIG}->{ROLE};
-
-  $self->{INSTALLDIR}=$self->{CONFIG}->{PACKMAN_INSTALLDIR} || "$ENV{ALIEN_HOME}/packages";
-  -d $self->{INSTALLDIR} or mkdir $self->{INSTALLDIR};
-  if (not -d $self->{INSTALLDIR}) {
-    $self->{INSTALLDIR}="$ENV{ALIEN_HOME}/packages";
-    -d $self->{INSTALLDIR} or mkdir $self->{INSTALLDIR};
-    -d $self->{INSTALLDIR} or return;
-  }
-  $self->{LIST_FILE_TTL} or $self->{LIST_FILE_TTL} = 7200;
-  $self->{REALLY_INST_DIR} or $self->{REALLY_INST_DIR}=$self->{INSTALLDIR};
+sub initialize {
+	my $self=shift;
   $self->info("WE HAVE A CLIENTPACKMAN INSTANCE");
   return $self;
 }
 sub registerPackageInDB{
   my $self=shift;
   $self->info("THIS SHOULD BE DONE OVER AUTHEN");
-  return $self->{CATALOGUE}->{CATALOG}->callAuthen("packman", 'registerPackageInDB', @_);
+  return $self->callOverSOAP( 'registerPackageInDB', @_);
 }
 
 sub getListPackagesFromDB {
   my $self=shift;
-  $self->info("WE HAVE TO ASK THE SERVER");
-  my @d=$self->{CATALOGUE}->{CATALOG}->callAuthen("packman", 'getListPackagesFromDB', @_);
-  return $d[0];
+  my @l=$self->callOverSOAP( 'getListPackagesFromDB', @_);
+  @l or return;  
+  return $l[0];
 }
 sub recomputePackages {
   my $self=shift;
   $self->info("Ready to call the packman");
-  return $self->{CATALOGUE}->{CATALOG}->callAuthen("packman", "recompute",@_);
+  return $self->callOverSOAP( "recomputePackages",@_);
 }
-sub findPackageLFN{
+sub findPackageLFNInternal{
   my $self=shift;
-  $self->info("FINDING THE LFN IN THE SERVER");
-  my @s=$self->{CATALOGUE}->{CATALOG}->callAuthen("packman", "findPackageLFN", @_);
-  print Dumper($s[0]);
-  print "THAT' ALL\n";
-  use Data::Dumper;
-  return $s[0];
+  my @s=$self->callOverSOAP("findPackageLFNInternal", @_);
+  @s or return;
+  #This one is tricky. An empty hash over soap gets converted into an empty string. Here we change it back.
+  $s[1] or $s[1]={};
+  return @s;
 }
 ### BASIC COMMANDS ###
+sub callOverSOAP {
+  my $self = shift;
+  my $user = $self->{ROLE};
+  if ($ENV{ALIEN_PROC_ID} and $ENV{ALIEN_JOB_TOKEN}) {
+    $user = "alienid:$ENV{ALIEN_PROC_ID} $ENV{ALIEN_JOB_TOKEN}";
+  }
+
+  if ($_[0] =~ /^-user=([\w]+)$/) {
+    shift;
+    $user = $1;
+  }
+  $self->info("Asking the server");
+  $self->{LOGGER}->getDebugLevel() and push @_, "-debug=" . $self->{LOGGER}->getDebugLevel();
+  return $self->{SOAP}->CallAndGetOverSOAP($self->{SILENT}, "Authen", "doPackMan", $user,  @_);
+ }
+
+
 
 
 

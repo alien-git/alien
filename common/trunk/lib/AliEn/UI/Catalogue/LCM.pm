@@ -161,12 +161,12 @@ sub initialize {
     role => $options->{role}
   };
 
-
-   if ($self->checkEnvelopeCreation()) {
-     $self->{PACKMAN} = AliEn::PackMan->new($packOptions) or $self->info("We could not create PackMan") and  return;
-   }
-   else {
-     $self->{PACKMAN} = AliEn::ClientPackMan->new ($packOptions) or $self->info("We could not create ClientPackMan") and  return;
+	if (!$self->{PACKMAN}){
+     if ($self->checkEnvelopeCreation()) {
+       $self->{PACKMAN} = AliEn::PackMan->new($packOptions) or $self->info("We could not create PackMan") and  return;
+     } else {
+       $self->{PACKMAN} = AliEn::ClientPackMan->new ($packOptions) or $self->info("We could not create ClientPackMan") and  return;
+     }
    }
 
   return 1;
