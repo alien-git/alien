@@ -10,27 +10,31 @@ use vars qw(@ISA);
 @ISA = ('AliEn::PackMan',  @ISA);
 
 sub initialize {
-	my $self=shift;
-  $self->info("WE HAVE A CLIENTPACKMAN INSTANCE");
+  my $self=shift;
   return $self;
 }
 sub registerPackageInDB{
   my $self=shift;
-  $self->info("THIS SHOULD BE DONE OVER AUTHEN");
+#  $self->info("THIS SHOULD BE DONE OVER AUTHEN");
   return $self->callOverSOAP( 'registerPackageInDB', @_);
 }
+sub deletePackageFromDB {
+ my $self = shift;
+ return $self->callOverSOAP( 'deletePackageFromDB', @_);
 
+}
 sub getListPackagesFromDB {
   my $self=shift;
   my @l=$self->callOverSOAP( 'getListPackagesFromDB', @_);
   @l or return;  
   return $l[0];
 }
-sub recomputePackages {
-  my $self=shift;
-  $self->info("Ready to call the packman");
-  return $self->callOverSOAP( "recomputePackages",@_);
-}
+# sub recomputePackages {
+#  my $self=shift;
+#  $self->info("Ready to call the packman");
+#  return $self->callOverSOAP( "recomputePackages",@_);
+# }
+
 sub findPackageLFNInternal{
   my $self=shift;
   my @s=$self->callOverSOAP("findPackageLFNInternal", @_);
@@ -39,7 +43,6 @@ sub findPackageLFNInternal{
   $s[1] or $s[1]={};
   return @s;
 }
-### BASIC COMMANDS ###
 sub callOverSOAP {
   my $self = shift;
   my $user = $self->{ROLE};
@@ -51,14 +54,9 @@ sub callOverSOAP {
     shift;
     $user = $1;
   }
-  $self->info("Asking the server");
   $self->{LOGGER}->getDebugLevel() and push @_, "-debug=" . $self->{LOGGER}->getDebugLevel();
   return $self->{SOAP}->CallAndGetOverSOAP($self->{SILENT}, "Authen", "doPackMan", $user,  @_);
  }
-
-
-
-
 
 return 1;
 __END__

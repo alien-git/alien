@@ -1,4 +1,3 @@
-
 package AliEn::PackMan;
 
 use AliEn::Config;
@@ -84,7 +83,7 @@ Possible commands:
 \tpackman remove  <package>: removes a package from the local cache
 \tpackman define <name> <version> <tar file> [<package options>]
 \tpackman undefine <name> <version>
-\tpackman recompute: (only for admin) recompute the list of packages.
+# \tpackman recompute: (only for admin) recompute the list of packages.
 \tpackman synchronize [-retry number]:\tinstalls all the existing packages, and removes the packages locally installed that do not exist anymore.
 Package options: -platform source, else the default for the local system is used
 		 -retry number specifies a number of retries if the command cannot get the list of packages
@@ -164,8 +163,9 @@ return 1;
   my $normalOp= {'l'=>'getListPackages','list'=>'getListPackages',
                  'd'=>'definePackage', 'define'=>'definePackage',
 		'getListPackagesFromDB'=>'getListPackagesFromDB',
-                  'registerPackageInDB' =>'registerPackageInDB',
-		'recompute'=>"recomputePackages",
+                 'registerPackageInDB' =>'registerPackageInDB',
+                 'deletePackageFromDB' =>'deletePackageFromDB',
+#		'recompute'=>"recomputePackages",
 		"findPackageLFN"=>"findPackageLFN"
 };
   if ($normalOp->{$operation}){
@@ -287,7 +287,7 @@ sub getListInstalled_Internal {
 
   my $cache=AliEn::Util::returnCacheValue($self, "installedPackages");
   if ($cache and $cache->[0]){
-    $self->info("This is for test the returned cache (@$cache)");
+    $self->info("The returned cache is (@$cache)");
     return (1, @$cache);
   }
   my ($status, @list) = $self->getListInstalledPackages_() or return;
@@ -360,11 +360,11 @@ sub getListPackagesFromDB {
     $query.=" where  (platform=?  or platform='source')";
     $bind=[$platform];
   }
-  $self->info("Let's do query $query with $bind");
+  # $self->info("Let's do query $query with $bind");
   my $packages=$self->{DB}->queryColumn($query,undef, {bind_values=>$bind});
   $self->info("And we got ");
-  $self->info(Dumper($packages));
-  use Data::Dumper;
+  # $self->info(Dumper($packages));
+  # use Data::Dumper;
   defined $packages or  
      $self->info("Error doing the query") and return;
   return $packages;
@@ -394,7 +394,6 @@ sub installPackage {
     $self->info( "Returning the value from the cache (@$cache)");
     return (@$cache);
   }
-
 
   $self->info("Let's see if we can install $package as $user");
 
@@ -434,7 +433,7 @@ sub PackageInstaller{
   $self->debug (2,"checking if we have to install the package");
   my $source="";
   my ($lfn, $info)=$self->findPackageLFN($user, $package, $version);
-  $self->info("HERE I HAVE $lfn and $info");
+  # $self->info("HERE I HAVE $lfn and $info");
   if (!$lfn ) {
     $self->info("Error installing $package: $info");
     return (0, "Error finding the lfn for $package","");
@@ -507,17 +506,18 @@ sub PackageInstaller{
 sub InstallPackage {
   my $self=shift;
   my $lfn=shift;
-  my ($user, $package, $version, $info,$depConf)=(shift, shift, shift,shift,shift);
+  my ($user, $package, $version, $info, $depConf)=(shift, shift, shift, shift, shift);
+  
   my $options=shift || {};
-
   my $dir="$self->{REALLY_INST_DIR}/$user/$package/$version";
-
   my $logFile="$self->{REALLY_INST_DIR}/$user.$package.$version.InstallLog";
 
   $self->existsPackage($user, $package, $version,$info) and return 1;
-  $self->info( "$$ Ready to install the package (output in $logFile) ");
+  $self->info("Ready to install the package (output in $logFile) ");
 
-  system("mv",$logFile, "$logFile.back");
+  if (-e $logFile) {
+     system("mv",$logFile, "$logFile.back");
+  }
   $self->{LOGGER}->redirect($logFile);
   eval {
     if (! $info->{shared}) {
@@ -529,10 +529,13 @@ sub InstallPackage {
       my $shared="$self->{REALLY_INST_DIR}/$user/alien_shared";
       $self->info( "$$ This package has to be installed in a shared directory");
       AliEn::MSS::file::mkdir($self,$shared,"$self->{REALLY_INST_DIR}/$user/$package/") and 
+
 	  $self->info( "$$ Error creating the directory $shared") and die ("Error creating the directory $shared $!");
       system ("ln -s $shared $dir") and $self->info( "$$ Error creating the link") and die ("Error creating the link\n");
     }
-    if (!$self->checkDiskSpace($dir, $info->{installedSize} )){
+    
+#    if (!$self->checkDiskSpace($dir, $info->{installedSize} )){
+    if (!$self->checkDiskSpace($dir, $info->{size} )){
       die("Error checking for diskspace to install");
     }
   };
@@ -616,7 +619,7 @@ sub synchronizePackages {
       $self->f_packman("remove", "-s", $p, @arg);
     }
   }else{
-    $self->info("=== The list of defined packages is empty ===");
+    $self->info("The list of defined packages is empty");
   }
   return 1;
 }
@@ -697,7 +700,7 @@ sub definePackage {
 sub registerPackageInDB{
   my $self=shift; 
   my $lfn=shift;
-#####################################################################
+
 
   my @packages;
   my $org="$self->{CONFIG}->{ORG_NAME}";
@@ -717,15 +720,13 @@ sub registerPackageInDB{
                       packageVersion=>$2,
                       platform=>$3,
                       lfn=>$lfn};
-     }else {
+     }
+   else {
       $self->info("Don't know what to do with $lfn");
     }
 
-
-  $self->info("PackMan === READY TO INSERT @packages DB = $self->{DB} ===\n");
-#####################################################################
+  $self->info("READY TO INSERT @packages DB = $self->{DB} ");
   $self->{DB}->insert('PACKAGES', @packages) or return;
-
   $self->info("Package $lfn added!!");
 
   return 1;
@@ -765,16 +766,21 @@ sub undefinePackage {
     and return;
 
    $lfn =~ s{//+}{/}g;;
-   $self->{DB}->delete('PACKAGES', "lfn = '$lfn'");
-   $self->info("Package $lfn undefined!!");
-
-    my $dir = ($self->{CONFIG}->{PACKMAN_INSTALLDIR} || "$ENV{ALIEN_HOME}/packages");
-    my $file = "$dir/alien_list_packages_*";
-    $self->info("After undefine removing the $file");
-    system("rm -f $file");
-
+   return  $self->deletePackageFromDB( $lfn);
+  
+#   $self->{DB}->delete('PACKAGES', "lfn = '$lfn'");
+}
+################
+sub deletePackageFromDB {
+ my $self = shift;
+ my $lfn = shift;
+ $self->{DB}->delete('PACKAGES', "lfn = '$lfn'");
+ $self->info("Package $lfn undefined!!");
  return 1;
 }
+
+
+################
 
 #in
 sub printPackages {
@@ -810,7 +816,15 @@ sub getDependencies {
 
   AliEn::Util::setCacheValue($self, $cacheName, [1,$info]);
   $self->info("Giving back the dependencies of $package");
-
+  
+  if (!$info or (!keys %$info) ){
+     $self->info("The package $package has no dependencies!");
+  } else {
+    $self->info("The dependencies of the package:");
+    foreach (keys %$info) {
+       $info->{$_} and $self->info("\t$_:\t\t$info->{$_}");
+    }
+  }
   return (1, $info);
 }
 
@@ -829,13 +843,14 @@ sub getInstallLog{
 
      my ($lfn, $info)=$self->findPackageLFN($user, $package, $version);
 
-     if (!$lfn or $lfn < 0) {
+#     if (!$lfn or $lfn < 0) {
+      if (!$lfn or $lfn =~ /^-\d$/) {
         return $info ;
      }
 
      $version or $lfn =~ /\/([^\/]*)\/[^\/]*$/
     and ($version)=($1);
-  my $logFile="$self->{INSTALLDIR}/$user.$package.$version.InstallLog";
+    my $logFile="$self->{INSTALLDIR}/$user.$package.$version.InstallLog";
 
   if ($options){
     $logFile= "$self->{CONFIG}->{LOG_DIR}/packman/$package.$version.$options.$self->{CONFIG}->{HOST}";
@@ -844,11 +859,15 @@ sub getInstallLog{
   open (FILE, "<$logFile" ) or die ("Error opening $logFile\n");
   my @content=<FILE>;
   close FILE;
-  $self->{LOGGER}->info( "Returning the file");
-  return join("", @content);
+#  $self->{LOGGER}->info( $self, "Returning the file");
+  $self->info("Returning the file");
+  $self->info("The installation log is:
+================================================
+@content
+================================================");
+#  return join("", @content);
+  return 1;
 }
-
-
 
 sub isPackageInstalled {
   my $self=shift;
@@ -926,9 +945,8 @@ sub _doAction {
 sub checkDiskSpace {
   my $self=shift;
   my $dir=shift;
-  my $requestedSpace=shift;
+  my $requestedSpace = shift || 0;
   my $options=shift || {};
-
   my $handle=Filesys::DiskFree->new();
   $handle->df_dir($dir);
   my $size=$handle->avail($dir);
@@ -939,7 +957,11 @@ sub checkDiskSpace {
   }
 
   #if there is enough space, just install
-  if ($requestedSpace <$size){
+  # defined $requestedSpace or  $requestedSpace = 0;
+#   if(!$requestedSpace){
+#   $requestedSpace = 0;
+#    }
+  if ($requestedSpace < $size){
     $self->debug(3, "There is enough space to install the file");
     return 1;
   }
@@ -1054,17 +1076,11 @@ sub removePackage{
       and die("Error deleting the directory $dir\n");
   $self->info( "$$ Package $package ($version) removed");
   AliEn::Util::deleteCache($self);
-  my $dir3 =  ($self->{INSTALLDIR} ||  "$ENV{ALIEN_HOME}/packages");
-   
-   my $file = "$dir3/alien_listInstalled_packages_";
-   $self->info("After remove removing the $file====");
-   system("rm -f $file");
 
   return 1;
 }
 
 ### This is from AliEn::PackMan::Local ###
-
 
 
 sub findPackageLFN{
@@ -1073,14 +1089,13 @@ sub findPackageLFN{
   my $package=shift;
   my $version=shift;
 
-
   my $cacheName="lfn_${user}_${package}_${version}";
   my $cache=AliEn::Util::returnCacheValue($self, $cacheName);
   if ($cache and $cache->[0]) {
     $self->info("Returning from the cache $cacheName (@$cache)");
     return @$cache ;
   }
-	my @info=$self->findPackageLFNInternal($user, $package, $version);
+  my @info=$self->findPackageLFNInternal($user, $package, $version);
 
   AliEn::Util::setCacheValue($self, $cacheName, \@info);
   return @info;
@@ -1116,7 +1131,9 @@ sub findPackageLFNInternal{
  
   my (@dependencies)=$self->{CATALOGUE}->execute("showTagValue", "-silent",$lfn, "PackageDef");
   my $item={};
+
   @dependencies and $dependencies[1] and  $item = shift @{$dependencies[1]};
+
   defined $item or $item={};
   return ($lfn, $item);
 }
@@ -1129,7 +1146,6 @@ sub existsPackage{
   my $info=shift;
 
   $self->debug(2, "Checking if $package is already installed");
-
   my $dir="$self->{INSTALLDIR}/$user/$package/$version";
   (-d $dir) or return;
 
@@ -1165,30 +1181,34 @@ sub existsPackage{
       }
     }
 
-    $info and $info->{size} and chomp $info->{size};
-    $info->{size} or $info->{size}="";
-    $self->debug(2,  "$$ Size $size (has to be $info->{size})");
-    if (  $info->{size} and ($size ne $info->{size}) ){
-      $self->info( "The size of the package does not correspond (has to be $info->{size} and is $size)");
-      system("rm -rf $dirw");
-      return;
-    }
-    if ($info->{min_size}){
-      $self->info("Checking the minimum size of the package");
-      if ($info->{min_size}>$size){
-        $self->info("$$ The package is too small!! It is only $size, and it should be at least $info->{min_size}");
+   if ($info =~ /(^|=)HASH\b/){
+      $info and $info->{size} and chomp $info->{size};
+      $info->{size} or $info->{size}="";
+      $self->debug(2,  "$$ Size $size (has to be $info->{size})");
+      if (  $info->{size} and ($size ne $info->{size}) ){
+        $self->info( "The size of the package does not correspond (has to be $info->{size} and is $size)");
         system("rm -rf $dirw");
         return;
       }
+      if ($info->{min_size}){
+        $self->info("Checking the minimum size of the package");
+        if ($info->{min_size}>$size){
+          $self->info("$$ The package is too small!! It is only $size, and it should be at least $info->{min_size}");
+          system("rm -rf $dirw");
+          return;
+        }
+      }
     }
+    
   }
-
-  if ($info->{md5sum}) {
-    $self->info( "$$ Checking the md5sum of $info->{executable}");
-    chdir $dir;
-    system("md5sum -c .alienmd5sum") and
-      $self->info( "$$ Error checking the md5sumlist")
-        and return;
+  if ($info =~ /(^|=)HASH\b/){
+    if ($info->{md5sum}) {
+      $self->info( "$$ Checking the md5sum of $info->{executable}");
+      chdir $dir;
+      system("md5sum -c .alienmd5sum") and
+        $self->info( "$$ Error checking the md5sumlist")
+          and return;
+    }
   }
   $self->info( "The package is already installed (in $dir)!!");
   system("touch", "$dirw/.alien_last_checked");
@@ -1264,49 +1284,49 @@ that calls the rest of the arguments (something like \$*).";
 
 }
 
-sub recomputePackages {
-  my $self=shift;
-  my $Fsilent="";
-  my @userPackages=$self->{CATALOGUE}->execute("find", $Fsilent, $self->{CONFIG}->{USER_DIR}, "/packages/*");
-  my @voPackages=$self->{CATALOGUE}->execute("find", $Fsilent, "\L/$self->{CONFIG}->{ORG_NAME}/packages", "*");
-  my @packages;
-  my $org="\L$self->{CONFIG}->{ORG_NAME}\E";
-  foreach my $pack (@userPackages, @voPackages) {
-    $self->info(  "FOUND $pack");
-    if ($pack =~ m{^$self->{CONFIG}->{USER_DIR}/?./([^/]*)/packages/([^/]*)/([^/]*)/([^/]*)$}) {
-      push @packages,{'fullPackageName'=> "$1\@${2}::$3",
-                      packageName=>$2,
-                      username=>$1,
-                      packageVersion=>$3,
-                      platform=>$4,
-                      lfn=>$pack};
-    }elsif ($pack =~ m{^/$org/packages/([^/]*)/([^/]*)/([^/]*)$}) {
-      push @packages,{'fullPackageName'=> "VO_\U$org\E\@${1}::$2",
-                      packageName=>$1,
-                      username=>"VO_\U$org\E",
-                      packageVersion=>$2,
-                      platform=>$3,
-                      lfn=>$pack};
-    }else {
-      $self->info("Don't know what to do with $pack");
-    }
+# sub recomputePackages {
+#  my $self=shift;
+#  my $Fsilent="";
+#  my @userPackages=$self->{CATALOGUE}->execute("find", $Fsilent, $self->{CONFIG}->{USER_DIR}, "/packages/*");
+#  my @voPackages=$self->{CATALOGUE}->execute("find", $Fsilent, "\L/$self->{CONFIG}->{ORG_NAME}/packages", "*");
+#  my @packages;
+#  my $org="\L$self->{CONFIG}->{ORG_NAME}\E";
+#  foreach my $pack (@userPackages, @voPackages) {
+#    $self->info(  "FOUND $pack");
+#    if ($pack =~ m{^$self->{CONFIG}->{USER_DIR}/?./([^/]*)/packages/([^/]*)/([^/]*)/([^/]*)$}) {
+#      push @packages,{'fullPackageName'=> "$1\@${2}::$3",
+#                      packageName=>$2,
+#                      username=>$1,
+#                      packageVersion=>$3,
+#                      platform=>$4,
+#                      lfn=>$pack};
+#    }elsif ($pack =~ m{^/$org/packages/([^/]*)/([^/]*)/([^/]*)$}) {
+#      push @packages,{'fullPackageName'=> "VO_\U$org\E\@${1}::$2",
+#                      packageName=>$1,
+#                      username=>"VO_\U$org\E",
+#                      packageVersion=>$2,
+#                      platform=>$3,
+#                      lfn=>$pack};
+#    }else {
+#      $self->info("Don't know what to do with $pack");
+#    }
 
-  }
-  $self->info("READY TO INSERT @packages\n");
-  return $self->recomputePackagesInsert(@packages);
-}
-sub recomputePackagesInsert {
-  my $self=shift;
-  my @packages=@_;
-  $self->{DB}->lock('PACKAGES');
-  $self->{DB}->delete('PACKAGES', "1=1");
-  @packages and
-  $self->{DB}->multiinsert('PACKAGES', \@packages,);
-  $self->{DB}->unlock();
+#  }
+#  $self->info("READY TO INSERT @packages\n");
+#  return $self->recomputePackagesInsert(@packages);
+# }
+# sub recomputePackagesInsert {
+#  my $self=shift;
+#  my @packages=@_;
+#  $self->{DB}->lock('PACKAGES');
+#  $self->{DB}->delete('PACKAGES', "1=1");
+#  @packages and
+#  $self->{DB}->multiinsert('PACKAGES', \@packages,);
+#  $self->{DB}->unlock();
 
 
-  return 1;
-}
+#  return 1;
+# }
 
 ####### ^^^^^^^^^^^^^^^^^ testPackage ^^^^^^^^^^^^^^^^^^^^^^^ #######
 

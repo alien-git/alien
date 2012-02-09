@@ -107,7 +107,8 @@ sub doPackMan {
 	my $op={ 'getListPackagesFromDB'=>1,
 		'findPackageLFNInternal'=>1,
 		'registerPackageInDB'=>1,
-		'recomputePackages'=>1,
+		'deletePackageFromDB'=>1,
+#		'recomputePackages'=>1,
 	};
 	
 	if (not $op->{$func}){
