@@ -301,6 +301,18 @@ sub enterCommand {
     priority   => $priority,
     split      => $splitjob
   };
+  ($ok,  my $expires)       = $job_ca->evaluateAttributeString("Expires");
+  if ($expires){
+  	$self->info("The job will expire if it stays longer than $expires seconds");
+  	my $date=date();
+  	
+  	if ($date+$expires > $date){
+  		$set->{expires}=$date+$expires;
+  	} else {
+  		$self->info("There was a problem parsing the expires. Removing the ")
+  	}	
+  	
+  }
 
   if ($direct) {
     $self->info("The job should go directly to WAITING");
@@ -1180,82 +1192,7 @@ sub spy {
   return $result2->result;
 }
 
-sub killProcess {
-  my $this    = shift;
-  my $queueId = shift;
-  my $user    = shift;
 
-  # check for subjob's ....
-  my $rresult =
-    $self->{DB}->getFieldsFromQueueEx("queueId, submitHost", "where (queueId='$queueId' or split='$queueId') ");
-  my @retvalue;
-
-  for my $j (@$rresult) {
-    @retvalue = $self->killProcessInt($j->{queueId}, $user);
-  }
-  return @retvalue;
-}
-
-sub killProcessInt {
-  my $this    = shift;
-  my $queueId = shift;
-  my $user    = shift;
-
-  my $date = time;
-
-  ($queueId)
-    or $self->{LOGGER}->error("JobManager", "In killProcess no queueId in killProcess!!")
-    and return (-1, "no process id specified");
-
-  $self->info("Killing process $queueId...");
-
-  my ($data) = $self->{DB}->getFieldsFromQueue($queueId, "exechost, submithost, finished");
-
-  defined $data
-    or $self->{LOGGER}->error("JobManager", "In killProcess error during execution of database query")
-    and return (-1, "error during execution of database query");
-
-  %$data
-    or $self->{LOGGER}->error("JobManager", "In killProcess process $queueId does not exist")
-    and return (-1, "process $queueId does not exist");
-
-  #my ( $status, $host, $submithost, $finished ) = split "###", $data;
-  $data->{exechost} =~ s/^.*\@//;
-
-  if (($data->{submithost} !~ /^$user\@/) and ($user ne "admin")) {
-    $self->{LOGGER}->error("JobManager", "In killProcess process does not belong to '$user'");
-    return (-1, "process does not belong to '$user'");
-  }
-
-  my ($ok, $message) = $self->changeStatusCommand($queueId, 'token', '%', 'KILLED');
-  ($ok eq '-1') and return (-1, $message);
-
-  if ($data->{exechost}) {
-    my ($port) = $self->{DB}->getFieldFromHosts($data->{exechost}, "hostport")
-      or $self->info("Unable to fetch hostport for host $data->{exechost}")
-      and return (-1, "unable to fetch hostport for host $data->{exechost}");
-
-    $DEBUG and $self->debug(1, "Sending a signal to $data->{exechost} $port to kill the process... ");
-    my $current = time() + 300;
-    ($ok) = $self->{DB}->insertMessage(
-      { TargetHost    => $data->{exechost},
-        TargetService => 'ClusterMonitor',
-        Message       => 'killProcess',
-        MessageArgs   => $queueId,
-
-        #	Expires=>'UNIX_TIMESTAMP(Now())+300'});
-        Expires => $current
-      }
-    );
-
-    ($ok)
-      or $self->{LOGGER}->error("JobManager", "In killProcess error inserting the message")
-      and return (-1, "error inserting the message");
-  }
-  $self->info("Process killed");
-
-  return 1;
-}
 
 sub validateProcess {
   my $this    = shift;

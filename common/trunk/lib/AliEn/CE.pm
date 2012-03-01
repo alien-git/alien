@@ -1234,25 +1234,98 @@ sub UnsetEnvironmentForExecution {
 	return 1;
 }
 
+
+sub getTopFromDB {
+  my $self = shift;
+  
+  my $args =join (" ", @_);
+  my $date = time;
+
+  my $usage="\n\tUsage: top [-status <status>] [-user <user>] [-host <exechost>] [-command <commandName>] [-id <queueId>] [-split <origJobId>] [-all] [-all_status] [-site <siteName>]";
+
+  $self->info( "Asking for top..." );
+
+  my $where=" WHERE 1=1";
+  my $columns="queueId, status, name, execHost, submitHost ";
+  my $all_status=0;
+  my $error="";
+  my $data;
+
+  my @columns=(
+	       {name=>"user", pattern=>"u(ser)?",
+		start=>'submithost like \'',end=>"\@\%'"},
+	       {name=>"host", pattern=>"h(ost)?",
+		start=>'exechost like \'%\@',end=>"'"},
+	       {name=>"submithost", pattern=>"submit(host)?",
+		start=>'submithost like \'%\@',end=>"'"},
+	       {name=>"id", pattern=>"i(d)?",
+		start=>"queueid='",end=>"'"},
+	       {name=>"split", pattern=>"s(plit)?",
+		start=>"split='",end=>"'"},
+	       {name=>"status", pattern=>"s(tatus)?",
+		start=>"status='",end=>"'"},
+	       {name=>"command", pattern=>"c(ommand)?",
+		start=>"name='",end=>"'"},
+	       {name=>"site", pattern=>"site",
+		start=>"site='", end=>'\''}
+	      );
+
+  while (@_) {
+    my $argv=shift;
+
+    ($argv=~ /^-?-all_status=?/) and $all_status=1 and  next;
+    ($argv=~ /^-?-a(ll)?=?/) and $columns.=", received, started, finished,split" 
+      and next;
+    my $found;
+    foreach my $column (@columns){
+      if ($argv=~ /^-?-$column->{pattern}$/ ){
+	$found=$column;
+	last;
+      }
+    }
+    $found or  $error="argument '$argv' not understood" and last;
+    my $type=$found->{name};
+
+    my $value=shift or $error="--$type requires a value" and last;
+    $data->{$type} or $data->{$type}=[];
+
+    push @{$data->{$type}}, "$found->{start}$value$found->{end}";
+  }
+  if ($error) {
+    my $message="Error in top: $error\n$usage";
+    $self->info($message);
+    return ;
+  }
+
+  foreach my $column (@columns){
+    $data->{$column->{name}} or next;
+    $where .= " and (".join (" or ", @{$data->{$column->{name}}} ).")";
+  }
+  $all_status or $data->{status} or $data->{id} or $where.=" and ( status='RUNNING' or status='WAITING' or status='OVER_WAITING' or status='ASSIGNED' or status='QUEUED' or status='INSERTING' or status='STARTED' or status='SAVING' or status='TO_STAGE' or status='STAGGING' or status='A_STAGED' or status='STAGING' or status='SAVED')";
+
+  $where.=" ORDER by queueId";
+
+  $self->debug(1,  "In getTop, doing query $columns, $where" );
+
+  my $rresult = $self->{TASK_DB}->getFieldsFromQueueEx($columns, $where)
+    or $self->info( "In getTop error getting data from database" )
+      and return (-1, "error getting data from database");
+
+  my @entries=@$rresult;
+  $self->debug(1, "Top done with $#entries +1");
+
+  return $rresult;
+}
+
+
 sub f_top {
 	my $self = shift;
 	my @args = @_;
 
 	$DEBUG and $self->debug(1, "In RemoteQueue::top @_");
 
-	my $done = $self->{SOAP}->CallSOAP("Manager/JobInfo", "getTop", @_)
-		or return;
+	my $result = $self->getTopFromDB( @_) or return;
 
-	my $result = $done->result;
-	$result =~ /^Top: Gets the list of jobs/
-		and return $self->info($result);
-
-	foreach (@$result) {
-		my %h;
-		tie %h, 'Tie::CPHash';
-		%h = %$_;
-		$_ = \%h;
-	}
 	my @jobs = @$result;
 	my $job;
 	my $columns = "JobId\tStatus\t\tCommand name\t\t\t\t\tSubmithost";
@@ -1262,7 +1335,7 @@ sub f_top {
 		$columns .= "\t\t\tExechost\t\t\tReceived\t\t\tStarted\t\t\t\tFinished\tMasterJob";
 		$format  .= "\t%-20s\t\%s\t\%s\t\%s\t%6s";
 	}
-	$self->info($columns, undef, 0);
+	$self->info($columns."\n", undef, 0);
 
 	foreach $job (@jobs) {
 		$DEBUG and $self->debug(3, Dumper($job));
@@ -1285,19 +1358,26 @@ sub f_top {
 		$data[6] and $data[6] = localtime $data[6];
 		$data[7] and $data[7] = localtime $data[7];
 
-		my $string = sprintf "$format", @data;
+		my $string = sprintf "$format\n", @data;
 		$self->info($string, undef, 0);
 	}
 	return @jobs;
 }
 
+
+
 sub f_queueinfo {
 	my $self = shift;
-	my $site = (shift or "%");
+	my $jdl="";
+  grep (/^-jdl$/, @_) and $jdl="jdl,";
+  @_=grep (!/^-jdl$/, @_);
+  my $site = (shift or '%');
+  my $sql="site,blocked, status, statustime,$jdl ". join(", ", @{AliEn::Util::JobStatus()});
+  $self->info("Quering  $sql");
+  my $done = $self->{TASK_DB}->getFieldsFromSiteQueueEx($sql,"where site like '$site' ORDER by site");
+  ($done) or return;
 
-	my $done = $self->{SOAP}->CallSOAP("Manager/JobInfo", "queueinfo", $site, @_);
-	$done or return;
-	$done = $done->result;
+
 	$self->f_queueprint($done, $site);
 }
 
@@ -1651,6 +1731,7 @@ sub f_ps_trace {
 	}
 
 	my $done = $self->{SOAP}->CallSOAP("Manager/JobInfo", "getTrace", "trace", $id, @_);
+	
 	$done or return;
 	my @trace;
 	my $result = $done->result;
@@ -1746,6 +1827,117 @@ sub f_ps2_jdltrace {
 		return @result;
 	}
 }
+=item getPs
+
+Gets the list of jobs from the queue
+
+Possible flags:
+
+=cut 
+
+sub getPsFromDB {
+  my $self = shift;
+  my $flags= shift;
+  my $args =join (" ", @_);
+  my $date = time;
+  my $i;
+
+  my $status="status='RUNNING' or status='WAITING' or status='OVER_WAITING' or status='ASSIGNED' or status='QUEUED' or status='INSERTING' or status='SPLIT' or status='SPLITTING' or status='STARTED' or status='SAVING'";
+  my $site="";
+
+  $self->info( "Asking for ps (@_)..." );
+
+  my $user="";
+  my @userStatus;
+  if ( $flags =~ s/d//g){
+    push @userStatus, "status='DONE'";
+  }
+  if ( $flags =~ s/f//g){
+    push @userStatus, "status='EXPIRED'", "status like 'ERROR_\%'",
+      "status='KILLED'","status='FAILED'","status='ZOMBIE'";
+  }
+  if ( $flags=~ s/r//g) {
+    push @userStatus,"status='RUNNING'", "status='SAVING'","status='WAITING'", "status='OVER_WAITING'", "status='ASSIGNED'", "status='QUEUED'", "status='INSERTING'", "status='SPLITTING'", "status='STARTED'", "status='SPLIT'";
+  }
+  
+  if ( $flags =~ s/A//g) {
+    push @userStatus, 1;
+  }
+
+  if ( $flags =~s/I//g) {
+    push @userStatus,"status='IDLE'", "status='INTERACTIV'","status='FAULTY'";
+  }
+  if ( $flags=~ s/z//g) {
+    push @userStatus,"status='ZOMBIE'";
+  }
+
+  while ($args =~ s/-?-s(tatus)? (\S+)//) {
+    push @userStatus, "status='$1'";
+  }
+  @userStatus and $status=join (" or ", @userStatus) ;
+
+  my @userSite;
+  while ($args =~ s/-?-s(ite)? (\S+)//) {
+    push @userSite, "site='$1'";
+  }
+  @userSite and $site="and ( ". join (" or ", @userSite). ")";
+
+#    }
+    #my $query="SELECT queueId, status, jdl, execHost, submitHost, runtime, cpu, mem, cputime, rsize, vsize, ncpu, cpufamily, cpuspeed, cost, maxrsize, maxvsize,received,started,finished  FROM QUEUE WHERE ( status=$status ) ";
+  if($status=~/[0-9]/){ $status = "$status = $status";}  
+    my $where = "WHERE ( $status ) $site ";
+
+
+    $args =~ s/-?-u(ser)?=?\s+(\S+)// and $where.=" and submithost like '$2\@\%'";
+    $args =~ s/-?-i(d)?=?\s*(\S+)// and $where .=" and ( p.queueid='$2' or split='$2')";
+  
+  if ($flags =~ s/s//) {
+    $where .=" and (upper(origJdl) like '\%SPLIT\%' or split>0 ) ";
+  } elsif ($flags !~ s/S//) {
+    $where .=" and ((split is NULL) or (split=0))";
+  }
+
+  if ($flags !~ /^\s*$/) {
+    $self->info( "Error: I don't know what to do with '-$flags'");
+    return;
+
+  }
+  if ($args !~ /^\s*$/){
+    $self->info( "Error: I don't know what to do with '$args'");
+    return;
+  }
+
+  $where .=" and p.queueid=q.queueid ORDER BY q.queueId";
+
+  $self->info( "In getPs getting data from database \n $where" );
+
+
+	#my (@ok) = $self->{DB}->query($query);
+  my $rresult = $self->{TASK_DB}->getFieldsFromQueueEx("q.queueId, status, name, execHost, submitHost, runtime, cpu, mem, cputime, rsize, vsize, ncpu, cpufamily, cpuspeed, cost, maxrsize, maxvsize, site, node, split, procinfotime,received,started,finished",
+						  "q, QUEUEPROC p,QUEUEJDL qj $where")
+    or $self->info( "In getPs error getting data from database" )
+      and return;
+
+  $DEBUG and $self->debug(1, "In getPs getting ps done" );
+
+  my @jobs;
+  for (@$rresult) {
+    $DEBUG and $self->debug(1, "Found jobid $_->{queueId}");
+
+    $_->{cost} = int ($_->{cost});
+    push @jobs, join ("###", $_->{queueId}, $_->{status}, $_->{name}, $_->{execHost}, $_->{submitHost},
+		      $_->{runtime}, $_->{cpu}, $_->{mem}, $_->{cputime}, $_->{rsize}, $_->{vsize},
+		      $_->{ncpu}, $_->{cpufamily}, $_->{cpuspeed}, $_->{cost}, $_->{maxrsize}, $_->{maxvsize}, $_->{site},$_->{node},1,$_->{split},$_->{procinfotime},$_->{received},$_->{started},$_->{finished});
+  }
+
+  (@jobs) or (push @jobs, "\n");
+
+  $self->info( "ps done with $#jobs entries");
+
+  return  \@jobs ;
+}
+
+
 
 sub f_ps2 {
 
@@ -2025,10 +2217,10 @@ sub f_ps_rc {
 	my $id   = shift;
 	$id or $self->info("Error: missing the id of the process", 11) and return;
 	$DEBUG and $self->debug(1, "Checking the return code of $id");
-
-	my $done = $self->{SOAP}->CallSOAP("Manager/JobInfo", "getJobRC", $id);
-	$done or return;
-	return $done->result;
+	  
+  my $rc=$self->{TASK_DB}->queryValue("select error from QUEUE where queueId=$id");
+  $self->info( "The return code of $id is $rc\n");
+	return $rc;
 
 }
 
@@ -2175,25 +2367,13 @@ sub f_ps {
 
 	#  grep (((/^-?-st?=?\s?(\d+)/) and ($addtags = " -s $1 -z")),@_);
 
-	my $done = $self->{SOAP}->CallSOAP("Manager/JobInfo", "getPs", $flags, $addtags, @id);
-
+	my $result = $self->getPsFromDB( $flags, $addtags, @id);
+  $result or return;
 	#print "ps result:", $done->result, ":\n";
 
 	my $error  = "";
-	my $result = "";
-	$done and $result = $done->result;
 
-	($done) or $error = "Error connecting to the Manager/Job !!";
-	($done) and (!$result) and $error = "The Manager/Job did not return anything";
-
-	$result and ($result eq "-1") and $error = $done->paramsout || "Error reading result of the Manager/Job";
-
-	if ($error) {
-		$self->info("The Manager/Job returned error $error");
-		return (-1, $error);
-	}
-
-	my @jobs = split "\n", $result;
+	my @jobs = @$result;
 	my $job;
 
 	#    printf STDOUT " JobId\tStatus\t\tCommand name\t\t\t\t\tExechost\n";
@@ -2320,7 +2500,10 @@ sub f_kill {
 
 	my $user = $self->{CATALOG}->{CATALOG}->{ROLE};
 	foreach my $queueId (@_) {
-		my ($result) = $self->{SOAP}->CallSOAP("Manager/Job", "killProcess", $queueId, $user) or return;
+		if (!$self->{TASK_DB}->killTask($queueId, $user)){
+			$self->info("We can't kill the job $queueId");
+			return;
+		}
 		$self->info("Process $queueId killed!!", undef, 0);
 	}
 	return 1;
@@ -3732,10 +3915,10 @@ sub f_jobListMatch {
 	my $job_ca = Classad::Classad->new($jdl);
 	$job_ca         or $self->info("Error creating the classad of the job")    and return;
 	$job_ca->isOK() or $self->info("The syntax of the job jdl is not correct") and return;
-	my $done = $self->{SOAP}->CallSOAP("Manager/JobInfo", "queueinfo", $ceName, "-jdl");
+	my @result = $self->f_queueinfo($ceName, "-jdl");
+	my $done=shift @result;
 	$done or return;
 
-	$done = $done->result or return;
 	my $anyMatch = 0;
 	my $jobPriority;
 	if ($self->{TASK_DB}) {

@@ -1382,6 +1382,82 @@ sub insertFileBroker{
 	$self->insert("FILES_BROKER", {split=>$masterId, lfn=>$lfn, sites=>$sites})
 }
 
+sub killTask{
+	my $self=shift;
+	my $queueId = shift;
+  my $user    = shift;
+
+  # check for subjob's ....
+  my $rresult =
+    $self->getFieldsFromQueueEx("queueId, submitHost", "where (queueId='$queueId' or split='$queueId') ");
+  my @retvalue;
+
+  for my $j (@$rresult) {
+    @retvalue = $self->killProcessInt($j->{queueId}, $user);
+  }
+  return @retvalue;
+}
+
+sub killProcessInt {
+  my $self    = shift;
+  my $queueId = shift;
+  my $user    = shift;
+
+  my $date = time;
+
+  ($queueId)
+    or $self->info("In killProcess no queueId in killProcess!!")
+    and return;
+
+  $self->info("Killing process $queueId...");
+
+  my ($data) = $self->getFieldsFromQueue($queueId, "exechost, submithost, finished");
+
+  defined $data
+    or $self->info( "In killProcess error during execution of database query")
+    and return;
+
+  %$data
+    or $self->info("In killProcess process $queueId does not exist")
+    and return;
+
+  #my ( $status, $host, $submithost, $finished ) = split "###", $data;
+  $data->{exechost} =~ s/^.*\@//;
+
+  if (($data->{submithost} !~ /^$user\@/) and ($user ne "admin")) {
+    $self->info( "In killProcess process does not belong to '$user'");
+    return;
+  }
+
+  $self->updateStatus($queueId, '%', 'KILLED') or return ;
+
+  if ($data->{exechost}) {
+    my ($port) = $self->getFieldFromHosts($data->{exechost}, "hostport")
+      or $self->info("Unable to fetch hostport for host $data->{exechost}")
+      and return;
+
+    $DEBUG and $self->debug(1, "Sending a signal to $data->{exechost} $port to kill the process... ");
+    my $current = time() + 300;
+    my ($ok) = $self->insertMessage(
+      { TargetHost    => $data->{exechost},
+        TargetService => 'ClusterMonitor',
+        Message       => 'killProcess',
+        MessageArgs   => $queueId,
+
+        #	Expires=>'UNIX_TIMESTAMP(Now())+300'});
+        Expires => $current
+      }
+    );
+
+    ($ok)
+      or $self->info( "In killProcess error inserting the message")
+      and return;
+  }
+  $self->info("Process killed");
+
+  return 1;
+}
+
 =head1 NAME
 
 AliEn::Database::TaskQueue

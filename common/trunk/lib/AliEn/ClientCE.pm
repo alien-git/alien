@@ -83,6 +83,11 @@ sub f_queue {
   return $self->{CATALOG}->{CATALOG}->callAuthen("queue", @_);
 }
 
+sub f_queueinfo {
+  my $self = shift;
+  return $self->{CATALOG}->{CATALOG}->callAuthen("queueinfo", @_);
+}
+
 sub f_jquota {
   my $self = shift;
   return $self->{CATALOG}->{CATALOG}->callAuthen("jquota", @_);
@@ -112,6 +117,23 @@ sub masterJob {
 	my $self = shift;
 	return $self->{CATALOG}->{CATALOG}->callAuthen("masterJob", @_);
 	
+}
+
+sub f_top{
+	my $self=shift;
+	return $self->{CATALOG}->{CATALOG}->callAuthen("top", @_);
+
+}
+
+sub f_kill{
+	my $self=shift;
+	return $self->{CATALOG}->{CATALOG}->callAuthen("kill", @_);
+	
+}
+
+sub f_ps{
+	my $self=shift;
+	return $self->{CATALOG}->{CATALOG}->callAuthen("ps", @_);
 }
 
 __END__
