@@ -1747,7 +1747,7 @@ sub f_ps_trace {
 		if ($printout =~ s/^(\d+)//) {
 			$printout = localtime($1) . $printout;
 		}
-		my $string = sprintf("%03d $printout", $cnt);
+		my $string = sprintf("%03d $printout\n", $cnt);
 		$self->info($string, undef, 0);
 		my @elements = split " ", $_;
 		my $hashcnt  = 0;

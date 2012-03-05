@@ -148,11 +148,12 @@ sub initialize {
       "INDEX (status,submitHost)",
       "INDEX (status,agentid)",
       "UNIQUE INDEX (status,queueId)"
-    ]
+    ],
+    engine =>'innodb'
   };
   my $queueColumnsProc = {
     columns => {
-      queueId      => "int(11) not null auto_increment primary key",
+      queueId      => "int(11) not null",
       runtime      => "varchar(20)",
       runtimes     => "int",
       cpu          => "float",
@@ -172,23 +173,23 @@ sub initialize {
       batchid      => "varchar(255)",
     },
     id    => "queueId",
-    index => "queueId"
+    extra_index=> ['foreign key (queueid) references QUEUE(queueid) on delete cascade'],
+    engine =>'innodb'
   };
   my $queueColumnsJDL ={
   	columns=>{    
-  		queueId      => "int(11) not null auto_increment primary key",
+  		queueId      => "int(11) not null",
   		origJdl      =>"text collate latin1_general_ci",
   		resultsJdl          => "text collate latin1_general_ci",
   		
-  		
   	},
   	id =>"queueId",
+  	extra_index=> ['foreign key (queueid) references QUEUE(queueid) on delete cascade'],
+    engine =>'innodb'
   };
   my $tables = {
     QUEUE            => $queueColumns,
     QUEUEPROC        => $queueColumnsProc,
-    QUEUEEXPIRED     => $queueColumns,
-    QUEUEEXPIREDPROC => $queueColumnsProc,
     QUEUEJDL         => $queueColumnsJDL,
 
     $self->{QUEUEARCHIVE}     => $queueColumns,
@@ -290,7 +291,7 @@ sub initialize {
     			"queueid" => "int(11) default null",
     	},
 
-    	extra_index=>['split', "unique index(split,lfn)"],
+    	extra_index=>['index(split)', "unique index(split,lfn)"],
     	id=>"lfn"
     	
     }
@@ -1429,7 +1430,7 @@ sub killProcessInt {
     return;
   }
 
-  $self->updateStatus($queueId, '%', 'KILLED') or return ;
+  $self->do("delete from QUEUE where queueid=?", {bind_values=>[$queueId]}) or return ;
 
   if ($data->{exechost}) {
     my ($port) = $self->getFieldFromHosts($data->{exechost}, "hostport")
