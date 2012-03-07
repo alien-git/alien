@@ -819,9 +819,9 @@ sub updateStatistics {
 
   $self->do("delete from GL_STATS where tableNumber=?", {bind_values => [$index]});
   $self->do(
-    "insert into GL_STATS(tableNumber, seNumber, seNumFiles, seUsedSpace) select ?, s.seNumber, count(*), sum("
+    "insert into GL_STATS(tableNumber, seNumber, seNumFiles, seUsedSpace) select ?, seNumber, count(*), sum("
       . $self->reservedWord("size")
-      . ") from SE s, $table g ,${table}_PFN p where g.guidid=p.guidid and s.senumber=p.senumber group by s.senumber",
+      . ") from  $table g ,${table}_PFN p where g.guidid=p.guidid group by senumber",
     {bind_values => [$index]}
   );
   return 1;
