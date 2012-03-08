@@ -872,6 +872,8 @@ sub checkSETable {
     seExclusiveWrite => "varchar(300) character set latin1 collate latin1_general_ci",
     seExclusiveRead  => "varchar(300) character set latin1 collate latin1_general_ci",
     seVersion        => "varchar(300)",
+    seDemoteWrite    => "float not null default 0",
+    seDemoteRead     => "float not null default 0"
   );
 
   return $self->checkTable("SE", "seNumber", \%columns, 'seNumber', ['UNIQUE INDEX (seName)'], {engine => "innodb"})
