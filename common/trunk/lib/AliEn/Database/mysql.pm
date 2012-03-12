@@ -596,18 +596,6 @@ sub resetAutoincrement {
 ###########################
 #Functions specific for AliEn/Catalogue/Admin
 ##########################
-sub refreshSERank {
-  my $self   = shift;
-  my $site   = shift;
-  my $rank   = shift;
-  my $seName = shift;
-  $self->do(
-    "insert into SERanks (sitename,seNumber,rank,updated)
-  select ?, seNumber,  ?, 0  from SE where seName LIKE ?",
-    {bind_values => [ $site, $rank, $seName ]}
-  );
-
-}
 #####
 ###Specific for Database/Catalogue/GUID
 ###
@@ -673,40 +661,6 @@ sub insertLFNBookedAndOptionalExistingFlagTrigger {
 "REPLACE INTO LFN_BOOKED (lfn, owner, quotaCalculated, md5sum, expiretime, size, pfn, se, gowner, guid, existing, jobid) VALUES (?,?,?,?,?,?,?,?,?,string2binary(?),?,?);",
     {bind_values => [ $lfn, $user, $quota, $md5sum, $expiretime, $size, $pfn, $se, $user, $guid, $existing, $jobid ]}
   );
-}
-
-sub dbGetSEListFromSiteSECacheForWriteAccess {
-
-  my $self        = shift;
-  my $user        = shift;
-  my $fileSize    = shift;
-  my $type        = shift;
-  my $count       = shift;
-  my $sitename    = shift;
-  my $excludeList = (shift || "");
-
-  my $query = "SELECT DISTINCT SE.seName FROM SERanks,SE WHERE " . " sitename=? and SERanks.seNumber = SE.seNumber ";
-
-  my @queryValues = ();
-  push @queryValues, $sitename;
-
-  foreach (@$excludeList) {
-    $query .= "and SE.seName<>? ";
-    push @queryValues, $_;
-  }
-
-  $query .=
-      " and SE.seMinSize <= ? and SE.seQoS  LIKE concat('%,' , ? , ',%' ) "
-    . " and (SE.seExclusiveWrite is NULL or SE.seExclusiveWrite = '' or SE.seExclusiveWrite  LIKE concat ('%,' , ? , ',%') )"
-    . " ORDER BY rank ASC limit ? ;";
-
-  push @queryValues, $fileSize;
-  push @queryValues, $type;
-  push @queryValues, $user;
-  push @queryValues, $count;
-
-  return $self->queryColumn($query, undef, {bind_values => \@queryValues});
-
 }
 
 ##############

@@ -164,89 +164,6 @@ sub resortArrayToPrioElementIfExists {
   return \@newlist;
 }
 
-sub OLDselectClosestRealSEOnRank {
-  my $self               = shift;
-  my $sitename           = (shift || 0);
-  my $user               = (shift || return 0);
-  my $readOrDelete       = shift;
-  my $seList             = (shift || return 0);
-  my $sePrio             = (shift || 0);
-  my $excludeList        = (shift || []);
-  my $nose               = 0;
-  my @cleanList          = ();
-  my $result             = {};
-  my $exclusiveUserCheck = "";
-  ($readOrDelete =~ /^read/)   and $exclusiveUserCheck = "seExclusiveRead";
-  ($readOrDelete =~ /^delete/) and $exclusiveUserCheck = "seExclusiveWrite";
-
-  foreach (@$seList) {
-    UNIVERSAL::isa($_, "HASH") and $_ = $_->{seName};
-    ($_ eq "no_se") and $nose = 1 and next;
-    $self->identifyValidSEName($_) and push @cleanList, $_;
-  }
-  $seList = \@cleanList;
-
-  my $catalogue   = $self->{DATABASE};
-  my @queryValues = ();
-  my $query       = "";
-  if ($sitename) {
-    $self->checkSiteSECacheForAccess($sitename) or return 0;
-    push @queryValues, $sitename;
-
-    $query =
-"SELECT seName from ( SELECT DISTINCT b.seName as seName,a.rank  FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE ";
-    $query .=
-" (b.$exclusiveUserCheck is NULL or b.$exclusiveUserCheck = '' or b.$exclusiveUserCheck  LIKE concat ('%,' , concat(? , ',%')) ) ";
-    push @queryValues, $user;
-    if (scalar(@{$seList}) > 0) {
-      $query .= " and ( ";
-      foreach (@{$seList}) { $query .= "upper( b.seName)=upper(?) or"; push @queryValues, $_; }
-      $query =~ s/or$/)/;
-    }
-    foreach (@{$excludeList}) { $query .= " and upper(b.seName)<>upper(?) "; push @queryValues, $_; }
-
-    #    $query .= " ORDER BY if(a.rank is null, 1000, a.rank) ASC ;";
-    $query .= " ORDER BY coalesce(a.rank,1000)  ASC )d;";
-  } else {    # sitename not given, so we just delete the excluded SEs and check for exclusive Users
-    $query = "SELECT seName FROM SE WHERE ";
-    foreach (@$seList) { $query .= " upper(seName)=upper(?) or"; push @queryValues, $_; }
-    $query =~ s/or$//;
-    foreach (@$excludeList) { $query .= " and upper(seName)<>upper(?) "; push @queryValues, $_; }
-    $query .=
-" and ($exclusiveUserCheck is NULL or $exclusiveUserCheck = '' or $exclusiveUserCheck  LIKE concat ('%,' , concat(? , ',%')) ) ;";
-    push @queryValues, $user;
-  }
-  $result =
-    $self->resortArrayToPrioElementIfExists($sePrio,
-    $catalogue->queryColumn($query, undef, {bind_values => \@queryValues}));
-  $nose and @$result = ("no_se", @$result);
-  return $result;
-}
-
-sub findCloseSE {
-  my $self           = shift;
-  my $type           = shift;
-  my $excludeListRef = shift || undef;
-  my @excludeList    = ();
-  $excludeListRef and push @excludeList, @$excludeListRef;
-  $type =~ /^(custodial)|(replica)$/
-    or $self->info("Authorize: Error: type of SE '$type' not understood", 1)
-    and return 0;
-  $self->info("Authorize: Looking for the closest $type SE");
-
-  if (  $self->{CONFIG}->{SE_RETENTION_POLICY}
-    and $self->{CONFIG}->{SE_RETENTION_POLICY} =~ /$type/) {
-    $self->info("Authorize: We are lucky. The closest is $type");
-    return $self->{SE_FULLNAME};
-  }
-
-  my $se = $self->{SOAP}->CallSOAP("IS", "getCloseSE", $self->{SITE}, $type, $excludeListRef);
-  $self->{SOAP}->checkSOAPreturn($se) or return;
-  my $seName = $se->result;
-  $self->info("Authorize: We are going to put the file in $seName");
-  return $seName;
-}
-
 #############################################################################################################
 sub access_eof {
   my $error     = (shift || "error creating the envelope");
@@ -521,8 +438,10 @@ sub access {
         my $query       = "";
         $self->checkSiteSECacheForAccess($sitename) || return 0;
         push @queryValues, $sitename;
+        my $action="write";
+        $access eq "read" and $action="read";
         $query =
-               "SELECT seName from (SELECT DISTINCT b.seName as seName, a.rank FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE ";
+               "SELECT seName from (SELECT DISTINCT b.seName as seName, sitedistance-sedemote$action weight FROM SEDistance a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE ";
         $query .=
         " (b.seExclusiveRead is NULL or b.seExclusiveRead = '' or b.seExclusiveRead  LIKE concat ('%,' , concat(? , ',%')) ) and ";
         push @queryValues, ($self->{ROLE} || $self->{CONFIG}->{ROLE});
@@ -530,7 +449,7 @@ sub access {
         $query =~ s/or$//;
 
         #  $query .= " ORDER BY if(a.rank is null, 1000, a.rank) ASC ;";
-        $query .= " ORDER BY coalesce(a.rank,1000) ASC ) d;";
+        $query .= " ORDER BY weight ASC ) d;";
 
         my $sorted =
           $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryColumn($query, undef, {bind_values => \@queryValues});
@@ -1035,7 +954,7 @@ sub getValFromEnvelope {
 
 sub selectPFNOnClosestRootSEOnRank {
   my $self        = shift;
-  my $sitename    = (shift || 0);
+  my $sitename    = (shift || $self->{CONFIG}->{SITE});
   my $user        = (shift || return 0);
   my $guid        = (shift || return 0);
   my $sePrio      = (shift || 0);
@@ -1051,60 +970,37 @@ sub selectPFNOnClosestRootSEOnRank {
     and @where = $self->f_whereis("sgz", "$guid");
 
   foreach my $tSE (@where) {
-
-    #AliEn::Util::isValidSEName($tSE->{se}) || next;
-    (grep (/^$tSE->{se}$/i, @$excludeList)) && next;
-
-    #if($tSE->{pfn} =~ /^root/) {
+    (grep (/^$tSE->{se}$/i, @$excludeList)) && next;    
     $seList->{lc($tSE->{se})} = $tSE->{pfn};
-
-    # } elsif ($tSE->{pfn} =~ /^guid/) {
-    # $nose=$tSE->{pfn};
-    #} else {
-    #   $nose=$tSE->{pfn};
-    #$nonRoot->{se} = $tSE->{se};
-    #$nonRoot->{pfn} = $tSE->{pfn};
-    #}
   }
 
   if (scalar(keys %{$seList}) eq 0) {
-
     # we don't have any root SE to get it from
-    # $nose and return ("no_se",$nose);
     $self->info("There are no more SE holding that file", 1);
-
-    # $nonRoot->{pfn} and return ($nonRoot->{se},$nonRoot->{pfn});
     return 0;
   }
+  
+  $self->checkSiteSECacheForAccess($sitename) || return 0;
 
-  my $catalogue   = $self->{DATABASE};
-  my @queryValues = ();
-  my $query       = "";
-  if ($sitename) {
-    $self->checkSiteSECacheForAccess($sitename) || return 0;
-    push @queryValues, $sitename;
+  my $query =
+"SELECT seName from (SELECT DISTINCT b.seName as seName , sitedistance+sedemoteread weight 
+    FROM SEDistance a JOIN SE b using (seNumber)
+   WHERE sitename=? and  (b.seExclusiveRead is NULL or b.seExclusiveRead = '' or 
+ b.seExclusiveRead  LIKE concat ('%,' , concat(? , ',%')) ) and (";
 
-    $query =
-"SELECT seName from (SELECT DISTINCT b.seName as seName , a.rank FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE ";
-    $query .=
-" (b.seExclusiveRead is NULL or b.seExclusiveRead = '' or b.seExclusiveRead  LIKE concat ('%,' , concat(? , ',%')) ) and ";
-    push @queryValues, $user;
-    foreach (keys %{$seList}) { $query .= " upper(b.seName)=upper(?) or"; push @queryValues, $_; }
-    $query =~ s/or$//;
+ 	my @queryValues=($sitename, $user);
 
-    # $query .= " ORDER BY if(a.rank is null, 1000, a.rank) ASC ;";
-    $query .= " ORDER BY coalesce(a.rank,1000)  ASC )d;";
-  } else {    # sitename not given, so we just delete the excluded SEs and check for exclusive Users
-    $query = "SELECT seName FROM SE WHERE ";
-    foreach (keys %{$seList}) { $query .= " upper(seName)=upper(?) or"; push @queryValues, $_; }
-    $query =~ s/or$//;
-    $query .=
-" and (seExclusiveRead is NULL or seExclusiveRead = '' or seExclusiveRead  LIKE concat ('%,' , concat(? , ',%')) ) ;";
-    push @queryValues, $user;
+  foreach (keys %{$seList}) {
+  	 $query .= " upper(b.seName)=upper(?) or"; push @queryValues, $_; 
   }
+  $query =~ s/or$//;
+ 
+  $query .= ") ORDER BY weight ASC )d ";
+   
+ 
   my $sePriority =
     $self->resortArrayToPrioElementIfExists($sePrio,
-    $catalogue->queryColumn($query, undef, {bind_values => \@queryValues}));
+    $self->{DATABASE}->queryColumn($query, undef, {bind_values => \@queryValues}));
   return ($$sePriority[0], $seList->{lc($$sePriority[0])});
 }
 
@@ -1418,7 +1314,8 @@ sub getSEsAndCheckQuotaForWriteOrMirrorAccess {
     my $dynamicSElist =
       $self->getSEListFromSiteSECacheForWriteAccess($user, $envelope->{size}, $writeQos, $writeQosCount, $sitename,
       $excludedAndfailedSEs);
-    push @$seList, @$dynamicSElist;
+    $dynamicSElist and 
+      push @$seList, @$dynamicSElist;
   }
 
   my ($ok, $message) = $self->checkFileQuota($user, $envelope->{size});
@@ -2178,24 +2075,44 @@ sub getSEListFromSiteSECacheForWriteAccess {
   my $catalogue = $self->{DATABASE};
 
   $self->checkSiteSECacheForAccess($sitename) or return 0;
-  return $catalogue->dbGetSEListFromSiteSECacheForWriteAccess($user, $fileSize, $type, $count, $sitename, $excludeList);
+  
+  
+
+  my $query = "select seName from 
+  (SELECT DISTINCT SE.seName, sitedistance + sedemotewrite weight FROM SEDistance join SE using (seNumber) WHERE 
+    sitename=? and SE.seMinSize <= ? and SE.seQoS  LIKE concat('%,' , ? , ',%' ) 
+ and (SE.seExclusiveWrite is NULL or SE.seExclusiveWrite = '' or SE.seExclusiveWrite  LIKE concat ('%,' , ? , ',%') ) 
+ ";
+
+  my @queryValues= ($sitename, $fileSize, $type, $user);
+
+  foreach (@$excludeList) {
+    $query .= " and SE.seName<>? ";
+    push @queryValues, $_;
+  }
+
+	$query .= ")bb order by weight asc limit $count";
+
+  return $self->{DATABASE}->queryColumn($query, undef, {bind_values => \@queryValues});
 
 }
+
+ 
 
 sub checkSiteSECacheForAccess {
   my $self      = shift;
   my $site      = shift;
   my $catalogue = $self->{DATABASE};
 
-  AliEn::Util::returnCacheValue($self, "seranks-$site") and return 1;
+  AliEn::Util::returnCacheValue($self, "sedistance-$site") and return 1;
 
-  my $reply = $catalogue->queryValue("SELECT count(1) FROM SERanks WHERE sitename=?;", undef, {bind_values => [$site]});
+  my $reply = $catalogue->queryValue("SELECT count(1) FROM SEDistance WHERE sitename=?;", undef, {bind_values => [$site]});
 
   if (not $reply) {
-    $self->info("Authorize: We need to update the SERank Cache for the not listed site: $site");
-    return $self->refreshSERankCache($site);
+    $self->info("Authorize: We need to update the SE distance for the not listed site: $site");
+    return $self->refreshSEDistance(undef, $site);
   }
-  AliEn::Util::setCacheValue($self, "seranks-$site", 1);
+  AliEn::Util::setCacheValue($self, "sedistance-$site", 1);
 
   return 1;
 }

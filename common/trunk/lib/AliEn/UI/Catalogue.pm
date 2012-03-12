@@ -127,7 +127,9 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
   'checkOrphanGUID'    => [ '$self->{CATALOG}->checkOrphanGUID',     0 ],
   'optimizeGUIDtables' => [ '$self->{CATALOG}->optimizeGUIDtables',  0 ],
   'setSElimit'         => [ '$self->{CATALOG}->setSElimit',          0 ],
-  'refreshSERankCache' => [ '$self->{CATALOG}->refreshSERankCache',  0 ],
+  'refreshSEDistance'  => [ '$self->{CATALOG}->refreshSEDistance',  67 ],
+  'listSEDistance'     => [ '$self->{CATALOG}->listSEDistance',  67 ],
+  'setSEStatus'        => [ '$self->{CATALOG}->setSEStatus',  67 ],
   'fquota_set'         => [ '$self->{CATALOG}->fquota_set',          0 ],
 
   #	       'addMethod' =>'f_addMethod', 0],

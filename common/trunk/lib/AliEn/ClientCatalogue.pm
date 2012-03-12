@@ -150,7 +150,6 @@ sub AUTOLOAD {
     removeTagValue           => "removeTagValue",
     removeTrigger            => "removeTrigger",
     renumber                 => "renumberDirectory",
-    refreshSERankCache       => "refreshSERankCache",
     resyncLDAP               => "resyncLDAP",
     removeFileFromCollection => "removeFileFromCollection",
     registerFile             => 'register',
@@ -169,6 +168,9 @@ sub AUTOLOAD {
     verifyToken              => "verifyToken",
     whereis                  => "whereis",
     zoom                     => "zoom",
+    refreshSEDistance        => "refreshSEDistance",
+    listSEDistance           => "listSEDistance",
+    setSEStatus              => "setSEStatus",
 
   };
   if ($ops->{$name}) {

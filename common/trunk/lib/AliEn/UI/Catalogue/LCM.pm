@@ -465,6 +465,13 @@ Options:
 Checks the status of different services
 
 =cut
+sub services_HELP {
+	return "services: prints out the status of the different services
+Usage: services [core|se]";
+	
+	
+}
+
 
 sub services {
   my $self = shift;
@@ -480,59 +487,43 @@ sub services {
   my $opt         = {};
   my @returnarray;
   $#returnarray = -1;
-  @ARGV         = @_;
-#  Getopt::Long::GetOptions($opt, "verbose", "z", "n", "core", "se", "ce", "domain=s", "clc", "ftd", "packman")
-  Getopt::Long::GetOptions($opt, "verbose", "z", "n", "core", "se", "ce", "domain=s", "clc", "ftd")
-    or $self->info("Error parsing the options")
+  @ARGV         = @_;  
+  Getopt::Long::GetOptions($opt, "verbose", "z", "n", "core", "se", "ce", "domain=s", "help")
+    or $self->info("Error parsing the options of 'services'")
     and return;
   @_ = @ARGV;
   $opt->{z}       and $returnhash  = 1;
   $opt->{n}       and $dontcall    = 1;
   $opt->{verbose} and $replystatus = 1;
-  $domain = $opt->{domain};
-
-  foreach my $item (@_) {
-    ($item =~ /^-?co(re)?/i)    and $opt->{core}    = 1 and next;
-    ($item =~ /^-?s(e)?/i)      and $opt->{se}      = 1 and next;
-    ($item =~ /^-?ce/i)         and $opt->{ce}      = 1 and next;
-    ($item =~ /^-?cl(c)?/i)     and $opt->{clc}     = 1 and next;
-    ($item =~ /^-?f(td)?/i)     and $opt->{ftd}     = 1 and next;
-#    ($item =~ /^-?p(ackman)?/i) and $opt->{packman} = 1 and next;
-
-    if ($item !~ s/-?-h(elp)?//i) {
-      print STDERR "Error: Don't know service flag \"$item\"\n";
-    }
-    print STDERR "Usage: services [-verbose] [-][core] [-][clc] [-][ftd] [-][se] [-][ce] [-domain <domain>]\n";
-    print STDERR "  or   services -verbose -co -cl -f -s -ce \n";
-    return;
-
+  
+  if ($opt->{se}){
+  	return $self->{CATALOG}->seStatus(@_);  	
   }
+  
+  
+  $domain = $opt->{domain};
 
   $opt->{core}    and push @checkservices, "Services";
   $opt->{se}      and push @checkservices, "SE";
   $opt->{ce}      and push @checkservices, "ClusterMonitor";
-  $opt->{clc}     and push @checkservices, "CLC", "CLCAIO";
-  $opt->{ftd}     and push @checkservices, "FTD";
-#  $opt->{packman} and push @checkservices, "PackMan";
 
   @checkservices
-    or push @checkservices, "SE", "CLC", "CLCAIO", "ClusterMonitor", "FTD", "TcpRouter", "Services";
+    or push @checkservices, "SE", "ClusterMonitor",  "Services";
 
-  printf STDERR
-    "==   Service   == Servicename ============================================= Hostname ==   Status    ==";
+	my $message="==   Service   == Servicename ============================================= Hostname ==   Status    ==";
+	
   if ($replystatus) {
-    printf STDERR "  Vers. =  R  S  D  T  Z =\n";
-  } else {
-    printf STDERR "\n";
-  }
-  printf STDERR
-"-----------------------------------------------------------------------------------------------------------------------------\n";
+    $message+="  Vers. =  R  S  D  T  Z ="
+  } 
+  $message+="\n-----------------------------------------------------------------------------------------------------------------------------\n";
+ 
+ 	$self->info($message);
+ 	
+ 	
   foreach (@checkservices) {
     @hostports = "";
     my $service   = $_;
     my $doservice = $service;
-
-    ($service eq "CLCAIO") and $doservice = "CLC";
 
     my $response = $self->{SOAP}->CallSOAP("IS", "getAllServices", $doservice)
       or next;
@@ -611,8 +602,6 @@ sub services {
       }
 
       my $function = "reply";
-      ($service eq "CLCAIO") and $function .= "AIO";
-      ($service eq "CLCAIO") and $soapservice = "CLC";
       ($replystatus eq "1") and $function .= "status";
       if (!$dontcall) {
         eval {
@@ -743,30 +732,6 @@ sub selectClosestSE {
   return @return;
 }
 
-## This subroutine receives a list of SE, and returns the same list,
-## but ordered according to the se
-##
-##
-#sub selectClosestSEOnRank {
-#  my $self = shift;
-#  my $sitename = (shift || 0);
-#  my $seList = (shift || return 0);
-#  my $sePrio = (shift || 0);
-#  my $excludedAndfailedSEs= (shift || {});
-#
-#  my $return = [];
-#
-#  my $res = $self->sortSEListBasedOnSiteSECache($sitename, $seList,$excludedAndfailedSEs);
-#
-#  #$res and $return = $self->resortArrayToPrioElementIfExists($sePrio,$res)
-#  #       or $return = $self->resortArrayToPrioElementIfExists($sePrio,$seList)
-#  #         and $self->info("Error: The sortSEListBasedOnSiteSECache didn't work, replying original SE list.");
-#
-#
-#  $self->debug(1, "After sorting we have ". Dumper(@$return));
-#
-#  return $return;
-#}
 
 sub resortArrayToPriorityArrayIfExists {
   my $self     = shift;
@@ -802,63 +767,6 @@ sub resortArrayToPrioElementIfExists {
   }
   $exists and @newlist = ($prio, @newlist);
   return \@newlist;
-}
-
-sub OLDselectClosestRealSEOnRank {
-  my $self               = shift;
-  my $sitename           = (shift || 0);
-  my $user               = (shift || return 0);
-  my $readOrDelete       = shift;
-  my $seList             = (shift || return 0);
-  my $sePrio             = (shift || 0);
-  my $excludeList        = (shift || []);
-  my $nose               = 0;
-  my @cleanList          = ();
-  my $result             = {};
-  my $exclusiveUserCheck = "";
-  ($readOrDelete =~ /^read/)   and $exclusiveUserCheck = "seExclusiveRead";
-  ($readOrDelete =~ /^delete/) and $exclusiveUserCheck = "seExclusiveWrite";
-
-  foreach (@$seList) {
-    UNIVERSAL::isa($_, "HASH") and $_ = $_->{seName};
-    ($_ eq "no_se") and $nose = 1 and next;
-    $self->identifyValidSEName($_) and push @cleanList, $_;
-  }
-  $seList = \@cleanList;
-
-  my $catalogue   = $self->{CATALOG}->{DATABASE};
-  my @queryValues = ();
-  my $query       = "";
-  if ($sitename) {
-    $self->checkSiteSECacheForAccess($sitename) or return 0;
-    push @queryValues, $sitename;
-
-    $query =
-      "SELECT DISTINCT b.seName FROM SERanks a right JOIN SE b on (a.seNumber=b.seNumber and a.sitename=?) WHERE ";
-    $query .=
-" (b.$exclusiveUserCheck is NULL or b.$exclusiveUserCheck = '' or b.$exclusiveUserCheck  LIKE concat ('%,' , ? , ',%') ) ";
-    push @queryValues, $user;
-    if (scalar(@{$seList}) > 0) {
-      $query .= " and ( ";
-      foreach (@{$seList}) { $query .= " b.seName=? or"; push @queryValues, $_; }
-      $query =~ s/or$/)/;
-    }
-    foreach (@{$excludeList}) { $query .= " and b.seName<>? "; push @queryValues, $_; }
-    $query .= " ORDER BY if(a.rank is null, 1000, a.rank) ASC ;";
-  } else {    # sitename not given, so we just delete the excluded SEs and check for exclusive Users
-    $query = "SELECT seName FROM SE WHERE ";
-    foreach (@$seList) { $query .= " seName=? or"; push @queryValues, $_; }
-    $query =~ s/or$//;
-    foreach (@$excludeList) { $query .= " and seName<>? "; push @queryValues, $_; }
-    $query .=
-" and ($exclusiveUserCheck is NULL or $exclusiveUserCheck = '' or $exclusiveUserCheck  LIKE concat ('%,' , ? , ',%') ) ;";
-    push @queryValues, $user;
-  }
-  $result =
-    $self->resortArrayToPrioElementIfExists($sePrio,
-    $catalogue->queryColumn($query, undef, {bind_values => \@queryValues}));
-  $nose and @$result = ("no_se", @$result);
-  return $result;
 }
 
 sub cat {
@@ -1086,28 +994,6 @@ sub mirror {
 
   }
   return;
-}
-
-sub findCloseSE {
-  my $self           = shift;
-  my $type           = shift;
-  my $excludeListRef = shift || undef;
-  my @excludeList    = ();
-  $excludeListRef and push @excludeList, @$excludeListRef;
-  $type =~ /^(custodial)|(replica)$/ or $self->info("Error: type of SE '$type' not understood") and return;
-  $self->info("Looking for the closest $type SE");
-
-  if (  $self->{CONFIG}->{SE_RETENTION_POLICY}
-    and $self->{CONFIG}->{SE_RETENTION_POLICY} =~ /$type/) {
-    $self->info("We are lucky. The closest is $type");
-    return $self->{SE_FULLNAME};
-  }
-
-  my $se = $self->{SOAP}->CallSOAP("IS", "getCloseSE", $self->{SITE}, $type, $excludeListRef);
-  $self->{SOAP}->checkSOAPreturn($se) or return;
-  my $seName = $se->result;
-  $self->info("We are going to put the file in $seName");
-  return $seName;
 }
 
 sub addTag_HELP {

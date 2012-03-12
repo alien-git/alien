@@ -6,7 +6,6 @@ use Data::Dumper;
 use AliEn::Database::Admin;
 use AliEn::Database::Transfer;
 
-require AliEn::Service::Optimizer::Catalogue::SERank;
 require AliEn::Database::SE;
 
 # This package contains the functions that can only be called by the
@@ -561,62 +560,109 @@ sub resyncLDAP {
 
   return 1;
 }
-
-sub refreshSERankCache {
-  my $self = shift;
-
-  $self->info("Let's force a refresh on the SE Rank Cache based on MonALISA info!");
-
-  my $sitename = (shift || "");
-  my $db = $self->{DATABASE};
-
-  $self->info("Going to update the ranks.");
-  my $where = "";
-  my @sites = ();
-
-  if ($sitename) {
-    push @sites, $sitename;
-    $self->info("  Doing it only for $sitename");
-  } else {
-    my $info = $db->queryColumn("select distinct sitename from SERanks");
-    @sites = @$info;
-  }
-
-  (scalar(@sites) gt 0) or return 0;
-
-  foreach my $site (@sites) {
-    $self->info("Ready to update $site");
-    $self->refreshSERankCacheSite($db, $site);
-  }
-
-  return 1;
+sub listSEDistance_HELP {
+  return "listSEDistance: Returns the closest working SE for a particular site. Usage
+  
+ listSEDistance [<site>] [read|write]
+ 
+ 
+ Options: 
+   <site>: site name. Default: current site
+   [read|write]: action. Default write
+  "
 }
 
-sub refreshSERankCacheSite {
+
+
+sub listSEDistance {
+	my $self=shift;
+	my $options=shift;
+
+	my $sitename = (shift || $self->{CONFIG}->{SITE});
+	my $action  = (shift || 'write');
+
+	$self->info("Displaying the list of SE from the site $sitename");
+	$action =~ /^(read)|(write)$/i or $self->info("Error in listSEDistance: action '$action' not understood ") and return;
+
+
+	my $se=$self->{DATABASE}->query("select sename, sedemotewrite, sedemoteread, sitedistance, sitedistance + sedemote$action weight
+	from SE join SEDistance using (seNumber)  where sitename=? order by 4 asc ", undef, {bind_values=>[$sitename]});	
+	
+	$se or $self->info("Error doing the query in listSEDistance") and return;
+	
+	$self->info("The ordered list $action is:");
+	foreach my $e (@$se){
+	  $self->info("$e->{weight}     $e->{sename} (distance: $e->{sitedistance} read: $e->{sedemoteread} write: $e->{sedemotewrite}) \n",undef, 0)		
+	}
+	
+	return $se;
+}
+
+sub setSEStatus {
+	my $self=shift;
+	my $options=shift;
+	my $sename =shift;
+	
+	($self->{ROLE} =~ /^admin(ssl)?$/)
+    or $self->info("Error: only the administrator can check the databse")
+    and return;
+  my $set={};
+	foreach my $e (@_){
+		$self->info("CHECKING $e");
+		$e =~ /^((read)|(write))=(\d+.?\d*)$/ or $self->info("Ignoring: $e") and next;
+		my $action=$1;
+		my $value=$4;
+		($value >=0 and $value<=1 ) or $self->info("The value for $action has to be between 1 and 0") and next;
+		$self->info("WE will put the $action to $value");
+		$set->{"sedemote$action"}=$value;  		
+	}
+	if (keys(%$set)){
+		$self->info("Updating the status of $sename");
+		$self->{DATABASE}->update('SE', $set, "sename=?", {bind_values=>[$sename]});
+		
+	}
+	
+	return 1;
+}
+
+
+sub refreshSEDistance {
   my $self = shift;
-  my $db   = shift;
-  my $site = shift;
+  my $options =shift;
+  my $sitename = shift;
+	
+	my @todo;
+	if ($sitename){
+		$self->info("Doing only the site '$sitename'");
+		@todo=$sitename;		
+	} else {
+		my $e=$self->{DATABASE}->queryColumn("select distinct sitename from SEDistance");
+		@todo=@$e;		
+	}
 
-  my @selist;
-  $self->{CONFIG}->{SEDETECTMONALISAURL}
-    and @selist = $self->getListOfSEFromMonaLisa($site);
+  foreach my $site (@todo) {
+  	my @selist;
+  	$self->{CONFIG}->{SEDETECTMONALISAURL}
+	    and @selist = $self->getListOfSEFromMonaLisa($site);
 
-  if (!@selist) {
-    $self->info("We couldn't get the info from ML. Putting all the ses");
-    @selist = @{$db->queryColumn("select distinct seName from SE")};
+	  if (!@selist) {
+  	  $self->info("We couldn't get the info from ML. Putting all the ses");
+    	@selist = @{$self->{DATABASE}->query("select distinct seName, if(locate(?,sename)>1, 0, 0.5) distance  from SE", undef,
+    		{bind_values=>[$site]})};
+  	}
+  	$site and (scalar(@selist) gt 0) or return 0;
+  	$self->{DATABASE}->lock("SE read, SEDistance");
+  	$self->{DATABASE}->do("delete from SEDistance where sitename=?", {bind_values => [$site]});
+  	  	
+  	foreach my $entry (@selist) {
+    	$self->{DATABASE}->do(
+      	"insert into SEDistance (sitename,seNumber,sitedistance)
+        	      select ?, seNumber,  ?  from SE where upper( seName) LIKE upper(?)  ",
+      	{bind_values => [ $site, $entry->{distance}, $entry->{seName} ]}
+    	);
+  	}
+  	$self->{DATABASE}->unlock();
   }
-  $site and (scalar(@selist) gt 0) or return 0;
-  $db->lock("SE read, SERanks");
-  $db->do("delete from SERanks where sitename=?", {bind_values => [$site]});
-  for my $rank (0 .. $#selist) {
-
-    $db->do(
-      "insert into SERanks (sitename,seNumber,rank,updated)
-              select ?, seNumber,  ?, 0  from SE where upper( seName) LIKE upper(?)  ",
-      {bind_values => [ $site, $rank, $selist[$rank] ]}
-    );
-  }
-  $db->unlock();
 
   return 1;
 }

@@ -211,12 +211,11 @@ sub LFN_createCatalogueTables {
       undef,
       ['UNIQUE INDEX(tableNumber,action)']
     ],
-    SERanks => [
+    SEDistance => [
       "sitename",
       { sitename => "varchar(100) collate latin1_general_ci  not null",
         seNumber => "integer not null",
-        rank     => "smallint(7) not null",
-        updated  => "smallint(1)"
+        sitedistance => "float not null",
       },
       undef,
       ['UNIQUE INDEX(sitename,seNumber), PRIMARY KEY(sitename,seNumber), INDEX(sitename), INDEX(seNumber)']
