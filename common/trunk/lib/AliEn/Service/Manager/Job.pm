@@ -301,19 +301,29 @@ sub enterCommand {
     priority   => $priority,
     split      => $splitjob
   };
-  ($ok,  my $expires)       = $job_ca->evaluateAttributeString("Expires");
-  if ($expires){
-  	$self->info("The job will expire if it stays longer than $expires seconds");
-  	my $date=date();
-  	
-  	if ($date+$expires > $date){
-  		$set->{expires}=$date+$expires;
-  	} else {
-  		$self->info("There was a problem parsing the expires. Removing the ")
-  	}	
-  	
-  }
 
+
+  # MaxWaitingTime
+  ($ok,  my $maxwaitingtime) = $job_ca->evaluateAttributeString("MaxWaitingTime");
+
+  
+  if ($maxwaitingtime && $maxwaitingtime =~ /^(\d+)\s*([smh])?$/i ){
+  	my $value =$1;
+  	my $unit = $2 || "s";
+
+  	my $max = 2*7*24*3600;
+  	
+  	$unit =~ /m/i and $value*=60;
+  	$unit =~ /h/i and $value*=3600;
+  	
+  	if($max > $value){	
+  		$set->{expires}=$value;
+  		$self->info("The job will expire if it stays $value $unit waiting");
+  	} else {
+  		$self->info("The given expiration time is too big (bigger than $max)");
+  	}	  	
+  } 
+  
   if ($direct) {
     $self->info("The job should go directly to WAITING");
     $set->{status} = 'WAITING';

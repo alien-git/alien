@@ -82,7 +82,8 @@ sub initialize {
     'FORCEMERGE'   => 950,
 
     'MERGING' => 970,
-    'ZOMBIE'  => 999
+    'ZOMBIE'  => 999,
+    'ERROR_EW'     => 990
   };
 
   if ($self->{CONFIG}->{JOB_DATABASE_READ}) {

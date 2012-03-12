@@ -25,7 +25,6 @@ sub checkWakesUp {
 
   $self->{LOGGER}->$method("Zombies", "The saved optimizer starts");
 
-  my $dosth=0; 
  
   if ($self->{DB}->queryValue("SELECT todo from ACTIONS where action='SAVED'")) {
   	$self->{DB}->update("ACTIONS", {todo=>0}, "action='SAVED'");

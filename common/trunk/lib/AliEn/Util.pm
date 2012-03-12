@@ -76,7 +76,7 @@ sub JobStatus {
     'EXPIRED',   'FAILED',   'FORCEMERGE', 'IDLE',       'INSERTING', 'INTERACTIV', 'KILLED',
     'MERGING',   'QUEUED',   'RUNNING',    'SAVING',     'SAVED',     'SAVED_WARN', 'SPLIT',
     'SPLITTING', 'STARTED',  'WAITING',    'ZOMBIE',     'ERROR_VT',  'TO_STAGE',   'STAGING',
-    'A_STAGED',  'OVER_WAITING'
+    'A_STAGED',  'OVER_WAITING', 'ERROR_EW',
   ];
 }
 
@@ -118,7 +118,8 @@ my $ml_status = {
   'KILLED'     => -14,
   'ZOMBIE'     => -15,
   'ERROR_VT'   => -16,
-  'ERROR_RE'   => -17
+  'ERROR_RE'   => -17,
+  'ERROR_EW'   => -18,
 };
 
 # convert a job status to a number to be used in MonaLisa

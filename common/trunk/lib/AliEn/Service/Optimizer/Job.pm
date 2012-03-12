@@ -70,7 +70,7 @@ sub initialize {
     "Merging",  "Inserting", "Splitting", "Zombies",
     "Hosts",    "Expired",   "HeartBeat", "Priority",
     "Resubmit", "Killed",    "Saved",     "Staging",
-    "Quota"
+    "Quota", "WaitingTime",
   );    #,"ResolveReq");
 
   my $mlEnabled =

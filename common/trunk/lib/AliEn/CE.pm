@@ -494,6 +494,8 @@ sub modifyJobCA {
 	$self->checkPrice($job_ca) or return;
 
 	$self->checkRequirements($job_ca) or return;
+	
+	$self->checkExpire($job_ca) or return;
 
 	$job_ca->insertAttributeString("User", $self->{CATALOG}->{CATALOG}->{ROLE});
 
@@ -505,6 +507,26 @@ sub modifyJobCA {
 
 	return 1;
 }
+
+# MaxWaitingTime check
+sub checkExpire {
+	my $self   = shift;
+	my $job_ca = shift;
+	$DEBUG and $self->debug(1, "Checking the max waiting time of this job");
+
+	my ($ok, $mwt) = $job_ca->evaluateAttributeString("MaxWaitingTime");
+	if ($ok) {
+		if ($mwt && ($mwt =~ /^\d+\s*[smh]?$/i) ) {
+			$self->info("Max Waiting Time defined to $mwt");
+		}
+		else{
+			$self->info("No Max Waiting Time [correctly] defined");
+			return;
+		}
+	} 
+	return 1;
+}
+
 
 sub checkPrice {
 	my $self   = shift;
