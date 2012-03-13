@@ -10,7 +10,6 @@ BEGIN { plan tests => 1 }
 {
   $ENV{ALIEN_TESTDIR} or $ENV{ALIEN_TESTDIR} = "/home/alienmaster/AliEn/t";
   push @INC, $ENV{ALIEN_TESTDIR};
-  require functions;
   my $id  = shift;
   my $id2 = shift;
 
