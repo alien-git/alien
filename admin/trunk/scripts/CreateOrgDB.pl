@@ -111,6 +111,17 @@ open ($FILE, ">","mysql/my.cnf") or print "Error opening my.cnf\n" and exit(-2);
 print $FILE "
 [mysqld]
 set-variable    = max_connections=2000
+
+ignore_builtin_innodb
+plugin-load=innodb=ha_innodb_plugin.so;innodb_trx=ha_innodb_plugin.so;
+  innodb_locks=ha_innodb_plugin.so;innodb_lock_waits=ha_innodb_plugin.so
+
+
+default-storage-engine=InnoDB
+innodb_file_per_table=1
+innodb_file_format=barracuda
+innodb_strict_mode=1
+
 ";
 close $FILE;
 my $configDir="/etc/aliend";

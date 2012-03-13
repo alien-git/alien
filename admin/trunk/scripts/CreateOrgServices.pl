@@ -9,7 +9,7 @@ use Net::LDAP;
 use Net::Domain qw(hostname hostfqdn hostdomain);
 use AliEn::Config;
 use Crypt::OpenSSL::RSA;
-use AliEn::UI::Catalogue;
+use AliEn::UI::Catalogue::LCM;
 print "This script will configure the startup of the AliEn Services for a new AliEn Organisation\n\n";
 
 
