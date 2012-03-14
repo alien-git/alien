@@ -12,9 +12,8 @@ print "Now, let's kill it\n";
 $cat->execute("kill", $id) or exit(-2);
 print "Let's get the status to see that is really killed\n";
 my ($status)=$cat->execute("top", "-id",$id);
-print "GOT $status->{status}\n";
-($status->{status} eq "KILLED" ) 
-  or print "The job is not dead!!\n" and exit(-2);
+($status and $status->{status} != "KILLED" ) 
+  and  print "The job is not dead $status->{status}!!\n" and exit(-2);
 print "And now, let's kill it again (it should complain):\n";
 $cat->execute("kill", $id) and exit(-2);
 

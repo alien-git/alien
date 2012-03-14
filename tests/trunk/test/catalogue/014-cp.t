@@ -1,6 +1,6 @@
 use strict;
 
-use AliEn::UI::Catalogue;
+use AliEn::UI::Catalogue::LCM;
 
 $ENV{ALIEN_TESTDIR} or $ENV{ALIEN_TESTDIR}="/home/alienmaster/AliEn/t";
 

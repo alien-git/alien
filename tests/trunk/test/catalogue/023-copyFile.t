@@ -1,6 +1,6 @@
 use strict;
 
-use AliEn::UI::Catalogue;
+use AliEn::UI::Catalogue::LCM;
 
 my $cat=AliEn::UI::Catalogue::LCM->new({user=>"newuser"}) or exit(-2);
 

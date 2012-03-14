@@ -53,7 +53,7 @@ setDirectDatabaseConnection();
 
   $ui->execute("resyncLDAP") or exit(-2);
   $ui->execute("resyncLDAP") or exit(-2);
-  $ui->execute("refreshSERankCache") or exit(-2);
+  $ui->execute("refreshSEDistance") or exit(-2);
   $ui->close();
  
   print "ok\nSkipping starting up the service\n";

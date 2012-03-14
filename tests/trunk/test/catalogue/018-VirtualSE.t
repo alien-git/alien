@@ -37,7 +37,7 @@ use Net::Domain qw(hostname hostfqdn hostdomain);
 
   $error or $ui->execute("resyncLDAP")         or $error = 1;
   $error or $ui->execute("resyncLDAP")         or $error = 1;
-  $error or $ui->execute("refreshSERankCache") or $error = 1;
+  $error or $ui->execute("refreshSEDistance") or $error = 1;
   $error or $ui->close();
 
   if ($error) {

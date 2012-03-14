@@ -34,8 +34,8 @@ $cat->execute("kill", $jobId) or exit(-2);
 
 print "ok\n Checking that it is still dead...";
 my ($info)=$cat->execute("top", "-id", $jobId);
-($info and $info->{status} eq "KILLED")
-  or print "Error, the job is still alive!! $info->{status}\n" and exit(-2);
+($info and $info->{status} != "KILLED")
+  and print "Error, the job is still alive!! $info->{status}\n" and exit(-2);
 
 print "ok\n Let's try to resubmit a job with inputdata... ";
 
