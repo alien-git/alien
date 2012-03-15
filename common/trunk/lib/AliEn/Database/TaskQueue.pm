@@ -1298,12 +1298,23 @@ sub resubmitJob{
 	
 	$self->do("update QUEUEJDL set resultsJdl=null where queueid=?",{bind_values=>[$queueid]} );
 	my $status="WAITING";
+	my $data=$self->queryRow("select site,status from QUEUE where queueid=?", undef, {bind_values=>[$queueid]})
+	 or $self->info("Error getting the previous status of the job ") and return;
+	 
+	my $previousStatus=$data->{status};
+	my $previousSite= $data->{site} || "UNASSIGNED::SITE";
+	$self->info("UPDATING $previousStatus and $previousSite");
+	
+	
 	
 	$self->queryValue("select 1 from QUEUE where queueid=? and masterjob=1", undef, {bind_values=>[$queueid]})
 	  and $status="INSERTING";
-	$self->do('UPDATE QUEUE SET status= ? ,resubmission= resubmission+1 ,started= "" ,finished= "" ,exechost= ""  WHERE queueid=? ',
+	$self->do('UPDATE QUEUE SET status= ? ,resubmission= resubmission+1 ,started= "" ,finished= "" ,exechost= "",site=NULL,path=NULL  WHERE queueid=? ',
 		{bind_values=>[$status, $queueid]	} );
-	#Should we delete the QUEUEPROC???
+	$self->do("UPDATE SITEQUEUES set $previousStatus=$previousStatus-1 where site=?", {bind_values=>[$previousSite]});
+	$self->do("UPDATE SITEQUEUES set WAITING=WAITING+1 where site='UNASSIGNED::SITE'");
+  
+	#Should we delete the QUEUEPROC??? Nope, that's defined as on cascade delete
 	
 	#Finally, udpate the JOBAGENT
 	
