@@ -1386,7 +1386,7 @@ sub killProcessInt {
 
   $self->info("Killing process $queueId...");
 
-  my ($data) = $self->getFieldsFromQueue($queueId, "status,exechost, submithost, finished,site");
+  my ($data) = $self->getFieldsFromQueue($queueId, "status,exechost, submithost, finished,site,agentid");
 
   defined $data
     or $self->info( "In killProcess error during execution of database query")
@@ -1408,7 +1408,11 @@ sub killProcessInt {
   my $siteName=( $data->{site} || "UNASSIGNED::SITE");
   $self->do("update SITEQUEUES set $data->{status}=$data->{status}-1 where site=?", {bind_values=>[$siteName]});
   $self->insertJobMessage($queueId, "state", "Job has been killed");
-  
+  if ($data->{status} =~ /WAITING/){
+  	$self->info("And reducing the number of agents");
+  	$self->do("update JOBAGENT set counter=counter-1 where entryid=?", {bind_values=>[$data->{agentid}]})
+  	
+  }
   if ($data->{exechost}) {
     my ($port) = $self->getFieldFromHosts($data->{exechost}, "hostport")
       or $self->info("Unable to fetch hostport for host $data->{exechost}")
