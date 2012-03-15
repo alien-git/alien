@@ -17,6 +17,7 @@ open(STDOUT,  ">$file")   or print "Error redircting to $file\n"    and exit(-2)
 open(STDERR,  ">&STDOUT") or print "Error redircting to $file\n"    and exit(-2);
 
 eval {
+	
   my $cat = AliEn::UI::Catalogue::LCM::Computer->new({user => 'newuser'}) or die("Error creating the UI");
 
   $cat->execute("rm", "bin/echo.sh", "jdl/sendTwoJobs1.jdl", "jdl/sendTwoJobs2.jdl");
@@ -69,12 +70,11 @@ Requirements= other.HOST==other.HOST;
 	print "Sleeping before checking the status of the jobs\n";
 	sleep(10);
 	my ($info, $info2) = $cat->execute("top", "-id", $id1, "-id", $id2);
-
-	$info->{status}  eq "DONE" or next;
-	$info2->{status} eq "DONE" or next;
-	print "Both jobs are done\n" and last;
+	 $info->{status}  eq "DONE" or next;
+   $info2->{status} eq "DONE" or next;
+	 print "Both jobs are done\n" and last;
   }
-  $i > 4 and die("NOPE!! the jobs are not done yet\n");
+  $i >3  and  die("NOPE!! the jobs are not done yet\n");
 };
 my $error = $@;
 
