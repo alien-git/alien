@@ -1392,7 +1392,8 @@ sub resubmitCommand {
    or $self->info("Error changing the token of $queueId") and return (-1, "Error changing the token of the job");
   $self->{DB}->resubmitJob($queueId)
     or $self->info("Error resubmitting the job $queueId") and return (-1, "Error resubmitting the job");
-  $self->putJobLog($queueId, "status", "The job has been resubmited");
+    
+  $self->putJobLog($queueId, "state", "The job has been resubmited");
   
   return $queueId;
 }
