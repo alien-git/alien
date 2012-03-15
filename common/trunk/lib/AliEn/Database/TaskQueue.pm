@@ -937,24 +937,10 @@ sub setSiteQueueTable {
   $self->{SITEQUEUETABLE} = (shift or "SITEQUEUES");
 }
 
-#
-# This subroutine puts all the columns of the SiteQueue table to 0;
-
-sub resetSiteQueue {
-  my $self = shift;
-
-  #Let's put all the columns to 0
-  my $ini = {};
-  foreach my $s (@{AliEn::Util::JobStatus()}) {
-    $ini->{$s} = 0;
-  }
-  $self->updateSiteQueue($ini);
-}
-
 sub resyncSiteQueueTable {
   my $self = shift;
   $self->info("Extracting all sites from the QUEUE ....");
-  my $allsites = $self->getFieldsFromQueueEx("site", " Group by site");
+  my $allsites = $self->queryColumn("select distinct site from QUEUE");
   @$allsites
     or $self->info("Warning: at the moment there are no sites defined in your organization")
     and return 1;
@@ -963,54 +949,32 @@ sub resyncSiteQueueTable {
   my $now = time;
   my $qstat;
 
-  $self->resetSiteQueue();
+  my $sql=" update SITEQUEUES join (select sum(cost) REALCOST, ";
+  my $set=" Group by status) dd) bb set cost=REALCOST, ";
 
-  foreach (@$allsites) {
-
-    my $siteName = (defined $_->{'site'} ? $_->{site} : "undef");
-    $self->info("Doing site $siteName");
-
-    my $set = {};
-    $set->{'cost'}       = 0;
-    $set->{'status'}     = "resync";
-    $set->{'statustime'} = "$now";
-    foreach my $sstat (@{AliEn::Util::JobStatus()}) {
-      $set->{$sstat} = 0;
+  foreach my $stat (@{AliEn::Util::JobStatus()}) {
+  	  $sql.=" max(if(status='$stat', count, 0)) REAL$stat,";
+  	  $set.=" $stat=REAL$stat,"      
     }
+  $set =~ s/,$/ where site=?/;
+  $sql =~ s/,$/ from (select status, sum(cost) as cost, count(*) as count from QUEUE join QUEUEPROC using(queueid) where site/;
+  
 
-    # query all job status;
-    my $where = "WHERE ";
-    (defined $_->{site}) and $where .= "site='$_->{site}'"
-      or $where .= "site is NULL";
-
-    my $sitestat = $self->getFieldsFromQueueEx("status, sum(cost) as cost, count(*) as count",
-      "q, QUEUEPROC p $where and p.queueid=q.queueid Group by status");
-
-    # delete all entries
-    #	$self->deleteSiteQueue("site='$_->{'site'}'");
-    # loop over all status;
-    foreach $qstat (@$sitestat) {
-      my $logit = sprintf "Putting status %-10s for site %-40s to %-5s", $qstat->{status}, $siteName, $qstat->{count};
-      $self->info($logit);
-
-      $set->{$qstat->{status}} = $qstat->{count};
-      $qstat->{'cost'} and $set->{'cost'} += $qstat->{'cost'};
+  foreach my $siteName (@$allsites) {
+    my @bind=();
+    my $realSiteName=$siteName;
+    if ($siteName ){
+    	$site="=?";
+    	@bind=$siteName;
+    }else{
+    	$site=" is null ";
+    	$realSiteName="UNASSIGNED::SITE";
     }
-    $_->{'site'} or $_->{'site'} = "UNASSIGNED::SITE";
+    push @bind, $realSiteName;
+    $self->info("Doing site '$realSiteName'");
 
-    $self->info("check for $_->{'site'}");
-    my $exists = $self->getFieldsFromSiteQueueEx("site", "WHERE site=?", {bind_values => [ $_->{site} ]});
-    if (@$exists) {
-      $self->updateSiteQueue($set, "site=?", {bind_values => [ $_->{site} ]});
-    } else {
-      $set->{'site'}    = "$_->{site}";
-      $set->{'blocked'} = "open";
-      foreach (@{AliEn::Util::JobStatus()}) {
-        if ($_ eq "") { next; }
-        $set->{$_} = 0;
-      }
-      $self->insertSiteQueue($set) or return;
-    }
+    $self->info("$sql $site $set ");
+	  $self->do("$sql $site $set", {bind_values=>[@bind]});
   }
   return 1;
 }
@@ -1337,10 +1301,8 @@ sub resubmitJob{
 	
 	$self->queryValue("select 1 from QUEUE where queueid=? and masterjob=1", undef, {bind_values=>[$queueid]})
 	  and $status="INSERTING";
-	$self->update("QUEUE", {status=>$status, exechost=>'""', started=>'""', finished=>'""',
-		                      resubmission=>'resubmission+1'}, "queueid=?",
-	{bind_values=>[$queueid],noquotes=>1,
-	} );
+	$self->do('UPDATE QUEUE SET status= ? ,resubmission= resubmission+1 ,started= "" ,finished= "" ,exechost= ""  WHERE queueid=? ',
+		{bind_values=>[$status, $queueid]	} );
 	#Should we delete the QUEUEPROC???
 	
 	#Finally, udpate the JOBAGENT
@@ -1413,7 +1375,7 @@ sub killProcessInt {
 
   $self->info("Killing process $queueId...");
 
-  my ($data) = $self->getFieldsFromQueue($queueId, "exechost, submithost, finished");
+  my ($data) = $self->getFieldsFromQueue($queueId, "status,exechost, submithost, finished,site");
 
   defined $data
     or $self->info( "In killProcess error during execution of database query")
@@ -1432,7 +1394,10 @@ sub killProcessInt {
   }
 
   $self->do("delete from QUEUE where queueid=?", {bind_values=>[$queueId]}) or return ;
-
+  my $siteName=( $data->{site} || "UNASSIGNED::SITE");
+  $self->do("update SITEQUEUES set $data->{status}=$data->{status}-1 where site=?", {bind_values=>[$siteName]});
+  $self->insertJobMessage($queueId, "state", "Job has been killed");
+  
   if ($data->{exechost}) {
     my ($port) = $self->getFieldFromHosts($data->{exechost}, "hostport")
       or $self->info("Unable to fetch hostport for host $data->{exechost}")
