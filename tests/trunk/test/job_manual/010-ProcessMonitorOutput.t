@@ -26,7 +26,7 @@ BEGIN { plan tests => 1 }
 
   killAllWaitingJobs($cat);
   my ($id)=$cat->execute("submit", "jdl/date.slow.jdl") or exit(-2);
-
+ 
 #  sleep (20);
 
   my $done=fork();
@@ -34,8 +34,10 @@ BEGIN { plan tests => 1 }
 
   if (! $done) {
     #The child executes the command
+    sleep(10);
     $cat->execute("request");
     $cat->close();
+    print "THE CHILD EXITS!";
     exit;
   }
 
