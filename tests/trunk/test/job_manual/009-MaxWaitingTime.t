@@ -89,5 +89,5 @@ BEGIN { plan tests => 1 }
   $cat->close();
   $d->close();
   print "OK!!
-  \#ALIEN_OUTPUT $id\n";
+\#ALIEN_OUTPUT $id\n";
 }
