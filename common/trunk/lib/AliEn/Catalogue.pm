@@ -1116,21 +1116,6 @@ sub f_passwd {
   }
 }
 
-sub f_verifyToken {
-  my $self  = shift;
-  my @arg   = grep (!/-z/, @_);
-  my $jobId = shift @arg
-    or print STDERR "You have to provide a job identifier" and return;
-  my $token = shift @arg
-    or print STDERR "You have to provide a job token" and return;
-  my @results;
-  $#results = -1;
-  my $rethash = $self->{DATABASE}->{TOKEN_MANAGER}->validateJobToken($jobId, $token);
-  if ((defined $rethash) && ($rethash->{'user'})) {
-    push @results, "$rethash->{'user'}";
-  }
-  return @results;
-}
 
 sub f_verifySubjectRole {
   my $self = shift;
@@ -1686,19 +1671,34 @@ sub f_find {
   my $keyCache="";
   my @result;
   if ($self->{CONFIG}->{CACHE_SERVICE_ADDRESS} and $options{f}) {
-      $self->info( "Checking if we can get it from the cache");
-      $keyCache ="$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}?ns=find&key="
-        . uri_escape(join("_", $path, $file, @_));
-      $self->info("Our read cache key is : $keyCache -- ");
-      (my $ok, @result) = AliEn::Util::getURLandEvaluate($keyCache, 1);
-      if ($ok){
-          $keyCache="";
-      } else{
-        $self->info("The cache didn't work: we got @result");
-        @result=();
+  	      $self->info( "Checking if we can get it from the cache");
+        $keyCache ="$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}?ns=findwait&key="
+          . uri_escape(join("_", $path, $file, @_));
+        $self->info("Our read cache key is : $keyCache -- ");
+      while (1){
+        (my $ok, @result) = AliEn::Util::getURLandEvaluate($keyCache, 1);
+        if ($ok){
+          $self->info("WE GOT SOMETHING FROM THE CACHE!!");
+          print Dumper(@result);
+          use Data::Dumper;
+          if ($result[0] eq 'wait'){
+            $self->info("Someone else is calculating this... let's wait");
+            sleep 5;
+          }else {
+            $keyCache="";
+            last;
+          }
+        } else{
+          $self->info("The cache didn't work: we got @result. Let's put it so that other clients wait");
+          AliEn::Util::getURLandEvaluate("$keyCache&ifnull=true&timeout=30&value=". uri_escape(Dumper(['wait'])));
+          @result=();
+          last;
+        }
       }
   }
+  
   if (!@result){
+
     my $ref=$self->f_findNoCache($path, $file, $quiet, $verbose, \%options, @_);
     $ref or return;
     @result=@$ref;
