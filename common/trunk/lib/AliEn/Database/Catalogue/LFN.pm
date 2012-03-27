@@ -404,6 +404,7 @@ sub getAllInfoFromLFN {
       . $self->binary2string
       . " as guid,"
       . $self->dateFormat("ctime")
+      . ", jobId"
   );
 
   my $method = ($options->{method} or "query");
@@ -1914,6 +1915,10 @@ sub internalQuery {
   my @joinQueries;
 
   foreach my $f (@$file) {
+  	# Option j <jobid> to restrict to a given id
+  	my $j="";
+  	$options->{j} and $j.=" and jobId=$options->{j}"; 
+  	
     if ($f ne "\\") {
       my $searchP = $path;
       my $concat  = "concat('$refTable->{lfn}', lfn)";
@@ -1922,11 +1927,12 @@ sub internalQuery {
 
       # $options->{d} or $d.=" and right(lfn,1) != '/' and lfn!= \"\"";
       $options->{d} or $d .= " and SUBSTR(lfn,-1) != '/' and ( lfn !=\'\' or lfn is null)";
-      push @joinQueries, $d;
+         
+      push @joinQueries, $d.$j;
     } else {
 
       # query an exact file name
-      push @joinQueries, ("WHERE concat('$refTable->{lfn}', lfn)='$path'");
+      push @joinQueries, ("WHERE concat('$refTable->{lfn}', lfn)='$path'".$j);
     }
   }
 
@@ -2009,6 +2015,7 @@ sub internalQuery {
   $options->{'y'} and $order  = "";
   $options->{l}   and $limit  = " $options->{l}";
   $options->{o}   and $offset = "  $options->{o}";
+  
 
   my $b = $self->binary2string;
   $b =~ s/guid/l.guid/;
@@ -2017,7 +2024,7 @@ sub internalQuery {
 s/^(.*)$/$self->paginate("SELECT l.entryId,ctime,ownerId,replicated,guidtime, jobId, broken, expiretime,dir, ".$self->reservedWord("size").", gownerId,  ".$self->reservedWord("type")." ,md5,perm,concat('$refTable->{lfn}', lfn) as lfn,
 $b as guid from $indexTable l $1 $order", $limit, $offset)/e
   } @joinQueries;
-
+  
   $self->debug(1, "We have to do $#joinQueries +1 to find out all the entries");
   if ($options->{selimit}) {
     $self->debug(1, "Displaying only the files in a particular se");

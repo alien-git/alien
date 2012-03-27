@@ -95,14 +95,6 @@ sub checkTables {
       "LastChanges" => "datetime  DEFAULT '0000-00-00 00:00:00' NOT NULL"
     }
   ) or return;
-  $self->checkTable(
-    "jobToken",
-    "jobId",
-    { "jobId"    => "int(11)  DEFAULT '0' NOT NULL  PRIMARY KEY",
-      "userName" => "char(20) DEFAULT NULL",
-      "jobToken" => "char(255) DEFAULT NULL",
-    }
-  ) or return;
 
   return $self;
 }
@@ -253,74 +245,6 @@ sub getFieldFromTokens {
   $self->queryValue("SELECT $attr from TOKENS where Username= ?", undef, {bind_values => [$username]});
 }
 
-###		jobToken
-
-sub insertJobToken {
-  my $self  = shift;
-  my $id    = shift;
-  my $user  = shift;
-  my $token = shift;
-
-  $self->debug(1, "In insertJobToken inserting new data into table jobToken");
-  return $self->insert("jobToken", {jobId => $id, userName => $user, jobToken => $token});
-}
-
-sub getFieldFromJobToken {
-  my $self = shift;
-  my $id   = shift
-    or $self->{LOGGER}->error("Admin", "In getFieldFromJobToken job id is missing")
-    and return;
-  my $attr = shift || "jobId,userName,jobToken";
-
-  $self->debug(1, "In getFieldFromJobToken fetching attribute $attr for job id $id from table jobToken");
-  return $self->queryValue("SELECT $attr FROM jobToken WHERE jobId= ?", undef, {bind_values => [$id]});
-}
-
-
-sub getFieldsFromJobToken {
-  my $self = shift;
-  my $id   = shift
-    or $self->{LOGGER}->error("Admin", "In getFieldsFromJobToken job id is missing")
-    and return;
-  my $attr = shift || "jobId,userName,jobToken";
-
-  $self->debug(1, "In getFieldsFromJobToken fetching attributes $attr for job id $id from table jobToken");
-  return $self->queryRow("SELECT $attr FROM jobToken WHERE jobId= ?", undef, {bind_values => [$id]});
-}
-sub setJobToken {
-  my $self = shift;
-  my $id   = shift
-    or $self->{LOGGER}->error("Admin", "In setJobToken job id is missing")
-    and return;
-  my $token = shift;
-
-  $self->debug(1, "In setJobToken updating token for job $id");
-  return $self->update("jobToken", {jobToken => $token}, "jobId= ?", {bind_values => [$id]});
-}
-
-sub deleteJobToken {
-  my $self = shift;
-  my $id   = shift
-    or $self->{LOGGER}->error("Admin", "In deleteJobToken job id is missing")
-    and return;
-
-  $self->debug(1, "In deleteJobToken deleting token for job $id");
-  return $self->delete("jobToken", "jobId= ?", {bind_values => [$id]});
-}
-
-sub getUsername {
-  my $self = shift;
-  my $id   = shift
-    or $self->{LOGGER}->error("Admin", "In getUsername job id is missing")
-    and return;
-  my $token = shift
-    or $self->{LOGGER}->error("Admin", "In getUsername job token is missing")
-    and return;
-  $token =~ /^-1$/ and $self->{LOGGER}->info("Admin", "The job token is not valid") and return;
-  $self->debug(1, "In getUsername fetching user name for job $id and token $token");
-  return $self->queryValue("SELECT userName FROM jobToken where jobId=? and jobToken= ?",
-    undef, {bind_values => [ $id, $token ]});
-}
 
 =head1 NAME
 
@@ -329,7 +253,7 @@ AliEn::Database::Admin
 =head1 DESCRIPTION
 
 The AliEn::Database::Admin module extends AliEn::Database module. Module
-contains method specific for tables TOKENS and jobToken.
+contains method specific for table TOKENS.
 
 =head1 SYNOPSIS
 
@@ -338,10 +262,8 @@ contains method specific for tables TOKENS and jobToken.
   my $dbh = AliEn::Database::Admin->new($dbOptions);
 
   $res = $dbh->getFieldFromTokens($user, $attr);
-  $res = $dbh->getFieldFromJobToken($jobId, $attr);
   
   $hashRef = $dbh->getFieldsFromTokens($user, $attr);
-  $hashRef = $dbh->getFieldsFromJobToken($jobId, $attr);
   
   $arrRef = $dbh->getAllFromTokens($attr);
     
@@ -352,13 +274,10 @@ contains method specific for tables TOKENS and jobToken.
   $res = $dbh->getServerKey();
   $res = $dbh->getDBKey($user);
   $res = $dbh->getEncToken($user);
-  
-  $res = $dbh->getUserName($jobId, $jobToken);
-  
+    
   $res = $dbh->existsToken($user);
    
   $res = $dbh->insertToken($id, $user, $token, $password,$SSHKey);
-  $res = $dbh->insertJobToken($id, $user, $jobToken);
 
   $res = $dbh->updateToken($user, $set);
   $res = $dbh->addTime($user, $interval);
@@ -366,10 +285,8 @@ contains method specific for tables TOKENS and jobToken.
   $res = $dbh->setToken($user, $token);
   $res = $dbh->setSSHKey($user, $key);
   $res = $dbh->setPassword($user, $password);
-  $res = $dbh->setJobToken($jobId, $jobToken);
   
   $res = $dbh->deleteToken($user);
-  $res = $dbh->deleteJobToken($jobId);
   
 =cut
 
@@ -396,10 +313,8 @@ table DBKEYS. Value of this property can be fetched using C<getServerKey> method
 
   $res = $dbh->getFieldFromTokens($user, $attr);
   
-  $res = $dbh->getFieldFromJobToken($jobId, $attr);  
-  
 Method fetches value of attribute $attr for tuple with defined unique id: 
-in case of Tokens user and in case of jobToken job id.
+in case of Tokens user
 If unique id is not defined method will return undef and report error.
 Method calls AliEn::Database metod queryValue.
 
@@ -407,10 +322,8 @@ Method calls AliEn::Database metod queryValue.
 
   $hashRef = $dbh->getFieldsFromTokens($user, $attr);
   
-  $hashRef = $dbh->getFieldsFromJobToken($jobId, $attr);  
-  
 Method fetches set of attributes $attr for tuple with defined unique id: 
-in case of Tokens user and in case of jobToken job id.
+in case of Tokens user
 Result is reference to hash. Keys in hash are identical to names of attriutes 
 in $attr set.
 If set of attributes is not defined method returns values of all attributes. If
@@ -460,9 +373,6 @@ If argument $user is not defined method will return undef and report error.
 
 =item C<getDBKey>  
 
-  $res = $dbh->getUserName($jobId, $jobToken);
-  
-Method fetches name of owner of jobtoken $jobToken for job $jobId.
 If any of argument is not defined method will return undef and report error.
 
 =item C<existsToken>  
@@ -479,12 +389,6 @@ If $user is not defined method will return undef and report error.
 Method inserts new token into table TOKENS with defined arguments.
 Attribute expires is set to Now(). 
     
-=item C<insertJobToken>  
-
-  $res = $dbh->insertJobToken($id, $user, $jobToken);
-  
-Method inserts new job token into table jobToken with defined arguments.
-Attribute expires is set to Now(). 
   
 =item C<updateToken>     
 
@@ -526,23 +430,13 @@ Method updates value of attribute in table TOKENS for user $user.
 If argument $user is not defined method will return undef
 and report error.  
  
-=item C<setJobToken>     
-   
-  $res = $dbh->setToken($jobIf, $jobToken);
-  
-Method updates value of attribute jobToken in table jobToken
-for job $jobId. 
-If argument $jobId is not defined method will return undef
-and report error.  
 
 =item C<delete*>     
 
   $res = $dbh->deleteToken($id);
   
-  $res = $dbh->deleteJobToken($id);
-  
 Method deletes entry for given unique id $id. In case of Token unique
-id is user name, and in case of Job Token unique id is job id.
+id is user name.
 If unique id is not defined method will return undef and report error.
 
 =back

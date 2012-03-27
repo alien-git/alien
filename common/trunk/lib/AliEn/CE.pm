@@ -10,7 +10,7 @@ use strict;
 use POSIX;
 use AliEn::UI::Catalogue::LCM;
 use AliEn::Database::TaskQueue;
-use AliEn::Database::TaskPriority;
+#use AliEn::Database::TaskPriority;
 use AliEn::Database::Admin;
 use AliEn::Database::CE;
 use AliEn::LQ;
@@ -119,12 +119,6 @@ sub new {
 			or $self->{LOGGER}->error("CE", "In initialize creating TaskQueue instance failed")
 			and return;
 		$self->{TASK_DB}->setSiteQueueTable();
-
-		# Initialize TaskPriority table
-		$self->{PRIORITY_DB} =
-			AliEn::Database::TaskPriority->new(
-			{DB => $db, HOST => $host, DRIVER => $driver, ROLE => 'admin', SKIP_CHECK_TABLES => 1});
-		$self->{PRIORITY_DB} or $self->info("In initialize creating TaskPriority instance failed") and return;
 
 	}
 
@@ -1260,15 +1254,15 @@ sub UnsetEnvironmentForExecution {
 sub getTopFromDB {
   my $self = shift;
   
-  my $args =join (" ", @_);
+  #my $args =join (" ", @_);
   my $date = time;
 
-  my $usage="\n\tUsage: top [-status <status>] [-user <user>] [-host <exechost>] [-command <commandName>] [-id <queueId>] [-split <origJobId>] [-all] [-all_status] [-site <siteName>]";
+  my $usage="\n\tUsage: top [-status <status>] [-user <user>] [-host <exechost>] [-command <commandName>] [-id <queueId>] [-split <origJobId>] [-all] [-all_status] [-site <siteName>] [-r]";
 
   $self->info( "Asking for top..." );
 
   my $where=" WHERE 1=1";
-  my $columns="queueId, status, name, execHost, submitHost ";
+  my $columns="queueId, status, name, submitHost ";
   my $all_status=0;
   my $error="";
   my $data;
@@ -1296,8 +1290,11 @@ sub getTopFromDB {
     my $argv=shift;
 
     ($argv=~ /^-?-all_status=?/) and $all_status=1 and  next;
-    ($argv=~ /^-?-a(ll)?=?/) and $columns.=", received, started, finished,split" 
+    ($argv=~ /^-?-a(ll)?=?/) and $columns.=", execHost, received, started, finished, split, resubmission" 
       and next;
+    # Added for -r parameter
+    ($argv=~ /^-?-r/) and !($argv=~ /^-?-a(ll)?=?/) and $columns.=", resubmission" and next; 
+     
     my $found;
     foreach my $column (@columns){
       if ($argv=~ /^-?-$column->{pattern}$/ ){
@@ -1354,9 +1351,17 @@ sub f_top {
 	my $format  = "%6s\t%-8s\t%-40s\t%-20s";
 	if (grep (/-?-a(ll)?$/, @_)) {
 		$DEBUG and $self->debug(1, "Printing more information");
-		$columns .= "\t\t\tExechost\t\t\tReceived\t\t\tStarted\t\t\t\tFinished\tMasterJob";
-		$format  .= "\t%-20s\t\%s\t\%s\t\%s\t%6s";
+		$columns .= "\t\t\tExechost\t\t\tReceived\t\t\tStarted\t\t\t\tFinished\tMasterJob\t\t\tResubmission";
+		$format  .= "\t%-20s\t\%s\t\%s\t\%s\t%6s\t%6s";
 	}
+	
+	# Check -r param
+	if ( grep (/-?-r$/, @_) && !grep (/-?-a(ll)?$/, @_) ) {
+ 		$DEBUG and $self->debug(1, "Printing resubmission information");
+		$columns .= "\t\t\tResubmission";
+		$format  .= "\t\%6s";
+	}
+	
 	$self->info($columns."\n", undef, 0);
 
 	foreach $job (@jobs) {
@@ -1365,20 +1370,24 @@ sub f_top {
 			$job->{queueId},
 			$job->{status},
 			$job->{name},
-			$job->{submitHost} || "",
-			$job->{execHost}   || "",
-			$job->{received}   || "",
-			$job->{started}    || "",
-			$job->{finished}   || "",
-			$job->{split}      || ""
+			$job->{submitHost}   || "",
+			$job->{execHost}     || "",
+			$job->{received}     || "",
+			$job->{started}      || "",
+			$job->{finished}     || "",
+			$job->{split}        || "",
+			$job->{resubmission},			
 		);
 
 		$data[3] or $data[3] = "";
 
-		#    #Change the time from int to string
+		# Change the time from int to string
 		$data[5] and $data[5] = localtime $data[5];
 		$data[6] and $data[6] = localtime $data[6];
 		$data[7] and $data[7] = localtime $data[7];
+
+		# If -r but no -all
+		(grep(/-?-r$/, @_)) and !(grep(/-?-a(ll)?$/, @_)) and $data[4]=$data[9];
 
 		my $string = sprintf "$format\n", @data;
 		$self->info($string, undef, 0);
@@ -2302,26 +2311,34 @@ Error Status:
 }
 
 sub f_ps_jdl {
-	my $self = shift;
-	my $id   = shift;
+  my $self=shift;
+  my $id=shift;
+ 
+  $id or $self->info("Usage: ps jdl <jobid> ") and return;
+  $self->debug(1, "Asking for the jdl of $id");
+ 
+  my $columns="ifnull(resultsjdl, origjdl) jdl";
+  my $join="";
+  my $method="queryValue"; 
+  foreach my $o (@_) {
+    $o=~ /-dir/ and $columns.=",path" and $method="queryRow" and $join="join QUEUE using (queueid)";
+    $o=~ /-status/ and $columns.=",status" and $method="queryRow" and $join="join QUEUE using (queueid)";
+  }
 
-	#  my $options=shift ||{};
-	$id or $self->info("Usage: ps jdl <jobid> ") and return;
+  my $rc=$self->{TASK_DB}->$method("select $columns from QUEUEJDL $join where queueId=?", undef, {bind_values=>[$id]});
 
-	my $done = $self->{SOAP}->CallSOAP("Manager/JobInfo", "GetJobJDL", $id, @_);
-	$done or return;
-	my $info = $done->result;
-	if (!grep (/-silent/, @_)) {
-		my $message = "The jdl of $id is $info";
-		if (UNIVERSAL::isa($info, "HASH")) {
-			$message = "";
-			foreach my $k (keys %$info) {
-				$message .= "The $k of $id is " . ($info->{$k} || "not defined") . "\n";
-			}
+  if (!grep (/-silent/, @_)) {
+	my $message = "The jdl of $id is $rc";
+	if (UNIVERSAL::isa($rc, "HASH")) {
+		$message = "";
+		foreach my $k (keys %$rc) {
+			$message .= "The $k of $id is " . ($rc->{$k} || "not defined") . "\n";
 		}
-		$self->info($message);
 	}
-	return $info;
+	$self->info($message);
+  }
+
+  return $rc; 
 }
 
 sub f_ps {
@@ -2922,7 +2939,7 @@ sub f_queue_priority {
 	if ($subcommand eq "list") {
 		my $user = (shift or "%");
 		my $array =
-			$self->{PRIORITY_DB}->getFieldsFromPriorityEx("*", "where user like ? ORDER BY user", {bind_values => [$user]});
+			$self->{TASK_DB}->getFieldsFromPriorityEx("*", "where user like ? ORDER BY user", {bind_values => [$user]});
 		if (@$array) {
 			$self->f_priorityprint($array);
 		}
@@ -2931,7 +2948,7 @@ sub f_queue_priority {
 
 	if ($subcommand eq "add") {
 		my $user = shift or $self->{LOGGER}->error("CE", "You have to specify a username to be added!") and return;
-		$self->{PRIORITY_DB}->checkPriorityValue($user);
+		$self->{TASK_DB}->checkPriorityValue($user);
 		$self->f_queue_priority("list", "$user");
 		return;
 	}
@@ -2944,7 +2961,7 @@ sub f_queue_priority {
 			and return;
 
 		my $array =
-			$self->{PRIORITY_DB}->getFieldsFromPriorityEx("*", "where user like ? ORDER BY user", {bind_values => [$user]});
+			$self->{TASK_DB}->getFieldsFromPriorityEx("*", "where user like ? ORDER BY user", {bind_values => [$user]});
 		if (!$array) {
 			$self->{LOGGER}->error("CE", "User $user does not have an entry yet - use 'queue priority add <user>' first!");
 			return;
@@ -2966,7 +2983,7 @@ sub f_queue_priority {
 
 		my $set = {};
 		$set->{$field} = $value;
-		my $done = $self->{PRIORITY_DB}->updatePrioritySet($user, $set);
+		my $done = $self->{TASK_DB}->updatePrioritySet($user, $set);
 
 		$self->f_queue_priority("list", "$user");
 	}
@@ -3177,14 +3194,14 @@ sub f_queue_tokens {
 		my $status = (shift or "%");
 		printf "Doing listing\n";
 		my $tolist = $self->{TASK_DB}->getFieldsFromQueueEx("queueId", "where status='$status'");
-		$self->{ADMIN_DB}
-			or $self->{ADMIN_DB} = AliEn::Database::Admin->new({SKIP_CHECK_TABLES => 1});
-
-		$self->{ADMIN_DB} or $self->{LOGGER}->error("Admin-UI", "In initialize creating Admin instance failed") and return;
+#		$self->{ADMIN_DB}
+#			or $self->{ADMIN_DB} = AliEn::Database::Admin->new({SKIP_CHECK_TABLES => 1});
+#
+#		$self->{ADMIN_DB} or $self->{LOGGER}->error("Admin-UI", "In initialize creating Admin instance failed") and return;
 
 		foreach (@$tolist) {
 
-			my $token = $self->{ADMIN_DB}->getFieldFromJobToken($_->{queueId}, "jobToken");
+			my $token = $self->{TASK_DB}->getFieldFromJobToken($_->{queueId}, "jobToken");
 			printf "Job %04d Token %40s\n", $_->{queueId}, $token;
 		}
 	}
@@ -3350,120 +3367,6 @@ sub submitCommands {
 
 sub resubmitCommand {
 	my $self = shift;
-	my @args = @_;
-
-	my $CONFIRM = 1;
-	if ($_[0] eq 'noconfirm') {
-		$CONFIRM = 0;
-		shift;
-	}
-
-	#   check for the -f 'fix' flag, which resubmits all faulty jobs ....
-
-	if ($_[0] eq '-i') {
-		if (!defined $_[1]) {
-			$self->{LOGGER}->error("CE", "Error: no queueId specified to <resubmit -i> ");
-			return;
-		}
-
-		$CONFIRM and (AliEn::Util::Confirm("Do you want to reinsert job $_[1]?") or return);
-
-		my $user = $self->{CATALOG}->{CATALOG}->{ROLE};
-
-		my $done = $self->{SOAP}->CallSOAP("Manager/Job", "reInsertCommand", $_[1], $user);
-		$done or $self->info("Error reinserting $_[1]") and return;
-		my $result = $done->result;
-		$self->info("Process $_[1] reinserted!!");
-		return $result;
-	}
-
-	if ($_[0] eq '-f') {
-		if (!defined $_[1]) {
-			$self->{LOGGER}->error("CE", "Error: no queueId specified to <resubmit -f> ");
-			return;
-		}
-
-		if ((defined $_[2]) && ($_[2] eq '-i')) {
-			AliEn::Util::Confirm("Do you really want to resubmit all failed jobs of $_[1] [reinsertion active ]?") or return;
-		} else {
-			AliEn::Util::Confirm("Do you really want to resubmit all failed jobs of $_[1] [reinsertion unset  ]?") or return;
-		}
-
-		AliEn::Util::Confirm("Are you really sure ?") or return;
-
-		my @allps = $self->f_ps("-q", "-Aafs", "-id", "$_[1]");
-		foreach (@allps) {
-			my ($user, $id, $status, @rest) = split " ", $_;
-			if ( (     ($status ne 'R')
-					and ($status ne 'ST')
-					and ($status ne 'A')
-					and ($status ne 'I')
-					and ($status ne 'Q')
-					and ($status ne 'W')
-					and ($status ne 'D')
-					and ($status ne 'SV')
-					and ($status ne 'Z')
-				)
-				and ($id =~ /\-.*/)
-				) {
-
-				if ((defined $_[2]) && ($_[2] eq '-i')) {
-					my $id2kill = $id;
-					$id2kill =~ s/\-//g;
-
-					my @result;
-					my $done = $self->{SOAP}->CallSOAP("Manager/Job", "reInsertCommand", $id2kill, $user);
-					$self->{SOAP}->checkSOAPreturn($done) or $self->info("Error reinserting $id2kill") and return $done;
-					push @result, $done->result;
-					$self->info("Process $id2kill [$status] reinserted!!");
-				} else {
-					die;
-					my $id2kill = $id;
-					$id2kill =~ s/\-//g;
-					$self->info("Resubmitting process <$id2kill> [ status |$status| ] ", undef, 0);
-
-					# kill first the actual process
-					$self->f_kill($id2kill);
-
-					# resubmit the same
-					$DEBUG and $self->debug(1, "Resubmitting command $id2kill");
-
-					my $user = $self->{CATALOG}->{CATALOG}->{ROLE};
-
-					my $done = $self->{SOAP}->CallSOAP("Manager/Job", "resubmitCommand", $id2kill, $user, $_[1], $id2kill);
-					my @result;
-					$self->{SOAP}->checkSOAPreturn($done)
-						or $self->info("Error resubmitting $id2kill")
-						and return @result;
-					push @result, $done->result;
-					$self->info("Process $id2kill resubmitted!!");
-				}
-			}
-		}
-		return;
-	}
-
-	if (($_[0] eq '-k') or ($_[0] eq '-q')) {
-		if (!defined $_[1]) {
-			$self->{LOGGER}->error("CE", "Error: no queueId specified to <resubmit $_[0]> ");
-			return;
-		}
-		my @allps = $self->f_ps("-q", "-Aafs", "-id", "$_[1]");
-		foreach (@allps) {
-			my ($user, $id, $status, @rest) = split " ", $_;
-			($_[0] eq '-k') and ($status ne 'Z') and next;
-			($_[0] eq '-q')
-				and ($status != /^Z|W|(EE)|(EA)|(ES)|(ER)|Q|(ESV)|(EV)|(EVT)|(EVN)|(EIB)$/)
-				and next;
-			my $id2kill = $id;
-			$id2kill =~ s/\-//g;
-			print("Killing Zombie process <$id2kill> [ status |$status| ] \n");
-
-			# kill first the actual process
-			$self->f_kill($id2kill);
-		}
-		return;
-	}
 
 	(@_)
 		or print STDERR "Error: no queueId specified!\nUsage resubmitCommand <queueId>\n"
@@ -3472,29 +3375,89 @@ sub resubmitCommand {
 
 	my $user = $self->{CATALOG}->{CATALOG}->{ROLE};
 
-	my ($host, $driver, $db) = split("/", $self->{CONFIG}->{"JOB_DATABASE"});
-	$self->{TASK_DB}
-		or $self->{TASK_DB} =
-		AliEn::Database::TaskQueue->new(
-		{DB => $db, HOST => $host, DRIVER => $driver, ROLE => 'admin', SKIP_CHECK_TABLES => 1});
-	$self->{TASK_DB}
-		or $self->{LOGGER}->error("CE", "In initialize creating TaskQueue instance failed")
-		and return;
-
 	my @result;
 	foreach my $queueId (@_) {
-		my $done = $self->{SOAP}->CallSOAP("Manager/Job", "resubmitCommand", $queueId, $user);
-		$done
-			or $self->info("Error resubmitting $queueId")
-			and return @result;
-		push @result, $done->result;
-		$self->info("Process $queueId resubmitted!! (new jobid is " . $done->result . ")");
-    #$self->info("Updating the jobQuotas as well!!");
-    #$self->calculateJobQuota(0,1); #or return;
-
+		# Getting path and resubmission
+		$self->info("Resubmitting $queueId");
+		
+    	my ($ok, $error) = $self->{TASK_DB}->checkJobQuota($user, 1);
+    	($ok > 0) or return (-1, $error);
+			
+		my $path = $self->{TASK_DB}->getFieldFromQueue($queueId, "path");
+		my $resubmission = $self->{TASK_DB}->getFieldFromQueue($queueId, "resubmission");
+		
+		my $done = $self->resubmitCommandInternal($queueId, $user);
+		$done or $self->info("Error resubmitting $queueId")
+			  and return @result;
+		push @result, $done;
+		$self->info("Process $queueId resubmitted!! (new jobid is " . $done . ")");
+		if ($path) {
+		  $self->info("Renaming previous saved files of the job in $path");
+		  my @files = $self->{CATALOG}->execute("find", "-j", $queueId, $path, "*");
+		
+		# Renaming saved files so the process can save the new ones
+		  foreach my $file (@files){
+		  	 $file =~ /.resubmit\d+/ and $self->info("Ignoring file $file") and next;
+		  	$self->info("Renaming file $file from job $queueId");
+		  	$self->{CATALOG}->execute("mv", $file, $file.".resubmit".$resubmission);
+		  }
+		}
+				
 	}
-
+    $self->info("The resubmission of '@_' finished correctly");
 	return @result;
+}
+
+sub resubmitCommandInternal {
+  my $self       = shift;
+  my $queueId    = shift;
+  my $user       = shift;
+  my $masterId   = (shift or "");
+  my $replacedId = (shift or "");
+
+  $self->info("In Resubmit Command");
+  ($user) and ($queueId)
+    or $self->{LOGGER}->error("CE", "In resubmitCommand queueId not specified")
+    and return (-1, "QueueId not specified");
+
+  $self->info("Checking your job quota... For Resubmission");
+  my ($ok, $error) = $self->{TASK_DB}->checkJobQuota($user, 1);
+  ($ok > 0) or return (-1, $error);
+  $self->info("OK. resubmit");
+
+  my $date = time;
+
+  $self->info("Resubmitting command $queueId");
+
+  my ($data) = $self->{TASK_DB}->getFieldFromQueue($queueId, "submitHost");
+  
+  defined $data
+    or $self->{LOGGER}->error("CE", "In resubmitCommand error during execution of database query")
+    and return (-1, "during execution of database query");
+
+  $self->info("Tenemos id\n");
+
+  ($data =~ /^$user\@/)
+    or ($user eq "admin")
+    or $self->{LOGGER}->error("CE", "In resubmitCommand process $queueId does not belong to '$user'")
+    and return (-1, "process $queueId does not belong to $user");
+
+  $self->info("Removing the 'registeredoutput', 'registeredlog', 'joblogonclustermonitor', and 'successfullybookedpfns'  field");
+  $self->{TASK_DB}->deleteJobToken($queueId)
+   or $self->info("Error changing the token of $queueId") and return (-1, "Error changing the token of the job");
+  $self->{TASK_DB}->resubmitJob($queueId)
+    or $self->info("Error resubmitting the job $queueId") and return (-1, "Error resubmitting the job");
+  $self->info("AND NOW PUTTING THE JOBLOG");
+  $self->putJobLog($queueId, "state", "The job has been resubmited (back to WAITING)");
+  
+  return $queueId;
+}
+
+sub putJobLog {
+  my $self = shift;
+
+  $self->info(join(" ", "Putting in the log: ", @_));
+  return $self->{TASK_DB}->insertJobMessage(@_);
 }
 
 sub DESTROY {
@@ -3943,13 +3906,13 @@ sub f_jobListMatch {
 
 	my $anyMatch = 0;
 	my $jobPriority;
-	if ($self->{TASK_DB}) {
+
 		$jobPriority =
 			$self->{TASK_DB}->queryValue(
 			"select  if(j.priority, j.priority, 0) from QUEUE join JOBAGENT j on (entryid=agentid) where queueid=?",
 			undef, {bind_values => [$jobid]});
 		$self->info("The priority of the job is $jobPriority", undef, 0);
-	}
+
 
 	foreach my $site (@$done) {
 		if (!$site->{jdl}) {
@@ -3971,7 +3934,7 @@ sub f_jobListMatch {
 		}
 
 		if ($options =~ /n/) {
-			if ($self->{TASK_DB}) {
+			
 				$site->{site} =~ /::(.*)::/;
 				my $sitePattern = "\%,$1,\%";
 				my $number      = $self->{TASK_DB}->queryValue(
@@ -3981,9 +3944,6 @@ sub f_jobListMatch {
 				);
 				$number or $number = 0;
 				$self->info("\t\tJobs for $site->{site} with higher priority: $number", undef, 0);
-			} else {
-				$self->info("Sorry, we can't connect to the database");
-			}
 		}
 
 #     ($options=~ /v/ or  $status=~ /MATCHED!!! :\)/  ) and $self->info("\tComparing the jdl of the job with $site->{site}... $status",undef,0);
@@ -4416,7 +4376,7 @@ sub f_jquota_list {
 	#  my $done = $self->{SOAP}->CallSOAP("Manager/Job", 'getJobQuotaList', $user);
 	#  $done or return;
 	#  my $result = $done->result;
-	my $result = $self->{PRIORITY_DB}->getFieldsFromPriorityEx(
+	my $result = $self->{TASK_DB}->getFieldsFromPriorityEx(
 "user, unfinishedJobsLast24h, maxUnfinishedJobs, totalRunningTimeLast24h, maxTotalRunningTime, totalCpuCostLast24h, maxTotalCpuCost",
 		"where user like '$user'"
 		)
@@ -4474,7 +4434,7 @@ sub f_jquota_set {
 
 	#my $done = $self->{SOAP}->CallSOAP("Manager/Job", 'setJobQuotaInfo', $user, $field, $value);
 	my $set = {$field => $value};
-	my $done = $self->{PRIORITY_DB}->updatePrioritySet($user, $set);
+	my $done = $self->{TASK_DB}->updatePrioritySet($user, $set);
 	$done or $self->info("Failed to set the value in PRIORITY table") and return;
 
 	if ($done eq '0E0') {

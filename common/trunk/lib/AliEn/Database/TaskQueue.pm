@@ -42,6 +42,8 @@ sub initialize {
 
   $self->{QUEUETABLE}     = "QUEUE";
   $self->{SITEQUEUETABLE} = "SITEQUEUES";
+  $self->{JOBTOKENTABLE} = "JOBTOKEN";
+  $self->{PRIORITYTABLE} = "PRIORITY";
   $self->SUPER::initialize() or return;
 
   $self->{JOBLEVEL} = {
@@ -188,11 +190,25 @@ sub initialize {
   	extra_index=> ['foreign key (queueid) references QUEUE(queueid) on delete cascade'],
     engine =>'innodb'
   };
+  
+  # new for jobToken migration from ADMIN
+  my $queueColumnsJobtoken ={
+  	columns=>{    
+		"jobId"    => "int(11)  DEFAULT '0' NOT NULL",
+		"userName" => "char(20) DEFAULT NULL",
+		"jobToken" => "char(255) DEFAULT NULL",	
+  	},
+  	id =>"jobId",
+  	extra_index=> ['foreign key (jobId) references QUEUE(queueid) on delete cascade'],
+    engine =>'innodb'
+  };
+  
   my $tables = {
     QUEUE            => $queueColumns,
     QUEUEPROC        => $queueColumnsProc,
     QUEUEJDL         => $queueColumnsJDL,
-
+    JOBTOKEN    => $queueColumnsJobtoken,
+    
     $self->{QUEUEARCHIVE}     => $queueColumns,
     $self->{QUEUEARCHIVEPROC} => $queueColumnsProc,
     JOBAGENT => {
@@ -315,6 +331,12 @@ sub initialize {
     and return;
 
   $self->checkActionTable() or return;
+  
+  # PRIORITY TABLE
+  $self->checkPriorityTable()
+    or $self->{LOGGER}->error("TaskQueue", "In initialize altering tables failed for PRIORITY")
+    and return;
+  
 
   return 1;
 }
@@ -1099,7 +1121,6 @@ sub setPriorityTable {
   $self->{PRIORITYTABLE} = (shift or "PRIORITY");
 }
 
-
 ###     QUEUE Copy
 sub insertEntry {
   my $self     = shift;
@@ -1338,7 +1359,6 @@ sub resubmitJob{
 		$self->insert("JOBAGENT",$params);
 		
 	}
-
 	
 	return $queueid
 }
@@ -1438,6 +1458,264 @@ sub killProcessInt {
   $self->info("Process killed");
 
   return 1;
+}
+
+# JOBTOKEN 
+
+sub deleteJobToken {
+  my $self = shift;
+  my $id   = shift
+    or $self->{LOGGER}->error("TaskQueue", "In deleteJobToken job id is missing")
+    and return;
+
+  $self->debug(1, "In deleteJobToken deleting token for job $id");
+  return $self->delete("JOBTOKEN", "jobId= ?", {bind_values => [$id]});
+}
+
+sub getFieldFromJobToken {
+  my $self = shift;
+  my $id   = shift
+    or $self->{LOGGER}->error("TaskQueue", "In getFieldFromJobToken job id is missing")
+    and return;
+  my $attr = shift || "jobId,userName,jobToken";
+
+  $self->debug(1, "In getFieldFromJobToken fetching attribute $attr for job id $id from table jobToken");
+  return $self->queryValue("SELECT $attr FROM JOBTOKEN WHERE jobId= ?", undef, {bind_values => [$id]});
+}
+
+sub getFieldsFromJobToken {
+  my $self = shift;
+  my $id   = shift
+    or $self->{LOGGER}->error("TaskQueue", "In getFieldsFromJobToken job id is missing")
+    and return;
+  my $attr = shift || "jobId,userName,jobToken";
+
+  $self->debug(1, "In getFieldsFromJobToken fetching attributes $attr for job id $id from table jobToken");
+  return $self->queryRow("SELECT $attr FROM JOBTOKEN WHERE jobId= ?", undef, {bind_values => [$id]});
+}
+
+sub setJobToken {
+  my $self = shift;
+  my $id   = shift
+    or $self->{LOGGER}->error("TaskQueue", "In setJobToken job id is missing")
+    and return;
+  my $token = shift;
+
+  $self->debug(1, "In setJobToken updating token for job $id");
+  return $self->update("JOBTOKEN", {jobToken => $token}, "jobId= ?", {bind_values => [$id]});
+}
+
+sub insertJobToken {
+  my $self  = shift;
+  my $id    = shift;
+  my $user  = shift;
+  my $token = shift;
+
+  $self->debug(1, "In insertJobToken inserting new data into table JOBTOKEN");
+  return $self->insert("JOBTOKEN", {jobId => $id, userName => $user, jobToken => $token});
+}
+
+sub getUsername {
+  my $self = shift;
+  my $id   = shift
+    or $self->{LOGGER}->error("TaskQueue", "In getUsername job id is missing")
+    and return;
+  my $token = shift
+    or $self->{LOGGER}->error("TaskQueue", "In getUsername job token is missing")
+    and return;
+  $token =~ /^-1$/ and $self->{LOGGER}->info("TaskQueue", "The job token is not valid") and return;
+  $self->debug(1, "In getUsername fetching user name for job $id and token $token");
+  return $self->queryValue("SELECT userName FROM JOBTOKEN where jobId=? and jobToken= ?",
+    undef, {bind_values => [ $id, $token ]});
+}
+
+sub checkPriorityTable {
+  my $self = shift;
+  $self->{PRIORITYTABLE} = (shift or "PRIORITY");
+
+  my %columns = (
+    user                => "varchar(64) CHARACTER SET latin1 COLLATE latin1_general_cs not null",
+    priority            => "float default 0 not null ",
+    maxparallelJobs     => "int default 0 not null  ",
+    nominalparallelJobs => "int default 0 not null ",
+    computedpriority    => "float default 0 not null ",
+    waiting             => "int default 0 not null ",
+    running             => "int default 0 not null ",
+    userload            => "float default 0 not null ",
+
+    #Job Quota
+    unfinishedJobsLast24h   => "int default 0 not null ",
+    totalRunningTimeLast24h => "bigint default 0 not null ",
+    totalCpuCostLast24h     => "float default 0 not null ",
+    maxUnfinishedJobs       => "int default 0 not null ",
+    maxTotalRunningTime     => "bigint default 0 not null ",
+    maxTotalCpuCost         => "float default 0  not null ",
+    ##File Quota
+    #nbFiles=>"int default 0 not null ",
+    #totalSize=>"bigint  default 0 not null",
+    #maxNbFiles=>"int default 0 not null ",
+    #maxTotalSize=>"bigint default 0  not null ",
+    #tmpIncreasedNbFiles=>"int default 0 not null ",
+    #tmpIncreasedTotalSize=>"bigint  default 0 not null ",
+  );
+
+  $self->checkTable($self->{PRIORITYTABLE}, "user", \%columns, $self->reservedWord('user'));
+
+}
+
+sub checkPriorityValue() {
+  my $self = shift;
+  my $user = shift or $self->{LOGGER}->error("TaskQueue", "no username provided in checkPriorityValue");
+  $self->debug(1, "Checking if the user $user exists");
+
+  my $exists = $self->getFieldFromPriority("$user", "count(*)");
+  if ($exists) {
+    $self->debug(1, "$user entry for priority exists!");
+  } else {
+    $self->debug(1, "$user entry for priority does not exist!");
+    my $set = {};
+    $set->{'user'}                = "$user";
+    $set->{'priority'}            = "1.0";
+    $set->{'maxparallelJobs'}     = 20;
+    $set->{'nominalparallelJobs'} = 10;
+    $set->{'computedpriority'}    = 1;
+
+    #Job Quota
+    $set->{'unfinishedJobsLast24h'}   = 0;
+    $set->{'maxUnfinishedJobs'}       = 60;
+    $set->{'totalRunningTimeLast24h'} = 0;
+    $set->{'maxTotalRunningTime'}     = 1000000;
+    $set->{'totalCpuCostLast24h'}     = 0;
+    $set->{'maxTotalCpuCost'}         = 2000000;
+    ##File Quota
+    #$set->{'nbFiles'} = 0;
+    #$set->{'totalSize'} = 0;
+    #$set->{'tmpIncreasedNbFiles'} = 0;
+    #$set->{'tmpIncreasedTotalSize'} = 0;
+    #$set->{'maxNbFiles'}=10000;
+    #$set->{'maxTotalSize'}=10000000000;
+    $self->insertPrioritySet($user, $set);
+  }
+}
+
+sub insertPriority {
+  my $self = shift;
+  $self->insert("$self->{PRIORITYTABLE}", @_);
+}
+
+sub updatePriority {
+  my $self = shift;
+  $self->update("$self->{PRIORITYTABLE}", @_);
+}
+
+sub insertPrioritySet {
+  my $self = shift;
+  my $user = shift
+    or $self->{LOGGER}->error("TaskQueue", "In insertPrioritySet user is missing")
+    and return;
+  my $set = shift;
+
+  $self->debug(1, "In insertPrioritySet user is missing");
+  $self->insert($self->{PRIORITYTABLE}, $set);
+}
+
+sub updatePrioritySet {
+  my $self = shift;
+  my $user = shift
+    or $self->{LOGGER}->error("TaskQueue", "In updatePrioritySet user is missing")
+    and return;
+  my $set = shift;
+
+  $self->debug(1, "In updatePrioritySet user is NOT missing");
+  $self->update("$self->{PRIORITYTABLE}", $set, $self->reservedWord("user") . " LIKE ?", {bind_values => [$user]});
+}
+
+sub getFieldFromPriority {
+  my $self = shift;
+  my $user = shift
+    or $self->{LOGGER}->error("TaskQueue", "In getFieldFromPriority user is missing")
+    and return;
+  my $attr = shift || "*";
+
+  $self->debug(1, "In getFieldFromPriority fetching attribute $attr of user $user");
+  $self->queryValue("SELECT $attr FROM $self->{PRIORITYTABLE} WHERE user =?", undef, {bind_values => [$user]});
+}
+
+sub getFieldsFromPriority {
+  my $self = shift;
+  my $user = shift
+    or $self->{LOGGER}->error("TaskQueue", "In getFieldsFromPriority user is missing")
+    and return;
+  my $attr = shift || "*";
+
+  $self->debug(1, "In getFieldsFromPriority fetching attributes $attr of user $user");
+  $self->queryRow("SELECT $attr FROM $self->{PRIORITYTABLE} WHERE user=?", undef, {bind_values => [$user]});
+}
+
+sub getFieldsFromPriorityEx {
+  my $self   = shift;
+  my $attr   = shift || "*";
+  my $addsql = shift || "";
+
+  $self->debug(1,
+    "In getFieldsFromPriorityEx fetching attributes $attr with condition $addsql from table $self->{PRIORITYTABLE}");
+  $self->query("SELECT $attr FROM $self->{PRIORITYTABLE} $addsql", undef, @_);
+}
+
+
+# checkJobQuota, migrated from Job (Manager)
+sub checkJobQuota {
+  my $self = shift;
+  my $user = shift
+    or $self->info("In checkJobQuota user is missing\n")
+    and return (-1, "user is missing");
+  my $nbJobsToSubmit = shift;
+  (defined $nbJobsToSubmit)
+    or $self->info("In checkJobQuota nbJobsToSubmit is missing\n")
+    and return (-1, "nbJobsToSubmit is missing");
+
+  $DEBUG and $self->debug(1, "In checkJobQuota user:$user, nbJobs:$nbJobsToSubmit");
+
+  my $array = $self->getFieldsFromPriorityEx(
+"unfinishedJobsLast24h, maxUnfinishedJobs, totalRunningTimeLast24h, maxTotalRunningTime, totalCpuCostLast24h, maxTotalCpuCost",
+    "where " . $self->reservedWord("user") . " like '$user'"
+    )
+    or $self->info("Failed to getting data from PRIORITY table")
+    and return (-1, "Failed to getting data from PRIORITY table");
+  $array->[0]
+    or $self->{LOGGER}->error("User $user not exist")
+    and return (-1, "User $user not exist in PRIORITY table");
+
+  my $unfinishedJobsLast24h   = $array->[0]->{'unfinishedJobsLast24h'};
+  my $maxUnfinishedJobs       = $array->[0]->{'maxUnfinishedJobs'};
+  my $totalRunningTimeLast24h = $array->[0]->{'totalRunningTimeLast24h'};
+  my $maxTotalRunningTime     = $array->[0]->{'maxTotalRunningTime'};
+  my $totalCpuCostLast24h     = $array->[0]->{'totalCpuCostLast24h'};
+  my $maxTotalCpuCost         = $array->[0]->{'maxTotalCpuCost'};
+
+  $DEBUG and $self->debug(1, "nbJobs: $nbJobsToSubmit, unfinishedJobs: $unfinishedJobsLast24h/$maxUnfinishedJobs");
+  $DEBUG and $self->debug(1, "totalRunningTime: $totalRunningTimeLast24h/$maxTotalRunningTime");
+  $DEBUG and $self->debug(1, "totalCpuCostLast24h: $totalCpuCostLast24h/$maxTotalCpuCost");
+
+  if ($nbJobsToSubmit + $unfinishedJobsLast24h > $maxUnfinishedJobs) {
+    $self->info("In checkJobQuota $user: Not allowed for nbJobs overflow");
+    return (-1,
+"DENIED: You're trying to submit $nbJobsToSubmit jobs. That exceeds your limit (at the moment,  $unfinishedJobsLast24h/$maxUnfinishedJobs)."
+    );
+  }
+
+  if ($totalRunningTimeLast24h >= $maxTotalRunningTime) {
+    $self->info("In checkJobQuota $user: Not allowed for totalRunningTime overflow");
+    return (-1, "DENIED: You've already executed your jobs for enough time.");
+  }
+
+  if ($totalCpuCostLast24h >= $maxTotalCpuCost) {
+    $self->info("In checkJobQuota $user: Not allowed for totalCpuCost overflow");
+    return (-1, "DENIED: You've already used enough CPU.");
+  }
+
+  $self->info("In checkJobQuota $user: Allowed");
+  return (1, undef);
 }
 
 =head1 NAME

@@ -61,6 +61,10 @@ sub initialize {
   ($self->{addbh})
     or $self->{LOGGER}->warning("CatalogDaemon", "Error getting the Admin")
     and return;
+    
+#  $self->{TASK_DB}
+#    or $self->{TASK_DB} = AliEn::Database::TaskQueue->new({ROLE => 'admin', SKIP_CHECK_TABLES => 1});
+#  $self->{TASK_DB} or $self->info("Error getting the instance of the taskDB!!") and return;
 
   $self->_ConnectToLDAP() or return;
   $self->{UI} = AliEn::UI::Catalogue::LCM::Computer->new($options) or $self->info("Error getting the ui") and return;
@@ -139,7 +143,7 @@ sub doOperation {
     my ($job, $token) = split(/ /, $user, 2);
     $self->info("ID: $job, TOKEN $token");
     $jobID = $job;
-    my $role = $self->{addbh}->getUsername($job, $token);
+    my $role = $self->{UI}->{QUEUE}->{TASK_DB}->getUsername($job, $token);
     ($role)
       or $self->info("The job token is not valid")
       and return {rcvalues => [], rcmessages => ["The job token for job $job is not valid"]};
@@ -625,120 +629,120 @@ sub changePrivileges {
   return 1;
 }
 
-sub insertJob {
-  my $self2  = shift;
-  my $procid = shift;
-  my $user   = shift;
+#sub insertJob {
+#  my $self2  = shift;
+#  my $procid = shift;
+#  my $user   = shift;
+#
+#  $self->info("Inserting job $procid from $user");
+#  ($user)
+#    or $self->{LOGGER}->notice("Authen", "Error: In insertJob not enough arguments")
+#    and return;
+#
+#  $self->{addbh}->insertJobToken($procid, $user, -1)
+#    or $self->{LOGGER}->error("CatalogDaemon", "Could not insert new jobToken")
+#    and return;
+#
+#  $self->info("Job $procid inserted\nMaking sure that the job is there");
+#
+#  my @list = $self->{addbh}->query("SELECT * from jobToken where jobId=$procid");
+#  print STDERR Dumper(@list);
+#
+#  return 1;
+#}
 
-  $self->info("Inserting job $procid from $user");
-  ($user)
-    or $self->{LOGGER}->notice("Authen", "Error: In insertJob not enough arguments")
-    and return;
+#sub getJobToken {
+#  my $this   = shift;
+#  my $procid = shift;
+#
+#  print STDERR "User is $ENV{SSL_CLIENT_SUBJECT}\n";
+#
+#  $self->info("\nGetting  job $procid");
+#
+#  ($procid)
+#    or print STDERR $self->{LOGGER}->notice("Authen", "Error: In getJobToken not enough arguments")
+#    and return;
+#
+#  my ($data) = $self->{addbh}->getFieldsFromJobToken($procid, "jobToken, userName");
+#
+#  ($data)
+#    or $self->{LOGGER}->error("CatalogDaemon", "Database error fetching fields for $procid")
+#    and return;
+#
+#  my ($token, $user) = ($data->{jobToken}, $data->{userName});
+#
+#  ($token eq '-1')
+#    or $self->{LOGGER}->notice("CatalogDaemon", "Job $procid already given..")
+#
+#    and return;
+#
+#  $token = $createToken->();
+#
+#  $self->{addbh}->setJobToken($procid, $token)
+#    or $self->{LOGGER}->warning("CatalogDaemon", "Error updating jobToken for user $user")
+#    and return (-1, "error setting the job token");
+#  $self->info("Making sure that the job is there...");
+#  my @result = $self->{addbh}->query("SELECT * from jobToken where jobId=$procid");
+#
+#  $self->info("Changing the ownership of the directory");
+#
+#  my $procDir = AliEn::Util::getProcDir($user, undef, $procid);
+#  if (!($self->{cat}->f_chown("", $user, $procDir))) {
+#    $self->{LOGGER}->warning("Broker", "Error changing the privileges of the directory $procDir in the catalogue");
+#    $self->{LOGGER}->warning("Broker", "Making a new database connection ");
+#    $self->{cat} = AliEn::Catalogue::Server->new($self->{options});
+#    $self->{LOGGER}->warning("Broker", "Now I have a new database connection");
+#    if (!($self->{cat}->f_chown("", $user, $procDir))) {
+#      $self->{LOGGER}
+#        ->critical("Broker", "Error changing the privileges of the directory $procDir in the catalogue 2nd time");
+#      return (-1, "changing the privileges");
+#    }
+#  }
+#
+#  $self->info("Sending job $procid to $user");
+#  return {"token" => $token, "user" => $user};
+#}
 
-  $self->{addbh}->insertJobToken($procid, $user, -1)
-    or $self->{LOGGER}->error("CatalogDaemon", "Could not insert new jobToken")
-    and return;
+#sub checkJobToken {
+#  my $self2 = shift;
+#  my $job   = shift;
+#  my $token = shift;
+#
+#  $self->info("In checkJobToken (job $job)...");
+#
+#  my ($user) = $self->{addbh}->getUsername($job, $token);
+#
+#  if (!($user)) {
+#    $self->info("In checkJobToken (job $job)...reconnect the admin database");
+#    $self->{addbh} = new AliEn::Database::Admin();    #$password);
+#    ($user) = $self->{addbh}->getUsername($job, $token);
+#
+#    ($user)
+#      or $self->info("Error: no user for proccess $job - failed")
+#      and return;
+#  }
+#
+#  $self->info("Getting the token of $user...");
+#
+#  ($token) = $self->{addbh}->getToken($user);
+#
+#  $self->{addbh}->addTime($user, 2);
+#
+#  $self->info("Job $job authenticated (User: $user)");
+#  return {"token" => $token, "user" => $user};
+#}
 
-  $self->info("Job $procid inserted\nMaking sure that the job is there");
-
-  my @list = $self->{addbh}->query("SELECT * from jobToken where jobId=$procid");
-  print STDERR Dumper(@list);
-
-  return 1;
-}
-
-sub getJobToken {
-  my $this   = shift;
-  my $procid = shift;
-
-  print STDERR "User is $ENV{SSL_CLIENT_SUBJECT}\n";
-
-  $self->info("\nGetting  job $procid");
-
-  ($procid)
-    or print STDERR $self->{LOGGER}->notice("Authen", "Error: In getJobToken not enough arguments")
-    and return;
-
-  my ($data) = $self->{addbh}->getFieldsFromJobToken($procid, "jobToken, userName");
-
-  ($data)
-    or $self->{LOGGER}->error("CatalogDaemon", "Database error fetching fields for $procid")
-    and return;
-
-  my ($token, $user) = ($data->{jobToken}, $data->{userName});
-
-  ($token eq '-1')
-    or $self->{LOGGER}->notice("CatalogDaemon", "Job $procid already given..")
-
-    and return;
-
-  $token = $createToken->();
-
-  $self->{addbh}->setJobToken($procid, $token)
-    or $self->{LOGGER}->warning("CatalogDaemon", "Error updating jobToken for user $user")
-    and return (-1, "error setting the job token");
-  $self->info("Making sure that the job is there...");
-  my @result = $self->{addbh}->query("SELECT * from jobToken where jobId=$procid");
-
-  $self->info("Changing the ownership of the directory");
-
-  my $procDir = AliEn::Util::getProcDir($user, undef, $procid);
-  if (!($self->{cat}->f_chown("", $user, $procDir))) {
-    $self->{LOGGER}->warning("Broker", "Error changing the privileges of the directory $procDir in the catalogue");
-    $self->{LOGGER}->warning("Broker", "Making a new database connection ");
-    $self->{cat} = AliEn::Catalogue::Server->new($self->{options});
-    $self->{LOGGER}->warning("Broker", "Now I have a new database connection");
-    if (!($self->{cat}->f_chown("", $user, $procDir))) {
-      $self->{LOGGER}
-        ->critical("Broker", "Error changing the privileges of the directory $procDir in the catalogue 2nd time");
-      return (-1, "changing the privileges");
-    }
-  }
-
-  $self->info("Sending job $procid to $user");
-  return {"token" => $token, "user" => $user};
-}
-
-sub checkJobToken {
-  my $self2 = shift;
-  my $job   = shift;
-  my $token = shift;
-
-  $self->info("In checkJobToken (job $job)...");
-
-  my ($user) = $self->{addbh}->getUsername($job, $token);
-
-  if (!($user)) {
-    $self->info("In checkJobToken (job $job)...reconnect the admin database");
-    $self->{addbh} = new AliEn::Database::Admin();    #$password);
-    ($user) = $self->{addbh}->getUsername($job, $token);
-
-    ($user)
-      or $self->info("Error: no user for proccess $job - failed")
-      and return;
-  }
-
-  $self->info("Getting the token of $user...");
-
-  ($token) = $self->{addbh}->getToken($user);
-
-  $self->{addbh}->addTime($user, 2);
-
-  $self->info("Job $job authenticated (User: $user)");
-  return {"token" => $token, "user" => $user};
-}
-
-sub removeToken {
-  my $self2 = shift;
-
-  my $job = shift;
-  $self->info("In removeJobToken, removing job $job token");
-  my $done = $self->{addbh}->deleteJobToken($job);
-  ($done)
-    or $self->{LOGGER}->warning("Authen", "Error removing token $DBI::errstrs ($DBI::errstrs");
-
-  return 1;
-}
+#sub removeToken {
+#  my $self2 = shift;
+#
+#  my $job = shift;
+#  $self->info("In removeJobToken, removing job $job token");
+#  my $done = $self->{addbh}->deleteJobToken($job);
+#  ($done)
+#    or $self->{LOGGER}->warning("Authen", "Error removing token $DBI::errstrs ($DBI::errstrs");
+#
+#  return 1;
+#}
 
 sub insertKey {
   my $self2  = shift;
@@ -1028,23 +1032,6 @@ sub checkUserPassword {
   $self->addUser($role);
 
   return 1;
-}
-
-sub recreateJobToken {
-  shift;
-  my $jobid = shift;
-  $self->info("Recreating the token for job $jobid");
-  my $user = $self->{addbh}->getFieldFromJobToken("user", $jobid);
-  $user or $self->info("Error getting the user of that token");
-
-  $self->{addbh}->deleteJobToken($jobid);
-
-  $self->{addbh}->insertJobToken($jobid, $user, -1)
-    or $self->{LOGGER}->error("CatalogDaemon", "Could not insert new jobToken")
-    and return;
-
-  return 1;
-
 }
 
 sub _checkLDAPConnection {

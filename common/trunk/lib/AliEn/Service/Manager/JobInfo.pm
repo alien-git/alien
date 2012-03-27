@@ -418,34 +418,6 @@ sub getSystem {
   return ($resultreturn);
 }
 
-=item GetJobJDL
-
-returns the jdl of the job received as input
-
-=cut
-
-sub GetJobJDL {
-  my $this=shift;
-  my $id=shift;
- 
- 
-  my $columns="ifnull(resultsjdl, origjdl) jdl";
-  my $join="";
-  my $method="queryValue"; 
-  foreach my $o (@_) {
-    $o=~ /-dir/ and $columns.=",path" and $method="queryRow" and $join="join QUEUE using (queueid)";
-    $o=~ /-status/ and $columns.=",status" and $method="queryRow" and $join="join QUEUE using (queueid)";
-  }
-
-  $self->debug(1, "Asking for the jdl of $id");
-  $id or $self->info( "No id to check in GetJOBJDL",11) and return (-1, "No id to check");
-  my $rc=$self->{DB}->$method("select $columns from QUEUEJDL $join where queueId=?", undef, {bind_values=>[$id]});
-  $self->info( "Giving back the $columns of $id\n");
-  return $rc; 
-
-}
-
-
 sub getTrace {
   my $this = shift;
   $self->info( "Asking for trace @_ $#_ ..." );
@@ -526,17 +498,6 @@ sub spy {
 
 #    return $result2->result;
 }
-
-
-
-#sub GetJobJDL {
-#    my $this = shift;
-#    my $queueId = shift or return;
-#
-#    return $self->{DB}->getFieldFromQueue($queueId,"jdl");
-#}
-
-
 
 sub _getSiteQueueBlocked {
     my $self = shift;

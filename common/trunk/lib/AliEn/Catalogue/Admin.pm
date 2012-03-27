@@ -67,9 +67,9 @@ sub f_addUser {
     return;
   }
 
-  $self->{PRIORITY_DB}
-    or $self->{PRIORITY_DB} = AliEn::Database::TaskPriority->new({ROLE => 'admin', SKIP_CHECK_TABLES => 1});
-  $self->{PRIORITY_DB} or $self->info("Error getting the instance of the priorityDB!!") and return;
+  $self->{TASK_DB}
+    or $self->{TASK_DB} = AliEn::Database::TaskQueue->new({ROLE => 'admin', SKIP_CHECK_TABLES => 1});
+  $self->{TASK_DB} or $self->info("Error getting the instance of the taskDB!!") and return;
 
   my $passwd;
 ####If the database is Oracle, we do not want a new password, we want the password of the generic user
@@ -135,7 +135,7 @@ sub f_addUser {
   }
 
   $self->info("Adding the jobquotas");
-  $self->{PRIORITY_DB}->checkPriorityValue($user) or return;
+  $self->{TASK_DB}->checkPriorityValue($user) or return;
   $self->info("User $user added");
 
   $self->resyncLDAP();

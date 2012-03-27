@@ -136,4 +136,11 @@ sub f_ps{
 	return $self->{CATALOG}->{CATALOG}->callAuthen("ps", @_);
 }
 
+sub f_jobListMatch{
+	my $self=shift;
+	my $options=shift;
+	return $self->{CATALOG}->{CATALOG}->callAuthen("jobListMatch", "-$options", @_);
+}
+
+
 __END__

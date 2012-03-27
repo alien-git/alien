@@ -70,12 +70,12 @@ my $splitPerSE =sub  {
 sub checkWakesUp {
   $self=shift;
 
-  $self->{PRIORITY_DB} or 
-    $self->{PRIORITY_DB}=
-      AliEn::Database::TaskPriority->new({ROLE=>'admin'});
-
-  $self->{PRIORITY_DB} or $self->info("Error getting the priority table!!")
-    and exit(-2);
+#  $self->{PRIORITY_DB} or 
+#    $self->{PRIORITY_DB}=
+#      AliEn::Database::TaskPriority->new({ROLE=>'admin'});
+#
+#  $self->{PRIORITY_DB} or $self->info("Error getting the priority table!!")
+#    and exit(-2);
 
   my $silent=shift;
 

@@ -113,7 +113,6 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
   'host'               => [ '$self->{CATALOG}->f_host',              0 ],
   'addUser'            => [ '$self->{CATALOG}->f_addUser',           0 ],
   
-  'verifyToken'        => [ '$self->{CATALOG}->f_verifyToken',       0 ],
   'verifySubjectRole'  => [ '$self->{CATALOG}->f_verifySubjectRole', 0 ],
   'moveDirectory'      => [ '$self->{CATALOG}->moveDirectory',       0 ],
   'moveGUID'           => [ '$self->{CATALOG}->moveGUID',            0 ],

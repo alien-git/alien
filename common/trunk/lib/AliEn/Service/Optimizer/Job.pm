@@ -69,7 +69,7 @@ sub initialize {
   my @optimizers = (
     "Merging",  "Inserting", "Splitting", "Zombies",
     "Hosts",    "Expired",   "HeartBeat", "Priority",
-    "Resubmit", "Saved",     "Staging",
+    "Saved",     "Staging",
     "Quota", "WaitingTime",
   );    #,"ResolveReq");
 

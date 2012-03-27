@@ -101,7 +101,7 @@ $DEBUG = 0;
   'AliEn::Catalogue::Authorize',  @ISA
 );
 use AliEn::Database::Catalogue;
-use AliEn::Database::TaskPriority;
+#use AliEn::Database::TaskPriority;
 use AliEn::Database::TaskQueue;
 
 #use AliEn::Utilities;
@@ -442,7 +442,8 @@ sub f_ls_HELP {
 \t-n: switch off the colour output
 \t-b : print in guid format
 \t-h : print the help text
-\t-e : display also the expire date";
+\t-e : display also the expire date
+\t-j : display the id of the job that created the file";
 }
 
 sub f_ls {
@@ -864,12 +865,12 @@ sub f_print {
   my $t = "";
   my $owner = $self->{DATABASE}->getOwner($rentry->{ownerId});
   my $gowner = $self->{DATABASE}->getGowner($rentry->{gownerId});
-  my ($type, $perm, $name, $user, $date, $group, $size, $md5, $expire) = (
+  my ($type, $perm, $name, $user, $date, $group, $size, $md5, $expire, $jobid) = (
     $rentry->{type},  $rentry->{perm},
     $rentry->{lfn},   $owner || "unknown",
     $rentry->{ctime}, $gowner || "unknown",
     $rentry->{size} || 0, $rentry->{md5},
-    $rentry->{expiretime} || ""
+    $rentry->{expiretime} || "", $rentry->{jobId} || ""
   );
   $opt =~ /e/ or $expire = "";
   $name =~ s{^$path}{};
@@ -935,6 +936,21 @@ sub f_print {
     }
     return "$permstring###$user###$group###$size###$date###$name";
   }
+  
+  # Option -j
+  if ($opt =~ /j/) {
+    if (!$self->{SILENT} and $opt !~ /s/) {
+      $self->raw(sprintf("%s %12s\n", $name, $jobid), undef, 0);
+    }
+    if ($opt =~ /z/) {
+      my $rethash = {};
+      $rethash->{path} = $path . $name;
+      $rethash->{jobid} = $jobid;
+      return $rethash;
+    }
+    return "$name###$jobid";
+  }
+  
   if ($opt =~ /m/) {
     if ((!defined $md5) || ($md5 eq "")) {
       $md5 = "00000000000000000000000000000000";
@@ -1116,7 +1132,6 @@ sub f_passwd {
   }
 }
 
-
 sub f_verifySubjectRole {
   my $self = shift;
   my @arg  = grep (!/-z/, @_);
@@ -1161,6 +1176,7 @@ sub f_find_HELP {
    c => put the output in a collection - 2nd arg is the collection name
    m => metadata on file level 
    y => (FOR THE OCDB) return only the biggest version of each file
+   j => specify a concrete jobid 
 ";
 }
 
@@ -1621,7 +1637,7 @@ sub f_find {
   #### standard to retrieve options with and without parameters
   my %options = ();
   @ARGV = @_;
-  getopts("mvzrpO:o:l:x:g:sO:q:dc:yf", \%options);
+  getopts("mvzrpO:o:l:x:g:sO:q:dc:yfj:", \%options);
   @_ = @ARGV;
 
   # option v => verbose
@@ -1637,6 +1653,7 @@ sub f_find {
   # option d => return directories
   # option m => metadata on file level
   # option f => force the query (no cache)
+  # option j => to specify a concrete jobid
   my $quiet   = $options{'q'};
   my $verbose = $options{v};
   #### -p option

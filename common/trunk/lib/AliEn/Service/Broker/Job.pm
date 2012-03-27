@@ -34,7 +34,7 @@ sub initialize {
 
 	#  $self->{TOKENMAN} = AliEn::TokenManager->new($self->{CONFIG});
 
-	$self->{addbh} = new AliEn::Database::Admin();
+	#$self->{addbh} = new AliEn::Database::Admin();
 
 	$self->forkCheckProcInfo() or return;
 
@@ -237,13 +237,13 @@ sub getJobToken {
 		or $self->info("Error: In getJobToken not enough arguments")
 		and return;
 
-	$self->{addbh}->queryValue("select count(*) from jobToken where jobId=?", undef, {bind_values => [$procid]})
+	$self->{DB}->queryValue("select count(*) from JOBTOKEN where jobId=?", undef, {bind_values => [$procid]})
 		and $self->info("Job $procid already given..")
 		and return;
 
 	my $token = $createToken->();
 
-	$self->{addbh}->insertJobToken($procid, $user, $token)
+	$self->{DB}->insertJobToken($procid, $user, $token)
 		or $self->{LOGGER}->warning("CatalogDaemon", "Error updating jobToken for user $user")
 		and return (-1, "error setting the job token");
 
@@ -330,29 +330,6 @@ sub invoke {
 	my $other = shift;
 	my $op    = shift;
 
-	if (!$self->{TASK_DB}) {
-
-		$self->{PASSWD} = ($self->{LOCALJOBDB}->{PASSWD} or "");
-
-		my ($host, $driver, $db) =
-			split("/", $self->{CONFIG}->{"JOB_DATABASE"});
-
-		$self->{TASK_DB} = AliEn::Database::TaskQueue->new(
-			{    PASSWD            => "$self->{PASSWD}",
-				DB                => $db,
-				HOST              => $host,
-				DRIVER            => $driver,
-				ROLE              => 'admin',
-				SKIP_CHECK_TABLES => 1
-			}
-		);
-		$self->{TASK_DB}
-			or $self->{LOGGER}->error("CE", "In initialize creating TaskQueue instance failed")
-			and return;
-
-		#    $self->{TASK_DB}->setSiteQueueTable();
-	}
-
 	$self->info("$$ Ready to do a task operation (and $op '@_')");
 
 	my $mydebug = $self->{LOGGER}->getDebugLevel();
@@ -363,7 +340,7 @@ sub invoke {
 	$self->{LOGGER}->keepAllMessages();
 
 	#  $op = "$self->{TASK_DB}->".$op;
-	my @info = $self->{TASK_DB}->$op(@_);
+	my @info = $self->{DB}->$op(@_);
 
 	my @loglist = @{$self->{LOGGER}->getMessages()};
 

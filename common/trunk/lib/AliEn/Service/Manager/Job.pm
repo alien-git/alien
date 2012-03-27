@@ -15,7 +15,7 @@ use Classad;
 use AliEn::Database::Admin;
 
 #use AliEn::Service::Optimizer::Job::Splitting;
-use AliEn::Database::TaskPriority;
+#use AliEn::Database::TaskPriority;
 use Data::Dumper;
 
 use vars qw (@ISA $DEBUG);
@@ -45,20 +45,20 @@ sub initialize {
     and return;
 
   $self->{JOBLOG}  = new AliEn::JOBLOG();
-  $self->{ADMINDB} = new AliEn::Database::Admin()
-    or $self->info("Error getting the Admin")
-    and return;
+#  $self->{ADMINDB} = new AliEn::Database::Admin()
+#    or $self->info("Error getting the Admin")
+#    and return;
 
-  # Initialize TaskPriority table
-  $self->{CONFIG} = new AliEn::Config() or return;
-  my ($host, $driver, $db) = split("/", $self->{CONFIG}->{"JOB_DATABASE"});
-  $self->{PRIORITY_DB}
-    or $self->{PRIORITY_DB} =
-    AliEn::Database::TaskPriority->new({DB => $db, HOST => $host, DRIVER => $driver, ROLE => 'admin'});
-
-  $self->{PRIORITY_DB}
-    or $self->info("In initialize creating TaskPriority instance failed")
-    and return;
+#  # Initialize TaskPriority table
+   $self->{CONFIG} = new AliEn::Config() or return;
+#  my ($host, $driver, $db) = split("/", $self->{CONFIG}->{"JOB_DATABASE"});
+#  $self->{PRIORITY_DB}
+#    or $self->{PRIORITY_DB} =
+#    AliEn::Database::TaskPriority->new({DB => $db, HOST => $host, DRIVER => $driver, ROLE => 'admin'});
+#
+#  $self->{PRIORITY_DB}
+#    or $self->info("In initialize creating TaskPriority instance failed")
+#    and return;
 
   return $self;
 }
@@ -332,7 +332,7 @@ sub enterCommand {
     $set->{agentId} = $self->{DB}->insertJobAgent($agentReq);
   } else {
     $options->{silent} or $self->info("Checking your job quota...");
-    my ($ok, $error) = $self->checkJobQuota($user, $nbJobsToSubmit);
+    my ($ok, $error) = $self->{DB}->checkJobQuota($user, $nbJobsToSubmit);
     ($ok > 0) or return (-1, $error);
     $options->{silent} or $self->info("OK");
   }
@@ -486,7 +486,7 @@ sub changeStatusCommand {
 
   $self->info("Command $queueId [$site/$node/$spyurl] changed to $status from $oldStatus");
   if ($status!= /KILLED/){
-    $self->{ADMINDB}->getUsername($queueId, $token) or
+    $self->{DB}->getUsername($queueId, $token) or
       return (-1, "Error validating the token of job $queueId");
   }
   my $set = {};
@@ -549,7 +549,7 @@ Type=\"Job\";
 
   if ($status =~ /^(ERROR.*)|(SAVED_WARN)|(SAVED)|(KILLED)|(FAILED)|(EXPIRED)$/) {
     $set->{spyurl} = "";
-    $self->{ADMINDB}->deleteJobToken($queueId);
+    $self->{DB}->deleteJobToken($queueId);
     $set->{finished} = $date;
   }
 
@@ -1348,55 +1348,56 @@ sub validateProcess {
 #  }
 #}
 
-sub resubmitCommand {
-  my $this       = shift;
-  my $queueId    = shift;
-  my $user       = shift;
-  my $masterId   = (shift or "");
-  my $replacedId = (shift or "");
-
-  $self->info("In Resubmit Command");
-  ($user) and ($queueId)
-    or $self->{LOGGER}->error("JobManager", "In resubmitCommand queueId not specified")
-    and return (-1, "QueueId not specified");
-
-  my $chkJQ = 1;
-  if($chkJQ==1){
-    $self->info("Checking your job quota... For Resubmission");
-    my ($ok, $error) = $self->checkJobQuota($user, 1);
-    ($ok > 0) or return (-1, $error);
-    $self->info("OK. resubmit");
-  }
-  
-  my $date = time;
-
-  $self->info("Resubmitting command $queueId");
-
-  my ($data) = $self->{DB}->getFieldsFromQueue($queueId, "submitHost");
-
-  defined $data
-    or $self->{LOGGER}->error("JobManager", "In resubmitCommand error during execution of database query")
-    and return (-1, "during execution of database query");
-
-  %$data
-    or $self->{LOGGER}->error("JobManager", "In resubmitCommand process $queueId does not exist")
-    and return (-1, "process $queueId does not exist");
-
-  ($data->{submitHost} =~ /^$user\@/)
-    or ($user eq "admin")
-    or $self->{LOGGER}->error("JobManager", "In resubmitCommand process $queueId does not belong to '$user'")
-    and return (-1, "process $queueId does not belong to $user");
-
-  $self->info("Removing the 'registeredoutput', 'registeredlog', 'joblogonclustermonitor', and 'successfullybookedpfns'  field");
-  $self->{ADMINDB}->deleteJobToken($queueId)
-   or $self->info("Error changing the token of $queueId") and return (-1, "Error changing the token of the job");
-  $self->{DB}->resubmitJob($queueId)
-    or $self->info("Error resubmitting the job $queueId") and return (-1, "Error resubmitting the job");
-    
-  $self->putJobLog($queueId, "state", "The job has been resubmited");
-  
-  return $queueId;
-}
+#sub resubmitCommand {
+#  my $this       = shift;
+#  my $queueId    = shift;
+#  my $user       = shift;
+#  my $masterId   = (shift or "");
+#  my $replacedId = (shift or "");
+#
+#  $self->info("In Resubmit Command");
+#  ($user) and ($queueId)
+#    or $self->{LOGGER}->error("JobManager", "In resubmitCommand queueId not specified")
+#    and return (-1, "QueueId not specified");
+#
+#  my $chkJQ = 1;
+#  if($chkJQ==1){
+#    $self->info("Checking your job quota... For Resubmission");
+#    my ($ok, $error) = $self->{DB}->checkJobQuota($user, 1);
+#    ($ok > 0) or return (-1, $error);
+#    $self->info("OK. resubmit");
+#  }
+#  
+#  my $date = time;
+#
+#  $self->info("Resubmitting command $queueId");
+#
+#  my ($data) = $self->{DB}->getFieldsFromQueue($queueId, "submitHost");
+#
+#  defined $data
+#    or $self->{LOGGER}->error("JobManager", "In resubmitCommand error during execution of database query")
+#    and return (-1, "during execution of database query");
+#
+#  %$data
+#    or $self->{LOGGER}->error("JobManager", "In resubmitCommand process $queueId does not exist")
+#    and return (-1, "process $queueId does not exist");
+#
+#  ($data->{submitHost} =~ /^$user\@/)
+#    or ($user eq "admin")
+#    or $self->{LOGGER}->error("JobManager", "In resubmitCommand process $queueId does not belong to '$user'")
+#    and return (-1, "process $queueId does not belong to $user");
+#
+#  $self->info("Removing the 'registeredoutput', 'registeredlog', 'joblogonclustermonitor', and 'successfullybookedpfns'  field");
+#  #$self->info("HELLO WORLD");
+#  $self->{DB}->deleteJobToken($queueId)
+#   or $self->info("Error changing the token of $queueId") and return (-1, "Error changing the token of the job");
+#  $self->{DB}->resubmitJob($queueId)
+#    or $self->info("Error resubmitting the job $queueId") and return (-1, "Error resubmitting the job");
+#  $self->info("AND NOW PUTTING THE JOBLOG");
+#  $self->putJobLog($queueId, "state", "The job has been resubmited (back to WAITING)");
+#  
+#  return $queueId;
+#}
 
 sub _getSiteQueueBlocked {
   my $self     = shift;
@@ -1451,59 +1452,59 @@ sub putJobLog {
 
 #_______________________________________________________________________________________________________________________
 
-sub checkJobQuota {
-  my $self = shift;
-  my $user = shift
-    or $self->info("In checkJobQuota user is missing\n")
-    and return (-1, "user is missing");
-  my $nbJobsToSubmit = shift;
-  (defined $nbJobsToSubmit)
-    or $self->info("In checkJobQuota nbJobsToSubmit is missing\n")
-    and return (-1, "nbJobsToSubmit is missing");
-
-  $DEBUG and $self->debug(1, "In checkJobQuota user:$user, nbJobs:$nbJobsToSubmit");
-
-  my $array = $self->{PRIORITY_DB}->getFieldsFromPriorityEx(
-"unfinishedJobsLast24h, maxUnfinishedJobs, totalRunningTimeLast24h, maxTotalRunningTime, totalCpuCostLast24h, maxTotalCpuCost",
-    "where " . $self->{PRIORITY_DB}->reservedWord("user") . " like '$user'"
-    )
-    or $self->info("Failed to getting data from PRIORITY table")
-    and return (-1, "Failed to getting data from PRIORITY table");
-  $array->[0]
-    or $self->{LOGGER}->error("User $user not exist")
-    and return (-1, "User $user not exist in PRIORITY table");
-
-  my $unfinishedJobsLast24h   = $array->[0]->{'unfinishedJobsLast24h'};
-  my $maxUnfinishedJobs       = $array->[0]->{'maxUnfinishedJobs'};
-  my $totalRunningTimeLast24h = $array->[0]->{'totalRunningTimeLast24h'};
-  my $maxTotalRunningTime     = $array->[0]->{'maxTotalRunningTime'};
-  my $totalCpuCostLast24h     = $array->[0]->{'totalCpuCostLast24h'};
-  my $maxTotalCpuCost         = $array->[0]->{'maxTotalCpuCost'};
-
-  $DEBUG and $self->debug(1, "nbJobs: $nbJobsToSubmit, unfinishedJobs: $unfinishedJobsLast24h/$maxUnfinishedJobs");
-  $DEBUG and $self->debug(1, "totalRunningTime: $totalRunningTimeLast24h/$maxTotalRunningTime");
-  $DEBUG and $self->debug(1, "totalCpuCostLast24h: $totalCpuCostLast24h/$maxTotalCpuCost");
-
-  if ($nbJobsToSubmit + $unfinishedJobsLast24h > $maxUnfinishedJobs) {
-    $self->info("In checkJobQuota $user: Not allowed for nbJobs overflow");
-    return (-1,
-"DENIED: You're trying to submit $nbJobsToSubmit jobs. That exceeds your limit (at the moment,  $unfinishedJobsLast24h/$maxUnfinishedJobs)."
-    );
-  }
-
-  if ($totalRunningTimeLast24h >= $maxTotalRunningTime) {
-    $self->info("In checkJobQuota $user: Not allowed for totalRunningTime overflow");
-    return (-1, "DENIED: You've already executed your jobs for enough time.");
-  }
-
-  if ($totalCpuCostLast24h >= $maxTotalCpuCost) {
-    $self->info("In checkJobQuota $user: Not allowed for totalCpuCost overflow");
-    return (-1, "DENIED: You've already used enough CPU.");
-  }
-
-  $self->info("In checkJobQuota $user: Allowed");
-  return (1, undef);
-}
+#sub checkJobQuota {
+#  my $self = shift;
+#  my $user = shift
+#    or $self->info("In checkJobQuota user is missing\n")
+#    and return (-1, "user is missing");
+#  my $nbJobsToSubmit = shift;
+#  (defined $nbJobsToSubmit)
+#    or $self->info("In checkJobQuota nbJobsToSubmit is missing\n")
+#    and return (-1, "nbJobsToSubmit is missing");
+#
+#  $DEBUG and $self->debug(1, "In checkJobQuota user:$user, nbJobs:$nbJobsToSubmit");
+#
+#  my $array = $self->{PRIORITY_DB}->getFieldsFromPriorityEx(
+#"unfinishedJobsLast24h, maxUnfinishedJobs, totalRunningTimeLast24h, maxTotalRunningTime, totalCpuCostLast24h, maxTotalCpuCost",
+#    "where " . $self->{PRIORITY_DB}->reservedWord("user") . " like '$user'"
+#    )
+#    or $self->info("Failed to getting data from PRIORITY table")
+#    and return (-1, "Failed to getting data from PRIORITY table");
+#  $array->[0]
+#    or $self->{LOGGER}->error("User $user not exist")
+#    and return (-1, "User $user not exist in PRIORITY table");
+#
+#  my $unfinishedJobsLast24h   = $array->[0]->{'unfinishedJobsLast24h'};
+#  my $maxUnfinishedJobs       = $array->[0]->{'maxUnfinishedJobs'};
+#  my $totalRunningTimeLast24h = $array->[0]->{'totalRunningTimeLast24h'};
+#  my $maxTotalRunningTime     = $array->[0]->{'maxTotalRunningTime'};
+#  my $totalCpuCostLast24h     = $array->[0]->{'totalCpuCostLast24h'};
+#  my $maxTotalCpuCost         = $array->[0]->{'maxTotalCpuCost'};
+#
+#  $DEBUG and $self->debug(1, "nbJobs: $nbJobsToSubmit, unfinishedJobs: $unfinishedJobsLast24h/$maxUnfinishedJobs");
+#  $DEBUG and $self->debug(1, "totalRunningTime: $totalRunningTimeLast24h/$maxTotalRunningTime");
+#  $DEBUG and $self->debug(1, "totalCpuCostLast24h: $totalCpuCostLast24h/$maxTotalCpuCost");
+#
+#  if ($nbJobsToSubmit + $unfinishedJobsLast24h > $maxUnfinishedJobs) {
+#    $self->info("In checkJobQuota $user: Not allowed for nbJobs overflow");
+#    return (-1,
+#"DENIED: You're trying to submit $nbJobsToSubmit jobs. That exceeds your limit (at the moment,  $unfinishedJobsLast24h/$maxUnfinishedJobs)."
+#    );
+#  }
+#
+#  if ($totalRunningTimeLast24h >= $maxTotalRunningTime) {
+#    $self->info("In checkJobQuota $user: Not allowed for totalRunningTime overflow");
+#    return (-1, "DENIED: You've already executed your jobs for enough time.");
+#  }
+#
+#  if ($totalCpuCostLast24h >= $maxTotalCpuCost) {
+#    $self->info("In checkJobQuota $user: Not allowed for totalCpuCost overflow");
+#    return (-1, "DENIED: You've already used enough CPU.");
+#  }
+#
+#  $self->info("In checkJobQuota $user: Allowed");
+#  return (1, undef);
+#}
 
 sub getJobQuotaList {
   my $this = shift;
@@ -1511,7 +1512,7 @@ sub getJobQuotaList {
     or $self->{LOGGER}->error("In getJobQuotaList user is missing\n")
     and return (-1, "user is missing");
 
-  my $array = $self->{PRIORITY_DB}->getFieldsFromPriorityEx(
+  my $array = $self->{DB}->getFieldsFromPriorityEx(
 "user, unfinishedJobsLast24h, maxUnfinishedJobs, totalRunningTimeLast24h, maxTotalRunningTime, totalCpuCostLast24h, maxTotalCpuCost",
     "where user like '$user'"
     )
@@ -1539,7 +1540,7 @@ sub setJobQuotaInfo {
 
   my $set = {};
   $set->{$field} = $value;
-  my $done = $self->{PRIORITY_DB}->updatePrioritySet($user, $set);
+  my $done = $self->{DB}->updatePrioritySet($user, $set);
   $done or return (-1, "Failed to set the value in PRIORITY table");
 
   if ($done eq '0E0') {
