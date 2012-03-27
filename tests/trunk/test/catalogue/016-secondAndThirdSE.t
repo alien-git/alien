@@ -76,7 +76,7 @@ BEGIN { plan tests => 1 }
   if ($ui) {
     $ui->execute("resyncLDAP") and $done=1;
     $ui->execute("resyncLDAP") and $done=1;
-    $ui->execute("refreshSERankCache") and $done=1;
+    $ui->execute("refreshSEDistance") and $done=1;
     $ui->close();
   }
 

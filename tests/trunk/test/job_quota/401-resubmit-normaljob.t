@@ -2,7 +2,7 @@
 use strict;
 use Test;
 
-use AliEn::Database::TaskPriority;
+use AliEn::Database::TaskQueue;
 use AliEn::Service::Optimizer::Job::Quota;
 use Net::Domain qw(hostname hostfqdn hostdomain);
 
@@ -11,7 +11,7 @@ BEGIN { plan tests => 1 }
 
 print "Connecting to database...";
 my $host = Net::Domain::hostfqdn();
-my $d = AliEn::Database::TaskPriority->new({DRIVER => "mysql", HOST => "$host:3307", PASSWD=> "pass" , DB => "processes", "ROLE", "admin", })
+my $d = AliEn::Database::TaskQueue->new({DRIVER => "mysql", HOST => "$host:3307", PASSWD=> "pass" , DB => "processes", "ROLE", "admin", })
   or print "Error connecting to the database\n" and exit(-2);
 
 {
@@ -48,7 +48,7 @@ my $d = AliEn::Database::TaskPriority->new({DRIVER => "mysql", HOST => "$host:33
   print "0. DONE\n\n";
 
   print "Reconnecting to Database processes \n";
-  $d = AliEn::Database::TaskPriority->new({DRIVER => "mysql", HOST => "$host:3307", PASSWD=> "pass" , DB => "processes", "ROLE", "admin", })
+  $d = AliEn::Database::TaskQueue->new({DRIVER => "mysql", HOST => "$host:3307", PASSWD=> "pass" , DB => "processes", "ROLE", "admin", })
     or print "Error connecting to the database\n" and exit(-2);
 
   addFile(
@@ -126,10 +126,10 @@ echo \"sum: \$sum\"
   ($rtime2 > $rtime1) or print "FAILED: totalRunningTime: $rtime2, not increased at all\n" and exit(-2);
   print "4. PASSED\n\n";
 
-  print "5. Change the status of job $id2 as FAILED for the -i option\n";
-  $d->update("QUEUE", {status => "FAILED"}, "queueId=$id2");
-  waitForStatus($cat, $id2, "FAILED") or exit(-2);
-  print "5. DONE\n\n";
+#  print "5. Change the status of job $id2 as FAILED for the -i option\n";
+#  $d->update("QUEUE", {status => "FAILED"}, "queueId=$id2");
+#  waitForStatus($cat, $id2, "FAILED") or exit(-2);
+#  print "5. DONE\n\n";
 
   print "6. Modify the maxUnfinishedJobs as 0\n";
   $d->update("PRIORITY", {maxUnfinishedJobs => 0}, "user='$user'");
@@ -137,9 +137,9 @@ echo \"sum: \$sum\"
   assertEqualJobs($d, $user, "maxUnfinishedJobs", 0) or exit(-2);
   print "6. DONE\n\n";
 
-  print "7. Resubmit job $id1 (no option) and job $id2 (-i option)\n";
-  $cat->execute("resubmit", $id1) and print "FAILED: MUST BE DENIED\n" and exit(-2);
-  $cat->execute("resubmit", "noconfirm", "-i", $id2) and print "FAILED: MUST BE DENIED\n" and exit(-2);
+  print "7. Resubmit job $id1 and job $id2\n";
+  $cat->execute("resubmit", $id1)==$id1 and print "FAILED: MUST BE DENIED\n" and exit(-2);
+  $cat->execute("resubmit", $id2)==$id2 and print "FAILED: MUST BE DENIED\n" and exit(-2);
   print "7. PASSED\n\n";
 
   print "8. Modify the maxTotalCpuCost as $cpucost2 and the maxUnfinishedJobs as 1000 back\n";
@@ -149,9 +149,9 @@ echo \"sum: \$sum\"
   assertEqualJobs($d, $user, "maxUnfinishedJobs", 1000)      or exit(-2);
   print "8. DONE\n\n";
 
-  print "9. Resubmit job $id1 (no option) and job $id2 (-i option)\n";
-  $cat->execute("resubmit", $id1) and print "FAILED: MUST BE DENIED\n" and exit(-2);
-  $cat->execute("resubmit", "noconfirm", "-i", $id2) and print "FAILED: MUST BE DENIED\n" and exit(-2);
+  print "9. Resubmit job $id1 and job $id2 \n";
+  $cat->execute("resubmit", $id1)==$id1 and print "FAILED: MUST BE DENIED\n" and exit(-2);
+  $cat->execute("resubmit", $id2)==$id2 and print "FAILED: MUST BE DENIED\n" and exit(-2);
   print "9. PASSED\n\n";
 
   print "10. Modify the maxTotalRunningTime as $rtime2 and the maxCpuCost as 1000 back\n";
@@ -161,9 +161,9 @@ echo \"sum: \$sum\"
   assertEqualJobs($d, $user, "maxTotalCpuCost",     1000)    or exit(-2);
   print "10. DONE\n\n";
 
-  print "11. Resubmit job $id1 (no option) and job $id2 (-i option)\n";
-  $cat->execute("resubmit", $id1) and print "FAILED: MUST BE DENIED\n" and exit(-2);
-  $cat->execute("resubmit", "noconfirm", "-i", $id2) and print "FAILED: MUST BE DENIED\n" and exit(-2);
+  print "11. Resubmit job $id1 and job $id2\n";
+  $cat->execute("resubmit", $id1)==$id1 and print "FAILED: MUST BE DENIED\n" and exit(-2);
+  $cat->execute("resubmit", $id2)==$id2 and print "FAILED: MUST BE DENIED\n" and exit(-2);
   print "11. PASSED\n\n";
 
   print "12. Set the Limit (maxUnfinishedJobs 1000, maxTotalCpuCost 1000, maxTotalRunningTime 1000)\n";

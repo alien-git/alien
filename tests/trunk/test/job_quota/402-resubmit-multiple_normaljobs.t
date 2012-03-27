@@ -3,7 +3,7 @@ use strict;
 use Test;
 
 use Data::Dumper;
-use AliEn::Database::TaskPriority;
+use AliEn::Database::TaskQueue;
 use AliEn::Service::Optimizer::Job::Quota;
 use Net::Domain qw(hostname hostfqdn hostdomain);
 
@@ -12,7 +12,7 @@ BEGIN { plan tests => 1 }
 
 print "Connecting to database...";
 my $host=Net::Domain::hostfqdn();
-my $d = AliEn::Database::TaskPriority->new({DRIVER => "mysql", HOST => "$host:3307", PASSWD=> "pass" , DB => "processes", "ROLE", "admin", })
+my $d = AliEn::Database::TaskQueue->new({DRIVER => "mysql", HOST => "$host:3307", PASSWD=> "pass" , DB => "processes", "ROLE", "admin", })
   or print "Error connecting to the database\n" and exit(-2);
 
 {
@@ -48,7 +48,7 @@ my $d = AliEn::Database::TaskPriority->new({DRIVER => "mysql", HOST => "$host:33
   assertEqual($d, $user, "maxNbFiles", 1000) or exit(-2);
   print "0. DONE\n\n";
   print "Reconnecting to Database processes \n";
-  $d = AliEn::Database::TaskPriority->new({DRIVER => "mysql", HOST => "$host:3307", PASSWD=> "pass" , DB => "processes", "ROLE", "admin", })
+  $d = AliEn::Database::TaskQueue->new({DRIVER => "mysql", HOST => "$host:3307", PASSWD=> "pass" , DB => "processes", "ROLE", "admin", })
     or print "Error connecting to the database\n" and exit(-2);
 
   addFile($cat, "bin/sum","#!/bin/sh
@@ -101,29 +101,29 @@ echo \"sum: \$sum\"
 	print "3. PASSED\n\n";
 
   print "4. Modify the maxUnfinishedJobs as 0\n";	
-	$d->update("PRIORITY", {maxUnfinishedJobs=>0}, "user='$user'");
+  $d->update("PRIORITY", {maxUnfinishedJobs=>0}, "user='$user'");
   $cat->execute("jquota", "list", "$user");
   assertEqualJobs($d, $user, "maxUnfinishedJobs", 0) or exit(-2);
   print "4. DONE\n\n";
 
 	print "5. Resubmit job $id1 and $id2 - Both of them MUST BE DENIED\n";
-	$cat->execute("resubmit", $id1, $id2) and print "FAILED: Both of them MUST BE DENIED\n" and exit(-2);
+	$cat->execute("resubmit", $id1, $id2)=={$id1,$id2} and print "FAILED: Both of them MUST BE DENIED\n" and exit(-2);
 	print "5. PASSED\n\n";
 
-  print "6. Modify the maxUnfinishedJobs as 1\n";	
-	$d->update("PRIORITY", {maxUnfinishedJobs=>1}, "user='$user'");
+  print "6. Modify the maxUnfinishedJobs as 0\n";	
+	$d->update("PRIORITY", {maxUnfinishedJobs=>0}, "user='$user'");
   $cat->execute("jquota", "list", "$user");
-  assertEqualJobs($d, $user, "maxUnfinishedJobs", 1) or exit(-2);
+  assertEqualJobs($d, $user, "maxUnfinishedJobs", 0) or exit(-2);
   print "6. DONE\n\n";
 
 #=cut1
-	print "7. Resubmit job $id1 and $id2 - Only job $id2 MUST BE DENIED\n";
+	print "7. Resubmit job $id1 and $id2, MUST BE DENIED\n";
 	($rid1, $rid2)=$cat->execute("resubmit", $id1, $id2);
-  ((defined $rid1) and !(defined $rid2)) or print "FAILED: Only job $id2 MUST BE DENIED\n" and exit(-2);
-  $cat->execute("top") or exit(-2);
-  sleep(20);
-  $cat->execute("request") or exit(-2);
-  waitForStatus($cat, $rid1, "DONE", 60) or exit(-2);
+  ($rid1 ne $id1) and ($rid2 ne $id2) or print "FAILED: MUST BE DENIED\n" and exit(-2);
+  #$cat->execute("top") or exit(-2);
+  #sleep(20);
+  #$cat->execute("request") or exit(-2);
+  #waitForStatus($cat, $rid1, "DONE", 60) or exit(-2);
 	print "7. PASSED\n\n";
 
   print "8. Modify the maxUnfinishedJobs as 2\n";	
@@ -132,8 +132,8 @@ echo \"sum: \$sum\"
   assertEqualJobs($d, $user, "maxUnfinishedJobs", 2) or exit(-2);
   print "8. DONE\n\n";
 
-	$id1=$rid1;
-	$id2=$rid2;
+#	$id1=$rid1;
+#	$id2=$rid2;
 	print "9. Resubmit job $id1 and $id2\n";
 	($rid1, $rid2)=$cat->execute("resubmit", $id1, $id2);
 	((defined $rid1) and (defined $rid2)) or exit(-2);
@@ -148,8 +148,8 @@ echo \"sum: \$sum\"
  	$cat->execute("jquota", "list", "$user");
 	print "9. PASSED\n\n";
 
-	$id1=$rid1;
-	$id2=$rid2;
+#	$id1=$rid1;
+#	$id2=$rid2;
 
   my $totalRunningTime=$d->queryValue("SELECT totalRunningTimeLast24h FROM PRIORITY WHERE user='$user'");
   (defined $totalRunningTime) or print "Error checking the totalRunningTimeLast24h of the user\n" and exit(-2);
@@ -162,7 +162,7 @@ echo \"sum: \$sum\"
   print "10. DONE\n\n";
 
 	print "11. Resubmit job $id1 and $id2 - MUST BE DENIED\n";
-	$cat->execute("resubmit", $id1, $id2) and print "FAILED: Both of them MUST BE DENIED\n" and exit(-2);
+	$cat->execute("resubmit", $id1, $id2)=={$id1,$id2} and print "FAILED: Both of them MUST BE DENIED\n" and exit(-2);
 	print "11. PASSED\n\n";
 
   my $totalCpuCost=$d->queryValue("SELECT totalCpuCostLast24h FROM PRIORITY WHERE user='$user'");
@@ -176,7 +176,7 @@ echo \"sum: \$sum\"
   print "12. DONE\n\n";
 
 	print "13. Resubmit job $id1 and $id2 - MUST BE DENIED\n";
-	$cat->execute("resubmit", $id1, $id2) and print "FAILED: Both of them MUST BE DENIED\n" and exit(-2);
+	$cat->execute("resubmit", $id1, $id2)=={$id1,$id2} and print "FAILED: Both of them MUST BE DENIED\n" and exit(-2);
 	print "13. PASSED\n\n";
 
 #cut
