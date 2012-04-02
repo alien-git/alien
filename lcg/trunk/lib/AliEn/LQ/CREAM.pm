@@ -49,7 +49,7 @@ sub initialize {
    $self->{CONFIG}->{CE_PROXYTHRESHOLD} or $self->{CONFIG}->{CE_PROXYTHRESHOLD} = 165600;
    $self->info("Proxies will be renewed for $self->{CONFIG}->{CE_PROXYDURATION} sec, with a threshold of $self->{CONFIG}->{CE_PROXYTHRESHOLD} sec.");
    $ENV{CE_DELEGATIONINTERVAL} and $self->{CONFIG}->{CE_DELEGATIONINTERVAL} = $ENV{CE_DELEGATIONINTERVAL};
-   $self->{CONFIG}->{CE_DELEGATIONINTERVAL} or $self->{CONFIG}->{CE_DELEGATIONINTERVAL} = 72000;
+   $self->{CONFIG}->{CE_DELEGATIONINTERVAL} or $self->{CONFIG}->{CE_DELEGATIONINTERVAL} = 300;
    $self->{DELEGATIONTIME} = 0;
    $self->info("Delegations will be renewed with an interval of $self->{CONFIG}->{CE_DELEGATIONINTERVAL} sec"); 
 		
@@ -62,19 +62,31 @@ sub prepareForSubmission {
   my $classad = shift;
   $classad or return;
   $self->renewProxy($self->{CONFIG}->{CE_PROXYDURATION},$self->{CONFIG}->{CE_PROXYTHRESHOLD});
-  $self->renewDelegation($self->{CONFIG}->{CE_DELEGATIONINTERVAL}); 
+  my $still = $self->{CONFIG}->{CE_DELEGATIONINTERVAL}-(time-$self->{DELEGATIONTIME});
+  if ($still<=0) { 
+    $self->info("Resetting CE blacklist.");
+    foreach my $cluster ( @{$self->{CE_CLUSTERSTATUS}} ) {
+      foreach my $CE ( keys %{$cluster} ) {
+	 $cluster->{$CE} = 0;
+      }
+    }  
+    $self->renewDelegation();
+  }   
 
   my ($maxRAMSize, $maxSwapSize) = (0,0);
   
   foreach my $cluster ( @{$self->{CE_CLUSTERSTATUS}} ) {
     foreach my $CE ( keys %{$cluster} ) {
- 
-       if  ($cluster->{$CE} == -1) {
+       if ( $cluster->{$CE} < 0 ) {
          $self->info("$CE is blacklisted, skipping.");
          next;
        }
        my $status = $self->getCEStatus($CE);
-         $self->info("$CE is in \"$status\" mode");
+       unless ($status) {
+         $self->{LOGGER}->warning("CREAM","Could not get status of $CE, blacklisted.");
+         $self->info("Could not get status of $CE, blacklisted.");
+         next;
+       }
        unless ($status =~ /^Production$/i) {
          $self->{LOGGER}->warning("CREAM","$CE is in \"$status\" mode, blacklisted.");
          $self->info("$CE is in \"$status\" mode, blacklisted.");
@@ -101,6 +113,20 @@ sub prepareForSubmission {
        $maxSwapSize = $res->{'GlueHostMainMemoryVirtualSize'} if ($res->{'GlueHostMainMemoryVirtualSize'}>$maxSwapSize );
     }  
   }
+  
+  my $usableCEs = 0;
+  foreach my $cluster ( @{$self->{CE_CLUSTERSTATUS}} ) {
+    foreach my $CE ( keys %{$cluster} ) {
+      $usableCEs++ if $cluster->{$CE} > 0;
+    }
+  }
+  if ($usableCEs > 0) {
+    $self->info("$usableCEs CE(s) available for submission.");
+  } else {
+    $self->info("No suitable CE found for submission, aborting.");
+    return;
+  }
+  
   $self->{UPDATECLASSAD} = time();    
   $self->info("Updating host ClassAd from IS (RAM,Swap) = ($maxRAMSize,$maxSwapSize)" );
   $classad->set_expression("Memory",$maxRAMSize*1024);
@@ -255,48 +281,23 @@ sub getCREAMStatus {
 
 sub renewDelegation {
   my $self = shift;
-  my $interval = shift;
-  $interval or $interval = $self->{CONFIG}->{CE_DELEGATIONINTERVAL};
-  my $still = $interval-(time-$self->{DELEGATIONTIME});
   my $dbg = ""; $dbg = "-d" if ($self->{LOGGER}->getDebugLevel());
-  if ($still<=0) {
-    $self->{DELEGATIONTIME} = time;
-    $self->{CONFIG}->{DELEGATION_ID} = "$self->{CONFIG}->{CE_FULLNAME}:".time();
-    $self->info("New delegation ID is  $self->{CONFIG}->{DELEGATION_ID}");
-  } else {
-    $self->info("Delegation timeleft is $still seconds (requested interval is $interval)");
-  }
-
-  $self->info("Checking proxy delegations...");
+  $self->info("Renewing proxy delegations...");
+  $self->{DELEGATIONTIME} = time;
+  $self->{CONFIG}->{DELEGATION_ID} = "$self->{CONFIG}->{CE_FULLNAME}:".time();
+  $self->info("New delegation ID is  $self->{CONFIG}->{DELEGATION_ID}");
   foreach my $cluster ( @{$self->{CE_CLUSTERSTATUS}} ) {
     foreach ( keys %{$cluster} ) {
       (my $CE, my $queue) = split /\//;
-      if ($cluster->{$_} == -1) {
-          my @command = ($self->{DELEGATION_CMD},"-e",$CE,$dbg,"$self->{CONFIG}->{DELEGATION_ID}");
-          my @output = $self->_system(@command);
-          my $error = $?;
-          if ($error) {
-            $self->info("Error $error delegating the proxy to $CE, blacklisted");
-          } else {
-	    $self->info("Proxy successfully delegated to $CE ($self->{CONFIG}->{DELEGATION_ID})");
-	    $cluster->{$_} = 0;
-          }
+       my @command = ($self->{DELEGATION_CMD},"-e",$CE,$dbg,"$self->{CONFIG}->{DELEGATION_ID}");
+       my @output = $self->_system(@command);
+       my $error = $?;
+       if ($error) {
+         $self->info("Error $error renewing the delegation to $CE, blacklisted");
+	 $cluster->{$_} = -1;
        } else {
-         if ($still >0) {
-	   $self->debug(1,"No need to renew the delegation for $CE yet, still $still seconds to go (requested interval is $interval)");
-          next;
-         } else {
-           my @command = ($self->{DELEGATION_CMD},"-e",$CE,$dbg,"$self->{CONFIG}->{DELEGATION_ID}");
-           my @output = $self->_system(@command);
-           my $error = $?;
-	   if ($error) {
-             $self->info("Error $error renewing the delegation to $CE, blacklisted");
-	     $cluster->{$_} = -1;
-	   } else {
-	     $self->info("Delegation for $CE successfully renewed ($self->{CONFIG}->{DELEGATION_ID})");
-             $self->{DELEGATIONTIME} = time;
-	   }
-	 }
+	 $self->info("Delegation for $CE successfully renewed ($self->{CONFIG}->{DELEGATION_ID})");
+         $self->{DELEGATIONTIME} = time;
        }
      }
    }
@@ -417,7 +418,7 @@ sub getCEStatus {
   $self->debug(1,"Checking status of $theCE");
   my $result = $self->queryBDII($theCE,'',"GlueCEUniqueID=$theCE",$object);
   my $status = $result->{$object};
-  $self->debug(1, "$object for $theCE is \"$status\"");
+  $status and $self->debug(1, "$object for $theCE is \"$status\"");
   return $status;
 }
 
