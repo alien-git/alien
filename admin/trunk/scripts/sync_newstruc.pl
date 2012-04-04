@@ -6,41 +6,23 @@ use AliEn::Database;
 use AliEn::UI::Catalogue::LCM;
 use Net::Domain qw(hostname hostfqdn hostdomain);
 
-### Set direct connection
-$ENV{SEALED_ENVELOPE_REMOTE_PUBLIC_KEY}="$ENV{ALIEN_HOME}/authen/rpub.pem";
-$ENV{SEALED_ENVELOPE_REMOTE_PRIVATE_KEY}="$ENV{ALIEN_HOME}/authen/rpriv.pem";
-$ENV{SEALED_ENVELOPE_LOCAL_PUBLIC_KEY}="$ENV{ALIEN_HOME}/authen/lpub.pem";
-$ENV{SEALED_ENVELOPE_LOCAL_PRIVATE_KEY}="$ENV{ALIEN_HOME}/authen/lpriv.pem";
-$ENV{ALIEN_DATABASE_ROLE}='admin';
-$ENV{ALIEN_DATABASE_PASSWORD}='pass';
-
 ### Get connections and DB objects
-my $db = AliEn::Database->new({DRIVER => "mysql",
-                               HOST   => Net::Domain::hostfqdn().":3307",
-                               DB     => "alice_users",
-                               ROLE   => "admin"});
-my $cat = AliEn::UI::Catalogue::LCM->new({ROLE => "admin"});
+my $db = AliEn::Database::Catalogue->new({
+                               ROLE   => "admin"}) or exit(-2);
+$db->createCatalogueTables();
+exit();
+my $cpus=4;
 
 ### Get index table values for GUID and LFN
-my $indexTable = $db->query("SELECT tableName FROM INDEXTABLE");
-my $guidIndex  = $db->query("SELECT tableName FROM GUIDINDEX");
+my $indexTable = $db->queryColumn("SELECT tableName FROM INDEXTABLE");
+my $guidIndex  = $db->queryColumn("SELECT tableName FROM GUIDINDEX");
 my $table;
 my $chk=0;
 
-$db->do("DROP TABLE IF EXISTS USERS,GRPS");
-$db->do("CREATE TABLE USERS (uId MEDIUMINT UNSIGNED  not null PRIMARY KEY AUTO_INCREMENT, user varchar(20) not null UNIQUE ) CHARACTER SET latin1 COLLATE latin1_general_cs");
-$db->do("CREATE TABLE GRPS (gId MEDIUMINT UNSIGNED  not null PRIMARY KEY AUTO_INCREMENT, user varchar(20) not null UNIQUE ) CHARACTER SET latin1 COLLATE latin1_general_cs");
-#$db->do("CREATE SCHEMA IF NOT EXISTS alice_users_sync");
-print "Created 2 new tables: USERS and GRPS\n";
 print "\n".scalar(localtime(time))."\n";
+  $db->do("INSERT IGNORE INTO USERS (username) (SELECT user from FQUOTAS)");
+  $db->do("INSERT IGNORE INTO GRPS (groupname) (SELECT user from FQUOTAS)");
 
-#INDEXTABLE
-foreach my $row (@$indexTable) {
-  $table="L".$row->{tableName}."L";
-  $db->do("INSERT IGNORE INTO USERS (user) (SELECT DISTINCT owner from $table)");
-  $db->do("INSERT IGNORE INTO GRPS (user) (SELECT DISTINCT gowner from $table)");
-  #$db->do("ALTER TABLE $table DROP COLUMN uId, DROP COLUMN gId");
-}
 print "Doing the alteration in L#L tables\n";
 print "\n".scalar(localtime(time))."\n";
 
@@ -51,90 +33,83 @@ my $count2=0;
 my $collation='latin1_general_cs';
 my $update_time = "2011-11-08 12:26:41";
 
-foreach my $row (@$indexTable) {
-  
-  $table="L".$row->{tableName}."L";
-  print "$table\n";
-  $update_time = $db->do("SELECT UPDATE_TIME FROM information_schema.tables WHERE table_schema='alice_users_sync' and table_name='$table'");
-  $update_status=$db->do("SELECT 1 FROM information_schema.tables WHERE table_schema='alice_users' AND table_name='$table' AND UPDATE_TIME>='$update_time'");
-  $count1=$db->do("SELECT count(*) FROM alice_users.$table");
-  $count2=$db->do("SELECT count(*) FROM alice_users_sync.$table");
+my $kid=0;
+my $splitLFN={};
+for my $table (@$indexTable){
+  $splitLFN->{$kid} or $splitLFN->{$kid}={LFN=>[], GUID=>[]};
+  push @{$splitLFN->{$kid}->{LFN}}, "L${table}L";
+  $kid++;
+  $kid==$cpus and $kid=0;
+}
 
-  ($update_status) or $update_status=0;
-  if($update_status==0 and $count1==$count2){
-    next;
+for my $table (@$guidIndex){
+  $splitLFN->{$kid} or $splitLFN->{$kid}={LFN=>[], GUID=>[]};
+  push @{$splitLFN->{$kid}->{GUID}}, "G${table}L";
+  $kid++;
+  $kid>$cpus and $kid=0;
+}
+
+
+print Dumper($splitLFN);
+
+for ($kid=0; $kid<$cpus; $kid++){
+  my $pid=fork();
+  ($pid) or last;
+}
+if ($kid==$cpus){
+  print "The father finishes\n";
+  exit(-1);
+}
+my $counter=0;
+foreach my $table (@{$splitLFN->{$kid}->{LFN}}) {
+  print "KID $kid doing   $table ($counter out of $#{$splitLFN->{$kid}->{LFN}}\n";
+  next;
+  if ($db->do("select count(*) from ${table}_OLD")){
+   print "DONE SOMETHING\n";
+   $db->do("drop table $table");
+   $db->do("alter table ${table}_OLD rename $table");
   }
+  $counter++;
+  $db->do("ALTER TABLE $table rename ${table}_OLD");
+  $db->checkLFNTableNoIndex($table);
+  $db->do("INSERT INTO $table ( entryId, replicated, ctime, jobid,guidtime,lfn, broken, expiretime, size, dir, gownerid, type, guid, md5, ownerId, perm) 
+   select  entryId, replicated, ctime, jobid,guidtime,lfn, broken, expiretime, size, dir, gid, type, guid, md5, uId, perm from ${table}_OLD old 
+JOIN USERS ON old.owner=USERS.username JOIN GRPS ON old.gowner=GRPS.groupname ");
+  $db->checkLFNTable($table);
 
-  $db->do("ALTER TABLE $table ADD (ownerId MEDIUMINT UNSIGNED  , gownerId MEDIUMINT UNSIGNED ), ADD FOREIGN KEY (ownerId) 
-   REFERENCES USERS(uId),ADD FOREIGN KEY (gownerId) REFERENCES GRPS(gId)" , {timeout=>[60000]} );
-  $status=$db->do("select 1 from information_schema.tables where table_name='$table' and table_collation='$collation'");
-  ($status) or $status=0;
-  if($status==0){
-    print "Changing the collation of table $table\n";
-    $db->do("ALTER TABLE $table CONVERT TO CHARACTER SET latin1 COLLATE latin1_general_cs");
-    $db->do("ALTER TABLE $table COLLATE latin1_general_cs");
-  }
-
-  $db->do("UPDATE $table JOIN USERS ON $table.owner=USERS.user JOIN GRPS ON $table.gowner=GRPS.user 
-    SET $table.ownerId=USERS.uId, $table.gownerId=GRPS.gId",{timeout=>[60000]} );
-  $db->do("ALTER TABLE $table DROP COLUMN owner, DROP COLUMN gowner",{timeout=>[60000]});
-  $db->do("DROP TABLE alice_users_sync.$table ",{timeout=>[60000]});
-  $db->do("ALTER TABLE alice_users.$table RENAME alice_users_sync.$table DROP COLUMN owner, DROP COLUMN gowner",{timeout=>[60000]});
-
+  print scalar(localtime(time))."\n";
 }
 print "New Changes made successfully !!!\n";
 print "\n".scalar(localtime(time))."\n";
 
 
-##GUIDINDEX
-foreach my $row (@$guidIndex) {
-  $table="G".$row->{tableName}."L";
-  $db->do("INSERT IGNORE INTO USERS (user) (SELECT DISTINCT owner from $table)");
-  $db->do("INSERT IGNORE INTO GRPS (user) (SELECT DISTINCT gowner from $table )");
-}
 print "Doing the alteration in G#L tables\n";
 print "\n".scalar(localtime(time))."\n";
 
-foreach my $row (@$guidIndex) {
-  $table="L".$row->{tableName}."L";
-  print "$table\n";
-  $update_time = $db->do("SELECT UPDATE_TIME FROM information_schema.tables WHERE table_schema='alice_users_sync' and table_name='$table'");
-  $update_status=$db->do("SELECT 1 FROM information_schema.tables WHERE table_schema='alice_users' AND table_name='$table' AND UPDATE_TIME>='$update_time'");
-  $count1=$db->do("SELECT count(*) FROM alice_users.$table");
-  $count2=$db->do("SELECT count(*) FROM alice_users_sync.$table");
-  ($update_status) or $update_status=0;
-  if($update_status==0 and $count1==$count2){
-    next;
-  }
-  
-  $db->do("ALTER TABLE $table ADD (ownerId MEDIUMINT UNSIGNED  , gownerId MEDIUMINT UNSIGNED ), ADD FOREIGN KEY (ownerId) 
-   REFERENCES USERS(uId),ADD FOREIGN KEY (gownerId) REFERENCES GRPS(gId)" , {timeout=>[60000]} );
-  $status=$db->do("select 1 from information_schema.tables where table_name='$table' and table_collation='$collation'");
-  ($status) or $status=0;
-  if($status==0){
-    print "Changing the collation of table $table\n";
-    $db->do("ALTER TABLE $table CONVERT TO CHARACTER SET latin1 COLLATE latin1_general_cs");
-    $db->do("ALTER TABLE $table COLLATE latin1_general_cs");
+$counter=0;
+foreach my $table (@{$splitLFN->{$kid}->{GUID}}) {
+#  print "$table\n";
+#  $update_time = $db->do("SELECT UPDATE_TIME FROM information_schema.tables WHERE table_schema='alice_users_sync' and table_name='$table'");
+#  $update_status=$db->do("SELECT 1 FROM information_schema.tables WHERE table_schema='alice_users' AND table_name='$table' AND UPDATE_TIME>='$update_time'");
+#  $count1=$db->do("SELECT count(*) FROM alice_users.$table");
+#  $count2=$db->do("SELECT count(*) FROM alice_users_sync.$table");
+#  ($update_status) or $update_status=0;
+#  if($update_status==0 and $count1==$count2){
+#    next;
+#  }
+  print "KID $kid doing $table  ($counter out of $#{$splitLFN->{$kid}->{GUID}})\n";
+  $counter++;
+  if ($db->do("select count(*) from ${table}_OLD")){
+   print "DONE SOMETHING\n";
+   $db->do("drop table $table");
+   $db->do("alter table ${table}_OLD rename $table");
   }
 
-  $db->do("UPDATE $table JOIN USERS ON $table.owner=USERS.user JOIN GRPS ON $table.gowner=GRPS.user 
-    SET $table.ownerId=USERS.uId, $table.gownerId=GRPS.gId",{timeout=>[60000]} );
-  $db->do("ALTER TABLE $table DROP COLUMN owner, DROP COLUMN gowner",{timeout=>[60000]});
-  $db->do("DROP TABLE alice_users_sync.$table ",{timeout=>[60000]});
-  $db->do("ALTER TABLE alice_users.$table RENAME alice_users_sync.$table DROP COLUMN owner, DROP COLUMN gowner",{timeout=>[60000]});
+  $db->do("alter table $table rename ${table}_OLD");
+
+  $db->checkGUIDTable($table);
+  $db->do("insert into $table ( guidId,ctime,ref,jobid,sestringlist, seautostringlist,expiretime,size,gownerid,guid,type, md5, ownerid, perm)
+select  guidId,ctime,ref,jobid,sestringlist, seautostringlist,expiretime,size,gid,guid,type, md5, uid, perm from ${table}_OLD old left JOIN USERS on old.owner=USERS.username left JOIN GRPS on old.gowner=GRPS.groupname");
 
 }
-print "New Changes made successfully !!!\n";
-print "\n".scalar(localtime(time))."\n";
-
-print "Updating the GROUPS table to UGMAP with uId and gId & DROP columns Username and Groupname\n";
-$db->do("ALTER TABLE GROUPS DROP COLUMN Userid");
-$db->do("ALTER TABLE GROUPS ADD (Userid MEDIUMINT UNSIGNED  ,Groupid MEDIUMINT UNSIGNED )");
-$db->do("UPDATE GROUPS join USERS ON USERS.user=GROUPS.Username SET GROUPS.Userid=USERS.uId ");
-$db->do("UPDATE GROUPS join GRPS ON GRPS.user=GROUPS.Groupname SET GROUPS.Groupid=GRPS.gId ");
-$db->do("ALTER TABLE GROUPS RENAME UGMAP");
-$db->do("ALTER TABLE UGMAP DROP COLUMN Username, DROP COLUMN Groupname");
-
-print "\n".scalar(localtime(time))."\n";
-
-#=cut
+print "New Changes made successfully by $kid!!!\n";
