@@ -28,10 +28,13 @@ sub new {
 
   $self->{CONFIG}->{CE_CEREQUIREMENTS} and 
     $otherReq=" && ($self->{CONFIG}->{CE_CEREQUIREMENTS})";
+  $self->{PACKMAN} or $self->{PACKMAN}=AliEn::ClientPackMan->new();
+
+  $self->{PACKMAN} or $self->info("Error getting the list of ClientPakcMan") and return;
 
   my $ca =
     Classad::Classad->new(
- "[ Type=\"machine\"; Requirements=(other.Type==\"Job\" $otherReq); WNHost = \"$self->{CONFIG}->{HOST}\";]" );
+ "[ Type=\"machine\"; Requirements=(other.Type==\"Job\" $otherReq); WNHost = \"$self->{CONFIG}->{HOST}\"; CEName= \"$self->{CONFIG}->{CE_NAME}\";]" );
  ( $ca and $ca->isOK()) 
    or $self->info("Error creating the Classads.Check if the requirements ($otherReq) have the right format") and return;
   $self->setCloseSE($ca) or return;
@@ -165,43 +168,21 @@ sub setPackages {
   my $self=shift;
   my $ca=shift;
 
-  if ( defined($ENV{ALIEN_VM})) {
-    # $self->{PACKMAN}=AliEn::PackMan->new({PACKMAN_METHOD=>"Simple",
-    #                                      CREATE_CATALOGUE=>0}) or return;
-    
-      $self->{PACKMAN}=AliEn::PackMan->new({CREATE_CATALOGUE=>0}) or return;
-      $self->{PACKMAN} or return;
-      my ($status, @packages)=$self->{PACKMAN}->getListInstalledPackages();
-      if (@packages) {
-       $self->debug(1, "Setting the list of packages to @packages");
-       $self->setItem($ca, "Packages", @packages) or return;
-       $self->setItem($ca, "InstalledPackages", @packages);
-      }
-  } else {  
-      my $packman = $self->{PACKMAN};
-      if (!$packman){
-         use AliEn::UI::Catalogue::LCM;
-         my $catalog = AliEn::UI::Catalogue::LCM->new() or $self->info("We could not create Catalogue") and return;
-         $packman = $catalog->{PACKMAN};    
-      }
-     # my $soap=new AliEn::SOAP or return;
-     #Let's ask the PackMan for the Packages that we have installed
 
-     #my ($status, @packages)=$self->{PACKMAN}->f_packman ("list", "-s", "ALIEN_SOAP_SILENT");
-     my ($status, @packages)=$packman->f_packman ("list", "-s", "ALIEN_SOAP_SILENT");
-     if (@packages) {
-       $self->debug(1, "Setting the list of packages to @packages");
-       $self->setItem($ca, "Packages", @packages) or return;
-     }
-     $self->debug(1,"Asking for the installed packages");
-     #($status, @packages)=$self->{PACKMAN}->getListInstalledPackages( "-s", "ALIEN_SOAP_SILENT");
-     ($status, @packages)=$packman->f_packman ("listInstalled", "-s", "ALIEN_SOAP_SILENT");
-     if (@packages){
-       $self->debug(1, "Setting the installed packages");
-       $self->setItem($ca, "InstalledPackages", @packages);
-     }
-     return 1;
- } 
+  #my ($status, @packages)=$self->{PACKMAN}->f_packman ("list", "-s", "ALIEN_SOAP_SILENT");
+  my ($status, @packages)=$self->{PACKMAN}->f_packman ("list", "-silent");
+  if (@packages) {
+    $self->debug(1, "Setting the list of packages to @packages");
+    $self->setItem($ca, "Packages", @packages) or return;
+  }
+  $self->debug(1,"Asking for the installed packages");
+  #($status, @packages)=$self->{PACKMAN}->getListInstalledPackages( "-s", "ALIEN_SOAP_SILENT");
+  ($status, @packages)=$self->{PACKMAN}->f_packman ("listInstalled", "-silent");
+  if (@packages){
+    $self->debug(1, "Setting the installed packages");
+    $self->setItem($ca, "InstalledPackages", @packages);
+  }
+  return 1;
 }
 
 
