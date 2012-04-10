@@ -955,33 +955,44 @@ sub checkUserGroup {
 
   return $v;
 }
+sub returnFromCacheOrQuery{
+  my $self=shift;
+  my $cacheKey=shift;
+  my $query=shift;
+  my $bind =shift;
 
+  my $v = AliEn::Util::returnCacheValue($self, $cacheKey);
+  defined $v and return $v;
+  $v = $self->queryValue( $query, undef,{bind_values=>$bind});
+  AliEn::Util::setCacheValue($self, $cacheKey, $v);
+  return $v;
+}
 sub getOwnerId {
   my $self  = shift;
   my $user  = shift;
   $user or return;
-  return $self->queryValue("SELECT uId from USERS where Username='$user'");
+  return $self->returnFromCacheOrQuery("userId-$user", "SELECT uId from USERS where Username=?", [$user]);
 }
 
 sub getGownerId {
   my $self  = shift;
   my $user  = shift;
   $user or return;
-  return $self->queryValue("SELECT gId from GRPS where Groupname='$user'");
+  return $self->returnFromCacheOrQuery("gourpId-$user", "SELECT gId from GRPS where Groupname=?", [$user]);
 }
 
 sub getOwner {
   my $self  = shift;
   my $uId  = shift;
   $uId or return;
-  return $self->queryValue("SELECT Username from USERS where uId=$uId");
+  return $self->returnFromCacheOrQuery("user-$uId", "SELECT Username from USERS where uId=?", [$uId]);
 }
 
 sub getGowner {
   my $self  = shift;
   my $gId  = shift;
   $gId or return;
-  return $self->queryValue("SELECT Groupname from GRPS where gId=$gId");
+  return $self->returnFromCacheOrQuery("group-$gId", "SELECT Groupname from GRPS where gId=?", [$gId]);
 }
 
 

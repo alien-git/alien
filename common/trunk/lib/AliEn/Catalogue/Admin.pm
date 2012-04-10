@@ -94,12 +94,6 @@ sub f_addUser {
   $self->f_mkdir("p", $homedir)
     or $self->info("Error creating $homedir")
     and return;
-  $self->{DATABASE}->moveEntries($homedir)
-    or $self->info("Error moving the directory $homedir", 1100)
-    and return;
-
-  #  my $table=$self->{DATABASE}->getIndexHost($homedir) or
-  #    $self->info( "Error getting the table of $homedir") and return;
 
   $self->info("Changing privileges for  $user");
   $self->f_chown("", $user, $homedir) or return;
@@ -477,8 +471,12 @@ sub f_renumber {
   my $lfn = $self->GetAbsolutePath($dir);
   $self->checkPermissions("w", $lfn) or return;
   $self->info("Ready to renumber the entries in $lfn");
+  my $entry = $self->{DATABASE}->getIndexHost($lfn);
+  $entry or $self->info("The path $lfn is not in the catalogue ") and return;
 
-  return $self->{DATABASE}->renumberLFNtable($lfn, $options);
+  my $table = "L$entry->{tableName}L";
+  $self->info("DOING $table");
+  return $self->{DATABASE}->renumberLFNtable($table, $options);
 }
 
 sub resyncLDAP {

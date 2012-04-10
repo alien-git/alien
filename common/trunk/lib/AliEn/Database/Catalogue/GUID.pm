@@ -130,9 +130,6 @@ sub GUID_createCatalogueTables {
 
   $self->checkGUIDTable("0", $db) or return;
 
-  $self->info("Let's create the functions");
-  $db->createGUIDFunctions;
-
   $DEBUG and $self->debug(2, "In createCatalogueTables creation of tables finished.");
 
   1;

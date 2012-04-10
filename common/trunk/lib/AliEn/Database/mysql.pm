@@ -284,30 +284,11 @@ sub createLFNfunctions {
     "create function binary2date (my_uuid binary(16))  returns char(16) deterministic sql security invoker
 return upper(concat(right(left(hex(my_uuid),16),4), right(left(hex(my_uuid),12),4),left(hex(my_uuid),8)))"
   );
-  $DEBUG
-    and $self->debug(2, "In createCatalogueTables creation of tables finished.");
-  $self->do("alter table TAG0 drop key path");
-  $self->do("alter table TAG0 add index path (path)");
-
-}
-
-sub createGUIDFunctions {
-  my $self = shift;
-  $self->do(
-"create function string2binary (my_uuid varchar(36)) returns binary(16) deterministic sql security invoker return unhex(replace(my_uuid, '-', ''))"
-  );
-  $self->do(
-"create function binary2string (my_uuid binary(16)) returns varchar(36) deterministic sql security invoker return insert(insert(insert(insert(hex(my_uuid),9,0,'-'),14,0,'-'),19,0,'-'),24,0,'-')"
-  );
 
   $self->do(
 "create function string2date (my_uuid varchar(36)) returns char(16) deterministic sql security invoker return upper(concat(right(left(my_uuid,18),4), right(left(my_uuid,13),4),left(my_uuid,8)))"
   );
-
-  $self->do(
-    "create function binary2date (my_uuid binary(16))  returns char(16) deterministic sql security invoker
-return upper(concat(right(left(hex(my_uuid),16),4), right(left(hex(my_uuid),12),4),left(hex(my_uuid),8)))"
-  );
+  print "FUNCTIONS CREATED\n";
 }
 
 sub lock {

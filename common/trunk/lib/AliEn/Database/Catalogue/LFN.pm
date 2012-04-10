@@ -267,13 +267,8 @@ sub LFN_createCatalogueTables {
     "INSERT INTO ACTIONS ( action) SELECT 'PACKAGES' FROM DUAL WHERE NOT  EXISTS 
 (SELECT  * FROM ACTIONS WHERE ACTION = 'PACKAGES') "
   );
-  $self->info("Let's create the functions");
   $self->createLFNfunctions;
   $DEBUG and $self->debug(2, "In createCatalogueTables creation of tables finished.");
-  $self->do("alter table TAG0 drop index path");
-
-  #  $self->do("alter table TAG0 add index path (path)");
-  $self->createIndex("TAG0", "index path (path)");
   1;
 }
 
@@ -2188,7 +2183,33 @@ sub renumberLFNtable {
   my $table   = shift || $self->{INDEX_TABLENAME}->{name};
   my $options = shift || {};
   $self->info("How do we renumber '$table'??");
+  my $gaps=$self->queryValue("select max(entryid)-count(1) from $table");
+  if ($gaps>10000){
+    $self->info("THERE ARE QUITE A LOT OF GAPS. Let's create a new table");
+    $self->do("create table tt$$ (new_id int(11) NOT NULL AUTO_INCREMENT,
+  `old_id` int(11) DEFAULT NULL, new_entry int(1) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`new_id`),
+  UNIQUE KEY `old_id` (`old_id`))");
+    $self->do("insert into tt$$ (old_id) select entryid from $table");
+    $self->checkLFNTable("${table}NEW");
+    $self->do("truncate ${table}NEW");
+    $self->do("insert into ${table}NEW (entryId, ctime, replicated, guidtime, jobid, lfn, broken, expiretime, size, dir, gownerId, type, guid, ownerId, md5, perm ) select t1.new_id, ctime, replicated, guidtime, jobid, lfn, broken, expiretime, size, t2.new_id, gownerid, type, guid, ownerid, md5, perm from $table left join tt$$ t1 on (entryid=t1.old_id) left join tt$$ t2  on (dir=t2.old_id) ");
+     $self->info("AND NOW WE LOCK");
+     $self->do("lock table $table write, ${table}NEW write, tt$$ write, tt$$ t1 read, tt$$ t2 read");
+     $self->do("insert into tt$$ (old_id, new_entry) select entryid, 1 from $table left join tt$$ t1 on (entryid=old_id) where old_id is null");
+    $self->do("insert into ${table}NEW (entryId, ctime, replicated, guidtime, jobid, lfn, broken, expiretime, size, dir, gownerId, type, guid, ownerId, md5, perm ) select t1.new_id, ctime, replicated, guidtime, jobid, lfn, broken, expiretime, size, t2.new_id, gownerid, type, guid, ownerid, md5, perm from $table left join tt$$ t1 on (entryid=t1.old_id) left join tt$$ t2  on (dir=t2.old_id) where t1.new_entry=1 ");
 
+
+     $self->do("DELETE FROM ${table}NEW  using ${table}NEW join tt$$ on (${table}NEW.entryid=new_id) left join $table on (old_id=$table.entryid) where $table.entryid is null");
+    $self->do("alter table $table rename ${table}OLD");
+    $self->do("alter table ${table}NEW rename $table");
+    $self->info("UNLOCKED");
+     $self->do("unlock tables");
+    $self->do("drop table tt$$");
+    return;
+  }
+  $self->info("Not too many gaps... skipping the renumbering");
+  return;
   my $info = $self->query(
 "select ${table}d.entryId as t from $table ${table}d left join $table ${table}r on ${table}d.entryId-1=${table}r.entryId where ${table}r.entryId is null order by t asc"
   );
