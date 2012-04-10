@@ -2021,8 +2021,11 @@ sub f_echo {
     $self->{SILENT} or print STDERR "Configuration: $var = $print\n";
   } else {
     my @total = sort keys %{$self->{CONFIG}};
-    foreach (@total) {
-      ($_) and $self->f_echo($_);
+    foreach my $t(@total) {
+      $t or next;
+      $t =~ /^(CACHE)|(CATALOG)|(CATALOGUE)|(PACKMAN)|(LOGGER)$/ and next;
+      $self->f_echo($t);
+
     }
   }
   return $value;
