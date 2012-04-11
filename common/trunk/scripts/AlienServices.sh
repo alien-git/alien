@@ -284,7 +284,7 @@ ALIEN_HttpdConfig()
         tmpName=$(echo $tmpN | tr [a-z] [A-Z])
          portNum=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl "$tmpName"_PORT 2> /dev/null `
        # echo $portNum
-       
+       echo "HERE WE GO"
        if [ $tmpN == "Authen" ]
            then
               httpdFormat="AliEn::Service::Authen"
@@ -358,6 +358,7 @@ ALIEN_HttpdStart()
   portNum=$2
   hostAddress=$3
 
+  echo "AND AT THE START, $1, $2 and $3"
   export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$ALIEN_ROOT/api/lib:$ALIEN_ROOT/httpd/lib
   export PERL5LIB=$PERL5LIB:$ALIEN_ROOT/lib/perl5/site_perl/5.10.1:$ALIEN_ROOT/lib/perl5/5.10.1
 
@@ -420,15 +421,14 @@ ALIEN_GetPortNumber()
   if [ $tmpN == "Authen" ]
      then
       portNum2=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl AUTH_PORT 2> /dev/null`
+      echo "$portNum2"
   elif [ $tmpN == "IS" ]
      then
       portNum2=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl IS_PORT 2> /dev/null`
   elif [ $tmpN == "Logger" ]
     then
       portNum2=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl LOG_PORT 2> /dev/null`
-#  elif [ $tmpN == "PackMan" ]
-#    then
-#      portNum2=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl PACKMAN_PORT 2> /dev/null`
+
   elif [ $tmpN == "ClusterMonitor" ]
     then
       portNum2=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl CLUSTERMONITOR_PORT 2> /dev/null`
@@ -446,15 +446,15 @@ ALIEN_HttpsConfig()
     httpdFormat=$2
     hostAddress=$3
         
-        startupFormat=`echo $httpdFormat | sed 's/AliEn::Service:://'`
-        
-	ALIEN_GetPortNumber portNum $tpmN $hostAddress        
+    startupFormat=`echo $httpdFormat | sed 's/AliEn::Service:://'`
+    echo "ALLA VAMOS $1 ($tmpN), $2 y $3"    
+    ALIEN_GetPortNumber portNum $tmpN $hostAddress        
 		
     ALIEN_CreateHTTPDConfiguration $portNum $hostAddress $startupFormat 1
         
         logPath=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl LOG_DIR 2> /dev/null`
      #   echo $logPath
-     ALIEN_HttpdStart $tmpN $portNum
+     ALIEN_HttpdStart $tmpN $portNum $hostAddress
 }     
 
 ###########################################################################
@@ -471,6 +471,7 @@ ALIEN_CreateHTTPDConfiguration()
   local logPath=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl LOG_DIR 2> /dev/null`
   
   export ALIEN_HOME=$HOME/.alien
+  echo "THE CONFIGURATION WILL BE IN $CONF"
   
   if [ ! -d $ALIEN_HOME/httpd/conf."$portNum" ] || [ ! -f $CONF ] || [ ! -f $ALIEN_HOME/httpd/conf."$portNum"/startup.pl ]
    then
@@ -571,63 +572,31 @@ ALIEN_IsHttps ( )
 {
 
   serviceName=$1
-  configName=$(echo $ServiceName | tr [a-z] [A-Z])
-  packageName="AliEn::Service::""$serviceName"
+  configName=$2
+  packageName=$3
 
-   [ $serviceName == "Proxy" ] && configName="PROXY_ADDRESS" && packageName="AliEn::Services::ProxyServer"
-   [ $serviceName == "IS" ] && configName="IS_HOST"
-   [ $serviceName == "Authen" ] && configName="AUTH_HOST" && packageName="AliEn::Service::Authen"
-   
-   [ $serviceName == "Server" ] && configName="JOB_MANAGER_ADDRESS" && packageName="AliEn::Service::Manager::Job"
-   
-   [ $serviceName == "Logger" ] && configName="LOG_HOST"
-   
-   [ $serviceName == "Broker" ] && configName="JOB_BROKER_ADDRESS" && packageName="AliEn::Service::Broker::Job"
-   [ $serviceName == "JobBroker" ] && configName="JOB_BROKER_ADDRESS" && packageName="AliEn::Service::Broker::Job"
-   
-   [ $serviceName == "TransferManager" ] && configName="TRANSFER_MANAGER_ADDRESS" && packageName="AliEn::Service::Manager::Transfer"
-   [ $serviceName == "TransferBroker" ] && configName="TRANSFER_BROKER_ADDRESS" && packageName="AliEn::Service::Broker::Transfer"
-   [ $serviceName == "TransferOptimizer" ] && configName="TRANSFER_OPTIMIZER_ADDRESS" && packageName="AliEn::Service::Optimizer::Transfer"
-   
-   [ $serviceName == "JobOptimizer" ] && configName="JOB_OPTIMIZER_ADDRESS" && packageName="AliEn::Service::Optimizer::Job"
-   
-   [ $serviceName == "CatalogueOptimizer" ] && configName="CATALOGUE_OPTIMIZER_ADDRESS" && packageName="AliEn::Service::Optimizer::Catalogue"
-   
-#   [ $serviceName == "PackManMaster" ] && configName="PACKMANMASTER_ADDRESS" 
 
-   [ $serviceName == "MessagesMaster" ] && configName="MESSAGESMASTER_ADDRESS"
-   
-   
-   [ $serviceName == "SEManager" ] && configName="SEMASTER_MANAGER_ADDRESS" && packageName="AliEn::Service::Manager::SEMaster"
-   
-   [ $serviceName == "JobInfoManager" ] && configName="JOBINFO_MANAGER_ADDRESS" && packageName="AliEn::Service::Manager::JobInfo"
-   
-#   [ $serviceName == "PackMan" ] && configName="PACKMAN_HOST" && packageName="AliEn::Service::PackMan" && soapName="PACKMAN_SOAPTYPE"
-    
-   [ $serviceName == "ClusterMonitor" ] && configName="CLUSTERMONITOR_ADDRESS" && packageName="AliEn::Service::ClusterMonitor" && soapName="CLUSTERMONITOR_SOAPTYPE"
-   
-  # [ $serviceName == "CE" ] && configName="CE_HOST" && packageName="AliEn::Service::CE" 
-   
-    hostName=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl $configName 2> /dev/null `
-    HttpdType=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl $soapName 2> /dev/null `
-    
-    # echo $serviceName
-    #echo $hostName
-   	if [[ $hostName == https* ]]
-          	  then
- 	 ALIEN_HttpsConfig $serviceName $packageName $hostName 
+  hostName=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl $configName 2> /dev/null `
+
+  if [[ $hostName == https* ]]
+    then
+
+ 	 ALIEN_HttpsConfig $serviceName $configName ${hostName#https://}
          exit 0
-              elif [[ $HttpdType == "httpd" ]]
-              then
-                     echo "$serviceName  wants to be started as a http (soapType is httpd)"  
-                     echo "serviceName is $serviceName, hostname is $hostName,packageName is $packageName"
-                     ALIEN_HttpdSoapTypeConfig $serviceName $packageName $hostName 
-                     exit 0
-              else
-                     echo "$serviceName  wants to be started with SOAP::Lite "
-       fi
-          	  
-    return 0 	  
+  fi
+
+  HttpdType=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl $soapName 2> /dev/null `
+
+  if [[ $HttpdType == "httpd" ]]
+     then
+         echo "$serviceName  wants to be started as a http (soapType is httpd)"  
+         echo "serviceName is $serviceName, hostname is $hostName,packageName is $packageName"
+         ALIEN_HttpdSoapTypeConfig $serviceName $packageName $hostName 
+        exit 0
+  fi
+   echo "$serviceName  wants to be started with SOAP::Lite "
+        	  
+  return 0 	  
     
 }
 
@@ -935,7 +904,6 @@ stopService()
   
   
   
-   [ $NAME == "Proxy" ] && configName="PROXY_ADDRESS" 
    [ $NAME == "IS" ] && configName="IS_HOST"
    [ $NAME == "Authen" ] && configName="AUTH_HOST" 
    
@@ -1072,16 +1040,9 @@ ALIEN_DoService ()
     arguments=${arguments//_/ }
     service=${service%%_?*}
     
+    configName="${service}_HOST"
+    packageName="AliEn::Service::"
 
-
-    if [ $pattern = "Start" ] && [ $service != "Monitor" ]
-    then
-        #  ALIEN_CheckSoapType $service
-       # echo "in ALIEN_DoService"
-         ALIEN_IsHttps $service 
-    fi
-
- 
     case $service in 
 	CE)
 	    file="CE"
@@ -1114,37 +1075,29 @@ ALIEN_DoService ()
 	JobBroker|Broker)
             export ALIEN_PROCESSNAME=JobBroker
 	    args='VARDIR Broker::Job "Resource_Broker" NO_PASSWORD'
+	    configName="JOB_BROKER_ADDRESS"
+	    packageName="${packageName}Broker::Job"
 	    ;;
 	JobManager|Server)
             export ALIEN_PROCESSNAME=JobManager
 	    args='VARDIR  Manager::Job "Queue_Server" NO_PASSWORD'
+	    configName="JOB_MANAGER_ADDRESS"
+	    packageName="${packageName}Manager::Job"
+
 	    ;;
 	JobInfoManager)
             export ALIEN_PROCESSNAME=JobInfoManager
 	    args='VARDIR  Manager::JobInfo "JobInfo_Manager" NO_PASSWORD'
-	    ;;
-	Proxy)
-	    PROXY_PORT=`${ALIEN_ROOT}/scripts/alien -org $ALIEN_ORGANISATION -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl PROXY_PORT`
-			if [ -z "$PROXY_PORT" ] 
-			then
-				 [ -n "$SILENT" ] || echo "Error getting the port of the proxy. Is ldap running?"
-				exit 255
-			fi
-	    export ALIEN_PROCESSNAME=ProxyServer
-	    export SSL_VERSION=2
-	    ALIEN_START="$ALIEN_ROOT/scripts/ProxyServer.pl"
-#	    export SSL_CIPHER_LIST=EDH-RSA-DES-CBC3-SHA:EDH-DSS-DES-CBC3-SHA:DES-CBC3-SHA:DES-CBC3-MD5:DHE-DSS-RC4-SHA:IDEA-CBC-SHA:RC4-SHA:RC4-MD5:IDEA-CBC-MD5:RC2-CBC-MD5:RC4-MD5:RC4-64-MD5:EXP1024-DHE-DSS-RC4-SHA:EXP1024-RC4-SHA:EXP1024-DHE-DSS-DES-CBC-SHA:EXP1024-DES-CBC-SHA:EXP1024-RC2-CBC-MD5:EXP1024-RC4-MD5:EDH-RSA-DES-CBC-SHA:EDH-DSS-DES-CBC-SHA:DES-CBC-SHA:DES-CBC-MD5:EXP-EDH-RSA-DES-CBC-SHA:EXP-EDH-DSS-DES-CBC-SHA:EXP-DES-CBC-SHA:EXP-RC2-CBC-MD5:EXP-RC4-MD5:EXP-RC2-CBC-MD5:EXP-RC4-MD5
-	    args="VARDIR  ProxyServer Proxy_Server PASSWORD"
-	    extra_args="--localport $PROXY_PORT"
+	    configName="JOBINFO_MANAGER_ADDRESS"
+	    packageName="${packageName}Manager::JobInfo"
 	    ;;
         Logger)
 	    args='VARDIR Logger  "Logger" NO_PASSWORD'
 	    ;;
-        SOAPProxy)
-	    args='SOAPProxy SOAPProxy "SOAPProxy" NO_PASSWORD'
-	    ;;
 	Authen)
 	    args='VARDIR  Authen "Authentication" NO_PASSWORD'
+	    configName="AUTH_HOST"
+	    packageName="${packageName}Authen"
 #	    ALIEN_START="$ALIEN_ROOT/scripts/Authen.pl"
 	    ;;
 	  TransferOptimizer)
@@ -1159,51 +1112,22 @@ ALIEN_DoService ()
 	  SEManager)
 	    args='VARDIR Manager::SEMaster "SE_Manager" NO_PASSWORD'
 	    ;;
-#	  PackManMaster)
-#	    args='VARDIR PackManMaster "PackManMaster"  NO_PASSWORD'
-#	    ;;
 	  MessagesMaster)
 	    args='VARDIR MessagesMaster "MessagesMaster"  NO_PASSWORD'
-	    ;;
-	  Interface)
-	    args='VARDIR Interface "Interface"  NO_PASSWORD'
-	    ;;
-	  Secure)
-	    args='VARDIR Secure "Secure"  NO_PASSWORD'
 	    ;;
 	  JobOptimizer)
 	    args='VARDIR Optimizer::Job Job_Optimizer NO_PASSWORD'
 	    ;;
-	  SecureFactory)
-	    args='VARDIR SecureFactory SecureFactory NO_PASSWORD'
-	    ;;
-	  Secure)
-	    args='LOGDIR Secure Secure NO_PASSWORD'
-	    ;;
-	  SOAPProxy)
-	    args='VARDIR SOAPProxy "SOAPProxy"  NO_PASSWORD'
-	    ;;
 	  CatalogueOptimizer)
 	    args='VARDIR Optimizer::Catalogue Catalogue_Optimizer NO_PASSWORD'
 	    ;;
-	  gContainer)
-	    exec $ALIEN_PERL $ALIEN_DEBUG ${ALIEN_ROOT}/scripts/gContainer.pl $pattern $*
-	    ;;
-	  Container)
-	    ALIEN_START="${ALIEN_ROOT}/AliEn/Portal/scripts/Container.pl"
-	    args="VARDIR  Container Container NO_PASSWORD"
-	    ;;
-# 	  PackMan)
-#	    args='LOGDIR PackMan PackMan NO_PASSWORD'
-#	    ;;
-	  FC)
-	    args="VARDIR FC FC NO_PASSWORD"
-	    ;;
-	  Config)
-	    args="VARDIR Config Config NO_PASSWORD"
-	    ;;
 
 	esac
+
+    if [ $pattern = "Start" ] && [ $service != "Monitor" ]
+    then
+         ALIEN_IsHttps $service $configName $packageName
+    fi
 
     if [ -n "$args" ]
     then 

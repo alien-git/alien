@@ -34,12 +34,13 @@ sub new {
 
   my $ca =
     Classad::Classad->new(
- "[ Type=\"machine\"; Requirements=(other.Type==\"Job\" $otherReq); WNHost = \"$self->{CONFIG}->{HOST}\"; CEName= \"$self->{CONFIG}->{CE_NAME}\";]" );
+ "[ Type=\"machine\"; Requirements=(other.Type==\"Job\" $otherReq); WNHost = \"$self->{CONFIG}->{HOST}\"; ]" );
  ( $ca and $ca->isOK()) 
    or $self->info("Error creating the Classads.Check if the requirements ($otherReq) have the right format") and return;
   $self->setCloseSE($ca) or return;
     
   $self->setPackages($ca) or return;
+  
   
   
   $self->setCE($ca) or return;
