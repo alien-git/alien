@@ -2,7 +2,6 @@
 use strict;
 use Test;
 
-use AliEn::Database::TaskPriority;
 use AliEn::Service::Optimizer::Job::Quota;
 use Net::Domain qw(hostname hostfqdn hostdomain);
 
