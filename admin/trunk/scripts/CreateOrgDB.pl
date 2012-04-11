@@ -264,7 +264,7 @@ $now =~ s/\n//;
 print "Creating the tables in the database\n";
 $db->createCatalogueTables() or exit(-2);
 
-foreach my $dbtype ('TaskQueue', 'Transfer', 'IS', 'Admin', 'TaskPriority') {
+foreach my $dbtype ('TaskQueue', 'Transfer', 'IS', 'Admin', ) {
   print "Creating the $dbtype...";
   my $s="AliEn::Database::$dbtype";
 
@@ -276,7 +276,6 @@ foreach my $dbtype ('TaskQueue', 'Transfer', 'IS', 'Admin', 'TaskPriority') {
 		 #					DEBUG=>5,
 		}
 	       ) or exit(-2);
-  $dbtype =~ /TaskPriority/ and $d->checkPriorityValue('admin');
   print "Done with $?\n";
 }
 my @q=(
