@@ -11,10 +11,10 @@ my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",})
 
 my ($status)=$cat->execute("top", "-id", $jobid);
 print "The job is $status->{status}\n";
-$status=~ /ERROR_E/ or print "The job $jobid didn't fail!! It used too much memory!!!\n" and exit(-2);
+$status->{status}=~ /ERROR_E/ or print "The job $jobid didn't fail!! It used too much memory!!!\n" and exit(-2);
 
  ($status)=$cat->execute("top", "-id", $jobrun);
 print "The job is $status->{status}\n";
-$status=~ /DONE/ or print "The job $jobrun failed!! Why???\n" and exit(-2);
+$status->{status}=~ /DONE/ or print "The job $jobrun failed!! Why???\n" and exit(-2);
 
 ok(1)
