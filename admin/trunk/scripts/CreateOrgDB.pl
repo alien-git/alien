@@ -279,14 +279,11 @@ foreach my $dbtype ('TaskQueue', 'Transfer', 'IS', ) {
   print "Done with $?\n";
 }
 my @q=(
-       "INSERT INTO ADMIN.TOKENS (ID, Username, expires, token, password, sshkey,dn)  values(12, 'admin', DATE_ADD(now() ,INTERVAL 1 YEAR), '$token', '$passwd', 'NOKEY','')",
        "INSERT INTO USERS (Username) values ('admin')",
        "INSERT INTO GRPS (Groupname) values ('admin')",
        "INSERT INTO L0L(lfn,ownerId, gownerId,perm,type) values ('',1 , 1,'755','d')",
        "INSERT INTO INDEXTABLE(lfn,tableName) values  ('/', 0)",
        "INSERT INTO GUIDINDEX(guidTime,tableName) values  ('', 0)",
-       "Create DATABASE geoip",
-       "GRANT SELECT ON geoip.* to alienmaster",
        "INSERT INTO SE(seName) VALUES ('no_se')",
        "insert into UGMAP values (1,1,1)",
 
