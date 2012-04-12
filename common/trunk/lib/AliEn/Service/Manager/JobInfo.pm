@@ -12,7 +12,7 @@ use AliEn::Service::Manager;
 use AliEn::JOBLOG;
 use AliEn::Util;
 use Classad;
-use AliEn::Database::Admin;
+
 use AliEn::Database::IS;
 
 use vars qw (@ISA $DEBUG);

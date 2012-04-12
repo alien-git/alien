@@ -254,7 +254,22 @@ sub LFN_createCatalogueTables {
       undef,
       [ 'PRIMARY KEY(lfn,pfn,guid)', 'INDEX(pfn)', 'INDEX(guid)', 'INDEX(jobid)' ]
     ],
-    PFN_TODELETE => [ "pfn", {pfn => "varchar(255)", retry => "integer not null"}, undef, ['UNIQUE INDEX(pfn)'] ]
+    PFN_TODELETE => [ "pfn", {pfn => "varchar(255)", retry => "integer not null"}, undef, ['UNIQUE INDEX(pfn)'] ],
+    
+    "USERS_LDAP"=> [
+    "user",
+    { user => "varchar(15) not null",
+      dn   => "varchar(255)",
+      up   => "smallint"
+    }], 
+    "USERS_LDAP_ROLE"=>[
+    "user",
+    { user => "varchar(15) not null",
+      role => "varchar(15)",
+      up   => "smallint"
+    }],
+    
+    
 
   );
   foreach my $table (keys %tables) {

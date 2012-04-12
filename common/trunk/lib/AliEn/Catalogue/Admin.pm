@@ -3,7 +3,7 @@ package AliEn::Catalogue::Admin;
 use strict;
 use Data::Dumper;
 
-use AliEn::Database::Admin;
+
 use AliEn::Database::Transfer;
 
 require AliEn::Database::SE;
@@ -70,16 +70,6 @@ sub f_addUser {
   $self->{TASK_DB}
     or $self->{TASK_DB} = AliEn::Database::TaskQueue->new({ROLE => 'admin', SKIP_CHECK_TABLES => 1});
   $self->{TASK_DB} or $self->info("Error getting the instance of the taskDB!!") and return;
-
-  my $passwd;
-####If the database is Oracle, we do not want a new password, we want the password of the generic user
-  if ($self->{DATABASE}->{DRIVER} =~ /Oracle/) {
-    my $addbh = new AliEn::Database::Admin({SKIP_CHECK_TABLES => 1});
-    $passwd = $addbh->getFieldFromTokens($addbh->{ORACLE_USER}, 'password');
-    $addbh->destroy();
-  } else {
-    $passwd = $createPasswd->();
-  }
 
   my $homedir = "$self->{CONFIG}->{USER_DIR}/" . substr($user, 0, 1) . "/$user/";
 
@@ -484,16 +474,15 @@ sub resyncLDAP {
 
   $self->info("Let's synchronize the DB users with ldap");
   eval {
-    my $addbh = new AliEn::Database::Admin()
-      or die("Error getting the admin database");
     $self->info("Got the database");
     my $ldap = Net::LDAP->new($self->{CONFIG}->{LDAPHOST})
       or die "Error contacting LDAP in $self->{CONFIG}->{LDAPHOST}\n $@\n";
 
     $ldap->bind;    # an anonymous bind
+    my $userColumn=$self->{DATABASE}->reservedWord("user");
     $self->info("Got the ldap");
-    $addbh->update("USERS_LDAP",      {up => 0});
-    $addbh->update("USERS_LDAP_ROLE", {up => 0});
+    $self->{DATABASE}->update("USERS_LDAP",      {up => 0});
+    $self->{DATABASE}->update("USERS_LDAP_ROLE", {up => 0});
     my $mesg = $ldap->search(
       base   => "ou=People,$self->{CONFIG}->{LDAPDN}",
       filter => "(objectclass=pkiUser)",
@@ -502,15 +491,15 @@ sub resyncLDAP {
       my $user = $entry->get_value('uid');
       my @dn   = $entry->get_value('subject');
       foreach my $dn (@dn) {
-        $addbh->do("insert into USERS_LDAP(" . $addbh->reservedWord("user") . " ,dn, up)  values (?,?,1)",
+        $self->{DATABASE}->do("insert into USERS_LDAP( $userColumn ,dn, up)  values (?,?,1)",
           {bind_values => [ $user, $dn ]});
       }
       my $ssh = $entry->get_value('sshkey');
       # $addbh->do("update TOKENS set SSHkey=? where username=?", {bind_values => [ $ssh, $user ]});
        if ($ssh){
-        $addbh->do("update TOKENS set SSHkey=? where username=?", {bind_values => [ $ssh, $user ]});
+        $self->{DATABASE}->do("update TOKENS set SSHkey=? where username=?", {bind_values => [ $ssh, $user ]});
       }else{
-        $addbh->do("update TOKENS set SSHkey=NULL  where username=?", {bind_values => [ $user ]});
+        $self->{DATABASE}->do("update TOKENS set SSHkey=NULL  where username=?", {bind_values => [ $user ]});
       }
 
     }
@@ -526,28 +515,22 @@ sub resyncLDAP {
       my @dn    = $entry->get_value('users');
       $self->debug(1, "user: $user => @dn");
       foreach my $dn (@dn) {
-        $addbh->do("insert into USERS_LDAP_ROLE (" . $addbh->reservedWord("user") . ",role, up)  values (?,?,1)",
+        $self->{DATABASE}->do("insert into USERS_LDAP_ROLE ($userColumn,role, up)  values (?,?,1)",
           {bind_values => [ $dn, $user ]});
       }
     }
     $self->info("And let's add the new users");
     my $newUsers =
-      $addbh->queryColumn("select a."
-        . $addbh->reservedWord("user")
-        . " from USERS_LDAP a left join USERS_LDAP b on b.up=0 and a."
-        . $addbh->reservedWord("user") . "=b."
-        . $addbh->reservedWord("user")
-        . " where a.up=1 and b."
-        . $addbh->reservedWord("user")
-        . " is null");
+      $self->{DATABASE}->queryColumn("select a.$userColumn from USERS_LDAP a 
+      left join USERS_LDAP b on b.up=0 and a.$userColumn=b.$userColumn where a.up=1 and b.$userColumn is null");
     foreach my $u (@$newUsers) {
       $self->info("Adding the user $u");
       $self->f_addUser($u);
     }
-    $addbh->delete("USERS_LDAP",      "up=0");
-    $addbh->delete("USERS_LDAP_ROLE", "up=0");
+    $self->{DATABASE}->delete("USERS_LDAP",      "up=0");
+    $self->{DATABASE}->delete("USERS_LDAP_ROLE", "up=0");
 
-    $addbh->close();
+    $self->{DATABASE}->close();
   };
   if ($@) {
     $self->info("Error doing the sync: $@");

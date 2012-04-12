@@ -10,8 +10,8 @@ use strict;
 use POSIX;
 use AliEn::UI::Catalogue::LCM;
 use AliEn::Database::TaskQueue;
-#use AliEn::Database::TaskPriority;
-use AliEn::Database::Admin;
+
+
 use AliEn::Database::CE;
 use AliEn::LQ;
 use AliEn::Util;
@@ -1808,15 +1808,6 @@ sub f_ps_trace {
 sub f_ps2_jdltrace {
 	my $self    = shift;
 	my $command = shift;
-	my ($host, $driver, $db) =
-		split("/", $self->{CONFIG}->{"JOB_DATABASE"});
-	$self->{TASK_DB}
-		or $self->{TASK_DB} =
-		AliEn::Database::TaskQueue->new(
-		{DB => $db, HOST => $host, DRIVER => $driver, ROLE => 'admin', SKIP_CHECK_TABLES => 1});
-	$self->{TASK_DB}
-		or $self->{LOGGER}->error("CE", "In initialize creating TaskQueue instance failed")
-		and return;
 	$self->{TASK_DB}->setSiteQueueTable();
 
 	# catch the -trace and -jdl option
@@ -3194,10 +3185,6 @@ sub f_queue_tokens {
 		my $status = (shift or "%");
 		printf "Doing listing\n";
 		my $tolist = $self->{TASK_DB}->getFieldsFromQueueEx("queueId", "where status='$status'");
-#		$self->{ADMIN_DB}
-#			or $self->{ADMIN_DB} = AliEn::Database::Admin->new({SKIP_CHECK_TABLES => 1});
-#
-#		$self->{ADMIN_DB} or $self->{LOGGER}->error("Admin-UI", "In initialize creating Admin instance failed") and return;
 
 		foreach (@$tolist) {
 

@@ -11,7 +11,7 @@ use AliEn::Database::TaskQueue;
 
 use AliEn::Service::Broker;
 use strict;
-use AliEn::Database::Admin;
+
 
 use AliEn::Util;
 
@@ -31,10 +31,6 @@ sub initialize {
 	$self->{SERVICE} = "Job";
 
 	$self->{DB_MODULE} = "AliEn::Database::TaskQueue";
-
-	#  $self->{TOKENMAN} = AliEn::TokenManager->new($self->{CONFIG});
-
-	#$self->{addbh} = new AliEn::Database::Admin();
 
 	$self->forkCheckProcInfo() or return;
 

@@ -13,7 +13,7 @@ use Net::LDAP;
 use AliEn::Service::Manager;
 use AliEn::Util;
 use Classad;
-use AliEn::Database::Admin;
+
 use AliEn::Config;
 
 use vars qw (@ISA $DEBUG);

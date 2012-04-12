@@ -4,7 +4,7 @@ use strict;
 
 use AliEn::Service::Optimizer::Job;
 use AliEn::Service::Manager::Job;
-use AliEn::Database::Admin;
+
 
 
 use vars qw(@ISA);
@@ -17,8 +17,6 @@ sub checkWakesUp {
   my $method="info";
   $silent and $method="debug";
 
-  #We need the admin db, because this optimizer can enter jobs automatically
-  $self->{ADMINDB} or  $self->{ADMINDB}= new AliEn::Database::Admin();
 
   $self->{LOGGER}->$method("Merging", "The merging optimizer starts");
 

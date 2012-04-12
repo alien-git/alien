@@ -3,7 +3,7 @@ package AliEn::Service::Optimizer::Job::Inserting;
 use strict;
 
 use AliEn::Service::Optimizer::Job;
-#use AliEn::Database::Admin;
+
 use vars qw(@ISA);
 push (@ISA, "AliEn::Service::Optimizer::Job");
 

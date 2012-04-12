@@ -110,9 +110,6 @@ sub f_chown {
     and print "DEBUG LEVEL 3\t\tIn GroupInterface:f_chown with @_\n";
   my $options = shift || "";
 
-  #  Possible options:
-  #    f:   do not grant the privileges on the database
-
   my $data = shift;
   my $file = shift;
   if (!$file) {
@@ -152,14 +149,6 @@ sub f_chown {
   $db->updateLFN($lfn, {ownerId => $ownerId, gownerId => $gownerId})
     or $self->info("Error updating the file")
     and return;
-  $options =~ /f/ and return 1;
-
-  #Finally, we have to grant privileges to the user
-  #Since we are admin, we can do it directly:
-  my $db_user = $user;
-  $db->{DRIVER} =~ /Oracle/
-    and $db_user = $db->{ORACLE_USER};
-
-  return $db->do("GRANT ALL on $dbName.$table->{name} to $db_user");
+  return 1;
 }
 return 1;
