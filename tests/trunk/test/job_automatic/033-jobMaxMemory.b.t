@@ -1,5 +1,5 @@
 use strict;
-
+use Test;
 use AliEn::UI::Catalogue::LCM::Computer;
 
 my $jobid=shift;
