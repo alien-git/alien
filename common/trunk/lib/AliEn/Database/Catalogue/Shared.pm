@@ -15,15 +15,6 @@ push @ISA, qw(AliEn::Database);
 ##############################################################################
 
 
-sub reconnectToIndex {
-  my $self      = shift;
-  my $index     = shift;
-  my $tableName = shift;
-  my $data      = shift;
-  return ($self, $tableName);
-}
-
-
 # Gives the userid of a user and group. If the group is not specified, it
 # gives the primary group
 

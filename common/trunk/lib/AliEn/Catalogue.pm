@@ -1143,10 +1143,9 @@ sub f_verifySubjectRole {
   my $rethash = ();
   $subject = join " ", @arg;
   $subject or print STDERR "You have to specify a subject!\n" and return;
-  print "Verifying subject $subject\n";
-  my $done = $self->{SOAP}->CallSOAP("Authen", "verifyRoleFromSubject", $subject, $role)
+  $self->info( "Verifying subject $subject");
+  my $done = $self->{DATABASE}->queryValue("select user from USERS_LDAP where dn=? and user=?", undef, {bind_values=>[$subject, $role]})
     or return;
-  $done = $done->result;
   $DEBUG
     and $self->debug(1, "The Subject $subject requested as role $role will be mapped to role $done");
 

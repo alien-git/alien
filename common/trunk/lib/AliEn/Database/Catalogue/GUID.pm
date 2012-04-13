@@ -86,7 +86,7 @@ sub GUID_createCatalogueTables {
     GUIDINDEX => [
       "tableName",
       { 
-        guidTime  => "varchar(16) default 0",
+        guidTime  => "varchar(16) NOT NULL UNIQUE default 0",
         tableName => "int(11) NOT NULL primary key",
       },
       'tableName',
@@ -128,7 +128,7 @@ sub GUID_createCatalogueTables {
       or return;
   }
 
-  $self->checkGUIDTable("0", $db) or return;
+  $self->checkGUIDTable("0") or return;
 
   $DEBUG and $self->debug(2, "In createCatalogueTables creation of tables finished.");
 
@@ -139,7 +139,8 @@ sub checkGUIDTable {
   my $self  = shift;
   my $table = shift;
   defined $table or $self->info("Error: we didn't get the table number to check") and return;
-  my $db = shift || $self;
+  my $options =shift || "";
+  
 
   $table =~ /^\d+$/ and $table = "G${table}L";
 
@@ -160,8 +161,9 @@ sub checkGUIDTable {
     jobid            => "int(11)",
   );
 
-  $db->checkTable(${table}, "guidId", \%columns, 'guidId',
-    [ 'UNIQUE INDEX (guid)', 'INDEX(seStringlist)', 'INDEX(ctime)' ],
+	my @index=  ('UNIQUE INDEX (guid)', 'INDEX(seStringlist)', 'INDEX(ctime)') ;
+	$options=~ /noindex/ and @index=();
+  $self->checkTable(${table}, "guidId", \%columns, 'guidId',\@index
   ) or return;
 
   %columns = (
@@ -169,7 +171,7 @@ sub checkGUIDTable {
     guidId   => "int(11) NOT NULL",
     seNumber => "int(11) NOT NULL",
   );
-  $db->checkTable(
+  $self->checkTable(
     "${table}_PFN",
     "guidId",
     \%columns,
@@ -180,7 +182,7 @@ sub checkGUIDTable {
     ],
   ) or return;
 
-  $db->checkTable(
+  $self->checkTable(
     "${table}_REF",
     "guidId",
     { guidId => "int(11) NOT NULL",
@@ -193,13 +195,13 @@ sub checkGUIDTable {
     ]
   ) or return;
 
-  $db->checkTable("${table}_QUOTA", "user",
+  $self->checkTable("${table}_QUOTA", "user",
     {user => "varchar(64) NOT NULL", nbFiles => "int(11) NOT NULL", totalSize => "bigint(20) NOT NULL"},
     undef, ['INDEX user_ind (user)'],)
     or return;
 
-  $db->optimizeTable($table);
-  $db->optimizeTable("${table}_PFN");
+  $self->optimizeTable($table);
+  $self->optimizeTable("${table}_PFN");
 
   my $index = $table;
   $index =~ s/^G(.*)L$/$1/;
