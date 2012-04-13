@@ -2,6 +2,9 @@ use strict;
 use Test;
 use AliEn::UI::Catalogue::LCM::Computer;
 
+BEGIN { plan tests => 1 }
+
+
 my $jobid=shift;
 $jobid or print "Error getting the id of the job\n" and exit(-2);
 my $jobrun=shift;
