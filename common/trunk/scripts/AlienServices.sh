@@ -480,50 +480,78 @@ ALIEN_CreateHTTPDConfiguration()
                         rm -f $CONF
                fi
          mkdir -p ${ALIEN_HOME}/httpd/conf."$portNum"/
-         cp $ALIEN_ROOT/httpd/conf/httpd.conf  $CONF
+         echo "Creating the configuration file $CONF"
+         echo > $CONF <<EOF
+PidFile $logPath/httpd${tmpN}.pid
+Listen $portNum
+
+LoadModule perl_module     modules/mod_perl.so
+
+ErrorLog $logPath/error_log
+
+# Possible values include: debug, info, notice, warn, error, crit,
+# alert, emerg.
+#
+LogLevel warn
+
+LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
+LogFormat "%h %l %u %t \"%r\" %>s %b" common
+CustomLog $logPath/access${tmpN}_log common
+
+#Prefork module settings
+<IfModule prefork.c>
+StartServers 10
+MinSpareServers 10
+MaxSpareServers 15
+MaxClients 50
+MaxRequestsPerChild 50
+</IfModule>
+EOF
+        [ "$SSL" == "1" ] && echo <<EOF >> $CONF 
+
+SSLengine on
+SSLSessionCache dbm:   /opt/alien/httpd/logs/ssl_gcache_data
+SSLCertificateFile    /home/bits/.alien/globus/hostcert.pem
+SSLCertificateKeyFile  /home/bits/.alien/globus/hostkey.pem
+SSLVerifyClient require
+SSLVerifyDepth  10
+SSLOptions +StdEnvVars
+SSLCACertificatePath /opt/alien/globus/share/certificates/
+
+EOF
+	     echo "<Location /> " >> $CONF
+
+         [ "$SSL" == "1" ] && echo "SSLRequireSSL" >> $CONF
+    
+     
+         echo >> $CONF <<EOF
+     
+     SetHandler perl-script
+     PerlHandler AliEn::Service
+     PerlSetVar dispatch_to "$ALIEN_ROOT/lib/perl5/site_perl/5.10.1 $httpdFormat "
+
+     PerlSetVar options "compress_threshold => 10000"
+     PerlOptions +SetupEnv
+     Allow from all
+</Location>
+PerlSwitches -I$ALIEN_ROOT/lib/perl5 -I$ALIEN_ROOT/lib/perl5/site_perl
+PerlModule Apache2::compat
+PerlPassEnv  HOME
+PerlPassEnv  ALIEN_ROOT
+PerlPassEnv  ALIEN_DOMAIN
+PerlPassEnv  ALIEN_USER
+PerlPassEnv  ALIEN_HOME
+PerlPassEnv  ALIEN_ORGANISATION
+PerlPassEnv  GLOBUS_LOCATION
+PerlPassEnv  X509_USER_PROXY
+PerlPassEnv  X509_CERT_DIR
+PerlConfigRequire $ALIEN_HOME/httpd/conf.$portNum/startup.pl
+
+EOF
          cp $ALIEN_ROOT/httpd/conf/startup.pl $ALIEN_HOME/httpd/conf."$portNum"/startup.pl
-        
-         sed -e "s#ServerRoot .*#ServerRoot $ALIEN_ROOT/httpd#" $CONF > /tmp/httpd.$$
-         cp /tmp/httpd.$$ $CONF
-
-         sed -e "s#PerlConfigRequire .*#PerlConfigRequire $ALIEN_HOME/httpd/conf."$portNum"/startup.pl#" $CONF > /tmp/httpd.$$
-         cp /tmp/httpd.$$ $CONF
-
-         sed -e "s#Listen .*#Listen $portNum#" $CONF > /tmp/httpd.$$
-         cp /tmp/httpd.$$ $CONF
-         
-         sed -e "s#PidFile .*#PidFile $logPath/httpd"$tmpN".pid#" $CONF > /tmp/httpd.$$
-         cp /tmp/httpd.$$ $CONF
-         
-         sed -e "s#ErrorLog .*#ErrorLog $logPath/error_log#" $CONF > /tmp/httpd.$$
-         cp /tmp/httpd.$$ $CONF
-         
-         sed -e "s#CustomLog .*#CustomLog $logPath/access_log common#" $CONF > /tmp/httpd.$$
-         cp /tmp/httpd.$$ $CONF
-         
-         sed -e "s#PerlSetVar dispatch_to.*#PerlSetVar dispatch_to \"$ALIEN_ROOT/lib/perl5/site_perl/5.10.1 $httpdFormat \"#" $CONF> /tmp/httpd.$$
-         cp /tmp/httpd.$$ $CONF
-                  
-         sed -e "s#PerlSwitches .*#PerlSwitches -I$ALIEN_ROOT/lib/perl5 -I$ALIEN_ROOT/lib/perl5/site_perl#" $CONF> /tmp/httpd.$$
-         cp /tmp/httpd.$$ $CONF
          
          sed -e "s#my @services=.*#my @services=qw( $startupFormat ) ;#" $ALIEN_HOME/httpd/conf."$portNum"/startup.pl > /tmp/startup.$$
          cp /tmp/startup.$$ $ALIEN_HOME/httpd/conf."$portNum"/startup.pl
-         
-         if  [ "$SSL" == "1" ]
-         then
-            sed -e "s%SSLSessionCache.*%SSLSessionCache dbm:$logPath/ssl_gcache_data %"  $CONF > /tmp/httpd.$$
-            cp /tmp/httpd.$$ $CONF      	
-         else
-           # to disble the mod_ssl function
-           sed -e "s%\(SSL.*\)%\#\\1%" $CONF > /tmp/httpd.$$
-           cp /tmp/httpd.$$ $CONF
-         fi
-         
-         
-         
-         sed -e "s%\(DocumentRoot .*\)%\#\\1%" $CONF > /tmp/httpd.$$
-         cp /tmp/httpd.$$ $CONF
          
          if [ $tmpN == "JobBroker" ] || [ $tmpN == "Broker" ]
          then
@@ -531,8 +559,6 @@ ALIEN_CreateHTTPDConfiguration()
          	cp /tmp/startup.$$ $ALIEN_HOME/httpd/conf."$portNum"/startup.pl
          fi
 
-
-          rm /tmp/httpd.$$
           rm /tmp/startup.$$
 
 		fi

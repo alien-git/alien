@@ -379,8 +379,6 @@ sub f_lsInternal {
     $path =~ s{/[^/]*/$}{/};
     $DEBUG and $self->debug(1, "Listing an entry");
     push @all, $entryInfo;
-
-    #    push @all, $self->{DATABASE}->getAllInfoFromLFN ({method=>"queryRow"}, $entry);
   }
   my $dir = $lfn;
   $dir =~ s{[^/]*$}{};
@@ -1636,7 +1634,7 @@ sub f_find {
   #### standard to retrieve options with and without parameters
   my %options = ();
   @ARGV = @_;
-  getopts("mvzrpO:o:l:x:g:sO:q:dc:yfj:", \%options);
+  getopts("mvzrpO:o:l:x:g:sO:qdc:yfj:", \%options);
   @_ = @ARGV;
 
   # option v => verbose
@@ -2135,6 +2133,10 @@ sub f_type {
   return $type;
 }
 
+sub copyDirectoryStructure{
+  my $self=shift;
+  return $self->{DATABASE}->copyDirectoryStructure(@_);
+}
 
 return 1;
 __END__

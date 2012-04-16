@@ -431,7 +431,7 @@ sub getAllInfoFromLFN {
   $options->{bind_values} and push @list, @{$options->{bind_values}};
 
   my $DBoptions = {bind_values => \@list};
-  return $self->$method("SELECT $retrieve FROM $tableName JOIN USERS ON ownerId=uId JOIN GRPS ON gownerId=gId $where", undef, $DBoptions);
+  return $self->$method("SELECT $retrieve FROM $tableName $where", undef, $DBoptions);
 }
 
 =item c<existsLFN($lfn)>
@@ -467,20 +467,21 @@ sub getTablesForEntry {
   my $self = shift;
   my $lfn  = shift;
 
-  $lfn =~ s{/?$}{};
+  $lfn =~ s{/?$}{/};
 
   #First, let's take the entry that has the directory
   my $query =
-    "SELECT tableName,lfn from INDEXTABLE where lfn=substr('$lfn/',1,length(lfn))  order by length(lfn) desc ";
+    "SELECT tableName,lfn from INDEXTABLE where lfn=substr(?,1,length(lfn))  order by length(lfn) desc ";
   $query = $self->paginate($query, 1, 0);
-  my $entry = $self->query($query);
+  my $entry = $self->query($query, undef, {bind_values=>[$lfn]});
   $entry or return;
 
   #Now, let's get all the possibles expansions (but the expansions at least as
   #long as the first index
   my $length = length(${$entry}[0]->{lfn});
   my $expansions =
-    $self->query("SELECT distinct tableName,lfn from INDEXTABLE where lfn like '$lfn/%' and length(lfn)>$length");
+    $self->query("SELECT distinct tableName,lfn from INDEXTABLE where lfn like concat(?,'%') and length(lfn)>?",
+    undef, {bind_values=>[$lfn, $length]});
   my @all = (@$entry, @$expansions);
   return \@all;
 }
@@ -1262,92 +1263,88 @@ This subroutine copies a whole directory. It checks if part of the directory is 
 
 =cut
 
-sub copyDirectory {
+sub copyDirectoryStructure {
   my $self    = shift;
-  my $options = shift;
   my $source  = shift;
   my $target  = shift;
+  my $options = shift || "";
+  
   $source and $target
     or $self->info("Not enough arguments in copyDirectory", 1111)
     and return;
-  $source =~ s{/?$}{/};
-  $target =~ s{/?$}{/};
+  $self->info("WE ARE GOING TO COPY THE DIRECTORY STRUCTURE");
+  
+
   $DEBUG and $self->debug(1, "Copying a directory ($source to $target)");
 
-  my $sourceHosts = $self->getTablesForEntry($source);
-
-  my $sourceInfo = $self->getIndexHost($source);
-
-  my $targetHost  = $self->getIndexHost($target);
-  my $targetIndex = $targetHost->{hostIndex};
-  my $targetTable = "L$targetHost->{tableName}L";
-  my $targetLFN   = $targetHost->{lfn};
-
-  my $user = $options->{user} || $self->{VIRTUAL_ROLE};
-
-  my $sourceLength = length($source) + 1;
-
+  my $sourceName=$self->existsLFN($source);
+  if (! $sourceName){
+    $self->info("Error: the entry '$source' does not exist in the catalogue",222);
+    return;
+  }
+  my $sourceLength = length($sourceName) + 1;
+  
   my $targetName = $self->existsLFN($target);
+
   if ($targetName) {
     if ($targetName !~ m{/$}) {
-      $self->info("cp: cannot overwrite non-directory `$target' with directory `$source'", "222");
+      $self->info("cp: cannot overwrite non-directory `$target' with directory `$sourceName'", "222");
       return;
     }
-    my $sourceParent = $source;
+    my $sourceParent = $sourceName;
     $sourceParent =~ s {/([^/]+/?)$}{/};
     $self->info("Copying into an existing directory (parent is $sourceParent)");
     $sourceLength = length($sourceParent) + 1;
-    $options->{k} and $sourceLength = length($source) + 1;
+    $options =~ /k/ and $sourceLength = length($sourceName) + 1;
   }
+  if ($sourceName !~ /\/$/){
+    $self->info("We are copying a file");
+      #copying to a directory: the name of the file will be the same
+     ($targetName) and return $sourceLength, $targetName;
+     #copying to a file: the name of the file will change
+     $self->info("AND THE directory does not exit");
+     return length($sourceName)+1, $target;
+  }
+  $target =~ s{/?$}{/};
+
+  my $sourceHosts = $self->getTablesForEntry($sourceName);
+
+  my $targetHost  = $self->getIndexHost($target);
+  
+  my $targetTable = "L$targetHost->{tableName}L";
+  my $targetLFN   = $targetHost->{lfn};
+
+  my $user =  $self->getOwnerId($self->{VIRTUAL_ROLE});
+  my $group = $self->getGownerId($self->{VIRTUAL_ROLE});
+
   my $beginning = $target;
   $beginning =~ s/^$targetLFN//;
+  my $sizeName=$self->reservedWord("size");
 
-	my $sizeName=$self->reservedWord("size");
-
-  my $binary2string = $self->binary2string;
-  $binary2string =~ s/guid/t1.guid/;
   foreach my $entry (@$sourceHosts) {
-    $DEBUG and $self->debug(1, "Copying from $entry to $targetIndex and $targetTable");
-    
-    my $tsource = $source;
+    $DEBUG and $self->debug(1, "Copying from L$entry->{tableName}L to $targetTable");
+    my $tsource = $sourceName;
     $tsource =~ s{^$entry->{lfn}}{};
     my $like = "";
 
     my $table = "L$entry->{tableName}L";
-    $options->{k} and $like .= " and t1.lfn!='$tsource'";
+    $options =~ /k/ and $like .= " and t1.lfn!='$tsource'";
     $DEBUG and $self->debug(1, "This is easy: from the same database");
 
-      # we want to copy the lf, which in fact would be something like
-      # substring(concat('$entry->{lfn}', lfn), length('$sourceIndex'))
+    # we want to copy the lf, which in fact would be something like
+    # substring(concat('$entry->{lfn}', lfn), length('$sourceIndex'))
     $self->do("insert into $targetTable(lfn,ownerId,gownerId,$sizeName,type,guid,guidtime,perm,dir)
-     select distinct concat ('$beginning',substr(concat('$entry->{lfn}', t1.lfn), $sourceLength)) as lfn,
-      '$user', '$user',t1.$sizeName,t1.type,t1.guid,t1.guidtime,t1.perm,-1  
-      from $table t1,$table t2 where t2.type='d' and (t1.dir=t2.entryId or t1.entryId=t2.entryId) 
-       and t2.lfn like '$tsource%' and t1.replicated=0 $like");
-
+ select concat ('$beginning',substr(concat('$entry->{lfn}', lfn), $sourceLength)) as lfn,
+  $user, $group,$sizeName,type,guid,guidtime,perm,0 from $table 
+  where type='d' and lfn like '$tsource%' and replicated=0 $like") or return;
+    
   }
 
-
-  $target =~ s{^$targetLFN}{};
-  my $targetParent = $target;
-  $targetParent =~ s{/[^/]+/?$}{/} or $targetParent = "";
-  $DEBUG and $self->debug(1, "We have inserted the entries. Now we have to update the column dir");
-
-  #and now, we should update the entryId of all the new entries
-  #This query is divided in a subquery to profit from the index with the column dir
-#  my $entries = $self->query(
-#"select * from (SELECT lfn, entryId from $targetTable where dir=-1 or lfn='$target' or lfn='$targetParent') dd where lfn like '$target\%/' or lfn='$target' or lfn='$targetParent'"
-#  );
-#  foreach my $entry (@$entries) {
-#    $DEBUG and $self->debug(1, "Updating tbe entry $entry->{lfn}");
-#    my $update = "update $targetTable set dir=$entry->{entryId} where dir=-1 and "
-#      . $self->regexp("lfn", "^$entry->{lfn}\[^/]+/?\$");
-##    $self->do($update);
-#
-#  }
-
+  $self->do("update $targetTable l1 left join $targetTable l2 on 
+  (reverse(substr(substr(reverse(l1.lfn), 2), locate('/',substr(reverse(l1.lfn),2)))) =l2.lfn) 
+  set l1.dir=l2.entryid where l1.dir=0");
   $DEBUG and $self->debug(1, "Directory copied!!");
-  return 1;
+  return $sourceLength, $target;
 }
 
 =item C<moveLFNs($lfn, $toTable)>

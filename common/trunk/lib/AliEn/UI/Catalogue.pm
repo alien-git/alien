@@ -1174,13 +1174,14 @@ sub time {
 sub checkLocalPFN {
   my $self = shift;
   my $pfn  = shift;
+  my $silent = shift || 0;
   $pfn =~ s{^file:///}{file://$self->{CONFIG}->{HOST}/};
   ($pfn !~ m{^\w*://}) or return $pfn;
   my $orig = $pfn;
   $pfn =~ m{^/} or $pfn = `pwd` . "/$pfn";
   $pfn = "file://$self->{CONFIG}->{HOST}$pfn";
   $pfn =~ s/\n//gs;
-  $self->info("The pfn '$orig' does not look like a pfn... let's hope that it refers to '$pfn'");
+  $silent or $self->info("The pfn '$orig' does not look like a pfn... let's hope that it refers to '$pfn'");
   return $pfn;
 }
 

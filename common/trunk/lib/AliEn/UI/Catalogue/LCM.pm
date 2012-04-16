@@ -277,7 +277,7 @@ sub get {
   my %options = ();
 
   @ARGV = @_;
-  Getopt::Long::GetOptions(\%options, "g", "o", "n", "b", "t", "c", "l=s", "f=s", "s=s", "x")
+  Getopt::Long::GetOptions(\%options, "silent", "g", "o", "n", "b", "t", "c", "l=s", "f=s", "s=s", "x")
     or $self->info("Error parsing the arguments of [get]\n" . $self->get_HELP())
     and return 0;
   @_ = @ARGV;
@@ -329,7 +329,7 @@ sub get {
       return;
 
     }
-    $self->info(@loglist, 0, 0);
+    $options{silent} or $self->info(@loglist, 0, 0);
     if ($first) {
       $self->debug(1, "Checking if we have enough disk space");
       $self->{STORAGE}->checkDiskSpace($envelope->{size}, $localFile) or return;
@@ -337,7 +337,7 @@ sub get {
       $options{x}
         or $result = $self->{STORAGE}->getLocalCopy($envelope->{guid}, $localFile);
       $result and last;
-      $self->info("The local copy didn't work");
+      $options{silent} or  $self->info("The local copy didn't work");
 
     }
 
@@ -363,7 +363,7 @@ sub get {
   $result
     or $self->info("Error: not possible to get the file $file. Message: " . $self->{LOGGER}->error_msg(), 1)
     and return 0;
-  $self->info("And the file is $result", 0, 0);
+  $options{silent} or $self->info("And the file is $result", 0, 0);
   return $result;
 }
 
@@ -1366,7 +1366,7 @@ sub addFileToSEs {
   my @ses         = ();
   my @excludedSes = ();
   my @qosList;
-
+  
   foreach my $d ((split(",", join(",", @$SErequirements)))) {
     if (AliEn::Util::isValidSEName($d)) {
       $d = uc($d);
@@ -1391,6 +1391,7 @@ sub addFileToSEs {
   push @excludedSes, @ses;
   my $totalCount = 0;
   my $qosTags;
+  
   foreach (@qosList) {
     my ($repltag, $copies) = split(/\=/, $_, 2);
     $copies and (isdigit $copies) or next;
@@ -1421,7 +1422,8 @@ sub addFileToSEs {
   $result->{usedEnvelopes} = [];
   my $success = 0;
   my $counter = 0;
-  $sourcePFN = $self->checkLocalPFN($sourcePFN);
+  $sourcePFN = $self->checkLocalPFN($sourcePFN, $silent);
+
   my $size;
   my $method = AliEn::SE::Methods->new($sourcePFN)
     or $self->info("Error getting the method of '$sourcePFN'");
@@ -1432,19 +1434,20 @@ sub addFileToSEs {
     and $self->info("WARNING: The file $sourcePFN has size 0. Let's hope you wanted to upload an emty file !!!");
 
   foreach my $qos (keys %$qosTags) {
-    $self->notice("Uploading file based on Storage Discovery, requesting QoS=$qos, count=$qosTags->{$qos}");
+    $silent or $self->notice("Uploading file based on Storage Discovery, requesting QoS=$qos, count=$qosTags->{$qos}");
     ($result, $links) =
       $self->putOnDynamicDiscoveredSEListByQoSV2($result, $sourcePFN, $targetLFN, $size, $md5, $qosTags->{$qos}, $qos,
       $self->{CONFIG}->{SITE},
       \@excludedSes, $links);
   }
+  $self->info("OTRO");
   if ((scalar(@{$result->{usedEnvelopes}}) le 0) and (scalar(@ses) eq 0) and ($selOutOf le 0)) {
 
     # if dynamic was either not specified or not successfull (not even one time, thats the @{$result->{usedEnvelopes}}
     $selOutOf = 1;
     push @ses, $self->{CONFIG}
       ->{SE_FULLNAME}; # and there were not SEs specified in a static list, THEN push in at least the local static LDAP entry not to loose data
-    $self->notice(
+    $silent or $self->notice(
 "SE Discovery is not available, no static SE specification, using CONFIG->SE_FULLNAME as a fallback to try not to lose the file."
     );
     $totalCount = 1
@@ -1454,12 +1457,12 @@ sub addFileToSEs {
   ($selOutOf ne scalar(@ses))
     and $staticmessage =
     "Uploading file to @ses, with select $selOutOf out of " . scalar(@ses) . " (based on static SE specification).";
-  (scalar(@ses) gt 0) and $self->notice($staticmessage);
+  (scalar(@ses) gt 0) and ($silent or $self->notice($staticmessage));
 
   (scalar(@ses) gt 0)
     and ($result, $links) =
     $self->putOnStaticSESelectionListV2($result, $sourcePFN, $targetLFN, $size, $md5, $selOutOf, \@ses, $links);
-
+  $self->info("AQUI");
   (scalar(@{$result->{usedEnvelopes}}) gt 0) or $self->error("We couldn't upload any copy of the file.") and return;
 
   my @successEnvelopes;
@@ -1468,7 +1471,7 @@ sub addFileToSEs {
   } else {
     @successEnvelopes = $self->{CATALOG}->authorize("registerenvs", @{$result->{usedEnvelopes}});
   }
-
+$self->info("MAS??");
   (scalar(@successEnvelopes) gt 0) or return;
   if (scalar(@successEnvelopes) ne scalar(@{$result->{usedEnvelopes}})) {
     foreach my $env (@{$result->{usedEnvelopes}}) {
@@ -1481,7 +1484,7 @@ sub addFileToSEs {
 
   if ($totalCount eq scalar(@successEnvelopes)) {
     $success = 1;
-    $self->notice("OK. The file $targetLFN  was added to $totalCount SEs as specified. Superb!");
+    $silent or $self->notice("OK. The file $targetLFN  was added to $totalCount SEs as specified. Superb!");
   } elsif (scalar(@successEnvelopes) gt 0) {
     $self->notice("WARNING: The file $targetLFN was added to "
         . scalar(@successEnvelopes)
@@ -1628,7 +1631,6 @@ sub uploadFileAccordingToEnvelope {
 
   my $start = time;
   $self->debug(2, "We will upload the file $sourcePFN to $envelope->{se}");
-  $self->notice("We will upload the file $sourcePFN to $envelope->{se}");
 
   my $res = $self->{STORAGE}->RegisterInRemoteSE($sourcePFN, $envelope);
 
@@ -2366,7 +2368,6 @@ sub f_cp {
     or $self->info("Error parsing the ")
     and return;
   @_ = @ARGV;
-  my $source      = shift;
   my $target      = pop;
   my @srcFileList = @_;
   my @returnvals  = ();
@@ -2375,69 +2376,43 @@ sub f_cp {
     or $self->{LOGGER}->error("Catalogue", "Error: not enough arguments in cp!!\nUsage: cp <source> <target>\n")
     and return;
 
-  #Set user role -- if option is specified
-  #NOT BEING USED
-  my $user = $self->{ROLE};
-
-  $source = $self->{CATALOG}->GetAbsolutePath($source, 1);
+  
   $target = $self->{CATALOG}->GetAbsolutePath($target, 1);
 
-  my $sourceIsDir = $self->{CATALOG}->isDirectory($source);
-  my $targetIsDir = $self->{CATALOG}->isDirectory($target);
-  $sourceIsDir and $opt->{'k'} = 1;
+  foreach my $source (@srcFileList) {
+    $source = $self->{CATALOG}->GetAbsolutePath($source, 1);
+    my ($sourceLength, $basedir)=$self->{CATALOG}->copyDirectoryStructure($source, $target, join ("", keys(%$opt)))
+      or $self->info("Error copying the directory structure") and return;
 
-  #Populate list of source files
-  if ($opt->{'k'}) {
+    $self->debug(1,"Ready to do the find in $source (and $sourceLength and $basedir)");
+    my @files=$self->{CATALOG}->f_find('-q', "$source/", "*");
+    $source =~ /\/$/ or push @files, $source;
+    @files  or 
+      $self->info("Error getting the list of files under $source") and return;
 
-    #Find all files in source directory
-    $sourceIsDir
-      or $self->{LOGGER}->error("Catalogue", "Error: $source is not a directory")
-      and return;
-    ($target !~ /\/$/)
-      or $target =~ s!$!/!;
-    $self->execute("mkdir", "-p", $target)
-      or $self->{LOGGER}->error("Catalogue", "Could not make directory $target")
-      and return;
-    if ($targetIsDir) {
-      my $srcFil = "$source";
-      $srcFil =~ s!.*/(.*$)!$1!;
-      $self->execute("mkdir", "$target/$srcFil");
-      $target .= "/$srcFil";
-    }
-    @srcFileList = (@srcFileList, $self->{CATALOG}->ExpandWildcards("$source/%"));
+    #Do copy
+    foreach my $sourceFile (@files) {
+      my $targetFile=$basedir . substr($sourceFile, $sourceLength-1);
+      
+    
+      $self->info("Copying $sourceFile -> $targetFile");
+      my ($localfile) = $self->get($sourceFile, "-silent");
+      if ($localfile) {
 
-    #Remove directories from srcFileList
-  } else {
+        $self->{LOGGER}->keepAllMessages();
+        my $t = $self->addFile( $targetFile, $localfile);
+        my @out = @{$self->{LOGGER}->getMessages()};
+        $self->{LOGGER}->displayMessages();
+        $t or $self->info("Error copying the file: @out");
+        push @returnvals, $t;
+      }
 
-    #Append source file to srcFileList
-    push @srcFileList, $source;
-    @srcFileList = map { $_ = $self->{CATALOG}->GetAbsolutePath($_, 1) } @srcFileList;
-  }
-
-  #Do copy
-  foreach my $sourceFile (@srcFileList) {
-    my $targetFile;
-    if ($opt->{'k'} or $targetIsDir) {
-      my $fileName = "$sourceFile";
-      $fileName =~ s!.*/(.*$)!$1!;
-      $targetFile = $target . "/" . $fileName;
-    } else {
-      $targetFile = $target;
-    }
-    $self->info("Copying $sourceFile -> $targetFile");
-    my ($localfile) = $self->get($sourceFile);
-    if ($localfile) {
-      my $t = $self->execute("add", $targetFile, $localfile);
-      push @returnvals, $t;
-
-      #$t and last;
-    }
-
-    #Manage metadata if option specified
-    if ($opt->{'m'}) {
-      my $todoMetadata = {};
-      ($todoMetadata) = $self->{CATALOG}->getCPMetadata($sourceFile, $target, $targetFile, $todoMetadata);
-      $self->{LOGGER}->debug(1, "Metadata copied ---> " . Dumper($todoMetadata));
+     #Manage metadata if option specified
+      if ($opt->{'m'}) {
+        my $todoMetadata = {};
+        ($todoMetadata) = $self->{CATALOG}->getCPMetadata($sourceFile, $target, $targetFile, $todoMetadata);
+        $self->{LOGGER}->debug(1, "Metadata copied ---> " . Dumper($todoMetadata));
+      }
     }
   }
   return @returnvals;

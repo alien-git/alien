@@ -141,6 +141,7 @@ sub getSEListFromGUID {
   return $self->getSEList(@_);
 }
 
+
 =item C<deleteMirrorFromFile($lfn, $seName)>
 
 Deletes a mirror from a file

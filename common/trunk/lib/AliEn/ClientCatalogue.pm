@@ -171,6 +171,7 @@ sub AUTOLOAD {
     refreshSEDistance        => "refreshSEDistance",
     listSEDistance           => "listSEDistance",
     setSEStatus              => "setSEStatus",
+    copyDirectoryStructure   => "copyDirectoryStructure",
 
   };
   if ($ops->{$name}) {

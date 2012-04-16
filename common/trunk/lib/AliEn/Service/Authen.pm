@@ -164,8 +164,8 @@ sub doOperation {
   $self->{LOGGER}->keepAllMessages();
   $self->{UI}->{CATALOG}->{DISPPATH} = $directory;
   my @info;
-  if ($op =~ /authorize/) {
-    @info = $self->{UI}->{CATALOG}->authorize(@_, $jobID);
+  if ($op =~ /((authorize)|(copyDirectoryStructure))/) {
+    @info = $self->{UI}->{CATALOG}->$1(@_, $jobID);
   } else {
     @info = $self->{UI}->execute($op, @_);
   }
