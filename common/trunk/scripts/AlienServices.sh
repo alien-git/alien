@@ -481,7 +481,7 @@ ALIEN_CreateHTTPDConfiguration()
                fi
          mkdir -p ${ALIEN_HOME}/httpd/conf."$portNum"/
          echo "Creating the configuration file $CONF"
-         echo > $CONF <<EOF
+         cat  <<EOF > $CONF
 PidFile $logPath/httpd${tmpN}.pid
 Listen $portNum
 
@@ -507,7 +507,7 @@ MaxClients 50
 MaxRequestsPerChild 50
 </IfModule>
 EOF
-        [ "$SSL" == "1" ] && echo <<EOF >> $CONF 
+        [ "$SSL" == "1" ] && cat <<EOF >> $CONF 
 
 SSLengine on
 SSLSessionCache dbm:   /opt/alien/httpd/logs/ssl_gcache_data
@@ -520,11 +520,10 @@ SSLCACertificatePath /opt/alien/globus/share/certificates/
 
 EOF
 	     echo "<Location /> " >> $CONF
-
          [ "$SSL" == "1" ] && echo "SSLRequireSSL" >> $CONF
     
      
-         echo >> $CONF <<EOF
+         cat >> $CONF <<EOF
      
      SetHandler perl-script
      PerlHandler AliEn::Service
@@ -542,6 +541,7 @@ PerlPassEnv  ALIEN_DOMAIN
 PerlPassEnv  ALIEN_USER
 PerlPassEnv  ALIEN_HOME
 PerlPassEnv  ALIEN_ORGANISATION
+PerlPassEnv  ALIEN_LDAP_DN
 PerlPassEnv  GLOBUS_LOCATION
 PerlPassEnv  X509_USER_PROXY
 PerlPassEnv  X509_CERT_DIR
