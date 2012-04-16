@@ -1137,22 +1137,32 @@ sub f_verifySubjectRole {
     or print STDERR "You have to specify a role or <default> !\n" and return;
   my $subject;
   my @results;
-  $#results = -1;
+  
   my $rethash = ();
   $subject = join " ", @arg;
   $subject or print STDERR "You have to specify a subject!\n" and return;
   $self->info( "Verifying subject $subject");
-  my $done = $self->{DATABASE}->queryValue("select user from USERS_LDAP where dn=? and user=?", undef, {bind_values=>[$subject, $role]})
-    or return;
-  $DEBUG
-    and $self->debug(1, "The Subject $subject requested as role $role will be mapped to role $done");
-
-  if ($done) {
-    $rethash->{subject}     = $subject;
-    $rethash->{desiredrole} = $role;
-    $rethash->{role}        = $done;
-    push @results, $rethash;
+  my $dbUser = $self->{DATABASE}->queryValue("select user from USERS_LDAP where dn=? and user=?",
+      undef, {bind_values=>[$subject, $role]});
+    
+  if (! $dbUser){
+  	$self->info("Maybe we should check the roles");
+  	$dbUser= $self->{DATABASE}->queryValue("select user from USERS_LDAP join USERS_LDAP_ROLE using (user) where dn=? and role=?", 
+  	undef, {bind_values=>[$subject, $role]})
+  	or print STDERR "The dn '$subject' cannot connect as '$role'\n" and return;
+  	;	
+  	
   }
+  $DEBUG
+    and $self->debug(1, "The Subject $subject requested as role $role will be mapped to role $dbUser");
+
+
+  $rethash->{subject}     = $subject;
+  $rethash->{desiredrole} = $role;
+  $rethash->{role}        = $dbUser;
+  push @results, $rethash;
+  
+  $self->info("Authenticated!");
   return @results;
 }
 

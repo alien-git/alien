@@ -947,9 +947,12 @@ sub GetConfiguration {
 # ***************************************************************
 # get subject from SSL_CLIENT_S_DN
 # ***************************************************************
-sub getSubjectFromSSL {
-  my $other   = shift;
-  my $subject = "";
+
+sub checkAuthentication {
+  my $self = shift;
+  my $role = shift;
+  $self->{HOST} =~ /^https/ or return;
+
 
   if ($ENV{SSL_CLIENT_S_DN}) {
     $self->info("SSL_CLIENT_S_DN is : $ENV{SSL_CLIENT_S_DN}");
@@ -961,59 +964,28 @@ sub getSubjectFromSSL {
     $subject =~ s/(\/CN=(((limited )?proxy)|(\d+)))+$//;
     $self->debug(1, "The DN from subject is : $subject");
 
-    my ($info) = AliEn::Util::returnCacheValue($self, $subject);
-    if ($info and ${$info}[0]) {
-      return @$info;
-    }
 
-    if ($self->{addbh}) {
-      my $uid =
-        $self->{addbh}->queryValue("SELECT user from USERS_LDAP where dn=?", undef, {bind_values => [$subject]});
+    if ($self->{UI}) {
+      my ($uid) = $self->{UI}->execute("verifySubjectRole", $role, $subject);
       if (!$uid) {
         $self->info("Failure in translating $subject into $uid");
         return;
       }
 
       $self->info("***THE uid for $subject is $uid");
-
-      my $roles =
-        $self->{addbh}->queryColumn("select role from USERS_LDAP_ROLE where user=?", undef, {bind_values => [$uid]});
-
-      if ($roles) {
-        $self->info("***THE roles for $subject and $uid is : @$roles");
-
-        AliEn::Util::setCacheValue($self, $subject, [ $uid, $subject, \@$roles ]);
-        return ($uid, $subject, $roles);
-
-      } else {
-        print STDERR "User $uid doesn't have any roles\n";
-
-        #return values
-        return;
-      }
+      use Data::Dumper;
+      $self->info(Dumper($uid));
+      $self->info("About $role,information in database is $uid ,$subject with roles ");
+      return 1; 
 
     } else {
-      print STDERR "Error getting the admin database.\n";
+      print STDERR "Error: we don't have an instance of the catalog.\n";
       return;
     }
   } else {
     print STDERR "There is no environment SSL_CLIENT_S_DN.\n";
     return;
   }
-
-}
-
-sub checkAuthentication {
-  my $self = shift;
-  my $role = shift;
-  $self->{HOST} =~ /^https/ or return;
-
-  my ($uid, $subject, $roles) = $self->getSubjectFromSSL() or return;
-  $self->info("About $role,information in database is $uid ,$subject with roles-- @$roles");
-
-  grep (/^$role$/, $uid, @$roles) and return 1;
-
-  return;
 }
 
 return 1;
