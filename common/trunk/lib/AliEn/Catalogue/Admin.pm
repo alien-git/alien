@@ -494,14 +494,6 @@ sub resyncLDAP {
         $self->{DATABASE}->do("insert into USERS_LDAP( $userColumn ,dn, up)  values (?,?,1)",
           {bind_values => [ $user, $dn ]});
       }
-      my $ssh = $entry->get_value('sshkey');
-      # $addbh->do("update TOKENS set SSHkey=? where username=?", {bind_values => [ $ssh, $user ]});
-       if ($ssh){
-        $self->{DATABASE}->do("update TOKENS set SSHkey=? where username=?", {bind_values => [ $ssh, $user ]});
-      }else{
-        $self->{DATABASE}->do("update TOKENS set SSHkey=NULL  where username=?", {bind_values => [ $user ]});
-      }
-
     }
     $self->info("And now, the roles");
     $mesg = $ldap->search(

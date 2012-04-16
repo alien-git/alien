@@ -218,7 +218,7 @@ sub LFN_createCatalogueTables {
         sitedistance => "float not null",
       },
       undef,
-      ['UNIQUE INDEX(sitename,seNumber), PRIMARY KEY(sitename,seNumber), INDEX(sitename), INDEX(seNumber)']
+      [ 'PRIMARY KEY(sitename,seNumber)', 'INDEX(sitename)', 'INDEX(seNumber)']
     ],
 
     FQUOTAS => [
@@ -302,9 +302,12 @@ sub checkConstantsTable {
   return $self->do("INSERT INTO CONSTANTS values ('MaxDir', 0)");
 }
 
+# options: 
+#
 sub checkLFNTable {
   my $self  = shift;
   my $table = shift;
+  my $options=shift || "";
   defined $table or $self->info("Error: we didn't get the table number to check") and return;
 
   $table =~ /^\d+$/ and $table = "L${table}L";
@@ -330,9 +333,10 @@ sub checkLFNTable {
     broken     => 'smallint(1) default 0 not null ',
     jobid      => "int(11)",
   );
-
-  $self->checkTable(${table}, "entryId", \%columns, 'entryId',
-    [ 'UNIQUE INDEX (lfn)', "INDEX(dir)", "INDEX(guid)", "INDEX(type)", "INDEX(ctime)", "INDEX(guidtime)" ])
+  my @index=('UNIQUE INDEX (lfn)', "INDEX(dir)", "INDEX(guid)", "INDEX(type)", "INDEX(ctime)", "INDEX(guidtime)" );
+  $options=~ /noindex/ and @index=();
+  
+  $self->checkTable(${table}, "entryId", \%columns, 'entryId',\@index )
     or return;
   $self->checkTable("${table}_broken", "entryId", {entryId => "bigint(11) NOT NULL  primary key"}) or return;
   $self->checkTable("${table}_QUOTA", "user",
@@ -340,7 +344,7 @@ sub checkLFNTable {
     undef, ['INDEX user_ind (user)'],)
     or return;
 
-  $self->optimizeTable(${table});
+  $options=~ /noindex/ or $self->optimizeTable(${table});
 
   #  $self->do("optimize table ${table}_QUOTA");
 
@@ -876,10 +880,6 @@ sub removeDirectory {
   my $count = 0;
   foreach my $entry (@$entries) {
     $self->info("Deleting all the entries from  table $entry->{tableName} and lfn=$entry->{lfn}");
-#    my ($db2, $path2) = $self->reconnectToIndex($db->{hostIndex}, $path);
-#    $db2
-#      or $self->info( "ERROR: Could not reconnect to host")
-#      and return;
     my $tmpPath = "$path/";
     $tmpPath =~ s{^$entry->{lfn}}{};
     $count += (
@@ -912,13 +912,9 @@ sub removeDirectory {
         or $self->info( "Error getting the tables for '$path'")
         and return;
       my $db = ${$entries}[0];
-      my ($newdb, $path2) = $self->reconnectToIndex($db->{hostIndex}, $parentdir);
-      $newdb
-        or $self->info( "Error reconecting to index")
-        and return;
       my $tmpPath = "$path/";
       $tmpPath =~ s{^$db->{lfn}}{};
-      $newdb->delete("L$db->{tableName}L", "lfn='$tmpPath'");
+      $self->delete("L$db->{tableName}L", "lfn='$tmpPath'");
     }
   }
 
@@ -1289,12 +1285,9 @@ sub copyDirectory {
 
   my $user = $options->{user} || $self->{VIRTUAL_ROLE};
 
-  #Before doing this, we have to make sure that we are in the right database
-  my ($targetDB, $Path2) = $self->reconnectToIndex($targetIndex) or return;
-
   my $sourceLength = length($source) + 1;
 
-  my $targetName = $targetDB->existsLFN($target);
+  my $targetName = $self->existsLFN($target);
   if ($targetName) {
     if ($targetName !~ m{/$}) {
       $self->info("cp: cannot overwrite non-directory `$target' with directory `$source'", "222");
@@ -1309,71 +1302,31 @@ sub copyDirectory {
   my $beginning = $target;
   $beginning =~ s/^$targetLFN//;
 
-  my $select =
-      "insert into $targetTable(lfn,ownerId,gownerId,"
-    . $self->reservedWord("size")
-    . ",type,guid,guidtime,perm,dir) select distinct concat ('$beginning',substr(concat('";
-  my $select2 =
-      "', t1.lfn), $sourceLength)) as lfn, '$user', '$user',t1."
-    . $self->reservedWord("size")
-    . ",t1.type,t1.guid,t1.guidtime,t1.perm,-1 ";
-  my @values = ();
+	my $sizeName=$self->reservedWord("size");
 
   my $binary2string = $self->binary2string;
   $binary2string =~ s/guid/t1.guid/;
   foreach my $entry (@$sourceHosts) {
     $DEBUG and $self->debug(1, "Copying from $entry to $targetIndex and $targetTable");
-    my ($db, $Path2) = $self->reconnectToIndex($entry->{hostIndex});
-
+    
     my $tsource = $source;
     $tsource =~ s{^$entry->{lfn}}{};
-    my $like = "t1.replicated=0";
+    my $like = "";
 
     my $table = "L$entry->{tableName}L";
-    my $join =
-"$table t1,$table t2 where t2.type='d' and (t1.dir=t2.entryId or t1.entryId=t2.entryId)  and t2.lfn like '$tsource%'";
-    if ($targetIndex eq $entry->{hostIndex}) {
-      $options->{k} and $like .= " and t1.lfn!='$tsource'";
-      $DEBUG and $self->debug(1, "This is easy: from the same database");
+    $options->{k} and $like .= " and t1.lfn!='$tsource'";
+    $DEBUG and $self->debug(1, "This is easy: from the same database");
 
       # we want to copy the lf, which in fact would be something like
       # substring(concat('$entry->{lfn}', lfn), length('$sourceIndex'))
-      $self->do("$select$entry->{lfn}$select2 from $join and $like");
+    $self->do("insert into $targetTable(lfn,ownerId,gownerId,$sizeName,type,guid,guidtime,perm,dir)
+     select distinct concat ('$beginning',substr(concat('$entry->{lfn}', t1.lfn), $sourceLength)) as lfn,
+      '$user', '$user',t1.$sizeName,t1.type,t1.guid,t1.guidtime,t1.perm,-1  
+      from $table t1,$table t2 where t2.type='d' and (t1.dir=t2.entryId or t1.entryId=t2.entryId) 
+       and t2.lfn like '$tsource%' and t1.replicated=0 $like");
 
-    } else {
-      $DEBUG and $self->debug(1, "This is complicated: from another database");
-      my $query =
-          "SELECT distinct concat('$beginning', substr(concat('$entry->{lfn}',t1.lfn), $sourceLength )) as lfn, t1."
-        . $self->reservedWord("size")
-        . ",t1.type, $binary2string  as guid ,t1.perm FROM $join and $like";
-      $options->{k}
-        and $query =
-        "select * from ($query) d where lfn!=concat('$beginning', substr('$entry->{lfn}$tsource', $sourceLength ))";
-      my $entries = $db->query($query);
-      foreach my $files (@$entries) {
-        my $guid = "NULL";
-        (defined $files->{guid}) and $guid = "$files->{guid}";
-
-        $files->{lfn} =~ s{^}{};
-        $files->{lfn} =~ s{^$targetLFN}{};
-        push @values,
-" ( '$files->{lfn}',  '$user', '$user', '$files->{size}', '$files->{type}', string2binary('$guid'), string2date('$guid'),'$files->{perm}', -1)";
-      }
-    }
   }
 
-  if ($#values > -1) {
-    my $insert =
-        "INSERT into $targetTable(lfn,ownerId,gownerId,"
-      . $targetDB->reservedWord("size")
-      . ",type,guid,guidtime,perm,dir) values ";
-
-    #$insert .= join (",", @values);
-    #$targetDB->do($insert);
-    foreach (@values) {
-      $targetDB->do($insert . " " . $_);
-    }
-  }
 
   $target =~ s{^$targetLFN}{};
   my $targetParent = $target;
@@ -1382,16 +1335,16 @@ sub copyDirectory {
 
   #and now, we should update the entryId of all the new entries
   #This query is divided in a subquery to profit from the index with the column dir
-  my $entries = $targetDB->query(
-"select * from (SELECT lfn, entryId from $targetTable where dir=-1 or lfn='$target' or lfn='$targetParent') dd where lfn like '$target\%/' or lfn='$target' or lfn='$targetParent'"
-  );
-  foreach my $entry (@$entries) {
-    $DEBUG and $self->debug(1, "Updating tbe entry $entry->{lfn}");
-    my $update = "update $targetTable set dir=$entry->{entryId} where dir=-1 and "
-      . $self->regexp("lfn", "^$entry->{lfn}\[^/]+/?\$");
-    $targetDB->do($update);
-
-  }
+#  my $entries = $self->query(
+#"select * from (SELECT lfn, entryId from $targetTable where dir=-1 or lfn='$target' or lfn='$targetParent') dd where lfn like '$target\%/' or lfn='$target' or lfn='$targetParent'"
+#  );
+#  foreach my $entry (@$entries) {
+#    $DEBUG and $self->debug(1, "Updating tbe entry $entry->{lfn}");
+#    my $update = "update $targetTable set dir=$entry->{entryId} where dir=-1 and "
+#      . $self->regexp("lfn", "^$entry->{lfn}\[^/]+/?\$");
+##    $self->do($update);
+#
+#  }
 
   $DEBUG and $self->debug(1, "Directory copied!!");
   return 1;
