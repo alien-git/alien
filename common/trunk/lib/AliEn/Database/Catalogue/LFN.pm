@@ -1303,7 +1303,7 @@ sub copyDirectoryStructure {
      ($targetName) and return $sourceLength, $targetName;
      #copying to a file: the name of the file will change
      $self->info("AND THE directory does not exit");
-     return length($sourceName)+1, $target;
+     return length($sourceName)+1, $target, $sourceName;
   }
   $target =~ s{/?$}{/};
 
@@ -1344,7 +1344,7 @@ sub copyDirectoryStructure {
   (reverse(substr(substr(reverse(l1.lfn), 2), locate('/',substr(reverse(l1.lfn),2)))) =l2.lfn) 
   set l1.dir=l2.entryid where l1.dir=0");
   $DEBUG and $self->debug(1, "Directory copied!!");
-  return $sourceLength, $target;
+  return $sourceLength, $target, $sourceName;
 }
 
 =item C<moveLFNs($lfn, $toTable)>

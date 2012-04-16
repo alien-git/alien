@@ -162,15 +162,17 @@ sub redirect {
   return 1;
 }
 
+# KEEP_MESSAGES is a counter, so that we can call it several times, and only if the number of times
+# that we call displayMessages is the same, we will display the messages
 sub keepAllMessages {
   my $self = shift;
-  $self->{KEEP_MESSAGES} = 1;
+  $self->{KEEP_MESSAGES} = $self->{KEEP_MESSAGES}+1;
   $self->{MESSAGES}      = [];
 }
 
 sub displayMessages {
   my $self = shift;
-  $self->{KEEP_MESSAGES} = 0;
+  $self->{KEEP_MESSAGES} = $self->{KEEP_MESSAGES}-1;
   $self->{MESSAGES}      = [];
 }
 

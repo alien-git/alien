@@ -283,7 +283,7 @@ sub get {
   @_ = @ARGV;
   my $file      = shift;
   my $localFile = shift;
-
+  
   defined $options{l} and $file      = $options{l};
   defined $options{f} and $file      = $options{f};
   defined $options{c} and $localFile = $file;
@@ -1462,7 +1462,7 @@ sub addFileToSEs {
   (scalar(@ses) gt 0)
     and ($result, $links) =
     $self->putOnStaticSESelectionListV2($result, $sourcePFN, $targetLFN, $size, $md5, $selOutOf, \@ses, $links);
-  $self->info("AQUI");
+      
   (scalar(@{$result->{usedEnvelopes}}) gt 0) or $self->error("We couldn't upload any copy of the file.") and return;
 
   my @successEnvelopes;
@@ -1471,7 +1471,7 @@ sub addFileToSEs {
   } else {
     @successEnvelopes = $self->{CATALOG}->authorize("registerenvs", @{$result->{usedEnvelopes}});
   }
-$self->info("MAS??");
+
   (scalar(@successEnvelopes) gt 0) or return;
   if (scalar(@successEnvelopes) ne scalar(@{$result->{usedEnvelopes}})) {
     foreach my $env (@{$result->{usedEnvelopes}}) {
@@ -2381,12 +2381,13 @@ sub f_cp {
 
   foreach my $source (@srcFileList) {
     $source = $self->{CATALOG}->GetAbsolutePath($source, 1);
-    my ($sourceLength, $basedir)=$self->{CATALOG}->copyDirectoryStructure($source, $target, join ("", keys(%$opt)))
+    my ($sourceLength, $basedir, $sourceFullName)=
+       $self->{CATALOG}->copyDirectoryStructure($source, $target, join ("", keys(%$opt)))
       or $self->info("Error copying the directory structure") and return;
 
     $self->debug(1,"Ready to do the find in $source (and $sourceLength and $basedir)");
     my @files=$self->{CATALOG}->f_find('-q', "$source/", "*");
-    $source =~ /\/$/ or push @files, $source;
+    $sourceFullName =~ /\/$/ or push @files, $sourceFullName;
     @files  or 
       $self->info("Error getting the list of files under $source") and return;
 
@@ -2395,17 +2396,20 @@ sub f_cp {
       my $targetFile=$basedir . substr($sourceFile, $sourceLength-1);
       
     
-      $self->info("Copying $sourceFile -> $targetFile");
+      $self->info("Copying $sourceFile -> $targetFile (without messages)");
+      $self->{LOGGER}->keepAllMessages();
+
       my ($localfile) = $self->get($sourceFile, "-silent");
+
+      my $t;
       if ($localfile) {
 
-        $self->{LOGGER}->keepAllMessages();
-        my $t = $self->addFile( $targetFile, $localfile);
-        my @out = @{$self->{LOGGER}->getMessages()};
-        $self->{LOGGER}->displayMessages();
-        $t or $self->info("Error copying the file: @out");
+        $t = $self->addFile( $targetFile, $localfile);
         push @returnvals, $t;
       }
+      my @out = @{$self->{LOGGER}->getMessages()};
+      $self->{LOGGER}->displayMessages();
+      $t or $self->info("Error copying the file: @out");
 
      #Manage metadata if option specified
       if ($opt->{'m'}) {
