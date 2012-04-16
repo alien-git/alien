@@ -2384,7 +2384,6 @@ sub f_cp {
     my ($sourceLength, $basedir, $sourceFullName)=
        $self->{CATALOG}->copyDirectoryStructure($source, $target, join ("", keys(%$opt)))
       or $self->info("Error copying the directory structure") and return;
-
     $self->debug(1,"Ready to do the find in $source (and $sourceLength and $basedir)");
     my @files=$self->{CATALOG}->f_find('-q', "$source/", "*");
     $sourceFullName =~ /\/$/ or push @files, $sourceFullName;

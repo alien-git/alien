@@ -1300,7 +1300,7 @@ sub copyDirectoryStructure {
   if ($sourceName !~ /\/$/){
     $self->info("We are copying a file");
       #copying to a directory: the name of the file will be the same
-     ($targetName) and return $sourceLength, $targetName;
+     ($targetName) and return $sourceLength, $targetName, $sourceName;
      #copying to a file: the name of the file will change
      $self->info("AND THE directory does not exit");
      return length($sourceName)+1, $target, $sourceName;
