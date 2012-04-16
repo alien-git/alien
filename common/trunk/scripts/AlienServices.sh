@@ -548,19 +548,53 @@ PerlPassEnv  X509_CERT_DIR
 PerlConfigRequire $ALIEN_HOME/httpd/conf.$portNum/startup.pl
 
 EOF
-         cp $ALIEN_ROOT/httpd/conf/startup.pl $ALIEN_HOME/httpd/conf."$portNum"/startup.pl
-         
-         sed -e "s#my @services=.*#my @services=qw( $startupFormat ) ;#" $ALIEN_HOME/httpd/conf."$portNum"/startup.pl > /tmp/startup.$$
-         cp /tmp/startup.$$ $ALIEN_HOME/httpd/conf."$portNum"/startup.pl
-         
          if [ $tmpN == "JobBroker" ] || [ $tmpN == "Broker" ]
          then
-         	sed -e "s#my @services=.*#my @services=qw( Broker::Job ) ;#" $ALIEN_HOME/httpd/conf."$portNum"/startup.pl > /tmp/startup.$$
-         	cp /tmp/startup.$$ $ALIEN_HOME/httpd/conf."$portNum"/startup.pl
+         	startupFormat="Broker::Job"
          fi
 
-          rm /tmp/startup.$$
 
+         cat > $ALIEN_HOME/httpd/conf."$portNum"/startup.pl <<EOF
+use strict;
+use Apache::SOAP;
+use AliEn::Logger;
+
+my @services=qw( $startupFormat ) ;
+
+my \$userID = getpwuid(\$<);
+
+
+\$ENV{ALIEN_HOME} = ( \$ENV{ALIEN_HOME} || "/home/\$userID/.alien" );
+\$ENV{ALIEN_ROOT} = ( \$ENV{ALIEN_ROOT} || "/home/\$userID/alien") ;
+\$ENV{ALIEN_USER} = ( \$ENV{ALIEN_USER} || "\$userID" );
+\$ENV{ALIEN_ORGANISATION} = (\$ENV{ALIEN_ORGANISATION} ||  "ALICE" );
+\$ENV{GLOBUS_LOCATION} = ( \$ENV{GLOBUS_LOCATION} || "\$ENV{ALIEN_ROOT}/globus" ) ;
+\$ENV{X509_USER_PROXY} = ( \$ENV{X509_USER_PROXY} || "/tmp/x509up_u\$<" );
+\$ENV{X509_CERT_DIR} = ( \$ENV{X509_CERT_DIR} || "\$ENV{GLOBUS_LOCATION}/share/certificates" );
+
+
+my \$l=AliEn::Logger->new();
+\$l->infoToSTDERR();
+
+foreach my \$s (@services) {
+  print "Checking \$s\n";
+  my \$name="AliEn::Service::\$s";
+  eval {
+    eval "require \$name" or die("Error requiring the module: \$@");
+    my \$serv=\$name->new() ;
+    \$serv or exit(-2);
+  };
+  if (\$@) {
+    print "NOPE!!\n \$@\n";
+
+    exit(-2);
+  }
+  \$l->info("HTTPD", "Starting \$s on $hostAddress:$portNum");
+
+}
+
+print "ok\n";        
+EOF
 		fi
 
    if [ ! -f $CONF ] || [ ! -f $ALIEN_HOME/httpd/conf."$portNum"/startup.pl ]
