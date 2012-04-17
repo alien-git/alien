@@ -510,13 +510,13 @@ EOF
         [ "$SSL" == "1" ] && cat <<EOF >> $CONF 
 
 SSLengine on
-SSLSessionCache dbm:   /opt/alien/httpd/logs/ssl_gcache_data
-SSLCertificateFile    /home/bits/.alien/globus/hostcert.pem
-SSLCertificateKeyFile  /home/bits/.alien/globus/hostkey.pem
+SSLSessionCache dbm:   $ALIEN_ROOT/httpd/logs/ssl_gcache_data
+SSLCertificateFile    $ALIEN_HOME/globus/hostcert.pem
+SSLCertificateKeyFile  $ALIEN_HOME/globus/hostkey.pem
 SSLVerifyClient require
 SSLVerifyDepth  10
 SSLOptions +StdEnvVars
-SSLCACertificatePath /opt/alien/globus/share/certificates/
+SSLCACertificatePath $ALIEN_ROOT/globus/share/certificates/
 
 EOF
 	     echo "<Location /> " >> $CONF
