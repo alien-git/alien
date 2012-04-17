@@ -485,10 +485,12 @@ ALIEN_CreateHTTPDConfiguration()
 PidFile $logPath/httpd${tmpN}.pid
 Listen $portNum
 
-LoadModule perl_module     modules/mod_perl.so
 
 ErrorLog $logPath/error_log
 ServerRoot $ALIEN_ROOT
+
+LoadModule perl_module     modules/mod_perl.so
+
 # Possible values include: debug, info, notice, warn, error, crit,
 # alert, emerg.
 #
