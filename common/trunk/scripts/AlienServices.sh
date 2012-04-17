@@ -487,7 +487,7 @@ Listen $portNum
 
 
 ErrorLog $logPath/error_log
-ServerRoot $ALIEN_ROOT
+ServerRoot $ALIEN_ROOT/httpd/
 
 LoadModule perl_module     modules/mod_perl.so
 
