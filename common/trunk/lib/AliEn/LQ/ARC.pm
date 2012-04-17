@@ -167,36 +167,50 @@ sub getOutputFile {
 }
 
 sub getAllBatchIds {
-  my $self = shift;
-#  my $jobIds = $self->{TXT}->queryColumn("SELECT batchId FROM JOBS");
-  my @queuedJobs = ();
-#  foreach (@$jobIds) {
-#     $_ or next;
-     open LB,"$ENV{CE_ARC_LOCATION}/bin/ngstat -a |" or next;
-     my @output = <LB>;
-     close LB;
-	 print "\n START DEBUGGING \n";
-     my ($id, $status);
-     foreach my $entry (@output){
-        $entry =~ /^Job (gsiftp.*)$/ and $id=$1 and next;
+    my $self = shift;
+    my @queuedJobs = ();
+    
+    open LB,"$ENV{CE_ARC_LOCATION}/bin/ngstat -a |" or next;
+    my @output = <LB>;
+    close LB;
+
+    my ($id, $status, @completedJobs);
+
+    foreach my $entry (@output) {
+        $entry =~ /^Job (gsiftp.*)$/ and $id = $1 and next;
         if ($entry=~ /^  Status:\s*(\S+)/){
-          $status=$1;
-          $id or print "Error found a status, but there is no id\n" and next;
-          print "Id $id has status $status\n";
-	  if ($status =~ /^((FINISHED)|(FAILED))$/){
-            print "Clean up $id\n";
-#	    $self->{LOGGER}->{LEVEL} and system("$ENV{CE_ARC_LOCATION}/bin/ngclean $id");
-	  }
-          if ($status !~ /^(CANCELING)|(FINISHED)|(FINISHING)|(DELETED)|(FAILED)$/){
-            print "The job is queued ($status)\n";
-	    push @queuedJobs, $id;
-          }	
-	  undef $id;
+            $status = $1;
+            $id or $self->warning("Error found a status, but there is no id") and next;
+            $self->debug(1,"Id $id has status $status");
+
+            # Remove completed jobs, unless we are in debug mode
+	        if ($status =~ /^((FINISHED)|(FAILED))$/ and not $self->{LOGGER}->getDebugLevel()){
+                push @completedJobs, $id;
+
+                # Removing many jobs at a time is faster than one at a time,
+                # but too many may result in "too long argument list" errors.
+                if (@completedJobs >= 500) {
+                    $self->info($#completedJobs + 1 . " completed jobs will be removed");
+                    system("$ENV{CE_ARC_LOCATION}/bin/ngclean " . join(" ", @completedJobs));
+                    @completedJobs = ();
+                }
+            }
+	  
+            if ($status !~ /^(CANCELING)|(FINISHED)|(FINISHING)|(DELETED)|(FAILED)$/){
+                $self->debug(1,"The job is queued ($status)");
+	            push @queuedJobs, $id;
+            }
+	        undef $id;
         }       
-     }
-#  }
-  print "The queuedJobs are @queuedJobs\n";
-  return @queuedJobs;
+    }
+
+    if (@completedJobs and not $self->{LOGGER}->getDebugLevel()) {
+        $self->info($#completedJobs + 1 . " completed jobs will be removed");
+	    system("$ENV{CE_ARC_LOCATION}/bin/ngclean " . join(" ", @completedJobs));
+    }
+
+    $self->info("Found " . ($#queuedJobs + 1) . " queued jobs");
+    return @queuedJobs;
 }
 
 sub getNumberRunning() {
