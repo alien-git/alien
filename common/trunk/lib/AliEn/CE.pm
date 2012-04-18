@@ -3422,7 +3422,6 @@ sub resubmitCommandInternal {
     or $self->{LOGGER}->error("CE", "In resubmitCommand error during execution of database query")
     and return (-1, "during execution of database query");
 
-  $self->info("Tenemos id\n");
 
   ($data =~ /^$user\@/)
     or ($user eq "admin")

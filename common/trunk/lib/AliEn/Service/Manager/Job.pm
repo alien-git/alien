@@ -560,25 +560,11 @@ Type=\"Job\";
 
   if (!$ok) {
     my $error = ($AliEn::Logger::ERROR_MSG || "updating job $queueId from $oldStatus to $status");
-    $self->{LOGGER}->error("JobManager", "In changeStatusCommand $error");
+    $self->info("In changeStatusCommand $error");
     return (-1, $error);
   }
 
   $self->info("Command $queueId updated!");
-
-  # lock queues with submission errors ....
-  if ($status eq "ERROR_S") {
-    $self->_setSiteQueueBlocked($site)
-      or $self->{LOGGER}->error("JobManager", "In changeStatusCommand cannot block site $site for ERROR_S");
-  } elsif ($status eq "ASSIGNED") {
-    my $sitestat = $self->getSiteQueueStatistics($site);
-    if (@$sitestat) {
-      if (@$sitestat[0]->{'ASSIGNED'} > 5) {
-        $self->_setSiteQueueBlocked($site)
-          or $self->{LOGGER}->error("JobManager", "In changeStatusCommand cannot block site $site for ERROR_S");
-      }
-    }
-  }
 
   return 1;
 }

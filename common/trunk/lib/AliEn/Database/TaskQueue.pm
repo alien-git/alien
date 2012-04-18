@@ -459,7 +459,7 @@ sub deleteFromQueue {
 sub updateJob {
   my $self = shift;
   my $id   = shift
-    or $self->{LOGGER}->error("TaskQueue", "In updateJob job id is missing")
+    or $self->info( "In updateJob job id is missing")
     and return;
   my $set = shift;
   my $opt = shift || {};

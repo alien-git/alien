@@ -270,18 +270,13 @@ sub changeStatus {
   foreach my $data (split (/\s+/, $self->{VOs})) {
     my ($org, $cm, $id, $token)=split("#", $data);
     $self->info("Contacting $org to change to $status");
-    my $counter=0;
-    while(!$done  and $counter<10 ) {
-      $done =    $self->{SOAP}->CallSOAP("Manager_Job_$org", "changeStatusCommand",  $id, $token, $oldstatus, $status, $self->{CONFIG}->{CE_FULLNAME}, @_ );
+    $done = $self->{SOAP}->CallSOAP("Manager_Job_$org", "changeStatusCommand", "ALIEN_SOAP_RETRY", $id, $token, $oldstatus, $status, $self->{CONFIG}->{CE_FULLNAME}, @_ );
     
-      if ($done){
-      	$self->{STATUS}=$status;
-      	last;
-      }
-      sleep(5);
-      $self->info("Error changing the status. Let's sleep and try again");
-      $counter ++;
+    if (!$done){
+      $self->info("Error changing the status! ");
+      next;
     }
+    $self->{STATUS}=$status;
     
     $self->info("Putting the status of $id to $status (@print)");
     if ($self->{MONITOR}) {
