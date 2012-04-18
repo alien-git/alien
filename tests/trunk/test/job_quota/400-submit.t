@@ -11,10 +11,6 @@ BEGIN { plan tests => 1 }
 
 print "Connecting to database...";
 my $host = Net::Domain::hostfqdn();
-my $d =
-   AliEn::Database::TaskQueue->new({DRIVER => "mysql", HOST => "$host:3307", PASSWD=> "pass" , DB => "processes", "ROLE", "admin", })
-  or print "Error connecting to the database\n" and exit(-2);
-
 {
   $ENV{ALIEN_TESTDIR} or $ENV{ALIEN_TESTDIR} = "/home/alienmaster/AliEn/t";
   push @INC, $ENV{ALIEN_TESTDIR};
@@ -50,7 +46,7 @@ my $d =
   print "-1. DONE\n\n";
 
   print "Reconnecting to Database processes \n";
-  $d = AliEn::Database::TaskQueue->new({DRIVER => "mysql", HOST => "$host:3307", PASSWD=> "pass" , DB => "processes", "ROLE", "admin", })
+  $d = AliEn::Database::TaskQueue->new({ PASSWD=> "pass" , "ROLE"=> "admin", })
     or print "Error connecting to the database\n" and exit(-2);
   
   print "0. Set the job quotas (maxTotalRunningTime, 2000, maxUnfinishedJobs, 2000, maxparallelJobs, 2000)\n";

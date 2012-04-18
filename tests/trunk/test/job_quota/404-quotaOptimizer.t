@@ -3,17 +3,14 @@ use strict;
 use Test;
 
 use Data::Dumper;
-use AliEn::Database::TaskPriority;
+use AliEn::Database::TaskQueue;
 use AliEn::Service::Optimizer::Job::Quota;
 use Net::Domain qw(hostname hostfqdn hostdomain);
 
 use AliEn::UI::Catalogue::LCM::Computer;
 BEGIN { plan tests => 1 }
-
-print "Connecting to database...";
-my $host = Net::Domain::hostfqdn();
-my $d = AliEn::Database::TaskPriority->new({DRIVER => "mysql", HOST => "$host:3307", PASSWD=> "pass" , DB => "processes", "ROLE", "admin", })
-  or print "Error connecting to the database\n" and exit(-2);
+ $ENV{ALIEN_JOBAGENT_RETRY}=1;
+my $host=Net::Domain::hostfqdn();
 
 {
   $ENV{ALIEN_TESTDIR} or $ENV{ALIEN_TESTDIR} = "/home/alienmaster/AliEn/t";
@@ -48,7 +45,7 @@ my $d = AliEn::Database::TaskPriority->new({DRIVER => "mysql", HOST => "$host:33
   assertEqual($d, $user, "maxNbFiles",   10000)    or exit(-2);
   print "0. DONE\n\n";
   print "Reconnecting to Database processes \n";
-  $d = AliEn::Database::TaskPriority->new({DRIVER => "mysql", HOST => "$host:3307", PASSWD=> "pass" , DB => "processes", "ROLE", "admin", })
+  $d = AliEn::Database::TaskQueue->new({ PASSWD=> "pass" , "ROLE"=> "admin" })
     or print "Error connecting to the database\n" and exit(-2);
 
   addFile(
