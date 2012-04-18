@@ -94,7 +94,7 @@ sub getJobAgent {
 	if ($entry->{fileBroker}) {
 		my $split = $self->{DB}->queryValue("select split from QUEUE where queueid=?", undef, {bind_values => [$queueid]});
 		$split
-			or $self->info("Error getting the masterjob of $queueid")
+			or $self->info("Error getting the masterjob of $queueid, and doing split per file")
 			and return {execute => [ -2, "No jobs waiting in the queue" ]};
 		$self->info("****AND FOR THIS JOB WE HAVE TO CALCULATE THE INPUTDATA");
 		$jdl = $self->findFilesForFileBroker($split, $queueid, $jdl, $params->{site}, $params->{splitFiles});

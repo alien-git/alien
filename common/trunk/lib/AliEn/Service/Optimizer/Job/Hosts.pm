@@ -88,7 +88,7 @@ sub  checkHosts {
 
     $set->{'maxqueued'}  = $newQueued;
     $set->{'maxrunning'} = $newJobs;
-    my $queueload = $self->{DB}->getFieldFromSiteQueue($data->{cename},"( RUNNING + QUEUED + ASSIGNED + STARTED + IDLE + INTERACTIV + SAVING ) as LOADALL");
+    my $queueload = $self->{DB}->getFieldFromSiteQueue($data->{cename},"( RUNNING + ASSIGNED + STARTED + IDLE + INTERACTIV + SAVING ) as LOADALL");
     my $runload = $self->{DB}->getFieldFromSiteQueue($data->{cename},"( RUNNING + STARTED + INTERACTIV + SAVING ) as LOADALL");
     defined $queueload or 
       $self->info("No info of the queued/running processes for site $data->{cename} of SITEQUEUES table");

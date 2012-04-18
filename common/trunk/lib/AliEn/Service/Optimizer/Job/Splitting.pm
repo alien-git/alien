@@ -549,6 +549,7 @@ sub SubmitSplitJob {
       $job_ca->set_expression("InputData", $input);
       $self->{CATALOGUE}->{QUEUE}->checkRequirements($job_ca) or next;
     } elsif($jobs->{$pos}->{fileBroker}){
+      $self->info("Doing the split according to FileBrokering!");
     	$job_ca->set_expression("FileBroker", 1);
        	    	
     }

@@ -1171,7 +1171,7 @@ sub extractFieldsFromReq {
   $text =~ s/other.LocalDiskSpace\s*>\s*(\d*)// and $params->{disk}=$1; 
   $text =~ s/other.GridPartitions,"([^"]*)"//i and $params->{partition}=$1; 
   $text =~ s/other.ce\s*==\s*"([^"]*)"//i and $params->{ce}=$1;
-  $text =~ s/this.filebroker\s*==\s*1//i and $params->{fileBroker}=1;
+  $text =~ s/this.filebroker\s*==\s*1//i and $params->{fileBroker}=1 and $self->info("DOING FILE BROKERING!!!");
  
   $self->info("The ttl is $params->{ttl} and the site is in fact '$site'. Left  '$text' ");
   return $params;
@@ -1293,11 +1293,13 @@ sub getWaitingJobForAgentId{
   my $cename=shift || "no_user\@no_site";
   $self->info("Getting a waiting job for $agentid");
 
-  my $done=$self->do("UPDATE QUEUE set status='ASSIGNED',exechost=?,site=? where status='WAITING' and \@assigned_job:=queueid limit 1",
-                     {bind_values=>["no_user$cename", $cename]});
+  my $done=$self->do("UPDATE QUEUE set status='ASSIGNED',exechost=?,site=?
+   where status='WAITING' and agentid=? and \@assigned_job:=queueid  limit 1",
+                     {bind_values=>["no_user\@$cename", $cename, $agentid ]});
   
   if ($done>0){
-  	my $info=$self->queryRow("select queueid, origjdl jdl,  substring(submithost, 1,locate('\@', submithost)-1 ) user from QUEUEJDL join QUEUE using (queueid) where queueid=\@assigned_job");
+  	my $info=$self->queryRow("select queueid, origjdl jdl,  substring(submithost, 1,locate('\@', submithost)-1 ) user from 
+  	QUEUEJDL join QUEUE using (queueid) where queueid=\@assigned_job");
   	$info or $self->info("Error checking what we selected") and return;
   	$self->info("AND NOW ");
   	$self->do("update SITEQUEUES set ASSIGNED=ASSIGNED+1 where site=?",{bind_values=>[$cename]});
