@@ -1384,11 +1384,12 @@ sub killTask{
 
   # check for subjob's ....
   my $rresult =
-    $self->getFieldsFromQueueEx("queueId, submitHost", "where (queueId='$queueId' or split='$queueId') ");
+    $self->queryColumn("SELECT queueId from QUEUE where (queueId=? or (split!=0 and split=?)) ",
+    undef, {bind_values=>[$queueId, $queueId]});
   my @retvalue;
 
   for my $j (@$rresult) {
-    @retvalue = $self->killProcessInt($j->{queueId}, $user);
+    @retvalue = $self->killProcessInt($j, $user);
   }
   return @retvalue;
 }
