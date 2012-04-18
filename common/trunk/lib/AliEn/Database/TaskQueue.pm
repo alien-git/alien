@@ -636,7 +636,6 @@ sub updateStatus {
         $message = "TaskQueue: in update Site Queue failed";
         $self->{LOGGER}->set_error_msg($message);
         $self->info("There was an error: $message", 1);
-        return;
       }
     }
 

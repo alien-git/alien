@@ -85,6 +85,7 @@ my $ml_status = {
   'RUNNING'      => 10,
   'SAVING'       => 11,
   'SAVED'        => 12,
+  'SAVED_WARN'   => 22,
   'MERGING'      => 13,
   'FORCEMERGE'   => 14,
   'DONE'         => 15,
