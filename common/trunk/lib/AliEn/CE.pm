@@ -448,12 +448,13 @@ sub modifyJobCA {
 	$homedir =~ s/\/$//;
 	if ($command =~ /\//) {
 		$DEBUG and $self->debug(1, "Checking if '$command' exists");
-		$self->{CATALOG}->execute("ls", "-silent", "$command")
-			and $fullPath = "$command";
-
-		my $org = "\L$self->{CONFIG}->{ORG_NAME}\E";
-		($command =~ m{^((/$org)|($homedir))?/bin/[^\/]*$})
-			or $fullPath = "";
+#		$self->{CATALOG}->execute("ls", "-silent", "$command")
+#			and $fullPath = "$command";
+#
+#		my $org = "\L$self->{CONFIG}->{ORG_NAME}\E";
+#		($command =~ m{^((/$org)|($homedir))?/bin/[^\/]*$})
+#			or $fullPath = "";
+		!($command =~ /\/$/ ) and $self->{CATALOG}->execute("ls", "-silent", "$command") and $fullPath=$command;
 	} else {
 		my @dirs = ($homedir, "/\L$self->{CONFIG}->{ORG_NAME}\E", "");
 		foreach (@dirs) {
@@ -466,7 +467,7 @@ sub modifyJobCA {
 
 	($fullPath)
 		or $self->info(
-"Error: command $command is not in an executable directory (/bin, /$self->{CONFIG}->{ORG_NAME}/bin, or $homedir/bin)",
+"Error: command $command is not in an executable directory (/bin, /$self->{CONFIG}->{ORG_NAME}/bin, or $homedir/bin) or does not exist",
 		1
 		)
 		and return;

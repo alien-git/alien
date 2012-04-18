@@ -107,7 +107,7 @@ my $tables = {
 
   TRANSFERMESSAGES => {
     columns => {
-      entryId    => " int(11) not null  auto_increment primary key",
+      entryId    => "int(11) not null auto_increment primary key",
       transferId => "int",
       message    => "varchar(200)",
       tag        => "varchar(40)",
@@ -128,7 +128,7 @@ sub initialize {
       $tables->{$table}->{index},
       $tables->{$table}->{extra_index}
       )
-      or $self->{LOGGER}->error("TaskQueue", "Error checking the table $table")
+      or $self->{LOGGER}->error("Transfer", "Error checking the table $table")
       and return;
   }
   AliEn::Util::setupApMon($self);
