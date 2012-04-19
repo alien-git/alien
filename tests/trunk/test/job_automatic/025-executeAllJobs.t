@@ -21,7 +21,7 @@ BEGIN { plan tests => 1 }
   my $admincat=AliEn::UI::Catalogue::LCM::Computer->new({"user","$ENV{'USER'}","role","admin"});
   $admincat or exit (-1);
 
-  my (@jobs)=$cat->execute("top", "-all")  or print "There are no jobs at all...\n" and  exit(0);
+  my (@jobs)=$cat->execute("top")  or print "There are no jobs at all...\n" and  exit(0);
   print "There are some jobs to execute\n";
   my $waitingJobs = 0;
   foreach my $job (@jobs) {
@@ -38,7 +38,7 @@ BEGIN { plan tests => 1 }
     my @jobs=$cat->execute("top", "-status WAITING -status INSERTING -status RUNNING -status SAVING -status SAVED");
     @jobs or last;
     print "There are still some jobs waiting. Sleeping 10 seconds and retrying";
-    sleep(15);
+    sleep(5);
     $i--;
 
   }
@@ -48,16 +48,20 @@ BEGIN { plan tests => 1 }
   my $notok=0;
   print "\n";
   print "Getting top -all information from the Catalogue:\n";
-  (@jobs)=$cat->execute("top", "-all")  or exit(-2);
+  (@jobs)=$cat->execute("top");
+  print "Top -all worked\n";
+  my $split=0;
   foreach my $job (@jobs) {
+    print "Checking the job $job\n";
         ($job->{status} =~ /^(INSERTED)|(WAITING)|(ASSIGNED)|(STARTED)|(RUNNING)|(SAVING)|(SAVED)$/)
           and print "ATTENTION TO JOB: $job->{queueId} was just now in status: $job->{status}\n"
           and $notok=1;
+    $job->{status}=~ /^SPLIT$/ and $split=1;
   }
-
-  (@jobs)=$cat->execute("top", "-status SPLIT");
-  @jobs  and print "one job is still split... let's wait for the merging" and sleep(60);
+  print "And now for the split\n";
   $cat->close();
+  $split and print "one job is still split... let's wait for the merging" and sleep(60);
+  
   $notok and exit(-2);
   print "DONE!!\n";
   print "ok\n";

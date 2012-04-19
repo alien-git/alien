@@ -19,10 +19,9 @@ BEGIN { plan tests => 1 }
 
   ((!$outputstring) or ($outputstring eq "")) and exit(-2);
 
-  my @ids = split(/,/, $outputstring);
-  my $idfine  = (@ids[0] || exit(-2));
-  my $idwarn  = (@ids[1] || exit(-2));
-  my $iderror = (@ids[2] || exit(-2));
+  my ($idfine, $idwarn, $iderror ) = split(/,/, $outputstring);
+  ($idfine and $idwarn and $iderror )
+    or print "Missing the ids of the jobs!\n" and  exit(-2);
 
   print "Starting...";
 
@@ -39,13 +38,13 @@ BEGIN { plan tests => 1 }
   $status->{status} eq "DONE_WARN" or exit(-2);
   print "$idwarn: JOBS STATUS is " . $status->{status};
   checkOutput($cat, $idwarn) or exit(-2);
-  print "$idwarn: OK, OUTPUT FILES ARE THERE\n";
+  print "$idwarn: DONE_WARN: OK, OUTPUT FILES ARE THERE\n";
 
   ($status) = $cat->execute("top", "-id", $iderror);
   $status->{status} eq "ERROR_SV" or exit(-2);
   print "$iderror: JOBS STATUS is " . $status->{status};
   checkOutput($cat, $iderror) and exit(-2);
-  print "$iderror: OK, OUTPUT FILES ARE NOT THERE\n";
+  print "$iderror: ERROR_SV OK, OUTPUT FILES ARE NOT THERE\n";
 
   #system ("alien", "proxy-destroy");
 

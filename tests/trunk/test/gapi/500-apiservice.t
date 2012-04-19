@@ -16,11 +16,14 @@ BEGIN { plan tests => 1 }
   }
   print "ok\n";
 
-  system("killall -9 gapiserver");  
+  system("killall -9 gapiserver > /dev/null 2>&1");  
+  $ENV{ALIEN_JOBAGENT_RETRY}=1;
   $ENV{ALIEN_TESTDIR} or $ENV{ALIEN_TESTDIR}="/home/alienmaster/AliEn/t";
-  eval `cat $ENV{ALIEN_TESTDIR}/functions.pl`;
+  push @INC, $ENV{ALIEN_TESTDIR};
+  require functions;
+  
   includeTest("catalogue/003-add") or exit(-2);
-#  includeTest("user_basic/021-se") or exit(-2);
+  includeTest("user_basic/021-se") or exit(-2);
   if (! defined $ENV{HOST}){
     print "WARNING!!!!!!!!! The environment variable HOST is not defined!\n";
     if (defined $ENV{HOSTNAME}){
@@ -115,65 +118,13 @@ BEGIN { plan tests => 1 }
 
   print "ok\n";
   print "Starting the service ....\n";
+  
   startService("ApiService") || exit(-2);
 
   ok(1);
 
 }
-
-sub addLdapEntry {
-  my $dn=shift;
-  my $attributes=shift;
-
-  print "Connecting to ldap...";
-  my $host=Net::Domain::hostname();
-  my $ldap = Net::LDAP->new("$host:8389", "onerror" => "warn") 
-    or print "failed\nError conecting to the ldap server\n $? and $! and  $@\n" 
-      and exit (-3);
-  my $result=$ldap->bind("cn=manager,dc=cern,dc=ch", "password" => "ldap-pass");
-  $result->code && print "failed\nCould not bind to LDAP-Server: ",$result->error 
-  and exit (-4);
-
-  my $ldapDN=$dn;
-#  my $filter;
-#  $ldapDN =~ s/^([^,]*),// and $filter="($1)";
-  my $mesg=$ldap->search(base   => $ldapDN,
-			 filter => "(objectClass=*)"
-			);
-  print "Searching for $ldapDN \n";
-  if ($mesg->count) {
-    print "THE SE EXISTS!!\nDeleting the apiservice... ";
-    my $repeat=1;
-    my @entries=$mesg->entries();
-    while ($repeat) {
-      $repeat=0;
-      my @todo;
-      foreach my $entry (@entries) {
-	print "DELETING ". $entry->dn(). "\n";
-	my $meg=$ldap->delete($entry->dn());
-	if ($meg->code) {
-	  print "\n\twarning: error deleting",$result->error, " (we'll try again)...";
-	  push @todo, $entry;
-	  $repeat=1;
-	}
-      }
-      @entries=@todo;
-    }
-    if (@entries){
-      print "We didn't delete all the entries!!\n" and exit(-2);
-    }
-  }
-
-  print "ok\nAdding '$dn' to ldap...";
-
-  $mesg=$ldap->add ($dn,
-	    attr => $attributes);
-  $mesg->code && print "failed\nCould not add  $dn: ",$result->error and exit (-5);
-  $ldap->unbind;
-  return 1;
-}
-
-
+  
 sub startService {
   my $service=shift;
 
