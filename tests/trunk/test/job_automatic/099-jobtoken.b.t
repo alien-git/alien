@@ -16,10 +16,16 @@ BEGIN { plan tests => 1 }
   my $total=$db->queryValue("select count(*) from JOBTOKEN ");
   print "There are $total entries there.... there should be zero!!!\n"; 
   if ($total){
+    my @info=$db->query("select * from JOBTOKEN");
+    use Data::Dumper;
+    print Dumper(@info);
+    
     print "Let's not panic... If it is because the STAGED job, we are also fine\n";
     my $cat=AliEn::UI::Catalogue::LCM::Computer->new({role=>'admin'}) or exit(-2);
     my @jobs=$cat->execute("top", "-status", "TO_STAGE");
-    (@jobs) and $cat->execute("kill", @jobs);
+    foreach my $job (@jobs){
+      $cat->execute("kill", $job->{queueid});
+    }
     print "Let's count again\n";
     $total=$db->queryValue("select count(*) from JOBTOKEN ");
     print "There are $total entries there.... there should be zero!!!\n"; 
