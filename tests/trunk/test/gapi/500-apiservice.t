@@ -119,7 +119,7 @@ BEGIN { plan tests => 1 }
   print "ok\n";
   print "Starting the service ....\n";
   
-  startService("ApiService") || exit(-2);
+  startService("ApiService", {"nolisten" => 1}) || exit(-2);
 
   ok(1);
 
