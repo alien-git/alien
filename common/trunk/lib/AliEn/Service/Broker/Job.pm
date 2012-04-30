@@ -82,8 +82,10 @@ sub getJobAgent {
 			$self->info("In findjob no job to match");
 			return {execute => [ -2, "No jobs waiting in the queue" ]};
 		} else {
-			$self->info("Telling the site to install packages");
-			return {execute => [ -3, split(",", $packages) ]};
+			$self->info("Telling the site to install packages '$packages'");
+			my @packs = grep (!/\%/, split(",", $packages));
+			$self->info("After removing, we have to install @packs ");
+			return {execute => [ -3, @packs ]};
 		}
 	}
 	my ($queueid, $jdl, $jobUser) = $self->{DB}->getWaitingJobForAgentId($agentid, $queueName);
@@ -270,7 +272,7 @@ sub extractClassadParams {
 	$params->{ttl} = $ttl || 84000;
 	($ok, $params->{disk}) = $classad->evaluateExpression("LocalDiskSpace");
 	($ok, my @pack) = $classad->evaluateAttributeVectorString("Packages");
-	$params->{packages} = "," . join(",", sort @pack) . ",";
+	$params->{packages} = "," . join(",,", sort @pack) . ",";
 	($ok, @pack) = $classad->evaluateAttributeVectorString("Partition");
 	$params->{partition} = "," . join(",", sort @pack) . ",";
 	$params->{ce}        = $queueName;
