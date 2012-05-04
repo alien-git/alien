@@ -1106,6 +1106,12 @@ $after";
 sub torrentScript {
 	my $self = shift;
 	my $path = shift;
+	my $ver = $self->{CONFIG}->{VERSION};
+	# ver = v[0-9]+[._][0-9]+
+	$ver =~ s/_/./;
+	$ver =~ s/(\.[0-9]+)//;
+	
+	
 	return "DIR=$path 
 mkdir -p \$DIR
 echo \"Ready to install alien in \$DIR\"
@@ -1113,7 +1119,7 @@ date
 cd \$DIR
 wget http://alien.cern.ch/alien-installer -O alien-auto-installer
 chmod +x alien-auto-installer
-./alien-auto-installer -type workernode -batch -torrent -install-dir \$DIR/alien
+./alien-auto-installer -type workernode -batch -torrent -install-dir \$DIR/alien -version $ver
 
 echo \"Installation completed!!\"
 
