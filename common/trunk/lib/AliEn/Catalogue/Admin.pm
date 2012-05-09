@@ -1164,8 +1164,7 @@ sub calculateFileQuota {
   $calculate or $self->$method(@data, "No need to calculate") and return;
 
   my %infoLFN;
-  my $tables = $self->getAllLFNTables();
-  foreach my $h (@$tables) {
+  foreach my $h (@$rtables) {
     my $tableIdx = $h->{tableName} or next;
     my $tableName = "L${tableIdx}L";
     $self->$method(@data, "Getting from Table ${tableName}_QUOTA ");
