@@ -646,14 +646,11 @@ ALIEN_IsHttps ( )
  	 ALIEN_HttpsConfig $serviceName $configName ${hostName#https://}
          exit 0
   fi
-
-  HttpdType=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl $soapName 2> /dev/null `
-
-  if [[ $HttpdType == "httpd" ]]
+  if [[ $hoatName == http* ]]
      then
-         echo "$serviceName  wants to be started as a http (soapType is httpd)"  
+         echo "$serviceName wants to be started as a http (soapType is httpd)"  
          echo "serviceName is $serviceName, hostname is $hostName,packageName is $packageName"
-         ALIEN_HttpdSoapTypeConfig $serviceName $packageName $hostName 
+         ALIEN_HttpdSoapTypeConfig $serviceName $packageName ${hostName#http://} 
         exit 0
   fi
    echo "$serviceName  wants to be started with SOAP::Lite "

@@ -1147,7 +1147,7 @@ sub insertEntry {
 sub extractFieldsFromReq {
   my $self= shift;
   my $text =shift;
-  my $params= {counter=> 1, ttl=>84000, disk=>0, packages=>'%', partition=>'%'};
+  my $params= {counter=> 1, ttl=>84000, disk=>0, packages=>'%', partition=>'%', ce=>''};
 
   my $site = "";
   while ($text =~ s/member\(other.CloseSE,"[^:]*::([^:]*)::[^:]*"\)//si) {
@@ -1194,7 +1194,7 @@ sub insertJobAgent {
     $req .= " and $key = ?"; 
     push @bind, $params->{$key};  	
   }
-  
+  $self->info("QUERY: SELECT entryId from JOBAGENT where $req;, and @bind");
   my $id = $self->queryValue("SELECT entryId from JOBAGENT where $req", undef, {bind_values => [@bind]});
   
   if (!$id) {
@@ -1273,7 +1273,7 @@ sub getNumberWaitingForSite{
   $options->{site} and $where.="and (site='' or site like concat('%,',?,',%') )" and push @bind, $options->{site};   
   defined $options->{packages} and $where .="and ? like packages " and push @bind, $options->{packages};
   $options->{partition} and $where .="and ? like partition " and push @bind, $options->{partition};
-  $options->{ce} and $where.=" and (ce is null or ce=?)" and push @bind,$options->{ce};
+  $options->{ce} and $where.=" and (ce='' or ce=?)" and push @bind,$options->{ce};
   $options->{returnPackages} and $return="packages";
   my $method="queryValue";
   if ($options->{returnId}){
