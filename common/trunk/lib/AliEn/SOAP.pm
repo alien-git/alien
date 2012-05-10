@@ -254,7 +254,7 @@ sub CallSOAP {
   my @definedArguments = grep (defined $_, @arguments);
   $self->debug(1, "Making the SOAP call $function(@definedArguments) to $service");
   my $sleep     = 1;
-  my $max_sleep = 60000;
+  my $max_sleep = 300;
   while (1) {
     eval {
       if ((defined $self->{SOAPPROXY}) && ($self->{SOAPPROXY})) {
