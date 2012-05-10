@@ -95,21 +95,13 @@ sub checkWakesUp {
   $silent and push @debugLevel, 1;
   $self->$method(@debugLevel, "Still alive and checking messages");
 
-  my $messages = $self->{DB}->retrieveJobMessages();
-
-  foreach my $entry (@$messages) {
-    $self->info(
-"procinfo = $entry->{procinfo},  tag = $entry->{tag}, jobId = $entry->{jobId}"
-    );
-  }
-
-  if ($messages and $#$messages > -1) {
-    $self->info("Sending $#$messages to the job manager");
+  my $messages = $self->{DB}->queryValue("select count(1) from JOBMESSAGES");
+  if ($messages ) {
+    $self->info("Telling the JobManager  to process JOBMESSAGES ($messages messages)");
     $self->{SOAP}
-      ->CallSOAP("Manager/Job", "SetProcInfoBunch", $self->{HOST}, $messages)
+      ->CallSOAP("Manager/Job", "SetProcInfoBunchFromDB", $self->{HOST}, $messages)
       or
       $self->info("ERROR!!! we couldn't send the messages to the job manager");
-
   }
   return;
 }

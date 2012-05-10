@@ -359,6 +359,13 @@ sub getJobAgentRequirements {
 
   return $req;
 }
+sub SetProcInfoBunchFromDB {
+  my ($this)=shift;
+  $self->info("And we have to retrieve the entries from the databse");
+  my $messages=$self->{DB}->retrieveJobMessages();
+  $self->SetProcInfoBunch("db_direct", $messages);
+  return 1;
+}
 
 sub SetProcInfoBunch {
   my ($this, $host, $info) = (shift, shift, shift);
