@@ -73,6 +73,12 @@ sub  checkHosts {
     my ($newJobs, $newQueued)=$self->{CONFIG}->GetMaxJobs($data->{hostname});
     $newJobs or next;
     my $set ={};
+    
+    my $time = time;
+    my $upd = $self->{DB}->do("update HOSTS set status='LOST' where $time-date>24*3600 and status!='LOST' and hostname=?",{bind_values=>[$data->{hostname}]} ); 
+    $upd>0 and $self->info( "In checkHosts set status=LOST to $data->{hostname}, time: $time" ) 
+            or $self->info( "In checkHosts host $data->{hostname} keeps its status, time: $time" );
+    
     if (( $data->{maxjobs} eq $newJobs) && ($data->{maxqueued} eq  $newQueued)) {
       $self->$method(@data, "Still the same number ($data->{maxjobs} and $data->{maxqueued})");
     } else {
@@ -81,7 +87,7 @@ sub  checkHosts {
 
       $self->{DB}->updateHost($data->{hostname},{maxjobs=>$newJobs, maxqueued=>$newQueued})
 	or $self->{LOGGER}->warning( "Hosts", "In checkHosts error updating maxjobs and maxqueued for host $data->{hostname}" );
-
+	
     }
 					   
     # update also in the sitequeue table and calculate the load value for this site
