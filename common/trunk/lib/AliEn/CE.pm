@@ -343,9 +343,9 @@ sub requirementsFromInput {
 			$self->{LOGGER}->error("CE", "No PF allowed !!! Go to your LF !");
 			next;
 		}
-		($file =~ s/^LF://i)
-			or $self->{LOGGER}->error("CE", "Malformed InputData -> $file - File Ignored.")
-			and next;
+		($file =~ s/^LF://i);
+#			or $self->{LOGGER}->error("CE", "Malformed InputData -> $file - File Ignored.")
+#			and next;
 
 		if ($file !~ m{^/}) {
 			$modified = 1;
@@ -3678,7 +3678,7 @@ sub getMasterJob {
 	} elsif ($data->{command} eq "merge") {
 
 		$self->info("Merging the jobs that have finnished");
-		my $subjobs = $self->{DB}->query("SELECT queueId,submitHost FROM QUEUE $data->{cond} and STATUS='DONE'")
+		my $subjobs = $self->{TASK_DB}->query("SELECT queueId,submitHost FROM QUEUE $data->{cond} and STATUS='DONE'")
 			or return (-1, "Error getting the subjobs of $id");
 		if (!@$subjobs) {
 			$self->info("The job $id doesn't have any subjobs that have finished");
@@ -3686,40 +3686,43 @@ sub getMasterJob {
 		}
 		$subjobs->[0]->{submitHost} =~ /^$user\@/
 			or return (-1, "the job doesn't belong to $user");
-		$self->changeStatusCommand($id, 'token', "%", 'FORCEMERGE')
+#		$self->changeStatusCommand($id, 'token', "%", 'FORCEMERGE')
+        $self->{SOAP}->CallSOAP("Manager/Job", "changeStatusCommand", $id, 'token', "%", 'FORCEMERGE')
 			or return (-1, "error putting the status to 'FORCEMERGE'");
-		$self->{DB}->update("ACTIONS", {todo => 1}, "action='MERGING'");
+		$self->{TASK_DB}->update("ACTIONS", {todo => 1}, "action='MERGING'");
 
 		$self->info("Forcing the merge of the output (this can take some time)", 0);
 	} else {
 		my $commands = {
-			kill     => {sub => "killProcess"},
+			kill     => {sub => "f_kill"}, #killProcess
 			resubmit => {sub => "resubmitCommand", extra => [$id]}
 		};
 		my $subroutine = $commands->{$data->{command}}->{sub};
 		$self->info("We have to $data->{command} the subjobs of $id");
-		my $ids = $self->{DB}->queryColumn("select queueid from QUEUE $data->{cond}");
-		my @extra;
-		$commands->{$data->{command}}->{extra}
-			and push @extra, @{$commands->{$data->{command}}->{extra}};
+		my $ids = $self->{TASK_DB}->queryColumn("select queueid from QUEUE $data->{cond}");
+#		my @extra;
+#		$commands->{$data->{command}}->{extra}
+#			and push @extra, @{$commands->{$data->{command}}->{extra}};
 		my $masterWaiting = 0;
-
-		$self->{DB}->do("update QUEUE set mtime=now() where queueid=?", {bind_values => [$id]});
-		foreach my $subjob (@$ids) {
-			my (@done) = $self->$subroutine($subjob, $user, @extra);
-			if ($done[0] eq "-1") {
-				shift @done;
-				$self->putJobLog($id, "error", "Error $data->{command}ing  subjob $subjob: @done");
-				return @done;
-			}
+		
+		$self->{TASK_DB}->do("update QUEUE set mtime=now() where queueid=?", {bind_values => [$id]});
+		foreach my $subjob (@$ids) { 
+			my ($done) = $self->$subroutine($subjob); #, $user, @extra);
+			$self->info("Despues del Kill @$ids $subjob");
+			ref($done) eq 'ARRAY' and @$done[0]==-1 and $done=-1;
+			if ($done==-1) {
+				#shift @$done;				
+				$self->putJobLog($id, "error", "Error $data->{command}ing  subjob $subjob: $done");
+				return $done;
+			}			
 			$data->{command} =~ /resubmit/ and $masterWaiting = 1;
-			$self->info("$data->{command}ing subjob $subjob ($done[0])");
-			$self->putJobLog($id, "state", "$data->{command}ing subjob $subjob ($done[0])");
+			$self->info("$data->{command}ing subjob $subjob ($done)");
+			$self->putJobLog($id, "state", "$data->{command}ing subjob $subjob ($done)");
 
 		}
 		if ($masterWaiting) {
 			$self->info("And we should put the masterJob to SPLIT");
-			$self->{DB}->updateStatus($id, 'DONE', 'SPLIT');
+			$self->{TASK_DB}->updateStatus($id, 'DONE', 'SPLIT');
 		}
 	}
 	$self->info("getMasterJob done for $id");
