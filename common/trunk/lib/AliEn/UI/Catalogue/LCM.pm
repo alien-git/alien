@@ -62,6 +62,7 @@ use AliEn::PackMan;
 use AliEn::ClientPackMan;
 use POSIX "isdigit";
 use MIME::Base64;    # not needed after signed envelopes are in place
+use Getopt::Long;
 
 use vars qw(@ISA $DEBUG);
 @ISA   = qw( AliEn::UI::Catalogue );
@@ -95,7 +96,7 @@ my %LCM_commands;
   'erase'                     => [ '$self->erase',                         0 ],
   'listTransfer'              => [ '$self->{STORAGE}->listTransfer',       0 ],
   'killTransfer'              => [ '$self->{STORAGE}->killTransfer',       0 ],
-  'stage'                     => [ '$self->stage',                         2 ],
+  'stage'                     => [ '$self->stage',                         64 ],
   'isStage'                   => [ '$self->isStaged',                      2 ],
   'find'                      => [ '$self->find',                          0 ],
   'zip'                       => [ '$self->zip',                           16 + 64 ],
@@ -1694,33 +1695,46 @@ sub stage_HELP {
 
 Usage:
 
-\tstage [-a] <lfn>
-
-Options:
-   -a: Send a message to all the SE that have that LFN
+\tstage [-se se_name] <lfn> 
 ";
 }
 
 sub stage {
   my $self    = shift;
-  my $options = shift;
-  my $lfn     = shift;
-  $lfn or $self->info("Error: not enough arguments in stage:" . $self->stage_HELP()) and return;
-  $self->info("Ready to stage the files $lfn @_");
-  $self->{CATALOG} or $self->info("We don't have a catlogue... can't stage") and return;
-  my @info = $self->{CATALOG}->f_whereis("rs", $lfn);
-  my $return = {};
-  while (@info) {
-    my ($se, $pfn) = (shift @info, shift @info);
-    $self->info("Staging the copy $pfn in $se");
-    if ($pfn eq "auto") {
-      $self->info("I'm not sure how to stage this file... The SE knows its path  Maybe I should ask the SE....");
-      next;
-    }
-    my $url = AliEn::SE::Methods->new($pfn)
-      or $self->info("Error building the url from '$pfn'")
-      and next;
-    $url->stage();
+  my $options={se=>undef};
+     
+  my @old=@ARGV;
+  @ARGV  = @_;
+  Getopt::Long::Configure("pass_through");
+  Getopt::Long::GetOptions($options, "se=s");
+  Getopt::Long::Configure("default");
+  @_=@ARGV;
+  @ARGV=@old;
+
+  my @lfns     = @_;
+  
+  $self->{CATALOG} or $self->info("We don't have a catalogue... can't stage") and return;
+  @lfns or $self->info("Error: not enough arguments in stage:\n" . $self->stage_HELP()) and return;
+  
+  foreach my $lfn (@lfns){
+	  $self->info("Ready to stage the file $lfn");
+	  my @info = $self->{CATALOG}->f_whereis("-rs", $lfn);
+	  
+	  $options->{se} and !(grep { /$options->{se}/ } @info) and $self->info("Can't stage file in $options->{se}") and return;
+	
+	  while (@info) {
+	    my ($se, $pfn) = (shift @info, shift @info);
+	    $self->info("Check if we should stage the copy $pfn in $se");
+	    if ($pfn eq "auto") {
+	      $self->info("I'm not sure how to stage this file... The SE knows its path  Maybe I should ask the SE....");
+	      next;
+	    }
+	    my $url = AliEn::SE::Methods->new($pfn)
+	      or $self->info("Error building the url from '$pfn'")
+	      and next;
+	    ( $options->{se} and ($options->{se} eq $se) and $url->stage() and $self->info("Staged in $options->{se} (only)") and last ) 
+	      or ( $url->stage() and $self->info("Staged in $se") );
+	  } 
   }
   return 1;
 }
