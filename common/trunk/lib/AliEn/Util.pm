@@ -491,6 +491,8 @@ sub find_memory_consumption {
   my @retVal=(0,0);
   my @requestSet = ("rss","virtualmem");
 
+  ($apmon and $apmon->{BG_MONITOR} and $apmon->{BG_MONITOR}->{PROC_INFO})
+    or return;
   $checked or $apmon->{BG_MONITOR}->{PROC_INFO}->update();
   my @resultSet = $apmon->{BG_MONITOR}->{PROC_INFO}->getJobData($id, \@requestSet);
 
