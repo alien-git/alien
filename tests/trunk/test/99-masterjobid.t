@@ -28,7 +28,7 @@ echo ok
 
   addFile($cat, "jdl/SplitMaster.jdl","Executable=\"CheckMasterId.sh\";
 Split=\"directory\";
-InputData=\"LF:${dir}split/*/*\";") or exit(-2);
+InputData=\"${dir}split/*/*\";") or exit(-2);
 
   my ($ok,$procDir, $subjobs)=executeSplitJob($cat, "jdl/SplitMaster.jdl") 
     or exit(-2);

@@ -18,7 +18,7 @@ BEGIN { plan tests => 1 }
 
   addFile(
 	$cat, "jdl/collectionSingle.jdl", "Executable=\"CheckInputOuptut.sh\";
-InputData=\"LF:$dir/collections/manual_collection\"
+InputData=\"$dir/collections/manual_collection\"
 "
   ) or exit(-2);
   print "And now, let's execute the job\n";

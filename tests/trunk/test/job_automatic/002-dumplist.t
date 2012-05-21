@@ -35,13 +35,13 @@ echo 'The JDL tag inputdatalist works!!'
 
   addFile($cat, "jdl/dumplfnlist.jdl", "
 Executable=\"dumplfnlist.sh\";
-InputData={\"LF:$dir/jdl/dumplfnlist.jdl\"};
+InputData={\"$dir/jdl/dumplfnlist.jdl\"};
 InputDataList=\"myfile.list\";
 ") or exit(-2);
 
   addFile($cat, "jdl/dumplfnlistxml.jdl", "
 Executable=\"dumplfnlist.sh\";
-InputData={\"LF:$dir/jdl/dumplfnlist.jdl\"};
+InputData={\"$dir/jdl/dumplfnlist.jdl\"};
 InputDataList=\"myfile.list\";
 InputDataListFormat=\"xml-single\";
 ") or exit(-2);

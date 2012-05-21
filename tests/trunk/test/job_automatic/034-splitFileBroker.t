@@ -29,7 +29,7 @@ cat file*
 
   addFile($cat, "jdl/SplitFileBroker.jdl","executable = \"${dir}bin/se_advanced.sh\";
         split = \"se_advanced\";
-        inputdata = {\"LF:$dir/se_advanced/file1\"};
+        inputdata = {\"$dir/se_advanced/file1\"};
 "
  ) or exit(-2);
 
@@ -39,9 +39,9 @@ cat file*
 
   addFile($cat, "jdl/SplitFileBroker2.jdl","executable = \"${dir}bin/se_advanced.sh\";
         split = \"se_advanced\";
-        inputdata = {\"LF:$dir/se_advanced/file1\",
-           \"LF:$dir/se_advanced/file2\",
-           \"LF:$dir/se_advanced/file3\"};
+        inputdata = {\"$dir/se_advanced/file1\",
+           \"$dir/se_advanced/file2\",
+           \"$dir/se_advanced/file3\"};
 
         SplitMaxInputFileNumber  = \"2\" 
 "

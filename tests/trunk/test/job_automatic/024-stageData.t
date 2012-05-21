@@ -17,7 +17,7 @@ BEGIN { plan tests => 1 }
 
   addFile(
 	$cat, "jdl/stage.jdl", "Executable=\"CheckInputOuptut.sh\";
-InputData=\"LF:$dir/jdl/stage.jdl\";
+InputData=\"$dir/jdl/stage.jdl\";
 PreStage=1;
 "
   ) or exit(-2);

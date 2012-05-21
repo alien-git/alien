@@ -88,7 +88,7 @@ BEGIN { plan tests => 1 }
   print "All MaxWaitingTime fields correctly parsed";
   $cat->close();
   $d->close();
-  sleep(60);
+  #sleep(60);
   print "OK!!
 \#ALIEN_OUTPUT $id\n";
 }

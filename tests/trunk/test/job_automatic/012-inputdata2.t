@@ -31,7 +31,7 @@ echo \"YUHUUUUU\"
   addFile(
 	$cat, "jdl/inputdata2.jdl", "
 Executable=\"inputdata2.sh\";
-InputData={\"lf:$dir/jdl/inputdata2.jdl,nodownload\"};
+InputData={\"$dir/jdl/inputdata2.jdl,nodownload\"};
 ", 'r'
   ) or exit(-2);
 
@@ -46,7 +46,7 @@ InputData={\"lf:$dir/jdl/inputdata2.jdl,nodownload\"};
   addFile(
 	$cat, "jdl/inputdata3.jdl", "
 Executable=\"inputdata2.sh\";
-InputData={\"lf:$dir/jdl/inputdata2.jdl.link,nodownload\"};
+InputData={\"$dir/jdl/inputdata2.jdl.link,nodownload\"};
 ", 'r'
   ) or exit(-2);
 
