@@ -8,6 +8,8 @@ use Getopt::Long;
 use Time::HiRes;
 use AliEn::UI::Catalogue::LCM;
 use AliEn::Database::Catalogue;
+use Scalar::Util qw(weaken);
+
 
 use vars qw (@ISA $DEBUG);
 use Filesys::DiskFree;
@@ -27,11 +29,12 @@ sub new {
   
   $self->{SOAP} = new AliEn::SOAP or print "Error creating AliEn::SOAP $! $?" and return;
   
-	if (!$self->{CATALOGUE} ){
-		$self->info("Creating the catalogue");
-		$self->{CATALOGUE}=AliEn::UI::Catalogue::LCM->new({role=>$role, PACKMAN=>$self});
-		$self->{CATALOGUE} or $self->info("Error creating an instance of the catalogue") and return;
-	}
+  if (!$self->{CATALOGUE} ){
+	$self->info("Creating the catalogue");
+	$self->{CATALOGUE}=AliEn::UI::Catalogue::LCM->new({role=>$role, PACKMAN=>$self});
+	$self->{CATALOGUE} or $self->info("Error creating an instance of the catalogue") and return;
+  }
+  weaken ($self->{CATALOGUE});
 
   $self->{INSTALLDIR} = $self->{CONFIG}->{PACKMAN_INSTALLDIR} || "$ENV{ALIEN_HOME}/packages";
    -d $self->{INSTALLDIR} or mkdir $self->{INSTALLDIR};
