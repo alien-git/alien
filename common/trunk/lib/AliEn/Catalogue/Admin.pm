@@ -615,26 +615,36 @@ sub refreshSEDistance {
 
   foreach my $site (@todo) {
   	my @selist;
-  	$self->{CONFIG}->{SEDETECTMONALISAURL}
-	    and @selist = $self->getListOfSEFromMonaLisa($site);
+#  	$self->{CONFIG}->{SEDETECTMONALISAURL}
+#	    and @selist = $self->getListOfSEFromMonaLisa($site);
 
-	  if (!@selist) {
+	if (!@selist) {
   	  $self->info("We couldn't get the info from ML. Putting all the ses");
-    	@selist = @{$self->{DATABASE}->query("select distinct seName, if(locate(?,sename)>1, 0, 0.5) distance  from SE", undef,
+      @selist = @{$self->{DATABASE}->query("select distinct seName, if(locate(?,sename)>1, 0, 0.5) distance  from SE", undef,
     		{bind_values=>[$site]})};
   	}
-  	$site and (scalar(@selist) gt 0) or return 0;
+  	$site and (scalar(@selist) gt 0) or $self->info("No site or selist\n") and return 0;
+	$self->info("Going to lock SE(r) and SEDistance(w)");
   	$self->{DATABASE}->lock("SE read, SEDistance");
-  	$self->{DATABASE}->do("delete from SEDistance where sitename=?", {bind_values => [$site]});
+  	$self->info("Locked SE(r) and SEDistance(w)");
+  	eval{
+  		$self->{DATABASE}->do("delete from SEDistance where sitename=?", {bind_values => [$site]});
+  	};
+  	$@ and $self->info("Could not delete from SEDistance: $@\n");
   	  	
   	foreach my $entry (@selist) {
-    	$self->{DATABASE}->do(
-      	"insert into SEDistance (sitename,seNumber,sitedistance)
-        	      select ?, seNumber,  ?  from SE where upper( seName) LIKE upper(?)  ",
-      	{bind_values => [ $site, $entry->{distance}, $entry->{seName} ]}
-    	);
+    	eval {
+    		$self->{DATABASE}->do(
+      		"insert into SEDistance (sitename,seNumber,sitedistance)
+        		      select ?, seNumber,  ?  from SE where upper( seName) LIKE upper(?)  ",
+      		{bind_values => [ $site, $entry->{distance}, $entry->{seName} ]}
+    		);
+  		};
+  		$@ and $self->info("Could not insert into SEDistance, reason $@\n");
   	}
+  	$self->info("Going to unlock SE(r) and SEDistance(w)");
   	$self->{DATABASE}->unlock();
+  	$self->info("Unlocked SE(r) and SEDistance(w)");
   }
 
   return 1;
