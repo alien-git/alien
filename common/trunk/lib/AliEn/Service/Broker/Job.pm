@@ -17,7 +17,10 @@ use AliEn::Util;
 
 use vars qw (@ISA);
 
-@ISA = ("AliEn::Service::Broker");
+push @ISA,"AliEn::Service::Broker";
+use base qw(JSON::RPC::Procedure);
+
+
 use Classad;
 
 my $self = {};
@@ -44,6 +47,8 @@ sub initialize {
 
 sub getJobAgent {
 	my $this           = shift;
+	my $ref=shift;
+	@_=@$ref;
 	my $user           = shift;
 	my $host           = shift;
 	my $site_jdl       = shift;
@@ -56,19 +61,19 @@ sub getJobAgent {
 	$self->redirectOutput("JobBroker/$host");
 	$self->info("In findjob finding a job for $host");
 
+  $self->info("Before the update");
 	$self->{DB}->updateHost($host, {status => 'ACTIVE', date => $date})
 		or $self->{LOGGER}->error("JobBroker", "In findjob error updating status of host $host")
 		and return;
-
+  $self->info("Ready to extract params");
 	my ($queueName, $params) = $self->extractClassadParams($site_jdl);
+	$self->info("The extract params worked");
 	$queueName eq '-1' and return $queueName, $params;
 	use Data::Dumper;
 	$self->info("We have the parameters:" . Dumper($params));
 
 	$params->{returnId} = 1;
 	my $entry = $self->{DB}->getNumberWaitingForSite($params);
-	use Data::Dumper;
-	$self->info(Dumper($entry));
 	my $agentid;
 	$entry and $agentid = $entry->{entryId};
 
@@ -80,11 +85,13 @@ sub getJobAgent {
 		my $packages = $self->{DB}->getNumberWaitingForSite($params);
 		if (not $packages) {
 			$self->info("In findjob no job to match");
+			$self->{DB}->setSiteQueueStatus($queueName, "jobagent-no-match", $site_jdl);
 			return {execute => [ -2, "No jobs waiting in the queue" ]};
 		} else {
 			$self->info("Telling the site to install packages '$packages'");
 			my @packs = grep (!/\%/, split(",", $packages));
 			$self->info("After removing, we have to install @packs ");
+			$self->{DB}->setSiteQueueStatus($queueName, "jobagent-install-pack", $site_jdl);
 			return {execute => [ -3, @packs ]};
 		}
 	}
@@ -124,6 +131,7 @@ sub getJobAgent {
 	}
 
 	$self->info("Command $queueid sent !");
+	$self->{DB}->setSiteQueueStatus($queueName, "jobagent-match", $site_jdl);
 	return {execute => [ {queueid => $queueid, token => $token, jdl => $jdl, user => $jobUser} ]};
 }
 
@@ -282,8 +290,10 @@ sub extractClassadParams {
 	return ($queueName, $params);
 }
 
-sub offerAgent {
+sub offerAgent : Public{
 	shift;
+	my $ref=shift;
+	@_=@$ref;
 	my $user       = shift;
 	my $host       = shift;
 	my $ca_text    = shift;
@@ -293,8 +303,6 @@ sub offerAgent {
 	$self->info(
 		"And now Checking if there are any agents that can be started in the machine $host (up to a maximum of $free_slots)"
 	);
-
-	$self->setAlive();
 
 	$free_slots
 		or $self->info("Not enough resources")

@@ -27,7 +27,7 @@ sub new {
   $self->{CONFIG} or $self->{CONFIG} = AliEn::Config->new();
   my $role = ($self->{role} or $self->{ROLE} or $self->{user} );
   
-  $self->{SOAP} = new AliEn::SOAP or print "Error creating AliEn::SOAP $! $?" and return;
+  $self->{RPC} = new AliEn::RPC or print "Error creating AliEn::SOAP $! $?" and return;
   
   if (!$self->{CATALOGUE} ){
 	$self->info("Creating the catalogue");
@@ -115,7 +115,7 @@ sub f_packman {
  if ($allPackMan) {
     $self->info("We are going to call all the ClusterMonitors");
 
-    my $response = $self->{SOAP}->CallSOAP("IS", "getAllServices", "ClusterMonitor") or return;
+    my $response = $self->{RPC}->CallRPC("IS", "getAllServices", "ClusterMonitor") or return;
     $response = $response->result;
      # print Dumper($response);
     my @n = split(/###/, $response->{NAMES});
@@ -134,7 +134,7 @@ return 1;
   if ($string =~ s{-?-n(ame)?\s+(\S+)}{}) {
     my $name = $2;
 
-    my $response = $self->{SOAP}->CallSOAP("IS", "getService", $name , "ClusterMonitor") or return;
+    my $response = $self->{RPC}->CallRPC("IS", "getService", $name , "ClusterMonitor") or return;
     $response = $response->result;
     @arg = split(" ", $string);
    

@@ -65,7 +65,7 @@ sub f_addTag {
   }
   my $done = $self->{DATABASE}->insertIntoTag0($directory, $tagName, $tableName, $self->{CONFIG}->{ROLE});
   $done or $self->{LOGGER}->error("Tag", "Error inserting the entry!") and return;
-  print "Tag created\n";
+  $self->info("Tag created");
 
   return 1;
 }

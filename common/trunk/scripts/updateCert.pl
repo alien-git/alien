@@ -3,12 +3,13 @@ use strict;
 use AliEn::X509;
 use AliEn::Config;
 use Getopt::Long;
-use AliEn::SOAP;
+
 use AliEn::Authen::IIIkey;
 
 my $l=AliEn::Logger->new();
+use AliEn::RPC;
 
-my $soap=AliEn::SOAP->new();
+my $rpc=AliEn::RPC->new();
 
 
 my $options = {
@@ -88,13 +89,12 @@ my $encpasswd = $y->crypt( $passwd, $KEY );
 
 print "Uploading subject....................\n";
 
-my $done =$soap->CallSOAP("Authen", "insertCert", $org, $username, $encpasswd, $cert->getSubject );
+my $done =$rpc->CallRPC("Authen", "insertCert", $org, $username, $encpasswd, $cert->getSubject );
 
-$soap->checkSOAPreturn($done) or exit;
-if ( ($done) && ( $done->result ) ) {
-    print "OK\n";
-    print " Subject: "
+$done or exit(-2);
+
+print "OK Subject: "
       . $cert->getSubject
       . " succesfully uploaded to server\n";
-}
+
 

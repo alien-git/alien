@@ -166,6 +166,11 @@ userName: psaiz\n";
 
 sub changeStatusTransfer {
   my $this=shift;
+  if ($_[0] and ref $_[0] eq "ARRAY"){
+    my $ref=shift;
+    @_=@$ref;
+  }
+  
   my $id=shift;
   my $status=shift;
   my $options=(shift or {});
@@ -435,6 +440,10 @@ sub listTransfer_HELP{
 
 sub listTransfer {
   my $this=shift;
+  if ($_[0] and ref $_[0] eq "ARRAY"){
+    my $ref=shift;
+    @_=@$ref;
+  }
   $self->info("Checking the list of transfers @_"); 
   my $args =join (" ", @_);
   my $date = time;
@@ -548,6 +557,11 @@ sub listTransfer {
 
 sub killTransfer {
   my $this   = shift;
+  if ($_[0] and ref $_[0] eq "ARRAY"){
+    my $ref=shift;
+    @_=@$ref;
+  }
+  
   my $user = shift;
 
   my @return;

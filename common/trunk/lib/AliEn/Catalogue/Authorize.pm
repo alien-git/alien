@@ -53,7 +53,7 @@ use List::Util 'shuffle';
 require AliEn::UI::Catalogue;
 require AliEn::Catalogue::Admin;
 require AliEn::Database::Catalogue::LFN;
-use AliEn::SOAP;
+
 use Getopt::Long;
 use Compress::Zlib;
 use AliEn::TMPFile;

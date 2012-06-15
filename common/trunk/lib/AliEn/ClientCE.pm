@@ -1,6 +1,7 @@
 package AliEn::ClientCE;
 
 use AliEn::CE;
+use AliEn::RPC;
 
 use vars qw(@ISA);
 
@@ -13,7 +14,6 @@ sub new {
 
   my $options = shift;
 
-  $self->{SOAP} = new AliEn::SOAP;
 
   bless($self, $class);
 
@@ -57,7 +57,7 @@ sub new {
 
   $self->info( "Starting remotequeue...");
 
-
+  $self->{RPC}=AliEn::RPC->new();
   my $pOptions = {};
 
   $options->{PACKMAN} and $self->{PACKMAN} = $pOptions->{PACKMAN} = $options->{PACKMAN};

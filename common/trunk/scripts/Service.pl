@@ -14,19 +14,18 @@ my $options = {
 	       'fullname' =>0,
 	       'callback' =>"",
 	       'logfile' =>"",
+	       'pid'=> 0,
 	      };
 
 
 my $service=shift; 
-
 
 Getopt::Long::Configure("pass_through");
 #First, let's see if we have to redirect the output
 Getopt::Long::GetOptions($options,"logfile=s", "debug=s"  )  or exit;
 my $Logger=AliEn::Logger->new({logfile=>$options->{logfile}, debug=>$options->{debug}}) or exit;
 Getopt::Long::Configure("default");
-
-( Getopt::Long::GetOptions( $options, "help", "user=s", "debug=s", 
+( Getopt::Long::GetOptions( $options, "help", "user=s", "debug=s","pid=n", 
 			    "queueId=n", "disablePack", "port=n", "fullname", "callback=s","logfile=s") )
   or exit;
 

@@ -16,7 +16,7 @@ package AliEn::Database::Catalogue::GUID;
 
 use AliEn::Database::Catalogue::Shared;
 use strict;
-use AliEn::SOAP;
+
 use AliEn::GUID;
 
 =head1 NAME

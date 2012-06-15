@@ -22,7 +22,7 @@ use strict;
 
 require AliEn::Config;
 
-require AliEn::SOAP;
+
 require AliEn::Logger::LogObject;
 
 use vars qw($DEBUG @ISA $INDEX);

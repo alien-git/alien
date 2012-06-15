@@ -11,7 +11,7 @@ use AliEn::Logger;
 
 use vars qw($VERSION @ISA);
 
-use AliEn::SOAP;
+use AliEn::RPC;
 use AliEn::Config;
 use AliEn::Util;
 use strict;
@@ -20,9 +20,15 @@ use Socket;
 
 use LockFile::Simple;
 
+use base qw(JSON::RPC::Procedure);
 push @ISA, 'AliEn::Logger::LogObject';
 
 my $self;
+
+sub status :  Public()  {
+  return {rcmessages=>["AliEn Service $self->{SERVICENAME}: $self->{CONFIG}->{VERSION}"], 
+      rcvalues=>[1]};
+}  
 
 sub new {
   my $proto = shift;
@@ -34,15 +40,12 @@ sub new {
   $self->SUPER::new({logfile => $this->{logfile}}) or return;
 
   # Initialize the logger
-  $self->{LISTEN}  = 5;
-  $self->{PREFORK} = 5;
-
   $self->{USER} = $this->{user};
 
   $self->{LOGGER} or print STDERR "Error getting the logger\n" and return;
 
-  $self->{SOAP} = new AliEn::SOAP;
-  $self->{SOAP} or return;
+  $self->{RPC} = new AliEn::RPC;
+  $self->{RPC} or return;
   my $inittxt = "Initializing Service";
   $self->{DEBUG} = $this->{debug};
   if ($self->{DEBUG}) {
@@ -78,9 +81,6 @@ sub new {
     $ENV{X509_USER_KEY}  = "$certdir/userkey.pem";
   }
 
-  (-f "$self->{CONFIG}->{TMP_DIR}/AliEn_TEST_SYSTEM")
-    and $self->info("We are testing the whole system, let's create only one instance of each service")
-    and $self->{PREFORK} = 1;
   my $message = "";
   $self->{PORT} or $message = "No port defined.";
   $self->{HOST}        or $message .= " No host defined.";
@@ -118,7 +118,7 @@ setAlive informs the IS that the service is up and running.
 
 Service::startListening() calls the setAlive() function in AliEn::Service module. 
 
-From setAlive() function the markAlive() function is called in AliEn::Service::IS module through CallSOAP() function.CallSOAP function receives the arguments like service, servicename, version, name, host, port, uri, protocols from setAlive() function and calls markAlive() with those arguments.
+From setAlive() function the markAlive() function is called in AliEn::Service::IS module through CallRPC() function.CallRPC function receives the arguments like service, servicename, version, name, host, port, uri, protocols from setAlive() function and calls markAlive() with those arguments.
 
 =cut
 
@@ -148,27 +148,13 @@ sub setAlive {
     #$self->info("setAlive -> sent Bg Monitoring to ML.");
   }
 
-  #  # we can advertise the port of a subsytem in the IS
-  #  if ($self->{SUBPORT}) {
-  #    my $response=$self->{SOAP}->
-  #      CallSOAP("IS","markAlive",$self->{SERVICE},
-  #	       "$self->{SERVICENAME}::SUBSYS", $self->{HOST}, $self->{SUBPORT},
-  #	       {VERSION=>$self->{CONFIG}->{VERSION},
-  #		URI=>$self->{SUBURI},
-  #		PROTOCOLS=>$self->{PROTOCOLS},
-  #		CERTIFICATE=>$self->{CERTIFICATE}});
-  #    if ($self->{SERVICE} ne "Logger") {
-  #      ($response) or
-  #	$self->{LOGGER}->warning( "Service", "IS is not up" ) and return;
-  #    }
-  #  }
   if ($self->{REGISTER_IN_IS}) {
     foreach my $key (keys %{$self->{REGISTER_IN_IS}}) {
       my $elem = $self->{REGISTER_IN_IS}->{$key};
       my $name = "$self->{CONFIG}->{ORG_NAME}::$self->{CONFIG}->{SITE}::$key";
       my $host = $elem->{host} || $self->{HOST};
       $self->info("Registering the $name in the IS");
-      my $response = $self->{SOAP}->CallSOAP(
+      my $response = $self->{RPC}->CallRPC(
         "IS",
         "markAlive",
         $self->{SERVICE},
@@ -191,7 +177,7 @@ sub setAlive {
 
   $self->debug(1, "Registering the service in the IS");
 
-  my $response = $self->{SOAP}->CallSOAP(
+  my $response = $self->{RPC}->CallRPC(
     "IS",
     "markAlive",
     $self->{SERVICE},
@@ -207,7 +193,7 @@ sub setAlive {
 
   foreach (grep (/^$self->{SERVICE}_VIRTUAL_/, keys %{$self->{CONFIG}})) {
     $self->info("Telling the IS that $_ is alive");
-    $self->{SOAP}->CallSOAP(
+    $self->{RPC}->CallRPC(
       "IS",
       "markAlive",
       $self->{SERVICE},
@@ -223,11 +209,6 @@ sub setAlive {
 
   }
 
-  #  my $response =
-  #    SOAP::Lite->uri("AliEn/Service/IS")
-  #	->proxy("http://$self->{CONFIG}->{IS_HOST}:$self->{CONFIG}->{IS_PORT}",
-  #	       timeout => 5)
-
   if ($self->{SERVICE} ne "Logger") {
     ($response)
       or $self->{LOGGER}->warning("Service", "IS is not up")
@@ -238,47 +219,6 @@ sub setAlive {
   return 1;
 }
 
-# params: <status> 0 = dead, 1 = ok
-sub doCallback {
-  my $self   = shift;
-  my $status = shift;
-
-  $self->{CALLBACK} or return 1;
-  $self->{CALLBACK} =~ /^(.*?)@(.*?)@(.*)$/;
-  my $uri     = $1;
-  my $name    = $2;
-  my $address = $3;
-
-  my $soap = new AliEn::SOAP();
-  $soap or $self->debug(1, "Callback: Creating of SOAP failed") and return;
-  $soap->Connect(
-    { uri     => $uri,
-      name    => $name,
-      address => $address
-    }
-    )
-    or $self->debug(1, "Callback: SOAP connection failed")
-    and return;
-
-  my $functionName = ($status == 1) ? "markAlive" : "markDead";
-  my $response = $soap->CallSOAP(
-    $name,
-    $functionName,
-    $self->{SERVICE},
-    $self->{SERVICENAME},
-    $self->{HOST},
-    $self->{PORT},
-    { VERSION     => $self->{CONFIG}->{VERSION},
-      URI         => $self->{URI},
-      PROTOCOLS   => $self->{PROTOCOLS},
-      CERTIFICATE => $self->{USER}
-    }
-  );
-  $response or $self->debug(1, "Callback: SOAP call failed") and return;
-
-  $self->debug(1, "Callback successful");
-  return 1;
-}
 
 sub dumpEnvironment {
   my $self = shift;
@@ -288,107 +228,8 @@ sub dumpEnvironment {
   return 1;
 }
 
-sub startListening {
-  my $s = shift;
-
-  eval {
-    require AliEn::Server::SOAP::Transport::HTTP;
-    require AliEn::Server::SOAP::Transport::HTTPS;
-  };
-
-  if ($@) {
-    $self->info("Error requiring the transport methods!! $@");
-    return;
-  }
-
-  $self->setAlive();
-
-  # callback if requested
-  $self->dumpEnvironment();
-  $self->doCallback(1);
-
-  my $address = "$self->{HOST}:$self->{PORT}";
-
-  $self->info("Starting $self->{SERVICE} on $address");
-
-  if ($self->{FORKCHECKPROCESS}) {
-    $self->info("Forking a process");
-    $self->forkCheckProcess() or return;
-  }
-
-  $self->debug(1, "URI $self->{URI}");
-  eval {
-    my $daemon;
-    my $name    = "AliEn::Server::SOAP::Transport::HTTP";
-    my $options = {
-
-      #		 LocalAddr => $self->{HOST},
-      LocalPort => $self->{PORT},
-      Listen    => $self->{LISTEN},
-      Prefork   => $self->{PREFORK}
-    };
-
-    if ($self->{SECURE}) {
-      $name = $self->SetSecureEnvironment($options) or return;
-    }
-    $daemon = $name->new($options);
-    $self->{DISPATCH_WITH}
-      and $self->info("WE ARE PUTTING A NEW DISPATCH")
-      and $daemon->dispatch_with($self->{DISPATCH_WITH});
-    $daemon->dispatch_and_handle($self->{URI})
-      or print "Couldn't establish listening socket for SOAP server" and return;
-  };
-  if ($@) {
-    $self->info("The service did not start\n\t$@");
-  }
-  $self->info("Daemon $self->{SERVICE} stopped");
-  if ($self->{CHILDPID}) {
-    $self->stopService($self->{CHILDPID});
-  }
-  return;
-
-}
-
 my $alien_verify_subject;
 
-sub SetSecureEnvironment {
-  my $self    = shift;
-  my $options = shift;
-
-  my $CertDir = "$ENV{ALIEN_HOME}/identities." . lc($self->{CONFIG}->{ORG_NAME}) . "/$self->{SERVICE}/$self->{HOST}";
-
-  #
-  $ENV{X509_USER_CERT} = "$CertDir/cert.pem";
-  $ENV{X509_USER_KEY}  = "$CertDir/key.pem";
-  my $CAdir = "$ENV{ALIEN_ROOT}/globus/share/certificates";
-  $self->info("Starting a secure server :\n\tcert in $CertDir\n\t CA in $CAdir");
-  $options->{SSL_key_file}  = "$CertDir/key.pem";
-  $options->{SSL_cert_file} = "$CertDir/cert.pem";
-  $options->{SSL_ca_path}   = "$CAdir";
-
-  #       $options->{SSL_ca_file}="$CAdir/". ($self->{SSL_ca_file} or "c35c1972.0");
-  $options->{SSL_ca_file} = "$CAdir/c35c1972.0";
-  print "SIGNED BY $options->{SSL_ca_file}\n";
-  $options->{SSL_client_cert} = $self->{SSL_client_cert};
-  $options->{SSL_verify_mode} = 0x01 | 0x02 | 0x04;
-
-#SSL_verify_mode
-#Type of verification process which is to be performed upon a peer certificate. This can be a combination of 0x00 (don't verify), 0x01 (verify peer), 0x02 (fail verification if there's no peer certificate), and 0x04 (verify client once). Default: verify peer.
-  $options->{SSL_verify_mode} = 0x01 | 0x02 | 0x04;
-
-  $IO::Socket::SSL::GLOBAL_CONTEXT_ARGS->{SSL_verify_callback} = \&alien_verify;
-  $self->{SECURE_CLIENT} and $alien_verify_subject = $self->{SECURE_CLIENT};
-  $self->{PROTOCOL} = "https";
-
-  foreach my $file ("SSL_key_file", "SSL_cert_file") {
-    (-f $options->{$file})
-      or
-      $self->info("Error: $self->{SERVICE} is supposed to be secure, but the file $options->{$file} does not exist!!")
-      and return;
-  }
-
-  return "AliEn::Server::SOAP::Transport::HTTPS";
-}
 
 sub alien_verify {
   my ($ok, $x509_store_ctx) = @_;
@@ -453,15 +294,16 @@ sub stopService {
 
   my $pid = shift;
   $pid or $self->info("Trying to stop the service without passing the pid...") and return;
+  $pid eq "1" and $self->info("We are not going to kill everybody...") and return;
   $self->info("Stopping the service (pid $pid) (and I'm $$)");
 
   my @pids = ($pid, $self->findChildProcesses($pid));
 
   @pids = grep (!/^${$}$/, @pids);
-  $self->debug(1, "Killing the monitoring Daemon (processes @pids)");
+  $self->info("Killing the monitoring Daemon (processes @pids)");
 
   kill(9, @pids);
-
+  $self->info("Do we have to kill more??");
   return 1;
 }
 
@@ -502,14 +344,17 @@ sub forkCheckProcess {
       $self->info("************Redirecting the log of the checkWakesUp to $logFile");
       $self->{LOGGER}->redirect($logFile);
     }
-
+    $self->info("PID $$ sleeps");
+    #sleep (600);
     $self->startChecking();
 
     # We should never come here
     print STDERR "Checking has died!!!\n";
+    
+    exit(0);
   }
   $self->{CHILDPID} = $pid;
-
+  $self->info("The father returns (child $pid)");
   return 1;
 }
 
@@ -530,9 +375,10 @@ sub startChecking {
       $self->info("I'm still alive and checking");
       $count = 0;
     }
-    $self->checkWakesUp($silent)
-      or $self->debug(1, "Going back to sleep")
+    my $done=$self->checkWakesUp($silent);
+    $done or $self->debug(1, "Going back to sleep")
       and sleep($self->{SLEEP_PERIOD});
+    $done and $done eq "-1" and $self->info("$$ WE DON'T HAVE TO CHECK ANY MORE!!") and return 1;
     $self->setAlive();
     $silent++;
     ($silent == 60) and $silent = 0;
@@ -716,44 +562,6 @@ sub createJDL {
 
 }
 
-sub gSOAP {
-  my $s        = shift;
-  my $soapcall = shift;
-  my $args     = shift;
-
-  my @callargs = split "###", $args;
-
-  for (@callargs) {
-    $_ =~ s/\\\#/\#/g;
-  }
-
-  $self->debug(1, "Service $self->{SERVICE} call for gSOAP $soapcall");
-  if (!defined $soapcall) {
-    SOAP::Data->name("result" => "----");
-  } else {
-    my $resultref = eval('$self->' . $soapcall . '(@callargs)');
-    my @results;
-
-    #    print " resultref $resultref\n";
-    if (ref($resultref) eq "HASH") {
-      @results = %$resultref;
-    } elsif (ref($resultref) eq "ARRAY") {
-      @results = @$resultref;
-    } elsif (ref($resultref) eq "SCALAR") {
-      @results = $$resultref;
-    } else {
-      @results = $resultref;
-    }
-
-    #    print "Results @results\n";
-    for (@results) {
-      $_ =~ s/\#/\\\#/g;
-    }
-    my $soapreturn = join "###", @results;
-
-    SOAP::Data->name("result" => "$soapreturn");
-  }
-}
 
 sub checkFileSize {
   my $this = shift;
@@ -771,62 +579,6 @@ sub checkFileSize {
 }
 
 #
-#This function returns an unused port from the list in PROCCESS_PORT_LIST
-#
-sub getPort {
-  my $self = shift;
-  my $testport;
-  my $port;
-  my @PORTS = @{$self->{CONFIG}->{PROCESS_PORT_LIST}};
-  $self->debug(1, "TRYING WITH PORTS @PORTS");
-
-  my $portDir = "$self->{CONFIG}->{TMP_DIR}/PORTS";
-  if (!-d $portDir) {
-    my $dir = "";
-    foreach (split("/", $portDir)) {
-      $dir .= "/$_";
-      mkdir $dir, 0777;
-    }
-  }
-
-  my $lockmgr = LockFile::Simple->make(
-    -format    => '%f',
-    -max       => 10,
-    -delay     => 2,
-    -nfs       => 1,
-    -autoclean => 1,
-    -hold      => 10
-  );
-
-  while ($testport = shift(@PORTS)) {
-    my $proto = getprotobyname('tcp');
-
-    #  #    Locking port
-    $lockmgr->trylock("$portDir/lockFile.$testport.$self->{HOST}") or next;
-
-    # try to bind the port
-    if (
-      (    socket(Server, PF_INET, SOCK_STREAM, $proto)
-        && (setsockopt(Server, SOL_SOCKET, SO_REUSEADDR, pack("l", 1)))
-        && (bind(Server, sockaddr_in($testport, INADDR_ANY)))
-      )
-      ) {
-      $port = $testport;
-      last;
-    }
-    $self->debug(1, "Port $testport is busy");
-    $lockmgr->unlock("$portDir/lockFile.$testport.$self->{HOST}");
-  }
-  if (!($port)) {
-    print STDERR "Sorry no free port are available\n";
-    return;
-  }
-  $self->debug(1, "Port $port chosen");
-  return $port;
-
-}
-
-#
 #
 #
 sub getVersion {
@@ -838,39 +590,6 @@ sub getVersion {
 
 #
 #
-sub die {
-  my $self    = shift;
-  my $name    = shift || "";
-  my $message = shift || "";
-  $self->info("Dying with $name and $message\n");
-  die SOAP::Fault->faultcode($name)    # will be qualified
-    ->faultstring($message)->faultdetail(bless {code => 1} => 'BadError')->faultactor('http://www.soaplite.com/custom');
-}
-
-sub handler {
-  my $r = shift;
-  eval { require Apache::SOAP; };
-  if ($@) {
-    $self->info("Error requiring Apache::SOAP: $@");
-    return;
-  }
-  my $service = $r->header_in("SOAPAction");
-  $service =~ s/\#.*$//;
-  $service =~ s/^\"AliEn\/Service\///;
-  $service =~ s{/}{.}g;
-  $service .= ".log";
-  $self->{CURRENTLOG} or $self->{CURRENTLOG} = "";
-  if ($self->{CURRENTLOG} ne "$service") {
-    print STDERR "$$ Redirecting to $service\n";
-    $self->{LOGGER} or $self->{LOGGER} = AliEn::Logger->new();
-    my $dir = $self->{CONFIG}->{LOG_DIR} || $ENV{ALIEN_HOME};
-    print STDERR "$$ Putting it in $dir\n";
-    $self->{LOGGER}->redirect("$dir/$service");
-    $self->{CURRENTLOG} = $service;
-  }
-  Apache::SOAP::handler($r, @_);
-}
-
 sub forkCheckProcInfo {
   my $self = shift;
   my $dir  = "$self->{CONFIG}->{LOG_DIR}/$self->{SERVICE}";
@@ -918,7 +637,7 @@ sub checkProcInfo {
       push @temp, $item;
     }
     $self->info("Sending $#temp to the job manager");
-    $self->{SOAP}->CallSOAP("Manager/Job", "SetProcInfoBunch", $self->{HOST}, \@temp)
+    $self->{RPC}->CallRPC("Manager/Job", "SetProcInfoBunch", $self->{HOST}, \@temp)
       or $self->info("ERROR!!! we couldn't send the messages to the job manager");
   }
   $self->info("All messages have been sent!");
@@ -933,11 +652,16 @@ sub GetConfiguration {
   $self->info("Let's reload the configuration");
   $self->{CONFIG} = $self->{CONFIG}->Reload({"force", 1});
 
-  my $t = $self->{CONFIG};
-  foreach my $key (grep (s/_ORIG$//, keys %{$self->{CONFIG}})) {
-    $self->info("Setting $key to its previous value");
-    $t->{$key} = $self->{CONFIG}->{"${key}_ORIG"};
-
+  my $t = {};
+  
+  foreach my $key (sort keys %{$self->{CONFIG}}) {
+    $key =~ /^LOGGER$/ and next;
+    if ($key=~ s/_ORIG$// ){
+      $self->info("Setting $key to its previous value");
+      $t->{$key} = $self->{CONFIG}->{"${key}_ORIG"};      
+    }else {
+      $t->{$key} = $self->{CONFIG}->{"${key}"};      
+    }
   }
   AliEn::Util::setCacheValue($self, "Config", $t);
 

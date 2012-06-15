@@ -81,7 +81,6 @@ Each job has also a TTL (Time To Live), and the JobAgent checks that the process
 
 
 =cut
-
 sub dieGracefully {
   my $this=shift;
   my $queueId=shift;
@@ -105,28 +104,45 @@ sub dieGracefully {
 
 
 #############PRIVATE METHODS
+sub startListening {
+  my $this=shift;
 
+  my $silent=0;
+  while (1) {
+    my $done=$self->checkWakesUp($silent);
+    $done or $self->debug(1, "Going back to sleep")
+      and sleep($self->{SLEEP_PERIOD});
+    $done eq "-1" and $self->info("$$ WE DON'T HAVE TO CHECK ANY MORE!!") and return 1;
+
+    $silent++;
+    ($silent == 60) and $silent = 0;
+
+  }
+
+  return 1;
+}
 sub initialize {
   $self = shift;
   $self->{JOBAGENTSTARTS}=time();
   my $options =(shift or {});
   $self->debug(1, "Initializing the JobAgent in debug mode");
-  $self->{SERVICEPID}=$$;
-  $self->{WORKDIRFILE}="$self->{CONFIG}->{TMP_DIR}/jobagent.$$.options";
+  
 
-  $self->{FORKCHECKPROCESS} = 1;
-  $self->{LISTEN}=1;
-  $self->{PREFORK}=1;
+  $self->info("\n\n\nWE ARE GOING TO KILL $options->{pid}\n\n\n");
+  $options->{pid} and $self->{SERVICEPID}=$options->{pid};
+  
 
   $self->{TOTALJOBS}=0;
+  $self->{FORKCHECKPROCESS} = 1;
   $self->{PROCESSID} = 0;
   $self->{STARTTIME} = '0';
   $self->{STOPTIME} = '0';
   $self->{OUTPUTFILES} = "";
   $self->{TTL}=($self->{CONFIG}->{CE_TTL} || 12*3600);
   $self->{TTL} and $self->info("This jobagent is going to live for $self->{TTL} seconds");
-  ($self->{HOSTNAME},$self->{HOSTPORT}) =
-    split ":" , $ENV{ALIEN_CM_AS_LDAP_PROXY};
+  
+  $ENV{ALIEN_CM_AS_LDAP_PROXY} or $self->info("We don't have the address of the clustermonitor in ALIEN_CM_AS_LDAP_PROXY") 
+    and return;
 
   #$self->{HOST} = $ENV{'ALIEN_HOSTNAME'}.".".$ENV{'ALIEN_DOMAIN'};
   $self->{HOST} = $self->{CONFIG}->{HOST};
@@ -139,30 +155,20 @@ sub initialize {
 
   my $packConfig=1;
   $options->{disablePack} and $packConfig=0;
-  $self->{SOAP}=new AliEn::SOAP;
-
-  $self->{SOAP}->{CLUSTERMONITOR}=SOAP::Lite
-    ->uri("AliEn/Service/ClusterMonitor")
-      ->proxy("http://$self->{HOSTNAME}:$self->{HOSTPORT}");
 
   $self->{CONFIG} = new AliEn::Config() or return;
 
   $self->{UI} = 0;
 
-  $self->{PORT} = $self->getPort();
-  $self->{PORT} or return;
+  $self->{PORT} = $ENV{ALIEN_JOBAGENT_PORT};
+  $self->{PORT} or $self->info("We don't know in which port we are running") and return;
+
+  $self->{WORKDIRFILE}="$self->{CONFIG}->{TMP_DIR}/jobagent.$self->{PORT}.options";
+
 
   $self->{SERVICE}="JobAgent";
   $self->{SERVICENAME}="JobAgent";
   $self->debug(1, "The initialization finished successfully!!");
-
-  if ($self->{CONFIG}->{AGENT_API_PROXY}) {
-      # configure the api service endpoint list
-      $self->{CONFIG}->ConfigureApiClient();
-      $self->info("Using Api Service as proxy - URL-Endpoints: $ENV{'GCLIENT_SERVER_LIST'}");
-  } else {
-      $self->info("Using Proxy Service as proxy");
-  }
 
   $self->{JOBLOADED}=0;
   $self->{X509}= new AliEn::X509 or return;
@@ -189,7 +195,7 @@ sub requestJob {
   my $self=shift;
 
   $self->{REGISTER_LOGS_DONE}=0;
-  $self->{FORKCHECKPROCESS} = 0;
+
   $self->{CPU_CONSUMED}={VALUE=>0, TIME=>time};
 
   $self->GetJDL() or return;
@@ -197,7 +203,7 @@ sub requestJob {
   $self->{TOTALJOBS}=$self->{TOTALJOBS}+1;
 
 
-  $self->{SOAP}->CallSOAP("CLUSTERMONITOR","jobStarts", $ENV{ALIEN_PROC_ID}, $ENV{ALIEN_JOBAGENT_ID});
+  $self->{RPC}->CallRPC("ClusterMonitor","jobStarts", $ENV{ALIEN_PROC_ID}, $ENV{ALIEN_JOBAGENT_ID});
 
 
 
@@ -205,6 +211,7 @@ sub requestJob {
   $self->{LOGFILE}="$self->{CONFIG}->{TMP_DIR}/proc.$ENV{ALIEN_PROC_ID}.out";
   if ($self->{LOGFILE}){
     $self->info("Let's redirect the output to $self->{LOGFILE}");
+    $self->{ORIG_LOGFILE}=$self->{LOGGER}->{logfile};
     $self->{LOGGER}->redirect($self->{LOGFILE});
   } else{
     $self->info("We couldn't redirect the output...");
@@ -241,10 +248,10 @@ sub requestJob {
     my $cpu_type = $self->{MONITOR}->getCpuType();
     if($cpu_type){
       $cpu_type->{host} = $self->{HOST};
-      my $done = $self->{SOAP}->CallSOAP("CLUSTERMONITOR","getCpuSI2k", $cpu_type);
-      if($done && $done->result){
-        $self->info("SpecINT2k for this machine is ".$done->result);
-	$self->{MONITOR}->setCpuSI2k($done->result);
+      my ($done) = $self->{RPC}->CallRPC("ClusterMonitor","getCpuSI2k", $cpu_type);
+      if($done){
+        $self->info("SpecINT2k for this machine is $done");
+	      $self->{MONITOR}->setCpuSI2k($done);
       }else{
         $self->info("Got invalid SI2k estimation for this machine. Not reporting consumed ksi2k for this job.");
       }
@@ -270,7 +277,7 @@ sub changeStatus {
   foreach my $data (split (/\s+/, $self->{VOs})) {
     my ($org, $cm, $id, $token)=split("#", $data);
     $self->info("Contacting $org to change to $status");
-    $done = $self->{SOAP}->CallSOAP("Manager_Job_$org", "changeStatusCommand", "ALIEN_SOAP_RETRY", $id, $token, $oldstatus, $status, $self->{CONFIG}->{CE_FULLNAME}, @_ );
+    $done = $self->{RPC}->CallRPC("Manager_Job_$org", "changeStatusCommand", "-retry", $id, $token, $oldstatus, $status, $self->{CONFIG}->{CE_FULLNAME}, @_ );
     
     if (!$done){
       $self->info("Error changing the status! ");
@@ -298,7 +305,7 @@ sub putJobLog {
   my $id=$ENV{ALIEN_PROC_ID};
   $id or $self->info("Job id not defined... ignoring the putJobLog") and  return 1;
   $self->info("Putting in the joblog: $id, @_");
-  my $joblog = $self->{SOAP}->CallSOAP("CLUSTERMONITOR","putJobLog", $id,@_) or return;
+  my $joblog = $self->{RPC}->CallRPC("ClusterMonitor","putJobLog", $id,@_) or return;
   return 1;
 }
 
@@ -377,7 +384,7 @@ sub GetJDL {
   $self->info("The job agent asks for a job to do:");
 
   my $jdl;
-  my $i=$ENV{ALIEN_JOBAGENT_RETRY} || 5;
+  my $i=$ENV{ALIEN_JOBAGENT_RETRY} || 1;
 
   my $result;
   if ($ENV{ALIEN_PROC_ID}){
@@ -397,7 +404,7 @@ sub GetJDL {
 
     $self->sendJAStatus(undef, {TTL=>$self->{TTL}});
 
-    #my $done = $self->{SOAP}->CallSOAP("CLUSTERMONITOR","getJobAgent", $ENV{ALIEN_JOBAGENT_ID}, "$self->{HOST}:$self->{PORT}", $self->{CONFIG}->{ROLE}, $hostca, $hostca_stage);
+    #my $done = $self->{RPC}->CallRPC("ClusterMonitor","getJobAgent", $ENV{ALIEN_JOBAGENT_ID}, "$self->{HOST}:$self->{PORT}", $self->{CONFIG}->{ROLE}, $hostca, $hostca_stage);
     
     my $host=$self->{CONFIG}->{HOST};
     if ($ENV{ALIEN_CM_AS_LDAP_PROXY}){
@@ -405,36 +412,32 @@ sub GetJDL {
        $host=~ s/^(https?:\/\/)?([^:]*)(:\d+)?/$2/;
        $self->info("The host is $host");
     }
-    my $done = $self->{SOAP}->CallSOAP("Broker/Job", "getJobAgent", $self->{CONFIG}->{ROLE}, $host, $hostca, $hostca_stage);
-    my $info;
-    $done and $info=$done->result;
+    my ($info) = $self->{RPC}->CallRPC("Broker/Job", "getJobAgent", $self->{CONFIG}->{ROLE}, $host, $hostca, $hostca_stage);
     if ($info){
       $self->info("Got something from the ClusterMonitor");
       if (!$info->{execute}){
-	$self->info("We didn't get anything to execute");
+        $self->info("We didn't get anything to execute");
       }	else{
-	my @execute=@{$info->{execute}};
-	$result=shift @execute;
-	if ($result eq "-3") {
-	  $self->sendJAStatus('INSTALLING_PKGS');
-	  $self->{SOAP}->CallSOAP("Manager/Job", "setSiteQueueStatus",$self->{CONFIG}->{CE_FULLNAME},"jobagent-install-pack");
-	  $self->info("We have to install some packages (@execute)");
-	  foreach (@execute) {
-	    my ($ok, $source)=$self->installPackage( $_);
-	    if (! $ok){
-	      $self->info("Error installing the package $_");
-	      $self->sendJAStatus('ERROR_IP');
-#	      $catalog and $catalog->close();
-	      return;
-	    }
-	  }
-	  $i++; #this iteration doesn't count
-	}elsif ( $result eq "-2"){
-	  $self->info("No jobs waiting in the queue");
-	} else {
-	  $self->{SOAP}->CallSOAP("Manager/Job", "setSiteQueueStatus",$self->{CONFIG}->{CE_FULLNAME},"jobagent-matched");
-	  last;
-	}
+	      my @execute=@{$info->{execute}};
+	      $result=shift @execute;
+	      if ($result eq "-3") {
+	        $self->sendJAStatus('INSTALLING_PKGS');	  
+	        $self->info("We have to install some packages (@execute)");
+	        foreach (@execute) {
+	          my ($ok, $source)=$self->installPackage( $_);
+	          if (! $ok){
+	             $self->info("Error installing the package $_");
+	             $self->sendJAStatus('ERROR_IP');
+#	          $catalog and $catalog->close();
+	             return;
+	          }
+	       }
+	       $i++; #this iteration doesn't count
+	      }elsif ( $result eq "-2"){
+	        $self->info("No jobs waiting in the queue");
+	      } else {
+	       last;
+	      }
 	
       }
     } else{
@@ -442,7 +445,6 @@ sub GetJDL {
     }
     --$i or  last;
     print "We didn't get the jdl... let's sleep and try again\n";
-    $self->{SOAP}->CallSOAP("Manager/Job", "setSiteQueueStatus",$self->{CONFIG}->{CE_FULLNAME},"jobagent-no-match", $hostca);
     
     sleep (30);
     if($self->{MONITOR}){
@@ -552,16 +554,11 @@ sub checkJobJDL {
   foreach my $data (split (/\s+/, $self->{VOs})){
     my ($org, $cm, $id, $token)=split ("#", $data);
     $self->info("Connecting to services for $org");
-    $self->{SOAP}->{"CLUSTERMONITOR_$org"}=SOAP::Lite
-      ->uri("AliEn/Service/ClusterMonitor")
-	->proxy("http://$cm");
 
     $ENV{ALIEN_CM_AS_LDAP_PROXY}=$cm;
     $self->{CONFIG}=$self->{CONFIG}->Reload({"organisation", $org});
 
-    $self->{SOAP}->{"Manager_Job_$org"}=SOAP::Lite
-      ->uri("AliEn/Service/Manager/Job")
-	->proxy("http://$self->{CONFIG}->{JOB_MANAGER_ADDRESS}");
+    $self->{RPC}->Connect("Manager_Job_$org", $self->{CONFIG}->{JOB_MANAGER_ADDRESS}, "Manager/Job");
   }
   $ENV{ALIEN_CM_AS_LDAP_PROXY}=$oldCM;
   $self->{CONFIG}=$self->{CONFIG}->Reload({"organisation", $oldOrg});
@@ -725,17 +722,17 @@ sub getWorkDir {
     my $workdir=$self->getWorkingDir();
     my $buffer = `ls -la $workdir/`;
     $self->info("Getting the working directory ($workdir)");
-    my $var = SOAP::Data->type( base64 => $buffer );
-    $self->info("Getting the workdir done");
-    return ($var);
+#    my $var = SOAP::Data->type( base64 => $buffer );
+#    $self->info("Getting the workdir done");
+    return ($buffer);
 }
 
 sub getNodeInfo {
     my $self   = shift;
     my $buffer = `echo ------------------------------;date; echo ------------------------------;echo $self->{CONFIG}->{HOST}; echo ------------------------------;cat /proc/cpuinfo; echo ------------------------------;vmstat -n 1 1; echo ------------------------------;ps -ax ; `;
-    $self->info("Getting the working directory");
-    my $var = SOAP::Data->type( base64 => $buffer );
-    return ($var);
+#    $self->info("Getting the working directory");
+#    my $var = SOAP::Data->type( base64 => $buffer );
+    return ($buffer);
 }
 
 sub getOutput {
@@ -752,17 +749,17 @@ sub getOutput {
     my $file = "$workdir/$output";
     $self->info("Getting the file $file");
     my $buffer=$my_getFile->($file, @_);
-    my $var = SOAP::Data->type( base64 => $buffer );
-    return ($var);
+#    my $var = SOAP::Data->type( base64 => $buffer );
+    return ($buffer);
 }
 
 sub getWorkingDir {
   my $self=shift;
   #We have to know which file we have to return 
   #We don't know the workdir
-  open (FILE, "<$self->{WORKDIRFILE}") or print "Error opening the file $self->{WORKDIRFILE}\n" and return;
-  my @line=<FILE>;
-  close FILE;
+  open (my $FILE, "<", $self->{WORKDIRFILE}) or print STDERR "Error opening the file $self->{WORKDIRFILE}\n" and return;
+  my @line=<$FILE>;
+  close $FILE;
   my $workdir= join("", grep (s/workdir\s*=\s*//i, @line));
   chomp $workdir;
 
@@ -772,6 +769,12 @@ sub getWorkingDir {
 }
 sub getFile {
   my $this=shift;
+  
+  if ($_[0] and ref $_[0] eq "ARRAY"){
+    my $ref=shift;
+    @_=@$ref;
+  }
+  
   my $file =(shift or "stdout");
   $self->info("Trying to get the file $file");
   return($self->getOutput($file, @_));
@@ -784,16 +787,16 @@ sub zgetStdout {
     #my $buffer=$my_getFile->($file);
     my $zbuffer = compress( $my_getFile->($file) );
     ($zbuffer) or return "Error\n";
-    my $var = SOAP::Data->type( base64 => $zbuffer );
-    return ( $var, 1 );
+#    my $var = SOAP::Data->type( base64 => $zbuffer );
+    return ( $zbuffer, 1 );
 }
 
 sub zgetStderr {
     my $file    = "$self->{CONFIG}->{TMP_DIR}/proc$self->{QUEUEID}/stderr";
     my $zbuffer = compress( $my_getFile->($file) );
     ($zbuffer) or return "Error\n";
-    my $var = SOAP::Data->type( base64 => $zbuffer );
-    return ( $var, 1 );
+    #my $var = SOAP::Data->type( base64 => $zbuffer );
+    return ( $zbuffer, 1 );
 }
 
 sub startMonitor {
@@ -1008,7 +1011,7 @@ sub executeCommand {
     die;
   }
 
-  print "Test: ClusterMonitor is at $self->{HOSTNAME}:$self->{HOSTPORT}\n";
+  print "Test: ClusterMonitor is at $ENV{ALIEN_CM_AS_LDAP_PROXY}\n";
   print "Execution machine:  $self->{HOST}\n";
 
   chdir $self->{WORKDIR};
@@ -1977,12 +1980,11 @@ sub submitFileToClusterMonitor{
   }
   my $md5=AliEn::MD5->new($fullName);
   my $id=$ENV{ALIEN_PROC_ID};
-  my $var = SOAP::Data->type( base64 => $buffer );
-  my $org=$self->{CONFIG}->{ORG_NAME};
+
   # Modified so that putFILE return local (to ClusterMonitor) path to file
-  my $done = $self->{SOAP}->CallSOAP("CLUSTERMONITOR_$org","putFILE", $id, $var, $filename );
+  my ($done) = $self->{RPC}->CallRPC("ClusterMonitor","putFILE", $id, $buffer, $filename );
   
-  ($done) and ( $done = $done->result );
+
   ($done)
     or print STDERR
       "Error contacting ClusterMonitor 	$ENV{ALIEN_CM_AS_LDAP_PROXY}\n"
@@ -1992,23 +1994,9 @@ sub submitFileToClusterMonitor{
 
     #    print STDERR "$localdirectory/$filename has size $size\n";
   # To make sure we are in the right database.
-  
-  my $return=$lfn;
-
-#  if ($catalog){
-##! $options->{no_register}){
-#    my $dir= AliEn::Util::getProcDir($self->{JOB_USER}, undef, $ENV{ALIEN_PROC_ID}) . "/job-log";
-#    my $host="$ENV{ALIEN_CM_AS_LDAP_PROXY}";
-#    $catalog->execute("mkdir", $dir);
-#
-#    $catalog->execute( "register",  "$dir/$lfn",
-#		       "soap://$ENV{ALIEN_CM_AS_LDAP_PROXY}$done?URI=ClusterMonitor",$size, "no_se", "-md5", $md5) 
-#      or print STDERR "ERROR Adding the entry $done to the catalog!!\n"
-#	and return;
-#  }
 
   return {size=>$size, md5=>$md5, se=>'no_se', 
-	  pfn=>"soap://$ENV{ALIEN_CM_AS_LDAP_PROXY}$done?URI=ClusterMonitor"};
+	  pfn=>"rpc://$ENV{ALIEN_CM_AS_LDAP_PROXY}$done"};
 }
 
 sub catch_zap {
@@ -2109,21 +2097,24 @@ sub getProcInfo {
   # new ps has a bigger default for the 'command' column size and alien expects 16 
   # characters only but old 'ps' doesn't understand the new format with :size so we have 
   # to check first what kind of ps we have.
-  my $ps_format = "command start";
-  if(open(FILE, "ps -p 1 -o \"command:16 start:8 \%cpu\" |")){
-    my $line = <FILE>; # ignore header
-    $line = <FILE>;
-    $ps_format = "command:16 start:8" if $line !~ /^command:16 start:8/;
-    close FILE;
-  }else{
-    print "getProcInfo: cannot determine the ps behaviour\n";
+  
+  if (! $self->{PS_FORMAT}){
+    $self->{PS_FORMAT} = "command start";
+    if(open(FILE, "ps -p 1 -o \"command:16 start:8 \%cpu\" |")){
+      my $line = <FILE>; # ignore header
+      $line = <FILE>;
+      $self->{PS_FORMAT} = "command:16 start:8" if $line !~ /^command:16 start:8/;
+      close FILE;
+    }else{
+      print "getProcInfo: cannot determine the ps behaviour\n";
+    }
   }
   for (@allprocs) {
     my $npid = $_;
     chomp $npid;
     #    print "ps --no-headers --pid $npid -o \"cmd start %cpu %mem cputime rsz vsize\"\n";
     #the --no-headers and --pid do not exist in mac
-    open (FILE, "ps -p $npid -o \"$ps_format \%cpu \%mem cputime rsz vsize\"|") or print "getProcInfo: error checking ps\n" and next;
+    open (FILE, "ps -p $npid -o \"$self->{PS_FORMAT} \%cpu \%mem cputime rsz vsize\"|") or print "getProcInfo: error checking ps\n" and next;
     my @psInfo=<FILE>;
     close FILE;
     shift @psInfo; #get rid of the headers
@@ -2287,10 +2278,12 @@ sub firstExecution {
     $self->info("Process started:  $procinfo");
 
     $self->{PROCINFO} = $procinfo;
+    $self->{RPC}->CallRPC("ClusterMonitor","SetProcInfo",
+				       $self->{QUEUEID}, "runtime start cpu mem cputime rsz vsize ncpu cpufamily cpuspeed resourcecost");
     #send it to the ClusterMonitor
-    my $done = $self->{SOAP}->CallSOAP("CLUSTERMONITOR","SetProcInfo",
+    my $done = $self->{RPC}->CallRPC("ClusterMonitor","SetProcInfo",
 				       $self->{QUEUEID}, "$procinfo");
-    $self->{SOAP}->checkSOAPreturn($done);
+    
     return 1;
   }
   $self->{SLEEP_PERIOD}=10;
@@ -2442,7 +2435,7 @@ sub lastExecution {
   $self->info("Last ProcInfo: $procinfo");
   
   #submit the last Proc Info
-  my $done = $self->{SOAP}->CallSOAP("CLUSTERMONITOR","SetProcInfo", $self->{QUEUEID}, "$procinfo");
+  my $done = $self->{RPC}->CallRPC("ClusterMonitor","SetProcInfo", $self->{QUEUEID}, "$procinfo");
 #	$self->{SOAP}->checkSOAPreturn($done);
 
   # add some output to the process resource file
@@ -2530,7 +2523,7 @@ CPU Speed                           [MHz] : $ProcCpuspeed
   system("rm", "-rf", $self->{WORKDIR});
   $self->putJobLog("state", "The job finished on the worker node with status $self->{STATUS}");
   $self->{JOBLOADED}=0;
-  $self->{SOAP}->CallSOAP("CLUSTERMONITOR", "jobExits", $ENV{ALIEN_PROC_ID});
+
   delete $ENV{ALIEN_JOB_TOKEN};
   delete $ENV{ALIEN_PROC_ID};
   if (!$success){
@@ -2562,20 +2555,16 @@ sub checkWakesUp {
     $self->sendJAStatus('REQUESTING_JOB');
     $self->info("Asking for a new job");
     if (! $self->requestJob()) {
-      $self->sendJAStatus('DONE');
+
       $self->info("There are no jobs to execute. We have executed $self->{TOTALJOBS}");
-      #Tell the CM that we are done"
+
       $self->{MONITOR} and 
         $self->{MONITOR}->sendParameters("$self->{CONFIG}->{SITE}_".$self->{SERVICENAME}, "$self->{HOST}:$self->{PORT}", 
                                            { 'numjobs' => $self->{TOTALJOBS} });
-      $self->{SOAP}->CallSOAP("CLUSTERMONITOR", "agentExits", $ENV{ALIEN_JOBAGENT_ID});
       # killeverything connected
-      $self->info("We have to  kill $self->{SERVICEPID} or ".getppid());
-#      system("ps -ef |grep JOB");
-      unlink $self->{WORKDIRFILE};
-      system ("rm", "-rf", $self->{WORKDIRFILE});
-      $self->stopService(getppid());
-      kill (9, getppid());
+
+      $self->info("$$ We didn't start any agents. We have to  kill $self->{SERVICEPID} or ".getppid());     
+      $self->stopService($self->{SERVICEPID});
       exit(0);
     }
   }
@@ -2617,19 +2606,18 @@ sub checkWakesUp {
   my @all;		
   for $i ( 1 .. 10 ) {
     $procinfo = $this->getProcInfo($self->{PROCESSID});
-
-    if (!($procinfo)) {
+    if (!$procinfo){
+      sleep 1;
       next;
-      #			$self->lastExecution();
-    } else {
-      $self->{PROCINFO} = $procinfo;
-      @all = split " ",$procinfo;
-      if ( $all[6] > $self->{MAXVSIZE} ) {
-	$self->{MAXVSIZE} = $all[6];
-      }
-      if ( $all[5] > $self->{MAXRSIZE} ) {
-	$self->{MAXRSIZE} = $all[5];
-      }
+    }
+    $self->{PROCINFO} = $procinfo;
+    @all = split " ",$procinfo;
+    if ( $all[6] > $self->{MAXVSIZE} ) {
+    	$self->{MAXVSIZE} = $all[6];
+    }
+    if ( $all[5] > $self->{MAXRSIZE} ) {
+	    $self->{MAXRSIZE} = $all[5];
+    }
 
       $self->{SUMRSIZE} += $all[5];
       $self->{SUMVSIZE} += $all[6];
@@ -2643,22 +2631,17 @@ sub checkWakesUp {
       $self->{AVCPU}   = sprintf "%.02f",($self->{SUMCPU}/$self->{SUMCOUNT});	
       $self->{PROCINFO} = "$all[0] $all[1] $self->{AVCPU} $all[3] $all[4] $all[5] $all[6] $all[7] $all[8] $all[9] $self->{MAXRESOURCECOST} $self->{AVRSIZE} $self->{AVVSIZE}";
       $self->{PROCINFO} .= " $self->{CPU_KSI2K}" if defined($self->{CPU_KSI2K});
-    }
-
-    #	$self->info("ProcInfo: $procinfo");
-    sleep(1);
-
   }
-
+  
   #we are going to send the procinfo only one every ten times
-  $self->{ALIEN_PROC_INFO} or  $self->{ALIEN_PROC_INFO}=0;
-  $self->{ALIEN_PROC_INFO}++;
-  if (($self->{ALIEN_PROC_INFO} eq "10") or (-f "$self->{CONFIG}->{TMP_DIR}/AliEn_TEST_SYSTEM" )) {
+#  $self->{ALIEN_PROC_INFO} or  $self->{ALIEN_PROC_INFO}=0;
+#  $self->{ALIEN_PROC_INFO}++;
+#  if (($self->{ALIEN_PROC_INFO} eq "10") or (-f "$self->{CONFIG}->{TMP_DIR}/AliEn_TEST_SYSTEM" )) {
     $self->info("checkWakesUp: $self->{PROCINFO}");
-    $self->{SOAP}->CallSOAP("CLUSTERMONITOR","SetProcInfo",
+    $self->{RPC}->CallRPC("ClusterMonitor","SetProcInfo",
 			    $self->{QUEUEID}, $self->{PROCINFO});
-    $self->{ALIEN_PROC_INFO}=0;
-  }
+#    $self->{ALIEN_PROC_INFO}=0;
+#  }
   
 
   $self->checkProcess($self->{PROCESSID}) and return;
@@ -2667,8 +2650,8 @@ sub checkWakesUp {
   waitpid(-1, &WNOHANG);
 
   $self->lastExecution();
-  $self->{LOGGER}->redirect();
-  $self->info("Back to the normal log file");
+  $self->{LOGGER}->redirect($self->{ORIG_LOGFILE});
+  $self->info("Back to the normal log file($self->{ORIG_LOGFILE})");
   return 1;
 }
 

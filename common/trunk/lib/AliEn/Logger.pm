@@ -35,23 +35,17 @@ sub new {
   $self->{LEVEL} = 1;
 
   $self->{LEVELNAME} = "info";
-  defined $self->{logagent} or $self->{logagent} = 1;
-
   # Let's initialize
-  if ($self->{logagent}) {
+
 	$proto->_initializeAgent($self) or return;
-  } else {
-	$proto->_initializeDispatch($self) or return;
-  }
+
   if ($self->{logfile}) {
 	$self->redirect($self->{logfile}) or return;
   }
-  open SAVEOUT,  ">&STDOUT";
-  open SAVEOUT2, ">&STDERR";
+  open $self->{SAVEOUT},  ">&", STDOUT;
+  open $self->{SAVEOUT2}, ">&", STDERR;
 
   #to avoid typo warning
-  open SAVEOUT,  ">&STDOUT";
-  open SAVEOUT2, ">&STDERR";
 
   $self->{KEEP_MESSAGES} = 0;
   $self->{MESSAGES}      = [];
@@ -71,34 +65,6 @@ sub _initializeAgent {
   return 1;
 }
 
-sub _initializeDispatch {
-  my $proto   = shift;
-  my $options = shift;
-
-  require Log::Dispatch;
-  require Log::Dispatch::Screen;
-
-  #  require Log::Dispatch::File;
-
-  require AliEn::Logger::Local;
-  require AliEn::Logger::Error;
-  @ISA  = qw(Log::Dispatch);
-  $self = $proto->SUPER::new();
-
-  foreach (keys %$options) {
-	$self->{$_} = $options->{$_};
-  }
-
-  $self->add(
-	AliEn::Logger::Local->new(
-	  name      => 'Local',
-	  min_level => 'debug'
-	)
-	)
-	or return;
-
-  return 1;
-}
 
 # This subroutine redirects all the output of the messages sent to the logger, STDOUT and
 # STDERR to another file. If the file is empty, it redirects them to the original STDOUT
@@ -117,11 +83,9 @@ sub redirect {
 		and print "Error creating the directory $dir\n"
 		and return;
 	}
-	if ($self->{logagent}) {
-	  $self->_initializeAgentRotate() or return;
-	} else {
-	  $self->_initializeDispatchRotate() or return;
-	}
+	
+	$self->_initializeAgentRotate() or return;
+
 	if (!sysopen STDOUT, "$self->{logfile}", O_SYNC | O_APPEND | O_WRONLY | O_NONBLOCK | O_CREAT) {
 
 	  #      open STDOUT, ">&SAVEOUT";
@@ -133,31 +97,21 @@ sub redirect {
 	  #      open STDERR, ">&SAVEOUT2";
 	  print STDERR "Could not open stderr file\n";
 	  die;
-	}
-	$self->{logfile_size} = -1;
+	  }
+	  $self->{logfile_size} = -1;
   } else {
-	$self->{logfile} = "";
+	  $self->{logfile} = "";
 
-	#Redirecting to the original STDOUT
-	open STDOUT, ">&SAVEOUT";
-	open STDERR, ">&SAVEOUT2";
-	if ($self->{logagent}) {
-	  require Log::Agent::Rotate;
+  	#Redirecting to the original STDOUT
+	  open STDOUT, ">&", $self->{SAVEOUT};
+	  open STDERR, ">&", $self->{SAVEOUT2};
+
+    require Log::Agent::Rotate;
 	  require Log::Agent::Driver::File;
 	  require Log::Agent::Driver::Default;
 
 	  my $driver = Log::Agent::Driver::Default->make();
 	  Log::Agent::logconfig(-driver => $driver);
-
-	} else {
-	  $self->remove('Local');
-	  $self->add(
-		AliEn::Logger::Local->new(
-		  name      => 'Local',
-		  min_level => 'debug'
-		)
-	  );
-	}
   }
   return 1;
 }
@@ -199,23 +153,6 @@ sub _initializeAgentRotate {
   return 1;
 }
 
-sub _initializeDispatchRotate {
-  my $self = shift;
-  require Log::Dispatch::FileRotate;
-  $self->remove('Local');
-  $self->add(
-	Log::Dispatch::FileRotate->new(
-	  name      => 'Local',
-	  min_level => 'debug',
-	  filename  => $self->{logfile},
-	  mode      => 'append',
-	  size      => 1000000,
-	  max       => 6,
-	)
-  );
-  return 1;
-}
-
 sub setMinimum {
   my $self  = shift;
   my $level = shift;
@@ -230,35 +167,11 @@ sub setMinimum {
 
 sub infoToSTDERR {
   my $self = shift;
-  ($self->{logagent}) and return 1;
-
-  $self->remove('Local');
-  $self->remove('Error');
-
-  my $soapObj = AliEn::Logger::Error->new(
-	name      => 'Error',
-	min_level => 'info'
-  );
-  ($soapObj) or return;
-
-  $self->add($soapObj);
   return 1;
 }
 
 sub debugToSTDERR {
   my $self = shift;
-  ($self->{logagent}) and return 1;
-
-  $self->remove('Local');
-  $self->remove('Error');
-
-  my $soapObj = AliEn::Logger::Error->new(
-	name      => 'Error',
-	min_level => 'debug'
-  );
-  ($soapObj) or return;
-
-  $self->add($soapObj);
   return 1;
 }
 
@@ -356,7 +269,7 @@ sub raw() {
 
 sub debug() {
   my $self = shift;
-  $self->display("debug", @_);
+  $self->display("debug",  @_);
   return 1;
 }
 
@@ -460,8 +373,10 @@ sub display {
 	push @{$self->{MESSAGES}}, $msg;
 	return 1;
   }
-  if ($self->{logagent}) {
+  
 	$msg =~ s{\%}{\%\%}g;
+	
+	
 	if ($INFO_LEVELS->{$level} eq $INFO_LEVELS->{raw}) {
 	  Log::Agent::logwrite('raw', 'notice', $msg);
 	} elsif ($INFO_LEVELS->{$level} > $INFO_LEVELS->{notice}) {
@@ -471,29 +386,20 @@ sub display {
 	} else {
 	  Log::Agent::logsay($msg);
 	}
-  } else {
 
-	my $d = "SUPER::$level";
-	$self->$d("$msg\n");
-  }
+  #This is to redirect as well any prints made directly to STDOUT
   if ($self->{logfile}) {
-	my $size = -s $self->{logfile};
-	if ($size < $self->{logfile_size}) {
-	  if (!sysopen STDOUT, "$self->{logfile}", O_SYNC | O_APPEND | O_WRONLY | O_NONBLOCK | O_CREAT) {
-
-		#	open STDOUT, ">&SAVEOUT";
-		die "stdout in $self->{logfile} not opened!!";
-	  }
+	  my $size = -s $self->{logfile};
+	  if ($size < $self->{logfile_size}) {
+	    if (!sysopen STDOUT, "$self->{logfile}", O_SYNC | O_APPEND | O_WRONLY | O_NONBLOCK | O_CREAT) {
+   		  die "stdout in $self->{logfile} not opened!!";
+	    }
 
 	  if (!open(STDERR, ">&STDOUT")) {
-
-		#	open STDOUT, ">&SAVEOUT";
-		#	open STDERR, ">&SAVEOUT2";
-		#	print STDERR "Could not open stderr file\n";
-		die "Could not open stderr file";
+  		die "Could not open stderr file";
+	    }
 	  }
-	}
-	$self->{logfile_size} = $size;
+	  $self->{logfile_size} = $size;
   }
   return 1;
 }

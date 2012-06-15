@@ -10,6 +10,9 @@ my $var = shift;
 ($var)
   or print STDERR "ERROR: no variable specified\nUsage alien -x $0 <varName>\n"
   and exit;
-
-print "$config->{$var}";
+if ( ref $config->{$var} eq "ARRAY"){
+  print join (" ", @{$config->{$var}});
+}else {
+  print "$config->{$var}";
+}
 exit;

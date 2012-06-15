@@ -21,8 +21,8 @@ sub new {
   $self->{LOGGER}    = new AliEn::Logger;
   $self->{CONFIG}    = new AliEn::Config($options);
   $self->{ROLE} = $options->{role} || $options->{ROLE} || $self->{CONFIG}->{ROLE};
-  $self->{SOAP} = new AliEn::SOAP
-    or print "Error creating AliEn::SOAP $! $?" and return;
+  $self->{RPC} = new AliEn::RPC
+    or print "Error creating AliEn::RPC $! $?" and return;
   $self->{UMASK} = 0755;
 
   if ($ENV{ALIEN_PROC_ID} and $ENV{ALIEN_JOB_TOKEN}) {
@@ -58,7 +58,7 @@ sub callAuthen {
     $user = $1;
   }
   $self->{LOGGER}->getDebugLevel() and push @_, "-debug=" . $self->{LOGGER}->getDebugLevel();
-  return $self->{SOAP}->CallAndGetOverSOAP($self->{SILENT}, "Authen", "doOperation", $user, $self->{DISPPATH}, @_);
+  return $self->{RPC}->CallRPCAndDisplay($self->{SILENT}, "Authen", "doOperation", $user, $self->{DISPPATH}, @_);
 }
 
 sub f_cd {

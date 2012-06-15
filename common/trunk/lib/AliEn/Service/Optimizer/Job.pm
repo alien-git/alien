@@ -36,11 +36,6 @@ sub initialize {
   $self->debug(1,
     "In initialize creating AliEn::UI::Catalogue::LCM::Computer instance");
 
-  $self->{SOAP}->checkService("Manager/Job", "JOB_MANAGER", "-retry")
-    or $self->{LOGGER}
-    ->error("JobOptimizer", "In initialize error checking Manager/Job service")
-    and return;
-
   $self->{CATALOGUE} = AliEn::UI::Catalogue::LCM::Computer->new($options);
 
   ($self->{CATALOGUE})
@@ -48,9 +43,6 @@ sub initialize {
     "In initialize error creating AliEn::UI::Catalogue::LCM::Computer instance")
     and return;
 
-  $self->{SOAP}->{Authen} =
-    SOAP::Lite->uri('AliEn/Service/Authen')
-    ->proxy("http://$self->{CONFIG}->{AUTH_HOST}:$self->{CONFIG}->{AUTH_PORT}");
   $self->{PARENT} = $$;
 
   $self->SUPER::initialize(@_) or return;
@@ -98,8 +90,8 @@ sub checkWakesUp {
   my $messages = $self->{DB}->queryValue("select count(1) from JOBMESSAGES");
   if ($messages ) {
     $self->info("Telling the JobManager  to process JOBMESSAGES ($messages messages)");
-    $self->{SOAP}
-      ->CallSOAP("Manager/Job", "SetProcInfoBunchFromDB", $self->{HOST}, $messages)
+    $self->{RPC}
+      ->CallRPC("Manager/Job", "SetProcInfoBunchFromDB", $self->{HOST}, $messages)
       or
       $self->info("ERROR!!! we couldn't send the messages to the job manager");
   }

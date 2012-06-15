@@ -20,7 +20,7 @@ use AliEn::Database;
 
 use Tie::CPHash;
 
-use AliEn::SOAP;
+
 use AliEn::Logger::LogObject;
 use vars qw($DEBUG @ISA);
 

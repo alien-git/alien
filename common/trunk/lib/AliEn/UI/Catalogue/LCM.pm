@@ -51,7 +51,7 @@ use List::Util 'shuffle';
 require AliEn::UI::Catalogue;
 require AliEn::Catalogue::Admin;
 require AliEn::Database::Catalogue::LFN;
-use AliEn::SOAP;
+use AliEn::RPC;
 use Getopt::Long;
 use Compress::Zlib;
 use AliEn::TMPFile;
@@ -145,7 +145,7 @@ sub initialize {
 
   ($self->{STORAGE}) or return;
 
-  $self->{SOAP} = new AliEn::SOAP;
+  $self->{RPC} = new AliEn::RPC;
 
   $self->AddCommands(%LCM_commands);
   $self->AddHelp(%LCM_help);
@@ -191,7 +191,7 @@ sub resolve {
     return;
   }
 
-  $response = $self->{SOAP}->CallSOAP("IS", $method, $name) or return;
+  $response = $self->{RPC}->CallRPC("IS", $method, $name) or return;
 
   $response = $response->result;
 
@@ -206,29 +206,6 @@ sub resolve {
   $self->info("Service $service of $name is accessible under: $hostport", 0, 0);
   return $hostport;
 
-}
-
-sub mssurl {
-  my $self = shift;
-  my $se   = shift or print STDERR "Error: not enough arguments in mssurl\nUsage: mssurl <SE> <PATH>\n" and return;
-  my $file = shift or print STDERR "Error: not enough arguments in mssurl\nUsage: mssurl <SE> <PATH>\n" and return;
-
-  my $hostport = resolve($self, $se, "SE");
-  print STDERR "H", $hostport;
-  if ($hostport eq "") {
-    return;
-  }
-
-  my $response = SOAP::Lite->uri("AliEn/Service/SE")->proxy("http://$hostport")->getURL($file);
-
-  if (!($response)) {
-    return;
-  }
-
-  $response = $response->result;
-
-  $self->info("URL: $response", 0, 0);
-  return $response;
 }
 
 =item C<get($lfn, $localfile)>
@@ -526,7 +503,7 @@ sub services {
     my $service   = $_;
     my $doservice = $service;
 
-    my $response = $self->{SOAP}->CallSOAP("IS", "getAllServices", $doservice)
+    my $response = $self->{RPC}->CallRPC("IS", "getAllServices", $doservice)
       or next;
 
     $response = $response->result;
@@ -975,10 +952,9 @@ sub mirror {
     $transfer->{target} =~ s/^$service->{SAVEDIR}//;
   }
 
-  my $result = $self->{SOAP}->CallSOAP("Manager/Transfer", "enterTransfer", $transfer);
-  $result or return;
+  my ($id) = $self->{RPC}->CallRPC("Manager/Transfer", "enterTransfer", $transfer);
+  $id or return;
 
-  my $id = $result->result;
   $self->info("The transfer has been scheduled!! ($id)");
   $opt->{'w'} or return (-2, $id);
   $self->info('Waiting until the transfer finishes');
@@ -1095,7 +1071,7 @@ sub preFetch {
 #  my ($seName, $seCert)=$self->{SOAP}->resolveSEName($se) or return;
 
 ##  $self->info( "Asking the SE at $seName");
-#  my $result=$self->{SOAP}->CallSOAP($seName, "getPFNFromGUID",$seName, $guid, $self->{CONFIG}->{IOMETHODS_LIST}, $options)
+#  my $result=$self->{RPC}->CallRPC($seName, "getPFNFromGUID",$seName, $guid, $self->{CONFIG}->{IOMETHODS_LIST}, $options)
 #    or $self->info( "Error asking the SE: $!", 1) and return;
 #  my @pfns=$self->{SOAP}->GetOutput($result);
 #  $self->debug(1, "Returning the list @pfns");
@@ -1907,7 +1883,7 @@ sub getLog {
   $service =~ /\./ or $service .= ".log";
   if (!$self->{SOAP}->{"cm_$site"}) {
     $self->info("Getting the log of $site");
-    my $address = $self->{SOAP}->CallSOAP("IS", "getService", $site, "ClusterMonitor")
+    my $address = $self->{RPC}->CallRPC("IS", "getService", $site, "ClusterMonitor")
       or $self->info("Error getting the address of $site");
     my $output = $address->result;
     my $host   = $output->{HOST};
@@ -1923,7 +1899,7 @@ sub getLog {
       or $self->info("Error connecting to $host")
       and return;
   }
-  my $log = $self->{SOAP}->CallSOAP("cm_$site", "getFileSOAP", $service, "LOG_DIR")
+  my $log = $self->{RPC}->CallRPC("cm_$site", "getFileSOAP", $service, "LOG_DIR")
     or $self->info("Error getting the log $service")
     and return;
   my $output = $log->result;
@@ -2427,7 +2403,7 @@ sub f_cp {
      #Manage metadata if option specified
       if ($opt->{'m'}) {
         my $todoMetadata = {};
-        ($todoMetadata) = $self->{CATALOG}->getCPMetadata($sourceFile, $target, $targetFile, $todoMetadata);
+        ($todoMetadata) = $self->{CATALOG}->getCPMetadata($sourceFile, $targetFile);
         $self->{LOGGER}->debug(1, "Metadata copied ---> " . Dumper($todoMetadata));
       }
     }

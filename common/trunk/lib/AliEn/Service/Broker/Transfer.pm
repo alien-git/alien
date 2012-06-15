@@ -79,6 +79,11 @@ sub getTransferFromAgentId {
 
 sub requestTransferType {
   my $this = shift;
+  
+  if ($_[0] and ref $_[0] eq "ARRAY"){
+    my $ref=shift;
+    @_=@$ref;
+  }
   my $jdl=shift;
   my $slots=shift || 1;
 
@@ -110,7 +115,7 @@ sub requestTransferType {
   }
   @toReturn or $self->info("Nothing to do") and return (-2);
   
-  return @toReturn;
+  return [@toReturn];
 }
 
 

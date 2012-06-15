@@ -32,7 +32,18 @@ sub debug{
 
   $level> $self->{LOGGER}->{LOG_OBJECTS}->{$self->{LOG_REF}} and return 1;
 
-  return $self->{LOGGER}->display("debug", $self->{LOG_REF},"$level $self->{LOG_REF} -> $message", @_);
+#  my $i=1;
+	my ($package, $filename, $line, $subroutine) = caller(0);
+	my ($package2, $filename2, $line2, $subroutine2) = caller(1);
+#  while ($package eq "RPC") {
+#     $i++;
+#     ($package, $filename, $line, $subroutine) = caller($i);
+#      $package or last;        
+#  }
+
+  
+
+  return $self->{LOGGER}->display("debug", $self->{LOG_REF},"$level $subroutine2:$line -> $message", @_);
 }
 
 sub raw{

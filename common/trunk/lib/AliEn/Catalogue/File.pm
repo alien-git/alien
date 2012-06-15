@@ -18,7 +18,7 @@ package AliEn::Catalogue::File;
 use strict;
 use AliEn::SE::Methods;
 use AliEn::URL;
-use AliEn::SOAP;
+
 use AliEn::MD5;
 use Data::Dumper;
 use vars qw ($DEBUG);
@@ -531,18 +531,19 @@ sub f_ln {
 sub getCPMetadata {
   my $self         = shift;
   my $source       = shift;
-  my $targetDir    = shift;
-  my $targetName   = shift;
-  my $todoMetadata = shift;
+  my $targetFile    = shift;
+  
+  my $todoMetadata = {};
 
-  $targetDir =~ s{/?$}{/};
+
+  my $targetDir=$targetFile;
+  $targetDir =~ s{/([^/]*)$}{/};
   $self->info("We are supposed to copy also the metadata of $source to $targetDir");
   my $sourceDir = $source;
   $sourceDir =~ s{/[^/]*$}{/};
   my $tags = $self->f_showTags("allr", $sourceDir);
   my $entries = {};
   foreach my $tag (@$tags) {
-
     #making sure that the destination has all the tags#
     $self->debug(1, "We should add the tag $tag->{tagName}");
     $self->info("Adding tag $tag->{tagName}....");
@@ -551,7 +552,7 @@ sub getCPMetadata {
       and return;
     my $tableName = $self->{DATABASE}->getTagTableName($targetDir, $tag->{tagName});
     $tableName
-      or $self->info("Error getting the name of the table")
+      or $self->info("Error getting the name of the table of '$targetDir'")
       and next;
 
     #let's put the entries
@@ -564,8 +565,8 @@ sub getCPMetadata {
 
     $self->info("Processing metadata values for $tag");
     foreach my $entry (@$info, @$info2) {
-      my $toInsert = {file => "$targetName"};
-      if (!$targetName) {
+      my $toInsert = {file => "$targetFile"};
+      if (!$targetFile) {
         $toInsert->{file} = $entry->{file};
         if ($toInsert->{file} =~ s/^$source//) {
           $toInsert->{file} = "$targetDir$toInsert->{file}";
@@ -592,14 +593,20 @@ sub getCPMetadata {
     $entries->{$tableName} = \@list;
   }
 
-  $self->info("Adding metadata values for $targetName....");
+  $self->info("Adding metadata values for $targetFile.... :)");
+  $self->info(Dumper($entries));
+  $self->info("AND");
+  $self->info(Dumper($todoMetadata));
   foreach my $key (keys %$entries) {
     my @list = ();
     $todoMetadata->{$key} and push @list, @{$todoMetadata->{$key}};
     push @list, @{$entries->{$key}};
     $todoMetadata->{$key} = \@list;
   }
-
+  use Data::Dumper;
+  $self->info("AND WE HAVE");
+  
+  $self->info(Dumper($todoMetadata));
   foreach my $key (keys %$entries) {
 
     #Insert data into table
@@ -611,8 +618,8 @@ sub getCPMetadata {
       push @data, "$val='${$entries->{$key}}[0]->{$val}'";
     }
     $self->info("@data");
-    $self->f_addTagValue($targetName, $tagName, @data)
-      or $self->{LOGGER}->error("Catalogue::File", "Could not add tag value @data for tag $tagName on tag $targetName");
+    $self->f_addTagValue($targetFile, $tagName, @data)
+      or $self->info("Could not add tag value @data for tag $tagName on tag $targetFile");
   }
 
   return $entries;
@@ -671,7 +678,7 @@ sub f_mv {
     my $todoMetadata = {};
     my $targetDir    = "$fullTarget";
     $targetDir =~ s{/[^/]*$}{/};
-    $self->getCPMetadata($fullSource, $targetDir, $fullTarget, $todoMetadata);
+    $self->getCPMetadata($fullSource, $fullTarget);
   }
   return @returnVal;
 }

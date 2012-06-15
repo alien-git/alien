@@ -5,14 +5,14 @@ use vars qw(@ISA);
 use AliEn::FTP;
 @ISA = ( "AliEn::FTP" );
 use AliEn::SE::Methods::root;
-use AliEn::SOAP;
+
 
 sub initialize {
   my $self   = shift;
   my $options = shift;
 
   $self->{DESTHOST} = $options->{HOST};
-  $self->{SOAP}=AliEn::SOAP->new() or return;
+  
   $self->debug(1, "Let's see if xrdcpapmon is in the path");
 
   $self->{XRDCP}="xrdcp";
@@ -125,23 +125,9 @@ sub getURL{
   my $self=shift;
   my $pfn=shift;
   my $se=shift || "";
-  $self->{SOAP} or $self->{SOAP}=AliEn::SOAP->new();
-#  my $io=$self->{CONFIG}->{SE_IODAEMONS} || "";
-#  $self->info("Starting with io $io");
-#  $io =~ s/^xrootd:// or $self->info("Error the iodaemon is not defined") and return;
-#  my %options=split (/[=:]/, $io);
-#  $options{port} or $self->info("Error getting the port where the xrootd is running") and return;
-  $self->info("Let's get the host and port for $se from the IS");
-  my $result=$self->{SOAP}->CallSOAP("IS", "getSE", "${se}::xrootd")
-    or $self->info("Error getting a service for $se", 1) and return;
-  my $entry=$result->result;
-  use Data::Dumper;
-  print "Got ". Dumper($entry);
-  my $uri=$entry->{uri};
-  $uri =~ /^root/ or $self->info("The URI of $se doesn't start with root",2) and return;
 
-  $pfn=~ s{^((file)|(castor)|(root))://[^/]*}{$uri} or 
-    $self->info("The file $pfn can't be accessed through xrootd") and return;
+#  $pfn=~ s{^((file)|(castor)|(root))://[^/]*}{$uri} or 
+#    $self->info("The file $pfn can't be accessed through xrootd") and return;
   $pfn=~ s{//*}{//};
   $self->info("In the XROOTD method, returning $pfn");
   return $pfn;

@@ -12,12 +12,13 @@ use AliEn::UI::Catalogue;
 use AliEn::Service;
 use strict;
 use AliEn::Util;
-
+use vars qw (@ISA);
+use base qw(JSON::RPC::Procedure);
 
 use Classad;
 
-use vars qw (@ISA);
-@ISA=("AliEn::Service");
+
+push @ISA, "AliEn::Service";
 
 my $self = {};
 
@@ -108,6 +109,13 @@ sub setAlive {
 }
 sub markAlive {
   my $this    = shift;
+  
+  if ($_[0] and ref $_[0] eq "ARRAY"){
+    my $ref=shift;
+    @_=@$ref;
+    
+  }
+  
   my $service = shift;
   my $name    = shift;
   my $host    = shift;
@@ -656,15 +664,20 @@ sub InsertHost {
 }
 
 # Forward it to AliEn::Database::IS;
-sub getCpuSI2k {
+sub getCpuSI2k: Public {
   my $this = shift;
+  print STDERR "HELLO WORLD IN GETCPU\n";
   my $cpu_type = shift;
   my $cm_host = shift;
-
+  print STDERR "AND $cpu_type and $cm_host\n";
+  $self->info("Calling getCPUSI2k, with $cpu_type and $cm_host");
+  print STDERR "THE info didn't work\n";
   my $result = $self->{DB}->getCpuSI2k($cpu_type, $cm_host);
   if(! $result){
+    $self->info("Returning a list");
     return (-1, "CPU not found in the cpu_si2k table for host='$cpu_type->{host}'");
   }else{
+    $self->info("Returning the result");
     return $result;
   }
 }

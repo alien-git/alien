@@ -16,7 +16,7 @@
 package AliEn::Catalogue::Collection;
 
 use strict;
-use AliEn::SOAP;
+
 use AliEn::MD5;
 use vars qw ($DEBUG);
 

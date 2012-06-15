@@ -4,10 +4,11 @@ package AliEn::Service::MessagesMaster;
 use strict;
 use AliEn::Service;
 use AliEn::Database::TaskQueue;
-use AliEn::SOAP;
+use base qw(JSON::RPC::Procedure);
+
 
 use vars qw (@ISA $DEBUG);
-@ISA=("AliEn::Service");
+push @ISA, "AliEn::Service";
 $DEBUG=0;
 
 my $self = {};
@@ -36,7 +37,8 @@ sub initialize {
   return $self;
 }
 
-sub getMessages {  
+sub getMessages :  Public(a:string, b:string, c:num)  {  
+  
   my $this=shift;
 
   $self->info("Getting the last MESSAGES for @_");

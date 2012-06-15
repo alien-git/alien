@@ -19,8 +19,11 @@ use Crypt::OpenSSL::Random;
 use AliEn::Util;
 use AliEn::UI::Catalogue::LCM::Computer;
 use Time::HiRes;
+
+use base qw(JSON::RPC::Procedure);
+
 use vars qw (@ISA $DEBUG);
-@ISA = ("AliEn::Service");
+push @ISA, "AliEn::Service";
 
 $DEBUG = 0;
 my $self = {};
@@ -31,12 +34,33 @@ my $VFusername = "";
 my $VFpasswd   = "";
 
 # *******************************
+my $my_conv_func = sub {
+    my @res;
+
+    while (@_) {
+        my $code = shift;
+        my $msg  = shift;
+        my $ans  = "";
+
+        $ans = $VFusername if ( $code == PAM_PROMPT_ECHO_ON() );
+        $ans = $VFpasswd   if ( $code == PAM_PROMPT_ECHO_OFF() );
+
+        push @res, ( PAM_SUCCESS(), $ans );
+    }
+    push @res, PAM_SUCCESS();
+    return @res;
+};
+
+
 
 #my $dbh;
 
 my $ADMINPASSWD;
 my $LDAP;
 
+sub status2 :  Public()  {
+  return "AliEn Service: $self->{CONFIG}->{VERSION}";
+}  
 sub initialize {
   $self = shift;
   my $options = (shift or {});
@@ -98,8 +122,13 @@ sub createEnvelope {
 
   return @info;
 }
-sub doPackMan {
+sub doPackMan : Public {
 	my $other=shift;
+	
+	#WITH RPC, all the arguments are passed in th first option. 
+  my $ref=shift;
+  @_=@$ref;
+	
 	my $user = shift;
 	my $func = shift;
 	$self->info("Authen is going to do a packman operation : $func");
@@ -112,7 +141,7 @@ sub doPackMan {
 	
 	if (not $op->{$func}){
 		$self->info("Trying to do an invalid operation: '$func'");
-		return (-1, "'$func' is no a valid operation");
+		return {rcvalues=>[], rcmessages=>["'$func' is not a valid operation"]};
 	}
 	$self->info("Ready to do a packman operation: $func");
 	$self->{LOGGER}->keepAllMessages();
@@ -125,12 +154,109 @@ sub doPackMan {
 	
 	
 }
-sub doOperation {
+sub  CheckLocalPassword {
+  my $self2=shift;
+  my $user=shift;
+  my $passwd=shift;
+
+  my ( $pamh, $res );
+  my $encrypter = new AliEn::Authen::IIIkey();
+
+  my $tty_name = ttyname( fileno(STDIN) );
+
+  $self->info("Checking password of $user" );
+
+  $VFpasswd = $encrypter->decrypt( $passwd, "AliGatorMasterKey" );
+  $self->debug(1, "Before PAM init" );
+  $VFusername = $user;
+  $pamh = new Authen::PAM( "login", $VFusername, \&$my_conv_func );
+  $self->debug(1, "After PAM init" );
+  $res = $pamh->pam_set_item( PAM_TTY(), $tty_name );
+  $res = $pamh->pam_authenticate();
+
+  if ($res) {
+    $self->info("User passwd is not correct!" );
+    return (0, "Password is not correct");
+  }
+  $self->info("User passwd is correct" );
+
+  $self->checkUserDB($user) or
+    return ( 0, "User $user does not exist in LDAP" );
+
+  return 1;
+}
+
+
+
+sub insertCert : Public {
+  print STDERR "HELLO WORLD IN INSERTCERT\n";
+  $self->{LOGGER}->info("Do we have a logger");
+  print STDERR "SIPE\n";
+    my $self2         = shift;
+    my $organisation = shift;
+    my $user         = shift;
+    my $passwd       = shift;
+    my $subject      = shift;
+print STDERR "BEFORE THE CALL\n";
+    my ($ok, $message)=$self->CheckLocalPassword($user, $passwd);
+    $ok or return (-1, $message);
+
+    print STDERR "Modifying certificate subject for $user\n";
+    $self->_checkLDAPConnection() or return (0, "Can't connect to the ldap");
+    eval {
+      my $mesg = $LDAP->search(
+                               base   => "ou=People,$self->{CONFIG}->{LDAPDN}",
+        filter => "(subject=$subject)"
+                              );
+
+      my $total = $mesg->count;
+
+      if ( $total > 0 ) {
+
+        #This certificate alredy exists one time.
+        print STDERR "Certificate alredy exists\n";
+        return ( -1,
+            "A certificate with subject $subject is alredy in LDAP server" );
+
+      }
+
+      if ($LDAP->modify("uid=$user,ou=People,$self->{CONFIG}->{LDAPDN}",
+                        replace => { 'subject' => $subject })){
+        $self->info("$subject mapped to AliEn user $user" );
+
+      }
+      else {
+        $self->{LOGGER}->warning( "Authen", "Error in updating subject for $user" );
+        return ( -1,
+                 "An LDAP error occured on serverside. Contact AliEn administrators" );
+      }
+    };
+    if ($@){
+      $self->info("Error doing the ldap query: $@");
+      return (-1, "Error doing the ldap query: $@");
+    }
+
+    # DISABLING automatic user creation
+    #($self->{addbh}->existsToken($user) )  or $self->addUser($user);
+    ($self->{addbh}->existsToken($user) )  or return;
+
+    return 1;
+}
+
+
+sub doOperation : Public  {
   my $other     = shift;
+
+  #WITH RPC, all the arguments are passed in th first option. 
+  my $ref=shift;
+  @_=@$ref;
+
+
   my $user      = shift;
   my $directory = shift;
   my $op        = shift;
   $self->info("$$ Ready to do an operation for $user in $directory (and $op '@_')");
+
   my $jobID  = "0";
   my $before = Time::HiRes::time();
   if ($user =~ s/^alienid://) {

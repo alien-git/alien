@@ -420,6 +420,10 @@ sub getSystem {
 
 sub getTrace {
   my $this = shift;
+  if ($_[0] and ref $_[0] eq "ARRAY"){
+    my $ref=shift;
+    @_=@$ref;    
+  }
   $self->info( "Asking for trace @_ $#_ ..." );
   my $jobid =shift;
   $jobid and   $jobid =~ /^trace$/ and $jobid=shift;

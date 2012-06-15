@@ -11,7 +11,7 @@ use AliEn::Config;
 use strict;
 
 use AliEn::X509;
-use AliEn::SOAP;
+
 use AliEn::SE::Methods;
 use AliEn::Database::LCM;
 use AliEn::MSS::file;
@@ -65,7 +65,7 @@ sub bringRemoteFile {
 
   $DEBUG and $self->debug(1, "Asking the SE to bring the file");
 
-  my $response = $self->{SOAP}->CallSOAP("SE", "bringRemoteFile", $pfn, $SE, $localFile) or return;
+  my $response = $self->{RPC}->CallRPC("SE", "bringRemoteFile", $pfn, $SE, $localFile) or return;
 
   #    my $response=$self->{SE}->bringRemoteFile( $pfn, $SE, $localFile );
 
@@ -121,96 +121,7 @@ sub getLocalCopy {
   return;
 }
 
-#function bringFileToSE
-#input: $se         Se Name (Alice::CERN::Castor)
-#       $transfer   hash including source, target, USER, DESTINATIOn, LFN, TYPE
-#
-# output
-#       undef if error
-#       -2, $id  if transfer has been schechuled
-#       {"pfn"=>"", "transfer"=>""} if everything worked. transfer specifies
-#                                   if a transfer has been made( in this case,
-#                                   we don't need to do addMirror)
-#
-# It makes a file available in the SE specified
-#
-# Called from LCM->get and UI/LCM->mirror
-#
 
-sub bringFileToSE {
-  my $self     = shift;
-  my $se       = shift;
-  my $transfer = shift;
-  my $options  = (shift or "");
-
-  $self->info("In bringFiletoSE, with $se");
-  my @info = $self->{SOAP}->resolveSEName($se)
-    or $self->info("Error getting the address of $se")
-    and return;
-  my $result = $self->{SOAP}->CallSOAP($info[0], "getFile", $se, $transfer)
-    or return;
-
-  #  my $result= $self->{SE}->getFile($se, $transfer);
-
-  my $done = $result->result;
-
-  if ($done eq "-2") {
-    my $id = $result->paramsout;
-    $self->info("Transfer has been scheduled (transfer $id)");
-    if ($options !~ /b/) {
-      $self->info("Waiting until the transfer is completed...");
-      while (1) {
-        sleep(20);
-        $self->info("Asking if the transfer has finished...");
-
-        #	  $result=$self->{SE}->checkTransfer($id);
-        $result = $self->{SOAP}->CallSOAP("SE", "checkTransfer", $id) or return;
-
-        my $status = $result->result;
-        $self->info("Got $status");
-        ($status eq "DONE") and return {"pfn", $result->paramsout, "transfer", 1};
-        ($status eq "FAILED")    and return;
-        ($status eq "INCORRECT") and return;
-      }
-    }
-    return -2, $id;
-  }
-
-  return $done;
-}
-
-sub inquireTransfer {
-  my $self       = shift;
-  my $seName     = shift;
-  my $transferID = shift;
-
-  $self->info("Transfer has been scheduled...");
-  $DEBUG and $self->debug(1, "waiting until it's completed (transferID $transferID)");
-  my $counter = 0;
-  while (1) {
-    $DEBUG and $self->debug(1, "Asking the SE at $seName about $transferID");
-    my $options = "";
-    ($counter == "10") and $options = "-f" and $counter = 0;
-    my $response = $self->{SOAP}->CallSOAP($seName, "inquireTransfer", $transferID, $options) or return;
-
-    my $status = $response->result;
-    $DEBUG and $self->debug(1, "The call returned $status");
-    if ($status eq -2) {
-      print ".";
-      my $id = $response->paramsout;
-
-      ($id ne $transferID)
-        and $self->debug(1, "The transferID has changed!! (it was $transferID and now it is $id")
-        and $transferID = $id;
-      sleep(10);
-    } else {
-      print "done!!\n";
-      my $size = $response->paramsout;
-      return ({"pfn", $status, "size", $size});
-    }
-    $counter++;
-  }
-}
 
 ##############################################################################
 #Public functions
@@ -228,7 +139,7 @@ sub new {
   bless($self, $class);
   $self->SUPER::new() or return;
 
-  $self->{SOAP} = new AliEn::SOAP;
+  $self->{RPC} = new AliEn::RPC;
 
   # Initialize the logger
   $self->{SILENT} = ($self->{CONFIG}->{silent} or 0);
@@ -331,144 +242,6 @@ sub getFile {
   return $result;
 }
 
-#sub getFileFromSE {
-#  my $self=shift;
-#  my $pfn=shift;
-#  my $localFile=shift;
-#  my $se=shift;
-
-#  $self->info("Getting the local copy brought by the SE $se $pfn");
-
-#  my $seInfo=$self->{CONFIG}->CheckServiceCache("SE", $se);
-#  $seInfo or $self->info("Error getting the info of $se")
-#    and return;
-#  my $sePort=$seInfo->{PORT};
-#  $sePort and $sePort=":$sePort";
-#  $DEBUG and $self->debug(1, "We have to contact in port $sePort");
-
-#  my @possibles=($pfn);
-#  if ($possibles[0]=~ /^file/){
-#    push @possibles, ($pfn,$pfn);
-#    $possibles[1] =~ s/^file/rfio/;
-#    $possibles[2] =~ s/^file(:\/\/[^:\/]*)(:\d+)?(\/.*)$/soap$1$sePort$3?URI=SE/;
-#  }
-#  if ($possibles[0]=~ /^bbftp/){
-#    push @possibles, ($pfn);
-#    $possibles[1] =~ s/^bbftp(:\/\/[^:\/]*)(:\d+)?([^\?]*)\?.*$/soap$1$sePort$3?URI=SE/;
-#  }
-
-#  my $result="";
-
-#  while ( (! $result) && (my $pfn=shift @possibles)){
-#    $DEBUG and $self->debug(1, "TRYING WITH $pfn");
-#    my $URL=AliEn::SE::Methods->new({"PFN", $pfn,
-#				     "LOCALFILE", $localFile,
-#				     "DEBUG", 0,
-#				     SILENT=>1}) or return;
-#    eval {
-#      $result=$URL->get("-s");
-#    };
-#  }
-#  #If the SE started a service for us, let's stop it
-#  if ($pfn=~ /^(bb|grid)ftp:\/\/[^:\/]*:(\d+)\// ){
-#    $DEBUG and $self->debug(1, "Telling the SE to stop the service in $2");
-#    $self->{SOAP}->CallSOAP("SE", "stopFTPServer", $2);
-#  }
-#  $result or $self->info("Error transfering the local copy brought by the SE to $pfn",1000) and  return;
-#  return $result;
-#}
-
-# Register a file in a SE
-#
-#
-#
-#sub registerInLCM {
-#  my $self  = shift;
-#  my $pfn   = shift;
-#  my $ses = ( shift or {} );
-#  my $lfn=(shift or "");
-#  my $options=(shift or "");
-#  my $reqGuid=(shift or "");
-#  my $envelopes=(shift or {});
-#  my $result = (shift or {});
-#
-##my $result = {};
-#
-#  ($pfn)
-#    or $self->{LOGGER}->warning( "LCM", "Error no pfn specified" )
-#      and return;
-#
-#  my @failedSes = ();
-#  my @usedSes = ();
-#
-#  for my $j(0..$#{$ses}) {
-#
-#     my $start=time;
-#     $self->info( "Adding the file $pfn to @$ses[$j]" );
-#     my $res;
-#     for my $j(0..5) {   # try five times in case of error
-#          $res= $self->RegisterInRemoteSE($pfn, @$ses[$j], $lfn, $options, $reqGuid, $envelopes->{@$ses[$j]});
-##          $res or sleep sometime... this should be maybe added
-#          $res and last;
-#     }
-#
-#     ( $res eq -1 ) and print STDERR "ERROR copying $pfn\n" . $res->paramsout . "\n";
-#
-#     if(!$res->{pfn}) {
-#        $self->{LOGGER}->warning( "LCM", "Error transfering the file to the SE" );
-#        push @failedSes , @$ses[$j];
-#        next;
-#     }
-#     my $time=time-$start;
-#     if($j eq 0) {
-#       $reqGuid = $res->{guid};
-#       $result->{guid} = $res->{guid};
-#       $result->{md5} = $res->{md5};
-#       $result->{size} = $res->{size};
-#     }
-#     $result->{se}->{@$ses[$j]}->{pfn}=$res->{pfn};
-#     push @usedSes, @$ses[$j];
-#  }
-#
-#  return $result,\@usedSes, \@failedSes;
-#}
-#
-#
-#
-#sub registerOLDTOBEDELETEDInLCM {
-#  my $self  = shift;
-#  my $pfn   = shift;
-#  my $newSE = ( shift or $self->{CONFIG}->{SAVESE_FULLNAME} or $self->{CONFIG}->{SE_FULLNAME} or "");
-#  my $lfn=(shift or "");
-#  my $options=(shift or "");
-#  my $reqGuid=(shift or "");
-#  my $envelope=(shift or "");
-#  ($pfn)
-#    or $self->{LOGGER}->warning( "LCM", "Error no pfn specified" )
-#      and return;
-#
-#  $self->info( "Adding the file $pfn to $newSE" );
-#
-#  my $result=
-#    $self->RegisterInRemoteSE($pfn, $newSE, $lfn, $options, $reqGuid, $envelope);
-#
-#  $result
-#    #       or $self->{LOGGER}->warning( "LCM", "Error contacting the SE" )
-#    or  return;
-#
-#  ( $result eq -1 )
-#    and print STDERR "ERROR copying $pfn\n" . $result->paramsout . "\n"
-#      and return;
-#
-#  $result->{pfn}
-#    or $self->{LOGGER}->warning( "LCM", "Error transfering the file to the SE" )
-#      and return;
-#
-#  $self->info( "Getting the file $result->{pfn} of size $result->{size}" );
-#  return $result;
-#}
-#
-#
 
 sub checkPFNisLocal {
   my $self = shift;
@@ -601,53 +374,6 @@ sub rewriteCatalogueRegistrationPFN {
   return $registrationPFN;
 }
 
-# sub getPFNNameFromSE{
-#  my $self=shift;
-#  my $newSE=shift;
-#  my $info=shift;
-#  my $reqGuid=shift;#
-#
-#  $self->info("We don't have an envelope. Asking the SE for a filename");
-#  $self->{SOAP} or $self->{SOAP}=new AliEn::SOAP;
-#  my ($seName, $seCert)=$self->{SOAP}->resolveSEName($newSE) or return;
-#
-#  my $result=$self->{SOAP}->CallSOAP($seName, "getFileName",$seName, $info->{size},{md5=>$info->{md5}, guid=>$reqGuid})
-#      or $self->info("Error asking for a filename") and return;
-#
-#  my @fileName=$self->{SOAP}->GetOutput($result);
-#  $DEBUG and $self->debug(1, "Got @fileName");
-#  $info->{guid}=$fileName[4];
-#  $info->{pfn}=$fileName[3];
-#  return $info;#
-#
-#}
-
-sub waitForCopyFile {
-  my $self    = shift;
-  my $seName  = shift;
-  my $options = shift;
-
-  $self->info("Copying a file into an SE");
-  my $response = $self->{SOAP}->CallSOAP($seName, "copyFile", $options)
-    or $self->info("Error talking to the SE")
-    and return;
-
-  my $file = $response->result;
-  if ($file eq "-2") {
-    my $transferID = $response->paramsout;
-    $self->info("Transfering the file (ID $transferID)... please wait");
-
-    return $self->inquireTransfer($seName, $transferID);
-  }
-
-  (UNIVERSAL::isa($file, "HASH"))
-    or $self->info("The SE did not return a hash")
-    and return;
-
-  $DEBUG and $self->debug(1, "Returning $file->{pfn} and $file->{size}");
-  return $file;
-}
-
 sub eraseFile {
   my $self = shift;
   my $url  = shift;
@@ -667,10 +393,9 @@ sub listTransfer {
   my $list;
   my $limit = 49;
   $self->info("Checking the transfer @_");
-  my $done = $self->{SOAP}->CallSOAP("Manager/Transfer", "listTransfer", @_)
+  my ($result) = $self->{RPC}->CallRPC("Manager/Transfer", "listTransfer", @_)
     or return;
 
-  my $result = $done->result;
 
   $result =~ /^listTransfer: returns all the transfers/
     and $self->info($result)
@@ -749,10 +474,10 @@ sub killTransfer {
   my $self = shift;
   $self->info("Killing the transfers @_");
   my $user = $self->{CONFIG}->{ROLE};
-  my ($result) = $self->{SOAP}->CallSOAP("Manager/Transfer", "killTransfer", $user, @_) or return;
-  my ($info, @rest) = $self->{SOAP}->GetOutput($result);
+  my ($result) = $self->{RPC}->CallRPC("Manager/Transfer", "killTransfer", $user, @_) or return;
+  
 
-  $self->info("\t" . join("\n\t", @$info), 0, 0);
+  $self->info("\t" . join("\n\t", $result), 0, 0);
 
   return $result;
 }
@@ -772,11 +497,11 @@ sub resubmitTransfer {
   my $self = shift;
   my @args = @_;
   push(@args, "-reset");
-  my $res = $self->{SOAP}->CallSOAP("Manager/Transfer", "resubmitTransfer", @args);
+  my $res = $self->{RPC}->CallRPC("Manager/Transfer", "resubmitTransfer", @args);
 
   if (!$res) {
     $self->{LOGGER}->error("LCM", "In resubmitTransfer while calling resubmitTransfer, in Manager/Transfer");
-    $res = $self->{SOAP}->CallSOAP("Manager/Transfer", "resubmitTransferHelp", @args);
+    $res = $self->{RPC}->CallRPC("Manager/Transfer", "resubmitTransferHelp", @args);
     return;
   }
 
@@ -787,7 +512,7 @@ sub resubmitTransfer {
 sub getTransferHistory {
   my $self = shift;
 
-  my $done = $self->{SOAP}->CallSOAP("Manager/Transfer", "getTransferHistory", @_);
+  my $done = $self->{RPC}->CallRPC("Manager/Transfer", "getTransferHistory", @_);
 
   $done
     or $self->{LOGGER}->error("LCM", "In getTransferHistory error while calling resubmitTransfer, in Manager/Transfer")
@@ -802,7 +527,7 @@ sub getTransferHistory {
 sub resubmitFailedTransfers {
   my $self = shift;
 
-  my $res = $self->{SOAP}->CallSOAP("Manager/Transfer", "resubmitFailedTransfers", @_);
+  my $res = $self->{RPC}->CallRPC("Manager/Transfer", "resubmitFailedTransfers", @_);
   $self->info("Resubmitting all failed Transfers");
   return 1;
 }

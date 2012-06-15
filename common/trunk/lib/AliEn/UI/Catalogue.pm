@@ -35,7 +35,7 @@ use Getopt::Long ();
 require AliEn::Catalogue;
 require AliEn::ClientCatalogue;
 use AliEn::UI;
-use AliEn::SOAP;
+
 use Data::Dumper;
 use vars qw(@ISA $DEBUG);
 use AliEn::GUID;
@@ -82,7 +82,6 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
   'exit'             => [ '$self->{CATALOG}->f_quit',             0 ],
   'whoami'           => [ '$self->{CATALOG}->f_whoami',           0 ],
   'user'             => [ '$self->{CATALOG}->f_user',             0 ],
-  'passwd'           => [ '$self->{CATALOG}->f_passwd',           0 ],
   'find'             => [ '$self->{CATALOG}->f_find',             0 ],
   'findEx'           => [ '$self->{CATALOG}->findEx',             0 ],
   'linkfind'         => [ '$self->{CATALOG}->f_linkfind',         0 ],
@@ -515,7 +514,7 @@ sub new {
       ${$commands{$d}}[0] =~ /{CATALOG}/ and ${$commands{$d}}[1] = 0;
     }
   }
-  $self->{SOAP} = new AliEn::SOAP;
+  $self->{RPC} = new AliEn::RPC;
   $self->{GUID} = AliEn::GUID->new();
 
   if ($sentence) {
@@ -1011,74 +1010,6 @@ Possible pfns:\tsrm://<host>/<path>, castor://<host>/<path>,
   );
 }
 
-sub registerFileInSE {
-  my $self    = shift;
-  my $destSE  = shift;
-  my $guid    = shift;
-  my $pfn     = shift;
-  my $size    = shift;
-  my $options = shift || {};
-  my ($newguid, $sename);
-
-  $DEBUG and $self->debug(1, "Ok, let's try to put the entry directly in the database of $destSE");
-  my $service = $self->{CONFIG}->CheckServiceCache("SE", ($destSE || $self->{CONFIG}->{SE_NAME}))
-    or $self->info("Error getting the info of $destSE")
-    and return;
-  my $db = $service->{DATABASE};
-  if (!$db) {
-    $db = $self->{CONFIG}->{CATALOGUE_DATABASE};
-    $db =~ s{/[^/]*$}{/\Lse_$service->{FULLNAME}\E};
-    $db =~ s{::}{_}g;
-  }
-
-  $DEBUG and $self->debug(1, "Using $db");
-  my ($host, $driver, $dbName) = split(m{/}, $db);
-  my $done;
-
-  if (
-    $self->{CATALOG}
-    && ($host eq $self->{CATALOG}->f_Database_getVar("HOST")
-      && ($driver eq $self->{CATALOG}->f_Database_getVar("DRIVER")))
-    ) {
-    $DEBUG and $self->debug(1, "We are in the right host. We only have to insert");
-    $sename = ($destSE || $self->{CONFIG}->{SE_FULLNAME});
-    $newguid = $guid;
-    if (!$newguid) {
-      $newguid = $self->{GUID}->CreateGuid();
-    }
-    if ($newguid) {
-      $DEBUG and $self->debug(1, "Ok, we are ready to insert $newguid and $sename and $options->{md5}");
-      my $oldmode = $self->{LOGGER}->getMode();
-      $DEBUG or $self->{LOGGER}->setMinimum("critical");
-      my $insert = "INSERT into $dbName.FILES (size, pfn, guid, md5) values(?,?,string2binary(?), ?)";
-
-      if ($self->{CATALOG}->f_Database_do($insert, {bind_values => [ $size, $pfn, $newguid, $options->{md5} ]})) {
-        $DEBUG and $self->debug(1, "File registered in the SE database");
-        $done = 1;
-      }
-      $self->{LOGGER}->setMinimum(split(" ", $oldmode));
-    }
-  }
-
-  if (!$done) {
-    my $serviceName  = "SE";
-    my $serviceName2 = $self->{SE_FULLNAME};
-    if ($destSE) {
-      ($serviceName, my $secert) = $self->{SOAP}->resolveSEName($destSE)
-        or $self->info("Error getting the endpoint of $destSE")
-        and return;
-      $serviceName2 = $serviceName;
-    }
-    my $done = $self->{SOAP}->CallSOAP($serviceName, "registerFile", $serviceName2, $pfn, $size, $guid, $options)
-      or return;
-
-    $newguid = $done->result()->{guid};
-    $sename  = $done->result()->{se};
-    $newguid or return;
-  }
-
-  return ($newguid, $sename);
-}
 
 =item C<f_registerFile($lfn, $pfn, $size, $SE, $guid)>
 
@@ -1088,53 +1019,6 @@ Possible options:
 
 =cut
 
-#sub f_addMirrorHelp {
-#  return "'addMirror' adds a new pfn to an existent entry in the catalogue. It does not copy the pfn to the SE (it assumes that the pfn is already there)\nUsage addMirror <lfn> <SE> [<pfn> [-md5 <md5>]]
-#The SE will first check that it is able to access the copy indicated by pfn.
-#If the pfn is not specified, the system will not contact the SE at all, and it will assume that the entry has already been replicated somehow";
-#}
-#
-#sub f_addMirror {
-#  my $self = shift;#
-#
-#  $self->info("Adding a mirror for the file " . join(",",(map ({$_ or ""} @_))) . "\n");#
-#
-#  my @args;
-#  my $md5;
-#  while( my $opt=shift) {
-#    if ($opt=~ /^-md5$/){
-#      $md5=shift;
-#      $md5 or $self->info("Error option md5 needs an argument". $self->f_addMirrorHelp()) and return;
-#     next;
-#    }
-#    push @args, $opt;
-#  }
-#  @_=@args;
-###
-#
-#  my $file = $self->{CATALOG}->GetAbsolutePath(shift,1);
-#  my $destSE = shift;
-#  my $pfn  = shift;#
-#
-#  if ( !$destSE  ) {
-#    $self->info("Error in addMirror: not enough arguments\n". f_addMirrorHelp());
-#    return;
-#  }
-#  my $entry=$self->{CATALOG}->checkPermissions("w", $file, 0, 1)
-#    or return;
-#  ($self->{CATALOG}->isFile( $file, $entry->{lfn})) or
-#    $self->info( "Entry $file doesn't exist (or is not a file)",11)
-#      and return;
-
-#  if ($pfn) {
-#    (my $newguid, $destSE)=
-#      $self->registerFileInSE($destSE, $entry->{guid}, $pfn, $entry->{size}, {md5=>$md5}) or return;
-#    $DEBUG and $self->debug(1, "The file has been replicated in $destSE ($newguid)");
-#  }
-#  $DEBUG and $self->debug(1, "Adding the entry to the catalogue");
-#
-#  return $self->{CATALOG}->f_addMirror( $file, $destSE, $pfn);
-#}
 
 =item C<history()>
 
@@ -1217,16 +1101,16 @@ sub access {
     $user =~ s/^-user=([\w]+)$/$1/;
   }
 
-  my $info = 0;
+  my @newhash;
   for (my $tries = 0 ; $tries < 5 ; $tries++) {    # try five times
-    $info = $self->{SOAP}->CallSOAP("Authen", "createEnvelope", $user, @_) and last;
+    (@newhash) = $self->{RPC}->CallRPC("Authen", "createEnvelope", $user, @_) and last;
     $self->info("Sleeping for a while before retrying...");
     sleep(5);
   }
-  $info
+  @newhash
     or $self->info("Connecting to the [Authen] service failed!")
     and return ({error => "Connecting to the [Authen] service failed!"});
-  my @newhash = $self->{SOAP}->GetOutput($info);
+  
   if (!$newhash[0]->{envelope}) {
     my $error = $newhash[0]->{error} || "";
     $self->info($self->{LOGGER}->error_msg());

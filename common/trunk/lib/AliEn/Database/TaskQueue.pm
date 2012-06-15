@@ -311,6 +311,11 @@ sub initialize {
     	extra_index=>['index(split)', "unique index(split,lfn)"],
     	id=>"lfn"
     	
+    },
+    JOB_STATUS=>{
+      columns=>{"statusid"=>"int not null primary key", 
+                "status"=>"varchar(12) unique not null"},
+      id=>"statusid",
     }
 
   };
@@ -325,7 +330,7 @@ sub initialize {
       or $self->{LOGGER}->error("TaskQueue", "Error checking the table $table")
       and return;
   }
-
+  $self->checkJobStatus() or return;
   $self->checkSiteQueueTable("SITEQUEUES")
     or $self->{LOGGER}->error("TaskQueue", "In initialize altering tables failed for SITEQUEUES")
     and return;
@@ -339,6 +344,21 @@ sub initialize {
   
 
   return 1;
+}
+
+sub checkJobStatus{
+  my $self=shift;
+  
+  my @values;
+  for my $status  ( @{AliEn::Util::JobStatus()}){
+    my $id=AliEn::Util::statusForML($status); 
+    $self->info("Inserting $status and $id");
+    push @values, "('$status', $id)";
+    
+  }
+  
+  $self->do("insert ignore into JOB_STATUS (status,statusId) values ". join (",", @values));
+  
 }
 
 sub setArchive {
@@ -1584,7 +1604,7 @@ sub checkPriorityValue() {
 
     #Job Quota
     $set->{'unfinishedJobsLast24h'}   = 0;
-    $set->{'maxUnfinishedJobs'}       = 60;
+    $set->{'maxUnfinishedJobs'}       = 100;
     $set->{'totalRunningTimeLast24h'} = 0;
     $set->{'maxTotalRunningTime'}     = 1000000;
     $set->{'totalCpuCostLast24h'}     = 0;

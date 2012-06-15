@@ -53,7 +53,8 @@ sub initialize {
   $self=shift;
 
   # Initialize the logger
-
+  my $options = (shift || {});
+  
   $self->{METHOD} = "FTP";
   
   $self->{PORT}="NO PORT";
@@ -62,9 +63,14 @@ sub initialize {
 
   $self->{SERVICE}="FTD";
   $self->{SERVICENAME}=$self->{CONFIG}->{FTD_FULLNAME};
-  $self->{LISTEN}=1;
-  $self->{PREFORK}=1;
-  $self->{CATALOG}=AliEn::Catalogue->new() or $self->info("We can't get a copy of the catalogue") and return;
+  $options->{role} = 'admin';
+  $self->{UI} = AliEn::UI::Catalogue::LCM->new($options) or $self->info("Error getting the ui") and return;
+  $self->{UI}->{CATALOG}->{envelopeCipherEngine}
+    or $self->info(
+    "Error! We can't create the security envelopes!! Please, define the SEALED_ENVELOPE_ environment variables")
+    and return;
+  
+  $self->{CATALOG}=$self->{UI}->{CATALOG};
 #  $self->{PROTOCOLS}=$self->{CONFIG}->{FTD_PROTOCOL};
   # the default protocol is "bbftp"
 #  $self->{PROTOCOLS} or $self->{PROTOCOLS} ="bbftp";
@@ -97,12 +103,10 @@ sub initialize {
 
   $self->{NAME} = "$self->{CONFIG}->{ORG_NAME}::$self->{CONFIG}->{SITE}";
   $self->{ALIVE_COUNTS} = 0;
-  $self->{AuthenSOAP} = new AliEn::SOAP
-    or print "Error creating AliEn::SOAP $! $?" and return;
 
 
-  $self->{SOAP}->checkService("Broker/Transfer", "TRANSFER_BROKER", "-retry", [timeout=>50000]) or return;
-  $self->{SOAP}->checkService("Manager/Transfer", "TRANSFER_MANAGER", "-retry") or return;
+  $self->{RPC}->checkService("Broker/Transfer", "-retry", [timeout=>50000]) or return;
+  $self->{RPC}->checkService("Manager/Transfer", "-retry") or return;
 
   my $file="$self->{CONFIG}->{LOG_DIR}/FTD_children.pid";
   $self->info("initialize: Checking if there were any instances before");
@@ -120,8 +124,8 @@ sub initialize {
 sub checkOngoingTransfers{
   my $self=shift;
   $self->info("Checking all the transfers that we were supposed to be running");
-  my $info=$self->{SOAP}->CallSOAP("Manager/Transfer","checkOngoingTransfers", $self->{CONFIG}->{FTD_FULLNAME}) or return;
-  my $transfers=$info->result or return;
+  my ($transfers)=$self->{RPC}->CallRPC("Manager/Transfer","checkOngoingTransfers", $self->{CONFIG}->{FTD_FULLNAME}) or return;
+  $transfers or return;
 
   $self->info("Let's see if we can recover");
   foreach my $t (@$transfers){
@@ -169,43 +173,6 @@ sub startListening {
 }
 
 
-#sub verifyTransfer{
-#  my $t=shift;
-#  my $error=(shift or "");
-#  my $URL=shift;
-#  my $size=shift;
-#  my $retries=shift;
-#  my $id=shift;
-#  my $message="The transfer did not start";
-#  if (! $error) {
-#    $self->info("VerifyTransfer " );
-#    # Now check that file was actually received
-#    #
-#    my $result;
-#    $result = $self->verifyCompleteTransfer( $URL, $size, $id );
-#    my $status;
-#    my $now = time;
-#    if ( $result == $error_codes->{TRANSFER_SUCCES} ) {
-#      $self->info("ID $id Transfer finished!!!");
-#      my $result=$self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer","ALIEN_SOAP_RETRY", $id, "CLEANING", {"Action", "cleaning", "FinalPFN", $URL->string});
-#      #	    my $result=$self->{MANAGER}->changeStatusTransfer($id, "CLEANING", {"Action", "cleaning", "FinalPFN", $URL->string});
-#      $self->{SOAP}->checkSOAPreturn($result, "TransferManager")
-#	or return;
-#      return 1;
-#    }
-#    $message="The file was not completely transfered";
-#  }
-  
-#  $self->info("ID $id Transfer failed :(\n\t\t$message");
-#  my $result=$self->{SOAP}->CallSOAP("Manager/Transfer",
-#				     "changeStatusTransfer","ALIEN_SOAP_RETRY",$id, "FAILED",
-#				     {"Reason", $message});
-#  #my $result=$self->{MANAGER}->changeStatusTransfer($id, "FAILED", 
-#  #						      {"Reason", $message});
-#  $self->{SOAP}->checkSOAPreturn($result, "TransferManager");
-#  return;
-
-#}
 
 
 sub checkCurrentTransfers(){
@@ -271,35 +238,30 @@ sub checkWakesUp{
   $self->$method(@methodData,"$$ Asking the broker if we can do anything ($slots slots)");
 
 
-  my ($result)=$self->{SOAP}->CallSOAP("Broker/Transfer", "requestTransferType",$self->{JDL}, $slots);
-
+  my ($result)=$self->{RPC}->CallRPC("Broker/Transfer", "requestTransferType",$self->{JDL}, $slots);
+  $result or $self->info("The broker didn't return anything") and return;
   $self->info("$$ Got an answer from the broker");
-    
-  if (!$result) {
-    return;
-  }
+   
   
   my $repeat=1;
-  my @transfers=$self->{SOAP}->GetOutput($result);
-  
-  foreach my $transfer (@transfers){
-    if ($transfer eq "-2"){
-      $self->$method(@methodData, "No transfers for me");
-      undef $repeat;
-      next;
+  if ($result eq "-2"){
+    $self->$method(@methodData, "No transfers for me");
+    undef $repeat;
+    
+  } else {
+    foreach my $transfer (@$result){
+      my $pid=fork();
+      defined $pid or self->info("Error doing the fork");
+      if ($pid){
+        my @list=();
+        $self->{FTD_PIDS} and @list=@{$self->{FTD_PIDS}};
+        push @list, $pid;
+        $self->{FTD_PIDS}=\@list;
+        next;
+      }
+      $self->_forkTransfer($transfer);
+      exit;
     }
-
-    my $pid=fork();
-    defined $pid or self->info("Error doing the fork");
-    if ($pid){
-      my @list=();
-      $self->{FTD_PIDS} and @list=@{$self->{FTD_PIDS}};
-      push @list, $pid;
-      $self->{FTD_PIDS}=\@list;
-      next;
-    }
-    $self->_forkTransfer($transfer);
-    exit;
   }
 
   if ($self->{FTD_PIDS}){
@@ -351,7 +313,7 @@ sub checkWakesUp{
   $transfer->{jdl} and $ca=Classad::Classad->new($transfer->{jdl});
   if (! $ca){
     $self->{LOGGER}->error("Error creating the classad of '$transfer->{jdl}'");
-    $self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, "FAILED", "ALIEN_SOAP_RETRY",{"Reason","The FTD at $self->{CONFIG}->{FTD_FULLNAME} got". $self->{LOGGER}->error_msg()});
+    $self->{RPC}->CallRPC("Manager/Transfer","changeStatusTransfer","-retry", $id, "FAILED",{"Reason","The FTD at $self->{CONFIG}->{FTD_FULLNAME} got". $self->{LOGGER}->error_msg()});
     return;
   }
   my $pfn;
@@ -359,7 +321,7 @@ sub checkWakesUp{
   my ($ok, @pro)=$ca->evaluateAttributeVectorString('FullProtocolList');
   $self->info("Let's use the methods  @pro");
   $recover or
-    $self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, "TRANSFERRING", "ALIEN_SOAP_RETRY");
+    $self->{RPC}->CallRPC("Manager/Transfer","changeStatusTransfer","-retry", $id, "TRANSFERRING");
   ($ok, my $type)=$ca->evaluateAttributeString("action");
 
   foreach my $line (@pro){
@@ -411,15 +373,14 @@ my $query = {maxtime=>0,ctime=>0,pfn=>""};
         }
         elsif ($output eq 1){
           $status = "DONE";
-          $query->{pfn} = $pfn;
-#   $self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, $status, "ALIEN_SOAP_RETRY",$extra);
+          $query->{pfn} = $pfn;   
         }     
         else {$status = "FAILED_T";}
   }
 
   #$self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, $status, $query);
   $self->{LOGGER}->debug("FTD","Update??? Transfer $id with ".$query->{maxtime}." and ".$query->{ctime}." and pfn: ".$query->{pfn});
-  $self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer",$id, $status,"ALIEN_SOAP_RETRY",$query);
+  $self->{RPC}->CallRPC("Manager/Transfer","changeStatusTransfer","-retry", $id, $status,$query);
   $self->info("$$ returns!!");
   return 1;
   
@@ -514,7 +475,7 @@ sub waitForCompleteTransfer{
 
   my $retry=10;
   $self->info("Let's tell the Transfer Manager that we are waiting for this one");
-  $self->{SOAP}->CallSOAP("Manager/Transfer","changeStatusTransfer","ALIEN_SOAP_RETRY", $id, "TRANSFERRING", {"protocolid", $prot_id, ftd=>$self->{CONFIG}->{FTD_FULLNAME}});
+  $self->{RPC}->CallRPC("Manager/Transfer","changeStatusTransfer","-retry", $id, "TRANSFERRING", {"protocolid", $prot_id, ftd=>$self->{CONFIG}->{FTD_FULLNAME}});
   while (1){
     sleep(40);
     $self->info("Checking if the transfer $prot_id has finished");

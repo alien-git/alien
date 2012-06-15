@@ -19,7 +19,7 @@ use AliEn::Database::Catalogue::LFN;
 use AliEn::Database::Catalogue::GUID;
 
 use strict;
-use AliEn::SOAP;
+
 use AliEn::GUID;
 
 =head1 NAME

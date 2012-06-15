@@ -713,38 +713,40 @@ sub GetConfigFromCM {
   my $this = shift;
   $DEBUG
 	and $this->debug(1, "Getting the configuration from the ClusterMonitor");
-  my ($cluster, $port) = split ":", $ENV{ALIEN_CM_AS_LDAP_PROXY};
-  ($cluster and $port)
+  my $CMaddress = $ENV{ALIEN_CM_AS_LDAP_PROXY};
+  $CMaddress
 	or print STDERR
 "ERROR: The environment variable ALIEN_CM_AS_LDAP_PROXY was set ($ENV{ALIEN_CM_AS_LDAP_PROXY}), but not with a host:port syntax!!\n"
 	and return;
-  my $service = 'ClusterMonitor';
-  $port =~ s{/(.*)$}{} and $service = $1;
-  $DEBUG and $this->debug(2, "Using the $service at $cluster:$port");
+
+
   my $config;
   my $retry = 10;
   my $sleep = 10;
 
   while (1) {
-	eval { $config = SOAP::Lite->uri("AliEn/Service/$service")->proxy("http://$cluster:$port")->GetConfiguration(); };
-	if ($@) {
-	  $self->info("It died: $@");
-	  return;
-	}
-	$config and $config->result and last;
-	$retry--;
-	$this->info("Error contacting the $service at $cluster:$port");
-	if (!$retry) {
-	  $this->info("We have retried enough times");
-	  return;
-	}
-	$sleep = $sleep * 2 + int(rand(2));
-	$sleep = $sleep % 60;
-	$this->info("Sleeping $sleep seconds before trying again");
-	sleep($sleep);
+	  eval {
+	    my $d=AliEn::RPC->new();
+	    $d->Connect("ClusterMonitor");
+	    ($config)=$d->CallRPC("ClusterMonitor", "GetConfiguration");
+	  };
+	  if ($@) {
+	    $self->info("It died: $@");
+	    return;
+	  }
+	  $config and  last;
+	  $retry--;
+	  $this->info("Error contacting the ClusterMonitor");
+	  if (!$retry) {
+	    $this->info("We have retried enough times");
+	    return;
+	  }
+	  $sleep = $sleep * 2 + int(rand(2));
+	  $sleep = $sleep % 60;
+	  $this->info("Sleeping $sleep seconds before trying again");
+  	sleep($sleep);
   }
   $this->debug(1, "Got the config from the ClusterMonitor");
-  $config = $config->result;
   (UNIVERSAL::isa($config, "HASH"))
 	or print STDERR "Error the ClusterMonitor did not return a hash ($config)\n"
 	and return;

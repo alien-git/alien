@@ -5,7 +5,7 @@ use AliEn::Config;
 use AliEn::MSS;
 use vars qw(@ISA $DEBUG);
 use AliEn::MD5;
-use AliEn::SOAP;
+use AliEn::RPC;
 
 push @ISA, 'AliEn::Logger::LogObject';
 $DEBUG = 0;
@@ -20,7 +20,7 @@ sub new {
 
   $self->{CONFIG} = new AliEn::Config;
   $self->{LOGGER} = new AliEn::Logger;
-  $self->{SOAP}   = new AliEn::SOAP;
+  $self->{RPC}   = new AliEn::RPC;
   $self->GetDefaultOptions() or return;
   $self->{NAME} or $self->{NAME} = $self->{CONFIG}->{SE_NAME} || "";
 
@@ -43,7 +43,7 @@ sub getVolumes {
     and $self->info("Using the old info")
     and return 1;
 
-  my $info = $self->{SOAP}->CallSOAP("Manager/SEMaster", "getVolumeInfo", $self->{NAME})
+  my $info = $self->{RPC}->CallRPC("Manager/SEMaster", "getVolumeInfo", $self->{NAME})
     or $self->info("Error getting the volumes ")
     and return;
 

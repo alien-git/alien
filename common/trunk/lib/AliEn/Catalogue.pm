@@ -106,7 +106,7 @@ use AliEn::Database::TaskQueue;
 
 #use AliEn::Utilities;
 require AliEn::Config;
-require AliEn::SOAP;
+
 use Getopt::Std;
 
 # OBJECTS VARIABLES:
@@ -169,8 +169,6 @@ sub new {
 In UserInterface:new with $user ($self->{ROLE}) $self->{DEBUG} $self->{SILENT}
 Site name:$self->{CONFIG}->{SITE}"
   );
-  $self->{SOAP} = new AliEn::SOAP
-    or print "Error creating AliEn::SOAP $! $?" and return;
   $DEBUG
     and $self->{CONFIG}->{SITE_HOST}
     and $self->debug(1, "\tHost name:$self->{CONFIG}->{SITE_HOST}");
@@ -1104,31 +1102,6 @@ sub _executeInAllDatabases {
 #    "INSERT INTO T$newParent"
 #	"DELETE FROM T$oldParent"
 #}
-sub f_passwd {
-  my $self = shift;
-  my ($oldpasswd, $passwd, $passwd2);
-  system("stty -echo");
-  print STDERR "Enter old password:";
-  chomp($oldpasswd = <STDIN>);
-  print STDERR "\nEnter new password:";
-  chomp($passwd = <STDIN>);
-  print STDERR "\nReenter new password:";
-  chomp($passwd2 = <STDIN>);
-  system("stty echo");
-
-  if ($passwd ne $passwd2) {
-    print STDERR "\nError: passwords do not match!! Password not changed.\n";
-    return;
-  }
-  my $done =
-    SOAP::Lite->uri('AliEn/Service/Authen')->proxy("http://$self->{CONFIG}->{PROXY_HOST}:$self->{CONFIG}->{PROXY_PORT}")
-    ->passwd($self->{DATABASE}->{HOST}, $self->{DATABASE}->{DB}, $self->{ROLE}, $oldpasswd, $passwd)->result;
-  if (!$done) {
-    print STDERR "\nError: password not changed!!\n";
-  } else {
-    print STDERR "\nPassword changed!!\n";
-  }
-}
 
 sub f_verifySubjectRole {
   my $self = shift;
@@ -1884,30 +1857,6 @@ sub createFindCollection {
     $self->f_addFileToCollection($file->{lfn}, $collec, "-n");
   }
   $self->updateCollection("", $collec);
-  return 1;
-}
-
-sub f_revalidateToken {
-  my $self  = shift;
-  my $hours = shift;
-  if ($hours) {
-    if ($self->{ROLE} ne "admin") {
-      print STDERR "Only the administrator can specify length for token update.\n";
-      $hours = 24;
-    }
-  } else {
-    $hours = 24;
-  }
-  my $done =
-    SOAP::Lite->uri('AliEn/Service/Authen')->proxy("http://$self->{CONFIG}->{PROXY_HOST}:$self->{CONFIG}->{PROXY_PORT}")
-    ->addTimeToToken($self->{ROLE}, $hours)->result;
-  if ($done) {
-    print STDERR "Your token has been revalidated for $hours hours\n";
-    return 1;
-  } else {
-    print STDERR "Error while trying to request token update\n";
-    return;
-  }
   return 1;
 }
 

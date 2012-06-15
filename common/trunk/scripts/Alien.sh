@@ -88,7 +88,18 @@ ALIEN_RunAgent()
 {
   export ALIEN_PROCESSNAME=JOBAGENT
 
-  exec $ALIEN_PERL $ALIEN_DEBUG $ALIEN_ROOT/scripts/Service.pl JobAgent $*
+  #exec $ALIEN_PERL $ALIEN_DEBUG $ALIEN_ROOT/scripts/Service.pl JobAgent $*
+  unset SEALED_ENVELOPE_REMOTE_PUBLIC_KEY SEALED_ENVELOPE_REMOTE_PRIVATE_KEY SEALED_ENVELOPE_LOCAL_PUBLIC_KEY \
+               SEALED_ENVELOPE_LOCAL_PRIVATE_KEY ALIEN_DATABASE_PASSWORD 
+  
+  HTTPService=1
+  getLogDir LOGDIR
+  startService JobAgent JobAgent JobAgent alienServiceNOKILL
+  HTTPService=0
+  sleep 2
+  PID=`cat /tmp/pcites01/log/JobAgent.7075.pid `
+  echo "And now, the agent itself (PID OF HTTPD $PID) or  $! "
+  startService JobAgent JobAgent JobAgent alienServiceNOKILL  -pid $PID 
   exit
 }
 

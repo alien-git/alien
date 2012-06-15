@@ -45,9 +45,6 @@ sub new {
 
   $self->SUPER::new() or return;
 
-  $self->{SOAP} = new AliEn::SOAP;
-  $self->{SOAP} or return;
-
   $self->{LOGGER} = ($options->{LOGGER} or AliEn::Logger->new());
   $self->{LOGGER}
     or print STDERR "Error setting the MSS: no Logger specified\n" and return;

@@ -49,10 +49,10 @@ sub putlog {
   $self->{enabled} or return;
 
   $self->setlogfile($jobid);
-
-  open OUTPUT, ">> $self->{JOBLOGFILE}";
-  printf OUTPUT "$now [%-10s]: $messages\n", $tag;
-  close OUTPUT;
+  
+  open my $OUTPUT, ">>", "$self->{JOBLOGFILE}";
+  printf $OUTPUT "$now [%-10s]: $messages\n", $tag;
+  close $OUTPUT;
 }
 
 sub getlog {
@@ -71,9 +71,9 @@ sub getlog {
   $self->setlogfile($jobid);
   map { $_ = "($_)" } @tags;
   my $status = join("|", @tags);
-  open INPUT, "$self->{JOBLOGFILE}";
-  my @result = grep (/\[($status)/, <INPUT>);
-  close INPUT;
+  open my $INPUT, "<", "$self->{JOBLOGFILE}";
+  my @result = grep (/\[($status)/, <$INPUT>);
+  close $INPUT;
   $self->{LOGGER}->info("JOBLOG", "Looking for $status of $jobid and found $#result");
 
   return @result;

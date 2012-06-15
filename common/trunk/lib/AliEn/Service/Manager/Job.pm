@@ -19,7 +19,8 @@ use Classad;
 use Data::Dumper;
 
 use vars qw (@ISA $DEBUG);
-@ISA = ("AliEn::Service::Manager");
+push @ISA,"AliEn::Service::Manager";
+use base qw(JSON::RPC::Procedure);
 
 $DEBUG = 0;
 
@@ -55,8 +56,13 @@ sub initialize {
 ##############################################################################
 # Public functions
 ##############################################################################
-sub alive {
+sub alive : Public {
   my $this       = shift;
+
+ 	#WITH RPC, all the arguments are passed in th first option. 
+  my $ref=shift;
+  @_=@$ref;
+  
   my $host       = shift;
   my $port       = shift;
   my $cename     = (shift or "");
@@ -225,9 +231,14 @@ sub InsertHost {
   return 1;
 }
 
-sub enterCommand {
+sub enterCommand: Public {
   my $this = shift;
   $self->{LOGGER} or $this->info("We are entering the command directly") and $self = $this;
+  if ($_[0] and ref $_[0] eq "ARRAY"){
+    my $ref=shift;
+    @_=@$ref;
+  }
+  
   $DEBUG and $self->debug(1, "In enterCommand with @_");
   my $host       = shift;
   my $jobca_text = shift;
@@ -367,8 +378,15 @@ sub SetProcInfoBunchFromDB {
   return 1;
 }
 
-sub SetProcInfoBunch {
-  my ($this, $host, $info) = (shift, shift, shift);
+sub SetProcInfoBunch : Public {
+  my $this=shift;
+  $self->info("Mirando si es un array");
+  if ($_[0] and ref $_[0] eq "ARRAY"){
+    $self->info("SIPE");
+    my $ref=shift;
+    @_=@$ref;
+  }
+  my ($host, $info) = (shift, shift);
   $self->info("$host is sending the procinfo $#$info messages");
   foreach my $entry (@$info) {
 
@@ -384,6 +402,7 @@ sub SetProcInfoBunch {
       $self->putJobLog($entry->{jobId}, $entry->{tag}, $entry->{procinfo});
     }
   }
+  $self->info("All the messages have been stored");
   return 1;
 }
 
@@ -424,7 +443,7 @@ sub SetProcInfo {
     if ($status->{status} eq "ZOMBIE") {
 
       # in case a zombie comes back ....
-      $self->changeStatusCommand($queueId, 'token', $status->{status}, "RUNNING")
+      $self->changeStatusCommand([$queueId, 'token', $status->{status}, "RUNNING"])
         or $self->{LOGGER}
         ->error("JobManager", "In SetProcInfo could not change job $queueId from $status->{status} to RUNNING");
       $updateRef->{status} = "RUNNING";
@@ -464,8 +483,12 @@ sub SetProcInfo {
   1;
 }
 
-sub changeStatusCommand {
+sub changeStatusCommand : Public {
   my $this      = shift;
+  
+  my $ref=shift;
+  @_=@$ref;
+  
   my $queueId   = shift;
   my $token     = shift ||"";
   my $oldStatus = shift;
@@ -977,141 +1000,19 @@ sub getJobRc {
   return $rc;
 }
 
-=item getPs
-
-Gets the list of jobs from the queue
-
-Possible flags:
-
-=cut 
-
-sub getPs {
-  my $this  = shift;
-  my $flags = shift;
-  my $args  = join(" ", @_);
-  my $date  = time;
-  my $i;
-
-  my $status =
-"status='RUNNING' or status='WAITING' or status='OVER_WAITING' or status='ASSIGNED' or status='QUEUED' or status='INSERTING' or status='SPLIT' or status='SPLITTING' or status='STARTED' or status='SAVING'";
-  my $site = "";
-
-  $self->info("Asking for ps (@_)...");
-
-  my $user = "";
-  my @userStatus;
-  if ($flags =~ s/d//g) {
-    push @userStatus, "status='DONE'";
-  }
-  if ($flags =~ s/f//g) {
-    push @userStatus, "status='EXPIRED'", "status like 'ERROR_\%'", "status='KILLED'", "status='FAILED'",
-      "status='ZOMBIE'";
-  }
-  if ($flags =~ s/r//g) {
-    push @userStatus, "status='RUNNING'", "status='SAVING'", "status='WAITING'", "status='OVER_WAITING'",
-      "status='ASSIGNED'", "status='QUEUED'", "status='INSERTING'", "status='SPLITTING'", "status='STARTED'",
-      "status='SPLIT'";
-  }
-
-  if ($flags =~ s/A//g) {
-    push @userStatus, 1;
-  }
-
-  if ($flags =~ s/I//g) {
-    push @userStatus, "status='IDLE'", "status='INTERACTIV'", "status='FAULTY'";
-  }
-  if ($flags =~ s/z//g) {
-    push @userStatus, "status='ZOMBIE'";
-  }
-
-  while ($args =~ s/-?-s(tatus)? (\S+)//) {
-    push @userStatus, "status='$1'";
-  }
-  @userStatus and $status = join(" or ", @userStatus);
-
-  my @userSite;
-  while ($args =~ s/-?-s(ite)? (\S+)//) {
-    push @userSite, "site='$1'";
-  }
-  @userSite and $site = "and ( " . join(" or ", @userSite) . ")";
-
-#    }
-#my $query="SELECT queueId, status, jdl, execHost, submitHost, runtime, cpu, mem, cputime, rsize, vsize, ncpu, cpufamily, cpuspeed, cost, maxrsize, maxvsize,received,started,finished  FROM QUEUE WHERE ( status=$status ) ";
-  my $where = "WHERE ( $status ) $site ";
-
-  $args =~ s/-?-u(ser)?=?\s+(\S+)// and $where .= " and submithost like '$2\@\%'";
-
-  #    $args =~ s/-?-e(xec)?=?\s+(\S+)// and $where.=" and exechost like '\%$2'";
-  #    $args =~ s/-?-c(ommand)?=?\s+(\S+)// and $where.=" and jdl like '\%Executable\%$2\%'";
-  $args =~ s/-?-i(d)?=?\s*(\S+)// and $where .= " and ( p.queueid='$2' or split='$2')";
-
-  if ($flags =~ s/s//) {
-    $where .= " and (upper(origJdl) like '\%SPLIT\%' or split>0 ) ";
-  } elsif ($flags !~ s/S//) {
-    $where .= " and ((split is NULL) or (split=0))";
-  }
-
-  if ($flags !~ /^\s*$/) {
-    $self->info("Error: I don't know what to do with '-$flags'");
-    return (-1, "wrong syntax (don't know '-$flags')");
-
-  }
-  if ($args !~ /^\s*$/) {
-    $self->info("Error: I don't know what to do with '$args'");
-    return (-1, "wrong syntax (don't know '$args')");
-  }
-
-  #    if ($args !~ /^\s*$/ ){
-  #      my $message="argument '$args' in ps not known";
-  #      $self->{LOGGER}->error("JobManager", "Error: $message");
-  #      return(-1, "$message");
-  #    }
-
-#    my $query="SELECT queueId, status, jdl, execHost FROM QUEUE WHERE ( status=$status ) $user $exechost order by queueId";
-
-  $where .= " and p.queueid=q.queueid ORDER BY q.queueId";
-
-  $self->info("In getPs getting data from database \n $where");
-
-  #my (@ok) = $self->{DB}->query($query);
-  my $rresult = $self->{DB}->getFieldsFromQueueEx(
-"q.queueId, status, origJdl as jdl, execHost, submitHost, runtime, cpu, mem, cputime, rsize, vsize, ncpu, cpufamily, cpuspeed, cost, maxrsize, maxvsize, site, node, split, procinfotime,received,started,finished",
-    "q, QUEUEPROC p,QUEUEJDL pq $where"
-    )
-    or $self->{LOGGER}->error("JobManager", "In getPs error getting data from database")
-    and return (-1, "error getting data from database");
-
-  $DEBUG and $self->debug(1, "In getPs getting ps done");
-
-  my @jobs;
-  for (@$rresult) {
-    $DEBUG and $self->debug(1, "Found jobid $_->{queueId}");
-    my ($executable) = $_->{jdl} =~ /.*Executable\s*=\s*"([^"]*)"/i;
-    my ($split)      = $_->{jdl} =~ /.*Split\s*=.*"(.*)".*/i;
-    $_->{cost} = int($_->{cost});
-    push @jobs,
-      join("###",
-      $_->{queueId},  $_->{status},       $executable,     $_->{execHost}, $_->{submitHost},
-      $_->{runtime},  $_->{cpu},          $_->{mem},       $_->{cputime},  $_->{rsize},
-      $_->{vsize},    $_->{ncpu},         $_->{cpufamily}, $_->{cpuspeed}, $_->{cost},
-      $_->{maxrsize}, $_->{maxvsize},     $_->{site},      $_->{node},     $split,
-      $_->{split},    $_->{procinfotime}, $_->{received},  $_->{started},  $_->{finished});
-  }
-
-  (@jobs) or (push @jobs, "\n");
-
-  $self->info("ps done with $#jobs entries");
-
-  return join("\n", @jobs);
-}
 
 sub getSpyUrl {
   my $this = shift;
+  if ($_[0] and ref $_[0] eq "ARRAY"){
+    my $ref=shift;
+    @_=@$ref;    
+  }
+  
   my $queueId = shift or return;
   $self->info("Get Spy Url for $queueId");
   my ($url) = $self->{DB}->getFieldFromQueue($queueId, "spyurl");
   $url or $self->info("In spy cannot get the spyurl for job $queueId");
-  $self->info("Returning Spy Url for $queueId $url");
+  $self->info("Returning Spy Url for $queueId '$url'");
   return $url;
 }
 
@@ -1286,6 +1187,7 @@ sub putJobLog {
   my $tag     = shift or return (-1, "no tag specified");
   my $message = shift or return (-1, "no message specified");
   $self->{JOBLOG}->putlog($procid, $tag, "$message", @_);
+  $self->info("JOBLOG MODIFIED FOR $procid");
 }
 
 #_______________________________________________________________________________________________________________________

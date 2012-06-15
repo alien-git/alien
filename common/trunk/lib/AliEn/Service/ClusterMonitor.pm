@@ -9,7 +9,6 @@ use strict;
 use AliEn::Service;
 use AliEn::Service::FTD;
 
-use AliEn::SOAP;
 
 # Neede to do no blocing wait (Sounds weird heh?)
 use POSIX ":sys_wait_h";
@@ -20,11 +19,15 @@ use AliEn::Database::TaskQueue;
 use AliEn::Database::TXT::ClusterMonitor;
 use AliEn::Database::CE;
 use AliEn::TMPFile;
+use AliEn::RPC;
 
 use AliEn::CE;
 #use AliEn::X509;
 use vars qw (@ISA $DEBUG);
-@ISA=("AliEn::Service");
+push @ISA, "AliEn::Service";
+use base qw(JSON::RPC::Procedure);
+
+
 $DEBUG=0;
 
 use Compress::Zlib;
@@ -61,15 +64,12 @@ sub initialize {
   $options->{PACKCONFIG} = 1;
   $options->{force} =1;
 
-  $self->{SOAP}=new AliEn::SOAP;
+  $self->{RPC}=new AliEn::RPC;
 
   $self->{PORT} = $self->{CONFIG}->{CLUSTERMONITOR_PORT};
 
   $self->{SERVICE}="ClusterMonitor";
   $self->{SERVICENAME}=$self->{CONFIG}->{CE_FULLNAME};
-  $self->{LISTEN}=1;
-  $self->{PREFORK}=5;
-  $self->{FORKCHECKPROCESS}=1;
   $self->{CONFIG} = $self->{CONFIG}->Reload($options);
 #  $self->{CATALOGUE}= AliEn::UI::Catalogue::LCM->new();
   
@@ -91,9 +91,11 @@ sub initialize {
   ( $self->checkConnection() ) or return;
 
 
-    my $done =$self->{SOAP}->CallSOAP("Manager/Job", "alive",  $self->{HOST}, $self->{PORT}, "", $self->{CONFIG}->{VERSION}) or return;
+  my ($done) =$self->{RPC}->CallRPC("Manager/Job", "alive",  $self->{HOST}, $self->{PORT}, "", $self->{CONFIG}->{VERSION}) or return;
+  
+  use Data::Dumper;
+  $self->info(Dumper($done));
 
-    $done = $done->result;
 
     $self->{MAXJOBS} = ($done->{maxjobs} or "");
 
@@ -143,11 +145,11 @@ sub checkConnection {
 
     $self->debug(1, "In checkConnection");
     my $return;#=$self->{SOAP}->checkService("SOAPProxy");
-    my $done=$self->{SOAP}->checkService("IS");
+    my $done=$self->{RPC}->checkService("IS");
     ($service eq "IS") and $return=$done;
-    $self->{SOAP}->checkService("Broker/Job","JOB_BROKER");
+    $self->{RPC}->checkService("Broker/Job");
     $done=($service eq "JOB_BROKER") and $return=$done;
-    $done=$self->{SOAP}->checkService("Manager/Job", "JOB_MANAGER");
+    $done=$self->{RPC}->checkService("Manager/Job");
     ($service eq "JOB_MANAGER") and $return=$done;
 
     return $return; 
@@ -172,7 +174,7 @@ my $my_getFile = sub {
 sub spy {
     my $this = shift;
 
-    my $done =$self->{SOAP}->CallSOAP("Manager/Job", "spy",@_) or return; 
+    my $done =$self->{RPC}->CallRPC("Manager/Job", "spy",@_) or return; 
     $done and $done=$done->result;
     return $done;
 }
@@ -182,7 +184,7 @@ sub getQueueInfo {
     $self->info( "Sending Queue information for @_");
     my $queueName = shift or return;
 
-    my $done =$self->{SOAP}->CallSOAP("Manager/Job", "queueinfo",$queueName) or return;
+    my $done =$self->{RPC}->CallRPC("Manager/Job", "queueinfo",$queueName) or return;
     my $returninfo="";
 
 
@@ -254,12 +256,12 @@ sub offerAgent {
   #########################################################################
   ## ask the broker for a new job
 
-  my $done =$self->{SOAP}->CallSOAP("Broker/Job", "offerAgent",  $user, 
+  my $done =$self->{RPC}->CallRPC("Broker/Job", "offerAgent",  $user, 
 				    $self->{HOST}, $ca, $free_slots);
 
   if (! $done) {
     $self->info( "Error " .$self->{LOGGER}->error_msg() );
-    $done =$self->{SOAP}->CallSOAP("Manager/Job", "setSiteQueueStatus",$queueName,"open-broker-error");
+    $done =$self->{RPC}->CallRPC("Manager/Job", "setSiteQueueStatus",$queueName,"open-broker-error");
     return (-1, $self->{LOGGER}->error_msg);
   }
 
@@ -275,26 +277,25 @@ sub offerAgent {
 #
 sub getNumberJobs {
   my $this=shift;
+  
+  my $ref=shift;
+  @_=@$ref;
+  
   my $queueName=shift;
   my $free_slots=shift;
   $self->info("Asking the Manager how many jobs we can run");
 
-  my $done =$self->{SOAP}->CallSOAP("Manager/Job", "alive",  $self->{HOST},
+  my ($done) =$self->{RPC}->CallRPC("Manager/Job", "alive",  $self->{HOST},
 				    $self->{PORT}, $queueName, $self->{CONFIG}->{VERSION}, $free_slots);
-  ($done) or die("Error contacting the Job Manager: ".$self->{LOGGER}->error_msg);
-
-  $done=$done->result;
+  ($done) or return {rcmessages=>['The ClusterMonitor could not talk to the ManagerJob']  ,rcvalues=>[]};
 
   if ($done == -2) {
-    $done =$self->{SOAP}->CallSOAP("Manager/Job", "setSiteQueueStatus",$queueName,"closed-blocked");
-    die ("The master has blocked the queue for us!\n" );
+    $self->info("The queue is locked!");
+    return {rcmessages=>['The master has blocked the queue for us!']  ,rcvalues=>[]};
   }
+  $self->info("We can run $done->{maxqueuedjobs} and $done->{maxjobs};");
 
-  my $max_running = $done->{maxjobs};
-  my $max_queued  =$done->{maxqueuedjobs};
-  $self->info("We can run $max_queued and $max_running");
-
-  return ($max_queued, $max_running);
+  return $done;
 }
 
 # Private function
@@ -304,7 +305,7 @@ sub checkCurrentJobs {
   my $silent=shift;
   my $queueName=shift;
   my $free_slots=shift;
-  my $done =$self->{SOAP}->CallSOAP("Manager/Job", "alive",  $self->{HOST},
+  my $done =$self->{RPC}->CallRPC("Manager/Job", "alive",  $self->{HOST},
 				    $self->{PORT}, $queueName, $self->{CONFIG}->{VERSION}, $free_slots);
   ($done) or die("Error contacting the Job Manager: ".$self->{LOGGER}->error_msg);
 
@@ -355,7 +356,7 @@ sub checkCurrentJobs {
 				  "Already executing $self->{MAXJOBS} jobs" );
     
     
-    $done =$self->{SOAP}->CallSOAP("Manager/Job", "setSiteQueueStatus",$queueName,"closed-maxrunning");
+    $done =$self->{RPC}->CallRPC("Manager/Job", "setSiteQueueStatus",$queueName,"closed-maxrunning");
     die (  "executing maximum number of jobs\n" );
   }
   
@@ -367,7 +368,7 @@ sub checkCurrentJobs {
       or $self->{LOGGER}->notice( "ClusterMonitor",
 				  "There are $self->{MAXQUEUEDJOBS} jobs queued" );
     
-    $done =$self->{SOAP}->CallSOAP("Manager/Job", "setSiteQueueStatus",$queueName,"closed-maxqueued");
+    $done =$self->{RPC}->CallRPC("Manager/Job", "setSiteQueueStatus",$queueName,"closed-maxqueued");
     
     die( "maximum number of queued jobs ($self->{MAXQUEUEDJOBS})\n" );
   }
@@ -383,46 +384,15 @@ sub getJobAgent {
   my $user=shift;
   $self->info( "Getting a job to be executed (by $user in $wn, agentId is $agentId)" );
 
-  my $done =$self->{SOAP}->CallSOAP("Broker/Job", "getJobAgent",$user, $self->{CONFIG}->{HOST},  @_);
+  my ($done) =$self->{RPC}->CallRPC("Broker/Job", "getJobAgent",$user, $self->{CONFIG}->{HOST},  @_);
   ($done) or return (-1, $self->{LOGGER}->error_msg);
 
-  my @info=$self->{SOAP}->GetOutput($done);
-  $self->info("Getting the job done");
-  return @info;
-  
-#  ($done) or return (-1, $self->{LOGGER}->error_msg);
-#  ($done eq "-2") and return  (-2, "No jobs waiting in the queue");
-#  ($done, my @packages) = $self->{SOAP}->GetOutput($done);
-#  ($done eq "-2") and return  (-2, "No jobs waiting in the queue");
-#  if ($done eq "-3") {
-#    $self->info("We have to install some packages (@packages) before we can execute the job");
-#    return ($done, @packages);#
-#
-#  }
-#  $self->info( "Getting a jdl done ($done)!!" );
-#  my $jdl=$done->{jdl};
-#  $jdl =~ s{'}{\\'}g;#
 
-#  $self->{LOCALJOBDB}->updateJobAgent({ jobId=>$done->{queueid}, 
-#				       workernode=>$wn, agentId=>$agentId,
-#				      }, "agentId=?", {bind_values=>[$agentId]});
-#  $self->info("Sending the job id $done->{queueid}");
-#  return $done;
+  $self->info("Getting the job done");
+  return @$done;
+  
 }
 
-#sub getJobJDL {
-#    my ( $this, $queueId ) = ( shift, shift );
-#    $self->info( "Getting the jdl of $queueId..." );#
-#
-#    my $done =$self->{SOAP}->CallSOAP("Manager/Job", "GetJobJDL","$queueId");
-#    
-#    ($done) or return (-1, $self->{LOGGER}->error_msg);
-#    
-#    $done = $done->result;
-#
-#    $self->info( "Getting the jdl of $queueId  ($done) done!!" );
-#    return $done;
-#}
 
 sub GetProcInfo {
     my ( $this, $queueId ) = @_;
@@ -435,16 +405,15 @@ sub GetProcInfo {
 
 
 sub SetProcInfo {
-  my ( $this, $queueId, $procinfo) = @_;
+  my $this=shift;
+  my $ref=shift;
+  @_=@$ref;
+  my (  $queueId, $procinfo) = @_;
 
   #runtime char(20), runtimes int, cpu float, mem float, cputime int, rsize int, vsize int, ncpu int, cpufamily int, cpuspeed int, cost float"
   $self->info( "Set Procinfo for $queueId: $procinfo!!" );
 
-#  my $done =$self->{SOAP}->CallSOAP("Manager/Job", "SetProcInfo",  $queueId, $procinfo);
   return $self->{LOCALJOBDB}->insertMessage($queueId, "proc", $procinfo,0);
-#  ($done) or return (-1, $self->{LOGGER}->error_msg()); 
-#  $self->info( "New Procinfo for $queueId done!!" );
-#  return 1;
 }
 
 ########### to be reimplemented
@@ -518,8 +487,10 @@ sub getQueueStatus {
 }
 
 
-sub putJobLog {
+sub putJobLog : Public{
   my $this=shift;
+  my $ref=shift;
+  @_=@$ref;
   my ($queueId, $tag, $message)=(shift,shift,shift);
   return $self->{LOCALJOBDB}->insertMessage($queueId, $tag,$message,0);
 }
@@ -541,7 +512,7 @@ sub _CallBank {
   
   $self->info("Getting $function from the LBSG ");
   
-  my $done = $self->{SOAP}->CallSOAP("LBSG",$function,@_);
+  my $done = $self->{RPC}->CallRPC("LBSG",$function,@_);
 
   ($done) or return (-1, $self->{LOGGER}->error_msg);
 
@@ -553,6 +524,12 @@ sub _CallBank {
 
 sub getOutput {
   my $self    = shift;
+  
+  if ($_[0] and ref $_[0] eq "ARRAY"){
+    my $ref=shift;
+    @_=@$ref;    
+  }
+  
   my $queueId = shift;
   my $output  = shift || "stdout";
   my $url     =shift;
@@ -563,11 +540,10 @@ sub getOutput {
 
   if (!defined $url){
 
-    $url = $self->{SOAP}->CallSOAP("Manager/Job","getSpyUrl", $queueId);
+    ($url) = $self->{RPC}->CallRPC("Manager/Job","getSpyUrl", $queueId);
     $url or 
-      $self->{LOGGER}->warning( "ClusterMonitor", "Error job $queueId is not executed here" )
-	and return; 
-    $url and $url=$url->result;
+      $self->info( "Error job $queueId is not executed here" ) and return; 
+    $self->info("And we have to contact '$url'");
   }
 
   if ( $url eq "" ) {
@@ -578,31 +554,23 @@ sub getOutput {
 
   $self->info("Contacting the jobagent at $url");
 
-  my ($done) =SOAP::Lite->uri("AliEn/Service/JobAgent")
-    ->proxy("http://$url",
-	    options => {compress_threshold => 10000})
-      ->getFile($output, @options);
+  $self->{RPC}->Connect($url, $url, "JobAgent");
+  $self->info("And now, doing the call");
+  $self->{LOGGER}->debugOn();
+  my ($done) =$self->{RPC}->CallRPC($url, "getFile", $output, @options);
 
   $self->info("Finished Contacting the jobagent at $url"); ###############
 
-  my $data;
 
   if(!$done) {
       $self->info("Could not get file via SOAP, trying to get it via LRMS");
-      #$data = $self->{BATCH}->getOutputFile($queueId,$output);
-      $data or $data = "";
-  }  
-  else {
-      $data=($done->result or "");
+      $done = $self->{BATCH}->getOutputFile($queueId,$output);
   }
 
-  $self->info("Got $data" );
+  $self->debug(1, "Got $done" );
+  $done or $self->info("No output") and return "No output\n";
 
-
-  $self->debug(1, "Got $data" );
-  $data or $self->info("No output") and return "No output\n";
-
-  return(SOAP::Data->type( base64 => $data ));
+  return $done;
 }
 
 sub getStdout {
@@ -645,10 +613,8 @@ sub KillProcessBatch {
   ($data and $data->{workernode}) or 
     $self->info( "Error getting the address of job $queueId (maybe the job already finished??)") and return 1;
 
-  $self->{SOAP}->Connect({address=>"http://$data->{workernode}",
-			  uri=>"AliEn/Service/JobAgent",
-			  name=>$data->{workernode}});
-  $self->{SOAP}->CallSOAP($data->{workernode}, "dieGracefully", $queueId)
+  $self->{RPC}->Connect($data->{workernode}, "http://$data->{workernode}", 'JobAgent');
+  $self->{RPC}->CallRPC($data->{workernode}, "dieGracefully", $queueId)
     or $self->info( "The job didn't want to die")
       and return;
 #  $self->{BATCH}->kill($data->{batchId})
@@ -721,8 +687,10 @@ sub getFileSOAP {
 }
 
 
-sub putFILE {
+sub putFILE : Public {
     my $this    = shift;
+    my $ref=shift;
+    @_=@$ref;
     my $QUEUEID = shift;
     my $buffer  = shift;
 
@@ -824,7 +792,7 @@ sub checkMessages {
 
   my $time = time;
   $self->info("Ready to get the messages");
-  my $result=$self->{SOAP}->CallSOAP('MessagesMaster', "getMessages", 'ClusterMonitor', $self->{HOST}, $self->{MESSAGES_LASTACK}) or 
+  my $result=$self->{RPC}->CallRPC('MessagesMaster', "getMessages", 'ClusterMonitor', $self->{HOST}, $self->{MESSAGES_LASTACK}) or 
     $self->info("Error getting the messages") and return;
   my $res=$result->result;
   use Data::Dumper;
@@ -880,7 +848,7 @@ sub checkQueuedJobs {
    $self->$method(@debugLevel, "In checkQueuedJobs .... for $queueName");
    
    $queueName or return;
-   my $done =$self->{SOAP}->CallSOAP("Manager/Job", "jobinfo",$queueName,"QUEUED","600");
+   my $done =$self->{RPC}->CallRPC("Manager/Job", "jobinfo",$queueName,"QUEUED","600");
    my $returninfo="";
    ($done) or return;
    $done=$done->result;
@@ -912,7 +880,7 @@ sub checkWakesUp {
   $silent and push @debugLevel,1;
   $self->$method( @debugLevel,  "Still alive and checking messages" );
 #  my $done =
-#      $self->{SOAP}->CallSOAP("IS", "alive", $self->{HOST}, $self->{PORT}, "",
+#      $self->{RPC}->CallRPC("IS", "alive", $self->{HOST}, $self->{PORT}, "",
 #			      $self->{CONFIG}->{VERSION} );
 
   $self->checkQueuedJobs($silent, $self->{SERVICENAME});
@@ -928,11 +896,22 @@ sub checkWakesUp {
 # Forward the call from JobAgent to AliEn::Service::IS in central services
 sub getCpuSI2k {
   my $this = shift;
+  if ($_[0] and ref $_[0] eq  'ARRAY'){
+    my $ref=shift;
+    @_=@$ref;
+  }
   my $cpu_type = shift;
 
-  my $done = $self->{SOAP}->CallSOAP("IS", "getCpuSI2k",  $cpu_type, $self->{HOST}) or return (-1, $self->{LOGGER}->error_msg());
-
-  return $done->result;
+  $self->info("Someone asked us the cpusi2k of $cpu_type");
+  my $cache = AliEn::Util::returnCacheValue($self, "CPU_$cpu_type");
+  $cache and return $cache;
+  $self->info("Let's ask IS");
+  my ($done) = $self->{RPC}->CallRPC("IS", "getCpuSI2k",  $cpu_type, $self->{HOST}) or return (-1, $self->{LOGGER}->error_msg());
+  
+  AliEn::Util::setCacheValue($self, "CPU_$cpu_type", $done);
+  
+  
+  return $done;
 }
 
 sub checkJobAgents {
@@ -1027,17 +1006,10 @@ sub StartService{
 
 
 
-sub agentExits{
+sub jobStarts : Public {
   my $this=shift;
-  my $agentId=shift;
-
-  $self->info("The jobAgent $agentId has finished");
-#  $self->{LOCALJOBDB}->removeJobAgent($self->{BATCH}->needsCleaningUp(), { agentId => $agentId });
-  return 1;
-}
-
-sub jobStarts{
-  my $this=shift;
+  my $ref=shift;
+  @_=@$ref;
   my $jobId=shift;
   my $agentId=shift;
 
@@ -1054,15 +1026,6 @@ sub packmanOperations {
  $catalogue->{PACKMAN}->f_packman(@_);
 }
 ################
-
-sub jobExits{
-  my $this=shift;
-  my $jobId=shift;
-
-  $self->info("The job $jobId has finished");
-  #$self->{LOCALJOBDB}->removeJobAgent($self->{BATCH}->needsCleaningUp(), { jobId => $jobId });  
-  return 1;
-}
 
 1;
 

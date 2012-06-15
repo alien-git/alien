@@ -14,6 +14,7 @@ use AliEn::Database::TaskQueue;
 
 use AliEn::Database::CE;
 use AliEn::LQ;
+use AliEn::RPC;
 use AliEn::Util;
 use Tie::CPHash;
 
@@ -37,13 +38,16 @@ sub new {
 
 	my $options = shift;
 
-	$self->{SOAP} = new AliEn::SOAP;
+  
 
 	#my $user=($options->{user} or getpwuid($<));
 
 	#    my $user = "aliprod";
 	bless($self, $class);
 	$self->SUPER::new() or return;
+  $self->info("CREAING A NEW CE");
+
+	$self->{RPC} = new AliEn::RPC or $self->info("Error creating the RPC module") and return;
 
 	$self->{PASSWD} = ($options->{passwd} or "");
 
@@ -791,14 +795,14 @@ sub submitCommand {
 		return 1;
 	}
 
-	my $done = $self->{SOAP}->CallSOAP("Manager/Job", 'enterCommand', "$user\@$self->{HOST}", $job_ca->asJDL());
-	if (!$done) {
+	my ($jobId) = $self->{RPC}->CallRPC("Manager/Job", 'enterCommand', "$user\@$self->{HOST}", $job_ca->asJDL());
+	if (!$jobId) {
 		$self->{LOGGER}->error("CE", "=====================================================");
 		$self->{LOGGER}->error("CE", "Cannot enter your job !");
 		$self->{LOGGER}->error("CE", "=====================================================");
 		return;
 	}
-	my $jobId = $done->result;
+
 
 	if ($self->{WORKINGPGROUP} != 0) {
 		$self->f_pgroup("add", "$jobId");
@@ -851,12 +855,20 @@ sub getNumberFreeSlots {
 	my $self = shift;
 
 	my $free_slots = $self->{BATCH}->getFreeSlots();
-	my $done = $self->{SOAP}->CallSOAP("ClusterMonitor", "getNumberJobs", $self->{CONFIG}->{CE_FULLNAME}, $free_slots)
-		or return;
-
-	my ($max_queued, $max_running) = $self->{SOAP}->GetOutput($done);
-
-	$self->info("According to the manager, we can queue max $max_queued and manage max $max_running");
+ 
+ 
+  my ($info)=$self->{RPC}->CallRPC("ClusterMonitor", "getNumberJobs", $self->{CONFIG}->{CE_FULLNAME}, $free_slots);
+	$info or $self->info("Error asking the ClusterMonitor") and return;
+	
+	my ($max_queued, $max_running) =($info->{maxqueuedjobs}, $info->{maxjobs});
+  my $currentload= $info->{RUNNING}+ $info->{SAVING}+ $info->{ASSIGNED}+$info->{STARTED};
+  if ($currentload >=$max_running){
+    $self->info("We are currently running more than we are supposed to ($currentload and $max_running)");
+    return $max_running-$currentload;
+    
+  }
+	$self->info("According to the manager, we can queue max $max_queued and manage max $max_running. Now, we are running $currentload");
+  $max_running or return;
 
 	my $queued = $self->{BATCH}->getNumberQueued();
 	if ($queued) {
@@ -876,7 +888,8 @@ sub getNumberFreeSlots {
 	my $free = ($max_queued - $queued);
 
 	(($max_running - $running) < $free) and $free = ($max_running - $running);
-
+	
+  (($max_running - $currentload) < $free ) and $free = ($max_running - $currentload);
 	my $file = "$ENV{ALIEN_HOME}/alien_$self->{CONFIG}->{CE_NAME}_number.txt";
 
 	if (-f $file) {
@@ -938,7 +951,7 @@ sub offerAgent {
 	($free_slots and ($free_slots > 0))
 		or $self->{LOGGER}->$mode("CE", "At the moment we are busy (we can't request new jobs)")
 		and return;
-	my $classad = "";    #AliEn::Util::returnCacheValue($self,"classad");
+	my $classad = AliEn::Util::returnCacheValue($self,"classad");
 	if (!$classad) {
 		my $ca = AliEn::Classad::Host->new({PACKMAN => $self->{PACKMAN}}) or return;
 		$ca->set_expression("LocalDiskSpace", 100000000);
@@ -950,72 +963,48 @@ sub offerAgent {
 		AliEn::Util::setCacheValue($self, "classad", $classad);
 
 	}
-	$done = $self->{SOAP}->CallSOAP("Broker/Job", "offerAgent", $user, $self->{CONFIG}->{HOST}, $classad, $free_slots);
+	($done) = $self->{RPC}->CallRPC("Broker/Job", "offerAgent", $user, $self->{CONFIG}->{HOST}, $classad, $free_slots);
 
 	$done or return;
+	$done eq -2 and $self->info("Nothing to execute :-)") and return -2;
 	$DEBUG and $self->debug(1, "Got back that we have to start  agents");
-	my $message;
-	my @jobAgents = $self->{SOAP}->GetOutput($done);
+	my ($numAgents, $jdl)= @$done;
 
-	if (!@jobAgents || ($jobAgents[0] eq "-2")) {
-		$message = ($done->paramsout || "no more jobs");
-		$self->{LOGGER}->$mode("CE", $message);
+	if (!$numAgents ) {
+		$self->info("Nothing to execute");
 		$opt->{n} or return -2;
-	}
-	if (!@jobAgents || ($jobAgents[0] eq "-3")) {
-		shift @jobAgents;
-		$self->info("We have to install the packages '@jobAgents'");
-		$message = "We have to install the pacakages '@jobAgents'";
-		if (!$opt->{n}) {
-			foreach my $pack (@{$jobAgents[0]}) {
-				$self->{CATALOG}->execute("packman", "install", $pack);
-			}
-			return -2;
-		}
 	}
 	if ($opt->{n}) {
 		my $total = 0;
-		if (!$message) {
-			foreach my $entry (@jobAgents) {
-				my ($c, $j) = @$entry;
-				$total += $c;
-			}
-			$message = "We could start $total agents";
-		}
-		$self->info("We do not start the agents. This is just for info");
-		$self->info($message);
+		$self->info("We do not start the agents. This is just for info. We could start $numAgents");
 		return 1;
 	}
 
-	$DEBUG and $self->debug(1, "Got back that we have to start $#jobAgents +1  agents");
+	$DEBUG and $self->debug(1, "Got back that we have to start $numAgents   agents");
 	my $script = $self->createAgentStartup() or return;
-	foreach my $agent (@jobAgents) {
-		my ($count, $jdl) = @$agent;
-		$self->info("Starting $count agent(s) for $jdl ");
-		my $classad = Classad::Classad->new($jdl);
-		while ($count--) {
-			$self->SetEnvironmentForExecution($jdl);
+	my $count=$numAgents;
+  $self->info("Starting $count agent(s) for $jdl ");
+	$classad = Classad::Classad->new($jdl);
 
-			$self->info("*********READY TO SUBMIT $script ");
-			my $error = $self->{BATCH}->submit($classad, $script);
-
-			if ($error) {
-				$self->{SOAP}
-					->CallSOAP("Manager/Job", "setSiteQueueStatus", $self->{CONFIG}->{CE_FULLNAME}, "error-submitting-agents");
+  $self->SetEnvironmentForExecution($jdl);
+	
+	while ($count--) {
+		$self->info("*********READY TO SUBMIT $script $ENV{ALIEN_CM_AS_LDAP_PROXY}");
+		my $error = $self->{BATCH}->submit($classad, $script);
+		if ($error) {
 				$self->info("Error starting the job agent");
 				last;
-			} else {
-				my $id = $self->{BATCH}->getBatchId();
-				if ($id) {
-					$self->info("Inserting $id in the list of agents");
-					$self->{DB}->insertJobAgent(
+		} else {
+			my $id = $self->{BATCH}->getBatchId();
+			if ($id) {
+			  $self->info("Inserting $id in the list of agents");
+		 		$self->{DB}->insertJobAgent(
 						{       batchId => $id,
 							agentId => $ENV{ALIEN_JOBAGENT_ID}
 						}
 					);
 				}
 			}
-		}
 	}
 
 	#  unlink $script;
@@ -1160,7 +1149,7 @@ sub checkQueueStatus() {
 		}
 	}
 
-	my $done = $self->{SOAP}->CallSOAP("ClusterMonitor", "checkQueueStatus", $self->{CONFIG}->{CE_FULLNAME}, @queueids);
+	my $done = $self->{RPC}->CallRPC("ClusterMonitor", "checkQueueStatus", $self->{CONFIG}->{CE_FULLNAME}, @queueids);
 	$done or return;
 
 	if ($done->result eq "0") {
@@ -1203,43 +1192,6 @@ sub SetEnvironmentForExecution {
 	($self->{CONFIG}->{SaveSEs_FULLNAME})
 		and $ENV{ALIEN_SaveSEs} = join "###", @{$self->{CONFIG}->{SaveSEs_FULLNAME}};
 
-	#  my ($ok, $saveSE ) = $CA->evaluateAttributeString("RemoteSE");#
-	#
-	#  if ($saveSE){
-	#    $self->info( "The job wants to save remotely in $saveSE");
-	#    my $se=$self->{CONFIG}->CheckService("SE", $saveSE);
-	#    $se or $self->{LOGGER}->error("CE", "SE $saveSE does not exist") and return;
-	#    $ENV{ALIEN_SaveSE}=$se->{FULLNAME};
-	#  }
-	#  ($ok, $saveSE ) = $CA->evaluateAttributeString("SE");#
-	#
-	#  if ($saveSE) {
-	#    $self->info( "The job wants to save localy in $saveSE");
-	#    my $se=$self->{CONFIG}->CheckService("SE", $saveSE);
-	#    $se or $self->{LOGGER}->error("CE", "SE $saveSE does not exist") and return;
-	#    $ENV{ALIEN_SE_MSS}      = $se->{MSS};
-	#    $ENV{ALIEN_SE_FULLNAME} = $se->{FULLNAME};
-	#    $ENV{ALIEN_SE_SAVEDIR}  = $se->{SAVEDIR};
-	#
-	#  }
-
-	#  ($ok, my $requirements ) = $CA->evaluateExpression("Requirements");
-	#  if ($ok ) {
-	#      $self->info( "Passing the requirements $requirements");
-	#      $self->{BATCH}->{JDL_REQ}=$requirements;
-	#  }
-
-	#  ($ok, $requirements ) = $CA->evaluateExpression("SpecialRequirements");
-	#  if ($ok ) {
-	#      $self->info( "Passing the special requirements $requirements");
-	#      $self->{BATCH}->{JDL_SPECIAL_REQ}=$requirements;
-	#  }
-
-	#  ($ok, my $inputData) = $CA->evaluateExpression("InputData");
-	#  if ($ok) {
-	#      $self->info( "Passing the InputData $inputData");
-	#      $self->{BATCH}->{JDL_INPUT_DATA}=$inputData;
-	#  }
 
 	return 1;
 }
@@ -1565,14 +1517,14 @@ sub f_spy {
 		$options->{grep} = undef;
 	}
 
-	my $done = $self->{SOAP}->CallSOAP("Manager/JobInfo", "spy", $queueId, $spyfile, $options);
+	my $done = $self->{RPC}->CallRPC("Manager/JobInfo", "spy", $queueId, $spyfile, $options);
 	$done or return;
 	my $result = $done->result;
 	$self->info("We are supposed to contact the cluster at $result");
 
-	my $result2 =
-		SOAP::Lite->uri('AliEn/Service/JobAgent')->proxy("http://$result", options => {compress_threshold => 10000})
-		->getFile($spyfile, $options);
+	my $result2 =$self->{RPC}->Connect("JobAgent_$result", "http://$result");
+	
+	$self->{RPC}->CallRPC("JobAgent_$result", 'getFile', $spyfile, $options);
 
 	$self->info("Finished Contacting the jobagent at $result");    ###############
 	my $data = $result2->result;
@@ -1610,9 +1562,9 @@ sub f_jobsystem {
 
 	my $done;
 	if (@jobtag) {
-		$done = $self->{SOAP}->CallSOAP("Manager/JobInfo", $callcommand, $username, @jobtag);
+		$done = $self->{RPC}->CallRPC("Manager/JobInfo", $callcommand, $username, @jobtag);
 	} else {
-		$done = $self->{SOAP}->CallSOAP("Manager/JobInfo", $callcommand, $username);
+		$done = $self->{RPC}->CallRPC("Manager/JobInfo", $callcommand, $username);
 	}
 
 	my $error  = "";
@@ -1768,13 +1720,13 @@ sub f_ps_trace {
 		return;
 	}
 
-	my $done = $self->{SOAP}->CallSOAP("Manager/JobInfo", "getTrace", "trace", $id, @_);
+	my ($done) = $self->{RPC}->CallRPC("Manager/JobInfo", "getTrace", "trace", $id, @_);
 	
-	$done or return;
+	$done or $self->info("Error talking to the JobInfo ") and return;
 	my @trace;
-	my $result = $done->result;
+	
 	my $cnt    = 0;
-	my @jobs   = split "\n", $result;
+	my @jobs   = split "\n", $done;
 
 	#  my @returnjobs;
 	foreach (@jobs) {
@@ -1812,50 +1764,6 @@ sub f_ps_trace {
 	return \@trace;
 }
 
-sub f_ps2_jdltrace {
-	my $self    = shift;
-	my $command = shift;
-	$self->{TASK_DB}->setSiteQueueTable();
-
-	# catch the -trace and -jdl option
-	if ($command eq "-trace") {
-		my $errorhash;
-		$errorhash->{error}    = "GLITE_ERROR_ILLEGAL_INPUTPARAMETERS";
-		$errorhash->{errortxt} = "ps2 -trace needs atleast <queueId> as input argument";
-		my $queueid = shift or return $errorhash;
-		my $trace = $self->f_ps_trace($queueid, @_);
-
-		#	foreach (@$trace) {
-		#	    foreach my $lkey (keys %$_) {
-		#		print "$lkey : $_->{$lkey}","\n";
-		#	    }
-		#	}
-		return @$trace;
-	}
-
-	if ($command eq "-jdl") {
-		my $errorhash;
-		$errorhash->{error}    = "GLITE_ERROR_ILLEGAL_INPUTPARAMETERS";
-		$errorhash->{errortxt} = "ps2 -jdl needs <queueId> as input argument";
-		my $queueid = shift or return $errorhash;
-		my $jdl     = $self->{TASK_DB}->getFieldFromQueue($queueid, "jdl");
-		my @result  = ();
-		my $rethash = {};
-		$rethash->{jdl} = $jdl;
-
-		if (defined $jdl) {
-			$self->info("$jdl", undef, 0);
-		} else {
-			$self->info("CE", "Error: Job $queueid is not (anymore) in the task queue!");
-			my $errorhash;
-			$errorhash->{error}    = "GLITE_ERROR_ILLEGAL_JOBID";
-			$errorhash->{errortxt} = "Job $queueid is not (anymore) in the task queue!";
-			return $errorhash;
-		}
-		push @result, $rethash;
-		return @result;
-	}
-}
 =item getPs
 
 Gets the list of jobs from the queue
@@ -1936,14 +1844,13 @@ sub getPsFromDB {
     return;
   }
 
-  $where .=" and p.queueid=q.queueid ORDER BY q.queueId";
 
   $self->info( "In getPs getting data from database \n $where" );
 
 
 	#my (@ok) = $self->{DB}->query($query);
   my $rresult = $self->{TASK_DB}->getFieldsFromQueueEx("q.queueId, status, name, execHost, submitHost, runtime, cpu, mem, cputime, rsize, vsize, ncpu, cpufamily, cpuspeed, cost, maxrsize, maxvsize, site, node, split, procinfotime,received,started,finished",
-						  "q, QUEUEPROC p,QUEUEJDL qj $where")
+						  "q join QUEUEPROC p using(queueid) join QUEUEJDL qj using (queueid) $where ORDER by queueid")
     or $self->info( "In getPs error getting data from database" )
       and return;
 
@@ -1967,279 +1874,6 @@ sub getPsFromDB {
 }
 
 
-
-sub f_ps2 {
-
-	my $self = shift;
-	##### usage        #####
-	$self->{LOGGER}->error("CE", "Arguments: @_\n");
-	##### filter -z argument away #####
-	my @args;
-	foreach (@_) {
-		$_ =~ /^\-z/ or push @args, $_;
-	}
-
-	my $usage = "Usage: ps2 <flags|status> <users> <sites> <nodes> <masterjobs> <order> <jobid> <limit> <sql>\n";
-	$usage .= "\t <flags> \t: -a all jobs\n";
-	$usage .= "\t         \t: -r all running jobs\n";
-	$usage .= "\t         \t: -f all failed/error jobs \n";
-	$usage .= "\t         \t: -d all done jobs \n";
-	$usage .= "\t         \t: -t all final state jobs (done/error) \n";
-	$usage .= "\t         \t: -q all queued jobs (queued/assigned) \n";
-	$usage .= "\t         \t: -s all pre-running jobs (inserting/waiting/assigned/queued/over_quota_*) \n";
-	$usage .= "\t         \t: -arfdtqs combinations\n";
-	$usage .= "\t         \t: default '-' = 'all non final-states'\n";
-	$usage .= "\n";
-	$usage .= "\t <status>\t: <status-1>[,<status-N]*\n";
-	$usage .=
-"\t         \t:  INSERTING,WAITING,OVER_WAITING,ASSIGEND,QUEUED,STARTED,RUNNING,DONE,ERROR_%[A,S,I,IB,E,R,V,VN,VT]\n";
-	$usage .= "\t         \t: default '-' = 'as specified by <flags>'\n";
-	$usage .= "\n";
-	$usage .= "\t <users> \t: <user-1>[,<user-N]*\n";
-	$usage .= "\t         \t: % to wildcard all users\n";
-	$usage .= "\n";
-	$usage .= "\t <sites> \t: <site-1>[,<site-N]*\n";
-	$usage .= "\t         \t: default '%' or '-' to all sites\n";
-	$usage .= "\n";
-	$usage .= "\t <nodes> \t: <node-1>[,<node-N]*\n";
-	$usage .= "\t         \t: default '%' or '-' to all nodes\n";
-	$usage .= "\n";
-	$usage .= "\t <mjobs> \t: <mjob-1>[,<mjob-N]*\n";
-	$usage .= "\t         \t: default '%' or '-' to all jobs\n";
-	$usage .= "\t         \t: <sort-key>\n";
-	$usage .= "\t         \t: default '-' or 'queueId'\n";
-	$usage .= "\n";
-	$usage .= "\t <jobid> \t: <jobid-1>[,<jobid-N]*\n";
-	$usage .= "\t         \t: default '%' or '-' to use the specified <flags>\n";
-	$usage .= "\n";
-	$usage .= "\t <limit> \t: <n> - maximum number of queried jobs\n";
-	$usage .= "\t         \t: regular users: default limit = 2000;\n";
-	$usage .= "\t         \t: admin        : default limit = unlimited;\n\n";
-	$usage .= "\t <sql>   \t: only for admin role: SQL statement\n";
-	$usage .= "Usage: ps2 -trace <jobid> \t: get the job trace\n";
-	$usage .= "Usage: ps2 -jdl   <jobid> \t: get the job JDL\n";
-
-	#### implement the -trace and -jdl option
-	if (($args[0] eq "-trace") or ($args[0] eq "-jdl")) {
-		return $self->f_ps2_jdltrace(@args);
-	}
-
-	my $errorhash;
-	$errorhash->{error}    = "GLITE_ERROR_ILLEGAL_INPUTPARAMETERS";
-	$errorhash->{errortxt} = "Wrong number of input parameters to function ps2";
-	##### input params #####
-	my $flags      = shift @args or $self->{LOGGER}->error("CE", "$usage") and return $errorhash;
-	my $users      = shift @args or $self->{LOGGER}->error("CE", "$usage") and return $errorhash;
-	my $sites      = shift @args or $self->{LOGGER}->error("CE", "$usage") and return $errorhash;
-	my $nodes      = shift @args or $self->{LOGGER}->error("CE", "$usage") and return $errorhash;
-	my $masterjobs = shift @args or $self->{LOGGER}->error("CE", "$usage") and return $errorhash;
-	my $order      = shift @args or $self->{LOGGER}->error("CE", "$usage") and return $errorhash;
-	my $ids        = shift @args or $self->{LOGGER}->error("CE", "$usage") and return $errorhash;
-	my $limit      = shift @args or $self->{LOGGER}->error("CE", "$usage") and return $errorhash;
-	my $sql = join " ", @args or $self->{LOGGER}->error("CE", "$usage") and return $errorhash;
-	########################
-	my $date = time;
-
-	if ($flags      eq "-") { $flags      = ""; }
-	if ($users      eq "-") { $users      = "$self->{CATALOG}->{CATALOG}->{ROLE}"; }
-	if ($sites      eq "-") { $sites      = ""; }
-	if ($nodes      eq "-") { $nodes      = ""; }
-	if ($masterjobs eq "-") { $masterjobs = ""; }
-	if ($order      eq "-") { $order      = "queueId"; }                               #default order is by job ID
-	if ($ids        eq "-") { $ids        = ""; }
-	if ($sql        eq "-") { $sql        = ""; }
-	if ($limit      eq "-") { $limit      = ""; }
-
-	my $sqlstatus =
-"status='RUNNING' or status='WAITING' or status='OVER_WAITING' or status='ASSIGNED' or status='QUEUED' or status='INSERTING' or status='SPLIT' or status='SPLITTING' or status='STARTED' or status='SAVING'";
-	my $sqlusers      = "  ";
-	my $sqlsites      = "  ";
-	my $sqlnodes      = "  ";
-	my $sqlmasterjobs = "  ";
-	my $sqlids        = "  ";
-
-	my $or = "";
-
-	#    my $user="";
-	# group status selection
-	if ($flags =~ /^-/) {
-		if ($flags ne "-") {
-			$sqlstatus = "";
-		}
-		if ($flags =~ /r/) {
-			$sqlstatus .= "$or status='RUNNING' or status='STARTED' or status ='SAVING'";
-			$or = "or";
-		}
-
-		if ($flags =~ /q/) {
-			$sqlstatus .= "$or status='QUEUED' or status='ASSIGNED'";
-			$or = "or";
-		}
-
-		if ($flags =~ /f/) {
-			$sqlstatus .= "$or status like 'ERROR&' or status='FAILED' or status='EXPIRED'";
-			$or = "or";
-		}
-
-		if ($flags =~ /d/) {
-			$sqlstatus .= "$or status='DONE'";
-			$or = "or";
-		}
-
-		if ($flags =~ /t/) {
-			$sqlstatus .= "$or status='DONE' or status='ERROR%'";
-		}
-
-		if ($flags =~ /s/) {
-			$sqlstatus .=
-"$or status='INSERTING' or status='OVER_WAITING' or status= 'WAITING' or status= 'ASSIGNED' or status= 'QUEUED'";
-		}
-
-		if ($flags =~ /a/) {
-			$sqlstatus = "";
-		}
-	} else {
-
-		#precise status selection with komma separated list
-		$sqlstatus = "  ";
-		my @allstatus = split(",", $flags);
-		foreach (@allstatus) {
-			$sqlstatus .= "status like '$_' or";
-		}
-		chop $sqlstatus;
-		chop $sqlstatus;
-	}
-
-	##########################################
-	# user selection
-	my @allusers = split(",", $users);
-	foreach (@allusers) {
-		$sqlusers .= " submithost like '$_\@\%' or";
-	}
-
-	chop $sqlusers;
-	chop $sqlusers;
-
-	##########################################
-	# site selection
-	my @allsites = split(",", $sites);
-	foreach (@allsites) {
-		$sqlsites .= "site like '$_' or";
-	}
-
-	chop $sqlsites;
-	chop $sqlsites;
-
-	##########################################
-	# node selection
-	my @allnodes = split(",", $nodes);
-
-	foreach (@allnodes) {
-		$sqlnodes .= "node like '$_' or";
-	}
-
-	chop $sqlnodes;
-	chop $sqlnodes;
-
-	##########################################
-	# master job selection
-	my @allmasterjobs = split(",", $masterjobs);
-
-	foreach (@allmasterjobs) {
-		$sqlmasterjobs .= "split = '$_' or";
-	}
-
-	chop $sqlmasterjobs;
-	chop $sqlmasterjobs;
-
-	##########################################
-	# job id selection
-	my @allids = split(",", $ids);
-
-	foreach (@allids) {
-		$sqlids .= "queueId = '$_' or";
-	}
-
-	chop $sqlids;
-	chop $sqlids;
-
-	##########################################
-
-	if ($sqlstatus     eq "") { $sqlstatus     = "1" }
-	if ($sqlusers      eq "") { $sqlusers      = "1" }
-	if ($sqlsites      eq "") { $sqlsites      = "1" }
-	if ($sqlnodes      eq "") { $sqlnodes      = "1" }
-	if ($sqlmasterjobs eq "") { $sqlmasterjobs = "1" }
-	if ($sqlids        eq "") { $sqlids        = "1" }
-
-	my $where = "";
-	my $rresult;
-
-	if ($self->{CATALOG}->{CATALOG}->{ROLE} ne "admin") {
-		if ($limit eq "") {
-			$limit = " limit 2000 ";
-		} else {
-			$limit = " limit $limit ";
-		}
-	} else {
-		$limit = " limit $limit ";
-	}
-
-	if (($sql ne "")) {
-		if ($self->{CATALOG}->{CATALOG}->{ROLE} ne "admin") {
-			$self->{LOGGER}->error("CE", "You are not allowed to execute direct SQL queries!");
-			return;
-		} else {
-			$where = "$sql";
-			$DEBUG and $self->debug(1, "In psdirect executing sql statuement:\n $where");
-			$rresult = $self->{TASK_DB}->query("$where $limit")
-				or $self->{LOGGER}->error("CE", "In psdirect error getting data from database")
-				and return;
-
-		}
-	} else {
-		$where =
-"($sqlstatus) and ($sqlusers) and ($sqlsites) and ($sqlnodes) and ($sqlmasterjobs) and ($sqlids) order by $order $limit";
-		$DEBUG and $self->debug(1, "In psdirect executing where:\n $where");
-		$rresult = $self->{TASK_DB}->getFieldsFromQueueEx("*", "where $where")
-			or $self->{LOGGER}->error("CE", "In psdirect error getting data from database")
-			and return;
-	}
-
-	$DEBUG and $self->debug(1, "In psdirect done");
-
-	my @jobs;
-	for (@$rresult) {
-		$_->{submitHost} =~ /(.*)\@(.*)/;
-		$_->{user}       = $1;
-		$_->{submitHost} = $2;
-		if ($_->{jdl} =~ /.*Executable\s*=\s*"([^"]*)"/) {
-			$_->{executable} = $1;
-		} else {
-			$_->{executable} = "";
-		}
-		if ($_->{jdl} =~ /.*Split.*=.*"(.*)".*/i) {
-			$_->{splitmode} = $1;
-		} else {
-			$_->{splitmode} = "";
-		}
-		if ((defined $_->{cost}) && ($_->{cost} ne "")) {
-			$_->{cost} = int($_->{cost});
-		} else {
-			$_->{cost} = 0;
-		}
-	}
-
-	if ($self->{DEBUG} ne "0") {
-		foreach (@$rresult) {
-			$self->info("---------------------------------", undef, 0);
-			foreach my $lkeys (keys %$_) {
-				$self->info(sprintf("%24s = %s", $lkeys, $_->{$lkeys}), undef, 0);
-			}
-		}
-	}
-	return @$rresult;
-}
 
 sub f_ps_rc {
 	my $self = shift;
@@ -2388,7 +2022,6 @@ sub f_ps {
 
 	$DEBUG and $self->debug(1, "In RemoteQueue::ps @_");
 
-	$DEBUG and $self->debug(1, "Connecting to $self->{HOST}:$self->{CONFIG}->{CLUSTERMONITOR_PORT}");
 
 	my $addtags = "";
 
@@ -2509,13 +2142,13 @@ sub f_ps {
 			chomp $st;
 			chomp $ft;
 
-			$output = sprintf "%-10s %s%-6s%s %-2s    %-24s  %-24s  %-24s  %-10s", $username, $indentor, $queueId, $exdentor,
+			$output = sprintf "%-10s %s%-6s%s %-2s    %-24s  %-24s  %-24s  %-10s\n", $username, $indentor, $queueId, $exdentor,
 				$status, $rt, $st, $ft, $name;
 
 		} else {
 
 			# no option given
-			$output = sprintf "%-10s %s%-6s%s %-2s  %-8s  %-10s", $username, $indentor, $queueId, $exdentor, $status,
+			$output = sprintf "%-10s %s%-6s%s %-2s  %-8s  %-10s\n", $username, $indentor, $queueId, $exdentor, $status,
 				$runtime, $name;
 		}
 		push @outputarray, $output;
@@ -2826,7 +2459,7 @@ sub f_validate {
 
 	my $queueId;
 	foreach $queueId (@_) {
-		my ($done) = $self->{SOAP}->CallSOAP("Manager/Job", "validateProcess", $queueId) or return;
+		my ($done) = $self->{RPC}->CallRPC("Manager/Job", "validateProcess", $queueId) or return;
 		$self->info("Job to validate  $queueId submitted!\n", undef, 0);
 	}
 	return 1;
@@ -3233,12 +2866,12 @@ sub checkBankConnection {
 	#Checking the CM
 	$DEBUG and $self->debug(1, "Checking the connection to the CM");
 
-	if ($self->{SOAP}->checkService("ClusterMonitor")) {
+	if ($self->{RPC}->checkService("ClusterMonitor")) {
 		$self->{BANK_CONNECTION} = "ClusterMonitor";
 		return 1;
 	}
 	$self->{BANK_CONNECTION} = "LBSG";
-	return $self->{SOAP}->checkService("LBSG", "LBSG", "-retry");
+	return $self->{RPC}->checkService("LBSG", "LBSG", "-retry");
 }
 
 sub getBankHELP {
@@ -3259,7 +2892,7 @@ sub f_bank {
 
 	($self->checkBankConnection()) or return;
 
-	my $done = $self->{SOAP}->CallSOAP($self->{BANK_CONNECTION}, "bank", @_) or return;
+	my $done = $self->{RPC}->CallRPC($self->{BANK_CONNECTION}, "bank", @_) or return;
 	$done or (($self->info("Error: SOAP call to $self->{BANK_CONNECTION} 'bank' failed\n", undef, 0)) and return);
 
 	$self->info($done->result(), undef, 0);
@@ -3687,7 +3320,7 @@ sub getMasterJob {
 		$subjobs->[0]->{submitHost} =~ /^$user\@/
 			or return (-1, "the job doesn't belong to $user");
 #		$self->changeStatusCommand($id, 'token', "%", 'FORCEMERGE')
-        $self->{SOAP}->CallSOAP("Manager/Job", "changeStatusCommand", $id, 'token', "%", 'FORCEMERGE')
+        $self->{RPC}->CallRPC("Manager/Job", "changeStatusCommand", $id, 'token', "%", 'FORCEMERGE')
 			or return (-1, "error putting the status to 'FORCEMERGE'");
 		$self->{TASK_DB}->update("ACTIONS", {todo => 1}, "action='MERGING'");
 
@@ -4369,7 +4002,7 @@ sub f_jquota_list {
 		return;
 	}
 
-	#  my $done = $self->{SOAP}->CallSOAP("Manager/Job", 'getJobQuotaList', $user);
+	#  my $done = $self->{RPC}->CallRPC("Manager/Job", 'getJobQuotaList', $user);
 	#  $done or return;
 	#  my $result = $done->result;
 	my $result = $self->{TASK_DB}->getFieldsFromPriorityEx(
@@ -4428,7 +4061,7 @@ sub f_jquota_set {
 		return;
 	}
 
-	#my $done = $self->{SOAP}->CallSOAP("Manager/Job", 'setJobQuotaInfo', $user, $field, $value);
+	#my $done = $self->{RPC}->CallRPC("Manager/Job", 'setJobQuotaInfo', $user, $field, $value);
 	my $set = {$field => $value};
 	my $done = $self->{TASK_DB}->updatePrioritySet($user, $set);
 	$done or $self->info("Failed to set the value in PRIORITY table") and return;

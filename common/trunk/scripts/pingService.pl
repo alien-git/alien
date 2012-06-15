@@ -3,7 +3,8 @@ use AliEn::Config;
 use SOAP::Lite;
 use Data::Dumper;
 use Net::Domain;
-use AliEn::SOAP;
+use AliEn::RPC;
+
 my %serviceConfigMap = (
 "Authen" => ["AUTH_HOST", "AUTH_PORT"],
 "Logger" => ["LOG_HOST", "LOG_PORT"],
@@ -27,6 +28,7 @@ my $logDir = shift;
 $serviceName && $logDir
   or &syntax();
 
+print "HOLA $serviceName and $logDir\n";
 my $config = eval("new AliEn::Config();");
 $config 
   or &error(-2, "Could not get Config. (Error $@)");
@@ -42,9 +44,9 @@ my $configPort = exists($serviceConfigMap{$serviceName}) ? $serviceConfigMap{$se
 my $host = (defined($configHost) ? $config->{$configHost} : $crtHost);
 #print $host;
 my $HostHttps="";
+my $HTTPS=0;
 if ($host) {
-  $host =~ /^https/ and $HostHttps = $host ;
-  $host =~ s/^http:\/\///;
+  $host =~ s/^http:\/\/// and $HTTPS=1;
   $host =~ s/^https:\/\///;
 } 
 my $port;
@@ -55,35 +57,17 @@ if ($host && $host =~ /^(.*):(\d+)$/){
   $port = (defined($configPort) ? $config->{$configPort} : "");
 }
 
-# commented out this part since the services can run in httpd, so checking the pid is wrong
-#if($host && $port && ($host ne $crtHost)){
-#  print "Skipping PID check. Service runs on a different machine ($host and we test from $crtHost)\n";
-#}else{
-#  print "Checking PID for $serviceName...\n";
-#  check_pid($logDir, $serviceName);
-#}
 
 
 # This script cannot check the ProxyServer and MonaLisa because they do not inherit from AliEn::Service
 #if ($serviceName =~ /^(ProxyServer)|(MonaLisa)|(CE.*)|(FTD)|(Optimizer.*)$/)
-if ($serviceName =~ /^(ProxyServer)|(MonaLisa)|(CE.*)|(FTD)|(CMreport)$/)
+if ($serviceName =~ /^(MonaLisa)|(CE.*)|(FTD)|(CMreport)|(Optimizer.*)$/)
 {
   print "Doing PID-only check for $serviceName...\n";
   check_pid($logDir, $serviceName);
   exit 0;
 }
 
-if( $serviceName =~ /^(Optimizer.*)$/ )
-{
-	unless ( $HostHttps =~ /^https/)
-	{
-  		print "Doing PID-only check for $serviceName...\n";
-  		check_pid($logDir, $serviceName);
-  		exit 0;
-  
-	}
-	
-}
 print "Pinging service $serviceName...\n";
 
 $host
@@ -91,11 +75,12 @@ $host
 $port
     or &error(-3, "Could not get service port. Is it supposed to run here?");
 
-#my $uri = exists($servicesURIMap{$serviceName}) ? $servicesURIMap{$serviceName} : $serviceName;
-my $uri = $serviceName;
-$uri =~ s{::}{/};
 
-print "The service is running at $host:$port, uri $uri\n";
+my $uri = "http";
+$HTTPS and $uri.="s";
+$uri.="://$host:$port/alien/";
+
+print "The service $serviceName is running at $uri\n";
 
 my $errorNr;
 my $errorMsg;
@@ -106,56 +91,22 @@ while ($count++ < 3)
   sleep 5 if ($count != 1);
 
   print "Attempt $count (" . scalar(localtime()) . ")\n";
- my $done ;
+  my $done ;
  
+  print "We have to contact $serviceName at $uri";
  
-  if ( $serviceName =~ /^ClusterMonitor/ )
-   {
- 		if( $config->{CLUSTERMONITOR_ADDRESS} =~ /^https/ )
-		{
-			 my $soap= new AliEn::SOAP;
-                  $soap->Connect({uri=>"AliEn/Service/$uri",address=>"https://$host:$port",name=>"$uri"});
-                  $done = eval("SOAP::Lite->uri(\"AliEn/Service/$uri\")->proxy(\"https://$host:$port\", timeout => 10)->ping()"); 
-		}else{					
-			 $done = eval("SOAP::Lite->uri(\"AliEn/Service/$uri\")->proxy(\"http://$host:$port\", timeout => 10)->ping()");
-   			  			         
-		}
-   }else {
-  		if ($HostHttps =~ /^https/)
-       {
-       	  print $uri;
-       	  print $host;
-       	  print $port;
-           my $soap= new AliEn::SOAP;
-          $soap->Connect({uri=>"AliEn/Service/$uri",address=>"https://$host:$port",name=>"$uri"});
-           $done = eval("SOAP::Lite->uri(\"AliEn/Service/$uri\")->proxy(\"https://$host:$port\", timeout => 10)->ping()"); 
-         } else{  
-         	$done = eval("SOAP::Lite->uri(\"AliEn/Service/$uri\")->proxy(\"http://$host:$port\", timeout => 10)->ping()"); 
-         }   
+  my $rpc=AliEn::RPC->new();
+  $rpc->Connect($serviceName, $uri) or print "Error connecting to the service" and next;
+  my ($version)=$rpc->CallRPC($serviceName, "status");
 
-}
-  if (!$done)
+  if (!$version)
   {
     $errorNr = -4;
     $errorMsg = "Could not contact service. (Error $@)";
     next;
   }
 
-  if ($done->fault)
-  {
-    $errorNr = -5;
-    $errorMsg = "Error in call. " . Dumper($done);
-    next;
-  }
-
-  if (!$done->result)
-  {
-    $errorNr = -6;
-    $errorMsg = "Nothing returned. ($done->{error})";
-    next;
-  }
-
-  print "The service $serviceName is alive and running version " . $done->result->{VERSION} . "\n";
+  print "The service $serviceName is alive and running version $version\n";
   exit 0;
 }
 

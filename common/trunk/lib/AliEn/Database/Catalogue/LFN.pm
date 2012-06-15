@@ -369,21 +369,36 @@ sub getAllInfoFromLFN {
   my $self    = shift;
   my $options = shift;
 
-  my $tableName = $self->{INDEX_TABLENAME}->{name};
-  $options->{table}
-    and $options->{table}->{tableName}
-    and $tableName = $options->{table}->{tableName};
-  my $tablePath = $self->{INDEX_TABLENAME}->{lfn};
-  $options->{table}
-    and $options->{table}->{lfn}
-    and $tablePath = $options->{table}->{lfn};
-  defined $tableName or $self->info("Error: missing the tableName in getAllInfoFromLFN") and return;
+#  my $tableName = $self->{INDEX_TABLENAME}->{name};
+#  $options->{table}
+#    and $options->{table}->{tableName}
+#    and $tableName = $options->{table}->{tableName};
+#  my $tablePath = $self->{INDEX_TABLENAME}->{lfn};
+#  $options->{table}
+#    and $options->{table}->{lfn}
+#    and $tablePath = $options->{table}->{lfn};
+    
+    
+#  defined $tableName or $self->info("Error: missing the tableName in getAllInfoFromLFN") and return;
 
   #  @_ or $self->info( "Warning! missing arguments in internal function getAllInfoFromLFN") and return;
-  $tableName =~ /^\d+$/ and $tableName = "L${tableName}L";
-  my @entries = grep (s{^$tablePath}{}, @_);
-  my @list = @entries;
+#  $tableName =~ /^\d+$/ and $tableName = "L${tableName}L";
 
+  
+
+  
+  my ($tableName, $tablePath);
+  if (@_) {
+    ($tableName, $tablePath)=$self->selectTable(@_);
+  } else {
+    $options->{table} or $self->info("In getAllInfo, I don't know which table to read :(") and return;
+    ($tableName, $tablePath)= ($options->{table}->{name},$options->{table}->{lfn}); 
+    
+  }
+  
+  my @entries = grep (s{^$tablePath}{}, @_);
+  my @list=@entries;
+  
   $DEBUG and $self->debug(2, "Checking for @entries in $tableName");
   my $op = '=';
   ($options->{like}) and $op = "$options->{like}";
@@ -583,13 +598,13 @@ sub LFN_updateEntry {
 
   $self->info("HERE WE SHOULD UPDATE ALSO THE FATHER");
 
-  my $db = $self->selectTable($parentpath);
-  $lfn =~ s{^$db->{INDEX_TABLENAME}->{lfn}}{};
+  my ($tableName2, $tablePath) = $self->selectTable($parentpath);
+  $lfn =~ s{^$tablePath}{};
 
   # my $new_lfn = $lfn;$new_lfn and $new_lfn="='$lfn'" or $new_lfn=" is null";
   # return $db->update($db->{INDEX_TABLENAME}->{name}, $lfnUpdate, "lfn $new_lfn ", {noquotes=>1});
 
-  return $db->update($db->{INDEX_TABLENAME}->{name}, $lfnUpdate, "lfn='$lfn'", {noquotes => 1});
+  return $self->update($self->{INDEX_TABLENAME}->{name}, $lfnUpdate, "lfn='$lfn'", {noquotes => 1});
 }
 
 sub deleteFile {
@@ -622,18 +637,16 @@ sub getLFNlike {
       $self->debug(1, "Looking in $parent for $1 (still to do $2)");
       my ($pattern, $todo) = ($1, $2);
 
-      my $db = $self->selectTable($parent)
+      my ($tableName, $tablelfn) = $self->selectTable($parent)
         or $self->info("Error selecting the database of $parent")
         and next;
-      my $parentdir = $db->getAllInfoFromLFN({retrieve => 'entryId', method => 'queryValue'}, $parent);
+      my $parentdir = $self->getAllInfoFromLFN({retrieve => 'entryId', method => 'queryValue'}, $parent);
 
-      my $tableName = $db->{INDEX_TABLENAME}->{name};
-      my $tablelfn  = $db->{INDEX_TABLENAME}->{lfn};
 
       my $ppattern = "$parent$pattern";
 
       my $entries =
-        $db->queryColumn("SELECT concat('$tablelfn',lfn) from $tableName where dir=? and (lfn like ? or lfn like ?)",
+        $self->queryColumn("SELECT concat('$tablelfn',lfn) from $tableName where dir=? and (lfn like ? or lfn like ?)",
         undef, {bind_values => [ $parentdir, $ppattern, "$ppattern/" ]})
         or $self->info("error doing the query")
         and next;
@@ -646,12 +659,9 @@ sub getLFNlike {
         }
       }
     } else {
-      my $db = $self->selectTable($parent)
-        or $self->info("Error selecting the database of $parent")
-        and next;
-      my $parentdir = $db->getAllInfoFromLFN({retrieve => 'entryId', method => 'queryValue'}, $parent, "$parent/")
+      my $parentdir = $self->getAllInfoFromLFN({retrieve => 'entryId', method => 'queryValue'}, $parent, "$parent/")
         or next;
-      push @result, "$db->{INDEX_TABLENAME}->{lfn}$parent";
+      push @result, "$self->{INDEX_TABLENAME}->{lfn}$parent";
     }
   }
 
@@ -714,7 +724,6 @@ sub listDirectory {
         bind_values => [ $entry->{entryId} ]
       }
     );
-
     $content and push @all, @$content;
   } else {
     $self->debug(1, "We only have to display from $selimit (table $self->{INDEX_TABLENAME}");
@@ -825,25 +834,25 @@ sub removeFile {
   #Insert into LFN_BOOKED
   my $parent = "$lfn";
   $parent =~ s{([^/]*[\%][^/]*)/?(.*)$}{};
-  my $db = $self->selectTable($parent)
+  my ($tableName, $tablelfn) = $self->selectTable($parent)
     or $self->info( "Error selecting the database of $parent")
     and return;
-  my $tableName  = "$db->{INDEX_TABLENAME}->{name}";
-  my $tablelfn   = "$db->{INDEX_TABLENAME}->{lfn}";
+#  my $tableName  = "$db->{INDEX_TABLENAME}->{name}";
+#  my $tablelfn   = "$db->{INDEX_TABLENAME}->{lfn}";
   my $lfnOnTable = "$lfn";
   $lfnOnTable =~ s/$tablelfn//;
-  my $guid = $db->queryValue("SELECT binary2string(l.guid) as guid FROM $tableName l WHERE l.lfn=?",
+  my $guid = $self->queryValue("SELECT binary2string(l.guid) as guid FROM $tableName l WHERE l.lfn=?",
     undef, {bind_values => [$lfnOnTable]})
     || 0;
 
   #Insert into LFN_BOOKED only when the GUID has to be deleted
-  $db->do(
+  $self->do(
         "INSERT INTO LFN_BOOKED(lfn, owner, expiretime, "
-      . $db->reservedWord("size")
+      . $self->reservedWord("size")
       . ", guid, gowner, "
-      . $db->reservedWord("user") . ", pfn)
+      . $self->reservedWord("user") . ", pfn)
     SELECT ?, USERS.Username, -1, l."
-      . $db->reservedWord("size") 
+      . $self->reservedWord("size") 
       . ", l.guid, GRPS.Groupname, ?,'*' FROM $tableName l JOIN USERS ON l.ownerId=uId JOIN GRPS ON l.gownerId=gId WHERE l.lfn=? AND l.type<>'l'",
     {bind_values => [ $lfn, $user, $lfnOnTable ]}
     )
@@ -851,7 +860,7 @@ sub removeFile {
     and return;
 
   #Delete from table
-  $db->do("DELETE FROM $tableName WHERE lfn=?", {bind_values => [$lfnOnTable]});
+  $self->do("DELETE FROM $tableName WHERE lfn=?", {bind_values => [$lfnOnTable]});
 
   #Update Quotas
   if ($filehash->{type} eq "f") {
@@ -942,17 +951,13 @@ sub moveFolder {
 
   my $parent = "$source";
   $parent =~ s{([^/]*[\%][^/]*)/?(.*)$}{};
-  my $dbSource = $self->selectTable($parent)
+  my ($tableName_source, $tablelfn_source) = $self->selectTable($parent)
     or $self->info( "Error selecting the database of $parent")
     and return;
-  my $tableName_source = "$dbSource->{INDEX_TABLENAME}->{name}";
-  my $tablelfn_source  = "$dbSource->{INDEX_TABLENAME}->{lfn}";
   $parent = "$target";
-  my $dbTarget = $self->selectTable($parent)
+  my ($tableName_target, $tablelfn_target)= $self->selectTable($parent)
     or $self->info( "Error selecting the database of $parent")
     and return;
-  my $tableName_target = "$dbTarget->{INDEX_TABLENAME}->{name}";
-  my $tablelfn_target  = "$dbTarget->{INDEX_TABLENAME}->{lfn}";
 
   my $lfnOnTable_source = "$source";
   $lfnOnTable_source =~ s/$tablelfn_source//;
@@ -962,7 +967,7 @@ sub moveFolder {
   if ($tablelfn_source eq $tablelfn_target) {
 
     #If source and target are in same L#L table then just edit the names
-    $dbSource->do(
+    $self->do(
       "UPDATE $tableName_source SET lfn=REPLACE(lfn,?,?) 
                    WHERE lfn REGEXP ?",
       {bind_values => [ $lfnOnTable_source, $lfnOnTable_target, "^" . $lfnOnTable_source ]}
@@ -972,12 +977,12 @@ sub moveFolder {
   } else {
 
     #If the source and target are in different L#L tables then add in new table and delete from old table
-    $dbTarget->do(
+    $self->do(
           "INSERT INTO $tableName_target(ownerId, replicated, ctime, guidtime, lfn, broken, expiretime, "
-        . $dbTarget->reservedWord("size")
+        . $self->reservedWord("size")
         . ", dir, gownerId, type, guid, md5, perm) 
                   SELECT ownerId, replicated, ctime, guidtime, REPLACE(lfn,?,?) as lfn, broken, expiretime, "
-        . $dbTarget->reservedWord("size") . ", -1 as dir, gownerId, type, guid, md5, perm 
+        . $self->reservedWord("size") . ", -1 as dir, gownerId, type, guid, md5, perm 
                   FROM $tableName_source
                   WHERE lfn REGEXP ?",
       {bind_values => [ $lfnOnTable_source, $lfnOnTable_target, "^" . $lfnOnTable_source ]}
@@ -990,18 +995,18 @@ sub moveFolder {
   $target =~ s{^$tablelfn_target}{};
   my $targetParent = $target;
   $targetParent =~ s{/[^/]+/?$}{/} or $targetParent = "";
-  my $entries = $dbTarget->query(
+  my $entries = $self->query(
     "select * from
     (SELECT lfn, entryId, dir from $tableName_target where dir=-1 or lfn='$target' or lfn='$targetParent') dd 
     where lfn like '$target\%/' or lfn='$target' or lfn='$targetParent' order by length(lfn) asc", undef,{bind_values => []});
   foreach my $entry (@$entries) {
     my $update = "update $tableName_target set dir=$entry->{entryId} where " . $self->regexp("lfn", "^$entry->{lfn}\[^/]+/?\$");
-    $dbTarget->do($update);
+    $self->do($update);
   }
-  $dbSource->do("DELETE FROM $tableName_source WHERE lfn REGEXP ?", {bind_values => [ "^" . $lfnOnTable_source ]})
+  $self->do("DELETE FROM $tableName_source WHERE lfn REGEXP ?", {bind_values => [ "^" . $lfnOnTable_source ]})
     or $self->info( "Could not update database")
     and return;
-  my $result = $dbSource->query("SELECT * FROM $tableName_target WHERE lfn REGEXP ?",
+  my $result = $self->query("SELECT * FROM $tableName_target WHERE lfn REGEXP ?",
     undef, {bind_values => [ "^" . $lfnOnTable_target ]});
   return 1;
 }
@@ -1014,17 +1019,15 @@ sub moveFile {
   my $user   = $self->{CONFIG}->{ROLE};
   my $parent = "$source";
   $parent =~ s{([^/]*[\%][^/]*)/?(.*)$}{};
-  my $dbSource = $self->selectTable($parent)
+  my ($tableName_source, $tablelfn_source) = $self->selectTable($parent)
     or $self->info( "Error selecting the database of $parent")
     and return;
-  my $tableName_source = "$dbSource->{INDEX_TABLENAME}->{name}";
-  my $tablelfn_source  = "$dbSource->{INDEX_TABLENAME}->{lfn}";
+#  my $tableName_source = "$dbSource->{INDEX_TABLENAME}->{name}";
+#  my $tablelfn_source  = "$dbSource->{INDEX_TABLENAME}->{lfn}";
   $parent = "$target";
-  my $dbTarget = $self->selectTable($parent)
+  my ($tableName_target, $tablelfn_target) = $self->selectTable($parent)
     or $self->info( "Error selecting the database of $parent")
     and return;
-  my $tableName_target = "$dbTarget->{INDEX_TABLENAME}->{name}";
-  my $tablelfn_target  = "$dbTarget->{INDEX_TABLENAME}->{lfn}";
 
   my $lfnOnTable_source = "$source";
   $lfnOnTable_source =~ s/$tablelfn_source//;
@@ -1034,19 +1037,19 @@ sub moveFile {
   if ($tablelfn_source eq $tablelfn_target) {
 
     #If source and target are in same L#L table then just edit the names
-    $dbSource->do("UPDATE $tableName_source SET lfn=? WHERE lfn=?",
+    $self->do("UPDATE $tableName_source SET lfn=? WHERE lfn=?",
       {bind_values => [ $lfnOnTable_target, $lfnOnTable_source ]})
       or $self->info( "Error updating database")
       and return;
   } else {
 
     #If the source and target are in different L#L tables then add in new table and delete from old table
-    $dbTarget->do(
+    $self->do(
           "INSERT INTO $tableName_target(ownerId, replicated, ctime, guidtime, lfn, broken, expiretime, "
-        . $dbTarget->reservedWord("size")
+        . $self->reservedWord("size")
         . ", dir, gownerId, type, guid, md5, perm) 
       SELECT ownerId, replicated, ctime, guidtime, ?, broken, expiretime, "
-        . $dbTarget->reservedWord("size")
+        . $self->reservedWord("size")
         . ", dir, gownerId, type, guid, md5, perm FROM $tableName_source WHERE lfn=?",
       {bind_values => [ $lfnOnTable_target, $lfnOnTable_source ]}
       )
@@ -1057,11 +1060,11 @@ sub moveFile {
   $parentdir =~ s{[^/]*$}{};
   $parentdir =~ s/^$tablelfn_target//;
   my $entryId =
-    $dbTarget->queryValue("SELECT entryId FROM $tableName_target WHERE lfn=?", undef, {bind_values => [$parentdir]});
-  $dbTarget->do("UPDATE $tableName_target SET dir=? WHERE lfn=?", {bind_values => [ $entryId, $lfnOnTable_target ]})
+    $self->queryValue("SELECT entryId FROM $tableName_target WHERE lfn=?", undef, {bind_values => [$parentdir]});
+  $self->do("UPDATE $tableName_target SET dir=? WHERE lfn=?", {bind_values => [ $entryId, $lfnOnTable_target ]})
     or $self->info( "Error updating database")
     and return;
-  $dbSource->do("DELETE FROM $tableName_source WHERE lfn=?", {bind_values => [$lfnOnTable_source]})
+  $self->do("DELETE FROM $tableName_source WHERE lfn=?", {bind_values => [$lfnOnTable_source]})
     or $self->info( "Error updating database")
     and return;
   return 1;
@@ -1074,17 +1077,13 @@ sub softLink {
   my $target = shift;
   my $parent = "$source";
   $parent =~ s{([^/]*[\%][^/]*)/?(.*)$}{};
-  my $dbSource = $self->selectTable($parent)
+  my ($tableName_source, $tablelfn_source) = $self->selectTable($parent)
     or $self->info( "Error selecting the database of $parent")
     and return;
-  my $tableName_source = "$dbSource->{INDEX_TABLENAME}->{name}";
-  my $tablelfn_source  = "$dbSource->{INDEX_TABLENAME}->{lfn}";
   $parent = "$target";
-  my $dbTarget = $self->selectTable($parent)
+  my ($tableName_target, $tablelfn_target) = $self->selectTable($parent)
     or $self->info( "Error selecting the database of $parent")
     and return;
-  my $tableName_target  = "$dbTarget->{INDEX_TABLENAME}->{name}";
-  my $tablelfn_target   = "$dbTarget->{INDEX_TABLENAME}->{lfn}";
   my $lfnOnTable_source = "$source";
   $lfnOnTable_source =~ s/$tablelfn_source//;
   my $lfnOnTable_target = "$target";
@@ -1093,12 +1092,12 @@ sub softLink {
   if ($tablelfn_source eq $tablelfn_target) {
 
     #If source and target are in same L#L table then just edit the names
-    $dbTarget->do(
+    $self->do(
           "INSERT INTO $tableName_target(ownerId, replicated, ctime, guidtime, lfn, broken, expiretime, "
-        . $dbTarget->reservedWord("size")
+        . $self->reservedWord("size")
         . ", dir, gownerId, type, guid, md5, perm) 
       SELECT ownerId, replicated, ctime, guidtime, ?, broken, expiretime, "
-        . $dbTarget->reservedWord("size") 
+        . $self->reservedWord("size") 
         . ", dir, gownerId, 'l', guid, md5, perm FROM $tableName_source WHERE lfn=?",
       {bind_values => [ $lfnOnTable_target, $lfnOnTable_source ]}
       )
@@ -1107,12 +1106,12 @@ sub softLink {
   } else {
 
     #If the source and target are in different L#L tables then add in new table and delete from old table
-    $dbTarget->do(
+    $self->do(
           "INSERT INTO $tableName_target(ownerId, replicated, ctime, guidtime, lfn, broken, expiretime, "
-        . $dbTarget->reservedWord("size")
+        . $self->reservedWord("size")
         . ", dir, gownerId, type, guid, md5, perm) 
       SELECT ownerId, replicated, ctime, guidtime, ?, broken, expiretime, "
-        . $dbTarget->reservedWord("size")
+        . $self->reservedWord("size")
         . ", dir, gownerId, 'l', guid, md5, perm FROM $tableName_source WHERE lfn=?",
       {bind_values => [ $lfnOnTable_target, $lfnOnTable_source ]}
       )
@@ -1122,9 +1121,9 @@ sub softLink {
   my $parentdir = "$lfnOnTable_target";
   $parentdir =~ s{[^/]*$}{};
   my $entryId =
-    $dbTarget->queryValue("SELECT entryId FROM $tableName_target WHERE lfn=?", undef, {bind_values => [$parentdir]});
+    $self->queryValue("SELECT entryId FROM $tableName_target WHERE lfn=?", undef, {bind_values => [$parentdir]});
   $self->info("$parentdir : $entryId");
-  $dbTarget->do("UPDATE $tableName_target SET dir=? WHERE lfn=?", {bind_values => [ $entryId, $lfnOnTable_target ]})
+  $self->do("UPDATE $tableName_target SET dir=? WHERE lfn=?", {bind_values => [ $entryId, $lfnOnTable_target ]})
     or $self->info( "Error updating database")
     and return;
   return 1;
@@ -1802,7 +1801,7 @@ sub selectTable {
   #set INDEXTBLENAME to that of the file in question
   $self->setIndexTable($tableName, $entry->{lfn});
   
-  return $self;
+  return ($tableName, $entry->{lfn});
 }
 
 sub getPathPrefix {

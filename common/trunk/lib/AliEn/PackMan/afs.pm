@@ -7,7 +7,7 @@ use AliEn::UI::Catalogue::LCM;
 use Filesys::DiskFree;
 use AliEn::Util;
 use AliEn::PackMan;
-use AliEn::SOAP;
+
 use Data::Dumper;
 push @ISA, 'AliEn::Logger::LogObject', 'AliEn::PackMan';
 

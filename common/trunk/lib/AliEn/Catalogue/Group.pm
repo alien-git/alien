@@ -123,6 +123,7 @@ sub f_chown {
   }
 
   my ($user, $group) = split(/\./, $data);
+  $self->info("in chown Getting the user $user");
   my $userid = $self->{DATABASE}->getUserid($user, $group);
   if (!$userid) {
     my $error = "Does the user '$user' exist?";
@@ -130,23 +131,28 @@ sub f_chown {
     $self->info("Error getting the userid of '$data'. $error");
     return;
   }
+  my $bind={ownerId=>$userid};
+  if ($group){
+    my $gownerId = $self->{DATABASE}->getGownerId($group);
+    $gownerId or $self->info("The group does not exist") and return;  
+    $bind->{gownerId}=$gownerId;
+  }
 
   $file = $self->GetAbsolutePath($file, 1);
+  $self->info("Got the file $file");
+#  my ($table, $table_path)=$self->selectTable($file)
+#    or print STDERR "Error in selectTable" and return;
+  
 
-  my $db = $self->selectTable($file)
-    or print STDERR "Error in selectTable" and return;
-  my $table  = $db->getIndexTable();
-  my $dbName = $db->{DB};
-  $dbName =~ s/(.+):(.+)/$2/i;
-  my $lfn = $db->existsLFN($file)
+  my $lfn = $self->{DATABASE}->existsLFN($file)
     or $self->info("chown $file: No such file or directory")
     and return;
-  print "The entry exists and it is called $lfn (in $table->{name})\n";
+  $self->info("The entry exists and it is called $lfn)");
 
-  my $ownerId = $self->{DATABASE}->getOwnerId($user);
-  my $gownerId = $self->{DATABASE}->getGownerId($group);
 
-  $db->updateLFN($lfn, {ownerId => $ownerId, gownerId => $gownerId})
+  
+
+  $self->{DATABASE}->updateLFN($lfn, $bind)
     or $self->info("Error updating the file")
     and return;
   return 1;
