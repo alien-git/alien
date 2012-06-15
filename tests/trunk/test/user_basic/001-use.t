@@ -12,10 +12,6 @@ use Test;
 
 BEGIN { plan tests => 1 }
 
-use SOAP::Lite;
-
-
-
 { # check 'use ...'
   ok($@ =~ //);
 

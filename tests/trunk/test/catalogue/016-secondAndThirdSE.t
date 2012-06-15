@@ -2,7 +2,7 @@ use strict;
 use Test;
 
 
-use AliEn::Service::SE;
+
 use AliEn::X509;
 use AliEn::UI::Catalogue;
 BEGIN { plan tests => 1 }

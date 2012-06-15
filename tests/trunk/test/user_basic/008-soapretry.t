@@ -1,8 +1,9 @@
 use strict;
 
-use AliEn::SOAP;
+use AliEn::RPC;
 
-my $s=AliEn::SOAP->new();
+
+my $s=AliEn::RPC->new();
 
 $s or exit(-1);
 print "let's stop the IS...\n";
@@ -35,7 +36,11 @@ sub _timeout {
 }
 local $SIG{ALRM}=\&_timeout;
 alarm(300);
-my $return=$s->checkService("IS", "-retry") or exit(2);
+my $return=$s->checkService("IS", "-retry");
+print "AND GOT";
+use Data::Dumper;
+print Dumper($return);
+ #or exit(2);
 alarm(0);
 print "Got $return\n";
 exit(0);

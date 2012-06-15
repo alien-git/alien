@@ -31,7 +31,7 @@ use AliEn::UI::Catalogue::LCM;
     grep (/$dir/ , @dirs) and 
       print "The directory is still there!!\n" and exit(-2);
 
-		print "ok\nTrying to create a directory in a non existing directory...";
+		print "ok\nTrying to create a directory in a non existing directory ($dir/child)...";
     ($done)=$cat->execute("mkdir", "$dir/child");
     $done and print "Error making the directory '$dir/child' worked!\n" and exit(-2);
 

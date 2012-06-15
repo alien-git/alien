@@ -4,7 +4,7 @@ use strict;
 use Test;
 
 
-use AliEn::Service::SE;
+
 use AliEn::X509;
 use AliEn::UI::Catalogue;
 use Net::Domain qw(hostname hostfqdn hostdomain);

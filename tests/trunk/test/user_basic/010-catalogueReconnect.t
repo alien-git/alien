@@ -13,6 +13,7 @@ print @list;
 
 system("/opt/alien/etc/rc.d/init.d/alien-mysqld stop");
 sleep(5);
+system("date");
 system("/opt/alien/etc/rc.d/init.d/alien-mysqld start");
 
 sleep(5);

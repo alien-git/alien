@@ -43,19 +43,11 @@ BEGIN { plan tests => 1 }
 
 	
   waitForStatus($cat, $id, "RUNNING") or exit(-2);
-  my $host=Net::Domain::hostfqdn();
-
-  print "The father asks http://$host:$cat->{CONFIG}->{CLUSTERMONITOR_PORT} for the output of the job $id\n";
-  my $stdout="";
-  my $request=SOAP::Lite
-    -> uri( "AliEn/Service/ClusterMonitor" )
-      -> proxy("http://$host:$cat->{CONFIG}->{CLUSTERMONITOR_PORT}",
-	       options => {compress_threshold => 10000} )
-	-> getStdout($id);
-
-  if ($request) { 
-    $stdout=$request->result();
-  }
+  
+  print "The father asks  for the output of the job $id\n";
+  
+  my $rpc=AliEn::RPC->new();
+  my ($stdout)=$rpc->CallRPC("ClusterMonitor", "getStdout", $id);
   print "The father got \n_________________________________________\n$stdout\n_________________________________________\n";
   print "The father exists\n";
 

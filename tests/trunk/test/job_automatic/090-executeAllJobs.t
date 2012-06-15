@@ -21,24 +21,18 @@ BEGIN { plan tests => 1 }
   my $admincat=AliEn::UI::Catalogue::LCM::Computer->new({"user","$ENV{'USER'}","role","admin"});
   $admincat or exit (-1);
 
-  my (@jobs)=$cat->execute("top")  or print "There are no jobs at all...\n" and  exit(0);
-  print "There are some jobs to execute\n";
-  my $waitingJobs = 0;
-  foreach my $job (@jobs) {
-     defined($job) and $job->{status} =~ /^WAITING$/ and $waitingJobs++;
-  }
-  my $i=$waitingJobs;
+  my $i=30;
 
   while($i>0){
     $admincat->execute("queue", "open $cat->{CONFIG}->{ORG_NAME}::CERN::testCE") 
       or print "Error opening the queue\n" and exit(-2);
 
-    $cat->execute("request") or print "Error requesting a job\n" and exit(-2);
+    $cat->execute("request");
     print "We have executed all the jobs!!\n";
-    my @jobs=$cat->execute("top", "-status WAITING -status INSERTING -status RUNNING -status SAVING -status SAVED");
+    my @jobs=$cat->execute("top", "-status ASSIGNED -status WAITING -status INSERTING -status RUNNING -status SAVING -status SAVED -status SPLIT");
     @jobs or last;
-    print "There are still some jobs waiting. Sleeping 10 seconds and retrying";
-    sleep(5);
+    print "There are still some jobs waiting. Sleeping 10 seconds and retrying. We can still try $i times\n";
+    sleep(10);
     $i--;
 
   }
@@ -48,7 +42,7 @@ BEGIN { plan tests => 1 }
   my $notok=0;
   print "\n";
   print "Getting top -all information from the Catalogue:\n";
-  (@jobs)=$cat->execute("top");
+  my @jobs=$cat->execute("top");
   print "Top -all worked\n";
   my $split=0;
   foreach my $job (@jobs) {

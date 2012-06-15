@@ -1,9 +1,10 @@
 use strict;
 
 use Data::Dumper;
-use AliEn::SOAP;
+
 use AliEn::Util;
 use AliEn::Database::IS;
+use AliEn::RPC;
 
 $ENV{ALIEN_DATABASE_PASSWORD}="pass";
 my $db=AliEn::Database::IS->new({ROLE=>'admin', 'DEBUG'=>5}) or exit(-2);
@@ -12,7 +13,7 @@ my $db=AliEn::Database::IS->new({ROLE=>'admin', 'DEBUG'=>5}) or exit(-2);
 $db->do("truncate cpu_si2k");
 print "Data inserted in the database\n";
 my $self={CONFIG=>AliEn::Config->new(),
-    SOAP=>AliEn::SOAP->new(),
+    RPC=>AliEn::RPC->new(),
 };
 AliEn::Util::setupApMon($self);
 
@@ -30,11 +31,12 @@ $cpuType->{host}=$self->{CONFIG}->{HOST};
 print Dumper($cpuType);
 
 
-my $done=$self->{SOAP}->CallSOAP("IS","getCpuSI2k", $cpuType, $self->{CONFIG}->{HOST})
+my ($done)=$self->{RPC}->CallRPC("IS","getCpuSI2k", $cpuType, $self->{CONFIG}->{HOST})
 or exit(-2);
 
 delete $ENV{ALIEN_DATABASE_PASSWORD};
-print "SpecINT2k for this machine is ".$done->result."\n";
+print "SpecINT2k for this machine is ".$done."\n";
+$done == 100 or print "This is not what we expected!!\n" and exit(-2);
 
 
 

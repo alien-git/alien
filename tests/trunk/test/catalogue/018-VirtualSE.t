@@ -3,7 +3,6 @@
 use strict;
 use Test;
 
-use AliEn::Service::SE;
 BEGIN { plan tests => 1 }
 use AliEn::UI::Catalogue::LCM;
 use Net::Domain qw(hostname hostfqdn hostdomain);

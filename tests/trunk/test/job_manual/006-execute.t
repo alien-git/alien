@@ -36,7 +36,7 @@ BEGIN { plan tests => 1 }
 
   #system ("alien", "proxy-destroy");
 
-  waitForStatus($cat, $jobs[0]->{queueId}, "DONE", 5, 6) or exit(-2);
+  waitForStatus($cat, $jobs[0]->{queueId}, "DONE") or exit(-2);
 
   foreach my $job (@jobs) {
 	print "Status of $job->{queueId}\n";

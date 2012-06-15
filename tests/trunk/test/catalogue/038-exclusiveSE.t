@@ -1,7 +1,7 @@
 use strict;
 use Test;
 
-use AliEn::Service::SE;
+
 use AliEn::X509;
 use AliEn::UI::Catalogue;
 use AliEn::UI::Catalogue::LCM::Computer;
