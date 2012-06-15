@@ -32,9 +32,11 @@ sub initialize {
    $self->info("Running as \'$ENV{ALIEN_USER}\' using $ENV{X509_USER_PROXY}");
    $self->{UPDATECLASSAD} = 0;
 
-   my $cmds = {  SUBMIT_CMD     => 'glite-ce-job-submit',
+   my $fix_env = 'LD_LIBRARY_PATH=$GLITE_LOCATION${LD_LIBRARY_PATH#*$GLITE_LOCATION}';
+
+   my $cmds = {  SUBMIT_CMD     => "$fix_env glite-ce-job-submit",
                  STATUS_CMD     => 'glite-ce-job-status',
-		 KILL_CMD       => 'glite-ce-job-cancel',
+                 KILL_CMD       => 'glite-ce-job-cancel',
                  DELEGATION_CMD => 'glite-ce-delegate-proxy'};
 			 
    $self->{$_} = $cmds->{$_} || $self->{CONFIG}->{$_} || '' foreach (keys %$cmds);
@@ -569,8 +571,10 @@ sub renewProxy {
    }  
    $command = "vobox-proxy --vo \L$self->{CONFIG}->{LCGVO}\E --dn \'$dn\' query-proxy-timeleft";
    ( my $realDuration ) = $self->_system($command);
-   chomp $realDuration;
-   $self->{LOGGER}->error("LCG","asked for $duration sec, got only $realDuration") if ( $realDuration < 0.9*$duration);
+   if ( $realDuration ){
+       chomp $realDuration;
+       $self->{LOGGER}->error("LCG","asked for $duration sec, got only $realDuration") if ( $realDuration < 0.9*$duration);
+   }
    $ENV{X509_USER_PROXY} = $currentProxy;
 
    return 1;
