@@ -5,7 +5,6 @@ use AliEn::SE::Methods::Basic;
 use strict;
 use vars qw( @ISA );
 @ISA = ("AliEn::SE::Methods::Basic");
-use SOAP::Lite on_fault => sub { return; };
 
 #METHOD adsm. 
 # THE PFN SHOULD LOOK LIKE:
