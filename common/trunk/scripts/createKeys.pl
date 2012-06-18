@@ -4,7 +4,6 @@ select(STDOUT);
 $| = 1;    # make unbuffered
 use strict;
 
-use SOAP::Lite;
 use AliEn::Config;
 
 use Crypt::OpenSSL::Random;
@@ -77,16 +76,8 @@ chmod 0644, $filenamePUB;
 print "OK\n";
 
 print "Sending public key to authentication server...";
-my $done = SOAP::Lite->uri('AliEn/Service/Authen')->proxy(
-    "http://$ini->{AUTH_HOST}:$ini->{AUTH_PORT}",
-
-    #	     SSL_use_cert => 1,
-    #	     SSL_verify_mode => 0x01,
-    #	     SSL_key_file => $certkey,
-    #	     SSL_cert_file => $certfile,
-    #	     SSL_ca_path => $capath,
-    #	     SSL_ca_file => $cafile)
-)->insertKey( $username, $encpasswd, $rsa->get_public_key_string );
+my $done;# = SOAP::Lite->uri('AliEn/Service/Authen')->proxy(
+#)->insertKey( $username, $encpasswd, $rsa->get_public_key_string );
 
 ($done)
   or print "FAILED\n Could not connect to authentication server.\n"

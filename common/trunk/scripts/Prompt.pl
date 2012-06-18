@@ -4,9 +4,6 @@
 use Getopt::Long ();
 use strict;
 
-use SOAP::Lite on_fault => sub { return; } ;
-#  +trace => debug,
-  
 
 my $name=(shift or "");
 if (( not $name)||  ( $name=~/^::/)){ 

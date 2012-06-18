@@ -7,8 +7,6 @@ $| = 1;
 
 use strict;
 
-use SOAP::Lite on_fault => sub { return 0; };
-
 use AliEn::Database;
 use AliEn::UI::Catalogue;
 
@@ -125,14 +123,7 @@ sub checkClusterMonitors {
 
         print LOG "Contacting the local cluster monitor at $name:$port...";
 
-        my $alive =
-          SOAP::Lite->uri("AliEn/Services/ClusterMonitor")
-          ->proxy("http://$name:$port");
-
-        #	    -> alive() ;
-
-        ($alive) and $alive = $alive->alive();
-
+        my $alive ="";
         my $date   = time;
         my $status = "status='IDLE'";
         my $where  = "hostName='$name'";
@@ -170,8 +161,7 @@ sub checkISElement {
 	$uri =~ s/::/\//g;
         print LOG "Checking $uri $name:$port ....";
 	
-        my $alive =
-          SOAP::Lite->uri($uri)->proxy("http://$name:$port");
+        my $alive ="";
 
         if ($alive) {
 

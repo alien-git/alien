@@ -3,7 +3,6 @@ use strict;
 use AliEn::X509;
 use AliEn::Config;
 use Getopt::Long;
-use SOAP::Lite;
 use AliEn::Authen::IIIkey;
 
 my $conf = new AliEn::Config( { "NOPACKINSTALL", 1, "SILENT", 1 } );
@@ -57,27 +56,18 @@ my $request = `cat $REQUEST_FILE`;
 
 print "Requesting certificate....................";
 
-my $done =
-  SOAP::Lite->uri('AliEn/Service/Authen')
-  ->proxy("http://$conf->{AUTH_HOST}:$conf->{AUTH_PORT}")
-  ->requestCert( $org, $username, $encpasswd, $request );
+my $done "";
 
-if ( !($done) ) {
-    print "FAIL\n";
-    print "Could not contact $conf->{AUTH_HOST}:$conf->{AUTH_PORT}\n";
-    exit;
-}
-
-my $res = $done->result;
+my $res = $done;
 
 if ( !($res) ) {
     print "FAIL\n";
-    my @err = $done->paramsout;
+    my @err = $done;
     print "Server responded: $err[0]\n";
     exit;
 }
 
-if ( ($done) && ( $done->result ) ) {
+if ( ($done) && ( $done ) ) {
     print "OK\n";
 }
 

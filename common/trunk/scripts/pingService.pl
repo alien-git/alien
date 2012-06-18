@@ -1,6 +1,5 @@
 use strict;
 use AliEn::Config; 
-use SOAP::Lite;
 use Data::Dumper;
 use Net::Domain;
 use AliEn::RPC;
