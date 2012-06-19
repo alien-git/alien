@@ -8,7 +8,7 @@ use Getopt::Long;
 use Time::HiRes;
 use AliEn::UI::Catalogue::LCM;
 use AliEn::Database::Catalogue;
-use Scalar::Util qw(weaken);
+
 
 
 use vars qw (@ISA $DEBUG);
@@ -34,7 +34,7 @@ sub new {
 	$self->{CATALOGUE}=AliEn::UI::Catalogue::LCM->new({role=>$role, PACKMAN=>$self});
 	$self->{CATALOGUE} or $self->info("Error creating an instance of the catalogue") and return;
   }
-  weaken ($self->{CATALOGUE});
+
 
   $self->{INSTALLDIR} = $self->{CONFIG}->{PACKMAN_INSTALLDIR} || "$ENV{ALIEN_HOME}/packages";
    -d $self->{INSTALLDIR} or mkdir $self->{INSTALLDIR};
