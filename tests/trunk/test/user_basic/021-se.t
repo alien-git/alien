@@ -164,20 +164,26 @@ sub startService {
   print "sleeping...";
   sleep (40);
   print "ok\nChecking if $service is still up ...";
+
   my $config=new AliEn::Config;
   my $logFile="$config->{LOG_DIR}/$service.log";
-  $service eq "Monitor" and $logFile=~ s{/Monitor\.}{/ClusterMonitor.};
+  $service eq "Monitor" and $logFile=~ s{/Monitor\.}{/ClusterMonitor.7074.};
+
+
   if (system("$ENV{ALIEN_ROOT}/bin/alien Status$service") ) {
     print "The $service is dead...\n";
     system("cat", $logFile);
     return;
   }
-  $options->{nolisten} and print "ok\nSkipping the check if the service is listening\n" and return 1;
-  print "ok\nChecking if the service is listening...\t";
-  open (my $FILE, "<", $logFile) or print "Error opening the log file $logFile" and return;
-  my @file=<$FILE>;
-  close $FILE;
-  grep (/info\s+Starting \S+ on /i, @file) or print "The service is not listening:\n@file\n" and return;
+  if ($options->{nolisten}){
+    print "ok\nSkipping the check if the service is listening\n";
+  } else {
+    print "ok\nChecking if the service is listening...\t";
+    open (my $FILE, "<", $logFile) or print "Error opening the log file $logFile" and return;
+    my @file=<$FILE>;
+    close $FILE;
+    grep (/info\s+Starting \S+ on /i, @file) or print "The service is not listening:\n@file\n" and return;
+  }
 
 
 
@@ -186,7 +192,7 @@ sub startService {
   my $vo=Net::Domain::hostname();
   my $file="/etc/aliend/$vo/startup.conf";
   $< and $file="$ENV{ALIEN_HOME}$file";
-  open ($FILE, "<", $file) or print "Error reading the file $file\n" and return;
+  open (my $FILE, "<", $file) or print "Error reading the file $file\n" and return;
   my @FILE=<$FILE>;
   close $FILE;
   my @line=grep (/^AliEnServices=/, @FILE);
