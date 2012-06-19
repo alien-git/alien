@@ -803,6 +803,12 @@ sub submitCommand {
 		return;
 	}
 
+  if ($jobId =~ /DENIED/ ){
+    $self->info("You were not allowed to submit the job: $jobId");
+    return;
+  }
+
+  
 
 	if ($self->{WORKINGPGROUP} != 0) {
 		$self->f_pgroup("add", "$jobId");

@@ -6,7 +6,7 @@ select(STDOUT);
 $| = 1;
 
 use AliEn::Service;
-
+use Sys::Proctitle qw/:all/;
 use strict;
 
 use Classad;
@@ -80,6 +80,7 @@ sub StartChildren{
     my $name="AliEn::Service::$self->{SERVICE}::$_";
 
     $self->info( "Starting the $name");
+    
     eval "require $name";
     if ($@) {
       $self->info( "Error requiring the optimizer $name $! $@");
@@ -92,7 +93,7 @@ sub StartChildren{
       or $self->info( "Error forking a process") and return;
     #the father goes on...
     $self->{$d} and next;
-
+    setproctitle( $name );
     $self->info( "Putting the output in $dir/$_.log");
     $self->{LOGFILE}="$dir/$_.log";
     $self->{LOGGER}->redirect("$dir/$_.log");
@@ -126,15 +127,17 @@ sub StartChildren{
 sub startListening {
   my $this=shift;
 
+  $self->info("In fact, this is not a service. We don't listen for anything.");
   if ($self->{FORKCHECKPROCESS}){
-    $self->info("Forking a process");
-    $self->forkCheckProcess() or return;
+    $self->info("At least, we do have a check");    
+    $self->startChecking();
+    $self->info("Error: the $self->{SERVICE} finished!!\n");
   }
 
-  $self->info("In fact, this is not a service. We don't listen for anything.");
-  while(1){
-    sleep(90000000);
-  }
+  
+#  while(1){
+##    sleep(90000000);
+#  }
   return 1;
 }
 
