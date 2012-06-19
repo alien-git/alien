@@ -207,7 +207,9 @@ ALIEN_GetPortNumber()
       for portNum2 in $allPorts ; 
       do 
       	 echo "Checking if $portNum2 is available"
-      	 /usr/sbin/lsof -i:$portNum2 > /dev/null 2>&1
+         local lsof="/usr/sbin/lsof"
+         [ -f  '/usr/bin/lsof' ] && lsof="/usr/bin/lsof"
+      	 $lsof -i:$portNum2 > /dev/null 2>&1
       	 if [ $? -eq "1" ];
       	 then
       	 	echo "Port $portNum2 is free!"

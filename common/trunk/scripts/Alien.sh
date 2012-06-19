@@ -97,8 +97,8 @@ ALIEN_RunAgent()
   startService JobAgent JobAgent JobAgent alienServiceNOKILL
   HTTPService=0
   sleep 2
-  PID=`cat /tmp/pcites01/log/JobAgent.7075.pid `
-  echo "And now, the agent itself (PID OF HTTPD $PID) or  $! "
+  PID=`cat $LOGDIR/JobAgent.$portNum.pid `
+  echo "And now, the agent itself (PID OF HTTPD $PID) or  $! from $LOGDIR/JobAgent.$portNum.pid  "
   startService JobAgent JobAgent JobAgent alienServiceNOKILL  -pid $PID 
   exit
 }
