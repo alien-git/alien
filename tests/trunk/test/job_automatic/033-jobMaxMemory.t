@@ -21,24 +21,27 @@ BEGIN { plan tests => 1 }
 
   my $sename = "$cat->{CONFIG}->{ORG_NAME}::cern::testse";
 
+  my $tempFile="/tmp/growmem\$\$";
   addFile(
 	$cat, "bin/largeMemJob.sh", "#!/bin/bash 
-echo \"#include <unistd.h>\" > /tmp/growmem.cc 
-echo \"#include <stdio.h>\" >> /tmp/growmem.cc
-echo \"int main(int argc, char** argv) { \">>/tmp/growmem.cc 
-echo \"double* tmp[30];\" >> /tmp/growmem.cc 
-echo \"for(int i=0;i<30;i++){\">>/tmp/growmem.cc 
-echo \" tmp[i]=new double[1000000];\" >>/tmp/growmem.cc 
-echo \" printf(\\\"HELLO WORLD \%i\\\", i);\" >>/tmp/growmem.cc
-echo \" fflush(stdout); \" >> /tmp/growmem.cc
-echo \" sleep(5); }\" >>/tmp/growmem.cc
-echo \"return 0; } \">>/tmp/growmem.cc 
+cat <<EOF > $tempFile.cc
+#include <unistd.h>
+#include <stdio.h>
+int main(int argc, char** argv) {  
+double* tmp[30]; 
+for(int i=0;i<30;i++){ 
+ tmp[i]=new double[1000000]; 
+ printf(\"HELLO WORLD \%i\", i);
+ fflush(stdout); 
+ sleep(5); }
+return 0; } 
+EOF
 echo \"Compiling the file\"
-g++ /tmp/growmem.cc -o /tmp/growmem 
+g++ $tempFile.cc -o $tempFile
 echo \"Running the job\"
-/tmp/growmem 
+$tempFile
 echo \"The job finished successfully\"
-rm /tmp/growmem*
+rm $tempFile*
 "
   ) or exit(-2);
 
