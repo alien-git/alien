@@ -20,8 +20,8 @@ $ENV{ALIEN_TESTDIR} or $ENV{ALIEN_TESTDIR} = "/home/alienmaster/AliEn/t";
 push @INC, $ENV{ALIEN_TESTDIR};
 require functions;
 
+  includeTest("job_manual/010-ProcessMonitorOutput")             or exit(-2);
   includeTest("job_quota/400-submit")             or exit(-2);
-  includeTest("file_quota/01-calculateFileQuota") or exit(-2);
 
   my $user = "JQUser";
   my $cat_adm = AliEn::UI::Catalogue::LCM::Computer->new({"role", "admin"});
@@ -29,9 +29,15 @@ require functions;
   #$cat_adm->execute("addUser", $user);
   my $cat = AliEn::UI::Catalogue::LCM::Computer->new({"user", $user});
   $cat or exit(-1);
-  my ($pwd) = $cat->execute("pwd") or exit(-2);
-  $cat->execute("cd") or exit(-2);
 
+  my $old_rtime = $d->queryValue("SELECT totalRunningTimeLast24h FROM PRIORITY WHERE user='$user'");
+  my $old_unfinished = $d->queryValue("SELECT unfinishedJobsLast24h FROM PRIORITY WHERE user='$user'");
+  my $old_cpu = $d->queryValue("SELECT totalCpuCostLast24h FROM PRIORITY WHERE user='$user'");
+
+  print "HOLA $old_rtime, $old_unfinished and $old_cpu\n";
+
+  $d->update("PRIORITY", {maxUnfinishedJobs => 1000, maxTotalCpuCost => 1000, maxTotalRunningTime => 1000},
+	"user='$user'");
 
 
   print
@@ -56,7 +62,6 @@ require functions;
 
   print "5. Killing job $id1\n";
   $cat->execute("kill", $id1);
-  waitForNoJobs($cat, $user);
   $cat_adm->execute("calculateJobQuota", "1");
   $cat->execute("jquota", "list", "$user");
   print "5. DONE\n\n";
@@ -65,9 +70,9 @@ require functions;
   $d->update("PRIORITY", {maxUnfinishedJobs => 1000, maxTotalCpuCost => 1000, maxTotalRunningTime => 1000},
 	"user='$user'");
   $cat->execute("jquota", "list", "$user");
-  assertEqualJobs($d, $user, "unfinishedJobsLast24h",   0)    or exit(-2);
-  assertEqualJobs($d, $user, "totalRunningTimeLast24h", 0)    or exit(-2);
-  assertEqualJobs($d, $user, "totalCpuCostLast24h",     0)    or exit(-2);
+  assertEqualJobs($d, $user, "unfinishedJobsLast24h",   $old_unfinished)    or exit(-2);
+  assertEqualJobs($d, $user, "totalRunningTimeLast24h", $old_rtime)    or exit(-2);
+  assertEqualJobs($d, $user, "totalCpuCostLast24h",     $old_cpu)    or exit(-2);
   assertEqualJobs($d, $user, "maxUnfinishedJobs",       1000) or exit(-2);
   assertEqualJobs($d, $user, "maxTotalRunningTime",     1000) or exit(-2);
   assertEqualJobs($d, $user, "maxTotalCpuCost",         1000) or exit(-2);
@@ -79,7 +84,7 @@ require functions;
   $d->update("PRIORITY", {maxTotalCpuCost => 0}, "user='$user'");
   $cat->execute("jquota", "list", "$user");
   assertEqualJobs($d, $user, "maxTotalCpuCost", 0) or exit(-2);
-  waitForStatus($cat, $id2, "INSERTING", 5) or exit(-2);
+  waitForStatus($cat, $id2, "WAITING", 5) or exit(-2);
   $cat_adm->execute("calculateJobQuota", "1");
   waitForStatus($cat, $id2, "OVER_WAITING", 10) or exit(-2);
   print "7. PASSED\n\n";
@@ -90,6 +95,9 @@ require functions;
   assertEqualJobs($d, $user, "maxTotalCpuCost", 1000) or exit(-2);
   $cat_adm->execute("calculateJobQuota", "1");
   waitForStatus($cat, $id2, "WAITING", 10) or exit(-2);
+  print "And let's kill it $id2\n";
+  $cat->execute("kill", $id2);
+
   print "8. PASSED\n\n";
 
   ok(1);
