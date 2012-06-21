@@ -980,13 +980,18 @@ sub setSiteQueueTable {
 
 sub resyncSiteQueueTable {
   my $self = shift;
-  $self->info("Extracting all sites from the QUEUE ....");
-  my $allsites = $self->queryColumn("select distinct site from QUEUE");
-  @$allsites
-    or $self->info("Warning: at the moment there are no sites defined in your organization")
-    and return 1;
-
-  my $site;
+  my $site = shift || "";
+  
+  my $allsites;
+  if (! $site){
+    $self->info("Extracting all sites from the QUEUE ....");
+ 		$allsites = $self->queryColumn("select distinct site from QUEUE");
+    @$allsites
+      or $self->info("Warning: at the moment there are no sites defined in your organization")
+      and return 1;
+  } else{
+  	$allsites=[$site];
+  }
   my $now = time;
   my $qstat;
 
@@ -1085,7 +1090,9 @@ sub updateSiteQueue {
 
 sub insertSiteQueue {
   my $self = shift;
-  $self->insert("$self->{SITEQUEUETABLE}", @_);
+  my $set  = shift;
+  $self->insert("$self->{SITEQUEUETABLE}", $set ,@_) or return;
+  $self->resyncSiteQueueTable($set->{site});
 }
 
 sub getFieldFromSiteQueue {

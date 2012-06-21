@@ -2713,7 +2713,7 @@ sub f_queue_list {
 	my $self  = shift;
 	my $site  = (shift or '%');
 	my $array = $self->{TASK_DB}->getFieldsFromSiteQueueEx(
-"site,blocked,status,maxqueued,maxrunning,queueload,runload,QUEUED, QUEUED  as ALLQUEUED, (RUNNING + STARTED + INTERACTIV + SAVING) as ALLRUNNING",
+"site,blocked,status,maxqueued,maxrunning,queueload,runload,(RUNNING + STARTED + INTERACTIV + SAVING) as ALLRUNNING",
 		"where site like '$site' ORDER by blocked,status,site"
 	);
 	my $s1 = 0;
@@ -2723,18 +2723,16 @@ sub f_queue_list {
 	my $s5 = 0;
 	my $s6 = 0;
 	if (@$array) {
-		$self->info("----------------------------------------------------------------------------------------------------",
+		$self->info("----------------------------------------------------------------------------------------------------\n",
 			undef, 0);
 		$self->info(
 			sprintf(
-				"%-32s %-12s %-20s %5s %5s %4s/%-4s %4s/%-4s",
-				"site", "open", "status", "load", "runload", "queued", "max", "run", "max"
+				"%-32s %-12s %-20s %5s %5s %4s/%-4s\n",
+				"site", "open", "status", "load", "runload", "run", "max"
 			),
 			undef, 0
 		);
 		foreach (@$array) {
-			my $allqueued  = ($_->{'ALLQUEUED'}  || 0);
-			my $maxqueued  = ($_->{'maxqueued'}  || 0);
 			my $allrunning = ($_->{'ALLRUNNING'} || 0);
 			my $maxrunning = ($_->{'maxrunning'} || 0);
 			my $blocked    = ($_->{blocked}      || "undef");
@@ -2743,14 +2741,12 @@ sub f_queue_list {
 
 			$self->info(
 				sprintf(
-					"%-32s %-12s %-20s %5s %5s %4s/%-4s %4s/%-4s",
+					"%-32s %-12s %-20s %5s %5s %4s/%-4s %4s/%-4s\n",
 					$_->{'site'}, $blocked,   $_->{'status'}, $queueload, $runload,
-					$allqueued,   $maxqueued, $allrunning,    $maxrunning
+					$allrunning,    $maxrunning
 				),
 				undef, 0
 			);
-			$s1 += $allqueued;
-			$s2 += $maxqueued;
 			$s3 += $allrunning;
 			$s4 += $maxrunning;
 		}
@@ -2758,12 +2754,12 @@ sub f_queue_list {
 		$s4 and $s6 = sprintf "%3.02f", 100.0 * $s3 / $s4;
 		my $empty   = "";
 		my $sumsite = "All";
-		$self->info("----------------------------------------------------------------------------------------------------",
+		$self->info("----------------------------------------------------------------------------------------------------\n",
 			undef, 0);
 		$self->info(
-			sprintf("%-32s %-12s %-20s %5s %5s %4s/%-4s %4s/%-4s", $sumsite, $empty, $empty, $s5, $s6, $s1, $s2, $s3, $s4),
+			sprintf("%-32s %-12s %-20s %5s %5s %4s/%-4s\n", $sumsite, $empty, $empty, $s5, $s6, $s3, $s4),
 			undef, 0);
-		$self->info("----------------------------------------------------------------------------------------------------",
+		$self->info("----------------------------------------------------------------------------------------------------\n",
 			undef, 0);
 	}
 
