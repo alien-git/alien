@@ -525,17 +525,16 @@ sub renewProxy {
    $self->info("Checking whether to renew proxy for $duration seconds");
    $ENV{X509_USER_PROXY} and $self->debug(1,"\$X509_USER_PROXY is $ENV{X509_USER_PROXY}");
    my $ProxyRepository = "$self->{CONFIG}->{VOBOXDIR}/proxy_repository";
-   my $command = "vobox-proxy --vo \L $self->{CONFIG}->{LCGVO}\E query";
-   
+   my $command = "voms-proxy-info -acsubject -actimeleft";
+
    my @lines = $self->_system($command);
    my $dn = '';
-   my $proxyfile = '';
+   my $proxyfile = $ENV{X509_USER_PROXY};
    my $timeLeft = '';
    foreach (@lines) {
      chomp;
-     m/^DN:/ and ($dn) = m/^DN:\s*(.+)\s+$/;
-     m/^File:/ and ($proxyfile) = m/^File:\s*(.+)\s+$/;
-     m/^Proxy Time Left/ and ($timeLeft) = m/^Proxy Time Left \(seconds\):\s*(.+)\s+$/;
+     m|^/| and $dn = $_, next;
+     m/^\d+$/ and $timeLeft = $_, next;
    }
    $dn or $self->{LOGGER}->error("LCG","No valid proxy found.") and return;
    $self->debug(1,"DN is $dn");
@@ -544,8 +543,10 @@ sub renewProxy {
    return 1 if ( $thres>0 && $timeLeft>$thres );
    # I apparently cannot pass this via an argument
    my $currentProxy = $ENV{X509_USER_PROXY};
-   $self->{LOGGER}->warning("LCG","\$X509_USER_PROXY different from the proxy we are renewing") if ($currentProxy ne $proxyfile);
-   $self->{LOGGER}->warning("LCG","$currentProxy and $proxyfile ") if ($currentProxy ne $proxyfile);
+   if ($currentProxy !~ /^$ProxyRepository/) {
+     $self->{LOGGER}->warning("LCG","\$X509_USER_PROXY is not in the proxy repository:");
+     $self->{LOGGER}->warning("LCG","$currentProxy vs $ProxyRepository");
+   }
    $ENV{X509_USER_PROXY} = "$self->{CONFIG}->{VOBOXDIR}/renewal-proxy.pem";
    $self->debug(1,"Renewing proxy for $dn for $duration seconds");
    my @command=("$ENV{LCG_LOCATION}/bin/lcg-proxy-renew", "-a", "$proxyfile",
@@ -556,26 +557,26 @@ sub renewProxy {
    my $pattern="$ENV{ALIEN_ROOT}"."[^:]*:";
    $ENV{PATH}=~ s/$pattern//g;
    unless ( $self->_system(@command) ) {
-     $ENV{PATH}=$oldPath;
+      $ENV{PATH}=$oldPath;
       $self->{LOGGER}->error("LCG","unable to renew proxy");
       $ENV{X509_USER_PROXY} = $currentProxy;
       return;
    }
    $ENV{PATH}=$oldPath;
+   $ENV{X509_USER_PROXY} = $currentProxy;
 
    @command = ("mv", "-f", "/tmp/tmpfile.$$", "$proxyfile");
    if ( $self->_system(@command) ) {
      $self->{LOGGER}->error("LCG","unable to move new proxy");
-     $ENV{X509_USER_PROXY} = $currentProxy;
      return;
    }  
-   $command = "vobox-proxy --vo \L$self->{CONFIG}->{LCGVO}\E --dn \'$dn\' query-proxy-timeleft";
+   $command = "voms-proxy-info -actimeleft";
    ( my $realDuration ) = $self->_system($command);
    if ( $realDuration ){
        chomp $realDuration;
-       $self->{LOGGER}->error("LCG","asked for $duration sec, got only $realDuration") if ( $realDuration < 0.9*$duration);
+       $self->{LOGGER}->error("LCG","asked for $duration sec, got only $realDuration")
+         if ( $realDuration < 0.9*$duration);
    }
-   $ENV{X509_USER_PROXY} = $currentProxy;
 
    return 1;
 }
