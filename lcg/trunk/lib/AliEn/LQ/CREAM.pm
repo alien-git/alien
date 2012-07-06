@@ -525,7 +525,7 @@ sub renewProxy {
    $self->info("Checking whether to renew proxy for $duration seconds");
    $ENV{X509_USER_PROXY} and $self->debug(1,"\$X509_USER_PROXY is $ENV{X509_USER_PROXY}");
    my $ProxyRepository = "$self->{CONFIG}->{VOBOXDIR}/proxy_repository";
-   my $command = "voms-proxy-info -acsubject -actimeleft";
+   my $command = "voms-proxy-info -dont-verify-ac -acsubject -actimeleft";
 
    my @lines = $self->_system($command);
    my $dn = '';
@@ -570,7 +570,7 @@ sub renewProxy {
      $self->{LOGGER}->error("LCG","unable to move new proxy");
      return;
    }  
-   $command = "voms-proxy-info -actimeleft";
+   $command = "voms-proxy-info -dont-verify-ac -actimeleft";
    ( my $realDuration ) = $self->_system($command);
    if ( $realDuration ){
        chomp $realDuration;
