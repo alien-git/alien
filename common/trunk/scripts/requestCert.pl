@@ -56,7 +56,7 @@ my $request = `cat $REQUEST_FILE`;
 
 print "Requesting certificate....................";
 
-my $done "";
+my $done = "";
 
 my $res = $done;
 
