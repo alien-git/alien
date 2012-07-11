@@ -29,20 +29,20 @@ BEGIN { plan tests => 1 }
   $cat or exit(-1);
 
   my ($status) = $cat->execute("top", "-id", $idfine);
-  $status->{status} eq "DONE" or exit(-2);
-  print "$idfine: JOBS STATUS is " . $status->{status};
+  $status->{statusId} eq "DONE" or exit(-2);
+  print "$idfine: JOBS STATUS is " . $status->{statusId};
   checkOutput($cat, $idfine) or exit(-2);
   print "$idfine: OK, OUTPUT FILES ARE THERE\n";
 
   ($status) = $cat->execute("top", "-id", $idwarn);
-  $status->{status} eq "DONE_WARN" or exit(-2);
-  print "$idwarn: JOBS STATUS is " . $status->{status};
+  $status->{statusId} eq "DONE_WARN" or exit(-2);
+  print "$idwarn: JOBS STATUS is " . $status->{statusId};
   checkOutput($cat, $idwarn) or exit(-2);
   print "$idwarn: DONE_WARN: OK, OUTPUT FILES ARE THERE\n";
 
   ($status) = $cat->execute("top", "-id", $iderror);
-  $status->{status} eq "ERROR_SV" or exit(-2);
-  print "$iderror: JOBS STATUS is " . $status->{status};
+  $status->{statusId} eq "ERROR_SV" or exit(-2);
+  print "$iderror: JOBS STATUS is " . $status->{statusId};
   checkOutput($cat, $iderror) and exit(-2);
   print "$iderror: ERROR_SV OK, OUTPUT FILES ARE NOT THERE\n";
 

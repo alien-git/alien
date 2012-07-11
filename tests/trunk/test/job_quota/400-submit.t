@@ -171,6 +171,7 @@ sub waitForNoJobs {
 
   return;
 }
+
 sub assertEqualJobs {
   my $d     = shift;
   my $user  = shift;

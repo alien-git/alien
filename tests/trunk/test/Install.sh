@@ -405,7 +405,7 @@ ALIEN_CREATE_CERT()
     COMMANDS[4]="chmod go-rwx $CA_CERT"
     COMMANDS[5]="cp $CA_CERT $ALIEN_ROOT/globus/share/certificates/\`openssl x509 -hash -noout < $USERDIR/cacert.pem\`.0"
     COMMANDS[6]="rm -rf $HOME/.globus;ln -s  $USERDIR $HOME/.globus"
-    COMMANDS[7]="openssl req -nodes -newkey rsa:1024 -out $USERDIR/userreq.pem -keyout $USERDIR/userkey.pem -subj \"/C=CH/O=AliEn/CN=test user cert\" >/dev/null 2>&1"
+    COMMANDS[7]="openssl req -nodes -newkey rsa:1024 -out $USERDIR/userreq.pem -keyout $USERDIR/userkey.pem -subj \"/C=CH/O=AliEn/CN=test user cert\" "
     COMMANDS[8]="openssl x509 -req -in $USERDIR/userreq.pem -CA $CA_CERT -CAkey $CA_KEY -CAcreateserial -out $USERDIR/usercert.pem >/dev/null 2>&1"
     COMMANDS[9]="chmod 644 $USERDIR/usercert.pem;chmod 600 $USERDIR/userkey.pem"
     COMMANDS[10]="cp -f $USERDIR/usercert.pem $HOST_CERT"

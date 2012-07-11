@@ -45,7 +45,7 @@ BEGIN { plan tests => 1 }
   if ($done){
   	print "The job is still there..\n";
   	print Dumper($done);
-  	$done->{status} eq 'KILLED' or print 'AND IT IS NOT DEAD!!\n' and exit(-2);
+  	$done->{statusId} eq 'KILLED' or print 'AND IT IS NOT DEAD!!\n' and exit(-2);
   }
   
   

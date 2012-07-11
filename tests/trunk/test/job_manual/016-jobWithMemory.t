@@ -46,7 +46,7 @@ Memory=200000000;
   for (my $i = 0 ; $i < 4 ; $i++) {
 	sleep(5);
 	my ($info) = $cat->execute("top", "-id", $id);
-	$info->{status} eq "WAITING" and $ready = 1 and last;
+	$info->{statusId} eq "WAITING" and $ready = 1 and last;
   }
   $ready or print "The job is not WAITING!!\n" and exit(-2);
   my $fileName="/tmp/alien_output.$$";

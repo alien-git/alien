@@ -27,12 +27,12 @@ BEGIN { plan tests => 1 }
     $admincat->execute("queue", "open $cat->{CONFIG}->{ORG_NAME}::CERN::testCE") 
       or print "Error opening the queue\n" and exit(-2);
 
-    $cat->execute("request");
+    $cat->execute("request") or print "Error requesting a job\n" and exit(-2);
     print "We have executed all the jobs!!\n";
-    my @jobs=$cat->execute("top", "-status ASSIGNED -status WAITING -status INSERTING -status RUNNING -status SAVING -status SAVED -status SPLIT");
+    my @jobs=$cat->execute("top", "-status WAITING -status INSERTING -status RUNNING -status SAVING -status SAVED");
     @jobs or last;
-    print "There are still some jobs waiting. Sleeping 10 seconds and retrying. We can still try $i times\n";
-    sleep(10);
+    print "There are still some jobs waiting. Sleeping 10 seconds and retrying";
+    sleep(5);
     $i--;
 
   }
@@ -42,7 +42,7 @@ BEGIN { plan tests => 1 }
   my $notok=0;
   print "\n";
   print "Getting top -all information from the Catalogue:\n";
-  my @jobs=$cat->execute("top");
+  (@jobs)=$cat->execute("top");
   print "Top -all worked\n";
   my $split=0;
   foreach my $job (@jobs) {

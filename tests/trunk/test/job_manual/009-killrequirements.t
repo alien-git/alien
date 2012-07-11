@@ -55,7 +55,7 @@ sub waitWaiting {
   while ($i) {
 	$i--;
 	my ($info) = $cat->execute("top", "-id", $jobid);
-	$info and $status = $info->{status};
+	$info and $status = $info->{statusId};
 	$status =~ /WAITING/ and return 1;
 	sleep 5;
   }
