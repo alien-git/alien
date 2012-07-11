@@ -39,6 +39,7 @@ sub initialize {
 
 	$self->SUPER::initialize($options) or return;
 
+	srand();
 }
 
 #
@@ -144,7 +145,7 @@ sub checkMoreFilesForAgent {
 	$v and return 1;
 	$self->info("There are no more files to be processed!");
 
-	$self->{DB}->do("UPDATE QUEUE set status='KILLED' where status='WAITING' and split=?", {bind_values => [$split]});
+	$self->{DB}->do("UPDATE QUEUE set statusId=-14 where statusId=5 and split=?", {bind_values => [$split]}); # KILLED TO WAITING
 	$self->{DB}->do("UPDATE ACTIONS set todo=1 where action=='KILLED'");
 
 	return 1;
@@ -237,23 +238,33 @@ sub getJobToken {
 	my $procid = shift;
 	my $user   = shift;
 
+	open FILE, ">>", "/tmp/createtoken"; 
+	$| = 1;
+
 	$self->info("Getting  job $procid (and $user)");
+	print FILE "Getting  job $procid (and $user)\n";
 
 	($procid)
-		or $self->info("Error: In getJobToken not enough arguments")
+		or $self->info("Error: In getJobToken not enough arguments") and print FILE "Error: In getJobToken not enough arguments\n"
 		and return;
 
 	$self->{DB}->queryValue("select count(*) from JOBTOKEN where jobId=?", undef, {bind_values => [$procid]})
-		and $self->info("Job $procid already given..")
+		and $self->info("Job $procid already given..") and print FILE "Job $procid already given\n" 
 		and return;
 
+	#srand($procid);
+	print FILE "Nueva semilla en init \n";
+
 	my $token = $createToken->();
+	print FILE "Created $token\n";
 
 	$self->{DB}->insertJobToken($procid, $user, $token)
-		or $self->{LOGGER}->warning("CatalogDaemon", "Error updating jobToken for user $user")
+		or $self->{LOGGER}->warning("CatalogDaemon", "Error updating jobToken for user $user") and print FILE "Error updating jobToken ($procid, $token) for user $user\n"
 		and return (-1, "error setting the job token");
 
 	$self->info("Sending job $procid to $user");
+	print FILE "Sending  job $procid to $user and $token\n\n";
+	FILE->autoflush(1);
 	return $token;
 }
 

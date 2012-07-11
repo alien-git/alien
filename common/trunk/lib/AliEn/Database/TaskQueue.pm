@@ -82,6 +82,7 @@ sub initialize {
     'FAILED'       => 1000,
     'KILLED'       => 1001,
     'FORCEMERGE'   => 950,
+    'UPDATING'   => 100,
 
     'MERGING' => 970,
     'ZOMBIE'  => 999,
@@ -112,7 +113,8 @@ sub initialize {
       execHost     => "varchar(64)",
       submitHost   => "varchar(64)",
       priority     => "tinyint(4)",
-      status       => "varchar(12)",
+      #status      => "varchar(12)",
+      statusId     => "tinyint",
       name         => "varchar(255)",
       path         => "varchar(255)",
       received     => "int(20)",
@@ -133,7 +135,8 @@ sub initialize {
       chargeStatus => "varchar(20)",
       optimized    => "int(1) default 0",
       finalPrice   => "float",
-      notify       => "varchar(255)",
+      #notify      => "varchar(255)",
+      notifyId     => "tinyint",
       agentid      => 'int(11)',
       mtime        => 'timestamp  DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
       resubmission => 'int(11) not null default 0',
@@ -142,15 +145,16 @@ sub initialize {
     index       => "queueId",
     extra_index => [
       "INDEX (split)",
-      "INDEX (status)",
+      "foreign key (statusId) references QUEUESTATUS(statusId) on delete cascade",
+      "foreign key (notifyId) references QUEUENOTIFY(notifyId) on delete cascade",
       "INDEX(agentid)",
       "UNIQUE INDEX (submitHost,queueId)",
       "INDEX(priority)",
-      "INDEX (site,status)",
+      "INDEX (site,statusId)",
       "INDEX (sent)",
-      "INDEX (status,submitHost)",
-      "INDEX (status,agentid)",
-      "UNIQUE INDEX (status,queueId)"
+      "INDEX (statusId,submitHost)",
+      "INDEX (statusId,agentid)",
+      "UNIQUE INDEX (statusId,queueId)"
     ],
     engine =>'innodb'
   };
@@ -312,10 +316,23 @@ sub initialize {
     	id=>"lfn"
     	
     },
-    JOB_STATUS=>{
-      columns=>{"statusid"=>"int not null primary key", 
-                "status"=>"varchar(12) unique not null"},
-      id=>"statusid",
+    QUEUESTATUS => {
+      columns => {
+        statusId  => "tinyint not null primary key",
+        status    => "varchar(12)",
+      },
+      id          => "statusId",
+      index       => "statusId",
+      engine =>'innodb'
+    },
+    QUEUENOTIFY => {
+      columns => {
+        notifyId  => "tinyint not null primary key",
+        notify    => "varchar(255)",
+      },
+      id          => "notifyId",
+      index       => "notifyId",
+      engine =>'innodb'
     }
 
   };
@@ -429,6 +446,10 @@ sub insertJobLocked {
   $set->{jdl} =~ s/'/\\'/g;
   my $jdl=$set->{jdl};
   delete $set->{jdl};
+  my $status = $set->{statusId};
+  $set->{statusId} = AliEn::Util::statusForML($status);
+  $set->{notify} and my $mail = $set->{notify} and delete $set->{notify};
+  
   my $out = $self->insert("$self->{QUEUETABLE}", $set);
 
   my $procid = "";
@@ -438,7 +459,12 @@ sub insertJobLocked {
   if ($procid) {
     $DEBUG and $self->debug(1, "In insertJobLocked got job id $procid.");
     $self->insert("QUEUEPROC", {queueId => $procid});
-    $self->insert("QUEUEJDL", {queueId =>$procid, origJdl=>$jdl})
+    $self->insert("QUEUEJDL", {queueId =>$procid, origJdl=>$jdl});
+    if($mail){
+        $self->insert("QUEUENOTIFY", {notifyId =>$procid, notify=>$mail});
+    	$self->do('UPDATE QUEUE SET notifyId=? WHERE queueid=? ',
+		{bind_values=>[$procid,$procid]} );
+    }
   }
 
   if ($oldjob != 0) {
@@ -454,11 +480,11 @@ sub insertJobLocked {
 
   my $action = "INSERTING";
   $jdl =~ / split =/im and $action = "SPLITTING";
-  ($set->{status} !~ /WAITING/)
+  ($status !~ /WAITING/)
     and $self->update("ACTIONS", {todo => 1}, "action='$action'");
 
   # send the new job's status to ML
-  $self->sendJobStatus($procid, $set->{status}, "", $set->{submitHost});
+  $self->sendJobStatus($procid, $status, "", $set->{submitHost});
 
   return $procid;
 }
@@ -483,7 +509,9 @@ sub updateJob {
     and return;
   my $set = shift;
   my $opt = shift || {};
-
+  
+  $set->{statusId} and $set->{statusId} = AliEn::Util::statusForML($set->{statusId});
+  
   $DEBUG and $self->debug(1, "In updateJob updating job $id");
   my $procSet = {};
   my $jdlSet  = {};
@@ -540,6 +568,9 @@ sub updateJobs {
   @ids
     or $self->{LOGGER}->error("TaskQueue", "In updateJobs job id is missing")
     and return;
+  
+  $set->{statusId} and $set->{statusId} = AliEn::Util::statusForML($set->{statusId});  
+    
   my $where = "";
   foreach my $id (@ids) {
     $where .= " queueId=? or";
@@ -581,7 +612,7 @@ sub updateStatus {
   #This is the service that will update the log of the job
   my $service = shift;
 
-  $set->{status}       = $status;
+  $set->{statusId}       = $status;
   $set->{procinfotime} = time;
 
   my $message = "";
@@ -590,7 +621,7 @@ sub updateStatus {
     and $self->debug(1, "In updateStatus checking if job $id with status $oldstatus exists");
 
   my $oldjobinfo =
-    $self->getFieldsFromQueueEx("masterjob,site,execHost,status,agentid", "where queueid=?", {bind_values => [$id]});
+    $self->getFieldsFromQueueEx("masterjob,site,execHost,statusId,agentid", "where queueid=?", {bind_values => [$id]});
 
   #Let's take the first entry
   $oldjobinfo and $oldjobinfo = shift @$oldjobinfo;
@@ -601,11 +632,11 @@ sub updateStatus {
   }
   my $dbsite = $set->{site} || $oldjobinfo->{site} || "";
   my $execHost = $set->{execHost} || $oldjobinfo->{execHost};
-  my $dboldstatus = $oldjobinfo->{status};
+  my $dboldstatus = $oldjobinfo->{statusId};
   my $masterjob   = $oldjobinfo->{masterjob};
-  my $where       = "status = ?";
+  my $where       = "statusId = ?";
 
-  if ( ($self->{JOBLEVEL}->{$status} <= $self->{JOBLEVEL}->{$dboldstatus})
+  if ( ($self->{JOBLEVEL}->{$status} <= $self->{JOBLEVEL}->{ $dboldstatus })
     && ($dboldstatus !~ /^((ZOMBIE)|(IDLE)|(INTERACTIV))$/)
     && (!$masterjob)) {
     if ($set->{path}) {
@@ -623,7 +654,7 @@ sub updateStatus {
   }
 
   #update the value, it is correct
-  if (!$self->updateJob($id, $set, {where => "status=?", bind_values => [$dboldstatus]},)) {
+  if (!$self->updateJob($id, $set, {where => "statusId=?", bind_values => [AliEn::Util::statusForML($oldjobinfo->{statusId})]},)) {
     my $message = "The update failed (the job changed status in the meantime??)";
     $self->{LOGGER}->set_error_msg($message);
     $self->info("There was an error: $message", 1);
@@ -678,11 +709,11 @@ sub checkFinalAction {
   my $service = shift;
 
   my $info =
-    $self->queryRow("SELECT submitHost,status,notify,split FROM QUEUE where queueid=?", undef, {bind_values => [$id]})
+    $self->queryRow("SELECT submitHost,statusId,notifyId,split FROM QUEUE where queueid=?", undef, {bind_values => [$id]})
     or return;
   $self->info("Checking if we have to send an email for job $id...");
-  $info->{notify}
-    and $self->sendEmail($info->{notify}, $id, $info->{status}, $service, $self->{submitHost});
+  $info->{notifyId}
+    and $self->sendEmail($info->{notifyId}, $id, $info->{statusId}, $service, $self->{submitHost});
   $self->info("Checking if we have to merge the master");
   if ($info->{split}) {
     $self->info("We have to check if all the subjobs of $info->{split} have finished");
@@ -702,6 +733,10 @@ sub sendEmail {
   my $status     = shift;
   my $service    = shift;
   my $submitHost = shift;
+  
+  $status = AliEn::Util::statusName($status);
+  
+  $address = $self->getFieldFromQueueNotify($address, "notify");
 
   $self->info("We are supposed to send an email!!! (status $status)");
 
@@ -760,6 +795,23 @@ sub setJdl {
   $self->updateJob(shift, {jdl => shift});
 }
 
+sub getFieldFromQueueNotify {
+  my $self = shift;
+  my $id   = shift
+    or $self->{LOGGER}->error("TaskQueue", "In getFieldFromQueueNotify notifyId is missing")
+    and return;
+  $id =~ /^[0-9]+$/
+    or $self->{LOGGER}->error("TaskQueue", "The id '$id' doesn't look like a notifyId")
+    and return;
+  my $attr = shift || "*";
+
+  $DEBUG
+    and $self->debug(1, "In getFieldFromQueueNotify fetching attribute $attr of notifyId $id");
+  my $ret = $self->queryValue("SELECT $attr FROM QUEUENOTIFY WHERE notifyId=?", undef, {bind_values => [$id]});
+  
+  return $ret;
+}
+
 sub getFieldFromQueue {
   my $self = shift;
   my $id   = shift
@@ -772,7 +824,10 @@ sub getFieldFromQueue {
 
   $DEBUG
     and $self->debug(1, "In getFieldFromQueue fetching attribute $attr of job $id");
-  $self->queryValue("SELECT $attr FROM $self->{QUEUETABLE} WHERE queueId=?", undef, {bind_values => [$id]});
+  my $ret = $self->queryValue("SELECT $attr FROM $self->{QUEUETABLE} WHERE queueId=?", undef, {bind_values => [$id]});
+  
+  $attr =~ /statusId/ and $ret = AliEn::Util::statusName($ret);
+  return $ret;
 }
 
 sub getFieldsFromQueue {
@@ -786,7 +841,10 @@ sub getFieldsFromQueue {
     and $self->debug(1, "In getFieldsFromQueue fetching attributes $attr of job $id");
   my $join="";
   $attr =~ /jdl/ and $join = "join QUEUEJDL using (queueId)";
-  $self->queryRow("SELECT $attr FROM $self->{QUEUETABLE} $join WHERE queueId=?", undef, {bind_values => [$id]});
+  my $ret=$self->queryRow("SELECT $attr FROM $self->{QUEUETABLE} $join WHERE queueId=?", undef, {bind_values => [$id]});
+  
+  $ret->{statusId} and $ret->{statusId} = AliEn::Util::statusName($ret->{statusId});
+  return $ret;
 }
 
 sub getFieldsFromQueueEx {
@@ -801,7 +859,12 @@ sub getFieldsFromQueueEx {
     $self->info("Retrieving the info from the read database!!");
     return $self->{DB_READ}->query("SELECT $attr FROM $self->{QUEUETABLE} $addsql", undef, @_);
   }
-  $self->query("SELECT $attr FROM $self->{QUEUETABLE} $addsql", undef, @_);
+  my $returnparts = $self->query("SELECT $attr FROM $self->{QUEUETABLE} $addsql", undef, @_);
+  
+  for (@$returnparts) {
+    $_->{statusId} = AliEn::Util::statusName($_->{statusId});
+  }
+  return $returnparts;
 }
 
 sub getFieldFromQueueEx {
@@ -812,7 +875,10 @@ sub getFieldFromQueueEx {
   $DEBUG
     and $self->debug(1,
     "In getFieldFromQueueEx fetching attributes $attr with condition $addsql from table $self->{QUEUETABLE}");
-  $self->queryColumn("SELECT $attr FROM $self->{QUEUETABLE} $addsql", undef, @_);
+  my $ret = $self->queryColumn("SELECT $attr FROM $self->{QUEUETABLE} $addsql", undef, @_);
+  
+  $attr =~ /statusId/ and $ret = AliEn::Util::statusName($ret);
+  return $ret;
 }
 
 
@@ -821,6 +887,7 @@ sub getJobsByStatus {
   my $status = shift
     or $self->{LOGGER}->error("TaskQueue", "In getJobsByStatus status is missing")
     and return;
+    
   my $order = shift || "";
   my $f     = shift;
   my $limit = shift;
@@ -833,11 +900,11 @@ sub getJobsByStatus {
     $order = " and queueid>? $order";
     push @$bind, $minid;
   }
-  my $query = "SELECT queueid,ifnull(resultsjdl, origjdl) jdl from $self->{QUEUETABLE} join QUEUEJDL using (queueid) where status='$status' $order";
+  my $query = "SELECT queueid,ifnull(resultsjdl, origjdl) jdl from $self->{QUEUETABLE} join QUEUEJDL using (queueid) where statusId='$status' $order";
   $query = $self->paginate($query, $limit, 0);
 
   $DEBUG
-    and $self->debug(1, "In getJobsByStatus fetching jobs with status $status");
+    and $self->debug(1, "In getJobsByStatus fetching jobs with statusId $status");
   $self->query($query, undef, {bind_values => $bind});
 }
 
@@ -996,14 +1063,15 @@ sub resyncSiteQueueTable {
   my $qstat;
 
   my $sql=" update SITEQUEUES join (select sum(cost) REALCOST, ";
-  my $set=" Group by status) dd) bb set cost=REALCOST, ";
+  my $set=" Group by statusId) dd) bb set cost=REALCOST, ";
 
   foreach my $stat (@{AliEn::Util::JobStatus()}) {
-  	  $sql.=" max(if(status='$stat', count, 0)) REAL$stat,";
+  	  $sql.=" max(if(statusId=".AliEn::Util::statusForML($stat).", count, 0)) REAL$stat,";
+#  	  $sql.=" max(if(status='$stat', count, 0)) REAL$stat,";
   	  $set.=" $stat=REAL$stat,"      
     }
   $set =~ s/,$/ where site=?/;
-  $sql =~ s/,$/ from (select status, sum(cost) as cost, count(*) as count from QUEUE join QUEUEPROC using(queueid) where site/;
+  $sql =~ s/,$/ from (select statusId, sum(cost) as cost, count(*) as count from QUEUE join QUEUEPROC using(queueid) where site/;
   
 
   foreach my $siteName (@$allsites) {
@@ -1320,8 +1388,8 @@ sub getWaitingJobForAgentId{
   my $cename=shift || "no_user\@no_site";
   $self->info("Getting a waiting job for $agentid");
 
-  my $done=$self->do("UPDATE QUEUE set status='ASSIGNED',exechost=?,site=?
-   where status='WAITING' and agentid=? and \@assigned_job:=queueid  limit 1",
+  my $done=$self->do("UPDATE QUEUE set statusId=6,exechost=?,site=?
+   where statusId=5 and agentid=? and \@assigned_job:=queueid  limit 1",
                      {bind_values=>["no_user\@$cename", $cename, $agentid ]});
   
   if ($done>0){
@@ -1346,19 +1414,19 @@ sub resubmitJob{
 	my $queueid=shift;
 	
 	$self->do("update QUEUEJDL set resultsJdl=null where queueid=?",{bind_values=>[$queueid]} );
-	my $status="WAITING";
-	my $data=$self->queryRow("select site,status from QUEUE where queueid=?", undef, {bind_values=>[$queueid]})
+	my $status=5; #WAITING
+	my $data=$self->queryRow("select site,statusId from QUEUE where queueid=?", undef, {bind_values=>[$queueid]})
 	 or $self->info("Error getting the previous status of the job ") and return;
 	 
-	my $previousStatus=$data->{status};
+	my $previousStatus=AliEn::Util::statusName($data->{statusId});
 	my $previousSite= $data->{site} || "UNASSIGNED::SITE";
 	$self->info("UPDATING $previousStatus and $previousSite");
 	
 	
 	
 	$self->queryValue("select 1 from QUEUE where queueid=? and masterjob=1", undef, {bind_values=>[$queueid]})
-	  and $status="INSERTING";
-	$self->do('UPDATE QUEUE SET status= ? ,resubmission= resubmission+1 ,started= "" ,finished= "" ,exechost= "",site=NULL,path=NULL  WHERE queueid=? ',
+	  and $status=1; #INSERTING
+	$self->do('UPDATE QUEUE SET statusId= ? ,resubmission= resubmission+1 ,started= "" ,finished= "" ,exechost= "",site=NULL,path=NULL  WHERE queueid=? ',
 		{bind_values=>[$status, $queueid]	} );
 	$self->do("UPDATE SITEQUEUES set $previousStatus=$previousStatus-1 where site=?", {bind_values=>[$previousSite]});
 	$self->do("UPDATE SITEQUEUES set WAITING=WAITING+1 where site='UNASSIGNED::SITE'");
@@ -1435,7 +1503,7 @@ sub killProcessInt {
 
   $self->info("Killing process $queueId...");
 
-  my ($data) = $self->getFieldsFromQueue($queueId, "status,exechost, submithost, finished,site,agentid");
+  my ($data) = $self->getFieldsFromQueue($queueId, "statusId,exechost, submithost, finished,site,agentid");
 
   defined $data
     or $self->info( "In killProcess error during execution of database query")
@@ -1447,6 +1515,7 @@ sub killProcessInt {
 
   #my ( $status, $host, $submithost, $finished ) = split "###", $data;
   $data->{exechost} =~ s/^.*\@//;
+  
 
   if (($data->{submithost} !~ /^$user\@/) and ($user ne "admin")) {
     $self->info( "In killProcess process does not belong to '$user'");
@@ -1455,9 +1524,9 @@ sub killProcessInt {
 
   $self->do("delete from QUEUE where queueid=?", {bind_values=>[$queueId]}) or return ;
   my $siteName=( $data->{site} || "UNASSIGNED::SITE");
-  $self->do("update SITEQUEUES set $data->{status}=$data->{status}-1 where site=?", {bind_values=>[$siteName]});
+  $self->do("update SITEQUEUES set $data->{statusId}=$data->{statusId}-1 where site=?", {bind_values=>[$siteName]});
   $self->insertJobMessage($queueId, "state", "Job has been killed");
-  if ($data->{status} =~ /WAITING/){
+  if ($data->{statusId} =~ /WAITING/){
   	$self->info("And reducing the number of agents");
   	$self->do("update JOBAGENT set counter=counter-1 where entryid=?", {bind_values=>[$data->{agentid}]})
   	

@@ -281,33 +281,31 @@ sub get {
   my $result = 0;
   my $first  = 1;
   while (!$result) {
-    $self->{LOGGER}->keepAllMessages();
-    my @envelopes = AliEn::Util::deserializeSignedEnvelopes(
-      $self->{CATALOG}->authorize(
+    #$self->{LOGGER}->keepAllMessages();
+	my @envelopes = $self->{CATALOG}->authorize(
         "read",
         { lfn       => $file,
           wishedSE  => $wishedSE,
           excludeSE => join(";", @excludedAndfailedSEs),
           site      => $self->{CONFIG}->{SITE}
         }
-      )
-    );
+      );
+    @envelopes and @envelopes = AliEn::Util::deserializeSignedEnvelopes( @envelopes );
     my $envelope = $envelopes[0];
 
-    my @loglist = @{$self->{LOGGER}->getMessages()};
+    #my @loglist = @{$self->{LOGGER}->getMessages()};
 
-    $self->{LOGGER}->displayMessages();
+    #$self->{LOGGER}->displayMessages();
 
     if (not $envelope or not $envelope->{turl}) {
-      grep (/is a collection/, @loglist)
+      my ($info) = $self->{CATALOG}->f_type($file);
+      $info =~ /^collection/
         and $self->info("This is in fact a collection!! Let's get all the files")
         and return $self->getCollection($file, $localFile, \%options);
-      $self->info(@loglist, 0, 0);
-      $self->error("Getting an envelope was not successfull for file $file .");
+      $self->error("Getting an envelope was not successfull for file $file (it is a $info) .");
       return;
 
     }
-    $options{silent} or $self->info(@loglist, 0, 0);
     if ($first) {
       $self->debug(1, "Checking if we have enough disk space");
       $self->{STORAGE}->checkDiskSpace($envelope->{size}, $localFile) or return;
@@ -1286,6 +1284,11 @@ sub addFile {
     $self->versionLFN($targetLFN) or $self->info("ERROR: Versioning file failed") and return;
   }
 
+  if (!$options->{upload}){
+    my $parentdir = $self->{CATALOG}->f_dirname($targetLFN);
+    $self->{CATALOG}->existsEntry($parentdir) or $self->info("ERROR: Parent dir does not exists") and return;
+  }
+  
   return $self->addFileToSEs($targetLFN, $sourcePFN, \@seSpecs, $options->{guid}, $options->{feedback},
     $options->{upload}, $options->{links}, $options->{silent});
 

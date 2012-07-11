@@ -248,10 +248,10 @@ sub getJobInfo {
   }
 
   $self->info( "Asking for Jobinfo by $username and jobid's @jobids ..." );
-  my $allparts = $self->{DB}->getFieldsFromQueueEx("count(*) as count, min(started) as started, max(finished) as finished, status", " WHERE $jobtag GROUP BY status");
+  my $allparts = $self->{DB}->getFieldsFromQueueEx("count(*) as count, min(started) as started, max(finished) as finished, statusId", " WHERE $jobtag GROUP BY statusId");
 
   for (@$allparts) {
-    $result->{$_->{status}} = $_->{count};
+    $result->{$_->{statusId}} = $_->{count};
   }
   return $result;
 }
@@ -274,21 +274,21 @@ sub getSystem {
   }
   
   $self->info( "Query does $#jobtag $jdljobtag ..." );
-  my $allparts = $self->{DB}->getFieldsFromQueueEx("count(*) as count, status", "WHERE $jdljobtag GROUP BY status");
+  my $allparts = $self->{DB}->getFieldsFromQueueEx("count(*) as count, statusId", "WHERE $jdljobtag GROUP BY statusId");
   
-  my $userparts = $self->{DB}->getFieldsFromQueueEx("count(*) as count, status", "WHERE submitHost like '$username\@%' and $jdljobtag GROUP BY status");
+  my $userparts = $self->{DB}->getFieldsFromQueueEx("count(*) as count, statusId", "WHERE submitHost like '$username\@%' and $jdljobtag GROUP BY statusId");
   
   my $allsites  = $self->{DB}->getFieldsFromQueueEx("count(*) as count, site"," WHERE $jdljobtag Group by site");
 
-  my $sitejobs =$self->{DB}->getFieldsFromQueueEx("count(*) as count, site, status", "WHERE $jdljobtag GROUP BY concat(site, status)");
+  my $sitejobs =$self->{DB}->getFieldsFromQueueEx("count(*) as count, site, statusId", "WHERE $jdljobtag GROUP BY concat(site, statusId)");
 
   my $totalcost = $self->{DB}->queryRow("SELECT sum(cost) as cost FROM QUEUE WHERE $jdljobtag"); 
 
   my $totalusercost = $self->{DB}->queryRow("SELECT sum(cost) as cost FROM QUEUE WHERE submitHost like '$username\@%' and $jdljobtag");
   
-  my $totalUsage = $self->{DB}->queryRow("SELECT sum(cpu*cpuspeed/100.0) as cpu,sum(rsize) as rmem,sum(vsize) as vmem FROM QUEUE WHERE status='RUNNING' and $jdljobtag");
+  my $totalUsage = $self->{DB}->queryRow("SELECT sum(cpu*cpuspeed/100.0) as cpu,sum(rsize) as rmem,sum(vsize) as vmem FROM QUEUE WHERE statusId=10 and $jdljobtag");
   
-  my $totaluserUsage = $self->{DB}->queryRow("SELECT sum(cpu*cpuspeed/100.0) as cpu,sum(rsize) as rmem,sum(vsize) as vmem FROM QUEUE WHERE submitHost like '$username\@%' and status='RUNNING' and $jdljobtag");
+  my $totaluserUsage = $self->{DB}->queryRow("SELECT sum(cpu*cpuspeed/100.0) as cpu,sum(rsize) as rmem,sum(vsize) as vmem FROM QUEUE WHERE submitHost like '$username\@%' and statusId=10 and $jdljobtag");
   
   my $resultreturn={};
   
@@ -309,13 +309,13 @@ sub getSystem {
 
 
   for (@$allparts) {
-    my $type=lc($_->{status});
+    my $type=lc($_->{statusId});
     $resultreturn->{"n$type"}=$_->{count};
   }
 
   for my $info (@$userparts) {
     foreach my $status (@{AliEn::Util::JobStatus()}) {
-      if ($info->{status} eq lc($status)) {
+      if ($info->{statusId} eq lc($status)) {
 	$resultreturn->{"nuser$info->{status}"} = $info->{count};
 	last;
       }
@@ -340,7 +340,7 @@ sub getSystem {
     my $site={};
     foreach (@$sitejobs) {
       if ($arrayhash->{site} eq $_->{site}) {
-	$site->{$site->{status}}=$_->{count};
+	$site->{$site->{statusId}}=$_->{count};
       }
     }
     push @sitearray, ($site->{DONE} or "0");
@@ -465,7 +465,7 @@ sub jobinfo {
   my $delay = shift or return;
   my $now = time;
     
-  my $array = $self->{DB}->getFieldsFromQueueEx("q.queueId","q, QUEUEPROC p where site like '$site' and status='$status' and ( ($now - procinfotime) > $delay) and q.queueid=p.queueid");
+  my $array = $self->{DB}->getFieldsFromQueueEx("q.queueId","q, QUEUEPROC p where site like '$site' and statusId=$status and ( ($now - procinfotime) > $delay) and q.queueid=p.queueid");
 
   if (@$array) {
     return $array;

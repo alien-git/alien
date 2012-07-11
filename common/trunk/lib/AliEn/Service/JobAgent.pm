@@ -276,7 +276,7 @@ sub changeStatus {
   my $done;
   foreach my $data (split (/\s+/, $self->{VOs})) {
     my ($org, $cm, $id, $token)=split("#", $data);
-    $self->info("Contacting $org to change to $status");
+    $self->info("Contacting $org to change to $status (from $oldstatus)");
     $done = $self->{RPC}->CallRPC("Manager_Job_$org", "changeStatusCommand", "-retry", $id, $token, $oldstatus, $status, $self->{CONFIG}->{CE_FULLNAME}, @_ );
     
     if (!$done){
@@ -1758,7 +1758,7 @@ sub putFiles {
     ($self->{STATUS} =~ /^ERROR_V/)
         and  $self->{PROCDIR} = "$self->{CONFIG}->{USER_DIR}/".substr($user, 0, 1)."/$user/recycle/alien-job-$ENV{ALIEN_PROC_ID}"; 
 
-    $self->{UI}->execute("mkdir","-p",$self->{PROCDIR});
+    #$self->{UI}->execute("mkdir","-p",$self->{PROCDIR});
     
     foreach my $fs_table (@filesAndArchives) {
       $JDLOutputCount += scalar(keys(%$fs_table)); 

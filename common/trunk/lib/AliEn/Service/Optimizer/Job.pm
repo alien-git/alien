@@ -58,7 +58,7 @@ sub initialize {
     "Merging",  "Inserting", "Splitting", "Zombies",
     "Hosts",    "Expired",   "HeartBeat", "Priority",
     "Saved",     "Staging",
-    "Quota", "WaitingTime",
+    "Quota", "WaitingTime", "ToStage",
   );    #,"ResolveReq");
 
   my $mlEnabled =
@@ -250,7 +250,7 @@ sub checkJobs {
   my $method = "info";
   $silent and $method = "debug";
 
-  $self->{LOGGER}->$method("Job", "Checking $status jobs ");
+  $self->{LOGGER}->$method("Job", "Checking status=$status jobs ");
   my $continue = 1;
 
 #We never want to get more tahn 15 jobs at the same time, just in case the jdls are too long
@@ -265,7 +265,7 @@ sub checkJobs {
       and return;
 
     @$jobs
-      or $self->{LOGGER}->$method("JobOptimizer", "There are no jobs $status")
+      or $self->{LOGGER}->$method("JobOptimizer", "There are no jobs status=$status")
       and return;    #check if it's ok to return undef here!!
 
     $continue = 0;

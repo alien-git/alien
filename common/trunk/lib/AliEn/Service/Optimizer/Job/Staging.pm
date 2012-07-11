@@ -12,7 +12,7 @@ sub checkWakesUp {
   my $self=shift;
   my $silent=shift;
 
-  $self->{SLEEP_PERIOD}=10;
+  #$self->{SLEEP_PERIOD}=10;
   my $method="info";
   $silent and $method="debug";
   my @data=();
@@ -26,22 +26,20 @@ sub checkWakesUp {
     @data=1;
   }
 
-  $self->$method(@data, "The saved optimizer starts");
+  $self->info("The staging optimizer starts");
 
   my $todo=$self->{DB}->queryValue("SELECT todo from ACTIONS where action='STAGING'");
   if ($todo){
     $self->{DB}->update("ACTIONS", {todo=>0}, "action='STAGING'");
-    
-    my $done=$self->checkJobs($silent, "STAGING", "checkStagingJob");
-
+    my $done=$self->checkJobs($silent, 19, "checkStagingJob"); # STAGING
   }
-  $self->$method(@data, "And now, let's check the jobs that were waiting to be staged");
-
-  
-  my $info=$self->{DB}->getToStage;
+  $self->info("And now, let's check the jobs that were waiting to be staged");
+ 
+  my $info=$self->{DB}->query("select q.queueId as qid, qj.origJdl as jdl from QUEUE q join QUEUEJDL qj using (queueId) where statusId=19");
   foreach my $entry (@$info){
-    $self->checkAlreadyStaged($entry->{queueid}, $entry->{jdl});
+    $self->checkAlreadyStaged($entry->{qid}, $entry->{jdl});
   }
+
   return;
 
 }
@@ -50,12 +48,13 @@ sub checkStagingJob{
   my $self=shift;
   my $queueid=shift;
   my $job_ca=shift;
-  my $now = time;
 
-  $self->info("********************************\n\tWe should do something with job $queueid");
-
-
-  $self->{DB}->insert("STAGING", {queueid=>$queueid});
+  $self->info("Inserting job $queueid in STAGING table");
+  eval {
+  	$self->{DB}->insert("STAGING", {queueid=>$queueid});
+  }; 
+  $@ and $self->info("Job $queueid already in STAGING table ($@)");
+  
   return 1;
 }
 
@@ -64,24 +63,21 @@ sub checkAlreadyStaged {
   my $self=shift;
   my $queueid=shift;
   my $jdl=shift;
-  $self->info("And now we put the job $queueid to WAITING");
-  $self->info("*****WE SHOULD CHECK THE REQUIREMENTS!!!!!");
+  $self->info("Checking if job $queueid has staged all its files");
   
   my $ca=Classad::Classad->new($jdl);
-  $self->info("Got the ca");
-  my ($ok, $req)=$ca->evaluateExpression("Requirements");
-  ($ok, my $stage)=$ca->evaluateAttributeString("StageCE");
-  $req.=" && other.CE==\"$stage\"";
+  my ($ok, my @inputData) = $ca->evaluateAttributeVectorString("InputData"); 
+  foreach my $file ( @inputData) {
+     $file =~ s/,nodownload$//; $file =~ s/^LF://i;
+     $self->{CATALOGUE}->isStaged($file) or $self->info("File $file not staged yet") and return; 
+  }
+  $self->info("All staged ($queueid)");
 
-  $self->info("The new requirements are '$req'");
-  $ca->set_expression("Requirements", $req);
-  $jdl=$ca->asJDL();
+  ($ok, my $req)=$ca->evaluateExpression("Requirements");  
   my $agentreq=$self->getJobAgentRequirements($req, $ca);
-
-  my $set={jdl=>$jdl};
+  my $set={};
   $set->{agentid}=$self->{DB}->insertJobAgent($agentreq);
   $self->{DB}->updateStatus($queueid, "STAGING", "WAITING", $set);
-
   $self->{DB}->delete("STAGING", "queueid=$queueid");
  
   return 1;

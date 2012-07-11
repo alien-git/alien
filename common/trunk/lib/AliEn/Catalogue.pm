@@ -204,9 +204,6 @@ Site name:$self->{CONFIG}->{SITE}"
   $self->{DATABASE}           = AliEn::Database::Catalogue->new($DBoptions)
     or return;
 
-#  my ($host, $driver, $db) = split("/", $self->{CONFIG}->{"JOB_DATABASE"});
-#  $self->{TASK_DB} = AliEn::Database::TaskQueue->new({DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin', SKIP_CHECK_TABLES=> 1}) or return;
-#  $self->{PRIORITY_DB} = AliEn::Database::TaskPriority->new({DB=>$db,HOST=>$host,DRIVER=>$driver,ROLE=>'admin',SKIP_CHECK_TABLES=> 1}) or return;
   $self->{ROLE} = $self->{DATABASE}->{ROLE};
 
   # check if an entry exists in PRIORITY table

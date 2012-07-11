@@ -1155,22 +1155,27 @@ sub getBaseEnvelopeForWriteAccess {
   my $size        = (shift || 0);
   my $md5         = (shift || 0);
   my $guidRequest = (shift || 0);
-  my $envelope    = {};
+  my $envelope;
 
   $size and ($size gt 0)
     or $self->info("Authorize: File has zero size and will not be allowed to registered")
     and return 0;
 
-  ####
-
-  $envelope = $self->checkPermissions("w", $lfn, 0, 1);
-  $envelope or $self->info("Authorize: access denied to $lfn", 1) and return 0;
+  my $lfn_mod = $lfn;
+  while(!$envelope){
+      $envelope = $self->checkPermissions("w", $lfn_mod, 0, 1) and $self->info("Authorize: WE access $lfn_mod ok", 1) and last 
+                  or $self->info("Authorize: WE access $lfn_mod not achieved", 1);
+      $self->existsEntry($lfn_mod) and $self->info("Authorize: WE cannot access $lfn_mod", 1) and return 0
+                                   or $self->info("Authorize: WE entry $lfn_mod does not exist", 1);
+      $lfn_mod=$self->f_dirname($lfn_mod) and chop($lfn_mod) and $self->info("Authorize: WE going to parent($lfn_mod)", 1) 
+               or $self->info("Authorize: WE checking parent failed", 1) and return 0;
+  }
 
   #Check parent dir permissions:
-  my $parent = $self->f_dirname($lfn);
-  $self->checkPermissions("w", $parent)
-    or $self->info("Authorize: access: parent dir missing for lfn $lfn", 1)
-    and return 0;
+#  my $parent = $self->f_dirname($lfn);
+#  $self->checkPermissions("w", $parent)
+#    or $self->info("Authorize: access: parent dir missing for lfn $lfn", 1)
+#    and return 0;
 
   $envelope->{lfn} = $self->GetAbsolutePath($lfn);
 

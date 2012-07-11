@@ -76,7 +76,6 @@ my $ml_status = {
   'INSERTING'    => 1,
   'SPLITTING'    => 2,
   'SPLIT'        => 3,
-#  'QUEUED'       => 4,
   'WAITING'      => 5,
   'ASSIGNED'     => 6,
   'STARTED'      => 7,
@@ -94,6 +93,9 @@ my $ml_status = {
   'A_STAGED'     => 18,
   'STAGING'      => 19,
   'OVER_WAITING' => 21,
+  'UPDATING'     => 23,
+  'FAULTY'       => 24,
+  'INCORRECT'    => 25,
   'ERROR_A'      => -1,
   'ERROR_I'      => -2,
   'ERROR_E'      => -3,
@@ -114,6 +116,16 @@ my $ml_status = {
 };
 sub JobStatus {
   return [sort keys %$ml_status];   
+}
+
+sub statusName {
+  my $stat=shift;
+  foreach my $key ( keys %$ml_status ){
+    if ( $ml_status->{$key} == $stat ){
+      return $key;
+    }
+  }
+  return '';	
 }
 
 

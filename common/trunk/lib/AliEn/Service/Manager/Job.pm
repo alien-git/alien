@@ -296,7 +296,7 @@ sub enterCommand: Public {
 
   my $set = {
     jdl        => $jobca_text,
-    status     => 'INSERTING',
+    statusId     => "INSERTING",
     submitHost => $host,
     priority   => $priority,
     split      => $splitjob
@@ -326,7 +326,7 @@ sub enterCommand: Public {
   
   if ($direct) {
     $self->info("The job should go directly to WAITING");
-    $set->{status} = 'WAITING';
+    $set->{statusId} = 5; # WAITING
     my ($ok, $req) = $job_ca->evaluateExpression("Requirements");
     my $agentReq = $self->getJobAgentRequirements($req, $job_ca);
     $set->{agentId} = $self->{DB}->insertJobAgent($agentReq);
@@ -349,7 +349,7 @@ sub enterCommand: Public {
 
   $email and $self->putJobLog($procid, "trace", "The job will send an email to '$email'");
 
-  my $msg = "Job $procid inserted from $host ($set->{status})";
+  my $msg = "Job $procid inserted from $host ($set->{statusId})";
   ($splitjob) and $msg .= " [Master Job is $splitjob]";
 
   $self->putJobLog($procid, "state", $msg);
@@ -420,7 +420,8 @@ sub SetProcInfo {
     #$values[13]='1.3'; #si2k
     #$values[4]='3'; #cputime
 
-    my ($status) = $self->{DB}->getFieldsFromQueue($queueId, "status");
+    my ($status) = $self->{DB}->getFieldsFromQueue($queueId, "statusId");
+    $status->{statusId} = AliEn::Util::statusName($status->{statusId});
 
     my $updateRef = {
       runtime      => $values[0],
@@ -440,13 +441,13 @@ sub SetProcInfo {
       si2k         => $values[13]
     };
 
-    if ($status->{status} eq "ZOMBIE") {
+    if ($status->{statusId} eq "ZOMBIE") {
 
       # in case a zombie comes back ....
-      $self->changeStatusCommand([$queueId, 'token', $status->{status}, "RUNNING"])
+      $self->changeStatusCommand($queueId, 'token', $status->{statusId}, "RUNNING")
         or $self->{LOGGER}
-        ->error("JobManager", "In SetProcInfo could not change job $queueId from $status->{status} to RUNNING");
-      $updateRef->{status} = "RUNNING";
+        ->error("JobManager", "In SetProcInfo could not change job $queueId from $status->{statusId} to RUNNING");
+      $updateRef->{statusId} = "RUNNING"; # ?
     }
 
     my ($ok) = $self->{DB}->updateJobStats($queueId, $updateRef);
@@ -644,7 +645,7 @@ sub getTop {
     return ("Top: Gets the list of jobs from the queue$usage");
   }
   my $where      = " WHERE 1=1";
-  my $columns    = "queueId, status, name, execHost, submitHost ";
+  my $columns    = "queueId, statusId, name, execHost, submitHost ";
   my $all_status = 0;
   my $error      = "";
   my $data;
@@ -675,9 +676,9 @@ sub getTop {
       start   => "split='",
       end     => "'"
     },
-    { name    => "status",
+    { name    => "statusId",
       pattern => "s(tatus)?",
-      start   => "status='",
+      start   => "statusId='",
       end     => "'"
     },
     { name    => "command",
@@ -712,6 +713,7 @@ sub getTop {
     my $value = shift or $error = "--$type requires a value" and last;
     $data->{$type} or $data->{$type} = [];
 
+	$type eq "statusId" and $value = AliEn::Util::statusForML($value);
     push @{$data->{$type}}, "$found->{start}$value$found->{end}";
   }
   if ($error) {
@@ -725,10 +727,11 @@ sub getTop {
     $where .= " and (" . join(" or ", @{$data->{$column->{name}}}) . ")";
   }
        $all_status
-    or $data->{status}
+    or $data->{statusId}
     or $data->{id}
     or $where .=
-" and ( status='RUNNING' or status='WAITING' or status='OVER_WAITING' or status='ASSIGNED' or status='QUEUED' or status='INSERTING' or status='STARTED' or status='SAVING' or status='SAVED' or status='SAVED_WARN' or status='TO_STAGE' or status='STAGGING' or status='A_STAGED' or status='STAGING')";
+" and ( statusId=10 or statusId=5 or statusId=21 or statusId=6 or statusId=4 or statusId=1 or statusId=7 or statusId=11 or statusId=12 or statusId=22 or statusId=17 or statusId=19 or statusId=18)";
+#" and ( status='RUNNING' or status='WAITING' or status='OVER_WAITING' or status='ASSIGNED' or status='QUEUED' or status='INSERTING' or status='STARTED' or status='SAVING' or status='SAVED' or status='SAVED_WARN' or status='TO_STAGE' or status='STAGGING' or status='A_STAGED' or status='STAGING')";
 
   $where .= " ORDER by queueId";
 
@@ -763,11 +766,11 @@ sub getJobInfo {
 
   $self->info("Asking for Jobinfo by $username and jobid's @jobids ...");
   my $allparts =
-    $self->{DB}->getFieldsFromQueueEx("count(*) as count, min(started) as started, max(finished) as finished, status",
-    " WHERE $jobtag GROUP BY status");
+    $self->{DB}->getFieldsFromQueueEx("count(*) as count, min(started) as started, max(finished) as finished, statusId",
+    " WHERE $jobtag GROUP BY statusId");
 
   for (@$allparts) {
-    $result->{$_->{status}} = $_->{count};
+    $result->{$_->{statusId}} = $_->{count};
   }
   return $result;
 }
@@ -790,16 +793,16 @@ sub getSystem {
   }
 
   $self->info("Query does $#jobtag $jdljobtag ...");
-  my $allparts = $self->{DB}->getFieldsFromQueueEx("count(*) as count, status", "WHERE $jdljobtag GROUP BY status");
+  my $allparts = $self->{DB}->getFieldsFromQueueEx("count(*) as count, statusId", "WHERE $jdljobtag GROUP BY statusId");
 
-  my $userparts = $self->{DB}->getFieldsFromQueueEx("count(*) as count, status",
-    "WHERE submitHost like '$username\@%' and $jdljobtag GROUP BY status");
+  my $userparts = $self->{DB}->getFieldsFromQueueEx("count(*) as count, statusId",
+    "WHERE submitHost like '$username\@%' and $jdljobtag GROUP BY statusId");
 
   my $allsites = $self->{DB}->getFieldsFromQueueEx("count(*) as count, site", " WHERE $jdljobtag Group by site");
 
   my $sitejobs =
     $self->{DB}
-    ->getFieldsFromQueueEx("count(*) as count, site, status", "WHERE $jdljobtag GROUP BY concat(site, status)");
+    ->getFieldsFromQueueEx("count(*) as count, site, statusId", "WHERE $jdljobtag GROUP BY concat(site, statusId)");
 
   my $totalcost = $self->{DB}->queryRow("SELECT sum(cost) as cost FROM QUEUE WHERE $jdljobtag");
 
@@ -808,13 +811,13 @@ sub getSystem {
 
   my $totalUsage =
     $self->{DB}->queryRow(
-"SELECT sum(cpu*cpuspeed/100.0) as cpu,sum(rsize) as rmem,sum(vsize) as vmem FROM QUEUE WHERE status='RUNNING' and $jdljobtag"
-    );
+"SELECT sum(cpu*cpuspeed/100.0) as cpu,sum(rsize) as rmem,sum(vsize) as vmem FROM QUEUE WHERE statusId=10 and $jdljobtag"
+    ); #RUNNING
 
   my $totaluserUsage =
     $self->{DB}->queryRow(
-"SELECT sum(cpu*cpuspeed/100.0) as cpu,sum(rsize) as rmem,sum(vsize) as vmem FROM QUEUE WHERE submitHost like '$username\@%' and status='RUNNING' and $jdljobtag"
-    );
+"SELECT sum(cpu*cpuspeed/100.0) as cpu,sum(rsize) as rmem,sum(vsize) as vmem FROM QUEUE WHERE submitHost like '$username\@%' and statusId=10 and $jdljobtag"
+    ); #RUNNING
 
   my $resultreturn = {};
 
@@ -833,14 +836,14 @@ sub getSystem {
   }
 
   for (@$allparts) {
-    my $type = lc($_->{status});
+    my $type = lc($_->{statusId});
     $resultreturn->{"n$type"} = $_->{count};
   }
 
   for my $info (@$userparts) {
     foreach my $status (@{AliEn::Util::JobStatus()}) {
-      if ($info->{status} eq lc($status)) {
-        $resultreturn->{"nuser$info->{status}"} = $info->{count};
+      if ($info->{statusId} eq lc($status)) {
+        $resultreturn->{"nuser$info->{statusId}"} = $info->{count};
         last;
       }
 
@@ -863,7 +866,7 @@ sub getSystem {
     my $site = {};
     foreach (@$sitejobs) {
       if ($arrayhash->{site} eq $_->{site}) {
-        $site->{$site->{status}} = $_->{count};
+        $site->{$site->{statusId}} = $_->{count};
       }
     }
     push @sitearray, ($site->{DONE}    or "0");
@@ -1000,7 +1003,6 @@ sub getJobRc {
   return $rc;
 }
 
-
 sub getSpyUrl {
   my $this = shift;
   if ($_[0] and ref $_[0] eq "ARRAY"){
@@ -1022,7 +1024,7 @@ sub queueinfo {
   grep (/^-jdl$/, @_) and $jdl = "jdl,";
   @_ = grep (!/^-jdl$/, @_);
   my $site = shift;
-  my $sql = "site,blocked, status, statustime,$jdl " . join(", ", @{AliEn::Util::JobStatus()});
+  my $sql = "site,blocked, statusId, statustime,$jdl " . join(", ", @{AliEn::Util::JobStatus()});
   $self->info("Quering  $sql");
   my $array = $self->{DB}->getFieldsFromSiteQueueEx($sql, "where site like '$site' ORDER by site");
   (@$array) or return;
@@ -1036,9 +1038,11 @@ sub jobinfo {
   my $status = shift or return;
   my $delay  = shift or return;
   my $now    = time;
+  
+  $status = AliEn::Util::statusForML($status);
 
   my $array = $self->{DB}->getFieldsFromQueueEx("q.queueId",
-"q, QUEUEPROC p where site like '$site' and status='$status' and ( ($now - procinfotime) > $delay) and q.queueid=p.queueid"
+"q, QUEUEPROC p where site like '$site' and statusId=$status and ( ($now - procinfotime) > $delay) and q.queueid=p.queueid"
   );
 
   if (@$array) {

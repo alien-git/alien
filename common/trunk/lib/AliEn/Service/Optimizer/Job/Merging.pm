@@ -5,6 +5,7 @@ use strict;
 use AliEn::Service::Optimizer::Job;
 use AliEn::Service::Manager::Job;
 
+use Data::Dumper;
 
 
 use vars qw(@ISA);
@@ -26,17 +27,20 @@ sub checkWakesUp {
 
   $self->info("There are some jobs to check!!");
 
-  my $jobs=$self->{DB}->query("select queueid, status, origjdl jdl from ( 
-     SELECT queueid, status from QUEUE q, JOBSTOMERGE j where q.queueid=j.masterid and status='SPLIT'
-     union select queueid,status from QUEUE where status='FORCEMERGE')d 
-  join QUEUEJDL using (queueid)");
+  my $jobs=$self->{DB}->query("select queueid, statusId, origjdl jdl from ( 
+     SELECT queueid, statusId from QUEUE q, JOBSTOMERGE j where q.queueid=j.masterid and statusId=3
+     union select queueid,statusId from QUEUE where statusId=14)d 
+  join QUEUEJDL using (queueid)"); #SPLIT, FORCEMERGE
+
+  $jobs and $self->info("We have jobs from the db") and $self->info(Dumper($jobs)) or $self->info("We DON'T have jobs from the db");  
+  
   foreach my $job (@$jobs){
     $self->{DB}->delete("JOBSTOMERGE", "masterId=?", {bind_values=>[$job->{queueid}]});
     
     if ($job->{jdl}){
       my $job_ca=Classad::Classad->new($job->{jdl});	
       if ( $job_ca->isOK() ) {
-      	$self->updateMerging($job->{queueid}, $job_ca, $job->{status});
+      	$self->updateMerging($job->{queueid}, $job_ca, $job->{statusId});
       	next;
       }
       $self->info("JobOptimizer: in checkJobs incorrect JDL input\n" . $job->{jdl} );
@@ -47,7 +51,7 @@ sub checkWakesUp {
 
   }
 
-  my $done3=$self->checkJobs($silent, "MERGING","checkMerging",100); 
+  my $done3=$self->checkJobs($silent, 13,"checkMerging",100); #MERGING
 
   $self->{LOGGER}->$method("Merging", "The merging optimizer finished");
 
@@ -60,6 +64,8 @@ sub checkMerging {
   my $queueid=shift;
   my $job_ca=shift;
   my $status =shift;
+  
+  $status = AliEn::Util::statusName($status);
 
   my $newStatus="DONE";
   $self->info("Checking if the merging jobs of $queueid have finished");
@@ -78,8 +84,9 @@ sub checkMerging {
     foreach my $subjob (@subjobs){
       $subjob or next;
       $self->info("Checking if the job $subjob has finished");
-      my $status=$self->{DB}->getFieldFromQueue($subjob, "status")
+      my $status=$self->{DB}->getFieldFromQueue($subjob, "statusId")
 	or die ("Error getting the status of $subjob");
+      
       $status =~ /DONE/ and push (@finished, $subjob)  and  next;
       if ($status =~ /(ERROR_)|(KILLED)/){
 	$self->info("Skipping job $subjob (in $status)");
@@ -206,13 +213,14 @@ sub updateMerging {
   my $job_ca=shift;
   my $status =shift;
 
+  $status = AliEn::Util::statusName($status);
   my $newStatus="DONE";
   my $set={};
 
   eval {
     #my @part_jobs=$self->{DB}->query("SELECT count(*),status from QUEUE where split=$queueid group by status");
-    my $rparts = $self->{DB}->getFieldsFromQueueEx("count(*) as count, status", 
-    "WHERE split=? GROUP BY status", {bind_values=>[$queueid]})
+    my $rparts = $self->{DB}->getFieldsFromQueueEx("count(*) as count, statusId", 
+    "WHERE split=? GROUP BY statusId", {bind_values=>[$queueid]})
       or die("Could not get splitted jobs for $queueid");
 
     my $user = AliEn::Util::getJobUserByDB($self->{DB}, $queueid);
@@ -231,23 +239,23 @@ sub updateMerging {
     if ($#{$rparts} > -1) {
       $self->info("Jobs for $queueid");
       for (@$rparts) {
-	$self->info("Checking Jobs  $_->{status}");
-	# force the copy of a split job
-	if ($status eq "TERMSPLIT" ) {
-	  if ($_->{status} =~ /RUNNING/) {
-	    $self->info("There are still jobs running");
-	    $newStatus=undef;
-	    return;
-	  }
-	}
-
-	if ($status eq "SPLIT" ) { 
-	  if ($_->{status} !~ /(DONE)|(FAILED)|(KILLED)|(EXPIRED)|(ERROR_)/) {
-	    $newStatus=undef;
-	    $self->info("There are still jobs running");
-	    return;
-	  }
-	}
+		$self->info("Checking Jobs  $_->{statusId}");
+		# force the copy of a split job
+		if ($status eq "TERMSPLIT" ) {
+		  if ($_->{statusId} =~ /RUNNING/) {
+		    $self->info("There are still jobs running");
+		    $newStatus=undef;
+		    return;
+		  }
+		}
+	
+		if ($status eq "SPLIT" ) { 
+		  if ($_->{statusId} !~ /(DONE)|(FAILED)|(KILLED)|(EXPIRED)|(ERROR_)/) {
+		    $newStatus=undef;
+		    $self->info("There are still jobs running");
+		    return;
+		  }
+		}
       }
 
       $self->info( "All the jobs finished. Checking best place for execution (user $user)");
@@ -448,8 +456,8 @@ sub checkMergingCollection{
   my ($ok, @mergingCollections)=$job_ca->evaluateAttributeVectorString("MergeCollections");
   @mergingCollections or return 1;
   
-  my $subjobs=$self->{DB}->query("select resultsjdl JDL,queueid from QUEUE join QUEUEJDL using (queueid) where status='DONE' and split=?",
-                                        undef, {bind_values=>[$queueid]});
+  my $subjobs=$self->{DB}->query("select resultsjdl JDL,queueid from QUEUE join QUEUEJDL using (queueid) where statusId=15 and split=?",
+                                        undef, {bind_values=>[$queueid]}); #DONE
                                         
   my @out=();
   foreach my $d (@$subjobs){

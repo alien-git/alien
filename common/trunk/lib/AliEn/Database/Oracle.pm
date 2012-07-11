@@ -1560,7 +1560,7 @@ sub unfinishedJobs24PerUser {
   my $self = shift;
 
   return $self->do(
-"merge  into PRIORITY p using (select SUBSTR( submitHost, 1, instr(submitHost,'\@') -1)  \"USER\", count(1)  unfinishedJobsLast24h from queue q where (status='INSERTING' or status='WAITING' or status='STARTED' or status='RUNNING' or status='SAVING' or status='OVER_WAITING') and ( (to_char(sysdate, 'DD.MM.YYYY HH24:Mi:ss')   >=  To_Char( To_Date( '01.01.1970 06:00:00','DD.MM.YYYY HH24:Mi:Ss') + received / 86400,'DD.MM.YYYY HH24:Mi:ss')) and (to_char(sysdate, 'DD.MM.YYYY HH24:Mi:ss')  <=  To_Char( To_Date( '01.01.1970 06:00:00','DD.MM.YYYY HH24:Mi:Ss') + received / 86400 + 60*60*24,'DD.MM.YYYY HH24:Mi:ss'))) GROUP BY submithost ) c on (upper(p.\"USER\")=upper(c.\"USER\")) when matched then update set p.unfinishedjobslast24h=c.unfinishedjobslast24h"
+"merge  into PRIORITY p using (select SUBSTR( submitHost, 1, instr(submitHost,'\@') -1)  \"USER\", count(1)  unfinishedJobsLast24h from queue q where (statusId=1 or statusId=5 or statusId=7 or statusId=10 or statusId=11 or statusId=21) and ( (to_char(sysdate, 'DD.MM.YYYY HH24:Mi:ss')   >=  To_Char( To_Date( '01.01.1970 06:00:00','DD.MM.YYYY HH24:Mi:Ss') + received / 86400,'DD.MM.YYYY HH24:Mi:ss')) and (to_char(sysdate, 'DD.MM.YYYY HH24:Mi:ss')  <=  To_Char( To_Date( '01.01.1970 06:00:00','DD.MM.YYYY HH24:Mi:Ss') + received / 86400 + 60*60*24,'DD.MM.YYYY HH24:Mi:ss'))) GROUP BY submithost ) c on (upper(p.\"USER\")=upper(c.\"USER\")) when matched then update set p.unfinishedjobslast24h=c.unfinishedjobslast24h"
   );
 }
 
@@ -1589,9 +1589,9 @@ sub changeOWtoW {
 (select queueId
 from queue qu join PRIORITY pr on ( pr.\"USER\" = SUBSTR( submitHost, 1, instr(submitHost,'\@') -1) )
 where (pr.totalRunningTimeLast24h<pr.maxTotalRunningTime 
-and pr.totalCpuCostLast24h<pr.maxTotalCpuCost) and qu.status=\'OVER_WAITING\' ) c 
+and pr.totalCpuCostLast24h<pr.maxTotalCpuCost) and qu.statusId=21 ) c 
 on (q.queueId=c.queueId)
-when matched then update set  q.status='WAITING'"
+when matched then update set  q.statusId=5"
   );
 }
 
@@ -1602,9 +1602,9 @@ sub changeWtoOW {
 (select queueId
 from queue qu join PRIORITY pr on ( pr.\"USER\" = SUBSTR( submitHost, 1, instr(submitHost,'\@') -1) )
 where (pr.totalRunningTimeLast24h>=pr.maxTotalRunningTime 
-and pr.totalCpuCostLast24h>=pr.maxTotalCpuCost) and qu.status='WAITING' ) c 
+and pr.totalCpuCostLast24h>=pr.maxTotalCpuCost) and qu.statusId=5 ) c 
 on (q.queueId=c.queueId)
-when matched then update set  q.status=\'OVER_WAITING\'"
+when matched then update set  q.statusId=21"
   );
 }
 
@@ -1617,14 +1617,14 @@ sub updateFinalPrice {
   my $failed   = shift;
   return $self->do(
     "merge  into $t q using  (select si2k,$nominalP, qu.queueid
-from queue qu, queueproc  where  (status=\'DONE\' AND si2k>0 AND chargeStatus!=\'$done\' AND chargeStatus!=\'$failed\')  ) c 
+from queue qu, queueproc  where  (statusId=15 AND si2k>0 AND chargeStatus!=\'$done\' AND chargeStatus!=\'$failed\')  ) c 
 on (q.queueId=c.queueId) when matched then update  set   q.finalPrice= c.si2k * 1 * q.price, q.chargeStatus=\'$now\' "
   );
 }
 
 sub optimizerJobExpired {
   return
-"((status='DONE') or (status='FAILED') or (status='EXPIRED') or (status like 'ERROR%')  )
+"( (statusId=15) || (statusId=-13) || (statusId=-12) || (statusId=-1) || (statusId=-2) || (statusId=-3) || (statusId=-4) || (statusId=-5) || (statusId=-7) || (statusId=-8) || (statusId=-9) || (statusId=-10) || (statusId=-11) || (statusId=-16) || (statusId=-17) || (statusId=-18) )
 and To_Char( To_Date( '01.01.1970 06:00:00','DD.MM.YYYY HH24:Mi:Ss') + received/86540 +7*85540) < (now()) ";
 }
 
@@ -1868,8 +1868,8 @@ sub getPriorityUpdate {
   my $self       = shift;
   my $userColumn = shift;
   return "update PRIORITY p  set
-waiting=(select count(*) from QUEUE where status='WAITING' and p.\"USER\"=$userColumn ),
-running=(select count(*) from QUEUE where (status='RUNNING' or status='STARTED' or status='SAVING') and p.\"USER\"= $userColumn ),
+waiting=(select count(*) from QUEUE where statusId=5 and p.\"USER\"=$userColumn ),
+running=(select count(*) from QUEUE where (statusId=10 or statusId=7 or statusId=11) and p.\"USER\"= $userColumn ),
 userload=(running/maxparallelJobs),
 computedpriority= 
 case when (p.RUNNING < p.maxparallelJobs)  then 
@@ -1888,7 +1888,7 @@ sub getJobAgentUpdate {
   my $userColumn = shift;
   return "UPDATE JOBAGENT j set 
 priority= (SELECT p.computedPriority-(min(queueid)/nvl(max(queueid), 1))  
-from PRIORITY p, QUEUE q where j.entryId=q.agentId and status='WAITING'
+from PRIORITY p, QUEUE q where j.entryId=q.agentId and statusId=5
 and $userColumn=p.\"USER\"
 group by q.agentId, computedPriority)";
 }
@@ -1940,7 +1940,7 @@ sub getJobOptimizerCharge {
 "UPDATE $queueTable q SET finalPrice =  ( select round(si2k*price*$nominalPrice ) from QUEUEPROC p where p.queueid=q.queueid and p.si2k >0 ) , chargeStatus=\'$chargingNow\'";
 
   my $where =
-" WHERE (status='DONE' AND chargeStatus!=\'$chargingDone\' AND chargeStatus!=\'$chargingFailed\') ";
+" WHERE (statusId=15 AND chargeStatus!=\'$chargingDone\' AND chargeStatus!=\'$chargingFailed\') ";
   return $update . $where;
 }
 1;

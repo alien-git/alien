@@ -16,10 +16,11 @@ sub checkWakesUp {
   $self->{LOGGER}->$method("Zombies", "The zombies optimizer starts");
 
   # produce ZOMBIES
-  $self->checkTransition($method, "(status='RUNNING' or status='ASSIGNED' or status='STARTED' or status='SAVING')", "ZOMBIE");
+  #$self->checkTransition($method, "(status='RUNNING' or status='ASSIGNED' or status='STARTED' or status='SAVING')", "ZOMBIE");
+  $self->checkTransition($method, "(statusId=10 or statusId=6 or statusId=7 or statusId=11)", "ZOMBIE");
 
   # remove ZOMBIES
-  $self->checkTransition($method, "status='ZOMBIE'", "EXPIRED");
+  $self->checkTransition($method, "statusId=-15", "EXPIRED"); #ZOMBIE
 
   return;
 
@@ -35,7 +36,7 @@ sub checkTransition{
 
   my $zombiewaittime = 3600;
   my $query = $self->{DB}->getJobOptimizerZombies($status);
-  my $pct = $self->{DB}->getFieldsFromQueueEx("p.procinfotime,status,p.queueId,site, now()-lastupdate as lastupdate",$query);
+  my $pct = $self->{DB}->getFieldsFromQueueEx("p.procinfotime,statusId,p.queueId,site, now()-lastupdate as lastupdate",$query);
 
   defined $pct
     or $self->{LOGGER}->warning( "Zombies", "In checkJobs error during execution of database query" ) and return;

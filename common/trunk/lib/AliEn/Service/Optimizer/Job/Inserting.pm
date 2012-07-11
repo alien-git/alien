@@ -27,8 +27,8 @@ sub checkWakesUp {
   my $todo=$self->{DB}->queryValue("SELECT todo from ACTIONS where action='INSERTING'");
   $todo or return;
   $self->{DB}->update("ACTIONS", {todo=>0}, "action='INSERTING'");
-  my $q = "INSERTING' and upper(origjdl) not like '\% SPLIT = \"\%";
-  $self->{DB}->{DRIVER}=~/Oracle/i and $q = "INSERTING' and REGEXP_REPLACE(upper(origjdl), '\\s*', '') not like '\%SPLIT=\"\%";
+  my $q = "1' and upper(origjdl) not like '\% SPLIT = \"\%";
+  $self->{DB}->{DRIVER}=~/Oracle/i and $q = "1 and REGEXP_REPLACE(upper(origjdl), '\\s*', '') not like '\%SPLIT=\"\%";
   my $done=$self->checkJobs($silent,$q, "updateInserting");
 
   $self->$method(@data, "The inserting optimizer finished");
@@ -82,8 +82,22 @@ sub updateInserting {
       $req.="  && other.TO_STAGE==1 ";
     }
 
-    $req=$self->getJobAgentRequirements($req, $job_ca);
+	# Check if the job is going to be stuck
+	my $tmpreq = $req;
+	my $site = "";
+    while ($tmpreq =~ s/member\(other.CloseSE,"[^:]*::([^:]*)::[^:]*"\)//si) {
+      $site =~ /,$1/ or $site .= ",$1";
+    }	
+    $tmpreq =~ s/other.ce\s*==\s*"([^"]*)"//i and my $ce=(split("::", $1))[1];
+    
+    if ($ce and $site !~ /$ce/){
+    	$self->info("Job $queueid was going to be stuck, updating to FAILED\n");
+        $status="FAILED";
+        $self->putJobLog($queueid,"state", "Job going to FAILED: Problem with CE-SE(InputData) requirements");
+    }
+    # Job not stuck
 
+    $req=$self->getJobAgentRequirements($req, $job_ca);
 
     $set->{agentId}=$self->{DB}->insertJobAgent($req)
       or die("error creating the jobagent entry\n");

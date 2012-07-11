@@ -9,8 +9,6 @@ use Time::HiRes;
 use AliEn::UI::Catalogue::LCM;
 use AliEn::Database::Catalogue;
 
-
-
 use vars qw (@ISA $DEBUG);
 use Filesys::DiskFree;
 push @ISA, 'AliEn::Logger::LogObject';
@@ -34,7 +32,6 @@ sub new {
 	$self->{CATALOGUE}=AliEn::UI::Catalogue::LCM->new({role=>$role, PACKMAN=>$self});
 	$self->{CATALOGUE} or $self->info("Error creating an instance of the catalogue") and return;
   }
-
 
   $self->{INSTALLDIR} = $self->{CONFIG}->{PACKMAN_INSTALLDIR} || "$ENV{ALIEN_HOME}/packages";
    -d $self->{INSTALLDIR} or mkdir $self->{INSTALLDIR};

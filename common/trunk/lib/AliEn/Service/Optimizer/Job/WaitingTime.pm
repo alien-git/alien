@@ -14,8 +14,8 @@ sub checkWakesUp  {
   
   $self->info( "Checking if there are any jobs that have to expire, time: $date");  
    
-  my $done=$self->{DB}->queryColumn("SELECT queueId from QUEUE where status='WAITING' and expires!='null' and expires+received < ?", 
-  undef, {bind_values=>[$date]});
+  my $done=$self->{DB}->queryColumn("SELECT queueId from QUEUE where statusId=5 and expires!='null' and expires+received < ?", 
+  undef, {bind_values=>[$date]}); #WAITING
   
   foreach my $job (@$done){
   	$self->info("Going to expire job $job");
