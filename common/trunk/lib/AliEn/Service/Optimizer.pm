@@ -6,7 +6,6 @@ select(STDOUT);
 $| = 1;
 
 use AliEn::Service;
-use Sys::Proctitle qw/:all/;
 use strict;
 
 use Classad;
@@ -93,7 +92,6 @@ sub StartChildren{
       or $self->info( "Error forking a process") and return;
     #the father goes on...
     $self->{$d} and next;
-    setproctitle( $name );
     $self->info( "Putting the output in $dir/$_.log");
     $self->{LOGFILE}="$dir/$_.log";
     $self->{LOGGER}->redirect("$dir/$_.log");
