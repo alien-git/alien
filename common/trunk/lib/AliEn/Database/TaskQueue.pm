@@ -322,17 +322,15 @@ sub initialize {
         status    => "varchar(12)",
       },
       id          => "statusId",
-      index       => "statusId",
-      engine =>'innodb'
+      index       => "statusId"
     },
     QUEUENOTIFY => {
       columns => {
-        notifyId  => "tinyint not null primary key",
+        notifyId  => "int not null auto_increment primary key",
         notify    => "varchar(255)",
       },
       id          => "notifyId",
-      index       => "notifyId",
-      engine =>'innodb'
+      index       => "notifyId"
     }
 
   };
@@ -423,6 +421,20 @@ sub checkActionTable {
 
 }
 
+sub insertNotifyEmail{
+  my $self=shift;
+  my $email=shift;
+	
+  my $id=$self->queryValue("select notifyId from QUEUENOTIFY where notify=?",
+	undef, {bind_values=>[$email]});
+  $id and return $id;
+  $self->info("Inserting the email address of '$email'");
+  $self->insert('QUEUENOTIFY', {notify=>'email'});
+  return $self->queryValue("select notifyId from QUEUENOTIFY where notify=?",
+	undef, {bind_values=>[$email]})
+	
+}
+
 #sub insertValuesIntoQueue {
 sub insertJobLocked {
   my $self = shift;
@@ -448,7 +460,15 @@ sub insertJobLocked {
   delete $set->{jdl};
   my $status = $set->{statusId};
   $set->{statusId} = AliEn::Util::statusForML($status);
-  $set->{notify} and my $mail = $set->{notify} and delete $set->{notify};
+  
+  if ($set->{notify}){
+    my $notifyId=$self->insertNotifyEmail($set->{notify});
+    $notifyId or $self->info("Error creating the notification for '$set->{notify}'")
+     and return;
+	  	
+    delete $set->{notify};
+    $set->{notifyId}=$notifyId;
+  } 
   
   my $out = $self->insert("$self->{QUEUETABLE}", $set);
 
@@ -460,11 +480,6 @@ sub insertJobLocked {
     $DEBUG and $self->debug(1, "In insertJobLocked got job id $procid.");
     $self->insert("QUEUEPROC", {queueId => $procid});
     $self->insert("QUEUEJDL", {queueId =>$procid, origJdl=>$jdl});
-    if($mail){
-        $self->insert("QUEUENOTIFY", {notifyId =>$procid, notify=>$mail});
-    	$self->do('UPDATE QUEUE SET notifyId=? WHERE queueid=? ',
-		{bind_values=>[$procid,$procid]} );
-    }
   }
 
   if ($oldjob != 0) {
@@ -728,7 +743,7 @@ sub checkFinalAction {
 
 sub sendEmail {
   my $self       = shift;
-  my $address    = shift;
+  my $notifyId    = shift;
   my $id         = shift;
   my $status     = shift;
   my $service    = shift;
@@ -736,9 +751,13 @@ sub sendEmail {
   
   $status = AliEn::Util::statusName($status);
   
-  $address = $self->getFieldFromQueueNotify($address, "notify");
-
-  $self->info("We are supposed to send an email!!! (status $status)");
+  my $address = $self->queryValue("select notify from QUEUENOTIFY where notifyid=?", 
+                                  undef, {bind_values=>[$notifyId]});
+                                  
+  $address or $self->info("Error getting the email address of $notifyId") and return;
+  
+  
+  $self->info("We are supposed to send an email ($address)!!! (status $status)");
 
   my $ua = new LWP::UserAgent;
 
@@ -793,23 +812,6 @@ sub setJdl {
 
   $DEBUG and $self->debug(1, "In setJdl updating job's jdl");
   $self->updateJob(shift, {jdl => shift});
-}
-
-sub getFieldFromQueueNotify {
-  my $self = shift;
-  my $id   = shift
-    or $self->{LOGGER}->error("TaskQueue", "In getFieldFromQueueNotify notifyId is missing")
-    and return;
-  $id =~ /^[0-9]+$/
-    or $self->{LOGGER}->error("TaskQueue", "The id '$id' doesn't look like a notifyId")
-    and return;
-  my $attr = shift || "*";
-
-  $DEBUG
-    and $self->debug(1, "In getFieldFromQueueNotify fetching attribute $attr of notifyId $id");
-  my $ret = $self->queryValue("SELECT $attr FROM QUEUENOTIFY WHERE notifyId=?", undef, {bind_values => [$id]});
-  
-  return $ret;
 }
 
 sub getFieldFromQueue {
