@@ -374,7 +374,7 @@ sub checkJobStatus{
     
   }
   
-  $self->do("insert ignore into JOB_STATUS (status,statusId) values ". join (",", @values));
+  $self->do("insert ignore into QUEUESTATUS (status,statusId) values ". join (",", @values));
   
 }
 
