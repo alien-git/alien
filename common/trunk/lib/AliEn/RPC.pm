@@ -40,7 +40,7 @@ sub Connect {
   }elsif($type eq "Manager/Job"){
     @methods= ("alive", "enterCommand","changeStatusCommand", "getSpyUrl", "SetProcInfoBunch","SetProcInfoBunchFromDB")    
   }elsif($type eq "Manager/Transfer"){
-    @methods= ("checkOngoingTransfers", "enterTransfer", "listTransfer", "checkOngoingTransfers", "changeStatusTransfer", "killTransfer")    
+    @methods= ("checkOngoingTransfers", "enterTransfer", "listTransfer", "checkOngoingTransfers", "changeStatusTransfer", "killTransfer", "FetchTransferMessages")    
   }elsif($type eq "ClusterMonitor"){
     @methods=("getStdout","getNumberJobs", "GetConfiguration","jobStarts", "putJobLog","putFILE", "SetProcInfo","getCpuSI2k");
   }elsif($type eq "Broker/Job"){

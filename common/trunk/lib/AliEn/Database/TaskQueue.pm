@@ -114,7 +114,7 @@ sub initialize {
       submitHost   => "varchar(64)",
       priority     => "tinyint(4)",
       #status      => "varchar(12)",
-      statusId     => "tinyint",
+      statusId     => "tinyint not null",
       name         => "varchar(255)",
       path         => "varchar(255)",
       received     => "int(20)",
@@ -136,7 +136,7 @@ sub initialize {
       optimized    => "int(1) default 0",
       finalPrice   => "float",
       #notify      => "varchar(255)",
-      notifyId     => "tinyint",
+      notifyId     => "int",
       agentid      => 'int(11)',
       mtime        => 'timestamp  DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
       resubmission => 'int(11) not null default 0',
@@ -319,7 +319,7 @@ sub initialize {
     QUEUESTATUS => {
       columns => {
         statusId  => "tinyint not null primary key",
-        status    => "varchar(12)",
+        status    => "varchar(12) not null unique",
       },
       id          => "statusId",
       index       => "statusId"
@@ -327,7 +327,7 @@ sub initialize {
     QUEUENOTIFY => {
       columns => {
         notifyId  => "int not null auto_increment primary key",
-        notify    => "varchar(255)",
+        notify    => "varchar(255) not null unique",
       },
       id          => "notifyId",
       index       => "notifyId"

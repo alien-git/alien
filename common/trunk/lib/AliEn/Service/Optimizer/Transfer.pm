@@ -58,7 +58,7 @@ sub checkWakesUp {
   my $messages=$self->{DB}->queryValue("select count(*) from TRANSFERMESSAGES");
   if ($messages) {
     $self->info("Notify the TransferManager to fetch the messages");
-    $self->{SOAP}->CallSOAP("Manager/Transfer", "FetchTransferMessages");
+    $self->{RPC}->CallRPC("Manager/Transfer", "FetchTransferMessages");
   }
   undef;
 }
