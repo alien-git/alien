@@ -557,7 +557,10 @@ GET_ARGUMENTS()
 	    -TRANSFERS_TESTS|-transfers_tests)
 	        TRANSFERS_TESTS=1
 		;;
-		-NO_BREAK|-no_break)
+            -STOP_TESTS|-stop_tests)
+                STOP_TESTS=1
+                ;;
+	    -NO_BREAK|-no_break)
 	        NO_BREAK=1
 		;;
 	    -PORTAL|-portal)
@@ -723,7 +726,8 @@ fi
 for FUNCTION in "NEW_MACHINE" "CREATE_CERT" "INSTALL" "CVS_INSTALL" \
     "ROOT_TESTS" "NEW_VO" "USER_TESTS" "PORTAL" "SLAVE_INSTALL" \
     "SLAVE_TESTS" "PACKAGE_TESTS" "GAS_TESTS" "GAPI_TESTS" "JOB_TESTS" "CATALOGUE_TESTS" \
-    "PERFORMANCE_TESTS" "BANK_TESTS" "TRANSFERS_TESTS" "JOB_MANUAL_TESTS" "JOB_QUOTA_TESTS"
+    "PERFORMANCE_TESTS" "BANK_TESTS" "TRANSFERS_TESTS" "JOB_MANUAL_TESTS" "JOB_QUOTA_TESTS" \
+    "STOP_TESTS"
 do
     if [ "${!FUNCTION}" == "1" ] ;
     then 

@@ -19,7 +19,7 @@ distbin:
 distclean: 
 	rm -rf Makefile opt configure config.* *~ aclocal.m4 autom4te.cache reports opt install-sh  ltmain.sh  missing  mkinstalldirs
 
-test: test-cert test-new_vo test-user_tests test-performance test-gapi
+test: test-cert test-new_vo test-user_tests test-performance test-gapi test-stop
 	echo "Tests finished"
 
 test-cert:
@@ -41,4 +41,8 @@ test-performance:
 test-gapi:
 	@echo "Testing gapi"
 	[ -d test ] && cd test ; ./Install.sh -gapi_tests -no_break -expected gapi/632,gapi/633,gapi/631,gapi/501,gapi/502,gapi/600,gapi/601,gapi/602,gapi/603,gapi/620,gapi/621,gapi/622,gapi/623,gapi/624,gapi/630
+
+test-stop:
+	@echo "Stopping all the services"
+        [ -d test ] && cd test ; ./Install.sh -gapi_tests -expected stop/001
 
