@@ -110,11 +110,11 @@ my $FILE;
 open ($FILE, ">","mysql/my.cnf") or print "Error opening my.cnf\n" and exit(-2);
 print $FILE "
 [mysqld]
-set-variable    = max_connections=2000
+#set-variable    = max_connections=2000
 
-ignore_builtin_innodb
-plugin-load=innodb=ha_innodb_plugin.so;innodb_trx=ha_innodb_plugin.so;
-  innodb_locks=ha_innodb_plugin.so;innodb_lock_waits=ha_innodb_plugin.so
+#ignore_builtin_innodb
+#plugin-load=innodb=ha_innodb_plugin.so;innodb_trx=ha_innodb_plugin.so;
+#  innodb_locks=ha_innodb_plugin.so;innodb_lock_waits=ha_innodb_plugin.so
 
 
 default-storage-engine=InnoDB
