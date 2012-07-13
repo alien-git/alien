@@ -147,7 +147,7 @@ sub registerOutput {
     return;
   }
   my $outputdir = $jobinfo->{path};
-  $self->{CATALOG}->execute("mkdir","-p",$outputdir);
+  $self->{CATALOG}->f_mkdir("p",$outputdir);
 
 
   if ($jobinfo->{path}) {
