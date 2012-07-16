@@ -252,7 +252,7 @@ sub enterCommand: Public {
 
   ($jobca_text)
     or $self->{LOGGER}->error("JobManager", "In enterCommand jdl is missing")
-    and return (-1, "jdl is missing");
+    and return [-1, "jdl is missing"];
 
   $options->{silent} or $self->info("Entering a new command ");
   $jobca_text =~ s/\\/\\\\/gs;
@@ -263,7 +263,7 @@ sub enterCommand: Public {
   my $job_ca = Classad::Classad->new($jobca_text);
   if (!$job_ca->isOK()) {
     $self->info("In enterCommand incorrect JDL input\n $jobca_text");
-    return (-1, "incorrect JDL input");
+    return [-1, "incorrect JDL input"];
   }
 
   $jobca_text = $job_ca->asJDL;
@@ -333,7 +333,7 @@ sub enterCommand: Public {
   } else {
     $options->{silent} or $self->info("Checking your job quota...");
     my ($ok, $error) = $self->{DB}->checkJobQuota($user, $nbJobsToSubmit);
-    ($ok > 0) or return (-1, $error);
+    ($ok > 0) or return [-1, $error];
     $options->{silent} or $self->info("OK");
   }
 
@@ -344,8 +344,8 @@ sub enterCommand: Public {
   }
 
   my $procid = $self->{DB}->insertJobLocked($set, $oldjob)
-    or $self->{LOGGER}->alert("JobManager", "In enterCommand error inserting job")
-    and return (-1, "inserting job");
+    or $self->info("In enterCommand error inserting job")
+    and return [-1, "Error inserting job"];
 
   $email and $self->putJobLog($procid, "trace", "The job will send an email to '$email'");
 

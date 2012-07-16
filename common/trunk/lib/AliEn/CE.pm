@@ -796,12 +796,20 @@ sub submitCommand {
 	}
 
 	my ($jobId) = $self->{RPC}->CallRPC("Manager/Job", 'enterCommand', "$user\@$self->{HOST}", $job_ca->asJDL());
+	
 	if (!$jobId) {
-		$self->{LOGGER}->error("CE", "=====================================================");
-		$self->{LOGGER}->error("CE", "Cannot enter your job !");
-		$self->{LOGGER}->error("CE", "=====================================================");
+		$self->info("=====================================================
+Cannot enter your job. The Job Manager did not reply 
+=====================================================");
 		return;
 	}
+	
+	if (ref $jobId eq "ARRAY"){
+    $self->info("We have an array back!");
+    use Data::Dumper;
+    $self->info(Dumper($jobId));
+    return;
+  }
 
   if ($jobId =~ /DENIED/ ){
     $self->info("You were not allowed to submit the job: $jobId");
