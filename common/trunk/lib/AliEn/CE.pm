@@ -803,20 +803,14 @@ Cannot enter your job. The Job Manager did not reply
 =====================================================");
 		return;
 	}
-	
+
 	if (ref $jobId eq "ARRAY"){
     $self->info("We have an array back!");
-    use Data::Dumper;
-    $self->info(Dumper($jobId));
+    my (@info)=@$jobId;
+    $self->info("The job manager didn't want to insert the job: $info[1]");
     return;
   }
-
-  if ($jobId =~ /DENIED/ ){
-    $self->info("You were not allowed to submit the job: $jobId");
-    return;
-  }
-
-  
+ 
 
 	if ($self->{WORKINGPGROUP} != 0) {
 		$self->f_pgroup("add", "$jobId");

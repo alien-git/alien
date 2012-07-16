@@ -429,7 +429,7 @@ sub insertNotifyEmail{
 	undef, {bind_values=>[$email]});
   $id and return $id;
   $self->info("Inserting the email address of '$email'");
-  $self->insert('QUEUENOTIFY', {notify=>'email'});
+  $self->insert('QUEUENOTIFY', {notify=>$email});
   return $self->queryValue("select notifyId from QUEUENOTIFY where notify=?",
 	undef, {bind_values=>[$email]})
 	
