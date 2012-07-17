@@ -121,7 +121,7 @@ sub checkSubJobs {
   my $ids = {};
   foreach my $s (@$info) {
 	print Dumper($s);
-	my $status = $s->{statusId};
+	my $status = AliEn::Util::statusName($s->{statusId});
 	$ids->{$status} = $s->{ids};
 	$subjobs += $s->{count};
 	$expected->{$status} eq $s->{count}

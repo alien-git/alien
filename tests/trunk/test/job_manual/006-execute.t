@@ -42,7 +42,7 @@ BEGIN { plan tests => 1 }
 	print "Status of $job->{queueId}\n";
 
 	my ($newJobRef) = $cat->execute("top", "-id", $job->{queueId},);
-	print "TENGO $newJobRef\n";
+	print "TENGO $newJobRef->{statusId} for the job\n";
 
 	my $status = $newJobRef->{statusId};
 	$status or print "The job $job is not there!!!\n" and exit(-2);
@@ -53,6 +53,7 @@ BEGIN { plan tests => 1 }
   }
   $cat->close;
 
+  print "Ok!\n";
   ok(1);
 }
 
