@@ -115,7 +115,7 @@ sub checkSubJobs {
 
   my ($user) = $cat->execute("whoami");
   my $subjobs = 0;
-  my $expected = {15 => $jobs};
+  my $expected = {DONE => $jobs};
   $options->{expected} and $expected = $options->{expected};
   use Data::Dumper;
   my $ids = {};
