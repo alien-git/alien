@@ -1100,6 +1100,7 @@ sub checkSiteQueueTable {
   $self->{SITEQUEUETABLE} = (shift or "SITEQUEUES");
 
   my %columns = (
+    siteid      => "int(20) not null auto_increment primary key",
     site        => "varchar(40) not null",
     cost        => "float",
     status      => "varchar(25)",
@@ -1115,9 +1116,9 @@ sub checkSiteQueueTable {
   );
 
   foreach (@{AliEn::Util::JobStatus()}) {
-    $columns{$_} = "int";
+    $columns{$_} = "int not null default 0";
   }
-  $self->checkTable($self->{SITEQUEUETABLE}, "site", \%columns, "site");
+  $self->checkTable($self->{SITEQUEUETABLE}, "siteid", \%columns, "siteid");
 }
 
 sub setSiteQueueStatus {
