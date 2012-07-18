@@ -466,6 +466,9 @@ sub copyInputCollection {
     $options and $options = ",$options";
     $options or $options = "";
     $file2 =~ s/^LF://;
+    
+    my $ref_before = $#{$inputBox};
+    
     my ($type) = $self->{CATALOGUE}->execute("type", $file2);
     $self->info("IT IS A $type");
     if ($type =~ /^collection$/) {
@@ -475,18 +478,24 @@ sub copyInputCollection {
       $self->copyInputCollectionFromXML($jobId, $file2, $options, $inputBox)
         or return;
     }
-    my $lfnRef = $self->{DATASET}->getAllLFN()
-      or $self->info("Error getting the LFNS from the dataset")
-      and return;
+    my $lfnRef;
+    if($type !~ /^collection$/) {
+    	$lfnRef = $self->{DATASET}->getAllLFN()
+          or $self->info("Error getting the LFNS from the dataset")
+          and return;
+        $lfnRef = $#{$lfnRef->{lfns}};
+    } else {
+    	$lfnRef = $#{$inputBox} - $ref_before;
+    }
     if ($split and $#{$inputBox} > 3000) {
       $self->putJobLog($jobId, "error",
-"There are $#{$lfnRef->{lfns}} files in the collection $file2 (split job). Putting the job to error"
+"There are $lfnRef files in the collection $file2 (split job). Putting the job to error"
       );
       return;
     }
     if (!$split and $#{$inputBox} > 1000) {
       $self->putJobLog($jobId, "error",
-"There are $#{$lfnRef->{lfns}} files in the collection $file2. Putting the job to error"
+"There are $lfnRef files in the collection $file2. Putting the job to error"
       );
       return;
     }

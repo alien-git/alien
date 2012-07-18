@@ -4,7 +4,7 @@ use strict;
 
 use AliEn::Service::Optimizer::Job;
 use AliEn::GUID;
-#use Data::Dumper;
+use Data::Dumper;
 
 use vars qw(@ISA);
 push (@ISA, "AliEn::Service::Optimizer::Job");
@@ -32,11 +32,9 @@ sub checkWakesUp  {
   # available CES
   my $ces = $self->{DB}->getFieldFromSiteQueueEx("site","where status like 'jobagent-no-match' and blocked like 'open'");
   my $ces_matched = $self->{DB}->getFieldFromSiteQueueEx("site","where status like 'jobagent-matched' and blocked like 'open'");
-  my $ces_down = $self->{DB}->getFieldFromSiteQueueEx("site","where status like 'down' and blocked like 'open'"); # A BORRAR
-  push @$ces, @$ces_matched; push @$ces, @$ces_down; 
-
+  push @$ces, @$ces_matched;
+  
   $ces and @$ces or $self->info("No CEs available") and return;    
-#  $self->info("CEs:".Dumper($ces));      
       
   foreach my $job (@$done){  	  	
   	my $jdl=$self->{DB}->queryValue("select origJdl from QUEUEJDL where queueid=?", undef, {bind_values => [$job]});
@@ -50,8 +48,6 @@ sub checkWakesUp  {
         push @ses, $1.$2.$3;
     }
     
-#    $self->info("SE_SITES:".Dumper(@se_sites));      
-#    $self->info("SEs:".Dumper(@ses));      
     
     my $place; my $site;
     for($a=0;$a<@se_sites;$a++){
@@ -59,16 +55,24 @@ sub checkWakesUp  {
     }
     
     if($place){
-    	my $reqCE; my $somethingStaged=0;
+    	my $reqCE; my $no_error=1;
     	foreach (@$ces){ $_ =~ /$site/ and $reqCE=$_ and last; }
     	
     	($ok, my @inputData) = $ca->evaluateAttributeVectorString("InputData"); 
-        foreach my $file ( @inputData) {
+
+        $self->copyInputCollection($ca, $job, \@inputData)
+          or $self->info("Error copying the inputCollection") 
+            and $self->{DB}->updateStatus($job, "TO_STAGE", "FAILED") 
+            and $self->putJobLog($job,"state", "Job state transition from TO_STAGE to FAILED")
+            and next;          
+    	    	
+        foreach my $file ( @inputData ) {
         	$self->info("Going to stage file $file in $place ($job)");
         	$file =~ s/,nodownload$//; $file =~ s/^LF://i;
-            $self->{CATALOGUE}->stage("-se",$place,$file) and $somethingStaged=1 or $self->info("Failed staging $file") and next; 
+            $self->{CATALOGUE}->stage("-se",$place,$file) or $self->info("Failed staging $file") and $no_error=0 and last;
         }
-  	    if($somethingStaged){
+ 
+  	    if($no_error){
             my ($ok, $req)=$ca->evaluateExpression("Requirements");
             $ca->set_expression("Requirements", $req." && (other.CE==\"$reqCE\")");
             $self->{DB}->update("QUEUEJDL", {origJdl => $ca->asJDL()}, "queueId=?", {bind_values=>[$job]}) or $self->info("Error doing the jdl update");

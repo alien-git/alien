@@ -67,6 +67,13 @@ sub checkAlreadyStaged {
   
   my $ca=Classad::Classad->new($jdl);
   my ($ok, my @inputData) = $ca->evaluateAttributeVectorString("InputData"); 
+  
+  $self->copyInputCollection($ca, $queueid, \@inputData)
+    or $self->info("Error copying the inputCollection") 
+      and $self->{DB}->updateStatus($queueid, "TO_STAGE", "FAILED") 
+      and $self->putJobLog($queueid,"state", "Job state transition from TO_STAGE to FAILED")
+      and return;
+            
   foreach my $file ( @inputData) {
      $file =~ s/,nodownload$//; $file =~ s/^LF://i;
      $self->{CATALOGUE}->isStaged($file) or $self->info("File $file not staged yet") and return; 

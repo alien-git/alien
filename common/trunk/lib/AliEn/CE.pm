@@ -867,8 +867,11 @@ sub getNumberFreeSlots {
  
   my ($info)=$self->{RPC}->CallRPC("ClusterMonitor", "getNumberJobs", $self->{CONFIG}->{CE_FULLNAME}, $free_slots);
 	$info or $self->info("Error asking the ClusterMonitor") and return;
+
+  defined $info->{RUNNING} and defined $info->{SAVING} and defined $info->{ASSIGNED} and defined $info->{STARTED}
+   or $self->info("Error receiving some data from Manager/Job !!!!!") and return;
 	
-	my ($max_queued, $max_running) =($info->{maxqueuedjobs}, $info->{maxjobs});
+  my ($max_queued, $max_running) =($info->{maxqueuedjobs}, $info->{maxjobs});
   my $currentload= $info->{RUNNING}+ $info->{SAVING}+ $info->{ASSIGNED}+$info->{STARTED};
   if ($currentload >=$max_running){
     $self->info("We are currently running more than we are supposed to ($currentload and $max_running)");

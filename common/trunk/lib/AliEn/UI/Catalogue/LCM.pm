@@ -1697,23 +1697,35 @@ sub stage {
   
   foreach my $lfn (@lfns){
 	  $self->info("Ready to stage the file $lfn");
-	  my @info = $self->{CATALOG}->f_whereis("-rs", $lfn);
 	  
-	  $options->{se} and !(grep { /$options->{se}/ } @info) and $self->info("Can't stage file in $options->{se}") and return;
-	
-	  while (@info) {
-	    my ($se, $pfn) = (shift @info, shift @info);
-	    $self->info("Check if we should stage the copy $pfn in $se");
-	    if ($pfn eq "auto") {
-	      $self->info("I'm not sure how to stage this file... The SE knows its path  Maybe I should ask the SE....");
-	      next;
-	    }
-	    my $url = AliEn::SE::Methods->new($pfn)
-	      or $self->info("Error building the url from '$pfn'")
-	      and next;
-	    ( $options->{se} and ($options->{se} eq $se) and $url->stage() and $self->info("Staged in $options->{se} (only)") and last ) 
-	      or ( $url->stage() and $self->info("Staged in $se") );
-	  } 
+	  my $files; push(@$files, {origLFN=>$lfn});
+	  my ($type) = $self->{CATALOG}->f_type($lfn);
+      if( $type =~ /^collection/ ){
+      	$self->info("$lfn is a collection, staging all files"); 
+        ($files) = $self->execute("listFilesFromCollection", "-silent", $lfn)
+          or $self->info("Error getting the list of files from the collection") and return;
+      }
+	  
+	  foreach (@$files){
+		my @info = $self->{CATALOG}->f_whereis("-rs", $_->{origLFN});
+		  
+		$options->{se} and !(grep { /$options->{se}/ } @info) and $self->info("Can't stage file $_->{origLFN} in $options->{se}") and return;
+		
+		while (@info) {
+		  my ($se, $pfn) = (shift @info, shift @info);
+		  $self->info("Check if we should stage the copy $pfn in $se");
+		  if ($pfn eq "auto") {
+		    $self->info("I'm not sure how to stage this file... The SE knows its path  Maybe I should ask the SE....");
+		    next;
+		  }
+		  my $url = AliEn::SE::Methods->new($pfn)
+		    or $self->info("Error building the url from '$pfn'")
+		    and next;
+		  ( $options->{se} and ($options->{se} eq $se) and $url->stage() and $self->info("Staged in $options->{se} (only)") and last ) 
+		    or ( $url->stage() and $self->info("Staged in $se") );
+		} 
+	  }	  
+	  
   }
   return 1;
 }
