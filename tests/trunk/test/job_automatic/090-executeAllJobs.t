@@ -46,7 +46,7 @@ BEGIN { plan tests => 1 }
   print "Top -all worked\n";
   my $split=0;
   foreach my $job (@jobs) {
-    print "Checking the job $job\n";
+    print "Checking the job $job->{queueId}\n";
         ($job->{statusId} =~ /^(INSERTED)|(WAITING)|(ASSIGNED)|(STARTED)|(RUNNING)|(SAVING)|(SAVED)$/)
           and print "ATTENTION TO JOB: $job->{queueId} was just now in status: $job->{statusId}\n"
           and $notok=1;
