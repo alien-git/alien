@@ -6,14 +6,14 @@ my $c=AliEn::UI::Catalogue::LCM::Computer->new({USER=>"newuser"
 				}) or exit(-2);
 use Data::Dumper;
 
-my $dir="/test/performance.$$";
+my $dir="performance/";
 
+my ($user) = $c->execute("whoami");
+my $jdlpath = "/".$c->{CONFIG}->{ORG_NAME}."/user/n/newuser/jdl/date.jdl";
 
-$c->execute("silent") or exit(-2); 
-my $total=500;
+$c->execute("silent") or exit(-2);
+my $total=200;
 my $step=50;
-
-system ("alien StopCE"); # necesario ?
 
 my ($totalTime, $mean)=submitJobs($c, $dir, $total, $step);
 
@@ -29,10 +29,10 @@ sub submitJobs {
 
   my $start=$total;
   print "Starting to submit\n";
-  open (FILE, ">submiting.$total.dat") or print "Error opening the file\n" and exit(-2);
+  open (FILE, ">".$dir."submitting.$total.$$.dat") or print "Error opening the file\n" and exit(-2);
   my $before=time;
   while ($start) {
-    $c->execute("submit", "jdl/date.jdl") or exit(-2);
+    $c->execute("submit", $jdlpath) or last;
     $start--;
     if ( $start%$step eq "0") {
       my $intermediate=time();
