@@ -114,18 +114,22 @@ my $ml_status = {
   'ERROR_RE'   => -17,
   'ERROR_EW'   => -18,
 };
+my $ml_reverse;
 sub JobStatus {
   return [sort keys %$ml_status];   
 }
 
+#convert a status number to a status;
 sub statusName {
   my $stat=shift;
-  foreach my $key ( keys %$ml_status ){
-    if ( $ml_status->{$key} == $stat ){
-      return $key;
-    }
+  
+  if (! $ml_reverse) {
+   $ml_reverse={};
+   foreach my $key ( keys %$ml_status ){
+    $ml_reverse->{$ml_status->{$key}}=$key;
+   }
   }
-  return '';	
+  return $ml_reverse->{$stat};
 }
 
 
