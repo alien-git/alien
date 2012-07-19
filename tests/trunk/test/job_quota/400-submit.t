@@ -64,7 +64,7 @@ my $host = Net::Domain::hostfqdn();
 
   addFile($cat_split, "split/dir1/file1", "This is a test") or exit(-2);
   addFile($cat_split, "split/dir1/file2", "This is also a test") or exit(-2);
-  addFile($cat_split, "split/dir1/file3", "This is another test") or exit(-2);
+  addFile($cat_split, "split/dir2/file3", "This is another test") or exit(-2);
 
   addFile(
 	$cat, "bin/sum", "#!/bin/sh
@@ -191,5 +191,6 @@ sub assertEqualJobs {
   #  }
   (defined $result) or print "Error checking the $field of the user\n" and exit(-2);
   ($result eq $value) or print "FAILED: $field expected:<$value> but was: $result\n";
+  print "user $user and result $result and value $value\n";
   return ($result eq $value);
 }
