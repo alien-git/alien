@@ -11,7 +11,7 @@ my $dir="performance/";
 
 my ($user) = $c->execute("whoami");
 
-#$c->execute("silent") or exit(-2);
+$c->execute("silent") or exit(-2);
 my $step=50;
 
 my @jobs = $c->execute("top", "-all_status", "-user", $user);
@@ -42,7 +42,6 @@ my $d=AliEn::Database::TaskQueue->new({DRIVER=>"mysql", HOST=>"$host:$port", DB=
   open (FILE, ">".$dir."update.$total.$$.dat") or print "Error opening the file\n" and exit(-2);
   my $before=time;
   foreach my $job (@jobs) {
-  	#$d->update("QUEUE", {statusId => 23}, "queueId=$job->{queueId}") or exit(-2);
     $d->updateStatus($job->{queueId}, "%", "UPDATING") or exit(-2);
     $start++;
     if ( $start%$step eq "0") {

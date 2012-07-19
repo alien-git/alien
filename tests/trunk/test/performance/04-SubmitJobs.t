@@ -12,8 +12,14 @@ my ($user) = $c->execute("whoami");
 my $jdlpath = "/".$c->{CONFIG}->{ORG_NAME}."/user/n/newuser/jdl/date.jdl";
 
 $c->execute("silent") or exit(-2);
-my $total=200;
+my $total=500;
 my $step=50;
+
+
+my $d = AliEn::Database::TaskQueue->new({ PASSWD=> "pass" , "ROLE"=> "admin", })
+   or print "Error connecting to the database\n" and exit(-2);
+$d->update("PRIORITY", {maxUnfinishedJobs => $total}, "user='$user'");
+$d->close();
 
 my ($totalTime, $mean)=submitJobs($c, $dir, $total, $step);
 
