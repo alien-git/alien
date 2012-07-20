@@ -112,7 +112,7 @@ sub startListening {
     my $done=$self->checkWakesUp($silent);
     $done or $self->debug(1, "Going back to sleep")
       and sleep($self->{SLEEP_PERIOD});
-    $done eq "-1" and $self->info("$$ WE DON'T HAVE TO CHECK ANY MORE!!") and return 1;
+    $done and $done eq "-1" and $self->info("$$ WE DON'T HAVE TO CHECK ANY MORE!!") and return 1;
 
     $silent++;
     ($silent == 60) and $silent = 0;
