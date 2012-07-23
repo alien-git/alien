@@ -1796,10 +1796,8 @@ Possible flags:
 
 sub getPsFromDB {
   my $self = shift;
-  my $flags= shift;
-  my $args =join (" ", @_);
-  my $date = time;
-  my $i;
+  my $options= shift;
+  
 
   my $status="statusId in (10,5,21,6,1,3,2,7,11)";
   #my $status="status='RUNNING' or status='WAITING' or status='OVER_WAITING' or status='ASSIGNED' or status='QUEUED' or status='INSERTING' or status='SPLIT' or status='SPLITTING' or status='STARTED' or status='SAVING'";
@@ -1810,69 +1808,50 @@ sub getPsFromDB {
   my $user="";
   my @userStatus;
   my $allStatus=0;
-  if ( $flags =~ s/d//g){
-    push @userStatus, 15; #DONE
-  }
-  if ( $flags =~ s/f//g){
-    push @userStatus, -12,-1,-2,-3, -4, -5, -7, -8, -9,-14,-13,-15,-10,-11,-16,-17,-18;
-    #push @userStatus, "status='EXPIRED'", "status like 'ERROR_\%'",
-      #"status='KILLED'","status='FAILED'","status='ZOMBIE'";
-  }
-  if ( $flags=~ s/r//g) {
-    push @userStatus, 10,11,5,21,6,4,1,3,7,2;
-    #push @userStatus,"status='RUNNING'", "status='SAVING'","status='WAITING'", "status='OVER_WAITING'", "status='ASSIGNED'", "status='QUEUED'", "status='INSERTING'", "status='SPLITTING'", "status='STARTED'", "status='SPLIT'";
-  }
+  $options->{d} and push @userStatus, 15; #DONE
+  $options->{f} and push @userStatus, -12,-1,-2,-3, -4, -5, -7, -8, -9,-14,-13,-15,-10,-11,-16,-17,-18;
+  $options->{r} and push @userStatus, 10,11,5,21,6,4,1,3,7,2;
   
-  if ( $flags =~ s/A//g) {
-     $allStatus=1;
-  }
+  $options->{A} and $allStatus=1;
+  $options->{I} and push @userStatus, 9,8,24; #IDLE INTERACTIV FAULTY
 
-  if ( $flags =~s/I//g) {
-    push @userStatus, 9,8,24; #IDLE INTERACTIV FAULTY
-  }
-  if ( $flags=~ s/z//g) {
-    push @userStatus,-15; #ZOMBIE
-  }
-
-  while ($args =~ s/-?-s(tatus)? (\S+)//) {
-    push @userStatus, "statusId='$1'";
+  $options->{z} and push @userStatus,-15; #ZOMBIE
+  
+  if ($options->{status}){
+    for my $s (@{$options->{status}}){
+       push @userStatus, "statusId='$s'";
+    }
   }
   @userStatus and $status="statusId in (".join(',', @userStatus).")" ;
 
+
   my @userSite;
-  while ($args =~ s/-?-s(ite)? (\S+)//) {
-    push @userSite, "site='$1'";
+  if ($options->{site}){
+   for my $s (@{$options->{site}}){
+      push @userSite, "site='$s'";
+   }
   }
   @userSite and $site="and ( ". join (" or ", @userSite). ")";
 
-#    }
-    #my $query="SELECT queueId, status, jdl, execHost, submitHost, runtime, cpu, mem, cputime, rsize, vsize, ncpu, cpufamily, cpuspeed, cost, maxrsize, maxvsize,received,started,finished  FROM QUEUE WHERE ( status=$status ) ";
-  if($allStatus){ $status = "1=1";
+  ($allStatus) and  $status = "1=1";
    
-  }  
+  
   my $where = "WHERE ( $status ) $site ";
 
 
-  $args =~ s/-?-u(ser)?=?\s+(\S+)// and $where.=" and user='$2'";  
-  $args =~ s/-?-i(d)?=?\s*(\S+)// and $where .=" and ( p.queueid='$2' or q.split='$2')";
+  $options->{user} and $where.=" and user='$options->{user}'";
+  if ($options->{id}){
+   for my $id (@{$options->{id}}){
+     $where .=" and ( p.queueid='$id' or q.split='$id')";  
+   }
+  }  
   
-  if ($flags =~ s/s//) {
+  
+  if ($options->{s}) {
     $where .=" and (upper(origJdl) like '\%SPLIT\%' or q.split>0 ) ";
-  } elsif ($flags !~ s/S//) {
+  } elsif (not $options->{S}) {
     $where .=" and ((q.split is NULL) or (q.split=0))";
   }
-
-  if ($flags !~ /^\s*$/) {
-    $self->info( "Error: I don't know what to do with flags '-$flags'");
-    return;
-
-  }
-  if ($args !~ /^\s*$/){
-    $self->info( "Error: I don't know what to do with args '$args'");
-    return;
-  }
-
-
   $self->info( "In getPs getting data from database \n $where" );
 
 
@@ -1881,9 +1860,9 @@ sub getPsFromDB {
      s.host submitHost, runtime, cpu, mem, cputime, rsize, vsize, ncpu, cpufamily, cpuspeed, p.cost, 
        maxrsize, maxvsize, site, n.host node, q.split, procinfotime,received,q.started,finished
       from QUEUE q join QUEUEPROC p using(queueid) join QUEUEJDL qj using (queueid) 
-          join QUEUE_COMMAND using (commandId) join QUEUE_HOST e on (exechostId=e.hostid)
-           join QUEUE_HOST s on (submithostid=s.hostid) join SITEQUEUES using (siteid)
-           join QUEUE_USER using (userid) join QUEUE_HOST n on (nodeid=n.hostid)
+          join QUEUE_COMMAND using (commandId) left join QUEUE_HOST e on (exechostId=e.hostid)
+           left join QUEUE_HOST s on (submithostid=s.hostid) join SITEQUEUES using (siteid)
+           left join QUEUE_USER using (userid) left join QUEUE_HOST n on (nodeid=n.hostid)
            $where ORDER by queueid")
     or $self->info( "In getPs error getting data from database" )
       and return;
@@ -2027,54 +2006,31 @@ sub f_ps {
 		return $self->$method(@_);
 	}
 
-	my $flags = "";
-	my $args  = join(" ", @_);
+  my %options=();
 
-	#First, let's take all the flags
-	while ($args =~ s{-?-([^i\s]+)}{}) {
-		$flags .= $1;
-	}
-	my @id = ();
+  @ARGV = @_;
+  
+  Getopt::Long::Configure('bundling_override');
+  
+  my $done=Getopt::Long::GetOptions(\%options, "id=s\@", "user=s","site=s@", "status=s@",
+                           "x", "q", "s", "S", 
+                           "a", #all users
+                           "d", "f", "r", "A", "z", # TYPE OF JOBS
+                           "l", "j", "T", "W", "X" # FORMAT FLAGS)
+                           );
+  Getopt::Long::Configure("default");           
+  $done or $self->info("Error parsing the arguments of ps\n" )
+    and return 0;
 
-	#The other thing that this command accepts is '-id=<id>'
-	while ($args =~ s{-?-id=?\s?(\S+)}{}) {
-		push @id, "-id=$1";
-	}
+  @_ = @ARGV;
+  
 
-	#If there is anything else, it is an error:
+	$options{'a'} or $options{'user'} or $options{'user'}=$self->{CATALOG}->{CATALOG}->{ROLE};
+	
+  $self->debug(1,Dumper(\%options));
 
-	if ($args !~ /^\s*$/) {
-		$self->info("Error: wrong syntax: don't know what to do with '$args'. Use 'ps -help' for help");
-		return;
-	}
-	my $formatFlags = "";
-
-	($flags =~ s/q//g) and $verbose = 0;
-
-	while ($flags =~ s/([xljTWX])//g) {
-		$formatFlags .= $1;
-	}
-
-	$DEBUG and $self->debug(1, "In RemoteQueue::ps @_");
-
-
-	my $addtags = "";
-
-	if ($flags =~ s/a//g) {
-		;
-	} else {
-		$addtags .= "-u=$self->{CATALOG}->{CATALOG}->{ROLE} ";
-	}
-
-	grep (((/^-?-id?=?\s?(\d+)/) and ($addtags .= " -id $1 ")), @_);
-
-	#    grep (((/^-?-site?=?\s?(\d+)/) and ($addtags = " -s $1 ")),@_);
-
-	#  grep (((/^-?-st?=?\s?(\d+)/) and ($addtags = " -s $1 -z")),@_);
-  $self->info("And now, $flags and $addtags and @id");
-	my $result = $self->getPsFromDB( $flags, $addtags, @id);
+	my $result = $self->getPsFromDB(\%options);
   $result or return;
-	#print "ps result:", $done->result, ":\n";
 
 	my $error  = "";
 
@@ -2146,20 +2102,20 @@ sub f_ps {
 		$execHost =~ s/(.*)@(.*)/$2/is;
 
 		my $printCpu = $cpu || "-";
-		if ($formatFlags =~ /x/) {
+		if ($options{x}) {
 			$output = sprintf "%-10s %s%-6s%s %-2s    %-6s  %-5s %-6s  %-6s  %-10s", $username, $indentor, $queueId,
 				$exdentor, $status, $printCpu, $mem, $cost, $runtime, $name;
-		} elsif ($formatFlags =~ /l/) {
+		} elsif ($options{l}) {
 			$output = sprintf "%-10s %s%-6s%s %-2s    %-8s %-8s %-6s  %-5s %-6s  %-6s  %-10s", $username, $indentor, $queueId,
 				$exdentor, $status, $maxrsize, $maxvsize, $printCpu, $mem, $cost, $runtime, $name;
-		} elsif ($formatFlags =~ /X/) {
+		} elsif ($options{X}) {
 			$output = sprintf "%-10s %s%-6s%s %-26s %-2s    %-8s %-8s %-6s  %-5s  %-6s  %-8s %-1s %-2s %-4s %-10s", $username,
 				$indentor, $queueId, $exdentor, $site, $status, $maxrsize, $maxvsize, $printCpu, $mem, $cost, $runtime, $ncpu,
 				$cpufamily, $cpuspeed, $name;
-		} elsif ($formatFlags =~ /W/) {
+		} elsif ($options{W}) {
 			$output = sprintf "%s%-6s%s %-29s %-30s %-26s %-10s %-3s %-02s:%-02s:%-02s.%-02s", $indentor, $queueId, $exdentor,
 				$site, $node, $execHost, $name, $status, (gmtime($now - $procinfotime))[ 7, 2, 1, 0 ];
-		} elsif ($formatFlags =~ /T/) {
+		} elsif ($options{T}) {
 			my $rt = "....";
 			my $st = "....";
 			my $ft = "....";
@@ -2190,7 +2146,7 @@ sub f_ps {
 		$verbose and $self->info($output, undef, 0);
 	}
 
-	if ($formatFlags =~ s/j//g) {
+	if ($options{j}) {
 		return @jobs;
 	}
 	return @outputarray;
@@ -3047,9 +3003,9 @@ sub resubmitCommand {
 		$self->info("Resubmitting $queueId");
 		my $resubmission = $self->{TASK_DB}->getFieldFromQueue($queueId, "resubmission");
 
-		my $done = $self->resubmitCommandInternal($queueId, $user);
-		$done or $self->info("Error resubmitting $queueId")
-			  and return @result;
+		my ($done, $error) = $self->resubmitCommandInternal($queueId, $user);
+		$done!='-1' or  $self->info("Error resubmitting $queueId: $error")
+			  and return ($done, $error);
 		push @result, $done;
 		$self->info("Process $queueId resubmitted!! (new jobid is " . $done . ")");
 		my $path = $self->{TASK_DB}->queryValue("SELECT path from QUEUEJDL where queueid=?",
