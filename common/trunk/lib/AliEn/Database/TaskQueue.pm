@@ -1553,8 +1553,8 @@ sub resubmitJob{
 	 or $self->info("Error getting the previous status of the job ") and return;
 	 
 	my $previousStatus=AliEn::Util::statusName($data->{statusId});
-	my $previousSite= $data->{site};
-	$self->info("UPDATING $previousStatus and $previousSite");
+	my $previousSiteId= $data->{siteid};
+	$self->info("UPDATING $previousStatus and $previousSiteId");
 	
 	my $unassignedId=$self->findSiteId("unassigned::site");
  	
@@ -1563,7 +1563,7 @@ sub resubmitJob{
 	$self->do("UPDATE QUEUE SET statusId= ? ,resubmission= resubmission+1 ,started= '' ,
                  finished= '' ,exechostid= null,siteid=$unassignedId  WHERE queueid=? ",
 		{bind_values=>[AliEn::Util::statusForML($status), $queueid]	} );
-	$self->do("UPDATE SITEQUEUES set $previousStatus=$previousStatus-1 where siteid=?", {bind_values=>[$previousSite]});
+	$self->do("UPDATE SITEQUEUES set $previousStatus=$previousStatus-1 where siteid=?", {bind_values=>[$previousSiteId]});
 	$self->do("UPDATE SITEQUEUES set $status=$status+1 where siteid=$unassignedId");
   
 	#Should we delete the QUEUEPROC??? Nope, that's defined as on cascade delete
