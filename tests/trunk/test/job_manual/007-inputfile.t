@@ -4,6 +4,7 @@ use strict;
 use Test;
 
 use AliEn::UI::Catalogue::LCM::Computer;
+use Data::Dumper;
 
 BEGIN { plan tests => 1 }
 
@@ -40,15 +41,14 @@ InputFile=\"LF:$dir/jdl/Input.jdl\";
 OutputFile={\"file.out\",\"stdout\",\"stderr\",\"resources\"}") or exit(-2);
 
   my $procDir=executeJDLFile($cat, "jdl/Input.jdl") or exit(-2);
-
+ print "Job executed. Let's see if the output is what we want\n";
   my $files={"stdout"=>{}, "file.out"=>{}};
   my @tmp = keys %$files;
   foreach my $file (keys %$files) {
-    use Data::Dumper;
-    my ($out)=$cat->execute("get","$procDir/$file") or exit(-2);
-    open (FILE, "<$out") or print "Error opening $out" and exit(-2);
-    my @data=<FILE>;
-    close FILE;
+    my ($out)=$cat->execute("get","$procDir/$file") or print "Error getting $procDir/$file\n" and exit(-2);
+    open (my $f, "<", $out) or print "Error opening $out" and exit(-2);
+    my @data=<$f>;
+    close $f;
     print "Got @data\n";
     $files->{$file}=join ("",@data);
   }

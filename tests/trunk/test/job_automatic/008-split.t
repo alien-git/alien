@@ -115,17 +115,18 @@ sub checkSubJobs {
 
   my ($user) = $cat->execute("whoami");
   my $subjobs = 0;
-  my $expected = {DONE => $jobs};
+  my $expected = {'DONE' => $jobs};
   $options->{expected} and $expected = $options->{expected};
   use Data::Dumper;
   my $ids = {};
+  print Dumper($expected);
   foreach my $s (@$info) {
 	print Dumper($s);
-	my $status = AliEn::Util::statusName($s->{statusId});
+	my $status = $s->{status};
 	$ids->{$status} = $s->{ids};
 	$subjobs += $s->{count};
 	$expected->{$status} eq $s->{count}
-	  or print "There are $s->{count} $status jobs, and we were expecting $expected\n" and exit(-2);
+	  or print "There are $s->{count} $status jobs, and we were expecting $expected->{$status}\n" and exit(-2);
 	$expected->{$status} = 0;
   }
   foreach my $t (keys %$expected) {

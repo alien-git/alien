@@ -45,6 +45,7 @@ my $host = Net::Domain::hostfqdn();
     or print "Error connecting to the database\n" and exit(-2);
   #refreshLFNandGUIDtable($cat_adm);
   print "-1. Set the file quota (maxNbFiles 10000, maxTotalSize 10000000)\n";
+
   $d->update("FQUOTAS", {maxNbFiles => 10000, maxTotalSize => 10000000}, "user='$user'");
   assertEqual($d, $user, "maxTotalSize", 10000000) or exit(-2);
   assertEqual($d, $user, "maxNbFiles",   10000)    or exit(-2);
@@ -53,10 +54,13 @@ my $host = Net::Domain::hostfqdn();
   print "Reconnecting to Database processes \n";
   $d = AliEn::Database::TaskQueue->new({ PASSWD=> "pass" , "ROLE"=> "admin", })
     or print "Error connecting to the database\n" and exit(-2);
+  my $userid=$d->queryValue("SELECT userid from QUEUE_USER where user='$user'");
+  my $userSplitid=$d->queryValue("SELECT userid from QUEUE_USER where user='$userSplit'");
+
   
   print "0. Set the job quotas (maxTotalRunningTime, 2000, maxUnfinishedJobs, 2000, maxparallelJobs, 2000)\n";
-  $d->update("PRIORITY", {maxTotalRunningTime => 2000, maxUnfinishedJobs => 2000, maxparallelJobs=> 2000}, "user='$user'");
-  $d->update("PRIORITY", {maxTotalRunningTime => 2000, maxUnfinishedJobs => 2000, maxparallelJobs=> 2000}, "user='$userSplit'");
+  $d->update("PRIORITY", {maxTotalRunningTime => 2000, maxUnfinishedJobs => 2000, maxparallelJobs=> 2000}, "userid='$userid'");
+  $d->update("PRIORITY", {maxTotalRunningTime => 2000, maxUnfinishedJobs => 2000, maxparallelJobs=> 2000}, "userid='$userSplitid'");
   assertEqualJobs($d, $user, "maxTotalRunningTime", 2000) or exit(-2);
   assertEqualJobs($d, $user, "maxUnfinishedJobs",   2000)    or exit(-2);
   assertEqualJobs($d, $user, "maxparallelJobs",   2000)    or exit(-2);
@@ -113,7 +117,7 @@ InputData=\"${dir}split/*/*\";", "r"
 
   print "2. Set the limit (maxUnfinishedJobs 1000, maxTotalCpuCost 1000, maxTotalRunningTime 1000)\n";
   $d->update("PRIORITY", {maxUnfinishedJobs => 1000, maxTotalCpuCost => 1000, maxTotalRunningTime => 1000},
-	"user='$user'");
+	"userid='$userid'");
   waitForNoJobs($cat, $user);
   $cat_adm->execute("calculateJobQuota", "1");    # 1 for silent
   $cat->execute("jquota", "list", "$user");
@@ -186,7 +190,7 @@ sub assertEqualJobs {
   #  }
   #  else
   #  {
-  $result = $d->queryValue("SELECT $field FROM PRIORITY WHERE user='$user'");
+  $result = $d->queryValue("SELECT $field FROM PRIORITY join QUEUE_USER using (userid) WHERE user='$user'");
 
   #  }
   (defined $result) or print "Error checking the $field of the user\n" and exit(-2);

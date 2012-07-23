@@ -41,13 +41,14 @@ includeTest("job_quota/400-submit") or exit(-2);
   my $procDir = checkOutput($cat, $id1) or print "Could not check output of $id1" and exit(-2);
   
   waitForProcInfo($d, $id1) or exit(-2);
+  
   $cat_adm->execute("calculateJobQuota", "1");
 
-  my $cpucost1 = $d->queryValue("SELECT totalCpuCostLast24h FROM PRIORITY WHERE user='$user'");
+  my $cpucost1 = $d->queryValue("SELECT totalCpuCostLast24h FROM PRIORITY join QUEUE_USER using (userid) WHERE user='$user'");
   (defined $cpucost1) or print "Error checking the totalCpuCostLast24h of the user\n" and exit(-2);
   ($cpucost1 > 0) or print "FAILED: totalCpuCost: $cpucost1, not increased at all\n" and exit(-2);
 
-  my $rtime1 = $d->queryValue("SELECT totalRunningTimeLast24h FROM PRIORITY WHERE user='$user'");
+  my $rtime1 = $d->queryValue("SELECT totalRunningTimeLast24h FROM PRIORITY join QUEUE_USER using (userid) WHERE user='$user'");
   (defined $rtime1) or print "Error checking the totalRunningTimeLast24h of the user\n" and exit(-2);
   ($rtime1 > 0) or print "FAILED: totalRunningTime: $rtime1, not increased at all\n" and exit(-2);
   print "3. PASSED\n\n";
@@ -58,17 +59,18 @@ includeTest("job_quota/400-submit") or exit(-2);
   waitForSubjobsProcInfo($d, $cat_split, $id2) or exit(-2);
   $cat_adm->execute("calculateJobQuota", "1");
 
-  my $cpucost2 = $d->queryValue("SELECT totalCpuCostLast24h FROM PRIORITY WHERE user='$userSplit'");
+  my $cpucost2 = $d->queryValue("SELECT totalCpuCostLast24h FROM PRIORITY  join QUEUE_USER using (userid) WHERE user='$userSplit'");
   (defined $cpucost2) or print "Error checking the totalCpuCostLast24h of the user\n" and exit(-2);
   ($cpucost2 > 0) or print "FAILED: totalCpuCost: $cpucost2, not increased at all\n" and exit(-2);
 
-  my $rtime2 = $d->queryValue("SELECT totalRunningTimeLast24h FROM PRIORITY WHERE user='$userSplit'");
+  my $rtime2 = $d->queryValue("SELECT totalRunningTimeLast24h FROM PRIORITY  join QUEUE_USER using (userid) WHERE user='$userSplit'");
   (defined $rtime2) or print "Error checking the totalRunningTimeLast24h of the user\n" and exit(-2);
   ($rtime2 > 0) or print "FAILED: totalRunningTime: $rtime2, not increased at all\n" and exit(-2);
   print "4. PASSED\n\n";
 
   print "5. Modify the maxTotalRunningTime as $rtime2\n";
-  $d->update("PRIORITY", {maxTotalRunningTime => $rtime2}, "user='$userSplit'");
+  my $userSplitId=$d->queryValue("SELECT userid from QUEUE_USER where user='$userSplit'");
+  $d->update("PRIORITY", {maxTotalRunningTime => $rtime2}, "userid='$userSplitId'");
   $cat->execute("jquota", "list", "$userSplit");
   assertEqualJobs($d, $userSplit, "maxTotalRunningTime", $rtime2) or exit(-2);
   print "5. DONE\n\n";
@@ -79,7 +81,7 @@ includeTest("job_quota/400-submit") or exit(-2);
   print "6. PASSED\n\n";
 
   print "7. Modify the maxTotalCpuCost as $cpucost2 and the maxTotalRunningTime as 1000 back \n";
-  $d->update("PRIORITY", {maxTotalCpuCost => $cpucost2, maxTotalRunningTime => 1000}, "user='$userSplit'");
+  $d->update("PRIORITY", {maxTotalCpuCost => $cpucost2, maxTotalRunningTime => 1000}, "userid='$userSplitId'");
   $cat->execute("jquota", "list", "$userSplit");
   assertEqualJobs($d, $userSplit, "maxTotalCpuCost",     $cpucost2) or exit(-2);
   assertEqualJobs($d, $userSplit, "maxTotalRunningTime", 1000)      or exit(-2);
@@ -91,7 +93,7 @@ includeTest("job_quota/400-submit") or exit(-2);
   print "8. PASSED\n\n";
 
   print "9. Modify the maxUnfinishedJobs as 0 and the maxTotalCpuCost as 1000 back \n";
-  $d->update("PRIORITY", {maxUnfinishedJobs => 0, maxTotalCpuCost => 1000}, "user='$userSplit'");
+  $d->update("PRIORITY", {maxUnfinishedJobs => 0, maxTotalCpuCost => 1000}, "userid='$userSplitId'");
   $cat->execute("jquota", "list", "$userSplit");
   assertEqualJobs($d, $userSplit, "maxUnfinishedJobs", 0)    or exit(-2);
   assertEqualJobs($d, $userSplit, "maxTotalCpuCost",   1000) or exit(-2);

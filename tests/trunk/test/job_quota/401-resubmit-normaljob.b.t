@@ -29,7 +29,8 @@ my $id=shift;
 
 
   print "6. Modify the maxUnfinishedJobs as 0\n";
-  $d->update("PRIORITY", {maxUnfinishedJobs => 0}, "user='$user'");
+  my $userid=$d->queryValue("select userid from QUEUE_USER where user='$user'");
+  $d->update("PRIORITY", {maxUnfinishedJobs => 0}, "userid='$userid'");
   $cat->execute("jquota", "list", "$user");
   assertEqualJobs($d, $user, "maxUnfinishedJobs", 0) or exit(-2);
   print "6. DONE\n\n";
@@ -40,11 +41,11 @@ my $id=shift;
   
   print "7. PASSED\n\n";
 
-  my $cpucost2 = $d->queryValue("SELECT totalCpuCostLast24h FROM PRIORITY WHERE user='$user'");
+  my $cpucost2 = $d->queryValue("SELECT totalCpuCostLast24h FROM PRIORITY join QUEUE_USER using (userid) WHERE user='$user'");
 
   print "8. Modify the maxTotalCpuCost as $cpucost2 and the maxUnfinishedJobs as 1000 back\n";
 
-  $d->update("PRIORITY", {maxUnfinishedJobs => 1000, maxTotalCpuCost => $cpucost2}, "user='$user'");
+  $d->update("PRIORITY", {maxUnfinishedJobs => 1000, maxTotalCpuCost => $cpucost2}, "userid='$userid'");
   $cat->execute("jquota", "list", "$user");
   assertEqualJobs($d, $user, "maxTotalCpuCost",   $cpucost2) or exit(-2);
   assertEqualJobs($d, $user, "maxUnfinishedJobs", 1000)      or exit(-2);
@@ -56,10 +57,10 @@ my $id=shift;
   
   print "9. PASSED\n\n";
 
-  my $rtime2 = $d->queryValue("SELECT totalRunningTimeLast24h FROM PRIORITY WHERE user='$user'");
+  my $rtime2 = $d->queryValue("SELECT totalRunningTimeLast24h FROM PRIORITY join QUEUE_USER using (userid) WHERE user='$user'");
 
   print "10. Modify the maxTotalRunningTime as $rtime2 and the maxCpuCost as 1000 back\n";
-  $d->update("PRIORITY", {maxTotalCpuCost => 1000, maxTotalRunningTime => $rtime2}, "user='$user'");
+  $d->update("PRIORITY", {maxTotalCpuCost => 1000, maxTotalRunningTime => $rtime2}, "userid='$userid'");
   $cat->execute("jquota", "list", "$user");
   assertEqualJobs($d, $user, "maxTotalRunningTime", $rtime2) or exit(-2);
   assertEqualJobs($d, $user, "maxTotalCpuCost",     1000)    or exit(-2);
@@ -74,7 +75,7 @@ my $id=shift;
 
   print "12. Set the Limit (maxUnfinishedJobs 1000, maxTotalCpuCost 1000, maxTotalRunningTime 1000)\n";
   $d->update("PRIORITY", {maxUnfinishedJobs => 1000, maxTotalCpuCost => 1000, maxTotalRunningTime => 1000},
-	"user='$user'");
+	"userid='$userid'");
   $cat->execute("jquota", "list", "$user");
   assertEqualJobs($d, $user, "maxUnfinishedJobs",   1000) or exit(-2);
   assertEqualJobs($d, $user, "maxTotalRunningTime", 1000) or exit(-2);

@@ -29,21 +29,21 @@ require functions;
   #$cat_adm->execute("addUser", $user);
   my $cat = AliEn::UI::Catalogue::LCM::Computer->new({"user", $user});
   $cat or exit(-1);
-
-  my $old_rtime = $d->queryValue("SELECT totalRunningTimeLast24h FROM PRIORITY WHERE user='$user'");
-  my $old_unfinished = $d->queryValue("SELECT unfinishedJobsLast24h FROM PRIORITY WHERE user='$user'");
-  my $old_cpu = $d->queryValue("SELECT totalCpuCostLast24h FROM PRIORITY WHERE user='$user'");
+  my $userid=$d->queryValue("select userid from QUEUE_USER where user='$user'");
+  my $old_rtime = $d->queryValue("SELECT totalRunningTimeLast24h FROM PRIORITY WHERE userid='$userid'");
+  my $old_unfinished = $d->queryValue("SELECT unfinishedJobsLast24h FROM PRIORITY WHERE userid='$userid'");
+  my $old_cpu = $d->queryValue("SELECT totalCpuCostLast24h FROM PRIORITY WHERE userid='$userid'");
 
   print "HOLA $old_rtime, $old_unfinished and $old_cpu\n";
 
   $d->update("PRIORITY", {maxUnfinishedJobs => 1000, maxTotalCpuCost => 1000, maxTotalRunningTime => 1000},
-	"user='$user'");
+	"userid='$userid'");
 
 
   print
 "1. Submit a job and then modify the maxTotalRunningTime as 0 and check if the status is changed into OVER_WAITING\n";
   my ($id1) = $cat->execute("submit", "jdl/sum.jdl") or exit(-2);
-  $d->update("PRIORITY", {maxTotalRunningTime => 0}, "user='$user'");
+  $d->update("PRIORITY", {maxTotalRunningTime => 0}, "userid='$userid'");
   $cat->execute("jquota", "list", "$user");
   assertEqualJobs($d, $user, "maxTotalRunningTime", 0) or exit(-2);
   $cat_adm->execute("calculateJobQuota", "1");
@@ -53,7 +53,7 @@ require functions;
   print "3. PASSED\n\n";
 
   print "4. Modify the maxTotalRunningTime as 1000 and check if the status is changed back into WAITING\n";
-  $d->update("PRIORITY", {maxTotalRunningTime => 1000}, "user='$user'");
+  $d->update("PRIORITY", {maxTotalRunningTime => 1000}, "userid='$userid'");
   $cat->execute("jquota", "list", "$user");
   assertEqualJobs($d, $user, "maxTotalRunningTime", 1000) or exit(-2);
   $cat_adm->execute("calculateJobQuota", "1");
@@ -68,7 +68,7 @@ require functions;
 
   print "6. Set the Limit (maxUnfinishedJobs 1000, maxTotalCpuCost 1000, maxTotalRunningTime 1000)\n";
   $d->update("PRIORITY", {maxUnfinishedJobs => 1000, maxTotalCpuCost => 1000, maxTotalRunningTime => 1000},
-	"user='$user'");
+	"userid='$userid'");
   $cat->execute("jquota", "list", "$user");
   assertEqualJobs($d, $user, "unfinishedJobsLast24h",   $old_unfinished)    or exit(-2);
   assertEqualJobs($d, $user, "totalRunningTimeLast24h", $old_rtime)    or exit(-2);
@@ -81,7 +81,7 @@ require functions;
   print
 "7. Submit an another job and then modify the maxTotalCpuCost as 0 and check if the status is changed into OVER_WAITING\n";
   my ($id2) = $cat->execute("submit", "jdl/sum.jdl") or exit(-2);
-  $d->update("PRIORITY", {maxTotalCpuCost => 0}, "user='$user'");
+  $d->update("PRIORITY", {maxTotalCpuCost => 0}, "userid='$userid'");
   $cat->execute("jquota", "list", "$user");
   assertEqualJobs($d, $user, "maxTotalCpuCost", 0) or exit(-2);
   waitForStatus($cat, $id2, "WAITING", 5) or exit(-2);
@@ -90,7 +90,7 @@ require functions;
   print "7. PASSED\n\n";
 
   print "8. Modify the maxTotalCpuCost as 1000 and check if the status is changed back into WAITING\n";
-  $d->update("PRIORITY", {maxTotalCpuCost => 1000}, "user='$user'");
+  $d->update("PRIORITY", {maxTotalCpuCost => 1000}, "userid='$userid'");
   $cat->execute("jquota", "list", "$user");
   assertEqualJobs($d, $user, "maxTotalCpuCost", 1000) or exit(-2);
   $cat_adm->execute("calculateJobQuota", "1");

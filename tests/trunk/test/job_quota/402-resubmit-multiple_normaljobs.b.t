@@ -35,7 +35,8 @@ $cat or exit(-1);
 	print "3. PASSED\n\n";
 
   print "4. Modify the maxUnfinishedJobs as 0\n";	
-  $d->update("PRIORITY", {maxUnfinishedJobs=>0}, "user='$user'");
+  my $userid=$d->queryValue("Select userid from QUEUE_USER where user='$user'");
+  $d->update("PRIORITY", {maxUnfinishedJobs=>0}, "userid='$userid'");
   $cat->execute("jquota", "list", "$user");
   assertEqualJobs($d, $user, "maxUnfinishedJobs", 0) or exit(-2);
   print "4. DONE\n\n";
@@ -47,12 +48,12 @@ $cat or exit(-1);
 	
 	print "5. PASSED\n\n";
 
-  my $totalRunningTime=$d->queryValue("SELECT totalRunningTimeLast24h FROM PRIORITY WHERE user='$user'");
+  my $totalRunningTime=$d->queryValue("SELECT totalRunningTimeLast24h FROM PRIORITY WHERE userid='$userid'");
   (defined $totalRunningTime) or print "Error checking the totalRunningTimeLast24h of the user\n" and exit(-2);
   ($totalRunningTime > 0) or print "FAILED: totalRunningTime: $totalRunningTime, not increased at all\n" and exit(-2);
 
   print "10. Modify the maxTotalRunningTime as $totalRunningTime and the maxUnfinishedJobs as 1000 back\n";
-  $d->update("PRIORITY", {maxUnfinishedJobs=>1000, maxTotalRunningTime=>$totalRunningTime}, "user='$user'");
+  $d->update("PRIORITY", {maxUnfinishedJobs=>1000, maxTotalRunningTime=>$totalRunningTime}, "userid='$userid'");
   $cat->execute("jquota", "list", "$user");
   print "10. DONE\n\n";
 
@@ -62,12 +63,12 @@ $cat or exit(-1);
 	
 	print "11. PASSED\n\n";
 
-  my $totalCpuCost=$d->queryValue("SELECT totalCpuCostLast24h FROM PRIORITY WHERE user='$user'");
+  my $totalCpuCost=$d->queryValue("SELECT totalCpuCostLast24h FROM PRIORITY WHERE userid='$userid'");
   (defined $totalCpuCost) or print "Error checking the totalCpuCostLast24h of the user\n" and exit(-2);
   ($totalCpuCost > 0) or print "FAILED: totalCpuCost: $totalCpuCost, not increased at all\n" and exit(-2);
 
   print "12. Modify the maxTotalCpuCost as $totalCpuCost and the maxTotalRunningTime as 1000 back\n";
-  $d->update("PRIORITY", {maxTotalRunningTime=>1000, maxTotalCpuCost=>$totalCpuCost}, "user='$user'");
+  $d->update("PRIORITY", {maxTotalRunningTime=>1000, maxTotalCpuCost=>$totalCpuCost}, "userid='$userid'");
   $cat->execute("jquota", "list", "$user");
   print "12. DONE\n\n";
 
@@ -78,7 +79,7 @@ $cat or exit(-1);
 
 
   print "8. Modify the maxUnfinishedJobs as 2\n";	
-	$d->update("PRIORITY", {maxUnfinishedJobs=>2}, "user='$user'");
+	$d->update("PRIORITY", {maxUnfinishedJobs=>2}, "userid='$userid'");
   $cat->execute("jquota", "list", "$user");
   assertEqualJobs($d, $user, "maxUnfinishedJobs", 2) or exit(-2);
   print "8. DONE\n\n";
