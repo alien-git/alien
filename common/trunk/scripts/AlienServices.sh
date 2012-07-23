@@ -727,6 +727,10 @@ ALIEN_DoService ()
 	   	LOGDIR="LOGDIR"
 	   	packageName="ClusterMonitor"	   
 	    ;;
+      ApiService)
+        echo "Doing something with the api"
+        return;
+        ;;
 	  *)
 	    echo "I don't know the service $service"
 	    exit -2
