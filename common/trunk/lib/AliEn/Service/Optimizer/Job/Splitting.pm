@@ -123,10 +123,10 @@ sub updateSplitting {
     my ($strategy, $jobs)=$self->SplitJob($queueid, $job_ca) or 
       die("The job can't be split\n");
 
-    my ($submitHost)=$self->{DB}->getFieldFromQueue($queueid,"submithost")
+    my ($user)=$self->{DB}->queryValue("select user from QUEUE join QUEUE_USER using (userid) where queueid=?",
+                      undef, {bind_values=>[$queueid]})
       or $self->info("Job $queueid doesn't exist")
 				and die ("Error getting the user of $queueid\n");
-		my ($user) = split '@', $submitHost;
 
     #Change the status of the job
     my $job = $self->{DB}->updateStatus($queueid, "INSERTING", "SPLITTING")
@@ -138,12 +138,12 @@ sub updateSplitting {
     $self->putJobLog($queueid,"state", "Job state transition to SPLITTING");
     my $numSubjobs=0;
     if ($strategy !~ /^userDefined/) {
-      $numSubjobs=$self->SubmitSplitJob($job_ca, $queueid, $submitHost, $jobs);
+      $numSubjobs=$self->SubmitSplitJob($job_ca, $queueid, $user, $jobs);
       defined $numSubjobs  or  die ("Error submitting the subjobs\n");
     } else {
       my ($ok, @def)=$job_ca->evaluateAttributeVectorString("SplitDefinitions");
       foreach my $jdl (@def) {
-	$self->_submitJDL($queueid, $submitHost, $jdl) or die("Error submitting one of the splitDefinitions: $jdl\n");
+	$self->_submitJDL($queueid, $user, $jdl) or die("Error submitting one of the splitDefinitions: $jdl\n");
       }
     }
     #    $self->ChangeOriginalJob($job_ca, $queueid, $submitHost);
@@ -619,7 +619,7 @@ sub _submitJDL {
   $self->debug(1, "JDL $jdlText");
   push @ISA, "AliEn::Service::Manager::Job";
   
-  my $newqueueid=$self->enterCommand($user, $jdlText, undef, $queueid, undef, 
+  my $newqueueid=$self->enterCommand("$user\@$self->{CONFIG}->{HOST}", $jdlText, undef, $queueid, undef, 
     {silent=>0,direct=>$direct});
   pop @ISA;
   if ($newqueueid =~ /DENIED:/){

@@ -484,27 +484,27 @@ sub getToStage {
 sub unfinishedJobs24PerUser {
   my $self = shift;
   return $self->do(
-"update PRIORITY pr left join (select SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user, count(1) as unfinishedJobsLast24h from QUEUE q where (statusId=1 or statusId=5 or statusId=7 or statusId=10 or statusId=11 or statusId=21) and (unix_timestamp()>=q.received and unix_timestamp()-q.received<60*60*24) group by submithost) as C on BINARY pr.user= BINARY C.user set pr.unfinishedJobsLast24h=IFNULL(C.unfinishedJobsLast24h, 0)"
+"update PRIORITY pr left join (select userid, count(1) as unfinishedJobsLast24h from QUEUE q where (statusId in (1,5,7,10,11,21)) and (unix_timestamp()>=q.received and unix_timestamp()-q.received<60*60*24) group by userid) as C using (userid) set pr.unfinishedJobsLast24h=IFNULL(C.unfinishedJobsLast24h, 0)"
   ); # (status='INSERTING' or status='WAITING' or status='STARTED' or status='RUNNING' or status='SAVING' or status='OVER_WAITING')
 }
 
 sub cpuCost24PerUser {
   my $self = shift;
   return $self->do(
-"update PRIORITY pr left join (select SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user, sum(p.cost) as totalCpuCostLast24h , sum(p.runtimes) as totalRunningTimeLast24h  from QUEUE q join QUEUEPROC p using(queueId) where (unix_timestamp()>=q.received and unix_timestamp()-q.received<60*60*24) group by submithost) as C on BINARY pr.user= BINARY C.user set pr.totalRunningTimeLast24h=IFNULL(C.totalRunningTimeLast24h, 0), pr.totalCpuCostLast24h=IFNULL(C.totalCpuCostLast24h, 0)" );
+"update PRIORITY pr left join (select userid, sum(p.cost) as totalCpuCostLast24h , sum(p.runtimes) as totalRunningTimeLast24h  from QUEUE q join QUEUEPROC p using(queueId) where (unix_timestamp()>=q.received and unix_timestamp()-q.received<60*60*24) group by userid) as C using (userid) set pr.totalRunningTimeLast24h=IFNULL(C.totalRunningTimeLast24h, 0), pr.totalCpuCostLast24h=IFNULL(C.totalCpuCostLast24h, 0)" );
 }
 
 sub changeOWtoW {
   my $self = shift;
   return $self->do(
-"update QUEUE q join PRIORITY pr on BINARY pr.user=BINARY SUBSTRING( q.submitHost, 1, POSITION('\@' in q.submitHost)-1 ) set q.statusId=5 where (pr.totalRunningTimeLast24h<pr.maxTotalRunningTime and pr.totalCpuCostLast24h<pr.maxTotalCpuCost) and q.statusId=21" # WAITING - OVERWAITING
+"update QUEUE q join PRIORITY pr using (userid) set q.statusId=5 where (pr.totalRunningTimeLast24h<pr.maxTotalRunningTime and pr.totalCpuCostLast24h<pr.maxTotalCpuCost) and q.statusId=21" # WAITING - OVERWAITING
   );
 }
 
 sub changeWtoOW {
   my $self = shift;
   return $self->do(
-"update QUEUE q join PRIORITY pr on BINARY pr.user= BINARY SUBSTRING( q.submitHost, 1, POSITION('\@' in q.submitHost)-1 ) set q.statusId=21 where (pr.totalRunningTimeLast24h>=pr.maxTotalRunningTime or pr.totalCpuCostLast24h>=pr.maxTotalCpuCost) and q.statusId=5" #OVERWAITING - WAITING
+"update QUEUE q join PRIORITY pr using (userid) set q.statusId=21 where (pr.totalRunningTimeLast24h>=pr.maxTotalRunningTime or pr.totalCpuCostLast24h>=pr.maxTotalCpuCost) and q.statusId=5" #OVERWAITING - WAITING
   );
 }
 
@@ -529,13 +529,6 @@ sub optimizerJobExpired {
 #"( ( (status='DONE') || (status='FAILED') || (status='EXPIRED') || (status like 'ERROR%')  ) && ( received < (? - 7*86540) ) )";
 }
 
-sub optimizerJobPriority {
-  my $self       = shift;
-  my $userColumn = shift;
-  return $self->do(
-"INSERT IGNORE INTO PRIORITY(user, priority, maxparallelJobs, nominalparallelJobs) SELECT distinct $userColumn, 1,200, 100 from QUEUE"
-  );
-}
 
 sub userColumn {
   return "SUBSTR( submitHost, 1, POSITION('\@' in submitHost)-1  )";
@@ -673,25 +666,9 @@ sub updateSESize {
 #######
 ## optimizer Job/priority
 #####
-sub getPriorityUpdate {
-  my $self       = shift;
-  my $userColumn = shift;
-  return "update PRIORITY p left join 
-(select SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) user ,count(*) w from QUEUE where statusId=5 group by SUBSTRING( 
-submitHost, 1, POSITION('\@' in submitHost)-1 ) )  b using (user)
- left join (select SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) user,count(*) r from QUEUE where (statusId=10 or statusId=7 
-or statusId=11) group by SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) ) b2 using (user) 
- set waiting=coalesce(w,0), running=COALESCe(r,0) ,
-userload=(running/maxparallelJobs), 
-computedpriority=(if(running<maxparallelJobs, if((2-userload)*priority>0,50.0*(2-userload)*priority,1),1))";
-} # WAITING RUNNNING STARTED SAVING
 
-sub getJobAgentUpdate {
-  my $self       = shift;
-  my $userColumn = shift;
-  return
-"UPDATE JOBAGENT j set j.priority=(SELECT computedPriority-(min(queueid)/(SELECT ifnull(max(queueid),1) from QUEUE)) from PRIORITY p, QUEUE q where j.entryId=q.agentId and statusId=5 and $userColumn=p.user group by agentId)";
-} # WAITING
+# WAITING RUNNNING STARTED SAVING
+
 
 ########
 ## optimizer Job/Expired

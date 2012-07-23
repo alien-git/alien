@@ -1231,19 +1231,19 @@ sub getTopFromDB {
 
   $self->info( "Asking for top..." );
 
-  my $where=" WHERE 1=1";
-  my $columns="queueId, statusId, name, submitHost ";
+  my $where=" join QUEUE_USER using (userid) join QUEUE_COMMAND using (commandId) JOIN QUEUE_HOST s on (submithostid=s.hostId) WHERE 1=1";
+  my $columns="queueId, statusId, command name, s.host submitHost, user ";
   my $all_status=0;
   my $error="";
   my $data;
 
   my @columns=(
 	       {name=>"user", pattern=>"u(ser)?",
-		start=>'submithost like \'',end=>"\@\%'"},
+		start=>"user='",end=>"'"},
 	       {name=>"host", pattern=>"h(ost)?",
-		start=>'exechost like \'%\@',end=>"'"},
+		start=>"e.host='",end=>"'"},
 	       {name=>"submithost", pattern=>"submit(host)?",
-		start=>'submithost like \'%\@',end=>"'"},
+		start=>"s.host='",end=>"'"},
 	       {name=>"id", pattern=>"i(d)?",
 		start=>"queueid='",end=>"'"},
 	       {name=>"split", pattern=>"s(plit)?",
@@ -1251,27 +1251,33 @@ sub getTopFromDB {
 	       {name=>"status", pattern=>"s(tatus)?",
 		start=>"statusId='",end=>"'"},
 	       {name=>"command", pattern=>"c(ommand)?",
-		start=>"name='",end=>"'"},
-	       {name=>"site", pattern=>"site",
-		start=>"site='", end=>'\''}
+		start=>"name='",end=>"'"}
 	      );
 
   while (@_) {
     my $argv=shift;
-
+    $self->info("Doing $argv");
     ($argv=~ /^-?-all_status=?/) and $all_status=1 and  next;
     ($argv=~ /^-?-a(ll)?=?/) and $columns.=", execHost, received, started, finished, split, resubmission" 
       and next;
     # Added for -r parameter
     ($argv=~ /^-?-r/) and !($argv=~ /^-?-a(ll)?=?/) and $columns.=", resubmission" and next; 
      
+    if ($argv=~ /^-?-site=?/){
+       my $siteName=shift;
+       my $siteid=$self->{TASK_DB}->findSiteId($siteName);
+       $siteid or $self->info("Error: the site $siteName does not exist ") and return;
+       $where .=  " and siteid=$siteid";
+       next;
+     
+    }  
     my $found;
     foreach my $column (@columns){
       if ($argv=~ /^-?-$column->{pattern}$/ ){
-	$found=$column;
-	last;
+	     $found=$column;
+	     last;
       }
-    }
+    } 
     $found or  $error="argument '$argv' not understood" and last;
     my $type=$found->{name};
 
@@ -1293,7 +1299,7 @@ sub getTopFromDB {
     $data->{$column->{name}} or next;
     $where .= " and (".join (" or ", @{$data->{$column->{name}}} ).")";
   }
-  $all_status or $data->{status} or $data->{id} or $where.=" and ( statusId=10 or statusId=5 or statusId=21 or statusId=6 or statusId=1 or statusId=7 or statusId=11 or statusId=17 or statusId=18 or statusId=19 or statusId=12)";
+  $all_status or $data->{status} or $data->{id} or $where.=" and ( statusId in (10,5,21,6,1,7,11,17,18,19,12))";
   #$all_status or $data->{status} or $data->{id} or $where.=" and ( status='RUNNING' or status='WAITING' or status='OVER_WAITING' or status='ASSIGNED' or status='QUEUED' or status='INSERTING' or status='STARTED' or status='SAVING' or status='TO_STAGE' or status='STAGGING' or status='A_STAGED' or status='STAGING' or status='SAVED')";
 
   $where.=" ORDER by queueId";
@@ -1321,8 +1327,8 @@ sub f_top {
 
 	my @jobs = @$result;
 	my $job;
-	my $columns = "JobId\tStatus\t\tCommand name\t\t\t\t\tSubmithost";
-	my $format  = "%6s\t%-8s\t%-40s\t%-20s";
+	my $columns = "JobId\tStatus\t\tUser\t\tCommand name\t\t\t\t\tSubmithost";
+	my $format  = "%6s\t%-8s\t%-12s\t%-40s\t%-20s";
 	if (grep (/-?-a(ll)?$/, @_)) {
 		$DEBUG and $self->debug(1, "Printing more information");
 		$columns .= "\t\t\tExechost\t\t\tReceived\t\t\tStarted\t\t\t\tFinished\tMasterJob\t\t\tResubmission";
@@ -1343,6 +1349,7 @@ sub f_top {
 		my (@data) = (
 			$job->{queueId},
 			$job->{statusId},
+			$job->{user},
 			$job->{name},
 			$job->{submitHost}   || "",
 			$job->{execHost}     || "",
@@ -1353,15 +1360,15 @@ sub f_top {
 			$job->{resubmission},			
 		);
 
-		$data[3] or $data[3] = "";
+		$data[4] or $data[4] = "";
 
 		# Change the time from int to string
-		$data[5] and $data[5] = localtime $data[5];
 		$data[6] and $data[6] = localtime $data[6];
 		$data[7] and $data[7] = localtime $data[7];
+		$data[8] and $data[8] = localtime $data[8];
 
 		# If -r but no -all
-		(grep(/-?-r$/, @_)) and !(grep(/-?-a(ll)?$/, @_)) and $data[4]=$data[9];
+		(grep(/-?-r$/, @_)) and !(grep(/-?-a(ll)?$/, @_)) and $data[5]=$data[10];
 
 		my $string = sprintf "$format\n", @data;
 		$self->info($string, undef, 0);
@@ -1794,7 +1801,7 @@ sub getPsFromDB {
   my $date = time;
   my $i;
 
-  my $status="statusId=10 or statusId=5 or statusId=21 or statusId=6 or statusId=1 or statusId=3 or statusId=2 or statusId=7 or statusId=11";
+  my $status="statusId in (10,5,21,6,1,3,2,7,11)";
   #my $status="status='RUNNING' or status='WAITING' or status='OVER_WAITING' or status='ASSIGNED' or status='QUEUED' or status='INSERTING' or status='SPLIT' or status='SPLITTING' or status='STARTED' or status='SAVING'";
   my $site="";
 
@@ -1802,35 +1809,35 @@ sub getPsFromDB {
 
   my $user="";
   my @userStatus;
+  my $allStatus=0;
   if ( $flags =~ s/d//g){
-    push @userStatus, "statusId=15"; #DONE
+    push @userStatus, 15; #DONE
   }
   if ( $flags =~ s/f//g){
-    push @userStatus, "statusId=-12","statusId=-1","statusId=-2","statusId=-3","statusId=-4","statusId=-5","statusId=-7","statusId=-8","statusId=-9",
-      "statusId=-14","statusId=-13","statusId=-15","statusId=-10","statusId=-11","statusId=-16","statusId=-17","statusId=-18";
+    push @userStatus, -12,-1,-2,-3, -4, -5, -7, -8, -9,-14,-13,-15,-10,-11,-16,-17,-18;
     #push @userStatus, "status='EXPIRED'", "status like 'ERROR_\%'",
       #"status='KILLED'","status='FAILED'","status='ZOMBIE'";
   }
   if ( $flags=~ s/r//g) {
-    push @userStatus,"statusId=10", "statusId=11","statusId=5", "statusId=21", "statusId=6", "statusId=4", "statusId=1", "statusId=3", "statusId=7", "statusId=2";
+    push @userStatus, 10,11,5,21,6,4,1,3,7,2;
     #push @userStatus,"status='RUNNING'", "status='SAVING'","status='WAITING'", "status='OVER_WAITING'", "status='ASSIGNED'", "status='QUEUED'", "status='INSERTING'", "status='SPLITTING'", "status='STARTED'", "status='SPLIT'";
   }
   
   if ( $flags =~ s/A//g) {
-    push @userStatus, 1;
+     $allStatus=1;
   }
 
   if ( $flags =~s/I//g) {
-    push @userStatus,"statusId=9", "statusId=8","statusId=24"; #IDLE INTERACTIV FAULTY
+    push @userStatus, 9,8,24; #IDLE INTERACTIV FAULTY
   }
   if ( $flags=~ s/z//g) {
-    push @userStatus,"statusId=-15"; #ZOMBIE
+    push @userStatus,-15; #ZOMBIE
   }
 
   while ($args =~ s/-?-s(tatus)? (\S+)//) {
     push @userStatus, "statusId='$1'";
   }
-  @userStatus and $status=join (" or ", @userStatus) ;
+  @userStatus and $status="statusId in (".join(',', @userStatus).")" ;
 
   my @userSite;
   while ($args =~ s/-?-s(ite)? (\S+)//) {
@@ -1840,26 +1847,28 @@ sub getPsFromDB {
 
 #    }
     #my $query="SELECT queueId, status, jdl, execHost, submitHost, runtime, cpu, mem, cputime, rsize, vsize, ncpu, cpufamily, cpuspeed, cost, maxrsize, maxvsize,received,started,finished  FROM QUEUE WHERE ( status=$status ) ";
-  if($status=~/[0-9]/){ $status = "$status = $status";}  
-    my $where = "WHERE ( $status ) $site ";
+  if($allStatus){ $status = "1=1";
+   
+  }  
+  my $where = "WHERE ( $status ) $site ";
 
 
-    $args =~ s/-?-u(ser)?=?\s+(\S+)// and $where.=" and submithost like '$2\@\%'";
-    $args =~ s/-?-i(d)?=?\s*(\S+)// and $where .=" and ( p.queueid='$2' or split='$2')";
+  $args =~ s/-?-u(ser)?=?\s+(\S+)// and $where.=" and user='$2'";  
+  $args =~ s/-?-i(d)?=?\s*(\S+)// and $where .=" and ( p.queueid='$2' or q.split='$2')";
   
   if ($flags =~ s/s//) {
-    $where .=" and (upper(origJdl) like '\%SPLIT\%' or split>0 ) ";
+    $where .=" and (upper(origJdl) like '\%SPLIT\%' or q.split>0 ) ";
   } elsif ($flags !~ s/S//) {
-    $where .=" and ((split is NULL) or (split=0))";
+    $where .=" and ((q.split is NULL) or (q.split=0))";
   }
 
   if ($flags !~ /^\s*$/) {
-    $self->info( "Error: I don't know what to do with '-$flags'");
+    $self->info( "Error: I don't know what to do with flags '-$flags'");
     return;
 
   }
   if ($args !~ /^\s*$/){
-    $self->info( "Error: I don't know what to do with '$args'");
+    $self->info( "Error: I don't know what to do with args '$args'");
     return;
   }
 
@@ -1868,8 +1877,14 @@ sub getPsFromDB {
 
 
 	#my (@ok) = $self->{DB}->query($query);
-  my $rresult = $self->{TASK_DB}->getFieldsFromQueueEx("q.queueId, statusId, name, execHost, submitHost, runtime, cpu, mem, cputime, rsize, vsize, ncpu, cpufamily, cpuspeed, cost, maxrsize, maxvsize, site, node, split, procinfotime,received,started,finished",
-						  "q join QUEUEPROC p using(queueid) join QUEUEJDL qj using (queueid) $where ORDER by queueid")
+  my $rresult = $self->{TASK_DB}->query("select q.queueId, statusId, command name, e.host execHost, 
+     s.host submitHost, runtime, cpu, mem, cputime, rsize, vsize, ncpu, cpufamily, cpuspeed, p.cost, 
+       maxrsize, maxvsize, site, n.host node, q.split, procinfotime,received,q.started,finished
+      from QUEUE q join QUEUEPROC p using(queueid) join QUEUEJDL qj using (queueid) 
+          join QUEUE_COMMAND using (commandId) join QUEUE_HOST e on (exechostId=e.hostid)
+           join QUEUE_HOST s on (submithostid=s.hostid) join SITEQUEUES using (siteid)
+           join QUEUE_USER using (userid) join QUEUE_HOST n on (nodeid=n.hostid)
+           $where ORDER by queueid")
     or $self->info( "In getPs error getting data from database" )
       and return;
 
@@ -1999,6 +2014,7 @@ sub f_ps {
 	my @outputarray;
 	my $output;
 
+  $self->info("At the beginning of ps, '@_'");
 	my $subcommands = {
 		trace => "f_ps_trace",
 		rc    => "f_ps_rc",
@@ -2047,7 +2063,7 @@ sub f_ps {
 	if ($flags =~ s/a//g) {
 		;
 	} else {
-		$addtags .= "-u $self->{CATALOG}->{CATALOG}->{ROLE} ";
+		$addtags .= "-u=$self->{CATALOG}->{CATALOG}->{ROLE} ";
 	}
 
 	grep (((/^-?-id?=?\s?(\d+)/) and ($addtags .= " -id $1 ")), @_);
@@ -2055,7 +2071,7 @@ sub f_ps {
 	#    grep (((/^-?-site?=?\s?(\d+)/) and ($addtags = " -s $1 ")),@_);
 
 	#  grep (((/^-?-st?=?\s?(\d+)/) and ($addtags = " -s $1 -z")),@_);
-
+  $self->info("And now, $flags and $addtags and @id");
 	my $result = $self->getPsFromDB( $flags, $addtags, @id);
   $result or return;
 	#print "ps result:", $done->result, ":\n";
@@ -2818,11 +2834,10 @@ sub f_queue_add {
 	my $queue = shift;
 	$self->f_queue_exists($queue, 0, "add") or return;
 
-	my $set = {site => $queue, blocked => "locked", status => "new", statustime => 0};
-	foreach (@{AliEn::Util::JobStatus()}) {
-		$set->{$_} = 0;
-	}
-	my $insert = $self->{TASK_DB}->insertSiteQueue($set) or $self->{LOGGER}->error("CE", "Error adding the site $queue");
+	#my $set = {site => $queue, blocked => "locked", status => "new", statustime => 0};
+
+	my $insert = $self->{TASK_DB}->insertSiteQueue($queue) 
+	or $self->info("Error adding the site $queue");
 	return $insert;
 }
 
@@ -3030,18 +3045,16 @@ sub resubmitCommand {
 	foreach my $queueId (@_) {
 		# Getting path and resubmission
 		$self->info("Resubmitting $queueId");
-		
-    	my ($ok, $error) = $self->{TASK_DB}->checkJobQuota($user, 1);
-    	($ok > 0) or return (-1, $error);
-			
-		my $path = $self->{TASK_DB}->getFieldFromQueue($queueId, "path");
 		my $resubmission = $self->{TASK_DB}->getFieldFromQueue($queueId, "resubmission");
-		
+
 		my $done = $self->resubmitCommandInternal($queueId, $user);
 		$done or $self->info("Error resubmitting $queueId")
 			  and return @result;
 		push @result, $done;
 		$self->info("Process $queueId resubmitted!! (new jobid is " . $done . ")");
+		my $path = $self->{TASK_DB}->queryValue("SELECT path from QUEUEJDL where queueid=?",
+		                                        undef, {bind_values=>[$queueId]});
+		
 		if ($path) {
 		  $self->info("Renaming previous saved files of the job in $path");
 		  my @files = $self->{CATALOG}->execute("find", "-j", $queueId, $path, "*");
@@ -3055,7 +3068,7 @@ sub resubmitCommand {
 		}
 				
 	}
-    $self->info("The resubmission of '@_' finished correctly");
+  $self->info("The resubmission of '@_' finished correctly");
 	return @result;
 }
 
@@ -3072,24 +3085,13 @@ sub resubmitCommandInternal {
     and return (-1, "QueueId not specified");
 
   $self->info("Checking your job quota... For Resubmission");
-  my ($ok, $error) = $self->{TASK_DB}->checkJobQuota($user, 1);
-  ($ok > 0) or return (-1, $error);
-  $self->info("OK. resubmit");
+  my ($ok, $jobUserId) = $self->{TASK_DB}->checkJobQuota($user, 1);
+  ($ok > 0) or return (-1, $jobUserId);
+  $self->info("OK. resubmit ($jobUserId)");
 
-  my $date = time;
-
-  $self->info("Resubmitting command $queueId");
-
-  my ($data) = $self->{TASK_DB}->getFieldFromQueue($queueId, "submitHost");
-  
-  defined $data
-    or $self->{LOGGER}->error("CE", "In resubmitCommand error during execution of database query")
-    and return (-1, "during execution of database query");
-
-
-  ($data =~ /^$user\@/)
-    or ($user eq "admin")
-    or $self->{LOGGER}->error("CE", "In resubmitCommand process $queueId does not belong to '$user'")
+  my $userId=$self->{TASK_DB}->findUserId($user);
+  ($userId == $jobUserId ) or ($user eq "admin")
+    or $self->info("In resubmitCommand process $queueId does not belong to '$user'")
     and return (-1, "process $queueId does not belong to $user");
 
   $self->info("Removing the 'registeredoutput', 'registeredlog', 'joblogonclustermonitor', and 'successfullybookedpfns'  field");
@@ -3254,9 +3256,9 @@ sub getMasterJobInfo {
 	my $group = "statusId";
 
 	$data->{printsite} and $group = "concat(statusId,$data->{exechost})";
-	my $columns = "statusId,count(*) as count";
+	my $columns = "status,statusId, count(*) as count";
 	$data->{printsite} and $columns .= ",$data->{exechost} as exechost";
-	my $query = "select $columns from QUEUE $data->{cond} group by $group";
+	my $query = "select $columns from QUEUE join QUEUESTATUS using (statusid)  $data->{cond} group by $group";
 	$self->debug(1, "Doing the query $query");
 	my $info = $self->{TASK_DB}->query($query)
 		or $self->info("In getMasterJobInfo error getting data from database")
@@ -3893,7 +3895,7 @@ sub resyncJobAgent {
 	$self->info("First, let's take a look at the missing jobagents");
 
 	my $jobs = $self->{TASK_DB}->query(
-		"select origjdl jdl, agentid from QUEUE q join 
+		"select userid, origjdl jdl, agentid from QUEUE q join 
 (select min(queueid) as q from QUEUE left join JOBAGENT on agentid=entryid where entryid is null  and statusId=5 group by agentid) t  on queueid=q
 join QUEUEJDL using (queueid)"
 		)
@@ -3910,8 +3912,6 @@ join QUEUEJDL using (queueid)"
 		$job->{jdl} =~ /(\suser\s*=\s*"([^"]*)")/si or $self->info("Error getting the user from '$job->{jdl}'") and next;
 		$req .= "; $1 ";
 		my $params = $self->{TASK_DB}->extractFieldsFromReq($req);
-		use Data::Dumper;
-		print Dumper($params);
 		$params->{entryId} = $job->{agentid};
 		$self->{TASK_DB}->insert("JOBAGENT", $params);
 	}
@@ -3931,24 +3931,14 @@ sub f_resyncPriorities {
 
 	$self->{TASK_DB} or return 0;
 	$self->info("Updating the priorities");
-	my $userColumn = $self->{TASK_DB}->userColumn;
-	$self->{TASK_DB}->optimizerJobPriority($userColumn);
+
+	$self->{TASK_DB}->insertNewPriorityUsers();
 	$self->info("Now, compute the number of jobs waiting and priority per user");
-	my $update = $self->{TASK_DB}->getPriorityUpdate($userColumn);
-	$self->info("Doing $update");
-	$self->{TASK_DB}->do($update);
+  $self->{TASK_DB}->getPriorityUpdate();
 
 	$self->info("Finally, let's update the JOBAGENT table");
-
-# $update="UPDATE JOBAGENT j set j.priority=(SELECT computedPriority-(min(queueid)/(SELECT ifnull(max(queueid),1) from QUEUE)) from PRIORITY p, QUEUE q where j.entryId=q.agentId and status='WAITING' and $userColumn=p.".$self->{DB}->reservedWord("user")." group by agentId)";
-	$update = $self->{TASK_DB}->getJobAgentUpdate($userColumn);
-	$self->info("Doing $update");
-	$self->{TASK_DB}->do($update);
-
-	$update =
-"UPDATE JOBAGENT j set j.priority=j.priority * (SELECT ifnull(max(price),1) FROM QUEUE q WHERE q.agentId=j.entryId)";
-	$self->info("Doing $update");
-	$self->{TASK_DB}->do($update);
+	
+	$self->{TASK_DB}->do("UPDATE JOBAGENT j set priority=(select computedPriority from PRIORITY p where p.userid=j.userid)");
 
 	return 1;
 }
@@ -4032,14 +4022,14 @@ sub f_jquota_list {
 	#  my $done = $self->{RPC}->CallRPC("Manager/Job", 'getJobQuotaList', $user);
 	#  $done or return;
 	#  my $result = $done->result;
-	my $result = $self->{TASK_DB}->getFieldsFromPriorityEx(
-"user, unfinishedJobsLast24h, maxUnfinishedJobs, totalRunningTimeLast24h, maxTotalRunningTime, totalCpuCostLast24h, maxTotalCpuCost",
-		"where user like '$user'"
+	my $result = $self->{TASK_DB}->query("select 
+user, unfinishedJobsLast24h, maxUnfinishedJobs, totalRunningTimeLast24h, maxTotalRunningTime, totalCpuCostLast24h, maxTotalCpuCost
+from PRIORITY join QUEUE_USER using (userid) where user=?", undef, {bind_values=>[$user]}
 		)
 		or $self->info("Failed to getting data from PRIORITY table", 1)
 		and return;
 	$result->[0]
-		or $self->{LOGGER}->error("User $user not exist", 1)
+		or $self->info("User $user not exist", 1)
 		and return;
 
 	my $cnt = 0;
@@ -4137,12 +4127,8 @@ sub calculateJobQuota {
 	$self->$method(@data, "Synchronize with SITEQUEUES");
 	foreach (qw(OVER_WAITING WAITING)) {
 		$self->{TASK_DB}
-			->do("update SITEQUEUES s set $_=(select count(1) from QUEUE q where statusId='$_' and s.site=q.site)")
+			->do("update SITEQUEUES s set $_=(select count(1) from QUEUE q where statusId='$_' and s.siteid=q.siteid)")
 			or $self->$method(@data, "$_ Failed");
-		$self->{TASK_DB}->do(
-"update SITEQUEUES s set $_=(select count(1) from QUEUE q where statusId='$_' and q.site is null) where s.site='UNASSIGNED::SITE'"
-			)
-			or $self->$method(@data, "$_ UNASSIGNED::SITE Failed");
 	}
 
 	return;

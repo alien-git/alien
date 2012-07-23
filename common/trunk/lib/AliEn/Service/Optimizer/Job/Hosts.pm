@@ -109,9 +109,7 @@ sub  checkHosts {
       $self->{LOGGER}->warning( "Hosts","In checkHosts error updating maxjobs and maxqueued for host $data->{hostname} and $data->{cename} in SITEQUEUETABLE");
     if ($done eq "") {
       $self->info("The site didn't exist... Let's insert it");
-      $set->{'site'} = $data->{cename};
-      $set->{'blocked'} = "open";
-      $self->{DB}->insertSiteQueue($set);
+      $self->{DB}->insertSiteQueue($data->{cename});
     }
   }
   return 1;

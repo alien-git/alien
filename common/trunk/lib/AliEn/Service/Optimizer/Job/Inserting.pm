@@ -44,12 +44,11 @@ sub updateInserting {
 
   $self->info( "\n\nInserting a new job $queueid" );
 
-  my ($host)= $self->{DB}->getFieldFromQueue($queueid,"submitHost")
+  my $user= $self->{DB}->queryValue("select user from QUEUE join QUEUE_USER using (userid) where queueid=?",
+                     undef, {bind_values=>[$queueid]})
     or $self->info( "Job $queueid doesn't exist" )
       and return;
 
-  my $user = "";
-  ( $host =~ /^(.*)\@/ ) and ( $user = $1 );
   my $set={};
   eval {
     if ( !$job_ca->isOK() ) {

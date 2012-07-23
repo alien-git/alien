@@ -1628,14 +1628,6 @@ sub optimizerJobExpired {
 and To_Char( To_Date( '01.01.1970 06:00:00','DD.MM.YYYY HH24:Mi:Ss') + received/86540 +7*85540) < (now()) ";
 }
 
-sub optimizerJobPriority {
-  my $self       = shift;
-  my $userColumn = "SUBSTR( submitHost, 1, instr (submitHost,\'@\' )-1 )";
-  return $self->do(
-"INSERT  INTO PRIORITY(\"USER\", priority, maxparallelJobs, nominalparallelJobs) SELECT distinct $userColumn, 1,200, 100 from QUEUE q where not exists (select * from priority where \"USER\"= $userColumn)"
-  );
-}
-
 sub userColumn {
 
   #return "SUBSTR( submitHost, 1, instr (submitHost,\'@\' )-1 )";
@@ -1864,34 +1856,6 @@ update SET SV.freespace =( SV.\"SIZE\" -SV.freespace) where SV.\"SIZE\" =!-1)"
 #######
 ## optimizer Job/priority
 #####
-sub getPriorityUpdate {
-  my $self       = shift;
-  my $userColumn = shift;
-  return "update PRIORITY p  set
-waiting=(select count(*) from QUEUE where statusId=5 and p.\"USER\"=$userColumn ),
-running=(select count(*) from QUEUE where (statusId=10 or statusId=7 or statusId=11) and p.\"USER\"= $userColumn ),
-userload=(running/maxparallelJobs),
-computedpriority= 
-case when (p.RUNNING < p.maxparallelJobs)  then 
-                   
-                     case when (2-userload)*priority>0 
-                     then  50.0*(2-userload)*priority 
-                     else 1
-                     end
-                     
-else 1 
-end";
-}
-
-sub getJobAgentUpdate {
-  my $self       = shift;
-  my $userColumn = shift;
-  return "UPDATE JOBAGENT j set 
-priority= (SELECT p.computedPriority-(min(queueid)/nvl(max(queueid), 1))  
-from PRIORITY p, QUEUE q where j.entryId=q.agentId and statusId=5
-and $userColumn=p.\"USER\"
-group by q.agentId, computedPriority)";
-}
 
 ########
 ## optimizer Job/Expired

@@ -36,10 +36,6 @@ sub initialize {
   $self->{DB_MODULE} = "AliEn::Database::TaskQueue";
   $self->SUPER::initialize($options);
 
-  if ($ENV{'ALIEN_N_MANAGER_JOB_SERVER'}) {
-    $self->{PREFORK} = $ENV{'ALIEN_N_MANAGER_JOB_SERVER'};
-  }
-
   $self->{LOGGER}->notice("JobManager", "In initialize altering tables....");
   $self->{DB}->resyncSiteQueueTable()
     or $self->{LOGGER}->error("JobManager", "Cannot resync the SiteQueue Table!")
@@ -248,7 +244,7 @@ sub enterCommand: Public {
   my $oldjob   = (shift or "0");
   my $options = shift || {};
 
-  my ($user) = split '@', $host;
+  (my $user, $host) = split '@', $host;
 
   ($jobca_text)
     or $self->{LOGGER}->error("JobManager", "In enterCommand jdl is missing")
@@ -323,6 +319,12 @@ sub enterCommand: Public {
   		$self->info("The given expiration time is too big (bigger than $max)");
   	}	  	
   } 
+
+  $options->{silent} or $self->info("Checking your job quota...");
+  ($ok, my  $userId) = $self->{DB}->checkJobQuota($user, $nbJobsToSubmit);
+  ($ok > 0) or return [-1, $userId];
+  $set->{userid}=$userId;
+  $options->{silent} or $self->info("OK");
   
   if ($direct) {
     $self->info("The job should go directly to WAITING");
@@ -330,11 +332,6 @@ sub enterCommand: Public {
     my ($ok, $req) = $job_ca->evaluateExpression("Requirements");
     my $agentReq = $self->getJobAgentRequirements($req, $job_ca);
     $set->{agentId} = $self->{DB}->insertJobAgent($agentReq);
-  } else {
-    $options->{silent} or $self->info("Checking your job quota...");
-    my ($ok, $error) = $self->{DB}->checkJobQuota($user, $nbJobsToSubmit);
-    ($ok > 0) or return [-1, $error];
-    $options->{silent} or $self->info("OK");
   }
 
   ($ok, my $email) = $job_ca->evaluateAttributeString("Email");
@@ -353,7 +350,7 @@ sub enterCommand: Public {
   ($splitjob) and $msg .= " [Master Job is $splitjob]";
 
   $self->putJobLog($procid, "state", $msg);
-
+  $self->info("Job $procid inserted");
   return $procid;
 }
 
@@ -1012,7 +1009,8 @@ sub getSpyUrl {
   
   my $queueId = shift or return;
   $self->info("Get Spy Url for $queueId");
-  my ($url) = $self->{DB}->getFieldFromQueue($queueId, "spyurl");
+  my ($url) = $self->{DB}->queryValue("select spyurl from QUEUEPROC where queueid=?",
+                                      undef, {bind_values=>[$queueId]});
   $url or $self->info("In spy cannot get the spyurl for job $queueId");
   $self->info("Returning Spy Url for $queueId '$url'");
   return $url;

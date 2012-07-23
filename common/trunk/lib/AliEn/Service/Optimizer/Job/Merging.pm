@@ -71,12 +71,13 @@ sub checkMerging {
   $self->info("Checking if the merging jobs of $queueid have finished");
 
   eval {
-    my $info=$self->{DB}->getFieldsFromQueue($queueid, "merging,submitHost")
+    my $info=$self->{DB}->query("SELECT merging, user from QUEUE join QUEUE_USER using (userid) where
+                                queueid=?", undef, {bind_values=>[$queueid]})
       or die("Error getting the merging jobs of $queueid");
 
     my @subjobs=split(",", $info->{merging});
-    my $user;
-    ( $info->{submitHost} =~ /^(.*)\@/ ) and ( $user = $1 );
+    my $user=$info->{user};
+    
     $self->{CATALOGUE}->execute("user", "-", "$user")
       or die("Error changing to user $user");
     my @finished;
@@ -95,9 +96,9 @@ sub checkMerging {
       }
       push @running, $subjob;
     }
-    my $procDir=AliEn::Util::getProcDir($user, undef, $queueid);;
+    my $procDir="~/alien-job-$queueid";
     foreach my $job (@finished) {
-      my $subProcDir=AliEn::Util::getProcDir($user, undef, $job);
+      my $subProcDir="~/alien-job-$job";
       $self->info("Let's copy the output of $job");
       $self->putJobLog($queueid, "state", "The merging $job finished!!");
       $self->{CATALOGUE}->execute("mkdir", "-p", "$procDir/merged", "$procDir/merge-logs") 
@@ -216,14 +217,15 @@ sub updateMerging {
   $status = AliEn::Util::statusName($status);
   my $newStatus="DONE";
   my $set={};
-
+  $self->info("Here we go");
   eval {
     #my @part_jobs=$self->{DB}->query("SELECT count(*),status from QUEUE where split=$queueid group by status");
     my $rparts = $self->{DB}->getFieldsFromQueueEx("count(*) as count, statusId", 
     "WHERE split=? GROUP BY statusId", {bind_values=>[$queueid]})
       or die("Could not get splitted jobs for $queueid");
 
-    my $user = AliEn::Util::getJobUserByDB($self->{DB}, $queueid);
+    my $user = $self->{DB}->queryValue("select user from QUEUE join QUEUE_USER using (userid) where queueid=?",
+                 undef, {bind_values=>[ $queueid] });
     $self->{CATALOGUE}->execute("user", "-", "$user")
       or die("Error changing to user $user");
     #my $procDir = AliEn::Util::getProcDir($user, undef, $queueid);
