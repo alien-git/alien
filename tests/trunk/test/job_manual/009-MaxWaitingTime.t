@@ -62,7 +62,7 @@ BEGIN { plan tests => 1 }
   
   print "All MaxWaitingTime fields correctly parsed";
 
-  waitForStatus($cat, $idsjobs[0], "ERROR_EW", 10,5) or exit(-2);
+  waitForStatus($cat, $idsjobs[0], "ERROR_EW", 10,7) or exit(-2);
   $cat->close();
   $d->close();
 
