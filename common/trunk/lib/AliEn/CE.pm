@@ -2464,7 +2464,7 @@ sub f_queue_HELP {
 \tqueue list\t\t-\tlist available sites
 \tqueue add <queue> \t-\tadd an unknown site to the site queue
 \tqueue remove <queue>\t-\tremoves a queue
-\tqueue priority \t-\tset of commands for priority scheduling - prints help without any further arguments\n";
+\n";
 }
 
 sub f_queue {
@@ -2487,8 +2487,7 @@ sub f_queue {
 	my @return;
 	if ( ($self->{CATALOG}->{CATALOG}->{ROLE} !~ /^admin(ssl)?$/)
 		&& ($command ne "list")
-		&& ($command ne "info")
-		&& ($command ne "priority")) {
+		&& ($command ne "info")) {
 		$self->info("Error executing queue $command: you are not allowed to execute that!");
 		return;
 	}
@@ -2527,89 +2526,6 @@ sub f_queue_info {
 	return;
 }
 
-sub f_queue_priority {
-	my $self       = shift;
-	my $subcommand = shift
-		or $self->{LOGGER}->error("CE",
-"You have to specify a subcommand to command <priority>:\n queue priority jobs [user] [max.rows=1000]\t - list the job priority ranking - use <user> = \% to set max. rows for all\n queue priority list [user]                 \t - list the user priorities\n"
-		)
-		and return;
-
-	if ($subcommand eq "jobs") {
-		my $user  = (shift or "%");
-		my $limit = (shift or "10000");
-		$self->info("----------------------------------------------------------------------------------------------------",
-			undef, 0);
-
-#	  my $array = $self->{TASK_DB}->getFieldsFromQueueEx("queueId,SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user,priority","where status='WAITING' and submitHost like '$user\@%' ORDER by priority desc limit $limit");
-		my $array =
-			$self->{TASK_DB}
-			->getFieldsFromQueueEx("queueId,SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user,priority",
-			"where statusId=5 ORDER by priority desc limit $limit");
-		my $cnt = 0;
-		foreach (@$array) {
-			$cnt++;
-			if (($_->{'user'} eq $user) || ($user eq "%")) {
-				$self->info(sprintf(" [%04d. ]      %-8s %12s %-8s", $cnt, $_->{'queueId'}, $_->{'user'}, $_->{'priority'}),
-					undef, 0);
-			}
-		}
-		$self->info("----------------------------------------------------------------------------------------------------",
-			undef, 0);
-		return;
-	}
-	if ($subcommand eq "list") {
-		my $user = (shift or "%");
-		my $array =
-			$self->{TASK_DB}->getFieldsFromPriorityEx("*", "where user like ? ORDER BY user", {bind_values => [$user]});
-		if (@$array) {
-			$self->f_priorityprint($array);
-		}
-		return;
-	}
-
-	if ($subcommand eq "add") {
-		my $user = shift or $self->{LOGGER}->error("CE", "You have to specify a username to be added!") and return;
-		$self->{TASK_DB}->checkPriorityValue($user);
-		$self->f_queue_priority("list", "$user");
-		return;
-	}
-
-	if ($subcommand eq "set") {
-		my $user  = shift or $self->{LOGGER}->error("CE", "You have to specify a user to modify!")        and return;
-		my $field = shift or $self->{LOGGER}->error("CE", "You have to specify a field value to modify!") and return;
-		my $value = shift
-			or $self->{LOGGER}->error("CE", "You have to specify a value to set for field $field!")
-			and return;
-
-		my $array =
-			$self->{TASK_DB}->getFieldsFromPriorityEx("*", "where user like ? ORDER BY user", {bind_values => [$user]});
-		if (!$array) {
-			$self->{LOGGER}->error("CE", "User $user does not have an entry yet - use 'queue priority add <user>' first!");
-			return;
-		}
-
-		my $lkeys;
-		my $reffield = @$array[0];
-		my $found    = 0;
-		foreach $lkeys (%$reffield) {
-			if ($lkeys eq "$field") {
-				$found = 1;
-				last;
-			}
-		}
-		if (!$found) {
-			$self->{LOGGER}->error("CE", "There is no priority field named '$field' !");
-			return;
-		}
-
-		my $set = {};
-		$set->{$field} = $value;
-		my $done = $self->{TASK_DB}->updatePrioritySet($user, $set);
-
-		$self->f_queue_priority("list", "$user");
-	}
-}
 
 sub f_queue_ghost {
 	my $self       = shift;
@@ -3971,16 +3887,21 @@ sub f_jquota_list {
 	}
 
 	if (($whoami !~ /^admin(ssl)?$/) and ($user ne $whoami)) {
-		$self->{LOGGER}->error("CE", "Not allowed to see other users' quota information");
+		$self->info("Not allowed to see other users' quota information");
 		return;
 	}
+	my @bind;
+	my $where="";
+  if($user ne '%'){
+		$where="where user=?";
+		push @bind, $user;
+  }
 
-	#  my $done = $self->{RPC}->CallRPC("Manager/Job", 'getJobQuotaList', $user);
-	#  $done or return;
-	#  my $result = $done->result;
+ 
+
 	my $result = $self->{TASK_DB}->query("select 
 user, unfinishedJobsLast24h, maxUnfinishedJobs, totalRunningTimeLast24h, maxTotalRunningTime, totalCpuCostLast24h, maxTotalCpuCost
-from PRIORITY join QUEUE_USER using (userid) where user=?", undef, {bind_values=>[$user]}
+from PRIORITY join QUEUE_USER using (userid) $where ", undef, {bind_values=>\@bind}
 		)
 		or $self->info("Failed to getting data from PRIORITY table", 1)
 		and return;
@@ -4025,17 +3946,23 @@ sub f_jquota_set_HELP {
 sub f_jquota_set {
 	my $self  = shift;
 	my $user  = shift or $self->info($self->f_jquota_set_HELP()) and return;
-	my $field = shift or $self->info($self->f_jquota_set_HELP()) and return;
-	my $value = shift;
-	(defined $value) or $self->info($self->f_jquota_set_HELP()) and return;
-	if ($field !~ /(maxUnfinishedJobs)|(maxTotalRunningTime)|(maxTotalCpuCost)/) {
-		$self->{LOGGER}
-			->error("CE", "Wrong field name! Choose one of them: maxUnfinishedJobs, maxTotalRunningTime, maxTotalCpuCost\n");
-		return;
+	
+	my $set={};
+	my $error=1;
+	while (@_){
+	 
+	  my $field = shift or $self->info($self->f_jquota_set_HELP()) and return;
+	  my $value = shift;
+	  (defined $value) or $self->info($self->f_jquota_set_HELP()) and return;
+	  if ($field !~ /(maxUnfinishedJobs)|(maxTotalRunningTime)|(maxTotalCpuCost)/) {
+		  $self->info("Wrong field name! Choose one of them: maxUnfinishedJobs, maxTotalRunningTime, maxTotalCpuCost\n");
+	  	return;
+	  }
+		$set->{$field}=$value;
+		$error=0;
 	}
-
-	#my $done = $self->{RPC}->CallRPC("Manager/Job", 'setJobQuotaInfo', $user, $field, $value);
-	my $set = {$field => $value};
+  $error and $self->info($self->f_jquota_set_HELP()) and return;
+	
 	my $done = $self->{TASK_DB}->updatePrioritySet($user, $set);
 	$done or $self->info("Failed to set the value in PRIORITY table") and return;
 

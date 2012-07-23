@@ -1248,24 +1248,6 @@ sub putJobLog {
 #  return (1, undef);
 #}
 
-sub getJobQuotaList {
-  my $this = shift;
-  my $user = shift
-    or $self->{LOGGER}->error("In getJobQuotaList user is missing\n")
-    and return (-1, "user is missing");
-
-  my $array = $self->{DB}->getFieldsFromPriorityEx(
-"user, unfinishedJobsLast24h, maxUnfinishedJobs, totalRunningTimeLast24h, maxTotalRunningTime, totalCpuCostLast24h, maxTotalCpuCost",
-    "where user like '$user'"
-    )
-    or $self->{LOGGER}->error("Failed to getting data from PRIORITY table")
-    and return (-1, "Failed to getting data from PRIORITY table");
-  $array->[0]
-    or $self->{LOGGER}->error("User $user not exist")
-    and return (-1, "User $user not exist in PRIORITY table");
-
-  return $array;
-}
 
 sub setJobQuotaInfo {
   my $this = shift;

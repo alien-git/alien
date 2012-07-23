@@ -1812,39 +1812,7 @@ sub updatePrioritySet {
   my $set = shift;
 
   $self->debug(1, "In updatePrioritySet user is NOT missing");
-  $self->update("PRIORITY", $set, $self->reservedWord("user") . " LIKE ?", {bind_values => [$user]});
-}
-
-sub getFieldFromPriority {
-  my $self = shift;
-  my $user = shift
-    or $self->{LOGGER}->error("TaskQueue", "In getFieldFromPriority user is missing")
-    and return;
-  my $attr = shift || "*";
-
-  $self->debug(1, "In getFieldFromPriority fetching attribute $attr of user $user");
-  $self->queryValue("SELECT $attr FROM PRIORITY WHERE user =?", undef, {bind_values => [$user]});
-}
-
-sub getFieldsFromPriority {
-  my $self = shift;
-  my $user = shift
-    or $self->{LOGGER}->error("TaskQueue", "In getFieldsFromPriority user is missing")
-    and return;
-  my $attr = shift || "*";
-
-  $self->debug(1, "In getFieldsFromPriority fetching attributes $attr of user $user");
-  $self->queryRow("SELECT $attr FROM PRIORITY WHERE user=?", undef, {bind_values => [$user]});
-}
-
-sub getFieldsFromPriorityEx {
-  my $self   = shift;
-  my $attr   = shift || "*";
-  my $addsql = shift || "";
-
-  $self->debug(1,
-    "In getFieldsFromPriorityEx fetching attributes $attr with condition $addsql from table PRIORITY");
-  $self->query("SELECT $attr FROM PRIORITY $addsql", undef, @_);
+  $self->update("PRIORITY join QUEUE_USER using (userid) ", $set, " user = ? ", {bind_values => [$user]});
 }
 
 
