@@ -142,7 +142,7 @@ sub initialize {
     index       => "queueId",
     extra_index => [
       "INDEX (split)",
-      "foreign key (statusId) references QUEUESTATUS(statusId) on delete cascade",
+      "foreign key (statusId) references QUEUE_STATUS(statusId) on delete cascade",
       "foreign key (notifyId) references QUEUE_NOTIFY(notifyId) on delete cascade",
       "foreign key (userId) references QUEUE_USER(userid) on delete cascade",
       "foreign key (siteId) references SITEQUEUES(siteid) on delete cascade",
@@ -229,6 +229,7 @@ sub initialize {
         disk         => "int(11)",
         partition    => "varchar(50) COLLATE latin1_general_ci",
         ce           => "varchar(50) COLLATE latin1_general_ci",
+        noce         => "varchar(50) COLLATE latin1_general_ci",
         userid       => "int(11) not null references QUEUE_USER(userid) on delete cascade",
         fileBroker   => "tinyint(1) default 0 not null",
       },
@@ -319,7 +320,7 @@ sub initialize {
     	id=>"lfn"
     	
     },
-    QUEUESTATUS => {
+    QUEUE_STATUS => {
       columns => {
         statusId  => "tinyint not null primary key",
         status    => "varchar(12) not null unique",
@@ -414,7 +415,7 @@ sub checkJobStatus{
     
   }
   
-  $self->do("insert ignore into QUEUESTATUS (status,statusId) values ". join (",", @values));
+  $self->do("insert ignore into QUEUE_STATUS (status,statusId) values ". join (",", @values));
   
 }
 
@@ -449,12 +450,12 @@ sub insertNotifyEmail{
   my $self=shift;
   my $email=shift;
 	
-  my $id=$self->queryValue("select notifyId from QUEUENOTIFY where notify=?",
+  my $id=$self->queryValue("select notifyId from QUEUE_NOTIFY where notify=?",
 	undef, {bind_values=>[$email]});
   $id and return $id;
   $self->info("Inserting the email address of '$email'");
-  $self->insert('QUEUENOTIFY', {notify=>$email});
-  return $self->queryValue("select notifyId from QUEUENOTIFY where notify=?",
+  $self->insert('QUEUE_NOTIFY', {notify=>$email});
+  return $self->queryValue("select notifyId from QUEUE_NOTIFY where notify=?",
 	undef, {bind_values=>[$email]})
 	
 }
@@ -560,7 +561,7 @@ sub getOrInsertFromLookupTable{
   $self->info("This is the first time that we see the $key '$value'");
   $self->do("insert into $table ($key) values (?)", {bind_values=>[$value]});
  
-  return$self->queryValue("select $id from $table where $key=?", undef, {bind_values=>[$value]});
+  return $self->queryValue("select $id from $table where $key=?", undef, {bind_values=>[$value]});
 }
 
 sub getHostName{
@@ -1367,7 +1368,7 @@ sub findUserId{
 sub extractFieldsFromReq {
   my $self= shift;
   my $text =shift;
-  my $params= {counter=> 1, ttl=>84000, disk=>0, packages=>'%', partition=>'%', ce=>''};
+  my $params= {counter=> 1, ttl=>84000, disk=>0, packages=>'%', partition=>'%', ce=>'', noce=>''};
 
   my $site = "";
   while ($text =~ s/member\(other.CloseSE,"[^:]*::([^:]*)::[^:]*"\)//si) {
@@ -1375,6 +1376,22 @@ sub extractFieldsFromReq {
   }
   $site and $site .= ",";
   $params->{site} = $site;
+  
+  
+  my $noce = "";
+  while ($text =~ s/!other.ce\s*==\s*"([^"]*)"//i) {
+    $noce =~ /,$1/ or $noce .= ",$1";
+  }
+  $noce and $noce .= ",";
+  $params->{noce} = $noce;
+  
+  
+  my $ce = "";
+  while ($text =~ s/other.ce\s*==\s*"([^"]*)"//i) {
+    $ce =~ /,$1/ or $ce .= ",$1";
+  }
+  $ce and $ce .= ",";
+  $params->{ce} = $ce;
   
   my @packages;
   while ($text =~ s/member\(other.Packages,"([^"]*)"\)//si ) {
@@ -1392,11 +1409,9 @@ sub extractFieldsFromReq {
   } 
   $text =~ s/other.LocalDiskSpace\s*>\s*(\d*)// and $params->{disk}=$1; 
   $text =~ s/other.GridPartitions,"([^"]*)"//i and $params->{partition}=$1; 
-  $text =~ s/other.ce\s*==\s*"([^"]*)"//i and $params->{ce}=$1;
   $text =~ s/this.filebroker\s*==\s*1//i and $params->{fileBroker}=1 and $self->info("DOING FILE BROKERING!!!");
   
 
- 
   $self->info("The ttl is $params->{ttl} and the site is in fact '$site'. Left  '$text' ");
   return $params;
 }
@@ -1497,18 +1512,16 @@ sub getNumberWaitingForSite{
   $options->{site} and $where.="and (site='' or site like concat('%,',?,',%') )" and push @bind, $options->{site};   
   defined $options->{packages} and $where .="and ? like packages " and push @bind, $options->{packages};
   $options->{partition} and $where .="and ? like partition " and push @bind, $options->{partition};
-  $options->{ce} and $where.=" and (ce='' or ce=?)" and push @bind,$options->{ce};
+  $options->{ce} and $where.=" and (ce like '' or ce like concat('%,',?,',%'))" and push @bind,$options->{ce};
+  $options->{ce} and $where.=" and noce not like concat('%,',?,',%')" and push @bind,$options->{ce};
   $options->{returnPackages} and $return="packages";
   my $method="queryValue";
   if ($options->{returnId}){
     $return="entryId,fileBroker";
     $method="queryRow";
-	}
-  
-
-  
+  }
+    
   return $self->$method("select $return from JOBAGENT where 1=1 $where  limit 1", undef, {bind_values=>\@bind});
-  
 }
 
 sub getWaitingJobForAgentId{ 

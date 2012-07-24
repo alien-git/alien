@@ -3130,7 +3130,7 @@ sub getMasterJobInfo {
 	$data->{printsite} and $group = "concat(statusId,$data->{exechost})";
 	my $columns = "status,statusId, count(*) as count";
 	$data->{printsite} and $columns .= ",$data->{exechost} as exechost";
-	my $query = "select $columns from QUEUE join QUEUESTATUS using (statusid)  $data->{cond} group by $group";
+	my $query = "select $columns from QUEUE join QUEUE_STATUS using (statusid)  $data->{cond} group by $group";
 	$self->debug(1, "Doing the query $query");
 	my $info = $self->{TASK_DB}->query($query)
 		or $self->info("In getMasterJobInfo error getting data from database")
