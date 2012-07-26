@@ -36,7 +36,6 @@ WriteMakefile(
 				      'scripts/requestCert.pl',
 				      'scripts/requestCertificate.pl',
 				      'scripts/proxyInit.pl',
-				      'scripts/SaveFile.pl',
 				      'scripts/makewhatis',
 				      'scripts/rotatelog.pl',
 				      'scripts/Validate.pl',

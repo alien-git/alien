@@ -2,7 +2,7 @@
 
 use AliEn::Config;
 use AliEn::Database;
-use AliEn::Services::Sync;
+
 use strict;
 use Getopt::Long ();
 
