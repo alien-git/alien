@@ -499,18 +499,22 @@ sub getNumberOfEntries {
 
 sub checkLFN {
   my $self   = shift;
-  my $dbname = shift;
-  my $ctable = shift;
+  #my $ctable = shift;
 
-  $dbname
-    and $dbname !~ /^$self->{DB}$/
-    and return;
   $self->info("YUHUU Checking the tables in $self->{DB}");
   
 
-  #my $tables = $self->queryColumn('select tablename from INDEXTABLE order by 1', undef, undef);
-  my $tables= $self->queryColumn('select table_name from (select table_rows, table_name, update_time, extra, time  from information_schema.TABLES left join LL_ACTIONS on (action="STATS" and table_name=concat("L", tableNumber,"L"))  where table_name like "L%L" and table_schema="alien_system") d  where extra is null or table_rows != extra or time>update_time');
+  
+  my $tables= $self->queryColumn('select tableName from INDEXTABLE');
+  
+        
   foreach my $t (@$tables) {
+      my $done=$self->queryValue("select 1 from LL_ACTIONS a right  join 
+      (select max(ctime) real_time, count(1) real_count from L${t}L )d  on
+       (extra=real_count and time=real_time and action='STATS' ) where a.action is null");
+       
+      $done or $self->info("table L${t}L is up to date")and next;
+   
       $self->info("We have to update the table $t");
       $self->updateLFNStats($t);
   }
@@ -721,9 +725,14 @@ sub masterSE_getFiles {
   my $sename         = shift;
   my $previous_table = shift || "";
   my $limit          = shift;
-  my $options        = shift || {};
+  #my $options        = shift || {};
+  my $md5             = shift || 0;
+  my $unique          = shift ||0;
+  my $replicated      = shift ||0;
+  my $lfn             = shift ||0;
 
   my $previous_host;
+  $self->info("IN MASTERSE_GETFILES, we have $sename, $previous_table, $limit, $md5, $unique, $replicated and $lfn");
   $previous_table =~ s/^(\d+)_// and $previous_host = $1;
   my $senumber = $self->getSENumber($sename)
     or $self->info("Error getting the se number of $sename")
@@ -732,7 +741,7 @@ sub masterSE_getFiles {
   my $return = [];
 
   my $query = "select binary2string(g.guid)guid,p.pfn  ";
-  $options->{md5} and $query .= ", g.md5 ";
+  $md5 and $query .= ", g.md5 ";
 
   #Let's skip all the hosts that we have already seen
   
@@ -746,31 +755,38 @@ sub masterSE_getFiles {
       $previous_table = "";
     }
     my $endquery = "";
-    if ($options->{unique}) {
+    if ($unique) {
       $self->info("Checking that the file is not replicated");
       $endquery =
 "and not exists (select 1 from ${table}_PFN p2 where p2.senumber!=p.senumber and p2.guidid=p.guidid) group by guid";
     }
-    if ($options->{replicated}) {
+    if ($replicated) {
       $endquery =
         "and exists (select 1 from ${table}_PFN p2 where p2.senumber!=p.senumber and p2.guidid=p.guidid) group by guid";
     }
     my $entries = [];
-    if ($options->{lfn}) {
+    if ($lfn) {
+      $self->info("WE HAVE TO MAKE SURE THAT THE REFERENCES ARE UP TO DATE");
       $self->debug(1, "Getting the lfn of the files");
       my $ref = $self->query(
-"select lfnRef, db, a.lfn  from (select  distinct lfnRef  from  ${table}_REF join  ${table}_PFN p using (guidid) where p.senumber=?) a join  HOSTS h join INDEXTABLE a using (hostindex)   where lfnRef like concat(h.hostindex, '_%') and lfnRef=concat(a.hostIndex,'_', a.tableName) ",
+"select  distinct lfnRef, lfn  from  ${table}_REF join  ${table}_PFN p using (guidid) 
+join INDEXTABLE on (lfnRef=tableName) where p.senumber=?",
         undef,
         {bind_values => [$senumber]}
       );
+      $ref or return;
+      
       foreach my $entry (@$ref) {
-        my ($host, $lfnTable) = split(/_/, $entry->{lfnRef});
+        my $lfnTable="$entry->{lfnRef}";
+        
         my $dd = $self->query(
-"$query, concat(?,lfn) lfn  from $table g join  ${table}_PFN p  using (guidid) join $entry->{db}.L${lfnTable}L l using (guid) where p.senumber=? $endquery",
+"$query, concat(?,lfn) lfn  from $table g join  ${table}_PFN p  using (guidid) 
+  join $entry->{db}.L${lfnTable}L l using (guid) where p.senumber=? $endquery",
           undef,
           {bind_values => [ $entry->{lfn}, $senumber ]}
         );
-        print "    doing $table and $entry->{lfnRef} $#$dd\n";
+        $dd or return;
+        $self->info("    doing $table and $entry->{lfnRef} $#$dd");
 
         #	  my $dd=[];
         $entries = [ @$entries, @$dd ];

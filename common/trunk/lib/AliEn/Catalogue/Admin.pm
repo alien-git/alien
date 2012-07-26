@@ -942,7 +942,7 @@ sub checkIODaemons {
 sub checkLFN_HELP {
   return "checkLFN. Updates all the guids that are referenced by lfn
 Usage:
-       checkLFN [<db> [<table>]] ";
+       checkLFN [-force] [<table>] ";
 }
 
 sub checkLFN {
@@ -1112,7 +1112,19 @@ sub masterSE_list {
   my $self   = shift;
   my $sename = shift;
   $self->info("Counting the number of entries in $sename");
-  return $self->{DATABASE}->masterSE_list($sename, @_);
+  my $info= $self->{DATABASE}->masterSE_list($sename, @_) or return;
+  $self->info(
+      "The SE $sename has:
+  $info->{referenced} entries in the catalogue.
+  $info->{replicated} of those entries are replicated
+  $info->{broken} entries not pointed by any LFN"
+    );
+  if ($info->{guids}) {
+    $self->info("And the guids are:" . Dumper($info->{guids}));
+  }
+
+  return $info;
+  
 }
 
 sub masterSE_getFiles {

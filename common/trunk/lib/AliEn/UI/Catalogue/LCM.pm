@@ -2086,18 +2086,7 @@ sub masterSE {
   }
 
   if ($action =~ /^list$/i) {
-    my $info = $self->{CATALOG}->masterSE_list($sename, @_) or return;
-    $self->info(
-      "The SE $sename has:
-  $info->{referenced} entries in the catalogue.
-  $info->{replicated} of those entries are replicated
-  $info->{broken} entries not pointed by any LFN"
-    );
-    if ($info->{guids}) {
-      $self->info("And the guids are:" . Dumper($info->{guids}));
-    }
-
-    return $info;
+    return  $self->{CATALOG}->masterSE_list($sename, @_) or return;
   } elsif ($action =~ /^replicate$/i) {
     $self->info("Let's replicate all the files from $sename that do not have a copy");
     my $options = {unique => 1, lfn => 1};
@@ -2113,7 +2102,9 @@ sub masterSE {
       or $self->info("Error in masterSE print. Unrecognize options")
       and return;
     @_ = @ARGV;
-
+    if ($options->{lfn}){
+       $self->execute("checkLFN");
+    }
     my $output = shift || "$self->{CONFIG}->{TMP_DIR}/list.$sename.txt";
     $self->info("Creating the file $output with all the entries");
     open(FILE, ">$output") or $self->info("Error opening $output") and return;
@@ -2281,11 +2272,13 @@ sub executeInAllPFNEntries {
   my $counter        = 0;
   my $limit          = 1000;
   my $repeat         = 1;
-  my $previous_table = "";
+  my $previous_table = 0;
 
   while ($repeat) {
     $self->info("Reading table $previous_table and $counter");
-    (my $entries, $previous_table) = $self->{CATALOG}->masterSE_getFiles($sename, $previous_table, $limit, $options);
+    (my $entries, $previous_table) = $self->{CATALOG}->masterSE_getFiles($sename, $previous_table, $limit,
+     $options->{md5} || 0, $options->{unique} ||0, $options->{replicated}|| 0, $options->{lfn}|| 0);
+     $entries or $self->info("Error getting any entries back!") and return;
     $repeat = 0;
     $previous_table and $repeat = 1;
     $self->info("GOT $#$entries files");

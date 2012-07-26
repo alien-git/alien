@@ -2353,7 +2353,6 @@ sub updateLFNStats {
     $self->info("Doing $elem->{tableName}");
     my $gtable = "G$elem->{tableName}L";
 
-    $self->debug(1, "This is the same host. It is easy");
 
     my $maxGuidTime = $self->queryValue(
 "select substr(min(guidTime),1,8) from GUIDINDEX where guidTime> (select guidTime from GUIDINDEX where tableName=? )",

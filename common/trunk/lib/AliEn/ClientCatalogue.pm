@@ -172,6 +172,8 @@ sub AUTOLOAD {
     listSEDistance           => "listSEDistance",
     setSEStatus              => "setSEStatus",
     copyDirectoryStructure   => "copyDirectoryStructure",
+    masterSE_list            => "masterSE_list",
+    masterSE_getFiles            => "masterSE_getFiles",
 
   };
   if ($ops->{$name}) {

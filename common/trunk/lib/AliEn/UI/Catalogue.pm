@@ -198,6 +198,9 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
   'removeFileFromCollection' => [ '$self->{CATALOG}->f_removeFileFromCollection', 2 + 64 ],
   'showStructure'            => [ '$self->{CATALOG}->f_showStructure',            2 ],
   'renumberDirectory'        => [ '$self->{CATALOG}->f_renumber',                 0 ],
+  'masterSE_list'      => [ '$self->{CATALOG}->masterSE_list',        0 ],
+  'masterSE_getFiles'      => [ '$self->{CATALOG}->masterSE_getFiles',        0 ],
+  
 );
 
 sub AddCommands {
