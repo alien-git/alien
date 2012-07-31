@@ -122,8 +122,8 @@ sub initialize {
       error        => "int(11)",
       validate     => "int(1)",
       sent         => "int(20)",
-      siteid       => "int(11) not null",
-      nodeid         => "int",
+      siteId       => "int(20) not null",
+      nodeId       => "int",
       split        => "int",
       splitting    => "int",
       merging      => "varchar(64)",
@@ -133,10 +133,10 @@ sub initialize {
       optimized    => "int(1) default 0",
       finalPrice   => "float",
       notifyId     => "int",
-      agentid      => 'int(11)',
-      mtime        => 'timestamp  DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
-      resubmission => 'int(11) not null default 0',
-      commandid    => 'int(11)',
+      agentId      => "int(11)",
+      mtime        => "timestamp  DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+      resubmission => "int(11) not null default 0",
+      commandId    => "int(11)",
     },
     id          => "queueId",
     index       => "queueId",
@@ -144,17 +144,18 @@ sub initialize {
       "INDEX (split)",
       "foreign key (statusId) references QUEUE_STATUS(statusId) on delete cascade",
       "foreign key (notifyId) references QUEUE_NOTIFY(notifyId) on delete cascade",
-      "foreign key (userId) references QUEUE_USER(userid) on delete cascade",
-      "foreign key (siteId) references SITEQUEUES(siteid) on delete cascade",
-      "foreign key (exechostid) references QUEUE_HOST(hostid) on delete cascade",
-      "foreign key (submithostid) references QUEUE_HOST(hostid) on delete cascade",
-      "foreign key (nodeid) references QUEUE_HOST(hostid) on delete cascade",
-      "foreign key (commandid) references QUEUE_COMMAND(commandid) on delete cascade",
-      "INDEX(agentid)",      
+      "foreign key (userId) references QUEUE_USER(userId) on delete cascade",
+      "foreign key (siteId) references SITEQUEUES(siteId) on delete cascade",
+      "foreign key (exechostId) references QUEUE_HOST(hostId) on delete cascade",
+      "foreign key (submithostId) references QUEUE_HOST(hostId) on delete cascade",
+      "foreign key (nodeId) references QUEUE_HOST(hostId) on delete cascade",
+      "foreign key (commandId) references QUEUE_COMMAND(commandId) on delete cascade",
+      "foreign key (agentId) references JOBAGENT(entryId) on delete cascade",
+      "INDEX(agentId)",      
       "INDEX(priority)",
-      "INDEX (siteid,statusId)",
+      "INDEX (siteId,statusId)",
       "INDEX (sent)",
-      "INDEX (statusId,agentid)",
+      "INDEX (statusId,agentId)",
       "UNIQUE INDEX (statusId,queueId)"
     ],
     engine =>'innodb'
@@ -182,23 +183,48 @@ sub initialize {
       spyurl       => "varchar(64)",
     },
     id    => "queueId",
-    extra_index=> ['foreign key (queueid) references QUEUE(queueid) on delete cascade'],
+    extra_index=> ['foreign key (queueId) references QUEUE(queueId) on delete cascade'],
+    engine =>'innodb'
+  };
+  my $queueColumnsProcArchive = {
+    columns => {
+      queueId      => "int(11) not null",
+      runtime      => "varchar(20)",
+      runtimes     => "int",
+      cpu          => "float",
+      mem          => "float",
+      cputime      => "int",
+      rsize        => "int",
+      vsize        => "int",
+      ncpu         => "int",
+      cpufamily    => "int",
+      cpuspeed     => "int",
+      cost         => "float",
+      maxrsize     => "float",
+      maxvsize     => "float",
+      procinfotime => "int(20)",
+      si2k         => "float",
+      lastupdate   => "timestamp  DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+      batchid      => "varchar(255)",
+      spyurl       => "varchar(64)",
+    },
+    id    => "queueId",
+    extra_index=> ['foreign key (queueId) references '.$self->{QUEUEARCHIVE}.'(queueId) on delete cascade'],
     engine =>'innodb'
   };
   my $queueColumnsJDL ={
   	columns=>{    
   		queueId      => "int(11) not null",
-  		origJdl      =>"text collate latin1_general_ci",
-  		resultsJdl          => "text collate latin1_general_ci",
+  		origJdl      => "text collate latin1_general_ci",
+  		resultsJdl   => "text collate latin1_general_ci",
         path         => "varchar(255)",
   		
   	},
   	id =>"queueId",
-  	extra_index=> ['foreign key (queueid) references QUEUE(queueid) on delete cascade'],
+  	extra_index=> ['foreign key (queueId) references QUEUE(queueId) on delete cascade'],
     engine =>'innodb'
   };
   
-  # new for jobToken migration from ADMIN
   my $queueColumnsJobtoken ={
   	columns=>{    
 		"jobId"    => "int(11)  DEFAULT '0' NOT NULL",
@@ -206,18 +232,56 @@ sub initialize {
 		"jobToken" => "char(255) DEFAULT NULL",	
   	},
   	id =>"jobId",
-  	extra_index=> ['foreign key (jobId) references QUEUE(queueid) on delete cascade'],
+  	extra_index=> ['foreign key (jobId) references QUEUE(queueId) on delete cascade'],
     engine =>'innodb'
   };
   
   my $tables = {
-    QUEUE            => $queueColumns,
-    QUEUEPROC        => $queueColumnsProc,
-    QUEUEJDL         => $queueColumnsJDL,
-    JOBTOKEN    => $queueColumnsJobtoken,
-    
-    $self->{QUEUEARCHIVE}     => $queueColumns,
-    $self->{QUEUEARCHIVEPROC} => $queueColumnsProc,
+  	QUEUE_STATUS => {
+      columns => {
+        statusId  => "tinyint not null primary key",
+        status    => "varchar(12) not null unique",
+      },
+      id     => "statusId",
+      index  => "statusId",
+      engine => 'innodb'
+    },
+    QUEUE_NOTIFY => {
+      columns => {
+        notifyId  => "int not null auto_increment primary key",
+        notify    => "varchar(255) not null unique",
+      },
+      id          => "notifyId",
+      index       => "notifyId",
+      engine =>'innodb'
+    },
+    QUEUE_HOST => {
+      columns => {
+        hostId  => "int not null auto_increment primary key",
+        host    => "varchar(255) not null unique",
+      },
+      id          => "hostId",
+      index       => "hostId",
+      engine =>'innodb'
+    },
+    QUEUE_COMMAND => {
+      columns => {
+        commandId  => "int not null auto_increment primary key",
+        command    => "varchar(255) not null unique",
+      },
+      id          => "commandId",
+      index       => "commandId",
+      engine =>'innodb'
+    },
+    QUEUE_USER => {
+      columns => {
+        userId  => "int not null auto_increment primary key",
+        user    => "varchar(64) CHARACTER SET latin1 COLLATE latin1_general_cs not null unique"
+      },
+      id          => "userId",
+      index       => "userId",
+      engine =>'innodb'
+    },
     JOBAGENT => {
       columns => {
         entryId      => "int(11) not null auto_increment primary key",
@@ -230,13 +294,22 @@ sub initialize {
         partition    => "varchar(50) COLLATE latin1_general_ci",
         ce           => "varchar(50) COLLATE latin1_general_ci",
         noce         => "varchar(50) COLLATE latin1_general_ci",
-        userid       => "int(11) not null references QUEUE_USER(userid) on delete cascade",
+        userId       => "int not null",
         fileBroker   => "tinyint(1) default 0 not null",
       },
       id          => "entryId",
       index       => "entryId",
-      extra_index => [ "INDEX(priority)", "INDEX(ttl)" ],
+      extra_index => [ "INDEX(priority)", "INDEX(ttl)", "foreign key (userId) references QUEUE_USER(userId) on delete cascade" ],
+      engine =>'innodb'
     },
+    
+    QUEUE            => $queueColumns,
+    QUEUEPROC        => $queueColumnsProc,
+    $self->{QUEUEARCHIVE}     => $queueColumns,
+    $self->{QUEUEARCHIVEPROC} => $queueColumnsProcArchive,
+    QUEUEJDL         => $queueColumnsJDL,
+    JOBTOKEN    => $queueColumnsJobtoken,
+    
     SITES => {
       columns => {
         siteName     => "char(255)",
@@ -304,85 +377,56 @@ sub initialize {
     },
     STAGING => {
       columns => {
-        queueid      => "int(11) not null primary key",
+        queueId      => "int(11) not null ",
         staging_time => "timestamp  DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
       },
-      id => "queueid"
+      id => "queueId",
+      extra_index=>[ "foreign key (queueId) references QUEUE(queueId) on delete cascade" ], 
     },
     FILES_BROKER=> {
     	columns=>{"lfn"=> "varchar(255) not null",
     			"split" =>"int(11) not null ",
     			"sites"=>"varchar(255) not null",
-    			"queueid" => "int(11) default null",
+    			"queueId" => "int(11) default null",
     	},
 
     	extra_index=>['index(split)', "unique index(split,lfn)"],
     	id=>"lfn"
     	
     },
-    QUEUE_STATUS => {
-      columns => {
-        statusId  => "tinyint not null primary key",
-        status    => "varchar(12) not null unique",
-      },
-      id          => "statusId",
-      index       => "statusId"
-    },
-    QUEUE_NOTIFY => {
-      columns => {
-        notifyId  => "int not null auto_increment primary key",
-        notify    => "varchar(255) not null unique",
-      },
-      id          => "notifyId",
-      index       => "notifyId"
-    },
-    QUEUE_HOST => {
-      columns => {
-        hostId  => "int not null auto_increment primary key",
-        host    => "varchar(255) not null unique",
-      },
-      id          => "hostId",
-      index       => "hostId"
-    },
-    QUEUE_COMMAND => {
-      columns => {
-        commandId  => "int not null auto_increment primary key",
-        command    => "varchar(255) not null unique",
-      },
-      id          => "commandId",
-      index       => "commandId"
-    },
-    QUEUE_USER => {
-      columns => {
-        userId  => "int not null auto_increment primary key",
-        user    => "varchar(64) CHARACTER SET latin1 COLLATE latin1_general_cs not null unique"
-      },
-      id          => "userId",
-      index       => "userId"
-    },
-    PRIORITY => { columns=>{
-    userid              => "int not null primary key references QUEUE_USER(userid) on delete cascade",
-    priority            => "float default 0 not null ",
-    maxparallelJobs     => "int default 0 not null  ",
-    nominalparallelJobs => "int default 0 not null ",
-    computedpriority    => "float default 0 not null ",
-    waiting             => "int default 0 not null ",
-    running             => "int default 0 not null ",
-    userload            => "float default 0 not null ",
-
-    #Job Quota
-    unfinishedJobsLast24h   => "int default 0 not null ",
-    totalRunningTimeLast24h => "bigint default 0 not null ",
-    totalCpuCostLast24h     => "float default 0 not null ",
-    maxUnfinishedJobs       => "int default 0 not null ",
-    maxTotalRunningTime     => "bigint default 0 not null ",
-    maxTotalCpuCost         => "float default 0  not null ",
-    ##File Quota
-     }, id=>"userid", "index"=>'userid'
-     
+    PRIORITY => { 
+      columns=>{
+	    userId              => "int not null ",
+	    priority            => "float default 0 not null ",
+	    maxparallelJobs     => "int default 0 not null  ",
+	    nominalparallelJobs => "int default 0 not null ",
+	    computedpriority    => "float default 0 not null ",
+	    waiting             => "int default 0 not null ",
+	    running             => "int default 0 not null ",
+	    userload            => "float default 0 not null ",	
+	    #Job Quota
+	    unfinishedJobsLast24h   => "int default 0 not null ",
+	    totalRunningTimeLast24h => "bigint default 0 not null ",
+	    totalCpuCostLast24h     => "float default 0 not null ",
+	    maxUnfinishedJobs       => "int default 0 not null ",
+	    maxTotalRunningTime     => "bigint default 0 not null ",
+	    maxTotalCpuCost         => "float default 0  not null ",
+	    ##File Quota
+     }, 
+     id=>"userId", 
+     extra_index=>[ "foreign key (userId) references QUEUE_USER(userId) on delete cascade" ], 
+     engine =>'innodb'
     }
  
   };
+  
+  $self->checkSiteQueueTable("SITEQUEUES")
+    or $self->{LOGGER}->error("TaskQueue", "In initialize altering tables failed for SITEQUEUES")
+    and return;
+  
+  use Data::Dumper;
+  print Dumper(%$tables);
+  
   foreach my $table (keys %$tables) {
     $self->checkTable(
       $table,
@@ -395,9 +439,7 @@ sub initialize {
       and return;
   }
   $self->checkJobStatus() or return;
-  $self->checkSiteQueueTable("SITEQUEUES")
-    or $self->{LOGGER}->error("TaskQueue", "In initialize altering tables failed for SITEQUEUES")
-    and return;
+
 
   $self->checkActionTable() or return;
   
@@ -1210,7 +1252,7 @@ sub checkSiteQueueTable {
   $self->{SITEQUEUETABLE} = (shift or "SITEQUEUES");
 
   my %columns = (
-    siteid      => "int(20) not null auto_increment primary key",
+    siteId      => "int(20) not null auto_increment primary key",
     site        => "varchar(40) collate latin1_general_ci not null unique",
     cost        => "float",
     status      => "varchar(25) not null default 'new'",
@@ -1228,7 +1270,7 @@ sub checkSiteQueueTable {
   foreach (@{AliEn::Util::JobStatus()}) {
     $columns{$_} = "int not null default 0";
   }
-  $self->checkTable($self->{SITEQUEUETABLE}, "siteid", \%columns, "siteid") or return;
+  $self->checkTable($self->{SITEQUEUETABLE}, "siteId", \%columns, "siteId") or return;
   $self->do("insert ignore into SITEQUEUES (site) values ('unassigned::site') ");
 }
 
