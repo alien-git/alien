@@ -424,9 +424,6 @@ sub initialize {
     or $self->{LOGGER}->error("TaskQueue", "In initialize altering tables failed for SITEQUEUES")
     and return;
   
-  use Data::Dumper;
-  print Dumper(%$tables);
-  
   foreach my $table (keys %$tables) {
     $self->checkTable(
       $table,
