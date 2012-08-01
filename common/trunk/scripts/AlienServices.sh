@@ -509,7 +509,9 @@ startService()
 
   [ -n "$SILENT" ] || echo "$service started with $error (pid  $!)"
 
-  [ -n "$SILENT" ] || echo "Log file: $LOGDIR/$packageName.$portNum.log "
+  local endPart="log"
+  [ ! -n "$portNum" ] || endPart="$portNum.log"
+  [ -n "$SILENT" ] || echo "Log file: $LOGDIR/$packageName.$endPart"
 
   return 0
 }
