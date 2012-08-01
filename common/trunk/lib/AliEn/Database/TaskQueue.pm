@@ -158,7 +158,8 @@ sub initialize {
       "INDEX (statusId,agentId)",
       "UNIQUE INDEX (statusId,queueId)"
     ],
-    engine =>'innodb'
+    engine =>'innodb',
+    order=>13
   };
   my $queueColumnsProc = {
     columns => {
@@ -184,7 +185,8 @@ sub initialize {
     },
     id    => "queueId",
     extra_index=> ['foreign key (queueId) references QUEUE(queueId) on delete cascade'],
-    engine =>'innodb'
+    engine =>'innodb',
+    order=>14
   };
   my $queueColumnsProcArchive = {
     columns => {
@@ -210,7 +212,8 @@ sub initialize {
     },
     id    => "queueId",
     extra_index=> ['foreign key (queueId) references '.$self->{QUEUEARCHIVE}.'(queueId) on delete cascade'],
-    engine =>'innodb'
+    engine =>'innodb',
+    order=>15
   };
   my $queueColumnsJDL ={
   	columns=>{    
@@ -222,7 +225,8 @@ sub initialize {
   	},
   	id =>"queueId",
   	extra_index=> ['foreign key (queueId) references QUEUE(queueId) on delete cascade'],
-    engine =>'innodb'
+    engine =>'innodb',
+    order=>16
   };
   
   my $queueColumnsJobtoken ={
@@ -233,10 +237,11 @@ sub initialize {
   	},
   	id =>"jobId",
   	extra_index=> ['foreign key (jobId) references QUEUE(queueId) on delete cascade'],
-    engine =>'innodb'
+    engine =>'innodb',
+    order=>17
   };
   
-  my $tables = {
+  my %tables = (
   	QUEUE_STATUS => {
       columns => {
         statusId  => "tinyint not null primary key",
@@ -244,7 +249,8 @@ sub initialize {
       },
       id     => "statusId",
       index  => "statusId",
-      engine => 'innodb'
+      engine => 'innodb',
+      order=>1
     },
     QUEUE_NOTIFY => {
       columns => {
@@ -253,7 +259,8 @@ sub initialize {
       },
       id          => "notifyId",
       index       => "notifyId",
-      engine =>'innodb'
+      engine =>'innodb',
+      order=>2
     },
     QUEUE_HOST => {
       columns => {
@@ -262,7 +269,8 @@ sub initialize {
       },
       id          => "hostId",
       index       => "hostId",
-      engine =>'innodb'
+      engine =>'innodb',
+      order=>3
     },
     QUEUE_COMMAND => {
       columns => {
@@ -271,7 +279,8 @@ sub initialize {
       },
       id          => "commandId",
       index       => "commandId",
-      engine =>'innodb'
+      engine =>'innodb',
+      order=>4
     },
     QUEUE_USER => {
       columns => {
@@ -280,7 +289,8 @@ sub initialize {
       },
       id          => "userId",
       index       => "userId",
-      engine =>'innodb'
+      engine =>'innodb',
+      order=>5
     },
     JOBAGENT => {
       columns => {
@@ -300,7 +310,8 @@ sub initialize {
       id          => "entryId",
       index       => "entryId",
       extra_index => [ "INDEX(priority)", "INDEX(ttl)", "foreign key (userId) references QUEUE_USER(userId) on delete cascade" ],
-      engine =>'innodb'
+      engine =>'innodb',
+      order=>6
     },
     
     QUEUE            => $queueColumns,
@@ -325,6 +336,7 @@ sub initialize {
       },
       id    => "siteId",
       index => "siteId",
+      order=>7
     },
     ##this table used to have several columns that could not be null. This fails when starting the
     ##cluster monitor. Indeed, null values are inserted. So we allow these columns to be nullable.
@@ -345,7 +357,8 @@ sub initialize {
         cename    => "varchar(255)",
       },
       id    => "hostId",
-      index => "hostId"
+      index => "hostId",
+      order=>8
     },
     MESSAGES => {
       columns => {
@@ -359,6 +372,7 @@ sub initialize {
       },
       id    => "ID",
       index => "ID",
+      order=>9
     },
     JOBMESSAGES => {
       columns => {
@@ -369,11 +383,13 @@ sub initialize {
         timestamp => "int",
       },
       id => "entryId",
+      order=>10
     },
 
     JOBSTOMERGE => {
       columns => {masterId => "int(11) not null primary key"},
-      id      => "masterId"
+      id      => "masterId",
+      order=>11
     },
     STAGING => {
       columns => {
@@ -381,7 +397,8 @@ sub initialize {
         staging_time => "timestamp  DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
       },
       id => "queueId",
-      extra_index=>[ "foreign key (queueId) references QUEUE(queueId) on delete cascade" ], 
+      extra_index=>[ "foreign key (queueId) references QUEUE(queueId) on delete cascade" ],
+      order=>18 
     },
     FILES_BROKER=> {
     	columns=>{"lfn"=> "varchar(255) not null",
@@ -391,8 +408,8 @@ sub initialize {
     	},
 
     	extra_index=>['index(split)', "unique index(split,lfn)"],
-    	id=>"lfn"
-    	
+    	id=>"lfn",
+        order=>19    	
     },
     PRIORITY => { 
       columns=>{
@@ -415,22 +432,23 @@ sub initialize {
      }, 
      id=>"userId", 
      extra_index=>[ "foreign key (userId) references QUEUE_USER(userId) on delete cascade" ], 
-     engine =>'innodb'
+     engine =>'innodb',
+     order=>12
     }
  
-  };
+  );
   
   $self->checkSiteQueueTable("SITEQUEUES")
     or $self->{LOGGER}->error("TaskQueue", "In initialize altering tables failed for SITEQUEUES")
     and return;
   
-  foreach my $table (keys %$tables) {
+  foreach my $table (sort {$tables{$a}->{order} <=> $tables{$b}->{order} } keys %tables) {
     $self->checkTable(
       $table,
-      $tables->{$table}->{id},
-      $tables->{$table}->{columns},
-      $tables->{$table}->{index},
-      $tables->{$table}->{extra_index}
+      $tables{$table}->{id},
+      $tables{$table}->{columns},
+      $tables{$table}->{index},
+      $tables{$table}->{extra_index}
       )
       or $self->{LOGGER}->error("TaskQueue", "Error checking the table $table")
       and return;
