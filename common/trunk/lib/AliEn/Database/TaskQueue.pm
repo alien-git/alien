@@ -150,7 +150,7 @@ sub initialize {
       "foreign key (submithostId) references QUEUE_HOST(hostId) on delete cascade",
       "foreign key (nodeId) references QUEUE_HOST(hostId) on delete cascade",
       "foreign key (commandId) references QUEUE_COMMAND(commandId) on delete cascade",
-      "foreign key (agentId) references JOBAGENT(entryId) on delete no action",
+      "foreign key (agentId) references JOBAGENT(entryId) on delete set null",
       "INDEX(agentId)",      
       "INDEX(priority)",
       "INDEX (siteId,statusId)",
