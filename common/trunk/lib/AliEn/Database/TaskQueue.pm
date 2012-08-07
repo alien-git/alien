@@ -188,9 +188,38 @@ sub initialize {
     engine =>'innodb',
     order=>14
   };
-  my $queueColumnsProcArchive = {
+  my $queueColumnsArchive = {
     columns => {
-      queueId      => "int(11) not null",
+      #QUEUE
+      queueId      => "int(11) not null auto_increment primary key",
+      userId       => "int ",
+      execHostId   => "int",
+      submitHostId => "int",
+      priority     => "tinyint(4)",
+      statusId     => "tinyint not null",
+      received     => "int(20)",
+      started      => "int(20)",
+      finished     => "int(20)",
+      expires      => "int(10)",
+      error        => "int(11)",
+      validate     => "int(1)",
+      sent         => "int(20)",
+      siteId       => "int(20) not null",
+      nodeId       => "int",
+      split        => "int",
+      splitting    => "int",
+      merging      => "varchar(64)",
+      masterjob    => "int(1) default 0",
+      price        => "float",
+      chargeStatus => "varchar(20)",
+      optimized    => "int(1) default 0",
+      finalPrice   => "float",
+      notifyId     => "int",
+      agentId      => "int(11)",
+      mtime        => "timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+      resubmission => "int(11) not null default 0",
+      commandId    => "int(11)",
+      #QUEUEPROC
       runtime      => "varchar(20)",
       runtimes     => "int",
       cpu          => "float",
@@ -206,12 +235,34 @@ sub initialize {
       maxvsize     => "float",
       procinfotime => "int(20)",
       si2k         => "float",
-      lastupdate   => "timestamp  DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+      lastupdate   => "datetime ",
       batchid      => "varchar(255)",
       spyurl       => "varchar(64)",
+      #QUEUEJDL
+      origJdl      => "text collate latin1_general_ci",
+      resultsJdl   => "text collate latin1_general_ci",
+      path         => "varchar(255)",
     },
-    id    => "queueId",
-    extra_index=> ['foreign key (queueId) references '.$self->{QUEUEARCHIVE}.'(queueId) on delete cascade'],
+    id          => "queueId",
+    index       => "queueId",
+    extra_index => [
+      "INDEX (split)",
+      "foreign key (statusId) references QUEUE_STATUS(statusId) on delete cascade",
+      "foreign key (notifyId) references QUEUE_NOTIFY(notifyId) on delete cascade",
+      "foreign key (userId) references QUEUE_USER(userId) on delete cascade",
+      "foreign key (siteId) references SITEQUEUES(siteId) on delete cascade",
+      "foreign key (exechostId) references QUEUE_HOST(hostId) on delete cascade",
+      "foreign key (submithostId) references QUEUE_HOST(hostId) on delete cascade",
+      "foreign key (nodeId) references QUEUE_HOST(hostId) on delete cascade",
+      "foreign key (commandId) references QUEUE_COMMAND(commandId) on delete cascade",
+      "foreign key (agentId) references JOBAGENT(entryId) on delete set null",
+      "INDEX(agentId)",      
+      "INDEX(priority)",
+      "INDEX (siteId,statusId)",
+      "INDEX (sent)",
+      "INDEX (statusId,agentId)",
+      "UNIQUE INDEX (statusId,queueId)"
+    ],
     engine =>'innodb',
     order=>15
   };
@@ -228,7 +279,6 @@ sub initialize {
     engine =>'innodb',
     order=>16
   };
-  
   my $queueColumnsJobtoken ={
   	columns=>{    
 		"jobId"    => "int(11)  DEFAULT '0' NOT NULL",
@@ -316,8 +366,7 @@ sub initialize {
     
     QUEUE            => $queueColumns,
     QUEUEPROC        => $queueColumnsProc,
-    $self->{QUEUEARCHIVE}     => $queueColumns,
-    $self->{QUEUEARCHIVEPROC} => $queueColumnsProcArchive,
+    $self->{QUEUEARCHIVE} => $queueColumnsArchive,
     QUEUEJDL         => $queueColumnsJDL,
     JOBTOKEN    => $queueColumnsJobtoken,
     
@@ -407,7 +456,7 @@ sub initialize {
     			"queueId" => "int(11) default null",
     	},
 
-    	extra_index=>['index(split)', "unique index(split,lfn)"],
+    	extra_index=>['index(split)', "unique index(split,lfn)", "foreign key (queueId) references QUEUE(queueId) on delete cascade"],
     	id=>"lfn",
         order=>19    	
     },
@@ -481,7 +530,6 @@ sub setArchive {
   my ($Second, $Minute, $Hour, $Day, $Month, $Year, $WeekDay, $DayOfYear, $IsDST) = localtime(time);
   $Year                     = $Year + 1900;
   $self->{QUEUEARCHIVE}     = "QUEUEARCHIVE" . $Year;
-  $self->{QUEUEARCHIVEPROC} = "QUEUEARCHIVE" . $Year . "PROC";
 }
 
 sub setQueueTable {
@@ -1945,8 +1993,9 @@ sub insertNewPriorityUsers {
   my $self       = shift;
 
   return $self->do(
-"INSERT INTO PRIORITY(userid, priority, maxparallelJobs, nominalparallelJobs) 
- SELECT userid, 1,200, 100 from QUEUE_USER left join PRIORITY using (userid) where PRIORITY.userid is null"
+"INSERT INTO PRIORITY(userid, priority, maxparallelJobs, nominalparallelJobs, maxUnfinishedJobs, computedpriority, maxTotalCpuCost, 
+  totalRunningTimeLast24h, waiting, unfinishedJobsLast24h, userload, running, totalCpuCostLast24h, maxTotalRunningTime) 
+ SELECT userid, 1, 20, 10, 100, 100, 2000000, 0, 0, 0, 0, 0, 0, 1000000 from QUEUE_USER left join PRIORITY using (userid) where PRIORITY.userid is null"
   );
 }
 sub getPriorityUpdate {
