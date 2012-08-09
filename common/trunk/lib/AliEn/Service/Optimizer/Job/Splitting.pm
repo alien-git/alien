@@ -492,7 +492,7 @@ sub SubmitSplitJob {
     push @splitarguments, "";
   }
 
-  $job_ca=Classad::Classad->new($text);
+  $job_ca=AlienClassad::AlienClassad->new($text);
   $job_ca->insertAttributeString("MasterJobId", $queueid)
     or $self->info( "Error putting the master job id")
       and return;
@@ -610,7 +610,7 @@ sub _submitJDL {
   my $job_ca=shift;
   my $direct=shift ||0;
 
-  ( $job_ca) or $job_ca=Classad::Classad->new($jdlText);
+  ( $job_ca) or $job_ca=AlienClassad::AlienClassad->new($jdlText);
   if (!$files) {
     my ($ok, @input)=$job_ca->evaluateAttributeVectorString("InputData");
     $files=\@input;
@@ -814,7 +814,7 @@ sub  ChangeOriginalJob{
   my $newJdl="[\nExecutable=\"$executable\";$arguments$extra\nType=\"Job\";Requirements=$req;\n$email\n$jdl]";
   $self->info($newJdl);
 
-  my $new_ca=Classad::Classad->new($newJdl);
+  my $new_ca=AlienClassad::AlienClassad->new($newJdl);
 
   if ( !$new_ca->isOK() ) {
     print STDERR "JobOptimizer: in ChangeOriginalJob jdl $newJdl is not valid\n";

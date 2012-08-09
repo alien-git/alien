@@ -38,7 +38,7 @@ sub checkWakesUp  {
       
   foreach my $job (@$done){  	  	
   	my $jdl=$self->{DB}->queryValue("select origJdl from QUEUEJDL where queueid=?", undef, {bind_values => [$job]});
-  	my $ca=Classad::Classad->new($jdl);
+  	my $ca=AlienClassad::AlienClassad->new($jdl);
     my ($ok, $req)=$ca->evaluateExpression("Requirements");
   	$ok or $self->info("Could not get Requirements from job $job") and next;
   	

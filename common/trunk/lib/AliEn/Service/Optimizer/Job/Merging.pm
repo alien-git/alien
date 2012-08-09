@@ -38,7 +38,7 @@ sub checkWakesUp {
     $self->{DB}->delete("JOBSTOMERGE", "masterId=?", {bind_values=>[$job->{queueid}]});
     
     if ($job->{jdl}){
-      my $job_ca=Classad::Classad->new($job->{jdl});	
+      my $job_ca=AlienClassad::AlienClassad->new($job->{jdl});	
       if ( $job_ca->isOK() ) {
       	$self->updateMerging($job->{queueid}, $job_ca, $job->{statusId});
       	next;
@@ -464,7 +464,7 @@ sub checkMergingCollection{
   my @out=();
   foreach my $d (@$subjobs){
     $self->info("Checking the outputdir of $d");
-    my $ca= Classad::Classad->new($d->{JDL});
+    my $ca= AlienClassad::AlienClassad->new($d->{JDL});
     my ($ok, $dir)=$ca->evaluateAttributeString("OutputDir");
     $ok or $dir="~/alien-job-$d->{queueid}";
     push @out, $dir;

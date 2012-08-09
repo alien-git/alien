@@ -13,7 +13,7 @@ use AliEn::TRANSFERLOG;
 
 use strict;
 use POSIX; 
-use Classad;
+use AlienClassad;
 
 use vars qw (@ISA);
 @ISA=("AliEn::Service::Manager");
@@ -343,7 +343,7 @@ sub updateCollection{
   my $lfn=shift;
 
   $jdl or return 1;
-  my $ca=Classad::Classad->new($jdl);
+  my $ca=AlienClassad::AlienClassad->new($jdl);
   $ca or return;
   my ($ok, @collections)=$ca->evaluateAttributeVectorString("Collection");
   $ok or return 1;
@@ -605,7 +605,7 @@ sub findAlternativeSource {
   eval {
     my $jdl=$self->{DB}->getJdl($id) or die("Error getting the jdl\n");
 
-    my $ca=Classad::Classad->new($jdl) or die("Error creating the classad from '$jdl'\n");
+    my $ca=AlienClassad::AlienClassad->new($jdl) or die("Error creating the classad from '$jdl'\n");
     my ($ok, @ses)=$ca->evaluateAttributeVectorString("OrigSE");
     $ok or die("Error getting the source SE");
     

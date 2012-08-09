@@ -65,7 +65,7 @@ sub checkAlreadyStaged {
   my $jdl=shift;
   $self->info("Checking if job $queueid has staged all its files");
   
-  my $ca=Classad::Classad->new($jdl);
+  my $ca=AlienClassad::AlienClassad->new($jdl);
   my ($ok, my @inputData) = $ca->evaluateAttributeVectorString("InputData"); 
   
   $self->copyInputCollection($ca, $queueid, \@inputData)

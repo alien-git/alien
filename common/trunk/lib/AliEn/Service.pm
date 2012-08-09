@@ -545,7 +545,7 @@ sub createJDL {
   my $self        = shift;
   my $expressions = shift;
 
-  my $ca = Classad::Classad->new("[]");
+  my $ca = AlienClassad::AlienClassad->new("[]");
 
   foreach my $key (keys %{$expressions}) {
     $self->debug(1, "Setting expression $key to $expressions->{$key}");

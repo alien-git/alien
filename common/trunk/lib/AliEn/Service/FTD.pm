@@ -17,7 +17,7 @@ use AliEn::Logger::LogObject;
 
 push @ISA, 'AliEn::Logger::LogObject';
 
-use Classad;
+use AlienClassad;
 
 #use AliEn::MSS::file;
 
@@ -310,7 +310,7 @@ sub checkWakesUp{
   }
   $self->{LOGGER}->debug("FTD","In forkTransfers");
   my $ca;
-  $transfer->{jdl} and $ca=Classad::Classad->new($transfer->{jdl});
+  $transfer->{jdl} and $ca=AlienClassad::AlienClassad->new($transfer->{jdl});
   if (! $ca){
     $self->{LOGGER}->error("Error creating the classad of '$transfer->{jdl}'");
     $self->{RPC}->CallRPC("Manager/Transfer","changeStatusTransfer","-retry", $id, "FAILED",{"Reason","The FTD at $self->{CONFIG}->{FTD_FULLNAME} got". $self->{LOGGER}->error_msg()});

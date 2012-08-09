@@ -34,7 +34,7 @@ use AliEn::MSS;
 use Archive::Zip;
 use Filesys::DiskUsage qw /du/;
 use AliEn::Service;
-use Classad;
+use AlienClassad;
 use LWP::UserAgent;
 use Socket;
 use Carp;
@@ -355,7 +355,7 @@ sub checkStageJob {
   defined $pid or $self->info("ERROR FORKING THE STAGE PROCESS") and return;
   $pid and return 1;
   $self->info("Ok, let's start staging the files");
-  my $ca=Classad::Classad->new($jdl);
+  my $ca=AlienClassad::AlienClassad->new($jdl);
   my $status="STAGING";
   if (!$ca->isOK() ){
     $self->info("The jdl of the stage job is not correct!! '$jdl'");
@@ -478,13 +478,13 @@ sub GetJDL {
 
   $self->info("ok\nTrying with $jdl");
 
-  $self->{CA} = Classad::Classad->new("$jdl");
+  $self->{CA} = AlienClassad::AlienClassad->new("$jdl");
   ( $self->{CA}->isOK() ) and return 1;
 
   $jdl =~ s/&amp;/&/g;
   $jdl =~ s/&amp;/&/g;
   $self->info("Trying again... ($jdl)");
-  $self->{CA} = Classad::Classad->new("$jdl");
+  $self->{CA} = AlienClassad::AlienClassad->new("$jdl");
   ( $self->{CA}->isOK() ) and return 1;
 
   $self->sendJAStatus('ERROR_JDL');

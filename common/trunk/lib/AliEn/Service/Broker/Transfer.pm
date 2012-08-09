@@ -17,7 +17,7 @@ use strict;
 use vars qw (@ISA);
 
 @ISA=("AliEn::Service::Broker");
-use Classad;
+use AlienClassad;
 
 my $self = {};
 
@@ -95,7 +95,7 @@ sub requestTransferType {
 #  $self->setAlive();
 
 
-  my $ca = Classad::Classad->new($jdl);
+  my $ca = AlienClassad::AlienClassad->new($jdl);
   $self->debug(1, "Classad created");
   my ($ok, $host)=$ca->evaluateAttributeString("Name");
   $self->info("Output to TransferBroker/$host");

@@ -5,7 +5,7 @@ use strict;
 use vars qw (@ISA);
 use AliEn::Service::Optimizer::Transfer;
 use AliEn::Service;
-use Classad;
+use AlienClassad;
 use POSIX;
 
 push (@ISA, "AliEn::Service::Optimizer::Transfer");

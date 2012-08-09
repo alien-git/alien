@@ -730,7 +730,7 @@ sub submitCommand {
 
 	$DEBUG and $self->debug(1, "Description : \n$content");
 
-	my $job_ca = Classad::Classad->new("[\n$content\n]");
+	my $job_ca = AlienClassad::AlienClassad->new("[\n$content\n]");
 
 	my $dumphash;
 	$dumphash->{jdl} = $content;
@@ -995,7 +995,7 @@ sub offerAgent {
 	my $script = $self->createAgentStartup() or return;
 	my $count=$numAgents;
   $self->info("Starting $count agent(s) for $jdl ");
-	$classad = Classad::Classad->new($jdl);
+	$classad = AlienClassad::AlienClassad->new($jdl);
 
   $self->SetEnvironmentForExecution($jdl);
 	
@@ -3105,7 +3105,7 @@ sub getMasterJobFileBroker {
 	my $jdl = $self->{TASK_DB}->queryValue("select origjdl from QUEUEJDL where queueid=?", undef, {bind_values => [$id]});
 	($jdl) or $self->info("Error getting the JDL of the job '$id'") and return;
 
-	my $job_ca = Classad::Classad->new($jdl);
+	my $job_ca = AlienClassad::AlienClassad->new($jdl);
 	$job_ca         or $self->info("Error creating the classad of the job from '$jdl'") and return;
 	$job_ca->isOK() or $self->info("The syntax of the job '$jdl' is not correct")       and return;
 
@@ -3427,7 +3427,7 @@ sub f_jobListMatch {
 
 	my $jdl = $self->f_ps_jdl($jobid, "-silent")
 		or return;
-	my $job_ca = Classad::Classad->new($jdl);
+	my $job_ca = AlienClassad::AlienClassad->new($jdl);
 	$job_ca         or $self->info("Error creating the classad of the job")    and return;
 	$job_ca->isOK() or $self->info("The syntax of the job jdl is not correct") and return;
 	my @result = $self->f_queueinfo($ceName, "-jdl");
@@ -3451,12 +3451,12 @@ sub f_jobListMatch {
 		}
 
 		#$self->debug(2,"Comparing with $site->{site} (and $site->{jdl})");
-		my $ce_ca = Classad::Classad->new($site->{jdl});
+		my $ce_ca = AlienClassad::AlienClassad->new($site->{jdl});
 		if (!$ce_ca->isOK()) {
 			$options =~ /v/ and $self->info("The syntax of the CE jdl is not correct");
 			next;
 		}
-		my ($match, $rank) = Classad::Match($job_ca, $ce_ca);
+		my ($match, $rank) = AlienClassad::Match($job_ca, $ce_ca);
 		my $status = "no match :(";
 		$match and $status = "MATCHED!!! :)" and $anyMatch++;
 		if ($options =~ /v/ or $status =~ /MATCHED!!! :\)/) {
@@ -3542,7 +3542,7 @@ sub jobFindReqMiss {
 		if (!$site->{jdl}) {
 			next;
 		}
-		$ce_ca = Classad::Classad->new($site->{jdl});
+		$ce_ca = AlienClassad::AlienClassad->new($site->{jdl});
 		if (!$ce_ca->isOK()) {
 			next;
 		}
@@ -3550,11 +3550,11 @@ sub jobFindReqMiss {
 		#Re-set the jdl
 		my $tmpReq = $req = $initReq;
 		$job_ca->set_expression("Requirements", $initReq);
-		$ce_ca = Classad::Classad->new($site->{jdl});
+		$ce_ca = AlienClassad::AlienClassad->new($site->{jdl});
 
 		#    $numOfCorrectSites++;
 		#now start removing reqirements till something matcches
-		my ($match, $rank) = Classad::Match($job_ca, $ce_ca);
+		my ($match, $rank) = AlienClassad::Match($job_ca, $ce_ca);
 		while (!$match) {
 			my @reqs = split(/&&/, $req, 2);
 			$reason = $reqs[0];
@@ -3564,7 +3564,7 @@ sub jobFindReqMiss {
 				$job_ca->set_expression("Requirements", $req)
 					or $self->{LOGGER}->error("CE", "In jobFindReqMiss, failed to set new requirements")
 					and return -1;
-				($match, $rank) = Classad::Match($job_ca, $ce_ca);
+				($match, $rank) = AlienClassad::Match($job_ca, $ce_ca);
 			} else {
 				$match = 1;
 			}
@@ -3590,7 +3590,7 @@ sub jobFindReqMiss {
 				$req = $tmpReq;
 				$self->debug(1, "Let's see if now it works... ($req)");
 				$job_ca->set_expression("Requirements", $req);
-				($match, $rank) = Classad::Match($job_ca, $ce_ca);
+				($match, $rank) = AlienClassad::Match($job_ca, $ce_ca);
 			}
 		}
 		$all_sites_reasons->{$site->{site}} = \@allReasons;
@@ -3635,7 +3635,7 @@ sub jobFindReqMiss {
 	#put the init back
 	# 	$job_ca->set_expression("Requirements",$initReq);
 
-	# 	 my ($match, $rank ) = Classad::Match( $job_ca, $ce_ca );
+	# 	 my ($match, $rank ) = AlienClassad::Match( $job_ca, $ce_ca );
 	# 	my $size = @$sites;
 	# 	print "site $siteErros numOfSite $numOfCorrectSites\n";
 	# 	if ( $initReq =~ /other.CE ==(.*?)\&&/ && $siteErros >= $numOfCorrectSites ){

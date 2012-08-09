@@ -274,7 +274,7 @@ sub checkJobs {
 
     foreach my $data (@$jobs) {
       $self->{LOGGER}->$method("JobOptimizer", "Checking job $data->{queueid}");
-      my $job_ca = Classad::Classad->new($data->{jdl});
+      my $job_ca = AlienClassad::AlienClassad->new($data->{jdl});
 
 #if ( !$job_ca->isOK() ) {
 #	print STDERR "JobOptimizer: in checkJobs incorrect JDL input\n" . $data->{jdl} . "\n";

@@ -12,7 +12,7 @@ use Net::LDAP;
 
 use AliEn::Service::Manager;
 use AliEn::Util;
-use Classad;
+use AlienClassad;
 
 use AliEn::Config;
 

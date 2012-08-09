@@ -11,7 +11,7 @@ use AliEn::Database::TaskQueue;
 use AliEn::Service::Manager;
 use AliEn::JOBLOG;
 use AliEn::Util;
-use Classad;
+use AlienClassad;
 
 
 #use AliEn::Service::Optimizer::Job::Splitting;
@@ -256,7 +256,7 @@ sub enterCommand: Public {
   $jobca_text =~ s/&amp;/&/g;
 
   $DEBUG and $self->debug(1, "In enterCommand JDL: $jobca_text");
-  my $job_ca = Classad::Classad->new($jobca_text);
+  my $job_ca = AlienClassad::AlienClassad->new($jobca_text);
   if (!$job_ca->isOK()) {
     $self->info("In enterCommand incorrect JDL input\n $jobca_text");
     return [-1, "incorrect JDL input"];

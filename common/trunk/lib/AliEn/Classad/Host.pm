@@ -1,7 +1,7 @@
 package AliEn::Classad::Host;
 
 use AliEn::Config;
-use Classad;
+use AlienClassad;
 use strict;
 use vars qw(@ISA);
 use Filesys::DiskFree;
@@ -33,7 +33,7 @@ sub new {
   $self->{PACKMAN} or $self->info("Error getting the list of ClientPakcMan") and return;
 
   my $ca =
-    Classad::Classad->new(
+    AlienClassad::AlienClassad->new(
  "[ Type=\"machine\"; Requirements=(other.Type==\"Job\" $otherReq); WNHost = \"$self->{CONFIG}->{HOST}\"; ]" );
  ( $ca and $ca->isOK()) 
    or $self->info("Error creating the Classads.Check if the requirements ($otherReq) have the right format") and return;

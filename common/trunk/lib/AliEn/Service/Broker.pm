@@ -10,7 +10,7 @@ use strict;
 use AliEn::UI::Catalogue;
 use AliEn::Util;
 
-use Classad;
+use AlienClassad;
 
 use vars qw (@ISA);
 @ISA=("AliEn::Service");
@@ -122,7 +122,7 @@ sub match {
 
     $self->debug(1, "in match pending$type = $id" );
 
-    my $job_ca = Classad::Classad->new($element->{jdl});
+    my $job_ca = AlienClassad::AlienClassad->new($element->{jdl});
     $self->debug(1, "Checking $element->{jdl}");
     if ( !$job_ca->isOK() ) {
       $self->info("Got an incorrect $type ca ($id)");
@@ -131,7 +131,7 @@ sub match {
       next;
     }
 
-    my ( $match, $rank ) = Classad::Match( $job_ca, $site_ca );
+    my ( $match, $rank ) = AlienClassad::Match( $job_ca, $site_ca );
 
     ($match) or next;
     my @possibleIds=({id=>$id, classad=>$job_ca, });
@@ -157,7 +157,7 @@ sub match {
       my $realId=$item->{id};
       if (!$ret1 ){
 	$self->debug(1, "Creating the classad of $item->{jdl}");
-	$ret1=$item->{classad}= Classad::Classad->new($item->{jdl});
+	$ret1=$item->{classad}= AlienClassad::AlienClassad->new($item->{jdl});
 	($ret1 and $ret1->isOK())
 	  or $self->info("Error creating the jdl of $item->{jdl}") and next;
       }

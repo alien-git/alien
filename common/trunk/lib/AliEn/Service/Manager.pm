@@ -10,7 +10,7 @@ use AliEn::Service;
 
 use AliEn::UI::Catalogue::LCM;
 
-use Classad;
+use AlienClassad;
 
 use vars qw (@ISA);
 @ISA=("AliEn::Service");

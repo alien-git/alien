@@ -21,7 +21,7 @@ push @ISA,"AliEn::Service::Broker";
 use base qw(JSON::RPC::Procedure);
 
 
-use Classad;
+use AlienClassad;
 
 my $self = {};
 
@@ -278,7 +278,7 @@ sub extractClassadParams {
 	my $params  = {};
 
 	$self->debug(1, "Creating the classad");
-	my $classad = Classad::Classad->new($ca_text);
+	my $classad = AlienClassad::AlienClassad->new($ca_text);
 	$self->debug(1, "Classad created");
 
 	my ($ok, $queueName) = $classad->evaluateAttributeString("CE");

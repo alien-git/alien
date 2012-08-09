@@ -15,7 +15,7 @@ use AliEn::Util;
 use vars qw (@ISA);
 use base qw(JSON::RPC::Procedure);
 
-use Classad;
+use AlienClassad;
 
 
 push @ISA, "AliEn::Service";

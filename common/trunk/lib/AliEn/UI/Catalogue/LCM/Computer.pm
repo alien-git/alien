@@ -141,7 +141,7 @@ sub registerOutput {
   $jobinfo->{jdl} or $self->info("Error the jdl is empty", 2) and return;
 
   my $ca;
-  eval { $ca = Classad::Classad->new($jobinfo->{jdl}) or $self->info("Error parsing the jdl", 2) and return; };
+  eval { $ca = AlienClassad::AlienClassad->new($jobinfo->{jdl}) or $self->info("Error parsing the jdl", 2) and return; };
   if ($@) {
     $self->info("Error creating the classad $@", 2);
     return;
