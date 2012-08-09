@@ -16,7 +16,7 @@ BEGIN { plan tests => 1 }
 {
 print "'use Classad ...' test(s)...\n";
 
-use Classad;
+use AlienClassad;
 
 my $host_jdl='
 [ 
@@ -38,33 +38,33 @@ my $job2_jdl='
 ]';
 
 print "Creating the classads...";
-my $job_ca = Classad::Classad->new($job_jdl);
+my $job_ca = AlienClassad::AlienClassad->new($job_jdl);
 if ( ! $job_ca->isOK() ) {
   print  "Got an incorrect job ca";
   exit -1;
 }
 
-my $job2_ca = Classad::Classad->new($job2_jdl);
+my $job2_ca = AlienClassad::AlienClassad->new($job2_jdl);
 if ( ! $job2_ca->isOK() ) {
   print  "Got an incorrect job ca";
   exit -1;
 }
 
-my $host_ca = Classad::Classad->new($host_jdl);
+my $host_ca = AlienClassad::AlienClassad->new($host_jdl);
 if ( ! $host_ca->isOK() ) {
   print  "Got an incorrect host ca";
   exit -1;
 }
 
 print "ok\nChecking that there is a match...";
-my ($match,$rank) = Classad::Match($job_ca,$host_ca);
+my ($match,$rank) = AlienClassad::Match($job_ca,$host_ca);
 if ( ! $match ) {
   print "Error there is no match!!\n";
   exit (-1);
 
 }
 print "ok\nChecking that there is no match...";
- ($match,$rank) = Classad::Match($job2_ca,$host_ca);
+ ($match,$rank) = AlienClassad::Match($job2_ca,$host_ca);
 if ( $match ) {
   print "Error there is a match!!\n";
   exit (-1);
