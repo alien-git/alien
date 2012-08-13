@@ -660,16 +660,15 @@ sub FetchTransferMessages {
   $self->info("Picking up all the messages from the database");
 
   my $messages=$self->{DB}->retrieveTransferMessages();
-  my $maxid=0;
+  my $where="";
   foreach my $entry (@$messages){
     $self->info("Let's do something with");
     $self->{TRANSFERLOG}->putlog($entry->{transferid}, $entry->{tag}, $entry->{message});
-    $entry->{entryid}> $maxid and $maxid=$entry->{entryid};
+    my $or=" or "; $where eq "" and $or="";
+    $where.="$or(transferId=$entry->{transferid} and tag like $entry->{tag} and message like $entry->{message})";
   }
-  ($maxid) and $self->{DB}->do("delete from TRANSFERMESSAGES where entryid<=?", {bind_values=>[$maxid]});
-			       
-  
-
+  $where ne "" and $self->{DB}->do("delete from TRANSFERMESSAGES where $where");
+	
 }
 
 sub checkOngoingTransfers {

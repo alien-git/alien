@@ -271,19 +271,19 @@ sub addUser {
 sub getNewDirIndex {
   my $self = shift;
 
-  $self->lock("CONSTANTS");
+  $self->lockglobal(); # Getting global lock to avoid coincidences in dir value
 
-  my ($dir) = $self->queryValue("SELECT value from CONSTANTS where name='MaxDir'");
+  my ($dir) = $self->queryValue("select max(substr(table_name,2,length(table_name)-2)) from information_schema.TABLES where table_name like 'L%L'");
+  $dir or $dir=0;
   $dir++;
-
-  $self->update("CONSTANTS", {value => $dir}, "name='MaxDir'");
-  $self->unlock();
 
   $self->info("New table number: $dir");
 
   $self->checkLFNTable($dir)
     or $self->info("Error checking the tables $dir")
-    and return;
+    and $self->unlockglobal() and return;
+
+  $self->unlockglobal();
 
   return $dir;
 }
@@ -313,40 +313,6 @@ sub deleteUser {
   $self->delete("USERS", "Username='$user'");
   $DEBUG and $self->debug(2, "In deleteUser deleting entries with user $user from GRPS table");
   $self->delete("GRPS", "Groupname='$user'");
-}
-
-###	Environment functions
-
-sub insertEnv {
-  my $self = shift;
-  my $user = shift
-    or $self->info( "In insertEnv user is missing", 1)
-    and return;
-  my $curpath = shift
-    or $self->{LOGGER}->error("Catalogue", "In insertEnv current path is missing")
-    and return;
-
-  $DEBUG and $self->debug(2, "In insertEnv deleting old environment");
-  $self->delete("ENVIRONMENT", "userName='$user'")
-    or $self->{LOGGER}->error("Catalogue", "Cannot delete old environment")
-    and return;
-
-  $DEBUG and $self->debug(2, "In insertEnv inserting new environment");
-  $self->insert("ENVIRONMENT", {userName => $user, env => "pwd $curpath"})
-    or $self->{LOGGER}->error("Catalogue", "Cannot insert new environment")
-    and return;
-
-  1;
-}
-
-sub getEnv {
-  my $self = shift;
-  my $user = shift
-    or $self->{LOGGER}->error("Catalogue", "In getEnv user is missing")
-    and return;
-
-  $DEBUG and $self->debug(2, "In insertEnv fetching environment for user $user");
-  $self->queryValue("SELECT env FROM ENVIRONMENT WHERE userName='$user'");
 }
 
 

@@ -158,7 +158,6 @@ sub initialize {
       "INDEX (statusId,agentId)",
       "UNIQUE INDEX (statusId,queueId)"
     ],
-    engine =>'innodb',
     order=>13
   };
   my $queueColumnsProc = {
@@ -185,7 +184,6 @@ sub initialize {
     },
     id    => "queueId",
     extra_index=> ['foreign key (queueId) references QUEUE(queueId) on delete cascade'],
-    engine =>'innodb',
     order=>14
   };
   my $queueColumnsArchive = {
@@ -263,7 +261,6 @@ sub initialize {
       "INDEX (statusId,agentId)",
       "UNIQUE INDEX (statusId,queueId)"
     ],
-    engine =>'innodb',
     order=>15
   };
   my $queueColumnsJDL ={
@@ -276,7 +273,6 @@ sub initialize {
   	},
   	id =>"queueId",
   	extra_index=> ['foreign key (queueId) references QUEUE(queueId) on delete cascade'],
-    engine =>'innodb',
     order=>16
   };
   my $queueColumnsJobtoken ={
@@ -287,7 +283,6 @@ sub initialize {
   	},
   	id =>"jobId",
   	extra_index=> ['foreign key (jobId) references QUEUE(queueId) on delete cascade'],
-    engine =>'innodb',
     order=>17
   };
   
@@ -299,7 +294,6 @@ sub initialize {
       },
       id     => "statusId",
       index  => "statusId",
-      engine => 'innodb',
       order=>1
     },
     QUEUE_NOTIFY => {
@@ -309,7 +303,6 @@ sub initialize {
       },
       id          => "notifyId",
       index       => "notifyId",
-      engine =>'innodb',
       order=>2
     },
     QUEUE_HOST => {
@@ -319,7 +312,6 @@ sub initialize {
       },
       id          => "hostId",
       index       => "hostId",
-      engine =>'innodb',
       order=>3
     },
     QUEUE_COMMAND => {
@@ -329,7 +321,6 @@ sub initialize {
       },
       id          => "commandId",
       index       => "commandId",
-      engine =>'innodb',
       order=>4
     },
     QUEUE_USER => {
@@ -339,7 +330,6 @@ sub initialize {
       },
       id          => "userId",
       index       => "userId",
-      engine =>'innodb',
       order=>5
     },
     JOBAGENT => {
@@ -360,7 +350,6 @@ sub initialize {
       id          => "entryId",
       index       => "entryId",
       extra_index => [ "INDEX(priority)", "INDEX(ttl)", "foreign key (userId) references QUEUE_USER(userId) on delete cascade" ],
-      engine =>'innodb',
       order=>6
     },
     
@@ -481,7 +470,6 @@ sub initialize {
      }, 
      id=>"userId", 
      extra_index=>[ "foreign key (userId) references QUEUE_USER(userId) on delete cascade" ], 
-     engine =>'innodb',
      order=>12
     }
  

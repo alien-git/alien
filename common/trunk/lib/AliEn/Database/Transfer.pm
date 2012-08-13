@@ -71,7 +71,7 @@ my $tables = {
     },
     id          => "transferId",
     index       => "transferId",
-    extra_index => [ "INDEX (agentid)", "INDEX(status)", "INDEX(lfn)", "INDEX(ftd)" ]
+    extra_index => [ "INDEX (agentid)", "INDEX(status)", "INDEX(lfn)", "INDEX(ftd)", "foreign key (agentid) references AGENT_DIRECT(entryId) on delete set null" ]
   },
 
   ACTIONS => {
@@ -107,13 +107,13 @@ my $tables = {
 
   TRANSFERMESSAGES => {
     columns => {
-      entryId    => "int(11) not null auto_increment primary key",
-      transferId => "int",
+      transferId => "int(11)",
       message    => "varchar(200)",
       tag        => "varchar(40)",
       timestamp  => "int",
     },
-    id => "entryId",
+    id => "transferId",
+    extra_index => [ "foreign key (transferId) references TRANSFERS_DIRECT(transferId) on delete cascade" ]
   },
 
 };
@@ -534,7 +534,7 @@ sub insertTransferMessage {
 
 sub retrieveTransferMessages {
   my $self = shift;
-  return $self->query("SELECT transferid,tag, message, entryid from TRANSFERMESSAGES");
+  return $self->query("SELECT transferid,tag, message from TRANSFERMESSAGES");
 }
 
 =head1 NAME

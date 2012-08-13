@@ -219,7 +219,7 @@ Site name:$self->{CONFIG}->{SITE}"
     $self->f_disconnect();
     return;
   }
-  $self->loadEnvironment();
+  $self->{DISPPATH} = $self->GetHomeDirectory();
   my $oldSilent = $self->{SILENT};
   $self->{SILENT} = 1;
   $self->f_pwd();
@@ -679,7 +679,6 @@ sub f_mkdir {
 
 sub f_quit {
   my $self = shift;
-  $self->saveEnvironment();
   $self->f_disconnect();
   print("bye now!\n");
   exit;

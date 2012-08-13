@@ -65,12 +65,10 @@ sub LFN_createCatalogueTables {
 
   $DEBUG and $self->debug(2, "In createCatalogueTables creating all tables...");
 
-  foreach ("Constants", "SE") {
-    my $method = "check" . $_ . "Table";
-    $self->$method()
-      or $self->{LOGGER}->error("Catalogue", "Error checking the $_ table")
-      and return;
-  }
+  $self->checkSETable()
+    or $self->{LOGGER}->error("Catalogue", "Error checking the SE table")
+    and return;
+  
   my %tables = (
     TRIGGERS => [
       "lfn",
@@ -134,12 +132,6 @@ sub LFN_createCatalogueTables {
       },
       'tableName',
       ['UNIQUE INDEX (lfn)']
-    ],
-    ENVIRONMENT => [
-      'userName',
-      { userName => "char(20) NOT NULL PRIMARY KEY",
-        env      => "char(255)"
-      }
     ],
     ACTIONS => [
       'action',
@@ -287,20 +279,6 @@ sub LFN_createCatalogueTables {
   1;
 }
 
-#
-#
-# internal functions
-sub checkConstantsTable {
-  my $self    = shift;
-  my %columns = (
-    name  => "varchar(100) NOT NULL",
-    value => "int",
-  );
-  $self->checkTable("CONSTANTS", "name", \%columns, 'name') or return;
-  my $exists = $self->queryValue("SELECT count(*) from CONSTANTS where name='MaxDir'");
-  $exists and return 1;
-  return $self->do("INSERT INTO CONSTANTS values ('MaxDir', 0)");
-}
 
 # options: 
 #

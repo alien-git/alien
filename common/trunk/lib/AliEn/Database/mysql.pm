@@ -300,6 +300,22 @@ sub lock {
   $self->_do("LOCK TABLE $table WRITE");
 }
 
+sub lockglobal {
+  my $self  = shift;
+
+  $DEBUG and $self->debug(1, "Database: In lockglobal.");
+
+  $self->_do("SELECT GET_LOCK('lock1',10)");
+}
+
+sub unlockglobal {
+  my $self  = shift;
+  
+  $DEBUG and $self->debug(1, "Database: In unlockglobal.");
+
+  $self->_do("SELECT RELEASE_LOCK('lock1')");
+}
+
 sub unlock {
   my $self  = shift;
   my $table = shift;
