@@ -489,9 +489,9 @@ sub services {
 	my $message="==   Service   == Servicename ============================================= Hostname ==   Status    ==";
 	
   if ($replystatus) {
-    $message+="  Vers. =  R  S  D  T  Z ="
+    $message.="  Vers. =  R  S  D  T  Z ="
   } 
-  $message+="\n-----------------------------------------------------------------------------------------------------------------------------\n";
+  $message.="\n-----------------------------------------------------------------------------------------------------------------------------\n";
  
  	$self->info($message);
  	
@@ -503,8 +503,6 @@ sub services {
 
     my $response = $self->{RPC}->CallRPC("IS", "getAllServices", $doservice)
       or next;
-
-    $response = $response->result;
 
     if ((defined $response) && ($response eq "-1")) {
       my $printservice = "$service";

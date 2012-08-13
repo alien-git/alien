@@ -112,8 +112,7 @@ sub markAlive {
   
   if ($_[0] and ref $_[0] eq "ARRAY"){
     my $ref=shift;
-    @_=@$ref;
-    
+    @_=@$ref;    
   }
   
   my $service = shift;
@@ -334,6 +333,13 @@ sub getReverse {
 # get all active hosts for Service $service
 sub getAllServices {
   my $this=shift;
+  
+  if ($_[0] and ref $_[0] eq "ARRAY"){
+    my $ref=shift;
+    @_=@$ref;    
+  }
+  
+  
   my $service=shift;
 
   $self->info("Getting all $service services" );

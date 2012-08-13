@@ -36,7 +36,7 @@ sub Connect {
   }elsif($type =~ /^Authen$/){
     @methods =("doOperation","insertCert",'doPackMan');
   }elsif($type eq "IS"){
-    @methods= ("getCpuSI2k", "markAlive")    
+    @methods= ("getCpuSI2k", "markAlive","getAllServices")    
   }elsif($type eq "Manager/Job"){
     @methods= ("alive", "enterCommand","changeStatusCommand", "getSpyUrl", "SetProcInfoBunch","SetProcInfoBunchFromDB")    
   }elsif($type eq "Manager/Transfer"){
@@ -63,6 +63,18 @@ sub Connect {
   
   $self->info("Connecting to $service in $address");
   $self->{CLIENTS}->{$service} = new JSON::RPC::Client;
+  if ($address=~ /^https:/) {
+    my $proxy = ( $ENV{X509_USER_PROXY} || "/tmp/x509up_u$<" );
+    
+    $self->info("This is in fact a secure connection (using the proxy $proxy)");
+
+
+    my $ua=$self->{CLIENTS}->{$service}->ua();
+    $ua->ssl_opts('verify_hostname' => 0);
+    $ua->ssl_opts( 'SSL_cert_file' => $proxy);
+    $ua->ssl_opts( 'SSL_key_file' => $proxy);
+  }
+
   return $self->{CLIENTS}->{$service}->prepare($address, \@methods);
   
 }
