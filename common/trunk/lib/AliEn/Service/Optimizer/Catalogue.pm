@@ -6,7 +6,7 @@ use vars qw (@ISA);
 
 use AliEn::Service::Optimizer;
 use AliEn::Database::Catalogue;
-use AliEn::Database::SE;
+
 use AliEn::GUID;
 
 require AliEn::UI::Catalogue::LCM;

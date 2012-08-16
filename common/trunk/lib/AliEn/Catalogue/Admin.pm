@@ -3,10 +3,8 @@ package AliEn::Catalogue::Admin;
 use strict;
 use Data::Dumper;
 
-
 use AliEn::Database::Transfer;
 
-require AliEn::Database::SE;
 
 # This package contains the functions that can only be called by the
 # administrator
@@ -353,45 +351,6 @@ sub addSE {
   my $SEnumber = $self->{DATABASE}->addSE($options, $site, $name) or return;
 
   return $SEnumber;
-}
-
-sub checkSEVolumes_HELP {
-  my $self = shift;
-  return "checkSEVolumes: checks the volumes defined in ldap for an se
-Syntax:
-     checkSEVolumes <site> <se>
-";
-}
-
-sub checkSEVolumes {
-  my $self = shift;
-  my $site = shift;
-  my $se   = shift;
-
-  ($self->{ROLE} =~ /^admin(ssl)?$/)
-    or $self->info("Error: only the administrator can check the databse")
-    and return;
-
-  ($site and $se)
-    or $self->info("Error: not enough arguments in checkSEVolumes. " . $self->checkSEVolumes_HELP())
-    and return;
-  my $oldInfo = $self->{CONFIG}->{SE_LVMDATABASE};
-
-  $self->{CONFIG}->{SE_LVMDATABASE} = $self->{CONFIG}->{CATALOGUE_DATABASE};
-
-  $self->{CONFIG}->{SE_LVMDATABASE} =~ s{/[^/]*$}{/\Lse_$self->{CONFIG}->{ORG_NAME}_${site}_${se}\E};
-  my $db = AliEn::Database::SE->new();
-  if (!$db) {
-    $self->info("Error getting the database");
-    $self->{CONFIG}->{SE_LVMDATABASE} = $oldInfo;
-    return;
-  }
-  $self->info("Got the database");
-  $db->checkVolumes($site, $se);
-  $db->close();
-
-  $self->{CONFIG}->{SE_LVMDATABASE} = $oldInfo;
-  return 1;
 }
 
 sub f_showStructure_HELP {

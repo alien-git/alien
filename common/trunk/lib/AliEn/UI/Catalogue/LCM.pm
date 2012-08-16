@@ -102,7 +102,6 @@ my %LCM_commands;
   'zip'                       => [ '$self->zip',                           16 + 64 ],
   'unzip'                     => [ '$self->unzip',                         0 ],
   'getLog'                    => [ '$self->getLog',                        0 ],
-  'checkSEVolumes'            => [ '$self->{CATALOG}->checkSEVolumes',     0 ],
   'createCollection'          => [ '$self->createCollection',              0 ],
   'createCollectionCatalogue' => [ '$self->{CATALOG}->f_createCollection', 0 ],
   'updateCollection'          => [ '$self->updateCollection',              2 ],

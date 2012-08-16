@@ -705,10 +705,6 @@ ALIEN_DoService ()
 	    configName="TRANSFER_MANAGER_ADDRESS"
 	    packageName="Manager::Transfer"	    
 	    ;;
-	  SEManager)
-	    configName="SEMASTER_MANAGER_ADDRESS"
-	    packageName="Manager::SEMaster"	    	    
-	    ;;
 	  MessagesMaster)	
 	    configName="MESSAGESMASTER_ADDRESS"
 	    packageName="MessagesMaster"
