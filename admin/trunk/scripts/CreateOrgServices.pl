@@ -65,9 +65,6 @@ if ($config->{MESSAGESMASTER_ADDRESS} =~ /^$hostname:/) {
   $install.="MessagesMaster ";
 }
 
-if ($config->{SEMASTER_MANAGER_ADDRESS} =~ /^$hostname:/) {
-  $install.="SEManager ";
-}
 
 if ($config->{JOBINFO_MANAGER_ADDRESS} =~ /^$hostname:/) {
   $install.="JobInfoManager ";
