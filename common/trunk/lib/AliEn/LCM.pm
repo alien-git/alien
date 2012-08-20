@@ -94,7 +94,7 @@ sub getLocalCopy {
           $localFile or return $file;
           $DEBUG and $self->debug(1, "Copying '$file' to '$localFile'");
           if ($file ne $localFile) {
-            $self->info("They are not the same ??\n");
+            $self->debug("They are not the same ? copy $localFile to $file");
             my $targetDir = $localFile;
             $targetDir =~ s/[^\/]*$//;
             AliEn::Util::mkdir($targetDir) or print STDERR "Error creating $targetDir\n" and return;
@@ -103,9 +103,6 @@ sub getLocalCopy {
               and print STDERR "ERROR copying $file to $localFile $!\n"
               and return;
           }
-          print "And before the return\n";
-          system("ls -al  $ENV{ALIEN_WORKDIR}");
-
           return $localFile;
         } else {
           $self->info("The localfile had a different md5sum that we expected...($md5sum instead of $data->{md5sum})");
