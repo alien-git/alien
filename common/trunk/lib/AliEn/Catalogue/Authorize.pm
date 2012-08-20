@@ -1604,38 +1604,27 @@ sub deleteEntryFromBookingTableAndOptionalExistingFlagTrigger {
 
   my $triggerstat = 1;
 
+  my $update="UPDATE LFN_BOOKED SET existing=1 WHERE lfn=? and guid=string2binary(?) and "
+        . $self->{DATABASE}->reservedWord("size") . "=?";
+  my $delete= "DELETE FROM LFN_BOOKED WHERE lfn=? and guid=string2binary(?) and pfn=? and upper(se)=upper(?)";
+  my $bind={update=>[$envelope->{lfn}, $envelope->{guid}, $envelope->{size}],
+            delete=>[$envelope->{lfn}, $envelope->{guid}, $envelope->{turl}, $envelope->{se}],
+  };
+    
   if ($user ne "admin") {
-    $trigger
-      and $triggerstat = $self->{DATABASE}->do(
-      "UPDATE LFN_BOOKED SET existing=1 WHERE lfn=? and guid=string2binary(?) and "
-        . $self->{DATABASE}->reservedWord("size")
-        . "=? and owner=? and gowner=? ;",
-      {bind_values => [ $envelope->{lfn}, $envelope->{guid}, $envelope->{size}, $user, $user ]}
-      );
-
-    return (
-      $self->{DATABASE}->do(
-"DELETE FROM LFN_BOOKED WHERE lfn=? and guid=string2binary(?) and pfn=? and upper(se)=upper(?) and owner=? and gowner=? ;",
-        {bind_values => [ $envelope->{lfn}, $envelope->{guid}, $envelope->{turl}, $envelope->{se}, $user, $user ]}
-        )
-        && $triggerstat
-    );
-  } else {
-    $trigger
-      and $triggerstat = $self->{DATABASE}->do(
-      "UPDATE LFN_BOOKED SET existing=1 WHERE lfn=? and guid=string2binary(?) and "
-        . $self->{DATABASE}->reservedWord("size") . "=?  ;",
-      {bind_values => [ $envelope->{lfn}, $envelope->{guid}, $envelope->{size} ]}
-      );
-
-    return (
-      $self->{DATABASE}->do(
-        "DELETE FROM LFN_BOOKED WHERE lfn=? and guid=string2binary(?) and pfn=? and upper(se)=upper(?) ;",
-        {bind_values => [ $envelope->{lfn}, $envelope->{guid}, $envelope->{turl}, $envelope->{se} ]}
-        )
-        && $triggerstat
-    );
+    $update.=" and owner=? and gowner=?";
+    $delete.=" and owner=? and gowner=?";
+    push (@{$bind->{update}}, $user, $user);
+    push (@{$bind->{delete}}, $user, $user);
+     
   }
+  
+  $trigger
+      and $triggerstat = $self->{DATABASE}->do($update, {bind_values => $bind->{update}});
+
+  return (
+      $self->{DATABASE}->do($delete,{bind_values =>  $bind->{delete} })  && $triggerstat
+    );
 }
 
 sub addEntryToBookingTableAndOptionalExistingFlagTrigger {

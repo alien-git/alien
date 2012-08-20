@@ -527,7 +527,7 @@ sub checkJobJDL {
   $self->info("The job needs $jobttl seconds to execute");
 
 #--- memory requirement
-  $self->{MEMORY}=$self->{VIRT_MEMORY}=$self->{FASTKILL_MEMORY}=0;
+  $self->{MEMORY}=$self->{VIRT_MEMORY}=$self->{FASTKILL_MEMORY}=undef;
   loadMemoryLimit("ResidentMemorysize","MEMORY");
   loadMemoryLimit("Memorysize","VIRT_MEMORY");  # original jdl name kept for consistency
   loadMemoryLimit("VirtualMemorysize","VIRT_MEMORY");
