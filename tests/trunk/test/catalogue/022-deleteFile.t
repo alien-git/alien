@@ -3,7 +3,6 @@ use strict;
 use Test;
 
 use AliEn::UI::Catalogue::LCM::Computer;
-use AliEn::Database::SE;
 
 BEGIN { plan tests => 1 }
 
