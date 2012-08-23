@@ -118,7 +118,7 @@ foreach my $schema (@schemas) {
   foreach my $tag (@$tag0) {
     defined $tag->{tableName} or next;
     #print "Moving tag $tag->{tagName} defined for $tag->{path} in $schema to TAG0\n";
-    $db->do("INSERT INTO TAG0(tagName, path, tableName, user) VALUES (?, ?, ?, ?)", {bind_values=>[$tag->{tagName}, $tag->{path}, $tag->{tableName}, $tag->{user}]});
+    $db->do("INSERT INTO TAG0(tagName, path, tableName, userId) VALUES (?, ?, ?, ?)", {bind_values=>[$tag->{tagName}, $tag->{path}, $tag->{tableName}, $tag->{userId}]});
   }
 }
 

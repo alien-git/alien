@@ -242,7 +242,7 @@ $ENV{'SEALED_ENVELOPE_REMOTE_PUBLIC_KEY'} = "$ENV{ALIEN_HOME}/authen/rpub.pem";
 my $cat=AliEn::UI::Catalogue::LCM->new({role=>'admin'}) or exit(-2);
 $cat->execute("addUser", $userName) or exit (-2);
 $cat->execute("mkdir", "-p", "/\L$orgName\E/user/a/admin") or exit(-2);
-$cat->{CATALOG}->{DATABASE}->do("INSERT INTO FQUOTAS VALUES ('admin',-1,0,0,-1,0,0)");
+$cat->{CATALOG}->{DATABASE}->do("INSERT INTO FQUOTAS VALUES (1,-1,0,0,-1,0,0)");
 $cat->execute("addUser",  $config->{CLUSTER_MONITOR_USER}) or exit(-2);
 $cat->close();
 delete $ENV{ALIEN_DATABASE_PASSWORD};

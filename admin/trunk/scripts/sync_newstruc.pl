@@ -20,8 +20,8 @@ my $table;
 my $chk=0;
 
 print "\n".scalar(localtime(time))."\n";
-  $db->do("INSERT IGNORE INTO USERS (username) (SELECT user from FQUOTAS)");
-  $db->do("INSERT IGNORE INTO GRPS (groupname) (SELECT user from FQUOTAS)");
+  $db->do("INSERT IGNORE INTO USERS (username) (SELECT userId from FQUOTAS)");
+  $db->do("INSERT IGNORE INTO GRPS (groupname) (SELECT userId from FQUOTAS)");
 
 print "Doing the alteration in L#L tables\n";
 print "\n".scalar(localtime(time))."\n";
