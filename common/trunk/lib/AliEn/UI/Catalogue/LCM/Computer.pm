@@ -156,7 +156,6 @@ sub registerOutput {
         and $self->info("The files for this job where already registered in $jobinfo->{path}", 2)
         and return $jobinfo->{path};
       $onlycmlog = 1;
-	  $self->info("We have the path $jobinfo->{path} and cluster option in registerOutput");
     } else {
       $self->info("The files for this job where already registered in $jobinfo->{path}", 2) and return $jobinfo->{path};
     }
@@ -198,8 +197,7 @@ sub registerOutput {
         $self->execute("mkdir", "-p", $outputdir);
       }
       my $env = {lfn => "$outputdir/$lfn", md5 => $md5, size => $size, guid => $guid};
-      $self->info("registerPFNInCatalogue with $user and $pfn");
-      $self->{CATALOG}->registerPFNInCatalogue($user, $user, $pfn, "no_se");
+      $self->{CATALOG}->registerPFNInCatalogue($user, $env, $pfn, "no_se");
     }
   }
 
