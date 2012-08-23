@@ -56,7 +56,7 @@ sub f_addTag {
       $self->{DATABASE}->{DRIVER},
       $self->{DATABASE}->{USER},
       $tableName,
-"(file varchar($fileLength), offset int, entryId int AUTO_INCREMENT, $tagSQL , primary KEY (entryId), INDEX (file))"
+"(file varchar($fileLength), entryId int AUTO_INCREMENT, $tagSQL , primary KEY (entryId), INDEX (file))"
     );
 
     $done or return;
@@ -94,7 +94,7 @@ sub f_showTagDescription {
   my $rows = $self->{DATABASE}->describeTable($table) or $self->info("Error describing the table") and return;
   my $sql = "";
   foreach my $row (@$rows) {
-    $row->{Field} =~ /^(file)|(offset)|(entryId)$/i and next;
+    $row->{Field} =~ /^(file)|(entryId)$/i and next;
     $sql .= "$row->{Field} $row->{Type} ,";
   }
   chop $sql;

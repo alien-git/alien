@@ -359,7 +359,8 @@ sub dbGetAllTagNamesByPath {
   }
   if ($options->{user}) {
     $self->debug(1, "Only for the user $options->{user}");
-    $rec2 = " and user=?";
+    $rec2 = " and userId=?";
+    ($options->{user}) = $self->queryValue("select uId from USERS where Username like ?",undef,{bind_values=>[$options->{user}]});
     push @bind, $options->{user};
   }
   $self->query("SELECT tagName,path from TAG0 where (? like concat(path,'%') $rec) $rec2 group by tagName",
@@ -601,13 +602,13 @@ sub insertLFNBookedDeleteMirrorFromGUID {
   my $guidId   = shift;
   my $seNumber = shift;
   return $self->do(
-    "INSERT IGNORE INTO LFN_BOOKED(lfn, owner, expiretime, size, guid, gowner, user, pfn, se)
-      select ?,USERS.Username,-1,g.size,string2binary(?), GRPS.Groupname,?,?,s.seName
+    "INSERT IGNORE INTO LFN_BOOKED(lfn, ownerId, expiretime, size, guid, gownerId, pfn, seNumber)
+      select ?,USERS.uId,-1,g.size,string2binary(?), GRPS.gId,?,s.seNumber
       from " . $table . " g, " . $table . "_PFN g_p, SE s
       JOIN USERS ON g.ownerId=USERS.uId 
       JOIN GRPS ON g.gownerId=GRPS.gId
       where g.guidId=g_p.guidId and g_p.guidId=? and g_p.seNumber=? and g_p.pfn=? and s.seNumber=g_p.seNumber",
-    {bind_values => [ $lfn, $guid, $role, $pfn, $guidId, $seNumber, $pfn ]}
+    {bind_values => [ $lfn, $guid, $pfn, $guidId, $seNumber, $pfn ]}
   );
 
 }
@@ -621,12 +622,12 @@ sub insertLFNBookedRemoveDirectory {
   my $tmpPath   = shift;
 
   return $self->do(
-    "INSERT IGNORE INTO LFN_BOOKED(lfn, owner, expiretime, size, guid, gowner, user, pfn)
-     SELECT concat('$lfn' , l.lfn), USERS.Username, -1, l.size, l.guid, GRPS.Groupname, ?,'*' FROM $tableName l 
+    "INSERT IGNORE INTO LFN_BOOKED(lfn, ownerId, expiretime, size, guid, gownerId, pfn)
+     SELECT concat('$lfn' , l.lfn), USERS.uId, -1, l.size, l.guid, GRPS.gId, '*' FROM $tableName l 
      JOIN USERS ON l.ownerId=USERS.uId 
      JOIN GRPS ON l.gownerId=GRPS.gId
      WHERE l.type='f' AND l.lfn LIKE concat (?,'%')",
-    {bind_values => [ $user, $tmpPath ]}
+    {bind_values => [ $tmpPath ]}
   );
 
 }
@@ -648,9 +649,12 @@ sub insertLFNBookedAndOptionalExistingFlagTrigger {
   my $existing   = shift;    #$trigger,
   my $jobid      = shift;    #$jobid;
 
+  my ($uId) = $self->queryValue("select uId from USERS where Username like ?", undef,{ bind_values => [ $user ] });
+  my ($seNumber) = $self->queryValue("select seNumber from SE where seName like ?", undef,{ bind_values => [ $se ] });
+
   return $self->do(
-"REPLACE INTO LFN_BOOKED (lfn, owner, quotaCalculated, md5sum, expiretime, size, pfn, se, gowner, guid, existing, jobid) VALUES (?,?,?,?,?,?,?,?,?,string2binary(?),?,?);",
-    {bind_values => [ $lfn, $user, $quota, $md5sum, $expiretime, $size, $pfn, $se, $user, $guid, $existing, $jobid ]}
+"REPLACE INTO LFN_BOOKED (lfn, ownerId, quotaCalculated, md5sum, expiretime, size, pfn, seNumber, gownerId, guid, existing, jobid) VALUES (?,?,?,?,?,?,?,?,?,string2binary(?),?,?);",
+    {bind_values => [ $lfn, $uId, $quota, $md5sum, $expiretime, $size, $pfn, $seNumber, $uId, $guid, $existing, $jobid ]}
   );
 }
 
@@ -661,7 +665,7 @@ sub updateVolumesInSESize {
   my $self = shift;
 
   $self->do(
-"update SE, SE_VOLUMES set usedspace=seusedspace/1024, freespace=size-usedspace where  SE.sename=SE_VOLUMES.sename and size!= -1"
+"update SE, SE_VOLUMES set usedspace=seusedspace/1024, freespace=size-usedspace where  SE.senumber=SE_VOLUMES.senumber and size!= -1"
   );
   return;
 }
@@ -674,7 +678,7 @@ sub showLDLTables {
 sub updateSESize {
   my $self = shift;
   return $self->do(
-"update SE, SE_VOLUMES set usedspace=seusedspace/1024, freespace=size-usedspace where  SE.sename=SE_VOLUMES.sename and size!= -1"
+"update SE, SE_VOLUMES set usedspace=seusedspace/1024, freespace=size-usedspace where  SE.senumber=SE_VOLUMES.senumber and size!= -1"
   );
 
 }

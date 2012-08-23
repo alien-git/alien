@@ -81,7 +81,9 @@ sub GUID_createCatalogueTables {
       { Userid       => "mediumint unsigned not null",
         Groupid      => "mediumint unsigned not null",
         PrimaryGroup => "int(1)",
-      }
+      },
+      undef,
+      ['foreign key (Userid) references USERS(uId) on delete cascade', 'foreign key (Groupid) references GRPS(gId) on delete cascade']
     ],
     GUIDINDEX => [
       "tableName",
@@ -98,27 +100,29 @@ sub GUID_createCatalogueTables {
         pfn      => "varchar(255)",
         seNumber => "int(11) not null",
         guid     => "binary(16)"
-      }
+      },
+      undef,
+      ['foreign key (seNumber) references SE(seNumber) on delete cascade']
     ],
     GL_STATS => [
-      "tableNumber",
-      { tableNumber => "int(11) NOT NULL",
+      "tableName",
+      { tableName   => "int(11) NOT NULL",
         seNumber    => "int(11) NOT NULL",
         seNumFiles  => "bigint(20)",
         seUsedSpace => "bigint(20)",
       },
       undef,
-      ['UNIQUE INDEX(tableNumber,seNumber)']
+      ['UNIQUE INDEX(tableName,seNumber)', 'foreign key (tableName) references GUIDINDEX(tableName) on delete cascade', 'foreign key (seNumber) references SE(seNumber) on delete cascade']
     ],
     GL_ACTIONS => [
-      "tableNumber",
-      { tableNumber => "int(11) NOT NULL",
+      "tableName",
+      { tableName   => "int(11) NOT NULL",
         action      => "char(40) not null",
         time        => "timestamp default current_timestamp",
         extra       => "varchar(255)",
       },
       undef,
-      ['UNIQUE INDEX(tableNumber,action)']
+      ['UNIQUE INDEX(tableName,action)', 'foreign key (tableName) references GUIDINDEX(tableName) on delete cascade' ]
     ],
   );
 
@@ -161,7 +165,8 @@ sub checkGUIDTable {
     jobid            => "int(11)",
   );
 
-	my @index=  ('UNIQUE INDEX (guid)', 'INDEX(seStringlist)', 'INDEX(ctime)') ;
+	my @index=  ('UNIQUE INDEX (guid)', 'INDEX(seStringlist)', 'INDEX(ctime)', "FOREIGN KEY (ownerId) REFERENCES USERS(uId) ON DELETE CASCADE",
+	"FOREIGN KEY (gownerId) REFERENCES GRPS(gId) ON DELETE CASCADE") ;
 	$options=~ /noindex/ and @index=();
   $self->checkTable(${table}, "guidId", \%columns, 'guidId',\@index
   ) or return;
@@ -195,9 +200,9 @@ sub checkGUIDTable {
     ]
   ) or return;
 
-  $self->checkTable("${table}_QUOTA", "user",
-    {user => "varchar(64) NOT NULL", nbFiles => "int(11) NOT NULL", totalSize => "bigint(20) NOT NULL"},
-    undef, ['INDEX user_ind (user)'],)
+  $self->checkTable("${table}_QUOTA", "userId",
+    {userId => "mediumint unsigned NOT NULL", nbFiles => "int(11) NOT NULL", totalSize => "bigint(20) NOT NULL"},
+    undef, ['INDEX user_ind (userId)', 'foreign key (userId) references USERS(uId) on delete cascade'],)
     or return;
 
   $self->optimizeTable($table);
@@ -800,7 +805,7 @@ sub updateStatistics {
   my $table = "G${index}L";
   $self->info("Checking if the table is up to date");
   $self->queryValue(
-"select 1 from (select max(ctime) ctime, count(*) counter from $table) a left join  GL_ACTIONS on tablenumber=? and action='STATS' where extra is null or extra<>counter or "
+"select 1 from (select max(ctime) ctime, count(*) counter from $table) a left join  GL_ACTIONS on tableName=? and action='STATS' where extra is null or extra<>counter or "
       . $self->reservedWord("time")
       . " is null or "
       . $self->reservedWord("time")
@@ -810,15 +815,15 @@ sub updateStatistics {
   ) or return;
 
   $self->info("Updating the table");
-  $self->do("delete from GL_ACTIONS where action='STATS' and tableNumber=?", {bind_values => [$index]});
+  $self->do("delete from GL_ACTIONS where action='STATS' and tableName=?", {bind_values => [$index]});
 
   $self->do(
-    "insert into GL_ACTIONS(tablenumber, time, action, extra) select ?,max(ctime),'STATS', count(*) from $table",
+    "insert into GL_ACTIONS(tableName, time, action, extra) select ?,max(ctime),'STATS', count(*) from $table",
     {bind_values => [$index]});
 
-  $self->do("delete from GL_STATS where tableNumber=?", {bind_values => [$index]});
+  $self->do("delete from GL_STATS where tableName=?", {bind_values => [$index]});
   $self->do(
-    "insert into GL_STATS(tableNumber, seNumber, seNumFiles, seUsedSpace) select ?, seNumber, count(*), sum("
+    "insert into GL_STATS(tableName, seNumber, seNumFiles, seUsedSpace) select ?, seNumber, count(*), sum("
       . $self->reservedWord("size")
       . ") from  $table g ,${table}_PFN p where g.guidid=p.guidid group by senumber",
     {bind_values => [$index]}
@@ -834,7 +839,7 @@ sub GUID_checkOrphanGUID {
   my $table = "G${number}L";
   $self->info("Checking the unused guids of $table");
 
-  $self->do("delete from GL_ACTIONS where action='TODELETE' and tableNUmber=?", {bind_values => [$number]});
+  $self->do("delete from GL_ACTIONS where action='TODELETE' and tableName=?", {bind_values => [$number]});
   my $where = "left join ${table}_REF r on g.guidid=r.guidid where ctime<now() -3600 and r.guidid is null";
 
   if ($options eq "force") {

@@ -31,7 +31,8 @@ sub initialize {
                                workernode varchar(300), 
                                timestamp int, 
                                jobId int,
-                               status varchar(15), jdl varchar(1000)";
+                               status varchar(15), 
+                               jdl varchar(1000)";
 
   $self->{TABLES}->{messages} = "jobId int,
                                procinfo varchar(200),
@@ -68,6 +69,17 @@ sub updateJobAgent {
     $done = $self->insert("JOBAGENT", $data);
     $data->{jobId} and $self->info("Inserting info for job $data->{jobId}");
   }
+
+  return $done;
+}
+
+sub getWaitingJobs {
+  my $self = shift;
+  my $ce = shift;
+  $self->info("Getting waiting jobs for $ce");
+  $self->debug(1, "getWaitingJobs with " . Dumper($ce) . " and @_");
+  my $done = $self->queryValue("select count(1) from JOBAGENT where upper(workernode) like upper(?) and status like 'QUEUED'",undef,
+    {bind_values=>[$ce]});
 
   return $done;
 }

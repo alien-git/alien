@@ -614,7 +614,7 @@ sub getCPMetadata {
     $tagName =~ s/^TadminV//;
     my @data = ();
     foreach my $val (keys %{${$entries->{$key}}[0]}) {
-      $val =~ /^(offset)|(file)/ and next;
+      $val =~ /^(file)/ and next;
       push @data, "$val='${$entries->{$key}}[0]->{$val}'";
     }
     $self->info("@data");
@@ -1668,7 +1668,7 @@ sub createDefaultUrl {
   my $size = shift;
   my $prefix =
     $self->{DATABASE}->queryValue(
-    'select concat(method,concat(\'/\',mountpoint)) from SE_VOLUMES where freespace>? and upper(sename)=upper(?)',
+    'select concat(method,concat(\'/\',mountpoint)) from SE_VOLUMES where freespace>? and seNumber in (select seNumber from SE where upper(seName)=upper(?))',
     undef, {bind_values => [ $size, $se ]});
   if (!$prefix) {
     $self->info("There is no space in '$se' to put that file (size $size)!!", 1);
@@ -1763,7 +1763,7 @@ sub checkFileQuota {
   my $db    = $self->{DATABASE};
   my $array = $db->queryRow(
 "SELECT nbFiles, totalSize, maxNbFiles, maxTotalSize, tmpIncreasedNbFiles, tmpIncreasedTotalSize FROM FQUOTAS WHERE "
-      . $db->reservedWord("user") . "=?",
+      . "userId in (select uId from USERS where Username like ?)",
     undef,
     {bind_values => [$user]})
     or $self->{LOGGER}->error("Failed to get data from the FQUOTAS quota table.")
@@ -1848,8 +1848,8 @@ sub fquota_list {
     $user = $whoami;
   }
 
-  my $usersuffix = $self->{DATABASE}->reservedWord("user") . " = '$user' ";
-  ($user eq '%') and $usersuffix = $self->{DATABASE}->reservedWord("user") . " like '%'";
+  my $usersuffix = "userId in (select uId from USERS where Username like '$user')";
+  ($user eq '%') and $usersuffix = "userId in (select uId from USERS where Username like '%')";
 
   if (($whoami !~ /^admin(ssl)?$/) and ($user ne $whoami)) {
     $self->info("Not allowed to see other users' quota information", 1);
@@ -1858,8 +1858,8 @@ sub fquota_list {
 
   my $result =
     $self->{DATABASE}->query("SELECT "
-      . $self->{DATABASE}->reservedWord("user")
-      . ", nbFiles, maxNbFiles, totalSize, maxTotalSize, tmpIncreasedNbFiles, tmpIncreasedTotalSize FROM FQUOTAS where $usersuffix"
+      . "Username as \"user\", nbFiles, maxNbFiles, totalSize, maxTotalSize, tmpIncreasedNbFiles, tmpIncreasedTotalSize "
+      . "FROM FQUOTAS join USERS on uId=userId where $usersuffix"
     )
     or $self->info("Failed to getting data from FQUOTAS table", 1)
     and return -1;
@@ -1909,7 +1909,7 @@ sub fquota_set {
   my $set = {};
   $set->{$field} = $value;
   my $db = $self->{DATABASE};
-  my $done = $db->update("FQUOTAS", $set, $db->reservedWord("user") . "= ?", {bind_values => [$user]});
+  my $done = $db->update("FQUOTAS", $set, "userId in (select uId from USERS where Username like ?)", {bind_values => [$user]});
 
   $done or $self->info("Failed to set the value in the FQUOTAS table", 1) and return -1;
 

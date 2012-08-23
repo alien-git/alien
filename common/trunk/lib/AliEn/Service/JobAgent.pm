@@ -1016,6 +1016,7 @@ sub executeCommand {
 
   chdir $self->{WORKDIR};
   $s="ulimit -S -v ".$self->{FASTKILL_MEMORY}." -c 0\;".$s;
+  
   my $error = system($s);
   $ENV{LD_LIBRARY_PATH} =~ s{^/lib:/usr/lib:}{};
  $ENV{ALIEN_CM_AS_LDAP_PROXY}=$oldEnv;

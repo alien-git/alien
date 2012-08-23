@@ -87,7 +87,7 @@ sub f_addUser {
   $self->f_chown("", $user, $homedir) or return;
   $self->info("Adding the FQUOTAS");
   my $exists =
-    $self->{DATABASE}->queryValue("select user from FQUOTAS where user = ? ;", undef, {bind_values => [$user]});
+    $self->{DATABASE}->queryValue("select Username from FQUOTAS join USERS on userId=uId where Username like ?", undef, {bind_values => [$user]});
 
   if (defined($exists) and $exists eq $user) {
     $self->debug(1, "$user entry for FQUOTAS exists!");
@@ -107,10 +107,10 @@ sub f_addUser {
     }
     $db->do(
       "insert into FQUOTAS ( "
-        . $db->reservedWord("user")
-        . ", nbFiles, totalSize, tmpIncreasedNbFiles, tmpIncreasedTotalSize, maxNbFiles, maxTotalSize ) VALUES (?,?,?,?,?,?,?) ",
+        . "userId, nbFiles, totalSize, tmpIncreasedNbFiles, tmpIncreasedTotalSize, maxNbFiles, maxTotalSize ) select uId," 
+		. "?,?,?,?,?,? from USERS where Username like ?",
       { bind_values =>
-          [ $user, $nbFiles, $totalSize, $tmpIncreasedNbFiles, $tmpIncreasedTotalSize, $maxNbFiles, $maxTotalSize ]
+          [ $nbFiles, $totalSize, $tmpIncreasedNbFiles, $tmpIncreasedTotalSize, $maxNbFiles, $maxTotalSize, $user ]
       }
     );
     $self->info("User $user added");
@@ -471,10 +471,11 @@ sub resyncLDAP {
       }
     }
     $self->info("And let's add the new users");
-    my $newUsers =
-      $self->{DATABASE}->queryColumn("select a.$userColumn from USERS_LDAP a 
-      left join USERS_LDAP b on b.up=0 and a.$userColumn=b.$userColumn where a.up=1 and b.$userColumn is null");
-    foreach my $u (@$newUsers) {
+      
+    my ($newUsers) = $self->{DATABASE}->queryColumn("select $userColumn from USERS_LDAP      where up=1 and user not in (select Username from USERS)");  
+    my ($newRoles) = $self->{DATABASE}->queryColumn("select role        from USERS_LDAP_ROLE where up=1 and role not in (select Username from USERS)");
+    
+    foreach my $u (@$newUsers, @$newRoles) {
       $self->info("Adding the user $u");
       $self->f_addUser($u);
     }
@@ -718,7 +719,7 @@ sub resyncLDAPSE {
     $self->checkFTDProtocol($entry, $sename, $transfers);
     my @paths = $entry->get_value('savedir');
 
-    my $info = $db->query("select * from SE_VOLUMES where upper(sename)=upper(?)", undef, {bind_values => [$sename]});
+    my $info = $db->query("select * from SE_VOLUMES where seNumber in (select seNumber from SE where upper(sename)=upper(?))", undef, {bind_values => [$sename]});
 
     my @existingPath = @$info;
     my $t            = $entry->get_value("mss");
@@ -737,7 +738,7 @@ sub resyncLDAPSE {
         ($size eq $e->{size}) and next;
         $self->info("**THE SIZE IS DIFFERENT ($size and $e->{size})");
         $db->do(
-          "update SE_VOLUMES set " . $self->{DATABASE}->reservedWord("size") . "=? where mountpoint=? and sename=?",
+          "update SE_VOLUMES set " . $self->{DATABASE}->reservedWord("size") . "=? where mountpoint=? and seNumber in (select seNumber from SE where seName=?)",
           {bind_values => [ $size, $e->{mountpoint}, $sename ]});
       }
       $found and next;
@@ -759,10 +760,10 @@ sub resyncLDAPSE {
       my $method = lc($t) . "://$host";
 
       $db->do(
-        "insert into SE_VOLUMES(sename, volume,method, mountpoint, "
+        "insert into SE_VOLUMES(seNumber, volume,method, mountpoint, "
           . $db->reservedWord("size")
-          . ") values (?,?,?,?,?)",
-        {bind_values => [ $sename, $path, $method, $path, $size ]}
+          . ") select seNumber,?,?,?,? from SE where seName like ?",
+        {bind_values => [ $path, $method, $path, $size, $sename ]}
       );
       $new_SEs->{$sename} or $new_SEs->{$sename} = 0;
     }
@@ -772,7 +773,7 @@ sub resyncLDAPSE {
       $db->do(
         "update SE_VOLUMES set "
           . $self->{DATABASE}->reservedWord("size")
-          . "=usedspace where mountpoint=? and upper(sename)=upper(?)",
+          . "=usedspace where mountpoint=? and seNumber in (select seNumber from SE where upper(seName)=upper(?))",
         {bind_values => [ $oldEntry->{mountpoint}, $sename ]}
       );
       $new_SEs->{$sename} = 1;
@@ -938,9 +939,8 @@ sub removeExpiredFiles {
   my $files = $db->query(
         "SELECT expiretime, lfn, "
       . $db->reservedWord("size")
-      . ", gowner, binary2string(guid) as guid,pfn,  "
-      . $db->reservedWord("user")
-      . " FROM LFN_BOOKED 
+      . ", gownerId, binary2string(guid) as guid,pfn, Username as user"
+      . " FROM LFN_BOOKED join USERS on ownerId=uId 
     WHERE expiretime<?", undef, {bind_values => [$currentTime]}
   );
   $files or return;
@@ -951,7 +951,7 @@ sub removeExpiredFiles {
     my $physicalDelete = $self->physicalDeleteEntries($db, @pfns);
 
     $db->do("DELETE FROM LFN_BOOKED WHERE lfn=? and expiretime=?",
-      {bind_values => [ $file->{lfn}, $file->{expiretime} ]});
+      {bind_values => [ $file->{lfn}, $file->{expiretime} ]}); 
     $self->{DATABASE}->fquota_update(-1 * $file->{size} * $count, -1 * $count, $file->{user});
     $self->info("$file->{lfn}($file->{guid}) was deleted($physicalDelete physical files) and quotas were rolled back ("
         . -1 * $file->{size} * $count . ", "
@@ -1118,23 +1118,22 @@ sub calculateFileQuota {
 
     $self->$method(@data, "Checking if the table ${LTableName} is up to date");
     $lfndb->queryValue(
-"select 1 from (select max(ctime) ctime, count(1) counter from $LTableName) a left join LL_ACTIONS on tablenumber=? and action='QUOTA' where extra is null or extra<>counter or time is null or time<ctime",
+"select 1 from (select max(ctime) ctime, count(1) counter from $LTableName) a left join LL_ACTIONS on tableName=? and action='QUOTA' where extra is null or extra<>counter or time is null or time<ctime",
       undef,
       {bind_values => [$LTableIdx]}
     ) or next;
 
     $self->$method(@data, "Updating the table ${LTableName}");
-    $lfndb->do("delete from LL_ACTIONS where action='QUOTA' and tableNumber=?", {bind_values => [$LTableIdx]});
+    $lfndb->do("delete from LL_ACTIONS where action='QUOTA' and tableName=?", {bind_values => [$LTableIdx]});
     $lfndb->do(
-"insert into LL_ACTIONS(tablenumber, time, action, extra) select ?, max(ctime), 'QUOTA', count(1) from $LTableName",
+"insert into LL_ACTIONS(tableName, time, action, extra) select ?, max(ctime), 'QUOTA', count(1) from $LTableName",
       {bind_values => [$LTableIdx]}
     );
 
     my %sizeInfo;
     $lfndb->do("delete from ${LTableName}_QUOTA");
     $lfndb->do("insert into ${LTableName}_QUOTA ("
-        . $lfndb->reservedWord("user")
-        . ", nbFiles, totalSize) select USERS.Username as \"user\", count(l.lfn) as nbFiles, sum(l."
+        . "userId, nbFiles, totalSize) select USERS.uId as \"user\", count(l.lfn) as nbFiles, sum(l."
         . $lfndb->reservedWord("size")
         . ") as totSize from ${LTableName} l 
         JOIN USERS ON l.ownerId=USERS.uId 
@@ -1149,7 +1148,7 @@ sub calculateFileQuota {
     my $tableIdx = $h->{tableName} or next;
     my $tableName = "L${tableIdx}L";
     $self->$method(@data, "Getting from Table ${tableName}_QUOTA ");
-    my $userinfo = $lfndb->query("select user, nbFiles, totalSize from ${tableName}_QUOTA");
+    my $userinfo = $lfndb->query("select userId, nbFiles, totalSize from ${tableName}_QUOTA");
     foreach my $u (@$userinfo) {
       my $user = $u->{user};
       if (exists $infoLFN{$user}) {
@@ -1167,13 +1166,13 @@ sub calculateFileQuota {
   }
 
   $self->$method(@data, "Updating FQUOTAS table");
-  $self->{DATABASE}->lock("FQUOTAS");
+  $self->{DATABASE}->lock("FQUOTAS write, USERS");
   $self->{DATABASE}
     ->do("update FQUOTAS set nbFiles=0, totalSize=0, tmpIncreasedNbFiles=0, tmpIncreasedTotalSize=0")
     or $self->$method(@data, "initialization failure for all users");
   foreach my $user (keys %infoLFN) {
     $self->{DATABASE}->do(
-      "update FQUOTAS set nbFiles=$infoLFN{$user}{nbfiles}, totalSize=$infoLFN{$user}{totalsize} where user='$user'")
+      "update FQUOTAS set nbFiles=$infoLFN{$user}{nbfiles}, totalSize=$infoLFN{$user}{totalsize} where userId=$user)")
       or $self->$method(@data, "update failure for user $user");
   }
   $self->{DATABASE}->unlock();

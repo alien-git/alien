@@ -1131,9 +1131,9 @@ sub getBaseEnvelopeForDeleteAccess {
   my $lfnORGUIDORpfn = (shift || return 0);
 
   my $query =
-      "SELECT lfn,binary2string(guid) as guid, pfn as turl, se, "
+      "SELECT lfn,binary2string(guid) as guid, pfn as turl, seName, "
     . $self->{DATABASE}->reservedWord("size")
-    . ", md5sum as md5 FROM LFN_BOOKED WHERE ";
+    . ", md5sum as md5 FROM LFN_BOOKED l join SE s on l.seNumber=s.seNumber WHERE ";
 
   if (AliEn::Util::isValidGUID($lfnORGUIDORpfn)) {
     $query .= " guid=string2binary(?) ;";
@@ -1183,12 +1183,14 @@ sub getBaseEnvelopeForWriteAccess {
     and
     $self->info("Authorize: The file is already existing in the catalogue, you need to delete it first manually.", 1)
     and return 0;
-
+    
+  my ($uId) = $self->{DATABASE}->queryValue("select uId from USERS where Username like ?", undef, {bind_values=>[$user]});
+  
   if ($user ne "admin") {
     my $reply =
       $self->{DATABASE}
-      ->queryRow("SELECT lfn FROM LFN_BOOKED WHERE lfn=? and (owner<>? or gowner<>? ) and expiretime > 0;",
-      undef, {bind_values => [ $envelope->{lfn}, $user, $user ]});
+      ->queryRow("SELECT lfn FROM LFN_BOOKED WHERE lfn=? and (ownerId<>? or gownerId<>? ) and expiretime > 0;",
+      undef, {bind_values => [ $envelope->{lfn}, $uId, $uId ]});
     $reply->{lfn}
       and
       $self->info("Authorize: access: the LFN is already in use (reserved in [LFN_BOOKED], not in the catalogue)", 1)
@@ -1206,8 +1208,8 @@ sub getBaseEnvelopeForWriteAccess {
     if ($user ne "admin") {
       my $collision =
         $self->{DATABASE}->queryRow(
-        "SELECT guid FROM LFN_BOOKED WHERE guid=string2binary(?) and (lfn<>? or gowner<> ?) and expiretime > 0 ;",
-        undef, {bind_values => [ $envelope->{guid}, $envelope->{lfn}, $user ]});
+        "SELECT guid FROM LFN_BOOKED WHERE guid=string2binary(?) and (lfn<>? or gownerId<> ?) and expiretime > 0 ;",
+        undef, {bind_values => [ $envelope->{guid}, $envelope->{lfn}, $uId ]});
       $collision->{guid}
         and $self->info(
         "Authorize: access: the requested GUID is already in use (reserved in [LFN_BOOKED], not in the catalogue)", 1)
@@ -1441,14 +1443,16 @@ sub registerOutputForJobPFNS {
   my $outputdir        = 0;
   my $regok            = 1;
   my @failedFiles      = ();
+  
+  my ($uId) = $self->{DATABASE}->queryValue("select uId from USERS where Username like ?", undef, {bind_values=>[$user]});
 
   foreach my $pfn (@_) {
     my $reply = $self->{DATABASE}->queryRow(
-      "SELECT lfn,binary2string(guid) as guid,existing,pfn as turl, se, "
+      "SELECT lfn,binary2string(guid) as guid,existing,pfn as turl, s.seName as se, "
         . $self->{DATABASE}->reservedWord("size")
-        . ", md5sum as md5 FROM LFN_BOOKED WHERE jobid=? and pfn=? and owner=? and gowner=? ;",
+        . ", md5sum as md5 FROM LFN_BOOKED lfb join SE s on lfb.seNumber=s.seNumber WHERE jobid=? and pfn=? and ownerId=? ;",
       undef,
-      {bind_values => [ $jobid, $pfn, $user, $user ]}
+      {bind_values => [ $jobid, $pfn, $uId ]}
     );
     $reply->{lfn} or $self->info("Error getting entries from LFN_BOOKED for PFN: $pfn", 2) and $regok = 0 and next;
     $reply->{jobid} = $jobid;
@@ -1464,11 +1468,12 @@ sub registerOutputForJobPFNS {
       next;
     }
     my $links = $self->{DATABASE}->query(
-      "SELECT lfn,binary2string(guid) as guid,existing,pfn as turl, se,  "
+      "SELECT lfn,binary2string(guid) as guid,existing,pfn as turl, seName as se,  "
         . $self->{DATABASE}->reservedWord("size")
-        . ", md5sum as md5 FROM LFN_BOOKED WHERE jobid=? and upper(pfn) LIKE concat ('GUID:///' , concat(? , '?ZIP=%' ) ) and owner=? and gowner=? ;",
+        . ", md5sum as md5 FROM LFN_BOOKED lfb join SE s on lfb.seNumber=s.seNumber WHERE jobid=? and upper(pfn) LIKE concat ('GUID:///' , concat(? , '?ZIP=%' ) ) "
+        . "and ownerId=? ;",
       undef,
-      {bind_values => [ $jobid, uc($reply->{guid}), $user, $user ]}
+      {bind_values => [ $jobid, uc($reply->{guid}), $uId ]}
     );
     foreach my $link (@$links) {
       $link->{lfn}
@@ -1483,8 +1488,9 @@ sub registerOutputForJobPFNS {
       }
     }
   }
-  $self->{DATABASE}->do("UPDATE LFN_BOOKED set expiretime=-1 where jobid=? and owner=? and gowner=? ;",
-    {bind_values => [ $jobid, $user, $user ]});
+  #This is to delete all the other PFNs from this table
+  $self->{DATABASE}->do("UPDATE LFN_BOOKED set expiretime=-1 where jobid=? and ownerId=? and gownerId=? ;",
+    {bind_values => [ $jobid, $uId, $uId ]});
   return ($regok, ($outputdir || 0), @failedFiles);
 }
 
@@ -1582,10 +1588,13 @@ sub ValidateRegistrationEnvelopesWithBookingTable {
   my $envelope          = (shift || return 0);
   my @verifiedEnvelopes = ();
 
+  my ($uId) = $self->{DATABASE}->queryValue("select uId from USERS where Username like ?", undef, {bind_values=>[$user]});
+  my ($seNumber) = $self->{DATABASE}->queryValue("select seNumber from SE where seName like ?", undef, {bind_values=>[$envelope->{se}]});
+
   my $reply = $self->{DATABASE}->queryRow(
-"SELECT lfn,binary2string(guid) as guid,existing FROM LFN_BOOKED WHERE guid=string2binary(?) and pfn=? and se=? and owner=? and gowner=? ",
+"SELECT lfn,binary2string(guid) as guid,existing FROM LFN_BOOKED WHERE guid=string2binary(?) and pfn=? and seNumber=? and ownerId=? and gownerId=? ",
     undef,
-    {bind_values => [ $envelope->{guid}, $envelope->{turl}, $envelope->{se}, $user, $user ]}
+    {bind_values => [ $envelope->{guid}, $envelope->{turl}, $seNumber, $uId, $uId ]}
   );
 
   $envelope->{guid} or return 0;
@@ -1603,28 +1612,28 @@ sub deleteEntryFromBookingTableAndOptionalExistingFlagTrigger {
   my $trigger  = (shift || 0);
 
   my $triggerstat = 1;
+  
+  my $seNum = $self->{DATABASE}->queryValue("select seNumber from SE where upper(seName) like upper(?)",undef,{bind_values=>[$envelope->{se}]});
 
   my $update="UPDATE LFN_BOOKED SET existing=1 WHERE lfn=? and guid=string2binary(?) and "
         . $self->{DATABASE}->reservedWord("size") . "=?";
-  my $delete= "DELETE FROM LFN_BOOKED WHERE lfn=? and guid=string2binary(?) and pfn=? and upper(se)=upper(?)";
+  my $delete= "DELETE FROM LFN_BOOKED WHERE lfn=? and guid=string2binary(?) and pfn=? and seNumber=?";
   my $bind={update=>[$envelope->{lfn}, $envelope->{guid}, $envelope->{size}],
-            delete=>[$envelope->{lfn}, $envelope->{guid}, $envelope->{turl}, $envelope->{se}],
+            delete=>[$envelope->{lfn}, $envelope->{guid}, $envelope->{turl}, $seNum],
   };
     
   if ($user ne "admin") {
-    $update.=" and owner=? and gowner=?";
-    $delete.=" and owner=? and gowner=?";
-    push (@{$bind->{update}}, $user, $user);
-    push (@{$bind->{delete}}, $user, $user);
-     
+  	my $uId = $self->{DATABASE}->queryValue("select uId from USERS where Username like ?",undef,{bind_values=>[$user]});
+  	$update.=" and ownerId=? and gownerId=?";
+    $delete.=" and ownerId=? and gownerId=?";
+    push (@{$bind->{update}}, $uId, $uId);
+    push (@{$bind->{delete}}, $uId, $uId);
   }
   
   $trigger
       and $triggerstat = $self->{DATABASE}->do($update, {bind_values => $bind->{update}});
-
-  return (
-      $self->{DATABASE}->do($delete,{bind_values =>  $bind->{delete} })  && $triggerstat
-    );
+  
+  return ( $self->{DATABASE}->do($delete,{bind_values =>  $bind->{delete} })  && $triggerstat );
 }
 
 sub addEntryToBookingTableAndOptionalExistingFlagTrigger {

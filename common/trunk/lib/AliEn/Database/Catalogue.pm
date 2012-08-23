@@ -493,8 +493,8 @@ sub checkOrphanGUID {
 
   my $tables = $self->query("select * from GL_ACTIONS where action='TODELETE'");
   foreach my $table (@$tables) {
-    $self->info("Doing the table $table->{tableNumber}");
-    $self->GUID_checkOrphanGUID($table->{tableNumber}, @_);
+    $self->info("Doing the table $table->{tableName}");
+    $self->GUID_checkOrphanGUID($table->{tableName}, @_);
   }
   $self->do(
 "delete from TODELETE  using TODELETE join SE s on TODELETE.senumber=s.senumber where sename='no_se' and pfn like 'guid://%'"
@@ -613,7 +613,7 @@ sub getDF {
   my $opt    = shift;
 
   my $query =
-"select *, if(size>0,if(usedSpace/size<0, 0, floor(100* usedSpace/size)),0) used  from SE a join SE_VOLUMES b  on a.seName=b.seName";
+"select *, if(size>0,if(usedSpace/size<0, 0, floor(100* usedSpace/size)),0) used  from SE a join SE_VOLUMES b  on a.seNumber=b.seNumber";
   my $bind = [];
   if ($sename) {
     $query .= " where a.seName=?";

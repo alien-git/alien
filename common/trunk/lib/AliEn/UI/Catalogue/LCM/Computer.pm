@@ -114,7 +114,7 @@ sub registerOutput_HELP {
   return "Registers in the catalogue the output of a job (if the job saved anything in the SE)
 Usage:
 \t\tregisterOutput <jobId> [-c]
-   -c registers also the execution.out ClusterMonitor log over SOAP
+   -c registers also the execution.out ClusterMonitor log over RPC
 ";
 }
 
@@ -147,8 +147,7 @@ sub registerOutput {
     return;
   }
   my $outputdir = $jobinfo->{path};
-  $self->{CATALOG}->f_mkdir("p",$outputdir);
-
+  
 
   if ($jobinfo->{path}) {
     if ($options->{cluster}) {
@@ -157,7 +156,7 @@ sub registerOutput {
         and $self->info("The files for this job where already registered in $jobinfo->{path}", 2)
         and return $jobinfo->{path};
       $onlycmlog = 1;
-
+	  $self->info("We have the path $jobinfo->{path} and cluster option in registerOutput");
     } else {
       $self->info("The files for this job where already registered in $jobinfo->{path}", 2) and return $jobinfo->{path};
     }
@@ -180,7 +179,6 @@ sub registerOutput {
       2
       ) and return;
   }
-
   if (!$onlycmlog) {
     @failedFiles = $self->{CATALOG}->registerOutputForJobPFNS($user, $jobid, @pfns);
     $regok       = shift @failedFiles;
@@ -200,7 +198,8 @@ sub registerOutput {
         $self->execute("mkdir", "-p", $outputdir);
       }
       my $env = {lfn => "$outputdir/$lfn", md5 => $md5, size => $size, guid => $guid};
-      $self->{CATALOG}->registerPFNInCatalogue($user, $env, $pfn, "no_se");
+      $self->info("registerPFNInCatalogue with $user and $pfn");
+      $self->{CATALOG}->registerPFNInCatalogue($user, $user, $pfn, "no_se");
     }
   }
 
@@ -239,7 +238,7 @@ sub registerOutput {
     if ($newstatus) {
       $self->{TASK_DB}->updateStatus($jobid, $jobinfo->{statusId}, $newstatus, {path => $outputdir}, $service);
       if (!($jobinfo->{statusId} =~ /^ERROR/)) {
-        $self->info("Job state transition from $jobinfo->{status} to $newstatus");
+        $self->info("Job state transition from $jobinfo->{statusId} to $newstatus");
       }
     }
     $outputdir and $self->info("Registered output files in: $outputdir");

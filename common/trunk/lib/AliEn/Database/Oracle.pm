@@ -1452,7 +1452,7 @@ sub dbGetAllTagNamesByPath {
   }
   if ($options->{user}) {
     $self->debug(1, "Only for the user $options->{user}");
-    $rec2 = " and user=?";
+    $rec2 = " and userId=?";
     push @bind, $options->{user};
   }
 
@@ -1717,26 +1717,26 @@ sub insertLFNBookedDeleteMirrorFromGUID {
   );
   if (!$exists || $exists == 0) {
     return $self->do(
-"INSERT INTO LFN_BOOKED(lfn, owner, expiretime, \"SIZE\", guid, gowner, user, pfn, se)
-      select ?,USERS.Username,-1,g.\"SIZE\",string2binary(?),GRPS.Groupname,?,?,s.seName
+"INSERT INTO LFN_BOOKED(lfn, ownerId, expiretime, \"SIZE\", guid, gownerId, pfn, seNumber)
+      select ?,USERS.uId,-1,g.\"SIZE\",string2binary(?),GRPS.gId,?,s.seNumber
       from " . $table . " g, " . $table . "_PFN g_p, SE s
       JOIN USERS ON g.ownerId=USERS.uId
       JOIN GRPS ON g.gownerId=GRPS.gId
       where g.guidId=g_p.guidId and g_p.guidId=? and g_p.seNumber=? and g_p.pfn=? and s.seNumber=g_p.seNumber",
       undef,
-      { bind_values => [ $lfn, $guid, $role, $pfn, $guidId, $seNumber, $pfn ],
+      { bind_values => [ $lfn, $guid, $pfn, $guidId, $seNumber, $pfn ],
         zero_length => 0
       }
     );
   } else {
     return $self->do(
-"UPDATE LFN_BOOKED SET (lfn, owner, expiretime, \"SIZE\", guid, gowner, user, pfn, se) = 
-      (select ?, USERS.Username,-1,g.\"SIZE\",string2binary(?), GRPS.Groupname,?,?,s.seName
+"UPDATE LFN_BOOKED SET (lfn, ownerId, expiretime, \"SIZE\", guid, gownerId, pfn, seNumber) = 
+      (select ?, USERS.uId,-1,g.\"SIZE\",string2binary(?), GRPS.gId,?,s.seNumber
        from " . $table . " g, " . $table . "_PFN g_p, SE s
       JOIN USERS ON g.ownerId=USERS.uId
       JOIN GRPS ON g.gownerId=GRPS.gId
       where g.guidId=g_p.guidId and g_p.guidId=? and g_p.seNumber=? and g_p.pfn=? and s.seNumber=g_p.seNumber)",
-      { bind_values => [ $lfn, $guid, $role, $pfn, $guidId, $seNumber, $pfn ],
+      { bind_values => [ $lfn, $guid, $pfn, $guidId, $seNumber, $pfn ],
         zero_length => 0
       }
     );
@@ -1756,12 +1756,12 @@ sub insertLFNBookedRemoveDirectory {
 
   # if (!$exists || $exists == 0){
   return $self->do(
-"INSERT INTO LFN_BOOKED(lfn, owner, expiretime,\"SIZE\", guid, gowner, \"USER\", pfn)
-     SELECT concat('$lfn' , l.lfn), USERS.Username, -1, l.\"SIZE\", l.guid, GRPS.Groupname, ? , '*' FROM $tableName l 
+"INSERT INTO LFN_BOOKED(lfn, ownerId, expiretime,\"SIZE\", guid, gownerId, pfn)
+     SELECT concat('$lfn' , l.lfn), USERS.uId, -1, l.\"SIZE\", l.guid, GRPS.gId, '*' FROM $tableName l 
      JOIN USERS ON l.ownerId=USERS.uId 
      JOIN GRPS ON l.gownerId=GRPS.gId
      WHERE l.type='f' AND l.lfn LIKE concat (?,'%')",
-    { bind_values => [ $user, $tmpPath ], zero_length => 0 }
+    { bind_values => [ $tmpPath ], zero_length => 0 }
   );
 
 #}else{
@@ -1795,24 +1795,26 @@ sub insertLFNBookedAndOptionalExistingFlagTrigger {
     { bind_values => [ $lfn, $guid, $pfn ] }
   );
 
+  my ($uId) = $self->queryValue("select uId from USERS where Username like ?", undef,{ bind_values => [ $user ] });
+
   if (!$exists || $exists == 0) {
     return $self->do(
-"INSERT INTO LFN_BOOKED (lfn, owner, quotaCalculated, md5sum, expiretime, \"SIZE\", pfn, se, gowner, guid, existing, jobid) VALUES (?,?,?,?,?,?,?,?,?,string2binary(?),?,?)",
+"INSERT INTO LFN_BOOKED (lfn, ownerId, quotaCalculated, md5sum, expiretime, \"SIZE\", pfn, seNumber, gownerId, guid, existing, jobid) VALUES (?,?,?,?,?,?,?,?,?,string2binary(?),?,?)",
       {
         bind_values => [
-          $lfn, $user, $quota, $md5sum, $expiretime, $size,
-          $pfn, $se,   $user,  $guid,   $existing,   $jobid
+          $lfn, $uId, $quota, $md5sum, $expiretime, $size,
+          $pfn, $se,  $uId,   $guid,   $existing,   $jobid
         ],
         zero_length => 0
       }
     );
   } else {
     return $self->do(
-"UPDATE LFN_BOOKED SET (lfn, owner, quotaCalculated, md5sum, expiretime, \"SIZE\", pfn, se, gowner, guid, existing, jobid) VALUES (?,?,?,?,?,?,?,?,?,string2binary(?),?,?)",
+"UPDATE LFN_BOOKED SET (lfn, ownerId, quotaCalculated, md5sum, expiretime, \"SIZE\", pfn, seNumber, gownerId, guid, existing, jobid) VALUES (?,?,?,?,?,?,?,?,?,string2binary(?),?,?)",
       {
         bind_values => [
-          $lfn, $user, $quota, $md5sum, $expiretime, $size,
-          $pfn, $se,   $user,  $guid,   $existing,   $jobid
+          $lfn, $uId, $quota, $md5sum, $expiretime, $size,
+          $pfn, $se,  $uId,   $guid,   $existing,   $jobid
         ],
         zero_length => 0
       }
@@ -1827,10 +1829,10 @@ sub insertLFNBookedAndOptionalExistingFlagTrigger {
 sub updateVolumesInSESize {
   my $self = shift;
   $self->do(
-"merge into SE_VOLUMES SV  using ( select seusedspace, sename  from se) S on (upper(S.sename)=upper(SV.sename)) when matched then update  set SV.usedspace =S.seusedspace/1024 "
+"merge into SE_VOLUMES SV  using ( select seusedspace, senumber  from se) S on (S.senumber=SV.senumber) when matched then update  set SV.usedspace =S.seusedspace/1024 "
   );
   $self->do(
-" merge into SE_VOLUMES SV using ( select seusedspace, sename  from se) S on (upper(S.sename)=upper(SV.sename)) when matched then update SET SV.freespace =( SV.\"SIZE\" -SV.freespace) where SV.\"SIZE\" =!-1)"
+" merge into SE_VOLUMES SV using ( select seusedspace, senumber  from se) S on (S.senumber=SV.senumber) when matched then update SET SV.freespace =( SV.\"SIZE\" -SV.freespace) where SV.\"SIZE\" =!-1)"
   );
   return;
 }
@@ -1844,11 +1846,11 @@ sub showLDLTables {
 sub updateSESize {
   my $self = shift;
   return $self->do(
-"merge into SE_VOLUMES SV  using ( select seusedspace, sename  from se) S on (upper(S.sename)=upper(SV.sename)) when matched then 
+"merge into SE_VOLUMES SV  using ( select seusedspace, senumber  from se) S on (S.senumber=SV.senumber) when matched then 
 update  set SV.usedspace =S.seusedspace/1024 "
     )
     and $self->do(
-" merge into SE_VOLUMES SV using ( select seusedspace, sename  from se) S on (upper(S.sename)=upper(SV.sename)) when matched then 
+" merge into SE_VOLUMES SV using ( select seusedspace, senumber  from se) S on (S.senumber=SV.senumber) when matched then 
 update SET SV.freespace =( SV.\"SIZE\" -SV.freespace) where SV.\"SIZE\" =!-1)"
     );
 }

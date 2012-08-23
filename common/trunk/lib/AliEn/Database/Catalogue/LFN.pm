@@ -70,78 +70,99 @@ sub LFN_createCatalogueTables {
     and return;
   
   my %tables = (
-    TRIGGERS => [
-      "lfn",
+    TRIGGERS => {
+      id=>"lfn",
+      columns=>
       { lfn         => "varchar(255)",
         triggerName => "varchar(255)",
         entryId     => "int auto_increment primary key"
-      }
-    ],
-    TRIGGERS_FAILED => [
-      "lfn",
+      },
+      order => 1
+    },
+    TRIGGERS_FAILED => {
+      id=>"lfn",
+      columns => 
       { lfn         => "varchar(255)",
         triggerName => "varchar(255)",
         entryId     => "int auto_increment primary key"
-      }
-    ],
-    LFN_UPDATES => [
-      "guid",
+      },
+      order => 1
+    },
+    LFN_UPDATES => {
+      id=>"guid",
+      columns=>
       { guid    => "binary(16)",
         action  => "char(10)",
         entryId => "int auto_increment primary key"
       },
-      'entryId',
-      ['INDEX (guid)']
-    ],
-    TAG0 => [
-      "entryId",
+      index=>'entryId',
+      extra_index=>['INDEX (guid)'],
+      order => 1
+    },
+    TAG0 => {
+      id=>"entryId",
+      columns=>
       { entryId   => "int(11) NOT NULL auto_increment primary key",
         path      => "varchar (255)",
         tagName   => "varchar (50)",
         tableName => "varchar(50)",
-        user      => 'varchar(20)'
+        userId    => 'mediumint unsigned'
       },
-      'entryId'
-    ],
-    UGMAP => [
-      "Userid",
-      { Userid       => "int not null",
-        Groupid      => "int not null",
+      index=>'entryId',
+      extra_index=>[ 'foreign key (userId) references USERS(uId) on delete cascade' ],
+      order => 1
+    },
+    UGMAP => {
+      id=>"Userid",
+      columns=>
+      { Userid       => "mediumint unsigned not null",
+        Groupid      => "mediumint unsigned null",
         PrimaryGroup => "int(1)",
-      }
-    ],
-    USERS => [
-      "uId",
+      },     
+      extra_index=>['foreign key (Userid) references USERS(uId) on delete cascade', 'foreign key (Groupid) references GRPS(gId) on delete cascade'],
+      order => 1
+    },
+    USERS => {
+      id=>"uId",
+      columns=>
       { uId          => "mediumint unsigned not null auto_increment primary key",
-        Username     => "char(20) UNIQUE NOT NULL",
+        Username     => "varchar(20) UNIQUE NOT NULL",
       },
-      'uId'
-    ],
-    GRPS => [
-      "gId",
+      index=>'uId',
+      order => 1
+    },
+    GRPS => {
+      id=>"gId",
+      columns=>
       { gId          => "mediumint unsigned not null auto_increment primary key",
-        Groupname     => "char(20) UNIQUE NOT NULL",
+        Groupname     => "varchar(20) UNIQUE NOT NULL",
       },
-      'gId'
-    ],
-    INDEXTABLE => [
-      "tableName",
+      index=>'gId',
+      order => 1
+    },
+    INDEXTABLE => {
+      id=>"tableName",
+      columns=>
       { 
         lfn       => "varchar(255)",
         tableName => "int(11) NOT NULL primary key",
       },
-      'tableName',
-      ['UNIQUE INDEX (lfn)']
-    ],
-    ACTIONS => [
-      'action',
+      index=>'tableName',
+      extra_index=>['UNIQUE INDEX (lfn)'],
+      order => 1
+    },
+    ACTIONS => {
+      id=>'action',
+      columns=>
       { action => "char(40) not null primary key",
         todo   => "int(1) default 0 not null "
       },
-      'action'
-    ],
-    PACKAGES => [
-      'fullPackageName',
+      index=>'action',
+      order => 1
+    },
+    PACKAGES => {
+      id=>'fullPackageName',
+      columns=>
       { 'fullPackageName' => 'varchar(255)',
         packageName       => 'varchar(255)',
         username          => 'varchar(20)',
@@ -149,31 +170,36 @@ sub LFN_createCatalogueTables {
         platform          => 'varchar(255)',
         lfn               => 'varchar(255)',
         size              => 'bigint'
-      },
-    ],
-    COLLECTIONS => [
-      'collectionId',
+      },,
+      order => 1
+    },
+    COLLECTIONS => {
+      id=>'collectionId',
+      columns=>
       { 'collectionId' => "int not null auto_increment primary key",
         'collGUID'     => 'binary(16)'
-      }
-    ],
-    COLLECTIONS_ELEM => [
-      'collectionId',
+      },
+      index=>'collectionId',
+      order => 1
+    },
+    COLLECTIONS_ELEM => {
+      id=>'collectionId',
+      columns=>
       { 'collectionId' => 'int not null',
         origLFN        => 'varchar(255)',
         guid           => 'binary(16)',
         data           => "varchar(255)",
         localName      => "varchar(255)"
       },
+      extra_index=>['PRIMARY KEY(collectionId,origLFN)','foreign key (collectionId) references COLLECTIONS(collectionId) on delete cascade'],
+      order => 2
+    },
 
-      "",
-      ['INDEX (collectionId)']
-    ],
-
-    "SE_VOLUMES" => [
-      "volume",
+    "SE_VOLUMES" => {
+      id=>"volume",
+      columns=>
       { volumeId   => "int(11) NOT NULL auto_increment PRIMARY KEY",
-        seName     => "char(255) collate latin1_general_ci NOT NULL ",
+        seNumber   => "int(11) NOT NULL ",
         volume     => "char(255) NOT NULL",
         mountpoint => "char(255)",
         usedspace  => "bigint",
@@ -181,41 +207,47 @@ sub LFN_createCatalogueTables {
         size       => "bigint",
         method     => "char(255)",
       },
-      "volumeId",
-      [ 'UNIQUE INDEX (volume)', 'INDEX(seName)' ],
-    ],
-    "LL_STATS" => [
-      "tableNumber",
-      { tableNumber => "int(11) NOT NULL",
-        min_time    => "char(20) NOT NULL",
-        max_time    => "char(20) NOT NULL",
+      index=>"volumeId",
+      extra_index=>[ 'UNIQUE INDEX (volume)', 'INDEX(seNumber)', 'foreign key (seNumber) references SE(seNumber) on delete cascade' ],
+      order => 1
+    },
+    "LL_STATS" => {
+      id=>"tableName",
+      columns=>
+      { tableName => "int(11) NOT NULL",
+        min_time  => "char(20) NOT NULL",
+        max_time  => "char(20) NOT NULL",
       },
-      undef,
-      ['UNIQUE INDEX(tableNumber)']
-    ],
-    LL_ACTIONS => [
-      "tableNumber",
-      { tableNumber => "int(11) NOT NULL",
-        action      => "char(40) not null",
-        time        => "timestamp default current_timestamp",
-        extra       => "varchar(255)"
+      extra_index=>['UNIQUE INDEX(tableName)', 'foreign key (tableName) references INDEXTABLE(tableName) on delete cascade'],
+      order => 2
+    },
+    LL_ACTIONS => {
+      id=>"tableName",
+      columns=>
+      { tableName => "int(11) NOT NULL",
+        action    => "char(40) not null",
+        time      => "timestamp default current_timestamp",
+        extra     => "varchar(255)"
       },
-      undef,
-      ['UNIQUE INDEX(tableNumber,action)']
-    ],
-    SEDistance => [
-      "sitename",
+      extra_index=>['UNIQUE INDEX(tableName,action)', 'foreign key (tableName) references INDEXTABLE(tableName) on delete cascade'],
+      order => 2
+    },
+    SEDistance => {
+      id=>"sitename",
+      columns=>
       { sitename => "varchar(100) collate latin1_general_ci  not null",
-        seNumber => "integer not null",
+        seNumber => "int(11) not null",
         sitedistance => "float not null",
       },
-      undef,
-      [ 'PRIMARY KEY(sitename,seNumber)', 'INDEX(sitename)', 'INDEX(seNumber)']
-    ],
+      extra_index=>[ 'PRIMARY KEY(sitename,seNumber)', 'INDEX(sitename)', 'INDEX(seNumber)', 
+      'foreign key (seNumber) references SE(seNumber) on delete cascade'],
+      order => 1
+    },
 
-    FQUOTAS => [
-      "user",
-      { user                  => "varchar(64) NOT NULL",
+    FQUOTAS => {
+      id=>"userId",
+      columns=>
+      { userId                => "mediumint unsigned NOT NULL",
         totalSize             => "bigint(20) collate latin1_general_ci DEFAULT '0' NOT NULL ",
         maxNbFiles            => "int(11) DEFAULT '0' NOT NULL ",
         nbFiles               => "int(11) DEFAULT '0' NOT NULL ",
@@ -223,51 +255,73 @@ sub LFN_createCatalogueTables {
         maxTotalSize          => "bigint(20) DEFAULT '0' NOT NULL ",
         tmpIncreasedNbFiles   => "int(11) DEFAULT '0' NOT NULL "
       },
-      undef,
-      ['PRIMARY KEY(user)']
-    ],
+      extra_index=>['PRIMARY KEY(userId)', 'foreign key (userId) references USERS(uId) on delete cascade' ],
+      order => 1
+    },
 
-    LFN_BOOKED => [
-      "lfn",
+    LFN_BOOKED => {
+      id=>"lfn",
+      columns=>
       { lfn             => "varchar(255)",
         expiretime      => "int",
         guid            => "binary(16) ",
         size            => "bigint",
         md5sum          => "varchar(32)",
-        owner           => "varchar(20)  collate latin1_general_ci ",
-        gowner          => "varchar(20)",
+        ownerId         => "mediumint unsigned not null",
+        gownerId        => "mediumint unsigned not null",
         pfn             => "varchar(255)",
-        se              => "varchar(100)  collate latin1_general_ci ",
+        seNumber        => "int(11)",
         quotaCalculated => "smallint",
-        user            => "varchar(20)  collate latin1_general_ci ",
         existing        => "smallint(1)",
         jobid           => "int(11)",
       },
-      undef,
-      [ 'PRIMARY KEY(lfn,pfn,guid)', 'INDEX(pfn)', 'INDEX(guid)', 'INDEX(jobid)' ]
-    ],
-    PFN_TODELETE => [ "pfn", {pfn => "varchar(255)", retry => "integer not null"}, undef, ['UNIQUE INDEX(pfn)'] ],
-    
-    "USERS_LDAP"=> [
-    "user",
-    { user => "varchar(15) not null",
-      dn   => "varchar(255)",
-      up   => "smallint"
-    }], 
-    "USERS_LDAP_ROLE"=>[
-    "user",
-    { user => "varchar(15) not null",
-      role => "varchar(15)",
-      up   => "smallint"
-    }],
-    
-    
-
+      extra_index=>[ 'PRIMARY KEY(lfn,pfn,guid)', 'INDEX(pfn)', 'INDEX(guid)', 'INDEX(jobid)', 'foreign key (ownerId) references USERS(uId) on delete cascade',
+      'foreign key (gownerId) references GRPS(gId) on delete cascade', 'foreign key (seNumber) references SE(seNumber) on delete cascade' ],
+      order => 2
+    },
+    PFN_TODELETE => { 
+    	id=>"pfn", 
+    	columns=>{
+    	  pfn => "varchar(255)", 
+    	  retry => "integer not null"
+    	}, 
+        extra_index=>['UNIQUE INDEX(pfn)'], 
+        order=>1 
+    },
+    "USERS_LDAP"=> {
+      id=>"user",
+      columns=>
+      { user => "varchar(20) not null",
+        dn   => "varchar(255)",
+        up   => "smallint",
+      },
+      extra_index=>[ 'PRIMARY KEY(user,dn,up)' ],
+      order => 1
+    }, 
+    "USERS_LDAP_ROLE"=>{
+      id=>"user",
+      columns=>
+      { user => "varchar(20) not null",
+        role => "varchar(20)",
+        up   => "smallint"
+      },
+      order => 1
+    }    
   );
-  foreach my $table (keys %tables) {
-    $self->info("Checking table $table");
-    $self->checkTable($table, @{$tables{$table}}) or return;
-  }
+    
+    
+  foreach my $table (sort {$tables{$a}->{order} <=> $tables{$b}->{order} } keys %tables) {
+  	$self->info("Checking table $table");
+    $self->checkTable(
+      $table,
+      $tables{$table}->{id},
+      $tables{$table}->{columns},
+      $tables{$table}->{index},
+      $tables{$table}->{extra_index}
+      )
+      or $self->{LOGGER}->error("LFN", "Error checking the table $table")
+      and return;
+  }  
 
   $self->checkLFNTable("0") or return;
   $self->do(
@@ -311,15 +365,19 @@ sub checkLFNTable {
     broken     => 'smallint(1) default 0 not null ',
     jobid      => "int(11)",
   );
-  my @index=('UNIQUE INDEX (lfn)', "INDEX(dir)", "INDEX(guid)", "INDEX(type)", "INDEX(ctime)", "INDEX(guidtime)" );
+  my @index=('INDEX(entryId)', 'UNIQUE INDEX (lfn)', "INDEX(dir)", "INDEX(guid)", "INDEX(type)", "INDEX(ctime)", "INDEX(guidtime)",
+    "foreign key (ownerId) references USERS(uId) on delete cascade", "foreign key (gownerId) references GRPS(gId) on delete cascade" );
   $options=~ /noindex/ and @index=();
   
-  $self->checkTable(${table}, "entryId", \%columns, 'entryId',\@index )
+  $self->checkTable(${table}, "entryId", \%columns, "entryId",\@index )
     or return;
-  $self->checkTable("${table}_broken", "entryId", {entryId => "bigint(11) NOT NULL  primary key"}) or return;
-  $self->checkTable("${table}_QUOTA", "user",
-    {user => "varchar(64) NOT NULL", nbFiles => "int(11) NOT NULL", totalSize => "bigint(20) NOT NULL"},
-    undef, ['INDEX user_ind (user)'],)
+  
+  $self->checkTable("${table}_broken", "entryId", {entryId => "int unsigned not null"}, "entryId",
+    ['foreign key (entryId) references '.${table}.'(entryId) on delete cascade'],) or return;
+  
+  $self->checkTable("${table}_QUOTA", "userId",
+    {userId => "mediumint unsigned NOT NULL", nbFiles => "int(11) NOT NULL", totalSize => "bigint(20) NOT NULL"},
+    undef, ['INDEX user_ind (userId)', 'foreign key (userId) references USERS(uId) on delete cascade'],)
     or return;
 
   $options=~ /noindex/ or $self->optimizeTable(${table});
@@ -513,7 +571,7 @@ sub LFN_createFile {
       $insert->{guid}     = "string2binary('$insert->{guid}')";
     }
   }
-  $self->info("Inserting the lfn");
+  $self->info("Inserting the lfn (in $tableName) and inserts: ".Dumper(@inserts));
   my $done = $self->multiinsert($tableName, \@inserts, {noquotes => 1, silent => 1});
   if (!$done and $DBI::errstr =~ /Duplicate entry '(\S+)'/) {
     $self->info("The entry '$tableLFN$1' already exists");
@@ -825,14 +883,12 @@ sub removeFile {
 
   #Insert into LFN_BOOKED only when the GUID has to be deleted
   $self->do(
-        "INSERT INTO LFN_BOOKED(lfn, owner, expiretime, "
+        "INSERT INTO LFN_BOOKED(lfn, ownerId, expiretime, "
       . $self->reservedWord("size")
-      . ", guid, gowner, "
-      . $self->reservedWord("user") . ", pfn)
-    SELECT ?, USERS.Username, -1, l."
+      . ", guid, gownerId, pfn) SELECT ?, USERS.uId, -1, l."
       . $self->reservedWord("size") 
-      . ", l.guid, GRPS.Groupname, ?,'*' FROM $tableName l JOIN USERS ON l.ownerId=uId JOIN GRPS ON l.gownerId=gId WHERE l.lfn=? AND l.type<>'l'",
-    {bind_values => [ $lfn, $user, $lfnOnTable ]}
+      . ", l.guid, GRPS.gId,'*' FROM $tableName l JOIN USERS ON l.ownerId=uId JOIN GRPS ON l.gownerId=gId WHERE l.lfn=? AND l.type<>'l'",
+    {bind_values => [ $lfn, $lfnOnTable ]}
     )
     or $self->info( "Could not insert LFN(s) in the booking pool")
     and return;
@@ -1685,12 +1741,14 @@ sub insertIntoTag0 {
   my $tableName = shift;
   my $user      = shift || $self->{CONFIG}->{ROLE};
 
+  ($user) = $self->queryValue("select uId from USERS where Username like ?",undef,{bind_values=>[$user]});
+
   $self->insert(
     "TAG0",
     { path      => $directory,
       tagName   => $tagName,
       tableName => $tableName,
-      user      => $user
+      userId      => $user
     }
   );
 }
@@ -2302,16 +2360,16 @@ sub updateLFNStats {
   $table =~ /^L/ or $table = "L${table}L";
   my $number = $table;
   $number =~ s/L//g;
-  $self->do("delete from LL_ACTIONS where action='STATS' and tableNumber=?", {bind_values => [$number]});
+  $self->do("delete from LL_ACTIONS where action='STATS' and tableName=?", {bind_values => [$number]});
 
   $self->do(
-    "insert into LL_ACTIONS(tablenumber, time, action, extra) select ?,max(ctime),'STATS', count(*) from L${number}L",
+    "insert into LL_ACTIONS(tableName, time, action, extra) select ?,max(ctime),'STATS', count(*) from L${number}L",
     {bind_values => [$number]});
 
   my $oldGUIDList = $self->getPossibleGuidTables($number);
-  $self->do("delete from LL_STATS where tableNumber=?", {bind_values => [$number]});
+  $self->do("delete from LL_STATS where tableName=?", {bind_values => [$number]});
   $self->do(
-"insert into LL_STATS (tableNumber, max_time, min_time) select  ?, concat(conv(conv(max(guidtime),16,10)+1,10,16),'00000000') max, concat(min(guidtime),'00000000')  min from $table",
+"insert into LL_STATS (tableName, max_time, min_time) select  ?, concat(conv(conv(max(guidtime),16,10)+1,10,16),'00000000') max, concat(min(guidtime),'00000000')  min from $table",
     {bind_values => [$number]}
   );
   my $newGUIDList = $self->getPossibleGuidTables($number);
@@ -2356,7 +2414,7 @@ sub updateLFNStats {
     $self->info("And now, let's put the guid tables in the list of tables that have to be checked");
     $values =~ s/, $//;
     $self->do(
-"insert  into GL_ACTIONS(tableNumber, action)  select $values from DUAL where not exists (select * from GL_ACTIONS where tableNumber=? and action='TODELETE')",
+"insert  into GL_ACTIONS(tableName, action)  select $values from DUAL where not exists (select * from GL_ACTIONS where tableName=? and action='TODELETE')",
       {bind_values => [@bind]}
     );
   }
@@ -2371,10 +2429,10 @@ sub getPossibleGuidTables {
 
   return $self->query(
 "select * from (select * from GUIDINDEX where 
-     guidTime<(select max_time from  LL_STATS where tableNumber=?)  
-    and  guidTime>(select min_time from LL_STATS where tableNumber=?)
+     guidTime<(select max_time from  LL_STATS where tableName=?)  
+    and  guidTime>(select min_time from LL_STATS where tableName=?)
       union
-       select * from GUIDINDEX where guidTime= (select max(guidTime) from GUIDINDEX where guidTime< (select min_time from LL_STATS where tableNumber=?))) g
+       select * from GUIDINDEX where guidTime= (select max(guidTime) from GUIDINDEX where guidTime< (select min_time from LL_STATS where tableName=?))) g
       ",
     undef,
     {bind_values => [ $number, $number, $number ]}
@@ -2416,7 +2474,7 @@ sub fquota_update {
 
   $self->do(
 "UPDATE FQUOTAS SET nbFiles=nbFiles+tmpIncreasedNbFiles+?, totalSize=totalSize+tmpIncreasedTotalSize+?, tmpIncreasedNbFiles=0, tmpIncreasedTotalSize=0 WHERE "
-      . $self->reservedWord("user") . "=?",
+      . "userId in (select uId from USERS where Username like ?)",
     {bind_values => [ $count, $size, $user ]}
   ) or return;
   
