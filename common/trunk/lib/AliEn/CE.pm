@@ -600,7 +600,7 @@ sub getJdl {
 		shift =~ /EOF/ or shift;
 
 		#READING FROM THE STDIN
-		$self->{LOGGER}->error("CE", "Enter the input for the job (end with EOF)");
+		$self->info("Enter the input for the job (end with EOF)");
 		$content = "";
 		my $line = <>;
 		while ($line ne "EOF\n") {
