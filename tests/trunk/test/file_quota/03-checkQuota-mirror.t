@@ -49,7 +49,7 @@ my $d=AliEn::Database->new({DRIVER=>"mysql", HOST=>"$host:3307", DB=>"alien_syst
 	print "1. DONE\n\n";
 
   print "2. Set the limit (maxNbFiles 10, maxTotalSize 20)\n";	
-	$d->update("FQUOTAS", {maxNbFiles=>10, maxTotalSize=>20}, "user='$user'");
+	$d->update("FQUOTAS", {maxNbFiles=>10, maxTotalSize=>20}, "userId in (select uId from USERS where Username like '$user')");
 	print "2. DONE\n\n";
 
 	print "3. Add a file (size 14)\n";
@@ -66,7 +66,7 @@ my $d=AliEn::Database->new({DRIVER=>"mysql", HOST=>"$host:3307", DB=>"alien_syst
 	print "4. PASSED\n\n";
 
   print "5. Modify the maxTotalSize as 100 and the maxNbFiles as 1\n";
-  $d->update("FQUOTAS", {maxTotalSize=>100, maxNbFiles=>1}, "user='$user'");
+  $d->update("FQUOTAS", {maxTotalSize=>100, maxNbFiles=>1}, "userId in (select uId from USERS where Username like '$user')");
   assertEqual($d, $user, "maxTotalSize", 100) or exit(-2);
   assertEqual($d, $user, "maxNbFiles", 1) or exit(-2);
   print "5. DONE\n\n";
@@ -78,7 +78,7 @@ my $d=AliEn::Database->new({DRIVER=>"mysql", HOST=>"$host:3307", DB=>"alien_syst
 	print "6. PASSED\n\n";
 
   print "7. Modify the maxNbFiles as 10 back\n";
-  $d->update("FQUOTAS", {maxNbFiles=>10}, "user='$user'");
+  $d->update("FQUOTAS", {maxNbFiles=>10}, "userId in (select uId from USERS where Username like '$user')");
   assertEqual($d, $user, "maxNbFiles", 10) or exit(-2);
   print "7. DONE\n\n";
 

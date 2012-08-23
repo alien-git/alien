@@ -46,7 +46,7 @@ my $host = Net::Domain::hostfqdn();
   #refreshLFNandGUIDtable($cat_adm);
   print "-1. Set the file quota (maxNbFiles 10000, maxTotalSize 10000000)\n";
 
-  $d->update("FQUOTAS", {maxNbFiles => 10000, maxTotalSize => 10000000}, "user='$user'");
+  $d->update("FQUOTAS", {maxNbFiles => 10000, maxTotalSize => 10000000}, "userId in (select uId from USERS where Username like '$user')");
   assertEqual($d, $user, "maxTotalSize", 10000000) or exit(-2);
   assertEqual($d, $user, "maxNbFiles",   10000)    or exit(-2);
   print "-1. DONE\n\n";

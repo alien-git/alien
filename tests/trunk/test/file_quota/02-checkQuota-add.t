@@ -49,7 +49,7 @@ my $d=AliEn::Database->new({DRIVER=>"mysql", HOST=>"$host:3307", DB=>"alien_syst
 	print "1. DONE\n\n";
 
   print "2. Set the limit (maxNbFiles 10, maxTotalSize 30)\n";	
-	$d->update("FQUOTAS", {maxNbFiles=>10, maxTotalSize=>30}, "user='$user'");
+	$d->update("FQUOTAS", {maxNbFiles=>10, maxTotalSize=>30}, "userId in (select uId from USERS where Username like '$user')");
   assertEqual($d, $user, "maxTotalSize", 30) or exit(-2);
   assertEqual($d, $user, "maxNbFiles", 10) or exit(-2);
 	print "2. DONE\n\n";
@@ -73,7 +73,7 @@ my $d=AliEn::Database->new({DRIVER=>"mysql", HOST=>"$host:3307", DB=>"alien_syst
 	print "5. PASSED\n\n";
 
   print "6. Modify the maxTotalSize as 100 and the maxNbFiles as 3\n";
-  $d->update("FQUOTAS", {maxTotalSize=>100, maxNbFiles=>3}, "user='$user'");
+  $d->update("FQUOTAS", {maxTotalSize=>100, maxNbFiles=>3}, "userId in (select uId from USERS where Username like '$user')");
   assertEqual($d, $user, "maxTotalSize", 100) or exit(-2);
   assertEqual($d, $user, "maxNbFiles", 3) or exit(-2);
   print "6. DONE\n\n";

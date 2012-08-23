@@ -46,7 +46,7 @@ my $d = AliEn::Database->new({DRIVER => "mysql", HOST => "$host:3307", DB => "al
   print "1. DONE\n\n";
 
   print "2. Set the limit (maxNbFiles 10, maxTotalSize 100)\n";
-  $d->update("FQUOTAS", {maxNbFiles => 10, maxTotalSize => 100}, "user='$user'");
+  $d->update("FQUOTAS", {maxNbFiles => 10, maxTotalSize => 100}, "userId in (select uId from USERS where Username like '$user')");
   print "2. DONE\n\n";
 
   print "3. Add a file (size 14)\n";
@@ -154,7 +154,7 @@ sub assertEqual {
   my $value = shift;
 
   my $result = 0;
-  $result = $d->queryValue("SELECT $field FROM FQUOTAS WHERE user='$user'");
+  $result = $d->queryValue("SELECT $field FROM FQUOTAS WHERE userId in (select uId from USERS where Username like '$user')");
   (defined $result) or print "Error checking the $field of the user\n" and exit(-2);
   ($result eq $value) or print "FAILED: $field expected:<$value> but was: $result\n";
   return ($result eq $value);

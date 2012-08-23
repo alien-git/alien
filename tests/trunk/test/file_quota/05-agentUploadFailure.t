@@ -35,7 +35,7 @@ my $d=AliEn::Database->new({DRIVER=>"mysql", HOST=>"$host:3307", DB=>"alien_syst
 
   cleanDir($cat, $pwd);
   $cat_ad->execute("removeExpiredFiles");
-	$d->update("FQUOTAS", {nbFiles=>0, totalSize=>0}, "user='$user'");
+	$d->update("FQUOTAS", {nbFiles=>0, totalSize=>0}, "userId in (select uId from USERS where Username like '$user')");
 #  cleanDir($cat, "/proc/$user");
   $cat->execute("mkdir", "-p", "dir1") or exit(-2);
   $cat->execute("mkdir", "-p", "bin") or exit(-2);
@@ -47,7 +47,7 @@ my $d=AliEn::Database->new({DRIVER=>"mysql", HOST=>"$host:3307", DB=>"alien_syst
 	print "1. DONE\n\n";
 
   print "2. Set the limit (maxNbFiles 2, maxTotalSize 100)\n";	
-	$d->update("FQUOTAS", {maxNbFiles=>2, maxTotalSize=>100}, "user='$user'");
+	$d->update("FQUOTAS", {maxNbFiles=>2, maxTotalSize=>100}, "userId in (select uId from USERS where Username like '$user')");
   assertEqual($d, $user, "maxTotalSize", 100) or exit(-2);
   assertEqual($d, $user, "maxNbFiles", 2) or exit(-2);
 	print "2. DONE\n\n";
