@@ -44,5 +44,5 @@ test-gapi:
 
 test-stop:
 	@echo "Stopping all the services"
-	[ -d test ] && cd test ; ./Install.sh -stop_tests 
+	[ -d test ] && cd test ; ./Install.sh -stop_tests  -expected stop/001
 
