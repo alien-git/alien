@@ -18,6 +18,7 @@ my %serviceConfigMap = (
 # "PackManMaster" => ["PACKMANMASTER_ADDRESS", ""],
 "MessagesMaster" => ["MESSAGESMASTER_ADDRESS", ""],
 "Manager::JobInfo" =>["JOBINFO_MANAGER_ADDRESS", ""],
+"Optimizer::Popularity" => ["POPULARITY_OPTIMIZER_ADDRESS", ""],
 );
 
 my $serviceName = shift;

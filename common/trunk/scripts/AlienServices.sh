@@ -705,6 +705,14 @@ ALIEN_DoService ()
 	    configName="TRANSFER_MANAGER_ADDRESS"
 	    packageName="Manager::Transfer"	    
 	    ;;
+          PopularityOptimizer)
+            packageName="Optimizer::Popularity"
+            HTTPService=0;
+            ;;
+	  SEManager)
+	    configName="SEMASTER_MANAGER_ADDRESS"
+	    packageName="Manager::SEMaster"	    	    
+	    ;;
 	  MessagesMaster)	
 	    configName="MESSAGESMASTER_ADDRESS"
 	    packageName="MessagesMaster"
