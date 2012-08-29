@@ -1,5 +1,6 @@
 use strict;
 use AliEn::Database::Catalogue;
+use AliEn::Database::Accesses;
 use Net::Domain qw(hostname hostfqdn hostdomain);
 
 print "This script will create the databases for the alien catalogue for a new AliEn Organisation
@@ -59,7 +60,6 @@ Administrator password: ******
 Host name:             $hostName
 Port number:           $portNumber
 ********************************************\n";
-
 
 my $OK = getParam ("Proceed with creation","Y");
 if($OK ne "Y") {
@@ -230,6 +230,7 @@ GRANT ALL PRIVILEGES ON *.* TO admin\@localhost IDENTIFIED BY '$passwd' WITH GRA
 flush privileges;
 create database if not exists alien_system;
 create database if not exists processes;
+create database if not exists accesses;
 create database if not exists transfers;
 create database if not exists INFORMATIONSERVICE;
 create database if not exists ADMIN;";
@@ -265,7 +266,28 @@ $now =~ s/\n//;
 print "Creating the tables in the database\n";
 $db->createCatalogueTables() or exit(-2);
 
-foreach my $dbtype ('TaskQueue', 'Transfer', 'IS', ) {
+
+my $dbAcc=AliEn::Database::Accesses->new({USE_PROXY=>0,
+					USER=>"admin",
+					ROLE=>"admin",
+					PASSWD=>$passwd,
+#					DEBUG=>5,
+				       });
+
+if (! $dbAcc) {
+  print "We couldn't connect to the database\n";
+  print "Let's try as root\n";
+  open ($FILE, "| $ENV{ALIEN_ROOT}/bin/mysql  -p$passwd -u root -S $socket") or print "Error conecting to mysql \n" and exit(-2);
+  print $FILE "select * from mysql.user;";
+  close $FILE;
+  exit(-2);
+}
+
+print "Creating the tables in the database\n";
+$dbAcc->createAccessesTables() or exit(-2);
+
+
+foreach my $dbtype ('TaskQueue', 'Transfer', 'IS',) {
   print "Creating the $dbtype...";
   my $s="AliEn::Database::$dbtype";
 

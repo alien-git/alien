@@ -51,7 +51,7 @@ foreach my $service ("Manager", "Broker", "Optimizer"){
     $install.="Transfer$service ";
   }
 }
-foreach my $service ("Job", "Catalogue"){
+foreach my $service ("Job", "Catalogue", "Popularity"){
   if ($config->{"\U${service}\E_OPTIMIZER_ADDRESS"} =~ /^$hostname:/) {
     $install.="${service}Optimizer ";
   }

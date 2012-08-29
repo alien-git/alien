@@ -104,8 +104,12 @@ attributetype ( AliEnVOConfig:82 NAME 'jobinfoManagerAddress' SUP name )
 attributetype ( AliEnVOConfig:83 NAME 'sedetectmonalisaurl' SUP name )
 attributetype ( AliEnVOConfig:84 NAME 'sedefaultQosandCount' SUP name )
 attributetype ( AliEnVOConfig:85 NAME 'cacheServiceAddress' SUP name )
-
-
+attributetype ( AliEnVOConfig:86 NAME 'accessesHost' SUP name )
+attributetype ( AliEnVOConfig:87 NAME 'accessesPort' SUP name )
+attributetype ( AliEnVOConfig:88 NAME 'accessesDatabase' SUP name )
+attributetype ( AliEnVOConfig:89 NAME 'accessesDriver' SUP name )
+attributetype ( AliEnVOConfig:90 NAME 'popularityDatabase' SUP name )
+attributetype ( AliEnVOConfig:91 NAME 'popularityOptimizerAddress' SUP name )
 
 
 objectclass ( AliEnVOConfig  NAME 'AliEnVOConfig'
@@ -121,7 +125,7 @@ objectclass ( AliEnVOConfig  NAME 'AliEnVOConfig'
 		transferBrokerAddress $ transferDatabase $
 		transferOptimizerAddress $ jobOptimizerAddress $ 
 		jobDatabase $ ldapmanager $ jobManagerAddress $ 
-		jobBrokerAddress )
+		jobBrokerAddress $ accessesHost $ accessesPort $ accessesDatabase $ accessesDriver $ popularityDatabase $ popularityOptimizerAddress )
 	MAY ( proxyPort $ proxyHost $ proxyAddress $ processPort $catalogueDatabase $ catalogueOptimizerAddress $
 	      monalisaLUS $ monalisaGroup $ authenSubject $ proofPort $ proofDatabase $
 	      proofDriver $ proofDbHost $ proofHost $ proofMuxPortRange $
@@ -131,8 +135,7 @@ objectclass ( AliEnVOConfig  NAME 'AliEnVOConfig'
 	       nwsPort $ nwsDatabase $ nwsDriver $ nwsDbHost $ nwsHost $
         lbsgAddress $ lbsgDatabase $ si2kNominalPrice $ bankAdmin $ taxAccount $ taxRate $
 				bankCurrency $ jobDatabaseRead $ packmanmasterAddress $ 
- messagesmasterAddress $ semasterDatabase $ semasterManagerAddress $ jobinfoManagerAddress $ sedetectmonalisaurl $ sedefaultQosandCount $
- cacheServiceAddress )
+ messagesmasterAddress $ semasterDatabase $ semasterManagerAddress $ jobinfoManagerAddress $ sedetectmonalisaurl $ sedefaultQosandCount $ cacheServiceAddress )
 	)
 #AliEnUser
 
