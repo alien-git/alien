@@ -9,8 +9,8 @@ use Net::Domain qw(hostname hostfqdn hostdomain);
 ### Get connections and DB objects
 my $db = AliEn::Database::Catalogue->new({
                                ROLE   => "admin"}) or exit(-2);
-$db->createCatalogueTables();
-exit();
+#$db->createCatalogueTables();
+
 my $cpus=4;
 
 ### Get index table values for GUID and LFN
@@ -50,7 +50,6 @@ for my $table (@$guidIndex){
 }
 
 
-print Dumper($splitLFN);
 
 for ($kid=0; $kid<$cpus; $kid++){
   my $pid=fork();
@@ -63,53 +62,53 @@ if ($kid==$cpus){
 my $counter=0;
 foreach my $table (@{$splitLFN->{$kid}->{LFN}}) {
   print "KID $kid doing   $table ($counter out of $#{$splitLFN->{$kid}->{LFN}}\n";
-  next;
-  if ($db->do("select count(*) from ${table}_OLD")){
+  if ($db->do("select gownerid from ${table} limit  1")){
    print "DONE SOMETHING\n";
+  $db->do("update $table set gownerid=22 where gownerId is null");
+   next;
    $db->do("drop table $table");
    $db->do("alter table ${table}_OLD rename $table");
   }
   $counter++;
   $db->do("ALTER TABLE $table rename ${table}_OLD");
-  $db->checkLFNTableNoIndex($table);
+  $db->checkLFNTable($table, 'noindex');
   $db->do("INSERT INTO $table ( entryId, replicated, ctime, jobid,guidtime,lfn, broken, expiretime, size, dir, gownerid, type, guid, md5, ownerId, perm) 
    select  entryId, replicated, ctime, jobid,guidtime,lfn, broken, expiretime, size, dir, gid, type, guid, md5, uId, perm from ${table}_OLD old 
-JOIN USERS ON old.owner=USERS.username JOIN GRPS ON old.gowner=GRPS.groupname ");
+left JOIN USERS ON old.owner=USERS.username left JOIN GRPS ON old.gowner=GRPS.groupname ");
+  $db->do("update $table set gownerid=22 where gownerId is null");
+
   $db->checkLFNTable($table);
 
   print scalar(localtime(time))."\n";
 }
 print "New Changes made successfully !!!\n";
 print "\n".scalar(localtime(time))."\n";
+exit(-2);
 
-
-print "Doing the alteration in G#L tables\n";
+print " $kid Doing the alteration in G#L tables\n";
 print "\n".scalar(localtime(time))."\n";
 
 $counter=0;
 foreach my $table (@{$splitLFN->{$kid}->{GUID}}) {
-#  print "$table\n";
-#  $update_time = $db->do("SELECT UPDATE_TIME FROM information_schema.tables WHERE table_schema='alice_users_sync' and table_name='$table'");
-#  $update_status=$db->do("SELECT 1 FROM information_schema.tables WHERE table_schema='alice_users' AND table_name='$table' AND UPDATE_TIME>='$update_time'");
-#  $count1=$db->do("SELECT count(*) FROM alice_users.$table");
-#  $count2=$db->do("SELECT count(*) FROM alice_users_sync.$table");
-#  ($update_status) or $update_status=0;
-#  if($update_status==0 and $count1==$count2){
-#    next;
-#  }
   print "KID $kid doing $table  ($counter out of $#{$splitLFN->{$kid}->{GUID}})\n";
+  next;
   $counter++;
-  if ($db->do("select count(*) from ${table}_OLD")){
+  if ($db->do("select gownerid from ${table} limit 1")){
    print "DONE SOMETHING\n";
-   $db->do("drop table $table");
-   $db->do("alter table ${table}_OLD rename $table");
-  }
+#   $db->do("drop table $table");
+#   $db->do("alter table ${table}_OLD rename $table");
+    $db->checkGUIDTable($table);
 
+    next;
+  }
+  print "$table was not converted!!\n";
   $db->do("alter table $table rename ${table}_OLD");
 
-  $db->checkGUIDTable($table);
+  $db->checkGUIDTable($table, 'noindex');
   $db->do("insert into $table ( guidId,ctime,ref,jobid,sestringlist, seautostringlist,expiretime,size,gownerid,guid,type, md5, ownerid, perm)
 select  guidId,ctime,ref,jobid,sestringlist, seautostringlist,expiretime,size,gid,guid,type, md5, uid, perm from ${table}_OLD old left JOIN USERS on old.owner=USERS.username left JOIN GRPS on old.gowner=GRPS.groupname");
+  $db->checkGUIDTable($table);
+
 
 }
 print "New Changes made successfully by $kid!!!\n";
