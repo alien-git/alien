@@ -101,7 +101,7 @@ $DEBUG = 0;
 );
 use AliEn::Database::Catalogue;
 #use AliEn::Database::TaskPriority;
-use AliEn::Database::TaskQueue;
+#use AliEn::Database::TaskQueue;
 
 #use AliEn::Utilities;
 require AliEn::Config;
@@ -1097,6 +1097,7 @@ sub _executeInAllDatabases {
 #    "INSERT INTO T$newParent"
 #	"DELETE FROM T$oldParent"
 #}
+
 
 sub f_verifySubjectRole {
   my $self = shift;

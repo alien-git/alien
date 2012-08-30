@@ -408,7 +408,7 @@ sub getAllInfoFromGUID {
 
   $self->debug(2, "Looking into the table  $table");
 
-  my $info = $self->$method("select $retrieve from $table JOIN USERS ON ownerId=uId JOIN GRPS ON gownerId=gId where guid=string2binary(?)", undef, {bind_values => [$guid]});
+  my $info = $self->$method("select $retrieve from $table left JOIN USERS ON ownerId=uId left JOIN GRPS ON gownerId=gId where guid=string2binary(?)", undef, {bind_values => [$guid]});
 
   if ($options->{return}) {
     $info->{table} = $table;

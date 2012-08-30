@@ -33,6 +33,9 @@ my (%command_list);
   'spy'               => [ '$self->{QUEUE}->f_spy',             0 ],
   'queue'             => [ '$self->{QUEUE}->f_queue',           0 ],
 
+  'verifyToken'       => ['$self->{QUEUE}->f_verifyToken', 0],
+
+
   #   'packman'  => ['$self->{PACKMAN}->f_packman',0],
   'masterJob'      => [ '$self->{QUEUE}->masterJob',      0 ],
   'checkAgents'    => [ '$self->{QUEUE}->checkJobAgents', 0 ],

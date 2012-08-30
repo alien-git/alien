@@ -178,7 +178,7 @@ sub f_basename {
 #    my ( $self, $path ) = @_;#
 #
 #    $path = $self->f_complete_path($path);
-#    $path = $self->f_dirname($path);
+#    $path = $self->less ($path);
 #    if ( $path eq "" ) {
 #        return ( $self->{CURDIR} );
 #    }

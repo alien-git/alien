@@ -159,6 +159,28 @@ sub checkZipArchives {
 	return 1;
 }
 
+
+
+sub f_verifyToken {
+  my $self    = shift; # 2?
+  my $options = shift;
+  my $jobid   = shift;
+  my $token   = shift;
+
+ open(my $FI, ">>", "/tmp/verifyToken");
+ print $FI "Estamos en verifyToken con TOKEN=$token y job $jobid\n";
+
+# To test, delete
+  $self->info("Verifying the token of '$jobid' and '$token'");
+  my $roledb = $self->{TASK_DB}->getUsername($jobid, $token) ;
+
+  $self->info("AND WE GOT $roledb");
+  print $FI "Y EL USUARIO es $roledb\n";
+  close $FI;
+  return $roledb;
+}
+
+
 #_____________________________________________________________________________
 #sub defaultRequirements {
 #
@@ -2710,6 +2732,7 @@ sub f_queue_add {
 
 	my $insert = $self->{TASK_DB}->insertSiteQueue($queue) 
 	or $self->info("Error adding the site $queue");
+		
 	return $insert;
 }
 
