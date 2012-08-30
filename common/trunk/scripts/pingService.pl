@@ -18,7 +18,6 @@ my %serviceConfigMap = (
 # "PackManMaster" => ["PACKMANMASTER_ADDRESS", ""],
 "MessagesMaster" => ["MESSAGESMASTER_ADDRESS", ""],
 "Manager::JobInfo" =>["JOBINFO_MANAGER_ADDRESS", ""],
-"Optimizer::Popularity" => ["POPULARITY_OPTIMIZER_ADDRESS", ""],
 );
 
 my $serviceName = shift;
@@ -34,29 +33,18 @@ $config
   
 my $crtHost = $config->{HOST} || $config->{SITE_HOST} || Net::Domain::hostfqdn();
 
-#print Dumper($config);
+print Dumper($config);
 
 my $configHost = exists($serviceConfigMap{$serviceName}) ? $serviceConfigMap{$serviceName}->[0] : uc($serviceName) . "_HOST";
 my $configPort = exists($serviceConfigMap{$serviceName}) ? $serviceConfigMap{$serviceName}->[1] : uc($serviceName) . "_PORT";
 
 
 my $host = (defined($configHost) ? $config->{$configHost} : $crtHost);
-#print $host;
-my $HostHttps="";
-my $HTTPS=0;
+print $host;
 if ($host) {
-  $host =~ s/^http:\/\/// and $HTTPS=1;
-  $host =~ s/^https:\/\///;
-} 
-my $port;
-if ($host && $host =~ /^(.*):(\d+)$/){
-  $host = $1;
-  $port = $2;
-}else{
-  $port = (defined($configPort) ? $config->{$configPort} : "");
+  $host =~ /^http/ or $host="http://$host"
 }
-
-
+$config->{$configPort} and $host.=":".$config->{$configPort}; 
 
 # This script cannot check the ProxyServer and MonaLisa because they do not inherit from AliEn::Service
 #if ($serviceName =~ /^(ProxyServer)|(MonaLisa)|(CE.*)|(FTD)|(Optimizer.*)$/)
@@ -71,15 +59,8 @@ print "Pinging service $serviceName...\n";
 
 $host
   or &error(-3, "Could not get host. Is it supposed to run here?");
-$port
-    or &error(-3, "Could not get service port. Is it supposed to run here?");
 
-
-my $uri = "http";
-$HTTPS and $uri.="s";
-$uri.="://$host:$port/alien/";
-
-print "The service $serviceName is running at $uri\n";
+print "The service $serviceName is running at $host\n";
 
 my $errorNr;
 my $errorMsg;
@@ -92,10 +73,10 @@ while ($count++ < 3)
   print "Attempt $count (" . scalar(localtime()) . ")\n";
   my $done ;
  
-  print "We have to contact $serviceName at $uri";
+  print "We have to contact $serviceName at $host";
  
   my $rpc=AliEn::RPC->new();
-  $rpc->Connect($serviceName, $uri) or print "Error connecting to the service" and next;
+  $rpc->Connect($serviceName, "$host/alien/") or print "Error connecting to the service" and next;
   my ($version)=$rpc->CallRPC($serviceName, "status");
 
   if (!$version)

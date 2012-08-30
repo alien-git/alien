@@ -238,6 +238,8 @@ ALIEN_CreateHTTPDConfiguration()
   local hostAddress=$2
   local startupFormat=$3
   local HTTPS=$4
+
+  echo "READY TO CREATE THE CONFIGURATION, AND WE HAVE $HTTPS"
   
   local CONF="$ALIEN_HOME/httpd/conf.$portNum/httpd.conf.$hostAddress"
   
@@ -299,10 +301,10 @@ PerlPassEnv  ALIEN_CM_AS_LDAP_PROXY
 PerlConfigRequire $ALIEN_HOME/httpd/conf.$portNum/startup.pl
 
 EOF
-        [ "$SSL" == "1" ] && cat <<EOF >> $CONF 
+        [ "$HTTPS" == "1" ] && cat <<EOF >> $CONF 
 
 SSLengine on
-SSLSessionCache dbm:   $ALIEN_ROOT/httpd/logs/ssl_gcache_data
+SSLSessionCache dbm:$ALIEN_ROOT/httpd/logs/ssl_gcache_data
 SSLCertificateFile    $ALIEN_HOME/globus/hostcert.pem
 SSLCertificateKeyFile  $ALIEN_HOME/globus/hostkey.pem
 SSLVerifyClient require
@@ -312,7 +314,7 @@ SSLCACertificatePath $ALIEN_ROOT/globus/share/certificates/
 
 EOF
 	     echo "<Location /> " >> $CONF
-         [ "$SSL" == "1" ] && echo "SSLRequireSSL" >> $CONF
+         [ "$HTTPS" == "1" ] && echo "SSLRequireSSL" >> $CONF
     
      
          cat >> $CONF <<EOF
@@ -704,14 +706,6 @@ ALIEN_DoService ()
 	  TransferManager)
 	    configName="TRANSFER_MANAGER_ADDRESS"
 	    packageName="Manager::Transfer"	    
-	    ;;
-          PopularityOptimizer)
-            packageName="Optimizer::Popularity"
-            HTTPService=0;
-            ;;
-	  SEManager)
-	    configName="SEMASTER_MANAGER_ADDRESS"
-	    packageName="Manager::SEMaster"	    	    
 	    ;;
 	  MessagesMaster)	
 	    configName="MESSAGESMASTER_ADDRESS"
