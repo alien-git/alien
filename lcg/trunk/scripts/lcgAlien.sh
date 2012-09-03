@@ -1,21 +1,49 @@
 #!/bin/bash
 
-AliEnCommand=$VO_ALICE_SW_DIR/alien/bin/alien
-
-uid=`$AliEnCommand --printenv | grep ALIEN_USER | cut --d='='  -f2`
-host=`$AliEnCommand -user aliprod --exec echo LDAPHOST 2>&1 | cut -d\' -f2`
-dns=`ldapsearch -x -LLL -H ldap://$host -b uid=$uid,ou=people,o=alice,dc=cern,dc=ch subject| perl -p -00 -e 's/\n\n/\n/g;s/^dn:.*\n//g;s/\n //g;s/subject: //g;s/ /\#\#\#/g'`
-for line in $dns
+for d in ~ ~/alien $VO_ALICE_SW_DIR/alien
 do
-  dn=`echo $line|sed -e 's/###/ /g'`
-  echo "Trying $dn";
-  proxy=`vobox-proxy --vo alice -dn "$dn" query-proxy-filename`
-  error=$?
-  if [ $error -eq 0 ] 
-  then
-    env X509_USER_PROXY=$proxy $AliEnCommand $*
-    exit 0
-  fi
+    AliEnCommand=$d/bin/alien
+
+    [ -x $AliEnCommand ] && break
 done
-echo "Error setting proxy" 1>&2
-exit 3
+
+user=`$AliEnCommand --printenv | awk -F= '$1 == "ALIEN_USER" { print $2 }'`
+
+fatal()
+{
+    echo "${@-unspecified error}" >&2
+    exit 3
+}
+
+[ "X$user" = X ] && fatal "Cannot determine the AliEn user"
+
+host=`
+    $AliEnCommand -user aliprod --exec echo LDAPHOST 2>&1 |
+    sed -n "s/'//g;s/.*\<LDAPHOST\> *= *//p"
+`
+
+[ "X$host" = X ] && host=alice-ldap.cern.ch:8389
+
+for dnq in `
+	ldapsearch -x -LLL -H ldap://$host -b \
+	    uid=$user,ou=people,o=alice,dc=cern,dc=ch subject |
+	    perl -p00e 's/\n //g' |
+	    perl -ne 's/ /?/g; print if s/^subject:\?*//i'
+    `
+do
+    dn=${dnq//\?/ }
+    echo "Trying $dn"
+
+    proxy=`
+	vobox-proxy --vo alice --voms alice:/alice/Role=lcgadmin \
+	    --dn "$dn" query-proxy-filename 2> /dev/null
+    `
+
+    if [ $? = 0 ] && [ -f "$proxy" ]
+    then
+	X509_USER_PROXY=$proxy exec $AliEnCommand "$@"
+	exit
+    fi
+done
+
+fatal "Could not find the correct proxy"
