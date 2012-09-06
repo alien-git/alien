@@ -498,8 +498,7 @@ amonConfig() {
     portal_services="httpd"    
 #    site_services="Monitor  SE PackMan CE MonaLisa FTD"
     site_services="Monitor  SE CE MonaLisa FTD"
-    core_services="Proxy IS Authen Server Logger TransferManager Broker TransferBroker TransferOptimizer JobOptimizer CatalogueOptimizer 
-PopularityOptimizer"
+    core_services="Proxy IS Authen Server Logger TransferManager Broker TransferBroker TransferOptimizer JobOptimizer CatalogueOptimizer PopularityOptimizer"
 
     for component in $(echo $ALIEN_COMPONENTS | sed 's/,/ /g')
     do

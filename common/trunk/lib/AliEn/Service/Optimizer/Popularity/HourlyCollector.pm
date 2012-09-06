@@ -17,7 +17,7 @@ sub checkWakesUp {
   $silent and $method="debug" and  @info=1;
   
   # $self->{SLEEP_PERIOD}=3600*24; # once in 24 hours 
-    $self->{SLEEP_PERIOD}=60*10; # once in 10 minutes
+    $self->{SLEEP_PERIOD}=60*15; # once in 15 minutes
   
   $self->$method(@info, "The $collectorName optimizer starts");
 
@@ -28,11 +28,10 @@ sub checkWakesUp {
     foreach my $f (@$tasks){
       my $result = $self->fillHourlyPopTable($f->{startTime}, $interval);
 	  if ($result){
-	  $self->increaseCompletedTasksNumber("DailyCollector", $f->{startTime}) and 
-	  $self->removeCollectorTask("$collectorName", $f->{startTime}) and
-	  	$self->$method(@info, "The $collectorName optimizer finished.") and return;
+	  	$self->increaseCompletedTasksNumber("DailyCollector", $f->{startTime}) and 
+	    $self->removeCollectorTask("$collectorName", $f->{startTime});
 	  }
-      $self->setCollectorTaskPending($collectorName, $f->{startTime}) or return;
+      $self->setCollectorTaskPending($collectorName, $f->{startTime});
     }
     
     $self->$method(@info, "The $collectorName optimizer finished.");
@@ -44,12 +43,11 @@ sub checkWakesUp {
 
 sub fillHourlyPopTable
 {
-  my $self=shift;
+  my $self = shift; 
   my $startTime = shift;
   my $interval  = shift; 
   my $buffer = "fileAccessInfo";
-  my $catId = 0;
-
+  
   my $fileNameQuery = "SELECT fileName, seId, DATE_ADD('$startTime', INTERVAL $interval HOUR), 
   SUM(case when success=1 and operation='read' then 1 else 0 end) AS nbReadSuccess,
   SUM(case when success=1 and operation='write' then 1 else 0 end)  AS nbWriteSuccess,
@@ -59,15 +57,15 @@ sub fillHourlyPopTable
   COUNT(DISTINCT IF (success=0, userId, NULL )) AS nbUserFailure  FROM $buffer WHERE accessTime BETWEEN '$startTime' AND DATE_ADD('$startTime', INTERVAL $interval HOUR)
   GROUP BY fileName, seId";
   
-  $self->{DB}->do("INSERT IGNORE INTO filePopHourly (fileName, seId, accessTime, nbReadOp, nbWriteOp, 
-  nbReadFailure, nbWriteFailure, nbUserSuccess, nbUserFailure) $fileNameQuery") or $self->info("Could not do insert") and return 0;
-   
-  my $categoryQuery = "SELECT categoryId, userId, nbReadOp, nbWriteOp, accessTime FROM 
+  $self->{DB}->do("INSERT IGNORE INTO filePopHourly (fileName, seId, accessTime, nbReadOp, nbWriteOp, nbReadFailure, nbWriteFailure, nbUserSuccess, nbUserFailure) $fileNameQuery") 
+  or $self->info("Could not do insert") and return 0;
+  
+  my $categoryQuery = "SELECT categoryId, userId, nbReadOp, accessTime FROM 
   (SELECT fileName, min(priority) as priority, userId, SUM(case when success=1 and operation='read' then 1 else 0 end) AS nbReadOp,
-  SUM(case when success=1 and operation='write' then 1 else 0 end) AS nbWriteOp, DATE_ADD('$startTime', INTERVAL 2 HOUR) as accessTime
+  DATE_ADD('$startTime', INTERVAL $interval HOUR) as accessTime
   from $buffer left join categoryPattern on (fileName rlike pattern) WHERE accessTime BETWEEN '$startTime' AND DATE_ADD('$startTime', INTERVAL 2 HOUR) GROUP BY fileName) bb join categoryPattern using (priority) GROUP BY categoryId, userId";
    
-  $self->{DB}->do("INSERT IGNORE INTO categoryPopHourly (categoryId, userId, nbReadOp, nbWriteOp, accessTime) $categoryQuery") or $self->info("Could not do insert into categories table") and return 0;
+  $self->{DB}->do("INSERT IGNORE INTO categoryPopHourly (categoryId, userId, nbReadOp, accessTime) $categoryQuery") or $self->info("Could not do insert into categories table") and return 0;
 
   $self->debug(1, "The data is successfully inserted into hourly popularity table!");
   

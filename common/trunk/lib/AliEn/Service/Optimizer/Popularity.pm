@@ -87,6 +87,12 @@ sub setCollectorTaskPending {
   my $collectorName = shift;
   my $startTime = shift;
   switch($collectorName) {
+    case "Parser" {
+      my $tableName = "collectors";
+      $self->{DB}->update($tableName, {actions=>0}, "name='$collectorName' and startTime='$startTime'") 
+      or $self->info("Could not update actions") and return 0;
+      last;
+    }
     case "HourlyCollector" {
       my $tableName = "collectors";
       $self->{DB}->update($tableName, {actions=>0}, "name='$collectorName' and startTime='$startTime'") 

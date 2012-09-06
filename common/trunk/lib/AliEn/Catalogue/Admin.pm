@@ -4,7 +4,7 @@ use strict;
 use Data::Dumper;
 
 use AliEn::Database::Transfer;
-
+use AliEn::Database::TaskQueue;
 
 # This package contains the functions that can only be called by the
 # administrator

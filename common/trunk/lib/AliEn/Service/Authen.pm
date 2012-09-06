@@ -250,16 +250,11 @@ sub doOperation : Public  {
   #WITH RPC, all the arguments are passed in th first option. 
   my $ref=shift;
   @_=@$ref;
-
-
   my $user      = shift;
   my $directory = shift;
   my $op        = shift;
   $self->info("$$ Ready to do an operation for $user in $directory (and $op '@_')");
-## NLM add
-  my $var1=@_[0];
-  my $var2=@_[1];
-##
+
   my $jobID  = "0";
   my $before = Time::HiRes::time();
   if ($user =~ s/^alienid://) {
@@ -298,23 +293,24 @@ sub doOperation : Public  {
   } else {
     @info = $self->{UI}->execute($op, @_);
   }
+  
   my @loglist = @{$self->{LOGGER}->getMessages()};
 
   $debug and $self->{LOGGER}->debugOn($mydebug);
   $self->{LOGGER}->displayMessages();
   $self->info("$$ doOperation DONE for user $user (and @_) result: @info, length:" . scalar(@info));
+  
   my $time = Time::HiRes::time() - $before;
-## NLM add
+  
   my $infoNames = join('', @info);
   my @InfoArray=split('\&', $infoNames);
-
-  if ($var2->{lfn}) {
-   $self->logEntry("$user $op", $time, @InfoArray, "FAILED operation: $var1 fileName: $var2->{lfn} seName: $var2->{wishedSE}");
+  
+  if ($#InfoArray <= 0 and $InfoArray[0] !=1 ){
+     $self->logEntry("$user $op", $time, undef, \@_);  
+  } else {
+  	 $self->logEntry("$user $op", $time, \@InfoArray);
   }
-  else {
-   $self->logEntry("$user $op", $time, @InfoArray);
-  }
-##
+  	
   return {rcvalues => \@info, rcmessages => \@loglist};
 
 }
@@ -324,36 +320,41 @@ sub logEntry {
   my $message = shift;
   my $time    = shift;
   my @time    = localtime();
-  shift;
-  my $access = shift;
+  my $envelope = shift;
+ 
+  if ($envelope and ${$envelope}[1] ne ""){
+  	my $access = ${$envelope}[1];
+  	$access =~ s/\\//g;
+    $access =~ s/access=//;
+    my $lfn = ${$envelope}[2];
+    $lfn =~ s/\\//g;
+    $lfn =~ s/lfn=//;
+    my $se = ${$envelope}[4];
+    $se =~ s/\\//g;
+    $se =~ s/se=//;
+    $message .= " $access $lfn $se";
+  } else{
+  	my $failureDetails = shift;
+  	my $operation = ${$failureDetails}[0];
+  	my $var = ${$failureDetails}[1];
+  	if (defined $var)
+  	{
+  		my $lfn = $var->{lfn};
+  		my $se = $var->{wishedSE};
+  		$message .= " FAILED $operation $lfn $se";
+  	}
+  }
 
-  $access =~ s/\\//g;
-  $access =~ s/access=/operation: /;
 
-  my $lfn = shift;
-  $lfn =~ s/\\//g;
-  $lfn =~ s/lfn=/FileName: /;
-  shift;
+ my $logDir  = "$self->{CONFIG}->{LOG_DIR}/Authen_ops/" . (1900 + $time[5]) . "/" . "0". (1 + $time[4]) . "/" . "0". "$time[3]/";
+# my $logDir  = "$self->{CONFIG}->{LOG_DIR}/Authen_ops/" . (1900 + $time[5]) . "/" . (1 + $time[4]) . "/$time[3]/";
 
-  my $se = shift;
-  $se =~ s/\\//g;
-  $se =~ s/se=/seName: /;
-  shift , shift;
-
-  my $user = shift;
-  $user =~ s/\\//g;
-  $user =~ s/user=/userName: /;
-
-  my $logDir  = "$self->{CONFIG}->{LOG_DIR}/Authen_ops/" . (1900 + $time[5]) . "/" . "0". (1 + $time[4]) . "/$time[3]/";
   $self->info("GOING to $logDir");
   (-d $logDir) or system("mkdir", "-p", $logDir);
   open(FILE, ">> $logDir/operations") or return;
-  print FILE "$time[2]:$time[1]:$time[0] $$ Took: $time seconds Done: '$message' $access $lfn $se $user\n";
+  print FILE "$time[2]:$time[1]:$time[0] $$ Took: $time seconds Done: '$message'\n";
+    
   close FILE;
-  return 1;
-
-##
-
   return 1;
 
 }
@@ -442,5 +443,5 @@ sub _checkLDAPConnection {
 #
 #}
 
-return 1;
+1;
 

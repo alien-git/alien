@@ -719,6 +719,10 @@ ALIEN_DoService ()
 	    packageName='Optimizer::Catalogue'
 	    HTTPService=0
 	    ;;
+	  PopularityOptimizer)
+	    packageName='Optimizer::Popularity'
+	    HTTPService=0
+	    ;;
 	  MonaLisa)
         operation="ALIEN_${cmd}"
         LOGDIR="LOGDIR"
