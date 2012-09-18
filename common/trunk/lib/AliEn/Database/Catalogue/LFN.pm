@@ -208,7 +208,7 @@ sub LFN_createCatalogueTables {
         method     => "char(255)",
       },
       index=>"volumeId",
-      extra_index=>[ 'UNIQUE INDEX (volume)', 'INDEX(seNumber)', 'foreign key (seNumber) references SE(seNumber) on delete cascade' ],
+      extra_index=>[ 'INDEX (volume)', 'INDEX(seNumber)', 'foreign key (seNumber) references SE(seNumber) on delete cascade' ],
       order => 1
     },
     "LL_STATS" => {
