@@ -321,7 +321,7 @@ sub logEntry {
   my $time    = shift;
   my @time    = localtime();
   my $envelope = shift;
- 
+
   if ($envelope and ${$envelope}[1] ne ""){
   	my $access = ${$envelope}[1];
   	$access =~ s/\\//g;
@@ -345,8 +345,15 @@ sub logEntry {
   	}
   }
 
-
- my $logDir  = "$self->{CONFIG}->{LOG_DIR}/Authen_ops/" . (1900 + $time[5]) . "/" . "0". (1 + $time[4]) . "/" . "0". "$time[3]/";
+my $month = (1+$time[4]);
+my $day = $time[3];
+if ($month < 10) {
+ $month = "0$month";
+}
+if ($day < 10) {
+ $day = "0$day";
+}
+ my $logDir  = "$self->{CONFIG}->{LOG_DIR}/Authen_ops/" . (1900 + $time[5]) . "/" . $month .  "/$day/";
 # my $logDir  = "$self->{CONFIG}->{LOG_DIR}/Authen_ops/" . (1900 + $time[5]) . "/" . (1 + $time[4]) . "/$time[3]/";
 
   $self->info("GOING to $logDir");
