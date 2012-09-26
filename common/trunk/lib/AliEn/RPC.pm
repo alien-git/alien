@@ -67,7 +67,13 @@ sub Connect {
     my $proxy = ( $ENV{X509_USER_PROXY} || "/tmp/x509up_u$<" );
     
     $self->info("This is in fact a secure connection (using the proxy $proxy)");
-
+    my $proxyHandler = AliEn::X509->new();
+    my $proxytime = $proxyHandler->getRemainingProxyTime();
+    $self->info("Proxy time left: $proxytime");
+    if (!(-f $proxy) || ($proxytime < 300)) {
+      $self->info("Invalid proxy ($proxy does not exist?) Try running 'alien proxy-init' first");
+      return -1;
+    }
 
     my $ua=$self->{CLIENTS}->{$service}->ua();
     $ua->ssl_opts('verify_hostname' => 0);
