@@ -238,33 +238,20 @@ sub getJobToken {
 	my $procid = shift;
 	my $user   = shift;
 
-	open FILE, ">>", "/tmp/createtoken"; 
-	$| = 1;
-
 	$self->info("Getting  job $procid (and $user)");
-	print FILE "Getting  job $procid (and $user)\n";
 
 	($procid)
-		or $self->info("Error: In getJobToken not enough arguments") and print FILE "Error: In getJobToken not enough arguments\n"
-		and return;
+		or $self->info("Error: In getJobToken not enough arguments") and return;
 
-	$self->{DB}->queryValue("select count(*) from JOBTOKEN where jobId=?", undef, {bind_values => [$procid]})
-		and $self->info("Job $procid already given..") and print FILE "Job $procid already given\n" 
-		and return;
-
-	#srand($procid);
-	print FILE "Nueva semilla en init \n";
+	$self->{DB}->queryValue("select count(*) from JOBTOKEN where jobId=?", undef, {bind_values => [$procid]}) 
+       and $self->info("Job $procid already given..") and return;
 
 	my $token = $createToken->();
-	print FILE "Created $token\n";
 
 	$self->{DB}->insertJobToken($procid, $user, $token)
-		or $self->{LOGGER}->warning("CatalogDaemon", "Error updating jobToken for user $user") and print FILE "Error updating jobToken ($procid, $token) for user $user\n"
-		and return (-1, "error setting the job token");
+		or $self->{LOGGER}->warning("CatalogDaemon", "Error updating jobToken for user $user") and return (-1, "error setting the job token");
 
 	$self->info("Sending job $procid to $user");
-	print FILE "Sending  job $procid to $user and $token\n\n";
-	FILE->autoflush(1);
 	return $token;
 }
 
