@@ -122,24 +122,6 @@ sub LFN_createCatalogueTables {
       extra_index=>['foreign key (Userid) references USERS(uId) on delete cascade', 'foreign key (Groupid) references GRPS(gId) on delete cascade'],
       order => 1
     },
-    USERS => {
-      id=>"uId",
-      columns=>
-      { uId          => "mediumint unsigned not null auto_increment primary key",
-        Username     => "varchar(20) UNIQUE NOT NULL",
-      },
-      index=>'uId',
-      order => 1
-    },
-    GRPS => {
-      id=>"gId",
-      columns=>
-      { gId          => "mediumint unsigned not null auto_increment primary key",
-        Groupname     => "varchar(20) UNIQUE NOT NULL",
-      },
-      index=>'gId',
-      order => 1
-    },
     INDEXTABLE => {
       id=>"tableName",
       columns=>
@@ -288,6 +270,24 @@ sub LFN_createCatalogueTables {
         extra_index=>['UNIQUE INDEX(pfn)'], 
         order=>1 
     },
+    USERS => {
+      id=>"uId",
+      columns=>
+      { uId          => "mediumint unsigned not null auto_increment primary key",
+        Username     => "varchar(20) UNIQUE NOT NULL",
+      },
+      index=>'uId',
+      order => 1
+    },
+    GRPS => {
+      id=>"gId",
+      columns=>
+      { gId          => "mediumint unsigned not null auto_increment primary key",
+        Groupname     => "varchar(20) UNIQUE NOT NULL",
+      },
+      index=>'gId',
+      order => 1
+    },
     "USERS_LDAP"=> {
       id=>"user",
       columns=>
@@ -308,8 +308,7 @@ sub LFN_createCatalogueTables {
       order => 1
     }    
   );
-    
-    
+        
   foreach my $table (sort {$tables{$a}->{order} <=> $tables{$b}->{order} } keys %tables) {
   	$self->info("Checking table $table");
     $self->checkTable(
@@ -333,6 +332,65 @@ sub LFN_createCatalogueTables {
   1;
 }
 
+
+sub createUserTables {
+  my $self = shift;
+    
+  my %tables = (  
+    USERS => {
+      id=>"uId",
+      columns=>
+      { uId          => "mediumint unsigned not null auto_increment primary key",
+        Username     => "varchar(20) UNIQUE NOT NULL",
+      },
+      index=>'uId',
+      order => 1
+    },
+    GRPS => {
+      id=>"gId",
+      columns=>
+      { gId          => "mediumint unsigned not null auto_increment primary key",
+        Groupname     => "varchar(20) UNIQUE NOT NULL",
+      },
+      index=>'gId',
+      order => 1
+    },
+    "USERS_LDAP"=> {
+      id=>"user",
+      columns=>
+      { user => "varchar(20) not null",
+        dn   => "varchar(255)",
+        up   => "smallint",
+      },
+      extra_index=>[ 'PRIMARY KEY(user,dn,up)' ],
+      order => 1
+    }, 
+    "USERS_LDAP_ROLE"=>{
+      id=>"user",
+      columns=>
+      { user => "varchar(20) not null",
+        role => "varchar(20)",
+        up   => "smallint"
+      },
+      order => 1
+    }
+  );
+	
+  foreach my $table (sort {$tables{$a}->{order} <=> $tables{$b}->{order} } keys %tables) {
+  	$self->info("Checking table $table");
+    $self->checkTable(
+      $table,
+      $tables{$table}->{id},
+      $tables{$table}->{columns},
+      $tables{$table}->{index},
+      $tables{$table}->{extra_index}
+      )
+      or $self->{LOGGER}->error("LFN", "Error checking the table $table")
+      and return;
+  }  
+	
+  return 1;
+}
 
 # options: 
 #
