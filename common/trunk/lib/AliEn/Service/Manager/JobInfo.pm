@@ -248,10 +248,11 @@ sub getJobInfo {
   }
 
   $self->info( "Asking for Jobinfo by $username and jobid's @jobids ..." );
-  my $allparts = $self->{DB}->getFieldsFromQueueEx("count(*) as count, min(started) as started, max(finished) as finished, statusId", " WHERE $jobtag GROUP BY statusId");
+  my $allparts = $self->{DB}->query("select count(*) as count, min(started) as started, 
+  max(finished) as finished, status from QUEUE join QUEUE_STATUS using (statusid)  WHERE $jobtag GROUP BY status");
 
   for (@$allparts) {
-    $result->{$_->{statusId}} = $_->{count};
+    $result->{$_->{status}} = $_->{count};
   }
   return $result;
 }

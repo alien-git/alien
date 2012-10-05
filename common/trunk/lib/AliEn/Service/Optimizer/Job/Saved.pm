@@ -28,11 +28,11 @@ sub checkWakesUp {
  
   if ($self->{DB}->queryValue("SELECT todo from ACTIONS where action='SAVED'")) {
   	$self->{DB}->update("ACTIONS", {todo=>0}, "action='SAVED'");
-    $self->checkJobs($silent, 12, "checkSavedJob"); #SAVED
+    $self->checkJobs($silent, 12, "checkSavedJob", 15, 15); #SAVED
   }
   if ($self->{DB}->queryValue("SELECT todo from ACTIONS where action='SAVED_WARN'")){
     $self->{DB}->update("ACTIONS", {todo=>0}, "action='SAVED_WARN'");
-    $self->checkJobs($silent, 22, "checkSavedJob"); #SAVED_WARN
+    $self->checkJobs($silent, 22, "checkSavedJob", 15, 15); #SAVED_WARN
   }
 
   return;

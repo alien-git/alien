@@ -69,7 +69,8 @@ sub checkWakesUp
     $self->{DB}->do($updateStmt);
 
     # select job entries for current session 
-    my $stmt = "SELECT queueId,submitHost,site,finalPrice FROM $queueTable WHERE  (chargeStatus=\'$self->{CHARGING_NOW}\') AND (finalPrice>0)";
+    my $stmt = "SELECT queueId,submitHost,siteid,finalPrice FROM $queueTable WHERE 
+     (chargeStatus=\'$self->{CHARGING_NOW}\') AND (finalPrice>0)";
     my $table = $self->{DB}->query("$stmt"); 
 
     @$table or ($self->info("No jobs to charge.Going to sleep...") and return);

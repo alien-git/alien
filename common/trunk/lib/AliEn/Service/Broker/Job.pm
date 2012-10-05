@@ -48,8 +48,10 @@ sub initialize {
 
 sub getJobAgent {
 	my $this           = shift;
-	my $ref=shift;
-	@_=@$ref;
+  if ($_[0] and ref $_[0] eq "ARRAY"){
+    my $ref=shift;
+    @_=@$ref;
+  }
 	my $user           = shift;
 	my $host           = shift;
 	my $site_jdl       = shift;
@@ -96,7 +98,7 @@ sub getJobAgent {
 			return {execute => [ -3, @packs ]};
 		}
 	}
-	my ($queueid, $jdl, $jobUser) = $self->{DB}->getWaitingJobForAgentId($agentid, $queueName);
+	my ($queueid, $jdl, $jobUser) = $self->{DB}->getWaitingJobForAgentId($agentid, $queueName, $host);
 	$queueid
 		or $self->info("There were no jobs waiting for agentid!")
 		and return {execute => [ -2, "No jobs waiting in the queue" ]};
@@ -279,7 +281,7 @@ sub extractClassadParams {
 	($ok, $params->{disk}) = $classad->evaluateExpression("LocalDiskSpace");
 	($ok, my @pack) = $classad->evaluateAttributeVectorString("Packages");
 	$params->{packages} = "," . join(",,", sort @pack) . ",";
-	($ok, @pack) = $classad->evaluateAttributeVectorString("Partition");
+	($ok, @pack) = $classad->evaluateAttributeVectorString("GridPartition");
 	$params->{partition} = "," . join(",", sort @pack) . ",";
 	$params->{ce}        = $queueName;
 
@@ -290,8 +292,10 @@ sub extractClassadParams {
 
 sub offerAgent : Public{
 	shift;
-	my $ref=shift;
-	@_=@$ref;
+	if ($_[0] and ref $_[0] eq "ARRAY"){
+    my $ref=shift;
+    @_=@$ref;
+  }
 	my $user       = shift;
 	my $host       = shift;
 	my $ca_text    = shift;

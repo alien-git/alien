@@ -502,10 +502,10 @@ sub changeStatusCommand : Public {
   my $date = time;
 
   $self->info("Command $queueId [$site/$node/$spyurl] changed to $status from $oldStatus");
-  if ($status!= /KILLED/){
-    $self->{DB}->getUsername($queueId, $token) or
-      return (-1, "Error validating the token of job $queueId");
-  }
+  
+  $self->{DB}->getUsername($queueId, $token) or
+    return (-1, "Error validating the token of job $queueId");
+  
   my $set = {};
 
   ($spyurl) and $set->{spyurl} = $spyurl;
@@ -531,38 +531,7 @@ sub changeStatusCommand : Public {
     } elsif ($status eq "DONE") {
     $set->{finished} = $date;
 
-    #check if the job has to be validated...
-    my $data = $self->{DB}->getFieldsFromQueue($queueId, "jdl,exechost,submithost");
-
-    defined $data
-      or $self->{LOGGER}->error("JobManager", "In changeStatusCommand error during execution of database query")
-      and return (-1, "error getting the jdl of the job");
-
-    %$data
-      or $self->{LOGGER}->error("JobManager", "In changeStatusCommand there is no data for job $queueId")
-      and return (-1, "there is no data for the job $queueId");
-
-    $data->{host} =~ s/^.*\@//;
-    my $validate = 0;
-    $data->{jdl} =~ /validate\s*=\s*1/i and $validate = 1;
-
-    my $port = $self->{CONFIG}->{CLUSTERMONITOR_PORT};
-    if ($validate) {
-      $self->info("Submitting the validation job");
-
-      my $executable = "";
-      $data->{jdl} =~ /executable\s*=\s*"?(\S+)"?\s*;/i and $executable = $1;
-      $executable =~ s/\"//g;
-      my $validatejdl = "[
-Executable=\"$executable.validate\";
-Arguments=\"$queueId $data->{host} $port\";
-Requirements= member(other.GridPartition,\"Validation\");
-Type=\"Job\";
-			]";
-      $DEBUG and $self->debug(1, "In changeStatusCommand sending the command to validate the result of $queueId...");
-      $self->enterCommand("$data->{submithost}", "$validatejdl");
     }
-  }
 
   if ($status =~ /^(ERROR.*)|(SAVED_WARN)|(SAVED)|(KILLED)|(FAILED)|(EXPIRED)$/) {
     $set->{spyurl} = "";

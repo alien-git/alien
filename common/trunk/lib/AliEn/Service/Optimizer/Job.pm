@@ -101,26 +101,29 @@ sub checkForkProcess{
   my $self=shift;
   my $limit=shift;
   $self->info("Checking if there are already $limit processes");
-  $self->{KIDS} or $self->{KIDS}=[];
-  my @n=();
-  foreach my $p (@{$self->{KIDS}}){
-    $self->info("Checking if $p is still alive");
-    (CORE::kill 0, $p and waitpid($p, WNOHANG)<=0) or next;
-    $self->info("Still there...");
-    push @n, $p;
-  }
-  $self->{KIDS}=\@n;
-  if ($#{$self->{KIDS}} > $limit){
+  
+  my $total=$self->checkChildren();
+ 
+  if ($total > $limit) {
     $self->info("There are already too many processes... do not fork");
     return;
+  }
+  my $newLog = 0;
+  while (1) {
+    $self->{KIDS}->{$newLog} or last;
+    $newLog++;
   }
   my $pid=fork();
   defined $pid or return;
   if ($pid){
-    $self->info("The father has a new children: $pid");
-    push @{$self->{KIDS}}, $pid;
+    $self->info("The father has a new children: $pid (log  $newLog)");
+    $self->{KIDS}->{$newLog}= $pid;
     return 1;
   }
+  
+  $self->{LOGFILE} =~ s/\.log$/.$newLog.log/;
+  $self->info("i'm the kid $$ (to log $self->{LOGFILE})");
+  $self->{LOGGER}->redirect($self->{LOGFILE});
   $self->info("i'm the kid $$");
   $self->{KID}=1;
   return ;
@@ -239,14 +242,34 @@ sub updateWaiting {
 
   return 1;
 }
+sub checkChildren {
+  my $self=shift;
 
+  my $newKids = {};
+  $self->{KIDS} or $self->{KIDS}={};
+
+  my $total   = 1;
+  foreach my $p (keys %{$self->{KIDS}}) {
+    (CORE::kill 0, $self->{KIDS}->{$p} and waitpid($self->{KIDS}->{$p} , WNOHANG) <= 0) or next;
+    $newKids->{$p} = $self->{KIDS}->{$p};
+    $total++;
+  }
+  $self->{KIDS}=$newKids;
+  if ($total == 1){
+    $self->info("There are no kids: min_id back to zero:");
+    $self->{MIN_ID}=0;
+  }
+  $self->info("There are $total processes");
+  return $total;
+}
 sub checkJobs {
   my $self     = shift;
   my $silent   = shift;
   my $status   = shift;
   my $function = shift;
   my $limit    = (shift or 15);
-
+  my $prefork  = shift || 0;
+  
   my $method = "info";
   $silent and $method = "debug";
 
@@ -254,103 +277,47 @@ sub checkJobs {
   my $continue = 1;
 
 #We never want to get more tahn 15 jobs at the same time, just in case the jdls are too long
+  $self->{MIN_ID} or $self->{MIN_ID}=0;
+  $self->checkChildren();
   while ($continue) {
   	$self->info("Checking the jobs in a particular status");
     my $jobs =
-      $self->{DB}->getJobsByStatus($status, "queueid", "queueid", $limit);
+      $self->{DB}->getJobsByStatus($status, "queueid", "queueid", $limit,  $self->{MIN_ID});
+      
 
     defined $jobs
-      or $self->{LOGGER}->warning("JobOptimizer",
-      "In checkJobs error during execution of database query")
+      or $self->info("In checkJobs error during execution of database query")
       and return;
 
-    @$jobs
-      or $self->{LOGGER}->$method("JobOptimizer", "There are no jobs status=$status")
-      and return;    #check if it's ok to return undef here!!
+    if (not @$jobs){
+      $self->info("There are no jobs status=$status and $self->{MIN_ID}");
+      return;    #check if it's ok to return undef here!!
+    }
 
     $continue = 0;
-    $#{$jobs} eq 14 and $continue = 1;
-    $self->info("THERE ARE $#{$jobs} jobs, let's continue? $continue");
+    $#{$jobs} eq $limit-1 and $continue = 1;
+    $self->info("THERE ARE $#{$jobs} jobs, let's continue? $continue min id $self->{MIN_ID}");
+
+    if ($self->checkForkProcess($prefork)) {
+      #This is the father. We have forked a kid that will do these things. Let's just see the highest number
+      foreach my $data (@$jobs) {
+        $data->{queueid} > $self->{MIN_ID} and $self->{MIN_ID} = $data->{queueid};
+      }
+      next;
+    }    
 
     foreach my $data (@$jobs) {
       $self->{LOGGER}->$method("JobOptimizer", "Checking job $data->{queueid}");
       my $job_ca = AlienClassad::AlienClassad->new($data->{jdl});
 
-#if ( !$job_ca->isOK() ) {
-#	print STDERR "JobOptimizer: in checkJobs incorrect JDL input\n" . $data->{jdl} . "\n";
-#	$self->{DB}->updateStatus($data->{queueid},"%","ERROR_I");
-#
-#	next;
-#}
-
-      ############################################################################
-      # Job Predecessor functionality
-      ############################################################################
-  #my ( $ok, $jobPredecessors ) = $job_ca->evaluateExpression("JobPredecessor");
-  #$ok and $self->info("Found Job Predecessor $jobPredecessors");
-      ## here we have to replace the organisation name !!!
-#$jobPredecessors=~ s/\"//g;
-#$jobPredecessors=~ s/\{//g;
-#$jobPredecessors=~ s/\}//g;
-#$jobPredecessors=~ s/\s//g;
-#my @predecessors = split ',', $jobPredecessors;
-#my $checkpredecessor=0;
-#foreach (@predecessors) {
-#	# check if the predecessor has status done
-#	my $state = $self->{DB}->getFieldsFromQueueEx("status","where queueId='$_'");
-#defined $state
-#or $self->{LOGGER}->warning( "JobOptimizer", "In checkJobs error during execution of database query" ) and $self->{DB}->updateStatus($data->{queueid},"INSERTING","ERROR_C")
-#and next;
-#	$self->info("Status of predecessor $_ is @$state[0]->{status}");
-#	if (@$state[0]->{status} eq 'DONE') {
-#	  $checkpredecessor=1;
-#	} else {
-#	  $checkpredecessor=-1;
-#      }
-#      }
-#      if ($checkpredecessor<0) {
-#	$self->info("In checkJobs - the predecessor @predecessors of job $data->{queueid} are not yet finished");
-#	next;
-#      }
-
       $self->info("In checkJobs - calling $function");
       $self->$function($data->{queueid}, $job_ca, $status);
     }
-
+    $self->{KID} and exit(0);
   }
   return 1;
 }
 
-#sub createInputBox {
-#    my $self=shift;
-#    my $job_ca=shift;
-#    my $inputdata=shift;
-#    $self->debug(1, "Creating the input box");
-#    my $inputbox={};
-#    #First, get the inputData
-
-#    my ($ok, @files)=$job_ca->evaluateAttributeVectorString("InputFile");
-
-#    push (@files, @{$inputdata});
-
-#    foreach my $file (@files) {
-#	$file=~ s/\"//g;
-#	$file=~ s/^LF://;
-#	$self->debug(1, "Adding $file");
-#	my $name = $file;
-#	$name =~ s/^.*\///;
-#	my $tempName=$name;
-#	my $i=1;
-#	while ($inputbox->{$name}){
-#	    $name="$tempName.$i";
-#	    $i++;
-#	}
-#	$inputbox->{$name} = $file;
-#    }
-
-#    $self->debug(1, "In createInputBox InputBox\n". Dumper $inputbox);
-#    return $inputbox;
-#}
 
 sub checkMirrorData {
   my $self   = shift;
