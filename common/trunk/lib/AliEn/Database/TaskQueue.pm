@@ -830,7 +830,7 @@ sub updateStatus {
     and $self->debug(1, "In updateStatus checking if job $id with status $oldstatus exists");
 
   my $oldjobinfo =
-    $self->query("SELECT masterjob,siteId,execHostId,statusId,agentid from QUEUE where queueid=?",
+    $self->query("SELECT masterjob,siteId,host exechost,statusId,agentid from QUEUE left  join QUEUE_HOST on (exechostid=hostid) where queueid=?",
                   undef, {bind_values => [$id]});
 
   #Let's take the first entry
@@ -845,7 +845,7 @@ sub updateStatus {
    $dbsite=$self->findSiteId($set->{site}); 
   }
   
-  my $execHost = $set->{execHostId} || $oldjobinfo->{execHostId};
+  my $execHost = $set->{execHostId} || $oldjobinfo->{exechost};
   my $dboldstatus = AliEn::Util::statusName($oldjobinfo->{statusId});
   my $masterjob   = $oldjobinfo->{masterjob};
   my $where       = "statusId = ?";
@@ -885,7 +885,7 @@ sub updateStatus {
   # update the SiteQueue table
   # send the status change to ML
   $self->sendJobStatus($id, $status, $execHost, "");
-  $status =~ /^(DONE.*)|(ERROR_.*)|(EXPIRED)|(KILLED)$/
+  $status =~ /^(DONE.*)|(ERROR_.*)|(EXPIRED)|(FAILED)$/
     and $self->checkFinalAction($id, $service);
   $self->info("AND NOW THE STATISTICS for $dbsite modified");
   if ($status ne $oldstatus) {
@@ -1066,7 +1066,8 @@ sub getFieldsFromQueueEx {
   my $returnparts = $self->query("SELECT $attr FROM $self->{QUEUETABLE} $addsql", undef, @_);
   
   for (@$returnparts) {
-    $_->{statusId} = AliEn::Util::statusName($_->{statusId});
+    $_->{statusId} or next;
+    $_->{status} =  AliEn::Util::statusName($_->{statusId});
   }
   return $returnparts;
 }
@@ -1464,8 +1465,13 @@ sub extractFieldsFromReq {
   my $params= {counter=> 1, ttl=>84000, disk=>0, packages=>'%', partition=>'%', ce=>'', noce=>''};
 
   my $site = "";
-  while ($text =~ s/member\(other.CloseSE,"[^:]*::([^:]*)::[^:]*"\)//si) {
-    $site =~ /,$1/ or $site .= ",$1";
+  my $no_se={};
+  while ($text =~ s/!member\(other.CloseSE,"([^:]*::[^:]*::[^:]*)"\)//si) {
+   $no_se->{uc($1)}=1;
+  }
+  while ($text =~ s/member\(other.CloseSE,"([^:]*::([^:]*)::[^:]*)"\)//si) {
+    $no_se->{uc($1)} and $self->info("Ignoring the SE $1") and next;
+    $site =~ /,$2/ or $site .= ",$2";
   }
   $site and $site .= ",";
   $params->{site} = $site;
@@ -1604,7 +1610,7 @@ sub getNumberWaitingForSite{
   $options->{disk} and $where.="and disk < ?  " and push @bind, $options->{disk};
   $options->{site} and $where.="and (site='' or site like concat('%,',?,',%') )" and push @bind, $options->{site};   
   defined $options->{packages} and $where .="and ? like packages " and push @bind, $options->{packages};
-  $options->{partition} and $where .="and ? like partition " and push @bind, $options->{partition};
+  $options->{partition} and $where .="and ? like concat('%,',partition, '%,') " and push @bind, $options->{partition};
   $options->{ce} and $where.=" and (ce like '' or ce like concat('%,',?,',%'))" and push @bind,$options->{ce};
   $options->{ce} and $where.=" and noce not like concat('%,',?,',%')" and push @bind,$options->{ce};
   $options->{returnPackages} and $return="packages";
@@ -1621,14 +1627,16 @@ sub getWaitingJobForAgentId{
   my $self=shift;
   my $agentid=shift;
   my $cename=shift || "no_user\@no_site";
+  my $host =shift || "";
   $self->info("Getting a waiting job for $agentid");
+ 
   
   my $siteid=$self->queryValue("select siteid from SITEQUEUES where site=?",
                                undef, {bind_values=>[$cename]});
 
-  my $done=$self->do("UPDATE QUEUE set statusId=".AliEn::Util::statusForML('ASSIGNED').",siteid=?
+  my $done=$self->do("UPDATE QUEUE set statusId=".AliEn::Util::statusForML('ASSIGNED').",siteid=?, exechostid=(select hostid from QUEUE_HOST where host=?)
    where statusId=".AliEn::Util::statusForML('WAITING')." and agentid=? and \@assigned_job:=queueid  limit 1",
-                     {bind_values=>[$siteid, $agentid ]});
+                     {bind_values=>[$siteid, $host, $agentid ]});
   
   if ($done>0){
   	my $info=$self->queryRow("select queueid, origjdl jdl,  user from 
@@ -1996,6 +2004,123 @@ sub getPriorityUpdate {
 userload=(running/maxparallelJobs), 
 computedpriority=(if(running<maxparallelJobs, if((2-userload)*priority>0,50.0*(2-userload)*priority,1),1))");
 } 
+
+
+sub unfinishedJobs24PerUser {
+  my $self = shift;
+  return $self->do(
+"update PRIORITY pr left join (select userid, count(1) as unfinishedJobsLast24h from QUEUE q where (statusId in (1,5,7,10,11,21)) and (unix_timestamp()>=q.received and unix_timestamp()-q.received<60*60*24) group by userid) as C using (userid) set pr.unfinishedJobsLast24h=IFNULL(C.unfinishedJobsLast24h, 0)"
+  ); # (status='INSERTING' or status='WAITING' or status='STARTED' or status='RUNNING' or status='SAVING' or status='OVER_WAITING')
+
+}
+
+sub cpuCost24PerUser {
+  my $self = shift;
+  return $self->do(
+"update PRIORITY pr left join (select userid, sum(p.cost) as totalCpuCostLast24h , 
+sum(p.runtimes) as totalRunningTimeLast24h  from QUEUE q 
+join QUEUEPROC p using(queueId) 
+where (unix_timestamp()>=q.received and unix_timestamp()-60*60*24<q.received ) group by userid) as C using (userid) set pr.totalRunningTimeLast24h=IFNULL(C.totalRunningTimeLast24h, 0), pr.totalCpuCostLast24h=IFNULL(C.totalCpuCostLast24h, 0)" );
+
+}
+
+sub changeOWtoW {
+  my $self = shift;
+  return $self->do(
+"update QUEUE q join PRIORITY pr using (userid) set q.statusId=5 where (pr.totalRunningTimeLast24h<pr.maxTotalRunningTime and pr.totalCpuCostLast24h<pr.maxTotalCpuCost) and q.statusId=21" # WAITING - OVERWAITING
+  );
+}
+
+sub changeWtoOW {
+  my $self = shift;
+  return $self->do(
+"update QUEUE q join PRIORITY pr using (userid) set q.statusId=21 where (pr.totalRunningTimeLast24h>=pr.maxTotalRunningTime or pr.totalCpuCostLast24h>=pr.maxTotalCpuCost) and q.statusId=5" #OVERWAITING - WAITING
+  );
+}
+
+sub updateFinalPrice {
+  my $self     = shift;
+  my $t        = shift;
+  my $nominalP = shift;
+  my $now      = shift;
+  my $done     = shift;
+  my $failed   = shift;
+  my $update   = " UPDATE $t q, QUEUEPROC p SET finalPrice = round(p.si2k * $nominalP * price),chargeStatus=\'$now\'";
+
+  my $where =
+" WHERE (statusId=15 AND p.si2k>0 AND chargeStatus!=\'$done\' AND chargeStatus!=\'$failed\') and p.queueid=q.queueid"; # DONE
+  my $updateStmt = $update . $where;
+  return $self->do($updateStmt);
+
+}
+
+sub optimizerJobExpired {
+  return
+"( ( (statusId=15) || (statusId=-13) || (statusId=-12) || (statusId=-1) || (statusId=-2) || (statusId=-3) || (statusId=-4) || (statusId=-5) || (statusId=-7) || (statusId=-8) || (statusId=-9) || (statusId=-10) || (statusId=-11) || (statusId=-16) || (statusId=-17) || (statusId=-18) ) && ( received < (? - 7*86540) ) )";
+#"( ( (status='DONE') || (status='FAILED') || (status='EXPIRED') || (status like 'ERROR%')  ) && ( received < (? - 7*86540) ) )";
+}
+
+
+
+
+#######
+## optimizer Job/priority
+#####
+
+# WAITING RUNNNING STARTED SAVING
+
+
+########
+## optimizer Job/Expired
+####
+
+#sub getJobOptimizerExpiredQ1{
+#  my $self = shift;
+# return "where  (status in ('DONE','FAILED','EXPIRED') or status like 'ERROR%'  ) and ( mtime < addtime(now(), '-10 00:00:00')  and split=0) )";
+#}
+
+sub getJobOptimizerExpiredQ2 {
+  my $self = shift;
+  return
+" left join QUEUE q2 on q.split=q2.queueid where q.split!=0 and q2.queueid is null and q.mtime<addtime(now(), '-10 00:00:00')";
+}
+
+sub getJobOptimizerExpiredQ3 {
+  my $self = shift;
+  return "where mtime < addtime(now(), '-10 00:00:00') and split=0";
+}
+
+########
+### optimizer Job/Zombies
+####
+
+sub getJobOptimizerZombies {
+  my $self   = shift;
+  my $status = shift;
+  return "q, QUEUEPROC p where $status and p.queueId=q.queueId and DATE_ADD(now(),INTERVAL -3600 SECOND)>lastupdate";
+}
+
+########
+### optimizer Job/Charge
+####
+
+sub getJobOptimizerCharge {
+  my $self           = shift;
+  my $queueTable     = shift;
+  my $nominalPrice   = shift;
+  my $chargingNow    = shift;
+  my $chargingDone   = shift;
+  my $chargingFailed = shift;
+  my $update =
+" UPDATE $queueTable q, QUEUEPROC p SET finalPrice = round(p.si2k * $nominalPrice * price),chargeStatus=\'$chargingNow\'";
+  my $where =
+" WHERE (statusId=15 AND p.si2k>0 AND chargeStatus!=\'$chargingDone\' AND chargeStatus!=\'$chargingFailed\') and p.queueid=q.queueid";
+  return $update . $where;
+} # DONE
+
+
+
+
 
 
 

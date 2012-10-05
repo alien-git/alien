@@ -1280,7 +1280,7 @@ sub getTopFromDB {
     my $argv=shift;
     $self->info("Doing $argv");
     ($argv=~ /^-?-all_status=?/) and $all_status=1 and  next;
-    ($argv=~ /^-?-a(ll)?=?/) and $columns.=", execHost, received, started, finished, split, resubmission" 
+    ($argv=~ /^-?-a(ll)?=?/) and $columns.=", e.host execHost, received, started, finished, split, resubmission" and $where= " left join QUEUE_HOST e on (e.hostid=exechostid) $where"
       and next;
     # Added for -r parameter
     ($argv=~ /^-?-r/) and !($argv=~ /^-?-a(ll)?=?/) and $columns.=", resubmission" and next; 
@@ -1370,7 +1370,7 @@ sub f_top {
 		$DEBUG and $self->debug(3, Dumper($job));
 		my (@data) = (
 			$job->{queueId},
-			$job->{statusId},
+			$job->{status},
 			$job->{user},
 			$job->{name},
 			$job->{submitHost}   || "",
@@ -1566,9 +1566,9 @@ sub f_spy {
 	my $result = $done->result;
 	$self->info("We are supposed to contact the cluster at $result");
 
-	my $result2 =$self->{RPC}->Connect("JobAgent_$result", "http://$result");
+	$self->{RPC}->Connect("JobAgent_$result", "http://$result");
 	
-	$self->{RPC}->CallRPC("JobAgent_$result", 'getFile', $spyfile, $options);
+	my $result2 =$self->{RPC}->CallRPC("JobAgent_$result", 'getFile', $spyfile, $options);
 
 	$self->info("Finished Contacting the jobagent at $result");    ###############
 	my $data = $result2->result;
@@ -1878,13 +1878,14 @@ sub getPsFromDB {
 
 
 	#my (@ok) = $self->{DB}->query($query);
-  my $rresult = $self->{TASK_DB}->query("select q.queueId, statusId, command name, e.host execHost, 
+  my $rresult = $self->{TASK_DB}->query("select q.queueId, st.status, command name, e.host execHost, 
      s.host submitHost, runtime, cpu, mem, cputime, rsize, vsize, ncpu, cpufamily, cpuspeed, p.cost, 
-       maxrsize, maxvsize, site, n.host node, q.split, procinfotime,received,q.started,finished
+       maxrsize, maxvsize, site, n.host node, q.split, procinfotime,received,q.started,finished,user
       from QUEUE q join QUEUEPROC p using(queueid) join QUEUEJDL qj using (queueid) 
           join QUEUE_COMMAND using (commandId) left join QUEUE_HOST e on (exechostId=e.hostid)
            left join QUEUE_HOST s on (submithostid=s.hostid) join SITEQUEUES using (siteid)
            left join QUEUE_USER using (userid) left join QUEUE_HOST n on (nodeid=n.hostid)
+           join QUEUE_STATUS st using  (statusid)
            $where ORDER by queueid")
     or $self->info( "In getPs error getting data from database" )
       and return;
@@ -1987,12 +1988,12 @@ sub f_ps_jdl {
   my $join="";
   my $method="queryValue"; 
   foreach my $o (@_) {
-    $o=~ /-dir/ and $columns.=",path" and $method="queryRow" and $join="join QUEUE using (queueid)";
+    $o=~ /-dir/ and $columns.=",path" and $method="queryRow";
     $o=~ /-status/ and $columns.=",statusId" and $method="queryRow" and $join="join QUEUE using (queueid)";
   }
 
   my $rc=$self->{TASK_DB}->$method("select $columns from QUEUEJDL $join where queueId=?", undef, {bind_values=>[$id]});
-  $method =~ /queryRow/ and $rc->{statusId} and $rc->{statusId} = AliEn::Util::statusName($rc->{statusId});
+  $method =~ /queryRow/ and $rc->{statusId} and $rc->{status} = AliEn::Util::statusName($rc->{statusId});
 
   if (!grep (/-silent/, @_)) {
 	my $message = "The jdl of $id is $rc";
@@ -2063,29 +2064,20 @@ sub f_ps {
 	my $username;
 	my $now = time;
 	foreach $job (@jobs) {
-		my ($queueId,      $status,   $name,     $execHost, $submitHost, $runtime,   $cpu,
-			$mem,          $cputime,  $rsize,    $vsize,    $ncpu,       $cpufamily, $cpuspeed,
-			$cost,         $maxrsize, $maxvsize, $site,     $node,       $splitjob,  $split,
-			$procinfotime, $received, $started,  $finished
-			)
-			= ("", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "");
-		(   $queueId,      $status,   $name,     $execHost, $submitHost, $runtime,   $cpu,
-			$mem,          $cputime,  $rsize,    $vsize,    $ncpu,       $cpufamily, $cpuspeed,
-			$cost,         $maxrsize, $maxvsize, $site,     $node,       $splitjob,  $split,
-			$procinfotime, $received, $started,  $finished
-			)
-			= split "###", $job;
+	  foreach my $field  ('site', 'node','mem', 'cost','runtime' ){
+          $job->{$field} or $job->{$field}='';
+    }
 
-		$site         or $site         = '';
-		$node         or $node         = '';
-		$procinfotime or $procinfotime = $now;
+		$job->{procinfotime} or $job->{procinfotime} = $now;
+
+
 		my $indentor = "";
 		my $exdentor = " ";
-		if ($split) {
+		if ($job->{split}) {
 			$indentor = "-";
 			$exdentor = "";
 		}
-		$submitHost =~ /(.*)@.*/ and $username = $1;
+    my $status=$job->{status};
 		$status =~ s/RUNNING/R/;
 		$status =~ s/SAVING/SV/;
 		$status =~ s/OVER_WAITING/OW/;
@@ -2094,10 +2086,10 @@ sub f_ps {
 		$status =~ s/QUEUED/Q/;
 		$status =~ s/STARTED/ST/;
 
-		if ($splitjob) {
+		if ($job->{splitjob}) {
 			$status =~ s/DONE/DS/;
 			$status =~ s/INSERTING/IS/;
-			$site = sprintf "-%-3s-subjobs--", $splitjob;
+			$job->{site} = sprintf "-%-3s-subjobs--", $job->{splitjob};
 		} else {
 			$status =~ s/DONE/D/;
 			$status =~ s/INSERTING/I/;
@@ -2121,48 +2113,48 @@ sub f_ps {
 		$status   =~ s/SPLITTING/WS/;
 		$status   =~ s/SPLIT/RS/;
 		$status   =~ s/ZOMBIE/Z/;
-		$execHost =~ s/(.*)@(.*)/$2/is;
-
-		my $printCpu = $cpu || "-";
+		
+				my $printCpu = $job->{cpu} || "-";
 		if ($options{x}) {
-			$output = sprintf "%-10s %s%-6s%s %-2s    %-6s  %-5s %-6s  %-6s  %-10s", $username, $indentor, $queueId,
-				$exdentor, $status, $printCpu, $mem, $cost, $runtime, $name;
+		    $output = sprintf "%-10s %s%-6s%s %-2s    %-6s  %-5s %-6s  %-6s  %-10s", $job->{user}, $indentor, $job->{queueId},
+				$exdentor, $status, $printCpu, $job->{mem}, $job->{cost}, $job->{runtime}, $job->{name};
 		} elsif ($options{l}) {
-			$output = sprintf "%-10s %s%-6s%s %-2s    %-8s %-8s %-6s  %-5s %-6s  %-6s  %-10s", $username, $indentor, $queueId,
-				$exdentor, $status, $maxrsize, $maxvsize, $printCpu, $mem, $cost, $runtime, $name;
+			$output = sprintf "%-10s %s%-6s%s %-2s    %-8s %-8s %-6s  %-5s %-6s  %-6s  %-10s", $job->{user}, $indentor, $job->{queueId},
+				$exdentor, $status, $job->{maxrsize}, $job->{maxvsize}, $printCpu, $job->{mem}, $job->{cost}, $job->{runtime}, $job->{name};
 		} elsif ($options{X}) {
-			$output = sprintf "%-10s %s%-6s%s %-26s %-2s    %-8s %-8s %-6s  %-5s  %-6s  %-8s %-1s %-2s %-4s %-10s", $username,
-				$indentor, $queueId, $exdentor, $site, $status, $maxrsize, $maxvsize, $printCpu, $mem, $cost, $runtime, $ncpu,
-				$cpufamily, $cpuspeed, $name;
+			$output = sprintf "%-10s %s%-6s%s %-26s %-2s    %-8s %-8s %-6s  %-5s  %-6s  %-8s %-1s %-2s %-4s %-10s", $job->{user},
+				$indentor, $job->{queueId}, $exdentor, $job->{site}, $status, $job->{maxrsize}, $job->{maxvsize}, $printCpu, $job->{mem}, $job->{cost}, $job->{runtime}, $job->{ncpu},
+				$job->{cpufamily}, $job->{cpuspeed}, $job->{name};
 		} elsif ($options{W}) {
-			$output = sprintf "%s%-6s%s %-29s %-30s %-26s %-10s %-3s %-02s:%-02s:%-02s.%-02s", $indentor, $queueId, $exdentor,
-				$site, $node, $execHost, $name, $status, (gmtime($now - $procinfotime))[ 7, 2, 1, 0 ];
+			$output = sprintf "%s%-6s%s %-29s %-30s %-26s %-10s %-3s %-02s:%-02s:%-02s.%-02s", $indentor, $job->{queueId}, $exdentor,
+				$job->{site}, $job->{node}, $job->{execHost}, $job->{name}, $status, (gmtime($now - $job->{procinfotime}))[ 7, 2, 1, 0 ];
 		} elsif ($options{T}) {
 			my $rt = "....";
 			my $st = "....";
 			my $ft = "....";
 
-			if ($received) {
-				$rt = ctime($received);
+			if ($job->{received}) {
+				$rt = ctime($job->{received});
 			}
-			if ($started) {
-				$st = ctime($started);
+			if ($job->{started}) {
+				$st = ctime($job->{started});
 			}
-			if ($finished) {
-				$ft = ctime($finished);
+			if ($job->{finished}) {
+				$ft = ctime($job->{finished});
 			}
 			chomp $rt;
 			chomp $st;
 			chomp $ft;
 
-			$output = sprintf "%-10s %s%-6s%s %-2s    %-24s  %-24s  %-24s  %-10s\n", $username, $indentor, $queueId, $exdentor,
-				$status, $rt, $st, $ft, $name;
+			$output = sprintf "%-10s %s%-6s%s %-2s    %-24s  %-24s  %-24s  %-10s", $job->{user}, $indentor, $job->{queueId}, $exdentor,
+				$status, $rt, $st, $ft, $job->{name};
 
 		} else {
 
 			# no option given
-			$output = sprintf "%-10s %s%-6s%s %-2s  %-8s  %-10s\n", $username, $indentor, $queueId, $exdentor, $status,
-				$runtime, $name;
+			$output = sprintf "%-10s %s%-6s%s %-2s  %-8s  %-10s", $job->{user}, $indentor, $job->{queueId}, $exdentor, $status,
+				$job->{runtime}, $job->{name};
+						$runtime, $name;
 		}
 		push @outputarray, $output;
 		$verbose and $self->info($output, undef, 0);
@@ -2655,7 +2647,7 @@ sub f_queue_list {
 			undef, 0);
 		$self->info(
 			sprintf(
-				"%-32s %-12s %-20s %5s %5s %4s/%-4s\n",
+				"%-32s %-12s %-20s %5s %5s %4s/%-4s",
 				"site", "open", "status", "load", "runload", "run", "max"
 			),
 			undef, 0
@@ -2669,7 +2661,7 @@ sub f_queue_list {
 
 			$self->info(
 				sprintf(
-					"%-32s %-12s %-20s %5s %5s %4s/%-4s %4s/%-4s\n",
+					"%-32s %-12s %-20s %5s %5s %4s/%-4s",
 					$_->{'site'}, $blocked,   $_->{'status'}, $queueload, $runload,
 					$allrunning,    $maxrunning
 				),
@@ -3100,7 +3092,7 @@ sub masterJob {
 		return (-1, $message);
 	}
 
-	$data->{cond} = "where split=$id";
+	$data->{cond} = "where q.split=$id";
 	$data->{statusId}  and $data->{cond} .= " and (" . join(" or ", @{$data->{statusId}}) . ")";
 	$data->{queueId} and $data->{cond} .= " and (" . join(" or ", @{$data->{queueId}}) . ")";
 	$data->{exechost} = "ifnull(substring(exechost,POSITION('\\\@' in exechost)+1),'')";
@@ -3150,10 +3142,15 @@ sub getMasterJobInfo {
 
 	my $group = "statusId";
 
-	$data->{printsite} and $group = "concat(statusId,$data->{exechost})";
-	my $columns = "status,statusId, count(*) as count";
-	$data->{printsite} and $columns .= ",$data->{exechost} as exechost";
-	my $query = "select $columns from QUEUE join QUEUE_STATUS using (statusid)  $data->{cond} group by $group";
+	my $columns = "s.status,statusId, count(*) as count";
+	if ($data->{printsite}){
+	  $group .= ",site,siteid";
+	  $columns.= ",site,siteid ";
+	  $data->{cond} or $data->{cond}="";
+	  $data->{cond}=" join SITEQUEUES using (siteid) $data->{cond}" 
+	}
+	
+	my $query = "select $columns from QUEUE q join QUEUE_STATUS s using (statusid)  $data->{cond} group by $group";
 	$self->debug(1, "Doing the query $query");
 	my $info = $self->{TASK_DB}->query($query)
 		or $self->info("In getMasterJobInfo error getting data from database")
@@ -3163,9 +3160,10 @@ sub getMasterJobInfo {
 		$self->info("Getting the ids under each status");
 		foreach my $job (@$info) {
 			my $extra = "";
-			$job->{exechost} and $extra = " and $data->{exechost}='$job->{exechost}'";
+			$job->{siteid} and $extra = " and siteid='$job->{siteid}'";
 			
-			my $subId =	$self->{TASK_DB}->queryColumn("select queueId from QUEUE where split=$id and statusId=$job->{statusId}$extra");
+			my $subId =	$self->{TASK_DB}->queryColumn("select queueId from QUEUE where split=$id and
+			 statusId=$job->{statusId}$extra");
 
 			$job->{ids} = $subId;
 		}
@@ -3180,7 +3178,7 @@ sub getMasterJobInfo {
 	foreach my $subjob (@$info) {
 		$subjob or next;
 		my $ids = "";
-		my $site = $subjob->{exechost} || "";
+		my $site = $subjob->{site} || "";
 		$site and $site = " ($site)";
 		($subjob->{ids})
 			and $ids = "(ids: " . join(", ", @{$subjob->{ids}}) . ")";
@@ -3222,7 +3220,7 @@ sub getMasterJob {
 		$self->info("Removing the jobs ");
 		my $message = "Jobs expunged!!!";
 
-		my $jobIds = $self->{TASK_DB}->queryColumn("SELECT queueId from QUEUE $data->{cond}")
+		my $jobIds = $self->{TASK_DB}->queryColumn("SELECT queueId from QUEUE q $data->{cond}")
 			or return (-1, "Error getting the subjobs with $data->{cond}");
 		foreach my $subjob (@$jobIds) {
 			my $message = "Removing job $subjob";
@@ -3235,7 +3233,7 @@ sub getMasterJob {
 	} elsif ($data->{command} eq "merge") {
 
 		$self->info("Merging the jobs that have finnished");
-		my $subjobs = $self->{TASK_DB}->query("SELECT queueId,submitHost FROM QUEUE $data->{cond} and statusId=15") #DONE
+		my $subjobs = $self->{TASK_DB}->query("SELECT queueId,submitHost FROM QUEUE q $data->{cond} and statusId=15") #DONE
 			or return (-1, "Error getting the subjobs of $id");
 		if (!@$subjobs) {
 			$self->info("The job $id doesn't have any subjobs that have finished");
@@ -3256,7 +3254,7 @@ sub getMasterJob {
 		};
 		my $subroutine = $commands->{$data->{command}}->{sub};
 		$self->info("We have to $data->{command} the subjobs of $id");
-		my $ids = $self->{TASK_DB}->queryColumn("select queueid from QUEUE $data->{cond}");
+		my $ids = $self->{TASK_DB}->queryColumn("select queueid from QUEUE q $data->{cond}");
 #		my @extra;
 #		$commands->{$data->{command}}->{extra}
 #			and push @extra, @{$commands->{$data->{command}}->{extra}};
@@ -4039,5 +4037,24 @@ sub calculateJobQuota {
 
 	return;
 }
+sub f_verifyToken {
+  my $self  = shift;
+  my @arg   = grep ( !/-z/, @_ );
+  my $jobId = shift @arg
+    or print STDERR "You have to provide a job identifier" and return;
+  my $token = shift @arg
+    or print STDERR "You have to provide a job token" and return;
+  my @results;
+#  $#results = -1;
+  $self->info("HELLO WORLD");
+  my $user =
+    $self->{TASK_DB}->queryValue("SELECT username from JOBTOKEN where jobid=? and jobtoken=?", undef, {bind_values=>[$jobId, $token]} );
+  if ( $user ) {
+    push @results, $user;
+  }
+  $self->info("WE GOT THE USER $user\n");
+  return @results;
+}
+
 
 return 1;
