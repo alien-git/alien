@@ -2154,7 +2154,6 @@ sub f_ps {
 			# no option given
 			$output = sprintf "%-10s %s%-6s%s %-2s  %-8s  %-10s", $job->{user}, $indentor, $job->{queueId}, $exdentor, $status,
 				$job->{runtime}, $job->{name};
-						$runtime, $name;
 		}
 		push @outputarray, $output;
 		$verbose and $self->info($output, undef, 0);
