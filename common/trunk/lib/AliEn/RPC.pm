@@ -3,6 +3,7 @@ package AliEn::RPC;
 use JSON::RPC::Client;
 use AliEn::Logger::LogObject;
 use AliEn::Config;
+use AliEn::X509;
 use Data::Dumper;
 use vars qw (@ISA $DEBUG);
 use strict;
@@ -14,6 +15,8 @@ sub new {
   my $self  = {};
   bless($self, (ref($proto) || $proto));
   $self->SUPER::new() or return;
+  
+  $self->{X509}=AliEn::X509->new();
   
   $self->{CLIENTS}={};
   $self->{CONFIG}=AliEn::Config->new();
@@ -67,14 +70,8 @@ sub Connect {
     my $proxy = ( $ENV{X509_USER_PROXY} || "/tmp/x509up_u$<" );
     
     $self->info("This is in fact a secure connection (using the proxy $proxy)");
-    my $proxyHandler = AliEn::X509->new();
-    my $proxytime = $proxyHandler->getRemainingProxyTime();
-    $self->info("Proxy time left: $proxytime");
-    if (!(-f $proxy) || ($proxytime < 300)) {
-      $self->info("Invalid proxy ($proxy does not exist?) Try running 'alien proxy-init' first");
-      return -1;
-    }
 
+    $self->{X509}->checkProxy();
     my $ua=$self->{CLIENTS}->{$service}->ua();
     $ua->ssl_opts('verify_hostname' => 0);
     $ua->ssl_opts( 'SSL_cert_file' => $proxy);
@@ -171,6 +168,10 @@ sub CallRPC {
   }
    # Easy access
   
+  if ($self->{CLIENTS}->{$service}->ua()->ssl_opts('SSL_cert_file')){
+     $self->info("This is in fact a secure call. Checking the proxy from the call");    
+     $self->{X509}->checkProxy();
+  }
   
   while(1){
     my @data;
