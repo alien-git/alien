@@ -123,7 +123,8 @@ sub updateSplitting {
     my ($strategy, $jobs)=$self->SplitJob($queueid, $job_ca) or 
       die("The job can't be split\n");
 
-    my ($user)=$self->{DB}->queryValue("select user from QUEUE join QUEUE_USER using (userid) where queueid=?",
+    my ($user)=$self->{DB}->queryValue("select concat(user,'\@',host) user from QUEUE 
+    join QUEUE_USER using (userid) join QUEUE_HOST on (hostid=submithostid) where queueid=?",
                       undef, {bind_values=>[$queueid]})
       or $self->info("Job $queueid doesn't exist")
 				and die ("Error getting the user of $queueid\n");
@@ -619,7 +620,7 @@ sub _submitJDL {
   $self->debug(1, "JDL $jdlText");
   push @ISA, "AliEn::Service::Manager::Job";
   
-  my $newqueueid=$self->enterCommand("$user\@$self->{CONFIG}->{HOST}", $jdlText, undef, $queueid, undef, 
+  my $newqueueid=$self->enterCommand($user, $jdlText, undef, $queueid, undef, 
     {silent=>0,direct=>$direct});
   pop @ISA;
   if ($newqueueid =~ /DENIED:/){
