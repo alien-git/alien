@@ -425,9 +425,10 @@ sub initialize {
     },
 
     JOBSTOMERGE => {
-      columns => {masterId => "int(11) not null primary key"},
+      columns => {masterId => "int(11) not null"},
       id      => "masterId",
-      order=>11
+      extra_index=>[ "foreign key (masterId) references QUEUE(queueId) on delete cascade" ],
+      order=>18
     },
     STAGING => {
       columns => {
@@ -440,15 +441,15 @@ sub initialize {
     },
     FILES_BROKER=> {
     	columns=>{"lfn"=> "varchar(255) not null",
-    			"split" =>"int(11) not null ",
+    			"split" =>"int(11) not null",
     			"sites"=>"varchar(255) not null",
     			"queueId" => "int(11) default null",
     	},
-
-    	extra_index=>['index(split)', "unique index(split,lfn)", "foreign key (queueId) references QUEUE(queueId) on set null"
-    	,"foreign key (split) references QUEUE(queueId) on delete cascade"],
-    	id=>"lfn",
-        order=>19    	
+		id=>"lfn",
+    	extra_index=>['index(split)', "unique index(split,lfn)", 
+    	              "foreign key (queueId) references QUEUE(queueId) on delete set null",
+    	              "foreign key (split) references QUEUE(queueId) on delete cascade"],
+        order=>19
     },
     PRIORITY => { 
       columns=>{
