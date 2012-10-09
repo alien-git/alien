@@ -68,10 +68,10 @@ sub checkProxy {
   $self->{PROXY_TIME} or $self->{PROXY_TIME} = $self->getProxyTime();
   my $time = time;
   if ((-f $proxy) && ($time < $self->{PROXY_TIME})) {
-    $self->debug(1, "There is a proxy, and is valid");
+    $self->debug(1, "There is a proxy, and it is valid");
     return 1;
   }
-  $self->debug(1, "We have to create a new proxy");
+  $self->info( "We have to create a new proxy");
   return $self->createProxy();
 }
 

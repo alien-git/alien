@@ -445,7 +445,8 @@ sub initialize {
     			"queueId" => "int(11) default null",
     	},
 
-    	extra_index=>['index(split)', "unique index(split,lfn)", "foreign key (queueId) references QUEUE(queueId) on delete cascade"],
+    	extra_index=>['index(split)', "unique index(split,lfn)", "foreign key (queueId) references QUEUE(queueId) on set null"
+    	,"foreign key (split) references QUEUE(queueId) on delete cascade"],
     	id=>"lfn",
         order=>19    	
     },

@@ -276,7 +276,7 @@ sub extractClassadParams {
 	$ok or return (-1, $msg);
 	$params->{site} = "";
 	$queueName =~ /::(.*)::/ and $params->{site} = $1;
-	($ok, my $ttl) = $classad->evaluateAttributeString("TTL");
+	($ok, my $ttl) = $classad->evaluateAttributeInt("TTL");
 	$params->{ttl} = $ttl || 84000;
 	($ok, $params->{disk}) = $classad->evaluateExpression("LocalDiskSpace");
 	($ok, my @pack) = $classad->evaluateAttributeVectorString("Packages");
