@@ -2933,13 +2933,14 @@ sub resubmitCommand {
 		$self->info("Resubmitting $queueId");
 		my $resubmission = $self->{TASK_DB}->getFieldFromQueue($queueId, "resubmission");
 
+		my $path = $self->{TASK_DB}->queryValue("SELECT path from QUEUEJDL where queueid=?",
+		                                        undef, {bind_values=>[$queueId]});
+
 		my ($done, $error) = $self->resubmitCommandInternal($queueId, $user);
 		$done!='-1' or  $self->info("Error resubmitting $queueId: $error")
 			  and return ($done, $error);
 		push @result, $done;
 		$self->info("Process $queueId resubmitted!! (new jobid is " . $done . ")");
-		my $path = $self->{TASK_DB}->queryValue("SELECT path from QUEUEJDL where queueid=?",
-		                                        undef, {bind_values=>[$queueId]});
 		
 		if ($path) {
 		  $self->info("Renaming previous saved files of the job in $path");
