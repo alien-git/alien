@@ -160,27 +160,6 @@ sub checkZipArchives {
 }
 
 
-
-sub f_verifyToken {
-  my $self    = shift; # 2?
-  my $options = shift;
-  my $jobid   = shift;
-  my $token   = shift;
-
- open(my $FI, ">>", "/tmp/verifyToken");
- print $FI "Estamos en verifyToken con TOKEN=$token y job $jobid\n";
-
-# To test, delete
-  $self->info("Verifying the token of '$jobid' and '$token'");
-  my $roledb = $self->{TASK_DB}->getUsername($jobid, $token) ;
-
-  $self->info("AND WE GOT $roledb");
-  print $FI "Y EL USUARIO es $roledb\n";
-  close $FI;
-  return $roledb;
-}
-
-
 #_____________________________________________________________________________
 #sub defaultRequirements {
 #
@@ -4045,8 +4024,7 @@ sub f_verifyToken {
   my $token = shift @arg
     or print STDERR "You have to provide a job token" and return;
   my @results;
-#  $#results = -1;
-  $self->info("HELLO WORLD");
+
   my $user =
     $self->{TASK_DB}->queryValue("SELECT username from JOBTOKEN where jobid=? and jobtoken=?", undef, {bind_values=>[$jobId, $token]} );
   if ( $user ) {
