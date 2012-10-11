@@ -164,7 +164,7 @@ sub registerOutput {
     }
   }
 
-  $jobinfo->{statusId} or $self->info("Error getting the status of the job", 2) and return;
+  $jobinfo->{status} or $self->info("Error getting the status of the job", 2) and return;
 
   my ($ok, @pfns) = $ca->evaluateAttributeVectorString("SuccessfullyBookedPFNS");
   if (!$ok) {
@@ -225,12 +225,11 @@ sub registerOutput {
       and return;
 
     my $newstatus = 0;
-    $jobinfo->{statusId} = AliEn::Util::statusName($jobinfo->{statusId});
     
-    if ($jobinfo->{statusId} =~ /^SAVED/) {
+    if ($jobinfo->{status} =~ /^SAVED/) {
       if ($regok eq 1) {
         $newstatus = "DONE_WARN";
-        ($jobinfo->{statusId} eq "SAVED") and $newstatus = "DONE";
+        ($jobinfo->{status} eq "SAVED") and $newstatus = "DONE";
       } else {
         $self->info("At least one file could not been registered, setting to job #$jobid to ERROR_RE.");
         $newstatus = "ERROR_RE";
@@ -239,8 +238,8 @@ sub registerOutput {
 
     #($jobinfo->{status} =~ /^ERROR/) and $newstatus = $jobinfo->{status} ;
     if ($newstatus) {
-      $self->{TASK_DB}->updateStatus($jobid, $jobinfo->{statusId}, $newstatus, {path => $outputdir}, $service);
-      if (!($jobinfo->{statusId} =~ /^ERROR/)) {
+      $self->{TASK_DB}->updateStatus($jobid, $jobinfo->{status}, $newstatus, {path => $outputdir}, $service);
+      if (!($jobinfo->{status} =~ /^ERROR/)) {
         $self->info("Job state transition from $jobinfo->{statusId} to $newstatus");
       }
     }
