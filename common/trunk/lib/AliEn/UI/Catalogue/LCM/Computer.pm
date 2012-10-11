@@ -225,6 +225,8 @@ sub registerOutput {
       and return;
 
     my $newstatus = 0;
+    $jobinfo->{statusId} = AliEn::Util::statusName($jobinfo->{statusId});
+    
     if ($jobinfo->{statusId} =~ /^SAVED/) {
       if ($regok eq 1) {
         $newstatus = "DONE_WARN";
