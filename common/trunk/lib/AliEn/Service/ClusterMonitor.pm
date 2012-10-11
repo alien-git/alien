@@ -1021,9 +1021,32 @@ sub jobStarts : Public {
 ###############
 sub packmanOperations {
  my $this=shift;
+
+ my $ref=shift;
+ @_=@$ref;
+
+
+ $self->info("CALLING A PACKMAN OPERATION");
  use AliEn::UI::Catalogue::LCM;  
- my $catalogue= new AliEn::UI::Catalogue::LCM;
- $catalogue->{PACKMAN}->f_packman(@_);
+
+ $self->{UI} or $self->{UI}=AliEn::UI::Catalogue::LCM->new();
+ $self->info("GOT TTHE UI");
+ $self->{UI} or $self->info("WE DIDN'T GET THE UI") and return (-1, "Error getting theuI");
+ $self->info("Calling f_packman, with @_");
+ my (@info, @loglist);
+ eval {
+   $self->{LOGGER}->keepAllMessages();
+   @info=$self->{UI}->execute("packman", @_);
+   @loglist = @{$self->{LOGGER}->getMessages()};
+   $self->{LOGGER}->displayMessages();
+ };
+ if ($@){
+   $self->info("THERE WAS AN ERROR: $@");
+ }
+ $self->info("DONE! result");
+ 
+ return { rcvalues=>\@info, rcmessages=>\@loglist };
+  
 }
 ################
 

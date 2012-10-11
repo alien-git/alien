@@ -112,8 +112,8 @@ sub f_packman {
  if ($allPackMan) {
     $self->info("We are going to call all the ClusterMonitors");
 
-    my $response = $self->{RPC}->CallRPC("IS", "getAllServices", "ClusterMonitor") or return;
-    $response = $response->result;
+    my ($response) = $self->{RPC}->CallRPC("IS", "getAllServices", "ClusterMonitor") or return;
+#    $response = $response->result;
      # print Dumper($response);
     my @n = split(/###/, $response->{NAMES});
     $silent and $string .= " -s";
@@ -131,24 +131,12 @@ return 1;
   if ($string =~ s{-?-n(ame)?\s+(\S+)}{}) {
     my $name = $2;
 
-    my $response = $self->{RPC}->CallRPC("IS", "getService", $name , "ClusterMonitor") or return;
-    $response = $response->result;
+    my ($response) = $self->{RPC}->CallRPC("IS", "getService", $name , "ClusterMonitor") or return;
     @arg = split(" ", $string);
-   
-    my $result2 =
-    SOAP::Lite->uri('AliEn/Service/ClusterMonitor')->proxy("http://$response->{HOST}:$response->{PORT}")
-    ->packmanOperations(@arg);
-    $result2
-    or $self->info("In packmanOperations could not contact the clustermonitor at http://$response->{HOST}:$response->{PORT}")
-    and return (-1, "Error contacting the clustermonitor at http://$response->{HOST}:$response->{PORT}");
-
-    my $result_result = $result2->result;
-    my @result_param = $result2->paramsout;
   
-    foreach my $list (@result_param) {
-     print "\t$list\n";
-     }
-  return 1;
+    $self->{RPC}->Connect("CM_$response->{HOST}", "http://$response->{HOST}:$response->{PORT}", "ClusterMonitor", );
+   
+    return $self->{RPC}->CallRPCAndDisplay(0, "CM_$response->{HOST}", "packmanOperations" , @arg);
 }
 
 #########################################################################
