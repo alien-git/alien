@@ -111,27 +111,37 @@ sub createAccessesTables {
         seName  => "varchar(60) NOT NULL UNIQUE",
       }
     ],
+    periods => [
+      "perId",
+      {
+      	perId         => "tinyint UNIQUE NOT NULL auto_increment primary key",
+      	periodName         => "varchar(30) UNIQUE NOT NULL",
+      }
+    ],
     categoryPattern => [
       "categoryId",
       {
-      	categoryId         => "tinyint UNIQUE NOT NULL auto_increment primary key",
-      	categoryName         => "varchar(20) UNIQUE NOT NULL",
-      	priority         => "tinyint NOT NULL",
-        pattern => "varchar(255) NOT NULL",
-      }
+      	categoryId         => "tinyint UNIQUE NOT NULL auto_increment",
+      	perId         => "tinyint",
+      	categoryName         => "varchar(10) NOT NULL",
+      	pattern => "varchar(255) NOT NULL",
+      },
+      undef,
+      ['PRIMARY KEY(`perId`, `pattern`)',
+      'FOREIGN KEY (`perId`) REFERENCES `periods` (`perId`) ON DELETE CASCADE ON UPDATE CASCADE'],
     ],
     fileAccessInfo => [
       "fileName",    
       {
         fileName         => "varchar(255) not null",
         seId => "int(11) not null",
-	operation => "varchar(6) not null",
-	accessTime => "timestamp NOT NULL DEFAULT 0",
-	userId => "mediumint(8) not null",
-	success => "tinyint(1) NOT NULL"
+		operation => "varchar(6) not null",
+		accessTime => "timestamp NOT NULL DEFAULT 0",
+		userId => "mediumint(8) not null",
+		success => "tinyint(1) NOT NULL"
       },
       undef,
-      ['PRIMARY KEY(`fileName`, `seId`, `accessTime`)',
+      ['PRIMARY KEY(`fileName`, `seId`, `operation`, `userId`, `accessTime`, `success`)',
        'FOREIGN KEY (`userId`) REFERENCES `userInfo` (`userId`) ON DELETE CASCADE ON UPDATE CASCADE',
        'FOREIGN KEY (`seId`) REFERENCES `seInfo` (`seId`) ON DELETE CASCADE ON UPDATE CASCADE'
       ],
@@ -205,8 +215,10 @@ sub createAccessesTables {
 
 
 
-
 =comment
+
+priority         => "tinyint NOT NULL",
+
 #FOR NOW WE DON'T NEED THESE TABLES ===
   popularFiles => [
       "fileName",
@@ -265,17 +277,16 @@ sub createAccessesTables {
   foreach my $table (keys %tables) {
     $self->checkTable($table, @{$tables{$table}}) or return;
   }
-
-$self->do("INSERT INTO categoryPattern (priority, categoryName, pattern)  
+$self->do("INSERT INTO periods (periodName) VALUES (\"OTHER\")"); 
+$self->do("INSERT INTO categoryPattern (categoryName, pattern, perId)  
 VALUES 
-  (1, 'RAW', 	'\^\/alice\/data\/\.+\/raw\/\.+\$'),
-  (2, 'RAWSIM',	'\^\/alice\/sim\/\.+\/raw\/\.+\$'),
-  (3, 'AOD', 	'\^\/alice\/data\/\.+AliAOD\.\*\\.root\$'),
-  (4, 'ESD', 	'\^\/alice\/data\/\.+\/ESDs\/\.+\$'),
-  (5, 'ESDSIM', '\^\/alice\/sim\/\.+AliESD\.\*\\.root\$'),
-  (6, 'USER', 	'\^\/alice\/cern\\.ch\/user\/\.+\$'),
-  (7, 'COND', 	'\^\/alice\/data\/\.+\/\(OCDB\)\|\(CDB\)\/\.+'),
-  (8, 'unknown','\.+')") or $self->info("We could not fill categoryPattern table!") and return;
+  ('other','\.+', LAST_INSERT_ID() ),
+  ('USER', 	'\^\/alice\/cern\\.ch\/user\/\.+\$', LAST_INSERT_ID() ),
+  ('COND', 	'\^\/alice\/.*\/*\(OCDB\)\|\(CDB\)\/\.+', LAST_INSERT_ID() )") or $self->info("We could not fill categoryPattern table!") and return;
+
+#  (3, 'AOD', 	'\^\/alice\/data\/\.+AliAOD\.\*\\.root\$'),
+#  (4, 'ESD', 	'\^\/alice\/data\/\.+\/ESDs\/\.+\$'),
+#  (5, 'ESDSIM', '\^\/alice\/sim\/\.+AliESD\.\*\\.root\$'),
 
 
   $self->do("INSERT INTO collectors (name, startTime, actions) VALUES ('Parser', curtime(), 0 )") or return ;
