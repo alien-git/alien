@@ -1384,14 +1384,17 @@ sub f_queueinfo {
 	my $jdl="";
   grep (/^-jdl$/, @_) and $jdl="jdl,";
   @_=grep (!/^-jdl$/, @_);
+  my $silent=0;
+  grep (/^-silent$/, @_) and $silent=1;
   my $site = (shift or '%');
   my $sql="site,blocked, status, statustime,$jdl ". join(", ", @{AliEn::Util::JobStatus()});
   $self->info("Quering  $sql");
   my $done = $self->{TASK_DB}->getFieldsFromSiteQueueEx($sql,"where site like '$site' ORDER by site");
   ($done) or return;
 
-
-	$self->f_queueprint($done, $site);
+  $silent or 
+	 $self->f_queueprint($done, $site);
+	return $done;
 }
 
 sub f_queueprint {
@@ -3278,16 +3281,19 @@ sub masterJobInfoFileBroker {
 
 	}
 	my $files = $self->{TASK_DB}->query(
-		"select count(1)c ,ifnull(statusId, 0) statusId $site from 
-	FILES_BROKER f left join QUEUE using (queueid) where f.split=? group by $group", undef,
+	"select count(1)c ,ifnull(status, 0) status $site from 
+	FILES_BROKER f left join QUEUE using (queueid) 
+                      join QUEUE_STATUS using (statusid)
+where f.split=? group by $group", undef,
 		{bind_values => [$id]}
 	);
 	$files and @$files or return 1;
 	$self->info("This job uses file brokering!");
 	foreach my $entry (@$files) {
-		$self->info("There are $entry->{c} files in status $entry->{statusId}")
+		$self->info("There are $entry->{c} files in status $entry->{status}")
 
 	}
+	return $files;
 }
 
 sub checkJobAgents {
@@ -3430,7 +3436,7 @@ sub f_jobListMatch {
 	my $job_ca = AlienClassad::AlienClassad->new($jdl);
 	$job_ca         or $self->info("Error creating the classad of the job")    and return;
 	$job_ca->isOK() or $self->info("The syntax of the job jdl is not correct") and return;
-	my @result = $self->f_queueinfo($ceName, "-jdl");
+	my @result = $self->f_queueinfo($ceName, "-jdl", "-silent");
 	my $done=shift @result;
 	$done or return;
 
@@ -3900,7 +3906,7 @@ sub f_jquota_list {
  
 
 	my $result = $self->{TASK_DB}->query("select 
-user, unfinishedJobsLast24h, maxUnfinishedJobs, totalRunningTimeLast24h, maxTotalRunningTime, totalCpuCostLast24h, maxTotalCpuCost
+	user, priority, computedpriority, running, maxparallelJobs, unfinishedJobsLast24h, maxUnfinishedJobs, totalRunningTimeLast24h, maxTotalRunningTime, totalCpuCostLast24h, maxTotalCpuCost
 from PRIORITY join QUEUE_USER using (userid) $where ", undef, {bind_values=>\@bind}
 		)
 		or $self->info("Failed to getting data from PRIORITY table", 1)
@@ -3910,22 +3916,24 @@ from PRIORITY join QUEUE_USER using (userid) $where ", undef, {bind_values=>\@bi
 		and return;
 
 	my $cnt = 0;
-	$self->info("-------------------------------------------------------------------------------------------\n", undef,
-		0);
+
+
 	$self->info(
-		sprintf(
-			"            %12s        %12s        %12s        %16s",
-			"user", "unfinishedJobs", "totalCpuCost", "totalRunningTime\n"
-		),
+"-------------------------------------------------------------------------------------------
+                user        priority         runningJobs        unfinishedJobs        totalCpuCost                    totalRunningTime
+------------------------------------------------------------------------------------------\n",
+
 		undef, 0
 	);
-	$self->info("------------------------------------------------------------------------------------------\n", undef, 0);
+
 	foreach (@$result) {
 		$cnt++;
 		$self->info(
 			sprintf(
-				" [%04d. ]   %12s           %5s/%5s         %5s/%5s             %5s/%5s\n",
-				$cnt,                            $_->{'user'},                $_->{'unfinishedJobsLast24h'},
+				" [%04d. ]   %12s   %5s (%5s)   %5s/%5s        %5s/%5s         %5s/%5s             %5s/%5s",
+				$cnt,                            $_->{'user'},  $_->{priority}, $_->{computedpriority},
+                                $_->{running}, $_->{maxparallelJobs},
+                                $_->{'unfinishedJobsLast24h'},
 				$_->{'maxUnfinishedJobs'},       $_->{'totalCpuCostLast24h'}, $_->{'maxTotalCpuCost'},
 				$_->{'totalRunningTimeLast24h'}, $_->{'maxTotalRunningTime'}
 			),
@@ -3939,7 +3947,7 @@ from PRIORITY join QUEUE_USER using (userid) $where ", undef, {bind_values=>\@bi
 sub f_jquota_set_HELP {
 	return "Usage:
   jquota set <user> <field> <value> - set the user quota for job
-                                      (maxUnfinishedJobs, maxTotalCpuCost, maxTotalRunningTime)
+                                      (maxUnfinishedJobs, maxTotalCpuCost, maxTotalRunningTime, priority, maxParallelJobs
                                       use <user>=% for all users\n";
 }
 
@@ -3954,8 +3962,8 @@ sub f_jquota_set {
 	  my $field = shift or $self->info($self->f_jquota_set_HELP()) and return;
 	  my $value = shift;
 	  (defined $value) or $self->info($self->f_jquota_set_HELP()) and return;
-	  if ($field !~ /(maxUnfinishedJobs)|(maxTotalRunningTime)|(maxTotalCpuCost)/) {
-		  $self->info("Wrong field name! Choose one of them: maxUnfinishedJobs, maxTotalRunningTime, maxTotalCpuCost\n");
+	  if ($field !~ /(maxUnfinishedJobs)|(maxTotalRunningTime)|(maxTotalCpuCost)|(priority)|(maxParallelJobs)//) {
+		  $self->info("Wrong field name! Choose one of them: maxUnfinishedJobs, maxTotalRunningTime, maxTotalCpuCost, priority, maxParallelJobs\n");
 	  	return;
 	  }
 		$set->{$field}=$value;
