@@ -1622,7 +1622,7 @@ sub getNumberWaitingForSite{
     $method="queryRow";
   }
     
-  return $self->$method("select $return from JOBAGENT where 1=1 $where  limit 1", undef, {bind_values=>\@bind});
+  return $self->$method("select $return from JOBAGENT where 1=1 $where order by priority desc limit 1", undef, {bind_values=>\@bind});
 }
 
 sub getWaitingJobForAgentId{ 
