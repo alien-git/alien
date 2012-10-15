@@ -1592,23 +1592,13 @@ sub f_jobsystem {
 	} else {
 		($done) = $self->{RPC}->CallRPC("Manager/JobInfo", $callcommand, $username);
 	}
-	my $error  = "";
-	#my $result = "";
-
-	#$done and $result = $done->result;
-	#$done and $result = $done;
-
-	($done) or $error = "Error connecting to the Manager/Job !!";
-	#($done) and (!$result) and $error = "The Manager/Job did not return anything for getSystem";
-
-	#$result and ($result eq "-1") and $error = $done->paramsout || "Error reading result of the Manager/Job";
+	($done) or my $error = "Error connecting to the Manager/Job !! \n The Manager/Job did not return anything for $callcommand";
 
 	if ($error) {
 		$self->info("The Manager/Job returned error $error");
 		return (-1, $error);
 	}
 
-	#    printf("$result\n");
 	if ($callcommand eq "getJobInfo") {
 		$self->f_printjobinfo($done);
 	}
@@ -1621,7 +1611,7 @@ sub f_jobsystem {
 sub f_printjobinfo() {
 	my $self   = shift;
 	my $result = shift;
-
+	
 	$self->info("==========================================================================\n", undef, 0);
 	foreach (keys %$result) {
 		if (defined $result->{$_}) {
@@ -1673,41 +1663,41 @@ sub f_printsystem() {
 		my ($title, $var) = @{$_};
 		my $total = "${var}efficiency";
 		my $user  = "user${var}efficiency";
-		$self->info("  $title     %12.02f %%      %12.02f %%", $result->{$total}, $result->{$user}, undef, 0);
+		$self->info(sprintf("  $title     %12.02f %%      %12.02f %%", $result->{$total}, $result->{$user}, undef, 0));
 	}
 	$self->info(
 		"\n==========================================================================
 = Present Resource Usage        all          $user
 --------------------------------------------------------------------------", undef, 0
 	);
-	$self->info(
+	$self->info(sprintf(
 		"  CPU [GHz]            %12.02f        %12.02f",
 		$result->{'totcpu'} / 1000.0,
 		$result->{'totusercpu'} / 1000.0,
 		undef, 0
-	);
-	$self->info(
+	));
+	$self->info(sprintf(
 		"  RSize [Mb]           %12.02f        %12.02f",
 		$result->{'totrmem'} / 1000,
 		$result->{'totuserrmem'} / 1000,
 		undef, 0
-	);
-	$self->info(
+	));
+	$self->info(sprintf(
 		"  VSize [Mb]           %12.02f        %12.02f",
 		$result->{'totvmem'} / 1000,
 		$result->{'totuservmem'} / 1000,
 		undef, 0
-	);
+	));
 	$self->info(
 		"==========================================================================
 = Computing Resource Account    all          $user     \n
 --------------------------------------------------------------------------", undef, 0
 	);
-	$self->info(
+	$self->info(sprintf(
 		"  CPU Cost [GHz*sec]   %12.02f        %12.02f\n",
 		$result->{'totcost'}, $result->{'totusercost'},
 		undef, 0
-	);
+	));
 	$self->info(
 		"==========================================================================
 = Site Statistic

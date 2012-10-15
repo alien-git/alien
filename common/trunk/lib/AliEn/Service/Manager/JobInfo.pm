@@ -230,19 +230,16 @@ sub getExecHost {
 }
 
 sub getJobInfo {
-	
   my $this = shift;
+  if ($_[0] and ref $_[0] eq "ARRAY"){
+    my $ref=shift;
+    @_=@$ref;
+  }
+  my $username = shift;
+  my @jobids= @_;	
 	
- my @input= shift;
- my $username = $input[0][0];
- my @jobids= $input[0][1];
-	
-  #my $username = shift;
-  #my @jobids=@_;
-  
   my $date = time;
-  my $result=
-    my $jobtag;
+  my $result = my $jobtag;
 
   my $cnt=0;
   foreach (@jobids) {
@@ -255,8 +252,7 @@ sub getJobInfo {
   }
 
   $self->info( "Asking for Jobinfo by $username and jobid's @jobids ..." );
-  my $allparts = $self->{DB}->query("select count(*) as count, min(started) as started, 
-  max(finished) as finished, status from QUEUE join QUEUE_STATUS using (statusid)  WHERE $jobtag GROUP BY status");
+  my $allparts = $self->{DB}->query("select count(*) as count, status from QUEUE join QUEUE_STATUS using (statusid) WHERE $jobtag GROUP BY status");
 
   for (@$allparts) {
     $result->{$_->{status}} = $_->{count};
@@ -266,8 +262,15 @@ sub getJobInfo {
 
 sub getSystem {
   my $this = shift;
+  if ($_[0] and ref $_[0] eq "ARRAY"){
+    my $ref=shift;
+    @_=@$ref;
+  }
   my $username = shift;
-  my @jobtag=@_;
+  my @jobtag= @_;
+	
+  $self->info("Input username: ".Dumper($username)." jobtag: ".Dumper(@jobtag));	
+
   my $date = time;
 
   $self->info( "Asking for Systeminfo by $username and jobtags @jobtag..." );
@@ -276,27 +279,27 @@ sub getSystem {
   $joinjdljobtag = join '%',@jobtag;
   
   if ($#jobtag >= 0) {
-    $jdljobtag = "JDL like '%Jobtag = %{%$joinjdljobtag%};%'";
+    $jdljobtag = "origJdl like '%Jobtag = %{%$joinjdljobtag%};%'";
   } else {
-    $jdljobtag="JDL like '%'"; 
+    $jdljobtag="origJdl like '%'"; 
   }
   
   $self->info( "Query does $#jobtag $jdljobtag ..." );
-  my $allparts = $self->{DB}->getFieldsFromQueueEx("count(*) as count, statusId", "WHERE $jdljobtag GROUP BY statusId");
+  my $allparts = $self->{DB}->query("select count(*) as count, status from QUEUE join QUEUE_STATUS using(statusId) join QUEUEJDL using(queueId) WHERE $jdljobtag GROUP BY statusId");
   
-  my $userparts = $self->{DB}->getFieldsFromQueueEx("count(*) as count, statusId", "WHERE submitHost like '$username\@%' and $jdljobtag GROUP BY statusId");
+  my $userparts = $self->{DB}->query("select count(*) as count, status from QUEUE join QUEUE_STATUS using(statusId) join QUEUEJDL using(queueId) join QUEUE_USER using (userId) WHERE user='$username' and $jdljobtag GROUP BY statusId");
   
-  my $allsites  = $self->{DB}->getFieldsFromQueueEx("count(*) as count, site"," WHERE $jdljobtag Group by site");
+  my $allsites  = $self->{DB}->query("select count(*) as count, site from QUEUE join QUEUEJDL using(queueId) join SITEQUEUES using(siteId) WHERE $jdljobtag Group by site");
 
-  my $sitejobs =$self->{DB}->getFieldsFromQueueEx("count(*) as count, site, statusId", "WHERE $jdljobtag GROUP BY concat(site, statusId)");
+  my $sitejobs =$self->{DB}->query("select count(*) as count, site, qs.status from QUEUE join QUEUE_STATUS qs using(statusId) join QUEUEJDL using(queueId) join SITEQUEUES sq using(siteId) WHERE $jdljobtag GROUP BY concat(site, qs.status)");
 
-  my $totalcost = $self->{DB}->queryRow("SELECT sum(cost) as cost FROM QUEUE WHERE $jdljobtag"); 
+  my $totalcost = $self->{DB}->queryRow("SELECT sum(cost) as cost FROM QUEUE join QUEUEJDL using(queueId) join QUEUEPROC using(queueId) WHERE $jdljobtag"); 
 
-  my $totalusercost = $self->{DB}->queryRow("SELECT sum(cost) as cost FROM QUEUE WHERE submitHost like '$username\@%' and $jdljobtag");
+  my $totalusercost = $self->{DB}->queryRow("SELECT sum(cost) as cost from QUEUE join QUEUEJDL using(queueId) join QUEUEPROC using(queueId) join QUEUE_USER using (userId) WHERE user='$username' and $jdljobtag");
   
-  my $totalUsage = $self->{DB}->queryRow("SELECT sum(cpu*cpuspeed/100.0) as cpu,sum(rsize) as rmem,sum(vsize) as vmem FROM QUEUE WHERE statusId=10 and $jdljobtag");
+  my $totalUsage = $self->{DB}->queryRow("SELECT sum(cpu*cpuspeed/100.0) as cpu,sum(rsize) as rmem,sum(vsize) as vmem FROM QUEUE join QUEUEJDL using(queueId) join QUEUEPROC using(queueId) WHERE statusId=10 and $jdljobtag");
   
-  my $totaluserUsage = $self->{DB}->queryRow("SELECT sum(cpu*cpuspeed/100.0) as cpu,sum(rsize) as rmem,sum(vsize) as vmem FROM QUEUE WHERE submitHost like '$username\@%' and statusId=10 and $jdljobtag");
+  my $totaluserUsage = $self->{DB}->queryRow("SELECT sum(cpu*cpuspeed/100.0) as cpu,sum(rsize) as rmem,sum(vsize) as vmem FROM QUEUE join QUEUEJDL using(queueId) join QUEUEPROC using(queueId) join QUEUE_USER using (userId) WHERE user='$username' and statusId=10 and $jdljobtag");
   
   my $resultreturn={};
   
@@ -317,15 +320,16 @@ sub getSystem {
 
 
   for (@$allparts) {
-    my $type=lc($_->{statusId});
+    my $type=lc($_->{status});
     $resultreturn->{"n$type"}=$_->{count};
   }
 
   for my $info (@$userparts) {
+  	$info->{status} = lc($info->{status});
     foreach my $status (@{AliEn::Util::JobStatus()}) {
-      if ($info->{statusId} eq lc($status)) {
-	$resultreturn->{"nuser$info->{status}"} = $info->{count};
-	last;
+      if ($info->{status} eq lc($status)) {
+	    $resultreturn->{"nuser$info->{status}"} = $info->{count};
+	    last;
       }
       
     }
@@ -346,16 +350,17 @@ sub getSystem {
     $DEBUG and $self->debug(1, "Cheking site $arrayhash->{site}");
     push @sitearray, $arrayhash->{site};
     my $site={};
-    foreach (@$sitejobs) {
+    foreach (@$sitejobs) {    	
       if ($arrayhash->{site} eq $_->{site}) {
-	$site->{$site->{statusId}}=$_->{count};
+	    $site->{$_->{status}}=$_->{count};
       }
     }
+    
     push @sitearray, ($site->{DONE} or "0");
     push @sitearray, ($site->{RUNNING} or "0");
     push @sitearray, ($site->{SAVING} or "0");
     push @sitearray, ($site->{ZOMBIE} or "0");
-    push @sitearray, ($site->{QUEUED} or "0");
+    push @sitearray, ($site->{QUEUE} or "0");
     push @sitearray, ($site->{STARTED} or "0");
     my $totalError=0;
     foreach (grep (/^ERROR_/, keys %{$site})){
@@ -422,7 +427,7 @@ sub getSystem {
     }
     $resultreturn->{'sitestat'} .= "###";		    
   }
-
+  
   return ($resultreturn);
 }
 
