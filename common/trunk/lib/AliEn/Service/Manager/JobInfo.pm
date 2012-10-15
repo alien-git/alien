@@ -269,8 +269,6 @@ sub getSystem {
   my $username = shift;
   my @jobtag= @_;
 	
-  $self->info("Input username: ".Dumper($username)." jobtag: ".Dumper(@jobtag));	
-
   my $date = time;
 
   $self->info( "Asking for Systeminfo by $username and jobtags @jobtag..." );
@@ -360,7 +358,7 @@ sub getSystem {
     push @sitearray, ($site->{RUNNING} or "0");
     push @sitearray, ($site->{SAVING} or "0");
     push @sitearray, ($site->{ZOMBIE} or "0");
-    push @sitearray, ($site->{QUEUE} or "0");
+    push @sitearray, ($site->{QUEUED} or "0");
     push @sitearray, ($site->{STARTED} or "0");
     my $totalError=0;
     foreach (grep (/^ERROR_/, keys %{$site})){

@@ -17,8 +17,6 @@ use AliEn::Util;
 
 @ISA = qw(AliEn::Service::Optimizer);
 
-use Data::Dumper;
-
 my $self;
 
 sub initialize {
@@ -134,6 +132,11 @@ sub copyInput {
   my $procid = shift;
   my $job_ca = shift;
   my $user   = shift;
+  my $ef_se_org = shift; # to check user SE reqs with inputdata SE
+  my $checkSites = keys %$ef_se_org;
+  my $no_se_org = shift; # to check user !SE reqs with inputdata SE (if undef $ef_se_org)
+  my $ef_se;
+  my $return;
   $self->debug(1, "At the beginnning of copyInput of $procid");
   my ($ok, $split) = $job_ca->evaluateAttributeString("Split");
   $self->debug(1, "Already evaluated the split");
@@ -180,11 +183,24 @@ sub copyInput {
         $self->putJobLog($procid, "error", "Error checking the file $file");
         die("The file $file isn't in any SE");
       }
-        
+
+	  if($checkSites){
+      	%$ef_se = %$ef_se_org;
+      	foreach my $site (keys %$ef_se){
+      		grep { /$site/i } @sites or delete $ef_se->{$site};
+      	}
+      } elsif (keys %$no_se_org){
+      	for (my $a=0; $a<scalar(@sites); $a++) { 
+      		$no_se_org->{uc($sites[$a])} and splice(@sites, $a, 1);
+      	}
+      }
+            
+      $checkSites and !keys %$ef_se and $return = { failed => 1 } and return;
+      !$checkSites and keys %$no_se_org and !scalar(@sites) and $return = { failed => 1 } and return;
+	    
       my $sePattern = join("_", @sites);
 
-        #This has to be done only for the input data"
-      if (!grep (/^$sePattern$/, @allreqPattern)) {
+      if (!$checkSites && !grep (/^$sePattern$/, @allreqPattern)) {
         $self->putJobLog($procid, "trace",
           "Adding the requirement to '@sites' due to $file");
 
@@ -209,8 +225,11 @@ sub copyInput {
     $self->info("Something went wrong while copying the input: $@");
     return;
   }
+  
+  $return and return $return;
+  $checkSites and $self->putJobLog($procid, "trace", "JDL requirements over SEs restricted by user (member.CloseSE)");
+  
   if ($size) {
-
     #let's round up the size
     $size = (int($size / (1024 * 8192) + 1)) * 8192;
 

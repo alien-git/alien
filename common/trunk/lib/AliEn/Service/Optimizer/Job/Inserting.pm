@@ -3,6 +3,7 @@ package AliEn::Service::Optimizer::Job::Inserting;
 use strict;
 
 use AliEn::Service::Optimizer::Job;
+use Data::Dumper;
 
 use vars qw(@ISA);
 push(@ISA, "AliEn::Service::Optimizer::Job");
@@ -56,41 +57,44 @@ sub updateInserting {
       die("incorrect JDL input");
     }
 
-    my $done = $self->copyInput($queueid, $job_ca, $user)
-      or die("error copying the input\n");
-
     my ($ok, $req) = $job_ca->evaluateExpression("Requirements");
     ($ok and $req)
       or die("error getting the requirements of the jdl");
     $self->debug(1, "Let's create the entry for the jobagent");
     $req =~ s{ \&\& \( other.LocalDiskSpace > \d+ \)}{}g;
 
-    $done->{requirements} and $req .= " && $done->{requirements}";
+    ($status, my $ef_se, my $no_se) = $self->checkRequirements($req, $queueid);
 
-    $ok = $job_ca->set_expression("Requirements", $req)
-      or die("ERROR SETTING THE REQUIREMENTS TO $req");
-    $set->{origjdl} = $job_ca->asJDL();
-
-    ($ok, my $stage) = $job_ca->evaluateExpression("Prestage");
-    if ($stage) {
-      $self->putJobLog($queueid, "info", "The job asks for its data to be pre-staged");
-      $status = "TO_STAGE";
-      $req .= "  && other.TO_STAGE==1 ";
-    }
-
-    ($status) = $self->checkRequirements($req, $queueid, $status);
-
-    if ($status ne "FAILED") {
-      $req = $self->getJobAgentRequirements($req, $job_ca);
-      $set->{agentId} = $self->{DB}->insertJobAgent($req)
-        or die("error creating the jobagent entry\n");
+    if ($status ne "FAILED"){
+	    my $done = $self->copyInput($queueid, $job_ca, $user, $ef_se, $no_se)
+	      or die("error copying the input\n");
+		
+	    $done->{failed} and $self->putJobLog($queueid, "state", "Job going to FAILED, some InputData is stored in excluded SEs") 
+	                    and $status="FAILED" and return;
+	
+	    $done->{requirements} and $req .= " && $done->{requirements}";
+	
+	    $ok = $job_ca->set_expression("Requirements", $req)
+	      or die("ERROR SETTING THE REQUIREMENTS TO $req");
+	    $set->{origjdl} = $job_ca->asJDL();
+	
+	    ($ok, my $stage) = $job_ca->evaluateExpression("Prestage");
+	    if ($stage) {
+	      $self->putJobLog($queueid, "info", "The job asks for its data to be pre-staged");
+	      $status = "TO_STAGE";
+	      $req .= "  && other.TO_STAGE==1 ";
+	    }
+	
+	    $req = $self->getJobAgentRequirements($req, $job_ca);
+	    $set->{agentId} = $self->{DB}->insertJobAgent($req)
+	      or die("error creating the jobagent entry\n");
     }
   };
   my $return = 1;
   if ($@) {
     $self->info("Error inserting the job: $@");
     $status = "ERROR_I";
-    $self->{DB}->deleteJobToken($queueid);
+    $self->{DB}->deleteJobToken($queueid); # del ?
 
     undef $return;
   }
@@ -110,7 +114,7 @@ sub checkRequirements {
   my $self    = shift;
   my $tmpreq  = shift;
   my $queueid = shift;
-  my $status  = shift;
+  my $status  = "WAITING";
   my $msg     = "";
   my $no_se   = {};
 
@@ -118,11 +122,13 @@ sub checkRequirements {
     $no_se->{uc($1)} = 1;
   }
   my $ef_site = {};
+  my $ef_se = {};
   my $need_se = 0;
   while ($tmpreq =~ s/member\(other.CloseSE,"([^:]*::([^:]*)::[^:]*)"\)//si) {
     $need_se = 1;
     $no_se->{uc($1)} and $self->info("Ignoring the se $1 (because of !closese)") and next;
     $ef_site->{uc($2)} = {};
+    $ef_se->{$1} = {};
   }
 
   $need_se and !keys %$ef_site and $msg .= "conflict with SEs";
@@ -154,10 +160,11 @@ sub checkRequirements {
     $need_ce and not $ef_ce and $msg .= "The CEs requested by the user cannot execute this job";
 
   }
+    
   $msg
     and $status = "FAILED"
     and $self->putJobLog($queueid, "state", "Job going to FAILED, problem with requirements: $msg");
-  return $status;
+  return $status, $ef_se, $no_se;
 }
 
 sub checkNumberCESite {
