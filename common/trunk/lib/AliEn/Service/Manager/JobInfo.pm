@@ -230,9 +230,16 @@ sub getExecHost {
 }
 
 sub getJobInfo {
+	
   my $this = shift;
-  my $username = shift;
-  my @jobids=@_;
+	
+ my @input= shift;
+ my $username = $input[0][0];
+ my @jobids= $input[0][1];
+	
+  #my $username = shift;
+  #my @jobids=@_;
+  
   my $date = time;
   my $result=
     my $jobtag;

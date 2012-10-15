@@ -1588,20 +1588,20 @@ sub f_jobsystem {
 
 	my $done;
 	if (@jobtag) {
-		$done = $self->{RPC}->CallRPC("Manager/JobInfo", $callcommand, $username, @jobtag);
+		($done) = $self->{RPC}->CallRPC("Manager/JobInfo", $callcommand, $username, @jobtag);
 	} else {
-		$done = $self->{RPC}->CallRPC("Manager/JobInfo", $callcommand, $username);
+		($done) = $self->{RPC}->CallRPC("Manager/JobInfo", $callcommand, $username);
 	}
-
 	my $error  = "";
-	my $result = "";
+	#my $result = "";
 
-	$done and $result = $done->result;
+	#$done and $result = $done->result;
+	#$done and $result = $done;
 
 	($done) or $error = "Error connecting to the Manager/Job !!";
-	($done) and (!$result) and $error = "The Manager/Job did not return anything for getSystem";
+	#($done) and (!$result) and $error = "The Manager/Job did not return anything for getSystem";
 
-	$result and ($result eq "-1") and $error = $done->paramsout || "Error reading result of the Manager/Job";
+	#$result and ($result eq "-1") and $error = $done->paramsout || "Error reading result of the Manager/Job";
 
 	if ($error) {
 		$self->info("The Manager/Job returned error $error");
@@ -1610,11 +1610,11 @@ sub f_jobsystem {
 
 	#    printf("$result\n");
 	if ($callcommand eq "getJobInfo") {
-		$self->f_printjobinfo($result);
+		$self->f_printjobinfo($done);
 	}
 
 	if ($callcommand eq "getSystem") {
-		$self->f_printsystem($result);
+		$self->f_printsystem($done);
 	}
 }
 
@@ -3962,7 +3962,7 @@ sub f_jquota_set {
 	  my $field = shift or $self->info($self->f_jquota_set_HELP()) and return;
 	  my $value = shift;
 	  (defined $value) or $self->info($self->f_jquota_set_HELP()) and return;
-	  if ($field !~ /(maxUnfinishedJobs)|(maxTotalRunningTime)|(maxTotalCpuCost)|(priority)|(maxParallelJobs)//) {
+	  if ($field !~ /(maxUnfinishedJobs)|(maxTotalRunningTime)|(maxTotalCpuCost)|(priority)|(maxParallelJobs)/) {
 		  $self->info("Wrong field name! Choose one of them: maxUnfinishedJobs, maxTotalRunningTime, maxTotalCpuCost, priority, maxParallelJobs\n");
 	  	return;
 	  }
