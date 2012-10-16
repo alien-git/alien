@@ -3,7 +3,6 @@ package AliEn::Service::Optimizer::Job::Inserting;
 use strict;
 
 use AliEn::Service::Optimizer::Job;
-use Data::Dumper;
 
 use vars qw(@ISA);
 push(@ISA, "AliEn::Service::Optimizer::Job");
@@ -63,10 +62,10 @@ sub updateInserting {
     $self->debug(1, "Let's create the entry for the jobagent");
     $req =~ s{ \&\& \( other.LocalDiskSpace > \d+ \)}{}g;
 
-    ($status, my $ef_se, my $no_se) = $self->checkRequirements($req, $queueid);
+    ($status, my $ef_site, my $no_site) = $self->checkRequirements($req, $queueid);
 
     if ($status ne "FAILED"){
-	    my $done = $self->copyInput($queueid, $job_ca, $user, $ef_se, $no_se)
+	    my $done = $self->copyInput($queueid, $job_ca, $user, $ef_site, $no_site)
 	      or die("error copying the input\n");
 		
 	    $done->{failed} and $self->putJobLog($queueid, "state", "Job going to FAILED, some InputData is stored in excluded SEs") 
@@ -116,19 +115,18 @@ sub checkRequirements {
   my $queueid = shift;
   my $status  = "WAITING";
   my $msg     = "";
-  my $no_se   = {};
+  my $no_site   = {};
 
-  while ($tmpreq =~ s/!member\(other.CloseSE,"([^:]*::[^:]*::[^:]*)"\)//si) {
-    $no_se->{uc($1)} = 1;
+  while ($tmpreq =~ s/!member\(other.CloseSE,"([^:]*::([^:]*)::[^:]*)"\)//si) {
+    $no_site->{uc($2)} = 1;
   }
+    
   my $ef_site = {};
-  my $ef_se = {};
   my $need_se = 0;
   while ($tmpreq =~ s/member\(other.CloseSE,"([^:]*::([^:]*)::[^:]*)"\)//si) {
     $need_se = 1;
-    $no_se->{uc($1)} and $self->info("Ignoring the se $1 (because of !closese)") and next;
+    $no_site->{uc($2)} and $self->info("Ignoring the se $1 (because of !closese)") and next;
     $ef_site->{uc($2)} = {};
-    $ef_se->{$1} = {};
   }
 
   $need_se and !keys %$ef_site and $msg .= "conflict with SEs";
@@ -153,7 +151,10 @@ sub checkRequirements {
       $need_ce = 1;
       $no_ce->{uc($1)} and $self->info("Ignoring the ce $1") and next;
       if ($need_se) {
-        $ef_site->{uc($2)} or $self->info("This CE is not good for the sites that we have") and next;
+        $ef_site->{uc($2)} or $self->info("This CE ($1) is not good for the sites that we have") and next;
+      }
+      elsif(keys %$no_site){
+      	$no_site->{uc($2)} and $self->info("This CE ($1) is not good for the sites that we have") and next;	
       }
       $ef_ce = 1;
     }
@@ -164,7 +165,7 @@ sub checkRequirements {
   $msg
     and $status = "FAILED"
     and $self->putJobLog($queueid, "state", "Job going to FAILED, problem with requirements: $msg");
-  return $status, $ef_se, $no_se;
+  return $status, $ef_site, $no_site;
 }
 
 sub checkNumberCESite {

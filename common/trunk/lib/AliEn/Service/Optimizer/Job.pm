@@ -132,11 +132,11 @@ sub copyInput {
   my $procid = shift;
   my $job_ca = shift;
   my $user   = shift;
-  my $ef_se_org = shift; # to check user SE reqs with inputdata SE
-  my $checkSites = keys %$ef_se_org;
-  my $no_se_org = shift; # to check user !SE reqs with inputdata SE (if undef $ef_se_org)
-  my $ef_se;
-  my $return;
+  my $ef_site_org = shift; # to check user SE reqs with inputdata SE
+  my $checkSites = keys %$ef_site_org;
+  my $no_site_org = shift; # to check user !SE reqs with inputdata SE (if undef $ef_site_org)
+  my $ef_site;
+  my $return;  
   $self->debug(1, "At the beginnning of copyInput of $procid");
   my ($ok, $split) = $job_ca->evaluateAttributeString("Split");
   $self->debug(1, "Already evaluated the split");
@@ -185,18 +185,19 @@ sub copyInput {
       }
 
 	  if($checkSites){
-      	%$ef_se = %$ef_se_org;
-      	foreach my $site (keys %$ef_se){
-      		grep { /$site/i } @sites or delete $ef_se->{$site};
+      	%$ef_site = %$ef_site_org;
+      	foreach my $site (keys %$ef_site){
+      		grep { /$site/i } @sites or delete $ef_site->{$site};
       	}
-      } elsif (keys %$no_se_org){
-      	for (my $a=0; $a<scalar(@sites); $a++) { 
-      		$no_se_org->{uc($sites[$a])} and splice(@sites, $a, 1);
+      } elsif (keys %$no_site_org){
+      	for (my $a=0; $a<scalar(@sites); $a++) {
+      		my @isite = split('::', $sites[$a]);
+      		$no_site_org->{uc($isite[1])} and splice(@sites, $a, 1);
       	}
       }
             
-      $checkSites and !keys %$ef_se and $return = { failed => 1 } and return;
-      !$checkSites and keys %$no_se_org and !scalar(@sites) and $return = { failed => 1 } and return;
+      $checkSites and !keys %$ef_site and $return = { failed => 1 } and return;
+      !$checkSites and keys %$no_site_org and !scalar(@sites) and $return = { failed => 1 } and return;
 	    
       my $sePattern = join("_", @sites);
 
@@ -227,7 +228,7 @@ sub copyInput {
   }
   
   $return and return $return;
-  $checkSites and $self->putJobLog($procid, "trace", "JDL requirements over SEs restricted by user (member.CloseSE)");
+  $checkSites and $self->putJobLog($procid, "trace", "Requirements over sites restricted by user (member.CloseSE)");
   
   if ($size) {
     #let's round up the size
