@@ -427,7 +427,7 @@ sub initialize {
     JOBSTOMERGE => {
       columns => {masterId => "int(11) not null primary key"},
       id      => "masterId",
-      extra_index=>[ "foreign key (masterId) references QUEUE(queueId) on delete cascade" ],
+      extra_index=>["index(masterId)", "foreign key (masterId) references QUEUE(queueId) on delete cascade" ],
       order=>18
     },
     STAGING => {
