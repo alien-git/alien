@@ -1665,7 +1665,7 @@ sub resubmitJob{
 	
 	$self->do("update QUEUEJDL set resultsJdl=null,path=null where queueid=?",{bind_values=>[$queueid]} );
 	my $status='WAITING';
-	my $data=$self->queryRow("select siteid,statusId from QUEUE where queueid=?", undef, {bind_values=>[$queueid]})
+	my $data=$self->queryRow("select siteid,statusId,masterjob from QUEUE where queueid=?", undef, {bind_values=>[$queueid]})
 	 or $self->info("Error getting the previous status of the job ") and return;
 	 
 	my $previousStatus=AliEn::Util::statusName($data->{statusId});
@@ -1673,9 +1673,10 @@ sub resubmitJob{
 	$self->info("UPDATING $previousStatus and $previousSiteId");
 	
 	my $unassignedId=$self->findSiteId("unassigned::site");
+
+	$data->{masterjob}  and $status='INSERTING';
+  $previousStatus =~ /^ERROR_I$/ and $status='INSERTING';
  	
-	$self->queryValue("select 1 from QUEUE where queueid=? and masterjob=1", undef, {bind_values=>[$queueid]})
-	  and $status='INSERTING';
 	$self->do("UPDATE QUEUE SET statusId= ? ,resubmission= resubmission+1 ,started= '' ,
                  finished= '' ,exechostid= null,siteid=$unassignedId  WHERE queueid=? ",
 		{bind_values=>[AliEn::Util::statusForML($status), $queueid]	} );
