@@ -301,12 +301,12 @@ sub doOperation : Public  {
   $self->info("$$ doOperation DONE for user $user (and @_) result: @info, length:" . scalar(@info));
   
   my $time = Time::HiRes::time() - $before;
-  
+
   my $infoNames = join('', @info);
   my @InfoArray=split('\&', $infoNames);
-  
+    
   if ($#InfoArray <= 0 and $InfoArray[0] !=1 ){
-     $self->logEntry("$user $op", $time, undef, \@_);  
+     $self->logEntry("$user $op", $time, undef, \@_);
   } else {
   	 $self->logEntry("$user $op", $time, \@InfoArray);
   }
@@ -337,14 +337,12 @@ sub logEntry {
   	my $failureDetails = shift;
   	my $operation = ${$failureDetails}[0];
   	my $var = ${$failureDetails}[1];
-  	if (defined $var)
+  	if (defined $var && ref($var) eq "HASH")
   	{
-  		my $lfn = $var->{lfn};
-  		my $se = $var->{wishedSE};
-  		$message .= " FAILED $operation $lfn $se";
+  		$message .= " FAILED $operation $var->{lfn} $var->{wishedSE}";
   	}
   }
-
+  
 my $month = (1+$time[4]);
 my $day = $time[3];
 if ($month < 10) {
