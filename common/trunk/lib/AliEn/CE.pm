@@ -1813,7 +1813,7 @@ sub getPsFromDB {
   
   if ($options->{status}){
     for my $s (@{$options->{status}}){
-       push @userStatus, "statusId='$s'";
+       push @userStatus, AliEn::Util::statusForML($s);
     }
   }
   @userStatus and $status="statusId in (".join(',', @userStatus).")" ;
@@ -1830,7 +1830,7 @@ sub getPsFromDB {
   ($allStatus) and  $status = "1=1";
    
   
-  my $where = "WHERE ( $status ) $site ";
+  my $where = "WHERE $status $site ";
 
 
   $options->{user} and $where.=" and user='$options->{user}'";
@@ -1849,7 +1849,6 @@ sub getPsFromDB {
   $self->info( "In getPs getting data from database \n $where" );
 
 
-	#my (@ok) = $self->{DB}->query($query);
   my $rresult = $self->{TASK_DB}->query("select q.queueId, st.status, command name, e.host execHost, 
      s.host submitHost, runtime, cpu, mem, cputime, rsize, vsize, ncpu, cpufamily, cpuspeed, p.cost, 
        maxrsize, maxvsize, site, n.host node, q.split, procinfotime,received,q.started,finished,user
@@ -1865,18 +1864,30 @@ sub getPsFromDB {
   $DEBUG and $self->debug(1, "In getPs getting ps done" );
 
   my @jobs;
+    
   for (@$rresult) {
     $DEBUG and $self->debug(1, "Found jobid $_->{queueId}");
-
+	$_->{cost} or $_->{cost}=0;
+	$_->{runtime} or $_->{runtime}=0;
+    $_->{mem} or $_->{mem} = 0;
+    $_->{cputime} or $_->{cputime} = 0;
+    $_->{cpu} or $_->{cpu} = 0;
+    $_->{rsize} or $_->{rsize} = 0;
+    $_->{vsize} or $_->{vsize} = 0;
+    $_->{ncpu} or $_->{ncpu} = 0;
+    $_->{cpufamily} or $_->{cpufamily} = 0;
+    $_->{cpuspeed} or $_->{cpuspeed} = 0;
+    $_->{maxrsize} or $_->{maxrsize} = 0;
+    $_->{maxvsize} or $_->{maxvsize} = 0;
+    
     $_->{cost} = int ($_->{cost});
-    push @jobs, join ("###", $_->{queueId}, $_->{statusId}, $_->{name}, $_->{execHost}, $_->{submitHost},
-		      $_->{runtime}, $_->{cpu}, $_->{mem}, $_->{cputime}, $_->{rsize}, $_->{vsize},
-		      $_->{ncpu}, $_->{cpufamily}, $_->{cpuspeed}, $_->{cost}, $_->{maxrsize}, $_->{maxvsize}, $_->{site},$_->{node},1,$_->{split},$_->{procinfotime},$_->{received},$_->{started},$_->{finished});
+#    push @jobs, join ("###", $_->{queueId}, $_->{status}, $_->{name}, $_->{execHost}, $_->{submitHost},
+#		      $_->{runtime}, $_->{cpu}, $_->{mem}, $_->{cputime}, $_->{rsize}, $_->{vsize},
+#		      $_->{ncpu}, $_->{cpufamily}, $_->{cpuspeed}, $_->{cost}, $_->{maxrsize}, $_->{maxvsize}, $_->{site},$_->{node},1,$_->{split},$_->{procinfotime},$_->{received},$_->{started},$_->{finished});
+     push @jobs, $_;
   }
 
-  (@jobs) or (push @jobs, "\n");
-
-  $self->info( "ps done with $#jobs entries");
+  $self->info( "ps done with ".scalar(@jobs)." entries");
 
   return  \@jobs ;
 }
@@ -1986,7 +1997,9 @@ sub f_ps {
 	my @args    = @_;
 	my $verbose = 1;
 	my @outputarray;
+    my $titles;	
 	my $output;
+	my $first=1;
 
   $self->info("At the beginning of ps, '@_'");
 	my $subcommands = {
@@ -2024,21 +2037,19 @@ sub f_ps {
 	
   $self->debug(1,Dumper(\%options));
 
-	my $result = $self->getPsFromDB(\%options);
-  $result or return;
-
+	my $result; 
+	($result) = $self->getPsFromDB(\%options) or return;
 	my $error  = "";
 
 	my @jobs = @$result;
 	my $job;
 
-	#    printf STDOUT " JobId\tStatus\t\tCommand name\t\t\t\t\tExechost\n";
 	my $username;
 	my $now = time;
 	foreach $job (@jobs) {
 	  foreach my $field  ('site', 'node','mem', 'cost','runtime' ){
           $job->{$field} or $job->{$field}='';
-    }
+      }
 
 		$job->{procinfotime} or $job->{procinfotime} = $now;
 
@@ -2048,8 +2059,11 @@ sub f_ps {
 		if ($job->{split}) {
 			$indentor = "-";
 			$exdentor = "";
-		}
-    my $status=$job->{status};
+		}		
+    	
+    	my $titles;
+    	    	
+    	my $status=$job->{status};
 		$status =~ s/RUNNING/R/;
 		$status =~ s/SAVING/SV/;
 		$status =~ s/OVER_WAITING/OW/;
@@ -2086,19 +2100,28 @@ sub f_ps {
 		$status   =~ s/SPLIT/RS/;
 		$status   =~ s/ZOMBIE/Z/;
 		
-				my $printCpu = $job->{cpu} || "-";
+		my $printCpu = $job->{cpu} || "-";
 		if ($options{x}) {
-		    $output = sprintf "%-10s %s%-6s%s %-2s    %-6s  %-5s %-6s  %-6s  %-10s", $job->{user}, $indentor, $job->{queueId},
+			$titles = sprintf "%-10s %s%-9s%s %-8s    %-6s  %-5s %-6s  %-6s  %-10s", "User", $indentor, "queueId",
+				$exdentor, "Status", $printCpu, "Mem", "Cost", "Runtime", "Command";
+		    $output = sprintf "%-10s %s%-9s%s %-8s    %-6s  %-5s %-6s  %-6s  %-10s", $job->{user}, $indentor, $job->{queueId},
 				$exdentor, $status, $printCpu, $job->{mem}, $job->{cost}, $job->{runtime}, $job->{name};
 		} elsif ($options{l}) {
-			$output = sprintf "%-10s %s%-6s%s %-2s    %-8s %-8s %-6s  %-5s %-6s  %-6s  %-10s", $job->{user}, $indentor, $job->{queueId},
+			$titles = sprintf "%-10s %s%-9s%s %-8s    %-8s %-8s %-6s  %-5s %-6s  %-6s  %-10s", "User", $indentor, "queueId",
+				$exdentor, "Status", "Maxrsize", "Maxvsize", "CPU", "Mem", "Cost", "Runtime", "Command";
+			$output = sprintf "%-10s %s%-9s%s %-8s    %-8s %-8s %-6s  %-5s %-6s  %-6s  %-10s", $job->{user}, $indentor, $job->{queueId},
 				$exdentor, $status, $job->{maxrsize}, $job->{maxvsize}, $printCpu, $job->{mem}, $job->{cost}, $job->{runtime}, $job->{name};
 		} elsif ($options{X}) {
-			$output = sprintf "%-10s %s%-6s%s %-26s %-2s    %-8s %-8s %-6s  %-5s  %-6s  %-8s %-1s %-2s %-4s %-10s", $job->{user},
+			$titles = sprintf "%-10s %s%-9s%s %-26s %-8s    %-8s %-8s %-6s  %-5s  %-6s  %-8s %-1s %-2s %-4s %-10s", "User",
+				$indentor, "queueId", $exdentor, "Site", "Status", "Maxrsize", "Maxvsize", "CPU", "Mem", "Cost", "Runtime", "NCPU",
+				"Cpufamily", "Cpuspeed", "Command";
+			$output = sprintf "%-10s %s%-9s%s %-26s %-8s    %-8s %-8s %-6s  %-5s  %-6s  %-8s %-1s %-2s %-4s %-10s", $job->{user},
 				$indentor, $job->{queueId}, $exdentor, $job->{site}, $status, $job->{maxrsize}, $job->{maxvsize}, $printCpu, $job->{mem}, $job->{cost}, $job->{runtime}, $job->{ncpu},
 				$job->{cpufamily}, $job->{cpuspeed}, $job->{name};
 		} elsif ($options{W}) {
-			$output = sprintf "%s%-6s%s %-29s %-30s %-26s %-10s %-3s %-02s:%-02s:%-02s.%-02s", $indentor, $job->{queueId}, $exdentor,
+			$titles = sprintf "%s%-9s%s %-29s %-30s %-26s %-10s %-8s %-02s:%-02s:%-02s.%-02s", $indentor, "queueId", $exdentor,
+				"Site", "Node", "execHost", "Command", "Status", "Procinfotime";
+			$output = sprintf "%s%-9s%s %-29s %-30s %-26s %-10s %-8s %-02s:%-02s:%-02s.%-02s", $indentor, $job->{queueId}, $exdentor,
 				$job->{site}, $job->{node}, $job->{execHost}, $job->{name}, $status, (gmtime($now - $job->{procinfotime}))[ 7, 2, 1, 0 ];
 		} elsif ($options{T}) {
 			my $rt = "....";
@@ -2118,17 +2141,20 @@ sub f_ps {
 			chomp $st;
 			chomp $ft;
 
-			$output = sprintf "%-10s %s%-6s%s %-2s    %-24s  %-24s  %-24s  %-10s", $job->{user}, $indentor, $job->{queueId}, $exdentor,
+			$titles = sprintf "%-10s %s%-9s%s %-8s    %-24s  %-24s  %-24s  %-10s", "User", $indentor, "queueId", $exdentor, "Status", "rt", "st",
+			"ft", "Command";
+			$output = sprintf "%-10s %s%-9s%s %-8s    %-24s  %-24s  %-24s  %-10s", $job->{user}, $indentor, $job->{queueId}, $exdentor,
 				$status, $rt, $st, $ft, $job->{name};
 
 		} else {
 
 			# no option given
-			$output = sprintf "%-10s %s%-6s%s %-2s  %-8s  %-10s", $job->{user}, $indentor, $job->{queueId}, $exdentor, $status,
-				$job->{runtime}, $job->{name};
+			$titles = sprintf "%-10s %s%-9s%s %-8s  %-8s  %-10s", "User", $indentor, "queueId", $exdentor, "Status", "Command";
+			$output = sprintf "%-10s %s%-9s%s %-8s  %-8s  %-10s", $job->{user}, $indentor, $job->{queueId}, $exdentor, $status, $job->{name};
 		}
 		push @outputarray, $output;
-		$verbose and $self->info($output, undef, 0);
+		$first and $self->info($titles) and $first=0;
+		$verbose and $self->info($output);
 	}
 
 	if ($options{j}) {

@@ -33,7 +33,7 @@ $config
   
 my $crtHost = $config->{HOST} || $config->{SITE_HOST} || Net::Domain::hostfqdn();
 
-print Dumper($config);
+#print Dumper($config);
 
 my $configHost = exists($serviceConfigMap{$serviceName}) ? $serviceConfigMap{$serviceName}->[0] : uc($serviceName) . "_HOST";
 my $configPort = exists($serviceConfigMap{$serviceName}) ? $serviceConfigMap{$serviceName}->[1] : uc($serviceName) . "_PORT";
