@@ -111,7 +111,7 @@ sub checkSubJobs {
   print "Checking if $id was split in $jobs (and all of them finished with DONE\n";
   my ($status) = $cat->execute("top",       "-id", $id)        or exit(-2);
   my ($info)   = $cat->execute("masterJob", $id,   "-printid") or exit(-2);
-  $status->{statusId} eq "DONE" or print "The job is not done!!\n" and exit(-2);
+  $status->{status} eq "DONE" or print "The job is not done!!\n" and exit(-2);
 
   my ($user) = $cat->execute("whoami");
   my $subjobs = 0;

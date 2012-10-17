@@ -40,8 +40,8 @@ $cat->execute("kill", $jobId) or exit(-2);
 
 print "ok\n Checking that it is still dead...";
 my ($info)=$cat->execute("top", "-id", $jobId);
-($info and $info->{statusId} != "KILLED")
-  and print "Error, the job is still alive!! $info->{statusId}\n" and exit(-2);
+($info and $info->{status} != "KILLED")
+  and print "Error, the job is still alive!! $info->{status}\n" and exit(-2);
 
 print "ok\n Let's try to resubmit a job with inputdata... ";
 
@@ -62,8 +62,8 @@ $retsa2->{resubmission}-1==$retsb2->{resubmission} or print "Error increasing re
 
 print "ok\nThe job has been resubmitted. Let's see if $resubmitId gets to 'WAITING'...";
 ($info)=$cat->execute("top", "-id", $resubmitId) or print "Error doing top\n" and exit(-2);
-print "GOT $info->{statusId}\n";
-$info->{statusId} eq "WAITING"
+print "GOT $info->{status}\n";
+$info->{status} eq "WAITING"
   or print "THE JOB IS NOT WAITING...\n" and exit(-2);
 $cat->close;
 ok(1);

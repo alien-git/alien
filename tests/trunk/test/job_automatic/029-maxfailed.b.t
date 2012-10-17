@@ -10,9 +10,9 @@ my $cat=AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",})
   or exit (-1);
 
 my ($status)=$cat->execute("top", "-id", $id);
-print "The job is $status->{statusId}\n";
+print "The job is $status->{status}\n";
 
-$status->{statusId}=~ /DONE/ or exit(-2);
+$status->{status}=~ /DONE/ or exit(-2);
 my $repeat=1;
 while ($repeat){
   my ($log)=$cat->execute("ps", "trace", $id);

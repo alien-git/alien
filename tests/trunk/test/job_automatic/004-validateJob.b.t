@@ -21,7 +21,7 @@ my $procDir = checkOutput($cat, $id) or exit(-2);
 print "Let's try with the job that is supposed to fail\n";
 
 my ($info) = $cat->execute("top", "-id", $id2);
-$info->{statusId} eq "ERROR_V"
+$info->{status} eq "ERROR_V"
   or print "The job isn't in ERROR_V!!\n" and exit(-2);
 
 print "YUHUUU!!\n";

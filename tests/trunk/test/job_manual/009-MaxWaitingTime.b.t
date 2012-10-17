@@ -20,8 +20,8 @@ BEGIN { plan tests => 1 }
   
   ($top) or print "Error finding the job $id\n" and exit;
 
-  ($top->{statusId} ne "ERROR_EW") and 
-    print "Error, job is in $top->{statusId}, should be in ERROR_EW\n" and exit(-2);
+  ($top->{status} ne "ERROR_EW") and 
+    print "Error, job is in $top->{status}, should be in ERROR_EW\n" and exit(-2);
   print "And making sure that the trace also mentions it\n";
   my ($info)=$cat->execute("ps", "trace", $id, "all");
 

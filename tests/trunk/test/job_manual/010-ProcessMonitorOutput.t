@@ -74,7 +74,7 @@ sub waitForStatus{
   while (1) {
     my ($status)=$cat->execute("top", "-id", $id);
     $status or print "Error checking the status of the job\n" and return;
-    $status = $status->{statusId};
+    $status = $status->{status};
     $status eq $Wstatus and return 1;
     print "Status -> $status\n";
     $status=~ /((ERROR_)|(FAILED)|(DONE_WARN)|(DONE))/ and 
@@ -134,7 +134,7 @@ sub executeJDLFile{
   if (!waitForStatus($cat, $id, "WAITING", 5, 10)) {
     print "The job is not WAITING!!\n";
     my ($statusI)=$cat->execute("top", "-id", $id);
-    $statusI->{statusId} eq $status and 
+    $statusI->{status} eq $status and 
       print "However, $status is what we were expecting\n" and return 1;
     exit(-2);
   }
@@ -161,7 +161,7 @@ sub executeJDLFile{
   if ($status) {
     print "Checking that the status is $status\n";
     my ($info)=$cat->execute("top", "-id", $id);
-    $info->{statusId} eq "$status" or
+    $info->{status} eq "$status" or
       print "NOPE!! the status is $info->{statusId}\n" and  return;
   }
   return "~/alien-job-$id";

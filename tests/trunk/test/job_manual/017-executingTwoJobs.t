@@ -54,7 +54,7 @@ Requirements= other.HOST==other.HOST;
   for (my $i = 0 ; $i < 4 ; $i++) {
 	sleep(5);
 	my ($info, $info2) = $cat->execute("top", "-id", $id2, "-id", $id1);
-	$info->{statusId} eq "WAITING" and $info2->{statusId} eq "WAITING" and $ready = 1 and last;
+	$info->{status} eq "WAITING" and $info2->{status} eq "WAITING" and $ready = 1 and last;
   }
   if (not $ready) {
 	print "THE JOBS WERE NOT WAITING\n";
@@ -70,8 +70,8 @@ Requirements= other.HOST==other.HOST;
 	print "Sleeping before checking the status of the jobs\n";
 	sleep(10);
 	my ($info, $info2) = $cat->execute("top", "-id", $id1, "-id", $id2);
-	 $info->{statusId}  eq "DONE" or next;
-   $info2->{statusId} eq "DONE" or next;
+	 $info->{status}  eq "DONE" or next;
+   $info2->{status} eq "DONE" or next;
 	 print "Both jobs are done\n" and last;
   }
   $i >3  and  die("NOPE!! the jobs are not done yet\n");
