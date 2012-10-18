@@ -47,10 +47,10 @@ BEGIN { plan tests => 1 }
   my $split=0;
   foreach my $job (@jobs) {
     print "Checking the job $job->{queueId}\n";
-        ($job->{statusId} =~ /^(INSERTED)|(WAITING)|(ASSIGNED)|(STARTED)|(RUNNING)|(SAVING)|(SAVED)$/)
-          and print "ATTENTION TO JOB: $job->{queueId} was just now in status: $job->{statusId}\n"
+        ($job->{status} =~ /^(INSERTED)|(WAITING)|(ASSIGNED)|(STARTED)|(RUNNING)|(SAVING)|(SAVED)$/)
+          and print "ATTENTION TO JOB: $job->{queueId} was just now in status: $job->{status}\n"
           and $notok=1;
-    $job->{statusId}=~ /^SPLIT$/ and $split=1;
+    $job->{status}=~ /^SPLIT$/ and $split=1;
   }
   print "And now for the split\n";
   $cat->close();

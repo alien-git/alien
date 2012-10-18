@@ -30,7 +30,7 @@ print "\n\n\nIf we execute it again...\n";
 my ($info)=$cat->execute("top", "-id", $secondId)  or exit(-2);
 my ($user)=$cat->execute("whoami");
 $procDir="~/alien-job-$secondId";
-($info->{status} eq "ERROR_SV") or print "The job didn't finish in ERROR_SV but in: $info->{statusId}!!\n" and exit(-2);
+($info->{status} eq "ERROR_SV") or print "The job didn't finish in ERROR_SV but in: $info->{status}!!\n" and exit(-2);
 
 print "The output should not be registered\n";
 

@@ -162,7 +162,7 @@ sub executeJDLFile{
     print "Checking that the status is $status\n";
     my ($info)=$cat->execute("top", "-id", $id);
     $info->{status} eq "$status" or
-      print "NOPE!! the status is $info->{statusId}\n" and  return;
+      print "NOPE!! the status is $info->{status}\n" and  return;
   }
   return "~/alien-job-$id";
 }

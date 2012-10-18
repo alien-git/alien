@@ -93,8 +93,8 @@ sub executeSplitJob {
 
   if (!$options->{noSubjobs}) {
 	foreach my $job (@subjobs) {
-	  $job->{statusId} eq "DONE"
-		or print "The subjob is not done!! $job->{statusId}\n" and return;
+	  $job->{status} eq "DONE"
+		or print "The subjob is not done!! $job->{status}\n" and return;
 	  my $id = $job->{queueId};
 	  $cat->execute("ls", "$procDir/subjobs/$id") or print "The directory $procDir/$id doesn't exist" and return;
 	}
