@@ -132,7 +132,7 @@ InputData=\"${dir}split/*/*\";", "r"
   print "3. Let's submit 2 jobs (so that we can resubmit multiple jobs)\n";
   my ($id1) = $cat->execute("submit", "jdl/sum.jdl") or exit(-2);
 	$cat->execute("submit", "jdl/sum.jdl") or exit(-2);
-  waitForStatus($cat, $id1, "WAITING", 10,5) or exit(-2);
+  waitForStatus($cat, $id1, "WAITING", 5,5) or exit(-2);
   $cat_adm->execute("calculateJobQuota", "1");
   $cat->execute("jquota", "list", "$user");
   assertEqualJobs($d, $user, "unfinishedJobsLast24h", 2) or exit(-2);
