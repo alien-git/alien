@@ -51,7 +51,7 @@ sub Connect {
   }elsif($type eq "Broker/Transfer"){
     @methods=("requestTransferType");
   }elsif($type eq "Manager/JobInfo"){
-    @methods=("getTrace", "getSystem", "getJobInfo");
+    @methods=("getTrace", "getSystem", "getJobInfo", "spy");
   }
   push @methods, "status";
   $self->debug(1, "Checking if we are connected to $service");

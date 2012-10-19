@@ -154,7 +154,7 @@ sub setAlive {
       my $name = "$self->{CONFIG}->{ORG_NAME}::$self->{CONFIG}->{SITE}::$key";
       my $host = $elem->{host} || $self->{HOST};
       $self->info("Registering the $name in the IS");
-      my $response = $self->{RPC}->CallRPC(
+      my ($response) = $self->{RPC}->CallRPC(
         "IS",
         "markAlive",
         $self->{SERVICE},
@@ -177,7 +177,7 @@ sub setAlive {
 
   $self->debug(1, "Registering the service in the IS");
 
-  my $response = $self->{RPC}->CallRPC(
+  my ($response) = $self->{RPC}->CallRPC(
     "IS",
     "markAlive",
     $self->{SERVICE},

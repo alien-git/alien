@@ -65,11 +65,9 @@ sub bringRemoteFile {
 
   $DEBUG and $self->debug(1, "Asking the SE to bring the file");
 
-  my $response = $self->{RPC}->CallRPC("SE", "bringRemoteFile", $pfn, $SE, $localFile) or return;
+  my ($transferID) = $self->{RPC}->CallRPC("SE", "bringRemoteFile", $pfn, $SE, $localFile) or return;
 
   #    my $response=$self->{SE}->bringRemoteFile( $pfn, $SE, $localFile );
-
-  my $transferID = $response->result;
 
   return $self->inquireTransfer("SE", $transferID);
 }
@@ -494,11 +492,11 @@ sub resubmitTransfer {
   my $self = shift;
   my @args = @_;
   push(@args, "-reset");
-  my $res = $self->{RPC}->CallRPC("Manager/Transfer", "resubmitTransfer", @args);
+  my ($res) = $self->{RPC}->CallRPC("Manager/Transfer", "resubmitTransfer", @args);
 
   if (!$res) {
     $self->{LOGGER}->error("LCM", "In resubmitTransfer while calling resubmitTransfer, in Manager/Transfer");
-    $res = $self->{RPC}->CallRPC("Manager/Transfer", "resubmitTransferHelp", @args);
+    ($res) = $self->{RPC}->CallRPC("Manager/Transfer", "resubmitTransferHelp", @args);
     return;
   }
 
@@ -509,22 +507,21 @@ sub resubmitTransfer {
 sub getTransferHistory {
   my $self = shift;
 
-  my $done = $self->{RPC}->CallRPC("Manager/Transfer", "getTransferHistory", @_);
+  my ($done) = $self->{RPC}->CallRPC("Manager/Transfer", "getTransferHistory", @_);
 
   $done
     or $self->{LOGGER}->error("LCM", "In getTransferHistory error while calling resubmitTransfer, in Manager/Transfer")
     and return -1;
-  my $result = $done->result;
 
   $self->info("Transfer history for : @_");
-  print "$result\n";
+  print "$done\n";
   return 1;
 }
 
 sub resubmitFailedTransfers {
   my $self = shift;
 
-  my $res = $self->{RPC}->CallRPC("Manager/Transfer", "resubmitFailedTransfers", @_);
+  my ($res) = $self->{RPC}->CallRPC("Manager/Transfer", "resubmitFailedTransfers", @_);
   $self->info("Resubmitting all failed Transfers");
   return 1;
 }

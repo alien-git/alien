@@ -459,15 +459,20 @@ Gives the return code of a job
 
 
 sub getSpyUrl {
-    my $this    = shift;
-    my $queueId = shift  or return;
-    $self->info("Get Spy Url for $queueId"); 
-    my ($url)  = $self->{DB}->getFieldFromQueue($queueId,"spyurl");
-    $url or $self->info("In spy cannot get the spyurl for job $queueId");
-    $self->info("Returning Spy Url for $queueId $url"); 
-    return $url;
+  my $this = shift;
+  if ($_[0] and ref $_[0] eq "ARRAY"){
+    my $ref=shift;
+    @_=@$ref;    
+  }
+  
+  my $queueId = shift or return;
+  $self->info("Get Spy Url for $queueId");
+  my ($url) = $self->{DB}->queryValue("select spyurl from QUEUEPROC where queueid=?",
+                                      undef, {bind_values=>[$queueId]});
+  $url or $self->info("In spy cannot get the spyurl for job $queueId");
+  $self->info("Returning Spy Url for $queueId '$url'");
+  return $url;
 }
-
 
 sub jobinfo {
   my $this = shift;
@@ -490,28 +495,22 @@ sub jobinfo {
 }
 
 sub spy {
-    my $this = shift;
+   my $this = shift;
+   if ($_[0] and ref $_[0] eq "ARRAY"){
+     my $ref=shift;
+     @_=@$ref;
+   }
     my $queueId = shift;
     my $file    = shift;
 
-    my ($site) = $self->{DB}->getFieldsFromQueue($queueId,"site");
+#    my ($site) = $self->{DB}->queryValue("select site from SITEQUEUES join QUEUE using(siteId) where queueId=?", undef, {bind_values=>[$queueId]});
+#    $self->info("In spy contacting the IS at http://$self->{CONFIG}->{IS_HOST}:$self->{CONFIG}->{IS_PORT} for $queueId at $site");
+#    my ($result) = $self->{DB_I}->getActiveServices("ClusterMonitor","host,port,protocols,certificate,uri",$site);
 
-    $self->info("In spy contacting the IS at http://$self->{CONFIG}->{IS_HOST}:$self->{CONFIG}->{IS_PORT} for $queueId at $site->{'site'}...");
-
-
-    my $result = $self->{DB_I}->getActiveServices("ClusterMonitor","host,port,protocols,certificate,uri",$self->{site});
-   use Data::Dumper;
-    $self->info(Dumper($result));
-
-
-    #$self->info("In spy got http://$result->{'HOST'}:$result->{'PORT'}  ...");
-
-    my $url=$self->getSpyUrl($queueId);
-    $url or return (-1,"The job $queueId is no longer in the queue");
+    my ($url)=$self->getSpyUrl($queueId);
+    $url or $self->info("The job $queueId is no longer in the queue, or no spyurl available") and return;
     $self->info("Telling the user to try with $url");
     return $url;
-
-#    return $result2->result;
 }
 
 sub _getSiteQueueBlocked {

@@ -113,8 +113,6 @@ sub f_packman {
     $self->info("We are going to call all the ClusterMonitors");
 
     my ($response) = $self->{RPC}->CallRPC("IS", "getAllServices", "ClusterMonitor") or return;
-#    $response = $response->result;
-     # print Dumper($response);
     my @n = split(/###/, $response->{NAMES});
     $silent and $string .= " -s";
     foreach my $n (@n) {

@@ -35,12 +35,12 @@ sub get {
   my $name="$self->{HOST}:$self->{PORT}";
   $self->{RPC}->Connect($name,"http://$self->{HOST}:$self->{PORT}") or return 1;
 
-  my $response=$self->{RPC}->CallRPC($name,  "getFileSOAP",$file) or return 1;
+  my ($response)=$self->{RPC}->CallRPC($name,  "getFileSOAP",$file) or return 1;
 
   open( FILE, ">$localfile" )
     or print STDERR "Error opening the file $localfile\n"
       and return 1;
-  syswrite( FILE, $response->result );
+  syswrite( FILE, $response );
   close(FILE);
   undef $response;
   

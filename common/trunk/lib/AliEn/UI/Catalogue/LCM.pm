@@ -190,13 +190,9 @@ sub resolve {
     return;
   }
 
-  $response = $self->{RPC}->CallRPC("IS", $method, $name) or return;
+  ($response) = $self->{RPC}->CallRPC("IS", $method, $name) or return;
 
-  $response = $response->result;
-
-  if ($response == -1) {
-    return;
-  }
+  !$response or $response == -1 and return;
 
   my $serviceHost = $response->{HOST};
   my $servicePort = $response->{PORT};
@@ -500,7 +496,7 @@ sub services {
     my $service   = $_;
     my $doservice = $service;
 
-    my $response = $self->{RPC}->CallRPC("IS", "getAllServices", $doservice)
+    my ($response) = $self->{RPC}->CallRPC("IS", "getAllServices", $doservice)
       or next;
 
     if ((defined $response) && ($response eq "-1")) {
@@ -1895,9 +1891,8 @@ sub getLog {
   $service =~ /\./ or $service .= ".log";
   if (!$self->{SOAP}->{"cm_$site"}) {
     $self->info("Getting the log of $site");
-    my $address = $self->{RPC}->CallRPC("IS", "getService", $site, "ClusterMonitor")
+    my ($output) = $self->{RPC}->CallRPC("IS", "getService", $site, "ClusterMonitor")
       or $self->info("Error getting the address of $site");
-    my $output = $address->result;
     my $host   = $output->{HOST};
     $output->{PORT} and $host .= ":$output->{PORT}";
     $host =~ m{://} or $host = "http://$host";
@@ -1911,11 +1906,10 @@ sub getLog {
       or $self->info("Error connecting to $host")
       and return;
   }
-  my $log = $self->{RPC}->CallRPC("cm_$site", "getFileSOAP", $service, "LOG_DIR")
+  my ($log) = $self->{RPC}->CallRPC("cm_$site", "getFileSOAP", $service, "LOG_DIR")
     or $self->info("Error getting the log $service")
     and return;
-  my $output = $log->result;
-  $self->info("$output\n");
+  $self->info("$log\n");
   return 1;
 
 }

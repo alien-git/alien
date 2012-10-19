@@ -174,8 +174,7 @@ my $my_getFile = sub {
 sub spy {
     my $this = shift;
 
-    my $done =$self->{RPC}->CallRPC("Manager/Job", "spy",@_) or return; 
-    $done and $done=$done->result;
+    my ($done) =$self->{RPC}->CallRPC("Manager/Job", "spy",@_) or return; 
     return $done;
 }
 
@@ -184,11 +183,8 @@ sub getQueueInfo {
     $self->info( "Sending Queue information for @_");
     my $queueName = shift or return;
 
-    my $done =$self->{RPC}->CallRPC("Manager/Job", "queueinfo",$queueName) or return;
+    my ($done) =$self->{RPC}->CallRPC("Manager/Job", "queueinfo",$queueName) or return;
     my $returninfo="";
-
-
-    $done and $done=$done->result;
 
     foreach ( keys %$done ) {
 	my $tmpreturn = sprintf "$_ %s\n",@$done[0]->{$_};
@@ -256,12 +252,12 @@ sub offerAgent {
   #########################################################################
   ## ask the broker for a new job
 
-  my $done =$self->{RPC}->CallRPC("Broker/Job", "offerAgent",  $user, 
+  my ($done) =$self->{RPC}->CallRPC("Broker/Job", "offerAgent",  $user, 
 				    $self->{HOST}, $ca, $free_slots);
 
   if (! $done) {
     $self->info( "Error " .$self->{LOGGER}->error_msg() );
-    $done =$self->{RPC}->CallRPC("Manager/Job", "setSiteQueueStatus",$queueName,"open-broker-error");
+    ($done) =$self->{RPC}->CallRPC("Manager/Job", "setSiteQueueStatus",$queueName,"open-broker-error");
     return (-1, $self->{LOGGER}->error_msg);
   }
 
@@ -305,11 +301,9 @@ sub checkCurrentJobs {
   my $silent=shift;
   my $queueName=shift;
   my $free_slots=shift;
-  my $done =$self->{RPC}->CallRPC("Manager/Job", "alive",  $self->{HOST},
+  my ($done) =$self->{RPC}->CallRPC("Manager/Job", "alive",  $self->{HOST},
 				    $self->{PORT}, $queueName, $self->{CONFIG}->{VERSION}, $free_slots);
   ($done) or die("Error contacting the Job Manager: ".$self->{LOGGER}->error_msg);
-
-  $done = $done->result;
 
   ($done == -2) and die ("The master has blocked the queue for us!\n" );
 
@@ -356,7 +350,7 @@ sub checkCurrentJobs {
 				  "Already executing $self->{MAXJOBS} jobs" );
     
     
-    $done =$self->{RPC}->CallRPC("Manager/Job", "setSiteQueueStatus",$queueName,"closed-maxrunning");
+    ($done) =$self->{RPC}->CallRPC("Manager/Job", "setSiteQueueStatus",$queueName,"closed-maxrunning");
     die (  "executing maximum number of jobs\n" );
   }
   
@@ -368,7 +362,7 @@ sub checkCurrentJobs {
       or $self->{LOGGER}->notice( "ClusterMonitor",
 				  "There are $self->{MAXQUEUEDJOBS} jobs queued" );
     
-    $done =$self->{RPC}->CallRPC("Manager/Job", "setSiteQueueStatus",$queueName,"closed-maxqueued");
+    ($done) =$self->{RPC}->CallRPC("Manager/Job", "setSiteQueueStatus",$queueName,"closed-maxqueued");
     
     die( "maximum number of queued jobs ($self->{MAXQUEUEDJOBS})\n" );
   }
@@ -512,13 +506,13 @@ sub _CallBank {
   
   $self->info("Getting $function from the LBSG ");
   
-  my $done = $self->{RPC}->CallRPC("LBSG",$function,@_);
+  my ($done) = $self->{RPC}->CallRPC("LBSG",$function,@_);
 
   ($done) or return (-1, $self->{LOGGER}->error_msg);
 
   $self->info ("Done $function");
   
-  return $done->result;
+  return $done;
 
 }
 
@@ -792,9 +786,8 @@ sub checkMessages {
 
   my $time = time;
   $self->info("Ready to get the messages");
-  my $result=$self->{RPC}->CallRPC('MessagesMaster', "getMessages", 'ClusterMonitor', $self->{HOST}, $self->{MESSAGES_LASTACK}) or 
+  my ($res)=$self->{RPC}->CallRPC('MessagesMaster', "getMessages", 'ClusterMonitor', $self->{HOST}, $self->{MESSAGES_LASTACK}) or 
     $self->info("Error getting the messages") and return;
-  my $res=$result->result;
   use Data::Dumper;
   print Dumper($res);
 
@@ -848,10 +841,9 @@ sub checkQueuedJobs {
    $self->$method(@debugLevel, "In checkQueuedJobs .... for $queueName");
    
    $queueName or return;
-   my $done =$self->{RPC}->CallRPC("Manager/Job", "jobinfo",$queueName,"QUEUED","600");
+   my ($done) =$self->{RPC}->CallRPC("Manager/Job", "jobinfo",$queueName,"QUEUED","600");
    my $returninfo="";
    ($done) or return;
-   $done=$done->result;
    $self->$method(@debugLevel,"In checkQueuedJobs .... got return");
    foreach (@$done) {
      $self->$method( @debugLevel, "Checking Job Id $_->{queueId} ");

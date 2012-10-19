@@ -1161,7 +1161,7 @@ sub checkQueueStatus() {
 		}
 	}
 
-	my $done = $self->{RPC}->CallRPC("ClusterMonitor", "checkQueueStatus", $self->{CONFIG}->{CE_FULLNAME}, @queueids);
+	my ($done) = $self->{RPC}->CallRPC("ClusterMonitor", "checkQueueStatus", $self->{CONFIG}->{CE_FULLNAME}, @queueids);
 	$done or return;
 
 	if ($done->result eq "0") {
@@ -1543,28 +1543,25 @@ sub f_spy {
 		$options->{grep} = undef;
 	}
 
-	my $done = $self->{RPC}->CallRPC("Manager/JobInfo", "spy", $queueId, $spyfile, $options);
-	$done or return;
-	my $result = $done->result;
-	$self->info("We are supposed to contact the cluster at $result");
+	my ($done) = $self->{RPC}->CallRPC("Manager/JobInfo", "spy", $queueId, $spyfile, $options);
+	$done or $self->info("The job $queueId is no longer in the queue, or no spyurl available") and return;
+		
+	$self->info("We are supposed to contact the cluster at $done");
 
-	$self->{RPC}->Connect("JobAgent_$result", "http://$result");
+	$self->{RPC}->Connect("JobAgent_$done", "http://$done");
 	
-	my $result2 =$self->{RPC}->CallRPC("JobAgent_$result", 'getFile', $spyfile, $options);
+	my ($data) =$self->{RPC}->CallRPC("JobAgent_$done", 'getFile', $spyfile, $options);
 
-	$self->info("Finished Contacting the jobagent at $result");    ###############
-	my $data = $result2->result;
+	$self->info("Finished Contacting the jobagent at $done");
 
 	if (!$data) {
-		$self->info("Could not get file via SOAP, trying to get it via LRMS");
+		$self->info("Could not get file via RPC, trying to get it via LRMS");
 		$data = $self->{BATCH}->getOutputFile($queueId, $spyfile);
 		$data or $data = "";
 	}
 
 	$self->info("Got $data");
 
-	$done or return;
-	$done = $done->result;
 	$self->info($done, undef, 0);
 	return 1;
 }
@@ -2815,10 +2812,10 @@ sub f_bank {
 
 	($self->checkBankConnection()) or return;
 
-	my $done = $self->{RPC}->CallRPC($self->{BANK_CONNECTION}, "bank", @_) or return;
-	$done or (($self->info("Error: SOAP call to $self->{BANK_CONNECTION} 'bank' failed\n", undef, 0)) and return);
+	my ($done) = $self->{RPC}->CallRPC($self->{BANK_CONNECTION}, "bank", @_) or return;
+	$done or (($self->info("Error: RPC call to $self->{BANK_CONNECTION} 'bank' failed\n", undef, 0)) and return);
 
-	$self->info($done->result(), undef, 0);
+	$self->info($done, undef, 0);
 	return 1;
 }
 

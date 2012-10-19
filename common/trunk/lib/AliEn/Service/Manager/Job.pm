@@ -969,21 +969,6 @@ sub getJobRc {
   return $rc;
 }
 
-sub getSpyUrl {
-  my $this = shift;
-  if ($_[0] and ref $_[0] eq "ARRAY"){
-    my $ref=shift;
-    @_=@$ref;    
-  }
-  
-  my $queueId = shift or return;
-  $self->info("Get Spy Url for $queueId");
-  my ($url) = $self->{DB}->queryValue("select spyurl from QUEUEPROC where queueid=?",
-                                      undef, {bind_values=>[$queueId]});
-  $url or $self->info("In spy cannot get the spyurl for job $queueId");
-  $self->info("Returning Spy Url for $queueId '$url'");
-  return $url;
-}
 
 sub queueinfo {
   my $this = shift;
@@ -1022,41 +1007,6 @@ sub jobinfo {
     return \@array;
   }
 }
-
-sub spy {
-  my $this    = shift;
-  my $queueId = shift;
-  my $file    = shift;
-
-  my ($site) = $self->{DB}->getFieldsFromQueue($queueId, "site");
-
-  $self->info(
-"In spy contacting the IS at http://$self->{CONFIG}->{IS_HOST}:$self->{CONFIG}->{IS_PORT} for $queueId at $site->{'site'}..."
-  );
-
-  my $result = $self->{SOAP}->CallSOAP("IS", "getService", $site->{'site'}, "ClusterMonitor")
-    or $self->{LOGGER}->error("JobManager", "In spy error contacting the information service")
-    and return (-1, "Error contacting the IS");
-
-  $result = $result->result;
-
-  $self->info("In spy got http://$result->{'HOST'}:$result->{'PORT'}  ...");
-
-  my $url = $self->getSpyUrl($queueId);
-  $url or return (-1, "The job $queueId is no longer in the queue");
-
-  my $result2 =
-    SOAP::Lite->uri('AliEn/Service/ClusterMonitor')->proxy("http://$result->{'HOST'}:$result->{'PORT'}")
-    ->getSpyFile($queueId, $file, $url, @_);
-
-  $result2
-    or $self->info("In spy could not contact the clustermonitor at http://$result->{'HOST'}:$result->{'PORT'}")
-    and return (-1, "Error contacting the clustermonitor at http://$result->{'HOST'}:$result->{'PORT'}");
-
-  return $result2->result;
-}
-
-
 
 sub validateProcess {
   my $this    = shift;
