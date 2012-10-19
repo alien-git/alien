@@ -1543,7 +1543,7 @@ sub f_spy {
 		$options->{grep} = undef;
 	}
 
-	my ($done) = $self->{RPC}->CallRPC("Manager/JobInfo", "spy", $queueId, $spyfile, $options);
+	my ($done) = $self->{RPC}->CallRPC("Manager/Job", "spy", $queueId, $spyfile, $options);
 	$done or $self->info("The job $queueId is no longer in the queue, or no spyurl available") and return;
 		
 	$self->info("We are supposed to contact the cluster at $done");
