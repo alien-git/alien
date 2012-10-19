@@ -1,6 +1,7 @@
 use strict;
 
 use AliEn::UI::Catalogue::LCM::Computer;
+use Data::Dumper;
 
 push @INC, $ENV{ALIEN_TESTDIR};
 require functions;
@@ -12,7 +13,7 @@ my $admin = AliEn::UI::Catalogue::LCM::Computer->new({role => "admin"}) or exit(
 my $host = $admin->{CONFIG}->{HOST};
 my ($info) = $admin->execute("queueinfo") or exit(-2);
 
-print "According to queueinfo, we have $info\nLet's check if top has the same values...";
+print "According to queueinfo, we have ".Dumper($info)."\nLet's check if top has the same values...";
 my @status = @{AliEn::Util::JobStatus()};
 
 my @sites = @{$info};
