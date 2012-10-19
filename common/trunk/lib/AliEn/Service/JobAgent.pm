@@ -305,7 +305,7 @@ sub putJobLog {
   my $id=$ENV{ALIEN_PROC_ID};
   $id or $self->info("Job id not defined... ignoring the putJobLog") and  return 1;
   $self->info("Putting in the joblog: $id, @_");
-  my ($joblog) = $self->{RPC}->CallRPC("ClusterMonitor","putJobLog", $id,@_) or return;
+  my $joblog = $self->{RPC}->CallRPC("ClusterMonitor","putJobLog", $id,@_) or return;
   return 1;
 }
 
@@ -2282,7 +2282,7 @@ sub firstExecution {
     $self->{RPC}->CallRPC("ClusterMonitor","SetProcInfo",
 				       $self->{QUEUEID}, "runtime start cpu mem cputime rsz vsize ncpu cpufamily cpuspeed resourcecost");
     #send it to the ClusterMonitor
-    my ($done) = $self->{RPC}->CallRPC("ClusterMonitor","SetProcInfo",
+    my $done = $self->{RPC}->CallRPC("ClusterMonitor","SetProcInfo",
 				       $self->{QUEUEID}, "$procinfo");
     
     return 1;
@@ -2436,7 +2436,7 @@ sub lastExecution {
   $self->info("Last ProcInfo: $procinfo");
   
   #submit the last Proc Info
-  my ($done) = $self->{RPC}->CallRPC("ClusterMonitor","SetProcInfo", $self->{QUEUEID}, "$procinfo");
+  my $done = $self->{RPC}->CallRPC("ClusterMonitor","SetProcInfo", $self->{QUEUEID}, "$procinfo");
 #	$self->{SOAP}->checkSOAPreturn($done);
 
   # add some output to the process resource file
