@@ -28,13 +28,14 @@ sub topJobs {
   my $total=shift;
   my $step=shift;  
   my $jobs=shift;
+  my $failed=0;
   
   my $start=0;
   print "Starting to top\n";
   open (FILE, ">".$dir."top.$total.$$.dat") or print "Error opening the file\n" and exit(-2);
   my $before=time;
   foreach my $job (@jobs) {
-    $c->execute("top", "-id", $job->{queueId}) or exit(-2);
+    $c->execute("top", "-id", $job->{queueId}) or $failed++;
     $start++;
     if ( $start%$step eq "0") {
       my $intermediate=time();
@@ -42,7 +43,8 @@ sub topJobs {
       print "\tSo far, $start -> ". ($intermediate -$before) . " seconds ( $insert ms/top)\n";
       print FILE "$start $insert\n";
     }
-  }
+  } 
+  print FILE "Failed top: $failed \n";
 
   my $after=time();
   my $time=$after-$before;

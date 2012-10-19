@@ -36,13 +36,14 @@ my $host=Net::Domain::hostfqdn();
 my $port=$ENV{ALIEN_MYSQL_PORT} ||3307;
 my $d=AliEn::Database::TaskQueue->new({DRIVER=>"mysql", HOST=>"$host:$port", DB=>"processes", "ROLE", "admin", PASSWD=>"pass"}) 
   or print "Error connecting to the database\n" and exit(-2);
+  my $failed=0;
   
   my $start=0;
   print "Starting to update\n";
   open (FILE, ">".$dir."update.$total.$$.dat") or print "Error opening the file\n" and exit(-2);
   my $before=time;
   foreach my $job (@jobs) {
-    $d->updateStatus($job->{queueId}, "%", "UPDATING") or exit(-2);
+    $d->updateStatus($job->{queueId}, "%", "UPDATING") or $failed++;
     $start++;
     if ( $start%$step eq "0") {
       my $intermediate=time();
@@ -52,7 +53,8 @@ my $d=AliEn::Database::TaskQueue->new({DRIVER=>"mysql", HOST=>"$host:$port", DB=
     }
     $start or last;
   }
-
+  print FILE "Failed update: $failed \n";
+  
   my $after=time();
   my $time=$after-$before;
   my $mean=1000.0*$time/$total;
@@ -67,13 +69,14 @@ sub killJobs {
   my $total=shift;
   my $step=shift;  
   my $jobs=shift;
-  
+  my $failed=0;
+    
   my $start=0;
   print "Starting to kill\n";
   open (FILE, ">".$dir."kill.$total.$$.dat") or print "Error opening the file\n" and exit(-2);
   my $before=time;
   foreach my $job (@jobs) {
-    $c->execute("kill", $job->{queueId}) or exit(-2);
+    $c->execute("kill", $job->{queueId}) or $failed++;
     $start++;
     if ( $start%$step eq "0") {
       my $intermediate=time();
@@ -83,7 +86,8 @@ sub killJobs {
     }
     $start or last;
   }
-
+  print FILE "Failed kill: $failed \n";
+  
   my $after=time();
   my $time=$after-$before;
   my $mean=1000.0*$time/$total;
