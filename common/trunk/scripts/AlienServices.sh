@@ -164,7 +164,7 @@ ALIEN_HttpdStart()
   fi 
 
   tmpN=$serviceName
-  tmpName=$(echo $tmpN | tr [a-z] [A-Z])
+  tmpName=$(echo $tmpN | tr '[a-z]' '[A-Z]')
  
   CONF="$ALIEN_HOME/httpd/conf.$portNum/httpd.conf.$hostAddress"
    
