@@ -196,8 +196,10 @@ sub copyInput {
       	}
       }
             
-      $checkSites and !keys %$ef_site and $return = { failed => 1 } and return;
-      !$checkSites and keys %$no_site_org and !scalar(@sites) and $return = { failed => 1 } and return;
+      $checkSites and !keys %$ef_site and $return = { failed => 1 } and 
+        $self->putJobLog($procid, "trace", "File $file not found in defined sites") and return;
+      !$checkSites and keys %$no_site_org and !scalar(@sites) and $return = { failed => 1 } and 
+        $self->putJobLog($procid, "trace", "File $file in exluded sites") and return;
 	    
       my $sePattern = join("_", @sites);
 

@@ -430,17 +430,23 @@ sub checkLFNTable {
   $self->checkTable(${table}, "entryId", \%columns, "entryId",\@index )
     or return;
   
+  @index=('foreign key (entryId) references '.${table}.'(entryId) on delete cascade');
+  $options=~ /noindex/ and @index=();
+  
   $self->checkTable("${table}_broken", "entryId", {entryId => "int unsigned not null"}, "entryId",
-    ['foreign key (entryId) references '.${table}.'(entryId) on delete cascade'],) or return;
+    \@index,) or return;
+  
+  @index=('INDEX user_ind (userId)', 'foreign key (userId) references USERS(uId) on delete cascade');
+  $options=~ /noindex/ and @index=();
   
   $self->checkTable("${table}_QUOTA", "userId",
     {userId => "mediumint unsigned NOT NULL", nbFiles => "int(11) NOT NULL", totalSize => "bigint(20) NOT NULL"},
-    undef, ['INDEX user_ind (userId)', 'foreign key (userId) references USERS(uId) on delete cascade'],)
+    undef, \@index,)
     or return;
 
   $options=~ /noindex/ or $self->optimizeTable(${table});
-
-  #  $self->do("optimize table ${table}_QUOTA");
+  #$options=~ /noindex/ or $self->optimizeTable("${table}_QUOTA");
+  #$options=~ /noindex/ or $self->optimizeTable("${table}_broken");
 
   return 1;
 }

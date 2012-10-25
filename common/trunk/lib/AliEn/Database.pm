@@ -624,7 +624,7 @@ sub setPrimaryKey {
       my $key_name = $ind->{Key_name}    || $ind->{key_name};
       my $col_name = $ind->{Column_name} || $ind->{column_name};
       if ($key_name eq "PRIMARY") {
-        $key and ($col_name =~ /$key/i) and $primary = 1;
+        $key and ($col_name =~ /$key/i) and $primary = 1 and @indexes = grep (!/\W$col_name\W/i, @indexes);
         next;
       }
       my @list = grep (/\W$col_name\W/i, @indexes);
@@ -634,28 +634,36 @@ sub setPrimaryKey {
 
         if ($unique eq $ind->{Non_unique}) {
           $self->info("The uniqueness of $list[0] in $table is not well defined");
-
-          #  $self->alterTable($table, "drop index $ind->{Key_name}");
           $self->dropIndex($key_name, $table);
-        } else {
+        } 
+        else {
           @indexes = grep (!/\W$col_name\W/i, @indexes);
         }
       }
     }
   }
   if ((!$primary) && $key) {
-    $self->alterTable($table, "drop primary key");
-    $self->alterTable($table, "ADD PRIMARY KEY ($key)");
+    $self->alterTable($table, "drop primary key, ADD PRIMARY KEY ($key)");
     $self->info("Altering the primary key of $table");
   }
-  foreach (@indexes) {
-    $self->info("Creating the index $_ on the table $table");
-
-    #  $self->alterTable($table, "ADD $_");
-    $_ =~ /PRIMARY/ and $self->info("The index is a primary key for $table, dropping") and $self->alterTable($table, "drop primary key");
-    $self->createIndex($_, $table, $INDEX);
-
+#  foreach (@indexes) {
+#    $self->info("Creating the index $_ on the table $table");
+#    $_ =~ /PRIMARY/ and $self->info("The index is a primary key for $table, dropping") and $self->alterTable($table, "drop primary key");
+#    $self->createIndex($_, $table, $INDEX);
+#  }
+  if ($indexRef){
+	  grep /PRIMARY/, @indexes and $self->info("The indexes contain a primary key for $table, dropping") and $self->alterTable($table, "drop primary key");
+	  
+	  my $indexstring = "";
+	  foreach (@indexes){
+	  	$indexstring .= "ADD $_,";
+	  }
+	  $indexstring =~ s/,$//;
+	  
+	  $self->info("Creating the indexes ($indexstring) on the table $table");
+	  $self->alterTable($table, $indexstring);
   }
+  
   return 1;
 }
 

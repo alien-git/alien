@@ -171,6 +171,11 @@ sub checkGUIDTable {
   $self->checkTable(${table}, "guidId", \%columns, 'guidId',\@index
   ) or return;
 
+  @index=('INDEX guid_ind (guidId)',
+      "FOREIGN KEY (guidId) REFERENCES $table(guidId) ON DELETE CASCADE",
+      "FOREIGN KEY (seNumber) REFERENCES SE(seNumber) on DELETE CASCADE");
+  $options=~ /noindex/ and @index=();
+
   %columns = (
     pfn      => 'varchar(255)',
     guidId   => "int(11) NOT NULL",
@@ -181,11 +186,13 @@ sub checkGUIDTable {
     "guidId",
     \%columns,
     undef,
-    [ 'INDEX guid_ind (guidId)',
-      "FOREIGN KEY (guidId) REFERENCES $table(guidId) ON DELETE CASCADE",
-      "FOREIGN KEY (seNumber) REFERENCES SE(seNumber) on DELETE CASCADE"
-    ],
+    \@index,
   ) or return;
+
+  @index=('INDEX guidId(guidId)',
+      'INDEX lfnRef(lfnRef)',
+      "FOREIGN KEY (guidId) REFERENCES $table(guidId) ON DELETE CASCADE");
+  $options=~ /noindex/ and @index=();
 
   $self->checkTable(
     "${table}_REF",
@@ -194,25 +201,25 @@ sub checkGUIDTable {
       lfnRef => "varchar(20) NOT NULL"
     },
     '',
-    [ 'INDEX guidId(guidId)',
-      'INDEX lfnRef(lfnRef)',
-      "FOREIGN KEY (guidId) REFERENCES $table(guidId) ON DELETE CASCADE"
-    ]
+    \@index
   ) or return;
+
+  @index=('INDEX user_ind (userId)', 'foreign key (userId) references USERS(uId) on delete cascade');
+  $options=~ /noindex/ and @index=();
 
   $self->checkTable("${table}_QUOTA", "userId",
     {userId => "mediumint unsigned NOT NULL", nbFiles => "int(11) NOT NULL", totalSize => "bigint(20) NOT NULL"},
-    undef, ['INDEX user_ind (userId)', 'foreign key (userId) references USERS(uId) on delete cascade'],)
+    undef, \@index,)
     or return;
 
-  $self->optimizeTable($table);
-  $self->optimizeTable("${table}_PFN");
+  $options=~ /noindex/ or $self->optimizeTable($table);
+  $options=~ /noindex/ or $self->optimizeTable("${table}_PFN");
+  #$options=~ /noindex/ or $self->optimizeTable("${table}_REF");
+  #$options=~ /noindex/ or $self->optimizeTable("${table}_QUOTA");
 
-  my $index = $table;
-  $index =~ s/^G(.*)L$/$1/;
-
+  #my $index = $table;
+  #$index =~ s/^G(.*)L$/$1/;
   #$db->do("INSERT IGNORE INTO GL_ACTIONS(tableNumber,action)  values  (?,'SE')", {bind_values=>[$index, $index]});
-
   return 1;
 
 }
