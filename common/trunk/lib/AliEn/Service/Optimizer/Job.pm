@@ -56,7 +56,7 @@ sub initialize {
     "Merging",  "Inserting", "Splitting", "Zombies",
     "Hosts",    "Expired",   "HeartBeat", "Priority",
     "Saved",     "Staging",
-    "Quota", "WaitingTime", "ToStage",
+    "Quota", "WaitingTime", "ToStage", "Packages",
   );    #,"ResolveReq");
 
   my $mlEnabled =
