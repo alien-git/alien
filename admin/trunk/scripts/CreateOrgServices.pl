@@ -464,7 +464,7 @@ sub checkLDAPConnection {
 		      "ou", "MonaLisa",
                       "shouldUpdate", "false",
                       "host", $mlHost,
-                      "apmonConfig", "['monalisa1.cern.ch']",
+                      "apmonConfig", "['$mlHost']",
                   
                      ]);
     $mesg->code && print "failed\nCould not add MonaLisa configuration: ", $result->error and return;
