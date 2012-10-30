@@ -284,6 +284,11 @@ sub GetPhysicalFile {
 
 sub getService {
   my $this=shift;
+  if ($_[0] and ref $_[0] eq "ARRAY"){
+    my $ref=shift;
+    @_=@$ref;
+  }
+
   my $name=shift;
   my $service=shift;
   
