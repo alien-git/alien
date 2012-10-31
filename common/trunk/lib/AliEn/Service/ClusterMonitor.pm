@@ -89,6 +89,7 @@ sub initialize {
   
   $self->info("Contacting the Manager/Job" );
   ( $self->checkConnection() ) or return;
+  $self->{RPC}->CallRPC("IS", "markAlive", "ClusterMonitor", "ClusterMonitor_$self->{HOST}", $self->{HOST}, $self->{PORT}, {VERSION=>$self->{CONFIG}->{VERSION}} );
 
 
   my ($done) =$self->{RPC}->CallRPC("Manager/Job", "alive",  $self->{HOST}, $self->{PORT}, "", $self->{CONFIG}->{VERSION}) or return;
