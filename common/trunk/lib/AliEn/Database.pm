@@ -651,7 +651,7 @@ sub setPrimaryKey {
 #    $_ =~ /PRIMARY/ and $self->info("The index is a primary key for $table, dropping") and $self->alterTable($table, "drop primary key");
 #    $self->createIndex($_, $table, $INDEX);
 #  }
-  if ($indexRef){
+  if (@indexes){
 	  grep /PRIMARY/, @indexes and $self->info("The indexes contain a primary key for $table, dropping") and $self->alterTable($table, "drop primary key");
 	  
 	  my $indexstring = "";

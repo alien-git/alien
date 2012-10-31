@@ -331,11 +331,11 @@ sub unlock {
 sub optimizeTable {
   my $self  = shift;
   my $table = shift;
-  $self->info("Ready to optimize the table $table (from $self->{DB})");
+  $self->debug(1, "Ready to optimize the table $table (from $self->{DB})");
   if (
     $self->queryValue(
       "SELECT count(*) FROM information_schema.TABLES where table_schema=? and table_name=? 
-                          and (data_free > 100000000 or data_free/data_length>0.1)",
+                          and data_free > 100000000 ",
       undef, {bind_values => [ $self->{DB}, $table ]}
     )
     ) {
