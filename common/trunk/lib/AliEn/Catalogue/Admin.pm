@@ -1173,7 +1173,7 @@ sub calculateFileQuota {
   foreach my $user (keys %infoLFN) {
     $self->{DATABASE}->do(
       "update FQUOTAS set nbFiles=?, totalSize=? where userid=?", {bind_values=>[ $infoLFN{$user}{nbfiles}, $infoLFN{$user}{totalsize},$user]})
-      or $self->$method(@data, "update failure for user $userid");
+      or $self->$method(@data, "update failure for user $user");
   }
   $self->{DATABASE}->unlock();
 }
