@@ -2405,6 +2405,14 @@ sub validateJob{
 	    $self->{STATUS} = "ERROR_VT";
     } else {
 	  ( -e "$self->{WORKDIR}/.validated" ) or  $self->{STATUS} = "ERROR_V";
+	    if (-e "$self->{WORKDIR}/.alienValidation.trace"){
+	      $self->putJobLog("trace","The validation created some trace");
+	      if ( open(my $f, "<", "$self->{WORKDIR}/.alienValidation.trace") ){
+	         my $traceContent=join("", <$f>);
+	         close $f;
+	         $self->putJobLog("trace",$traceContent);
+	      }
+	    }
     }
   } else {
   $self->putJobLog("error","The validation script '$validation' didn't exist");
