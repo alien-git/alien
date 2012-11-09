@@ -740,15 +740,13 @@ sub updateJob {
   $opt->{where} and $where .= " and $opt->{where}";
   my @bind = ($id);
   $opt->{bind_values} and push @bind, @{$opt->{bind_values}};
-  $self->info(Dumper($set));
-  use Data::Dumper;
-  my $done = $self->update($self->{QUEUETABLE}, $set, $where, {bind_values => \@bind});
-
-  #the update didn't work
-  $done or return;
-
-  #the update didn't modify any entries
-  $done =~ /^0E0$/ and return;
+  if (keys %$set ) {
+    my $done = $self->update($self->{QUEUETABLE}, $set, $where, {bind_values => \@bind});
+    #the update didn't work
+    $done or return;
+    #  the update didn't modify any entries
+    $done =~ /^0E0$/ and return;
+  }
 
   if (keys %$procSet) {
     $self->update("QUEUEPROC", $procSet, "queueId=?", {bind_values => [$id]})
