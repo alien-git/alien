@@ -1610,6 +1610,7 @@ sub getNumberWaitingForSite{
   $options->{disk} and $where.="and disk < ?  " and push @bind, $options->{disk};
   $options->{site} and $where.="and (site='' or site like concat('%,',?,',%') )" and push @bind, $options->{site};   
   defined $options->{packages} and $where .="and ? like packages " and push @bind, $options->{packages};
+  defined $options->{installedpackages} and $where .="and ? like packages " and push @bind, $options->{installedpackages};
   $options->{partition} and $where .="and ? like concat('%,',partition, '%,') " and push @bind, $options->{partition};
   $options->{ce} and $where.=" and (ce like '' or ce like concat('%,',?,',%'))" and push @bind,$options->{ce};
   $options->{ce} and $where.=" and noce not like concat('%,',?,',%')" and push @bind,$options->{ce};

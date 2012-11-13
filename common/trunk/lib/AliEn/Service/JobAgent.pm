@@ -305,8 +305,13 @@ sub putJobLog {
 }
 sub putAgentLog {
   my $self=shift;
+  my $message=shift;
   my $id="$self->{CONFIG}->{CE_FULLNAME}_$ENV{ALIEN_JOBAGENT_ID}";
-  my $joblog = $self->{RPC}->CallRPC("ClusterMonitor","putJobLog", $id,"agent", @_) or return;
+  $self->{agentlog_counter} or $self->{agentlog_counter}=0;  
+  $self->{agentlog_counter}+=1;
+  
+  my $joblog = $self->{RPC}->CallRPC("ClusterMonitor","putJobLog", $id,"agent", 
+        sprintf("%03d %s", $self->{agentlog_counter}, $message),@_) or return;
   return 1;
 }
 
@@ -419,7 +424,7 @@ sub GetJDL {
 	      my @execute=@{$info->{execute}};
 	      $result=shift @execute;
 	      if ($result eq "-3") {
-	        $self->sendJAStatus('INSTALLING_PKGS');	  
+	        $self->sendJAStatus('INSTALLING_PKGS', {packages=>join("", @execute)});	  
 	        $self->info("We have to install some packages (@execute)");
 	        foreach (@execute) {
 	          my ($ok, $source)=$self->installPackage( $_);
@@ -2774,7 +2779,7 @@ sub sendJAStatus {
      $params->{$key} and $msg .=" $key=$params->{$key}";
     
    }
-  $self->info("Putting in the agentlog: $msg");
+  
   $self->putAgentLog($msg);
   defined  $status and $params->{ja_status} = AliEn::Util::jaStatusForML($status);
   if($ENV{ALIEN_JOBAGENT_ID} && $ENV{ALIEN_JOBAGENT_ID} =~ /(\d+)\.(\d+)/){

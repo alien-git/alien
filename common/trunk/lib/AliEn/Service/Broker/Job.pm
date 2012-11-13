@@ -82,7 +82,7 @@ sub getJobAgent {
 
 	if (!$agentid) {
 		$self->info("Let's check if we need a package");
-		delete $params->{packages};
+		delete $params->{installedpackages};
 		delete $params->{returnId};
 		$params->{returnPackages} = 1;
 		my $packages = $self->{DB}->getNumberWaitingForSite($params);
@@ -281,6 +281,8 @@ sub extractClassadParams {
 	($ok, $params->{disk}) = $classad->evaluateExpression("LocalDiskSpace");
 	($ok, my @pack) = $classad->evaluateAttributeVectorString("Packages");
 	$params->{packages} = "," . join(",,", sort @pack) . ",";
+	($ok, @pack) = $classad->evaluateAttributeVectorString("InstalledPackages");
+	$params->{installedpackages} = "," . join(",,", sort @pack) . ",";
 	($ok, @pack) = $classad->evaluateAttributeVectorString("GridPartition");
 	$params->{partition} = "," . join(",", sort @pack) . ",";
 	$params->{ce}        = $queueName;
@@ -313,7 +315,7 @@ sub offerAgent : Public{
 	my ($queueName, $params) = $self->extractClassadParams($ca_text);
 	$queueName eq '-1' and return $queueName, $params;
 
-	delete $params->{packages};
+	delete $params->{installedpackages};
 	my $waiting = $self->{DB}->getNumberWaitingForSite($params);
 
 	$self->info("We could run $waiting jobs there");

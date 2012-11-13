@@ -75,7 +75,7 @@ Global options:
 
 Possible commands:
 \tpackman list [-retry number]:\treturns all the packages defined in the system
-\tpackman listInstalled:\treturns all the packages that the service has installed
+\tpackman listInstalled [-force]:\treturns all the packages that the service has installed
 \tpackman test <package>: tries to configure a package. Returns the metainformation associated with the package, a view of the directory where the package is installed, and an environment that the package would set
 \tpackman install <package>: install a package (and all its dependencies) in the local cache of the PackMan
 \tpackman installLog <package>: get the installation log of the package
@@ -270,11 +270,12 @@ sub getListInstalled_Internal {
   my $self = shift;
    
   $DEBUG and $self->debug(1, "Asking the PackMan for the packages that it has installed");
-
-  my $cache=AliEn::Util::returnCacheValue($self, "installedPackages");
-  if ($cache and $cache->[0]){
-    $self->info("The returned cache is (@$cache)");
-    return (1, @$cache);
+  if (! grep (/^-force$/, @_)){
+    my $cache=AliEn::Util::returnCacheValue($self, "installedPackages");
+    if ($cache and $cache->[0]){
+      $self->info("The returned cache is (@$cache)");
+      return (1, @$cache);
+    }
   }
   my ($status, @list) = $self->getListInstalledPackages_() or return;
    AliEn::Util::setCacheValue($self, "installedPackages", \@list);    

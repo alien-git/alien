@@ -133,7 +133,7 @@ sub getAgentLog {
   $self->{LOGGER}->info("JOBLOG", "Reading $fileName");
   open (my $file, "<", $fileName) 
    or $self->{LOGGER}->info("JOBLOG", "Error reading '$fileName'") and  return;
-  my @content= <$file>;
+  my @content=sort <$file>;
   close $file;
   map { s/^(\d+)// and $_=localtime($1).$_} @content;
   
