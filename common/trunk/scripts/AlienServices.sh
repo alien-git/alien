@@ -503,17 +503,14 @@ startService()
     ALIEN_StartHttp $service $configName $packageName
   else
     SETSID=`which setsid 2> /dev/null`
-    $SETSID  $ALIEN_PERL $ALIEN_DEBUG $ALIEN_START $* -logfile $LOGDIR/$packageName.log  &
+    $SETSID  $ALIEN_PERL $ALIEN_DEBUG $ALIEN_START $* -logfile $LOGDIR/$packageName.$portNum.log  &
     error=$?
     MASTERPID=$!
     echo  $! > $LOGDIR/$packageName.pid
   fi
 
   [ -n "$SILENT" ] || echo "$service started with $error (pid  $!)"
-
-  local endPart="log"
-  [ ! -n "$portNum" ] || endPart="$portNum.log"
-  [ -n "$SILENT" ] || echo "Log file: $LOGDIR/$packageName.$endPart"
+  [ -n "$SILENT" ] || echo "Log file: $LOGDIR/$packageName.$portNum.log"
 
   return 0
 }

@@ -146,12 +146,12 @@ sub initialize {
 
   #$self->{HOST} = $ENV{'ALIEN_HOSTNAME'}.".".$ENV{'ALIEN_DOMAIN'};
   $self->{HOST} = $self->{CONFIG}->{HOST};
-
   $ENV{'ALIEN_SITE'} = $self->{CONFIG}->{SITE};
   $self->{CONFIG}->{SITE_HOST} and $ENV{'ALIEN_SITE_HOST'} = $self->{CONFIG}->{SITE_HOST};
   print "Executing in $self->{HOST}\n";
   $self->{PID}=$$;
   print "PID = $self->{PID}\n";
+  $ENV{ALIEN_JOBAGENT_ID} and $ENV{ALIEN_JOBAGENT_ID}.="_$self->{PID}";
 
   my $packConfig=1;
   $options->{disablePack} and $packConfig=0;
@@ -201,11 +201,6 @@ sub requestJob {
   $self->GetJDL() or return;
   $self->info("Got the jdl");
   $self->{TOTALJOBS}=$self->{TOTALJOBS}+1;
-
-
-  $self->{RPC}->CallRPC("ClusterMonitor","jobStarts", $ENV{ALIEN_PROC_ID}, $ENV{ALIEN_JOBAGENT_ID});
-
-
 
 #  $self->{LOGFILE}=AliEn::TMPFile->new({filename=>"proc.$ENV{ALIEN_PROC_ID}.out"});
   $self->{LOGFILE}="$self->{CONFIG}->{TMP_DIR}/proc.$ENV{ALIEN_PROC_ID}.out";
@@ -260,7 +255,7 @@ sub requestJob {
     }		      
     $self->{MONITOR}->addJobToMonitor($self->{PROCESSID}, $self->{WORKDIR}, $self->{CONFIG}->{CE_FULLNAME}.'_Jobs', $ENV{ALIEN_PROC_ID});
   }
-  $self->sendJAStatus('JOB_STARTED');
+  $self->sendJAStatus('JOB_STARTED', {totaljobs=>$self->{TOTALJOBS}});
   return 1;
 }
 
@@ -308,6 +303,13 @@ sub putJobLog {
   my $joblog = $self->{RPC}->CallRPC("ClusterMonitor","putJobLog", $id,@_) or return;
   return 1;
 }
+sub putAgentLog {
+  my $self=shift;
+  my $id="$self->{CONFIG}->{CE_FULLNAME}_$ENV{ALIEN_JOBAGENT_ID}";
+  my $joblog = $self->{RPC}->CallRPC("ClusterMonitor","putJobLog", $id,"agent", @_) or return;
+  return 1;
+}
+
 
 sub getHostClassad{
   my $self=shift;
@@ -401,10 +403,6 @@ sub GetJDL {
       return;
     }
     my $hostca_stage;
-
-    $self->sendJAStatus(undef, {TTL=>$self->{TTL}});
-
-    #my $done = $self->{RPC}->CallRPC("ClusterMonitor","getJobAgent", $ENV{ALIEN_JOBAGENT_ID}, "$self->{HOST}:$self->{PORT}", $self->{CONFIG}->{ROLE}, $hostca, $hostca_stage);
     
     my $host=$self->{CONFIG}->{HOST};
     if ($ENV{ALIEN_CM_AS_LDAP_PROXY}){
@@ -469,10 +467,7 @@ sub GetJDL {
 
   my $message="The Job has been taken by Jobagent $ENV{ALIEN_JOBAGENT_ID}, AliEn Version: $self->{CONFIG}->{VERSION}";
   $ENV{EDG_WL_JOBID} and $message.="(  $ENV{EDG_WL_JOBID} )";
-  if (  $ENV{LSB_JOBID} ){
-    $message.=" (LSF ID $ENV{LSB_JOBID} )";
-     $self->sendJAStatus(undef, {LSF_ID=>$ENV{LSB_JOBID}});
-  }
+
   $self->putJobLog("trace",$message);
 
 
@@ -910,6 +905,7 @@ sub executeCommand {
   
   my $batchid=$self->getBatchId();
   $self->changeStatus("%",  "STARTED", $batchid,$self->{HOST}, "$self->{HOST}:$self->{PORT}" );
+  
 
   $ENV{ALIEN_PROC_ID} = $self->{QUEUEID};
   my $catalog=$self->getCatalogue() or return;
@@ -2564,7 +2560,7 @@ sub checkWakesUp {
     $self->sendJAStatus('REQUESTING_JOB');
     $self->info("Asking for a new job");
     if (! $self->requestJob()) {
-
+      $self->sendJAStatus('DONE', {totaljobs=>$self->{TOTALJOBS}}); 
       $self->info("There are no jobs to execute. We have executed $self->{TOTALJOBS}");
 
       $self->{MONITOR} and 
@@ -2772,14 +2768,20 @@ sub sendJAStatus {
   return if ! $self->{MONITOR};
 
   # add the given parameters
-
+  my $msg="The jobagent is in $status";
+  $params->{job_id} = $ENV{ALIEN_PROC_ID} || 0;
+  foreach my $key (keys %$params){
+     $params->{$key} and $msg .=" $key=$params->{$key}";
+    
+   }
+  $self->info("Putting in the agentlog: $msg");
+  $self->putAgentLog($msg);
   defined  $status and $params->{ja_status} = AliEn::Util::jaStatusForML($status);
   if($ENV{ALIEN_JOBAGENT_ID} && $ENV{ALIEN_JOBAGENT_ID} =~ /(\d+)\.(\d+)/){
     $params->{ja_id_maj} = $1;
     $params->{ja_id_min} = $2;
   }
   $ENV{SITE_NAME} and $params->{siteName}=$ENV{SITE_NAME};
-  $params->{job_id} = $ENV{ALIEN_PROC_ID} || 0;
   $self->{MONITOR}->sendParameters("$self->{CONFIG}->{SITE}_".$self->{SERVICENAME}, "$self->{HOST}:$self->{PORT}", $params);
   return 1;
 }

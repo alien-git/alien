@@ -41,7 +41,8 @@ sub Connect {
   }elsif($type eq "IS"){
     @methods= ("getCpuSI2k", "markAlive","getAllServices", "getService")    
   }elsif($type eq "Manager/Job"){
-    @methods= ("alive", "enterCommand","changeStatusCommand", "getSpyUrl", "SetProcInfoBunch","SetProcInfoBunchFromDB", "spy")    
+    @methods= ("alive", "enterCommand","changeStatusCommand", "getSpyUrl", "SetProcInfoBunch",
+    "SetProcInfoBunchFromDB", "spy")    
   }elsif($type eq "Manager/Transfer"){
     @methods= ("checkOngoingTransfers", "enterTransfer", "listTransfer", "checkOngoingTransfers", "changeStatusTransfer", "killTransfer", "FetchTransferMessages")    
   }elsif($type eq "ClusterMonitor"){
@@ -51,7 +52,7 @@ sub Connect {
   }elsif($type eq "Broker/Transfer"){
     @methods=("requestTransferType");
   }elsif($type eq "Manager/JobInfo"){
-    @methods=("getTrace", "getSystem", "getJobInfo");
+    @methods=("getTrace", "getSystem", "getJobInfo", "getTraceAgent");
   }
   push @methods, "status";
   $self->debug(1, "Checking if we are connected to $service");

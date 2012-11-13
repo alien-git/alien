@@ -428,6 +428,49 @@ sub getSystem {
   
   return ($resultreturn);
 }
+sub getTraceAgent {
+  my $this = shift;
+  if ($_[0] and ref $_[0] eq "ARRAY"){
+    my $ref=shift;
+    @_=@$ref;
+  }
+  my $year  = shift;
+  my $month = shift;
+  my $day   = shift;
+  
+  my $site = shift;
+  my $id   = shift;
+  $self->info("Getting the trace of the agents: '@_'");
+  my @messages=();
+  my $rc={rcvalues=>-1};
+  if (! $year or ! $month or ! $day){
+     push @messages, "Please, specify the date of the job agents\n" ,
+          "\tps traceAgent <year> <month> <day> [<site> [<id>]]\n";   
+  }elsif ($site and $id){
+     push @messages, "Getting the trace of the jobagent $id on $site on $day/$month/$year\n";
+     my @list=$self->{JOBLOG}->getAgentLog($year, $month, $day, $site, $id);
+     push @messages, @list;
+     $rc->{rcvalues}=\@list;
+  }else{
+    my $s="";
+    $site and $s=" on the site '$site'";
+    push @messages, "Getting the list of entries $s\n";
+    my @sites=$self->{JOBLOG}->getListAgentSites($year, $month, $day, $site);
+    if (@sites){
+      foreach (@sites){
+        push @messages, "\t$_\n";
+      }
+      $rc->{rcvalues}=\@sites;
+    } else{
+     my $msg="There were no activity on that day $s";
+     push @messages, "$msg day\n";
+    }    
+  } 
+  $rc->{rcmessages}=\@messages;
+  return $rc;
+ 
+}
+
 
 sub getTrace {
   my $this = shift;

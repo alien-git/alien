@@ -999,18 +999,6 @@ sub StartService{
 
 
 
-sub jobStarts : Public {
-  my $this=shift;
-  my $ref=shift;
-  @_=@$ref;
-  my $jobId=shift;
-  my $agentId=shift;
-
-  $self->info("The job $jobId has started");
-  $self->{LOCALJOBDB}->insertJob( $jobId, $agentId);  
-  return 1;
-}
-
 ###############
 sub packmanOperations {
  my $this=shift;

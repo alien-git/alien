@@ -377,16 +377,15 @@ sub SetProcInfoBunchFromDB {
 
 sub SetProcInfoBunch : Public {
   my $this=shift;
-  $self->info("Mirando si es un array");
+  
   if ($_[0] and ref $_[0] eq "ARRAY"){
-    $self->info("SIPE");
     my $ref=shift;
     @_=@$ref;
   }
   my ($host, $info) = (shift, shift);
   $self->info("$host is sending the procinfo $#$info messages");
   foreach my $entry (@$info) {
-
+    my $time=($entry->{timestamp} || $entry->{time} || time);
     #This if statement is here only because in some old version, the
     #clustermonitor sends the information of 'proc' and 'procinfo' reversed
     if ($entry->{procinfo} eq "proc") {
@@ -396,7 +395,7 @@ sub SetProcInfoBunch : Public {
     if (!$entry->{tag} or $entry->{tag} eq "proc") {
       $self->SetProcInfo($entry->{jobId}, $entry->{procinfo}, "silent");
     } else {
-      $self->putJobLog($entry->{jobId}, $entry->{tag}, $entry->{procinfo});
+      $self->putJobLog($entry->{jobId}, $entry->{tag}, $entry->{procinfo}, $time);
     }
   }
   $self->info("All the messages have been stored");
@@ -553,7 +552,7 @@ sub changeStatusCommand : Public {
 
   ($ok) or $message = "FAILED $message";
 
-  $self->putJobLog($queueId, "state", $message, $putlog);
+  $self->putJobLog($queueId, "state", $message.$putlog);
 
   if (!$ok) {
     my $error = ($AliEn::Logger::ERROR_MSG || "updating job $queueId from $oldStatus to $status");
@@ -935,6 +934,7 @@ sub GetJobJDL {
 
 }
 
+
 sub getTrace {
   my $this = shift;
   $self->info("Asking for trace @_ $#_ ...");
@@ -1108,7 +1108,6 @@ sub putJobLog {
   my $tag     = shift or return (-1, "no tag specified");
   my $message = shift or return (-1, "no message specified");
   $self->{JOBLOG}->putlog($procid, $tag, "$message", @_);
-  $self->info("JOBLOG MODIFIED FOR $procid");
 }
 
 #_______________________________________________________________________________________________________________________

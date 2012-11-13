@@ -1725,6 +1725,11 @@ sub f_system {
 	return $self->f_jobsystem();
 }
 
+sub f_ps_traceAgent {
+  my $self = shift;
+  return  $self->{RPC}->CallRPCAndDisplay(0, "Manager/JobInfo", "getTraceAgent",  @_);
+}
+
 sub f_ps_trace {
 	my $self = shift;
 	my $id   = shift;
@@ -2001,6 +2006,7 @@ sub f_ps {
   $self->info("At the beginning of ps, '@_'");
 	my $subcommands = {
 		trace => "f_ps_trace",
+		traceAgent => "f_ps_traceAgent",
 		rc    => "f_ps_rc",
 		jdl   => "f_ps_jdl",
 	};
