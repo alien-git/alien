@@ -7,11 +7,9 @@ $| = 1;
 
 use AliEn::Database::TaskQueue;
 
-#use AliEn::TokenManager;
-
 use AliEn::Service::Broker;
 use strict;
-
+use Data::Dumper;
 
 use AliEn::Util;
 
@@ -69,56 +67,37 @@ sub getJobAgent {
 		or $self->{LOGGER}->error("JobBroker", "In findjob error updating status of host $host")
 		and return;
   $self->info("Ready to extract params");
-	my ($queueName, $params) = $self->extractClassadParams($site_jdl);
-	$self->info("The extract params worked");
-	$queueName eq '-1' and return $queueName, $params;
-	use Data::Dumper;
-	$self->info("We have the parameters:" . Dumper($params));
-
-	$params->{returnId} = 1;
-	my $entry = $self->{DB}->getNumberWaitingForSite($params);
-	my $agentid;
-	$entry and $agentid = $entry->{entryId};
-
-	if (!$agentid) {
-		$self->info("Let's check if we need a package");
-		delete $params->{installedpackages};
-		delete $params->{returnId};
-		$params->{returnPackages} = 1;
-		my $packages = $self->{DB}->getNumberWaitingForSite($params);
-		if (not $packages) {
-			$self->info("In findjob no job to match");
-			$self->{DB}->setSiteQueueStatus($queueName, "jobagent-no-match", $site_jdl);
-			return {execute => [ -2, "No jobs waiting in the queue" ]};
-		} else {
-			$self->info("Telling the site to install packages '$packages'");
-			my @packs = grep (!/\%/, split(",", $packages));
-			$self->info("After removing, we have to install @packs ");
-			$self->{DB}->setSiteQueueStatus($queueName, "jobagent-install-pack", $site_jdl);
-			return {execute => [ -3, @packs ]};
-		}
-	}
+  my ($ok, $agentid, $queueName, $fileBroker, $remote)= $self->getWaitingAgent($site_jdl);
+  $self->info("HELLO $ok, $agentid");
+  if ($ok< 1) {
+    $self->info("We didn't get an agent ($agentid)");
+    return {execute => [ $ok, $agentid ]};
+  }
 	my ($queueid, $jdl, $jobUser) = $self->{DB}->getWaitingJobForAgentId($agentid, $queueName, $host);
 	$queueid
 		or $self->info("There were no jobs waiting for agentid!")
 		and return {execute => [ -2, "No jobs waiting in the queue" ]};
 
-	if ($entry->{fileBroker}) {
+  if ($remote){
+    $self->info("This job will be executed on a remote site");
+	  $self->putlog($queueid, "info", "The job will read data remotely");
+  }
+
+	if ($fileBroker) {
 		my $split = $self->{DB}->queryValue("select split from QUEUE where queueid=?", undef, {bind_values => [$queueid]});
 		$split
 			or $self->info("Error getting the masterjob of $queueid, and doing split per file")
 			and return {execute => [ -2, "No jobs waiting in the queue" ]};
 		$self->info("****AND FOR THIS JOB WE HAVE TO CALCULATE THE INPUTDATA");
-		$jdl = $self->findFilesForFileBroker($split, $queueid, $jdl, $params->{site}, $params->{splitFiles});
+		$jdl = $self->findFilesForFileBroker($split, $queueid, $jdl, $queueName);
+		
 		$self->checkMoreFilesForAgent($split);
 		if (!$jdl) {
 			$self->info("In fact, there were no files for this job. Kill it");
 			$self->putlog($queueid, "error", "There were no more files to analyze. Killing the job");
-			$self->{DB}->updateStatus($queueid, '%', 'KILLED');
+			$self->{DB}->killProcessInt($queueid, 'admin');
 			return {execute => [ -2, "No jobs waiting in the queue (after fileBroker)" ]};
-
 		}
-
 	}
 	$self->putlog($queueid, "state", "Job state transition from WAITING to ASSIGNED ");
 
@@ -137,6 +116,65 @@ sub getJobAgent {
 	$self->{DB}->setSiteQueueStatus($queueName, "jobagent-match", $site_jdl);
 	return {execute => [ {queueid => $queueid, token => $token, jdl => $jdl, user => $jobUser} ]};
 }
+sub getWaitingAgent {
+  my $self= shift;
+  my $site_jdl=shift;
+
+	my ($queueName, $params) = $self->extractClassadParams($site_jdl);
+	$self->info("The extract params worked");
+	$queueName eq '-1' and return (0, $params);
+	
+	$self->info("We have the parameters:" . Dumper($params));
+
+	$params->{returnId} = 1;
+	my $entry = $self->{DB}->getNumberWaitingForSite($params);
+  $self->info("AND THE ENTRY IS");
+  $self->info(Dumper($entry));	
+	$entry and $entry->{entryId} and 
+	  return 1, $entry->{entryId}, $queueName, $entry->{fileBroker}, 0;
+
+	my $installedPackages=$params->{installedpackages};
+	$self->info("Let's check if we need a package");
+	delete $params->{installedpackages};
+	delete $params->{returnId};
+	$params->{returnPackages} = 1;
+	my $packages = $self->{DB}->getNumberWaitingForSite($params);
+	if ($packages) {
+		$self->info("Telling the site to install packages '$packages'");
+		my @packs = grep (!/\%/, split(",", $packages));
+		$self->info("After removing, we have to install @packs ");
+		$self->{DB}->setSiteQueueStatus($queueName, "jobagent-install-pack", $site_jdl);
+		return  -3, @packs;
+	}
+	$self->info("Now, let's check with remote access");
+	$params->{returnId} = 1;
+	delete $params->{returnPackages};
+	delete $params->{site};
+	$params->{installedpackages}=$installedPackages;
+	$self->info(Dumper($params));
+	$entry = $self->{DB}->getNumberWaitingForSite($params);
+	$self->info(Dumper($entry));
+	($entry) and 
+	 return 1, $entry->{entryId}, $queueName, $entry->{fileBroker}, 1;
+	
+	$self->info("Finally, let's check packages for remote access");
+	delete $params->{installedpackages};
+	delete $params->{returnId};
+	$params->{returnPackages} = 1;
+	 $packages = $self->{DB}->getNumberWaitingForSite($params);
+	if ($packages) {
+		$self->info("Telling the site to install packages '$packages'");
+		my @packs = grep (!/\%/, split(",", $packages));
+		$self->info("After removing, we have to install @packs ");
+		$self->{DB}->setSiteQueueStatus($queueName, "jobagent-install-pack", $site_jdl);
+		return  -3, @packs;
+	}
+	
+	$self->info("In findjob no job to match");
+	$self->{DB}->setSiteQueueStatus($queueName, "jobagent-no-match", $site_jdl);
+	return  -2, "No jobs waiting in the queue" ;
+}
+
 
 sub checkMoreFilesForAgent {
 	my $self  = shift;
@@ -158,7 +196,12 @@ sub findFilesForFileBroker {
 	my $split   = shift;
 	my $queueid = shift;
 	my $jdl     = shift;
-	my $site    = shift || "";
+	my $queueName =shift;
+	
+  my @info =split(/\:\:/, $queueName);
+	my $site    = $info[1];
+	
+	#TODO: this limit should come from the jdl
 	my $limit   = shift || 10;
 	
 	
