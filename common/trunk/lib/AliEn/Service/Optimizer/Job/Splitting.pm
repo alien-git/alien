@@ -130,7 +130,7 @@ sub updateSplitting {
 				and die ("Error getting the user of $queueid\n");
 
     #Change the status of the job
-    my $job = $self->{DB}->updateStatus($queueid, "INSERTING", "SPLITTING")
+    my $job = $self->{DB}->updateStatus($queueid, "INSERTING", "SPLITTING", {masterjob=>1})
       or $self->{LOGGER}->warning("Splitting", "in SubmitSplitJob setting status to 'SPLITTING' failed") 
 				and die ("Error setting the job to SPLITTING\n");
 
@@ -149,14 +149,7 @@ sub updateSplitting {
     }
     #    $self->ChangeOriginalJob($job_ca, $queueid, $submitHost);
     $self->info( "Putting the status of $queueid to 'SPLIT' (there were $numSubjobs)");
-    my $set={masterjob=>1};
-    my ($ok, $email)=$job_ca->evaluateAttributeString("Email");
-    if ($email){
-      $self->info("This job will send an email to $email");
-      $self->putJobLog($queueid, "trace", "The job will send an email to '$email'");
-      $set->{notify}=$email;
-    }
-    $self->{DB}->updateStatus($queueid,"SPLITTING","SPLIT", $set)
+    $self->{DB}->updateStatus($queueid,"SPLITTING","SPLIT")
       or $self->info("Error updating status for job $queueid" )
 	and die("Error changing the status\n");;
     $self->putJobLog($queueid,"state", "Job state transition from SPLITTING to SPLIT");
@@ -180,7 +173,7 @@ sub _splitSEAdvanced {
 	my $findset=shift;
 	
 	my @files=$self->_getInputFiles($job_ca, $findset, $queueId) or return;
-	my $LIMIT=10;
+	my $LIMIT=1000;
 	if ($#files > $LIMIT ) {
 		$self->putJobLog($queueId, "error", "There are $#files. The limit for brokering per file is $LIMIT");
 	  $self->{DB}->updateStatus($queueId,"%","ERROR_SPLT")
@@ -623,7 +616,7 @@ sub _submitJDL {
   my $newqueueid=$self->enterCommand($user, $jdlText, undef, $queueid, undef, 
     {silent=>0,direct=>$direct});
   pop @ISA;
-  if ($newqueueid =~ /DENIED:/){
+  if(($newqueueid =~ /DENIED:/) or (ref $newqueueid eq "ARRAY") ){
     $self->putJobLog($queueid, "error", "The submission of the subjob failed: $newqueueid");
     return;
   } 

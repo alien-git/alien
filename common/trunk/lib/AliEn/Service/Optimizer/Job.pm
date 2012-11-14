@@ -55,7 +55,7 @@ sub initialize {
   my @optimizers = (
     "Merging",  "Inserting", "Splitting", "Zombies",
     "Hosts",    "Expired",   "HeartBeat", "Priority",
-    "Saved",     "Staging",
+    "Saved",     "Staging", "Saved_warn",
     "Quota", "WaitingTime", "ToStage", "Packages",
   );    #,"ResolveReq");
 

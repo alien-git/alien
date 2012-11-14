@@ -201,9 +201,27 @@ sub findFilesForFileBroker {
   my @info =split(/\:\:/, $queueName);
 	my $site    = $info[1];
 	
-	#TODO: this limit should come from the jdl
-	my $limit   = shift || 10;
 	
+	my $limit;
+
+  my $jdl=$self->{DB}->queryValue("select origjdl from QUEUEJDL where queueid=?", undef, {bind_values=>[$split]});
+
+  $jdl or $self->info("Error getting the jdl of $split while doing the file broker") and return;
+  eval { 
+      my $ca=AlienClassad::AlienClassad->new($jdl) or die("Erorr creating the classad");
+      (my $ok, $limit)=$ca->evaluateAttributeString("SplitMaxInputFileNumber");
+  };
+  if ($@){
+     $self->info("THERE WAS AN ERROR GETTING THE FILE BROKER NUMBER! $@");
+  }
+
+        	
+  $limit or $limit=10; 
+
+
+
+  $self->info("The limit is $limit");
+
 	
 	$site = '%,$site,%';
 
@@ -326,7 +344,7 @@ sub extractClassadParams {
 	$params->{packages} = "," . join(",,", sort @pack) . ",";
 	($ok, @pack) = $classad->evaluateAttributeVectorString("InstalledPackages");
 	$params->{installedpackages} = "," . join(",,", sort @pack) . ",";
-	($ok, @pack) = $classad->evaluateAttributeVectorString("GridPartition");
+	($ok, @pack) = $classad->evaluateAttributeVectorString("GridPartitions");
 	$params->{partition} = "," . join(",", sort @pack) . ",";
 	$params->{ce}        = $queueName;
 
