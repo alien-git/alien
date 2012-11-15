@@ -614,7 +614,7 @@ sub setPrimaryKey {
   my $key      = shift;
   my $indexRef = shift;
   my $indexes  = $self->getIndexes($table);
-
+  
   my @indexes = ();
   $indexRef and @indexes = @$indexRef;
   my $primary = 0;
@@ -643,16 +643,12 @@ sub setPrimaryKey {
     }
   }
   if ((!$primary) && $key) {
-    $self->alterTable($table, "drop primary key, ADD PRIMARY KEY ($key)");
-    $self->info("Altering the primary key of $table");
+  	$self->info("Altering the primary key of $table");
+  	$self->hasPrimaryKey($table) and $self->alterTable($table, "drop primary key");
+    $self->alterTable($table, "ADD PRIMARY KEY ($key)");
   }
-#  foreach (@indexes) {
-#    $self->info("Creating the index $_ on the table $table");
-#    $_ =~ /PRIMARY/ and $self->info("The index is a primary key for $table, dropping") and $self->alterTable($table, "drop primary key");
-#    $self->createIndex($_, $table, $INDEX);
-#  }
   if (@indexes){
-	  grep /PRIMARY/, @indexes and $self->info("The indexes contain a primary key for $table, dropping") and $self->alterTable($table, "drop primary key");
+	  grep /PRIMARY/, @indexes and $self->hasPrimaryKey($table) and $self->info("The indexes contain a primary key for $table, dropping") and $self->alterTable($table, "drop primary key");
 	  
 	  my $indexstring = "";
 	  foreach (@indexes){

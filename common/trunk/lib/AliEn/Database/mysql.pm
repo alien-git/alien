@@ -498,6 +498,14 @@ sub getToStage {
 
 }
 
+sub hasPrimaryKey {
+  my $self = shift;
+  my $table = shift;
+    
+  return $self->queryValue("SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='$self->{DB}' 
+                                                  and table_name='$table' and column_key = 'PRI') As HasPrimaryKey");
+}
+
 sub unfinishedJobs24PerUser {
   my $self = shift;
   return $self->do(
