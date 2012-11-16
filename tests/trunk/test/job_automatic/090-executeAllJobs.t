@@ -21,7 +21,7 @@ BEGIN { plan tests => 1 }
   my $admincat=AliEn::UI::Catalogue::LCM::Computer->new({"user","$ENV{'USER'}","role","admin"});
   $admincat or exit (-1);
 
-  my $i=30;
+  my $i=35;
 
   while($i>0){
     $admincat->execute("queue", "open $cat->{CONFIG}->{ORG_NAME}::CERN::testCE") 
