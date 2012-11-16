@@ -8,7 +8,8 @@ WriteMakefile(
 	      'PREREQ_PM'		=> {}, # e.g., Module::Name => 1.1
 	      'PERL'              =>"$Config{prefix}/bin/alien-perl",
 	      ($] >= 5.005 ?    ## Add these new keywords supported since 5.005
-	       (ABSTRACT_FROM => 'lib/AliEn/Config.pm', # retrieve abstract from module
+	       (
+                ABSTRACT  => 'lib/AliEn/Config.pm', # retrieve abstract from module
 		AUTHOR     => 'Pablo Saiz <Pablo.Saiz@cern.ch>') : ()),
 	      'INSTALLSCRIPT'     => "$Config{prefix}/scripts",
 	      'INSTALLSITESCRIPT' =>"$Config{prefix}/scripts",
@@ -38,6 +39,7 @@ WriteMakefile(
 				      'scripts/makewhatis',
 				      'scripts/rotatelog.pl',
 				      'scripts/Validate.pl',
+				      'scripts/logtail',
                                       'scripts/pingService.pl',
                                       'scripts/ServiceStatus.sh']
 	     );
