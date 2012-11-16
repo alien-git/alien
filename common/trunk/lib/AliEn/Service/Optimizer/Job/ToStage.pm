@@ -31,7 +31,7 @@ sub checkWakesUp  {
   
   # available CES
   my $ces = $self->{DB}->getFieldFromSiteQueueEx("site","where status like 'jobagent-no-match' and blocked like 'open'");
-  my $ces_matched = $self->{DB}->getFieldFromSiteQueueEx("site","where status like 'jobagent-matched' and blocked like 'open'");
+  my $ces_matched = $self->{DB}->getFieldFromSiteQueueEx("site","where status like 'jobagent-match' and blocked like 'open'");
   push @$ces, @$ces_matched;
   
   $ces and @$ces or $self->info("No CEs available") and return;    
