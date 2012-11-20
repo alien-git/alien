@@ -1754,7 +1754,7 @@ sub killProcessInt {
 
   $self->info("Killing process $queueId...");
 
-  my ($data) = $self->getFieldsFromQueue($queueId, "statusId,exechostId, submithostId,siteId,agentid,userid");
+  my ($data) = $self->getFieldsFromQueue($queueId, "statusId,exechostId, submithostId,siteId,agentid,userid,split");
 
   defined $data
     or $self->info( "In killProcess error during execution of database query")
@@ -1798,6 +1798,11 @@ sub killProcessInt {
       or $self->info( "In killProcess error inserting the message")
       and return;
   }
+  if ($data->{split}) {
+    $self->do("insert ignore into JOBSTOMERGE values (?)", {bind_values=>[$data->{split}]});
+    $self->do("update ACTIONS set todo=1 where action='MERGING'");
+  }
+
   $self->info("Process killed");
 
   return 1;
