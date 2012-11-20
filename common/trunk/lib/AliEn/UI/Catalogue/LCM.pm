@@ -2233,10 +2233,10 @@ sub masterSERecover {
 sub masterSEReplicate {
   my $self = shift;
   my $guid = shift;
-
+  my $sename = shift;
   #  my ($lfn)=$self->execute("guid2lfn", $guid->{guid}) or return;
 
-  return $self->execute("mirror", $guid->{lfn}, "alice::subatech::se");
+  return $self->execute("mirror", $guid->{lfn}, $sename);
 
   #  return 1;
 
