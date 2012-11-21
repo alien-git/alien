@@ -949,9 +949,9 @@ sub removeFile {
   $self->do(
         "INSERT INTO LFN_BOOKED(lfn, ownerId, expiretime, "
       . $self->reservedWord("size")
-      . ", guid, gownerId, pfn) SELECT ?, USERS.uId, -1, l."
+      . ", guid, gownerId, pfn) SELECT ?, ownerid, -1, l."
       . $self->reservedWord("size") 
-      . ", l.guid, GRPS.gId,'*' FROM $tableName l JOIN USERS ON l.ownerId=uId JOIN GRPS ON l.gownerId=gId WHERE l.lfn=? AND l.type<>'l'",
+      . ", guid, gownerid,'*' FROM $tableName WHERE lfn=? AND type<>'l'",
     {bind_values => [ $lfn, $lfnOnTable ]}
     )
     or $self->info( "Could not insert LFN(s) in the booking pool")
