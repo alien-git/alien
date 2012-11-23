@@ -67,11 +67,13 @@ sub getJobAgent {
 		or $self->{LOGGER}->error("JobBroker", "In findjob error updating status of host $host")
 		and return;
   $self->info("Ready to extract params");
-  my ($ok, $agentid, $queueName, $fileBroker, $remote)= $self->getWaitingAgent($site_jdl);
+   my ($ok, @info)= $self->getWaitingAgent($site_jdl);
+   my ( $agentid, $queueName, $fileBroker, $remote)= @info;
+#  my ($ok, $agentid, $queueName, $fileBroker, $remote)= $self->getWaitingAgent($site_jdl);
   $self->info("HELLO $ok, $agentid");
   if ($ok< 1) {
-    $self->info("We didn't get an agent ($agentid)");
-    return {execute => [ $ok, $agentid ]};
+    $self->info("We didn't get an agent (@info)");
+    return {execute => [ $ok, @info ]};
   }
 	my ($queueid, $jdl, $jobUser) = $self->{DB}->getWaitingJobForAgentId($agentid, $queueName, $host);
 	$queueid
@@ -346,7 +348,7 @@ sub extractClassadParams {
 	($ok, @pack) = $classad->evaluateAttributeVectorString("GridPartitions");
 	$params->{partition} = "," . join(",", sort @pack) . ",";
 	$params->{ce}        = $queueName;
-
+  ($ok, $params->{user}) = $classad->evaluateAttributeString("User");
 	($ok, $params->{splitFiles})= $classad->evaluateAttributeString("SplitMaxInputFileNumber");
 
 	return ($queueName, $params);
