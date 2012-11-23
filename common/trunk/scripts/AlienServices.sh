@@ -503,7 +503,12 @@ startService()
     ALIEN_StartHttp $service $configName $packageName
   else
     SETSID=`which setsid 2> /dev/null`
-    $SETSID  $ALIEN_PERL $ALIEN_DEBUG $ALIEN_START $* -logfile $LOGDIR/$packageName.$portNum.log  &
+    if [ "$service" == "JobAgent" ] 
+    then
+      $SETSID  $ALIEN_PERL $ALIEN_DEBUG $ALIEN_START $* -logfile $LOGDIR/$packageName.$portNum.log  
+    else
+      $SETSID  $ALIEN_PERL $ALIEN_DEBUG $ALIEN_START $* -logfile $LOGDIR/$packageName.$portNum.log  &
+    fi
     error=$?
     MASTERPID=$!
     echo  $! > $LOGDIR/$packageName.pid
