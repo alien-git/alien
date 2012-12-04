@@ -949,7 +949,7 @@ sub removeFile {
   $self->do(
         "INSERT INTO LFN_BOOKED(lfn, ownerId, expiretime, "
       . $self->reservedWord("size")
-      . ", guid, gownerId, pfn) SELECT ?, ownerid, -1, l."
+      . ", guid, gownerId, pfn) SELECT ?, ownerid, -1, "
       . $self->reservedWord("size") 
       . ", guid, gownerid,'*' FROM $tableName WHERE lfn=? AND type<>'l'",
     {bind_values => [ $lfn, $lfnOnTable ]}
