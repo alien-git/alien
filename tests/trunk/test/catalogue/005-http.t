@@ -14,7 +14,7 @@ $c->execute("add", "httpFile", "http://aliendasdas.cern.ch/blablablabla")
 and exit(-2);
 
 print "Adding non existing http file (should work)...\n";
-$c->execute("add", "httpFile",  "http://alien2.cern.ch/index.php")
+$c->execute("add", "httpFile",  "http://aliweb.cern.ch/Offline/index.php")
 or exit(-2);
 
 
