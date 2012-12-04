@@ -63,7 +63,7 @@ sub get {
     }
   }
   $self->info("Finally, start the seeder");
-  system("aria2c $args --seed-time=10 --seed-ratio=0 -d $self->{LOCALFILE}_dir  $link > /dev/null 2&>1 &"); 
+  system("aria2c $args --seed-time=10 --seed-ratio=0 -d $self->{LOCALFILE}_dir  $link > /dev/null 2>&1 &"); 
   #"$PROGRAM" $ARGS --seed-time=10 --seed-ratio=0 "$@" &>/dev/null &
   $self->info("Returning");
   return $self->{LOCALFILE};
