@@ -8,7 +8,7 @@ $| = 1;
 use strict;
 use AliEn::Service;
 
-use AliEn::UI::Catalogue::LCM;
+use AliEn::UI::Catalogue::LCM::Computer;
 
 use AlienClassad;
 
@@ -48,7 +48,7 @@ sub initialize {
 
   $self->debug(1, "In initialize creating AliEn::UI::Catalogue instance" );
   
-  $self->{CATALOGUE} = AliEn::UI::Catalogue::LCM->new($options)
+  $self->{CATALOGUE} = AliEn::UI::Catalogue::LCM::Computer->new($options)
     or $self->{LOGGER}->error( "Manager", "In initialize error creating AliEn::UI::Catalogue instance" )
       and return;
 

@@ -496,6 +496,8 @@ sub modifyJobCA {
 	$self->checkRequirements($job_ca) or return;
 	
 	$self->checkExpire($job_ca) or return;
+	
+	$self->checkRetries($job_ca) or return;
 
 	$job_ca->insertAttributeString("User", $self->{CATALOG}->{CATALOG}->{ROLE});
 
@@ -521,6 +523,26 @@ sub checkExpire {
 		}
 		else{
 			$self->info("No Max Waiting Time [correctly] defined");
+			return;
+		}
+	} 
+	return 1;
+}
+
+
+# Retries check
+sub checkRetries {
+	my $self   = shift;
+	my $job_ca = shift;
+	$DEBUG and $self->debug(1, "Checking the retries of this job");
+
+	my ($ok, $rt) = $job_ca->evaluateAttributeString("Retries");
+	if ($ok) {
+		if ($rt && ($rt =~ /^\d+$/i) ) {
+			$self->info("Retries defined to $rt");
+		}
+		else{
+			$self->info("No Retries [correctly] defined");
 			return;
 		}
 	} 

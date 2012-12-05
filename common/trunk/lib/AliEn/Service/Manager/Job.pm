@@ -13,7 +13,6 @@ use AliEn::JOBLOG;
 use AliEn::Util;
 use AlienClassad;
 
-
 #use AliEn::Service::Optimizer::Job::Splitting;
 #use AliEn::Database::TaskPriority;
 use Data::Dumper;
@@ -532,11 +531,38 @@ sub changeStatusCommand : Public {
 
     }
 
+  # check if must be resubmitted
+  if ($status =~ /^ERROR.*$/) {
+    $self->info("Job $queueId to $status, checking retries and split values");
+    my $jdl=$self->{DB}->queryValue("select origJdl from QUEUEJDL where queueId=?", undef, {bind_values => [$queueId]});
+    my $ca=AlienClassad::AlienClassad->new($jdl);
+    my ($ok, $rt)=$ca->evaluateAttributeString("Retries");
+    my ($ok2, $sp)=$ca->evaluateAttributeString("Split");
+    my ($ok3, $user)=$ca->evaluateAttributeVectorString("User");
+
+    if ($ok and $rt and !($ok2 and $sp) ){
+      my $resubmits = $self->{DB}->getFieldFromQueue($queueId,"resubmission");
+      if($resubmits < $rt){
+        (my $currentuser) = $self->{CATALOGUE}->execute("whoami", "-silent");
+        ($user ne $currentuser) and $self->{CATALOGUE}->execute("user", "-", $user);
+
+        $self->info("Going to resubmit $queueId due to $resubmits < $rt");
+        $self->{CATALOGUE}->execute("resubmit", $queueId);
+        $self->putJobLog($queueId, "state", "Job $queueId resubmitted, retries($rt) > resubmission($resubmits)");
+        
+        ($user ne $currentuser) and $self->{CATALOGUE}->execute("user", "-", $currentuser);
+        
+        return 1;
+      }
+    }
+  }
+   
   if ($status =~ /^(ERROR.*)|(SAVED_WARN)|(SAVED)|(KILLED)|(FAILED)|(EXPIRED)$/) {
     $set->{spyurl} = "";
     $self->{DB}->deleteJobToken($queueId);
     $set->{finished} = $date;
   }
+  
 
   my $putlog = "";
   foreach (keys %$set) {
@@ -561,7 +587,7 @@ sub changeStatusCommand : Public {
   }
 
   $self->info("Command $queueId updated!");
-
+  
   return 1;
 }
 

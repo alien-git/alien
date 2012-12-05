@@ -1684,7 +1684,7 @@ sub resubmitJob{
   
 	#Should we delete the QUEUEPROC??? Nope, that's defined as on cascade delete
 	
-	#Finally, udpate the JOBAGENT
+	#Finally, update the JOBAGENT
 	
 	my $done=$self->do("update JOBAGENT join QUEUE on (agentid=entryid) set counter=counter+1 where queueid=?",
 	  {bind_values=>[$queueid]});
@@ -1696,15 +1696,17 @@ sub resubmitJob{
 		$info or $self->info("Error getting the jdl of the job") and return;
 		my $jdl=$info->{jdl};
 		$jdl =~ /[\s;](requirements[^;]*).*\]/ims
-      or $self->info("Error getting the requirements from $jdl") and return;
+          or $self->info("Error getting the requirements from $jdl") and return;
 
-    my $req = $1;
-    $jdl =~ /(\suser\s*=\s*"([^"]*)")/si or $self->info("Error getting the user from '$jdl'") and next;
-    $req.="; $1 ";
-    my $params=$self->extractFieldsFromReq($req);
-    $params->{entryId}= $info->{agentid};
-		$self->insert("JOBAGENT",$params);
-		
+      my $req = $1;
+      $jdl =~ /(\suser\s*=\s*"([^"]*)")/si or $self->info("Error getting the user from '$jdl'") and next;
+      $req.="; $1 ";
+      my $params=$self->extractFieldsFromReq($req);
+      $params->{entryId}= ($info->{agentid} || 0);
+	  
+	  $self->insert("JOBAGENT",$params);
+	  my ($ret)=$self->getLastId("JOBAGENT");
+	  $self->do("UPDATE QUEUE set agentId=$ret where queueId=$queueid");
 	}
 	
 	return $queueid
