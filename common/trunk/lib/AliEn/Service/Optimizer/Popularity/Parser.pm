@@ -22,9 +22,9 @@ sub checkWakesUp {
   
   # $self->{SLEEP_PERIOD}=3600*24; # once in 24 hours 
   
-  $self->{SLEEP_PERIOD}=60*10; # every 10 minute 
+  $self->{SLEEP_PERIOD}=60*20; # every 10 minute 
   
-  
+ 
   $self->$method(@info, "The Parser optimizer starts");
   $self->getCollectorTask($name, $tableName);
   
@@ -36,11 +36,15 @@ sub checkWakesUp {
     my $collectorName = shift;
     my $tableName = shift;
     my $currTime = time;
+    my $portion;
     my $task = $self->{DB}->query("select startTime from $tableName where name='$collectorName' and actions='0'");
     if ($task and $task->[0]) {
       my $startTime=$task->[0]->{startTime};
       my $epochSTARTtime = str2time($startTime);
-      my $portion = $epochSTARTtime + $INTtime;
+      if ($epochSTARTtime){
+      	
+      $portion = $epochSTARTtime + $INTtime;
+      
       my $LogFile;
       my $LogFileDate;
       if ( $startTime =~ m{^(\d{4})-(\d{2})-(\d{2})} ){
@@ -66,6 +70,7 @@ sub checkWakesUp {
       	 	or $self->info("Could not update collectors table") and return;
       	 }
       }
+     }
     }
   	$self->info("The $collectorName optimizer finished");
  	return;
@@ -90,10 +95,10 @@ sub FILLfileAccessInfoTable
 	 my $userName;
 	 my $epochaccessTIME;
 	 
-     open my $pipe, "-|", "$ENV{ALIEN_ROOT}/bin/logtail", "$LogFile" or die "could not start logtail on $LogFile";
-
+	 open my $pipe, "-|", "$ENV{ALIEN_ROOT}/bin/alien-perl", "$ENV{ALIEN_ROOT}/scripts/logtail", "$LogFile"
+       or $self->info ("could not start logtail on $LogFile") and return 0;
+     
 	 my @data = <$pipe>;
-
      
  if (@data) {
 
@@ -126,7 +131,7 @@ sub FILLfileAccessInfoTable
                                    or $self->info("Could not insert a task for HourlyCollector") and return;
                                   }
                                   else {
-                                   $self->info("Could not do insertions") and return;
+                                   $self->info("Could not do insertions") and return 0;
                                   }
 #                                  next READFILE;
 #                                }
