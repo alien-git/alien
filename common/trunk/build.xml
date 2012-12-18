@@ -1,0 +1,47 @@
+<?xml version="1.0"?>
+<project name="alien-common" default="make">
+    <description>
+        Ant adaptor for the unzip Makefile.
+    </description>
+
+    <target name="make" description="build unzip">
+        <exec executable="make">
+        </exec>
+    </target>
+
+	<target name="buildremote" description="build on the test machine">
+		<exec executable="rsync">
+			<arg value="-r"/>
+			<arg value="."/>
+			<arg value="alientests@aliendb06d:alien-common"/>
+		</exec>
+		<exec executable="ssh">
+			<arg value="alientests@aliendb06d"/>
+			<arg value="cd alien-common;cp Makefile.remote Makefile; make install"/>
+		</exec>
+    </target>
+
+    <target name="test" description="test unzip"
+        depends="make">
+        <exec executable="make">
+            <arg value="-f"/>
+            <arg value="unix/Makefile"/>
+            <arg value="test"/>
+        </exec>
+    </target>
+
+    <target name="install" description="install unzip"
+        depends="make">
+        <exec executable="make">
+            <arg value="install"/>
+        </exec>
+    </target>
+
+    <target name="clean" description="clean unzip">
+        <exec executable="make">
+            <arg value="-f" />
+            <arg value="clean"/>
+        </exec>
+
+    </target>
+</project>
