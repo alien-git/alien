@@ -182,17 +182,16 @@ $config{brokerPort}=$portNumber+10;
 $config{ldapmanager}=$rootdn;
 $config{processPort}=[$portNumber+5,$portNumber+6,$portNumber+7,$portNumber+8,$portNumber+9 ];
 
-$config{brokerHost}=$config{isHost}=$config{catalogHost}=$config{queueHost}=$config{authHost}=$config{accessesHost}=$hostName;
+$config{brokerHost}=$config{isHost}=$config{catalogHost}=$config{queueHost}=$config{authHost}=$hostName;
 $config{authenDatabase}="ADMIN";
 $config{catalogDatabase}="alien_system";
 $config{isDatabase}="INFORMATIONSERVICE";
 $config{queueDatabase}="processes";
-$config{accessesDatabase}="accesses";
 
 
 
 $config{isDbHost}=$config{queueDbHost}=$config{catalogHost}=$config{authenHost}=$mysqlHost;
-$config{isDriver}=$config{queueDriver}=$config{catalogDriver}=$config{authenDriver}=$config{accessesDriver}="mysql";
+$config{isDriver}=$config{queueDriver}=$config{catalogDriver}=$config{authenDriver}="mysql";
 $config{userDir}="/\L$orgName\E/user";
 $config{clusterMonitorUser}="$prodUser";
 
@@ -208,11 +207,6 @@ $config{jobDatabase}="$mysqlHost/mysql/processes";
 $config{catalogueOptimizerAddress}="$hostName:".($portNumber+19);
 $config{catalogueDatabase}="$mysqlHost/mysql/alien_system";
 
-
-$config{accessesPort}=$portNumber+22;
-$config{popularityOptimizerAddress}="$hostName:".($portNumber+23);
-$config{popularityDatabase}="$mysqlHost/mysql/accesses";
-
 $config{lbsgAddress}  = "https://"."$hostName".":18051";
 $config{lbsgDatabase} = $config{jobDatabase};
 
@@ -227,7 +221,10 @@ $config{jobBrokerAddress}="$hostName:".($portNumber+10);
 $config{authenSubject}=$authenSubject;
 $config{packmanmasterAddress}="$hostName:".($portNumber+12);
 $config{messagesmasterAddress}="$hostName:".($portNumber+13);
+$config{semasterManagerAddress}="$hostName:".($portNumber+14);
+$config{semasterDatabase}="$mysqlHost/mysql/alien_system";
 $config{jobinfoManagerAddress}="$hostName:".($portNumber+20);
+
 
 push(@list,("ou=Config,$orgDN", [%config]));
 

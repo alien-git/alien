@@ -1,6 +1,5 @@
 use strict;
 use AliEn::Database::Catalogue;
-use AliEn::Database::Accesses;
 use Net::Domain qw(hostname hostfqdn hostdomain);
 
 print "This script will create the databases for the alien catalogue for a new AliEn Organisation
@@ -61,6 +60,7 @@ Host name:             $hostName
 Port number:           $portNumber
 ********************************************\n";
 
+
 my $OK = getParam ("Proceed with creation","Y");
 if($OK ne "Y") {
   print "Exiting\n";
@@ -96,8 +96,7 @@ chdir ($mysqlDir) or print "failed\nError changing to $mysqlDir\n" and exit(-2);
 #system ("tar", "zxf", "$tar")
 #  and print "failed\nError uncompressing $tar\n $! $?\n" and exit(-2);
 print "ok\nCalling mysql_install_db...";
-system("$ENV{ALIEN_ROOT}/scripts/mysql_install_db", "--datadir=$mysqlDir/mysql", "--skip-name-resolve ", "--basedir=$ENV{ALIEN_ROOT}", "--no-defaults")
-   and print "Error creating the empty database\n" and exit(-2);
+system("$ENV{ALIEN_ROOT}/bin/mysql_install_db", "--datadir=$mysqlDir/mysql", "--skip-name-resolve ", "--basedir=$ENV{ALIEN_ROOT}") and print "Error creating the empty database\n" and exit(-2);
 
 
 if (! $<) {
@@ -111,18 +110,7 @@ my $FILE;
 open ($FILE, ">","mysql/my.cnf") or print "Error opening my.cnf\n" and exit(-2);
 print $FILE "
 [mysqld]
-#set-variable    = max_connections=2000
-
-#ignore_builtin_innodb
-#plugin-load=innodb=ha_innodb_plugin.so;innodb_trx=ha_innodb_plugin.so;
-#  innodb_locks=ha_innodb_plugin.so;innodb_lock_waits=ha_innodb_plugin.so
-
-
-default-storage-engine=InnoDB
-innodb_file_per_table=1
-innodb_file_format=barracuda
-innodb_strict_mode=1
-
+set-variable    = max_connections=2000
 ";
 close $FILE;
 my $configDir="/etc/aliend";
@@ -230,7 +218,6 @@ GRANT ALL PRIVILEGES ON *.* TO admin\@localhost IDENTIFIED BY '$passwd' WITH GRA
 flush privileges;
 create database if not exists alien_system;
 create database if not exists processes;
-create database if not exists accesses;
 create database if not exists transfers;
 create database if not exists INFORMATIONSERVICE;
 create database if not exists ADMIN;";
@@ -266,28 +253,7 @@ $now =~ s/\n//;
 print "Creating the tables in the database\n";
 $db->createCatalogueTables() or exit(-2);
 
-
-my $dbAcc=AliEn::Database::Accesses->new({USE_PROXY=>0,
-					USER=>"admin",
-					ROLE=>"admin",
-					PASSWD=>$passwd,
-#					DEBUG=>5,
-				       });
-
-if (! $dbAcc) {
-  print "We couldn't connect to the database\n";
-  print "Let's try as root\n";
-  open ($FILE, "| $ENV{ALIEN_ROOT}/bin/mysql  -p$passwd -u root -S $socket") or print "Error conecting to mysql \n" and exit(-2);
-  print $FILE "select * from mysql.user;";
-  close $FILE;
-  exit(-2);
-}
-
-print "Creating the tables in the database\n";
-$dbAcc->createAccessesTables() or exit(-2);
-
-
-foreach my $dbtype ('TaskQueue', 'Transfer', 'IS',) {
+foreach my $dbtype ('TaskQueue', 'Transfer', 'IS', 'Admin', 'TaskPriority') {
   print "Creating the $dbtype...";
   my $s="AliEn::Database::$dbtype";
 
@@ -299,14 +265,18 @@ foreach my $dbtype ('TaskQueue', 'Transfer', 'IS',) {
 		 #					DEBUG=>5,
 		}
 	       ) or exit(-2);
+  $dbtype =~ /TaskPriority/ and $d->checkPriorityValue('admin');
   print "Done with $?\n";
 }
 my @q=(
+       "INSERT INTO ADMIN.TOKENS (ID, Username, expires, token, password, sshkey,dn)  values(12, 'admin', DATE_ADD(now() ,INTERVAL 1 YEAR), '$token', '$passwd', 'NOKEY','')",
        "INSERT INTO USERS (Username) values ('admin')",
        "INSERT INTO GRPS (Groupname) values ('admin')",
        "INSERT INTO L0L(lfn,ownerId, gownerId,perm,type) values ('',1 , 1,'755','d')",
        "INSERT INTO INDEXTABLE(lfn,tableName) values  ('/', 0)",
        "INSERT INTO GUIDINDEX(guidTime,tableName) values  ('', 0)",
+       "Create DATABASE geoip",
+       "GRANT SELECT ON geoip.* to alienmaster",
        "INSERT INTO SE(seName) VALUES ('no_se')",
        "insert into UGMAP values (1,1,1)",
 

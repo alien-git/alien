@@ -50,7 +50,7 @@ print "Moving L#L tables into alice_users\n";
 createIndexTable($db);
 my $mct = shift @$triggers;
 foreach my $row (@$indexTable) {
-  print "[ $row->{new_tableName} / $lfn_ctr ]\tMoving $row->{db}.L$row->{tableName}L to L$row->{new_tableName}L for $row->{lfn}\n";
+  #print "[ $row->{new_tableName} / $lfn_ctr ]\tMoving $row->{db}.L$row->{tableName}L to L$row->{new_tableName}L for $row->{lfn}\n";
   $db->do("INSERT INTO INDEXTABLE(tableName,lfn) VALUES (?,?)", {bind_values=>[$row->{new_tableName}, $row->{lfn}]})
     or push (@failures, {tableName=>$row->{new_tableName}, lfn=>$row->{lfn}});
   $mct->{tableName} eq $row->{tableName} and $db->do("DROP TRIGGER IF EXISTS $mct->{db}.$mct->{TRIGGER_NAME}");
@@ -71,19 +71,15 @@ print "Moving GUID tables to alice_temp\n";
 createGuidIndex($db);
 $db->do("CREATE SCHEMA IF NOT EXISTS alice_temp");
 foreach my $row (@$guidIndex) {
-  print "[ $row->{new_tableName} / $guid_ctr ]\tMoving $row->{db}.G$row->{tableName}L to alice_temp.G$row->{new_tableName}L\n";
+  #print "[ $row->{new_tableName} / $guid_ctr ]\tMoving $row->{db}.G$row->{tableName}L to alice_temp.G$row->{new_tableName}L\n";
   $db->do("INSERT INTO GUIDINDEX(tableName, guidTime) VALUES (?,?)", {bind_values=>[$row->{new_tableName}, $row->{guidTime}]});
   $db->do("ALTER TABLE $row->{db}.G$row->{tableName}L RENAME alice_temp.G$row->{new_tableName}L");
   $db->do("ALTER TABLE $row->{db}.G$row->{tableName}L_PFN RENAME alice_temp.G$row->{new_tableName}L_PFN");
   $db->do("ALTER TABLE $row->{db}.G$row->{tableName}L_REF RENAME alice_temp.G$row->{new_tableName}L_REF");
 }
-print "Removing the useless G#L from alice _users\n";
-my $entries = $db->query("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='alice_users' 
-  AND ( TABLE_NAME REGEXP '^G[0-9].*L\$' OR TABLE_NAME REGEXP '^G[0-9].*L_PFN\$'  OR TABLE_NAME REGEXP '^G[0-9].*L_REF\$' )");
-map { $db->do("ALTER TABLE alice_users.$_->{TABLE_NAME} RENAME alice_users.$_->{TABLE_NAME}_BACKUP") } @$entries;
-#map { $db->do("DROP TABLE alice_users.$_->{TABLE_NAME} ") } @$entries;
 print "Now moving the G#L back to alice _users\n";
-$entries = $db->query("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='alice_temp'");
+#my $entries = $db->query("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='alice_temp'");
+my $entries = $db->query("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='alice_temp'");
 map { $db->do("ALTER TABLE alice_temp.$_->{TABLE_NAME} RENAME alice_users.$_->{TABLE_NAME}") } @$entries;
 $db->do("DROP SCHEMA IF EXISTS alice_temp");
 
@@ -118,7 +114,7 @@ foreach my $schema (@schemas) {
   foreach my $tag (@$tag0) {
     defined $tag->{tableName} or next;
     #print "Moving tag $tag->{tagName} defined for $tag->{path} in $schema to TAG0\n";
-    $db->do("INSERT INTO TAG0(tagName, path, tableName, userId) VALUES (?, ?, ?, ?)", {bind_values=>[$tag->{tagName}, $tag->{path}, $tag->{tableName}, $tag->{userId}]});
+    $db->do("INSERT INTO TAG0(tagName, path, tableName, user) VALUES (?, ?, ?, ?)", {bind_values=>[$tag->{tagName}, $tag->{path}, $tag->{tableName}, $tag->{user}]});
   }
 }
 

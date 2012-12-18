@@ -103,13 +103,7 @@ attributetype ( AliEnVOConfig:81 NAME 'semasterManagerAddress' SUP name )
 attributetype ( AliEnVOConfig:82 NAME 'jobinfoManagerAddress' SUP name )
 attributetype ( AliEnVOConfig:83 NAME 'sedetectmonalisaurl' SUP name )
 attributetype ( AliEnVOConfig:84 NAME 'sedefaultQosandCount' SUP name )
-attributetype ( AliEnVOConfig:85 NAME 'cacheServiceAddress' SUP name )
-attributetype ( AliEnVOConfig:86 NAME 'accessesHost' SUP name )
-attributetype ( AliEnVOConfig:87 NAME 'accessesPort' SUP name )
-attributetype ( AliEnVOConfig:88 NAME 'accessesDatabase' SUP name )
-attributetype ( AliEnVOConfig:89 NAME 'accessesDriver' SUP name )
-attributetype ( AliEnVOConfig:90 NAME 'popularityDatabase' SUP name )
-attributetype ( AliEnVOConfig:91 NAME 'popularityOptimizerAddress' SUP name )
+
 
 
 objectclass ( AliEnVOConfig  NAME 'AliEnVOConfig'
@@ -125,7 +119,7 @@ objectclass ( AliEnVOConfig  NAME 'AliEnVOConfig'
 		transferBrokerAddress $ transferDatabase $
 		transferOptimizerAddress $ jobOptimizerAddress $ 
 		jobDatabase $ ldapmanager $ jobManagerAddress $ 
-		jobBrokerAddress $ accessesHost $ accessesPort $ accessesDatabase $ accessesDriver $ popularityDatabase $ popularityOptimizerAddress )
+		jobBrokerAddress )
 	MAY ( proxyPort $ proxyHost $ proxyAddress $ processPort $catalogueDatabase $ catalogueOptimizerAddress $
 	      monalisaLUS $ monalisaGroup $ authenSubject $ proofPort $ proofDatabase $
 	      proofDriver $ proofDbHost $ proofHost $ proofMuxPortRange $
@@ -135,7 +129,7 @@ objectclass ( AliEnVOConfig  NAME 'AliEnVOConfig'
 	       nwsPort $ nwsDatabase $ nwsDriver $ nwsDbHost $ nwsHost $
         lbsgAddress $ lbsgDatabase $ si2kNominalPrice $ bankAdmin $ taxAccount $ taxRate $
 				bankCurrency $ jobDatabaseRead $ packmanmasterAddress $ 
- messagesmasterAddress $ semasterDatabase $ semasterManagerAddress $ jobinfoManagerAddress $ sedetectmonalisaurl $ sedefaultQosandCount $ cacheServiceAddress )
+ messagesmasterAddress $ semasterDatabase $ semasterManagerAddress $ jobinfoManagerAddress $ sedetectmonalisaurl $ sedefaultQosandCount)
 	)
 #AliEnUser
 
@@ -309,10 +303,6 @@ attributetype ( AliEnSite:16 NAME 'siteKey' SUP name )
 attributetype ( AliEnSite:17 NAME 'siteToken' SUP name )
 attributetype ( AliEnSite:18 NAME 'distributeCreditsTo' SUP name )
 attributetype ( AliEnSite:19 NAME 'officialLcgName' SUP name )
-attributetype ( AliEnSite:20 NAME 'officialLcgGroup' SUP name )
-attributetype ( AliEnSite:21 NAME 'officialLcgIgnore' SUP name )
-
-
 
 
 
@@ -323,8 +313,7 @@ objectclass ( AliEnSite  NAME 'AliEnSite'
 	MAY ( savese $ packages $ workdir $ processPort $
               administrator $ location $ country $ longitude $ latitude $ 
 	      record $ packmanAddress $ localconfig $ environment $
-              accountName $ distributeCreditsTo $ closese $ virtualSite $ siteKey $ siteToken $ officialLcgName $ 
-              officialLcgGroup $ officialLcgIgnore )
+              accountName $ distributeCreditsTo $ closese $ virtualSite $ siteKey $ siteToken $ officialLcgName )
 	      )
 
 #AliEnHostConfig

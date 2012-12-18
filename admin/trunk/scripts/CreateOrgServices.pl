@@ -9,7 +9,7 @@ use Net::LDAP;
 use Net::Domain qw(hostname hostfqdn hostdomain);
 use AliEn::Config;
 use Crypt::OpenSSL::RSA;
-use AliEn::UI::Catalogue::LCM;
+use AliEn::UI::Catalogue;
 print "This script will configure the startup of the AliEn Services for a new AliEn Organisation\n\n";
 
 
@@ -51,7 +51,7 @@ foreach my $service ("Manager", "Broker", "Optimizer"){
     $install.="Transfer$service ";
   }
 }
-foreach my $service ("Job", "Catalogue", "Popularity"){
+foreach my $service ("Job", "Catalogue"){
   if ($config->{"\U${service}\E_OPTIMIZER_ADDRESS"} =~ /^$hostname:/) {
     $install.="${service}Optimizer ";
   }
@@ -65,6 +65,9 @@ if ($config->{MESSAGESMASTER_ADDRESS} =~ /^$hostname:/) {
   $install.="MessagesMaster ";
 }
 
+if ($config->{SEMASTER_MANAGER_ADDRESS} =~ /^$hostname:/) {
+  $install.="SEManager ";
+}
 
 if ($config->{JOBINFO_MANAGER_ADDRESS} =~ /^$hostname:/) {
   $install.="JobInfoManager ";
@@ -242,7 +245,7 @@ $ENV{'SEALED_ENVELOPE_REMOTE_PUBLIC_KEY'} = "$ENV{ALIEN_HOME}/authen/rpub.pem";
 my $cat=AliEn::UI::Catalogue::LCM->new({role=>'admin'}) or exit(-2);
 $cat->execute("addUser", $userName) or exit (-2);
 $cat->execute("mkdir", "-p", "/\L$orgName\E/user/a/admin") or exit(-2);
-$cat->{CATALOG}->{DATABASE}->do("INSERT INTO FQUOTAS VALUES (1,-1,0,0,-1,0,0)");
+$cat->{CATALOG}->{DATABASE}->do("INSERT INTO FQUOTAS VALUES ('admin',-1,0,0,-1,0,0)");
 $cat->execute("addUser",  $config->{CLUSTER_MONITOR_USER}) or exit(-2);
 $cat->close();
 delete $ENV{ALIEN_DATABASE_PASSWORD};
@@ -464,7 +467,7 @@ sub checkLDAPConnection {
 		      "ou", "MonaLisa",
                       "shouldUpdate", "false",
                       "host", $mlHost,
-                      "apmonConfig", "['$mlHost']",
+                      "apmonConfig", "['pcardaab.cern.ch']",
                   
                      ]);
     $mesg->code && print "failed\nCould not add MonaLisa configuration: ", $result->error and return;
