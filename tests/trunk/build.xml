@@ -1,0 +1,49 @@
+<?xml version="1.0"?>
+<project name="alien-tests" default="make">
+    <description>
+        Ant adaptor for the unzip Makefile.
+    </description>
+
+    <target name="make" description="build unzip">
+    	<exec executable="autoconf"/>
+    	<exec executable="./configure"/>
+        <exec executable="make">
+        </exec>
+    </target>
+
+    <target name="test" description="test unzip"
+        depends="make">
+        <exec executable="make">
+            <arg value="-f"/>
+            <arg value="unix/Makefile"/>
+            <arg value="test"/>
+        </exec>
+    </target>
+
+	<target name="buildremote" description="build on the test machine">
+		<exec executable="rsync">
+			<arg value="-r"/>
+			<arg value="--stats"/>
+			<arg value="--del"/>
+			<arg value="."/>
+			<arg value="alientests@aliendb06d:alien-tests"/>
+		</exec>
+		
+		<exec executable="ssh">
+		 	<arg value="alientests@aliendb06d"/>
+			<arg value="cp alien-tests.backup/* alien-tests; cd alien-tests; ./killAll.sh"/>
+		</exec>
+		<exec executable="ssh">
+		 	<arg value="alientests@aliendb06d"/>
+			<arg value="cd alien-tests;rm -rf /home/alientests/.alien/var/log/ /tmp/aliendb1 /tmp/alien_tests;make test"/>
+		</exec> 
+    </target>
+
+	
+    <target name="install" description="install unzip"
+        depends="make">
+        <exec executable="make">
+            <arg value="install"/>
+        </exec>
+    </target>
+</project>
