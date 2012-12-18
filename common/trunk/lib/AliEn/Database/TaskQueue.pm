@@ -1634,10 +1634,12 @@ sub getWaitingJobForAgentId{
   
   my $siteid=$self->queryValue("select siteid from SITEQUEUES where site=?",
                                undef, {bind_values=>[$cename]});
+                               
+  my $hostId=$self->getOrInsertFromLookupTable('host',$host);
 
-  my $done=$self->do("UPDATE QUEUE set statusId=".AliEn::Util::statusForML('ASSIGNED').",siteid=?, exechostid=(select hostid from QUEUE_HOST where host=?)
-   where statusId=".AliEn::Util::statusForML('WAITING')." and agentid=? and \@assigned_job:=queueid  limit 1",
-                     {bind_values=>[$siteid, $host, $agentid ]});
+  my $done=$self->do("UPDATE QUEUE set statusId=".AliEn::Util::statusForML('ASSIGNED').",siteid=?, exechostid=?
+    where statusId=".AliEn::Util::statusForML('WAITING')." and agentid=? and \@assigned_job:=queueid  limit 1", 
+                     {bind_values=>[$siteid, $hostId, $agentid ]});
   
   if ($done>0){
   	my $info=$self->queryRow("select queueid, origjdl jdl,  user from 
