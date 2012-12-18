@@ -1,0 +1,1779 @@
+#!/bin/bash
+#############################################################################
+# amon - a script to monitor an manage AliEn services
+#
+# modification history
+# $Log$
+# Revision 1.1  2007/02/15 12:56:43  pbuncic
+# Initial revision
+#
+# Revision 1.1  2007/02/09 11:12:55  pbuncic
+# Initial revision
+#
+#
+# SYNOPSIS
+# amon [flags] <command [options]>
+#
+# DESCRIPTION
+#
+# AUTHOR:
+# Predrag Buncic, e-mail: Predrag.Buncic@cern.ch
+#
+# CREATION DATE:
+# 07-Feb-2007
+###########################################################################
+CONFIG_SITEVARS="ALIEN_ORGANISATION ALIEN_ROOT ALIEN_LOGDIR ALIEN_CS_LOGDIR ALIEN_PLATFORM ALIEN_COMPONENTS ALIEN_SERVICES ALIEN_INSTALLED_SERVICES LOGFILES"
+#############################################################################
+amonModules() {
+#############################################################################
+    cat<<EOF
+5051d6743d96781c677bd6ffeae5e0e9  Digest-SHA1-2.02.tar.gz
+a116d7a205fa0dcf969ac8e0bd78d4ff  Authen-SASL-2.08.tar.gz
+29a89f3e46cbb3fc2c24507f91a0a843  Time-HiRes-1.94.tar.gz
+fc1b182880d74d82938e1210923cb6c5  MIME-Base64-2.16.tar.gz
+db2b3b2e608df569a925986b04182ea2  PathTools-3.23.tar.gz
+6b7b044f553d089a1bce9fa0ef4c6615  Net_SSLeay.pm-1.26.tar.gz
+4eaf9bc8a44a3e98132f2c551b17f95d  IO-Socket-SSL-0.95.tar.gz
+b0867d7b599d8a63ba630fa6227936fe  XML-NamespaceSupport-1.09.tar.gz
+4b2276bafedc5a41cf50fea2296e31c4  XML-SAX-0.15.tar.gz
+80c0980ff63d77b871de41acc7175df7  XML-Simple-2.16.tar.gz
+20b5a6894762d9eda7ba631515f8bbb3  File-Spec-0.88.tar.gz
+ceb711a723464b6132fec8ee58a393f0  Net-DNS-0.42.tar.gz
+9c84640123eea12cfc58c6b5e7060ad8  Storable-2.15.tar.gz
+b3107452e2bb4d74d4b9892d61d50137  perl-ldap-0.31.tar.gz
+c2ac1379ac5848dd32e24347cd679391  HTML-Parser-3.45.tar.gz
+db1eb693eee45d251966ad2bab49dbbf  libwww-perl-5.805.tar.gz
+a1d67de6baa4afe4def3ea847da71755  POE-0.9917.tar.gz
+fab1ddd3e307b4ce3890a4708cfd04de  POE-Component-Client-Keepalive-0.0901.tar.gz
+3cafec48ed997ecb97cb980ef82732b8  POE-Component-Client-DNS-1.00.tar.gz
+d0bcb39e2eee75200da2e622b4f2bb69  POE-Component-Client-HTTP-0.81.tar.gz
+afd22e2e247c9c1be63c57caef4d6be9  POE-Component-Server-PreforkTCP-0.11.tar.gz
+20bda6f76eacf1d1d4ecb02f922c99f7  POE-Component-SSLify-0.06.tar.gz
+35827260ad62e9d1bcbf74ada943deb9  POE-Component-Child-1.39.tar.gz
+be78c7a9f0235bcd7d3d1391c8900cf6  GPG-0.06.tar.gz
+bcbaab776a54d1e34e3a057c925de9ca  monit-4.9.tar.gz
+3c986323dd4f3160187905d57cb660f0  Log-TraceMessages-1.1.tar.gz
+b5e76be5dfb90d8c8fdb8c28b2f9a427  Convert-ASN1-0.17.tar.gz
+d87b05143c6c2bc9464758e68e9c6e25  libevent-1.3.tar.gz
+9b241bc4a482a3aa59fbb1429bc30546  String-CRC32-1.4.tar.gz
+6ff64fb974d131fdb7f9d5fdf955dc9a  memcached-1.2.1.tar.gz
+e416057d3b1273e6d2a0ac465fb0e3bd  Cache-Memcached-1.14.tar.gz
+EOF
+}
+#############################################################################
+configGuess() {
+#############################################################################
+
+    if  [ -r $HOME/.alien/etc/aliend/startup.conf ] 
+    then
+      . $HOME/.alien/etc/aliend/startup.conf
+    fi
+    
+    if [ -z $ALIEN_ORGANISATION ]
+    then
+      ALIEN_ORGANISATION=ALICE
+    fi 
+
+    if [ -r $HOME/.alien/etc/aliend/$ALIEN_ORGANISATION/startup.conf ]
+    then
+      source $HOME/.alien/etc/aliend/$ALIEN_ORGANISATION/startup.conf
+    fi
+    
+    if [ -r $HOME/.alien/alice.conf -a "x$ALIEN_LOGDIR" = x ] 
+    then
+      ALIEN_LOGDIR=`cat $HOME/.alien/alice.conf | grep LOG_DIR | awk "{ print \\\$2}"`
+    fi
+    
+    if [ -d $HOME/.alien/var/log/AliEn/$ALIEN_ORGANISATION ]
+    then
+      ALIEN_CS_LOGDIR=${ALIEN_CS_LOGDIR:-$HOME/.alien/var/log/AliEn/$ALIEN_ORGANISATION}
+    fi
+    
+    if [ "x$ALIEN_PLATFORM" = "x" ]
+    then
+      for dir in /usr/share/libtool /usr/share/automake /usr/lib/rpm
+      do
+        if [ -x $dir/config.guess ]
+        then
+           platform=`$dir/config.guess`
+           break
+        fi
+      done
+      case $platform in
+        i*86-*-linux-gnu)
+          platform=i686-pc-linux-gnu
+        ;;
+        x86_64-*-linux-gnu)
+          platform=x86_64-unknown-linux-gnu
+        ;;
+        powerpc-apple-darwin8.*)
+          platform=powerpc-apple-darwin8.1.0
+        ;;
+        i686-apple-darwin8.*)
+          platform=i686-apple-darwin8.6.1
+        ;;  
+        ia64-*-linux-gnu)
+          platform=ia64-unknown-linux-gnu
+        ;;
+       *)
+        ;;
+      esac
+      ALIEN_PLATFORM=$platform
+    fi
+
+    if [ "x$ALIEN_PLATFORM" = "x" ]
+    then
+        echo "Could not guess your platform. Please set ALIEN_PLATFORM variable"
+        exit
+    fi
+    
+    ALIEN_CONFIG_SERVER=${ALIEN_CONFIG_SERVER:=alien.cern.ch}
+    
+    if [ ! -r $HOME/.alien/amon/default.conf ]
+    then
+      wget -q -O $HOME/.alien/amon/default.conf "http://$ALIEN_CONFIG_SERVER/bin/alien-config?platform=$ALIEN_PLATFORM&organisation=$ALIEN_ORGANISATION" 
+    fi
+    
+    if  [ -r $HOME/.alien/Environment ] 
+    then
+      . $HOME/.alien/Environment
+    fi
+    
+    configSite
+}
+
+#############################################################################
+configEnv() {
+#############################################################################
+
+    export AMON_HOME=$HOME/.alien/amon
+    base=`basename $0`
+    case $0 in
+       ./*)
+       dir=$PWD
+       ;;
+         *)
+       dir=`dirname $0`
+       ;;
+    esac
+    export AMON=$dir/$base
+
+    if [ ! -f $AMON_HOME/checksum ] 
+    then
+      buildModules || exit 1
+    fi
+    
+    csum=`amonModules | md5sum`
+    osum=`cat $AMON_HOME/checksum`
+    
+    if [ "$csum" != "$osum" ]
+    then
+      buildModules || exit 1
+    fi
+    
+    export PERL5LIB=$AMON_HOME:$AMON_HOME/lib64/perl5/site_perl:$AMON_HOME/lib64/perl5:$AMON_HOME/lib/perl5/site_perl:$AMON_HOME/lib/perl5:$AMON_HOME/share/perl:$AMON_HOME/lib/perl
+    export LD_LIBRARY_PATH=$AMON_HOME/lib:$LD_LIBRARY_PATH
+    export DYLD_LIBRARY_PATH=$LD_LIBRARY_PATH
+    
+    mkdir -p $HOME/.alien/amon
+    
+    if [ -r $HOME/.alien/amon/custom.conf ] 
+    then
+      . $HOME/.alien/amon/$custom.conf
+    fi
+    
+    for file in default site
+    do 
+      if [ -f $HOME/.alien/amon/$file.conf ]
+      then
+        eval `cat $HOME/.alien/amon/$file.conf | sed -n -e '/^[^+]/s/\([^=]*\)[=]\(.*\)/\1="\2"; export \1;/gp'`
+      fi 
+    done 
+
+    lcgvar=VO_${ALIEN_ORGANISATION}_SW_DIR
+
+    if [ "x${!lcgvar}" = "x" ]
+    then
+      export ALIEN_LCG=0  
+    else
+      export ALIEN_LCG=1
+    fi
+}
+
+
+#############################################################################
+buildOptions() {
+#############################################################################
+    export PREFIX=$AMON_HOME
+  
+    CONFIGURE_CMD="perl Makefile.PL" 
+    CONFIGURE_ARG="PREFIX=$PREFIX"
+    CONFIGURE_ENV=""
+    CONFIGURE_INPUT=""
+    CONFIGURE_ENV="PERL_MM_USE_DEFAULT=1"
+  
+    case $1 in
+      GPG*)
+        ;;
+      monit*|libevent-*|memcached-*)
+        CONFIGURE_CMD="./configure"
+        CONFIGURE_ARG="--prefix=$PREFIX"
+        ;;
+      Net_SSLeay.pm*)
+        CONFIGURE_ARG="-- PREFIX=$PREFIX"
+        ;;
+      POE-[0-9]*)
+        CONFIGURE_CMD="perl Makefile.PL PREFIX=$PREFIX"
+        CONFIGURE_ARG="--default"
+        ;; 
+      libwww-perl*)
+        CONFIGURE_CMD="perl Makefile.PL PREFIX=$PREFIX"
+        CONFIGURE_ARG="-n"
+        ;; 
+    Time-HiRes-*)
+        export LC_ALL="C"
+        ;; 
+      *)
+      ;;
+    esac
+}
+
+#############################################################################
+buildLog () {
+#############################################################################
+    if [ $1 -eq 0 ]
+    then
+      printf "OK.\n"
+    else
+      printf "FAILED.\n"
+      printf "=======================================================================\n"
+      printf "                        $2 log\n"
+      printf "=======================================================================\n"
+      [ -f "$TMPDIR/amon.log" ] && cat $TMPDIR/amon.log
+      printf "=======================================================================\n"
+      exit 1
+    fi
+}
+
+#############################################################################
+buildModules() {
+#############################################################################
+    AMON_HOME=$HOME/.alien/amon
+    BUILD_ENV=PERL5LIB=$AMON_HOME/lib/perl5:$AMON_HOME/lib/perl5/site_perl
+    RUN_ENV=LD_LIBRARY_PATH=$AMON_HOME/lib DYLD_LIBRARY_PATH=$AMON_HOME/lib
+    MODULES=`amonModules | awk '{print $2}' | awk -F'.tar.gz' '{print $1}'`
+    TEST=0
+    
+    WGETOPTS="-N --waitretry=10 --tries=3"
+    
+    URL=http://alien.cern.ch/cache/
+    
+    TMPDIR=`mktemp -d -q /tmp/amon.XXXXXX`
+    
+    if [ $? -ne 0 ]; 
+    then
+        echo "$0: Cannot create temp file, exiting..."
+        exit 1
+    fi
+    
+    (
+    cd $TMPDIR
+    
+    printf "Downloading components...."
+    
+    for module in $MODULES
+    do
+      wget $WGETOPTS -P . $URL/$module.tar.gz
+      rc=$?
+      if [ $rc -ne 0 ] 
+      then
+         break
+      fi 
+    done > $TMPDIR/amon.log 2>&1          
+    
+    buildLog $rc $module 
+    
+    printf "Verifying checksums...."
+    
+    amonModules | md5sum -c - > $TMPDIR/amon.log 2>&1 || exit 1 
+    
+    buildLog $? $module 
+    
+    for module in $MODULES
+    do
+      printf "Building $module...."
+      ( buildOptions $module;  tar zxvf $module.tar.gz && \
+        cd $module &&  \
+        $CONFIGURE_INPUT env $BUILD_ENV $CONFIGURE_ENV $CONFIGURE_CMD $CONFIGURE_ARG && \
+        env $BUILD_ENV make &&  env $BUILD_ENV make install 
+      )  > $TMPDIR/amon.log 2>&1
+      buildLog $? $module
+    done 
+    
+    )
+    
+    if [ $? -eq 0 ]
+    then
+      amonModules | md5sum > $AMON_HOME/checksum
+    fi  
+    
+    rm -rf $TMPDIR
+    unset TMPDIR 
+}
+
+#############################################################################
+monitHeader() {
+#############################################################################
+  LOGFILES=""
+  cat<<EOF >$AMON_HOME/$HOSTNAME.monitrc
+# Global monit run control configuration
+set daemon 30
+
+set pidfile ${ALIEN_LOGDIR}/monit.pid
+set logfile ${ALIEN_LOGDIR}/monit.log
+set statefile ${ALIEN_LOGDIR}/monit.state
+
+set httpd port 2812
+      ssl disable
+      pemfile  $HOME/.alien/amon/monit.pem
+      clientpemfile $HOME/.alien/amon/monit-clients.pem 
+      allowselfcertification
+      address localhost
+      allow localhost
+EOF
+}
+
+#############################################################################
+monitCentralService() {
+#############################################################################
+    if [ -z $ALIEN_CS_LOGDIR ] 
+    then
+      echo "Please define ALIEN_CS_LOGDIR variable or use --cs-logdir switch"
+      exit
+    fi 
+    SERVICE_NAME=`echo $1 | awk -F= '{print $1}'`
+    SERVICE_LOG=`echo $1  | awk -F= '{print $2}'`
+    LOGFILES="$LOGFILES ${ALIEN_LOGDIR}/${SERVICE_LOG}.log"   
+
+    cat<<EOF>>$AMON_HOME/$HOSTNAME.monitrc
+
+check process $SERVICE_NAME with pidfile "${ALIEN_CS_LOGDIR}/${SERVICE_LOG}.pid"
+        alert ${ALIEN_NOTIFY_EMAIL}
+        start "/bin/env HOME=$HOME $AMON --ctrl Start ${SERVICE_NAME}"
+        stop  "/bin/env HOME=$HOME $AMON --ctrl Stop ${SERVICE_NAME}"
+        if children > 1000 then
+                restart
+        if cpu > 90% for 5 cycles then
+                restart
+        if totalmem > 2 GB then
+                restart
+EOF
+}
+
+#############################################################################
+monitSiteService() {
+#############################################################################
+    SERVICE_NAME=`echo $1 | awk -F= '{print $1}'`
+    SERVICE_LOG=`echo $1  | awk -F= '{print $2}'`
+    LOGFILES="$LOGFILES ${ALIEN_LOGDIR}/${SERVICE_LOG}.log"   
+
+    cat<<EOF>>$AMON_HOME/$HOSTNAME.monitrc
+
+# AliEn ${SERVICE_NAME} monit run control file
+        check process ${SERVICE_NAME} with pidfile "${ALIEN_LOGDIR}/${SERVICE_LOG}.pid"
+        alert ${ALIEN_NOTIFY_EMAIL}
+        start "/bin/env HOME=$HOME $AMON --ctrl Start ${SERVICE_NAME}"
+        stop  "/bin/env HOME=$HOME $AMON --ctrl Stop ${SERVICE_NAME}"
+        if children > 1000 then
+                restart
+        if cpu > 90% for 5 cycles then
+                restart
+        if totalmem > 2 GB then
+                restart
+EOF
+}
+
+#############################################################################
+monitProxy() {
+#############################################################################
+    if [ -z $ALIEN_CS_LOGDIR ] 
+    then
+      echo "Please define ALIEN_CS_LOGDIR variable or use --cs-logdir switch"
+      exit
+    fi 
+    SERVICE_NAME=$1
+    LOGFILES="$LOGFILES ${ALIEN_LOGDIR}/ProxyServer.log"   
+    
+    cat<<EOF>>$AMON_HOME/$HOSTNAME.monitrc
+
+# AliEn Proxy Server monit run control configuration
+        check process Proxy with pidfile "${ALIEN_CS_LOGDIR}/ProxyServer.pid"
+        alert ${ALIEN_NOTIFY_EMAIL}
+        start program "/bin/env HOME=$HOME $AMON --ctrl Start Proxy"
+        stop  program "/bin/env HOME=$HOME $AMON --ctrl Stop Proxy"
+        if children > 2000 then
+                restart
+        if cpu > 90% for 5 cycles then
+                restart
+        if totalmem > 2 GB then
+                restart
+EOF
+}
+
+#############################################################################
+monitMonALISA() {
+#############################################################################
+    SERVICE_NAME=$1
+    LOGFILES="$LOGFILES ${ALIEN_LOGDIR}/MonaLisa.log"   
+
+    cat<<EOF>>$AMON_HOME/$HOSTNAME.monitrc
+
+# MonALISA monit run control configuration
+        check process MonaLisa with pidfile "${ALIEN_LOGDIR}/MonaLisa.pid"
+        alert ${ALIEN_NOTIFY_EMAIL}
+        start "/bin/env HOME=$HOME $AMON --ctrl Start MonaLisa"
+        stop  "/bin/env HOME=$HOME $AMON --ctrl Stop MonaLisa"
+        depends on MonaLisa_log0
+        depends on MonaLisa_log
+        check file MonaLisa_log0 with path ${ALIEN_LOGDIR}/MonaLisa/ML0.log
+        alert ${ALIEN_NOTIFY_EMAIL}
+        if match "OutOfMemory" then restart
+        check file MonaLisa_log with path ${ALIEN_LOGDIR}/MonaLisa/ML.log
+        alert ${ALIEN_NOTIFY_EMAIL}
+        if match "OutOfMemory" then restart
+EOF
+}
+
+
+#############################################################################
+amonConfig() {
+#############################################################################
+    local services=""
+      
+    rm -f $AMON_HOME/default.conf
+
+    configGuess
+
+    configEnv
+ 
+    LOGFILES=""  
+  
+    if [ -z $ALIEN_ROOT ] 
+    then
+        echo "Please define ALIEN_ROOT variable or use --alien-root switch"
+        exit
+    fi 
+    if [ -z $ALIEN_LOGDIR ] 
+    then
+      echo "Please define ALIEN_LOGDIR variable or use --logdir switch"
+      exit
+    fi 
+    
+    if [ "x$ALIEN_COMPONENTS" = x ]
+    then
+      echo "Could not guess ALIEN_COMPONENTS. Please set ALIEN_COMPONENTS variable or use --alien-components option."
+      exit
+    fi
+
+    if [ "x$ALIEN_SERVICES" = x ]
+    then
+      echo "Could not guess ALIEN_SERVICES. Please set ALIEN_SERVICES variable or use --alien-services option."
+      exit
+    fi
+
+    if [ -z $ALIEN_NOTIFY_EMAIL ]
+    then
+      echo "Could not guess whom to notify. Please set ALIEN_NOTIFY_EMAIL variable or use --notify option."
+      exit
+    fi
+
+    if [ -z $ALIEN_BITS_URL ]
+    then
+      echo "Could not guess BITS server. Please set ALIEN_BITS_URL variable or use --bits-url option."
+      exit
+    fi
+    
+    mkdir -p $ALIEN_LOGDIR/monit
+
+    portal_services="httpd"    
+    site_services="Monitor  SE PackMan CE MonaLisa FTD"
+    core_services="Proxy IS Authen Server Logger TransferManager Broker TransferBroker TransferOptimizer JobOptimizer CatalogueOptimizer"
+
+    for component in $(echo $ALIEN_COMPONENTS | sed 's/,/ /g')
+    do
+      case $component in
+        site|Site)
+          shift 1
+          services="$services $site_services"
+          ;;
+        core|Core|Central|central)
+          shift 1 
+          services="$services $core_services"
+          ;;
+        xrootd)
+          shift 1 
+          services="$services xrootd"
+          ;;
+        monitor|Monitor)
+          shift 1 
+          services="$services MonaLisa"
+          ;;
+        portal)
+          shift 1 
+          services=" $services $portal_services"
+          ;;
+        all)
+          shift 1 
+          services="$services $site_services $core_services"
+          ;;
+         *) 
+          shift 1
+          ;;
+       esac
+    done
+ 
+    ALIEN_INSTALLED_SERVICES=""
+
+    for service in `echo $services | sed 's/ /\n/g' | sort -u`
+    do
+      ALIEN_INSTALLED_SERVICES="$ALIEN_INSTALLED_SERVICES $service"
+    done
+    if [ "x$ALIEN_SERVICES" = "x" ]
+    then
+      ALIEN_SERVICES=$ALIEN_INSTALLED_SERVICES
+    fi 
+
+    if [ -f $AMON_HOME/$HOSTNAME.monitrc+ ]
+    then
+       cp -f $AMON_HOME/$HOSTNAME.monitrc+ $AMON_HOME/$HOSTNAME.monitrc
+    else 
+      monitHeader
+  
+      for service in $ALIEN_SERVICES
+      do
+        case $service in
+          IS|Authen|Logger)
+            monitCentralService "$service=$service"
+            ;;
+          SE|PackMan|CE|FTD)
+            monitSiteService "$service=$service"
+            ;;
+          MonaLisa)
+            monitMonALISA "$service=$service"
+            ;;
+          Proxy)
+            monitProxy "Proxy=ProxyServer"
+            ;;
+          Server|JobManager)
+            monitProxy "Server=Manager::Job"
+            ;;
+          TransferManager)
+            monitCentralService "TransferManager=Manager::Transfer"
+            ;;
+          Broker)
+            monitCentralService "Broker=Broker::Job"
+            ;;
+          TransferBroker)
+            monitCentralService "TransferBroker=Broker::Transfer"
+            ;;
+          TransferOptimizer)
+            monitCentralService "TransferOptimizer=Optimizer::Transfer"
+            ;;
+          JobOptimizer)
+            monitCentralService "JobOptimizer=Optimizer::Job"
+            ;;
+          CatalogueOptimizer)
+            monitCentralService "CatalogueOptimizer=Optimizer::Catalogue"
+            ;;
+          Monitor)
+            monitSiteService "Monitor=ClusterMonitor"
+            ;;
+          httpd|xrootd)
+            ;;
+          *)
+          echo "Unsupported configuration type: $1"
+          exit 1
+        ;;
+        esac
+        shift 1
+      done
+  
+      if [ -f $AMON_HOME/$HOSTNAME.monitrc ]
+      then
+        chmod 600 $AMON_HOME/$HOSTNAME.monitrc 
+      fi
+      configSite
+    fi
+ 
+
+}
+
+#############################################################################
+configSite() {
+#############################################################################
+    rm -f $AMON_HOME/site.conf
+  
+    if [ -f $AMON_HOME/site.conf+ ]
+    then
+      cp -f $AMON_HOME/site.conf+ $AMON_HOME/site.conf
+    else
+      for var in $CONFIG_SITEVARS
+      do
+        echo "$var=${!var}" >>  $AMON_HOME/site.conf
+      done
+    fi  
+}
+
+#############################################################################
+amonCtrl() {
+#############################################################################
+    unset PERL5LIB
+    unset LD_LIBRARY_PATH
+    unset DYLD_LIBRARY_PATH
+    case $1 in
+      start*|Start*)
+        ;;
+      stop*|Stop*)
+        ;;
+      *)
+      echo "Unsupported control option: $1"
+      exit 1
+    esac
+       
+    if [ "x$2" = "x" ]
+    then
+      echo "Service name not specified."
+      exit 1
+    fi
+
+    action=$1; shift
+    name=$1; shift
+
+    export ALIEN_PROCESSNAME=$name
+
+    case $ALIEN_LCG in 
+       1|true|True|TRUE)
+          cmd=$ALIEN_ROOT/scripts/lcg/lcgAliEn.sh
+          ;;
+       *)
+          cmd=$ALIEN_ROOT/bin/alien
+          ;;
+    esac
+
+    $cmd $action$name $* >> /tmp/m.log 2>&1
+}
+
+#############################################################################
+amonMonit() {
+#############################################################################
+  $AMON_HOME/bin/monit -c $AMON_HOME/$HOSTNAME.monitrc $*
+}
+
+#############################################################################
+reStart() {
+#############################################################################
+
+  echo "$* &" > $AMON_HOME/restart
+  chmod +x $AMON_HOME/restart
+}
+
+#############################################################################
+reConfigure() {
+#############################################################################
+
+  echo "$* " > $AMON_HOME/reconfigure
+  chmod +x $AMON_HOME/reconfigure
+}
+
+#############################################################################
+amonAutoUpdate() {
+#############################################################################
+
+  rm -rf /tmp/amon.$$
+
+  [ -x $AMON_HOME/reconfigure ] || return 
+
+  [ -x $AMON_HOME/restart ] || return 
+    
+  wget $WGETOPTS -P /tmp/amon.$$ http://alien.cern.ch/amon || return
+  chmod +x /tmp/amon.$$/amon || return
+  mv $AMON $AMON.swp || return
+  mv /tmp/amon.$$/amon $AMON
+  $AMON_HOME/reconfigure
+  if [ $? -ne 0 ] 
+  then
+     mv $AMON.swp $AMON
+     return
+  fi 
+  rm -f $AMON.swp
+  exec $AMON_HOME/restart
+}
+
+#############################################################################
+die() {
+#############################################################################
+  echo $1
+  exit 1
+}
+
+#############################################################################
+amonInstall() {
+#############################################################################
+
+   if [ -f  $AMON_HOME/NoAutoInstall ]
+   then
+     die "Warning: This installation cannot be upgraded (file  $AMON_HOME/NoAutoInstall exists)."
+   fi
+ 
+   ALIEN_COMPONENTS=$(echo $ALIEN_COMPONENTS | sed 's/,/ /g')
+
+   ALIEN_INSTALLER_HOME=${ALIEN_INSTALLER_HOME:=$HOME/.alien/cache}
+  
+   rm -rf $ALIEN_INSTALLER_HOME
+
+   mkdir -p $ALIEN_INSTALLER_HOME 
+   if [ $? -ne 0 ]
+   then 
+       die "Error: Cannot create $ALIEN_INSTALLER_HOME directory"
+   fi
+
+   cd $ALIEN_INSTALLER_HOME
+
+   wget $WGETOPTS -P . $ALIEN_BITS_URL/$ALIEN_RELEASE/makefiles.tar.bz2  
+   if [ $? -ne 0 ]
+   then 
+       die "Error: Cannot fetch makefiles from  $ALIEN_BITS_URL/$ALIEN_RELEASE"
+   fi
+
+   tar jxf makefiles.tar.bz2 && rm makefiles.tar.bz2
+
+   ./configure --with-alien-release=$ALIEN_RELEASE  --with-platform=$ALIEN_PLATFORM --with-bits-url=$ALIEN_BITS_URL/$ALIEN_RELEASE/download/ --prefix=$ALIEN_ROOT
+
+  export GARAUTODETECT=$ALIEN_INSTALLER_AUTODETECT
+  export TPUT=undef
+  
+  if [ -f $ALIEN_ROOT/bin/alien ] 
+  then
+     rm -rf $ALIEN_ROOT/*
+  fi
+
+  for meta in $ALIEN_COMPONENTS
+  do
+    pkgdir=`echo $meta | sed 's/"//g'`
+    if [ "$pkgdir" = "" ]
+    then
+      continue
+    fi
+    if [ -d $ALIEN_INSTALLER_HOME/meta/$pkgdir ]
+    then
+      packages=`cd $ALIEN_INSTALLER_HOME/meta/$pkgdir; make list_packages`
+      for pkg in $packages
+      do
+        echo "Updating $pkg..."
+        if [ ! -d $pkg ]
+        then
+          echo "No such package: $dir"
+         fi
+         make -s -C $pkg clean
+         make -s -C $pkg bininstall
+         if [ $? -ne 0 ]
+         then
+            exit 1
+         fi
+      done
+    fi
+  done
+
+  if [ -f $ALIEN_INSTALLER_HOME/ALIEN_VERSION ]
+  then
+    cp -f $ALIEN_INSTALLER_HOME/ALIEN_VERSION $ALIEN_ROOT/share/alien
+  fi
+
+  rm -rf $ALIEN_INSTALLER_HOME
+}
+#############################################################################
+amonUsage() {
+#############################################################################
+
+ printf "Usage: amon [--debug]                          \n"
+ printf "            [--alien-organisation <org>]       \n"
+ printf "            [--alien-root <dir>]               \n"
+ printf "            [--alien-components <site,monitor,..>]\n"
+ printf "            [--alien-services <CE,SE,...>]     \n"
+ printf "            [--logdir <dir>]                   \n"
+ printf "            [--cs-logdir <dir>]                \n"
+ printf "            [--bits-url <url>]  configure      \n"
+ printf "\n"
+ printf "       amon [--debug] --ctrl <Start|Stop> <service>\n"
+ printf "\n"
+ printf "       amon [--debug] --monit                  \n"
+ printf "\n"
+ printf "       amon --monit                            \n"
+ printf "\n"
+ printf "       amon [-debug]                           \n"
+ printf "            [--alien-release <release>]        \n"
+ printf "            install                            \n"
+ printf "\n"
+ printf "       amon --master                           \n"
+ printf "            [--http_server <server>            \n"
+ printf "            [--http_port <port>]               \n"
+ printf "\n"
+ printf "       amon [--server <server>]                \n"
+ printf "            [--port <port>]                    \n"
+ printf "            [--info_server <server>            \n"
+ printf "            [--info_port <port>]               \n"
+ printf "            [--trace]                          \n"
+ printf "\n"
+ printf "       amon [--server <server>]                \n"
+ printf "            [--server_port <port]              \n"
+ printf "            [--trace]                          \n"
+ exit
+}
+
+#############################################################################
+#############################################################################
+    configEnv
+   
+    args=$*
+
+    while [ $# -gt 0 ]
+    do
+        case $1 in
+            --debug)
+                shift 1
+                set -vx
+                ;;
+            --alien-organisation)
+                shift 1
+                export ALIEN_ORGANISATION=$1
+                shift 1
+                ;;
+            --alien-root)
+                shift 1
+                export ALIEN_ROOT=$1
+                shift 1
+                ;;
+            --alien-components)
+                shift 1
+                export ALIEN_COMPONENTS=$(echo $1 | sed 's/,/ /g')
+                shift 1
+                ;;
+            --alien-services)
+                shift 1
+                export ALIEN_SERVICES=$(echo $1 | sed 's/,/ /g')
+                shift 1
+                ;;
+            --logdir)
+                shift 1
+                ALIEN_LOGDIR=$1
+                shift 1
+              ;;
+            --cs-logdir)
+                shift 1
+                ALIEN_CS_LOGDIR=$1
+                shift 1
+              ;;
+            --bits-url)
+                shift 1
+                ALIEN_BITS_URL=$1
+                shift 1
+              ;;
+            --alien-release)
+                shift 1
+                ALIEN_RELEASE=$1
+                shift 1
+              ;;
+            --monit)
+                shift 1
+                amonMonit $*
+                exit
+              ;;
+            --autoupdate)
+                shift 1
+                amonAutoUpdate
+                exit
+              ;;
+            --ctrl)
+                shift 1
+                amonCtrl $*
+                exit
+              ;;
+            configure)
+                shift 1
+                amonConfig
+                reConfigure $AMON $args
+                exit
+              ;;
+            install)
+                shift 1
+                amonInstall $* 
+                exit
+              ;;
+            --help|-help|-h)
+                amonUsage
+              ;;
+            *)
+              break
+              ;;
+        esac
+    done
+
+    export AMON_LOGFILES=$LOGFILES  
+
+    for file in $AMON_LOGFILES
+    do
+      dir=`dirname $file`
+      mkdir -p $dir
+      touch $file
+    done
+    
+    if [ -f $HOME/.alien/amon/amon.pid ]
+    then
+      kill `cat $HOME/.alien/amon/amon.pid` > /dev/null 2>&1
+    fi
+
+    reStart $AMON $args
+
+    while [ true ]
+    do
+      perl -x -- $0 $* && exit
+      sleep 15
+    done
+
+    exit   
+ 
+#############################################################################
+#!perl
+#############################################################################
+use warnings;
+use strict;
+
+$SIG{PIPE} = 'IGNORE';    # otherwise, SIGPIPE terminates the proxy.
+
+use POE;
+use POE::Component::Server::TCP;
+use POE::Component::Server::PreforkTCP;
+use POE::Component::Client::TCP;
+use POE::Component::Client::HTTP;
+use POE::Filter::HTTPD;
+use POE::Filter::Stream;
+use HTTP::Response;
+use HTTP::Request;
+use Socket;
+use Getopt::Long;
+use Net::LDAP;
+use XML::Simple;
+
+use Cache::Memcached;
+
+my $AMON_HTTP_SERVER = "localhost";
+my $AMON_HTTP_PORT   = 8000;
+my $AMON_SERVER      = `hostname`; chomp ($AMON_SERVER);
+my $AMON_PORT        = 8001;
+my $AMON_INFO_SERVER = "";
+my $AMON_INFO_PORT   = 0;
+my $AMON_CACHE_SERVER = "localhost";
+my $AMON_CACHE_PORT   = 8003;
+
+my $MEMD = new Cache::Memcached {
+    'servers' => [ "$AMON_CACHE_SERVER:$AMON_CACHE_PORT" ],
+    'debug' => 0,
+    'compress_threshold' => 10_000,
+};
+
+# use Config::ApacheFormat;
+
+use Log::TraceMessages qw(t d);;
+
+$Log::TraceMessages::On = 0;
+
+my $AUTHORIZED_HOSTS = { "CERN" => {
+                       "pcalijabber1.cern.ch" => { 
+                               "session" => 0 , 
+                               "port" => 2812 },
+                       "pcalicepb.cern.ch" => { 
+                               "session" => 0 , 
+                               "port" => 2812 },
+                        "alien.cern.ch"    => { 
+                               "session" => 0 , 
+                               "port" => 2812},
+                        "pcalienx.cern.ch"    => { 
+                               "session" => 0 , 
+                               "port" => 2812},
+                                   },
+                       };
+my %SITE;
+
+my $MONIT_PORT = 2812;
+
+my $LogToName = {
+          "ProxyServer" => "Proxy",
+          "Manager::Transfer" => "TransferManager",
+          "Manager::Job" => "Server",
+          "Broker::Job" => "Broker",
+          "Broker::Transfer" => "TransferBroker",
+          "Optimizer::Transfer" => "TransferOptimizer",
+          "Optimizer::Job" => "JobOptimizer",
+          "Optimizer::Catalogue" => "CatalogueOptimizer",
+          "ClusterMonitor" => "Monitor",
+      };
+
+#############################################################################
+#############################################################################
+sub logevent {
+#############################################################################
+
+   my ( $state, $arg ) = @_;
+   t "####################################################################";
+   t "$state: "; defined ($arg) && t d($arg);
+   t "####################################################################";
+}
+
+#############################################################################
+sub getConfig {
+#############################################################################
+
+  my $organisation = "Alice";
+  my $LdapDN = "aliendb06a.cern.ch:8389/o=alice,dc=cern,dc=ch";
+
+  my ($ldaphost,$base) = split('/',$LdapDN);
+  my $ldap = Net::LDAP->new($ldaphost) or die "$@";
+  $ldap->bind();
+
+  my $result = $ldap->search ( base    => "ou=Sites,$base",
+                               scope   => "sub",
+                               filter  => "(host=*)",
+                               attrs   =>  ['host'],
+                              );
+
+  my @entries = $result->entries;
+  my @hosts;
+  my $entry;
+  foreach $entry ( @entries ) {
+      my @object=split(/,/,$entry->asn->{objectName});
+      if ( $object[2] eq "ou=Services" or
+         $object[2] eq "ou=services" ) {
+         shift @object;
+      }
+      my @val=split(/=/,$object[2]);
+      my $site = $val[1];
+      my $host=$entry->get_value("host");
+      if ( $site ne "Sites" ) { 
+         $AUTHORIZED_HOSTS->{$site}->{$host}->{session} = 0;
+         $AUTHORIZED_HOSTS->{$site}->{$host}->{port} = $MONIT_PORT;
+      } 
+  }
+
+  foreach my $site (keys %{$AUTHORIZED_HOSTS}) {
+    foreach my $host (keys %{$AUTHORIZED_HOSTS->{$site}}) {
+      $SITE{$host} = $site;
+    }
+  }
+
+  $MEMD->set("AUTHORIZED_HOSTS", $AUTHORIZED_HOSTS );
+}
+
+#############################################################################
+sub createServer {
+#############################################################################
+
+  &getConfig;
+
+  # Create proxy server
+
+  my $proxy = POE::Component::Server::TCP->new (  
+      Alias => "proxy",
+      Hostname => $AMON_SERVER,
+      Port     => $AMON_PORT,
+      ClientFilter => 'POE::Filter::Stream',
+
+      ClientConnected => sub {
+        my ( $kernel, $heap, $session ) = @_[ KERNEL, HEAP, SESSION ];
+        logevent( 'proxy got connection');
+        my $remote_ip = $heap->{remote_ip};
+        my $hostname = gethostbyaddr(inet_aton ($heap->{remote_ip} ), AF_INET);
+        if ( defined($hostname) && defined($SITE{$hostname}) ) {
+  	  $heap->{hostname} = $hostname;
+       	  $AUTHORIZED_HOSTS->{$SITE{$hostname}}->{$hostname}->{"session"} = $session->ID;
+          $MEMD->set("AUTHORIZED_HOSTS", $AUTHORIZED_HOSTS );
+        } else {
+          logevent( "unauthorized attempt to access to proxy server from host $remote_ip");
+          $kernel->yield("shutdown");
+        } 
+      },
+
+      ClientInput => sub {
+        my ( $kernel, $session, $heap, $input ) = @_[ KERNEL, SESSION, HEAP, ARG0 ];
+        logevent( 'proxy server got input');
+        t d($input);
+        if ( $input  =~ /\%\%\%EOF\%\%\%/s ) {
+          $input =~ s/\%\%\%EOF\%\%\%//s;
+          push (@{$heap->{reply}->{buffer}},$input);
+          $kernel->post($heap->{reply}->{session}=>"got_response", 
+                        join("",@{$heap->{reply}->{buffer}}));
+          delete $heap->{reply};
+        } else {       
+          push (@{$heap->{reply}->{buffer}},$input)
+        }
+      },
+
+      ClientDisconnected => sub {
+        my ( $kernel, $session, $heap ) = @_[ KERNEL, SESSION, HEAP ];
+        logevent( 'proxy server got disconnect');
+        my $hostname = $heap->{hostname}; 
+ 	$AUTHORIZED_HOSTS->{$SITE{$hostname}}->{$hostname}->{"session"} = 0;
+        $MEMD->set("AUTHORIZED_HOSTS", $AUTHORIZED_HOSTS );
+      },
+      
+      ClientError => sub {
+        my ( $kernel, $session, $heap ) = @_[ KERNEL, SESSION, HEAP ];
+        logevent( 'proxy server got error');
+        $kernel->yield("shutdown");
+      },
+
+      InlineStates => {
+         request => sub {
+		my ( $heap, $reply, $input ) = @_[ HEAP, ARG0, ARG1 ];
+		logevent( "http request accepted by proxy");
+		$heap->{reply}->{session}=$reply;
+		$heap->{client}->put($input->as_string());
+           },
+       }
+  );
+
+  my $info = POE::Component::Server::TCP->new (  
+      Alias => "info",
+      Hostname => $AMON_INFO_SERVER,
+      Port     => $AMON_INFO_PORT,
+      ClientFilter => 'POE::Filter::Stream',
+
+      ClientConnected => sub {
+        my ( $kernel, $heap, $session ) = @_[ KERNEL, HEAP, SESSION ];
+        logevent( 'info  got connection');
+        my $remote_ip = $heap->{remote_ip};
+        my $hostname = gethostbyaddr(inet_aton ($heap->{remote_ip} ), AF_INET);
+        if (defined($hostname) && defined($SITE{$hostname})) {
+  	  $heap->{hostname} = $hostname;
+        } else {
+          logevent( "unauthorized attempt to access to info server from host $remote_ip");
+          $kernel->yield("shutdown");
+        } 
+      },
+
+      ClientInput => sub {
+        my ( $kernel, $session, $heap, $input ) = @_[ KERNEL, SESSION, HEAP, ARG0 ];
+        logevent( 'info server got input');
+        my $xs = XML::Simple->new(ForceArray => 0);
+        my $status = $xs->XMLin($input);
+        t d($status); 
+        $MEMD->set("stat_".$heap->{hostname},$xs->XMLin($input));
+      },
+
+  );
+
+  
+  my $http = POE::Component::Server::TCP->new (
+      Alias        => "http_server",
+      Hostname     => $AMON_HTTP_SERVER,
+      Port         => $AMON_HTTP_PORT,
+      ClientFilter => 'POE::Filter::HTTPD',
+      
+       ClientInput => sub {
+        my ( $kernel, $session, $heap, $input ) = @_[ KERNEL, SESSION, HEAP, ARG0 ];
+        logevent( 'http server got input');
+	my $uri = $input->uri;
+	my @path = split("/",$uri);
+	if (@path > 2) {
+ 	   shift @path;	   
+	   my $rhost = shift @path;
+	   my $rport = shift @path;
+       	   if ($AUTHORIZED_HOSTS->{$SITE{$rhost}}->{$rhost}->{"session"} > 0) {
+	      $heap->{rhost} = $rhost;
+	      $heap->{rport} = $rport;
+	      $input->header( "extrapath", "$rhost:$rport" );
+	      $uri = "http://localhost:$rport/".join("/",@path);
+	      $input->uri($uri);
+	      logevent( "http server forwarding request to $heap->{rhost}",$uri);
+              $kernel->post($AUTHORIZED_HOSTS->{$SITE{$rhost}}->{$rhost}->{"session"} => "request", $session->ID, $input);
+	   } else {	   
+               logevent("Client not connected");
+               my $response = HTTP::Response->new(404,"ERROR: Client not connected.");
+               $heap->{client}->put($response);
+               $kernel->yield("shutdown");
+	   }
+	} else {
+               logevent("Misformed URL.");
+               my $response = HTTP::Response->new(404,"ERROR: Misformed URL.");
+               $heap->{client}->put($response);
+               $kernel->yield("shutdown");
+        }
+      },
+
+      ClientDisconnected => sub {
+        my ( $kernel, $session, $heap ) = @_[ KERNEL, SESSION, HEAP ];
+        logevent( 'http server got disconnect');
+      },
+
+      ClientError => sub {
+        my ( $kernel, $session, $heap ) = @_[ KERNEL, SESSION, HEAP ];
+        $kernel->yield("shutdown");
+      },
+
+      # InlineStates let us attach our own events and handlers to a TCP
+      # server.  Here we attach a handler for the got_response event, which
+      # will be sent to us by proxy server when it has recieved reply from 
+      # remote server.
+
+      InlineStates => {
+  	   got_response => sub {
+		my ( $kernel, $heap, $input) = @_[ KERNEL, HEAP, ARG0];
+                logevent( 'http server got response');
+                my $response = HTTP::Response->parse( $input );
+ 	        $heap->{client}->put($response) if defined($heap->{client});
+	        $kernel->yield("shutdown");
+   	   },
+	},
+   );
+}
+
+#############################################################################
+sub createAgent { 
+#############################################################################
+  use POE qw(Wheel::FollowTail Wheel::Run Filter::Line Component::Child);
+
+  system("$ENV{AMON_HOME}/bin/monit",
+         "-c","$ENV{AMON_HOME}/$ENV{HOSTNAME}.monitrc");
+  system("$ENV{AMON_HOME}/bin/monit",
+         "-c","$ENV{AMON_HOME}/$ENV{HOSTNAME}.monitrc",
+         "reload"); 
+
+  my $AMON = $ENV{AMON};
+  my $ALIEN_RELEASE = $ENV{ALIEN_RELEASE};
+  my @ALIEN_COMPONENTS = split(" ",
+                         defined($ENV{ALIEN_COMPONENTS}) ? 
+                         $ENV{ALIEN_COMPONENTS} : "");
+
+  my @ALIEN_SERVICES = split(" ",
+                         defined($ENV{ALIEN_SERVICES}) ? 
+                         $ENV{ALIEN_SERVICES} : "");
+  my @ALIEN_INSTALLED_SERVICES = split(" ",
+                         defined($ENV{ALIEN_INSTALLED_SERVICES}) ? 
+                         $ENV{ALIEN_INSTALLED_SERVICES} : "");
+
+  my $INSTALLER_STATUS = "Idle";
+
+  my $has_logfile;
+ 
+  POE::Component::Client::HTTP->spawn( 
+    Alias => 'ua',
+    Timeout => 180,
+  );
+
+
+  POE::Session->create(
+    inline_states => {
+        _start => sub { 
+               my ( $kernel, $self, $args ) = @_[KERNEL, ARG0 .. $#_ ];
+                 $kernel->alias_set("installer"); 
+               },
+         _stop  => sub { },
+         stdout => sub {
+               my ( $kernel, $self, $args ) = @_[KERNEL, ARG0 .. $#_ ];
+               my $stdout = $args->{out};
+               logevent( "Agent got stdout: $stdout");
+               $kernel->post(client=>"installer_response", 
+                                      "STDOUT: $stdout");   
+              },
+         stderr => sub {
+              my ( $kernel, $self, $args ) = @_[KERNEL, ARG0 .. $#_ ];
+              my $stderr = $args->{out};
+              logevent( "Agent got stderr: $stderr");
+              $kernel->post(client=>"installer_response", 
+                                      "STDOUT: $stderr");   
+              },
+         done => sub {
+              my ( $kernel, $self, $args ) = @_[KERNEL, ARG0 .. $#_ ];
+              logevent( "Agent got done");
+              $kernel->post(client=>"installer_status", 
+                                     "Done");   
+         },
+         died => sub {
+              my ( $kernel, $self, $args ) = @_[KERNEL, ARG0 .. $#_ ];
+              logevent( "Agent got done");
+              $kernel->post(client=>"installer_status", 
+                                     "Died");   
+         },
+         error => sub {
+              my ( $kernel, $self, $args ) = @_[KERNEL, ARG0 .. $#_ ];
+              logevent( "Agent got done");
+              my $error = $args->{error};
+              $kernel->post(client=>"installer_status", 
+                                     "Error: $error");   
+         },
+      }
+  );
+
+   my $installer = POE::Component::Child->new(
+     alias => "installer",
+  ); 
+       
+   $installer->{StdioFilter} = 
+                POE::Filter::Line->new(OutputLiteral =>'\n');
+   
+   POE::Component::Client::TCP->new(    
+        Alias         =>  "client",
+        RemoteAddress => "$AMON_SERVER",
+        RemotePort    =>  $AMON_PORT,
+        Filter        => "POE::Filter::Stream",
+
+        ConnectTimeout => 5,
+
+        Started    => sub {
+           my ($heap,@args) = @_[HEAP, ARG0..$#_];
+           for my $filename (split(/ /,$ENV{AMON_LOGFILES})) {
+             next if $filename eq "";
+             my @path = split("/",$filename);
+             my $logname = pop @path;
+             $logname =~ s%\.log%%;
+             my $name = defined($LogToName->{$logname}) ? 
+                        $LogToName->{$logname} : $logname;
+             $heap->{$name}->{logfile} = $filename; 
+             $has_logfile->{$name} = 1;
+          }
+        },
+
+        # The client has connected.  Display some status and prepare to
+        # gather information.
+        Connected => sub {
+           my ($socket, $peer_address, $peer_port) = @_[ARG0, ARG1, ARG2];
+	   logevent( "Agent connnected to $AMON_SERVER:$AMON_PORT");
+        },
+
+        # The connection failed.
+        ConnectError => sub {
+            my ($syscall_name, $error_number, $error_string) = @_[ARG0, ARG1, ARG2];
+	    logevent( "Agent failed to connnect to $AMON_SERVER:$AMON_PORT. Retry in 60 seconds.");
+	    $_[KERNEL]->delay( reconnect => 60 );
+        },
+           
+        Disconnected => sub {},
+
+        ServerError => sub {
+            my ($syscall_name, $error_number, $error_string) = @_[ARG0, ARG1, ARG2];
+ 	    logevent( "Server error.  Reconnnecting to $AMON_SERVER:$AMON_PORT in 60 seconds.");
+
+	    delete $_[HEAP]->{extrapath};
+            delete $_[HEAP]->{uri};
+	    $_[KERNEL]->delay( reconnect => 60 );
+       },
+
+        # The server has sent us something.  Save the information.
+        ServerInput => sub {
+ 	    my ( $kernel, $session, $heap, $input ) = @_[ KERNEL, SESSION, HEAP, ARG0, ARG1 ];
+            my $r = HTTP::Request->parse( $input );
+	    $heap->{extrapath} = $r->header("extrapath");
+            $heap->{uri} = $r->uri;
+            my @path = split ('/',$r->uri);
+            my $mode = pop @path;
+            my $page = pop @path;
+            for ($page) {
+                /logs/ && do {
+                          $kernel->post($session => "show_logs", $mode); 
+                          last; 
+                         };
+                /installer/ && do {
+                          logevent( "Agent sending message to installer: $mode");
+                          t d($r);
+                          if ($mode eq "_done") {
+                              $INSTALLER_STATUS = "Idle";
+                              $heap->{server}
+                                      ->put(&installerStatus("Idle"),
+                                            '%%%EOF%%%');
+                              delete $heap->{installer};
+                              last;
+                          }
+                          if ($mode eq "_amon") {
+                             if (! defined ($heap->{installer})) {  
+                                exec ($AMON,"--autoupdate") or 
+                                      warn("Could not autoupdate!");
+                                      $heap->{server}
+                                      ->put(&installerStatus("AutoUpdate"),
+                                            '%%%EOF%%%');
+                             }
+                             last;
+                          }
+                          if ($mode eq "_stop") {
+                             if (defined($heap->{installer}) and 
+                                 $heap->{installer} eq "Running" ) { 
+                                 eval { $installer->kill(HARD=>1);};  
+                             }
+                             $heap->{server}
+                               ->put(&installerStatus("Killed"),
+                                     '%%%EOF%%%');
+                             last; 
+                          }
+                          if ($mode eq "_output") {
+                             defined($heap->{output}) or last; 
+                             my $output = join("\n",
+                                               "<pre>",
+                                               @{$heap->{output}});
+                             $heap->{server}
+                                  ->put(&installerStatus($output),
+                                        '%%%EOF%%%');
+                             last;
+                          }
+                          if (! defined($heap->{installer})) {
+                            $heap->{installer} = "Running";
+                            $INSTALLER_STATUS = $heap->{installer};
+                            $kernel->post(info => "installer_response", 
+                                          "BEGIN");
+                            my $version = $mode;
+                            $kernel->post($session => "installer_run", 
+                                          $version);
+                          } 
+                          $heap->{server}
+                               ->put(&installerStatus($heap->{installer}),
+                                    '%%%EOF%%%');
+                           last; 
+                         };
+                $kernel->post( ua => request => got_response => $r);
+            }
+        },
+
+        # These are handlers for additional events not included in the
+        # default Server::TCP module.
+        InlineStates => {
+            installer_response => sub {
+		my ( $kernel, $heap, $response) = @_[ KERNEL, HEAP, ARG0 ];
+                logevent( "Agent got reply from installer: $response");
+                delete $heap->{output} if $response eq "BEGIN";
+                push (@{$heap->{output}},$response);
+                (@{$heap->{output}} > 1000 ) && shift @{$heap->{output}}; 
+             },
+            installer_run => sub {
+		my ( $kernel,$heap,$session) = @_[ KERNEL, HEAP, SESSION ];
+		my $version = $_[ ARG0 ];
+                logevent( "Agent running $AMON installer for version $version");
+                system("$ENV{AMON_HOME}/bin/monit",
+                       "-c","$ENV{AMON_HOME}/$ENV{HOSTNAME}.monitrc",
+                        "stop",
+                        "all"); 
+                system("$ENV{AMON_HOME}/bin/monit",
+                        "quit"); 
+                $installer->run($AMON,
+                                "--alien-release",$version,
+                                "install"); 
+                system("$ENV{AMON_HOME}/bin/monit",
+                       "-c","$ENV{AMON_HOME}/$ENV{HOSTNAME}.monitrc"); 
+                system("$ENV{AMON_HOME}/bin/monit",
+                        "restart",
+                        "all"); 
+             },
+
+            installer_status => sub {
+		my ( $kernel,$heap,$session) = @_[ KERNEL, HEAP, SESSION ];
+		my $status = $_[ ARG0 ];
+                $heap->{installer} = $status;
+                $INSTALLER_STATUS = $heap->{installer};
+             },
+
+            show_logs => sub {
+		my ( $kernel, $heap, $name ) = @_[ KERNEL, HEAP, ARG0 ];
+		my ( $host, $port ) = split ( /:/, $heap->{extrapath});
+                logevent( "Agent got request for log files: $name");
+                my $response = HTTP::Response->new(200,"OK");
+		$response->header("content-type","text/html");   
+                my @log;
+                open(LOG, $heap->{$name}->{logfile}) and 
+                @log = <LOG> and
+                close LOG;
+                my $content = qq{<pre>};
+                $content .= join("",@log);
+                $content .= qq{</pre></html>};
+                $response->content($content);
+                $heap->{server}->put($response->as_string(),'%%%EOF%%%');
+             },
+
+            # We got response from http server. Send it to http client on the other end .
+            got_response => sub {
+		my ( $kernel, $heap, $request, $response_packet ) = @_[ KERNEL, HEAP, ARG0, ARG1 ];
+		my ( $host, $port ) = split ( /:/, $heap->{extrapath});
+                logevent( 'Agent got response');
+                my $r = $response_packet->[0];
+                $heap->{server}->put($r->as_string(),'%%%EOF%%%');
+            },
+          },
+      );
+
+
+  POE::Component::Client::TCP->new(    
+        Alias         =>  "info",
+        RemoteAddress => "$AMON_INFO_SERVER",
+        RemotePort    =>  $AMON_INFO_PORT,
+        Filter        => "POE::Filter::Stream",
+        ConnectTimeout => 5,
+
+        Started    => sub {my @args = @_[ARG0..$#_];},
+
+        # The client has connected.  Display some status and prepare to
+        # gather information.
+        Connected => sub {
+           my ($socket, $peer_address, $peer_port) = @_[ARG0, ARG1, ARG2];
+	   logevent( "Agent connnected to $AMON_INFO_SERVER:$AMON_INFO_PORT");
+           my $r = HTTP::Request->new(GET => 'http://localhost:2812/_status');
+           $_[KERNEL]->post( ua => request => send_status => $r);
+        },
+
+        ServerInput => sub {
+           my ( $kernel, $session, $heap, $request ) = @_[ KERNEL, SESSION, HEAP, ARG0, ARG1 ];
+        },
+
+        # The connection failed.
+        ConnectError => sub {
+            my ($syscall_name, $error_number, $error_string) = @_[ARG0, ARG1, ARG2];
+	    logevent( "Agent failed to connnect to $AMON_INFO_SERVER:$AMON_INFO_PORT. Retry in 60 seconds.");
+	    $_[KERNEL]->delay( reconnect => 60 );
+        },
+           
+        Disconnected => sub {},
+
+        ServerError => sub {
+            my ($syscall_name, $error_number, $error_string) = @_[ARG0, ARG1, ARG2];
+ 	    logevent( "Server error.  Reconnnecting to $AMON_INFO_SERVER:$AMON_INFO_PORT in 60 seconds.");
+	    $_[KERNEL]->delay( reconnect => 60 );
+       },
+
+        # These are handlers for additional events not included in the
+        # default Server::TCP module.
+        InlineStates =>
+          {    
+            send_status => sub {
+		my ( $kernel, $heap, $request, $response_packet ) =  
+                                  @_[ KERNEL, HEAP, ARG0, ARG1 ];
+                logevent( 'Agent sending status info');
+                t d($response_packet);
+                my $r = $response_packet->[0];
+                my $status  = &parseStatus($r->content);
+                if (-e "$ENV{AMON_HOME}/NoAutoInstall") {
+                  $status->{installer}->{autoupdate} = 0;
+                } else {
+                  $status->{installer}->{autoupdate} = 1;
+                }
+                $status->{installer}->{status} = $INSTALLER_STATUS;
+                $status->{alien} = {};
+                $status->{alien} = {root => $ENV{ALIEN_ROOT},
+                                    components => [@ALIEN_COMPONENTS],
+                                    services  => [@ALIEN_SERVICES],
+                                    installed_services  => [@ALIEN_INSTALLED_SERVICES],
+                                    version => &alienVersion,
+                                    logdir => $ENV{ALIEN_LOGDIR}};
+                foreach my $p (keys %{$status->{process}}) {
+                   defined ($has_logfile) and  
+                   $status->{process}->{$p}
+                          ->{has_logfile} = $has_logfile->{$p};
+                }
+                my $xs   = XML::Simple->new();
+                my $str  = $xs->XMLout($status);
+                $heap->{server}->put($str) if defined $heap->{server};
+  	        $kernel->delay( reconnect => 15 );
+                $kernel->yield("shutdown");
+              },
+          },
+  );
+
+} 
+
+#############################################################################
+sub reDirect {
+#############################################################################
+  my ($r,$page) = @_;
+  my $organisation = $r->header("organisation");
+  my $home = $r->header("home");
+  my $host = $r->header("host");
+  my $port = $r->header("port");
+  my $url = "$home/$organisation/$page/$host/$port/&page=$page";
+  my $response = HTTP::Response->new(302,"Moved");
+  $response->header("Location",$url);   
+  return $response->as_string();
+}
+
+#############################################################################
+sub installerStatus {
+#############################################################################
+  my $msg = shift;
+  my $response = HTTP::Response->new(200,"OK");
+  $response->header("content-type","text/html");   
+  my $content = qq {$msg</body></html>};
+  $response->content($content);
+  return $response->as_string();
+}
+
+#############################################################################
+sub alienVersion {
+#############################################################################
+  my $version = "n/a";
+
+  open(INPUT, "$ENV{ALIEN_ROOT}/share/alien/ALIEN_VERSION") && do {
+    my $line = <INPUT>;
+    close INPUT;
+    $line =~ s/,//g;
+    $line =~ s/AliEn //g;
+    $line =~ s/build//g;
+    $line =~ s/ *://g;
+    my ($v,$b) = split (/ /,$line);
+    $version = "$v-$b"; 
+  };
+
+  return $version;
+
+} 
+#############################################################################
+sub parseStatus {
+#############################################################################
+  my $content = shift;
+
+my $status;
+my $process;
+my $system;
+my $tag;
+
+$status->{monit} = {};
+
+$status->{process}->{amon}->{status} = "running";
+
+foreach (split(/\n/,$content)) {
+    $_ eq "" and next;
+    /^The monit daemon .*:/ and do {
+                   my ($dummy, $uptime) = split (/:/,$_); 
+                   $status->{monit}->{uptime} = $uptime;
+                   next;
+	       };
+    /^Process/ and do {
+                   my ($dummy, $name) = split (/\'/,$_); 
+                   $process = $name;
+                   $tag = "process";
+                   next;
+	       };
+    /^System/ and do {
+                   my ($dummy, $name) = split (/\'/,$_); 
+                   $process = $name;
+                   $tag = "system";
+                   next;
+	       };
+    /^ *status/ and do {
+                   my ($dummy, $value) = split (/status */,$_); 
+                   $status->{$tag}->{$process}->{status} = $value;
+                   next;
+	       };
+    /^ *monitoring status/ and do {
+                   my ($dummy, $value) = split (/monitoring status */,$_); 
+                   $status->{$tag}->{$process}->{mon_status} = $value;
+                   next;
+	       };
+    /^ *pid/ and do {
+                   my ($dummy, $value) = split (/pid */,$_); 
+                   $status->{$tag}->{$process}->{pid} = $value;
+                   next;
+	       };
+    /^ *parent pid/ and do {
+                   my ($dummy, $value) = split (/parent pid */,$_); 
+                   $status->{$tag}->{$process}->{parent_pid} = $value;
+                   next;
+	       };
+    /^ *uptime/ and do {
+                   my ($dummy, $value) = split (/uptime */,$_); 
+                   $status->{$tag}->{$process}->{uptime} = $value;
+                   next;
+	       };
+    /^ *childrens/ and do {
+                   my ($dummy, $value) = split (/childrens */,$_); 
+                   $status->{$tag}->{$process}->{childrens} = $value;
+                   next;
+	       };
+    /^ *memory kilobytes total/ and do {
+                   my ($dummy, $value) = split (/memory kilobytes total */,$_); 
+                   $status->{$tag}->{$process}->{memory_total} = $value;
+                   next;
+	       };
+    /^ *memory kilobytes/ and do {
+                   my ($dummy, $value) = split (/memory kilobytes */,$_); 
+                   $status->{$tag}->{$process}->{memory} = $value;
+                   next;
+	       };
+    /^ *memory percent total/ and do {
+                   my ($dummy, $value) = split (/memory percent total */,$_); 
+                   $status->{$tag}->{$process}->{memory_percent_total} = $value;
+                   next;
+	       };
+    /^ *memory percent/ and do {
+                   my ($dummy, $value) = split (/memory percent */,$_); 
+                   $status->{$tag}->{$process}->{memory_percent} = $value;
+                   next;
+	       };
+    /^ *cpu percent total/ and do {
+                   my ($dummy, $value) = split (/cpu percent total */,$_); 
+                   $status->{$tag}->{$process}->{cpu_percent_total} = $value;
+                   next;
+	       };
+    /^ *cpu percent/ and do {
+                   my ($dummy, $value) = split (/cpu percent */,$_); 
+                   $status->{$tag}->{$process}->{cpu_percent} = $value;
+                   next;
+	       };
+    /^ *cpu data collected/ and do {
+                   my ($dummy, $value) = split (/data collected */,$_); 
+                   $status->{$tag}->{$process}->{data_collected} = $value;
+                   next;
+	       };
+    /^ *load average/ and do {
+                   my ($dummy, $value) = split (/load average */,$_); 
+                   $status->{$tag}->{$process}->{load_average} = $value;
+                   next;
+	       };
+    /^ *memory usage/ and do {
+                   my ($dummy, $value) = split (/memory usage */,$_); 
+                   $status->{$tag}->{$process}->{memory_usage} = $value;
+                   next;
+	       };
+   }
+ 
+   return $status;
+}
+
+
+#############################################################################
+#############################################################################
+
+  Log::TraceMessages::check_argv();
+
+  my $pidfile = $ENV{HOME}."/.alien/amon/amon.pid";
+  open F, "> $pidfile" or die "Can't open $pidfile : $!";
+  print F $$;
+  close F;
+
+  my $AMON = $0; $0 = "amon";
+
+  my $is_master = 0;
+
+  GetOptions ('master'   => \$is_master,
+              'server=s' => \$AMON_SERVER,
+	      'port=i'   => \$AMON_PORT,
+              'info_server=s'  => \$AMON_INFO_SERVER,
+              'info_port=i'    => \$AMON_INFO_PORT,
+              'cache_server=s' => \$AMON_CACHE_SERVER,
+              'cache_port=i'   => \$AMON_CACHE_PORT,
+              'http_server=s'  => \$AMON_HTTP_SERVER,
+              'http_port=i'    => \$AMON_HTTP_PORT);
+
+  $AMON_INFO_SERVER = ($AMON_INFO_SERVER eq "" ) ? $AMON_SERVER :
+                                                   $AMON_INFO_SERVER;
+  $AMON_INFO_PORT   = ($AMON_INFO_PORT == 0) ? $AMON_PORT+1 :
+                                               $AMON_INFO_PORT;
+
+# Run POE
+
+ ( $is_master ?  &createServer() :  &createAgent() ); 
+ 
+  POE::Kernel->run();
+
+  exit 0;
