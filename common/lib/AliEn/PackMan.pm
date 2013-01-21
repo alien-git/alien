@@ -796,6 +796,10 @@ sub getDependencies {
   my $cache=AliEn::Util::returnCacheValue($self, $cacheName);
   if ($cache and $cache->[0]) {
     $self->info( "Returning the value from the cache $cacheName (@$cache)");
+    my $info=$cache->[1];
+    foreach (keys %$info) {
+       $info->{$_} and $self->info("\t$_:\t\t$info->{$_}");
+    }
     return (@$cache);
   }
 

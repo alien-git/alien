@@ -170,7 +170,7 @@ sub CallRPC {
    # Easy access
   
   if ($self->{CLIENTS}->{$service}->ua()->ssl_opts('SSL_cert_file')){
-     $self->info("This is in fact a secure call. Checking the proxy from the call");    
+     $self->debug(1,"This is in fact a secure call. Checking the proxy from the call");    
      $self->{X509}->checkProxy();
   }
   
