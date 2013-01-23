@@ -307,11 +307,28 @@ sub putAgentLog {
   my $self=shift;
   my $message=shift;
   my $id="$self->{CONFIG}->{CE_FULLNAME}_$ENV{ALIEN_JOBAGENT_ID}";
-  $self->{agentlog_counter} or $self->{agentlog_counter}=0;  
+
+  if($self->{last_agent_message} eq $message){
+    $self->info("This is the same message");
+    $self->{last_agent_counter}+=1;
+    return 1;
+  }
+
+
+  if ($self->{last_agent_counter}){
+    $self->{agentlog_counter}+=1;
+
+    $self->{RPC}->CallRPC("ClusterMonitor","putJobLog", $id,"agent",
+        sprintf("%03d Last message repeated %d time(s)", $self->{agentlog_counter}, $self->{last_agent_counter} ),@_)
+  }
+
+  $self->{agentlog_counter} or $self->{agentlog_counter}=0;
   $self->{agentlog_counter}+=1;
-  
-  my $joblog = $self->{RPC}->CallRPC("ClusterMonitor","putJobLog", $id,"agent", 
+
+  my $joblog = $self->{RPC}->CallRPC("ClusterMonitor","putJobLog", $id,"agent",
         sprintf("%03d %s", $self->{agentlog_counter}, $message),@_) or return;
+  $self->{last_agent_message}=$message;
+  $self->{last_agent_counter}=0;
   return 1;
 }
 
@@ -2781,6 +2798,7 @@ sub sendJAStatus {
    }
   
   $self->putAgentLog($msg);
+
   defined  $status and $params->{ja_status} = AliEn::Util::jaStatusForML($status);
   if($ENV{ALIEN_JOBAGENT_ID} && $ENV{ALIEN_JOBAGENT_ID} =~ /(\d+)\.(\d+)/){
     $params->{ja_id_maj} = $1;

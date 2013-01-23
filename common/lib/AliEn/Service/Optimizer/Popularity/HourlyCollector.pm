@@ -28,9 +28,8 @@ sub checkWakesUp {
     foreach my $f (@$tasks){
       my $result = $self->fillHourlyPopTable($f->{startTime}, $interval);
 	  if ($result){
-	  	$self->sendSummeryToMonalisa ($f->{startTime}, $interval) and 
 	  	$self->increaseCompletedTasksNumber("DailyCollector", $f->{startTime}) and 
-		$self->removeCollectorTask("$collectorName", $f->{startTime});
+	    $self->removeCollectorTask("$collectorName", $f->{startTime});
 	  }
       $self->setCollectorTaskPending($collectorName, $f->{startTime});
     }
@@ -90,7 +89,7 @@ sub fillHourlyPopTable
   
   my $categoryQuery = "SELECT categoryId, userId, count(*) AS nbReadOp, accessTime FROM 
   (SELECT fileName, max(categoryId) as categoryId, userId, DATE_ADD('$startTime', INTERVAL $interval HOUR) as accessTime
-  from $buffer left join categoryPattern on (fileName rlike pattern) WHERE accessTime BETWEEN '$startTime' AND DATE_ADD('$startTime', INTERVAL $interval HOUR) AND success=1 AND operation='read' GROUP BY fileName, userId) bb GROUP BY categoryId, userId";
+  from $buffer left join categoryPattern on (fileName rlike pattern) WHERE accessTime BETWEEN '$startTime' AND DATE_ADD('$startTime', INTERVAL 2 HOUR) AND success=1 AND operation='read' GROUP BY fileName, userId) bb GROUP BY categoryId, userId";
   
   $self->{DB}->do("INSERT IGNORE INTO categoryPopHourly (categoryId, userId, nbReadOp, accessTime) $categoryQuery") or $self->info("Could not do insert into categories table") and return 0;
 
@@ -102,60 +101,5 @@ sub fillHourlyPopTable
   
 return 1;  
 } 
-
-
-
-sub sendSummeryToMonalisa
-{
-  my $self = shift;
-  my $startTime = shift;
-  my $interval  = shift; 
-  my $method="info";
- 
-  # GETTING categoryName, nbAccesses, nbAccesses_R, nbUsers
-  my $result =$self->{DB}->query("SELECT IF(periodName LIKE 'OTHER', categoryName, CONCAT(periodName, '_', categoryName)) as categoryName, sum(nbReadOp) as nbAccesses, sum(nbReadOp)/($interval*3600) as nbAccesses_R, count(DISTINCT userId) as nbUsers FROM categoryPopHourly 
-  left join categoryPattern on (categoryPattern.categoryId = categoryPopHourly.categoryId) left join periods on (categoryPattern.perId = periods.perId) WHERE accessTime BETWEEN '$startTime' AND DATE_ADD('$startTime', INTERVAL $interval HOUR) GROUP BY categoryPopHourly.categoryId") or return 0;
-  if ($result)
-  {
-  	for my $href (@$result) {
-      	my $categoryName = $href->{categoryName};
-    	delete $href->{categoryName};
-    	#send to MonALISA
-    	$self->{MONITOR}->sendParameters("AliEn_PopularityService", "$categoryName", $href);
-    }
-  }
-  
-  # Corrupted files:
-  # GETTING fileName, seName, nbReadFailures, nbReadFailures_R, nbUsers
-  
-  my $result2 =$self->{DB}->query("SELECT fileName, seName, SUM(nbReadFailure) as nbReadFailures, SUM(nbReadFailure)/($interval*3600) as nbReadFailures_R, SUM(nbUserFailure) as nbUsers FROM filePopHourly LEFT JOIN seInfo on (seInfo.seId = filePopHourly.seId)
-  WHERE accessTime BETWEEN '$startTime' AND DATE_ADD('$startTime', INTERVAL $interval HOUR) and nbReadOp = 0 and nbReadFailure !=0 GROUP BY fileName, seName") or return 0;
-  if ($result2)
-  {
-  	for my $href (@$result2) {
-      	#send to MonALISA
-    	$self->{MONITOR}->sendParameters("AliEn_CorruptedFiles_Details", "Files", $href); 
-    }
-  }
-   
-  # Failures per-SE:
-  # GETTING seName, nbReadFailures, nbReadFailures_R
-  
-  my $result3 =$self->{DB}->query("SELECT seName, SUM(nbReadFailure) as nbReadFailures, SUM(nbReadFailure)/($interval*3600) as nbReadFailures_R FROM filePopHourly LEFT JOIN seInfo on (seInfo.seId = filePopHourly.seId) 
-WHERE accessTime BETWEEN '$startTime' AND DATE_ADD('$startTime', INTERVAL $interval HOUR) AND nbReadOp = 0 and nbReadFailure !=0 GROUP BY seName") or return 0;
-  if ($result3)
-  {
-  	for my $href (@$result3) {
-      	my $seName = $href->{seName};
-    	delete $href->{seName};
-    	#send to MonALISA
-    	$self->{MONITOR}->sendParameters("AliEn_CorruptedFiles", "$seName", $href);
-    }
-  }
-
-  $self->{LOGGER}->$method("MonALISA",  "Sent info to local MonALISA agent");
-
-  return 1;
-}
 
 1;

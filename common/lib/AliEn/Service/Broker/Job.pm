@@ -186,9 +186,10 @@ sub checkMoreFilesForAgent {
 		undef, {bind_values => [$split]});
 	$v and return 1;
 	$self->info("There are no more files to be processed!");
-
-	$self->{DB}->do("UPDATE QUEUE set statusId=-14 where statusId=5 and split=?", {bind_values => [$split]}); # KILLED TO WAITING
-	$self->{DB}->do("UPDATE ACTIONS set todo=1 where action=='KILLED'");
+  my $jobs=$self->{DB}->queryColumn("select queueid from QUEUE where statusId=5 and split=?",undef, {bind_values => [$split]});
+  foreach my $job (@$jobs){
+    $self->{DB}->killProcessInt($job, 'admin');
+  }
 
 	return 1;
 }
@@ -205,11 +206,11 @@ sub findFilesForFileBroker {
 	
   my $limit;
 
-  $jdl=$self->{DB}->queryValue("select origjdl from QUEUEJDL where queueid=?", undef, {bind_values=>[$split]});
+  my $father_jdl=$self->{DB}->queryValue("select origjdl from QUEUEJDL where queueid=?", undef, {bind_values=>[$split]});
 
-  $jdl or $self->info("Error getting the jdl of $split while doing the file broker") and return;
+  $father_jdl or $self->info("Error getting the jdl of $split while doing the file broker") and return;
   eval { 
-      my $ca=AlienClassad::AlienClassad->new($jdl) or die("Erorr creating the classad");
+      my $ca=AlienClassad::AlienClassad->new($father_jdl) or die("Erorr creating the classad");
       (my $ok, $limit)=$ca->evaluateAttributeString("SplitMaxInputFileNumber");
   };
   if ($@){
