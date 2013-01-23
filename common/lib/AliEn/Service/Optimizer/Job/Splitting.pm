@@ -183,6 +183,7 @@ sub _splitSEAdvanced {
 	my $ses={};
 	foreach my $file (@files) {
 		$self->info("Checking the file $file");
+		my $origFile=$file;
 		$file=~ s/^LF://i;
     $file =~ s/,nodownload$//;
     my @se=$self->{CATALOGUE}->execute("whereis", "-lr", "-silent",$file);
@@ -195,7 +196,7 @@ sub _splitSEAdvanced {
     	$ses->{$se} or $ses->{$se}=0;
     	$ses->{$se}++;
     }
-		$self->{DB}->insertFileBroker($queueId, $file, join(',', @se));
+		$self->{DB}->insertFileBroker($queueId, $origFile, join(',', @se));
 		
 	}
 	my ($oknumber, $maxInputFileNumber) = $job_ca->evaluateAttributeString("SplitMaxInputFileNumber");
