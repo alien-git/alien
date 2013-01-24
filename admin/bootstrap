@@ -1,0 +1,5 @@
+#!/bin/sh
+
+automake -a -c >& /dev/null
+aclocal
+autoconf

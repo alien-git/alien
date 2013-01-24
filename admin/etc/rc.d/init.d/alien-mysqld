@@ -1,0 +1,186 @@
+#!/bin/bash
+#
+# mysqld	This shell script takes care of starting and stopping
+#		the MySQL subsystem (mysqld).
+#
+# chkconfig: - 35 102 14
+# description:	MySQL database server.
+# processname: mysqld
+# config: /etc/my.cnf
+# pidfile: /var/run/mysqld/mysqld.pid
+
+if [ -f /etc/rc.d/init.d/functions ] 
+then 
+    # Source function library.
+    . /etc/rc.d/init.d/functions
+
+    # Source networking configuration.
+    . /etc/sysconfig/network
+else 
+echo_success() 
+{
+    echo -n "                                       ok"
+}
+echo_failure()
+{
+    echo -n "                                       failed"
+}
+fi
+
+
+# Source subsystem configuration.
+#[ -f /etc/sysconfig/subsys/mysqld ] && . /etc/sysconfig/subsys/mysqld
+
+[ -f /etc/aliend/mysqld.conf ] && . /etc/aliend/mysqld.conf
+
+prog="MySQL"
+
+BASEDIR=/home/mysql/
+ALIEN_ROOT=${ALIEN_ROOT:=/opt/alien}
+LD_LIBRARY_PATH=$ALIEN_ROOT/lib:$ALIEN_ROOT/lib/mysql:$LD_LIBRARY_PATH
+DYLD_LIBRARY_PATH=$ALIEN_ROOT/lib:$ALIEN_ROOT/lib/mysql:$DYLD_LIBRARY_PATH
+
+if [ ${LOGNAME:=root} != "root" ]
+then
+    echo "Running as a the user $USER"
+    BASEDIR=$HOME/.alien/mysql/
+    [ -f $HOME/.alien/etc/aliend/mysqld.conf ] && . $HOME/.alien/etc/aliend/mysqld.conf
+
+fi
+
+start() 
+    {
+    # We need this patch because mysql doesn't want to start in SL3
+    # with the libraries from $ALIEN_ROOT
+    VERSION=`env LD_LIBRARY_PATH=$LD_LIBRARY_PATH DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH $ALIEN_ROOT/bin/mysql -V |awk '{print \$5}'`
+    echo "Using mysql $VERSION";
+    case $VERSION in 
+	5.0*)
+	    log="log-error"
+	    ;;
+	5.1*)
+	    log="log-error"
+	    ;;
+	5.5*)
+	    log="log-error"
+	    ;;
+        *)
+	   log="err-log"
+	  ;;
+    esac
+#    case `gcc -dumpversion` in
+#      2.9*)
+#	LIBRARY_PATH=$LD_LIBRARY_PATH
+#        ;;
+#      *) 
+#	LIBRARY_PATH=""
+#        ;;
+#    esac
+    cd $ALIEN_ROOT
+    for entry in $ALL_ORG
+    do
+	organisation=${entry%%:*}
+	port=${entry##*:}
+	
+	homedir=$BASEDIR/$organisation/mysql
+	echo -n "    Starting mysqld for $organisation in $port"
+	
+	[ -f $homedir/my.cnf ] && default="--defaults-file=$homedir/my.cnf"
+#	$ALIEN_ROOT/libexec/mysqld_safe $default --socket=/tmp/alien.mysql.$organisation.sock3 --datadir=$homedir --pid-file=$homedir/mysqld.pid --port $port -u mysql --log=$homedir/queries.log --log-slow-queries=$homedir/slow_queries.log --log-update=$homedir/updates.log   >/dev/null 2>&1 &
+
+	env LD_LIBRARY_PATH=/lib:$LD_LIBRARY_PATH $ALIEN_ROOT/bin/mysqld_safe $default --socket=/tmp/alien.mysql.$organisation.sock3 --datadir=$homedir --pid-file=$homedir/mysqld.pid --port $port -u mysql --$log=$homedir/error.log   >/dev/null 2>&1  &
+        ret=$?
+        if [ $ret -eq 0 ]; then
+	    if  [ -f $ALIEN_ROOT/scripts/apmonPID.pl ] ; 
+	    then 
+	      sleep 2
+	      PID=`cat $homedir/mysqld.pid`
+#	      echo "Monitoring the process $PID"
+	      $ALIEN_ROOT/bin/alien -x $ALIEN_ROOT/scripts/apmonPID.pl mysql_Servers $PID > /dev/null 2>&1 & 
+	      echo $! >>  $homedir/mysqld.pid.monitor
+	    fi
+ 	    echo_success
+	else
+	    echo_failure
+	fi 
+	echo
+    done
+}
+
+stop(){
+    for entry in $ALL_ORG
+    do
+	organisation=${entry%%:*}
+	port=${entry##*:}
+
+	homedir=$BASEDIR/$organisation/mysql	
+	echo -n "Killing mysqld of $organisation"
+ 	PID=`cat $homedir/mysqld.pid  2> /dev/null `
+	/bin/kill $PID > /dev/null 2>&1
+    ret=$?
+    if [ $ret -eq 0 ]; then
+        action $"Stopping $prog: " /bin/true
+    else
+        action $"Stopping $prog: " /bin/false
+
+    fi
+    [ $ret -eq 0 ] && rm -f $homedir/mysql.sock
+    
+    echo "Checking if the process $PID is still there "
+    while /bin/kill -0 $PID > /dev/null 2>&1 ; do
+    	echo "The process $PID is still there"
+    	sleep 1
+    done
+    
+    
+    
+	if [ -f $homedir/mysqld.pid.monitor ] ;
+	then
+	    PID=`cat $homedir/mysqld.pid.monitor`
+#	    echo "Killing process $PID"
+	    kill $PID  2> /dev/null
+	    kill -9 $PID 2> /dev/null
+	    rm $homedir/mysqld.pid.monitor
+	fi
+
+     done
+}
+ 
+restart(){
+    stop
+    start
+}
+
+# See how we were called.
+case "$1" in
+  start)
+    FUNCTION=start
+    ;;
+  stop)
+    FUNCTION=stop
+    ;;
+  status)
+    status mysqld
+    exit
+    ;;
+  restart)
+    restart
+    exit
+    ;;
+  *)
+    echo $"Usage: $0 {start|stop|status|restart}"
+    exit 1
+esac
+
+shift 
+
+ALL_ORG=$ALIEN_ORGANISATIONS
+
+if [ -n "$1" ] ;
+then
+   ALL_ORG="$*"
+fi
+
+$FUNCTION
+
+exit $?

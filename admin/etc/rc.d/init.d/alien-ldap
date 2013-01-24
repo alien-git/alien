@@ -1,0 +1,163 @@
+#!/bin/sh
+#
+# ldap	This shell script takes care of starting and stopping
+#	ldap servers (slapd and slurpd).
+#
+# chkconfig: - 23 101 13
+# description: LDAP stands for Lightweight Directory Access Protocol, used \
+#              for implementing the industry standard directory services.
+# processname: slapd
+# config: /opt/glite/etc/openldap/slapd.conf
+# pidfile: /var/run/slapd.pid
+
+ALIEN_ROOT=${ALIEN_ROOT:=/opt/alien}
+# Source function library.
+if [ -f /etc/rc.d/init.d/functions ] 
+then
+    . /etc/rc.d/init.d/functions
+    DAEMON=daemon
+    KILL=killproc
+   # Source networking configuration.
+   . /etc/sysconfig/network
+   # Check that networking is up.
+   [ ${NETWORKING} = "no" ] && exit -1
+else
+    DAEMON=""
+    KILL=killall
+echo_success() 
+{
+    echo -n "                                       ok"
+}
+echo_failure()
+{
+    echo -n "                                       failed"
+}
+fi
+
+
+
+
+FIND_EXECUTABLE()
+{
+    FILE=$1
+    echo "LOOKING FOR $FILE"
+    [ -f /etc/rc.d/init.d/functions ]  || echo "LOOKING IN THE STANDARD PLACES"
+    for DIR in $ALIEN_ROOT $DIRECTORY /usr/sbin /tmp $ALIEN_ROOT/libexec
+    do
+	 [ -f /etc/rc.d/init.d/functions ]  || echo "LOOKING IN $DIR"
+	[ -f $DIR/$FILE ] && FILE="$DIR/$FILE" && return 0
+    done
+    which $FILE >/dev/null  2>&1 && return 0
+    [ -f /etc/rc.d/init.d/functions ]  || echo "LOOKING IN THE RPM"
+    FILE2=`rpm -ql openldap-servers |grep "/$FILE$"`
+    [ -n "$FILE2" ] && FILE=$FILE2 && return 0
+    echo "File $FILE not found"
+    return 1
+}
+
+export LD_LIBRARY_PATH=$ALIEN_ROOT/lib:$ALIEN_ROOT/lib64:$LD_LIBRARY_PATH
+
+CONFIG=$ALIEN_ROOT/etc/openldap/slapd.conf
+[ -f /etc/aliend/ldap/slapd.conf ] && CONFIG=/etc/aliend/ldap/slapd.conf
+
+LOGDIR=$HOME/.alien/var/log/
+mkdir -p $LOGDIR
+LOCK=$LOGDIR/ldap.lock
+
+LOGNAME=${LOGNAME:=root}
+if [ ! "$LOGNAME" = "root" ] 
+   then
+    echo "Starting ldap as user $USER"
+    CONFIG=$HOME/.alien/etc/aliend/ldap/slapd.conf
+
+    if [ ! -f $CONFIG ] 
+    then 
+      echo "The file $CONFIG does not exist" 
+      exit -2
+    fi
+fi
+
+FIND_EXECUTABLE slapd || exit -2
+SLAPD=$FILE
+#removing the slurpd, it was removed from latest versions of ldap
+#FIND_EXECUTABLE slurpd || exit -2
+#SLURPD=$FILE
+
+RETVAL=0
+
+# See how we were called.
+case "$1" in
+    start)
+        # Start daemons.
+        echo -n "Starting ldap: "
+
+
+	echo
+	echo "reporting LDD of $SLAPD:"
+	ldd $SLAPD
+	echo
+        echo "now let's do the start as normal"
+	echo
+
+
+	$DAEMON $SLAPD -d 1 -s 0 -h ldap://:8389/ -f $CONFIG  > $LOGDIR/ldap.log 2>&1 &
+	RETVAL=$?
+	if [ $RETVAL -eq 0 ]; then
+#if grep -q "^replogfile" $CONFIG; then
+#	$DAEMON $SLURPD -f $CONFIG
+#	RETVAL=$?
+#	[ $RETVAL -eq 0 ] && pidof slurpd | cut -f 1 -d " " > /var/run/slurpd
+#   fi
+	    echo_success
+	fi
+	[ $RETVAL -eq 0 ] && touch $LOCK  
+	echo
+        ;;
+    stop)
+        # Stop daemons.
+	echo -n "Shutting down ldap: "
+	$KILL slapd 
+	RETVAL=$?
+#	if [ $RETVAL -eq 0 ]; then
+#	    if grep -q "^replogfile" $CONFIG; then
+#		$KILL slurpd
+#		RETVAL=$?
+#	    fi
+#	fi
+#	echo
+        if [ $RETVAL -eq 0 ]; then
+	    rm -f $LOCK
+	    rm -f /var/run/slapd.args
+	fi
+        ;;
+    status)
+	status slapd
+	RETVAL=$?
+#	if [ $RETVAL -eq 0 ]; then
+#	    if grep -q "^replogfile" $CONFIG; then
+#		status slurpd
+#		RETVAL=$?
+#	    fi
+#	fi
+	;;
+    restart)
+	$0 stop
+	$0 start
+	RETVAL=$?
+	;;
+    reload)
+    	killproc -HUP slapd
+	RETVAL=$?
+#	if [ $RETVAL -eq 0 ]; then
+#	    if grep -q "^replogfile" $CONFIG; then
+#		killproc -HUP slurpd
+#		RETVAL=$?
+#	    fi
+#	fi
+	;;
+    *)
+	echo "Usage: $0 start|stop|restart|status}"
+	exit 1
+esac
+
+exit $RETVAL
