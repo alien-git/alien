@@ -37,7 +37,7 @@ sub checkWakesUp  {
   $ces and @$ces or $self->info("No CEs available") and return;    
       
   foreach my $job (@$done){  	  	
-  	my $jdl=$self->{DB}->queryValue("select origJdl from QUEUEJDL where queueid=?", undef, {bind_values => [$job]});
+  	my $jdl=$self->{DB}->queryValue("select uncompress(origJdl) from QUEUEJDL where queueid=?", undef, {bind_values => [$job]});
   	my $ca=AlienClassad::AlienClassad->new($jdl);
     my ($ok, $req)=$ca->evaluateExpression("Requirements");
   	$ok or $self->info("Could not get Requirements from job $job") and next;
@@ -75,7 +75,7 @@ sub checkWakesUp  {
   	    if($no_error){
             my ($ok, $req)=$ca->evaluateExpression("Requirements");
             $ca->set_expression("Requirements", $req." && (other.CE==\"$reqCE\")");
-            $self->{DB}->update("QUEUEJDL", {origJdl => $ca->asJDL()}, "queueId=?", {bind_values=>[$job]}) or $self->info("Error doing the jdl update");
+            $self->{DB}->update("QUEUEJDL", {origJdl => $ca->asJDL()}, "queueId=?", {bind_values=>[$job], functions=>{origjdl=>"compress",resultsjdl=>"compress"}}) or $self->info("Error doing the jdl update");
                     
             $self->{DB}->updateStatus($job, "TO_STAGE", "STAGING");
             $self->{DB}->update("ACTIONS", {todo=>1}, "action='STAGING'");

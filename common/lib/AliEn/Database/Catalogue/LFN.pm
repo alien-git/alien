@@ -2149,7 +2149,7 @@ sub LFN_createCollection {
   $insert->{type} = 'c';
   $self->_createEntry($insert, @_) or return;
 
-  if (!$self->insert("COLLECTIONS", {collGUID => $insert->{guid}}, {functions => {collGUID => 'string2binary'}})) {
+  if (!$self->insert("COLLECTIONS", {collGUID => $insert->{guid}}, {functions => {collguid => 'string2binary'}})) {
     $self->debug(2, "Here we have to remove the entry");
     my $tableRef  = shift             || {};
     my $tableName = $tableRef->{name} || $self->{INDEX_TABLENAME}->{name};

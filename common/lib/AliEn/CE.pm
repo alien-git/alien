@@ -1866,7 +1866,7 @@ sub getPsFromDB {
   
   
   if ($options->{s}) {
-    $where .=" and (upper(origJdl) like '\%SPLIT\%' or q.split>0 ) ";
+    $where .=" and (upper(CONVERT(uncompress(origJdl) USING latin1)) like '\%SPLIT\%' or q.split>0 ) ";
   } elsif (not $options->{S}) {
     $where .=" and ((q.split is NULL) or (q.split=0))";
   }
@@ -1988,19 +1988,10 @@ sub f_ps_jdl {
   my $self=shift;
   my $id=shift;
  
-  $id or $self->info("Usage: ps jdl <jobid> ") and return;
   $self->debug(1, "Asking for the jdl of $id");
  
-  my $columns="ifnull(resultsjdl, origjdl) jdl";
-  my $join="";
-  my $method="queryValue"; 
-  foreach my $o (@_) {
-    $o=~ /-dir/ and $columns.=",path" and $method="queryRow";
-    $o=~ /-status/ and $columns.=",statusId" and $method="queryRow" and $join="join QUEUE using (queueid)";
-  }
-
-  my $rc=$self->{TASK_DB}->$method("select $columns from QUEUEJDL $join where queueId=?", undef, {bind_values=>[$id]});
-  $method =~ /queryRow/ and $rc->{statusId} and $rc->{status} = AliEn::Util::statusName($rc->{statusId});
+  my ($rc)=$self->{TASK_DB}->getJDL($id, @_);
+  $rc or $self->info("Usage: ps jdl <jobid> ") and return; 
 
   if (!grep (/-silent/, @_)) {
 	my $message = "The jdl of $id is $rc";
@@ -2013,6 +2004,7 @@ sub f_ps_jdl {
 	$self->info($message);
   }
 
+  ($rc->{path} or $rc->{status}) or return $rc->{jdl};
   return $rc; 
 }
 
@@ -3140,7 +3132,7 @@ sub getMasterJobFileBroker {
 
 	$self->info("Checking the file broker for the masterjob $id");
 
-	my $jdl = $self->{TASK_DB}->queryValue("select origjdl from QUEUEJDL where queueid=?", undef, {bind_values => [$id]});
+	my $jdl = $self->{TASK_DB}->queryValue("select uncompress(origjdl) from QUEUEJDL where queueid=?", undef, {bind_values => [$id]});
 	($jdl) or $self->info("Error getting the JDL of the job '$id'") and return;
 
 	my $job_ca = AlienClassad::AlienClassad->new($jdl);
@@ -3814,7 +3806,7 @@ sub resyncJobAgent {
 	$self->info("First, let's take a look at the missing jobagents");
 
 	my $jobs = $self->{TASK_DB}->query(
-		"select userid, origjdl jdl, agentid from QUEUE q join 
+		"select userid, uncompress(origjdl) jdl, agentid from QUEUE q join 
 (select min(queueid) as q from QUEUE left join JOBAGENT on agentid=entryid where entryid is null  and statusId=5 group by agentid) t  on queueid=q
 join QUEUEJDL using (queueid)"
 		)

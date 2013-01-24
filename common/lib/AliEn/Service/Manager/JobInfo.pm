@@ -277,9 +277,9 @@ sub getSystem {
   $joinjdljobtag = join '%',@jobtag;
   
   if ($#jobtag >= 0) {
-    $jdljobtag = "origJdl like '%Jobtag = %{%$joinjdljobtag%};%'";
+    $jdljobtag = "uncompress(origJdl) like '%Jobtag = %{%$joinjdljobtag%};%'";
   } else {
-    $jdljobtag="origJdl like '%'"; 
+    $jdljobtag="uncompress(origJdl) like '%'"; 
   }
   
   $self->info( "Query does $#jobtag $jdljobtag ..." );

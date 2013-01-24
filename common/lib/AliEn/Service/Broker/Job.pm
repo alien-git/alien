@@ -206,7 +206,7 @@ sub findFilesForFileBroker {
 	
   my $limit;
 
-  my $father_jdl=$self->{DB}->queryValue("select origjdl from QUEUEJDL where queueid=?", undef, {bind_values=>[$split]});
+  my $father_jdl=$self->{DB}->queryValue("select uncompress(origjdl) from QUEUEJDL where queueid=?", undef, {bind_values=>[$split]});
 
   $father_jdl or $self->info("Error getting the jdl of $split while doing the file broker") and return;
   eval { 

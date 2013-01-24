@@ -28,8 +28,8 @@ sub checkWakesUp {
   my $todo = $self->{DB}->queryValue("SELECT todo from ACTIONS where action='INSERTING'");
   $todo or return;
   $self->{DB}->update("ACTIONS", {todo => 0}, "action='INSERTING'");
-  my $q = "1' and upper(origjdl) not like '\% SPLIT = \"\%";
-  $self->{DB}->{DRIVER} =~ /Oracle/i and $q = "1 and REGEXP_REPLACE(upper(origjdl), '\\s*', '') not like '\%SPLIT=\"\%";
+  my $q = "1' and upper(CONVERT(uncompress(origJdl) USING latin1)) not like '\% SPLIT = \"\%";
+  $self->{DB}->{DRIVER} =~ /Oracle/i and $q = "1 and REGEXP_REPLACE(upper(CONVERT(uncompress(origJdl) USING latin1)), '\\s*', '') not like '\%SPLIT=\"\%";
   my $done = $self->checkJobs($silent, $q, "updateInserting", 15, 15);
 
   $self->$method(@data, "The inserting optimizer finished");

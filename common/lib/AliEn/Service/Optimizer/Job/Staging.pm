@@ -35,7 +35,7 @@ sub checkWakesUp {
   }
   $self->info("And now, let's check the jobs that were waiting to be staged");
  
-  my $info=$self->{DB}->query("select q.queueId as qid, qj.origJdl as jdl from QUEUE q join QUEUEJDL qj using (queueId) where statusId=19");
+  my $info=$self->{DB}->query("select q.queueId as qid, uncompress(qj.origJdl) as jdl from QUEUE q join QUEUEJDL qj using (queueId) where statusId=19");
   foreach my $entry (@$info){
     $self->checkAlreadyStaged($entry->{qid}, $entry->{jdl});
   }

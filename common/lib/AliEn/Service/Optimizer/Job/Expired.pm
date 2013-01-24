@@ -25,7 +25,7 @@ sub checkWakesUp {
   $self->archiveJobs("where ((statusId=15 or statusId=-13 or statusId=-12 or statusId=-1 or statusId=-2 or statusId=-3 or statusId=-4 or statusId=-5
   or statusId=-7 or statusId=-8 or statusId=-9 or statusId=-10 or statusId=-11 or statusId=-16 or statusId=-17 or statusId=-18) 
   and ( $mtime < $time) and split=0) ", "10 days in final state", $self->{DB}->{QUEUEARCHIVE});
-
+  
   # This is to archive the subjobs
   $self->archiveJobs("left join QUEUE q2 on q.split=q2.queueid where $mtime<$time", # and q.split!=0 and q2.queueid is null ? 
                       "10 days without subjobs", $self->{DB}->{QUEUEARCHIVE});

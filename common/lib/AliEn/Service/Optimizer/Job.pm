@@ -306,7 +306,6 @@ sub checkJobs {
     my $jobs =
       $self->{DB}->getJobsByStatus($status, "queueid", "queueid", $limit,  $self->{MIN_ID});
       
-
     defined $jobs
       or $self->info("In checkJobs error during execution of database query")
       and return;

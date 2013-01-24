@@ -452,9 +452,14 @@ sub update {
     $query .= $self->reservedWord($_) . "=";
     if (defined $rfields->{$_}) {
       if ($quote) {
-        $query .= "?,";
-      } else {
+      	if ($options->{functions} and $options->{functions}->{lc($_)}) {
+          $query .= "".$options->{functions}->{lc($_)}."(?),";
+        } else {
+          $query .= "?,";
+        }
+      } else {   
         $rfields->{$_} =~ s/^([^'"]*)['"](.*)['"]([^'"]*)$/$2/;
+        
         my $function    = "";
         my $functionend = "";
         if ($1 && $3) {
@@ -508,8 +513,8 @@ sub insert {
   foreach (keys %$rfields) {
     my $value = $rfields->{$_};
     if (defined $value) {
-      if ($options->{functions} and $options->{functions}->{$_}) {
-        $query .= "$options->{functions}->{$_}(?),";
+      if ($options->{functions} and $options->{functions}->{lc($_)}) {
+        $query .= "".$options->{functions}->{lc($_)}."(?),";
       } else {
         $query .= "?,";
       }

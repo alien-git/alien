@@ -213,7 +213,6 @@ sub initialize {
       optimized    => "int(1) default 0",
       finalPrice   => "float",
       notifyId     => "int",
-      agentId      => "int(11)",
       mtime        => "timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
       resubmission => "int(11) not null default 0",
       commandId    => "int(11)",
@@ -237,8 +236,8 @@ sub initialize {
       batchid      => "varchar(255)",
       spyurl       => "varchar(64)",
       #QUEUEJDL
-      origJdl      => "text collate latin1_general_ci",
-      resultsJdl   => "text collate latin1_general_ci",
+      origJdl      => "varbinary(30000)",
+      resultsJdl   => "varbinary(10000)",
       path         => "varchar(255)",
     },
     id          => "queueId",
@@ -253,12 +252,9 @@ sub initialize {
       "foreign key (submithostId) references QUEUE_HOST(hostId) on delete cascade",
       "foreign key (nodeId) references QUEUE_HOST(hostId) on delete cascade",
       "foreign key (commandId) references QUEUE_COMMAND(commandId) on delete cascade",
-      "foreign key (agentId) references JOBAGENT(entryId) on delete set null",
-      "INDEX(agentId)",      
       "INDEX(priority)",
       "INDEX (siteId,statusId)",
       "INDEX (sent)",
-      "INDEX (statusId,agentId)",
       "UNIQUE INDEX (statusId,queueId)"
     ],
     order=>15
@@ -266,8 +262,8 @@ sub initialize {
   my $queueColumnsJDL ={
   	columns=>{    
   		queueId      => "int(11) not null",
-  		origJdl      => "text collate latin1_general_ci",
-  		resultsJdl   => "text collate latin1_general_ci",
+  		origJdl      => "varbinary(30000)",
+  		resultsJdl   => "varbinary(10000)",
         path         => "varchar(255)",
   		
   	},
@@ -615,7 +611,7 @@ sub insertJobLocked {
     $DEBUG and $self->debug(1, "In insertJobLocked got job id $procid.");
     $self->insert("QUEUEPROC", {queueId => $procid});
     
-    $self->insert("QUEUEJDL", {queueId =>$procid, origJdl=>$jdl});
+    $self->insert("QUEUEJDL", {queueId =>$procid, origJdl=>$jdl},{functions=>{origjdl=>"compress",resultsjdl=>"compress"}});
     my $unassignedId=$self->findSiteId("unassigned::site");
     
     $self->do("update SITEQUEUES set $status=$status+1 where siteid=$unassignedId");
@@ -734,7 +730,6 @@ sub updateJob {
     	$jdlSet->{$key}=$set->{$key};
     	delete $set->{$key};
     }
-    
   }
   my $where = "queueId=?";
   $opt->{where} and $where .= " and $opt->{where}";
@@ -753,8 +748,7 @@ sub updateJob {
       or return;
   }
   if (keys %$jdlSet) {
-  	$self->update("QUEUEJDL", $jdlSet, "queueId=?", {bind_values=>[$id]}) or return;
-  	
+  	$self->update("QUEUEJDL", $jdlSet, "queueId=?", {bind_values=>[$id], functions=>{origjdl=>"compress",resultsjdl=>"compress"}}) or return;
   }
   return 1;
 }
@@ -1105,13 +1099,42 @@ sub getJobsByStatus {
     $order = " and queueid>? $order";
     push @$bind, $minid;
   }
-  my $query = "SELECT queueid,ifnull(resultsjdl, origjdl) jdl from 
-       QUEUE join QUEUEJDL using (queueid) where statusId='$status' $order";
+  my $query = "SELECT queueid from QUEUE join QUEUEJDL using (queueid) where statusId='$status' $order";
   $query = $self->paginate($query, $limit, 0);
 
   $DEBUG
     and $self->debug(1, "In getJobsByStatus fetching jobs with statusId $status");
-  $self->query($query, undef, {bind_values => $bind});
+  
+  my ($jobs) = $self->query($query, undef, {bind_values => $bind});
+  
+  foreach my $data (@$jobs){
+  	$data->{jdl} = ($self->getJDL($data->{queueid}))->{jdl};
+  }
+  
+  return $jobs;
+}
+
+sub getJDL {
+  my $self=shift;
+  my $id=shift;
+ 
+  $id or return;
+ 
+  my $columns="uncompress(resultsJdl) as resultsJdl, uncompress(origJdl) as origJdl";
+  my $join="";
+  foreach my $o (@_) {
+    $o=~ /-dir/ and $columns.=",path";
+    $o=~ /-status/ and $columns.=",statusId" and $join="join QUEUE using (queueid)";
+  }
+
+  my $rc=$self->queryRow("select $columns from QUEUEJDL $join where queueId=?", undef, {bind_values=>[$id]});
+  $rc->{statusId} and $rc->{status} = AliEn::Util::statusName($rc->{statusId});
+  $rc->{resultsJdl} and $rc->{resultsJdl} =~ s/\]//g and $rc->{origJdl} =~ s/\[//g and $rc->{jdl} = $rc->{resultsJdl}.$rc->{origJdl}
+   or $rc->{jdl}=$rc->{origJdl};
+  delete $rc->{origJdl};
+  delete $rc->{resultsJdl}; 
+
+  return $rc; 
 }
 
 
@@ -1642,7 +1665,7 @@ sub getWaitingJobForAgentId{
                      {bind_values=>[$siteid, $hostId, $agentid ]});
   
   if ($done>0){
-  	my $info=$self->queryRow("select queueid, origjdl jdl,  user from 
+  	my $info=$self->queryRow("select queueid, uncompress(origjdl) jdl,  user from 
   	QUEUEJDL join QUEUE using (queueid) join QUEUE_USER using (userid) where queueid=\@assigned_job");
   	$info or $self->info("Error checking what we selected") and return;
 
@@ -1692,7 +1715,7 @@ sub resubmitJob{
 	  {bind_values=>[$queueid]});
 	if ($done =~ /0E0/){
 		$self->info("The job agent is no longer there!!");
-		my $info = $self->queryRow("select origjdl jdl , agentid from QUEUEJDL join QUEUE using (queueid) where queueid=?",
+		my $info = $self->queryRow("select uncompress(origjdl) jdl , agentid from QUEUEJDL join QUEUE using (queueid) where queueid=?",
 		                          undef, {bind_values=>[$queueid]});
 		
 		$info or $self->info("Error getting the jdl of the job") and return;

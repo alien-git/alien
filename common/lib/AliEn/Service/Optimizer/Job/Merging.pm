@@ -26,7 +26,7 @@ sub checkWakesUp {
   $self->info("There are some jobs to check!!");
 
   my $jobs = $self->{DB}->query(
-    "select queueid,  statusid, origjdl jdl,user from  
+    "select queueid,  statusid, uncompress(origjdl) jdl,user from  
      QUEUE q join JOBSTOMERGE j on (q.queueid=j.masterid)
      join QUEUE_USER using (userid)
      join QUEUEJDL using (queueid)"
@@ -401,8 +401,12 @@ sub checkMergingCollection {
 
   my $subjobs =
     $self->{DB}
-    ->query("select resultsjdl JDL,queueid from QUEUE join QUEUEJDL using (queueid) where statusId=15 and split=?",
+    ->query("select queueid from QUEUE where statusId=15 and split=?",
     undef, {bind_values => [$queueid]});    #DONE
+    
+  foreach my $data (@$subjobs){
+  	$data->{JDL} = ($self->{DB}->getJDL($data->{queueid}))->{jdl};
+  }
 
   my @out = ();
   foreach my $d (@$subjobs) {

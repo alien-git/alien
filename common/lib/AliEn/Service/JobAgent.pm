@@ -1844,7 +1844,8 @@ sub putFiles {
 
     ($self->{STATUS} =~ /^ERROR_V/) and $self->{UI}->execute("rmdir","$self->{PROCDIR}");
     my $regPFNS = join("\",\"",@addedFiles);
-    $self->{CA}->set_expression("SuccessfullyBookedPFNS", "{\"".$regPFNS."\"}");
+    $self->{DIFFCA}->{$ENV{ALIEN_PROC_ID}} or $self->{DIFFCA}->{$ENV{ALIEN_PROC_ID}}="\n    [\n";
+    $self->{DIFFCA}->{$ENV{ALIEN_PROC_ID}}.="        SuccessfullyBookedPFNS = {\"".$regPFNS."\"};\n";
     $self->{JDL_CHANGED}=1;
     $self->registerLogs(0);
   }
@@ -2537,9 +2538,11 @@ CPU Speed                           [MHz] : $ProcCpuspeed
   }
 
   my $jdl;
-  $self->{JDL_CHANGED} and $jdl=$self->{CA}->asJDL();
+  $self->{JDL_CHANGED} and $jdl=$self->{DIFFCA}->{$ENV{ALIEN_PROC_ID}}."    ]";
   
   my $success=$self->changeStatus("%",$self->{STATUS}, $jdl);
+  
+  delete $self->{DIFFCA}->{$ENV{ALIEN_PROC_ID}};
   
   # don't send data about this job anymore
   if($self->{MONITOR}){
@@ -2727,7 +2730,8 @@ sub registerLogs {
 #    ($self->{STATUS} =~ /^ERROR_V/)  and
 #       $registerLogString = join(",", $self->{JDL_REGISTERFILES}, $registerLogString);
     
-    $self->{CA}->set_expression("JobLogOnClusterMonitor", "{".$registerLogString."}");
+    $self->{DIFFCA}->{$ENV{ALIEN_PROC_ID}} or $self->{DIFFCA}->{$ENV{ALIEN_PROC_ID}}="\n    [\n";
+    $self->{DIFFCA}->{$ENV{ALIEN_PROC_ID}}.="        JobLogOnClusterMonitor = {".$registerLogString."};\n";
     $self->info("We set the JobLogOnClusterMonitor in the JDL");
     $self->{JDL_CHANGED}=1;
 

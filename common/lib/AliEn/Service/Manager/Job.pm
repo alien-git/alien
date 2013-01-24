@@ -525,16 +525,15 @@ sub changeStatusCommand : Public {
   } elsif (($status =~ /SAVED.*/ && $error)
     || ($status =~ /(ERROR_V)|(STAGING)/)) {
     $self->info("Updating the jdl of the job");
-    $set->{resultsjdl} = $error;
-    } elsif ($status eq "DONE") {
+    $set->{resultsjdl} = $error; 
+  } elsif ($status eq "DONE") {
     $set->{finished} = $date;
-
-    }
+  }
 
   # check if must be resubmitted
   if ($status =~ /^ERROR.*$/) {
     $self->info("Job $queueId to $status, checking retries and split values");
-    my $jdl=$self->{DB}->queryValue("select origJdl from QUEUEJDL where queueId=?", undef, {bind_values => [$queueId]});
+    my $jdl=$self->{DB}->queryValue("select uncompress(origJdl) from QUEUEJDL where queueId=?", undef, {bind_values => [$queueId]});
     my $ca=AlienClassad::AlienClassad->new($jdl);
     my ($ok, $rt)=$ca->evaluateAttributeString("Retries");
     my ($ok2, $sp)=$ca->evaluateAttributeString("Split");

@@ -630,11 +630,7 @@ sub definePackage {
   my @args   = ();
   my $se     = "";
   my $lfnDir = lc($self->{CATALOGUE}->{CATALOG}->GetHomeDirectory() . "/packages");
-  my $sys1   = `uname -s`;
-  chomp $sys1;
-  my $sys2 = `uname -m`;
-  chomp $sys2;
-  my $platform = "$sys1-$sys2";
+  my ($platform) = AliEn::Util::getPlatform($self);
   
   while (my $arg = shift) {
 
@@ -731,11 +727,7 @@ sub undefinePackage {
   $message and $self->info("Error: $message", 100) and return;
 
   my $arguments = join(" ", @_);
-  my $sys1 = `uname -s`;
-  chomp $sys1;
-  my $sys2 = `uname -m`;
-  chomp $sys2;
-  my $platform = "$sys1-$sys2";
+  my ($platform) = AliEn::Util::getPlatform($self);
   if (($arguments =~ s{-?-platform\s+(\S+)}{})) {
     $platform = $1;
     @_ = split(" ", $arguments);
