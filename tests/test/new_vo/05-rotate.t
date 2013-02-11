@@ -29,7 +29,7 @@ $after or print "Error the service is not supposed to be running!!!\n" and exit(
 require AliEn::Config;
 my $c=AliEn::Config->new();
 $c or exit(-2);
-open (FILE, "<$c->{LOG_DIR}/CE.log") or print "The file $c->{LOG_DIR}/CE.log doesn't exist!!\n" and exit(-1);
+open (FILE, "<$c->{LOG_DIR}/CE..log") or print "The file $c->{LOG_DIR}/CE..log doesn't exist!!\n" and exit(-1);
 
 
 my @data=<FILE>;
