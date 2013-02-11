@@ -1,6 +1,6 @@
 package AliEn::RPC;
 
-use JSON::RPC::Client;
+use JSON::RPC::Legacy::Client
 use AliEn::Logger::LogObject;
 use AliEn::Config;
 use AliEn::X509;
@@ -66,7 +66,7 @@ sub Connect {
   ($address =~ /^http/ or $address="http://$address" );
   
   $self->info("Connecting to $service in $address");
-  $self->{CLIENTS}->{$service} = new JSON::RPC::Client;
+  $self->{CLIENTS}->{$service} = new JSON::RPC::Legacy::Client;;
   if ($address=~ /^https:/) {
     my $proxy = ( $ENV{X509_USER_PROXY} || "/tmp/x509up_u$<" );
     
