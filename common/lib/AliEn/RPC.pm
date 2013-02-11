@@ -1,6 +1,6 @@
 package AliEn::RPC;
 
-use JSON::RPC::Legacy::Client
+use JSON::RPC::Legacy::Client;
 use AliEn::Logger::LogObject;
 use AliEn::Config;
 use AliEn::X509;
