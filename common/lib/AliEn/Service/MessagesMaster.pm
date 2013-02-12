@@ -4,7 +4,7 @@ package AliEn::Service::MessagesMaster;
 use strict;
 use AliEn::Service;
 use AliEn::Database::TaskQueue;
-use base qw(JSON::RPC::Procedure);
+use base qw(JSON::RPC::Legacy::Procedure);
 
 
 use vars qw (@ISA $DEBUG);

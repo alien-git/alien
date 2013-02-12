@@ -13,7 +13,7 @@ use AliEn::Service;
 use strict;
 use AliEn::Util;
 use vars qw (@ISA);
-use base qw(JSON::RPC::Procedure);
+use base qw(JSON::RPC::Legacy::Procedure);
 
 use AlienClassad;
 

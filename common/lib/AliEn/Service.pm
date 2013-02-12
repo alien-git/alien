@@ -20,7 +20,7 @@ use Socket;
 
 use LockFile::Simple;
 
-use base qw(JSON::RPC::Procedure);
+use base qw(JSON::RPC::Legacy::Procedure);
 push @ISA, 'AliEn::Logger::LogObject';
 
 my $self;

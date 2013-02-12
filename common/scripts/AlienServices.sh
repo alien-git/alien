@@ -320,7 +320,7 @@ EOF
          cat >> $CONF <<EOF
      
      SetHandler perl-script
-     PerlResponseHandler JSON::RPC::Server::Apache2
+     PerlResponseHandler JSON::RPC::Legacy::Server::Apache2
      PerlSetVar dispatch "AliEn::Service::$startupFormat"
      PerlSetVar return_die_message 0
      PerlSetVar options "compress_threshold => 10000"

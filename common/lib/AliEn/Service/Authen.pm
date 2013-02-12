@@ -20,7 +20,7 @@ use AliEn::Util;
 use AliEn::UI::Catalogue::LCM::Computer;
 use Time::HiRes;
 
-use base qw(JSON::RPC::Procedure);
+use base qw(JSON::RPC::Legacy::Procedure);
 
 use vars qw (@ISA $DEBUG);
 push @ISA, "AliEn::Service";
