@@ -19,7 +19,7 @@ use Data::Dumper;
 
 use vars qw (@ISA $DEBUG);
 push @ISA,"AliEn::Service::Manager";
-use base qw(JSON::RPC::Procedure);
+use base qw(JSON::RPC::Legacy::Procedure);
 
 $DEBUG = 0;
 
