@@ -917,6 +917,7 @@ sub _connect {
     my $dsn = $self->getDatabaseDSN();
 
     $self->{DRIVER} =~ /Oracle/i and $self->{DBI_OPTIONS}->{FetchHashKeyName} = "NAME_lc" and $self->{DBI_OPTIONS}->{LongReadLen}= 1024*1024;
+    $self->{DBI_OPTIONS}->{mysql_auto_reconnect}=1;
 
     $self->{DBH} = DBI->connect($dsn, $self->{SCHEMA}, $pass, $self->{DBI_OPTIONS});
     $self->{DBH} and last;
