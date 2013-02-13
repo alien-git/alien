@@ -69,7 +69,7 @@ sub checkWakesUp
     $self->{DB}->do($updateStmt);
 
     # select job entries for current session 
-    my $stmt = "SELECT queueId,submitHost,siteid,finalPrice FROM $queueTable WHERE 
+    my $stmt = "SELECT queueId,submitHost,siteid,finalPrice FROM $queueTable join QUEUE_HOST on submitHostId=hostId WHERE 
      (chargeStatus=\'$self->{CHARGING_NOW}\') AND (finalPrice>0)";
     my $table = $self->{DB}->query("$stmt"); 
 

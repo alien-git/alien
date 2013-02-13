@@ -223,7 +223,7 @@ sub changeStatusTransfer {
   }
 
   if ($status =~ /^(DONE)|(FAILED)|(KILLED)$/){
-    my $father=$self->{DB}->queryValue("SELECT transferGroup from TRANSFERS where transferId=?", undef, {bind_values=>[$id]});
+    my $father=$self->{DB}->queryValue("SELECT transferGroup from TRANSFERS_DIRECT where transferId=?", undef, {bind_values=>[$id]});
     if ($father){
       $self->info("This is a final status. Updating the father");
       $father.=",";
@@ -237,11 +237,11 @@ sub changeStatusTransfer {
 
   #check if the DB has an attempts field
   my $attempts;
-  $attempts=$self->{DB}->queryValue("SELECT attempts from TRANSFERS where transferid=$id") or $attempts=0;  
+  $attempts=$self->{DB}->queryValue("SELECT attempts from TRANSFERS_DIRECT where transferid=$id") or $attempts=0;  
 
   #check if the DB has a persevere entry, if not set defult value to 5
-  my $persevere;
-  $persevere=$self->{DB}->queryValue("SELECT persevere from TRANSFERS where transferid=$id") or $persevere=5;  
+  my $persevere=5;
+  #$persevere=$self->{DB}->queryValue("SELECT persevere from TRANSFERS_DIRECT where transferid=$id") or $persevere=5;  
   
   #if it tryed more than persevere give it up
   if($status eq "FAILED" and $attempts>=$persevere){
@@ -410,7 +410,7 @@ sub resubmitTransfer {
   
   $self->info( "Resubmitting transfer $id");
   
-  $res = $self->{DB}->queryRow("SELECT * from TRANSFERS where transferId='$id' ") or die("Error getting the info of transfer $id\n");
+  $res = $self->{DB}->queryRow("SELECT * from TRANSFERS_DIRECT where transferId='$id' ") or die("Error getting the info of transfer $id\n");
   
   $res->{transferId} and die("Transfer $id doesn't exist\n");
   

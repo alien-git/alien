@@ -24,9 +24,9 @@ sub checkWakesUp {
 
   my $table=$self->{DB}->getArchiveTable();
 
-  $self->{DB}->do("INSERT into $table select * from TRANSFERS where (status='DONE' or status='FAILED' or status='EXPIRED') and finished<?",{bind_values=>[$expired]});
+  $self->{DB}->do("INSERT into $table select * from TRANSFERS_DIRECT where (status='DONE' or status='FAILED' or status='EXPIRED') and finished<?",{bind_values=>[$expired]});
 
-  $self->{DB}->do("delete from TRANSFERS where (status='DONE' or status='FAILED' or status='EXPIRED') and finished<?", {bind_values=>[$expired]});
+  $self->{DB}->do("delete from TRANSFERS_DIRECT where (status='DONE' or status='FAILED' or status='EXPIRED') and finished<?", {bind_values=>[$expired]});
 
 
   return ;

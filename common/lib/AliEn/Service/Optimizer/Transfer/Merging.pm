@@ -24,7 +24,7 @@ sub checkWakesUp {
   foreach my $transfer (@$transfers){
     $transfer or next;
     $self->info("Checking for transfer $transfer");
-    my $count=$self->{DB}->queryValue("SELECT count(*) from TRANSFERS where transfergroup=? and status != 'DONE'  and status !='FAILED'  and status !='KILLED'", undef, {bind_values=>[$transfer]});
+    my $count=$self->{DB}->queryValue("SELECT count(*) from TRANSFERS_DIRECT where transfergroup=? and status != 'DONE'  and status !='FAILED'  and status !='KILLED'", undef, {bind_values=>[$transfer]});
     $self->info("There are $count transfers for it");
     $count and next;
     $self->info("The transfer finished!!!");

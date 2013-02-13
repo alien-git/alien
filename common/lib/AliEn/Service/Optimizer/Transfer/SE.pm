@@ -18,8 +18,8 @@ sub checkWakesUp {
 
   $self->$method(@silentData,"In checkTransferRequirements checking if we can put constraints in any transfer");
   
-  $self->{DB}->updateLocalCopyTransfers
-    or $self->{LOGGER}->warning("TransferOptimizer", "In checkTransferRequirements error updating local copy transfers");
+#  $self->{DB}->updateLocalCopyTransfers
+#    or $self->{LOGGER}->warning("TransferOptimizer", "In checkTransferRequirements error updating local copy transfers");
   
   #Updating the transfers with status 'WAITING' and only one PFN
   my $transfers=$self->{DB}->query("SELECT entryid,requirements as jdl  FROM AGENT WHERE SE is NULL");

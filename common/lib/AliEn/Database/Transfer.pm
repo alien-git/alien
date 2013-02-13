@@ -219,12 +219,12 @@ sub updateExpiredTransfers {
   );
 }
 
-sub updateLocalCopyTransfers {
-  my $self = shift;
-
-  $self->debug(1, "In updateLocalCopyTransfers updating SE of LOCAL_COPY transfers");
-  $self->do("UPDATE TRANSFERS SET SE = destination WHERE status = 'LOCAL_COPY' AND SE IS NULL");
-}
+#sub updateLocalCopyTransfers {
+#  my $self = shift;
+#
+#  $self->debug(1, "In updateLocalCopyTransfers updating SE of LOCAL_COPY transfers");
+#  $self->do("UPDATE TRANSFERS SET SE = destination WHERE status = 'LOCAL_COPY' AND SE IS NULL");
+#}
 
 sub updateActions {
   shift->SUPER::update("ACTIONS", @_);
@@ -451,7 +451,7 @@ sub getActiveSubTransfers {
   my $self = shift;
   my $id   = shift;
   my $info =
-    $self->queryColumn("SELECT transferId from TRANSFERS where transfergroup=? and " . $self->_transferActiveReq(),
+    $self->queryColumn("SELECT transferId from TRANSFERS_DIRECT where transfergroup=? and " . $self->_transferActiveReq(),
     undef, {bind_values => [$id]});
 
 }
@@ -487,15 +487,15 @@ sub insertAgent {
   return $id;
 }
 
-sub getVirtualTransfers {
-  my $self = shift;
-  $self->info("Getting all the transfers that have to be done from the 'no_se'");
-
-  my $info =
-    $self->query("select lfn,transferid,jdl,options from TRANSFERS t, AGENT a where agentid=entryid and a.SE='no_se'");
-
-  return $info;
-}
+#sub getVirtualTransfers {
+#  my $self = shift;
+#  $self->info("Getting all the transfers that have to be done from the 'no_se'");
+#
+#  my $info =
+#    $self->query("select lfn,transferid,jdl,options from TRANSFERS_DIRECT t, AGENT a where agentid=entryid and a.SE='no_se'");
+#
+#  return $info;
+#}
 
 sub findCommonProtocols {
   my $self   = shift;
