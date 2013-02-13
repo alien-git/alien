@@ -69,7 +69,7 @@ sub checkWakesUp
     $self->{DB}->do($updateStmt);
 
     # select job entries for current session 
-    my $stmt = "SELECT queueId,submitHost,siteid,finalPrice FROM $queueTable join QUEUE_HOST on submitHostId=hostId WHERE 
+    my $stmt = "SELECT queueId,host,siteid,finalPrice FROM $queueTable join QUEUE_HOST on submitHostId=hostId WHERE 
      (chargeStatus=\'$self->{CHARGING_NOW}\') AND (finalPrice>0)";
     my $table = $self->{DB}->query("$stmt"); 
 
@@ -95,7 +95,7 @@ sub checkWakesUp
         $jobId = $table->[$i]->{'queueId'};	
     
         # get the user name from submitHost
-        ($user) = split ("@", $table->[$i]->{'submitHost'});
+        ($user) = split ("@", $table->[$i]->{'host'});
 
         # get the bank account name of the $user (we will charge from this account)
         # first check the hash, if it's not there get from LDAP
