@@ -922,7 +922,7 @@ sub _connect {
     my $dsn = $self->getDatabaseDSN();
 
     $self->{DRIVER} =~ /Oracle/i and $self->{DBI_OPTIONS}->{FetchHashKeyName} = "NAME_lc" and $self->{DBI_OPTIONS}->{LongReadLen}= 1024*1024;
-    $self->{DBI_OPTIONS}->{mysql_auto_reconnect}=1;
+    #$self->{DBI_OPTIONS}->{mysql_auto_reconnect}=1;
 
 
     $self->{DBH} = DBI->connect($dsn, $self->{SCHEMA}, $pass, $self->{DBI_OPTIONS});
@@ -1146,8 +1146,7 @@ sub _pingReconnect {
   $self->{PID}
     and ($self->{PID} == $$)
     and $self->{DBH}
-
-    # and $self->{DBH}->ping
+    and $self->{DBH}->ping
     and return 1;
 
   $self->reconnect;
