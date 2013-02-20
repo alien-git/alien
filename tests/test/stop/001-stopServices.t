@@ -15,7 +15,7 @@ system("$ENV{ALIEN_ROOT}/etc/rc.d/init.d/alien-ldap stop");
 
 print "Everything is supposed to be dead now...\n";
 
-system("ps -ef |grep $ENV{ALIEN_ROOT}");
+system("ps -ef | grep $ENV{ALIEN_ROOT} | grep -v grep");
 
 
 print "Are we happy? For the time being, we return error to keep the output\n";
