@@ -24,25 +24,37 @@ test: test-cert test-new_vo test-user_tests test-performance test-gapi test-stop
 
 test-cert:
 	@echo "Testing create certificates"
+	@date
 	[ -d test ] && cd test ; ./Install.sh -create_cert
+	@date
 
 test-new_vo:
 	@echo "Testing new_vo"
+	@date
 	[ -d test ] && cd test ; ./Install.sh -new_vo
+	@date
 
 test-user_tests:
 	@echo "Running user tests"
+	@date
 	[ -d test ] && cd test ; ./Install.sh -user_tests -no_break 
+	@date
 
 test-performance:
 	@echo "Running the performance tests"
+	@date
 	[ -d test ] && cd test ; ./Install.sh -performance_tests -apmon
+	@date
 
 test-gapi:
 	@echo "Testing gapi"
+	@date
 	[ -d test ] && cd test ; ./Install.sh -gapi_tests -no_break -expected gapi/632,gapi/633,gapi/631,gapi/501,gapi/502,gapi/600,gapi/601,gapi/602,gapi/603,gapi/620,gapi/621,gapi/622,gapi/623,gapi/624,gapi/630
+	@date
 
 test-stop:
 	@echo "Stopping all the services"
+	@date
 	[ -d test ] && cd test ; ./Install.sh -stop_tests  -expected stop/001
+	@date
 
