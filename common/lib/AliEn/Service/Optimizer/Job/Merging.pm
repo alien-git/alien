@@ -46,8 +46,8 @@ sub checkWakesUp {
     }
 
     if ($job->{jdl}) {
-      my $job_ca = AlienClassad::AlienClassad->new($job->{jdl});
-      if ($job_ca->isOK()) {
+      my $job_ca = AliEn::JDL->new($job->{jdl});
+      if ($job_ca and $job_ca->isOK()) {
         $self->updateMerging($job->{queueid}, $job_ca, $job->{statusid}, $job->{user});
         next;
       }
@@ -316,7 +316,8 @@ sub checkMaxFailed {
   $ok or ($ok, $failed) = $job_ca->evaluateExpression("MaxFailed");
   ($ok, my $initFailed) = $job_ca->evaluateAttributeString("MaxInitFailed");
   $ok or ($ok, $initFailed) = $job_ca->evaluateExpression("MaxInitFailed");
-  $self->info("We accept $failed and $initFailed");
+  $failed and $initFailed and $self->info("We accept $failed and $initFailed")
+    or $self->info("We haven't the value of MaxFailed and MaxInitFailed");
   ($failed or $initFailed) or return 1;
 
   my $total   = 0;
@@ -397,7 +398,8 @@ sub checkMergingCollection {
   $self->info("***Let's check if there are any collections");
 
   my ($ok, @mergingCollections) = $job_ca->evaluateAttributeVectorString("MergeCollections");
-  @mergingCollections or return 1;
+  $ok and $self->info("WE HAVE A COLLECTION FOR $queueid TO MAKE @mergingCollections") or $self->info("NO COLLECTION $queueid");
+  $ok or return 1;
 
   my $subjobs =
     $self->{DB}
@@ -411,7 +413,9 @@ sub checkMergingCollection {
   my @out = ();
   foreach my $d (@$subjobs) {
     $self->info("Checking the outputdir of $d");
-    my $ca = AlienClassad::AlienClassad->new($d->{JDL});
+    my $ca = AliEn::JDL->new($d->{JDL});
+    $ca and $ca->isOK() or $self->info("Job $d->{queueid} failed creating JDL (from $d->{JDL})") and next;
+    
     my ($ok, $dir) = $ca->evaluateAttributeString("OutputDir");
     $ok or $dir = "~/alien-job-$d->{queueid}";
     push @out, $dir;

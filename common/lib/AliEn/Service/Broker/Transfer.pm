@@ -17,7 +17,7 @@ use strict;
 use vars qw (@ISA);
 
 @ISA=("AliEn::Service::Broker");
-use AlienClassad;
+use AliEn::JDL;
 
 my $self = {};
 
@@ -44,8 +44,7 @@ sub findTransfers {
   my $this    = shift;
   my $site_ca = shift;
   my $slots   = shift;
-
-
+ 
   my ($list) = $self->{DB}->getWaitingAgents();
 
   defined $list
@@ -94,8 +93,12 @@ sub requestTransferType {
   $self->debug(1, "The jdl is $jdl");
 #  $self->setAlive();
 
-
-  my $ca = AlienClassad::AlienClassad->new($jdl);
+  my $ca = AliEn::JDL->new($jdl);
+  if (!$ca or !$ca->isOK()) {
+    $self->{LOGGER}->warning("TransferBroker", "JDL not correct ???!!!");
+    return ( -1, "wrong jdl" );
+  }
+  
   $self->debug(1, "Classad created");
   my ($ok, $host)=$ca->evaluateAttributeString("Name");
   $self->info("Output to TransferBroker/$host");

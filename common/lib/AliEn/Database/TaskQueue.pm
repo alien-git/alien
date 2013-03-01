@@ -629,7 +629,7 @@ sub insertJobLocked {
     and $self->debug(1, "In insertJobLocked unlocking the table $self->{QUEUETABLE}.");
 
   my $action = "INSERTING";
-  $jdl =~ / split =/im and $action = "SPLITTING";
+  $jdl =~ /split =/im and $action = "SPLITTING";
   ($status !~ /WAITING/)
     and $self->update("ACTIONS", {todo => 1}, "action='$action'");
 
@@ -1128,13 +1128,14 @@ sub getJDL {
   }
 
   my $rc=$self->queryRow("select $columns from QUEUEJDL $join where queueId=?", undef, {bind_values=>[$id]});
+  $rc->{origJdl} or return;
   $rc->{statusId} and $rc->{status} = AliEn::Util::statusName($rc->{statusId});
-  $rc->{resultsJdl} and $rc->{resultsJdl} =~ s/\]//g and $rc->{origJdl} =~ s/\[//g and $rc->{jdl} = $rc->{resultsJdl}.$rc->{origJdl}
-   or $rc->{jdl}=$rc->{origJdl};
+  $rc->{resultsJdl} and $rc->{jdl} = "\n".$rc->{origJdl}."\n".$rc->{resultsJdl}
+   or $rc->{jdl}="\n".$rc->{origJdl};
   delete $rc->{origJdl};
   delete $rc->{resultsJdl}; 
 
-  return $rc; 
+  return $rc;
 }
 
 
@@ -1489,10 +1490,10 @@ sub extractFieldsFromReq {
 
   my $site = "";
   my $no_se={};
-  while ($text =~ s/!member\(other.CloseSE,"([^:]*::[^:]*::[^:]*)"\)//si) {
+  while ($text =~ s/!member\(\s*other.CloseSE,\s*"([^:]*::[^:]*::[^:]*)"\)//si) {
    $no_se->{uc($1)}=1;
   }
-  while ($text =~ s/member\(other.CloseSE,"([^:]*::([^:]*)::[^:]*)"\)//si) {
+  while ($text =~ s/member\(\s*other.CloseSE,\s*"([^:]*::([^:]*)::[^:]*)"\)//si) {
     $no_se->{uc($1)} and $self->info("Ignoring the SE $1") and next;
     $site =~ /,$2/ or $site .= ",$2";
   }
@@ -1516,7 +1517,7 @@ sub extractFieldsFromReq {
   $params->{ce} = $ce;
   
   my @packages;
-  while ($text =~ s/member\(other.Packages,"([^"]*)"\)//si ) {
+  while ($text =~ s/member\(\s*other.Packages,\s*"([^"]*)"\)//si ) {
     grep /^$1$/, @packages or 
       push @packages, $1;
   }
@@ -1526,15 +1527,15 @@ sub extractFieldsFromReq {
   }
   
   $text =~ s/other.TTL\s*>\s*(\d+)//i and $params->{ttl} = $1;
-  if ($text =~ s/\suser\s*=\s*"([^"]*)"//i){
+  if ($text =~ s/\s*user\s*=\s*"([^"]*)"//i){
      $params->{userid}=$self->findUserId($1);   
   } 
-  $text =~ s/other.LocalDiskSpace\s*>\s*(\d*)// and $params->{disk}=$1; 
-  $text =~ s/other.GridPartitions,"([^"]*)"//i and $params->{partition}=$1; 
+  $text =~ s/other.LocalDiskSpace\s*>\s*(\d+)//i and $params->{disk}=$1; 
+  $text =~ s/other.GridPartitions,\s*"([^"]*)"//i and $params->{partition}=$1; 
   $text =~ s/this.filebroker\s*==\s*1//i and $params->{fileBroker}=1 and $self->info("DOING FILE BROKERING!!!");
   
 
-  $self->info("The ttl is $params->{ttl} and the site is in fact '$site'. Left  '$text' ");
+  #$self->info("The ttl is $params->{ttl} and the site is in fact '$site'. Left  '$text' ");
   return $params;
 }
 sub insertJobAgent {
@@ -1720,11 +1721,11 @@ sub resubmitJob{
 		
 		$info or $self->info("Error getting the jdl of the job") and return;
 		my $jdl=$info->{jdl};
-		$jdl =~ /[\s;](requirements[^;]*).*\]/ims
+		$jdl =~ /(Requirements[^;]*);/ims
           or $self->info("Error getting the requirements from $jdl") and return;
 
       my $req = $1;
-      $jdl =~ /(\suser\s*=\s*"([^"]*)")/si or $self->info("Error getting the user from '$jdl'") and next;
+      $jdl =~ /(user\s*=\s*"([^"]*)")/si or $self->info("Error getting the user from '$jdl'") and next;
       $req.="; $1 ";
       my $params=$self->extractFieldsFromReq($req);
       $params->{entryId}= ($info->{agentid} || 0);

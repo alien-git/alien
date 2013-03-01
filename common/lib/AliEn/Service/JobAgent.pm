@@ -34,7 +34,7 @@ use AliEn::MSS;
 use Archive::Zip;
 use Filesys::DiskUsage qw /du/;
 use AliEn::Service;
-use AlienClassad;
+use AliEn::JDL;
 use LWP::UserAgent;
 use Socket;
 use Carp;
@@ -379,15 +379,15 @@ sub checkStageJob {
   defined $pid or $self->info("ERROR FORKING THE STAGE PROCESS") and return;
   $pid and return 1;
   $self->info("Ok, let's start staging the files");
-  my $ca=AlienClassad::AlienClassad->new($jdl);
+  my $ca=AliEn::JDL->new($jdl);
   my $status="STAGING";
-  if (!$ca->isOK() ){
+  if (!$ca or !$ca->isOK() ){
     $self->info("The jdl of the stage job is not correct!! '$jdl'");
     $status="ERROR_STG";
   } else {
     my ($ok, @files)=$ca->evaluateAttributeVectorString("inputdata");
     if ($ok and @files){
-      map {s/,nodownload$//} @files;
+      map {s/,nodownload//} @files;
       $self->info("Staging the files @files");
       $catalog->execute("stage", @files);
     }
@@ -396,7 +396,7 @@ sub checkStageJob {
   $self->{CA}=$ca;
   $self->{QUEUEID}=$queueid;
   $self->checkJobJDL();
-  $jdl=~ s/\[/\[StageCE="$self->{CONFIG}->{CE_FULLNAME}";/;
+  $jdl .= "\nStageCE=\"$self->{CONFIG}->{CE_FULLNAME}\"";
   $self->putJobLog("trace", "The jobagent finished issuing the staging commands(with $status");
   $self->changeStatus("A_STAGED", "STAGING", $jdl);
   exit(0);
@@ -495,14 +495,14 @@ sub GetJDL {
 
   $self->info("ok\nTrying with $jdl");
 
-  $self->{CA} = AlienClassad::AlienClassad->new("$jdl");
-  ( $self->{CA}->isOK() ) and return 1;
+  $self->{CA} = AliEn::JDL->new("$jdl");
+  ( $self->{CA} and $self->{CA}->isOK() ) and return 1;
 
   $jdl =~ s/&amp;/&/g;
   $jdl =~ s/&amp;/&/g;
   $self->info("Trying again... ($jdl)");
-  $self->{CA} = AlienClassad::AlienClassad->new("$jdl");
-  ( $self->{CA}->isOK() ) and return 1;
+  $self->{CA} = AliEn::JDL->new("$jdl");
+  ( $self->{CA} and $self->{CA}->isOK() ) and return 1;
 
   $self->sendJAStatus('ERROR_JDL');
   return;
@@ -534,12 +534,13 @@ sub checkJobJDL {
   ($ok, $self->{INTERACTIVE}) = $self->{CA}->evaluateAttributeString("Interactive");
   ($ok, $self->{COMMAND} ) = $self->{CA}->evaluateAttributeString("Executable");
   ($ok, $self->{VALIDATIONSCRIPT} ) = $self->{CA}->evaluateAttributeString("Validationcommand");
-  print "AFTER CHECKING THE JDL, we have $self->{VALIDATIONSCRIPT}\n";
+  $ok and $self->info("AFTER CHECKING THE JDL, we have $self->{VALIDATIONSCRIPT}");
   ($ok, $self->{OUTPUTDIR})=$self->{CA}->evaluateAttributeString("OutputDir");
-  ($ok, my @args ) = $self->{CA}->evaluateAttributeVectorString("Arguments");
+  ($ok, my $args ) = $self->{CA}->evaluateAttributeString("Arguments");
   $self->{ARG}="";
-  $ok and $self->{ARG}=" ".(join (" ", @args));
+  $ok and $self->{ARG}=" ".$args;
   ($ok, $self->{VOs} ) = $self->{CA}->evaluateAttributeString("AliEn_Master_VO");
+  $ok or $self->{VOs}="";
   ($ok, my $jobttl) =$self->{CA}->evaluateExpression("TTL");
   $self->info("The job needs $jobttl seconds to execute");
 
@@ -560,8 +561,7 @@ sub checkJobJDL {
   }
   $self->{JOBEXPECTEDEND}=time()+$jobttl+600;
   $self->putJobLog("trace","The job needs $jobttl seconds");
-
-
+  
   $self->{VOs}="$self->{CONFIG}->{ORG_NAME}#$ENV{ALIEN_CM_AS_LDAP_PROXY}#$self->{QUEUEID}#$ENV{ALIEN_JOB_TOKEN}  $self->{VOs}";
 
   $ENV{ALIEN_VOs} = "$self->{VOs}";	  
@@ -1411,7 +1411,7 @@ sub getListInputFiles {
   
   my $done={};
   foreach my $lfn (@inputFiles, @inputData, @moreFiles){
-  	$lfn=~ s/^LF://;
+  	$lfn=~ s/LF://;
   	$lfn =~ /,nodownload/ and $self->info("Ignoring $lfn") and next;    
     $self->debug(1, "Adding '$lfn' ");
     my $real= $self->findProcName($lfn, $done);
@@ -1844,8 +1844,8 @@ sub putFiles {
 
     ($self->{STATUS} =~ /^ERROR_V/) and $self->{UI}->execute("rmdir","$self->{PROCDIR}");
     my $regPFNS = join("\",\"",@addedFiles);
-    $self->{DIFFCA}->{$ENV{ALIEN_PROC_ID}} or $self->{DIFFCA}->{$ENV{ALIEN_PROC_ID}}="\n    [\n";
-    $self->{DIFFCA}->{$ENV{ALIEN_PROC_ID}}.="        SuccessfullyBookedPFNS = {\"".$regPFNS."\"};\n";
+    $self->{DIFFCA}->{$ENV{ALIEN_PROC_ID}} or $self->{DIFFCA}->{$ENV{ALIEN_PROC_ID}}="";
+    $self->{DIFFCA}->{$ENV{ALIEN_PROC_ID}}.="SuccessfullyBookedPFNS = {\"".$regPFNS."\"};\n";
     $self->{JDL_CHANGED}=1;
     $self->registerLogs(0);
   }
@@ -2538,7 +2538,7 @@ CPU Speed                           [MHz] : $ProcCpuspeed
   }
 
   my $jdl;
-  $self->{JDL_CHANGED} and $jdl=$self->{DIFFCA}->{$ENV{ALIEN_PROC_ID}}."    ]";
+  $self->{JDL_CHANGED} and $jdl=$self->{DIFFCA}->{$ENV{ALIEN_PROC_ID}};
   
   my $success=$self->changeStatus("%",$self->{STATUS}, $jdl);
   
@@ -2730,8 +2730,8 @@ sub registerLogs {
 #    ($self->{STATUS} =~ /^ERROR_V/)  and
 #       $registerLogString = join(",", $self->{JDL_REGISTERFILES}, $registerLogString);
     
-    $self->{DIFFCA}->{$ENV{ALIEN_PROC_ID}} or $self->{DIFFCA}->{$ENV{ALIEN_PROC_ID}}="\n    [\n";
-    $self->{DIFFCA}->{$ENV{ALIEN_PROC_ID}}.="        JobLogOnClusterMonitor = {".$registerLogString."};\n";
+    $self->{DIFFCA}->{$ENV{ALIEN_PROC_ID}} or $self->{DIFFCA}->{$ENV{ALIEN_PROC_ID}}="";
+    $self->{DIFFCA}->{$ENV{ALIEN_PROC_ID}}.="JobLogOnClusterMonitor = {".$registerLogString."};\n";
     $self->info("We set the JobLogOnClusterMonitor in the JDL");
     $self->{JDL_CHANGED}=1;
 

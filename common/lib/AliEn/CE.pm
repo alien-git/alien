@@ -23,6 +23,8 @@ use AliEn::Classad::Host;
 use AliEn::X509;
 use Data::Dumper;
 
+use AliEn::JDL;
+
 use Switch;
 
 use vars qw (@ISA $DEBUG);
@@ -153,7 +155,7 @@ sub checkZipArchives {
 
 	if ($change) {
 		$self->info("Updating the list to @list");
-		$job_ca->insertAttributeString("InputZip", @list);
+		$job_ca->insertAttributeVectorString("InputZip", @list);
 	}
 
 	return 1;
@@ -337,7 +339,7 @@ sub requirementsFromInput {
 		my ($file, @options) = split(',', $origlfn);
 		$file =~ s/\\//g;
 		foreach my $option (@options) {
-			$option =~ /^nodownload$/i and next;
+			$option =~ /^nodownload/i and next;
 			$self->info("Error: options $option not understood in the lfn $origlfn", 1);
 			return;
 		}
@@ -387,6 +389,7 @@ sub requirementsFromInput {
 	if ($modified) {
 		$self->info("Putting the inputdata to @flatfiles");
 		$ca->set_expression("InputData", "{" . join(",", @flatfiles) . "}")
+		#$ca->insertAttributeVectorString("InputData", @flatfiles)
 			or $self->info("Error updating the InputData", 1)
 			and return;
 	}
@@ -481,7 +484,7 @@ sub modifyJobCA {
 	$self->{LOGGER}->set_error_no();
 	$self->{LOGGER}->set_error_msg();
 
-	$self->info("Submitting job '$fullPath $arg'...");
+	$arg and $self->info("Submitting job '$fullPath $arg'...") or $self->info("Submitting job '$fullPath'...");
 
 	$job_ca->insertAttributeString("Executable", $fullPath);
 
@@ -592,17 +595,18 @@ sub checkTimeToLive {
 		$self->info("There is no time to live (TTL) defined in the jdl... putting the default '6 hours'");
 		$realTTL = 6 * 3600;
 	}
-
-	($ttl =~ s/\s*(\d+)\s*h(our(s)?)?//)    and $realTTL += $1 * 3600;
-	($ttl =~ s/\s*(\d+)\s*m(inute(s)?)?//)  and $realTTL += $1 * 60;
-	($ttl =~ s/\s*(\d+)\s*s(second(s)?)?//) and $realTTL += $1;
-	$ttl =~ s/^\s*(\d+)\s*$// and $realTTL += $1;
-	if ($ttl !~ /^\s*$/) {
+    else {
+	  ($ttl =~ s/\s*(\d+)\s*h(our(s)?)?//)    and $realTTL += $1 * 3600;
+	  ($ttl =~ s/\s*(\d+)\s*m(inute(s)?)?//)  and $realTTL += $1 * 60;
+	  ($ttl =~ s/\s*(\d+)\s*s(second(s)?)?//) and $realTTL += $1;
+	  $ttl =~ s/^\s*(\d+)\s*$// and $realTTL += $1;
+	  if ($ttl !~ /^\s*$/) {
 		$self->info(
-"Sorry, I don't understand '$ttl' of the time to live. The sintax that I can handle is:\n\t TTL = ' <number> [hours|minutes|seconds]'.\n\tExample: TTL = '5 hours 2 minutes 30 seconds"
+	       "Sorry, I don't understand '$ttl' of the time to live. The sintax that I can handle is:\n\t TTL = ' <number> [hours|minutes|seconds]'.\n\tExample: TTL = '5 hours 2 minutes 30 seconds"
 		);
 		return;
-	}
+	  }
+    }
 	$job_ca->set_expression("TTL", $realTTL);
 	return 1;
 }
@@ -753,14 +757,14 @@ sub submitCommand {
 
 	$DEBUG and $self->debug(1, "Description : \n$content");
 
-	my $job_ca = AlienClassad::AlienClassad->new("[\n$content\n]");
+	my $job_ca = AliEn::JDL->new("$content");
 
 	my $dumphash;
 	$dumphash->{jdl} = $content;
 
 	my $dumper = new Data::Dumper([$dumphash]);
 
-	if (!$job_ca->isOK()) {
+	if (!$job_ca or !$job_ca->isOK()) {
 		$self->{LOGGER}->error("CE", "=====================================================");
 		$self->{LOGGER}->error("CE", $dumper->Dump());
 		$self->{LOGGER}->error("CE", "=====================================================");
@@ -1018,7 +1022,7 @@ sub offerAgent {
 	my $script = $self->createAgentStartup() or return;
 	my $count=$numAgents;
   $self->info("Starting $count agent(s) for $jdl ");
-	$classad = AlienClassad::AlienClassad->new($jdl);
+	$classad = AliEn::JDL->new($jdl);
 
   $self->SetEnvironmentForExecution($jdl);
 	
@@ -1990,15 +1994,17 @@ sub f_ps_jdl {
  
   $self->debug(1, "Asking for the jdl of $id");
  
+  $id or $self->info("Usage: ps jdl <jobid> ") and return;
+ 
   my ($rc)=$self->{TASK_DB}->getJDL($id, @_);
-  $rc or $self->info("Usage: ps jdl <jobid> ") and return; 
+  $rc or $self->info("Invalid jobId") and return; 
 
   if (!grep (/-silent/, @_)) {
-	my $message = "The jdl of $id is $rc";
+	my $message = "The jdl of $id is: $rc";
 	if (UNIVERSAL::isa($rc, "HASH")) {
 		$message = "";
 		foreach my $k (keys %$rc) {
-			$message .= "The $k of $id is " . ($rc->{$k} || "not defined") . "\n";
+			$message .= "The $k of $id is: " . ($rc->{$k} || "not defined") . "\n";
 		}
 	}
 	$self->info($message);
@@ -3135,7 +3141,7 @@ sub getMasterJobFileBroker {
 	my $jdl = $self->{TASK_DB}->queryValue("select uncompress(origjdl) from QUEUEJDL where queueid=?", undef, {bind_values => [$id]});
 	($jdl) or $self->info("Error getting the JDL of the job '$id'") and return;
 
-	my $job_ca = AlienClassad::AlienClassad->new($jdl);
+	my $job_ca = AliEn::JDL->new($jdl);
 	$job_ca         or $self->info("Error creating the classad of the job from '$jdl'") and return;
 	$job_ca->isOK() or $self->info("The syntax of the job '$jdl' is not correct")       and return;
 
@@ -3445,7 +3451,7 @@ sub f_jobListMatch_HELP {
 	return "jobListMatch: Checks if the jdl of the job matches any of the current CE. 
 
 Usage:
-\t\tjobListMatch [-v] <jobid> [<ce_name> ]
+\t\tjobListMatch [-v] <jobid> [<ce_name>]
 
 If the site is specified, it will only compare the jdl with that CE
 
@@ -3466,316 +3472,320 @@ sub f_jobListMatch {
 
 	my $jdl = $self->f_ps_jdl($jobid, "-silent")
 		or return;
-	my $job_ca = AlienClassad::AlienClassad->new($jdl);
+						
+	my $job_ca = AliEn::JDL->new($jdl);
+		
 	$job_ca         or $self->info("Error creating the classad of the job")    and return;
 	$job_ca->isOK() or $self->info("The syntax of the job jdl is not correct") and return;
+		
 	my @result = $self->f_queueinfo($ceName, "-jdl", "-silent");
 	my $done=shift @result;
 	$done or return;
-
+	
 	my $anyMatch = 0;
 	my $jobPriority;
+	my $errors = {};
 
-		$jobPriority =
-			$self->{TASK_DB}->queryValue(
+	$jobPriority = $self->{TASK_DB}->queryValue(
 			"select  if(j.priority, j.priority, 0) from QUEUE join JOBAGENT j on (entryid=agentid) where queueid=?",
 			undef, {bind_values => [$jobid]});
-		$self->info("The priority of the job is $jobPriority", undef, 0);
-
+	$self->info("The priority of the job is $jobPriority", undef, 0);
 
 	foreach my $site (@$done) {
 		if (!$site->{jdl}) {
-			$options =~ /v/ and $self->info("\t Ignoring $site->{site} (the jdl is not right)", undef, 0);
+			$options =~ /v/ and $self->info("\t Ignoring $site->{site} (the jdl is not right)\n", undef, 0);
 			next;
 		}
-
-		#$self->debug(2,"Comparing with $site->{site} (and $site->{jdl})");
-		my $ce_ca = AlienClassad::AlienClassad->new($site->{jdl});
-		if (!$ce_ca->isOK()) {
+                
+		my $ce_ca = AliEn::JDL->new($site->{jdl});
+		if (!$ce_ca or !$ce_ca->isOK()) {
 			$options =~ /v/ and $self->info("The syntax of the CE jdl is not correct");
 			next;
 		}
-		my ($match, $rank) = AlienClassad::Match($job_ca, $ce_ca);
+		
+		my ($match, $message) = $job_ca->Match($ce_ca, $self->{TASK_DB});
+		
 		my $status = "no match :(";
-		$match and $status = "MATCHED!!! :)" and $anyMatch++;
+		$match and $status = "MATCHED!!! :)" and $anyMatch++ or $errors->{$site->{site}}=$message;
 		if ($options =~ /v/ or $status =~ /MATCHED!!! :\)/) {
-			$self->info("\tComparing the jdl of the job with $site->{site}... $status", undef, 0);
+			$self->info("\tComparing the jdl of the job with $site->{site}... $status\n", undef, 0);
 		}
 
 		if ($options =~ /n/) {
-			
-				$site->{site} =~ /::(.*)::/;
-				my $sitePattern = "\%,$1,\%";
-				my $number      = $self->{TASK_DB}->queryValue(
+			$site->{site} =~ /::(.*)::/;
+			my $sitePattern = "\%,$1,\%";
+			my $number = $self->{TASK_DB}->queryValue(
 					"select sum(counter) from JOBAGENT
          where priority>= ? and (site is null or site like ? or site = '')", undef,
 					{bind_values => [ $jobPriority, $sitePattern ]}
 				);
-				$number or $number = 0;
-				$self->info("\t\tJobs for $site->{site} with higher priority: $number", undef, 0);
+			$number or $number = 0;
+			$self->info("\t\tJobs for $site->{site} with higher priority: $number", undef, 0);
 		}
-
-#     ($options=~ /v/ or  $status=~ /MATCHED!!! :\)/  ) and $self->info("\tComparing the jdl of the job with $site->{site}... $status",undef,0);
 	}
+	
 	$self->info("In total, there are $anyMatch sites that match");
 	if ($anyMatch <= 0 && $options =~ /v/) {
-		$self->jobFindReqMiss($done, $job_ca);
+		foreach my $ce (keys %$errors){
+			$self->info("CE $ce: $errors->{$ce}");
+		}
 	}
 	return $anyMatch;
 }
 
-sub jobFindReqMissHelp {
-	return "jobFindReason: Looks in the job's jdl to find the reason why it didn't match any CE. 
 
-Usage:
-\t\tjobFindReason <jobid> ";
-}
-
-sub jobFindReqMiss {
-	my $self   = shift;
-	my $sites  = shift;
-	my $job_ca = shift;
-
-	my $initReq;
-
-	my $reason = "Non";
-
-	my $count2       = 0;
-	my @requirements = ("other\.CE", "SE", "Packages", "TTL", "Price", "LocalDiskSpace");
-	my @explanation  = (
-		"This is not the CE that was requested",
-		"One or more input files are located in a SE not close to the CE requested",
-		"Package doesn't exit or deleted from the Cataluge",
-		"TTL is not matched by this CE",
-		"Price is not matched by this CE",
-		"Not enough disk space"
-	);
-	my $siteErros;
-
-	#  my $numOfCorrectSites=0;
-	my $ce_ca;
-
-	my $req = $job_ca->evaluateExpression("Requirements");
-	$initReq = $req;
-
-	$req or $self->{LOGGER}->error("CE", "In jobFindReqMiss, failed to requirements") and return -1;
-
-	my $all_sites_reasons = {};
-
-	#get rid of impossible requirements
-	# 	my $unKnownCE="";
-	# 	foreach my $site (@$sites){
-	# 		my $ceName= $site->{site};#$ce_ca->evaluateAttributeString("CE");
-	# 		$self->debug(1, "Checkning if $ceName is in the job jdl" );
-	# 		#assuming there can be only one CE
-	# 		if($req =~ /other.CE ==(.*?)\&&/i && $req !~ m/$ceName/i ){
-	# 			$unKnownCE = $1;
-	# 			$siteErros++;
-	# 		}
-	# 	}
-	# 	$self->debug(1, "$unKnownCE does not match any known CE" );
-	$self->info("Starting with $req");
-	foreach my $site (@$sites) {
-		$self->info("Checking $site->{site}");
-		my @allReasons;
-		if (!$site->{jdl}) {
-			next;
-		}
-		$ce_ca = AlienClassad::AlienClassad->new($site->{jdl});
-		if (!$ce_ca->isOK()) {
-			next;
-		}
-
-		#Re-set the jdl
-		my $tmpReq = $req = $initReq;
-		$job_ca->set_expression("Requirements", $initReq);
-		$ce_ca = AlienClassad::AlienClassad->new($site->{jdl});
-
-		#    $numOfCorrectSites++;
-		#now start removing reqirements till something matcches
-		my ($match, $rank) = AlienClassad::Match($job_ca, $ce_ca);
-		while (!$match) {
-			my @reqs = split(/&&/, $req, 2);
-			$reason = $reqs[0];
-			if ($reqs[1]) {
-				$req = $reqs[1];
-				$req = $self->repairReq($req);
-				$job_ca->set_expression("Requirements", $req)
-					or $self->{LOGGER}->error("CE", "In jobFindReqMiss, failed to set new requirements")
-					and return -1;
-				($match, $rank) = AlienClassad::Match($job_ca, $ce_ca);
-			} else {
-				$match = 1;
-			}
-			$self->debug(1, "did we match?? $match ($req)");
-			if ($match) {
-
-				# 				#dont add duplicate reasons
-				my $exists = 0;
-				foreach my $elem (@allReasons) {
-					if ($elem eq $reason) {
-						$exists = 1;
-						last;
-					}
-				}
-				if (!$exists) {
-					$self->debug(1, "one problem is $reason");
-					push(@allReasons, $reason);
-				}
-				if ($tmpReq =~ s/\Q$reason//) {
-					$tmpReq =~ s/&&&&/&&/;
-					$tmpReq =~ s/&&\s*$//;
-				}
-				$req = $tmpReq;
-				$self->debug(1, "Let's see if now it works... ($req)");
-				$job_ca->set_expression("Requirements", $req);
-				($match, $rank) = AlienClassad::Match($job_ca, $ce_ca);
-			}
-		}
-		$all_sites_reasons->{$site->{site}} = \@allReasons;
-		if (@allReasons) {
-			$self->info("Unmet Requirements for $site->{site}:");
-			my $count = 0;
-			my $found;
-			foreach $reason (@allReasons) {
-				$count++;
-				foreach $req (@requirements) {
-					$found = 0;
-					if ($reason =~ m/$req/) {
-						$self->info("\t$count)$reason: $explanation[$count2]");
-						$found  = 1;
-						$count2 = 0;
-						last;
-					}
-					$count2++;
-				}
-				if (!$found) {
-					$self->info("\tunknown problem : $reason");
-				}
-			}
-		}
-
-	}
-
-	my $min_unmet = 10000000;
-	my @min_sites = ();
-	foreach my $s (keys %$all_sites_reasons) {
-		$self->debug(1, "$s  has $#{$all_sites_reasons->{$s}}");
-		if ($#{$all_sites_reasons->{$s}} < $min_unmet) {
-			@min_sites = $s;
-			$min_unmet = $#{$all_sites_reasons->{$s}};
-		} elsif ($#{$all_sites_reasons->{$s}} eq $min_unmet) {
-			push @min_sites, $s;
-		}
-	}
-	$min_unmet++;
-	$self->info("The best sites are @min_sites (with only $min_unmet)");
-
-	#put the init back
-	# 	$job_ca->set_expression("Requirements",$initReq);
-
-	# 	 my ($match, $rank ) = AlienClassad::Match( $job_ca, $ce_ca );
-	# 	my $size = @$sites;
-	# 	print "site $siteErros numOfSite $numOfCorrectSites\n";
-	# 	if ( $initReq =~ /other.CE ==(.*?)\&&/ && $siteErros >= $numOfCorrectSites ){
-	# 		$reason = " other.CE ==" . $1;
-	# 		#my $sdf=$ce_ca->evaluateAttributeString("CE");
-	# 		$self->debug(1,"adding $reason to unmet requirements" );
-	# 		push(@allReasons, $reason);
-	# 	}
-
-	return $all_sites_reasons;
-}
-
-sub fixReq {
-	my $self        = shift;
-	my $problemCode = shift;
-	my $job_ca      = shift;
-	my $reason      = shift;
-	my @allCeCa     = shift;
-	my $req         = $job_ca->evaluateExpression("Requirements");
-
-	switch ($problemCode) {
-
-		#propose solution. List available CE, and/or ask user what to do
-		case 0 { $self->info("Not imlemented") and return; }
-
-		#mirror files to the CE
-		case 1 {
-			my ($ok, @files) = $job_ca->evaluateAttributeVectorString("inputdata");
-
-			#see if there is a choise
-			my $dest;
-			if ($req =~ /other.CE ==(.*?)\&&/) {
-				$self->debug(1, "Files have to be copied to a CE close to $1");
-				$dest = $1;
-				$dest =~ s/"//g;
-				$dest =~ s/ //g;
-				foreach my $se (@allCeCa) {
-					my $ceName = $se->evaluateAttributeString("CE");
-					if ($ceName eq $dest) {
-						my @closeSE = $se->evaluateAttributeVectorString("CloseSE");
-						foreach my $elem (@closeSE) {
-							$dest = $elem;
-							if ($dest =~ m/::/g) {
-								last;
-							}
-						}
-						last;
-					}
-				}
-			} else {
-				$reason =~ /"(.*?)\"/;
-				$dest = $1;
-			}
-			$dest =~ s/\Q)// or $dest =~ s/\Q(//;
-			$dest or $self->{LOGGER}->error("CE", "In fixReq failed to find a destination to mirror files") and return -1;
-
-			foreach my $file (@files) {
-				my @fName = split(/:/, $file, 2);
-
-#find out location and SE
-# 				my @fileInfo = $self->{CATALOG}->execute("whereis","-s", $fName[1]) or $self->{LOGGER}->error("CE","In fixReq Error getting the info from '$fName[1]'") and return;
-				$self->info("Mirroring $fName[1] to $dest");
-				if ($self->{CATALOG}->execute("mirror", $fName[1], $dest)) {
-
-					# 					$req =~ m/CloseSE,"(.*?)\"/;
-					# 					$req =~ s/$1/$dest/;
-					my @reqs = split(/&&/, $req);
-					foreach my $elem (@reqs) {
-						if ($elem =~ m/CloseSE,"(.*?)\"/g) {
-							if ($1 ne $dest) {
-								$req = $self->repairReq($req);
-								my $len = length($req);
-								my $fragment = substr $req, ($len - 4);
-								if ($fragment =~ m/&&/) {
-									$req = substr $req, 0, ($len - 4);
-								}
-							}
-						}
-					}
-
-					#inf loop
-					# 					while ($req =~ m/CloseSE,"(.*?)\"/g) {
-					# 						if($1 ne $dest){
-					# 							$req = $self->repairReq($req);
-					# 							my $len = length ($req);
-					# 							my $fragment =  substr $req, ($len-4);
-					# 							if($fragment =~ m/&&/){
-					# 								$req = substr $req, 0,($len-4);
-					# 							}
-					# 						}
-					# 					}
-				}
-
-				# 				my @info = $self->{CATALOG}->execute( "ls", "$fName[1]", "-sl" );
-				# 				my @lsTokens = split(/###/,$info[0]);
-			}
-		}
-		else { $self->info("Could not resolve problem"); }
-	}
-	return $req;
-}
+#sub jobFindReqMissHelp {
+#	return "jobFindReason: Looks in the job's jdl to find the reason why it didn't match any CE. 
+#
+#Usage:
+#\t\tjobFindReason <jobid> ";
+#}
+#
+#sub jobFindReqMiss {
+#	my $self   = shift;
+#	my $sites  = shift;
+#	my $job_ca = shift;
+#
+#	my $initReq;
+#
+#	my $reason = "Non";
+#
+#	my $count2       = 0;
+#	my @requirements = ("other\.CE", "SE", "Packages", "TTL", "Price", "LocalDiskSpace");
+#	my @explanation  = (
+#		"This is not the CE that was requested",
+#		"One or more input files are located in a SE not close to the CE requested",
+#		"Package doesn't exit or deleted from the Cataluge",
+#		"TTL is not matched by this CE",
+#		"Price is not matched by this CE",
+#		"Not enough disk space"
+#	);
+#	my $siteErros;
+#
+#	#  my $numOfCorrectSites=0;
+#	my $ce_ca;
+#
+#	my $req = $job_ca->evaluateExpression("Requirements");
+#	$initReq = $req;
+#
+#	$req or $self->{LOGGER}->error("CE", "In jobFindReqMiss, failed to requirements") and return -1;
+#
+#	my $all_sites_reasons = {};
+#
+#	#get rid of impossible requirements
+#	# 	my $unKnownCE="";
+#	# 	foreach my $site (@$sites){
+#	# 		my $ceName= $site->{site};#$ce_ca->evaluateAttributeString("CE");
+#	# 		$self->debug(1, "Checkning if $ceName is in the job jdl" );
+#	# 		#assuming there can be only one CE
+#	# 		if($req =~ /other.CE ==(.*?)\&&/i && $req !~ m/$ceName/i ){
+#	# 			$unKnownCE = $1;
+#	# 			$siteErros++;
+#	# 		}
+#	# 	}
+#	# 	$self->debug(1, "$unKnownCE does not match any known CE" );
+#	$self->info("Starting with $req");
+#	foreach my $site (@$sites) {
+#		$self->info("Checking $site->{site}");
+#		my @allReasons;
+#		if (!$site->{jdl}) {
+#			next;
+#		}
+#		$ce_ca = AlienClassad::AlienClassad->new($site->{jdl});
+#		if (!$ce_ca->isOK()) {
+#			next;
+#		}
+#
+#		#Re-set the jdl
+#		my $tmpReq = $req = $initReq;
+#		$job_ca->set_expression("Requirements", $initReq);
+#		$ce_ca = AlienClassad::AlienClassad->new($site->{jdl});
+#
+#		#    $numOfCorrectSites++;
+#		#now start removing reqirements till something matcches
+#		my ($match, $rank) = AlienClassad::Match($job_ca, $ce_ca);
+#		while (!$match) {
+#			my @reqs = split(/&&/, $req, 2);
+#			$reason = $reqs[0];
+#			if ($reqs[1]) {
+#				$req = $reqs[1];
+#				$req = $self->repairReq($req);
+#				$job_ca->set_expression("Requirements", $req)
+#					or $self->{LOGGER}->error("CE", "In jobFindReqMiss, failed to set new requirements")
+#					and return -1;
+#				($match, $rank) = AlienClassad::Match($job_ca, $ce_ca);
+#			} else {
+#				$match = 1;
+#			}
+#			$self->debug(1, "did we match?? $match ($req)");
+#			if ($match) {
+#
+#				# 				#dont add duplicate reasons
+#				my $exists = 0;
+#				foreach my $elem (@allReasons) {
+#					if ($elem eq $reason) {
+#						$exists = 1;
+#						last;
+#					}
+#				}
+#				if (!$exists) {
+#					$self->debug(1, "one problem is $reason");
+#					push(@allReasons, $reason);
+#				}
+#				if ($tmpReq =~ s/\Q$reason//) {
+#					$tmpReq =~ s/&&&&/&&/;
+#					$tmpReq =~ s/&&\s*$//;
+#				}
+#				$req = $tmpReq;
+#				$self->debug(1, "Let's see if now it works... ($req)");
+#				$job_ca->set_expression("Requirements", $req);
+#				($match, $rank) = AlienClassad::Match($job_ca, $ce_ca);
+#			}
+#		}
+#		$all_sites_reasons->{$site->{site}} = \@allReasons;
+#		if (@allReasons) {
+#			$self->info("Unmet Requirements for $site->{site}:");
+#			my $count = 0;
+#			my $found;
+#			foreach $reason (@allReasons) {
+#				$count++;
+#				foreach $req (@requirements) {
+#					$found = 0;
+#					if ($reason =~ m/$req/) {
+#						$self->info("\t$count)$reason: $explanation[$count2]");
+#						$found  = 1;
+#						$count2 = 0;
+#						last;
+#					}
+#					$count2++;
+#				}
+#				if (!$found) {
+#					$self->info("\tunknown problem : $reason");
+#				}
+#			}
+#		}
+#
+#	}
+#
+#	my $min_unmet = 10000000;
+#	my @min_sites = ();
+#	foreach my $s (keys %$all_sites_reasons) {
+#		$self->debug(1, "$s  has $#{$all_sites_reasons->{$s}}");
+#		if ($#{$all_sites_reasons->{$s}} < $min_unmet) {
+#			@min_sites = $s;
+#			$min_unmet = $#{$all_sites_reasons->{$s}};
+#		} elsif ($#{$all_sites_reasons->{$s}} eq $min_unmet) {
+#			push @min_sites, $s;
+#		}
+#	}
+#	$min_unmet++;
+#	$self->info("The best sites are @min_sites (with only $min_unmet)");
+#
+#	#put the init back
+#	# 	$job_ca->set_expression("Requirements",$initReq);
+#
+#	# 	 my ($match, $rank ) = AlienClassad::Match( $job_ca, $ce_ca );
+#	# 	my $size = @$sites;
+#	# 	print "site $siteErros numOfSite $numOfCorrectSites\n";
+#	# 	if ( $initReq =~ /other.CE ==(.*?)\&&/ && $siteErros >= $numOfCorrectSites ){
+#	# 		$reason = " other.CE ==" . $1;
+#	# 		#my $sdf=$ce_ca->evaluateAttributeString("CE");
+#	# 		$self->debug(1,"adding $reason to unmet requirements" );
+#	# 		push(@allReasons, $reason);
+#	# 	}
+#
+#	return $all_sites_reasons;
+#}
+#
+#sub fixReq {
+#	my $self        = shift;
+#	my $problemCode = shift;
+#	my $job_ca      = shift;
+#	my $reason      = shift;
+#	my @allCeCa     = shift;
+#	my $req         = $job_ca->evaluateExpression("Requirements");
+#
+#	switch ($problemCode) {
+#
+#		#propose solution. List available CE, and/or ask user what to do
+#		case 0 { $self->info("Not imlemented") and return; }
+#
+#		#mirror files to the CE
+#		case 1 {
+#			my ($ok, @files) = $job_ca->evaluateAttributeVectorString("inputdata");
+#
+#			#see if there is a choise
+#			my $dest;
+#			if ($req =~ /other.CE ==(.*?)\&&/) {
+#				$self->debug(1, "Files have to be copied to a CE close to $1");
+#				$dest = $1;
+#				$dest =~ s/"//g;
+#				$dest =~ s/ //g;
+#				foreach my $se (@allCeCa) {
+#					my $ceName = $se->evaluateAttributeString("CE");
+#					if ($ceName eq $dest) {
+#						my @closeSE = $se->evaluateAttributeVectorString("CloseSE");
+#						foreach my $elem (@closeSE) {
+#							$dest = $elem;
+#							if ($dest =~ m/::/g) {
+#								last;
+#							}
+#						}
+#						last;
+#					}
+#				}
+#			} else {
+#				$reason =~ /"(.*?)\"/;
+#				$dest = $1;
+#			}
+#			$dest =~ s/\Q)// or $dest =~ s/\Q(//;
+#			$dest or $self->{LOGGER}->error("CE", "In fixReq failed to find a destination to mirror files") and return -1;
+#
+#			foreach my $file (@files) {
+#				my @fName = split(/:/, $file, 2);
+#
+##find out location and SE
+## 				my @fileInfo = $self->{CATALOG}->execute("whereis","-s", $fName[1]) or $self->{LOGGER}->error("CE","In fixReq Error getting the info from '$fName[1]'") and return;
+#				$self->info("Mirroring $fName[1] to $dest");
+#				if ($self->{CATALOG}->execute("mirror", $fName[1], $dest)) {
+#
+#					# 					$req =~ m/CloseSE,"(.*?)\"/;
+#					# 					$req =~ s/$1/$dest/;
+#					my @reqs = split(/&&/, $req);
+#					foreach my $elem (@reqs) {
+#						if ($elem =~ m/CloseSE,"(.*?)\"/g) {
+#							if ($1 ne $dest) {
+#								$req = $self->repairReq($req);
+#								my $len = length($req);
+#								my $fragment = substr $req, ($len - 4);
+#								if ($fragment =~ m/&&/) {
+#									$req = substr $req, 0, ($len - 4);
+#								}
+#							}
+#						}
+#					}
+#
+#					#inf loop
+#					# 					while ($req =~ m/CloseSE,"(.*?)\"/g) {
+#					# 						if($1 ne $dest){
+#					# 							$req = $self->repairReq($req);
+#					# 							my $len = length ($req);
+#					# 							my $fragment =  substr $req, ($len-4);
+#					# 							if($fragment =~ m/&&/){
+#					# 								$req = substr $req, 0,($len-4);
+#					# 							}
+#					# 						}
+#					# 					}
+#				}
+#
+#				# 				my @info = $self->{CATALOG}->execute( "ls", "$fName[1]", "-sl" );
+#				# 				my @lsTokens = split(/###/,$info[0]);
+#			}
+#		}
+#		else { $self->info("Could not resolve problem"); }
+#	}
+#	return $req;
+#}
 
 sub repairReq {
 	my $self = shift;

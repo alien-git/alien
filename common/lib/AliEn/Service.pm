@@ -541,21 +541,22 @@ sub getServiceState {
   return {"Disk" => $nD, "Run" => $nR, "Sleep" => $nS, "Trace" => $nT, "Zombie" => $nZ};
 }
 
+
 sub createJDL {
   my $self        = shift;
   my $expressions = shift;
 
-  my $ca = AlienClassad::AlienClassad->new("[]");
+  my $jdlText = "";
 
   foreach my $key (keys %{$expressions}) {
-    $self->debug(1, "Setting expression $key to $expressions->{$key}");
-    $ca->set_expression($key, $expressions->{$key})
-      or $self->{LOGGER}->error("Transfer", "Error putting $key as $expressions->{$key}")
-      and return;
+    $self->debug(1, "Adding tag $key with value $expressions->{$key}");
+    $jdlText.="$key = $expressions->{$key};\n";
   }
 
-  if (!$ca->isOK()) {
-    $self->{LOGGER}->error("Transfer", "classad not correct ???!!!");
+  my $ca = AliEn::JDL->new($jdlText);
+  
+  if (!$ca or !$ca->isOK()) {
+    $self->{LOGGER}->error("Transfer", "JDL not correct ???!!!");
     return;
   }
   return $ca->asJDL();

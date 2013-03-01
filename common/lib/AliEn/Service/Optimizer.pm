@@ -8,7 +8,7 @@ $| = 1;
 use AliEn::Service;
 use strict;
 
-use AlienClassad;
+use AliEn::JDL;
 
 use vars qw (@ISA);
 @ISA=("AliEn::Service");

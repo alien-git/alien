@@ -19,7 +19,7 @@ push @ISA,"AliEn::Service::Broker";
 use base qw(JSON::RPC::Legacy::Procedure);
 
 
-use AlienClassad;
+use AliEn::JDL;
 
 my $self = {};
 
@@ -210,7 +210,7 @@ sub findFilesForFileBroker {
 
   $father_jdl or $self->info("Error getting the jdl of $split while doing the file broker") and return;
   eval { 
-      my $ca=AlienClassad::AlienClassad->new($father_jdl) or die("Erorr creating the classad");
+      my $ca=AliEn::JDL->new($father_jdl) or die("Erorr creating the classad");
       (my $ok, $limit)=$ca->evaluateAttributeString("SplitMaxInputFileNumber");
   };
   if ($@){
@@ -330,8 +330,9 @@ sub extractClassadParams {
 	my $params  = {};
 
 	$self->debug(1, "Creating the classad");
-	my $classad = AlienClassad::AlienClassad->new($ca_text);
-	$self->debug(1, "Classad created");
+	my $classad = AliEn::JDL->new($ca_text);
+	( !$classad or !$classad->isOK() ) and return (-1,"Fail creating JDL");
+	$self->debug(1, "JDL created");
 
 	my ($ok, $queueName) = $classad->evaluateAttributeString("CE");
 	my @jobAgents;
@@ -386,7 +387,7 @@ sub offerAgent : Public{
 	if ($waiting) {
 		$self->info("Telling the site to start $waiting job agents");
 		$self->{DB}->setSiteQueueStatus($queueName, "open-matching", $ca_text);
-		return [ $waiting, '[Type="Job";Requirements = other.Type == "machine" ]' ];
+		return [ $waiting, 'Type="Job";Requirements = other.Type == "machine";' ];
 	}
 	return -2;
 }

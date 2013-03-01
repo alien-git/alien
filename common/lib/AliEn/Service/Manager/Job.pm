@@ -11,7 +11,7 @@ use AliEn::Database::TaskQueue;
 use AliEn::Service::Manager;
 use AliEn::JOBLOG;
 use AliEn::Util;
-use AlienClassad;
+use AliEn::JDL;
 
 #use AliEn::Service::Optimizer::Job::Splitting;
 #use AliEn::Database::TaskPriority;
@@ -255,8 +255,8 @@ sub enterCommand: Public {
   $jobca_text =~ s/&amp;/&/g;
 
   $DEBUG and $self->debug(1, "In enterCommand JDL: $jobca_text");
-  my $job_ca = AlienClassad::AlienClassad->new($jobca_text);
-  if (!$job_ca->isOK()) {
+  my $job_ca = AliEn::JDL->new($jobca_text);
+  if (!$job_ca or !$job_ca->isOK()) {
     $self->info("In enterCommand incorrect JDL input\n $jobca_text");
     return [-1, "incorrect JDL input"];
   }
@@ -272,7 +272,7 @@ sub enterCommand: Public {
   $direct = 0;
 
   my $nbJobsToSubmit = 1;
-  if ($jobca_text =~ / split =/i) {
+  if ($jobca_text =~ /split =/i) {
   	#
   	$self->info("Let's assume that we can submit at least 10 subjobs");
   	$nbJobsToSubmit =10;
@@ -534,7 +534,7 @@ sub changeStatusCommand : Public {
   if ($status =~ /^ERROR.*$/) {
     $self->info("Job $queueId to $status, checking retries and split values");
     my $jdl=$self->{DB}->queryValue("select uncompress(origJdl) from QUEUEJDL where queueId=?", undef, {bind_values => [$queueId]});
-    my $ca=AlienClassad::AlienClassad->new($jdl);
+    my $ca=AliEn::JDL->new($jdl) or return (-1, "failed creating JDL");
     my ($ok, $rt)=$ca->evaluateAttributeString("Retries");
     my ($ok2, $sp)=$ca->evaluateAttributeString("Split");
     my ($ok3, $user)=$ca->evaluateAttributeVectorString("User");

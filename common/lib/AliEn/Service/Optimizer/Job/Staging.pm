@@ -65,7 +65,9 @@ sub checkAlreadyStaged {
   my $jdl=shift;
   $self->info("Checking if job $queueid has staged all its files");
   
-  my $ca=AlienClassad::AlienClassad->new($jdl);
+  my $ca=AliEn::JDL->new($jdl);
+  $ca and $ca->isOK() or $self->info("Job $queueid failed creating JDL (from $jdl)") and next;
+  
   my ($ok, my @inputData) = $ca->evaluateAttributeVectorString("InputData"); 
   
   $self->copyInputCollection($ca, $queueid, \@inputData)
@@ -75,7 +77,7 @@ sub checkAlreadyStaged {
       and return;
             
   foreach my $file ( @inputData) {
-     $file =~ s/,nodownload$//; $file =~ s/^LF://i;
+     $file =~ s/,nodownload//; $file =~ s/LF://i;
      $self->{CATALOGUE}->isStaged($file) or $self->info("File $file not staged yet") and return; 
   }
   $self->info("All staged ($queueid)");

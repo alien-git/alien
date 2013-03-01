@@ -38,7 +38,9 @@ sub checkWakesUp  {
       
   foreach my $job (@$done){  	  	
   	my $jdl=$self->{DB}->queryValue("select uncompress(origJdl) from QUEUEJDL where queueid=?", undef, {bind_values => [$job]});
-  	my $ca=AlienClassad::AlienClassad->new($jdl);
+  	my $ca=AliEn::JDL->new($jdl);
+  	$ca and $ca->isOK() or $self->info("Job $job failed creating JDL (from $jdl)") and next;
+  	
     my ($ok, $req)=$ca->evaluateExpression("Requirements");
   	$ok or $self->info("Could not get Requirements from job $job") and next;
   	
@@ -68,7 +70,7 @@ sub checkWakesUp  {
     	    	
         foreach my $file ( @inputData ) {
         	$self->info("Going to stage file $file in $place ($job)");
-        	$file =~ s/,nodownload$//; $file =~ s/^LF://i;
+        	$file =~ s/,nodownload//; $file =~ s/LF://i;
             $self->{CATALOGUE}->stage("-se",$place,$file) or $self->info("Failed staging $file") and $no_error=0 and last;
         }
  

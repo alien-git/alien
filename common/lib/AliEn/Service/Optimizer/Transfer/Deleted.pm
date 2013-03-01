@@ -31,11 +31,11 @@ sub checkWakesUp {
     map {$_=~ s/^(.*)$/member\(other\.SupportedProtocol, "$1" \)/ } @protocols;
     
     my $value=join("||",@protocols);
-    my $jdl=$self->createJDL({Type=>'"transfer"', pfn=>"\"$entry->{pfn}\"", 
+    my $jdl=$self->createJDL({Type=>"\"transfer\"", pfn=>"\"$entry->{pfn}\"", 
         destination=>"\"$entry->{sename}\"",
         Requirements=>"(other.type==\"FTD\")&&($value)",
         FullProtocolList=>"{$fullProt}",
-        Action=>'"remove"'}) 
+        Action=>"\"remove\""}) 
       or $self->info("Error creating the jdl") and return;
     my $id=$self->{DB}->insertTransferLocked({status=>'TODELETE', 
         destination=>$entry->{sename},

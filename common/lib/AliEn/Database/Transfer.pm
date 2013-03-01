@@ -467,7 +467,7 @@ sub insertAgent {
   $text =~ /(ToSE\s*=[^;]*;)/is or $self->info("Error getting the name of the destination") and return;
   my $dest = $1;
   $text =~ /(Requirements\s*=[^;]*)[;\]]/is or $self->info("Error getting the requirements from $text") and return;
-  my $req = "[ $1; Type = \"transfer\"; $dest ]";
+  my $req = "$1; Type = \"transfer\"; $dest";
   $self->info("Inserting a jobagent with '$req'");
   $self->lock("AGENT_DIRECT");
   my $id = $self->queryValue("SELECT entryId from AGENT_DIRECT where requirements=?", undef, {bind_values => [$req]});

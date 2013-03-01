@@ -10,7 +10,7 @@ use AliEn::Service;
 
 use AliEn::UI::Catalogue::LCM::Computer;
 
-use AlienClassad;
+use AliEn::JDL;
 
 use vars qw (@ISA);
 @ISA=("AliEn::Service");

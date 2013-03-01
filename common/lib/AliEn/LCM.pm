@@ -472,7 +472,7 @@ sub killTransfer {
   my ($result) = $self->{RPC}->CallRPC("Manager/Transfer", "killTransfer", $user, @_) or return;
   
 
-  $self->info("\t" . join("\n\t", $result), 0, 0);
+  $self->info("\t" . join("\n\t", @$result), 0, 0);
 
   return $result;
 }

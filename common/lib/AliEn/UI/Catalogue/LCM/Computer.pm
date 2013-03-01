@@ -144,7 +144,7 @@ sub registerOutput {
   $jobinfo->{jdl} or $self->info("Error the jdl is empty", 2) and return;
 
   my $ca;
-  eval { $ca = AlienClassad::AlienClassad->new($jobinfo->{jdl}) or $self->info("Error parsing the jdl", 2) and return; };
+  eval { $ca = AliEn::JDL->new($jobinfo->{jdl}) or $self->info("Error parsing the jdl", 2) and return; };
   if ($@) {
     $self->info("Error creating the classad $@", 2);
     return;
@@ -167,12 +167,14 @@ sub registerOutput {
   $jobinfo->{status} or $self->info("Error getting the status of the job", 2) and return;
 
   my ($ok, @pfns) = $ca->evaluateAttributeVectorString("SuccessfullyBookedPFNS");
+  use Data::Dumper;
+  $self->info("PFNS ARE: ".Dumper(@pfns));
   if (!$ok) {
     $options->{cluster} or $self->info("This job didn't register any output", 2) and return;
     $onlycmlog = 1;
   }
 
-  ($ok, my $user) = $ca->evaluateAttributeVectorString("User");
+  ($ok, my $user) = $ca->evaluateAttributeString("User");
   (my $currentuser) = $self->execute("whoami", "-silent");
   if ($user ne $currentuser) {
     $self->execute("user", "-", $user)

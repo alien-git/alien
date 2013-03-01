@@ -11,7 +11,7 @@ use AliEn::Database::TaskQueue;
 use AliEn::Service::Manager;
 use AliEn::JOBLOG;
 use AliEn::Util;
-use AlienClassad;
+use AliEn::JDL;
 
 use AliEn::Database::IS;
 

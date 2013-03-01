@@ -164,7 +164,7 @@ sub copyInput {
   eval {
     foreach $file ( @inputData) {
       my $nodownload = 0;
-      $file =~ s/,nodownload$// and $nodownload = 1;
+      $file =~ s/,nodownload// and $nodownload = 1;
 
       $self->debug(1, "In copyInput adding file $file");
 
@@ -329,7 +329,7 @@ sub checkJobs {
 
     foreach my $data (@$jobs) {
       $self->{LOGGER}->$method("JobOptimizer", "Checking job $data->{queueid}");
-      my $job_ca = AlienClassad::AlienClassad->new($data->{jdl});
+      my $job_ca = AliEn::JDL->new($data->{jdl});
 
       $self->info("In checkJobs - calling $function");
       $self->$function($data->{queueid}, $job_ca, $status);
@@ -442,6 +442,7 @@ sub copyInputCollection {
 
   my ($ok, @inputData) =
     $job_ca->evaluateAttributeVectorString("InputDataCollection");
+    
   @inputData
     or $self->debug(1, "There is no inputDataCollection")
     and return 1;

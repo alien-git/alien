@@ -53,9 +53,9 @@ my $splitPerEvent =sub  {
 my $splitPerSE =sub  {
     my $event=shift;
 
-    $event=~ s/^LF://;
-    $event =~ s/,nodownload$//;
-    my @se=$self->{CATALOGUE}->execute("whereis", "-lr", "-silent", "$event");
+    $event=~ s/LF://;
+    $event =~ s/,nodownload//;
+    my @se=$self->{CATALOGUE}->execute("whereis", "-lr", "-silent", $event);
 
 #    @se= grep (/::.*::/, @se);
 #    $event=~ s/\/[^\/]*$//;
@@ -88,7 +88,7 @@ sub checkWakesUp {
   $self->{DB}->update("ACTIONS", {todo=>0}, "action='SPLITTING'");
   $self->info("There are some jobs to split!!");
 
-  my $done2=$self->checkJobs($silent, "1' and upper(CONVERT(uncompress(origJdl) USING latin1)) like '\% SPLIT =\%", "updateSplitting", 4, 15);
+  my $done2=$self->checkJobs($silent, "1' and upper(CONVERT(uncompress(origJdl) USING latin1)) like '\%SPLIT =\%", "updateSplitting", 4, 15);
 
   $self->info("Caculate Job Quota");
 	$self->{CATALOGUE}->execute("calculateJobQuota", "1");
@@ -184,8 +184,8 @@ sub _splitSEAdvanced {
 	foreach my $file (@files) {
 		$self->info("Checking the file $file");
 		my $origFile=$file;
-		$file=~ s/^LF://i;
-    $file =~ s/,nodownload$//;
+		$file=~ s/LF://i;
+    $file =~ s/,nodownload//;
     my @se=$self->{CATALOGUE}->execute("whereis", "-lr", "-silent",$file);
     my $done={};
     foreach my $se (@se){
@@ -457,44 +457,50 @@ sub SubmitSplitJob {
   my $user=shift;
   my $jobs=shift;
 
-  if ( !$job_ca->isOK() ) {
+  if ( !$job_ca or !$job_ca->isOK() ) {
     print STDERR "Splitting: in SubmitSplitJob job's jdl is not valid\n";
     return;
   }
   #Removing split from the jdl
   my $text=$job_ca->asJDL();
   $self->debug(1, "Original jdl $text\n");
+  
+    $self->info("ORIGINAL IS: $text");#TODELETE
+  
 
   #to make the matching easier, let's put a ; after the last entry
   #and before the first entry;
-  $text=~ s/(\]\s*)$/;$1/s;
-  $text=~ s/^(\s*\[)/$1;/s;
+  $text=~ s/(\s*)$/;$1/s;
+  $text=~ s/^(\s*)/$1;/s;
 
   #this matching can't be done with global in case there are two 
   #consecutive entries that have to be removed
-  while(  $text =~ s/;\s*split[^;\]]*;/;/is) {};
-  $text=~ s/;\s*inputdatacollection\s*=[^;\]]*;/;/i;
-  $text=~ s/;\s*inputdata\s*=[^;\]]*;/;/i;
+  while(  $text =~ s/;\s*split[^;]*;/;/is) {};
+  $text=~ s/;\s*inputdatacollection\s*=[^;]*;/;/i;
+  $text=~ s/;\s*inputdata\s*=[^;]*;/;/i;
   $text =~ s/;\s*email\s*=[^;]*;/;/is;
   #$text =~ s/;\s*requirements[^;\]]*;/;/i;
 
-  $text =~ s/\[;/\[/;
+  #$text =~ s/\[;/\[/;
   $self->debug(1, "Let's start with $text");
   my ($ok, @splitarguments)=$job_ca->evaluateAttributeVectorString("SplitArguments");
   if (@splitarguments){ 
-    $self->info( "SplitArguments defined - OK!");
+    $self->info( "SplitArguments defined - OK! @splitarguments");
   } else {
     push @splitarguments, "";
   }
-
-  $job_ca=AlienClassad::AlienClassad->new($text);
-  $job_ca->insertAttributeString("MasterJobId", $queueid)
-    or $self->info( "Error putting the master job id")
-      and return;
-  if ( !$job_ca->isOK() ) {
+  
+  $text =~ s/^;//g;
+  $text =~ s/;;/;/g;
+  $self->info("TEXT IS: $text"); #TODELETE
+  $job_ca=AliEn::JDL->new($text);
+  if ( !$job_ca or !$job_ca->isOK() ) {
     print STDERR "Splitting: in SubmitSplitJob jdl $text is not valid\n";
     return;
   }
+  $job_ca->insertAttributeString("MasterJobId", $queueid)
+    or $self->info( "Error putting the master job id")
+      and return;
 
   ($ok, my @inputdataset)=$job_ca->evaluateAttributeVectorString("InputDataSet");
   @inputdataset and $self->info( "InputDataSet defined - OK!");
@@ -561,6 +567,8 @@ sub SubmitSplitJob {
 	       print STDERR "Splitting: in SubmitSplitJob new jdl is not valid\n";
 	       return;
       }
+      $self->info("SUBMITTING JOB WITH $job_ca->asJDL");#TODELETE
+      
       $self->_submitJDL($queueid, $user, $job_ca->asJDL, 
                         $jobs->{$pos}->{files}, $job_ca)      or return;
     }
@@ -605,7 +613,9 @@ sub _submitJDL {
   my $job_ca=shift;
   my $direct=shift ||0;
 
-  ( $job_ca) or $job_ca=AlienClassad::AlienClassad->new($jdlText);
+  ( $job_ca) or $job_ca=AliEn::JDL->new($jdlText);
+  ( $job_ca and $job_ca->isOK() ) 
+    or $self->putJobLog($queueid, "error", "Error creating JDL (from $jdlText)") and return;
   if (!$files) {
     my ($ok, @input)=$job_ca->evaluateAttributeVectorString("InputData");
     $files=\@input;
@@ -806,12 +816,12 @@ sub  ChangeOriginalJob{
   $jdl=~ s/\s*\]$//sg;
 
 
-  my $newJdl="[\nExecutable=\"$executable\";$arguments$extra\nType=\"Job\";Requirements=$req;\n$email\n$jdl]";
+  my $newJdl="Executable=\"$executable\";$arguments$extra\nType=\"Job\";Requirements=$req;\n$email\n$jdl";
   $self->info($newJdl);
 
-  my $new_ca=AlienClassad::AlienClassad->new($newJdl);
+  my $new_ca=AliEn::JDL->new($newJdl);
 
-  if ( !$new_ca->isOK() ) {
+  if ( !$new_ca or !$new_ca->isOK() ) {
     print STDERR "JobOptimizer: in ChangeOriginalJob jdl $newJdl is not valid\n";
     return;
   }

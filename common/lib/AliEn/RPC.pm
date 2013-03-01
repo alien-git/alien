@@ -66,7 +66,7 @@ sub Connect {
   ($address =~ /^http/ or $address="http://$address" );
   
   $self->info("Connecting to $service in $address");
-  $self->{CLIENTS}->{$service} = new JSON::RPC::Legacy::Client;;
+  $self->{CLIENTS}->{$service} = new JSON::RPC::Legacy::Client;
   if ($address=~ /^https:/) {
     my $proxy = ( $ENV{X509_USER_PROXY} || "/tmp/x509up_u$<" );
     

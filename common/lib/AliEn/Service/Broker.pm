@@ -10,7 +10,7 @@ use strict;
 use AliEn::UI::Catalogue;
 use AliEn::Util;
 
-use AlienClassad;
+use AliEn::JDL;
 
 use vars qw (@ISA);
 @ISA=("AliEn::Service");
@@ -110,7 +110,7 @@ sub match {
   my $function=shift;
   my $counter=shift || 1;
   my $findIdFunction=shift;
-  $self->info( "Checking $type");
+  $self->info( "Checking $type");  
 
   my $text = $site_ca->asJDL();
 
@@ -122,17 +122,18 @@ sub match {
 
     $self->debug(1, "in match pending$type = $id" );
 
-    my $job_ca = AlienClassad::AlienClassad->new($element->{jdl});
+    my $job_ca = AliEn::JDL->new($element->{jdl});
+        
     $self->debug(1, "Checking $element->{jdl}");
-    if ( !$job_ca->isOK() ) {
+    if (!$job_ca or !$job_ca->isOK() ) {
       $self->info("Got an incorrect $type ca ($id)");
       $self->{DB}->updateStatus($id,"%", "INCORRECT");
       splice(@$pendingElements, $currentJob,1);
       next;
     }
 
-    my ( $match, $rank ) = AlienClassad::Match( $job_ca, $site_ca );
-
+    my ( $match, $rank ) = $job_ca->MatchTransfer( $site_ca );
+    
     ($match) or next;
     my @possibleIds=({id=>$id, classad=>$job_ca, });
     if($type eq "queue"){
@@ -156,10 +157,10 @@ sub match {
       my $ret2=$item->{jdl};
       my $realId=$item->{id};
       if (!$ret1 ){
-	$self->debug(1, "Creating the classad of $item->{jdl}");
-	$ret1=$item->{classad}= AlienClassad::AlienClassad->new($item->{jdl});
-	($ret1 and $ret1->isOK())
-	  or $self->info("Error creating the jdl of $item->{jdl}") and next;
+	    $self->debug(1, "Creating the classad of $item->{jdl}");
+	    $ret1=$item->{classad}= AliEn::JDL->new($item->{jdl});
+	    ($ret1 and $ret1->isOK())
+	      or $self->info("Error creating the jdl of $item->{jdl}") and next;
       }
       $self->debug(1, "Got returning arguments for  $realId: $ret1");
       if ($function) {
@@ -194,7 +195,6 @@ sub match {
   }
 
   $self->info("Returning  $#toReturn +1 entries that match" );
-  
   return @toReturn;
 }
 

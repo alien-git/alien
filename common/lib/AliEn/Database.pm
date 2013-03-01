@@ -183,7 +183,7 @@ sub new {
     TOKEN              => ($self->{CONFIG}->{TOKEN} || ""),
     FORCED_AUTH_METHOD => ($self->{CONFIG}->{ForcedMethod} || ""),
     MAX_WAIT_TIME      => 40,
-    RECONNECT_NUMBER   => 100,
+    RECONNECT_NUMBER   => 100
   );
   foreach my $key (keys %defaults) {
     defined $self->{$key} or $self->{$key} = $defaults{$key};
@@ -735,6 +735,11 @@ sub reconnect {
 
   $DEBUG and $self->debug(1, "Database: In reconnect connecting to database $db on host $host using driver $driver.");
 
+open FILETMP, ">>", "/tmp/queriesDie";
+print FILETMP "RECONNECTS \n\n";
+IO::File::close FILETMP;
+
+
   AliEn::Database::destroy($self);
 
   unless ($host eq $self->{HOST}
@@ -1001,21 +1006,25 @@ sub _queryDB {
     my $sqlError = "";
     eval {
       alarm($timeout);
+      
+      #$arrRef = $self->{DBH}->selectall_arrayref($stmt, { Slice => {} }, @bind);
       my $sth = $self->{DBH}->prepare_cached($stmt);
 
       #      my $sth = $self->{DBH}->prepare($stmt);
       $DBI::errstr and $sqlError .= "In prepare: $DBI::errstr\n";
       if ($sth) {
         $execute = $sth->execute(@bind);
+        
         $DBI::errstr and $sqlError .= "In execute: $DBI::errstr\n";
         $arrRef = $sth->fetchall_arrayref({});
+        
         $DBI::errstr and $sqlError .= "In fetch: $DBI::errstr\n";
-
         #  $sth->finish;
         #  $DBI::errstr and $sqlError.="In finish: $DBI::errstr\n";
       }
     };
-    $@ and $sqlError = "The command died: $@";
+    $@ and $sqlError = "The command died: $@. And the statement was: $stmt and bind was: @bind";
+    
     alarm(0);
 
     if ($sqlError) {
@@ -1092,8 +1101,6 @@ sub _do {
     alarm(0);
 
     defined($result) and last;
-
-    $error and $sqlError .= "There is an error: $@\n";
 
     if ($sqlError) {
       my $found = 0;

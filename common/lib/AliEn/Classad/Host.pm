@@ -1,7 +1,7 @@
 package AliEn::Classad::Host;
 
 use AliEn::Config;
-use AlienClassad;
+use AliEn::JDL;
 use strict;
 use vars qw(@ISA);
 use Filesys::DiskFree;
@@ -22,7 +22,7 @@ sub new {
 
   my $config  =  $self->{CONFIG};
 
-  $self->debug(1, "Creating the ClassAd" );
+  $self->debug(1, "Creating the JDL" );
 
   my $otherReq="";
 
@@ -32,9 +32,8 @@ sub new {
 
   $self->{PACKMAN} or $self->info("Error getting the list of ClientPakcMan") and return;
 
-  my $ca =
-    AlienClassad::AlienClassad->new(
- "[ Type=\"machine\"; Requirements=(other.Type==\"Job\" $otherReq); WNHost = \"$self->{CONFIG}->{HOST}\"; ]" );
+  my $ca = AliEn::JDL->new(
+ "Type=\"machine\"; Requirements=(other.Type==\"Job\" $otherReq); WNHost = \"$self->{CONFIG}->{HOST}\";" );
  ( $ca and $ca->isOK()) 
    or $self->info("Error creating the Classads.Check if the requirements ($otherReq) have the right format") and return;
   $self->setCloseSE($ca) or return;
@@ -52,7 +51,7 @@ sub new {
   $self->setPrice($ca) or return;
   
   if ( !$ca->isOK() ) {
-    print STDERR "CE::new : classad not correct ???!!!\n";
+    print STDERR "CE::new : JDL not correct ???!!!\n";
     return;
   }
 
@@ -100,14 +99,20 @@ sub setSystemInfo {
   my ($free, $swapfree, $total, $swap);
 
   foreach (<FILE>) {
-    if (/^Swap:\s*(\d+)\s+\d+\s+(\d+).*$/) {
+    if (/^SwapTotal:\s*(\d+)\s*/) {
       $swap=int($1/1024);
-      $swapfree=int($2/1024);
       next;
     }
-    if (/^Mem:\s*(\d+)\s+\d+\s+(\d+).*$/) {
+    if (/^SwapFree:\s*(\d+)\s*/) {
+      $swapfree=int($1/1024);
+      next;
+    }
+    if (/^MemTotal:\s*(\d+)\s*/) {
       $total=int($1/1024);
-      $free=int($2/1024);
+      next;
+    }
+    if (/^MemFree:\s*(\d+)\s*/) {
+      $free=int($1/1024);
       next;
     }
   }
