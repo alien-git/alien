@@ -26,9 +26,9 @@ BEGIN { plan tests => 1 }
   addFile(
 	$cat, "jdl/collectionFormat.jdl", "Executable=\"SplitDataset.sh\";
 Split=\"file\";
-InputDataCollection=\"LF:${dir}/collections/collection_from_xml\";
+InputDataCollection={\"LF:${dir}/collections/collection_from_xml\"};
 InputDataList=\"mylocallist.xml\";
-InputDataListFormat=\"merge:${dir}/splitDataset/list.xml\"
+InputDataListFormat=\"merge:${dir}/splitDataset/list.xml\";
 ", 'r'
   ) or exit(-2);
 

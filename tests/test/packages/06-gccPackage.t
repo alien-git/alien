@@ -68,7 +68,7 @@ chmod +x my_compiled
   print "Let's submit the job\n";
 
   addFile($cat, "jdl/compiled_package.jdl","executable=\"my_compiled\";
-packages=\"sourcePackage::1.0\";
+packages={\"sourcePackage::1.0\"};
 ","r") or exit(-2);
 
 

@@ -32,8 +32,8 @@ date
 
   addFile(
 	$cat, "jdl/InputData.jdl", "Executable=\"CheckInputData.sh\";
-InputData=\"${dir}jdl/Input.jdl\";
-OutputFile={\"file.out\",\"stdout\",\"stderr\",\"resources\"}", "r"
+InputData={\"${dir}jdl/Input.jdl\"};
+OutputFile={\"file.out\",\"stdout\",\"stderr\",\"resources\"};", "r"
   ) or exit(-2);
   my ($id) = $cat->execute("submit", "jdl/InputData.jdl") or exit(-2);
   $cat->close();

@@ -21,7 +21,7 @@ BEGIN { plan tests => 1 }
   addFile(
 	$cat, "jdl/Split.jdl", "Executable=\"CheckInputOuptut.sh\";
 Split=\"directory\";
-InputData=\"${dir}split/*/*\";"
+InputData={\"${dir}split/*/*\"};"
   ) or exit(-2);
 
   $cat->execute("rmdir", "-rf", "split", "-silent");

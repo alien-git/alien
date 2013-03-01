@@ -33,14 +33,14 @@ echo \"I've been called with '\$*'\"
   addFile(
 	$cat, "jdl/sendTwoJobs1.jdl", "Executable=\"echo.sh\";
 Arguments=\"This is the first job\";
-Requirements= other.CE==other.CE;
+Requirements= other.CENAME==\"other.CENAME\";
 "
   ) or die("Error adding file");
 
   addFile(
 	$cat, "jdl/sendTwoJobs2.jdl", "Executable=\"echo.sh\";
 Arguments=\"This is the second job\";
-Requirements= other.HOST==other.HOST;
+Requirements= other.HOSTNAME==\"other.HOSTNAME\";
 "
   ) or die("Error adding file");
 

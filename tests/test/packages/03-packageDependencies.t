@@ -23,7 +23,7 @@ BEGIN { plan tests => 1 }
 
   addFile(
 	$cat, "jdl/packageDep.jdl", "Executable=\"JobWithPackage.sh\";
-Packages=\"MyLS::1.0\""
+Packages={\"MyLS::1.0\"};"
   ) or exit(-2);
 
   addPackage($cat, "MyLS", "/bin/ls") or exit(-2);

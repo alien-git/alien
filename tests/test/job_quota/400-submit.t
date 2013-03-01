@@ -99,12 +99,12 @@ echo \"sum: \$sum\"
   addFile(
 	$cat_split, "jdl/Split2Jobs.jdl", "Executable=\"sum\";
 Split=\"directory\";
-InputData=\"${dir}split/*/*\";", "r"
+InputData={\"${dir}split/*/*\"};", "r"
   ) or exit(-2);
   addFile(
 	$cat_split, "jdl/Split3Jobs.jdl", "Executable=\"sum\";
 Split=\"file\";
-InputData=\"${dir}split/*/*\";", "r"
+InputData={\"${dir}split/*/*\"};", "r"
   ) or exit(-2);
 
   print "1. Killing all my previous jobs\n";

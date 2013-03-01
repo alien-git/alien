@@ -22,7 +22,7 @@ $cat->execute("find", "-x myCollection inputCollection txt ", ">inputCollection/
 
 addFile(
   $cat, "jdl/InputCollection.jdl", "Executable=\"CheckInputOuptut.sh\";
-InputDataCollection=\"LF:inputCollection/inputDataCollection.xml\";
+InputDataCollection={\"LF:inputCollection/inputDataCollection.xml\"};
 "
 ) or exit(-2);
 

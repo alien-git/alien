@@ -18,7 +18,7 @@ $cat->execute("find", "-x test split/ * ", ">inputCollection/SplitInputDataColle
 
 addFile(
   $cat, "jdl/SplitInputCollection.jdl", "Executable=\"CheckInputOuptut.sh\";
-InputDataCollection=\"LF:inputCollection/SplitInputDataCollection.xml\";
+InputDataCollection={\"LF:inputCollection/SplitInputDataCollection.xml\"};
 Split=\"file\";
 "
 ) or exit(-2);

@@ -21,8 +21,8 @@ BEGIN { plan tests => 1 }
 
   addFile(
 	$cat, "jdl/OutputArchive.jdl", "Executable=\"CheckInputOuptut.sh\";
-InputFile=\"LF:$dir/jdl/Input.jdl\";
-OutputArchive={\"myarchive:file.out,stdout\"}"
+InputFile={\"LF:$dir/jdl/Input.jdl\"};
+OutputArchive={\"myarchive:file.out,stdout\"};"
   ) or exit(-2);
 
   my ($id) = $cat->execute("submit", "jdl/OutputArchive.jdl") or exit(-2);

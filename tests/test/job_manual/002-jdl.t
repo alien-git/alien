@@ -14,7 +14,7 @@ BEGIN { plan tests => 1 }
 
   print "TENGO $text\n";
 
-  $ca->asJDL() =~ /LocalDiskSpace/s 
+  $ca->asJDL() =~ /LocalDiskSpace/i 
     or print "Error the diskspace is not there\n" and exit(-2);
 
 

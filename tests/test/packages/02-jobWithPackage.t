@@ -33,7 +33,7 @@ date
 
   addFile(
 	$cat, "jdl/package.jdl", "Executable=\"JobWithPackage.sh\";
-Packages=\"MyPS::1.0\"\n"
+Packages={\"MyPS::1.0\"};"
   ) or exit(-2);
   print "READY TO ADD THE PACKAGE\n";
   addPackage($cat, "MyPS", "/bin/ps") or exit(-2);

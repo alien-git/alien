@@ -12,7 +12,7 @@ includeTest("catalogue/003-add") or exit(-2);
 
 addFile(
   $cat, "jdl/wrongPackageDep.jdl", "Executable=\"JobWithPackage.sh\";
-Packages=\"MyWRONGLS::1.0\""
+Packages={\"MyWRONGLS::1.0\"};"
 ) or exit(-2);
 
 $cat->execute("submit", "jdl/wrongPackageDep.jdl")

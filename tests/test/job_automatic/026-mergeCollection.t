@@ -19,8 +19,8 @@ BEGIN { plan tests => 1 }
   addFile(
 	$cat, "jdl/MergeCollection.jdl", "Executable=\"CheckInputOuptut.sh\";
 Split=\"production:1-5\";
-OutputFile=\"file.out\";
-MergeCollections={\"file.out:$collection\"}"
+OutputFile={\"file.out\"};
+MergeCollections={\"file.out:$collection\"};"
   ) or exit(-2);
 
   my ($id) = $cat->execute("submit", "jdl/MergeCollection.jdl") or exit(-2);

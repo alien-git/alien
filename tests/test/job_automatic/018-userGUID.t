@@ -22,7 +22,7 @@ echo \"myguidfile $guid\" >myguidfile
 
 addFile($cat, "jdl/userGUIDS.jdl", "Executable=\"userGUIDS.sh\";
 GUIDFile=\"myguidfile\";
-OutputFile={\"myguidfile\",\"stdout\",\"stderr\",\"resources\"}
+OutputFile={\"myguidfile\",\"stdout\",\"stderr\",\"resources\"};
 ") or exit(-2);
 
 addFile($cat, "bin/userGUIDSFail.sh","#!/bin/sh
@@ -34,7 +34,7 @@ echo \"myguidfile $guid\" >myguidfile
 
 addFile($cat, "jdl/userGUIDSFail.jdl", "Executable=\"userGUIDSFail.sh\";
 GUIDFile=\"myguidfile\";
-OutputFile={\"myguidfile\",\"stdout\",\"stderr\",\"resources\"}
+OutputFile={\"myguidfile\",\"stdout\",\"stderr\",\"resources\"};
 ") or exit(-2);
 
 my ($id)=$cat->execute("submit", "jdl/userGUIDS.jdl") or exit(-2);

@@ -58,11 +58,11 @@ echo 'This is a test' > file.out
 ", "r") or exit(-2);
   addFile($cat, "dir1/saveoutput.jdl","
 Executable=\"date\";
-OutputFile={\"file.out\"}
+OutputFile={\"file.out\"};
 ", "r") or exit(-2);
   $cat->execute("fquota", "list $user");
   assertEqual($d, $user, "nbFiles", 2) or exit(-2);
-  assertEqual($d, $user, "totalSize", 87) or exit(-2);
+  assertEqual($d, $user, "totalSize", 88) or exit(-2);
   print "3. PASSED\n\n";
 
   print "4. Submit a job\n";

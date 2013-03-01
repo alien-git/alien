@@ -26,7 +26,7 @@ BEGIN { plan tests => 1 }
 
 
   addFile($cat, "jdl/sharedPackage.jdl","Executable=\"JobWithPackage.sh\";
-Packages=\"MySHAREDLS::1.0\"") or exit(-2);
+Packages={\"MySHAREDLS::1.0\"};") or exit(-2);
 
   addPackage($cat, "MySHAREDLS", "/bin/ls") or exit(-2);
   addPackage($cat, "MySHAREDPS", "/bin/ps") or exit(-2);

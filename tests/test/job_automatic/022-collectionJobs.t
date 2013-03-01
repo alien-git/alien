@@ -18,7 +18,7 @@ BEGIN { plan tests => 1 }
 
   addFile(
 	$cat, "jdl/collectionSingle.jdl", "Executable=\"CheckInputOuptut.sh\";
-InputData=\"$dir/collections/manual_collection\"
+InputData={\"$dir/collections/manual_collection\"};
 "
   ) or exit(-2);
   print "And now, let's execute the job\n";
@@ -27,7 +27,7 @@ InputData=\"$dir/collections/manual_collection\"
   print "The first one went fine :)\nLet's try splitting it...\n";
   addFile(
 	$cat, "jdl/collectionSplit.jdl", "Executable=\"CheckInputOuptut.sh\";
-InputDataCollection=\"LF:$dir/collections/manual_collection\";
+InputDataCollection={\"LF:$dir/collections/manual_collection\"};
 Split=\"file\";
 "
   ) or exit(-2);

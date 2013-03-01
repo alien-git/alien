@@ -22,7 +22,7 @@ BEGIN { plan tests => 1 }
 Split=\"directory\";
 SplitArguments={\" allfiles: '#alienallfulldir#' dir: '#aliendir#'\",
                  \" second round\"};
-InputData=\"${dir}split/*/*\";" ) or exit(-2);
+InputData={\"${dir}split/*/*\"};" ) or exit(-2);
   my @files=$cat->execute("find", "${dir}/split/", "*");
   print "Starting with @files\n";
 

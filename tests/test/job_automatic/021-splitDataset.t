@@ -42,9 +42,9 @@ evlist=\"3,4\" />
   addFile(
 	$cat, "jdl/SplitDataset.jdl", "Executable=\"SplitDataset.sh\";
 Split=\"file\";
-InputDataCollection=\"LF:${dir}/splitDataset/list.xml\";
+InputDataCollection={\"LF:${dir}/splitDataset/list.xml\"};
 InputDataList=\"mylocallist.xml\";
-InputDataListFormat=\"merge:${dir}/splitDataset/list.xml\""
+InputDataListFormat=\"merge:${dir}/splitDataset/list.xml\";"
   ) or exit(-2);
 
   addFile(

@@ -47,7 +47,7 @@ print "ok\n";
 
 addFile(
   $cat, "jdl/InputZip.jdl", "Executable=\"CheckInputOuptut.sh\";
-InputZip=\"zip/files.zip\";
+InputZip={\"zip/files.zip\"};
 "
 ) or exit(-2);
 

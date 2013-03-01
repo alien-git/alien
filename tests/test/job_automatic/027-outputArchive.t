@@ -12,7 +12,7 @@ my $cat = AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",})
 
 addFile(
   $cat, "jdl/Archive_without_links.jdl", "Executable=\"CheckInputOuptut.sh\";
-OutputArchive=\"my_archive:stdout,stderr\@no_links_registration\"
+OutputArchive={\"my_archive:stdout,stderr\@no_links_registration\"};
 "
 ) or exit(-2);
 

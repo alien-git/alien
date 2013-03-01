@@ -41,7 +41,7 @@ $cat->execute("rmdir", "-rf", $outputDir);
 addFile(
   $cat, "jdl/production.jdl", "Executable=\"production.sh\";
 Split=\"production:1-5\";
-SplitArguments=\"#alien_counter# big production\";
+SplitArguments={\"#alien_counter# big production\"};
 OutputDir=\"$outputDir/#alien_counter_03i#/\";
 validationcommand=\"$dir/bin/validateProduction\";
 ", "r"

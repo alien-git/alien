@@ -13,7 +13,7 @@ my $cat = AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",})
 my ($dir) = $cat->execute("pwd") or exit(-2);
 my $outputDir = "$dir/production";
 
-my ($procDir) = checkSubJobs($cat, $id, 5, {expected => {DONE => 4, "ERROR_V" => 1}})
+my ($procDir) = checkSubJobs($cat, $id, 5, {expected => {'DONE' => 4, 'ERROR_V' => 1}})
   or exit(-2);
 
 print "Production executed\n";

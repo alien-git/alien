@@ -20,7 +20,7 @@ BEGIN { plan tests => 1 }
 
   addFile($cat, "jdl/SplitFile.jdl","Executable=\"CheckInputOuptut.sh\";
 Split=\"file\";
-InputData=\"${dir}split/*/*\";") or exit(-2);
+InputData={\"${dir}split/*/*\"};") or exit(-2);
 
   my ($id)=$cat->execute("submit", "jdl/SplitFile.jdl") or exit(-2);
   $cat->close();

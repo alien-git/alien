@@ -37,8 +37,8 @@ date
 ","r") or exit(-2);
 
   addFile($cat, "jdl/Input.jdl","Executable=\"CheckInputOuptut.sh\";
-InputFile=\"LF:$dir/jdl/Input.jdl\";
-OutputFile={\"file.out\",\"stdout\",\"stderr\",\"resources\"}") or exit(-2);
+InputFile={\"LF:$dir/jdl/Input.jdl\"};
+OutputFile={\"file.out\",\"stdout\",\"stderr\",\"resources\"};") or exit(-2);
 
   my $procDir=executeJDLFile($cat, "jdl/Input.jdl") or exit(-2);
  print "Job executed. Let's see if the output is what we want\n";

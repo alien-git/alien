@@ -43,7 +43,7 @@ cat file*
            \"$dir/se_advanced/file2\",
            \"$dir/se_advanced/file3\"};
 
-        SplitMaxInputFileNumber  = \"2\" 
+        SplitMaxInputFileNumber  = \"2\"; 
 "
  ) or exit(-2);
 

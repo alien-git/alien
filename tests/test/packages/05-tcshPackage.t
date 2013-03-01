@@ -32,7 +32,7 @@ echo \"Variable MYVAR defined to \$MYVAR\"
 ") or exit(-2);
 
   addFile($cat, "jdl/packageTCSH.jdl","Executable=\"tcshPackage.csh\";
-Packages={\"MyTCSH::1.0\", \"MyPS::1.0\"}") or exit(-2);
+Packages={\"MyTCSH::1.0\", \"MyPS::1.0\"};") or exit(-2);
 
   addPackage($cat, "MyTCSH", "/bin/ls") or exit(-2);
 

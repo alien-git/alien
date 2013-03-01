@@ -12,8 +12,8 @@ my $cat = AliEn::UI::Catalogue::LCM::Computer->new({"user", "newuser",})
 addFile(
   $cat, "jdl/jobToKill.jdl", "
 executable=\"date\";
-inputdata=\"/bin/date\";
-requirements=other.ce=='blabla';
+inputdata={\"/bin/date\"};
+requirements=other.ce==\"blabla\";
 "
 ) or exit(-2);
 
