@@ -115,7 +115,7 @@ sub isOK {
       $sValue =~ s/[\s]//g;
       
       if($type eq "list"){
-      	my $patternText = qr"[ \w\/\=\:\.\,\\\'\@\#\-\>\*\(\)]+";  
+      	my $patternText = qr"[ \w\/\=\+\:\.\,\\\'\@\#\-\>\*\(\)]+";  
       	$sValue =~ /^{[\n\s]*\"$patternText\"([\n\s]*,[\n\s]*\"$patternText\")*[\n\s]*}$/ 
       	  or $self->info("Tag $sKey contains incorrectly defined list ( $sValue ). 
       	                  Only alfanumerical, whitespace or [ # ' = @ > - . , : () / * ] characters are accepted,
