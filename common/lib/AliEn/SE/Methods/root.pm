@@ -14,19 +14,27 @@ use IPC::Open2;
 
 use strict;
 
+my $XRDCP="";
+
+
 sub initialize {
   my $self = shift;
   $self->{SILENT} = 1;
   $self->{CLASS}  = ref $self;
-  $self->debug(1, "Let's see if xrdcpapmon is in the path");
+  if (! $XRDCP) {
+    $self->debug(1, "Let's see if xrdcpapmon is in the path");
 
-  $self->{XRDCP} = "xrdcp";
-  if (open(FILE, "which xrdcpapmon 2>&1|")) {
-    my $input = join("", <FILE>);
-    if (close FILE) {
-      $self->debug(1, "Using $input");
-      $self->{XRDCP} = "xrdcpapmon";
+    $self->{XRDCP} = "xrdcp";
+    if (open(FILE, "which xrdcpapmon 2>&1|")) {
+      my $input = join("", <FILE>);
+      if (close FILE) {
+        $self->debug(1, "Using $input");
+        $self->{XRDCP} = "xrdcpapmon";
+      }
     }
+    $XRDCP=$self->{XRDCP};
+  } else {
+     $self->{XRDCP}=$XRDCP;
   }
 
   $self->{XRD}         = "xrd";
