@@ -350,9 +350,16 @@ sub extractClassadParams {
 	($ok, @pack) = $classad->evaluateAttributeVectorString("GridPartitions");
 	$params->{partition} = "," . join(",", sort @pack) . ",";
 	$params->{ce}        = $queueName;
-  ($ok, $params->{user}) = $classad->evaluateAttributeString("User");
+    ($ok, $params->{user}) = $classad->evaluateAttributeString("User");
 	($ok, $params->{splitFiles})= $classad->evaluateAttributeString("SplitMaxInputFileNumber");
 
+    ($ok, my $reqs) = $classad->evaluateExpression("Requirements");
+	while ($reqs =~ s/\s*other.user\s*==\s*"([^"]*)"//i) {
+      $params->{cerequirements_users}.="".$self->{DB}->getOrInsertFromLookupTable('user',$1).",";
+    }    
+	$params->{cerequirements_users} and $params->{cerequirements_users} =~ s/,$//g;
+    $reqs =~ s/\s*other.gridpartitions?\s*==\s*"([^"]*)"//i and $params->{cerequirements_partitions}=$1;
+    
 	return ($queueName, $params);
 }
 

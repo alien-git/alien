@@ -238,7 +238,7 @@ sub enterCommand: Public {
   my $host       = shift;
   my $jobca_text = shift;
 
-  my $priority = (shift or 0);
+#  my $priority = (shift or 0);
   my $splitjob = (shift or "0");
   my $oldjob   = (shift or "0");
   my $options = shift || {};
@@ -293,7 +293,6 @@ sub enterCommand: Public {
     jdl        => $jobca_text,
     statusId     => "INSERTING",
     submitHost => $host,
-    priority   => $priority,
     split      => $splitjob
   };
 
@@ -1071,14 +1070,12 @@ sub validateProcess {
   $executable
     or $self->info("Error getting the name of the executable!")
     and return (-1, "error getting the name of the executable");
-  my $jdl = "[
-  Executable=\"$executable.validate\";
+  my $jdl = "Executable=\"$executable.validate\";
   Arguments=\"$queueId $hostname $port\";
   Requirements= member(other.GridPartition,\"Validation\");
-  Type=\"Job\";
-]\n";
+  Type=\"Job\"";
 
-  $self->enterCommand($data->{submithost}, $jdl,0);
+  $self->enterCommand($data->{submithost}, $jdl);
 
   $self->info("Validation done");
   return 1;

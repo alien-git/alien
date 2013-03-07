@@ -624,7 +624,7 @@ sub _submitJDL {
   $self->debug(1, "JDL $jdlText");
   push @ISA, "AliEn::Service::Manager::Job";
   
-  my $newqueueid=$self->enterCommand($user, $jdlText, undef, $queueid, undef, 
+  my $newqueueid=$self->enterCommand($user, $jdlText, $queueid, undef, 
     {silent=>0,direct=>$direct});
   pop @ISA;
   if(($newqueueid =~ /DENIED:/) or (ref $newqueueid eq "ARRAY") ){

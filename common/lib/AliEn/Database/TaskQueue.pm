@@ -113,7 +113,7 @@ sub initialize {
       userId       => "int ",
       execHostId   => "int",
       submitHostId => "int",
-      priority     => "tinyint(4)",
+#      priority     => "tinyint(4)",
       statusId     => "tinyint not null",
       received     => "int(20)",
       started      => "int(20)",
@@ -152,7 +152,7 @@ sub initialize {
       "foreign key (commandId) references QUEUE_COMMAND(commandId) on delete cascade",
       "foreign key (agentId) references JOBAGENT(entryId) on delete set null",
       "INDEX(agentId)",      
-      "INDEX(priority)",
+#      "INDEX(priority)",
       "INDEX (siteId,statusId)",
       "INDEX (sent)",
       "INDEX (statusId,agentId)",
@@ -342,10 +342,11 @@ sub initialize {
         noce         => "varchar(50) COLLATE latin1_general_ci",
         userId       => "int not null",
         fileBroker   => "tinyint(1) default 0 not null",
+        price        => "float"
       },
       id          => "entryId",
       index       => "entryId",
-      extra_index => [ "INDEX(priority)", "INDEX(ttl)", "foreign key (userId) references QUEUE_USER(userId) on delete cascade" ],
+      extra_index => [ "INDEX(priority)", "INDEX(ttl)", "INDEX(price)", "foreign key (userId) references QUEUE_USER(userId) on delete cascade" ],
       order=>6
     },
     
@@ -922,11 +923,12 @@ sub checkFinalAction {
   my $info =
     $self->queryRow("SELECT statusId,notifyId,split FROM QUEUE where queueid=?", undef, {bind_values => [$id]})
     or return;
+   
   $self->info("Checking if we have to send an email for job $id...");
   $info->{notifyId}
     and $self->sendEmail($info->{notifyId}, $id, $info->{statusId}, $service);
   $self->info("Checking if we have to merge the master");
-  if ($info->{split}) {
+  if ($info->{split}) {  	
     $self->info("We have to check if all the subjobs of $info->{split} have finished");
     $self->do(
 "insert  into JOBSTOMERGE (masterId) select ? from DUAL  where not exists (select masterid from JOBSTOMERGE where masterid = ?)",
@@ -934,6 +936,7 @@ sub checkFinalAction {
     );
     $self->do("update ACTIONS set todo=1 where action='MERGING'");
   }
+  
   return 1;
 }
 
@@ -1486,7 +1489,7 @@ sub findUserId{
 sub extractFieldsFromReq {
   my $self= shift;
   my $text =shift;
-  my $params= {counter=> 1, ttl=>84000, disk=>0, packages=>'%', partition=>'%', ce=>'', noce=>''};
+  my $params= {counter=> 1, ttl=>84000, disk=>0, packages=>'%', partition=>'%', ce=>'', noce=>'', price=>1.0};
 
   my $site = "";
   my $no_se={};
@@ -1533,7 +1536,8 @@ sub extractFieldsFromReq {
   $text =~ s/other.LocalDiskSpace\s*>\s*(\d+)//i and $params->{disk}=$1; 
   $text =~ s/other.GridPartitions,\s*"([^"]*)"//i and $params->{partition}=$1; 
   $text =~ s/this.filebroker\s*==\s*1//i and $params->{fileBroker}=1 and $self->info("DOING FILE BROKERING!!!");
-  
+  $text =~ s/other.Price\s*<=\s*(\d+(.\d+)?)//i and $params->{price}=$1*1.0;
+    
 
   #$self->info("The ttl is $params->{ttl} and the site is in fact '$site'. Left  '$text' ");
   return $params;
@@ -1628,14 +1632,15 @@ sub getNumberWaitingForSite{
   my $options=shift;
   my @bind=();
   my $where="";
+  my $order = "order by priority desc";
   my $return= "sum(counter)";
   
-  $options->{ttl} and $where.="and ttl < ?  " and push @bind, $options->{ttl};
-  $options->{disk} and $where.="and disk < ?  " and push @bind, $options->{disk};
-  $options->{site} and $where.="and (site='' or site like concat('%,',?,',%') )" and push @bind, $options->{site};   
-  defined $options->{packages} and $where .="and ? like packages " and push @bind, $options->{packages};
-  defined $options->{installedpackages} and $where .="and ? like packages " and push @bind, $options->{installedpackages};
-  $options->{partition} and $where .="and ? like concat('%,',partition, '%,') " and push @bind, $options->{partition};
+  $options->{ttl} and $where.=" and ttl < ?  " and push @bind, $options->{ttl};
+  $options->{disk} and $where.=" and disk < ?  " and push @bind, $options->{disk};
+  $options->{site} and $where.=" and (site='' or site like concat('%,',?,',%') )" and push @bind, $options->{site};   
+  defined $options->{packages} and $where .=" and ? like packages " and push @bind, $options->{packages};
+  defined $options->{installedpackages} and $where .=" and ? like packages " and push @bind, $options->{installedpackages};
+  !$options->{cerequirements_partitions} and $options->{partition} and $where .=" and ? like concat('%,',partition, '%,') " and push @bind, $options->{partition};
   $options->{ce} and $where.=" and (ce like '' or ce like concat('%,',?,',%'))" and push @bind,$options->{ce};
   $options->{ce} and $where.=" and noce not like concat('%,',?,',%')" and push @bind,$options->{ce};
   $options->{returnPackages} and $return="packages";
@@ -1643,9 +1648,20 @@ sub getNumberWaitingForSite{
   if ($options->{returnId}){
     $return="entryId,fileBroker";
     $method="queryRow";
+    $order.=", price desc";
   }
+  if( $options->{cerequirements_users} ){
+  	my @userList = split(/,/, $options->{cerequirements_users});
+  	my $or=" and (";
+  	foreach my $userid ( @userList ){
+  		$where.="$or userId like ?" and push @bind,$userid and $or=" or ";
+  	}
+  	$where.=")";
+  }
+
+  $options->{cerequirements_partitions} and $where.=" and partition=?" and push @bind, $options->{cerequirements_partitions};
     
-  return $self->$method("select $return from JOBAGENT where 1=1 $where order by priority desc limit 1", undef, {bind_values=>\@bind});
+  return $self->$method("select $return from JOBAGENT where 1=1 $where $order limit 1", undef, {bind_values=>\@bind});
 }
 
 sub getWaitingJobForAgentId{ 
