@@ -480,7 +480,7 @@ sub getPlatform {
   my $platform = `lsb_release -a 2>/dev/null`;
   $platform =~ s/\s//g; #remove whitespace characters
   ($platform =~ /Scientific/i and $platform =~ /Release:\s*6/i and $platform="SLC6-$sys2") or  
-  ($platform =~ /Fedora/i     and $platform =~ /Release:\s*(\d+)/i and $1>=17 and print $1."\n" and $platform="Fedora-$sys2") or
+  ($platform =~ /Fedora/i     and $platform =~ /Release:\s*(\d+)/i and $1>=17 and $platform="SLC6-$sys2") or
   #($platform =~ /Ubuntu/i     and $platform="Ubuntu-$sys2") or  
     undef $platform;
   
