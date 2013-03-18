@@ -136,6 +136,7 @@ sub initialize {
   print "Executing in $self->{HOST}\n";
   $self->{PID}=$$;
   print "PID = $self->{PID}\n";
+  $ENV{ALIEN_JOBAGENT_ID} and $ENV{ALIEN_JOBAGENT_ID}.="_$self->{PID}";
 
   my $packConfig=1;
   $options->{disablePack} and $packConfig=0;
@@ -252,7 +253,7 @@ sub requestJob {
     }		      
     $self->{MONITOR}->addJobToMonitor($self->{PROCESSID}, $self->{WORKDIR}, $self->{CONFIG}->{CE_FULLNAME}.'_Jobs', $ENV{ALIEN_PROC_ID});
   }
-  $self->sendJAStatus('JOB_STARTED');
+  $self->sendJAStatus('JOB_STARTED', {totaljobs=>$self->{TOTALJOBS}});
   return 1;
 }
 
@@ -298,6 +299,34 @@ sub putJobLog {
   my $joblog = $self->{SOAP}->CallSOAP("CLUSTERMONITOR","putJobLog", $id,@_) or return;
   return 1;
 }
+
+sub putAgentLog {
+  my $self=shift;
+  my $message=shift;
+  my $id="$self->{CONFIG}->{CE_FULLNAME}_$ENV{ALIEN_JOBAGENT_ID}";
+  $self->{agentlog_counter} or $self->{agentlog_counter}=0;  
+  $self->{agentlog_counter}+=1;
+  
+  if($self->{last_agent_message} eq $message){
+    $self->info("This is the same message");
+    $self->{last_agent_counter}+=1;
+    return 1;
+  }
+
+
+  if ($self->{last_agent_counter}){
+    $self->{agentlog_counter}+=1;
+
+    $self->{SOAP}->CallSOAP("CLUSTERMONITOR","putJobLog", $id,"agent",
+        sprintf("%03d Last message repeated %d time(s)", $self->{agentlog_counter}, $self->{last_agent_counter}),@_) 
+  }
+  my $joblog = $self->{SOAP}->CallSOAP("CLUSTERMONITOR","putJobLog", $id,"agent", 
+        sprintf("%03d %s", $self->{agentlog_counter}, $message),@_) or return;
+  $self->{last_agent_message}=$message;
+  $self->{last_agent_counter}=0;
+  return 1;
+}
+
 
 sub getHostClassad{
   my $self=shift;
@@ -392,10 +421,6 @@ sub GetJDL {
     }
     my $hostca_stage;
 
-    $self->sendJAStatus(undef, {TTL=>$self->{TTL}});
-
-    #my $done = $self->{SOAP}->CallSOAP("CLUSTERMONITOR","getJobAgent", $ENV{ALIEN_JOBAGENT_ID}, "$self->{HOST}:$self->{PORT}", $self->{CONFIG}->{ROLE}, $hostca, $hostca_stage);
-    
     my $host=$self->{CONFIG}->{HOST};
     if ($ENV{ALIEN_CM_AS_LDAP_PROXY}){
        $host=$ENV{ALIEN_CM_AS_LDAP_PROXY};
@@ -413,7 +438,7 @@ sub GetJDL {
 	my @execute=@{$info->{execute}};
 	$result=shift @execute;
 	if ($result eq "-3") {
-	  $self->sendJAStatus('INSTALLING_PKGS');
+	  $self->sendJAStatus('INSTALLING_PKGS', {packages=>join("", @execute)});
 	  $self->{SOAP}->CallSOAP("Manager/Job", "setSiteQueueStatus",$self->{CONFIG}->{CE_FULLNAME},"jobagent-install-pack");
 	  $self->info("We have to install some packages (@execute)");
 	  foreach (@execute) {
@@ -464,10 +489,6 @@ sub GetJDL {
 
   my $message="The Job has been taken by Jobagent $ENV{ALIEN_JOBAGENT_ID}, AliEn Version: $self->{CONFIG}->{VERSION}";
   $ENV{EDG_WL_JOBID} and $message.="(  $ENV{EDG_WL_JOBID} )";
-  if (  $ENV{LSB_JOBID} ){
-    $message.=" (LSF ID $ENV{LSB_JOBID} )";
-     $self->sendJAStatus(undef, {LSF_ID=>$ENV{LSB_JOBID}});
-  }
   $self->putJobLog("trace",$message);
 
 
@@ -1106,6 +1127,18 @@ sub installPackage {
 	$self->putJobLog("error","Package $_ not installed ");
       return;
     }
+    if ($source) {
+       $self->info("Checking if the packman installation can be accessed");
+       $source =~ s/^\s*//;
+       my ($file, $rest)=split(/ /, $source);
+       $self->info("The file is '$file'");
+       if (! -f "$file"){
+          $self->info("We can't access the packman installation in $file");
+          $ENV{ALIEN_PROC_ID} and
+             $self->putJobLog("error","Package $_ not installed (can't access $file) ");
+          return;
+       }
+    }
   }
   $self->info("Package $package installed successfully ($ok)!!");
   ($source) and   $self->info("For the package we have to do $source");
@@ -1189,9 +1222,13 @@ sub dumpInputDataList {
   my $filehash={};
   my $event=0;
   my $eventsum=0;
+  my $done={};
+
   foreach my $file (@lfns){
+    my $remote=0;
+
     $file =~ s/LF://;
-    $file =~ s/,nodownload//i;
+    $file =~ s/,nodownload//i and $remote=1;
     if ($xml) {
       my $basefilename =$file;
       $basefilename=~ s{^.*/([^/]*)$}{$1};
@@ -1206,8 +1243,15 @@ sub dumpInputDataList {
       <event name=\"%d\">\n", $event;
 	}
       }
+      my $turl="alien://$file";
+      if (! $remote){
+        #How do I get the name of the local file??
+        my $real= $self->findProcName($file, $done);
+        $turl="file:///$self->{WORKDIR}/$real";
+      }
+
       print FILE "      <file name=\"$basefilename\" lfn=\"$file\" 
-turl=\"alien://$file\" />\n";
+turl=\"$turl\" />\n";
       (defined $filehash->{$basefilename}) or  $filehash->{$basefilename}=0;
       $filehash->{$basefilename}++;
       $event = $filehash->{$basefilename};
@@ -1276,7 +1320,7 @@ sub getFiles {
 
   $self->getInputZip($catalog) or return;
 
-  my @files=$self->getListInputFiles();
+  my @files=$self->getListInputFiles($catalog);
 
   foreach my $file (@files) {
     $self->_getInputFile($catalog, $file->{cat},$file->{real}) or return;
@@ -1306,8 +1350,57 @@ sub getFiles {
 
 }
 
+sub getFilesFromInputCollection{
+  my $self = shift;
+  my $job_ca = shift;
+  my $catalogue=shift;
+  
+  my @files;
+  my ($ok, @inputData) =
+    $job_ca->evaluateAttributeVectorString("InputDataCollection");
+
+	foreach my $file (@inputData) {
+    $self->putJobLog("trace", "Using the inputcollection $file");
+
+    my ($file2, $options) = split(',', $file, 2);
+    $options and $options = ",$options";
+    $options or $options = "";
+    $file2 =~ s/^LF://;
+    my ($type) = $catalogue->execute("type", $file2);
+    $self->info("IT IS A $type");
+    if ($type =~ /^collection$/) {
+    	my ($files)=$catalogue->execute("listFilesFromCollection", $file2);
+    	if ($files) {
+    	  foreach my $entry (@$files) {
+          if ($entry->{origLFN}) {
+            push @files, "LF:$entry->{origLFN}$options";
+          } else {
+            push @files, "GUID:$entry->{guid}";
+          }
+    	  }
+    	}
+    }  else {
+    	my ($localFile) = $catalogue->execute("get", $file2);
+    	$localFile or $self->info("Error getting $file2") and return;
+    	my $ds=AliEn::Dataset->new(); 
+    	my $dataset = $ds->readxml($localFile);
+    	my $lfnRef = $ds->getAllLFN()
+       or $self->info("Error getting the LFNS from the dataset")
+        and return;
+
+      map { $_ = "LF:$_$options" } @{ $lfnRef->{lfns} };
+      $self->info("Adding the files " . @{ $lfnRef->{lfns} });
+      push @files, @{ $lfnRef->{lfns} };
+    	
+    } 
+	}
+  return 1, @files;
+}
+
+
 sub getListInputFiles {
   my $self=shift;
+  my $catalogue=shift;
 
   my $dir = AliEn::Util::getProcDir($self->{JOB_USER}, undef, $self->{QUEUEID}) . "/";
 
@@ -1319,21 +1412,55 @@ sub getListInputFiles {
   }else {
     $self->info("There is no validation script");
   }
-  my ( $ok,  @inputFiles)=$self->{CA}->evaluateAttributeVectorString("InputDownload");
-  foreach (@inputFiles){
-    my ($proc, $lfn)=split /->/;
-    $self->debug(1, "Adding '$lfn' (dir '$dir')");
-    $proc =~ s{^$dir}{$self->{WORKDIR}/} or $proc="$self->{WORKDIR}/$proc";
-    push @files, {cat=> $lfn, real=>$proc};
-    if ($proc =~ /^($self->{WORKDIR}\/.*\/)[^\/]*$/ ) {
-      $self->info("Checking if $1 exists");
-      if (! -d $1) {
-        mkdir $1 or print "Error making the directory $1 ($!)\n";
+  my ( $ok,  @inputFiles)=$self->{CA}->evaluateAttributeVectorString("InputFile");
+  ($ok, my @inputData)=$self->{CA}->evaluateAttributeVectorString("InputData");
+
+   ($ok, my @moreFiles)=$self->getFilesFromInputCollection($self->{CA}, $catalogue);
+
+  my $done={};
+  foreach my $lfn (@inputFiles , @inputData, @moreFiles ){
+    $lfn=~ s/^LF://;
+    $lfn =~ /,nodownload/ and $self->info("Ignoring $lfn") and next;    
+    $self->debug(1, "Adding '$lfn' ");
+    my $real= $self->findProcName($lfn, $done);
+    if ($real =~ /^(.*\/)[^\/]*$/ ) {
+      $self->info("Checking if $self->{WORKDIR}/$1 exists");
+      if (! -d "$self->{WORKDIR}/$1") {
+        mkdir "$self->{WORKDIR}/$1" or print "Error making the directory $self->{WORKDIR}/$1 ($!)\n";
       }
     }
+    push @files, {cat=> $lfn, real=>"$self->{WORKDIR}/$real"};
   }
   return @files
 }
+
+sub findProcName {
+  my $self     = shift;
+  my $origname = shift;
+  my $done     = (shift or {});
+
+  $done->{files}
+    or $done->{files} = { stdout => 0, resources => 0, stderr => 0 };
+  $done->{dir} or $done->{dir} = -1;
+  $self->debug(1, "In findProcName finding a procname for $origname");
+
+  $origname =~ /\/([^\/]*)$/ and $origname = $1;
+  $self->debug(1, "In findProcName finding a name for $origname");
+  my $i = $done->{files}->{$origname};
+  my $name;
+  if (!defined $i) {
+    $done->{files}->{$origname} = 1;
+    $name = $origname;
+  } else {
+    $name = "$i/$origname";
+    $done->{files}->{$origname}++;
+  }
+  return $name;
+
+}
+
+
+
 
 sub getUserDefinedGUIDS{
   my $self=shift;
@@ -2406,6 +2533,12 @@ CPU Speed                           [MHz] : $ProcCpuspeed
 	$self->{STATUS} = "ERROR_VT";
       } else {
 	( -e "$self->{WORKDIR}/.validated" ) or  $self->{STATUS} = "ERROR_V";
+        $self->putJobLog("trace","The validation created some trace");
+        if ( open(my $f, "<", "$self->{WORKDIR}/.alienValidation.trace") ){
+         my $traceContent=join("", <$f>);
+         close $f;
+         $self->putJobLog("trace",$traceContent);
+        }
       }
     } else {
       $self->putJobLog("error","The validation script '$validation' didn't exist");
@@ -2451,7 +2584,7 @@ CPU Speed                           [MHz] : $ProcCpuspeed
   delete $ENV{ALIEN_JOB_TOKEN};
   delete $ENV{ALIEN_PROC_ID};
   if (!$success){
-    $self->sendJAStatus('DONE');
+    $self->sendJAStatus('DONE', {totaljobs=>$self->{TOTALJOBS}, error=>1});
     $self->info("The job did not finish properly... we don't ask for more jobs");
     $self->stopService(getppid());
     kill (9, getppid());
@@ -2479,7 +2612,7 @@ sub checkWakesUp {
     $self->sendJAStatus('REQUESTING_JOB');
     $self->info("Asking for a new job");
     if (! $self->requestJob()) {
-      $self->sendJAStatus('DONE');
+      $self->sendJAStatus('DONE',  {totaljobs=>$self->{TOTALJOBS}});
       $self->info("There are no jobs to execute. We have executed $self->{TOTALJOBS}");
       #Tell the CM that we are done"
       $self->{MONITOR} and 
@@ -2693,6 +2826,14 @@ sub sendJAStatus {
   return if ! $self->{MONITOR};
 
   # add the given parameters
+  my $msg="The jobagent is in $status";
+  $params->{job_id} = $ENV{ALIEN_PROC_ID} || 0;
+  foreach my $key (keys %$params){
+     $params->{$key} and $msg .=" $key=$params->{$key}";
+    
+   }
+  
+  $self->putAgentLog($msg);
 
   defined  $status and $params->{ja_status} = AliEn::Util::jaStatusForML($status);
   if($ENV{ALIEN_JOBAGENT_ID} && $ENV{ALIEN_JOBAGENT_ID} =~ /(\d+)\.(\d+)/){
@@ -2700,7 +2841,6 @@ sub sendJAStatus {
     $params->{ja_id_min} = $2;
   }
   $ENV{SITE_NAME} and $params->{siteName}=$ENV{SITE_NAME};
-  $params->{job_id} = $ENV{ALIEN_PROC_ID} || 0;
   $self->{MONITOR}->sendParameters("$self->{CONFIG}->{SITE}_".$self->{SERVICENAME}, "$self->{HOST}:$self->{PORT}", $params);
   return 1;
 }

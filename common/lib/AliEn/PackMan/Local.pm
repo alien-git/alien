@@ -182,6 +182,10 @@ sub installPackage{
     $self->info( "$$ This package is defined by the VO. Let's put the user to VO");
     $user=uc("VO_$self->{CONFIG}->{ORG_NAME}");
   }
+  if ($lfn eq -2){
+     $self->info("We couldn't get the lfn of that package!!");
+     return (-1, "Couldn't get the lfn of $user,$package, $version");
+  }
 
   #First, let's try to install all the dependencies
   $self->info("Ready to install $package and $version and $user (from $lfn)");
@@ -261,7 +265,8 @@ sub findPackageLFN{
     or return undef, "Error talking to the PackManMaster";
 
   my @info=$self->{SOAP}->GetOutput($result);
-  if (  $info[0] eq /^-2$/ ){
+  $self->info("And the info is @info");
+  if (  $info[0] eq -2 ){
     return undef,"The package $package (v $version) does not exist for $platform \n"; 
   }
 
