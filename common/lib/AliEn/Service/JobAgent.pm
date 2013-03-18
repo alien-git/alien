@@ -1207,14 +1207,13 @@ sub dumpInputDataList {
       $xml="group";
     } elsif ($format =~ /^merge:(.*)/i) {
       return $self->mergeXMLfile($catalog, $dumplist, $1);
-      $xml="group";
     } else {
       $self->putJobLog("error","The inputdatalistType was $format, but I don't understand it :(. Ignoring it");
     }
   }
   $self->putJobLog("trace","Putting the list of files in the file '$dumplist'");
   $self->info("Putting the inputfiles in the file '$dumplist'");
-  if (!open (FILE, ">$dumplist") ){
+  if (!open (FILE, ">","$dumplist") ){
     $self->info("Error putting the list of files in $dumplist");
     $self->putJobLog("error","Error putting the list of files in the file $dumplist");
     return;
@@ -1229,25 +1228,33 @@ sub dumpInputDataList {
   my $filehash={};
   my $event=0;
   my $eventsum=0;
+  my $done={};
   foreach my $file (@lfns){
+    my $remote=0;
     $file =~ s/LF://;
-    $file =~ s/,nodownload//i;
+    $file =~ s/,nodownload//i and $remote=1;
     if ($xml) {
       my $basefilename =$file;
       $basefilename=~ s{^.*/([^/]*)$}{$1};
       if ($xml eq "single") {
-	if ($eventsum){
-	  printf FILE "    </event>
+	      if ($eventsum){
+	        printf FILE "    </event>
     <event name=\"%d\">\n", $eventsum;
-	}
+	      }
       } elsif (defined $filehash->{$basefilename}) {
-	if ($event != $filehash->{$basefilename}){
-	  printf FILE "    </event>
+	      if ($event != $filehash->{$basefilename}){
+	        printf FILE "    </event>
       <event name=\"%d\">\n", $event;
-	}
+	      }
+      }
+      my $turl="alien://$file";
+      if (! $remote){
+        #How do I get the name of the local file??
+        my $real= $self->findProcName($file, $done);
+        $turl="file://$self->{WORKDIR}/$real";
       }
       print FILE "      <file name=\"$basefilename\" lfn=\"$file\" 
-turl=\"alien://$file\" />\n";
+turl=\"$turl\" />\n";
       (defined $filehash->{$basefilename}) or  $filehash->{$basefilename}=0;
       $filehash->{$basefilename}++;
       $event = $filehash->{$basefilename};
