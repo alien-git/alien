@@ -710,11 +710,16 @@ sub masterSE_getFiles {
   $md5 and $query .= ", g.md5 ";
 
   #Let's skip all the hosts that we have already seen
+  my $startLooking=1;
+  $previous_table and $startLooking=0;
   
   my $tables = $self->queryColumn("SELECT tableName from GUIDINDEX order by 1", undef, undef);
   foreach my $table (@$tables) {
     $table = "G${table}L";
-    $previous_table and $previous_table !~ /^$table$/ and next;
+    if($previous_table and $previous_table =~ /^_$table$/){
+    	$startLooking = 1;
+    	next;
+    }
 
     #      $table =~ /G46L/ or next;
     if ($previous_table) {
