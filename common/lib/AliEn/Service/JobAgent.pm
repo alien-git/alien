@@ -421,6 +421,8 @@ sub GetJDL {
     }
     my $hostca_stage;
 
+    $self->sendJAStatus(undef, {TTL=>$self->{TTL}});
+ 
     my $host=$self->{CONFIG}->{HOST};
     if ($ENV{ALIEN_CM_AS_LDAP_PROXY}){
        $host=$ENV{ALIEN_CM_AS_LDAP_PROXY};
@@ -489,6 +491,11 @@ sub GetJDL {
 
   my $message="The Job has been taken by Jobagent $ENV{ALIEN_JOBAGENT_ID}, AliEn Version: $self->{CONFIG}->{VERSION}";
   $ENV{EDG_WL_JOBID} and $message.="(  $ENV{EDG_WL_JOBID} )";
+  if (  $ENV{LSB_JOBID} ){
+    $message.=" (LSF ID $ENV{LSB_JOBID} )";
+     $self->sendJAStatus(undef, {LSF_ID=>$ENV{LSB_JOBID}});
+  }
+
   $self->putJobLog("trace",$message);
 
 
@@ -2841,6 +2848,7 @@ sub sendJAStatus {
     $params->{ja_id_min} = $2;
   }
   $ENV{SITE_NAME} and $params->{siteName}=$ENV{SITE_NAME};
+  $params->{job_id} = $ENV{ALIEN_PROC_ID} || 0;
   $self->{MONITOR}->sendParameters("$self->{CONFIG}->{SITE}_".$self->{SERVICENAME}, "$self->{HOST}:$self->{PORT}", $params);
   return 1;
 }
