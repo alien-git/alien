@@ -55,6 +55,7 @@ sub Connect {
     @methods=("getTrace", "getSystem", "getJobInfo", "getTraceAgent");
   }
   push @methods, "status";
+  push @methods, "reply";
   $self->debug(1, "Checking if we are connected to $service");
   $self->{CLIENTS}->{$service} and return 1;
   
@@ -70,7 +71,7 @@ sub Connect {
   if ($address=~ /^https:/) {
     my $proxy = ( $ENV{X509_USER_PROXY} || "/tmp/x509up_u$<" );
     
-    $self->info("This is in fact a secure connection (using the proxy $proxy)");
+    $self->debug(1,"This is in fact a secure connection (using the proxy $proxy)");
 
     $self->{X509}->checkProxy();
     my $ua=$self->{CLIENTS}->{$service}->ua();
@@ -88,7 +89,7 @@ sub findAddress {
   my $service=shift;
   
   my $address;
-  $self->info("Finding the address of '$service'");
+  $self->debug(1,"Finding the address of '$service'");
   if ($service =~ /^Authen$/){
     $address="$self->{CONFIG}->{AUTH_HOST}:$self->{CONFIG}->{AUTH_PORT}";    
   } elsif ($service=~ /^IS$/){
@@ -192,7 +193,7 @@ sub CallRPC {
         ($package, $filename, $line) = caller($i);
         $package or last;        
       }
-      $self->info("PROBLEMS with the RPC call '$op' to $service (from $package $filename:$line): $@");
+      $self->debug(1,"PROBLEMS with the RPC call '$op' to $service (from $package $filename:$line): $@");
     }
     @data and return @data;
 

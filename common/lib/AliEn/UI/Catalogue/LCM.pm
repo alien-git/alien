@@ -438,7 +438,7 @@ Checks the status of different services
 =cut
 sub services_HELP {
 	return "services: prints out the status of the different services
-Usage: services [core|se]";
+Usage: services [core|mon]";
 	
 	
 }
@@ -459,7 +459,7 @@ sub services {
   my @returnarray;
   $#returnarray = -1;
   @ARGV         = @_;  
-  Getopt::Long::GetOptions($opt, "verbose", "z", "n", "core", "se", "ce", "domain=s", "help")
+  Getopt::Long::GetOptions($opt, "verbose", "z", "n", "core", "mon", "domain=s", "help")
     or $self->info("Error parsing the options of 'services'")
     and return;
   @_ = @ARGV;
@@ -467,29 +467,23 @@ sub services {
   $opt->{n}       and $dontcall    = 1;
   $opt->{verbose} and $replystatus = 1;
   
-  if ($opt->{se}){
-  	return $self->{CATALOG}->seStatus(@_);  	
-  }
-  
-  
   $domain = $opt->{domain};
 
   $opt->{core}    and push @checkservices, "Services";
-  $opt->{se}      and push @checkservices, "SE";
-  $opt->{ce}      and push @checkservices, "ClusterMonitor";
+  $opt->{mon}      and push @checkservices, "ClusterMonitor";
 
   @checkservices
-    or push @checkservices, "SE", "ClusterMonitor",  "Services";
+    or push @checkservices, "ClusterMonitor",  "Services";
 
-	my $message="==   Service   == Servicename ============================================= Hostname ==   Status    ==";
+	my $message="==   Service   == Servicename ========================================================================================== Hostname ==   Status    ==  Version";
 	
   if ($replystatus) {
     $message.="  Vers. =  R  S  D  T  Z ="
   } 
-  $message.="\n-----------------------------------------------------------------------------------------------------------------------------\n";
+  $message.="\n----------------------------------------------------------------------------------------------------------------------------------------------------------------\n";
  
- 	$self->info($message);
- 	
+  #$self->info($message);
+  print STDERR "$message";	
  	
   foreach (@checkservices) {
     @hostports = "";
@@ -499,7 +493,7 @@ sub services {
     my ($response) = $self->{RPC}->CallRPC("IS", "getAllServices", $doservice)
       or next;
 
-    if ((defined $response) && ($response eq "-1")) {
+    if ((defined $response) && (($response eq "-1") || ($response =~ /^NO ACTIVE/i ))) {
       my $printservice = "$service";
       if ($service eq "ClusterMonitor") {
         $printservice = "CluMon";
@@ -507,8 +501,7 @@ sub services {
 
       printf STDERR "- [ %-9s ]   not running \n", $printservice;
 
-      print STDERR
-"-----------------------------------------------------------------------------------------------------------------------------\n";
+      print STDERR "----------------------------------------------------------------------------------------------------------------------------------------------------------------\n";
       next;
     }
 
@@ -532,7 +525,6 @@ sub services {
       $cnt++;
     }
 
-    #   print "@hostports | @names\n";
     my $soapservice;
     $cnt = 0;
     for (@hostports) {
@@ -571,12 +563,15 @@ sub services {
       }
 
       my $function = "reply";
+
       ($replystatus eq "1") and $function .= "status";
       if (!$dontcall) {
         eval {
-          $response = SOAP::Lite->uri("AliEn/Service/$soapservice")->proxy("http://$_", timeout => 3)->$function();
+	    $self->{RPC}->Connect("CM_$_", "http://$_", "$soapservice" ,);
+            ($response) = $self->{RPC}->CallRPC("CM_$_","$function",[timeout=>5]); 
         };
       }
+
 
       my $printservice = "";
       my $printname    = $names[$cnt];
@@ -607,45 +602,53 @@ sub services {
       }
       $hashresult->{servicetype} = $printservice;
       $hashresult->{servicename} = $printname;
-      printf STDERR "- [ %-9s ]   %-25s %40s ", $printservice, $printname, $_;
-      if ((!defined $response) || (($response eq "-1") || ($response eq "") || ($response ne "1"))) {
-        printf STDERR "-- no response --\n";
-        $hashresult->{servicestatus} = "noresponse";
-      } else {
-        $response = $response->result;
-        if ((defined $response->{'OK'}) && ($response->{'OK'} == 1)) {
-          $hashresult->{servicestatus} = "ok";
-          if ((defined $response->{'VERSION'}) && ($replystatus)) {
-            print STDERR "--      OK     --  $response->{'VERSION'}";
-          } else {
-            print STDERR "--      OK     --";
-          }
-        } else {
-          print STDERR "--     down    --";
-          $hashresult->{servicestatus} = "down";
-        }
+      printf STDERR "- [ %-9s ]   %-45s %65s ", $printservice, $printname, $_;
 
-        if ( (defined $response->{'Sleep'})
-          && (defined $response->{'Run'})
-          && (defined $response->{'Trace'})
-          && (defined $response->{'Disk'})
-          && (defined $response->{'Zombie'})) {
-          printf STDERR " %2d %2d %2d %2d %2d\n", $response->{'Run'}, $response->{'Sleep'}, $response->{'Disk'},
-            $response->{'Trace'}, $response->{'Zombie'};
-        } else {
-          print STDERR " \n";
+        if ( (defined $response) ){
+          if ( (defined $response->{'OK'}) &&  ($response->{OK} == 1) ){
+	    $hashresult->{servicestatus} = "ok";
+            if ((defined $response->{'VERSION'})) {
+              print STDERR "--      OK     --  $response->{'VERSION'}";
+            } else {
+              print STDERR "--      OK     --";
+            }            
+          }else{
+            print STDERR "--     down    --";
+            $hashresult->{servicestatus} = "down";
+          }
+
+
+          if ( (defined $response->{'Sleep'})
+            && (defined $response->{'Run'})
+            && (defined $response->{'Trace'})
+            && (defined $response->{'Disk'})
+            && (defined $response->{'Zombie'})) {
+            printf STDERR " %2d %2d %2d %2d %2d\n", $response->{'Run'}, $response->{'Sleep'}, $response->{'Disk'},
+              $response->{'Trace'}, $response->{'Zombie'};
+          } else {
+            print STDERR " \n";
+          }
+
+
+	}else{
+           printf STDERR "-- no response --\n";
+           $hashresult->{servicestatus} = "noresponse";
         }
-      }
+      
+      
       push @returnarray, $hashresult;
       $cnt++;
+     
     }
-    printf STDERR
-"-----------------------------------------------------------------------------------------------------------------------------\n";
+    printf STDERR "----------------------------------------------------------------------------------------------------------------------------------------------------------------\n";
   }
   $returnhash and return @returnarray;
 
   return 1;
 }
+
+
+
 
 # This subroutine receives a list of SE, and returns the same list,
 # but ordered according to the se

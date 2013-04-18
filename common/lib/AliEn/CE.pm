@@ -1252,7 +1252,7 @@ sub getTopFromDB {
 
   my $usage="\n\tUsage: top [-status <status>] [-user <user>] [-host <exechost>] [-command <commandName>] [-id <queueId>] [-split <origJobId>] [-all] [-all_status] [-site <siteName>] [-r]";
 
-  $self->info( "Asking for top..." );
+  $self->debug(1, "Asking for top..." );
 
   my $where=" join QUEUE_USER using (userid) join QUEUE_COMMAND using (commandId) JOIN QUEUE_HOST s on (submithostid=s.hostId) WHERE 1=1";
   my $columns="queueId, statusId, command name, s.host submitHost, user ";
@@ -1279,10 +1279,36 @@ sub getTopFromDB {
 
   while (@_) {
     my $argv=shift;
-    $self->info("Doing $argv");
+
+    #JBEHRENDT:  for -m parameter
+    if ($argv=~ /^-?-m(aster)?/){
+       $where = "join QUEUE_USER using (userid) join QUEUE_COMMAND using (commandId) JOIN QUEUE_HOST s on (submithostid=s.hostId) join QUEUEJDL using(queueId) where split=0 and upper(origJdl) like '%SPLIT%'";
+       while (@_) {
+         my $argv=shift;
+         if ($argv=~ /^-?-u(ser)?/){
+           my $uname=shift;
+           $where .=  " and (user='$uname')";
+           next;
+         }
+         if ($argv=~ /^-?-f(ilterdone)?/){
+           $where .= " and ( statusId != 15)";
+           next;
+         }
+       }
+
+       my $rresult = $self->{TASK_DB}->getFieldsFromQueueEx($columns,$where)
+         or $self->info( "In getTop error getting data from database" )
+           and return (-1, "error getting data from database");
+
+       my @entries=@$rresult;
+       $self->info("Top done with $#entries +1");
+       return $rresult;
+    }
+
     ($argv=~ /^-?-all_status=?/) and $all_status=1 and  next;
     ($argv=~ /^-?-a(ll)?=?/) and $columns.=", e.host execHost, received, started, finished, split, resubmission" and $where= " left join QUEUE_HOST e on (e.hostid=exechostid) $where"
       and next;
+
     # Added for -r parameter
     ($argv=~ /^-?-r/) and !($argv=~ /^-?-a(ll)?=?/) and $columns.=", resubmission" and next; 
      
