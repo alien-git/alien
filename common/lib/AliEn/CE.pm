@@ -1250,7 +1250,7 @@ sub getTopFromDB {
   #my $args =join (" ", @_);
   my $date = time;
 
-  my $usage="\n\tUsage: top [-status <status>] [-user <user>] [-host <exechost>] [-command <commandName>] [-id <queueId>] [-split <origJobId>] [-all] [-all_status] [-site <siteName>] [-r]";
+  my $usage="\n\tUsage: top [-status <status>] [-user <user>] [-host <exechost>] [-command <commandName>] [-id <queueId>] [-split <origJobId>] [-all] [-all_status] [-site <siteName>] [-r] [-m(aster) [-f(filterdone)] [-u(ser) <user>]]";
 
   $self->debug(1, "Asking for top..." );
 
@@ -3973,8 +3973,8 @@ sub f_jquota_list {
  
 
 	my $result = $self->{TASK_DB}->query("select 
-	user, priority, computedpriority, running, maxparallelJobs, unfinishedJobsLast24h, maxUnfinishedJobs, totalRunningTimeLast24h, maxTotalRunningTime, totalCpuCostLast24h, maxTotalCpuCost
-from PRIORITY join QUEUE_USER using (userid) $where ", undef, {bind_values=>\@bind}
+ 	user, priority, computedpriority, running, maxparallelJobs, unfinishedJobsLast24h, maxUnfinishedJobs, totalRunningTimeLast24h, maxTotalRunningTime, totalCpuCostLast24h, maxTotalCpuCost, touchTime
+  from PRIORITY,QUEUE_USER_TIME join QUEUE_USER using (userid) $where ", undef, {bind_values=>\@bind}
 		)
 		or $self->info("Failed to getting data from PRIORITY table", 1)
 		and return;
@@ -3987,7 +3987,7 @@ from PRIORITY join QUEUE_USER using (userid) $where ", undef, {bind_values=>\@bi
 
 	$self->info(
 "-------------------------------------------------------------------------------------------
-                user        priority         runningJobs        unfinishedJobs        totalCpuCost                    totalRunningTime
+                user        priority         runningJobs        unfinishedJobs        totalCpuCost                    totalRunningTime               touchTime
 ------------------------------------------------------------------------------------------\n",
 
 		undef, 0
@@ -3997,12 +3997,12 @@ from PRIORITY join QUEUE_USER using (userid) $where ", undef, {bind_values=>\@bi
 		$cnt++;
 		$self->info(
 			sprintf(
-				" [%04d. ]   %12s   %5s (%5s)   %5s/%5s        %5s/%5s         %5s/%5s             %5s/%5s",
+				" [%04d. ]   %12s   %5s (%5s)   %5s/%5s        %5s/%5s         %5s/%5s             %5s/%5s        %10s",
 				$cnt,                            $_->{'user'},  $_->{priority}, $_->{computedpriority},
                                 $_->{running}, $_->{maxparallelJobs},
                                 $_->{'unfinishedJobsLast24h'},
 				$_->{'maxUnfinishedJobs'},       $_->{'totalCpuCostLast24h'}, $_->{'maxTotalCpuCost'},
-				$_->{'totalRunningTimeLast24h'}, $_->{'maxTotalRunningTime'}
+ 				$_->{'totalRunningTimeLast24h'}, $_->{'maxTotalRunningTime', $_->{'touchTime'}}
 			),
 			undef, 0
 		);

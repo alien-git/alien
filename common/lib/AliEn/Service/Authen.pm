@@ -244,6 +244,15 @@ print STDERR "BEFORE THE CALL\n";
 }
 
 
+ sub _touchUser {
+   my $self = shift;
+   my $user      = shift;
+   my $directory = shift;
+   my $op        = shift;
+   $self->{UI}->{QUEUE}->{TASK_DB}->do("update QUEUE_USER set touchTime = NOW() where user=?", {bind_values=>[$user]});
+   return;
+ }
+
 sub doOperation : Public  {
   my $other     = shift;
 
@@ -254,6 +263,17 @@ sub doOperation : Public  {
   my $directory = shift;
   my $op        = shift;
   $self->info("$$ Ready to do an operation for $user in $directory (and $op '@_')");
+
+
+  if ( $op =~ /^login/ ) {
+       my $lastTime  = $self->{UI}->{QUEUE}->{TASK_DB}->queryValue("select touchTime from QUEUE_USER where user=?",undef,{bind_values=>[$user]});
+       $self->_touchUser($user,$directory,$op);
+       return {
+ 	  rcvalues   => [],
+ 	  rcmessages => ["Last login: $lastTime \n"]
+       }
+  }
+
 
   my $jobID  = "0";
   my $before = Time::HiRes::time();

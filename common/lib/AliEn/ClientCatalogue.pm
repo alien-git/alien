@@ -32,6 +32,7 @@ sub new {
     $self->info("We are supposed to be $user");
   }
   $self->{DISPPATH} = $self->GetHomeDirectory();
+  $self->f_touch();
   $self->f_cd("$self->{DISPPATH}")
     or $self->info("Home directory for $self->{CONFIG}->{ROLE} does not exist or you do not have permissions")
     and return;
@@ -59,6 +60,14 @@ sub callAuthen {
   }
   $self->{LOGGER}->getDebugLevel() and push @_, "-debug=" . $self->{LOGGER}->getDebugLevel();
   return $self->{RPC}->CallRPCAndDisplay($self->{SILENT}, "Authen", "doOperation", $user, $self->{DISPPATH}, @_);
+}
+
+sub f_touch {
+    my $self = shift;
+
+    $self->callAuthen("login");
+
+    return;
 }
 
 sub f_cd {

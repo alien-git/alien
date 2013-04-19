@@ -326,7 +326,7 @@ sub initialize {
     QUEUE_USER => {
       columns => {
         userId  => "int not null auto_increment primary key",
-        user    => "varchar(64) CHARACTER SET latin1 COLLATE latin1_general_cs not null unique"
+        user    => "varchar(64) CHARACTER SET latin1 COLLATE latin1_general_cs not null unique", touchTime => "datetime default null"
       },
       id          => "userId",
       index       => "userId",
