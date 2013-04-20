@@ -45,7 +45,7 @@ sub new {
 	#    my $user = "aliprod";
 	bless($self, $class);
 	$self->SUPER::new() or return;
-  $self->info("CREAING A NEW CE");
+  $self->info("CREATING A NEW CE");
 
 	$self->{RPC} = new AliEn::RPC or $self->info("Error creating the RPC module") and return;
 
@@ -98,7 +98,6 @@ sub new {
 	$options->{PACKMAN} and $self->{PACKMAN} = $pOptions->{PACKMAN} = $options->{PACKMAN};
 	my $ca = AliEn::Classad::Host->new($pOptions) or return;
 
-	AliEn::Util::setCacheValue($self, "classad", $ca->asJDL);
 	$self->info($ca->asJDL);
 	$self->{X509} = new AliEn::X509         or return;
 	$self->{DB}   = new AliEn::Database::CE or return;
@@ -963,18 +962,14 @@ sub offerAgent {
 	($free_slots and ($free_slots > 0))
 		or $self->{LOGGER}->$mode("CE", "At the moment we are busy (we can't request new jobs)")
 		and return;
-	my $classad = AliEn::Util::returnCacheValue($self,"classad");
-	if (!$classad) {
-		my $ca = AliEn::Classad::Host->new({PACKMAN => $self->{PACKMAN}}) or return;
-		$ca->set_expression("LocalDiskSpace", 100000000);
-		$ca = $self->{BATCH}->prepareForSubmission($ca)
-			or $self->info("Error asking the CE to prepare for submission loop")
-			and return;
-		$classad = $ca->asJDL;
 
-		AliEn::Util::setCacheValue($self, "classad", $classad);
+	my $ca = AliEn::Classad::Host->new({PACKMAN => $self->{PACKMAN}}) or return;
+	$ca->set_expression("LocalDiskSpace", 100000000);
+	$ca = $self->{BATCH}->prepareForSubmission($ca)
+		or $self->info("Error asking the CE to prepare for submission loop")
+		and return;
+	my $classad = $ca->asJDL;
 
-	}
 	($done) = $self->{RPC}->CallRPC("Broker/Job", "offerAgent", $user, $self->{CONFIG}->{HOST}, $classad, $free_slots);
 
 	$done or return;
