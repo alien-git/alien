@@ -735,11 +735,6 @@ sub reconnect {
 
   $DEBUG and $self->debug(1, "Database: In reconnect connecting to database $db on host $host using driver $driver.");
 
-open FILETMP, ">>", "/tmp/queriesDie";
-print FILETMP "RECONNECTS \n\n";
-IO::File::close FILETMP;
-
-
   AliEn::Database::destroy($self);
 
   unless ($host eq $self->{HOST}
