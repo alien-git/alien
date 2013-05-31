@@ -1248,10 +1248,9 @@ sub addFile {
   my $options     = {};
   my $lineOptions = join(" ", @_);
   @ARGV = @_;
-  Getopt::Long::GetOptions($options, "silent", "versioning", "upload", "guid=s", "register", "feedback", "size=s",
-    "md5=s", "links=s")
-    or $self->info("Error checking the options of add")
-    and return;
+  Getopt::Long::GetOptions($options, 
+    "silent", "versioning", "upload", "guid=s", "register", "feedback", "size=s", "md5=s", "links=s")
+    or $self->info("Error checking the options of add") and return;
   @_ = @ARGV;
 
   my $targetLFN = (shift || ($self->info("ERROR, missing paramter: lfn") and return));
@@ -1339,6 +1338,8 @@ sub addFileToSEs {
 
   my @ses         = ();
   my @excludedSes = ();
+  my @prioritizedSes = ();
+  my @deprioritizedSes = ();
   my @qosList;
   
   foreach my $d ((split(",", join(",", @$SErequirements)))) {
@@ -1346,12 +1347,20 @@ sub addFileToSEs {
       $d = uc($d);
       grep (/^$d$/, @ses) or push @ses, $d;
       next;
-    } elsif (($d =~ s/!//) and (AliEn::Util::isValidSEName($d))) {
+    } 
+    elsif (($d !~ /\(/) and ($d =~ s/!//) and (AliEn::Util::isValidSEName($d))) {
       $d = uc($d);
       grep (/^$d$/, @excludedSes) or push @excludedSes, $d;
       next;
     } elsif ($d =~ /\=/) {
       grep (/^$d$/, @qosList) or push @qosList, $d;
+      next;
+    } elsif ($d =~ /\((.+)\)/) {
+      my @parts = split ( /;/, $1);      
+      foreach (@parts){
+      	$_ =~ s/!// and AliEn::Util::isValidSEName($_) and push @deprioritizedSes, $_ and next;
+      	AliEn::Util::isValidSEName($_) and push @prioritizedSes, $_;
+      }      
       next;
     } else {
       $self->notice("WARNING: Found the following unrecognizeable option:" . $d);
@@ -1359,6 +1368,8 @@ sub addFileToSEs {
     $d =~ /^\s*$/ and next;
     $self->notice("WARNING: Found the following unrecognizeable option:" . $d);
   }
+  
+    
   my $maximumCopyCount = 9;
   my $selOutOf         = 0;
   $self->debug(4, "Saving in @ses, ignoring @excludedSes, and using @qosList");
@@ -1412,7 +1423,7 @@ sub addFileToSEs {
     ($result, $links) =
       $self->putOnDynamicDiscoveredSEListByQoSV2($result, $sourcePFN, $targetLFN, $size, $md5, $qosTags->{$qos}, $qos,
       $self->{CONFIG}->{SITE},
-      \@excludedSes, $links);
+      \@excludedSes, $links, \@prioritizedSes, \@deprioritizedSes);
   }
   $self->info("OTRO");
   if ((scalar(@{$result->{usedEnvelopes}}) le 0) and (scalar(@ses) eq 0) and ($selOutOf le 0)) {
@@ -1531,17 +1542,19 @@ sub putOnStaticSESelectionListV2 {
 }
 
 sub putOnDynamicDiscoveredSEListByQoSV2 {
-  my $self        = shift;
-  my $result      = (shift || {});
-  my $sourcePFN   = (shift || "");
-  my $targetLFN   = (shift || "");
-  my $size        = (shift || 0);
-  my $md5         = (shift || 0);
-  my $count       = (shift || 0);
-  my $qos         = (shift || "");
-  my $sitename    = (shift || "");
-  my $excludedSes = (shift || []);
-  my $links       = (shift || 0);
+  my $self             = shift;
+  my $result           = (shift || {});
+  my $sourcePFN        = (shift || "");
+  my $targetLFN        = (shift || "");
+  my $size             = (shift || 0);
+  my $md5              = (shift || 0);
+  my $count            = (shift || 0);
+  my $qos              = (shift || "");
+  my $sitename         = (shift || "");
+  my $excludedSes      = (shift || []);
+  my $links            = (shift || 0);
+  my $prioritizedSes   = (shift || []);
+  my $deprioritizedSes = (shift || []);
 
   #   my $success=0;
   my @successfulUploads = ();
@@ -1550,15 +1563,17 @@ sub putOnDynamicDiscoveredSEListByQoSV2 {
     my @envelopes = AliEn::Util::deserializeSignedEnvelopes(
       $self->{CATALOG}->authorize(
         "write",
-        { lfn           => $targetLFN,
-          size          => $size,
-          md5           => $md5,
-          guidRequest   => ($result->{guid} || 0),
-          site          => $sitename,
-          writeQos      => $qos,
-          writeQosCount => $count,
-          excludeSE     => (join(";", @$excludedSes) || 0),
-          links         => $links
+        { lfn            => $targetLFN,
+          size           => $size,
+          md5            => $md5,
+          guidRequest    => ($result->{guid} || 0),
+          site           => $sitename,
+          writeQos       => $qos,
+          writeQosCount  => $count,
+          excludeSE      => (join(";", @$excludedSes) || 0),
+          links          => $links,
+          prioritizeSE   => (join(";", @$prioritizedSes) || 0),
+          deprioritizeSE => (join(";", @$deprioritizedSes) || 0)
         }
       )
     );
