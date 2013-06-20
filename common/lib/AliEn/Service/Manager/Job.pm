@@ -297,6 +297,11 @@ sub enterCommand: Public {
   };
 
 
+  # RemoteTimeout
+  ($ok,  my $remoteTimeout) = $job_ca->evaluateAttributeString("RemoteTimeout");
+  $ok and $remoteTimeout and $set->{remoteTimeout}=$remoteTimeout;
+  
+
   # MaxWaitingTime
   ($ok,  my $maxwaitingtime) = $job_ca->evaluateAttributeString("MaxWaitingTime");
 

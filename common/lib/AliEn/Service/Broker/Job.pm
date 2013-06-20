@@ -67,9 +67,9 @@ sub getJobAgent {
 		or $self->{LOGGER}->error("JobBroker", "In findjob error updating status of host $host")
 		and return;
   $self->info("Ready to extract params");
+  
    my ($ok, @info)= $self->getWaitingAgent($site_jdl);
    my ( $agentid, $queueName, $fileBroker, $remote)= @info;
-#  my ($ok, $agentid, $queueName, $fileBroker, $remote)= $self->getWaitingAgent($site_jdl);
   $self->info("HELLO $ok, $agentid");
   if ($ok< 1) {
     $self->info("We didn't get an agent (@info)");
@@ -125,8 +125,8 @@ sub getWaitingAgent {
 	my ($queueName, $params) = $self->extractClassadParams($site_jdl);
 	$self->info("The extract params worked");
 	$queueName eq '-1' and return (0, $params);
-	
 	$self->info("We have the parameters:" . Dumper($params));
+	$params->{remote} = 0;
 
 	$params->{returnId} = 1;
 	my $entry = $self->{DB}->getNumberWaitingForSite($params);
@@ -150,6 +150,7 @@ sub getWaitingAgent {
 	}
 	$self->info("Now, let's check with remote access");
 	$params->{returnId} = 1;
+	$params->{remote} = 1;
 	delete $params->{returnPackages};
 	delete $params->{site};
 	$params->{installedpackages}=$installedPackages;
@@ -387,8 +388,10 @@ sub offerAgent : Public{
 	$queueName eq '-1' and return $queueName, $params;
 
 	delete $params->{installedpackages};
+	
 	my $waiting = $self->{DB}->getNumberWaitingForSite($params);
 
+    $waiting or $waiting=0;
 	$self->info("We could run $waiting jobs there");
 	$waiting > $free_slots and $waiting = $free_slots;
 	if ($waiting) {

@@ -500,6 +500,8 @@ sub modifyJobCA {
 	$self->checkExpire($job_ca) or return;
 	
 	$self->checkRetries($job_ca) or return;
+	
+	$self->checkRemoteTimeout($job_ca) or return;
 
 	$job_ca->insertAttributeString("User", $self->{CATALOG}->{CATALOG}->{ROLE});
 
@@ -545,6 +547,25 @@ sub checkRetries {
 		}
 		else{
 			$self->info("No Retries [correctly] defined");
+			return;
+		}
+	} 
+	return 1;
+}
+
+# Retries check
+sub checkRemoteTimeout {
+	my $self   = shift;
+	my $job_ca = shift;
+	$DEBUG and $self->debug(1, "Checking the RemoteTimeout of this job");
+
+	my ($ok, $rt) = $job_ca->evaluateAttributeString("RemoteTimeout");
+	if ($ok) {
+		if ($rt && ($rt =~ /^\d+$/i) ) {
+			$self->info("RemoteTimeout defined to $rt");
+		}
+		else{
+			$self->info("No RemoteTimeout [correctly] defined");
 			return;
 		}
 	} 

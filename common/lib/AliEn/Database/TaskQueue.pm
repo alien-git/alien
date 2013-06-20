@@ -40,6 +40,8 @@ sub preConnect {
 sub initialize {
   my $self = shift;
 
+  $self->{DEFAULTREMOTETIMEOUT} = 0; #seconds
+  
   $self->{QUEUETABLE}     = "QUEUE";
   $self->{SITEQUEUETABLE} = "SITEQUEUES";
   $self->{JOBTOKENTABLE} = "JOBTOKEN";
@@ -109,34 +111,35 @@ sub initialize {
 
   my $queueColumns = {
     columns => {
-      queueId      => "int(11) not null auto_increment primary key",
-      userId       => "int ",
-      execHostId   => "int",
-      submitHostId => "int",
+      queueId       => "int(11) not null auto_increment primary key",
+      userId        => "int ",
+      execHostId    => "int",
+      submitHostId  => "int",
 #      priority     => "tinyint(4)",
-      statusId     => "tinyint not null",
-      received     => "int(20)",
-      started      => "int(20)",
-      finished     => "int(20)",
-      expires      => "int(10)",
-      error        => "int(11)",
-      validate     => "int(1)",
-      sent         => "int(20)",
-      siteId       => "int(20) not null",
-      nodeId       => "int",
-      split        => "int",
-      splitting    => "int",
-      merging      => "varchar(64)",
-      masterjob    => "int(1) default 0",
-      price        => "float",
-      chargeStatus => "varchar(20)",
-      optimized    => "int(1) default 0",
-      finalPrice   => "float",
-      notifyId     => "int",
-      agentId      => "int(11)",
-      mtime        => "timestamp  DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
-      resubmission => "int(11) not null default 0",
-      commandId    => "int(11)",
+      statusId      => "tinyint not null",
+      received      => "int(20)",
+      started       => "int(20)",
+      finished      => "int(20)",
+      expires       => "int(10)",
+      error         => "int(11)",
+      validate      => "int(1)",
+      sent          => "int(20)",
+      siteId        => "int(20) not null",
+      nodeId        => "int",
+      split         => "int",
+      splitting     => "int",
+      merging       => "varchar(64)",
+      masterjob     => "int(1) default 0",
+      price         => "float",
+      chargeStatus  => "varchar(20)",
+      optimized     => "int(1) default 0",
+      finalPrice    => "float",
+      notifyId      => "int",
+      agentId       => "int(11)",
+      mtime         => "timestamp  DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+      resubmission  => "int(11) not null default 0",
+      commandId     => "int(11)",
+      remoteTimeout => "int (11) default null"
     },
     id          => "queueId",
     index       => "queueId",
@@ -216,6 +219,7 @@ sub initialize {
       mtime        => "timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
       resubmission => "int(11) not null default 0",
       commandId    => "int(11)",
+      remoteTimeout => "int (11) default null",
       #QUEUEPROC
       runtime      => "varchar(20)",
       runtimes     => "int",
@@ -1635,6 +1639,10 @@ sub getNumberWaitingForSite{
   my $order = "order by priority desc";
   my $return= "sum(counter)";
   
+#  use Data::Dumper;
+#  open FILE, ">>", "/tmp/broker";
+#  print FILE "In getNumberWaitingForSite with params: ".Dumper($options);
+  
   $options->{ttl} and $where.=" and ttl < ?  " and push @bind, $options->{ttl};
   $options->{disk} and $where.=" and disk < ?  " and push @bind, $options->{disk};
   $options->{site} and $where.=" and (site='' or site like concat('%,',?,',%') )" and push @bind, $options->{site};   
@@ -1658,10 +1666,29 @@ sub getNumberWaitingForSite{
   	}
   	$where.=")";
   }
+  
+  if($options->{remote}==1){
+#  	print FILE "REMOTE \n";
+  	my ($agents) = $self->queryColumn("select agentId from QUEUE where statusId=5 and timestampdiff(SECOND,mtime,now())>=ifnull(remoteTimeout,$self->{DEFAULTREMOTETIMEOUT})"); 
+  	scalar(@$agents) or return 0;
+  	$where.="and entryId in (";  	
+  	foreach my $agent (@$agents){
+  	  $where.="$agent,";
+  	}
+  	$where =~ s/,$//;
+  	$where.=")";
+#  	print FILE "where: $where \n";
+  }
 
   $options->{cerequirements_partitions} and $where.=" and partition=?" and push @bind, $options->{cerequirements_partitions};
     
   return $self->$method("select $return from JOBAGENT where 1=1 $where $order limit 1", undef, {bind_values=>\@bind});
+  
+#  print FILE "Ret: ".Dumper($ret);
+#  close FILE;
+#   
+#  return $ret; 
+  
 }
 
 sub getWaitingJobForAgentId{ 
@@ -1678,7 +1705,9 @@ sub getWaitingJobForAgentId{
   my $hostId=$self->getOrInsertFromLookupTable('host',$host);
 
   my $done=$self->do("UPDATE QUEUE set statusId=".AliEn::Util::statusForML('ASSIGNED').",siteid=?, exechostid=?
-    where statusId=".AliEn::Util::statusForML('WAITING')." and agentid=? and \@assigned_job:=queueid  limit 1", 
+    where statusId=".AliEn::Util::statusForML('WAITING')." and agentid=? 
+    and timestampdiff(SECOND,mtime,now())>=ifnull(remoteTimeout,$self->{DEFAULTREMOTETIMEOUT}) 
+    and \@assigned_job:=queueid  limit 1", 
                      {bind_values=>[$siteid, $hostId, $agentid ]});
   
   if ($done>0){
