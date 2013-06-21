@@ -1437,6 +1437,8 @@ sub addFileToSEs {
 
   my @ses = ();
   my @excludedSes = ();
+  my @prioritizedSes = ();
+  my @deprioritizedSes = ();
   my @qosList;
 
   foreach my $d ((split(",", join(",",@$SErequirements)))) {
@@ -1445,7 +1447,7 @@ sub addFileToSEs {
         grep (/^$d$/,@ses) or push @ses, $d;
         next;
     }
-    elsif (($d =~ s/!//) and (AliEn::Util::isValidSEName($d))) {
+    elsif (($d !~ /\(/) and ($d =~ s/!//) and (AliEn::Util::isValidSEName($d))) {
         $d=uc($d);
         grep (/^$d$/,@excludedSes) or push @excludedSes, $d;
         next;
@@ -1453,7 +1455,16 @@ sub addFileToSEs {
     elsif ($d =~ /\=/){
       grep (/^$d$/, @qosList) or push @qosList, $d;
       next;
-    } else {
+    } 
+    elsif ($d =~ /\((.+)\)/) {
+      my @parts = split ( /;/, $1);      
+      foreach (@parts){
+        $_ =~ s/!// and AliEn::Util::isValidSEName($_) and push @deprioritizedSes, $_ and next;
+        AliEn::Util::isValidSEName($_) and push @prioritizedSes, $_;
+      }      
+      next;
+    }
+    else {
        $self->notice("WARNING: Found the following unrecognizeable option:".$d);
     }
     $d =~ /^\s*$/ and next;
@@ -1518,7 +1529,7 @@ sub addFileToSEs {
   ($selOutOf ne scalar(@ses)) and $staticmessage = "Uploading file to @ses, with select $selOutOf out of ".scalar(@ses)." (based on static SE specification).";
   (scalar(@ses) gt 0) and $self->notice($staticmessage);
 
-  (scalar(@ses) gt 0) and ($result, $links) = $self->putOnStaticSESelectionListV2($result,$sourcePFN,$targetLFN,$size,$md5,$selOutOf,\@ses,$links);
+  (scalar(@ses) gt 0) and ($result, $links) = $self->putOnStaticSESelectionListV2($result,$sourcePFN,$targetLFN,$size,$md5,$selOutOf,\@ses,$links, \@prioritizedSes, \@deprioritizedSes);
 
   (scalar(@{$result->{usedEnvelopes}}) gt 0) or $self->error("We couldn't upload any copy of the file.") and return;
 
@@ -1609,13 +1620,26 @@ sub putOnDynamicDiscoveredSEListByQoSV2{
    my $sitename=(shift || "");
    my $excludedSes=(shift || []);
    my $links=(shift || 0);
+   my $prioritizedSes   = (shift || []);
+   my $deprioritizedSes = (shift || []);
+
 #   my $success=0;
    my @successfulUploads = ();
 
    while($count gt 0) {
-     my @envelopes= AliEn::Util::deserializeSignedEnvelopes($self->{CATALOG}->authorize("write", {lfn=>$targetLFN, 
-       size=> $size, md5=>$md5,  guidRequest=>($result->{guid} || 0), site=>$sitename, 
-          writeQos=>$qos, writeQosCount=>$count, excludeSE=>(join(";", @$excludedSes) || 0), links=>$links}));
+     my @envelopes= AliEn::Util::deserializeSignedEnvelopes($self->{CATALOG}->authorize("write", 
+     {  lfn=>$targetLFN, 
+        size=> $size, 
+        md5=>$md5,  
+        guidRequest=>($result->{guid} || 0), 
+        site=>$sitename, 
+        writeQos=>$qos, 
+        writeQosCount=>$count, 
+        excludeSE=>(join(";", @$excludedSes) || 0), 
+        links=>$links,
+        prioritizeSE   => (join(";", @$prioritizedSes) || 0),
+        deprioritizeSE => (join(";", @$deprioritizedSes) || 0)
+     }));
 
      ((!@envelopes) || (scalar(@envelopes) eq 0) || (not defined($envelopes[0]->{signedEnvelope}))) and
          $self->error("We couldn't get any envelopes (requested were '$count')  with qos flag '$qos'.") and return($result, $links);

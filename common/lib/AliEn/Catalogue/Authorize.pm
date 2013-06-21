@@ -1418,7 +1418,10 @@ sub getSEsAndCheckQuotaForWriteOrMirrorAccess {
   my $writeQos             = (shift || {});
   my $writeQosCount        = (shift || 0);
   my $excludedAndfailedSEs = (shift || []);
-
+  my $prioritizedSEs       = (shift || []);
+  my $deprioritizedSEs     = (shift || []);
+  
+  
   $envelope->{size} and ($envelope->{size} gt 0)
     or $self->info("Authorize: ERROR: File has zero size, we don't allow that.")
     and return 0;
@@ -1434,7 +1437,7 @@ sub getSEsAndCheckQuotaForWriteOrMirrorAccess {
   if (($sitename ne 0) and ($writeQos ne 0) and ($writeQosCount gt 0)) {
     my $dynamicSElist =
       $self->getSEListFromSiteSECacheForWriteAccess($user, $envelope->{size}, $writeQos, $writeQosCount, $sitename,
-      $excludedAndfailedSEs);
+      $excludedAndfailedSEs, $prioritizedSEs, $deprioritizedSEs);
     push @$seList, @$dynamicSElist;
   }
 
@@ -1801,7 +1804,6 @@ sub reduceFileHashAndInitializeEnvelope {
 
 sub authorize {
   my $self = shift;
-
   my $access            = (shift || return);
   my @registerEnvelopes = @_;
   my $jid               = pop(@registerEnvelopes);    # remove the added jobID from Service/Authen
@@ -1835,6 +1837,9 @@ sub authorize {
   my $excludedAndfailedSEs = $self->validateArrayOfSEs(split(/;/, ($options->{excludeSE} || "")));
   my $pfn   = ($options->{pfn}   || "");
   my $links = ($options->{links} || 0);
+  my $prioritizedSEs = $self->validateArrayOfSEs(split(/;/, ($options->{prioritizeSE} || "")));
+  my $deprioritizedSEs = $self->validateArrayOfSEs(split(/;/, ($options->{deprioritizeSE} || "")));
+  
   my $linksToBeBooked = 1;
   my $jobID           = (shift || 0);
 
@@ -1874,7 +1879,7 @@ sub authorize {
   ($writeReq or $mirrorReq)
     and ($prepareEnvelope, $seList) =
     $self->getSEsAndCheckQuotaForWriteOrMirrorAccess($user, $prepareEnvelope, $seList, $sitename, $writeQos,
-    $writeQosCount, $excludedAndfailedSEs);
+    $writeQosCount, $excludedAndfailedSEs, $prioritizedSEs, $deprioritizedSEs);
 
   $readReq
     and $prepareEnvelope = $self->getBaseEnvelopeForReadAccess($user, $lfn, $seList, $excludedAndfailedSEs, $sitename)
@@ -2190,19 +2195,56 @@ sub validateArrayOfSEs {
   return \@ses;
 }
 
-sub getSEListFromSiteSECacheForWriteAccess {
-  my $self        = shift;
-  my $user        = (shift || return 0);
-  my $fileSize    = (shift || 0);
-  my $type        = (shift || return 0);
-  my $count       = (shift || return 0);
-  my $sitename    = (shift || return 0);
-  my $excludeList = (shift || "");
+sub getSEListFromSiteSECacheForWriteAccess{
+   my $self=shift;
+   my $user=(shift || return 0);
+   my $fileSize=(shift || 0);
+   my $type=(shift || return 0);
+   my $count=(shift || return 0);
+   my $sitename=(shift || return 0);
+   my $excludeList=(shift || "");
+   my $prioritizeList   = (shift || "");
+   my $deprioritizeList = (shift || "");
+   
+   my $pri = scalar(@$prioritizeList) + scalar(@$deprioritizeList);
 
-  my $catalogue = $self->{DATABASE}->{LFN_DB}->{FIRST_DB};
+   my $catalogue = $self->{DATABASE}->{LFN_DB}->{FIRST_DB};
 
-  $self->checkSiteSECacheForAccess($sitename) or return 0;
-  return $catalogue->dbGetSEListFromSiteSECacheForWriteAccess($user, $fileSize, $type, $count, $sitename, $excludeList);
+   $self->checkSiteSECacheForAccess($sitename) or return 0;
+
+  my $query = "SELECT DISTINCT SE.seName, distance + sedemotewrite weight FROM SEDistance join SE using (seNumber) WHERE 
+     sitename=? and SE.seMinSize <= ? and SE.seQoS  LIKE concat('%,' , ? , ',%' ) 
+  and (SE.seExclusiveWrite is NULL or SE.seExclusiveWrite = '' or SE.seExclusiveWrite  LIKE concat ('%,' , ? , ',%') ) ";
+
+   my @queryValues= ($sitename, $fileSize, $type, $user);
+
+   foreach (@$excludeList) {
+      $query .= " and SE.seName<>? ";
+      push @queryValues, $_;
+    }
+
+   #$query .= ")bb order by weight asc limit $count";
+   $query .= " order by weight asc "; #limit $count
+
+  my ($result) = $catalogue->query($query, undef, {bind_values => \@queryValues});
+  my $factor = 1;
+  
+  foreach my $se (@$result){
+       grep (/^$se->{seName}$/i, @$prioritizeList)   and $se->{weight} -= $factor and next;
+       grep (/^$se->{seName}$/i, @$deprioritizeList) and $se->{weight} += $factor;
+  }
+  
+  my $number = 0;
+  my @return;
+  foreach (sort {$$a{weight} cmp $$b{weight} } @$result){
+       push @return, $$_{seName};
+       $number++;
+       $number == $count and last;
+  }
+  
+  return \@return;
+
+  # return $catalogue->queryColumn($query, undef, {bind_values=>\@queryValues});
 
 }
 
