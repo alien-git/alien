@@ -1516,7 +1516,7 @@ sub addFileToSEs {
   
   foreach my $qos(keys %$qosTags){
     $self->notice("Uploading file based on Storage Discovery, requesting QoS=$qos, count=$qosTags->{$qos}");
-    ($result, $links) = $self->putOnDynamicDiscoveredSEListByQoSV2($result,$sourcePFN,$targetLFN,$size,$md5,$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes,$links);
+    ($result, $links) = $self->putOnDynamicDiscoveredSEListByQoSV2($result,$sourcePFN,$targetLFN,$size,$md5,$qosTags->{$qos},$qos,$self->{CONFIG}->{SITE},\@excludedSes,$links, \@prioritizedSes, \@deprioritizedSes);
   }
   if ((scalar(@{$result->{usedEnvelopes}}) le 0) and (scalar(@ses) eq 0) and ($selOutOf le 0)){ 
     # if dynamic was either not specified or not successfull (not even one time, thats the @{$result->{usedEnvelopes}}
@@ -1529,7 +1529,7 @@ sub addFileToSEs {
   ($selOutOf ne scalar(@ses)) and $staticmessage = "Uploading file to @ses, with select $selOutOf out of ".scalar(@ses)." (based on static SE specification).";
   (scalar(@ses) gt 0) and $self->notice($staticmessage);
 
-  (scalar(@ses) gt 0) and ($result, $links) = $self->putOnStaticSESelectionListV2($result,$sourcePFN,$targetLFN,$size,$md5,$selOutOf,\@ses,$links, \@prioritizedSes, \@deprioritizedSes);
+  (scalar(@ses) gt 0) and ($result, $links) = $self->putOnStaticSESelectionListV2($result,$sourcePFN,$targetLFN,$size,$md5,$selOutOf,\@ses,$links);
 
   (scalar(@{$result->{usedEnvelopes}}) gt 0) or $self->error("We couldn't upload any copy of the file.") and return;
 
