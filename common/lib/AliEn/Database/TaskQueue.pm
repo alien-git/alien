@@ -40,7 +40,7 @@ sub preConnect {
 sub initialize {
   my $self = shift;
 
-  $self->{DEFAULTREMOTETIMEOUT} = 0; #seconds
+  $self->{DEFAULTREMOTETIMEOUT} = 43200; #seconds
   
   $self->{QUEUETABLE}     = "QUEUE";
   $self->{SITEQUEUETABLE} = "SITEQUEUES";
