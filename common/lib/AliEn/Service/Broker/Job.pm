@@ -75,7 +75,7 @@ sub getJobAgent {
     $self->info("We didn't get an agent (@info)");
     return {execute => [ $ok, @info ]};
   }
-	my ($queueid, $jdl, $jobUser) = $self->{DB}->getWaitingJobForAgentId($agentid, $queueName, $host);
+	my ($queueid, $jdl, $jobUser) = $self->{DB}->getWaitingJobForAgentId($agentid, $queueName, $host, $remote);
 	$queueid
 		or $self->info("There were no jobs waiting for agentid!")
 		and return {execute => [ -2, "No jobs waiting in the queue" ]};

@@ -1639,10 +1639,6 @@ sub getNumberWaitingForSite{
   my $order = "order by priority desc";
   my $return= "sum(counter)";
   
-#  use Data::Dumper;
-#  open FILE, ">>", "/tmp/broker";
-#  print FILE "In getNumberWaitingForSite with params: ".Dumper($options);
-  
   $options->{ttl} and $where.=" and ttl < ?  " and push @bind, $options->{ttl};
   $options->{disk} and $where.=" and disk < ?  " and push @bind, $options->{disk};
   $options->{site} and $where.=" and (site='' or site like concat('%,',?,',%') )" and push @bind, $options->{site};   
@@ -1668,7 +1664,6 @@ sub getNumberWaitingForSite{
   }
   
   if($options->{remote}==1){
-#  	print FILE "REMOTE \n";
   	my ($agents) = $self->queryColumn("select agentId from QUEUE where statusId=5 and timestampdiff(SECOND,mtime,now())>=ifnull(remoteTimeout,$self->{DEFAULTREMOTETIMEOUT})"); 
   	scalar(@$agents) or return 0;
   	$where.="and entryId in (";  	
@@ -1677,17 +1672,11 @@ sub getNumberWaitingForSite{
   	}
   	$where =~ s/,$//;
   	$where.=")";
-#  	print FILE "where: $where \n";
   }
 
   $options->{cerequirements_partitions} and $where.=" and partition=?" and push @bind, $options->{cerequirements_partitions};
     
   return $self->$method("select $return from JOBAGENT where 1=1 $where $order limit 1", undef, {bind_values=>\@bind});
-  
-#  print FILE "Ret: ".Dumper($ret);
-#  close FILE;
-#   
-#  return $ret; 
   
 }
 
@@ -1696,18 +1685,26 @@ sub getWaitingJobForAgentId{
   my $agentid=shift;
   my $cename=shift || "no_user\@no_site";
   my $host =shift || "";
+  my $remote = shift || 0;
+  my $jobWaitingForRemote = 0;
   $self->info("Getting a waiting job for $agentid");
- 
   
   my $siteid=$self->queryValue("select siteid from SITEQUEUES where site=?",
                                undef, {bind_values=>[$cename]});
                                
   my $hostId=$self->getOrInsertFromLookupTable('host',$host);
 
+  my $extra="";
+  if($remote){
+  	$extra = "and timestampdiff(SECOND,mtime,now())>=ifnull(remoteTimeout,$self->{DEFAULTREMOTETIMEOUT})";
+  	$jobWaitingForRemote = $self->queryValue("select queueId from QUEUE where 
+  	                          statusId=".AliEn::Util::statusForML('WAITING')." and agentid=? 
+  	                          and timestampdiff(SECOND,mtime,now())<ifnull(remoteTimeout,$self->{DEFAULTREMOTETIMEOUT})", 
+  	                          undef, {bind_values=>[$agentid]});
+  } 
+  
   my $done=$self->do("UPDATE QUEUE set statusId=".AliEn::Util::statusForML('ASSIGNED').",siteid=?, exechostid=?
-    where statusId=".AliEn::Util::statusForML('WAITING')." and agentid=? 
-    and timestampdiff(SECOND,mtime,now())>=ifnull(remoteTimeout,$self->{DEFAULTREMOTETIMEOUT}) 
-    and \@assigned_job:=queueid  limit 1", 
+    where statusId=".AliEn::Util::statusForML('WAITING')." and agentid=? $extra and \@assigned_job:=queueid  limit 1", 
                      {bind_values=>[$siteid, $hostId, $agentid ]});
   
   if ($done>0){
@@ -1720,13 +1717,15 @@ sub getWaitingJobForAgentId{
   	 
   	$self->deleteJobAgent($agentid);
   	$self->info("Giving back the job $info->{queueid}");
+  	  	
   	return ($info->{queueid}, $info->{jdl}, $info->{user});
   }
+  
   $self->info("There were no jobs waiting for agent $agentid");
-  $self->do("DELETE FROM JOBAGENT where entryid=?", {bind_values=>[$agentid]}); 
-  return;
-  	
-	
+  $remote and $jobWaitingForRemote 
+      or $self->do("DELETE FROM JOBAGENT where entryid=?", {bind_values=>[$agentid]}); 
+      
+  return;	
 }
 
 sub resubmitJob{
