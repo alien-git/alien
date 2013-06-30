@@ -1171,6 +1171,53 @@ chmod +x alien-auto-installer
 
 echo \"Installation completed!!\"
 
+kill_aria2c()
+{
+    # explicitly kill aria2c processes that have been observed
+    # not to exit after their configured lifetime...
+
+    delta=303	# a value that may be found quickly in a ps output
+    timeout=\${1:-900}
+
+    case \$timeout in
+    *[!0-9]*)
+	timeout=0
+    esac
+
+    while :
+    do
+	aria2c=\`
+	    ps xwww | grep \"\$DIR/.*/aria2c[ ]\" |
+	    egrep -v ' --seed-time=0+ ' | awk '{ print \$1 }'
+	\`
+
+	case \$aria2c in
+	[1-9]*[0-9])
+
+	    if [ \$timeout -gt 0 ]
+	    then
+		sleep \$delta
+		let \"timeout -= \$delta\"
+		continue
+	    fi
+
+	    echo ''
+	    echo 'NOTICE: aria2c still found alive, killing it now...'
+	    date
+
+	    for i in \$aria2c
+	    do
+		ps \"uwww\$i\"
+		kill -9 \"\$i\"
+	    done
+	esac
+
+	break
+    done
+}
+
+kill_aria2c 900 &
+
 "
 }
 
@@ -1178,21 +1225,18 @@ sub installWithTorrent {
   my $self = shift;
   $self->info("The worker node will install with the torrent method!!!");
 
-
-
-  return "./alien/bin/alien", $self->torrentScript("\`pwd\`/alien_installation.\$\$"),
- "rm -rf \$DIR";
+  return "./alien/bin/alien",
+    $self->torrentScript("\`pwd\`/alien_installation.\$\$"),
+    "kill_aria2c 0; rm -rf \$DIR; exit";
 }
 
 sub installWithTorrentPerHost {
   my $self = shift;
   $self->info("The worker node will install with the torrent  method!!!");
 
-
-
-
-
-  return "../alien/bin/alien", $self->torrentScript("$self->{CONFIG}->{WORK_DIR}/alien_torrent"),"";
+  return "../alien/bin/alien",
+    $self->torrentScript("$self->{CONFIG}->{WORK_DIR}/alien_torrent"),
+    "kill_aria2c 0; exit";
 }
 
 sub checkQueueStatus() {
