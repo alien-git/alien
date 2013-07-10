@@ -196,7 +196,7 @@ sub initialize {
       userId       => "int ",
       execHostId   => "int",
       submitHostId => "int",
-      priority     => "tinyint(4)",
+#      priority     => "tinyint(4)",
       statusId     => "tinyint not null",
       received     => "int(20)",
       started      => "int(20)",
@@ -256,7 +256,7 @@ sub initialize {
       "foreign key (submithostId) references QUEUE_HOST(hostId) on delete cascade",
       "foreign key (nodeId) references QUEUE_HOST(hostId) on delete cascade",
       "foreign key (commandId) references QUEUE_COMMAND(commandId) on delete cascade",
-      "INDEX(priority)",
+#      "INDEX(priority)",
       "INDEX (siteId,statusId)",
       "INDEX (sent)",
       "UNIQUE INDEX (statusId,queueId)"
