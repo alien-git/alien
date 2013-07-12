@@ -1734,7 +1734,7 @@ sub resubmitJob{
 	
 	$self->do("update QUEUEJDL set resultsJdl=null,path=null where queueid=?",{bind_values=>[$queueid]} );
 	my $status='WAITING';
-	my $data=$self->queryRow("select siteid,statusId,masterjob from QUEUE where queueid=?", undef, {bind_values=>[$queueid]})
+	my $data=$self->queryRow("select siteid,statusId,masterjob,split from QUEUE where queueid=?", undef, {bind_values=>[$queueid]})
 	 or $self->info("Error getting the previous status of the job ") and return;
 	 
 	my $previousStatus=AliEn::Util::statusName($data->{statusId});
@@ -1751,32 +1751,36 @@ sub resubmitJob{
 		{bind_values=>[AliEn::Util::statusForML($status), $queueid]	} );
 	$self->do("UPDATE SITEQUEUES set $previousStatus=$previousStatus-1 where siteid=?", {bind_values=>[$previousSiteId]});
 	$self->do("UPDATE SITEQUEUES set $status=$status+1 where siteid=$unassignedId");
+
+    $data->{split} and 
+      $self->do("UPDATE QUEUE set statusId=? where queueId=?", {bind_values=>[AliEn::Util::statusForML("SPLIT"),$data->{split}]});  
   
 	#Should we delete the QUEUEPROC??? Nope, that's defined as on cascade delete
 	
 	#Finally, update the JOBAGENT
+	if ($status =~ /WAITING/){
+		my $done=$self->do("update JOBAGENT join QUEUE on (agentid=entryid) set counter=counter+1 where queueid=?",
+		  {bind_values=>[$queueid]});
+		if ($done =~ /0E0/){
+			$self->info("The job agent is no longer there!!");
+			my $info = $self->queryRow("select uncompress(origjdl) jdl , agentid from QUEUEJDL join QUEUE using (queueid) where queueid=?",
+			                          undef, {bind_values=>[$queueid]});
+			
+			$info or $self->info("Error getting the jdl of the job") and return;
+			my $jdl=$info->{jdl};
+			$jdl =~ /(Requirements[^;]*);/ims
+	          or $self->info("Error getting the requirements from $jdl") and return;
 	
-	my $done=$self->do("update JOBAGENT join QUEUE on (agentid=entryid) set counter=counter+1 where queueid=?",
-	  {bind_values=>[$queueid]});
-	if ($done =~ /0E0/){
-		$self->info("The job agent is no longer there!!");
-		my $info = $self->queryRow("select uncompress(origjdl) jdl , agentid from QUEUEJDL join QUEUE using (queueid) where queueid=?",
-		                          undef, {bind_values=>[$queueid]});
-		
-		$info or $self->info("Error getting the jdl of the job") and return;
-		my $jdl=$info->{jdl};
-		$jdl =~ /(Requirements[^;]*);/ims
-          or $self->info("Error getting the requirements from $jdl") and return;
-
-      my $req = $1;
-      $jdl =~ /(user\s*=\s*"([^"]*)")/si or $self->info("Error getting the user from '$jdl'") and next;
-      $req.="; $1 ";
-      my $params=$self->extractFieldsFromReq($req);
-      $params->{entryId}= ($info->{agentid} || 0);
-	  
-	  $self->insert("JOBAGENT",$params);
-	  my ($ret)=$self->getLastId("JOBAGENT");
-	  $self->do("UPDATE QUEUE set agentId=$ret where queueId=$queueid");
+	      my $req = $1;
+	      $jdl =~ /(user\s*=\s*"([^"]*)")/si or $self->info("Error getting the user from '$jdl'") and next;
+	      $req.="; $1 ";
+	      my $params=$self->extractFieldsFromReq($req);
+	      $params->{entryId}= ($info->{agentid} || 0);
+		  
+		  $self->insert("JOBAGENT",$params);
+		  my ($ret)=$self->getLastId("JOBAGENT");
+		  $self->do("UPDATE QUEUE set agentId=$ret where queueId=$queueid");
+		}
 	}
 	
 	return $queueid

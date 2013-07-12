@@ -6,6 +6,7 @@ use AliEn::Service::Optimizer::Job;
 use vars qw(@ISA);
 use POSIX qw(strftime);
 
+
 push (@ISA, "AliEn::Service::Optimizer::Job");
 sub checkWakesUp {
   my $self=shift;
@@ -18,22 +19,12 @@ sub checkWakesUp {
   $self->{LOGGER}->$method("Expired", "In checkWakesUp .... optimizing the QUEUE table ...");
  
   my $time = strftime "%Y-%m-%d %H:%M:%S", localtime(time - 240*3600);
-  my $mtime = "q.mtime";
   $self->{DB}->{DRIVER}=~ /Oracle/i and $time=" to_timestamp(\'$time\','YYYY-MM-DD HH24:Mi:ss') " or $time="\'$time\'";
   
-  # Completed master Jobs older than 10 days are moved to the archive
-  $self->archiveJobs("where ((statusId=15 or statusId=-13 or statusId=-12 or statusId=-1 or statusId=-2 or statusId=-3 or statusId=-4 or statusId=-5
-  or statusId=-7 or statusId=-8 or statusId=-9 or statusId=-10 or statusId=-11 or statusId=-16 or statusId=-17 or statusId=-18) 
-  and ( $mtime < $time) and split=0) ", "10 days in final state", $self->{DB}->{QUEUEARCHIVE});
+  my $finalStatus="(15,-13,-12,-1,-2,-3,-4,-5,-7,-8,-9,-10,-11,-16,-17,-18)";
   
-  # This is to archive the subjobs
-  $self->archiveJobs("left join QUEUE q2 on q.split=q2.queueid where $mtime<$time", # and q.split!=0 and q2.queueid is null ? 
-                      "10 days without subjobs", $self->{DB}->{QUEUEARCHIVE});
-                      
-  # This is slightly more than ten days, and we move it to another table
-#  $time = strftime "%Y-%m-%d %H:%M:%S",  localtime(time - 2*240*3600 );
-#  $self->{DB}->{DRIVER}=~ /Oracle/i and $time=" to_timestamp(\'$time\','YYYY-MM-DD HH24:Mi:ss') " or $time = "\'$time\'";
-#  $self->archiveJobs("where $mtime < $time and split=0", "20 days in any state","QUEUEEXPIRED" );
+  # Completed single Jobs older than 10 days are moved to the archive
+  $self->archiveJobs("where statusId in $finalStatus and q.mtime<$time and split=0");                   
 
   $self->{LOGGER}->$method("Expired", "In checkWakesUp going back to sleep");
 
@@ -43,20 +34,24 @@ sub checkWakesUp {
 sub archiveJobs{
   my $self=shift;
   my $query=shift;
-  my $time=shift;
-  my $table=shift;
+  my $table=$self->{DB}->{QUEUEARCHIVE};
 
-  $self->info("Archiving the jobs older than $time");
+  $self->info("Archiving the jobs older than 10 days");
     
   my ($jobs)=$self->{DB}->queryColumn("select q.queueId from QUEUE q $query");
-  $self->info("There are ".scalar(@$jobs)." expired jobs");
-  scalar(@$jobs) or return 1;
+  scalar(@$jobs) or $self->info("There are 0 expired jobs") and return 1;
   
   my $ids="";
   foreach my $j (@$jobs){
+  	# We add the subjobs
+  	my ($subjobs) = $self->{DB}->queryColumn("select queueId from QUEUE where split=?",undef, {bind_values=>[$j]});
+  	scalar(@$subjobs) and push @$jobs, @$subjobs; 
+  	  
   	$ids.="$j,";
   }
   $ids=~ s/,$//;
+  
+  $self->info("There are ".scalar(@$jobs)." expired jobs"); 
   
   my $columns=$self->{DB}->describeTable($table);
   my $c="";
