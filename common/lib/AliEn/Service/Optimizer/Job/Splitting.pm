@@ -57,12 +57,16 @@ my $splitPerSE =sub  {
     $event =~ s/,nodownload//;
     my @se=$self->{CATALOGUE}->execute("whereis", "-lr", "-silent", $event);
 
+    my %foo;
+    foreach (@se) { $foo{$_}++ };
+    my @uniqueSe = (keys %foo);
+
 #    @se= grep (/::.*::/, @se);
 #    $event=~ s/\/[^\/]*$//;
 #    $event=~ s/^.*\/([^\/]*)$/$1/;
 
-    $self->debug(1,"Putting it in ". join (",", sort @se));
-    return join (",", sort @se), "";
+    $self->debug(1,"Putting it in ". join (",", sort @uniqueSe));
+    return join (",", sort @uniqueSe), "";
 };
 
 
@@ -359,6 +363,7 @@ sub _singleSplit {
   foreach my $file (@files) {
     $self->debug(1, "In SplitJob sorting $file");
     my ($pos, $arg)=$sort->($file);
+       
     $self->debug(1, "Should go in $pos, $arg");
     my @list=();
     my $subpos=0;
@@ -373,18 +378,18 @@ sub _singleSplit {
     if ($inputfilenumber) {
       # the user requests a maxmimum number of inputfiles per splitjob
       while ( (defined $jobs->{$newpos}->{nfiles}) && ($jobs->{$newpos}->{nfiles} >= $inputfilenumber) ) {
-	$subpos++;
-	$newpos = "$pos;$subpos";
-	$jobs->{$newpos} or $jobs->{$newpos}={nfiles=>0, filesize=>0, counter=>"${pos}_${subpos}"};
+	    $subpos++;
+	    $newpos = "$pos;$subpos";
+	    $jobs->{$newpos} or $jobs->{$newpos}={nfiles=>0, filesize=>0, counter=>"${pos}_${subpos}"};
       }
     }
     
     if ($inputfilesize) {
       # the user requests a maximum number of inputfilesize per splitjob
       while ( (defined $jobs->{$newpos}->{filesize}) && ($jobs->{$newpos}->{filesize} >= $inputfilesize) ) {
-	$subpos++;
-	$newpos = "$pos;$subpos";
-	$jobs->{$newpos} or $jobs->{$newpos}={nfiles=>0, filesize=>0, counter=>"${pos}_${subpos}"};
+	    $subpos++;
+	    $newpos = "$pos;$subpos";
+	    $jobs->{$newpos} or $jobs->{$newpos}={nfiles=>0, filesize=>0, counter=>"${pos}_${subpos}"};
       }
     }
     $jobs->{$newpos}->{args}=$arg;
@@ -412,7 +417,7 @@ sub _singleSplit {
     }
 
     $jobs->{$newpos}->{nfiles}++;
-  }
+  }  
   return $jobs;
 }
 
