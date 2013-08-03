@@ -148,7 +148,7 @@ sub submit {
   my @args=();
   $self->{CONFIG}->{CE_SUBMITARG_LIST} and @args = @{$self->{CONFIG}->{CE_SUBMITARG_LIST}};
   my $jdlfile = $self->generateJDL($jdl, $command);
-  $jdlfile or return;
+  $jdlfile or return 1;
   
   #pick a random CE from the list
   my $theCE = '';
@@ -167,19 +167,19 @@ sub submit {
   unless ($theCE) {
      $self->{LOGGER}->error("CREAM","No suitable CE found for submission!");
      $self->info("No more slots in the queues?");
-     return;
+     return 1;
   }
   push @args, ("-r", $theCE);
   push @args, ("-D", "$self->{CONFIG}->{DELEGATION_ID}");
 
   $self->info("Submitting to CREAM with \'@args\'.");
   my $now = time;
-  my $logFile = AliEn::TMPFile->new({filename=>"job-submit.$now.log"}) or return;
+  my $logFile = AliEn::TMPFile->new({filename=>"job-submit.$now.log"}) or return 1;
 
   my $contact = '';
   $contact = $self->wrapSubmit($logFile, $jdlfile, @args);
   $self->{LAST_JOB_ID} = $contact;
-  return unless $contact;
+  return 1 unless $contact;
   $self->setCESlots($theCE,$self->getCESlots($theCE)-1);
   $self->info("LCG JobID is $contact");
   open JOBIDS, ">>$self->{CONFIG}->{LOG_DIR}/CE.db/JOBIDS";
