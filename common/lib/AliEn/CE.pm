@@ -1047,7 +1047,7 @@ sub offerAgent {
     my ($count, $jdl) = @$agent;
     $self->info("Starting $count agent(s) for $jdl ");
     my $classad = Classad::Classad->new($jdl);
-    while ($count--) {
+    while ($count-- > 0) {
       $self->SetEnvironmentForExecution($jdl);
 
       $self->info("*********READY TO SUBMIT $script ");
