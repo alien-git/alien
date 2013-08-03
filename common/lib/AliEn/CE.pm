@@ -1042,7 +1042,7 @@ sub offerAgent {
 
   $self->SetEnvironmentForExecution($jdl);
 	
-	while ($count--) {
+	while ($count-- > 0) {
 		$self->info("*********READY TO SUBMIT $script $ENV{ALIEN_CM_AS_LDAP_PROXY}");
 		my $error = $self->{BATCH}->submit($classad, $script);
 		if ($error) {
