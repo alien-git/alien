@@ -179,8 +179,17 @@ sub submit {
   my $contact = '';
   $contact = $self->wrapSubmit($logFile, $jdlfile, @args);
   $self->{LAST_JOB_ID} = $contact;
-  return 1 unless $contact;
   $self->setCESlots($theCE,$self->getCESlots($theCE)-1);
+
+  #
+  # Return success even when this job submission failed,
+  # because further job submissions may still work,
+  # in particular when another CE gets picked.
+  # Always decrement the number of slots,
+  # to ensure the submission loop will terminate.
+  #
+
+  return 0 unless $contact;
   $self->info("LCG JobID is $contact");
   open JOBIDS, ">>$self->{CONFIG}->{LOG_DIR}/CE.db/JOBIDS";
   print JOBIDS "$now,$contact\n";
