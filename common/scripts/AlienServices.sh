@@ -317,6 +317,12 @@ ALIEN_HttpdConfig()
 
          sed -e "s#Listen .*#Listen $portNum#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
          cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+        
+         sed -e "s#User .*#User `whoami`#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
+         cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+        
+         sed -e "s#Group .*#Group `whoami | groups`#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
+         cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
          
          sed -e "s#^PidFile .*#PidFile logs/httpd"$tmpN".pid#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
          cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
@@ -462,6 +468,12 @@ export ALIEN_HOME=$HOME/.alien
 
          sed -e "s#Listen .*#Listen $portNum#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
          cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+        
+         sed -e "s#User .*#User `whoami`#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
+         cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+        
+         sed -e "s#Group .*#Group `whoami | groups`#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
+         cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
          
        #  sed -e "s#^PidFile .*#PidFile logs/httpd"$tmpN".pid#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
        #  cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
@@ -570,6 +582,12 @@ export ALIEN_HOME=$HOME/.alien
          sed -e "s#Listen .*#Listen $portNum#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
          cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
          
+         sed -e "s#User .*#User `whoami`#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
+         cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+        
+         sed -e "s#Group .*#Group `whoami | groups`#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
+         cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+        
          sed -e "s#PidFile .*#PidFile $logPath/httpd"$tmpN".pid#" $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf > /tmp/httpd.$$
          cp /tmp/httpd.$$ $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
          
