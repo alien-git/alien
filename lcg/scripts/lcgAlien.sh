@@ -1,6 +1,6 @@
 #!/bin/bash
 
-for d in ~ ~/alien $VO_ALICE_SW_DIR/alien
+for d in $ALIEN_ROOT ~ ~/alien $VO_ALICE_SW_DIR/alien
 do
     AliEnCommand=$d/bin/alien
 
