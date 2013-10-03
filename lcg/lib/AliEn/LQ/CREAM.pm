@@ -32,8 +32,8 @@ sub initialize {
    $self->info("Running as \'$ENV{ALIEN_USER}\' using $ENV{X509_USER_PROXY}");
    $self->{UPDATECLASSAD} = 0;
 
-   (my $fix_env = $ENV{LD_LIBRARY_PATH}) =~ s,.*$ENV{ALIEN_ROOT}/[^:]+:?,LD_LIBRARY_PATH=,;
-   $fix_env = "unset X509_CERT_DIR; $fix_env";
+   (my $fix_env = $ENV{LD_LIBRARY_PATH}) =~ s,$ENV{ALIEN_ROOT}+[^:]+:?,,g;
+   $fix_env = "unset X509_CERT_DIR; LD_LIBRARY_PATH=$fix_env";
 
    my $cmds = {  SUBMIT_CMD     => "$fix_env glite-ce-job-submit",
                  STATUS_CMD     => 'glite-ce-job-status',
