@@ -167,9 +167,11 @@ sub initialize {
 
   $self->{JOBLOADED}=0;
   $self->{X509}= new AliEn::X509 or return;
-  $self->{PACKMAN}=AliEn::PackMan->new({PACKMAN_METHOD=>"Local"}) or 
-    $self->info("Error getting the packman") and return ;
-
+  if ( -f "/cvmfs/alice.cern.ch/bin/alienv" ) {
+     $self->{PACKMAN}=AliEn::PackMan->new({PACKMAN_METHOD=>"CVMFS"});
+   } else {   
+     $self->{PACKMAN}=AliEn::PackMan->new({PACKMAN_METHOD=>"Local"});
+   }
 
   $self->{WORKDIR} = $ENV{HOME};
   # If specified, this directory is used. REMARK If $ENV{WORKDIR} is set, this is used!!
@@ -869,7 +871,13 @@ sub getCatalogue {
 
   eval{ 
     $options->{silent} or $options->{silent}=0;
+
+  if ( -f "/cvmfs/alice.cern.ch/bin/alienv" ) {
+    $options->{packman_method} or $options->{packman_method}="CVMFS";
+   } else {   
     $options->{packman_method} or $options->{packman_method}="Local";
+   }
+
     $options->{role} or $options->{role}=$self->{CONFIG}->{CLUSTER_MONITOR_USER};
 #    my $options={silent=>0, packman_method=>'Local', 'role'=>$self->{CONFIG}->{CLUSTER_MONITOR_USER}};
     $self->{CONFIG}->{AGENT_API_PROXY} and 
@@ -975,16 +983,23 @@ sub executeCommand {
   my $user=$self->{CA}->evaluateAttributeString("User");
   if ($ok) {
     my @packInst;
-    foreach (@packages) {
-      my ($ok, $source)=$self->installPackage( $_, $user);
-       if (!$ok){
-	 $self->registerLogs(0);
-	 $self->changeStatus("%",  "ERROR_E");
-#	 $catalog->close();
-	 return;
-       }
-      if ($source){
-	push @packInst, $source;
+    if ( -f "/cvmfs/alice.cern.ch/bin/alienv" ) {
+         my ($ok, $source)=$self->{PACKMAN}->installPackage($user, join(",", @packages), undef, {NO_FORK=>1});
+#        my ($ok, $source)=$self->installPackage( join(",", @packages), $user);
+         if ($source){  
+	   push @packInst, $source;
+         }
+    } else {   
+      foreach (@packages) {
+        my ($ok, $source)=$self->installPackage( $_, $user);
+        if (!$ok){
+	   $self->registerLogs(0);
+	   $self->changeStatus("%",  "ERROR_E");
+	   return;
+         }
+        if ($source){  
+	  push @packInst, $source;
+        }
       }
     }
     @list=(@packInst, @list);

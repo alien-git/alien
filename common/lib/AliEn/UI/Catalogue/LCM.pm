@@ -156,6 +156,10 @@ sub initialize {
   my $packOptions={PACKMAN_METHOD=> $options->{packman_method}|| "",
                    CATALOGUE=>$self};
 
+  if ( -f "/cvmfs/alice.cern.ch/bin/alienv" ) {
+     $packOptions={PACKMAN_METHOD=> $options->{packman_method}|| "CVMFS",CATALOGUE=>$self};
+  }
+
   $self->{PACKMAN}= AliEn::PackMan->new($packOptions) or return;
 
   return 1;

@@ -161,9 +161,8 @@ sub setPackages {
   my $self=shift;
   my $ca=shift;
 
-  if ( defined($ENV{ALIEN_VM})) {
-      $self->{PACKMAN}=AliEn::PackMan->new({PACKMAN_METHOD=>"Simple",
-					   CREATE_CATALOGUE=>0}) or return;
+  if ( -f "/cvmfs/alice.cern.ch/bin/alienv" ) {
+      $self->{PACKMAN}=AliEn::PackMan->new({PACKMAN_METHOD=>"CVMFS"});
       $self->{PACKMAN} or return;
       my ($status, @packages)=$self->{PACKMAN}->getListInstalledPackages();
       if (@packages) {
