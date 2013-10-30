@@ -1608,7 +1608,17 @@ sub getNumberWaitingForSite{
   
   $options->{ttl} and $where.="and ttl < ?  " and push @bind, $options->{ttl};
   $options->{disk} and $where.="and disk < ?  " and push @bind, $options->{disk};
-  $options->{site} and $where.="and (site='' or site like concat('%,',?,',%') )" and push @bind, $options->{site};   
+  $options->{site} and $where.="and (site='' or site like concat('%,',?,',%') )" and push @bind, $options->{site}; 
+  
+  if( $options->{extrasites} ){
+      my @seList = split(/,/, $options->{extrasites});
+      foreach my $se ( @seList ){
+	    $where.=" or site like concat('%,',?,',%') " and push @bind, $se;  	    
+      }     
+      $where.=") ";
+  }
+  else { $options->{site} and $where.=") "; } 
+    
   defined $options->{packages} and $where .="and ? like packages " and push @bind, $options->{packages};
   defined $options->{installedpackages} and $where .="and ? like packages " and push @bind, $options->{installedpackages};
   $options->{partition} and $where .="and ? like concat('%,',partition, '%,') " and push @bind, $options->{partition};

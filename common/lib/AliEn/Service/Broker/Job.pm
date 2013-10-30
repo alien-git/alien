@@ -336,6 +336,12 @@ sub extractClassadParams {
 	$ok or return (-1, $msg);
 	$params->{site} = "";
 	$queueName =~ /::(.*)::/ and $params->{site} = $1;
+	($ok, my @closese) = $classad->evaluateAttributeVectorString("CloseSE");
+	$ok and $params->{extrasites}="";
+	foreach my $se (@closese) {
+		$se =~ /::(.*)::/ and $params->{site}!~$1 and $params->{extrasites}.="$1,";
+	}
+	$params->{extrasites}=~s/,$//;
 	($ok, my $ttl) = $classad->evaluateAttributeInt("TTL");
 	$params->{ttl} = $ttl || 84000;
 	($ok, $params->{disk}) = $classad->evaluateExpression("LocalDiskSpace");
