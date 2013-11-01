@@ -161,7 +161,7 @@ sub setPackages {
   my $self=shift;
   my $ca=shift;
 
-  if ( -f "/cvmfs/alice.cern.ch/bin/alienv" ) {
+  if ( $self->{CONFIG}->{CE_INSTALLMETHOD} and $self->{CONFIG}->{CE_INSTALLMETHOD}=~"CVMFS" ) {
       $self->{PACKMAN}=AliEn::PackMan->new({PACKMAN_METHOD=>"CVMFS"});
       $self->{PACKMAN} or return;
       my ($status, @packages)=$self->{PACKMAN}->getListInstalledPackages();

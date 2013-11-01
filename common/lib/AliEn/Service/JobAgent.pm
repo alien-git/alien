@@ -167,7 +167,7 @@ sub initialize {
 
   $self->{JOBLOADED}=0;
   $self->{X509}= new AliEn::X509 or return;
-  if ( -f "/cvmfs/alice.cern.ch/bin/alienv" ) {
+  if ( $self->{CONFIG}->{CE_INSTALLMETHOD} and $self->{CONFIG}->{CE_INSTALLMETHOD}=~"CVMFS" ) {
      $self->{PACKMAN}=AliEn::PackMan->new({PACKMAN_METHOD=>"CVMFS"});
    } else {   
      $self->{PACKMAN}=AliEn::PackMan->new({PACKMAN_METHOD=>"Local"});
@@ -872,7 +872,7 @@ sub getCatalogue {
   eval{ 
     $options->{silent} or $options->{silent}=0;
 
-  if ( -f "/cvmfs/alice.cern.ch/bin/alienv" ) {
+  if ( $self->{CONFIG}->{CE_INSTALLMETHOD} and $self->{CONFIG}->{CE_INSTALLMETHOD}=~"CVMFS" ) {
     $options->{packman_method} or $options->{packman_method}="CVMFS";
    } else {   
     $options->{packman_method} or $options->{packman_method}="Local";
@@ -983,7 +983,7 @@ sub executeCommand {
   my $user=$self->{CA}->evaluateAttributeString("User");
   if ($ok) {
     my @packInst;
-    if ( -f "/cvmfs/alice.cern.ch/bin/alienv" ) {
+    if ( $self->{CONFIG}->{CE_INSTALLMETHOD} and $self->{CONFIG}->{CE_INSTALLMETHOD}=~"CVMFS" ) {
          my ($ok, $source)=$self->{PACKMAN}->installPackage($user, join(",", @packages), undef, {NO_FORK=>1});
 #        my ($ok, $source)=$self->installPackage( join(",", @packages), $user);
          if ($source){  
