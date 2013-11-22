@@ -96,7 +96,8 @@ sub checkCondorHealth{
 
 sub getNumberRunning{
   my $self = shift;
-  my $jobquery="condor_q -format \"%s \" GridJobId -format \"HoldReason=%s \" HoldReasonCode -format \"%s \n\" GridJobStatus | grep -v undef | grep -v HoldReason | wc -l";
+#  my $jobquery="condor_q -format \"%s \" GridJobId -format \"HoldReason=%s \" HoldReasonCode -format \"%s \n\" GridJobStatus | grep -v undef | grep -v HoldReason | wc -l";
+  my $jobquery="condor_q -constraint \"JobStatus==1 || JobStatus==2\" | wc -l";
   open(JOBS,"$jobquery |") or $self->info("error doing $jobquery");
   my $njobs=<JOBS>;
   close(JOBS);
@@ -111,7 +112,8 @@ sub getNumberRunning{
 sub getNumberQueued{
   my $self = shift;
 #  my $jobquery="condor_q -format \"%s \" GridJobId -format \"%s \n\" GridJobStatus | grep PENDING | wc -l";
-  my $jobquery="condor_q -format \"%s \" GridJobId -format \"HoldReason=%s \" HoldReasonCode -format \"%s \n\" GridJobStatus | grep PENDING | grep -v HoldReason | wc -l";
+#  my $jobquery="condor_q -format \"%s \" GridJobId -format \"HoldReason=%s \" HoldReasonCode -format \"%s \n\" GridJobStatus | grep PENDING | grep -v HoldReason | wc -l";
+  my $jobquery="condor_q -constraint \"JobStatus==1\" | wc -l";
 
   open(JOBS,"$jobquery |") or $self->info("error doing $jobquery");
   my $njobs=<JOBS>;
@@ -158,7 +160,8 @@ sub initialize() {
     }
   }
   $self->{KILL_CMD} = ( $self->{CONFIG}->{CE_KILLCMD} or "condor_rm" );
-  $self->{STATUS_CMD} = ( $self->{CONFIG}->{CE_STATUSCMD} or "condor_q -format \"%d \" ClusterId -format \"HoldReason=%s \" HoldReasonCode -format \"%s \" GridJobId -format \"%s \\n\" Cmd" );
+#  $self->{STATUS_CMD} = ( $self->{CONFIG}->{CE_STATUSCMD} or "condor_q -format \"%d \" ClusterId -format \"HoldReason=%s \" HoldReasonCode -format \"%s \" GridJobId -format \"%s \\n\" Cmd" );
+  $self->{STATUS_CMD} = ( $self->{CONFIG}->{CE_STATUSCMD} or "condor_q -constraint \"JobStatus==1 || JobStatus==2\" -format \"%d \" ClusterId -format \"%s \\n\" Cmd");
   $self->debug(1,"CONDOR SUBMIT ARG = $self->{SUBMIT_ARG}");
   $self->{GET_QUEUE_STATUS}="$self->{STATUS_CMD}";
   if ( $self->{CONFIG}->{CE_STATUSARG} ) {
