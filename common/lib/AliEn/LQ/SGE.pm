@@ -13,13 +13,17 @@ sub submit {
 
     $command =~ s/"/\\"/gs;
 
+    open FILE, "<", $command;
+    my $text = join("",<FILE>);
+    close FILE;
+
     my $message = "#BSUB -V
 #BSUB -N $ENV{ALIEN_LOG}
 #BSUB -o $self->{PATH}/$ENV{ALIEN_LOG}.out
 $self->{SUBMIT_ARG}
 " . $self->excludeHosts() . "
 cd \$TMPDIR
-$command\n";
+$text\n";
 
      $self->debug(2, "USING $self->{SUBMIT_CMD}\nThe message is \n$message");
     open( BATCH, "| $self->{SUBMIT_CMD} -C '#BSUB'" )
@@ -95,7 +99,7 @@ sub kill {
 sub initialize() {
     my $self = shift;
 
-    $self->{PATH}       = $self->{CONFIG}->{LOG_DIR};
+    $self->{PATH}       = $ENV{TMPDIR};
     $self->{SUBMIT_CMD} = ( $self->{CONFIG}->{CE_SUBMITCMD} or "qsub" );
     $self->{SUBMIT_ARG} = ( $self->{CONFIG}->{CE_SUBMITARG} or "" );
 
