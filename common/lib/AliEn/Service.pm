@@ -791,18 +791,20 @@ sub getPort {
 
   my $lockmgr = LockFile::Simple->make(
     -format    => '%f',
-    -max       => 10,
+    -max       => 200,
     -delay     => 2,
     -nfs       => 1,
     -autoclean => 1,
-    -hold      => 10
+    -warn      => 0, 
+    -stale     => 1
+     
   );
+
+    #  #    Locking port
+  $lockmgr->lock("$portDir/lockFile.$self->{HOST}");
 
   while ($testport = shift(@PORTS)) {
     my $proto = getprotobyname('tcp');
-
-    #  #    Locking port
-    $lockmgr->trylock("$portDir/lockFile.$testport.$self->{HOST}") or next;
 
     # try to bind the port
     if (
@@ -815,8 +817,10 @@ sub getPort {
       last;
     }
     $self->debug(1, "Port $testport is busy");
-    $lockmgr->unlock("$portDir/lockFile.$testport.$self->{HOST}");
   }
+
+  $lockmgr->unlock("$portDir/lockFile.$self->{HOST}");
+
   if (!($port)) {
     print STDERR "Sorry no free port are available\n";
     return;

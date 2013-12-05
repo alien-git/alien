@@ -37,12 +37,14 @@ sub new {
 
   $self->{CONFIG}=new AliEn::Config();
   $self->{DIRECTORY}=$self->{CONFIG}->{TMP_DIR};
-
+  # Build customized locking manager object
+  $self->{LOCKMGR}=LockFile::Simple->make(-format => '%f.lck',
+			     -max => 300, -delay => 2, -autoclean => 1, -warn => 0, -nfs => 1, -stale => 1);
   
   $self=AliEn::Database::new($proto, $self, @_);
   $self or return;
   $self->{DBH}->{'RaiseError'} = 1;
-  
+  # $self->{DBH}->sqlite_busy_timeout( 0 );  
   return $self;
 }
 
@@ -74,7 +76,9 @@ sub describeTable {
 sub getDatabaseDSN{
   my $self=shift;
   $self->debug(1, "Returning the dsn of a text database");
+  #return "DBI:SQLite:dbname=$self->sqlite_db_filename()";
   return "DBI:SQLite:dbname=$self->{DIRECTORY}/file.mss";
+
 }
 
 sub createTable{
@@ -108,7 +112,8 @@ sub lock {
   my $self=shift;
   my $table=shift;
   $self->info("Ready to lock $table");
-  LockFile::Simple::lock("$self->{DIRECTORY}/$table.lck");
+  # LockFile::Simple::lock("$self->{DIRECTORY}/$table.lck");
+  $self->{LOCKMGR}->lock("$self->{DIRECTORY}/$table");
 
   return 1;
 }
@@ -116,7 +121,8 @@ sub lock {
 sub unlock {
   my $self=shift;
   my $table=shift;
-  LockFile::Simple::unlock("$self->{DIRECTORY}/$table.lck");
+  # LockFile::Simple::unlock("$self->{DIRECTORY}/$table.lck");
+  $self->{LOCKMGR}->unlock("$self->{DIRECTORY}/$table");
 
   return 1;
 }

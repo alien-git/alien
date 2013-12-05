@@ -887,7 +887,7 @@ sub getCatalogue {
   };
   if ($@) {print "ERROR GETTING THE CATALOGUE $@\n";}
   if (!$catalog) {
-    $self->putJobLog("error","The job couldn't authenticate to the catalogue");
+    $self->putJobLog("error","The job couldn't authenticate to the catalogue ( $@ )");
 
     print STDERR "Error getting the catalog!\n";
     return;
