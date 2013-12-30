@@ -1,13 +1,13 @@
 #!/bin/bash
 
-for d in ~ ~/alien $VO_ALICE_SW_DIR/alien
+for d in $MY_ALIEN $ALIEN_ROOT ~ /cvmfs/alice.cern.ch
 do
     AliEnCommand=$d/bin/alien
 
     [ -x $AliEnCommand ] && break
 done
 
-user=`$AliEnCommand --printenv | awk -F= '$1 == "ALIEN_USER" { print $2 }'`
+user=`$AliEnCommand --printenv | grep ^ALIEN_USER=`
 
 fatal()
 {
@@ -17,8 +17,10 @@ fatal()
 
 [ "X$user" = X ] && fatal "Cannot determine the AliEn user"
 
+export $user
+
 host=`
-    $AliEnCommand -user aliprod --exec echo LDAPHOST 2>&1 |
+    $AliEnCommand --exec echo LDAPHOST 2>&1 |
     sed -n "s/'//g;s/.*\<LDAPHOST\> *= *//p"
 `
 
@@ -26,7 +28,7 @@ host=`
 
 for dnq in `
 	ldapsearch -x -LLL -H ldap://$host -b \
-	    uid=$user,ou=people,o=alice,dc=cern,dc=ch subject |
+	    uid=$ALIEN_USER,ou=people,o=alice,dc=cern,dc=ch subject |
 	    perl -p00e 's/\n //g' |
 	    perl -ne 's/ /?/g; print if s/^subject:\?*//i'
     `
@@ -39,11 +41,23 @@ do
 	    --dn "$dn" query-proxy-filename 2> /dev/null
     `
 
-    if [ $? = 0 ] && [ -f "$proxy" ]
-    then
-	X509_USER_PROXY=$proxy exec $AliEnCommand "$@"
-	exit
-    fi
+    [ $? = 0 ] && [ -f "$proxy" ] || continue
+
+    timeleft=`X509_USER_PROXY=$proxy vobox-proxy query-proxy-timeleft`
+
+    [ "X$timeleft" != X ] || continue
+    
+    let 'timeleft /= 3600'
+    thr=40
+
+    [ $timeleft -gt $thr ] || {
+	echo "Warning - proxy lifetime is low: $timeleft < $thr hours"
+    }
+
+    [ $timeleft -gt 0 ] || continue
+
+    X509_USER_PROXY=$proxy exec $AliEnCommand "$@"
+    exit
 done
 
 fatal "Could not find the correct proxy"
