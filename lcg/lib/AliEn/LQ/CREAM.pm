@@ -220,7 +220,7 @@ sub wrapSubmit {
   my $jdlfile = shift;
   my @args = @_ ;  
   my @command = ( $self->{SUBMIT_CMD}, "--noint", "--nomsg");
-  @command = ( @command, "--logfile", $logFile, @args, "$jdlfile");
+  @command = ( @command, "--logfile", $logFile, @args, "$jdlfile", "2>&1");
   my @output = $self->_system(@command);
   my $error = $?;
   (my $jobId) = grep { /https:/ } @output;
@@ -301,7 +301,8 @@ sub renewDelegation {
   foreach my $cluster ( @{$self->{CE_CLUSTERSTATUS}} ) {
     foreach ( keys %{$cluster} ) {
       (my $CE, my $queue) = split /\//;
-       my @command = ($self->{DELEGATION_CMD},"-e",$CE,$dbg,"$self->{CONFIG}->{DELEGATION_ID}");
+       my @command = ($self->{DELEGATION_CMD}, "-e", $CE, $dbg,
+         "$self->{CONFIG}->{DELEGATION_ID}", "2>&1");
        my @output = $self->_system(@command);
        my $error = $?;
        if ($error) {
@@ -532,60 +533,41 @@ sub renewProxy {
    $duration or $duration = 172800; #in seconds
    my $thres = shift;
    $thres or $thres = 0;
-   $self->info("Checking whether to renew proxy for $duration seconds");
-   $ENV{X509_USER_PROXY} and $self->debug(1,"\$X509_USER_PROXY is $ENV{X509_USER_PROXY}");
-   my $ProxyRepository = "$self->{CONFIG}->{VOBOXDIR}/proxy_repository";
-   my $command = "voms-proxy-info -dont-verify-ac -acsubject -actimeleft";
+   $self->info("Checking remaining proxy lifetime");
+   my $p = $ENV{X509_USER_PROXY} || "unset";
+   $self->info("X509_USER_PROXY is $p");
+   my $command = "voms-proxy-info -acsubject -actimeleft 2>&1";
 
    my @lines = $self->_system($command);
    my $dn = '';
-   my $proxyfile = $ENV{X509_USER_PROXY};
    my $timeLeft = '';
+
    foreach (@lines) {
      chomp;
      m|^/| and $dn = $_, next;
      m/^\d+$/ and $timeLeft = $_, next;
    }
+
    $dn or $self->{LOGGER}->error("LCG","No valid proxy found.") and return;
    $self->debug(1,"DN is $dn");
-   $self->debug(1,"Proxy file is $proxyfile");
    $self->info("Proxy timeleft is $timeLeft (threshold is $thres)");
    return 1 if ( $thres>0 && $timeLeft>$thres );
-   # I apparently cannot pass this via an argument
-   my $currentProxy = $ENV{X509_USER_PROXY};
-   if ($currentProxy !~ /^$ProxyRepository/) {
-     $self->{LOGGER}->warning("LCG","\$X509_USER_PROXY is not in the proxy repository:");
-     $self->{LOGGER}->warning("LCG","$currentProxy vs $ProxyRepository");
-   }
-   $ENV{X509_USER_PROXY} = "$self->{CONFIG}->{VOBOXDIR}/renewal-proxy.pem";
-   $self->debug(1,"Renewing proxy for $dn for $duration seconds");
-   my @command=("$ENV{LCG_LOCATION}/bin/lcg-proxy-renew", "-a", "$proxyfile",
-	        "-d", "-t",int($duration/3600).":", #in hours
-	        "-o", "/tmp/tmpfile.$$" , "--cert", $ENV{X509_USER_PROXY}, 
-	        "--key", $ENV{X509_USER_PROXY});
-   my $oldPath=$ENV{PATH};
-   my $pattern="$ENV{ALIEN_ROOT}"."[^:]*:";
-   $ENV{PATH}=~ s/$pattern//g;
-   unless ( $self->_system(@command) ) {
-      $ENV{PATH}=$oldPath;
-      $self->{LOGGER}->error("LCG","unable to renew proxy");
-      $ENV{X509_USER_PROXY} = $currentProxy;
-      return;
-   }
-   $ENV{PATH}=$oldPath;
-   $ENV{X509_USER_PROXY} = $currentProxy;
 
-   @command = ("mv", "-f", "/tmp/tmpfile.$$", "$proxyfile");
-   if ( $self->_system(@command) ) {
-     $self->{LOGGER}->error("LCG","unable to move new proxy");
-     return;
-   }  
-   $command = "voms-proxy-info -dont-verify-ac -actimeleft";
-   ( my $realDuration ) = $self->_system($command);
-   if ( $realDuration ){
-       chomp $realDuration;
-       $self->{LOGGER}->error("LCG","asked for $duration sec, got only $realDuration")
-         if ( $realDuration < 0.9*$duration);
+   #
+   # the proxy shall be managed by the proxy renewal service for the VO;
+   # restart it as needed...
+   #
+
+   (my $vo = $self->{CONFIG}->{LCGVO}) =~ tr/A-Z/a-z/;
+   $command = "/etc/init.d/$vo-box-proxyrenewal start 2>&1";
+   $self->info("checking proxy renewal service");
+   @lines = $self->_system($command);
+
+   unless ($?) {
+     foreach (@lines) {
+       chomp;
+       $self->info($_);
+     }
    }
 
    return 1;
@@ -617,52 +599,59 @@ sub translateRequirements {
 }
 
 sub _system {
-  my $self=shift;
-  my $command=join (" ", @_);
+  my $self = shift;
+  my $command = join (" ", @_);
 
   my $pid;
-  local $SIG{ALRM} =sub {
-    print "$$ timeout while doing '$command'\n";
-    $pid and print "Killing the process $pid\n" and CORE::kill(9, $pid);
-
-    print "Let's try to close the file handler\n";
-    close FILE;
-    print " $$ File closed";
-
-    die("timeout!! ");
-  };
   my @output;
-  eval {
-    alarm(300);
-    $self->setEnvironmentForLCG();
-    $self->debug(1, "Doing '$command'");
-    my $dbg = "2>/dev/null"; $dbg = "" if ($self->{LOGGER}->getDebugLevel()>1);
-    $pid=open(FILE, "$command $dbg|") or
-      die("Error doing '$command'\n$!");
-    @output=<FILE>;
+  my $msg = "timeout\n";
+  my $fh;
 
-    if (! close FILE){
-      #We have to check that the proces do^?^?
-      $self->{LOGGER}->error("LCG","The system call failed  PID $pid");
-      $self->{LOGGER}->error("LCG","Command was \'$command\'");
-      if (CORE::kill 0,$pid) {
-        my $kid;
-        do {
-          $kid = waitpid($pid, WNOHANG);
-        }   until $kid > 0;
-      }
+  eval {
+    local $SIG{ALRM} = sub { die $msg };
+    alarm 120;
+
+    $self->setEnvironmentForLCG();
+    $self->info("Doing: $command");
+
+    $pid = open($fh, "( $command ) |") or alarm 0, die "$!\n";
+
+    while (<$fh>) {
+      push @output, $_;
     }
-    alarm(0);
+
+    alarm 0;
   };
-  my $error=$?;
-  $self->unsetEnvironmentForLCG();
-  if ($error) {
-    $self->{LOGGER}->error("LCG","Error in system call: $error");
-    close FILE;
-    $pid and $self->info("Killing the process $pid") and CORE::kill(9, $pid);
-    alarm(0);
-    return;
+
+  if ($@ eq $msg) {
+    $self->{LOGGER}->error("LCG", "Timeout for: $command");
+    $pid and $self->info("Timeout: killing the process $pid") and CORE::kill(9, $pid);
+  } elsif ($@) {
+    chomp($msg = $@);
+    $self->{LOGGER}->error("LCG", "Error '$msg' for: $command");
   }
+
+  close $fh;
+  my $error = $?;
+
+  $self->unsetEnvironmentForLCG();
+
+  if ($error) {
+    my $sig = $error & 0x7F;
+    my $val = ($error >> 8) & 0xFF;
+
+    $error = $sig ? "signal $sig" : "status $val";
+
+    $self->{LOGGER}->error("LCG", "Exit $error for: $command");
+    $self->info("Exit $error");
+
+    for (@output) {
+      chomp;
+      $self->{LOGGER}->error("LCG", "--> $_");
+      $self->info("--> $_");
+    }
+  }
+
   return @output;
 }
 
@@ -670,16 +659,18 @@ sub setEnvironmentForLCG{
   my $self=shift;
   $self->debug(1,"Setting the environment for an LCG call");
   $self->{LCG_ENV} = {};
-  foreach  my $v ("GLOBUS_LOCATION", "X509_CERT_DIR", "MYPROXY_LOCATION", "LD_LIBRARY_PATH") {
+
+  foreach my $v ("GLOBUS_LOCATION", "LD_LIBRARY_PATH", "MYPROXY_LOCATION",
+    "PATH", "X509_CERT_DIR") {
     $self->{LCG_ENV}->{$v} = $ENV{$v};
+    delete $ENV{$v} unless $v =~ /PATH$/;
   }
-  $self->{LCG_ENV}->{PATH}=$ENV{PATH};
-  $self->{LCG_ENV}->{LD_LIBRARY_PATH} = $ENV{LD_LIBRARY_PATH};
+
   my $alienpath = $ENV{ALIEN_ROOT};
-  $ENV{LD_LIBRARY_PATH} =~ s/$alienpath[^:]*://g; #Remove any hint of AliEn from environment
-  $ENV{PATH} =~ s/$alienpath[^:]*://g;            #Remove any hint of AliEn from environment
-  $ENV{LD_LIBRARY_PATH} = $ENV{LD_LIBRARY_PATH}.":/opt/c-ares/lib" unless $ENV{LD_LIBRARY_PATH} =~ m/\/opt\/c-ares\/lib/;
-  $ENV{GLOBUS_LOCATION} = "/opt/globus";
+
+  foreach my $v ("LD_LIBRARY_PATH", "PATH") {
+    $ENV{$v} =~ s/$alienpath[^:]*://g; #Remove any hint of AliEn from environment
+  }
 }
 
 sub unsetEnvironmentForLCG{
@@ -788,7 +779,7 @@ sub generateJDL {
     };
   ";
 
-  if ($self->{LOGGER}->getDebugLevel()) {
+  if (-e "$ENV{HOME}/enable-sandbox" || $self->{LOGGER}->getDebugLevel()) {
     print BATCH "  OutputSandbox = { \"std.err\" , \"std.out\" };\n";
     print BATCH "  Outputsandboxbasedesturi = \"gsiftp://localhost\";\n";
   }
