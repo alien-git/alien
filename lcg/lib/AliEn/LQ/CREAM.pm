@@ -725,16 +725,19 @@ free
 
   print BATCH "$info\n";
   print BATCH "
-cd \${TMPDIR:-.}
 echo --- env ---------------------------------------
 echo \$PATH
 echo \$LD_LIBRARY_PATH
 
-export ALIEN_USER=$ENV{ALIEN_USER}
-echo --- alien --printenv --------------------------
-\$ALIEN_ROOT/bin/$exec -printenv
-echo --- alien proxy-info ---------------------------
-\$ALIEN_ROOT/bin/$exec proxy-info
+if [ \"X\$ALIEN_ROOT\" != X ]
+then
+    export ALIEN_USER=$ENV{ALIEN_USER}
+    echo --- alien --printenv --------------------------
+    \$ALIEN_ROOT/bin/$exec -printenv
+    echo --- alien proxy-info ---------------------------
+    \$ALIEN_ROOT/bin/$exec proxy-info
+fi
+
 echo --- Run ---------------------------------------
 ls -lart
 ";
