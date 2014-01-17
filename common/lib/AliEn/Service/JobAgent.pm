@@ -615,6 +615,12 @@ sub CreateDirs {
 	    "$self->{CONFIG}->{TMP_DIR}/PORTS", $self->{WORKDIR},
 	    "$self->{CONFIG}->{TMP_DIR}/proc/");
 
+  if (-d $self->{WORKDIR}) {
+    $self->putJobLog("error","Working directory ($self->{WORKDIR}) of job $ENV{ALIEN_PROC_ID} already exists");
+	$self->registerLogs(0);
+	$self->changeStatus("%", "ERROR_IB");
+	return 0;
+  }
 
   foreach my $fullDir (@dirs){
     my $dir = "";
