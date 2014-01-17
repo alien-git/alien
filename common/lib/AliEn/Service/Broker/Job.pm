@@ -37,7 +37,7 @@ sub initialize {
 
 	$self->SUPER::initialize($options) or return;
 
-	srand();
+	#srand();
 }
 
 #
@@ -284,6 +284,7 @@ sub checkQueueOpen {
 # Creates a new token randomly. Alway 32 caracters long.
 # ***************************************************************
 my $createToken = sub {
+	srand();
 	my $token = "";
 	my @Array = (
 		'X', 'Q', 't', '2', '!', '^', '9', '5', '3', '4', '5', 'o', 'r', 't', '{', ')', '}', '[',
