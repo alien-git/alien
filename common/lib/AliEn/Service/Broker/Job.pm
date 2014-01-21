@@ -296,6 +296,26 @@ my $createToken = sub {
 	return $token;
 };
 
+sub getToken {
+	my $self = shift;
+	
+	if (!$self->{CONFIG}->{TOKEN_GENERATOR_ADDRESS}) {
+      $self->info("Warning: we want to ask the token generator service, but we don't know its address...");
+      return $createToken->();
+    }
+	
+	my $token;
+	$token = "$self->{CONFIG}->{TOKEN_GENERATOR_ADDRESS}";
+    my ($ok, @value) = AliEn::Util::getURLandEvaluate($token, 1);
+    if ($ok) {
+      $self->info("Returning the value from the TokenGenerator '$value[0]->{'token'}'");
+      return $value[0]->{'token'};
+    }
+    $self->warning("The TokenGenerator didn't return any value");
+    
+    return $createToken->();	
+}
+
 sub getJobToken {
 	my $self   = shift;
 	my $procid = shift;
@@ -309,7 +329,8 @@ sub getJobToken {
 	$self->{DB}->queryValue("select count(*) from JOBTOKEN where jobId=?", undef, {bind_values => [$procid]}) 
        and $self->info("Job $procid already given..") and return;
 
-	my $token = $createToken->();
+	my $token;
+	$token = $self->getToken();
 
 	$self->{DB}->insertJobToken($procid, $user, $token)
 		or $self->{LOGGER}->warning("CatalogDaemon", "Error updating jobToken for user $user") and return (-1, "error setting the job token");
