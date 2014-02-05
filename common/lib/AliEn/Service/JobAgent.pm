@@ -47,6 +47,8 @@ use Filesys::DiskFree;
 use AliEn::PackMan;
 use AliEn::TMPFile;
 
+use Fcntl qw/O_WRONLY O_CREAT O_EXCL/;
+
 
 @ISA=qw(AliEn::Service);
 
@@ -435,36 +437,37 @@ sub GetJDL {
     my $info;
     $done and $info=$done->result;
     if ($info){
-      $self->info("Got something from the ClusterMonitor");
-      if (!$info->{execute}){
-	$self->info("We didn't get anything to execute");
-      }	else{
-	my @execute=@{$info->{execute}};
-	$result=shift @execute;
-	if ($result eq "-3") {
-	  $self->sendJAStatus('INSTALLING_PKGS', {packages=>join("", @execute)});
-	  $self->{SOAP}->CallSOAP("Manager/Job", "setSiteQueueStatus",$self->{CONFIG}->{CE_FULLNAME},"jobagent-install-pack");
-	  $self->info("We have to install some packages (@execute)");
-	  foreach (@execute) {
-	    my ($ok, $source)=$self->installPackage( $_);
-	    if (! $ok){
-	      $self->info("Error installing the package $_");
-	      $self->sendJAStatus('ERROR_IP');
-#	      $catalog and $catalog->close();
-	      return;
-	    }
-	  }
-	  $i++; #this iteration doesn't count
-	}elsif ( $result eq "-2"){
-	  $self->info("No jobs waiting in the queue");
-	} else {
-	  $self->{SOAP}->CallSOAP("Manager/Job", "setSiteQueueStatus",$self->{CONFIG}->{CE_FULLNAME},"jobagent-matched");
-	  last;
-	}
-	
-      }
-    } else{
-	$self->info("The clusterMonitor didn't return anything");
+	      $self->info("Got something from the ClusterMonitor");
+	      if (!$info->{execute}){
+		$self->info("We didn't get anything to execute");
+	      }	else{
+		my @execute=@{$info->{execute}};
+		$result=shift @execute;
+		if ($result eq "-3") {
+		  $self->sendJAStatus('INSTALLING_PKGS', {packages=>join("", @execute)});
+		  $self->{SOAP}->CallSOAP("Manager/Job", "setSiteQueueStatus",$self->{CONFIG}->{CE_FULLNAME},"jobagent-install-pack");
+		  $self->info("We have to install some packages (@execute)");
+		  foreach (@execute) {
+		    my ($ok, $source)=$self->installPackage( $_);
+		    if (! $ok){
+		      $self->info("Error installing the package $_");
+		      $self->sendJAStatus('ERROR_IP');
+	#	      $catalog and $catalog->close();
+		      return;
+		    }
+		  }
+		  $i++; #this iteration doesn't count
+		}elsif ( $result eq "-2"){
+		  $self->info("No jobs waiting in the queue");
+		} else {
+		  $self->{SOAP}->CallSOAP("Manager/Job", "setSiteQueueStatus",$self->{CONFIG}->{CE_FULLNAME},"jobagent-matched");
+		  last;
+		}
+		
+	      }
+    } 
+    else{
+		$self->info("The clusterMonitor didn't return anything");
     }
     --$i or  last;
     print "We didn't get the jdl... let's sleep and try again\n";
@@ -622,20 +625,33 @@ sub CreateDirs {
 	return 0;
   }
 
+  $self->putJobLog("trace","Creating the working directory $self->{WORKDIR}");
+
   foreach my $fullDir (@dirs){
     my $dir = "";
     (-d  $fullDir) and next;
     foreach ( split ( "/", $fullDir ) ) {
       $dir .= "/$_";
       mkdir $dir, 0777;
+      if (! (-d $dir) ) {
+        $self->putJobLog("error","Directory $dir of job $ENV{ALIEN_PROC_ID} could not be created");
+	    $self->registerLogs(0);
+	    $self->changeStatus("%", "ERROR_IB");
+	    return 0;
+      }
     }
   }
-
-  $self->putJobLog("trace","Creating the working directory $self->{WORKDIR}");
-
-  if ( !( -d $self->{WORKDIR} ) ) {
-    $self->putJobLog("error","Could not create the working directory $self->{WORKDIR} on $self->{HOST}");
+  
+  if(!chdir $self->{WORKDIR}){
+  	$self->putJobLog("error","Could not chdir to working directory $self->{WORKDIR}) in job $ENV{ALIEN_PROC_ID}");
+	$self->registerLogs(0);
+	$self->changeStatus("%", "ERROR_IB");
+	return 0;
   }
+
+#  if ( !( -d $self->{WORKDIR} ) ) {
+#    $self->putJobLog("error","Could not create the working directory $self->{WORKDIR} on $self->{HOST}");
+#  }
 
   # remove old workdirs from former jobs while are not touched longer since 1 week!
   open WORKDIRLIST ,"ls -d $self->{WORKDIR}/../alien-job-* |";
@@ -698,7 +714,6 @@ sub CreateDirs {
 #        mkdir "$self->{LOCALDIR}", 0777;
 #    }
 
-  chdir $self->{WORKDIR};
   return $done;
 }
 
@@ -1044,7 +1059,7 @@ sub executeCommand {
   print "Test: ClusterMonitor is at $self->{HOSTNAME}:$self->{HOSTPORT}\n";
   print "Execution machine:  $self->{HOST}\n";
 
-  chdir $self->{WORKDIR};
+  chdir $self->{WORKDIR} or return;
   my $error = system($s);
   $ENV{LD_LIBRARY_PATH} =~ s{^/lib:/usr/lib:}{};
  $ENV{ALIEN_CM_AS_LDAP_PROXY}=$oldEnv;
@@ -1233,11 +1248,13 @@ sub dumpInputDataList {
       $self->putJobLog("error","The inputdatalistType was $format, but I don't understand it :(. Ignoring it");
     }
   }
-  $self->putJobLog("trace","Putting the list of files in the file '$dumplist'");
+  my $curdir = `pwd`;
+  chomp($curdir);
+  $self->putJobLog("trace","Putting the list of files in the file '".$curdir."/$dumplist'");
   $self->info("Putting the inputfiles in the file '$dumplist'");
-  if (!open (FILE, ">$dumplist") ){
+  if (! sysopen(FILE, $dumplist, O_WRONLY | O_CREAT | O_EXCL) ){
     $self->info("Error putting the list of files in $dumplist");
-    $self->putJobLog("error","Error putting the list of files in the file $dumplist");
+    $self->putJobLog("error","Error putting the list of files in the file '".$curdir."/$dumplist");
     return;
   }
 
@@ -1344,7 +1361,7 @@ sub getFiles {
   $self->info("Getting the files");
   my $oldmode=$self->{LOGGER}->getMode();
   $self->info("Got mode $oldmode");
-  $self->dumpInputDataList($catalog);
+  $self->dumpInputDataList($catalog) or return;
 
   $self->getInputZip($catalog) or return;
 
@@ -1354,7 +1371,7 @@ sub getFiles {
     $self->_getInputFile($catalog, $file->{cat},$file->{real}) or return;
   }
 
-  my $procDir = AliEn::Util::getProcDir($self->{JOB_USER}, undef, $self->{QUEUEID});
+  #my $procDir = AliEn::Util::getProcDir($self->{JOB_USER}, undef, $self->{QUEUEID});
 
   $self->info("Let's check if there are any files to stage");
   
@@ -1430,7 +1447,7 @@ sub getListInputFiles {
   my $self=shift;
   my $catalogue=shift;
 
-  my $dir = AliEn::Util::getProcDir($self->{JOB_USER}, undef, $self->{QUEUEID}) . "/";
+  #my $dir = AliEn::Util::getProcDir($self->{JOB_USER}, undef, $self->{QUEUEID}) . "/";
 
   my @files=({cat=>$self->{COMMAND}, real=>"$self->{WORKDIR}/command"});
   if ($self->{VALIDATIONSCRIPT}) {
