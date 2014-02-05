@@ -19,7 +19,7 @@ my $splitPerDirectory =sub  {
 
     $arg=~ s/^.*\/([^\/]*)$/-event $1/;
 
-    return $file, $arg;
+    return $file, $arg, undef;
 };
 
 my $splitPerParentDirectory =sub  {
@@ -30,10 +30,10 @@ my $splitPerParentDirectory =sub  {
 
     $arg=~ s/^.*\/([^\/]*)$/-event $1/;
 
-    return $file, $arg;
+    return $file, $arg, undef;
 };
 my $splitPerEntries=sub  {
-    return 1, "";
+    return 1, "", undef;
 };
 
 my $splitPerFile =sub  {
@@ -41,32 +41,31 @@ my $splitPerFile =sub  {
 
     my $arg="";
 #    $file=~ s/\/[^\/]*$//;
-    return $file, $arg;
+    return $file, $arg, undef;
 };
 my $splitPerEvent =sub  {
     my $event=shift;
     $event=~ s/\/[^\/]*$//;
     $event=~ s/^.*\/([^\/]*)$/$1/;
 
-    return $event, "-event $event";
+    return $event, "-event $event", undef;
 };
 my $splitPerSE =sub  {
     my $event=shift;
 
+    my $sendSize = 1;
     $event=~ s/LF://;
-    $event =~ s/,nodownload//;
-    my @se=$self->{CATALOGUE}->execute("whereis", "-lr", "-silent", $event);
-
+    $event =~ s/,nodownload// and $sendSize = 0;
+    my ($seinfo) = $self->{CATALOGUE}->execute("whereis", "-irc", "-silent", $event);
+    my @se;
+    defined $seinfo->{REAL_SE} and $seinfo->{REAL_SE} and @se = @{ $seinfo->{REAL_SE} };
+    
     my %foo;
     foreach (@se) { $foo{$_}++ };
     my @uniqueSe = (keys %foo);
 
-#    @se= grep (/::.*::/, @se);
-#    $event=~ s/\/[^\/]*$//;
-#    $event=~ s/^.*\/([^\/]*)$/$1/;
-
     $self->debug(1,"Putting it in ". join (",", sort @uniqueSe));
-    return join (",", sort @uniqueSe), "";
+    return join (",", sort @uniqueSe), "" , ($sendSize ? $seinfo->{size} : 0);
 };
 
 
@@ -143,12 +142,12 @@ sub updateSplitting {
     $self->putJobLog($queueid,"state", "Job state transition to SPLITTING");
     my $numSubjobs=0;
     if ($strategy !~ /^userDefined/) {
-      $numSubjobs=$self->SubmitSplitJob($job_ca, $queueid, $user, $jobs);
+      $numSubjobs=$self->SubmitSplitJob($job_ca, $queueid, $user, $jobs, $strategy);
       defined $numSubjobs  or  die ("Error submitting the subjobs\n");
     } else {
       my ($ok, @def)=$job_ca->evaluateAttributeVectorString("SplitDefinitions");
       foreach my $jdl (@def) {
-	$self->_submitJDL($queueid, $user, $jdl) or die("Error submitting one of the splitDefinitions: $jdl\n");
+		$self->_submitJDL($queueid, $user, $jdl) or die("Error submitting one of the splitDefinitions: $jdl\n");
       }
     }
     #    $self->ChangeOriginalJob($job_ca, $queueid, $submitHost);
@@ -352,17 +351,13 @@ sub _singleSplit {
   my $findset=shift;
   my $queueId=shift;
 
-#  my ($ok, @patterns)=$job_ca->evaluateAttributeVectorString("InputData");
-#  @patterns or $self->info( "There is no input data")
-#	    and return;
-
   my @files=$self->_getInputFiles($job_ca, $findset, $queueId) or return;
 
   my $jobs={};
   $self->debug(1, "In SplitJob got @files");
   foreach my $file (@files) {
     $self->debug(1, "In SplitJob sorting $file");
-    my ($pos, $arg)=$sort->($file);
+    my ($pos, $arg, $fsize)=$sort->($file);
        
     $self->debug(1, "Should go in $pos, $arg");
     my @list=();
@@ -395,27 +390,37 @@ sub _singleSplit {
     $jobs->{$newpos}->{args}=$arg;
     push @{$jobs->{$newpos}->{files}}, "\"$file\"";
     # add the file size
-    if ($inputfilesize) {
+	if ($inputfilesize) {
       my $nolffile = $file;
       $nolffile=~ s/^LF://;
-      my @res = $self->{CATALOGUE}->{CATALOG}->f_lsInternal("a", $nolffile);
+      $fsize or 
+        my @res = $self->{CATALOGUE}->{CATALOG}->f_lsInternal("a", $nolffile);
       shift @res;
       shift @res;
       my $rresult = shift @res;
-      if (!defined($rresult)) {
-	$self->{LOGGER}->warning("Splitting", "Cannot stat file $nolffile");
+      
+      if (!$fsize && !defined($rresult)) {
+	  	$self->{LOGGER}->warning("Splitting", "Cannot stat file $nolffile");
       }
-      elsif ($#{$rresult} == -1) {
-	$self->{LOGGER}->warning("Splitting", "Can not stat file $nolffile");
+      elsif (!$fsize && $#{$rresult} == -1) {
+		$self->{LOGGER}->warning("Splitting", "Can not stat file $nolffile");
       }
       else {
-	$jobs->{$newpos}->{filesize} += @$rresult[0]->{size};
-	$self->info("Adding $nolffile with size @$rresult[0]->{size}");
+      	my $sz = ($fsize ? $fsize : @$rresult[0]->{size});
+		$jobs->{$newpos}->{filesize} += $sz;
+		$self->info("Adding $nolffile with size $sz");
       }
-    } else {
+    }
+    else {
       $self->debug(1,"Size does not matter for $file");
     }
 
+	defined $jobs->{$newpos}->{filesizedownload} or $jobs->{$newpos}->{filesizedownload} = 0;
+    if ($fsize){
+    	
+	  $jobs->{$newpos}->{filesizedownload} += $fsize;	
+	  $self->info("Adding $file with size $fsize");
+    }
     $jobs->{$newpos}->{nfiles}++;
   }  
   return $jobs;
@@ -444,9 +449,10 @@ sub _multiSplit {
       $jobs->{$subjob}={files=> [],
 			args=> "",
 			counter=>$event};
+	  defined $jobs->{$subjob}->{filesizedownload} or $jobs->{$subjob}->{filesizedownload} = 0;
       if ($run) {
-	# don't remove the space after event!
-	$jobs->{$subjob}->{args}="--run $run --event $event ";
+		# don't remove the space after event!
+		$jobs->{$subjob}->{args}="--run $run --event $event ";
       }
       $event++;
     }
@@ -461,6 +467,7 @@ sub SubmitSplitJob {
   my $queueid=shift;
   my $user=shift;
   my $jobs=shift;
+  my $strategy=shift;
 
   if ( !$job_ca or !$job_ca->isOK() ) {
     print STDERR "Splitting: in SubmitSplitJob job's jdl is not valid\n";
@@ -468,10 +475,7 @@ sub SubmitSplitJob {
   }
   #Removing split from the jdl
   my $text=$job_ca->asJDL();
-  $self->debug(1, "Original jdl $text\n");
-  
-    $self->info("ORIGINAL IS: $text");#TODELETE
-  
+  $self->debug(1, "Original jdl $text\n");  
 
   #to make the matching easier, let's put a ; after the last entry
   #and before the first entry;
@@ -497,7 +501,6 @@ sub SubmitSplitJob {
   
   $text =~ s/^;//g;
   $text =~ s/;;/;/g;
-  $self->info("TEXT IS: $text"); #TODELETE
   $job_ca=AliEn::JDL->new($text);
   if ( !$job_ca or !$job_ca->isOK() ) {
     print STDERR "Splitting: in SubmitSplitJob jdl $text is not valid\n";
@@ -546,10 +549,46 @@ sub SubmitSplitJob {
     my $new_req=$origreq;
     if ($jobs->{$pos}->{requirements}){
       $self->info("This subjob has some requirements!! $jobs->{$pos}->{requirements}");
-      $new_req=$jobs->{$pos}->{requirements};
+      $new_req=$jobs->{$pos}->{requirements};  
+    }      
+    
+    my $direct = 0;
+    if ($strategy =~ /^se$/i){
+    	my ($okst, $stage)=$job_ca->evaluateExpression("Prestage");
+    	
+	    # ses
+	    my ($okd, $directAccess)=$job_ca->evaluateAttributeString("DirectAccess");
+	    
+	    if (!$okd || !$directAccess){
+		    my $sereqs = "(";
+		    my @posinfo = split(';', $pos);
+		    my @ses = split(',', $posinfo[0]);
+		    $new_req .= " && (";
+		    foreach (@ses){
+		    	 $new_req.=" member(other.CloseSE,\"$_\") ||";
+		    }
+		    $new_req =~ s/\|\|$//g;
+		    $new_req .= " )";
+	    }
+	        
+	    $job_ca->insertAttributeString("Splitted", "$strategy");
+	    
+	    # size
+	    $new_req .= $self->addLocalDiskRequirement($jobs->{$pos}->{filesizedownload}, $job_ca);
+	    
+	    my ($status) = $self->checkRequirements($new_req, 0, "WAITING");
+	    
+	    ( ($okst and $stage) or ($status eq "FAILED") ) or $direct = 1; 
     }
-    $job_ca->set_expression("Requirements", $new_req);
-
+    elsif($strategy =~ /^production:(.+)-(.+)/i){
+    	# size	
+	    $new_req .= $self->addLocalDiskRequirement($jobs->{$pos}->{filesizedownload}, $job_ca);
+	    # directly to WAITING
+	    $direct = 1;
+    }
+    
+    $job_ca->set_expression("Requirements", $new_req);     
+          
     my $input=$self->_setInputData($jobs->{$pos}, $inputdataaction, \@inputdataset);
     if ($input) {
       $job_ca->set_expression("InputData", $input);
@@ -572,14 +611,28 @@ sub SubmitSplitJob {
 	       print STDERR "Splitting: in SubmitSplitJob new jdl is not valid\n";
 	       return;
       }
-      $self->info("SUBMITTING JOB WITH $job_ca->asJDL");#TODELETE
       
-      $self->_submitJDL($queueid, $user, $job_ca->asJDL, 
-                        $jobs->{$pos}->{files}, $job_ca)      or return;
+      $self->_submitJDL($queueid, $user, $job_ca->asJDL, $jobs->{$pos}->{files}, $job_ca, $direct) or return;
     }
   }
   return 1;
 }
+
+sub addLocalDiskRequirement {
+	my $self = shift;
+	my $size = shift;
+	my $job_ca = shift;
+	my $req = "";
+	
+    # size
+	if(defined $size){
+	   	my $ld = $self->sizeRequirements($size, $job_ca);
+	   	$req = " && ( $ld )";
+	}
+	
+	return $req;
+}
+
 sub _checkEntryPattern {
   my $self=shift;
   my $entryName=shift;
@@ -616,7 +669,7 @@ sub _submitJDL {
   my $jdlText=shift;
   my $files=shift;
   my $job_ca=shift;
-  my $direct=shift ||0;
+  my $direct=shift || 0;
 
   ( $job_ca) or $job_ca=AliEn::JDL->new($jdlText);
   ( $job_ca and $job_ca->isOK() ) 

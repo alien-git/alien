@@ -266,10 +266,10 @@ sub enterCommand: Public {
   my ($ok,  @inputdata)       = $job_ca->evaluateAttributeVectorString("InputData");
   my ($ok2, @inputcollection) = $job_ca->evaluateAttributeVectorString("InputDataCollection");
 
-  my $direct = 1;
-  ($ok  && $inputdata[0])       and $direct = 0;
-  ($ok2 && $inputcollection[0]) and $direct = 0;
-  $direct = 0;
+  my $direct = (defined $options->{direct} ? $options->{direct} : 0);
+  #($ok  && $inputdata[0])       and $direct = 0;
+  #($ok2 && $inputcollection[0]) and $direct = 0;
+  #$direct = 0;
 
   my $nbJobsToSubmit = 1;
   if ($jobca_text =~ /split =/i) {
@@ -331,7 +331,7 @@ sub enterCommand: Public {
   
   if ($direct) {
     $self->info("The job should go directly to WAITING");
-    $set->{statusId} = 5; # WAITING
+    $set->{statusId} = "WAITING";
     my ($ok, $req) = $job_ca->evaluateExpression("Requirements");
     my $agentReq = $self->getJobAgentRequirements($req, $job_ca);
     $set->{agentId} = $self->{DB}->insertJobAgent($agentReq);

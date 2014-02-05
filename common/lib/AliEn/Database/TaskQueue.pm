@@ -21,6 +21,8 @@ use AliEn::Database;
 use strict;
 use AliEn::Util;
 
+use Data::Dumper;
+
 use vars qw(@ISA $DEBUG);
 @ISA = ("AliEn::Database");
 
@@ -1674,14 +1676,26 @@ sub getNumberWaitingForSite{
   }
   
   if($options->{remote}==1){
-  	my ($agents) = $self->queryColumn("select agentId from QUEUE where statusId=5 and timestampdiff(SECOND,mtime,now())>=ifnull(remoteTimeout,$self->{DEFAULTREMOTETIMEOUT})"); 
+  	my $agents;
+  	my $ok = 0;
+  	  	
+  	$self->{CONFIG}->{CACHE_SERVICE_ADDRESS} and 
+  	  ($ok, @$agents) = AliEn::Util::getURLandEvaluate("$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}?ns=jobbroker&key=remoteagents", 1);
+  	
+  	$ok or  
+  	  ($agents) = $self->queryColumn("select distinct agentId from QUEUE where statusId=5 and timestampdiff(SECOND,mtime,now())>=ifnull(remoteTimeout,$self->{DEFAULTREMOTETIMEOUT})"); 
+  	
   	scalar(@$agents) or return 0;
+  	
   	$where.="and entryId in (";  	
   	foreach my $agent (@$agents){
   	  $where.="$agent,";
   	}
   	$where =~ s/,$//;
   	$where.=")";
+
+  	$ok or 
+  	  AliEn::Util::getURLandEvaluate("$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}?ns=jobbroker&key=remoteagents&timeout=300&value=".Dumper([@$agents]));
   }
 
   $options->{cerequirements_partitions} and $where.=" and partition=?" and push @bind, $options->{cerequirements_partitions};

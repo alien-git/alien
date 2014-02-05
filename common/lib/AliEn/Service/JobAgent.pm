@@ -47,6 +47,8 @@ use Filesys::DiskFree;
 use AliEn::ClientPackMan;
 use AliEn::TMPFile;
 
+use Fcntl qw/O_WRONLY O_CREAT O_EXCL/;
+
 
 @ISA=qw(AliEn::Service);
 
@@ -624,6 +626,8 @@ sub CreateDirs {
 	$self->changeStatus("%", "ERROR_IB");
 	return 0;
   }
+  
+  $self->putJobLog("trace","Creating the working directory $self->{WORKDIR}");
 
   foreach my $fullDir (@dirs){
     my $dir = "";
@@ -631,14 +635,25 @@ sub CreateDirs {
     foreach ( split ( "/", $fullDir ) ) {
       $dir .= "/$_";
       mkdir $dir, 0777;
+      if (! (-d $dir) ) {
+        $self->putJobLog("error","Directory $dir of job $ENV{ALIEN_PROC_ID} could not be created");
+	    $self->registerLogs(0);
+	    $self->changeStatus("%", "ERROR_IB");
+	    return 0;
+      }
     }
   }
-
-  $self->putJobLog("trace","Creating the working directory $self->{WORKDIR}");
-
-  if ( !( -d $self->{WORKDIR} ) ) {
-    $self->putJobLog("error","Could not create the working directory $self->{WORKDIR} on $self->{HOST}");
+  
+  if(!chdir $self->{WORKDIR}){
+  	$self->putJobLog("error","Could not chdir to working directory $self->{WORKDIR}) in job $ENV{ALIEN_PROC_ID}");
+	$self->registerLogs(0);
+	$self->changeStatus("%", "ERROR_IB");
+	return 0;
   }
+
+#  if ( !( -d $self->{WORKDIR} ) ) {
+#    $self->putJobLog("error","Could not create the working directory $self->{WORKDIR} on $self->{HOST}");
+#  }
 
   # remove old workdirs from former jobs while are not touched longer since 1 week!
   open WORKDIRLIST ,"ls -d $self->{WORKDIR}/../alien-job-* |";
@@ -701,7 +716,6 @@ sub CreateDirs {
 #        mkdir "$self->{LOCALDIR}", 0777;
 #    }
 
-  chdir $self->{WORKDIR};
   return $done;
 }
 
@@ -1038,7 +1052,7 @@ sub executeCommand {
   print "Test: ClusterMonitor is at $ENV{ALIEN_CM_AS_LDAP_PROXY}\n";
   print "Execution machine:  $self->{HOST}\n";
 
-  chdir $self->{WORKDIR};
+  chdir $self->{WORKDIR} or return;
   $s="ulimit -S -v ".$self->{FASTKILL_MEMORY}." -c 0\;".$s;
   
   my $error = system($s);
@@ -1218,11 +1232,13 @@ sub dumpInputDataList {
       $self->putJobLog("error","The inputdatalistType was $format, but I don't understand it :(. Ignoring it");
     }
   }
-  $self->putJobLog("trace","Putting the list of files in the file '$dumplist'");
+  my $curdir = `pwd`;
+  chomp($curdir);
+  $self->putJobLog("trace","Putting the list of files in the file '".$curdir."/$dumplist'");
   $self->info("Putting the inputfiles in the file '$dumplist'");
-  if (!open (FILE, ">$dumplist") ){
+  if (! sysopen(FILE, $dumplist, O_WRONLY | O_CREAT | O_EXCL) ){
     $self->info("Error putting the list of files in $dumplist");
-    $self->putJobLog("error","Error putting the list of files in the file $dumplist");
+    $self->putJobLog("error","Error putting the list of files in the file '".$curdir."/$dumplist");
     return;
   }
 
@@ -1318,7 +1334,7 @@ sub getFiles {
   $self->info("Getting the files");
   my $oldmode=$self->{LOGGER}->getMode();
   $self->info("Got mode $oldmode");
-  $self->dumpInputDataList($catalog);
+  $self->dumpInputDataList($catalog) or return;
 
   $self->getInputZip($catalog) or return;
 

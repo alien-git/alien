@@ -127,16 +127,84 @@ sub checkForkProcess{
   return ;
 }
 
+sub checkRequirements {
+  my $self=shift;
+  my $tmpreq=shift;
+  my $queueid=shift;
+  my $status=shift;
+  my $msg="";
+  my $no_se={};
+
+
+  while ($tmpreq =~ s/!member\(other.CloseSE,"([^:]*::[^:]*::[^:]*)"\)//si) {
+    $no_se->{uc($1)}=1;
+  }
+  my $ef_site={};
+  my $need_se=0;
+  while ($tmpreq =~ s/member\(other.CloseSE,"([^:]*::([^:]*)::[^:]*)"\)//si) {
+    $need_se=1;
+    $no_se->{uc($1)} and $self->info("Ignoring the se $1 (because of !closese)") and next;
+    $ef_site->{uc($2)}={};
+  }
+
+  $need_se and ! keys %$ef_site and $msg.="conflict with SEs";
+  if (! $msg){
+    my $no_ce={};
+      while ($tmpreq =~ s/!other.ce\s*==\s*"([^:]*::([^:]*)::[^:"]*)"//i) {
+       my $cename=uc($1); my $site=uc($2);
+       $no_ce->{$cename}=1;
+       if ($need_se and $ef_site->{$site}){
+          $ef_site->{$site}->{$cename}=1;
+          $self->checkNumberCESite($site, $ef_site->{$site}) and  next; 
+          $self->info("There are no more CE at the site");
+          delete $ef_site->{$site};
+       }
+    }
+    $need_se and ! keys %$ef_site and $msg.="conflict with SEs and !CE";
+
+
+
+    my $ef_ce=0;
+    my $need_ce=0;
+    while ($tmpreq =~ s/other.ce\s*==\s*"([^:]*::([^:]*)::[^:]*)"//i) {
+      $need_ce=1;
+      $no_ce->{uc($1)} and $self->info("Ignoring the ce $1") and next;
+      if ($need_se){
+          $ef_site->{uc($2)} or $self->info("This CE is not good for the sites that we have") and next;         
+      }
+      $ef_ce=1;
+    }
+    $need_ce and not $ef_ce and $msg .="The CEs requested by the user cannot execute this job";
+
+  }
+  $msg and $status="FAILED" and $queueid and $self->putJobLog($queueid,"state", "Job going to FAILED, problem with requirements: $msg");
+  return $status;
+}
+
+
+sub checkNumberCESite {
+  my $self = shift;
+  my $site = shift;
+  my $no_ce = shift;
+  my @bind=($site);
+
+  my $query="";
+  foreach my $ce (keys %$no_ce){
+     $query.="?,";
+     push @bind, $ce;
+  }
+  $query=~ s/,$//;
+  $self->info("Checking if there are any other available CES at the site $site (removing @bind)"); 	
+  return $self->{DB}->queryValue("select count(1) from SITEQUEUES where site like concat('%\::',?,'::%') and site not in ($query)",
+        undef, {bind_values=>\@bind});
+}
+
+
 sub copyInput {
   my $self   = shift;
   my $procid = shift;
   my $job_ca = shift;
   my $user   = shift;
-  my $ef_site_org = shift; # to check user SE reqs with inputdata SE
-  my $checkSites = keys %$ef_site_org;
-  my $no_site_org = shift; # to check user !SE reqs with inputdata SE (if undef $ef_site_org)
-  my $ef_site;
-  my $return;  
   $self->debug(1, "At the beginnning of copyInput of $procid");
   my ($ok, $split) = $job_ca->evaluateAttributeString("Split");
   $self->debug(1, "Already evaluated the split");
@@ -146,12 +214,19 @@ sub copyInput {
     and return
     {};
 
+  ($ok, my $directAccess)=$job_ca->evaluateAttributeString("DirectAccess");
+  $directAccess and $self->putJobLog($procid,"info", "Using directaccess to the data");
+
+
   $self->debug(1, "Already evaluated the inputbox");
   ($ok, my @inputData) = $job_ca->evaluateAttributeVectorString("InputData");
   $self->debug(1, "Before the copy of the inputcollection");
   $self->copyInputCollection($job_ca, $procid, \@inputData)
     or $self->info("Error checking the input collection")
     and return;
+  my @filesToDownload=();
+  my $procDir = AliEn::Util::getProcDir($user, undef, $procid);
+
   my $file;
 
   my $size = 0;
@@ -164,7 +239,7 @@ sub copyInput {
   eval {
     foreach $file ( @inputData) {
       my $nodownload = 0;
-      $file =~ s/,nodownload// and $nodownload = 1;
+      $file =~ s/,nodownload$// and $nodownload = 1;
 
       $self->debug(1, "In copyInput adding file $file");
 
@@ -172,7 +247,7 @@ sub copyInput {
       $file =~ s/^LF://i;
       $self->debug(1, "Adding file $file (from the InputBox)");
       my ($fileInfo) =
-        $self->{CATALOGUE}->execute("whereis", "-ri", $file, "-silent");
+        $self->{CATALOGUE}->execute("whereis", "-ric", $file, "-silent");
       if (!$fileInfo) {
         $self->putJobLog($procid, "error", "Error checking the file $file");
         die("The file $file doesn't exist");
@@ -183,27 +258,11 @@ sub copyInput {
         $self->putJobLog($procid, "error", "Error checking the file $file");
         die("The file $file isn't in any SE");
       }
-
-	  if($checkSites){
-      	%$ef_site = %$ef_site_org;
-      	foreach my $site (keys %$ef_site){
-      		grep { /$site/i } @sites or delete $ef_site->{$site};
-      	}
-      } elsif (keys %$no_site_org){
-      	for (my $a=0; $a<scalar(@sites); $a++) {
-      		my @isite = split('::', $sites[$a]);
-      		$no_site_org->{uc($isite[1])} and splice(@sites, $a, 1);
-      	}
-      }
-            
-      $checkSites and !keys %$ef_site and $return = { failed => 1 } and 
-        $self->putJobLog($procid, "trace", "File $file not found in defined sites") and return;
-      !$checkSites and keys %$no_site_org and !scalar(@sites) and $return = { failed => 1 } and 
-        $self->putJobLog($procid, "trace", "File $file in exluded sites") and return;
-	    
+        
       my $sePattern = join("_", @sites);
 
-      if (!$checkSites && !grep (/^$sePattern$/, @allreqPattern)) {
+        #This has to be done only for the input data"
+      if (!grep (/^$sePattern$/, @allreqPattern)  and ! $directAccess ) {
         $self->putJobLog($procid, "trace",
           "Adding the requirement to '@sites' due to $file");
 
@@ -220,8 +279,19 @@ sub copyInput {
         and next;
       $size += $fileInfo->{size};
 
+        my $procname=$self->findProcNameProcDir($procDir, $file, $done);
+
+        push @filesToDownload, "\"${procname}->$file\"";
+
     }
   };
+
+   if ( @filesToDownload) {
+       $self->info("Putting in the jdl the list of files that have to be downloaded");
+      my ($ok, @moreFiles)=$job_ca->evaluateAttributeVectorString("InputDownload");
+      $job_ca->set_expression("InputDownload", "{". join(",",@moreFiles,  @filesToDownload)."}");
+    }
+
   my $error = $@;
 
   if ($error) {
@@ -229,16 +299,48 @@ sub copyInput {
     return;
   }
   
-  $return and return $return;
-  $checkSites and $self->putJobLog($procid, "trace", "Requirements over sites restricted by user (member.CloseSE)");
-  
+  my $req = join(" && ", $self->sizeRequirements($size, $job_ca), @allreq);
+
+  $self->info("The requirements from input are $req");
+  return { requirements => "$req" };
+}
+
+sub findProcNameProcDir{
+  my $self=shift;
+  my $procDir = shift;
+  my $origname=shift;
+  my $done=(shift or {});
+
+  $done->{files} or $done->{files}={stdout=>0, resources=>0, stderr=>0};
+  $done->{dir} or $done->{dir}=-1;
+  $self->debug(1, "In findProcName finding a procname for $origname");
+
+  $origname =~ /\/([^\/]*)$/ and $origname=$1;
+  $self->debug(1, "In findProcName finding a name for $origname");
+  my $i=$done->{files}->{$origname};
+  my $name;
+  if (!defined $i) {
+    $done->{files}->{$origname}=1;
+    $name="$procDir/$origname";
+  } else {
+    $name= "/$procDir/$i/$origname";
+    $done->{files}->{$origname}++;
+  }
+  return $name;
+
+}
+
+sub sizeRequirements {
+  my $self = shift;
+  my $size = shift;
+  my $job_ca = shift;
+	
   if ($size) {
     #let's round up the size
     $size = (int($size / (1024 * 8192) + 1)) * 8192;
 
   }
-  my ($okwork, @workspace) =
-    $job_ca->evaluateAttributeVectorString("Workdirectorysize");
+  my ($okwork, @workspace) = $job_ca->evaluateAttributeVectorString("Workdirectorysize");
   if ($okwork && defined $workspace[0] && $workspace[0] > 0) {
     my $unit = 1;
     $workspace[0] =~ s/MB//i and $unit = 1024;
@@ -249,10 +351,9 @@ sub copyInput {
       $size = $space;
     }
   }
-  my $req = join(" && ", "( other.LocalDiskSpace > $size )", @allreq);
-  $self->info("The requirements from input are $req");
-  return { requirements => "$req" };
+  return "( other.LocalDiskSpace > $size )";
 }
+
 
 sub updateWaiting {
   my $self    = shift;
