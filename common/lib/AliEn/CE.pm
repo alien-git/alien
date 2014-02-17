@@ -1086,7 +1086,7 @@ sub createAgentStartup {
 
 	my $before      = "";
 	my $after       = "";
-	my $alienScript = "$ENV{ALIEN_ROOT}/bin/alien";
+	my $alienScript = "ALIEN_DEBUG='-d:Trace' $ENV{ALIEN_ROOT}/bin/alien";
 
 	if ($self->{CONFIG}->{CE_INSTALLMETHOD}) {
 		$self->info("We are installing alien with $self->{CONFIG}->{CE_INSTALLMETHOD}");
@@ -1216,11 +1216,20 @@ kill_aria2c 900 &
 "
 }
 
+sub installWithCVMFS {
+    my $self = shift;
+    $self->info("The worker node will install with the CVMFS method!!!");
+    my $alien = $ENV{ALIEN_ROOT};
+    my $version = $ENV{ALIEN_VERSION};
+    return "/cvmfs/alice.cern.ch/bin/alienv setenv AliEn/$version -c ALIEN_DEBUG='-d:Trace' $alien/bin/alien", "", "";
+}
+
+
 sub installWithTorrent {
 	my $self = shift;
 	$self->info("The worker node will install with the torrent method!!!");
 
-	return "./alien/bin/alien",
+	return "ALIEN_DEBUG='-d:Trace' ./alien/bin/alien",
 		$self->torrentScript("\`pwd\`/alien_installation.\$\$"),
 		"kill_aria2c 0; rm -rf \$DIR; exit";
 }
@@ -1229,7 +1238,7 @@ sub installWithTorrentPerHost {
 	my $self = shift;
 	$self->info("The worker node will install with the torrent  method!!!");
 
-	return "../alien/bin/alien",
+	return "ALIEN_DEBUG='-d:Trace' ../alien/bin/alien",
 		$self->torrentScript("$self->{CONFIG}->{WORK_DIR}/alien_torrent"),
 		"kill_aria2c 0; exit";
 }

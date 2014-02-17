@@ -1,9 +1,13 @@
 #!/usr/bin/perl -w
 
+BEGIN{ $Devel::Trace::TRACE = 0 }
+
 use strict;
 
 use AliEn::Service;
 use Getopt::Long;
+
+$Devel::Trace::TRACE = 0;
 
 my $options = {
 	       'debug'    => 0,
@@ -16,7 +20,6 @@ my $options = {
 	       'logfile' =>"",
 	       'pid'=> 0,
 	      };
-
 
 my $service=shift; 
 
