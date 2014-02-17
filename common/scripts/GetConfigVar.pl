@@ -1,6 +1,11 @@
 #!/usr/bin/perl
+
+BEGIN{ $Devel::Trace::TRACE = 0 }
+
 use strict;
 use AliEn::Config;
+
+$Devel::Trace::TRACE = 0;
 
 my $config = new AliEn::Config( { "SILENT", 1 } );
 
