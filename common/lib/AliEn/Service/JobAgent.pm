@@ -2420,7 +2420,7 @@ sub checkProcess{
     $self->info("Killing the job ($killMessage)");
     $self->putJobLog("error","Killing the job ($killMessage)");
     $self->prepare_Error_Files();
-    my $jdl = ($self->{JDL_CHANGED} ? $self->{DIFFCA}->{$ENV{ALIEN_PROC_ID}} : undef);   
+    my $jdl = ($self->{JDL_CHANGED} ? $self->{CA}->asJDL() : undef);
     $self->changeStatus("%", "ERROR_E", $jdl);
     return;
   }
