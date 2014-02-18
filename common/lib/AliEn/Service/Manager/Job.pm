@@ -523,9 +523,9 @@ sub changeStatusCommand : Public {
     $self->info("Setting the return code of the job as $error");
     $set->{error} = $error;
   } elsif (($status =~ /SAVED.*/ && $error)
-    || ($status =~ /(ERROR_V)|(STAGING)/)) {
+    || ($status =~ /(ERROR_V)|(STAGING)|(ERROR_E)/)) {
     $self->info("Updating the jdl of the job");
-    $set->{resultsjdl} = $error;
+    $error and $set->{resultsjdl} = $error;
     } elsif ($status eq "DONE") {
     $set->{finished} = $date;
 

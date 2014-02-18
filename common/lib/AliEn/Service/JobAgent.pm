@@ -20,6 +20,7 @@
 #   - they change to "INTERACTIVE", if the connection closes,
 #   - they go back to IDLE
 
+BEGIN{ $Devel::Trace::TRACE = 0 }
 
 package AliEn::Service::JobAgent;
 
@@ -558,9 +559,14 @@ sub checkJobJDL {
     $self->info("Setting the MasterJobId to $masterid");
     $ENV{ALIEN_MASTERJOBID}=$masterid;
   }
+  
+  my $proxytime;
   $self->{JOBEXPECTEDEND}=time()+$jobttl+600;
-  $self->putJobLog("trace","The job needs $jobttl seconds");
-
+  ($ok, my $ttlproxy) = $self->{CA}->evaluateAttributeString("ProxyTTL");
+  $ok and $ttlproxy and $proxytime=$self->{X509}->getRemainingProxyTime() 
+    and $self->{JOBEXPECTEDEND}=time()+$proxytime-600;
+  $self->putJobLog("trace","The job needs $jobttl seconds, allowed for $self->{JOBEXPECTEDEND} ".($ttlproxy ? "(proxy timeleft: $proxytime)" : "") );
+  
 
   $self->{VOs}="$self->{CONFIG}->{ORG_NAME}#$ENV{ALIEN_CM_AS_LDAP_PROXY}#$self->{QUEUEID}#$ENV{ALIEN_JOB_TOKEN}  $self->{VOs}";
 
@@ -889,13 +895,33 @@ sub getCatalogue {
     $self->{CONFIG}->{AGENT_API_PROXY} and 
       $options->{gapi_catalog}=$self->{CONFIG}->{AGENT_API_PROXY};
     $self->info("Trying to get a catalogue");
+
+    # copy STDERR to another filehandle
+    open (my $STDOLD, '>&', STDERR);
+    # redirect STDERR to log.txt
+    open (STDERR, '>>', 'develTrace_'.$ENV{ALIEN_PROC_ID}.'');
+    $Devel::Trace::TRACE = 1;
+    
     $catalog = AliEn::UI::Catalogue::LCM::->new($options);
+    
+    $Devel::Trace::TRACE = 0;
+    open (STDERR, '>&', $STDOLD);
+
   };
   if ($@) {print "ERROR GETTING THE CATALOGUE $@\n";}
   if (!$catalog) {
     $self->putJobLog("error","The job couldn't authenticate to the catalogue");
-
     print STDERR "Error getting the catalog!\n";
+    
+    open(FI, 'develTrace_'.$ENV{ALIEN_PROC_ID}.'') or $self->putJobLog("trace","Can't open develTrace") and return;
+    my $c = 0;  
+    while (<FI>){
+      #($_ =~ /Logger/i or $_ =~ /ISA/i or $_ =~ /Log\/Agent/i or $_ =~ /Class\/Struct/i or $_ =~ /Rotate/i) or 
+      $self->putJobLog("trace","T$c: $_");
+      $c++;
+    }   
+    close (FI); 
+    
     return;
   }
   $self->info("Got the catalogue");
@@ -1693,7 +1719,36 @@ sub createZipArchives{
   return ($archiveTable,\@files);
 }
 
+sub prepare_Error_Files {
+    my $self = shift;
 
+    my ($ok, @outputEntriesError ) = $self->{CA}->evaluateAttributeVectorString("OutputErrorE");
+    $ok and scalar(@outputEntriesError) or return 1;
+
+    $self->{UI} = AliEn::UI::Catalogue::LCM->new({no_catalog=>1,role=>$self->{JOB_USER}});
+    if (!$self->{UI}) {
+      $self->info("Error getting an instance of the catalog saving ERROR_E output");
+      $self->putJobLog("error","Could not get an instance of the LCM saving ERROR_E output");
+      $self->registerLogs();
+      $self->putJobLog("trace","Registered the JobLogOnClusterMonitor.");
+      return;
+    }
+    else{
+      my ($okoo , @origOutput) = $self->{CA}->evaluateAttributeVectorString("Output");
+      $self->{CA}->set_expression("Output", "{\"" . join("\",\"", @outputEntriesError) . "\"}");
+
+      my $uploadFilesState = $self->prepare_File_And_Archives_From_JDL_And_Upload_Files() ;
+
+      $okoo and @origOutput and $self->{CA}->set_expression("Output", "{\"" . join("\",\"", @origOutput) . "\"}");
+
+      ($uploadFilesState eq -1) or ($uploadFilesState eq 0) and $self->putJobLog("trace","Error $uploadFilesState uploading error logs");
+
+      $self->registerLogs();
+      $self->{UI}->close();
+    }
+
+    return 1;
+}
 
 
 sub prepare_File_And_Archives_From_JDL_And_Upload_Files{
@@ -2386,7 +2441,9 @@ sub checkProcess{
     AliEn::Util::kill_really_all($self->{PROCESSID});
     $self->info("Killing the job ($killMessage)");
     $self->putJobLog("error","Killing the job ($killMessage)");
-    $self->changeStatus("%", "ERROR_E");
+    $self->prepare_Error_Files();
+    my $jdl = ($self->{JDL_CHANGED} ? $self->{CA}->asJDL() : undef);
+    $self->changeStatus("%", "ERROR_E", $jdl);
     return;
   }
 
