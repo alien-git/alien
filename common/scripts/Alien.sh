@@ -314,8 +314,10 @@ ALIEN_Grid()
 #    printf "Please (re)run 'alien config' command.\n\n"
 #    exit 1
 #  fi
+  bits=" " 
   if [ "$1" = "proxy-init" ] ;
   then
+	bits=" -bits 1024"
     echo "Checking the time difference"
     if [ -f /usr/sbin/ntpdate ] ;
     then
@@ -333,7 +335,7 @@ ALIEN_Grid()
 
   if [ -x $GLOBUS_LOCATION/bin/grid-$1 ]
   then 
-    exec $GLOBUS_LOCATION/bin/grid-$*
+    exec $GLOBUS_LOCATION/bin/grid-$* $bits
   else
     printf "%s: No such file or directory.\n" $1
     exit 1

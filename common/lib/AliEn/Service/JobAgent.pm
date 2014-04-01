@@ -1730,6 +1730,7 @@ sub createZipArchives{
                                 options=>$archiveTable->{$name}->{options},
                                 nonarchivedFiles=>{}
                                 };
+       my $total_size=0;
        foreach my $file (@includedFiles) { 
           my $size=-s $file;
           if (!defined $size) {
@@ -1739,16 +1740,21 @@ sub createZipArchives{
           $archiveTable->{$name}->{zip}->addFile($file);
           $archiveTable->{$name}->{entries}->{$file}={size=> $size,
                                                        md5=>AliEn::MD5->new($file)};
+          $total_size+=$size; 
        }
        if ($archiveTable->{$name}->{zip}->numberOfMembers()<1){
          $self->putJobLog("error","The archive '$filename' doesn't have any files inside. Ignoring it...");
          delete $archiveTable->{$name};
          next;
        }
+       if ($total_size >= 4*1024*1024*1024) { #4GB zip limit 
+         $self->putJobLog("error","The archive '$filename' is over the limit of 4GB ($total_size bytes)");
+         return;
+       }
        if (grep(/.root$/ , $archiveTable->{$name}->{zip}->memberNames())) {
          $self->info("There is a root file. Do not compress the files");
          foreach my $member ($archiveTable->{$name}->{zip}->members()){
-   	$member->desiredCompressionLevel(0);
+   	   $member->desiredCompressionLevel(0);
          }
        }
        $archiveTable->{$name}->{zip}->writeToFileNamed($filename);
@@ -1825,7 +1831,7 @@ sub prepare_File_And_Archives_From_JDL_And_Upload_Files{
   $archiveTable = $self->processJDL_get_Output_Archivename_And_Included_Files_And_Initialize_archiveTable($archives,$defaultArchiveName);
 
   ($archiveTable, $ArchiveFailedFiles) = $self->createZipArchives($archiveTable) or
-       print "Error creating the Archives\n" and return;
+       print "Error creating the Archives\n" and return 0;
 
   push @$files, @$ArchiveFailedFiles;
 
