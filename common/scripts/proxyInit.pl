@@ -64,6 +64,6 @@ if ( $num > 1 ) {
 }
 
 system(
-"$ENV{ALIEN_ROOT}/bin/grid-proxy-init -hours $options->{'hours'} -cert $certs[$chosen-1] -key $keys[$chosen-1]"
+"$ENV{ALIEN_ROOT}/bin/grid-proxy-init -hours $options->{'hours'} -cert $certs[$chosen-1] -key $keys[$chosen-1] -bits 1024"
 );
 
