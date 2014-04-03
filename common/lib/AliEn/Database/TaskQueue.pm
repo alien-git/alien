@@ -1653,6 +1653,8 @@ sub getWaitingJobForAgentId{
   	my $info=$self->queryRow("select queueid, origjdl jdl,  user from 
   	QUEUEJDL join QUEUE using (queueid) join QUEUE_USER using (userid) where queueid=\@assigned_job");
   	$info or $self->info("Error checking what we selected") and return;
+  	
+  	$self->do("update QUEUEPROC set lastupdate=CURRENT_TIMESTAMP where queueId=\@assigned_job");
 
   	$self->do("update SITEQUEUES set ASSIGNED=ASSIGNED+1 where siteid=?",{bind_values=>[$siteid]});
   	$self->do("update SITEQUEUES set WAITING=WAITING-1 where siteid=?",{bind_values=>[$self->findSiteId("unassigned::site")]});
