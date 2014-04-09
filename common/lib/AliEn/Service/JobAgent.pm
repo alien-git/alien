@@ -894,7 +894,8 @@ sub getCatalogue {
   my $self=shift;
   my $options={no_catalog=>1};
   my $catalog;
-
+  my $notrace = defined $self->{CONFIG}->{CE_ENVIRONMENT_LIST} && grep( /NOTRACE/i,  @{$self->{CONFIG}->{CE_ENVIRONMENT_LIST}} );
+  
   eval{ 
     $options->{silent} or $options->{silent}=0;
 
@@ -914,7 +915,7 @@ sub getCatalogue {
     open (my $STDOLD, '>&', STDERR);
     # redirect STDERR to log.txt
     open (STDERR, '>>', 'develTrace_'.$ENV{ALIEN_PROC_ID}.'');
-    $Devel::Trace::TRACE = 1;
+    $Devel::Trace::TRACE = 1-$notrace;
     
     $catalog = AliEn::UI::Catalogue::LCM::->new($options);
     
@@ -924,17 +925,22 @@ sub getCatalogue {
   };
   if ($@) {print "ERROR GETTING THE CATALOGUE $@\n";}
   if (!$catalog) {
-    $self->putJobLog("error","The job couldn't authenticate to the catalogue");
+    $self->putJobLog("error","The job couldn't authenticate to the catalogue (no_trace $notrace)");
 
-    open(FI, 'develTrace_'.$ENV{ALIEN_PROC_ID}.'') or $self->putJobLog("trace","Can't open develTrace") and return;
-    my $c = 0;  
-    while (<FI>){
-      #($_ =~ /Logger/i or $_ =~ /ISA/i or $_ =~ /Log\/Agent/i or $_ =~ /Class\/Struct/i or $_ =~ /Rotate/i) or 
-      $self->putJobLog("trace","T$c: $_");
-      $c++;
-    }   
-    close (FI);
-
+    if (1-$notrace){
+	    open(FI, 'develTrace_'.$ENV{ALIEN_PROC_ID}.'') or $self->putJobLog("trace","Can't open develTrace") and return;
+	    my $c = 0;
+	    my $trace = "";  
+	    while (<FI>){
+	      #($_ =~ /Logger/i or $_ =~ /ISA/i or $_ =~ /Log\/Agent/i or $_ =~ /Class\/Struct/i or $_ =~ /Rotate/i) or 
+	      $c++;
+	      $trace .= "T$c: $_ -";
+	      $c%1000==0 and $self->putJobLog("trace","$trace") and $trace="";
+	    }   
+	    close (FI);
+	    $self->putJobLog("trace","$trace");
+    }
+    
     print STDERR "Error getting the catalog!\n";
     return;
   }

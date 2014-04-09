@@ -917,7 +917,7 @@ sub checkProcInfo {
 
   while (@list) {
     my @temp = ();
-    for (my $i = 0 ; $i < 200 ; $i++) {
+    for (my $i = 0 ; $i < 400 ; $i++) {
       my $item = shift @list or last;
       push @temp, $item;
     }
