@@ -1748,9 +1748,11 @@ sub killTask{
     $self->queryColumn("SELECT queueId from QUEUE where (queueId=? or (split!=0 and split=?)) ",
     undef, {bind_values=>[$queueId, $queueId]});
   my @retvalue;
+  
+  my $masterjob = scalar(@$rresult)>1;
 
   for my $j (@$rresult) {
-    @retvalue = $self->killProcessInt($j, $user);
+    @retvalue = $self->killProcessInt($j, $user, $masterjob);
   }
   return @retvalue;
 }
@@ -1759,6 +1761,7 @@ sub killProcessInt {
   my $self    = shift;
   my $queueId = shift;
   my $user    = shift;
+  my $masterkill = shift || 0;
 
   my $date = time;
 
@@ -1812,7 +1815,7 @@ sub killProcessInt {
       or $self->info( "In killProcess error inserting the message")
       and return;
   }
-  if ($data->{split}) {
+  if (!$masterkill && $data->{split}) {
     $self->do("insert ignore into JOBSTOMERGE values (?)", {bind_values=>[$data->{split}]});
     $self->do("update ACTIONS set todo=1 where action='MERGING'");
   }
