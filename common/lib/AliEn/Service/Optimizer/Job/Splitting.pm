@@ -156,6 +156,12 @@ sub updateSplitting {
       or $self->info("Error updating status for job $queueid" )
 	and die("Error changing the status\n");;
     $self->putJobLog($queueid,"state", "Job state transition from SPLITTING to SPLIT");
+    
+    my ($countsubjobs)=$self->{DB}->queryValue("select count(1) from QUEUE where split=?",
+                      undef, {bind_values=>[$queueid]});
+    $countsubjobs and $self->info("$queueid has $countsubjobs subjobs" ) or 
+      $self->info("Error splitting $queueid: 0 subjobs" ) and 
+      die("Job has 0 subjobs after SPLIT ?");
   };
   if ($@) {
     $self->info("Error splitting $queueid: $@");
