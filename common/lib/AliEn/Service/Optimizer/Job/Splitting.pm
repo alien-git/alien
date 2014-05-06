@@ -56,7 +56,8 @@ my $splitPerSE =sub  {
     my $sendSize = 1;
     $event=~ s/LF://;
     $event =~ s/,nodownload// and $sendSize = 0;
-    my ($seinfo) = $self->{CATALOGUE}->execute("whereis", "-irc", "-silent", $event);
+    my ($seinfo) = $self->{CATALOGUE}->execute("whereis", "-irtc", "-silent", $event);
+    $seinfo or ($seinfo) = $self->{CATALOGUE}->execute("whereis", "-irc", "-silent", $event);
     my @se;
     defined $seinfo->{REAL_SE} and $seinfo->{REAL_SE} and @se = @{ $seinfo->{REAL_SE} };
     
