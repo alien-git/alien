@@ -53,16 +53,20 @@ my $splitPerEvent =sub  {
 my $splitPerSE =sub  {
     my $event=shift;
 
-    $event=~ s/^LF://;
-    $event =~ s/,nodownload$//;
-    my @se=$self->{CATALOGUE}->execute("whereis", "-lr", "-silent", "$event");
+    my $sendSize = 1;
+    $event=~ s/LF://;
+    $event =~ s/,nodownload// and $sendSize = 0;
+    my ($seinfo) = $self->{CATALOGUE}->execute("whereis", "-irtc", "-silent", $event);
+    $seinfo or ($seinfo) = $self->{CATALOGUE}->execute("whereis", "-irc", "-silent", $event);
+    my @se;
+    defined $seinfo->{REAL_SE} and $seinfo->{REAL_SE} and @se = @{ $seinfo->{REAL_SE} };
+    
+    my %foo;
+    foreach (@se) { $foo{$_}++ };
+    my @uniqueSe = (keys %foo);
 
-#    @se= grep (/::.*::/, @se);
-#    $event=~ s/\/[^\/]*$//;
-#    $event=~ s/^.*\/([^\/]*)$/$1/;
-
-    $self->debug(1,"Putting it in ". join (",", sort @se));
-    return join (",", sort @se), "";
+    $self->debug(1,"Putting it in ". join (",", sort @uniqueSe));
+    return join (",", sort @uniqueSe), "" , ($sendSize ? $seinfo->{size} : 0);
 };
 
 
