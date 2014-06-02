@@ -88,6 +88,7 @@ sub prepareForSubmission {
        unless ($status) {
          $self->{LOGGER}->warning("CREAM","Could not get status of $CE, blacklisted.");
          $self->info("Could not get status of $CE, blacklisted.");
+	 $cluster->{$CE} = -1;
          next;
        }
        unless ($status =~ /^Production$/i) {
@@ -307,7 +308,7 @@ sub renewDelegation {
        my $error = $?;
        if ($error) {
          $self->info("Error $error renewing the delegation to $CE, blacklisted");
-	 $cluster->{$_} = -1;
+	 $cluster->{"$CE/$queue"} = -1;
        } else {
 	 $self->info("Delegation for $CE successfully renewed ($self->{CONFIG}->{DELEGATION_ID})");
          $self->{DELEGATIONTIME} = time;
