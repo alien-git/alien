@@ -1101,6 +1101,9 @@ rm -rf \$file\n";
 $alienScript RunAgent
 $after";
 
+# add some specifics from batch provider 
+$content = $self->{BATCH}->getScriptSpecifics( $content ) if( $self->{BATCH}->can( 'getScriptSpecifics' ) );
+
 	if (!$returnContent) {
 		my $script = "$self->{CONFIG}->{TMP_DIR}/agent.startup.$$";
 
