@@ -6,6 +6,8 @@ use AliEn::Config;
 use strict;
 
 use AliEn::Database::CE;
+use File::Basename;
+use File::Copy;
 
 my $nAllJobs = 0;
 my $nQueuedJobs = 0;
@@ -62,6 +64,11 @@ sub submit {
    
      open (FILE, "<$self->{CONFIG}->{TMP_DIR}/stdout") or return 1;
      my $contact=<FILE>;
+     $self->{LOGGER}->warning("ARC", "Contect is: $contact\n");
+#     { local $/; 
+#       my $complete_contact = <FILE>;  
+#       $self->{LOGGER}->warning("ARC", "Complete contact is: $complete_contact" );
+#     }
      close FILE;
      $contact and
        chomp $contact;
@@ -295,6 +302,9 @@ sub generateXRSL {
    $file=~ s/^.*\/([^\/]*)$/$1/;
    $self->info("File name $file and fullName $fullName and");
 
+  # proxyname to be submitted with
+  my $proxyName = $ENV{SUBMITTED_PROXY_NAME} || "proxy";
+
    open( BATCH, ">$fullName.xrsl" )
        or print STDERR "Can't open file '$fullName.xrsl': $!"
        and return;
@@ -307,16 +317,22 @@ $args
 $ttl
 (stderr = \"std.err\")
 (gmlog = gmlog)
-(inputFiles = (\"$file.sh\" \"$jobscript\"))
-(outputFiles = ( \"std.err\" \"\") (  \"std.out\"  \"\") (  \"gmlog\"  \"\")(\"$file.sh\" \"\"))
-(memory=2048)
+(inputFiles = (\"$file.sh\" \"$jobscript\") ( \"$proxyName\" \"$ENV{X509_USER_PROXY}\" ))
+(outputFiles = ( \"std.err\" \"\") (  \"std.out\"  \"\") (  \"gmlog\"  \"\")(\"$file.sh\" \"\") )
 (*environment = (ALIEN_JOBAGENT_ID $ENV{ALIEN_JOBAGENT_ID})(ALIEN_CM_AS_LDAP_PROXY $ENV{ALIEN_CM_AS_LDAP_PROXY})(ALIEN_SE_MSS $ENV{ALIEN_SE_MSS})(ALIEN_SE_FULLNAME $ENV{ALIEN_SE_FULLNAME})(ALIEN_SE_SAVEDIR $ENV{ALIEN_SE_SAVEDIR})*)
 (*environment = (ALIEN_JOBAGENT_ID $ENV{ALIEN_JOBAGENT_ID})(ALIEN_CM_AS_LDAP_PROXY $ENV{ALIEN_CM_AS_LDAP_PROXY})(ALIEN_SE_MSS file)(ALIEN_SE_FULLNAME ALIENARCTEST::ARCTEST::file)(ALIEN_SE_SAVEDIR /disk/global/aliprod/AliEn-ARC_SE,5000000)*)
-(environment = (ALIEN_JOBAGENT_ID $ENV{ALIEN_JOBAGENT_ID})(ALIEN_CM_AS_LDAP_PROXY $ENV{ALIEN_CM_AS_LDAP_PROXY}))
+(environment = (ALIEN_JOBAGENT_ID $ENV{ALIEN_JOBAGENT_ID})(ALIEN_CM_AS_LDAP_PROXY $ENV{ALIEN_CM_AS_LDAP_PROXY}) (X509_USER_PROXY \"proxy\" ) )
 "
 ;
    close BATCH;
+   
    return "$fullName.xrsl";
+}
+
+sub getScriptSpecifics {
+	my $self = shift;
+	my $original_string = shift;
+	return "export X509_USER_PROXY=\`pwd\`/proxy\n" . $original_string;
 }
 
 return 1;
