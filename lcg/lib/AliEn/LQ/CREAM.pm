@@ -788,6 +788,7 @@ sub generateJDL {
     print BATCH "  Outputsandboxbasedesturi = \"gsiftp://localhost\";\n";
   }
   print BATCH "  Requirements = $requirements;\n" if $requirements;
+  print BATCH "  CeRequirements = $ENV{CREAM_CEREQ};\n" if $ENV{CREAM_CEREQ};
   print BATCH "]\n";
   close BATCH;
   return $jdlFile;
