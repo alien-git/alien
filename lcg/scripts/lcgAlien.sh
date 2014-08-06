@@ -1,6 +1,12 @@
 #!/bin/bash
 
-for d in $MY_ALIEN $ALIEN_ROOT ~ /cvmfs/alice.cern.ch
+fatal()
+{
+    echo "${@-unspecified error}" >&2
+    exit 3
+}
+
+for d in $MY_ALIEN /cvmfs/alice.cern.ch
 do
     AliEnCommand=$d/bin/alien
 
@@ -9,22 +15,11 @@ done
 
 user=`$AliEnCommand --printenv | grep ^ALIEN_USER=`
 
-fatal()
-{
-    echo "${@-unspecified error}" >&2
-    exit 3
-}
-
 [ "X$user" = X ] && fatal "Cannot determine the AliEn user"
 
 export $user
 
-host=`
-    $AliEnCommand --exec echo LDAPHOST 2>&1 |
-    sed -n "s/'//g;s/.*\<LDAPHOST\> *= *//p"
-`
-
-[ "X$host" = X ] && host=alice-ldap.cern.ch:8389
+host=${ALIEN_LDAP:-alice-ldap.cern.ch:8389}
 
 for dnq in `
 	ldapsearch -x -LLL -H ldap://$host -b \
@@ -34,7 +29,7 @@ for dnq in `
     `
 do
     dn=${dnq//\?/ }
-    echo "Trying $dn"
+    echo "Trying $dn" >&2
 
     proxy=`
 	vobox-proxy --vo alice --voms alice:/alice/Role=lcgadmin \
@@ -48,15 +43,27 @@ do
     [ "X$timeleft" != X ] || continue
     
     let 'timeleft /= 3600'
-    thr=40
+    thr=22
 
-    [ $timeleft -gt $thr ] || {
+    [ $timeleft -lt $thr ] && {
 	echo "Warning - proxy lifetime is low: $timeleft < $thr hours"
     }
 
     [ $timeleft -gt 0 ] || continue
 
-    X509_USER_PROXY=$proxy exec $AliEnCommand "$@"
+    cmd=${0##*/}
+    cmd=${cmd%-lcg}
+    cmd=${cmd#lcg-}
+
+    case $cmd in
+    alien*)
+	cmd=${AliEnCommand%/*}/$cmd
+	;;
+    *)
+	cmd=$AliEnCommand
+    esac
+
+    X509_USER_PROXY=$proxy exec "$cmd" "$@"
     exit
 done
 
