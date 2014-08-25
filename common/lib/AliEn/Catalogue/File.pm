@@ -112,6 +112,10 @@ sub f_registerFile {
     and return;
 
   $self->info("File $file inserted in the catalog");
+  
+  $self->{DATABASE}->checkInsertOCDBTable($file) and
+    $self->info("File inserted in OCDB table");
+    
   #Update Quotas
   #$self->{DATABASE}->fquota_update($size, 1, $self->{ROLE})
   #    or $self->info( "ERROR: Could not update quotas")
