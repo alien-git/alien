@@ -156,6 +156,8 @@ sub createCatalogueTables {
       },
       'action'
     ],
+	OCDB => ['lfn', { lfn => "varchar(255) NOT NULL primary key" }, 
+		           'lfn'],    
     PACKAGES => [
       'fullPackageName',
       { 'fullPackageName' => 'varchar(255)',
@@ -2779,6 +2781,18 @@ sub fquota_update {
     or return;
 
   return 1;
+}
+
+sub checkInsertOCDBTable {
+  my $self = shift;
+  my $fullLfn = shift;
+  
+  $fullLfn =~ /^\/alice\/data\/20[0-2][0-9]\/OCDB\/.+\.root$/i or return;
+  
+  #insert in OCDB table
+  $self->do("INSERT IGNORE INTO OCDB values ('$fullLfn')");  
+  
+  return 1;  
 }
 
 1;

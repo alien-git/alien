@@ -103,6 +103,9 @@ sub f_registerFile {
   $self->{DATABASE}->createFile($opt, $insert)
     or $self->info("Error inserting entry into directory")
     and return;
+    
+  $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->checkInsertOCDBTable($file) and
+    $self->info("File inserted in OCDB table");    
 
   $self->info("File $file inserted in the catalog");
   return 1;
