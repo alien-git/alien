@@ -1583,9 +1583,13 @@ sub f_spy {
   my $agentAddress = $done->result;
   $self->info("We are supposed to contact the cluster at $agentAddress");
 
-  my $result2 =
+  my $result2;
+  eval {
+    $result2 =
     SOAP::Lite->uri('AliEn/Service/JobAgent')->proxy("http://$agentAddress", options => {compress_threshold => 10000})
     ->getFile($spyfile, $options);
+  };
+  $self->info("Couldn't contact $agentAddress properly") if $@;
 
   if (!$result2){
     $self->info("The jobAgent didn't reply. Let's try the CM");
@@ -1593,12 +1597,12 @@ sub f_spy {
     my $cm;
     $info and $cm=shift @$info;
     $cm and $cm->{host} or $self->info("We didn't get the address of the CM") and return;
-    $self->info("HELLO $cm->{host}:$cm->{port}");
+    $self->info("Trying to contact CM in: $cm->{host}:$cm->{port}");
     $result2 = SOAP::Lite->uri('AliEn/Service/ClusterMonitor')
       ->proxy("http://$cm->{host}:$cm->{port}",
             options => {compress_threshold => 10000})
       ->getSpyFile($queueId, $spyfile, $agentAddress, $options);
-    $result2 or return;
+    $result2 or $self->info("Could not get file via CM") and return;
   }
 
   my $data = $result2->result;
