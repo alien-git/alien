@@ -53,7 +53,7 @@ sub getStatus {
 
     my @line = grep ( /AliEn-$queueId/, @output );
     if ($line[0] ) {
-	$line[0] =~ /(\d+)\s+(\d+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(.*)/;
+	$line[0] =~ /(\d+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(.*)/;
 	my ($id, $prior, $name, $user, $stat, $rest) = ($1,$2,$3,$4,$5,$6);
 	if ( $stat =~ /Eqw/ ) {
 	    return 'ERROR_S';

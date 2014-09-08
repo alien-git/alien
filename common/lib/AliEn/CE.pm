@@ -1131,8 +1131,9 @@ $alienScript proxy-info";
     $after .= "
 
 rm -rf \$file\n";
-
   }
+
+
   my $content = "$before
 $alienScript RunAgent
 $after";
