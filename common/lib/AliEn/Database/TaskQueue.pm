@@ -1045,6 +1045,7 @@ sub getFieldsFromQueue {
     and $self->debug(1, "In getFieldsFromQueue fetching attributes $attr of job $id");
   my $join="";
   $attr =~ /jdl/ and $join = "join QUEUEJDL using (queueId)";
+  $attr =~ /site/ and !($attr =~ /siteId/) and $join = "join SITEQUEUES using (siteId)";
   my $ret=$self->queryRow("SELECT $attr FROM $self->{QUEUETABLE} $join WHERE queueId=?", undef, {bind_values => [$id]});
   
   $ret->{statusId} and $ret->{statusId} = AliEn::Util::statusName($ret->{statusId});

@@ -41,6 +41,8 @@ sub initialize {
     or $self->{LOGGER}->error("JobManager", "Cannot resync the SiteQueue Table!")
     and return;
 
+  $self->{DB_I}=AliEn::Database::IS->new({ROLE=>'admin'}) or return;  
+
   $self->{JOBLOG}  = new AliEn::JOBLOG();
 
 #  # Initialize TaskPriority table
@@ -1226,15 +1228,19 @@ sub spy {
     my $queueId = shift;
     my $file    = shift;
 
-#    my ($site) = $self->{DB}->queryValue("select site from SITEQUEUES join QUEUE using(siteId) where queueId=?", undef, {bind_values=>[$queueId]});
-#    $self->info("In spy contacting the IS at http://$self->{CONFIG}->{IS_HOST}:$self->{CONFIG}->{IS_PORT} for $queueId at $site");
-#    my ($result) = $self->{DB_I}->getActiveServices("ClusterMonitor","host,port,protocols,certificate,uri",$site);
-
+    my ($site) = $self->{DB}->queryValue("select site from SITEQUEUES join QUEUE using(siteId) where queueId=?", undef, {bind_values=>[$queueId]});
+    $self->info("In spy contacting the IS at http://$self->{CONFIG}->{IS_HOST}:$self->{CONFIG}->{IS_PORT} for $queueId at $site");
+    my ($result) = $self->{DB_I}->getActiveServices("ClusterMonitor","host,port",$site);
+ 
+    my $cmaddress="";
+    $result and $result = shift @$result and $cmaddress=$result->{host}.":".$result->{port};;
+    
     my ($url)=$self->getSpyUrl($queueId);
     $url or $self->info("The job $queueId is no longer in the queue, or no spyurl available") and return;
     $self->info("Telling the user to try with $url");
-    return $url;
+    return {jobagent =>$url, clustermonitor=>$cmaddress};
 }
+
 
 #
 #sub getFileQuotaList {

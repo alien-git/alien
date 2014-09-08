@@ -122,7 +122,7 @@ sub markAlive {
   my $data    = shift;
 
   my $version = ($data->{VERSION} or "");
-  my $uri     = ($data->{URI} or "AliEn::Services::$service");
+  my $uri     = ($data->{URI} or "AliEn::Service::$service");
   my $protocols = ($data->{PROTOCOLS} or "");
   my $cert    =($data->{CERTIFICATE} or "");
 
