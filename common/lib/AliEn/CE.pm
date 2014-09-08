@@ -1650,15 +1650,26 @@ sub f_spy {
 
 	my ($done) = $self->{RPC}->CallRPC("Manager/Job", "spy", $queueId, $spyfile, $options);
 	$done or $self->info("The job $queueId is no longer in the queue, or no spyurl available") and return;
-		
-	$self->info("We are supposed to contact the cluster at $done");
+			
+	$self->info("We are supposed to contact the cluster at $done->{jobagent}");
+    my $data;
+    eval {
+	  $self->{RPC}->Connect("JobAgent_$done->{jobagent}", "http://$done->{jobagent}");
+	  ($data) =$self->{RPC}->CallRPC("JobAgent_$done->{jobagent}", 'getFile', $spyfile, $options);
+    };
+  $self->info("Couldn't contact $done->{jobagent} properly") if $@;
+  $data and $self->info("Finished Contacting the jobagent at $done->{jobagent}");
 
-	$self->{RPC}->Connect("JobAgent_$done", "http://$done");
-	
-	my ($data) =$self->{RPC}->CallRPC("JobAgent_$done", 'getFile', $spyfile, $options);
-
-	$self->info("Finished Contacting the jobagent at $done");
-
+  if (!$data and $done->{clustermonitor}){
+    $self->info("The jobAgent didn't reply. Let's try the CM in $done->{clustermonitor}");
+    eval {
+      $self->{RPC}->Connect("ClusterMonitor", "http://$done->{clustermonitor}");
+      ($data) = $self->{RPC}->CallRPC("ClusterMonitor", 'getSpyFile', $queueId, $spyfile, $done->{jobagent}, $options);
+    };
+    $self->info("Couldn't contact CM $done->{clustermonitor} properly") if $@;
+    $data or return;
+  }
+  
 	if (!$data) {
 		$self->info("Could not get file via RPC, trying to get it via LRMS");
 		$data = $self->{BATCH}->getOutputFile($queueId, $spyfile);
@@ -1667,7 +1678,6 @@ sub f_spy {
 
 	$self->info("Got $data");
 
-	$self->info($done, undef, 0);
 	return 1;
 }
 
