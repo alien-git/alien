@@ -32,7 +32,7 @@ sub Connect {
   
   my @methods;
   
-  if ($type =~ /^JobAgent$/){
+  if ($type =~ /^JobAgent/){
     @methods=('dieGracefully', "getFile");
   }elsif($type =~ /^MessagesMaster$/){
     @methods ="getMessages";
@@ -41,12 +41,11 @@ sub Connect {
   }elsif($type eq "IS"){
     @methods= ("getCpuSI2k", "markAlive","getAllServices", "getService")    
   }elsif($type eq "Manager/Job"){
-    @methods= ("alive", "enterCommand","changeStatusCommand", "getSpyUrl", "SetProcInfoBunch",
-    "SetProcInfoBunchFromDB", "spy")    
+    @methods= ("alive", "enterCommand","changeStatusCommand", "getSpyUrl", "SetProcInfoBunch","SetProcInfoBunchFromDB", "spy");    
   }elsif($type eq "Manager/Transfer"){
     @methods= ("checkOngoingTransfers", "enterTransfer", "listTransfer", "checkOngoingTransfers", "changeStatusTransfer", "killTransfer", "FetchTransferMessages")    
   }elsif($type eq "ClusterMonitor"){
-    @methods=("getStdout","getNumberJobs", "GetConfiguration","jobStarts", "putJobLog","putFILE", "SetProcInfo","getCpuSI2k", "packmanOperations");
+    @methods=("getSpyFile", "getStdout","getNumberJobs", "GetConfiguration","jobStarts", "putJobLog","putFILE", "SetProcInfo","getCpuSI2k", "packmanOperations");
   }elsif($type eq "Broker/Job"){
     @methods=("offerAgent","getJobAgent");
   }elsif($type eq "Broker/Transfer"){

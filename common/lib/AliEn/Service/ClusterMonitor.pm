@@ -89,7 +89,7 @@ sub initialize {
   
   $self->info("Contacting the Manager/Job" );
   ( $self->checkConnection() ) or return;
-  $self->{RPC}->CallRPC("IS", "markAlive", "ClusterMonitor", "ClusterMonitor_$self->{HOST}", $self->{HOST}, $self->{PORT}, {VERSION=>$self->{CONFIG}->{VERSION}} );
+  $self->{RPC}->CallRPC("IS", "markAlive", "ClusterMonitor", "$self->{SERVICENAME}", $self->{HOST}, $self->{PORT}, {VERSION=>$self->{CONFIG}->{VERSION}} );
 
 
   my ($done) =$self->{RPC}->CallRPC("Manager/Job", "alive",  $self->{HOST}, $self->{PORT}, "", $self->{CONFIG}->{VERSION}) or return;
@@ -582,10 +582,15 @@ sub getStderr {
 
 sub getSpyFile {
   my $this = shift;
+  if ($_[0] and ref $_[0] eq "ARRAY"){
+    my $ref=shift;
+    @_=@$ref;
+  }
   my $queueId = shift;
   my $file    = shift;
   my $url     = shift;
   $self->info( "Getting the Spy File $file for job $queueId (url $url)");
+
   return ($self->getOutput($queueId,$file, $url, @_));
 }
 
