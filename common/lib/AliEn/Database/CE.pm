@@ -151,7 +151,7 @@ sub insertMessage {
   my $message=shift;
   my $update=shift;
   defined $update or $update=1;
-  my $time=time;
+  my $time= shift || time;
   open (FILE, ">> $self->{CONFIG}->{LOG_DIR}/CE.db/messages.$$") or $self->info("Error opening the file") and return ;
   $message=~ s/\n/\\n/g;
   print FILE "$jobId\t$tag\t$time\t$message\n";

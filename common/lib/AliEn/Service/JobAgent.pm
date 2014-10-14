@@ -186,6 +186,9 @@ sub initialize {
   ( defined $ENV{ALIEN_WORKDIR} ) and $self->{WORKDIR} = $ENV{ALIEN_WORKDIR};
   ( defined $ENV{TMPBATCH} ) and $self->{WORKDIR} = $ENV{TMPBATCH};
   $ENV{ALIEN_WORKDIR}=$self->{WORKDIR};
+  
+  # keep initial environment
+  $self->{INIT_ENV} = { %ENV };
 
   return $self;
 }
@@ -203,8 +206,6 @@ sub requestJob {
 
 
   $self->{SOAP}->CallSOAP("CLUSTERMONITOR","jobStarts", $ENV{ALIEN_PROC_ID}, $ENV{ALIEN_JOBAGENT_ID});
-
-
 
 #  $self->{LOGFILE}=AliEn::TMPFile->new({filename=>"proc.$ENV{ALIEN_PROC_ID}.out"});
   $self->{LOGFILE}="$self->{CONFIG}->{TMP_DIR}/proc.$ENV{ALIEN_PROC_ID}.out";
@@ -2699,6 +2700,7 @@ CPU Speed                           [MHz] : $ProcCpuspeed
   $self->{SOAP}->CallSOAP("CLUSTERMONITOR", "jobExits", $ENV{ALIEN_PROC_ID});
   delete $ENV{ALIEN_JOB_TOKEN};
   delete $ENV{ALIEN_PROC_ID};
+    
   if (!$success){
     $self->sendJAStatus('DONE', {totaljobs=>$self->{TOTALJOBS}, error=>1});
     $self->info("The job did not finish properly... we don't ask for more jobs");
@@ -2715,7 +2717,7 @@ sub checkWakesUp {
   my $silent=shift;
   my $method="info";
   my @loggingData;
-  $silent and $method="debug" and push @loggingData, 1;;
+  $silent and $method="debug" and push @loggingData, 1;
 
   $self->$method(@loggingData, "Calculating the resource Usage");
   
@@ -2824,6 +2826,8 @@ sub checkWakesUp {
     $self->{ALIEN_PROC_INFO}=0;
   }
   
+  # Check for tracelog messages (we are supposed to be in $self->{WORKDIR})
+  $self->checkTraceLog();  
 
   $self->checkProcess($self->{PROCESSID}) and return;
 
@@ -2831,6 +2835,10 @@ sub checkWakesUp {
   waitpid(-1, &WNOHANG);
 
   $self->lastExecution();
+  
+  # restore initial environment
+  %ENV = %{$self->{INIT_ENV}};
+  
   $self->{LOGGER}->redirect();
   $self->info("Back to the normal log file");
   return 1;
@@ -2959,6 +2967,25 @@ sub sendJAStatus {
   $ENV{SITE_NAME} and $params->{siteName}=$ENV{SITE_NAME};
   $params->{job_id} = $ENV{ALIEN_PROC_ID} || 0;
   $self->{MONITOR}->sendParameters("$self->{CONFIG}->{SITE}_".$self->{SERVICENAME}, "$self->{HOST}:$self->{PORT}", $params);
+  return 1;
+}
+
+sub checkTraceLog {
+  my $self = shift;
+  
+  my @files = glob(".traceLog.*");
+  foreach my $file (@files){
+  	# .traceLog.1234567890 $1 is the timestamp
+  	$file =~ /^\.traceLog\.(\d+)$/ or next;
+  	open (FILEH, "<$file") or $self->info("Couldn't open $file") and next;
+    while (<FILEH>) { 
+      chomp $_;	
+      $self->putJobLog("trace", $_, $1);
+    }
+    close FILEH;  	
+  }
+  system("rm -f .traceLog.*");
+  
   return 1;
 }
 

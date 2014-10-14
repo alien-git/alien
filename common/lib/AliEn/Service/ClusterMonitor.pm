@@ -681,8 +681,8 @@ sub queueinfo {
 
 sub putJobLog {
   my $this=shift;
-  my ($queueId, $tag, $message)=(shift,shift,shift);
-  return $self->{LOCALJOBDB}->insertMessage($queueId, $tag,$message,0);
+  my ($queueId, $tag, $message, $time)=(shift,shift,shift, shift);
+  return $self->{LOCALJOBDB}->insertMessage($queueId, $tag,$message,0, $time);
 }
 
 
