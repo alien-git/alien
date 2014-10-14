@@ -49,8 +49,10 @@ sub submit {
      $xrslfile or return;
   
      $self->info("Submitting to ARC  with \'@args\'.");
-     
-     my @command = ( "arcsub -f $xrslfile", "@args");
+    
+     my @debug_args = ();
+ 
+     my @command = ( "arcsub -f $xrslfile", "@args", @debug_args );
      $self->info("Submitting to ARC with: @command\n");
      
      open SAVEOUT,  ">&STDOUT";
@@ -64,11 +66,7 @@ sub submit {
    
      open (FILE, "<$self->{CONFIG}->{TMP_DIR}/stdout") or return 1;
      my $contact=<FILE>;
-     $self->{LOGGER}->warning("ARC", "Contect is: $contact\n");
-#     { local $/; 
-#       my $complete_contact = <FILE>;  
-#       $self->{LOGGER}->warning("ARC", "Complete contact is: $complete_contact" );
-#     }
+     $self->{LOGGER}->warning("ARC", "Jobagent URI submitted is: $contact\n");
      close FILE;
      $contact and
        chomp $contact;
@@ -167,13 +165,15 @@ sub getOutputFile {
 
 sub getAllBatchIds {
     my $self = shift;
-
+    my $needArcSync = 0;
     
     # Running arcstat can sometimes be slow, and the situation rarely changes much in a few seconds
-    if (time() <= $getAllBatchIds_timestamp + 5) {
-        $self->info("Reusing old arcstat result; found $nAllJobs jobs, of which $nQueuedJobs queueing");
-        return ($nAllJobs, $nQueuedJobs);
-    }
+#    if (time() <= $getAllBatchIds_timestamp + 5) {
+#        $self->info("Reusing old arcstat result; found $nAllJobs jobs, of which $nQueuedJobs queueing");
+#        $self->info("Last stats collected: $getAllBatchIds_timestamp , time now is: " . time() );
+#	$self->{LOGGER}->warning( "Last stats collected: $getAllBatchIds_timestamp , time now is: " . time() );
+#        return ($nAllJobs, $nQueuedJobs);
+#    }
 
     $nAllJobs = 0;
     $nQueuedJobs = 0;
@@ -192,7 +192,8 @@ sub getAllBatchIds {
             $self->debug(1,"Id $id has status $status");
 
             # Remove completed jobs, unless we are in debug mode
-            if ($status =~ /^((FINISHED)|(FAILED)|(KILLED))$/ and not $self->{LOGGER}->getDebugLevel()){
+            #if ($status =~ /^((FINISHED)|(FAILED)|(KILLED))$/ and not $self->{LOGGER}->getDebugLevel()){
+            if ($status =~ /^((FINISHED)|(FAILED)|(KILLED)|(DELETED))$/ and not $self->{LOGGER}->getDebugLevel()){
                 push @completedJobs, $id;
 
                 # Removing many jobs at a time is faster than one at a time,
@@ -214,7 +215,9 @@ sub getAllBatchIds {
             undef $id;
         } elsif ($entry=~ /Job information not found in the information system: (gsiftp.*)/) {
             $id = $1;
-            $nAllJobs += 1; # Probably just the info.sys being slow, or something.
+            # $nAllJobs += 1; # Probably just the info.sys being slow, or something.
+            # no!
+            $needArcSync = 1;
             $self->info("Info for job $id not found");
         } elsif ($entry =~ /This job was very recently submitted/) {
             $nQueuedJobs += 1; # Probably queuing
@@ -225,6 +228,15 @@ sub getAllBatchIds {
     if (@completedJobs and not $self->{LOGGER}->getDebugLevel()) {
         $self->info($#completedJobs + 1 . " completed jobs will be removed");
         system("arcclean " . join(" ", @completedJobs));
+    }
+
+    if( $needArcSync ){
+        $self->info( "Running arcsync as it seems that there are long time lost jobs on the cluster" );
+        if( $self->{CONFIG}->{CE_SUBMITARG_LIST} ){
+		system( "arcsync -T -f " . $self->{CONFIG}->{CE_SUBMITARG_LIST}[0] );
+		$self->info( "arcsync finished with code $?" ) if( !$? );
+		$needArcSync = 0;
+	}
     }
 
     $getAllBatchIds_timestamp = time();
@@ -336,4 +348,3 @@ sub getScriptSpecifics {
 }
 
 return 1;
-
