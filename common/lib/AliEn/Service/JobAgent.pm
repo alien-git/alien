@@ -128,6 +128,7 @@ sub initialize {
   $self->{OUTPUTFILES} = "";
   $self->{TTL}=($self->{CONFIG}->{CE_TTL} || 12*3600);
   $self->{TTL} and $self->info("This jobagent is going to live for $self->{TTL} seconds");
+  $self->{ORIG_TTL}=$self->{TTL};
   ($self->{HOSTNAME},$self->{HOSTPORT}) =
     split ":" , $ENV{ALIEN_CM_AS_LDAP_PROXY};
 
@@ -186,9 +187,6 @@ sub initialize {
   ( defined $ENV{ALIEN_WORKDIR} ) and $self->{WORKDIR} = $ENV{ALIEN_WORKDIR};
   ( defined $ENV{TMPBATCH} ) and $self->{WORKDIR} = $ENV{TMPBATCH};
   $ENV{ALIEN_WORKDIR}=$self->{WORKDIR};
-  
-  # keep initial environment
-  $self->{INIT_ENV} = { %ENV };
 
   return $self;
 }
@@ -339,10 +337,10 @@ sub getHostClassad{
   my $ca=AliEn::Classad::Host->new({PACKMAN=>$self->{PACKMAN}}) or return;
   if ($self->{TTL}){
     $self->info("We have some time to live...");
-#    my ($ok, $requirements)=$ca->evaluateExpression("Requirements");
-#    $ok or $self->info("Error getting the requirements of this classad ". $ca->asJDL()) and return;
-    my $timeleft=$self->{TTL} - ( time()-$self->{JOBAGENTSTARTS});
-    $self->info("We still have $timeleft seconds to live");
+    my $time = time();
+    my $time_subs = $time-$self->{JOBAGENTSTARTS};
+    my $timeleft=$self->{ORIG_TTL} - $time_subs;
+    $self->info("We still have $timeleft seconds to live (".$time." - $self->{JOBAGENTSTARTS} = ".$time_subs.")");
     my $proxy=$self->{X509}->getRemainingProxyTime();
     $self->info("The proxy is valid for $proxy seconds");
 
@@ -353,14 +351,12 @@ sub getHostClassad{
     }
     #let's get 5 minutes to register the output
     $timeleft-=300;
-#    $requirements .= " && (other.TTL<$timeleft) ";
     $ca->set_expression("TTL", $timeleft);
     $self->{TTL}=$timeleft;
     if ($timeleft<0){
       $self->info("We don't have any time left to execute jobs!");
       return;
     }
-#    $ca->set_expression( "Requirements", $requirements ) or return;
 
   }
   $self->info("We are using". $ca->asJDL);
@@ -559,9 +555,9 @@ sub checkJobJDL {
   my $proxytime;
   $self->{JOBEXPECTEDEND}=time()+$jobttl+600;
   ($ok, my $ttlproxy) = $self->{CA}->evaluateAttributeString("ProxyTTL");
-  $ok and $ttlproxy and $proxytime=$self->{X509}->getRemainingProxyTime() 
-    and $self->{JOBEXPECTEDEND}=time()+$proxytime-600;
-  $self->putJobLog("trace","The job needs $jobttl seconds, allowed for $self->{JOBEXPECTEDEND} ".($ttlproxy ? "(proxy timeleft: $proxytime)" : "") );
+  $ok and $ttlproxy and $self->{JOBEXPECTEDEND}=time()+$self->{TTL}-600;
+  $self->putJobLog("trace",
+  "The job needs $jobttl seconds, allowed until $self->{JOBEXPECTEDEND} (".localtime($self->{JOBEXPECTEDEND}).") ".( $ttlproxy ? "ProxyTTL=1 (Using $self->{TTL})" : "" ) );
 
   $self->{VOs}="$self->{CONFIG}->{ORG_NAME}#$ENV{ALIEN_CM_AS_LDAP_PROXY}#$self->{QUEUEID}#$ENV{ALIEN_JOB_TOKEN}  $self->{VOs}";
 
@@ -2836,9 +2832,15 @@ sub checkWakesUp {
 
   $self->lastExecution();
   
-  # restore initial environment
-  %ENV = %{$self->{INIT_ENV}};
-  
+  # unset jdl environment variables
+  my ($ok, @env_variables)= 
+    $self->{CA}->evaluateAttributeVectorString("JDLVARIABLES");
+  $self->info("We have to undefine @env_variables");
+  foreach my $var (@env_variables) {
+    $var=uc("ALIEN_JDL_$var");
+    delete $ENV{$var};  
+  }
+    
   $self->{LOGGER}->redirect();
   $self->info("Back to the normal log file");
   return 1;
