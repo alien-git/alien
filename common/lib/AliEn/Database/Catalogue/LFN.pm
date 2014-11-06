@@ -134,12 +134,16 @@ sub LFN_createCatalogueTables {
       order => 1
     },
     OCDB => {
-      id=>"lfn",
+      id=>"entryId",
       columns=>
       { 
-        lfn       => "varchar(255) NOT NULL primary key",
+      	entryId     => "int(11) NOT NULL auto_increment primary key",
+        lfn         => "varchar(255) NOT NULL",
+        failed      => "int(3) default 0",
+        lastupdated => "timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
       },
-      index=>'lfn',
+      index=>'entryId',
+      extra_index=>['UNIQUE INDEX (lfn)'],
       order => 1
     },
     ACTIONS => {
@@ -1720,6 +1724,7 @@ sub getTags {
   if ($options->{limit}) {
     $query = $self->paginate($query, $options->{limit}, 0);
   }
+  
   return $self->query($query, undef, $options);
 }
 
@@ -1772,6 +1777,7 @@ sub getTagTableName {
   } else {
     $whole_query = "SELECT tableName from TAG0 where tagName=? and $query";
   }
+  
   my $res = $self->queryValue($whole_query, undef, {bind_values => [ $tag, $path ]});
   return $res;
 
@@ -2558,10 +2564,12 @@ sub checkInsertOCDBTable {
   my $self = shift;
   my $fullLfn = shift;
   
-  $fullLfn =~ /^\/alice\/data\/20[0-2][0-9]\/OCDB\/.+\.root$/i or return;
+  ( $fullLfn =~ /^\/alice\/data\/20[0-2][0-9]\/OCDB\/.+\.root$/i or 
+    $fullLfn =~ /^\/alice\/simulation\/2008\/v4-15-Release\/.+\.root$/i ) 
+    or return;
   
   #insert in OCDB table
-  $self->do("INSERT IGNORE INTO OCDB values ('$fullLfn')");  
+  $self->do("INSERT IGNORE INTO OCDB values (0, '$fullLfn', 0, now() )");  
   
   return 1;  
 }

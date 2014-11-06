@@ -35,7 +35,7 @@ sub initialize {
     or $self->{LOGGER}->error("CatalogueOptimizer", "In initialize error creating AliEn::UI::Catalogue::LCM instance")
     and return;
 
-  my @optimizers = ("Trigger", "Expired", "Packages", "SEsize", "LDAP", "SERank", "Deleted", "Quota");
+  my @optimizers = ("Trigger", "Expired", "Packages", "SEsize", "LDAP", "SERank", "Deleted", "Quota", "OCDB");
 
   $self->StartChildren(@optimizers) or return;
 
