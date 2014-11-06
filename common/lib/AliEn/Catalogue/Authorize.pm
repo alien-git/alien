@@ -559,7 +559,8 @@ sub access {
     my $xtrdcpenvelope = 0;
     foreach my $key (keys(%$env)) {
       ($key eq "xurl") and next;
-      ($key eq "turl") and $renv->{url} = ($env->{xurl} || $env->{turl}) and next;
+#      ($key eq "turl") and $renv->{url} = ($env->{xurl} || $env->{turl}) and next;
+      ($key eq "turl") and  $renv->{url}=$env->{turl} and next;
       ($key eq "oldEnvelope") and $xtrdcpenvelope = $env->{oldEnvelope} and next;
       $xtrdcpenvelope || (($key eq "signedEnvelope") and $xtrdcpenvelope = $env->{signedEnvelope} and next);
       $renv->{$key} = $env->{$key};
