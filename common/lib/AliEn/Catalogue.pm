@@ -1386,10 +1386,11 @@ sub f_partitions {
 
 sub f_getsite {
   my $self = shift;
-  my $returnarrayhash = grep (/-z/, @_);
+  my $returnarrayhash = grep ( /-z/, @_ );
   if ($returnarrayhash) { shift; }
   my $host = shift
-    or print STDERR "ERROR: you have to give a hostname as argument!\n" and return;
+    or print STDERR "ERROR: you have to give a hostname as argument!\n"
+    and return;
   my $domain = $1 if $host =~ /[^\.]+\.(.*)$/;
   my $ldap   = $self->{CONFIG}->GetLDAPDN();
   my $config = {};
@@ -1399,13 +1400,12 @@ sub f_getsite {
   my $se;
 
   if ($domain) {
-    $mesg = $ldap->search(
-      base   => "ou=Sites,$self->{CONFIG}{LDAPDN}",
-      filter => "(&(domain=$domain)(objectClass=AliEnSite))"
+    $mesg = $ldap->search(base   => "ou=Sites,$self->{CONFIG}{LDAPDN}",
+                          filter => "(&(domain=$domain)(objectClass=AliEnSite))"
     );
     $total = $mesg->count;
   }
-  if (!$total) {
+  if ( !$total ) {
     $verbose
       and print STDERR "ERROR: There is no site in $self->{CONFIG}->{ORGANISATION} for your domain ($domain)\n";
     if ($returnarrayhash) {
@@ -1420,28 +1420,28 @@ sub f_getsite {
   }
   my $entry = $mesg->entry(0);
   my $site  = $entry->get_value('ou');
-  print STDERR "You are om site $site\n";
-  my $fullLDAPdn = "ou=$site,ou=Sites,$self->{CONFIG}{LDAPDN}";
-  my $service    = "SE";
-  $mesg = $ldap->search(
-    base   => "ou=$service,ou=services,$fullLDAPdn",
-    filter => "(objectClass=AliEn$service)"
-  );
-  $total = $mesg->count;
-
-  if (!$total) {
-    $se = "none";
-    print STDERR "ERROR: Service $service is not configured for your site ($site)\n";
-  } else {
-    $entry = $mesg->entry(0);
-    $se    = $entry->get_value('name');
-    print STDERR "You have $self->{CONFIG}->{ORG_NAME}::${site}::${se} as site SE\n";
-  }
+  $se = "";
+#  print STDERR "You are om site $site\n";
+#  my $fullLDAPdn = "ou=$site,ou=Sites,$self->{CONFIG}{LDAPDN}";
+#  my $service    = "SE";
+#  $mesg = $ldap->search( base   => "ou=$service,ou=services,$fullLDAPdn",
+#                         filter => "(objectClass=AliEn$service)" );
+#  $total = $mesg->count;
+#
+#  if ( !$total ) {
+#    $se = "none";
+#    print STDERR "ERROR: Service $service is not configured for your site ($site)\n";
+#  } else {
+#    $entry = $mesg->entry(0);
+#    $se    = $entry->get_value('name');
+#    print STDERR "You have $self->{CONFIG}->{ORG_NAME}::${site}::${se} as site SE\n";
+#  }
   if ($returnarrayhash) {
     my @result;
     my $newhash;
     $newhash->{site} = $site;
-    $newhash->{se}   = "$self->{CONFIG}->{ORG_NAME}::${site}::${se}";
+#    $newhash->{se}   = "$self->{CONFIG}->{ORG_NAME}::${site}::${se}";
+    $newhash->{se}   = $se;
     push @result, $newhash;
     return @result;
   }
