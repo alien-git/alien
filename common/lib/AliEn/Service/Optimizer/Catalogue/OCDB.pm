@@ -85,6 +85,8 @@ sub insertOCDBIntoCVMFS {
         and $self->info("Failed to create temporary directory ($dir)") and next;
       system("mv $localfile $lfn->{lfn}$file")
         and $self->info("Failed to move file ($localfile to $lfn->{lfn}$file)") and system("rm -rf $localfile") and next;      
+      system("chmod 644 $lfn->{lfn}$file") and 
+        $self->info("Unable to change permissions ($lfn->{lfn}$file)") and system("rm -rf $lfn->{lfn}$file") and next;      
       
       push @okLfns, $lfn->{entryId};
 #      print FILE "$lfn->{lfn}$file \n";
