@@ -399,6 +399,13 @@ sub f_addMirror {
     $self->{LOGGER}->error("File", "file $file doesn't exist!!", 1);
     return;
   }
+  
+  # hack for dcache replicas
+  if ($se =~ /dcache/i){
+    my ($turl, $guidc, $sec) = $self->createFileUrl($se, "root", $permLFN->{guid});
+    $pfn = lc($turl);
+  }
+  
   if ($opt->{c} and !$opt->{md5}) {
     $opt->{md5} = AliEn::MD5->new($pfn);
     $opt->{md5} or $self->info("Error getting the md5sum of '$pfn'") and return;
