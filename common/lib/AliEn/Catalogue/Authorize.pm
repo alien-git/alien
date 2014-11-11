@@ -559,7 +559,7 @@ sub access {
     my $xtrdcpenvelope = 0;
     foreach my $key (keys(%$env)) {
       ($key eq "xurl") and next;
-      ($key eq "turl") and $renv->{url} = $env->{turl} and next;
+      ($key eq "turl") and  $renv->{url}=($env->{xurl} || $env->{turl}) and next;
       ($key eq "oldEnvelope") and $xtrdcpenvelope = $env->{oldEnvelope} and next;
       $xtrdcpenvelope || (($key eq "signedEnvelope") and $xtrdcpenvelope = $env->{signedEnvelope} and next);
       $renv->{$key} = $env->{$key};
@@ -1785,14 +1785,17 @@ sub authorize {
     }
 
     $prepareEnvelope->{xurl} = 0;
-
+  
     if ( ($prepareEnvelope->{se} =~ /dcache/i)
-      or ($prepareEnvelope->{se}   =~ /alice::((RAL)|(CNAF))::castor/i)
+      or ($prepareEnvelope->{se} =~ /alice::((RAL)|(CNAF))::castor/i)
       and !($prepareEnvelope->{se} =~ /alice::RAL::castor2_test/i)) {
       $prepareEnvelope->{turl} =~ m{^((root)|(file))://([^/]*)/(.*)};
       my @link = split(/\#/, $prepareEnvelope->{turl});
-      $link[1] or $link[1] = "";
-      $prepareEnvelope->{xurl} = "root://$4/$prepareEnvelope->{lfn}#$link[1]";
+      
+      $prepareEnvelope->{xurl} = "root://$4/$prepareEnvelope->{lfn}";
+#      if($link[1]){
+#           $prepareEnvelope->{xurl} = "$prepareEnvelope->{xurl}#$link[1]";
+#      }
     }
 
     my $signedEnvelope = $self->signEnvelope($prepareEnvelope, $user);
