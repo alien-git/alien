@@ -128,7 +128,7 @@ sub put {
   $self->{PARSED}->{PATH} =~ s{^//}{/};
 
   my $command =
-"$self->{XRDCP} $xrddebug $self->{XRD_OPTIONS} -np -v $self->{LOCALFILE} -f ";
+"$self->{XRDCP} $xrddebug $self->{XRD_OPTIONS} -np -v $self->{LOCALFILE} -f -P ";
 
   if ($ENV{ALIEN_XRDCP_ENVELOPE}) {
     $self->debug(1, "PUTTING THE SECURITY ENVELOPE IN THE XRDCP");
