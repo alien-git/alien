@@ -1,4 +1,4 @@
-package AliEn::Config;
+package AliEn::ConfigService;
 
 use strict;
 
