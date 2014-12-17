@@ -1132,12 +1132,23 @@ sub calculateFileQuota {
 
     my %sizeInfo;
     $lfndb->do("delete from ${LTableName}_QUOTA");
-    $lfndb->do("insert into ${LTableName}_QUOTA ("
-        . "userId, nbFiles, totalSize) select USERS.uId as \"user\", count(l.lfn) as nbFiles, sum(l."
+
+    my $fquotaL = $lfndb->query("select USERS.uId as \"user\", count(l.lfn) as nbFiles, sum(l."
         . $lfndb->reservedWord("size")
         . ") as totSize from ${LTableName} l 
         JOIN USERS ON l.ownerId=USERS.uId 
         where l.type='f' group by l.ownerId order by l.ownerId");
+
+    my $quotaInsert = "insert into ${LTableName}_QUOTA ("
+        . "userId, nbFiles, totalSize) values ";
+        
+    foreach my $u (@$fquotaL) {
+    	$quotaInsert .= "($u->{user},$u->{nbFiles},$u->{totSize}),";
+    }
+    $quotaInsert =~ s/,$//;
+        
+    $lfndb->do("$quotaInsert");
+    
     $calculate = 1;
   }
 
