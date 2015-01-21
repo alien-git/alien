@@ -1138,16 +1138,18 @@ sub calculateFileQuota {
         . ") as totSize from ${LTableName} l 
         JOIN USERS ON l.ownerId=USERS.uId 
         where l.type='f' group by l.ownerId order by l.ownerId");
-
-    my $quotaInsert = "insert into ${LTableName}_QUOTA ("
-        . "userId, nbFiles, totalSize) values ";
         
-    foreach my $u (@$fquotaL) {
-    	$quotaInsert .= "($u->{user},$u->{nbFiles},$u->{totSize}),";
+    if ( scalar(@$fquotaL) ){
+	    my $quotaInsert = "insert into ${LTableName}_QUOTA ("
+	        . "userId, nbFiles, totalSize) values ";
+	        
+	    foreach my $u (@$fquotaL) {
+	    	$quotaInsert .= "($u->{user},$u->{nbFiles},$u->{totSize}),";
+	    }
+	    $quotaInsert =~ s/,$//;
+	        
+	    $lfndb->do("$quotaInsert");
     }
-    $quotaInsert =~ s/,$//;
-        
-    $lfndb->do("$quotaInsert");
     
     $calculate = 1;
   }
