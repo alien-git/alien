@@ -1684,7 +1684,7 @@ sub getNumberWaitingForSite{
   	  ($ok, @$agents) = AliEn::Util::getURLandEvaluate("$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}?ns=jobbroker&key=remoteagents", 1);
   	
   	$ok or  
-  	  ($agents) = $self->queryColumn("select distinct agentId from QUEUE where statusId=5 and timestampdiff(SECOND,mtime,now())>=ifnull(remoteTimeout,$self->{DEFAULTREMOTETIMEOUT})"); 
+  	  ($agents) = $self->queryColumn("select distinct agentId from QUEUE where agentId is not null and statusId=5 and timestampdiff(SECOND,mtime,now())>=ifnull(remoteTimeout,$self->{DEFAULTREMOTETIMEOUT})"); 
   	
   	scalar(@$agents) or return 0;
   	
