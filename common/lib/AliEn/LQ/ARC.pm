@@ -477,7 +477,7 @@ sub validateJobsFile{
 	
 
 	# run verification procedure 
-	my $validationCmdLine = "$validationTool $fileSpec $validationCmdLine";
+	$validationCmdLine = "$validationTool $fileSpec $validationCmdLine";
 	$self->info( "Running validation with: $validationCmdLine" );
 	system( $validationCmdLine );
 
