@@ -37,6 +37,8 @@ attributetype ( AliEnVOConfig:13 NAME 'queueHost' SUP name )
 attributetype ( AliEnVOConfig:14 NAME 'queueDatabase' SUP name )
 attributetype ( AliEnVOConfig:15 NAME 'queueDriver' SUP name )
 attributetype ( AliEnVOConfig:16 NAME 'queueDbHost' SUP name )
+attributetype ( AliEnVOConfig:17 NAME 'logPort' SUP name )
+attributetype ( AliEnVOConfig:18 NAME 'logHost' SUP name )
 attributetype ( AliEnVOConfig:19 NAME 'userDir' SUP name )
 attributetype ( AliEnVOConfig:20 NAME 'clusterMonitorUser' SUP name )
 attributetype ( AliEnVOConfig:21 NAME 'isPort' SUP name )
@@ -108,19 +110,19 @@ attributetype ( AliEnVOConfig:84 NAME 'sedefaultQosandCount' SUP name )
 
 objectclass ( AliEnVOConfig  NAME 'AliEnVOConfig'
 	SUP ( top $ organizationalUnit ) STRUCTURAL
-	MUST ( authPort $ authenDatabase $
+	MUST ( proxyPort $ proxyHost $ authPort $ authenDatabase $
 	       authenHost $ authenDriver $ authHost $ catalogHost $
 	       catalogPort $ catalogDatabase $ catalogDriver $
 	       queuePort $ queueHost $ queueDatabase $queueDriver $
-	       queueDbHost $ userDir $ 
+	       queueDbHost $ logPort $ logHost $ userDir $ 
 	       isPort $ isDatabase $ isDriver $ isDbHost $ isHost $
 	       clusterMonitorUser $ clustermonitorPort $ 
       	       brokerHost $ brokerPort $ transferManagerAddress $ 
 		transferBrokerAddress $ transferDatabase $
 		transferOptimizerAddress $ jobOptimizerAddress $ 
 		jobDatabase $ ldapmanager $ jobManagerAddress $ 
-		jobBrokerAddress )
-	MAY ( proxyPort $ proxyHost $ proxyAddress $ processPort $catalogueDatabase $ catalogueOptimizerAddress $
+		jobBrokerAddress $ proxyAddress )
+	MAY ( processPort $catalogueDatabase $ catalogueOptimizerAddress $
 	      monalisaLUS $ monalisaGroup $ authenSubject $ proofPort $ proofDatabase $
 	      proofDriver $ proofDbHost $ proofHost $ proofMuxPortRange $
 	      proofCryptPassword $ proofLogin $ proofTimeout $ proofMasterPort $ proofPackage $ 
@@ -189,7 +191,7 @@ attributetype ( AliEnMSS:13 NAME 'ftdprotocol' SUP name )
 attributetype ( AliEnMSS:14 NAME 'deleteprotocol' SUP name )
 attributetype ( AliEnMSS:15 NAME 'seExclusiveWrite' SUP name )
 attributetype ( AliEnMSS:16 NAME 'seExclusiveRead' SUP name )
-attributetype ( AliEnMSS:17 NAME 'seVersion' SUP name )
+attributetype ( AliEnMSS:17 NAME 'officialLcgService' SUP name )
 
 
 
@@ -198,7 +200,7 @@ objectclass ( AliEnMSS  NAME 'AliEnMSS'
 	SUP ( top ) 
 	MUST ( name $ mss $ savedir )
 	MAY  ( options $ tmpdir $ lvmdatabase $ uploadEndpoint $ ioDaemons
-               $ category $ ioDaemonsConfig $ QoS $ ftdprotocol $ deleteprotocol $ seExclusiveWrite $ seExclusiveRead $ seVersion)
+               $ category $ ioDaemonsConfig $ QoS $ ftdprotocol $ deleteprotocol $ seExclusiveWrite $ seExclusiveRead $ officialLcgService )
 	      )
 
 #AliEn SE
@@ -251,6 +253,8 @@ attributetype ( AliEnCE:14 NAME 'installMethod' SUP name )
 attributetype ( AliEnCE:15 NAME 'matchcmd' SUP name )
 attributetype ( AliEnCE:16 NAME 'matcharg' SUP name )
 attributetype ( AliEnCE:17 NAME 'cerequirements' SUP name )
+#attributetype ( AliEnCE:18 NAME 'officialLcgService' SUP name )
+
 
 objectclass ( AliEnCE  NAME 'AliEnCE'
 	SUP ( top ) 
@@ -258,7 +262,7 @@ objectclass ( AliEnCE  NAME 'AliEnCE'
 	MAY  ( maxjobs $ submitcmd $ submitarg $ killcmd $ 
                killarg $ statuscmd $ statusarg $ packages $ TTL $ si2kPrice 
 	       $ environment $ installMethod $ matchcmd $ matcharg  
-	       $ cerequirements )
+	       $ cerequirements $ officialLcgService )
 	      )
 #AliEn FTD
 
@@ -303,6 +307,10 @@ attributetype ( AliEnSite:16 NAME 'siteKey' SUP name )
 attributetype ( AliEnSite:17 NAME 'siteToken' SUP name )
 attributetype ( AliEnSite:18 NAME 'distributeCreditsTo' SUP name )
 attributetype ( AliEnSite:19 NAME 'officialLcgName' SUP name )
+attributetype ( AliEnSite:20 NAME 'officialLcgGroups' SUP name )
+attributetype ( AliEnSite:21 NAME 'officialLcgIgnore' SUP name )
+attributetype ( AliEnSite:22 NAME 'officialLcgTier' SUP name )
+attributetype ( AliEnSite:23 NAME 'siteProxy' SUP name )
 
 
 
@@ -313,7 +321,8 @@ objectclass ( AliEnSite  NAME 'AliEnSite'
 	MAY ( savese $ packages $ workdir $ processPort $
               administrator $ location $ country $ longitude $ latitude $ 
 	      record $ packmanAddress $ localconfig $ environment $
-              accountName $ distributeCreditsTo $ closese $ virtualSite $ siteKey $ siteToken $ officialLcgName )
+              accountName $ distributeCreditsTo $ closese $ virtualSite $ siteKey $ siteToken $ officialLcgName $ 
+              officialLcgGroups $ officialLcgIgnore $ officialLcgTier $ siteProxy )
 	      )
 
 #AliEnHostConfig
