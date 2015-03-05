@@ -6,6 +6,7 @@ use AliEn::Service::Optimizer::Job;
 use vars qw(@ISA);
 use POSIX qw(strftime);
 
+
 push (@ISA, "AliEn::Service::Optimizer::Job");
 sub checkWakesUp {
   my $self=shift;
@@ -17,27 +18,14 @@ sub checkWakesUp {
   $self->{SLEEP_PERIOD}=3600;
   $self->{LOGGER}->$method("Expired", "In checkWakesUp .... optimizing the QUEUE table ...");
  
-  my $time = strftime "%Y-%m-%d %H:%M:%S", localtime(time - 240*3600 );
- # my $time =  localtime(time - 240*3600 );
-  my $mtime = "q.mtime";
-# my $month = qw(Jan Feb Mar Avr May Jun Jul Aug Sep Oct Nov Dec)($ltime[4]);
-  $self->{DB}->{DRIVER}=~ /Oracle/i and $mtime ="to_char(q.mtime,\'YY-MM-DD HH24:Mi:ss\')";
- # my $time =  (time - 240*3600 );
-  #Completed master Jobs older than 10 days are moved to the archive
-  $self->archiveJobs("where (( status in ('DONE','FAILED','EXPIRED') or status like 'ERROR%') and ( $mtime < '$time')  and split=0) ", "10 days in final state" ,$self->{DB}->{QUEUEARCHIVE});
-
-
-
-# #This is to archive the subjobs 'select count(*) from QUEUE q left join QUEUE q2
-  $self->archiveJobs("left join QUEUE q2 on q.split=q2.queueid where q.split!=0 and q2.queueid is null and $mtime<'$time'", 
-                      "10 days without subjobs ", $self->{DB}->{QUEUEARCHIVE});
+  my $time = strftime "%Y-%m-%d %H:%M:%S", localtime(time - 240*3600);
+  $self->{DB}->{DRIVER}=~ /Oracle/i and $time=" to_timestamp(\'$time\','YYYY-MM-DD HH24:Mi:ss') " or $time="\'$time\'";
   
-    #This is slightly more than ten days, and we move it to another table
-  $time = strftime "%Y-%m-%d %H:%M:%S",  localtime(time - 2*240*3600 );
-  $self->archiveJobs("where $mtime < '$time' and split=0", "20 days in any state","QUEUEEXPIRED" );
-
-
-
+  my $finalStatus="(15,-13,-12,-1,-2,-3,-4,-5,-7,-8,-9,-10,-11,-16,-17,-18)";
+  
+  # Completed Jobs older than 10 days are moved to the archive
+  $self->archiveJobs("where statusId in $finalStatus and q.mtime<$time and split=0");
+                      
   $self->{LOGGER}->$method("Expired", "In checkWakesUp going back to sleep");
 
   return;
@@ -46,42 +34,52 @@ sub checkWakesUp {
 sub archiveJobs{
   my $self=shift;
   my $query=shift;
-  my $time=shift;
-  my $table=shift;
+  my $table=$self->{DB}->{QUEUEARCHIVE};
+  my $limit = 10000;
 
+  my ($jobs)=$self->{DB}->queryColumn("select q.queueId from QUEUE q $query");
+  scalar(@$jobs) or $self->info("There are 0 expired jobs") and return 1;
+
+  $self->info("Archiving the jobs older than 10 days");
   
-  $self->info("Archiving the jobs older than $time");
+  while (scalar(@$jobs)) { 
+    $self->{DB}->do("drop table if exists QUEUE_TMP_EXP");
+    $self->{DB}->do("create table if not exists QUEUE_TMP_EXP as select queueId from QUEUE limit 0");
+    my $total=0;    
+    foreach my $job (@$jobs){
+      $self->{DB}->do("insert into QUEUE_TMP_EXP values ($job)");
+      $self->{DB}->do("insert into QUEUE_TMP_EXP select queueId from QUEUE where split=?",{bind_values=>[$job]});
+      $total=$self->{DB}->queryValue("select count(1) from QUEUE_TMP_EXP");
+      $total >= $limit and last;
+    }
+    $self->info("There are $total expired jobs");
+    #use Data::Dumper;
+    #$self->info("JOBS: ".Dumper($jobs).Dumper($total).Dumper($query));
+
+    $total or return 1;
   
+    my $columns=$self->{DB}->describeTable($table);
+    my $c="";
+    foreach my $column (@$columns){
+      $column->{Field} =~ /agentid/i and next;
+      $column->{Field} !~ /queueid/i and $c.="$column->{Field}, ";
+    }
+    $c=~ s/, $//;
+    
+    my $done=$self->{DB}->do("insert ignore into ${table} (queueId, $c) select q.queueId, $c from QUEUE q join QUEUEPROC p using (queueid )
+                                                                                                 join QUEUEJDL j using (queueid)
+    join QUEUE_TMP_EXP using (queueid)") ;
+
+    my $done2=$self->{DB}->do("insert into JOBMESSAGES (timestamp, jobId, procinfo, tag) 
+                             select unix_timestamp(), queueId, 'Job moved to the archived table', 'state' from QUEUE_TMP_EXP");
+
+    my $done3=$self->{DB}->do("delete from QUEUE using QUEUE join QUEUE_TMP_EXP using (queueid)");
   
-  $self->{DB}->do("truncate table TMPID");
-  my $jobs=$self->{DB}->do("insert into TMPID select q.queueid from QUEUE q $query ");
-  $self->info("There are $jobs expired jobs");
-  ( $jobs and $jobs !~ /0E0/ ) or return 1;
-  
-  my $columns=$self->{DB}->query("describe $table");
-  my $c="";
-  my $c2="";
-  foreach my $column (@$columns){
-    $c.="$column->{Field}, ";
-    $c2.="q.$column->{Field}, ";
+    $self->info("AT THE END, WE HAVE $done and $done2 and $done3");
+    
+    ($jobs)=$self->{DB}->queryColumn("select q.queueId from QUEUE q $query");
   }
   
-  $c=~ s/, $//;
-  $c2=~ s/, $//;
-    
-  my $done=$self->{DB}->do("insert into ${table}PROC select * from QUEUEPROC p join TMPID using (queueid)");
-
-  $self->{DB}->do("insert into JOBMESSAGES (timestamp, jobId, procinfo, tag, time) select 
-               unix_timestamp(), queueid, 'Job moved to the archived table', 'state', unix_timestamp() from TMPID");
-
-  my $done2=$self->{DB}->do("insert into ${table} ($c) select $c2 from QUEUE q join TMPID using (queueid)");
-
- #my $done3=$self->{DB}->do("delete from p using  TMPID  join QUEUEPROC p using (queueid)");
-  my $done3=$self->{DB}->do("delete from QUEUEPROC where queueid in (SELECT p.queueid from TMPID  join QUEUEPROC p )");
- # my $done4=$self->{DB}->do("delete from q using QUEUE q join TMPID using (queueid)");
-   my $done4=$self->{DB}->do("delete from QUEUE WHERE queueid in (SELECT q.queueid FROM TMPID,QUEUE q) ");
-  
-  $self->info("AT THE END, WE HAVE $done and $done2 and $done3 and $done4");
   return 1;
 }
 

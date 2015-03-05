@@ -20,7 +20,7 @@ sub checkWakesUp {
   $self->{LOGGER}->$method("MonALISA",  "MonALISA optimizer starts");
     
   #get all job states from QUEUE table 
-  my $table =$self->{DB}->query("SELECT status, count(*) from QUEUE group by status");
+  my $table =$self->{DB}->query("SELECT statusId, count(*) from QUEUE group by statusId");
   $table or return;
 
   #initialize resulting hash %res
@@ -34,7 +34,7 @@ sub checkWakesUp {
   
   for (my $i = 0; $i<  @$table ; $i++)
     {
-      $res{$table->[$i]->{"status"}} = $table->[$i]->{"count(*)"};
+      $res{AliEn::Util::statusName($table->[$i]->{"statusId"})} = $table->[$i]->{"count(*)"};
     }
   #get number of entries from JOBAGENT table (supposed to be equal to number of 'WAITING' jobs from QUEUE)
   $table =$self->{DB}->queryValue("SELECT sum(counter) from JOBAGENT");

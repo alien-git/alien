@@ -234,85 +234,182 @@ sub getTop {
   my $args =join (" ", @_);
   my $date = time;
 
-  my $usage="\n\tUsage: top [-status <status>] [-user <user>] [-host <exechost>] [-command <commandName>] [-id <queueId>] [-split <origJobId>] [-all] [-all_status] [-site <siteName>]";
+  my $usage="\n\tUsage: top [-status <status>] [-user <user>] [-host <exechost>] [-command <commandName>] [-id <queueId>] [-split <origJobId>] [-all] [-all_status] [-site <siteName>] [-r]";
 
-  $self->info( "Asking for top..." );
+  $self->info( "Asking for the new top..." );
 
-  if ($args =~ /-?-h(elp)/) {
-    $self->info("Returning the help message of top");
-    return ("Top: Gets the list of jobs from the queue$usage");
-  }
-  my $where=" WHERE 1=1";
-  my $columns="queueId, status, name, execHost, submitHost ";
+  my $where=" join QUEUE_USER using (userid) join QUEUE_COMMAND using (commandId) JOIN QUEUE_HOST s on (submithostid=s.hostId) join QUEUE_STATUS using (statusid) WHERE 1=1";
+  my $columns="queueId, status, command name, s.host submitHost, user ";
   my $all_status=0;
   my $error="";
   my $data;
 
   my @columns=(
 	       {name=>"user", pattern=>"u(ser)?",
-		start=>'submithost like \'',end=>"\@\%'"},
+		start=>"user='",end=>"'"},
 	       {name=>"host", pattern=>"h(ost)?",
-		start=>'exechost like \'%\@',end=>"'"},
+		start=>"e.host='",end=>"'"},
 	       {name=>"submithost", pattern=>"submit(host)?",
-		start=>'submithost like \'%\@',end=>"'"},
+		start=>"s.host='",end=>"'"},
 	       {name=>"id", pattern=>"i(d)?",
 		start=>"queueid='",end=>"'"},
 	       {name=>"split", pattern=>"s(plit)?",
 		start=>"split='",end=>"'"},
 	       {name=>"status", pattern=>"s(tatus)?",
-		start=>"status='",end=>"'"},
+		start=>"statusId='",end=>"'"},
 	       {name=>"command", pattern=>"c(ommand)?",
-		start=>"name='",end=>"'"},
-	       {name=>"site", pattern=>"site",
-		start=>"site='", end=>'\''}
+		start=>"name='",end=>"'"}
 	      );
 
   while (@_) {
     my $argv=shift;
-
+    $self->info("Doing $argv");
     ($argv=~ /^-?-all_status=?/) and $all_status=1 and  next;
-    ($argv=~ /^-?-a(ll)?=?/) and $columns.=", received, started, finished,split" 
+    ($argv=~ /^-?-a(ll)?=?/) and $columns.=", execHost, received, started, finished, split, resubmission" 
       and next;
+    # Added for -r parameter
+    ($argv=~ /^-?-r/) and !($argv=~ /^-?-a(ll)?=?/) and $columns.=", resubmission" and next; 
+     
+    if ($argv=~ /^-?-site=?/){
+       my $siteName=shift;
+       my $siteid=$self->{DB}->findSiteId($siteName);
+       $siteid or $self->info("Error: the site $siteName does not exist ") and return;
+       $where .=  " and siteid=$siteid";
+       next;
+     
+    }  
     my $found;
     foreach my $column (@columns){
       if ($argv=~ /^-?-$column->{pattern}$/ ){
-	$found=$column;
-	last;
+	     $found=$column;
+	     last;
       }
-    }
+    } 
     $found or  $error="argument '$argv' not understood" and last;
     my $type=$found->{name};
 
     my $value=shift or $error="--$type requires a value" and last;
     $data->{$type} or $data->{$type}=[];
+    
+    # For QUEUESTATUS TABLE
+    $type =~ /status/ and $value = AliEn::Util::statusForML($value);
 
     push @{$data->{$type}}, "$found->{start}$value$found->{end}";
   }
   if ($error) {
     my $message="Error in top: $error\n$usage";
-    $self->{LOGGER}->error("JobManager", $message);
-    return (-1, $message);
+    $self->info($message);
+    return ;
   }
 
   foreach my $column (@columns){
     $data->{$column->{name}} or next;
     $where .= " and (".join (" or ", @{$data->{$column->{name}}} ).")";
   }
-  $all_status or $data->{status} or $data->{id} or $where.=" and ( status='RUNNING' or status='WAITING' or status='OVER_WAITING' or status='ASSIGNED' or status='QUEUED' or status='INSERTING' or status='STARTED' or status='SAVING' or status='TO_STAGE' or status='STAGGING' or status='A_STAGED' or status='STAGING' or status='SAVED')";
+  $all_status or $data->{status} or $data->{id} or $where.=" and ( statusId in (10,5,21,6,1,7,11,17,18,19,12))";
+  #$all_status or $data->{status} or $data->{id} or $where.=" and ( status='RUNNING' or status='WAITING' or status='OVER_WAITING' or status='ASSIGNED' or status='QUEUED' or status='INSERTING' or status='STARTED' or status='SAVING' or status='TO_STAGE' or status='STAGGING' or status='A_STAGED' or status='STAGING' or status='SAVED')";
 
   $where.=" ORDER by queueId";
 
-  $self->info( "In getTop, doing query $columns, $where" );
+  $self->debug(1,  "In getTop, doing query $columns, $where" );
 
   my $rresult = $self->{DB}->getFieldsFromQueueEx($columns, $where)
-    or $self->{LOGGER}->error( "JobManager", "In getTop error getting data from database" )
+    or $self->info( "In getTop error getting data from database" )
       and return (-1, "error getting data from database");
-
+  
   my @entries=@$rresult;
   $self->info( "Top done with $#entries +1");
 
   return $rresult;
 }
+
+#sub getTop2 {
+#  my $this = shift;
+#  my $args =join (" ", @_);
+#  my $date = time;
+#
+#  my $usage="\n\tUsage: top [-status <status>] [-user <user>] [-host <exechost>] [-command <commandName>] [-id <queueId>] [-split <origJobId>] [-all] [-all_status] [-site <siteName>]";
+#
+#  $self->info( "Asking for top..." );
+#
+#  if ($args =~ /-?-h(elp)/) {
+#    $self->info("Returning the help message of top");
+#    return (-1, "Top: Gets the list of jobs from the queue$usage");
+#  }
+#  $self->info("OK");
+#  my $where=" WHERE 1";
+#  my $columns="queueId, status, name, execHost, submitHost ";
+#  my $all_status=0;
+#  my $error="";
+#  my $data;
+#
+#  my @columns=(
+#	       {name=>"user", pattern=>"u(ser)?",
+#		start=>'submithost like \'',end=>"\@\%'"},
+#	       {name=>"host", pattern=>"h(ost)?",
+#		start=>'exechost like \'%\@',end=>"'"},
+#	       {name=>"submithost", pattern=>"submit(host)?",
+#		start=>'submithost like \'%\@',end=>"'"},
+#	       {name=>"id", pattern=>"i(d)?",
+#		start=>"queueid='",end=>"'"},
+#	       {name=>"split", pattern=>"s(plit)?",
+#		start=>"split='",end=>"'"},
+#	       {name=>"status", pattern=>"s(tatus)?",
+#		start=>"status='",end=>"'"},
+#	       {name=>"command", pattern=>"c(ommand)?",
+#		start=>"name='",end=>"'"},
+#	       {name=>"site", pattern=>"site",
+#		start=>"site='", end=>'\''}
+#	      );
+#
+#  while (@_) {
+#    my $argv=shift;
+#    $self->info("HEELO $argv");
+#
+#    ($argv=~ /^-?-all_status=?/) and $all_status=1 and  next;
+#    ($argv=~ /^-?-a(ll)?=?/) and $columns.=", received, started, finished,split" 
+#      and next;
+#    my $found;
+#    foreach my $column (@columns){
+#      if ($argv=~ /^-?-$column->{pattern}$/ ){
+#	$found=$column;
+#	last;
+#      }
+#    }
+#    $found or  $error="argument '$argv' not understood" and last;
+#    my $type=$found->{name};
+#
+#    my $value=shift or $error="--$type requires a value" and last;
+#    $data->{$type} or $data->{$type}=[];
+#
+#    push @{$data->{$type}}, "$found->{start}$value$found->{end}";
+#  }
+#  $self->info("ARGUMENTS PASSED");
+#  if ($error) {
+#    my $message="Error in top: $error\n$usage";
+#    $self->info( $message);
+#    return (-1, $message);
+#  }
+#
+#  foreach my $column (@columns){
+#    $data->{$column->{name}} or next;
+#    $where .= " and (".join (" or ", @{$data->{$column->{name}}} ).")";
+#  }
+#  $all_status or $data->{status} or $data->{id} or $where.=" and ( status='RUNNING' or status='WAITING' or status='OVER_WAITING' or status='ASSIGNED' or status='QUEUED' or status='INSERTING' or status='STARTED' or status='SAVING' or status='TO_STAGE' or status='STAGGING' or status='A_STAGED' or status='STAGING' or status='SAVED')";
+#
+#  $where.=" ORDER by queueId";
+#
+#  $self->info( "In getTop, doing query $columns, $where" );
+#
+#  my $rresult = $self->{DB}->getFieldsFromQueueEx($columns, $where)
+#    or $self->{LOGGER}->error( "JobManager", "In getTop error getting data from database" )
+#      and return (-1, "error getting data from database");
+#
+#  my @entries=@$rresult;
+#  $self->info( "Top done with $#entries +1");
+#
+#  return $rresult;
+#}
 
 sub getJobInfo {
   my $this = shift;
@@ -333,7 +430,7 @@ sub getJobInfo {
   }
 
   $self->info( "Asking for Jobinfo by $username and jobid's @jobids ..." );
-  my $allparts = $self->{DB}->getFieldsFromQueueEx("count(*) as count, min(started) as started, max(finished) as finished, status", " WHERE $jobtag GROUP BY status");
+  my $allparts = $self->{DB}->getFieldsFromQueueEx("count(*) as count, min(started) as started, max(finished) as finished, status", "join QUEUE_STATUS using (statusid) WHERE $jobtag GROUP BY status");
 
   for (@$allparts) {
     $result->{$_->{status}} = $_->{count};
@@ -514,7 +611,7 @@ sub GetJobJDL {
   my $id=shift;
  
  
-  my $columns="jdl";
+  my $columns="origjdl jdl";
   my $method="queryValue"; 
   foreach my $o (@_) {
     $o=~ /-dir/ and $columns.=",path" and $method="queryRow";
@@ -523,10 +620,55 @@ sub GetJobJDL {
 
   $self->debug(1, "Asking for the jdl of $id");
   $id or $self->info( "No id to check in GetJOBJDL",11) and return (-1, "No id to check");
-  my $rc=$self->{DB}->$method("select $columns from QUEUE where queueId=?", undef, {bind_values=>[$id]});
+  my $rc=$self->{DB}->$method("select $columns from QUEUEJDL where queueId=?", undef, {bind_values=>[$id]});
   $self->info( "Giving back the $columns of $id\n");
   return $rc; 
 
+}
+
+sub getTraceAgent {
+  my $this = shift;
+  if ($_[0] and ref $_[0] eq "ARRAY"){
+    my $ref=shift;
+    @_=@$ref;
+  }
+  my $year  = shift;
+  my $month = shift;
+  my $day   = shift;
+  
+  my $site = shift;
+  my $id   = shift;
+  $self->info("Getting the trace of the agents: '@_'");
+  my @messages=();
+  my $rc={rcvalues=>-1};
+  if (! $year or ! $month or ! $day){
+     push @messages, "Please, specify the date of the job agents\n" ,
+          "\tps traceAgent <year> <month> <day> [<site> [<id>]]\n";   
+  }elsif ($site and $id){
+     push @messages, "Getting the trace of the jobagent $id on $site on $day/$month/$year\n";
+     my @list=$self->{JOBLOG}->getAgentLog($year, $month, $day, $site, $id);
+     push @messages, @list;
+     $rc->{rcvalues}=\@list;
+  }else{
+    my $s="";
+    $site and $s=" on the site '$site'";
+    push @messages, "Getting the list of entries $s\n";
+    my @sites=$self->{JOBLOG}->getListAgentSites($year, $month, $day, $site);
+    if (@sites){
+      foreach (@sites){
+        push @messages, "\t$_\n";
+      }
+      $rc->{rcvalues}=\@sites;
+    } else{
+     my $msg="There were no activity on that day $s";
+     push @messages, "$msg day\n";
+    }    
+  } 
+  $rc->{rcmessages}=\@messages;
+  $self->info("Get TraceAgent done");
+  use Data::Dumper;
+  $self->info(Dumper($rc));
+  return $rc;
 }
 
 
@@ -579,7 +721,7 @@ sub getPs {
   my $date = time;
   my $i;
 
-  my $status="status='RUNNING' or status='WAITING' or status='OVER_WAITING' or status='ASSIGNED' or status='QUEUED' or status='INSERTING' or status='SPLIT' or status='SPLITTING' or status='STARTED' or status='SAVING'";
+  my $status="st.status in ('RUNNING','WAITING','OVER_WAITING','ASSIGNED','QUEUED','INSERTING','SPLIT','SPLITTING','STARTED','SAVING')";
   my $site="";
 
   $self->info( "Asking for ps (@_)..." );
@@ -587,14 +729,14 @@ sub getPs {
   my $user="";
   my @userStatus;
   if ( $flags =~ s/d//g){
-    push @userStatus, "status='DONE'";
+    push @userStatus, "st.status='DONE'";
   }
   if ( $flags =~ s/f//g){
-    push @userStatus, "status='EXPIRED'", "status like 'ERROR_\%'",
-      "status='KILLED'","status='FAILED'","status='ZOMBIE'";
+    push @userStatus, "st.status='EXPIRED'", "t.status like 'ERROR_\%'",
+      "st.status='KILLED'","st.status='FAILED'","st.status='ZOMBIE'";
   }
   if ( $flags=~ s/r//g) {
-    push @userStatus,"status='RUNNING'", "status='SAVING'","status='WAITING'", "status='OVER_WAITING'", "status='ASSIGNED'", "status='QUEUED'", "status='INSERTING'", "status='SPLITTING'", "status='STARTED'", "status='SPLIT'";
+    push @userStatus,"st.status='RUNNING'", "st.status='SAVING'","st.status='WAITING'", "st.status='OVER_WAITING'", "st.status='ASSIGNED'", "st.status='QUEUED'", "st.status='INSERTING'", "st.status='SPLITTING'", "st.status='STARTED'", "st.status='SPLIT'";
   }
   
   if ( $flags =~ s/A//g) {
@@ -602,14 +744,14 @@ sub getPs {
   }
 
   if ( $flags =~s/I//g) {
-    push @userStatus,"status='IDLE'", "status='INTERACTIV'","status='FAULTY'";
+    push @userStatus,"st.status='IDLE'", "st.status='INTERACTIV'","st.status='FAULTY'";
   }
   if ( $flags=~ s/z//g) {
-    push @userStatus,"status='ZOMBIE'";
+    push @userStatus,"st.status='ZOMBIE'";
   }
 
   while ($args =~ s/-?-s(tatus)? (\S+)//) {
-    push @userStatus, "status='$1'";
+    push @userStatus, "st.status='$1'";
   }
   @userStatus and $status=join (" or ", @userStatus) ;
 
@@ -624,15 +766,15 @@ sub getPs {
   my $where = "WHERE ( $status ) $site ";
 
 
-  $args =~ s/-?-u(ser)?=?\s+(\S+)// and $where.=" and submithost like '$2\@\%'";
+  $args =~ s/-?-u(ser)?=?\s+(\S+)// and $where.=" and user='$2' ";
 #    $args =~ s/-?-e(xec)?=?\s+(\S+)// and $where.=" and exechost like '\%$2'";
 #    $args =~ s/-?-c(ommand)?=?\s+(\S+)// and $where.=" and jdl like '\%Executable\%$2\%'";
     $args =~ s/-?-i(d)?=?\s*(\S+)// and $where .=" and ( p.queueid='$2' or split='$2')";
 
   if ($flags =~ s/s//) {
-    $where .=" and (upper(jdl) like '\%SPLIT\%' or split>0 ) ";
+    $where .=" and (jdl like '\%Split\%' or split>0 ) ";
   } elsif ($flags !~ s/S//) {
-    $where .=" and ((split is NULL) or (split=0))";
+    $where .=" and ((q.split is NULL) or (q.split=0))";
   }
 
   if ($flags !~ /^\s*$/) {
@@ -660,8 +802,8 @@ sub getPs {
 
 
 	#my (@ok) = $self->{DB}->query($query);
-  my $rresult = $self->{DB}->getFieldsFromQueueEx("q.queueId, status, jdl, execHost, submitHost, runtime, cpu, mem, cputime, rsize, vsize, ncpu, cpufamily, cpuspeed, cost, maxrsize, maxvsize, site, node, split, procinfotime,received,started,finished",
-						  "q, QUEUEPROC p $where")
+  my $rresult = $self->{DB}->getFieldsFromQueueEx("q.queueId, st.status, e.host  execHost, concat(user, '\@', s.host) submitHost, runtime, cpu, mem, cputime, rsize, vsize, ncpu, cpufamily, cpuspeed, p.cost, maxrsize, maxvsize, site,  q.split, procinfotime,received,q.started,finished",
+						  "q join QUEUE_STATUS st using (statusid) left join QUEUE_HOST e on (e.hostid=exechostid) left join QUEUE_HOST s on (s.hostid=submithostid) left join SITEQUEUES using  (siteid) join QUEUE_USER using (userid), QUEUEPROC p $where")
     or $self->{LOGGER}->error( "JobManager", "In getPs error getting data from database" )
       and return (-1, "error getting data from database");
 
@@ -690,7 +832,7 @@ sub getSpyUrl {
     my $this    = shift;
     my $queueId = shift  or return;
     $self->info("Get Spy Url for $queueId"); 
-    my ($url)  = $self->{DB}->getFieldFromQueue($queueId,"spyurl");
+    my ($url)  = $self->{DB}->queryValue("select spyurl from QUEUEPROC where queueid=?", undef, {bind_values=>[$queueId]});
     $url or $self->info("In spy cannot get the spyurl for job $queueId");
     $self->info("Returning Spy Url for $queueId $url"); 
     return $url;
@@ -742,6 +884,10 @@ sub spy {
 
 
     my $result = $self->{DB_I}->getActiveServices("ClusterMonitor","host,port,protocols,certificate,uri",$site->{site});
+   use Data::Dumper;
+    $self->info(Dumper($result));
+
+
     #$self->info("In spy got http://$result->{'HOST'}:$result->{'PORT'}  ...");
 
     my $url=$self->getSpyUrl($queueId);

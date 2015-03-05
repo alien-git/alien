@@ -175,14 +175,14 @@ $config{objectClass}=["top",  "AliEnVOConfig"];
 $config{authPort}=$portNumber;
 $config{catalogPort}=$portNumber+2;
 $config{queuePort}=$portNumber+3;
-
+$config{logPort}=$portNumber+9;
 $config{isPort}=$portNumber+1;
 $config{clustermonitorPort}=$portNumber+4;
 $config{brokerPort}=$portNumber+10;
 $config{ldapmanager}=$rootdn;
 $config{processPort}=[$portNumber+5,$portNumber+6,$portNumber+7,$portNumber+8,$portNumber+9 ];
 
-$config{brokerHost}=$config{isHost}=$config{catalogHost}=$config{queueHost}=$config{authHost}=$hostName;
+$config{brokerHost}=$config{isHost}=$config{logHost}=$config{catalogHost}=$config{queueHost}=$config{authHost}=$hostName;
 $config{authenDatabase}="ADMIN";
 $config{catalogDatabase}="alien_system";
 $config{isDatabase}="INFORMATIONSERVICE";
@@ -228,7 +228,7 @@ $config{jobinfoManagerAddress}="$hostName:".($portNumber+20);
 
 push(@list,("ou=Config,$orgDN", [%config]));
 
-foreach my $subdir ("Packages", "People", "Roles", "Sites", "Partitions") {
+foreach my $subdir ("Packages", "People", "Roles", "Sites", "Partitions", "Services") {
   push(@list,("ou=$subdir,$orgDN",["ou", "$subdir",
 			"objectClass", ["organizationalUnit"]]));
 }
@@ -239,6 +239,61 @@ push (@list, "uid=$prodUser,ou=Roles,$orgDN", ["objectClass", "AliEnRole",
 					       "uid", "$prodUser",
 					      ]);
 
+push (@list, "ou=gContainer,ou=Services,$orgDN", ["objectClass", "AliEngContainer",
+					   "ou", "gContainer",
+             "geoIPDatabase", "$mysqlHost/mysql/geoip",
+             "reportTime", "300",
+             "wakeupTime", "300",
+					   ]);
+
+push (@list, "ou=Judges,ou=gContainer,ou=Services,$orgDN", ["objectClass", "organizationalUnit",
+					   "ou", "Judges",
+					   ]);
+
+push (@list, "name=LogicalDistance,ou=Judges,ou=gContainer,ou=Services,$orgDN", ["objectClass", "AliEngContainerJudge",
+					   "name", "LogicalDistance",
+             "weight", "1.0",
+             "active", "1",
+					   ]);
+
+push (@list, "ou=Services,ou=gContainer,ou=Services,$orgDN", ["objectClass", "organizationalUnit",
+					   "ou", "Services",
+					   ]);
+
+push (@list, "name=GAS,ou=Services,ou=gContainer,ou=Services,$orgDN", ["objectClass",
+              [ "AliEngContainerServiceGAS" ],
+					   "name", "GAS",
+             "authentication", "myproxy",
+             "global", "0",
+             "gasModules", ["AliEnFileCatalog", "AliEnMetaCatalog", "AliEnTaskQueue"],
+             "creatorClass", "gFactory::GAS",
+					   ]);
+
+push (@list, "alias=AliEnFileCatalog,name=GAS,ou=Services,ou=gContainer,ou=Services,$orgDN", ["objectClass", ["AliEnGASMODULE",], "alias", "AliEnFileCatalog",
+                      "type", 1,
+                      "mandatory", 1,
+                      "interface", "AliEn::EGEE::Interface::Catalogue",
+                      "options", "AliEn::EGEE::Service::Catalogue",
+                      ]);
+push (@list, "alias=AliEnMetaCatalog,name=GAS,ou=Services,ou=gContainer,ou=Services,$orgDN", ["objectClass", ["AliEnGASMODULE",], "alias", "AliEnMetaCatalog",
+                      "type", 1,
+                      "mandatory", 1,
+                      "interface", "AliEn::EGEE::Interface::MetaCatalogue",
+                      "options", "AliEn::EGEE::Service::MetaCatalogue",
+                      ]);
+push (@list, "alias=AliEnTaskQueue,name=GAS,ou=Services,ou=gContainer,ou=Services,$orgDN", ["objectClass", ["AliEnGASMODULE"], "alias", "AliEnTaskQueue",
+                      "type", 1,
+                      "mandatory", 0,
+                      "interface", "AliEn::EGEE::Interface::WMS",
+                      "options", "AliEn::EGEE::Service::WMS",
+                      ]);
+
+ push (@list, "name=ExWrapper,ou=Services,ou=gContainer,ou=Services,$orgDN", ["objectClass",
+               ["AliEngContainerServiceExWrapper" ],
+ 					   "name", "ExWrapper",
+              "global", "0",
+              "creatorClass", "gFactory::ExWrapper",
+ 					   ]);
 
 my $tmpDir="/tmp/$orgName";
 

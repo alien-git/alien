@@ -446,9 +446,9 @@ sub listTransfer {
     return $self->listTransfer_HELP();
   }
   
-  my $where=" WHERE 1=1";
+  my $where=" WHERE 1";
 #  my $where= "WHERE transferId <= 200";
-  my $columns="transferId, status, destination, ".$self->{DB}->reservedWord("user")." , ".$self->{DB}->reservedWord("size").",started, received, finished, attempts ";
+  my $columns="transferId, status, destination, user, size,started, received, finished, attempts ";
   my $all_status=0;
   my $master=0;
   my $jdl=0;

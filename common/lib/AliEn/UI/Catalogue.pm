@@ -112,7 +112,7 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
     'host'    		=> ['$self->{CATALOG}->f_host', 0],
     'addUser' 		=> ['$self->{CATALOG}->f_addUser', 0],
     'mount'   		=> ['$self->{CATALOG}->f_mount', 0],
-    'verifyToken' 	=> ['$self->{CATALOG}->f_verifyToken', 0],
+#    'verifyToken' 	=> ['$self->{CATALOG}->f_verifyToken', 0],
     'verifySubjectRole' => ['$self->{CATALOG}->f_verifySubjectRole', 0],
     'moveDirectory'	=> ['$self->{CATALOG}->moveDirectory',0],
 	     'moveGUID'	=> ['$self->{CATALOG}->moveGUIDToIndex',0],
@@ -127,6 +127,10 @@ This interface can also be used to get a UNIX-like prompt. The methods that the 
     'optimizeGUIDtables'   => ['$self->{CATALOG}->optimizeGUIDtables',0],
 	     'setSElimit'=>['$self->{CATALOG}->setSElimit',0],
 	     'refreshSERankCache'=> ['$self->{CATALOG}->refreshSERankCache',0],
+  'refreshSEDistance'  => [ '$self->{CATALOG}->refreshSEDistance',  67 ],
+  'listSEDistance'     => [ '$self->{CATALOG}->listSEDistance',  67 ],
+  'setSEStatus'        => [ '$self->{CATALOG}->setSEStatus',  67 ],
+
      'fquota_set'=> ['$self->{CATALOG}->fquota_set',0],
        
        
@@ -810,7 +814,7 @@ sub execute {
     } else {
       grep s/"/\\"/g, @arg;
       $command = "$com[0](split \" \", \"@arg\")";
-      $command =~ s/\\/\\\\/g;
+      $command =~ s/\\([^"])/\\\\$1/g;
       $command =~ s/\$\?/\\\$\?/g;
       $command =~ s/\@/\\\@/g;
       push @commands, $command;

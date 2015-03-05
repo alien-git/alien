@@ -18,7 +18,7 @@ use Crypt::OpenSSL::RSA;
 use Crypt::OpenSSL::Random;
 use AliEn::Util;
 use AliEn::UI::Catalogue::LCM::Computer;
-
+use Time::HiRes;
 use vars qw (@ISA $DEBUG);
 @ISA=("AliEn::Service");
 
@@ -76,6 +76,8 @@ sub initialize {
 sub  createEnvelope{
   my $other=shift;
   my $user=shift;
+  
+  my $before=Time::HiRes::time();
   $self->{LOGGER}->set_error_msg();
   $self->info("$$ Ready to create the envelope for user $user (and @_)");
   
@@ -87,6 +89,10 @@ sub  createEnvelope{
   my (@info)=$self->{UI}->execute("access", $options, @_);
   $self->info("$$ Everything is done for user $user (and @_)");
   grep(/^-debug(=\d+)?/, @_) and $self->info("Removing the debug sign") and $self->{UI}->execute("debug");
+  
+  my $time=Time::HiRes::time()-$before;
+  $self->logEntry( "$user envelope", $time);    
+  
   return @info;
 }
 
@@ -97,13 +103,15 @@ sub doOperation {
   my $op=shift;
   $self->info("$$ Ready to do an operation for $user in $directory (and $op '@_')");
   my $jobID="0";
-  
+  my $before=Time::HiRes::time();
   if ($user=~ s/^alienid://){
     $self->info("We are authenticating with a job token");
     my ($job, $token)=split(/ /, $user, 2);
     $self->info("ID: $job, TOKEN $token");
     $jobID=$job;
-    my $role=$self->{addbh}->getUsername($job,$token);
+    my $role = $self->{UI}->{QUEUE}->{TASK_DB}->getUsername($job, $token);
+    
+#    my $role=$self->{addbh}->getUsername($job,$token);
     ( $role) or $self->info("The job token is not valid") 
        and return {rcvalues=>[], rcmessages=>["The job token for job $job is not valid"]};
     $self->info("Doing the operation as $role");
@@ -137,10 +145,95 @@ sub doOperation {
   $debug and $self->{LOGGER}->debugOn($mydebug);
   $self->{LOGGER}->displayMessages();
   $self->info("$$ doOperation DONE for user $user (and @_) result: @info, length:".scalar(@info));
-    
+
+  my $time=Time::HiRes::time()-$before;
+  my $d=shift || "";
+  my $d2=shift || "";
+
+###################
+my $infoNames = join('', @info);
+  my @InfoArray=split('\&', $infoNames);
+   
+ if ($#InfoArray <= 0 and $InfoArray[0] !=1 ){
+     # $self->logEntry("$user $op  $d $d2", $time, undef, \@_);
+       $self->logEntry("$user $op", $time, undef, $d, $d2);
+  } else {
+         $self->logEntry("$user $op", $time, \@InfoArray);
+  }
+###################
+#  $self->logEntry( "$user $op $d $d2", $time);    
   return { rcvalues=>\@info, rcmessages=>\@loglist };
-  
 }
+
+####################
+sub logEntry {
+  my $self    = shift;
+  my $message = shift;
+  my $time    = shift;
+  my @time    = localtime();
+  my $envelope = shift;
+ 
+  if ($envelope and ${$envelope}[1] ne ""){
+        my $access = ${$envelope}[1];
+        $access =~ s/\\//g;
+    $access =~ s/access=//;
+    my $lfn = ${$envelope}[2];
+    $lfn =~ s/\\//g;
+    $lfn =~ s/lfn=//;
+    my $se = ${$envelope}[4];
+    $se =~ s/\\//g;
+    $se =~ s/se=//;
+    $message .= " $access $lfn $se";
+  } else{
+       # my $failureDetails = shift;
+        # my $operation = ${$failureDetails}[0];
+          my $operation = shift;
+          # my $var = ${$failureDetails}[1];
+          my $var = shift;
+      if(defined $var && ref($var) eq "HASH")
+      {
+          $message .= " FAILED $operation $var->{lfn} $var->{wishedSE}";
+      }
+  }
+ 
+my $month = (1+$time[4]);
+my $day = $time[3];
+if ($month < 10) {
+ $month = "0$month";
+}
+if ($day < 10) {
+ $day = "0$day";
+}
+ my $logDir  = "$self->{CONFIG}->{LOG_DIR}/Authen_ops/" . (1900 + $time[5]) . "/" . $month .  "/$day/";
+# my $logDir  = "$self->{CONFIG}->{LOG_DIR}/Authen_ops/" . (1900 + $time[5]) . "/" . (1 + $time[4]) . "/$time[3]/";
+ 
+  $self->info("GOING to $logDir");
+  (-d $logDir) or system("mkdir", "-p", $logDir);
+  open(FILE, ">> $logDir/operations") or return;
+  print FILE "$time[2]:$time[1]:$time[0] $$ Took: $time seconds Done: '$message'\n";
+   
+  close FILE;
+  return 1;
+ 
+}
+ 
+####################
+
+# sub logEntry{
+#  my $self=shift;
+#  my $message=shift;
+#  my $time=shift;
+#  my @time=localtime();
+#  my $logDir="$self->{CONFIG}->{LOG_DIR}/Authen_ops/".(1900+$time[5])."/".(1+$time[4])."/$time[3]/";
+#  $self->info("GOING to $logDir");
+#  (-d $logDir ) or system("mkdir", "-p", $logDir);
+#  open (FILE, ">> $logDir/operations") or return;
+#  print FILE "$time[2]:$time[1]:$time[0] $$ Took: $time seconds Done: '$message'\n"; 
+#  close FILE;
+#  return 1;
+  
+# }
+
 
 # ***************************************************************
 # Conversation function for PAM

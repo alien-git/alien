@@ -155,7 +155,7 @@ sub initialize {
 
   my $packOptions={PACKMAN_METHOD=> $options->{packman_method}|| "",
                    CATALOGUE=>$self};
-
+                                   
   if ( $self->{CONFIG}->{CE_INSTALLMETHOD} and $self->{CONFIG}->{CE_INSTALLMETHOD}=~"CVMFS" ) {
      $packOptions={PACKMAN_METHOD=> $options->{packman_method}|| "CVMFS",CATALOGUE=>$self};
   }
@@ -302,47 +302,50 @@ sub get {
      my  @envelopes = AliEn::Util::deserializeSignedEnvelopes($self->{CATALOG}->authorize("read",{
       lfn=> $file,
       wishedSE=>$wishedSE,excludeSE=>join(";",@excludedAndfailedSEs) ,site=>$self->{CONFIG}->{SITE}}));
+
+#     foreach my $envelope (@envelopes){
      my $envelope = $envelopes[0];
+       $self->info("Checking an envelope");
+       my @loglist = @{$self->{LOGGER}->getMessages()};
      
-     my @loglist = @{$self->{LOGGER}->getMessages()};
+       $self->{LOGGER}->displayMessages();
      
-     $self->{LOGGER}->displayMessages();
-     
-     if (not $envelope or not $envelope->{turl}) {
-       grep (/is a collection/, @loglist)  and 
-          $self->info("This is in fact a collection!! Let's get all the files")
-            and return $self->getCollection($file, $localFile, \%options);
-       $self->info(@loglist,0,0);
-       $self->error("Getting an envelope was not successfull for file $file .");
-       return;
+       if (not $envelope or not $envelope->{turl}) {
+         grep (/is a collection/, @loglist)  and 
+            $self->info("This is in fact a collection!! Let's get all the files")
+              and return $self->getCollection($file, $localFile, \%options);
+         $self->info(@loglist,0,0);
+         $self->error("Getting an envelope was not successfull for file $file .");
+         return;
         
-     }
-     $self->info(@loglist,0,0);
-     if ($first){
-       $self->debug(1,"Checking if we have enough disk space");
-       $self->{STORAGE}->checkDiskSpace($envelope->{size}, $localFile) or return;
-       $first=0;
-       $options{x} or
-        $result=$self->{STORAGE}->getLocalCopy($envelope->{guid}, $localFile);
-       $result and last;
-       $self->info("The local copy didn't work");
+       }
+       $self->info(@loglist,0,0);
+       if ($first){
+         $self->debug(1,"Checking if we have enough disk space");
+         $self->{STORAGE}->checkDiskSpace($envelope->{size}, $localFile) or return;
+         $first=0;
+         $options{x} or
+          $result=$self->{STORAGE}->getLocalCopy($envelope->{guid}, $localFile);
+         $result and last;
+         $self->info("The local copy didn't work");
        
-     }
+       }
      #$ENV{ALIEN_XRDCP_URL}=$envelope->{turl};
      #$ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}=$envelope->{signedEnvelope};
 
      # if we have the old styled envelopes
      #(defined($envelope->{oldEnvelope})) and $ENV{ALIEN_XRDCP_ENVELOPE}=$envelope->{oldEnvelope} or $ENV{ALIEN_XRDCP_ENVELOPE}=0;
 
-     my $start=time;
-     $result = $self->{STORAGE}->getFile( $envelope->{turl}, $envelope->{se}, $localFile, join("",keys %options), $file, $envelope->{guid},$envelope->{md5},
-        $envelope->{xurl}, $envelope->{signedEnvelope}, $envelope->{oldEnvelope} );
-     my $time=time-$start; 
-     if ($self->{MONITOR}){ $self->sendMonitor('read', $envelope->{se}, $time, $envelope->{size}, $result); }
-     $result and last or $self->error("getFile failed with: ".$self->{LOGGER}->error_msg());
-     push @excludedAndfailedSEs, $envelope->{se};
-     $wishedSE = 0;
-     
+       my $start=time;
+       $result = $self->{STORAGE}->getFile( $envelope->{turl}, $envelope->{se}, $localFile, join("",keys %options), $file, $envelope->{guid},$envelope->{md5},
+          $envelope->{xurl}, $envelope->{signedEnvelope}, $envelope->{oldEnvelope} );
+       my $time=time-$start; 
+       if ($self->{MONITOR}){ $self->sendMonitor('read', $envelope->{se}, $time, $envelope->{size}, $result); }
+       $result and last or $self->error("getFile failed with: ".$self->{LOGGER}->error_msg());
+       push @excludedAndfailedSEs, $envelope->{se};
+       $wishedSE = 0;
+#     }
+#     $result and last;
    } 
    $result or $self->info("Error: not possible to get the file $file. Message: ".$self->{LOGGER}->error_msg(), 1) and return 0;
    $self->info("And the file is $result",0,0);
@@ -1467,8 +1470,7 @@ sub addFileToSEs {
         AliEn::Util::isValidSEName($_) and push @prioritizedSes, $_;
       }      
       next;
-    }
-    else {
+    } else {
        $self->notice("WARNING: Found the following unrecognizeable option:".$d);
     }
     $d =~ /^\s*$/ and next;
@@ -1590,8 +1592,8 @@ sub putOnStaticSESelectionListV2{
      (scalar(@$ses) gt 0) and my @staticSes= splice(@$ses, 0, $selOutOf);
 
      my @envelopes = AliEn::Util::deserializeSignedEnvelopes($self->{CATALOG}->authorize("write", {lfn=>$targetLFN, 
-    wishedSE=>join(";", @staticSes), size=>$size, md5=>$md5, guidRequest=>($result->{guid} || 0), links=>$links}));
-
+    wishedSE=>join(";", @staticSes), size=>$size, md5=>$md5, site=>$self->{CONFIG}->{SITE},guidRequest=>($result->{guid} || 0), links=>$links}));
+  
      ((!@envelopes) || (scalar(@envelopes) eq 0) || (not defined($envelopes[0]->{signedEnvelope}))) and
            $self->error("We couldn't get envelopes for any of the SEs, @staticSes .") and next;
      $links=0;
@@ -1643,7 +1645,7 @@ sub putOnDynamicDiscoveredSEListByQoSV2{
         links=>$links,
         prioritizeSE   => (join(";", @$prioritizedSes) || 0),
         deprioritizeSE => (join(";", @$deprioritizedSes) || 0)
-     }));
+     }));   
 
      ((!@envelopes) || (scalar(@envelopes) eq 0) || (not defined($envelopes[0]->{signedEnvelope}))) and
          $self->error("We couldn't get any envelopes (requested were '$count')  with qos flag '$qos'.") and return($result, $links);
@@ -1686,7 +1688,12 @@ sub uploadFileAccordingToEnvelope{
      $self->debug(2, "We will upload the file $sourcePFN to $envelope->{se}" );
      $self->notice( "We will upload the file $sourcePFN to $envelope->{se}");
 
-     my $res= $self->{STORAGE}->RegisterInRemoteSE($sourcePFN, $envelope);
+   #  my $res;
+   #  my $z = 0;
+   #  while ($z < 5 ) {   # try five times in case of error
+    my      $res= $self->{STORAGE}->RegisterInRemoteSE($sourcePFN, $envelope);
+   #       $res and $z = 6 or $z++;
+   #  }
 
      my $time=time-$start;
      $self->sendMonitor("write", $envelope->{se}, $time, $envelope->{size}, $res);
@@ -2213,7 +2220,7 @@ sub masterSERemove{
   my $self=shift;
   my $info=shift;
   my $sename=shift;
-  $self->execute("deleteMirror", "-g", $info->{guid}, $sename, $info->{pfn});
+  $self->execute("deleteMirror", "-g", $info->{guid}, $info->{pfn}, $sename);
   $self->info("Mirror deleted");
   return 1;
 }

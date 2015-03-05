@@ -1967,7 +1967,10 @@ sub putFiles {
       ($success eq -1) and $incompleteAddes=1;
       my @pfns=();
       foreach my $env (@addEnvs) {
-        push @pfns, AliEn::Util::getValFromEnvelope($env,"turl");
+        my $proxy =  AliEn::Util::getValFromEnvelope($env,"proxy");
+        my $turl =  AliEn::Util::getValFromEnvelope($env,"turl");
+        $turl =~ s/$proxy//;
+        push @pfns, $turl;
         $guids{$fs_table->{$fileOrArch}->{name}} = AliEn::Util::getValFromEnvelope($env,"guid");
       }
       push @addedFiles, join("\",\"",@pfns);

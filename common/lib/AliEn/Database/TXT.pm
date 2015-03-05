@@ -78,7 +78,6 @@ sub getDatabaseDSN{
   $self->debug(1, "Returning the dsn of a text database");
   #return "DBI:SQLite:dbname=$self->sqlite_db_filename()";
   return "DBI:SQLite:dbname=$self->{DIRECTORY}/file.mss";
-
 }
 
 sub createTable{

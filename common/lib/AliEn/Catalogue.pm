@@ -72,7 +72,6 @@ To access the Catalog, type the command "alien". First, you have to authenticate
 =over
 
 =cut
-
 use DBI;
 use File::Basename;
 use AliEn::Catalogue::File;
@@ -91,15 +90,16 @@ use AliEn::Util;
 use AliEn::GUID;
 use Data::Dumper;
 use strict;
+use URI::Escape;
 use vars qw($DEBUG @ISA);
 $DEBUG = 0;
-@ISA   = (
-  'AliEn::Catalogue::File',       'AliEn::Catalogue::Admin',
-  'AliEn::Catalogue::Group',      'AliEn::Catalogue::Tag',
-  'AliEn::Catalogue::Env',        'AliEn::Catalogue::Basic',
-  'AliEn::Catalogue::Trigger',    'AliEn::Catalogue::GUID',
-  'AliEn::Catalogue::Collection', 'AliEn::Logger::LogObject',
-  'AliEn::Catalogue::Authorize',  @ISA
+@ISA = (
+         'AliEn::Catalogue::File',       'AliEn::Catalogue::Admin',
+         'AliEn::Catalogue::Group',      'AliEn::Catalogue::Tag',
+         'AliEn::Catalogue::Env',        'AliEn::Catalogue::Basic',
+         'AliEn::Catalogue::Trigger',    'AliEn::Catalogue::GUID',
+         'AliEn::Catalogue::Collection', 'AliEn::Logger::LogObject',
+         'AliEn::Catalogue::Authorize',  @ISA
 );
 use AliEn::Database::Catalogue;
 use AliEn::Database::TaskPriority;
@@ -127,21 +127,21 @@ sub getDispPath {
 }
 
 sub f_getTabCompletion {
-  my $self = shift;
-  my $word = shift;
+  my $self=shift;
+  my $word=shift;
   my $path = $self->f_complete_path($word);
   $path or return;
 
   my ($dirname) = $self->f_dirname($path);
 
   $self->selectDatabase($dirname) or return;
-  my @result = $self->{DATABASE}->tabCompletion($dirname);
+  my @result=$self->{DATABASE}->tabCompletion ($dirname);
   @result = grep (s/^$path/$word/, @result);
   return @result;
 }
 
-sub getHost {
-  my $self = shift;
+sub getHost{
+  my $self=shift;
   return $self->f_Database_getVar("HOST");
 }
 
@@ -150,19 +150,19 @@ sub new {
   my $class   = ref($proto) || $proto;
   my $self    = {};
   my $options = shift;
-  $options->{DEBUG}  = $self->{DEBUG}  = ($options->{debug}  or 0);
-  $options->{SILENT} = $self->{SILENT} = ($options->{silent} or 0);
+  $options->{DEBUG}  = $self->{DEBUG}  = ( $options->{debug}  or 0 );
+  $options->{SILENT} = $self->{SILENT} = ( $options->{silent} or 0 );
   $self->{GLOB}      = 1;
-  $self->{CONFIG}    = new AliEn::Config($options);
-  ($self->{CONFIG})
+  $self->{CONFIG} = new AliEn::Config($options);
+  ( $self->{CONFIG} )
     or print STDERR "Error: Initial configuration not found!!\n" and return;
-  my $user = ($options->{user} or $self->{CONFIG}->{LOCAL_USER});
-  $self->{ROLE} = ($options->{role} or $user);
-  my $token    = ($options->{token}    or "");
-  my $password = ($options->{password} or "");
+  my $user = ( $options->{user} or $self->{CONFIG}->{LOCAL_USER} );
+  $self->{ROLE} = ( $options->{role} or $user );
+  my $token    = ( $options->{token}    or "" );
+  my $password = ( $options->{password} or "" );
   $self->{LOGGER} = new AliEn::Logger;
-  $self->{DEBUG} and $self->{LOGGER}->debugOn($self->{DEBUG});
-  bless($self, $class);
+  $self->{DEBUG} and $self->{LOGGER}->debugOn( $self->{DEBUG} );
+  bless( $self, $class );
   $self->SUPER::new();
   $DEBUG and $self->debug(
     1, "\tLocaluser: $user
@@ -174,31 +174,31 @@ Site name:$self->{CONFIG}->{SITE}"
     or print "Error creating AliEn::SOAP $! $?" and return;
   $DEBUG
     and $self->{CONFIG}->{SITE_HOST}
-    and $self->debug(1, "\tHost name:$self->{CONFIG}->{SITE_HOST}");
+    and $self->debug( 1, "\tHost name:$self->{CONFIG}->{SITE_HOST}" );
   $self->{CURDIR}     = 1000;
   $self->{LOCALDIR}   = 1000;
   $self->{REMOTEPATH} = "/";
   $self->{LOCALHOST}  = $ENV{'ALIEN_HOSTNAME'} . "." . $ENV{'ALIEN_DOMAIN'};
-  chomp($self->{LOCALHOST});
+  chomp( $self->{LOCALHOST} );
   $self->{UMASK}       = 755;
   $self->{FIRSTORG}    = $self->{CONFIG}->{ORG_NAME};
   $self->{FIRSTHOST}   = $self->{CONFIG}->{CATALOG_HOST};
   $self->{FIRSTDRIVER} = $self->{CONFIG}->{'CATALOG_DRIVER'};
   $self->{FIRSTDB}     = $self->{CONFIG}->{'CATALOG_DATABASE'};
-  $DEBUG and $self->debug(1, "Creating the database");
+  $DEBUG and $self->debug( 1, "Creating the database" );
 
   #    $self->{SQLAPI} = AliEn::Database::SQLInterface->new(
   my $DBoptions = {
-    "DB"                 => $self->{FIRSTDB},
-    "HOST"               => $self->{FIRSTHOST},
-    "DRIVER"             => $self->{FIRSTDRIVER},
-    "DEBUG"              => $self->{DEBUG},
-    "USER"               => $user,
-    "SILENT"             => $self->{SILENT},
-    "TOKEN"              => $token,
-    "LOGGER"             => $self->{LOGGER},
-    "ROLE"               => $self->{ROLE},
-    "FORCED_AUTH_METHOD" => $options->{FORCED_AUTH_METHOD},
+                    "DB"                 => $self->{FIRSTDB},
+                    "HOST"               => $self->{FIRSTHOST},
+                    "DRIVER"             => $self->{FIRSTDRIVER},
+                    "DEBUG"              => $self->{DEBUG},
+                    "USER"               => $user,
+                    "SILENT"             => $self->{SILENT},
+                    "TOKEN"              => $token,
+                    "LOGGER"             => $self->{LOGGER},
+                    "ROLE"               => $self->{ROLE},
+                    "FORCED_AUTH_METHOD" => $options->{FORCED_AUTH_METHOD},
   };
   defined $options->{USE_PROXY}
     and $DBoptions->{USE_PROXY} = $options->{USE_PROXY};
@@ -214,13 +214,15 @@ Site name:$self->{CONFIG}->{SITE}"
 
   # check if an entry exists in PRIORITY table
   #$self->{PRIORITY_DB}->checkPriorityValue($self->{ROLE});
-  $self->_setUserGroups($self->{ROLE});
-  ($self->{CURHOSTID}) = $self->{DATABASE}->getHostIndex($self->{FIRSTHOST}, $self->{FIRSTDB});
-  $self->{"DATABASE_$self->{CONFIG}->{ORG_NAME}_$self->{CURHOSTID}"} = $self->{DATABASE};
-  $self->{"DATABASE_FIRST"}                                          = $self->{DATABASE};
-  $self->{MOUNT}                                                     = "";
-  $self->{GUID}                                                      = new AliEn::GUID();
-  if (!$self->{GUID}) {
+  $self->_setUserGroups( $self->{ROLE} ); 
+  ( $self->{CURHOSTID} ) =
+    $self->{DATABASE}->getHostIndex( $self->{FIRSTHOST}, $self->{FIRSTDB} );
+  $self->{"DATABASE_$self->{CONFIG}->{ORG_NAME}_$self->{CURHOSTID}"} =
+    $self->{DATABASE};
+  $self->{"DATABASE_FIRST"} = $self->{DATABASE};
+  $self->{MOUNT}            = "";
+  $self->{GUID}             = new AliEn::GUID();
+  if ( !$self->{GUID} ) {
     $self->f_disconnect();
     return;
   }
@@ -234,12 +236,14 @@ Site name:$self->{CONFIG}->{SITE}"
   return $self;
 }
 
+
+
 sub setSElimit {
   my $self = shift;
   my $se   = shift;
   if ($se) {
     my $number = $self->{DATABASE}->getSENumber($se);
-    if (!$number) {
+    if ( !$number ) {
       $self->info("Error getting the se number of '$se'");
       return;
     }
@@ -269,8 +273,8 @@ sub findEx {
     my %info;
     $info{lfn} = $_;
     my @pfns;
-    my @pfnsRaw = $self->f_getFile("s", $_);
-    while ($#pfnsRaw > -1) {
+    my @pfnsRaw = $self->f_getFile( "s", $_ );
+    while ( $#pfnsRaw > -1 ) {
       my %pfn;
       $pfn{se}  = shift @pfnsRaw;
       $pfn{pfn} = shift @pfnsRaw;
@@ -283,7 +287,7 @@ sub findEx {
     for (@result) {
       print STDERR "LFN:    $_->{lfn}\n";
       my $first = 1;
-      for (@{$_->{pfns}}) {
+      for ( @{ $_->{pfns} } ) {
         if ($first) {
           print STDERR "PFN:    ";
           undef $first;
@@ -300,21 +304,20 @@ sub findEx {
 
 sub f_pwd {
   my $self            = shift;
-  my $returnarrayhash = grep (/-z/, @_);
-  my $silent          = grep (/-s/, @_);
-  my $short           = grep (/-1/, @_);
-  $DEBUG and $self->debug(1, "\n\t\t UserInterface pwd:@_");
-
+  my $returnarrayhash = grep ( /-z/, @_ );
+  my $silent          = grep ( /-s/, @_ );
+  my $short           = grep ( /-1/, @_ );
+  $DEBUG and $self->debug( 1, "\n\t\t UserInterface pwd:@_" );
   #$self->checkPermissions( 'x', $self->{DISPPATH}, 1 ) or return;
 
-  if ((!$self->{SILENT}) and (!$silent)) {
+  if ( ( !$self->{SILENT} ) and ( !$silent ) ) {
     if ($short) {
       print STDERR "$self->{DISPPATH}\n";
     } else {
-      $self->info("Current path is: $self->{DISPPATH}", undef, 0);
+      $self->info( "Current path is: $self->{DISPPATH}", undef, 0 );
     }
   }
-  $DEBUG and $self->debug(4, "Done UserInterface pwd:");
+  $DEBUG and $self->debug( 4, "Done UserInterface pwd:" );
   if ($returnarrayhash) {
     my @retarray = ();
     my $newhash  = {};
@@ -331,16 +334,16 @@ sub f_getLinkPath {
   my $pathIdx  = shift;
   my $filename = shift;
   my $newfilename;
-  if ($filename =~ /(.*)\/$/) {
+  if ( $filename =~ /(.*)\/$/ ) {
     $newfilename = $1;
   } else {
     $newfilename = $filename;
   }
-  my $pfntype = $self->getPfnType($pathIdx, $newfilename);
-  if (($pfntype) and defined($pfntype->{type})) {
-    my $type = substr($pfntype->{type}, 0, 1);
-    if ($type eq 'l') {
-      if ($pfntype->{pfn} =~ /^lfn\:\/\/(.*)/) {
+  my $pfntype = $self->getPfnType( $pathIdx, $newfilename );
+  if ( ($pfntype) and defined( $pfntype->{type} ) ) {
+    my $type = substr( $pfntype->{type}, 0, 1 );
+    if ( $type eq 'l' ) {
+      if ( $pfntype->{pfn} =~ /^lfn\:\/\/(.*)/ ) {
         my $resolvedpath = $self->f_complete_path($1);
         return $resolvedpath;
       } else {
@@ -348,7 +351,7 @@ sub f_getLinkPath {
       }
     }
   } else {
-    $DEBUG and $self->debug(1, "Cannot find $filename - does it exist?");
+    $DEBUG and $self->debug( 1, "Cannot find $filename - does it exist?" );
     return;
   }
 }
@@ -356,57 +359,58 @@ sub f_getLinkPath {
 sub f_lsInternal {
   my $self    = shift;
   my $options = shift;
-  my $path    = (shift or "");
+  my $path    = ( shift or "" );
   $path = $self->GetAbsolutePath($path);
-  $DEBUG and $self->debug(1, "Listing $path with options $options");
+  $DEBUG and $self->debug( 1, "Listing $path with options $options" );
   my $entryInfo = $self->checkPermissions('r', $path, 0, 1)
     or return;
-  $DEBUG and $self->debug(1, "Check Permission done $path ");
+  $DEBUG and $self->debug( 1, "Check Permission done $path " );
   my $lfn = $entryInfo->{lfn};
-  $self->existsEntry($path, $lfn)
-    or $self->info("$path no such file or directory", 1)
+  $self->existsEntry( $path, $lfn )
+    or $self->info( "$path no such file or directory", 1 )
     and return;
   my @all;
 
-  if (($lfn =~ m{/$}) && ($options !~ /t/)) {
+  if ( ( $lfn =~ m{/$} ) && ( $options !~ /t/ ) ) {
     $DEBUG
-      and $self->debug(1, "Listing a directory $lfn (se $self->{LIMIT_SE})");
-    push @all, $self->{DATABASE}->listDirectory($entryInfo, $options, $self->{LIMIT_SE});
+      and $self->debug( 1, "Listing a directory $lfn (se $self->{LIMIT_SE})" );
+    push @all, $self->{DATABASE}
+      ->listDirectory( $entryInfo, $options, $self->{LIMIT_SE} );
   } else {
 
-    #in case we are listing a directory with -t, the path is the parent directory
+   #in case we are listing a directory with -t, the path is the parent directory
     $path = $lfn;
     $path =~ s{/[^/]*/$}{/};
-    $DEBUG and $self->debug(1, "Listing an entry");
+    $DEBUG and $self->debug( 1, "Listing an entry" );
     push @all, $entryInfo;
 
-    #    push @all, $self->{DATABASE}->getAllInfoFromLFN ({method=>"queryRow"}, $entry);
+#    push @all, $self->{DATABASE}->getAllInfoFromLFN ({method=>"queryRow"}, $entry);
   }
   my $dir = $lfn;
   $dir =~ s{[^/]*$}{};
 
   #Finally, if we have -a, we have to look also for the parent of this directory
-  if (($path ne "/") and ($options =~ /a/) and ($lfn =~ m{/$})) {
+  if ( ( $path ne "/" ) and ( $options =~ /a/ ) and ( $lfn =~ m{/$} ) ) {
     my $parentpath = $path;
     $parentpath =~ s{[^/]*/?$}{};
     $DEBUG
       and $self->debug(1, "Getting the info of the parent ($parentpath of $path)");
-    ($self->checkPermissions('r', $parentpath)) or return;
+    ( $self->checkPermissions( 'r', $parentpath ) ) or return;
     my $entry = $self->{DATABASE}->getAllInfoFromLFN({method => "queryRow"}, $parentpath);
     if ($entry) {
       $entry->{lfn} = "..";
-      @all = (shift @all, $entry, @all);
+      @all = ( shift @all, $entry, @all );
     }
   }
-  return ($dir, \@all);
+  return ( $dir, \@all );
 }
 
 sub getPfnType {
   my $self     = shift;
   my $pathIdx  = shift;
   my $filename = shift;
-  $DEBUG and $self->debug(1, "Get PfnType for $pathIdx $filename");
-  my $result = $self->{DATABASE}->getPfnType($pathIdx, $filename);
+  $DEBUG and $self->debug( 1, "Get PfnType for $pathIdx $filename" );
+  my $result = $self->{DATABASE}->getPfnType( $pathIdx, $filename );
   return $result;
 }
 
@@ -415,20 +419,20 @@ sub getDirList {
   my $pathIdx  = shift;
   my $filename = shift;
   my $options  = shift;
-  my $result   = $self->{DATABASE}->getDirList($pathIdx, $filename, $options);
+  my $result   = $self->{DATABASE}->getDirList( $pathIdx, $filename, $options );
   return $self->prependMountPoint($result);
 }
 
 sub prependMountPoint {
   my $self = shift;
   my $list = shift;
-  $DEBUG and $self->debug(1, "Checking the mount point");
+  $DEBUG and $self->debug( 1, "Checking the mount point" );
   $self->{MOUNT} or return $list;
-  $DEBUG and $self->debug(1, "Prepending $self->{MOUNT}");
+  $DEBUG and $self->debug( 1, "Prepending $self->{MOUNT}" );
   my @list = @{$list};
-  $DEBUG and $self->debug(1, "Got @list");
+  $DEBUG and $self->debug( 1, "Got @list" );
   foreach my $d (@list) {
-    $DEBUG and $self->debug(1, "Doing $d");
+    $DEBUG and $self->debug( 1, "Doing $d" );
     $d->{name} =~ s/^\//$self->{MOUNT}\//;
   }
   return $list;
@@ -442,22 +446,24 @@ sub f_ls_HELP {
 \t-n: switch off the colour output
 \t-b : print in guid format
 \t-h : print the help text
-\t-e : display also the expire date";
+\t-e : display also the expire date
+\t-j : display the id of the job that created the file"
+
 }
 
 sub f_ls {
   my $self    = shift;
   my $options = shift;
-  my $path    = (shift or "");
-  if ($options =~ /h/) {
-    $self->info($self->f_ls_HELP());
+  my $path    = ( shift or "" );
+  if ( $options =~ /h/ ) {
+    $self->info( $self->f_ls_HELP() );
     return;
   }
-  my ($retrievedpath, $rlist) = $self->f_lsInternal($options, $path);
+  my ( $retrievedpath, $rlist ) = $self->f_lsInternal( $options, $path );
   my @result;
-  $DEBUG and $self->debug(1, "The ls found $#$rlist +1 entries");
-  if ($options =~ /z/) {
-    if ((!defined $retrievedpath) || ($retrievedpath eq "")) {
+  $DEBUG and $self->debug( 1, "The ls found $#$rlist +1 entries" );
+  if ( $options =~ /z/ ) {
+    if ( ( !defined $retrievedpath ) || ( $retrievedpath eq "" ) ) {
       my $errorresult;
       $errorresult->{"__result__"} = 0;
       push @result, $errorresult;
@@ -465,8 +471,8 @@ sub f_ls {
     }
   }
   for (@$rlist) {
-    $DEBUG and $self->debug(1, "Printing " . Dumper($_));
-    push @result, $self->f_print($retrievedpath, $options, $_);
+    $DEBUG and $self->debug( 1, "Printing " . Dumper($_) );
+    push @result, $self->f_print( $retrievedpath, $options, $_ );
   }
   return @result;
 }
@@ -487,15 +493,15 @@ sub f_guid2lfn {
   my $options = shift;
   my $guid    = shift
     or print STDERR "Error: you have to specify a guid to translate!" and return;
-  my @lfns = $self->{DATABASE}->getLFNfromGUID($options, $guid);
-  if ($options !~ /s/) {
+  my @lfns = $self->{DATABASE}->getLFNfromGUID( $options, $guid );
+  if ( $options !~ /s/ ) {
 
     # be silent
     my $format = "";
     foreach (@lfns) {
       $format = sprintf "$format%-64s %-40s\n", $_, $guid;
     }
-    $self->info($format, 0, 0);
+    $self->info( $format, 0, 0 );
   }
   return @lfns;
 }
@@ -505,12 +511,12 @@ sub f_lfn2guid {
   my $options = shift;
   my $lfn     = shift
     or print STDERR "Error: you have to specify a lfn to translate!" and return;
-  my $guid = $self->f_getGuid($options, $lfn);
+  my $guid = $self->f_getGuid( $options, $lfn );
   $guid or return;
-  $DEBUG and $self->debug(1, "The guid is $guid");
-  if ($options !~ /s/) {
+  $DEBUG and $self->debug( 1, "The guid is $guid" );
+  if ( $options !~ /s/ ) {
     my $format = sprintf "%-64s %-40s\n", $lfn, $guid;
-    $self->info($format, 0, 0);
+    $self->info( $format, 0, 0 );
   }
   return $guid;
 }
@@ -519,11 +525,11 @@ sub f_glob {
   my $self    = shift;
   my $options = shift;
   my $state   = shift;
-  if (!defined($state)) {
-    print("Glob state is: " . $self->{GLOB} . "\n");
+  if ( !defined($state) ) {
+    print( "Glob state is: " . $self->{GLOB} . "\n" );
     return;
   }
-  if ($state != 0 and $state != 1) {
+  if ( $state != 0 and $state != 1 ) {
     print STDERR "Wrong arguments to glob\n0 = on, 1 = off\n";
     return;
   }
@@ -537,19 +543,19 @@ sub f_glob {
 sub ExpandWildcards {
   my $self         = shift;
   my $path         = shift;
-  my $preservelast = (shift or 0);
-  $DEBUG and $self->debug(1, "ExpandWildcards: S $path");
+  my $preservelast = ( shift or 0 );
+  $DEBUG and $self->debug( 1, "ExpandWildcards: S $path" );
   $path = $self->GetAbsolutePath($path);
-  $DEBUG and $self->debug(1, "ExpandWildcards: S $path");
+  $DEBUG and $self->debug( 1, "ExpandWildcards: S $path" );
 
   #  my @dirs = split "/", $path;
   #delete trailing empty dir
   #  shift @dirs;
   my $lastdir;
-  $preservelast = 1 if ($path =~ m{/$});
+  $preservelast = 1 if ( $path =~ m{/$} );
   my @result = $self->getLFNlike($path)
     or return;
-  if ($preservelast == 0) {
+  if ( $preservelast == 0 ) {
     map { s{/$}{} } @{$result[0]};
   }
   return @{$result[0]};
@@ -565,13 +571,13 @@ sub f_cd {
   my $self    = shift;
   my $path    = shift;
   my $pathIdx = "";
-  (defined $path) or ($path = $self->GetHomeDirectory());
-  $path = $self->GetAbsolutePath($path, 2);
-  my $targetPerm = $self->checkPermissions("x", $path)
-    or $self->info("cd $path: Not a directory", 3, 0)
+  ( defined $path ) or ( $path = $self->GetHomeDirectory() );
+  $path = $self->GetAbsolutePath( $path, 2 );
+  my $targetPerm = $self->checkPermissions( "x", $path )
+    or $self->info( "cd $path: Not a directory", 3, 0 )
     and return;
-  $self->isDirectory($path, $targetPerm)
-    or $self->info("cd $path: Not a directory", 3, 0)
+  $self->isDirectory( $path, $targetPerm )
+    or $self->info( "cd $path: Not a directory", 3, 0 )
     and return;
   $self->{DISPPATH} = $path;
   $self->f_pwd("-s");
@@ -582,14 +588,15 @@ sub checkPermissionOnDirectory {
   my $self = shift;
   my $path = shift;
   (defined $path) or return;
-  my $targetPerm = $self->checkPermissions("x", $path)
+  my $targetPerm = $self->checkPermissions( "x", $path )
     or $self->{LOGGER}->error("Check permissions failed for $path")
     and return;
-  $self->isDirectory($path, $targetPerm)
+  $self->isDirectory( $path, $targetPerm )
     or $self->{LOGGER}->error("$path is not a directory")
     and return;
   return 1;
 }
+
 
 =item f_mkdir(arguments, lfn)
 
@@ -619,28 +626,26 @@ Options:
 
 sub f_mkdir {
   my $self = shift;
-  my ($options, $path) = @_;
-  $DEBUG and $self->debug(1, "In UserInterface f_mkdir @_");
+  my ($options,$path) = @_;
+  $DEBUG and $self->debug( 1, "In UserInterface f_mkdir @_" );
   my $message;
-  (defined $path) or $message = "not enough arguments";
+  ( defined $path ) or $message = "not enough arguments";
   $path =~ s{\\@}{@}g;
-  ($options =~ /^[s|p|d]*$/) or $message = "unknown option '$options'";
-  $message
-    and $self->{LOGGER}->error("Catalogue", "Error $message\n " . $self->f_mkdir_HELP())
+  $options =~ s/-//g;
+  ( $options =~ /^[s|p|d]*$/ ) or $message = "unknown option '$options'";
+  $message 
+    and $self->{LOGGER}->error( "Catalogue", "Error $message\n " . $self->f_mkdir_HELP() )
     and return;
-  my $silent = ($options =~ /s/) ? 1 : undef;
-
-  $path = $self->GetAbsolutePath($path, 1);
-
-  if ($self->existsEntry($path)) {
-    ($options =~ /d/)
-      and return $self->{DATABASE}->getAllInfoFromLFN(
-      { options  => 'd',
-        retrieve => 'entryId',
-        method   => 'queryValue'
-      },
-      "$path/"
-      );
+  my $silent = ( $options =~ /s/ ) ? 1 : undef;
+  
+  $path = $self->GetAbsolutePath( $path, 1 );
+  
+  if ( $self->existsEntry($path) ) {
+    ( $options =~ /d/ )
+      and return
+      $self->{DATABASE}->getAllInfoFromLFN({options  => 'd',
+                                            retrieve => 'entryId',
+                                            method   => 'queryValue'},"$path/");
     $options =~ /p/ and return 1;
     $self->info("Directory $path already exists.\n");
     return;
@@ -648,25 +653,25 @@ sub f_mkdir {
 
   my $parentdir = "$path";
   $parentdir =~ s {/([^/]+/?)$}{/};
-  $DEBUG and $self->debug(1, "Checking the parent: $parentdir");
-  if ($options =~ /p/ and $parentdir ne '/') {
-    if (!$self->existsEntry($parentdir)) {
-      $self->f_mkdir($options . "s", $parentdir)
-        or $self->{LOGGER}->error("Catalogue", "Error building $parentdir")
-        and return;
+  $DEBUG and $self->debug( 1, "Checking the parent: $parentdir" );
+  if ( $options =~ /p/ and $parentdir ne '/' ) {
+    if ( !$self->existsEntry($parentdir) ) {
+      $self->f_mkdir( $options . "s", $parentdir ) or 
+        $self->{LOGGER}->error("Catalogue", "Error building $parentdir") and 
+        return;
     }
   }
-
-  $DEBUG and $self->debug(1, "Creating directory in $path");
+  
+  $DEBUG and $self->debug( 1, "Creating directory in $path" );
 
   #Check permissions
-  $self->checkPermissions("w", $path, 0, 1)
+  $self->checkPermissions("w",$path,0, 1) 
     or return;
-
-  my @returnVal = $self->{DATABASE}->createDirectory("$path/", $self->{UMASK});
+  
+  my @returnVal = $self->{DATABASE}->createDirectory( "$path/", $self->{UMASK} );
 
   #Get directory number
-  if ($options =~ /d/ and $self->existsEntry($path)) {
+  if ( $options =~ /d/ and $self->existsEntry($path) ) {
     return (
       $self->{DATABASE}->getAllInfoFromLFN(
         { options  => 'd',
@@ -697,30 +702,30 @@ sub f_disconnect {
 
 sub f_mkremdir {
   my $self = shift;
-  $DEBUG and $self->debug(1, "In UserInterdace mkremdir @_");
+  $DEBUG and $self->debug( 1, "In UserInterdace mkremdir @_" );
   my $host   = shift;
   my $driver = shift;
   my $DB     = shift;
   my $lfn    = shift;
-  if (!$lfn) {
+  if ( !$lfn ) {
     $self->info("ERROR: wrong arguments in mkremdir.\n Usage: mkremdir <host> <driver> <database> <lfn>");
     return;
   }
   $lfn =~ s/\/$//;
   $lfn = $self->f_complete_path($lfn);
-  my $permLFN = $self->checkPermissions("w", $lfn) or return;
-  $self->existsEntry($lfn, $permLFN)
-    and $self->info("That file or directory already exists", 1)
+  my $permLFN = $self->checkPermissions( "w", $lfn ) or return;
+  $self->existsEntry( $lfn, $permLFN )
+    and $self->info( "That file or directory already exists", 1 )
     and return;
 
   #pratik
-  my ($hostIndex) = $self->{DATABASE}->getHostIndex($host, $DB, $driver);
-  if (!$hostIndex) {
+  my ($hostIndex) = $self->{DATABASE}->getHostIndex( $host, $DB, $driver );
+  if ( !$hostIndex ) {
     print STDERR
-      "Error: $DB in $host (driver $driver) is not in the current list of remote hosts. Add it first with 'addHost'\n";
+"Error: $DB in $host (driver $driver) is not in the current list of remote hosts. Add it first with 'addHost'\n";
     return;
   }
-  return $self->{DATABASE}->createRemoteDirectory($hostIndex, $host, $DB, $driver, $lfn);
+  return $self->{DATABASE}->createRemoteDirectory( $hostIndex, $host, $DB, $driver, $lfn );
 }
 
 #sub f_rmlink {
@@ -769,15 +774,15 @@ sub f_Database_do {
 
 sub f_Database_getVar {
   my $self = shift;
-  my $var = (shift or return);
+  my $var = ( shift or return );
   return $self->{DATABASE}->{$var};
 }
 
 sub isDirectory {
   my $self   = shift;
   my $file   = shift;
-  my $exists = $self->existsEntry($file, @_) or return;
-  ($exists =~ m{/$}) and return $exists;
+  my $exists = $self->existsEntry( $file, @_ ) or return;
+  ( $exists =~ m{/$} ) and return $exists;
   return;
 }
 
@@ -792,10 +797,10 @@ between lfn and permLFN
 =cut
 
 sub isFile {
-  my $self = shift;
-  my $file = shift;
+  my $self   = shift;
+  my $file   = shift;
   $file = $self->GetAbsolutePath($file);
-  my $exists = $self->existsEntry($file, @_) or return;
+  my $exists = $self->existsEntry( $file, @_ ) or return;
   $exists =~ /\/$/ and return;
   return $exists;
 }
@@ -805,11 +810,11 @@ sub existsEntry {
   my $lfn      = shift;
   my $permFile = shift;
   defined $permFile or $permFile = "";
-  while ($permFile =~ /^-/) {
-    $permFile = shift;
+  while ($permFile =~ /^-/){
+    $permFile=shift;
   }
-  $DEBUG and $self->debug(1, "Checking if $lfn exists in the catalogue");
-  if (!$permFile) {
+  $DEBUG and $self->debug( 1, "Checking if $lfn exists in the catalogue"); 
+  if ( !$permFile ) {
     $self->selectDatabase($lfn) or return;
     return $self->{DATABASE}->existsLFN($lfn);
   }
@@ -817,11 +822,11 @@ sub existsEntry {
   $lfn =~ s/\?/\\\?/g;
   $lfn =~ s{\+}{\\+}g;
   $lfn =~ s{\$}{\\\$}g;
-  $DEBUG and $self->debug(1, "Comparing '$lfn' and '$permFile'");
-
+  $DEBUG and $self->debug( 1, "Comparing '$lfn' and '$permFile'" );
+  
   $lfn =~ s{/$}{};
-  ($permFile =~ /^$lfn\/?$/) or return;
-  $DEBUG and $self->debug(1, "The entry exists ($permFile)");
+  ( $permFile =~ /^$lfn\/?$/ ) or return;
+  $DEBUG and $self->debug( 1, "The entry exists ($permFile)" );
   return $permFile;
 }
 
@@ -866,14 +871,14 @@ sub GetParentDir {
 }
 
 sub f_print {
-  my ($self, $path, $opt, $rentry) = @_;
+  my ( $self, $path, $opt, $rentry ) = @_;
   my $t = "";
-  my ($type, $perm, $name, $user, $date, $group, $size, $md5, $expire) = (
-    $rentry->{type},  $rentry->{perm},
-    $rentry->{lfn},   $rentry->{owner} || "unknown",
-    $rentry->{ctime}, $rentry->{gowner} || "unknown",
-    $rentry->{size} || 0, $rentry->{md5},
-    $rentry->{expiretime} || ""
+  my ( $type, $perm, $name, $user, $date, $group, $size, $md5, $expire, $jobid ) = (
+      $rentry->{type},  $rentry->{perm},
+      $rentry->{lfn},   $rentry->{owner} || "unknown",
+      $rentry->{ctime}, $rentry->{gowner} || "unknown",
+      $rentry->{size} || 0, $rentry->{md5},
+      $rentry->{expiretime} || "",$rentry->{jobid} || ""
   );
   $opt =~ /e/ or $expire = "";
   $name =~ s{^$path}{};
@@ -881,30 +886,30 @@ sub f_print {
   my $permstring = $rentry->{type};
   my $colorterm  = 0;
 
-  if ($ENV{ALIEN_COLORTERMINAL} and $opt !~ /n/) {
+  if ( $ENV{ALIEN_COLORTERMINAL} and $opt !~ /n/ ) {
     $colorterm = 1;
   }
   my $textcolour  = "";
   my $textneutral = "";
   if ($colorterm) {
     $textneutral = AliEn::Util::textneutral();
-    if ($permstring =~ /^d/) {
+    if ( $permstring =~ /^d/ ) {
       $textcolour = AliEn::Util::textgreen();
     } else {
       $textcolour = AliEn::Util::textblue();
     }
-    if ($name =~ /^\./) {
+    if ( $name =~ /^\./ ) {
       $textcolour = AliEn::Util::textred();
     }
-    if ($name =~ /jdl$/) {
+    if ( $name =~ /jdl$/ ) {
       $textcolour = AliEn::Util::textred();
     }
   }
-  if ($opt =~ /l/) {
+  if ( $opt =~ /l/ ) {
     $permstring =~ /f/ and $permstring = "-";
     $permstring eq "d" and $t = "/";
-    for (my $i = 0 ; $i < 3 ; $i++) {
-      my $oneperm = substr($perm, $i, 1);
+    for ( my $i = 0 ; $i < 3 ; $i++ ) {
+      my $oneperm = substr( $perm, $i, 1 );
     SWITCH: for ($oneperm) {
         /0/ && do { $permstring .= "---"; last; };
         /1/ && do { $permstring .= "--x"; last; };
@@ -917,15 +922,10 @@ sub f_print {
       }
     }
     $self->{SILENT}
-      or ($opt =~ /s/)
-      or $self->raw(
-      sprintf(
-        "%s   %-8s %-8s %12s %s%12s%s      %-10s %-20s\n",
-        $permstring, $user, $group, $size, $date, $textcolour, $name, $textneutral, $expire
-      ),
-      undef, 0
-      );
-    if ($opt =~ /z/) {
+      or ( $opt =~ /s/ )
+      or $self->raw(sprintf ("%s   %-8s %-8s %12s %s%12s%s      %-10s %-20s\n", $permstring,
+      $user, $group, $size, $date, $textcolour, $name, $textneutral, $expire), undef, 0);
+    if ( $opt =~ /z/ ) {
       my $rethash = {};
       $rethash->{permissions} = $permstring;
       $rethash->{user}        = $user;
@@ -939,14 +939,27 @@ sub f_print {
     }
     return "$permstring###$user###$group###$size###$date###$name";
   }
-  if ($opt =~ /m/) {
-    if ((!defined $md5) || ($md5 eq "")) {
+ # Option -j
+   if ($opt =~ /j/) {
+     if (!$self->{SILENT} and $opt !~ /s/) {
+       $self->raw(sprintf("%s %12s\n", $name, $jobid), undef, 0);
+     }
+     if ($opt =~ /z/) {
+       my $rethash = {};
+       $rethash->{path} = $path . $name;
+       $rethash->{jobid} = $jobid;
+       return $rethash;
+     }
+     return "$name###$jobid";
+   }
+  if ( $opt =~ /m/ ) {
+    if ( ( !defined $md5 ) || ( $md5 eq "" ) ) {
       $md5 = "00000000000000000000000000000000";
     }
-    if (!$self->{SILENT} and $opt !~ /s/) {
-      $self->raw(sprintf("%s   %s\n", $md5, $path . $name), undef, 0);
+    if (! $self->{SILENT} and $opt !~ /s/ ) {
+      $self->raw(sprintf( "%s   %s\n", $md5, $path . $name), undef, 0);
     }
-    if ($opt =~ /z/) {
+    if ( $opt =~ /z/ ) {
       my $rethash = {};
       $rethash->{path} = $path . $name;
       $rethash->{md5}  = $md5;
@@ -954,10 +967,10 @@ sub f_print {
     }
     return "$md5###$path";
   }
-  if ($opt =~ /b/) {
+  if ( $opt =~ /b/ ) {
 
     # retrieve the GUID from D0
-    if ($permstring eq "d") {
+    if ( $permstring eq "d" ) {
       return;
     }
     $path .= $name;
@@ -966,17 +979,17 @@ sub f_print {
     my $rguid = "";
     if ($guid) {
       $pguid = $guid;
-      if ($guid eq "") {
+      if ( $guid eq "" ) {
         $pguid = "           -- undef --             ";
       }
       $rguid = $pguid;
-      $self->{SILENT} or $self->raw(sprintf("%36s   %s\n", $pguid, $path), undef, 0);
+      $self->{SILENT} or $self->raw(sprintf( "%36s   %s\n", $pguid, $path), undef, 0);
     } else {
       $pguid = "------------------------------------";
       $rguid = "";
-      $self->{SILENT} or $self->raw(sprintf("%36s   %s\n", $pguid, $path), undef, 0);
+      $self->{SILENT} or $self->raw(sprintf( "%36s   %s\n", $pguid, $path),undef, 0);
     }
-    if ($opt =~ /z/) {
+    if ( $opt =~ /z/ ) {
       my $rethash = {};
       $rethash->{guid} = $rguid;
       $rethash->{path} = $path;
@@ -984,8 +997,8 @@ sub f_print {
     }
     return "$rguid###$path";
   }
-  $self->{SILENT} or ($opt =~ /s/) or $self->raw(sprintf("%s%s\n", $name, $t), undef, 0);
-  if ($opt =~ /z/) {
+  $self->{SILENT} or ( $opt =~ /s/ ) or $self->raw(sprintf( "%s%s\n", $name, $t),undef, 0);
+  if ( $opt =~ /z/ ) {
     my $rethash = {};
     $rethash->{path} = $path;
     $rethash->{name} = $name;
@@ -996,20 +1009,20 @@ sub f_print {
 
 sub f_whoami {
   my $self = shift;
-  $self->{SILENT} or $self->info(" $self->{ROLE}", undef, 0);
+  $self->{SILENT} or $self->info( " $self->{ROLE}", undef, 0 );
   return $self->{ROLE};
 }
 
 sub f_user {
   my $self = shift;
   my $user = shift;
-  if (!$user) {
+  if ( !$user ) {
     print STDERR "Enter user name:";
-    chomp($user = <>);
+    chomp( $user = <> );
   }
   my $changeUser = 1;
-  if ($user ne "-") {
-    if (!$self->_executeInAllDatabases("changeRole", $user)) {
+  if ( $user ne "-" ) {
+    if ( !$self->_executeInAllDatabases( "changeRole", $user ) ) {
       print STDERR "Password incorrect or user does not exist\n";
       return;
     }
@@ -1017,20 +1030,19 @@ sub f_user {
     $changeUser = 0;
     $user       = shift;
     $self->info("Executing super user code [change $self->{DATABASE}->{ROLE}/$self->{ROLE} to $user]", undef, 0);
-    if (!($self->{DATABASE}->{ROLE} =~ /^admin(ssl)?$/)) {
+    if ( !( $self->{DATABASE}->{ROLE} =~ /^admin(ssl)?$/ ) ) {
       print STDERR "You have to be admin to use the super user functionality";
       return;
     }
-    if ((!defined $user) || ($user eq "")) {
+    if ( ( !defined $user ) || ( $user eq "" ) ) {
       print STDERR "You have to specify the user identity you want to become";
       return;
     }
   }
   $self->{ROLE} = $user;
-  $self->_setUserGroups($user, $changeUser);
+  $self->_setUserGroups( $user, $changeUser );
 
   return 1;
-
   # Check if a changeUser exists
   #  $self->{PRIORITY_DB}->checkPriorityValue($user);
 }
@@ -1043,17 +1055,17 @@ sub _executeInAllDatabases {
   $self->{CONFIG}
     and $self->{CONFIG}->{ORG_NAME}
     and $name .= "$self->{CONFIG}->{ORG_NAME}_";
-  my @allDatabases = grep (/^$name\d+/, keys %{$self});
-  if (!@allDatabases) {
+  my @allDatabases = grep ( /^$name\d+/, keys %{$self} );
+  if ( !@allDatabases ) {
     $self->{LOGGER}
-      and $self->{LOGGER}->error("Catalogue", "No databases found");
+      and $self->{LOGGER}->error( "Catalogue", "No databases found" );
     return;
   }
   foreach (@allDatabases) {
-    if ($self->{$_}) {
-      $self->{LOGGER}
-        and $DEBUG
-        and $self->debug(1, "Executing $call(" . (join(" ", @_) or "") . ") in database $_");
+    if ( $self->{$_} ) {
+      $self->{LOGGER} and $DEBUG
+        and $self->debug( 1,
+          "Executing $call(" . ( join( " ", @_ ) or "" ) . ") in database $_" );
       $self->{$_} and $self->{$_}->$call(@_)
         or undef $result;
     }
@@ -1096,24 +1108,28 @@ sub _executeInAllDatabases {
 #}
 sub f_passwd {
   my $self = shift;
-  my ($oldpasswd, $passwd, $passwd2);
+  my ( $oldpasswd, $passwd, $passwd2 );
   system("stty -echo");
   print STDERR "Enter old password:";
-  chomp($oldpasswd = <STDIN>);
+  chomp( $oldpasswd = <STDIN> );
   print STDERR "\nEnter new password:";
-  chomp($passwd = <STDIN>);
+  chomp( $passwd = <STDIN> );
   print STDERR "\nReenter new password:";
-  chomp($passwd2 = <STDIN>);
+  chomp( $passwd2 = <STDIN> );
   system("stty echo");
 
-  if ($passwd ne $passwd2) {
+  if ( $passwd ne $passwd2 ) {
     print STDERR "\nError: passwords do not match!! Password not changed.\n";
     return;
   }
   my $done =
-    SOAP::Lite->uri('AliEn/Service/Authen')->proxy("http://$self->{CONFIG}->{PROXY_HOST}:$self->{CONFIG}->{PROXY_PORT}")
-    ->passwd($self->{DATABASE}->{HOST}, $self->{DATABASE}->{DB}, $self->{ROLE}, $oldpasswd, $passwd)->result;
-  if (!$done) {
+    SOAP::Lite->uri('AliEn/Service/Authen')
+    ->proxy(
+           "http://$self->{CONFIG}->{PROXY_HOST}:$self->{CONFIG}->{PROXY_PORT}")
+    ->passwd( $self->{DATABASE}->{HOST},
+              $self->{DATABASE}->{DB},
+              $self->{ROLE}, $oldpasswd, $passwd )->result;
+  if ( !$done ) {
     print STDERR "\nError: password not changed!!\n";
   } else {
     print STDERR "\nPassword changed!!\n";
@@ -1129,16 +1145,20 @@ sub f_verifyToken {
     or print STDERR "You have to provide a job token" and return;
   my @results;
   $#results = -1;
-  my $rethash = $self->{DATABASE}->{TOKEN_MANAGER}->validateJobToken($jobId, $token);
-  if ((defined $rethash) && ($rethash->{'user'})) {
-    push @results, "$rethash->{'user'}";
+  $self->info("HERE WE ARE");
+  $self->{TASK_DB} or $self->{TASK_DB}=AliEn::Database::TaskQueue->new({SKIP_CHECK_TABLES=>1});
+  my $user =
+    $self->{TASK_DB}->queryValue("SELECT username from JOBTOKEN where jobid=? and jobtoken=?", undef, {bind_values=>[$jobId, $token]} );
+  if ( $user ) {
+    push @results, $user;
   }
+  
   return @results;
 }
 
 sub f_verifySubjectRole {
   my $self = shift;
-  my @arg  = grep (!/-z/, @_);
+  my @arg  = grep ( !/-z/, @_ );
   my $role = shift @arg
     or print STDERR "You have to specify a role or <default> !\n" and return;
   my $subject;
@@ -1179,6 +1199,7 @@ sub f_find_HELP {
    c => put the output in a collection - 2nd arg is the collection name
    m => metadata on file level 
    y => (FOR THE OCDB) return only the biggest version of each file
+   j => specify a concrete jobid
 ";
 }
 
@@ -1191,36 +1212,37 @@ sub f_find_HELP {
 #       unions  reference to a list of unions between the queries
 sub getFindConstraints {
   my $self = shift;
-  my (@unions, @tagNames, @tagQueries) = ((), (), ());
+  my ( @unions, @tagNames, @tagQueries ) = ( (), (), () );
   my @constraints = ();
-  @_ and @constraints = ("and", @_);
+  @_ and @constraints = ( "and", @_ );
   while (@constraints) {
     my $union = shift @constraints;
-    my $tempName = (shift @constraints or ":");
-    my ($name, $query) = split ":", $tempName, 2;
+    my $tempName = ( shift @constraints or ":" );
+    my ( $name, $query ) = split ":", $tempName, 2;
     $query or $query = "";
     $DEBUG
-      and $self->debug(1, "There is a constraint  $union, $name, $query");
+      and $self->debug( 1, "There is a constraint  $union, $name, $query" );
     my @total = $query =~ /[\'\"]/g;
     my $error = "";
-    while (($#total + 1) % 2) {
+    while ( ( $#total + 1 ) % 2 ) {
       $DEBUG
-        and $self->debug(1, "So far There are an odd number of brackets");
-      if (!@constraints) {
+        and $self->debug( 1, "So far There are an odd number of brackets" );
+      if ( !@constraints ) {
         $error = "unbalanced number of parentheses";
         last;
       }
       $query .= " " . shift @constraints;
-      $DEBUG and $self->debug(1, "Appending to the query $query");
+      $DEBUG and $self->debug( 1, "Appending to the query $query" );
       @total = $query =~ /[\'\"]/g;
     }
-    ($union eq "and")
-      or ($union eq "or")
+    ( $union      eq "and" )
+      or ( $union eq "or" )
       or $error = "I don't understnad union '$union'";
     $name  or $error = "Missing the name of the Tag";
     $query or $error = "Missing the condition";
     $error
-      and $self->info("Error: not enough arguments in find\n(\t\t$error ) \n" . $self->f_find_HELP())
+      and $self->info("Error: not enough arguments in find\n(\t\t$error ) \n"
+      . $self->f_find_HELP())
       and return;
     $self->info("Filtering according to '$union' $name $query");
     $query =~ s/===/ like / and $self->info("This is a like query");
@@ -1229,17 +1251,17 @@ sub getFindConstraints {
     push @tagQueries, $query;
   }
   shift @unions;
-  return (1, \@tagQueries, \@tagNames, \@unions);
+  return ( 1, \@tagQueries, \@tagNames, \@unions );
 }
 
 sub f_linkfind {
   my $self          = shift;
-  my @arg           = grep (!/-\w+/, @_);
-  my $path          = ($self->f_complete_path($arg[0]) or "");
+  my @arg           = grep ( !/-\w+/, @_ );
+  my $path          = ( $self->f_complete_path( $arg[0] ) or "" );
   my @searchdirs    = ();
-  my $checkonlylast = grep (/-1/, @_);
-  my $recursive     = grep (/-r/, @_);
-  my $replace       = grep (/-e/, @_);
+  my $checkonlylast = grep ( /-1/, @_ );
+  my $recursive     = grep ( /-r/, @_ );
+  my $replace       = grep ( /-e/, @_ );
 
   #   print "Path is $path\n";
   my @rpath = split '\/', $path;
@@ -1249,13 +1271,13 @@ sub f_linkfind {
     # list the links in this directory
     my $oldsilent = $self->{SILENT};
     $self->{SILENT} = 1;
-    my @links = $self->f_ls("-s", $path);
+    my @links = $self->f_ls( "-s", $path );
     foreach my $link (@links) {
       $newpath = "$path" . '/' . $link . '/';
       $newpath =~ s/\/\//\//g;
       my $newnewpath;
       if ($replace) {
-        $newnewpath = $self->GetAbsolutePath($newpath, 1);
+        $newnewpath = $self->GetAbsolutePath( $newpath, 1 );
       } else {
         $newnewpath = $path;
       }
@@ -1266,11 +1288,11 @@ sub f_linkfind {
     $self->{SILENT} = $oldsilent;
   } else {
     foreach (@rpath) {
-      if ($_ eq "") {
+      if ( $_ eq "" ) {
         next;
       }
       $newpath = $newpath . $_;
-      if ($self->isDirectory($newpath)) {
+      if ( $self->isDirectory($newpath) ) {
         $newpath = $newpath . '/';
       }
       $self->info("linkfind: Checking $newpath");
@@ -1278,9 +1300,9 @@ sub f_linkfind {
       # list the links in this directory
       my $oldsilent = $self->{SILENT};
       $self->{SILENT} = 1;
-      my @links = $self->f_ls("-s", $newpath);
+      my @links = $self->f_ls( "-s", $newpath );
       foreach my $link (@links) {
-        $DEBUG and $self->debug(1, "linkfind: Found link $link");
+        $DEBUG and $self->debug( 1, "linkfind: Found link $link" );
         ### resolve the link
         $newpath = $newpath . $link . '/';
         my $newnewpath = $self->GetAbsolutePath($newpath);
@@ -1293,7 +1315,7 @@ sub f_linkfind {
   }
   if ($recursive) {
     foreach (@searchdirs) {
-      my @newsearchdirs = $self->f_linkfind($_, "-1");
+      my @newsearchdirs = $self->f_linkfind( $_, "-1" );
       push @searchdirs, @newsearchdirs;
     }
   }
@@ -1304,22 +1326,24 @@ sub f_lsguid {
   my $self    = shift;
   my $path    = shift;
   my @results = ();
-  if (!($path =~ /\/$/)) {
+  if ( !( $path =~ /\/$/ ) ) {
     $path .= "/";
   }
-  ($self->checkPermissions("r", $path)) or return;
+  ( $self->checkPermissions( "r", $path ) ) or return;
   my $pathIdx = $self->GetDirIdx($path);
   $DEBUG
-    and $self->debug(1, "f_lsguid: Listing guids in dirIdx $pathIdx and path $path");
+    and $self->debug( 1,
+                  "f_lsguid: Listing guids in dirIdx $pathIdx and path $path" );
   if ($pathIdx) {
-    return $self->{DATABASE}->getFieldsFromD0Ex("path, guid ", "WHERE dir=$pathIdx");
+    return $self->{DATABASE}
+      ->getFieldsFromD0Ex( "path, guid ", "WHERE dir=$pathIdx" );
   }
   return;
 }
 
 sub f_outputformat {
   my $self = shift;
-  my ($a, $v) = @_;
+  my ( $a, $v ) = @_;
   my $r = $a->get_value($v);
   $r = "" unless defined $r;
   $r =~ s/\s*$//o;
@@ -1332,10 +1356,10 @@ sub f_stat {
     or $self->info("Error: missing path in stat")
     and return;
   $lfn = $self->GetAbsolutePath($lfn);
-  $DEBUG and $self->debug(1, "Getting the stat of $lfn");
-  my $info = $self->checkPermissions("r", $lfn, 0, 1);
+  $DEBUG and $self->debug( 1, "Getting the stat of $lfn" );
+  my $info = $self->checkPermissions( "r", $lfn, 0, 1 );
   $info or return;
-  $self->existsEntry($lfn, $info->{lfn})
+  $self->existsEntry( $lfn, $info->{lfn} )
     or $self->info("The entry '$lfn' doesn't exist")
     and return;
   $self->info("File $info->{lfn} Type: $info->{type}  Perm: $info->{perm} Size: $info->{size}", undef, 0);
@@ -1344,30 +1368,29 @@ sub f_stat {
 
 sub f_showcertificates {
   my $self                = shift;
-  my $returnarrayhash     = grep (/-z/, @_);
-  my $silent              = grep (/-s/, @_);
+  my $returnarrayhash     = grep ( /-z/, @_ );
+  my $silent              = grep ( /-s/, @_ );
   my $allcertificatehash  = {};
   my @allcertificatearray = ();
   local $, = "\n", $\ = "\n";
   my $ldap = $self->{CONFIG}->GetLDAPDN();
-  my $msg  = $ldap->search(
-    base   => "ou=People,$self->{CONFIG}{LDAPDN}",
-    filter => "(objectClass=AliEnUser)"
-  );
+  my $msg = $ldap->search( base   => "ou=People,$self->{CONFIG}{LDAPDN}",
+                           filter => "(objectClass=AliEnUser)" );
   my $num = $msg->count;
 
-  for (my $i = 0 ; $i < $num ; ++$i) {
+  for ( my $i = 0 ; $i < $num ; ++$i ) {
     my $a       = $msg->entry($i);
     my $newhash = {};
-    $newhash->{"subject"} = $self->f_outputformat($a, 'subject');
-    $newhash->{"uid"}     = $self->f_outputformat($a, 'uid');
-    $allcertificatehash->{$newhash->{"uid"}} = $newhash;
+    $newhash->{"subject"} = $self->f_outputformat( $a, 'subject' );
+    $newhash->{"uid"}     = $self->f_outputformat( $a, 'uid' );
+    $allcertificatehash->{ $newhash->{"uid"} } = $newhash;
     push @allcertificatearray, $newhash;
-    if (!$silent) {
-      printf "%-32s \t Certificate: %-24s\n", $newhash->{"uid"}, $newhash->{"subject"};
+    if ( !$silent ) {
+      printf "%-32s \t Certificate: %-24s\n", $newhash->{"uid"},
+        $newhash->{"subject"};
     }
   }
-  if (!$returnarrayhash) {
+  if ( !$returnarrayhash ) {
     return $allcertificatehash;
   } else {
     return @allcertificatearray;
@@ -1376,8 +1399,8 @@ sub f_showcertificates {
 
 sub f_partitions {
   my $self            = shift;
-  my $returnarrayhash = grep (/-z/, @_);
-  my $silent          = grep (/-s/, @_);
+  my $returnarrayhash = grep ( /-z/, @_ );
+  my $silent          = grep ( /-s/, @_ );
   if ($returnarrayhash) { shift; }
   if ($silent)          { shift; }
   my $ldap   = $self->{CONFIG}->GetLDAPDN();
@@ -1385,17 +1408,15 @@ sub f_partitions {
   my $mesg;
   my $total   = 0;
   my $verbose = 0;
-  $mesg = $ldap->search(
-    base   => "ou=Partitions,$self->{CONFIG}{LDAPDN}",
-    filter => "(&(objectClass=top))"
-  );
+  $mesg = $ldap->search( base   => "ou=Partitions,$self->{CONFIG}{LDAPDN}",
+                         filter => "(&(objectClass=top))" );
   $total = $mesg->count;
   my @result;
 
-  for (my $i = 0 ; $i < $total ; $i++) {
+  for ( my $i = 0 ; $i < $total ; $i++ ) {
     my $entry     = $mesg->entry($i);
     my $partition = $entry->get_value('name');
-    if (!defined $partition or $partition eq "") {
+    if ( !defined $partition or $partition eq "" ) {
       next;
     }
     $silent or print STDERR "Partition:=>  $partition\n";
@@ -1412,10 +1433,11 @@ sub f_partitions {
 
 sub f_getsite {
   my $self = shift;
-  my $returnarrayhash = grep (/-z/, @_);
+  my $returnarrayhash = grep ( /-z/, @_ );
   if ($returnarrayhash) { shift; }
   my $host = shift
-    or print STDERR "ERROR: you have to give a hostname as argument!\n" and return;
+    or print STDERR "ERROR: you have to give a hostname as argument!\n"
+    and return;
   my $domain = $1 if $host =~ /[^\.]+\.(.*)$/;
   my $ldap   = $self->{CONFIG}->GetLDAPDN();
   my $config = {};
@@ -1425,13 +1447,12 @@ sub f_getsite {
   my $se;
 
   if ($domain) {
-    $mesg = $ldap->search(
-      base   => "ou=Sites,$self->{CONFIG}{LDAPDN}",
-      filter => "(&(domain=$domain)(objectClass=AliEnSite))"
+    $mesg = $ldap->search(base   => "ou=Sites,$self->{CONFIG}{LDAPDN}",
+                          filter => "(&(domain=$domain)(objectClass=AliEnSite))"
     );
     $total = $mesg->count;
   }
-  if (!$total) {
+  if ( !$total ) {
     $verbose
       and print STDERR "ERROR: There is no site in $self->{CONFIG}->{ORGANISATION} for your domain ($domain)\n";
     if ($returnarrayhash) {
@@ -1446,28 +1467,28 @@ sub f_getsite {
   }
   my $entry = $mesg->entry(0);
   my $site  = $entry->get_value('ou');
-  print STDERR "You are om site $site\n";
-  my $fullLDAPdn = "ou=$site,ou=Sites,$self->{CONFIG}{LDAPDN}";
-  my $service    = "SE";
-  $mesg = $ldap->search(
-    base   => "ou=$service,ou=services,$fullLDAPdn",
-    filter => "(objectClass=AliEn$service)"
-  );
-  $total = $mesg->count;
-
-  if (!$total) {
-    $se = "none";
-    print STDERR "ERROR: Service $service is not configured for your site ($site)\n";
-  } else {
-    $entry = $mesg->entry(0);
-    $se    = $entry->get_value('name');
-    print STDERR "You have $self->{CONFIG}->{ORG_NAME}::${site}::${se} as site SE\n";
-  }
+  $se = "";
+#  print STDERR "You are om site $site\n";
+#  my $fullLDAPdn = "ou=$site,ou=Sites,$self->{CONFIG}{LDAPDN}";
+#  my $service    = "SE";
+#  $mesg = $ldap->search( base   => "ou=$service,ou=services,$fullLDAPdn",
+#                         filter => "(objectClass=AliEn$service)" );
+#  $total = $mesg->count;
+#
+#  if ( !$total ) {
+#    $se = "none";
+#    print STDERR "ERROR: Service $service is not configured for your site ($site)\n";
+#  } else {
+#    $entry = $mesg->entry(0);
+#    $se    = $entry->get_value('name');
+#    print STDERR "You have $self->{CONFIG}->{ORG_NAME}::${site}::${se} as site SE\n";
+#  }
   if ($returnarrayhash) {
     my @result;
     my $newhash;
     $newhash->{site} = $site;
-    $newhash->{se}   = "$self->{CONFIG}->{ORG_NAME}::${site}::${se}";
+#    $newhash->{se}   = "$self->{CONFIG}->{ORG_NAME}::${site}::${se}";
+    $newhash->{se}   = $se;
     push @result, $newhash;
     return @result;
   }
@@ -1486,15 +1507,15 @@ sub f_mlconfig {
   my $verbose = 0;
 
   if ($domain) {
-    $mesg = $ldap->search(
-      base   => "ou=Sites,$self->{CONFIG}{LDAPDN}",
-      filter => "(&(domain=$domain)(objectClass=AliEnSite))"
+    $mesg = $ldap->search(base   => "ou=Sites,$self->{CONFIG}{LDAPDN}",
+                          filter => "(&(domain=$domain)(objectClass=AliEnSite))"
     );
     $total = $mesg->count;
   }
-  if (!$total) {
+  if ( !$total ) {
     $verbose
-      and print STDERR "ERROR: There is no site in $self->{CONFIG}->{ORGANISATION} for your domain ($domain)\n";
+      and print STDERR
+"ERROR: There is no site in $self->{CONFIG}->{ORGANISATION} for your domain ($domain)\n";
     $config = $DEFAULT_APMON_CONFIG;
     printf "APMON_CONFIG=$DEFAULT_APMON_CONFIG\n";
     return "$DEFAULT_APMON_CONFIG";
@@ -1503,37 +1524,35 @@ sub f_mlconfig {
   my $site       = $entry->get_value('ou');
   my $fullLDAPdn = "ou=$site,ou=Sites,$self->{CONFIG}{LDAPDN}";
   my $service    = "MonaLisa";
-  $mesg = $ldap->search(
-    base   => "ou=$service,ou=services,$fullLDAPdn",
-    filter => "(objectClass=AliEn$service)"
-  );
+  $mesg = $ldap->search( base   => "ou=$service,ou=services,$fullLDAPdn",
+                         filter => "(objectClass=AliEn$service)" );
   $total = $mesg->count;
-  if (!$total) {
+  if ( !$total ) {
     $verbose
       and print STDERR "ERROR: Service $service is not configured for your site ($site)\n";
   } else {
     $entry = $mesg->entry(0);
-    for my $attr ($entry->attributes) {
-      $config->{uc("$service\_$attr")} = $entry->get_value($attr)
+    for my $attr ( $entry->attributes ) {
+      $config->{ uc("$service\_$attr") } = $entry->get_value($attr)
         if $attr ne "objectClass";
     }
-    for my $key (keys %$config) {
+    for my $key ( keys %$config ) {
       print STDERR "$key=\"$config->{$key}\"\n";
     }
   }
   my $apmonConfig = $DEFAULT_APMON_CONFIG;
-  if ($config->{MONALISA_APMONCONFIG}) {
-    my $cfg = eval($config->{MONALISA_APMONCONFIG});
+  if ( $config->{MONALISA_APMONCONFIG} ) {
+    my $cfg = eval( $config->{MONALISA_APMONCONFIG} );
     if ($cfg) {
-      if (ref($cfg) eq "HASH") {
+      if ( ref($cfg) eq "HASH" ) {
         my @k = keys(%$cfg);
         $cfg = $k[0];
-      } elsif (ref($cfg) eq "ARRAY") {
+      } elsif ( ref($cfg) eq "ARRAY" ) {
         $cfg = $$cfg[0];
       }
       $apmonConfig = $cfg;
     }
-  } elsif ($config->{MONALISA_HOST}) {
+  } elsif ( $config->{MONALISA_HOST} ) {
     $apmonConfig = $config->{MONALISA_HOST};
   }
   print STDERR "APMON_CONFIG=$apmonConfig\n";
@@ -1543,105 +1562,60 @@ sub f_mlconfig {
 sub f_locatesites {
   my $self            = shift;
   my $seIndex         = $self->{DATABASE}->query("SELECT * from SE");
-  my $returnarrayhash = grep (/-z/, @_);
-  my $silent          = grep (/-s/, @_);
+  my $returnarrayhash = grep ( /-z/, @_ );
+  my $silent          = grep ( /-s/, @_ );
   my $allsitehash     = {};
   my @allsitearray    = ();
   local $, = "\n", $\ = "\n";
   my $ldap = $self->{CONFIG}->GetLDAPDN();
-  my $msg  = $ldap->search(
-    base   => "ou=Sites,$self->{CONFIG}{LDAPDN}",
-    filter => "(objectClass=AliEnSite)"
-  );
+  my $msg = $ldap->search( base   => "ou=Sites,$self->{CONFIG}{LDAPDN}",
+                           filter => "(objectClass=AliEnSite)" );
   my $num = $msg->count;
 
-  for (my $i = 0 ; $i < $num ; ++$i) {
+  for ( my $i = 0 ; $i < $num ; ++$i ) {
     my $a       = $msg->entry($i);
     my $newhash = {};
-    $newhash->{"site"}      = $self->f_outputformat($a, 'ou');
-    $newhash->{"location"}  = $self->f_outputformat($a, 'location');
-    $newhash->{"domain"}    = $self->f_outputformat($a, 'domain');
-    $newhash->{"latitude"}  = $self->f_outputformat($a, 'latitude');
-    $newhash->{"longitude"} = $self->f_outputformat($a, 'longitude');
+    $newhash->{"site"}      = $self->f_outputformat( $a, 'ou' );
+    $newhash->{"location"}  = $self->f_outputformat( $a, 'location' );
+    $newhash->{"domain"}    = $self->f_outputformat( $a, 'domain' );
+    $newhash->{"latitude"}  = $self->f_outputformat( $a, 'latitude' );
+    $newhash->{"longitude"} = $self->f_outputformat( $a, 'longitude' );
     $newhash->{"seIndex"}   = ",";
 
     # look for the se indices
     foreach (@$seIndex) {
-      my ($vo, $d1, $site, $d2, $unit) = split ':', $_->{seName};
-      if ((uc $site) eq (uc $newhash->{"site"})) {
+      my ( $vo, $d1, $site, $d2, $unit ) = split ':', $_->{seName};
+      if ( ( uc $site ) eq ( uc $newhash->{"site"} ) ) {
         $newhash->{seIndex} .= $_->{seNumber} . ",";
       }
     }
-    $allsitehash->{$newhash->{"site"}} = $newhash;
-    if ($newhash->{"latitude"}  eq "") { $newhash->{"latitude"}  = 0; }
-    if ($newhash->{"longitude"} eq "") { $newhash->{"longitude"} = 0; }
+    $allsitehash->{ $newhash->{"site"} } = $newhash;
+    if ( $newhash->{"latitude"}  eq "" ) { $newhash->{"latitude"}  = 0; }
+    if ( $newhash->{"longitude"} eq "" ) { $newhash->{"longitude"} = 0; }
     push @allsitearray, $newhash;
-    if (!$silent) {
+    if ( !$silent ) {
       printf
-        "%-32s \t Location: %-20s Domain: %-24s Lat: %04.2f Lon: %04.2f SeIndx: %s\n",
+"%-32s \t Location: %-20s Domain: %-24s Lat: %04.2f Lon: %04.2f SeIndx: %s\n",
         $newhash->{"site"},     $newhash->{"location"},  $newhash->{"domain"},
         $newhash->{"latitude"}, $newhash->{"longitude"}, $newhash->{"seIndex"};
     }
   }
-  if (!$returnarrayhash) {
+  if ( !$returnarrayhash ) {
     return $allsitehash;
   } else {
     return @allsitearray;
   }
 }
 
-sub f_find {
-  my $self = shift;
-  my $cmdline = "find " . join(' ', @_);
-  #### standard to retrieve options with and without parameters
-  my %options = ();
-  @ARGV = @_;
-  getopts("mvzrpO:o:l:x:g:sO:q:dc:y", \%options);
-  @_ = @ARGV;
-
-  # option v => verbose
-  # option z => return array of hash
-  # option p => set the printout format
-  # option l => limit in query per host
-  # option x => write xml - 2nd arg is collection name
-  # option g => file group query
-  # option r => resolve all
-  # option s => no sorting
-  # option O => add opaque information to the results
-  # option q => quiet mode
-  # option d => return directories
-  # option m => metadata on file level
-  my $quiet   = $options{'q'};
-  my $verbose = $options{v};
-  #### -p option
-  my @printfields = ("lfn");
-  if (defined $options{p}) {
-    @printfields = ();
-    map { push @printfields, $_; } (split(",", $options{p}));
-  }
-  $DEBUG and $self->debug(1, "printfields are: @printfields");
-  #### -g option
-  my @filegroup = ();
-  if (defined $options{g}) {
-    map { push @filegroup, $_; } (split(",", $options{g}));
-    $DEBUG
-      and $self->debug(1, "Setting file group queries for files @filegroup");
-  }
-  my $path = ($self->f_complete_path(shift) or "");
-  my $file = (shift or "");
-  $path =~ s/\*/%/g;
-  $file =~ s/\*/%/g;
-  ($file)
-    or $self->info("Error: not enough arguments in find\n" . $self->f_find_HELP())
-    and return;
-  #### -g option
-  if (defined $options{g}) {
-    if ($file =~ /%/) {
-      $self->info(
-"To query filegroups, you need to specify an exact reference file to find a file group - no wildcards are allowd!"
-      ) and return;
-    }
-  }
+sub f_findNoCache{
+  my $self=shift;  
+  my $path=shift;
+  my $file=shift;
+  my $quiet=shift;
+  my $verbose=shift;
+  my $optRef=shift;
+  my %options=%$optRef;
+  
   ($self->checkPermissions("r", $path)) or return;
   if (!defined $options{x}) {
     $quiet
@@ -1673,11 +1647,102 @@ sub f_find {
   $options{selimit} = $self->{LIMIT_SE};
   my $entriesRef = $self->{DATABASE}->findLFN($path, $file, $refNames, $refQueries, $refUnions, %options)
     or return;
-  my @result = @$entriesRef;
+  return $entriesRef;
+}
+
+sub f_find {
+  my $self = shift;
+  my $cmdline = "find " . join(' ', @_);
+  #### standard to retrieve options with and without parameters
+  my %options = ();
+  @ARGV = @_;
+  getopts("mvzrpO:o:l:x:g:sO:q:dc:yfj:", \%options);
+  @_ = @ARGV;
+
+  # option v => verbose
+  # option z => return array of hash
+  # option p => set the printout format
+  # option l => limit in query per host
+  # option x => write xml - 2nd arg is collection name
+  # option g => file group query
+  # option r => resolve all
+  # option s => no sorting
+  # option O => add opaque information to the results
+  # option q => quiet mode
+  # option d => return directories
+  # option m => metadata on file level
+  # option j => to specify a concrete jobid
+  my $quiet   = $options{'q'};
+  my $verbose = $options{v};
+  #### -p option
+  my @printfields = ("lfn");
+  if (defined $options{p}) {
+    @printfields = ();
+    map { push @printfields, $_; } (split(",", $options{p}));
+  }
+  $DEBUG and $self->debug(1, "printfields are: @printfields");
+  #### -g option
+  my @filegroup = ();
+  if (defined $options{g}) {
+    map { push @filegroup, $_; } (split(",", $options{g}));
+    $DEBUG
+      and $self->debug(1, "Setting file group queries for files @filegroup");
+  }
+  my $path = ($self->f_complete_path(shift) or "");
+  my $file = (shift or "");
+  $path =~ s/\*/%/g;
+  $file =~ s/\*/%/g;
+  ($file)
+    or $self->info("Error: not enough arguments in find\n" . $self->f_find_HELP())
+    and return;
+  #### -g option
+  if (defined $options{g}) {
+    if ($file =~ /%/) {
+      $self->info(
+"To query filegroups, you need to specify an exact reference file to find a file group - no wildcards are allowed!")
+        and return;
+    }
+  }
+  my $keyCache="";
+  my @result;
+  if ($self->{CONFIG}->{CACHE_SERVICE_ADDRESS}) {
+       $self->info( "Checking if we can get it from the cache");
+        $keyCache ="$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}?ns=findwait&key="
+          . uri_escape(join("_", $path, $file, @_));
+        $self->info("Our read cache key is : $keyCache -- ");
+      while (1){
+        (my $ok, @result) = AliEn::Util::getURLandEvaluate($keyCache, 1);
+        if ($ok){
+          $self->info("WE GOT SOMETHING FROM THE CACHE!!");
+          if ($result[0] eq 'wait'){
+            $self->info("Someone else is calculating this... let's wait");
+            sleep 5;
+          }else {
+            $keyCache="";
+            last;
+          }
+        } else{
+          $self->info("The cache didn't work: we got @result. Let's put it so that other clients wait");
+          AliEn::Util::getURLandEvaluate("$keyCache&ifnull=true&timeout=30&value=". uri_escape(Dumper(['wait'])));
+          @result=();
+          last;
+        }
+      }
+  }
+  if (!@result){
+    my $ref=$self->f_findNoCache($path, $file, $quiet, $verbose, \%options, @_);
+    $ref or return;
+    @result=@$ref;
+  }  
+
   my $total  = @result;
+  
+  if ($keyCache){
+    $self->info("And now, we should write this into the cache $keyCache : " . uri_escape(Dumper([@result])));
+    AliEn::Util::getURLandEvaluate("$keyCache&value=" . uri_escape(Dumper([@result])));
+  }
 
   if (defined $options{r}) {
-
     # add the additional information like longitude, latitude, MSD
     foreach (@result) {
       $_->{msd}       = ",";
@@ -1690,7 +1755,6 @@ sub f_find {
         if ($index eq "") {
           next;
         }
-
         # lookup this index in the site location hash
         foreach my $site (@{$self->{sitelocationarray}}) {
           if ($site->{seIndex} =~ /,$index,/) {
@@ -1734,7 +1798,7 @@ sub f_find {
       foreach my $line (@result) {
         foreach my $field (@printfields) { $msg .= "$line->{$field}   " }
         $msg .= "\n";
-      };
+      }
       ($total) and $verbose and $msg .= "$total files found\n";
       $self->info($msg, undef, 0);
     }
@@ -1759,27 +1823,27 @@ sub createFindXML {
   my @result    = @$ref2;
   my @filegroup = @$ref3;
   $DEBUG
-    and $self->debug(1, "Setting xml dump collection name to $options{x}");
+    and $self->debug( 1, "Setting xml dump collection name to $options{x}" );
   my $dumpxml = $options{x};
 
-  if ($options{O}) {
+  if ( $options{O} ) {
     map { $_->{turl} = "alien://" . $_->{lfn} . "?$options{O}"; } @result;
   } else {
     map { $_->{turl} = "alien://" . $_->{lfn}; } @result;
   }
   map {
-    foreach my $lkey (keys %{$_}) {
-      if (!defined $_->{$lkey}) { $_->{$lkey} = ""; }
+    foreach my $lkey ( keys %{$_} ) {
+      if ( !defined $_->{$lkey} ) { $_->{$lkey} = ""; }
     }
   } @result;
   my @newresult;
   map {
-    my $bname   = $self->f_basename($_->{lfn});
-    my $dname   = $self->f_dirname($_->{lfn});
+    my $bname   = $self->f_basename( $_->{lfn} );
+    my $dname   = $self->f_dirname( $_->{lfn} );
     my $newhash = {};
     $newhash->{$bname} = $_;
-    if ($options{g}) {
-      if (grep (/$bname/, @$file)) {
+    if ( $options{g} ) {
+      if ( grep ( /$bname/, @$file ) ) {
         push @newresult, $newhash;
       }
     } else {
@@ -1788,14 +1852,14 @@ sub createFindXML {
   } @result;
   foreach (@newresult) {
     my $filename;
-    for my $lkeys (keys %{$_}) {
+    for my $lkeys ( keys %{$_} ) {
       $filename = $lkeys;
     }
-    my $bname = $self->f_basename($_->{$filename}->{lfn});
-    my $dname = $self->f_dirname($_->{$filename}->{lfn});
-    if ($options{g}) {
+    my $bname = $self->f_basename( $_->{$filename}->{lfn} );
+    my $dname = $self->f_dirname( $_->{$filename}->{lfn} );
+    if ( $options{g} ) {
       for my $lfile (@filegroup) {
-        if (!defined $_->{$lfile}) {
+        if ( !defined $_->{$lfile} ) {
           $_->{$lfile}->{lfn}  = $dname . "/" . $lfile;
           $_->{$lfile}->{turl} = "alien://" . $dname . "/" . $lfile;
         }
@@ -1804,7 +1868,7 @@ sub createFindXML {
   }
   $dumpxml =~ s/\"//g;
   my $dataset = new AliEn::Dataset;
-  $dataset->setarray(\@newresult, "$dumpxml", "[$self->{DISPPATH}]: $cmdline", "", "", "$self->{CONFIG}->{ROLE}");
+  $dataset->setarray( \@newresult, "$dumpxml", "[$self->{DISPPATH}]: $cmdline", "", "", "$self->{CONFIG}->{ROLE}" );
   $self->{DEBUG} and $dataset->print();
   my $xml = $dataset->writexml();
   $self->{SILENT} or print STDERR $xml;
@@ -1822,9 +1886,9 @@ sub createFindCollection {
       or $self->info("Skipping $file->{lfn} (not a file)")
       and next;
     $self->info("And now we have to add $file to the collection");
-    $self->f_addFileToCollection($file->{lfn}, $collec, "-n");
+    $self->f_addFileToCollection( $file->{lfn}, $collec, "-n" );
   }
-  $self->updateCollection("", $collec);
+  $self->updateCollection( "", $collec );
   return 1;
 }
 
@@ -1832,8 +1896,8 @@ sub f_revalidateToken {
   my $self  = shift;
   my $hours = shift;
   if ($hours) {
-    if ($self->{ROLE} ne "admin") {
-      print STDERR "Only the administrator can specify length for token update.\n";
+    if ( $self->{ROLE} ne "admin" ) {
+      print STDERR"Only the administrator can specify length for token update.\n";
       $hours = 24;
     }
   } else {
@@ -1841,7 +1905,7 @@ sub f_revalidateToken {
   }
   my $done =
     SOAP::Lite->uri('AliEn/Service/Authen')->proxy("http://$self->{CONFIG}->{PROXY_HOST}:$self->{CONFIG}->{PROXY_PORT}")
-    ->addTimeToToken($self->{ROLE}, $hours)->result;
+    ->addTimeToToken( $self->{ROLE}, $hours )->result;
   if ($done) {
     print STDERR "Your token has been revalidated for $hours hours\n";
     return 1;
@@ -1855,21 +1919,21 @@ sub f_revalidateToken {
 sub printTreeLevel {
   my $self  = shift;
   my $first = shift;
-  $DEBUG and $self->debug(1, "UserInterface::printreeLevel $first");
-  my @files = grep(/^[^\/]*\/?$/i, @_);
-  $DEBUG and $self->debug(1, "There are $#files in @_");
+  $DEBUG and $self->debug( 1, "UserInterface::printreeLevel $first" );
+  my @files = grep( /^[^\/]*\/?$/i, @_ );
+  $DEBUG and $self->debug( 1, "There are $#files in @_" );
   my $file;
   my $sec = 0;
-  if ((@_) and (!@files)) { push @files, "/"; }
+  if ( (@_) and ( !@files ) ) { push @files, "/"; }
 
   foreach $file (@files) {
-    if ($file =~ /\/$/) {
+    if ( $file =~ /\/$/ ) {
       ($sec) and print STDERR "$first\n";
       $sec = 1;
       print STDERR "$first--$file\n";
       $file =~ s/\+/\\\+/g;
-      my @dir = grep(s/^$file(.)/$1/i, @_);
-      $self->printTreeLevel("$first  |", @dir);
+      my @dir = grep( s/^$file(.)/$1/i, @_ );
+      $self->printTreeLevel( "$first  |", @dir );
     } else {
       print STDERR "$first--$file\n";
     }
@@ -1879,11 +1943,11 @@ sub printTreeLevel {
 
 sub f_tree {
   my $self = shift;
-  my $dir = (shift or $self->{DISPPATH});
+  my $dir = ( shift or $self->{DISPPATH} );
   $dir = $self->GetAbsolutePath($dir);
-  $DEBUG and $self->debug(1, "In UserInterface::f_tree $dir");
+  $DEBUG and $self->debug( 1, "In UserInterface::f_tree $dir" );
   $dir =~ s{/?$}{/};
-  my $ref = $self->{DATABASE}->findLFN($dir, [], [], [], [], 'd', 1)
+  my $ref = $self->{DATABASE}->findLFN( $dir, [], [], [], [], 'd', 1 )
     or return;
   my @entries    = @$ref;
   my @entriesLFN = ();
@@ -1891,9 +1955,9 @@ sub f_tree {
   foreach my $entry (@entries) {
     push @entriesLFN, $entry->{lfn};
   }
-  $DEBUG and $self->debug(1, "There are " . ($#entries + 1) . " entries");
+  $DEBUG and $self->debug( 1, "There are " . ( $#entries + 1 ) . " entries" );
   map { $_ =~ s/$dir/.\//i } @entriesLFN;
-  $self->printTreeLevel("|", @entriesLFN);
+  $self->printTreeLevel( "|", @entriesLFN );
   print STDERR "\n";
   return 1;
 }
@@ -1901,17 +1965,17 @@ sub f_tree {
 sub f_zoom {
   my $self       = shift;
   my $likestring = shift;
-  if (defined $likestring) {
+  if(defined $likestring) {
     $likestring = $self->GetAbsolutePath($likestring) . "%";
   } else {
     $likestring = $self->{DISPPATH} . "%";
   }
-  my $rdirs = $self->{DATABASE}->getFieldFromD0Ex("path", "where path like '$likestring' order by path limit 100");
+  my $rdirs = $self->{DATABASE}->getFieldFromD0Ex( "path", "where path like '$likestring' order by path limit 100" );
   defined $rdirs
-    or $self->{LOGGER}->error("Catalogue", "Error in database while fetching path")
+    or $self->{LOGGER}->error( "Catalogue", "Error in database while fetching path" )
     and return;
-  my @files = grep (!/\/$/, @$rdirs);
-  ($files[0])
+  my @files = grep ( !/\/$/, @$rdirs );
+  ( $files[0] )
     or print STDERR "No files under the current directory!!\n" and return;
   $files[0] =~ /^(.*\/)[^\/]*$/;
   $self->{DISPPATH} = "$1";
@@ -1941,26 +2005,26 @@ sub f_zoom {
 #}
 sub f_echo {
   my $self  = shift;
-  my $var   = (shift or "");
-  my $value = ($self->{CONFIG}->{$var} or "");
+  my $var   = ( shift or "" );
+  my $value = ( $self->{CONFIG}->{$var} or "" );
   if ($var) {
     $var eq '$?' and return $self->displayLastError();
     my $print = "'$value'";
-    if ($var =~ /^((LOGGER)|(DATABASE)|(G_CONTAINER))/) {
+    if ( $var =~ /^((LOGGER)|(DATABASE)|(G_CONTAINER))/ ) {
 
       #we just skip the logger
-    } elsif (UNIVERSAL::isa($value, "ARRAY")) {
+    } elsif ( UNIVERSAL::isa( $value, "ARRAY" ) ) {
 
       #	  print "CHANGING $value\n";
       map { s/^(.*)$/'$1'/ } @{$value};
-      $print = join(", ", @{$value});
-    } elsif (UNIVERSAL::isa($value, "HASH")) {
+      $print = join( ", ", @{$value} );
+    } elsif ( UNIVERSAL::isa( $value, "HASH" ) ) {
       $print = Dumper($value);
       $print =~ s/^\$VAR1 =//;
     }
     $self->{SILENT} or print STDERR "Configuration: $var = $print\n";
   } else {
-    my @total = sort keys %{$self->{CONFIG}};
+    my @total = sort keys %{ $self->{CONFIG} };
     foreach (@total) {
       ($_) and $self->f_echo($_);
     }
@@ -1970,7 +2034,7 @@ sub f_echo {
 
 sub DESTROY {
   my $self = shift;
-  ($self) and ($self->{DATABASE}) and $self->f_disconnect;
+  ($self) and ( $self->{DATABASE} ) and $self->f_disconnect;
 }
 
 sub _setUserGroups {
@@ -1979,15 +2043,15 @@ sub _setUserGroups {
   my $changeUser = shift;
   my $result     = $self->{DATABASE}->getUserGroups($user);
   $result
-    or $self->{LOGGER}->error("Catalogue", "Error during database query execution")
+    or $self->{LOGGER}->error( "Catalogue", "Error during database query execution" )
     and return;
-  ($self->{MAINGROUP}) = $result->[0];
-  $result = $self->{DATABASE}->getUserGroups($user, 0);
-  $self->{DATABASE}->setUserGroup($user, $self->{MAINGROUP}, $changeUser);
+  ( $self->{MAINGROUP} ) = $result->[0];
+  $result = $self->{DATABASE}->getUserGroups( $user, 0 );
+  $self->{DATABASE}->setUserGroup( $user, $self->{MAINGROUP}, $changeUser );
   $result
-    or $self->{LOGGER}->error("Catalogue", "Error during database query execution")
+    or $self->{LOGGER}->error( "Catalogue", "Error during database query execution" )
     and return;
-  ($self->{GROUPS}) = join " ", @$result;
+  ( $self->{GROUPS} ) = join " ", @$result;
 }
 
 sub displayLastError {
@@ -2009,26 +2073,25 @@ sub f_type_HELP {
 
 sub f_df {
   my $self = shift;
-
+  
+    
   my $opt;
-  ($opt, @_) = $self->Getopts(@_);
-  my $se = (shift or $self->{CONFIG}->{SE_FULLNAME});
+  ( $opt, @_ ) = $self->Getopts(@_);
+  my $se   = (shift or $self->{CONFIG}->{SE_FULLNAME});
   my $oldsilent = $self->{SILENT};
-
-  #  my @hostportsName;
+#  my @hostportsName;
   my @results = ();
-  if ($opt =~ /a/) {
-    $se = "";
+  if ($opt =~/a/) {
+      $se = "";
   }
 
-  my $service = "SE";
-  $self->info("Storagename             1k-blocks         Used(KB)  Available Use\%    \#Files Type  min_size\n",
-    undef, 0);
-  my ($response) = $self->{DATABASE}->getDF($se, @_);
-
+  my $service="SE";
+  $self->info("Storagename             1k-blocks         Used(KB)  Available Use\%    \#Files Type  min_size\n",undef,0);
+  my ($response)= $self->{DATABASE}->getDF($se, @_);
+   
   $self->debug(1, "Got $response");
 
-  foreach my $line (@$response) {
+  foreach my $line (@$response){
     my $details = {};
     ( $details->{name},  $details->{size},  $details->{used}, $details->{available},
       $details->{usage}, $details->{files}, $details->{type}, $details->{min_size}
@@ -2038,45 +2101,47 @@ sub f_df {
       $line->{used},   $line->{seNumFiles}, $line->{seType},    $line->{seMinSize}
       );
     push(@results, $details);
-    ($line eq "-1") and next;
+    ( $line eq "-1") and next;
     my $buffer = sprintf "%-19s %+12s %+12s %+12s %+3s%% %+9s %-10s %s\n", $line->{seName} || "", $line->{size} || 0,
       $line->{usedspace} || 0, $line->{freespace} || 0, $line->{used} || 0, $line->{seNumFiles} || 0,
       $line->{seType} || "", $line->{seMinSize} || 0;
-    $self->info($buffer, 0, 0);
+    $self->info($buffer,0,0);
   }
-
-  #  }
+#  }
   return @results;
 }
 
+
+
+
 sub f_type {
   my $self = shift;
-  my $hash = grep (/^-z$/, @_);
-  @_ = grep(!/^-z$/, @_);
+  my $hash = grep ( /^-z$/, @_ );
+  @_ = grep( !/^-z$/, @_ );
   my $lfn = shift;
   $lfn = $self->f_complete_path($lfn);
-  my $permFile = $self->checkPermissions('r', $lfn, 0, 1)
+  my $permFile = $self->checkPermissions( 'r', $lfn, 0, 1 )
     or return;
   my $type;
-  if ($self->isCollection($lfn, $permFile)) {
+  if ( $self->isCollection( $lfn, $permFile ) ) {
     $type = 'collection';
-  } elsif ($self->isFile($lfn, $permFile->{lfn})) {
+  } elsif ( $self->isFile( $lfn, $permFile->{lfn} ) ) {
     $type = 'file';
-  } elsif ($self->isDirectory($lfn, $permFile->{lfn})) {
+  } elsif ( $self->isDirectory( $lfn, $permFile->{lfn} ) ) {
     $type = 'directory';
   } else {
     $self->info("I don't know the type of the file $lfn");
     return;
   }
   $self->info("File '$lfn' is a '$type'");
-  $hash and return ({type => $type});
+  $hash and return ( { type => $type } );
   return $type;
 }
 
 #sub checkFileQuota {
 #######
 ## return (0,message) for normal error
-## return (-1,message) for error that should throw access exception. Consequence is all
+## return (-1,message) for error that should throw access exception. Consequence is all 
 ##                     remaining write accesses will be dropped, as they will fail anyway.
 ##
 #  my $self= shift;
@@ -2102,7 +2167,7 @@ sub f_type {
 #  my $totalSize = $array->{'totalSize'};
 #  my $maxTotalSize = $array->{'maxTotalSize'};
 #  my $tmpIncreasedTotalSize = $array->{'tmpIncreasedTotalSize'};
-#
+# 
 #  $DEBUG and $self->debug(1, "size: $size");
 #  $DEBUG and $self->debug(1, "nbFile: $nbFiles/$tmpIncreasedNbFiles/$maxNbFiles");
 #  $DEBUG and $self->debug(1, "totalSize: $totalSize/$tmpIncreasedTotalSize/$maxTotalSize");
@@ -2118,7 +2183,7 @@ sub f_type {
 #      $self->info("Uploading file for user ($user) is denied - number of files quota exceeded.");
 #      return (-1, "Uploading file for user ($user) is denied - number of files quota exceeded." );
 ##    }
-# }
+ # }
 #  #Unlimited size for files
 #  if($maxTotalSize==-1){
 #    $self->info("Unlimited file size allowed for user ($user)");
@@ -2129,12 +2194,14 @@ sub f_type {
 #      return (-1, "Uploading file for user ($user) is denied, file size ($size) - total file size quota exceeded." );
 #    }
 #  }
-#
+#  
 #  #$self->{PRIORITY_DB}->do("update PRIORITY set tmpIncreasedNbFiles=tmpIncreasedNbFiles+1, tmpIncreasedTotalSize=tmpIncreasedTotalSize+$size where user LIKE  '$user'") or $self->info("failed to increase tmpIncreasedNbFile and tmpIncreasedTotalSize");
 
 #  $self->info("In checkFileQuota $user: Allowed");
 #  return (1, undef, ($size+$totalSize+$tmpIncreasedTotalSize)/$maxTotalSize, ($nbFiles+$tmpIncreasedNbFiles)/$maxNbFiles);
 #}
+
+
 
 return 1;
 __END__

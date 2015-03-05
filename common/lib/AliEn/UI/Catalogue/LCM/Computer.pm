@@ -38,6 +38,7 @@ my (%command_list);
     'resyncJobAgent'=>['$self->{QUEUE}->resyncJobAgent',0],
     'cleanCache' => ['$self->cleanCache',0],
     'registerOutput' => ['$self->registerOutput',0],
+    'verifyToken'      => ['$self->{QUEUE}->f_verifyToken', 0],
     
 #     'jobFindReqMiss'=>['$self->{QUEUE}->jobFindReqMiss',0],
     
@@ -97,7 +98,7 @@ sub initialize {
     $self->{QUEUE} = AliEn::CE->new($options) or return;
   }
   else {
-    $self->{QUEUE} = AliEn::ClientCE->new($options) or return;
+  	$self->{QUEUE} = AliEn::ClientCE->new($options) or return;
   }
 
   $self->AddCommands(%command_list);
@@ -134,7 +135,9 @@ sub registerOutput{
   my $regok=0;
   my @failedFiles;
 
-  (my $jobinfo) = $self->execute("ps", "jdl", $jobid, "-dir","-status","-silent") or 
+  (my $jobinfo) = $self->execute("ps", "jdl", $jobid, "-dir","-status","-silent");
+  $jobinfo
+   or 
     $self->info("Error getting the jdl of the job",2) and return;
   
   $jobinfo->{jdl} or $self->info("Error the jdl is empty",2) and return;
@@ -164,10 +167,7 @@ sub registerOutput{
   $jobinfo->{status} or $self->info("Error getting the status of the job",2) and return;
 
   my ($ok, @pfns)=$ca->evaluateAttributeVectorString("SuccessfullyBookedPFNS");
-  if(!$ok) {
-    $options->{cluster}  or $self->info("This job didn't register any output",2) and return;
-    $onlycmlog=1;
-  }
+  $ok or $self->info("This job didn't register any output",2) and return;
 
   ($ok, my $user)=$ca->evaluateAttributeVectorString("User");
   (my $currentuser)=$self->execute("whoami", "-silent");
@@ -182,17 +182,11 @@ sub registerOutput{
     $outputdir = shift @failedFiles;
     $outputdir and $self->info("The output files were registered in $outputdir") or $self->info("Error during output file registration.") and return;
   }
-
-
   if($options->{cluster}) {
      ($ok, my @cmlogs)=$ca->evaluateAttributeVectorString("JobLogOnClusterMonitor");
      foreach my $log (@cmlogs) {
        my ($lfn, $guid, $size, $md5, $pfn)=split (/###/, $log);
        $guid or $guid=AliEn::GUID->new()->CreateGuid();
-       if(!$outputdir) {
-	  $outputdir="~/alien-job-".$jobid;
-	  $self->execute("mkdir","-p",$outputdir);
-       }
        my $env={lfn=>"$outputdir/$lfn", md5=>$md5, size=>$size, guid=>$guid};
        $self->{CATALOG}->registerPFNInCatalogue($user,$env,$pfn,"no_se");
      }
@@ -221,8 +215,9 @@ sub registerOutput{
            $newstatus = "ERROR_RE";
        }
     }
-    #($jobinfo->{status} =~ /^ERROR/) and $newstatus = $jobinfo->{status} ;
+    ($jobinfo->{status} =~ /^ERROR/) and $newstatus = $jobinfo->{status} ;
     if($newstatus) {
+      $self->info("Ready to change the status to $jobinfo->{status} and $outputdir");
       $self->{TASK_DB}->updateStatus($jobid,$jobinfo->{status}, $newstatus, {path=>$outputdir}, $service);
       if(!($jobinfo->{status} =~ /^ERROR/)) {
         $self->info("Job state transition from $jobinfo->{status} to $newstatus");

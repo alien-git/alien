@@ -18,30 +18,34 @@ sub checkWakesUp {
   my $method="info";
   $silent and $method="debug" and  @info=1;
 
+  $self->{SLEEP_PERIOD}=3600*24;
+
   $self->$method(@info, "The SE optimizer starts");
-  (-f "$self->{CONFIG}->{TMP_DIR}/AliEn_TEST_SYSTEM")  or $self->{SLEEP_PERIOD}=3600;
+# (-f "$self->{CONFIG}->{TMP_DIR}/AliEn_TEST_SYSTEM")  or $self->{SLEEP_PERIOD}=3600;
   my $guiddb=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{GUID_DB};
 
 
   $self->checkSplitGUID($guiddb);
   
-  my $guids=$guiddb->query("select * froM GUIDINDEX");
-  foreach my $f (@$guids){
-    $self->info("Checking the table $f->{tableName}");
-    my ($db2, $path2)=$guiddb->reconnectToIndex( $f->{hostIndex}) or next; 
-    $db2->checkGUIDTable($f->{tableName});
-    $db2->updateStatistics($f->{tableName});
-  }
-
-  $self->info("All the GUID tables have been accounted");
-  my $hosts=$guiddb->query("select distinct hostIndex from  GUIDINDEX");
-
-  my $ses=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->queryColumn("select distinct sename from SE");
-
-  foreach my $se (@$ses){
-    $self->info("Calculating the size of $se");
-    $self->checkSESize($se, $hosts);
-  }
+#  my $guids=$guiddb->query("select * from GUIDINDEX");
+#  foreach my $f (@$guids){
+#    $self->info("Checking the table $f->{tableName}");
+#    my ($db2, $path2)=$guiddb->reconnectToIndex( $f->{hostIndex}) or next; 
+#    $db2->checkGUIDTable($f->{tableName});
+#    $db2->updateStatistics($f->{tableName});
+#  }
+#
+#  $self->info("All the GUID tables have been accounted");
+#
+#  my $hosts=$guiddb->query("select distinct hostIndex from  GUIDINDEX");
+#
+#  my $ses=$self->{CATALOGUE}->{CATALOG}->{DATABASE}->{LFN_DB}->queryColumn("select distinct sename from SE");
+#
+#  foreach my $se (@$ses){
+#    $self->info("Calculating the size of $se");
+#    $self->checkSESize($se, $hosts);
+#  }
+  
   $self->info("Going back to sleep");
   return;
 }
@@ -65,7 +69,7 @@ sub checkSESize{
       or $self->info("Error reconnecting") and next;
 
     
-    my $info=$db2->queryRow("select sum(seNumFiles) total, sum(seUsedSpace) as \"size\"  from GL_STATS where seNumber=? group by seNumber", undef, {bind_values=>[$index]}) 
+    my $info=$db2->queryRow("select sum(seNumFiles) total, sum(seUsedSpace) size from GL_STATS where seNumber=? group by seNumber", undef, {bind_values=>[$index]}) 
       or $self->info("Error doing the query") and next;
     
     $info->{size} and $size+=$info->{size};
@@ -74,8 +78,7 @@ sub checkSESize{
   }
   $self->info("The SE has $counter files and $size bytes");
   $guiddb->update("SE", {seNumFiles=>$counter, seUsedSpace=>$size}, "seNumber = ? ", {bind_values=>[$index]});
-  #$guiddb->do("update SE, SE_VOLUMES set usedspace=seusedspace/1024, freespace=size-usedspace where  SE.sename=SE_VOLUMES.sename and size!= -1"); 
-  $guiddb->updateSESize;
+  $guiddb->do("update SE, SE_VOLUMES set usedspace=seusedspace/1024, freespace=size-usedspace where  SE.sename=SE_VOLUMES.sename and size!= -1"); 
   return 1;
 }
 
@@ -97,12 +100,12 @@ sub checkSplitGUID{
   
   my $entries=$db->queryValue("SELECT count(*) from $table");
   $self->info("AND THERE ARE $entries in $table");
-  my $maxEntries=10000000;
+  my $maxEntries=50000000;
   if ($entries > $maxEntries){
     $self->info("There are more than $maxEntries in the last guid table ($entries)");
     $self->{CATALOGUE}->execute("moveGUID", $g);  
-  
   }
+  
 }
 
 1;

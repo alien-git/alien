@@ -54,8 +54,8 @@ sub getMessages {
   my $time = time;
 
   my $res  =
-  #  $self->{DB}->query("SELECT ID,TargetHost,Message,MessageArgs from MESSAGES WHERE TargetService = ? AND  ? like TargetHost AND (Expires > ? or Expires = 0)order by ID limit 300", undef, {bind_values=>[$service, $host, $time]});
-  $self->{DB}->getMessages($service, $host, $time);
+    $self->{DB}->query("SELECT ID,TargetHost,Message,MessageArgs from MESSAGES WHERE TargetService = ? AND  ? like TargetHost AND (Expires > ? or Expires = 0)order by ID limit 300", undef, {bind_values=>[$service, $host, $time]});
+
   defined $res
     or $self->{LOGGER}->error("ClusterMonitor","Error fetching messages from database")
       and return;

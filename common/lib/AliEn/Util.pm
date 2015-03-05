@@ -6,6 +6,7 @@ package AliEn::Util;
 
 use strict;
 use POSIX ":sys_wait_h";
+use LWP::UserAgent;
 require AliEn::Database::Util;
 sub textneutral   { return "\033[0m"; }
 sub textblack     { return "\033[49;30m"; }
@@ -69,23 +70,13 @@ sub getJobUserByDB {
   return $user;
 }
 
-sub JobStatus {
-  return [
-    'ASSIGNED',  'DONE',     'DONE_WARN',  'ERROR_A',    'ERROR_I',   'ERROR_E',    'ERROR_IB',
-    'ERROR_M',   'ERROR_RE', 'ERROR_S',    'ERROR_SPLT', 'ERROR_SV',  'ERROR_V',    'ERROR_VN',
-    'EXPIRED',   'FAILED',   'FORCEMERGE', 'IDLE',       'INSERTING', 'INTERACTIV', 'KILLED',
-    'MERGING',   'QUEUED',   'RUNNING',    'SAVING',     'SAVED',     'SAVED_WARN', 'SPLIT',
-    'SPLITTING', 'STARTED',  'WAITING',    'ZOMBIE',     'ERROR_VT',  'TO_STAGE',   'STAGING',
-    'A_STAGED',  'OVER_WAITING'
-  ];
-}
 
 # mapping between job status as text and number
 my $ml_status = {
   'INSERTING'    => 1,
   'SPLITTING'    => 2,
   'SPLIT'        => 3,
-  'QUEUED'       => 4,
+#  'QUEUED'       => 4,
   'WAITING'      => 5,
   'ASSIGNED'     => 6,
   'STARTED'      => 7,
@@ -94,6 +85,7 @@ my $ml_status = {
   'RUNNING'      => 10,
   'SAVING'       => 11,
   'SAVED'        => 12,
+  'SAVED_WARN'   => 22,
   'MERGING'      => 13,
   'FORCEMERGE'   => 14,
   'DONE'         => 15,
@@ -102,12 +94,14 @@ my $ml_status = {
   'A_STAGED'     => 18,
   'STAGING'      => 19,
   'OVER_WAITING' => 21,
+  'UPDATING'     => 23,
+  'FAULTY'       => 24,
+  'INCORRECT'    => 25,
   'ERROR_A'      => -1,
   'ERROR_I'      => -2,
   'ERROR_E'      => -3,
   'ERROR_IB'     => -4,
   'ERROR_M'      => -5,
-  ,
   'ERROR_S'    => -7,
   'ERROR_SPLT' => -8,
   'ERROR_SV'   => -9,
@@ -118,14 +112,33 @@ my $ml_status = {
   'KILLED'     => -14,
   'ZOMBIE'     => -15,
   'ERROR_VT'   => -16,
-  'ERROR_RE'   => -17
+  'ERROR_RE'   => -17,
+  'ERROR_EW'   => -18,
 };
+my $ml_reverse;
+sub JobStatus {
+  return [sort keys %$ml_status];   
+}
+
+#convert a status number to a status;
+sub statusName {
+  my $stat=shift;
+  
+  if (! $ml_reverse) {
+   $ml_reverse={};
+   foreach my $key ( keys %$ml_status ){
+    $ml_reverse->{$ml_status->{$key}}=$key;
+   }
+  }
+  return $ml_reverse->{$stat};
+}
+
 
 # convert a job status to a number to be used in MonaLisa
 sub statusForML {
   my $stat = shift;
 
-  #print "statusForML ($stat) => $status->{$stat}\n";
+  #print "statusForML ($stat) => $ml_status->{$stat}\n";
   return $ml_status->{$stat} || 0;
 }
 
@@ -238,7 +251,8 @@ sub returnCacheValue {
       return;
     }
   }
-  $self->debug(1, "Returning the value from the cache ($self->{CACHE}->{$name}->{value})");
+  $self->debug(1, "Returning the value from the cache $self->{CACHE}->{$name}->{value}");
+
   return $self->{CACHE}->{$name}->{value};
 
 }
@@ -459,7 +473,7 @@ sub getPlatform {
     $self->{PLATFORM_NAME} = $config->{PACKMAN_PLATFORM};
     return $config->{PACKMAN_PLATFORM};
   }
-  
+
   my $sys2 = `uname -m`;
   chomp $sys2;
   $sys2 =~ s/\s//g;    #remove spaces
@@ -511,6 +525,7 @@ sub find_memory_consumption {
   }
   return $totalMem;
 }
+
 
 sub isValidSEName {
   my $se = shift;
@@ -628,9 +643,9 @@ sub getDebugLevelFromParameters {
   return ($back, \@rlist);
 }
 
-sub getURLandEvaluate{
-  my $url=shift;
-  my $evaluate=shift || 0;
+sub getURLandEvaluate {
+  my $url = shift;
+  my $evaluate = shift || 0;
 
   my $agent = LWP::UserAgent->new();
   $agent->timeout(120);
@@ -640,12 +655,12 @@ sub getURLandEvaluate{
   my $res    = $agent->request($req);
   my $output = $res->content;
   $res->is_success() or return 0, "Error getting $url\n";
-  
+
   $evaluate or return 1;
-  
-  my $VAR1;  
+
+  my $VAR1;
   eval "$output";
-  ($@) and  return 0, "Error evaluating $output: $@\n";
+  ($@) and return 0, "Error evaluating $output: $@\n";
   return 1, @$VAR1;
 
 }

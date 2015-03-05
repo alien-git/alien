@@ -101,6 +101,15 @@ sub parsePFN {
 
   $self->{PARSED}={};
   $self->{PARSED}->{ORIG_PFN}=$self->{ORIG_PFN}=$self->{PFN};
+  
+  #check if we have a proxy
+  my @roots = split(/root:\/\//, $self->{PFN});
+  $self->{PROXY} = "";
+  if (scalar(@roots) > 2 ){
+  	$self->{PROXY} = "root://".$roots[1];
+  	$self->{PFN} =~ s/$self->{PROXY}//;
+  }
+  
   $self->{PFN} =~ s/^([^:]*):\/([^\/])/$1:\/\/\/$2/;
   $self->{PFN} =~ /^([^:]*):\/\/([^\/]*)(\/[^?]*)\??(.*)$/;
   $self->{PARSED}->{METHOD} = ( $1 or "" );
@@ -130,8 +139,6 @@ sub parsePFN {
   $self->{PARSED}->{METHOD} =~ /^file$/ and $self->{PARSED}->{PATH}=~ s{^(.*)\#(.*)$}{$1} and $self->{PARSED}->{VARS_ZIP}=$2;
   
   $DEBUG and $self->debug(1, "Parsed info: ".$self->method." ".$self->host." ".$self->port." ".$self->path." $self->{PARSED}->{VARS}");
-  
- 
 
 }
 

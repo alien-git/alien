@@ -9,6 +9,7 @@
 # print "Guid: $newguid ",$guid->GetBinGuid()," ",$guid->GetTxtGuid()," ",$guid->GetIP()," ",$guid->GetCHash()," ",$guid->GetHash(),"\n";
 # ----------------------------------------------------------
 
+
 package AliEn::GUID;
 use AliEn::Logger;
 
@@ -20,27 +21,29 @@ use OSSP::uuid;
 
 sub new {
   my $proto = shift;
-  my $GUID  = (shift or "");
+  my $GUID   = (shift or "");
   my $self  = {};
-  bless($self, (ref($proto) || $proto));
+  bless( $self, ( ref($proto) || $proto ) );
   $self->SUPER::new() or return;
-
-  $self->{NAMESPACE} = $ENV{'ALIEN_HOSTNAME'};
-  $self->{GENERATOR} = new OSSP::uuid;
-
+  
+  $self->{NAMESPACE}= $ENV{'ALIEN_HOSTNAME'};
+  $self->{GENERATOR}=new OSSP::uuid;
+  
   if ($GUID ne "") {
-    $self->{TXT} = $GUID;
+    $self->{TXT}=$GUID;
   }
-
+  
   return $self;
 }
 
 sub CreateGuid {
   my $self = shift;
   $self->{GENERATOR}->make("v1");
-  $self->{TXT} = $self->{GENERATOR}->export("str");
+  $self->{TXT}=$self->{GENERATOR}->export("str");
   return $self->{TXT};
 }
+
+
 
 #sub SetTxtGuid {
 #    my $self = shift;
@@ -80,35 +83,34 @@ sub CreateGuid {
 #}
 
 sub GetCHash {
-  my $self = shift;
-  my $guid = shift;
-  $guid =~ s/-//g;
-  my $csum = 0;
-  foreach my $char (split(//, $guid)) {
-    my $num = hex $char;
-    $csum += $num;
+  my $self=shift;
+  my $guid=shift;
+  $guid=~ s/-//g;
+  my $csum=0;
+  foreach my $char (split (//, $guid)) {
+    my $num=hex $char;
+    $csum+=$num;
   }
-  $csum &= 0xF;
+  $csum&=0xF;
   return $csum;
 }
+sub GetHash{
+  my $self=shift;
+  my $guid=shift;
+  $guid=~ s/-//g;
 
-sub GetHash {
-  my $self = shift;
-  my $guid = shift;
-  $guid =~ s/-//g;
-
-  my ($c0, $c1) = (0, 0);
-  foreach my $char (split(//, $guid)) {
-    my $num = hex $char;
-    $c0 += $num;
-    $c1 += $c0;
+  my ($c0, $c1)=(0,0);
+  foreach my $char (split (//, $guid)) {
+    my $num=hex $char;
+    $c0+=$num;
+    $c1+=$c0;
 
   }
-  $c0 &= 0xFF;
-  $c1 &= 0xFF;
-  my $x    = $c1 % 255;
-  my $y    = ($c1 - $c0) % 255;
-  my $hash = ($y << 8) + $x;
+  $c0&=0xFF;
+  $c1&=0xFF;
+  my $x= $c1%255;
+  my $y= ($c1-$c0)%255;
+  my $hash=($y<<8)+$x;
 
   return $hash;
 }
@@ -142,5 +144,6 @@ sub GetHash {
 #    close INPUT;
 #    return 1;
 #}
+
 
 return 1;

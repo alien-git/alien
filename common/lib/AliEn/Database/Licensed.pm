@@ -101,7 +101,7 @@ sub getLicenseToken {
       ( $licenseInfo->{totalSeats} eq "-1")) {
     $self->info("We could get a token in this server");
     if ($self->do("INSERT INTO CURRENTLICENSES (licenseId, startTime, endTime) values ( $licenseInfo->{licenseId}, now(),now()+sec_to_time($time))")){
-      $token=$self->getLastId("CURRENTLICENSES");
+      $token=$self->getLastId();
     } else {
       $self->info("Error inserting the token");
     }

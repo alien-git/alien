@@ -25,11 +25,11 @@ sub checkWakesUp {
   $self->{DB}->{LFN_DB}->update("ACTIONS", {todo=>0}, "action='PACKAGES'");
 
   my $Fsilent="";
-  my @userPackages=$self->{CATALOGUE}->execute("find", $Fsilent, $self->{CONFIG}->{USER_DIR}, "/packages/*");
+ # my @userPackages=$self->{CATALOGUE}->execute("find", $Fsilent, $self->{CONFIG}->{USER_DIR}, "/packages/*");
   my @voPackages=$self->{CATALOGUE}->execute("find", $Fsilent, "\L/$self->{CONFIG}->{ORG_NAME}/packages", "*");
   my @packages;
   my $org="\L$self->{CONFIG}->{ORG_NAME}\E";
-  foreach my $pack (@userPackages, @voPackages) {
+  foreach my $pack ( @voPackages) {
     $self->debug(2,  "FOUND $pack");
     if ($pack =~ m{^$self->{CONFIG}->{USER_DIR}/?./([^/]*)/packages/([^/]*)/([^/]*)/([^/]*)$}) {
       push @packages,{'fullPackageName'=> "$1\@${2}::$3",
@@ -52,7 +52,7 @@ sub checkWakesUp {
   }
   $self->info("READY TO INSERT @packages\n");
   $self->{DB}->{LFN_DB}->lock('PACKAGES');
-  $self->{DB}->{LFN_DB}->delete('PACKAGES', "1=1");
+  $self->{DB}->{LFN_DB}->delete('PACKAGES', "1");
   @packages and 
   $self->{DB}->{LFN_DB}->multiinsert('PACKAGES', \@packages,);
   $self->{DB}->{LFN_DB}->unlock();

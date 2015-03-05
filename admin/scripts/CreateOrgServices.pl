@@ -37,9 +37,10 @@ my $hostname=Net::Domain::hostfqdn();
 my $names={};
 $names->{AUTH}="Authen";
 $names->{QUEUE}="Server";
+$names->{LOG}="Logger";
 
 my $install="";
-foreach my $service ("IS", "AUTH", "QUEUE",  "Broker") {
+foreach my $service ("IS", "AUTH", "QUEUE", "LOG", "Broker") {
   if ($config->{"\U${service}\E_HOST"} eq "$hostname") {
     my $name=$service;
     $names->{$service} and $name=$names->{$service};
@@ -57,9 +58,9 @@ foreach my $service ("Job", "Catalogue"){
   }
 }
 
-#if ($config->{PACKMANMASTER_ADDRESS} =~ /^$hostname:/) {
-#  $install.="PackManMaster ";
-#}
+if ($config->{PACKMANMASTER_ADDRESS} =~ /^$hostname:/) {
+  $install.="PackManMaster ";
+}
 
 if ($config->{MESSAGESMASTER_ADDRESS} =~ /^$hostname:/) {
   $install.="MessagesMaster ";
@@ -171,29 +172,29 @@ foreach my $dir (@dirs){
 
 chmod (0700, "$aliendir/.startup");
 $< or system ("chown","$userName.$userGroup", "/var/log/AliEn/$orgName"); 
-my $FILE;
+
 if ($environment eq "Y") {
   print "Creating Environemnt file...\t\t\t\t\t";
-  open ($FILE, ">>","$aliendir/Environment")
+  open (FILE, ">>$aliendir/Environment")
     or print "failed!\nError creating $aliendir/Environment\n$@ $? and $!" and exit(-2);
-  print $FILE "ALIEN_ORGANISATION=$orgName
+  print FILE "ALIEN_ORGANISATION=$orgName
 export ALIEN_LDAP_DN=$config->{LDAPHOST}/$config->{LDAPDN}
 ";
-  close $FILE;
+  close FILE;
   print "ok\n";
   if ($shadow eq "Y") {
     print "Creating the root environment file\n";
     mkdir "$ENV{HOME}/.alien";
-    open ($FILE, ">","$ENV{HOME}/.alien/Environment")
+    open (FILE, ">$ENV{HOME}/.alien/Environment")
       or print "failed!\nError creating $ENV{HOME}/.alien/Environment\n$@ $? and $!" and exit(-2);
     
-    print $FILE "ALIEN_ORGANISATION=$orgName
+    print FILE "ALIEN_ORGANISATION=$orgName
 export ALIEN_LDAP_DN=$config->{LDAPHOST}/$config->{LDAPDN}
 export ALIEN_USER=$userName
 export GLOBUS_LOCATION=/opt/globus
 export LD_LIBRARY_PATH=/opt/globus/lib:/opt/glite/externals/swig-1.3.21/lib/:/usr/local/lib:\$LD_LIBRARY_PATH
 ";
-  close $FILE;
+  close FILE;
 
   }  
 }
@@ -202,7 +203,7 @@ my $startup="#Startup configuration for alien
 AliEnUser=$userName
 AliEnCommand=\"$ENV{ALIEN_ROOT}/bin/alien\"
 #services to start
-#possible: Authen Monitor Server Proxy
+#possible: Authen Monitor Logger Server Proxy
 
 AliEnServices=\"$install\"\n
 export SEALED_ENVELOPE_REMOTE_PUBLIC_KEY=\$ALIEN_HOME/authen/rpub.pem
@@ -241,7 +242,6 @@ $ENV{'SEALED_ENVELOPE_LOCAL_PRIVATE_KEY'} = "$ENV{ALIEN_HOME}/authen/lpriv.pem";
 $ENV{'SEALED_ENVELOPE_LOCAL_PUBLIC_KEY'} = "$ENV{ALIEN_HOME}/authen/lpub.pem";
 $ENV{'SEALED_ENVELOPE_REMOTE_PRIVATE_KEY'} = "$ENV{ALIEN_HOME}/authen/rpriv.pem";
 $ENV{'SEALED_ENVELOPE_REMOTE_PUBLIC_KEY'} = "$ENV{ALIEN_HOME}/authen/rpub.pem";
-
 my $cat=AliEn::UI::Catalogue::LCM->new({role=>'admin'}) or exit(-2);
 $cat->execute("addUser", $userName) or exit (-2);
 $cat->execute("mkdir", "-p", "/\L$orgName\E/user/a/admin") or exit(-2);
@@ -268,10 +268,10 @@ my $startFile="$etcAliend/startup.conf";
 
 if (-e  $startFile) {
   print "ok\nChecking old $startFile...\t\t\t";
-  open ($FILE, "<","$startFile") or 
+  open (FILE, "<$startFile") or 
     print "failed!\nError reading old $startFile\n$@ $? and $!" and exit(-2);
-  my @file=<$FILE>;
-  close $FILE;
+  my @file=<FILE>;
+  close FILE;
   my $orgs=join ("", grep (/^ALIEN_ORGANISATIONS/, @file));
   @file= grep (! /^(ALIEN_ORGANISATIONS)|(SEALED_ENVELOPE)/, @file);
   $orgs =~ s/$orgName//;
@@ -283,10 +283,10 @@ if (-e  $startFile) {
 }
 print "ok\nCreating $startFile...\t\t\t\t";
 
-open ($FILE, ">",$startFile) or print "failed!\nError creating $startFile\n$@ $? and $!" 
+open (FILE, ">$startFile") or print "failed!\nError creating $startFile\n$@ $? and $!" 
   and exit(-2);
-print $FILE $content;
-close $FILE;
+print FILE $content;
+close FILE;
 
 
 
@@ -298,10 +298,10 @@ export SEALED_ENVELOPE_LOCAL_PUBLIC_KEY=\$ALIEN_HOME/authen/lpub.pem
 export SEALED_ENVELOPE_LOCAL_PRIVATE_KEY=\$ALIEN_HOME/authen/lpriv.pem
 export ALIEN_DATABASE_PASSWORD='$mysqlPasswd'\n";
 
-open ($FILE, ">","$etcAliend/$orgName/startup.conf")
+open (FILE, ">$etcAliend/$orgName/startup.conf")
   or print "failed!\nError creating $etcAliend/startup.conf\n$@ $? and $!" and exit(-2);
-print $FILE "$startup";
-close $FILE;
+print FILE "$startup";
+close FILE;
 
 my $etcDir="$ENV{ALIEN_ROOT}/etc/";
 print "ok\nStarting the services...\n";
@@ -311,11 +311,11 @@ system ("$etcDir/rc.d/init.d/aliend", "start", "$orgName")
 sleep 45;
 
 print "ok\nChecking that the services are up...";
-open ($FILE, "$etcDir/rc.d/init.d/aliend status|") 
+open (FILE, "$etcDir/rc.d/init.d/aliend status|") 
   or print "Error checking the status\n$? $!\n" and exit(-2);
 
-my @output=<$FILE>;
-close $FILE or 
+my @output=<FILE>;
+close FILE or 
   print "Error checking the status\nGot @output\n$? $!\n" and exit(-2);
 
 grep (/FAILED/i, @output) and print "Error! Some services are dead!!\n@output\n" and exit(-2);
@@ -362,21 +362,21 @@ sub checkMysqlConnection {
   my $mysql="$ENV{ALIEN_ROOT}/bin/mysql";
 
 #print "| $mysql -h $hostName -P $portNumber -u admin --password='$mysqlPasswd'";
-  open (my $MYSQL, "| $mysql -h $hostName -P $portNumber -u admin --password='$mysqlPasswd'") 
+  open (MYSQL, "| $mysql -h $hostName -P $portNumber -u admin --password='$mysqlPasswd'") 
     or print "Error connecting to mysql in  $hostName -P $portNumber\n" and return;
-  print  $MYSQL "GRANT INSERT,DELETE ON processes.MESSAGES TO $config->{CLUSTER_MONITOR_USER};\n";
-  print  $MYSQL "GRANT INSERT,DELETE ON processes.MESSAGES TO $config->{CLUSTER_MONITOR_USER};\n";
+  print  MYSQL "GRANT INSERT,DELETE ON processes.MESSAGES TO $config->{CLUSTER_MONITOR_USER};\n";
+  print  MYSQL "GRANT INSERT,DELETE ON processes.MESSAGES TO $config->{CLUSTER_MONITOR_USER};\n";
 #  print MYSQL "INSERT INTO ADMIN.USERS_LDAP_ROLE(user,role) VALUES ('$userName', 'admin');\n";
 #  print MYSQL "INSERT INTO ADMIN.USERS_LDAP(user) VALUES ('$userName');\n";
 #  print MYSQL "UPDATE ADMIN.TOKENS set SSHKey='$sshkey' where username='$userName';\n";
 
-  close $MYSQL or print "Error closing connection to mysql in  $hostName -P $portNumber\n";# and return;
+  close MYSQL or print "Error closing connection to mysql in  $hostName -P $portNumber\n";# and return;
 
   print "ok\nCreating password file...\t\t\t\t\t";
-  open (my $FILE, ">","$aliendir/.startup/.passwd.$orgName")
+  open (FILE, ">$aliendir/.startup/.passwd.$orgName")
     or print "failed!\nError creating $aliendir/.startup/.passwd\n$@ $? and $!" and return;  
-  print $FILE "$mysqlPasswd";
-  close $FILE;
+  print FILE "$mysqlPasswd";
+  close FILE;
   chmod 0600, "$aliendir/.startup/.passwd";
 
   print "ok\n";
@@ -401,20 +401,20 @@ sub checkLDAPConnection {
   print "ok\nWriting private key to disc...\t\t\t\t\t";
   my $keyFile="$aliendir/identities.\L$orgName\E/sshkey.$userName";
 
-  open( my $FILE, ">","$keyFile" ) or 
+  open( FILE, ">$keyFile" ) or 
     print "failed!\nError opening $keyFile\n$@ $? and $!\n" and return;
 
-  print $FILE $rsa->get_private_key_string;
-  close $FILE;
+  print FILE $rsa->get_private_key_string;
+  close FILE;
 
   chmod 0600, $keyFile;
   print "ok\nWriting public key to disc...\t\t\t\t\t";
 
-  open( $FILE, ">","$keyFile.public" ) or 
+  open( FILE, ">$keyFile.public" ) or 
     print "failed!\nError opening $keyFile.public\n$@ $? and $!\n" and return;
 
-  print $FILE $rsa->get_public_key_string;
-  close $FILE;
+  print FILE $rsa->get_public_key_string;
+  close FILE;
   chmod 0644, "$keyFile.public";
 
   my $mesg = $ldap->search(    # perform a search
@@ -483,11 +483,11 @@ sub checkLDAPConnection {
 	
 
   print "ok\nCreating password file...\t\t\t\t\t";
-  open ($FILE, ">","$aliendir/.startup/.ldap.secret.$orgName")
+  open (FILE, ">$aliendir/.startup/.ldap.secret.$orgName")
     or print "failed!\nError creating $aliendir/.startup/.ldap.secret\n$@ $? and $!"
       and return;  
-  print $FILE "$ldapPasswd";
-  close $FILE;
+  print FILE "$ldapPasswd";
+  close FILE;
   chmod 0600, "$aliendir/.startup/.ldap.secret";
   print "ok\n";
   return 1;
@@ -520,18 +520,18 @@ sub modifyFiles {
   print"\n";
   foreach my $file (keys %files){
     my $name="$dir/$file";
-    open (my $FILE, "<","$name") or 
+    open (FILE, "<$name") or 
       print "Error reading $name\n$! $?\n" and return;
-    my @file=<$FILE>;
-    close $FILE;
+    my @file=<FILE>;
+    close FILE;
     foreach my $change (keys %{$files{$file}}) {
       print "\tChanging $change for $files{$file}->{$change}\n";
       map {$_=~ s/$change/$files{$file}->{$change}/g} @file;
     }
-    open ($FILE, ">","$name") or 
+    open (FILE, ">$name") or 
       print "Error writing $name\n$! $?\n" and return;
-    print $FILE  @file;
-    close $FILE;
+    print FILE  @file;
+    close FILE;
     
   }
   print "all changes done!!...";

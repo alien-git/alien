@@ -247,7 +247,7 @@ sub do{
 
 sub query{
   my $self=shift;
-  return $self->{LFN_DB}->do(@_);
+  return $self->{LFN_DB}->query(@_);
 }
 
 sub existsTable{
@@ -438,29 +438,95 @@ sub addUser {
   my $self=shift;
   my $user=shift;
   my $group=shift;
+  my $passwd=shift;
   my $db_user = $user;
 
   my $rhosts = $self->{LFN_DB}->getAllHosts();
+  my $guidtables=$self->{GUID_DB}->query("SELECT distinct hostIndex, tableName from GUIDINDEX");
+  my $guidOrdered={};
+  foreach (@$guidtables){
+    my @list=$_->{tableName};
+    $guidOrdered->{$_->{hostIndex}} and push @list, @{$guidOrdered->{$_->{hostIndex}}};
+    $guidOrdered->{$_->{hostIndex}}=\@list;
+  }
 
   my $error=0;
   if ($self->{LFN_DB}->{DRIVER} =~ /Oracle/){
     $db_user = $self->{LFN_DB}->{ORACLE_USER};
   }
   foreach my $rtempHost (@$rhosts) {
-    $self->info("Adding the $user in $rtempHost->{db} (so far $error)");
+    print "Granting privileges for $user in $rtempHost->{db} (so far $error)\n";
     my ($db, $extra)=$self->{LFN_DB}->reconnectToIndex( $rtempHost->{hostIndex}, "", $rtempHost );
     
     my $sch = $db->{DB};	$sch=~  s/(.+)\:(\w+)(\s*)/$2/; 
     ($self->{SCHEMA} and $self->{SCHEMA} eq $sch) or $self->reconnect;
     $db or $self->info("Error reconnecting to $rtempHost->{hostIndex}") and $error=1 and next; 
+#    $db->grantExtendedPrivilegesToUser($db->{DB}, $user, $passwd);
 
     $db->insertIntoGroups($user, $group, 1);
+
+#    foreach my $table (@{$guidOrdered->{$rtempHost->{hostIndex}}}){
+#      $self->info("WE HAVE TO GIVE ACCESS TO $table");
+#      $db->grantPrivilegesToUser(["INSERT,DELETE,UPDATE on G${table}L",
+#				  "INSERT,DELETE,UPDATE on G${table}L_PFN"], $user, $passwd) or $error=1;
+#    }
   }
   $error and return;
 
   return 1;
 }
 
+sub grantPrivilegesToUser{
+  my $self=shift;
+  return $self->{LFN_DB}->grantPrivilegesToUser(@_);
+}
+
+sub grantBasicPrivilegesToUser {
+  my $self = shift;
+  my $db = shift
+    or $self->{LOGGER}->error("Catalogue","In grantBasicPrivilegesToUser database name is missing")
+      and return;
+  my $user = shift
+    or $self->{LOGGER}->error("Catalogue","In grantBasicPrivilegesToUser user is missing")
+      and return;
+  my $passwd = shift;
+
+  $self->grantPrivilegesToUser(["EXECUTE ON *"], $user, $passwd)
+    or return;
+
+  my $rprivileges = ["SELECT ON $db.*",
+		     "INSERT, DELETE ON $db.TAG0"];
+
+
+  $DEBUG and $self->debug(2,"In grantBasicPrivilegesToUser granting privileges to user $user"); 
+  $self->grantPrivilegesToUser($rprivileges, $user);
+}
+
+sub grantExtendedPrivilegesToUser {
+  my $self = shift;
+  my $db = shift
+    or $self->{LOGGER}->error("Catalogue","In grantExtendedPrivilegesToUser database name is missing")
+	and return;
+  my $user = shift
+    or $self->{LOGGER}->error("Catalogue","In grantExtendedPrivilegesToUser user is missing")
+	and return;
+  my $passwd = shift;
+
+  $self->grantPrivilegesToUser(["SELECT ON $db.*"], $user, $passwd)
+  	or return;
+
+  my $rprivileges = [
+		     "INSERT, DELETE  ON $db.TAG0",
+#		     "INSERT, DELETE ON $db.FILES",
+		     "INSERT, DELETE ON $db.ENVIRONMENT", 
+		     "INSERT ON $db.TODELETE",
+		     "EXECUTE ON *",
+		     "INSERT, DELETE ON $db.G0L",
+];
+
+  $DEBUG and $self->debug(2,"In grantExtendedPrivilegesToUser granting privileges to user $user"); 
+  $self->grantPrivilegesToUser($rprivileges, $user);
+}
 
 
 sub getNewDirIndex {
@@ -883,6 +949,35 @@ sub removeSE {
   return 1;
 }
 
+#sub createTable {
+#  my $self=shift;
+#  my $host       = shift;
+#  my $db         = shift;
+#  my $driver     = shift;
+#  my $user       = shift;
+#  my $table      = shift;
+#  my $definition = shift;
+
+#  $self->info("Creating the table $table" );
+#  my $errorMessage="Error creating the new table \n";
+#
+#  my $index=$self->getHostIndex($host, $db, $driver);
+#  $index or $self->info("Error getting the index of '$host', '$db', and '$driver'", 1) and return;
+#
+#  my ($db2, $extra)=$self->{LFN_DB}->reconnectToIndex($index)
+#    or $self->info("Error reconnecting to the index $index", 1) and return;
+#
+#  $db2->createTable($table, $definition)
+#    or $self->info("$errorMessage ($! $@)\n",1)
+#      and return;
+#
+#  $db2->grantAllPrivilegesToUser($user, $db, $table)
+#    or $self->info("Error granting privileges on table $table for $user\n($! $@ $DBI::errstr\n",1 )
+#      and return;
+#  $self->info("Table created!!!!");
+#  return 1;
+#}
+
 sub describeTable {
   my $self=shift;
   $self->{LFN_DB}->describeTable(@_);
@@ -943,7 +1038,17 @@ sub addHost {
   $self->{SCHEMA}=~s/(.+):(.+)/$2/i;
   if (!$org) {
     $self->createCatalogueTables({reconnected=>1});
+    my  $addbh = new AliEn::Database::Admin();
+    ($addbh)
+      or $self->info("Error getting the Admin" ) and return;
 
+    my $rusertokens = $addbh->getAllFromTokens("Username, password");
+    $addbh->destroy();
+
+    #also, grant the privileges for all the users
+    foreach my $rtempUser (@$rusertokens) {
+      $self->grantBasicPrivilegesToUser($db, $rtempUser->{Username}, $rtempUser->{password});
+    }
     #Now, we have to fill in the tables
     $self->setAllReplicatedData($replicatedInfo) or return;
 
@@ -993,14 +1098,12 @@ sub checkLFN {
     my ($db, $extra)=$self->{LFN_DB}->reconnectToIndex( $rtempHost->{hostIndex}, "", $rtempHost );
     $db or $self->info("Error connecting to $db") and next;
     
-    my $tables=$db->queryColumn('select tablename from INDEXTABLE where hostindex=? order by 1', undef, {bind_values=>[$rtempHost->{hostIndex}]});
+  #  my $tables=$db->queryColumn('select tablename from INDEXTABLE where hostindex=? order by 1', undef, {bind_values=>[$rtempHost->{hostIndex}]});
+    my $tables= $db->queryColumn("select table_name from (select table_rows, table_name, update_time, extra, time  from information_schema.TABLES left join LL_ACTIONS on (action='STATS' and table_name=concat('L', tableNumber,'L'))  where table_name like 'L\%L' and  table_schema= ? ) d  where extra is null or table_rows != extra or time<update_time",undef, {bind_values=>[$rtempHost->{db}]}) ;
+    $self->info("There are $#$tables to do");
     foreach my $t (@$tables){
-      $ctable and $ctable!~/^L${t}L$/ and
-	$self->info("Skipping table L${t}L") and next;
-      if ($db->queryValue("select 1 from (select max(ctime) ctime, count(*) counter from L${t}L) a left join  LL_ACTIONS on tablenumber=? and action='STATS' where extra is null or extra<>counter or time is null or time<ctime", undef, {bind_values=>[$t]})){
-	$self->info("We have to update the table $t");
 	$db->updateStats($t);
-      }
+        return 1;
     }
   }
   return 1;

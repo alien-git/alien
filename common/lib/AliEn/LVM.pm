@@ -8,25 +8,27 @@ use AliEn::MD5;
 use AliEn::SOAP;
 
 push @ISA, 'AliEn::Logger::LogObject';
-$DEBUG = 0;
+$DEBUG=0;
+
 
 sub new {
   my ($this) = shift;
   my $class = ref($this) || $this;
 
-  my $self = shift || {};
+  my $self = shift || {} ;
 
   bless $self, $class;
 
-  $self->{CONFIG} = new AliEn::Config;
-  $self->{LOGGER} = new AliEn::Logger;
-  $self->{SOAP}   = new AliEn::SOAP;
+  $self->{CONFIG}=new AliEn::Config;
+  $self->{LOGGER}=new AliEn::Logger;
+  $self->{SOAP}=new AliEn::SOAP;
   $self->GetDefaultOptions() or return;
-  $self->{NAME} or $self->{NAME} = $self->{CONFIG}->{SE_NAME} || "";
+  $self->{NAME} or $self->{NAME}=$self->{CONFIG}->{SE_NAME} ||"";
 
   $self->{NAME} or $self->info("Error: the LVM doesn't know the name of the SE that it has to manage") and return;
-  $self->{NAME} =~ s/^VIRTUAL_//;
-  $self->{NAME} = "$self->{CONFIG}->{ORG_NAME}::$self->{CONFIG}->{SITE}::$self->{NAME}";
+  $self->{NAME}=~ s/^VIRTUAL_//;
+  $self->{NAME}="$self->{CONFIG}->{ORG_NAME}::$self->{CONFIG}->{SITE}::$self->{NAME}";  
+
 
   $self->getVolumes() or return;
 
@@ -34,73 +36,74 @@ sub new {
 }
 
 sub getVolumes {
-  my $self = shift;
+  my $self=shift;
 
-  my $time = time;
+  my $time=time;
 
-        $self->{LASTUPDATE}
-    and $time - $self->{LASTUPDATE} < 3600
-    and $self->info("Using the old info")
-    and return 1;
+  $self->{LASTUPDATE}
+    and $time - $self->{LASTUPDATE} < 3600 and
+      $self->info("Using the old info") and return 1;
 
-  my $info = $self->{SOAP}->CallSOAP("Manager/SEMaster", "getVolumeInfo", $self->{NAME})
-    or $self->info("Error getting the volumes ")
-    and return;
+  my $info=$self->{SOAP}->CallSOAP("Manager/SEMaster", "getVolumeInfo", $self->{NAME})
+    or $self->info("Error getting the volumes ") and return ;
 
-  $self->{VOLUMES} = $info->result;
+  $self->{VOLUMES}=$info->result;
   @{$self->{VOLUMES}} or $self->info("Error: there are no volumes for this se") and return;
 
-  foreach my $v (@{$self->{VOLUMES}}) {
+  foreach my $v (@{$self->{VOLUMES}}){
     $self->info("We have the module $v->{volume}: size: $v->{size} free: $v->{freespace}");
-    $v->{assigned} = 0;
+    $v->{assigned}=0;
   }
-  $self->{LASTUPDATE} = $time;
+  $self->{LASTUPDATE}=$time;
 
   return 1;
 }
 
-sub GetDefaultOptions {
-  my $self = shift;
 
-  # set default DB path to the first SE disk
+sub GetDefaultOptions{
+  my $self=shift;
+
+    # set default DB path to the first SE disk
   my $defaultttl = -1;
 
   my ($seoptions) = $self->{CONFIG}->{'SE_OPTIONS_LIST'};
-  my @singleoption = ();
-  $seoptions and @singleoption = @{$seoptions};
+  my @singleoption=();
+  $seoptions and  @singleoption=@{$seoptions};
 
   foreach (@singleoption) {
-    my ($identifier, $value) = split("=", $_);
+    my ($identifier,$value) = split ("=", $_);
     my $cidentifier = $identifier;
-    if ($cidentifier =~ /^lvmttl/) {
-      defined $value and $defaultttl = $value;
+    if ($cidentifier=~/^lvmttl/) {
+      defined $value and $defaultttl   = $value;
     }
   }
 
   if ($defaultttl == -1) {
-    $self->info("LVM TTL    infinit");
+    $self->info( "LVM TTL    infinit");
   } else {
-    $self->info("LVM TTL    $defaultttl");
+    $self->info( "LVM TTL    $defaultttl");
   }
+
+
 
   my $lvmname = $self->{CONFIG}->{SE_FULLNAME};
   $lvmname =~ s/\:\:/\_/g;
 
-  $self->{'DEFAULTTTL'} = $defaultttl;
-
-  #  $self->{INITIALISED} = 0;
+  $self->{'DEFAULTTTL'}=$defaultttl;
+#  $self->{INITIALISED} = 0;
   return 1;
 }
 
-sub getStats {
-  my $self = shift;
-  my $info = {freespace => 0, usedspace => 0, size => 0, nfiles => 0};
-  foreach my $v (@{$self->{VOLUMES}}) {
-    foreach my $field ('freespace', 'size', 'usedspace', 'nfiles') {
-      $v->{$field} or next;
-      $info->{$field} += $v->{$field};
-    }
 
+sub getStats{
+  my $self=shift;
+  my $info={freespace=>0, usedspace=>0, size=>0, nfiles=>0};
+  foreach my $v (@{$self->{VOLUMES}}){
+    foreach my $field ('freespace', 'size', 'usedspace', 'nfiles'){
+      $v->{$field} or next;
+      $info->{$field}+=$v->{$field};
+    }
+    
   }
   return $info;
 }
@@ -119,6 +122,7 @@ sub getStats {
 #  my $self = shift;
 #  return   $self->{INITIALISED};
 #}
+
 
 #=head2 subroutine syncDatabase
 
@@ -152,7 +156,7 @@ sub getStats {
 ##  }
 #   # Now check that each volume has the right amount of free space in its table
 #   # This should be fine - but lets check anyway!!
-#   my $vollistref = $self->{DB}->retrieveVolumeDetailsList();
+#   my $vollistref = $self->{DB}->retrieveVolumeDetailsList();   
 #   foreach my $voldetails (@{$vollistref})
 #   {
 #      my $volumeId=$voldetails->{volumeId};
@@ -203,7 +207,7 @@ sub getStats {
 
 #=head2 subroutine addVolume
 # - This is the subroutine for adding another volume
-# - it should be passed the following hash
+# - it should be passed the following hash 
 #   {
 #      'volume'     => 'CHAR(30)',
 #      'mountpoint' => 'CHAR(100)',
@@ -252,9 +256,9 @@ sub getStats {
 #		     'volume'        => $hashref->{'volume'},
 #		    };
 #	 ($file->{size} == 0) and ($file->{size} = 1);
-
+	 
 #	 print "=> LVM Inserting $file->{size} \t : $file->{file} \n";
-#	 $self->addFile($file, $voldetails) or
+#	 $self->addFile($file, $voldetails) or 
 #	   print "Error adding $file->{file}\n";;
 #       }
 #       print "===============================================\n";
@@ -287,7 +291,7 @@ sub getStats {
 #   # First cleanup old files
 #   #   $self->cleanUpExpired();
 
-#   #### Check to see if it exists
+#   #### Check to see if it exists 
 ##  At some point we should check if the md5 matches if we try to add a replica
 #   $self->info("Adding the file to the LVM");
 
@@ -318,8 +322,8 @@ sub getStats {
 #   if (!$voldetails ||  ! $voldetails->{volumeId}) {
 #     $self->info("Choosing a volume");
 #     $voldetails= $self->{DB}->chooseVolume($hashref->{'size'});
-#     $voldetails or
-#       $self->info("There are no extra volumes that can hold that file")
+#     $voldetails or 
+#       $self->info("There are no extra volumes that can hold that file") 
 #	 and return 0;
 #   }
 #   $hashref->{'volumeId'}    = $voldetails->{volumeId};
@@ -333,13 +337,13 @@ sub getStats {
 #   }
 #   $voldetails->{volumeId} and $self->{DB}->updateVolumeDetails($voldetails);
 #   if ($hashref->{'ttl'} != -1) {
-#     $hashref->{'expires'}       = time + $hashref->{'ttl'};
+#     $hashref->{'expires'}       = time + $hashref->{'ttl'}; 
 #   } else {
 #     $hashref->{'expires'}       = -1;
 #   }
 
 #   my $subfilename = $hashref->{'file'};
-#    $hashref->{pfn} or
+#    $hashref->{pfn} or 
 #      $hashref->{pfn}="$voldetails->{method}$voldetails->{mountpoint}/$subfilename";
 #   $hashref->{'volumeId'}=$voldetails->{'volumeId'};
 
@@ -347,38 +351,46 @@ sub getStats {
 
 #   delete $hashref->{file};
 
+
 ##   $self->{DB}->insertFile($hashref) or return 0;
 
 #   $self->info("File '$fullpath' inserted in the database");
 #   return $fullpath;
 #}
 
-sub chooseVolumeForFile {
-  my $self    = shift;
-  my $hashref = shift;
+
+
+
+sub chooseVolumeForFile{
+  my $self=shift;
+  my $hashref=shift;
 
   my $voldetails;
   $self->getVolumes();
   $self->info("Let's find a volume for the file");
   for my $v (@{$self->{VOLUMES}}) {
     $self->info("Can we put it in $v->{volume}??");
-    if ($hashref->{'size'} + $v->{assigned} < $v->{freespace}) {
+    if ($hashref->{'size'}+ $v->{assigned}< $v->{freespace} ){
       $self->info("We can put it here");
-      $voldetails = $v;
-      $v->{assigned} += $hashref->{'size'};
+      $voldetails=$v;
+      $v->{assigned}+=$hashref->{'size'};
       last;
     }
   }
 
-  $voldetails
-    or $self->info("There are no extra volumes that can hold that file")
-    and return 0;
 
-  my $fullpath = "$voldetails->{mountpoint}/$hashref->{'file'}";
-  $self->info("The file should be saved in $fullpath' ");
-  return $fullpath;
+
+  $voldetails or 
+    $self->info("There are no extra volumes that can hold that file") 
+	 and return 0;
+
+   my $fullpath = "$voldetails->{mountpoint}/$hashref->{'file'}";
+   $self->info("The file should be saved in $fullpath' ");
+   return $fullpath;
 
 }
+
+
 
 =head2 subroutine getVolumeSpace
 
@@ -459,6 +471,7 @@ sub chooseVolumeForFile {
 
 #=cut
 
+
 #sub retrieveFileList{
 
 #  my $self = shift;
@@ -498,10 +511,12 @@ sub chooseVolumeForFile {
 #   {
 #     file => 'filename'
 #   }
-# - If file exists it is deleted, the space it reserved is returned to freespace
+# - If file exists it is deleted, the space it reserved is returned to freespace 
 #   and the entry is removed from the table.
 
 #=cut
+
+
 
 #sub removeFile{
 
@@ -512,6 +527,7 @@ sub chooseVolumeForFile {
 #  my $voldetails = $self->{DB}->retrieveVolumeDetails({volume =>  $fullfiledetails->{'volume'}}) ;
 #  my $fullpath = $fullfiledetails->{'file'};
 
+
 #  $self->info("And now lets call the removeFile from the DB");
 #  #$self->{DB}->removeFile($hashref);
 #  $voldetails->{'freespace'} = $voldetails->{'freespace'} + $hashref->{'size'};
@@ -520,11 +536,13 @@ sub chooseVolumeForFile {
 #    $voldetails->{'freespace'} = 2000000000;
 #  }
 #  $self->{DB}->updateVolumeDetails($voldetails);
-#  # and just before we go
-#  # lets clean up
+#  # and just before we go 
+#  # lets clean up 
 #  $self->cleanUpExpired();
 #  return 1;
 #}
+
+
 
 #sub removeFileFromTable{
 #
@@ -568,7 +586,7 @@ sub chooseVolumeForFile {
 #   my $hashref = shift;
 #   if (defined $hashref->{'ttl'})
 #   {
-#      $hashref->{'expires'} = time + $hashref->{'ttl'};
+#      $hashref->{'expires'} = time + $hashref->{'ttl'}; 
 #   }
 #   $self->updateTableRow("FILES","file",$hashref);
 #
@@ -628,6 +646,9 @@ sub chooseVolumeForFile {
 #}
 
 return 1;
+
+
+
 
 __END__
 

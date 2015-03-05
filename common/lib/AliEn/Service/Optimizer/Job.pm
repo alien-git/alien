@@ -10,7 +10,7 @@ use AliEn::Service::Optimizer;
 use AliEn::Catalogue;
 use AliEn::UI::Catalogue::LCM::Computer;
 use AliEn::Dataset;
-use AliEn::Database::Admin;
+use AliEn::SOAP;
 use POSIX ":sys_wait_h";
 
 use AliEn::Util;
@@ -36,11 +36,6 @@ sub initialize {
   $self->debug(1,
     "In initialize creating AliEn::UI::Catalogue::LCM::Computer instance");
 
-  $self->{SOAP}->checkService("Manager/Job", "JOB_MANAGER", "-retry")
-    or $self->{LOGGER}
-    ->error("JobOptimizer", "In initialize error checking Manager/Job service")
-    and return;
-
   $self->{CATALOGUE} = AliEn::UI::Catalogue::LCM::Computer->new($options);
 
   ($self->{CATALOGUE})
@@ -48,13 +43,10 @@ sub initialize {
     "In initialize error creating AliEn::UI::Catalogue::LCM::Computer instance")
     and return;
 
-  $self->{SOAP}->{Authen} =
-    SOAP::Lite->uri('AliEn/Service/Authen')
-    ->proxy("http://$self->{CONFIG}->{AUTH_HOST}:$self->{CONFIG}->{AUTH_PORT}");
   $self->{PARENT} = $$;
 
   $self->SUPER::initialize(@_) or return;
-
+  $self->{SOAP}=AliEn::SOAP->new() or return;
   $self->{DB}->setArchive();
   $self->{DATASET} = AliEn::Dataset->new()
     or $self->info("Error creating the dataset")
@@ -62,15 +54,11 @@ sub initialize {
 
   #  $self->{JOBLOG} = new AliEn::JOBLOG();
 
-  $self->{ADMINDB} = new AliEn::Database::Admin()
-    or $self->info("Error getting the Admin")
-    and return;
-
   my @optimizers = (
     "Merging",  "Inserting", "Splitting", "Zombies",
     "Hosts",    "Expired",   "HeartBeat", "Priority",
-    "Resubmit", "Killed",    "Saved",     "Staging",
-    "Quota"
+    "Saved",     "Staging", "Saved_warn",
+    "Quota", "WaitingTime", "ToStage", 'Packages',
   );    #,"ResolveReq");
 
   my $mlEnabled =
@@ -78,8 +66,8 @@ sub initialize {
       || $self->{CONFIG}->{MONALISA_APMONCONFIG});
   $mlEnabled and push @optimizers, "MonALISA";
 
-  my $chargeEnabled = $self->{CONFIG}->{LBSG_ADDRESS};
-  $chargeEnabled and push @optimizers, "Charge";
+#  my $chargeEnabled = $self->{CONFIG}->{LBSG_ADDRESS};
+#  $chargeEnabled and push @optimizers, "Charge";
 
   #  @optimizers=("Merging");
 
@@ -99,21 +87,14 @@ sub checkWakesUp {
   $silent and push @debugLevel, 1;
   $self->$method(@debugLevel, "Still alive and checking messages");
 
-  my $messages = $self->{DB}->retrieveJobMessages();
-
-  foreach my $entry (@$messages) {
-    $self->info(
-"procinfo = $entry->{procinfo},  tag = $entry->{tag}, jobId = $entry->{jobId}"
-    );
-  }
-
-  if ($messages and $#$messages > -1) {
-    $self->info("Sending $#$messages to the job manager");
-    $self->{SOAP}
-      ->CallSOAP("Manager/Job", "SetProcInfoBunch", $self->{HOST}, $messages)
+  my $messages = $self->{DB}->queryValue("select count(1) from JOBMESSAGES");
+  if ($messages ) {
+    $self->info("Telling the JobManager  to process JOBMESSAGES ($messages messages)");
+ 
+    $self->{SOAP}->CallSOAP(
+      "Manager/Job", "SetProcInfoBunchFromDB", $self->{HOST}, $messages)
       or
       $self->info("ERROR!!! we couldn't send the messages to the job manager");
-
   }
   return;
 }
@@ -121,29 +102,105 @@ sub checkForkProcess{
   my $self=shift;
   my $limit=shift;
   $self->info("Checking if there are already $limit processes");
-  $self->{KIDS} or $self->{KIDS}=[];
-  my @n=();
-  foreach my $p (@{$self->{KIDS}}){
-    $self->info("Checking if $p is still alive");
-    (CORE::kill 0, $p and waitpid($p, WNOHANG)<=0) or next;
-    $self->info("Still there...");
-    push @n, $p;
-  }
-  $self->{KIDS}=\@n;
-  if ($#{$self->{KIDS}} > $limit){
+
+  my $total=$self->checkChildren();
+ 
+  if ($total > $limit) {
     $self->info("There are already too many processes... do not fork");
     return;
   }
+  my $newLog = 0;
+  while (1) {
+    $self->{KIDS}->{$newLog} or last;
+    $newLog++;
+  }
+
   my $pid=fork();
   defined $pid or return;
   if ($pid){
-    $self->info("The father has a new children: $pid");
-    push @{$self->{KIDS}}, $pid;
+    $self->info("The father has a new children: $pid (log $newLog)");
+    $self->{KIDS}->{$newLog}= $pid;
     return 1;
   }
-  $self->info("i'm the kid $$");
+
+  $self->{LOGFILE} =~ s/\.log$/.$newLog.log/;
+  $self->info("i'm the kid $$ (to log $self->{LOGFILE})");
+  $self->{LOGGER}->redirect($self->{LOGFILE});
+
   $self->{KID}=1;
   return ;
+}
+
+sub checkRequirements {
+  my $self=shift;
+  my $tmpreq=shift;
+  my $queueid=shift;
+  my $status=shift;
+  my $msg="";
+  my $no_se={};
+
+
+  while ($tmpreq =~ s/!member\(other.CloseSE,"([^:]*::[^:]*::[^:]*)"\)//si) {
+    $no_se->{uc($1)}=1;
+  }
+  my $ef_site={};
+  my $need_se=0;
+  while ($tmpreq =~ s/member\(other.CloseSE,"([^:]*::([^:]*)::[^:]*)"\)//si) {
+    $need_se=1;
+    $no_se->{uc($1)} and $self->info("Ignoring the se $1 (because of !closese)") and next;
+    $ef_site->{uc($2)}={};
+  }
+
+  $need_se and ! keys %$ef_site and $msg.="conflict with SEs";
+  if (! $msg){
+    my $no_ce={};
+      while ($tmpreq =~ s/!other.ce\s*==\s*"([^:]*::([^:]*)::[^:"]*)"//i) {
+       my $cename=uc($1); my $site=uc($2);
+       $no_ce->{$cename}=1;
+       if ($need_se and $ef_site->{$site}){
+          $ef_site->{$site}->{$cename}=1;
+          $self->checkNumberCESite($site, $ef_site->{$site}) and  next; 
+          $self->info("There are no more CE at the site");
+          delete $ef_site->{$site};
+       }
+    }
+    $need_se and ! keys %$ef_site and $msg.="conflict with SEs and !CE";
+
+
+
+    my $ef_ce=0;
+    my $need_ce=0;
+    while ($tmpreq =~ s/other.ce\s*==\s*"([^:]*::([^:]*)::[^:]*)"//i) {
+      $need_ce=1;
+      $no_ce->{uc($1)} and $self->info("Ignoring the ce $1") and next;
+      if ($need_se){
+          $ef_site->{uc($2)} or $self->info("This CE is not good for the sites that we have") and next;         
+      }
+      $ef_ce=1;
+    }
+    $need_ce and not $ef_ce and $msg .="The CEs requested by the user cannot execute this job";
+
+  }
+  $msg and $status="FAILED" and $queueid and $self->putJobLog($queueid,"state", "Job going to FAILED, problem with requirements: $msg");
+  return $status;
+}
+
+
+sub checkNumberCESite {
+  my $self = shift;
+  my $site = shift;
+  my $no_ce = shift;
+  my @bind=($site);
+
+  my $query="";
+  foreach my $ce (keys %$no_ce){
+     $query.="?,";
+     push @bind, $ce;
+  }
+  $query=~ s/,$//;
+  $self->info("Checking if there are any other available CES at the site $site (removing @bind)"); 	
+  return $self->{DB}->queryValue("select count(1) from SITEQUEUES where site like concat('%\::',?,'::%') and site not in ($query)",
+        undef, {bind_values=>\@bind});
 }
 
 sub copyInput {
@@ -160,8 +217,9 @@ sub copyInput {
     and return
     {};
 
-  ($ok, my @inputFile) = $job_ca->evaluateAttributeVectorString("InputBox");
-  my @origFile = @inputFile;
+  ($ok, my $directAccess)=$job_ca->evaluateAttributeString("DirectAccess");
+  $directAccess and $self->putJobLog($procid,"info", "Using directaccess to the data");
+
 
   $self->debug(1, "Already evaluated the inputbox");
   ($ok, my @inputData) = $job_ca->evaluateAttributeVectorString("InputData");
@@ -169,114 +227,98 @@ sub copyInput {
   $self->copyInputCollection($job_ca, $procid, \@inputData)
     or $self->info("Error checking the input collection")
     and return;
-
+  my @filesToDownload=();
   my $procDir = AliEn::Util::getProcDir($user, undef, $procid);
 
-  my @filesToDownload = ();
   my $file;
 
   my $size = 0;
 
   my $done = {};
-  my ($olduser) = $self->{CATALOGUE}->execute("whoami", "-silent");
+
   my @allreq;
   my @allreqPattern;
   $self->debug(1, "And the new eval");
   eval {
-    foreach $file (@inputFile, @inputData) {
-      my ($pfn, $pfnSize, $pfnName, $pfnSE) = split "###", $file;
+    foreach $file ( @inputData) {
       my $nodownload = 0;
       $file =~ s/,nodownload$// and $nodownload = 1;
-      $pfnName and $file = $pfnName;
-      $self->debug(1,
-        "In copyInput adding file $file (from the InputBox $pfn)");
+
+      $self->debug(1, "In copyInput adding file $file");
 
       #    my $procname=$self->findProcName($procid, $file, $done, $user);
-      if (defined $pfnSize) {
-        my $procname = $self->findProcName($procDir, $file, $done);
-        $self->debug(1, "Adding $procname with $pfn and $pfnSize");
-        $size += $pfnSize;
-        if (!$self->{CATALOGUE}
-          ->execute("register", $procname, $pfn, $pfnSize, $pfnSE)) {
-          print
-"The registration failed ($AliEn::Logger::ERROR_MSG) let's try again...\n";
-          $self->{CATALOGUE}->execute("register", $procname, $pfn, $pfnSize)
-            or print STDERR
-            "ERROR Adding the entry $pfn to the catalog as $procname!!\n"
-            and return;
-        }
-        push @filesToDownload, "\"${procname}->$procname\"";
-      } else {
-        $file =~ s/^LF://i;
-        $self->debug(1, "Adding file $file (from the InputBox)");
-        my ($fileInfo) =
-          $self->{CATALOGUE}->execute("whereis", "-ri", $file, "-silent");
-        if (!$fileInfo) {
-          $self->putJobLog($procid, "error", "Error checking the file $file");
-          die("The file $file doesn't exist");
-        }
+      $file =~ s/^LF://i;
+      $self->debug(1, "Adding file $file (from the InputBox)");
+      my ($fileInfo) =
+        $self->{CATALOGUE}->execute("whereis", "-irc", $file, "-silent");
+      if (!$fileInfo) {
+        $self->putJobLog($procid, "error", "Error checking the file $file");
+        die("The file $file doesn't exist");
+      }
 
-        my @sites = sort @{ $fileInfo->{REAL_SE} };
-        if (!@sites) {
-          $self->putJobLog($procid, "error", "Error checking the file $file");
-          die("The file $file isn't in any SE");
-        }
+      my @sites = sort @{ $fileInfo->{REAL_SE} };
+      if (!@sites) {
+        $self->putJobLog($procid, "error", "Error checking the file $file");
+        die("The file $file isn't in any SE");
+      }
         
-        my $sePattern = join("_", @sites);
+      my $sePattern = join("_", @sites);
 
         #This has to be done only for the input data"
-        if (!grep (/$file/, @origFile)) {
-          if (!grep (/^$sePattern$/, @allreqPattern)) {
-            $self->putJobLog($procid, "trace",
-              "Adding the requirement to '@sites' due to $file");
+      if (!grep (/^$sePattern$/, @allreqPattern)  and ! $directAccess ) {
+        $self->putJobLog($procid, "trace",
+          "Adding the requirement to '@sites' due to $file");
 
-            map { $_ = " member(other.CloseSE,\"$_\") " } @sites;
-            my $sereq = "(" . join(" || ", @sites) . ")";
-            $self->info(
-"Putting the requirement $sereq ($sePattern is not in @allreqPattern)"
-            );
-            push @allreq,        $sereq;
-            push @allreqPattern, $sePattern;
-          }
-        } else {
-          $self->debug(1, "The file $file doesn't count for the requirements");
-        }
-        $nodownload
-          and $self->debug(1,
-          "Skipping file $file (from the InputBox) - nodownload option")
-          and next;
-        $size += $fileInfo->{size};
+        map { $_ = " member(other.CloseSE,\"$_\") " } @sites;
+        my $sereq = "(" . join(" || ", @sites) . ")";
+        $self->info(
+"Putting the requirement $sereq ($sePattern is not in @allreqPattern)" );
+        push @allreq,        $sereq;
+        push @allreqPattern, $sePattern;
+      }
+      $nodownload
+        and $self->debug(1,
+        "Skipping file $file (from the InputBox) - nodownload option")
+        and next;
+      $size += $fileInfo->{size};
 
-        my $procname = $self->findProcName($procDir, $file, $done);
+        my $procname=$self->findProcNameProcDir($procDir, $file, $done);
 
         push @filesToDownload, "\"${procname}->$file\"";
-      }
+
     }
-    if (@filesToDownload) {
-      $self->info(
-        "Putting in the jdl the list of files that have to be downloaded");
-      $job_ca->set_expression("InputDownload",
-        "{" . join(",", @filesToDownload) . "}");
+  };
+
+   if ( @filesToDownload) {
+       $self->info("Putting in the jdl the list of files that have to be downloaded");
+      my ($ok, @moreFiles)=$job_ca->evaluateAttributeVectorString("InputDownload");
+      $job_ca->set_expression("InputDownload", "{". join(",",@moreFiles,  @filesToDownload)."}");
     }
 
-    # change to the correct owner
-    #      $self->{CATALOGUE}->execute("chown","$user","$procDir/", "-f");
-    #$self->{CATALOGUE}->execute("chmod","700","$procDir/");
-  };
   my $error = $@;
-  $self->{CATALOGUE}->execute("user", "-", $olduser);
+
   if ($error) {
     $self->info("Something went wrong while copying the input: $@");
     return;
   }
-  if ($size) {
 
+  my $req = join(" && ", $self->sizeRequirements($size, $job_ca), @allreq);
+
+  $self->info("The requirements from input are $req");
+  return { requirements => "$req" };
+}
+
+sub sizeRequirements {
+  my $self = shift;
+  my $size = shift;
+  my $job_ca = shift;
+	
+  if ($size) {
     #let's round up the size
     $size = (int($size / (1024 * 8192) + 1)) * 8192;
 
   }
-  my ($okwork, @workspace) =
-    $job_ca->evaluateAttributeVectorString("Workdirectorysize");
+  my ($okwork, @workspace) = $job_ca->evaluateAttributeVectorString("Workdirectorysize");
   if ($okwork && defined $workspace[0] && $workspace[0] > 0) {
     my $unit = 1;
     $workspace[0] =~ s/MB//i and $unit = 1024;
@@ -287,35 +329,29 @@ sub copyInput {
       $size = $space;
     }
   }
-  my $req = join(" && ", "( other.LocalDiskSpace > $size )", @allreq);
-  $self->info("The requirements from input are $req");
-  return { requirements => "$req" };
+  return "( other.LocalDiskSpace > $size )";
 }
 
-# This subroutine finds the name in the proc directory where the file should
-# be inserted
-#
 
-sub findProcName {
-  my $self     = shift;
-  my $procDir  = shift;
-  my $origname = shift;
-  my $done     = (shift or {});
+sub findProcNameProcDir{
+  my $self=shift;
+  my $procDir = shift;
+  my $origname=shift;
+  my $done=(shift or {});
 
-  $done->{files}
-    or $done->{files} = { stdout => 0, resources => 0, stderr => 0 };
-  $done->{dir} or $done->{dir} = -1;
+  $done->{files} or $done->{files}={stdout=>0, resources=>0, stderr=>0};
+  $done->{dir} or $done->{dir}=-1;
   $self->debug(1, "In findProcName finding a procname for $origname");
 
-  $origname =~ /\/([^\/]*)$/ and $origname = $1;
+  $origname =~ /\/([^\/]*)$/ and $origname=$1;
   $self->debug(1, "In findProcName finding a name for $origname");
-  my $i = $done->{files}->{$origname};
+  my $i=$done->{files}->{$origname};
   my $name;
   if (!defined $i) {
-    $done->{files}->{$origname} = 1;
-    $name = "$procDir/$origname";
+    $done->{files}->{$origname}=1;
+    $name="$procDir/$origname";
   } else {
-    $name = "/$procDir/$i/$origname";
+    $name= "/$procDir/$i/$origname";
     $done->{files}->{$origname}++;
   }
   return $name;
@@ -332,6 +368,27 @@ sub updateWaiting {
 
   return 1;
 }
+sub checkChildren {
+  my $self=shift;
+
+  my $newKids = {};
+  $self->{KIDS} or $self->{KIDS}={};
+
+  my $total   = 1;
+  foreach my $p (keys %{$self->{KIDS}}) {
+    (CORE::kill 0, $self->{KIDS}->{$p} and waitpid($self->{KIDS}->{$p} , WNOHANG) <= 0) or next;
+    $newKids->{$p} = $self->{KIDS}->{$p};
+    $total++;
+  }
+  $self->{KIDS}=$newKids;
+  if ($total == 1){
+    $self->info("There are no kids: min_id back to zero:");
+    $self->{MIN_ID}=0;
+  }
+  $self->info("There are $total processes");
+  return $total;
+}
+
 
 sub checkJobs {
   my $self     = shift;
@@ -339,76 +396,60 @@ sub checkJobs {
   my $status   = shift;
   my $function = shift;
   my $limit    = (shift or 15);
+  my $prefork  = shift || 0;
+
 
   my $method = "info";
   $silent and $method = "debug";
 
-  $self->{LOGGER}->$method("Job", "Checking $status jobs ");
+  $self->{LOGGER}->$method("Job", "Checking status=$status jobs ");
   my $continue = 1;
 
 #We never want to get more tahn 15 jobs at the same time, just in case the jdls are too long
+  $self->{MIN_ID} or $self->{MIN_ID}=0;
+  $self->checkChildren();
+
+
   while ($continue) {
+  	$self->info("Checking the jobs in a particular status");
     my $jobs =
-      $self->{DB}->getJobsByStatus($status, "queueid", "queueid", $limit);
+      $self->{DB}->getJobsByStatus($status, "queueid", "queueid", $limit,  $self->{MIN_ID});
 
     defined $jobs
-      or $self->{LOGGER}->warning("JobOptimizer",
+      or $self->info(
       "In checkJobs error during execution of database query")
       and return;
 
-    @$jobs
-      or $self->{LOGGER}->$method("JobOptimizer", "There are no jobs $status")
-      and return;    #check if it's ok to return undef here!!
+    if (not @$jobs ){
+       $self->info(  "There are no jobs $status and $self->{MIN_ID}" );
+       $self->info("select count(1) from QUEUE where statusId=$status and queueid>$self->{MIN_ID}");
+       use Data::Dumper;
+       $self->info(Dumper($jobs));
+       my $value=$self->{DB}->queryValue("select count(1) from QUEUE where statusId=$status and queueid>$self->{MIN_ID}");
+       $self->info("IS IT REALLY TRUE? $value");
+       return;  #check if it's ok to return undef here!!
+    }
 
     $continue = 0;
-    $#{$jobs} eq 14 and $continue = 1;
-    $self->info("THERE ARE $#{$jobs} jobs, let's continue? $continue");
+    $#{$jobs} eq $limit-1 and $continue = 1;
+    $self->info("THERE ARE $#{$jobs} jobs, let's continue? $continue min id $self->{MIN_ID}");
 
-    foreach my $data (@$jobs) {
+    if ($self->checkForkProcess($prefork)) {
+
+      #This is the father. We have forked a kid that will do these things. Let's just see the highest number
+      foreach my $data (@$jobs) {
+        $data->{queueid} > $self->{MIN_ID} and $self->{MIN_ID} = $data->{queueid};
+      }
+      next;
+    }
+    foreach my $data (@$jobs){
       $self->{LOGGER}->$method("JobOptimizer", "Checking job $data->{queueid}");
       my $job_ca = Classad::Classad->new($data->{jdl});
-
-#if ( !$job_ca->isOK() ) {
-#	print STDERR "JobOptimizer: in checkJobs incorrect JDL input\n" . $data->{jdl} . "\n";
-#	$self->{DB}->updateStatus($data->{queueid},"%","ERROR_I");
-#
-#	next;
-#}
-
-      ############################################################################
-      # Job Predecessor functionality
-      ############################################################################
-  #my ( $ok, $jobPredecessors ) = $job_ca->evaluateExpression("JobPredecessor");
-  #$ok and $self->info("Found Job Predecessor $jobPredecessors");
-      ## here we have to replace the organisation name !!!
-#$jobPredecessors=~ s/\"//g;
-#$jobPredecessors=~ s/\{//g;
-#$jobPredecessors=~ s/\}//g;
-#$jobPredecessors=~ s/\s//g;
-#my @predecessors = split ',', $jobPredecessors;
-#my $checkpredecessor=0;
-#foreach (@predecessors) {
-#	# check if the predecessor has status done
-#	my $state = $self->{DB}->getFieldsFromQueueEx("status","where queueId='$_'");
-#defined $state
-#or $self->{LOGGER}->warning( "JobOptimizer", "In checkJobs error during execution of database query" ) and $self->{DB}->updateStatus($data->{queueid},"INSERTING","ERROR_C")
-#and next;
-#	$self->info("Status of predecessor $_ is @$state[0]->{status}");
-#	if (@$state[0]->{status} eq 'DONE') {
-#	  $checkpredecessor=1;
-#	} else {
-#	  $checkpredecessor=-1;
-#      }
-#      }
-#      if ($checkpredecessor<0) {
-#	$self->info("In checkJobs - the predecessor @predecessors of job $data->{queueid} are not yet finished");
-#	next;
-#      }
 
       $self->info("In checkJobs - calling $function");
       $self->$function($data->{queueid}, $job_ca, $status);
     }
-
+    $self->{KID} and exit(0);
   }
   return 1;
 }
@@ -558,6 +599,9 @@ sub copyInputCollection {
     $options and $options = ",$options";
     $options or $options = "";
     $file2 =~ s/^LF://;
+    
+    my $ref_before = $#{$inputBox};
+    
     my ($type) = $self->{CATALOGUE}->execute("type", $file2);
     $self->info("IT IS A $type");
     if ($type =~ /^collection$/) {
@@ -567,18 +611,24 @@ sub copyInputCollection {
       $self->copyInputCollectionFromXML($jobId, $file2, $options, $inputBox)
         or return;
     }
-    my $lfnRef = $self->{DATASET}->getAllLFN()
-      or $self->info("Error getting the LFNS from the dataset")
-      and return;
-    if ($split and $#{$inputBox} > 3000) {
+    my $lfnRef;
+    if($type !~ /^collection$/) {
+    	$lfnRef = $self->{DATASET}->getAllLFN()
+          or $self->info("Error getting the LFNS from the dataset")
+          and return;
+        $lfnRef = $#{$lfnRef->{lfns}};
+    } else {
+    	$lfnRef = $#{$inputBox} - $ref_before;
+    }
+    if ($split and $#{$inputBox} > 30000) {
       $self->putJobLog($jobId, "error",
-"There are $#{$lfnRef->{lfns}} files in the collection $file2 (split job). Putting the job to error"
+"There are $lfnRef files in the collection $file2 (split job). Putting the job to error"
       );
       return;
     }
-    if (!$split and $#{$inputBox} > 1000) {
+    if (!$split and $#{$inputBox} > 10000) {
       $self->putJobLog($jobId, "error",
-"There are $#{$lfnRef->{lfns}} files in the collection $file2. Putting the job to error"
+"There are $lfnRef files in the collection $file2. Putting the job to error"
       );
       return;
     }

@@ -93,7 +93,8 @@ sub StartChildren{
     #the father goes on...
     $self->{$d} and next;
 
-    $self->info( "Putting the output in $dir/$_.log");
+    $self->info( "Putting the output of $$ in $dir/$_.log");
+
     $self->{LOGFILE}="$dir/$_.log";
     $self->{LOGGER}->redirect("$dir/$_.log");
     #The children should just initialize and start checking;

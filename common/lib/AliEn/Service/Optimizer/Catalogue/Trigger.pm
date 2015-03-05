@@ -38,9 +38,8 @@ sub checkTriggers{
   my $files={};
   while ($counter eq $limit){
     my $entryId=0;
-    my $query = "SELECT * from TRIGGERS order by entryId";
-    $query = $self->{DB}->paginate($query, $limit, 0);
-    my $data=$db->query($query)
+
+    my $data=$db->query("SELECT * from TRIGGERS order by entryId limit $limit")
       or $self->info("Error getting the triggers of $db->{DB}")
 	and return;
     $counter=0;

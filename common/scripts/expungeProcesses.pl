@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-
+    
 use AliEn::UI::Catalogue;
 
 use strict;

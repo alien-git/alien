@@ -12,7 +12,7 @@ my $user=getpwuid($<);
 print "Please, enter the following information:\n";
 my $orgName       = getParam("Organisation name","ALICE");
 #my $alienRoot     =  getParam("AliEn Root directory", "$ENV{ALIEN_ROOT}");
-my $hostName=`hostname`;
+my $hostName=`hostname -f`;
 chomp $hostName;
 
 my $mysqlHost=getParam("alien-mysql host",getDefaultMysql($orgName,$hostName));

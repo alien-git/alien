@@ -40,8 +40,12 @@ sub preConnect {
 sub initialize {
   my $self = shift;
 
+  $self->{DEFAULTREMOTETIMEOUT} = 43200;
+
   $self->{QUEUETABLE}     = "QUEUE";
   $self->{SITEQUEUETABLE} = "SITEQUEUES";
+  $self->{JOBTOKENTABLE} = "JOBTOKEN";
+  
   $self->SUPER::initialize() or return;
 
   $self->{JOBLEVEL} = {
@@ -80,9 +84,11 @@ sub initialize {
     'FAILED'       => 1000,
     'KILLED'       => 1001,
     'FORCEMERGE'   => 950,
+    'UPDATING'   => 100,
 
     'MERGING' => 970,
-    'ZOMBIE'  => 999
+    'ZOMBIE'  => 999,
+    'ERROR_EW'     => 990
   };
 
   if ($self->{CONFIG}->{JOB_DATABASE_READ}) {
@@ -106,15 +112,11 @@ sub initialize {
   my $queueColumns = {
     columns => {
       queueId      => "int(11) not null auto_increment primary key",
-      execHost     => "varchar(64)",
-      submitHost   => "varchar(64)",
+      userId       => "int ",
+      execHostId   => "int",
+      submitHostId => "int",
       priority     => "tinyint(4)",
-      status       => "varchar(12)",
-      command      => "varchar(255)",
-      commandArg   => "varchar(255)",
-      name         => "varchar(255)",
-      path         => "varchar(255)",
-      current      => "varchar(255)",
+      statusId     => "tinyint not null",
       received     => "int(20)",
       started      => "int(20)",
       finished     => "int(20)",
@@ -122,10 +124,8 @@ sub initialize {
       error        => "int(11)",
       validate     => "int(1)",
       sent         => "int(20)",
-      jdl          => "text collate latin1_general_ci",
-      site         => "varchar(40)",
-      node         => "varchar(64)",
-      spyurl       => "varchar(64)",
+      siteId       => "int(20) not null",
+      nodeId       => "int",
       split        => "int",
       splitting    => "int",
       merging      => "varchar(64)",
@@ -134,28 +134,38 @@ sub initialize {
       chargeStatus => "varchar(20)",
       optimized    => "int(1) default 0",
       finalPrice   => "float",
-      notify       => "varchar(255)",
-      agentid      => 'int(11)',
-      mtime        => 'timestamp  DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
+      notifyId     => "int",
+      agentId      => "int(11)",
+      mtime        => "timestamp  DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+      resubmission => "int(11) not null default 0",
+      commandId    => "int(11)",
+      remoteTimeout => "int (11) default null"
     },
     id          => "queueId",
     index       => "queueId",
     extra_index => [
       "INDEX (split)",
-      "INDEX (status)",
-      "INDEX(agentid)",
-      "UNIQUE INDEX (submitHost,queueId)",
+      "foreign key (statusId) references QUEUE_STATUS(statusId) on delete cascade",
+      "foreign key (notifyId) references QUEUE_NOTIFY(notifyId) on delete cascade",
+      "foreign key (userId) references QUEUE_USER(userId) on delete cascade",
+      "foreign key (siteId) references SITEQUEUES(siteId) on delete cascade",
+      "foreign key (exechostId) references QUEUE_HOST(hostId) on delete cascade",
+      "foreign key (submithostId) references QUEUE_HOST(hostId) on delete cascade",
+      "foreign key (nodeId) references QUEUE_HOST(hostId) on delete cascade",
+      "foreign key (commandId) references QUEUE_COMMAND(commandId) on delete cascade",
+      "foreign key (agentId) references JOBAGENT(entryId) on delete set null",
+      "INDEX(agentId)",      
       "INDEX(priority)",
-      "INDEX (site,status)",
+      "INDEX (siteId,statusId)",
       "INDEX (sent)",
-      "INDEX (status,submitHost)",
-      "INDEX (status,agentid)",
-      "UNIQUE INDEX (status,queueId)"
-    ]
+      "INDEX (statusId,agentId)",
+      "UNIQUE INDEX (statusId,queueId)"
+    ],
+    order=>13
   };
   my $queueColumnsProc = {
     columns => {
-      queueId      => "int(11) not null auto_increment primary key",
+      queueId      => "int(11) not null",
       runtime      => "varchar(20)",
       runtimes     => "int",
       cpu          => "float",
@@ -173,34 +183,186 @@ sub initialize {
       si2k         => "float",
       lastupdate   => "timestamp  DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
       batchid      => "varchar(255)",
+      spyurl       => "varchar(64)",
     },
     id    => "queueId",
-    index => "queueId"
+    extra_index=> ['foreign key (queueId) references QUEUE(queueId) on delete cascade'],
+    order=>14
   };
-  my $tables = {
-    QUEUE            => $queueColumns,
-    QUEUEPROC        => $queueColumnsProc,
-    QUEUEEXPIRED     => $queueColumns,
-    QUEUEEXPIREDPROC => $queueColumnsProc,
-
-    $self->{QUEUEARCHIVE}     => $queueColumns,
-    $self->{QUEUEARCHIVEPROC} => $queueColumnsProc,
-
+  my $queueColumnsArchive = {
+    columns => {
+      #QUEUE
+      queueId      => "int(11) not null auto_increment primary key",
+      userId       => "int ",
+      execHostId   => "int",
+      submitHostId => "int",
+      priority     => "tinyint(4)",
+      statusId     => "tinyint not null",
+      received     => "int(20)",
+      started      => "int(20)",
+      finished     => "int(20)",
+      expires      => "int(10)",
+      error        => "int(11)",
+      validate     => "int(1)",
+      sent         => "int(20)",
+      siteId       => "int(20) not null",
+      nodeId       => "int",
+      split        => "int",
+      splitting    => "int",
+      merging      => "varchar(64)",
+      masterjob    => "int(1) default 0",
+      price        => "float",
+      chargeStatus => "varchar(20)",
+      optimized    => "int(1) default 0",
+      finalPrice   => "float",
+      notifyId     => "int",
+      agentId      => "int(11)",
+      mtime        => "timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+      resubmission => "int(11) not null default 0",
+      commandId    => "int(11)",
+      remoteTimeout => "int (11) default null",
+      #QUEUEPROC
+      runtime      => "varchar(20)",
+      runtimes     => "int",
+      cpu          => "float",
+      mem          => "float",
+      cputime      => "int",
+      rsize        => "int",
+      vsize        => "int",
+      ncpu         => "int",
+      cpufamily    => "int",
+      cpuspeed     => "int",
+      cost         => "float",
+      maxrsize     => "float",
+      maxvsize     => "float",
+      procinfotime => "int(20)",
+      si2k         => "float",
+      lastupdate   => "datetime ",
+      batchid      => "varchar(255)",
+      spyurl       => "varchar(64)",
+      #QUEUEJDL
+      origJdl      => "text collate latin1_general_ci",
+      resultsJdl   => "text collate latin1_general_ci",
+      path         => "varchar(255)",
+    },
+    id          => "queueId",
+    index       => "queueId",
+    extra_index => [
+      "INDEX (split)",
+      "foreign key (statusId) references QUEUE_STATUS(statusId) on delete cascade",
+      "foreign key (notifyId) references QUEUE_NOTIFY(notifyId) on delete cascade",
+      "foreign key (userId) references QUEUE_USER(userId) on delete cascade",
+      "foreign key (siteId) references SITEQUEUES(siteId) on delete cascade",
+      "foreign key (exechostId) references QUEUE_HOST(hostId) on delete cascade",
+      "foreign key (submithostId) references QUEUE_HOST(hostId) on delete cascade",
+      "foreign key (nodeId) references QUEUE_HOST(hostId) on delete cascade",
+      "foreign key (commandId) references QUEUE_COMMAND(commandId) on delete cascade",
+      "foreign key (agentId) references JOBAGENT(entryId) on delete set null",
+      "INDEX(agentId)",      
+      "INDEX(priority)",
+      "INDEX (siteId,statusId)",
+      "INDEX (sent)",
+      "INDEX (statusId,agentId)",
+      "UNIQUE INDEX (statusId,queueId)"
+    ],
+    order=>15
+  };
+  my $queueColumnsJDL ={
+  	columns=>{    
+  		queueId      => "int(11) not null",
+  		origJdl      => "text collate latin1_general_ci",
+  		resultsJdl   => "text collate latin1_general_ci",
+        path         => "varchar(255)",
+  		
+  	},
+  	id =>"queueId",
+  	extra_index=> ['foreign key (queueId) references QUEUE(queueId) on delete cascade'],
+    order=>16
+  };
+  my $queueColumnsJobtoken ={
+  	columns=>{    
+		"jobId"    => "int(11)  DEFAULT '0' NOT NULL",
+		"userName" => "char(20) DEFAULT NULL",
+		"jobToken" => "char(255) DEFAULT NULL",	
+  	},
+  	id =>"jobId",
+  	extra_index=> ['foreign key (jobId) references QUEUE(queueId) on delete cascade'],
+    order=>17
+  };
+  
+  my %tables = (
+  	QUEUE_STATUS => {
+      columns => {
+        statusId  => "tinyint not null primary key",
+        status    => "varchar(12) not null unique",
+      },
+      id     => "statusId",
+      index  => "statusId",
+      order=>1
+    },
+    QUEUE_NOTIFY => {
+      columns => {
+        notifyId  => "int not null auto_increment primary key",
+        notify    => "varchar(255) not null unique",
+      },
+      id          => "notifyId",
+      index       => "notifyId",
+      order=>2
+    },
+    QUEUE_HOST => {
+      columns => {
+        hostId  => "int not null auto_increment primary key",
+        host    => "varchar(255) not null unique",
+      },
+      id          => "hostId",
+      index       => "hostId",
+      order=>3
+    },
+    QUEUE_COMMAND => {
+      columns => {
+        commandId  => "int not null auto_increment primary key",
+        command    => "varchar(255) not null unique",
+      },
+      id          => "commandId",
+      index       => "commandId",
+      order=>4
+    },
+    QUEUE_USER => {
+      columns => {
+        userId  => "int not null auto_increment primary key",
+        user    => "varchar(64) CHARACTER SET latin1 COLLATE latin1_general_cs not null unique"
+      },
+      id          => "userId",
+      index       => "userId",
+      order=>5
+    },
     JOBAGENT => {
       columns => {
         entryId      => "int(11) not null auto_increment primary key",
-        requirements => "text not null",
         counter      => "int(11)   default 0 not null ",
-        afterTime    => "time",
-        beforeTime   => "time",
         priority     => "int(11)",
         ttl          => "int(11)",
-        site        => "varchar(255) COLLATE latin1_general_ci",
+        site         => "varchar(50) COLLATE latin1_general_ci",
+        packages     => "varchar(255) COLLATE latin1_general_ci",
+        disk         => "int(11)",
+        partition    => "varchar(50) COLLATE latin1_general_ci",
+        ce           => "varchar(50) COLLATE latin1_general_ci",
+        noce         => "varchar(50) COLLATE latin1_general_ci",
+        userId       => "int not null",
+        fileBroker   => "tinyint(1) default 0 not null",
       },
       id          => "entryId",
       index       => "entryId",
-      extra_index => ["INDEX(priority)", "INDEX(ttl)"],
+      extra_index => [ "INDEX(priority)", "INDEX(ttl)", "foreign key (userId) references QUEUE_USER(userId) on delete cascade" ],
+      order=>6
     },
+    
+    QUEUE            => $queueColumns,
+    QUEUEPROC        => $queueColumnsProc,
+    $self->{QUEUEARCHIVE} => $queueColumnsArchive,
+    QUEUEJDL         => $queueColumnsJDL,
+    JOBTOKEN    => $queueColumnsJobtoken,
+    
     SITES => {
       columns => {
         siteName     => "char(255)",
@@ -216,27 +378,29 @@ sub initialize {
       },
       id    => "siteId",
       index => "siteId",
+      order=>7
     },
     ##this table used to have several columns that could not be null. This fails when starting the
     ##cluster monitor. Indeed, null values are inserted. So we allow these columns to be nullable.
     HOSTS => {
       columns => {
-        hostName    => "char(255)",
-        hostPort    => "int(11) ",
-        hostId      => "int(11) not null auto_increment primary key",
-        siteId      => "int(11) not null",
-        maxJobs     => "int(11)",
-        status      => "char(10) ",
-        date        => "int(11)",
-        rating      => "float",
-        Version     => "char(10)",
-        queues      => "char(50)",
-        connected   => "int(1)",
-        maxqueued   => "int(11)",
-        cename      => "varchar(255)",
+        hostName  => "char(255)",
+        hostPort  => "int(11) ",
+        hostId    => "int(11) not null auto_increment primary key",
+        siteId    => "int(11) not null",
+        maxJobs   => "int(11)",
+        status    => "char(10) ",
+        date      => "int(11)",
+        rating    => "float",
+        Version   => "char(10)",
+        queues    => "char(50)",
+        connected => "int(1)",
+        maxqueued => "int(11)",
+        cename    => "varchar(255)",
       },
       id    => "hostId",
-      index => "hostId"
+      index => "hostId",
+      order=>8
     },
     MESSAGES => {
       columns => {
@@ -250,10 +414,7 @@ sub initialize {
       },
       id    => "ID",
       index => "ID",
-    },
-    TMPID => {
-      columns => {queueid => "int(11) not null primary key"},
-      id      => "queueid"
+      order=>9
     },
     JOBMESSAGES => {
       columns => {
@@ -264,40 +425,96 @@ sub initialize {
         timestamp => "int",
       },
       id => "entryId",
+      order=>10
     },
 
     JOBSTOMERGE => {
       columns => {masterId => "int(11) not null primary key"},
-      id      => "masterId"
+      id      => "masterId",
+      order=>11
     },
     STAGING => {
       columns => {
-        queueid      => "int(11) not null primary key",
+        queueId      => "int(11) not null ",
         staging_time => "timestamp  DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
       },
-      id => "queueid"
+      id => "queueId",
+      extra_index=>[ "foreign key (queueId) references QUEUE(queueId) on delete cascade" ],
+      order=>18 
     },
+    FILES_BROKER=> {
+    	columns=>{"lfn"=> "varchar(255) not null",
+    			"split" =>"int(11) not null ",
+    			"sites"=>"varchar(255) not null",
+    			"queueId" => "int(11) default null",
+    	},
 
-  };
-  foreach my $table (keys %$tables) {
+    	extra_index=>['index(split)', "unique index(split,lfn)", "foreign key (queueId) references QUEUE(queueId) on delete cascade"],
+    	id=>"lfn",
+        order=>19    	
+    },
+    PRIORITY => { 
+      columns=>{
+	    userId              => "int not null ",
+	    priority            => "float default 0 not null ",
+	    maxparallelJobs     => "int default 0 not null  ",
+	    nominalparallelJobs => "int default 0 not null ",
+	    computedpriority    => "float default 0 not null ",
+	    waiting             => "int default 0 not null ",
+	    running             => "int default 0 not null ",
+	    userload            => "float default 0 not null ",	
+	    #Job Quota
+	    unfinishedJobsLast24h   => "int default 0 not null ",
+	    totalRunningTimeLast24h => "bigint default 0 not null ",
+	    totalCpuCostLast24h     => "float default 0 not null ",
+	    maxUnfinishedJobs       => "int default 0 not null ",
+	    maxTotalRunningTime     => "bigint default 0 not null ",
+	    maxTotalCpuCost         => "float default 0  not null ",
+	    ##File Quota
+     }, 
+     id=>"userId", 
+     extra_index=>[ "foreign key (userId) references QUEUE_USER(userId) on delete cascade" ], 
+     order=>12
+    }
+ 
+  );
+  
+  $self->checkSiteQueueTable("SITEQUEUES")
+    or $self->{LOGGER}->error("TaskQueue", "In initialize altering tables failed for SITEQUEUES")
+    and return;
+  
+  foreach my $table (sort {$tables{$a}->{order} <=> $tables{$b}->{order} } keys %tables) {
     $self->checkTable(
       $table,
-      $tables->{$table}->{id},
-      $tables->{$table}->{columns},
-      $tables->{$table}->{index},
-      $tables->{$table}->{extra_index}
+      $tables{$table}->{id},
+      $tables{$table}->{columns},
+      $tables{$table}->{index},
+      $tables{$table}->{extra_index}
       )
       or $self->{LOGGER}->error("TaskQueue", "Error checking the table $table")
       and return;
   }
+  $self->checkJobStatus() or return;
 
-  $self->checkSiteQueueTable("SITEQUEUES")
-    or $self->{LOGGER}->error("TaskQueue", "In initialize altering tables failed for SITEQUEUES")
-    and return;
 
   $self->checkActionTable() or return;
-
+  
   return 1;
+}
+
+sub checkJobStatus{
+  my $self=shift;
+  
+  my @values;
+  for my $status  ( @{AliEn::Util::JobStatus()}){
+    my $id=AliEn::Util::statusForML($status); 
+    $self->debug(1, "Inserting $status and $id");
+    push @values, "('$status', $id)";
+    
+  }
+  
+  $self->do("insert ignore into QUEUE_STATUS (status,statusId) values ". join (",", @values));
+  
 }
 
 sub setArchive {
@@ -305,7 +522,6 @@ sub setArchive {
   my ($Second, $Minute, $Hour, $Day, $Month, $Year, $WeekDay, $DayOfYear, $IsDST) = localtime(time);
   $Year                     = $Year + 1900;
   $self->{QUEUEARCHIVE}     = "QUEUEARCHIVE" . $Year;
-  $self->{QUEUEARCHIVEPROC} = "QUEUEARCHIVE" . $Year . "PROC";
 }
 
 sub setQueueTable {
@@ -321,29 +537,24 @@ sub checkActionTable {
     todo   => "int(1)  default 0 not null "
   );
   $self->checkTable("ACTIONS", "action", \%columns, "action") or return;
-  $self->do(
-"INSERT  INTO ACTIONS(action)  (SELECT 'INSERTING' from dual where not exists (select action from ACTIONS where action like 'INSERTING'))"
-    )
-    and $self->do(
-"INSERT  INTO ACTIONS(action)  (SELECT 'MERGING' from dual where not exists (select action from ACTIONS where action like 'MERGING'))"
-    )
-    and $self->do(
-"INSERT  INTO ACTIONS(action)  (SELECT 'KILLED' from dual where not exists (select action from ACTIONS where action like 'KILLED'))"
-    )
-    and $self->do(
-"INSERT  INTO ACTIONS(action)  (SELECT 'SPLITTING' from dual where not exists (select action from ACTIONS where action like 'SPLITTING'))"
-    )
-    and $self->do(
-"INSERT  INTO ACTIONS(action)  (SELECT 'STAGING' from dual where not exists (select action from ACTIONS where action like 'STAGING'))"
-    )
-    and $self->do(
-"INSERT  INTO ACTIONS(action)  (SELECT 'SAVED' from dual where not exists (select action from ACTIONS where action like 'SAVED'))"
-    )
-    and $self->do(
-"INSERT  INTO ACTIONS(action)  (SELECT 'SAVED_WARN' from dual where not exists (select action from ACTIONS where action like 'SAVED_WARN'))"
-    )
-    and return 1;
+  $self->do("INSERT ignore INTO ACTIONS(action)  values ('INSERTING'),  ('MERGING'), 
+             ('KILLED'),('SPLITTING'),('STAGING'),('SAVED'),('SAVED_WARN')"
+    ) or return;
 
+}
+
+sub insertNotifyEmail{
+  my $self=shift;
+  my $email=shift;
+	
+  my $id=$self->queryValue("select notifyId from QUEUE_NOTIFY where notify=?",
+	undef, {bind_values=>[$email]});
+  $id and return $id;
+  $self->info("Inserting the email address of '$email'");
+  $self->insert('QUEUE_NOTIFY', {notify=>$email});
+  return $self->queryValue("select notifyId from QUEUE_NOTIFY where notify=?",
+	undef, {bind_values=>[$email]})
+	
 }
 
 #sub insertValuesIntoQueue {
@@ -355,32 +566,60 @@ sub insertJobLocked {
   my $oldjob = (shift or 0);
 
   $set->{received} = time;
-  ($set->{name}) = $set->{jdl} =~ /.*executable\s*=\s*\"([^\"]*)\"/i;
 
   my ($tmpPrice) = $set->{jdl} =~ /.*price\s*=\s*(\d+.*)\;\s*/i;
   $tmpPrice = sprintf("%.3f", $tmpPrice);
   $set->{price} = $tmpPrice;
 
   $set->{chargeStatus} = 0;
+  
+  $set->{commandId}=$self->getOrInsertFromLookupTable('command',
+                               $set->{jdl} =~ /.*executable\s*=\s*\"([^\"]*)\"/i);
+  $set->{commandId} or $self->info("Error getting the name of the executable from the JDL")
+     and return;
 
   #currently $set->{priority} is hardcoded to be '0'
 
-  $DEBUG
-    and $self->debug(1, "In insertJobLocked locking the table $self->{QUEUETABLE}");
-  $self->lock($self->{QUEUETABLE});
-
   $DEBUG and $self->debug(1, "In insertJobLocked table $self->{QUEUETABLE} locked. Inserting new data.");
   $set->{jdl} =~ s/'/\\'/g;
+  my $jdl=$set->{jdl};
+  delete $set->{jdl};
+  my $status = $set->{statusId};
+  $set->{statusId} = AliEn::Util::statusForML($status);
+  $set->{siteid} = $self->queryValue("select siteid from SITEQUEUES where site='unassigned::site'");
+  if ($set->{notify}){
+    my $notifyId=$self->getOrInsertFromLookupTable('notify', $set->{notify});
+                               
+    $notifyId or $self->info("Error creating the notification for '$set->{notify}'")
+     and return;
+	  	
+    delete $set->{notify};
+    $set->{notifyId}=$notifyId;
+  } 
+  foreach my $fieldName ('submitHost', 'execHost', 'node') {
+    $set->{$fieldName} or next;
+    $self->info("Translating $set->{$fieldName}");
+    $set->{"${fieldName}Id"}=$self->getOrInsertFromLookupTable('host',$set->{$fieldName});
+                               
+    $set->{"${fieldName}Id"} or $self->info("Error translating the host $set->{$fieldName} (from $fieldName)")
+     and return;
+    delete $set->{$fieldName}
+  }
+  
   my $out = $self->insert("$self->{QUEUETABLE}", $set);
 
   my $procid = "";
   ($out)
     and $procid = $self->getLastId($self->{QUEUETABLE});
-  $self->unlock();
 
   if ($procid) {
     $DEBUG and $self->debug(1, "In insertJobLocked got job id $procid.");
     $self->insert("QUEUEPROC", {queueId => $procid});
+    
+    $self->insert("QUEUEJDL", {queueId =>$procid, origJdl=>$jdl});
+    my $unassignedId=$self->findSiteId("unassigned::site");
+    
+    $self->do("update SITEQUEUES set $status=$status+1 where siteid=$unassignedId");
   }
 
   if ($oldjob != 0) {
@@ -395,58 +634,44 @@ sub insertJobLocked {
     and $self->debug(1, "In insertJobLocked unlocking the table $self->{QUEUETABLE}.");
 
   my $action = "INSERTING";
-  $set->{jdl} =~ / split =/im and $action = "SPLITTING";
-  ($set->{status} !~ /WAITING/)
+  $jdl =~ / split =/im and $action = "SPLITTING";
+  ($status !~ /WAITING/)
     and $self->update("ACTIONS", {todo => 1}, "action='$action'");
 
   # send the new job's status to ML
-  $self->sendJobStatus($procid, $set->{status}, "", $set->{submitHost});
+  $self->sendJobStatus($procid, $status, "", $set->{submitHost});
 
   return $procid;
 }
-
-sub isWaiting {
-  my $self = shift;
-  my $id   = shift
-    or $self->{LOGGER}->error("TaskQueue", "In isWaiting job id is missing")
-    and return;
-
-  $DEBUG and $self->debug(1, "in isWaiting testing is job $id waiting");
-  $self->queryValue("SELECT count(*) from $self->{QUEUETABLE} where status='WAITING' and queueId=?",
-    undef, {bind_values => [$id]});
+sub getOrInsertFromLookupTable{
+  my $self=shift;
+  my $key=shift;
+  my $value=shift;
+  
+  my $table="QUEUE_".uc($key);
+  my $id="${key}id";
+  
+ $self->info("HEELO LO WORLD"); 
+  my $hostId=$self->queryValue("select $id from $table where $key=?", undef, {bind_values=>[$value]});
+  $self->info("AND WE ARE GOING TO RETURN $hostId"); 
+  $hostId and return $hostId;
+  $self->info("This is the first time that we see the $key '$value'");
+  $self->do("insert into $table ($key) values (?)", {bind_values=>[$value]});
+ 
+  return $self->queryValue("select $id from $table where $key=?", undef, {bind_values=>[$value]});
 }
 
-sub assignWaiting {
-  my $self = shift;
-
-  my $queueID = shift
-    or $self->{LOGGER}->error("TaskQueue", "In assignWaiting job id is missing")
-    and return;
-  my $user = shift
-    or $self->{LOGGER}->error("TaskQueue", "In assignWaiting user is missing")
-    and return;
-  my $host = shift
-    or $self->{LOGGER}->error("TaskQueue", "In assignWaiting host is missing")
-    and return;
-  my $jdl = shift;
-
-  $jdl =~ /.*CE\s*=\s*\"(\S*)\".*/;
-  my $ce = $1;
-  $self->debug(1, "CE is $ce! jdl $jdl");
-
-  $DEBUG
-    and $self->debug(1, "in assignWaiting table $self->{QUEUETABLE} locked");
-
-  my $status = "ASSIGNED";
-  $host =~ s/_alienSTAGE$// and $status = 'A_STAGED';
-
-  #Checking that the job is still waiting
-  if (!$self->updateStatus($queueID, "WAITING", $status, {sent => time, execHost => "$user\@$host", site => "$ce"})) {
-    $self->info("Error assigning the job. The job wasn't waiting anymore");
-    return;
-  }
-  return 1;
+sub getHostName{
+  my $self=shift;
+  my $hostName=shift;
+  my $hostId=$self->queryValue("select hostId from ALL_HOSTS where host=?", undef, {bind_values=>[$hostName]});
+  $hostId and return $hostId;
+  $self->info("This is the first time that we see the host '$hostName'");
+  $self->do("insert into ALL_HOSTS (host) values (?)", {bind_values=>[$hostName]});
+ 
+  return $self->queryValue("select hostId from ALL_HOSTS where host=?", undef, {bind_values=>[$hostName]});
 }
+
 
 sub updateQueue {
   my $self = shift;
@@ -459,56 +684,83 @@ sub deleteFromQueue {
 }
 
 #
-sub getWaitingJobAgents {
-  my $self = shift;
-  my $ttl  = shift || 0;
-  my ($where, $bind)=("", []);
-  if ($ttl) {
-    $where="where ttl<?";
-    $bind=[$ttl];
+sub findSiteId{
+  my $self=shift;
+  my $site=shift;
+  my $siteid = AliEn::Util::returnCacheValue($self,"siteid_$site");
+  
+  if (! $siteid){
+    $siteid=$self->queryValue("SELECT siteid from SITEQUEUES where site=?",
+                   undef, {bind_values=>[$site]});
+   	AliEn::Util::setCacheValue($self, "siteid_$site", $siteid);
+   
   }
-
-  my $list = $self->query(
-    "select entryId as agentId,concat('[',concat(requirements,'Type=\"Job\";TTL=999;]') ) as jdl, counter 
-from JOBAGENT $where order by priority desc", undef, {bind_values => $bind}
-  );
-
-  return $list;
+  return $siteid; 
+ 
 }
+
 
 sub updateJob {
   my $self = shift;
   my $id   = shift
-    or $self->{LOGGER}->error("TaskQueue", "In updateJob job id is missing")
+    or $self->info( "In updateJob job id is missing")
     and return;
   my $set = shift;
   my $opt = shift || {};
+  $self->info("UPDATING THE JOB");
+  $set->{statusId} and $set->{statusId} = AliEn::Util::statusForML($set->{statusId});
+  
+  if ($set->{site}){
+   $self->info("READY TO find the siteid of $set->{site}");
+   $set->{siteid}=$self->findSiteId($set->{site});
+   delete $set->{site};
+   $self->info("It is $set->{siteid}");
+  }
 
+  if ($set->{node}){
+    $set->{nodeid}=$self->getOrInsertFromLookupTable('host',$set->{node});
+    delete $set->{node};
+  }
+  
+  
   $DEBUG and $self->debug(1, "In updateJob updating job $id");
   my $procSet = {};
+  my $jdlSet  = {};
   foreach my $key (keys %$set) {
     if ($key =~
-/(si2k)|(cpuspeed)|(maxrsize)|(cputime)|(ncpu)|(cost)|(cpufamily)|(cpu)|(vsize)|(rsize)|(runtimes)|(procinfotime)|(maxvsize)|(runtime)|(mem)|(batchid)/
+/(si2k)|(spyurl)|(cpuspeed)|(maxrsize)|(cputime)|(ncpu)|(cost)|(cpufamily)|(cpu)|(vsize)|(rsize)|(runtimes)|(procinfotime)|(maxvsize)|(runtime)|(mem)|(batchid)/
       ) {
       $procSet->{$key} = $set->{$key};
       delete $set->{$key};
+    }elsif ($key =~ /((\S*)jdl)|(path)/){
+    	$jdlSet->{$key}=$set->{$key};
+    	delete $set->{$key};
     }
+    
   }
   my $where = "queueId=?";
   $opt->{where} and $where .= " and $opt->{where}";
   my @bind = ($id);
   $opt->{bind_values} and push @bind, @{$opt->{bind_values}};
-  my $done = $self->update($self->{QUEUETABLE}, $set, $where, {bind_values => \@bind});
+  $self->info(Dumper($set));
+  use Data::Dumper;
+  if (keys %$set){
+    my $done = $self->update($self->{QUEUETABLE}, $set, $where, {bind_values => \@bind});
 
-  #the update didn't work
-  $done or return;
+    #the update didn't work
+    $done or return;
 
-  #the update didn't modify any entries
-  $done =~ /^0E0$/ and return;
+    #the update didn't modify any entries
+    $done =~ /^0E0$/ and return;
+  }
 
   if (keys %$procSet) {
     $self->update("QUEUEPROC", $procSet, "queueId=?", {bind_values => [$id]})
       or return;
+  }
+  if (keys %$jdlSet) {
+  	$self->update("QUEUEJDL", $jdlSet, "queueId=?", {bind_values=>[$id]}) or return;
+  	
   }
   return 1;
 }
@@ -531,6 +783,9 @@ sub updateJobs {
   @ids
     or $self->{LOGGER}->error("TaskQueue", "In updateJobs job id is missing")
     and return;
+  
+  $set->{statusId} and $set->{statusId} = AliEn::Util::statusForML($set->{statusId});  
+    
   my $where = "";
   foreach my $id (@ids) {
     $where .= " queueId=? or";
@@ -567,12 +822,12 @@ sub updateStatus {
     or $self->{LOGGER}->error("TaskQueue", "In updateStatus old status is missing")
     and return;
   my $status = shift;
-  my $set    = shift || {};
-
+  my $set = shift || {};
+ 
   #This is the service that will update the log of the job
   my $service = shift;
 
-  $set->{status}       = $status;
+  $set->{statusId}       = $status;
   $set->{procinfotime} = time;
 
   my $message = "";
@@ -581,7 +836,8 @@ sub updateStatus {
     and $self->debug(1, "In updateStatus checking if job $id with status $oldstatus exists");
 
   my $oldjobinfo =
-    $self->getFieldsFromQueueEx("masterjob,site,execHost,status,agentid", "where queueid=?", {bind_values => [$id]});
+    $self->query("SELECT masterjob,siteId,host exechost,statusId,agentid from QUEUE left  join QUEUE_HOST on (exechostid=hostid) where queueid=?",
+                  undef, {bind_values => [$id]});
 
   #Let's take the first entry
   $oldjobinfo and $oldjobinfo = shift @$oldjobinfo;
@@ -590,13 +846,19 @@ sub updateStatus {
     $self->info("There was an error: The job $id was no longer in the queue", 1);
     return;
   }
-  my $dbsite = $set->{site} || $oldjobinfo->{site} || "";
-  my $execHost = $set->{execHost} || $oldjobinfo->{execHost};
-  my $dboldstatus = $oldjobinfo->{status};
+  my $dbsite = $oldjobinfo->{siteId};
+  if ($set->{site}){
+   $dbsite=$self->findSiteId($set->{site}); 
+  }
+  
+  my $execHost = $set->{execHostId} || $oldjobinfo->{exechost};
+  my $dboldstatus = AliEn::Util::statusName($oldjobinfo->{statusId});
   my $masterjob   = $oldjobinfo->{masterjob};
-  my $where       = "status = ?";
+  my $where       = "statusId = ?";
 
-  if ( ($self->{JOBLEVEL}->{$status} <= $self->{JOBLEVEL}->{$dboldstatus})
+  $self->info("Moving from $dboldstatus to $status ");
+  
+  if ( ($self->{JOBLEVEL}->{$status} <= $self->{JOBLEVEL}->{$dboldstatus} )
     && ($dboldstatus !~ /^((ZOMBIE)|(IDLE)|(INTERACTIV))$/)
     && (!$masterjob)) {
     if ($set->{path}) {
@@ -612,9 +874,9 @@ sub updateStatus {
     $self->info("Error updating the job: $message", 1);
     return;
   }
-
+  $self->info("Let's do the update");
   #update the value, it is correct
-  if (!$self->updateJob($id, $set, {where => "status=?", bind_values => [$dboldstatus]},)) {
+  if (!$self->updateJob($id, $set, {where => "statusId=?", bind_values => [$oldjobinfo->{statusId}]},)) {
     my $message = "The update failed (the job changed status in the meantime??)";
     $self->{LOGGER}->set_error_msg($message);
     $self->info("There was an error: $message", 1);
@@ -629,25 +891,25 @@ sub updateStatus {
   # update the SiteQueue table
   # send the status change to ML
   $self->sendJobStatus($id, $status, $execHost, "");
-  $status =~ /^(DONE.*)|(ERROR_.*)|(EXPIRED)|(KILLED)$/
+  $status =~ /^(DONE.*)|(ERROR_.*)|(EXPIRED)|(KILLED)|(FAILED)$/
     and $self->checkFinalAction($id, $service);
+  $self->info("AND NOW THE STATISTICS for $dbsite modified");
   if ($status ne $oldstatus) {
     if ($status eq "ASSIGNED") {
       $self->info("In updateStatus increasing $status for $dbsite");
-      $self->_do("UPDATE $self->{SITEQUEUETABLE} SET $status=$status+1 where site=?", {bind_values => [$dbsite]})
+      $self->_do("UPDATE $self->{SITEQUEUETABLE} SET $status=$status+1 where siteid=?", {bind_values => [$dbsite]})
         or $message = "TaskQueue: in update Site Queue failed";
     } else {
       $self->info("In updateStatus decreasing $dboldstatus and increasing $status for $dbsite");
       if (
         !$self->_do(
-          "UPDATE $self->{SITEQUEUETABLE} SET $dboldstatus = $dboldstatus-1, $status=$status+1 where site=?",
+          "UPDATE $self->{SITEQUEUETABLE} SET $dboldstatus = $dboldstatus-1, $status=$status+1 where siteid=?",
           {bind_values => [$dbsite]}
         )
         ) {
         $message = "TaskQueue: in update Site Queue failed";
         $self->{LOGGER}->set_error_msg($message);
         $self->info("There was an error: $message", 1);
-        return;
       }
     }
 
@@ -670,11 +932,11 @@ sub checkFinalAction {
   my $service = shift;
 
   my $info =
-    $self->queryRow("SELECT submitHost,status,notify,split FROM QUEUE where queueid=?", undef, {bind_values => [$id]})
+    $self->queryRow("SELECT statusId,notifyId,split FROM QUEUE where queueid=?", undef, {bind_values => [$id]})
     or return;
   $self->info("Checking if we have to send an email for job $id...");
-  $info->{notify}
-    and $self->sendEmail($info->{notify}, $id, $info->{status}, $service, $self->{submitHost});
+  $info->{notifyId}
+    and $self->sendEmail($info->{notifyId}, $id, $info->{statusId}, $service);
   $self->info("Checking if we have to merge the master");
   if ($info->{split}) {
     $self->info("We have to check if all the subjobs of $info->{split} have finished");
@@ -689,19 +951,27 @@ sub checkFinalAction {
 
 sub sendEmail {
   my $self       = shift;
-  my $address    = shift;
+  my $notifyId    = shift;
   my $id         = shift;
   my $status     = shift;
   my $service    = shift;
-  my $submitHost = shift;
 
-  $self->info("We are supposed to send an email!!! (status $status)");
+  
+  $status = AliEn::Util::statusName($status);
+      
+  my $address = $self->queryValue("select notify from QUEUE_NOTIFY where notifyid=?", 
+                                  undef, {bind_values=>[$notifyId]});
+                                  
+  $address or $self->info("Error getting the email address of $notifyId") and return;
+  
+  
+  $self->info("We are supposed to send an email ($address)!!! (status $status)");
 
   my $ua = new LWP::UserAgent;
 
   $ua->agent("AgentName/0.1 " . $ua->agent);
 
-  my $procdir = AliEn::Util::getProcDir(undef, $submitHost, $id);
+  my $procdir =  "~/alien-job-$id";
 
 #  my $message="The job produced the following files: $output\n
 #You can get the output from the AliEn prompt typing:
@@ -764,7 +1034,10 @@ sub getFieldFromQueue {
 
   $DEBUG
     and $self->debug(1, "In getFieldFromQueue fetching attribute $attr of job $id");
-  $self->queryValue("SELECT $attr FROM $self->{QUEUETABLE} WHERE queueId=?", undef, {bind_values => [$id]});
+  my $ret = $self->queryValue("SELECT $attr FROM $self->{QUEUETABLE} WHERE queueId=?", undef, {bind_values => [$id]});
+  
+  $attr =~ /statusId/ and $ret = AliEn::Util::statusName($ret);
+  return $ret;
 }
 
 sub getFieldsFromQueue {
@@ -776,7 +1049,13 @@ sub getFieldsFromQueue {
 
   $DEBUG
     and $self->debug(1, "In getFieldsFromQueue fetching attributes $attr of job $id");
-  $self->queryRow("SELECT $attr FROM $self->{QUEUETABLE} WHERE queueId=?", undef, {bind_values => [$id]});
+  my $join="";
+  $attr =~ /jdl/ and $join = "join QUEUEJDL using (queueId)";
+  $attr =~ /site/ and !($attr =~ /siteId/) and $join = "join SITEQUEUES using (siteId)";
+  my $ret=$self->queryRow("SELECT $attr FROM $self->{QUEUETABLE} $join WHERE queueId=?", undef, {bind_values => [$id]});
+  
+  $ret->{statusId} and $ret->{statusId} = AliEn::Util::statusName($ret->{statusId});
+  return $ret;
 }
 
 sub getFieldsFromQueueEx {
@@ -791,7 +1070,13 @@ sub getFieldsFromQueueEx {
     $self->info("Retrieving the info from the read database!!");
     return $self->{DB_READ}->query("SELECT $attr FROM $self->{QUEUETABLE} $addsql", undef, @_);
   }
-  $self->query("SELECT $attr FROM $self->{QUEUETABLE} $addsql", undef, @_);
+  my $returnparts = $self->query("SELECT $attr FROM $self->{QUEUETABLE} $addsql", undef, @_);
+  
+  for (@$returnparts) {
+    $_->{statusId} or next;
+    $_->{status} =  AliEn::Util::statusName($_->{statusId});
+  }
+  return $returnparts;
 }
 
 sub getFieldFromQueueEx {
@@ -802,52 +1087,19 @@ sub getFieldFromQueueEx {
   $DEBUG
     and $self->debug(1,
     "In getFieldFromQueueEx fetching attributes $attr with condition $addsql from table $self->{QUEUETABLE}");
-  $self->queryColumn("SELECT $attr FROM $self->{QUEUETABLE} $addsql", undef, @_);
+  my $ret = $self->queryColumn("SELECT $attr FROM $self->{QUEUETABLE} $addsql", undef, @_);
+  
+  $attr =~ /statusId/ and $ret = AliEn::Util::statusName($ret);
+  return $ret;
 }
 
-sub getProofSites {
-  my $self = shift;
-
-  #make debug message a bit more understandable later
-  $DEBUG
-    and $self->debug(1, "In getProofSites fetching sites with jobs with proofd command");
-  $self->queryColumn("select distinct site from $self->{QUEUETABLE} where jdl like ?",
-    undef, {bind_values => ['%Command::PROOFD%/bin/proofd%']});
-}
-
-sub getNumberAvailableProofs {
-  my $self = shift;
-  my $site = shift
-    or $self->{LOGGER}->error("TaskQueue", "In getNumberAvailableProofs site is missing")
-    and return;
-
-  #make debug message a bit more understandable later
-  $DEBUG
-    and $self->debug(1,
-    "In getNumberAvailableProofs fetching count of jobs on site $site with proofd command and status IDLE");
-  $self->queryValue("select count(*) from $self->{QUEUETABLE} where jdl like ? and status=? and site=?",
-    undef, {bind_values => [ '%Command::PROOFD%/bin/proofd%', 'IDLE', $site ]});
-}
-
-sub getNumberBusyProofs {
-  my $self = shift;
-  my $site = shift
-    or $self->{LOGGER}->error("TaskQueue", "In getNumberBusyProofs site is missing")
-    and return;
-
-  #make debug message a bit more understandable later
-  $DEBUG
-    and $self->debug(1,
-    "In getNumberBusyProofs fetching count of jobs on site $site with proofd command and status INTERACTIV");
-  $self->queryValue("select count(*) from $self->{QUEUETABLE} where jdl like ? and status=? and site=?",
-    undef, {bind_values => [ '%Command::PROOFD%/bin/proofd%', 'INTERACTIV', $site ]});
-}
 
 sub getJobsByStatus {
   my $self   = shift;
   my $status = shift
     or $self->{LOGGER}->error("TaskQueue", "In getJobsByStatus status is missing")
     and return;
+    
   my $order = shift || "";
   my $f     = shift;
   my $limit = shift;
@@ -860,35 +1112,15 @@ sub getJobsByStatus {
     $order = " and queueid>? $order";
     push @$bind, $minid;
   }
-  my $query = "SELECT queueid,jdl from $self->{QUEUETABLE} where status='$status' $order";
-
+  my $query = "SELECT queueid,ifnull(resultsjdl, origjdl) jdl from 
+       QUEUE join QUEUEJDL using (queueid) where statusId='$status' $order";
   $query = $self->paginate($query, $limit, 0);
 
   $DEBUG
-    and $self->debug(1, "In getJobsByStatus fetching jobs with status $status");
+    and $self->debug(1, "In getJobsByStatus fetching jobs with statusId $status");
   $self->query($query, undef, {bind_values => $bind});
 }
 
-#sub setStatusSplitting {
-#	my $self = shift;
-#	my $id = shift;#
-#
-#	$self->lock("$self->{QUEUETABLE}");#
-#
-#	if ($self->queryRow("SELECT count(*) from $self->{QUEUETABLE} where status='WAITING' and queueid=$id")) {
-#		$self->updateStatus($id,"SPLITTING")
-#			or print STDERR "TaskQueue: in setStatusSplitting updating of status failed"
-#			and return;
-#    }
-#	else {
-#		$self->info( "The job was not waiting any more...");
-#		return -1;
-#	}#
-#
-#	$self->unlock();#
-#
-#	1;
-#}
 
 ### HOSTS
 
@@ -932,7 +1164,7 @@ sub getMaxJobsMaxQueued {
   $DEBUG
     and
     $self->debug(1, "In getMaxJobsMaxQueued fetching host name, maxjobs and maxqueued for connected or active hosts");
-  $self->query("SELECT hostname,maxjobs,maxqueued FROM HOSTS WHERE status='CONNECTED' OR status='ACTIVE'");
+  $self->query("SELECT hostname,maxjobs,maxqueued,cename FROM HOSTS WHERE status='CONNECTED' OR status='ACTIVE'");
 }
 
 sub getFieldFromHosts {
@@ -1016,25 +1248,9 @@ sub updateMessages {
 }
 
 sub deleteFromMessages {
-  shift->update("MESSAGES", @_);
+  shift->delete("MESSAGES", @_);
 }
 
-###		runs
-
-sub updateRunsCol {
-  my $self = shift;
-  my $run  = shift
-    or $self->{LOGGER}->error("TaskQueue", "In updateRunsCol run is missing")
-    and return;
-  my $round = shift
-    or $self->{LOGGER}->error("TaskQueue", "In updateRunsCol round is missing")
-    and return;
-  my $column = shift || "failed";
-
-  $DEBUG
-    and $self->debug(1, "In updateRunsCol decreasing value of column $column by 1 where run=$run and round=$round");
-  return $self->do("UPDATE runs set $column=$column-1 WHERE run=? and round=?", {bind_values => [ $run, $round ]});
-}
 
 ###             SITEQUEUE
 sub setSiteQueueTable {
@@ -1042,81 +1258,51 @@ sub setSiteQueueTable {
   $self->{SITEQUEUETABLE} = (shift or "SITEQUEUES");
 }
 
-#
-# This subroutine puts all the columns of the SiteQueue table to 0;
-
-sub resetSiteQueue {
-  my $self = shift;
-
-  #Let's put all the columns to 0
-  my $ini = {};
-  foreach my $s (@{AliEn::Util::JobStatus()}) {
-    $ini->{$s} = 0;
-  }
-  $self->updateSiteQueue($ini);
-}
-
 sub resyncSiteQueueTable {
   my $self = shift;
-  $self->info("Extracting all sites from the QUEUE ....");
-  my $allsites = $self->getFieldsFromQueueEx("site", " Group by site");
-  @$allsites
-    or $self->info("Warning: at the moment there are no sites defined in your organization")
-    and return 1;
-
-  my $site;
+  my $site = shift || "";
+  
+  my $allsites;
+  if (! $site){
+    $self->info("Extracting all sites from the QUEUE ....");
+ 		$allsites = $self->queryColumn("select site from SITEQUEUES");
+    @$allsites
+      or $self->info("Warning: at the moment there are no sites defined in your organization")
+      and return 1;
+  } else{
+  	$allsites=[$site];
+  }
   my $now = time;
   my $qstat;
 
-  $self->resetSiteQueue();
+  my $sql=" update SITEQUEUES left join (select siteid, sum(cost) REALCOST, ";
+  my $set=" Group by statusId, siteid) dd group by siteid) bb using (siteid) set cost=REALCOST, ";
 
-  foreach (@$allsites) {
-
-    my $siteName = (defined $_->{'site'} ? $_->{site} : "undef");
-    $self->info("Doing site $siteName");
-
-    my $set = {};
-    $set->{'cost'}       = 0;
-    $set->{'status'}     = "resync";
-    $set->{'statustime'} = "$now";
-    foreach my $sstat (@{AliEn::Util::JobStatus()}) {
-      $set->{$sstat} = 0;
+  foreach my $stat (@{AliEn::Util::JobStatus()}) {
+  	  $sql.=" max(if(statusId=".AliEn::Util::statusForML($stat).", count, 0)) REAL$stat,";
+#  	  $sql.=" max(if(status='$stat', count, 0)) REAL$stat,";
+  	  $set.=" $stat=REAL$stat,"      
     }
+  $set =~ s/,$//;
+  $sql =~ s/,$/ from (select siteid, statusId, sum(cost) as cost, count(*) as count from QUEUE join QUEUEPROC using(queueid)/;
+  
 
-    # query all job status;
-    my $where = "WHERE ";
-    (defined $_->{site}) and $where .= "site='$_->{site}'"
-      or $where .= "site is NULL";
+ # foreach my $siteName (@$allsites) {
+ #   my @bind=();
+ #   my $realSiteName=$siteName;
+ #   if ($siteName ){
+ ##   	$site="=?";
+ ##   	@bind=$siteName;
+ #   }else{
+ #   	$site=" is null ";
+ #   	$realSiteName="UNASSIGNED::SITE";
+ #   }
+ #   push @bind, $realSiteName;
+ #   $self->info("Doing site '$realSiteName'");
 
-    my $sitestat = $self->getFieldsFromQueueEx("status, sum(cost) as cost, count(*) as count",
-      "q, QUEUEPROC p $where and p.queueid=q.queueid Group by status");
-
-    # delete all entries
-    #	$self->deleteSiteQueue("site='$_->{'site'}'");
-    # loop over all status;
-    foreach $qstat (@$sitestat) {
-      my $logit = sprintf "Putting status %-10s for site %-40s to %-5s", $qstat->{status}, $siteName, $qstat->{count};
-      $self->info($logit);
-
-      $set->{$qstat->{status}} = $qstat->{count};
-      $qstat->{'cost'} and $set->{'cost'} += $qstat->{'cost'};
-    }
-    $_->{'site'} or $_->{'site'} = "UNASSIGNED::SITE";
-
-    $self->info("check for $_->{'site'}");
-    my $exists = $self->getFieldsFromSiteQueueEx("site", "WHERE site=?", {bind_values => [ $_->{site} ]});
-    if (@$exists) {
-      $self->updateSiteQueue($set, "site=?", {bind_values => [ $_->{site} ]});
-    } else {
-      $set->{'site'}    = "$_->{site}";
-      $set->{'blocked'} = "open";
-      foreach (@{AliEn::Util::JobStatus()}) {
-        if ($_ eq "") { next; }
-        $set->{$_} = 0;
-      }
-      $self->insertSiteQueue($set) or return;
-    }
-  }
+    $self->info("$sql $set" );
+	  $self->do("$sql $set");#, {bind_values=>[@bind]});
+#  }
   return 1;
 }
 
@@ -1125,24 +1311,26 @@ sub checkSiteQueueTable {
   $self->{SITEQUEUETABLE} = (shift or "SITEQUEUES");
 
   my %columns = (
-    site        => "varchar(40) not null",
+    siteId      => "int(20) not null auto_increment primary key",
+    site        => "varchar(40) collate latin1_general_ci not null unique",
     cost        => "float",
-    status      => "varchar(25)",
-    statustime  => "int(20)",
-    blocked     => "varchar(20)",
-    maxqueued   => "int",
-    maxrunning  => "int",
-    queueload   => "float",
+    status      => "varchar(25) not null default 'new'",
+    statustime  => "int(20) not null default 0",
+    blocked     => "varchar(20) not null default 'locked'",
+    maxqueued   => "int not null default 0",
+    maxrunning  => "int not null default 0",
+    queueload   => "float not null default 0",
     runload     => "float",
-    jdl         => "text",
+    jdl         => "mediumtext",
     jdlAgent    => 'text',
     timeblocked => "datetime",
   );
 
   foreach (@{AliEn::Util::JobStatus()}) {
-    $columns{$_} = "int";
+    $columns{$_} = "int not null default 0";
   }
-  $self->checkTable($self->{SITEQUEUETABLE}, "site", \%columns, "site");
+  $self->checkTable($self->{SITEQUEUETABLE}, "siteId", \%columns, "siteId") or return;
+  $self->do("insert ignore into SITEQUEUES (site) values ('unassigned::site') ");
 }
 
 sub setSiteQueueStatus {
@@ -1152,17 +1340,34 @@ sub setSiteQueueStatus {
   my $jdl    = shift || "";
   my $set    = {};
   $set->{site}       = $site;
+  $self->info("IN SETSITEQUEUESTATUS with $site\n");
+  if ("$site" =~ /HASH/){
+    $self->info("THE NAME THAT WE GOT IS AHASHS\n");
+    use Data::Dumper;
+    $self->info(Dumper($site));
+    
+  } 
   $set->{status}     = "$status";
   $set->{statustime} = time;
   if ($jdl) {
     my $field = "jdl";
     ($status =~ /jobagent-no-match/) and $field = "jdlagent";
-    $set->{$field} = $jdl;
+    
+    #only update jdl each 30 secs
+    my $ok=0;
+    my $time;
+    
+#    $self->{CONFIG}->{CACHE_SERVICE_ADDRESS} and 
+#    ($ok, $time) = AliEn::Util::getURLandEvaluate("$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}?ns=sitequeueupdate&key=".lc($site), 1);
+    
+    $ok or $set->{$field} = $jdl;
+#     and ( $self->{CONFIG}->{CACHE_SERVICE_ADDRESS} and 
+#  	  AliEn::Util::getURLandEvaluate("$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}?ns=sitequeueupdate&key=".lc($site)."&timeout=30&value=".$set->{statustime}."") );
   }
 
   my $done = $self->updateSiteQueue($set, "site=?", {bind_values => [$site]});
   if ($done =~ /^0E0$/) {
-    $self->insertSiteQueue($set);
+    $self->insertSiteQueue($site);
   }
 }
 
@@ -1178,7 +1383,13 @@ sub updateSiteQueue {
 
 sub insertSiteQueue {
   my $self = shift;
-  $self->insert("$self->{SITEQUEUETABLE}", @_);
+  my $site=shift;
+  
+  $self->do("insert into SITEQUEUES (siteid, site) 
+            select ifnull(max(siteid)+1,1), ? from SITEQUEUES", 
+            {bind_values=>[$site]});
+  
+  $self->resyncSiteQueueTable($site);
 }
 
 sub getFieldFromSiteQueue {
@@ -1227,120 +1438,6 @@ sub getFieldFromSiteQueueEx {
   $self->queryColumn("SELECT $attr FROM $self->{SITEQUEUETABLE} $addsql", undef, @_);
 }
 
-###     Priority table
-sub setPriorityTable {
-  my $self = shift;
-  $self->{PRIORITYTABLE} = (shift or "PRIORITY");
-}
-
-#sub checkPriorityValue() {
-#    my $self = shift;
-#    my $user = shift or $self->{LOGGER}->error("TaskPriority","no username provided in checkPriorityValue");
-#    my $exists = $self->getFieldFromPriority("$user");
-#    if ($exists) {
-#	$self->info( "$user entry for priority is existing!" );
-#    } else {
-#	$self->info( "$user entry for priority is not existing!" );
-#	my $set = {};
-#	$set->{'user'} = "$user";
-#	$set->{'priority'} = "1.0";
-#	$set->{'maxparallelJobs'} = 20;
-#	$set->{'nominalparallelJobs'} = 10;
-#	$set->{'computedpriority'} = 1;
-#	$set->{'running'} = 0;
-#	$set->{'waiting'} = 0;
-#	$set->{'userload'} = 0;
-#	$self->insertPrioritySet($user,$set);
-#    }
-#}
-
-#sub insertPriority{
-#    my $self = shift;
-#    $self->insert("$self->{PRIORITYTABLE}",@_);
-#}
-
-#sub updatePriority{
-#    my $self = shift;
-#    $self->update("$self->{PRIORITYTABLE}",@_);
-#}
-
-#sub deletePriority{
-#    my $self = shift;
-#    $self->delete("$self->{PRIORITYTABLE}",@_);
-#}
-
-#sub insertPrioritySet{
-#	my $self = shift;
-#	my $user = shift
-#		or $self->{LOGGER}->error("TaskPriority","In insertPrioritySet user is missing")
-#		and return;
-#	my $set =shift;
-#
-#	$DEBUG and $self->debug(1,"In insertPrioritySet user is missing");
-#	$self->insertPriority($set,"user='$user'");
-#}
-
-#sub updatePrioritySet{
-#	my $self = shift;
-#	my $user = shift
-#		or $self->{LOGGER}->error("TaskPriority","In updatePrioritySet user is missing")
-#		and return;
-#	my $set =shift;
-#
-#	$DEBUG and $self->debug(1,"In updatePrioritySet user is missing");
-#	$self->updatePriority($set,"user='$user'");
-#}
-
-#sub deletePrioritySet{
-#	my $self = shift;
-#	my $user = shift
-#		or $self->{LOGGER}->error("TaskPriority","In deletePrioritySet user is missing")
-#		and return;
-#
-#	$DEBUG and $self->debug(1,"In deletePrioritySet deleting user $user");
-#	$self->deleteFromPriority("user='$user'");
-#}
-
-#sub getFieldFromPriority {
-#	my $self = shift;
-#	my $user = shift
-#		or $self->{LOGGER}->error("TaskPriority","In getFieldFromPriority user is missing")
-#		and return;
-#	my $attr = shift || "*";
-#
-#	$DEBUG and $self->debug(1,"In getFieldFromPriority fetching attribute $attr of user $user");
-#	$self->queryValue("SELECT $attr FROM $self->{PRIORITYTABLE} WHERE user='$user'");
-#}
-
-#sub getFieldsFromPriority {
-#  my $self = shift;
-#  my $user = shift
-#    or $self->{LOGGER}->error("TaskPriority","In getFieldsFromPriority user is missing")
-#      and return;
-#  my $attr = shift || "*";
-#
-#  $DEBUG and $self->debug(1,"In getFieldsFromPriority fetching attributes $attr of user $user");
-#  $self->queryRow("SELECT $attr FROM $self->{PRIORITYTABLE} WHERE user='$user'");
-#}
-
-#sub getFieldsFromPriorityEx {
-#  my $self = shift;
-#  my $attr = shift || "*";
-#  my $addsql = shift || "";
-#
-#  $DEBUG and $self->debug(1,"In getFieldsFromPriorityEx fetching attributes $attr with condition $addsql from table $self->{PRIORITYTABLE}");
-#  $self->query("SELECT $attr FROM $self->{PRIORITYTABLE} $addsql");
-#}
-
-#sub getFieldFromPriorityEx {
-#  my $self = shift;
-#  my $attr = shift || "*";
-#  my $addsql = shift || "";
-#
-#  $DEBUG and $self->debug(1,"In getFieldFromPriorityEx fetching attributes $attr with condition $addsql from table $self->{PRIORITYTABLE}");
-#  $self->queryColumn("SELECT $attr FROM $self->{PRIORITYTABLE} $addsql");
-#}
-
 ###     QUEUE Copy
 sub insertEntry {
   my $self     = shift;
@@ -1364,32 +1461,106 @@ sub insertEntry {
 }
 
 #### JobAgent
+sub findUserId{
+  my $self=shift;
+  my $user=shift;
+  
+  my $userid = AliEn::Util::returnCacheValue($self,"userid_$user");
+  
+  if (! $userid){
+    $userid=$self->queryValue("SELECT userid from QUEUE_USER where user=?",
+                   undef, {bind_values=>[$user]});
+   	AliEn::Util::setCacheValue($self, "userid_$user", $userid);
+   
+  }
+  return $userid; 
+ 
+}
+sub extractFieldsFromReq {
+  my $self= shift;
+  my $text =shift;
+  my $params= {counter=> 1, ttl=>84000, disk=>0, packages=>'%', partition=>'%', ce=>'', noce=>''};
+
+  my $site = "";
+  my $no_se={};
+  while ($text =~ s/!member\(other.CloseSE,"([^:]*::[^:]*::[^:]*)"\)//si) {
+   $no_se->{uc($1)}=1;
+  }
+  while ($text =~ s/member\(other.CloseSE,"([^:]*::([^:]*)::[^:]*)"\)//si) {
+    $no_se->{uc($1)} and $self->info("Ignoring the SE $1") and next;
+    $site =~ /,$2/ or $site .= ",$2";
+  }
+
+  $site and $site .= ",";
+  $params->{site} = $site;
+  
+  
+  my $noce = "";
+  while ($text =~ s/!other.ce\s*==\s*"([^"]*)"//i) {
+    $noce =~ /,$1/ or $noce .= ",$1";
+  }
+  $noce and $noce .= ",";
+  $params->{noce} = $noce;
+  
+  
+  my $ce = "";
+  while ($text =~ s/other.ce\s*==\s*"([^"]*)"//i) {
+    $ce =~ /,$1/ or $ce .= ",$1";
+  }
+  $ce and $ce .= ",";
+  $params->{ce} = $ce;
+  
+  my @packages;
+  while ($text =~ s/member\(other.Packages,"([^"]*)"\)//si ) {
+    grep /^$1$/, @packages or 
+      push @packages, $1;
+  }
+  if (@packages) {
+    @packages=sort @packages;
+    $params->{packages}= '%,' . join (',%,', sort @packages) .',%';
+  }
+  
+  $text =~ s/other.TTL\s*>\s*(\d+)//i and $params->{ttl} = $1;
+  if ($text =~ s/\suser\s*=\s*"([^"]*)"//i){
+     $params->{userid}=$self->findUserId($1);   
+  } 
+  $text =~ s/other.LocalDiskSpace\s*>\s*(\d*)// and $params->{disk}=$1; 
+  $text =~ s/other.GridPartitions,"([^"]*)"//i and $params->{partition}=$1; 
+  $text =~ s/this.filebroker\s*==\s*1//i and $params->{fileBroker}=1 and $self->info("DOING FILE BROKERING!!!");
+  
+
+  $self->info("The ttl is $params->{ttl} and the site is in fact '$site'. Left  '$text' ");
+  return $params;
+}
 sub insertJobAgent {
   my $self = shift;
   my $text = shift;
+  
+ 
+  $self->info("Inserting a jobagent with '$text'");
+  my $params=$self->extractFieldsFromReq($text);
+    $params or
+      $self->info("Error getting the fields from '$text'") and return;
+  
+  my $req="1=1 ";
+  my @bind=();
 
-  $text =~ s/\s*$//s;
-  $self->info("Inserting a jobagent with '$text' yuhuu");
-  my $id = $self->queryValue("SELECT entryId from JOBAGENT where requirements=?", undef, {bind_values => [$text]});
+  foreach my $key (keys %$params) {
+    $key eq "counter" and next;
+    $req .= " and $key = ?"; 
+    push @bind, $params->{$key};  	
+  }
+  $self->info("QUERY: SELECT entryId from JOBAGENT where $req;, and @bind");
+  my $id = $self->queryValue("SELECT entryId from JOBAGENT where $req", undef, {bind_values => [@bind]});
+  
   if (!$id) {
-    my $site="";
-    my $temp=$text;
-    while ($temp =~ s/member\(other.CloseSE,"[^:]*::([^:]*)::[^:]*"\)//si ){      
-      $site =~ /,$1/ or $site.=",$1";
-    }
-    $site and $site.=",";
-    $self->lock("JOBAGENT");
-    my $ttl = 84000;
-    $text =~ /other.TTL\s*>\s*(\d+)/i and $ttl = $1;
-    $self->info("The ttl is $ttl and the site is in fact '$site'");
-    if (!$self->insert("JOBAGENT", {counter => "1", requirements => $text, ttl => $ttl, site => $site})) {
+    use Data::Dumper;
+    $self->info("We don't have anything that matches". Dumper($req, @bind));
+    if (!$self->insert("JOBAGENT", $params )) {
       $self->info("Error inserting the new jobagent");
-      $self->unlock();
       return;
     }
-    $self->info("The insert worked");
     $id = $self->getLastId("JOBAGENT");
-    $self->unlock();
     $self->info("And we have the id JOBAGENT");
   } else {
     $self->do("UPDATE JOBAGENT set counter=counter+1 where entryId=?", {bind_values => [$id]});
@@ -1446,6 +1617,619 @@ sub insertJobMessage {
 
 }
 
+sub getNumberWaitingForSite{
+  my  $self=shift;
+  my $options=shift;
+  my @bind=();
+  my $where="";
+  my $return= "sum(counter)";
+  
+  $options->{ttl} and $where.="and ttl < ?  " and push @bind, $options->{ttl};
+  $options->{disk} and $where.="and disk < ?  " and push @bind, $options->{disk};
+  $options->{site} and $where.="and (site='' or site like concat('%,',?,',%') " and push @bind, $options->{site};  
+  
+  if( $options->{extrasites} ){
+      my @seList = split(/,/, $options->{extrasites});
+      foreach my $se ( @seList ){
+	    $where.=" or site like concat('%,',?,',%') " and push @bind, $se;  	    
+      }     
+      $where.=") ";
+  }
+  else { $options->{site} and $where.=") "; } 
+
+  if (defined $options->{installedpackages}) {
+     $where .="and ? like packages " and push @bind, $options->{installedpackages};
+  }else{
+    defined $options->{packages} and $where .="and ? like packages " and push @bind, $options->{packages};
+  }
+  $options->{partition} and $where .="and ? like concat('%,',partition, '%,') " and push @bind, $options->{partition};
+  $options->{ce} and $where.=" and (ce like '' or ce like concat('%,',?,',%'))" and push @bind,$options->{ce};
+  $options->{ce} and $where.=" and noce not like concat('%,',?,',%')" and push @bind,$options->{ce};
+  $options->{returnPackages} and $return="packages";
+  my $method="queryValue";
+  if ($options->{returnId}){
+    $return="entryId,fileBroker";
+    $method="queryRow";
+  }
+
+  if( $options->{cerequirements_users} ){
+  	my @userList = split(/,/, $options->{cerequirements_users});
+  	my $or=" and (";
+  	foreach my $userid ( @userList ){
+  		$where.="$or userId like ?" and push @bind,$userid and $or=" or ";
+  	}
+  	$where.=")";
+  }
+
+  if($options->{remote}==1){
+  	my $agents;
+  	my $ok = 0;
+  	  	
+  	$self->{CONFIG}->{CACHE_SERVICE_ADDRESS} and 
+  	  ($ok, @$agents) = AliEn::Util::getURLandEvaluate("$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}?ns=jobbroker&key=remoteagents", 1);
+  	
+  	$ok or  
+  	  ($agents) = $self->queryColumn("select distinct agentId from QUEUE where agentId is not null and statusId=5 and timestampdiff(SECOND,mtime,now())>=ifnull(remoteTimeout,$self->{DEFAULTREMOTETIMEOUT})"); 
+  	
+  	scalar(@$agents) or return 0;
+  	
+  	$where.="and entryId in (";  	
+  	foreach my $agent (@$agents){
+  	  $where.="$agent,";
+  	}
+  	$where =~ s/,$//;
+  	$where.=")";
+
+  	$ok or ($self->{CONFIG}->{CACHE_SERVICE_ADDRESS} and 
+  	  AliEn::Util::getURLandEvaluate("$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}?ns=jobbroker&key=remoteagents&timeout=300&value=".Dumper([@$agents])) );
+  }
+
+  $self->info("THE QUERY IS select $return from JOBAGENT where 1=1 $where order by priority desc  limit 1 (with @bind)");
+  return $self->$method("select $return from JOBAGENT where 1=1 $where order by priority desc  limit 1", undef, {bind_values=>\@bind});
+}
+
+sub getWaitingJobForAgentId{ 
+  my $self=shift;
+  my $agentid=shift;
+  my $cename=shift || "no_user\@no_site"; 
+  my $host =shift || "";
+  my $remote = shift || 0;
+  my $jobWaitingForRemote = 0;
+
+  #my $hostid=$self->queryValue("select hostid from QUEUE_HOST where host=?", undef, {bind_values=>[$host]});
+  my $hostId = $self->getOrInsertFromLookupTable('host', $host);
+  $self->info("Getting a waiting job for $agentid and $host and $hostId");
+  
+  my $siteid=$self->queryValue("select siteid from SITEQUEUES where site=?",
+                               undef, {bind_values=>[$cename]});
+
+  #my $done=$self->do("UPDATE QUEUE set statusId=".AliEn::Util::statusForML('ASSIGNED').",
+  #siteid=?, exechostid=(select hostid from QUEUE_HOST where host=?), sent=?
+  # where statusId=".AliEn::Util::statusForML('WAITING')." and agentid=? and \@assigned_job:=queueid  limit 1",
+  #                   {bind_values=>[$siteid, $host,  $date, $agentid ]});
+ 
+
+  my $extra="";
+  if($remote){
+    $extra = "and timestampdiff(SECOND,mtime,now())>=ifnull(remoteTimeout,$self->{DEFAULTREMOTETIMEOUT})";
+    $jobWaitingForRemote = $self->queryValue("select queueId from QUEUE where statusId=".AliEn::Util::statusForML('WAITING')." and agentid=?
+                                              and timestampdiff(SECOND,mtime,now())<ifnull(remoteTimeout,$self->{DEFAULTREMOTETIMEOUT})", undef, {bind_values=>[$agentid]});
+  }
+ 
+  my $done=$self->do("UPDATE QUEUE set statusId=".AliEn::Util::statusForML('ASSIGNED').",siteid=?, exechostid=?
+   where statusId=".AliEn::Util::statusForML('WAITING')." and agentid=? $extra and \@assigned_job:=queueid  limit 1",
+                     {bind_values=>[$siteid, $hostId, $agentid ]});
+
+  
+  if ($done>0){
+  	my $info=$self->queryRow("select queueid, origjdl jdl,  user from 
+  	QUEUEJDL join QUEUE using (queueid) join QUEUE_USER using (userid) where queueid=\@assigned_job");
+  	$info or $self->info("Error checking what we selected") and return;
+
+        $self->do("update QUEUEPROC set lastupdate=CURRENT_TIMESTAMP where queueId=\@assigned_job");
+
+  	$self->do("update SITEQUEUES set ASSIGNED=ASSIGNED+1 where siteid=?",{bind_values=>[$siteid]});
+  	$self->do("update SITEQUEUES set WAITING=WAITING-1 where siteid=?",{bind_values=>[$self->findSiteId("unassigned::site")]});
+  	 
+  	$self->deleteJobAgent($agentid);
+  	$self->info("Giving back the job $info->{queueid}");
+  	return ($info->{queueid}, $info->{jdl}, $info->{user});
+  }
+  $self->info("There were no jobs waiting for agent $agentid");
+  #$remote and $jobWaitingForRemote or $self->do("DELETE FROM JOBAGENT where entryid=?", {bind_values=>[$agentid]}); 
+  
+  return;
+}
+
+sub resubmitJob{
+	my $self=shift;
+	my $queueid=shift;
+	
+	$self->do("update QUEUEJDL set resultsJdl=null,path=null where queueid=?",{bind_values=>[$queueid]} );
+	my $status='WAITING';
+	my $data=$self->queryRow("select siteid,statusId,masterjob,split from QUEUE where queueid=?", undef, {bind_values=>[$queueid]})
+	 or $self->info("Error getting the previous status of the job ") and return;
+	 
+	my $previousStatus=AliEn::Util::statusName($data->{statusId});
+	my $previousSiteId= $data->{siteid};
+	$self->info("UPDATING $previousStatus and $previousSiteId");
+	
+	my $unassignedId=$self->findSiteId("unassigned::site");
+ 	
+	#$self->queryValue("select 1 from QUEUE where queueid=? and masterjob=1", undef, {bind_values=>[$queueid]})
+        $data->{masterjob}  and $status='INSERTING';
+        $previousStatus =~ /^ERROR_I$/ and $status='INSERTING';
+	$self->do("UPDATE QUEUE SET statusId= ? ,resubmission= resubmission+1 ,started= '' ,
+                 finished= '' ,exechostid= null,siteid=$unassignedId  WHERE queueid=? ",
+		{bind_values=>[AliEn::Util::statusForML($status), $queueid]	} );
+	$self->do("UPDATE SITEQUEUES set $previousStatus=$previousStatus-1 where siteid=?", {bind_values=>[$previousSiteId]});
+	$self->do("UPDATE SITEQUEUES set $status=$status+1 where siteid=$unassignedId");
+
+        $data->{split} and 
+          $self->do("UPDATE QUEUE set statusId=? where queueId=?", {bind_values=>[AliEn::Util::statusForML("SPLIT"),$data->{split}]});  
+    
+	#Should we delete the QUEUEPROC??? Nope, that's defined as on cascade delete
+	
+	#Finally, udpate the JOBAGENT
+        if ($status =~ /WAITING/){	
+  	  my $done=$self->do("update JOBAGENT join QUEUE on (agentid=entryid) set counter=counter+1 where queueid=?",
+	    {bind_values=>[$queueid]});
+	  if ($done =~ /0E0/){
+		$self->info("The job agent is no longer there!!");
+		my $info = $self->queryRow("select origjdl jdl , agentid from QUEUEJDL join QUEUE using (queueid) where queueid=?",
+		                          undef, {bind_values=>[$queueid]});
+		
+		$info or $self->info("Error getting the jdl of the job") and return;
+		my $jdl=$info->{jdl};
+		$jdl =~ /[\s;](requirements[^;]*).*\]/ims
+                  or $self->info("Error getting the requirements from $jdl") and return;
+
+                my $req = $1;
+                $jdl =~ /(\suser\s*=\s*"([^"]*)")/si or $self->info("Error getting the user from '$jdl'") and next;
+                $req.="; $1 ";
+                my $params=$self->extractFieldsFromReq($req);
+                $params->{entryId}= $info->{agentid};
+		$self->insert("JOBAGENT",$params);
+	  }	
+	}
+	
+	return $queueid
+}
+
+sub insertFileBroker{
+	my $self=shift;
+	my $masterId=shift;
+	my $lfn=shift;
+	my @ses=@_;
+	
+	my $sites=",";
+	foreach my $se (@ses){
+		$se=~ /::(.*)::/ and $sites.=lc($1) .",";
+	}
+	
+	$self->insert("FILES_BROKER", {split=>$masterId, lfn=>$lfn, sites=>$sites})
+}
+
+sub killTask{
+	my $self=shift;
+	my $queueId = shift;
+  my $user    = shift;
+
+  # check for subjob's ....
+  my $rresult =
+    $self->queryColumn("SELECT queueId from QUEUE where (queueId=? or (split!=0 and split=?)) ",
+    undef, {bind_values=>[$queueId, $queueId]});
+  my @retvalue;
+
+  my $masterjob = scalar(@$rresult)>1;
+
+  for my $j (@$rresult) {
+    @retvalue = $self->killProcessInt($j, $user, $masterjob);
+  }
+  return @retvalue;
+}
+
+sub killProcessInt {
+  my $self    = shift;
+  my $queueId = shift;
+  my $user    = shift;
+  my $masterkill = shift || 0;
+
+  my $date = time;
+
+  ($queueId)
+    or $self->info("In killProcess no queueId in killProcess!!")
+    and return;
+
+  $self->info("Killing process $queueId...");
+
+  my ($data) = $self->getFieldsFromQueue($queueId, "statusId,exechostId, submithostId,siteId,agentid,userid,split");
+
+  defined $data
+    or $self->info( "In killProcess error during execution of database query")
+    and return;
+
+  %$data
+    or $self->info("In killProcess process $queueId does not exist")
+    and return;
+ 
+  my $callerId=$self->findUserId($user);
+  if (($data->{userid}!= $callerId) and ($user ne "admin")) {
+    $self->info( "In killProcess process does not belong to '$user'");
+    return;
+  }
+
+  $self->do("delete from QUEUE where queueid=?", {bind_values=>[$queueId]}) or return ;
+  
+  $self->do("update SITEQUEUES set $data->{statusId}=$data->{statusId}-1 where siteid=?", {bind_values=>[$data->{siteid}]});
+  $self->insertJobMessage($queueId, "state", "Job has been killed");
+  if ($data->{statusId} =~ /WAITING/){
+  	$self->info("And reducing the number of agents");
+  	$self->do("update JOBAGENT set counter=counter-1 where entryid=?", {bind_values=>[$data->{agentid}]})
+  	
+  }
+#  if ($data->{exechostId}) {
+#    my $exechost=$self->queryValue("SELECT host from QUEUE_HOST where hostid=?", undef, {bind_values=>[$data->{exechostid}]});
+#    $DEBUG and $self->debug(1, "Sending a signal to $exechost to kill the process... ");
+#    my $current = time() + 300;
+#    my ($ok) = $self->insertMessage(
+#      { TargetHost    => $exechost,
+#        TargetService => 'ClusterMonitor',
+#        Message       => 'killProcess',
+#        MessageArgs   => $queueId,
+#
+#        #	Expires=>'UNIX_TIMESTAMP(Now())+300'});
+#        Expires => $current
+#      }
+#    );
+#
+#    ($ok)
+#      or $self->info( "In killProcess error inserting the message")
+#      and return;
+#  }
+  if (!$masterkill && $data->{split}) {
+    $self->do("insert ignore into JOBSTOMERGE values (?)", {bind_values=>[$data->{split}]});
+    $self->do("update ACTIONS set todo=1 where action='MERGING'");
+  }
+  $self->info("Process killed");
+
+  return 1;
+}
+
+# JOBTOKEN 
+
+sub deleteJobToken {
+  my $self = shift;
+  my $id   = shift
+    or $self->{LOGGER}->error("TaskQueue", "In deleteJobToken job id is missing")
+    and return;
+
+  $self->debug(1, "In deleteJobToken deleting token for job $id");
+  my ($done) = $self->delete("JOBTOKEN", "jobId= ?", {bind_values => [$id]});
+  
+  $done and $self->insertJobMessage($id, "state", "Job token deleted") 
+    or $self->insertJobMessage($id, "state", "Error deleting job token!");
+  
+  return $done;
+}
+
+sub getFieldFromJobToken {
+  my $self = shift;
+  my $id   = shift
+    or $self->{LOGGER}->error("TaskQueue", "In getFieldFromJobToken job id is missing")
+    and return;
+  my $attr = shift || "jobId,userName,jobToken";
+
+  $self->debug(1, "In getFieldFromJobToken fetching attribute $attr for job id $id from table jobToken");
+  return $self->queryValue("SELECT $attr FROM JOBTOKEN WHERE jobId= ?", undef, {bind_values => [$id]});
+}
+
+sub getFieldsFromJobToken {
+  my $self = shift;
+  my $id   = shift
+    or $self->{LOGGER}->error("TaskQueue", "In getFieldsFromJobToken job id is missing")
+    and return;
+  my $attr = shift || "jobId,userName,jobToken";
+
+  $self->debug(1, "In getFieldsFromJobToken fetching attributes $attr for job id $id from table jobToken");
+  return $self->queryRow("SELECT $attr FROM JOBTOKEN WHERE jobId= ?", undef, {bind_values => [$id]});
+}
+
+sub setJobToken {
+  my $self = shift;
+  my $id   = shift
+    or $self->{LOGGER}->error("TaskQueue", "In setJobToken job id is missing")
+    and return;
+  my $token = shift;
+
+  $self->debug(1, "In setJobToken updating token for job $id");
+  return $self->update("JOBTOKEN", {jobToken => $token}, "jobId= ?", {bind_values => [$id]});
+}
+
+sub insertJobToken {
+  my $self  = shift;
+  my $id    = shift;
+  my $user  = shift;
+  my $token = shift;
+
+  $self->debug(1, "In insertJobToken inserting new data into table JOBTOKEN");
+  return $self->insert("JOBTOKEN", {jobId => $id, userName => $user, jobToken => $token});
+}
+
+sub getUsername {
+  my $self = shift;
+
+  my $id   = shift
+    or $self->{LOGGER}->error("TaskQueue", "In getUsername job id is missing")
+    and return;
+  my $token = shift
+    or $self->{LOGGER}->error("TaskQueue", "In getUsername job token is missing")
+    and return;
+  $token =~ /^-1$/ and $self->{LOGGER}->info("TaskQueue", "The job token is not valid") and return;
+  $self->debug(1, "In getUsername fetching user name for job $id and token $token");
+  
+  return $self->queryValue("SELECT userName FROM JOBTOKEN where jobId=? and jobToken= ?", 
+      undef, {bind_values => [ $id, $token ]});  
+}
+
+sub checkPriorityValue() {
+  my $self = shift;
+  my $user = shift or $self->{LOGGER}->error("TaskQueue", "no username provided in checkPriorityValue");
+  $self->debug(1, "Checking if the user $user exists");
+  $self->info("AND HERE WE ARE WITH $user");
+  my $exists = $self->queryValue('select count(1) from PRIORITY join QUEUE_USER using (userid) where user=?', 
+                     undef, {bind_values=>[$user]});
+  if ($exists) {
+    $self->debug(1, "$user entry for priority exists!");
+  } else {
+    $self->debug(1, "$user entry for priority does not exist!");
+    my $set = {};
+    $set->{'userid'}              = $self->getOrInsertFromLookupTable("user", $user);
+    $set->{'priority'}            = "1.0";
+    $set->{'maxparallelJobs'}     = 20;
+    $set->{'nominalparallelJobs'} = 10;
+    $set->{'computedpriority'}    = 1;
+
+    #Job Quota
+    $set->{'unfinishedJobsLast24h'}   = 0;
+    $set->{'maxUnfinishedJobs'}       = 100;
+    $set->{'totalRunningTimeLast24h'} = 0;
+    $set->{'maxTotalRunningTime'}     = 1000000;
+    $set->{'totalCpuCostLast24h'}     = 0;
+    $set->{'maxTotalCpuCost'}         = 2000000;
+    ##File Quota
+    #$set->{'nbFiles'} = 0;
+    #$set->{'totalSize'} = 0;
+    #$set->{'tmpIncreasedNbFiles'} = 0;
+    #$set->{'tmpIncreasedTotalSize'} = 0;
+    #$set->{'maxNbFiles'}=10000;
+    #$set->{'maxTotalSize'}=10000000000;
+    $self->insert("PRIORITY", $set);
+  }
+}
+
+sub insertPriority {
+  my $self = shift;
+  $self->insert("PRIORITY", @_);
+}
+
+sub updatePriority {
+  my $self = shift;
+  $self->update("PRIORITY", @_);
+}
+
+
+sub updatePrioritySet {
+  my $self = shift;
+  my $user = shift
+    or $self->{LOGGER}->error("TaskQueue", "In updatePrioritySet user is missing")
+    and return;
+  my $set = shift;
+
+  $self->debug(1, "In updatePrioritySet user is NOT missing");
+  $self->update("PRIORITY join QUEUE_USER using (userid) ", $set, " user = ? ", {bind_values => [$user]});
+}
+
+
+# checkJobQuota, migrated from Job (Manager)
+sub checkJobQuota {
+  my $self = shift;
+  my $user = shift
+    or $self->info("In checkJobQuota user is missing\n")
+    and return (-1, "user is missing");
+    
+  
+  my $nbJobsToSubmit = shift;
+  (defined $nbJobsToSubmit)
+    or $self->info("In checkJobQuota nbJobsToSubmit is missing\n")
+    and return (-1, "nbJobsToSubmit is missing");
+
+  $DEBUG and $self->debug(1, "In checkJobQuota user:$user, nbJobs:$nbJobsToSubmit");
+
+  my $array = $self->query("SELECT 
+ userid, unfinishedJobsLast24h, maxUnfinishedJobs, totalRunningTimeLast24h,
+  maxTotalRunningTime, totalCpuCostLast24h, maxTotalCpuCost from PRIORITY join QUEUE_USER using (userid)
+   where " . $self->reservedWord("user") . "=?", undef, {bind_values=>[$user]})
+    or $self->info("Failed to getting data from PRIORITY table")
+    and return (-1, "Failed to getting data from PRIORITY table");
+    
+  
+  $array->[0]
+    or $self->info("User $user does not exist", 1)
+    and return (-1, "User $user does not exist in PRIORITY table");
+
+  my $unfinishedJobsLast24h   = $array->[0]->{'unfinishedJobsLast24h'};
+  my $maxUnfinishedJobs       = $array->[0]->{'maxUnfinishedJobs'};
+  my $totalRunningTimeLast24h = $array->[0]->{'totalRunningTimeLast24h'};
+  my $maxTotalRunningTime     = $array->[0]->{'maxTotalRunningTime'};
+  my $totalCpuCostLast24h     = $array->[0]->{'totalCpuCostLast24h'};
+  my $maxTotalCpuCost         = $array->[0]->{'maxTotalCpuCost'};
+
+  $DEBUG and $self->debug(1, "nbJobs: $nbJobsToSubmit, unfinishedJobs: $unfinishedJobsLast24h/$maxUnfinishedJobs");
+  $DEBUG and $self->debug(1, "totalRunningTime: $totalRunningTimeLast24h/$maxTotalRunningTime");
+  $DEBUG and $self->debug(1, "totalCpuCostLast24h: $totalCpuCostLast24h/$maxTotalCpuCost");
+
+  if ($nbJobsToSubmit + $unfinishedJobsLast24h > $maxUnfinishedJobs) {
+    $self->info("In checkJobQuota $user: Not allowed for nbJobs overflow");
+    return (-1,
+"DENIED: You're trying to submit $nbJobsToSubmit jobs. That exceeds your limit (at the moment,  $unfinishedJobsLast24h/$maxUnfinishedJobs)."
+    );
+  }
+
+  if ($totalRunningTimeLast24h >= $maxTotalRunningTime) {
+    $self->info("In checkJobQuota $user: Not allowed for totalRunningTime overflow");
+    return (-1, "DENIED: You've already executed your jobs for enough time.");
+  }
+
+  if ($totalCpuCostLast24h >= $maxTotalCpuCost) {
+    $self->info("In checkJobQuota $user: Not allowed for totalCpuCost overflow");
+    return (-1, "DENIED: You've already used enough CPU.");
+  }
+
+  $self->info("In checkJobQuota $user: Allowed");
+  return (1, $array->[0]->{userid});
+}
+
+sub insertNewPriorityUsers {
+  my $self       = shift;
+
+  return $self->do(
+"INSERT INTO PRIORITY(userid, priority, maxparallelJobs, nominalparallelJobs, maxUnfinishedJobs, computedpriority, maxTotalCpuCost, 
+  totalRunningTimeLast24h, waiting, unfinishedJobsLast24h, userload, running, totalCpuCostLast24h, maxTotalRunningTime) 
+ SELECT userid, 1, 20, 10, 100, 100, 2000000, 0, 0, 0, 0, 0, 0, 1000000 from QUEUE_USER left join PRIORITY using (userid) where PRIORITY.userid is null"
+  );
+}
+sub getPriorityUpdate {
+  my $self       = shift;
+
+  return $self->do("update PRIORITY p left join  
+(select userid ,count(*) w from QUEUE where statusId=5 group by userid ) b using (userid)
+ left join (select userid,count(*) r from QUEUE where statusId in (10,7,11) group by userid) b2 using (userid) 
+ set waiting=coalesce(w,0), running=COALESCe(r,0) ,
+userload=(running/maxparallelJobs), 
+computedpriority=(if(running<maxparallelJobs, if((2-userload)*priority>0,50.0*(2-userload)*priority,1),1))");
+} 
+
+
+
+
+
+sub unfinishedJobs24PerUser {
+  my $self = shift;
+  return $self->do(
+"update PRIORITY pr left join (select userid, count(1) as unfinishedJobsLast24h from QUEUE q where (statusId in (1,5,7,10,11,21)) and (unix_timestamp()>=q.received and unix_timestamp()-q.received<60*60*24) group by userid) as C using (userid) set pr.unfinishedJobsLast24h=IFNULL(C.unfinishedJobsLast24h, 0)"
+  ); # (status='INSERTING' or status='WAITING' or status='STARTED' or status='RUNNING' or status='SAVING' or status='OVER_WAITING')
+
+}
+
+sub cpuCost24PerUser {
+  my $self = shift;
+  return $self->do(
+"update PRIORITY pr left join (select userid, sum(p.cost) as totalCpuCostLast24h , 
+sum(p.runtimes) as totalRunningTimeLast24h  from QUEUE q 
+join QUEUEPROC p using(queueId) 
+where (unix_timestamp()>=q.received and unix_timestamp()-60*60*24<q.received ) group by userid) as C using (userid) set pr.totalRunningTimeLast24h=IFNULL(C.totalRunningTimeLast24h, 0), pr.totalCpuCostLast24h=IFNULL(C.totalCpuCostLast24h, 0)" );
+
+}
+
+sub changeOWtoW {
+  my $self = shift;
+  return $self->do(
+"update QUEUE q join PRIORITY pr using (userid) set q.statusId=5 where (pr.totalRunningTimeLast24h<pr.maxTotalRunningTime and pr.totalCpuCostLast24h<pr.maxTotalCpuCost) and q.statusId=21" # WAITING - OVERWAITING
+  );
+}
+
+sub changeWtoOW {
+  my $self = shift;
+  return $self->do(
+"update QUEUE q join PRIORITY pr using (userid) set q.statusId=21 where (pr.totalRunningTimeLast24h>=pr.maxTotalRunningTime or pr.totalCpuCostLast24h>=pr.maxTotalCpuCost) and q.statusId=5" #OVERWAITING - WAITING
+  );
+}
+
+sub updateFinalPrice {
+  my $self     = shift;
+  my $t        = shift;
+  my $nominalP = shift;
+  my $now      = shift;
+  my $done     = shift;
+  my $failed   = shift;
+  my $update   = " UPDATE $t q, QUEUEPROC p SET finalPrice = round(p.si2k * $nominalP * price),chargeStatus=\'$now\'";
+
+  my $where =
+" WHERE (statusId=15 AND p.si2k>0 AND chargeStatus!=\'$done\' AND chargeStatus!=\'$failed\') and p.queueid=q.queueid"; # DONE
+  my $updateStmt = $update . $where;
+  return $self->do($updateStmt);
+
+}
+
+sub optimizerJobExpired {
+  return
+"( ( (statusId=15) || (statusId=-13) || (statusId=-12) || (statusId=-1) || (statusId=-2) || (statusId=-3) || (statusId=-4) || (statusId=-5) || (statusId=-7) || (statusId=-8) || (statusId=-9) || (statusId=-10) || (statusId=-11) || (statusId=-16) || (statusId=-17) || (statusId=-18) ) && ( received < (? - 7*86540) ) )";
+#"( ( (status='DONE') || (status='FAILED') || (status='EXPIRED') || (status like 'ERROR%')  ) && ( received < (? - 7*86540) ) )";
+}
+
+
+
+
+#######
+## optimizer Job/priority
+#####
+
+# WAITING RUNNNING STARTED SAVING
+
+
+########
+## optimizer Job/Expired
+####
+
+#sub getJobOptimizerExpiredQ1{
+#  my $self = shift;
+# return "where  (status in ('DONE','FAILED','EXPIRED') or status like 'ERROR%'  ) and ( mtime < addtime(now(), '-10 00:00:00')  and split=0) )";
+#}
+
+sub getJobOptimizerExpiredQ2 {
+  my $self = shift;
+  return
+" left join QUEUE q2 on q.split=q2.queueid where q.split!=0 and q2.queueid is null and q.mtime<addtime(now(), '-10 00:00:00')";
+}
+
+sub getJobOptimizerExpiredQ3 {
+  my $self = shift;
+  return "where mtime < addtime(now(), '-10 00:00:00') and split=0";
+}
+
+########
+### optimizer Job/Zombies
+####
+
+sub getJobOptimizerZombies {
+  my $self   = shift;
+  my $status = shift;
+  return "q, QUEUEPROC p where $status and p.queueId=q.queueId and DATE_ADD(now(),INTERVAL -3600 SECOND)>lastupdate";
+}
+
+########
+### optimizer Job/Charge
+####
+
+sub getJobOptimizerCharge {
+  my $self           = shift;
+  my $queueTable     = shift;
+  my $nominalPrice   = shift;
+  my $chargingNow    = shift;
+  my $chargingDone   = shift;
+  my $chargingFailed = shift;
+  my $update =
+" UPDATE $queueTable q, QUEUEPROC p SET finalPrice = round(p.si2k * $nominalPrice * price),chargeStatus=\'$chargingNow\'";
+  my $where =
+" WHERE (statusId=15 AND p.si2k>0 AND chargeStatus!=\'$chargingDone\' AND chargeStatus!=\'$chargingFailed\') and p.queueid=q.queueid";
+  return $update . $where;
+} # DONE
+
+
+
+
+
 =head1 NAME
 
 AliEn::Database::TaskQueue
@@ -1457,274 +2241,6 @@ contains method specific for tables from database processes.
 
 =head1 SYNOPSIS
 
-  use AliEn::Database::TaskQueue;
-
-  my $dbh = AliEn::Database::TaskQueue->new($dbOptions);
-
-  $res = $dbh->getFieldFromQueue($jobId, $attr);
-  $hashRef = $dbh->getFieldsFromQueue($jobId, $attr);
-  $arrRef = $dbh->getFieldFromQueueEx($attr, $addSql);
-  $arrRef = $dbh->getFieldsFromQueueEx($attr, $addSql);
-  
-  $res = $dbh->getFieldFromHosts($hostName, $attr);
-  $hashRef = $dbh->getFieldsFromHosts($hostName, $attr);
-  $arrRef = $dbh->getFieldFromHostsEx($attr, $addSql);
-  $arrRef = $dbh->getFieldsFromHostsEx($attr, $addSql);
-  
-  $arrRef = $dbh->getProofSites();
-  $res = $dbh->getNumberAvailableProofs($site);
-  $res = $dbh->getNumberBusyProofs($site);
-  $arrRef = $dbh->getJobsByStatus($status, $orderBy);
-  
-  $arrRef = $dbh->getMaxJobsMaxQueued();
-  
-  $res = $dbh->isWaiting($jobId);
-  
-  $res = $dbh->insertHost($insertSet);
-  $res = $dbh->insertMessage($insertSet);
-  $res = $dbh->insertSite($insertSet);
-  
-  $res = $dbh->insertJobLocked($jdl, $received, $status, $submitHost, $priority);
-  $res = $dbh->insertHostSiteId($host, $siteId);
-  
-  $res = $dbh->updateQueue($updateSet, $where);
-  $res = $dbh->updateHosts($updateSet, $where);
-  $res = $dbh->updateSites($updateSet, $where);
-  $res = $dbh->updateMessages($updateSet, $where);
-    
-  $res = $dbh->updateJob($id, $set);
-  $res = $dbh->updateHost($hostname, $set);
-  $res = $dbh->updateStatus($jobId, $oldStatus, $newStatus, $set);
-  $res = $dbh->assignWaiting($jobId, $user, $host);  
-  
-  $res = $dbh->setSplit($jobId, $split);
-  $res = $dbh->setJdl($jobId, $jdl);
-    
-  $res = $dbh->updateRunsCol($run, $round, $column);
-
-  $res = $dbh->deleteFromQueue($where);
-  $res = $dbh->deleteFromHosts($where);
-  $res = $dbh->deleteFromMessages($where);
-  $res = $dbh->deleteFromHosts($where);
-  
-  $res = $dbh->deleteJob($jobId);
-
-=cut
-
-=head1 METHODS
-
-=over
-
-=item C<new>
-
-  $dbh = AliEn::Database::Transfer->new( $attr );
-
-  $dbh = AliEn::Database::Transfer->new( $attr, $attrDBI );
-
-Creates new AliEn::Database::Transfer instance. Arguments are passed to AliEn::Database
-method new. For details about arguments see AliEn::Database method C<new>.
-
-=item C<getFieldFrom*>
-
-  $res = $dbh->getFieldFromQueue($jobId, $attr);
-
-  $res = $dbh->getFieldFromHosts($hostName, $attr);  
-  
-Method fetches value of attribute $attr for tuple with defined unique id: 
-in case of Queue job id and in case of Hosts hostname.
-If unique id is not defined method will return undef and report error.
-Method calls AliEn::Database metod queryValue.
-
-=item C<getFieldsFrom*>
-
-  $hashRef = $dbh->getFieldsFromQueue($jobId, $attr);
-
-  $hashRef = $dbh->getFieldsFromHosts($hostName, $attr);  
-
-Method fetches set of attributes $attr for tuple with defined unique id: 
-in case of Queue job id and in case of Hosts hostname.
-Result is reference to hash. Keys in hash are identical to names of attriutes 
-in $attr set.
-If set of attributes is not defined method returns values of all attributes. If
-unique id is not defined method will return undef and report error.
-Method calls AliEn::Database metod queryRow.
-
-=item C<getFieldFrom*Ex>
-
-  $arrRef = $dbh->getFieldFromQueueEx($attr, $addSql);
-  
-  $arrRef = $dbh->getFieldFromHostsEx($attr, $addSql);
-
-Method fetches value of attribute $attr for tuples with condition $addSql.
-Argument $addSql contains anything that comes after FROM part of SELECT statement.
-Method returns reference to array which contains values of attribute $attr.
-If $addSql condition is not defined method will return all tuples.
-Method calls AliEn::Database metod queryColumn.
-
-=item C<getFieldsFrom*Ex>
-
-  $arrRef = $dbh->getFieldsFromQueueEx($attr, $addSql);
-  
-  $arrRef = $dbh->getFieldsFromHostsEx($attr, $addSql);
-
-Method fetches set of attributes $attr for tuples with with condition $addSql.
-Argument $addSql contains anything that comes after FROM part of SELECT statement.
-If set of attributes is not defined method returns values of all attributes.
-If $addSql condition is not defined method will return all tuples.
-Method calls AliEn::Database metod query.
-
-=item C<getProofSites>  
-
-  $arrRef = $dbh->getProofSites();
-  
-Method returns list of sites which contain jobs with proof command. Return value
-is reference to array which contains site names.
-Method uses AliEn::Database method queryColumn. 
-
-=item C<getNumberAvailableProofs>  
-
-  $res = $dbh->getNumberAvailableProofs($site);
-  
-Method returns number of jobs with proof command and status IDLE for site $site. 
-Method uses AliEn::Database method queryValue. 
-
-=item C<getNumberBusyProofs>  
-
-  $res = $dbh->getNumberBusyProofs($site);
-  
-Method returns number of jobs with proof command and status INTERACTIV for site $site. 
-Method uses AliEn::Database method queryValue. 
-
-=item C<getJobsByStatus>  
-
-  $arrRef = $dbh->getJobsByStatus($status, $orderBy);
-  
-Method returns values of attributes queuueId and jdl for tuples with status
-$status. If argument $status is not defined method will return undef and 
-report error. Argument $orderBy is ORDER BY part of SELECT query. 
-Method uses AliEn::Database method query. 
-
-=item C<getMaxJobsMaxQueued>  
-
-  $arrRef = $dbh->getMaxJobsMaxQueued();
-  
-Method returns values of attributes hostname, maxjobs and maxqueued for
-tuples from table HOSTS with status CONNECTED or ACTIVE.
-Method uses AliEn::Database method query. 
-
-=item C<isWaiting>  
-
-  $res = $dbh->isWaiting($jobId);
-  
-Method checks if job with job id $jobId is in status WAITING. 
-If $jobId is not defined method will return undef and report error.
-
-=item C<insert*> 
-
-  $res = $dbh->insertHost($insertSet);
-  
-  $res = $dbh->insertSite($insertSet);
-  
-  $res = $dbh->insertMessage(insertSet);
-  
-Method just calls AliEn::Database method C<insert>. Method defines table argument
-and passes $insertSet and $where arguments to AliEn::Database C<insert> method. 
-
-=item C<insertJobLocked>  
-
-  $res = $dbh->insertJobLocked($jdl, $received, $status, $submitHost, $priority);
-  
-Method inserts new job with defined arguments. Before inserting method
-locks table $self->{QUEUETABLE} and after inserting unlocks the table.   
-
-=item C<insertHostSiteId>     
-   
-  $res = $dbh->insertHostSiteId($host, $siteId);
-
-Method inserts new tuple into table HOSTS with defined attributes host
-and site ID.
-
-=item C<update*> 
-
-  $res = $dbh->updateQueue($updateSet, $where);
-  
-  $res = $dbh->updateHosts($updateSet, $where);
-  
-  $res = $dbh->updateSites($updateSet, $where);
-  
-  $res = $dbh->updateMessages($updateSet, $where);
-
-Method just calls AliEn::Database method C<update>. Method defines table argument
-and passes $updateSet and $where arguments to AliEn::Database C<update> method. 
-
-=item C<updateJob>     
-
-  $res = $dbh->updateJob($id, $set);
-  
-Method updates job with id $jobId with update set $set. Form of 
-$set argument is defined in AliEn::Database C<update> method.  
-If job id is not defined method will return undef and report error.
-
-=item C<updateHost>     
-
-  $res = $dbh->updateHost($hostname, $set);
-  
-Method updates host with host name $hostname with update set $set. Form of 
-$set argument is defined in AliEn::Database C<update> method.  
-If job id is not defined method will return undef and report error.
-  
-=item C<updateStatus> 
-  
-  $res = $dbh->updateStatus($jobId, $oldStatus, $newStatus);
-  
-  $res = $dbh->updateStatus($jobId, $oldStatus, $newStatus, $set);
-  
-Method checkes if job with id $jobId and status $oldStatus exists.
-If job exists method updates job's status to $newStatus. If argument
-$oldStatus is set to "%" method will ignore old status of job $jobId.
-Method can update other attributes if argument $set is defined. Form of 
-$set argument is defined in AliEn::Database C<update> method.
-If arguments $jobId or $oldStatus are not defined method will return undef
-and report error.
-  
-=item C<assignWaiting>   
-  
-  $res = $dbh->assignWaiting($jobId, $user, $host);
-
-Method checkes if job $jobId is in WAITING state. If job is in WAITING state 
-method will set it's state to ASSIGNED, sent attribute to current time and execHost
-attribute to '$user@$host'. 
-Before doing any operation method locks table TRANSFER and unlocks it at the end.
-
-=item C<set*>     
-
-  $res = $dbh->setSplit($jobId, $split);
-  
-  $res = $dbh->setJdl($jobId, $jdl);
-  
-Method updates attribute for job with id $jobId. If job id is not
-defined method will return undef and report error.
-  
-=item C<updateRunsCol>   
-
-  $res = $dbh->updateRunsCol($run, $round, $column);  
-  
-Method decreases value of attribute $column by 1 for tuples from table runs
-with value of run $run and value of round $round. If $run or $round are not 
-defined method will return undef and report error. Default $column is finished.
-
-=item C<deleteFrom*> 
-
-  $res = $dbh->deleteFromQueue($where);
-  
-  $res = $dbh->deleteFromHost($where);
-  
-  $res = $dbh->deleteFromSite($where);
-  
-  $res = $dbh->deleteFromMessage($where);
-
-Method just calls AliEn::Database method C<update>. Method defines table argument
-and passes $updateSet and $where arguments to AliEn::Database C<update> method. 
 
 =item C<deleteJob>     
 

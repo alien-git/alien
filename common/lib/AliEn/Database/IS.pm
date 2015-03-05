@@ -39,8 +39,8 @@ sub new {
 sub initialize {
   my $self=shift;
   my %columns= (host=>"varchar(100) not null",
-		port=>"varchar(20)",
-        status=>"char(15)",
+		port=>"int(5)",
+		status=>"char(15)",
 		lastchecked =>"int(11)",
 		version=>"char(10)",
 		name=>"varchar(200) collate latin1_general_ci default '' NOT NULL ",
@@ -115,14 +115,17 @@ sub getActiveServices{
     or $self->{LOGGER}->error("IS","In setService service name is missing")
       and return;
   my $attr = shift || "*";
-  my $name = shift;
+  my $name = shift ;
   
-  $name
-    and $name = " and name='$name'"
-      or $name = "";
+  my $string="";
+  my @bind=();
+  if ($name){
+    @bind=$name;
+    $string=" and name=?"
+  }
   
-  $self->debug(1,"In getActiveServices fetching attributes $attr of active services $service");
-  $self->query("SELECT $attr FROM $service where status='ACTIVE'$name");
+  $self->info("In getActiveServices fetching attributes $attr of active services $service and $name");
+  $self->query("SELECT $attr FROM $service where status='ACTIVE' $string", undef, {bind_values=>\@bind});
 }
 
 sub getRouteByPath {
@@ -178,7 +181,7 @@ sub createCLCCERTTable{
   my $self = shift;
 
   $self->debug(1,"In createCLCCERTTable creating CLCCERT table");
-  $self->createTable("CLCCERT","(user varchar(200), name varchar(200), certificate blob)",1,1);
+  $self->createTable("CLCCERT","(".$self->reservedWord("user")." varchar(200), name varchar(200), certificate blob)",1);
 }
 
 sub insertCertificate{
@@ -188,7 +191,7 @@ sub insertCertificate{
   my $cert = shift;
   
   $self->debug(1,"In insertCertificate inserting certificate");
-  $self->insert("CLCCERT",{$self->reservedWord("user")=>$user,name=>$name,certificate=>$cert});
+  $self->insert("CLCCERT",{user=>$user,name=>$name,certificate=>$cert});
 }
 
 sub deleteCertificate{
@@ -230,9 +233,7 @@ sub getCpuSI2k {
   my $min_cpu_mhz = $cpu_type->{cpu_MHz} - $cpu_type->{cpu_MHz} * 0.02; # allow 2% deviation
   my $max_cpu_mhz = $cpu_type->{cpu_MHz} + $cpu_type->{cpu_MHz} * 0.02;
   # try querying the database for exactly this configuration
-  my $query = "SELECT si2k FROM cpu_si2k WHERE ? LIKE cpu_model_name AND ? LIKE cpu_cache AND cpu_MHz >= ? AND cpu_MHz <= ? ORDER BY length(cpu_model_name) DESC ";
-  $query = $self->paginate($query,1,0);
-  my $result = $self->queryValue($query, undef, {bind_values=>[$cpu_type->{cpu_model_name}, $cpu_type->{cpu_cache}, $min_cpu_mhz, $max_cpu_mhz]});
+  my $result = $self->queryValue("SELECT si2k FROM cpu_si2k WHERE ? LIKE cpu_model_name AND ? LIKE cpu_cache AND cpu_MHz >= ? AND cpu_MHz <= ? ORDER BY length(cpu_model_name) DESC LIMIT 1", undef, {bind_values=>[$cpu_type->{cpu_model_name}, $cpu_type->{cpu_cache}, $min_cpu_mhz, $max_cpu_mhz]});
   
   
   if(! defined($result)){

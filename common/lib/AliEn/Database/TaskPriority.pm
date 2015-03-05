@@ -92,13 +92,13 @@ sub checkPriorityValue() {
   my $user = shift or $self->{LOGGER}->error("TaskPriority","no username provided in checkPriorityValue");
   $self->debug(1,"Checking if the user $user exists");
 
-  my $exists = $self->getFieldFromPriority("$user", "count(*)");
+  my $exists = $self->queryValue("SELECT 1 from PRIORITY join QUEUE_USER using (userid) where user =?", undef, {bind_values=>[$user]});
   if ($exists) {
     $self->debug(1, "$user entry for priority exists!" );
   } else {
     $self->debug(1, "$user entry for priority does not exist!" );
     my $set = {};
-    $set->{'user'} = "$user";
+    $set->{'userid'} = $self->queryValue("SELECT userid from QUEUE_USER where user =?", undef, {bind_values=>[$user]});;
     $set->{'priority'} = "1.0";
     $set->{'maxparallelJobs'} = 20;
     $set->{'nominalparallelJobs'} = 10;
@@ -156,7 +156,7 @@ sub updatePrioritySet{
 	my $set =shift;
 	
 	$self->debug(1,"In updatePrioritySet user is NOT missing");
-	$self->update("$self->{PRIORITYTABLE}", $set, $self->reservedWord("user") ." LIKE ?", {bind_values=>[$user]});
+	$self->update("$self->{PRIORITYTABLE}", $set, "user LIKE ?", {bind_values=>[$user]});
 }
 
 #sub deletePrioritySet{

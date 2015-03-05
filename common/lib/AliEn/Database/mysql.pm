@@ -54,9 +54,9 @@ $res = $dbh->preprocessFields($keys);
 =cut
 
 sub preprocessFields {
-  my $self     = shift;
+  my $self  = shift;
   my $new_keys = shift;
-  return $new_keys;
+ return $new_keys;
 }
 
 =item C<createTable>
@@ -64,75 +64,69 @@ sub preprocessFields {
   $res = $dbh->createTable($word);
 
 =cut
-
 sub createTable {
-  my $self        = shift;
-  my $table       = shift;
-  my $definition  = shift;
+  my $self = shift;
+  my $table = shift;
+  my $definition = shift;
   my $checkExists = shift || "";
 
-  $DEBUG and $self->debug(1,
-"Database: In createTable creating table $table with definition $definition."
-  );
+  $DEBUG and $self->debug(1,"Database: In createTable creating table $table with definition $definition.");
 
   my $out;
 
   $checkExists
     and $checkExists = "IF NOT EXISTS";
-
-  $self->_do(
-"CREATE TABLE $checkExists $table $definition DEFAULT CHARACTER SET latin1 COLLATE latin1_general_cs"
-    )
-    or $self->{LOGGER}->error(
-    "Database",
-    "In createTable unable to create table $table with definition $definition"
-    ) and return;
+ 
+  $self->_do("CREATE TABLE $checkExists $table $definition DEFAULT CHARACTER SET latin1 COLLATE latin1_general_cs")
+    or $self->{LOGGER}->error("Database","In createTable unable to create table $table with definition $definition")
+      and return;
 
   1;
 }
 
-sub checkTable {
-  my $self       = shift;
-  my $table      = shift;
-  my $desc       = shift;
-  my $columnsDef = shift;
-  my $primaryKey = shift;
-  my $index      = shift;
-  my $options    = shift;
 
-  my %columns = %$columnsDef;
-  my $engine  = "";
+sub checkTable {
+  my $self=shift;
+  my $table=shift;
+  my $desc=shift;
+  my $columnsDef=shift;
+  my $primaryKey=shift;
+  my $index=shift;
+  my $options=shift;
+  
+
+  my %columns=%$columnsDef;
+  my $engine="";
   $options->{engine} and $engine = " engine=$options->{engine} ";
   $desc = "$desc $columns{$desc}";
-  $self->createTable($table, "($desc) $engine", 1) or return;
+  $self->createTable( $table, "($desc) $engine", 1 ) or return;
 
-  my $alter = $self->getNewColumns($table, $columnsDef);
+  my $alter=$self->getNewColumns($table, $columnsDef);
 
   if ($alter) {
-    $self->lock($table);
+  $self->lock($table);
 
-    #let's get again the description
-    $alter = $self->getNewColumns($table, $columnsDef);
-    my $done = 1;
-    if ($alter) {
+  #let's get again the description
+  $alter = $self->getNewColumns( $table, $columnsDef );
+  my $done = 1;
+  if ($alter) {
 
-      #  chop($alter);
-      $self->info("Updating columns of table $table");
-      $done = $self->alterTable($table, $alter);
-    }
-    $self->unlock($table);
-    $done or return;
+  #  chop($alter);
+  $self->info("Updating columns of table $table");
+  $done = $self->alterTable( $table, $alter );
+  }
+  $self->unlock($table);
+  $done or return;
   }
 
   #Ok, now let's take a look at the primary key
   #$primaryKey or return 1;
 
-  $self->setPrimaryKey($table, $desc, $primaryKey, $index);
+  $self->setPrimaryKey( $table, $desc, $primaryKey, $index );
 
 #  $desc =~ /not null/i or $self->{LOGGER}->error("Database", "Error: the table $table is supposed to have a primary key, but the index can be null!") and return;
 }
-sub gestTypes { return 1; }
-
+sub gestTypes{return 1;}
 =item C<getNewColumns>
 
   $res = $dbh->getNewColumns($table,$columnsDef);
@@ -151,19 +145,19 @@ sub getNewColumns {
     or return;
 
   foreach (@$queue) {
-    delete $columns{$_->{Field}};
-    delete $columns{lc($_->{Field})};
-    delete $columns{uc($_->{Field})};
+    delete $columns{ $_->{Field} };
+    delete $columns{ lc( $_->{Field} ) };
+    delete $columns{ uc( $_->{Field} ) };
   }
 
   my $alter = "";
 
-  foreach (keys %columns) {
+  foreach ( keys %columns ) {
     $alter .= "ADD $_ $columns{$_} ,";
   }
   chop($alter);
 
-  return (1, $alter);
+  return ( 1, $alter );
 }
 
 =item C<getIndexes>
@@ -207,8 +201,10 @@ sub createIndex {
   my $self  = shift;
   my $index = shift;
   my $table = shift;
-  $self->alterTable($table, "ADD $index");
+  $self->alterTable( $table, "ADD $index" );
 }
+
+
 
 =item C<getLastId>
 
@@ -238,14 +234,14 @@ sub getConnectionChain {
   my $db     = shift || $self->{DB};
   my $host   = shift || $self->{HOST};
   my $dsn    = "DBI:$driver:$db;host=$host";
-  if ($self->{SSL}) {
+  if ( $self->{SSL} ) {
 
     my $cert = $ENV{X509_USER_CERT}
       || "$ENV{ALIEN_HOME}/globus/usercert.pem";
     my $key = $ENV{X509_USER_KEY} || "$ENV{ALIEN_HOME}/globus/userkey.pem";
     $DEBUG
-      and
-      $self->debug(1, "Authenticating with the certificate in $cert and $key");
+      and $self->debug( 1,
+      "Authenticating with the certificate in $cert and $key" );
     $dsn .=
       ";mysql_ssl=1;mysql_ssl_client_key=$key;mysql_ssl_client_cert=$cert";
   }
@@ -253,18 +249,78 @@ sub getConnectionChain {
 }
 
 sub existsTable {
-  my $self  = shift;
+  my $self = shift;
   my $table = shift;
   return $self->queryValue("SHOW TABLES like '$table'");
 }
 
-sub describeTable {
+
+sub resetAutoincrement {
   my $self  = shift;
+  my $table = shift;
+  $self->do("ALTER TABLE $table auto_increment=1");
+}
+
+
+
+sub describeTable {
+  my $self = shift;
   my $table = shift;
 
   $self->_queryDB("DESCRIBE $table");
 }
+sub grantAllPrivilegesToUser {
+  my $self = shift;
+  my $user = shift;
+  my $db = shift;
+  my $table = shift;
 
+  $self->grantPrivilegesToUser(["ALL PRIVILEGES ON $db.$table"],$user);
+}
+
+sub grantPrivilegesToUser {
+  my $self = shift;
+  my $rprivs = shift;
+  my $user = shift;
+  my $pass = shift;
+  my $origpass=$pass;
+  $DEBUG and $self->debug(1, "In grantPrivilegesToUser");
+  $pass
+  	and $pass = "$user IDENTIFIED BY '$pass'"
+	or $pass = $user;
+
+  my $success = 1;
+  for (@$rprivs) {
+    $DEBUG and $self->debug (0, "Adding privileges $_ to $user");
+    $self->_do("GRANT $_ TO $pass")
+      or $DEBUG and $self->debug (0, "Error adding privileges $_ to $user")
+      and $success = 0;
+  }
+  return $success;
+}
+
+sub revokeAllPrivilegesFromUser {
+  my $self = shift;
+  my $user = shift;
+  my $db = shift;
+  my $table = shift;
+  $self->revokePrivilegesFromUser(["ALL PRIVILEGES ON $db.$table"], $user);
+}
+
+sub revokePrivilegesFromUser {
+  my $self = shift;
+  my $rprivs = shift;
+  my $user = shift;
+
+  my $success = 1;
+  for (@$rprivs) {
+    $DEBUG and $self->debug(1, "Revoking privileges $_ of $user");
+    $self->_do("REVOKE $_ FROM $user")
+      or $DEBUG and $self->debug (0, "Error revoking privileges $_ of $user")
+      and $success = 0;
+  }
+  return $success;
+}
 
 sub renameField {
   my $self  = shift;
@@ -284,19 +340,11 @@ sub binary2string {
 
 sub createLFNfunctions {
   my $self = shift;
-  $self->do(
-"create function string2binary (my_uuid varchar(36)) returns binary(16) deterministic sql security invoker return unhex(replace(my_uuid, '-', ''))"
-  );
-  $self->do(
-"create function binary2string (my_uuid binary(16)) returns varchar(36) deterministic sql security invoker return insert(insert(insert(insert(hex(my_uuid),9,0,'-'),14,0,'-'),19,0,'-'),24,0,'-')"
-  );
-  $self->do(
-"create function binary2date (my_uuid binary(16))  returns char(16) deterministic sql security invoker
-return upper(concat(right(left(hex(my_uuid),16),4), right(left(hex(my_uuid),12),4),left(hex(my_uuid),8)))"
-  );
-  $DEBUG
-    and
-    $self->debug(2, "In createCatalogueTables creation of tables finished.");
+  $self->do("create function string2binary (my_uuid varchar(36)) returns binary(16) deterministic sql security invoker return unhex(replace(my_uuid, '-', ''))");
+  $self->do("create function binary2string (my_uuid binary(16)) returns varchar(36) deterministic sql security invoker return insert(insert(insert(insert(hex(my_uuid),9,0,'-'),14,0,'-'),19,0,'-'),24,0,'-')");
+  $self->do("create function binary2date (my_uuid binary(16))  returns char(16) deterministic sql security invoker
+return upper(concat(right(left(hex(my_uuid),16),4), right(left(hex(my_uuid),12),4),left(hex(my_uuid),8)))");
+  $DEBUG and $self->debug(2,"In createCatalogueTables creation of tables finished.");
   $self->do("alter table TAG0 drop key path");
   $self->do("alter table TAG0 add index path (path)");
 
@@ -325,7 +373,7 @@ sub lock {
   my $self  = shift;
   my $table = shift;
 
-  $DEBUG and $self->debug(1, "Database: In lock locking table $table.");
+  $DEBUG and $self->debug( 1, "Database: In lock locking table $table." );
 
   $self->_do("LOCK TABLE $table WRITE");
 }
@@ -334,7 +382,7 @@ sub unlock {
   my $self  = shift;
   my $table = shift;
 
-  $DEBUG and $self->debug(1, "Database: In lock unlocking tables.");
+  $DEBUG and $self->debug( 1, "Database: In lock unlocking tables." );
 
   $table and $table = " $table"
     or $table = "S";
@@ -350,11 +398,12 @@ sub optimizeTable {
     $self->queryValue(
 "SELECT count(*) FROM information_schema.TABLES where table_schema=? and table_name=? 
                           and (data_free > 100000000 or data_free/data_length>0.1)",
-      undef, {bind_values => [ $self->{DB}, $table ]}
+      undef, { bind_values => [ $self->{DB}, $table ] }
     )
-    ) {
-    $self->info("We have to optimize the table");
-    $self->do("optimize table $table");
+    )
+  {
+    $self->info("We have to optimize the table - Disabled!");
+    #$self->do("optimize table $table");
   }
   return 1;
 }
@@ -367,19 +416,19 @@ sub dbGetAllTagNamesByPath {
   my $rec  = "";
   my $rec2 = "";
   my @bind = ($path);
-  if ($options->{r}) {
+  if ( $options->{r} ) {
     $rec = " or path like concat(?, '%') ";
     push @bind, $path;
   }
-  if ($options->{user}) {
-    $self->debug(1, "Only for the user $options->{user}");
+  if ( $options->{user} ) {
+    $self->debug( 1, "Only for the user $options->{user}" );
     $rec2 = " and user=?";
     push @bind, $options->{user};
   }
   $self->query(
 "SELECT tagName,path from TAG0 where (? like concat(path,'%') $rec) $rec2 group by tagName",
     undef,
-    {bind_values => \@bind}
+    { bind_values => \@bind }
   );
 }
 
@@ -399,6 +448,7 @@ sub _timeUnits {
   return $s;
 }
 
+
 sub dateFormat {
   my $self = shift;
   my $col  = shift;
@@ -412,9 +462,11 @@ sub regexp {
   return "$col rlike '$pattern'";
 }
 
+
+
 sub schema {
   my $self = shift;
-  $DEBUG and $self->debug(2, "getting schema in mysql module");
+  $DEBUG and $self->debug( 2, "getting schema in mysql module" );
   return $self->{DB};
 }
 
@@ -447,6 +499,38 @@ sub _getAllObjects {
   my $schema = shift;
   return "$schema\.\*";
 }
+sub grant {
+  my $self=shift;
+  my $grant=shift;
+  
+  return $self->do("grant $grant");
+}
+
+sub grantPrivilegesToObject {
+  my $self        = shift;
+  my $privs       = shift;
+  my $schema_from = shift;
+  my $object =
+    shift;    # if object == * that means all the objects in the schema.
+  my $user_to = shift;
+  my $pass    = shift;
+
+  $DEBUG and $self->debug( 1, "In grantPrivilegesToObject" );
+  $pass and $pass = "$user_to IDENTIFIED BY '$pass'"
+    or $pass = $user_to;
+  my $success = 1;
+
+  $object = "$schema_from\.$object";
+  $DEBUG and $self->debug( 0, "Adding privileges $privs to $user_to" );
+
+#print "inside granting privileges doing: GRANT $privs ON $object TO $pass and this is the database handler: " ;
+#$self->_connect and;
+  $self->do("GRANT $privs ON $object TO $pass")
+    or $DEBUG
+    and $self->debug( 0, "Error adding privileges $privs to $user_to" )
+    and $success = 0;
+  return $success;
+}
 
 sub renumberTable {
   my $self    = shift;
@@ -458,8 +542,8 @@ sub renumberTable {
   $options->{lock} and $lock = "$options->{lock} $lock";
   my $info = $self->queryValue("select max($index)-count(1) from $table");
   $info or $info = 0;
-  if ($info < 100000) {
-    $self->debug(1, "Only $info. We don't need to renumber");
+  if ( $info < 100000 ) {
+    $self->debug( 1, "Only $info. We don't need to renumber" );
     return 1;
   }
 
@@ -471,8 +555,8 @@ sub renumberTable {
 "alter table $table modify $index int(11), drop primary key,  auto_increment=1, add new_index int(11) auto_increment primary key, add unique index (guidid)"
   ) or $ok = 0;
   if ($ok) {
-    foreach my $t (@{$options->{update}}) {
-      $self->debug(1, "Updating $t");
+    foreach my $t ( @{ $options->{update} } ) {
+      $self->debug( 1, "Updating $t" );
       $self->do(
 "update $t set $index= (select new_index from $table where $index=$t.$index)"
       ) and next;
@@ -486,7 +570,8 @@ sub renumberTable {
     $self->do(
 "alter table $table drop column $index, change new_index $index int(11) auto_increment"
     );
-  } else {
+  }
+  else {
     $self->info("The update didn't work. Rolling back");
     $self->do(
 "alter table $table drop new_index, modify $index int(11) auto_increment primary key"
@@ -522,66 +607,6 @@ sub getToStage {
 
 }
 
-sub unfinishedJobs24PerUser {
-  my $self = shift;
-  return $self->do(
-"update PRIORITY pr left join (select SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user, count(1) as unfinishedJobsLast24h from QUEUE q where (status='INSERTING' or status='WAITING' or status='STARTED' or status='RUNNING' or status='SAVING' or status='OVER_WAITING') and (unix_timestamp()>=q.received and unix_timestamp()-q.received<60*60*24) group by submithost) as C on pr.user=C.user set pr.unfinishedJobsLast24h=IFNULL(C.unfinishedJobsLast24h, 0)"
-  );
-}
-
-sub cpuCost24PerUser {
-  my $self = shift;
-  return $self->do(
-"update PRIORITY pr left join (select SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user, sum(p.cost) as totalCpuCostLast24h , sum(p.runtimes) as totalRunningTimeLast24h  from QUEUE q join QUEUEPROC p using(queueId) where (unix_timestamp()>=q.received and unix_timestamp()-q.received<60*60*24) group by submithost) as C on pr.user=C.user set pr.totalCpuCostLast24h=IFNULL(C.totalCpuCostLast24h, 0)"
-  );
-}
-
-sub changeOWtoW {
-  my $self = shift;
-  return $self->do(
-"update QUEUE q join PRIORITY pr on pr.user=SUBSTRING( q.submitHost, 1, POSITION('\@' in q.submitHost)-1 ) set q.status='WAITING' where (pr.totalRunningTimeLast24h<pr.maxTotalRunningTime and pr.totalCpuCostLast24h<pr.maxTotalCpuCost) and q.status='OVER_WAITING'"
-  );
-}
-
-sub changeWtoOW {
-  my $self = shift;
-  return $self->do(
-"update QUEUE q join PRIORITY pr on pr.user=SUBSTRING( q.submitHost, 1, POSITION('\@' in q.submitHost)-1 ) set q.status='OVER_WAITING' where (pr.totalRunningTimeLast24h>=pr.maxTotalRunningTime or pr.totalCpuCostLast24h>=pr.maxTotalCpuCost) and q.status='WAITING'"
-  );
-}
-
-sub updateFinalPrice {
-  my $self     = shift;
-  my $t        = shift;
-  my $nominalP = shift;
-  my $now      = shift;
-  my $done     = shift;
-  my $failed   = shift;
-  my $update =
-" UPDATE $t q, QUEUEPROC p SET finalPrice = round(p.si2k * $nominalP * price),chargeStatus=\'$now\'";
-  my $where =
-" WHERE (status='DONE' AND p.si2k>0 AND chargeStatus!=\'$done\' AND chargeStatus!=\'$failed\') and p.queueid=q.queueid";
-  my $updateStmt = $update . $where;
-  return $self->do($updateStmt);
-
-}
-
-sub optimizerJobExpired {
-  return
-"( ( (status='DONE') || (status='FAILED') || (status='EXPIRED') || (status like 'ERROR%')  ) && ( received < (? - 7*86540) ) )";
-}
-
-sub optimizerJobPriority {
-  my $self       = shift;
-  my $userColumn = shift;
-  return $self->do(
-"INSERT IGNORE INTO PRIORITY(user, priority, maxparallelJobs, nominalparallelJobs) SELECT distinct $userColumn, 1,200, 100 from QUEUE"
-  );
-}
-
-sub userColumn {
-  return "SUBSTR( submitHost, 1, POSITION('\@' in submitHost)-1  )";
-}
 
 sub getMessages {
   my $self    = shift;
@@ -589,9 +614,9 @@ sub getMessages {
   my $host    = shift;
   my $time    = shift;
   return $self->query(
-"SELECT ID,TargetHost,Message,MessageArgs from MESSAGES WHERE TargetService = ? AND  ? like TargetHost AND (Expires > ? or Expires = 0) order by ID limit 300",
+"SELECT ID,TargetHost,Message,MessageArgs from MESSAGES WHERE TargetService = ? AND  ? like TargetHost AND (Expires > ? or Expires = 0) order by ID",
     undef,
-    {bind_values => [ $service, $host, $time ]}
+    { bind_values => [ $service, $host, $time ] }
   );
 }
 
@@ -610,12 +635,6 @@ sub currentDate {
   return " now() ";
 }
 
-sub resetAutoincrement {
-  my $self  = shift;
-  my $table = shift;
-  return $self->do("alter table $table auto_increment=1");
-
-}
 
 ###########################
 #Functions specific for AliEn/Catalogue/Admin
@@ -628,206 +647,9 @@ sub refreshSERank {
   $self->do(
     "insert into SERanks (sitename,seNumber,rank,updated)
   select ?, seNumber,  ?, 0  from SE where seName LIKE ?",
-    {bind_values => [ $site, $rank, $seName ]}
+    { bind_values => [ $site, $rank, $seName ] }
   );
 
-}
-#####
-###Specific for Database/Catalogue/GUID
-###
-
-sub insertLFNBookedDeleteMirrorFromGUID {
-  my $self     = shift;
-  my $table    = shift;
-  my $lfn      = shift;
-  my $guid     = shift;
-  my $role     = shift;
-  my $pfn      = shift;
-  my $guidId   = shift;
-  my $seNumber = shift;
-  return $self->do(
-"INSERT IGNORE INTO LFN_BOOKED(lfn, owner, expiretime, size, guid, gowner, user, pfn, se)
-      select ?,g.owner,-1,g.size,string2binary(?),g.gowner,?,?,s.seName
-      from " . $table . " g, " . $table . "_PFN g_p, SE s
-      where g.guidId=g_p.guidId and g_p.guidId=? and g_p.seNumber=? and g_p.pfn=? and s.seNumber=g_p.seNumber",
-    {bind_values => [ $lfn, $guid, $role, $pfn, $guidId, $seNumber, $pfn ]}
-  );
-
-}
-####
-# Specific for Database/IS
-##
-sub insertLFNBookedRemoveDirectory {
-  my $self      = shift;
-  my $lfn       = shift;
-  my $tableName = shift, my $user = shift;
-  my $tmpPath   = shift;
-
-  return $self->do(
-"INSERT IGNORE INTO LFN_BOOKED(lfn, owner, expiretime, size, guid, gowner, user, pfn)
-     SELECT concat('$lfn' , l.lfn), l.owner, -1, l.size, l.guid, l.gowner, ?,'*' FROM $tableName l WHERE l.type='f' AND l.lfn LIKE concat (?,'%')",
-    {bind_values => [ $user, $tmpPath ]}
-  );
-
-}
-
-###
-##Specific for Catalogue/Authorize
-###
-sub insertLFNBookedAndOptionalExistingFlagTrigger {
-  my $self       = shift;
-  my $lfn        = shift;    #$envelope->{lfn};
-  my $user       = shift;    #$user;
-  my $quota      = shift;    #, "1"
-  my $md5sum     = shift;    #,$envelope->{md5}
-  my $expiretime = shift;    #$lifetime,
-  my $size       = shift;    #$envelope->{size},
-  my $pfn        = shift;    #$envelope->{turl},
-  my $se         = shift;    #$envelope->{se},$user,
-  my $guid       = shift;    # $envelope->{guid},
-  my $existing   = shift;    #$trigger,
-  my $jobid      = shift;    #$jobid;
-
-  return $self->do(
-"REPLACE INTO LFN_BOOKED (lfn, owner, quotaCalculated, md5sum, expiretime, size, pfn, se, gowner, guid, existing, jobid) VALUES (?,?,?,?,?,?,?,?,?,string2binary(?),?,?);",
-    { bind_values => [
-        $lfn, $user, $quota, $md5sum, $expiretime, $size,
-        $pfn, $se,   $user,  $guid,   $existing,   $jobid
-      ]
-    }
-  );
-}
-
-sub dbGetSEListFromSiteSECacheForWriteAccess {
-
-  my $self        = shift;
-  my $user        = shift;
-  my $fileSize    = shift;
-  my $type        = shift;
-  my $count       = shift;
-  my $sitename    = shift;
-  my $excludeList = (shift || "");
-
-  my $query = "SELECT DISTINCT SE.seName FROM SERanks,SE WHERE "
-    . " sitename=? and SERanks.seNumber = SE.seNumber ";
-
-  my @queryValues = ();
-  push @queryValues, $sitename;
-
-  foreach (@$excludeList) {
-    $query .= "and SE.seName<>? ";
-    push @queryValues, $_;
-  }
-
-  $query .=
-      " and SE.seMinSize <= ? and SE.seQoS  LIKE concat('%,' , ? , ',%' ) "
-    . " and (SE.seExclusiveWrite is NULL or SE.seExclusiveWrite = '' or SE.seExclusiveWrite  LIKE concat ('%,' , ? , ',%') )"
-    . " ORDER BY rank ASC limit ? ;";
-
-  push @queryValues, $fileSize;
-  push @queryValues, $type;
-  push @queryValues, $user;
-  push @queryValues, $count;
-
-  return $self->queryColumn($query, undef, {bind_values => \@queryValues});
-
-}
-
-##############
-###optimizer Catalogue /SeSize
-#############
-sub updateVolumesInSESize {
-  my $self = shift;
-
-  $self->do(
-"update SE, SE_VOLUMES set usedspace=seusedspace/1024, freespace=size-usedspace where  SE.sename=SE_VOLUMES.sename and size!= -1"
-  );
-  return;
-}
-
-sub showLDLTables {
-  my $self = shift;
-  return $self->queryColum("show tables like 'L\%L'");
-}
-
-sub updateSESize {
-  my $self = shift;
-  return $self->do(
-"update SE, SE_VOLUMES set usedspace=seusedspace/1024, freespace=size-usedspace where  SE.sename=SE_VOLUMES.sename and size!= -1"
-  );
-
-}
-
-#######
-## optimizer Job/priority
-#####
-sub getPriorityUpdate {
-  my $self       = shift;
-  my $userColumn = shift;
-  return "update PRIORITY p left join 
-(select SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) user ,count(*) w from QUEUE where status='WAITING' group by SUBSTRING( 
-submitHost, 1, POSITION('\@' in submitHost)-1 ) )  b using (user)
- left join (select SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) user,count(*) r from QUEUE where (status='RUNNING' or status='STARTED' 
-or status='SAVING') group by SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) ) b2 using (user) 
- set waiting=coalesce(w,0), running=COALESCe(r,0) ,
-userload=(running/maxparallelJobs), 
-computedpriority=(if(running<maxparallelJobs, if((2-userload)*priority>0,50.0*(2-userload)*priority,1),1))";
-}
-
-sub getJobAgentUpdate {
-  my $self       = shift;
-  my $userColumn = shift;
-  return
-"UPDATE JOBAGENT j set j.priority=(SELECT computedPriority-(min(queueid)/(SELECT ifnull(max(queueid),1) from QUEUE)) from PRIORITY p, QUEUE q where j.entryId=q.agentId and status='WAITING' and $userColumn=p.user group by agentId)";
-}
-
-########
-## optimizer Job/Expired
-####
-
-#sub getJobOptimizerExpiredQ1{
-#  my $self = shift;
-# return "where  (status in ('DONE','FAILED','EXPIRED') or status like 'ERROR%'  ) and ( mtime < addtime(now(), '-10 00:00:00')  and split=0) )";
-#}
-
-sub getJobOptimizerExpiredQ2 {
-  my $self = shift;
-  return
-" left join QUEUE q2 on q.split=q2.queueid where q.split!=0 and q2.queueid is null and q.mtime<addtime(now(), '-10 00:00:00')";
-}
-
-sub getJobOptimizerExpiredQ3 {
-  my $self = shift;
-  return "where mtime < addtime(now(), '-10 00:00:00') and split=0";
-}
-
-########
-### optimizer Job/Zombies
-####
-
-sub getJobOptimizerZombies {
-  my $self   = shift;
-  my $status = shift;
-  return
-"q, QUEUEPROC p where $status and p.queueId=q.queueId and DATE_ADD(now(),INTERVAL -3600 SECOND)>lastupdate";
-}
-
-########
-### optimizer Job/Charge
-####
-
-sub getJobOptimizerCharge {
-  my $self           = shift;
-  my $queueTable     = shift;
-  my $nominalPrice   = shift;
-  my $chargingNow    = shift;
-  my $chargingDone   = shift;
-  my $chargingFailed = shift;
-  my $update =
-" UPDATE $queueTable q, QUEUEPROC p SET finalPrice = round(p.si2k * $nominalPrice * price),chargeStatus=\'$chargingNow\'";
-  my $where =
-" WHERE (status='DONE' AND p.si2k>0 AND chargeStatus!=\'$chargingDone\' AND chargeStatus!=\'$chargingFailed\') and p.queueid=q.queueid";
-  return $update . $where;
 }
 1;
 

@@ -15,17 +15,6 @@ sub checkWakesUp {
   $silent and $method="debug";
   my @data=();
   $silent and push @data, "1";
-  $self->{DBIS} or 
-    $self->{DBIS}=new AliEn::Database::IS(
-					  {
-					   DB=>$self->{CONFIG}->{IS_DATABASE},
-					   HOST=>$self->{CONFIG}->{IS_DB_HOST},
-					   DRIVER=>$self->{CONFIG}->{IS_DRIVER},
-					   DEBUG  => $self->{DEBUG},
-					   ROLE => "admin"
-					  }
-					 );
-  $self->{DBIS} or $self->{LOGGER}->info("Hosts", "Error getting the database");
 
   $self->$method(@data, "The hosts optimizer starts");
   my $done5=$self->checkHosts($silent);
@@ -77,51 +66,53 @@ sub  checkHosts {
     or $self->info("There are no hosts" )
       and return;		#check if it's ok to return undef here!!
 
+#  $self->info(Dumper($hosts));
+#  use Data::Dumper;
+#  return 1;
 
   foreach my $data (@$hosts) {
-    $self->$method(@data,"====> $data->{hostname}");
-    # translate the hostname into service name
-    my $serviceblock= $self->{DBIS}->getServiceNameByHost("ClusterMonitor",$data->{hostname});
-    my $site = $serviceblock->[0]->{name} or
-      $self->info("Failed to resolve CM service name of host $data->{hostname}") and next;
-    $self->$method(@data,"Getting the maxjobs of $data->{hostname}");
+    $self->$method(@data,"====> $data->{hostname}, $data->{cename}");
 
     my ($newJobs, $newQueued)=$self->{CONFIG}->GetMaxJobs($data->{hostname});
     $newJobs or next;
     my $set ={};
+    
+    my $time = time;
+    my $upd = $self->{DB}->do("update HOSTS set status='LOST' where $time-date>24*3600 and status!='LOST' and hostname=?",{bind_values=>[$data->{hostname}]} ); 
+    $upd>0 and $self->info( "In checkHosts set status=LOST to $data->{hostname}, time: $time" ) 
+            or $self->info( "In checkHosts host $data->{hostname} keeps its status, time: $time" );
+    
     if (( $data->{maxjobs} eq $newJobs) && ($data->{maxqueued} eq  $newQueued)) {
       $self->$method(@data, "Still the same number ($data->{maxjobs} and $data->{maxqueued})");
     } else {
 
-      $self->info("In checkHosts updating maxjobs and maxqueued in database (to $newJobs and $newQueued)");
+      $self->info("In checkHosts updating maxjobs and maxqueued for $data->{cename} (to $newJobs and $newQueued)");
 
       $self->{DB}->updateHost($data->{hostname},{maxjobs=>$newJobs, maxqueued=>$newQueued})
 	or $self->{LOGGER}->warning( "Hosts", "In checkHosts error updating maxjobs and maxqueued for host $data->{hostname}" );
-
+	
     }
 					   
     # update also in the sitequeue table and calculate the load value for this site
 
     $set->{'maxqueued'}  = $newQueued;
     $set->{'maxrunning'} = $newJobs;
-    my $queueload = $self->{DB}->getFieldFromSiteQueue("$site","( RUNNING + QUEUED + ASSIGNED + STARTED + IDLE + INTERACTIV + SAVING ) as LOADALL");
-    my $runload = $self->{DB}->getFieldFromSiteQueue("$site","( RUNNING + STARTED + INTERACTIV + SAVING ) as LOADALL");
+    my $queueload = $self->{DB}->getFieldFromSiteQueue($data->{cename},"( RUNNING + ASSIGNED + STARTED + IDLE + INTERACTIV + SAVING ) as LOADALL");
+    my $runload = $self->{DB}->getFieldFromSiteQueue($data->{cename},"( RUNNING + STARTED + INTERACTIV + SAVING ) as LOADALL");
     defined $queueload or 
-      $self->info("No info of the queued/running processes for site $site of SITEQUEUES table");
+      $self->info("No info of the queued/running processes for site $data->{cename} of SITEQUEUES table");
     defined $runload or
-      $self->info("No info of the running processes for site $site of SITEQUEUES table ");
+      $self->info("No info of the running processes for site $data->{cename} of SITEQUEUES table ");
     $set->{'queueload'} = "-0.0";
     $set->{'runload'}   = "-0.0";
     $queueload and $newJobs and $set->{'queueload'} = sprintf "%3.02f", 100.0 * $queueload / $newJobs;
     $runload and $newJobs and $set->{'runload'} = sprintf "%3.02f", 100.0 * $runload / $newJobs;
-    $self->$method(@data,"Updating site $site with QL $set->{'queueload'} and RL $set->{'runload'}");
-    my $done=$self->{DB}->updateSiteQueue($set,"site='$site'") or
-      $self->{LOGGER}->warning( "Hosts","In checkHosts error updating maxjobs and maxqueued for host $data->{hostname} in site $site in SITEQUEUETABLE");
+    $self->$method(@data,"Updating site $data->{cename} with QL $set->{'queueload'} and RL $set->{'runload'}");
+    my $done=$self->{DB}->updateSiteQueue($set,"site=?", {bind_values=>[$data->{cename}]}) or
+      $self->{LOGGER}->warning( "Hosts","In checkHosts error updating maxjobs and maxqueued for host $data->{hostname} and $data->{cename} in SITEQUEUETABLE");
     if ($done eq "") {
       $self->info("The site didn't exist... Let's insert it");
-      $set->{'site'} = "$site";
-      $set->{'blocked'} = "open";
-      $self->{DB}->insertSiteQueue($set);
+      $self->{DB}->insertSiteQueue($data->{cename});
     }
   }
   return 1;

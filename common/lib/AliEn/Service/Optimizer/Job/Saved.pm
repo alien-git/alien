@@ -25,18 +25,11 @@ sub checkWakesUp {
 
   $self->{LOGGER}->$method("Zombies", "The saved optimizer starts");
 
-  my $dosth=0; 
-
-  my $todoone = $self->{DB}->queryValue("SELECT todo from ACTIONS where action='SAVED'");
-  $todoone and $self->{DB}->update("ACTIONS", {todo=>0}, "action='SAVED'");
-
-  my $todotwo = $self->{DB}->queryValue("SELECT todo from ACTIONS where action='SAVED_WARN'");
-  $todotwo and $self->{DB}->update("ACTIONS", {todo=>0}, "action='SAVED_WARN'");
  
-  ($todoone or $todotwo) or return; 
-
-  my $done=$self->checkJobs($silent, "SAVED", "checkSavedJob");
-  $self->checkJobs($silent, "SAVED_WARN", "checkSavedJob");
+  if ($self->{DB}->queryValue("SELECT todo from ACTIONS where action='SAVED'")) {
+  	$self->{DB}->update("ACTIONS", {todo=>0}, "action='SAVED'");
+    $self->checkJobs($silent, 12, "checkSavedJob", 15, 15); #SAVED
+  }
 
   return;
 
@@ -48,6 +41,7 @@ sub checkSavedJob{
   my $job_ca=shift;
   my $status=shift;
   my $now = time;
+  my $textstatus=AliEn::Util::statusName($status);
 
   $self->info("********************************\n\tWe should do something with job $queueid");
 
@@ -57,11 +51,11 @@ sub checkSavedJob{
 
   if ($success and scalar(@fails) eq 0){
     $self->putJobLog($queueid,"trace", "Output files registered successfully in $success");
-    $self->putJobLog($queueid,"state", "Job state transition from $status to DONE");
+    $self->putJobLog($queueid,"state", "Job state transition from $textstatus to DONE");
   } else {
-    $self->{DB}->updateStatus($queueid,$status, "ERROR_RE");
+    $self->{DB}->updateStatus($queueid,$textstatus, "ERROR_RE");
     foreach (@fails) { $self->putJobLog($queueid,"error", "Error registering: $_"); }
-    $self->putJobLog($queueid,"state", "Job state transition from $status to ERROR_RE");
+    $self->putJobLog($queueid,"state", "Job state transition from $textstatus to ERROR_RE");
   }
  
   return $success;

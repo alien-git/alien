@@ -120,7 +120,7 @@ sub match {
     my $element=$$pendingElements[$currentJob];
     my $id = $element->{"${type}Id"};
 
-    $self->debug(1, "in match pending$type = $id" );
+    $self->info( " $$ in match pending$type = $id" );
 
     my $job_ca = Classad::Classad->new($element->{jdl});
     $self->debug(1, "Checking $element->{jdl}");
@@ -138,52 +138,72 @@ sub match {
     if($type eq "queue"){
       $possibleIds[0]->{jdl}=$element->{jdl};
       $possibleIds[0]->{jdl}=~ s/\s+/ /g;
+#      $self->{DB}->lock("QUEUE write, QUEUEPROC");
+      $self->info("$$ WE HAVE LOCKED THE TABLE");
+#    } elsif ($type eq "agent") {
+#      $self->{DB}->lock("QUEUE write, QUEUEPROC");
+#      $self->info("$$ WE HAVE LOCKED THE TABLE (agent)");
     }
-    $self->info("WE HAVE A MATCH WITH $id!!!");
+    $self->info("$$ WE HAVE A MATCH WITH $id!!! ");
+
     if ($findIdFunction){
       @possibleIds=$self->$findIdFunction($id);
     }
-    $self->info("Checking all the possible Ids");
+    $self->info("$$ Checking all the possible Ids ");
     while (@possibleIds){
       my $item=shift @possibleIds;
-      if ($findIdFunction){
-	$self->$findIdFunction($id, \@possibleIds);
+      my $realId=$item->{id};
+
+      $self->info("$$ First, assign the job");
+      if (not  $self->{DB}->assignWaiting($realId,$arg1,$arg2,$text)){
+         $self->info("$$ the job has already been given");
+         next;
       }
+
       my $ret1=$item->{classad};
       my $ret2=$item->{jdl};
-      my $realId=$item->{id};
+      if (!$ret2) {
+        $self->info("$$ Now we get the jdl");
+        $ret2=$self->{DB}->queryValue("SELECT jdl from QUEUE where queueid=?", undef, {bind_values=>[$realId]});
+      }
       if (!$ret1 ){
 	$self->debug(1, "Creating the classad of $item->{jdl}");
 	$ret1=$item->{classad}= Classad::Classad->new($item->{jdl});
-	($ret1 and $ret1->isOK())
-	  or $self->info("Error creating the jdl") and next;
+	if ( not $ret1 or not  $ret1->isOK()){
+
+	$self->info("$$ Error creating the jdl of '$item->{jdl}'.Puttting the job to ERROR_I");
+        $self->{DB}->updateStatus($realId,"WAITING","ERROR_I");
+        next;
+
+        }
       }
       $self->debug(1, "Got returning arguments for  $realId: $ret1");
       if ($function) {
 	$self->debug(1, "Before returning, let's check if the extra function $function thinks everything is ok");
 	my @return=$self->$function($ret1);
 	if ($return[0] ne "1"){
-	  $self->info("$function didn't return 1. We don't assign the task");
+	  $self->info("$$ $function didn't return 1. We don't assign the task");
+          $self->{DB}->do("update QUEUE set status='WAITING' where queueid=?",  {bind_values=>[$realId]});
+          $self->info("And putting back the counter of jobagents for $id");
+          $self->{DB}->do("update JOBAGENT set counter=counter+1 where entryid=?", {bind_values=>[$id]});
 	  return @return;
 	}
       }
       
-      $self->debug(1, "Checking if the $type is still free");
       splice(@$pendingElements, $currentJob,1);
-      if ( $self->{DB}->assignWaiting($realId,$arg1,$arg2,$text)){
-	$self->debug(1, "$realId successfully assigned");
+      $self->debug(1, "$realId successfully assigned");
 	push @toReturn, ($realId, $ret1, $ret2);
 	$counter--;
-	$counter>0 or return @toReturn;
-	$self->info("We found one match, but we are still looking for other $counter");
+	if ( $counter<=0 ){
+          $self->info("$$ FOUND ALL OF THEM, and unlocking");
+          return @toReturn;
+        }
+	$self->info("$$ We found one match, but we are still looking for other $counter");
 	
-      } else {
-	$self->debug(1, "$type has already been given");
-      }
     }
   }
 
-  $self->info("Returning  $#toReturn +1 entries that match" );
+  $self->info("$$ Returning  $#toReturn +1 entries that match" );
   
   return @toReturn;
 }

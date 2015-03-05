@@ -7,7 +7,24 @@
 #  as specified in the README file that comes with the distribution.
 #
 # HISTORY
-# $Log$
+# $Log: LogAgentDriverAliEn.pm,v $
+# Revision 1.1  2010-12-19 12:54:37  sschrein
+#
+#
+# fixing logger issues:
+#
+# - capital first char in output
+# - stderr/stdout messed up
+# - double newlines in output
+#
+# Logger/LogAgentDriverAliEn.pm is a new module that overwrites the Log package
+# and defines a new Log Driver, extension of Log/Agent/Driver/Default.pm
+#
+# A new output log function $self->raw($logmessage) is used to not introduce
+# linefeeds, as info and all other log functions do. raw is new int level 8,
+# and therefore will be always invoked. File logging should not change due to
+# the changes, as LogAgentDriverAliEn.pm is not instantiated for that.
+#
 # Revision 1.1  2002/03/09 15:54:27  wendigo
 # New maintainer
 #
