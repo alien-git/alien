@@ -1969,7 +1969,7 @@ sub putFiles {
       foreach my $env (@addEnvs) {
         my $proxy =  AliEn::Util::getValFromEnvelope($env,"proxy");
         my $turl =  AliEn::Util::getValFromEnvelope($env,"turl");
-        $turl =~ s/$proxy//;
+        $proxy and $turl =~ s/$proxy//;
         push @pfns, $turl;
         $guids{$fs_table->{$fileOrArch}->{name}} = AliEn::Util::getValFromEnvelope($env,"guid");
       }

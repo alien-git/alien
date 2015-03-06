@@ -15,15 +15,15 @@ sub checkWakesUp {
   my $method="info";
   $silent and $method="debug" and  @info=1;
   $self->$method(@info, "The OCDB optimizer starts");
-  $self->{SLEEP_PERIOD}=60;
+  $self->{SLEEP_PERIOD}=30;
   
 #  $self->{COUNTER} or $self->{COUNTER}=0;
 #  $self->{COUNTER} and $self->info("Going back to sleep (we worked $self->{COUNTER} times :) )") and return;
 #  $self->{COUNTER}++;
   
-  $self->{DIRFILES} or 
-    $self->{DIRFILES}="$ENV{ALIEN_HOME}/var/log/AliEn/$self->{CONFIG}->{ORG_NAME}/CatalogueOptimizer/OCDB/";
-  -d $self->{DIRFILES} or $self->info("Creating $self->{DIRFILES}") and mkdir $self->{DIRFILES},  0755;
+#  $self->{DIRFILES} or 
+#    $self->{DIRFILES}="$ENV{ALIEN_HOME}/var/log/AliEn/$self->{CONFIG}->{ORG_NAME}/CatalogueOptimizer/OCDB/";
+#  -d $self->{DIRFILES} or $self->info("Creating $self->{DIRFILES}") and mkdir $self->{DIRFILES},  0755;
   
   $self->{DB}->{LFN_DB}->lock("OCDB");
   #Cleaning entries that fail too much
@@ -46,7 +46,7 @@ sub insertOCDBIntoCVMFS {
               and $cvmfsPath = "/cvmfs/alice-ocdb.cern.ch/calibration/MC/";
 
     # We limit the objects per loop, including the ones failed 5h or more ago
-    my $query = "SELECT entryId, lfn from OCDB where $lfnReq and failed=0 or ( failed>0 and timestampdiff(SECOND,lastupdated,now())>=18000 ) limit 200";
+    my $query = "SELECT entryId, lfn from OCDB where $lfnReq and failed=0 or ( failed>0 and timestampdiff(SECOND,lastupdated,now())>=18000 ) limit 400";
               
 	my $lfnIds = $self->{DB}->{LFN_DB}->query($query);
 	scalar(@$lfnIds) or $self->info("Nothing to do $ocdbType") and return 1;
@@ -65,7 +65,7 @@ sub insertOCDBIntoCVMFS {
 	foreach my $lfn (@$lfnIds){
       $self->info("Adding $lfn->{lfn}");
       # Get the file and paths/names we need
-      my ($localfile) = $self->{CATALOGUE}->execute("get", "-silent", $lfn->{lfn});
+      my ($localfile) = $self->{CATALOGUE}->execute("get", "-silent", "-x", $lfn->{lfn});
       
       $self->info("We got $localfile");
       
