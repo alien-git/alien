@@ -155,7 +155,7 @@ sub put {
                or $self->info("ERROR: Double checking the file size on the SE with xrd stat showed unequal file sizes!",1) and return;
            $self->debug(2,"Double check file size value from xrd stat: $1");
   
-           return "root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH}";
+  		   return "$self->{PROXY}root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH}";
         }
         $self->info("The size reported by xrdcp as transferred was not correct, Something went wrong with xrdcp!!",1);
         return;
@@ -167,7 +167,7 @@ sub put {
     $command.=" $ENV{ALIEN_XRDCP_URL} -OD\\\&authz=\"$ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}\"";
     $self->debug(1,"The envelope is $ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}");
   } else {
-    $command.=" root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH}";
+    $command.=" $self->{PROXY}root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH}";
     $self->info("WARNING: AliEn root.pm did receive neither an old nor a new envelope for this call! Trying call: $command "); 
   }
 
@@ -195,7 +195,7 @@ sub put {
          ( ($xrdstat eq $size) and $self->debug(1, "EXCELLENT! Double checking file size on destination SE was successfully.") )
              or $self->info("ERROR: Double checking the file size on the SE with xrd stat showed unequal file sizes!",1) and return;
          $self->debug(2,"Double check file size value from xrd stat: $1");
-         return "root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH}";
+         return "$self->{PROXY}root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH}";
       }
       $self->info("The size reported by xrdcp as transferred was not correct, Something went wrong with xrdcp!!",1);
       return;

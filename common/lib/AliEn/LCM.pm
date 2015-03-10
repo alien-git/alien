@@ -341,9 +341,11 @@ sub getPFNName {
   $envelope and defined($envelope->{turl})
     or $self->info("There is no envelope to get the filename", 1)
     and return;
-  my @pfnsplit = split(/\/\//, $envelope->{turl}, 3);
-  scalar(@pfnsplit) eq 3 or $self->info("We couldn't get the PFN from the TURL.", 1) and return;
-  my $pfn = $pfnsplit[2];
+  my @pfnsplit = split(/\/\//, $envelope->{turl});
+  scalar(@pfnsplit) eq 3 or scalar(@pfnsplit) eq 5 or $self->info("We couldn't get the PFN from the TURL.",1) and return;
+  my $pfn;
+  scalar(@pfnsplit) > 3 and $pfn = $pfnsplit[4]
+    or $pfn = $pfnsplit[2];
 
   $info->{guid} = $envelope->{guid};
   if (!$info->{guid}) {
@@ -354,19 +356,21 @@ sub getPFNName {
   }
   $info->{guid} or return;
 
-  $info->{pfn} = $self->rewriteCatalogueRegistrationPFN($envelope->{turl}, $pfn) or return;
+  $info->{pfn}=$self->rewriteCatalogueRegistrationPFN($envelope,$pfn) or return;
   $self->debug(1, "According to the envelope: $pfn and $info->{guid}");
   return $info;
 }
 
 sub rewriteCatalogueRegistrationPFN {
   my $self            = shift;
-  my $url             = (shift || return);
+  my $envelope		  = (shift|| return);  
   my $pfn             = (shift || return);
-  my $registrationPFN = $url;
+  my $registrationPFN=$envelope->{turl};
+  $envelope->{proxy} and
+    $registrationPFN =~ s/$envelope->{proxy}//i;
   $registrationPFN =~ s{^([^/]*//[^/]*)//(.*)$}{$1/$pfn};
   $registrationPFN =~ m{root:////} and return;
-  return $registrationPFN;
+  return $envelope->{proxy} ? $envelope->{proxy}.$registrationPFN : $registrationPFN;
 }
 
 sub eraseFile {

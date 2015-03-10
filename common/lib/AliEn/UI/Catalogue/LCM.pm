@@ -1512,7 +1512,8 @@ sub putOnStaticSESelectionListV2 {
     my @envelopes = AliEn::Util::deserializeSignedEnvelopes(
       $self->{CATALOG}->authorize(
         "write",
-        { lfn         => $targetLFN,
+        { lfn         => $targetLFN,        	
+          site		  => $self->{CONFIG}->{SITE},
           wishedSE    => join(";", @staticSes),
           size        => $size,
           md5         => $md5,

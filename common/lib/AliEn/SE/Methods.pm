@@ -101,6 +101,15 @@ sub parsePFN {
 
   $self->{PARSED}={};
   $self->{PARSED}->{ORIG_PFN}=$self->{ORIG_PFN}=$self->{PFN};
+  
+  #check if we have a proxy
+  my @roots = split(/root:\/\//, $self->{PFN});
+  $self->{PROXY} = "";
+  if (scalar(@roots) > 2 ){
+  	$self->{PROXY} = "root://".$roots[1];
+  	$self->{PFN} =~ s/$self->{PROXY}//;
+  }
+  
   $self->{PFN} =~ s/^([^:]*):\/([^\/])/$1:\/\/\/$2/;
   $self->{PFN} =~ /^([^:]*):\/\/([^\/]*)(\/[^?]*)\??(.*)$/;
   $self->{PARSED}->{METHOD} = ( $1 or "" );

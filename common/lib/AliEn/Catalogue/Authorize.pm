@@ -519,6 +519,7 @@ sub access {
           { lfn         => $lfn,
             wishedSE    => join(";", @ses),
             size        => $size,
+            site        => $sitename,
             md5         => 0,
             guidRequest => $extguid
           }
@@ -566,7 +567,10 @@ sub access {
     }
     $renv->{envelope} = $xtrdcpenvelope;
     my @pfn = split(/\/\//, $env->{turl}, 3);
-    $renv->{pfn}  = "/" . $pfn[2];
+    
+    my @pfn = split(/\/\//, $env->{turl});
+    scalar(@pfn)>3 and $renv->{pfn} = "/" . $pfn[4]
+      or $renv->{pfn} = "/" . $pfn[2];
     $renv->{nSEs} = $nSEs;
     push @returnEnvelopes, $renv;
   }
@@ -1772,6 +1776,11 @@ sub authorize {
 "Authorize: Authorize: ERROR! There are no SE's after checkups to create an envelope for '$$prepareEnvelope->{lfn}/$prepareEnvelope->{guid}'",
     1
     ) and return 0;
+    
+    #check for site proxy
+    my $proxy;
+    my $need_proxy;
+    $sitename and ($proxy) = $self->getSiteProxy($sitename);
 
   while (scalar(@$seList) gt 0) {
     $prepareEnvelope->{se} = shift(@$seList);
@@ -1789,6 +1798,11 @@ sub authorize {
       # or next;
     }
 
+    # prepend proxy when connecting to exterior
+    if ( $proxy and $prepareEnvelope->{se} !~ /$sitename/i and $prepareEnvelope->{turl} =~ /^root:/ ) {
+      $need_proxy = $proxy;
+    }
+
     $prepareEnvelope->{xurl} = 0;
 
     if ( ($prepareEnvelope->{se} =~ /dcache/i)
@@ -1802,11 +1816,19 @@ sub authorize {
 #           $prepareEnvelope->{xurl} = "$prepareEnvelope->{xurl}#$link[1]";
 #      }
     }
+    
+    my $originalPrepareEnvelope = { %$prepareEnvelope };
+	if ( $need_proxy ){
+		$prepareEnvelope->{proxy} = $need_proxy;
+		$prepareEnvelope->{turl} = $need_proxy.$prepareEnvelope->{turl};
+		$prepareEnvelope->{xurl} and
+		$prepareEnvelope->{xurl} = $need_proxy.$prepareEnvelope->{xurl};
+	} 
 
     my $signedEnvelope = $self->signEnvelope($prepareEnvelope, $user);
 
     $self->isOldEnvelopeStorageElement($prepareEnvelope->{se})
-      and $signedEnvelope .= '\&oldEnvelope=' . $self->createAndEncryptEnvelopeTicket($access, $prepareEnvelope);
+      and $signedEnvelope .= '\&oldEnvelope=' . $self->createAndEncryptEnvelopeTicket($access, $originalPrepareEnvelope);
 
     push @returnEnvelopes, $signedEnvelope;
 
@@ -1830,6 +1852,13 @@ sub authorize {
   }
 
   return @returnEnvelopes;
+}
+
+sub getSiteProxy {
+  my $self = shift;
+  my $sitename = shift || return 0;
+  my ($proxy) = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryValue("SELECT proxy FROM SITEPROXY WHERE upper(site)=upper(?)",undef,{bind_values=>[$sitename]});
+  return $proxy;
 }
 
 sub initializeEnvelope {
@@ -1944,6 +1973,7 @@ sub signEnvelope {
   my @keyVals =
     ("turl", "access", "lfn", "size", "se", "guid", "md5", "user", "issuer", "issued", "expires", "hashord");
   $env->{zguid} and push @keyVals, "zguid";
+  $env->{proxy} and push @keyVals, "proxy";
   $env->{hashord} = join("-", @keyVals);
   foreach (@keyVals) {
     ($_ eq "lfn")

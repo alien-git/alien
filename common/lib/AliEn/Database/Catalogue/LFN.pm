@@ -189,7 +189,16 @@ sub LFN_createCatalogueTables {
       extra_index=>['PRIMARY KEY(collectionId,origLFN)','foreign key (collectionId) references COLLECTIONS(collectionId) on delete cascade'],
       order => 2
     },
-
+    "SITEPROXY" => {
+      id=>"site",
+      columns=>
+      { site    => "varchar(60) NOT NULL",
+        proxy   => "varchar(255) NOT NULL",
+      },
+      index=>"site",
+      extra_index=>[ 'PRIMARY KEY(site) '],     
+      order => 1
+    },
     "SE_VOLUMES" => {
       id=>"volume",
       columns=>
@@ -205,6 +214,15 @@ sub LFN_createCatalogueTables {
       index=>"volumeId",
       extra_index=>[ 'INDEX (volume)', 'INDEX(seNumber)', 'foreign key (seNumber) references SE(seNumber) on delete cascade' ],
       order => 1
+    },
+    "SITEPROXY" => {
+		id => 'site',
+		columns => { 
+			site => "varchar(60) NOT NULL primary key",
+		    proxy => "varchar(255) NOT NULL",
+		},
+		index=>'site',
+        order=>1
     },
     "LL_STATS" => {
       id=>"tableName",

@@ -1348,7 +1348,7 @@ sub checkSiteQueueTable {
     maxrunning  => "int not null default 0",
     queueload   => "float not null default 0",
     runload     => "float",
-    jdl         => "text",
+    jdl         => "mediumtext",
     jdlAgent    => 'text',
     timeblocked => "datetime",
   );

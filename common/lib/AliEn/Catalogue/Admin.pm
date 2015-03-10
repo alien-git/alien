@@ -491,6 +491,8 @@ sub resyncLDAP {
   $self->info("ok!!");
   $self->resyncLDAPSE();
 
+  $self->resyncLDAPSiteProxies();
+
   return 1;
 }
 sub listSEDistance_HELP {
@@ -675,6 +677,50 @@ sub checkFTDProtocol {
 
   }
   return 1;
+}
+
+sub resyncLDAPSiteProxies {
+  my $self = shift;
+
+  $self->info("Let's resync the SiteProxies from LDAP");
+  my $ldap = $self->getLDAP() or return;
+
+  my $mesg = $ldap->search(
+    base   => $self->{CONFIG}->{LDAPDN},
+    filter => "(objectClass=AliEnSite)"
+  );
+  
+  my $db = $self->{DATABASE};
+  
+  foreach my $entry ($mesg->entries) {
+    my $name;
+    my $dn = $entry->dn();
+    $dn =~ /ou=([^,]*),ou=Sites/i and $name = $1 
+      or $self->info("Error getting the site name of '$dn'")
+      and next;
+    
+    my $proxy = $entry->get_value("siteProxy") || 0;
+        
+    my $proxies = $db->queryRow("select site, proxy from SITEPROXY where site like ?", undef, {bind_values => [$name]});
+    my $proxy_reg = scalar(keys %$proxies);
+         
+    !$proxy_reg and !$proxy and
+    	$self->info("Site $name does not proxy") 
+    	and next;
+    
+    $proxy_reg and !$proxy and 
+      $self->info("Deleted proxy for site $name") and
+      $db->do("DELETE FROM SITEPROXY where site=?", {bind_values => [$name]})  
+      and next;
+    
+    $proxy and (!$proxy_reg or $proxies->{proxy} ne $proxy) and   
+      $db->do("INSERT INTO SITEPROXY (site, proxy) VALUES ( ?,? ) ON DUPLICATE KEY UPDATE proxy=VALUES(proxy)", {bind_values => [$name,$proxy]})
+      and $self->info("Site $name using proxy $proxy");  
+  }
+
+  $ldap->unbind();
+  $self->info("SiteProxies done!");
+  return;
 }
 
 sub resyncLDAPSE {
