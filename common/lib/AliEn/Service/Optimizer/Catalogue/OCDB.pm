@@ -15,7 +15,7 @@ sub checkWakesUp {
   my $method="info";
   $silent and $method="debug" and  @info=1;
   $self->$method(@info, "The OCDB optimizer starts");
-  $self->{SLEEP_PERIOD}=30;
+  $self->{SLEEP_PERIOD}=60;
   
 #  $self->{COUNTER} or $self->{COUNTER}=0;
 #  $self->{COUNTER} and $self->info("Going back to sleep (we worked $self->{COUNTER} times :) )") and return;

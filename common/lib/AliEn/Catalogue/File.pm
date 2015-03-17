@@ -387,6 +387,9 @@ sub f_addMirror {
   $self->{DATABASE}->insertMirrorFromFile($file, $se, $pfn, $opt->{md5}) or return;
   $self->deleteEntryFromBookingTableAndOptionalExistingFlagTrigger(($self->{ROLE} || $self->{CONFIG}->{ROLE}), {lfn=>$file,turl=>$pfn,se=>$se,guid=>$permLFN->{guid}},0 );
 
+  # cleaning cache for the lfn
+  $self->f_cleanCache($file);
+
   $self->info("File '$file' has a mirror in '${se}'");
   return 1;
 }
@@ -432,6 +435,10 @@ sub f_deleteMirror {
   $self->{DATABASE}->deleteMirrorFromLFN( $file, $se,@_) or 
     $self->info( "Error removing the mirror of $file in $se") and return;
   $self->info("Mirror from ${se} removed");
+  
+  # cleaning cache for the lfn
+  $self->f_cleanCache($file);
+  
   return 1;
 }
 
@@ -638,6 +645,11 @@ sub f_mv {
     $targetDir=~ s{/[^/]*$}{/};
     $self->getCPMetadata($fullSource,$targetDir,$fullTarget,$todoMetadata);
   }
+  
+  # cleaning cache for the lfn
+  $self->f_cleanCache($fullSource);
+  
+  
   return @returnVal;
 }
 
@@ -670,6 +682,9 @@ sub f_removeFile {
   $self->existsEntry($fullPath, $filehash->{lfn}) or
     $self->error("file $fullPath does not exists!!",1)
       and return;
+      
+  # cleaning cache for the lfn
+  $self->f_cleanCache($fullPath);
 
   return $self->{DATABASE}->{LFN_DB}->removeFile($fullPath,$filehash);
 }
@@ -867,6 +882,24 @@ sub f_whereisGetNamespace {
   return "$query";
 }
 
+
+sub f_cleanCache {
+  my $self = shift;	
+  my $lfn = shift;
+  
+  $lfn or return;
+		
+  # cleaning cache for the lfn 
+  if( $self->{CONFIG}->{CACHE_SERVICE_ADDRESS} ){
+  	my $readCacheClear =
+        "$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}?ns=access&key="
+        . $lfn . ".*&clear=true";
+    AliEn::Util::getURLandEvaluate($readCacheClear);    
+  	$self->f_whereisWriteCache( $self->f_whereisGetNamespace("irtc", $lfn, 1, "irc", $lfn) );
+  }
+  
+  return;
+}
 
 
 sub f_whereis_HELP {

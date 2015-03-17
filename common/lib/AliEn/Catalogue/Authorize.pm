@@ -1229,6 +1229,9 @@ sub getBaseEnvelopeForDeleteAccess {
   }  
 
   my $envelope = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow($query, undef, {bind_values=>[$lfnORGUIDORpfn]});
+  
+  # cleaning cache for the lfn
+  $self->f_cleanCache($envelope->{lfn});
 
   return ($self->reduceFileHashAndInitializeEnvelope("delete",$envelope),[$envelope->{se}]);
 }
@@ -1292,9 +1295,8 @@ sub  getBaseEnvelopeForWriteAccess {
   my ($ok, $message) = $self->checkFileQuota($user, $envelope->{size});
   ($ok eq 0) and $self->info($message,1) and return 0;
   
-  # cleaning whereis cache for the lfn 
-  #$self->info("Cleaning cache for ".$self->f_whereisGetNamespace("irtc", $envelope->{lfn}, 1, "irc", $envelope->{lfn}) );
-  $self->f_whereisWriteCache( $self->f_whereisGetNamespace("irtc", $envelope->{lfn}, 1, "irc", $envelope->{lfn}) );
+  # cleaning cache for the lfn
+#  $self->f_cleanCache($envelope->{lfn});
   
   return $self->reduceFileHashAndInitializeEnvelope("write",$envelope);
 }
@@ -1368,6 +1370,11 @@ sub  getBaseEnvelopeForMirrorAccess {
     
   $envelope->{lfn} = $lfn;
   $envelope->{access} = "write";
+  
+  # cleaning cache for the lfn
+  $self->f_cleanCache($envelope->{lfn});
+  
+  
   return $self->reduceFileHashAndInitializeEnvelope("write",$envelope);
 }
 

@@ -1705,24 +1705,24 @@ sub f_find {
   }
   my $keyCache="";
   my @result;
-  if ($self->{CONFIG}->{CACHE_SERVICE_ADDRESS}) {
-       $self->info( "Checking if we can get it from the cache");
+  if ($self->{CONFIG}->{CACHE_SERVICE_ADDRESS} && !$self->{CONFIG}->{API_FOR_USERS} ) {
+#        $self->info( "Checking if we can get it from the cache");
         $keyCache ="$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}?ns=findwait&key="
           . uri_escape(join("_", $path, $file, @_));
-        $self->info("Our read cache key is : $keyCache -- ");
+#        $self->info("Our read cache key is : $keyCache -- ");
       while (1){
         (my $ok, @result) = AliEn::Util::getURLandEvaluate($keyCache, 1);
         if ($ok){
-          $self->info("WE GOT SOMETHING FROM THE CACHE!!");
+#          $self->info("WE GOT SOMETHING FROM THE CACHE!!");
           if ($result[0] eq 'wait'){
-            $self->info("Someone else is calculating this... let's wait");
+#            $self->info("Someone else is calculating this... let's wait");
             sleep 5;
           }else {
             $keyCache="";
             last;
           }
         } else{
-          $self->info("The cache didn't work: we got @result. Let's put it so that other clients wait");
+#          $self->info("The cache didn't work: we got @result. Let's put it so that other clients wait");
           AliEn::Util::getURLandEvaluate("$keyCache&ifnull=true&timeout=30&value=". uri_escape(Dumper(['wait'])));
           @result=();
           last;
@@ -1738,7 +1738,7 @@ sub f_find {
   my $total  = @result;
   
   if ($keyCache){
-    $self->info("And now, we should write this into the cache $keyCache : " . uri_escape(Dumper([@result])));
+#    $self->info("And now, we should write this into the cache $keyCache : " . uri_escape(Dumper([@result])));
     AliEn::Util::getURLandEvaluate("$keyCache&value=" . uri_escape(Dumper([@result])));
   }
 
