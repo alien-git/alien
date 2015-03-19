@@ -60,26 +60,25 @@ sub get {
 
   if ($self->{OLDENVELOPE}) {
     $command =
-"$self->{XRDCP} $xrddebug $self->{XRD_OPTIONS} $pfn $self->{LOCALFILE} -OS\\\&authz=\"$self->{OLDENVELOPE}\""
+"$self->{XRDCP} $xrddebug $self->{XRD_OPTIONS} $self->{PROXY}$pfn $self->{LOCALFILE} -OS\\\&authz=\"$self->{OLDENVELOPE}\""
       ;
-
   } elsif ($self->{ENVELOPE}) {
     $command =
-"$self->{XRDCP} $xrddebug $self->{XRD_OPTIONS} $pfn $self->{LOCALFILE} -OS\\\&authz=\"$self->{ENVELOPE}\"";
-
+"$self->{XRDCP} $xrddebug $self->{XRD_OPTIONS} $self->{PROXY}$pfn $self->{LOCALFILE} -OS\\\&authz=\"$self->{ENVELOPE}\"";
     # Isn't the following branch old and useless ? Not sure !
   } else {
     $self->{PARSED}->{PATH} =~ s{^//}{/};
     my $p = $self->{PARSED}->{PATH};
     $p =~ s/#.*$//;
     $command =
-"$self->{XRDCP} -d 3 $self->{XRD_OPTIONS} root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$p $self->{LOCALFILE} ";
+"$self->{XRDCP} -d 3 $self->{XRD_OPTIONS} $self->{PROXY}root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$p $self->{LOCALFILE} ";
     $self->info(
 "WARNING: AliEn root.pm did receive neither an old nor a new envelope for this call! Trying call: $command "
-    );
+    );       
   }
 
   $self->debug(4, "CALLING WITH: $command");
+  
   
   (-f $self->{LOCALFILE}) and $self->info("DELETING THE LOCALFILE") and unlink $self->{LOCALFILE};
   my $output = `$command 2>&1 ; echo "ALIEN_XRD_SUBCALL_RETURN_VALUE=\$? "`;
