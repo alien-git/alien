@@ -2644,6 +2644,7 @@ CPU Speed                           [MHz] : $ProcCpuspeed
 
 	$waitstop = time;
       }
+      waitpid(-1, &WNOHANG);
       if ( ($waitstop-300) > ($waitstart) ) {
 	$self->putJobLog("trace","The validation script didn't finish");
 	$self->{STATUS} = "ERROR_VT";
