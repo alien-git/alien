@@ -557,6 +557,11 @@ export ALIEN_HOME=$HOME/.alien
         elif [ $tmpN == "ClusterMonitor" ]
            then
              portNum=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl CLUSTERMONITOR_PORT 2> /dev/null`
+             # we move previous httpd conf
+			 if [ -d $ALIEN_HOME/httpd/conf."$portNum" ] && [ ! -e $ALIEN_HOME/httpd/keep ]
+				then
+					mv $ALIEN_HOME/httpd/conf."$portNum" $ALIEN_HOME/httpd/conf."$portNum".`date +%s`
+			 fi
         fi
        # echo $portNum
         
