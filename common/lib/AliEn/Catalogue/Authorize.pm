@@ -1295,9 +1295,6 @@ sub  getBaseEnvelopeForWriteAccess {
   my ($ok, $message) = $self->checkFileQuota($user, $envelope->{size});
   ($ok eq 0) and $self->info($message,1) and return 0;
   
-  # cleaning cache for the lfn
-#  $self->f_cleanCache($envelope->{lfn});
-  
   return $self->reduceFileHashAndInitializeEnvelope("write",$envelope);
 }
 
@@ -1369,11 +1366,7 @@ sub  getBaseEnvelopeForMirrorAccess {
     and return 0;
     
   $envelope->{lfn} = $lfn;
-  $envelope->{access} = "write";
-  
-  # cleaning cache for the lfn
-  $self->f_cleanCache($envelope->{lfn});
-  
+  $envelope->{access} = "write";  
   
   return $self->reduceFileHashAndInitializeEnvelope("write",$envelope);
 }

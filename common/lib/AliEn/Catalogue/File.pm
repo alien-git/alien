@@ -388,7 +388,7 @@ sub f_addMirror {
   $self->deleteEntryFromBookingTableAndOptionalExistingFlagTrigger(($self->{ROLE} || $self->{CONFIG}->{ROLE}), {lfn=>$file,turl=>$pfn,se=>$se,guid=>$permLFN->{guid}},0 );
 
   # cleaning cache for the lfn
-  $self->f_cleanCache($file);
+#  $self->f_cleanCache($file);
 
   $self->info("File '$file' has a mirror in '${se}'");
   return 1;

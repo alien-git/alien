@@ -422,10 +422,10 @@ sub checkJobs {
 
     if (not @$jobs ){
        $self->info(  "There are no jobs $status and $self->{MIN_ID}" );
-       $self->info("select count(1) from QUEUE where statusId=$status and queueid>$self->{MIN_ID}");
+       $self->info("select count(1) from QUEUE join QUEUEJDL using(queueId) where statusId='$status' and queueid>$self->{MIN_ID}");
        use Data::Dumper;
        $self->info(Dumper($jobs));
-       my $value=$self->{DB}->queryValue("select count(1) from QUEUE where statusId=$status and queueid>$self->{MIN_ID}");
+       my $value=$self->{DB}->queryValue("select count(1) from QUEUE join QUEUEJDL using(queueId) where statusId='$status' and queueid>$self->{MIN_ID}");
        $self->info("IS IT REALLY TRUE? $value");
        return;  #check if it's ok to return undef here!!
     }
