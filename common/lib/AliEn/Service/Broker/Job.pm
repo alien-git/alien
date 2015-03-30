@@ -106,7 +106,7 @@ sub getJobAgent {
 		}
 
 	}
-	$self->putlog($queueid, "state", "Job state transition from WAITING to ASSIGNED ");
+	$self->putlog($queueid, "state", "Job state transition from WAITING to ASSIGNED (to $queueName)");
 
 	$self->info("Getting the token");
 	my $token = $self->getJobToken($queueid, $jobUser);
