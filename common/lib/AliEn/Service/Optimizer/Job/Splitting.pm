@@ -86,9 +86,14 @@ sub checkWakesUp {
   $silent and $method="debug";
   $self->{LOGGER}->$method("Splitting", "The splitting optimizer starts");
   $self->{SLEEP_PERIOD}=10;
-  $self->{DB}->queryValue("SELECT todo from ACTIONS where action='SPLITTING'")
-    or return;
-  $self->{DB}->update("ACTIONS", {todo=>0}, "action='SPLITTING'");
+ 
+  $self->info("Sleep period set to 10. Going to select Count");
+ 
+#  $self->{DB}->queryValue("SELECT todo from ACTIONS where action='SPLITTING'")
+  $self->{DB}->queryValue("SELECT count(1) as c from QUEUE where statusId=1")
+    or $self->info("Returned in Count") and return;
+  
+#  $self->{DB}->update("ACTIONS", {todo=>0}, "action='SPLITTING'");
   $self->info("There are some jobs to split!!");
 
   my $done2=$self->checkJobs($silent, "1' and upper(origjdl) like '\% SPLIT =\%", "updateSplitting",4, 15);
@@ -359,6 +364,9 @@ sub _singleSplit {
 
   my @files=$self->_getInputFiles($job_ca, $findset, $queueId) or return;
 
+  $self->info("----- Got the inputfiles");
+  my $timeinit = time;
+
   my $jobs={};
   $self->debug(1, "In SplitJob got @files");
   foreach my $file (@files) {
@@ -429,6 +437,10 @@ sub _singleSplit {
     }
     $jobs->{$newpos}->{nfiles}++;
   }
+  
+  my $timefin = time - $timeinit;
+  $self->info("+++++ Finished singleSplit in $timefin");
+  
   return $jobs;
 }
 

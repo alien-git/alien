@@ -158,6 +158,8 @@ sub readxml {
   
   $self->info("DSET:READXML  name=\"$xml\" N=\"$nfiles\" ");
   
+  close XMLIN;
+  
   return $self->{XMLhash};
 }
 

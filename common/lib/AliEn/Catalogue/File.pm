@@ -718,6 +718,10 @@ sub f_rmdir {
   $filehash 
     or $self->{LOGGER}->error("File", "ERROR: checkPermsissions failed on $path")
     and return;
+    
+  # clean cache for directory
+  $self->f_cleanCache($path,1);
+    
   return $self->{DATABASE}->{LFN_DB}->removeDirectory($path,$parentdir);
 }
 
@@ -837,7 +841,7 @@ sub f_whereisReadCache {
       $self->info("Warning: we want to ask the cache service, but we don't know its address...");
       return;
     }
-    ($cache) = $self->f_whereisGetNamespace($options,$lfn);
+    ($cache) = "$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}?ns=whereis&key=".uri_escape("${options}_$lfn");
     my ($ok, @value) = AliEn::Util::getURLandEvaluate($cache, 1);
     if ($ok and scalar(@value)) {
       $self->info("Returning the value from the cache '@value'");
@@ -860,42 +864,34 @@ sub f_whereisWriteCache {
   return 1;
 }
 
-sub f_whereisGetNamespace {
-  my $self = shift;
-  my $options = shift;
-  my $lfn = shift;
-  my $clear = shift || 0;
-  
-  $self->{CONFIG}->{CACHE_SERVICE_ADDRESS} or return;
-  
-  my $query = "$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}?ns=whereis&key=".uri_escape("${options}_$lfn");
-  
-  while (@_){
-  	my $extra_opt = shift;
-  	my $extra_lfn = shift;
-  	
-  	$extra_opt and $extra_lfn and $query .= "&key=".uri_escape("${extra_opt}_$extra_lfn");
-  }
-  
-  $clear and $query .= "&clear=true";
-
-  return "$query";
-}
-
-
 sub f_cleanCache {
   my $self = shift;	
   my $lfn = shift;
-  
+  my $dir = shift || 0;
+    
   $lfn or return;
+	
+  my $dirwc = "";	
+  if ($dir) {
+    $dirwc = ".*";
+    $lfn =~ /\/$/ or $lfn .= "/";
+  }
 		
   # cleaning cache for the lfn 
   if( $self->{CONFIG}->{CACHE_SERVICE_ADDRESS} ){
-  	my $readCacheClear =
+  
+    # access
+  	my $accessCacheClear =
         "$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}?ns=access&key="
         . $lfn . ".*&clear=true";
-    AliEn::Util::getURLandEvaluate($readCacheClear);    
-  	$self->f_whereisWriteCache( $self->f_whereisGetNamespace("irtc", $lfn, 1, "irc", $lfn) );
+    AliEn::Util::getURLandEvaluate($accessCacheClear);    
+  
+    # whereis
+    my $whereisCacheClear =
+        "$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}?ns=whereis&key="
+        . "(irtc|irc)_" . $lfn . $dirwc ."&clear=true";
+    AliEn::Util::getURLandEvaluate($whereisCacheClear);
+  
   }
   
   return;

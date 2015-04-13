@@ -23,7 +23,7 @@ sub checkWakesUp {
     $method="debug";
   }
 
-  $self->{LOGGER}->$method("Zombies", "The saved optimizer starts");
+  $self->{LOGGER}->$method("Saved", "The saved optimizer starts");
 
  
   if ($self->{DB}->queryValue("SELECT todo from ACTIONS where action='SAVED'")) {

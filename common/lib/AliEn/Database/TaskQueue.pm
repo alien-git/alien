@@ -1107,18 +1107,19 @@ sub getJobsByStatus {
 
   #We never want to get more tahn 15 jobs at the same time, just in case the jdls are too long
   $order and $order = " ORDER BY $order";
-  my $bind = [];
+  my @bind = ();
   if ($minid) {
     $order = " and queueid>? $order";
-    push @$bind, $minid;
+    push @bind, $minid;
   }
   my $query = "SELECT queueid,ifnull(resultsjdl, origjdl) jdl from 
        QUEUE join QUEUEJDL using (queueid) where statusId='$status' $order";
   $query = $self->paginate($query, $limit, 0);
-
+  
   $DEBUG
     and $self->debug(1, "In getJobsByStatus fetching jobs with statusId $status");
-  $self->query($query, undef, {bind_values => $bind});
+    
+  return $self->query($query, undef, {bind_values => \@bind});
 }
 
 

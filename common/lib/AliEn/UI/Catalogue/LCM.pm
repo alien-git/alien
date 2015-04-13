@@ -1007,7 +1007,7 @@ sub mirror {
   $self->info( "Mirroring file $realLfn at $se");
   
   # cleaning cache for the lfn
-  $self->{CATALOG}->f_cleanCache($realLfn);
+#  $self->{CATALOG}->f_cleanCache($realLfn);
 
   my $transfer={"target", "",                      "TYPE", "mirror",
 		"USER" => $self->{CATALOG}->{ROLE}, "LFN" =>$realLfn,

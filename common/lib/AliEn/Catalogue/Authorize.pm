@@ -1231,7 +1231,7 @@ sub getBaseEnvelopeForDeleteAccess {
   my $envelope = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryRow($query, undef, {bind_values=>[$lfnORGUIDORpfn]});
   
   # cleaning cache for the lfn
-  $self->f_cleanCache($envelope->{lfn});
+#  $self->f_cleanCache($envelope->{lfn});
 
   return ($self->reduceFileHashAndInitializeEnvelope("delete",$envelope),[$envelope->{se}]);
 }

@@ -24,9 +24,11 @@ sub checkWakesUp {
     @data=(1);
   }
   $self->$method(@data, "The inserting optimizer starts");
-  my $todo=$self->{DB}->queryValue("SELECT todo from ACTIONS where action='INSERTING'");
-  $todo or return;
-  $self->{DB}->update("ACTIONS", {todo=>0}, "action='INSERTING'");
+#  my $todo=$self->{DB}->queryValue("SELECT todo from ACTIONS where action='INSERTING'");
+#  $todo or return;
+  $self->{DB}->queryValue("SELECT count(1) as c from QUEUE where statusId=1")
+    or $self->info("Returned in Count") and return;
+#  $self->{DB}->update("ACTIONS", {todo=>0}, "action='INSERTING'");
   my $q = "1' and upper(origjdl) not like '\% SPLIT = \"\%";
   $self->{DB}->{DRIVER}=~/Oracle/i and $q = "1 and REGEXP_REPLACE(upper(origjdl), '\\s*', '') not like '\%SPLIT=\"\%";
   my $done=$self->checkJobs($silent,$q, "updateInserting", 15, 15);

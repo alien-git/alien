@@ -107,7 +107,7 @@ sub checkForkProcess{
  
   if ($total > $limit) {
     $self->info("There are already too many processes... do not fork");
-    return;
+    return 3;
   }
   my $newLog = 0;
   while (1) {
@@ -116,13 +116,23 @@ sub checkForkProcess{
   }
 
   my $pid=fork();
-  defined $pid or return;
+  defined $pid or $self->info("Couldn't FORK !!!") and return 2;
   if ($pid){
     $self->info("The father has a new children: $pid (log $newLog)");
     $self->{KIDS}->{$newLog}= $pid;
     return 1;
   }
+  
+  my $child_dbh;
+  $child_dbh  = $self->{DB}->{DBH}->clone();	#clone handler
+  $self->{DB}->{DBH}->{InactiveDestroy} = 1;	#avoid closing father dbh
+  undef $self->{DB}->{DBH};						#destroy the dbh in the kid
+  $self->{DB}->{DBH} = $child_dbh;				#assign the clone
 
+  $self->{DB}->{DBH} or 
+  	  $self->{LOGGER}->error( "Optimizer", "In creating DB in Job Optimizer child " )
+      and exit(-1);
+      
   $self->{LOGFILE} =~ s/\.log$/.$newLog.log/;
   $self->info("i'm the kid $$ (to log $self->{LOGFILE})");
   $self->{LOGGER}->redirect($self->{LOGFILE});
@@ -376,7 +386,13 @@ sub checkChildren {
 
   my $total   = 1;
   foreach my $p (keys %{$self->{KIDS}}) {
-    (CORE::kill 0, $self->{KIDS}->{$p} and waitpid($self->{KIDS}->{$p} , WNOHANG) <= 0) or next;
+    #(CORE::kill 0, $self->{KIDS}->{$p} and waitpid($self->{KIDS}->{$p} , WNOHANG) <= 0) or next;
+    
+    my ($kill) = CORE::kill 0, $self->{KIDS}->{$p}; 
+    my ($wait) = waitpid($self->{KIDS}->{$p} , WNOHANG);
+      
+    ( $kill and $wait <=0 )  or next;
+    
     $newKids->{$p} = $self->{KIDS}->{$p};
     $total++;
   }
@@ -386,6 +402,7 @@ sub checkChildren {
     $self->{MIN_ID}=0;
   }
   $self->info("There are $total processes");
+  
   return $total;
 }
 
@@ -434,7 +451,11 @@ sub checkJobs {
     $#{$jobs} eq $limit-1 and $continue = 1;
     $self->info("THERE ARE $#{$jobs} jobs, let's continue? $continue min id $self->{MIN_ID}");
 
-    if ($self->checkForkProcess($prefork)) {
+    my $rescode;
+    if ( $rescode = $self->checkForkProcess($prefork) ) {
+
+	  # we don't want the parent to work
+      $rescode == 1 or $self->info("We don't fork this time. Father wants to remain unemployed!") and return 1;
 
       #This is the father. We have forked a kid that will do these things. Let's just see the highest number
       foreach my $data (@$jobs) {
@@ -444,12 +465,28 @@ sub checkJobs {
     }
     foreach my $data (@$jobs){
       $self->{LOGGER}->$method("JobOptimizer", "Checking job $data->{queueid}");
-      my $job_ca = Classad::Classad->new($data->{jdl});
 
+      my $job_ca;
+      eval {$job_ca =
+             Classad::Classad->new($data->{jdl});
+      };
+	  if ($@ or !$job_ca->isOK){
+	  	open FILE, ">>", "/tmp/classadFails";
+	  	print FILE "Classadd JDL of $data->{queueid} failed in checkJobs ! \n";
+	  	print FILE "------------------------------- \n";
+	  	close FILE;
+	  	
+	    $self->info("Error creating the classad $@",2);
+	    next;
+	  }
+	  
       $self->info("In checkJobs - calling $function");
       $self->$function($data->{queueid}, $job_ca, $status);
     }
-    $self->{KID} and exit(0);
+    if($self->{KID}){
+    	$self->{DB} and $self->{DB}->close();
+    	exit(0);
+    } 
   }
   return 1;
 }
@@ -667,12 +704,14 @@ sub copyInputCollectionFromXML {
   my $options  = shift;
   my $inputBox = shift;
   my ($localFile) = $self->{CATALOGUE}->execute("get", $lfn);
+  # my ($localFile) = $self->{CATALOGUE}->execute("get", "-x", $lfn);
   if (!$localFile) {
     $self->putJobLog($jobId, "error", "Error getting the inputcollection $lfn");
     return;
   }
   $self->info("Let's read the dataset");
   my $dataset = $self->{DATASET}->readxml($localFile);
+  #$self->info("We delete the local file ($localFile)") and `rm $localFile`;
   if (!$dataset) {
     $self->putJobLog($jobId, "error",
       "Error creating the dataset from the collection $lfn");

@@ -327,7 +327,7 @@ sub getFile {
     }
 
     $self->info( "Everything worked and got $result");
-    $self->{TXTDB}->insertEntry($result, $guid);
+    $opt =~ /x/ or $self->{TXTDB}->insertEntry($result, $guid);
   } else {
     $self->info("Error getting the file");
   }

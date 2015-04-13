@@ -32,7 +32,7 @@ sub initialize {
   
   $self->debug(1, "In initialize getting information for $self->{SERVICENAME}" );
   
-  my ($host, $driver, $db) =
+  ($self->{HOSTDB}, $self->{DRIVERDB}, $self->{DDB}) =
     split ("/", $self->{CONFIG}->{"${name}_DATABASE"});
   
   ($self->{HOST}, $self->{PORT})=
@@ -49,9 +49,9 @@ sub initialize {
   $self->{LOGGER} ->debug( "Optimizer", "in initialize creating $self->{DB_MODULE} instance" );
 
   if ( (defined $ENV{ALIEN_NO_PROXY}) && ($ENV{ALIEN_NO_PROXY} eq "1") && (defined $ENV{ALIEN_DB_PASSWD}) ) {
-      $self->{DB} = "$self->{DB_MODULE}"->new({DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin',"USE_PROXY" => 0, PASSWD=>"$ENV{ALIEN_DB_PASSWD}"});
+      $self->{DB} = "$self->{DB_MODULE}"->new({DB=>$self->{DDB},HOST=> $self->{HOSTDB},DRIVER => $self->{DRIVERDB},ROLE=>'admin',"USE_PROXY" => 0, PASSWD=>"$ENV{ALIEN_DB_PASSWD}"});
   } else {
-      $self->{DB} = "$self->{DB_MODULE}"->new({DB=>$db,HOST=> $host,DRIVER => $driver,ROLE=>'admin'});
+      $self->{DB} = "$self->{DB_MODULE}"->new({DB=>$self->{DDB},HOST=> $self->{HOSTDB},DRIVER => $self->{DRIVERDB},ROLE=>'admin'});
   }
   
   $self->{DB}
