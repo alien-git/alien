@@ -84,11 +84,9 @@ sub insertOCDBIntoCVMFS {
       
       # Create the folders and move the files inside
       system("mkdir -p $lfn->{lfn} > /dev/null 2>&1") 
-        and $self->info("Failed to create temporary directory ($dir)") and next;
+        and $self->info("Failed to create directory ($lfn->{lfn})") and next;
       system("mv $localfile $lfn->{lfn}$file")
         and $self->info("Failed to move file ($localfile to $lfn->{lfn}$file)") and system("rm -rf $localfile") and next;
-      system("chmod 644 $lfn->{lfn}$file") and 
-        $self->info("Unable to change permissions ($lfn->{lfn}$file)") and system("rm -rf $lfn->{lfn}$file") and next;      
       
       push @okLfns, $lfn->{entryId};
 #      print FILE "$lfn->{lfn}$file \n";
@@ -97,6 +95,12 @@ sub insertOCDBIntoCVMFS {
     my $error = 0;
     
     scalar(@okLfns) or $self->info("No lfns processed succesfully :(") and $error=1;
+    
+    # making sure permissions are ok
+    system("find $dir -type d -exec chmod 755 {} +") 
+      and $self->info("Failed putting 755 to folders") and $error = 1;
+	system("find $dir -type f -exec chmod 644 {} +") 
+	  and $self->info("Failed putting 644 to files") and $error = 1;
     
     $error or (system("tar --transform 's,^,".$cvmfsPath.",S' -cvzf $dir.tar.gz *")
       and $self->info("Failed creating tarball to upload to CVMFS") and $error = 1);
