@@ -92,14 +92,62 @@ ALIEN_RunAgent()
   unset SEALED_ENVELOPE_REMOTE_PUBLIC_KEY SEALED_ENVELOPE_REMOTE_PRIVATE_KEY SEALED_ENVELOPE_LOCAL_PUBLIC_KEY \
                SEALED_ENVELOPE_LOCAL_PRIVATE_KEY ALIEN_DATABASE_PASSWORD 
   
+  # first start the httpd
   HTTPService=1
   getLogDir LOGDIR
-  startService JobAgent JobAgent JobAgent alienServiceNOKILL
+
+  # protect the startup of the http daemon with a lock file
+	# make sure that no other httpd is started simultaneously
+	# on same machine with same port
+	hostAddress=`hostname -f`
+	LockFile=$LOGDIR/JobAgent.$hostAddress.lock
+	echo "<I - Alien.sh> Trying to lock"
+	echo "               host = $hostAddress"
+	if ( set -o noclobber; echo "locked" > "$LockFile") 2> /dev/null; then
+  	trap 'rm -f "$LockFile"; exit $?' INT TERM EXIT
+  	echo "<I - Alien.sh> Locking succeeded"
+	else
+  	echo "<E - Alien.sh> Locking failed - exit"
+  	exit 1
+	fi
+
+  echo "<I - Alien.sh> Starting httpd"
+ 	startService JobAgent JobAgent JobAgent alienServiceNOKILL
+		
+	# have to wait until httpd has properly started
+	# check if PidFile from httpd exists
+	# if yes read the httpd pid
+	# remove lock file after httpd has been started
+  PidFile=$LOGDIR/JobAgent.$portNum.$hostAddress.pid
+	goon=1
+	cnt=5
+	while [ $goon -eq 1 ]; do
+	
+		sleep 5
+		if [ -f $PidFile ]; then
+			PID=`cat $PidFile`
+  		echo "<I - Alien.sh> httpd has been started with PID = $PID"
+  		echo "               got information from $PidFile"
+			break
+		fi
+		
+		cnt=$(($cnt+1))s
+		if [ $cnt -gt 5 ]; then
+			goon=0
+		fi
+	done
+	rm $LockFile
+	if [ $cnt -gt 5 ]; then
+		echo "<E - Alien.sh> could not obtain pid of httpd!"
+		exit -1
+	fi
+		
+  # now start the JobAgent
   HTTPService=0
-  sleep 2
-  PID=`cat $LOGDIR/JobAgent.$portNum.pid `
-  echo "And now, the agent itself (PID OF HTTPD $PID) or  $! from $LOGDIR/JobAgent.$portNum.pid  "
-  startService JobAgent JobAgent JobAgent alienServiceNOKILL  -pid $PID 
+  echo "<I - Alien.sh> Starting JobAgent"
+  startService JobAgent JobAgent JobAgent alienServiceNOKILL -pid $PID 
+
+  echo ""
   exit
 }
 

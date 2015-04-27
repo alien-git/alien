@@ -293,17 +293,22 @@ sub stopService {
   my $s = shift;
 
   my $pid = shift;
-  $pid or $self->info("Trying to stop the service without passing the pid...") and return;
-  $pid eq "1" and $self->info("We are not going to kill everybody...") and return;
-  $self->info("Stopping the service (pid $pid) (and I'm $$)");
+  $pid or $self->info("<I - Service.pm> Trying to stop the service without passing the pid...") and return;
+  $pid eq "1" and $self->info("<I - Service.pm> We are not going to kill everybody...") and return;
+  $self->info("<I - Service.pm> Stopping the service (pid $pid) (and I'm $$)");
 
   my @pids = ($pid, $self->findChildProcesses($pid));
 
   @pids = grep (!/^${$}$/, @pids);
-  $self->info("Killing the monitoring Daemon (processes @pids)");
+  $self->info("<I - Service.pm> Killing the monitoring Daemon (processes @pids)");
+  $self->info("                 on $self->{HOST}");
 
+  # kill processes and
+  # cleanup orphaned semaphores
   kill(9, @pids);
-  $self->info("Do we have to kill more??");
+  my $res = AliEn::Util::cleanSemaphores($self);
+	
+  $self->info("<I - Service.pm> Do we have to kill more??");
   return 1;
 }
 

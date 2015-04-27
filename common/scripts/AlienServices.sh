@@ -159,22 +159,47 @@ ALIEN_HttpdStart()
 
   if [ ! -f $GLOBUS_LOCATION/bin/grid-proxy-init ] 
   then 
-     printf "Error: GLOBUS_LOCATION not set correctly: %s\n" $GLOBUS_LOCATION 
+     printf "<E - AlienServices.sh> Error: GLOBUS_LOCATION not set correctly: %s\n" $GLOBUS_LOCATION 
      exit 1 
   fi 
 
   tmpN=$serviceName
   tmpName=$(echo $tmpN | tr '[a-z]' '[A-Z]')
  
+  # check if the configuration file exists
   CONF="$ALIEN_HOME/httpd/conf.$portNum/httpd.conf.$hostAddress"
-   
   if [ -f $CONF ]
-    then
-      SETSID=`which setsid 2> /dev/null`
-      $SETSID  $ALIEN_ROOT/httpd/bin/httpd -k start -f $CONF 2>&1     
-    else
-      echo "THE FILE $CONF does not exist"
-      exit -2
+  then
+		PidFile=$LOGDIR/${startupFormat}.$portNum.$hostAddress.pid
+	  
+		# check whether the process with the old pid is still running
+		# if yes, then kill it
+		# how do I make sure, that the running process is the old httpd and not an
+		# other process which has been started meanwhile?
+		# require that running process is a httpd and belongs to the current user
+    if [ -f $PidFile ]; then
+			PID=`cat $PIDFile`
+			uid=`id -u ${ALIEN_USER}`
+			ans=`ps -p ${cat $PIDFile} -o fuser= -o comm=`
+			echo "<I - AlienServices.sh> Is old httpd with pid=$PID still running?"
+			echo "                       answers = $ans"
+			if [[ $ans == *"httpd"* && $ans == *"$uid"* ]]; then
+				kill -9 $PID
+			fi
+			
+			# now remove old PID file
+      rm -f $PidFile
+	    echo "<I - AlienServices.sh> PidFile removed before starting new httpd"
+	    echo "                       $PidFile"
+    fi
+    
+		# start the daemon
+		SETSID=`which setsid 2> /dev/null`
+    $SETSID  $ALIEN_ROOT/httpd/bin/httpd -k start -f $CONF 2>&1     
+  
+	else
+    echo "<E - AlienServices.sh> The file $CONF does not exist"
+    exit -2
   fi
 }
 
@@ -206,28 +231,29 @@ ALIEN_GetPortNumber()
       allPorts=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl PROCESS_PORT_LIST 2> /dev/null`
       for portNum2 in $allPorts ; 
       do 
-      	 echo "Checking if $portNum2 is available"
+      	 echo "<I - AlienServices.sh> Checking if $portNum2 is available"
          local lsof="/usr/sbin/lsof"
          [ -f  '/usr/bin/lsof' ] && lsof="/usr/bin/lsof"
       	 $lsof -i:$portNum2 > /dev/null 2>&1
       	 if [ $? -eq "1" ];
       	 then
-      	 	echo "Port $portNum2 is free!"
+      	 	echo "<I - AlienServices.sh> Port $portNum2 is free!"
       	 	break
       	 fi      	 
       done
       if [ -z "$portNum2" ];
       then
-      	echo "We couldn't find a port for the JobAgent"
+      	echo "<E - AlienServices.sh> We couldn't find a port for the JobAgent"
       	exit -2
       fi
       export ALIEN_JOBAGENT_PORT=$portNum2
-      echo "AND IN THE SERVICES.SH $ALIEN_CM_AS_LDAP_PROXY"
+      echo "<I - AlienServices.sh> LDAP proxy = $ALIEN_CM_AS_LDAP_PROXY"
       
   fi
 
   eval $__resultvar=$portNum2
   
+  echo ""
 }
 
 ###########################################################################
@@ -239,28 +265,23 @@ ALIEN_CreateHTTPDConfiguration()
   local startupFormat=$3
   local HTTPS=$4
 
-  echo "READY TO CREATE THE CONFIGURATION, AND WE HAVE $HTTPS"
-  
-  local CONF="$ALIEN_HOME/httpd/conf.$portNum/httpd.conf.$hostAddress"
-  
-  
+  # define name of configuration and startup file
   export ALIEN_HOME=$HOME/.alien
-  #echo "THE CONFIGURATION WILL BE IN $CONF (with $portNum, $hostAddress, $startupFormat and $HTTPS"
-  
-  if [ ! -d $ALIEN_HOME/httpd/conf."$portNum" ] || [ ! -f $CONF ] || [ ! -f $ALIEN_HOME/httpd/conf."$portNum"/startup.pl ]
-   then
-               if [ -f $CONF ]
-               then
-                        rm -f $CONF
-               fi
-         mkdir -p ${ALIEN_HOME}/httpd/conf."$portNum"/
-         echo "Creating the configuration file $CONF"
-         cat  <<EOF > $CONF
-PidFile $LOGDIR/${startupFormat}.$portNum.pid
+	local CONF="$ALIEN_HOME/httpd/conf.$portNum/httpd.conf.$hostAddress"
+  local STUP="$ALIEN_HOME/httpd/conf.$portNum/startup_$hostAddress.pl"
+    
+
+	if [ -f $CONF ]; then rm -f $CONF; fi
+	if [ -f $STUP ]; then rm -f $STUP; fi
+	mkdir -p ${ALIEN_HOME}/httpd/conf."$portNum"/
+	
+	echo "<I - AlienServices.sh> Creating the configuration file $CONF"
+	cat  <<EOF > $CONF
+PidFile $LOGDIR/${startupFormat}.$portNum.$hostAddress.pid
 Listen $portNum
 
 
-ErrorLog $LOGDIR/${startupFormat}.$portNum.log
+ErrorLog $LOGDIR/${startupFormat}.$portNum.$hostAddress.log
 ServerRoot $ALIEN_ROOT/httpd/
 
 LoadModule perl_module     modules/mod_perl.so
@@ -272,9 +293,9 @@ LogLevel warn
 
 LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
 LogFormat "%h %l %u %t \"%r\" %>s %b" common
-CustomLog $LOGDIR/${startupFormat}_access.$portNum.log common
+CustomLog $LOGDIR/${startupFormat}_access.$portNum.$hostAddress.log common
 
-#Prefork module settings
+# Prefork module settings
 <IfModule prefork.c>
 StartServers 2
 MinSpareServers 2
@@ -298,10 +319,11 @@ PerlPassEnv  X509_USER_PROXY
 PerlPassEnv  X509_CERT_DIR
 PerlPassEnv  ALIEN_JOBAGENT_PORT
 PerlPassEnv  ALIEN_CM_AS_LDAP_PROXY
-PerlConfigRequire $ALIEN_HOME/httpd/conf.$portNum/startup.pl
+
+PerlConfigRequire $STUP
 
 EOF
-        [ "$HTTPS" == "1" ] && cat <<EOF >> $CONF 
+[ "$HTTPS" == "1" ] && cat <<EOF >> $CONF 
 
 SSLengine on
 SSLSessionCache dbm:$ALIEN_ROOT/httpd/logs/ssl_gcache_data
@@ -313,22 +335,25 @@ SSLOptions +StdEnvVars
 SSLCACertificatePath $ALIEN_ROOT/globus/share/certificates/
 
 EOF
-	     echo "<Location /> " >> $CONF
-         [ "$HTTPS" == "1" ] && echo "SSLRequireSSL" >> $CONF
+echo "<Location /> " >> $CONF
+[ "$HTTPS" == "1" ] && echo "SSLRequireSSL" >> $CONF
     
      
-         cat >> $CONF <<EOF
+cat <<EOF >> $CONF
      
-     SetHandler perl-script
-     PerlResponseHandler JSON::RPC::Server::Apache2
-     PerlSetVar dispatch "AliEn::Service::$startupFormat"
-     PerlSetVar return_die_message 0
-     PerlSetVar options "compress_threshold => 10000"
-     PerlOptions +SetupEnv
-     Allow from all
+SetHandler perl-script
+PerlResponseHandler JSON::RPC::Server::Apache2
+PerlSetVar dispatch "AliEn::Service::$startupFormat"
+PerlSetVar return_die_message 0
+PerlSetVar options "compress_threshold => 10000"
+PerlOptions +SetupEnv
+Allow from all
 </Location>
+
 EOF
-         cat > $ALIEN_HOME/httpd/conf."$portNum"/startup.pl <<EOF
+
+echo "<I - AlienServices.sh> Creating the startup file $STUP"
+cat <<EOF > $STUP 
 use strict;
 
 use AliEn::Logger;
@@ -336,7 +361,6 @@ use AliEn::Logger;
 my @services=qw( $startupFormat ) ;
 
 my \$userID = getpwuid(\$<);
-
 
 \$ENV{ALIEN_HOME} = ( \$ENV{ALIEN_HOME} || "/home/\$userID/.alien" );
 \$ENV{ALIEN_ROOT} = ( \$ENV{ALIEN_ROOT} || "/home/\$userID/alien") ;
@@ -346,24 +370,23 @@ my \$userID = getpwuid(\$<);
 \$ENV{X509_USER_PROXY} = ( \$ENV{X509_USER_PROXY} || "/tmp/x509up_u\$<" );
 \$ENV{X509_CERT_DIR} = ( \$ENV{X509_CERT_DIR} || "\$ENV{GLOBUS_LOCATION}/share/certificates" );
 EOF
-    for var in SEALED_ENVELOPE_REMOTE_PUBLIC_KEY SEALED_ENVELOPE_REMOTE_PRIVATE_KEY SEALED_ENVELOPE_LOCAL_PUBLIC_KEY \
-               SEALED_ENVELOPE_LOCAL_PRIVATE_KEY ALIEN_DATABASE_PASSWORD ;
-    do
-    	if [ "${!var}" != "" ] ;
-    	then 
-    		echo "\$ENV{$var} = '${!var}' ;" >> $ALIEN_HOME/httpd/conf."$portNum"/startup.pl
-    	fi	
-    done
-     
+for var in SEALED_ENVELOPE_REMOTE_PUBLIC_KEY SEALED_ENVELOPE_REMOTE_PRIVATE_KEY SEALED_ENVELOPE_LOCAL_PUBLIC_KEY \
+           SEALED_ENVELOPE_LOCAL_PRIVATE_KEY ALIEN_DATABASE_PASSWORD ;
+do
+	if [ "${!var}" != "" ] ;
+	then 
+		echo "\$ENV{$var} = '${!var}' ;" >> $STUP
+	fi	
+done
+ 
 
-         cat >> $ALIEN_HOME/httpd/conf."$portNum"/startup.pl <<EOF
-
+cat >> $STUP <<EOF
 
 my \$l=AliEn::Logger->new();
-\$l->redirect("$LOGDIR/$startupFormat.$portNum.log");
+\$l->redirect("$LOGDIR/$startupFormat.$portNum.$hostAddress.log");
 
 foreach my \$s (@services) {
-  print "Checking \$s\n";
+  print "<I - $STUP> Checking \$s\n";
   my \$name="AliEn::Service::\$s";
   eval {
     eval "require \$name" or die("Error requiring the module: \$@");
@@ -371,24 +394,29 @@ foreach my \$s (@services) {
     \$serv or exit(-2);
   };
   if (\$@) {
-    print "NOPE!!\n \$@\n";
+    print "<E - $STUP> NOPE!!\n \$@\n";
 
     exit(-2);
   }
-  \$l->info("HTTPD", "Starting \$s on $hostAddress:$portNum");
+  \$l->info("HTTPD", "<I - $STUP> Starting \$s on $hostAddress:$portNum");
 
 }
 
 print "ok\n";        
 EOF
-		fi
 
-   if [ ! -f $CONF ] || [ ! -f $ALIEN_HOME/httpd/conf."$portNum"/startup.pl ]
-     then
-      echo "$ALIEN_HOME/httpd/conf.$portNum/ don't have httpd.conf and startup.pl"
-      exit 1
-   fi            
+  # make sure that file is properly written
+	# sleep a while to allow the conf and startup files to be properly created
+	sleep 1
+  if [ ! -f $CONF ] || [ ! -f $STUP ]
+  then
+    echo "<E - AlienServices.sh> $ALIEN_HOME/httpd/conf.$portNum/ don't have httpd.conf and startup_$hostAddress.pl"
+    echo ""
+    exit 1
+  fi            
   
+  echo ""
+
 }
 
 
@@ -399,9 +427,7 @@ ALIEN_StartHttp ( )
   local serviceName=$1
   local configName=$2
   local startupFormat=$3
-  
 
- 
   local hostName=`${ALIEN_ROOT}/scripts/alien -x ${ALIEN_ROOT}/scripts/GetConfigVar.pl $configName 2> /dev/null `
   local SECURE=0
   if [[ $hostName == https* ]]
@@ -412,11 +438,9 @@ ALIEN_StartHttp ( )
     then 
 	hostAddress=${hostName#http://}
   else    
-    echo "RUNNING ON THE LOCAL MACHINE"
     hostAddress=`hostname -f`
   fi
     
-
   ALIEN_GetPortNumber portNum $serviceName $hostAddress    
   ALIEN_CreateHTTPDConfiguration $portNum $hostAddress $startupFormat $SECURE
       
@@ -450,7 +474,11 @@ startService()
 
   #export ALIEN_CM_AS_LDAP_PROXY=0;
 
-  if [ "$1" = "-silent" ]
+  hostname=`hostname -f`
+	echo ""
+	echo "<I - AlienServices.sh> service $service is started on $hostname"
+	
+	if [ "$1" = "-silent" ]
   then
     SILENT=1
     shift 1
@@ -458,7 +486,7 @@ startService()
 
   if [ "$1" = "alienServiceNOKILL" ]
   then
-    [ -n "$SILENT" ] || echo "Not killing other $service"
+    [ -n "$SILENT" ] || echo "<I - AlienServices.sh> Not killing other $service"
     NOKILL=1
     shift 1
   fi
@@ -469,18 +497,17 @@ startService()
     shift 2
   fi
 
-
-
   if [ ! -n "$ALIEN_START" ]
   then
-    [ -n "$SILENT" ] || echo "Starting with generic Service.pl"
+    [ -n "$SILENT" ] || echo "<I - AlienServices.sh> Starting with generic Service.pl"
     ALIEN_START="$ALIEN_ROOT/scripts/Service.pl $packageName"
   fi
 
   [ -d $LOGDIR ] || mkdir -p $LOGDIR
   chmod 0777 $LOGDIR
+	echo "<I - AlienServices.sh> LOGDIR is $LOGDIR"
 
-  [ -n "$SILENT" ] || echo "Starting the $service"
+  [ -n "$SILENT" ] || echo "<I - AlienServices.sh> Starting the $service with HTTPService=$HTTPService"
 
   [ -f  $LOGDIR/$service.pid ] && OLDPID=`cat $LOGDIR/$service.pid`
 
@@ -489,34 +516,38 @@ startService()
     stopService $packageName $service $configName 1
     if [ $? -eq 0 ]
     then
-      [ -n "$SILENT" ] || echo "Killing old $service (pid $OLDPID)"
+      [ -n "$SILENT" ] || echo "<I - AlienServices.sh> Killing old $service (pid $OLDPID)"
     fi
   fi
   [ -f $LOGDIR/$service.log ] && mv $LOGDIR/$service.log $LOGDIR/$service.log.back
-
   rm -rf $LOGDIR/.$service.log.LCK*
 
  
-  
   if [ "$HTTPService" = 1 ] 
   then  
+    echo "<I - AlienServices.sh> Remaining parameters in start of httpd: $*"
     ALIEN_StartHttp $service $configName $packageName
   else
+
     SETSID=`which setsid 2> /dev/null`
-    if [ "$service" == "JobAgent" ] 
+    echo "<I - AlienServices.sh> $ALIEN_PERL $ALIEN_DEBUG $ALIEN_START $* -logfile $LOGDIR/$packageName.$portNum.$hostAddress.log"
+		
+		if [ "$service" == "JobAgent" ] 
     then
-      $SETSID  $ALIEN_PERL $ALIEN_DEBUG $ALIEN_START $* -logfile $LOGDIR/$packageName.$portNum.log  
+		  echo "<I - AlienServices.sh> Remaining parameters in start of JobAgent: $*"
+      $SETSID  $ALIEN_PERL $ALIEN_DEBUG $ALIEN_START $* -logfile $LOGDIR/$packageName.$portNum.$hostAddress.log  
     else
-      $SETSID  $ALIEN_PERL $ALIEN_DEBUG $ALIEN_START $* -logfile $LOGDIR/$packageName.$portNum.log  &
+      $SETSID  $ALIEN_PERL $ALIEN_DEBUG $ALIEN_START $* -logfile $LOGDIR/$packageName.$portNum.$hostAddress.log  &
     fi
     error=$?
-    MASTERPID=$!
-    echo  $! > $LOGDIR/$packageName.pid
+		MASTERPID=$!
+		echo "<I - AlienServices.sh> Writing pid = ${MASTERPID} to $LOGDIR/$packageName.pid"
+    echo  ${MASTERPID} > $LOGDIR/$packageName.pid
   fi
 
-  [ -n "$SILENT" ] || echo "$service started with $error (pid  $!)"
-  [ -n "$SILENT" ] || echo "Log file: $LOGDIR/$packageName.$portNum.log"
+  [ -n "$SILENT" ] || echo "<I - AlienServices.sh> Log file = $LOGDIR/$packageName.$portNum.$hostAddress.log"
 
+  echo ""
   return 0
 }
 
@@ -564,8 +595,8 @@ stopService()
 
 
   QUIET=$1
-  
-
+  # echo "<I - AlienServices.sh> Stopping service $packageName / $service / $configName / $*"
+	
   # kill the service
   
   for KILLFILE in `ls $LOGDIR/$packageName.*pid 2>/dev/null`; do

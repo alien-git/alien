@@ -128,10 +128,11 @@ sub initialize {
   my $options =(shift or {});
   $self->debug(1, "Initializing the JobAgent in debug mode");
   
+  # cleanup orphaned semaphores
+	my $res = AliEn::Util::cleanSemaphores($self);
 
-  $self->info("\n\n\nWE ARE GOING TO KILL $options->{pid}\n\n\n");
+  $self->info("\n<I - JobAgent.pm> We are going to kill $options->{pid}\n");
   $options->{pid} and $self->{SERVICEPID}=$options->{pid};
-  
 
   $self->{TOTALJOBS}=0;
   $self->{FORKCHECKPROCESS} = 1;
@@ -141,18 +142,18 @@ sub initialize {
   $self->{OUTPUTFILES} = "";
   $self->{TTL}=($self->{CONFIG}->{CE_TTL} || 12*3600);
   $self->{ORIG_TTL}=$self->{TTL};
-  $self->{TTL} and $self->info("This jobagent is going to live for $self->{TTL} seconds");
+  $self->{TTL} and $self->info("<I - JobAgent.pm> This jobagent is going to live for $self->{TTL} seconds");
   
-  $ENV{ALIEN_CM_AS_LDAP_PROXY} or $self->info("We don't have the address of the clustermonitor in ALIEN_CM_AS_LDAP_PROXY") 
+  $ENV{ALIEN_CM_AS_LDAP_PROXY} or $self->info("<E - JobAgent.pm> We don't have the address of the clustermonitor in ALIEN_CM_AS_LDAP_PROXY") 
     and return;
 
   #$self->{HOST} = $ENV{'ALIEN_HOSTNAME'}.".".$ENV{'ALIEN_DOMAIN'};
   $self->{HOST} = $self->{CONFIG}->{HOST};
   $ENV{'ALIEN_SITE'} = $self->{CONFIG}->{SITE};
   $self->{CONFIG}->{SITE_HOST} and $ENV{'ALIEN_SITE_HOST'} = $self->{CONFIG}->{SITE_HOST};
-  print "Executing in $self->{HOST}\n";
+  print "<I - JobAgent.pm> Executing in $self->{HOST}\n";
   $self->{PID}=$$;
-  print "PID = $self->{PID}\n";
+  print "<I - JobAgent.pm> PID = $self->{PID}\n";
   $ENV{ALIEN_JOBAGENT_ID} and $ENV{ALIEN_JOBAGENT_ID}.="_$self->{PID}";
 
   my $packConfig=1;
@@ -163,7 +164,7 @@ sub initialize {
   $self->{UI} = 0;
 
   $self->{PORT} = $ENV{ALIEN_JOBAGENT_PORT};
-  $self->{PORT} or $self->info("We don't know in which port we are running") and return;
+  $self->{PORT} or $self->info("<E - JobAgent.pm> We don't know in which port we are running") and return;
 
   $self->{WORKDIRFILE}="$self->{CONFIG}->{TMP_DIR}/jobagent.$self->{PORT}.options";
 
@@ -176,7 +177,7 @@ sub initialize {
   $self->{X509}= new AliEn::X509 or return;
 #  $self->{PACKMAN}=AliEn::PackMan->new({PACKMAN_METHOD=>"Local"}) or 
   $self->{PACKMAN}=AliEn::ClientPackMan->new() or 
-    $self->info("Error getting the packman") and return ;
+  $self->info("Error getting the packman") and return ;
 
 
   $self->{WORKDIR} = $ENV{HOME};
@@ -850,7 +851,7 @@ sub stopService {
 #  if ( $self->{STATUS} eq "STARTED" ) {
 #     $self->changeStatus("%", "ERROR_P");	
 #  }
-  $self->info("Killing JobAgent\n");
+  $self->info("<I - JobAgent.pm> Killing JobAgent with PID $pid\n");
 
   $self->SUPER::stopService($pid);
   return 1;
@@ -2628,17 +2629,17 @@ sub checkWakesUp {
   my $i;
   if (! $self->{JOBLOADED}) {
     $self->sendJAStatus('REQUESTING_JOB');
-    $self->info("Asking for a new job");
+    $self->info("<I - JobAgent.pm> Asking for a new job");
     if (! $self->requestJob()) {
       $self->sendJAStatus('DONE', {totaljobs=>$self->{TOTALJOBS}}); 
-      $self->info("There are no jobs to execute. We have executed $self->{TOTALJOBS}");
+      $self->info("<I - JobAgent.pm> There are no jobs to execute. We have executed $self->{TOTALJOBS}");
 
       $self->{MONITOR} and 
         $self->{MONITOR}->sendParameters("$self->{CONFIG}->{SITE}_".$self->{SERVICENAME}, "$self->{HOST}:$self->{PORT}", 
                                            { 'numjobs' => $self->{TOTALJOBS} });
       # killeverything connected
 
-      $self->info("$$ We didn't start any agents. We have to  kill $self->{SERVICEPID} or ".getppid());     
+      $self->info("<I - JobAgent.pm> $$ We didn't start any agents. We have to  kill $self->{SERVICEPID} or ".getppid());     
       $self->stopService($self->{SERVICEPID});
       exit(0);
     }

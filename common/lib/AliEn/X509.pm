@@ -71,7 +71,7 @@ sub checkProxy {
     $self->debug(1, "There is a proxy, and it is valid");
     return 1;
   }
-  $self->info( "We have to create a new proxy");
+  $self->info( "We have to create a new proxy, NOW!");
   return $self->createProxy();
 }
 
@@ -145,7 +145,7 @@ sub createProxy {
   my $silent = "&> /dev/null";
   $DEBUG and $silent = "";
 
-  my $error  = system("$ENV{GLOBUS_LOCATION}/bin/grid-proxy-init  -pwstdin $hours </dev/null $silent");
+  my $error  = system("$ENV{GLOBUS_LOCATION}/bin/grid-proxy-init -bits 1024 -pwstdin $hours </dev/null $silent");
   my $method = "info";
   my @extra;
   $options->{silent} and $method = "debug" and push @extra, 2;

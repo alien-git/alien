@@ -25,6 +25,16 @@ sub isMac {
   return ($platform eq "Darwin");
 }
 
+sub cleanSemaphores {
+  my $self  = shift;
+  
+  # execute semaphore cleaning script
+  my @comments = `$ENV{ALIEN_ROOT}/scripts/CleanSemaphores.sh`;
+  $self->info("<I - Util.pm> Cleaned up semaphores!");
+	
+  return 1;
+}
+
 sub getProcDir {
   my $user       = shift;
   my $submitHost = shift;
