@@ -127,11 +127,12 @@ sub updateSplitting {
   my $self=shift;
   my $queueid=shift;
   my $job_ca=shift;
+  my $user;
   eval {
     my ($strategy, $jobs)=$self->SplitJob($queueid, $job_ca) or 
       die("The job can't be split\n");
 
-    my ($user)=$self->{DB}->queryValue("select user from QUEUE join QUEUE_USER using (userid) where queueid=?",
+    ($user)=$self->{DB}->queryValue("select user from QUEUE join QUEUE_USER using (userid) where queueid=?",
                       undef, {bind_values=>[$queueid]})
       or $self->info("Job $queueid doesn't exist")
 				and die ("Error getting the user of $queueid\n");
@@ -174,7 +175,14 @@ sub updateSplitting {
 
     $self->{DB}->updateStatus($queueid,"%","ERROR_SPLT", {masterjob=>1})
       or $self->info("Error updating status for job $queueid" );
-    $self->putJobLog($queueid,"state","Job state transition to ERROR_SPLT");
+    $self->putJobLog($queueid,"state","Job state transition to ERROR_SPLT. Cleaning up submitted subjobs if needed.");
+    
+    # cleanup submitted subjobs
+    my $submitted = $self->{DB}->queryColumn("select queueId from QUEUE where split!=0 and split=?", undef, {bind_values=>[$queueid]});
+    foreach my $subjob ( @$submitted ) {
+      $self->{DB}->killTask($subjob, $user);
+    }
+    
     return ;
   }
   return 1 ;
