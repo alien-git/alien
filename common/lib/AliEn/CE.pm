@@ -1,4 +1,4 @@
- package AliEn::CE;
+package AliEn::CE;
 
 select(STDERR);
 $| = 1;
@@ -489,7 +489,7 @@ sub modifyJobCA {
 	$self->checkExpire($job_ca) or return;
 
     $self->checkRemoteTimeout($job_ca) or return;
-
+    
 	$job_ca->insertAttributeString("User", $self->{CATALOG}->{CATALOG}->{ROLE});
 
 	# Just a safety belt to insure we've not destroyed everything
@@ -591,10 +591,16 @@ sub checkTimeToLive {
 	$ttl =~ s/^\s*(\d+)\s*$// and $realTTL += $1;
 	if ($ttl !~ /^\s*$/) {
 		$self->info(
-"Sorry, I don't understand '$ttl' of the time to live. The sintax that I can handle is:\n\t TTL = ' <number> [hours|minutes|seconds]'.\n\tExample: TTL = '5 hours 2 minutes 30 seconds"
+"Sorry, I don't understand '$ttl' of the time to live. 
+The sintax that I can handle is:\n\t TTL = ' <number> [hours|minutes|seconds]'.\n\tExample: TTL = '5 hours 2 minutes 30 seconds'"
 		);
 		return;
 	}
+	
+	$realTTL > 24*3600 and 
+	    $self->{LOGGER}->error("CE", "The defined TTL is larger that 24h. Please set a value <= 24h.") 
+	    and return; 
+	
 	$job_ca->set_expression("TTL", $realTTL);
 	return 1;
 }
@@ -3831,6 +3837,7 @@ sub checkJobAgents {
 	return 1;
 }
 
+
 sub requirementsFromPackages {
 	my $self   = shift;
 	my $job_ca = shift;
@@ -3852,7 +3859,7 @@ sub requirementsFromPackages {
 	my ($status, @definedPack) = $self->getAllPackages();
 
 	$status
-		or $self->info("Error getting the list of packages")
+		or $self->{LOGGER}->error("CE", "Error getting the list of packages")
 		and return;
 	my $requirements = "";
 
@@ -3866,7 +3873,8 @@ sub requirementsFromPackages {
 			$requirements .= " && (member(other.${installed}Packages, \"$name[0]\"))";
 			next;
 		}
-		$self->info("The package $package is not defined!!");
+				
+		$self->{LOGGER}->error("CE", "The package $package is not defined in PackMan or CVMFS.");
 		return;
 	}
 
@@ -3882,7 +3890,9 @@ sub getAllPackages {
 	}
 
 	my ($status, @definedPack) = $self->{PACKMAN}->f_packman("list", "-silent", "-all");
+	
 	AliEn::Util::setCacheValue($self, "all_packages", [ $status, @definedPack ]);
+	
 	return $status, @definedPack;
 }
 
@@ -4501,16 +4511,18 @@ sub calculateJobQuota {
 
 	$self->$method(@data, "Calculate Job Quota");
 
-	$self->$method(@data, "Compute the number of unfinished jobs in last 24 hours per user");
+	$self->$method(@data, "Compute the number of unfinished jobs in last 24 hours per user, the total runnning time of jobs and cpu in last 24 hours per user, 
+							and the total cpu cost of jobs in last 24 hours per user");
+    $self->{TASK_DB}->unfinishedJobs24PerUserAndcpuCost24PerUser or $self->$method(@data, "Failed");
 
-#$self->{TASK_DB}->do("update PRIORITY pr left join (select SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user, count(1) as unfinishedJobsLast24h from QUEUE q where (status='INSERTING' or status='WAITING' or status='STARTED' or status='RUNNING' or status='SAVING' or status='OVER_WAITING') and (unix_timestamp()>=q.received and unix_timestamp()-q.received<60*60*24) group by submithost) as C on pr.user=C.user set pr.unfinishedJobsLast24h=IFNULL(C.unfinishedJobsLast24h, 0)") or $self->$method(@data, "Failed");
-	$self->{TASK_DB}->unfinishedJobs24PerUser or $self->$method(@data, "Failed");
-	$self->$method(@data, "Compute the total runnning time of jobs and cpu in last 24 hours per user");
-
-	$self->$method(@data, "Compute the total cpu cost of jobs in last 24 hours per user");
-
-#$self->{TASK_DB}->do("update PRIORITY pr left join (select SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user, sum(p.cost) as totalCpuCostLast24h , sum(p.runtimes) as totalRunningTimeLast24h from QUEUE q join QUEUEPROC p using(queueId) where (unix_timestamp()>=q.received and unix_timestamp()-q.received<60*60*24) and status='DONE' group by submithost) as C on pr.user=C.user set pr.totalRunningTimeLast24h=IFNULL(C.totalRunningTimeLast24h, 0), pr.totalCpuCostLast24h=IFNULL(C.totalCpuCostLast24h, 0)");
-	$self->{TASK_DB}->cpuCost24PerUser or $self->$method(@data, "Failed");
+#	$self->$method(@data, "Compute the number of unfinished jobs in last 24 hours per user");
+##$self->{TASK_DB}->do("update PRIORITY pr left join (select SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user, count(1) as unfinishedJobsLast24h from QUEUE q where (status='INSERTING' or status='WAITING' or status='STARTED' or status='RUNNING' or status='SAVING' or status='OVER_WAITING') and (unix_timestamp()>=q.received and unix_timestamp()-q.received<60*60*24) group by submithost) as C on pr.user=C.user set pr.unfinishedJobsLast24h=IFNULL(C.unfinishedJobsLast24h, 0)") or $self->$method(@data, "Failed");
+#	$self->{TASK_DB}->unfinishedJobs24PerUser or $self->$method(@data, "Failed");
+#	$self->$method(@data, "Compute the total runnning time of jobs and cpu in last 24 hours per user");
+#	$self->$method(@data, "Compute the total cpu cost of jobs in last 24 hours per user");
+##$self->{TASK_DB}->do("update PRIORITY pr left join (select SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user, sum(p.cost) as totalCpuCostLast24h , sum(p.runtimes) as totalRunningTimeLast24h from QUEUE q join QUEUEPROC p using(queueId) where (unix_timestamp()>=q.received and unix_timestamp()-q.received<60*60*24) and status='DONE' group by submithost) as C on pr.user=C.user set pr.totalRunningTimeLast24h=IFNULL(C.totalRunningTimeLast24h, 0), pr.totalCpuCostLast24h=IFNULL(C.totalCpuCostLast24h, 0)");
+#	$self->{TASK_DB}->cpuCost24PerUser or $self->$method(@data, "Failed");
+	
 	$self->$method(@data, "Change job status from OVER_WAITING to WAITING");
 
 #$self->{TASK_DB}->do("update QUEUE q join PRIORITY pr on pr.user=SUBSTRING( q.submitHost, 1, POSITION('\@' in q.submitHost)-1 ) set q.status='WAITING' where (pr.totalRunningTimeLast24h<pr.maxTotalRunningTime and pr.totalCpuCostLast24h<pr.maxTotalCpuCost) and q.status='OVER_WAITING'") or $self->$method(@data, "Failed");

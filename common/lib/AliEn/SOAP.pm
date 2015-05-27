@@ -346,7 +346,12 @@ sub checkSOAPreturn {
   my $server       = ( shift or "server" );
   my $options      = ( shift or "" );
   my $errorMessage = "";
-  ( defined $done ) or $self->info("WARNING!!! SOAP ERROR, while contacting the $server ") and return;
+  $GLOBALERROR
+    and ($GLOBALERROR =~ /SSL negotiation failed/s)
+    and $self->info("Error reason: SSL negotiation failed!");
+  ( defined $done ) 
+    or $self->info("WARNING!!! SOAP ERROR, while contacting the $server ") 
+    and return;
   $GLOBALERROR and $errorMessage = $GLOBALERROR;
   my $error = "";
 

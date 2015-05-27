@@ -414,6 +414,7 @@ sub initialize {
       },
       id    => "ID",
       index => "ID",
+      #extra_index => [ "foreign key (ID) references QUEUE(queueId) on delete cascade" ],
       order=>9
     },
     JOBMESSAGES => {
@@ -940,10 +941,7 @@ sub checkFinalAction {
   $self->info("Checking if we have to merge the master");
   if ($info->{split}) {
     $self->info("We have to check if all the subjobs of $info->{split} have finished");
-    $self->do(
-"insert  into JOBSTOMERGE (masterId) select ? from DUAL  where not exists (select masterid from JOBSTOMERGE where masterid = ?)",
-      {bind_values => [ $info->{split}, $info->{split} ]}
-    );
+    $self->do("insert ignore into JOBSTOMERGE values (?)", {bind_values=>[$info->{split}]});
     $self->do("update ACTIONS set todo=1 where action='MERGING'");
   }
   return 1;
@@ -1480,7 +1478,7 @@ sub findUserId{
 sub extractFieldsFromReq {
   my $self= shift;
   my $text =shift;
-  my $params= {counter=> 1, ttl=>84000, disk=>0, packages=>'%', partition=>'%', ce=>'', noce=>''};
+  my $params= {counter=> 1, ttl=>84000, disk=>0, packages=>'%', "\`partition\`"=>'%', ce=>'', noce=>''};
 
   my $site = "";
   my $no_se={};
@@ -1526,7 +1524,7 @@ sub extractFieldsFromReq {
      $params->{userid}=$self->findUserId($1);   
   } 
   $text =~ s/other.LocalDiskSpace\s*>\s*(\d*)// and $params->{disk}=$1; 
-  $text =~ s/other.GridPartitions,"([^"]*)"//i and $params->{partition}=$1; 
+  $text =~ s/other.GridPartitions,"([^"]*)"//i and $params->{"\`partition\`"}=$1; 
   $text =~ s/this.filebroker\s*==\s*1//i and $params->{fileBroker}=1 and $self->info("DOING FILE BROKERING!!!");
   
 
@@ -1643,7 +1641,7 @@ sub getNumberWaitingForSite{
   }else{
     defined $options->{packages} and $where .="and ? like packages " and push @bind, $options->{packages};
   }
-  $options->{partition} and $where .="and ? like concat('%,',partition, '%,') " and push @bind, $options->{partition};
+  $options->{partition} and $where .="and ? like concat('%,',\`partition\`, '%,') " and push @bind, $options->{partition};
   $options->{ce} and $where.=" and (ce like '' or ce like concat('%,',?,',%'))" and push @bind,$options->{ce};
   $options->{ce} and $where.=" and noce not like concat('%,',?,',%')" and push @bind,$options->{ce};
   $options->{returnPackages} and $return="packages";
@@ -2112,7 +2110,16 @@ computedpriority=(if(running<maxparallelJobs, if((2-userload)*priority>0,50.0*(2
 } 
 
 
-
+sub unfinishedJobs24PerUserAndcpuCost24PerUser {
+	my $self = shift;
+	return $self->do("
+update PRIORITY pr left join (select userid, sum(p.cost) as totalCpuCostLast24h, sum(p.runtimes) as totalRunningTimeLast24h, 
+					sum(case when statusId in (1,5,7,10,11,21) then 1 else 0 end) as unfinishedJobsLast24h 
+					from QUEUE q left outer join QUEUEPROC p using(queueId)  where (unix_timestamp()>=q.received and unix_timestamp()-60*60*24<q.received ) 
+					group by userid) as C using (userId) 
+					set pr.unfinishedJobsLast24h=IFNULL(C.unfinishedJobsLast24h, 0), pr.totalRunningTimeLast24h=IFNULL(C.totalRunningTimeLast24h, 0), 
+					pr.totalCpuCostLast24h=IFNULL(C.totalCpuCostLast24h, 0)");
+}
 
 
 sub unfinishedJobs24PerUser {

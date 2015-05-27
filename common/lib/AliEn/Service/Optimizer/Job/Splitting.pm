@@ -323,7 +323,7 @@ sub _getInputFiles{
 
   my ($ok, @patterns)=$job_ca->evaluateAttributeVectorString("InputData");
   $self->info("Checking if there is an inputcollection");
-  $self->copyInputCollection($job_ca, $queueId, \@patterns) or return;
+  $self->copyInputCollection($job_ca, $queueId, \@patterns);# or return;
   @patterns or $self->info( "There is no input data")
     and return;
   

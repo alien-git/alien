@@ -891,7 +891,8 @@ sub getCatalogue {
   my $self=shift;
   my $options={no_catalog=>1};
   my $catalog;
-  my $notrace = defined $self->{CONFIG}->{CE_ENVIRONMENT_LIST} && grep( /NOTRACE/i,  @{$self->{CONFIG}->{CE_ENVIRONMENT_LIST}} );
+  my $traceactive = defined $self->{CONFIG}->{CE_ENVIRONMENT_LIST} && grep( /DEVELTRACE/i,  @{$self->{CONFIG}->{CE_ENVIRONMENT_LIST}} )
+                    || 0;
   
   eval{ 
     $options->{silent} or $options->{silent}=0;
@@ -912,7 +913,7 @@ sub getCatalogue {
     open (my $STDOLD, '>&', STDERR);
     # redirect STDERR to log.txt
     open (STDERR, '>>', 'develTrace_'.$ENV{ALIEN_PROC_ID}.'');
-    $Devel::Trace::TRACE = 1-$notrace;
+    $Devel::Trace::TRACE = $traceactive;
     
     $catalog = AliEn::UI::Catalogue::LCM::->new($options);
     
@@ -922,9 +923,9 @@ sub getCatalogue {
   };
   if ($@) {print "ERROR GETTING THE CATALOGUE $@\n";}
   if (!$catalog) {
-    $self->putJobLog("error","The job couldn't authenticate to the catalogue (no_trace $notrace)");
+    $self->putJobLog("error","The job couldn't authenticate to the catalogue (trace $traceactive)");
 
-    if (1-$notrace){
+    if ($traceactive){
 	    open(FI, 'develTrace_'.$ENV{ALIEN_PROC_ID}.'') or $self->putJobLog("trace","Can't open develTrace") and return;
 	    my $c = 0;
 	    my $trace = "";  

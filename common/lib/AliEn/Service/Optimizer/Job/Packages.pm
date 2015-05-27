@@ -5,6 +5,8 @@ use strict;
 use AliEn::Service::Optimizer::Job;
 use AliEn::Database::Catalogue;
 use AliEn::GUID;
+use AliEn::PackMan;
+use Data::Dumper;
 
 use vars qw(@ISA);
 push (@ISA, "AliEn::Service::Optimizer::Job");
@@ -13,10 +15,20 @@ sub checkWakesUp {
   my $self=shift;
   my $silent=shift;
 
-  $self->{SLEEP_PERIOD}=3600;
+  $self->{SLEEP_PERIOD}=3600/2;
 
   $self->{CAT_DB} or $self->{CAT_DB}=AliEn::Database::Catalogue->new();
   $self->{CAT_DB} or $self->info("Error connecting to the catalogue") and return;
+
+
+  if (!$self->{PACKMAN} && defined $self->{CONFIG}->{PACKMAN_ENVIRONMENT} && $self->{CONFIG}->{PACKMAN_ENVIRONMENT}=~/PACKOPT/i ){
+    $self->{PACKTYPE} = (split '=',$self->{CONFIG}->{PACKMAN_ENVIRONMENT})[1];
+    my $options={PACKMAN_METHOD=>$self->{PACKTYPE}};
+    $self->info("Creating custom PackMan: $self->{PACKTYPE}");
+    $self->{PACKMAN} = AliEn::PackMan->new($options);
+    $self->{PACKMAN} or 
+      $self->info("Error creating PackMan/$self->{PACKTYPE}") and return;
+  }
 
   my $method="info";
   $silent and $method="debug";
@@ -63,36 +75,60 @@ sub moveToError {
   foreach my $queueid (@$jobs){
     $self->info("We have to kill the job $queueid");
     $self->{DB}->updateStatus($queueid, "WAITING", "ERROR_E");
-    $self->putJobLog($queueid, "state", "Job move to ERROR_E: on of the packages '$req' does not exist");
+    $self->putJobLog($queueid, "state", "Job move to ERROR_E: one of the packages '$req' does not exist");
   }
 
 
 }
+
+
 sub loadPackages {
   my $self=shift;
   $self->info("We have to load all the packages");
   my $allPackages={};
+  my $status;
+  my @infopack;
+  my $infodb;
+  my @info;
+  
+  # Getting packages
+  $infodb=$self->{CAT_DB}->{LFN_DB}->queryColumn("SELECT distinct fullPackageName p from PACKAGES");
+  @info = @{$infodb};
+  
+  if($self->{PACKMAN}){
+  	 $self->info("Getting packages from special PackMan ($self->{PACKTYPE})");
+    ($status,@infopack) = $self->{PACKMAN}->getListPackages("-s");
+    $status or $self->info("Couldn't retrieve packages from $self->{PACKTYPE}") and last; 
+    
+    $self->info("We have a special PackMan ($self->{PACKTYPE}), showing diffs");    
+    my @missing;
+    foreach my $dbpackage (@info){
+      $dbpackage ~~ @infopack or push(@missing,$dbpackage);
+    }
+    @missing and
+      $self->info("Packages missing in $self->{PACKTYPE}\n".Dumper(@missing));
+         
+    @info = @infopack;
+  }
 
-  my $info=$self->{CAT_DB}->{LFN_DB}->query("SELECT distinct fullPackageName p from PACKAGES");
-
-  $info or $self->info("Error getting the list of packages") and return;
-  use Data::Dumper;
-print Dumper($info);
-  foreach my $d (@$info){
-    $self->debug(1, "The package $d->{p} exists");
-    $allPackages->{$d->{p}}=1;
+  @info or $self->info("Error getting the list of packages") and return;
+  print Dumper(@info);
+  foreach my $d (@info){
+    $self->debug(1, "The package $d exists");
+    $allPackages->{lc($d)}=1;
   }
   $self->info("List of packages loaded");
 
-
   return $allPackages;
 }
+
+
 sub existsPackage {
   my $self=shift;
   my $package=shift;
   my $allPackages=shift;
-  $self->debug(1,"Checkin if the package '$package' exists");
-  $allPackages->{$package} and return 1;
+  $self->debug(1,"Checking if the package '$package' exists");
+  $allPackages->{lc($package)} and return 1;
   $self->info("The package '$package' does not exist!!");
   return 0;
 }

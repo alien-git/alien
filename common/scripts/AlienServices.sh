@@ -386,19 +386,42 @@ ALIEN_HttpdStart()
   tmpN=$serviceName
   tmpName=$(echo $tmpN | tr '[a-z]' '[A-Z]')
  
-       
- if [ -f $ALIEN_HOME/httpd/conf."$portNum"/httpd.conf ]
+ file=$ALIEN_HOME/httpd/conf."$portNum"/httpd.conf   
+    
+ if [ -f $file ]
   then
-        file=$ALIEN_HOME/httpd/conf."$portNum"/httpd.conf
+	PidFile=$logDir/httpd"$serviceName".pid
+	  
+	# check whether the process with the old pid is still running
+	# require that running process is a httpd and belongs to the current user
+    if [ -f $PidFile ]; then
+			PID=`cat $PidFile`
+			if [ ! -z $PID ]; then
+				ans=`ps -p ${PID} -o fuser:40,comm:40 --no-headers`
+				echo "Is old httpd with pid=$PID still running?"
+				echo "  answers = ${ans}"
+				if [[ $ans == *"httpd"* && $ans == *"${ALIEN_USER}"* ]]; then
+					echo "We should do kill -9 $PID and children"
+					ps -ef | grep httpd | grep $portNum | awk '{print $2}' | xargs kill -9
+				fi
+			fi
+			
+	  # now remove old PID file
+	 rm -f $PidFile
+      rm -f $logDir/"$serviceName".pid
+	 echo "PidFile removed before starting new httpd - $PidFile"
+    fi
+	
         $ALIEN_ROOT/httpd/bin/httpd -k start -f $file  # >/dev/null 2>&1
-
   fi
-   sleep 5
+sleep 5
 
   
   #   if [ -f $logDir/httpd"$serviceName".pid ]
   #   then
-        ps -ef | grep httpd | grep $portNum | awk '{if ($3==1) print $2}' > $logDir/httpd"$serviceName".pid      
+        #ps -ef | grep httpd | grep $portNum | awk '{if ($3==1) print $2}' > $logDir/httpd"$serviceName".pid
+    	echo "Getting the pid and storing in $logDir/httpd${serviceName}.pid"   
+        ps fuxwww | grep httpd | grep $portNum | awk '{print $2}' | head -1 > $logDir/httpd"$serviceName".pid      
         cp $logDir/httpd"$serviceName".pid  $logDir/"$serviceName".pid 
         
   #   elif [ -f $ALIEN_ROOT/httpd/logs/httpd"$serviceName".pid ]
