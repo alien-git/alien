@@ -148,11 +148,6 @@ sub registerOutput{
     Classad::Classad->new($jobinfo->{jdl}) or $self->info("Error parsing the jdl",2) and return;
   };
   if ($@ or !$ca->isOK){
-  	open FILE, ">>", "/tmp/classadFails";
-  	print FILE "Classadd JDL of $jobid failed ! \n";
-  	print FILE "------------------------------- \n";
-  	close FILE;
-  	
     $self->info("Error creating the classad $@",2);
     return;
   }
