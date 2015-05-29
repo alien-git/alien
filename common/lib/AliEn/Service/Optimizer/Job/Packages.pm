@@ -98,7 +98,8 @@ sub loadPackages {
   if($self->{PACKMAN}){
   	 $self->info("Getting packages from special PackMan ($self->{PACKTYPE})");
     ($status,@infopack) = $self->{PACKMAN}->getListPackages("-s");
-    $status or $self->info("Couldn't retrieve packages from $self->{PACKTYPE}") and last; 
+    $status and @infopack 
+      or $self->info("Couldn't retrieve packages from $self->{PACKTYPE}") and last; 
     
     $self->info("We have a special PackMan ($self->{PACKTYPE}), showing diffs");    
     my @missing;
