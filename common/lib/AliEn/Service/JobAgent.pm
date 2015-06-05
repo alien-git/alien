@@ -187,8 +187,29 @@ sub initialize {
   ( defined $ENV{ALIEN_WORKDIR} ) and $self->{WORKDIR} = $ENV{ALIEN_WORKDIR};
   ( defined $ENV{TMPBATCH} ) and $self->{WORKDIR} = $ENV{TMPBATCH};
   $ENV{ALIEN_WORKDIR}=$self->{WORKDIR};
-
+  
   return $self;
+}
+
+sub sendBatchInfo {
+	my $self = shift;
+	
+	# Batch systems predefined job id variables
+	my @vars  = ("SLURM_JOBID",
+				 "SLURM_JOB_ID",
+				 "LSB_BATCH_JID",
+				 "LSB_JOBID",
+				 "PBS_JOBID",
+				 "JOB_ID",
+				 "CREAM_JOBID");
+	
+	foreach my $var (@vars){
+		$ENV{$var} 
+#		  and $self->info("Sending $var - $ENV{$var} to ML") 
+		  and $self->{MONITOR}->sendParameters("$self->{CONFIG}->{SITE}_".$self->{SERVICENAME}, 
+		                                       "$self->{HOST}:$self->{PORT}", 
+		                                       { $var => $ENV{$var} });
+	}
 }
 
 sub requestJob {
@@ -2724,6 +2745,7 @@ sub checkWakesUp {
   
   if($self->{MONITOR}){ 
     $self->{MONITOR}->sendBgMonitoring();
+    $self->sendBatchInfo();
   }
   my $procinfo;
   my $i;
