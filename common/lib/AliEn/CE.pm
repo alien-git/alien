@@ -1233,9 +1233,10 @@ kill_aria2c 900 &
 sub installWithCVMFS {
     my $self = shift;
     $self->info("The worker node will install with the CVMFS method!!!");
-    my $alien = $ENV{ALIEN_ROOT};
-    my $version = $ENV{ALIEN_VERSION};
-    return "/cvmfs/alice.cern.ch/bin/alienv setenv AliEn/$version -c ALIEN_DEBUG='-d:Trace' $alien/bin/alien", "", "";
+    my $alien_version="";
+    $ENV{ALIEN_VERSION} and $alien_version = "--alien-version $ENV{ALIEN_VERSION}";
+    
+    return "/cvmfs/alice.cern.ch/bin/alienv $alien_version -alien -c ALIEN_DEBUG='-d:Trace' alien", "", "";
 }
 
 sub installWithTorrent {

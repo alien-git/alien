@@ -343,7 +343,7 @@ sub initialize {
         priority     => "int(11)",
         ttl          => "int(11)",
         site         => "varchar(50) COLLATE latin1_general_ci",
-        packages     => "varchar(255) COLLATE latin1_general_ci",
+        packages     => "varchar(500) COLLATE latin1_general_ci",
         disk         => "int(11)",
         partition    => "varchar(50) COLLATE latin1_general_ci",
         ce           => "varchar(50) COLLATE latin1_general_ci",
@@ -1672,7 +1672,7 @@ sub getNumberWaitingForSite{
   	
   	scalar(@$agents) or return 0;
   	
-  	$where.="and entryId in (";  	
+  	$where.=" and entryId in (";  	
   	foreach my $agent (@$agents){
   	  $where.="$agent,";
   	}
@@ -1680,7 +1680,7 @@ sub getNumberWaitingForSite{
   	$where.=")";
 
   	$ok or ($self->{CONFIG}->{CACHE_SERVICE_ADDRESS} and 
-  	  AliEn::Util::getURLandEvaluate("$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}?ns=jobbroker&key=remoteagents&timeout=300&value=".Dumper([@$agents])) );
+  	  AliEn::Util::getURLandEvaluate("$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}?ns=jobbroker&key=remoteagents&timeout=30&value=".Dumper([@$agents])) );
   }
 
   $self->info("THE QUERY IS select $return from JOBAGENT where 1=1 $where order by priority desc  limit 1 (with @bind)");
@@ -1715,9 +1715,9 @@ sub getWaitingJobForAgentId{
                                               and timestampdiff(SECOND,mtime,now())<ifnull(remoteTimeout,$self->{DEFAULTREMOTETIMEOUT})", undef, {bind_values=>[$agentid]});
   }
  
-  my $done=$self->do("UPDATE QUEUE set statusId=".AliEn::Util::statusForML('ASSIGNED').",siteid=?, exechostid=?
+  my $done=$self->do("UPDATE QUEUE set statusId=".AliEn::Util::statusForML('ASSIGNED').",siteid=?, exechostid=?  
    where statusId=".AliEn::Util::statusForML('WAITING')." and agentid=? $extra and \@assigned_job:=queueid  limit 1",
-                     {bind_values=>[$siteid, $hostId, $agentid ]});
+                     {bind_values=>[$siteid, $hostId, $agentid ]}); #, sent=now()
 
   
   if ($done>0){

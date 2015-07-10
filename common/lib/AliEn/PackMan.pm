@@ -570,7 +570,8 @@ sub undefinePackage{
     or $self->info( "Error removing $lfn")
       and return;
 
-  $self->{CATALOGUE}->{CATALOG}->{DATABASE_FIRST}->do("update ACTIONS set todo=1 where action='PACKAGES'");
+  $self->f_packman("recompute");
+#  $self->{CATALOGUE}->{CATALOG}->{DATABASE_FIRST}->do("update ACTIONS set todo=1 where action='PACKAGES'");
   $self->info( "Package $lfn undefined!!");
   return 1;
 }

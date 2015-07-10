@@ -108,16 +108,26 @@ sub insertOCDBIntoCVMFS {
 #	$error and print FILE "FAILED \n";
 #    close FILE;
     
-    $error or (system("ocdb-cvmfs $dir.tar.gz") and $self->info("OCDB CVMFS script failed") and $error=1);
+    my $command = "ocdb-cvmfs $dir.tar.gz ".( $ENV{OCDB_NOTIFICATION_EMAIL} ? "--mailto $ENV{OCDB_NOTIFICATION_EMAIL}" : "" );
+    
+    $self->info("Calling $command");
+    
+    my $failed="";
+    $error or ( $failed=`$command` and 
+                $failed =~ /FAIL/i and 
+                $self->info("OCDB CVMFS script failed") and 
+                $error=2 );
     
     # delete from the table
     $error or $self->{DB}->{LFN_DB}->do("delete from OCDB where entryId in (".join(',', map { '?' } @okLfns).")", {bind_values => [@okLfns]});
     
-   system("rm -f $dir.tar.gz");
+    system("rm -f $dir.tar.gz");
     system("rm -rf $dir");
     chdir "/tmp";
+    
+    $error==2 and $self->{SLEEP_PERIOD}=600; # we wait 10 minutes to retry in case of failed publication
 			
-	return 1;
+    return 1;
 }
 
 return 1;

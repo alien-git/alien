@@ -34,7 +34,7 @@ sub initialize {
   $self->{CATALOGUE} = AliEn::UI::Catalogue::LCM->new($options);
 
   ( $self->{CATALOGUE} )
-    or $self->{LOGGER}->error( "JobOptimizer", "In initialize error creating AliEn::UI::Catalogue::LCM instance" )
+    or $self->{LOGGER}->error( "CatalogueOptimizer", "In initialize error creating AliEn::UI::Catalogue::LCM instance" )
       and return;
 
 

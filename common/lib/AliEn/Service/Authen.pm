@@ -101,6 +101,17 @@ sub doOperation {
   my $user=shift;
   my $directory=shift;
   my $op=shift;
+  
+  if(!$self->{$$}){
+    $self->{addbh} = new AliEn::Database::Admin();
+
+    ($self->{addbh})
+        or $self->{LOGGER}->error( "Authen", "Error getting the Admin Database" )
+        and return {rcvalues=>[], rcmessages=>["Error on server side: can't create DB connection"]};
+    $self->{addbh}->{DBH}->{mysql_auto_reconnect} = 1;
+    $self->{$$}=1;
+  }
+  
   $self->info("$$ Ready to do an operation for $user in $directory (and $op '@_')");
   my $jobID="0";
   my $before=Time::HiRes::time();

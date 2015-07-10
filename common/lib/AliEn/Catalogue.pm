@@ -1730,7 +1730,9 @@ sub f_find {
       }
   }
   if (!@result){
+  	$self->debug( 1, "Going to do f_findNoCache");
     my $ref=$self->f_findNoCache($path, $file, $quiet, $verbose, \%options, @_);
+    $self->debug( 1, "Returned: ". ($ref ? "defined" : "not defined") );
     $ref or return;
     @result=@$ref;
   }  
@@ -1739,6 +1741,7 @@ sub f_find {
   
   if ($keyCache){
 #    $self->info("And now, we should write this into the cache $keyCache : " . uri_escape(Dumper([@result])));
+    $self->debug( 1, "Setting the cache: $keyCache and ". uri_escape(Dumper([@result])) );
     AliEn::Util::getURLandEvaluate("$keyCache&value=" . uri_escape(Dumper([@result])));
   }
 
