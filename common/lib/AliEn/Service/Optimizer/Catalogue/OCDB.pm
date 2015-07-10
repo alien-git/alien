@@ -1,6 +1,7 @@
 package AliEn::Service::Optimizer::Catalogue::OCDB;
  
 use strict;
+use Data::Dumper;
 
 require AliEn::Service::Optimizer::Catalogue;
 
@@ -114,6 +115,7 @@ sub insertOCDBIntoCVMFS {
     
     my $failed="";
     $error or ( $failed=`$command` and 
+                $self->info(Dumper($failed)) and 
                 $failed =~ /FAIL/i and 
                 $self->info("OCDB CVMFS script failed") and 
                 $error=2 );
