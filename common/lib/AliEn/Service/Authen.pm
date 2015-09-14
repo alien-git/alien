@@ -767,32 +767,12 @@ sub getJobToken {
 }
 
 sub checkJobToken {
-  my $self2 = shift;
+  my $self2  = shift;
   my $job   = shift;
   my $token = shift;
   
-  $self->info("In checkJobToken (job $job)..." );
-
-  my ($user) = $self->{addbh}->getUsername($job,$token);
-  
-  if (!($user)) {
-    $self->info("In checkJobToken (job $job)...reconnect the admin database" );
-    $self->{addbh} = new AliEn::Database::Admin();    #$password);
-    ($user) = $self->{addbh}->getUsername($job,$token);
-
-    ($user) 
-      or $self->info("Error: no user for proccess $job - failed" )
-	and return;
-  }
-  
-  $self->info("Getting the token of $user..." );
-  
-  ($token) = $self->{addbh}->getToken($user);
-  
-  $self->{addbh}->addTime( $user, 2 );
-  
-  $self->info( "Job $job authenticated (User: $user)" );
-  return { "token" => $token, "user" => $user };
+  $self->info("In checkJobToken (job $job - token $token)");
+  return $self->{UI}->{QUEUE}->{TASK_DB}->getUsername($job, $token);
 }
 
 sub removeToken {
