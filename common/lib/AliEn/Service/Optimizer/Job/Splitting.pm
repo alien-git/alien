@@ -98,8 +98,8 @@ sub checkWakesUp {
 
   my $done2=$self->checkJobs($silent, "1' and upper(origjdl) like '\% SPLIT =\%", "updateSplitting",4, 15);
 
-  $self->info("Caculate Job Quota");
-	$self->{CATALOGUE}->execute("calculateJobQuota", "1");
+#  $self->info("Caculate Job Quota");
+#	$self->{CATALOGUE}->execute("calculateJobQuota", "1");
 
   $self->{LOGGER}->$method("Splitting", "The splitting optimizer finished");
   return;
@@ -168,6 +168,9 @@ sub updateSplitting {
     $countsubjobs and $self->info("$queueid has $countsubjobs subjobs" ) or 
       $self->info("Error splitting $queueid: 0 subjobs" ) and 
       die("Job has 0 subjobs after SPLIT ?");
+      
+    $self->info("Adding $countsubjobs to $user");  
+    $self->{DB}->addJobsToQuota($countsubjobs,$user);
   };
   if ($@) {
     $self->info("Error splitting $queueid: $@");
