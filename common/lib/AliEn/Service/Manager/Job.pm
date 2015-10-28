@@ -1200,6 +1200,7 @@ sub putJobLog {
   my $message = shift or return (-1, "no message specified");
   $self->{JOBLOG}->putlog($procid, $tag, "$message", @_);
   $self->info("JOBLOG MODIFIED FOR $procid");
+  
 }
 
 #_______________________________________________________________________________________________________________________

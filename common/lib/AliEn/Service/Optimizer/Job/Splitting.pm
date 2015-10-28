@@ -826,6 +826,10 @@ sub _setInputData {
   $input = "{";
 
   my @filecopy = @{$jobDesc->{files}};
+  
+  # Sorting inputData
+  @filecopy = sort(@filecopy);
+  
   for $file (@filecopy) {
     $input .= "$file, ";
     #			$input = "{". join (", ", @{$jobs->{$pos}->{files}}) . "}";
