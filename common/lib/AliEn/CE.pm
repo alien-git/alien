@@ -552,11 +552,11 @@ sub checkPrice {
 
 	if (!$price) {
 		$self->info("There is no price defined for this job in the jdl. Putting the default '1.0' ");
-		$job_ca->set_expression("Price", 1.0);
+		$job_ca->set_expression("Price", 1);
 	} else {
 
 		#check if the price value is floating point number with optional fractional parts
-		$price =~ m/^\s*\d+[\.\d+]*\s*$/
+		$price =~ m/^\s*(\d+)[\.\d+]*\s*$/
 			or (
 			$self->info(
 "The defined price $price is not valid. Price value  must be numeric. \n\tExample: Price=\"1\" or  Price=\"3.14\""
@@ -565,8 +565,8 @@ sub checkPrice {
 			);
 
 		# will round price to 2 digits precision
-		my $p = sprintf("%.2f", $price);
-		$job_ca->set_expression("Price", $p);
+#		my $p = sprintf("%.2f", $price);
+		$job_ca->set_expression("Price", $1);
 
 	}
 	return 1;
@@ -1234,9 +1234,11 @@ sub installWithCVMFS {
     my $self = shift;
     $self->info("The worker node will install with the CVMFS method!!!");
     my $alien_version="";
+    my $cvmfs_path="/cvmfs/alice.cern.ch/bin";
     $ENV{ALIEN_VERSION} and $alien_version = "--alien-version $ENV{ALIEN_VERSION}";
+    $ENV{CVMFS_PATH} and $cvmfs_path=$ENV{CVMFS_PATH};
     
-    return "/cvmfs/alice.cern.ch/bin/alienv $alien_version -alien -c ALIEN_DEBUG='-d:Trace' alien", "", "";
+    return "$cvmfs_path/alienv $alien_version -alien -c ALIEN_DEBUG='-d:Trace' alien", "", "";
 }
 
 sub installWithTorrent {
@@ -4293,7 +4295,8 @@ sub resyncJobAgent {
 	my $jobs = 
 	$self->{TASK_DB}->query(
 		"select userid, origjdl jdl, agentid from QUEUE q join 
-(select min(queueid) as q from QUEUE left join JOBAGENT on agentid=entryid where entryid is null  and statusId=5 group by agentid) t  on queueid=q
+(select min(queueid) as q from QUEUE left join JOBAGENT on agentid=entryid 
+where entryid is null  and statusId=5 group by agentid) t  on queueid=q
 join QUEUEJDL using (queueid)"
 		)
 		or $self->info("Error getting the jobs without jobagents")
@@ -4316,7 +4319,7 @@ join QUEUEJDL using (queueid)"
 	$self->info("Now, update the jobagent numbers");
 
 	$self->{TASK_DB}
-		->do("update JOBAGENT j set counter=(select count(*) from QUEUE where statusId=5 and agentid=entryid)"); #5=WAITING
+		->do("update JOBAGENT j set counter=(select count(*) from QUEUE where statusId=5 and agentid=entryid), oldestQueueId=0"); #5=WAITING
 	$self->{TASK_DB}->do("delete from JOBAGENT where counter<1");
 	$self->info("Resync done");
 	$self->f_resyncPriorities();
@@ -4331,7 +4334,7 @@ sub f_resyncPriorities {
 
 	$self->{TASK_DB}->insertNewPriorityUsers();
 	$self->info("Now, compute the number of jobs waiting and priority per user");
-  $self->{TASK_DB}->getPriorityUpdate();
+    $self->{TASK_DB}->getPriorityUpdate();
 
 	$self->info("Finally, let's update the JOBAGENT table");
 	
@@ -4510,35 +4513,31 @@ sub calculateJobQuota {
 		or $self->info("Error: only the administrator can check the databse")
 		and return;
 
+	$self->info(@data, "Locking tables");
+	$self->{TASK_DB}->lock("QUEUEPROC p READ, PRIORITY pr WRITE, QUEUE q");
+	
 	$self->$method(@data, "Calculate Job Quota");
 
 	$self->$method(@data, "Compute the number of unfinished jobs in last 24 hours per user, the total runnning time of jobs and cpu in last 24 hours per user, 
 							and the total cpu cost of jobs in last 24 hours per user");
     $self->{TASK_DB}->unfinishedJobs24PerUserAndcpuCost24PerUser or $self->$method(@data, "Failed");
-
-#	$self->$method(@data, "Compute the number of unfinished jobs in last 24 hours per user");
-##$self->{TASK_DB}->do("update PRIORITY pr left join (select SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user, count(1) as unfinishedJobsLast24h from QUEUE q where (status='INSERTING' or status='WAITING' or status='STARTED' or status='RUNNING' or status='SAVING' or status='OVER_WAITING') and (unix_timestamp()>=q.received and unix_timestamp()-q.received<60*60*24) group by submithost) as C on pr.user=C.user set pr.unfinishedJobsLast24h=IFNULL(C.unfinishedJobsLast24h, 0)") or $self->$method(@data, "Failed");
-#	$self->{TASK_DB}->unfinishedJobs24PerUser or $self->$method(@data, "Failed");
-#	$self->$method(@data, "Compute the total runnning time of jobs and cpu in last 24 hours per user");
-#	$self->$method(@data, "Compute the total cpu cost of jobs in last 24 hours per user");
-##$self->{TASK_DB}->do("update PRIORITY pr left join (select SUBSTRING( submitHost, 1, POSITION('\@' in submitHost)-1 ) as user, sum(p.cost) as totalCpuCostLast24h , sum(p.runtimes) as totalRunningTimeLast24h from QUEUE q join QUEUEPROC p using(queueId) where (unix_timestamp()>=q.received and unix_timestamp()-q.received<60*60*24) and status='DONE' group by submithost) as C on pr.user=C.user set pr.totalRunningTimeLast24h=IFNULL(C.totalRunningTimeLast24h, 0), pr.totalCpuCostLast24h=IFNULL(C.totalCpuCostLast24h, 0)");
-#	$self->{TASK_DB}->cpuCost24PerUser or $self->$method(@data, "Failed");
 	
 	$self->$method(@data, "Change job status from OVER_WAITING to WAITING");
-
-#$self->{TASK_DB}->do("update QUEUE q join PRIORITY pr on pr.user=SUBSTRING( q.submitHost, 1, POSITION('\@' in q.submitHost)-1 ) set q.status='WAITING' where (pr.totalRunningTimeLast24h<pr.maxTotalRunningTime and pr.totalCpuCostLast24h<pr.maxTotalCpuCost) and q.status='OVER_WAITING'") or $self->$method(@data, "Failed");
 	$self->{TASK_DB}->changeOWtoW or $self->$method(@data, "Failed");
+	
 	$self->$method(@data, "Change job status from WAITING to OVER_WAITING");
-
-#$self->{TASK_DB}->do("update QUEUE q join PRIORITY pr on pr.user=SUBSTRING( q.submitHost, 1, POSITION('\@' in q.submitHost)-1 ) set q.status='OVER_WAITING' where (pr.totalRunningTimeLast24h>=pr.maxTotalRunningTime or pr.totalCpuCostLast24h>=pr.maxTotalCpuCost) and q.status='WAITING'") or $self->$method(@data, "Failed");
 	$self->{TASK_DB}->changeWtoOW or $self->$method(@data, "Failed");
+	
+	$self->info(@data, "Unlocking tables");
+	$self->{TASK_DB}->unlock();
+	
 	$self->$method(@data, "Synchronize with SITEQUEUES");
 	foreach (qw(OVER_WAITING WAITING)) {
 		$self->{TASK_DB}
 			->do("update SITEQUEUES s set $_=(select count(1) from QUEUE q where statusId='$_' and s.siteid=q.siteid)")
 			or $self->$method(@data, "$_ Failed");
 	}
-
+	
 	return;
 }
 
