@@ -1657,10 +1657,12 @@ sub getNumberWaitingForSite{
   }
   else { $options->{site} and $where.=") "; } 
 
-  if (defined $options->{installedpackages}) {
-     $where .="and ? like packages " and push @bind, $options->{installedpackages};
-  }else{
-    defined $options->{packages} and $where .="and ? like packages " and push @bind, $options->{packages};
+  if( !$options->{cvmfs} ){
+	  if (defined $options->{installedpackages}) {
+	     $where .="and ? like packages " and push @bind, $options->{installedpackages};
+	  }else{
+	    defined $options->{packages} and $where .="and ? like packages " and push @bind, $options->{packages};
+	  }
   }
   $options->{partition} and $where .="and ? like concat('%,',\`partition\`, '%,') " and push @bind, $options->{partition};
   $options->{ce} and $where.=" and (ce like '' or ce like concat('%,',?,',%'))" and push @bind,$options->{ce};

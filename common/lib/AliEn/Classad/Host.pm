@@ -169,6 +169,7 @@ sub setPackages {
        $self->debug(1, "Setting the list of packages to @packages");
        $self->setItem($ca, "Packages", @packages) or return;
        $self->setItem($ca, "InstalledPackages", @packages);
+       $ca->set_expression("CVMFS", 1);
       }
   } else {  
      $self->{PACKMAN} or $self->{PACKMAN}=AliEn::PackMan->new();

@@ -385,7 +385,7 @@ sub extractClassadParams {
 		$se =~ /::(.*)::/ and $params->{site}!~$1 and $params->{extrasites}.="$1,";
 	}
         $params->{extrasites}=~s/,$//;
-        ($ok, my $ttl) = $classad->evaluateAttributeInt("TTL");
+    ($ok, my $ttl) = $classad->evaluateAttributeInt("TTL");
 	$params->{ttl} = $ttl || 84000;
 	($ok, $params->{disk}) = $classad->evaluateExpression("LocalDiskSpace");
 	($ok, my @pack) = $classad->evaluateAttributeVectorString("Packages");
@@ -404,6 +404,9 @@ sub extractClassadParams {
           $params->{cerequirements_users}.="".$self->{DB}->getOrInsertFromLookupTable('user',$1).",";
         }
         $params->{cerequirements_users} and $params->{cerequirements_users} =~ s/,$//g;
+        
+    ($ok, my $cvmfs) = $classad->evaluateExpression("CVMFS");
+    $ok and $cvmfs and $params->{cvmfs}=1;
 
 	return ($queueName, $params);
 }

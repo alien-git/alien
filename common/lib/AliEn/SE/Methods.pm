@@ -62,10 +62,12 @@ sub new {
   
   if (! $self->{MSS}) {	
     my $name = "AliEn::SE::Methods::$self->{PARSED}->{METHOD}";
-    eval "require $name"
-      or $self->debug(1, "Error requiring the package $name\n$@\nDoes the method $self->{PARSED}->{METHOD} exist?")
-	and return $self->help();
-    @ISA = ( $name, @ISA );
+    if ( !grep( /^$name$/, @ISA ) ){
+      eval "require $name"
+        or $self->debug(1, "Error requiring the package $name\n$@\nDoes the method $self->{PARSED}->{METHOD} exist?")
+	  and return $self->help();
+      @ISA = ( $name, @ISA );
+    }
   }
   
   $DEBUG and $self->debug(1, "Checking the local file");
