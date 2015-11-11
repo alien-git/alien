@@ -26,12 +26,12 @@ sub checkWakesUp {
 #    $self->{DIRFILES}="$ENV{ALIEN_HOME}/var/log/AliEn/$self->{CONFIG}->{ORG_NAME}/CatalogueOptimizer/OCDB/";
 #  -d $self->{DIRFILES} or $self->info("Creating $self->{DIRFILES}") and mkdir $self->{DIRFILES},  0755;
   
-  $self->{DB}->{LFN_DB}->lock("OCDB");
+#  $self->{DB}->{LFN_DB}->lock("OCDB");
   #Cleaning entries that fail too much
   $self->{DB}->{LFN_DB}->do("delete from OCDB where failed >= 5");
   $self->insertOCDBIntoCVMFS(0);
   $self->insertOCDBIntoCVMFS(1);
-  $self->{DB}->{LFN_DB}->unlock("OCDB");
+#  $self->{DB}->{LFN_DB}->unlock("OCDB");
   
   $self->info("Going back to sleep");
   return;
