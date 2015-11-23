@@ -70,7 +70,8 @@ sub installPackage {
 
   my $source = `alienv printenv $args`;
 
-  $source =~ s/(.*)=(.*)/$1=\"$2\"/g;
+#  $source =~ s/(.*)=(.*)/$1=\"$2\"/g;
+  $source =~ s/([^=]*)=([^;]*)\s+\;/$1=\"$2\"\;/g;
  
   return (1, "$source");
 } 
