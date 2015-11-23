@@ -552,6 +552,7 @@ sub checkJobJDL {
   $ok and $self->{ARG}=" ".(join (" ", @args));
   ($ok, $self->{VOs} ) = $self->{CA}->evaluateAttributeString("AliEn_Master_VO");
   ($ok, my $jobttl) =$self->{CA}->evaluateExpression("TTL");
+  $jobttl =~ s/\"//g;
   $self->info("The job needs $jobttl seconds to execute");
 
 #--- memory requirement
@@ -1055,6 +1056,8 @@ sub executeCommand {
   if ($ok) {
     my @packInst;
     if ( $self->{CONFIG}->{CE_INSTALLMETHOD} and $self->{CONFIG}->{CE_INSTALLMETHOD}=~"CVMFS" ) {
+	     grep (/APISCONFIG/i, @packages) or push @packages, "VO_ALICE\@APISCONFIG";
+
          my ($ok, $source)=$self->{PACKMAN}->installPackage($user, join(",", @packages), undef, {NO_FORK=>1});
 #        my ($ok, $source)=$self->installPackage( join(",", @packages), $user);
          if ($source){  
