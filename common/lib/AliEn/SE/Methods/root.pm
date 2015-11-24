@@ -117,16 +117,26 @@ sub put {
   );
   $self->{PARSED}->{PATH} =~ s{^//}{/};
 
+  my $sizetag = "";
+  $self->{SIZE} and $sizetag = "?eos.bookingsize=$self->{SIZE}";
+
   my $command =
 "$self->{XRDCP} $xrddebug $self->{XRD_OPTIONS} -np -v $self->{LOCALFILE} -f -P ";
 
   if ($ENV{ALIEN_XRDCP_ENVELOPE}) {
     $self->debug(1, "PUTTING THE SECURITY ENVELOPE IN THE XRDCP");
     $command .=
-      " $ENV{ALIEN_XRDCP_URL} -OD\\\&authz=\"$ENV{ALIEN_XRDCP_ENVELOPE}\"";
+      " $ENV{ALIEN_XRDCP_URL}$sizetag -OD\\\&authz=\"$ENV{ALIEN_XRDCP_ENVELOPE}\"";
     $self->debug(1, "The envelope is $ENV{ALIEN_XRDCP_ENVELOPE}");
-
-    $self->debug(4, "The command is $command");
+  } elsif ($ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}){
+    $command.=" $ENV{ALIEN_XRDCP_URL}$sizetag -OD\\\&authz=\"$ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}\"";
+    $self->debug(1,"The envelope is $ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}");
+  } else {
+    $command.=" $self->{PROXY}root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH}$sizetag";
+    $self->info("WARNING: AliEn root.pm did receive neither an old nor a new envelope for this call! Trying call: $command "); 
+  }
+  
+    $self->debug(1, "The command is $command");
     my $output = `$command  2>&1 ; echo "ALIEN_XRD_SUBCALL_RETURN_VALUE=\$?"`;
     $output or $self->info("ERROR Calling -- $command -- There was no returned output or it could not been captured.",1) and return;
 
@@ -136,69 +146,21 @@ sub put {
 
     $self->debug(2, "Exit code: $com_exit_value, Returned output: $output");    
     
-    if($com_exit_value eq 0) {
-        $output=~ /Data Copied \[bytes\]\s*:\s*(\d+)/;
-        my $tsize=$1;
-        $self->debug(1, "Transfered  $tsize  bytes");
+    if($com_exit_value eq 0) {    	
         my $size=-s $self->{LOCALFILE};
 
-        if ($size eq $tsize){
-           $self->debug(2, "YUHUUU!! File was properly uploaded, now let's double check destination file size again ...");
-           my $xrdstat = $self->xrdstat();
-           ($xrdstat eq $size) or $self->info("WARNING: xrd stat not successful, waiting 6s...") and sleep(6) and $xrdstat = $self->xrdstat();
-           ($xrdstat eq $size) or $self->info("WARNING: xrd stat not successful, waiting 9s...") and sleep(9) and $xrdstat = $self->xrdstat();
-           ($xrdstat eq $size) or $self->info("WARNING: xrd stat not successful, waiting 30s...") and sleep(30) and $xrdstat = $self->xrdstat();
+        $self->debug(2, "YUHUUU!! File was properly uploaded, now let's double check destination file size again ...");
+        my $xrdstat = $self->xrdstat();
+        ($xrdstat eq $size) or $self->info("WARNING: xrd stat not successful, waiting 6s...") and sleep(6) and $xrdstat = $self->xrdstat();
+        ($xrdstat eq $size) or $self->info("WARNING: xrd stat not successful, waiting 9s...") and sleep(9) and $xrdstat = $self->xrdstat();
+        ($xrdstat eq $size) or $self->info("WARNING: xrd stat not successful, waiting 30s...") and sleep(30) and $xrdstat = $self->xrdstat();
   
+  		( ($xrdstat eq $size) and $self->debug(1, "EXCELLENT! Double checking file size on destination SE was successfully.") )
+          or $self->info("ERROR: Double checking the file size on the SE with xrd stat showed unequal file sizes!",1) and return;
+          $self->debug(2,"Double check file size value from xrd stat: $1");
   
-           ( ($xrdstat eq $size) and $self->debug(1, "EXCELLENT! Double checking file size on destination SE was successfully.") )
-               or $self->info("ERROR: Double checking the file size on the SE with xrd stat showed unequal file sizes!",1) and return;
-           $self->debug(2,"Double check file size value from xrd stat: $1");
-  
-           return "$self->{PROXY}root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH}";
-        }
-        $self->info("The size reported by xrdcp as transferred was not correct, Something went wrong with xrdcp!!",1);
-        return;
+        return "$self->{PROXY}root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH}";
     }
-    $self->info("Exit code not equal to zero. Something went wrong with xrdcp!! \n We called: $command \n Exit code: $com_exit_value, Returned output: $output",1);
-    return;
-
-  } elsif ($ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}){
-    $command.=" $ENV{ALIEN_XRDCP_URL} -OD\\\&authz=\"$ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}\"";
-    $self->debug(1,"The envelope is $ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}");
-  } else {
-    $command.=" $self->{PROXY}root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH}";
-    $self->info("WARNING: AliEn root.pm did receive neither an old nor a new envelope for this call! Trying call: $command "); 
-  }
-
-  $self->debug(4,"The command is $command");
-  my $output = `$command  2>&1 ; echo "ALIEN_XRD_SUBCALL_RETURN_VALUE=\$?"`;
-  $output or $self->info("ERROR Calling -- $command -- There was no returned output or it could not been captured.",1) and return;
-  $output =~ s/\s+$//; 
-  $output =~ /ALIEN_XRD_SUBCALL_RETURN_VALUE\=([-]*\d+)$/;
-  my $com_exit_value = $1;
-
-  $self->debug(2, "Exit code: $com_exit_value, Returned output: $output");
-  if($com_exit_value eq 0) {
-      $output=~ /Data Copied \[bytes\]\s*:\s*(\d+)/;
-      my $tsize=$1;
-      $self->debug(1, "Transfered  $tsize  bytes");
-      my $size=-s $self->{LOCALFILE};
-      if ($size eq $tsize){
-         $self->debug(1, "YUHUUU!! File was properly uploaded, now let's double check destination file size again ...");
-         my $xrdstat = $self->xrdstat();
-         ($xrdstat eq $size) or $self->info("WARNING: xrd stat not successful, waiting 6s...") and sleep(6) and $xrdstat = $self->xrdstat();
-         ($xrdstat eq $size) or $self->info("WARNING: xrd stat not successful, waiting 9s...") and sleep(9) and $xrdstat = $self->xrdstat();
-         ($xrdstat eq $size) or $self->info("WARNING: xrd stat not successful, waiting 30s...") and sleep(30) and $xrdstat = $self->xrdstat();
-
-
-         ( ($xrdstat eq $size) and $self->debug(1, "EXCELLENT! Double checking file size on destination SE was successfully.") )
-             or $self->info("ERROR: Double checking the file size on the SE with xrd stat showed unequal file sizes!",1) and return;
-         $self->debug(2,"Double check file size value from xrd stat: $1");
-         return "$self->{PROXY}root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH}";
-      }
-      $self->info("The size reported by xrdcp as transferred was not correct, Something went wrong with xrdcp!!",1);
-      return;
-  }
 
   $self->info("Exit code not equal to zero. Something went wrong with xrdcp!! \n We called: $command \n Exit code: $com_exit_value, Returned output: $output",1);
   return;
@@ -219,6 +181,7 @@ sub xrdstat {
 "WARNING: xrd stat to double check file size after successful write was not possible!",
     1
     );
+    
   $doxrcheck =~ /Size:\ (\d+)/;
 
   return $1;
