@@ -1265,47 +1265,53 @@ sub resyncSiteQueueTable {
   my $self = shift;
   my $site = shift || "";
   
-  my $allsites;
-  if (! $site){
-    $self->info("Extracting all sites from the QUEUE ....");
- 		$allsites = $self->queryColumn("select site from SITEQUEUES");
-    @$allsites
-      or $self->info("Warning: at the moment there are no sites defined in your organization")
-      and return 1;
-  } else{
-  	$allsites=[$site];
+  eval {
+	  my $allsites;
+	  if (! $site){
+	    $self->info("Extracting all sites from the QUEUE ....");
+	 		$allsites = $self->queryColumn("select site from SITEQUEUES");
+	    @$allsites
+	      or $self->info("Warning: at the moment there are no sites defined in your organization")
+	      and return 1;
+	  } else{
+	  	$allsites=[$site];
+	  }
+	  my $now = time;
+	  my $qstat;
+	
+	  my $sql=" update SITEQUEUES left join (select siteid, sum(cost) REALCOST, ";
+	  my $set=" Group by statusId, siteid) dd group by siteid) bb using (siteid) set cost=REALCOST, ";
+	
+	  foreach my $stat (@{AliEn::Util::JobStatus()}) {
+	  	  $sql.=" max(if(statusId=".AliEn::Util::statusForML($stat).", count, 0)) REAL$stat,";
+	#  	  $sql.=" max(if(status='$stat', count, 0)) REAL$stat,";
+	  	  $set.=" $stat=REAL$stat,"      
+	    }
+	  $set =~ s/,$//;
+	  $sql =~ s/,$/ from (select siteid, statusId, sum(cost) as cost, count(*) as count from QUEUE join QUEUEPROC using(queueid)/;
+	  
+	
+	 # foreach my $siteName (@$allsites) {
+	 #   my @bind=();
+	 #   my $realSiteName=$siteName;
+	 #   if ($siteName ){
+	 ##   	$site="=?";
+	 ##   	@bind=$siteName;
+	 #   }else{
+	 #   	$site=" is null ";
+	 #   	$realSiteName="UNASSIGNED::SITE";
+	 #   }
+	 #   push @bind, $realSiteName;
+	 #   $self->info("Doing site '$realSiteName'");
+	
+	    $self->info("$sql $set");
+		$self->do("$sql $set");#, {bind_values=>[@bind]});
+	#  }
+  };
+  if($@){
+  	$self->info("There was a problem!: $@");
   }
-  my $now = time;
-  my $qstat;
-
-  my $sql=" update SITEQUEUES left join (select siteid, sum(cost) REALCOST, ";
-  my $set=" Group by statusId, siteid) dd group by siteid) bb using (siteid) set cost=REALCOST, ";
-
-  foreach my $stat (@{AliEn::Util::JobStatus()}) {
-  	  $sql.=" max(if(statusId=".AliEn::Util::statusForML($stat).", count, 0)) REAL$stat,";
-#  	  $sql.=" max(if(status='$stat', count, 0)) REAL$stat,";
-  	  $set.=" $stat=REAL$stat,"      
-    }
-  $set =~ s/,$//;
-  $sql =~ s/,$/ from (select siteid, statusId, sum(cost) as cost, count(*) as count from QUEUE join QUEUEPROC using(queueid)/;
-  
-
- # foreach my $siteName (@$allsites) {
- #   my @bind=();
- #   my $realSiteName=$siteName;
- #   if ($siteName ){
- ##   	$site="=?";
- ##   	@bind=$siteName;
- #   }else{
- #   	$site=" is null ";
- #   	$realSiteName="UNASSIGNED::SITE";
- #   }
- #   push @bind, $realSiteName;
- #   $self->info("Doing site '$realSiteName'");
-
-    $self->info("$sql $set");
-	$self->do("$sql $set");#, {bind_values=>[@bind]});
-#  }
+	
   return 1;
 }
 

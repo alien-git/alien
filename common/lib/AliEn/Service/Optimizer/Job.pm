@@ -55,11 +55,10 @@ sub initialize {
   #  $self->{JOBLOG} = new AliEn::JOBLOG();
 
   my @optimizers = (
-    "Merging",  "Inserting", "Splitting", "Zombies",
-    "Hosts",    "Expired",   "HeartBeat", "Priority",
-    "Saved",     "Staging", "Saved_warn",
-    "Quota", "WaitingTime", "ToStage", 'Packages',
-  );    #,"ResolveReq");
+    "Merging",  "Inserting",  "Splitting", "Zombies",
+    "Hosts",    "Expired",    "HeartBeat", "Priority",
+    "Saved",    "Saved_warn", "Quota",     "WaitingTime", "Packages"
+  );    #,"ResolveReq", "ToStage", "Staging");
 
   my $mlEnabled =
     (    $self->{CONFIG}->{MONALISA_HOST}

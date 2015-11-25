@@ -12,6 +12,9 @@ sub checkWakesUp {
   my $self = shift;
   my $silent = shift;
   $self->{SLEEP_PERIOD} = 600; #60
+  
+  $self->{NOT_FIRST} 
+    or sleep(20) and $self->{NOT_FIRST}=1;
 
   my $method="info";
   my @data;
