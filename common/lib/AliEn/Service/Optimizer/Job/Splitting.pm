@@ -528,6 +528,11 @@ sub SubmitSplitJob {
     push @splitarguments, "";
   }
 
+  ($ok, my $sortsubjob)=$job_ca->evaluateAttributeString("SortSubjobInputData");
+  $self->info("Sorting subjob inputData: $sortsubjob");
+  $text=~ s/SortSubJobInputData\s*=[^;\]]*;//i;
+  $text=~ s/SortInputDataCollection\s*=[^;\]]*;//i;
+
   $job_ca=Classad::Classad->new($text);
   $job_ca->insertAttributeString("MasterJobId", $queueid)
     or $self->info( "Error putting the master job id")
@@ -616,7 +621,7 @@ sub SubmitSplitJob {
 
     $job_ca->set_expression("Requirements", $new_req);
 
-    my $input=$self->_setInputData($jobs->{$pos}, $inputdataaction, \@inputdataset);
+    my $input=$self->_setInputData($jobs->{$pos}, $inputdataaction, \@inputdataset, $sortsubjob);
     if ($input) {
       $job_ca->set_expression("InputData", $input);
       $self->{CATALOGUE}->{QUEUE}->checkRequirements($job_ca) or next;
@@ -811,6 +816,7 @@ sub _setInputData {
   my $jobDesc=shift;
   my $inputdataaction=shift;
   my $ref=shift;
+  my $sortsubjob=shift || 0;
   my @inputdataset=@{$ref};
 
   ( @{$jobDesc->{files}} )  or return ;
@@ -828,7 +834,8 @@ sub _setInputData {
   my @filecopy = @{$jobDesc->{files}};
   
   # Sorting inputData
-  @filecopy = sort(@filecopy);
+  $sortsubjob and $self->info("Sorting subjob InputData")
+    and @filecopy = sort(@filecopy);
   
   for $file (@filecopy) {
     $input .= "$file, ";

@@ -638,13 +638,15 @@ sub copyInputCollection {
     
     my $ref_before = $#{$inputBox};
     
+    ($ok, my $sortinput) = $job_ca->evaluateAttributeString("SortInputDataCollection");
+    
     my ($type) = $self->{CATALOGUE}->execute("type", $file2);
     $self->info("IT IS A $type");
     if ($type =~ /^collection$/) {
       $self->copyInputCollectionFromColl($jobId, $file2, $options, $inputBox)
         or return;
     } else {
-      $self->copyInputCollectionFromXML($jobId, $file2, $options, $inputBox)
+      $self->copyInputCollectionFromXML($jobId, $file2, $options, $inputBox, $sortinput)
         or return;
     }
     my $lfnRef;
@@ -697,11 +699,12 @@ sub copyInputCollectionFromColl {
 }
 
 sub copyInputCollectionFromXML {
-  my $self     = shift;
-  my $jobId    = shift;
-  my $lfn      = shift;
-  my $options  = shift;
-  my $inputBox = shift;
+  my $self      = shift;
+  my $jobId     = shift;
+  my $lfn       = shift;
+  my $options   = shift;
+  my $inputBox  = shift;
+  my $sortinput = shift || 0;
   my ($localFile) = $self->{CATALOGUE}->execute("get", $lfn);
   # my ($localFile) = $self->{CATALOGUE}->execute("get", "-x", $lfn);
   if (!$localFile) {
@@ -722,7 +725,7 @@ sub copyInputCollectionFromXML {
     and $total = keys %{ $dataset->{collection}->{event} };
 
   $self->info("Getting the LFNS from the dataset");
-  my $lfnRef = $self->{DATASET}->getAllLFN()
+  my $lfnRef = $self->{DATASET}->getAllLFN($sortinput)
     or $self->info("Error getting the LFNS from the dataset")
     and return;
 

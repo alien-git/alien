@@ -27,7 +27,7 @@ sub checkWakesUp {
   
   my $finalStatus="(15,-13,-12,-1,-2,-3,-4,-5,-7,-8,-9,-10,-11,-16,-17,-18)";
   
-  # Completed Jobs older than 10 days are moved to the archive
+  # Completed Jobs older than 10 days are moved to the archive 
   $self->archiveJobs("where statusId in $finalStatus and q.mtime<$time and split=0");
                       
   $self->{LOGGER}->$method("Expired", "In checkWakesUp going back to sleep");
@@ -39,7 +39,7 @@ sub archiveJobs{
   my $self=shift;
   my $query=shift;
   my $table=$self->{DB}->{QUEUEARCHIVE};
-  my $limit = 10000;
+  my $limit = 20000;
 
   eval {
 	  my ($jobs)=$self->{DB}->queryColumn("select q.queueId from QUEUE q $query");
@@ -71,16 +71,18 @@ sub archiveJobs{
 	    }
 	    $c=~ s/, $//;
 	    
-	    my $done=$self->{DB}->do("insert ignore into ${table} (queueId, $c) select q.queueId, $c from QUEUE q join QUEUEPROC p using (queueid )
-	                                                                                                 join QUEUEJDL j using (queueid)
-	    join QUEUE_TMP_EXP using (queueid)") ;
+	    my $done=$self->{DB}->do("insert ignore into ${table} (queueId, $c) select q.queueId, $c from 
+	    QUEUE_TMP_EXP inner join QUEUE q using(queueId) inner join QUEUEPROC p using (queueid ) 
+	    inner join QUEUEJDL j using (queueid)") ;
 	
-	    my $done2=$self->{DB}->do("insert into JOBMESSAGES (timestamp, jobId, procinfo, tag) 
-	                             select unix_timestamp(), queueId, 'Job moved to the archived table', 'state' from QUEUE_TMP_EXP");
+#	    my $done2=$self->{DB}->do("insert into JOBMESSAGES (timestamp, jobId, procinfo, tag) 
+#	                             select unix_timestamp(), queueId, 'Job moved to the archived table', 'state' from QUEUE_TMP_EXP");
 	
 	    my $done3=$self->{DB}->do("delete from QUEUE using QUEUE join QUEUE_TMP_EXP using (queueid)");
 	  
-	    $self->info("AT THE END, WE HAVE $done and $done2 and $done3");
+	    $self->info("AT THE END, WE HAVE $done and $done3");
+	    
+	    sleep(20);
 	    
 	    ($jobs)=$self->{DB}->queryColumn("select q.queueId from QUEUE q $query");
     }

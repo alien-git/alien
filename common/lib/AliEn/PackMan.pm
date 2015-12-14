@@ -87,14 +87,15 @@ sub getListPackages {
     my ($done, @pack);
     eval {
       ($done)=$self->{SOAP}->CallSOAP($self->{SOAP_SERVER},"getListPackages", @_) or return;
-      ($done, @pack)=($done->result, $done->paramsout);
+      ($done, @pack)=($done->result, $done->paramsout);    
     };
     if ($@){
       $self->info("Error contacting the packman: $@");
     }    
     
     if ($done and $done == 1){
-      ($status, @packages) = ($done, @pack);
+      ($status, @packages) = ($done, ($done));
+      push @packages, @pack;
     }elsif ($status<0){
       $self->info("Well, the info is old, but it is better than nothing");
       $status=1;

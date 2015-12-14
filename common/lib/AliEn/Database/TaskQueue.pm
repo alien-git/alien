@@ -423,7 +423,7 @@ sub initialize {
     },
     JOBMESSAGES => {
       columns => {
-        entryId   => " int(11) not null  auto_increment primary key",
+        entryId   => " bigint(20) not null  auto_increment primary key",
         jobId     => "int",
         procinfo  => "varchar(200)",
         tag       => "varchar(40)",

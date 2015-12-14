@@ -507,13 +507,18 @@ sub deeptoflathash {
 }
 sub getAllLFN {
   my $self=shift;
+  my $sortinput=shift || 0;
   my @list=();
   $self->{XMLhash} and $self->{XMLhash}->{collection} and 
     $self->{XMLhash}->{collection}->{event} or return;
 
   my $events=$self->{XMLhash}->{collection}->{event};
+  my @keys = keys %{$events};
+  $sortinput and $self->info("Sorting InputData dataset")
+    and @keys = sort {$a <=> $b} @keys;
+    
   #Loop over the events
-  foreach my $entry (keys %{$events}){
+  foreach my $entry (@keys){
     #Loop over the files 
     $events->{$entry}->{file} or next;
     foreach my $file (keys %{$events->{$entry}->{file}} ) {
