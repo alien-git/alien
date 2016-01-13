@@ -25,10 +25,10 @@ sub checkWakesUp {
   my $time = strftime "%Y-%m-%d %H:%M:%S", localtime(time - 240*3600);
   $self->{DB}->{DRIVER}=~ /Oracle/i and $time=" to_timestamp(\'$time\','YYYY-MM-DD HH24:Mi:ss') " or $time="\'$time\'";
   
-  my $finalStatus="(15,-13,-12,-1,-2,-3,-4,-5,-7,-8,-9,-10,-11,-16,-17,-18)";
+  my $finalStatus="(25,24,16,15,-13,-12,-1,-2,-3,-4,-5,-7,-8,-9,-10,-11,-16,-17,-18,-19)";
   
   # Completed Jobs older than 10 days are moved to the archive 
-  $self->archiveJobs("where statusId in $finalStatus and q.mtime<$time and split=0");
+  $self->archiveJobs("where statusId in $finalStatus and q.mtime<$time and (split=0 or split not in (select queueId from QUEUE where masterjob=1))");
                       
   $self->{LOGGER}->$method("Expired", "In checkWakesUp going back to sleep");
 

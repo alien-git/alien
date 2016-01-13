@@ -1782,6 +1782,10 @@ sub authorize{
   my $prepareEnvelope = {};
 
   if ($writeReq or $registerReq) {
+  	if ($writeReq && $self->{CONFIG}->{API_FOR_USERS}){
+  		push @$excludedAndfailedSEs, "ALICE::NDGF::DCACHE";
+  	}
+  	
     $prepareEnvelope = $self->getBaseEnvelopeForWriteAccess($user,$lfn,$size,$md5,$guidRequest);
     $prepareEnvelope or $self->info("Authorize: Error preparing the envelope for $user and $lfn",1) and return 0;
     if($registerReq) {

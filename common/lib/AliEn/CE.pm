@@ -3860,24 +3860,26 @@ sub requirementsFromPackages {
 
 	#$self->debug(1,"Checking if the packages @packages are defined in the system");
 	my ($status, @definedPack) = $self->getAllPackages();
-
+	
 	$status
-		or $self->{LOGGER}->error("CE", "Error getting the list of packages")
+		or $self->{LOGGER}->error("CE", "Couldn't list Packages? Try again please.")
 		and return;
 	my $requirements = "";
 
 	foreach my $package (@packages) {
+		my $orig_pack = $package;
 		$package =~ /@/  or $package = ".*\@$package";
 		$package =~ /::/ or $package = "${package}::.*";
 
 		#$self->debug(1,"checking if $package is in @definedPack");
-		my @name = grep (/^$package$/, @definedPack);
+		my @name = grep (/^$package.*$/, @definedPack);
 		if (@name) {
-			$requirements .= " && (member(other.${installed}Packages, \"$name[0]\"))";
+			scalar(@name)>1 and $requirements .= " && (member(other.${installed}Packages, \"$orig_pack\"))"
+			  or $requirements .= " && (member(other.${installed}Packages, \"$name[0]\"))";
 			next;
 		}
 				
-		$self->{LOGGER}->error("CE", "The package $package is not defined in PackMan or CVMFS.");
+		$self->{LOGGER}->error("CE", "The package $package is not defined in PackMan/CVMFS.");
 		return;
 	}
 
@@ -3894,7 +3896,8 @@ sub getAllPackages {
 
 	my ($status, @definedPack) = $self->{PACKMAN}->f_packman("list", "-silent", "-all");
 	
-	AliEn::Util::setCacheValue($self, "all_packages", [ $status, @definedPack ]);
+	scalar(@definedPack)>1 and AliEn::Util::setCacheValue($self, "all_packages", [ $status, @definedPack ])
+	  or $status=0;
 	
 	return $status, @definedPack;
 }

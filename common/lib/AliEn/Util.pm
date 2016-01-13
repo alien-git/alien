@@ -221,7 +221,7 @@ sub setCacheValue {
     return 1;
   }
   $self->{CACHE}->{$name} = {
-    expired     => $date + 6000,
+    expired     => $date + 1800,
     timeChecked => $date,
     value       => $value
   };

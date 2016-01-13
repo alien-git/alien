@@ -25,7 +25,7 @@ sub new {
     bless($self, $name);
   }
   $self->{SOAP}=AliEn::SOAP->new() or return;
-  $self->{LIST_FILE_TTL} or $self->{LIST_FILE_TTL}=7200;
+  $self->{LIST_FILE_TTL} or $self->{LIST_FILE_TTL}=3600;
   $self->initialize(@_) or return;
   return $self;
 }
@@ -216,11 +216,8 @@ sub f_packman {
   my $string=join(" ", @arg);
   my $serviceName="PackMan";
 
-
-
   #FIXME: TEST
   $self->info("*** calling PackMan with arguments $string");
-  
   
   if ($allPackMan){
     $self->info("We are going to call all the packman");
