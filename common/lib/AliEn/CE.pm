@@ -3872,7 +3872,7 @@ sub requirementsFromPackages {
 		$package =~ /::/ or $package = "${package}::.*";
 
 		#$self->debug(1,"checking if $package is in @definedPack");
-		my @name = grep (/^$package.*$/, @definedPack);
+		my @name = grep (/^$package.*$/i, @definedPack);
 		if (@name) {
 			scalar(@name)>1 and $requirements .= " && (member(other.${installed}Packages, \"$orig_pack\"))"
 			  or $requirements .= " && (member(other.${installed}Packages, \"$name[0]\"))";

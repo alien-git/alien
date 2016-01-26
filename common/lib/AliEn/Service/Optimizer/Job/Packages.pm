@@ -15,7 +15,7 @@ sub checkWakesUp {
   my $self=shift;
   my $silent=shift;
 
-  $self->{SLEEP_PERIOD}=3600/2;
+  $self->{SLEEP_PERIOD}=3600;
 
   $self->{CAT_DB} or $self->{CAT_DB}=AliEn::Database::Catalogue->new();
   $self->{CAT_DB} or $self->info("Error connecting to the catalogue") and return;
@@ -31,27 +31,28 @@ sub checkWakesUp {
   }
 
   my $method="info";
-  $silent and $method="debug";
-  $self->{INSERTING_COUNTING} or $self->{INSERTING_COUNTING}=0;
-  $self->{INSERTING_COUNTING}++;
-  if ($self->{INSERTING_COUNTING}>10){
-    $self->{INSERTING_COUNTING}=0;
-  }else {
-    $method="debug";
-  }
+#  $silent and $method="debug";
+#  $self->{INSERTING_COUNTING} or $self->{INSERTING_COUNTING}=0;
+#  $self->{INSERTING_COUNTING}++;
+#  if ($self->{INSERTING_COUNTING}>10){
+#    $self->{INSERTING_COUNTING}=0;
+#  }else {
+#    $method="debug";
+#  }
 
   $self->{LOGGER}->$method("Packages", "The packages optimizer starts");
 
   my $agents=$self->{DB}->query("select count(1) c, sum(counter) total , packages from JOBAGENT group by packages");
   $agents or $self->info("ERROR asking for the JOBAGENTS") and return;
-  my $allPackages=$self->loadPackages() or $self->info("Error getting the list of packages") and return;
+  my @allPackages=$self->loadPackages() or $self->info("Error getting the list of packages") and return;
+  
   foreach my $agent (@$agents){
       $self->info("Checking if the packages '$agent->{packages}' still exist");
       my @packages=split(/,/, $agent->{packages});
       my $exists=1;
       foreach my $package (@packages){
          $package=~ /%/ and next;
-         $self->existsPackage($package, $allPackages) or $exists=0;
+         $self->existsPackage($package, @allPackages) or $exists=0;
          $exists or last;
       }
       if (! $exists){
@@ -113,23 +114,32 @@ sub loadPackages {
   }
 
   @info or $self->info("Error getting the list of packages") and return;
-  print Dumper(@info);
-  foreach my $d (@info){
-    $self->debug(1, "The package $d exists");
-    $allPackages->{lc($d)}=1;
-  }
+  print "RETURNING LOADED: ".Dumper(@info);
+#  foreach my $d (@info){
+#    $self->debug(1, "The package $d exists");
+#    $allPackages->{lc($d)}=1;
+#  }
   $self->info("List of packages loaded");
 
-  return $allPackages;
+  return @info; #$allpackages
 }
 
 
 sub existsPackage {
   my $self=shift;
   my $package=shift;
-  my $allPackages=shift;
+  my @allPackages=@_;
+  
   $self->debug(1,"Checking if the package '$package' exists");
-  $allPackages->{lc($package)} and return 1;
+#  $allPackages->{lc($package)} and return 1;
+
+  $package =~ /@/  or $package = ".*\@$package";
+  $package =~ /::/ or $package = "${package}::.*";
+
+  my @name = grep (/^$package.*$/i, @allPackages);
+  
+  scalar(@name) and return 1;  
+
   $self->info("The package '$package' does not exist!!");
   return 0;
 }
