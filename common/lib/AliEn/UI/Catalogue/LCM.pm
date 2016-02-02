@@ -371,7 +371,7 @@ sub getCollection{
   my $names={}; 
   my $counter=0;
   foreach my $file (@$files){
-    $self->info("Getting the file $file->{guid} from the collection");
+    $self->info("Getting the file $file->{origLFN} from the collection");
     my $localName= $file->{localName} || "";
     if($options->{c}){
       $localFile or $localFile="$ENV{PWD}";
@@ -396,7 +396,7 @@ sub getCollection{
       $localName="$localFile/$name";
     }
     $self->debug(2,"In the collection, let's get $file->{guid}  $localName");
-    my ($fileName)=$self->execute("get", "-g", $file->{guid}, $localName);
+    my ($fileName)=$self->execute("get", $file->{origLFN}, $localName); # "-g", $file->{guid}
     push @return, $fileName;
   }
   $self->info("Got ". join (",",(map {$_ ? $_  : "<error>"} @return ))." and $#return");
