@@ -1453,6 +1453,8 @@ sub validateSignedEnvAndRegisterAccordingly{
       or $self->info("Authorize: An envelope could not be verified.") 
         and  next; 
  
+ 	 $envelope->{proxy} and $envelope->{turl} =~ s/$envelope->{proxy}//;
+ 
      $envelope = $self->ValidateRegistrationEnvelopesWithBookingTable($user,$envelope);
      $envelope 
        or $self->info("Authorize: An envelope could not be validated based on pretaken booking.") 
