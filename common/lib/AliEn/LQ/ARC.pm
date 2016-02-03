@@ -49,6 +49,8 @@ sub initialize {
 	
 	$self->{CONFIG}->{CE_SITE_BDII} = $ENV{CE_SITE_BDII};
 	$self->{CONFIG}->{CE_USE_BDII} = $ENV{CE_USE_BDII} || 0;
+	$self->{CONFIG}->{CE_SUBMITARG} = $ENV{CE_SUBMITARG};
+	$self->{CONFIG}->{CE_SUBMITARG_LIST} = $ENV{CE_SUBMITARG_LIST};
 	$ARCCLEAN_RUN_DELAY = $ENV{ARCCLEAN_RUN_DELAY} if $ENV{ARCCLEAN_RUN_DELAY};
 	$ARC_VALIDATE_JOBS_FILE_DELAY = $ENV{ARC_VALIDATE_JOBS_FILE_DELAY} if $ENV{ARC_VALIDATE_JOBS_FILE_DELAY}; 
 			
@@ -88,7 +90,8 @@ sub submit {
 
 	my @args = ();
 	$self->{CONFIG}->{CE_SUBMITARG}
-	  and @args = @{ $self->{CONFIG}->{CE_SUBMITARG_LIST} };
+	  # and @args = @{ $self->{CONFIG}->{CE_SUBMITARG_LIST} };
+	  and @args = split / /, $self->{CONFIG}->{CE_SUBMITARG_LIST};
 
 	my @xrsl = grep ( /^xrsl:/, @args );
 	map { s/^xrsl:// } @xrsl;
@@ -239,7 +242,7 @@ sub getAllBatchIds {
 	$last_validation_delay %= $ARC_VALIDATE_JOBS_FILE_DELAY;
 	$self->info( "Last arcclean run $last_arcclean_delay mins ago" );
 	$self->info( "Last jobs file verification run $last_validation_delay mins ago" );
-	$self->cleanAllFinished and $self->$self->repairJobsFile if( !$last_arcclean_delay );
+	$self->cleanAllFinished and $self->repairJobsFile if( !$last_arcclean_delay );
 	$self->repairJobsFile if $last_arcclean_delay 
 							and !$last_validation_delay 
 							and $self->validateJobsFile;

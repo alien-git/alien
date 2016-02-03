@@ -125,5 +125,44 @@ sub initialize() {
     return 1;
 }
 
+sub getNumberQueued {
+     my $self = shift;
+     my $nQueuedJobs = 0;
+
+     open (OUT, "$self->{GET_QUEUE_STATUS} |") or (print "Error doing $self->{GET_QUEUE_STATUS}\n" and return "Error doing $self->{GET_QUEUE_STATUS}\n");
+     my @output = <OUT>;
+     close(OUT) or (print "Error doing $self->{GET_QUEUE_STATUS}\n" and return "Error doing $self->{GET_QUEUE_STATUS}\n");
+     foreach my $line (@output) {
+         if ($line =~ /(\d+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(.*)/) {
+             if ($5 =~ /qw/) {
+                 $nQueuedJobs += 1;
+             }
+         }
+     }
+     return $nQueuedJobs;
+}
+
+sub getNumberRunning {
+  # return number of jobs in all states between inserted/queued and running, that is number of slots allocated by the VO
+  # (a better name for the subroutine would be getNumberActive, but that's life)
+  # So we include: r(unning), R(estarted), t(ransfering), w(aiting)
+  # and we don't include: d(eletion), E(rror), h(old), s(uspended), S(uspended), T(hreshold)
+  # (see 'man qstat')
+     my $self = shift;
+     my $nActiveJobs = 0;
+
+     open (OUT, "$self->{GET_QUEUE_STATUS} |") or (print "Error doing $self->{GET_QUEUE_STATUS}\n" and return "Error doing $self->{GET_QUEUE_STATUS}\n");
+     my @output = <OUT>;
+     close(OUT) or (print "Error doing $self->{GET_QUEUE_STATUS}\n" and return "Error doing $self->{GET_QUEUE_STATUS}\n");
+     foreach my $line (@output) {
+         if ($line =~ /(\d+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(.*)/) {
+             if ($5 =~ /[rRtw]/) {
+                 $nActiveJobs += 1;
+             }
+         }
+     }
+     return $nActiveJobs;
+}
+
 return 1;
 
