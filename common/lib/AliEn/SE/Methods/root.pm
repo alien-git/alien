@@ -121,7 +121,7 @@ sub put {
   $self->{PARSED}->{PATH} =~ s{^//}{/};
 
   my $sizetag = "";
-  $self->{SIZE} and $sizetag = "?eos.bookingsize=$self->{SIZE}";
+  $self->{SIZE} and $sizetag = "eos.bookingsize=$self->{SIZE}"; #\\\&
 
   my $command =
 "$self->{XRDCP} $xrddebug $self->{XRD_OPTIONS} -np -v $self->{LOCALFILE} -f -P ";
@@ -129,13 +129,13 @@ sub put {
   if ($ENV{ALIEN_XRDCP_ENVELOPE}) {
     $self->debug(1, "PUTTING THE SECURITY ENVELOPE IN THE XRDCP");
     $command .=
-      " $ENV{ALIEN_XRDCP_URL}$sizetag -OD\\\&authz=\"$ENV{ALIEN_XRDCP_ENVELOPE}\"";
+      " $ENV{ALIEN_XRDCP_URL} -OD$sizetag\\\&authz=\"$ENV{ALIEN_XRDCP_ENVELOPE}\"";
     $self->debug(1, "The envelope is $ENV{ALIEN_XRDCP_ENVELOPE}");
   } elsif ($ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}){
-    $command.=" $ENV{ALIEN_XRDCP_URL}$sizetag -OD\\\&authz=\"$ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}\"";
+    $command.=" $ENV{ALIEN_XRDCP_URL} -OD$sizetag\\\&authz=\"$ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}\"";
     $self->debug(1,"The envelope is $ENV{ALIEN_XRDCP_SIGNED_ENVELOPE}");
   } else {
-    $command.=" $self->{PROXY}root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH}$sizetag";
+    $command.=" $self->{PROXY}root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH}?\\\&$sizetag";
     $self->info("WARNING: AliEn root.pm did receive neither an old nor a new envelope for this call! Trying call: $command "); 
   }
   
@@ -188,7 +188,7 @@ sub xrdstat {
   $doxrcheck =~ /Size:\ (\d+)/;
 
   return $1;
-
+  
 }
 
 sub _timeout {
