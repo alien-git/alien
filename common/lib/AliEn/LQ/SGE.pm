@@ -129,9 +129,9 @@ sub getNumberQueued {
      my $self = shift;
      my $nQueuedJobs = 0;
 
-     open (OUT, "$self->{GET_QUEUE_STATUS} |") or (print "Error doing $self->{GET_QUEUE_STATUS}\n" and return "Error doing $self->{GET_QUEUE_STATUS}\n");
+     open (OUT, "$self->{GET_QUEUE_STATUS} |") or (print "Error doing $self->{GET_QUEUE_STATUS}\n" and return -1);
      my @output = <OUT>;
-     close(OUT) or (print "Error doing $self->{GET_QUEUE_STATUS}\n" and return "Error doing $self->{GET_QUEUE_STATUS}\n");
+     close(OUT) or (print "Error doing $self->{GET_QUEUE_STATUS}\n" and return -1);
      foreach my $line (@output) {
          if ($line =~ /(\d+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(.*)/) {
              if ($5 =~ /qw/) {
@@ -151,9 +151,9 @@ sub getNumberRunning {
      my $self = shift;
      my $nActiveJobs = 0;
 
-     open (OUT, "$self->{GET_QUEUE_STATUS} |") or (print "Error doing $self->{GET_QUEUE_STATUS}\n" and return "Error doing $self->{GET_QUEUE_STATUS}\n");
+     open (OUT, "$self->{GET_QUEUE_STATUS} |") or (print "Error doing $self->{GET_QUEUE_STATUS}\n" and return undef);
      my @output = <OUT>;
-     close(OUT) or (print "Error doing $self->{GET_QUEUE_STATUS}\n" and return "Error doing $self->{GET_QUEUE_STATUS}\n");
+     close(OUT) or (print "Error doing $self->{GET_QUEUE_STATUS}\n" and return undef);
      foreach my $line (@output) {
          if ($line =~ /(\d+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(.*)/) {
              if ($5 =~ /[rRtw]/) {
@@ -165,4 +165,3 @@ sub getNumberRunning {
 }
 
 return 1;
-
