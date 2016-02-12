@@ -179,14 +179,14 @@ sub initialize {
 
   $self->{WORKDIR} = $ENV{HOME};
   # If specified, this directory is used. REMARK If $ENV{WORKDIR} is set, this is used!!
+  $self->{CONFIG}->{WORKDIR} and $self->{WORKDIR} = $self->{CONFIG}->{WORKDIR};
   $self->{CONFIG}->{WORK_DIR} and $self->{WORKDIR} = $self->{CONFIG}->{WORK_DIR};
     # If the batch-system defined this
   ( defined $ENV{WORKDIR} ) and $self->{WORKDIR} = $ENV{WORKDIR};
-
-  
   ( defined $ENV{ALIEN_WORKDIR} ) and $self->{WORKDIR} = $ENV{ALIEN_WORKDIR};
   ( defined $ENV{TMPBATCH} ) and $self->{WORKDIR} = $ENV{TMPBATCH};
   $ENV{ALIEN_WORKDIR}=$self->{WORKDIR};
+
   
   return $self;
 }
@@ -1061,15 +1061,15 @@ sub executeCommand {
          my ($ok, $source)=$self->{PACKMAN}->installPackage($user, join(",", @packages), undef, {NO_FORK=>1});
 #        my ($ok, $source)=$self->installPackage( join(",", @packages), $user);
          if ($source){  
-	   push @packInst, $source;
+   		   push @packInst, $source;
          }
     } else {   
       foreach (@packages) {
         my ($ok, $source)=$self->installPackage( $_, $user);
         if (!$ok){
-	   $self->registerLogs(0);
-	   $self->changeStatus("%",  "ERROR_E");
-	   return;
+	   		$self->registerLogs(0);
+	   		$self->changeStatus("%",  "ERROR_E");
+	   		return;
          }
         if ($source){  
 	  push @packInst, $source;
@@ -1914,7 +1914,7 @@ sub putFiles {
     $self->{PROCDIR} = $self->{OUTPUTDIR} || "~/alien-job-$ENV{ALIEN_PROC_ID}";
     my $user=$self->{CA}->evaluateAttributeString("User");
 
-    ($self->{STATUS} =~ /^ERROR_V/)
+    ( ($self->{STATUS} =~ /^ERROR_V/) or ($self->{STATUS} =~ /^ERROR_E/) ) 
         and  $self->{PROCDIR} = "$self->{CONFIG}->{USER_DIR}/".substr($user, 0, 1)."/$user/recycle/alien-job-$ENV{ALIEN_PROC_ID}"; 
 
     $self->{UI}->execute("mkdir","-p",$self->{PROCDIR});
@@ -1941,34 +1941,6 @@ sub putFiles {
         $guid="$guids{$fs_table->{$fileOrArch}->{name}}";
         $self->putJobLog("trace", "The file $fs_table->{$fileOrArch}->{name} has the guid $guids{$fs_table->{$fileOrArch}->{name}}");
       }
-      
-#      if($self->{STATUS} =~ /^ERROR_V/) {
-#        # just upload the files ...
-#        my @addEnvs = $self->addFile("$self->{WORKDIR}/$fs_table->{$fileOrArch}->{name}","$recyclebin/$fs_table->{$fileOrArch}->{name}", "$fs_table->{$fileOrArch}->{options}",$guid,1);
-#        my $success = shift @addEnvs;
-#        $success or $self->putJobLog("error","The job went to ERROR_V, but we can't upload the output files for later registration") and next;
-#        my $env1 = AliEn::Util::deserializeSignedEnvelope(shift @addEnvs);
-#        my @pfns = ("$env1->{se}/$env1->{turl}");
-#        foreach my $env (@addEnvs) {
-#           push @pfns, AliEn::Util::getValFromEnvelope($env,"turl");
-#        }
-#        my @list = ();
-#        foreach my $file( keys %{$fs_table->{$fileOrArch}->{entries}}) {  # if it is a file, there are just no entries
-#            push @list, join("###", $file, $fs_table->{$fileOrArch}->{entries}->{$file}->{size},
-#            $fs_table->{$fileOrArch}->{entries}->{$file}->{md5});
-#        }
-#         my $links="";
-#        (scalar(@list) gt 0) and $links.=";;".join(";;",@list);
-#        
-#        push @registerInJDL, "\"".join ("###", $env1->{lfn}, $env1->{guid}, $env1->{size},
-#                               $env1->{md5},  join("###",@pfns),
-#                               $links) ."\"";
-#  
-#        $success and  $successCounter++;
-#        ($success eq -1) and $incompleteAddes=1;
-#  
-#        next;  
-#      }
 
       my $links="";
       if(!$no_links) {
@@ -1999,20 +1971,12 @@ sub putFiles {
         $guids{$fs_table->{$fileOrArch}->{name}} = AliEn::Util::getValFromEnvelope($env,"guid");
       }
       push @addedFiles, join("\",\"",@pfns);
-
-      #$no_links and next;
-      #my $signedEnvs = shift @addEnvs;
-      #foreach my $file( keys %{$fs_table->{$fileOrArch}->{entries}}) {  # if it is a file, there are just no entries
-      #   $self->registerFile($file, $fs_table->{$fileOrArch}->{name}, $signedEnvs, $fs_table->{$fileOrArch}->{entries}->{$file}->{size},$fs_table->{$fileOrArch}->{entries}->{$file}->{md5})
-      #    and (push @lfnTracker, "$self->{PROCDIR}/$file") or $fileRegError=1;
-      #    
-      #}
    
     }
-    }
+   }
     
 
-    ($self->{STATUS} =~ /^ERROR_V/) and $self->{UI}->execute("rmdir","$self->{PROCDIR}");
+    ( ($self->{STATUS} =~ /^ERROR_V/) or ($self->{STATUS} =~ /^ERROR_E/) ) and $self->{UI}->execute("rmdir","$self->{PROCDIR}");
     my $regPFNS = join("\",\"",@addedFiles);
     $self->{CA}->set_expression("SuccessfullyBookedPFNS", "{\"".$regPFNS."\"}");
     $self->{JDL_CHANGED}=1;
@@ -2021,20 +1985,12 @@ sub putFiles {
 
   $self->{CONFIG}=$self->{CONFIG}->Reload({"organisation", $oldOrg});
 
-#  if (scalar(keys(%$fs_table)) ne $successCounter) {
   if ($JDLOutputCount ne $successCounter) {
      $self->putJobLog("error","THERE WAS AT LEAST ONE FILE, THAT WE COULDN'T STORE ON ANY SE.");
      return 0;
   }
-  #if ($fileRegError) {
-  #   $self->putJobLog("error","THERE WAS AT LEAST ONE FILE LINK REGISTRATION THAT WAS NOT SUCCESSFULL.");
-  #   return 0;
-  #}
-
 
   if($incompleteAddes) {
-     #$self->putJobLog("trace", "WARNING: We had  ".scalar(keys(%$fs_table))
-     #        ." files and archives to store.");
      $self->putJobLog("trace", "WARNING: We could store all files at least one time, but not all files were stored as many times as specified.");
      return -1;
   }
@@ -2551,9 +2507,10 @@ sub checkProcess{
     AliEn::Util::kill_really_all($self->{PROCESSID});
     $self->info("Killing the job ($killMessage)");
     $self->putJobLog("error","Killing the job ($killMessage)");
+    $self->{STATUS}="ERROR_E";
     $self->prepare_Error_Files();
     my $jdl = ($self->{JDL_CHANGED} ? $self->{CA}->asJDL() : undef);
-    $self->changeStatus("%", "ERROR_E", $jdl);
+    $self->changeStatus("%", $self->{STATUS}, $jdl);
     return;
   }
 
@@ -2562,158 +2519,164 @@ sub checkProcess{
 }
 sub lastExecution {
   my $self=shift;
+  my $killJob = shift || 0;
+  my $success;
 
-  $self->{PROCINFO} or $self->{PROCINFO}="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0";
-  my @ap	= split " ",$self->{PROCINFO};
-  # if the job is over, do a last average and submit it to the ClusterMonitor
-  $self->{AVRSIZE}=$self->{AVVSIZE}=$self->{AVCPU}=0;
+  if(!$killJob){
+	  $self->{PROCINFO} or $self->{PROCINFO}="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0";
+	  my @ap	= split " ",$self->{PROCINFO};
+	  # if the job is over, do a last average and submit it to the ClusterMonitor
+	  $self->{AVRSIZE}=$self->{AVVSIZE}=$self->{AVCPU}=0;
+	  
+	  if ($self->{SUMCOUNT}) {
+	    $self->{AVRSIZE} = int ($self->{SUMRSIZE}/$self->{SUMCOUNT});
+	    $self->{AVVSIZE} = int ($self->{SUMVSIZE}/$self->{SUMCOUNT});
+	    $self->{AVCPU}   = sprintf "%.02f",($self->{SUMCPU}/$self->{SUMCOUNT});
+	  }     
+	  my $cputime = sprintf "%.02f",($self->{AVCPU}/100*$ap[1]);
+	  
+	  $self->{MAXRSIZE} = int ($self->{MAXRSIZE});
+	  $self->{MAXVSIZE} = int ($self->{MAXVSIZE});
+	
+	  my $procinfo = "$ap[0] $ap[1] $self->{AVCPU} $ap[3] $cputime $self->{MAXRSIZE} $self->{MAXVSIZE} $ap[7] $ap[8] $ap[9] $self->{MAXRESOURCECOST} $self->{AVRSIZE} $self->{AVVSIZE}";
+	  $procinfo .= " $self->{CPU_KSI2K}" if(defined $self->{CPU_KSI2K});
+	  $self->info("Last ProcInfo: $procinfo");
+	  
+	  #submit the last Proc Info
+	  my $done = $self->{SOAP}->CallSOAP("CLUSTERMONITOR","SetProcInfo", $self->{QUEUEID}, "$procinfo");
+	#	$self->{SOAP}->checkSOAPreturn($done);
+	
+	  # add some output to the process resource file
+	  my ($ProcRuntime,$ProcStart,$ProcCpu,$ProcMem, $ProcCputime,$ProcRsz,$ProcVsize,$ProcNcpu, $ProcCpufamily,$ProcCpuspeed,$ProcResourceCost,$cpuKsi2k);
+	  ($ProcRuntime,$ProcStart,$ProcCpu,$ProcMem, $ProcCputime,$ProcRsz,$ProcVsize,$ProcNcpu, $ProcCpufamily,$ProcCpuspeed,$ProcResourceCost)= split ' ',$self->{PROCINFO};
+	  my $date =localtime;
+	  $date =~ s/^\S+\s(.*):[^:]*$/$1/	;
+	  $self->{STOPTIME} = $date;
+		
+	  my $DuSize = `du -Lsc $self->{WORKDIR}/| tail -1|awk '{print \$1}'`; 
+	  my $DuOutSize =0;
+	  if ($self->{OUTPUTFILES}) {
+	    $DuOutSize =`du -Lsc $self->{OUTPUTFILES}| tail -1|awk '{print \$1}'`;
+	  }
+	  $cpuKsi2k = defined($self->{CPU_KSI2K}) || "?";
+		
+	  chomp $DuSize;
+	  chomp $DuOutSize;
+		
+	  open (POUT,">>$self->{WORKDIR}/resources");
+	  print POUT  "Execution Host                            : $self->{HOST}
+	Command                                   : $self->{COMMAND}\n";	    
+	  if ($self->{ARG}) {
+	    print POUT  "Args                                      : $self->{ARG}\n";
+	  }
+	  print POUT  "Start Time                                : $self->{STARTTIME}
+	Stop  Time                                : $self->{STOPTIME}
+	Input Sandbox File Size             [kb ] : $DuSize
+	Output Sandbox File Size            [kb ] : $DuOutSize
+	Elapsed real time                   [sec] : $ProcRuntime
+	CPU perc. of this job               [\%  ] : $ProcCpu
+	MEM perc. of this job               [\%  ] : $ProcMem
+	CPU time                            [sec] : $ProcCputime
+	CPU KSI2K			    [#  ] : $cpuKsi2k
+	Max. res. MEM size                  [kb ] : $ProcRsz
+	Max. vir. MEM size                  [kb ] : $ProcVsize
+	CPUs                                [#  ] : $ProcNcpu
+	CPU family                                : $ProcCpufamily
+	CPU Speed                           [MHz] : $ProcCpuspeed
+	------------------------------------------------------------\n";
+	  my $cpucost = $ProcCputime * $ProcCpuspeed/1000 ;
+	  print POUT  "CPU      Cost                             : $cpucost
+	============================================================\n";
+	  close POUT;
+		
+	  # put all output files into AliEn
+	  #	    
+	
+	  $self->{STATUS}="SAVED";
+	
+	  if ( $self->{VALIDATIONSCRIPT} ) {
+	    $self->putJobLog("trace","Validating the output");
+	    my $validation=$self->{VALIDATIONSCRIPT};
+	    $validation=~ s{^.*/([^/]*)$}{$self->{WORKDIR}/$1};
+	
+	    if ( -r $validation ) {	
+	      chmod 0750, $validation;
+	      my $validatepid = fork();
+	      if (! $validatepid ) {
+		# execute the validation script
+		$self->info("Executing the validation script: $validation");
+		unlink "$self->{WORKDIR}/.validated";
+		if (! system($validation) ){
+		  $self->info("The validation finished successfully!!");
+		  system("touch $self->{WORKDIR}/.validated" ) ;
+		}
+		$self->info("Validation finished!!");
+		exit 0;
+	      }
+	      my $waitstart = time;
+	      my $waitstop  = time;
+	      while ( ($waitstop-300) < ($waitstart) ) {
+		sleep 5;
+		$self->info("Checking $validatepid");
+		kill (0,$validatepid) or last;
+	
+		my @defunct = `ps -p $validatepid -o state`;
+		$self->debug(1, "Defunct check. Got: " . join(" ", @defunct));
+		shift @defunct; # remove header
+		$defunct[0]
+		    and ($defunct[0] =~ /Z/)
+		    and $self->info("The process is defunct")
+		    and last;
+	
+		$waitstop = time;
+	      }
+	      waitpid(-1, &WNOHANG);
+	      if ( ($waitstop-300) > ($waitstart) ) {
+		$self->putJobLog("trace","The validation script didn't finish");
+		$self->{STATUS} = "ERROR_VT";
+	      } else {
+		( -e "$self->{WORKDIR}/.validated" ) or  $self->{STATUS} = "ERROR_V";
+	        $self->putJobLog("trace","The validation created some trace");
+	        if ( open(my $f, "<", "$self->{WORKDIR}/.alienValidation.trace") ){
+	         my $traceContent=join("", <$f>);
+	         close $f;
+	         $self->putJobLog("trace",$traceContent);
+	        }
+	      }
+	    } else {
+	      $self->putJobLog("error","The validation script '$validation' didn't exist");
+	      $self->{STATUS} = "ERROR_VN";
+	    }
+	    # following out, since STATUS is not always true as SAVED, see above.
+	    #$self->putJobLog("trace","After the validation preliminary Job status: $self->{STATUS}");
+	  }
+	
+	  # store the files
+	  #$self->putFiles() or $self->{STATUS}="ERROR_SV";  old entry, redirected trough new funtion:
+	  $self->{UI} = AliEn::UI::Catalogue::LCM->new({no_catalog=>1,role=>$self->{JOB_USER}});
+	  if (!$self->{UI}) {
+	      $self->info("Error getting an instance of the catalog");
+	      $self->putJobLog("error","Could not get an instance of the LCM");
+	      $self->registerLogs();
+	      $self->putJobLog("trace","Registered the JobLogOnClusterMonitor.");
+	  } else {
+	    #this hash will contain all the files that have already been submitted,
+	    my $uploadFilesState = $self->prepare_File_And_Archives_From_JDL_And_Upload_Files() ;
+	
+	    if ($self->{STATUS}=~ /SAVED/){
+	      ($uploadFilesState eq -1) and $self->{STATUS}="SAVED_WARN";
+	      ($uploadFilesState eq 0) and $self->{STATUS}="ERROR_SV";
+	    }
+	
+	    $self->registerLogs();
+	    $self->{UI}->close();
+	  }
+	
+	  my $jdl;
+	  $self->{JDL_CHANGED} and $jdl=$self->{CA}->asJDL();
+  	  $success=$self->changeStatus("%",$self->{STATUS}, $jdl);
+  }
   
-  if ($self->{SUMCOUNT}) {
-    $self->{AVRSIZE} = int ($self->{SUMRSIZE}/$self->{SUMCOUNT});
-    $self->{AVVSIZE} = int ($self->{SUMVSIZE}/$self->{SUMCOUNT});
-    $self->{AVCPU}   = sprintf "%.02f",($self->{SUMCPU}/$self->{SUMCOUNT});
-  }     
-  
-  $self->{MAXRSIZE} = int ($self->{MAXRSIZE});
-  $self->{MAXVSIZE} = int ($self->{MAXVSIZE});
-
-  my $procinfo = "$ap[0] $ap[1] $self->{AVCPU} $ap[3] $ap[4] $self->{MAXRSIZE} $self->{MAXVSIZE} $ap[7] $ap[8] $ap[9] $self->{MAXRESOURCECOST} $self->{AVRSIZE} $self->{AVVSIZE}";
-  $procinfo .= " $self->{CPU_KSI2K}" if(defined $self->{CPU_KSI2K});
-  $self->info("Last ProcInfo: $procinfo");
-  
-  #submit the last Proc Info
-  my $done = $self->{SOAP}->CallSOAP("CLUSTERMONITOR","SetProcInfo", $self->{QUEUEID}, "$procinfo");
-#	$self->{SOAP}->checkSOAPreturn($done);
-
-  # add some output to the process resource file
-  my ($ProcRuntime,$ProcStart,$ProcCpu,$ProcMem, $ProcCputime,$ProcRsz,$ProcVsize,$ProcNcpu, $ProcCpufamily,$ProcCpuspeed,$ProcResourceCost,$cpuKsi2k);
-  ($ProcRuntime,$ProcStart,$ProcCpu,$ProcMem, $ProcCputime,$ProcRsz,$ProcVsize,$ProcNcpu, $ProcCpufamily,$ProcCpuspeed,$ProcResourceCost)= split ' ',$self->{PROCINFO};
-  my $date =localtime;
-  $date =~ s/^\S+\s(.*):[^:]*$/$1/	;
-  $self->{STOPTIME} = $date;
-	
-  my $DuSize = `du -Lsc $self->{WORKDIR}/| tail -1|awk '{print \$1}'`; 
-  my $DuOutSize =0;
-  if ($self->{OUTPUTFILES}) {
-    $DuOutSize =`du -Lsc $self->{OUTPUTFILES}| tail -1|awk '{print \$1}'`;
-  }
-  $cpuKsi2k = defined($self->{CPU_KSI2K}) || "?";
-	
-  chomp $DuSize;
-  chomp $DuOutSize;
-	
-  open (POUT,">>$self->{WORKDIR}/resources");
-  print POUT  "Execution Host                            : $self->{HOST}
-Command                                   : $self->{COMMAND}\n";	    
-  if ($self->{ARG}) {
-    print POUT  "Args                                      : $self->{ARG}\n";
-  }
-  print POUT  "Start Time                                : $self->{STARTTIME}
-Stop  Time                                : $self->{STOPTIME}
-Input Sandbox File Size             [kb ] : $DuSize
-Output Sandbox File Size            [kb ] : $DuOutSize
-Elapsed real time                   [sec] : $ProcRuntime
-CPU perc. of this job               [\%  ] : $ProcCpu
-MEM perc. of this job               [\%  ] : $ProcMem
-CPU time                            [sec] : $ProcCputime
-CPU KSI2K			    [#  ] : $cpuKsi2k
-Max. res. MEM size                  [kb ] : $ProcRsz
-Max. vir. MEM size                  [kb ] : $ProcVsize
-CPUs                                [#  ] : $ProcNcpu
-CPU family                                : $ProcCpufamily
-CPU Speed                           [MHz] : $ProcCpuspeed
-------------------------------------------------------------\n";
-  my $cpucost = $ProcCputime * $ProcCpuspeed/1000 ;
-  print POUT  "CPU      Cost                             : $cpucost
-============================================================\n";
-  close POUT;
-	
-  # put all output files into AliEn
-  #	    
-
-  $self->{STATUS}="SAVED";
-
-  if ( $self->{VALIDATIONSCRIPT} ) {
-    $self->putJobLog("trace","Validating the output");
-    my $validation=$self->{VALIDATIONSCRIPT};
-    $validation=~ s{^.*/([^/]*)$}{$self->{WORKDIR}/$1};
-
-    if ( -r $validation ) {	
-      chmod 0750, $validation;
-      my $validatepid = fork();
-      if (! $validatepid ) {
-	# execute the validation script
-	$self->info("Executing the validation script: $validation");
-	unlink "$self->{WORKDIR}/.validated";
-	if (! system($validation) ){
-	  $self->info("The validation finished successfully!!");
-	  system("touch $self->{WORKDIR}/.validated" ) ;
-	}
-	$self->info("Validation finished!!");
-	exit 0;
-      }
-      my $waitstart = time;
-      my $waitstop  = time;
-      while ( ($waitstop-300) < ($waitstart) ) {
-	sleep 5;
-	$self->info("Checking $validatepid");
-	kill (0,$validatepid) or last;
-
-	my @defunct = `ps -p $validatepid -o state`;
-	$self->debug(1, "Defunct check. Got: " . join(" ", @defunct));
-	shift @defunct; # remove header
-	$defunct[0]
-	    and ($defunct[0] =~ /Z/)
-	    and $self->info("The process is defunct")
-	    and last;
-
-	$waitstop = time;
-      }
-      waitpid(-1, &WNOHANG);
-      if ( ($waitstop-300) > ($waitstart) ) {
-	$self->putJobLog("trace","The validation script didn't finish");
-	$self->{STATUS} = "ERROR_VT";
-      } else {
-	( -e "$self->{WORKDIR}/.validated" ) or  $self->{STATUS} = "ERROR_V";
-        $self->putJobLog("trace","The validation created some trace");
-        if ( open(my $f, "<", "$self->{WORKDIR}/.alienValidation.trace") ){
-         my $traceContent=join("", <$f>);
-         close $f;
-         $self->putJobLog("trace",$traceContent);
-        }
-      }
-    } else {
-      $self->putJobLog("error","The validation script '$validation' didn't exist");
-      $self->{STATUS} = "ERROR_VN";
-    }
-    # following out, since STATUS is not always true as SAVED, see above.
-    #$self->putJobLog("trace","After the validation preliminary Job status: $self->{STATUS}");
-  }
-
-  # store the files
-  #$self->putFiles() or $self->{STATUS}="ERROR_SV";  old entry, redirected trough new funtion:
-  $self->{UI} = AliEn::UI::Catalogue::LCM->new({no_catalog=>1,role=>$self->{JOB_USER}});
-  if (!$self->{UI}) {
-      $self->info("Error getting an instance of the catalog");
-      $self->putJobLog("error","Could not get an instance of the LCM");
-      $self->registerLogs();
-      $self->putJobLog("trace","Registered the JobLogOnClusterMonitor.");
-  } else {
-    #this hash will contain all the files that have already been submitted,
-    my $uploadFilesState = $self->prepare_File_And_Archives_From_JDL_And_Upload_Files() ;
-
-    if ($self->{STATUS}=~ /SAVED/){
-      ($uploadFilesState eq -1) and $self->{STATUS}="SAVED_WARN";
-      ($uploadFilesState eq 0) and $self->{STATUS}="ERROR_SV";
-    }
-
-    $self->registerLogs();
-    $self->{UI}->close();
-  }
-
-  my $jdl;
-  $self->{JDL_CHANGED} and $jdl=$self->{CA}->asJDL();
-  my $success=$self->changeStatus("%",$self->{STATUS}, $jdl);
   # don't send data about this job anymore
   if($self->{MONITOR}){
     $self->{MONITOR}->removeJobToMonitor($self->{PROCESSID});
@@ -2726,7 +2689,7 @@ CPU Speed                           [MHz] : $ProcCpuspeed
   delete $ENV{ALIEN_JOB_TOKEN};
   delete $ENV{ALIEN_PROC_ID};
     
-  if (!$success){
+  if (!$killJob && !$success){
     $self->sendJAStatus('DONE', {totaljobs=>$self->{TOTALJOBS}, error=>1});
     $self->info("The job did not finish properly... we don't ask for more jobs");
     $self->stopService(getppid());
@@ -2832,8 +2795,11 @@ sub checkWakesUp {
       $self->{SUMCOUNT} ++;
       $self->{AVRSIZE} = int ($self->{SUMRSIZE}/$self->{SUMCOUNT});
       $self->{AVVSIZE} = int ($self->{SUMVSIZE}/$self->{SUMCOUNT});
-      $self->{AVCPU}   = sprintf "%.02f",($self->{SUMCPU}/$self->{SUMCOUNT});	
-      $self->{PROCINFO} = "$all[0] $all[1] $self->{AVCPU} $all[3] $all[4] $all[5] $all[6] $all[7] $all[8] $all[9] $self->{MAXRESOURCECOST} $self->{AVRSIZE} $self->{AVVSIZE}";
+      $self->{AVCPU}   = sprintf "%.02f",($self->{SUMCPU}/$self->{SUMCOUNT});
+      my $cputime = sprintf "%.02f",($self->{AVCPU}/100*$all[1]);
+      
+#      $self->{PROCINFO} = "$all[0] $all[1] $self->{AVCPU} $all[3] $all[4] $all[5] $all[6] $all[7] $all[8] $all[9] $self->{MAXRESOURCECOST} $self->{AVRSIZE} $self->{AVVSIZE}";     	
+      $self->{PROCINFO} = "$all[0] $all[1] $self->{AVCPU} $all[3] $cputime $all[5] $all[6] $all[7] $all[8] $all[9] $self->{MAXRESOURCECOST} $self->{AVRSIZE} $self->{AVVSIZE}";
       $self->{PROCINFO} .= " $self->{CPU_KSI2K}" if defined($self->{CPU_KSI2K});
       last;
     }
@@ -2846,12 +2812,31 @@ sub checkWakesUp {
   #we are going to send the procinfo only one every ten times
   $self->{ALIEN_PROC_INFO} or  $self->{ALIEN_PROC_INFO}=0;
   $self->{ALIEN_PROC_INFO}++;
+  my $killJob = 0;
+  
   if ($self->{ALIEN_PROC_INFO} eq "10") {
     $self->{SOAP}->CallSOAP("CLUSTERMONITOR","SetProcInfo",
 			    $self->{QUEUEID}, $self->{PROCINFO});
     $self->{ALIEN_PROC_INFO}=0;
-  }
   
+  # check if job is still valid
+  my $done = $self->{SOAP}->CallSOAP('MessagesMaster', "getMessages", 'JobAgent'
+							, $self->{HOST}."-".$ENV{ALIEN_PROC_ID});
+  if($done and $done->result){
+  	my $messages = $done->result;	
+  	foreach my $data ( @$messages ) {  	
+  	  $data->{Message} =~ /killProcess/ and $killJob = 1 
+  	    and $self->info("KILL: $data->{Message}") and last;
+  	}
+  }
+  	 
+  if ($killJob){
+    # We have to kill the job, is not valid anymore
+    AliEn::Util::kill_really_all($self->{PROCESSID});
+    $self->info("Killing the job (not existing queueId-token set anymore)");
+    $self->putJobLog("error","Killing the job (not existing queueId-token set anymore)");
+  }
+}  
   # Check for tracelog messages (we are supposed to be in $self->{WORKDIR})
   $self->checkTraceLog();  
 
@@ -2860,7 +2845,7 @@ sub checkWakesUp {
   $self->info("Process $self->{PROCESSID} has finished");
   waitpid(-1, &WNOHANG);
 
-  $self->lastExecution();
+  $self->lastExecution($killJob);
   
   # unset jdl environment variables
   my ($ok, @env_variables)= 

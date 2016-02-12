@@ -408,17 +408,17 @@ sub initialize {
     },
     MESSAGES => {
       columns => {
-        ID            => " int(11) not null  auto_increment primary key",
-        TargetHost    => " varchar(100)",
-        TargetService => " varchar(100)",
-        Message       => " varchar(100)",
-        MessageArgs   => " varchar(100)",
-        Expires       => " int(11)",
-        Ack           => => 'varchar(255)'
+        ID            => "int(11) not null",
+        TargetHost    => "varchar(100)",
+        TargetService => "varchar(100)",
+        Message       => "varchar(100)",
+        MessageArgs   => "varchar(100)",
+        Expires       => "int(11)",
+        Ack           => "varchar(255)",
       },
       id    => "ID",
-      index => "ID",
-      #extra_index => [ "foreign key (ID) references QUEUE(queueId) on delete cascade" ],
+      index => "ID, Message",
+#      extra_index => [ 'PRIMARY KEY (ID, Message)' ],
       order=>9
     },
     JOBMESSAGES => {
@@ -1842,8 +1842,8 @@ sub insertFileBroker{
 }
 
 sub killTask{
-	my $self=shift;
-	my $queueId = shift;
+  my $self=shift;
+  my $queueId = shift;
   my $user    = shift;
 
   # check for subjob's ....
@@ -1874,7 +1874,7 @@ sub killProcessInt {
 
   $self->info("Killing process $queueId...");
 
-  my ($data) = $self->getFieldsFromQueue($queueId, "statusId,exechostId, submithostId,siteId,agentid,userid,split");
+  my ($data) = $self->getFieldsFromQueue($queueId, "statusId,exechostId, submithostId,siteId,agentid,userid,split,nodeId");
 
   defined $data
     or $self->info( "In killProcess error during execution of database query")
@@ -1899,25 +1899,25 @@ sub killProcessInt {
   	$self->do("update JOBAGENT set counter=counter-1 where entryid=?", {bind_values=>[$data->{agentid}]})
   	
   }
-#  if ($data->{exechostId}) {
-#    my $exechost=$self->queryValue("SELECT host from QUEUE_HOST where hostid=?", undef, {bind_values=>[$data->{exechostid}]});
-#    $DEBUG and $self->debug(1, "Sending a signal to $exechost to kill the process... ");
-#    my $current = time() + 300;
-#    my ($ok) = $self->insertMessage(
-#      { TargetHost    => $exechost,
-#        TargetService => 'ClusterMonitor',
-#        Message       => 'killProcess',
-#        MessageArgs   => $queueId,
-#
-#        #	Expires=>'UNIX_TIMESTAMP(Now())+300'});
-#        Expires => $current
-#      }
-#    );
-#
-#    ($ok)
-#      or $self->info( "In killProcess error inserting the message")
-#      and return;
-#  }
+  if ( ( $data->{nodeId} and ($data->{statusId}=~/STARTED/ or $data->{statusId}=~/RUNNING/) ) or $data->{statusId}=~/ASSIGNED/ ) {
+  	my $host = "%";
+    $data->{statusId}=~/ASSIGNED/ or 
+      $host=$self->queryValue("SELECT host from QUEUE_HOST where hostid=?", undef, {bind_values=>[$data->{nodeId}]})
+      and $host .= "-".$queueId;
+    $DEBUG and $self->debug(1, "Sending a message to $host to kill the process $queueId");
+    my $current = time() + (5*3600);
+    my ($ok) = $self->insertMessage(
+      { TargetHost    => $host,
+        TargetService => 'JobAgent',
+        Message       => 'killProcess',
+        ID            => $queueId,
+        Expires       => $current
+      }
+    );
+    ($ok)
+      or $self->info( "In killProcess error inserting the message");
+  }
+
   if (!$masterkill && $data->{split}) {
     $self->do("insert ignore into JOBSTOMERGE values (?)", {bind_values=>[$data->{split}]});
     $self->do("update ACTIONS set todo=1 where action='MERGING'");

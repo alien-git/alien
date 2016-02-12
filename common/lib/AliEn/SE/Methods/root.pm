@@ -172,13 +172,26 @@ sub put {
 sub xrdstat {
   my $self = shift;
 
-  my $xrddebug = "";
-  $self->{DEBUG}
-    and $self->{DEBUG} > 2
-    and $xrddebug = " -d " . ($self->{DEBUG} - 2);
+# normal xrd stat example
+# xrd alice-disk-se.gridka.de:1094 stat /13/46499/eae462ca-ca8d-11e5-8763-833d8860329e
+
+# proxy xrd stat example ( proxy root://10.16.1.202:1094//x )
+# xrd 10.16.1.202:1094 stat /xroot://eosalice.cern.ch:1094//13/39046/768c1e50-a1d8-11e5-b993-6b91c4f35fb7
 
   my $vercommand =
 "$self->{XRD} $self->{PARSED}->{HOST}:$self->{PARSED}->{PORT} stat $self->{PARSED}->{PATH}";
+
+  if($self->{PROXY}){
+  	my $proxyhost = $self->{PROXY};
+  	$proxyhost =~ s/root:\/\///;
+  	$proxyhost =~ s/\/\/x//; 	
+  	
+    $vercommand =
+"$self->{XRD} $proxyhost stat /xroot://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH}";
+  }
+
+  $self->debug(2, "xrd stat command: $vercommand");
+
   my $doxrcheck = `$vercommand`
     or $self->info(
 "WARNING: xrd stat to double check file size after successful write was not possible!",

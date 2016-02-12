@@ -5,6 +5,7 @@ use strict;
 use AliEn::Service;
 use AliEn::Database::TaskQueue;
 use AliEn::SOAP;
+use Data::Dumper;
 
 use vars qw (@ISA $DEBUG);
 @ISA=("AliEn::Service");
@@ -24,7 +25,6 @@ sub initialize {
   $self->{SERVICENAME}="MessagesMaster";
 
   # Information for central Message log, can go into Config/Config      #
-
 
   $self->{DB} = AliEn::Database::TaskQueue->new({ROLE=>'admin'})
     or $self->info("Not possible to get  the database")
@@ -47,18 +47,38 @@ sub getMessages {
 
   if ($lastAck){
     $self->info("Deleting the MESSAGES smaller than $lastAck");
-    $self->{DB}->delete("MESSAGES", "TargetService=? and TargetHost=? and ID<=?", {bind_values=>[$service,$host, $lastAck]});
+    $self->{DB}->delete("MESSAGES", "TargetService=? and TargetHost=? and ID<=?", {bind_values=>[$service,$host,$lastAck]});
   }
 
-
+  # Delete expired
   my $time = time;
+  $self->{DB}->delete("MESSAGES", "Expires !=0 and Expires < ?", {bind_values=>[$time]});
 
   my $res  =
-    $self->{DB}->query("SELECT ID,TargetHost,Message,MessageArgs from MESSAGES WHERE TargetService = ? AND  ? like TargetHost AND (Expires > ? or Expires = 0)order by ID limit 300", undef, {bind_values=>[$service, $host, $time]});
+    $self->{DB}->query("SELECT ID,TargetHost,Message,MessageArgs from MESSAGES 
+      WHERE TargetService = ? AND TargetHost like ? order by ID limit 100",
+    undef, {bind_values=>[$service, $host]});
 
   defined $res
-    or $self->{LOGGER}->error("ClusterMonitor","Error fetching messages from database")
+    or $self->{LOGGER}->error("MessagesMaster","Error fetching messages from database")
       and return;
+   
+  if (scalar(@$res)){
+  	  my $del = "(ID,Message) in (";           
+  	  my @bind=();
+	  foreach my $data ( @$res ) {
+	  	$del .= "(?,?),";
+	  	push @bind, $data->{ID};
+	  	push @bind, $data->{Message};
+	  }
+	  $del =~ s/,$//;
+	  $del .= ")";
+	  
+	  $self->info("Deleting $del, ".Dumper(@bind));
+	  
+	  $self->{DB}->delete("MESSAGES", $del, {bind_values=> \@bind});
+  }
+      
   $self->info("Returning ".( $#$res +1 )." messages");
   return $res;
 }

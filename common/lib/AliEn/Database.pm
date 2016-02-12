@@ -627,47 +627,50 @@ sub setPrimaryKey {
   my $key  = shift;
   my $indexRef = shift;
   my $indexes  = $self->getIndexes($table);
-
+  
   my @indexes = ();
   $indexRef and @indexes = @$indexRef;
-  my $primary = 0;
+   
+  my $primary = "";
   if ( defined $indexes ) {
-  $DEBUG and $self->debug( 1, "There are some keys for $table" );
-  foreach my $ind (@$indexes) {
-  if ( $ind->{Key_name} eq "PRIMARY" ) {
-  $key and ( $ind->{Column_name} eq $key ) and $primary = 1;
-  next;
+	  $DEBUG and $self->debug( 1, "There are some keys for $table" );
+	  foreach my $ind (@$indexes) {	  	
+		  if ( $ind->{Key_name} eq "PRIMARY" ) {
+		  	$key and ( $key  =~ /$ind->{Column_name}/ ) and $primary .= $ind->{Column_name}.",";
+		  	next;
+		  }
+		  my @list = grep ( /\W$ind->{Column_name}\W/i, @indexes );
+		  if ( $list[0] ) {		  	
+			  $DEBUG and $self->debug( 1, "Checking the column $list[0]" );
+			  my $unique = grep ( /unique/i, $list[0] );
+			
+			  if ( $unique eq $ind->{Non_unique} ) {
+				  $self->info("The uniqueness of $list[0] in $table is not well defined");
+				  #  $self->alterTable($table, "drop index $ind->{Key_name}");
+				  $self->dropIndex( $ind->{Key_name}, $table );
+			  }
+			  else {
+			  	@indexes = grep ( !/\W$ind->{Column_name}\W/i, @indexes );
+			  }
+		   }
+	  }
   }
-  my @list = grep ( /\W$ind->{Column_name}\W/i, @indexes );
-  if ( $list[0] ) {
-  $DEBUG and $self->debug( 1, "Checking the column $list[0]" );
-  my $unique = grep ( /unique/i, $list[0] );
-
-  if ( $unique eq $ind->{Non_unique} ) {
-  $self->info(
-"The uniqueness of $list[0] in $table is not well defined"
-  );
-
-  #  $self->alterTable($table, "drop index $ind->{Key_name}");
-  $self->dropIndex( $ind->{Key_name}, $table );
-  }
-  else {
-  @indexes = grep ( !/\W$ind->{Column_name}\W/i, @indexes );
-  }
-  }
-  }
-  }
-  if ( ( !$primary ) && $key ) {
-  $self->alterTable( $table, "drop primary key" );
-  $self->alterTable( $table, "ADD PRIMARY KEY ($key)" );
-  $self->info("Altering the primary key of $table");
+ 
+  $key =~ s/\s//g;
+  $primary and $primary =~ s/,$//;
+  
+  if ( !$primary && $key ) {
+#    $self->alterTable( $table, "drop primary key" );
+    $self->alterTable( $table, "ADD PRIMARY KEY ($key)" );
+    $self->info("Altering the primary key of $table to $key");
+  } elsif ( $key && (uc($key) ne uc($primary)) ) {
+  	$self->info("Dropping and altering the primary key ($primary) of $table to $key");
+  	$self->alterTable( $table, "drop primary key" );
+    $self->alterTable( $table, "ADD PRIMARY KEY ($key)" );
   }
   foreach (@indexes) {
-  $self->info("Creating the index $_ on the table $table");
-
-  #  $self->alterTable($table, "ADD $_");
-  $self->createIndex( $_, $table, $INDEX );
-
+	  $self->info("Creating the index $_ on the table $table");
+	  $self->createIndex( $_, $table, $INDEX );
   }
   return 1;
 }
