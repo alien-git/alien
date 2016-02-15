@@ -1899,10 +1899,9 @@ sub killProcessInt {
   	$self->do("update JOBAGENT set counter=counter-1 where entryid=?", {bind_values=>[$data->{agentid}]})
   	
   }
-  if ( ( $data->{nodeId} and ($data->{statusId}=~/STARTED/ or $data->{statusId}=~/RUNNING/) ) or $data->{statusId}=~/ASSIGNED/ ) {
-  	my $host = "%";
-    $data->{statusId}=~/ASSIGNED/ or 
-      $host=$self->queryValue("SELECT host from QUEUE_HOST where hostid=?", undef, {bind_values=>[$data->{nodeId}]})
+  if ( $data->{nodeId} and ($data->{statusId}=~/STARTED/ or $data->{statusId}=~/RUNNING/) ) {
+  	my $host="";
+  	$host=$self->queryValue("SELECT host from QUEUE_HOST where hostid=?", undef, {bind_values=>[$data->{nodeId}]})
       and $host .= "-".$queueId;
     $DEBUG and $self->debug(1, "Sending a message to $host to kill the process $queueId");
     my $current = time() + (5*3600);
