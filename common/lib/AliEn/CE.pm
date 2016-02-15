@@ -1365,7 +1365,7 @@ sub getTopFromDB {
 	       {name=>"id", pattern=>"i(d)?",
 		start=>"queueid='",end=>"'"},
 	       {name=>"split", pattern=>"s(plit)?",
-		start=>"split='",end=>"'"},
+		start=>"split=",end=>""},
 	       {name=>"status", pattern=>"s(tatus)?",
 		start=>"statusId='",end=>"'"},
 	       {name=>"command", pattern=>"c(ommand)?",
@@ -1399,7 +1399,8 @@ sub getTopFromDB {
     $found or  $error="argument '$argv' not understood" and last;
     my $type=$found->{name};
 
-    my $value=shift or $error="--$type requires a value" and last;
+    my $value=shift;
+    defined($value) or $error="--$type requires a value" and last;
     $data->{$type} or $data->{$type}=[];
     
     # For QUEUESTATUS TABLE
