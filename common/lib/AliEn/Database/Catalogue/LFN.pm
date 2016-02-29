@@ -2269,7 +2269,8 @@ sub  getInfoFromCollection {
   my $self=shift;
   my $collGUID=shift;
   $self->debug(1,"Getting all the info of collection '$collGUID'");
-  return $self->query("SELECT origLFN, ".$self->binary2string." as guid,data, localName from COLLECTIONS c, COLLECTIONS_ELEM e where c.collectionId=e.collectionId and collGUID=string2binary(?)", undef, {bind_values=>[$collGUID]});
+  return $self->query("SELECT origLFN, ".$self->binary2string." as guid,data, localName from COLLECTIONS c, COLLECTIONS_ELEM e 
+    where c.collectionId=e.collectionId and collGUID=string2binary(?) order by origLFN asc", undef, {bind_values=>[$collGUID]});
 }
 
 sub removeFileFromCollection{

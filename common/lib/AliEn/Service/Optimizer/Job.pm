@@ -639,6 +639,8 @@ sub copyInputCollection {
     my $ref_before = $#{$inputBox};
     
     ($ok, my $sortinput) = $job_ca->evaluateAttributeString("SortInputDataCollection");
+    $ok and defined($sortinput) 
+      or $sortinput=1;
     
     my ($type) = $self->{CATALOGUE}->execute("type", $file2);
     $self->info("IT IS A $type");

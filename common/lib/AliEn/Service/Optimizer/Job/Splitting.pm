@@ -529,8 +529,7 @@ sub SubmitSplitJob {
   }
 
   ($ok, my $sortsubjob)=$job_ca->evaluateAttributeString("SortSubjobInputData");
-  $self->info("Sorting subjob inputData: $sortsubjob");
-  $text=~ s/SortSubJobInputData\s*=[^;\]]*;//i;
+  $text=~ s/SortSubjobInputData\s*=[^;\]]*;//i;
   $text=~ s/SortInputDataCollection\s*=[^;\]]*;//i;
 
   $job_ca=Classad::Classad->new($text);
