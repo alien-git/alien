@@ -28,7 +28,7 @@ sub checkWakesUp {
  
   if ($self->{DB}->queryValue("SELECT todo from ACTIONS where action='SAVED'")) {
   	$self->{DB}->update("ACTIONS", {todo=>0}, "action='SAVED'");
-    $self->checkJobs($silent, 12, "checkSavedJob", 15, 15); #SAVED
+    $self->checkJobs($silent, 12, "checkSavedJob", 25, 25); #SAVED
   }
 
   return;

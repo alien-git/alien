@@ -24,6 +24,8 @@ sub initialize {
   $self->{SERVICE}="MessagesMaster";
   $self->{SERVICENAME}="MessagesMaster";
 
+  $self->{TIME} or $self->{TIME} = 0;
+
   # Information for central Message log, can go into Config/Config      #
 
   $self->{DB} = AliEn::Database::TaskQueue->new({ROLE=>'admin'})
@@ -52,7 +54,9 @@ sub getMessages {
 
   # Delete expired
   my $time = time;
-  $self->{DB}->delete("MESSAGES", "Expires !=0 and Expires < ?", {bind_values=>[$time]});
+  $time > $self->{TIME} 
+    and $self->{TIME} = $time and
+    $self->{DB}->delete("MESSAGES", "Expires !=0 and Expires < ?", {bind_values=>[$time]});
 
   my $res  =
     $self->{DB}->query("SELECT ID,TargetHost,Message,MessageArgs from MESSAGES 
