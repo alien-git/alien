@@ -14,6 +14,10 @@ sub checkWakesUp {
   $silent and $method="debug";
 
   $self->{LOGGER}->$method("Zombies", "The zombies optimizer starts");
+  
+  # Adding deletion of MESSAGES - the MESSAGES are avoiding ZOMBIES by killing JA payloads
+  my $time = time;
+  $self->{DB}->delete("MESSAGES", "Expires !=0 and Expires < ?", {bind_values=>[$time]});
 
   # produce ZOMBIES
   #$self->checkTransition($method, "(status='RUNNING' or status='ASSIGNED' or status='STARTED' or status='SAVING')", "ZOMBIE");
