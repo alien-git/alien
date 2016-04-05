@@ -123,7 +123,8 @@ sub new {
 			or $self->{LOGGER}->error("CE", "In initialize creating TaskQueue instance failed")
 			and return;
 		$self->{TASK_DB}->setSiteQueueTable();
-
+		
+		AliEn::Util::setupApMon( $self->{TASK_DB} );
 	}
 
 	if ($options->{MONITOR}) {

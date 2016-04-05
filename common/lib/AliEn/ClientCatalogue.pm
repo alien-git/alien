@@ -123,6 +123,7 @@ sub AUTOLOAD {
     fquota_list              => "fquota_list",
     fquota_set               => "fquota_set",
     getLFNlike               => "getLFNlike",
+    getMD5                   => "md5sum",
     getTabCompletion         => "tabCompletion",
     getCPMetadata            => "cpMetaData",
     groups                   => "groups",
@@ -166,7 +167,8 @@ sub AUTOLOAD {
     zoom                     => "zoom",
 
 
-  };
+  }; 
+  
   if ($ops->{$name}){
     return shift->callAuthen($ops->{$name},@_);
   } elsif ($name =~ /(user)/) {

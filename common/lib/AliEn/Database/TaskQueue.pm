@@ -1890,6 +1890,8 @@ sub killProcessInt {
     return;
   }
 
+  $self->sendJobStatus($queueId, "KILLED", "", "");
+
   $self->do("delete from QUEUE where queueid=?", {bind_values=>[$queueId]}) or return ;
   
   $self->do("update SITEQUEUES set $data->{statusId}=$data->{statusId}-1 where siteid=?", {bind_values=>[$data->{siteid}]});

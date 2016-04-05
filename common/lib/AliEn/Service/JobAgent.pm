@@ -2773,7 +2773,10 @@ sub checkWakesUp {
   for $i ( 1 .. 10 ) {
     $procinfo = $this->getProcInfo($self->{PROCESSID});
 
-    if (!($procinfo)) {
+    if ( !($procinfo) or $procinfo =~ /^\s*$/ ) {
+      sleep(1);
+      $i == 10 and
+        $self->putJobLog("trace","Error retrieving procInfo!");
       next;
       #			$self->lastExecution();
     } else {
@@ -2804,9 +2807,6 @@ sub checkWakesUp {
       last;
     }
 
-    #	$self->info("ProcInfo: $procinfo");
-    sleep(1);
-
   }
 
   #we are going to send the procinfo only one every ten times
@@ -2831,6 +2831,11 @@ sub checkWakesUp {
   }
   	 
   if ($killJob){
+  	$self->{MONITOR} and 
+  	  $self->{MONITOR}->sendParameters($self->{CONFIG}->{CE_FULLNAME}.'_Jobs', 
+  		$ENV{ALIEN_PROC_ID}, 
+  		{ 'status' => AliEn::Util::statusForML("KILLED"), 'host' => $self->{HOST} });
+  		
     # We have to kill the job, is not valid anymore
     AliEn::Util::kill_really_all($self->{PROCESSID});
     $self->info("Killing the job (not existing queueId-token set anymore)");
