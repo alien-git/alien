@@ -627,7 +627,7 @@ sub start {
     chomp $killpid;
   }
 
-  my $allpids = `ps -eo \"pid ppid\" | grep $killpid | awk '{print \$1}'`;
+  my $allpids = `ps -eo \"pid ppid\" | grep $killpid | LD_LIBRARY_PATH= awk '{print \$1}'`;
   my @splitpids = split " ", $allpids;
   foreach (@splitpids) {
     kill 9, $_;

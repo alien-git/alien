@@ -102,7 +102,7 @@ sub killmaster {
   my $proofmasterpid = $self->readpid();
   print "Master PID $proofmasterpid\n";
   if ($proofmasterpid) {
-    my $allpids = `ps -eo \"pid ppid\" | grep $proofmasterpid | awk '{print \$1}'`;
+    my $allpids = `ps -eo \"pid ppid\" | grep $proofmasterpid | LD_LIBRARY_PATH= awk '{print \$1}'`;
     my @splitpids = split " ",$allpids;
     
     foreach (@splitpids) {

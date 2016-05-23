@@ -403,7 +403,7 @@ sub getParentProcessId {
   shift;
   my $pid = shift;
   $pid or return;
-  my $parent = `ps -eo "pid ppid" | grep -E '^ *$pid\ ' | awk '{print \$2}'`;
+  my $parent = `ps -eo "pid ppid" | grep -E '^ *$pid\ ' | LD_LIBRARY_PATH= awk '{print \$2}'`;
   chomp($parent);
   $self->debug(1, "Parent is $parent");
   return $parent;
@@ -432,7 +432,7 @@ sub findChildProcesses {
   my $pid = shift;
 
   # find the pids of child processes of $pid, which are not $pid
-  my $d = `ps -A -o "pid ppid" | grep -E '(^|\ ) *$pid(\ |\$)' | awk '{print \$1}' | grep -vE '(^|\ ) *$pid(\ |\$)'`;
+  my $d = `ps -A -o "pid ppid" | grep -E '(^|\ ) *$pid(\ |\$)' | LD_LIBRARY_PATH= awk '{print \$1}' | grep -vE '(^|\ ) *$pid(\ |\$)'`;
   my @pids=split(/\n/, $d);
 
   my @children = ();
