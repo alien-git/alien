@@ -1,6 +1,95 @@
 package AliEn::LQ::HTCONDOR;
 
+# if you got any questions or suggestions about the module
+# please contact me at: Pavlo Svirin <pavlo.svirin@cern.ch>
+
 @ISA = qw( AliEn::LQ );
+
+=pod
+------------------
+Configuration options for LDAP (Environment section):
+
+USE_JOB_ROUTER=( 1 | 0) # whether is is necessary to use job router service
+GRID_RESOURCE=condor ce504.cern.ch ce504.cern.ch:9619 	# htCondor resource for explicitly defined for submission to vanilla universe, otherwise system default resource will be selected
+ROUTES_LIST=[GridResource = "condor ce504.cern.ch ce504.cern.ch:9619"; eval_set_GridResource = "condor ce504.cern.ch ce504.cern.ch:9619"; name = "Site 4"; ]  	# routes list example
+USE_EXTERNAL_CLOUD=(1 | 0) # whether to use external cloud
+
+
+Multiple routes example:
+
+ROUTES_LIST = [ TargetUniverse = 5; name = "Route jobs to HTCondor"; ] [ GridResource = "batch pbs"; TargetUniverse = 9; name = "Route jobs to PBS"; ]
+
+-------------------
+Crontab script to fill the routes list from LDAP (the output file has to be readable and executable for condor user):
+
+
+#!/bin/bash
+
+echo '#!/bin/bash' > ___SOME_FILE___
+echo "cat << EOF" >> ___SOME_FILE___
+LDAP_ADDR=alice-ldap.cern.ch:8389
+A=$(ldapsearch -x -h $LDAP_ADDR -b o=alice,dc=cern,dc=ch "(&(host=$(hostname -f))(objectClass=AlienCE))" | perl -p00e 's/\r?\n //g' | grep 'ROUTES_LIST\|USE_EXTERNAL_CLOUD')
+if [ -z "$A" ]; then
+        exit 3
+fi
+
+ROUTES_LIST=$(echo -n $A | sed 's/environment: /\n/g' | grep ROUTES_LIST | sed 's/ROUTES_LIST=//g')
+ echo -n  $ROUTES_LIST >> ___SOME_FILE___
+USE_EXTERNAL_CLOUD=$(echo $A | sed 's/environment: /\n/g' | grep USE_EXTERNAL_CLOUD | sed 's/USE_EXTERNAL_CLOUD=//')
+if [ ! -z $USE_EXTERNAL_CLOUD ] && [ $USE_EXTERNAL_CLOUD -eq 1 ]; then
+        echo '\\' >> ___SOME_FILE___
+        echo $ROUTES_LIST | sed 's/]/set_WantExternalCloud = True; ]/g' >> ___SOME_FILE___
+else
+        echo >> ___SOME_FILE___
+fi
+echo EOF >> ___SOME_FILE___
+chmod +x ___SOME_FILE___
+
+
+-------------------
+Cleanup script for junk files removal:
+
+#!/bin/sh
+
+cd ~/htcondor || exit
+
+GZ_SIZE=10k
+GZ_MINS=60
+GZ_DAYS=2
+RM_DAYS=7
+
+STAMP=.stamp
+prefix=cleanup-
+log=$prefix`date +%y%m%d`
+exec >> $log 2>&1 < /dev/null
+echo === START `date`
+for d in `ls -d 20??-??-??`
+do
+    (
+        echo === $d
+        stamp=$d/$STAMP
+        [ -e $stamp ] || touch $stamp || exit
+        if find $stamp -mtime +$RM_DAYS | grep . > /dev/null
+        then
+            echo removing...
+            /bin/rm -r $d < /dev/null
+            exit
+        fi
+        cd $d || exit
+        find . ! -name .\* ! -name \*.gz \( -mtime +$GZ_DAYS -o \
+            -size +$GZ_SIZE -mmin +$GZ_MINS \) -exec gzip -9v {} \;
+    )
+done
+find $prefix* -mtime +$RM_DAYS -exec /bin/rm {} \;
+echo === READY `date`
+
+----------------
+
+Crontab line for cleanup script:
+37 * * * * /bin/sh /home/alicesgm/htcondor-cleanup.sh
+
+=cut
+
 
 use AliEn::LQ;
 use AliEn::X509;
@@ -71,9 +160,8 @@ if(!$ENV{'USE_JOB_ROUTER'}){
 	periodic_remove = (CurrentTime - QDate) > 7*24*3600";
 	
 	$submit .= "\ngrid_resource = " . $ENV{'GRID_RESOURCE'} if($ENV{'GRID_RESOURCE'});
-	
-	# grid_resource = condor ce503.cern.ch ce503.cern.ch:9619";
-}
+	$submit .= "\n+WantExternalCloud = True" if($ENV{'USE_EXTERNAL_CLOUD'});
+}	
 else{
 	$submit .= "universe = vanilla
 	+WantJobRouter=True
@@ -82,7 +170,7 @@ else{
 	periodic_remove = (CurrentTime - QDate > 7*24*3600)";
 }
 # ----- common
-$submit .= "use_x509userproxy = true
+$submit .= "\nuse_x509userproxy = true
 environment=\"ALIEN_CM_AS_LDAP_PROXY='$cm' ALIEN_ALICE_CM_AS_LDAP_PROXY='$cm' ALIEN_JOBAGENT_ID='$ENV{ALIEN_JOBAGENT_ID}'\"
 queue 1";
 
