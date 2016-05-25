@@ -297,7 +297,7 @@ sub stop {
   system("kill $pid");
   system("rm -f " . &getPidFile());
 
-  system('kill `ps -ef | grep "' . $processName . '" | awk \'{print $2}\'`');
+  system('kill `ps -ef | grep "' . $processName . '" | LD_LIBRARY_PATH= awk \'{print $2}\'`');
 
   return 0;
 }

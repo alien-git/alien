@@ -81,7 +81,7 @@ configGuess() {
     
     if [ -r $HOME/.alien/alice.conf -a "x$ALIEN_LOGDIR" = x ] 
     then
-      ALIEN_LOGDIR=`cat $HOME/.alien/alice.conf | grep LOG_DIR | awk "{ print \\\$2}"`
+      ALIEN_LOGDIR=`cat $HOME/.alien/alice.conf | grep LOG_DIR | LD_LIBRARY_PATH= awk "{ print \\\$2}"`
     fi
     
     if [ -d $HOME/.alien/var/log/AliEn/$ALIEN_ORGANISATION ]
@@ -261,7 +261,7 @@ buildModules() {
     AMON_HOME=$HOME/.alien/amon
     BUILD_ENV=PERL5LIB=$AMON_HOME/lib/perl5:$AMON_HOME/lib/perl5/site_perl
     RUN_ENV=LD_LIBRARY_PATH=$AMON_HOME/lib DYLD_LIBRARY_PATH=$AMON_HOME/lib
-    MODULES=`amonModules | awk '{print $2}' | awk -F'.tar.gz' '{print $1}'`
+    MODULES=`amonModules | LD_LIBRARY_PATH= awk '{print $2}' | LD_LIBRARY_PATH= awk -F'.tar.gz' '{print $1}'`
     TEST=0
     
     WGETOPTS="-N --waitretry=10 --tries=3"
@@ -351,8 +351,8 @@ monitCentralService() {
       echo "Please define ALIEN_CS_LOGDIR variable or use --cs-logdir switch"
       exit
     fi 
-    SERVICE_NAME=`echo $1 | awk -F= '{print $1}'`
-    SERVICE_LOG=`echo $1  | awk -F= '{print $2}'`
+    SERVICE_NAME=`echo $1 | LD_LIBRARY_PATH= awk -F= '{print $1}'`
+    SERVICE_LOG=`echo $1  | LD_LIBRARY_PATH= awk -F= '{print $2}'`
     LOGFILES="$LOGFILES ${ALIEN_LOGDIR}/${SERVICE_LOG}.log"   
 
     cat<<EOF>>$AMON_HOME/$HOSTNAME.monitrc
@@ -373,8 +373,8 @@ EOF
 #############################################################################
 monitSiteService() {
 #############################################################################
-    SERVICE_NAME=`echo $1 | awk -F= '{print $1}'`
-    SERVICE_LOG=`echo $1  | awk -F= '{print $2}'`
+    SERVICE_NAME=`echo $1 | LD_LIBRARY_PATH= awk -F= '{print $1}'`
+    SERVICE_LOG=`echo $1  | LD_LIBRARY_PATH= awk -F= '{print $2}'`
     LOGFILES="$LOGFILES ${ALIEN_LOGDIR}/${SERVICE_LOG}.log"   
 
     cat<<EOF>>$AMON_HOME/$HOSTNAME.monitrc
