@@ -32,6 +32,7 @@ $config
   or &error(-2, "Could not get Config. (Error $@)");
   
 my $crtHost = $config->{HOST} || $config->{SITE_HOST} || Net::Domain::hostfqdn();
+$crtHost =~ s/\.$//;
 
 #print Dumper($config);
 

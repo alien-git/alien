@@ -422,7 +422,7 @@ sub SetProcInfo {
     #$values[4]='3'; #cputime
 
     my ($status) = $self->{DB}->getFieldsFromQueue($queueId, "statusId");
-    $status->{statusId} = AliEn::Util::statusName($status->{statusId});
+#    $status->{statusId} = AliEn::Util::statusName($status->{statusId});
 
     my $updateRef = {
       runtime      => $values[0],
@@ -443,12 +443,11 @@ sub SetProcInfo {
     };
 
     if ($status->{statusId} eq "ZOMBIE") {
-
       # in case a zombie comes back ....
       $self->changeStatusCommand($queueId, 'token', $status->{statusId}, "RUNNING")
         or $self->{LOGGER}
         ->error("JobManager", "In SetProcInfo could not change job $queueId from $status->{statusId} to RUNNING");
-      $updateRef->{statusId} = "RUNNING"; # ?
+#      $updateRef->{statusId} = "RUNNING"; # ?
     }
 
     my ($ok) = $self->{DB}->updateJobStats($queueId, $updateRef);

@@ -34,6 +34,8 @@ my $config=AliEn::Config->new({"organisation", $orgName});
 $config or exit(-2);
 
 my $hostname=Net::Domain::hostfqdn();
+$hostname =~ s/\.$//;
+
 my $names={};
 $names->{AUTH}="Authen";
 $names->{QUEUE}="Server";

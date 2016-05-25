@@ -75,6 +75,7 @@ sub Initialize {
 
   (defined $ENV{ALIEN_HOSTNAME})
     or $ENV{ALIEN_HOSTNAME} = Net::Domain::hostfqdn();
+  $ENV{ALIEN_HOSTNAME} =~ s/\.$//;
   $temp->{HOST}=$ENV{ALIEN_HOSTNAME};
 
   undef $self;
@@ -784,11 +785,14 @@ sub GetConfigFromService {
   }
 
   $DEBUG and $self->debug(1,"Getting the configuration done!");
-
-
-  $self->{DOMAIN}=  $ENV{ALIEN_DOMAIN}=Net::Domain::hostdomain();
-
-  $self->{HOST}= $ENV{ALIEN_HOSTNAME}=Net::Domain::hostfqdn();
+  
+  my $dom = Net::Domain::hostdomain();
+  $dom =~ s/\.$//;
+  $self->{DOMAIN}=  $ENV{ALIEN_DOMAIN} = $dom;
+  
+  my $fqdn = Net::Domain::hostfqdn();
+  $fqdn =~ s/\.$//;
+  $self->{HOST}= $ENV{ALIEN_HOSTNAME} = $fqdn;
 
   return $self;
 }

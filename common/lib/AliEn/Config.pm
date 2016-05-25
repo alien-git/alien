@@ -61,9 +61,11 @@ sub Initialize {
   $temp->SUPER::new( { logfile => $temp->{logfile} } ) or return;
   ( defined $ENV{ALIEN_DOMAIN} )
     or $ENV{ALIEN_DOMAIN} = Net::Domain::hostdomain();
+  $ENV{ALIEN_DOMAIN} =~ s/\.$//;
   $temp->{DOMAIN} = $ENV{ALIEN_DOMAIN};
   ( defined $ENV{ALIEN_HOSTNAME} )
     or $ENV{ALIEN_HOSTNAME} = Net::Domain::hostfqdn();
+  $ENV{ALIEN_HOSTNAME} =~ s/\.$//;
   $temp->{HOST} = $ENV{ALIEN_HOSTNAME};
   $organisations->{$organisationLowerCase} = $temp;
 
@@ -775,8 +777,15 @@ sub GetConfigFromCM {
     }
     $self->checkVariables();
   }
-  $this->{DOMAIN} = $ENV{ALIEN_DOMAIN}   = Net::Domain::hostdomain();
-  $this->{HOST}   = $ENV{ALIEN_HOSTNAME} = Net::Domain::hostfqdn();
+    
+  my $dom = Net::Domain::hostdomain();
+  $dom =~ s/\.$//;
+  $this->{DOMAIN} = $ENV{ALIEN_DOMAIN} = $dom;
+  
+  my $fqdn = Net::Domain::hostfqdn();
+  $fqdn =~ s/\.$//;
+  $this->{HOST} = $ENV{ALIEN_HOSTNAME} = $fqdn;
+  
   return $this;
 }
 
