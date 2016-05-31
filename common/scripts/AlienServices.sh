@@ -400,7 +400,7 @@ ALIEN_HttpdStart()
 				ans=`ps -p ${PID} -o fuser:40,comm:40 --no-headers`
 				echo "Is old httpd with pid=$PID still running?"
 				echo "  answers = ${ans}"
-				if [[ $ans == *"httpd"* && $ans == *"${ALIEN_USER}"* ]]; then
+				if [[ $ans == *"httpd"* && $ans == *`id -nu`* ]]; then
 					echo "We should do kill -9 $PID and children"
 					ps -ef | grep httpd | grep $portNum | LD_LIBRARY_PATH= awk '{print $2}' | xargs kill -9
 				fi
