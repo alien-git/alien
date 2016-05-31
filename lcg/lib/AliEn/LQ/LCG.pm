@@ -427,7 +427,7 @@ else
     wget http://alien.cern.ch/BitServers -O BitServers
 
     echo \"This platform is \$PLATFORM\"
-    URL=`grep -v -e '^#' BitServers | grep \$PLATFORM  |awk -F \\| '{print \$2}'| awk '{print \$1}'`
+    URL=`grep -v -e '^#' BitServers | grep \$PLATFORM  |awk -F \\| '{print \$2}'| LD_LIBRARY_PATH= awk '{print \$1}'`
     echo \"It will download from \$URL\"
 
     cat  >\$HOME/.alien/installer.rc <<EOF
