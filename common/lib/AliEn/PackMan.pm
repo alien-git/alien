@@ -34,10 +34,10 @@ sub new {
   }
 
   $self->{INSTALLDIR} = $self->{CONFIG}->{PACKMAN_INSTALLDIR} || "$ENV{ALIEN_HOME}/packages";
-   -d $self->{INSTALLDIR} or mkdir $self->{INSTALLDIR};
+   -d $self->{INSTALLDIR} or `mkdir -p $self->{INSTALLDIR}`;
   if (not -d $self->{INSTALLDIR})  {
     $self->{INSTALLDIR}="$ENV{ALIEN_HOME}/packages"; 
-    -d $self->{INSTALLDIR} or mkdir $self->{INSTALLDIR};
+    -d $self->{INSTALLDIR} or `mkdir -p $self->{INSTALLDIR}`;
     -d $self->{INSTALLDIR} or return;
   }
   $self->{REALLY_INST_DIR} or $self->{REALLY_INST_DIR}=$self->{INSTALLDIR};
