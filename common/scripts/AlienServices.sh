@@ -245,12 +245,12 @@ ALIEN_OneHttpdService()
   then
        if [ $tmpN == "Authen" ]
        	   then
-       	   ps -ef | grep httpd | grep $portNum | LD_LIBRARY_PATH= awk '{if ($3==1) print $2}' > $ALIEN_ROOT/httpd/logs/httpd"$serviceName".pid
+       	   ps -ef | grep httpd | grep $portNum | awk '{if ($3==1) print $2}' > $ALIEN_ROOT/httpd/logs/httpd"$serviceName".pid
        fi
        
        if [ $tmpN == "ClusterMonitor" ]
        	   then
-       	   ps -ef | grep httpd | grep $portNum | LD_LIBRARY_PATH= awk '{if ($3==1) print $2}' > $ALIEN_ROOT/httpd/logs/httpd"$serviceName".pid
+       	   ps -ef | grep httpd | grep $portNum | awk '{if ($3==1) print $2}' > $ALIEN_ROOT/httpd/logs/httpd"$serviceName".pid
        fi
        
        
@@ -258,7 +258,7 @@ ALIEN_OneHttpdService()
    
        if [ $tmpN == "JobBroker" ] || [ $tmpN == "Broker" ]
            then
-           ps -ef | grep httpd | grep $portNum | LD_LIBRARY_PATH= awk '{if ($3==1) print $2}' > $ALIEN_ROOT/httpd/logs/httpdBroker.pid
+           ps -ef | grep httpd | grep $portNum | awk '{if ($3==1) print $2}' > $ALIEN_ROOT/httpd/logs/httpdBroker.pid
            cp $ALIEN_ROOT/httpd/logs/httpdBroker.pid $ALIEN_ROOT/httpd/logs/httpdJobBroker.pid
            cp $ALIEN_ROOT/httpd/logs/httpdBroker.pid $logDir/"Broker::Job".pid
            cp $ALIEN_ROOT/httpd/logs/httpdBroker.pid $logDir/JobBroker.pid
@@ -402,7 +402,7 @@ ALIEN_HttpdStart()
 				echo "  answers = ${ans}"
 				if [[ $ans == *"httpd"* && $ans == *`id -nu`* ]]; then
 					echo "We should do kill -9 $PID and children"
-					ps -ef | grep httpd | grep $portNum | LD_LIBRARY_PATH= awk '{print $2}' | xargs kill -9
+					ps -ef | grep httpd | grep $portNum | awk '{print $2}' | xargs kill -9
 				fi
 			fi
 			
@@ -419,9 +419,9 @@ sleep 5
   
   #   if [ -f $logDir/httpd"$serviceName".pid ]
   #   then
-        #ps -ef | grep httpd | grep $portNum | LD_LIBRARY_PATH= awk '{if ($3==1) print $2}' > $logDir/httpd"$serviceName".pid
+        #ps -ef | grep httpd | grep $portNum | awk '{if ($3==1) print $2}' > $logDir/httpd"$serviceName".pid
     	echo "Getting the pid and storing in $logDir/httpd${serviceName}.pid"   
-        ps fuxwww | grep httpd | grep $portNum | LD_LIBRARY_PATH= awk '{print $2}' | head -1 > $logDir/httpd"$serviceName".pid      
+        ps fuxwww | grep httpd | grep $portNum | awk '{print $2}' | head -1 > $logDir/httpd"$serviceName".pid      
         cp $logDir/httpd"$serviceName".pid  $logDir/"$serviceName".pid 
         
   #   elif [ -f $ALIEN_ROOT/httpd/logs/httpd"$serviceName".pid ]
@@ -1099,7 +1099,7 @@ stopService()
   do
     if [ "$param" ]
     then
-      PIDS=`ps -A -o "pid ppid pgid" |grep "$param"| LD_LIBRARY_PATH= awk '{print $1}'`
+      PIDS=`ps -A -o "pid ppid pgid" |grep "$param"| awk '{print $1}'`
       TOKILL="$TOKILL $PIDS";
      fi
   done
