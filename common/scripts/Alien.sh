@@ -261,7 +261,7 @@ SetupCertEnvVars()
   dirs="$HOME/.globus $ALIEN_HOME/globus"
   if [ "$ALIEN_ORGANISATION" != "" ]
   then
-    org=`echo $ALIEN_ORGANISATION | LD_LIBRARY_PATH= awk '{print tolower($0)}'`
+    org=`echo $ALIEN_ORGANISATION | awk '{print tolower($0)}'`
     dirs=$dirs" "$ALIEN_HOME/identities.$org
   fi
   for dir in $dirs
@@ -588,8 +588,8 @@ ALIEN_Config()
   fi
 
 
-  ALIEN_PATH=`echo $ALIEN_PATH |awk  '{gsub(":", "\n" ); print $0 '} |sort -u | LD_LIBRARY_PATH= awk '{printf "%s:",$1}' | sed 's/:$//'`
-  ALIEN_LD_LIBRARY_PATH=`echo $ALIEN_LD_LIBRARY_PATH |awk  '{gsub(":", "\n" ); print $0 '} |sort -u | LD_LIBRARY_PATH= awk '{printf "%s:",$1}' | sed 's/:$//'`
+  ALIEN_PATH=`echo $ALIEN_PATH |awk  '{gsub(":", "\n" ); print $0 '} |sort -u | awk '{printf "%s:",$1}' | sed 's/:$//'`
+  ALIEN_LD_LIBRARY_PATH=`echo $ALIEN_LD_LIBRARY_PATH |awk  '{gsub(":", "\n" ); print $0 '} |sort -u | awk '{printf "%s:",$1}' | sed 's/:$//'`
 
   echo "ALIEN_PATH=$ALIEN_PATH" >> $outfile
   echo "ALIEN_LD_LIBRARY_PATH=$ALIEN_LD_LIBRARY_PATH" >> $outfile
