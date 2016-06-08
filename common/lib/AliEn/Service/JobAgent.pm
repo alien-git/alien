@@ -2259,11 +2259,11 @@ sub getProcInfo {
   # new ps has a bigger default for the 'command' column size and alien expects 16 
   # characters only but old 'ps' doesn't understand the new format with :size so we have 
   # to check first what kind of ps we have.
-  my $ps_format = "command start";
-  if(open(FILE, "ps -p 1 -o \"command:16 start:8 \%cpu\" |")){
+  my $ps_format = "command etimes";
+  if(open(FILE, "ps -p 1 -o \"command:16 etimes \%cpu\" |")){
     my $line = <FILE>; # ignore header
     $line = <FILE>;
-    $ps_format = "command:16 start:8" if $line !~ /^command:16 start:8/;
+    $ps_format = "command:16 etimes" if $line !~ /^command:16 etimes/;
     close FILE;
   }else{
     print "getProcInfo: cannot determine the ps behaviour\n";
@@ -2304,7 +2304,7 @@ sub getProcInfo {
 
     $self->debug(1, "Processing ps output: $all");
     
-    $all =~ /(.{16})\s+(.{8})\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)/;
+    $all =~ /(.{16})\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)/;
     #    print "-> $1,$2,$3,$4,$5,$6,$7\n";
     my $a1 = $1;
     my $a2 = $2;
@@ -2314,18 +2314,10 @@ sub getProcInfo {
     my $a6 = $6;
     my $a7 = $7;
     
-    my $timestart = `date +\%s -d \" $a2 \"`;
-    chomp $timestart;
-    my $timenow   = `date +%s`;
-    chomp $timenow;
-    my $timerun   = $timenow - $timestart;
+    my $starttime   = $a2;
     
-    if ($timerun<0) {
-      $timerun = (24*3600)+$timerun;
-      }
-    if ($timerun > $start) {
-      $start = $timerun;
-    }
+    $starttime > $start and $start = $starttime;
+    
     if (! ($cmd)) {
       $cmd = $a1;
     }
