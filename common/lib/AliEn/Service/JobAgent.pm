@@ -2259,11 +2259,11 @@ sub getProcInfo {
   # new ps has a bigger default for the 'command' column size and alien expects 16 
   # characters only but old 'ps' doesn't understand the new format with :size so we have 
   # to check first what kind of ps we have.
-  my $ps_format = "command etimes";
-  if(open(FILE, "ps -p 1 -o \"command:16 etimes \%cpu\" |")){
+  my $ps_format = "command";
+  if(open(FILE, "ps -p 1 -o \"command:16 \%cpu\" |")){
     my $line = <FILE>; # ignore header
     $line = <FILE>;
-    $ps_format = "command:16 etimes" if $line !~ /^command:16 etimes/;
+    $ps_format = "command:16" if $line !~ /^command:16/;
     close FILE;
   }else{
     print "getProcInfo: cannot determine the ps behaviour\n";
@@ -2273,7 +2273,7 @@ sub getProcInfo {
     chomp $npid;
     #    print "ps --no-headers --pid $npid -o \"cmd start %cpu %mem cputime rsz vsize\"\n";
     #the --no-headers and --pid do not exist in mac
-    open (FILE, "ps -p $npid -o \"$ps_format \%cpu \%mem cputime rsz vsize\"|") or print "getProcInfo: error checking ps\n" and next;
+    open (FILE, "ps -p $npid -o \"$ps_format etime \%cpu \%mem cputime rsz vsize\"|") or print "getProcInfo: error checking ps\n" and next;
     my @psInfo=<FILE>;
     close FILE;
     shift @psInfo; #get rid of the headers
@@ -2302,7 +2302,7 @@ sub getProcInfo {
       $atposition = $#procids-1;
     }
 
-    $self->debug(1, "Processing ps output: $all");
+    $self->debug(1, "Processing ps output: $all");    
     
     $all =~ /(.{16})\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)/;
     #    print "-> $1,$2,$3,$4,$5,$6,$7\n";
@@ -2314,7 +2314,11 @@ sub getProcInfo {
     my $a6 = $6;
     my $a7 = $7;
     
-    my $starttime   = $a2;
+    my @t=reverse split(/[:-]/,$a2); 
+    
+    my $starttime = $t[0]+$t[1]*60;
+    $t[2] and $starttime += $t[2]*3600;
+    $t[3] and $starttime += $t[3]*86400;
     
     $starttime > $start and $start = $starttime;
     
