@@ -159,7 +159,7 @@ sub put {
         ($xrdstat eq $size) or $self->info("WARNING: xrd stat not successful, waiting 30s...") and sleep(30) and $xrdstat = $self->xrdstat();
   
   		( ($xrdstat eq $size) and $self->debug(1, "EXCELLENT! Double checking file size on destination SE was successfully.") )
-          or $self->info("ERROR: Double checking the file size on the SE with xrd stat showed unequal file sizes!",1) and return;
+          or $self->info("ERROR: Double checking the file size on the SE with xrd stat showed unequal file sizes! PFN: $ENV{ALIEN_XRDCP_URL}",1) and return;
           $self->debug(2,"Double check file size value from xrd stat: $1");
   
         return "$self->{PROXY}root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH}";
