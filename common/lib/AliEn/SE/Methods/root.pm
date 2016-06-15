@@ -31,6 +31,7 @@ sub initialize {
 
   $self->{XRD}         = "xrd";
   $self->{XRD_OPTIONS} = "-DITransactionTimeout 300 -DIFirstConnectMaxCnt 3 -DIReadCacheSize 0 ";
+  $self->{XRD_STAT}    = "";
   
   $self->{XURL} and $self->{PROXY}="";
   
@@ -159,7 +160,7 @@ sub put {
         ($xrdstat eq $size) or $self->info("WARNING: xrd stat not successful, waiting 30s...") and sleep(30) and $xrdstat = $self->xrdstat();
   
   		( ($xrdstat eq $size) and $self->debug(1, "EXCELLENT! Double checking file size on destination SE was successfully.") )
-          or $self->info("ERROR: Double checking the file size on the SE with xrd stat showed unequal file sizes! PFN: $ENV{ALIEN_XRDCP_URL}",1) and return;
+          or $self->info("ERROR: Double checking the file size on the SE with xrd stat showed unequal file sizes! PFN: $ENV{ALIEN_XRDCP_URL} XRDSTAT: $self->{XRD_STAT}",1) and return;
           $self->debug(2,"Double check file size value from xrd stat: $1");
   
         return "$self->{PROXY}root://$self->{PARSED}->{HOST}:$self->{PARSED}->{PORT}/$self->{PARSED}->{PATH}";
@@ -192,13 +193,13 @@ sub xrdstat {
 
   $self->debug(2, "xrd stat command: $vercommand");
 
-  my $doxrcheck = `$vercommand`
+  my $self->{XRD_STAT} = `$vercommand`
     or $self->info(
 "WARNING: xrd stat to double check file size after successful write was not possible!",
     1
     );
     
-  $doxrcheck =~ /Size:\ (\d+)/;
+  $self->{XRD_STAT} =~ /Size:\ (\d+)/;
 
   return $1;
   
