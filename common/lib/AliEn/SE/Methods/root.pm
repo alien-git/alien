@@ -193,7 +193,7 @@ sub xrdstat {
 
   $self->debug(2, "xrd stat command: $vercommand");
 
-  my $self->{XRD_STAT} = `$vercommand`
+  $self->{XRD_STAT} = `$vercommand`
     or $self->info(
 "WARNING: xrd stat to double check file size after successful write was not possible!",
     1
