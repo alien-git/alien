@@ -1311,10 +1311,10 @@ sub moveLFNs {
     }
     if (!$isIndex ){
       #Finally, let's delete the old table;
-      $self->delete($fromTable,"lfn like '${tempLfn}_%'");
+      $options->{d} or $self->delete($fromTable,"lfn like '${tempLfn}_%'");
       $self->update($fromTable,{replicated=>1}, "lfn='$tempLfn'");
     } else {
-      $self->delete($fromTable,"lfn like '${tempLfn}%'");
+      $options->{d} or $self->delete($fromTable,"lfn like '${tempLfn}%'");
     }
     my $user=$self->queryValue("select owner from $toTable where lfn=''");
     $self->info("And now, let's give access to $user to '$toTable");

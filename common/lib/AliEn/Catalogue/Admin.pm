@@ -329,13 +329,14 @@ sub f_chgroup {
 
 sub moveDirectory_HELP {
   return "Usage:
-moveDirectory [-b] <lfn>
+moveDirectory [-b] [-d] <lfn>
 where lfn is a directory
 
 Only 'admin' is allowed to excecute moveDirectory. It changes the structure of the database, putting the directory <lfn> into a new table
 
 Options:
   -b: Go back to the previous table
+  -d: Don't delete from parent table after insertion
 "
 
 }
@@ -345,7 +346,7 @@ sub moveDirectory {
   @ARGV=@_;
   my $opt={};
   
-  Getopt::Long::GetOptions($opt,  "b") or
+  Getopt::Long::GetOptions($opt,  "b", "d") or
      $self->info("Error: unkown options:'@_'\n" . $self->moveDirectory_HELP()) and return;
   @_=@ARGV;
 

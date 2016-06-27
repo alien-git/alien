@@ -1013,7 +1013,7 @@ sub _queryDB{
   while (1) {
     my $sqlError="";
     eval {
-      alarm(3600);
+      alarm(3600*4);
       my $sth = $self->{DBH}->prepare_cached($stmt);
       #      my $sth = $self->{DBH}->prepare($stmt);
       $DBI::errstr and $sqlError.="In prepare: $DBI::errstr\n";
@@ -1083,7 +1083,7 @@ sub _do{
     my $sqlError="";
 
     $result = eval {
-      alarm(3600);
+      alarm(3600*4);
       my $tmp;
       if ($options->{prepare}) {
   $DEBUG and $self->debug(2,"In _do doing $stmt @bind_values");
