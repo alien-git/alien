@@ -176,6 +176,15 @@ sub initialize {
    } else {   
      $self->{PACKMAN}=AliEn::PackMan->new({PACKMAN_METHOD=>"Local"});
    }
+   
+  # check if we want to limit how many jobs to run in the JobAgent
+  # comes form the environment variable JOBLIMIT in the CE entry
+  my @joblimit;
+  defined $self->{CONFIG}->{CE_ENVIRONMENT_LIST} and @joblimit = grep( /JOBLIMIT/i,  @{$self->{CONFIG}->{CE_ENVIRONMENT_LIST}} );
+  if (scalar(@joblimit)){
+  	my $var = shift @joblimit;
+    $self->{JOBLIMIT} = (split /=/,$var)[1];
+  }
 
   $self->{WORKDIR} = $ENV{HOME};
   # If specified, this directory is used. REMARK If $ENV{WORKDIR} is set, this is used!!
@@ -244,6 +253,8 @@ sub requestJob {
   open (FILE, ">$self->{WORKDIRFILE}") or print "Error opening the file $self->{WORKDIRFILE}\n" and return;
   print FILE "WORKDIR=$self->{WORKDIR}\n";
   close FILE;
+  
+  $self->{UI} = $self->getCatalogue();
 
   #This subroutine has a fork. The father will do the rest, while the child returns and starts the JobAgent
   ( $self->startMonitor() ) or $self->sendJAStatus('ERROR_START') and return;
@@ -915,8 +926,14 @@ sub getCatalogue {
   my $catalog;
   my $traceactive = defined $self->{CONFIG}->{CE_ENVIRONMENT_LIST} && grep( /DEVELTRACE/i,  @{$self->{CONFIG}->{CE_ENVIRONMENT_LIST}} )
                     || 0;
+  my $catalogue_tries=3;
   
+  $self->{UI} and return $self->{UI};
+  
+  # AliEn::UI::Catalogue::LCM->new({no_catalog=>1,role=>$self->{JOB_USER}}); 
   eval{ 
+  	$self->{JOB_USER} and $options->{role} = $self->{JOB_USER};
+  	
     $options->{silent} or $options->{silent}=0;
 
   if ( $self->{CONFIG}->{CE_INSTALLMETHOD} and $self->{CONFIG}->{CE_INSTALLMETHOD}=~"CVMFS" ) {
@@ -937,7 +954,13 @@ sub getCatalogue {
     open (STDERR, '>>', 'develTrace_'.$ENV{ALIEN_PROC_ID}.'');
     $Devel::Trace::TRACE = $traceactive;
     
-    $catalog = AliEn::UI::Catalogue::LCM::->new($options);
+    while($catalogue_tries){
+      $self->info("Doing new catalogue $$ ($catalogue_tries)");
+      $catalog = AliEn::UI::Catalogue::LCM::->new($options);
+      $catalog and last;
+      $catalogue_tries--;
+      sleep(5);
+    }
     
     $Devel::Trace::TRACE = 0;
     open (STDERR, '>&', $STDOLD);    
@@ -1001,20 +1024,17 @@ sub executeCommand {
   $self->changeStatus("%",  "STARTED", $batchid,$self->{HOST}, $self->{PROCESSPORT} );
 
   $ENV{ALIEN_PROC_ID} = $self->{QUEUEID};
-  my $catalog=$self->getCatalogue() or return;
+  $self->{UI} = $self->getCatalogue() or return;
 
   $self->debug(1, "Getting input files and command");
-  if ( !( $self->getFiles($catalog) ) ) {
+  if ( !( $self->getFiles($self->{UI}) ) ) {
     print STDERR "Error getting the files\n";
-    $catalog->close();
+    $self->{UI}->close();
     $self->registerLogs(0);
 
     $self->changeStatus("%",  "ERROR_IB");
     return ;
   }
-  $catalog->close();
-
-  #    my $localDir="$self->{CONFIG}->{TMP_DIR}/proc$self->{QUEUEID}";
   
   my $timecommand="";
   my $hasgnutime = 0;
@@ -1028,29 +1048,6 @@ sub executeCommand {
   }
   my @list = "$timecommand$self->{WORKDIR}/command$self->{ARG}";
 
-#  my ( $ok, @outputFiles ) =
-#    $self->{CA}->evaluateAttributeVectorString("OutputFile");
-
-#  if (($ok) and @outputFiles) {
-#      $self->{OUTPUTFILES} = join(" $self->{WORKDIR}/",@outputFiles);
-#      @list=(@list, " --output ". join(",,",@outputFiles) . " ");
-#  }
-
-#  my ( $ok2, @inputData ) =  
-#    $self->{CA}->evaluateAttributeVectorString("InputData");
-
-#  if (($ok2) and @inputData) {
-#      $self->{INPUTDATA} = join(" ",@inputData);
-#      @list=(@list, " --inputdata ". join(",,",@inputData) . " " );
-#  }
-
-#  my ( $ok3, @inputFiles ) =
-#      $self->{CA}->evaluateAttributeVectorString("InputFile");
-
-#  if (($ok3) and @inputFiles) {
-#      $self->{INPUTFILES} = join(" $self->{WORKDIR}/",@inputFiles);
-#      @list=(@list, " --input ". join(",,",@inputFiles) . " ");
-#  }
   my ($ok,  @packages)=$self->{CA}->evaluateAttributeVectorString("Packages");
   my $user=$self->{CA}->evaluateAttributeString("User");
   if ($ok) {
@@ -1796,7 +1793,7 @@ sub prepare_Error_Files {
     my ($ok, @outputEntriesError ) = $self->{CA}->evaluateAttributeVectorString("OutputErrorE");
     $ok and scalar(@outputEntriesError) or return 1;
 
-    $self->{UI} = AliEn::UI::Catalogue::LCM->new({no_catalog=>1,role=>$self->{JOB_USER}});
+    $self->{UI} or $self->{UI} = $self->getCatalogue();
     if (!$self->{UI}) {
       $self->info("Error getting an instance of the catalog saving ERROR_E output");
       $self->putJobLog("error","Could not get an instance of the LCM saving ERROR_E output");
@@ -1917,7 +1914,20 @@ sub putFiles {
     ( ($self->{STATUS} =~ /^ERROR_V/) or ($self->{STATUS} =~ /^ERROR_E/) ) 
         and  $self->{PROCDIR} = "$self->{CONFIG}->{USER_DIR}/".substr($user, 0, 1)."/$user/recycle/alien-job-$ENV{ALIEN_PROC_ID}"; 
 
-    $self->{UI}->execute("mkdir","-p",$self->{PROCDIR});
+    
+    my $counter=3;
+    
+    while($counter){
+      my $ec = $self->{UI}->execute("mkdir","-p",$self->{PROCDIR});
+      $ec and last;
+      $counter--;
+      sleep(5);
+    }
+    
+    if(!$counter){
+    	$self->putJobLog("trace", "Could not create OutputDir: $self->{PROCDIR}");
+    	return 0;
+    }
     
     foreach my $fs_table (@filesAndArchives) {
       $JDLOutputCount += scalar(keys(%$fs_table)); 
@@ -2234,11 +2244,10 @@ sub getProcInfo {
   my $start=0;
   my $cpu=0;
   my $mem=0;
-  my $cputime=0;
+#  my $cputime=0;
   my $rsz=0;
   my $vsize=0;
-  my @procids;
-  my @proccpu;
+  my $global_cpu_runtime=0;
 
   $self->debug(1, "Getting the procInfo of $pid");
 
@@ -2253,6 +2262,16 @@ sub getProcInfo {
     }else{
       delete $self->{CPU_KSI2K};
     }
+  }
+  
+  # Evacuate process that finished
+  for my $pid (keys %{ $self->{CPUPIDS} } ) {
+  	  $self->debug("Passing key $pid");
+  	  if(!grep(/$pid/, @allprocs)) {
+  	    $self->{CPURUNTIMEPIDS} += $self->{CPUPIDS}->{$pid};
+  	    delete $self->{CPUPIDS}->{$pid};
+  	    $self->debug("Sub-process $pid done, adding cputime");
+  	  }
   }
   
   # check if we have a new ps
@@ -2281,26 +2300,9 @@ sub getProcInfo {
     my $all=shift @psInfo;
     $all or next;
 
-    # look for the pid in the proclist
-    my $checkpid;
-    my $position=0;
-    my $atposition=-1;
-    for $checkpid (@procids) {
-      if ($checkpid == $npid) {
-	$atposition=$position;
-	last;
-      }
-      $position++;
-    }
-    
-    # add, if it does not exist yet ....
-    if ($atposition == -1) {
-      my $cpu0=0;
-      # add to the list;
-      push @procids, $npid;
-      push @proccpu, $cpu0;
-      $atposition = $#procids-1;
-    }
+	# This hash keeps track of cpuruntime per pid and check for pid existence during runtime
+	# Dumps the cpuruntime to a variable when process finishes
+	$self->{CPUPIDS}->{$npid} or $self->{CPUPIDS}->{$npid}=0;
 
     $self->debug(1, "Processing ps output: $all");    
     
@@ -2331,14 +2333,18 @@ sub getProcInfo {
     my ($cpuh,$cpum,$cpus) = split ":",$a5;
     my $cpusec = $cpuh*3600 + $cpum*60 + $cpus;
     
-    $cputime += $cpusec;
+#    $cputime += $cpusec;
     $rsz += $a6;
     $vsize += $a7;
-    #    print $npid,": $a1, $a2, $a3, $a4, $a5, $a7,  Running $timestart $timerun seconds\n";
     
-    if ($cpusec > $proccpu[$atposition]) {
-      $proccpu[$atposition] = $cpusec;
+    if ($cpusec < $self->{CPUPIDS}->{$npid}) {
+      $self->{CPURUNTIMEPIDS} += $self->{CPUPIDS}->{$npid};
     }
+    $self->{CPUPIDS}->{$npid} = $cpusec;
+    
+    # This variable will contain the total cpuruntime to return (current processes + previous)
+    # The previous is stored in $self->{CPURUNTIMEPIDS}
+    $global_cpu_runtime += $cpusec;
     
     if ($start < 60 ) {
       $runtime = sprintf "00:00:%02d", $start; 
@@ -2351,28 +2357,20 @@ sub getProcInfo {
     }
   }
   my ($ncpu, $cpuspeed, $cpufamily)= $self->getSystemInfo();
-
-  my $sumcpu=0;
-  my $accpu;
-  for $accpu (@proccpu) {  
-    $sumcpu+=$accpu;
-  }
   
-#  my $resourcecost = sprintf "%.02f",$cputime * $cpuspeed/1000;
-
   # work aroung, because this values are not available on mac
   defined $cpuspeed
       or $cpuspeed = 0;
   defined $cpufamily
       or $cpufamily = "unknown";
+      
+  
+  $global_cpu_runtime += $self->{CPURUNTIMEPIDS};
+  my $resourcecost = sprintf "%.02f",$global_cpu_runtime * $cpuspeed/1000;
 
-  my $resourcecost = sprintf "%.02f",$sumcpu * $cpuspeed/1000;
-
-#  if (@allprocs) {
-  $self->debug(1, "Returning: $runtime $start $cpu $mem $cputime $rsz $vsize $ncpu $cpufamily $cpuspeed $resourcecost");
-  return "$runtime $start $cpu $mem $cputime $rsz $vsize $ncpu $cpufamily $cpuspeed $resourcecost"
-      #
-#  }
+  $self->debug(1, "Returning: $runtime $start $cpu $mem $global_cpu_runtime $rsz $vsize $ncpu $cpufamily $cpuspeed $resourcecost");
+  #return "$runtime $start $cpu $mem $cputime $rsz $vsize $ncpu $cpufamily $cpuspeed $resourcecost";
+  return "$runtime $start $cpu $mem $global_cpu_runtime $rsz $vsize $ncpu $cpufamily $cpuspeed $resourcecost";  
 }
 
 sub getSystemInfo {
@@ -2411,12 +2409,17 @@ sub firstExecution {
   my $method=shift;
   $self->debug(1, "First time that we check the process");
   
+  $self->putJobLog("trace","ProcInfo: runtime runtime(s) avgcpu avgmem cputime rsz vsize ncpus cpufamily cpuspeed maxresourcecost avgrsz avgvsize");
+    
   my $date =localtime;
   $date =~ s/^\S+\s(.*):[^:]*$/$1/	;
   $self->{STARTTIME} = $date;
   my $counter=0;
   my $procinfo;
   do {
+  	delete $self->{CPUPIDS};
+  	$self->{CPURUNTIMEPIDS}=0;
+  	
     $procinfo = $self->getProcInfo($self->{PROCESSID});
 
     $counter++;
@@ -2529,12 +2532,11 @@ sub lastExecution {
 	    $self->{AVVSIZE} = int ($self->{SUMVSIZE}/$self->{SUMCOUNT});
 	    $self->{AVCPU}   = sprintf "%.02f",($self->{SUMCPU}/$self->{SUMCOUNT});
 	  }     
-	  my $cputime = sprintf "%.02f",($self->{AVCPU}/100*$ap[1]);
 	  
 	  $self->{MAXRSIZE} = int ($self->{MAXRSIZE});
 	  $self->{MAXVSIZE} = int ($self->{MAXVSIZE});
 	
-	  my $procinfo = "$ap[0] $ap[1] $self->{AVCPU} $ap[3] $cputime $self->{MAXRSIZE} $self->{MAXVSIZE} $ap[7] $ap[8] $ap[9] $self->{MAXRESOURCECOST} $self->{AVRSIZE} $self->{AVVSIZE}";
+	  my $procinfo = "$ap[0] $ap[1] $self->{AVCPU} $ap[3] $ap[4] $self->{MAXRSIZE} $self->{MAXVSIZE} $ap[7] $ap[8] $ap[9] $self->{MAXRESOURCECOST} $self->{AVRSIZE} $self->{AVVSIZE}";
 	  $procinfo .= " $self->{CPU_KSI2K}" if(defined $self->{CPU_KSI2K});
 	  $self->info("Last ProcInfo: $procinfo");
 	  
@@ -2649,7 +2651,7 @@ sub lastExecution {
 	
 	  # store the files
 	  #$self->putFiles() or $self->{STATUS}="ERROR_SV";  old entry, redirected trough new funtion:
-	  $self->{UI} = AliEn::UI::Catalogue::LCM->new({no_catalog=>1,role=>$self->{JOB_USER}});
+	  $self->{UI} or $self->{UI} = $self->getCatalogue();
 	  if (!$self->{UI}) {
 	      $self->info("Error getting an instance of the catalog");
 	      $self->putJobLog("error","Could not get an instance of the LCM");
@@ -2684,6 +2686,7 @@ sub lastExecution {
   $self->{SOAP}->CallSOAP("CLUSTERMONITOR", "jobExits", $ENV{ALIEN_PROC_ID});
   delete $ENV{ALIEN_JOB_TOKEN};
   delete $ENV{ALIEN_PROC_ID};
+  delete $self->{UI};
     
   if (!$killJob && !$success){
     $self->sendJAStatus('DONE', {totaljobs=>$self->{TOTALJOBS}, error=>1});
@@ -2714,9 +2717,12 @@ sub checkWakesUp {
   if (! $self->{JOBLOADED}) {
     $self->sendJAStatus('REQUESTING_JOB');
     $self->info("Asking for a new job");
-    if (! $self->requestJob()) {
+        
+    if ( (defined $self->{JOBLIMIT} and $self->{TOTALJOBS}>=$self->{JOBLIMIT}) || 
+    		!$self->requestJob() ) {
       $self->sendJAStatus('DONE',  {totaljobs=>$self->{TOTALJOBS}});
-      $self->info("There are no jobs to execute. We have executed $self->{TOTALJOBS}");
+      $self->info("There are no jobs to execute (or we reached limit). We have executed $self->{TOTALJOBS}.");
+      defined $self->{JOBLIMIT} and $self->info("Limit is $self->{JOBLIMIT}");
       #Tell the CM that we are done"
       $self->{MONITOR} and 
         $self->{MONITOR}->sendParameters("$self->{CONFIG}->{SITE}_".$self->{SERVICENAME}, "$self->{HOST}:$self->{PORT}", 
@@ -2795,10 +2801,10 @@ sub checkWakesUp {
       $self->{AVRSIZE} = int ($self->{SUMRSIZE}/$self->{SUMCOUNT});
       $self->{AVVSIZE} = int ($self->{SUMVSIZE}/$self->{SUMCOUNT});
       $self->{AVCPU}   = sprintf "%.02f",($self->{SUMCPU}/$self->{SUMCOUNT});
-      my $cputime = sprintf "%.02f",($self->{AVCPU}/100*$all[1]);
+#      my $cputime = sprintf "%.02f",($self->{AVCPU}/100*$all[1]);
       
-#      $self->{PROCINFO} = "$all[0] $all[1] $self->{AVCPU} $all[3] $all[4] $all[5] $all[6] $all[7] $all[8] $all[9] $self->{MAXRESOURCECOST} $self->{AVRSIZE} $self->{AVVSIZE}";     	
-      $self->{PROCINFO} = "$all[0] $all[1] $self->{AVCPU} $all[3] $cputime $all[5] $all[6] $all[7] $all[8] $all[9] $self->{MAXRESOURCECOST} $self->{AVRSIZE} $self->{AVVSIZE}";
+#      $self->{PROCINFO} = "$all[0] $all[1] $self->{AVCPU} $all[3] $cputime $all[5] $all[6] $all[7] $all[8] $all[9] $self->{MAXRESOURCECOST} $self->{AVRSIZE} $self->{AVVSIZE}";     	
+      $self->{PROCINFO} = "$all[0] $all[1] $self->{AVCPU} $all[3] $all[4] $all[5] $all[6] $all[7] $all[8] $all[9] $self->{MAXRESOURCECOST} $self->{AVRSIZE} $self->{AVVSIZE}";
       $self->{PROCINFO} .= " $self->{CPU_KSI2K}" if defined($self->{CPU_KSI2K});
       last;
     }

@@ -381,7 +381,7 @@ sub setUserGroup{
 
   $self->debug(1,"Setting the userid to $user ($group)");
   $self->{$field}=$user;
-  $self->{MAINGROP}=$group;
+  $self->{MAINGROUP}=$group;
   foreach my $index (keys %{$Connections{$self->{UNIQUE_NM}}}){
     $Connections{$self->{UNIQUE_NM}}->{$index}->{$field}=$user;
     $Connections{$self->{UNIQUE_NM}}->{$index}->{MAINGROUP}=$group;
