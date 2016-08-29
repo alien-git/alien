@@ -400,11 +400,16 @@ sub extractClassadParams {
 
 	($ok, $params->{splitFiles})= $classad->evaluateAttributeString("SplitMaxInputFileNumber");
 
-        ($ok, my $reqs) = $classad->evaluateExpression("Requirements");
-        while ($reqs =~ s/\s*other.user\s*==\s*"([^"]*)"//i) {
-          $params->{cerequirements_users}.="".$self->{DB}->getOrInsertFromLookupTable('user',$1).",";
-        }
-        $params->{cerequirements_users} and $params->{cerequirements_users} =~ s/,$//g;
+    ($ok, my $reqs) = $classad->evaluateExpression("Requirements");
+    while ($reqs =~ s/\s*other.user\s*==\s*"([^"]*)"//i) {
+      $params->{cerequirements_users}.="".$self->{DB}->getOrInsertFromLookupTable('user',$1).",";
+    }
+    $params->{cerequirements_users} and $params->{cerequirements_users} =~ s/,$//g;
+    
+    while ($reqs =~ s/\s*other.user\s*!=\s*"([^"]*)"//i) {
+      $params->{cerequirements_nousers}.="".$self->{DB}->getOrInsertFromLookupTable('user',$1).",";
+    }
+    $params->{cerequirements_nousers} and $params->{cerequirements_nousers} =~ s/,$//g;
         
     ($ok, my $cvmfs) = $classad->evaluateExpression("CVMFS");
     $ok and $cvmfs and $params->{cvmfs}=1;

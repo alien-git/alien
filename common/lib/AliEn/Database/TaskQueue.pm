@@ -1684,9 +1684,17 @@ sub getNumberWaitingForSite{
   	my @userList = split(/,/, $options->{cerequirements_users});
   	my $or=" and (";
   	foreach my $userid ( @userList ){
-  		$where.="$or userId like ?" and push @bind,$userid and $or=" or ";
+  		$where.="$or userId = ?" and push @bind,$userid and $or=" or ";
   	}
   	$where.=")";
+  }
+  
+  if( $options->{cerequirements_nousers} ){
+  	my @userList = split(/,/, $options->{cerequirements_nousers});
+  	my $or=" and ";
+  	foreach my $userid ( @userList ){
+  		$where.="$or userId != ? " and push @bind,$userid;
+  	}
   }
 
   if($options->{remote}==1){
