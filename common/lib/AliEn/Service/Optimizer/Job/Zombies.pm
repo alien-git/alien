@@ -38,7 +38,6 @@ sub checkTransition{
 
   my $now = time;
 
-  my $zombiewaittime = 3600;
   my $query = $self->{DB}->getJobOptimizerZombies($status);
   my $pct = $self->{DB}->getFieldsFromQueueEx("p.procinfotime,statusId,p.queueId,now()-lastupdate as lastupdate",$query);
 

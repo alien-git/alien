@@ -444,7 +444,7 @@ sub SetProcInfo {
 
     if ($status->{statusId} eq "ZOMBIE") {
       # in case a zombie comes back ....
-      $self->changeStatusCommand($queueId, 'token', $status->{statusId}, "RUNNING")
+      $self->changeStatusCommand($queueId, $status->{statusId}, "RUNNING")
         or $self->{LOGGER}
         ->error("JobManager", "In SetProcInfo could not change job $queueId from $status->{statusId} to RUNNING");
 #      $updateRef->{statusId} = "RUNNING"; # ?

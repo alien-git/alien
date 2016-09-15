@@ -2266,11 +2266,11 @@ sub getProcInfo {
   
   # Evacuate process that finished
   for my $pid (keys %{ $self->{CPUPIDS} } ) {
-  	  $self->debug("Passing key $pid");
+  	  $self->debug(1, "Passing key $pid");
   	  if(!grep(/$pid/, @allprocs)) {
   	    $self->{CPURUNTIMEPIDS} += $self->{CPUPIDS}->{$pid};
   	    delete $self->{CPUPIDS}->{$pid};
-  	    $self->debug("Sub-process $pid done, adding cputime");
+  	    $self->debug(1, "Sub-process $pid done, adding cputime");
   	  }
   }
   

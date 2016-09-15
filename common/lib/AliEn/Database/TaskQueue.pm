@@ -1786,7 +1786,7 @@ sub resubmitJob{
 	
 	$self->do("update QUEUEJDL set resultsJdl=null,path=null where queueid=?",{bind_values=>[$queueid]} );
 	my $status='WAITING';
-	my $data=$self->queryRow("select siteid,statusId,masterjob,split from QUEUE where queueid=?", undef, {bind_values=>[$queueid]})
+	my $data=$self->queryRow("select siteid,statusId,masterjob,split,nodeId from QUEUE where queueid=?", undef, {bind_values=>[$queueid]})
 	 or $self->info("Error getting the previous status of the job ") and return;
 	 
 	my $previousStatus=AliEn::Util::statusName($data->{statusId});
@@ -1795,22 +1795,39 @@ sub resubmitJob{
 	
 	my $unassignedId=$self->findSiteId("unassigned::site");
  	
-	#$self->queryValue("select 1 from QUEUE where queueid=? and masterjob=1", undef, {bind_values=>[$queueid]})
-        $data->{masterjob}  and $status='INSERTING';
-        $previousStatus =~ /^ERROR_I$/ and $status='INSERTING';
+    $data->{masterjob}  and $status='INSERTING';
+    $previousStatus =~ /^ERROR_I$/ and $status='INSERTING';
 	$self->do("UPDATE QUEUE SET statusId= ? ,resubmission= resubmission+1 ,started= '' ,
                  finished= '' ,exechostid= null,siteid=$unassignedId  WHERE queueid=? ",
 		{bind_values=>[AliEn::Util::statusForML($status), $queueid]	} );
 	$self->do("UPDATE SITEQUEUES set $previousStatus=$previousStatus-1 where siteid=?", {bind_values=>[$previousSiteId]});
 	$self->do("UPDATE SITEQUEUES set $status=$status+1 where siteid=$unassignedId");
 
-        $data->{split} and 
-          $self->do("UPDATE QUEUE set statusId=? where queueId=?", {bind_values=>[AliEn::Util::statusForML("SPLIT"),$data->{split}]});  
+    $data->{split} and 
+      $self->do("UPDATE QUEUE set statusId=? where queueId=?", {bind_values=>[AliEn::Util::statusForML("SPLIT"),$data->{split}]});  
     
-	#Should we delete the QUEUEPROC??? Nope, that's defined as on cascade delete
+    # send kill message if it was in an active state
+	if ( $data->{nodeId} and ($previousStatus=~/STARTED/ or $previousStatus=~/RUNNING/ or $previousStatus=~/ZOMBIE/
+	       or $previousStatus=~/ASSIGNED/ or $previousStatus=~/SAVING/) ) {
+	  	my $host="";
+	  	$host=$self->queryValue("SELECT host from QUEUE_HOST where hostid=?", undef, {bind_values=>[$data->{nodeId}]})
+	      and $host .= "-".$queueid;
+	    $DEBUG and $self->debug(1, "Sending a message to $host to kill (due to resubmit) the process $queueid ($previousStatus)");
+	    my $current = time() + (5*3600);
+	    my ($ok) = $self->insertMessage(
+	      { TargetHost    => $host,
+	        TargetService => 'JobAgent',
+	        Message       => 'killProcess',
+	        ID            => $queueid,
+	        Expires       => $current
+	      }
+	    );
+    	($ok)
+     	 or $self->info( "In resubmitJob error inserting the message");
+    }
 	
 	#Finally, udpate the JOBAGENT
-        if ($status =~ /WAITING/){	
+    if ($status =~ /WAITING/){	
   	  my $done=$self->do("update JOBAGENT join QUEUE on (agentid=entryid) set counter=counter+1 where queueid=?",
 	    {bind_values=>[$queueid]});
 	  if ($done =~ /0E0/){
