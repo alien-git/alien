@@ -214,14 +214,14 @@ $passwd = $addbh->getFieldFromTokens($addbh->{ORACLE_USER},'password');
 #  $addbh->destroy();
 
   #We have to grant select privileges on the transfer and IS databases
-  my @transfers=split('/', $self->{CONFIG}->{TRANSFER_DATABASE});
-  my @privileges = ("SELECT ON $self->{CONFIG}->{QUEUE_DATABASE}.*",
-		    "SELECT ON $transfers[2].*",
-		    "SELECT ON $self->{CONFIG}->{IS_DATABASE}.*", 
+#  my @transfers=split('/', $self->{CONFIG}->{TRANSFER_DATABASE});
+#  my @privileges = ("SELECT ON $self->{CONFIG}->{QUEUE_DATABASE}.*",
+#		    "SELECT ON $transfers[2].*",
+#		    "SELECT ON $self->{CONFIG}->{IS_DATABASE}.*", 
+#
+#);
 
-);
-
-  $self->{DATABASE}->grantPrivilegesToUser(\@privileges,$user);
+#  $self->{DATABASE}->grantPrivilegesToUser(\@privileges,$user);
   $self->info( "Creating new homedir for  $user");
   $self->f_mkdir( "p", $homedir ) or 
     $self->info( "Error creating $homedir") and return ;
