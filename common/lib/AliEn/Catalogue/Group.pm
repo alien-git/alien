@@ -156,6 +156,7 @@ sub f_chown {
   $db->{DRIVER} =~ /Oracle/ and
   $db_user = $db->{ORACLE_USER};
 
-  return $db->do("GRANT ALL on $dbName.$table->{name} to $db_user");
+  return 1;
+#  return $db->do("GRANT ALL on $dbName.$table->{name} to $db_user");
 }
 return 1;
