@@ -1359,13 +1359,22 @@ sub calculateFileQuota {
     
     #check if all tables exist for $LTableIdx
     $db->checkLFNTable("${LTableIdx}");
-    
+        
     $self->$method(@data, "Checking if the table ${LTableName} is up to date");
-    $db->queryValue("select 1 from (select max(ctime) ctime, count(1) counter from $LTableName) a left join LL_ACTIONS on tablenumber=? and action='QUOTA' where extra is null or extra<>counter or time is null or time<ctime", undef, {bind_values=>[$LTableIdx]}) or next;
     
+#    $db->queryValue("select 1 from (select max(ctime) ctime, count(1) counter from $LTableName) a left join LL_ACTIONS on tablenumber=? and action='QUOTA' where extra is null or extra<>counter or time is null or time<ctime", undef, {bind_values=>[$LTableIdx]}) or next;
+    
+    my $row = $db->queryRow("select max(ctime) ctime, count(1) counter from $LTableName");
+    
+    $db->queryValue("select tableNumber from LL_ACTIONS where tablenumber=? and action='QUOTA' and 
+    (extra is null or extra<>? or time is null or time<?)", 
+    undef, {bind_values=>[$LTableIdx, $row->{counter}, $row->{ctime}]}) or next;
+        
   	$self->$method(@data, "Updating the table ${LTableName}");
   	$db->do("delete from LL_ACTIONS where action='QUOTA' and tableNumber=?", {bind_values=>[$LTableIdx]});
-  	$db->do("insert into LL_ACTIONS(tablenumber, time, action, extra) select ?, max(ctime), 'QUOTA', count(1) from $LTableName",{bind_values=>[$LTableIdx]});
+  	$db->do("insert into LL_ACTIONS(tablenumber, time, action, extra) values (?, ?, ?, ?)",
+  	{bind_values=>[$LTableIdx, $row->{ctime}, 'QUOTA', $row->{counter}]});
+  	# insert into LL_ACTIONS(tablenumber, time, action, extra) select '368762', max(ctime), 'QUOTA', count(1) from L368762L
   	
     my %sizeInfo;
     $db->do("delete from ${LTableName}_QUOTA");
@@ -1409,13 +1418,6 @@ sub calculateFileQuota {
       }
     }
   }
-
-  # tmp solution
-
-#  $self->{PRIORITY_DB} or 
-#    $self->{PRIORITY_DB}=AliEn::Database::TaskPriority->new({ROLE=>'admin',SKIP_CHECK_TABLES=> 1});
-#  $self->{PRIORITY_DB}
-#    or return;
 
   $self->$method(@data, "Updating FQUOTAS table");
   $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->lock("FQUOTAS");
