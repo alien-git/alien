@@ -1346,7 +1346,7 @@ sub getTopFromDB {
   #my $args =join (" ", @_);
   my $date = time;
 
-  my $usage="\n\tUsage: top [-status <status>] [-user <user>] [-host <exechost>] [-command <commandName>] [-id <queueId>] [-split <origJobId>] [-all] [-all_status] [-site <siteName>] [-r]";
+  my $usage="\n\tUsage: top [-status <status>] [-user <user>] [-host <exechost>] [-command <commandName>] [-id <queueId>] [-split <origJobId>] [-all] [-all_status] [-site <siteName>] [-r] [-node <nodehost>]";
 
   $self->info( "Asking for top..." );
 
@@ -1388,8 +1388,16 @@ sub getTopFromDB {
        $siteid or $self->info("Error: the site $siteName does not exist ") and return;
        $where .=  " and siteid=$siteid";
        next;
-     
     }  
+    
+    if ($argv=~ /^-?-node=?/){
+       my $nodeName=shift;
+       my $nodeId=$self->{TASK_DB}->getOrInsertFromLookupTable('host', $nodeName, 0);
+       $nodeId or $self->info("Error: the node $nodeName does not exist ") and return;
+       $where .=  " and nodeId=$nodeId";
+       next;
+    }  
+    
     my $found;
     foreach my $column (@columns){
       if ($argv=~ /^-?-$column->{pattern}$/ ){

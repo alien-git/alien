@@ -652,18 +652,21 @@ sub getOrInsertFromLookupTable{
   my $self=shift;
   my $key=shift;
   my $value=shift;
+  my $insert = shift || 1;
   
   my $table="QUEUE_".uc($key);
   my $id="${key}id";
   
- $self->info("HEELO LO WORLD"); 
   my $hostId=$self->queryValue("select $id from $table where $key=?", undef, {bind_values=>[$value]});
   $self->info("AND WE ARE GOING TO RETURN $hostId"); 
   $hostId and return $hostId;
-  $self->info("This is the first time that we see the $key '$value'");
-  $self->do("insert into $table ($key) values (?)", {bind_values=>[$value]});
- 
-  return $self->queryValue("select $id from $table where $key=?", undef, {bind_values=>[$value]});
+  
+  if($insert){
+  	$self->info("This is the first time that we see the $key '$value'");
+  	$self->do("insert into $table ($key) values (?)", {bind_values=>[$value]});
+  	return $self->queryValue("select $id from $table where $key=?", undef, {bind_values=>[$value]});
+  }
+  return;
 }
 
 sub getHostName{
