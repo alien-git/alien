@@ -2236,7 +2236,7 @@ sub getChildProcs {
 
 
 sub getProcInfo {
-  my $this = shift;
+  my $self = shift;
   my $pid = shift;
   my @allprocs;
   my $cmd=0;
@@ -2266,9 +2266,9 @@ sub getProcInfo {
   
   # Evacuate process that finished
   for my $pid (keys %{ $self->{CPUPIDS} } ) {
-  	  $self->debug(1, "Passing key $pid");
+  	  $self->debug(1, "Passing key $pid");	  
   	  if(!grep(/$pid/, @allprocs)) {
-  	    $self->{CPURUNTIMEPIDS} += $self->{CPUPIDS}->{$pid};
+  	    $self->{CPUPIDS}->{$pid}->{cpu} and $self->{CPURUNTIMEPIDS} += $self->{CPUPIDS}->{$pid}->{cpu};
   	    delete $self->{CPUPIDS}->{$pid};
   	    $self->debug(1, "Sub-process $pid done, adding cputime");
   	  }
@@ -2300,22 +2300,26 @@ sub getProcInfo {
     my $all=shift @psInfo;
     $all or next;
 
-	# This hash keeps track of cpuruntime per pid and check for pid existence during runtime
-	# Dumps the cpuruntime to a variable when process finishes
-	$self->{CPUPIDS}->{$npid} or $self->{CPUPIDS}->{$npid}=0;
-
     $self->debug(1, "Processing ps output: $all");    
     
     $all =~ /(.{16})\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)/;
-    #    print "-> $1,$2,$3,$4,$5,$6,$7\n";
-    my $a1 = $1;
-    my $a2 = $2;
-    my $a3 = $3;
-    my $a4 = $4;
-    my $a5 = $5;
-    my $a6 = $6;
-    my $a7 = $7;
+    #COMMAND  ELAPSED    %CPU %MEM TIME     RSZ      VSZ
+    #example  4-07:04:37 20.5 39.1 21:12:48 12859196 221710856
+    my $a1 = $1; # command
+    my $a2 = $2; # elapsed
+    my $a3 = $3; # %cpu
+    my $a4 = $4; # %mem
+    my $a5 = $5; # cputime
+    my $a6 = $6; # rsz
+    my $a7 = $7; # vsz    
     
+   	# This hash keeps track of cpuruntime per pid and check for pid existence during runtime
+	# Dumps the cpuruntime to a variable when process finishes
+	if(!$self->{CPUPIDS}->{$npid}){
+		$self->{CPUPIDS}->{$npid}->{cpu}=0;
+		$self->{CPUPIDS}->{$npid}->{command}=$a1;
+	}
+	
     my @t=reverse split(/[:-]/,$a2); 
     
     my $starttime = $t[0]+$t[1]*60;
@@ -2337,15 +2341,15 @@ sub getProcInfo {
     $rsz += $a6;
     $vsize += $a7;
     
-    if ($cpusec < $self->{CPUPIDS}->{$npid}) {
-      $self->{CPURUNTIMEPIDS} += $self->{CPUPIDS}->{$npid};
+    if ($cpusec < $self->{CPUPIDS}->{$npid}->{cpu}) {   	
+      $self->{CPURUNTIMEPIDS} += $self->{CPUPIDS}->{$npid}->{cpu};
     }
-    $self->{CPUPIDS}->{$npid} = $cpusec;
-    
+    $self->{CPUPIDS}->{$npid}->{cpu} = $cpusec;
+
     # This variable will contain the total cpuruntime to return (current processes + previous)
     # The previous is stored in $self->{CPURUNTIMEPIDS}
     $global_cpu_runtime += $cpusec;
-    
+        
     if ($start < 60 ) {
       $runtime = sprintf "00:00:%02d", $start; 
     } else {
@@ -2364,8 +2368,7 @@ sub getProcInfo {
   defined $cpufamily
       or $cpufamily = "unknown";
       
-  
-  $global_cpu_runtime += $self->{CPURUNTIMEPIDS};
+  $global_cpu_runtime += $self->{CPURUNTIMEPIDS}; 
   my $resourcecost = sprintf "%.02f",$global_cpu_runtime * $cpuspeed/1000;
 
   $self->debug(1, "Returning: $runtime $start $cpu $mem $global_cpu_runtime $rsz $vsize $ncpu $cpufamily $cpuspeed $resourcecost");
@@ -2417,7 +2420,7 @@ sub firstExecution {
   my $counter=0;
   my $procinfo;
   do {
-  	delete $self->{CPUPIDS};
+  	$self->{CPUPIDS} = {};
   	$self->{CPURUNTIMEPIDS}=0;
   	
     $procinfo = $self->getProcInfo($self->{PROCESSID});
@@ -2687,6 +2690,7 @@ sub lastExecution {
   delete $ENV{ALIEN_JOB_TOKEN};
   delete $ENV{ALIEN_PROC_ID};
   delete $self->{UI};
+  $self->{STARTTIME}="0";
     
   if (!$killJob && !$success){
     $self->sendJAStatus('DONE', {totaljobs=>$self->{TOTALJOBS}, error=>1});
