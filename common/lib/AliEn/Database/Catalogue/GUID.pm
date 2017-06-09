@@ -153,19 +153,22 @@ sub checkGUIDTable {
                  jobid=>"int(11)",
 		);
 
-   $db->checkTable(${table}, "guidId", \%columns, 'guidId', ['UNIQUE INDEX (guid)', 'INDEX(seStringlist)', 'INDEX(ctime)'],) or return;
+  my $options;
+  $options->{engine} = " ENGINE=InnoDB "; #ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2 ";
+
+  $db->checkTable(${table}, "guidId", \%columns, 'guidId', ['UNIQUE INDEX (guid)', 'INDEX(seStringlist)', 'INDEX(ctime)'],$options) or return;
   
   %columns= (pfn=>'varchar(255)',
 	     guidId=>"int(11) NOT NULL",
 	     seNumber=>"int(11) NOT NULL",);
-  $db->checkTable("${table}_PFN", "guidId", \%columns, undef, ['INDEX guid_ind (guidId)', "FOREIGN KEY (guidId) REFERENCES $table(guidId) ON DELETE CASCADE","FOREIGN KEY (seNumber) REFERENCES SE(seNumber) on DELETE CASCADE"],) or return;
+  $db->checkTable("${table}_PFN", "guidId", \%columns, undef, ['INDEX guid_ind (guidId)', "FOREIGN KEY (guidId) REFERENCES $table(guidId) ON DELETE CASCADE","FOREIGN KEY (seNumber) REFERENCES SE(seNumber) on DELETE CASCADE"],$options) or return;
 
 
   $db->checkTable("${table}_REF", "guidId", {guidId=>"int(11) NOT NULL",
 					     lfnRef=>"varchar(20) NOT NULL"},
-		  '', ['INDEX guidId(guidId)', 'INDEX lfnRef(lfnRef)', "FOREIGN KEY (guidId) REFERENCES $table(guidId) ON DELETE CASCADE"]) or return;
+		  '', ['INDEX guidId(guidId)', 'INDEX lfnRef(lfnRef)', "FOREIGN KEY (guidId) REFERENCES $table(guidId) ON DELETE CASCADE"],$options) or return;
 
-  $db->checkTable("${table}_QUOTA", "user", {user=>"varchar(64) NOT NULL", nbFiles=>"int(11) NOT NULL", totalSize=>"bigint(20) NOT NULL"}, undef, ['INDEX user_ind (user)'],) or return;
+  $db->checkTable("${table}_QUOTA", "user", {user=>"varchar(64) NOT NULL", nbFiles=>"int(11) NOT NULL", totalSize=>"bigint(20) NOT NULL"}, undef, ['INDEX user_ind (user)'],$options) or return;
 
   $db->optimizeTable($table);
   $db->optimizeTable("${table}_PFN");

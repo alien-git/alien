@@ -16,22 +16,20 @@ sub checkWakesUp {
   my $method="info";
   $silent and $method="debug" and  @info=1;
   $self->$method(@info, "The OCDB optimizer starts");
-  $self->{SLEEP_PERIOD}=60;
+  $self->{SLEEP_PERIOD}=10*60;
   
-#  $self->{COUNTER} or $self->{COUNTER}=0;
-#  $self->{COUNTER} and $self->info("Going back to sleep (we worked $self->{COUNTER} times :) )") and return;
-#  $self->{COUNTER}++;
+  $self->{SIZE_LIMIT} = 314572800; #209715200;
   
-#  $self->{DIRFILES} or 
-#    $self->{DIRFILES}="$ENV{ALIEN_HOME}/var/log/AliEn/$self->{CONFIG}->{ORG_NAME}/CatalogueOptimizer/OCDB/";
-#  -d $self->{DIRFILES} or $self->info("Creating $self->{DIRFILES}") and mkdir $self->{DIRFILES},  0755;
-  
-#  $self->{DB}->{LFN_DB}->lock("OCDB");
   #Cleaning entries that fail too much
-  $self->{DB}->{LFN_DB}->do("delete from OCDB where failed >= 5");
-  $self->insertOCDBIntoCVMFS(0);
-  $self->insertOCDBIntoCVMFS(1);
-#  $self->{DB}->{LFN_DB}->unlock("OCDB");
+  eval {
+    $self->{DB}->{LFN_DB}->do("insert into OCDB_FAILED select * from OCDB where failed >= 5");
+    $self->{DB}->{LFN_DB}->do("delete from OCDB where failed >= 5");
+    $self->insertOCDBIntoCVMFS(0);
+    $self->insertOCDBIntoCVMFS(1);
+  };
+  if($@){
+    $self->info("Died with: $@");	
+  }
   
   $self->info("Going back to sleep");
   return;
@@ -47,7 +45,7 @@ sub insertOCDBIntoCVMFS {
               and $cvmfsPath = "/cvmfs/alice-ocdb.cern.ch/calibration/MC/";
 
     # We limit the objects per loop, including the ones failed 5h or more ago
-    my $query = "SELECT entryId, lfn from OCDB where $lfnReq and failed=0 or ( failed>0 and timestampdiff(SECOND,lastupdated,now())>=18000 ) limit 400";
+    my $query = "SELECT entryId, lfn from OCDB where $lfnReq and (failed=0 or failed>0 and timestampdiff(SECOND,lastupdated,now())>=18000 ) limit 50";
               
 	my $lfnIds = $self->{DB}->{LFN_DB}->query($query);
 	scalar(@$lfnIds) or $self->info("Nothing to do $ocdbType") and return 1;
@@ -62,6 +60,8 @@ sub insertOCDBIntoCVMFS {
 #	open FILE, ">>", $self->{DIRFILES}."ocdb_${ocdbType}_".$time;
 	
 	my @okLfns;
+	
+	my $total_size=0;
 		
 	foreach my $lfn (@$lfnIds){
       $self->info("Adding $lfn->{lfn}");
@@ -76,12 +76,17 @@ sub insertOCDBIntoCVMFS {
       	next;
       }
       
+      my $size = -s $localfile;
+      my $total = $total_size+$size;
+      
+      $total > $self->{SIZE_LIMIT} and $self->info("Last file ($size) passed the limit ($self->{SIZE_LIMIT}) to $total") and last;
+      
       my ($file)  = $self->{CATALOGUE}->{CATALOG}->f_basename($lfn->{lfn});
       $lfn->{lfn} =~ s/$file//;     
       $ocdbType and $lfn->{lfn} =~ s/^\/alice\/simulation\/2008\/v4-15-Release\/// 
                 or  $lfn->{lfn} =~ s/^\/alice\///;
       
-      $self->info("We have lfn $lfn->{lfn}$file - dir $dir - ocdbType $ocdbType");
+      $self->info("We have lfn $lfn->{lfn}$file - size $size - dir $dir - ocdbType $ocdbType");
       
       # Create the folders and move the files inside
       system("mkdir -p $lfn->{lfn} > /dev/null 2>&1") 
@@ -90,8 +95,11 @@ sub insertOCDBIntoCVMFS {
         and $self->info("Failed to move file ($localfile to $lfn->{lfn}$file)") and system("rm -rf $localfile") and next;
       
       push @okLfns, $lfn->{entryId};
+      $total_size = $total;
 #      print FILE "$lfn->{lfn}$file \n";
 	}
+	
+	$self->info("Total size: $total_size");
     
     my $error = 0;
     
@@ -109,16 +117,16 @@ sub insertOCDBIntoCVMFS {
 #	$error and print FILE "FAILED \n";
 #    close FILE;
     
-    my $command = "ocdb-cvmfs $dir.tar.gz ".( $ENV{OCDB_NOTIFICATION_EMAIL} ? "--mailto $ENV{OCDB_NOTIFICATION_EMAIL}" : "" );
+    my $command = "ocdb-cvmfs $dir.tar.gz ".( $ENV{OCDB_NOTIFICATION_EMAIL} ? "--mailto $ENV{OCDB_NOTIFICATION_EMAIL}" : "" )." 2>&1";
     
     $self->info("Calling $command");
     
     my $failed="";
-    $error or ( $failed=`$command` and 
-                $self->info(Dumper($failed)) and 
-                $failed =~ /FAIL/i and 
-                $self->info("OCDB CVMFS script failed") and 
-                $error=2 );
+    if (!$error) { 
+    	$failed=`$command`; 
+        $self->info(Dumper($failed)); 
+        $failed ne "" and $self->info("OCDB CVMFS script failed") and $error=2; 
+    }
     
     # delete from the table
     $error or $self->{DB}->{LFN_DB}->do("delete from OCDB where entryId in (".join(',', map { '?' } @okLfns).")", {bind_values => [@okLfns]});
@@ -127,7 +135,7 @@ sub insertOCDBIntoCVMFS {
     system("rm -rf $dir");
     chdir "/tmp";
     
-    $error==2 and $self->{SLEEP_PERIOD}=600; # we wait 10 minutes to retry in case of failed publication
+    $error==2 and $self->{SLEEP_PERIOD}=120; # we wait 2 minutes to retry in case of failed publication
 			
     return 1;
 }

@@ -20,14 +20,14 @@ sub checkWakesUp {
   $self->{DB}->delete("MESSAGES", "Expires !=0 and Expires < ?", {bind_values=>[$time]});
 
   # produce ZOMBIES
-  #$self->checkTransition($method, "(status='RUNNING' or status='ASSIGNED' or status='STARTED' or status='SAVING')", "ZOMBIE");
-  $self->checkTransition($method, "(statusId=10 or statusId=6 or statusId=7 or statusId=11)", "ZOMBIE");
+  $self->checkTransition($method, "(statusId=6)", "ZOMBIE", 600);
+  $self->checkTransition($method, "(statusId=10 or statusId=7)", "ZOMBIE");
+  $self->checkTransition($method, "(statusId=11)", "ZOMBIE", 3600*3);
 
   # remove ZOMBIES
   $self->checkTransition($method, "statusId=-15", "EXPIRED"); #ZOMBIE
 
   return;
-
 }
 
 sub checkTransition{
@@ -35,10 +35,13 @@ sub checkTransition{
   my $method=shift;
   my $status=shift;
   my $newStatus=shift;
+  my $period=shift || 3600;
 
   my $now = time;
+  
+  $self->info("Going to check jobs in $status to $newStatus with period $period");
 
-  my $query = $self->{DB}->getJobOptimizerZombies($status);
+  my $query = $self->{DB}->getJobOptimizerZombies($status,$period);
   my $pct = $self->{DB}->getFieldsFromQueueEx("p.procinfotime,statusId,p.queueId,now()-lastupdate as lastupdate",$query);
 
   defined $pct

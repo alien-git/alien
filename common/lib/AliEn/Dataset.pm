@@ -94,6 +94,13 @@ sub readxml {
   my $xml = (shift or return);
   my $limit = (shift or 999999);
   my $nfiles=0;
+  
+  if (ref $xml eq "ARRAY") {
+    $self->info("Collection is an array - $xml");
+    $self->info("First position:".$xml->[0]);
+    $xml = $xml->[0];
+  }
+  
   $self->{XMLname} = "$xml";
   
   # parse by hand

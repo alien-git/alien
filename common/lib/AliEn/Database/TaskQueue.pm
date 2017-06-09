@@ -65,9 +65,9 @@ sub initialize {
     'RUNNING'      => 50,
     'SAVING'       => 60,
     'SAVED'        => 70,
-    'DONE'         => 980,
+    'DONE'         => 990, #was 980
     'SAVED_WARN'   => 71,
-    'DONE_WARN'    => 981,
+    'DONE_WARN'    => 991, #was 981
     'ERROR_A'      => 990,
     'ERROR_I'      => 990,
     'ERROR_E'      => 990,
@@ -84,10 +84,9 @@ sub initialize {
     'FAILED'       => 1000,
     'KILLED'       => 1001,
     'FORCEMERGE'   => 950,
-    'UPDATING'   => 100,
-
-    'MERGING' => 970,
-    'ZOMBIE'  => 999,
+    'UPDATING'     => 100,
+    'MERGING'      => 970,
+    'ZOMBIE'       => 999,
     'ERROR_EW'     => 990
   };
   
@@ -352,7 +351,8 @@ sub initialize {
         userId       	=> "int not null",
         fileBroker   	=> "tinyint(1) default 0 not null",
         price        	=> "float default 1",
-        oldestQueueId	=> "int(11) default 0"        
+        oldestQueueId	=> "int(11) default 0",        
+        revision		=> "int(11) default 0"        
       },
       id          => "entryId",
       index       => "entryId",
@@ -432,10 +432,15 @@ sub initialize {
       id => "entryId",
       order=>10
     },
-
     JOBSTOMERGE => {
       columns => {masterId => "int(11) not null primary key"},
       id      => "masterId",
+      order=>11
+    },
+    REVISION => {
+      columns => {package  => "varchar(255) NOT NULL",
+        		  revision => "int(11) DEFAULT 0"},
+      id      => "package",
       order=>11
     },
     STAGING => {
@@ -567,7 +572,7 @@ sub insertJobLocked {
   my $self = shift;
   my $set  = shift
     or $self->info("Error getting the job to insert")
-    and return;
+    and return [-1, "Error getting the job to insert"];
   my $oldjob = (shift or 0);
 
   $set->{received} = time;
@@ -581,7 +586,7 @@ sub insertJobLocked {
   $set->{commandId}=$self->getOrInsertFromLookupTable('command',
                                $set->{jdl} =~ /.*executable\s*=\s*\"([^\"]*)\"/i);
   $set->{commandId} or $self->info("Error getting the name of the executable from the JDL")
-     and return;
+     and return [-1, "Error getting the name of the executable from the JDL"];
 
   #currently $set->{priority} is hardcoded to be '0'
 
@@ -596,7 +601,7 @@ sub insertJobLocked {
     my $notifyId=$self->getOrInsertFromLookupTable('notify', $set->{notify});
                                
     $notifyId or $self->info("Error creating the notification for '$set->{notify}'")
-     and return;
+     and return [-1, "Error creating the notification for '$set->{notify}'"];
 	  	
     delete $set->{notify};
     $set->{notifyId}=$notifyId;
@@ -607,7 +612,7 @@ sub insertJobLocked {
     $set->{"${fieldName}Id"}=$self->getOrInsertFromLookupTable('host',$set->{$fieldName});
                                
     $set->{"${fieldName}Id"} or $self->info("Error translating the host $set->{$fieldName} (from $fieldName)")
-     and return;
+     and return [-1, "Error translating the host $set->{$fieldName} (from $fieldName)"];
     delete $set->{$fieldName}
   }
   
@@ -646,7 +651,7 @@ sub insertJobLocked {
   # send the new job's status to ML
   $self->sendJobStatus($procid, $status, "", $set->{submitHost});
 
-  return $procid;
+  return [$procid, "OK"];
 }
 sub getOrInsertFromLookupTable{
   my $self=shift;
@@ -729,7 +734,6 @@ sub updateJob {
     $set->{nodeid}=$self->getOrInsertFromLookupTable('host',$set->{node});
     delete $set->{node};
   }
-  
   
   $DEBUG and $self->debug(1, "In updateJob updating job $id");
   my $procSet = {};
@@ -866,21 +870,26 @@ sub updateStatus {
 
   $self->info("Moving from $dboldstatus to $status ");
   
+  # We protect the status change in case of zombies that come back to life and should not interfere (or other cases...)
+  #if($dboldstatus =~ /DONE.*/ and $status =~ /ERROR.*/){
+  #  $self->info("Skip changeStatus for $id: should not change status from $dboldstatus to $status");
+  #  return;
+  #}
+  
   if ( ($self->{JOBLEVEL}->{$status} <= $self->{JOBLEVEL}->{$dboldstatus} )
     && ($dboldstatus !~ /^((ZOMBIE)|(IDLE)|(INTERACTIV))$/)
     && (!$masterjob)) {
-    if ($set->{path}) {
-      return $self->updateJob($id, {path => $set->{path}});
-    }
-    my $message =
-"The job $id [$dbsite] was in status $dboldstatus [$self->{JOBLEVEL}->{$dboldstatus}] and cannot be changed to $status [$self->{JOBLEVEL}->{$status}]";
-    if ($set->{jdl} and $status =~ /^(SAVED)|(SAVED_WARN)|(ERROR_V)$/) {
-      $message .= " (although we update the jdl)";
-      $self->updateJob($id, {jdl => $set->{jdl}});
-    }
-    $self->{LOGGER}->set_error_msg("Error updating the job: $message");
-    $self->info("Error updating the job: $message", 1);
-    return;
+	    if ($set->{path}) {
+	      return $self->updateJob($id, {path => $set->{path}});
+	    }
+	    my $message = "The job $id [$dbsite] was in status $dboldstatus [$self->{JOBLEVEL}->{$dboldstatus}] and cannot be changed to $status [$self->{JOBLEVEL}->{$status}]";
+	    if ($set->{jdl} and $status =~ /^(SAVED)|(SAVED_WARN)|(ERROR_V)$/) {
+	      $message .= " (although we update the jdl)";
+	      $self->updateJob($id, {jdl => $set->{jdl}});
+	    }
+	    $self->{LOGGER}->set_error_msg("Error updating the job: $message");
+	    $self->info("Error updating the job: $message", 1);
+	    return;
   }
   $self->info("Let's do the update");
   #update the value, it is correct
@@ -899,8 +908,10 @@ sub updateStatus {
   # update the SiteQueue table
   # send the status change to ML
   $self->sendJobStatus($id, $status, $execHost, "");
+  
   $status =~ /^(DONE.*)|(ERROR_.*)|(EXPIRED)|(KILLED)|(FAILED)$/
     and $self->checkFinalAction($id, $service);
+    
   $self->info("AND NOW THE STATISTICS for $dbsite modified");
   if ($status ne $oldstatus) {
     if ($status eq "ASSIGNED") {
@@ -1055,8 +1066,8 @@ sub getFieldsFromQueue {
   $DEBUG
     and $self->debug(1, "In getFieldsFromQueue fetching attributes $attr of job $id");
   my $join="";
-  $attr =~ /jdl/ and $join = "join QUEUEJDL using (queueId)";
-  $attr =~ /site/ and !($attr =~ /siteId/) and $join = "join SITEQUEUES using (siteId)";
+  $attr =~ /jdl/i and $join = "join QUEUEJDL using (queueId)";
+  $attr =~ /site/i and !($attr =~ /siteId/i) and $join = "join SITEQUEUES using (siteId)";
   my $ret=$self->queryRow("SELECT $attr FROM $self->{QUEUETABLE} $join WHERE queueId=?", undef, {bind_values => [$id]});
   
   $ret->{statusId} and $ret->{statusId} = AliEn::Util::statusName($ret->{statusId});
@@ -1369,12 +1380,12 @@ sub setSiteQueueStatus {
     my $ok=0;
     my $time;
     
-#    $self->{CONFIG}->{CACHE_SERVICE_ADDRESS} and 
-#    ($ok, $time) = AliEn::Util::getURLandEvaluate("$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}?ns=sitequeueupdate&key=".lc($site), 1);
+    $self->{CONFIG}->{CACHE_SERVICE_ADDRESS} and 
+      ($ok, $time) = AliEn::Util::getURLandEvaluate("$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}?ns=sitequeueupdate&key=".lc($site), 1);
     
-    $ok or $set->{$field} = $jdl;
-#     and ( $self->{CONFIG}->{CACHE_SERVICE_ADDRESS} and 
-#  	  AliEn::Util::getURLandEvaluate("$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}?ns=sitequeueupdate&key=".lc($site)."&timeout=30&value=".$set->{statustime}."") );
+    $ok or ($set->{$field} = $jdl and 
+      ( $self->{CONFIG}->{CACHE_SERVICE_ADDRESS} and 
+  	  AliEn::Util::getURLandEvaluate("$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}?ns=sitequeueupdate&key=".lc($site)."&timeout=30&value=".Dumper([$set->{statustime}]))));
   }
 
   my $done = $self->updateSiteQueue($set, "site=?", {bind_values => [$site]});
@@ -1491,6 +1502,7 @@ sub findUserId{
 sub extractFieldsFromReq {
   my $self= shift;
   my $text =shift;
+  
   my $params= {counter=> 1, ttl=>84000, disk=>0, packages=>'%', "\`partition\`"=>'%', ce=>'', noce=>'', price=>1};
 
   my $site = "";
@@ -1540,8 +1552,10 @@ sub extractFieldsFromReq {
   $text =~ s/other.GridPartitions,"([^"]*)"//i and $params->{"\`partition\`"}=$1; 
   $text =~ s/this.filebroker\s*==\s*1//i and $params->{fileBroker}=1 and $self->info("DOING FILE BROKERING!!!");
   $text =~ s/other.Price\s*<=\s*(\d+)//i and $params->{price}=$1; 
+  $text =~ s/other.CVMFS_Revision\s*>=\s*(\d+)//i and $params->{revision}=$1; 
 
   $self->info("The ttl is $params->{ttl} and the site is in fact '$site'. Left  '$text' ");
+  
   return $params;
 }
 sub insertJobAgent {
@@ -1621,6 +1635,20 @@ sub sendJobStatus {
   }
 }
 
+# get or insert a revision for a package in CVMFS
+sub getOrInsertRevisionPackage {
+  my $self = shift;
+  my $package = shift;
+  my $revision = shift;
+  
+  # Get the revision from the table in the DB, otherwise if is new, we insert it and return the revision from parameter
+  my $rev = $self->queryValue("select revision from REVISION where package like ?",undef, {bind_values=>[$package]});
+  $rev and return $rev;
+  
+  $self->do("insert into REVISION (package, revision) values (?,?)", {bind_values=>[$package,$revision]});  
+  return $revision;
+}
+
 sub retrieveJobMessages {
   my $self = shift;
   my $time = time;
@@ -1673,6 +1701,7 @@ sub getNumberWaitingForSite{
 	    defined $options->{packages} and $where .="and ? like packages " and push @bind, $options->{packages};
 	  }
   }
+  $options->{cvmfs_revision} and $where .=" and revision <= ? " and push @bind, $options->{cvmfs_revision};
   $options->{partition} and $where .="and ? like concat('%,',\`partition\`, '%,') " and push @bind, $options->{partition};
   $options->{ce} and $where.=" and (ce like '' or ce like concat('%,',?,',%'))" and push @bind,$options->{ce};
   $options->{ce} and $where.=" and noce not like concat('%,',?,',%')" and push @bind,$options->{ce};
@@ -1816,7 +1845,7 @@ sub resubmitJob{
 	  	$host=$self->queryValue("SELECT host from QUEUE_HOST where hostid=?", undef, {bind_values=>[$data->{nodeId}]})
 	      and $host .= "-".$queueid;
 	    $DEBUG and $self->debug(1, "Sending a message to $host to kill (due to resubmit) the process $queueid ($previousStatus)");
-	    my $current = time() + (5*3600);
+	    my $current = time() + (8*3600);
 	    my ($ok) = $self->insertMessage(
 	      { TargetHost    => $host,
 	        TargetService => 'JobAgent',
@@ -2282,7 +2311,8 @@ sub getJobOptimizerExpiredQ3 {
 sub getJobOptimizerZombies {
   my $self   = shift;
   my $status = shift;
-  return "q, QUEUEPROC p where $status and p.queueId=q.queueId and DATE_ADD(now(),INTERVAL -3600 SECOND)>lastupdate";
+  my $period = shift || 3600;
+  return "q, QUEUEPROC p where $status and p.queueId=q.queueId and DATE_ADD(now(),INTERVAL -$period SECOND)>lastupdate";
 }
 
 ########

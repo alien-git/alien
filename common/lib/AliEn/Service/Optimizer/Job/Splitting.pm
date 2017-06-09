@@ -64,6 +64,9 @@ my $splitPerSE =sub  {
     my %foo;
     foreach (@se) { $foo{$_}++ };
     my @uniqueSe = (keys %foo);
+    
+    scalar(@uniqueSe)>0 or ($self->{JOBID} and 
+      $self->putJobLog($self->{JOBID}, "error", "Empty whereis for file $event !?"));
 
     $self->debug(1,"Putting it in ". join (",", sort @uniqueSe));
     return join (",", sort @uniqueSe), "" , ($sendSize ? $seinfo->{size} : 0);
@@ -73,19 +76,15 @@ my $splitPerSE =sub  {
 sub checkWakesUp {
   $self=shift;
 
-#  $self->{PRIORITY_DB} or 
-#    $self->{PRIORITY_DB}=
-#      AliEn::Database::TaskPriority->new({ROLE=>'admin'});
-#
-#  $self->{PRIORITY_DB} or $self->info("Error getting the priority table!!")
-#    and exit(-2);
-
   my $silent=shift;
 
   my $method="info";
   $silent and $method="debug";
   $self->{LOGGER}->$method("Splitting", "The splitting optimizer starts");
   $self->{SLEEP_PERIOD}=10;
+  
+  # Avoid re-check Packages requirements
+  $ENV{SKIP_CHECK_PACKAGES}=1;
  
   $self->info("Sleep period set to 10. Going to select Count");
  
@@ -96,7 +95,7 @@ sub checkWakesUp {
 #  $self->{DB}->update("ACTIONS", {todo=>0}, "action='SPLITTING'");
   $self->info("There are some jobs to split!!");
 
-  my $done2=$self->checkJobs($silent, "1' and upper(origjdl) like '\% SPLIT =\%", "updateSplitting",4, 30);
+  my $done2=$self->checkJobs($silent, "1' and upper(origjdl) like '\% SPLIT =\%", "updateSplitting",4, 30);  
 
 #  $self->info("Caculate Job Quota");
 #	$self->{CATALOGUE}->execute("calculateJobQuota", "1");
@@ -128,9 +127,20 @@ sub updateSplitting {
   my $queueid=shift;
   my $job_ca=shift;
   my $user;
+  my $strategy;
+  my $jobs;
   eval {
-    my ($strategy, $jobs)=$self->SplitJob($queueid, $job_ca) or 
+  	$self->{JOBID} = $queueid;
+  	
+  	# Call add CVMFS_Revision to requirements
+  	my ($code,$new_job_ca,$newreqs) = $self->addCVMFSRevision($job_ca) 
+      or die("Error adding the CVMFS_Revision requirement\n");
+    $code and $code==2 and $job_ca=$new_job_ca;
+  	
+    ($strategy, $jobs)=$self->SplitJob($queueid, $job_ca) or 
       die("The job can't be split\n");
+      
+    scalar(keys %{$jobs})>0 or ($self->putJobLog($queueid, "error", "Job hash zero size!") and return);
 
     ($user)=$self->{DB}->queryValue("select user from QUEUE join QUEUE_USER using (userid) where queueid=?",
                       undef, {bind_values=>[$queueid]})
@@ -144,7 +154,7 @@ sub updateSplitting {
 
     ($job == -1) and $self->info("The job was not waiting any more...") and die ("The job was not waiting any more\n");
 
-    $self->putJobLog($queueid,"state", "Job state transition to SPLITTING");
+    $self->putJobLog($queueid,"state", "Job state transition to SPLITTING (user $user - ".scalar(keys %{$jobs})." baskets)");
     my $numSubjobs=0;
     if ($strategy !~ /^userDefined/) {
       $numSubjobs=$self->SubmitSplitJob($job_ca, $queueid, $user, $jobs, $strategy);
@@ -152,7 +162,7 @@ sub updateSplitting {
     } else {
       my ($ok, @def)=$job_ca->evaluateAttributeVectorString("SplitDefinitions");
       foreach my $jdl (@def) {
-	$self->_submitJDL($queueid, $user, $jdl) or die("Error submitting one of the splitDefinitions: $jdl\n");
+		$self->_submitJDL($queueid, $user, $jdl) or die("Error submitting one of the splitDefinitions: $jdl\n");
       }
     }
     #    $self->ChangeOriginalJob($job_ca, $queueid, $submitHost);
@@ -161,14 +171,14 @@ sub updateSplitting {
     $self->{DB}->updateStatus($queueid,"SPLITTING","SPLIT", $set)
       or $self->info("Error updating status for job $queueid" )
 	and die("Error changing the status\n");
-    $self->putJobLog($queueid,"state", "Job state transition from SPLITTING to SPLIT");
+    $self->putJobLog($queueid,"state", "Job state transition from SPLITTING to SPLIT ($numSubjobs)");
 
     my ($countsubjobs)=$self->{DB}->queryValue("select count(1) from QUEUE where split=?",
                       undef, {bind_values=>[$queueid]});
     $countsubjobs and $self->info("$queueid has $countsubjobs subjobs" ) or 
       $self->info("Error splitting $queueid: 0 subjobs" ) and 
       die("Job has 0 subjobs after SPLIT ?");
-      
+            
     $self->info("Adding $countsubjobs to $user");  
     $self->{DB}->addJobsToQuota($countsubjobs,$user);
   };
@@ -190,6 +200,7 @@ sub updateSplitting {
   }
   return 1 ;
 }
+
 
 sub _splitSEAdvanced {
 	my $self=shift;
@@ -310,11 +321,11 @@ sub SplitJob{
     $jobs=$self->_singleSplit($job_ca, $sort, $inputfilenumber,$inputfilesize,$findset, $queueid);
   }
 
-  $jobs or return;
+  $jobs or ($self->putJobLog($queueid, "error", "Undefined jobs hash, can't split! Problem accessing collection?") and return);
 
   my $total=keys %{$jobs};
   $self->info("Splitting: the job can be split in  $total");
-  ($total>0) or return;
+  ($total>0) or ($self->putJobLog($queueid, "error", "Job hash zero size! Problem accessing collection?") and return);
   return ( $split,$jobs );
 
 }
@@ -327,8 +338,9 @@ sub _getInputFiles{
   my ($ok, @patterns)=$job_ca->evaluateAttributeVectorString("InputData");
   $self->info("Checking if there is an inputcollection");
   $self->copyInputCollection($job_ca, $queueId, \@patterns);# or return;
-  @patterns or $self->info( "There is no input data")
-    and return;
+  scalar(@patterns) or ($self->info( "There is no input data") and 
+  $self->putJobLog($queueId, "error", "There is no input data") 
+    and return);
   
   my @files=();
 
@@ -338,29 +350,30 @@ sub _getInputFiles{
       if ($file=~ /^([^\*]*)\*(.*)$/) { $dir=$1; $name=$2};
       $dir=~ s/LF://;
       if ( $name =~ /(.*)\[(\d*)\-(\d*)\]/) {
-	$name = $1;
-	my $start = $2;
-	my $stop  = $3;
-	$self->info("Looking for $dir $name");
-	my @entries=$self->{CATALOGUE}->execute( "find", "-silent", "-l $stop", "$findset", "$dir", "$name" );
-	my $cnt=1;
-	foreach (@entries) {
-	  if ( ($cnt >= $start) && ($cnt <= $stop) ) {
-	    push @files, "LF:$_";
-	    $cnt++;
-	  }
-	}
+		$name = $1;
+		my $start = $2;
+		my $stop  = $3;
+		$self->info("Looking for $dir $name");
+		my @entries=$self->{CATALOGUE}->execute( "find", "-silent", "-l $stop", "$findset", "$dir", "$name" );
+		my $cnt=1;
+		foreach (@entries) {
+		  if ( ($cnt >= $start) && ($cnt <= $stop) ) {
+		    push @files, "LF:$_";
+		    $cnt++;
+		  }
+		}
       } else {
-	$self->info("Looking for $dir $name");
-	my @entries=$self->{CATALOGUE}->execute( "find", "-silent $findset", "$dir", "$name");
-	map {$_="LF:$_";} @entries;
-	push  @files, @entries;
+		$self->info("Looking for $dir $name");
+		my @entries=$self->{CATALOGUE}->execute( "find", "-silent $findset", "$dir", "$name");
+		map {$_="LF:$_";} @entries;
+		push  @files, @entries;
       }
     } else {
       $self->debug(1,"Inserting $file");
       push @files, $file;
     }
   }
+  
   return @files;
 }
 
@@ -374,7 +387,7 @@ sub _singleSplit {
   my $queueId=shift;
 
   my @files=$self->_getInputFiles($job_ca, $findset, $queueId) or return;
-
+  
   $self->info("----- Got the inputfiles");
   my $timeinit = time;
 
@@ -499,11 +512,14 @@ sub SubmitSplitJob {
   my $strategy=shift;
   
   if ( !$job_ca->isOK() ) {
-    print STDERR "Splitting: in SubmitSplitJob job's jdl is not valid\n";
+    $self->info("Splitting error: in SubmitSplitJob job's jdl is not valid\n");
     return;
   }
   #Removing split from the jdl
   my $text=$job_ca->asJDL();
+  
+  $text or $self->info("Error getting text in SubmitSplitJob") and return;
+  
   $self->debug(1, "Original jdl $text\n");
 
   #to make the matching easier, let's put a ; after the last entry
@@ -533,11 +549,14 @@ sub SubmitSplitJob {
   $text=~ s/SortInputDataCollection\s*=[^;\]]*;//i;
 
   $job_ca=Classad::Classad->new($text);
+  
+  $job_ca or $self->info("Error creating job_ca in SubmitSplitJob") and return;
+  
   $job_ca->insertAttributeString("MasterJobId", $queueid)
     or $self->info( "Error putting the master job id")
       and return;
   if ( !$job_ca->isOK() ) {
-    print STDERR "Splitting: in SubmitSplitJob jdl $text is not valid\n";
+    $self->info("Splitting error: in SubmitSplitJob jdl $text is not valid\n");
     return;
   }
 
@@ -570,10 +589,13 @@ sub SubmitSplitJob {
   $self->info("The requirements are $origreq");
 
   #Now, submit a job for each
-
+  
+  $self->putJobLog($queueid, "trace", "Starting submission of subjobs...(".scalar(keys %{$jobs})." keys)");
+  
   foreach my $pos (sort keys %{$jobs}) {
     $i++;
     $self->info("Submitting job $i $pos $counter");
+#    $self->putJobLog($queueid, "trace", "Processing position $pos in loop $i ($counter)");
 
     $self->debug(1,"Setting Requ. $origreq");
 
@@ -623,11 +645,10 @@ sub SubmitSplitJob {
     my $input=$self->_setInputData($jobs->{$pos}, $inputdataaction, \@inputdataset, $sortsubjob);
     if ($input) {
       $job_ca->set_expression("InputData", $input);
-      $self->{CATALOGUE}->{QUEUE}->checkRequirements($job_ca) or next;
+      $self->{CATALOGUE}->{QUEUE}->checkRequirements($job_ca) or ($self->info("Requirements for subjob failed") and next);
     } elsif($jobs->{$pos}->{fileBroker}){
-      $self->info("Doing the split according to FileBrokering!");
-    	$job_ca->set_expression("FileBroker", 1);
-       	    	
+       $self->info("Doing the split according to FileBrokering!");
+       $job_ca->set_expression("FileBroker", 1);
     }
 
     foreach my $splitargs (@splitarguments){
@@ -639,7 +660,8 @@ sub SubmitSplitJob {
 
       $counter++;
       if ( !$job_ca->isOK() ) {
-	       print STDERR "Splitting: in SubmitSplitJob new jdl is not valid\n";
+	       $self->info("Splitting error: in SubmitSplitJob new jdl is not valid\n");
+	       $self->info($job_ca->asJDL());
 	       return;
       }
       
@@ -702,24 +724,31 @@ sub _submitJDL {
   my $job_ca=shift;
   my $direct=shift || 0;
 
-  ( $job_ca) or $job_ca=Classad::Classad->new($jdlText);
-  if (!$files) {
-    my ($ok, @input)=$job_ca->evaluateAttributeVectorString("InputData");
-    $files=\@input;
-  }
-
   $self->debug(1, "JDL $jdlText");
-  push @ISA, "AliEn::Service::Manager::Job";
   
-  my $newqueueid=$self->enterCommand("$user\@$self->{CONFIG}->{HOST}", $jdlText, undef, $queueid, undef, 
-    {silent=>0,direct=>$direct});
-  pop @ISA;
-#  if ($newqueueid =~ /DENIED:/){
- if (ref $newqueueid eq "ARRAY"){
-    $self->putJobLog($queueid, "error", "The submission of the subjob failed: ${$newqueueid}[1]");
-    return;
-  } 
-  $newqueueid or return;
+  my $newqueueid = 0;
+  my $a;
+  for($a=0; $a<3; $a++){
+  	push @ISA, "AliEn::Service::Manager::Job";
+  	eval{
+	  $newqueueid=$self->enterCommand("$user\@$self->{CONFIG}->{HOST}", $jdlText, undef, $queueid, undef, 
+	    {silent=>0,direct=>$direct});
+  	};
+  	if($@){
+  		$self->info("Error submitting subjob for $queueid !: $@");
+  	}
+	pop @ISA;
+	
+	if (ref $newqueueid eq "ARRAY"){
+	  $self->putJobLog($queueid, "error", "The submission of the subjob failed: ${$newqueueid}[1]");
+	} else { 
+	  $newqueueid > 0 and last;
+	}
+	
+	sleep(5);
+  }
+  $a==3 and return;
+  
   $self->debug(1, "Command submitted!! (jobid $newqueueid)" );
   $self->putJobLog($queueid,"submit","Subjob submitted: $newqueueid");
 

@@ -97,7 +97,7 @@ sub checkTable {
 
   my %columns=%$columnsDef;
   my $engine="";
-  $options->{engine} and $engine = " engine=$options->{engine} ";
+  $options->{engine} and $engine = " $options->{engine} ";
   $desc = "$desc $columns{$desc}";
   $self->createTable( $table, "($desc) $engine", 1 ) or return;
 

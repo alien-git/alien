@@ -343,9 +343,11 @@ sub enterCommand: Public {
     $set->{notify} = $email;
   }
 
-  my $procid = $self->{DB}->insertJobLocked($set, $oldjob)
-    or $self->info("In enterCommand error inserting job")
-    and return [-1, "Error inserting job"];
+  my $jobinsert = $self->{DB}->insertJobLocked($set, $oldjob);
+  my $procid = @$jobinsert[0];
+  my $mesg = @$jobinsert[1];
+  $procid and $procid>0 or ($self->info("In enterCommand error inserting job")
+    and return [-1, "Error inserting job: $mesg"]);
 
   $email and $self->putJobLog($procid, "trace", "The job will send an email to '$email'");
 
@@ -355,6 +357,7 @@ sub enterCommand: Public {
   $self->putJobLog($procid, "state", $msg);
   $self->info("Job $procid inserted");
   return $procid;
+#    return [$procid, "Job inserted OK"];
 }
 
 sub getJobAgentRequirements {
@@ -398,8 +401,11 @@ sub SetProcInfoBunch : Public {
       $entry->{tag}      = "proc";
     }
     if (!$entry->{tag} or $entry->{tag} eq "proc") {
-      $self->SetProcInfo($entry->{jobId}, $entry->{procinfo}, "silent");
-    } else {
+      $self->SetProcInfo($entry->{jobId}, $entry->{jobToken}, $entry->{procinfo}, "silent");
+    } elsif ($entry->{tag} eq "saving"){
+      $self->RefreshJobTimestamp($entry->{jobId});
+    } 
+    else {
       $self->putJobLog($entry->{jobId}, $entry->{tag}, $entry->{procinfo}, $time);
     }
   }
@@ -407,22 +413,30 @@ sub SetProcInfoBunch : Public {
   return 1;
 }
 
-sub SetProcInfo {
-  my ($this, $queueId, $procinfo, $silent) = @_;
+sub RefreshJobTimestamp {
+	my $this = shift;
+	my $queueId = shift;
 
-#runtime char(20), runtimes int, cpu float, mem float, cputime int, rsize int, vsize int, ncpu int, cpufamily int, cpuspeed int, cost float"
+	$self->info("Going to refresh job stats of $queueId");
+
+	my $updateRef = {procinfotime => time};
+	$self->{DB}->updateJobStats($queueId, $updateRef);
+	
+	1;
+}
+
+sub SetProcInfo {
+  my ($this, $queueId, $token, $procinfo, $silent) = @_;
+
+  #runtime char(20), runtimes int, cpu float, mem float, cputime int, rsize int, vsize int, ncpu int, cpufamily int, cpuspeed int, cost float"
   $silent or $self->info("New Procinfo for $queueId:|$procinfo|");
   my $now = time;
   if ($procinfo) {
     my @values = split " ", $procinfo;
     $values[13] or $values[13] = '-1';    # si2k consumed by the job
 
-    # SHLEE: should be removed
-    #$values[13]='1.3'; #si2k
-    #$values[4]='3'; #cputime
-
     my ($status) = $self->{DB}->getFieldsFromQueue($queueId, "statusId");
-#    $status->{statusId} = AliEn::Util::statusName($status->{statusId});
+    #$status->{statusId} = AliEn::Util::statusName($status->{statusId});
 
     my $updateRef = {
       runtime      => $values[0],
@@ -444,10 +458,13 @@ sub SetProcInfo {
 
     if ($status->{statusId} eq "ZOMBIE") {
       # in case a zombie comes back ....
-      $self->changeStatusCommand($queueId, $status->{statusId}, "RUNNING")
-        or $self->{LOGGER}
-        ->error("JobManager", "In SetProcInfo could not change job $queueId from $status->{statusId} to RUNNING");
-#      $updateRef->{statusId} = "RUNNING"; # ?
+      $self->info("ZOMBIE job got active again - $queueId");
+      my ($code, $msg) = $self->changeStatusCommand($queueId, $token, $status->{statusId}, "RUNNING");
+        if($code!=1) {
+          $self->{LOGGER}->error("JobManager", "In SetProcInfo could not change job $queueId from $status->{statusId} to RUNNING: $msg"); 
+          $self->putJobLog($queueId, "error", "Cannot change status from ZOMBIE (actually $status->{statusId}) to RUNNING?: $msg");
+        }
+      #$updateRef->{statusId} = "RUNNING"; # ?
     }
 
     my ($ok) = $self->{DB}->updateJobStats($queueId, $updateRef);
@@ -510,10 +527,12 @@ sub changeStatusCommand : Public {
     and return (-1, " queueId not specified");
   my $date = time;
 
-  $self->info("Command $queueId [$site/$node/$spyurl] changed to $status from $oldStatus");
+  $self->info("Command $queueId [$site/$node/$spyurl] changing to $status from $oldStatus");
   if ($token){
-    $self->{DB}->getUsername($queueId, $token) or
-      return (-1, "Error validating the token of job $queueId");
+  	$self->info("changeStatusCommand check token $queueId - $token");
+    my $user = $self->{DB}->getUsername($queueId, $token);
+    $user and $self->info("User: $user") or 
+      ($self->info("Can't validate user with id and token") and return (-2, "Error validating the token of job $queueId"));
   }
   my $set = {};
 
@@ -538,39 +557,39 @@ sub changeStatusCommand : Public {
     $self->info("Updating the jdl of the job");
     $error and $set->{resultsjdl} = $error;
     } elsif ($status eq "DONE") {
-    $set->{finished} = $date;
-
-    #check if the job has to be validated...
-    my $data = $self->{DB}->getFieldsFromQueue($queueId, "jdl,exechost,submithost");
-
-    defined $data
-      or $self->{LOGGER}->error("JobManager", "In changeStatusCommand error during execution of database query")
-      and return (-1, "error getting the jdl of the job");
-
-    %$data
-      or $self->{LOGGER}->error("JobManager", "In changeStatusCommand there is no data for job $queueId")
-      and return (-1, "there is no data for the job $queueId");
-
-    $data->{host} =~ s/^.*\@//;
-    my $validate = 0;
-    $data->{jdl} =~ /validate\s*=\s*1/i and $validate = 1;
-
-    my $port = $self->{CONFIG}->{CLUSTERMONITOR_PORT};
-    if ($validate) {
-      $self->info("Submitting the validation job");
-
-      my $executable = "";
-      $data->{jdl} =~ /executable\s*=\s*"?(\S+)"?\s*;/i and $executable = $1;
-      $executable =~ s/\"//g;
-      my $validatejdl = "[
-Executable=\"$executable.validate\";
-Arguments=\"$queueId $data->{host} $port\";
-Requirements= member(other.GridPartition,\"Validation\");
-Type=\"Job\";
-			]";
-      $DEBUG and $self->debug(1, "In changeStatusCommand sending the command to validate the result of $queueId...");
-      $self->enterCommand("$data->{submithost}", "$validatejdl");
-    }
+	    $set->{finished} = $date;
+	
+	    #check if the job has to be validated...
+	    my $data = $self->{DB}->getFieldsFromQueue($queueId, "origJdl,exechostId,submithostId");
+	
+	    defined $data
+	      or $self->{LOGGER}->error("JobManager", "In changeStatusCommand error during execution of database query")
+	      and return (-1, "error getting the jdl of the job");
+	
+	    %$data
+	      or $self->{LOGGER}->error("JobManager", "In changeStatusCommand there is no data for job $queueId")
+	      and return (-1, "there is no data for the job $queueId");
+	
+	    $data->{host} =~ s/^.*\@//;
+	    my $validate = 0;
+	    $data->{jdl} =~ /validate\s*=\s*1/i and $validate = 1;
+	
+	    my $port = $self->{CONFIG}->{CLUSTERMONITOR_PORT};
+	    if ($validate) {
+	      $self->info("Submitting the validation job");
+	
+	      my $executable = "";
+	      $data->{jdl} =~ /executable\s*=\s*"?(\S+)"?\s*;/i and $executable = $1;
+	      $executable =~ s/\"//g;
+	      my $validatejdl = "[
+	Executable=\"$executable.validate\";
+	Arguments=\"$queueId $data->{host} $port\";
+	Requirements= member(other.GridPartition,\"Validation\");
+	Type=\"Job\";
+				]";
+	      $DEBUG and $self->debug(1, "In changeStatusCommand sending the command to validate the result of $queueId...");
+	      $self->enterCommand("$data->{submithost}", "$validatejdl");
+	    }
   }
 
   if ($status =~ /^(ERROR.*)|(SAVED_WARN)|(SAVED)|(KILLED)|(FAILED)|(EXPIRED)$/) {

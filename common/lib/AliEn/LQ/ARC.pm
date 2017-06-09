@@ -35,6 +35,7 @@ my $ARC_VALIDATE_JOBS_FILE_DELAY = 60;
 # job ids which have not reached the info system
 my %notFoundIds = ();
 
+my $fix_env = '';
 
 sub initialize {
 	my $self = shift;
@@ -53,6 +54,7 @@ sub initialize {
 	$self->{CONFIG}->{CE_SUBMITARG_LIST} = $ENV{CE_SUBMITARG_LIST};
 	$ARCCLEAN_RUN_DELAY = $ENV{ARCCLEAN_RUN_DELAY} if $ENV{ARCCLEAN_RUN_DELAY};
 	$ARC_VALIDATE_JOBS_FILE_DELAY = $ENV{ARC_VALIDATE_JOBS_FILE_DELAY} if $ENV{ARC_VALIDATE_JOBS_FILE_DELAY}; 
+	($fix_env = $ENV{LD_LIBRARY_PATH}) =~ s,$ENV{ALIEN_ROOT}+[^:]+:?,,g;
 			
 	$self->readCEList;
 						
@@ -100,42 +102,52 @@ sub submit {
 	my $xrslfile = $self->generateXRSL( $classad, @xrsl );
 	$xrslfile or return;
 
-	my @command = ( "arcsub -f $xrslfile", 
-						( $self->{CONFIG}->{CE_USE_BDII} ? $submit_line : @args ), 
-						@debug_args );
+	my @command = ("LD_LIBRARY_PATH=$fix_env arcsub -f $xrslfile ". 
+						( $self->{CONFIG}->{CE_USE_BDII} ? $submit_line : "@args" ). 
+						" " .
+						join( " ", @debug_args ));
 	$self->info("Submitting to ARC with: @command\n");
 
-	open SAVEOUT, ">&STDOUT";
-	open SAVEOUT, ">&STDOUT";
-	if ( !open STDOUT, ">$self->{CONFIG}->{TMP_DIR}/stdout" ) {
-		return 1;
-	}
-	my $error = system("@command");
-	close STDOUT;
-	open STDOUT, ">&SAVEOUT";
+	#open SAVEOUT, ">&STDOUT";
+	#open SAVEOUT, ">&STDOUT";
+	#if ( !open STDOUT, ">$self->{CONFIG}->{TMP_DIR}/stdout" ) {
+	#	return 1;
+	#}
+	#my $error = $self->_system("@command");
+	my (@submission_output, $error) = $self->_system("@command");
+	#close STDOUT;
+	#open STDOUT, ">&SAVEOUT";
 
-	open( FILE, "<$self->{CONFIG}->{TMP_DIR}/stdout" ) or return 1;
-	my $contact = <FILE>;
+	#open( FILE, "<$self->{CONFIG}->{TMP_DIR}/stdout" ) or return 1;
+	#my $contact = <FILE>;
+	#close FILE;
+	my $contact;
+	foreach(@submission_output){
+		if(/Job submitted with jobid: (.+)/){
+			$contact = $1;
+			last;
+		}
+	}
+	$contact and chomp $contact;
 	$self->{LOGGER}->warning( "ARC", "Jobagent URI submitted is: $contact\n" );
-	close FILE;
-	$contact
-	  and chomp $contact;
-	if ( $contact =~ /gsiftp:\/\// ) {
-		my @cstring = split( ":", $contact );
-		$contact = "$cstring[1]:$cstring[2]:$cstring[3]";
-	}
-	else {
-		$error = 1;
-	}
+	#if ( $contact =~ /gsiftp:\/\// or $contact =~ /https:\/\// ) {
+	#	my @cstring = split( ":", $contact );
+	#	$contact = "$cstring[1]:$cstring[2]:$cstring[3]";
+	#}
+	#else {
+	#	$error = 1;
+	#}
+	
+	$error = 1 if ( $contact !~ /gsiftp:\/\// and $contact !~ /https:\/\// );
 
 	if ($error) {
-		$contact or $contact = "";
-		$self->{LOGGER}
-		  ->warning( "ARC", "Error submitting the job. Log file '$contact'\n" );
-		$contact
-		  and $contact !~ /^:*$/
-		  and system( 'cat', $contact, '>/dev/null 1>&2' );
-		return $error;
+		#$contact or $contact = "";
+		$self->{LOGGER}->warning( "ARC", 
+					"Error submitting the job. Log file '$contact'\n" );
+		#$contact
+		#  and $contact !~ /^:*$/
+		#  and system( 'cat', $contact, '>/dev/null 1>&2' );
+		#return $error;
 	}
 	else {
 		$self->info("ARC JobID is $contact");
@@ -164,7 +176,8 @@ sub kill {
 
 	$self->info("Killing job $queueid, JobID is $contact");
 
-	my $error = system( "arckill", "$contact" );
+	# my $error = $self->_system( "LD_LIBRARY_PATH=$fix_env arckill", "$contact" );
+	my (@output, $error) = $self->_system( "LD_LIBRARY_PATH=$fix_env arckill $contact" );
 	return $error;
 }
 
@@ -219,14 +232,14 @@ sub getOutputFile {
 	my $batchId = $self->getContactByQueueID($queueId);
 	$self->debug( 2, "The job Agent is: $batchId" );
 
-	system(
-		"arccp $batchId/alien-job-$queueId/$output /tmp/alien-output-$queueId");
+	$self->_system(
+		"LD_LIBRARY_PATH=$fix_env arccp $batchId/alien-job-$queueId/$output /tmp/alien-output-$queueId");
 
 	open OUTPUT, "/tmp/alien-output-$queueId";
 	my @data = <OUTPUT>;
 	close OUTPUT;
 
-	system->("rm /tmp/alien-output-$queueId");
+	system("rm /tmp/alien-output-$queueId");
 
 	return join( "", @data );
 }
@@ -273,8 +286,8 @@ sub getAllBatchIds {
 
 sub cleanAllFinished {
 	my $self = shift;
-	$self->info( 'Running arcclean routinr for all finished JAs' );
-	system('arcclean -a -s FINISHED');
+	$self->info( 'Running arcclean routine for all finished JAs' );
+	$self->_system("LD_LIBRARY_PATH=$fix_env arcclean -a -s FINISHED");
 	
 	return 1;
 }
@@ -298,7 +311,7 @@ sub getCeArcstatStatus {
 	$nRunningJobs = 0;
 	$nQueuedJobs  = 0;
 
-	open LB, "arcstat -a 2>&1 |" or next;
+	open LB, "LD_LIBRARY_PATH=$fix_env arcstat -a 2>&1 |" or next;
 	my @output = <LB>;
 	close LB;
 
@@ -325,7 +338,7 @@ sub getCeArcstatStatus {
 				if ( @completedJobs >= 500 ) {
 					$self->info( $#completedJobs + 1
 						  . " completed jobs will be removed" );
-					system( "arcclean " . join( " ", @completedJobs ) );
+					$self->_system( "LD_LIBRARY_PATH=$fix_env arcclean " . join( " ", @completedJobs ) );
 					@completedJobs = ();
 				}
 			}
@@ -379,7 +392,7 @@ sub getCeArcstatStatus {
 
 	if ( @completedJobs and not $self->{LOGGER}->getDebugLevel() ) {
 		$self->info( $#completedJobs + 1 . " completed jobs will be removed" );
-		system( "arcclean " . join( " ", @completedJobs ) );
+		$self->_system( "LD_LIBRARY_PATH=$fix_env arcclean " . join( " ", @completedJobs ) );
 	}
 
 	if ($needArcSync) {
@@ -392,7 +405,7 @@ sub getCeArcstatStatus {
 			keys %notFoundIds;
 		@hosts_to_sync = _uniq( @hosts_to_sync );
 		foreach( @hosts_to_sync ){
-			system( "arcsync -T -f -c " . $_ );
+			$self->_system( "LD_LIBRARY_PATH=$fix_env arcsync -T -f -c " . $_ );
 			$self->info("arcsync finished with code $?") if ( !$? );
 		}
 		
@@ -500,9 +513,10 @@ sub repairJobsFile{
         my $ce_list = $self->getCEString;
 	# run system command
 	my $start_time = time();
-	system( "arcsync -T -f $ce_list" );
-	$self->info('Repair process took: ' . time() - $start_time);
-	$self->info( "Repair process returned: $?" );	
+	$self->_system( "LD_LIBRARY_PATH=$fix_env arcsync -T -f $ce_list" );
+	my $time_diff = time() - $start_time;
+	$self->info("Repair process took: $time_diff");
+	$self->info("Repair process returned: $?");	
 
 	return 1;
 }
@@ -573,6 +587,9 @@ sub generateXRSL {
 
 	# proxyname to be submitted with
 	my $proxyName = $ENV{SUBMITTED_PROXY_NAME} || "proxy";
+
+	my $memRequirement = (defined $self->{CONFIG}->{ARC_MEMORY_REQUIREMENT} ?
+		$self->{CONFIG}->{ARC_MEMORY_REQUIREMENT} : 2048);
 
 	open( BATCH, ">$fullName.xrsl" )
 	  or print STDERR "Can't open file '$fullName.xrsl': $!" and return;
@@ -665,9 +682,14 @@ sub getCeBDIIStatus{
 	my $running = 0;
 	my $waiting = 0;
 	my %ce_data = %{$res};
-	$self->debug( 1, Dumper( $res ) );
+	$self->debug( 1, Dumper( \%ce_data ) );
 		
 	foreach my $ce ( keys %{$self->{CE_CLUSTERSTATUS}[0]} ){				
+		next if not exists($res->{$ce}->{GlueCEStateRunningJobs}) and not exists($res->{$ce}->{GlueCEStateWaitingJobs});
+		if($res->{$ce}->{GlueCEStateWaitingJobs} == 444444){
+			$waiting = 444444;
+			last;
+		}
 		$running += $res->{$ce}->{GlueCEStateRunningJobs};
 		$waiting += $res->{$ce}->{GlueCEStateWaitingJobs};
 	}
@@ -705,13 +727,18 @@ sub queryBDII {
 	my ( $GRIS, $BaseDN ) = split( /\//, $IS, 2 );
 	$self->info( "Asking $GRIS/$BaseDN" );
 
-	unless ( $ldap = Net::LDAP->new($GRIS) ) {
+	unless ( $ldap = Net::LDAP->new($GRIS, timeout=>30) ) {
 		$self->info("$GRIS/$BaseDN not responding (1)");
-		return;
+		my $x =  (keys %{$self->{CE_CLUSTERSTATUS}[0]})[0];
+		$ce_data{$x}{GlueCEStateWaitingJobs} = 444444;	
+		return \%ce_data;
 	}
-	unless ( $ldap->bind() ) {
+	unless ( $ldap->bind(timeout=>30) ) {
 		$self->{LOGGER}->info("$GRIS/$BaseDN not responding (2)");
-		next;
+		my $x = (keys %{$self->{CE_CLUSTERSTATUS}[0]})[0];
+		$ce_data{$x}{GlueCEStateWaitingJobs} = 444444;
+		return \%ce_data;
+		#next;
 	}
 	my $result = $ldap->search(
 		base => "$base",
@@ -720,9 +747,12 @@ sub queryBDII {
 	
 	my $code = $result->code;
 	my $msg  = $result->error;
+	$self->debug(1, "LDAP error code: $code");
+	$self->debug(1, "LDAP error message: $msg");
 	if ($code) {
 		$self->{LOGGER}->warning( "LCG", "\"$msg\" ($code) from $GRIS/$BaseDN" );
-		return;
+		$ce_data{ce}{GlueCEStateWaitingJobs} = 444444;
+		return \%ce_data;
 	}
 	
 	foreach my $entry ($result->entries) {
@@ -736,5 +766,68 @@ sub queryBDII {
 	
 	return \%ce_data;
 }
+
+sub _system {
+  my $self = shift;
+  #my $command = join (" ", @_);
+  my $command = shift;
+  my $duration= shift // 120;
+
+  my $pid;
+  my @output;
+  my $msg = "timeout\n";
+  my $fh;
+
+  $self->info("Duration: $duration");
+
+  eval {
+    local $SIG{ALRM} = sub { die $msg };
+    #alarm 120;
+    alarm $duration;
+
+    #$self->setEnvironmentForLCG();
+    $self->info("Doing: $command");
+
+    $pid = open($fh, "( $command ) |") or alarm 0, die "$!\n";
+
+    while (<$fh>) {
+      push @output, $_;
+    }
+
+    alarm 0;
+  };
+
+  if ($@ eq $msg) {
+    $self->{LOGGER}->error("LCG", "Timeout for: $command");
+    $pid and $self->info("Timeout: killing the process $pid") and CORE::kill(9, $pid);
+  } elsif ($@) {
+    chomp($msg = $@);
+    $self->{LOGGER}->error("LCG", "Error '$msg' for: $command");
+  }
+
+  close $fh;
+  my $error = $?;
+
+  #$self->unsetEnvironmentForLCG();
+
+  if ($error) {
+    my $sig = $error & 0x7F;
+    my $val = ($error >> 8) & 0xFF;
+
+    $error = $sig ? "signal $sig" : "status $val";
+
+    $self->{LOGGER}->error("LCG", "Exit $error for: $command");
+    $self->info("Exit $error");
+
+    for (@output) {
+      chomp;
+      $self->{LOGGER}->error("LCG", "--> $_");
+      $self->info("--> $_");
+    }
+  }
+
+  return (@output, $error);
+}
+
 
 return 1;

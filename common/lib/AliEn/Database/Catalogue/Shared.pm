@@ -1,6 +1,7 @@
 package AliEn::Database::Catalogue::Shared;
 use strict;
 
+use Data::Dumper;
 
 use vars qw(@ISA $DEBUG);
 #This array is going to contain all the connections of a given catalogue
@@ -212,9 +213,7 @@ sub executeInAllDB{
 
 sub destroy {
   my $self=shift;
-
-
-  use Data::Dumper; 
+ 
   my $number=$self->{UNIQUE_NM};
   $number or return;
   $Connections{$number} or return;
@@ -249,7 +248,7 @@ sub checkSETable {
                  seVersion=>"varchar(300)",
 		);
 
-  return $self->checkTable("SE", "seNumber", \%columns, 'seNumber', ['UNIQUE INDEX (seName)'], {engine=>"innodb"} ); #or return;
+  return $self->checkTable("SE", "seNumber", \%columns, 'seNumber', ['UNIQUE INDEX (seName)'], {engine=>"engine=innodb"} ); #or return;
   #This table we want it case insensitive
 #  return $self->do("alter table SE  convert to CHARacter SET latin1");
 }
@@ -262,8 +261,29 @@ sub reconnectToIndex {
   ($index eq $self->{CURHOSTID}) and return ($self, $tableName);
   $self->debug(2,"We have to reconnect to $index, and we are $self->{CURHOSTID}");
 
-  $data or 
-    $data= $self->getFieldsFromHosts($index,"organisation,address,db,driver");
+  # we check local cache, global cache or db
+  if(!$data){
+    $data = AliEn::Util::returnCacheValue($self, "hosts_$index");
+        
+    my $keyCache = "";
+    my $ok = 0;    
+        
+    if(!$data){  
+      if($self->{CONFIG}->{CACHE_SERVICE_ADDRESS}){
+    	$keyCache = "$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}?ns=hosts&key=hostindex_$index";
+		($ok, $data) = AliEn::Util::getURLandEvaluate($keyCache, 1);
+		$ok and AliEn::Util::setCacheValue($self, "hosts_$index", $data, 600);
+      }
+    
+      if(!$ok){
+        $data= $self->getFieldsFromHosts($index,"organisation,address,db,driver");
+        $data and AliEn::Util::setCacheValue($self, "hosts_$index", $data, 600); 
+    	$data and $self->{CONFIG}->{CACHE_SERVICE_ADDRESS} and 
+      	  AliEn::Util::getURLandEvaluate("$keyCache&timeout=600&value=".Dumper([$data]));
+      }
+    }
+  }
+    
   ## add db error message
   defined $data
     or $self->info("Can't get the info of '$index'") and return;

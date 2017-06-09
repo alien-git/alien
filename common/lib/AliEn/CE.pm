@@ -98,7 +98,7 @@ sub new {
 	$options->{PACKMAN} and $self->{PACKMAN} = $pOptions->{PACKMAN} = $options->{PACKMAN};
 	my $ca = AliEn::Classad::Host->new($pOptions) or return;
 
-	AliEn::Util::setCacheValue($self, "classad", $ca->asJDL);
+#	AliEn::Util::setCacheValue($self, "classad", $ca->asJDL);
 	$self->info($ca->asJDL);
 	$self->{X509} = new AliEn::X509         or return;
 	$self->{DB}   = new AliEn::Database::CE or return;
@@ -986,7 +986,7 @@ sub offerAgent {
 	($free_slots and ($free_slots > 0))
 		or $self->{LOGGER}->$mode("CE", "At the moment we are busy (we can't request new jobs)")
 		and return;
-    my $classad = "";    #AliEn::Util::returnCacheValue($self,"classad");
+    my $classad = "";
 	if (!$classad) {
 		my $ca = AliEn::Classad::Host->new({PACKMAN => $self->{PACKMAN}}) or return;
 		$ca->set_expression("LocalDiskSpace", 100000000);
@@ -994,17 +994,8 @@ sub offerAgent {
 			or $self->info("Error asking the CE to prepare for submission loop")
 			and return;
 		$classad = $ca->asJDL;
-
-		AliEn::Util::setCacheValue($self, "classad", $classad);
-
 	}
-    #  $done = $self->{SOAP}->CallSOAP("ClusterMonitor", "offerAgent",
-    #				  $user,
-    #				  $self->{CONFIG}->{CLUSTERMONITOR_PORT},
-    #				  $self->{CONFIG}->{CE_FULLNAME},
-    #				  $silent, $classad,
-    #				  $free_slots,
-    #				 );
+	
     $done = $self->{SOAP}->CallSOAP("Broker/Job", "offerAgent", $user, $self->{CONFIG}->{HOST}, $classad, $free_slots);
 
 	$done or return;
@@ -3440,10 +3431,9 @@ sub resubmitCommand {
 	foreach my $queueId (@_) {
 		# Getting path and resubmission
 		$self->info("Resubmitting $queueId");
-		my $resubmission = $self->{TASK_DB}->getFieldFromQueue($queueId, "resubmission");
-                my $path = $self->{TASK_DB}->queryValue("SELECT path from QUEUEJDL where queueid=?",
+		my $status = $self->{TASK_DB}->getFieldFromQueue($queueId, "statusId");
+        my $path = $self->{TASK_DB}->queryValue("SELECT path from QUEUEJDL where queueid=?",
                                                          undef, {bind_values=>[$queueId]});
-  
 
 		my ($done, $error) = $self->resubmitCommandInternal($queueId, $user);
 		$done!='-1' or  $self->info("Error resubmitting $queueId: $error")
@@ -3451,18 +3441,36 @@ sub resubmitCommand {
 		push @result, $done;
 		$self->info("Process $queueId resubmitted!! (new jobid is " . $done . ")");
 		
+		# If we don't have the path we get it from the JDL
+		if (!$path and $status =~ /ERROR_SV/) {
+			$self->info("Looking for OutputDir in the JDL");
+			my $ok;
+			my $info = $self->{TASK_DB}->queryRow("SELECT queueId,origJdl FROM QUEUE join QUEUEJDL using(queueId) where queueId=?", undef, {bind_values=>[$queueId]});
+			if($info){
+				my $ca = Classad::Classad->new($info->{origJdl}) or 
+				  ($self->info("Error parsing the jdl of $info->{queueId}") and return (-1,"Error getting OutputDir from JDL for $info->{queueId}") );
+	  			($ok, $path) = $ca->evaluateAttributeString("OutputDir");
+	  			$ok and $self->info("OutputDir: $path");
+			} else{
+				return (-1, "Error getting JDL for $queueId");
+			}
+		}
+		
 		if ($path) {
-		  $self->info("Renaming previous saved files of the job in $path");
+		  $self->info("Deleting previous saved files of the job in $path");
 		  my @files = $self->{CATALOG}->execute("find", "-j", $queueId, $path, "*");
 		
 		# Renaming saved files so the process can save the new ones
 		  foreach my $file (@files){
-		  	# $file =~ /.resubmit\d+/ and $self->info("Ignoring file $file") and next;
-#		  	$self->info("Renaming file $file from job $queueId");
-		  	#$self->{CATALOG}->execute("mv", $file, $file.".resubmit".$resubmission);
-                        $self->info("Deleting file $file from job $queueId");
-                        $self->{CATALOG}->execute("rm", $file);
+            $self->info("Deleting file $file from job $queueId");
+            $self->{CATALOG}->execute("rm", $file);
 		  }
+		}
+		
+		# We clean up the booking area for states with potentially booked pfns
+		if($status =~ /SAVING|SAVED|ERROR_E|ERROR_V|ZOMBIE/){
+			$self->info("Deleting from LFN_BOOKED for $queueId");
+			$self->{CATALOG}->{CATALOG}->{DATABASE}->{LFN_DB}->do("update LFN_BOOKED set expiretime=-1 where jobId=?", {bind_values=>[$queueId]});
 		}
 				
 	}
@@ -3855,6 +3863,8 @@ sub requirementsFromPackages {
 	my $self   = shift;
 	my $job_ca = shift;
 
+	$ENV{SKIP_CHECK_PACKAGES} and $self->info("Skipping packages check!") and return " ";
+
 	$DEBUG and $self->debug(1, "Checking Packages required by the job");
 	my ($ok, @packages) = $job_ca->evaluateAttributeVectorString("Packages");
 	($ok) or return "";
@@ -3890,6 +3900,7 @@ sub requirementsFromPackages {
 		}
 				
 		$self->{LOGGER}->error("CE", "The package $package is not defined in PackMan/CVMFS.");
+#		$self->{LOGGER}->error("CE", "Packages: ".Dumper(@definedPack));
 		return;
 	}
 
@@ -3904,9 +3915,9 @@ sub getAllPackages {
 		return @$info;
 	}
 
-	my ($status, @definedPack) = $self->{PACKMAN}->f_packman("list", "-silent", "-all");
+	my ($status, @definedPack) = $self->{PACKMAN}->f_packman("list", "-silent", "-all", "-force");
 	
-	scalar(@definedPack)>1 and AliEn::Util::setCacheValue($self, "all_packages", [ $status, @definedPack ])
+	scalar(@definedPack)>1 and AliEn::Util::setCacheValue($self, "all_packages", [ $status, @definedPack ], 600)
 	  or $status=0;
 	
 	return $status, @definedPack;

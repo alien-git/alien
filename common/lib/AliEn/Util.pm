@@ -213,6 +213,7 @@ sub setCacheValue {
   my $self  = shift;
   my $name  = shift;
   my $value = shift;
+  my $expire = shift || 1800;
   my $date  = time;
 
   $self->{CACHE} or $self->{CACHE} = {BUILT => $date};
@@ -221,7 +222,7 @@ sub setCacheValue {
     return 1;
   }
   $self->{CACHE}->{$name} = {
-    expired     => $date + 1800,
+    expired     => $date + $expire,
     timeChecked => $date,
     value       => $value
   };
@@ -648,7 +649,7 @@ sub getURLandEvaluate {
   my $evaluate = shift || 0;
 
   my $agent = LWP::UserAgent->new();
-  $agent->timeout(120);
+  $agent->timeout(10);
   $agent->agent("AgentName/0.1 " . $agent->agent);
   my $req = HTTP::Request->new("GET" => $url);
   $req->header("Accept" => "text/html");

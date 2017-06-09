@@ -1081,6 +1081,11 @@ sub resyncLDAPSiteProxies {
       and $self->info("Site $name using proxy $proxy");  
   }
 
+  # cleaning cache for the siteproxy 
+  $self->info("SiteProxies cleaning cache");
+  $self->{CONFIG}->{CACHE_SERVICE_ADDRESS} and 
+    AliEn::Util::getURLandEvaluate("$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}?ns=siteproxy&clean=true");
+
   $ldap->unbind();
   $self->info("SiteProxies done!");
   return;

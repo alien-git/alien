@@ -13,7 +13,7 @@ USE_JOB_ROUTER=( 1 | 0) # whether is is necessary to use job router service
 GRID_RESOURCE=condor ce504.cern.ch ce504.cern.ch:9619 	# htCondor resource for explicitly defined for submission to vanilla universe, otherwise system default resource will be selected
 ROUTES_LIST=[GridResource = "condor ce504.cern.ch ce504.cern.ch:9619"; eval_set_GridResource = "condor ce504.cern.ch ce504.cern.ch:9619"; name = "Site 4"; ]  	# routes list example
 USE_EXTERNAL_CLOUD=(1 | 0) # whether to use external cloud
-
+SUBMIT_ARGS #specify extra options for condor_submit command . Example: add extra ClassAds to the job description:   SUBMIT_ARGS=-append "+TestClassAd=1"
 
 Multiple routes example:
 
@@ -166,7 +166,8 @@ else{
 	$submit .= "universe = vanilla
 	+WantJobRouter=True
 	job_lease_duration = 7200
-	should_transfer_files = YES
+	ShouldTransferFiles = YES
+	+TransferOutput = \"\"
 	periodic_remove = (CurrentTime - QDate > 7*24*3600)";
 }
 # ----- common
@@ -178,7 +179,7 @@ queue 1";
 
   $self->{COUNTER}++;
   eval {    
-    open( BATCH,"| $self->{SUBMIT_CMD}") or print  "Can't send batch command: $!" and return -2;
+    open( BATCH,"| $self->{SUBMIT_CMD} $self->{SUBMIT_ARGS} ") or print  "Can't send batch command: $!" and return -2;
     $self->debug(1, "Submitting the command:\n$submit");
     print BATCH $submit;
     close BATCH or return -1;
@@ -260,21 +261,26 @@ sub checkCondorHealth{
 
 sub getNumberRunning{
   my $self = shift;
-  my $totals = `condor_q $self->{USERNAME} -totals | tail -n 1`;
+  #my $totals = `condor_q $self->{USERNAME} -totals | tail -n 1`;
+  my $totals = `condor_status -schedd -af totalRunningJobs`;
   return undef if $?;
   my $running = undef;
-  $totals =~ /(\d+) running/;
+  #$totals =~ /(\d+) running/;
+  $totals =~ /(\d+)/;
   $running = $1;
   return $running;
 }
 
 sub getNumberQueued{
   my $self = shift;
-  my $totals = `condor_q $self->{USERNAME} -totals | tail -n 1`;
+  #my $totals = `condor_q $self->{USERNAME} -totals | tail -n 1`;
+  my $totals = `condor_status -schedd -af totalIdleJobs`;
   return undef if $?;
   my $queued = 0;
-  $totals =~ /(\d+) idle,\s+(\d+) running,\s+(\d+) held,\s+(\d+) suspended/;
-  $queued = $1 + $3 + $4;
+  #$totals =~ /(\d+) idle,\s+(\d+) running,\s+(\d+) held,\s+(\d+) suspended/;
+  #$queued = $1 + $3 + $4;
+  $totals =~ /(\d+)/;
+  $queued = $1;
   return $queued;
 }
 
@@ -293,6 +299,9 @@ sub initialize() {
   $self->debug(1,"In CONDOR.pm initialize");
   $self->{SUBMIT_CMD} = ( $self->{CONFIG}->{CE_SUBMITCMD} or "condor_submit" );
   $self->{SUBMIT_ARG}="";
+
+  # new style, getting extra arguments for condor_submit from LDAP or environment
+  $self->{SUBMIT_ARGS} = $ENV{SUBMIT_ARGS} || "";
   
   $self->{USERNAME} = $ENV{LOGNAME} || $ENV{USER} || getpwuid($<);
 

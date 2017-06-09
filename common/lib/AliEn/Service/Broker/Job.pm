@@ -329,7 +329,7 @@ sub getToken {
       $self->info("Returning the value from the TokenGenerator '$value[0]->{'token'}'");
       return $value[0]->{'token'};
     }
-    $self->warning("The TokenGenerator didn't return any value");
+    $self->info("Warning: The TokenGenerator didn't return any value");
 
     return $createToken->();	
 }
@@ -343,18 +343,18 @@ sub getJobToken {
 	$self->info("Getting  job $procid (and $user)");
 
 	($procid)
-		or $self->info("Error: In getJobToken not enough arguments") and print FILE "Error: In getJobToken not enough arguments\n"
+		or $self->info("Error: In getJobToken not enough arguments") 
 		and return;
 
-	$self->{DB}->queryValue("select count(*) from JOBTOKEN where jobId=?", undef, {bind_values => [$procid]})
-		and $self->info("Job $procid already given..") and print FILE "Job $procid already given\n" 
+	$self->{DB}->queryValue("select count(*) from JOBTOKEN where jobId=?", undef, {bind_values => [$procid]}) 
+		and $self->info("Job $procid already given..") 
 		and return;
 
-        my $token;
-        $token = $self->getToken();
+    my $token;
+    $token = $self->getToken();
 
 	$self->{DB}->insertJobToken($procid, $user, $token)
-		or $self->{LOGGER}->warning("CatalogDaemon", "Error updating jobToken for user $user") and print FILE "Error updating jobToken ($procid, $token) for user $user\n"
+		or $self->info("Error updating jobToken for user $user and jobid $procid (token $token) !") 
 		and return (-1, "error setting the job token");
 
 	$self->info("Sending job $procid to $user");
@@ -413,6 +413,9 @@ sub extractClassadParams {
         
     ($ok, my $cvmfs) = $classad->evaluateExpression("CVMFS");
     $ok and $cvmfs and $params->{cvmfs}=1;
+    
+    ($ok, my $cvmfsrev) = $classad->evaluateExpression("CVMFS_Revision");
+    $ok and $cvmfsrev and $params->{cvmfs_revision}=$cvmfsrev;
 
 	return ($queueName, $params);
 }

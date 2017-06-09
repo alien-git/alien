@@ -1142,13 +1142,14 @@ sub getBaseEnvelopeForReadAccess {
   	return $prepareEnvelope;
   } 
   
-  ($prepareEnvelope->{turl}, $prepareEnvelope->{pfn}) =
+  ($prepareEnvelope->{turl}, $prepareEnvelope->{pfn}, my $seStoragePath) =
       $self->parseAndCheckStorageElementPFN2TURL($prepareEnvelope->{se}, $prepareEnvelope->{pfn});  
       
   if ($archiveFile) {
   	$prepareEnvelope->{turl} = $prepareEnvelope->{turl}."#".$archiveFile;
     $prepareEnvelope->{zguid} = $prepareEnvelope->{pfn};
     $prepareEnvelope->{zguid} =~ s/\/\d+\/\d+\///;
+    $seStoragePath and $prepareEnvelope->{zguid} =~ s/$seStoragePath//;
   }
       
   return $prepareEnvelope;
@@ -1169,14 +1170,14 @@ sub parseAndCheckStorageElementPFN2TURL {
   if (not $seiostring) {
     $seiostring =
       $self->{DATABASE}->{LFN_DB}->{FIRST_DB}
-      ->queryRow("SELECT seioDaemons FROM SE where seName = ? ;", undef, {bind_values => [$se]});
+      ->queryRow("SELECT seioDaemons,seStoragePath FROM SE where seName = ? ;", undef, {bind_values => [$se]});
     AliEn::Util::setCacheValue($self, "seiodaemons-$se", $seiostring);
   }
   ($seiostring->{seioDaemons} =~ /[a-zA-Z]*:\/\/[0-9a-zA-Z.\-_:]*/) and $turl = $seiostring->{seioDaemons}
     or return ($pfn, $pfn);
   $turl= "$turl/$parsedPFN->{path}";
   $parsedPFN->{vars} and $turl= $turl."?$parsedPFN->{vars}";
-  return ($turl,$parsedPFN->{path});
+  return ($turl,$parsedPFN->{path},$seiostring->{seStoragePath});
 }
 
 sub getSEforPFN{
@@ -1888,8 +1889,26 @@ sub authorize{
 sub getSiteProxy {
 	my $self = shift;
 	my $sitename = shift || return 0;
+	my $proxy;
+	my $keyCache = "";
+	my $ok = 0;
+	
+	$proxy = AliEn::Util::returnCacheValue($self, "proxy_$sitename");
+  
+    if(!defined $proxy){  
+      if($self->{CONFIG}->{CACHE_SERVICE_ADDRESS}){
+    	  $keyCache = "$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}?ns=siteproxy&key=$sitename";
+		  ($ok, $proxy) = AliEn::Util::getURLandEvaluate($keyCache, 1);
+		  $ok and AliEn::Util::setCacheValue($self, "proxy_$sitename", $proxy, 600) and return $proxy;
+      }
 		
-	my ($proxy) = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryValue("SELECT proxy FROM SITEPROXY WHERE upper(site)=upper(?)",undef,{bind_values=>[$sitename]});
+	  ($proxy) = $self->{DATABASE}->{LFN_DB}->{FIRST_DB}->queryValue("SELECT proxy FROM SITEPROXY WHERE upper(site)=upper(?)",undef,{bind_values=>[$sitename]});
+	  defined $proxy or $proxy = "";
+	  AliEn::Util::setCacheValue($self, "proxy_$sitename", $proxy, 600);
+      $self->{CONFIG}->{CACHE_SERVICE_ADDRESS} and 
+        AliEn::Util::getURLandEvaluate("$keyCache&timeout=600&value=".Dumper([$proxy]));
+    }
+	
 	return $proxy;
 }
 

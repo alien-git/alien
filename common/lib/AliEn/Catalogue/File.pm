@@ -757,8 +757,8 @@ sub f_touch {
     or $self->{LOGGER}->error("Catalogue::File","Error missing the name of the file to touch") 
     and return;
   $lfn = $self->GetAbsolutePath($lfn);
-  my ($ok, $message) = $self->checkFileQuota( $self->{CONFIG}->{ROLE}, 0 );
-  if($ok eq -1) {
+  my ($ok, $message) = $self->checkFileQuota( $self->{ROLE}, 0 );
+  if($ok != 1) {
     $self->{LOGGER}->error($message) 
       or return; 
   }

@@ -18,7 +18,8 @@ use AliEn::Database::Catalogue::Shared;
 use strict;
 
 use Data::Dumper;
-
+use AliEn::Util;
+use URI::Escape;
 
 =head1 NAME
 
@@ -259,10 +260,13 @@ sub checkLFNTable {
                  jobid=>"int(11)",
 		);
 
+  my $options;
+  $options->{engine} = " ENGINE=InnoDB "; #ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2 ";
+
   $self->checkTable(${table}, "entryId", \%columns, 'entryId', 
-		    ['UNIQUE INDEX (lfn)',"INDEX(dir)", "INDEX(guid)", "INDEX(type)", "INDEX(ctime)", "INDEX(guidtime)"]) or return;
-  $self->checkTable("${table}_broken", "entryId", {entryId=>"bigint(11) NOT NULL  primary key"}) or return;
-  $self->checkTable("${table}_QUOTA", "user", {user=>"varchar(64) NOT NULL", nbFiles=>"int(11) NOT NULL", totalSize=>"bigint(20) NOT NULL"}, undef, ['INDEX user_ind (user)'],) or return;
+		    ['UNIQUE INDEX (lfn)',"INDEX(dir)", "INDEX(guid)", "INDEX(type)", "INDEX(ctime)", "INDEX(guidtime)"],$options) or return;
+  $self->checkTable("${table}_broken", "entryId", {entryId=>"bigint(11) NOT NULL  primary key"},undef,undef,$options) or return;
+  $self->checkTable("${table}_QUOTA", "user", {user=>"varchar(64) NOT NULL", nbFiles=>"int(11) NOT NULL", totalSize=>"bigint(20) NOT NULL"}, undef, ['INDEX user_ind (user)'],$options) or return;
   
   $self->optimizeTable($table); 
   return 1;
@@ -1321,6 +1325,11 @@ sub moveLFNs {
     
  #   $self->grant("ALL on $toTable to $user");
   }
+  
+  # cleaning cache for the indextable
+  $self->info("Cleaning indextable cache");
+  $self->{CONFIG}->{INDEX_SERVICE_ADDRESS} and 
+    AliEn::Util::getURLandEvaluate("$self->{CONFIG}->{INDEX_SERVICE_ADDRESS}?refresh=true");
 
   return 1;
 }
@@ -1469,10 +1478,21 @@ sub getIndexHost {
   my $lfn=shift;
   $lfn=~ s{/?$}{/};
   #my $options={bind_values=>[$lfn]};
+  # return $self->queryRow($query, undef, $options);
+  my $index;
+  my $ok = 0;
+  my $keyCache = "";
+  
+  if($self->{CONFIG}->{INDEX_SERVICE_ADDRESS}){
+  	$keyCache = "$self->{CONFIG}->{INDEX_SERVICE_ADDRESS}?lfn=".uri_escape("$lfn");
+  	($ok, $index) = AliEn::Util::getURLandEvaluate($keyCache, 1);
+  	$ok and return $index;
+  }
+  
   my $query = "SELECT hostIndex, tableName,lfn FROM INDEXTABLE where lfn=substr('$lfn',1, length(lfn))  order by length(lfn) desc ";
   $query = $self->paginate($query, 1,0);
-  # return $self->queryRow($query, undef, $options);
-  return $self->queryRow($query, undef, undef);
+  $index = $self->queryRow($query, undef, undef);  
+  return $index;
 }
 
 sub getMaxHostIndex {
@@ -1526,9 +1546,28 @@ sub getUserGroups {
       and return;
   my $prim = shift;
   defined $prim or $prim=1;
+  my $keyCache="";
+  my $group_info;
+  my $ok=0;
 
   $DEBUG and $self->debug(2,"In getUserGroups fetching groups for user $user");
-  $self->queryColumn("SELECT groupname,userId from GROUPS where Username='$user' and PrimaryGroup = $prim");
+  
+  $group_info = AliEn::Util::returnCacheValue($self, "group_${user}_${prim}");
+  
+  if(!$group_info){  
+    if($self->{CONFIG}->{CACHE_SERVICE_ADDRESS}){
+    	$keyCache = "$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}?ns=groups&key=${user}_${prim}";
+		($ok, @$group_info) = AliEn::Util::getURLandEvaluate($keyCache, 1);
+		$ok and AliEn::Util::setCacheValue($self, "group_${user}_${prim}", $group_info, 600) and return $group_info;
+    }
+  
+    $group_info = $self->queryColumn("SELECT groupname,userId from GROUPS where Username='$user' and PrimaryGroup = $prim");
+    AliEn::Util::setCacheValue($self, "group_${user}_${prim}", $group_info, 600);
+    $self->{CONFIG}->{CACHE_SERVICE_ADDRESS} and 
+      AliEn::Util::getURLandEvaluate("$keyCache&timeout=600&value=".Dumper([@$group_info]));
+  }  
+  
+  return $group_info;
 }
 
 
@@ -2030,7 +2069,7 @@ sub internalQuery {
     if ($tagsDone->{$tagName}){
       $self->info("The tag $tagName has already been selected. Just add the constraint");
       foreach my $oldQuery (@joinQueries){
-	push @newQueries, "$oldQuery $union $query";
+		push @newQueries, "$oldQuery $union $query";
       }
     }
     else {
@@ -2041,31 +2080,31 @@ sub internalQuery {
 	or $self->info( "Error: there are no directories with tag $tagName in $self->{DATABASE}->{DB}") 
 	  and return;
       foreach  (@$tables) {
-	my $table=$_->{tableName};
-	$self->debug(1, "Doing the new table $table");
-	foreach my $oldQuery (@joinQueries) {
-	  #This is the query that will get all the results. We do a join between 
-	  #the D0 table, and the one with the metadata. There will be two queries
-	  #like these per table with that metadata. 
-	  #The first query gets files under directories with that metadata. 
-	  # It is slow, since it has to do string comperation
-	  #The second query gets files with that metadata. 
-	  # (this part is pretty fast)
-
-	  if ($options->{'m'}){
-	    $self->info("WE WANT EXACT FILES!!");
-	    my $l=length($refTable->{lfn});
-	  #  push @newQueries, " JOIN $table $oldQuery $union $table.$query and substring($table.file,$l+1)=l.lfn  and left($table.file,$l)='$refTable->{lfn}'";
-         push @newQueries, " , $table $oldQuery $union $table.$query and substr($table.".$self->reservedWord("file").",$l+1)=l.lfn  and substr($table.".$self->reservedWord("file").",1,$l) ='$refTable->{lfn}'";
-	  } else{
-	#    push @newQueries, " JOIN $table $oldQuery $union $table.$query and $table.file like '%/' and concat('$refTable->{lfn}', l.lfn) like concat( $table.file,'%') ";
-	    push @newQueries, " , $table $oldQuery $union $table.$query and $table.".$self->reservedWord("file")."  like '%/' and concat('$refTable->{lfn}', l.lfn) like concat( $table.".$self->reservedWord("file").",'%') ";
-	    my $length=length($refTable->{lfn})+1;
-	#    push @newQueries, " JOIN $table $oldQuery $union $table.$query and l.lfn=substring($table.file, $length) and left($table.file, $length-1)='$refTable->{lfn}'";
-	    push @newQueries, " , $table $oldQuery $union $table.$query and l.lfn=substr($table.".$self->reservedWord("file").", $length) and substr($table.".$self->reservedWord("file").",1, $length-1)  ='$refTable->{lfn}'";
-
-      }
-	}
+		my $table=$_->{tableName};
+		$self->debug(1, "Doing the new table $table");
+		foreach my $oldQuery (@joinQueries) {
+		  #This is the query that will get all the results. We do a join between 
+		  #the D0 table, and the one with the metadata. There will be two queries
+		  #like these per table with that metadata. 
+		  #The first query gets files under directories with that metadata. 
+		  # It is slow, since it has to do string comperation
+		  #The second query gets files with that metadata. 
+		  # (this part is pretty fast)
+	
+		  if ($options->{'m'}){
+		    $self->info("WE WANT EXACT FILES!!");
+		    my $l=length($refTable->{lfn});
+		  #  push @newQueries, " JOIN $table $oldQuery $union $table.$query and substring($table.file,$l+1)=l.lfn  and left($table.file,$l)='$refTable->{lfn}'";
+	         push @newQueries, " , $table $oldQuery $union $table.$query and substr($table.".$self->reservedWord("file").",$l+1)=l.lfn  and substr($table.".$self->reservedWord("file").",1,$l) ='$refTable->{lfn}'";
+		  } else{
+		#    push @newQueries, " JOIN $table $oldQuery $union $table.$query and $table.file like '%/' and concat('$refTable->{lfn}', l.lfn) like concat( $table.file,'%') ";
+		    push @newQueries, " , $table $oldQuery $union $table.$query and $table.".$self->reservedWord("file")."  like '%/' and concat('$refTable->{lfn}', l.lfn) like concat( $table.".$self->reservedWord("file").",'%') ";
+		    my $length=length($refTable->{lfn})+1;
+		#    push @newQueries, " JOIN $table $oldQuery $union $table.$query and l.lfn=substring($table.file, $length) and left($table.file, $length-1)='$refTable->{lfn}'";
+		    push @newQueries, " , $table $oldQuery $union $table.$query and l.lfn=substr($table.".$self->reservedWord("file").", $length) and substr($table.".$self->reservedWord("file").",1, $length-1)  ='$refTable->{lfn}'";
+	
+	      }
+		}
       }
     }
     @joinQueries=@newQueries;
@@ -2395,10 +2434,10 @@ sub cleanupTagValue{
       my @bind=($host->{lfn},$host->{lfn});
       my $where=" and file like concat(?,'%') ";
       foreach my $entry (@$dirs){
-	$entry->{lfn} =~ /^$host->{lfn}./ or next;
-	$self->info("$entry->{lfn} is a subdirectory!!");
-	$where.=" and file not like concat(?,'%') ";
-	push @bind, $entry->{lfn};
+		$entry->{lfn} =~ /^$host->{lfn}./ or next;
+		$self->info("$entry->{lfn} is a subdirectory!!");
+		$where.=" and file not like concat(?,'%') ";
+		push @bind, $entry->{lfn};
       }
       $self->do("delete from $tag->{tableName} using $tag->{tableName} left join L$host->{tableName}L on file=concat(?, lfn) where lfn is null $where", {bind_values=>\@bind});
     }

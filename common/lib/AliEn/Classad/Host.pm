@@ -170,6 +170,14 @@ sub setPackages {
        $self->setItem($ca, "Packages", @packages) or return;
        $self->setItem($ca, "InstalledPackages", @packages);
        $ca->set_expression("CVMFS", 1);
+       
+       my $revision=0;
+       eval{
+         $revision = `attr -qg revision /cvmfs/alice.cern.ch`;
+       };
+       if(!$@ and $revision and $revision =~ /\d+/){
+         $ca->set_expression("CVMFS_Revision", $revision);
+       }
       }
   } else {  
      $self->{PACKMAN} or $self->{PACKMAN}=AliEn::PackMan->new();
@@ -190,8 +198,8 @@ sub setPackages {
        $self->debug(1, "Setting the installed packages");
        $self->setItem($ca, "InstalledPackages", @packages);
      }
-     return 1;
- } 
+ }
+ return 1; 
 }
 
 

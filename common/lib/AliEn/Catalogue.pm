@@ -1703,15 +1703,19 @@ sub f_find {
         and return;
     }
   }
+  
+  my $jobfiles = defined $options{j};
+  
   my $keyCache="";
   my @result;
-  if ($self->{CONFIG}->{CACHE_SERVICE_ADDRESS} && !$self->{CONFIG}->{API_FOR_USERS} ) {
+  my $ok;
+  if ($self->{CONFIG}->{CACHE_SERVICE_ADDRESS} && !$self->{CONFIG}->{API_FOR_USERS} && !$jobfiles) {
 #        $self->info( "Checking if we can get it from the cache");
         $keyCache ="$self->{CONFIG}->{CACHE_SERVICE_ADDRESS}?ns=findwait&key="
           . uri_escape(join("_", $path, $file, @_));
 #        $self->info("Our read cache key is : $keyCache -- ");
       while (1){
-        (my $ok, @result) = AliEn::Util::getURLandEvaluate($keyCache, 1);
+        ($ok, @result) = AliEn::Util::getURLandEvaluate($keyCache, 1);        
         if ($ok){
 #          $self->info("WE GOT SOMETHING FROM THE CACHE!!");
           if ($result[0] eq 'wait'){
@@ -1723,14 +1727,14 @@ sub f_find {
           }
         } else{
 #          $self->info("The cache didn't work: we got @result. Let's put it so that other clients wait");
-          AliEn::Util::getURLandEvaluate("$keyCache&ifnull=true&timeout=30&value=". uri_escape(Dumper(['wait'])));
+          AliEn::Util::getURLandEvaluate("$keyCache&ifnull=true&timeout=180&value=". uri_escape(Dumper(['wait'])));
           @result=();
           last;
         }
       }
   }
 
-  if (!@result){
+  if (!$ok){ # @result 
 	$self->debug( 1, "Going to do f_findNoCache");
     my $ref=$self->f_findNoCache($path, $file, $quiet, $verbose, \%options, @_);
     $self->debug( 1, "Returned: ". ($ref ? "defined" : "not defined") );

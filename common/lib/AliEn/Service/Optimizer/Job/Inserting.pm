@@ -81,8 +81,13 @@ sub updateInserting {
       $req.="  && other.TO_STAGE==1 ";
     }
     
-    $ok=$job_ca->set_expression("Requirements", $req) or 
-	      die("ERROR SETTING THE REQUIREMENTS TO $req");
+    # Call add CVMFS_Revision to requirements
+    my ($code,$new_job_ca, $newreqs) = $self->addCVMFSRevision($job_ca, $req) 
+      or die("Error adding the CVMFS_Revision requirement\n");
+        
+    ($code and $code==2 and $job_ca=$new_job_ca and $req = $newreqs)
+      or ($ok=$job_ca->set_expression("Requirements", $req) or 
+	        die("ERROR SETTING THE REQUIREMENTS TO $req"));
 	      
 	$set->{origjdl}=$job_ca->asJDL();
 

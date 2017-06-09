@@ -4,7 +4,7 @@ use strict;
 
 use vars qw($VERSION @ISA $PROTO $DEBUG);
 
-$VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d.%02d", q$Revision: 3993 $ =~ /(\d+)\.(\d+)/);
 
 use IO::Socket qw(AF_INET INADDR_ANY inet_ntoa);
 

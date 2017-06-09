@@ -4,7 +4,7 @@
 # SOAP::Lite is free software; you can redistribute it
 # and/or modify it under the same terms as Perl itself.
 #
-# $Id$
+# $Id: HTTPS.pm 3993 2006-03-20 13:21:13Z psaiz $
 #
 # ======================================================================
 

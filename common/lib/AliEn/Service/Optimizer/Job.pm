@@ -656,22 +656,31 @@ sub copyInputCollection {
     	$lfnRef = $self->{DATASET}->getAllLFN()
           or $self->info("Error getting the LFNS from the dataset")
           and return;
-        $lfnRef = $#{$lfnRef->{lfns}};
+        $lfnRef = $#{$lfnRef->{lfns}} + 1;
     } else {
-    	$lfnRef = $#{$inputBox} - $ref_before;
+    	$lfnRef = $#{$inputBox} - $ref_before + 1;
     }
-    if ($split and $#{$inputBox} > 30000) {
-      $self->putJobLog($jobId, "error",
-"There are $lfnRef files in the collection $file2 (split job). Putting the job to error"
-      );
-      return;
+#    if ($split and $#{$inputBox} > 30000) {
+#      $self->putJobLog($jobId, "error",
+#"There are $lfnRef files in the collection $file2 (split job). Putting the job to error"
+#      );
+#      return;
+#    }
+#    if (!$split and $#{$inputBox} > 10000) {
+#      $self->putJobLog($jobId, "error",
+#"There are $lfnRef files in the collection $file2. Putting the job to error"
+#      );
+#      return;
+#    }   
+    my $tag = "trace";
+    
+    if( ($split and $#{$inputBox} > 30000) or (!$split and $#{$inputBox} > 10000) ){
+    	$tag = "error";
     }
-    if (!$split and $#{$inputBox} > 10000) {
-      $self->putJobLog($jobId, "error",
-"There are $lfnRef files in the collection $file2. Putting the job to error"
-      );
-      return;
-    }
+    
+    $self->putJobLog($jobId, $tag, "There are $lfnRef files in the collection $file2 ".($split ? "($split split job)" : "(no split job)"));
+
+    $tag eq "error" and return;  
   }
   return 1;
 }
@@ -713,7 +722,7 @@ sub copyInputCollectionFromXML {
     $self->putJobLog($jobId, "error", "Error getting the inputcollection $lfn");
     return;
   }
-  $self->info("Let's read the dataset");
+  $self->info("Let's read the dataset (for file $localFile)");
   my $dataset = $self->{DATASET}->readxml($localFile);
   #$self->info("We delete the local file ($localFile)") and `rm $localFile`;
   if (!$dataset) {
@@ -819,6 +828,53 @@ sub getJobAgentRequirements {
   }
 
   return $req;
+}
+
+sub addCVMFSRevision {
+  my $self   = shift;
+  my $job_ca = shift;
+  my $req    = shift || "";
+  my $okr;
+  my $requirements;
+  
+  if($req){
+  	$self->info("In addCVMFSRevision, we already had some requirements: $req");
+    $okr=1 and $requirements=$req;
+  } else {
+  	($okr, $requirements) = $job_ca->evaluateExpression("Requirements");
+  }  
+  $okr and $requirements 
+    or return;
+    
+  $requirements =~ /other.CVMFS_Revision/ and return 1;
+  
+  my $max_revision = 0;
+  my $revision_cache = AliEn::Util::returnCacheValue($self, "cvmfs_revision");
+  if(!$revision_cache){
+	$revision_cache = `attr -qg revision /cvmfs/alice.cern.ch`;
+	AliEn::Util::setCacheValue($self, "cvmfs_revision", $revision_cache, 120);
+  }
+  
+  # In case of CVMFS error we put jobs to lower revision...
+  $revision_cache 
+    or $self->info("Could not get CVMFS revision number!") and $revision_cache=0;
+  
+  $self->info("CVMFS revision is $revision_cache");
+  my ($ok, @packages) = $job_ca->evaluateAttributeVectorString("Packages");
+  if ($ok and scalar(@packages)){  
+	  foreach my $package (@packages) {
+	  	my $tmp_revision = $self->{DB}->getOrInsertRevisionPackage($package, $revision_cache);
+	  	$self->info("Package $package Revision $tmp_revision");
+		$tmp_revision > $max_revision and $max_revision = $tmp_revision;
+	  }
+
+	  $requirements .= " && (other.CVMFS_Revision >= $max_revision)";
+	  $self->info("New requirements after CVMFS: $requirements");
+	  $job_ca->set_expression("Requirements", $requirements) and return (2,$job_ca,$requirements)
+	    or return;
+  }
+  
+  return 1;
 }
 
 return 1;
